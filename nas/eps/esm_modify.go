@@ -22,9 +22,9 @@ type ModifyEPSBearerContextRequest struct {
 // modifyEPSBearerContextRequestIEs are the optional IEs Ella Core sends in a
 // MODIFY EPS BEARER CONTEXT REQUEST (TS 24.301 §8.3.18), in message order.
 var modifyEPSBearerContextRequestIEs = []common.OptionalIE{
-	{IEI: ieiNewEPSQoS, Format: common.IETLV},
-	{IEI: ieiAPNAMBR, Format: common.IETLV},
-	{IEI: ieiProtocolConfigurationOptions, Format: common.IETLV},
+	{IEI: newEPSQoSIEI, Format: common.IETLV},
+	{IEI: apnAMBRIEI, Format: common.IETLV},
+	{IEI: protocolConfigurationOptionsIEI, Format: common.IETLV},
 }
 
 // Marshal encodes the MODIFY EPS BEARER CONTEXT REQUEST. The optional IEs are
@@ -35,7 +35,7 @@ func (m *ModifyEPSBearerContextRequest) Marshal() ([]byte, error) {
 	writeESMHeader(&w, m.EPSBearerIdentity, m.ProcedureTransactionIdentity, MsgModifyEPSBearerContextRequest)
 
 	if len(m.NewEPSQoS) > 0 {
-		w.U8(ieiNewEPSQoS)
+		w.U8(newEPSQoSIEI)
 
 		if err := w.LV(m.NewEPSQoS); err != nil {
 			return nil, err
@@ -43,7 +43,7 @@ func (m *ModifyEPSBearerContextRequest) Marshal() ([]byte, error) {
 	}
 
 	if len(m.APNAMBR) > 0 {
-		w.U8(ieiAPNAMBR)
+		w.U8(apnAMBRIEI)
 
 		if err := w.LV(m.APNAMBR); err != nil {
 			return nil, err
@@ -51,7 +51,7 @@ func (m *ModifyEPSBearerContextRequest) Marshal() ([]byte, error) {
 	}
 
 	if len(m.ProtocolConfigurationOptions) > 0 {
-		w.U8(ieiProtocolConfigurationOptions)
+		w.U8(protocolConfigurationOptionsIEI)
 
 		if err := w.LV(m.ProtocolConfigurationOptions); err != nil {
 			return nil, err
@@ -75,11 +75,11 @@ func ParseModifyEPSBearerContextRequest(b []byte) (*ModifyEPSBearerContextReques
 
 	if _, err := common.WalkOptionalIEs(r, modifyEPSBearerContextRequestIEs, func(iei uint8, value []byte) error {
 		switch iei {
-		case ieiNewEPSQoS:
+		case newEPSQoSIEI:
 			m.NewEPSQoS = value
-		case ieiAPNAMBR:
+		case apnAMBRIEI:
 			m.APNAMBR = value
-		case ieiProtocolConfigurationOptions:
+		case protocolConfigurationOptionsIEI:
 			m.ProtocolConfigurationOptions = value
 		}
 

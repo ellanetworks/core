@@ -5,6 +5,7 @@ package smf_test
 
 import (
 	"context"
+	"errors"
 	"net/netip"
 	"testing"
 
@@ -178,6 +179,60 @@ func TestCreateEPSSessionSGWN3Family(t *testing.T) {
 
 			if bearer.SGWN3IPv6 != tc.wantV6 {
 				t.Fatalf("S-GW IPv6 N3 = %v, want %v", bearer.SGWN3IPv6, tc.wantV6)
+			}
+		})
+	}
+}
+
+// TestCreateEPSSessionUPFFailureReleasesTunnel verifies that when the UPF
+// establish fails mid-create, the abort path releases the tunnel — freeing the
+// PDR/FAR/QER/URR IDs that ActivateTunnelAndPDR allocated before establish, even
+// though RemoteSEID is still 0 (regression for the leaked-rule-ID bug, F2).
+// releaseTunnel running is observable via the UPF DeleteSession call it issues.
+func TestCreateEPSSessionUPFFailureReleasesTunnel(t *testing.T) {
+	store, upf := epsTestSMF()
+	upf.err = errors.New("upf establish failed")
+	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+
+	if _, err := s.CreateEPSSession(context.Background(), epsRequest(1)); err == nil {
+		t.Fatal("expected create to fail when UPF establish fails")
+	}
+
+	if len(upf.deleteCalls) == 0 {
+		t.Fatal("aborted EPS session did not release the tunnel; the PDR/FAR/QER/URR IDs would leak")
+	}
+}
+
+// TestCreateEPSSessionRejectsInvalidRequest checks the EPS entry point fails a
+// request with an out-of-range EBI, an unparseable AMBR, or a malformed DNS
+// rather than silently programming a degraded bearer (F6). The UPF must not be
+// touched for a rejected request.
+func TestCreateEPSSessionRejectsInvalidRequest(t *testing.T) {
+	cases := []struct {
+		name   string
+		mutate func(*models.EPSBearerRequest)
+	}{
+		{"EBI below range", func(r *models.EPSBearerRequest) { r.EPSBearerIdentity = 4 }},
+		{"EBI above range", func(r *models.EPSBearerRequest) { r.EPSBearerIdentity = 16 }},
+		{"unparseable uplink AMBR", func(r *models.EPSBearerRequest) { r.AMBRUplink = "fast" }},
+		{"empty downlink AMBR", func(r *models.EPSBearerRequest) { r.AMBRDownlink = "" }},
+		{"malformed DNS", func(r *models.EPSBearerRequest) { r.DNS = "not-an-ip" }},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store, upf := epsTestSMF()
+			s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+
+			req := epsRequest(1)
+			tc.mutate(&req)
+
+			if _, err := s.CreateEPSSession(context.Background(), req); err == nil {
+				t.Fatalf("expected CreateEPSSession to reject %s", tc.name)
+			}
+
+			if upf.lastEstablish != nil {
+				t.Fatalf("rejected request reached the UPF for %s", tc.name)
 			}
 		})
 	}

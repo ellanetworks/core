@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+// testPPID is an arbitrary SCTP payload protocol identifier used to exercise
+// PPID plumbing; the transport is protocol-agnostic, so it carries no meaning.
+const testPPID uint32 = 60
+
 // skipIfNoSCTP skips the test if the SCTP kernel module is not loaded.
 func skipIfNoSCTP(t *testing.T) {
 	t.Helper()
@@ -177,7 +181,7 @@ func TestSendReceive(t *testing.T) {
 
 		defer func() { _ = client.Close() }()
 
-		_, err = client.WriteMsg(want, &SndRcvInfo{PPID: NGAPPPID, Stream: 0})
+		_, err = client.WriteMsg(want, &SndRcvInfo{PPID: testPPID, Stream: 0})
 		errCh <- err
 	}()
 
@@ -351,32 +355,6 @@ func TestListenerClose_UnblocksAccept(t *testing.T) {
 	}
 }
 
-// TestFd_StableAfterClose verifies that Fd() returns the same value before and
-// after Close. The fd is cached at construction time so it can be used as a
-// stable map key during connection teardown (e.g. Radios cleanup).
-func TestFd_StableAfterClose(t *testing.T) {
-	skipIfNoSCTP(t)
-
-	const port = 29305
-
-	ln := newTestListener(t, port)
-	conn := acceptOne(t, ln, port)
-
-	fdBefore := conn.Fd()
-	if fdBefore <= 0 {
-		t.Fatalf("Fd() before close = %d, want > 0", fdBefore)
-	}
-
-	if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-		t.Fatalf("Close: %v", err)
-	}
-
-	fdAfter := conn.Fd()
-	if fdAfter != fdBefore {
-		t.Errorf("Fd() after close = %d, want %d (stable)", fdAfter, fdBefore)
-	}
-}
-
 // TestReadMsg_ClosedConn verifies that ReadMsg on an already-closed connection
 // returns an error. The serveConn loop relies on this to exit cleanly when
 // Shutdown closes connections.
@@ -416,7 +394,7 @@ func TestWriteMsg_ClosedConn(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 
-	_, err := conn.WriteMsg([]byte("hello"), &SndRcvInfo{PPID: NGAPPPID})
+	_, err := conn.WriteMsg([]byte("hello"), &SndRcvInfo{PPID: testPPID})
 	if err == nil {
 		t.Fatal("WriteMsg on closed conn returned nil error, want error")
 	}

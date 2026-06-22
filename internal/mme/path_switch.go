@@ -16,10 +16,10 @@ import (
 
 // S1AP causes the MME returns in a PATH SWITCH REQUEST FAILURE (TS 36.413).
 var (
-	causeUnknownMMEUES1APID    = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 13} // unknown-mme-ue-s1ap-id
-	causeMultipleERABInstances = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 31} // multiple-E-RAB-ID-instances
-	causePathSwitchNoSecurity  = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: 1}           // authentication-failure
-	causePathSwitchUPFailure   = s1ap.Cause{Group: s1ap.CauseGroupTransport, Value: 0}     // transport-resource-unavailable
+	causeUnknownMMEUES1APID    = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnknownMMEUES1APID}
+	causeMultipleERABInstances = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkMultipleERABIDInstances}
+	causePathSwitchNoSecurity  = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASAuthenticationFailure}
+	causePathSwitchUPFailure   = s1ap.Cause{Group: s1ap.CauseGroupTransport, Value: s1ap.CauseTransportResourceUnavailable}
 )
 
 // handlePathSwitchRequest handles an X2-handover PATH SWITCH REQUEST from the
@@ -202,7 +202,7 @@ func (m *MME) pathSwitchSecurityCapabilities(ue *UeContext, received s1ap.UESecu
 	}
 
 	// The S1AP encoding drops the EEA0/EIA0 bit, so shift the UE network capability
-	// octet left, matching the Initial Context Setup encoding.
+	// octet left.
 	stored := s1ap.UESecurityCapabilities{
 		EncryptionAlgorithms:          uint16(uecap.EEA<<1) << 8,
 		IntegrityProtectionAlgorithms: uint16(uecap.EIA<<1) << 8,

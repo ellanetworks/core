@@ -11,7 +11,7 @@ import (
 
 // ERABToBeSetupItemBearerSUReq ::= SEQUENCE { e-RAB-ID, e-RABlevelQoSParameters,
 // transportLayerAddress, gTP-TEID, nAS-PDU, iE-Extensions OPTIONAL }
-// (extensible). It mirrors the context-setup item but the NAS-PDU is mandatory:
+// (extensible). The NAS-PDU is mandatory:
 // the E-RAB Setup carries the ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST for an
 // additional PDN connection (TS 36.413 §9.1.3.1).
 type ERABToBeSetupItemBearerSUReq struct {
@@ -44,9 +44,7 @@ func (it ERABToBeSetupItemBearerSUReq) encode(w *aper.Writer) error {
 	return it.NASPDU.encode(w)
 }
 
-func decodeERABToBeSetupItemBearerSUReq(value []byte) (ERABToBeSetupItemBearerSUReq, error) {
-	r := aper.NewReader(value)
-
+func decodeERABToBeSetupItemBearerSUReq(r *aper.Reader) (ERABToBeSetupItemBearerSUReq, error) {
 	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
 	if err != nil {
 		return ERABToBeSetupItemBearerSUReq{}, err
@@ -74,7 +72,7 @@ func decodeERABToBeSetupItemBearerSUReq(value []byte) (ERABToBeSetupItemBearerSU
 		return it, err
 	}
 
-	if err := skipQoSExtensions(r, opt[0], extPresent); err != nil {
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
 		return it, err
 	}
 
@@ -101,11 +99,6 @@ type ERABSetupRequest struct {
 func (m *ERABSetupRequest) encodeBody(w *aper.Writer) error {
 	w.WriteSequencePreamble(true, false, nil)
 
-	erabEncoders := make([]func(*aper.Writer) error, len(m.ERABToBeSetup))
-	for i := range m.ERABToBeSetup {
-		erabEncoders[i] = m.ERABToBeSetup[i].encode
-	}
-
 	fields := []ieField{
 		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
 		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
@@ -117,7 +110,7 @@ func (m *ERABSetupRequest) encodeBody(w *aper.Writer) error {
 	}
 
 	fields = append(fields, ieField{id: idERABToBeSetupListBearerSUReq, crit: CriticalityReject, enc: func(w *aper.Writer) error {
-		return encodeSingleContainerList(w, maxnoofERABs, idERABToBeSetupItemBearerSUReq, CriticalityReject, erabEncoders)
+		return encodeSingleContainerList(w, maxnoofERABs, idERABToBeSetupItemBearerSUReq, CriticalityReject, encoderList(m.ERABToBeSetup))
 	}})
 
 	for _, e := range m.unknownIEs {
@@ -202,23 +195,7 @@ func ParseERABSetupRequest(value []byte) (*ERABSetupRequest, error) {
 }
 
 func decodeERABToBeSetupBearerList(r *aper.Reader) ([]ERABToBeSetupItemBearerSUReq, error) {
-	raw, err := decodeSingleContainerList(r, maxnoofERABs)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([]ERABToBeSetupItemBearerSUReq, 0, len(raw))
-
-	for _, b := range raw {
-		it, err := decodeERABToBeSetupItemBearerSUReq(b)
-		if err != nil {
-			return nil, err
-		}
-
-		out = append(out, it)
-	}
-
-	return out, nil
+	return decodeItemList(r, maxnoofERABs, decodeERABToBeSetupItemBearerSUReq)
 }
 
 // ERABSetupResponse is the E-RAB SETUP RESPONSE message (TS 36.413 §9.1.3.2),
@@ -243,24 +220,14 @@ func (m *ERABSetupResponse) encodeBody(w *aper.Writer) error {
 	}
 
 	if len(m.ERABSetup) > 0 {
-		setupEncoders := make([]func(*aper.Writer) error, len(m.ERABSetup))
-		for i := range m.ERABSetup {
-			setupEncoders[i] = m.ERABSetup[i].encode
-		}
-
 		fields = append(fields, ieField{id: idERABSetupListBearerSURes, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABSetupItemBearerSURes, CriticalityIgnore, setupEncoders)
+			return encodeSingleContainerList(w, maxnoofERABs, idERABSetupItemBearerSURes, CriticalityIgnore, encoderList(m.ERABSetup))
 		}})
 	}
 
 	if len(m.ERABFailedToSetup) > 0 {
-		failedEncoders := make([]func(*aper.Writer) error, len(m.ERABFailedToSetup))
-		for i := range m.ERABFailedToSetup {
-			failedEncoders[i] = m.ERABFailedToSetup[i].encode
-		}
-
 		fields = append(fields, ieField{id: idERABFailedToSetupListBearerSURes, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABItem, CriticalityIgnore, failedEncoders)
+			return encodeSingleContainerList(w, maxnoofERABs, idERABItem, CriticalityIgnore, encoderList(m.ERABFailedToSetup))
 		}})
 	}
 

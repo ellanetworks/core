@@ -54,7 +54,7 @@ func TestServer_DispatchesMatchingPPID(t *testing.T) {
 	// The PPID travels big-endian on the wire (TS 36.412 §7), which the server
 	// converts back with PPIDWireOrder before comparing.
 	// A message on a non-S1AP PPID must be discarded by the server.
-	if _, err := client.WriteMsg([]byte("wrong-ppid"), &SndRcvInfo{PPID: PPIDWireOrder(NGAPPPID), Stream: 0}); err != nil {
+	if _, err := client.WriteMsg([]byte("wrong-ppid"), &SndRcvInfo{PPID: PPIDWireOrder(testPPID), Stream: 0}); err != nil {
 		t.Fatalf("WriteMsg wrong PPID: %v", err)
 	}
 

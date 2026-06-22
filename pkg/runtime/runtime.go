@@ -548,7 +548,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	nasLogger.SetLogLevel(0) // Suppress free5gc NAS log output
 
 	sctpServer := amfsctp.NewServer(amfsctp.Config{
-		PPID:   amfsctp.NGAPPPID,
+		PPID:   send.NGAPPPID,
 		Name:   "NGAP",
 		Logger: logger.AmfLog,
 	}, amfsctp.Callbacks{
@@ -561,7 +561,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		OnDisconnect: func(conn *amfsctp.SCTPConn) {
 			if ran, ok := amfInstance.FindRadioByConn(conn); ok {
 				amfInstance.RemoveRadio(context.Background(), ran)
-				logger.AmfLog.Info("removed radio on connection close", zap.Int("fd", conn.Fd()))
+				logger.AmfLog.Info("removed radio on connection close")
 			}
 		},
 	})

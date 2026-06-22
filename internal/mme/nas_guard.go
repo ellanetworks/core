@@ -105,22 +105,17 @@ func (m *MME) onNASGuardExpiry(ue *UeContext, gen uint64) {
 		mmeUEID := ue.MMEUES1APID
 		abortOnly := ue.nasGuardAbortOnly
 
-		// An aborted modification leaves the UE connected and its data-network
-		// fingerprint stale, so the backstop reconcile retries it later.
-		if abortOnly {
-			if p := ue.defaultPDN(); p != nil {
-				p.modifying = false
-				p.pendingDNConfig = ""
-				p.pendingSessAmbrDLBps = 0
-				p.pendingSessAmbrULBps = 0
-				p.pendingQCI = 0
-				p.pendingARP = 0
-			}
-		}
-
 		m.mu.Unlock()
 
 		if abortOnly {
+			// An aborted modification leaves the UE connected and its data-network
+			// fingerprint stale, so the backstop reconcile retries it later.
+			ue.mu.Lock()
+			if p := ue.defaultPDNLocked(); p != nil {
+				clearPendingModifyLocked(p)
+			}
+			ue.mu.Unlock()
+
 			logger.MmeLog.Info("NAS procedure timed out, aborting (UE stays connected)",
 				zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.String("procedure", name))
 

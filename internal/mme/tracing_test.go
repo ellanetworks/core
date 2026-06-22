@@ -8,22 +8,12 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/s1ap"
-	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 // TestDispatchRecordsReceiveSpan verifies the MME emits an s1ap/receive span for
 // every inbound S1AP message, so 4G control-plane traffic is traceable.
 func TestDispatchRecordsReceiveSpan(t *testing.T) {
-	sr := tracetest.NewSpanRecorder()
-	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
-
-	prev := otel.GetTracerProvider()
-
-	otel.SetTracerProvider(tp)
-	t.Cleanup(func() { otel.SetTracerProvider(prev) })
-
 	m := newTestMME(t)
 
 	raw, err := (&s1ap.InitialUEMessage{
@@ -37,13 +27,17 @@ func TestDispatchRecordsReceiveSpan(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	before := len(testSpanRecorder.Ended())
+
 	// A nil conn gates the message, but the receive span is created and ended
 	// before the gate, so it is recorded regardless.
 	m.dispatch(context.Background(), nil, raw)
 
+	emitted := testSpanRecorder.Ended()[before:]
+
 	var receive sdktrace.ReadOnlySpan
 
-	for _, s := range sr.Ended() {
+	for _, s := range emitted {
 		if s.Name() == "s1ap/receive" {
 			receive = s
 			break
@@ -51,7 +45,7 @@ func TestDispatchRecordsReceiveSpan(t *testing.T) {
 	}
 
 	if receive == nil {
-		t.Fatalf("no s1ap/receive span recorded; got %d spans", len(sr.Ended()))
+		t.Fatalf("no s1ap/receive span recorded; got %d spans from dispatch", len(emitted))
 	}
 
 	var sawMessageType bool

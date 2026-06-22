@@ -24,17 +24,6 @@ type AttachAccept struct {
 	EPSNetworkFeatureSupport *EPSNetworkFeatureSupport
 }
 
-// gutiIEI is the IEI of the GUTI information element in ATTACH ACCEPT
-// (TS 24.301 §8.2.1); emmCauseIEI is the IEI of the EMM cause information
-// element in ATTACH ACCEPT and TRACKING AREA UPDATE ACCEPT (TS 24.301 §9.9.3.9);
-// epsNetworkFeatureSupportIEI is the IEI of the EPS network feature support IE in
-// ATTACH ACCEPT and TRACKING AREA UPDATE ACCEPT (TS 24.301 §9.9.3.12A).
-const (
-	gutiIEI                     = 0x50
-	emmCauseIEI                 = 0x53
-	epsNetworkFeatureSupportIEI = 0x64
-)
-
 // attachAcceptIEs are the optional IEs Ella Core emits in an ATTACH ACCEPT
 // (TS 24.301 §8.2.1): the assigned GUTI, the EMM cause, and the EPS network
 // feature support. EMM cause is a type-3 IE with a one-octet value; the others

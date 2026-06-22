@@ -103,7 +103,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 	p0 := testPDN(ue)
 	p0.apn = "internet"
 
-	apnIE, err := eps.EncodeAPN("ims")
+	apnIE, err := eps.MarshalAPN("ims")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,11 +225,11 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal("UE removed by a single-PDN disconnect; expected it to stay registered")
 	}
 
-	if ue.emmState != EMMRegistered {
-		t.Fatalf("UE emmState = %v after PDN disconnect, want EMMRegistered", ue.emmState)
+	if ue.emmState.load() != EMMRegistered {
+		t.Fatalf("UE emmState = %v after PDN disconnect, want EMMRegistered", ue.emmState.load())
 	}
 
-	if ue.defaultPDN() == nil || ue.defaultPDN().apn != "internet" {
+	if p := m.defaultPDN(ue); p == nil || p.apn != "internet" {
 		t.Fatal("default PDN disturbed by the second PDN's disconnect")
 	}
 }
@@ -274,7 +274,7 @@ func TestAdditionalPDNRejectedUnknownAPN(t *testing.T) {
 	p0 := testPDN(ue)
 	p0.apn = "internet"
 
-	apnIE, err := eps.EncodeAPN("enterprise")
+	apnIE, err := eps.MarshalAPN("enterprise")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +306,7 @@ func TestAdditionalPDNRejectedUnknownAPN(t *testing.T) {
 // header of a PDN Connectivity Request (TS 24.301 §7.3): an unassigned/reserved
 // PTI is rejected with ESM cause #81, a non-zero header EBI with #43.
 func TestPDNConnectivityRejectedInvalidHeader(t *testing.T) {
-	apnIE, err := eps.EncodeAPN("ims")
+	apnIE, err := eps.MarshalAPN("ims")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -403,7 +403,7 @@ func TestLastPDNDisconnectRejected(t *testing.T) {
 
 	m.onPDNDisconnectRequest(context.Background(), ue, dis)
 
-	if ue.defaultPDN() == nil {
+	if m.defaultPDN(ue) == nil {
 		t.Fatal("the only PDN was disconnected; expected it to be retained")
 	}
 

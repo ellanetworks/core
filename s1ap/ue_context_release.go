@@ -71,16 +71,8 @@ func decodeUES1APIDs(r *aper.Reader) (UES1APIDs, error) {
 			return UES1APIDs{}, err
 		}
 
-		if opt[0] {
-			if err := skipExtensionContainer(r); err != nil {
-				return UES1APIDs{}, err
-			}
-		}
-
-		if extPresent {
-			if err := r.SkipExtensionAdditions(); err != nil {
-				return UES1APIDs{}, err
-			}
+		if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
+			return UES1APIDs{}, err
 		}
 
 		return UES1APIDs{MMEUES1APID: mme, ENBUES1APID: enb, Pair: true}, nil

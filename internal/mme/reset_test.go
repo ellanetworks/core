@@ -59,7 +59,7 @@ func TestS1ResetWholeInterface(t *testing.T) {
 	testPDN(ue1).apn = "internet"
 
 	ue2 := m.newUe(cc, 8)
-	ue2.emmState = EMMRegistered
+	ue2.emmState.store(EMMRegistered)
 	testPDN(ue2).apn = "internet"
 
 	other, _ := securedUE(t, m)
@@ -74,14 +74,14 @@ func TestS1ResetWholeInterface(t *testing.T) {
 			t.Fatalf("registered UE %d deleted by S1 reset; expected ECM-IDLE retention", ue.MMEUES1APID)
 		}
 
-		if got.ecmState != ECMIdle {
-			t.Fatalf("UE %d ecmState = %v, want ECMIdle after S1 reset", ue.MMEUES1APID, got.ecmState)
+		if got.ecmState.load() != ECMIdle {
+			t.Fatalf("UE %d ecmState = %v, want ECMIdle after S1 reset", ue.MMEUES1APID, got.ecmState.load())
 		}
 
 		m.removeUe(ue.MMEUES1APID) // stop the default-duration timer
 	}
 
-	if got, ok := m.lookupUe(other.MMEUES1APID); !ok || got.ecmState != ECMConnected {
+	if got, ok := m.lookupUe(other.MMEUES1APID); !ok || got.ecmState.load() != ECMConnected {
 		t.Fatal("UE on another association disturbed by S1 reset")
 	}
 
@@ -103,7 +103,7 @@ func TestS1ResetPartOfInterface(t *testing.T) {
 	testPDN(ue1).apn = "internet"
 
 	ue2 := m.newUe(cc, 8)
-	ue2.emmState = EMMRegistered
+	ue2.emmState.store(EMMRegistered)
 	testPDN(ue2).apn = "internet"
 
 	mmeID := ue1.MMEUES1APID
@@ -118,13 +118,13 @@ func TestS1ResetPartOfInterface(t *testing.T) {
 	}))
 
 	got1, ok := m.lookupUe(mmeID)
-	if !ok || got1.ecmState != ECMIdle {
-		t.Fatalf("listed UE not released to ECM-IDLE: ok=%v state=%v", ok, got1.ecmState)
+	if !ok || got1.ecmState.load() != ECMIdle {
+		t.Fatalf("listed UE not released to ECM-IDLE: ok=%v state=%v", ok, got1.ecmState.load())
 	}
 
 	m.removeUe(mmeID)
 
-	if got2, ok := m.lookupUe(ue2.MMEUES1APID); !ok || got2.ecmState != ECMConnected {
+	if got2, ok := m.lookupUe(ue2.MMEUES1APID); !ok || got2.ecmState.load() != ECMConnected {
 		t.Fatal("unlisted UE disturbed by part-of-interface reset")
 	}
 
@@ -145,7 +145,7 @@ func TestS1ResetDropsMidAttachUE(t *testing.T) {
 	m := newTestMME(t)
 
 	ue, cc := securedUE(t, m)
-	ue.emmState = EMMDeregistered // attach not yet completed
+	ue.emmState.store(EMMDeregistered) // attach not yet completed
 	testPDN(ue).apn = "internet"
 
 	cause := s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}

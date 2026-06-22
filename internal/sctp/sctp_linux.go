@@ -21,6 +21,7 @@
 package sctp
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
@@ -63,8 +64,9 @@ func getsockopt(fd int, optname, optval, optlen uintptr) error {
 }
 
 // listenRawConn is a minimal syscall.RawConn used only during listener socket
-// setup (before the socket is wrapped in os.File). Read and Write panic
-// because they should never be called during setup.
+// setup (before the socket is wrapped in os.File). It supports only Control;
+// Read and Write return an error rather than panic, since they are never part of
+// listener setup but must not crash the process if a future path reaches them.
 type listenRawConn struct {
 	sockfd int
 }
@@ -75,11 +77,11 @@ func (r listenRawConn) Control(f func(fd uintptr)) error {
 }
 
 func (r listenRawConn) Read(func(fd uintptr) (done bool)) error {
-	panic("listenRawConn: Read not supported")
+	return fmt.Errorf("sctp: Read not supported on a listener control connection")
 }
 
 func (r listenRawConn) Write(func(fd uintptr) (done bool)) error {
-	panic("listenRawConn: Write not supported")
+	return fmt.Errorf("sctp: Write not supported on a listener control connection")
 }
 
 // WriteMsg sends data with optional SCTP ancillary info. Uses Go's runtime
@@ -127,7 +129,10 @@ func parseSndRcvInfo(b []byte) (*SndRcvInfo, error) {
 		if m.Header.Level == syscall.IPPROTO_SCTP {
 			switch m.Header.Type {
 			case SCTPCMsgSndRcv:
-				return (*SndRcvInfo)(unsafe.Pointer(&m.Data[0])), nil
+				// Copy the struct out of the syscall control buffer so the
+				// returned pointer does not alias storage the caller reuses.
+				info := *(*SndRcvInfo)(unsafe.Pointer(&m.Data[0]))
+				return &info, nil
 			}
 		}
 	}
@@ -136,28 +141,28 @@ func parseSndRcvInfo(b []byte) (*SndRcvInfo, error) {
 }
 
 func parseNotification(b []byte) Notification {
-	snType := SCTPNotificationType(nativeEndian.Uint16(b[:2]))
+	snType := SCTPNotificationType(binary.NativeEndian.Uint16(b[:2]))
 
 	switch snType {
 	case SCTPShutdownEvent:
 		notification := SCTPShutdownEventNotification{
-			sseType:    nativeEndian.Uint16(b[:2]),
-			sseFlags:   nativeEndian.Uint16(b[2:4]),
-			sseLength:  nativeEndian.Uint32(b[4:8]),
-			sseAssocID: SCTPAssocID(nativeEndian.Uint32(b[8:])),
+			sseType:    binary.NativeEndian.Uint16(b[:2]),
+			sseFlags:   binary.NativeEndian.Uint16(b[2:4]),
+			sseLength:  binary.NativeEndian.Uint32(b[4:8]),
+			sseAssocID: SCTPAssocID(binary.NativeEndian.Uint32(b[8:])),
 		}
 
 		return &notification
 	case SCTPAssocChange:
 		notification := SCTPAssocChangeEvent{
-			sacType:            nativeEndian.Uint16(b[:2]),
-			sacFlags:           nativeEndian.Uint16(b[2:4]),
-			sacLength:          nativeEndian.Uint32(b[4:8]),
-			sacState:           SCTPState(nativeEndian.Uint16(b[8:10])),
-			sacError:           nativeEndian.Uint16(b[10:12]),
-			sacOutboundStreams: nativeEndian.Uint16(b[12:14]),
-			sacInboundStreams:  nativeEndian.Uint16(b[14:16]),
-			sacAssocID:         SCTPAssocID(nativeEndian.Uint32(b[16:20])),
+			sacType:            binary.NativeEndian.Uint16(b[:2]),
+			sacFlags:           binary.NativeEndian.Uint16(b[2:4]),
+			sacLength:          binary.NativeEndian.Uint32(b[4:8]),
+			sacState:           SCTPState(binary.NativeEndian.Uint16(b[8:10])),
+			sacError:           binary.NativeEndian.Uint16(b[10:12]),
+			sacOutboundStreams: binary.NativeEndian.Uint16(b[12:14]),
+			sacInboundStreams:  binary.NativeEndian.Uint16(b[14:16]),
+			sacAssocID:         SCTPAssocID(binary.NativeEndian.Uint32(b[16:20])),
 			sacInfo:            b[20:],
 		}
 
@@ -244,83 +249,9 @@ func (c *SCTPConn) Close() error {
 	return c.file.Close()
 }
 
-func (c *SCTPConn) SetWriteBuffer(bytes int) error {
-	return c.controlFd(func(fd int) error {
-		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_SNDBUF, bytes)
-	})
-}
-
-func (c *SCTPConn) GetWriteBuffer() (int, error) {
-	var val int
-
-	err := c.controlFd(func(fd int) error {
-		var e error
-
-		val, e = syscall.GetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_SNDBUF)
-
-		return e
-	})
-
-	return val, err
-}
-
 func (c *SCTPConn) SetReadBuffer(bytes int) error {
 	return c.controlFd(func(fd int) error {
 		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, bytes)
-	})
-}
-
-func (c *SCTPConn) GetReadBuffer() (int, error) {
-	var val int
-
-	err := c.controlFd(func(fd int) error {
-		var e error
-
-		val, e = syscall.GetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF)
-
-		return e
-	})
-
-	return val, err
-}
-
-func (c *SCTPConn) GetRtoInfo() (*RtoInfo, error) {
-	var info *RtoInfo
-
-	err := c.controlFd(func(fd int) error {
-		var e error
-
-		info, e = getRtoInfo(fd)
-
-		return e
-	})
-
-	return info, err
-}
-
-func (c *SCTPConn) SetRtoInfo(rtoInfo RtoInfo) error {
-	return c.controlFd(func(fd int) error {
-		return setRtoInfo(fd, rtoInfo)
-	})
-}
-
-func (c *SCTPConn) GetAssocInfo() (*AssocInfo, error) {
-	var info *AssocInfo
-
-	err := c.controlFd(func(fd int) error {
-		var e error
-
-		info, e = getAssocInfo(fd)
-
-		return e
-	})
-
-	return info, err
-}
-
-func (c *SCTPConn) SetAssocInfo(info AssocInfo) error {
-	return c.controlFd(func(fd int) error {
-		return setAssocInfo(fd, info)
 	})
 }
 

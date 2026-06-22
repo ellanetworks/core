@@ -75,7 +75,7 @@ func TestTrackingAreaUpdateConnectedAccepted(t *testing.T) {
 		t.Fatalf("EPS-only TAU Accept carries EMM cause #%d, want none", *parsed.EMMCause)
 	}
 
-	if ue.emmState != EMMRegistered || ue.ecmState != ECMConnected {
+	if ue.emmState.load() != EMMRegistered || ue.ecmState.load() != ECMConnected {
 		t.Fatal("UE should remain registered and connected after a periodic TAU")
 	}
 }
@@ -231,7 +231,7 @@ func TestTrackingAreaUpdateIdleNoActiveFlagReleases(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 	ue.mtmsi = 1 // a GUTI to reallocate
-	ue.ecmState = ECMIdle
+	ue.ecmState.store(ECMIdle)
 
 	m.onTrackingAreaUpdate(context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x00})
 
@@ -243,7 +243,7 @@ func TestTrackingAreaUpdateIdleNoActiveFlagReleases(t *testing.T) {
 	// The UE is ECM-CONNECTED for the exchange so its TAU Complete resolves on the
 	// re-established connection (would be dropped as "no active connection"
 	// otherwise, TS 36.413 §10.6).
-	if ue.ecmState != ECMConnected {
+	if ue.ecmState.load() != ECMConnected {
 		t.Fatal("UE not ECM-CONNECTED for the TAU exchange; TAU Complete would be rejected")
 	}
 
@@ -264,7 +264,7 @@ func TestTrackingAreaUpdateIdleNoActiveFlagReleases(t *testing.T) {
 
 	parseUEContextReleaseCommand(t, cc.sent[1])
 
-	if ue.emmState != EMMRegistered {
+	if ue.emmState.load() != EMMRegistered {
 		t.Fatal("UE should remain EMM-REGISTERED after a periodic TAU")
 	}
 }
@@ -279,7 +279,7 @@ func TestTrackingAreaUpdateIdleActiveFlagReestablishes(t *testing.T) {
 
 	m.onTrackingAreaUpdate(context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x08})
 
-	if ue.ecmState != ECMConnected {
+	if ue.ecmState.load() != ECMConnected {
 		t.Fatal("UE not ECM-CONNECTED after an active-flag TAU")
 	}
 

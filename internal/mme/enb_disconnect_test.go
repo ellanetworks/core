@@ -19,8 +19,8 @@ func TestENBDisconnectRetainsRegisteredUE(t *testing.T) {
 		t.Fatal("registered UE deleted on eNB disconnect; expected ECM-IDLE retention")
 	}
 
-	if got.ecmState != ECMIdle {
-		t.Fatalf("ecmState = %v, want ECMIdle after eNB disconnect", got.ecmState)
+	if got.ecmState.load() != ECMIdle {
+		t.Fatalf("ecmState = %v, want ECMIdle after eNB disconnect", got.ecmState.load())
 	}
 
 	if got.mobileReachableTimer == nil {
@@ -39,7 +39,7 @@ func TestENBDisconnectRetainsRegisteredUE(t *testing.T) {
 func TestENBDisconnectDropsMidAttachUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	ue.emmState = EMMDeregistered // attach not yet completed
+	ue.emmState.store(EMMDeregistered) // attach not yet completed
 	testPDN(ue).apn = "internet"
 
 	m.reclaimUEsOnConnLoss(cc)
@@ -58,7 +58,7 @@ func TestENBDisconnectDropsMidAttachUE(t *testing.T) {
 func TestENBDisconnectLeavesIdleUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	ue.ecmState = ECMIdle // already idle, own mobile reachable supervision
+	ue.ecmState.store(ECMIdle) // already idle, own mobile reachable supervision
 
 	m.reclaimUEsOnConnLoss(cc)
 
@@ -67,8 +67,8 @@ func TestENBDisconnectLeavesIdleUE(t *testing.T) {
 		t.Fatal("idle UE removed on eNB disconnect")
 	}
 
-	if got.ecmState != ECMIdle {
-		t.Fatalf("idle UE ecmState changed to %v on eNB disconnect", got.ecmState)
+	if got.ecmState.load() != ECMIdle {
+		t.Fatalf("idle UE ecmState changed to %v on eNB disconnect", got.ecmState.load())
 	}
 
 	if m.session.(*fakeSessionManager).deactivated {

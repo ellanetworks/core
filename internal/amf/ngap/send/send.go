@@ -20,6 +20,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// NGAPPPID is the SCTP payload protocol identifier for NGAP (TS 38.412 §7),
+// set on every NGAP datagram the AMF sends and required on the listener.
+const NGAPPPID uint32 = 60
+
 var tracer = otel.Tracer("ella-core/amf/ngap/send")
 
 type RealNGAPSender struct {
@@ -64,7 +68,7 @@ func (s *RealNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType N
 
 	info := sctp.SndRcvInfo{
 		Stream: sid,
-		PPID:   sctp.PPIDWireOrder(sctp.NGAPPPID),
+		PPID:   sctp.PPIDWireOrder(NGAPPPID),
 	}
 	if _, err := s.Conn.WriteMsg(packet, &info); err != nil {
 		return fmt.Errorf("send write to sctp connection: %s", err.Error())

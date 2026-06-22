@@ -32,9 +32,7 @@ func (it ERABToBeSwitchedDLItem) encode(w *aper.Writer) error {
 	return it.GTPTEID.encode(w)
 }
 
-func decodeERABToBeSwitchedDLItem(value []byte) (ERABToBeSwitchedDLItem, error) {
-	r := aper.NewReader(value)
-
+func decodeERABToBeSwitchedDLItem(r *aper.Reader) (ERABToBeSwitchedDLItem, error) {
 	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
 	if err != nil {
 		return ERABToBeSwitchedDLItem{}, err
@@ -54,7 +52,7 @@ func decodeERABToBeSwitchedDLItem(value []byte) (ERABToBeSwitchedDLItem, error) 
 		return it, err
 	}
 
-	if err := skipQoSExtensions(r, opt[0], extPresent); err != nil {
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
 		return it, err
 	}
 
@@ -62,23 +60,7 @@ func decodeERABToBeSwitchedDLItem(value []byte) (ERABToBeSwitchedDLItem, error) 
 }
 
 func decodeERABToBeSwitchedDLList(r *aper.Reader) ([]ERABToBeSwitchedDLItem, error) {
-	raw, err := decodeSingleContainerList(r, maxnoofERABs)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([]ERABToBeSwitchedDLItem, 0, len(raw))
-
-	for _, b := range raw {
-		it, err := decodeERABToBeSwitchedDLItem(b)
-		if err != nil {
-			return nil, err
-		}
-
-		out = append(out, it)
-	}
-
-	return out, nil
+	return decodeItemList(r, maxnoofERABs, decodeERABToBeSwitchedDLItem)
 }
 
 // SecurityContext ::= SEQUENCE { nextHopChainingCount INTEGER (0..7),
@@ -115,7 +97,7 @@ func decodeSecurityContext(r *aper.Reader) (SecurityContext, error) {
 		return SecurityContext{}, err
 	}
 
-	if err := skipQoSExtensions(r, opt[0], extPresent); err != nil {
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
 		return SecurityContext{}, err
 	}
 
@@ -140,15 +122,10 @@ type PathSwitchRequest struct {
 func (m *PathSwitchRequest) encodeBody(w *aper.Writer) error {
 	w.WriteSequencePreamble(true, false, nil)
 
-	erabEncoders := make([]func(*aper.Writer) error, len(m.ERABToBeSwitchedDL))
-	for i := range m.ERABToBeSwitchedDL {
-		erabEncoders[i] = m.ERABToBeSwitchedDL[i].encode
-	}
-
 	fields := []ieField{
 		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
 		{id: idERABToBeSwitchedDLList, crit: CriticalityReject, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABToBeSwitchedDLItem, CriticalityReject, erabEncoders)
+			return encodeSingleContainerList(w, maxnoofERABs, idERABToBeSwitchedDLItem, CriticalityReject, encoderList(m.ERABToBeSwitchedDL))
 		}},
 		{id: idSourceMMEUES1APID, crit: CriticalityReject, enc: m.SourceMMEUES1APID.encode},
 		{id: idEUTRANCGI, crit: CriticalityIgnore, enc: m.EUTRANCGI.encode},

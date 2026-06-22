@@ -28,7 +28,7 @@ func (m *MME) onServiceRequest(ctx context.Context, conn nasWriter, msg *s1ap.In
 	}
 
 	ue, ok := m.lookupUeByMTMSI(msg.STMSI.MTMSI)
-	if !ok || ue.emmState != EMMRegistered {
+	if !ok || ue.emmState.load() != EMMRegistered {
 		logger.MmeLog.Info("Service Request for an unknown or deregistered UE",
 			zap.Uint32("m-tmsi", msg.STMSI.MTMSI))
 		m.sendServiceReject(ctx, conn, msg.ENBUES1APID, emmCauseUEIdentityUnderivable)
@@ -68,7 +68,7 @@ func (m *MME) onServiceRequest(ctx context.Context, conn nasWriter, msg *s1ap.In
 	}
 
 	ue.ulCount++
-	ue.ecmState = ECMConnected
+	ue.ecmState.store(ECMConnected)
 
 	logger.MmeLog.Info("Service Request accepted",
 		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),

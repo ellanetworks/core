@@ -1,4 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
+//go:build linux && !386
+
 // Copyright 2019 Wataru Ishida. All rights reserved.
 // Modified by Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
@@ -32,10 +34,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
-)
-
-const (
-	NGAPPPID uint32 = 60
 )
 
 const (
@@ -151,7 +149,7 @@ type RtoInfo struct {
 	SrtoAssocID int32
 	SrtoInitial uint32
 	SrtoMax     uint32
-	StroMin     uint32
+	SrtoMin     uint32
 }
 
 // Association Parameters defined in RFC 6458 8.1
@@ -190,18 +188,6 @@ type SndInfo struct {
 	AssocID int32
 }
 
-type GetAddrsOld struct {
-	AssocID int32
-	AddrNum int32
-	Addrs   uintptr
-}
-
-type NotificationHeader struct {
-	Type   uint16
-	Flags  uint16
-	Length uint32
-}
-
 type SCTPState uint16
 
 const (
@@ -212,21 +198,13 @@ const (
 	SCTPCantStrAssoc
 )
 
-var nativeEndian binary.ByteOrder
-
-func init() {
-	i := uint16(1)
-	if *(*byte)(unsafe.Pointer(&i)) == 0 {
-		nativeEndian = binary.BigEndian
-	} else {
-		nativeEndian = binary.LittleEndian
-	}
-}
-
+// toBuf serialises a fixed-size struct or scalar to its native-endian bytes for
+// a syscall buffer. binary.Write only errors on a variable-size type, which the
+// fixed-layout syscall structs passed here never are; the Warn is a backstop.
 func toBuf(v any) []byte {
 	var buf bytes.Buffer
 
-	err := binary.Write(&buf, nativeEndian, v)
+	err := binary.Write(&buf, binary.NativeEndian, v)
 	if err != nil {
 		logger.AmfLog.Warn("failed to write binary", zap.Error(err))
 	}
@@ -234,12 +212,14 @@ func toBuf(v any) []byte {
 	return buf.Bytes()
 }
 
+// htons converts a host-order uint16 to network order (big-endian); ntohs is the
+// inverse, which for a two-byte swap is the same operation.
 func htons(h uint16) uint16 {
-	if nativeEndian == binary.LittleEndian {
-		return (h << 8 & 0xff00) | (h >> 8 & 0xff)
-	}
+	var b [2]byte
 
-	return h
+	binary.BigEndian.PutUint16(b[:], h)
+
+	return binary.NativeEndian.Uint16(b[:])
 }
 
 var ntohs = htons
@@ -253,35 +233,11 @@ func setInitOpts(fd int, options InitMsg) error {
 	return err
 }
 
-func getRtoInfo(fd int) (*RtoInfo, error) {
-	rtoInfo := RtoInfo{}
-	rtolen := unsafe.Sizeof(rtoInfo)
-
-	err := getsockopt(fd, SCTPRtoInfo, uintptr(unsafe.Pointer(&rtoInfo)), uintptr(unsafe.Pointer(&rtolen)))
-	if err != nil {
-		return nil, err
-	}
-
-	return &rtoInfo, err
-}
-
 func setRtoInfo(fd int, rtoInfo RtoInfo) error {
 	rtolen := unsafe.Sizeof(rtoInfo)
 	err := setsockopt(fd, SCTPRtoInfo, uintptr(unsafe.Pointer(&rtoInfo)), rtolen)
 
 	return err
-}
-
-func getAssocInfo(fd int) (*AssocInfo, error) {
-	info := AssocInfo{}
-	optlen := unsafe.Sizeof(info)
-
-	err := getsockopt(fd, SCTPAssocInfo, uintptr(unsafe.Pointer(&info)), uintptr(unsafe.Pointer(&optlen)))
-	if err != nil {
-		return nil, err
-	}
-
-	return &info, nil
 }
 
 func setAssocInfo(fd int, info AssocInfo) error {
@@ -388,7 +344,6 @@ func SCTPBind(fd int, addr *SCTPAddr, flags int) error {
 }
 
 type SCTPConn struct {
-	fd     int
 	file   *os.File
 	rc     syscall.RawConn
 	closed atomic.Bool
@@ -413,12 +368,6 @@ func (c *SCTPConn) controlFd(fn func(fd int) error) error {
 	return err
 }
 
-// Fd returns the underlying socket file descriptor. The value is cached at
-// construction time, so it remains valid even after Close.
-func (c *SCTPConn) Fd() int {
-	return c.fd
-}
-
 // NewSCTPConn wraps an existing SCTP socket file descriptor. The fd is set
 // to non-blocking mode and registered with Go's runtime poller, enabling
 // deadline support and safe concurrent Close. NewSCTPConn takes ownership
@@ -438,7 +387,7 @@ func NewSCTPConn(fd int) *SCTPConn {
 		return nil
 	}
 
-	return &SCTPConn{fd: fd, file: f, rc: rc}
+	return &SCTPConn{file: f, rc: rc}
 }
 
 func (c *SCTPConn) SubscribeEvents(flags int) error {
@@ -500,79 +449,6 @@ func (c *SCTPConn) SubscribeEvents(flags int) error {
 	return c.controlFd(func(fd int) error {
 		return setsockopt(fd, SCTPEvents, uintptr(unsafe.Pointer(&param)), optlen)
 	})
-}
-
-func (c *SCTPConn) SubscribedEvents() (int, error) {
-	param := EventSubscribe{}
-	optlen := unsafe.Sizeof(param)
-
-	if err := c.controlFd(func(fd int) error {
-		return getsockopt(fd, SCTPEvents, uintptr(unsafe.Pointer(&param)), uintptr(unsafe.Pointer(&optlen)))
-	}); err != nil {
-		return 0, err
-	}
-
-	var flags int
-	if param.DataIO > 0 {
-		flags |= SCTPEventDataIO
-	}
-
-	if param.Association > 0 {
-		flags |= SCTPEventAssociation
-	}
-
-	if param.Address > 0 {
-		flags |= SCTPEventAddress
-	}
-
-	if param.SendFailure > 0 {
-		flags |= SCTPEventSendFailure
-	}
-
-	if param.PeerError > 0 {
-		flags |= SCTPEventSendPeerError
-	}
-
-	if param.Shutdown > 0 {
-		flags |= SCTPEventShutdown
-	}
-
-	if param.PartialDelivery > 0 {
-		flags |= SCTPEventPartialDelivery
-	}
-
-	if param.AdaptationLayer > 0 {
-		flags |= SCTPEventAdaptationLayer
-	}
-
-	if param.Authentication > 0 {
-		flags |= SCTPEventAuthentication
-	}
-
-	if param.SenderDry > 0 {
-		flags |= SCTPEventSenderDry
-	}
-
-	return flags, nil
-}
-
-func (c *SCTPConn) SetDefaultSentParam(info *SndRcvInfo) error {
-	optlen := unsafe.Sizeof(*info)
-
-	return c.controlFd(func(fd int) error {
-		return setsockopt(fd, SCTPDefaultSentParam, uintptr(unsafe.Pointer(info)), optlen)
-	})
-}
-
-func (c *SCTPConn) GetDefaultSentParam() (*SndRcvInfo, error) {
-	info := &SndRcvInfo{}
-	optlen := unsafe.Sizeof(*info)
-
-	err := c.controlFd(func(fd int) error {
-		return getsockopt(fd, SCTPDefaultSentParam, uintptr(unsafe.Pointer(info)), uintptr(unsafe.Pointer(&optlen)))
-	})
-
-	return info, err
 }
 
 func resolveFromRawAddr(ptr unsafe.Pointer, n int) (*SCTPAddr, error) {
@@ -670,22 +546,6 @@ func (c *SCTPConn) SetDeadline(t time.Time) error {
 	}
 
 	return c.file.SetDeadline(t)
-}
-
-func (c *SCTPConn) SetReadDeadline(t time.Time) error {
-	if c.file == nil {
-		return syscall.EBADF
-	}
-
-	return c.file.SetReadDeadline(t)
-}
-
-func (c *SCTPConn) SetWriteDeadline(t time.Time) error {
-	if c.file == nil {
-		return syscall.EBADF
-	}
-
-	return c.file.SetWriteDeadline(t)
 }
 
 type SCTPListener struct {

@@ -20,17 +20,12 @@ func TestNASGuardRetransmitsThenReleases(t *testing.T) {
 
 	m.armNASGuard(ue, "Authentication Request", []byte{0x07, 0x52})
 
+	// Two retransmissions plus the UE Context Release Command. Wait for all three
+	// sends rather than the releasing flag, which releaseUEContext sets just before
+	// it sends the release command.
 	eventually(t, time.Second, func() bool {
-		m.mu.RLock()
-		defer m.mu.RUnlock()
-
-		return ue.releasing
+		return cc.count() >= 3
 	})
-
-	// Two retransmissions plus the UE Context Release Command.
-	if got := cc.count(); got < 3 {
-		t.Fatalf("sent %d messages, want at least 2 retransmissions + 1 release command", got)
-	}
 }
 
 // TestNASGuardStoppedByResponse confirms a UE response cancels the guard before

@@ -5,15 +5,15 @@ package eps
 
 import "github.com/ellanetworks/core/nas/common"
 
-// ieiAuthFailureParameter is the IEI of the optional Authentication failure
+// authFailureParameterIEI is the IEI of the optional Authentication failure
 // parameter (AUTS) in AUTHENTICATION FAILURE (TS 24.301 §8.2.5). It is a type-4
 // TLV IE (TS 24.301 §9.9.3.1).
-const ieiAuthFailureParameter uint8 = 0x30
+const authFailureParameterIEI uint8 = 0x30
 
 // authenticationFailureIEs are the optional IEs of an AUTHENTICATION FAILURE
 // (TS 24.301 §8.2.5): the Authentication failure parameter (AUTS).
 var authenticationFailureIEs = []common.OptionalIE{
-	{IEI: ieiAuthFailureParameter, Format: common.IETLV},
+	{IEI: authFailureParameterIEI, Format: common.IETLV},
 }
 
 // AuthenticationRequest is the AUTHENTICATION REQUEST message (TS 24.301 §8.2.7),
@@ -143,7 +143,7 @@ func (m *AuthenticationFailure) Marshal() ([]byte, error) {
 	w.U8(m.Cause)
 
 	if m.AUTS != nil {
-		w.U8(ieiAuthFailureParameter)
+		w.U8(authFailureParameterIEI)
 
 		if err := w.LV(m.AUTS); err != nil {
 			return nil, err
@@ -169,7 +169,7 @@ func ParseAuthenticationFailure(b []byte) (*AuthenticationFailure, error) {
 	m := &AuthenticationFailure{Cause: cause}
 
 	if _, err := common.WalkOptionalIEs(r, authenticationFailureIEs, func(iei uint8, value []byte) error {
-		if iei == ieiAuthFailureParameter {
+		if iei == authFailureParameterIEI {
 			m.AUTS = value
 		}
 

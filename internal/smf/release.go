@@ -113,3 +113,20 @@ func (s *SMF) removeSessionUnlocked(_ context.Context, ref string) {
 
 	logger.SmfLog.Info("SM Context removed", zap.String("smContextRef", ref))
 }
+
+// removeSessionIfCurrent removes ref from the pool only if it still maps to sc.
+// A rollback uses this so that a concurrent create which already replaced the
+// entry for the same (IMSI,EBI) keeps its live session.
+func (s *SMF) removeSessionIfCurrent(ref string, sc *SMContext) {
+	s.mu.Lock()
+
+	removed := s.pool[ref] == sc
+	if removed {
+		delete(s.pool, ref)
+	}
+	s.mu.Unlock()
+
+	if removed {
+		logger.SmfLog.Info("SM Context removed", zap.String("smContextRef", ref))
+	}
+}

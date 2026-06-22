@@ -61,12 +61,12 @@ func TestSessionIERoundTrips(t *testing.T) {
 
 	t.Run("APN", func(t *testing.T) {
 		for _, apn := range []string{"internet", "ims.mnc001.mcc001.gprs"} {
-			enc, err := EncodeAPN(apn)
+			enc, err := MarshalAPN(apn)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			if got, err := DecodeAPN(enc); err != nil || got != apn {
+			if got, err := ParseAPN(enc); err != nil || got != apn {
 				t.Fatalf("round-trip %q -> %q err %v", apn, got, err)
 			}
 		}
@@ -100,7 +100,7 @@ func TestSessionIERoundTrips(t *testing.T) {
 // TestActivateDefaultBearerComposition checks the typed session IEs compose into
 // the ESM message the MME must build for the default bearer.
 func TestActivateDefaultBearerComposition(t *testing.T) {
-	apn, err := EncodeAPN("internet")
+	apn, err := MarshalAPN("internet")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestActivateDefaultBearerComposition(t *testing.T) {
 		t.Fatalf("EPS QoS: %+v err %v", qos, err)
 	}
 
-	gotAPN, err := DecodeAPN(out.AccessPointName)
+	gotAPN, err := ParseAPN(out.AccessPointName)
 	if err != nil || gotAPN != "internet" {
 		t.Fatalf("APN: %q err %v", gotAPN, err)
 	}
