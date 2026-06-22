@@ -107,8 +107,16 @@ const parseMetrics = (raw: string): ParsedMetrics => {
 
   const g = (k: string) => map.get(k) ?? null;
 
+  const sumByPrefix = (prefix: string) => {
+    let total: number | null = null;
+    for (const [key, val] of map) {
+      if (key.startsWith(prefix)) total = (total ?? 0) + val;
+    }
+    return total;
+  };
+
   return {
-    pduSessions: g("app_pdu_sessions_total "),
+    pduSessions: sumByPrefix("app_sessions_total{"),
     heapMemoryBytes: g("go_memstats_heap_inuse_bytes "),
     totalMemoryBytes: g("process_resident_memory_bytes "),
     databaseSizeBytes: g("app_database_storage_bytes "),
