@@ -35,17 +35,17 @@ const (
 	hoCommitting                // HANDOVER NOTIFY received, the user-plane switch is in progress
 )
 
-// admittedERAB is one E-RAB the target eNB admitted: the EPS bearer identity and
-// the target eNB's S1-U downlink endpoint the user plane is switched to at notify.
+// admittedERAB is one E-RAB the target eNB admitted: its EPS bearer identity and
+// the target's S1-U downlink endpoint.
 type admittedERAB struct {
 	ebi      uint8
 	enbFTEID models.FTEID
 }
 
 // handoverContext is the MME's state for one in-flight inter-eNB S1 handover
-// (TS 36.413 §8.4, TS 23.401 §5.5.1.2.2). The MME keeps the same MME-UE-S1AP-ID
-// across the handover; the target eNB allocates its own eNB-UE-S1AP-ID, learned
-// from the HANDOVER REQUEST ACKNOWLEDGE. Guarded by MME.mu.
+// (TS 36.413 §8.4). The MME-UE-S1AP-ID is stable across the handover; the target
+// eNB allocates targetENBUEID, learned from the HANDOVER REQUEST ACKNOWLEDGE.
+// Guarded by MME.mu.
 type handoverContext struct {
 	state         hoState
 	sourceConn    nasWriter
@@ -53,38 +53,29 @@ type handoverContext struct {
 	target        nasWriter
 	targetENBUEID s1ap.ENBUES1APID
 	admitted      []admittedERAB
-	releaseEBIs   []uint8 // EPS bearers the target rejected, released at notify (per-PDN, §5.5.1.2.2 step 15)
-	// newNH/newNCC are the {NH, NCC} computed at preparation, handed to the target
-	// in the HANDOVER REQUEST and committed at notify (TS 33.401 §7.2.8).
+	releaseEBIs   []uint8 // bearers the target rejected, released at notify (TS 23.401 §5.5.1.2.2 step 15)
+	// {NH, NCC} for the target, advanced at preparation, committed at notify (TS 33.401 §7.2.8).
 	newNH  [32]byte
 	newNCC uint8
-	// guardTimer bounds the whole procedure (HANDOVER REQUIRED → NOTIFY): on expiry
-	// the MME abandons the handover and releases any prepared target resources, so a
-	// target that goes silent does not pin the UE's handover slot forever.
+	// guardTimer abandons the handover if the target never completes it (TS 36.413 §8.4).
 	guardTimer *time.Timer
 }
 
-// srcReleaseKey identifies a UE Context Release Command the MME sent to a source
-// (or rejected target) eNB during a handover, so its Release Complete is consumed
-// without disturbing the UE now active on the target association.
+// srcReleaseKey identifies a handover UE Context Release Command, so its Release
+// Complete is consumed without disturbing the UE active on the target.
 //
-// Intra-MME S1 handover keeps one UeContext keyed by a single MME-UE-S1AP-ID
-// across both associations, so unlike the AMF — which models distinct source and
-// target RAN contexts under one UE — the 4G MME cannot tell the source's Release
-// Complete apart from the moved UE's by id alone. This {conn, eNB-UE-S1AP-ID} set
-// is the side-channel that disambiguates them. It is bounded: entries are removed
-// when the Release Complete arrives, and abortHandoversOnConnLoss sweeps any left
-// behind when an association drops. A source/target RAN-context split would be the
-// structurally cleaner model but is unnecessary for the single-node, intra-MME
-// topology Ella Core targets.
+// Intra-MME handover keeps one UeContext under a single MME-UE-S1AP-ID across both
+// associations, so the source's Release Complete is indistinguishable by id from
+// the moved UE's. This {conn, eNB-UE-S1AP-ID} set disambiguates them; entries clear
+// on the Release Complete, and abortHandoversOnConnLoss sweeps any orphaned by a
+// dropped association. A source/target RAN-context split (as in the AMF) is
+// unnecessary for Ella Core's single-node topology.
 type srcReleaseKey struct {
 	conn    nasWriter
 	enbUEID s1ap.ENBUES1APID
 }
 
-// sendS1APConn sends an S1AP message on a specific eNB association (not the UE's
-// current conn), used during handover when source and target are different
-// associations.
+// sendS1APConn sends an S1AP message on a specific eNB association.
 func (m *MME) sendS1APConn(ctx context.Context, conn nasWriter, messageType S1APProcedure, b []byte) {
 	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamUE}); err != nil {
 		logger.MmeLog.Error("failed to send S1AP message", zap.String("message-type", string(messageType)), zap.Error(err))
@@ -94,10 +85,8 @@ func (m *MME) sendS1APConn(ctx context.Context, conn nasWriter, messageType S1AP
 	m.logOutboundS1AP(ctx, conn, messageType, b)
 }
 
-// handleHandoverRequired handles a HANDOVER REQUIRED from the source eNB
-// (TS 36.413 §8.4.1, TS 23.401 §5.5.1.2.2 step 2): it resolves the target eNB,
-// reserves the {NH, NCC} for it, and sends a HANDOVER REQUEST — or replies
-// HANDOVER PREPARATION FAILURE. conn is the source eNB association.
+// handleHandoverRequired starts an S1 handover preparation toward the target eNB,
+// or replies HANDOVER PREPARATION FAILURE (TS 36.413 §8.4.1). conn is the source.
 func (m *MME) handleHandoverRequired(ctx context.Context, conn nasWriter, value []byte) {
 	req, err := s1ap.ParseHandoverRequired(value)
 	if err != nil {
@@ -213,11 +202,9 @@ func (m *MME) handleHandoverRequired(ctx context.Context, conn nasWriter, value 
 	m.sendS1APConn(ctx, target, S1APProcedureHandoverRequest, b)
 }
 
-// handleHandoverRequestAcknowledge handles a HANDOVER REQUEST ACKNOWLEDGE from the
-// target eNB (TS 36.413 §8.4.2, TS 23.401 §5.5.1.2.2 step 5a): it records the
-// target's downlink endpoints and sends a HANDOVER COMMAND to the source — or
-// fails the handover when the target admitted no usable bearer. conn is the target
-// eNB association.
+// handleHandoverRequestAcknowledge records the target's downlink endpoints and
+// sends a HANDOVER COMMAND to the source, or fails the handover when no usable
+// bearer was admitted (TS 36.413 §8.4.2). conn is the target.
 func (m *MME) handleHandoverRequestAcknowledge(ctx context.Context, conn nasWriter, value []byte) {
 	ack, err := s1ap.ParseHandoverRequestAcknowledge(value)
 	if err != nil {
@@ -261,9 +248,8 @@ func (m *MME) handleHandoverRequestAcknowledge(ctx context.Context, conn nasWrit
 		admitted = append(admitted, admittedERAB{ebi: uint8(it.ERABID), enbFTEID: models.FTEID{TEID: uint32(it.GTPTEID), Addr: addr}})
 	}
 
-	// A failed E-RAB is a failed PDN connection: 4G has one default bearer per PDN,
-	// so a rejected bearer means that PDN must be released (TS 23.401 §5.5.1.2.2
-	// step 15). Bearers neither admitted nor explicitly failed are also released.
+	// Each E-RAB is a PDN's default bearer, so a rejected one releases its PDN
+	// (TS 23.401 §5.5.1.2.2 step 15).
 	releaseEBIs := failedHandoverEBIs(ack, admitted)
 
 	if len(admitted) == 0 {
@@ -310,10 +296,8 @@ func (m *MME) handleHandoverRequestAcknowledge(ctx context.Context, conn nasWrit
 	m.sendS1APConn(ctx, sourceConn, S1APProcedureHandoverCommand, b)
 }
 
-// handleHandoverFailure handles a HANDOVER FAILURE from the target eNB (TS 36.413
-// §8.4.2.3): the target could not admit the handover, so the MME fails the
-// preparation toward the source and leaves the UE on the source eNB. conn is the
-// target eNB association.
+// handleHandoverFailure fails the preparation toward the source when the target
+// could not admit the handover, leaving the UE on the source (TS 36.413 §8.4.2.3).
 func (m *MME) handleHandoverFailure(ctx context.Context, conn nasWriter, value []byte) {
 	fail, err := s1ap.ParseHandoverFailure(value)
 	if err != nil {
@@ -339,11 +323,9 @@ func (m *MME) handleHandoverFailure(ctx context.Context, conn nasWriter, value [
 	m.failHandoverToSource(ctx, ue, causeHOFailureInTarget)
 }
 
-// handleENBStatusTransfer relays an ENB STATUS TRANSFER from the source eNB to the
-// target as an MME STATUS TRANSFER (TS 36.413 §8.4.6/§8.4.7). The container is
-// relayed opaquely. It is a no-op when no handover is prepared for the UE; the
-// source eNB may also omit this message entirely, so it never gates completion.
-// conn is the source eNB association.
+// handleENBStatusTransfer relays the source's status container to the target as an
+// MME STATUS TRANSFER (TS 36.413 §8.4.6/§8.4.7). Optional: the source may omit it,
+// so it never gates completion.
 func (m *MME) handleENBStatusTransfer(ctx context.Context, conn nasWriter, value []byte) {
 	st, err := s1ap.ParseENBStatusTransfer(value)
 	if err != nil {
@@ -381,10 +363,9 @@ func (m *MME) handleENBStatusTransfer(ctx context.Context, conn nasWriter, value
 	m.sendS1APConn(ctx, target, S1APProcedureMMEStatusTransfer, b)
 }
 
-// handleHandoverNotify handles a HANDOVER NOTIFY from the target eNB (TS 36.413
-// §8.4.3, TS 23.401 §5.5.1.2.2 step 13): the UE has arrived, so the MME switches
-// the user plane downlink to the target, commits the {NH, NCC} chain, moves the S1
-// association, and releases the source eNB. conn is the target eNB association.
+// handleHandoverNotify completes the handover once the UE reaches the target: it
+// switches the user plane, commits the {NH, NCC} chain, moves the S1 association,
+// and releases the source (TS 36.413 §8.4.3, TS 23.401 §5.5.1.2.2 steps 13-19).
 func (m *MME) handleHandoverNotify(ctx context.Context, conn nasWriter, value []byte) {
 	notify, err := s1ap.ParseHandoverNotify(value)
 	if err != nil {
@@ -407,14 +388,12 @@ func (m *MME) handleHandoverNotify(ctx context.Context, conn nasWriter, value []
 		return
 	}
 
-	// The UE has reached the target: enter the committing state so a concurrent
-	// HANDOVER CANCEL (or the guard timer) on the source association cannot tear
-	// the handover down while the user-plane switch is in flight.
+	// Committing locks out a concurrent CANCEL or the guard timer while the
+	// user-plane switch I/O runs outside the lock.
 	ho.state = hoCommitting
 	m.mu.Unlock()
 
-	// The user plane is switched only now (TS 23.401 §5.5.1.2.2 step 15): point each
-	// admitted E-RAB's downlink at the target eNB endpoint.
+	// Switch the downlink only at notify (TS 23.401 §5.5.1.2.2 step 15).
 	for _, a := range ho.admitted {
 		p := m.lookupPDN(ue, a.ebi)
 		if p == nil {
@@ -443,13 +422,8 @@ func (m *MME) handleHandoverNotify(ctx context.Context, conn nasWriter, value []
 		m.dropPDN(ue, ebi)
 	}
 
-	// Keep a coherent default PDN: if the bearer dropped above was the attach
-	// default while admitted PDNs remain, promote a survivor so the UE still has a
-	// default PDN connection (TS 23.401 §5.5.1.2.2 step 15 releases the PDN, not
-	// the UE's last-resort connectivity).
 	m.ensureDefaultPDN(ue, ho.admitted)
 
-	// Commit the advanced {NH, NCC} and move the S1 association to the target.
 	m.mu.Lock()
 	source := srcReleaseKey{conn: ho.sourceConn, enbUEID: ho.sourceENBUEID}
 	ue.nh = ho.newNH
@@ -469,16 +443,11 @@ func (m *MME) handleHandoverNotify(ctx context.Context, conn nasWriter, value []
 		zap.Uint32("mme-ue-id", uint32(mmeUEID)),
 		zap.Uint32("target-enb-ue-id", uint32(notify.ENBUES1APID)))
 
-	// Release the source eNB's UE context (TS 23.401 §5.5.1.2.2 step 19). The
-	// command is addressed to the source association and its Release Complete is
-	// consumed by handleUEContextReleaseComplete without touching the moved UE.
 	m.sendSourceRelease(ctx, source, mmeUEID)
 }
 
-// handleHandoverCancel handles a HANDOVER CANCEL from the source eNB (TS 36.413
-// §8.4.5, TS 23.401 §5.5.1.2.4): it releases any prepared target resources and
-// acknowledges, leaving the UE on the source eNB. conn is the source eNB
-// association.
+// handleHandoverCancel releases any prepared target resources and acknowledges,
+// leaving the UE on the source (TS 36.413 §8.4.5). conn is the source.
 func (m *MME) handleHandoverCancel(ctx context.Context, conn nasWriter, value []byte) {
 	cancel, err := s1ap.ParseHandoverCancel(value)
 	if err != nil {
@@ -504,8 +473,7 @@ func (m *MME) handleHandoverCancel(ctx context.Context, conn nasWriter, value []
 	case ho == nil:
 		// Nothing to cancel; still acknowledge below (TS 36.413 §8.4.5.4).
 	case ho.state == hoCommitting:
-		// The UE has already reached the target and the move is in progress; it is
-		// too late to cancel. Acknowledge but leave the handover to finish.
+		// Too late to cancel: acknowledge but let the in-flight move finish.
 	default:
 		if ho.state == hoPrepared {
 			target, targetENBUEID, hadTarget = ho.target, ho.targetENBUEID, true
@@ -668,9 +636,8 @@ func (m *MME) onHandoverGuardExpiry(ue *UeContext, gen uint64) {
 	logger.MmeLog.Warn("S1 handover abandoned: target did not complete it in time",
 		zap.Uint32("mme-ue-id", uint32(mmeUEID)))
 
-	// A prepared target allocated a UE context; release it. A still-preparing
-	// target either never answered or its later acknowledge will self-release on
-	// finding no matching preparation.
+	// A still-preparing target's later acknowledge self-releases on finding no
+	// matching preparation; only a prepared target needs an explicit release.
 	if prepared && target != nil {
 		m.releaseHandoverTarget(context.Background(), target, mmeUEID, targetENBUEID)
 	}
@@ -782,8 +749,7 @@ func (m *MME) handoverUEAMBR(ue *UeContext) s1ap.UEAggregateMaximumBitRate {
 }
 
 // handoverSecurityCapabilities encodes the UE's stored security capabilities for a
-// HANDOVER REQUEST, matching the Initial Context Setup encoding (the S1AP encoding
-// drops the EEA0/EIA0 bit, so the UE network capability octet is shifted left).
+// HANDOVER REQUEST.
 func (m *MME) handoverSecurityCapabilities(ue *UeContext) s1ap.UESecurityCapabilities {
 	uecap, err := eps.ParseUENetworkCapability(ue.ueNetCap)
 	if err != nil {

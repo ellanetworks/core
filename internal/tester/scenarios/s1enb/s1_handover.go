@@ -108,8 +108,6 @@ func runS1ENBHandover(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("ping before handover via source eNB: %w", err)
 	}
 
-	// 1. Source initiates the handover; the MME relays a HANDOVER REQUEST to the
-	//    target (no eNB-UE-S1AP-ID yet — the target allocates one).
 	if err := source.SendHandoverRequired(res.ENBUES1APID, res.MMEUES1APID, target.GlobalENBID()); err != nil {
 		return fmt.Errorf("send Handover Required: %w", err)
 	}
@@ -123,7 +121,6 @@ func runS1ENBHandover(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("handover request carried %d E-RABs, want 1", len(hoReq.ERABToBeSetup))
 	}
 
-	// 2. Target admits the bearer and reports its downlink endpoint.
 	targetENBUEID := target.AllocateENBUEID()
 
 	dlTEID, err := target.SendHandoverRequestAcknowledge(targetENBUEID, res.MMEUES1APID, res.ERABID)
@@ -131,12 +128,10 @@ func runS1ENBHandover(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("send Handover Request Acknowledge: %w", err)
 	}
 
-	// 3. The MME returns a HANDOVER COMMAND to the source.
 	if _, err := source.WaitForHandoverCommand(res.ENBUES1APID, 10*time.Second); err != nil {
 		return fmt.Errorf("await Handover Command: %w", err)
 	}
 
-	// 4. The source freezes PDCP and the MME relays the status to the target.
 	if err := source.SendENBStatusTransfer(res.MMEUES1APID, res.ENBUES1APID); err != nil {
 		return fmt.Errorf("send eNB Status Transfer: %w", err)
 	}
@@ -145,14 +140,11 @@ func runS1ENBHandover(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("await MME Status Transfer: %w", err)
 	}
 
-	// The user plane must not be switched before notify: the source tunnel still
-	// carries downlink at this point.
+	// The downlink must still run via the source before notify.
 	if err := probe.Run(ctx, probe.ICMP, s1hoSourceTun, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
 		return fmt.Errorf("ping during handover preparation via source eNB (UPF switched too early?): %w", err)
 	}
 
-	// 5. The UE reaches the target; the MME switches the UPF downlink and releases
-	//    the source.
 	if err := target.SendHandoverNotify(targetENBUEID, res.MMEUES1APID); err != nil {
 		return fmt.Errorf("send Handover Notify: %w", err)
 	}
