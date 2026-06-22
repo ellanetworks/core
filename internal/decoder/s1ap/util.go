@@ -15,10 +15,20 @@ import (
 // decoder mirrors the spec values it needs.
 const (
 	idMMEUES1APID                    int64 = 0
+	idHandoverType                   int64 = 1
 	idCause                          int64 = 2
+	idTargetID                       int64 = 4
 	idENBUES1APID                    int64 = 8
+	idERABtoReleaseListHOCmd         int64 = 13
+	idERABAdmittedList               int64 = 18
+	idERABFailedToSetupListHOReqAck  int64 = 19
 	idERABToBeSetupListCtxtSUReq     int64 = 24
 	idNASPDU                         int64 = 26
+	idSecurityContext                int64 = 40
+	idERABToBeSetupListHOReq         int64 = 53
+	idENBStatusTransferContainer     int64 = 90
+	idSourceToTargetContainer        int64 = 104
+	idTargetToSourceContainer        int64 = 123
 	idERABFailedToSetupListCtxtSURes int64 = 48
 	idERABSetupItemCtxtSURes         int64 = 50
 	idERABSetupListCtxtSURes         int64 = 51
@@ -48,8 +58,18 @@ const (
 
 var ieNames = map[int64]string{
 	idMMEUES1APID:                    "MME-UE-S1AP-ID",
+	idHandoverType:                   "HandoverType",
 	idCause:                          "Cause",
+	idTargetID:                       "TargetID",
 	idENBUES1APID:                    "eNB-UE-S1AP-ID",
+	idERABtoReleaseListHOCmd:         "E-RABtoReleaseListHOCmd",
+	idERABAdmittedList:               "E-RABAdmittedList",
+	idERABFailedToSetupListHOReqAck:  "E-RABFailedToSetupListHOReqAck",
+	idSecurityContext:                "SecurityContext",
+	idERABToBeSetupListHOReq:         "E-RABToBeSetupListHOReq",
+	idENBStatusTransferContainer:     "eNB-StatusTransfer-TransparentContainer",
+	idSourceToTargetContainer:        "Source-ToTarget-TransparentContainer",
+	idTargetToSourceContainer:        "Target-ToSource-TransparentContainer",
 	idERABToBeSetupListCtxtSUReq:     "E-RABToBeSetupListCtxtSUReq",
 	idNASPDU:                         "NAS-PDU",
 	idERABSetupItemCtxtSURes:         "E-RABSetupItemCtxtSURes",
@@ -96,6 +116,12 @@ var procedureNames = map[s1ap.ProcedureCode]string{
 	s1ap.ProcUECapabilityInfoIndication: "UECapabilityInfoIndication",
 	s1ap.ProcErrorIndication:            "ErrorIndication",
 	s1ap.ProcPaging:                     "Paging",
+	s1ap.ProcHandoverPreparation:        "HandoverPreparation",
+	s1ap.ProcHandoverResourceAllocation: "HandoverResourceAllocation",
+	s1ap.ProcHandoverNotification:       "HandoverNotification",
+	s1ap.ProcHandoverCancel:             "HandoverCancel",
+	s1ap.ProcENBStatusTransfer:          "ENBStatusTransfer",
+	s1ap.ProcMMEStatusTransfer:          "MMEStatusTransfer",
 }
 
 func procedureCodeName(code s1ap.ProcedureCode) string {

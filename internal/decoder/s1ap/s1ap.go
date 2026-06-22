@@ -92,6 +92,18 @@ func decodeInitiatingMessage(m *s1ap.InitiatingMessage) S1APMessage {
 		msg.Value, msg.Summary = buildPaging(m.Value)
 	case s1ap.ProcErrorIndication:
 		msg.Value, msg.Summary = buildErrorIndication(m.Value)
+	case s1ap.ProcHandoverPreparation:
+		msg.Value, msg.Summary = buildHandoverRequired(m.Value)
+	case s1ap.ProcHandoverResourceAllocation:
+		msg.Value, msg.Summary = buildHandoverRequest(m.Value)
+	case s1ap.ProcHandoverNotification:
+		msg.Value, msg.Summary = buildHandoverNotify(m.Value)
+	case s1ap.ProcHandoverCancel:
+		msg.Value, msg.Summary = buildHandoverCancel(m.Value)
+	case s1ap.ProcENBStatusTransfer:
+		msg.Value, msg.Summary = buildENBStatusTransfer(m.Value)
+	case s1ap.ProcMMEStatusTransfer:
+		msg.Value, msg.Summary = buildMMEStatusTransfer(m.Value)
 	default:
 		msg.Value = unsupportedProcedure(m.ProcedureCode)
 	}
@@ -115,6 +127,12 @@ func decodeSuccessfulOutcome(m *s1ap.SuccessfulOutcome) S1APMessage {
 		msg.Value, msg.Summary = buildInitialContextSetupResponse(m.Value)
 	case s1ap.ProcUEContextRelease:
 		msg.Value, msg.Summary = buildUEContextReleaseComplete(m.Value)
+	case s1ap.ProcHandoverPreparation:
+		msg.Value, msg.Summary = buildHandoverCommand(m.Value)
+	case s1ap.ProcHandoverResourceAllocation:
+		msg.Value, msg.Summary = buildHandoverRequestAcknowledge(m.Value)
+	case s1ap.ProcHandoverCancel:
+		msg.Value, msg.Summary = buildHandoverCancelAcknowledge(m.Value)
 	default:
 		msg.Value = unsupportedProcedure(m.ProcedureCode)
 	}
@@ -136,6 +154,10 @@ func decodeUnsuccessfulOutcome(m *s1ap.UnsuccessfulOutcome) S1APMessage {
 		msg.Value, msg.Summary = buildS1SetupFailure(m.Value)
 	case s1ap.ProcInitialContextSetup:
 		msg.Value, msg.Summary = buildInitialContextSetupFailure(m.Value)
+	case s1ap.ProcHandoverPreparation:
+		msg.Value, msg.Summary = buildHandoverPreparationFailure(m.Value)
+	case s1ap.ProcHandoverResourceAllocation:
+		msg.Value, msg.Summary = buildHandoverFailure(m.Value)
 	default:
 		msg.Value = unsupportedProcedure(m.ProcedureCode)
 	}
