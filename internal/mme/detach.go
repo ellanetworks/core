@@ -23,7 +23,11 @@ func (m *MME) lookupUeByIMSI(imsi string) *UeContext {
 	defer m.mu.RUnlock()
 
 	for _, ue := range m.ues {
-		if ue.imsi == imsi {
+		ue.mu.Lock()
+		match := ue.imsi == imsi
+		ue.mu.Unlock()
+
+		if match {
 			return ue
 		}
 	}
@@ -43,7 +47,7 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 	logger.MmeLog.Info("network-initiated detach (subscriber deleted)",
 		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", imsi))
 
-	ue.emmState = EMMDeregistered
+	ue.emmState.store(EMMDeregistered)
 	m.sendDownlinkProtected(ctx, ue, &eps.DetachRequestNetwork{TypeOfDetach: detachTypeReattachNotRequired})
 }
 
@@ -91,7 +95,7 @@ func (m *MME) onDetachRequest(ctx context.Context, ue *UeContext, plain []byte) 
 		zap.String("imsi", ue.imsi),
 	)
 
-	ue.emmState = EMMDeregistered
+	ue.emmState.store(EMMDeregistered)
 
 	if !req.SwitchOff {
 		m.sendDownlinkProtected(ctx, ue, &eps.DetachAccept{})
@@ -161,9 +165,9 @@ func (m *MME) handleUEContextReleaseRequest(ctx context.Context, conn nasWriter,
 	// so the UE will restart the whole attach. Surface it as a failure rather
 	// than a routine idle release, and report whether the eNB acknowledged the
 	// context setup (ics-response-received).
-	if ue.secured && ue.emmState == EMMDeregistered {
+	if ue.secured && ue.emmState.load() == EMMDeregistered {
 		icsReceived := false
-		if p := ue.defaultPDN(); p != nil {
+		if p := m.defaultPDN(ue); p != nil {
 			icsReceived = p.enbFTEID.TEID != 0
 		}
 
@@ -192,7 +196,7 @@ func (m *MME) handleUEContextReleaseComplete(conn nasWriter, value []byte) {
 
 	// Independent state machines (TS 23.401): a detached UE is deleted; a
 	// still-registered UE is retained in ECM-IDLE.
-	if ue.emmState == EMMDeregistered {
+	if ue.emmState.load() == EMMDeregistered {
 		m.releaseAllSessions(ue)
 		m.removeUe(msg.MMEUES1APID)
 		logger.MmeLog.Info("UE context released", zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)))
@@ -200,7 +204,7 @@ func (m *MME) handleUEContextReleaseComplete(conn nasWriter, value []byte) {
 		return
 	}
 
-	ue.ecmState = ECMIdle
+	ue.ecmState.store(ECMIdle)
 	ue.releasing = false
 
 	// Buffer the downlink bearers so data for the idle UE triggers paging
@@ -224,11 +228,11 @@ func (m *MME) handleUEContextReleaseComplete(conn nasWriter, value []byte) {
 // aborting the procedure.
 func (m *MME) releaseUEContextLocally(ue *UeContext, trigger string) {
 	m.mu.Lock()
-	registered := ue.emmState == EMMRegistered
+	registered := ue.emmState.load() == EMMRegistered
 	imsi, mmeUEID := ue.imsi, ue.MMEUES1APID
 
 	if registered {
-		ue.ecmState = ECMIdle
+		ue.ecmState.store(ECMIdle)
 		ue.releasing = false
 	}
 

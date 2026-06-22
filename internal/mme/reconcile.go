@@ -43,7 +43,7 @@ func (m *MME) ReconcileDataNetwork(ctx context.Context) {
 // is signalled; an idle UE is signalled when it returns to ECM-CONNECTED
 // (reconcileBearer on the ICS Response) or by the next backstop sweep.
 func (m *MME) reconcileUE(ctx context.Context, ue *UeContext) {
-	if ue.emmState != EMMRegistered || ue.ecmState != ECMConnected {
+	if ue.emmState.load() != EMMRegistered || ue.ecmState.load() != ECMConnected {
 		return
 	}
 
@@ -55,8 +55,8 @@ func (m *MME) reconcileUE(ctx context.Context, ue *UeContext) {
 // snapshotPDNs returns the UE's PDN connections as a slice taken under the lock,
 // so the reconciler does not iterate the map while a NAS handler mutates it.
 func (m *MME) snapshotPDNs(ue *UeContext) []*pdnConnection {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	out := make([]*pdnConnection, 0, len(ue.pdns))
 	for _, p := range ue.pdns {
@@ -66,12 +66,35 @@ func (m *MME) snapshotPDNs(ue *UeContext) []*pdnConnection {
 	return out
 }
 
+// clearPendingModifyLocked clears a PDN connection's in-flight modification
+// bookkeeping. The caller holds ue.mu.
+func clearPendingModifyLocked(p *pdnConnection) {
+	p.modifying = false
+	p.pendingDNConfig = ""
+	p.pendingSessAmbrDLBps = 0
+	p.pendingSessAmbrULBps = 0
+	p.pendingQCI = 0
+	p.pendingARP = 0
+}
+
 // reconcileBearer reconciles a single PDN connection against its current policy
 // and data-network configuration. A DNS and/or Session-AMBR change is applied in
 // place with a Modify EPS Bearer Context; an IP-pool or MTU change reactivates the
 // bearer.
 func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *pdnConnection) {
-	if p.deactivating || p.modifying {
+	// Snapshot the connection's mutable policy state under the lock so a NAS
+	// handler or the NAS-guard timer does not mutate the in-flight flags or the
+	// stored config while the reconciler reads them.
+	ue.mu.Lock()
+
+	busy := p.deactivating || p.modifying
+	curDNConfig := p.dnConfig
+	curSessAmbrDLBps, curSessAmbrULBps := p.sessAmbrDLBps, p.sessAmbrULBps
+	curQCI, curARP := p.qci, p.arp
+
+	ue.mu.Unlock()
+
+	if busy {
 		return
 	}
 
@@ -84,12 +107,12 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *pdnConnecti
 	}
 
 	newFingerprint := qos.dnFingerprint()
-	dnChanged := newFingerprint != p.dnConfig
+	dnChanged := newFingerprint != curDNConfig
 
-	ambrChanged := bitRateToBps(qos.SessAmbrDLStr) != p.sessAmbrDLBps ||
-		bitRateToBps(qos.SessAmbrULStr) != p.sessAmbrULBps
+	ambrChanged := bitRateToBps(qos.SessAmbrDLStr) != curSessAmbrDLBps ||
+		bitRateToBps(qos.SessAmbrULStr) != curSessAmbrULBps
 
-	qosChanged := qos.QCI != p.qci || qos.ARP != p.arp
+	qosChanged := qos.QCI != curQCI || qos.ARP != curARP
 
 	if !dnChanged && !ambrChanged && !qosChanged {
 		return
@@ -97,7 +120,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *pdnConnecti
 
 	// An IP-pool or MTU change cannot be adopted in place; reactivate so the UE
 	// re-establishes (the new bearer also picks up the new QoS/Session-AMBR).
-	if dnChanged && !dnsOnlyChange(p.dnConfig, newFingerprint) {
+	if dnChanged && !dnsOnlyChange(curDNConfig, newFingerprint) {
 		logger.MmeLog.Info("data-network configuration changed; reactivating EPS bearer",
 			zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.String("apn", p.apn))
 		m.reactivateBearer(ctx, ue, p)
@@ -172,15 +195,20 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *pdnConnection,
 	}
 
 	if includeAMBR {
-		req.APNAMBR = eps.EncodeAPNAMBR(bitRateToBps(qos.SessAmbrDLStr), bitRateToBps(qos.SessAmbrULStr)).Marshal()
-
-		// Enforce the new Session-AMBR in the data plane now; the UE applies its
-		// uplink share when it accepts. A QER update failure is non-fatal: the UE is
-		// still signalled and the backstop reconcile retries.
+		// The UPF QER is the data-plane enforcement point, so update it before
+		// signalling the new Session-AMBR to the UE. On failure, abort the
+		// modification rather than tell the UE an AMBR the data plane is not
+		// enforcing: the stored config stays stale, so the next reconcile retries.
+		// (Signalling regardless would, once the UE accepts, commit the new AMBR and
+		// leave the UPF permanently behind with no further retry.)
 		if err := m.session.UpdateEPSSessionAMBR(ctx, ue.imsi, p.ebi, qos.SessAmbrULStr, qos.SessAmbrDLStr); err != nil {
-			logger.MmeLog.Warn("failed to update UPF Session-AMBR",
+			logger.MmeLog.Error("failed to update UPF Session-AMBR; deferring EPS bearer modification to the next reconcile",
 				zap.String("imsi", ue.imsi), zap.String("apn", p.apn), zap.Error(err))
+
+			return
 		}
+
+		req.APNAMBR = eps.EncodeAPNAMBR(bitRateToBps(qos.SessAmbrDLStr), bitRateToBps(qos.SessAmbrULStr)).Marshal()
 	}
 
 	naspdu, err := m.protectDownlink(ue, req)
@@ -189,6 +217,7 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *pdnConnection,
 		return
 	}
 
+	ue.mu.Lock()
 	p.modifying = true
 	p.pendingDNConfig = qos.dnFingerprint()
 	p.pendingSessAmbrDLBps = bitRateToBps(qos.SessAmbrDLStr)
@@ -199,6 +228,7 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *pdnConnection,
 	if dnsValid {
 		p.dns = dns
 	}
+	ue.mu.Unlock()
 
 	if includeQoS {
 		// A QCI/ARP change reconfigures the radio bearer, so the NAS message is
@@ -308,14 +338,20 @@ func (m *MME) handleESM(ctx context.Context, ue *UeContext, plain []byte) {
 func (m *MME) onModifyBearerAccept(ue *UeContext, plain []byte) {
 	m.stopNASGuard(ue)
 
-	p := ue.defaultPDN()
+	p := m.defaultPDN(ue)
 	if accept, err := eps.ParseModifyEPSBearerContextAccept(plain); err == nil {
 		if named := m.lookupPDN(ue, accept.EPSBearerIdentity); named != nil {
 			p = named
 		}
 	}
 
-	if p == nil || !p.modifying {
+	if p == nil {
+		return
+	}
+
+	ue.mu.Lock()
+	if !p.modifying {
+		ue.mu.Unlock()
 		return
 	}
 
@@ -324,12 +360,8 @@ func (m *MME) onModifyBearerAccept(ue *UeContext, plain []byte) {
 	p.sessAmbrULBps = p.pendingSessAmbrULBps
 	p.qci = p.pendingQCI
 	p.arp = p.pendingARP
-	p.pendingDNConfig = ""
-	p.pendingSessAmbrDLBps = 0
-	p.pendingSessAmbrULBps = 0
-	p.pendingQCI = 0
-	p.pendingARP = 0
-	p.modifying = false
+	clearPendingModifyLocked(p)
+	ue.mu.Unlock()
 
 	logger.MmeLog.Info("EPS bearer modified in place",
 		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.String("apn", p.apn))
@@ -340,7 +372,7 @@ func (m *MME) onModifyBearerAccept(ue *UeContext, plain []byte) {
 func (m *MME) onModifyBearerReject(ue *UeContext, plain []byte) {
 	m.stopNASGuard(ue)
 
-	p := ue.defaultPDN()
+	p := m.defaultPDN(ue)
 	if rej, err := eps.ParseModifyEPSBearerContextReject(plain); err == nil {
 		if named := m.lookupPDN(ue, rej.EPSBearerIdentity); named != nil {
 			p = named
@@ -348,12 +380,9 @@ func (m *MME) onModifyBearerReject(ue *UeContext, plain []byte) {
 	}
 
 	if p != nil {
-		p.modifying = false
-		p.pendingDNConfig = ""
-		p.pendingSessAmbrDLBps = 0
-		p.pendingSessAmbrULBps = 0
-		p.pendingQCI = 0
-		p.pendingARP = 0
+		ue.mu.Lock()
+		clearPendingModifyLocked(p)
+		ue.mu.Unlock()
 	}
 
 	logger.MmeLog.Warn("UE rejected EPS bearer modification",
@@ -368,7 +397,7 @@ func (m *MME) onModifyBearerReject(ue *UeContext, plain []byte) {
 func (m *MME) onDeactivateBearerAccept(ctx context.Context, ue *UeContext, plain []byte) {
 	m.stopNASGuard(ue)
 
-	p := ue.defaultPDN()
+	p := m.defaultPDN(ue)
 	if accept, err := eps.ParseDeactivateEPSBearerContextAccept(plain); err == nil {
 		if named := m.lookupPDN(ue, accept.EPSBearerIdentity); named != nil {
 			p = named
@@ -383,7 +412,13 @@ func (m *MME) onDeactivateBearerAccept(ctx context.Context, ue *UeContext, plain
 	// it re-attaches with the new configuration (TS 24.301 §6.4.4.2). A PDN
 	// disconnect, or a reactivation of an additional PDN, releases just that PDN
 	// connection and leaves the UE connected.
-	if p.ebi != ue.defaultEBI || p.disconnecting {
+	ue.mu.Lock()
+
+	releaseOnly := p.ebi != ue.defaultEBI || p.disconnecting
+
+	ue.mu.Unlock()
+
+	if releaseOnly {
 		logger.MmeLog.Info("PDN connection released",
 			zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.String("apn", p.apn))
 		m.releasePDN(ue, p)
@@ -391,8 +426,11 @@ func (m *MME) onDeactivateBearerAccept(ctx context.Context, ue *UeContext, plain
 		return
 	}
 
+	ue.mu.Lock()
 	p.deactivating = false
-	ue.emmState = EMMDeregistered
+	ue.mu.Unlock()
+
+	ue.emmState.store(EMMDeregistered)
 	m.releaseAllSessions(ue)
 
 	logger.MmeLog.Info("EPS bearer deactivated for reactivation; UE will re-attach",

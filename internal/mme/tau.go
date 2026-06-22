@@ -56,7 +56,7 @@ func (m *MME) onTrackingAreaUpdate(ctx context.Context, ue *UeContext, plain []b
 
 	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultAccept)
 
-	if ue.ecmState == ECMConnected {
+	if ue.ecmState.load() == ECMConnected {
 		logger.MmeLog.Info("Tracking Area Update accepted",
 			zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
 		m.sendDownlink(ctx, ue, naspdu)
@@ -72,7 +72,7 @@ func (m *MME) onTrackingAreaUpdate(ctx context.Context, ue *UeContext, plain []b
 			return
 		}
 
-		ue.ecmState = ECMConnected
+		ue.ecmState.store(ECMConnected)
 
 		logger.MmeLog.Info("Tracking Area Update accepted (bearer re-established)",
 			zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
@@ -88,7 +88,7 @@ func (m *MME) onTrackingAreaUpdate(ctx context.Context, ue *UeContext, plain []b
 	// connection for this exchange, so it is ECM-CONNECTED until the deferred
 	// release; without this the TAU Complete would be rejected as having no active
 	// connection (TS 36.413 §10.6 handling).
-	ue.ecmState = ECMConnected
+	ue.ecmState.store(ECMConnected)
 	ue.tauReleaseOnComplete = true
 
 	logger.MmeLog.Info("Tracking Area Update accepted (returning to idle)",
@@ -227,13 +227,13 @@ func (m *MME) protectDownlink(ue *UeContext, msg nasMessage) ([]byte, error) {
 // protectDownlinkBytes integrity-protects and ciphers an already-marshalled NAS
 // message for the UE, advancing the downlink NAS COUNT (TS 24.301).
 func (m *MME) protectDownlinkBytes(ue *UeContext, plain []byte) ([]byte, error) {
-	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nascommon.NASCount(0, uint8(ue.dlCount)),
-		nascommon.DirectionDownlink, ue.knasInt, ue.knasEnc, integrityAlg(ue.eia), cipherAlg(ue.eea))
+	count, knasInt, knasEnc, eia, eea := ue.downlinkSecCtx()
+
+	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nascommon.NASCount(0, uint8(count)),
+		nascommon.DirectionDownlink, knasInt, knasEnc, integrityAlg(eia), cipherAlg(eea))
 	if err != nil {
 		return nil, err
 	}
-
-	ue.dlCount++
 
 	return wire, nil
 }

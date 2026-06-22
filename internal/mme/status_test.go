@@ -18,7 +18,7 @@ func TestConnectedSubscribers(t *testing.T) {
 
 	registered := m.newUe(conn, 7)
 	registered.imsi = "001010000000001"
-	registered.emmState = EMMRegistered
+	registered.emmState.store(EMMRegistered)
 	registered.eea = 2
 	registered.eia = 2
 	registered.imei = "353456789012347"
@@ -30,10 +30,10 @@ func TestConnectedSubscribers(t *testing.T) {
 
 	deregistered := m.newUe(conn, 8)
 	deregistered.imsi = "001010000000002"
-	deregistered.emmState = EMMDeregistered
+	deregistered.emmState.store(EMMDeregistered)
 
 	noIMSI := m.newUe(conn, 9)
-	noIMSI.emmState = EMMRegistered
+	noIMSI.emmState.store(EMMRegistered)
 
 	got := m.ConnectedSubscribers()
 
@@ -99,7 +99,7 @@ func TestLookupSubscriber(t *testing.T) {
 
 	ue := m.newUe(conn, 7)
 	ue.imsi = "001010000000001"
-	ue.emmState = EMMRegistered
+	ue.emmState.store(EMMRegistered)
 
 	if _, ok := m.LookupSubscriber("001010000000099"); ok {
 		t.Fatal("LookupSubscriber found an unknown IMSI")
@@ -121,11 +121,11 @@ func TestCountRegisteredSubscribers(t *testing.T) {
 
 	a := m.newUe(conn, 7)
 	a.imsi = "001010000000001"
-	a.emmState = EMMRegistered
+	a.emmState.store(EMMRegistered)
 
 	b := m.newUe(conn, 8)
 	b.imsi = "001010000000002"
-	b.emmState = EMMDeregistered
+	b.emmState.store(EMMDeregistered)
 
 	if got := m.CountRegisteredSubscribers(); got != 1 {
 		t.Fatalf("CountRegisteredSubscribers = %d, want 1", got)

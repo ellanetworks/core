@@ -63,8 +63,9 @@ func getsockopt(fd int, optname, optval, optlen uintptr) error {
 }
 
 // listenRawConn is a minimal syscall.RawConn used only during listener socket
-// setup (before the socket is wrapped in os.File). Read and Write panic
-// because they should never be called during setup.
+// setup (before the socket is wrapped in os.File). It supports only Control;
+// Read and Write return an error rather than panic, since they are never part of
+// listener setup but must not crash the process if a future path reaches them.
 type listenRawConn struct {
 	sockfd int
 }
@@ -75,11 +76,11 @@ func (r listenRawConn) Control(f func(fd uintptr)) error {
 }
 
 func (r listenRawConn) Read(func(fd uintptr) (done bool)) error {
-	panic("listenRawConn: Read not supported")
+	return fmt.Errorf("sctp: Read not supported on a listener control connection")
 }
 
 func (r listenRawConn) Write(func(fd uintptr) (done bool)) error {
-	panic("listenRawConn: Write not supported")
+	return fmt.Errorf("sctp: Write not supported on a listener control connection")
 }
 
 // WriteMsg sends data with optional SCTP ancillary info. Uses Go's runtime

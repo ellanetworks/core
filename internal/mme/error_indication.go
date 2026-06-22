@@ -54,7 +54,7 @@ func (m *MME) resolveUE(conn nasWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUE
 		return nil, false
 	}
 
-	if ue.ecmState != ECMConnected {
+	if ue.ecmState.load() != ECMConnected {
 		logger.MmeLog.Warn("UE-associated S1AP message for an MME-UE-S1AP-ID with no active S1 connection",
 			zap.Uint32("mme-ue-id", uint32(mmeID)), zap.Uint32("enb-ue-id", uint32(enbID)))
 		m.sendErrorIndication(conn, &mmeID, &enbID, causeUnknownMMEUES1APID)

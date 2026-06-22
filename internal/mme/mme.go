@@ -55,6 +55,32 @@ type epsSessionManager interface {
 	ReleaseEPSSession(ctx context.Context, imsi string, ebi uint8) error
 }
 
+// Concurrency model. A UE's state is touched by several goroutines: the eNB
+// dispatch loop (serial per SCTP association), the data-network reconcile
+// backstop, the status and detach API, and timer callbacks. Two locks, with a
+// fixed ordering, plus two atomics:
+//
+//   - MME.mu guards the registry and lifecycle: the ues/byMTMSI/enbs maps,
+//     nextMMEUEID, the M-TMSI allocator, each UE's S1 identity (conn,
+//     MME/ENB-UE-S1AP-IDs), the idle/paging/NAS-guard timers and their generation
+//     counters, and the releasing flag.
+//   - UeContext.mu guards that UE's data: the EPS NAS security context (keys and
+//     NAS COUNTs), the PDN/bearer state (the pdns map, defaultEBI, and each
+//     connection's in-flight modification flags), and imsi. The security context
+//     is reached only through chokepoint methods (downlinkSecCtx, nextDownlinkCount,
+//     setEPSSecurityContext, markSecured, securitySnapshot) so the COUNT invariant
+//     is auditable in one place.
+//   - UeContext.emmState/ecmState are atomic — independent enums read on the hot
+//     path, kept lock-free.
+//
+// Lock ordering (acquire in this order, never reverse):
+//
+//	MME.mu  →  UeContext.mu
+//
+// Never hold a lock across an external call (SMF, DB, SCTP send): snapshot the
+// state, release, then send. Reads of a UE's data from another goroutine that
+// first observe emmState == EMM-REGISTERED (status, reconcile) are safe without
+// UeContext.mu — the atomic store at registration carries the happens-before.
 type MME struct {
 	srv     *sctp.Server
 	cred    *udm.Service

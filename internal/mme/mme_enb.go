@@ -156,7 +156,7 @@ func (m *MME) reclaimUEsOnConnLoss(conn nasWriter) {
 	var orphaned []*UeContext
 
 	for _, ue := range m.ues {
-		if ue.conn == conn && ue.ecmState == ECMConnected {
+		if ue.conn == conn && ue.ecmState.load() == ECMConnected {
 			orphaned = append(orphaned, ue)
 		}
 	}

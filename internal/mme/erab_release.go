@@ -34,8 +34,10 @@ func (m *MME) deactivateBearer(ctx context.Context, ue *UeContext, p *pdnConnect
 		return
 	}
 
+	ue.mu.Lock()
 	p.deactivating = true
 	p.disconnecting = disconnecting
+	ue.mu.Unlock()
 
 	if disconnecting || p.ebi != ue.defaultEBI {
 		m.sendERABRelease(ctx, ue, p, naspdu)

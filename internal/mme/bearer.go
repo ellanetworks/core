@@ -392,7 +392,7 @@ func (m *MME) sendInitialContextSetup(ctx context.Context, ue *UeContext, qos *e
 		return
 	}
 
-	p := ue.defaultPDN()
+	p := m.defaultPDN(ue)
 	if p == nil {
 		logger.MmeLog.Error("Initial Context Setup with no active PDN", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
 		return
@@ -458,7 +458,7 @@ func (m *MME) sendInitialContextSetup(ctx context.Context, ue *UeContext, qos *e
 // buildProtectedAttachAccept assembles the Attach Accept (with the embedded
 // Activate Default EPS Bearer Context Request) and protects it for the UE.
 func (m *MME) buildProtectedAttachAccept(ctx context.Context, ue *UeContext, qos *epsQoS) ([]byte, error) {
-	p := ue.defaultPDN()
+	p := m.defaultPDN(ue)
 	if p == nil {
 		return nil, fmt.Errorf("attach accept with no active PDN")
 	}
@@ -517,13 +517,13 @@ func (m *MME) buildProtectedAttachAccept(ctx context.Context, ue *UeContext, qos
 		return nil, err
 	}
 
-	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nascommon.NASCount(0, uint8(ue.dlCount)),
-		nascommon.DirectionDownlink, ue.knasInt, ue.knasEnc, integrityAlg(ue.eia), cipherAlg(ue.eea))
+	count, knasInt, knasEnc, eia, eea := ue.downlinkSecCtx()
+
+	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nascommon.NASCount(0, uint8(count)),
+		nascommon.DirectionDownlink, knasInt, knasEnc, integrityAlg(eia), cipherAlg(eea))
 	if err != nil {
 		return nil, err
 	}
-
-	ue.dlCount++
 
 	return wire, nil
 }
@@ -538,7 +538,7 @@ func (m *MME) onAttachComplete(ctx context.Context, ue *UeContext, plain []byte)
 		return
 	}
 
-	ue.emmState = EMMRegistered
+	ue.emmState.store(EMMRegistered)
 
 	metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultAccept)
 
@@ -652,11 +652,12 @@ func (m *MME) sendS1AP(ctx context.Context, ue *UeContext, messageType S1APProce
 	)
 	defer span.End()
 
-	if ue.conn == nil {
+	conn, _, _ := m.s1Identity(ue)
+	if conn == nil {
 		return
 	}
 
-	if _, err := ue.conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamUE}); err != nil {
+	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamUE}); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send S1AP message")
 		logger.MmeLog.Error("failed to send S1AP message", zap.Error(err))
@@ -664,5 +665,5 @@ func (m *MME) sendS1AP(ctx context.Context, ue *UeContext, messageType S1APProce
 		return
 	}
 
-	m.logOutboundS1AP(ctx, ue.conn, messageType, b)
+	m.logOutboundS1AP(ctx, conn, messageType, b)
 }

@@ -41,7 +41,7 @@ func (m *MME) handleInitialUEMessage(ctx context.Context, conn *sctp.SCTPConn, v
 	// with that context. A UE without a resolvable context (e.g. after an MME
 	// restart) falls through to a fresh context below.
 	if len(nas) > 0 && nas[0]>>4 != uint8(eps.SHTPlain) && msg.STMSI != nil {
-		if ue, ok := m.lookupUeByMTMSI(msg.STMSI.MTMSI); ok && ue.emmState == EMMRegistered && ue.secured {
+		if ue, ok := m.lookupUeByMTMSI(msg.STMSI.MTMSI); ok && ue.emmState.load() == EMMRegistered && ue.secured {
 			m.establishS1Connection(ue, conn, msg.ENBUES1APID)
 
 			logger.MmeLog.Info("Initial UE Message (resume)",
@@ -167,11 +167,11 @@ func (m *MME) handleInitialContextSetupResponse(ctx context.Context, conn nasWri
 }
 
 // downlinkNASTransportBytes builds a Downlink NAS Transport PDU carrying nas for
-// the UE context (TS 36.413).
-func downlinkNASTransportBytes(ue *UeContext, nas []byte) ([]byte, error) {
+// the given S1AP identities (TS 36.413).
+func downlinkNASTransportBytes(mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID, nas []byte) ([]byte, error) {
 	msg := &s1ap.DownlinkNASTransport{
-		MMEUES1APID: ue.MMEUES1APID,
-		ENBUES1APID: ue.ENBUES1APID,
+		MMEUES1APID: mmeID,
+		ENBUES1APID: enbID,
 		NASPDU:      s1ap.NASPDU(nas),
 	}
 
@@ -208,7 +208,12 @@ func (m *MME) sendDownlink(ctx context.Context, ue *UeContext, nas []byte) {
 	)
 	defer span.End()
 
-	b, err := downlinkNASTransportBytes(ue, nas)
+	conn, mmeID, enbID := m.s1Identity(ue)
+	if conn == nil {
+		return
+	}
+
+	b, err := downlinkNASTransportBytes(mmeID, enbID, nas)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build Downlink NAS Transport")
@@ -217,11 +222,7 @@ func (m *MME) sendDownlink(ctx context.Context, ue *UeContext, nas []byte) {
 		return
 	}
 
-	if ue.conn == nil {
-		return
-	}
-
-	if _, err := ue.conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamUE}); err != nil {
+	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamUE}); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send Downlink NAS Transport")
 		logger.MmeLog.Error("failed to send Downlink NAS Transport", zap.Error(err))
@@ -229,5 +230,5 @@ func (m *MME) sendDownlink(ctx context.Context, ue *UeContext, nas []byte) {
 		return
 	}
 
-	m.logOutboundS1AP(ctx, ue.conn, S1APProcedureDownlinkNASTransport, b)
+	m.logOutboundS1AP(ctx, conn, S1APProcedureDownlinkNASTransport, b)
 }

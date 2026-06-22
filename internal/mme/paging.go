@@ -31,7 +31,7 @@ func (m *MME) Page(ctx context.Context, imsi string) error {
 
 	m.mu.RLock()
 
-	skip := ue.ecmState == ECMConnected || ue.pagingTimer != nil
+	skip := ue.ecmState.load() == ECMConnected || ue.pagingTimer != nil
 
 	m.mu.RUnlock()
 
@@ -103,7 +103,7 @@ func (m *MME) onPagingExpiry(ue *UeContext, gen uint64) {
 		return
 	}
 
-	if ue.ecmState == ECMConnected {
+	if ue.ecmState.load() == ECMConnected {
 		m.stopPagingLocked(ue)
 		m.mu.Unlock()
 

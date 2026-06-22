@@ -46,15 +46,17 @@ func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 		}
 	}
 
+	imei, eea, eia := ue.securitySnapshot()
+
 	cs := ConnectedSubscriber{
 		RadioName:          radioName,
-		Imei:               ue.imei,
+		Imei:               imei,
 		LastSeenAt:         ue.lastSeenTime(),
-		CipheringAlgorithm: epsCipheringAlgName(ue.eea),
-		IntegrityAlgorithm: epsIntegrityAlgName(ue.eia),
+		CipheringAlgorithm: epsCipheringAlgName(eea),
+		IntegrityAlgorithm: epsIntegrityAlgName(eia),
 	}
 
-	for _, p := range ue.pdns {
+	for _, p := range m.snapshotPDNs(ue) {
 		s := SubscriberSession{
 			BearerID:     p.ebi,
 			APN:          p.apn,
@@ -90,7 +92,7 @@ func (m *MME) ConnectedSubscribers() map[string]ConnectedSubscriber {
 	out := make(map[string]ConnectedSubscriber)
 
 	for _, ue := range m.ues {
-		if ue.emmState != EMMRegistered || ue.imsi == "" {
+		if ue.emmState.load() != EMMRegistered || ue.imsi == "" {
 			continue
 		}
 
@@ -106,7 +108,7 @@ func (m *MME) LookupSubscriber(imsi string) (ConnectedSubscriber, bool) {
 	defer m.mu.RUnlock()
 
 	for _, ue := range m.ues {
-		if ue.emmState == EMMRegistered && ue.imsi == imsi {
+		if ue.emmState.load() == EMMRegistered && ue.imsi == imsi {
 			return m.connectedSubscriber(ue), true
 		}
 	}
@@ -122,7 +124,7 @@ func (m *MME) CountRegisteredSubscribers() int {
 	count := 0
 
 	for _, ue := range m.ues {
-		if ue.emmState == EMMRegistered && ue.imsi != "" {
+		if ue.emmState.load() == EMMRegistered && ue.imsi != "" {
 			count++
 		}
 	}

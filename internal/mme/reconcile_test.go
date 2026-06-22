@@ -5,6 +5,7 @@ package mme
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -21,7 +22,8 @@ func connectedBearerUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 	ue, cc := securedUE(t, m)
 	p := testPDN(ue)
 	p.apn = "internet"
-	ue.ecmState = ECMConnected
+
+	ue.ecmState.store(ECMConnected)
 
 	// Record the QoS a real activation would, so a reconcile against an unchanged
 	// policy is a no-op.
@@ -98,7 +100,7 @@ func TestReconcileDataNetworkSkipsUnchanged(t *testing.T) {
 func TestReconcileDataNetworkSkipsIdleUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
-	ue.ecmState = ECMIdle // an idle UE picks up the change on its next attach
+	ue.ecmState.store(ECMIdle) // an idle UE picks up the change on its next attach
 	testPDN(ue).dnConfig = "stale|config|0.0.0.0|0"
 
 	m.ReconcileDataNetwork(context.Background())
@@ -134,7 +136,7 @@ func TestDeactivateBearerAcceptReleases(t *testing.T) {
 		t.Fatal("EPS session not released after Deactivate Accept")
 	}
 
-	if ue.emmState != EMMDeregistered {
+	if ue.emmState.load() != EMMDeregistered {
 		t.Fatal("UE not EMM-DEREGISTERED after Deactivate Accept")
 	}
 
@@ -267,6 +269,45 @@ func TestReconcileDataNetworkModifiesSessionAMBR(t *testing.T) {
 
 	if p.sessAmbrDLBps == wantDL {
 		t.Fatal("Session-AMBR committed before the UE accepted the modification")
+	}
+}
+
+// TestReconcileDataNetworkDefersAMBROnQERFailure verifies that when the UPF QER
+// update fails the modification is aborted rather than signalled to the UE: the
+// stored Session-AMBR is left stale so the next reconcile retries, avoiding a
+// silent UE/UPF divergence (AC4).
+func TestReconcileDataNetworkDefersAMBROnQERFailure(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := connectedBearerUE(t, m)
+	p := testPDN(ue)
+	p.pdnType = eps.PDNTypeIPv4
+
+	qos, err := m.resolveQoS(context.Background(), ue.imsi)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	staleDL := bitRateToBps(qos.SessAmbrDLStr) / 2
+	staleUL := bitRateToBps(qos.SessAmbrULStr) / 2
+
+	p.dnConfig = qos.dnFingerprint()
+	p.sessAmbrDLBps = staleDL
+	p.sessAmbrULBps = staleUL
+
+	m.session.(*fakeSessionManager).ambrErr = errors.New("upf unavailable")
+
+	m.ReconcileDataNetwork(context.Background())
+
+	if p.modifying {
+		t.Fatal("modification marked in-flight despite the QER update failing")
+	}
+
+	if len(cc.sent) != 0 {
+		t.Fatalf("UE signalled a Session-AMBR the data plane rejected: %d message(s) sent", len(cc.sent))
+	}
+
+	if p.sessAmbrDLBps != staleDL || p.sessAmbrULBps != staleUL {
+		t.Fatal("stored Session-AMBR changed; the next reconcile would not retry")
 	}
 }
 

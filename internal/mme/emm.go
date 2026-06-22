@@ -242,7 +242,7 @@ func (m *MME) onAttachRequest(ctx context.Context, ue *UeContext, plain []byte) 
 	m.ingestAttachRequest(ue, req)
 
 	if req.EPSMobileIdentity.Type == eps.IdentityIMSI {
-		ue.imsi = req.EPSMobileIdentity.Digits
+		m.setIMSI(ue, req.EPSMobileIdentity.Digits)
 		m.authenticateOrReject(ctx, ue)
 
 		return
@@ -328,7 +328,7 @@ func (m *MME) reuseContextForGUTIAttach(ctx context.Context, ue *UeContext, nas,
 	// Authentic returning UE: carry over the EPS security context and identity,
 	// drop the superseded registration, and run the security mode procedure with
 	// the reused K_ASME — skipping the authentication round-trip and HSS vector.
-	ue.imsi = existing.imsi
+	m.setIMSI(ue, existing.imsi)
 	ue.imei = existing.imei
 	ue.kasme = existing.kasme
 
@@ -352,7 +352,7 @@ func (m *MME) onIdentityResponse(ctx context.Context, ue *UeContext, plain []byt
 		return
 	}
 
-	ue.imsi = mobileIdentityDigits(resp.MobileIdentity)
+	m.setIMSI(ue, mobileIdentityDigits(resp.MobileIdentity))
 	m.authenticateOrReject(ctx, ue)
 }
 
@@ -445,24 +445,27 @@ func (m *MME) startSecurityMode(ctx context.Context, ue *UeContext) {
 		integrity, _ = op.GetIntegrity()
 	}
 
-	ue.eea, ue.eia = selectAlgorithms(ue.ueNetCap, ciphering, integrity)
+	eea, eia := selectAlgorithms(ue.ueNetCap, ciphering, integrity)
 
-	var err error
-	if ue.knasEnc, err = deriveKNASEnc(ue.kasme, ue.eea); err != nil {
+	knasEnc, err := deriveKNASEnc(ue.kasme, eea)
+	if err != nil {
 		logger.MmeLog.Error("failed to derive K_NASenc", zap.Error(err))
 		return
 	}
 
-	if ue.knasInt, err = deriveKNASInt(ue.kasme, ue.eia); err != nil {
+	knasInt, err := deriveKNASInt(ue.kasme, eia)
+	if err != nil {
 		logger.MmeLog.Error("failed to derive K_NASint", zap.Error(err))
 		return
 	}
 
+	ue.setEPSSecurityContext(eea, eia, knasEnc, knasInt)
+
 	replayed := replayedUESecCap(ue.ueNetCap, ue.msNetCap)
 
 	smc := &eps.SecurityModeCommand{
-		CipheringAlgorithm:             ue.eea,
-		IntegrityAlgorithm:             ue.eia,
+		CipheringAlgorithm:             eea,
+		IntegrityAlgorithm:             eia,
 		NASKeySetIdentifier:            0,
 		ReplayedUESecurityCapabilities: replayed,
 		IMEISVRequested:                true,
@@ -475,17 +478,15 @@ func (m *MME) startSecurityMode(ctx context.Context, ue *UeContext) {
 	}
 
 	// Integrity protected with the new EPS security context (TS 24.301).
-	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedNewContext, nascommon.NASCount(0, uint8(ue.dlCount)),
-		nascommon.DirectionDownlink, ue.knasInt, ue.knasEnc, integrityAlg(ue.eia), cipherAlg(ue.eea))
+	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedNewContext, nascommon.NASCount(0, uint8(ue.nextDownlinkCount())),
+		nascommon.DirectionDownlink, knasInt, knasEnc, integrityAlg(eia), cipherAlg(eea))
 	if err != nil {
 		logger.MmeLog.Error("failed to protect Security Mode Command", zap.Error(err))
 		return
 	}
 
-	ue.dlCount++
-
 	logger.MmeLog.Info("Security Mode Command", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
-		zap.Uint8("eea", ue.eea), zap.Uint8("eia", ue.eia),
+		zap.Uint8("eea", eea), zap.Uint8("eia", eia),
 		zap.String("ue-network-capability", fmt.Sprintf("%x", ue.ueNetCap)),
 		zap.String("ms-network-capability", fmt.Sprintf("%x", ue.msNetCap)),
 		zap.String("replayed-ue-security-capability", fmt.Sprintf("%x", replayed)))
@@ -503,15 +504,17 @@ func (m *MME) onSecurityModeComplete(ctx context.Context, ue *UeContext, plain [
 
 	// The UE returns its IMEISV when requested in the Security Mode Command
 	// (TS 24.301). Convert it to a 15-digit IMEI for the status API.
+	var imei string
+
 	if len(smc.IMEISV) > 0 {
-		if imei, err := etsi.IMEIFromPEI("imeisv-" + mobileIdentityDigits(smc.IMEISV)); err == nil {
-			ue.imei = imei
+		if derived, err := etsi.IMEIFromPEI("imeisv-" + mobileIdentityDigits(smc.IMEISV)); err == nil {
+			imei = derived
 		} else {
 			logger.MmeLog.Warn("failed to derive IMEI from IMEISV", zap.String("imsi", ue.imsi), zap.Error(err))
 		}
 	}
 
-	ue.secured = true
+	ue.markSecured(imei)
 
 	logger.MmeLog.Info("NAS security context established",
 		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
@@ -530,14 +533,11 @@ func (m *MME) sendDownlinkProtected(ctx context.Context, ue *UeContext, msg nasM
 		return
 	}
 
-	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nascommon.NASCount(0, uint8(ue.dlCount)),
-		nascommon.DirectionDownlink, ue.knasInt, ue.knasEnc, integrityAlg(ue.eia), cipherAlg(ue.eea))
+	wire, err := m.protectDownlinkBytes(ue, plain)
 	if err != nil {
 		logger.MmeLog.Error("failed to protect NAS message", zap.Error(err))
 		return
 	}
-
-	ue.dlCount++
 
 	m.sendDownlink(ctx, ue, wire)
 }

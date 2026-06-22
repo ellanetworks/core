@@ -225,11 +225,11 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal("UE removed by a single-PDN disconnect; expected it to stay registered")
 	}
 
-	if ue.emmState != EMMRegistered {
-		t.Fatalf("UE emmState = %v after PDN disconnect, want EMMRegistered", ue.emmState)
+	if ue.emmState.load() != EMMRegistered {
+		t.Fatalf("UE emmState = %v after PDN disconnect, want EMMRegistered", ue.emmState.load())
 	}
 
-	if ue.defaultPDN() == nil || ue.defaultPDN().apn != "internet" {
+	if p := m.defaultPDN(ue); p == nil || p.apn != "internet" {
 		t.Fatal("default PDN disturbed by the second PDN's disconnect")
 	}
 }
@@ -403,7 +403,7 @@ func TestLastPDNDisconnectRejected(t *testing.T) {
 
 	m.onPDNDisconnectRequest(context.Background(), ue, dis)
 
-	if ue.defaultPDN() == nil {
+	if m.defaultPDN(ue) == nil {
 		t.Fatal("the only PDN was disconnected; expected it to be retained")
 	}
 
