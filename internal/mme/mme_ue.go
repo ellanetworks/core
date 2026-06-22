@@ -166,11 +166,13 @@ type UeContext struct {
 	nasGuardName  string
 	nasGuardTries int
 	nasGuardGen   uint64
-	// nasGuardAbortOnly leaves the UE connected when the guarded procedure
-	// exhausts its retransmissions, rather than releasing the context. Used for
-	// non-critical procedures (a bearer modification) whose failure must not drop
-	// the UE (TS 24.301 §6.4.2.5: on T3486 expiry the bearer stays active).
-	nasGuardAbortOnly bool
+	// nasGuardOnAbort, when non-nil, makes the guard abort-only: on exhausting
+	// its retransmissions it runs this finalizer and leaves the UE connected,
+	// rather than releasing the context. Used for non-critical procedures whose
+	// failure must not drop the UE — a bearer modification (TS 24.301 §6.4.2.5:
+	// on T3486 expiry the bearer stays active) or a single-PDN deactivation
+	// (§6.4.4.5: on T3495 expiry the bearer is deactivated locally).
+	nasGuardOnAbort func()
 }
 
 // touchLastSeen records the current time as the UE's most recent uplink NAS

@@ -6,6 +6,7 @@ package mme
 import (
 	"context"
 	"testing"
+	"time"
 
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
@@ -52,6 +53,28 @@ func TestDetachSubscriberNetworkInitiated(t *testing.T) {
 
 	if _, ok := m.lookupUe(ue.MMEUES1APID); ok {
 		t.Fatal("UE context not deleted after network-initiated detach")
+	}
+}
+
+// TestDetachSubscriberUnansweredReleases confirms a network-initiated detach
+// whose Detach Accept never arrives is retransmitted and then releases the UE
+// context, so a silent UE cannot leak it (TS 24.301: T3422).
+func TestDetachSubscriberUnansweredReleases(t *testing.T) {
+	m := newTestMME(t)
+	m.nasGuardTimeout = 5 * time.Millisecond
+	m.nasGuardMaxRetransmit = 2
+
+	ue, cc := securedUE(t, m)
+
+	m.DetachSubscriber(context.Background(), testSubscriber.IMSI)
+
+	// Initial Detach Request + 2 retransmissions + the UE Context Release Command.
+	eventually(t, time.Second, func() bool {
+		return cc.count() >= 4
+	})
+
+	if !ue.releasing {
+		t.Fatal("UE not released after an unanswered network-initiated detach")
 	}
 }
 
