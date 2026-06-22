@@ -47,9 +47,7 @@ func (it UEAssociatedLogicalS1ConnectionItem) encode(w *aper.Writer) error {
 	return nil
 }
 
-func decodeUEAssociatedLogicalS1ConnectionItem(value []byte) (UEAssociatedLogicalS1ConnectionItem, error) {
-	r := aper.NewReader(value)
-
+func decodeUEAssociatedLogicalS1ConnectionItem(r *aper.Reader) (UEAssociatedLogicalS1ConnectionItem, error) {
 	extPresent, opt, err := r.ReadSequencePreamble(true, 3)
 	if err != nil {
 		return UEAssociatedLogicalS1ConnectionItem{}, fmt.Errorf("s1ap: UE-associatedLogicalS1-ConnectionItem preamble: %w", err)

@@ -412,9 +412,7 @@ func (it ERABToBeSetupItemCtxtSUReq) encode(w *aper.Writer) error {
 	return nil
 }
 
-func decodeERABToBeSetupItemCtxtSUReq(value []byte) (ERABToBeSetupItemCtxtSUReq, error) {
-	r := aper.NewReader(value)
-
+func decodeERABToBeSetupItemCtxtSUReq(r *aper.Reader) (ERABToBeSetupItemCtxtSUReq, error) {
 	extPresent, opt, err := r.ReadSequencePreamble(true, 2)
 	if err != nil {
 		return ERABToBeSetupItemCtxtSUReq{}, err
@@ -473,9 +471,7 @@ func (it ERABSetupItemCtxtSURes) encode(w *aper.Writer) error {
 	return it.GTPTEID.encode(w)
 }
 
-func decodeERABSetupItemCtxtSURes(value []byte) (ERABSetupItemCtxtSURes, error) {
-	r := aper.NewReader(value)
-
+func decodeERABSetupItemCtxtSURes(r *aper.Reader) (ERABSetupItemCtxtSURes, error) {
 	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
 	if err != nil {
 		return ERABSetupItemCtxtSURes{}, err
@@ -519,9 +515,7 @@ func (it ERABItem) encode(w *aper.Writer) error {
 	return it.Cause.encode(w)
 }
 
-func decodeERABItem(value []byte) (ERABItem, error) {
-	r := aper.NewReader(value)
-
+func decodeERABItem(r *aper.Reader) (ERABItem, error) {
 	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
 	if err != nil {
 		return ERABItem{}, err

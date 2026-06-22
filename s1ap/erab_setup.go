@@ -44,9 +44,7 @@ func (it ERABToBeSetupItemBearerSUReq) encode(w *aper.Writer) error {
 	return it.NASPDU.encode(w)
 }
 
-func decodeERABToBeSetupItemBearerSUReq(value []byte) (ERABToBeSetupItemBearerSUReq, error) {
-	r := aper.NewReader(value)
-
+func decodeERABToBeSetupItemBearerSUReq(r *aper.Reader) (ERABToBeSetupItemBearerSUReq, error) {
 	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
 	if err != nil {
 		return ERABToBeSetupItemBearerSUReq{}, err

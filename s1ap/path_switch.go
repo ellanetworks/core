@@ -32,9 +32,7 @@ func (it ERABToBeSwitchedDLItem) encode(w *aper.Writer) error {
 	return it.GTPTEID.encode(w)
 }
 
-func decodeERABToBeSwitchedDLItem(value []byte) (ERABToBeSwitchedDLItem, error) {
-	r := aper.NewReader(value)
-
+func decodeERABToBeSwitchedDLItem(r *aper.Reader) (ERABToBeSwitchedDLItem, error) {
 	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
 	if err != nil {
 		return ERABToBeSwitchedDLItem{}, err

@@ -192,9 +192,12 @@ func decodeSingleContainerList(r *aper.Reader, ub int) ([][]byte, error) {
 	return out, nil
 }
 
-// decodeItemList reads a SEQUENCE (SIZE(1..ub)) OF ProtocolIE-SingleContainer and
-// decodes each item's open-type bytes with dec (TS 36.413 §9.3).
-func decodeItemList[T any](r *aper.Reader, ub int, dec func([]byte) (T, error)) ([]T, error) {
+// decodeItemList reads a SEQUENCE (SIZE(1..ub)) OF ProtocolIE-SingleContainer
+// (TS 36.413 §9.3). Each item is its own APER open type, so dec is handed a
+// fresh reader over that item's octets — element decoders therefore take an
+// *aper.Reader like every other decoder, and the open-type boundary lives here
+// rather than being re-stated at each call site.
+func decodeItemList[T any](r *aper.Reader, ub int, dec func(*aper.Reader) (T, error)) ([]T, error) {
 	raw, err := decodeSingleContainerList(r, ub)
 	if err != nil {
 		return nil, err
@@ -203,7 +206,7 @@ func decodeItemList[T any](r *aper.Reader, ub int, dec func([]byte) (T, error)) 
 	out := make([]T, 0, len(raw))
 
 	for _, b := range raw {
-		it, err := dec(b)
+		it, err := dec(aper.NewReader(b))
 		if err != nil {
 			return nil, err
 		}

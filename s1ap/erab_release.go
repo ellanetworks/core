@@ -21,9 +21,7 @@ func (it ERABReleaseItemBearerRelComp) encode(w *aper.Writer) error {
 	return it.ERABID.encode(w)
 }
 
-func decodeERABReleaseItemBearerRelComp(value []byte) (ERABReleaseItemBearerRelComp, error) {
-	r := aper.NewReader(value)
-
+func decodeERABReleaseItemBearerRelComp(r *aper.Reader) (ERABReleaseItemBearerRelComp, error) {
 	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
 	if err != nil {
 		return ERABReleaseItemBearerRelComp{}, err

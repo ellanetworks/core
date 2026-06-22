@@ -34,9 +34,7 @@ func (it ERABToBeModifiedItemBearerModReq) encode(w *aper.Writer) error {
 	return it.NASPDU.encode(w)
 }
 
-func decodeERABToBeModifiedItemBearerModReq(value []byte) (ERABToBeModifiedItemBearerModReq, error) {
-	r := aper.NewReader(value)
-
+func decodeERABToBeModifiedItemBearerModReq(r *aper.Reader) (ERABToBeModifiedItemBearerModReq, error) {
 	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
 	if err != nil {
 		return ERABToBeModifiedItemBearerModReq{}, err
@@ -76,9 +74,7 @@ func (it ERABModifyItemBearerModRes) encode(w *aper.Writer) error {
 	return it.ERABID.encode(w)
 }
 
-func decodeERABModifyItemBearerModRes(value []byte) (ERABModifyItemBearerModRes, error) {
-	r := aper.NewReader(value)
-
+func decodeERABModifyItemBearerModRes(r *aper.Reader) (ERABModifyItemBearerModRes, error) {
 	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
 	if err != nil {
 		return ERABModifyItemBearerModRes{}, err

@@ -181,9 +181,7 @@ func ParsePaging(value []byte) (*Paging, error) {
 	return m, nil
 }
 
-func decodeTAIItem(b []byte) (TAI, error) {
-	r := aper.NewReader(b)
-
+func decodeTAIItem(r *aper.Reader) (TAI, error) {
 	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
 	if err != nil {
 		return TAI{}, err
