@@ -66,15 +66,12 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 
 	smContext := s.NewSession(supi, req.EPSBearerIdentity, req.APN, nil)
 
-	// The session is published in the pool the moment NewSession returns, so build
-	// it under its own lock: a concurrent Modify/Update/Release/reconcile for the
-	// same (IMSI,EBI) must not observe a half-initialised Tunnel/PFCPContext.
-	// sendPFCPRules re-locks the same mutex, so the lock is dropped before it,
-	// mirroring the 5G create path (handlePDUSessionSMContextCreate).
+	// The session is already in the pool, so build it under its lock to keep a
+	// concurrent reader for the same (IMSI,EBI) from seeing a half-built context.
 	smContext.Mutex.Lock()
 	smContext.IsEPS = true
 	smContext.PDUSessionType = pdnType
-	smContext.PolicyData = policy // SetPolicyData would re-lock; we hold the lock
+	smContext.PolicyData = policy // direct: SetPolicyData re-locks the held mutex
 
 	var dns netip.Addr
 	if policy.DNS != nil {
@@ -149,8 +146,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		return models.EPSBearer{}, fmt.Errorf("activate data path: %w", err)
 	}
 
-	// Drop the lock before sendPFCPRules, which re-acquires it.
-	smContext.Mutex.Unlock()
+	smContext.Mutex.Unlock() // sendPFCPRules re-acquires it
 
 	if err := s.sendPFCPRules(ctx, smContext); err != nil {
 		s.abortEPSSession(ctx, supi, req.APN, req.EPSBearerIdentity)
@@ -388,11 +384,8 @@ func (s *SMF) abortEPSSession(ctx context.Context, supi etsi.SUPI, apn string, e
 		return
 	}
 
-	// Release the tunnel whenever one was built, not only when PFCP established:
-	// ActivateTunnelAndPDR allocates the PDR/FAR/QER/URR IDs before the PFCP
-	// request, so gating on RemoteSEID would permanently leak those IDs when
-	// establish failed. Mirrors the 5G create-cleanup path, which calls
-	// releaseTunnel whenever Tunnel != nil.
+	// ActivateTunnelAndPDR allocates the rule IDs before the PFCP request, so the
+	// tunnel must be released even when establish failed (RemoteSEID == 0), or they leak.
 	if sc.Tunnel != nil {
 		if err := s.releaseTunnel(ctx, sc); err != nil {
 			logger.SmfLog.Warn("failed to release tunnel for aborted EPS session", zap.String("imsi", supi.IMSI()), zap.Error(err))

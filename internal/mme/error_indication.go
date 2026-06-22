@@ -27,8 +27,7 @@ var causeUnknownPairUES1APID = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Va
 //     a UE-associated logical S1 connection on the receiving association, so on
 //     that association it is an unknown local AP ID. The global MME-UE-S1AP-ID
 //     map is shared across eNBs; this scopes resolution to the sender so one eNB
-//     cannot act on a UE attached through another (TS 36.413), mirroring the
-//     AMF's per-radio RAN UE map.
+//     cannot act on a UE attached through another (TS 36.413).
 //   - An MME-UE-S1AP-ID held by an ECM-IDLE UE no longer identifies an active
 //     UE-associated logical S1 connection (the connection was released; the UE
 //     re-establishes under a fresh AP ID), so it is also an unknown local AP ID.

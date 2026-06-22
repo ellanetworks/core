@@ -18,7 +18,7 @@ const (
 )
 
 // encodePLMN encodes an MCC/MNC pair into the 3-octet TBCD PLMN identity
-// (TS 23.003), matching the encoding used on the 5G side.
+// (TS 23.003).
 func encodePLMN(plmn models.PlmnID) (s1ap.PLMNIdentity, error) {
 	mcc := strings.Split(plmn.Mcc, "")
 	mnc := strings.Split(plmn.Mnc, "")

@@ -195,12 +195,9 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *pdnConnection,
 	}
 
 	if includeAMBR {
-		// The UPF QER is the data-plane enforcement point, so update it before
-		// signalling the new Session-AMBR to the UE. On failure, abort the
-		// modification rather than tell the UE an AMBR the data plane is not
-		// enforcing: the stored config stays stale, so the next reconcile retries.
-		// (Signalling regardless would, once the UE accepts, commit the new AMBR and
-		// leave the UPF permanently behind with no further retry.)
+		// Update the UPF QER (the enforcement point) before signalling the AMBR, and
+		// abort on failure: signalling anyway commits the new AMBR on UE-accept while
+		// the UPF stays behind, and reconcile then sees no diff to retry.
 		if err := m.session.UpdateEPSSessionAMBR(ctx, ue.imsi, p.ebi, qos.SessAmbrULStr, qos.SessAmbrDLStr); err != nil {
 			logger.MmeLog.Error("failed to update UPF Session-AMBR; deferring EPS bearer modification to the next reconcile",
 				zap.String("imsi", ue.imsi), zap.String("apn", p.apn), zap.Error(err))

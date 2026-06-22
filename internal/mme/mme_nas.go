@@ -85,8 +85,8 @@ func (m *MME) handleUplinkNASTransport(ctx context.Context, conn nasWriter, valu
 
 // enbTransportAddress resolves the eNB S1-U endpoint from an E-RAB Transport
 // Layer Address (TS 36.413): IPv4 (4 octets), IPv6 (16), or dual-stack (20). When
-// the eNB advertises both families the IPv6 endpoint is used, matching the 5G N3
-// handling. It reports false when no address is present.
+// the eNB advertises both families the IPv6 endpoint is used. It reports false
+// when no address is present.
 func enbTransportAddress(tla s1ap.TransportLayerAddress) (netip.Addr, bool) {
 	v4, v6, err := models.DecodeTransportLayerAddress([]byte(tla))
 	if err != nil {

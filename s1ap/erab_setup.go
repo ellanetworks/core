@@ -11,7 +11,7 @@ import (
 
 // ERABToBeSetupItemBearerSUReq ::= SEQUENCE { e-RAB-ID, e-RABlevelQoSParameters,
 // transportLayerAddress, gTP-TEID, nAS-PDU, iE-Extensions OPTIONAL }
-// (extensible). It mirrors the context-setup item but the NAS-PDU is mandatory:
+// (extensible). The NAS-PDU is mandatory:
 // the E-RAB Setup carries the ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST for an
 // additional PDN connection (TS 36.413 §9.1.3.1).
 type ERABToBeSetupItemBearerSUReq struct {

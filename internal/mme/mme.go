@@ -92,8 +92,8 @@ type MME struct {
 	ues         map[uint32]*UeContext // keyed by MME-UE-S1AP-ID
 	byMTMSI     map[uint32]*UeContext // keyed by M-TMSI, for S-TMSI lookup
 	nextMMEUEID uint32
-	// mtmsi allocates an unpredictable M-TMSI (TS 23.401 privacy), shared
-	// with the AMF's 5G-TMSI allocator: random MSBs with allocate/free.
+	// mtmsi allocates an unpredictable M-TMSI (TS 23.401 privacy): random MSBs
+	// with allocate/free.
 	mtmsi *etsi.TmsiAllocator
 
 	// Idle-mode reachability supervision (TS 24.301). Fields so tests can
@@ -115,8 +115,7 @@ type MME struct {
 // mobileReachableTime supervises the UE's periodic tracking area updating; its
 // default is T3412 + 4 minutes (TS 24.301). implicitDetachTime is the
 // grace period the MME waits after the mobile reachable timer before it
-// implicitly detaches an unreachable UE (the value is network-dependent;
-// aligned with the AMF's implicit deregistration timer).
+// implicitly detaches an unreachable UE (the value is network-dependent).
 const (
 	defaultMobileReachableTime = 58 * time.Minute
 	defaultImplicitDetachTime  = 2 * time.Minute

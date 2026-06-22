@@ -140,7 +140,7 @@ func isCombinedUpdate(updateType uint8) bool {
 // trackingAreaUpdateAccept builds a TRACKING AREA UPDATE ACCEPT including the
 // operator's current TAI list (TS 24.301), so the UE's registered area is
 // refreshed and its tracking-area updating is bounded. It reallocates the GUTI on
-// every TAU to refresh the UE's temporary identity (matching the AMF); the UE
+// every TAU to refresh the UE's temporary identity; the UE
 // acknowledges with TRACKING AREA UPDATE COMPLETE. A combined update succeeds for
 // EPS services only: the MME has no SGs interface, so EMM cause #18 is included
 // to stop the UE attempting CS registration.
