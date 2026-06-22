@@ -129,9 +129,17 @@ type UeContext struct {
 
 	// X2-handover key chain (TS 33.401): nh is the Next Hop the next path
 	// switch hands to the target eNB, ncc its chaining counter. Seeded at initial
-	// context setup (NCC=1) and advanced on each Path Switch.
+	// context setup (NCC=1) and advanced on each Path Switch or S1 handover.
 	nh  [32]byte
 	ncc uint8
+
+	// handover is the in-flight S1 handover for this UE (nil when none); the UE is
+	// reachable on both the source and target associations until HANDOVER NOTIFY
+	// moves conn/ENBUES1APID to the target (TS 36.413 §8.4). handoverGen invalidates
+	// a guard-timer callback that fired just as the handover was cleared or
+	// replaced. Both guarded by MME.mu.
+	handover    *handoverContext
+	handoverGen uint64
 
 	// EMM/ECM state machines (TS 23.401) — independent: an S1 release moves
 	// the UE to ECM-IDLE while leaving the EMM state untouched, so the

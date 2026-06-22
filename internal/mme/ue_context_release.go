@@ -96,6 +96,15 @@ func (m *MME) handleUEContextReleaseComplete(conn nasWriter, value []byte) {
 		return
 	}
 
+	// A Release Complete from a source (or rejected target) eNB during an S1
+	// handover acknowledges a release the MME initiated; consume it without
+	// touching the UE, which is now active on the target association (TS 36.413
+	// §8.4).
+	if m.consumeHandoverRelease(conn, msg.ENBUES1APID) {
+		logger.MmeLog.Info("UE Context Release Complete (handover source)", zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
+		return
+	}
+
 	ue, ok := m.resolveUE(conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return

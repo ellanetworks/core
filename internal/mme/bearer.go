@@ -121,6 +121,18 @@ func (m *MME) operatorTAC(ctx context.Context) (uint16, error) {
 	return tacs[0], nil
 }
 
+// s1apSecurityCapabilities maps a UE's EPS NAS algorithm support to the S1AP UE
+// Security Capabilities the eNB selects AS algorithms from. The S1AP BIT STRING
+// omits the EEA0/EIA0 (mandatory null-algorithm) bit, so the UE network
+// capability octet is shifted left and placed in the high byte (TS 36.413
+// §9.2.1.40, TS 33.401).
+func s1apSecurityCapabilities(uecap eps.UENetworkCapability) s1ap.UESecurityCapabilities {
+	return s1ap.UESecurityCapabilities{
+		EncryptionAlgorithms:          uint16(uecap.EEA<<1) << 8,
+		IntegrityProtectionAlgorithms: uint16(uecap.EIA<<1) << 8,
+	}
+}
+
 // epsQoS is the default-bearer QoS resolved from a subscriber's profile/policy.
 type epsQoS struct {
 	PolicyID string // policy DB ID, so the UPF binds the session to its network rules
@@ -454,14 +466,10 @@ func (m *MME) sendInitialContextSetup(ctx context.Context, ue *UeContext, qos *e
 			GTPTEID:               s1ap.GTPTEID(p.sgwFTEID.TEID),
 			NASPDU:                s1ap.NASPDU(naspdu),
 		}},
-		// The eNB selects AS algorithms from these bitmaps; the S1AP encoding
-		// drops the EEA0/EIA0 bit, so shift the UE network capability octet left.
-		UESecurityCapabilities: s1ap.UESecurityCapabilities{
-			EncryptionAlgorithms:          uint16(uecap.EEA<<1) << 8,
-			IntegrityProtectionAlgorithms: uint16(uecap.EIA<<1) << 8,
-		},
-		SecurityKey:       kenb,
-		UERadioCapability: ue.radioCapability,
+		// The eNB selects AS algorithms from these bitmaps.
+		UESecurityCapabilities: s1apSecurityCapabilities(uecap),
+		SecurityKey:            kenb,
+		UERadioCapability:      ue.radioCapability,
 	}
 
 	b, err := ics.Marshal()
