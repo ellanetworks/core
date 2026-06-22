@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -71,24 +72,53 @@ func (m *MME) mmeIdentity() (uint16, uint8) {
 	return defaultMMEGroupID, uint8(m.bearer.NodeID() & 0xFF)
 }
 
-// operatorTAC returns the operator's first supported Tracking Area Code.
-func (m *MME) operatorTAC(ctx context.Context) (uint16, error) {
+// operatorTACs returns the operator's supported Tracking Area Codes that are
+// valid for E-UTRAN. A TAC is an OCTET STRING, so its configured form is hex
+// (matching the AMF, which compares the gNB's hex-encoded TAC against this same
+// operator config). The E-UTRAN TAC is 2 octets and the 5GS TAC 3 (TS 23.003), so
+// a configured value above 16 bits is a 5GS-only TAC and is excluded here rather
+// than narrowed, which would let it falsely match a 16-bit eNB TAC.
+func (m *MME) operatorTACs(ctx context.Context) ([]uint16, error) {
 	op, err := m.bearer.GetOperator(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("get operator: %w", err)
+		return nil, fmt.Errorf("get operator: %w", err)
 	}
 
 	tacs, err := op.GetSupportedTacs()
-	if err != nil || len(tacs) == 0 {
+	if err != nil {
+		return nil, fmt.Errorf("get supported TACs: %w", err)
+	}
+
+	out := make([]uint16, 0, len(tacs))
+
+	for _, t := range tacs {
+		n, err := strconv.ParseUint(t, 16, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid TAC %q: %w", t, err)
+		}
+
+		if n > math.MaxUint16 {
+			continue
+		}
+
+		out = append(out, uint16(n))
+	}
+
+	return out, nil
+}
+
+// operatorTAC returns the operator's first supported Tracking Area Code.
+func (m *MME) operatorTAC(ctx context.Context) (uint16, error) {
+	tacs, err := m.operatorTACs(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(tacs) == 0 {
 		return 0, fmt.Errorf("operator has no supported TAC")
 	}
 
-	n, err := strconv.ParseUint(tacs[0], 10, 16)
-	if err != nil {
-		return 0, fmt.Errorf("invalid TAC %q: %w", tacs[0], err)
-	}
-
-	return uint16(n), nil
+	return tacs[0], nil
 }
 
 // epsQoS is the default-bearer QoS resolved from a subscriber's profile/policy.

@@ -46,13 +46,13 @@ func goldenS1SetupValue(t *testing.T) []byte {
 // TestS1SetupOutcomeAccepts checks that an eNB broadcasting a PLMN this MME
 // serves (001/01) is answered with an S1 Setup Response carrying our identity.
 func TestS1SetupOutcomeAccepts(t *testing.T) {
-	req, respBytes, accepted, err := s1SetupOutcomeFor(goldenS1SetupValue(t), models.PlmnID{Mcc: "001", Mnc: "01"}, 1, 1)
+	req, respBytes, accepted, _, err := s1SetupOutcomeFor(goldenS1SetupValue(t), models.PlmnID{Mcc: "001", Mnc: "01"}, []uint16{0x3039}, 1, 1)
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
 
 	if !accepted {
-		t.Fatal("S1 Setup with a served PLMN was rejected")
+		t.Fatal("S1 Setup with a served TAI was rejected")
 	}
 
 	if req.ENBName != "JLT-621" {
@@ -86,7 +86,7 @@ func TestS1SetupOutcomeAccepts(t *testing.T) {
 // Misc "unknown-PLMN" (TS 36.413 §8.7.3.4). The golden eNB broadcasts 001/01; the
 // MME here serves 999/99.
 func TestS1SetupOutcomeRejectsUnknownPLMN(t *testing.T) {
-	_, outBytes, accepted, err := s1SetupOutcomeFor(goldenS1SetupValue(t), models.PlmnID{Mcc: "999", Mnc: "99"}, 1, 1)
+	_, outBytes, accepted, _, err := s1SetupOutcomeFor(goldenS1SetupValue(t), models.PlmnID{Mcc: "999", Mnc: "99"}, []uint16{0x3039}, 1, 1)
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -112,5 +112,43 @@ func TestS1SetupOutcomeRejectsUnknownPLMN(t *testing.T) {
 
 	if fail.Cause != causeUnknownPLMN {
 		t.Fatalf("cause = %+v, want %+v (Misc/unknown-PLMN)", fail.Cause, causeUnknownPLMN)
+	}
+}
+
+// TestS1SetupOutcomeRejectsUnknownTAC checks that an eNB broadcasting the served
+// PLMN but no served TAC is rejected with an S1 Setup Failure carrying cause Misc
+// "unspecified", matching the AMF's NG Setup handling. The golden eNB broadcasts
+// 001/01 with TAC 0x3039; the MME here serves 001/01 but only TAC 0x0007.
+func TestS1SetupOutcomeRejectsUnknownTAC(t *testing.T) {
+	_, outBytes, accepted, reason, err := s1SetupOutcomeFor(goldenS1SetupValue(t), models.PlmnID{Mcc: "001", Mnc: "01"}, []uint16{0x0007}, 1, 1)
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+
+	if accepted {
+		t.Fatal("S1 Setup from an eNB with no served TAC was accepted")
+	}
+
+	if reason == "" {
+		t.Fatal("rejection reason is empty")
+	}
+
+	pdu, err := s1ap.Unmarshal(outBytes)
+	if err != nil {
+		t.Fatalf("unmarshal failure: %v", err)
+	}
+
+	uo, ok := pdu.(*s1ap.UnsuccessfulOutcome)
+	if !ok || uo.ProcedureCode != s1ap.ProcS1Setup {
+		t.Fatalf("outcome is %T, want S1 Setup UnsuccessfulOutcome", pdu)
+	}
+
+	fail, err := s1ap.ParseS1SetupFailure(uo.Value)
+	if err != nil {
+		t.Fatalf("parse failure: %v", err)
+	}
+
+	if fail.Cause != causeNoServedTAC {
+		t.Fatalf("cause = %+v, want %+v (Misc/unspecified)", fail.Cause, causeNoServedTAC)
 	}
 }
