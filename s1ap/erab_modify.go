@@ -56,7 +56,7 @@ func decodeERABToBeModifiedItemBearerModReq(value []byte) (ERABToBeModifiedItemB
 		return it, err
 	}
 
-	if err := skipQoSExtensions(r, opt[0], extPresent); err != nil {
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
 		return it, err
 	}
 
@@ -90,7 +90,7 @@ func decodeERABModifyItemBearerModRes(value []byte) (ERABModifyItemBearerModRes,
 		return it, err
 	}
 
-	if err := skipQoSExtensions(r, opt[0], extPresent); err != nil {
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
 		return it, err
 	}
 
@@ -113,11 +113,6 @@ type ERABModifyRequest struct {
 func (m *ERABModifyRequest) encodeBody(w *aper.Writer) error {
 	w.WriteSequencePreamble(true, false, nil)
 
-	erabEncoders := make([]func(*aper.Writer) error, len(m.ERABToBeModified))
-	for i := range m.ERABToBeModified {
-		erabEncoders[i] = m.ERABToBeModified[i].encode
-	}
-
 	fields := []ieField{
 		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
 		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
@@ -129,7 +124,7 @@ func (m *ERABModifyRequest) encodeBody(w *aper.Writer) error {
 	}
 
 	fields = append(fields, ieField{id: idERABToBeModifiedListBearerModReq, crit: CriticalityReject, enc: func(w *aper.Writer) error {
-		return encodeSingleContainerList(w, maxnoofERABs, idERABToBeModifiedItemBearerModReq, CriticalityReject, erabEncoders)
+		return encodeSingleContainerList(w, maxnoofERABs, idERABToBeModifiedItemBearerModReq, CriticalityReject, encoderList(m.ERABToBeModified))
 	}})
 
 	for _, e := range m.unknownIEs {
@@ -214,23 +209,7 @@ func ParseERABModifyRequest(value []byte) (*ERABModifyRequest, error) {
 }
 
 func decodeERABToBeModifiedList(r *aper.Reader) ([]ERABToBeModifiedItemBearerModReq, error) {
-	raw, err := decodeSingleContainerList(r, maxnoofERABs)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([]ERABToBeModifiedItemBearerModReq, 0, len(raw))
-
-	for _, b := range raw {
-		it, err := decodeERABToBeModifiedItemBearerModReq(b)
-		if err != nil {
-			return nil, err
-		}
-
-		out = append(out, it)
-	}
-
-	return out, nil
+	return decodeItemList(r, maxnoofERABs, decodeERABToBeModifiedItemBearerModReq)
 }
 
 // ERABModifyResponse is the E-RAB MODIFY RESPONSE message (TS 36.413 §9.1.3.4),
@@ -255,24 +234,14 @@ func (m *ERABModifyResponse) encodeBody(w *aper.Writer) error {
 	}
 
 	if len(m.ERABModify) > 0 {
-		modifyEncoders := make([]func(*aper.Writer) error, len(m.ERABModify))
-		for i := range m.ERABModify {
-			modifyEncoders[i] = m.ERABModify[i].encode
-		}
-
 		fields = append(fields, ieField{id: idERABModifyListBearerModRes, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABModifyItemBearerModRes, CriticalityIgnore, modifyEncoders)
+			return encodeSingleContainerList(w, maxnoofERABs, idERABModifyItemBearerModRes, CriticalityIgnore, encoderList(m.ERABModify))
 		}})
 	}
 
 	if len(m.ERABFailedToModify) > 0 {
-		failedEncoders := make([]func(*aper.Writer) error, len(m.ERABFailedToModify))
-		for i := range m.ERABFailedToModify {
-			failedEncoders[i] = m.ERABFailedToModify[i].encode
-		}
-
 		fields = append(fields, ieField{id: idERABFailedToModifyList, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABItem, CriticalityIgnore, failedEncoders)
+			return encodeSingleContainerList(w, maxnoofERABs, idERABItem, CriticalityIgnore, encoderList(m.ERABFailedToModify))
 		}})
 	}
 
@@ -364,21 +333,5 @@ func ParseERABModifyResponse(value []byte) (*ERABModifyResponse, error) {
 }
 
 func decodeERABModifyList(r *aper.Reader) ([]ERABModifyItemBearerModRes, error) {
-	raw, err := decodeSingleContainerList(r, maxnoofERABs)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([]ERABModifyItemBearerModRes, 0, len(raw))
-
-	for _, b := range raw {
-		it, err := decodeERABModifyItemBearerModRes(b)
-		if err != nil {
-			return nil, err
-		}
-
-		out = append(out, it)
-	}
-
-	return out, nil
+	return decodeItemList(r, maxnoofERABs, decodeERABModifyItemBearerModRes)
 }

@@ -75,16 +75,8 @@ func decodeUEAssociatedLogicalS1ConnectionItem(value []byte) (UEAssociatedLogica
 		it.ENBUES1APID = &v
 	}
 
-	if opt[2] {
-		if err := skipExtensionContainer(r); err != nil {
-			return UEAssociatedLogicalS1ConnectionItem{}, err
-		}
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return UEAssociatedLogicalS1ConnectionItem{}, err
-		}
+	if err := skipSequenceExtensions(r, opt[2], extPresent); err != nil {
+		return UEAssociatedLogicalS1ConnectionItem{}, err
 	}
 
 	return it, nil
@@ -112,12 +104,7 @@ func (t ResetType) encode(w *aper.Writer) error {
 		return err
 	}
 
-	items := make([]func(*aper.Writer) error, len(t.Part))
-	for i := range t.Part {
-		items[i] = t.Part[i].encode
-	}
-
-	return encodeSingleContainerList(w, maxnoofIndividualS1ConnectionsToReset, idUEAssociatedLogicalS1ConnectionItem, CriticalityReject, items)
+	return encodeSingleContainerList(w, maxnoofIndividualS1ConnectionsToReset, idUEAssociatedLogicalS1ConnectionItem, CriticalityReject, encoderList(t.Part))
 }
 
 func decodeResetType(r *aper.Reader) (ResetType, error) {
@@ -138,20 +125,9 @@ func decodeResetType(r *aper.Reader) (ResetType, error) {
 
 		return ResetType{All: true}, nil
 	case 1:
-		raw, err := decodeSingleContainerList(r, maxnoofIndividualS1ConnectionsToReset)
+		items, err := decodeItemList(r, maxnoofIndividualS1ConnectionsToReset, decodeUEAssociatedLogicalS1ConnectionItem)
 		if err != nil {
 			return ResetType{}, err
-		}
-
-		items := make([]UEAssociatedLogicalS1ConnectionItem, 0, len(raw))
-
-		for _, v := range raw {
-			it, err := decodeUEAssociatedLogicalS1ConnectionItem(v)
-			if err != nil {
-				return ResetType{}, err
-			}
-
-			items = append(items, it)
 		}
 
 		return ResetType{Part: items}, nil
@@ -266,13 +242,8 @@ func (m *ResetAcknowledge) encodeBody(w *aper.Writer) error {
 	var fields []ieField
 
 	if len(m.ConnectionList) > 0 {
-		items := make([]func(*aper.Writer) error, len(m.ConnectionList))
-		for i := range m.ConnectionList {
-			items[i] = m.ConnectionList[i].encode
-		}
-
 		fields = append(fields, ieField{id: idUEAssociatedLogicalS1ConnectionListResAck, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofIndividualS1ConnectionsToReset, idUEAssociatedLogicalS1ConnectionItem, CriticalityIgnore, items)
+			return encodeSingleContainerList(w, maxnoofIndividualS1ConnectionsToReset, idUEAssociatedLogicalS1ConnectionItem, CriticalityIgnore, encoderList(m.ConnectionList))
 		}})
 	}
 
@@ -331,19 +302,12 @@ func ParseResetAcknowledge(value []byte) (*ResetAcknowledge, error) {
 
 		switch f.id {
 		case idUEAssociatedLogicalS1ConnectionListResAck:
-			raw, err := decodeSingleContainerList(sub, maxnoofIndividualS1ConnectionsToReset)
+			items, err := decodeItemList(sub, maxnoofIndividualS1ConnectionsToReset, decodeUEAssociatedLogicalS1ConnectionItem)
 			if err != nil {
 				return nil, fmt.Errorf("s1ap: ResetAcknowledge connection list: %w", err)
 			}
 
-			for _, v := range raw {
-				it, err := decodeUEAssociatedLogicalS1ConnectionItem(v)
-				if err != nil {
-					return nil, fmt.Errorf("s1ap: ResetAcknowledge connection item: %w", err)
-				}
-
-				m.ConnectionList = append(m.ConnectionList, it)
-			}
+			m.ConnectionList = append(m.ConnectionList, items...)
 		case idCriticalityDiagnostics:
 			cd, err := decodeCriticalityDiagnostics(sub)
 			if err != nil {

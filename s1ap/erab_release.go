@@ -35,7 +35,7 @@ func decodeERABReleaseItemBearerRelComp(value []byte) (ERABReleaseItemBearerRelC
 		return it, err
 	}
 
-	if err := skipQoSExtensions(r, opt[0], extPresent); err != nil {
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
 		return it, err
 	}
 
@@ -61,11 +61,6 @@ type ERABReleaseCommand struct {
 func (m *ERABReleaseCommand) encodeBody(w *aper.Writer) error {
 	w.WriteSequencePreamble(true, false, nil)
 
-	releaseEncoders := make([]func(*aper.Writer) error, len(m.ERABToBeReleased))
-	for i := range m.ERABToBeReleased {
-		releaseEncoders[i] = m.ERABToBeReleased[i].encode
-	}
-
 	fields := []ieField{
 		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
 		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
@@ -77,7 +72,7 @@ func (m *ERABReleaseCommand) encodeBody(w *aper.Writer) error {
 	}
 
 	fields = append(fields, ieField{id: idERABToBeReleasedList, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-		return encodeSingleContainerList(w, maxnoofERABs, idERABItem, CriticalityIgnore, releaseEncoders)
+		return encodeSingleContainerList(w, maxnoofERABs, idERABItem, CriticalityIgnore, encoderList(m.ERABToBeReleased))
 	}})
 
 	if len(m.NASPDU) > 0 {
@@ -188,24 +183,14 @@ func (m *ERABReleaseResponse) encodeBody(w *aper.Writer) error {
 	}
 
 	if len(m.ERABReleased) > 0 {
-		relEncoders := make([]func(*aper.Writer) error, len(m.ERABReleased))
-		for i := range m.ERABReleased {
-			relEncoders[i] = m.ERABReleased[i].encode
-		}
-
 		fields = append(fields, ieField{id: idERABReleaseListBearerRelComp, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABReleaseItemBearerRelComp, CriticalityIgnore, relEncoders)
+			return encodeSingleContainerList(w, maxnoofERABs, idERABReleaseItemBearerRelComp, CriticalityIgnore, encoderList(m.ERABReleased))
 		}})
 	}
 
 	if len(m.ERABFailedToRelease) > 0 {
-		failedEncoders := make([]func(*aper.Writer) error, len(m.ERABFailedToRelease))
-		for i := range m.ERABFailedToRelease {
-			failedEncoders[i] = m.ERABFailedToRelease[i].encode
-		}
-
 		fields = append(fields, ieField{id: idERABFailedToReleaseList, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABItem, CriticalityIgnore, failedEncoders)
+			return encodeSingleContainerList(w, maxnoofERABs, idERABItem, CriticalityIgnore, encoderList(m.ERABFailedToRelease))
 		}})
 	}
 
@@ -297,21 +282,5 @@ func ParseERABReleaseResponse(value []byte) (*ERABReleaseResponse, error) {
 }
 
 func decodeERABReleaseList(r *aper.Reader) ([]ERABReleaseItemBearerRelComp, error) {
-	raw, err := decodeSingleContainerList(r, maxnoofERABs)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([]ERABReleaseItemBearerRelComp, 0, len(raw))
-
-	for _, b := range raw {
-		it, err := decodeERABReleaseItemBearerRelComp(b)
-		if err != nil {
-			return nil, err
-		}
-
-		out = append(out, it)
-	}
-
-	return out, nil
+	return decodeItemList(r, maxnoofERABs, decodeERABReleaseItemBearerRelComp)
 }

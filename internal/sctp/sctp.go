@@ -190,18 +190,6 @@ type SndInfo struct {
 	AssocID int32
 }
 
-type GetAddrsOld struct {
-	AssocID int32
-	AddrNum int32
-	Addrs   uintptr
-}
-
-type NotificationHeader struct {
-	Type   uint16
-	Flags  uint16
-	Length uint32
-}
-
 type SCTPState uint16
 
 const (
@@ -253,35 +241,11 @@ func setInitOpts(fd int, options InitMsg) error {
 	return err
 }
 
-func getRtoInfo(fd int) (*RtoInfo, error) {
-	rtoInfo := RtoInfo{}
-	rtolen := unsafe.Sizeof(rtoInfo)
-
-	err := getsockopt(fd, SCTPRtoInfo, uintptr(unsafe.Pointer(&rtoInfo)), uintptr(unsafe.Pointer(&rtolen)))
-	if err != nil {
-		return nil, err
-	}
-
-	return &rtoInfo, err
-}
-
 func setRtoInfo(fd int, rtoInfo RtoInfo) error {
 	rtolen := unsafe.Sizeof(rtoInfo)
 	err := setsockopt(fd, SCTPRtoInfo, uintptr(unsafe.Pointer(&rtoInfo)), rtolen)
 
 	return err
-}
-
-func getAssocInfo(fd int) (*AssocInfo, error) {
-	info := AssocInfo{}
-	optlen := unsafe.Sizeof(info)
-
-	err := getsockopt(fd, SCTPAssocInfo, uintptr(unsafe.Pointer(&info)), uintptr(unsafe.Pointer(&optlen)))
-	if err != nil {
-		return nil, err
-	}
-
-	return &info, nil
 }
 
 func setAssocInfo(fd int, info AssocInfo) error {
@@ -502,79 +466,6 @@ func (c *SCTPConn) SubscribeEvents(flags int) error {
 	})
 }
 
-func (c *SCTPConn) SubscribedEvents() (int, error) {
-	param := EventSubscribe{}
-	optlen := unsafe.Sizeof(param)
-
-	if err := c.controlFd(func(fd int) error {
-		return getsockopt(fd, SCTPEvents, uintptr(unsafe.Pointer(&param)), uintptr(unsafe.Pointer(&optlen)))
-	}); err != nil {
-		return 0, err
-	}
-
-	var flags int
-	if param.DataIO > 0 {
-		flags |= SCTPEventDataIO
-	}
-
-	if param.Association > 0 {
-		flags |= SCTPEventAssociation
-	}
-
-	if param.Address > 0 {
-		flags |= SCTPEventAddress
-	}
-
-	if param.SendFailure > 0 {
-		flags |= SCTPEventSendFailure
-	}
-
-	if param.PeerError > 0 {
-		flags |= SCTPEventSendPeerError
-	}
-
-	if param.Shutdown > 0 {
-		flags |= SCTPEventShutdown
-	}
-
-	if param.PartialDelivery > 0 {
-		flags |= SCTPEventPartialDelivery
-	}
-
-	if param.AdaptationLayer > 0 {
-		flags |= SCTPEventAdaptationLayer
-	}
-
-	if param.Authentication > 0 {
-		flags |= SCTPEventAuthentication
-	}
-
-	if param.SenderDry > 0 {
-		flags |= SCTPEventSenderDry
-	}
-
-	return flags, nil
-}
-
-func (c *SCTPConn) SetDefaultSentParam(info *SndRcvInfo) error {
-	optlen := unsafe.Sizeof(*info)
-
-	return c.controlFd(func(fd int) error {
-		return setsockopt(fd, SCTPDefaultSentParam, uintptr(unsafe.Pointer(info)), optlen)
-	})
-}
-
-func (c *SCTPConn) GetDefaultSentParam() (*SndRcvInfo, error) {
-	info := &SndRcvInfo{}
-	optlen := unsafe.Sizeof(*info)
-
-	err := c.controlFd(func(fd int) error {
-		return getsockopt(fd, SCTPDefaultSentParam, uintptr(unsafe.Pointer(info)), uintptr(unsafe.Pointer(&optlen)))
-	})
-
-	return info, err
-}
-
 func resolveFromRawAddr(ptr unsafe.Pointer, n int) (*SCTPAddr, error) {
 	addr := &SCTPAddr{
 		IPAddrs: make([]net.IPAddr, n),
@@ -670,22 +561,6 @@ func (c *SCTPConn) SetDeadline(t time.Time) error {
 	}
 
 	return c.file.SetDeadline(t)
-}
-
-func (c *SCTPConn) SetReadDeadline(t time.Time) error {
-	if c.file == nil {
-		return syscall.EBADF
-	}
-
-	return c.file.SetReadDeadline(t)
-}
-
-func (c *SCTPConn) SetWriteDeadline(t time.Time) error {
-	if c.file == nil {
-		return syscall.EBADF
-	}
-
-	return c.file.SetWriteDeadline(t)
 }
 
 type SCTPListener struct {

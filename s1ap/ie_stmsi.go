@@ -51,16 +51,8 @@ func decodeSTMSI(r *aper.Reader) (STMSI, error) {
 		return STMSI{}, err
 	}
 
-	if opt[0] {
-		if err := skipExtensionContainer(r); err != nil {
-			return STMSI{}, err
-		}
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return STMSI{}, err
-		}
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
+		return STMSI{}, err
 	}
 
 	return STMSI{MMEC: mmec[0], MTMSI: binary.BigEndian.Uint32(mtmsi)}, nil

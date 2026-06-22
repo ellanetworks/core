@@ -192,6 +192,56 @@ func decodeSingleContainerList(r *aper.Reader, ub int) ([][]byte, error) {
 	return out, nil
 }
 
+// decodeItemList reads a SEQUENCE (SIZE(1..ub)) OF ProtocolIE-SingleContainer and
+// decodes each item's open-type bytes with dec (TS 36.413 §9.3).
+func decodeItemList[T any](r *aper.Reader, ub int, dec func([]byte) (T, error)) ([]T, error) {
+	raw, err := decodeSingleContainerList(r, ub)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]T, 0, len(raw))
+
+	for _, b := range raw {
+		it, err := dec(b)
+		if err != nil {
+			return nil, err
+		}
+
+		out = append(out, it)
+	}
+
+	return out, nil
+}
+
+// encoderList adapts a slice of encodable items to the []func(*aper.Writer) error
+// that encodeSingleContainerList consumes.
+func encoderList[T interface{ encode(*aper.Writer) error }](items []T) []func(*aper.Writer) error {
+	out := make([]func(*aper.Writer) error, len(items))
+	for i := range items {
+		out[i] = items[i].encode
+	}
+
+	return out
+}
+
+// skipSequenceExtensions steps over a SEQUENCE's optional iE-Extensions
+// (ProtocolExtensionContainer) and extension additions when they are present but
+// not modeled (TS 36.413 §9.3).
+func skipSequenceExtensions(r *aper.Reader, extContainer, extAdditions bool) error {
+	if extContainer {
+		if err := skipExtensionContainer(r); err != nil {
+			return err
+		}
+	}
+
+	if extAdditions {
+		return r.SkipExtensionAdditions()
+	}
+
+	return nil
+}
+
 // decodeIEContainer reads a ProtocolIE-Container into the fields in wire order,
 // preserving every field (including ids the caller does not model) for dispatch
 // by id. The field slice grows by append, so a corrupt count cannot force a

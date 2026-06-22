@@ -245,83 +245,9 @@ func (c *SCTPConn) Close() error {
 	return c.file.Close()
 }
 
-func (c *SCTPConn) SetWriteBuffer(bytes int) error {
-	return c.controlFd(func(fd int) error {
-		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_SNDBUF, bytes)
-	})
-}
-
-func (c *SCTPConn) GetWriteBuffer() (int, error) {
-	var val int
-
-	err := c.controlFd(func(fd int) error {
-		var e error
-
-		val, e = syscall.GetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_SNDBUF)
-
-		return e
-	})
-
-	return val, err
-}
-
 func (c *SCTPConn) SetReadBuffer(bytes int) error {
 	return c.controlFd(func(fd int) error {
 		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, bytes)
-	})
-}
-
-func (c *SCTPConn) GetReadBuffer() (int, error) {
-	var val int
-
-	err := c.controlFd(func(fd int) error {
-		var e error
-
-		val, e = syscall.GetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF)
-
-		return e
-	})
-
-	return val, err
-}
-
-func (c *SCTPConn) GetRtoInfo() (*RtoInfo, error) {
-	var info *RtoInfo
-
-	err := c.controlFd(func(fd int) error {
-		var e error
-
-		info, e = getRtoInfo(fd)
-
-		return e
-	})
-
-	return info, err
-}
-
-func (c *SCTPConn) SetRtoInfo(rtoInfo RtoInfo) error {
-	return c.controlFd(func(fd int) error {
-		return setRtoInfo(fd, rtoInfo)
-	})
-}
-
-func (c *SCTPConn) GetAssocInfo() (*AssocInfo, error) {
-	var info *AssocInfo
-
-	err := c.controlFd(func(fd int) error {
-		var e error
-
-		info, e = getAssocInfo(fd)
-
-		return e
-	})
-
-	return info, err
-}
-
-func (c *SCTPConn) SetAssocInfo(info AssocInfo) error {
-	return c.controlFd(func(fd int) error {
-		return setAssocInfo(fd, info)
 	})
 }
 
