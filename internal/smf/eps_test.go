@@ -203,6 +203,41 @@ func TestCreateEPSSessionUPFFailureReleasesTunnel(t *testing.T) {
 	}
 }
 
+// TestCreateEPSSessionRejectsInvalidRequest checks the EPS entry point fails a
+// request with an out-of-range EBI, an unparseable AMBR, or a malformed DNS
+// rather than silently programming a degraded bearer (F6). The UPF must not be
+// touched for a rejected request.
+func TestCreateEPSSessionRejectsInvalidRequest(t *testing.T) {
+	cases := []struct {
+		name   string
+		mutate func(*models.EPSBearerRequest)
+	}{
+		{"EBI below range", func(r *models.EPSBearerRequest) { r.EPSBearerIdentity = 4 }},
+		{"EBI above range", func(r *models.EPSBearerRequest) { r.EPSBearerIdentity = 16 }},
+		{"unparseable uplink AMBR", func(r *models.EPSBearerRequest) { r.AMBRUplink = "fast" }},
+		{"empty downlink AMBR", func(r *models.EPSBearerRequest) { r.AMBRDownlink = "" }},
+		{"malformed DNS", func(r *models.EPSBearerRequest) { r.DNS = "not-an-ip" }},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store, upf := epsTestSMF()
+			s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+
+			req := epsRequest(1)
+			tc.mutate(&req)
+
+			if _, err := s.CreateEPSSession(context.Background(), req); err == nil {
+				t.Fatalf("expected CreateEPSSession to reject %s", tc.name)
+			}
+
+			if upf.lastEstablish != nil {
+				t.Fatalf("rejected request reached the UPF for %s", tc.name)
+			}
+		})
+	}
+}
+
 func TestCreateEPSSessionNoIPv6Pool(t *testing.T) {
 	store, upf := epsTestSMF()
 	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})

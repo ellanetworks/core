@@ -25,6 +25,31 @@ import (
 // session id, so one IMSI can hold several. A subscriber is never attached to 4G
 // and 5G at once, so the EBI cannot collide with a live 5G PDU session id.
 
+// validateEPSBearerRequest rejects inputs that would otherwise silently degrade
+// the bearer rather than fail it: an EBI outside the default-bearer range (5..15,
+// TS 24.007 §11.2.3.1.5), an AMBR that does not parse to a positive rate (which
+// would program a zero-rate QER), or a non-empty DNS that is not an IP literal
+// (which would drop the DNS option).
+func validateEPSBearerRequest(req models.EPSBearerRequest) error {
+	if req.EPSBearerIdentity < 5 || req.EPSBearerIdentity > 15 {
+		return fmt.Errorf("EPS bearer identity %d out of range (5..15)", req.EPSBearerIdentity)
+	}
+
+	if bitRateTokbps(req.AMBRUplink) == 0 {
+		return fmt.Errorf("invalid uplink AMBR %q", req.AMBRUplink)
+	}
+
+	if bitRateTokbps(req.AMBRDownlink) == 0 {
+		return fmt.Errorf("invalid downlink AMBR %q", req.AMBRDownlink)
+	}
+
+	if req.DNS != "" && net.ParseIP(req.DNS) == nil {
+		return fmt.Errorf("invalid DNS address %q", req.DNS)
+	}
+
+	return nil
+}
+
 // CreateEPSSession negotiates the PDN type, allocates the UE address(es), and
 // programs the user plane for a 4G default EPS bearer, with the SMF as the
 // converged session anchor (SMF+PGW-C / combined S-GW-U+P-GW-U, TS 23.401
@@ -48,6 +73,10 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 	supi, err := etsi.NewSUPIFromIMSI(req.IMSI)
 	if err != nil {
 		return models.EPSBearer{}, fmt.Errorf("invalid imsi %q: %w", req.IMSI, err)
+	}
+
+	if err = validateEPSBearerRequest(req); err != nil {
+		return models.EPSBearer{}, err
 	}
 
 	policy := &Policy{
@@ -99,7 +128,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		ipv4, allocErr := s.store.AllocateIP(ctx, req.IMSI, req.APN, req.EPSBearerIdentity)
 		if allocErr != nil {
 			smContext.Mutex.Unlock()
-			s.abortEPSSession(ctx, supi, req.APN, req.EPSBearerIdentity)
+			s.abortEPSSession(ctx, smContext, req.APN, req.EPSBearerIdentity)
 
 			return models.EPSBearer{}, fmt.Errorf("allocate UE IPv4: %w", allocErr)
 		}
@@ -113,7 +142,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		ipv6Prefix, allocErr := s.store.AllocateIPv6(ctx, req.IMSI, req.APN, req.EPSBearerIdentity)
 		if allocErr != nil {
 			smContext.Mutex.Unlock()
-			s.abortEPSSession(ctx, supi, req.APN, req.EPSBearerIdentity)
+			s.abortEPSSession(ctx, smContext, req.APN, req.EPSBearerIdentity)
 
 			return models.EPSBearer{}, fmt.Errorf("allocate UE IPv6 prefix: %w", allocErr)
 		}
@@ -123,7 +152,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		iid, iidErr := s.assignIID(req.APN)
 		if iidErr != nil {
 			smContext.Mutex.Unlock()
-			s.abortEPSSession(ctx, supi, req.APN, req.EPSBearerIdentity)
+			s.abortEPSSession(ctx, smContext, req.APN, req.EPSBearerIdentity)
 
 			return models.EPSBearer{}, fmt.Errorf("assign IPv6 IID: %w", iidErr)
 		}
@@ -141,7 +170,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 
 	if err := smContext.Tunnel.DataPath.ActivateTunnelAndPDR(s, smContext, policy, dlPdrIP); err != nil {
 		smContext.Mutex.Unlock()
-		s.abortEPSSession(ctx, supi, req.APN, req.EPSBearerIdentity)
+		s.abortEPSSession(ctx, smContext, req.APN, req.EPSBearerIdentity)
 
 		return models.EPSBearer{}, fmt.Errorf("activate data path: %w", err)
 	}
@@ -149,7 +178,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 	smContext.Mutex.Unlock() // sendPFCPRules re-acquires it
 
 	if err := s.sendPFCPRules(ctx, smContext); err != nil {
-		s.abortEPSSession(ctx, supi, req.APN, req.EPSBearerIdentity)
+		s.abortEPSSession(ctx, smContext, req.APN, req.EPSBearerIdentity)
 
 		return models.EPSBearer{}, fmt.Errorf("establish UPF session: %w", err)
 	}
@@ -291,13 +320,18 @@ func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, imsi string, ebi uint8, 
 		return fmt.Errorf("EPS session for %s has no data path", imsi)
 	}
 
-	if smContext.PolicyData != nil {
-		smContext.PolicyData.Ambr.Uplink = ambrUplink
-		smContext.PolicyData.Ambr.Downlink = ambrDownlink
-	}
-
 	dataPath := smContext.Tunnel.DataPath
 	qerList := make([]*QER, 0, 2)
+
+	// Snapshot each QER's pre-update rate so a failed UPF modify can be rolled
+	// back: neither the rules nor the cached AMBR may run ahead of the data plane.
+	type qerSnapshot struct {
+		qer   *QER
+		mbr   *models.MBR
+		state RuleState
+	}
+
+	var snapshots []qerSnapshot
 
 	for _, t := range []*GTPTunnel{dataPath.UpLinkTunnel, dataPath.DownLinkTunnel} {
 		if t == nil || t.PDR == nil || t.PDR.QER == nil {
@@ -319,6 +353,8 @@ func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, imsi string, ebi uint8, 
 		if alreadyListed {
 			continue
 		}
+
+		snapshots = append(snapshots, qerSnapshot{qer: qer, mbr: qer.MBR, state: qer.State})
 
 		qer.MBR = &models.MBR{
 			ULMBR: bitRateTokbps(ambrUplink),
@@ -342,7 +378,18 @@ func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, imsi string, ebi uint8, 
 		policyID,
 		nil, nil, qerList,
 	)); err != nil {
+		for _, snap := range snapshots {
+			snap.qer.MBR = snap.mbr
+			snap.qer.State = snap.state
+		}
+
 		return fmt.Errorf("failed to modify PFCP session for %s: %w", imsi, err)
+	}
+
+	// The data plane now enforces the new rate; reflect it in the cached policy.
+	if smContext.PolicyData != nil {
+		smContext.PolicyData.Ambr.Uplink = ambrUplink
+		smContext.PolicyData.Ambr.Downlink = ambrDownlink
 	}
 
 	return nil
@@ -373,36 +420,37 @@ func (s *SMF) DeactivateEPSSession(ctx context.Context, imsi string, ebi uint8) 
 	return s.DeactivateSmContext(ctx, CanonicalName(supi, ebi))
 }
 
-// abortEPSSession rolls back a partially-created session: it tears down the UPF
-// session if one was established, frees whichever address leases were taken, and
-// removes the context from the pool.
-func (s *SMF) abortEPSSession(ctx context.Context, supi etsi.SUPI, apn string, ebi uint8) {
-	ref := CanonicalName(supi, ebi)
-
-	sc := s.GetSession(ref)
+// abortEPSSession rolls back the partially-created session sc: it tears down the
+// UPF session if one was established, frees whichever address leases were taken,
+// and removes the context from the pool. It acts on the caller's own sc rather
+// than re-fetching by name, so a concurrent CreateEPSSession that replaced the
+// pool entry for the same (IMSI,EBI) is never torn down by this rollback.
+func (s *SMF) abortEPSSession(ctx context.Context, sc *SMContext, apn string, ebi uint8) {
 	if sc == nil {
 		return
 	}
+
+	imsi := sc.Supi.IMSI()
 
 	// ActivateTunnelAndPDR allocates the rule IDs before the PFCP request, so the
 	// tunnel must be released even when establish failed (RemoteSEID == 0), or they leak.
 	if sc.Tunnel != nil {
 		if err := s.releaseTunnel(ctx, sc); err != nil {
-			logger.SmfLog.Warn("failed to release tunnel for aborted EPS session", zap.String("imsi", supi.IMSI()), zap.Error(err))
+			logger.SmfLog.Warn("failed to release tunnel for aborted EPS session", zap.String("imsi", imsi), zap.Error(err))
 		}
 	}
 
 	if sc.PDUIPV4Address != nil {
-		if _, err := s.store.ReleaseIP(ctx, supi.IMSI(), apn, ebi); err != nil {
-			logger.SmfLog.Warn("failed to release UE IPv4 after aborted EPS session", zap.String("imsi", supi.IMSI()), zap.Error(err))
+		if _, err := s.store.ReleaseIP(ctx, imsi, apn, ebi); err != nil {
+			logger.SmfLog.Warn("failed to release UE IPv4 after aborted EPS session", zap.String("imsi", imsi), zap.Error(err))
 		}
 	}
 
 	if sc.PDUIPV6Prefix != nil {
-		if _, err := s.store.ReleaseIPv6(ctx, supi.IMSI(), apn, ebi); err != nil {
-			logger.SmfLog.Warn("failed to release UE IPv6 after aborted EPS session", zap.String("imsi", supi.IMSI()), zap.Error(err))
+		if _, err := s.store.ReleaseIPv6(ctx, imsi, apn, ebi); err != nil {
+			logger.SmfLog.Warn("failed to release UE IPv6 after aborted EPS session", zap.String("imsi", imsi), zap.Error(err))
 		}
 	}
 
-	s.removeSessionUnlocked(ctx, ref)
+	s.removeSessionIfCurrent(CanonicalName(sc.Supi, ebi), sc)
 }
