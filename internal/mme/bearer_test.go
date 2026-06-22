@@ -22,18 +22,18 @@ func (s tacBearerStore) GetOperator(_ context.Context) (*db.Operator, error) {
 }
 
 // TestOperatorTACsHex confirms supported TACs are parsed as hex (not decimal) and
-// truncated to the 16-bit LTE TAC, which is the 5GS TAC's two least-significant
-// octets (TS 23.003). "000064" is hex 0x64 (decimal would be 64), and "010002"
-// truncates to 0x0002.
+// that a configured value wider than the 16-bit E-UTRAN TAC is excluded rather
+// than narrowed (TS 23.003). "000064" is hex 0x64 (decimal would be 64), "00ffff"
+// is the largest valid LTE TAC, and "010002" exceeds 16 bits and is dropped.
 func TestOperatorTACsHex(t *testing.T) {
-	m := New(udm.New(newFakeCredStore(), noopKeyResolver), tacBearerStore{tacs: `["000064","010002"]`}, &fakeSessionManager{})
+	m := New(udm.New(newFakeCredStore(), noopKeyResolver), tacBearerStore{tacs: `["000064","00ffff","010002"]`}, &fakeSessionManager{})
 
 	got, err := m.operatorTACs(context.Background())
 	if err != nil {
 		t.Fatalf("operatorTACs: %v", err)
 	}
 
-	want := []uint16{0x0064, 0x0002}
+	want := []uint16{0x0064, 0xffff}
 	if len(got) != len(want) {
 		t.Fatalf("operatorTACs = %v, want %v", got, want)
 	}
