@@ -5,6 +5,7 @@ package smf_test
 
 import (
 	"context"
+	"errors"
 	"net/netip"
 	"testing"
 
@@ -180,6 +181,25 @@ func TestCreateEPSSessionSGWN3Family(t *testing.T) {
 				t.Fatalf("S-GW IPv6 N3 = %v, want %v", bearer.SGWN3IPv6, tc.wantV6)
 			}
 		})
+	}
+}
+
+// TestCreateEPSSessionUPFFailureReleasesTunnel verifies that when the UPF
+// establish fails mid-create, the abort path releases the tunnel — freeing the
+// PDR/FAR/QER/URR IDs that ActivateTunnelAndPDR allocated before establish, even
+// though RemoteSEID is still 0 (regression for the leaked-rule-ID bug, F2).
+// releaseTunnel running is observable via the UPF DeleteSession call it issues.
+func TestCreateEPSSessionUPFFailureReleasesTunnel(t *testing.T) {
+	store, upf := epsTestSMF()
+	upf.err = errors.New("upf establish failed")
+	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+
+	if _, err := s.CreateEPSSession(context.Background(), epsRequest(1)); err == nil {
+		t.Fatal("expected create to fail when UPF establish fails")
+	}
+
+	if len(upf.deleteCalls) == 0 {
+		t.Fatal("aborted EPS session did not release the tunnel; the PDR/FAR/QER/URR IDs would leak")
 	}
 }
 
