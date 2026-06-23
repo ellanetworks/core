@@ -39,6 +39,17 @@ const (
 	S1APProcedurePathSwitchRequest           S1APProcedure = "PathSwitchRequest"
 	S1APProcedurePathSwitchRequestAck        S1APProcedure = "PathSwitchRequestAcknowledge"
 	S1APProcedurePathSwitchRequestFailure    S1APProcedure = "PathSwitchRequestFailure"
+	S1APProcedureHandoverRequired            S1APProcedure = "HandoverRequired"
+	S1APProcedureHandoverRequest             S1APProcedure = "HandoverRequest"
+	S1APProcedureHandoverRequestAck          S1APProcedure = "HandoverRequestAcknowledge"
+	S1APProcedureHandoverFailure             S1APProcedure = "HandoverFailure"
+	S1APProcedureHandoverCommand             S1APProcedure = "HandoverCommand"
+	S1APProcedureHandoverPreparationFailure  S1APProcedure = "HandoverPreparationFailure"
+	S1APProcedureHandoverNotify              S1APProcedure = "HandoverNotify"
+	S1APProcedureHandoverCancel              S1APProcedure = "HandoverCancel"
+	S1APProcedureHandoverCancelAcknowledge   S1APProcedure = "HandoverCancelAcknowledge"
+	S1APProcedureENBStatusTransfer           S1APProcedure = "ENBStatusTransfer"
+	S1APProcedureMMEStatusTransfer           S1APProcedure = "MMEStatusTransfer"
 	S1APProcedureUnknown                     S1APProcedure = "UnknownMessage"
 )
 
@@ -90,6 +101,18 @@ func s1apInitiatingMessageType(code s1ap.ProcedureCode) S1APProcedure {
 		return S1APProcedureERABReleaseCommand
 	case s1ap.ProcPathSwitchRequest:
 		return S1APProcedurePathSwitchRequest
+	case s1ap.ProcHandoverPreparation:
+		return S1APProcedureHandoverRequired
+	case s1ap.ProcHandoverResourceAllocation:
+		return S1APProcedureHandoverRequest
+	case s1ap.ProcHandoverNotification:
+		return S1APProcedureHandoverNotify
+	case s1ap.ProcHandoverCancel:
+		return S1APProcedureHandoverCancel
+	case s1ap.ProcENBStatusTransfer:
+		return S1APProcedureENBStatusTransfer
+	case s1ap.ProcMMEStatusTransfer:
+		return S1APProcedureMMEStatusTransfer
 	default:
 		return S1APProcedureUnknown
 	}
@@ -115,6 +138,12 @@ func s1apSuccessfulOutcomeType(code s1ap.ProcedureCode) S1APProcedure {
 		return S1APProcedureERABReleaseResponse
 	case s1ap.ProcPathSwitchRequest:
 		return S1APProcedurePathSwitchRequestAck
+	case s1ap.ProcHandoverPreparation:
+		return S1APProcedureHandoverCommand
+	case s1ap.ProcHandoverResourceAllocation:
+		return S1APProcedureHandoverRequestAck
+	case s1ap.ProcHandoverCancel:
+		return S1APProcedureHandoverCancelAcknowledge
 	default:
 		return S1APProcedureUnknown
 	}
@@ -130,6 +159,10 @@ func s1apUnsuccessfulOutcomeType(code s1ap.ProcedureCode) S1APProcedure {
 		return S1APProcedureENBConfigUpdateFailure
 	case s1ap.ProcPathSwitchRequest:
 		return S1APProcedurePathSwitchRequestFailure
+	case s1ap.ProcHandoverPreparation:
+		return S1APProcedureHandoverPreparationFailure
+	case s1ap.ProcHandoverResourceAllocation:
+		return S1APProcedureHandoverFailure
 	default:
 		return S1APProcedureUnknown
 	}

@@ -131,7 +131,22 @@ func (m *MME) markENBSetupComplete(conn *sctp.SCTPConn) {
 
 	if s := m.enbs[conn]; s != nil {
 		s.setupComplete = true
+		// Index the association by Global eNB ID so an S1 handover can resolve a
+		// HANDOVER REQUIRED's target to its association (TS 36.413 §8.4.1).
+		m.enbByID[s.id] = conn
 	}
+}
+
+// findENBByGlobalID resolves a Global eNB ID to the S1-setup-complete association
+// of that eNB (nil/false when no such eNB is connected), for routing an S1
+// handover's HANDOVER REQUEST to the target (TS 36.413 §8.4.2).
+func (m *MME) findENBByGlobalID(g s1ap.GlobalENBID) (nasWriter, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	conn, ok := m.enbByID[enbID(g)]
+
+	return conn, ok
 }
 
 // updateENBName updates the stored name of a connected eNB from an eNB
@@ -181,9 +196,14 @@ func (m *MME) touchENB(conn *sctp.SCTPConn) {
 // removeENB drops a connected eNB when its association closes.
 func (m *MME) removeENB(conn *sctp.SCTPConn) {
 	m.mu.Lock()
+	if s := m.enbs[conn]; s != nil && m.enbByID[s.id] == nasWriter(conn) {
+		delete(m.enbByID, s.id)
+	}
+
 	delete(m.enbs, conn)
 	m.mu.Unlock()
 
+	m.abortHandoversOnConnLoss(conn)
 	m.reclaimUEsOnConnLoss(conn)
 }
 

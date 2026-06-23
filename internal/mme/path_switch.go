@@ -201,12 +201,7 @@ func (m *MME) pathSwitchSecurityCapabilities(ue *UeContext, received s1ap.UESecu
 		return nil
 	}
 
-	// The S1AP encoding drops the EEA0/EIA0 bit, so shift the UE network capability
-	// octet left.
-	stored := s1ap.UESecurityCapabilities{
-		EncryptionAlgorithms:          uint16(uecap.EEA<<1) << 8,
-		IntegrityProtectionAlgorithms: uint16(uecap.EIA<<1) << 8,
-	}
+	stored := s1apSecurityCapabilities(uecap)
 
 	if received == stored {
 		return nil

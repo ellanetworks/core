@@ -89,9 +89,14 @@ type MME struct {
 
 	mu          sync.RWMutex
 	enbs        map[*sctp.SCTPConn]*enbState
+	enbByID     map[string]nasWriter  // S1-setup-complete eNBs keyed by Global eNB ID, for S1-handover target resolution
 	ues         map[uint32]*UeContext // keyed by MME-UE-S1AP-ID
 	byMTMSI     map[uint32]*UeContext // keyed by M-TMSI, for S-TMSI lookup
 	nextMMEUEID uint32
+	// handoverSrcReleases tracks the source-eNB UE Context Release Commands the MME
+	// sends on S1-handover completion, so the matching Release Complete is consumed
+	// without disturbing the UE now active on the target (TS 36.413 §8.4).
+	handoverSrcReleases map[srcReleaseKey]struct{}
 	// mtmsi allocates an unpredictable M-TMSI (TS 23.401 privacy): random MSBs
 	// with allocate/free.
 	mtmsi *etsi.TmsiAllocator
@@ -110,6 +115,11 @@ type MME struct {
 	// them.
 	pagingTimeout       time.Duration
 	pagingMaxRetransmit int
+
+	// S1-handover supervision bounds the whole procedure (HANDOVER REQUIRED →
+	// NOTIFY) so a target that goes silent does not pin the UE's handover slot.
+	// Field so tests can shorten it.
+	handoverGuardTimeout time.Duration
 }
 
 // mobileReachableTime supervises the UE's periodic tracking area updating; its
@@ -138,20 +148,28 @@ const (
 	defaultPagingMaxRetransmit = 4
 )
 
+// defaultHandoverGuardTimeout bounds an S1 handover from HANDOVER REQUIRED to
+// NOTIFY. It is generous relative to the source eNB's TS1RELOCprep/TS1RELOCOverall
+// (a few seconds) so a normal handover always completes first; it only fires when
+// the target eNB never answers (TS 36.413 §8.4).
+const defaultHandoverGuardTimeout = 10 * time.Second
+
 // New returns an MME network function. cred is the shared credential authority
 // (HSS+UDM/ARPF) for EPS-AKA vectors; bearer is the subscription-data store used
 // to resolve a subscriber's default-bearer QoS; session is the SMF+PGW-C anchor
 // that allocates the UE IP. The MME never holds subscriber keys or the SQN.
 func New(cred *udm.Service, bearer bearerStore, session epsSessionManager) *MME {
 	return &MME{
-		cred:        cred,
-		bearer:      bearer,
-		session:     session,
-		enbs:        make(map[*sctp.SCTPConn]*enbState),
-		ues:         make(map[uint32]*UeContext),
-		byMTMSI:     make(map[uint32]*UeContext),
-		nextMMEUEID: 1,
-		mtmsi:       etsi.NewTMSIAllocator(),
+		cred:                cred,
+		bearer:              bearer,
+		session:             session,
+		enbs:                make(map[*sctp.SCTPConn]*enbState),
+		enbByID:             make(map[string]nasWriter),
+		ues:                 make(map[uint32]*UeContext),
+		byMTMSI:             make(map[uint32]*UeContext),
+		nextMMEUEID:         1,
+		mtmsi:               etsi.NewTMSIAllocator(),
+		handoverSrcReleases: make(map[srcReleaseKey]struct{}),
 
 		mobileReachableTime: defaultMobileReachableTime,
 		implicitDetachTime:  defaultImplicitDetachTime,
@@ -161,6 +179,8 @@ func New(cred *udm.Service, bearer bearerStore, session epsSessionManager) *MME 
 
 		pagingTimeout:       defaultPagingTimeout,
 		pagingMaxRetransmit: defaultPagingMaxRetransmit,
+
+		handoverGuardTimeout: defaultHandoverGuardTimeout,
 	}
 }
 
@@ -258,6 +278,14 @@ func (m *MME) dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 			m.handleUECapabilityInfoIndication(conn, p.Value)
 		case s1ap.ProcPathSwitchRequest:
 			m.handlePathSwitchRequest(ctx, conn, p.Value)
+		case s1ap.ProcHandoverPreparation:
+			m.handleHandoverRequired(ctx, conn, p.Value)
+		case s1ap.ProcHandoverNotification:
+			m.handleHandoverNotify(ctx, conn, p.Value)
+		case s1ap.ProcENBStatusTransfer:
+			m.handleENBStatusTransfer(ctx, conn, p.Value)
+		case s1ap.ProcHandoverCancel:
+			m.handleHandoverCancel(ctx, conn, p.Value)
 		case s1ap.ProcErrorIndication:
 			m.handleErrorIndication(ctx, conn, p.Value)
 		case s1ap.ProcReset:
@@ -279,8 +307,17 @@ func (m *MME) dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 			m.handleERABModifyResponse(p.Value)
 		case s1ap.ProcERABRelease:
 			m.handleERABReleaseResponse(conn, p.Value)
+		case s1ap.ProcHandoverResourceAllocation:
+			m.handleHandoverRequestAcknowledge(ctx, conn, p.Value)
 		default:
 			logger.MmeLog.Debug("ignoring S1AP successful outcome", zap.Int("procedure-code", int(p.ProcedureCode)))
+		}
+	case *s1ap.UnsuccessfulOutcome:
+		switch p.ProcedureCode {
+		case s1ap.ProcHandoverResourceAllocation:
+			m.handleHandoverFailure(ctx, conn, p.Value)
+		default:
+			logger.MmeLog.Debug("ignoring S1AP unsuccessful outcome", zap.Int("procedure-code", int(p.ProcedureCode)))
 		}
 	default:
 		logger.MmeLog.Debug("ignoring S1AP PDU")

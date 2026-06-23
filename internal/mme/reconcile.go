@@ -47,6 +47,13 @@ func (m *MME) reconcileUE(ctx context.Context, ue *UeContext) {
 		return
 	}
 
+	// Defer reconciliation while an S1 handover is in flight: an E-RAB Modify or
+	// Release would collide with the handover's bearer signalling (TS 36.413
+	// §8.4.1.2). The next sweep re-converges the UE once the handover clears.
+	if m.handoverInProgress(ue) {
+		return
+	}
+
 	for _, p := range m.snapshotPDNs(ue) {
 		m.reconcileBearer(ctx, ue, p)
 	}

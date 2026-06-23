@@ -121,6 +121,18 @@ func (m *MME) operatorTAC(ctx context.Context) (uint16, error) {
 	return tacs[0], nil
 }
 
+// s1apSecurityCapabilities maps a UE's EPS NAS algorithm support to the S1AP UE
+// Security Capabilities the eNB selects AS algorithms from. The S1AP BIT STRING
+// omits the EEA0/EIA0 (mandatory null-algorithm) bit, so the UE network
+// capability octet is shifted left and placed in the high byte (TS 36.413
+// §9.2.1.40, TS 33.401).
+func s1apSecurityCapabilities(uecap eps.UENetworkCapability) s1ap.UESecurityCapabilities {
+	return s1ap.UESecurityCapabilities{
+		EncryptionAlgorithms:          uint16(uecap.EEA<<1) << 8,
+		IntegrityProtectionAlgorithms: uint16(uecap.EIA<<1) << 8,
+	}
+}
+
 // epsQoS is the default-bearer QoS resolved from a subscriber's profile/policy.
 type epsQoS struct {
 	PolicyID string // policy DB ID, so the UPF binds the session to its network rules
@@ -454,14 +466,10 @@ func (m *MME) sendInitialContextSetup(ctx context.Context, ue *UeContext, qos *e
 			GTPTEID:               s1ap.GTPTEID(p.sgwFTEID.TEID),
 			NASPDU:                s1ap.NASPDU(naspdu),
 		}},
-		// The eNB selects AS algorithms from these bitmaps; the S1AP encoding
-		// drops the EEA0/EIA0 bit, so shift the UE network capability octet left.
-		UESecurityCapabilities: s1ap.UESecurityCapabilities{
-			EncryptionAlgorithms:          uint16(uecap.EEA<<1) << 8,
-			IntegrityProtectionAlgorithms: uint16(uecap.EIA<<1) << 8,
-		},
-		SecurityKey:       kenb,
-		UERadioCapability: ue.radioCapability,
+		// The eNB selects AS algorithms from these bitmaps.
+		UESecurityCapabilities: s1apSecurityCapabilities(uecap),
+		SecurityKey:            kenb,
+		UERadioCapability:      ue.radioCapability,
 	}
 
 	b, err := ics.Marshal()
@@ -671,6 +679,17 @@ func buildActivateDefaultESM(p *pdnConnection, qos *epsQoS, pti uint8) ([]byte, 
 
 // sendS1AP writes a complete S1AP PDU to the UE's eNB association.
 func (m *MME) sendS1AP(ctx context.Context, ue *UeContext, messageType S1APProcedure, b []byte) {
+	conn, _, _ := m.s1Identity(ue)
+	if conn == nil {
+		return
+	}
+
+	m.sendS1APConn(ctx, conn, messageType, b)
+}
+
+// sendS1APConn writes a complete S1AP PDU to a specific eNB association, used
+// when the target is not the UE's current conn (an in-flight S1 handover).
+func (m *MME) sendS1APConn(ctx context.Context, conn nasWriter, messageType S1APProcedure, b []byte) {
 	ctx, span := tracer.Start(ctx, "s1ap/send",
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
@@ -682,15 +701,10 @@ func (m *MME) sendS1AP(ctx context.Context, ue *UeContext, messageType S1APProce
 	)
 	defer span.End()
 
-	conn, _, _ := m.s1Identity(ue)
-	if conn == nil {
-		return
-	}
-
 	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamUE}); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send S1AP message")
-		logger.MmeLog.Error("failed to send S1AP message", zap.Error(err))
+		logger.MmeLog.Error("failed to send S1AP message", zap.String("message-type", string(messageType)), zap.Error(err))
 
 		return
 	}

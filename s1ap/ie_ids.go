@@ -6,9 +6,16 @@ package s1ap
 // ProtocolIE-ID values (TS 36.413 §9.3, S1AP-Constants).
 const (
 	idMMEUES1APID                               ProtocolIEID = 0
+	idHandoverType                              ProtocolIEID = 1
 	idCause                                     ProtocolIEID = 2
+	idTargetID                                  ProtocolIEID = 4
 	idENBUES1APID                               ProtocolIEID = 8
+	idERABtoReleaseListHOCmd                    ProtocolIEID = 13
 	idERABReleaseItemBearerRelComp              ProtocolIEID = 15
+	idERABAdmittedList                          ProtocolIEID = 18
+	idERABFailedToSetupListHOReqAck             ProtocolIEID = 19
+	idERABAdmittedItem                          ProtocolIEID = 20
+	idERABToBeSetupItemHOReq                    ProtocolIEID = 26
 	idERABToBeSetupListBearerSUReq              ProtocolIEID = 16
 	idERABToBeSetupItemBearerSUReq              ProtocolIEID = 17
 	idERABToBeSwitchedDLList                    ProtocolIEID = 22
@@ -35,6 +42,7 @@ const (
 	idERABSetupItemCtxtSURes                    ProtocolIEID = 50
 	idERABSetupListCtxtSURes                    ProtocolIEID = 51
 	idERABToBeSetupItemCtxtSUReq                ProtocolIEID = 52
+	idERABToBeSetupListHOReq                    ProtocolIEID = 53
 	idCriticalityDiagnostics                    ProtocolIEID = 58
 	idGlobalENBID                               ProtocolIEID = 59
 	idENBname                                   ProtocolIEID = 60
@@ -43,6 +51,9 @@ const (
 	idTimeToWait                                ProtocolIEID = 65
 	idUEAggregateMaximumBitrate                 ProtocolIEID = 66
 	idTAI                                       ProtocolIEID = 67
+	idENBStatusTransferTransparentContainer     ProtocolIEID = 90
+	idSourceToTargetTransparentContainer        ProtocolIEID = 104
+	idTargetToSourceTransparentContainer        ProtocolIEID = 123
 	idSecurityKey                               ProtocolIEID = 73
 	idUERadioCapability                         ProtocolIEID = 74
 	idGUMMEI                                    ProtocolIEID = 75

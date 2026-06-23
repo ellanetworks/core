@@ -22,6 +22,7 @@ var scenariosSkipped = map[string]string{
 	"gnb/ngap/n2_handover":                   "multi-gNB, covered by TestIntegration5GN2Handover",
 	"gnb/n2_handover_connectivity":           "multi-gNB, covered by TestIntegration5GN2Handover",
 	"s1enb/x2_handover_connectivity":         "multi-eNB datapath, covered by TestIntegration4GX2Handover",
+	"s1enb/s1_handover":                      "multi-eNB datapath, covered by TestIntegration4GS1Handover",
 	"gnb/paging/downlink_data":               "paging, out of scope",
 	"ha/failover_connectivity_5g":            "multi-core HA topology, covered by TestIntegration5GHAFailover",
 	"ha/failover_connectivity_4g":            "multi-core HA topology, covered by TestIntegration4GHAFailover",
