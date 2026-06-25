@@ -40,9 +40,11 @@ type SubscriberSession struct {
 func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 	radioName := ""
 
-	if conn, ok := ue.s1.conn.(*sctp.SCTPConn); ok {
-		if s := m.enbs[conn]; s != nil {
-			radioName = s.name
+	if ue.s1 != nil {
+		if conn, ok := ue.s1.conn.(*sctp.SCTPConn); ok {
+			if s := m.enbs[conn]; s != nil {
+				radioName = s.name
+			}
 		}
 	}
 
@@ -91,13 +93,12 @@ func (m *MME) ConnectedSubscribers() map[string]ConnectedSubscriber {
 
 	out := make(map[string]ConnectedSubscriber)
 
-	for _, c := range m.conns {
-		ue := c.ue
-		if ue == nil || ue.emmState.load() != EMMRegistered || ue.imsi == "" {
+	for imsi, ue := range m.ues {
+		if ue.emmState.load() != EMMRegistered || ue.imsi == "" {
 			continue
 		}
 
-		out[ue.imsi] = m.connectedSubscriber(ue)
+		out[imsi] = m.connectedSubscriber(ue)
 	}
 
 	return out
@@ -108,14 +109,12 @@ func (m *MME) LookupSubscriber(imsi string) (ConnectedSubscriber, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	for _, c := range m.conns {
-		ue := c.ue
-		if ue != nil && ue.emmState.load() == EMMRegistered && ue.imsi == imsi {
-			return m.connectedSubscriber(ue), true
-		}
+	ue, ok := m.ues[imsi]
+	if !ok || ue.emmState.load() != EMMRegistered {
+		return ConnectedSubscriber{}, false
 	}
 
-	return ConnectedSubscriber{}, false
+	return m.connectedSubscriber(ue), true
 }
 
 // CountRegisteredSubscribers returns the number of EMM-registered UEs.
@@ -125,9 +124,8 @@ func (m *MME) CountRegisteredSubscribers() int {
 
 	count := 0
 
-	for _, c := range m.conns {
-		ue := c.ue
-		if ue != nil && ue.emmState.load() == EMMRegistered && ue.imsi != "" {
+	for _, ue := range m.ues {
+		if ue.emmState.load() == EMMRegistered && ue.imsi != "" {
 			count++
 		}
 	}

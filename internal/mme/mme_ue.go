@@ -418,9 +418,10 @@ func (m *MME) dropPDN(ue *UeContext, ebi uint8) {
 	}
 }
 
-// newUe allocates an MME-UE-S1AP-ID and registers a UE context for the eNB
-// association.
-func (m *MME) newUe(conn nasWriter, enbUEID s1ap.ENBUES1APID) *UeContext {
+// newConn allocates an MME-UE-S1AP-ID and registers a bare UE-associated
+// S1-connection — one carrying an Initial UE Message not yet bound to a UE
+// context (TS 36.413). An unidentified peer holds at most a bare connection.
+func (m *MME) newConn(conn nasWriter, enbUEID s1ap.ENBUES1APID) *s1Conn {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -428,12 +429,38 @@ func (m *MME) newUe(conn nasWriter, enbUEID s1ap.ENBUES1APID) *UeContext {
 	m.nextMMEUEID++
 
 	c := &s1Conn{ENBUES1APID: enbUEID, MMEUES1APID: s1ap.MMEUES1APID(id), conn: conn}
+	m.conns[id] = c
+
+	return c
+}
+
+// bindConn attaches a fresh persistent UE context to a bare connection, once the
+// connection's first NAS message warrants one (an Attach Request).
+func (m *MME) bindConn(c *s1Conn) *UeContext {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	ue := &UeContext{s1: c}
 	c.ue = ue
 
-	m.conns[id] = c
-
 	return ue
+}
+
+// releaseBareConn drops a connection that never bound a UE context.
+func (m *MME) releaseBareConn(c *s1Conn) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if c.ue != nil {
+		return
+	}
+
+	delete(m.conns, uint32(c.MMEUES1APID))
+}
+
+// newUe registers a bare connection and immediately binds a UE context to it.
+func (m *MME) newUe(conn nasWriter, enbUEID s1ap.ENBUES1APID) *UeContext {
+	return m.bindConn(m.newConn(conn, enbUEID))
 }
 
 // establishS1Connection binds a UE returning from ECM-IDLE to a fresh

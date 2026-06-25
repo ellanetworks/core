@@ -113,8 +113,9 @@ func TestDropStaleUe(t *testing.T) {
 }
 
 // TestNonAttachInitialUEMessageCreatesNoContext checks that an Initial UE Message
-// whose NAS is not an Attach Request allocates no UE context, so an
-// unauthenticated peer cannot exhaust contexts (TS 24.301).
+// whose NAS is not an Attach Request binds no UE context and leaves no connection
+// behind (its bare connection is released), so an unauthenticated peer cannot
+// exhaust contexts (TS 24.301).
 func TestNonAttachInitialUEMessageCreatesNoContext(t *testing.T) {
 	m := newTestMME(t)
 
@@ -125,6 +126,33 @@ func TestNonAttachInitialUEMessageCreatesNoContext(t *testing.T) {
 	}
 
 	if got := len(m.conns); got != 0 {
-		t.Fatalf("non-Attach Initial UE Messages allocated %d contexts, want 0", got)
+		t.Fatalf("non-Attach Initial UE Messages left %d connections, want 0", got)
+	}
+}
+
+// TestBareConnectionIgnoredByLookups checks that a connection with no bound UE
+// context (an Initial UE Message not yet attached) is invisible to UE lookups and
+// subscriber counts, and is removed by release.
+func TestBareConnectionIgnoredByLookups(t *testing.T) {
+	m := newTestMME(t)
+
+	c := m.newConn(&captureConn{}, 7)
+
+	if c.ue != nil {
+		t.Fatal("new connection is not bare")
+	}
+
+	if _, ok := m.lookupUe(c.MMEUES1APID); ok {
+		t.Fatal("bare connection resolved as a UE")
+	}
+
+	if got := m.CountRegisteredSubscribers(); got != 0 {
+		t.Fatalf("bare connection counted as a registered subscriber: got %d", got)
+	}
+
+	m.releaseBareConn(c)
+
+	if got := len(m.conns); got != 0 {
+		t.Fatalf("bare connection not removed by release: %d remain", got)
 	}
 }

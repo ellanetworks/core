@@ -66,18 +66,23 @@ func (m *MME) handleInitialUEMessage(ctx context.Context, conn *sctp.SCTPConn, v
 		}
 	}
 
-	// A fresh connection's first NAS message allocates a UE context only when it is
-	// an ATTACH REQUEST; any other (or malformed) initial message is dropped without
-	// allocating one, so an unauthenticated peer cannot exhaust UE contexts.
+	// A fresh connection is tracked by a bare UE-associated S1-connection. A
+	// persistent UE context is bound to it only when its first NAS message is an
+	// ATTACH REQUEST; any other (or malformed) initial message releases the bare
+	// connection without binding one, so an unauthenticated peer cannot exhaust UE
+	// contexts.
+	c := m.newConn(conn, msg.ENBUES1APID)
+
 	if !isInitialAttach(nas) {
 		logger.MmeLog.Debug("dropping non-Attach Initial UE Message",
 			zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
+		m.releaseBareConn(c)
 
 		return
 	}
 
 	m.dropStaleUe(conn, msg.ENBUES1APID)
-	ue := m.newUe(conn, msg.ENBUES1APID)
+	ue := m.bindConn(c)
 
 	logger.MmeLog.Info("Initial UE Message",
 		zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)),
