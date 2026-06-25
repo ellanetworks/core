@@ -62,10 +62,25 @@ func (m *MME) handlePathSwitchRequest(ctx context.Context, conn nasWriter, value
 		return
 	}
 
+	// Snapshot the {NH, NCC} chain base under the lock — refusing if an S1 handover
+	// is concurrently advancing it, which would derive the same NH for two targets.
+	m.mu.Lock()
+	if ue.handover != nil {
+		m.mu.Unlock()
+		logger.MmeLog.Warn("Path Switch Request while a handover is in progress",
+			zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
+		m.sendPathSwitchFailure(conn, req, causePathSwitchUPFailure)
+
+		return
+	}
+
+	curNH, curNCC := ue.nh, ue.ncc
+	m.mu.Unlock()
+
 	// Compute the next NH before any user-plane change so a derivation error leaves
 	// the UE on the source eNB cleanly; the chain is committed only after at least
 	// one E-RAB is switched (TS 33.401 — no rollback once advanced).
-	newNH, err := deriveNH(ue.kasme, ue.nh[:])
+	newNH, err := deriveNH(ue.kasme, curNH[:])
 	if err != nil {
 		logger.MmeLog.Error("failed to advance NH for Path Switch", zap.Error(err))
 		m.sendPathSwitchFailure(conn, req, causePathSwitchUPFailure)
@@ -92,7 +107,7 @@ func (m *MME) handlePathSwitchRequest(ctx context.Context, conn nasWriter, value
 	ue.conn = conn
 	ue.ENBUES1APID = req.ENBUES1APID
 	ue.nh = newNH
-	ue.ncc = (ue.ncc + 1) & 0x07
+	ue.ncc = (curNCC + 1) & 0x07
 	ncc := ue.ncc
 	m.mu.Unlock()
 

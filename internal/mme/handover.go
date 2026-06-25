@@ -127,19 +127,9 @@ func (m *MME) handleHandoverRequired(ctx context.Context, conn nasWriter, value 
 		return
 	}
 
-	// Advance the {NH, NCC} for the target before any commitment; the chain is
-	// committed only at notify (TS 33.401 §7.2.8).
-	newNH, err := deriveNH(ue.kasme, ue.nh[:])
-	if err != nil {
-		logger.MmeLog.Error("failed to advance NH for handover", zap.Error(err))
-		m.sendHandoverPreparationFailure(ctx, conn, req.MMEUES1APID, req.ENBUES1APID, causeHandoverPrepUnspecific)
-
-		return
-	}
-
-	newNCC := (ue.ncc + 1) & 0x07
-
 	// Only one handover preparation may be ongoing for a UE (TS 36.413 §8.4.1.1).
+	// The {NH, NCC} chain is read and advanced under the lock so it cannot race the
+	// commit at notify; it is committed to the UE only at notify (TS 33.401 §7.2.8).
 	m.mu.Lock()
 	if ue.handover != nil {
 		m.mu.Unlock()
@@ -149,6 +139,17 @@ func (m *MME) handleHandoverRequired(ctx context.Context, conn nasWriter, value 
 
 		return
 	}
+
+	newNH, err := deriveNH(ue.kasme, ue.nh[:])
+	if err != nil {
+		m.mu.Unlock()
+		logger.MmeLog.Error("failed to advance NH for handover", zap.Error(err))
+		m.sendHandoverPreparationFailure(ctx, conn, req.MMEUES1APID, req.ENBUES1APID, causeHandoverPrepUnspecific)
+
+		return
+	}
+
+	newNCC := (ue.ncc + 1) & 0x07
 
 	gen := ue.handoverGen
 	ho := &handoverContext{
