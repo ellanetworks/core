@@ -65,13 +65,73 @@ type pdnConnection struct {
 	pendingARP           uint8
 }
 
-// UeContext is the MME's per-UE state for an S1AP UE-associated connection: the
-// S1AP identities, the owning eNB association, and (during attach) the EMM/NAS
-// security context.
-type UeContext struct {
+// s1Conn is a UE's transient state for one UE-associated logical S1-connection
+// (TS 36.413): the S1AP identities, the eNB association, the connection and
+// idle-mode supervision timers, and any in-flight handover. A fresh one is bound
+// on each idle→active transition; the persistent UeContext it belongs to survives
+// across them. Fields are guarded by MME.mu unless noted.
+type s1Conn struct {
 	ENBUES1APID s1ap.ENBUES1APID
 	MMEUES1APID s1ap.MMEUES1APID
 	conn        nasWriter
+
+	// EPS Connection Management state (TS 23.401): ECM-CONNECTED on an active S1
+	// connection, ECM-IDLE between them.
+	ecmState ecmStateAtomic
+
+	// tauReleaseOnComplete defers the S1 release of a no-active TAU until the
+	// GUTI reallocation it carried is acknowledged.
+	tauReleaseOnComplete bool
+	// releasing gates the registry op during a UE Context Release.
+	releasing bool
+
+	// handover is the in-flight S1 handover for this UE (nil when none); the UE is
+	// reachable on both the source and target associations until HANDOVER NOTIFY
+	// moves conn/ENBUES1APID to the target (TS 36.413 §8.4). handoverGen invalidates
+	// a guard-timer callback that fired just as the handover was cleared or
+	// replaced.
+	handover    *handoverContext
+	handoverGen uint64
+
+	// Idle-mode reachability supervision (TS 24.301), armed in ECM-IDLE
+	// and cancelled on reconnect. idleGen invalidates a timer callback that fired
+	// just as a reconnect or re-arm ran.
+	mobileReachableTimer *time.Timer
+	implicitDetachTimer  *time.Timer
+	idleGen              uint64
+
+	// Paging supervision (T3413, TS 24.301 §5.6.2): armed when the MME pages an
+	// idle UE for buffered downlink data, retransmitted a bounded number of times,
+	// and cancelled when the UE reconnects. pagingPDU is the S1AP Paging message
+	// retransmitted on expiry; pagingGen invalidates a stale callback.
+	pagingTimer *time.Timer
+	pagingPDU   []byte
+	pagingTries int
+	pagingGen   uint64
+
+	// NAS common-procedure guard (TS 24.301: T3450/T3460/T3470). At most
+	// one common procedure is outstanding at a time, so a single guard suffices;
+	// nasGuardPDU is the downlink message retransmitted on expiry. nasGuardGen
+	// invalidates a stale callback.
+	nasGuardTimer *time.Timer
+	nasGuardPDU   []byte
+	nasGuardName  string
+	nasGuardTries int
+	nasGuardGen   uint64
+	// nasGuardOnAbort, when non-nil, makes the guard abort-only: on exhausting
+	// its retransmissions it runs this finalizer and leaves the UE connected,
+	// rather than releasing the context. Used for non-critical procedures whose
+	// failure must not drop the UE — a bearer modification (TS 24.301 §6.4.2.5:
+	// on T3486 expiry the bearer stays active) or a single-PDN deactivation
+	// (§6.4.4.5: on T3495 expiry the bearer is deactivated locally).
+	nasGuardOnAbort func()
+}
+
+// UeContext is the MME's persistent per-UE EMM context: subscriber identity, the
+// EPS NAS security context, and the bearer state. The embedded *s1Conn carries
+// the transient state of its current UE-associated S1-connection.
+type UeContext struct {
+	*s1Conn
 
 	imsi            string
 	imei            string // 15-digit IMEI from the UE's IMEISV (TS 24.301)
@@ -81,6 +141,10 @@ type UeContext struct {
 	esmContainer    []byte // PDN Connectivity Request, kept for default-bearer activation
 	authVector      *udm.EPSAV
 	combinedAttach  bool // UE requested combined EPS/IMSI attach (TS 24.301)
+	// hashmmeInput is the plain Attach Request to hash into the SECURITY MODE
+	// COMMAND HashMME IE, set when the Attach arrived without integrity protection;
+	// nil when the Attach verified (TS 24.301 §5.4.3.2).
+	hashmmeInput []byte
 
 	// lastSeen is the Unix-nanosecond time of the UE's most recent uplink NAS
 	// activity, updated on the hot path and read concurrently by the status API.
@@ -104,9 +168,6 @@ type UeContext struct {
 	// (0 = none): both stay resolvable, and the UE is paged with the old one,
 	// until TRACKING AREA UPDATE COMPLETE commits the new GUTI (TS 24.301).
 	oldMTMSI uint32
-	// tauReleaseOnComplete defers the S1 release of a no-active TAU until the
-	// GUTI reallocation it carried is acknowledged.
-	tauReleaseOnComplete bool
 
 	// mu is the per-UE lock guarding this UE's data state — the EPS NAS security
 	// context below (dlCount, knasEnc, knasInt, eea, eia, imei, secured), the PDN
@@ -124,7 +185,6 @@ type UeContext struct {
 	ulCount     uint32
 	dlCount     uint32
 	secured     bool
-	releasing   bool
 	resyncTried bool
 
 	// X2-handover key chain (TS 33.401): nh is the Next Hop the next path
@@ -133,54 +193,11 @@ type UeContext struct {
 	nh  [32]byte
 	ncc uint8
 
-	// handover is the in-flight S1 handover for this UE (nil when none); the UE is
-	// reachable on both the source and target associations until HANDOVER NOTIFY
-	// moves conn/ENBUES1APID to the target (TS 36.413 §8.4). handoverGen invalidates
-	// a guard-timer callback that fired just as the handover was cleared or
-	// replaced. Both guarded by MME.mu.
-	handover    *handoverContext
-	handoverGen uint64
-
-	// EMM/ECM state machines (TS 23.401) — independent: an S1 release moves
-	// the UE to ECM-IDLE while leaving the EMM state untouched, so the
-	// release-complete handler deletes the context only if the UE is also
-	// EMM-DEREGISTERED (detach), otherwise it is retained in ECM-IDLE.
+	// emmState is the EPS Mobility Management state (TS 23.401), independent of the
+	// ECM state on s1Conn: an S1 release moves the UE to ECM-IDLE while leaving the
+	// EMM state untouched, so the release-complete handler deletes the context only
+	// if the UE is also EMM-DEREGISTERED (detach), else it is retained in ECM-IDLE.
 	emmState emmStateAtomic
-	ecmState ecmStateAtomic
-
-	// Idle-mode reachability supervision (TS 24.301), armed in ECM-IDLE
-	// and cancelled on reconnect. idleGen invalidates a timer callback that fired
-	// just as a reconnect or re-arm ran; all three are guarded by MME.mu.
-	mobileReachableTimer *time.Timer
-	implicitDetachTimer  *time.Timer
-	idleGen              uint64
-
-	// Paging supervision (T3413, TS 24.301 §5.6.2): armed when the MME pages an
-	// idle UE for buffered downlink data, retransmitted a bounded number of times,
-	// and cancelled when the UE reconnects. pagingPDU is the S1AP Paging message
-	// retransmitted on expiry; pagingGen invalidates a stale callback. All guarded
-	// by MME.mu.
-	pagingTimer *time.Timer
-	pagingPDU   []byte
-	pagingTries int
-	pagingGen   uint64
-
-	// NAS common-procedure guard (TS 24.301: T3450/T3460/T3470). At most
-	// one common procedure is outstanding at a time, so a single guard suffices;
-	// nasGuardPDU is the downlink message retransmitted on expiry. nasGuardGen
-	// invalidates a stale callback. All guarded by MME.mu.
-	nasGuardTimer *time.Timer
-	nasGuardPDU   []byte
-	nasGuardName  string
-	nasGuardTries int
-	nasGuardGen   uint64
-	// nasGuardOnAbort, when non-nil, makes the guard abort-only: on exhausting
-	// its retransmissions it runs this finalizer and leaves the UE connected,
-	// rather than releasing the context. Used for non-critical procedures whose
-	// failure must not drop the UE — a bearer modification (TS 24.301 §6.4.2.5:
-	// on T3486 expiry the bearer stays active) or a single-PDN deactivation
-	// (§6.4.4.5: on T3495 expiry the bearer is deactivated locally).
-	nasGuardOnAbort func()
 }
 
 // touchLastSeen records the current time as the UE's most recent uplink NAS
@@ -385,7 +402,7 @@ func (m *MME) newUe(conn nasWriter, enbUEID s1ap.ENBUES1APID) *UeContext {
 	id := m.nextMMEUEID
 	m.nextMMEUEID++
 
-	ue := &UeContext{ENBUES1APID: enbUEID, MMEUES1APID: s1ap.MMEUES1APID(id), conn: conn}
+	ue := &UeContext{s1Conn: &s1Conn{ENBUES1APID: enbUEID, MMEUES1APID: s1ap.MMEUES1APID(id), conn: conn}}
 	ue.ecmState.store(ECMConnected)
 	m.ues[id] = ue
 
@@ -404,19 +421,20 @@ func (m *MME) establishS1Connection(ue *UeContext, conn nasWriter, enbUEID s1ap.
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// A NAS signalling connection is being established for the UE, so the idle
-	// reachability timers and any paging supervision are stopped (TS 24.301).
+	// A NAS signalling connection is being established for the UE, so the prior
+	// connection's idle, paging, and NAS-guard supervision are stopped before its
+	// s1Conn is replaced, leaving no timer that could fire against the new one
+	// (TS 24.301).
 	m.stopIdleTimersLocked(ue)
 	m.stopPagingLocked(ue)
+	m.stopNASGuardLocked(ue)
 
 	delete(m.ues, uint32(ue.MMEUES1APID))
 
 	id := m.nextMMEUEID
 	m.nextMMEUEID++
 
-	ue.MMEUES1APID = s1ap.MMEUES1APID(id)
-	ue.ENBUES1APID = enbUEID
-	ue.conn = conn
+	ue.s1Conn = &s1Conn{MMEUES1APID: s1ap.MMEUES1APID(id), ENBUES1APID: enbUEID, conn: conn}
 	m.ues[id] = ue
 }
 

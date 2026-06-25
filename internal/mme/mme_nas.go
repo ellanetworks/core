@@ -36,20 +36,31 @@ func (m *MME) handleInitialUEMessage(ctx context.Context, conn *sctp.SCTPConn, v
 	}
 
 	// A security-protected NAS message from a UE that presents its S-TMSI is a
-	// resume in an existing security context (e.g. a TAU from idle). Bind the
-	// persistent context to a fresh S1 connection (TS 36.413) and dispatch
-	// with that context. A UE without a resolvable context (e.g. after an MME
+	// resume in an existing security context (e.g. a TAU from idle). The message
+	// is authenticated against the resolved context before the context is bound to
+	// the requesting association (TS 24.301 §4.4.4.3), so an unverified message
+	// cannot move the UE. A UE without a resolvable context (e.g. after an MME
 	// restart) falls through to a fresh context below.
 	if len(nas) > 0 && nas[0]>>4 != uint8(eps.SHTPlain) && msg.STMSI != nil {
 		if ue, ok := m.lookupUeByMTMSI(msg.STMSI.MTMSI); ok && ue.emmState.load() == EMMRegistered && ue.secured {
+			plain, count, valid := m.unprotectUplink(ue, nas)
+			if !valid {
+				logger.MmeLog.Warn("Initial UE Message (resume) failed integrity check",
+					zap.Uint32("m-tmsi", msg.STMSI.MTMSI))
+
+				return
+			}
+
+			ue.touchLastSeen()
 			m.establishS1Connection(ue, conn, msg.ENBUES1APID)
+			ue.ulCount = count + 1
 
 			logger.MmeLog.Info("Initial UE Message (resume)",
 				zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)),
 				zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
 			)
 
-			m.handleNAS(ctx, ue, nas)
+			m.dispatchEMM(ctx, ue, plain, true)
 
 			return
 		}

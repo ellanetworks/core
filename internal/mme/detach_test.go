@@ -218,10 +218,9 @@ func TestDetachSwitchOff(t *testing.T) {
 	}
 }
 
-// TestDetachSwitchOffNullSecurity covers srsUE's behaviour: a switch-off Detach
-// Request sent with a null MAC and an unciphered payload, which the MME must
-// accept despite the failed integrity check (TS 24.301 §5.5.2.2.2).
-func TestDetachSwitchOffNullSecurity(t *testing.T) {
+// A switch-off DETACH REQUEST that fails the integrity check is ignored once a
+// security context exists (TS 24.301 §4.4.4.3).
+func TestDetachSwitchOffUnverifiableIgnoredForSecuredUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
@@ -233,8 +232,39 @@ func TestDetachSwitchOffNullSecurity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Wrap as security-protected (SHT integrity+ciphered) but with null
-	// algorithms: zero MAC and unciphered payload, as srsUE does.
+	// Null algorithms: zero MAC, unciphered payload — unverifiable without the keys.
+	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, 0, nascommon.DirectionUplink,
+		[16]byte{}, [16]byte{}, nascommon.NullIntegrity{}, nascommon.NullCipher{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m.handleNAS(context.Background(), ue, wire)
+
+	if len(cc.sent) != 0 {
+		t.Fatalf("S1AP messages sent = %d, want 0", len(cc.sent))
+	}
+
+	if _, ok := m.lookupUe(ue.MMEUES1APID); !ok || ue.emmState.load() != EMMRegistered || !ue.secured {
+		t.Fatal("secured UE state changed by an unverifiable switch-off detach")
+	}
+}
+
+// Before a security context exists, an unverifiable switch-off detach is honoured
+// (TS 24.301 §4.4.4.3).
+func TestDetachSwitchOffUnsecuredAccepted(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+	ue.secured = false
+
+	plain, err := (&eps.DetachRequestUE{
+		SwitchOff: true, TypeOfDetach: eps.DetachTypeEPS,
+		EPSMobileIdentity: eps.EPSMobileIdentity{Type: eps.IdentityGUTI, MCC: "001", MNC: "01", MMEGroupID: 1, MMECode: 1, MTMSI: 1},
+	}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, 0, nascommon.DirectionUplink,
 		[16]byte{}, [16]byte{}, nascommon.NullIntegrity{}, nascommon.NullCipher{})
 	if err != nil {

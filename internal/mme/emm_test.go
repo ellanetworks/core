@@ -4,7 +4,9 @@
 package mme
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"sync"
 	"testing"
 
@@ -248,6 +250,26 @@ func TestAttachNativeGUTIBadMACFallsBackToAuth(t *testing.T) {
 	}
 }
 
+// A replayed native-GUTI Attach with a stale uplink NAS COUNT must not remove the
+// live context (TS 24.301).
+func TestAttachNativeGUTIReplayDoesNotRemoveContext(t *testing.T) {
+	m := newTestMME(t)
+	existing, _ := securedUE(t, m)
+	oldID := existing.MMEUES1APID
+
+	wire := nativeGUTIAttach(t, m, existing) // protected at NASCount(0, 0)
+
+	existing.ulCount = 50
+
+	cc := &captureConn{}
+	attacker := m.newUe(cc, 9)
+	m.handleNAS(context.Background(), attacker, wire)
+
+	if _, ok := m.lookupUe(oldID); !ok {
+		t.Fatal("live context removed by a replayed stale-count Attach")
+	}
+}
+
 func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
@@ -333,6 +355,12 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 
 	if smc.CipheringAlgorithm != 2 || smc.IntegrityAlgorithm != 2 {
 		t.Fatalf("SMC algorithms eea=%d eia=%d, want 2/2", smc.CipheringAlgorithm, smc.IntegrityAlgorithm)
+	}
+
+	// The unprotected Attach is hashed into the SMC HashMME (TS 24.301 §5.4.3.2).
+	wantHash := sha256.Sum256(attachBytes)
+	if !bytes.Equal(smc.HASHMME, wantHash[:8]) {
+		t.Fatalf("SMC HashMME = %x, want %x", smc.HASHMME, wantHash[:8])
 	}
 
 	// 3. UE → Security Mode Complete (integrity protected + ciphered), returning

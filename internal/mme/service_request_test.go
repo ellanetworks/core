@@ -212,3 +212,60 @@ func TestServiceRequestBadMACRejected(t *testing.T) {
 		t.Fatalf("expected Service Reject, got %d S1AP messages", len(cc.sent))
 	}
 }
+
+// A resume (protected Initial UE Message) with an invalid MAC, carrying a
+// victim's S-TMSI, must not move the victim's S1 binding (TS 24.301 §4.4.4.3).
+func TestResumeBadMACDoesNotRebindVictim(t *testing.T) {
+	m := newTestMME(t)
+	ue, guti := idleRegisteredUE(t, m)
+
+	victimConn := ue.conn
+	victimID := ue.MMEUES1APID
+
+	nas := protectedUplink(t, ue, nascommon.NASCount(0, 0))
+	nas[2] ^= 0xff // corrupt the MAC
+
+	plmn := s1ap.PLMNIdentity{0x00, 0xf1, 0x10}
+
+	b, err := (&s1ap.InitialUEMessage{
+		ENBUES1APID:           9,
+		NASPDU:                s1ap.NASPDU(nas),
+		STMSI:                 &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
+		TAI:                   s1ap.TAI{PLMNIdentity: plmn, TAC: 1},
+		EUTRANCGI:             s1ap.EUTRANCGI{PLMNIdentity: plmn, CellID: 1},
+		RRCEstablishmentCause: s1ap.RRCCauseMOSignalling,
+	}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m.handleInitialUEMessage(context.Background(), nil, initiatingValue(t, b))
+
+	if ue.conn != victimConn || ue.MMEUES1APID != victimID {
+		t.Fatalf("victim binding changed on a forged resume: id %d -> %d", victimID, ue.MMEUES1APID)
+	}
+}
+
+// A Service Request with an invalid short MAC, on a different association, must
+// not move the resolved UE's S1 binding (TS 24.301 §5.6.1).
+func TestServiceRequestBadMACDoesNotRebindVictim(t *testing.T) {
+	m := newTestMME(t)
+	ue, guti := idleRegisteredUE(t, m)
+
+	victimConn := ue.conn
+	victimID := ue.MMEUES1APID
+
+	nas := serviceRequestNAS(t, ue)
+	nas[3] ^= 0xff
+
+	attacker := &captureConn{}
+	m.onServiceRequest(context.Background(), attacker, &s1ap.InitialUEMessage{
+		ENBUES1APID: 9,
+		NASPDU:      s1ap.NASPDU(nas),
+		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
+	})
+
+	if ue.conn != victimConn || ue.MMEUES1APID != victimID {
+		t.Fatalf("UE binding changed: conn moved=%v, id %d -> %d", ue.conn == nasWriter(attacker), victimID, ue.MMEUES1APID)
+	}
+}
