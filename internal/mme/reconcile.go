@@ -45,7 +45,7 @@ func (m *MME) ReconcileDataNetwork(ctx context.Context) {
 // is signalled; an idle UE is signalled when it returns to ECM-CONNECTED
 // (reconcileBearer on the ICS Response) or by the next backstop sweep.
 func (m *MME) reconcileUE(ctx context.Context, ue *UeContext) {
-	if ue.emmState.load() != EMMRegistered || ue.ecmState.load() != ECMConnected {
+	if ue.emmState.load() != EMMRegistered || !ue.connected() {
 		return
 	}
 
@@ -131,14 +131,14 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *pdnConnecti
 	// re-establishes (the new bearer also picks up the new QoS/Session-AMBR).
 	if dnChanged && !dnsOnlyChange(curDNConfig, newFingerprint) {
 		logger.MmeLog.Info("data-network configuration changed; reactivating EPS bearer",
-			zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.String("apn", p.apn))
+			zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.String("apn", p.apn))
 		m.reactivateBearer(ctx, ue, p)
 
 		return
 	}
 
 	logger.MmeLog.Info("policy/data-network changed; modifying EPS bearer in place",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.String("apn", p.apn),
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.String("apn", p.apn),
 		zap.Bool("dns", dnChanged), zap.Bool("session-ambr", ambrChanged), zap.Bool("qos", qosChanged))
 	m.modifyBearer(ctx, ue, p, qos, dnChanged, ambrChanged, qosChanged)
 }
@@ -264,8 +264,8 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *pdnConnection,
 // Response, so this does not block on it.
 func (m *MME) sendERABModify(ctx context.Context, ue *UeContext, p *pdnConnection, qos *epsQoS, naspdu []byte) {
 	req := &s1ap.ERABModifyRequest{
-		MMEUES1APID: ue.MMEUES1APID,
-		ENBUES1APID: ue.ENBUES1APID,
+		MMEUES1APID: ue.s1.MMEUES1APID,
+		ENBUES1APID: ue.s1.ENBUES1APID,
 		ERABToBeModified: []s1ap.ERABToBeModifiedItemBearerModReq{{
 			ERABID: s1ap.ERABID(p.ebi),
 			QoS: s1ap.ERABLevelQoSParameters{
@@ -378,7 +378,7 @@ func (m *MME) onModifyBearerAccept(ue *UeContext, plain []byte) {
 	ue.mu.Unlock()
 
 	logger.MmeLog.Info("EPS bearer modified in place",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.String("apn", p.apn))
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.String("apn", p.apn))
 }
 
 // onModifyBearerReject abandons the modification when the UE rejects it
@@ -400,7 +400,7 @@ func (m *MME) onModifyBearerReject(ue *UeContext, plain []byte) {
 	}
 
 	logger.MmeLog.Warn("UE rejected EPS bearer modification",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi))
 }
 
 // onDeactivateBearerAccept finalises an EPS bearer deactivation. A deactivation
@@ -434,7 +434,7 @@ func (m *MME) onDeactivateBearerAccept(ctx context.Context, ue *UeContext, plain
 
 	if releaseOnly {
 		logger.MmeLog.Info("PDN connection released",
-			zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.String("apn", p.apn))
+			zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.String("apn", p.apn))
 		m.releasePDN(ue, p)
 
 		return
@@ -448,6 +448,6 @@ func (m *MME) onDeactivateBearerAccept(ctx context.Context, ue *UeContext, plain
 	m.releaseAllSessions(ue)
 
 	logger.MmeLog.Info("EPS bearer deactivated for reactivation; UE will re-attach",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi))
 	m.releaseUEContext(ctx, ue, causeNASNormalRelease)
 }

@@ -51,15 +51,21 @@ func (m *MME) armNASGuardMode(ue *UeContext, name string, nas []byte, onAbort fu
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// The NAS guard is connection-scoped; a UE with no S1-connection (ECM-IDLE)
+	// has no common procedure to guard.
+	if ue.s1 == nil {
+		return
+	}
+
 	m.stopNASGuardLocked(ue)
-	gen := ue.nasGuardGen
+	gen := ue.s1.nasGuardGen
 
-	ue.nasGuardName = name
-	ue.nasGuardPDU = nas
-	ue.nasGuardTries = 0
-	ue.nasGuardOnAbort = onAbort
+	ue.s1.nasGuardName = name
+	ue.s1.nasGuardPDU = nas
+	ue.s1.nasGuardTries = 0
+	ue.s1.nasGuardOnAbort = onAbort
 
-	ue.nasGuardTimer = time.AfterFunc(m.nasGuardTimeout, func() {
+	ue.s1.nasGuardTimer = time.AfterFunc(m.nasGuardTimeout, func() {
 		m.onNASGuardExpiry(ue, gen)
 	})
 }
@@ -75,15 +81,19 @@ func (m *MME) stopNASGuard(ue *UeContext) {
 // stopNASGuardLocked cancels the guard and invalidates any in-flight callback.
 // The caller holds m.mu.
 func (m *MME) stopNASGuardLocked(ue *UeContext) {
-	ue.nasGuardGen++
-
-	if ue.nasGuardTimer != nil {
-		ue.nasGuardTimer.Stop()
-		ue.nasGuardTimer = nil
+	if ue.s1 == nil {
+		return
 	}
 
-	ue.nasGuardPDU = nil
-	ue.nasGuardOnAbort = nil
+	ue.s1.nasGuardGen++
+
+	if ue.s1.nasGuardTimer != nil {
+		ue.s1.nasGuardTimer.Stop()
+		ue.s1.nasGuardTimer = nil
+	}
+
+	ue.s1.nasGuardPDU = nil
+	ue.s1.nasGuardOnAbort = nil
 }
 
 // onNASGuardExpiry retransmits the outstanding downlink message, or releases the
@@ -92,21 +102,23 @@ func (m *MME) stopNASGuardLocked(ue *UeContext) {
 func (m *MME) onNASGuardExpiry(ue *UeContext, gen uint64) {
 	m.mu.Lock()
 
-	if ue.nasGuardGen != gen {
+	// The connection may have been released (ECM-IDLE) after the timer fired but
+	// before it took the lock; the guard goes with it.
+	if ue.s1 == nil || ue.s1.nasGuardGen != gen {
 		m.mu.Unlock()
 		return
 	}
 
-	ue.nasGuardTries++
-	name := ue.nasGuardName
+	ue.s1.nasGuardTries++
+	name := ue.s1.nasGuardName
 
-	if ue.nasGuardTries > m.nasGuardMaxRetransmit {
-		ue.nasGuardTimer = nil
-		ue.nasGuardPDU = nil
-		ue.nasGuardGen++
-		mmeUEID := ue.MMEUES1APID
-		onAbort := ue.nasGuardOnAbort
-		ue.nasGuardOnAbort = nil
+	if ue.s1.nasGuardTries > m.nasGuardMaxRetransmit {
+		ue.s1.nasGuardTimer = nil
+		ue.s1.nasGuardPDU = nil
+		ue.s1.nasGuardGen++
+		mmeUEID := ue.s1.MMEUES1APID
+		onAbort := ue.s1.nasGuardOnAbort
+		ue.s1.nasGuardOnAbort = nil
 
 		m.mu.Unlock()
 
@@ -127,17 +139,17 @@ func (m *MME) onNASGuardExpiry(ue *UeContext, gen uint64) {
 		return
 	}
 
-	pdu := ue.nasGuardPDU
-	tries := ue.nasGuardTries
+	pdu := ue.s1.nasGuardPDU
+	tries := ue.s1.nasGuardTries
 
-	ue.nasGuardTimer = time.AfterFunc(m.nasGuardTimeout, func() {
+	ue.s1.nasGuardTimer = time.AfterFunc(m.nasGuardTimeout, func() {
 		m.onNASGuardExpiry(ue, gen)
 	})
 
 	m.mu.Unlock()
 
 	logger.MmeLog.Info("retransmitting NAS message",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("procedure", name), zap.Int("attempt", tries))
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("procedure", name), zap.Int("attempt", tries))
 	// Retransmission is timer-driven, outside the original request; start a fresh root.
 	m.sendDownlink(context.Background(), ue, pdu)
 }

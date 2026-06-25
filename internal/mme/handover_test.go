@@ -51,8 +51,8 @@ func handoverUE(t *testing.T, m *MME) (*UeContext, *captureConn, *captureConn) {
 
 func sampleHandoverRequired(ue *UeContext) *s1ap.HandoverRequired {
 	return &s1ap.HandoverRequired{
-		MMEUES1APID:    ue.MMEUES1APID,
-		ENBUES1APID:    ue.ENBUES1APID,
+		MMEUES1APID:    ue.s1.MMEUES1APID,
+		ENBUES1APID:    ue.s1.ENBUES1APID,
 		HandoverType:   s1ap.HandoverTypeIntraLTE,
 		Cause:          s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 16},
 		TargetID:       s1ap.TargetID{TargeteNBID: s1ap.TargeteNBID{GlobalENBID: targetGlobalENBID, SelectedTAI: s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}}},
@@ -133,7 +133,7 @@ func driveToPrepared(t *testing.T, m *MME, ue *UeContext, source, target *captur
 	const targetENBUEID s1ap.ENBUES1APID = 55
 
 	ack := &s1ap.HandoverRequestAcknowledge{
-		MMEUES1APID: ue.MMEUES1APID,
+		MMEUES1APID: ue.s1.MMEUES1APID,
 		ENBUES1APID: targetENBUEID,
 		ERABAdmitted: []s1ap.ERABAdmittedItem{{
 			ERABID:                s1ap.ERABID(defaultERABID),
@@ -174,7 +174,7 @@ func TestHandoverHappyPath(t *testing.T) {
 		t.Fatalf("parse HANDOVER REQUEST: %v", err)
 	}
 
-	if hoReq.MMEUES1APID != ue.MMEUES1APID || len(hoReq.ERABToBeSetup) != 1 ||
+	if hoReq.MMEUES1APID != ue.s1.MMEUES1APID || len(hoReq.ERABToBeSetup) != 1 ||
 		hoReq.ERABToBeSetup[0].GTPTEID != 0x1111 || hoReq.SecurityContext.NextHopChainingCount != 2 {
 		t.Fatalf("HANDOVER REQUEST = %+v", hoReq)
 	}
@@ -192,7 +192,7 @@ func TestHandoverHappyPath(t *testing.T) {
 	const targetENBUEID s1ap.ENBUES1APID = 55
 
 	ack := &s1ap.HandoverRequestAcknowledge{
-		MMEUES1APID: ue.MMEUES1APID,
+		MMEUES1APID: ue.s1.MMEUES1APID,
 		ENBUES1APID: targetENBUEID,
 		ERABAdmitted: []s1ap.ERABAdmittedItem{{
 			ERABID:                s1ap.ERABID(defaultERABID),
@@ -215,7 +215,7 @@ func TestHandoverHappyPath(t *testing.T) {
 	}
 
 	// eNB STATUS TRANSFER → MME STATUS TRANSFER to the target.
-	st := &s1ap.ENBStatusTransfer{MMEUES1APID: ue.MMEUES1APID, ENBUES1APID: ue.ENBUES1APID, Container: s1ap.StatusTransferContainer{0xde, 0xad}}
+	st := &s1ap.ENBStatusTransfer{MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: ue.s1.ENBUES1APID, Container: s1ap.StatusTransferContainer{0xde, 0xad}}
 	m.handleENBStatusTransfer(context.Background(), source, initiatingValue(t, mustMarshal(t, st.Marshal)))
 
 	mst, ok := lastPDU(t, target).(*s1ap.InitiatingMessage)
@@ -230,7 +230,7 @@ func TestHandoverHappyPath(t *testing.T) {
 
 	// HANDOVER NOTIFY → user-plane switch, association move, source release.
 	notify := &s1ap.HandoverNotify{
-		MMEUES1APID: ue.MMEUES1APID,
+		MMEUES1APID: ue.s1.MMEUES1APID,
 		ENBUES1APID: targetENBUEID,
 		EUTRANCGI:   s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1},
 		TAI:         s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
@@ -242,15 +242,15 @@ func TestHandoverHappyPath(t *testing.T) {
 		t.Fatalf("ModifyEPSSession eNB F-TEID = %+v, want %+v", fsm.modifiedENB, wantFTEID)
 	}
 
-	if ue.conn != target || ue.ENBUES1APID != targetENBUEID || testPDN(ue).enbFTEID != wantFTEID {
-		t.Fatalf("association not moved: conn=%v enb-id=%d", ue.conn == target, ue.ENBUES1APID)
+	if ue.s1.conn != target || ue.s1.ENBUES1APID != targetENBUEID || testPDN(ue).enbFTEID != wantFTEID {
+		t.Fatalf("association not moved: conn=%v enb-id=%d", ue.s1.conn == target, ue.s1.ENBUES1APID)
 	}
 
 	if ue.ncc != 2 || ue.nh != wantNH {
 		t.Fatalf("key chain not committed: ncc=%d nh-match=%v", ue.ncc, ue.nh == wantNH)
 	}
 
-	if ue.handover != nil {
+	if ue.s1.handover != nil {
 		t.Fatal("handover context not cleared after notify")
 	}
 
@@ -261,14 +261,14 @@ func TestHandoverHappyPath(t *testing.T) {
 	}
 
 	// Its Release Complete is consumed without disturbing the moved UE.
-	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.MMEUES1APID, ENBUES1APID: ue.ENBUES1APID}
+	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: ue.s1.ENBUES1APID}
 	m.handleUEContextReleaseComplete(source, successfulValue(t, mustMarshal(t, complete.Marshal)))
 
-	if _, ok := m.lookupUe(ue.MMEUES1APID); !ok {
+	if _, ok := m.lookupUe(ue.s1.MMEUES1APID); !ok {
 		t.Fatal("UE removed by the source Release Complete")
 	}
 
-	if ue.conn != target {
+	if ue.s1.conn != target {
 		t.Fatal("UE association disturbed by the source Release Complete")
 	}
 }
@@ -296,7 +296,7 @@ func TestHandoverRequiredNoSecurityFails(t *testing.T) {
 		t.Fatalf("cause = %+v, want authentication-failure", fail.Cause)
 	}
 
-	if ue.handover != nil {
+	if ue.s1.handover != nil {
 		t.Fatal("handover context left set on failure")
 	}
 }
@@ -331,15 +331,15 @@ func TestHandoverConcurrentRefused(t *testing.T) {
 
 	m.handleHandoverRequired(context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
-	if ue.handover == nil {
+	if ue.s1.handover == nil {
 		t.Fatal("first handover did not start")
 	}
 
-	first := ue.handover
+	first := ue.s1.handover
 
 	m.handleHandoverRequired(context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
-	if ue.handover != first {
+	if ue.s1.handover != first {
 		t.Fatal("second handover disturbed the in-flight one")
 	}
 
@@ -356,10 +356,10 @@ func TestHandoverFailureFailsToSource(t *testing.T) {
 
 	m.handleHandoverRequired(context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
-	fail := &s1ap.HandoverFailure{MMEUES1APID: ue.MMEUES1APID, Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 12}}
+	fail := &s1ap.HandoverFailure{MMEUES1APID: ue.s1.MMEUES1APID, Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 12}}
 	m.handleHandoverFailure(context.Background(), target, unsuccessfulValue(t, mustMarshal(t, fail.Marshal)))
 
-	if ue.handover != nil {
+	if ue.s1.handover != nil {
 		t.Fatal("handover not cleared after failure")
 	}
 
@@ -368,7 +368,7 @@ func TestHandoverFailureFailsToSource(t *testing.T) {
 		t.Fatalf("expected HANDOVER PREPARATION FAILURE to source, got %T", lastPDU(t, source))
 	}
 
-	if ue.conn != source {
+	if ue.s1.conn != source {
 		t.Fatal("UE association moved on a failed handover")
 	}
 }
@@ -381,10 +381,10 @@ func TestHandoverCancelReleasesTarget(t *testing.T) {
 
 	targetENBUEID := driveToPrepared(t, m, ue, source, target)
 
-	cancel := &s1ap.HandoverCancel{MMEUES1APID: ue.MMEUES1APID, ENBUES1APID: ue.ENBUES1APID, Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5}}
+	cancel := &s1ap.HandoverCancel{MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: ue.s1.ENBUES1APID, Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5}}
 	m.handleHandoverCancel(context.Background(), source, initiatingValue(t, mustMarshal(t, cancel.Marshal)))
 
-	if ue.handover != nil {
+	if ue.s1.handover != nil {
 		t.Fatal("handover not cleared after cancel")
 	}
 
@@ -400,15 +400,15 @@ func TestHandoverCancelReleasesTarget(t *testing.T) {
 		t.Fatalf("expected HANDOVER CANCEL ACKNOWLEDGE to source, got %T", lastPDU(t, source))
 	}
 
-	if ue.conn != source {
+	if ue.s1.conn != source {
 		t.Fatal("UE association moved on a cancelled handover")
 	}
 
 	// The target's Release Complete is consumed.
-	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.MMEUES1APID, ENBUES1APID: targetENBUEID}
+	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: targetENBUEID}
 	m.handleUEContextReleaseComplete(target, successfulValue(t, mustMarshal(t, complete.Marshal)))
 
-	if _, ok := m.lookupUe(ue.MMEUES1APID); !ok {
+	if _, ok := m.lookupUe(ue.s1.MMEUES1APID); !ok {
 		t.Fatal("UE removed by the target Release Complete")
 	}
 }
@@ -437,7 +437,7 @@ func TestHandoverPartialAdmissionReleasesFailedPDN(t *testing.T) {
 
 	// Target admits the default bearer (EBI 5), rejects EBI 6.
 	ack := &s1ap.HandoverRequestAcknowledge{
-		MMEUES1APID: ue.MMEUES1APID,
+		MMEUES1APID: ue.s1.MMEUES1APID,
 		ENBUES1APID: targetENBUEID,
 		ERABAdmitted: []s1ap.ERABAdmittedItem{{
 			ERABID:                s1ap.ERABID(defaultERABID),
@@ -456,7 +456,7 @@ func TestHandoverPartialAdmissionReleasesFailedPDN(t *testing.T) {
 	}
 
 	notify := &s1ap.HandoverNotify{
-		MMEUES1APID: ue.MMEUES1APID,
+		MMEUES1APID: ue.s1.MMEUES1APID,
 		ENBUES1APID: targetENBUEID,
 		EUTRANCGI:   s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1},
 		TAI:         s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
@@ -488,15 +488,15 @@ func TestHandoverCancelDuringCommitIgnored(t *testing.T) {
 
 	// Simulate the in-flight user-plane switch of HANDOVER NOTIFY.
 	m.mu.Lock()
-	ue.handover.state = hoCommitting
+	ue.s1.handover.state = hoCommitting
 	m.mu.Unlock()
 
 	targetBefore := target.count()
 
-	cancel := &s1ap.HandoverCancel{MMEUES1APID: ue.MMEUES1APID, ENBUES1APID: ue.ENBUES1APID, Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5}}
+	cancel := &s1ap.HandoverCancel{MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: ue.s1.ENBUES1APID, Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5}}
 	m.handleHandoverCancel(context.Background(), source, initiatingValue(t, mustMarshal(t, cancel.Marshal)))
 
-	if ue.handover == nil {
+	if ue.s1.handover == nil {
 		t.Fatal("a committing handover was torn down by a late cancel")
 	}
 
@@ -534,8 +534,8 @@ func TestHandoverGuardTimerAbandons(t *testing.T) {
 
 	m.mu.RLock()
 
-	cleared := ue.handover == nil
-	conn := ue.conn
+	cleared := ue.s1.handover == nil
+	conn := ue.s1.conn
 
 	m.mu.RUnlock()
 
@@ -571,7 +571,7 @@ func TestHandoverPartialAdmissionPromotesDefault(t *testing.T) {
 
 	// Target admits the secondary (EBI 6), rejects the attach default (EBI 5).
 	ack := &s1ap.HandoverRequestAcknowledge{
-		MMEUES1APID: ue.MMEUES1APID,
+		MMEUES1APID: ue.s1.MMEUES1APID,
 		ENBUES1APID: targetENBUEID,
 		ERABAdmitted: []s1ap.ERABAdmittedItem{{
 			ERABID:                6,
@@ -584,7 +584,7 @@ func TestHandoverPartialAdmissionPromotesDefault(t *testing.T) {
 	m.handleHandoverRequestAcknowledge(context.Background(), target, successfulValue(t, mustMarshal(t, ack.Marshal)))
 
 	notify := &s1ap.HandoverNotify{
-		MMEUES1APID: ue.MMEUES1APID,
+		MMEUES1APID: ue.s1.MMEUES1APID,
 		ENBUES1APID: targetENBUEID,
 		EUTRANCGI:   s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1},
 		TAI:         s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},

@@ -131,7 +131,7 @@ func (m *MME) handleHandoverRequired(ctx context.Context, conn nasWriter, value 
 	// The {NH, NCC} chain is read and advanced under the lock so it cannot race the
 	// commit at notify; it is committed to the UE only at notify (TS 33.401 §7.2.8).
 	m.mu.Lock()
-	if ue.handover != nil {
+	if ue.s1.handover != nil {
 		m.mu.Unlock()
 		logger.MmeLog.Warn("Handover Required while a handover is already in progress",
 			zap.Uint32("mme-ue-id", uint32(req.MMEUES1APID)))
@@ -151,7 +151,7 @@ func (m *MME) handleHandoverRequired(ctx context.Context, conn nasWriter, value 
 
 	newNCC := (ue.ncc + 1) & 0x07
 
-	gen := ue.handoverGen
+	gen := ue.s1.handoverGen
 	ho := &handoverContext{
 		state:         hoPreparing,
 		sourceConn:    conn,
@@ -161,8 +161,8 @@ func (m *MME) handleHandoverRequired(ctx context.Context, conn nasWriter, value 
 		newNCC:        newNCC,
 	}
 	ho.guardTimer = time.AfterFunc(m.handoverGuardTimeout, func() { m.onHandoverGuardExpiry(ue, gen) })
-	ue.handover = ho
-	mmeUEID := ue.MMEUES1APID
+	ue.s1.handover = ho
+	mmeUEID := ue.s1.MMEUES1APID
 	m.mu.Unlock()
 
 	hoReq := &s1ap.HandoverRequest{
@@ -210,7 +210,7 @@ func (m *MME) handleHandoverRequestAcknowledge(ctx context.Context, conn nasWrit
 	}
 
 	m.mu.Lock()
-	ho := ue.handover
+	ho := ue.s1.handover
 
 	if ho == nil || ho.state != hoPreparing || ho.target != conn {
 		m.mu.Unlock()
@@ -253,7 +253,7 @@ func (m *MME) handleHandoverRequestAcknowledge(ctx context.Context, conn nasWrit
 	}
 
 	m.mu.Lock()
-	if ue.handover != ho || ho.state != hoPreparing {
+	if ue.s1.handover != ho || ho.state != hoPreparing {
 		m.mu.Unlock()
 		return
 	}
@@ -262,7 +262,7 @@ func (m *MME) handleHandoverRequestAcknowledge(ctx context.Context, conn nasWrit
 	ho.releaseEBIs = releaseEBIs
 	ho.state = hoPrepared
 	sourceConn, sourceENBUEID := ho.sourceConn, ho.sourceENBUEID
-	mmeUEID := ue.MMEUES1APID
+	mmeUEID := ue.s1.MMEUES1APID
 	m.mu.Unlock()
 
 	cmd := &s1ap.HandoverCommand{
@@ -301,7 +301,7 @@ func (m *MME) handleHandoverFailure(ctx context.Context, conn nasWriter, value [
 	}
 
 	m.mu.Lock()
-	ho := ue.handover
+	ho := ue.s1.handover
 
 	if ho == nil || ho.target != conn {
 		m.mu.Unlock()
@@ -329,7 +329,7 @@ func (m *MME) handleENBStatusTransfer(ctx context.Context, conn nasWriter, value
 	}
 
 	m.mu.Lock()
-	ho := ue.handover
+	ho := ue.s1.handover
 
 	if ho == nil || ho.target == nil {
 		m.mu.Unlock()
@@ -339,7 +339,7 @@ func (m *MME) handleENBStatusTransfer(ctx context.Context, conn nasWriter, value
 	}
 
 	target, targetENBUEID := ho.target, ho.targetENBUEID
-	mmeUEID := ue.MMEUES1APID
+	mmeUEID := ue.s1.MMEUES1APID
 	m.mu.Unlock()
 
 	mst := &s1ap.MMEStatusTransfer{MMEUES1APID: mmeUEID, ENBUES1APID: targetENBUEID, Container: st.Container}
@@ -369,7 +369,7 @@ func (m *MME) handleHandoverNotify(ctx context.Context, conn nasWriter, value []
 	}
 
 	m.mu.Lock()
-	ho := ue.handover
+	ho := ue.s1.handover
 
 	if ho == nil || ho.state != hoPrepared || ho.target != conn || ho.targetENBUEID != notify.ENBUES1APID {
 		m.mu.Unlock()
@@ -418,11 +418,11 @@ func (m *MME) handleHandoverNotify(ctx context.Context, conn nasWriter, value []
 	source := srcReleaseKey{conn: ho.sourceConn, enbUEID: ho.sourceENBUEID}
 	ue.nh = ho.newNH
 	ue.ncc = ho.newNCC
-	ue.conn = conn
-	ue.ENBUES1APID = notify.ENBUES1APID
+	ue.s1.conn = conn
+	ue.s1.ENBUES1APID = notify.ENBUES1APID
 	m.clearHandoverLocked(ue)
 	m.handoverSrcReleases[source] = struct{}{}
-	mmeUEID := ue.MMEUES1APID
+	mmeUEID := ue.s1.MMEUES1APID
 	m.mu.Unlock()
 
 	if notify.TAI.TAC != 0 {
@@ -458,7 +458,7 @@ func (m *MME) handleHandoverCancel(ctx context.Context, conn nasWriter, value []
 		hadTarget     bool
 	)
 
-	ho := ue.handover
+	ho := ue.s1.handover
 	switch {
 	case ho == nil:
 		// Nothing to cancel; still acknowledge below (TS 36.413 §8.4.5.4).
@@ -493,7 +493,7 @@ func (m *MME) handleHandoverCancel(ctx context.Context, conn nasWriter, value []
 // FAILURE to the source eNB, leaving the UE on the source association.
 func (m *MME) failHandoverToSource(ctx context.Context, ue *UeContext, cause s1ap.Cause) {
 	m.mu.Lock()
-	ho := ue.handover
+	ho := ue.s1.handover
 
 	if ho == nil {
 		m.mu.Unlock()
@@ -501,7 +501,7 @@ func (m *MME) failHandoverToSource(ctx context.Context, ue *UeContext, cause s1a
 	}
 
 	sourceConn, sourceENBUEID := ho.sourceConn, ho.sourceENBUEID
-	mmeUEID := ue.MMEUES1APID
+	mmeUEID := ue.s1.MMEUES1APID
 	m.clearHandoverLocked(ue)
 	m.mu.Unlock()
 
@@ -585,16 +585,16 @@ func (m *MME) consumeHandoverRelease(conn nasWriter, enbUEID s1ap.ENBUES1APID) b
 // timer, and bumps handoverGen so a guard callback that fired concurrently is
 // recognised as stale. The caller holds MME.mu.
 func (m *MME) clearHandoverLocked(ue *UeContext) {
-	if ue.handover == nil {
+	if ue.s1.handover == nil {
 		return
 	}
 
-	if ue.handover.guardTimer != nil {
-		ue.handover.guardTimer.Stop()
+	if ue.s1.handover.guardTimer != nil {
+		ue.s1.handover.guardTimer.Stop()
 	}
 
-	ue.handover = nil
-	ue.handoverGen++
+	ue.s1.handover = nil
+	ue.s1.handoverGen++
 }
 
 // clearHandover drops the UE's in-flight handover context under MME.mu.
@@ -612,14 +612,14 @@ func (m *MME) clearHandover(ue *UeContext) {
 func (m *MME) onHandoverGuardExpiry(ue *UeContext, gen uint64) {
 	m.mu.Lock()
 
-	ho := ue.handover
-	if ho == nil || ue.handoverGen != gen || ho.state == hoCommitting {
+	ho := ue.s1.handover
+	if ho == nil || ue.s1.handoverGen != gen || ho.state == hoCommitting {
 		m.mu.Unlock()
 		return
 	}
 
 	target, targetENBUEID, prepared := ho.target, ho.targetENBUEID, ho.state == hoPrepared
-	mmeUEID := ue.MMEUES1APID
+	mmeUEID := ue.s1.MMEUES1APID
 	m.clearHandoverLocked(ue)
 	m.mu.Unlock()
 
@@ -640,7 +640,7 @@ func (m *MME) handoverInProgress(ue *UeContext) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	return ue.handover != nil
+	return ue.s1.handover != nil
 }
 
 // abortHandoversOnConnLoss clears any in-flight handover that referenced a dropped
@@ -662,7 +662,7 @@ func (m *MME) abortHandoversOnConnLoss(conn nasWriter) {
 			continue
 		}
 
-		if ho := ue.handover; ho != nil && (ho.sourceConn == conn || ho.target == conn) {
+		if ho := ue.s1.handover; ho != nil && (ho.sourceConn == conn || ho.target == conn) {
 			m.clearHandoverLocked(ue)
 		}
 	}

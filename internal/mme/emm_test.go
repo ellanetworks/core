@@ -201,7 +201,7 @@ func nativeGUTIAttach(t *testing.T, m *MME, ue *UeContext) []byte {
 func TestAttachReusesContextForNativeGUTI(t *testing.T) {
 	m := newTestMME(t)
 	existing, _ := securedUE(t, m)
-	oldID := existing.MMEUES1APID
+	oldID := existing.s1.MMEUES1APID
 
 	wire := nativeGUTIAttach(t, m, existing)
 
@@ -232,7 +232,7 @@ func TestAttachReusesContextForNativeGUTI(t *testing.T) {
 func TestAttachNativeGUTIBadMACFallsBackToAuth(t *testing.T) {
 	m := newTestMME(t)
 	existing, _ := securedUE(t, m)
-	oldID := existing.MMEUES1APID
+	oldID := existing.s1.MMEUES1APID
 
 	wire := nativeGUTIAttach(t, m, existing)
 	wire[1] ^= 0xff // corrupt the MAC
@@ -255,7 +255,7 @@ func TestAttachNativeGUTIBadMACFallsBackToAuth(t *testing.T) {
 func TestAttachNativeGUTIReplayDoesNotRemoveContext(t *testing.T) {
 	m := newTestMME(t)
 	existing, _ := securedUE(t, m)
-	oldID := existing.MMEUES1APID
+	oldID := existing.s1.MMEUES1APID
 
 	wire := nativeGUTIAttach(t, m, existing) // protected at NASCount(0, 0)
 
@@ -402,7 +402,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 
 	ics := parseInitialContextSetup(t, cc.sent[2])
 
-	if ics.MMEUES1APID != ue.MMEUES1APID || ics.ENBUES1APID != 7 || len(ics.ERABToBeSetup) != 1 {
+	if ics.MMEUES1APID != ue.s1.MMEUES1APID || ics.ENBUES1APID != 7 || len(ics.ERABToBeSetup) != 1 {
 		t.Fatalf("unexpected Initial Context Setup Request: %+v", ics)
 	}
 
@@ -503,7 +503,7 @@ func TestSecurityModeRejectReleasesUE(t *testing.T) {
 
 	m.handleNAS(context.Background(), ue, plain)
 
-	if !ue.releasing {
+	if !ue.s1.releasing {
 		t.Fatal("UE not released after Security Mode Reject")
 	}
 

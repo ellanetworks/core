@@ -436,7 +436,7 @@ func (m *MME) sendInitialContextSetup(ctx context.Context, ue *UeContext, qos *e
 
 	p := m.defaultPDN(ue)
 	if p == nil {
-		logger.MmeLog.Error("Initial Context Setup with no active PDN", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
+		logger.MmeLog.Error("Initial Context Setup with no active PDN", zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)))
 		return
 	}
 
@@ -449,8 +449,8 @@ func (m *MME) sendInitialContextSetup(ctx context.Context, ue *UeContext, qos *e
 	}
 
 	ics := &s1ap.InitialContextSetupRequest{
-		MMEUES1APID:               ue.MMEUES1APID,
-		ENBUES1APID:               ue.ENBUES1APID,
+		MMEUES1APID:               ue.s1.MMEUES1APID,
+		ENBUES1APID:               ue.s1.ENBUES1APID,
 		UEAggregateMaximumBitRate: s1ap.UEAggregateMaximumBitRate{DL: s1ap.BitRate(qos.AMBRDL), UL: s1ap.BitRate(qos.AMBRUL)},
 		ERABToBeSetup: []s1ap.ERABToBeSetupItemCtxtSUReq{{
 			ERABID: s1ap.ERABID(p.ebi),
@@ -483,8 +483,8 @@ func (m *MME) sendInitialContextSetup(ctx context.Context, ue *UeContext, qos *e
 	// the eNB releases the UE (TS 33.401). Record the inputs so such a
 	// failure can be told apart from a radio-side release.
 	logger.MmeLog.Info("Initial Context Setup Request",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
-		zap.Uint32("enb-ue-id", uint32(ue.ENBUES1APID)),
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
+		zap.Uint32("enb-ue-id", uint32(ue.s1.ENBUES1APID)),
 		zap.String("ue-ip", p.ueIP.String()),
 		zap.Uint32("kenb-ul-count", kenbCount),
 		zap.Uint8("eea", ue.eea),
@@ -581,7 +581,7 @@ func (m *MME) onAttachComplete(ctx context.Context, ue *UeContext, plain []byte)
 	metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultAccept)
 
 	logger.MmeLog.Info("UE attached (EMM-REGISTERED)",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 		zap.String("imsi", ue.imsi),
 	)
 

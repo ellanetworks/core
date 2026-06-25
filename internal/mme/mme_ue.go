@@ -66,8 +66,8 @@ type pdnConnection struct {
 }
 
 // s1Conn is a UE's transient state for one UE-associated logical S1-connection
-// (TS 36.413): the S1AP identities, the eNB association, the connection and
-// idle-mode supervision timers, and any in-flight handover. A fresh one is bound
+// (TS 36.413): the S1AP identities, the eNB association, the connection-scoped
+// NAS-guard supervision, and any in-flight handover. A fresh one is bound
 // on each idle→active transition; the persistent UeContext it belongs to survives
 // across them. Fields are guarded by MME.mu unless noted.
 type s1Conn struct {
@@ -80,9 +80,11 @@ type s1Conn struct {
 	// attached to a context). Guarded by MME.mu.
 	ue *UeContext
 
-	// EPS Connection Management state (TS 23.401): ECM-CONNECTED on an active S1
-	// connection, ECM-IDLE between them.
-	ecmState ecmStateAtomic
+	// bearersUp is set once the eNB confirms the radio bearers (Initial Context
+	// Setup Response): it distinguishes a fully-established connection from one a
+	// UE is still resuming on (e.g. a TAU resume that has not re-established
+	// bearers).
+	bearersUp bool
 
 	// tauReleaseOnComplete defers the S1 release of a no-active TAU until the
 	// GUTI reallocation it carried is acknowledged.
@@ -97,22 +99,6 @@ type s1Conn struct {
 	// replaced.
 	handover    *handoverContext
 	handoverGen uint64
-
-	// Idle-mode reachability supervision (TS 24.301), armed in ECM-IDLE
-	// and cancelled on reconnect. idleGen invalidates a timer callback that fired
-	// just as a reconnect or re-arm ran.
-	mobileReachableTimer *time.Timer
-	implicitDetachTimer  *time.Timer
-	idleGen              uint64
-
-	// Paging supervision (T3413, TS 24.301 §5.6.2): armed when the MME pages an
-	// idle UE for buffered downlink data, retransmitted a bounded number of times,
-	// and cancelled when the UE reconnects. pagingPDU is the S1AP Paging message
-	// retransmitted on expiry; pagingGen invalidates a stale callback.
-	pagingTimer *time.Timer
-	pagingPDU   []byte
-	pagingTries int
-	pagingGen   uint64
 
 	// NAS common-procedure guard (TS 24.301: T3450/T3460/T3470). At most
 	// one common procedure is outstanding at a time, so a single guard suffices;
@@ -133,10 +119,10 @@ type s1Conn struct {
 }
 
 // UeContext is the MME's persistent per-UE EMM context: subscriber identity, the
-// EPS NAS security context, and the bearer state. The embedded *s1Conn carries
-// the transient state of its current UE-associated S1-connection.
+// EPS NAS security context, and the bearer state. s1 is the UE's current
+// UE-associated S1-connection, nil while the UE is in ECM-IDLE.
 type UeContext struct {
-	*s1Conn
+	s1 *s1Conn
 
 	imsi            string
 	imei            string // 15-digit IMEI from the UE's IMEISV (TS 24.301)
@@ -203,6 +189,23 @@ type UeContext struct {
 	// EMM state untouched, so the release-complete handler deletes the context only
 	// if the UE is also EMM-DEREGISTERED (detach), else it is retained in ECM-IDLE.
 	emmState emmStateAtomic
+
+	// Idle-mode supervision lives on the persistent context because it runs while
+	// the UE has no S1-connection (TS 24.301), armed in ECM-IDLE and cancelled on
+	// reconnect. idleGen invalidates a timer callback that fired just as a reconnect
+	// or re-arm ran.
+	mobileReachableTimer *time.Timer
+	implicitDetachTimer  *time.Timer
+	idleGen              uint64
+
+	// Paging supervision (T3413, TS 24.301 §5.6.2): armed when the MME pages an
+	// idle UE for buffered downlink data, retransmitted a bounded number of times,
+	// and cancelled when the UE reconnects. pagingPDU is the S1AP Paging message
+	// retransmitted on expiry; pagingGen invalidates a stale callback.
+	pagingTimer *time.Timer
+	pagingPDU   []byte
+	pagingTries int
+	pagingGen   uint64
 }
 
 // touchLastSeen records the current time as the UE's most recent uplink NAS
@@ -227,6 +230,23 @@ func (m *MME) setIMSI(ue *UeContext, imsi string) {
 	ue.mu.Lock()
 	ue.imsi = imsi
 	ue.mu.Unlock()
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// A new context for a subscriber supersedes any prior one (a re-attach), so a
+	// subscriber maps to exactly one UE context.
+	if old, ok := m.ues[imsi]; ok && old != ue {
+		m.removeContextLocked(old)
+	}
+
+	m.ues[imsi] = ue
+}
+
+// connected reports whether the UE has an active UE-associated S1-connection
+// (ECM-CONNECTED); an idle UE has none (TS 23.401).
+func (ue *UeContext) connected() bool {
+	return ue.s1 != nil
 }
 
 // downlinkSecCtx reserves the next downlink NAS COUNT and returns the security context to protect with (TS 24.301).
@@ -408,59 +428,77 @@ func (m *MME) newUe(conn nasWriter, enbUEID s1ap.ENBUES1APID) *UeContext {
 	m.nextMMEUEID++
 
 	c := &s1Conn{ENBUES1APID: enbUEID, MMEUES1APID: s1ap.MMEUES1APID(id), conn: conn}
-	ue := &UeContext{s1Conn: c}
+	ue := &UeContext{s1: c}
 	c.ue = ue
-	ue.ecmState.store(ECMConnected)
 
 	m.conns[id] = c
 
 	return ue
 }
 
-// establishS1Connection binds an existing UE context to a new UE-associated
-// logical S1-connection: it allocates a fresh MME-UE-S1AP-ID (the one from the
-// released connection must not be reused, TS 36.413), re-keys the
-// active-connection index, and records the new eNB association, for a UE
-// returning from ECM-IDLE (Service Request, paging response, tracking area
-// update with the active flag). ECM-CONNECTED is set by
-// the caller once the procedure succeeds, so a rejected request leaves the UE in
-// ECM-IDLE.
+// establishS1Connection binds a UE returning from ECM-IDLE to a fresh
+// UE-associated logical S1-connection, allocating a new MME-UE-S1AP-ID (the
+// released one must not be reused, TS 36.413). Any prior connection and its
+// idle/paging supervision are released first.
 func (m *MME) establishS1Connection(ue *UeContext, conn nasWriter, enbUEID s1ap.ENBUES1APID) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// A NAS signalling connection is being established for the UE, so the prior
-	// connection's idle, paging, and NAS-guard supervision are stopped before its
-	// s1Conn is replaced, leaving no timer that could fire against the new one
-	// (TS 24.301).
 	m.stopIdleTimersLocked(ue)
 	m.stopPagingLocked(ue)
-	m.stopNASGuardLocked(ue)
-
-	delete(m.conns, uint32(ue.MMEUES1APID))
+	m.freeS1ConnLocked(ue)
 
 	id := m.nextMMEUEID
 	m.nextMMEUEID++
 
 	c := &s1Conn{MMEUES1APID: s1ap.MMEUES1APID(id), ENBUES1APID: enbUEID, conn: conn, ue: ue}
-	ue.s1Conn = c
+	ue.s1 = c
 	m.conns[id] = c
 }
 
-// removeUe deletes a UE context. It is idempotent (deleting an absent context
-// is a no-op), which absorbs the detach/RLF release race.
-func (m *MME) removeUe(mmeUEID s1ap.MMEUES1APID) {
+// freeS1ConnLocked releases the UE's current S1-connection (moving it to
+// ECM-IDLE) and stops the connection-scoped NAS-guard supervision. The
+// persistent context, its idle timers, and its registry indexes are left intact.
+// The caller holds m.mu.
+func (m *MME) freeS1ConnLocked(ue *UeContext) {
+	if ue.s1 == nil {
+		return
+	}
+
+	m.stopNASGuardLocked(ue)
+	delete(m.conns, uint32(ue.s1.MMEUES1APID))
+	ue.s1 = nil
+}
+
+// freeS1Conn releases the UE's S1-connection under m.mu, moving it to ECM-IDLE.
+func (m *MME) freeS1Conn(ue *UeContext) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if c, ok := m.conns[uint32(mmeUEID)]; ok && c.ue != nil {
-		m.stopIdleTimersLocked(c.ue)
-		m.stopNASGuardLocked(c.ue)
-		m.stopPagingLocked(c.ue)
-		m.releaseMTMSIsLocked(c.ue)
-	}
+	m.freeS1ConnLocked(ue)
+}
 
-	delete(m.conns, uint32(mmeUEID))
+// removeUe deletes a UE context entirely: its S1-connection, idle/paging
+// supervision, and all registry indexes. Idempotent, absorbing the detach/RLF
+// release race.
+func (m *MME) removeUe(ue *UeContext) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.removeContextLocked(ue)
+}
+
+// removeContextLocked deletes the UE from every registry index and stops all its
+// supervision. The caller holds m.mu.
+func (m *MME) removeContextLocked(ue *UeContext) {
+	m.stopIdleTimersLocked(ue)
+	m.stopPagingLocked(ue)
+	m.releaseMTMSIsLocked(ue)
+	m.freeS1ConnLocked(ue)
+
+	if ue.imsi != "" && m.ues[ue.imsi] == ue {
+		delete(m.ues, ue.imsi)
+	}
 }
 
 // dropStaleUe removes any context bound to the same eNB association and
@@ -470,29 +508,34 @@ func (m *MME) dropStaleUe(conn nasWriter, enbUEID s1ap.ENBUES1APID) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	for id, c := range m.conns {
-		if c.conn == conn && c.ENBUES1APID == enbUEID {
-			if c.ue != nil {
-				m.stopIdleTimersLocked(c.ue)
-				m.stopNASGuardLocked(c.ue)
-				m.stopPagingLocked(c.ue)
-				m.releaseMTMSIsLocked(c.ue)
-			}
+	var stale []*UeContext
 
-			delete(m.conns, id)
+	for _, c := range m.conns {
+		if c.ue != nil && c.conn == conn && c.ENBUES1APID == enbUEID {
+			stale = append(stale, c.ue)
 		}
+	}
+
+	for _, ue := range stale {
+		m.removeContextLocked(ue)
 	}
 }
 
 // s1Identity snapshots the UE's S1 association — the eNB connection and the
 // MME/ENB-UE-S1AP-IDs — under m.mu, so an off-dispatch send reads a consistent
 // identity even while the UE rebinds it on an ECM-IDLE resume or a path switch
-// (TS 36.413). The caller then does I/O with the snapshot, never under the lock.
+// (TS 36.413). It returns a nil writer for an idle UE (no connection), which the
+// caller treats as undeliverable. The caller does I/O with the snapshot, never
+// under the lock.
 func (m *MME) s1Identity(ue *UeContext) (nasWriter, s1ap.MMEUES1APID, s1ap.ENBUES1APID) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	return ue.conn, ue.MMEUES1APID, ue.ENBUES1APID
+	if ue.s1 == nil {
+		return nil, 0, 0
+	}
+
+	return ue.s1.conn, ue.s1.MMEUES1APID, ue.s1.ENBUES1APID
 }
 
 // lookupUe finds the UE context bound to a connection by its MME-UE-S1AP-ID. A
@@ -520,25 +563,14 @@ func (m *MME) lookupUeByMTMSI(mtmsi uint32) (*UeContext, bool) {
 	return ue, ok
 }
 
-// lookupUeByIMSI finds the attached UE context for imsi by scanning the
-// registry, used by the detach and paging paths that key on the subscriber.
+// lookupUeByIMSI finds the persistent UE context for imsi, used by the detach
+// and paging paths that key on the subscriber. It resolves a UE in ECM-IDLE as
+// well as a connected one.
 func (m *MME) lookupUeByIMSI(imsi string) (*UeContext, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	for _, c := range m.conns {
-		if c.ue == nil {
-			continue
-		}
+	ue, ok := m.ues[imsi]
 
-		c.ue.mu.Lock()
-		match := c.ue.imsi == imsi
-		c.ue.mu.Unlock()
-
-		if match {
-			return c.ue, true
-		}
-	}
-
-	return nil, false
+	return ue, ok
 }

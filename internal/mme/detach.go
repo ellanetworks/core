@@ -28,7 +28,7 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 	}
 
 	logger.MmeLog.Info("network-initiated detach (subscriber deleted)",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", imsi))
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", imsi))
 
 	ue.emmState.store(EMMDeregistered)
 
@@ -47,7 +47,7 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 // EMM-DEREGISTERED).
 func (m *MME) onDetachAccept(ctx context.Context, ue *UeContext) {
 	m.stopNASGuard(ue)
-	logger.MmeLog.Info("Detach Accept", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
+	logger.MmeLog.Info("Detach Accept", zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)))
 	m.releaseUEContext(ctx, ue, causeNASDetach)
 }
 
@@ -75,7 +75,7 @@ func (m *MME) onDetachRequest(ctx context.Context, ue *UeContext, plain []byte) 
 	}
 
 	logger.MmeLog.Info("Detach Request",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 		zap.Bool("switch-off", req.SwitchOff),
 		zap.String("imsi", ue.imsi),
 	)

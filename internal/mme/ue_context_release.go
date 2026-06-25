@@ -20,16 +20,16 @@ func (m *MME) releaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 	// The idempotency check is atomic: a NAS guard timeout and an eNB-initiated
 	// release request can race to release the same UE from different goroutines.
 	m.mu.Lock()
-	if ue.releasing {
+	if ue.s1.releasing {
 		m.mu.Unlock()
 		return
 	}
 
-	ue.releasing = true
+	ue.s1.releasing = true
 	m.mu.Unlock()
 
 	cmd := &s1ap.UEContextReleaseCommand{
-		UES1APIDs: s1ap.UES1APIDs{MMEUES1APID: ue.MMEUES1APID, ENBUES1APID: ue.ENBUES1APID, Pair: true},
+		UES1APIDs: s1ap.UES1APIDs{MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: ue.s1.ENBUES1APID, Pair: true},
 		Cause:     cause,
 	}
 
@@ -39,7 +39,7 @@ func (m *MME) releaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 		return
 	}
 
-	logger.MmeLog.Info("UE Context Release Command", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
+	logger.MmeLog.Info("UE Context Release Command", zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)))
 	m.sendS1AP(ctx, ue, S1APProcedureUEContextReleaseCommand, b)
 }
 
@@ -61,7 +61,7 @@ func (m *MME) handleUEContextReleaseRequest(ctx context.Context, conn nasWriter,
 	// context is retained. The cause distinguishes a normal inactivity release
 	// from a radio-link failure.
 	fields := []zap.Field{
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 		zap.String("imsi", ue.imsi),
 		zap.String("cause", s1apCauseName(&msg.Cause)),
 	}
@@ -114,14 +114,13 @@ func (m *MME) handleUEContextReleaseComplete(conn nasWriter, value []byte) {
 	// still-registered UE is retained in ECM-IDLE.
 	if ue.emmState.load() == EMMDeregistered {
 		m.releaseAllSessions(ue)
-		m.removeUe(msg.MMEUES1APID)
+		m.removeUe(ue)
 		logger.MmeLog.Info("UE context released", zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)))
 
 		return
 	}
 
-	ue.ecmState.store(ECMIdle)
-	ue.releasing = false
+	m.freeS1Conn(ue)
 
 	// Buffer the downlink bearers so data for the idle UE triggers paging
 	// (TS 23.401).
@@ -145,18 +144,23 @@ func (m *MME) handleUEContextReleaseComplete(conn nasWriter, value []byte) {
 func (m *MME) releaseUEContextLocally(ue *UeContext, trigger string) {
 	m.mu.Lock()
 	registered := ue.emmState.load() == EMMRegistered
-	imsi, mmeUEID := ue.imsi, ue.MMEUES1APID
+	imsi := ue.imsi
+
+	var mmeUEID s1ap.MMEUES1APID
+	if ue.s1 != nil {
+		mmeUEID = ue.s1.MMEUES1APID
+	}
 
 	if registered {
-		ue.ecmState.store(ECMIdle)
-		ue.releasing = false
+		m.freeS1ConnLocked(ue)
+	} else {
+		m.removeContextLocked(ue)
 	}
 
 	m.mu.Unlock()
 
 	if !registered {
 		m.releaseAllSessions(ue)
-		m.removeUe(mmeUEID)
 		logger.MmeLog.Info("aborted incomplete UE registration",
 			zap.String("trigger", trigger), zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.String("imsi", imsi))
 

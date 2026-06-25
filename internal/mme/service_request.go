@@ -65,11 +65,10 @@ func (m *MME) onServiceRequest(ctx context.Context, conn nasWriter, msg *s1ap.In
 	m.establishS1Connection(ue, conn, msg.ENBUES1APID)
 
 	ue.ulCount++
-	ue.ecmState.store(ECMConnected)
 
 	logger.MmeLog.Info("Service Request accepted",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
-		zap.Uint32("enb-ue-id", uint32(ue.ENBUES1APID)),
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
+		zap.Uint32("enb-ue-id", uint32(ue.s1.ENBUES1APID)),
 		zap.String("imsi", ue.imsi))
 
 	qos, err := m.resolveQoS(ctx, ue.imsi)
@@ -85,7 +84,7 @@ func (m *MME) onServiceRequest(ctx context.Context, conn nasWriter, msg *s1ap.In
 // over a transient context, so a rejected request never touches a resolved UE.
 func (m *MME) sendServiceReject(ctx context.Context, conn nasWriter, enbUEID s1ap.ENBUES1APID) {
 	ue := m.newUe(conn, enbUEID)
-	defer m.removeUe(ue.MMEUES1APID)
+	defer m.removeUe(ue)
 
 	m.sendDownlinkMessage(ctx, ue, &eps.ServiceReject{Cause: emmCauseUEIdentityUnderivable})
 }

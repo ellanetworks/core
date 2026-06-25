@@ -103,7 +103,7 @@ func samplePathSwitchRequest(ue *UeContext) *s1ap.PathSwitchRequest {
 	return &s1ap.PathSwitchRequest{
 		ENBUES1APID:        42,
 		ERABToBeSwitchedDL: []s1ap.ERABToBeSwitchedDLItem{switchedDLItem()},
-		SourceMMEUES1APID:  ue.MMEUES1APID,
+		SourceMMEUES1APID:  ue.s1.MMEUES1APID,
 		EUTRANCGI:          s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1},
 		TAI:                s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
 		// Matches the stored capabilities (EEA/EIA 0xe0, EEA0/EIA0 bit dropped).
@@ -133,8 +133,8 @@ func TestPathSwitchSwitchesDownlinkAndAcks(t *testing.T) {
 	}
 
 	// S1 association moved to the target eNB.
-	if ue.conn != target || ue.ENBUES1APID != 42 || testPDN(ue).enbFTEID != wantFTEID {
-		t.Fatalf("association not switched: conn=%v enb-id=%d fteid=%+v", ue.conn == target, ue.ENBUES1APID, testPDN(ue).enbFTEID)
+	if ue.s1.conn != target || ue.s1.ENBUES1APID != 42 || testPDN(ue).enbFTEID != wantFTEID {
+		t.Fatalf("association not switched: conn=%v enb-id=%d fteid=%+v", ue.s1.conn == target, ue.s1.ENBUES1APID, testPDN(ue).enbFTEID)
 	}
 
 	// Key chain advanced: NCC 1 -> 2 and NH = KDF(KASME, previous NH).
@@ -148,7 +148,7 @@ func TestPathSwitchSwitchesDownlinkAndAcks(t *testing.T) {
 
 	ack := parsePathSwitchAck(t, target.sent[0])
 
-	if ack.MMEUES1APID != ue.MMEUES1APID || ack.ENBUES1APID != 42 {
+	if ack.MMEUES1APID != ue.s1.MMEUES1APID || ack.ENBUES1APID != 42 {
 		t.Fatalf("ack UE IDs: mme=%#x enb=%d", ack.MMEUES1APID, ack.ENBUES1APID)
 	}
 
@@ -253,8 +253,8 @@ func TestPathSwitchUnknownERABFails(t *testing.T) {
 		t.Fatal("downlink switched for an unresolved E-RAB")
 	}
 
-	if ue.ncc != 1 || ue.conn == target {
-		t.Fatalf("UE moved on a failed path switch: ncc=%d moved=%v", ue.ncc, ue.conn == target)
+	if ue.ncc != 1 || ue.s1.conn == target {
+		t.Fatalf("UE moved on a failed path switch: ncc=%d moved=%v", ue.ncc, ue.s1.conn == target)
 	}
 }
 

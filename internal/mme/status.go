@@ -40,7 +40,7 @@ type SubscriberSession struct {
 func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 	radioName := ""
 
-	if conn, ok := ue.conn.(*sctp.SCTPConn); ok {
+	if conn, ok := ue.s1.conn.(*sctp.SCTPConn); ok {
 		if s := m.enbs[conn]; s != nil {
 			radioName = s.name
 		}

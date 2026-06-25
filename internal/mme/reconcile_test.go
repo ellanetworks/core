@@ -23,8 +23,6 @@ func connectedBearerUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 	p := testPDN(ue)
 	p.apn = "internet"
 
-	ue.ecmState.store(ECMConnected)
-
 	// Record the QoS a real activation would, so a reconcile against an unchanged
 	// policy is a no-op.
 	if qos, err := m.resolveQoSByAPN(context.Background(), ue.imsi, p.apn); err == nil {
@@ -100,7 +98,7 @@ func TestReconcileDataNetworkSkipsUnchanged(t *testing.T) {
 func TestReconcileDataNetworkSkipsIdleUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
-	ue.ecmState.store(ECMIdle) // an idle UE picks up the change on its next attach
+	m.freeS1Conn(ue) // an idle UE picks up the change on its next attach
 	testPDN(ue).dnConfig = "stale|config|0.0.0.0|0"
 
 	m.ReconcileDataNetwork(context.Background())

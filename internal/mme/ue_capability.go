@@ -27,6 +27,6 @@ func (m *MME) handleUECapabilityInfoIndication(conn nasWriter, value []byte) {
 
 	ue.radioCapability = msg.UERadioCapability
 	logger.MmeLog.Info("stored UE Radio Capability",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 		zap.Int("bytes", len(msg.UERadioCapability)))
 }

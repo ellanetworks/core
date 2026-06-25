@@ -261,7 +261,7 @@ func (m *MME) onSecurityModeReject(ctx context.Context, ue *UeContext, plain []b
 	}
 
 	logger.MmeLog.Warn("Security Mode Reject",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 		zap.Uint8("emm-cause", cause))
 
 	m.releaseUEContext(ctx, ue, causeNASUnspecified)
@@ -385,10 +385,10 @@ func (m *MME) reuseContextForGUTIAttach(ctx context.Context, ue *UeContext, nas,
 	ue.imei = existing.imei
 	ue.kasme = existing.kasme
 
-	m.removeUe(existing.MMEUES1APID)
+	m.removeUe(existing)
 
 	logger.MmeLog.Info("Attach with valid native GUTI: reusing security context, skipping authentication",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi))
 
 	m.ingestAttachRequest(ue, req)
 	m.startSecurityMode(ctx, ue)
@@ -437,7 +437,7 @@ func attachTypeName(ue *UeContext) string {
 func (m *MME) startAuthentication(ctx context.Context, ue *UeContext) {
 	if err := m.sendAuthRequest(ctx, ue, "", ""); err != nil {
 		logger.MmeLog.Info("attach rejected: cannot authenticate subscriber",
-			zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.Error(err))
+			zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.Error(err))
 		m.rejectAttach(ctx, ue, emmCauseIMSIUnknownInHSS)
 	}
 }
@@ -463,7 +463,7 @@ func (m *MME) sendAuthRequest(ctx context.Context, ue *UeContext, resyncAuts, re
 
 	ue.authVector = vec
 
-	logger.MmeLog.Info("Authentication Request", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
+	logger.MmeLog.Info("Authentication Request", zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)))
 	m.sendGuardedMessage(ctx, ue, "Authentication Request", &eps.AuthenticationRequest{NASKeySetIdentifier: 0, RAND: vec.RAND, AUTN: vec.AUTN[:]})
 
 	return nil
@@ -479,7 +479,7 @@ func (m *MME) onAuthenticationResponse(ctx context.Context, ue *UeContext, plain
 	}
 
 	if ue.authVector == nil || subtle.ConstantTimeCompare(resp.RES, ue.authVector.XRES) != 1 {
-		logger.MmeLog.Warn("authentication failed: RES mismatch", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
+		logger.MmeLog.Warn("authentication failed: RES mismatch", zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)))
 		m.rejectAuthentication(ctx, ue)
 
 		return
@@ -487,7 +487,7 @@ func (m *MME) onAuthenticationResponse(ctx context.Context, ue *UeContext, plain
 
 	ue.kasme = ue.authVector.KASME
 
-	logger.MmeLog.Info("authentication succeeded", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
+	logger.MmeLog.Info("authentication succeeded", zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)))
 	m.startSecurityMode(ctx, ue)
 }
 
@@ -515,7 +515,7 @@ func (m *MME) startSecurityMode(ctx context.Context, ue *UeContext) {
 	eea, eia, ok := selectAlgorithms(ue.ueNetCap, ciphering, integrity)
 	if !ok {
 		logger.MmeLog.Warn("no NAS security algorithm common to UE and operator policy",
-			zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
+			zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 			zap.String("ue-network-capability", fmt.Sprintf("%x", ue.ueNetCap)))
 		m.rejectAttach(ctx, ue, emmCauseUESecCapsMismatch)
 
@@ -561,7 +561,7 @@ func (m *MME) startSecurityMode(ctx context.Context, ue *UeContext) {
 		return
 	}
 
-	logger.MmeLog.Info("Security Mode Command", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
+	logger.MmeLog.Info("Security Mode Command", zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 		zap.Uint8("eea", eea), zap.Uint8("eia", eia),
 		zap.String("ue-network-capability", fmt.Sprintf("%x", ue.ueNetCap)),
 		zap.String("ms-network-capability", fmt.Sprintf("%x", ue.msNetCap)),
@@ -593,7 +593,7 @@ func (m *MME) onSecurityModeComplete(ctx context.Context, ue *UeContext, plain [
 	ue.markSecured(imei)
 
 	logger.MmeLog.Info("NAS security context established",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 		zap.String("imsi", ue.imsi),
 	)
 

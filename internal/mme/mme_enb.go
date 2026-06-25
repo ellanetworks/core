@@ -222,7 +222,7 @@ func (m *MME) reclaimUEsOnConnLoss(conn nasWriter) {
 			continue
 		}
 
-		if ue.conn == conn && ue.ecmState.load() == ECMConnected {
+		if ue.s1.conn == conn && ue.connected() {
 			orphaned = append(orphaned, ue)
 		}
 	}

@@ -57,7 +57,7 @@ func (m *MME) handleInitialUEMessage(ctx context.Context, conn *sctp.SCTPConn, v
 
 			logger.MmeLog.Info("Initial UE Message (resume)",
 				zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)),
-				zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
+				zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 			)
 
 			m.dispatchEMM(ctx, ue, plain, true)
@@ -81,7 +81,7 @@ func (m *MME) handleInitialUEMessage(ctx context.Context, conn *sctp.SCTPConn, v
 
 	logger.MmeLog.Info("Initial UE Message",
 		zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)),
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 	)
 
 	m.handleNAS(ctx, ue, nas)
@@ -197,6 +197,10 @@ func (m *MME) handleInitialContextSetupResponse(ctx context.Context, conn nasWri
 	}
 
 	p.enbFTEID = models.FTEID{TEID: uint32(erab.GTPTEID), Addr: enbAddr}
+
+	if ue.s1 != nil {
+		ue.s1.bearersUp = true
+	}
 
 	if err := m.session.ModifyEPSSession(ctx, ue.imsi, p.ebi, p.enbFTEID); err != nil {
 		logger.MmeLog.Error("failed to set the eNB F-TEID on the EPS session",
