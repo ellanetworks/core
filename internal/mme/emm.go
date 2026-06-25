@@ -4,8 +4,8 @@
 package mme
 
 import (
-	"bytes"
 	"context"
+	"crypto/subtle"
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
@@ -478,7 +478,7 @@ func (m *MME) onAuthenticationResponse(ctx context.Context, ue *UeContext, plain
 		return
 	}
 
-	if ue.authVector == nil || !bytes.Equal(resp.RES, ue.authVector.XRES) {
+	if ue.authVector == nil || subtle.ConstantTimeCompare(resp.RES, ue.authVector.XRES) != 1 {
 		logger.MmeLog.Warn("authentication failed: RES mismatch", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
 		m.rejectAuthentication(ctx, ue)
 

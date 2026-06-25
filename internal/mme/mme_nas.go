@@ -66,6 +66,16 @@ func (m *MME) handleInitialUEMessage(ctx context.Context, conn *sctp.SCTPConn, v
 		}
 	}
 
+	// A fresh connection's first NAS message allocates a UE context only when it is
+	// an ATTACH REQUEST; any other (or malformed) initial message is dropped without
+	// allocating one, so an unauthenticated peer cannot exhaust UE contexts.
+	if !isInitialAttach(nas) {
+		logger.MmeLog.Debug("dropping non-Attach Initial UE Message",
+			zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
+
+		return
+	}
+
 	m.dropStaleUe(conn, msg.ENBUES1APID)
 	ue := m.newUe(conn, msg.ENBUES1APID)
 
@@ -75,6 +85,36 @@ func (m *MME) handleInitialUEMessage(ctx context.Context, conn *sctp.SCTPConn, v
 	)
 
 	m.handleNAS(ctx, ue, nas)
+}
+
+// isInitialAttach reports whether a fresh connection's first NAS message is an
+// ATTACH REQUEST — the only message warranting a new UE context (TS 24.301):
+// plain for an IMSI or foreign-GUTI attach, or integrity-only for a native-GUTI
+// re-attach whose body is readable without a security context. A ciphered or
+// non-EMM message cannot be an initial attach the network can act on.
+func isInitialAttach(nas []byte) bool {
+	pd, err := eps.ProtocolDiscriminator(nas)
+	if err != nil || pd != eps.PDEMM {
+		return false
+	}
+
+	body := nas
+
+	switch nas[0] >> 4 {
+	case uint8(eps.SHTPlain):
+	case uint8(eps.SHTIntegrityProtected), uint8(eps.SHTIntegrityProtectedNewContext):
+		if len(nas) < 6 {
+			return false
+		}
+
+		body = nas[6:]
+	default:
+		return false
+	}
+
+	mt, err := eps.PeekMessageType(body)
+
+	return err == nil && mt == eps.MsgAttachRequest
 }
 
 // handleUplinkNASTransport routes an uplink NAS message to its UE context

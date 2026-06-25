@@ -8,6 +8,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -29,14 +30,14 @@ func TestDispatchSurvivesGarbage(t *testing.T) {
 	}
 }
 
-func initialUEMessagePDU(t *testing.T, enbID s1ap.ENBUES1APID) []byte {
+func initialUEMessagePDU(t *testing.T, enbID s1ap.ENBUES1APID, nas []byte) []byte {
 	t.Helper()
 
 	plmn := s1ap.PLMNIdentity{0x00, 0xf1, 0x10}
 
 	b, err := (&s1ap.InitialUEMessage{
 		ENBUES1APID:           enbID,
-		NASPDU:                s1ap.NASPDU{0x00}, // routed-but-ignored (non-EMM PD)
+		NASPDU:                s1ap.NASPDU(nas),
 		TAI:                   s1ap.TAI{PLMNIdentity: plmn, TAC: 1},
 		EUTRANCGI:             s1ap.EUTRANCGI{PLMNIdentity: plmn, CellID: 1},
 		RRCEstablishmentCause: s1ap.RRCCauseEmergency,
@@ -48,16 +49,82 @@ func initialUEMessagePDU(t *testing.T, enbID s1ap.ENBUES1APID) []byte {
 	return b
 }
 
-// TestDuplicateInitialUEMessage checks a second Initial UE Message for the same
-// eNB UE id on the same association replaces the prior context rather than
-// leaking it.
-func TestDuplicateInitialUEMessage(t *testing.T) {
+func TestIsInitialAttach(t *testing.T) {
+	attach := plainAttachNAS(t)
+
+	tests := []struct {
+		name string
+		nas  []byte
+		want bool
+	}{
+		{"plain attach", attach, true},
+		{"integrity-only attach", append([]byte{0x17, 0x00, 0x00, 0x00, 0x00, 0x00}, attach...), true},
+		{"ciphered (unpeekable)", append([]byte{0x27, 0x00, 0x00, 0x00, 0x00, 0x00}, attach...), false},
+		{"plain EMM STATUS", []byte{0x07, 0x60, 0x00}, false},
+		{"non-EMM PD", []byte{0x02, 0x41}, false},
+		{"empty", nil, false},
+		{"short protected", []byte{0x17, 0x00}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isInitialAttach(tt.nas); got != tt.want {
+				t.Fatalf("isInitialAttach = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func plainAttachNAS(t *testing.T) []byte {
+	t.Helper()
+
+	esm, err := (&eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: eps.PDNTypeIPv4}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nas, err := (&eps.AttachRequest{
+		EPSAttachType:       eps.AttachTypeEPS,
+		NASKeySetIdentifier: 7,
+		EPSMobileIdentity:   eps.EPSMobileIdentity{Type: eps.IdentityIMSI, Digits: testSubscriber.IMSI},
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(),
+		ESMMessageContainer: esm,
+	}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return nas
+}
+
+// TestDropStaleUe checks a re-attach reusing the same eNB UE id on the same
+// association drops the prior context rather than leaking it (TS 36.413).
+func TestDropStaleUe(t *testing.T) {
 	m := newTestMME(t)
 
-	m.handleInitialUEMessage(context.Background(), nil, initiatingValue(t, initialUEMessagePDU(t, 7)))
-	m.handleInitialUEMessage(context.Background(), nil, initiatingValue(t, initialUEMessagePDU(t, 7)))
+	cc := &captureConn{}
+	m.newUe(cc, 7)
 
-	if got := len(m.ues); got != 1 {
-		t.Fatalf("duplicate Initial UE Message left %d contexts, want 1", got)
+	m.dropStaleUe(cc, 7)
+
+	if got := len(m.conns); got != 0 {
+		t.Fatalf("dropStaleUe left %d connections, want 0", got)
+	}
+}
+
+// TestNonAttachInitialUEMessageCreatesNoContext checks that an Initial UE Message
+// whose NAS is not an Attach Request allocates no UE context, so an
+// unauthenticated peer cannot exhaust contexts (TS 24.301).
+func TestNonAttachInitialUEMessageCreatesNoContext(t *testing.T) {
+	m := newTestMME(t)
+
+	// A plain EMM STATUS — a valid EMM message that is not an Attach Request.
+	emmStatus := []byte{0x07, 0x60, 0x00}
+	for i := 0; i < 100; i++ {
+		m.handleInitialUEMessage(context.Background(), nil, initiatingValue(t, initialUEMessagePDU(t, s1ap.ENBUES1APID(1000+i), emmStatus)))
+	}
+
+	if got := len(m.conns); got != 0 {
+		t.Fatalf("non-Attach Initial UE Messages allocated %d contexts, want 0", got)
 	}
 }

@@ -91,8 +91,9 @@ func (m *MME) ConnectedSubscribers() map[string]ConnectedSubscriber {
 
 	out := make(map[string]ConnectedSubscriber)
 
-	for _, ue := range m.ues {
-		if ue.emmState.load() != EMMRegistered || ue.imsi == "" {
+	for _, c := range m.conns {
+		ue := c.ue
+		if ue == nil || ue.emmState.load() != EMMRegistered || ue.imsi == "" {
 			continue
 		}
 
@@ -107,8 +108,9 @@ func (m *MME) LookupSubscriber(imsi string) (ConnectedSubscriber, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	for _, ue := range m.ues {
-		if ue.emmState.load() == EMMRegistered && ue.imsi == imsi {
+	for _, c := range m.conns {
+		ue := c.ue
+		if ue != nil && ue.emmState.load() == EMMRegistered && ue.imsi == imsi {
 			return m.connectedSubscriber(ue), true
 		}
 	}
@@ -123,8 +125,9 @@ func (m *MME) CountRegisteredSubscribers() int {
 
 	count := 0
 
-	for _, ue := range m.ues {
-		if ue.emmState.load() == EMMRegistered && ue.imsi != "" {
+	for _, c := range m.conns {
+		ue := c.ue
+		if ue != nil && ue.emmState.load() == EMMRegistered && ue.imsi != "" {
 			count++
 		}
 	}

@@ -655,7 +655,12 @@ func (m *MME) abortHandoversOnConnLoss(conn nasWriter) {
 		}
 	}
 
-	for _, ue := range m.ues {
+	for _, c := range m.conns {
+		ue := c.ue
+		if ue == nil {
+			continue
+		}
+
 		if ho := ue.handover; ho != nil && (ho.sourceConn == conn || ho.target == conn) {
 			m.clearHandoverLocked(ue)
 		}

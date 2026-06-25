@@ -90,7 +90,7 @@ type MME struct {
 	mu          sync.RWMutex
 	enbs        map[*sctp.SCTPConn]*enbState
 	enbByID     map[string]nasWriter  // S1-setup-complete eNBs keyed by Global eNB ID, for S1-handover target resolution
-	ues         map[uint32]*UeContext // keyed by MME-UE-S1AP-ID
+	conns       map[uint32]*s1Conn    // UE-associated S1-connections keyed by MME-UE-S1AP-ID; conn.ue is nil until a UE context is bound
 	byMTMSI     map[uint32]*UeContext // keyed by M-TMSI, for S-TMSI lookup
 	nextMMEUEID uint32
 	// handoverSrcReleases tracks the source-eNB UE Context Release Commands the MME
@@ -165,7 +165,7 @@ func New(cred *udm.Service, bearer bearerStore, session epsSessionManager) *MME 
 		session:             session,
 		enbs:                make(map[*sctp.SCTPConn]*enbState),
 		enbByID:             make(map[string]nasWriter),
-		ues:                 make(map[uint32]*UeContext),
+		conns:               make(map[uint32]*s1Conn),
 		byMTMSI:             make(map[uint32]*UeContext),
 		nextMMEUEID:         1,
 		mtmsi:               etsi.NewTMSIAllocator(),

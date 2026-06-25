@@ -26,9 +26,11 @@ import (
 func (m *MME) ReconcileDataNetwork(ctx context.Context) {
 	m.mu.Lock()
 
-	ues := make([]*UeContext, 0, len(m.ues))
-	for _, ue := range m.ues {
-		ues = append(ues, ue)
+	ues := make([]*UeContext, 0, len(m.conns))
+	for _, c := range m.conns {
+		if c.ue != nil {
+			ues = append(ues, c.ue)
+		}
 	}
 
 	m.mu.Unlock()

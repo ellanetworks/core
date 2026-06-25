@@ -75,6 +75,11 @@ type s1Conn struct {
 	MMEUES1APID s1ap.MMEUES1APID
 	conn        nasWriter
 
+	// ue is the persistent UE context bound to this connection, nil until a UE
+	// is identified (a bare connection carries an Initial UE Message not yet
+	// attached to a context). Guarded by MME.mu.
+	ue *UeContext
+
 	// EPS Connection Management state (TS 23.401): ECM-CONNECTED on an active S1
 	// connection, ECM-IDLE between them.
 	ecmState ecmStateAtomic
@@ -402,9 +407,12 @@ func (m *MME) newUe(conn nasWriter, enbUEID s1ap.ENBUES1APID) *UeContext {
 	id := m.nextMMEUEID
 	m.nextMMEUEID++
 
-	ue := &UeContext{s1Conn: &s1Conn{ENBUES1APID: enbUEID, MMEUES1APID: s1ap.MMEUES1APID(id), conn: conn}}
+	c := &s1Conn{ENBUES1APID: enbUEID, MMEUES1APID: s1ap.MMEUES1APID(id), conn: conn}
+	ue := &UeContext{s1Conn: c}
+	c.ue = ue
 	ue.ecmState.store(ECMConnected)
-	m.ues[id] = ue
+
+	m.conns[id] = c
 
 	return ue
 }
@@ -429,13 +437,14 @@ func (m *MME) establishS1Connection(ue *UeContext, conn nasWriter, enbUEID s1ap.
 	m.stopPagingLocked(ue)
 	m.stopNASGuardLocked(ue)
 
-	delete(m.ues, uint32(ue.MMEUES1APID))
+	delete(m.conns, uint32(ue.MMEUES1APID))
 
 	id := m.nextMMEUEID
 	m.nextMMEUEID++
 
-	ue.s1Conn = &s1Conn{MMEUES1APID: s1ap.MMEUES1APID(id), ENBUES1APID: enbUEID, conn: conn}
-	m.ues[id] = ue
+	c := &s1Conn{MMEUES1APID: s1ap.MMEUES1APID(id), ENBUES1APID: enbUEID, conn: conn, ue: ue}
+	ue.s1Conn = c
+	m.conns[id] = c
 }
 
 // removeUe deletes a UE context. It is idempotent (deleting an absent context
@@ -444,14 +453,14 @@ func (m *MME) removeUe(mmeUEID s1ap.MMEUES1APID) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if ue, ok := m.ues[uint32(mmeUEID)]; ok {
-		m.stopIdleTimersLocked(ue)
-		m.stopNASGuardLocked(ue)
-		m.stopPagingLocked(ue)
-		m.releaseMTMSIsLocked(ue)
+	if c, ok := m.conns[uint32(mmeUEID)]; ok && c.ue != nil {
+		m.stopIdleTimersLocked(c.ue)
+		m.stopNASGuardLocked(c.ue)
+		m.stopPagingLocked(c.ue)
+		m.releaseMTMSIsLocked(c.ue)
 	}
 
-	delete(m.ues, uint32(mmeUEID))
+	delete(m.conns, uint32(mmeUEID))
 }
 
 // dropStaleUe removes any context bound to the same eNB association and
@@ -461,14 +470,16 @@ func (m *MME) dropStaleUe(conn nasWriter, enbUEID s1ap.ENBUES1APID) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	for id, ue := range m.ues {
-		if ue.conn == conn && ue.ENBUES1APID == enbUEID {
-			m.stopIdleTimersLocked(ue)
-			m.stopNASGuardLocked(ue)
-			m.stopPagingLocked(ue)
-			m.releaseMTMSIsLocked(ue)
+	for id, c := range m.conns {
+		if c.conn == conn && c.ENBUES1APID == enbUEID {
+			if c.ue != nil {
+				m.stopIdleTimersLocked(c.ue)
+				m.stopNASGuardLocked(c.ue)
+				m.stopPagingLocked(c.ue)
+				m.releaseMTMSIsLocked(c.ue)
+			}
 
-			delete(m.ues, id)
+			delete(m.conns, id)
 		}
 	}
 }
@@ -484,14 +495,18 @@ func (m *MME) s1Identity(ue *UeContext) (nasWriter, s1ap.MMEUES1APID, s1ap.ENBUE
 	return ue.conn, ue.MMEUES1APID, ue.ENBUES1APID
 }
 
-// lookupUe finds a UE context by its MME-UE-S1AP-ID.
+// lookupUe finds the UE context bound to a connection by its MME-UE-S1AP-ID. A
+// bare connection (no UE context yet) reports not found.
 func (m *MME) lookupUe(mmeUEID s1ap.MMEUES1APID) (*UeContext, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	ue, ok := m.ues[uint32(mmeUEID)]
+	c, ok := m.conns[uint32(mmeUEID)]
+	if !ok || c.ue == nil {
+		return nil, false
+	}
 
-	return ue, ok
+	return c.ue, true
 }
 
 // lookupUeByMTMSI finds a UE context by the M-TMSI of its assigned GUTI, used to
@@ -511,13 +526,17 @@ func (m *MME) lookupUeByIMSI(imsi string) (*UeContext, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	for _, ue := range m.ues {
-		ue.mu.Lock()
-		match := ue.imsi == imsi
-		ue.mu.Unlock()
+	for _, c := range m.conns {
+		if c.ue == nil {
+			continue
+		}
+
+		c.ue.mu.Lock()
+		match := c.ue.imsi == imsi
+		c.ue.mu.Unlock()
 
 		if match {
-			return ue, true
+			return c.ue, true
 		}
 	}
 

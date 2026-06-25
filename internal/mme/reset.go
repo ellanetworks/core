@@ -62,9 +62,9 @@ func (m *MME) uesOnConn(conn nasWriter) []*UeContext {
 
 	var out []*UeContext
 
-	for _, ue := range m.ues {
-		if ue.conn == conn {
-			out = append(out, ue)
+	for _, c := range m.conns {
+		if c.ue != nil && c.conn == conn {
+			out = append(out, c.ue)
 		}
 	}
 
@@ -84,13 +84,13 @@ func (m *MME) uesForConnectionList(conn nasWriter, items []s1ap.UEAssociatedLogi
 	for _, it := range items {
 		switch {
 		case it.MMEUES1APID != nil:
-			if ue, ok := m.ues[uint32(*it.MMEUES1APID)]; ok && ue.conn == conn {
-				out = append(out, ue)
+			if c, ok := m.conns[uint32(*it.MMEUES1APID)]; ok && c.ue != nil && c.conn == conn {
+				out = append(out, c.ue)
 			}
 		case it.ENBUES1APID != nil:
-			for _, ue := range m.ues {
-				if ue.conn == conn && ue.ENBUES1APID == *it.ENBUES1APID {
-					out = append(out, ue)
+			for _, c := range m.conns {
+				if c.ue != nil && c.conn == conn && c.ENBUES1APID == *it.ENBUES1APID {
+					out = append(out, c.ue)
 					break
 				}
 			}
