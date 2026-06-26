@@ -31,66 +31,62 @@ func (m *MME) handleReset(conn nasWriter, value []byte) {
 	}
 
 	if req.ResetType.All {
-		affected := m.uesOnConn(conn)
-		for _, ue := range affected {
-			m.releaseUEContextLocally(ue, "S1 reset")
-		}
+		affected := m.connsOnConn(conn)
+		m.reclaimConns(affected, "S1 reset")
 
-		logger.MmeLog.Info("S1 Reset (whole interface)", zap.Int("released", len(affected)))
+		logger.MmeLog.Info("S1 Reset (whole interface)", zap.Int("connections", len(affected)))
 		m.sendResetAcknowledge(conn, nil)
 
 		return
 	}
 
-	affected := m.uesForConnectionList(conn, req.ResetType.Part)
-	for _, ue := range affected {
-		m.releaseUEContextLocally(ue, "S1 reset")
-	}
+	affected := m.connsForConnectionList(conn, req.ResetType.Part)
+	m.reclaimConns(affected, "S1 reset")
 
 	logger.MmeLog.Info("S1 Reset (part of interface)",
-		zap.Int("requested", len(req.ResetType.Part)), zap.Int("released", len(affected)))
+		zap.Int("requested", len(req.ResetType.Part)), zap.Int("connections", len(affected)))
 
 	// TS 36.413 §8.7.1.2.1: the acknowledge echoes the UE-associated logical
 	// S1-connections that were reset.
 	m.sendResetAcknowledge(conn, req.ResetType.Part)
 }
 
-// uesOnConn returns every UE context bound to the given eNB association.
-func (m *MME) uesOnConn(conn nasWriter) []*UeContext {
+// connsOnConn returns every UE-associated connection on the given eNB association.
+func (m *MME) connsOnConn(conn nasWriter) []*s1Conn {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	var out []*UeContext
+	var out []*s1Conn
 
-	for _, ue := range m.ues {
-		if ue.conn == conn {
-			out = append(out, ue)
+	for _, c := range m.conns {
+		if c.conn == conn {
+			out = append(out, c)
 		}
 	}
 
 	return out
 }
 
-// uesForConnectionList resolves the UE contexts named by a part-of-interface
-// reset list, scoped to the association the reset arrived on. Each item is
-// matched by its MME-UE-S1AP-ID, else by its eNB-UE-S1AP-ID; an item naming no
-// known UE is skipped (it is still echoed in the acknowledge).
-func (m *MME) uesForConnectionList(conn nasWriter, items []s1ap.UEAssociatedLogicalS1ConnectionItem) []*UeContext {
+// connsForConnectionList resolves the UE-associated connections named by a
+// part-of-interface reset list, scoped to the association the reset arrived on.
+// Each item is matched by its MME-UE-S1AP-ID, else by its eNB-UE-S1AP-ID; an item
+// naming no known connection is skipped (it is still echoed in the acknowledge).
+func (m *MME) connsForConnectionList(conn nasWriter, items []s1ap.UEAssociatedLogicalS1ConnectionItem) []*s1Conn {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	var out []*UeContext
+	var out []*s1Conn
 
 	for _, it := range items {
 		switch {
 		case it.MMEUES1APID != nil:
-			if ue, ok := m.ues[uint32(*it.MMEUES1APID)]; ok && ue.conn == conn {
-				out = append(out, ue)
+			if c, ok := m.conns[uint32(*it.MMEUES1APID)]; ok && c.conn == conn {
+				out = append(out, c)
 			}
 		case it.ENBUES1APID != nil:
-			for _, ue := range m.ues {
-				if ue.conn == conn && ue.ENBUES1APID == *it.ENBUES1APID {
-					out = append(out, ue)
+			for _, c := range m.conns {
+				if c.conn == conn && c.ENBUES1APID == *it.ENBUES1APID {
+					out = append(out, c)
 					break
 				}
 			}

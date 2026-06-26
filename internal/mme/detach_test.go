@@ -44,14 +44,14 @@ func TestDetachSubscriberNetworkInitiated(t *testing.T) {
 	m.onDetachAccept(context.Background(), ue)
 	parseUEContextReleaseCommand(t, cc.sent[1])
 
-	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.MMEUES1APID, ENBUES1APID: 7}
+	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: 7}
 
 	b, _ := complete.Marshal()
 	pdu, _ := s1ap.Unmarshal(b)
 
 	m.handleUEContextReleaseComplete(cc, pdu.(*s1ap.SuccessfulOutcome).Value)
 
-	if _, ok := m.lookupUe(ue.MMEUES1APID); ok {
+	if _, ok := m.lookupUeByIMSI(ue.imsi); ok {
 		t.Fatal("UE context not deleted after network-initiated detach")
 	}
 }
@@ -73,7 +73,7 @@ func TestDetachSubscriberUnansweredReleases(t *testing.T) {
 		return cc.count() >= 4
 	})
 
-	if !ue.releasing {
+	if !ue.s1.releasing {
 		t.Fatal("UE not released after an unanswered network-initiated detach")
 	}
 }
@@ -111,7 +111,7 @@ func TestForgedMessageIgnoredForSecuredUE(t *testing.T) {
 		t.Fatalf("forged DETACH against a secured UE was acted on: %d downlink(s) sent", cc.count())
 	}
 
-	if _, ok := m.lookupUe(ue.MMEUES1APID); !ok || ue.emmState.load() != EMMRegistered || !ue.secured {
+	if _, ok := m.lookupUe(ue.s1.MMEUES1APID); !ok || ue.emmState.load() != EMMRegistered || !ue.secured {
 		t.Fatal("secured UE was disrupted by a forged, unverifiable DETACH")
 	}
 }
@@ -143,9 +143,22 @@ func securedUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 
 	ue.secured = true
 	ue.emmState.store(EMMRegistered)
-	ue.imsi = testSubscriber.IMSI
+	registerTestUE(m, ue, testSubscriber.IMSI)
 
 	return ue, cc
+}
+
+// registerTestUE sets a UE's IMSI and indexes it in the persistent registry, as a
+// completed attach would. Re-registering a UE under a new IMSI moves its index.
+func registerTestUE(m *MME, ue *UeContext, imsi string) {
+	m.mu.Lock()
+	if ue.imsi != "" && m.ues[ue.imsi] == ue {
+		delete(m.ues, ue.imsi)
+	}
+
+	ue.imsi = imsi
+	m.ues[imsi] = ue
+	m.mu.Unlock()
 }
 
 func parseUEContextReleaseCommand(t *testing.T, pdu []byte) *s1ap.UEContextReleaseCommand {
@@ -201,27 +214,26 @@ func TestDetachSwitchOff(t *testing.T) {
 	}
 
 	cmd := parseUEContextReleaseCommand(t, cc.sent[0])
-	if !cmd.UES1APIDs.Pair || cmd.UES1APIDs.MMEUES1APID != ue.MMEUES1APID || cmd.UES1APIDs.ENBUES1APID != 7 {
+	if !cmd.UES1APIDs.Pair || cmd.UES1APIDs.MMEUES1APID != ue.s1.MMEUES1APID || cmd.UES1APIDs.ENBUES1APID != 7 {
 		t.Fatalf("unexpected release command IDs: %+v", cmd.UES1APIDs)
 	}
 
 	// eNB confirms release → context deleted.
-	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.MMEUES1APID, ENBUES1APID: 7}
+	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: 7}
 
 	b, _ := complete.Marshal()
 	pdu, _ := s1ap.Unmarshal(b)
 
 	m.handleUEContextReleaseComplete(cc, pdu.(*s1ap.SuccessfulOutcome).Value)
 
-	if _, ok := m.lookupUe(ue.MMEUES1APID); ok {
+	if _, ok := m.lookupUeByIMSI(ue.imsi); ok {
 		t.Fatal("UE context not deleted after release complete")
 	}
 }
 
-// TestDetachSwitchOffNullSecurity covers srsUE's behaviour: a switch-off Detach
-// Request sent with a null MAC and an unciphered payload, which the MME must
-// accept despite the failed integrity check (TS 24.301 §5.5.2.2.2).
-func TestDetachSwitchOffNullSecurity(t *testing.T) {
+// A switch-off DETACH REQUEST that fails the integrity check is ignored once a
+// security context exists (TS 24.301 §4.4.4.3).
+func TestDetachSwitchOffUnverifiableIgnoredForSecuredUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
@@ -233,8 +245,39 @@ func TestDetachSwitchOffNullSecurity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Wrap as security-protected (SHT integrity+ciphered) but with null
-	// algorithms: zero MAC and unciphered payload, as srsUE does.
+	// Null algorithms: zero MAC, unciphered payload — unverifiable without the keys.
+	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, 0, nascommon.DirectionUplink,
+		[16]byte{}, [16]byte{}, nascommon.NullIntegrity{}, nascommon.NullCipher{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m.handleNAS(context.Background(), ue, wire)
+
+	if len(cc.sent) != 0 {
+		t.Fatalf("S1AP messages sent = %d, want 0", len(cc.sent))
+	}
+
+	if _, ok := m.lookupUe(ue.s1.MMEUES1APID); !ok || ue.emmState.load() != EMMRegistered || !ue.secured {
+		t.Fatal("secured UE state changed by an unverifiable switch-off detach")
+	}
+}
+
+// Before a security context exists, an unverifiable switch-off detach is honoured
+// (TS 24.301 §4.4.4.3).
+func TestDetachSwitchOffUnsecuredAccepted(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+	ue.secured = false
+
+	plain, err := (&eps.DetachRequestUE{
+		SwitchOff: true, TypeOfDetach: eps.DetachTypeEPS,
+		EPSMobileIdentity: eps.EPSMobileIdentity{Type: eps.IdentityGUTI, MCC: "001", MNC: "01", MMEGroupID: 1, MMECode: 1, MTMSI: 1},
+	}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, 0, nascommon.DirectionUplink,
 		[16]byte{}, [16]byte{}, nascommon.NullIntegrity{}, nascommon.NullCipher{})
 	if err != nil {
@@ -284,13 +327,13 @@ func TestECMIdleBuffersSession(t *testing.T) {
 	ue, cc := securedUE(t, m)
 	testPDN(ue).apn = "internet"
 
-	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.MMEUES1APID, ENBUES1APID: 7}
+	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: 7}
 	b, _ := complete.Marshal()
 	cpdu, _ := s1ap.Unmarshal(b)
 
 	m.handleUEContextReleaseComplete(cc, cpdu.(*s1ap.SuccessfulOutcome).Value)
 
-	if ue.ecmState.load() != ECMIdle {
+	if ue.connected() {
 		t.Fatal("UE not ECM-IDLE after release complete")
 	}
 
@@ -304,7 +347,7 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 	ue, cc := securedUE(t, m)
 
 	req := &s1ap.UEContextReleaseRequest{
-		MMEUES1APID: ue.MMEUES1APID, ENBUES1APID: 7,
+		MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: 7,
 		Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0},
 	}
 
@@ -328,19 +371,19 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 
 	// Completing an eNB-initiated release moves the UE to ECM-IDLE; the EMM
 	// context is retained, not deleted.
-	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.MMEUES1APID, ENBUES1APID: 7}
+	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: 7}
 
 	b, _ = complete.Marshal()
 	cpdu, _ := s1ap.Unmarshal(b)
 
 	m.handleUEContextReleaseComplete(cc, cpdu.(*s1ap.SuccessfulOutcome).Value)
 
-	got, ok := m.lookupUe(ue.MMEUES1APID)
+	got, ok := m.lookupUeByIMSI(ue.imsi)
 	if !ok {
 		t.Fatal("EMM context deleted on an inactivity release; expected ECM-IDLE retention")
 	}
 
-	if got.ecmState.load() != ECMIdle {
+	if got.connected() {
 		t.Fatal("UE not marked ECM-IDLE after eNB release")
 	}
 
@@ -370,7 +413,7 @@ func TestUEContextReleaseRequestFromForeignENB(t *testing.T) {
 	ue, cc := securedUE(t, m)
 
 	req := &s1ap.UEContextReleaseRequest{
-		MMEUES1APID: ue.MMEUES1APID, ENBUES1APID: ue.ENBUES1APID,
+		MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: ue.s1.ENBUES1APID,
 		Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0},
 	}
 
@@ -384,7 +427,7 @@ func TestUEContextReleaseRequestFromForeignENB(t *testing.T) {
 		t.Fatalf("foreign eNB released a UE on another association: %d S1AP messages on the owning association", len(cc.sent))
 	}
 
-	if ue.releasing {
+	if ue.s1.releasing {
 		t.Fatal("UE marked releasing by a message from a foreign association")
 	}
 
@@ -396,4 +439,34 @@ func TestUEContextReleaseRequestFromForeignENB(t *testing.T) {
 	if ind.Cause == nil || *ind.Cause != causeUnknownMMEUES1APID {
 		t.Fatalf("expected cause unknown-mme-ue-s1ap-id, got %v", ind.Cause)
 	}
+}
+
+// TestDetachSubscriberIdleReleasesLocally checks that deleting a subscriber whose
+// UE is in ECM-IDLE releases its sessions and removes the context locally, without
+// dereferencing the freed S1 connection.
+func TestDetachSubscriberIdleReleasesLocally(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	testPDN(ue).apn = "internet"
+	m.freeS1Conn(ue) // ECM-IDLE: no S1 connection
+
+	m.DetachSubscriber(context.Background(), ue.imsi)
+
+	if _, ok := m.lookupUeByIMSI(ue.imsi); ok {
+		t.Fatal("idle UE context not removed on subscriber deletion")
+	}
+
+	if !m.session.(*fakeSessionManager).released {
+		t.Fatal("EPS session not released on subscriber deletion")
+	}
+}
+
+// TestReleaseUEContextIdleNoPanic checks releaseUEContext on a UE whose connection
+// was freed in the gap before it took the lock returns without dereferencing nil.
+func TestReleaseUEContextIdleNoPanic(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	m.freeS1Conn(ue)
+
+	m.releaseUEContext(context.Background(), ue, causeNASNormalRelease)
 }

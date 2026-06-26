@@ -4,6 +4,7 @@
 package eps
 
 import (
+	"crypto/subtle"
 	"errors"
 
 	"github.com/ellanetworks/core/nas/common"
@@ -77,7 +78,7 @@ func Unprotect(
 		return nil, err
 	}
 
-	if want != m.MAC {
+	if subtle.ConstantTimeCompare(want[:], m.MAC[:]) != 1 {
 		return nil, ErrMACMismatch
 	}
 

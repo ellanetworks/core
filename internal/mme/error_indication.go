@@ -45,7 +45,7 @@ func (m *MME) resolveUE(conn nasWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUE
 		return nil, false
 	}
 
-	if ue.conn != conn {
+	if ue.s1.conn != conn {
 		logger.MmeLog.Warn("UE-associated S1AP message for an MME-UE-S1AP-ID on a different S1 association",
 			zap.Uint32("mme-ue-id", uint32(mmeID)), zap.Uint32("enb-ue-id", uint32(enbID)))
 		m.sendErrorIndication(conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
@@ -53,7 +53,7 @@ func (m *MME) resolveUE(conn nasWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUE
 		return nil, false
 	}
 
-	if ue.ecmState.load() != ECMConnected {
+	if !ue.connected() {
 		logger.MmeLog.Warn("UE-associated S1AP message for an MME-UE-S1AP-ID with no active S1 connection",
 			zap.Uint32("mme-ue-id", uint32(mmeID)), zap.Uint32("enb-ue-id", uint32(enbID)))
 		m.sendErrorIndication(conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
@@ -61,10 +61,10 @@ func (m *MME) resolveUE(conn nasWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUE
 		return nil, false
 	}
 
-	if ue.ENBUES1APID != enbID {
+	if ue.s1.ENBUES1APID != enbID {
 		logger.MmeLog.Warn("UE-associated S1AP message with an inconsistent eNB-UE-S1AP-ID",
 			zap.Uint32("mme-ue-id", uint32(mmeID)),
-			zap.Uint32("stored-enb-ue-id", uint32(ue.ENBUES1APID)),
+			zap.Uint32("stored-enb-ue-id", uint32(ue.s1.ENBUES1APID)),
 			zap.Uint32("received-enb-ue-id", uint32(enbID)))
 		m.sendErrorIndication(conn, &mmeID, &enbID, causeUnknownPairUES1APID)
 

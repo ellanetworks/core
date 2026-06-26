@@ -68,7 +68,6 @@ func TestUEStateConcurrentAccess(t *testing.T) {
 
 		for i := 0; i < iters; i++ {
 			ue.emmState.store(EMMRegistered)
-			ue.ecmState.store(ECMConnected)
 		}
 	}()
 

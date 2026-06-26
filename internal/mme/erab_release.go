@@ -67,8 +67,8 @@ func (m *MME) disconnectBearer(ctx context.Context, ue *UeContext, p *pdnConnect
 // both releases the radio bearer and delivers the NAS (TS 36.413 §8.2.3).
 func (m *MME) sendERABRelease(ctx context.Context, ue *UeContext, p *pdnConnection, naspdu []byte) {
 	cmd := &s1ap.ERABReleaseCommand{
-		MMEUES1APID: ue.MMEUES1APID,
-		ENBUES1APID: ue.ENBUES1APID,
+		MMEUES1APID: ue.s1.MMEUES1APID,
+		ENBUES1APID: ue.s1.ENBUES1APID,
 		ERABToBeReleased: []s1ap.ERABItem{{
 			ERABID: s1ap.ERABID(p.ebi),
 			Cause:  causeNASNormalRelease,
@@ -102,7 +102,7 @@ func (m *MME) handleERABReleaseResponse(conn nasWriter, value []byte) {
 
 	for _, erab := range msg.ERABReleased {
 		logger.MmeLog.Info("E-RAB released at eNB",
-			zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi),
+			zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi),
 			zap.Uint8("e-rab-id", uint8(erab.ERABID)))
 	}
 }

@@ -14,7 +14,7 @@ func TestErrorIndicationReleasesReferencedUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
-	id := ue.MMEUES1APID
+	id := ue.s1.MMEUES1APID
 	cause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}
 
 	b, err := (&s1ap.ErrorIndication{MMEUES1APID: &id, Cause: &cause}).Marshal()

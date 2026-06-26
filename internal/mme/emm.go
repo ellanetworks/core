@@ -4,8 +4,8 @@
 package mme
 
 import (
-	"bytes"
 	"context"
+	"crypto/subtle"
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
@@ -27,6 +27,7 @@ const (
 	emmCauseESMFailure            uint8 = 19
 	emmCauseMACFailure            uint8 = 20
 	emmCauseSynchFailure          uint8 = 21
+	emmCauseUESecCapsMismatch     uint8 = 23
 )
 
 // epsAttachTypeCombined is the "combined EPS/IMSI attach" EPS attach type value
@@ -51,6 +52,7 @@ func (m *MME) handleNAS(ctx context.Context, ue *UeContext, nas []byte) {
 	}
 
 	plain := nas
+	integrityVerified := false
 
 	if nas[0]>>4 != uint8(eps.SHTPlain) {
 		if len(nas) < 6 {
@@ -78,10 +80,10 @@ func (m *MME) handleNAS(ctx context.Context, ue *UeContext, nas []byte) {
 		if err != nil {
 			body := nas[6:]
 
-			// A switch-off DETACH REQUEST may be sent without valid integrity
-			// protection (TS 24.301) — srsUE sends it with a null MAC
-			// and an unciphered payload. Accept it from the plaintext body.
-			if isSwitchOffDetach(body) {
+			// A switch-off DETACH REQUEST is honoured without integrity protection
+			// only before the secure exchange of NAS messages is established
+			// (TS 24.301 §4.4.4.3).
+			if !ue.secured && isSwitchOffDetach(body) {
 				m.onDetachRequest(ctx, ue, body)
 				return
 			}
@@ -123,13 +125,46 @@ func (m *MME) handleNAS(ctx context.Context, ue *UeContext, nas []byte) {
 		}
 
 		plain = p
+		integrityVerified = true
 		// Advance the expected count past the accepted message, so a replay
 		// estimates to a stale count whose MAC fails to verify.
 		ue.ulCount = count + 1
 	}
 
-	// An ESM (session management) NAS message rides on its own protocol
-	// discriminator; route it separately from EMM mobility messages.
+	m.dispatchEMM(ctx, ue, plain, integrityVerified)
+}
+
+// unprotectUplink verifies and deciphers a protected uplink NAS message against
+// ue's security context, returning the plain message and its NAS COUNT. It does
+// not mutate ue, so a caller resolving a UE by S-TMSI can authenticate the
+// message before binding the context to the requesting association.
+func (m *MME) unprotectUplink(ue *UeContext, nas []byte) (plain []byte, count uint32, ok bool) {
+	if len(nas) < 6 {
+		return nil, 0, false
+	}
+
+	recvSeq := nas[5]
+
+	overflow := uint16(ue.ulCount >> 8)
+	if recvSeq < uint8(ue.ulCount) {
+		overflow++
+	}
+
+	count = nascommon.NASCount(overflow, recvSeq)
+
+	p, err := eps.Unprotect(nas, count, nascommon.DirectionUplink,
+		ue.knasInt, ue.knasEnc, integrityAlg(ue.eia), cipherAlg(ue.eea))
+	if err != nil {
+		return nil, 0, false
+	}
+
+	return p, count, true
+}
+
+// dispatchEMM routes a plain NAS message to its procedure handler, splitting ESM
+// session-management messages from EMM mobility messages by protocol
+// discriminator.
+func (m *MME) dispatchEMM(ctx context.Context, ue *UeContext, plain []byte, integrityVerified bool) {
 	if len(plain) > 0 && plain[0]&0x0F == eps.PDESM {
 		m.handleESM(ctx, ue, plain)
 		return
@@ -147,7 +182,7 @@ func (m *MME) handleNAS(ctx context.Context, ue *UeContext, nas []byte) {
 
 	switch mt {
 	case eps.MsgAttachRequest:
-		m.onAttachRequest(ctx, ue, plain)
+		m.onAttachRequest(ctx, ue, plain, integrityVerified)
 	case eps.MsgIdentityResponse:
 		m.onIdentityResponse(ctx, ue, plain)
 	case eps.MsgAuthenticationResponse:
@@ -188,7 +223,7 @@ func (m *MME) processWithoutIntegrity(ctx context.Context, ue *UeContext, mt eps
 		// A native GUTI the MME still holds lets it reuse the
 		// security context and skip authentication (TS 23.401).
 		if !m.reuseContextForGUTIAttach(ctx, ue, nas, body) {
-			m.onAttachRequest(ctx, ue, body)
+			m.onAttachRequest(ctx, ue, body, false)
 		}
 	case eps.MsgIdentityResponse:
 		// The IMSI is carried in cleartext; identification continues to
@@ -202,10 +237,6 @@ func (m *MME) processWithoutIntegrity(ctx context.Context, ue *UeContext, mt eps
 		m.onSecurityModeReject(ctx, ue, body)
 	case eps.MsgDetachRequest:
 		m.onDetachRequest(ctx, ue, body)
-	case eps.MsgTrackingAreaUpdateRequest:
-		// The update cannot be trusted without a verifiable MAC; reject it so the
-		// UE re-attaches and rebuilds the context (TS 24.301).
-		m.rejectTrackingAreaUpdate(ctx, ue)
 	default:
 		return false
 	}
@@ -226,17 +257,25 @@ func (m *MME) onSecurityModeReject(ctx context.Context, ue *UeContext, plain []b
 	}
 
 	logger.MmeLog.Warn("Security Mode Reject",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 		zap.Uint8("emm-cause", cause))
 
 	m.releaseUEContext(ctx, ue, causeNASUnspecified)
 }
 
-func (m *MME) onAttachRequest(ctx context.Context, ue *UeContext, plain []byte) {
+func (m *MME) onAttachRequest(ctx context.Context, ue *UeContext, plain []byte, integrityVerified bool) {
 	req, err := eps.ParseAttachRequest(plain)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Attach Request", zap.Error(err))
 		return
+	}
+
+	// An Attach without verified integrity is replayed to the UE as a HashMME in
+	// the SECURITY MODE COMMAND, so the UE can detect tampering (TS 24.301 §5.4.3.2).
+	if integrityVerified {
+		ue.hashmmeInput = nil
+	} else {
+		ue.hashmmeInput = plain
 	}
 
 	m.ingestAttachRequest(ue, req)
@@ -316,29 +355,28 @@ func (m *MME) reuseContextForGUTIAttach(ctx context.Context, ue *UeContext, nas,
 		return false
 	}
 
-	// Only a UE that actually holds the resolved context can produce a valid MAC
-	// over the Attach Request; verify it before trusting the GUTI (TS 24.301).
-	// A mismatch (e.g. a stale or spoofed GUTI) falls back to
-	// authentication.
-	if _, err := eps.Unprotect(nas, nascommon.NASCount(0, nas[5]), nascommon.DirectionUplink,
-		existing.knasInt, existing.knasEnc, integrityAlg(existing.eia), cipherAlg(existing.eea)); err != nil {
+	// Verify the Attach MAC against the held context's expected uplink NAS COUNT
+	// (TS 24.301): a replayed or stale Attach fails the check, so only the genuine
+	// holder of the context reuses it.
+	_, count, ok := m.unprotectUplink(existing, nas)
+	if !ok {
 		return false
 	}
 
-	// Authentic returning UE: carry over the EPS security context and identity,
-	// drop the superseded registration, and run the security mode procedure with
-	// the reused K_ASME — skipping the authentication round-trip and HSS vector.
-	m.setIMSI(ue, existing.imsi)
-	ue.imei = existing.imei
-	ue.kasme = existing.kasme
-
-	m.removeUe(existing.MMEUES1APID)
+	// Authentic returning UE: reuse the held EPS security context in place. The
+	// connection is rebound onto it and its NAS COUNTs continue (a native context is
+	// reused, not re-derived, so the counts are never reset — TS 24.301 §4.4.3,
+	// §5.4.3.3). Authentication and the security mode procedure are skipped; the
+	// Attach Accept rides the reused context at the continued counts, mirroring the
+	// 5G AMF and the EPS spec's native-context reuse.
+	m.adoptConn(existing, ue)
+	existing.ulCount = count + 1
 
 	logger.MmeLog.Info("Attach with valid native GUTI: reusing security context, skipping authentication",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
+		zap.Uint32("mme-ue-id", uint32(existing.s1.MMEUES1APID)), zap.String("imsi", existing.imsi))
 
-	m.ingestAttachRequest(ue, req)
-	m.startSecurityMode(ctx, ue)
+	m.ingestAttachRequest(existing, req)
+	m.activateDefaultBearer(ctx, existing)
 
 	return true
 }
@@ -384,7 +422,7 @@ func attachTypeName(ue *UeContext) string {
 func (m *MME) startAuthentication(ctx context.Context, ue *UeContext) {
 	if err := m.sendAuthRequest(ctx, ue, "", ""); err != nil {
 		logger.MmeLog.Info("attach rejected: cannot authenticate subscriber",
-			zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.Error(err))
+			zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.Error(err))
 		m.rejectAttach(ctx, ue, emmCauseIMSIUnknownInHSS)
 	}
 }
@@ -410,7 +448,7 @@ func (m *MME) sendAuthRequest(ctx context.Context, ue *UeContext, resyncAuts, re
 
 	ue.authVector = vec
 
-	logger.MmeLog.Info("Authentication Request", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
+	logger.MmeLog.Info("Authentication Request", zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)))
 	m.sendGuardedMessage(ctx, ue, "Authentication Request", &eps.AuthenticationRequest{NASKeySetIdentifier: 0, RAND: vec.RAND, AUTN: vec.AUTN[:]})
 
 	return nil
@@ -425,8 +463,8 @@ func (m *MME) onAuthenticationResponse(ctx context.Context, ue *UeContext, plain
 		return
 	}
 
-	if ue.authVector == nil || !bytes.Equal(resp.RES, ue.authVector.XRES) {
-		logger.MmeLog.Warn("authentication failed: RES mismatch", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
+	if ue.authVector == nil || subtle.ConstantTimeCompare(resp.RES, ue.authVector.XRES) != 1 {
+		logger.MmeLog.Warn("authentication failed: RES mismatch", zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)))
 		m.rejectAuthentication(ctx, ue)
 
 		return
@@ -434,18 +472,40 @@ func (m *MME) onAuthenticationResponse(ctx context.Context, ue *UeContext, plain
 
 	ue.kasme = ue.authVector.KASME
 
-	logger.MmeLog.Info("authentication succeeded", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
+	logger.MmeLog.Info("authentication succeeded", zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)))
 	m.startSecurityMode(ctx, ue)
 }
 
 func (m *MME) startSecurityMode(ctx context.Context, ue *UeContext) {
-	var ciphering, integrity []string
-	if op, err := m.bearer.GetOperator(ctx); err == nil {
-		ciphering, _ = op.GetCiphering()
-		integrity, _ = op.GetIntegrity()
+	// A security policy the MME cannot read must not yield a default (null)
+	// context; abort and let the UE retry once the policy is available.
+	op, err := m.bearer.GetOperator(ctx)
+	if err != nil {
+		logger.MmeLog.Error("failed to resolve operator security policy", zap.Error(err))
+		return
 	}
 
-	eea, eia := selectAlgorithms(ue.ueNetCap, ciphering, integrity)
+	ciphering, err := op.GetCiphering()
+	if err != nil {
+		logger.MmeLog.Error("failed to read ciphering policy", zap.Error(err))
+		return
+	}
+
+	integrity, err := op.GetIntegrity()
+	if err != nil {
+		logger.MmeLog.Error("failed to read integrity policy", zap.Error(err))
+		return
+	}
+
+	eea, eia, ok := selectAlgorithms(ue.ueNetCap, ciphering, integrity)
+	if !ok {
+		logger.MmeLog.Warn("no NAS security algorithm common to UE and operator policy",
+			zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
+			zap.String("ue-network-capability", fmt.Sprintf("%x", ue.ueNetCap)))
+		m.rejectAttach(ctx, ue, emmCauseUESecCapsMismatch)
+
+		return
+	}
 
 	knasEnc, err := deriveKNASEnc(ue.kasme, eea)
 	if err != nil {
@@ -469,6 +529,7 @@ func (m *MME) startSecurityMode(ctx context.Context, ue *UeContext) {
 		NASKeySetIdentifier:            0,
 		ReplayedUESecurityCapabilities: replayed,
 		IMEISVRequested:                true,
+		HASHMME:                        hashMME(ue.hashmmeInput),
 	}
 
 	plain, err := smc.Marshal()
@@ -485,7 +546,7 @@ func (m *MME) startSecurityMode(ctx context.Context, ue *UeContext) {
 		return
 	}
 
-	logger.MmeLog.Info("Security Mode Command", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
+	logger.MmeLog.Info("Security Mode Command", zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 		zap.Uint8("eea", eea), zap.Uint8("eia", eia),
 		zap.String("ue-network-capability", fmt.Sprintf("%x", ue.ueNetCap)),
 		zap.String("ms-network-capability", fmt.Sprintf("%x", ue.msNetCap)),
@@ -517,7 +578,7 @@ func (m *MME) onSecurityModeComplete(ctx context.Context, ue *UeContext, plain [
 	ue.markSecured(imei)
 
 	logger.MmeLog.Info("NAS security context established",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 		zap.String("imsi", ue.imsi),
 	)
 

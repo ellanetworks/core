@@ -89,7 +89,7 @@ func TestDispatchGatesUEMessageBeforeS1Setup(t *testing.T) {
 	// must be dropped before any UE context is created.
 	m.dispatch(context.Background(), nil, raw)
 
-	if len(m.ues) != 0 {
-		t.Fatalf("UE context created from an Initial UE Message before S1 Setup: %d", len(m.ues))
+	if len(m.conns) != 0 {
+		t.Fatalf("UE context created from an Initial UE Message before S1 Setup: %d", len(m.conns))
 	}
 }

@@ -70,8 +70,8 @@ type epsSessionManager interface {
 //     is reached only through chokepoint methods (downlinkSecCtx, nextDownlinkCount,
 //     setEPSSecurityContext, markSecured, securitySnapshot) so the COUNT invariant
 //     is auditable in one place.
-//   - UeContext.emmState/ecmState are atomic — independent enums read on the hot
-//     path, kept lock-free.
+//   - UeContext.emmState is atomic — an enum read on the hot path, kept lock-free.
+//     The ECM state is derived from whether the UE holds an S1-connection (ue.s1).
 //
 // Lock ordering (acquire in this order, never reverse):
 //
@@ -90,13 +90,10 @@ type MME struct {
 	mu          sync.RWMutex
 	enbs        map[*sctp.SCTPConn]*enbState
 	enbByID     map[string]nasWriter  // S1-setup-complete eNBs keyed by Global eNB ID, for S1-handover target resolution
-	ues         map[uint32]*UeContext // keyed by MME-UE-S1AP-ID
+	conns       map[uint32]*s1Conn    // UE-associated S1-connections keyed by MME-UE-S1AP-ID; conn.ue is nil until a UE context is bound
+	ues         map[string]*UeContext // persistent UE contexts keyed by IMSI; survives the connection across ECM-IDLE
 	byMTMSI     map[uint32]*UeContext // keyed by M-TMSI, for S-TMSI lookup
 	nextMMEUEID uint32
-	// handoverSrcReleases tracks the source-eNB UE Context Release Commands the MME
-	// sends on S1-handover completion, so the matching Release Complete is consumed
-	// without disturbing the UE now active on the target (TS 36.413 §8.4).
-	handoverSrcReleases map[srcReleaseKey]struct{}
 	// mtmsi allocates an unpredictable M-TMSI (TS 23.401 privacy): random MSBs
 	// with allocate/free.
 	mtmsi *etsi.TmsiAllocator
@@ -160,16 +157,16 @@ const defaultHandoverGuardTimeout = 10 * time.Second
 // that allocates the UE IP. The MME never holds subscriber keys or the SQN.
 func New(cred *udm.Service, bearer bearerStore, session epsSessionManager) *MME {
 	return &MME{
-		cred:                cred,
-		bearer:              bearer,
-		session:             session,
-		enbs:                make(map[*sctp.SCTPConn]*enbState),
-		enbByID:             make(map[string]nasWriter),
-		ues:                 make(map[uint32]*UeContext),
-		byMTMSI:             make(map[uint32]*UeContext),
-		nextMMEUEID:         1,
-		mtmsi:               etsi.NewTMSIAllocator(),
-		handoverSrcReleases: make(map[srcReleaseKey]struct{}),
+		cred:        cred,
+		bearer:      bearer,
+		session:     session,
+		enbs:        make(map[*sctp.SCTPConn]*enbState),
+		enbByID:     make(map[string]nasWriter),
+		conns:       make(map[uint32]*s1Conn),
+		ues:         make(map[string]*UeContext),
+		byMTMSI:     make(map[uint32]*UeContext),
+		nextMMEUEID: 1,
+		mtmsi:       etsi.NewTMSIAllocator(),
 
 		mobileReachableTime: defaultMobileReachableTime,
 		implicitDetachTime:  defaultImplicitDetachTime,

@@ -17,7 +17,7 @@ func TestConnectedSubscribers(t *testing.T) {
 	m.trackENB(conn, ENBInfo{Name: "enb-a", ID: "00f110-1"})
 
 	registered := m.newUe(conn, 7)
-	registered.imsi = "001010000000001"
+	registerTestUE(m, registered, "001010000000001")
 	registered.emmState.store(EMMRegistered)
 	registered.eea = 2
 	registered.eia = 2
@@ -29,9 +29,11 @@ func TestConnectedSubscribers(t *testing.T) {
 	registered.touchLastSeen()
 
 	deregistered := m.newUe(conn, 8)
-	deregistered.imsi = "001010000000002"
+	registerTestUE(m, deregistered, "001010000000002")
 	deregistered.emmState.store(EMMDeregistered)
 
+	// A registered context with no IMSI is never indexed by subscriber identity,
+	// so it is excluded from the status surface.
 	noIMSI := m.newUe(conn, 9)
 	noIMSI.emmState.store(EMMRegistered)
 
@@ -80,6 +82,43 @@ func TestConnectedSubscribers(t *testing.T) {
 	}
 }
 
+// TestStatusIncludesIdleSubscriber confirms a registered UE that has moved to
+// ECM-IDLE (no S1 connection) is still reported by the status surface, with no
+// radio name.
+func TestStatusIncludesIdleSubscriber(t *testing.T) {
+	m := newTestMME(t)
+
+	ue, _ := securedUE(t, m)
+	registerTestUE(m, ue, "001010000000001")
+	ue.emmState.store(EMMRegistered)
+	testPDN(ue).apn = "internet"
+
+	m.freeS1Conn(ue)
+
+	if ue.connected() {
+		t.Fatal("UE still connected after freeS1Conn")
+	}
+
+	if got := m.CountRegisteredSubscribers(); got != 1 {
+		t.Fatalf("idle registered subscriber not counted: got %d", got)
+	}
+
+	cs, ok := m.LookupSubscriber("001010000000001")
+	if !ok {
+		t.Fatal("idle registered subscriber not found by LookupSubscriber")
+	}
+
+	if cs.RadioName != "" {
+		t.Fatalf("idle subscriber RadioName = %q, want empty", cs.RadioName)
+	}
+
+	if _, ok := m.ConnectedSubscribers()["001010000000001"]; !ok {
+		t.Fatal("idle registered subscriber missing from ConnectedSubscribers")
+	}
+
+	m.removeUe(ue) // stop the default-duration timer
+}
+
 func TestMobileIdentityDigitsIMEISV(t *testing.T) {
 	// IMEISV mobile identity (TS 24.008 §10.5.1.4): octet 0 carries the type and
 	// the first digit; the rest is packed BCD with a trailing 0xF filler.
@@ -98,7 +137,7 @@ func TestLookupSubscriber(t *testing.T) {
 	m.trackENB(conn, ENBInfo{Name: "enb-a", ID: "00f110-1"})
 
 	ue := m.newUe(conn, 7)
-	ue.imsi = "001010000000001"
+	registerTestUE(m, ue, "001010000000001")
 	ue.emmState.store(EMMRegistered)
 
 	if _, ok := m.LookupSubscriber("001010000000099"); ok {
@@ -120,11 +159,11 @@ func TestCountRegisteredSubscribers(t *testing.T) {
 	conn := new(sctp.SCTPConn)
 
 	a := m.newUe(conn, 7)
-	a.imsi = "001010000000001"
+	registerTestUE(m, a, "001010000000001")
 	a.emmState.store(EMMRegistered)
 
 	b := m.newUe(conn, 8)
-	b.imsi = "001010000000002"
+	registerTestUE(m, b, "001010000000002")
 	b.emmState.store(EMMDeregistered)
 
 	if got := m.CountRegisteredSubscribers(); got != 1 {

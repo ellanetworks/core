@@ -13,6 +13,7 @@ const (
 	imeisvRequestIEI uint8 = 0xC
 	imeisvRequested  uint8 = 0x1
 	imeisvIEI        uint8 = 0x23
+	hashMMEIEI       uint8 = 0x4F
 )
 
 // SecurityModeCommand is the SECURITY MODE COMMAND message (TS 24.301 §8.2.20),
@@ -23,7 +24,8 @@ type SecurityModeCommand struct {
 	IntegrityAlgorithm             uint8
 	NASKeySetIdentifier            uint8
 	ReplayedUESecurityCapabilities []byte
-	IMEISVRequested                bool // request the UE's IMEISV in SECURITY MODE COMPLETE
+	IMEISVRequested                bool   // request the UE's IMEISV in SECURITY MODE COMPLETE
+	HASHMME                        []byte // 8-octet hash of the triggering plain Attach/TAU (TS 24.301 §9.9.3.50), nil when absent
 }
 
 // Marshal encodes the plain SECURITY MODE COMMAND message.
@@ -40,6 +42,14 @@ func (m *SecurityModeCommand) Marshal() ([]byte, error) {
 
 	if m.IMEISVRequested {
 		w.U8(imeisvRequestIEI<<4 | imeisvRequested)
+	}
+
+	if len(m.HASHMME) > 0 {
+		w.U8(hashMMEIEI)
+
+		if err := w.LV(m.HASHMME); err != nil {
+			return nil, err
+		}
 	}
 
 	return w.Bytes(), nil
@@ -73,12 +83,14 @@ func ParseSecurityModeCommand(b []byte) (*SecurityModeCommand, error) {
 		return nil, err
 	}
 
-	// The only optional IE Ella Core consumes is the IMEISV request, a type-1 IE
-	// the walker delimits inherently (IEI >= 0x80 after the half-octet shift), so
-	// no per-IEI table entry is needed.
-	if _, err := common.WalkOptionalIEs(r, nil, func(iei uint8, value []byte) error {
-		if iei == imeisvRequestIEI<<4 && len(value) == 1 {
+	// The IMEISV request is a type-1 IE the walker delimits inherently (IEI >= 0x80
+	// after the half-octet shift); HashMME is a type-4 TLV and needs a table entry.
+	if _, err := common.WalkOptionalIEs(r, securityModeCommandIEs, func(iei uint8, value []byte) error {
+		switch {
+		case iei == imeisvRequestIEI<<4 && len(value) == 1:
 			m.IMEISVRequested = value[0] == imeisvRequested
+		case iei == hashMMEIEI:
+			m.HASHMME = value
 		}
 
 		return nil
@@ -87,6 +99,12 @@ func ParseSecurityModeCommand(b []byte) (*SecurityModeCommand, error) {
 	}
 
 	return m, nil
+}
+
+// securityModeCommandIEs are the optional type-4 IEs Ella Core round-trips in a
+// SECURITY MODE COMMAND (TS 24.301 §8.2.20): the HashMME.
+var securityModeCommandIEs = []common.OptionalIE{
+	{IEI: hashMMEIEI, Format: common.IETLV},
 }
 
 // SecurityModeComplete is the SECURITY MODE COMPLETE message (TS 24.301

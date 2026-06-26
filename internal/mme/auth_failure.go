@@ -27,12 +27,12 @@ func (m *MME) onAuthenticationFailure(ctx context.Context, ue *UeContext, plain 
 	}
 
 	logger.MmeLog.Info("Authentication Failure",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.Uint8("emm-cause", resp.Cause))
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.Uint8("emm-cause", resp.Cause))
 
 	if resp.Cause == emmCauseSynchFailure && len(resp.AUTS) > 0 && !ue.resyncTried && ue.authVector != nil {
 		ue.resyncTried = true
 
-		logger.MmeLog.Info("re-synchronising SQN, re-authenticating", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
+		logger.MmeLog.Info("re-synchronising SQN, re-authenticating", zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)))
 
 		// The credential authority resyncs from AUTS and issues a fresh vector.
 		if err := m.sendAuthRequest(ctx, ue, hex.EncodeToString(resp.AUTS), hex.EncodeToString(ue.authVector.RAND[:])); err != nil {
@@ -54,7 +54,7 @@ func (m *MME) rejectAuthentication(ctx context.Context, ue *UeContext) {
 	metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultReject)
 
 	logger.MmeLog.Info("authentication rejected",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi))
 	m.sendDownlinkMessage(ctx, ue, &eps.AuthenticationReject{})
 	m.releaseUEContext(ctx, ue, causeNASUnspecified)
 }
