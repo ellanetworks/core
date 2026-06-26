@@ -18,7 +18,7 @@ func TestGetRadio_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"name": "my-radio", "id": "000102", "address": "10.0.0.1:9487", "connected_at": "2025-08-12T16:58:00Z", "last_seen_at": "2025-08-12T17:02:30Z", "ran_node_type": "gNB", "supported_tais": []}`),
+			Result:     []byte(`{"name": "my-radio", "id": "000102", "address": "10.0.0.1:9487", "connected_at": "2025-08-12T16:58:00Z", "last_seen_at": "2025-08-12T17:02:30Z", "type": "gNB", "supported_tais": []}`),
 		},
 		err: nil,
 	}
@@ -55,7 +55,7 @@ func TestGetRadio_Success(t *testing.T) {
 	}
 
 	if radio.RanNodeType != "gNB" {
-		t.Fatalf("expected ran_node_type gNB, got %v", radio.RanNodeType)
+		t.Fatalf("expected type gNB, got %v", radio.RanNodeType)
 	}
 }
 

@@ -15,7 +15,7 @@ import (
 // TestIntegration4GS1Setup brings up Ella Core and a real srsRAN eNB
 // (gradiant/srsran-4g) and verifies the eNB completes S1 Setup against the MME.
 //
-// The eNB appears in the radios API with ran_node_type "eNB" only after the MME
+// The eNB appears in the radios API with type "eNB" only after the MME
 // has accepted its S1 Setup Request and sent an S1 Setup Response, so its
 // presence is positive proof of the request/response exchange.
 func TestIntegration4GS1Setup(t *testing.T) {

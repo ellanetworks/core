@@ -77,7 +77,7 @@ This path returns the details of a specific radio, including connection timestam
         "address": "10.1.107.203/192.168.251.5:9487",
         "connected_at": "2025-08-12T16:58:00Z",
         "last_seen_at": "2025-08-12T17:02:30Z",
-        "ran_node_type": "gNB",
+        "type": "gNB",
         "supported_tais": [
             {
                 "tai": {

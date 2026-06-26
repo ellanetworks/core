@@ -37,7 +37,7 @@ type Radio struct {
 	Name        string `json:"name"`
 	ID          string `json:"id"`
 	Address     string `json:"address"`
-	RanNodeType string `json:"ran_node_type"`
+	RanNodeType string `json:"type"`
 	// Deprecated: Use the GET /api/v1/ran/radios/{name} detail endpoint instead.
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
@@ -55,7 +55,7 @@ type RadioDetail struct {
 	Address       string         `json:"address"`
 	ConnectedAt   string         `json:"connected_at"`
 	LastSeenAt    string         `json:"last_seen_at"`
-	RanNodeType   string         `json:"ran_node_type"`
+	RanNodeType   string         `json:"type"`
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
 
@@ -156,7 +156,7 @@ func ListRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 		}
 
 		// 4G eNBs connected to the MME appear in the same radio list,
-		// distinguished by ran_node_type.
+		// distinguished by type.
 		if mmeInstance != nil {
 			for _, enb := range mmeInstance.ListENBs() {
 				items = append(items, Radio{
@@ -224,7 +224,7 @@ func GetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 		}
 
 		// 4G eNBs connected to the MME share the radio namespace, distinguished
-		// by ran_node_type.
+		// by type.
 		if mmeInstance != nil {
 			for _, enb := range mmeInstance.ListENBs() {
 				if enb.Name != radioName {

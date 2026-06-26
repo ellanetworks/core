@@ -27,7 +27,7 @@ export type APIRadio = {
   name: string;
   id: string;
   address: string;
-  ran_node_type: string;
+  type: string;
   supported_tais: SupportedTAI[];
 };
 
@@ -55,7 +55,7 @@ export type APIRadioDetail = {
   address: string;
   connected_at: string;
   last_seen_at: string;
-  ran_node_type: string;
+  type: string;
   supported_tais: SupportedTAI[];
 };
 
