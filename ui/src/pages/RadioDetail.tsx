@@ -58,7 +58,8 @@ const ranNodeTypeChip = (t: string) => {
         : t === "N3IWF"
           ? "warning"
           : "default";
-  return <Chip size="small" label={t} color={color} variant="outlined" />;
+  const label = t === "gNB" ? "gNB (5g)" : t === "eNB" ? "eNB (4g)" : t;
+  return <Chip size="small" label={label} color={color} variant="outlined" />;
 };
 
 const RadioDetail: React.FC = () => {

@@ -105,8 +105,9 @@ export default function RadiosListTab() {
                 : t === "N3IWF"
                   ? "warning"
                   : "default";
+          const label = t === "gNB" ? "gNB (5g)" : t === "eNB" ? "eNB (4g)" : t;
           return (
-            <Chip size="small" label={t} color={color} variant="outlined" />
+            <Chip size="small" label={label} color={color} variant="outlined" />
           );
         },
       },
