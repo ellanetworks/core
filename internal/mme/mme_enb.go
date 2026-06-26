@@ -203,28 +203,55 @@ func (m *MME) removeENB(conn *sctp.SCTPConn) {
 	delete(m.enbs, conn)
 	m.mu.Unlock()
 
-	m.abortHandoversOnConnLoss(conn)
 	m.reclaimUEsOnConnLoss(conn)
 }
 
-// reclaimUEsOnConnLoss handles the UEs of an eNB whose SCTP association dropped
-// without a graceful S1 release, so no UE Context Release Complete will arrive
-// for them. Idle UEs are left alone — they already run their own
-// conn-independent mobile reachable supervision.
+// reclaimUEsOnConnLoss handles the connections of an eNB whose SCTP association
+// dropped without a graceful S1 release, so no UE Context Release Complete will
+// arrive for them. A UE whose active connection dropped is reclaimed (ECM-IDLE or,
+// if mid-attach, dropped); a handover target connection that dropped aborts the
+// handover, leaving the UE on its surviving source; a detached or bare connection
+// is removed. Idle UEs are left alone — they run conn-independent supervision.
 func (m *MME) reclaimUEsOnConnLoss(conn nasWriter) {
 	m.mu.Lock()
 
-	var orphaned []*UeContext
+	var (
+		orphaned    []*UeContext
+		abortTarget []*UeContext
+		dropConns   []uint32
+		seen        = map[*UeContext]struct{}{}
+	)
 
-	for _, c := range m.conns {
-		ue := c.ue
-		if ue == nil {
+	for id, c := range m.conns {
+		if c.conn != conn {
 			continue
 		}
 
-		if ue.s1.conn == conn && ue.connected() {
-			orphaned = append(orphaned, ue)
+		ue := c.ue
+		if ue == nil {
+			dropConns = append(dropConns, id)
+			continue
 		}
+
+		if _, ok := seen[ue]; ok {
+			continue
+		}
+
+		seen[ue] = struct{}{}
+
+		if c == ue.s1 {
+			orphaned = append(orphaned, ue)
+		} else {
+			abortTarget = append(abortTarget, ue)
+		}
+	}
+
+	for _, id := range dropConns {
+		delete(m.conns, id)
+	}
+
+	for _, ue := range abortTarget {
+		m.clearHandoverLocked(ue) // drops the target connection, leaving the UE on its source
 	}
 
 	m.mu.Unlock()

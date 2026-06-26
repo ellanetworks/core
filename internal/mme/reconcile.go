@@ -51,7 +51,7 @@ func (m *MME) reconcileUE(ctx context.Context, ue *UeContext) {
 	// bearer signalling (TS 36.413 §8.4.1.2); the next sweep re-converges the UE.
 	m.mu.RLock()
 
-	ready := ue.emmState.load() == EMMRegistered && ue.s1 != nil && ue.s1.handover == nil
+	ready := ue.emmState.load() == EMMRegistered && ue.s1 != nil && ue.handover == nil
 
 	m.mu.RUnlock()
 

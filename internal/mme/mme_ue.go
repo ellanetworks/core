@@ -92,14 +92,6 @@ type s1Conn struct {
 	// releasing gates the registry op during a UE Context Release.
 	releasing bool
 
-	// handover is the in-flight S1 handover for this UE (nil when none); the UE is
-	// reachable on both the source and target associations until HANDOVER NOTIFY
-	// moves conn/ENBUES1APID to the target (TS 36.413 §8.4). handoverGen invalidates
-	// a guard-timer callback that fired just as the handover was cleared or
-	// replaced.
-	handover    *handoverContext
-	handoverGen uint64
-
 	// NAS common-procedure guard (TS 24.301: T3450/T3460/T3470). At most
 	// one common procedure is outstanding at a time, so a single guard suffices;
 	// nasGuardPDU is the downlink message retransmitted on expiry. nasGuardGen
@@ -189,6 +181,14 @@ type UeContext struct {
 	// cannot derive a fresh NH from the same base for two targets (TS 33.401
 	// §7.2.8). Guarded by MME.mu.
 	keyChainBusy bool
+
+	// handover is the in-flight S1 handover (nil when none). It holds the source
+	// and target connections, each a distinct s1Conn with its own MME-UE-S1AP-ID;
+	// s1 stays the source until HANDOVER NOTIFY switches it to the target (TS 36.413
+	// §8.4). handoverGen invalidates a guard-timer callback that fired just as the
+	// handover was cleared or replaced. Guarded by MME.mu.
+	handover    *handoverContext
+	handoverGen uint64
 
 	// emmState is the EPS Mobility Management state (TS 23.401), independent of the
 	// ECM state on s1Conn: an S1 release moves the UE to ECM-IDLE while leaving the

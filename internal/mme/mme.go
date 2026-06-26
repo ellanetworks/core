@@ -94,10 +94,6 @@ type MME struct {
 	ues         map[string]*UeContext // persistent UE contexts keyed by IMSI; survives the connection across ECM-IDLE
 	byMTMSI     map[uint32]*UeContext // keyed by M-TMSI, for S-TMSI lookup
 	nextMMEUEID uint32
-	// handoverSrcReleases tracks the source-eNB UE Context Release Commands the MME
-	// sends on S1-handover completion, so the matching Release Complete is consumed
-	// without disturbing the UE now active on the target (TS 36.413 §8.4).
-	handoverSrcReleases map[srcReleaseKey]struct{}
 	// mtmsi allocates an unpredictable M-TMSI (TS 23.401 privacy): random MSBs
 	// with allocate/free.
 	mtmsi *etsi.TmsiAllocator
@@ -161,17 +157,16 @@ const defaultHandoverGuardTimeout = 10 * time.Second
 // that allocates the UE IP. The MME never holds subscriber keys or the SQN.
 func New(cred *udm.Service, bearer bearerStore, session epsSessionManager) *MME {
 	return &MME{
-		cred:                cred,
-		bearer:              bearer,
-		session:             session,
-		enbs:                make(map[*sctp.SCTPConn]*enbState),
-		enbByID:             make(map[string]nasWriter),
-		conns:               make(map[uint32]*s1Conn),
-		ues:                 make(map[string]*UeContext),
-		byMTMSI:             make(map[uint32]*UeContext),
-		nextMMEUEID:         1,
-		mtmsi:               etsi.NewTMSIAllocator(),
-		handoverSrcReleases: make(map[srcReleaseKey]struct{}),
+		cred:        cred,
+		bearer:      bearer,
+		session:     session,
+		enbs:        make(map[*sctp.SCTPConn]*enbState),
+		enbByID:     make(map[string]nasWriter),
+		conns:       make(map[uint32]*s1Conn),
+		ues:         make(map[string]*UeContext),
+		byMTMSI:     make(map[uint32]*UeContext),
+		nextMMEUEID: 1,
+		mtmsi:       etsi.NewTMSIAllocator(),
 
 		mobileReachableTime: defaultMobileReachableTime,
 		implicitDetachTime:  defaultImplicitDetachTime,
