@@ -4745,9 +4745,9 @@ components:
           type: string
         address:
           type: string
-        ran_node_type:
+        type:
           type: string
-          enum: [gNB, ng-eNB, N3IWF, Unknown]
+          enum: [gNB, ng-eNB, eNB, N3IWF, Unknown]
           description: Type of the RAN node.
         supported_tais:
           type: array
@@ -4755,7 +4755,7 @@ components:
           description: "Deprecated: use GET /api/v1/ran/radios/{name} for full radio details including supported TAIs."
           items:
             $ref: "#/components/schemas/SupportedTAI"
-      required: [name, id, address, ran_node_type, supported_tais]
+      required: [name, id, address, type, supported_tais]
 
     RadioDetail:
       type: object
@@ -4777,15 +4777,15 @@ components:
           type: string
           format: date-time
           description: Timestamp of the last NGAP message received from the radio (RFC 3339).
-        ran_node_type:
+        type:
           type: string
-          enum: [gNB, ng-eNB, N3IWF, Unknown]
+          enum: [gNB, ng-eNB, eNB, N3IWF, Unknown]
           description: Type of the RAN node.
         supported_tais:
           type: array
           items:
             $ref: "#/components/schemas/SupportedTAI"
-      required: [name, id, address, connected_at, last_seen_at, ran_node_type, supported_tais]
+      required: [name, id, address, connected_at, last_seen_at, type, supported_tais]
 
     RadioResponseEnvelope:
       type: object

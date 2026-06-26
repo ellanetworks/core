@@ -58,7 +58,8 @@ const ranNodeTypeChip = (t: string) => {
         : t === "N3IWF"
           ? "warning"
           : "default";
-  return <Chip size="small" label={t} color={color} variant="outlined" />;
+  const label = t === "gNB" ? "gNB (5G)" : t === "eNB" ? "eNB (4G)" : t;
+  return <Chip size="small" label={label} color={color} variant="outlined" />;
 };
 
 const RadioDetail: React.FC = () => {
@@ -400,9 +401,9 @@ const RadioDetail: React.FC = () => {
                   <TableCell sx={valueCellSx}>{radio.address || "—"}</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell sx={labelCellSx}>RAN Node Type</TableCell>
+                  <TableCell sx={labelCellSx}>Type</TableCell>
                   <TableCell sx={valueCellSx}>
-                    {ranNodeTypeChip(radio.ran_node_type)}
+                    {ranNodeTypeChip(radio.type)}
                   </TableCell>
                 </TableRow>
                 <TableRow>

@@ -91,12 +91,12 @@ export default function RadiosListTab() {
       },
       { field: "id", headerName: "ID", flex: 0.6, minWidth: 100 },
       {
-        field: "ran_node_type",
+        field: "type",
         headerName: "Type",
         flex: 0.4,
         minWidth: 80,
         renderCell: (params) => {
-          const t = params.row.ran_node_type;
+          const t = params.row.type;
           const color =
             t === "gNB"
               ? "primary"
@@ -105,8 +105,9 @@ export default function RadiosListTab() {
                 : t === "N3IWF"
                   ? "warning"
                   : "default";
+          const label = t === "gNB" ? "gNB (5G)" : t === "eNB" ? "eNB (4G)" : t;
           return (
-            <Chip size="small" label={t} color={color} variant="outlined" />
+            <Chip size="small" label={label} color={color} variant="outlined" />
           );
         },
       },
