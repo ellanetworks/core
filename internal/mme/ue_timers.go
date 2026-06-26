@@ -56,8 +56,7 @@ func (m *MME) onMobileReachableExpiry(ue *UeContext, gen uint64) {
 
 	ue.mobileReachableTimer = nil
 
-	logger.MmeLog.Debug("mobile reachable timer expired",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
+	logger.MmeLog.Debug("mobile reachable timer expired", zap.String("imsi", ue.imsi))
 
 	ue.implicitDetachTimer = time.AfterFunc(m.implicitDetachTime, func() {
 		m.onImplicitDetachExpiry(ue, gen)
@@ -78,13 +77,13 @@ func (m *MME) onImplicitDetachExpiry(ue *UeContext, gen uint64) {
 
 	ue.implicitDetachTimer = nil
 	ue.emmState.store(EMMDeregistered)
-	imsi, mmeUEID := ue.imsi, ue.MMEUES1APID
+	imsi := ue.imsi
 
 	m.mu.Unlock()
 
 	logger.MmeLog.Info("implicit detach: UE unreachable, releasing context",
-		zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.String("imsi", imsi))
+		zap.String("imsi", imsi))
 
 	m.releaseAllSessions(ue)
-	m.removeUe(mmeUEID)
+	m.removeUe(ue)
 }

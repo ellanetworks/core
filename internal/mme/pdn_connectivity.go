@@ -70,7 +70,7 @@ func (m *MME) onPDNConnectivityRequest(ctx context.Context, ue *UeContext, plain
 		return
 	}
 
-	if ue.emmState.load() != EMMRegistered || ue.ecmState.load() != ECMConnected {
+	if ue.emmState.load() != EMMRegistered || !ue.connected() {
 		m.rejectPDNConnectivity(ctx, ue, pti, esmCauseRequestRejectedUnspecified)
 		return
 	}
@@ -196,8 +196,8 @@ func (m *MME) sendERABSetup(ctx context.Context, ue *UeContext, p *pdnConnection
 	ambr := s1ap.UEAggregateMaximumBitRate{DL: s1ap.BitRate(qos.AMBRDL), UL: s1ap.BitRate(qos.AMBRUL)}
 
 	reqMsg := &s1ap.ERABSetupRequest{
-		MMEUES1APID:               ue.MMEUES1APID,
-		ENBUES1APID:               ue.ENBUES1APID,
+		MMEUES1APID:               ue.s1.MMEUES1APID,
+		ENBUES1APID:               ue.s1.ENBUES1APID,
 		UEAggregateMaximumBitRate: &ambr,
 		ERABToBeSetup: []s1ap.ERABToBeSetupItemBearerSUReq{{
 			ERABID: s1ap.ERABID(p.ebi),
@@ -245,7 +245,7 @@ func (m *MME) handleERABSetupResponse(conn nasWriter, value []byte) {
 		p := m.lookupPDN(ue, uint8(erab.ERABID))
 		if p == nil {
 			logger.MmeLog.Warn("E-RAB Setup Response for an unknown E-RAB",
-				zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
+				zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
 
 			continue
 		}
@@ -253,7 +253,7 @@ func (m *MME) handleERABSetupResponse(conn nasWriter, value []byte) {
 		enbAddr, ok := enbTransportAddress(erab.TransportLayerAddress)
 		if !ok {
 			logger.MmeLog.Warn("E-RAB Setup Response with an invalid eNB transport address",
-				zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
+				zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
 
 			continue
 		}

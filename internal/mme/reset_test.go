@@ -56,32 +56,35 @@ func TestS1ResetWholeInterface(t *testing.T) {
 	m := newTestMME(t)
 
 	ue1, cc := securedUE(t, m)
+	registerTestUE(m, ue1, "001010000000010")
 	testPDN(ue1).apn = "internet"
 
 	ue2 := m.newUe(cc, 8)
 	ue2.emmState.store(EMMRegistered)
+	registerTestUE(m, ue2, "001010000000011")
 	testPDN(ue2).apn = "internet"
 
 	other, _ := securedUE(t, m)
+	registerTestUE(m, other, "001010000000012")
 	testPDN(other).apn = "internet"
 
 	cause := s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}
 	m.handleReset(cc, resetValue(t, &s1ap.Reset{Cause: cause, ResetType: s1ap.ResetType{All: true}}))
 
 	for _, ue := range []*UeContext{ue1, ue2} {
-		got, ok := m.lookupUe(ue.MMEUES1APID)
-		if !ok {
-			t.Fatalf("registered UE %d deleted by S1 reset; expected ECM-IDLE retention", ue.MMEUES1APID)
+		got, ok := m.lookupUeByIMSI(ue.imsi)
+		if !ok || got != ue {
+			t.Fatalf("registered UE %q deleted by S1 reset; expected ECM-IDLE retention", ue.imsi)
 		}
 
-		if got.ecmState.load() != ECMIdle {
-			t.Fatalf("UE %d ecmState = %v, want ECMIdle after S1 reset", ue.MMEUES1APID, got.ecmState.load())
+		if got.connected() {
+			t.Fatalf("UE %q not in ECM-IDLE after S1 reset", ue.imsi)
 		}
 
-		m.removeUe(ue.MMEUES1APID) // stop the default-duration timer
+		m.removeUe(ue) // stop the default-duration timer
 	}
 
-	if got, ok := m.lookupUe(other.MMEUES1APID); !ok || got.ecmState.load() != ECMConnected {
+	if got, ok := m.lookupUeByIMSI(other.imsi); !ok || !got.connected() {
 		t.Fatal("UE on another association disturbed by S1 reset")
 	}
 
@@ -100,14 +103,16 @@ func TestS1ResetPartOfInterface(t *testing.T) {
 	m := newTestMME(t)
 
 	ue1, cc := securedUE(t, m)
+	registerTestUE(m, ue1, "001010000000010")
 	testPDN(ue1).apn = "internet"
 
 	ue2 := m.newUe(cc, 8)
 	ue2.emmState.store(EMMRegistered)
+	registerTestUE(m, ue2, "001010000000011")
 	testPDN(ue2).apn = "internet"
 
-	mmeID := ue1.MMEUES1APID
-	enbID := ue1.ENBUES1APID
+	mmeID := ue1.s1.MMEUES1APID
+	enbID := ue1.s1.ENBUES1APID
 	cause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}
 
 	m.handleReset(cc, resetValue(t, &s1ap.Reset{
@@ -117,14 +122,14 @@ func TestS1ResetPartOfInterface(t *testing.T) {
 		}},
 	}))
 
-	got1, ok := m.lookupUe(mmeID)
-	if !ok || got1.ecmState.load() != ECMIdle {
-		t.Fatalf("listed UE not released to ECM-IDLE: ok=%v state=%v", ok, got1.ecmState.load())
+	got1, ok := m.lookupUeByIMSI(ue1.imsi)
+	if !ok || got1 != ue1 || got1.connected() {
+		t.Fatalf("listed UE not released to ECM-IDLE: ok=%v connected=%v", ok, got1.connected())
 	}
 
-	m.removeUe(mmeID)
+	m.removeUe(ue1)
 
-	if got2, ok := m.lookupUe(ue2.MMEUES1APID); !ok || got2.ecmState.load() != ECMConnected {
+	if got2, ok := m.lookupUeByIMSI(ue2.imsi); !ok || !got2.connected() {
 		t.Fatal("unlisted UE disturbed by part-of-interface reset")
 	}
 
@@ -151,7 +156,7 @@ func TestS1ResetDropsMidAttachUE(t *testing.T) {
 	cause := s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}
 	m.handleReset(cc, resetValue(t, &s1ap.Reset{Cause: cause, ResetType: s1ap.ResetType{All: true}}))
 
-	if _, ok := m.lookupUe(ue.MMEUES1APID); ok {
+	if _, ok := m.lookupUeByIMSI(ue.imsi); ok {
 		t.Fatal("incomplete-registration UE retained after S1 reset; expected drop")
 	}
 

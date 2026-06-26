@@ -17,8 +17,8 @@ func TestUECapabilityInfoIndicationStoresRadioCapability(t *testing.T) {
 
 	radioCap := []byte{0x01, 0x02, 0x03, 0x04}
 	ind := &s1ap.UECapabilityInfoIndication{
-		MMEUES1APID:       ue.MMEUES1APID,
-		ENBUES1APID:       ue.ENBUES1APID,
+		MMEUES1APID:       ue.s1.MMEUES1APID,
+		ENBUES1APID:       ue.s1.ENBUES1APID,
 		UERadioCapability: radioCap,
 	}
 

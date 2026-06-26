@@ -28,7 +28,7 @@ func (m *MME) onTrackingAreaUpdate(ctx context.Context, ue *UeContext, plain []b
 
 	logger.MmeLog.Info("Tracking Area Update Request",
 		zap.String("imsi", ue.imsi),
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 		zap.String("update-type", epsUpdateTypeName(req.EPSUpdateType)),
 		zap.Bool("active-flag", req.ActiveFlag))
 
@@ -59,9 +59,11 @@ func (m *MME) onTrackingAreaUpdate(ctx context.Context, ue *UeContext, plain []b
 
 	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultAccept)
 
-	if ue.ecmState.load() == ECMConnected {
+	// A UE already fully connected (bearers up) keeps its connection; only a UE
+	// resuming for this TAU needs re-establishment or a deferred release below.
+	if ue.s1.bearersUp {
 		logger.MmeLog.Info("Tracking Area Update accepted",
-			zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
+			zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi))
 		m.sendDownlink(ctx, ue, naspdu)
 		m.armNASGuard(ue, "Tracking Area Update Accept", naspdu)
 
@@ -75,10 +77,8 @@ func (m *MME) onTrackingAreaUpdate(ctx context.Context, ue *UeContext, plain []b
 			return
 		}
 
-		ue.ecmState.store(ECMConnected)
-
 		logger.MmeLog.Info("Tracking Area Update accepted (bearer re-established)",
-			zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
+			zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi))
 		m.sendInitialContextSetup(ctx, ue, qos, naspdu)
 		m.armNASGuard(ue, "Tracking Area Update Accept", naspdu)
 
@@ -91,11 +91,10 @@ func (m *MME) onTrackingAreaUpdate(ctx context.Context, ue *UeContext, plain []b
 	// connection for this exchange, so it is ECM-CONNECTED until the deferred
 	// release; without this the TAU Complete would be rejected as having no active
 	// connection (TS 36.413 §10.6 handling).
-	ue.ecmState.store(ECMConnected)
-	ue.tauReleaseOnComplete = true
+	ue.s1.tauReleaseOnComplete = true
 
 	logger.MmeLog.Info("Tracking Area Update accepted (returning to idle)",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi))
 	m.sendDownlink(ctx, ue, naspdu)
 	m.armNASGuard(ue, "Tracking Area Update Accept", naspdu)
 }
@@ -108,10 +107,10 @@ func (m *MME) onTrackingAreaUpdateComplete(ctx context.Context, ue *UeContext) {
 	m.commitGUTIRealloc(ue)
 
 	logger.MmeLog.Info("Tracking Area Update Complete",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi))
 
-	if ue.tauReleaseOnComplete {
-		ue.tauReleaseOnComplete = false
+	if ue.s1.tauReleaseOnComplete {
+		ue.s1.tauReleaseOnComplete = false
 		m.releaseUEContext(ctx, ue, causeNASNormalRelease)
 	}
 }
@@ -247,19 +246,4 @@ func (m *MME) protectDownlinkBytes(ue *UeContext, plain []byte) ([]byte, error) 
 	}
 
 	return wire, nil
-}
-
-// rejectTrackingAreaUpdate rejects a TRACKING AREA UPDATE REQUEST the MME cannot
-// verify (no security context, e.g. after an MME restart, TS 24.301) with EMM
-// cause #9 "UE identity cannot be derived by the network". The UE accepts the
-// reject without integrity protection and re-attaches. The reject is sent on the
-// transient context, which is then discarded.
-func (m *MME) rejectTrackingAreaUpdate(ctx context.Context, ue *UeContext) {
-	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
-
-	logger.MmeLog.Info("Tracking Area Update rejected; UE will re-attach",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
-
-	m.sendDownlinkMessage(ctx, ue, &eps.TrackingAreaUpdateReject{Cause: emmCauseUEIdentityUnderivable})
-	m.removeUe(ue.MMEUES1APID)
 }

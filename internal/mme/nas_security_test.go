@@ -5,9 +5,11 @@ package mme
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas/eps"
 )
 
 // TestReplayedUESecCapClearsUCS2 reproduces the iPhone Security Mode Reject
@@ -78,31 +80,61 @@ func TestReplayedUESecCapNoGERAN(t *testing.T) {
 }
 
 func TestSelectEPSAlgorithm(t *testing.T) {
-	// A UE that supports SNOW3G and AES for both ciphering and integrity.
 	supportsAll := func(uint8) bool { return true }
-	// A UE that supports only AES (value 2).
 	supportsAESOnly := func(n uint8) bool { return n == 2 }
+	supportsNullOnly := func(n uint8) bool { return n == 0 }
 
 	tests := []struct {
 		name       string
 		preference []string
 		supported  func(uint8) bool
 		want       byte
+		wantOK     bool
 	}{
-		{"AES preferred", []string{"AES", "SNOW3G"}, supportsAll, 2},
-		{"SNOW3G preferred", []string{"SNOW3G", "AES"}, supportsAll, 1},
-		{"SNOW3G preferred but UE lacks it", []string{"SNOW3G", "AES"}, supportsAESOnly, 2},
-		{"only SNOW3G, UE lacks it falls to null", []string{"SNOW3G"}, supportsAESOnly, 0},
-		{"explicit NULL", []string{"NULL", "AES"}, supportsAll, 0},
-		{"empty falls to null", nil, supportsAll, 0},
+		{"AES preferred", []string{"AES", "SNOW3G"}, supportsAll, 2, true},
+		{"SNOW3G preferred", []string{"SNOW3G", "AES"}, supportsAll, 1, true},
+		{"SNOW3G preferred but UE lacks it", []string{"SNOW3G", "AES"}, supportsAESOnly, 2, true},
+		{"no common algorithm", []string{"SNOW3G"}, supportsAESOnly, 0, false},
+		{"NULL configured and UE advertises it", []string{"AES", "NULL"}, supportsNullOnly, 0, true},
+		{"NULL configured but UE does not advertise it", []string{"AES", "NULL"}, supportsAESOnly, 2, true},
+		{"NULL configured, UE supports nothing", []string{"NULL"}, supportsAESOnly, 0, false},
+		{"empty preference", nil, supportsAll, 0, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := selectEPSAlgorithm(tt.preference, tt.supported); got != tt.want {
-				t.Fatalf("selectEPSAlgorithm = %d, want %d", got, tt.want)
+			got, ok := selectEPSAlgorithm(tt.preference, tt.supported)
+			if got != tt.want || ok != tt.wantOK {
+				t.Fatalf("selectEPSAlgorithm = (%d, %v), want (%d, %v)", got, ok, tt.want, tt.wantOK)
 			}
 		})
+	}
+}
+
+// A UE that advertises no integrity algorithm common with the operator policy is
+// rejected (EMM cause #23), not silently downgraded to the null algorithm
+// (TS 33.401 §5).
+func TestStartSecurityModeRejectsNoCommonIntegrity(t *testing.T) {
+	m := newTestMME(t)
+	cc := &captureConn{}
+	ue := m.newUe(cc, 7)
+	ue.imsi = testSubscriber.IMSI
+	ue.kasme = make([]byte, 32)
+	ue.ueNetCap = eps.UENetworkCapability{EEA: 0xff, EIA: 0x00}.Marshal()
+
+	m.startSecurityMode(context.Background(), ue)
+
+	if ue.secured {
+		t.Fatal("UE secured despite no common integrity algorithm")
+	}
+
+	reject, err := eps.ParseAttachReject(decodeDownlinkNAS(t, cc.sent[0]))
+	if err != nil {
+		t.Fatalf("expected Attach Reject, got: %v", err)
+	}
+
+	if reject.Cause != emmCauseUESecCapsMismatch {
+		t.Fatalf("Attach Reject cause = %d, want %d", reject.Cause, emmCauseUESecCapsMismatch)
 	}
 }
 

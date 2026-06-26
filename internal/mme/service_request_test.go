@@ -24,7 +24,7 @@ func idleRegisteredUE(t *testing.T, m *MME) (*UeContext, eps.EPSMobileIdentity) 
 	ue.ueNetCap = eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal()
 	testPDN(ue).sgwFTEID = testSGWFTEID // S-GW S1-U persists across idle, as after a real attach
 	guti := m.assignGUTI(ue, models.PlmnID{Mcc: "001", Mnc: "01"}, 1, 1)
-	ue.ecmState.store(ECMIdle)
+	m.freeS1Conn(ue)
 
 	return ue, guti
 }
@@ -62,12 +62,12 @@ func TestServiceRequestReestablishes(t *testing.T) {
 
 	m.onServiceRequest(context.Background(), cc, msg)
 
-	if ue.ecmState.load() != ECMConnected {
+	if !ue.connected() {
 		t.Fatal("UE not ECM-CONNECTED after Service Request")
 	}
 
-	if ue.ENBUES1APID != 9 {
-		t.Fatalf("UE not bound to the new eNB UE id, got %d", ue.ENBUES1APID)
+	if ue.s1.ENBUES1APID != 9 {
+		t.Fatalf("UE not bound to the new eNB UE id, got %d", ue.s1.ENBUES1APID)
 	}
 
 	if len(cc.sent) != 1 {
@@ -130,15 +130,15 @@ func TestServiceRequestS1UTransportFamily(t *testing.T) {
 }
 
 // TestServiceRequestAllocatesFreshMMEUES1APID checks that a UE returning from
-// ECM-IDLE is rebound to a fresh MME-UE-S1AP-ID (TS 36.413 §3.1): the released
-// identity is dropped from the active-connection index and the UE is reindexed
-// under the new one. Reusing the old identity is what the eNB rejects with
-// unknown-mme-ue-s1ap-id.
+// ECM-IDLE is bound to a fresh MME-UE-S1AP-ID and indexed under it (TS 36.413
+// §3.1); an idle UE holds no connection identity until it returns.
 func TestServiceRequestAllocatesFreshMMEUES1APID(t *testing.T) {
 	m := newTestMME(t)
 	ue, guti := idleRegisteredUE(t, m)
 
-	oldID := ue.MMEUES1APID
+	if ue.connected() {
+		t.Fatal("a UE in ECM-IDLE must hold no S1-connection")
+	}
 
 	cc := &captureConn{}
 	msg := &s1ap.InitialUEMessage{
@@ -149,15 +149,11 @@ func TestServiceRequestAllocatesFreshMMEUES1APID(t *testing.T) {
 
 	m.onServiceRequest(context.Background(), cc, msg)
 
-	if ue.MMEUES1APID == oldID {
-		t.Fatalf("MME-UE-S1AP-ID was reused (%d); a returning UE must get a fresh one", oldID)
+	if !ue.connected() {
+		t.Fatal("UE not bound to a connection after Service Request")
 	}
 
-	if _, ok := m.lookupUe(oldID); ok {
-		t.Fatal("released MME-UE-S1AP-ID still indexed after re-establishment")
-	}
-
-	if got, ok := m.lookupUe(ue.MMEUES1APID); !ok || got != ue {
+	if got, ok := m.lookupUe(ue.s1.MMEUES1APID); !ok || got != ue {
 		t.Fatal("UE not indexed under its fresh MME-UE-S1AP-ID")
 	}
 }
@@ -204,11 +200,62 @@ func TestServiceRequestBadMACRejected(t *testing.T) {
 
 	m.onServiceRequest(context.Background(), cc, msg)
 
-	if ue.ecmState.load() == ECMConnected {
+	if ue.connected() {
 		t.Fatal("UE reconnected despite a bad short MAC")
 	}
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected Service Reject, got %d S1AP messages", len(cc.sent))
+	}
+}
+
+// A resume (protected Initial UE Message) with an invalid MAC, carrying a
+// victim's S-TMSI, must not move the victim's S1 binding (TS 24.301 §4.4.4.3).
+func TestResumeBadMACDoesNotRebindVictim(t *testing.T) {
+	m := newTestMME(t)
+	ue, guti := idleRegisteredUE(t, m)
+
+	nas := protectedUplink(t, ue, nascommon.NASCount(0, 0))
+	nas[2] ^= 0xff // corrupt the MAC
+
+	plmn := s1ap.PLMNIdentity{0x00, 0xf1, 0x10}
+
+	b, err := (&s1ap.InitialUEMessage{
+		ENBUES1APID:           9,
+		NASPDU:                s1ap.NASPDU(nas),
+		STMSI:                 &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
+		TAI:                   s1ap.TAI{PLMNIdentity: plmn, TAC: 1},
+		EUTRANCGI:             s1ap.EUTRANCGI{PLMNIdentity: plmn, CellID: 1},
+		RRCEstablishmentCause: s1ap.RRCCauseMOSignalling,
+	}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m.handleInitialUEMessage(context.Background(), nil, initiatingValue(t, b))
+
+	if ue.connected() {
+		t.Fatal("a forged resume connected the idle victim")
+	}
+}
+
+// A Service Request with an invalid short MAC, on a different association, must
+// not move the resolved UE's S1 binding (TS 24.301 §5.6.1).
+func TestServiceRequestBadMACDoesNotRebindVictim(t *testing.T) {
+	m := newTestMME(t)
+	ue, guti := idleRegisteredUE(t, m)
+
+	nas := serviceRequestNAS(t, ue)
+	nas[3] ^= 0xff
+
+	attacker := &captureConn{}
+	m.onServiceRequest(context.Background(), attacker, &s1ap.InitialUEMessage{
+		ENBUES1APID: 9,
+		NASPDU:      s1ap.NASPDU(nas),
+		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
+	})
+
+	if ue.connected() {
+		t.Fatal("a forged Service Request connected the idle victim to the attacker")
 	}
 }

@@ -39,7 +39,7 @@ func TestMobileReachableEscalatesToImplicitDetach(t *testing.T) {
 	m.startMobileReachable(ue)
 
 	eventually(t, time.Second, func() bool {
-		_, ok := m.lookupUe(ue.MMEUES1APID)
+		_, ok := m.lookupUeByIMSI(ue.imsi)
 		return !ok
 	})
 
@@ -67,7 +67,7 @@ func TestReconnectStopsIdleTimers(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	if _, ok := m.lookupUe(ue.MMEUES1APID); !ok {
+	if _, ok := m.lookupUeByIMSI(ue.imsi); !ok {
 		t.Fatal("UE implicitly detached despite reconnecting")
 	}
 
@@ -81,10 +81,9 @@ func TestReconnectStopsIdleTimers(t *testing.T) {
 func TestUEContextReleaseCompleteArmsMobileReachable(t *testing.T) {
 	m := newTestMME(t)
 
-	ue, _ := idleRegisteredUE(t, m)
-	ue.ecmState.store(ECMConnected)
+	ue, cc := securedUE(t, m) // connected; the release moves it to ECM-IDLE
 
-	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.MMEUES1APID, ENBUES1APID: 7}
+	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: 7}
 
 	b, err := complete.Marshal()
 	if err != nil {
@@ -96,11 +95,15 @@ func TestUEContextReleaseCompleteArmsMobileReachable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleUEContextReleaseComplete(ue.conn, cpdu.(*s1ap.SuccessfulOutcome).Value)
+	m.handleUEContextReleaseComplete(cc, cpdu.(*s1ap.SuccessfulOutcome).Value)
+
+	if ue.connected() {
+		t.Fatal("UE still connected after S1 release")
+	}
 
 	if ue.mobileReachableTimer == nil {
 		t.Fatal("mobile reachable timer not armed when UE moved to ECM-IDLE")
 	}
 
-	m.removeUe(ue.MMEUES1APID) // stop the default-duration timer
+	m.removeUe(ue) // stop the default-duration timer
 }

@@ -8,6 +8,7 @@ import (
 	"net/netip"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/nas/eps"
@@ -22,7 +23,7 @@ import (
 // (TS 36.413). A SERVICE REQUEST re-establishes an existing EMM-IDLE
 // context (resolved by S-TMSI); anything else (an Attach Request) starts a new
 // one.
-func (m *MME) handleInitialUEMessage(ctx context.Context, conn *sctp.SCTPConn, value []byte) {
+func (m *MME) handleInitialUEMessage(ctx context.Context, conn nasWriter, value []byte) {
 	msg, err := s1ap.ParseInitialUEMessage(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Initial UE Message", zap.Error(err))
@@ -36,34 +37,128 @@ func (m *MME) handleInitialUEMessage(ctx context.Context, conn *sctp.SCTPConn, v
 	}
 
 	// A security-protected NAS message from a UE that presents its S-TMSI is a
-	// resume in an existing security context (e.g. a TAU from idle). Bind the
-	// persistent context to a fresh S1 connection (TS 36.413) and dispatch
-	// with that context. A UE without a resolvable context (e.g. after an MME
+	// resume in an existing security context (e.g. a TAU from idle). The message
+	// is authenticated against the resolved context before the context is bound to
+	// the requesting association (TS 24.301 §4.4.4.3), so an unverified message
+	// cannot move the UE. A UE without a resolvable context (e.g. after an MME
 	// restart) falls through to a fresh context below.
 	if len(nas) > 0 && nas[0]>>4 != uint8(eps.SHTPlain) && msg.STMSI != nil {
 		if ue, ok := m.lookupUeByMTMSI(msg.STMSI.MTMSI); ok && ue.emmState.load() == EMMRegistered && ue.secured {
+			plain, count, valid := m.unprotectUplink(ue, nas)
+			if !valid {
+				logger.MmeLog.Warn("Initial UE Message (resume) failed integrity check",
+					zap.Uint32("m-tmsi", msg.STMSI.MTMSI))
+
+				return
+			}
+
+			ue.touchLastSeen()
 			m.establishS1Connection(ue, conn, msg.ENBUES1APID)
+			ue.ulCount = count + 1
 
 			logger.MmeLog.Info("Initial UE Message (resume)",
 				zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)),
-				zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
+				zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 			)
 
-			m.handleNAS(ctx, ue, nas)
+			m.dispatchEMM(ctx, ue, plain, true)
 
 			return
 		}
 	}
 
+	// A fresh connection is tracked by a bare UE-associated S1-connection. A
+	// persistent UE context is bound to it only when its first NAS message is an
+	// ATTACH REQUEST; any other (or malformed) initial message releases the bare
+	// connection without binding one, so an unauthenticated peer cannot exhaust UE
+	// contexts.
+	c := m.newConn(conn, msg.ENBUES1APID)
+
+	if !isInitialAttach(nas) {
+		// A protected TRACKING AREA UPDATE the MME cannot resolve (e.g. a periodic
+		// update after an MME restart) is rejected with EMM cause #9 over the bare
+		// connection, so the UE re-attaches at once instead of waiting out T3430
+		// (TS 24.301 §5.5.3.2.5).
+		if isProtectedTrackingAreaUpdate(nas) {
+			metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
+			logger.MmeLog.Info("Tracking Area Update rejected; UE will re-attach",
+				zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
+			m.sendOverConn(ctx, c, &eps.TrackingAreaUpdateReject{Cause: emmCauseUEIdentityUnderivable})
+		} else {
+			logger.MmeLog.Debug("dropping non-Attach Initial UE Message",
+				zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
+		}
+
+		m.releaseBareConn(c)
+
+		return
+	}
+
 	m.dropStaleUe(conn, msg.ENBUES1APID)
-	ue := m.newUe(conn, msg.ENBUES1APID)
+	ue := m.bindConn(c)
 
 	logger.MmeLog.Info("Initial UE Message",
 		zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)),
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 	)
 
 	m.handleNAS(ctx, ue, nas)
+}
+
+// isInitialAttach reports whether a fresh connection's first NAS message is an
+// ATTACH REQUEST — the only message warranting a new UE context (TS 24.301):
+// plain for an IMSI or foreign-GUTI attach, or integrity-only for a native-GUTI
+// re-attach whose body is readable without a security context. A ciphered or
+// non-EMM message cannot be an initial attach the network can act on.
+func isInitialAttach(nas []byte) bool {
+	pd, err := eps.ProtocolDiscriminator(nas)
+	if err != nil || pd != eps.PDEMM {
+		return false
+	}
+
+	body := nas
+
+	switch nas[0] >> 4 {
+	case uint8(eps.SHTPlain):
+	case uint8(eps.SHTIntegrityProtected), uint8(eps.SHTIntegrityProtectedNewContext):
+		if len(nas) < 6 {
+			return false
+		}
+
+		body = nas[6:]
+	default:
+		return false
+	}
+
+	mt, err := eps.PeekMessageType(body)
+
+	return err == nil && mt == eps.MsgAttachRequest
+}
+
+// isProtectedTrackingAreaUpdate reports whether nas is an integrity-protected
+// (peekable) TRACKING AREA UPDATE REQUEST. An idle UE sends this from a security
+// context the MME may have lost (e.g. after a restart); when the context is
+// unresolvable the MME rejects it so the UE re-attaches (TS 24.301 §5.5.3.2.5). A
+// ciphered body cannot be peeked, so it is not matched.
+func isProtectedTrackingAreaUpdate(nas []byte) bool {
+	if len(nas) < 6 {
+		return false
+	}
+
+	pd, err := eps.ProtocolDiscriminator(nas)
+	if err != nil || pd != eps.PDEMM {
+		return false
+	}
+
+	switch nas[0] >> 4 {
+	case uint8(eps.SHTIntegrityProtected), uint8(eps.SHTIntegrityProtectedNewContext):
+	default:
+		return false
+	}
+
+	mt, err := eps.PeekMessageType(nas[6:])
+
+	return err == nil && mt == eps.MsgTrackingAreaUpdateRequest
 }
 
 // handleUplinkNASTransport routes an uplink NAS message to its UE context
@@ -147,6 +242,10 @@ func (m *MME) handleInitialContextSetupResponse(ctx context.Context, conn nasWri
 
 	p.enbFTEID = models.FTEID{TEID: uint32(erab.GTPTEID), Addr: enbAddr}
 
+	if ue.s1 != nil {
+		ue.s1.bearersUp = true
+	}
+
 	if err := m.session.ModifyEPSSession(ctx, ue.imsi, p.ebi, p.enbFTEID); err != nil {
 		logger.MmeLog.Error("failed to set the eNB F-TEID on the EPS session",
 			zap.String("imsi", ue.imsi), zap.Error(err))
@@ -181,6 +280,30 @@ func downlinkNASTransportBytes(mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID, n
 // nasMessage is any EPS NAS message that can serialize itself.
 type nasMessage interface {
 	Marshal() ([]byte, error)
+}
+
+// sendOverConn wraps a plain NAS message in a Downlink NAS Transport and sends it
+// over a connection that carries no bound UE context — a reject to an
+// unidentified peer (an Initial UE Message the MME cannot act on).
+func (m *MME) sendOverConn(ctx context.Context, c *s1Conn, msg nasMessage) {
+	b, err := msg.Marshal()
+	if err != nil {
+		logger.MmeLog.Error("failed to marshal NAS message", zap.Error(err))
+		return
+	}
+
+	pdu, err := downlinkNASTransportBytes(c.MMEUES1APID, c.ENBUES1APID, b)
+	if err != nil {
+		logger.MmeLog.Error("failed to build Downlink NAS Transport", zap.Error(err))
+		return
+	}
+
+	if _, err := c.conn.WriteMsg(pdu, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamUE}); err != nil {
+		logger.MmeLog.Error("failed to send Downlink NAS Transport", zap.Error(err))
+		return
+	}
+
+	m.logOutboundS1AP(ctx, c.conn, S1APProcedureDownlinkNASTransport, pdu)
 }
 
 // sendDownlinkMessage serializes a plain NAS message and sends it to the UE.

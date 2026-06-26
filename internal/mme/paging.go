@@ -36,7 +36,7 @@ func (m *MME) Page(ctx context.Context, imsi string) error {
 
 	m.mu.RLock()
 
-	skip := ue.ecmState.load() == ECMConnected || ue.pagingTimer != nil
+	skip := ue.connected() || ue.pagingTimer != nil
 
 	m.mu.RUnlock()
 
@@ -108,7 +108,7 @@ func (m *MME) onPagingExpiry(ue *UeContext, gen uint64) {
 		return
 	}
 
-	if ue.ecmState.load() == ECMConnected {
+	if ue.connected() {
 		m.stopPagingLocked(ue)
 		m.mu.Unlock()
 
@@ -116,12 +116,11 @@ func (m *MME) onPagingExpiry(ue *UeContext, gen uint64) {
 	}
 
 	if ue.pagingTries >= m.pagingMaxRetransmit {
-		mmeUEID, imsi := ue.MMEUES1APID, ue.imsi
+		imsi := ue.imsi
 		m.stopPagingLocked(ue)
 		m.mu.Unlock()
 
-		logger.MmeLog.Info("paging unanswered, abandoning procedure",
-			zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.String("imsi", imsi))
+		logger.MmeLog.Info("paging unanswered, abandoning procedure", zap.String("imsi", imsi))
 
 		return
 	}
@@ -137,7 +136,7 @@ func (m *MME) onPagingExpiry(ue *UeContext, gen uint64) {
 	m.mu.Unlock()
 
 	logger.MmeLog.Info("paging unanswered, retransmitting",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.Int("attempt", tries))
+		zap.String("imsi", ue.imsi), zap.Int("attempt", tries))
 	m.broadcastPaging(context.Background(), pdu)
 }
 

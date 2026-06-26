@@ -138,7 +138,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 	}
 
 	resp := &s1ap.ERABSetupResponse{
-		MMEUES1APID: ue.MMEUES1APID, ENBUES1APID: ue.ENBUES1APID,
+		MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: ue.s1.ENBUES1APID,
 		ERABSetup: []s1ap.ERABSetupItemBearerSURes{{
 			ERABID: 6, TransportLayerAddress: s1ap.TransportLayerAddress(tla), GTPTEID: 0x1234,
 		}},
@@ -194,7 +194,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 
 	// The eNB confirms the release; then the UE accepts the deactivation.
 	relResp := &s1ap.ERABReleaseResponse{
-		MMEUES1APID: ue.MMEUES1APID, ENBUES1APID: ue.ENBUES1APID,
+		MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: ue.s1.ENBUES1APID,
 		ERABReleased: []s1ap.ERABReleaseItemBearerRelComp{{ERABID: 6}},
 	}
 
@@ -221,7 +221,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal("second PDN not released after disconnect accept")
 	}
 
-	if _, ok := m.lookupUe(ue.MMEUES1APID); !ok {
+	if _, ok := m.lookupUe(ue.s1.MMEUES1APID); !ok {
 		t.Fatal("UE removed by a single-PDN disconnect; expected it to stay registered")
 	}
 

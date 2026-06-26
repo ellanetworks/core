@@ -38,7 +38,7 @@ func TestAssignGUTI(t *testing.T) {
 	}
 
 	// Releasing the UE clears the index.
-	m.removeUe(ue.MMEUES1APID)
+	m.removeUe(ue)
 
 	if _, ok := m.lookupUeByMTMSI(guti.MTMSI); ok {
 		t.Fatal("M-TMSI index not cleared on UE removal")

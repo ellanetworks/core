@@ -4,7 +4,9 @@
 package mme
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"sync"
 	"testing"
 
@@ -199,7 +201,7 @@ func nativeGUTIAttach(t *testing.T, m *MME, ue *UeContext) []byte {
 func TestAttachReusesContextForNativeGUTI(t *testing.T) {
 	m := newTestMME(t)
 	existing, _ := securedUE(t, m)
-	oldID := existing.MMEUES1APID
+	existing.dlCount = 7 // a live downlink chain that reuse must continue, not reset
 
 	wire := nativeGUTIAttach(t, m, existing)
 
@@ -207,21 +209,43 @@ func TestAttachReusesContextForNativeGUTI(t *testing.T) {
 	fresh := m.newUe(cc, 9)
 	m.handleNAS(context.Background(), fresh, wire)
 
-	if fresh.authVector != nil {
+	// The held context is reused in place — the connection is rebound onto it and
+	// the transient context the Initial UE Message created is discarded.
+	if got, ok := m.lookupUeByIMSI(existing.imsi); !ok || got != existing {
+		t.Fatal("held context not reused in place")
+	}
+
+	if fresh.s1 != nil {
+		t.Fatal("transient context not discarded after context reuse")
+	}
+
+	if existing.s1 == nil || existing.s1.conn != cc {
+		t.Fatal("held context not rebound to the returning UE's connection")
+	}
+
+	// Authentication is skipped on a valid native GUTI.
+	if existing.authVector != nil {
 		t.Fatal("authentication was not skipped on a valid native GUTI")
 	}
 
-	if fresh.imsi != existing.imsi || len(fresh.kasme) == 0 {
-		t.Fatalf("security context not reused: imsi=%q kasme=%d bytes", fresh.imsi, len(fresh.kasme))
+	// NAS COUNTs continue (TS 24.301 §4.4.3, §5.4.3.3): a native context is reused,
+	// not re-derived, so the counts are never reset to zero — reusing them with the
+	// same keys would be a keystream reuse.
+	if existing.ulCount != 1 {
+		t.Fatalf("uplink NAS COUNT = %d, want 1 (continued past the Attach)", existing.ulCount)
 	}
 
-	if _, ok := m.lookupUe(oldID); ok {
-		t.Fatal("superseded registration was not removed")
+	if existing.dlCount < 7 {
+		t.Fatalf("downlink NAS COUNT reset to %d on context reuse (keystream reuse)", existing.dlCount)
 	}
 
+	// The security mode procedure is skipped: the only downlink is the Initial
+	// Context Setup carrying the Attach Accept, not a Security Mode Command.
 	if cc.count() != 1 {
-		t.Fatalf("expected one downlink (Security Mode Command), got %d", cc.count())
+		t.Fatalf("expected one downlink (Initial Context Setup), got %d", cc.count())
 	}
+
+	parseInitialContextSetup(t, cc.sent[0])
 }
 
 // TestAttachNativeGUTIBadMACFallsBackToAuth checks that when the Attach does not
@@ -230,7 +254,7 @@ func TestAttachReusesContextForNativeGUTI(t *testing.T) {
 func TestAttachNativeGUTIBadMACFallsBackToAuth(t *testing.T) {
 	m := newTestMME(t)
 	existing, _ := securedUE(t, m)
-	oldID := existing.MMEUES1APID
+	oldID := existing.s1.MMEUES1APID
 
 	wire := nativeGUTIAttach(t, m, existing)
 	wire[1] ^= 0xff // corrupt the MAC
@@ -245,6 +269,26 @@ func TestAttachNativeGUTIBadMACFallsBackToAuth(t *testing.T) {
 
 	if _, err := eps.ParseIdentityRequest(decodeDownlinkNAS(t, cc.sent[0])); err != nil {
 		t.Fatalf("expected a fallback Identity Request, got: %v", err)
+	}
+}
+
+// A replayed native-GUTI Attach with a stale uplink NAS COUNT must not remove the
+// live context (TS 24.301).
+func TestAttachNativeGUTIReplayDoesNotRemoveContext(t *testing.T) {
+	m := newTestMME(t)
+	existing, _ := securedUE(t, m)
+	oldID := existing.s1.MMEUES1APID
+
+	wire := nativeGUTIAttach(t, m, existing) // protected at NASCount(0, 0)
+
+	existing.ulCount = 50
+
+	cc := &captureConn{}
+	attacker := m.newUe(cc, 9)
+	m.handleNAS(context.Background(), attacker, wire)
+
+	if _, ok := m.lookupUe(oldID); !ok {
+		t.Fatal("live context removed by a replayed stale-count Attach")
 	}
 }
 
@@ -335,6 +379,12 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatalf("SMC algorithms eea=%d eia=%d, want 2/2", smc.CipheringAlgorithm, smc.IntegrityAlgorithm)
 	}
 
+	// The unprotected Attach is hashed into the SMC HashMME (TS 24.301 §5.4.3.2).
+	wantHash := sha256.Sum256(attachBytes)
+	if !bytes.Equal(smc.HASHMME, wantHash[:8]) {
+		t.Fatalf("SMC HashMME = %x, want %x", smc.HASHMME, wantHash[:8])
+	}
+
 	// 3. UE → Security Mode Complete (integrity protected + ciphered), returning
 	// the IMEISV the Security Mode Command requested (TS 24.301 §5.4.3.2).
 	smCompletePlain, err := (&eps.SecurityModeComplete{
@@ -374,7 +424,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 
 	ics := parseInitialContextSetup(t, cc.sent[2])
 
-	if ics.MMEUES1APID != ue.MMEUES1APID || ics.ENBUES1APID != 7 || len(ics.ERABToBeSetup) != 1 {
+	if ics.MMEUES1APID != ue.s1.MMEUES1APID || ics.ENBUES1APID != 7 || len(ics.ERABToBeSetup) != 1 {
 		t.Fatalf("unexpected Initial Context Setup Request: %+v", ics)
 	}
 
@@ -475,7 +525,7 @@ func TestSecurityModeRejectReleasesUE(t *testing.T) {
 
 	m.handleNAS(context.Background(), ue, plain)
 
-	if !ue.releasing {
+	if !ue.s1.releasing {
 		t.Fatal("UE not released after Security Mode Reject")
 	}
 

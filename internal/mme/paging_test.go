@@ -124,7 +124,6 @@ func TestPagingStoppedOnReconnect(t *testing.T) {
 	m.pagingTimeout = time.Hour // long enough not to fire during the test
 
 	ue, _ := idleRegisteredUE(t, m)
-	conn := ue.conn
 
 	if err := m.Page(context.Background(), ue.imsi); err != nil {
 		t.Fatalf("Page: %v", err)
@@ -134,7 +133,7 @@ func TestPagingStoppedOnReconnect(t *testing.T) {
 		t.Fatal("paging not supervised after Page")
 	}
 
-	m.establishS1Connection(ue, conn, 9)
+	m.establishS1Connection(ue, &captureConn{}, 9)
 
 	if m.pagingActive(ue) {
 		t.Fatal("paging supervision not stopped when the UE reconnected")

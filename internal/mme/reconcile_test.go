@@ -23,8 +23,6 @@ func connectedBearerUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 	p := testPDN(ue)
 	p.apn = "internet"
 
-	ue.ecmState.store(ECMConnected)
-
 	// Record the QoS a real activation would, so a reconcile against an unchanged
 	// policy is a no-op.
 	if qos, err := m.resolveQoSByAPN(context.Background(), ue.imsi, p.apn); err == nil {
@@ -100,7 +98,7 @@ func TestReconcileDataNetworkSkipsUnchanged(t *testing.T) {
 func TestReconcileDataNetworkSkipsIdleUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
-	ue.ecmState.store(ECMIdle) // an idle UE picks up the change on its next attach
+	m.freeS1Conn(ue) // an idle UE picks up the change on its next attach
 	testPDN(ue).dnConfig = "stale|config|0.0.0.0|0"
 
 	m.ReconcileDataNetwork(context.Background())
@@ -512,4 +510,15 @@ func TestModifyBearerAcceptCommitsConfig(t *testing.T) {
 	if len(cc.sent) != 0 {
 		t.Fatalf("modification accept must not trigger downlink S1AP, got %d", len(cc.sent))
 	}
+}
+
+// TestReconcileUEIdleNoPanic checks reconciling a UE that has moved to ECM-IDLE
+// returns without dereferencing the freed S1 connection.
+func TestReconcileUEIdleNoPanic(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	testPDN(ue).apn = "internet"
+	m.freeS1Conn(ue)
+
+	m.reconcileUE(context.Background(), ue)
 }

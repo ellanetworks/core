@@ -23,7 +23,7 @@ func TestInitialContextSetupResponseRelaysENBFTEID(t *testing.T) {
 	testPDN(ue).apn = "internet"
 
 	resp := &s1ap.InitialContextSetupResponse{
-		MMEUES1APID: ue.MMEUES1APID,
+		MMEUES1APID: ue.s1.MMEUES1APID,
 		ENBUES1APID: 7,
 		ERABSetup: []s1ap.ERABSetupItemCtxtSURes{{
 			ERABID:                s1ap.ERABID(defaultERABID),
@@ -86,7 +86,7 @@ func TestInitialContextSetupResponseENBTransportFamily(t *testing.T) {
 			testPDN(ue).apn = "internet"
 
 			resp := &s1ap.InitialContextSetupResponse{
-				MMEUES1APID: ue.MMEUES1APID,
+				MMEUES1APID: ue.s1.MMEUES1APID,
 				ENBUES1APID: 7,
 				ERABSetup: []s1ap.ERABSetupItemCtxtSURes{{
 					ERABID:                s1ap.ERABID(defaultERABID),

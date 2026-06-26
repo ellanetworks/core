@@ -27,10 +27,27 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 		return
 	}
 
-	logger.MmeLog.Info("network-initiated detach (subscriber deleted)",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", imsi))
-
 	ue.emmState.store(EMMDeregistered)
+
+	// An idle UE (ECM-IDLE) holds no S1 connection to carry the DETACH REQUEST, so
+	// release its sessions and context locally. The deleted subscriber is denied at
+	// its next contact, as it can no longer authenticate.
+	m.mu.RLock()
+
+	connected := ue.s1 != nil
+
+	m.mu.RUnlock()
+
+	if !connected {
+		logger.MmeLog.Info("releasing idle UE on subscriber deletion", zap.String("imsi", imsi))
+		m.releaseAllSessions(ue)
+		m.removeUe(ue)
+
+		return
+	}
+
+	logger.MmeLog.Info("network-initiated detach (subscriber deleted)",
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", imsi))
 
 	naspdu, err := m.protectDownlink(ue, &eps.DetachRequestNetwork{TypeOfDetach: detachTypeReattachNotRequired})
 	if err != nil {
@@ -47,7 +64,7 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 // EMM-DEREGISTERED).
 func (m *MME) onDetachAccept(ctx context.Context, ue *UeContext) {
 	m.stopNASGuard(ue)
-	logger.MmeLog.Info("Detach Accept", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
+	logger.MmeLog.Info("Detach Accept", zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)))
 	m.releaseUEContext(ctx, ue, causeNASDetach)
 }
 
@@ -75,7 +92,7 @@ func (m *MME) onDetachRequest(ctx context.Context, ue *UeContext, plain []byte) 
 	}
 
 	logger.MmeLog.Info("Detach Request",
-		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 		zap.Bool("switch-off", req.SwitchOff),
 		zap.String("imsi", ue.imsi),
 	)
