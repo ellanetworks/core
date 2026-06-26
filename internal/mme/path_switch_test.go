@@ -278,3 +278,27 @@ func TestPathSwitchCapabilityMismatchReplaysStored(t *testing.T) {
 		t.Fatalf("replayed capabilities = %+v, want %+v", ack.UESecurityCapabilities, want)
 	}
 }
+
+// TestPathSwitchUEReleasedDuringSwitch checks the commit is guarded against a
+// concurrent release that frees ue.s1 during the unlocked user-plane switch: the
+// path switch fails gracefully rather than dereferencing a nil connection.
+func TestPathSwitchUEReleasedDuringSwitch(t *testing.T) {
+	m := newTestMME(t)
+	ue := pathSwitchUE(t, m)
+
+	base := m.session.(*fakeSessionManager)
+	m.session = &hookSessionManager{fakeSessionManager: base, onModify: func() { m.freeS1Conn(ue) }}
+
+	target := &captureConn{}
+	m.handlePathSwitchRequest(context.Background(), target, pathSwitchValue(t, samplePathSwitchRequest(ue)))
+
+	if ue.s1 != nil {
+		t.Fatal("UE unexpectedly reconnected after being released mid-switch")
+	}
+
+	if target.count() != 1 {
+		t.Fatalf("expected one downlink (Path Switch Failure), got %d", target.count())
+	}
+
+	parsePathSwitchFailure(t, target.sent[0])
+}

@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -222,8 +223,9 @@ func (m *MME) reclaimConns(conns []*s1Conn, trigger string) {
 	m.mu.Lock()
 
 	var (
-		orphaned []*UeContext
-		seen     = map[*UeContext]struct{}{}
+		orphaned       []*UeContext
+		releaseTargets []s1Release
+		seen           = map[*UeContext]struct{}{}
 	)
 
 	for _, c := range conns {
@@ -241,6 +243,13 @@ func (m *MME) reclaimConns(conns []*s1Conn, trigger string) {
 
 		switch {
 		case c == ue.s1:
+			// The UE's active connection is gone. A handover prepared on a (still
+			// live) target eNB is released explicitly, like the guard-timer abort, so
+			// the target does not hold the context until its own TS1RELOCoverall.
+			if ho := ue.handover; ho != nil && ho.state == hoPrepared {
+				releaseTargets = append(releaseTargets, s1Release{ho.target.conn, ho.target.MMEUES1APID, ho.target.ENBUES1APID})
+			}
+
 			orphaned = append(orphaned, ue)
 		case ue.handover != nil && ue.handover.target == c:
 			m.clearHandoverLocked(ue) // a handover target: abort, leaving the UE on its source
@@ -252,9 +261,21 @@ func (m *MME) reclaimConns(conns []*s1Conn, trigger string) {
 
 	m.mu.Unlock()
 
+	for _, r := range releaseTargets {
+		m.sendUEContextRelease(context.Background(), r.conn, r.mmeID, r.enbID)
+	}
+
 	for _, ue := range orphaned {
 		m.releaseUEContextLocally(ue, trigger)
 	}
+}
+
+// s1Release names a UE-associated connection to send a UE Context Release Command
+// to, captured under the lock for a send after it is released.
+type s1Release struct {
+	conn  nasWriter
+	mmeID s1ap.MMEUES1APID
+	enbID s1ap.ENBUES1APID
 }
 
 // CountENBs returns the number of eNBs currently associated with the MME.

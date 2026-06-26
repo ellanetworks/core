@@ -18,9 +18,11 @@ import (
 // state, since the two state machines are independent.
 func (m *MME) releaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Cause) {
 	// The idempotency check is atomic: a NAS guard timeout and an eNB-initiated
-	// release request can race to release the same UE from different goroutines.
+	// release request can race to release the same UE from different goroutines. A
+	// Release Complete in the gap before the lock may already have freed the
+	// connection, which is itself a completed release.
 	m.mu.Lock()
-	if ue.s1.releasing {
+	if ue.s1 == nil || ue.s1.releasing {
 		m.mu.Unlock()
 		return
 	}

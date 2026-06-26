@@ -412,6 +412,17 @@ func (m *MME) handleHandoverNotify(ctx context.Context, conn nasWriter, value []
 	m.ensureDefaultPDN(ue, admitted)
 
 	m.mu.Lock()
+	if ue.handover != ho || ue.s1 == nil {
+		// A concurrent release (e.g. the source association dropping) tore the UE
+		// down during the unlocked user-plane switch above and cleared the handover;
+		// it is moot, so leave the UE released.
+		m.mu.Unlock()
+		logger.MmeLog.Warn("Handover Notify: UE released during the user-plane switch",
+			zap.Uint32("target-mme-ue-id", uint32(notify.MMEUES1APID)))
+
+		return
+	}
+
 	source := ho.source
 	ue.nh = ho.newNH
 	ue.ncc = ho.newNCC

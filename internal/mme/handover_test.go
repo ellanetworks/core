@@ -811,3 +811,56 @@ func TestHandoverTargetResetAborts(t *testing.T) {
 		t.Fatal("UE not left on its source after a reset on the target eNB")
 	}
 }
+
+// TestHandoverSourceConnLossReleasesTarget checks that aborting a prepared handover
+// by source-connection loss explicitly releases the target eNB, like the guard
+// timer, rather than leaving it to its own timeout.
+func TestHandoverSourceConnLossReleasesTarget(t *testing.T) {
+	m := newTestMME(t)
+	ue, source, target := handoverUE(t, m)
+
+	driveToPrepared(t, m, ue, source, target)
+	before := target.count()
+
+	m.reclaimUEsOnConnLoss(source)
+
+	if target.count() != before+1 {
+		t.Fatalf("target not released on source loss: count %d -> %d", before, target.count())
+	}
+
+	rel, ok := lastPDU(t, target).(*s1ap.InitiatingMessage)
+	if !ok || rel.ProcedureCode != s1ap.ProcUEContextRelease {
+		t.Fatalf("expected UE Context Release Command to target, got %T", lastPDU(t, target))
+	}
+
+	m.removeUe(ue) // stop the default-duration mobile reachable timer
+}
+
+// TestHandoverNotifyUEReleasedDuringSwitch checks the notify commit is guarded
+// against a concurrent release during the unlocked user-plane switch: the UE is
+// not resurrected onto the target.
+func TestHandoverNotifyUEReleasedDuringSwitch(t *testing.T) {
+	m := newTestMME(t)
+	ue, source, target := handoverUE(t, m)
+
+	targetMME, targetENB := driveToPrepared(t, m, ue, source, target)
+
+	base := m.session.(*fakeSessionManager)
+	m.session = &hookSessionManager{fakeSessionManager: base, onModify: func() { m.freeS1Conn(ue) }}
+
+	notify := &s1ap.HandoverNotify{
+		MMEUES1APID: targetMME,
+		ENBUES1APID: targetENB,
+		EUTRANCGI:   s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1},
+		TAI:         s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
+	}
+	m.handleHandoverNotify(context.Background(), target, initiatingValue(t, mustMarshal(t, notify.Marshal)))
+
+	if ue.s1 != nil {
+		t.Fatal("released UE resurrected onto the target by Handover Notify")
+	}
+
+	if ue.handover != nil {
+		t.Fatal("handover not cleared after the UE was released mid-switch")
+	}
+}

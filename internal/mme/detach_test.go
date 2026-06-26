@@ -460,3 +460,13 @@ func TestDetachSubscriberIdleReleasesLocally(t *testing.T) {
 		t.Fatal("EPS session not released on subscriber deletion")
 	}
 }
+
+// TestReleaseUEContextIdleNoPanic checks releaseUEContext on a UE whose connection
+// was freed in the gap before it took the lock returns without dereferencing nil.
+func TestReleaseUEContextIdleNoPanic(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	m.freeS1Conn(ue)
+
+	m.releaseUEContext(context.Background(), ue, causeNASNormalRelease)
+}
