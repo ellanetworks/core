@@ -39,11 +39,14 @@ func (l *LMF) determineECIDLocation(supi etsi.SUPI) (*models.LocationResult, err
 	//    Cell ID with measurements left nil.
 	measurements := l.fetchECIDMeasurements(supi)
 
-	// 3. Build E-CID result with cell ID + measurements
+	// 3. Build E-CID result with cell ID + measurements. The result is only
+	//    labelled GADECID when the RAN actually supplied measurements; on
+	//    fallback it stays a plain Cell ID result so callers aren't told it is
+	//    an E-CID fix that carries no measurements.
 	result := computeCellIDLocation(supi, loc)
-	result.Shape = models.GADECID
 
 	if measurements != nil {
+		result.Shape = models.GADECID
 		result.RSRP = measurements.RSRP
 		result.RSRQ = measurements.RSRQ
 		result.TA = measurements.TA

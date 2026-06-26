@@ -11,15 +11,17 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/lmf"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
 
-// LocationRequest is the unified request body for all location operations.
+// LocationRequest is the unified request body for all location operations. The
+// serving AMF identifier is not accepted from clients; it is resolved from the
+// stored operator configuration.
 type LocationRequest struct {
 	SUPI              string `json:"supi"`
-	AMFID             string `json:"amf_id"`
 	RequestType       string `json:"request_type"`
 	Method            string `json:"method"`
 	SessionID         string `json:"session_id"`
@@ -64,7 +66,12 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 			}
 
 			if err := lmfInstance.SessionManager().CancelSession(r.Context(), req.SessionID); err != nil {
-				writeError(r.Context(), w, http.StatusNotFound, "Session not found", err, logger.APILog)
+				if errors.Is(err, db.ErrNotFound) {
+					writeError(r.Context(), w, http.StatusNotFound, "Session not found", err, logger.APILog)
+				} else {
+					writeError(r.Context(), w, http.StatusInternalServerError, "Failed to cancel session", err, logger.APILog)
+				}
+
 				return
 			}
 
@@ -117,11 +124,6 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 			}
 		}
 
-		if req.AMFID == "" {
-			writeError(r.Context(), w, http.StatusBadRequest, "amf_id is required", nil, logger.APILog)
-			return
-		}
-
 		supi, err := etsi.NewSUPIFromPrefixed(req.SUPI)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid SUPI", err, logger.APILog)
@@ -133,6 +135,15 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 			method = lmf.DefaultMethodForRequest(lmf.RequestType(req.RequestType))
 		}
 
+		// The serving AMF identifier is derived from operator config, not the
+		// request. A-GNSS resolves it inside the engine; the session-creating
+		// paths below stamp it on the session here.
+		amfID, err := lmfInstance.AMFID(r.Context())
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to resolve AMF identity", err, logger.APILog)
+			return
+		}
+
 		// For methods that require LPP/NRPPa exchange (ECID, A-GNSS), create a
 		// session and run the positioning procedure synchronously. The handler
 		// completes the session after the procedure returns.
@@ -140,7 +151,7 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 		case lmf.MethodECID:
 			sessionID, err := lmfInstance.SessionManager().CreateSession(r.Context(), lmf.CreateSessionParams{
 				SUPI:              req.SUPI,
-				AMFID:             req.AMFID,
+				AMFID:             amfID,
 				RequestType:       lmf.RequestType(req.RequestType),
 				Method:            method,
 				QoSResponseTimeMs: req.QoSResponseTimeMs,
@@ -207,7 +218,7 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 		// just create the session and return the ID.
 		sessionID, err := lmfInstance.SessionManager().CreateSession(r.Context(), lmf.CreateSessionParams{
 			SUPI:              req.SUPI,
-			AMFID:             req.AMFID,
+			AMFID:             amfID,
 			RequestType:       lmf.RequestType(req.RequestType),
 			Method:            method,
 			QoSResponseTimeMs: req.QoSResponseTimeMs,

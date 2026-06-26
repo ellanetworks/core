@@ -5,6 +5,7 @@ package lmf
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -16,6 +17,18 @@ import (
 	coremodels "github.com/ellanetworks/core/internal/models"
 	"go.uber.org/zap"
 )
+
+// terminalWriteTimeout bounds the database writes that record a session's
+// terminal state (completed/failed/cancelled).
+const terminalWriteTimeout = 5 * time.Second
+
+// persistCtx derives a context for terminal session-state writes that is not
+// bound to the positioning deadline. Otherwise the positioning timeout would
+// cancel the very write that records the timeout, leaving the session stuck in
+// "active" (TS-irrelevant data-integrity bug observed in the field).
+func persistCtx(parent context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(parent), terminalWriteTimeout)
+}
 
 var ErrNotFound = errors.New("UE not found or not registered")
 
@@ -77,9 +90,15 @@ func (l *LMF) determineAGNSSLocation(supi etsi.SUPI, method PositioningMethod) (
 		zap.String("method", string(method)),
 	)
 
+	amfID, err := l.AMFID(ctx)
+	if err != nil {
+		return nil, "", fmt.Errorf("resolve AMF identity: %w", err)
+	}
+
 	// Create LPP session
 	session, err := l.sessionMgr.CreateLPPSession(ctx, CreateSessionParams{
 		SUPI:              supi.String(),
+		AMFID:             amfID,
 		Method:            method,
 		QoSResponseTimeMs: nil,
 		QOSHAccuracyM:     nil,
@@ -88,19 +107,36 @@ func (l *LMF) determineAGNSSLocation(supi etsi.SUPI, method PositioningMethod) (
 		return nil, "", fmt.Errorf("create LPP session: %w", err)
 	}
 
-	// Wire transport functions
+	// Wire transport functions. Terminal state writes use persistCtx so the
+	// positioning timeout can't cancel the write that records it.
 	session.SetTransport(
 		func(lppMsg []byte) error {
+			logger.LmfLog.Debug("forwarding LPP to UE",
+				zap.String("supi", supi.String()),
+				zap.String("session_id", session.SessionID()),
+				zap.Int("len", len(lppMsg)),
+				zap.String("lpp_hex", hex.EncodeToString(lppMsg)),
+			)
+
 			return l.lppHandler.ForwardLPPToUE(ctx, supi.String(), lppMsg)
 		},
 		func(result *models.LocationResult) error {
-			return l.sessionMgr.CompleteSession(ctx, session.SessionID(), result)
+			pctx, done := persistCtx(ctx)
+			defer done()
+
+			return l.sessionMgr.CompleteSession(pctx, session.SessionID(), result)
 		},
 		func() error {
-			return l.sessionMgr.FailSession(ctx, session.SessionID())
+			pctx, done := persistCtx(ctx)
+			defer done()
+
+			return l.sessionMgr.FailSession(pctx, session.SessionID())
 		},
 		func() error {
-			return l.sessionMgr.CancelSession(ctx, session.SessionID())
+			pctx, done := persistCtx(ctx)
+			defer done()
+
+			return l.sessionMgr.CancelSession(pctx, session.SessionID())
 		},
 		func() {
 			l.DeregisterLPPSession(session.SessionID())

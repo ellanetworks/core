@@ -209,12 +209,24 @@ func (db *Database) UpdatePositioningSessionStatus(ctx context.Context, id strin
 
 	filter := PositioningSession{ID: id, Status: status, LastResult: result, UpdatedAt: now}
 
-	err := db.conn().Query(ctx, db.updatePositioningSessionStmt, filter).Run()
+	var outcome sqlair.Outcome
+
+	err := db.conn().Query(ctx, db.updatePositioningSessionStmt, filter).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
 		return fmt.Errorf("query failed: %w", err)
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		span.SetStatus(codes.Error, "not found")
+		return ErrNotFound
 	}
 
 	span.SetStatus(codes.Ok, "")

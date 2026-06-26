@@ -96,10 +96,22 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 	return measID, nil
 }
 
-// WaitForMeasurements blocks until an NRPPa E-CIDMeasurementInitiationResponse
-// matching measurementID arrives for the UE (received at or after notBefore),
-// or ctx is cancelled/times out. On success it maps the E-CID measurement
-// result to radio measurements, caches them in the UE context, and returns them.
+// MeasurementRejectedError reports that the RAN answered the E-CID measurement
+// request with an E-CIDMeasurementInitiationFailure rather than a response. It
+// carries the NRPPa cause so callers can log why E-CID was declined.
+type MeasurementRejectedError struct {
+	Cause nrppa.Cause
+}
+
+func (e *MeasurementRejectedError) Error() string {
+	return fmt.Sprintf("RAN rejected E-CID measurement: %s", e.Cause)
+}
+
+// WaitForMeasurements blocks until the RAN answers the E-CID request for the UE
+// (matching measurementID, received at or after notBefore): a response yields
+// the mapped radio measurements (cached in the UE context), a failure yields a
+// MeasurementRejectedError carrying the cause. It returns a timeout error if
+// neither arrives before ctx is cancelled.
 func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measurementID int64, notBefore time.Time) (*amf.RadioMeasurements, error) {
 	ue, ok := c.amf.FindAMFUEBySupi(supi)
 	if !ok {
@@ -110,9 +122,14 @@ func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measur
 	defer ticker.Stop()
 
 	for {
-		if m := matchMeasurementResponse(ue.GetNRPPaMessages(), measurementID, notBefore); m != nil {
+		m, cause := scanMeasurementOutcome(ue.GetNRPPaMessages(), measurementID, notBefore)
+		if m != nil {
 			ue.SetRadioMeasurements(m)
 			return m, nil
+		}
+
+		if cause != nil {
+			return nil, &MeasurementRejectedError{Cause: *cause}
 		}
 
 		select {
@@ -127,10 +144,11 @@ func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measur
 // context for a matching NRPPa response.
 const measurementPollInterval = 50 * time.Millisecond
 
-// matchMeasurementResponse scans NRPPa messages (newest first) for an
-// E-CIDMeasurementInitiationResponse matching measurementID and received at or
-// after notBefore, returning the mapped radio measurements or nil if none match.
-func matchMeasurementResponse(messages []amf.NRPPaMessage, measurementID int64, notBefore time.Time) *amf.RadioMeasurements {
+// scanMeasurementOutcome scans NRPPa messages (newest first) for the RAN's
+// answer to the E-CID request identified by measurementID and received at or
+// after notBefore. It returns the mapped measurements for a response, or the
+// cause for a failure; both nil means no matching message yet.
+func scanMeasurementOutcome(messages []amf.NRPPaMessage, measurementID int64, notBefore time.Time) (*amf.RadioMeasurements, *nrppa.Cause) {
 	for i := len(messages) - 1; i >= 0; i-- {
 		msg := messages[i]
 		if msg.Timestamp.Before(notBefore) {
@@ -139,21 +157,24 @@ func matchMeasurementResponse(messages []amf.NRPPaMessage, measurementID int64, 
 
 		parsed, err := nrppa.ParsePDU(msg.Payload)
 		if err != nil {
+			logger.LmfLog.Debug("skipping undecodable NRPPa message", zap.Error(err))
 			continue
 		}
 
-		if parsed.Kind != nrppa.KindECIDMeasurementInitiationResponse || parsed.Response == nil {
-			continue
+		switch parsed.Kind {
+		case nrppa.KindECIDMeasurementInitiationResponse:
+			if parsed.Response != nil && parsed.Response.LMFUEMeasurementID == measurementID {
+				return mapECIDResult(parsed.Response.Result), nil
+			}
+		case nrppa.KindECIDMeasurementInitiationFailure:
+			if parsed.Failure != nil && parsed.Failure.LMFUEMeasurementID == measurementID {
+				cause := parsed.Failure.Cause
+				return nil, &cause
+			}
 		}
-
-		if parsed.Response.LMFUEMeasurementID != measurementID {
-			continue
-		}
-
-		return mapECIDResult(parsed.Response.Result)
 	}
 
-	return nil
+	return nil, nil
 }
 
 // mapECIDResult converts a decoded E-CID measurement result into the AMF radio

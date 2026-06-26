@@ -56,6 +56,22 @@ func (l *LMF) SessionManager() *SessionManager {
 	return l.sessionMgr
 }
 
+// AMFID returns this core's 24-bit AMF Identifier (TS 23.003 §2.10.1), derived
+// from the stored operator configuration. Positioning sessions are stamped with
+// it; it is not supplied by API clients.
+func (l *LMF) AMFID(ctx context.Context) (string, error) {
+	info, err := l.amf.GetOperatorInfo(ctx)
+	if err != nil {
+		return "", fmt.Errorf("get AMF identity: %w", err)
+	}
+
+	if info.Guami == nil {
+		return "", fmt.Errorf("AMF GUAMI not configured")
+	}
+
+	return info.Guami.AmfID, nil
+}
+
 // ForwardLPPToLMF is a helper that forwards an LPP payload from the AMF to the LMF
 // for processing. Called by AMF when an UL NAS Transport carries LPP.
 func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, lppData []byte) error {

@@ -5,6 +5,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -112,7 +113,12 @@ func CancelSession(lmfInst *lmf.LMF) http.Handler {
 		id := r.PathValue("id")
 
 		if err := lmfInst.SessionManager().CancelSession(r.Context(), id); err != nil {
-			writeError(r.Context(), w, http.StatusNotFound, "Session not found", err, logger.APILog)
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "Session not found", err, logger.APILog)
+			} else {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to cancel session", err, logger.APILog)
+			}
+
 			return
 		}
 

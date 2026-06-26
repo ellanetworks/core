@@ -18,6 +18,8 @@
 package nrppa
 
 import (
+	"fmt"
+
 	"github.com/ellanetworks/core/internal/nrppa/nrppatype"
 	"github.com/free5gc/aper"
 )
@@ -82,6 +84,37 @@ const (
 type Cause struct {
 	Group CauseGroup
 	Value int64 // ENUMERATED ordinal within the group (n/a for choice-Extension)
+}
+
+// String renders the cause as "group/value" with the well-known radioNetwork
+// ordinals named (TS 38.455 §9.2.1), so operators can read why the RAN rejected
+// a measurement request without consulting the spec.
+func (c Cause) String() string {
+	switch c.Group {
+	case CauseGroupRadioNetwork:
+		switch c.Value {
+		case 0:
+			return "radioNetwork/unspecified"
+		case 1:
+			return "radioNetwork/requested-item-not-supported"
+		case 2:
+			return "radioNetwork/requested-item-temporarily-not-available"
+		case 3:
+			return "radioNetwork/serving-NG-RAN-node-changed"
+		case 4:
+			return "radioNetwork/requested-item-not-supported-on-time"
+		default:
+			return fmt.Sprintf("radioNetwork/%d", c.Value)
+		}
+	case CauseGroupProtocol:
+		return fmt.Sprintf("protocol/%d", c.Value)
+	case CauseGroupMisc:
+		return fmt.Sprintf("misc/%d", c.Value)
+	case CauseGroupChoiceExtension:
+		return "choiceExtension"
+	default:
+		return fmt.Sprintf("group%d/%d", c.Group, c.Value)
+	}
 }
 
 // APPosition is a decoded NG-RANAccessPointPosition (TS 38.455 §9.2.2 / TS
