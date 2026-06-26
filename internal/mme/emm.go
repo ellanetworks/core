@@ -358,36 +358,25 @@ func (m *MME) reuseContextForGUTIAttach(ctx context.Context, ue *UeContext, nas,
 	// Verify the Attach MAC against the held context's expected uplink NAS COUNT
 	// (TS 24.301): a replayed or stale Attach fails the check, so only the genuine
 	// holder of the context reuses it.
-	recvSeq := nas[5]
-
-	overflow := uint16(existing.ulCount >> 8)
-	if recvSeq < uint8(existing.ulCount) {
-		overflow++
-	}
-
-	count := nascommon.NASCount(overflow, recvSeq)
-
-	if _, err := eps.Unprotect(nas, count, nascommon.DirectionUplink,
-		existing.knasInt, existing.knasEnc, integrityAlg(existing.eia), cipherAlg(existing.eea)); err != nil {
+	_, count, ok := m.unprotectUplink(existing, nas)
+	if !ok {
 		return false
 	}
 
+	// Authentic returning UE: reuse the held EPS security context in place. The
+	// connection is rebound onto it and its NAS COUNTs continue (a native context is
+	// reused, not re-derived, so the counts are never reset — TS 24.301 §4.4.3,
+	// §5.4.3.3). Authentication and the security mode procedure are skipped; the
+	// Attach Accept rides the reused context at the continued counts, mirroring the
+	// 5G AMF and the EPS spec's native-context reuse.
+	m.adoptConn(existing, ue)
 	existing.ulCount = count + 1
 
-	// Authentic returning UE: carry over the EPS security context and identity,
-	// drop the superseded registration, and run the security mode procedure with
-	// the reused K_ASME — skipping the authentication round-trip and HSS vector.
-	m.setIMSI(ue, existing.imsi)
-	ue.imei = existing.imei
-	ue.kasme = existing.kasme
-
-	m.removeUe(existing)
-
 	logger.MmeLog.Info("Attach with valid native GUTI: reusing security context, skipping authentication",
-		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi))
+		zap.Uint32("mme-ue-id", uint32(existing.s1.MMEUES1APID)), zap.String("imsi", existing.imsi))
 
-	m.ingestAttachRequest(ue, req)
-	m.startSecurityMode(ctx, ue)
+	m.ingestAttachRequest(existing, req)
+	m.activateDefaultBearer(ctx, existing)
 
 	return true
 }

@@ -440,3 +440,23 @@ func TestUEContextReleaseRequestFromForeignENB(t *testing.T) {
 		t.Fatalf("expected cause unknown-mme-ue-s1ap-id, got %v", ind.Cause)
 	}
 }
+
+// TestDetachSubscriberIdleReleasesLocally checks that deleting a subscriber whose
+// UE is in ECM-IDLE releases its sessions and removes the context locally, without
+// dereferencing the freed S1 connection.
+func TestDetachSubscriberIdleReleasesLocally(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	testPDN(ue).apn = "internet"
+	m.freeS1Conn(ue) // ECM-IDLE: no S1 connection
+
+	m.DetachSubscriber(context.Background(), ue.imsi)
+
+	if _, ok := m.lookupUeByIMSI(ue.imsi); ok {
+		t.Fatal("idle UE context not removed on subscriber deletion")
+	}
+
+	if !m.session.(*fakeSessionManager).released {
+		t.Fatal("EPS session not released on subscriber deletion")
+	}
+}

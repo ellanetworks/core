@@ -614,6 +614,11 @@ func (m *MME) clearHandover(ue *UeContext) {
 func (m *MME) onHandoverGuardExpiry(ue *UeContext, gen uint64) {
 	m.mu.Lock()
 
+	if ue.s1 == nil {
+		m.mu.Unlock()
+		return
+	}
+
 	ho := ue.s1.handover
 	if ho == nil || ue.s1.handoverGen != gen || ho.state == hoCommitting {
 		m.mu.Unlock()
@@ -633,16 +638,6 @@ func (m *MME) onHandoverGuardExpiry(ue *UeContext, gen uint64) {
 	if prepared && target != nil {
 		m.releaseHandoverTarget(context.Background(), target, mmeUEID, targetENBUEID)
 	}
-}
-
-// handoverInProgress reports whether the UE has an in-flight S1 handover, so the
-// data-network reconciler defers E-RAB management during the handover window
-// (TS 36.413 §8.4.1.2).
-func (m *MME) handoverInProgress(ue *UeContext) bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	return ue.s1.handover != nil
 }
 
 // abortHandoversOnConnLoss clears any in-flight handover that referenced a dropped

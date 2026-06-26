@@ -45,14 +45,17 @@ func (m *MME) ReconcileDataNetwork(ctx context.Context) {
 // is signalled; an idle UE is signalled when it returns to ECM-CONNECTED
 // (reconcileBearer on the ICS Response) or by the next backstop sweep.
 func (m *MME) reconcileUE(ctx context.Context, ue *UeContext) {
-	if ue.emmState.load() != EMMRegistered || !ue.connected() {
-		return
-	}
+	// Read the connection state under the lock: ue.s1 is freed concurrently by a
+	// release goroutine. Reconciliation is deferred while an S1 handover is in
+	// flight, as an E-RAB Modify or Release would collide with the handover's
+	// bearer signalling (TS 36.413 §8.4.1.2); the next sweep re-converges the UE.
+	m.mu.RLock()
 
-	// Defer reconciliation while an S1 handover is in flight: an E-RAB Modify or
-	// Release would collide with the handover's bearer signalling (TS 36.413
-	// §8.4.1.2). The next sweep re-converges the UE once the handover clears.
-	if m.handoverInProgress(ue) {
+	ready := ue.emmState.load() == EMMRegistered && ue.s1 != nil && ue.s1.handover == nil
+
+	m.mu.RUnlock()
+
+	if !ready {
 		return
 	}
 

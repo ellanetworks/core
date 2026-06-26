@@ -489,6 +489,28 @@ func (m *MME) establishS1Connection(ue *UeContext, conn nasWriter, enbUEID s1ap.
 	m.conns[id] = c
 }
 
+// adoptConn moves the connection an Initial UE Message created onto a held
+// persistent context, superseding the transient context that first received it.
+// A returning UE whose native GUTI resolves to a held EPS security context reuses
+// that context whole — keys, algorithms, and NAS COUNTs continue in place — so its
+// connection, not its security state, is what is rebound (TS 24.301 §4.4.3,
+// §5.4.3.3). Any prior connection and idle supervision of the held context are
+// released first.
+func (m *MME) adoptConn(existing, transient *UeContext) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	c := transient.s1
+	transient.s1 = nil
+
+	m.stopIdleTimersLocked(existing)
+	m.stopPagingLocked(existing)
+	m.freeS1ConnLocked(existing)
+
+	existing.s1 = c
+	c.ue = existing
+}
+
 // freeS1ConnLocked releases the UE's current S1-connection (moving it to
 // ECM-IDLE) and stops the connection-scoped NAS-guard supervision. The
 // persistent context, its idle timers, and its registry indexes are left intact.
@@ -498,6 +520,9 @@ func (m *MME) freeS1ConnLocked(ue *UeContext) {
 		return
 	}
 
+	// Abort any in-flight handover so its guard timer does not outlive ue.s1 and
+	// fire on a freed connection.
+	m.clearHandoverLocked(ue)
 	m.stopNASGuardLocked(ue)
 	delete(m.conns, uint32(ue.s1.MMEUES1APID))
 	ue.s1 = nil

@@ -98,7 +98,7 @@ func plainAttachNAS(t *testing.T) []byte {
 }
 
 // TestDropStaleUe checks a re-attach reusing the same eNB UE id on the same
-// association drops the prior context rather than leaking it (TS 36.413).
+// association drops the prior context, so it is not leaked (TS 36.413).
 func TestDropStaleUe(t *testing.T) {
 	m := newTestMME(t)
 

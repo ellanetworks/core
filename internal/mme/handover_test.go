@@ -403,6 +403,31 @@ func TestHandoverRefusedWhileKeyChainBusy(t *testing.T) {
 	}
 }
 
+// TestHandoverGuardSurvivesContextRelease checks that freeing a UE's connection
+// mid-handover (e.g. a re-attach or detach) stops the handover guard timer, so its
+// later expiry does not dereference the freed connection.
+func TestHandoverGuardSurvivesContextRelease(t *testing.T) {
+	m := newTestMME(t)
+	ue, source, _ := handoverUE(t, m)
+
+	m.handleHandoverRequired(context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
+
+	if ue.s1.handover == nil {
+		t.Fatal("handover did not start")
+	}
+
+	gen := ue.s1.handoverGen
+
+	m.freeS1Conn(ue)
+
+	if ue.s1 != nil {
+		t.Fatal("UE not idle after release")
+	}
+
+	// The orphaned guard timer firing must not panic on the freed connection.
+	m.onHandoverGuardExpiry(ue, gen)
+}
+
 // TestHandoverFailureFailsToSource checks a HANDOVER FAILURE from the target ends
 // the handover with a HANDOVER PREPARATION FAILURE to the source, the UE intact.
 func TestHandoverFailureFailsToSource(t *testing.T) {

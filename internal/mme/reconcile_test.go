@@ -511,3 +511,14 @@ func TestModifyBearerAcceptCommitsConfig(t *testing.T) {
 		t.Fatalf("modification accept must not trigger downlink S1AP, got %d", len(cc.sent))
 	}
 }
+
+// TestReconcileUEIdleNoPanic checks reconciling a UE that has moved to ECM-IDLE
+// returns without dereferencing the freed S1 connection.
+func TestReconcileUEIdleNoPanic(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	testPDN(ue).apn = "internet"
+	m.freeS1Conn(ue)
+
+	m.reconcileUE(context.Background(), ue)
+}

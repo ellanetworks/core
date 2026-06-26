@@ -201,7 +201,7 @@ func nativeGUTIAttach(t *testing.T, m *MME, ue *UeContext) []byte {
 func TestAttachReusesContextForNativeGUTI(t *testing.T) {
 	m := newTestMME(t)
 	existing, _ := securedUE(t, m)
-	oldID := existing.s1.MMEUES1APID
+	existing.dlCount = 7 // a live downlink chain that reuse must continue, not reset
 
 	wire := nativeGUTIAttach(t, m, existing)
 
@@ -209,21 +209,43 @@ func TestAttachReusesContextForNativeGUTI(t *testing.T) {
 	fresh := m.newUe(cc, 9)
 	m.handleNAS(context.Background(), fresh, wire)
 
-	if fresh.authVector != nil {
+	// The held context is reused in place — the connection is rebound onto it and
+	// the transient context the Initial UE Message created is discarded.
+	if got, ok := m.lookupUeByIMSI(existing.imsi); !ok || got != existing {
+		t.Fatal("held context not reused in place")
+	}
+
+	if fresh.s1 != nil {
+		t.Fatal("transient context not discarded after context reuse")
+	}
+
+	if existing.s1 == nil || existing.s1.conn != cc {
+		t.Fatal("held context not rebound to the returning UE's connection")
+	}
+
+	// Authentication is skipped on a valid native GUTI.
+	if existing.authVector != nil {
 		t.Fatal("authentication was not skipped on a valid native GUTI")
 	}
 
-	if fresh.imsi != existing.imsi || len(fresh.kasme) == 0 {
-		t.Fatalf("security context not reused: imsi=%q kasme=%d bytes", fresh.imsi, len(fresh.kasme))
+	// NAS COUNTs continue (TS 24.301 §4.4.3, §5.4.3.3): a native context is reused,
+	// not re-derived, so the counts are never reset to zero — reusing them with the
+	// same keys would be a keystream reuse.
+	if existing.ulCount != 1 {
+		t.Fatalf("uplink NAS COUNT = %d, want 1 (continued past the Attach)", existing.ulCount)
 	}
 
-	if _, ok := m.lookupUe(oldID); ok {
-		t.Fatal("superseded registration was not removed")
+	if existing.dlCount < 7 {
+		t.Fatalf("downlink NAS COUNT reset to %d on context reuse (keystream reuse)", existing.dlCount)
 	}
 
+	// The security mode procedure is skipped: the only downlink is the Initial
+	// Context Setup carrying the Attach Accept, not a Security Mode Command.
 	if cc.count() != 1 {
-		t.Fatalf("expected one downlink (Security Mode Command), got %d", cc.count())
+		t.Fatalf("expected one downlink (Initial Context Setup), got %d", cc.count())
 	}
+
+	parseInitialContextSetup(t, cc.sent[0])
 }
 
 // TestAttachNativeGUTIBadMACFallsBackToAuth checks that when the Attach does not
