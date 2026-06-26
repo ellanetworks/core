@@ -121,9 +121,14 @@ func runS1ENBHandover(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("handover request carried %d E-RABs, want 1", len(hoReq.ERABToBeSetup))
 	}
 
+	// The MME assigns the target its own MME-UE-S1AP-ID (TS 36.413 §9.1.5.6),
+	// distinct from the source's; the target eNB echoes that one — not the source's
+	// — on the acknowledge and notify.
+	targetMMEUEID := int64(hoReq.MMEUES1APID)
+
 	targetENBUEID := target.AllocateENBUEID()
 
-	dlTEID, err := target.SendHandoverRequestAcknowledge(targetENBUEID, res.MMEUES1APID, res.ERABID)
+	dlTEID, err := target.SendHandoverRequestAcknowledge(targetENBUEID, targetMMEUEID, res.ERABID)
 	if err != nil {
 		return fmt.Errorf("send Handover Request Acknowledge: %w", err)
 	}
@@ -145,7 +150,7 @@ func runS1ENBHandover(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("ping during handover preparation via source eNB (UPF switched too early?): %w", err)
 	}
 
-	if err := target.SendHandoverNotify(targetENBUEID, res.MMEUES1APID); err != nil {
+	if err := target.SendHandoverNotify(targetENBUEID, targetMMEUEID); err != nil {
 		return fmt.Errorf("send Handover Notify: %w", err)
 	}
 
