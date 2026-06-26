@@ -786,3 +786,28 @@ func TestHandoverSourceConnLossReclaims(t *testing.T) {
 
 	m.removeUe(ue) // stop the default-duration mobile reachable timer
 }
+
+// TestHandoverTargetResetAborts checks that an S1 Reset on the target eNB
+// mid-handover aborts the handover (the UE stays on its source) rather than
+// reclaiming the UE active on the source.
+func TestHandoverTargetResetAborts(t *testing.T) {
+	m := newTestMME(t)
+	ue, source, target := handoverUE(t, m)
+
+	targetMME, _ := driveToPrepared(t, m, ue, source, target)
+
+	cause := s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}
+	m.handleReset(target, resetValue(t, &s1ap.Reset{Cause: cause, ResetType: s1ap.ResetType{All: true}}))
+
+	if ue.handover != nil {
+		t.Fatal("handover not aborted by a reset on the target eNB")
+	}
+
+	if _, ok := m.lookupUe(targetMME); ok {
+		t.Fatal("target connection not removed by the target reset")
+	}
+
+	if ue.s1 == nil || ue.s1.conn != source {
+		t.Fatal("UE not left on its source after a reset on the target eNB")
+	}
+}

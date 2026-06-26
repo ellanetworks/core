@@ -208,28 +208,28 @@ func (m *MME) removeENB(conn *sctp.SCTPConn) {
 
 // reclaimUEsOnConnLoss handles the connections of an eNB whose SCTP association
 // dropped without a graceful S1 release, so no UE Context Release Complete will
-// arrive for them. A UE whose active connection dropped is reclaimed (ECM-IDLE or,
-// if mid-attach, dropped); a handover target connection that dropped aborts the
-// handover, leaving the UE on its surviving source; a detached or bare connection
-// is removed. Idle UEs are left alone — they run conn-independent supervision.
+// arrive for them. Idle UEs are left alone — they run conn-independent supervision.
 func (m *MME) reclaimUEsOnConnLoss(conn nasWriter) {
+	m.reclaimConns(m.connsOnConn(conn), "eNB disconnect")
+}
+
+// reclaimConns reclaims a set of UE-associated connections an eNB no longer holds
+// (an SCTP drop or an S1 Reset). A UE's active connection moves the UE to ECM-IDLE
+// (or, mid-attach, drops it); a handover target connection aborts the handover,
+// leaving the UE on its surviving source; a detached or bare connection is removed.
+// trigger names the cause for the event log.
+func (m *MME) reclaimConns(conns []*s1Conn, trigger string) {
 	m.mu.Lock()
 
 	var (
-		orphaned    []*UeContext
-		abortTarget []*UeContext
-		dropConns   []uint32
-		seen        = map[*UeContext]struct{}{}
+		orphaned []*UeContext
+		seen     = map[*UeContext]struct{}{}
 	)
 
-	for id, c := range m.conns {
-		if c.conn != conn {
-			continue
-		}
-
+	for _, c := range conns {
 		ue := c.ue
 		if ue == nil {
-			dropConns = append(dropConns, id)
+			delete(m.conns, uint32(c.MMEUES1APID))
 			continue
 		}
 
@@ -239,25 +239,21 @@ func (m *MME) reclaimUEsOnConnLoss(conn nasWriter) {
 
 		seen[ue] = struct{}{}
 
-		if c == ue.s1 {
+		switch {
+		case c == ue.s1:
 			orphaned = append(orphaned, ue)
-		} else {
-			abortTarget = append(abortTarget, ue)
+		case ue.handover != nil && ue.handover.target == c:
+			m.clearHandoverLocked(ue) // a handover target: abort, leaving the UE on its source
+		default:
+			c.ue = nil
+			delete(m.conns, uint32(c.MMEUES1APID))
 		}
-	}
-
-	for _, id := range dropConns {
-		delete(m.conns, id)
-	}
-
-	for _, ue := range abortTarget {
-		m.clearHandoverLocked(ue) // drops the target connection, leaving the UE on its source
 	}
 
 	m.mu.Unlock()
 
 	for _, ue := range orphaned {
-		m.releaseUEContextLocally(ue, "eNB disconnect")
+		m.releaseUEContextLocally(ue, trigger)
 	}
 }
 

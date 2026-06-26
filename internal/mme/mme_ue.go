@@ -569,7 +569,7 @@ func (m *MME) dropStaleUe(conn nasWriter, enbUEID s1ap.ENBUES1APID) {
 	var stale []*UeContext
 
 	for _, c := range m.conns {
-		if c.ue != nil && c.conn == conn && c.ENBUES1APID == enbUEID {
+		if c.ue != nil && c.ue.s1 == c && c.conn == conn && c.ENBUES1APID == enbUEID {
 			stale = append(stale, c.ue)
 		}
 	}
