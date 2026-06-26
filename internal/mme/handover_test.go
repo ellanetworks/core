@@ -348,6 +348,61 @@ func TestHandoverConcurrentRefused(t *testing.T) {
 	}
 }
 
+// TestPathSwitchRefusedDuringHandover checks a Path Switch is refused while an S1
+// handover is advancing the key chain, so the two cannot derive a fresh NH from
+// the same base for different targets (TS 33.401 §7.2.8).
+func TestPathSwitchRefusedDuringHandover(t *testing.T) {
+	m := newTestMME(t)
+	ue, source, _ := handoverUE(t, m)
+
+	m.handleHandoverRequired(context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
+
+	if ue.s1.handover == nil {
+		t.Fatal("handover did not start")
+	}
+
+	ncc, nh, conn := ue.ncc, ue.nh, ue.s1.conn
+
+	target := &captureConn{}
+	m.handlePathSwitchRequest(context.Background(), target, pathSwitchValue(t, samplePathSwitchRequest(ue)))
+
+	if target.count() != 1 {
+		t.Fatalf("expected one downlink (Path Switch Failure), got %d", target.count())
+	}
+
+	parsePathSwitchFailure(t, target.sent[0])
+
+	if ue.ncc != ncc || ue.nh != nh || ue.s1.conn != conn {
+		t.Fatal("Path Switch advanced the key chain or moved the association during a handover")
+	}
+}
+
+// TestHandoverRefusedWhileKeyChainBusy checks an S1 handover is refused while a
+// Path Switch holds the key chain — the symmetric guard of the shared marker.
+func TestHandoverRefusedWhileKeyChainBusy(t *testing.T) {
+	m := newTestMME(t)
+	ue, source, target := handoverUE(t, m)
+
+	m.mu.Lock()
+	ue.keyChainBusy = true // a Path Switch is mid-advance
+	m.mu.Unlock()
+
+	m.handleHandoverRequired(context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
+
+	if ue.s1.handover != nil {
+		t.Fatal("handover started while the key chain was busy")
+	}
+
+	if target.count() != 0 {
+		t.Fatalf("handover sent a HANDOVER REQUEST while the key chain was busy: %d", target.count())
+	}
+
+	uo, ok := lastPDU(t, source).(*s1ap.UnsuccessfulOutcome)
+	if !ok || uo.ProcedureCode != s1ap.ProcHandoverPreparation {
+		t.Fatalf("expected HANDOVER PREPARATION FAILURE to source, got %T", lastPDU(t, source))
+	}
+}
+
 // TestHandoverFailureFailsToSource checks a HANDOVER FAILURE from the target ends
 // the handover with a HANDOVER PREPARATION FAILURE to the source, the UE intact.
 func TestHandoverFailureFailsToSource(t *testing.T) {

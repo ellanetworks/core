@@ -81,10 +81,10 @@ func (m *MME) onServiceRequest(ctx context.Context, conn nasWriter, msg *s1ap.In
 }
 
 // sendServiceReject sends a SERVICE REJECT with cause #9 (TS 24.301 §5.6.1.5)
-// over a transient context, so a rejected request never touches a resolved UE.
+// over a bare connection, so a rejected request never touches a resolved UE.
 func (m *MME) sendServiceReject(ctx context.Context, conn nasWriter, enbUEID s1ap.ENBUES1APID) {
-	ue := m.newUe(conn, enbUEID)
-	defer m.removeUe(ue)
+	c := m.newConn(conn, enbUEID)
+	defer m.releaseBareConn(c)
 
-	m.sendDownlinkMessage(ctx, ue, &eps.ServiceReject{Cause: emmCauseUEIdentityUnderivable})
+	m.sendOverConn(ctx, c, &eps.ServiceReject{Cause: emmCauseUEIdentityUnderivable})
 }

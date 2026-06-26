@@ -62,20 +62,29 @@ func (m *MME) handlePathSwitchRequest(ctx context.Context, conn nasWriter, value
 		return
 	}
 
-	// Snapshot the {NH, NCC} chain base under the lock — refusing if an S1 handover
-	// is concurrently advancing it, which would derive the same NH for two targets.
+	// Claim the {NH, NCC} chain under the lock — refusing if a Path Switch or S1
+	// handover is concurrently advancing it, which would derive the same NH for two
+	// targets. The claim is held until commit so a handover cannot start in the
+	// unlocked derive/switch window below.
 	m.mu.Lock()
-	if ue.s1.handover != nil {
+	if ue.keyChainBusy {
 		m.mu.Unlock()
-		logger.MmeLog.Warn("Path Switch Request while a handover is in progress",
+		logger.MmeLog.Warn("Path Switch Request while the key chain is being advanced",
 			zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)))
 		m.sendPathSwitchFailure(conn, req, causePathSwitchUPFailure)
 
 		return
 	}
 
+	ue.keyChainBusy = true
 	curNH, curNCC := ue.nh, ue.ncc
 	m.mu.Unlock()
+
+	defer func() {
+		m.mu.Lock()
+		ue.keyChainBusy = false
+		m.mu.Unlock()
+	}()
 
 	// Compute the next NH before any user-plane change so a derivation error leaves
 	// the UE on the source eNB cleanly; the chain is committed only after at least

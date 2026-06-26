@@ -131,9 +131,9 @@ func (m *MME) handleHandoverRequired(ctx context.Context, conn nasWriter, value 
 	// The {NH, NCC} chain is read and advanced under the lock so it cannot race the
 	// commit at notify; it is committed to the UE only at notify (TS 33.401 §7.2.8).
 	m.mu.Lock()
-	if ue.s1.handover != nil {
+	if ue.keyChainBusy {
 		m.mu.Unlock()
-		logger.MmeLog.Warn("Handover Required while a handover is already in progress",
+		logger.MmeLog.Warn("Handover Required while the key chain is being advanced",
 			zap.Uint32("mme-ue-id", uint32(req.MMEUES1APID)))
 		m.sendHandoverPreparationFailure(ctx, conn, req.MMEUES1APID, req.ENBUES1APID, causeHandoverPrepUnspecific)
 
@@ -162,6 +162,7 @@ func (m *MME) handleHandoverRequired(ctx context.Context, conn nasWriter, value 
 	}
 	ho.guardTimer = time.AfterFunc(m.handoverGuardTimeout, func() { m.onHandoverGuardExpiry(ue, gen) })
 	ue.s1.handover = ho
+	ue.keyChainBusy = true
 	mmeUEID := ue.s1.MMEUES1APID
 	m.mu.Unlock()
 
@@ -595,6 +596,7 @@ func (m *MME) clearHandoverLocked(ue *UeContext) {
 
 	ue.s1.handover = nil
 	ue.s1.handoverGen++
+	ue.keyChainBusy = false
 }
 
 // clearHandover drops the UE's in-flight handover context under MME.mu.

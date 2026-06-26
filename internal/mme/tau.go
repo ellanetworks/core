@@ -247,18 +247,3 @@ func (m *MME) protectDownlinkBytes(ue *UeContext, plain []byte) ([]byte, error) 
 
 	return wire, nil
 }
-
-// rejectTrackingAreaUpdate rejects a TRACKING AREA UPDATE REQUEST the MME cannot
-// verify (no security context, e.g. after an MME restart, TS 24.301) with EMM
-// cause #9 "UE identity cannot be derived by the network". The UE accepts the
-// reject without integrity protection and re-attaches. The reject is sent on the
-// transient context, which is then discarded.
-func (m *MME) rejectTrackingAreaUpdate(ctx context.Context, ue *UeContext) {
-	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
-
-	logger.MmeLog.Info("Tracking Area Update rejected; UE will re-attach",
-		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)))
-
-	m.sendDownlinkMessage(ctx, ue, &eps.TrackingAreaUpdateReject{Cause: emmCauseUEIdentityUnderivable})
-	m.removeUe(ue)
-}

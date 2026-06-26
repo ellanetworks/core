@@ -290,20 +290,20 @@ func TestTrackingAreaUpdateIdleActiveFlagReestablishes(t *testing.T) {
 	parseInitialContextSetup(t, cc.sent[0])
 }
 
-// TestTrackingAreaUpdateRecovery checks that an integrity-protected TRACKING
-// AREA UPDATE REQUEST the MME cannot verify (no security context, e.g. after an
-// MME restart, TS 24.301 §4.4.4.3) is answered with TAU REJECT #9 rather than
-// dropped, and that the transient UE context is discarded so the UE re-attaches.
+// TestTrackingAreaUpdateRecovery checks that an integrity-protected TRACKING AREA
+// UPDATE REQUEST arriving as an Initial UE Message that the MME cannot resolve (no
+// security context, e.g. after an MME restart, TS 24.301 §5.5.3.2.5) is answered
+// with TAU REJECT #9 over the bare connection rather than dropped, and that no UE
+// context or connection is left behind, so the UE re-attaches at once.
 func TestTrackingAreaUpdateRecovery(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.newUe(cc, 7)
 
 	// Security-protected NAS: SHT=integrity-protected | PD=EMM, a MAC the MME
 	// cannot reproduce (no context), sequence 1, and an inner plain TAU REQUEST.
 	nas := []byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x01, 0x07, byte(eps.MsgTrackingAreaUpdateRequest)}
 
-	m.handleNAS(context.Background(), ue, nas)
+	m.handleInitialUEMessage(context.Background(), cc, initiatingValue(t, initialUEMessagePDU(t, 7, nas)))
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one downlink (TAU Reject), got %d", len(cc.sent))
@@ -318,7 +318,7 @@ func TestTrackingAreaUpdateRecovery(t *testing.T) {
 		t.Fatalf("TAU Reject cause = %d, want %d", rej.Cause, emmCauseUEIdentityUnderivable)
 	}
 
-	if _, ok := m.lookupUeByIMSI(ue.imsi); ok {
-		t.Fatal("transient UE context was not discarded after the TAU Reject")
+	if len(m.conns) != 0 {
+		t.Fatalf("bare connection not released after the TAU Reject: %d remain", len(m.conns))
 	}
 }

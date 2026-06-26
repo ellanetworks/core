@@ -8,6 +8,7 @@ import (
 	"net/netip"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/nas/eps"
@@ -22,7 +23,7 @@ import (
 // (TS 36.413). A SERVICE REQUEST re-establishes an existing EMM-IDLE
 // context (resolved by S-TMSI); anything else (an Attach Request) starts a new
 // one.
-func (m *MME) handleInitialUEMessage(ctx context.Context, conn *sctp.SCTPConn, value []byte) {
+func (m *MME) handleInitialUEMessage(ctx context.Context, conn nasWriter, value []byte) {
 	msg, err := s1ap.ParseInitialUEMessage(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Initial UE Message", zap.Error(err))
@@ -74,8 +75,20 @@ func (m *MME) handleInitialUEMessage(ctx context.Context, conn *sctp.SCTPConn, v
 	c := m.newConn(conn, msg.ENBUES1APID)
 
 	if !isInitialAttach(nas) {
-		logger.MmeLog.Debug("dropping non-Attach Initial UE Message",
-			zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
+		// A protected TRACKING AREA UPDATE the MME cannot resolve (e.g. a periodic
+		// update after an MME restart) is rejected with EMM cause #9 over the bare
+		// connection, so the UE re-attaches at once instead of waiting out T3430
+		// (TS 24.301 §5.5.3.2.5).
+		if isProtectedTrackingAreaUpdate(nas) {
+			metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
+			logger.MmeLog.Info("Tracking Area Update rejected; UE will re-attach",
+				zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
+			m.sendOverConn(ctx, c, &eps.TrackingAreaUpdateReject{Cause: emmCauseUEIdentityUnderivable})
+		} else {
+			logger.MmeLog.Debug("dropping non-Attach Initial UE Message",
+				zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
+		}
+
 		m.releaseBareConn(c)
 
 		return
@@ -120,6 +133,32 @@ func isInitialAttach(nas []byte) bool {
 	mt, err := eps.PeekMessageType(body)
 
 	return err == nil && mt == eps.MsgAttachRequest
+}
+
+// isProtectedTrackingAreaUpdate reports whether nas is an integrity-protected
+// (peekable) TRACKING AREA UPDATE REQUEST. An idle UE sends this from a security
+// context the MME may have lost (e.g. after a restart); when the context is
+// unresolvable the MME rejects it so the UE re-attaches (TS 24.301 §5.5.3.2.5). A
+// ciphered body cannot be peeked, so it is not matched.
+func isProtectedTrackingAreaUpdate(nas []byte) bool {
+	if len(nas) < 6 {
+		return false
+	}
+
+	pd, err := eps.ProtocolDiscriminator(nas)
+	if err != nil || pd != eps.PDEMM {
+		return false
+	}
+
+	switch nas[0] >> 4 {
+	case uint8(eps.SHTIntegrityProtected), uint8(eps.SHTIntegrityProtectedNewContext):
+	default:
+		return false
+	}
+
+	mt, err := eps.PeekMessageType(nas[6:])
+
+	return err == nil && mt == eps.MsgTrackingAreaUpdateRequest
 }
 
 // handleUplinkNASTransport routes an uplink NAS message to its UE context
@@ -241,6 +280,30 @@ func downlinkNASTransportBytes(mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID, n
 // nasMessage is any EPS NAS message that can serialize itself.
 type nasMessage interface {
 	Marshal() ([]byte, error)
+}
+
+// sendOverConn wraps a plain NAS message in a Downlink NAS Transport and sends it
+// over a connection that carries no bound UE context — a reject to an
+// unidentified peer (an Initial UE Message the MME cannot act on).
+func (m *MME) sendOverConn(ctx context.Context, c *s1Conn, msg nasMessage) {
+	b, err := msg.Marshal()
+	if err != nil {
+		logger.MmeLog.Error("failed to marshal NAS message", zap.Error(err))
+		return
+	}
+
+	pdu, err := downlinkNASTransportBytes(c.MMEUES1APID, c.ENBUES1APID, b)
+	if err != nil {
+		logger.MmeLog.Error("failed to build Downlink NAS Transport", zap.Error(err))
+		return
+	}
+
+	if _, err := c.conn.WriteMsg(pdu, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamUE}); err != nil {
+		logger.MmeLog.Error("failed to send Downlink NAS Transport", zap.Error(err))
+		return
+	}
+
+	m.logOutboundS1AP(ctx, c.conn, S1APProcedureDownlinkNASTransport, pdu)
 }
 
 // sendDownlinkMessage serializes a plain NAS message and sends it to the UE.

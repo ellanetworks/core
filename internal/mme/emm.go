@@ -237,10 +237,6 @@ func (m *MME) processWithoutIntegrity(ctx context.Context, ue *UeContext, mt eps
 		m.onSecurityModeReject(ctx, ue, body)
 	case eps.MsgDetachRequest:
 		m.onDetachRequest(ctx, ue, body)
-	case eps.MsgTrackingAreaUpdateRequest:
-		// The update cannot be trusted without a verifiable MAC; reject it so the
-		// UE re-attaches and rebuilds the context (TS 24.301).
-		m.rejectTrackingAreaUpdate(ctx, ue)
 	default:
 		return false
 	}

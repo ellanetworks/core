@@ -184,6 +184,12 @@ type UeContext struct {
 	nh  [32]byte
 	ncc uint8
 
+	// keyChainBusy is set while a Path Switch or S1 handover is advancing the
+	// {NH, NCC} chain. Both procedures refuse to start while it is set, so they
+	// cannot derive a fresh NH from the same base for two targets (TS 33.401
+	// §7.2.8). Guarded by MME.mu.
+	keyChainBusy bool
+
 	// emmState is the EPS Mobility Management state (TS 23.401), independent of the
 	// ECM state on s1Conn: an S1 release moves the UE to ECM-IDLE while leaving the
 	// EMM state untouched, so the release-complete handler deletes the context only
