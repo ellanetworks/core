@@ -51,51 +51,6 @@ func (m *MME) handleReset(conn nasWriter, value []byte) {
 	m.sendResetAcknowledge(conn, req.ResetType.Part)
 }
 
-// connsOnConn returns every UE-associated connection on the given eNB association.
-func (m *MME) connsOnConn(conn nasWriter) []*s1Conn {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	var out []*s1Conn
-
-	for _, c := range m.conns {
-		if c.conn == conn {
-			out = append(out, c)
-		}
-	}
-
-	return out
-}
-
-// connsForConnectionList resolves the UE-associated connections named by a
-// part-of-interface reset list, scoped to the association the reset arrived on.
-// Each item is matched by its MME-UE-S1AP-ID, else by its eNB-UE-S1AP-ID; an item
-// naming no known connection is skipped (it is still echoed in the acknowledge).
-func (m *MME) connsForConnectionList(conn nasWriter, items []s1ap.UEAssociatedLogicalS1ConnectionItem) []*s1Conn {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	var out []*s1Conn
-
-	for _, it := range items {
-		switch {
-		case it.MMEUES1APID != nil:
-			if c, ok := m.conns[uint32(*it.MMEUES1APID)]; ok && c.conn == conn {
-				out = append(out, c)
-			}
-		case it.ENBUES1APID != nil:
-			for _, c := range m.conns {
-				if c.conn == conn && c.ENBUES1APID == *it.ENBUES1APID {
-					out = append(out, c)
-					break
-				}
-			}
-		}
-	}
-
-	return out
-}
-
 // sendResetAcknowledge answers a RESET with RESET ACKNOWLEDGE (TS 36.413
 // §9.1.2.7). connectionList is non-nil only for a part-of-interface reset.
 func (m *MME) sendResetAcknowledge(conn nasWriter, connectionList []s1ap.UEAssociatedLogicalS1ConnectionItem) {

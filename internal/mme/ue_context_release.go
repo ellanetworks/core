@@ -17,18 +17,13 @@ import (
 // is deleted or retained in ECM-IDLE is decided at release-complete from the EMM
 // state, since the two state machines are independent.
 func (m *MME) releaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Cause) {
-	// The idempotency check is atomic: a NAS guard timeout and an eNB-initiated
+	// The idempotency claim is atomic: a NAS guard timeout and an eNB-initiated
 	// release request can race to release the same UE from different goroutines. A
-	// Release Complete in the gap before the lock may already have freed the
-	// connection, which is itself a completed release.
-	m.mu.Lock()
-	if ue.s1 == nil || ue.s1.releasing {
-		m.mu.Unlock()
+	// Release Complete in the gap may already have freed the connection, which is
+	// itself a completed release.
+	if !m.claimRelease(ue) {
 		return
 	}
-
-	ue.s1.releasing = true
-	m.mu.Unlock()
 
 	cmd := &s1ap.UEContextReleaseCommand{
 		UES1APIDs: s1ap.UES1APIDs{MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: ue.s1.ENBUES1APID, Pair: true},
@@ -144,22 +139,7 @@ func (m *MME) handleUEContextReleaseComplete(conn nasWriter, value []byte) {
 // returns (TS 24.301). A UE that had not completed registration is dropped,
 // aborting the procedure.
 func (m *MME) releaseUEContextLocally(ue *UeContext, trigger string) {
-	m.mu.Lock()
-	registered := ue.emmState.load() == EMMRegistered
-	imsi := ue.imsi
-
-	var mmeUEID s1ap.MMEUES1APID
-	if ue.s1 != nil {
-		mmeUEID = ue.s1.MMEUES1APID
-	}
-
-	if registered {
-		m.freeS1ConnLocked(ue)
-	} else {
-		m.removeContextLocked(ue)
-	}
-
-	m.mu.Unlock()
+	registered, imsi, mmeUEID := m.releaseContextLockedPart(ue)
 
 	if !registered {
 		m.releaseAllSessions(ue)

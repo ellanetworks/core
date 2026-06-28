@@ -32,13 +32,7 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 	// An idle UE (ECM-IDLE) holds no S1 connection to carry the DETACH REQUEST, so
 	// release its sessions and context locally. The deleted subscriber is denied at
 	// its next contact, as it can no longer authenticate.
-	m.mu.RLock()
-
-	connected := ue.s1 != nil
-
-	m.mu.RUnlock()
-
-	if !connected {
+	if !m.ueConnected(ue) {
 		logger.MmeLog.Info("releasing idle UE on subscriber deletion", zap.String("imsi", imsi))
 		m.releaseAllSessions(ue)
 		m.removeUe(ue)

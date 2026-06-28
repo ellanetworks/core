@@ -565,6 +565,125 @@ func (m *MME) removeContextLocked(ue *UeContext) {
 	}
 }
 
+// ueConnected reports whether the UE currently holds a UE-associated S1
+// connection, read under the registry lock.
+func (m *MME) ueConnected(ue *UeContext) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return ue.connected()
+}
+
+// connectedUEs returns a snapshot of every UE with a bound S1 connection.
+func (m *MME) connectedUEs() []*UeContext {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	ues := make([]*UeContext, 0, len(m.conns))
+	for _, c := range m.conns {
+		if c.ue != nil {
+			ues = append(ues, c.ue)
+		}
+	}
+
+	return ues
+}
+
+// reconcileReady reports whether a UE may receive bearer-reconciliation
+// signalling: registered, S1-connected, and not mid-handover (an E-RAB Modify or
+// Release would collide with handover bearer signalling, TS 36.413 §8.4.1.2).
+func (m *MME) reconcileReady(ue *UeContext) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return ue.emmState.load() == EMMRegistered && ue.s1 != nil && ue.handover == nil
+}
+
+// claimRelease atomically marks the UE's S1 connection as releasing, returning
+// false when there is no connection or a release is already in progress (a NAS
+// guard timeout and an eNB-initiated release can race for the same UE).
+func (m *MME) claimRelease(ue *UeContext) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if ue.s1 == nil || ue.s1.releasing {
+		return false
+	}
+
+	ue.s1.releasing = true
+
+	return true
+}
+
+// releaseContextLockedPart performs, under the registry lock, the registry side
+// of a local release: a registered UE keeps its context and is moved to ECM-IDLE
+// (its S1 connection freed), an unregistered one is removed. It returns whether
+// the UE was registered, plus its IMSI and MME-UE-S1AP-ID for post-release logging.
+func (m *MME) releaseContextLockedPart(ue *UeContext) (registered bool, imsi string, mmeUEID s1ap.MMEUES1APID) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	registered = ue.emmState.load() == EMMRegistered
+	imsi = ue.imsi
+
+	if ue.s1 != nil {
+		mmeUEID = ue.s1.MMEUES1APID
+	}
+
+	if registered {
+		m.freeS1ConnLocked(ue)
+	} else {
+		m.removeContextLocked(ue)
+	}
+
+	return registered, imsi, mmeUEID
+}
+
+// connsOnConn returns every UE-associated connection on the given eNB association.
+func (m *MME) connsOnConn(conn nasWriter) []*s1Conn {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var out []*s1Conn
+
+	for _, c := range m.conns {
+		if c.conn == conn {
+			out = append(out, c)
+		}
+	}
+
+	return out
+}
+
+// connsForConnectionList resolves the UE-associated connections named by a
+// part-of-interface reset list, scoped to the association the reset arrived on.
+// Each item is matched by its MME-UE-S1AP-ID, else by its eNB-UE-S1AP-ID; an item
+// naming no known connection is skipped (it is still echoed in the acknowledge).
+func (m *MME) connsForConnectionList(conn nasWriter, items []s1ap.UEAssociatedLogicalS1ConnectionItem) []*s1Conn {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var out []*s1Conn
+
+	for _, it := range items {
+		switch {
+		case it.MMEUES1APID != nil:
+			if c, ok := m.conns[uint32(*it.MMEUES1APID)]; ok && c.conn == conn {
+				out = append(out, c)
+			}
+		case it.ENBUES1APID != nil:
+			for _, c := range m.conns {
+				if c.conn == conn && c.ENBUES1APID == *it.ENBUES1APID {
+					out = append(out, c)
+					break
+				}
+			}
+		}
+	}
+
+	return out
+}
+
 // dropStaleUe removes any context bound to the same eNB association and
 // ENB-UE-S1AP-ID, so a fresh Initial UE Message (e.g. a re-attach reusing the
 // eNB UE id) does not leak the previous context.
