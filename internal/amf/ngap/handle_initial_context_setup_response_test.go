@@ -30,7 +30,7 @@ func TestInitialContextSetupResponse_UnknownAmfUeNgapID(t *testing.T) {
 	assertErrorIndicationEchoesIDs(t, errInd, 999, 99)
 }
 
-func TestInitialContextSetupResponse_NilAmfUe(t *testing.T) {
+func TestInitialContextSetupResponse_NilUeContext(t *testing.T) {
 	ran := newTestRadio()
 	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 
@@ -56,7 +56,7 @@ func TestInitialContextSetupResponse_SetupItemsForwardedToSmf(t *testing.T) {
 	fakeSmf := &FakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 	amfUe.Current().SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
@@ -97,7 +97,7 @@ func TestInitialContextSetupResponse_FailedItemsForwardedToSmf(t *testing.T) {
 	fakeSmf := &FakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 	amfUe.Current().SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
@@ -134,7 +134,7 @@ func TestInitialContextSetupResponse_SetupItemSmContextNotFound(t *testing.T) {
 	fakeSmf := &FakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
@@ -161,7 +161,7 @@ func TestInitialContextSetupResponse_InvalidPDUSessionID(t *testing.T) {
 	fakeSmf := &FakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 	amfUe.Current().SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
@@ -192,7 +192,7 @@ func TestInitialContextSetupResponse_MixedSetupAndFailedItems(t *testing.T) {
 	fakeSmf := &FakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 	amfUe.Current().SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",

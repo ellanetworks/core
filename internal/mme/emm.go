@@ -51,87 +51,67 @@ func (m *MME) handleNAS(ctx context.Context, ue *UeContext, nas []byte) {
 		return
 	}
 
-	plain := nas
-	integrityVerified := false
-
 	// Secure exchange is tracked per NAS signalling connection (TS 24.301
 	// §4.4.4.3), matching the 5G AMF; ue.secured is the separate per-UE
 	// "has a security context" notion used by handover/path-switch.
 	conn := ue.s1
 	connSecured := conn != nil && conn.secureExchangeEstablished
 
-	if nas[0]>>4 != uint8(eps.SHTPlain) {
-		if len(nas) < 6 {
-			logger.MmeLog.Warn("security-protected NAS message too short")
-			return
-		}
+	securityHeader := nas[0] >> 4
 
-		// Estimate the message's full uplink NAS COUNT from the expected count and
-		// the received sequence number, advancing the overflow if the sequence
-		// wrapped past 255 (TS 24.301). Verifying the MAC against this estimate
-		// gives replay protection (TS 24.301, TS 33.401): a replayed or stale
-		// message estimates to a NAS COUNT whose MAC does not verify, so it is
-		// dropped.
-		recvSeq := nas[5]
-
-		overflow := uint16(ue.ulCount >> 8)
-		if recvSeq < uint8(ue.ulCount) {
-			overflow++
-		}
-
-		count := nascommon.NASCount(overflow, recvSeq)
-
-		p, err := eps.Unprotect(nas, count, nascommon.DirectionUplink,
-			ue.knasInt, ue.knasEnc, integrityAlg(ue.eia), cipherAlg(ue.eea))
+	// Plain NAS message.
+	if securityHeader == uint8(eps.SHTPlain) {
+		mt, err := eps.PeekMessageType(nas)
 		if err != nil {
-			body := nas[6:]
+			logger.MmeLog.Warn("failed to read EMM message type", zap.Error(err))
+			return
+		}
 
-			// A switch-off DETACH REQUEST is honoured without integrity protection
-			// only before the secure exchange of NAS messages is established on the
-			// connection (TS 24.301 §4.4.4.3).
-			if !connSecured && isSwitchOffDetach(body) {
-				m.onDetachRequest(ctx, ue, body)
-				return
-			}
-
-			sht := nas[0] >> 4
-			attempted := "unknown"
-
-			// The plaintext body is readable only for an integrity-only (unciphered)
-			// security header (types 1 and 3); peeking a ciphered body would yield a
-			// meaningless type.
-			if sht == uint8(eps.SHTIntegrityProtected) || sht == uint8(eps.SHTIntegrityProtectedNewContext) {
-				if mt, perr := eps.PeekMessageType(body); perr == nil {
-					attempted = emmMessageTypeName(mt)
-
-					// TS 24.301 requires processing certain EMM messages even
-					// when the MAC fails — but only "until the secure exchange of NAS
-					// messages has been established" on the connection, i.e. when the
-					// network has no usable security context (e.g. a fresh context after
-					// an MME restart). Once secure exchange is established, a message
-					// failing the integrity check is discarded, so a forged or replayed
-					// NAS message cannot disrupt an authenticated UE.
-					if !connSecured && m.processWithoutIntegrity(ctx, ue, mt, nas, body) {
-						return
-					}
-				}
-			}
-
-			logger.MmeLog.Warn("NAS integrity check failed",
-				zap.Error(err),
-				zap.String("attempted-message", attempted),
-				zap.Uint8("security-header-type", sht),
-				zap.Uint8("received-sequence", nas[5]),
-				zap.Uint32("expected-ul-count", ue.ulCount),
-				zap.Uint32("estimated-count", count),
-				zap.Uint8("integrity-alg", ue.eia),
-				zap.Bool("has-security-context", len(ue.kasme) > 0))
+		// TS 24.301 §4.4.4.3: once secure exchange is established on the
+		// connection, a message that is not integrity protected is discarded, so a
+		// forged plain NAS message cannot disrupt an authenticated UE.
+		if connSecured {
+			logger.MmeLog.Warn("discarding plain NAS message: secure exchange already established",
+				zap.String("imsi", ue.imsi))
 
 			return
 		}
 
-		plain = p
-		integrityVerified = true
+		if classifyNasPdu(mt, securityHeader, false) != verdictPlainAllowed {
+			logger.MmeLog.Warn("discarding plain NAS message not permitted without integrity (TS 24.301 §4.4.4.3)",
+				zap.String("message", emmMessageTypeName(mt)))
+
+			return
+		}
+
+		m.dispatchEMM(ctx, ue, nas, false)
+
+		return
+	}
+
+	// Security-protected NAS message.
+	if len(nas) < 6 {
+		logger.MmeLog.Warn("security-protected NAS message too short")
+		return
+	}
+
+	// Estimate the message's full uplink NAS COUNT from the expected count and the
+	// received sequence number, advancing the overflow if the sequence wrapped past
+	// 255 (TS 24.301). Verifying the MAC against this estimate gives replay
+	// protection: a replayed or stale message estimates to a NAS COUNT whose MAC
+	// does not verify, so it is dropped.
+	recvSeq := nas[5]
+
+	overflow := uint16(ue.ulCount >> 8)
+	if recvSeq < uint8(ue.ulCount) {
+		overflow++
+	}
+
+	count := nascommon.NASCount(overflow, recvSeq)
+
+	p, err := eps.Unprotect(nas, count, nascommon.DirectionUplink,
+		ue.knasInt, ue.knasEnc, integrityAlg(ue.eia), cipherAlg(ue.eea))
+	if err == nil {
 		// Advance the expected count past the accepted message, so a replay
 		// estimates to a stale count whose MAC fails to verify.
 		ue.ulCount = count + 1
@@ -141,18 +121,67 @@ func (m *MME) handleNAS(ctx context.Context, ue *UeContext, nas []byte) {
 		if conn != nil {
 			conn.secureExchangeEstablished = true
 		}
-	} else if connSecured {
-		// TS 24.301 §4.4.4.3: once secure exchange of NAS messages is established
-		// for the connection, a message that is not integrity protected is
-		// discarded, so a forged plain NAS message cannot disrupt an
-		// authenticated UE (e.g. a spoofed DETACH REQUEST tearing it down).
-		logger.MmeLog.Warn("discarding plain NAS message: secure exchange already established",
+
+		m.dispatchEMM(ctx, ue, p, true)
+
+		return
+	}
+
+	// Integrity check failed.
+	body := nas[6:]
+
+	// A switch-off DETACH REQUEST is honoured without integrity protection only
+	// before secure exchange is established (TS 24.301 §4.4.4.3). Its body is
+	// readable even under a null-cipher security header, so it is checked before
+	// the type peek below (which a genuinely ciphered body would defeat).
+	if !connSecured && isSwitchOffDetach(body) {
+		m.handleDetachRequest(ctx, ue, body)
+		return
+	}
+
+	// Once secure exchange is established, a failed-integrity message is discarded.
+	if connSecured {
+		logger.MmeLog.Warn("discarding NAS message: integrity check failed after secure exchange established",
 			zap.String("imsi", ue.imsi))
 
 		return
 	}
 
-	m.dispatchEMM(ctx, ue, plain, integrityVerified)
+	// The plaintext type is readable only for an integrity-only (unciphered)
+	// security header (types 1 and 3); a ciphered body peeks to a meaningless type,
+	// so such a message is dropped.
+	if securityHeader != uint8(eps.SHTIntegrityProtected) && securityHeader != uint8(eps.SHTIntegrityProtectedNewContext) {
+		logger.MmeLog.Warn("NAS integrity check failed",
+			zap.Error(err),
+			zap.Uint8("security-header-type", securityHeader),
+			zap.Bool("has-security-context", len(ue.kasme) > 0))
+
+		return
+	}
+
+	mt, perr := eps.PeekMessageType(body)
+	if perr != nil {
+		logger.MmeLog.Warn("NAS integrity check failed; unreadable message type", zap.Error(err))
+		return
+	}
+
+	// TS 24.301 §4.4.4.3: certain EMM messages are processed even when the MAC
+	// fails, but only before secure exchange is established (no usable security
+	// context, e.g. a fresh context after an MME restart). The subscriber is
+	// authenticated before the procedure is progressed.
+	if classifyNasPdu(mt, securityHeader, false) != verdictMacFailedAllowed {
+		logger.MmeLog.Warn("NAS integrity check failed",
+			zap.Error(err),
+			zap.String("attempted-message", emmMessageTypeName(mt)),
+			zap.Uint8("security-header-type", securityHeader),
+			zap.Uint32("expected-ul-count", ue.ulCount),
+			zap.Uint8("integrity-alg", ue.eia),
+			zap.Bool("has-security-context", len(ue.kasme) > 0))
+
+		return
+	}
+
+	m.processWithoutIntegrity(ctx, ue, mt, nas, body)
 }
 
 // unprotectUplink verifies and deciphers a protected uplink NAS message against
@@ -203,27 +232,27 @@ func (m *MME) dispatchEMM(ctx context.Context, ue *UeContext, plain []byte, inte
 
 	switch mt {
 	case eps.MsgAttachRequest:
-		m.onAttachRequest(ctx, ue, plain, integrityVerified)
+		m.handleAttachRequest(ctx, ue, plain, integrityVerified)
 	case eps.MsgIdentityResponse:
-		m.onIdentityResponse(ctx, ue, plain)
+		m.handleIdentityResponse(ctx, ue, plain)
 	case eps.MsgAuthenticationResponse:
-		m.onAuthenticationResponse(ctx, ue, plain)
+		m.handleAuthenticationResponse(ctx, ue, plain)
 	case eps.MsgAuthenticationFailure:
-		m.onAuthenticationFailure(ctx, ue, plain)
+		m.handleAuthenticationFailure(ctx, ue, plain)
 	case eps.MsgSecurityModeComplete:
-		m.onSecurityModeComplete(ctx, ue, plain)
+		m.handleSecurityModeComplete(ctx, ue, plain)
 	case eps.MsgSecurityModeReject:
-		m.onSecurityModeReject(ctx, ue, plain)
+		m.handleSecurityModeReject(ctx, ue, plain)
 	case eps.MsgAttachComplete:
-		m.onAttachComplete(ctx, ue, plain)
+		m.handleAttachComplete(ctx, ue, plain)
 	case eps.MsgDetachRequest:
-		m.onDetachRequest(ctx, ue, plain)
+		m.handleDetachRequest(ctx, ue, plain)
 	case eps.MsgDetachAccept:
-		m.onDetachAccept(ctx, ue)
+		m.handleDetachAccept(ctx, ue)
 	case eps.MsgTrackingAreaUpdateRequest:
-		m.onTrackingAreaUpdate(ctx, ue, plain)
+		m.handleTrackingAreaUpdate(ctx, ue, plain)
 	case eps.MsgTrackingAreaUpdateComplete:
-		m.onTrackingAreaUpdateComplete(ctx, ue)
+		m.handleTrackingAreaUpdateComplete(ctx, ue)
 	default:
 		logger.MmeLog.Warn("unhandled EMM message",
 			zap.String("message-type", emmMessageTypeName(mt)),
@@ -244,20 +273,20 @@ func (m *MME) processWithoutIntegrity(ctx context.Context, ue *UeContext, mt eps
 		// A native GUTI the MME still holds lets it reuse the
 		// security context and skip authentication (TS 23.401).
 		if !m.reuseContextForGUTIAttach(ctx, ue, nas, body) {
-			m.onAttachRequest(ctx, ue, body, false)
+			m.handleAttachRequest(ctx, ue, body, false)
 		}
 	case eps.MsgIdentityResponse:
 		// The IMSI is carried in cleartext; identification continues to
 		// authentication, which rebuilds the security context.
-		m.onIdentityResponse(ctx, ue, body)
+		m.handleIdentityResponse(ctx, ue, body)
 	case eps.MsgAuthenticationResponse:
-		m.onAuthenticationResponse(ctx, ue, body)
+		m.handleAuthenticationResponse(ctx, ue, body)
 	case eps.MsgAuthenticationFailure:
-		m.onAuthenticationFailure(ctx, ue, body)
+		m.handleAuthenticationFailure(ctx, ue, body)
 	case eps.MsgSecurityModeReject:
-		m.onSecurityModeReject(ctx, ue, body)
+		m.handleSecurityModeReject(ctx, ue, body)
 	case eps.MsgDetachRequest:
-		m.onDetachRequest(ctx, ue, body)
+		m.handleDetachRequest(ctx, ue, body)
 	default:
 		return false
 	}
@@ -265,11 +294,11 @@ func (m *MME) processWithoutIntegrity(ctx context.Context, ue *UeContext, mt eps
 	return true
 }
 
-// onSecurityModeReject handles a SECURITY MODE REJECT (TS 24.301): the
+// handleSecurityModeReject handles a SECURITY MODE REJECT (TS 24.301): the
 // UE rejected the selected NAS security algorithms, so the security mode control
 // procedure — and the attach/service procedure that triggered it — is aborted
 // and the UE's S1 context released.
-func (m *MME) onSecurityModeReject(ctx context.Context, ue *UeContext, plain []byte) {
+func (m *MME) handleSecurityModeReject(ctx context.Context, ue *UeContext, plain []byte) {
 	m.stopNASGuard(ue)
 
 	var cause uint8
@@ -284,7 +313,7 @@ func (m *MME) onSecurityModeReject(ctx context.Context, ue *UeContext, plain []b
 	m.releaseUEContext(ctx, ue, causeNASUnspecified)
 }
 
-func (m *MME) onAttachRequest(ctx context.Context, ue *UeContext, plain []byte, integrityVerified bool) {
+func (m *MME) handleAttachRequest(ctx context.Context, ue *UeContext, plain []byte, integrityVerified bool) {
 	req, err := eps.ParseAttachRequest(plain)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Attach Request", zap.Error(err))
@@ -402,7 +431,7 @@ func (m *MME) reuseContextForGUTIAttach(ctx context.Context, ue *UeContext, nas,
 	return true
 }
 
-func (m *MME) onIdentityResponse(ctx context.Context, ue *UeContext, plain []byte) {
+func (m *MME) handleIdentityResponse(ctx context.Context, ue *UeContext, plain []byte) {
 	m.stopNASGuard(ue)
 
 	resp, err := eps.ParseIdentityResponse(plain)
@@ -475,7 +504,7 @@ func (m *MME) sendAuthRequest(ctx context.Context, ue *UeContext, resyncAuts, re
 	return nil
 }
 
-func (m *MME) onAuthenticationResponse(ctx context.Context, ue *UeContext, plain []byte) {
+func (m *MME) handleAuthenticationResponse(ctx context.Context, ue *UeContext, plain []byte) {
 	m.stopNASGuard(ue)
 
 	resp, err := eps.ParseAuthenticationResponse(plain)
@@ -575,7 +604,7 @@ func (m *MME) startSecurityMode(ctx context.Context, ue *UeContext) {
 	m.sendGuardedDownlink(ctx, ue, "Security Mode Command", wire)
 }
 
-func (m *MME) onSecurityModeComplete(ctx context.Context, ue *UeContext, plain []byte) {
+func (m *MME) handleSecurityModeComplete(ctx context.Context, ue *UeContext, plain []byte) {
 	m.stopNASGuard(ue)
 
 	smc, err := eps.ParseSecurityModeComplete(plain)

@@ -44,7 +44,7 @@ func getRegistrationType5GSName(regType5Gs uint8) string {
 }
 
 // Handle cleartext IEs of Registration Request, which cleattext IEs defined in TS 24.501 4.4.6
-func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, registrationRequest *nasMessage.RegistrationRequest, macFailed bool) error {
+func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, registrationRequest *nasMessage.RegistrationRequest, integrityVerified bool) error {
 	ranUe := ue.RanUe()
 	if ranUe == nil {
 		return fmt.Errorf("RanUe is nil")
@@ -55,7 +55,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		return fmt.Errorf("no active NAS connection")
 	}
 
-	if macFailed {
+	if !integrityVerified {
 		ue.Current().SecurityContextAvailable = false
 	}
 
@@ -88,7 +88,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	// However, if MAC verification failed, we don't have valid security keys to decrypt the
 	// NASMessageContainer. In that case, skip it and proceed with the cleartext IEs only.
 	// The subsequent authentication procedure will re-establish the security context.
-	if registrationRequest.NASMessageContainer != nil && !macFailed {
+	if registrationRequest.NASMessageContainer != nil && integrityVerified {
 		contents := registrationRequest.GetNASMessageContainerContents()
 
 		err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
@@ -123,8 +123,8 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 
 		registrationRequest = m.RegistrationRequest
 
-		conn.RetransmissionOfInitialNASMsg = macFailed
-	} else if registrationRequest.NASMessageContainer != nil && macFailed {
+		conn.RetransmissionOfInitialNASMsg = !integrityVerified
+	} else if registrationRequest.NASMessageContainer != nil && !integrityVerified {
 		ue.Log.Info("Skipping NASMessageContainer decryption due to MAC verification failure, proceeding with cleartext IEs only")
 
 		conn.RetransmissionOfInitialNASMsg = true
@@ -227,7 +227,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 }
 
 // acceptRegistrationUESecurityCapability applies the received UE Security
-// Capability to the stored AmfUe state, enforcing TS 33.501 §6.7.3.1
+// Capability to the stored UeContext state, enforcing TS 33.501 §6.7.3.1
 // downgrade protection. Initial and Emergency Registration overwrite the
 // stored value (they mint an AuthProof); Mobility and Periodic
 // Registration Update keep the existing stored value on match and log
@@ -235,7 +235,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 // in a Mobility/Periodic update), the received caps are adopted through
 // the same audited write path, with downgrade protection deferred to
 // the SMC replay check.
-func acceptRegistrationUESecurityCapability(ue *amf.AmfUe, received *nasType.UESecurityCapability) {
+func acceptRegistrationUESecurityCapability(ue *amf.UeContext, received *nasType.UESecurityCapability) {
 	conn := ue.NasConn()
 	if conn == nil {
 		return
@@ -269,12 +269,12 @@ func acceptRegistrationUESecurityCapability(ue *amf.AmfUe, received *nasType.UES
 	}
 }
 
-func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nas.GmmMessage, macFailed bool) error {
+func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nas.GmmMessage, integrityVerified bool) error {
 	state := ue.GetState()
 
 	switch state {
 	case amf.Deregistered, amf.Registered, amf.Authentication:
-		if err := handleRegistrationRequestMessage(ctx, amfInstance, ue, msg.RegistrationRequest, macFailed); err != nil {
+		if err := handleRegistrationRequestMessage(ctx, amfInstance, ue, msg.RegistrationRequest, integrityVerified); err != nil {
 			return fmt.Errorf("failed handling registration request: %v", err)
 		}
 
@@ -318,7 +318,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 			ue.AttachNasConnection(ranUe)
 		}
 
-		return HandleGmmMessage(ctx, amfInstance, ue, msg, macFailed)
+		return HandleGmmMessage(ctx, amfInstance, ue, msg, integrityVerified)
 	case amf.ContextSetup:
 		defer ue.Deregister(ctx)
 

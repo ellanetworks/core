@@ -14,7 +14,7 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func handleSecurityModeReject(ctx context.Context, ue *amf.AmfUe, msg *nasMessage.SecurityModeReject) error {
+func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *nasMessage.SecurityModeReject) error {
 	if state := ue.GetState(); state != amf.SecurityMode {
 		return fmt.Errorf("state mismatch: receive Security Mode Reject message in state %s", state)
 	}

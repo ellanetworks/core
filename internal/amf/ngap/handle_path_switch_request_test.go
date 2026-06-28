@@ -136,8 +136,8 @@ func newTestAMFWithSmf(smf amf.SmfSbi) *amf.AMF {
 	}, nil, smf)
 }
 
-func newValidAmfUe() *amf.AmfUe {
-	amfUe := amf.NewAmfUe()
+func newValidUeContext() *amf.UeContext {
+	amfUe := amf.NewUeContext()
 	amfUe.Supi, _ = etsi.NewSUPIFromPrefixed("imsi-001010000000001")
 	amfUe.Current().SecurityContextAvailable = true
 	amfUe.Current().NgKsi.Ksi = 1
@@ -194,7 +194,7 @@ func TestPathSwitchRequest_UnknownUE(t *testing.T) {
 	}
 }
 
-func TestPathSwitchRequest_NilAmfUe(t *testing.T) {
+func TestPathSwitchRequest_NilUeContext(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 	sourceRan := &amf.Radio{
 		Log:        logger.AmfLog,
@@ -202,7 +202,7 @@ func TestPathSwitchRequest_NilAmfUe(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	// RanUe exists but AmfUe is nil
+	// RanUe exists but UeContext is nil
 	amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
 
 	targetNGAPSender := &FakeNGAPSender{}
@@ -236,7 +236,7 @@ func TestPathSwitchRequest_NilAmfUe(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	// Should send failure because AmfUe is nil
+	// Should send failure because UeContext is nil
 	if len(targetNGAPSender.SentPathSwitchRequestFailures) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestFailure, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestFailures))
@@ -251,7 +251,7 @@ func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Current().SecurityContextAvailable = false
 	amfUe.Current().NgKsi.Ksi = nasMessage.NasKeySetIdentifierNoKeyIsAvailable
 	amfUe.Log = logger.AmfLog
@@ -305,7 +305,7 @@ func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := newValidAmfUe()
+	amfUe := newValidUeContext()
 	// SmContextList is empty — no PDU session ID 1
 
 	ranUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
@@ -373,7 +373,7 @@ func TestPathSwitchRequest_SmfReturnsError(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := newValidAmfUe()
+	amfUe := newValidUeContext()
 	amfUe.Current().SmContextList[1] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
@@ -452,7 +452,7 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := newValidAmfUe()
+	amfUe := newValidUeContext()
 	amfUe.Current().Kamf = kamfHex
 	amfUe.Current().SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
@@ -571,7 +571,7 @@ func TestPathSwitchRequest_DuplicatePDUSessionIDs(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := newValidAmfUe()
+	amfUe := newValidUeContext()
 	amfUe.Current().Kamf = kamfHex
 	amfUe.Current().SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
@@ -652,7 +652,7 @@ func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := newValidAmfUe()
+	amfUe := newValidUeContext()
 	// Session 1 has a context, session 2 does not
 	amfUe.Current().SmContextList[1] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
@@ -736,7 +736,7 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := newValidAmfUe()
+	amfUe := newValidUeContext()
 	amfUe.Current().SmContextList[1] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
@@ -838,7 +838,7 @@ func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := newValidAmfUe()
+	amfUe := newValidUeContext()
 	amfUe.Current().UESecurityCapability = &nasType.UESecurityCapability{}
 	amfUe.Current().UESecurityCapability.SetLen(4)
 	amfUe.Current().UESecurityCapability.SetEA1_128_5G(1)
@@ -963,7 +963,7 @@ func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := newValidAmfUe()
+	amfUe := newValidUeContext()
 	amfUe.Current().UESecurityCapability = &nasType.UESecurityCapability{}
 	amfUe.Current().UESecurityCapability.SetLen(4)
 	amfUe.Current().UESecurityCapability.SetEA1_128_5G(1)
@@ -1068,7 +1068,7 @@ func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := newValidAmfUe()
+	amfUe := newValidUeContext()
 	amfUe.Current().UESecurityCapability = &nasType.UESecurityCapability{}
 	amfUe.Current().UESecurityCapability.SetLen(4)
 	amfUe.Current().UESecurityCapability.SetEA1_128_5G(1)

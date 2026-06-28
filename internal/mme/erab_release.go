@@ -87,7 +87,7 @@ func (m *MME) sendERABRelease(ctx context.Context, ue *UeContext, p *pdnConnecti
 
 // handleERABReleaseResponse logs the eNB's confirmation that the radio bearer was
 // released (TS 36.413 §8.2.3). The PDN connection's session is released when the
-// UE answers the DEACTIVATE EPS BEARER CONTEXT REQUEST (onDeactivateBearerAccept).
+// UE answers the DEACTIVATE EPS BEARER CONTEXT REQUEST (handleDeactivateBearerAccept).
 func (m *MME) handleERABReleaseResponse(conn nasWriter, value []byte) {
 	msg, err := s1ap.ParseERABReleaseResponse(value)
 	if err != nil {

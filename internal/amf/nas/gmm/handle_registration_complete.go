@@ -13,7 +13,7 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe) error {
+func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) error {
 	if ue.GetState() != amf.ContextSetup {
 		return fmt.Errorf("state mismatch: receive Registration Complete message in state %s", ue.GetState())
 	}

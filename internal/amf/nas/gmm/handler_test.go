@@ -15,13 +15,13 @@ import (
 // TestHandleGmmMessage_UnknownMessageType_Error verifies the default branch
 // returns an error for an unrecognized message type.
 func TestHandleGmmMessage_UnknownMessageType_Error(t *testing.T) {
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	amfInstance := amf.New(nil, nil, nil)
 
 	m := nas.NewGmmMessage()
 	m.SetMessageType(0xFF) // unassigned message type
 
-	err := HandleGmmMessage(context.Background(), amfInstance, ue, m, false)
+	err := HandleGmmMessage(context.Background(), amfInstance, ue, m, true)
 	if err == nil {
 		t.Fatal("expected error for unknown message type, got nil")
 	}
@@ -55,7 +55,7 @@ func TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete(t *testing.T) 
 	m.ConfigurationUpdateComplete = cuc
 	m.SetMessageType(nas.MsgTypeConfigurationUpdateComplete)
 
-	err = HandleGmmMessage(context.Background(), amfInstance, ue, m, false)
+	err = HandleGmmMessage(context.Background(), amfInstance, ue, m, true)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestHandleGmmMessage_DispatchesToStatus5GMM(t *testing.T) {
 
 	m := buildTestStatus5gmm()
 
-	err = HandleGmmMessage(context.Background(), amfInstance, ue, m, false)
+	err = HandleGmmMessage(context.Background(), amfInstance, ue, m, true)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}

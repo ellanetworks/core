@@ -70,15 +70,15 @@ func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *test
 func TestHandleAuthenticationResponse_PreconditionErrors(t *testing.T) {
 	type TestCase struct {
 		name string
-		ue   *amf.AmfUe
+		ue   *amf.UeContext
 		err  error
 	}
 
 	testcases := []TestCase{
 		{
 			"wrong UE state",
-			func() *amf.AmfUe {
-				ue := amf.NewAmfUe()
+			func() *amf.UeContext {
+				ue := amf.NewUeContext()
 
 				return ue
 			}(),
@@ -86,7 +86,7 @@ func TestHandleAuthenticationResponse_PreconditionErrors(t *testing.T) {
 		},
 		{
 			"nil authentication context",
-			func() *amf.AmfUe {
+			func() *amf.UeContext {
 				ue, _, err := buildUeAndRadio()
 				if err != nil {
 					panic(err)
@@ -100,7 +100,7 @@ func TestHandleAuthenticationResponse_PreconditionErrors(t *testing.T) {
 		},
 		{
 			"invalid rand in UE context",
-			func() *amf.AmfUe {
+			func() *amf.UeContext {
 				ue, _, err := buildUeAndRadio()
 				if err != nil {
 					panic(err)

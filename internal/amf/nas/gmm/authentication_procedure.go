@@ -13,7 +13,7 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 )
 
-func sendUEAuthenticationAuthenticateRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, resyncInfo *ausf.ResyncInfo) (*ausf.AuthResult, error) {
+func sendUEAuthenticationAuthenticateRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, resyncInfo *ausf.ResyncInfo) (*ausf.AuthResult, error) {
 	if ue.Tai.PlmnID == nil {
 		return nil, fmt.Errorf("tai is not available in UE context")
 	}
@@ -26,11 +26,11 @@ func sendUEAuthenticationAuthenticateRequest(ctx context.Context, amfInstance *a
 	return ueAuthenticationCtx, nil
 }
 
-func identityVerification(ue *amf.AmfUe) bool {
+func identityVerification(ue *amf.UeContext) bool {
 	return ue.Supi.IsValid() || len(ue.Suci) != 0
 }
 
-func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe) (bool, error) {
+func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) (bool, error) {
 	ctx, span := tracer.Start(ctx, "nas/authentication_procedure")
 	defer span.End()
 

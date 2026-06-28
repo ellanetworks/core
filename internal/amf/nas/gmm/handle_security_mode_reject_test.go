@@ -18,7 +18,7 @@ func TestHandleSecurityModeReject_NotSecurityMode(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
-			ue := amf.NewAmfUe()
+			ue := amf.NewUeContext()
 			ue.ForceState(tc)
 
 			expected := fmt.Sprintf("state mismatch: receive Security Mode Reject message in state %s", tc)

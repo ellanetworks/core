@@ -13,8 +13,8 @@ import (
 	"github.com/ellanetworks/core/internal/smf"
 )
 
-// AmfUeExport is the JSON-serializable export of a single UE's AMF state.
-type AmfUeExport struct {
+// UeContextExport is the JSON-serializable export of a single UE's AMF state.
+type UeContextExport struct {
 	Identity      UEIdentityExport            `json:"identity"`
 	State         UEStateExport               `json:"state"`
 	Security      UESecurityExport            `json:"security"`
@@ -230,19 +230,19 @@ func timerStatus(t *Timer) TimerStatusExport {
 // It acquires the AMF lock to get the list of UEs, then acquires
 // locks per-UE and calls into the SMF singleton for PDU session
 // details. Safe to call concurrently with normal AMF operation.
-func (amf *AMF) ExportUEs(_ context.Context) ([]AmfUeExport, error) {
+func (amf *AMF) ExportUEs(_ context.Context) ([]UeContextExport, error) {
 	amf.mu.RLock()
 
-	ues := make([]*AmfUe, 0, len(amf.UEs))
+	ues := make([]*UeContext, 0, len(amf.UEs))
 	for _, ue := range amf.UEs {
 		ues = append(ues, ue)
 	}
 
 	amf.mu.RUnlock()
 
-	exports := make([]AmfUeExport, 0, len(ues))
+	exports := make([]UeContextExport, 0, len(ues))
 	for _, ue := range ues {
-		exports = append(exports, amf.exportAmfUe(ue))
+		exports = append(exports, amf.exportUeContext(ue))
 	}
 
 	return exports, nil
@@ -250,7 +250,7 @@ func (amf *AMF) ExportUEs(_ context.Context) ([]AmfUeExport, error) {
 
 // CountUEPDUSessions returns the number of PDU sessions for a UE identified by SUPI.
 func (amf *AMF) CountUEPDUSessions(supi etsi.SUPI) int {
-	ue, ok := amf.FindAMFUEBySupi(supi)
+	ue, ok := amf.FindUeContextBySupi(supi)
 	if !ok {
 		return 0
 	}
@@ -266,7 +266,7 @@ func (amf *AMF) CountUEPDUSessions(supi etsi.SUPI) int {
 // Returns the PDU session exports and true if the UE exists, false otherwise.
 // Safe to call concurrently with normal AMF operation.
 func (amf *AMF) GetUEPDUSessions(supi etsi.SUPI) ([]PDUSessionExport, bool) {
-	ue, ok := amf.FindAMFUEBySupi(supi)
+	ue, ok := amf.FindUeContextBySupi(supi)
 	if !ok {
 		return nil, false
 	}
@@ -301,9 +301,9 @@ type smContextCopy struct {
 	inactive bool
 }
 
-// exportAmfUe builds an AmfUeExport for a single UE.
+// exportUeContext builds an UeContextExport for a single UE.
 // It acquires ue.Mutex to copy scalar fields, then queries SMF outside the lock.
-func (amf *AMF) exportAmfUe(ue *AmfUe) AmfUeExport {
+func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 	ue.Mutex.Lock()
 
 	conn := ue.NasConn()
@@ -336,7 +336,7 @@ func (amf *AMF) exportAmfUe(ue *AmfUe) AmfUeExport {
 		t3522 = conn.T3522
 	}
 
-	export := AmfUeExport{
+	export := UeContextExport{
 		Identity: UEIdentityExport{
 			Supi:    ue.Supi.String(),
 			Pei:     ue.Pei,

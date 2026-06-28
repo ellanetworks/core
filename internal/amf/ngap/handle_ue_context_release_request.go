@@ -29,8 +29,8 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 
 	if msg.Cause != nil {
 		fields := []zap.Field{logger.Cause(causeToString(*msg.Cause))}
-		if ranUe.AmfUe() != nil {
-			fields = append(fields, logger.SUPI(ranUe.AmfUe().Supi.String()))
+		if ranUe.UeContext() != nil {
+			fields = append(fields, logger.SUPI(ranUe.UeContext().Supi.String()))
 		}
 
 		logger.WithTrace(ctx, ranUe.Log).Info("UE Context Release Cause", fields...)
@@ -41,7 +41,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 		}
 	}
 
-	amfUe := ranUe.AmfUe()
+	amfUe := ranUe.UeContext()
 	if amfUe != nil {
 		if amfUe.GetState() == amf.Registered {
 			logger.WithTrace(ctx, ranUe.Log).Info("Ue Context in GMM-Registered")

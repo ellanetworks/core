@@ -25,13 +25,13 @@ import (
 var tracer = otel.Tracer("ella-core/amf/nas/send")
 
 func SendDLNASTransport(ctx context.Context, ue *amf.RanUe, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause uint8) error {
-	if ue == nil || ue.AmfUe() == nil {
+	if ue == nil || ue.UeContext() == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
 	ctx, span := tracer.Start(ctx, "nas/send_downlink_nas_transport",
 		trace.WithAttributes(
-			attribute.String("supi", ue.AmfUe().Supi.String()),
+			attribute.String("supi", ue.UeContext().Supi.String()),
 			attribute.Int("pduSessionID", int(pduSessionID)),
 			attribute.Int("cause", int(cause)),
 		),
@@ -44,7 +44,7 @@ func SendDLNASTransport(ctx context.Context, ue *amf.RanUe, payloadContainerType
 		causePtr = &cause
 	}
 
-	nasMsg, err := BuildDLNASTransport(ue.AmfUe(), payloadContainerType, nasPdu, pduSessionID, causePtr)
+	nasMsg, err := BuildDLNASTransport(ue.UeContext(), payloadContainerType, nasPdu, pduSessionID, causePtr)
 	if err != nil {
 		return fmt.Errorf("error building downlink NAS transport message: %s", err.Error())
 	}
@@ -58,13 +58,13 @@ func SendDLNASTransport(ctx context.Context, ue *amf.RanUe, payloadContainerType
 }
 
 func SendIdentityRequest(ctx context.Context, ue *amf.RanUe, typeOfIdentity uint8) error {
-	if ue == nil || ue.AmfUe() == nil {
+	if ue == nil || ue.UeContext() == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
 	ctx, span := tracer.Start(ctx, "nas/send_identity_request",
 		trace.WithAttributes(
-			attribute.String("supi", ue.AmfUe().Supi.String()),
+			attribute.String("supi", ue.UeContext().Supi.String()),
 			attribute.Int("typeOfIdentity", int(typeOfIdentity)),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -85,19 +85,19 @@ func SendIdentityRequest(ctx context.Context, ue *amf.RanUe, typeOfIdentity uint
 }
 
 func SendAuthenticationRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe) error {
-	if ue == nil || ue.AmfUe() == nil {
+	if ue == nil || ue.UeContext() == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
 	ctx, span := tracer.Start(ctx, "nas/send_authentication_request",
 		trace.WithAttributes(
-			attribute.String("supi", ue.AmfUe().Supi.String()),
+			attribute.String("supi", ue.UeContext().Supi.String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 
-	amfUe := ue.AmfUe()
+	amfUe := ue.UeContext()
 
 	conn := amfUe.NasConn()
 	if conn == nil || conn.AuthenticationCtx == nil {
@@ -121,7 +121,7 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 			}
 		}, func() {
 			amfUe.Log.Warn("T3560 Expires, abort authentication procedure & ongoing 5GMM procedure", zap.Any("expireTimes", cfg.MaxRetryTimes))
-			amfInstance.DeregisterAndRemoveAMFUE(context.Background(), amfUe)
+			amfInstance.DeregisterAndRemoveUeContext(context.Background(), amfUe)
 		})
 	}
 
@@ -134,13 +134,13 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 }
 
 func SendServiceAccept(ctx context.Context, ue *amf.RanUe, pDUSessionStatus *[16]bool, reactivationResult *[16]bool, errPduSessionID, errCause []uint8) error {
-	if ue == nil || ue.AmfUe() == nil {
+	if ue == nil || ue.UeContext() == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
 	ctx, span := tracer.Start(ctx, "nas/send_service_accept",
 		trace.WithAttributes(
-			attribute.String("supi", ue.AmfUe().Supi.String()),
+			attribute.String("supi", ue.UeContext().Supi.String()),
 			attribute.Int("pduSessionIDErrorCount", len(errPduSessionID)),
 			attribute.Int("causeErrorCount", len(errCause)),
 		),
@@ -148,7 +148,7 @@ func SendServiceAccept(ctx context.Context, ue *amf.RanUe, pDUSessionStatus *[16
 	)
 	defer span.End()
 
-	nasMsg, err := BuildServiceAccept(ue.AmfUe(), pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
+	nasMsg, err := BuildServiceAccept(ue.UeContext(), pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 	if err != nil {
 		return fmt.Errorf("error building service accept: %s", err.Error())
 	}
@@ -162,13 +162,13 @@ func SendServiceAccept(ctx context.Context, ue *amf.RanUe, pDUSessionStatus *[16
 }
 
 func SendAuthenticationReject(ctx context.Context, ue *amf.RanUe) error {
-	if ue == nil || ue.AmfUe() == nil {
+	if ue == nil || ue.UeContext() == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
 	ctx, span := tracer.Start(ctx, "nas/send_authentication_reject",
 		trace.WithAttributes(
-			attribute.String("supi", ue.AmfUe().Supi.String()),
+			attribute.String("supi", ue.UeContext().Supi.String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -188,13 +188,13 @@ func SendAuthenticationReject(ctx context.Context, ue *amf.RanUe) error {
 }
 
 func SendServiceReject(ctx context.Context, ue *amf.RanUe, cause uint8) error {
-	if ue == nil || ue.AmfUe() == nil {
+	if ue == nil || ue.UeContext() == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
 	ctx, span := tracer.Start(ctx, "nas/send_service_reject",
 		trace.WithAttributes(
-			attribute.String("supi", ue.AmfUe().Supi.String()),
+			attribute.String("supi", ue.UeContext().Supi.String()),
 			attribute.Int("cause", int(cause)),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -216,20 +216,20 @@ func SendServiceReject(ctx context.Context, ue *amf.RanUe, cause uint8) error {
 
 // T3502: This IE may be included to indicate a value for timer T3502 during the initial registration
 func SendRegistrationReject(ctx context.Context, ue *amf.RanUe, cause5GMM uint8) error {
-	if ue == nil || ue.AmfUe() == nil {
+	if ue == nil || ue.UeContext() == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
 	ctx, span := tracer.Start(ctx, "nas/send_registration_reject",
 		trace.WithAttributes(
-			attribute.String("supi", ue.AmfUe().Supi.String()),
+			attribute.String("supi", ue.UeContext().Supi.String()),
 			attribute.Int("cause", int(cause5GMM)),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 
-	nasMsg, err := BuildRegistrationReject(int(ue.AmfUe().Current().T3502Value.Seconds()), cause5GMM)
+	nasMsg, err := BuildRegistrationReject(int(ue.UeContext().Current().T3502Value.Seconds()), cause5GMM)
 	if err != nil {
 		return fmt.Errorf("error building registration reject: %s", err.Error())
 	}
@@ -243,19 +243,19 @@ func SendRegistrationReject(ctx context.Context, ue *amf.RanUe, cause5GMM uint8)
 }
 
 func SendSecurityModeCommand(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe) error {
-	if ue == nil || ue.AmfUe() == nil {
+	if ue == nil || ue.UeContext() == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
 	ctx, span := tracer.Start(ctx, "nas/send_security_mode_command",
 		trace.WithAttributes(
-			attribute.String("supi", ue.AmfUe().Supi.String()),
+			attribute.String("supi", ue.UeContext().Supi.String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 
-	nasMsg, err := BuildSecurityModeCommand(ue.AmfUe())
+	nasMsg, err := BuildSecurityModeCommand(ue.UeContext())
 	if err != nil {
 		return fmt.Errorf("error building security mode command: %s", err.Error())
 	}
@@ -265,7 +265,7 @@ func SendSecurityModeCommand(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
 
-	amfUe := ue.AmfUe()
+	amfUe := ue.UeContext()
 
 	if amfInstance.T3560Cfg.Enable {
 		cfg := amfInstance.T3560Cfg
@@ -283,7 +283,7 @@ func SendSecurityModeCommand(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 		}, func() {
 			amfUe.Log.Warn("T3560 Expires, abort security mode control procedure", zap.Any("expireTimes", cfg.MaxRetryTimes))
 			conn.Procedures.End(procedure.SecurityMode)
-			amfInstance.DeregisterAndRemoveAMFUE(context.Background(), amfUe)
+			amfInstance.DeregisterAndRemoveUeContext(context.Background(), amfUe)
 		})
 	}
 
@@ -291,13 +291,13 @@ func SendSecurityModeCommand(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 }
 
 func SendDeregistrationAccept(ctx context.Context, ue *amf.RanUe) error {
-	if ue == nil || ue.AmfUe() == nil {
+	if ue == nil || ue.UeContext() == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
 	ctx, span := tracer.Start(ctx, "nas/send_deregistration_accept",
 		trace.WithAttributes(
-			attribute.String("supi", ue.AmfUe().Supi.String()),
+			attribute.String("supi", ue.UeContext().Supi.String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -310,7 +310,7 @@ func SendDeregistrationAccept(ctx context.Context, ue *amf.RanUe) error {
 
 	err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
 	if err != nil {
-		ue.AmfUe().Log.Error("could not send downlink NAS transport message", zap.Error(err))
+		ue.UeContext().Log.Error("could not send downlink NAS transport message", zap.Error(err))
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
 
@@ -320,7 +320,7 @@ func SendDeregistrationAccept(ctx context.Context, ue *amf.RanUe) error {
 func SendRegistrationAccept(
 	ctx context.Context,
 	amfInstance *amf.AMF,
-	ue *amf.AmfUe,
+	ue *amf.UeContext,
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
 	errPduSessionID, errCause []uint8,
@@ -437,7 +437,7 @@ func SendRegistrationAccept(
 	return nil
 }
 
-func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *amf.AMF, amfUe *amf.AmfUe, includeGUTI bool) {
+func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *amf.AMF, amfUe *amf.UeContext, includeGUTI bool) {
 	if amfUe == nil {
 		return
 	}

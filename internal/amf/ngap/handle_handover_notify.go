@@ -24,9 +24,9 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		targetUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
 	}
 
-	amfUe := targetUe.AmfUe()
+	amfUe := targetUe.UeContext()
 	if amfUe == nil {
-		logger.WithTrace(ctx, targetUe.Log).Error("AmfUe is nil")
+		logger.WithTrace(ctx, targetUe.Log).Error("UeContext is nil")
 		return
 	}
 

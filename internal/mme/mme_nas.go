@@ -32,7 +32,7 @@ func (m *MME) handleInitialUEMessage(ctx context.Context, conn nasWriter, value 
 
 	nas := []byte(msg.NASPDU)
 	if len(nas) > 0 && nas[0]>>4 == uint8(eps.SHTServiceRequest) {
-		m.onServiceRequest(ctx, conn, msg)
+		m.handleServiceRequest(ctx, conn, msg)
 		return
 	}
 

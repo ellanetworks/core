@@ -114,7 +114,7 @@ func TestHandleInitialUEMessage_5GSTMSI_UnverifiedDoesNotAttach(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Guti = guti
 
 	supi, err := etsi.NewSUPIFromIMSI("001010000000001")
@@ -125,7 +125,7 @@ func TestHandleInitialUEMessage_5GSTMSI_UnverifiedDoesNotAttach(t *testing.T) {
 	amfUe.Supi = supi
 	amfUe.Log = logger.AmfLog
 
-	err = amfInstance.AddAmfUeToUePool(amfUe)
+	err = amfInstance.AddUeContextToPool(amfUe)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestHandleInitialUEMessage_5GSTMSI_UnverifiedDoesNotAttach(t *testing.T) {
 		t.Fatal("ran.FindUEByRanUeNgapID(1) is nil")
 	}
 
-	if ranUe.AmfUe() == amfUe {
+	if ranUe.UeContext() == amfUe {
 		t.Error("an unverified Initial UE Message must not bind to the existing context (TS 24.501 §4.4.4.3)")
 	}
 
@@ -197,8 +197,8 @@ func TestHandleInitialUEMessage_5GSTMSI_UnknownUE_NASStillCalled(t *testing.T) {
 		t.Fatal("ran.FindUEByRanUeNgapID(1) is nil")
 	}
 
-	if ranUe.AmfUe() != nil {
-		t.Error("ranUe.AmfUe() should be nil for unknown UE")
+	if ranUe.UeContext() != nil {
+		t.Error("ranUe.UeContext() should be nil for unknown UE")
 	}
 }
 
@@ -247,7 +247,7 @@ func TestHandleInitialUEMessage_RegisteredUE_DoesNotPanic(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Guti = guti
 
 	supi, err := etsi.NewSUPIFromIMSI("001010000000002")
@@ -258,7 +258,7 @@ func TestHandleInitialUEMessage_RegisteredUE_DoesNotPanic(t *testing.T) {
 	amfUe.Supi = supi
 	amfUe.Log = logger.AmfLog
 
-	err = amfInstance.AddAmfUeToUePool(amfUe)
+	err = amfInstance.AddUeContextToPool(amfUe)
 	if err != nil {
 		t.Fatal(err)
 	}

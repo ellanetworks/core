@@ -25,7 +25,7 @@ import (
 func forward5GSMMessageToSMF(
 	ctx context.Context,
 	amfInstance *amf.AMF,
-	ue *amf.AmfUe,
+	ue *amf.UeContext,
 	pduSessionID uint8,
 	smContextRef string,
 	smMessage []byte,
@@ -89,7 +89,7 @@ func forward5GSMMessageToSMF(
 	return nil
 }
 
-func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, ulNasTransport *nasMessage.ULNASTransport) error {
+func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, ulNasTransport *nasMessage.ULNASTransport) error {
 	smMessage := ulNasTransport.GetPayloadContainerContents()
 
 	id := ulNasTransport.PduSessionID2Value
@@ -189,7 +189,7 @@ func isStatus5GSM(smMessage []byte) bool {
 // request (TS 24.501 §5.4.5.2.3 iii). When the SMF rejects, its reject message
 // is returned to the UE; when it produces none, the payload is reported as not
 // forwarded.
-func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, ranUe *amf.RanUe, ulNasTransport *nasMessage.ULNASTransport, pduSessionID uint8, smMessage []byte) error {
+func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, ranUe *amf.RanUe, ulNasTransport *nasMessage.ULNASTransport, pduSessionID uint8, smMessage []byte) error {
 	var (
 		snssai *models.Snssai
 		dnn    string
@@ -259,12 +259,12 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfU
 	return nil
 }
 
-func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.ULNASTransport, macFailed bool) error {
+func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.ULNASTransport, integrityVerified bool) error {
 	if ue.GetState() != amf.Registered {
 		return fmt.Errorf("expected UE to be in state %s during UL NAS Transport, instead it was %s", amf.Registered, ue.GetState())
 	}
 
-	if macFailed {
+	if !integrityVerified {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
 

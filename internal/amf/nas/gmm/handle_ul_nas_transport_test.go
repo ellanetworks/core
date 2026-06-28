@@ -65,7 +65,7 @@ func TestHandleULNASTransport_WrongState_Error(t *testing.T) {
 
 			msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, []byte{0x01}, pduSessionIDPtr(1))
 
-			err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, false)
+			err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, true)
 			if err == nil {
 				t.Fatal("expected an error, got nil")
 			}
@@ -85,7 +85,7 @@ func TestHandleULNASTransport_MacFailed_Error(t *testing.T) {
 
 	expected := "NAS message integrity check failed"
 
-	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, true)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, false)
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected error: %s, got: %v", expected, err)
 	}
@@ -101,7 +101,7 @@ func TestHandleULNASTransport_PayloadContainerTypeSMS_Error(t *testing.T) {
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeSMS, []byte{0x01}, nil)
 
-	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, false)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, true)
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}
@@ -117,7 +117,7 @@ func TestHandleULNASTransport_PayloadContainerTypeLPP_Error(t *testing.T) {
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeLPP, []byte{0x01}, nil)
 
-	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, false)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, true)
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}
@@ -133,7 +133,7 @@ func TestHandleULNASTransport_PayloadContainerTypeSOR_Error(t *testing.T) {
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeSOR, []byte{0x01}, nil)
 
-	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, false)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, true)
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}
@@ -149,7 +149,7 @@ func TestHandleULNASTransport_PayloadContainerTypeMultiplePayload_Error(t *testi
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeMultiplePayload, []byte{0x01}, nil)
 
-	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, false)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, true)
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}
@@ -165,7 +165,7 @@ func TestHandleULNASTransport_PayloadContainerTypeUEPolicy_NoError(t *testing.T)
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeUEPolicy, []byte{0x01}, nil)
 
-	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, false)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, true)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestHandleULNASTransport_PayloadContainerTypeUEParameterUpdate_NoError(t *t
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeUEParameterUpdate, upuAck, nil)
 
-	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, false)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, true)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}

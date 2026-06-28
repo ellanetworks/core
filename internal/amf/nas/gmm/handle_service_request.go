@@ -45,7 +45,7 @@ func serviceTypeToString(serviceType uint8) string {
 
 func sendServiceAccept(
 	ctx context.Context,
-	ue *amf.AmfUe,
+	ue *amf.UeContext,
 	ranUe *amf.RanUe,
 	ctxList ngapType.PDUSessionResourceSetupListCxtReq,
 	suList ngapType.PDUSessionResourceSetupListSUReq,
@@ -119,7 +119,7 @@ func sendServiceAccept(
 }
 
 // TS 24501 5.6.1
-func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.ServiceRequest, macFailed bool) error {
+func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.ServiceRequest, integrityVerified bool) error {
 	// Validate state before accessing RanUe — state checks are cheap and
 	// independent of the RAN connection.
 	state := ue.GetState()
@@ -172,7 +172,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 	// the UE has a valid 5G NAS security context and the UE needs to send non-cleartext IEs
 	// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS message
 	// container IE, the UE shall set the security header type of the initial NAS message to "integrity protected"
-	if msg.NASMessageContainer != nil && (ue.SecurityContextIsValid() && !macFailed) {
+	if msg.NASMessageContainer != nil && (ue.SecurityContextIsValid() && integrityVerified) {
 		contents := msg.GetNASMessageContainerContents()
 
 		// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS
@@ -197,14 +197,14 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 			msg = m.ServiceRequest
 		}
 		// TS 33.501 6.4.6 step 3: if the initial NAS message was protected but did not pass the integrity check
-		conn.RetransmissionOfInitialNASMsg = macFailed
+		conn.RetransmissionOfInitialNASMsg = !integrityVerified
 	}
 
 	// Service Reject if the SecurityContext is invalid. TS 24.501 §4.4.4.3: a
 	// service request failing the integrity check is rejected with 5GMM cause
 	// #9 and the 5GMM-context and 5G NAS security context are left unchanged, so
 	// an unauthenticated message cannot tear down a genuine UE's security state.
-	if !ue.SecurityContextIsValid() || macFailed {
+	if !ue.SecurityContextIsValid() || !integrityVerified {
 		ue.Log.Warn("No valid security context for service request", logger.SUPI(ue.Supi.String()))
 
 		err := message.SendServiceReject(ctx, ranUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)

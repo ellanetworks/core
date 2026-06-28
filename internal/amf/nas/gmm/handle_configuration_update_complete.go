@@ -9,12 +9,12 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 )
 
-func handleConfigurationUpdateComplete(amfInstance *amf.AMF, ue *amf.AmfUe, macFailed bool) error {
+func handleConfigurationUpdateComplete(amfInstance *amf.AMF, ue *amf.UeContext, integrityVerified bool) error {
 	if state := ue.GetState(); state != amf.Registered {
 		return fmt.Errorf("state mismatch: receive Configuration Update Complete message in state %s", state)
 	}
 
-	if macFailed {
+	if !integrityVerified {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
 

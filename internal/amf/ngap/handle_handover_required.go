@@ -23,7 +23,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	amfUe := sourceUe.AmfUe()
+	amfUe := sourceUe.UeContext()
 	if amfUe == nil {
 		logger.WithTrace(ctx, sourceUe.Log).Error("Cannot find amfUE from sourceUE")
 		return

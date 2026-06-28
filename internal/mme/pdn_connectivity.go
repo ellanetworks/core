@@ -45,14 +45,14 @@ func esmRequestHeaderCause(pti, headerEBI uint8) uint8 {
 	return 0
 }
 
-// onPDNConnectivityRequest opens an additional PDN connection (a second default
+// handlePDNConnectivityRequest opens an additional PDN connection (a second default
 // bearer to another APN) for a UE that is already EMM-REGISTERED (TS 24.301
 // §6.5.1; TS 23.401 §5.10.2). The UE names the data network in the Access Point
 // Name IE; the MME authorises it against the subscriber's profile, allocates an
 // EPS bearer identity, asks the anchor for a session, and sets up the radio leg
 // with an E-RAB SETUP REQUEST carrying the ACTIVATE DEFAULT EPS BEARER CONTEXT
 // REQUEST.
-func (m *MME) onPDNConnectivityRequest(ctx context.Context, ue *UeContext, plain []byte) {
+func (m *MME) handlePDNConnectivityRequest(ctx context.Context, ue *UeContext, plain []byte) {
 	req, err := eps.ParsePDNConnectivityRequest(plain)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode PDN Connectivity Request", zap.Error(err))
@@ -281,13 +281,13 @@ func (m *MME) handleERABSetupResponse(conn nasWriter, value []byte) {
 	}
 }
 
-// onPDNDisconnectRequest releases one of a UE's PDN connections at its request
+// handlePDNDisconnectRequest releases one of a UE's PDN connections at its request
 // (TS 24.301 §6.5.2; TS 23.401 §5.10.3). The UE names the PDN by its default
 // bearer's Linked EPS Bearer Identity. The last PDN connection cannot be
 // disconnected this way — the UE detaches instead (ESM cause #49). The bearer is
 // torn down with a DEACTIVATE EPS BEARER CONTEXT REQUEST; the session is released
 // when the UE accepts.
-func (m *MME) onPDNDisconnectRequest(ctx context.Context, ue *UeContext, plain []byte) {
+func (m *MME) handlePDNDisconnectRequest(ctx context.Context, ue *UeContext, plain []byte) {
 	req, err := eps.ParsePDNDisconnectRequest(plain)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode PDN Disconnect Request", zap.Error(err))
@@ -340,10 +340,10 @@ func (m *MME) rejectPDNDisconnect(ctx context.Context, ue *UeContext, pti, cause
 	})
 }
 
-// onActivateDefaultBearerAccept confirms an additional PDN connection once the UE
+// handleActivateDefaultBearerAccept confirms an additional PDN connection once the UE
 // accepts the network's ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST (TS 24.301
 // §6.4.1).
-func (m *MME) onActivateDefaultBearerAccept(ue *UeContext, plain []byte) {
+func (m *MME) handleActivateDefaultBearerAccept(ue *UeContext, plain []byte) {
 	accept, err := eps.ParseActivateDefaultEPSBearerContextAccept(plain)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Activate Default EPS Bearer Context Accept", zap.Error(err))
@@ -362,9 +362,9 @@ func (m *MME) onActivateDefaultBearerAccept(ue *UeContext, plain []byte) {
 		zap.String("imsi", ue.imsi), zap.String("apn", p.apn), zap.Uint8("ebi", p.ebi))
 }
 
-// onActivateDefaultBearerReject releases an additional PDN connection the UE
+// handleActivateDefaultBearerReject releases an additional PDN connection the UE
 // refused (TS 24.301 §6.4.1.5).
-func (m *MME) onActivateDefaultBearerReject(ue *UeContext, plain []byte) {
+func (m *MME) handleActivateDefaultBearerReject(ue *UeContext, plain []byte) {
 	reject, err := eps.ParseActivateDefaultEPSBearerContextReject(plain)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Activate Default EPS Bearer Context Reject", zap.Error(err))

@@ -14,7 +14,7 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 )
 
-func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.AuthenticationFailure) error {
+func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.AuthenticationFailure) error {
 	if state := ue.GetState(); state != amf.Authentication {
 		return fmt.Errorf("state mismatch: receive Authentication Failure message in state %s", state)
 	}

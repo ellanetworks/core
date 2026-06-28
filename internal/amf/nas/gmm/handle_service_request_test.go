@@ -54,10 +54,10 @@ func TestHandleServiceRequest_WrongStateError(t *testing.T) {
 		t.Run(string(tc), func(t *testing.T) {
 			expected := fmt.Sprintf("state mismatch: receive Service Request message in state %s", tc)
 
-			ue := amf.NewAmfUe()
+			ue := amf.NewUeContext()
 			ue.ForceState(tc)
 
-			err := handleServiceRequest(t.Context(), amf.New(nil, nil, nil), ue, nil, false)
+			err := handleServiceRequest(t.Context(), amf.New(nil, nil, nil), ue, nil, true)
 			if err == nil || err.Error() != expected {
 				t.Fatalf("expected error: %s, got: %v", expected, err)
 			}
@@ -95,7 +95,7 @@ func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T)
 
 	m := buildTestServiceRequest()
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 
 	m := buildTestServiceRequest()
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -228,7 +228,7 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 
 	ue.Current().CipheringAlg = 200
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -281,7 +281,7 @@ func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
 	}
 
 	ranUe := ue.RanUe()
-	ue = amf.NewAmfUe()
+	ue = amf.NewUeContext()
 	ue.AttachRanUe(ranUe)
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -292,7 +292,7 @@ func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -354,7 +354,7 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 
 	m := buildTestServiceRequest()
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -431,7 +431,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -512,7 +512,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -601,7 +601,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -699,7 +699,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 
 	expected := "service Request triggered by Network for pduSessionID that does not exist"
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected error: %s, got: %v", expected, err)
 	}
@@ -765,7 +765,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -901,7 +901,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -1041,7 +1041,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -1190,7 +1190,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -1337,7 +1337,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -1503,7 +1503,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 	if err != nil {
 		t.Logf("handleServiceRequest returned error (acceptable): %v", err)
 	}
@@ -1563,7 +1563,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 	// buildTestServiceRequestCiphered). The panic occurs when iterating SmContextList
 	// and indexing into the [16]bool psiArray with pduSessionID >= 16.
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 	if err != nil {
 		t.Logf("handleServiceRequest returned error (acceptable): %v", err)
 	}

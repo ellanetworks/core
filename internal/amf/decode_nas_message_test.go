@@ -16,10 +16,10 @@ import (
 
 // newDecoderTestUE returns a UE in the "registered with valid security
 // context" state, attached to a fresh RanUe.
-func newDecoderTestUE(t *testing.T) *AmfUe {
+func newDecoderTestUE(t *testing.T) *UeContext {
 	t.Helper()
 
-	ue := NewAmfUe()
+	ue := NewUeContext()
 	ue.Log = zap.NewNop()
 	ue.Current().SecurityContextAvailable = true
 

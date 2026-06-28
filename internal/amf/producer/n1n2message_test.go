@@ -232,10 +232,10 @@ func mustSUPI(t *testing.T, imsi string) etsi.SUPI {
 	return s
 }
 
-func addUE(t *testing.T, amfInstance *amf.AMF, imsi string, setup func(*amf.AmfUe)) *amf.AmfUe {
+func addUE(t *testing.T, amfInstance *amf.AMF, imsi string, setup func(*amf.UeContext)) *amf.UeContext {
 	t.Helper()
 	supi := mustSUPI(t, imsi)
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	ue.Supi = supi
 
 	ue.Log = zap.NewNop()
@@ -243,8 +243,8 @@ func addUE(t *testing.T, amfInstance *amf.AMF, imsi string, setup func(*amf.AmfU
 		setup(ue)
 	}
 
-	if err := amfInstance.AddAmfUeToUePool(ue); err != nil {
-		t.Fatalf("AddAmfUeToUePool: %v", err)
+	if err := amfInstance.AddUeContextToPool(ue); err != nil {
+		t.Fatalf("AddUeContextToPool: %v", err)
 	}
 
 	return ue
@@ -302,7 +302,7 @@ func TestTransferN1N2Message_InitialContextAlreadySent(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
-	ue := addUE(t, amfInstance, "001010000000003", func(u *amf.AmfUe) {
+	ue := addUE(t, amfInstance, "001010000000003", func(u *amf.UeContext) {
 		u.Current().Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
 	})
 
@@ -331,7 +331,7 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 	}
 	amfInstance := amf.New(fakeDB, nil, &fakeSmf{})
 
-	ue := addUE(t, amfInstance, "001010000000004", func(u *amf.AmfUe) {
+	ue := addUE(t, amfInstance, "001010000000004", func(u *amf.UeContext) {
 		u.Current().Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
 	})
 
@@ -359,7 +359,7 @@ func TestModifyN1N2Message_IdleRegisteredUE_ReturnsNotReachable(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 	amfInstance.Radios = make(map[*sctp.SCTPConn]*amf.Radio)
 
-	ue := addUE(t, amfInstance, "001010000000014", func(u *amf.AmfUe) {
+	ue := addUE(t, amfInstance, "001010000000014", func(u *amf.UeContext) {
 		u.ForceState(amf.Registered)
 		u.Guti = testGUTI(t)
 		u.Current().RegistrationArea = []models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}}
@@ -398,7 +398,7 @@ func TestModifyN1N2Message_IdleRegisteredUE_ReturnsNotReachable(t *testing.T) {
 func TestReleaseSessionMessage_IdleUE_ReturnsNotReachable(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
-	addUE(t, amfInstance, "001010000000015", func(u *amf.AmfUe) {
+	addUE(t, amfInstance, "001010000000015", func(u *amf.UeContext) {
 		u.ForceState(amf.Registered)
 	})
 
@@ -476,7 +476,7 @@ func TestN2MessageTransferOrPage_ConnectedUE_InitialCtxSent(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
-	ue := addUE(t, amfInstance, "001010000000009", func(u *amf.AmfUe) {
+	ue := addUE(t, amfInstance, "001010000000009", func(u *amf.UeContext) {
 		u.Current().Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
 	})
 

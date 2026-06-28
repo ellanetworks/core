@@ -572,9 +572,9 @@ func (m *MME) buildProtectedAttachAccept(ctx context.Context, ue *UeContext, qos
 	return wire, nil
 }
 
-// onAttachComplete finalises the attach: the UE is EMM-REGISTERED with an active
+// handleAttachComplete finalises the attach: the UE is EMM-REGISTERED with an active
 // default bearer.
-func (m *MME) onAttachComplete(ctx context.Context, ue *UeContext, plain []byte) {
+func (m *MME) handleAttachComplete(ctx context.Context, ue *UeContext, plain []byte) {
 	m.stopNASGuard(ue)
 
 	if _, err := eps.ParseAttachComplete(plain); err != nil {

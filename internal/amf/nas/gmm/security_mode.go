@@ -13,7 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 )
 
-func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe) error {
+func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) error {
 	logger.WithTrace(ctx, logger.AmfLog).Debug("Security Mode Procedure", logger.SUPI(ue.Supi.String()))
 
 	ctx, span := tracer.Start(ctx, "nas/security_mode")

@@ -11,7 +11,7 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 )
 
-func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.RegistrationRequest) error {
+func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.RegistrationRequest) error {
 	ctx, span := tracer.Start(ctx, "nas/context_setup")
 	defer span.End()
 

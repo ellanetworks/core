@@ -18,7 +18,7 @@ import (
 // computed over [sqn || inner] against the UE's current security context, with
 // the sequence number folded into the count exactly as decodeProtectedNAS does
 // (TS 33.501 §6.4.3.1).
-func wrapIntegrityProtected(t *testing.T, ue *AmfUe, inner []byte, sqn uint8) []byte {
+func wrapIntegrityProtected(t *testing.T, ue *UeContext, inner []byte, sqn uint8) []byte {
 	t.Helper()
 
 	fc := ue.Current()
@@ -44,7 +44,7 @@ func wrapIntegrityProtected(t *testing.T, ue *AmfUe, inner []byte, sqn uint8) []
 	return pdu
 }
 
-func newSecuredUE(t *testing.T) *AmfUe {
+func newSecuredUE(t *testing.T) *UeContext {
 	t.Helper()
 
 	ue := newDecoderTestUE(t)

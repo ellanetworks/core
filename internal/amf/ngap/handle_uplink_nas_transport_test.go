@@ -97,7 +97,7 @@ func TestHandleUplinkNasTransport_InconsistentRanUeNgapID_SendsErrorIndication(t
 	}
 }
 
-func TestHandleUplinkNasTransport_NilAmfUe_RemovesRanUe(t *testing.T) {
+func TestHandleUplinkNasTransport_NilUeContext_RemovesRanUe(t *testing.T) {
 	ran := newTestRadio()
 	amfInstance := newTestAMF()
 
@@ -120,7 +120,7 @@ func TestHandleUplinkNasTransport_HappyPath_NASDispatched(t *testing.T) {
 
 	ran := newTestRadio()
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
@@ -153,7 +153,7 @@ func TestHandleUplinkNasTransport_LocationUpdatedBeforeNAS(t *testing.T) {
 
 	ran := newTestRadio()
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
@@ -193,7 +193,7 @@ func uplinkNASStatusCause(t *testing.T, fakeNAS *FakeNASHandler) uint8 {
 	ran := newTestRadio()
 	sender := ran.NGAPSender.(*FakeNGAPSender)
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)

@@ -72,7 +72,7 @@ func TestHandlePDUSessionResourceSetupResponse_HappyPath(t *testing.T) {
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
 	amfInstance.Radios[new(sctp.SCTPConn)] = ran
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 	amfUe.Current().SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
@@ -114,7 +114,7 @@ func TestHandlePDUSessionResourceSetupResponse_FailedItemForwardedToSmf(t *testi
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
 	amfInstance.Radios[new(sctp.SCTPConn)] = ran
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 	amfUe.Current().SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",

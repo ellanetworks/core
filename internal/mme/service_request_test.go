@@ -60,7 +60,7 @@ func TestServiceRequestReestablishes(t *testing.T) {
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
 	}
 
-	m.onServiceRequest(context.Background(), cc, msg)
+	m.handleServiceRequest(context.Background(), cc, msg)
 
 	if !ue.connected() {
 		t.Fatal("UE not ECM-CONNECTED after Service Request")
@@ -109,7 +109,7 @@ func TestServiceRequestS1UTransportFamily(t *testing.T) {
 			testPDN(ue).sgwN3IPv6 = tc.sgwV6
 
 			cc := &captureConn{}
-			m.onServiceRequest(context.Background(), cc, &s1ap.InitialUEMessage{
+			m.handleServiceRequest(context.Background(), cc, &s1ap.InitialUEMessage{
 				ENBUES1APID: 9,
 				NASPDU:      s1ap.NASPDU(serviceRequestNAS(t, ue)),
 				STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
@@ -147,7 +147,7 @@ func TestServiceRequestAllocatesFreshMMEUES1APID(t *testing.T) {
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
 	}
 
-	m.onServiceRequest(context.Background(), cc, msg)
+	m.handleServiceRequest(context.Background(), cc, msg)
 
 	if !ue.connected() {
 		t.Fatal("UE not bound to a connection after Service Request")
@@ -168,7 +168,7 @@ func TestServiceRequestUnknownSTMSIRejected(t *testing.T) {
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: 0xDEADBEEF},
 	}
 
-	m.onServiceRequest(context.Background(), cc, msg)
+	m.handleServiceRequest(context.Background(), cc, msg)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected Service Reject, got %d S1AP messages", len(cc.sent))
@@ -198,7 +198,7 @@ func TestServiceRequestBadMACRejected(t *testing.T) {
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
 	}
 
-	m.onServiceRequest(context.Background(), cc, msg)
+	m.handleServiceRequest(context.Background(), cc, msg)
 
 	if ue.connected() {
 		t.Fatal("UE reconnected despite a bad short MAC")
@@ -249,7 +249,7 @@ func TestServiceRequestBadMACDoesNotRebindVictim(t *testing.T) {
 	nas[3] ^= 0xff
 
 	attacker := &captureConn{}
-	m.onServiceRequest(context.Background(), attacker, &s1ap.InitialUEMessage{
+	m.handleServiceRequest(context.Background(), attacker, &s1ap.InitialUEMessage{
 		ENBUES1APID: 9,
 		NASPDU:      s1ap.NASPDU(nas),
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},

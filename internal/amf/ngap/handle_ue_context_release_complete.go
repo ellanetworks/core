@@ -34,7 +34,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 
 	ranUe.TouchLastSeen()
 
-	amfUe := ranUe.AmfUe()
+	amfUe := ranUe.UeContext()
 	if amfUe == nil {
 		logger.WithTrace(ctx, ranUe.Log).Info("Release UE Context", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", *msg.RANUENGAPID))
 
@@ -117,7 +117,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 		// No valid security context exists for this UE, so delete the AMF UE context
 		if !amfUe.Current().SecurityContextAvailable {
 			logger.WithTrace(ctx, ranUe.Log).Info("No valid security context for UE, deleting AMF UE context", logger.SUPI(amfUe.Supi.String()))
-			amfInstance.DeregisterAndRemoveAMFUE(ctx, amfUe)
+			amfInstance.DeregisterAndRemoveUeContext(ctx, amfUe)
 		}
 	case amf.UeContextReleaseDueToNwInitiatedDeregistraion:
 		logger.WithTrace(ctx, ranUe.Log).Info("Release UE Context Due to Nw Initiated: Release Ue Context", logger.SUPI(amfUe.Supi.String()))
@@ -127,7 +127,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 			logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
 		}
 
-		amfInstance.DeregisterAndRemoveAMFUE(ctx, amfUe)
+		amfInstance.DeregisterAndRemoveUeContext(ctx, amfUe)
 	case amf.UeContextReleaseHandover:
 		logger.WithTrace(ctx, ranUe.Log).Info("Release UE Context : Release for Handover", logger.SUPI(amfUe.Supi.String()))
 

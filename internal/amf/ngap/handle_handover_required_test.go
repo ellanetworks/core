@@ -231,8 +231,8 @@ func TestHandoverRequired(t *testing.T) {
 		},
 	}
 
-	// Set up the AmfUe with valid security context
-	amfUe := amf.NewAmfUe()
+	// Set up the UeContext with valid security context
+	amfUe := amf.NewUeContext()
 	amfUe.Supi = supi
 	amfUe.Current().SecurityContextAvailable = true
 	amfUe.Current().NgKsi.Ksi = 1
@@ -420,8 +420,8 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 		t.Fatalf("failed to build HandoverRequired: %v", err)
 	}
 
-	// Create AmfUe with invalid security context
-	amfUe := amf.NewAmfUe()
+	// Create UeContext with invalid security context
+	amfUe := amf.NewUeContext()
 	amfUe.Current().SecurityContextAvailable = false
 	amfUe.Log = logger.AmfLog
 
@@ -522,7 +522,7 @@ func TestHandoverRequired_UnknownTarget(t *testing.T) {
 	smfInstance := smf.New(nil, nil, nil, nil)
 	smfInstance.NewSession(supi, pduSessionID, dnn, &models.Snssai{Sst: 1})
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Supi = supi
 	amfUe.Current().SecurityContextAvailable = true
 	amfUe.Current().NgKsi.Ksi = 1

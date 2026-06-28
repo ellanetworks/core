@@ -27,7 +27,7 @@ func TestUERadioCapabilityInfoIndication_UnknownAmfUeNgapID(t *testing.T) {
 	assertErrorIndicationEchoesIDs(t, errInd, 999, 99)
 }
 
-func TestUERadioCapabilityInfoIndication_NilAmfUe(t *testing.T) {
+func TestUERadioCapabilityInfoIndication_NilUeContext(t *testing.T) {
 	ran := newTestRadio()
 	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 
@@ -39,7 +39,7 @@ func TestUERadioCapabilityInfoIndication_NilAmfUe(t *testing.T) {
 
 func TestUERadioCapabilityInfoIndication_SetsRadioCapability(t *testing.T) {
 	ran := newTestRadio()
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
@@ -58,7 +58,7 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapability(t *testing.T) {
 
 func TestUERadioCapabilityInfoIndication_SetsRadioCapabilityForPaging(t *testing.T) {
 	ran := newTestRadio()
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
@@ -92,7 +92,7 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapabilityForPaging(t *testing
 
 func TestUERadioCapabilityInfoIndication_NilCapabilityFieldsNoOp(t *testing.T) {
 	ran := newTestRadio()
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)

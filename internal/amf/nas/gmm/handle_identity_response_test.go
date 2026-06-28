@@ -23,19 +23,19 @@ import (
 
 type UpdateInputs struct {
 	name         string
-	ue           *amf.AmfUe
+	ue           *amf.UeContext
 	mi           []uint8
 	expected_err error
-	validate_ue  func(ue *amf.AmfUe) error
+	validate_ue  func(ue *amf.UeContext) error
 }
 
-func emptyValidation(ue *amf.AmfUe) error {
+func emptyValidation(ue *amf.UeContext) error {
 	return nil
 }
 
-func newTestUe(macFailed bool, guti, oldGuti etsi.GUTI, tmsi etsi.TMSI) *amf.AmfUe {
-	_ = macFailed
-	ue := amf.NewAmfUe()
+func newTestUe(integrityVerified bool, guti, oldGuti etsi.GUTI, tmsi etsi.TMSI) *amf.UeContext {
+	_ = integrityVerified
+	ue := amf.NewUeContext()
 	ue.Guti = guti
 	ue.OldGuti = oldGuti
 	ue.Tmsi = tmsi
@@ -43,9 +43,9 @@ func newTestUe(macFailed bool, guti, oldGuti etsi.GUTI, tmsi etsi.TMSI) *amf.Amf
 	return ue
 }
 
-func tmsiUe(macFailed bool, tmsi, oldTmsi etsi.TMSI) *amf.AmfUe {
-	_ = macFailed
-	ue := amf.NewAmfUe()
+func tmsiUe(integrityVerified bool, tmsi, oldTmsi etsi.TMSI) *amf.UeContext {
+	_ = integrityVerified
+	ue := amf.NewUeContext()
 	ue.Tmsi = tmsi
 	ue.OldTmsi = oldTmsi
 
@@ -67,29 +67,29 @@ func TestUpdateUeIdentity(t *testing.T) {
 			"NIL UE",
 			nil,
 			[]uint8{},
-			fmt.Errorf("AmfUe is nil"),
+			fmt.Errorf("UeContext is nil"),
 			emptyValidation,
 		},
 		{
 			"Empty mobileIdentityContents",
-			&amf.AmfUe{},
+			&amf.UeContext{},
 			[]uint8{},
 			fmt.Errorf("mobile identity is empty"),
 			emptyValidation,
 		},
 		{
 			"Unknown type is ignored",
-			&amf.AmfUe{},
+			&amf.UeContext{},
 			[]uint8{0xFF},
 			nil,
 			emptyValidation,
 		},
 		{
 			"Invalid SUCI sets empty SUCI and PLMN",
-			&amf.AmfUe{},
+			&amf.UeContext{},
 			[]uint8{nasMessage.MobileIdentity5GSTypeSuci},
 			nil,
-			func(ue *amf.AmfUe) error {
+			func(ue *amf.UeContext) error {
 				if ue.Suci != "" || ue.PlmnID.Mcc != "" || ue.PlmnID.Mnc != "" {
 					return fmt.Errorf("SUCI and PLMN should be empty, got %s, %s%s", ue.Suci, ue.PlmnID.Mcc, ue.PlmnID.Mnc)
 				}
@@ -99,10 +99,10 @@ func TestUpdateUeIdentity(t *testing.T) {
 		},
 		{
 			"Valid SUCI sets SUCI and PLMN",
-			&amf.AmfUe{},
+			&amf.UeContext{},
 			[]uint8{nasMessage.MobileIdentity5GSTypeSuci, 0x00, 0xf1, 0x10, 0x10, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
 			nil,
-			func(ue *amf.AmfUe) error {
+			func(ue *amf.UeContext) error {
 				if ue.Suci != "suci-0-001-01-0110-0-1-00000000000000000010" || ue.PlmnID.Mcc != "001" || ue.PlmnID.Mnc != "01" {
 					return fmt.Errorf("SUCI and PLMN should not be empty, got %s, %s%s", ue.Suci, ue.PlmnID.Mcc, ue.PlmnID.Mnc)
 				}
@@ -206,7 +206,7 @@ func TestUpdateUeIdentity(t *testing.T) {
 			newTestUe(false, etsi.GUTI{}, etsi.GUTI{}, etsi.TMSI{}),
 			[]uint8{nasMessage.MobileIdentity5GSTypeImei + 0x08 + 0x40, 0x09, 0x51, 0x24, 0x30, 0x32, 0x57, 0x81},
 			nil,
-			func(ue *amf.AmfUe) error {
+			func(ue *amf.UeContext) error {
 				expected := "imei-490154203237518"
 				if ue.Pei != expected {
 					return fmt.Errorf("PEI should be %s, got %s", expected, ue.Pei)
@@ -227,7 +227,7 @@ func TestUpdateUeIdentity(t *testing.T) {
 			newTestUe(false, etsi.GUTI{}, etsi.GUTI{}, etsi.TMSI{}),
 			[]uint8{nasMessage.MobileIdentity5GSTypeImeisv + 0x30, 0x25, 0x90, 0x09, 0x10, 0x67, 0x41, 0x28, 0xF3},
 			nil,
-			func(ue *amf.AmfUe) error {
+			func(ue *amf.UeContext) error {
 				expected := "imeisv-3520990017614823"
 				if ue.Pei != expected {
 					return fmt.Errorf("PEI should be %s, got %s", expected, ue.Pei)
@@ -239,8 +239,8 @@ func TestUpdateUeIdentity(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			macFailed := strings.Contains(tc.name, "MacFailed")
-			err := updateUEIdentity(tc.ue, tc.mi, macFailed)
+			integrityVerified := !strings.Contains(tc.name, "MacFailed")
+			err := updateUEIdentity(tc.ue, tc.mi, integrityVerified)
 
 			if tc.expected_err == nil && err != nil {
 				t.Fatalf("expected error to be nil, got %v", err)
@@ -262,10 +262,10 @@ func TestHandleIdentityResponse_InvalidStateError(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
-			ue := amf.NewAmfUe()
+			ue := amf.NewUeContext()
 			ue.ForceState(tc)
 
-			err := handleIdentityResponse(context.TODO(), amf.New(nil, nil, nil), ue, &nasMessage.IdentityResponse{}, false)
+			err := handleIdentityResponse(context.TODO(), amf.New(nil, nil, nil), ue, &nasMessage.IdentityResponse{}, true)
 			if err == nil {
 				t.Fatalf("expected an state mismatch error, got no error")
 			}
@@ -300,7 +300,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 
 	m := buildTestIdentityResponseMessage()
 
-	err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, false)
+	err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, true)
 	if err != nil {
 		t.Fatalf("expected no errors but got: %v", err)
 	}
@@ -356,7 +356,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 
 	expected := "error in authentication procedure: failed to send ue authentication request: tai is not available in UE context"
 
-	err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, false)
+	err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, true)
 	if err == nil {
 		t.Fatalf("expected error but got none")
 	}
@@ -415,7 +415,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 
 	m := buildTestIdentityResponseMessage()
 
-	err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, false)
+	err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, true)
 	if err != nil {
 		t.Fatalf("expected no errors but got: %v", err)
 	}
@@ -508,7 +508,7 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 
 			m := buildTestIdentityResponseMessage()
 
-			err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, false)
+			err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, true)
 			if err != nil {
 				t.Fatalf("expected no errors but got: %v", err)
 			}
@@ -597,7 +597,7 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 
 			m := buildTestIdentityResponseMessage()
 
-			err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, false)
+			err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, true)
 			if err == nil {
 				t.Fatalf("expected error but got none")
 			}
@@ -641,7 +641,7 @@ func TestHandleIdentityResponse_IdentityError(t *testing.T) {
 
 			expected := "error handling identity response: mobile identity is empty"
 
-			err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, false)
+			err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, true)
 			if err == nil {
 				t.Fatalf("expected error but got none")
 			}

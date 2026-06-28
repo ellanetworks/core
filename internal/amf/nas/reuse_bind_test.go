@@ -69,15 +69,15 @@ func TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim(t *testing
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	victim := amf.NewAmfUe()
+	victim := amf.NewUeContext()
 	victim.Log = zap.NewNop()
 	victim.Supi = supi
 	victim.Guti = guti
 	victim.Current().SecurityContextAvailable = true
 	victim.ForceState(amf.Registered)
 
-	if err := amfInstance.AddAmfUeToUePool(victim); err != nil {
-		t.Fatalf("AddAmfUeToUePool: %v", err)
+	if err := amfInstance.AddUeContextToPool(victim); err != nil {
+		t.Fatalf("AddUeContextToPool: %v", err)
 	}
 
 	got, err := fetchUeContextWithMobileIdentity(context.Background(), amfInstance, plainRegistrationWithGuti(t, gutiBytes))

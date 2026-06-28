@@ -134,7 +134,7 @@ func TestTrackingAreaUpdateCombinedSignalsCSDomainUnavailable(t *testing.T) {
 	ue, cc := securedUE(t, m) // ECM-CONNECTED, secured, EMM-REGISTERED
 
 	// EPS update type 2 = combined TA/LA updating with IMSI attach.
-	m.onTrackingAreaUpdate(context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x02})
+	m.handleTrackingAreaUpdate(context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x02})
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one downlink (TAU Accept), got %d", len(cc.sent))
@@ -175,7 +175,7 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 	m.assignGUTI(ue, plmn, group, code)
 	oldMTMSI := ue.mtmsi
 
-	m.onTrackingAreaUpdate(context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x03}) // periodic
+	m.handleTrackingAreaUpdate(context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x03}) // periodic
 
 	if ue.oldMTMSI != oldMTMSI || ue.mtmsi == oldMTMSI {
 		t.Fatalf("GUTI not reallocated: mtmsi=%d oldMTMSI=%d (was %d)", ue.mtmsi, ue.oldMTMSI, oldMTMSI)
@@ -208,7 +208,7 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 	}
 
 	// TAU Complete commits the new GUTI and frees the old M-TMSI.
-	m.onTrackingAreaUpdateComplete(context.Background(), ue)
+	m.handleTrackingAreaUpdateComplete(context.Background(), ue)
 
 	if ue.oldMTMSI != 0 {
 		t.Fatal("reallocation not committed after TAU Complete")
@@ -232,7 +232,7 @@ func TestTrackingAreaUpdateIdleNoActiveFlagReleases(t *testing.T) {
 	ue, cc := securedUE(t, m)
 	ue.mtmsi = 1 // a GUTI to reallocate
 
-	m.onTrackingAreaUpdate(context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x00})
+	m.handleTrackingAreaUpdate(context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x00})
 
 	// Only the TAU Accept goes out; the release waits for TAU Complete.
 	if len(cc.sent) != 1 {
@@ -251,7 +251,7 @@ func TestTrackingAreaUpdateIdleNoActiveFlagReleases(t *testing.T) {
 	}
 
 	// UE Completes: the new GUTI commits and the UE is released to ECM-IDLE.
-	m.onTrackingAreaUpdateComplete(context.Background(), ue)
+	m.handleTrackingAreaUpdateComplete(context.Background(), ue)
 
 	if ue.oldMTMSI != 0 {
 		t.Fatal("old M-TMSI not freed after TAU Complete")
@@ -277,7 +277,7 @@ func TestTrackingAreaUpdateIdleActiveFlagReestablishes(t *testing.T) {
 	cc := &captureConn{}
 	m.establishS1Connection(ue, cc, 9) // the resume re-binds the connection
 
-	m.onTrackingAreaUpdate(context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x08})
+	m.handleTrackingAreaUpdate(context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x08})
 
 	if !ue.connected() {
 		t.Fatal("UE not ECM-CONNECTED after an active-flag TAU")

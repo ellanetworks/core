@@ -94,7 +94,7 @@ func (s *deregisterTestSmf) GetSessionPolicy(context.Context, etsi.SUPI, *models
 }
 
 func TestDeregister_DoesNotHoldLockDuringSmfRelease(t *testing.T) {
-	ue := NewAmfUe()
+	ue := NewUeContext()
 	ue.Log = zap.NewNop()
 	ue.Current().SmContextList[1] = &SmContext{Ref: "ref-1"}
 	ue.Current().SmContextList[2] = &SmContext{Ref: "ref-2"}

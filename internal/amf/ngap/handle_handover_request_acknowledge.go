@@ -63,7 +63,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 	targetUe.TouchLastSeen()
 	logger.WithTrace(ctx, targetUe.Log).Debug("Handle Handover Request Acknowledge", zap.Any("RanUeNgapID", targetUe.RanUeNgapID), zap.Any("AmfUeNgapID", targetUe.AmfUeNgapID))
 
-	amfUe := targetUe.AmfUe()
+	amfUe := targetUe.UeContext()
 	if amfUe == nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("amfUe is nil")
 		return
@@ -134,8 +134,8 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 			},
 		}
 
-		if sourceAmfUe := sourceUe.AmfUe(); sourceAmfUe != nil {
-			sourceAmfUe.NasConn().Procedures.End(procedure.N2Handover)
+		if sourceUeContext := sourceUe.UeContext(); sourceUeContext != nil {
+			sourceUeContext.NasConn().Procedures.End(procedure.N2Handover)
 		}
 
 		if sourceUe.Radio() == nil {

@@ -11,7 +11,7 @@ import (
 )
 
 // AuthProof is an unforgeable witness that the caller is entitled to
-// mutate security-critical state on an AmfUe. Holding an AuthProof is
+// mutate security-critical state on an UeContext. Holding an AuthProof is
 // a precondition for calling setters like SetUESecurityCapability.
 //
 // AuthProof has no exported constructor. It may only be minted from
@@ -78,7 +78,7 @@ const (
 // VerifyUESecurityCapability compares a peer-reported UE security
 // capability against the AMF's stored value per TS 33.501 §6.7.3.1. It
 // never mutates ue.
-func (ue *AmfUe) VerifyUESecurityCapability(received *nasType.UESecurityCapability) VerifyResult {
+func (ue *UeContext) VerifyUESecurityCapability(received *nasType.UESecurityCapability) VerifyResult {
 	ue.Mutex.RLock()
 	stored := ue.Current().UESecurityCapability
 	ue.Mutex.RUnlock()
@@ -102,7 +102,7 @@ func (ue *AmfUe) VerifyUESecurityCapability(received *nasType.UESecurityCapabili
 // It requires an AuthProof, which can only be minted from the two
 // authorized call sites in this package; this makes downgrade via an
 // unauthenticated code path structurally impossible.
-func (ue *AmfUe) SetUESecurityCapability(caps *nasType.UESecurityCapability, _ AuthProof) {
+func (ue *UeContext) SetUESecurityCapability(caps *nasType.UESecurityCapability, _ AuthProof) {
 	ue.Mutex.Lock()
 	defer ue.Mutex.Unlock()
 

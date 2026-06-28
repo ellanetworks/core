@@ -50,7 +50,7 @@ func TestDecodeNASMessage_PurityOnPlainReject(t *testing.T) {
 	}
 }
 
-// securityStateSnapshot is the set of AmfUe fields the NAS decoder is
+// securityStateSnapshot is the set of UeContext fields the NAS decoder is
 // forbidden from mutating. New security-relevant fields should be added
 // here as they are introduced.
 //
@@ -66,7 +66,7 @@ type securityStateSnapshot struct {
 	KnasEnc                  [16]uint8
 }
 
-func snapshotSecurityState(ue *AmfUe) securityStateSnapshot {
+func snapshotSecurityState(ue *UeContext) securityStateSnapshot {
 	return securityStateSnapshot{
 		SecurityContextAvailable: ue.Current().SecurityContextAvailable,
 		CipheringAlg:             ue.Current().CipheringAlg,

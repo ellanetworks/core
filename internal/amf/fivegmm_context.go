@@ -13,11 +13,11 @@ import (
 	"github.com/free5gc/nas/security"
 )
 
-// FivegmmContext is the per-registration 5GMM state for one AmfUe. It
+// FivegmmContext is the per-registration 5GMM state for one UeContext. It
 // outlives NAS connection drops within a registration; it is replaced
 // when an initial registration succeeds for an already-registered UE.
 type FivegmmContext struct {
-	parent *AmfUe
+	parent *UeContext
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -55,7 +55,7 @@ type FivegmmContext struct {
 	ImplicitDeregistrationTimer *Timer
 }
 
-func newFivegmmContext(parent *AmfUe) *FivegmmContext {
+func newFivegmmContext(parent *UeContext) *FivegmmContext {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &FivegmmContext{
@@ -71,7 +71,7 @@ func (fc *FivegmmContext) Ctx() context.Context {
 	return fc.ctx
 }
 
-func (fc *FivegmmContext) Parent() *AmfUe {
+func (fc *FivegmmContext) Parent() *UeContext {
 	return fc.parent
 }
 
@@ -103,6 +103,6 @@ func (fc *FivegmmContext) stopIdleTimers() {
 	}
 }
 
-func NewFivegmmContextForTest(parent *AmfUe) *FivegmmContext {
+func NewFivegmmContextForTest(parent *UeContext) *FivegmmContext {
 	return newFivegmmContext(parent)
 }

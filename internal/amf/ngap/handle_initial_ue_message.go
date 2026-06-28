@@ -75,7 +75,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 				logger.WithTrace(ctx, ranUe.Log).Warn("invalid guti", zap.Error(err))
 			}
 
-			if amfUe, ok := amfInstance.FindAmfUeByGuti(guti); !ok {
+			if amfUe, ok := amfInstance.FindUeContextByGuti(guti); !ok {
 				logger.WithTrace(ctx, ranUe.Log).Warn("Unknown UE", logger.GUTI(guti.String()))
 			} else if !amfUe.ReuseForInboundNAS(msg.NASPDU) {
 				// TS 24.501 §4.4.4.3: this message cites an existing context but
@@ -84,14 +84,14 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 				// authentication.
 				logger.WithTrace(ctx, ranUe.Log).Info("Initial UE Message cites a known GUTI but is not authenticated for that context; registering on a fresh context", logger.GUTI(guti.String()))
 			} else {
-				logger.WithTrace(ctx, ranUe.Log).Debug("find AmfUe", logger.GUTI(guti.String()))
+				logger.WithTrace(ctx, ranUe.Log).Debug("find UeContext", logger.GUTI(guti.String()))
 				/* checking the guti-ue belongs to this amf instance */
 
 				if amfUe.RanUe() != nil {
 					logger.WithTrace(ctx, ranUe.Log).Debug("Implicit Deregistration", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 				}
 
-				logger.WithTrace(ctx, ranUe.Log).Debug("AmfUe Attach RanUe", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+				logger.WithTrace(ctx, ranUe.Log).Debug("UeContext Attach RanUe", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 				amfUe.AttachRanUe(ranUe)
 			}
 		}
@@ -101,9 +101,9 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	ranUe.UeContextRequest = msg.UEContextRequest
 
-	if ranUe.AmfUe() != nil {
-		ranUe.AmfUe().StopImplicitDeregistrationTimer()
-		ranUe.AmfUe().StopMobileReachableTimer()
+	if ranUe.UeContext() != nil {
+		ranUe.UeContext().StopImplicitDeregistrationTimer()
+		ranUe.UeContext().StopMobileReachableTimer()
 	}
 
 	if amfInstance.NAS == nil {

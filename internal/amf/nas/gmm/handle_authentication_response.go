@@ -21,7 +21,7 @@ import (
 )
 
 // TS 24.501 5.4.1
-func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.AuthenticationResponse) error {
+func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.AuthenticationResponse) error {
 	if state := ue.GetState(); state != amf.Authentication {
 		return fmt.Errorf("state mismatch: receive Authentication Response message in state %s", state)
 	}
@@ -94,7 +94,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 // if the UE was identified by 5G-GUTI, the network retrieves the SUCI via an
 // identification procedure and restarts authentication; otherwise it rejects
 // authentication and deregisters the UE.
-func failAuthentication(ctx context.Context, ue *amf.AmfUe, ranUe *amf.RanUe, conn *amf.ActiveNasConnection) error {
+func failAuthentication(ctx context.Context, ue *amf.UeContext, ranUe *amf.RanUe, conn *amf.ActiveNasConnection) error {
 	if conn.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
 		if err := message.SendIdentityRequest(ctx, ranUe, nasMessage.MobileIdentity5GSTypeSuci); err != nil {
 			return fmt.Errorf("send identity request error: %s", err)

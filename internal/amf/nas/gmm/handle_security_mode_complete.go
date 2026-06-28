@@ -15,12 +15,12 @@ import (
 )
 
 // TS 33.501 6.7.2
-func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.SecurityModeComplete, macFailed bool) error {
+func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.SecurityModeComplete, integrityVerified bool) error {
 	if state := ue.GetState(); state != amf.SecurityMode {
 		return fmt.Errorf("state mismatch: receive Security Mode Complete message in state %s", state)
 	}
 
-	if macFailed {
+	if !integrityVerified {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
 
@@ -36,7 +36,7 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 
 	conn.Procedures.End(procedure.SecurityMode)
 
-	if ue.SecurityContextIsValid() && !macFailed {
+	if ue.SecurityContextIsValid() && integrityVerified {
 		err := ue.UpdateSecurityContext()
 		if err != nil {
 			return fmt.Errorf("error updating security context: %v", err)

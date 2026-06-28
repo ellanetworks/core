@@ -22,12 +22,12 @@ func TestHandleNotificationResponse_NotRegisteredError(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
-			ue := amf.NewAmfUe()
+			ue := amf.NewUeContext()
 			ue.ForceState(tc)
 
 			expected := fmt.Sprintf("state mismatch: receive Notification Response message in state %s", tc)
 
-			err := handleNotificationResponse(t.Context(), nil, ue, nil, false)
+			err := handleNotificationResponse(t.Context(), nil, ue, nil, true)
 			if err == nil || err.Error() != expected {
 				t.Fatalf("expected error: %s, got %v", expected, err)
 			}
@@ -36,12 +36,12 @@ func TestHandleNotificationResponse_NotRegisteredError(t *testing.T) {
 }
 
 func TestHandleNotificationResponse_MacFailed(t *testing.T) {
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	ue.ForceState(amf.Registered)
 
 	expected := "NAS message integrity check failed"
 
-	err := handleNotificationResponse(t.Context(), nil, ue, nil, true)
+	err := handleNotificationResponse(t.Context(), nil, ue, nil, false)
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected error: %s, got %v", expected, err)
 	}
@@ -67,7 +67,7 @@ func TestHandleNotificationResponse_T3565Stopped_NoPDUSessionStatus_NoSmContextR
 
 	m := buildTestNotifationResponse()
 
-	err = handleNotificationResponse(t.Context(), amfInstance, ue, m.NotificationResponse, false)
+	err = handleNotificationResponse(t.Context(), amfInstance, ue, m.NotificationResponse, true)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -115,7 +115,7 @@ func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextRelea
 	m.NotificationResponse.SetPSI11(1)
 	m.NotificationResponse.SetPSI15(0)
 
-	err = handleNotificationResponse(t.Context(), amfInstance, ue, m.NotificationResponse, false)
+	err = handleNotificationResponse(t.Context(), amfInstance, ue, m.NotificationResponse, true)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

@@ -45,7 +45,7 @@ func TransferN1N2Message(ctx context.Context, amfInstance *amf.AMF, supi etsi.SU
 	)
 	defer span.End()
 
-	ue, ok := amfInstance.FindAMFUEBySupi(supi)
+	ue, ok := amfInstance.FindUeContextBySupi(supi)
 	if !ok {
 		return fmt.Errorf("ue context not found")
 	}
@@ -111,7 +111,7 @@ func TransferN1N2Message(ctx context.Context, amfInstance *amf.AMF, supi etsi.SU
 	return nil
 }
 
-func storeN1N2AndPage(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, req models.N1N2MessageTransferRequest) error {
+func storeN1N2AndPage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, req models.N1N2MessageTransferRequest) error {
 	nasConn := ue.NasConn()
 	if nasConn == nil {
 		return fmt.Errorf("ue has no active NAS connection")
@@ -181,7 +181,7 @@ func ModifyN1N2Message(ctx context.Context, amfInstance *amf.AMF, supi etsi.SUPI
 	)
 	defer span.End()
 
-	ue, ok := amfInstance.FindAMFUEBySupi(supi)
+	ue, ok := amfInstance.FindUeContextBySupi(supi)
 	if !ok {
 		return fmt.Errorf("ue context not found")
 	}
@@ -257,7 +257,7 @@ func ReleaseSessionMessage(ctx context.Context, amfInstance *amf.AMF, supi etsi.
 	)
 	defer span.End()
 
-	ue, ok := amfInstance.FindAMFUEBySupi(supi)
+	ue, ok := amfInstance.FindUeContextBySupi(supi)
 	if !ok {
 		return fmt.Errorf("ue context not found")
 	}
@@ -304,7 +304,7 @@ func N2MessageTransferOrPage(ctx context.Context, amfInstance *amf.AMF, supi ets
 	)
 	defer span.End()
 
-	ue, ok := amfInstance.FindAMFUEBySupi(supi)
+	ue, ok := amfInstance.FindUeContextBySupi(supi)
 	if !ok {
 		return fmt.Errorf("ue context not found")
 	}
@@ -391,7 +391,7 @@ func TransferN1Msg(ctx context.Context, amfInstance *amf.AMF, supi etsi.SUPI, n1
 	)
 	defer span.End()
 
-	ue, ok := amfInstance.FindAMFUEBySupi(supi)
+	ue, ok := amfInstance.FindUeContextBySupi(supi)
 	if !ok {
 		return fmt.Errorf("ue context not found")
 	}

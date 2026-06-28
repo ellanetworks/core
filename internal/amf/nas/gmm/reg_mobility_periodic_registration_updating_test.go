@@ -74,7 +74,7 @@ func (fdb *failingSubscriberDB) NodeID() int { return 0 }
 // IntegrityProtectedAndCiphered. The dlCountOffset parameter specifies the offset
 // from ue.Current().ULCount.Get() to use as the DL count (0 for the first message, 1 for
 // the second, etc.).
-func decryptAndDecodeNasPdu(t *testing.T, ue *amf.AmfUe, nasPdu []byte, dlCountOffset uint32) *nas.Message {
+func decryptAndDecodeNasPdu(t *testing.T, ue *amf.UeContext, nasPdu []byte, dlCountOffset uint32) *nas.Message {
 	t.Helper()
 
 	nm := new(nas.Message)
@@ -103,7 +103,7 @@ func decryptAndDecodeNasPdu(t *testing.T, ue *amf.AmfUe, nasPdu []byte, dlCountO
 // registration updating tests. The UE has security context, a valid registration
 // request, Pei, Supi, and matching Tai. The AMF has a valid Operator, FakeSmf, and
 // UEs map. Returns the UE, ngapSender, fakeSmf, and AMF.
-func buildMobilityRegUeAndAMF(t *testing.T) (*amf.AmfUe, *FakeNGAPSender, *FakeSmf, *amf.AMF) {
+func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *FakeNGAPSender, *FakeSmf, *amf.AMF) {
 	t.Helper()
 
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")

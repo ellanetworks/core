@@ -14,12 +14,12 @@ import (
 )
 
 // TS 24501 5.6.3.2
-func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.NotificationResponse, macFailed bool) error {
+func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.NotificationResponse, integrityVerified bool) error {
 	if state := ue.GetState(); state != amf.Registered {
 		return fmt.Errorf("state mismatch: receive Notification Response message in state %s", state)
 	}
 
-	if macFailed {
+	if !integrityVerified {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
 

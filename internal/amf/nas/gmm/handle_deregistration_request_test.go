@@ -29,7 +29,7 @@ func TestHandleRegeristrationRequest(t *testing.T) {
 
 			expected := fmt.Sprintf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", tc)
 
-			err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, nil, false)
+			err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, nil, true)
 			if err == nil || err.Error() != expected {
 				t.Fatalf("expected error: %s, got: %v", expected, err)
 			}
@@ -59,7 +59,7 @@ func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
 	}, nil, &smf)
 
 	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
-	if err := amfInstance.AddAmfUeToUePool(ue); err != nil {
+	if err := amfInstance.AddUeContextToPool(ue); err != nil {
 		t.Fatalf("could not add UE to AMF pool: %v", err)
 	}
 
@@ -71,7 +71,7 @@ func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
-	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, false)
+	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestHandleDeregistrationRequest_NilRanUE(t *testing.T) {
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
-	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, false)
+	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestHandleDeregistrationRequest_NotSwitchOff_DeregistrationAccept(t *testin
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
-	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, false)
+	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -164,7 +164,7 @@ func TestHandleDeregistrationRequest_SwitchOff_NoDeregistrationAccept(t *testing
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 	m.DeregistrationRequestUEOriginatingDeregistration.SetSwitchOff(1)
 
-	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, false)
+	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestHandleDeregistrationRequest_MacFailed_RejectsForgery(t *testing.T) {
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
-	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
+	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, false)
 	if err == nil {
 		t.Fatal("expected handler to reject unauthenticated deregistration, got nil error")
 	}
@@ -229,7 +229,7 @@ func TestHandleDeregistrationRequest_Non3GPP_DeregistrationAccept(t *testing.T) 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 	m.DeregistrationRequestUEOriginatingDeregistration.SetAccessType(nasMessage.AccessTypeNon3GPP)
 
-	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, false)
+	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}

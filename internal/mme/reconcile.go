@@ -330,29 +330,29 @@ func (m *MME) handleESM(ctx context.Context, ue *UeContext, plain []byte) {
 
 	switch mt {
 	case eps.MsgPDNConnectivityRequest:
-		m.onPDNConnectivityRequest(ctx, ue, plain)
+		m.handlePDNConnectivityRequest(ctx, ue, plain)
 	case eps.MsgPDNDisconnectRequest:
-		m.onPDNDisconnectRequest(ctx, ue, plain)
+		m.handlePDNDisconnectRequest(ctx, ue, plain)
 	case eps.MsgActivateDefaultEPSBearerContextAccept:
-		m.onActivateDefaultBearerAccept(ue, plain)
+		m.handleActivateDefaultBearerAccept(ue, plain)
 	case eps.MsgActivateDefaultEPSBearerContextReject:
-		m.onActivateDefaultBearerReject(ue, plain)
+		m.handleActivateDefaultBearerReject(ue, plain)
 	case eps.MsgDeactivateEPSBearerContextAccept:
-		m.onDeactivateBearerAccept(ctx, ue, plain)
+		m.handleDeactivateBearerAccept(ctx, ue, plain)
 	case eps.MsgModifyEPSBearerContextAccept:
-		m.onModifyBearerAccept(ue, plain)
+		m.handleModifyBearerAccept(ue, plain)
 	case eps.MsgModifyEPSBearerContextReject:
-		m.onModifyBearerReject(ue, plain)
+		m.handleModifyBearerReject(ue, plain)
 	default:
 		logger.MmeLog.Warn("unhandled ESM message", zap.Int("message-type-value", int(mt)))
 	}
 }
 
-// onModifyBearerAccept commits the new bearer configuration once the UE accepts
+// handleModifyBearerAccept commits the new bearer configuration once the UE accepts
 // the in-place modification (TS 24.301 §6.4.2.3). The accept's EPS bearer identity
 // selects the PDN connection, so a modification of an additional PDN commits to
 // the right bearer.
-func (m *MME) onModifyBearerAccept(ue *UeContext, plain []byte) {
+func (m *MME) handleModifyBearerAccept(ue *UeContext, plain []byte) {
 	m.stopNASGuard(ue)
 
 	p := m.defaultPDN(ue)
@@ -384,9 +384,9 @@ func (m *MME) onModifyBearerAccept(ue *UeContext, plain []byte) {
 		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.String("apn", p.apn))
 }
 
-// onModifyBearerReject abandons the modification when the UE rejects it
+// handleModifyBearerReject abandons the modification when the UE rejects it
 // (TS 24.301 §6.4.2.4), leaving the stored config stale so the backstop retries.
-func (m *MME) onModifyBearerReject(ue *UeContext, plain []byte) {
+func (m *MME) handleModifyBearerReject(ue *UeContext, plain []byte) {
 	m.stopNASGuard(ue)
 
 	p := m.defaultPDN(ue)
@@ -406,12 +406,12 @@ func (m *MME) onModifyBearerReject(ue *UeContext, plain []byte) {
 		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi))
 }
 
-// onDeactivateBearerAccept finalises an EPS bearer deactivation. A deactivation
+// handleDeactivateBearerAccept finalises an EPS bearer deactivation. A deactivation
 // triggered by a UE PDN disconnect releases only that PDN connection and leaves
 // the UE connected (TS 24.301 §6.5.2). A deactivation with reactivation requested
 // for the default bearer instead releases the S1 context so the UE re-attaches
 // and picks up the new data-network configuration (TS 24.301 §6.4.4.2).
-func (m *MME) onDeactivateBearerAccept(ctx context.Context, ue *UeContext, plain []byte) {
+func (m *MME) handleDeactivateBearerAccept(ctx context.Context, ue *UeContext, plain []byte) {
 	m.stopNASGuard(ue)
 
 	p := m.defaultPDN(ue)

@@ -14,12 +14,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// onServiceRequest handles a mobile-originated SERVICE REQUEST (TS 24.301)
+// handleServiceRequest handles a mobile-originated SERVICE REQUEST (TS 24.301)
 // carried in an Initial UE Message from an EMM-IDLE UE. It resolves the
 // UE by the S-TMSI, verifies the short MAC against the stored NAS context, binds
 // the UE to the new S1 association, and re-establishes the S1 context and
 // default bearer (ECM-IDLE → ECM-CONNECTED).
-func (m *MME) onServiceRequest(ctx context.Context, conn nasWriter, msg *s1ap.InitialUEMessage) {
+func (m *MME) handleServiceRequest(ctx context.Context, conn nasWriter, msg *s1ap.InitialUEMessage) {
 	if msg.STMSI == nil {
 		logger.MmeLog.Warn("Service Request without an S-TMSI")
 		m.sendServiceReject(ctx, conn, msg.ENBUES1APID)

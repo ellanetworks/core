@@ -22,7 +22,7 @@ import (
 // performed here is advancing ue.Current().ULCount.
 //
 // See TS 24.501 §4.4.4.3 and TS 33.501 §6.4.6 step 3 for the policy.
-func DecodeNASMessage(ue *AmfUe, payload []byte) (*DecodeResult, error) {
+func DecodeNASMessage(ue *UeContext, payload []byte) (*DecodeResult, error) {
 	ue.Mutex.Lock()
 	defer ue.Mutex.Unlock()
 
@@ -62,7 +62,7 @@ func DecodeNASMessage(ue *AmfUe, payload []byte) (*DecodeResult, error) {
 // It is the authorization gate for an inbound message that resolved to an
 // existing context by GUTI/5G-S-TMSI: only a message proven to originate from
 // the holder of the keys may act on that context (TS 24.501 §4.4.4.3).
-func (ue *AmfUe) NasIntegrityVerified(payload []byte) bool {
+func (ue *UeContext) NasIntegrityVerified(payload []byte) bool {
 	if ue == nil {
 		return false
 	}
@@ -112,7 +112,7 @@ func (ue *AmfUe) NasIntegrityVerified(payload []byte) bool {
 // NAS security context and PDU sessions untouched (TS 24.501 §4.4.4.3). On a
 // fresh context a registration re-authenticates, a service request is rejected
 // with 5GMM cause #9, and a deregistration is ignored — each the spec outcome.
-func (ue *AmfUe) ReuseForInboundNAS(payload []byte) bool {
+func (ue *UeContext) ReuseForInboundNAS(payload []byte) bool {
 	return ue.NasIntegrityVerified(payload)
 }
 
@@ -138,7 +138,7 @@ func decodePlainNAS(msg *nas.Message, payload []byte) (*DecodeResult, error) {
 	return &DecodeResult{Message: msg, Verdict: verdict}, nil
 }
 
-func decodeProtectedNAS(ue *AmfUe, msg *nas.Message, payload []byte, conn *ActiveNasConnection) (*DecodeResult, error) {
+func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *ActiveNasConnection) (*DecodeResult, error) {
 	if len(payload) < 7 {
 		return nil, fmt.Errorf("nas payload is too short")
 	}

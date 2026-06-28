@@ -21,7 +21,7 @@ import (
 	"github.com/free5gc/nas/nasType"
 )
 
-func BuildDLNASTransport(ue *amf.AmfUe, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause *uint8) ([]byte, error) {
+func BuildDLNASTransport(ue *amf.UeContext, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause *uint8) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeDLNASTransport)
@@ -73,7 +73,7 @@ func BuildIdentityRequest(typeOfIdentity uint8) ([]byte, error) {
 	return m.PlainNasEncode()
 }
 
-func BuildAuthenticationRequest(ue *amf.AmfUe) ([]byte, error) {
+func BuildAuthenticationRequest(ue *amf.UeContext) ([]byte, error) {
 	conn := ue.NasConn()
 	if conn == nil || conn.AuthenticationCtx == nil {
 		return nil, fmt.Errorf("no authentication context available")
@@ -119,7 +119,7 @@ func BuildAuthenticationRequest(ue *amf.AmfUe) ([]byte, error) {
 	return m.PlainNasEncode()
 }
 
-func BuildServiceAccept(ue *amf.AmfUe, pDUSessionStatus *[16]bool, reactivationResult *[16]bool, errPduSessionID, errCause []uint8) ([]byte, error) {
+func BuildServiceAccept(ue *amf.UeContext, pDUSessionStatus *[16]bool, reactivationResult *[16]bool, errPduSessionID, errCause []uint8) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeServiceAccept)
@@ -223,7 +223,7 @@ func BuildRegistrationReject(t3502Value int, cause5GMM uint8) ([]byte, error) {
 }
 
 // TS 24.501 8.2.25
-func BuildSecurityModeCommand(ue *amf.AmfUe) ([]byte, error) {
+func BuildSecurityModeCommand(ue *amf.UeContext) ([]byte, error) {
 	conn := ue.NasConn()
 	if conn == nil {
 		return nil, fmt.Errorf("no active NAS connection")
@@ -309,7 +309,7 @@ func BuildDeregistrationAccept() ([]byte, error) {
 
 func BuildRegistrationAccept(
 	amfInstance *amf.AMF,
-	ue *amf.AmfUe,
+	ue *amf.UeContext,
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
 	errPduSessionID, errCause []uint8,
@@ -445,7 +445,7 @@ func BuildRegistrationAccept(
 
 // TS 24.501 - 5.4.4 Generic UE configuration update procedure - 5.4.4.1 General
 // includeGUTI controls whether a new 5G-GUTI is included (e.g. during service request GUTI re-allocation).
-func BuildConfigurationUpdateCommand(ue *amf.AmfUe, spnFullName, spnShortName string, includeGUTI bool) ([]byte, error) {
+func BuildConfigurationUpdateCommand(ue *amf.UeContext, spnFullName, spnShortName string, includeGUTI bool) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeConfigurationUpdateCommand)

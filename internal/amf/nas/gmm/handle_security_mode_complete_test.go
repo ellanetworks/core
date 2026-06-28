@@ -33,7 +33,7 @@ func TestHandleSecurityMode_WrongUEMode(t *testing.T) {
 		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {
 			expected := fmt.Errorf("state mismatch: receive Security Mode Complete message in state %s", tc)
 
-			ue := amf.NewAmfUe()
+			ue := amf.NewUeContext()
 			ue.ForceState(tc)
 
 			err := handleSecurityModeComplete(
@@ -41,7 +41,7 @@ func TestHandleSecurityMode_WrongUEMode(t *testing.T) {
 				amf.New(nil, nil, nil),
 				ue,
 				nil,
-				false,
+				true,
 			)
 			if err == nil || err.Error() != expected.Error() {
 				t.Fatalf("expected error: %v, got: %v", expected, err)
@@ -53,7 +53,7 @@ func TestHandleSecurityMode_WrongUEMode(t *testing.T) {
 func TestHandleSecurityMode_MacFailed(t *testing.T) {
 	expected := "NAS message integrity check failed"
 
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	ue.ForceState(amf.SecurityMode)
 
 	err := handleSecurityModeComplete(
@@ -61,7 +61,7 @@ func TestHandleSecurityMode_MacFailed(t *testing.T) {
 		amf.New(nil, nil, nil),
 		ue,
 		nil,
-		true,
+		false,
 	)
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected error: %v, got: %v", expected, err)
@@ -98,7 +98,7 @@ func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
 
 	msg := buildTestSecurityModeCompleteMessage()
 
-	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, false)
+	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, true)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -146,7 +146,7 @@ func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
 		Len:   9,
 	}
 
-	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, false)
+	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, true)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 
 	msg := buildTestSecurityModeCompleteMessage()
 
-	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, false)
+	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, true)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestHandleSecurityMode_ValidSecurityContextWithBadAMFKey_UpdatesSecurityCon
 
 	msg := buildTestSecurityModeCompleteMessage()
 
-	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, false)
+	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, true)
 	if err == nil || !strings.HasPrefix(err.Error(), expected) {
 		t.Fatalf("expected error starting with: %v, got: %v", expected, err)
 	}
@@ -302,7 +302,7 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 		t.Fatalf("could not build security mode complete message with registration request: %v", err)
 	}
 
-	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, false)
+	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, true)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -373,7 +373,7 @@ func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 
 	expected := "failed to decode nas message container"
 
-	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, false)
+	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, true)
 	if err == nil || !strings.HasPrefix(err.Error(), expected) {
 		t.Fatalf("expected an error starting with: %v, got: %v", expected, err)
 	}

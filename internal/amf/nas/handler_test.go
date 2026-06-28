@@ -20,7 +20,7 @@ func TestHandleNAS_ShortIntegrityProtectedPayload(t *testing.T) {
 	shortPayload := []byte{0x7e, 0x01}
 
 	amfInstance := amf.New(nil, nil, nil)
-	ue := &amf.RanUe{} // AmfUe is nil, so HandleNAS enters fetchUeContextWithMobileIdentity
+	ue := &amf.RanUe{} // UeContext is nil, so HandleNAS enters fetchUeContextWithMobileIdentity
 
 	err := HandleNAS(context.Background(), amfInstance, ue, shortPayload)
 	if err == nil {

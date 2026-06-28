@@ -41,7 +41,7 @@ func TestDetachSubscriberNetworkInitiated(t *testing.T) {
 	}
 
 	// UE acknowledges → release + delete.
-	m.onDetachAccept(context.Background(), ue)
+	m.handleDetachAccept(context.Background(), ue)
 	parseUEContextReleaseCommand(t, cc.sent[1])
 
 	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: 7}

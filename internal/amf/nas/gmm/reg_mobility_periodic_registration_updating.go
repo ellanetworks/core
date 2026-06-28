@@ -20,7 +20,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe) error {
+func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) error {
 	ue.Log.Debug("Handle MobilityAndPeriodicRegistrationUpdating")
 
 	ranUe := ue.RanUe()

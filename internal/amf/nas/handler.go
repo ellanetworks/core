@@ -38,20 +38,20 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu 
 	}
 
 	// First-time UE attach: fetch or create AMF context
-	if ue.AmfUe() == nil {
+	if ue.UeContext() == nil {
 		amfUe, err := fetchUeContextWithMobileIdentity(ctx, amfInstance, nasPdu)
 		if err != nil {
 			return fmt.Errorf("error fetching UE context with mobile identity: %v", err)
 		}
 
 		if amfUe == nil {
-			amfUe = amf.NewAmfUe()
+			amfUe = amf.NewUeContext()
 		}
 
 		amfUe.AttachRanUe(ue)
 	}
 
-	result, err := amf.DecodeNASMessage(ue.AmfUe(), nasPdu)
+	result, err := amf.DecodeNASMessage(ue.UeContext(), nasPdu)
 	if err != nil {
 		return fmt.Errorf("error decoding NAS message: %v", err)
 	}
@@ -66,13 +66,13 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu 
 		return errors.New("gsm message is not nil")
 	}
 
-	var macFailed bool
+	var integrityVerified bool
 
 	switch result.Verdict {
 	case amf.VerdictIntegrityVerified:
-		macFailed = false
+		integrityVerified = true
 	case amf.VerdictPlainAllowed, amf.VerdictMacFailedAllowed:
-		macFailed = true
+		integrityVerified = false
 	case amf.VerdictReject:
 		return fmt.Errorf("nas pdu rejected by classifier")
 	}
@@ -83,7 +83,7 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu 
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
 			attribute.String("nas.message_type", msgTypeName),
-			attribute.String("ue.supi", ue.AmfUe().Supi.String()),
+			attribute.String("ue.supi", ue.UeContext().Supi.String()),
 		),
 	)
 	defer span.End()
@@ -91,12 +91,12 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu 
 	logger.WithTrace(ctx, logger.AmfLog).Info(
 		"Received NAS message",
 		logger.MessageType(msgTypeName),
-		logger.SUPI(ue.AmfUe().Supi.String()),
+		logger.SUPI(ue.UeContext().Supi.String()),
 	)
 
-	err = gmm.HandleGmmMessage(ctx, amfInstance, ue.AmfUe(), msg.GmmMessage, macFailed)
+	err = gmm.HandleGmmMessage(ctx, amfInstance, ue.UeContext(), msg.GmmMessage, integrityVerified)
 	if err != nil {
-		return fmt.Errorf("error handling NAS message for supi %s: %v", ue.AmfUe().Supi.String(), err)
+		return fmt.Errorf("error handling NAS message for supi %s: %v", ue.UeContext().Supi.String(), err)
 	}
 
 	return nil
@@ -105,7 +105,7 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu 
 /*
 fetch Guti if present incase of integrity protected Nas Message
 */
-func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF, payload []byte) (*amf.AmfUe, error) {
+func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF, payload []byte) (*amf.UeContext, error) {
 	if payload == nil {
 		return nil, fmt.Errorf("nas payload is empty")
 	}
@@ -196,7 +196,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 		return nil, nil
 	}
 
-	ue, _ := amfInstance.FindAmfUeByGuti(guti)
+	ue, _ := amfInstance.FindUeContextByGuti(guti)
 	if ue == nil {
 		logger.WithTrace(ctx, logger.AmfLog).Warn("UE Context not found", logger.GUTI(guti.String()))
 		return nil, nil

@@ -13,13 +13,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// onTrackingAreaUpdate handles a verified TRACKING AREA UPDATE REQUEST
+// handleTrackingAreaUpdate handles a verified TRACKING AREA UPDATE REQUEST
 // (TS 24.301). A UE already in ECM-CONNECTED (periodic update over Uplink
 // NAS Transport) keeps its bearers and is accepted over Downlink NAS Transport.
 // A UE returning from ECM-IDLE is accepted over the Initial Context Setup when it
 // requests bearers (active flag), otherwise over Downlink NAS Transport followed
 // by an S1 release back to ECM-IDLE.
-func (m *MME) onTrackingAreaUpdate(ctx context.Context, ue *UeContext, plain []byte) {
+func (m *MME) handleTrackingAreaUpdate(ctx context.Context, ue *UeContext, plain []byte) {
 	req, err := eps.ParseTrackingAreaUpdateRequest(plain)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Tracking Area Update Request", zap.Error(err))
@@ -99,10 +99,10 @@ func (m *MME) onTrackingAreaUpdate(ctx context.Context, ue *UeContext, plain []b
 	m.armNASGuard(ue, "Tracking Area Update Accept", naspdu)
 }
 
-// onTrackingAreaUpdateComplete finalises a GUTI reallocation: it stops the T3450
+// handleTrackingAreaUpdateComplete finalises a GUTI reallocation: it stops the T3450
 // guard, commits the new GUTI (freeing the old M-TMSI), and — for a no-active
 // TAU — releases the UE back to ECM-IDLE (TS 24.301).
-func (m *MME) onTrackingAreaUpdateComplete(ctx context.Context, ue *UeContext) {
+func (m *MME) handleTrackingAreaUpdateComplete(ctx context.Context, ue *UeContext) {
 	m.stopNASGuard(ue)
 	m.commitGUTIRealloc(ue)
 

@@ -29,7 +29,7 @@ func newTestAMF() *amf.AMF {
 	return amfInstance
 }
 
-func setupRegistrationCompleteUE(t *testing.T) (*amf.AmfUe, *FakeNGAPSender) {
+func setupRegistrationCompleteUE(t *testing.T) (*amf.UeContext, *FakeNGAPSender) {
 	t.Helper()
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -77,7 +77,7 @@ func TestHandleRegistrationComplete_WrongState_Error(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
-			ue := amf.NewAmfUe()
+			ue := amf.NewUeContext()
 			ue.ForceState(tc)
 
 			expected := fmt.Sprintf("state mismatch: receive Registration Complete message in state %s", tc)
@@ -277,7 +277,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenActiveSession(t *testing.T) {
 	}
 }
 
-func checkUERegistrationDataIsCleared(ue *amf.AmfUe) error {
+func checkUERegistrationDataIsCleared(ue *amf.UeContext) error {
 	if ue.NasConn().RegistrationRequest != nil {
 		return fmt.Errorf("registration request is not nil")
 	}

@@ -10,18 +10,18 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 )
 
-// NewAmfUe allocates an initial FivegmmContext.
-func TestAmfUe_Current_NewUeHasContext(t *testing.T) {
-	ue := amf.NewAmfUe()
+// NewUeContext allocates an initial FivegmmContext.
+func TestUeContext_Current_NewUeHasContext(t *testing.T) {
+	ue := amf.NewUeContext()
 
 	if ue.Current() == nil {
-		t.Fatal("Current() returned nil for a freshly-constructed AmfUe")
+		t.Fatal("Current() returned nil for a freshly-constructed UeContext")
 	}
 }
 
-// FivegmmContext.Parent returns the owning AmfUe.
+// FivegmmContext.Parent returns the owning UeContext.
 func TestFivegmmContext_Parent(t *testing.T) {
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	fc := ue.Current()
 
 	if fc.Parent() != ue {
@@ -30,8 +30,8 @@ func TestFivegmmContext_Parent(t *testing.T) {
 }
 
 // SwapContext replaces the current context and cancels the old one's ctx.
-func TestAmfUe_SwapContext_CancelsOldCtx(t *testing.T) {
-	ue := amf.NewAmfUe()
+func TestUeContext_SwapContext_CancelsOldCtx(t *testing.T) {
+	ue := amf.NewUeContext()
 	old := ue.Current()
 
 	if err := old.Ctx().Err(); err != nil {
@@ -55,8 +55,8 @@ func TestAmfUe_SwapContext_CancelsOldCtx(t *testing.T) {
 }
 
 // SwapContext to nil clears the active context.
-func TestAmfUe_SwapContext_Nil(t *testing.T) {
-	ue := amf.NewAmfUe()
+func TestUeContext_SwapContext_Nil(t *testing.T) {
+	ue := amf.NewUeContext()
 	old := ue.Current()
 
 	ue.SwapContext(nil)
@@ -72,11 +72,11 @@ func TestAmfUe_SwapContext_Nil(t *testing.T) {
 
 // AttachNasConnection installs a fresh connection whose ctx is a child
 // of the 5GMM context.
-func TestAmfUe_AttachNasConnection_ChildCtx(t *testing.T) {
+func TestUeContext_AttachNasConnection_ChildCtx(t *testing.T) {
 	radio := newTestRadioForRanUe()
 	ranUe := amf.NewRanUeForTest(radio, 1, 10, logger.AmfLog)
 
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	conn := ue.AttachNasConnection(ranUe)
 
 	if conn == nil {
@@ -102,7 +102,7 @@ func TestAttachNasConnection_CtxPropagation(t *testing.T) {
 	radio := newTestRadioForRanUe()
 	ranUe := amf.NewRanUeForTest(radio, 1, 10, logger.AmfLog)
 
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	conn := ue.AttachNasConnection(ranUe)
 
 	if err := conn.Ctx().Err(); err != nil {
@@ -121,7 +121,7 @@ func TestActiveNasConnection_Release(t *testing.T) {
 	radio := newTestRadioForRanUe()
 	ranUe := amf.NewRanUeForTest(radio, 1, 10, logger.AmfLog)
 
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	fc := ue.Current()
 	conn := ue.AttachNasConnection(ranUe)
 
@@ -146,11 +146,11 @@ func TestActiveNasConnection_Release(t *testing.T) {
 
 // After ActiveNasConnection.Release, a subsequent AttachRanUe must restore
 // the NAS connection so handlers don't dereference a nil NasConn.
-func TestAmfUe_AttachRanUe_RestoresNasConnAfterRelease(t *testing.T) {
+func TestUeContext_AttachRanUe_RestoresNasConnAfterRelease(t *testing.T) {
 	radio := newTestRadioForRanUe()
 	ranUe1 := amf.NewRanUeForTest(radio, 1, 10, logger.AmfLog)
 
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	ue.AttachRanUe(ranUe1)
 
 	conn := ue.NasConn()
@@ -173,12 +173,12 @@ func TestAmfUe_AttachRanUe_RestoresNasConnAfterRelease(t *testing.T) {
 }
 
 // Reattaching cancels the old connection but does not affect the 5GMM context.
-func TestAmfUe_AttachNasConnection_ReplacesOld(t *testing.T) {
+func TestUeContext_AttachNasConnection_ReplacesOld(t *testing.T) {
 	radio := newTestRadioForRanUe()
 	ranUe1 := amf.NewRanUeForTest(radio, 1, 10, logger.AmfLog)
 	ranUe2 := amf.NewRanUeForTest(radio, 2, 20, logger.AmfLog)
 
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	fc := ue.Current()
 	conn1 := ue.AttachNasConnection(ranUe1)
 	conn2 := ue.AttachNasConnection(ranUe2)

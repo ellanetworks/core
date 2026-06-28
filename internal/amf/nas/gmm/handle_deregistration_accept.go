@@ -13,7 +13,7 @@ import (
 )
 
 // TS 23.502 4.2.2.3
-func handleDeregistrationAccept(ctx context.Context, ue *amf.AmfUe) error {
+func handleDeregistrationAccept(ctx context.Context, ue *amf.UeContext) error {
 	if conn := ue.NasConn(); conn != nil && conn.T3522 != nil {
 		conn.T3522.Stop()
 		conn.T3522 = nil

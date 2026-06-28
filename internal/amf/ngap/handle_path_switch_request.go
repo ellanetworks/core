@@ -41,9 +41,9 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	ranUe.TouchLastSeen()
 	logger.WithTrace(ctx, ranUe.Log).Debug("Handle Path Switch Request", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
-	amfUe := ranUe.AmfUe()
+	amfUe := ranUe.UeContext()
 	if amfUe == nil {
-		logger.WithTrace(ctx, ranUe.Log).Error("AmfUe is nil")
+		logger.WithTrace(ctx, ranUe.Log).Error("UeContext is nil")
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnspecified)
 
 		return
@@ -167,7 +167,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 func verifyUESecurityCapabilitiesOnPathSwitch(
 	ctx context.Context,
 	ranUe *amf.RanUe,
-	amfUe *amf.AmfUe,
+	amfUe *amf.UeContext,
 	received *ngapType.UESecurityCapabilities,
 ) {
 	if received == nil {

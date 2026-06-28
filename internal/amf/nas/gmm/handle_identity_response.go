@@ -18,9 +18,9 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 )
 
-func updateUEIdentity(ue *amf.AmfUe, mobileIdentityContents []uint8, macFailed bool) error {
+func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integrityVerified bool) error {
 	if ue == nil {
-		return fmt.Errorf("AmfUe is nil")
+		return fmt.Errorf("UeContext is nil")
 	}
 
 	if len(mobileIdentityContents) == 0 {
@@ -34,7 +34,7 @@ func updateUEIdentity(ue *amf.AmfUe, mobileIdentityContents []uint8, macFailed b
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentityContents)
 		ue.PlmnID = plmnIDStringToModels(plmnID)
 	case nasMessage.MobileIdentity5GSType5gGuti:
-		if macFailed {
+		if !integrityVerified {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 
@@ -47,7 +47,7 @@ func updateUEIdentity(ue *amf.AmfUe, mobileIdentityContents []uint8, macFailed b
 			return fmt.Errorf("UE sent unknown GUTI")
 		}
 	case nasMessage.MobileIdentity5GSType5gSTmsi:
-		if macFailed {
+		if !integrityVerified {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 
@@ -71,14 +71,14 @@ func updateUEIdentity(ue *amf.AmfUe, mobileIdentityContents []uint8, macFailed b
 			return fmt.Errorf("UE sent unknown TMSI")
 		}
 	case nasMessage.MobileIdentity5GSTypeImei:
-		if macFailed {
+		if !integrityVerified {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 
 		imei := nasConvert.PeiToString(mobileIdentityContents)
 		ue.Pei = imei
 	case nasMessage.MobileIdentity5GSTypeImeisv:
-		if macFailed {
+		if !integrityVerified {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 
@@ -89,12 +89,12 @@ func updateUEIdentity(ue *amf.AmfUe, mobileIdentityContents []uint8, macFailed b
 	return nil
 }
 
-func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.IdentityResponse, macFailed bool) error {
+func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.IdentityResponse, integrityVerified bool) error {
 	switch ue.GetState() {
 	case amf.Authentication:
 		mobileIdentityContents := msg.GetMobileIdentityContents()
 
-		if err := updateUEIdentity(ue, mobileIdentityContents, macFailed); err != nil {
+		if err := updateUEIdentity(ue, mobileIdentityContents, integrityVerified); err != nil {
 			return fmt.Errorf("error handling identity response: %v", err)
 		}
 
@@ -113,7 +113,7 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.A
 	case amf.ContextSetup:
 		mobileIdentityContents := msg.GetMobileIdentityContents()
 
-		if err := updateUEIdentity(ue, mobileIdentityContents, macFailed); err != nil {
+		if err := updateUEIdentity(ue, mobileIdentityContents, integrityVerified); err != nil {
 			return fmt.Errorf("error handling identity response: %v", err)
 		}
 

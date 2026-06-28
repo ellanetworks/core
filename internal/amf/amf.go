@@ -99,9 +99,9 @@ type NASHandler interface {
 
 // Lock ordering (acquire in this order, never reverse):
 //
-//	AMF.mu  →  AmfUe.Mutex
+//	AMF.mu  →  UeContext.Mutex
 //
-// Never hold AmfUe.Mutex while acquiring AMF.mu.
+// Never hold UeContext.Mutex while acquiring AMF.mu.
 // Never hold any lock while making external calls (SMF, DB, NGAP send).
 type AMF struct {
 	mu sync.RWMutex
@@ -112,7 +112,7 @@ type AMF struct {
 
 	DBInstance               DBer
 	Ausf                     Authenticator
-	UEs                      map[etsi.SUPI]*AmfUe
+	UEs                      map[etsi.SUPI]*UeContext
 	Radios                   map[*sctp.SCTPConn]*Radio
 	RelativeCapacity         int64
 	Name                     string
@@ -151,7 +151,7 @@ func (a *AMF) allocateAmfUeNgapID() (int64, error) {
 	return val, nil
 }
 
-func (amf *AMF) AddAmfUeToUePool(ue *AmfUe) error {
+func (amf *AMF) AddUeContextToPool(ue *UeContext) error {
 	if !ue.Supi.IsValid() {
 		return fmt.Errorf("supi is empty")
 	}
@@ -165,7 +165,7 @@ func (amf *AMF) AddAmfUeToUePool(ue *AmfUe) error {
 	return nil
 }
 
-func (amf *AMF) DeregisterAndRemoveAMFUE(ctx context.Context, ue *AmfUe) {
+func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext) {
 	ue.Deregister(ctx)
 
 	ue.Mutex.Lock()
@@ -191,7 +191,7 @@ func (amf *AMF) DeregisterAndRemoveAMFUE(ctx context.Context, ue *AmfUe) {
 }
 
 func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
-	ue, ok := amf.FindAMFUEBySupi(supi)
+	ue, ok := amf.FindUeContextBySupi(supi)
 	if !ok {
 		logger.AmfLog.Debug("UE with SUPI not found", logger.SUPI(supi.String()))
 		return
@@ -205,17 +205,17 @@ func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
 		if err := amf.sendNetworkInitiatedDeregistration(ctx, ue); err != nil {
 			logger.AmfLog.Warn("failed to send network-initiated deregistration; removing UE context locally",
 				zap.Error(err), logger.SUPI(supi.String()))
-			amf.DeregisterAndRemoveAMFUE(ctx, ue)
+			amf.DeregisterAndRemoveUeContext(ctx, ue)
 		}
 
 		return
 	}
 
-	amf.DeregisterAndRemoveAMFUE(ctx, ue)
+	amf.DeregisterAndRemoveUeContext(ctx, ue)
 	logger.AmfLog.Info("removed ue context", logger.SUPI(supi.String()))
 }
 
-func (amf *AMF) FindAMFUEBySupi(supi etsi.SUPI) (*AmfUe, bool) {
+func (amf *AMF) FindUeContextBySupi(supi etsi.SUPI) (*UeContext, bool) {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
@@ -231,7 +231,7 @@ func (amf *AMF) FindAMFUEBySupi(supi etsi.SUPI) (*AmfUe, bool) {
 // point-in-time snapshot of its connection state. Returns the snapshot
 // and true if the UE exists, or a zero-value snapshot and false otherwise.
 func (amf *AMF) GetUESnapshot(supi etsi.SUPI) (UESnapshot, bool) {
-	ue, ok := amf.FindAMFUEBySupi(supi)
+	ue, ok := amf.FindUeContextBySupi(supi)
 	if !ok {
 		return UESnapshot{}, false
 	}
@@ -415,7 +415,7 @@ func (amf *AMF) RemoveRadio(ctx context.Context, ran *Radio) {
 	delete(amf.Radios, ran.Conn)
 }
 
-func (amf *AMF) FindAmfUeByGuti(guti etsi.GUTI) (*AmfUe, bool) {
+func (amf *AMF) FindUeContextByGuti(guti etsi.GUTI) (*UeContext, bool) {
 	if guti == etsi.InvalidGUTI {
 		return nil, false
 	}
@@ -460,7 +460,7 @@ func (amf *AMF) GetNetworkFeatureSupport() NetworkFeatureSupport5GS {
 // N2 listener.
 func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 	a := &AMF{
-		UEs:                      make(map[etsi.SUPI]*AmfUe),
+		UEs:                      make(map[etsi.SUPI]*UeContext),
 		Radios:                   make(map[*sctp.SCTPConn]*Radio),
 		DBInstance:               db,
 		Ausf:                     ausf,
@@ -513,7 +513,7 @@ func (a *AMF) NewRanUe(radio *Radio, ranUeNgapID int64) (*RanUe, error) {
 }
 
 // ReAllocateGuti allocates a new 5G-GUTI for the UE and preserves the old one.
-func (a *AMF) ReAllocateGuti(ctx context.Context, ue *AmfUe, supportedGuami *models.Guami) error {
+func (a *AMF) ReAllocateGuti(ctx context.Context, ue *UeContext, supportedGuami *models.Guami) error {
 	ue.OldTmsi = ue.Tmsi
 
 	tmsi, err := a.allocateTMSI(ctx)
@@ -534,7 +534,7 @@ func (a *AMF) ReAllocateGuti(ctx context.Context, ue *AmfUe, supportedGuami *mod
 }
 
 // FreeOldGuti releases the previous TMSI/GUTI for the UE.
-func (a *AMF) FreeOldGuti(ue *AmfUe) {
+func (a *AMF) FreeOldGuti(ue *UeContext) {
 	a.tmsi.Free(ue.OldTmsi)
 	ue.OldGuti = etsi.InvalidGUTI
 	ue.OldTmsi = etsi.InvalidTMSI
@@ -564,7 +564,7 @@ func (amf *AMF) StmsiToGuti(ctx context.Context, buf [7]byte) (etsi.GUTI, error)
 
 // SendPaging sends a paging message to all radios whose TAIs match the UE's
 // registration area. If T3513 is enabled, a retransmission timer is started.
-func (amf *AMF) SendPaging(ctx context.Context, ue *AmfUe, ngapBuf []byte) error {
+func (amf *AMF) SendPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) error {
 	if ue == nil {
 		return fmt.Errorf("amf ue is nil")
 	}
@@ -627,7 +627,7 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *AmfUe, ngapBuf []byte) error
 func (amf *AMF) StopAllTimers() {
 	amf.mu.RLock()
 
-	ues := make([]*AmfUe, 0, len(amf.UEs))
+	ues := make([]*UeContext, 0, len(amf.UEs))
 	for _, ue := range amf.UEs {
 		ues = append(ues, ue)
 	}

@@ -17,7 +17,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func addTestUE(t *testing.T, amfInstance *amf.AMF, imsi string, setup func(*amf.AmfUe)) *amf.AmfUe {
+func addTestUE(t *testing.T, amfInstance *amf.AMF, imsi string, setup func(*amf.UeContext)) *amf.UeContext {
 	t.Helper()
 
 	supi, err := etsi.NewSUPIFromIMSI(imsi)
@@ -25,14 +25,14 @@ func addTestUE(t *testing.T, amfInstance *amf.AMF, imsi string, setup func(*amf.
 		t.Fatalf("invalid IMSI %q: %v", imsi, err)
 	}
 
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	ue.Supi = supi
 	ue.Log = zap.NewNop()
 
 	setup(ue)
 
-	if err := amfInstance.AddAmfUeToUePool(ue); err != nil {
-		t.Fatalf("AddAmfUeToUePool: %v", err)
+	if err := amfInstance.AddUeContextToPool(ue); err != nil {
+		t.Fatalf("AddUeContextToPool: %v", err)
 	}
 
 	t.Cleanup(func() {
@@ -94,7 +94,7 @@ func TestExportUEsEmpty(t *testing.T) {
 
 func TestExportJSON_MinimalUE(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
-	addTestUE(t, amfInstance, "001010000000001", func(ue *amf.AmfUe) {})
+	addTestUE(t, amfInstance, "001010000000001", func(ue *amf.UeContext) {})
 
 	result := exportAndMarshal(t, amfInstance)
 
@@ -185,7 +185,7 @@ func TestExportJSON_MinimalUE(t *testing.T) {
 func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	now := time.Now()
-	ue := addTestUE(t, amfInstance, "001010000000002", func(ue *amf.AmfUe) {
+	ue := addTestUE(t, amfInstance, "001010000000002", func(ue *amf.UeContext) {
 		ue.Pei = "imei-123456789012345"
 		ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 		ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
@@ -419,7 +419,7 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 
 func TestExportJSON_NilTimers(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
-	addTestUE(t, amfInstance, "001010000000003", func(ue *amf.AmfUe) {})
+	addTestUE(t, amfInstance, "001010000000003", func(ue *amf.UeContext) {})
 
 	result := exportAndMarshal(t, amfInstance)
 
@@ -450,7 +450,7 @@ func TestExportJSON_NilTimers(t *testing.T) {
 
 func TestExportJSON_NilRanUe(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
-	addTestUE(t, amfInstance, "001010000000004", func(ue *amf.AmfUe) {
+	addTestUE(t, amfInstance, "001010000000004", func(ue *amf.UeContext) {
 		// RanUe is nil by default
 	})
 
@@ -469,7 +469,7 @@ func TestExportJSON_NilRanUe(t *testing.T) {
 
 func TestExportJSON_EmptySmContextList(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
-	addTestUE(t, amfInstance, "001010000000005", func(ue *amf.AmfUe) {})
+	addTestUE(t, amfInstance, "001010000000005", func(ue *amf.UeContext) {})
 
 	result := exportAndMarshal(t, amfInstance)
 
@@ -491,7 +491,7 @@ func TestExportJSON_EmptySmContextList(t *testing.T) {
 
 func TestExportJSON_NilLocationPointers(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
-	addTestUE(t, amfInstance, "001010000000006", func(ue *amf.AmfUe) {})
+	addTestUE(t, amfInstance, "001010000000006", func(ue *amf.UeContext) {})
 
 	result := exportAndMarshal(t, amfInstance)
 
@@ -519,7 +519,7 @@ func TestExportJSON_NilLocationPointers(t *testing.T) {
 
 func TestExportJSON_PDUSessionNilSMFContext(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
-	addTestUE(t, amfInstance, "001010000000007", func(ue *amf.AmfUe) {
+	addTestUE(t, amfInstance, "001010000000007", func(ue *amf.UeContext) {
 		ue.Current().SmContextList[1] = &amf.SmContext{
 			Ref:                "nonexistent-ref",
 			Snssai:             &models.Snssai{Sst: 1, Sd: "000001"},
@@ -581,7 +581,7 @@ func TestExportJSON_PDUSessionNilSMFContext(t *testing.T) {
 func TestExportJSON_MultipleAllowedNSSAI(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
-	addTestUE(t, amfInstance, "001010000000099", func(ue *amf.AmfUe) {
+	addTestUE(t, amfInstance, "001010000000099", func(ue *amf.UeContext) {
 		ue.ForceState(amf.Registered)
 		ue.Current().AllowedNssai = []models.Snssai{
 			{Sst: 1, Sd: "010203"},

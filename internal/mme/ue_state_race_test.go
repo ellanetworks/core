@@ -55,7 +55,7 @@ func TestUEStateConcurrentAccess(t *testing.T) {
 		defer wg.Done()
 
 		for i := 0; i < iters; i++ {
-			m.onModifyBearerReject(ue, nil)
+			m.handleModifyBearerReject(ue, nil)
 		}
 	}()
 

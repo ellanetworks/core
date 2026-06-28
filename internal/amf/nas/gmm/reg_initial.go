@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe) error {
+func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) error {
 	ue.ClearRegistrationData(ctx)
 
 	conn := ue.NasConn()
@@ -100,11 +100,11 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 	// earlier 5GMM context for this subscriber. The old context is deleted only
 	// here, once the new registration is authenticated, so that an
 	// unauthenticated registration on a fresh context never tears it down.
-	if existing, ok := amfInstance.FindAMFUEBySupi(ue.Supi); ok && existing != ue {
-		amfInstance.DeregisterAndRemoveAMFUE(ctx, existing)
+	if existing, ok := amfInstance.FindUeContextBySupi(ue.Supi); ok && existing != ue {
+		amfInstance.DeregisterAndRemoveUeContext(ctx, existing)
 	}
 
-	err = amfInstance.AddAmfUeToUePool(ue)
+	err = amfInstance.AddUeContextToPool(ue)
 	if err != nil {
 		return fmt.Errorf("error adding AMF UE to UE pool: %v", err)
 	}

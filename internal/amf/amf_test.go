@@ -25,30 +25,30 @@ func newSUPI(t *testing.T, imsi string) etsi.SUPI {
 	return supi
 }
 
-func TestAddAmfUeToUePool_EmptySupi(t *testing.T) {
+func TestAddUeContextToUePool_EmptySupi(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 
-	err := amfInstance.AddAmfUeToUePool(ue)
+	err := amfInstance.AddUeContextToPool(ue)
 	if err == nil {
 		t.Fatal("expected error for empty SUPI, got nil")
 	}
 }
 
-func TestAddAmfUeToUePool_Success(t *testing.T) {
+func TestAddUeContextToUePool_Success(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
 	supi := newSUPI(t, "001010000000002")
 
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	ue.Supi = supi
 	ue.Log = zap.NewNop()
 
-	if err := amfInstance.AddAmfUeToUePool(ue); err != nil {
-		t.Fatalf("AddAmfUeToUePool: %v", err)
+	if err := amfInstance.AddUeContextToPool(ue); err != nil {
+		t.Fatalf("AddUeContextToPool: %v", err)
 	}
 
-	found, ok := amfInstance.FindAMFUEBySupi(supi)
+	found, ok := amfInstance.FindUeContextBySupi(supi)
 	if !ok {
 		t.Fatal("UE not found after adding")
 	}
@@ -63,7 +63,7 @@ func TestFindAMFUEBySupi_NotFound(t *testing.T) {
 
 	supi := newSUPI(t, "001010000000003")
 
-	_, ok := amfInstance.FindAMFUEBySupi(supi)
+	_, ok := amfInstance.FindUeContextBySupi(supi)
 	if ok {
 		t.Fatal("expected not found for missing UE")
 	}
@@ -74,17 +74,17 @@ func TestDeregisterAndRemoveAMFUE(t *testing.T) {
 
 	supi := newSUPI(t, "001010000000005")
 
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	ue.Supi = supi
 	ue.Log = zap.NewNop()
 
-	if err := amfInstance.AddAmfUeToUePool(ue); err != nil {
-		t.Fatalf("AddAmfUeToUePool: %v", err)
+	if err := amfInstance.AddUeContextToPool(ue); err != nil {
+		t.Fatalf("AddUeContextToPool: %v", err)
 	}
 
-	amfInstance.DeregisterAndRemoveAMFUE(context.Background(), ue)
+	amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue)
 
-	_, ok := amfInstance.FindAMFUEBySupi(supi)
+	_, ok := amfInstance.FindUeContextBySupi(supi)
 	if ok {
 		t.Fatal("UE should have been removed after deregistration")
 	}
@@ -95,17 +95,17 @@ func TestRemoveUEBySupi(t *testing.T) {
 
 	supi := newSUPI(t, "001010000000006")
 
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	ue.Supi = supi
 	ue.Log = zap.NewNop()
 
-	if err := amfInstance.AddAmfUeToUePool(ue); err != nil {
-		t.Fatalf("AddAmfUeToUePool: %v", err)
+	if err := amfInstance.AddUeContextToPool(ue); err != nil {
+		t.Fatalf("AddUeContextToPool: %v", err)
 	}
 
 	amfInstance.RemoveUEBySupi(supi)
 
-	_, ok := amfInstance.FindAMFUEBySupi(supi)
+	_, ok := amfInstance.FindUeContextBySupi(supi)
 	if ok {
 		t.Fatal("UE should have been removed")
 	}
@@ -118,11 +118,11 @@ func TestCountRegisteredSubscribers(t *testing.T) {
 		t.Fatalf("expected 0 registered, got %d", count)
 	}
 
-	addTestUE(t, amfInstance, "001010000000007", func(ue *amf.AmfUe) {
+	addTestUE(t, amfInstance, "001010000000007", func(ue *amf.UeContext) {
 		ue.ForceState(amf.Registered)
 	})
 
-	addTestUE(t, amfInstance, "001010000000008", func(ue *amf.AmfUe) {
+	addTestUE(t, amfInstance, "001010000000008", func(ue *amf.UeContext) {
 		// default state is Deregistered
 	})
 
@@ -131,7 +131,7 @@ func TestCountRegisteredSubscribers(t *testing.T) {
 	}
 }
 
-func TestFindAmfUeByGuti(t *testing.T) {
+func TestFindUeContextByGuti(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
 	tmsi, err := etsi.NewTMSI(42)
@@ -144,11 +144,11 @@ func TestFindAmfUeByGuti(t *testing.T) {
 		t.Fatalf("NewGUTI: %v", err)
 	}
 
-	addTestUE(t, amfInstance, "001010000000009", func(ue *amf.AmfUe) {
+	addTestUE(t, amfInstance, "001010000000009", func(ue *amf.UeContext) {
 		ue.Guti = guti
 	})
 
-	found, ok := amfInstance.FindAmfUeByGuti(guti)
+	found, ok := amfInstance.FindUeContextByGuti(guti)
 	if !ok {
 		t.Fatal("expected to find UE by GUTI")
 	}
@@ -158,12 +158,12 @@ func TestFindAmfUeByGuti(t *testing.T) {
 	}
 }
 
-func TestFindAmfUeByGuti_InvalidGUTI(t *testing.T) {
+func TestFindUeContextByGuti_InvalidGUTI(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
-	addTestUE(t, amfInstance, "001010000000010", func(ue *amf.AmfUe) {})
+	addTestUE(t, amfInstance, "001010000000010", func(ue *amf.UeContext) {})
 
-	_, ok := amfInstance.FindAmfUeByGuti(etsi.InvalidGUTI)
+	_, ok := amfInstance.FindUeContextByGuti(etsi.InvalidGUTI)
 	if ok {
 		t.Fatal("should not find UE with InvalidGUTI")
 	}
@@ -181,7 +181,7 @@ func TestGetUESnapshot(t *testing.T) {
 
 	now := time.Now()
 
-	addTestUE(t, amfInstance, "001010000000011", func(ue *amf.AmfUe) {
+	addTestUE(t, amfInstance, "001010000000011", func(ue *amf.UeContext) {
 		ue.ForceState(amf.Registered)
 		ue.LastSeenAt = now
 	})
@@ -201,11 +201,11 @@ func TestDeregisterSubscriber(t *testing.T) {
 
 	supi := newSUPI(t, "001010000000012")
 
-	addTestUE(t, amfInstance, "001010000000012", func(ue *amf.AmfUe) {})
+	addTestUE(t, amfInstance, "001010000000012", func(ue *amf.UeContext) {})
 
 	amfInstance.DeregisterSubscriber(context.Background(), supi)
 
-	_, ok := amfInstance.FindAMFUEBySupi(supi)
+	_, ok := amfInstance.FindUeContextBySupi(supi)
 	if ok {
 		t.Fatal("UE should have been removed after DeregisterSubscriber")
 	}

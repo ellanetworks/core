@@ -34,7 +34,7 @@ func TestHandlePDUSessionResourceReleaseResponse_UEFoundWithReleasedSessions(t *
 	fakeSmf := &FakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 	amfUe.Current().SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",

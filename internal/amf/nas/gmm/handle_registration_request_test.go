@@ -62,9 +62,9 @@ func TestHandleRegistrationRequest_NilRanUE(t *testing.T) {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 
-	err = handleRegistrationRequest(ctx, &amfInstance, ue, m, false)
+	err = handleRegistrationRequest(ctx, &amfInstance, ue, m, true)
 	if err == nil {
 		t.Fatalf("nil RanUe should error out")
 	}
@@ -91,7 +91,7 @@ func TestHandleRegistrationRequest_ErrorMissingIdentity(t *testing.T) {
 
 	expected := "mobile identity 5GS is empty"
 
-	err = handleRegistrationRequest(ctx, &amfInstance, ue, m, false)
+	err = handleRegistrationRequest(ctx, &amfInstance, ue, m, true)
 	if err == nil {
 		t.Fatalf("registration request should be rejected")
 	}
@@ -125,7 +125,7 @@ func TestHandleRegistrationRequest_ErrorMissingOperatorInfo(t *testing.T) {
 
 	expected := "error getting operator info"
 
-	err = handleRegistrationRequest(ctx, amfInstance, ue, m, false)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
 	if err == nil {
 		t.Fatalf("registration request should be rejected")
 	}
@@ -171,7 +171,7 @@ func TestHandleRegistrationRequest_RejectTrackingAreaNotAllowed(t *testing.T) {
 
 	expected := "registration Reject [Tracking area not allowed]"
 
-	err = handleRegistrationRequest(ctx, amfInstance, ue, m, false)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
 	if err == nil {
 		t.Fatalf("registration request should be rejected")
 	}
@@ -228,7 +228,7 @@ func TestHandleRegistrationRequest_RejectMissingSecurityCapability(t *testing.T)
 
 	expected := "registration request does not contain UE security capability"
 
-	err = handleRegistrationRequest(ctx, amfInstance, ue, m, false)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
 	if err == nil {
 		t.Fatalf("registration request should be rejected")
 	}
@@ -288,7 +288,7 @@ func TestHandleRegistrationRequest_RejectMissingSecurityCapability_Mobility(t *t
 
 	expected := "registration request does not contain UE security capability"
 
-	err = handleRegistrationRequest(ctx, amfInstance, ue, m, false)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
 	if err == nil {
 		t.Fatalf("registration request should be rejected")
 	}
@@ -344,7 +344,7 @@ func TestHandleRegistrationRequest_PeriodicAllowsMissingSecurityCapability(t *te
 	m.SetRegistrationType5GS(nasMessage.RegistrationType5GSPeriodicRegistrationUpdating)
 	m.UESecurityCapability = nil
 
-	if err := handleRegistrationRequestMessage(ctx, amfInstance, ue, m.RegistrationRequest, false); err != nil {
+	if err := handleRegistrationRequestMessage(ctx, amfInstance, ue, m.RegistrationRequest, true); err != nil {
 		t.Fatalf("periodic registration without UE security capability should not be rejected here, got: %v", err)
 	}
 
@@ -391,7 +391,7 @@ func TestHandleRegistrationRequest_Timers_Stopped(t *testing.T) {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amfInstance, ue, m, false)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
 	if err != nil {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
@@ -428,7 +428,7 @@ func TestHandleRegistrationRequest_IdentityRequest_MissingSUCI_SUPI(t *testing.T
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amfInstance, ue, m, false)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
 	if err != nil {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
@@ -488,7 +488,7 @@ func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amfInstance, ue, m, false)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
 	if err != nil {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
@@ -553,7 +553,7 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amfInstance, ue, m, false)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
 	if err != nil {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
@@ -605,7 +605,7 @@ func TestHandleRegistrationRequest_UEStateContextSetup_ResetToDeregistered(t *te
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amfInstance, ue, m, false)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
 	if err != nil {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
@@ -653,7 +653,7 @@ func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t 
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amfInstance, ue, m, false)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
 	if err != nil {
 		t.Fatalf("registration request in state Authentication should restart, got: %v", err)
 	}
@@ -715,7 +715,7 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amfInstance, ue, m, false)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
 	if err != nil {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
@@ -791,7 +791,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amfInstance, ue, m, false)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
 	if err != nil {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
@@ -873,7 +873,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 	key = [16]uint8{0x00, 0x00, 0x00, 0x00, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	ue.Current().KnasEnc = key
 
-	err = handleRegistrationRequest(ctx, amfInstance, ue, m, false)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
 	if err == nil {
 		t.Fatalf("registration request should be rejected, got: %v", err)
 	}
@@ -941,7 +941,7 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, false)
 	if err != nil {
 		t.Fatalf("registration request with MAC failure should proceed with cleartext IEs, got: %v", err)
 	}
@@ -1006,7 +1006,7 @@ func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amfInstance, ue, m, false)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
 	if err != nil {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
@@ -1049,7 +1049,7 @@ func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amfInstance, ue, m, false)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
 	if err != nil {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
@@ -1092,7 +1092,7 @@ func TestHandleRegistrationRequest_NgKsi_NoKeyAvailable(t *testing.T) {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amfInstance, ue, m, false)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
 	if err != nil {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
@@ -1173,8 +1173,8 @@ func buildTestRegistrationRequestMessageWithNgKsi(cipherAlg uint8, key *[16]uint
 	return m, nil
 }
 
-func buildUeAndRadio() (*amf.AmfUe, *FakeNGAPSender, error) {
-	ue := amf.NewAmfUe()
+func buildUeAndRadio() (*amf.UeContext, *FakeNGAPSender, error) {
+	ue := amf.NewUeContext()
 
 	ngapSender := FakeNGAPSender{}
 	radio := amf.Radio{
@@ -1214,7 +1214,7 @@ func newUESecCaps(ea, ia uint8) *nasType.UESecurityCapability {
 }
 
 func TestAcceptRegistrationUESecurityCapability_InitialOverwrites(t *testing.T) {
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
 	ue.Current().UESecurityCapability = newUESecCaps(0xE0, 0xE0) // EA1/2/3 + IA1/2/3
 
@@ -1227,7 +1227,7 @@ func TestAcceptRegistrationUESecurityCapability_InitialOverwrites(t *testing.T) 
 }
 
 func TestAcceptRegistrationUESecurityCapability_EmergencyOverwrites(t *testing.T) {
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSEmergencyRegistration
 	ue.Current().UESecurityCapability = newUESecCaps(0xE0, 0xE0)
 
@@ -1240,7 +1240,7 @@ func TestAcceptRegistrationUESecurityCapability_EmergencyOverwrites(t *testing.T
 }
 
 func TestAcceptRegistrationUESecurityCapability_MobilityNoStored(t *testing.T) {
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
 	ue.Current().UESecurityCapability = nil
 
@@ -1258,7 +1258,7 @@ func TestAcceptRegistrationUESecurityCapability_MobilityNoStored(t *testing.T) {
 func TestAcceptRegistrationUESecurityCapability_MobilityRejectsDowngrade(t *testing.T) {
 	stored := newUESecCaps(0xE0, 0xE0)
 
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	ue.Log = logger.AmfLog
 	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
 	ue.Current().UESecurityCapability = stored
@@ -1278,7 +1278,7 @@ func TestAcceptRegistrationUESecurityCapability_MobilityRejectsDowngrade(t *test
 func TestAcceptRegistrationUESecurityCapability_PeriodicRejectsDowngrade(t *testing.T) {
 	stored := newUESecCaps(0xE0, 0xE0)
 
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	ue.Log = logger.AmfLog
 	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSPeriodicRegistrationUpdating
 	ue.Current().UESecurityCapability = stored
@@ -1293,7 +1293,7 @@ func TestAcceptRegistrationUESecurityCapability_PeriodicRejectsDowngrade(t *test
 func TestAcceptRegistrationUESecurityCapability_MobilityIdenticalCapsNoop(t *testing.T) {
 	stored := newUESecCaps(0xE0, 0xE0)
 
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	ue.Log = logger.AmfLog
 	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
 	ue.Current().UESecurityCapability = stored

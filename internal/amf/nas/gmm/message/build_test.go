@@ -15,10 +15,10 @@ import (
 	"github.com/free5gc/nas/security"
 )
 
-func buildTestUE(t *testing.T) *amf.AmfUe {
+func buildTestUE(t *testing.T) *amf.UeContext {
 	t.Helper()
 
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	ue.Current().SecurityContextAvailable = true
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	ue.Current().KnasEnc = key
@@ -30,7 +30,7 @@ func buildTestUE(t *testing.T) *amf.AmfUe {
 }
 
 // decryptNAS strips the security header and decrypts the ciphered payload.
-func decryptNAS(t *testing.T, ue *amf.AmfUe, raw []byte) *nas.Message {
+func decryptNAS(t *testing.T, ue *amf.UeContext, raw []byte) *nas.Message {
 	t.Helper()
 
 	if len(raw) < 7 {

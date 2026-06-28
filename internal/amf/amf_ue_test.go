@@ -16,7 +16,7 @@ import (
 )
 
 func TestDecodePayloadTooShort(t *testing.T) {
-	ue := &amf.AmfUe{}
+	ue := &amf.UeContext{}
 	payload := []byte{0x00, 0x01, 0x02}
 
 	_, err := amf.DecodeNASMessage(ue, payload)
@@ -67,7 +67,7 @@ func TestAllocateRegistrationArea(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			ue := amf.NewAmfUe()
+			ue := amf.NewUeContext()
 			ue.Tai = tc.ueTai
 			ue.AllocateRegistrationArea(tc.supportedTais)
 
@@ -93,7 +93,7 @@ func TestSnapshotCipheringAlgorithm(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ue := amf.NewAmfUe()
+			ue := amf.NewUeContext()
 			ue.Current().CipheringAlg = tc.alg
 
 			snap := ue.Snapshot()
@@ -119,7 +119,7 @@ func TestSnapshotIntegrityAlgorithm(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ue := amf.NewAmfUe()
+			ue := amf.NewUeContext()
 			ue.Current().IntegrityAlg = tc.alg
 
 			snap := ue.Snapshot()
@@ -189,7 +189,7 @@ func TestIsAllowedNssai(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ue := amf.NewAmfUe()
+			ue := amf.NewUeContext()
 			ue.Current().AllowedNssai = tc.allowed
 
 			got := ue.IsAllowedNssai(tc.target)
@@ -330,7 +330,7 @@ func TestSelectSecurityAlg(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ue := amf.NewAmfUe()
+			ue := amf.NewUeContext()
 			ue.Current().UESecurityCapability = tc.cap
 
 			err := ue.SelectSecurityAlg(tc.intOrder, tc.encOrder)
