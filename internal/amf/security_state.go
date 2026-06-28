@@ -22,10 +22,9 @@ import (
 //   - Registration Request handling, during request parsing
 //     (MintAuthProofForRegistrationRequest).
 //
-// The handlers that live in internal/amf/nas/gmm call into this package
-// through the helpers declared below. Grepping for the two Mint*
-// function names gives the full set of mint call sites outside this
-// file — see TestAuthProofMintSites for the enforcing test.
+// Grepping for the two Mint* function names gives the full set of mint
+// call sites outside this file — see TestAuthProofMintSites for the
+// enforcing test.
 //
 // Note: the unexported field prevents external packages from forging an
 // AuthProof via struct literal, but any code in package amf can still
