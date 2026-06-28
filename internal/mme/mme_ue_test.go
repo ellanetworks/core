@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 
+	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -62,5 +64,76 @@ func TestUplinkNASTransportUnknownUE(t *testing.T) {
 
 	if ind.Cause == nil || *ind.Cause != causeUnknownMMEUES1APID {
 		t.Fatalf("expected cause unknown-mme-ue-s1ap-id, got %v", ind.Cause)
+	}
+}
+
+// TestPlainAttachDoesNotSupersedeRegisteredVictimPreAuth asserts TS 24.301
+// §4.4.4.3: an unauthenticated attach citing a registered subscriber's
+// (cleartext) IMSI must not tear down that subscriber's context. The prior
+// context is superseded only once the new attach is authenticated and accepted.
+func TestPlainAttachDoesNotSupersedeRegisteredVictimPreAuth(t *testing.T) {
+	m := newTestMME(t)
+	victim, _ := securedUE(t, m)
+
+	// A fresh, not-yet-authenticated attach context claiming the victim's IMSI.
+	attacker := m.newUe(&captureConn{}, 8)
+	m.setIMSI(attacker, victim.imsi)
+
+	got, ok := m.lookupUeByIMSI(victim.imsi)
+	if !ok || got != victim {
+		t.Fatal("an unauthenticated attach must not supersede the registered victim before authentication (TS 24.301 §4.4.4.3)")
+	}
+
+	if victim.emmState.load() != EMMRegistered {
+		t.Fatal("victim must remain EMM-REGISTERED")
+	}
+
+	// Once the new attach is authenticated and accepted, it supersedes the prior
+	// context (a re-attach), so the subscriber maps to exactly one context.
+	m.commitUEIdentity(attacker)
+
+	if got, _ := m.lookupUeByIMSI(victim.imsi); got != attacker {
+		t.Fatal("after commit, the authenticated attach must supersede the prior context")
+	}
+}
+
+// TestEstablishS1ConnectionMarksSecureExchange asserts the per-connection
+// §4.4.4.3 flag is set when a UE resumes on a new connection — a resume only
+// reaches establishS1Connection after its message was integrity-verified.
+func TestEstablishS1ConnectionMarksSecureExchange(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	m.establishS1Connection(ue, &captureConn{}, 9)
+
+	if !ue.s1.secureExchangeEstablished {
+		t.Fatal("a verified resume must establish secure exchange on the new connection (TS 24.301 §4.4.4.3)")
+	}
+}
+
+// TestVerifiedMessageMarksSecureExchange asserts a successfully integrity-checked
+// message establishes secure exchange on a connection that did not have it yet
+// (the fresh-attach case, where the flag is set when SMC Complete verifies).
+func TestVerifiedMessageMarksSecureExchange(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	ue.s1.secureExchangeEstablished = false // fresh connection, not yet established
+	ue.ulCount = 0
+
+	tac, err := (&eps.TrackingAreaUpdateComplete{}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wire, err := eps.Protect(tac, eps.SHTIntegrityProtectedCiphered, 0, nascommon.DirectionUplink,
+		ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m.handleNAS(context.Background(), ue, wire)
+
+	if !ue.s1.secureExchangeEstablished {
+		t.Fatal("a verified message must establish secure exchange on the connection (TS 24.301 §4.4.4.3)")
 	}
 }

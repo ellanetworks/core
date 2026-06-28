@@ -86,6 +86,15 @@ type s1Conn struct {
 	// bearers).
 	bearersUp bool
 
+	// secureExchangeEstablished records that secure exchange of NAS messages has
+	// been established on this connection (a NAS message has been successfully
+	// integrity-checked, or the connection was created by a verified resume).
+	// Once set, TS 24.301 §4.4.4.3 requires discarding any further message that
+	// is not integrity protected or fails the check. It is per-connection (the
+	// spec scopes it "for the NAS signalling connection"), matching the 5G AMF's
+	// ActiveNasConnection.secureExchangeEstablished.
+	secureExchangeEstablished bool
+
 	// tauReleaseOnComplete defers the S1 release of a no-active TAU until the
 	// GUTI reallocation it carried is acknowledged.
 	tauReleaseOnComplete bool
@@ -231,17 +240,37 @@ func (ue *UeContext) lastSeenTime() time.Time {
 	return time.Unix(0, ns)
 }
 
-// setIMSI sets the IMSI under ue.mu, so a concurrent lookupUeByIMSI scan never reads it mid-write.
+// setIMSI records the UE's IMSI (under ue.mu, so a concurrent lookupUeByIMSI
+// scan never reads it mid-write) so authentication and subscriber-data lookups
+// can use it. It deliberately does NOT index the UE by IMSI or supersede a prior
+// context for the same subscriber — that happens only once the attach is
+// authenticated, in commitUEIdentity. Deferring the supersede keeps an
+// unauthenticated attach citing a victim's (cleartext) IMSI from tearing down
+// the victim's context (TS 24.301 §4.4.4.3).
 func (m *MME) setIMSI(ue *UeContext, imsi string) {
 	ue.mu.Lock()
 	ue.imsi = imsi
 	ue.mu.Unlock()
+}
+
+// commitUEIdentity indexes the UE by IMSI and supersedes any prior context for
+// the same subscriber (a re-attach), so a subscriber maps to exactly one UE
+// context. It runs only after the attach is authenticated and accepted —
+// mirroring the 5G AMF, which adds the UE to its pool only once security is
+// established — so an unauthenticated attach cannot disturb a registered UE
+// (TS 24.301 §4.4.4.3).
+func (m *MME) commitUEIdentity(ue *UeContext) {
+	ue.mu.Lock()
+	imsi := ue.imsi
+	ue.mu.Unlock()
+
+	if imsi == "" {
+		return
+	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// A new context for a subscriber supersedes any prior one (a re-attach), so a
-	// subscriber maps to exactly one UE context.
 	if old, ok := m.ues[imsi]; ok && old != ue {
 		m.removeContextLocked(old)
 	}
@@ -484,7 +513,10 @@ func (m *MME) establishS1Connection(ue *UeContext, conn nasWriter, enbUEID s1ap.
 	id := m.nextMMEUEID
 	m.nextMMEUEID++
 
-	c := &s1Conn{MMEUES1APID: s1ap.MMEUES1APID(id), ENBUES1APID: enbUEID, conn: conn, ue: ue}
+	// A resume only reaches here after its message was integrity-verified against
+	// the held context (service request short-MAC, TAU/initial-message unprotect),
+	// so secure exchange is established on the new connection from the outset.
+	c := &s1Conn{MMEUES1APID: s1ap.MMEUES1APID(id), ENBUES1APID: enbUEID, conn: conn, ue: ue, secureExchangeEstablished: true}
 	ue.s1 = c
 	m.conns[id] = c
 }
@@ -509,6 +541,10 @@ func (m *MME) adoptConn(existing, transient *UeContext) {
 
 	existing.s1 = c
 	c.ue = existing
+
+	// The GUTI re-attach was integrity-verified against the held context before
+	// adoption, so secure exchange is established on the adopted connection.
+	c.secureExchangeEstablished = true
 }
 
 // freeS1ConnLocked releases the UE's current S1-connection (moving it to

@@ -54,6 +54,12 @@ func (m *MME) handleNAS(ctx context.Context, ue *UeContext, nas []byte) {
 	plain := nas
 	integrityVerified := false
 
+	// Secure exchange is tracked per NAS signalling connection (TS 24.301
+	// §4.4.4.3), matching the 5G AMF; ue.secured is the separate per-UE
+	// "has a security context" notion used by handover/path-switch.
+	conn := ue.s1
+	connSecured := conn != nil && conn.secureExchangeEstablished
+
 	if nas[0]>>4 != uint8(eps.SHTPlain) {
 		if len(nas) < 6 {
 			logger.MmeLog.Warn("security-protected NAS message too short")
@@ -81,9 +87,9 @@ func (m *MME) handleNAS(ctx context.Context, ue *UeContext, nas []byte) {
 			body := nas[6:]
 
 			// A switch-off DETACH REQUEST is honoured without integrity protection
-			// only before the secure exchange of NAS messages is established
-			// (TS 24.301 §4.4.4.3).
-			if !ue.secured && isSwitchOffDetach(body) {
+			// only before the secure exchange of NAS messages is established on the
+			// connection (TS 24.301 §4.4.4.3).
+			if !connSecured && isSwitchOffDetach(body) {
 				m.onDetachRequest(ctx, ue, body)
 				return
 			}
@@ -100,12 +106,12 @@ func (m *MME) handleNAS(ctx context.Context, ue *UeContext, nas []byte) {
 
 					// TS 24.301 requires processing certain EMM messages even
 					// when the MAC fails — but only "until the secure exchange of NAS
-					// messages has been established", i.e. when the network has no
-					// usable security context (e.g. a fresh context after an MME
-					// restart). Once the UE is secured, a message failing the integrity
-					// check is discarded, so a forged or replayed NAS message cannot
-					// disrupt an authenticated UE.
-					if !ue.secured && m.processWithoutIntegrity(ctx, ue, mt, nas, body) {
+					// messages has been established" on the connection, i.e. when the
+					// network has no usable security context (e.g. a fresh context after
+					// an MME restart). Once secure exchange is established, a message
+					// failing the integrity check is discarded, so a forged or replayed
+					// NAS message cannot disrupt an authenticated UE.
+					if !connSecured && m.processWithoutIntegrity(ctx, ue, mt, nas, body) {
 						return
 					}
 				}
@@ -129,7 +135,13 @@ func (m *MME) handleNAS(ctx context.Context, ue *UeContext, nas []byte) {
 		// Advance the expected count past the accepted message, so a replay
 		// estimates to a stale count whose MAC fails to verify.
 		ue.ulCount = count + 1
-	} else if ue.secured {
+
+		// A successfully integrity-checked message establishes secure exchange of
+		// NAS messages on this connection (TS 24.301 §4.4.4.3).
+		if conn != nil {
+			conn.secureExchangeEstablished = true
+		}
+	} else if connSecured {
 		// TS 24.301 §4.4.4.3: once secure exchange of NAS messages is established
 		// for the connection, a message that is not integrity protected is
 		// discarded, so a forged plain NAS message cannot disrupt an

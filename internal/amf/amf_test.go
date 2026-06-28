@@ -69,23 +69,6 @@ func TestFindAMFUEBySupi_NotFound(t *testing.T) {
 	}
 }
 
-func TestFindAMFUEBySuci(t *testing.T) {
-	amfInstance := amf.New(nil, nil, nil)
-
-	addTestUE(t, amfInstance, "001010000000004", func(ue *amf.AmfUe) {
-		ue.Suci = "suci-0-001-01-0000-0-0-0000000004"
-	})
-
-	found, ok := amfInstance.FindAMFUEBySuci("suci-0-001-01-0000-0-0-0000000004")
-	if !ok {
-		t.Fatal("expected to find UE by SUCI")
-	}
-
-	if found.Suci != "suci-0-001-01-0000-0-0-0000000004" {
-		t.Fatalf("unexpected SUCI: %s", found.Suci)
-	}
-}
-
 func TestDeregisterAndRemoveAMFUE(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 

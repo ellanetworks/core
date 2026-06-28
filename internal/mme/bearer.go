@@ -384,6 +384,12 @@ func (m *MME) activateDefaultBearer(ctx context.Context, ue *UeContext) {
 		return
 	}
 
+	// The attach is now authenticated and accepted, so this context becomes the
+	// subscriber's single registered context, superseding any prior one. Doing
+	// this here (not when the IMSI was first learned) keeps an unauthenticated
+	// attach from tearing down a registered UE (TS 24.501 §4.4.4.3 analogue).
+	m.commitUEIdentity(ue)
+
 	// On Attach the MME deletes any stored UE Radio Capability and omits it from
 	// the Initial Context Setup, so the eNB re-fetches it from the UE (TS 23.401).
 	ue.radioCapability = nil

@@ -153,15 +153,14 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 			guti, _ = etsi.NewGUTIFromBytes(mobileIdentity5GSContents)
 			logger.WithTrace(ctx, logger.AmfLog).Debug("Guti received in Registration Request Message", logger.GUTI(guti.String()))
 		} else if nasMessage.MobileIdentity5GSTypeSuci == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
+			// A SUCI is a one-time concealed identity, not a handle to an existing
+			// context. Always register on a fresh context; any prior context for
+			// the same subscriber is superseded only once this registration is
+			// authenticated (TS 24.501 §5.5.1.2.8 f, reconciled by SUPI on accept).
 			suci, _ := nasConvert.SuciToString(mobileIdentity5GSContents)
+			logger.WithTrace(ctx, logger.AmfLog).Debug("Suci received in Registration Request Message; using a fresh context", zap.String("suci", suci))
 
-			ue, _ := amfInstance.FindAMFUEBySuci(suci)
-			if ue != nil {
-				ue.Log.Info("UE Context derived from Suci", zap.String("suci", suci))
-				ue.RotateContext()
-			}
-
-			return ue, nil
+			return nil, nil
 		}
 	case nas.MsgTypeServiceRequest:
 		mobileIdentity5GSContents := msg.TMSI5GS.Octet
@@ -205,17 +204,10 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 
 	if !ue.ReuseForInboundNAS(payload) {
 		// TS 24.501 §4.4.4.3: this message cites an existing context but is not
-		// authenticated for it. Register on a fresh context pending
-		// authentication; the committed context is left unchanged on failure.
+		// integrity-verified for it. Register on a fresh context; the committed
+		// context (its NAS security context and PDU sessions) is left unchanged.
 		logger.WithTrace(ctx, logger.AmfLog).Info("NAS message cites a known GUTI but is not authenticated for that context; using a fresh context", logger.GUTI(guti.String()))
 		return nil, nil
-	}
-
-	if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
-		ue.Log.Info("UE identified by GUTI but NAS is plain; treating as no security context", logger.GUTI(guti.String()))
-		ue.RotateContext()
-
-		return ue, nil
 	}
 
 	ue.Log.Info("UE Context derived from Guti", logger.GUTI(guti.String()))

@@ -171,6 +171,7 @@ func securedUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 	}
 
 	ue.secured = true
+	ue.s1.secureExchangeEstablished = true
 	ue.emmState.store(EMMRegistered)
 	registerTestUE(m, ue, testSubscriber.IMSI)
 
@@ -297,7 +298,11 @@ func TestDetachSwitchOffUnverifiableIgnoredForSecuredUE(t *testing.T) {
 func TestDetachSwitchOffUnsecuredAccepted(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
+	// Model a connection on which secure exchange has not been established
+	// (TS 24.301 §4.4.4.3): a switch-off detach is then honoured without
+	// integrity protection.
 	ue.secured = false
+	ue.s1.secureExchangeEstablished = false
 
 	plain, err := (&eps.DetachRequestUE{
 		SwitchOff: true, TypeOfDetach: eps.DetachTypeEPS,

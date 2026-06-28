@@ -176,14 +176,15 @@ func TestReuseForInboundNAS_UnverifiedNonEmergencyDiverted(t *testing.T) {
 	}
 }
 
-// TestReuseForInboundNAS_EmergencyRegistrationReuses confirms the one exception:
-// an emergency registration may act on the context without integrity protection
-// (TS 24.501 §4.4.4.3).
-func TestReuseForInboundNAS_EmergencyRegistrationReuses(t *testing.T) {
+// TestReuseForInboundNAS_PlainEmergencyDiverted confirms context resolution is
+// uniform: even a plain emergency registration does not reuse a committed
+// context — it is processed on a fresh one, so the committed context is never
+// mutated by an unverified message (TS 24.501 §4.4.4.3).
+func TestReuseForInboundNAS_PlainEmergencyDiverted(t *testing.T) {
 	ue := newSecuredUE(t)
 
-	if !ue.ReuseForInboundNAS(encodePlainEmergencyRegistration(t)) {
-		t.Fatal("a plain emergency registration must be allowed to act on the context")
+	if ue.ReuseForInboundNAS(encodePlainEmergencyRegistration(t)) {
+		t.Fatal("a plain emergency registration must not reuse the committed context")
 	}
 }
 

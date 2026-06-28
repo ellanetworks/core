@@ -239,19 +239,6 @@ func (amf *AMF) GetUESnapshot(supi etsi.SUPI) (UESnapshot, bool) {
 	return ue.Snapshot(), true
 }
 
-func (amf *AMF) FindAMFUEBySuci(suci string) (*AmfUe, bool) {
-	amf.mu.RLock()
-	defer amf.mu.RUnlock()
-
-	for _, ue := range amf.UEs {
-		if ue.Suci == suci {
-			return ue, true
-		}
-	}
-
-	return nil, false
-}
-
 func (amf *AMF) NewRadio(conn *sctp.SCTPConn) (*Radio, error) {
 	if conn == nil {
 		return nil, fmt.Errorf("SCTP connection is not available")

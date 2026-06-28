@@ -12,7 +12,6 @@ import (
 	"fmt"
 
 	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/security"
 	"go.uber.org/zap"
 )
@@ -106,53 +105,15 @@ func (ue *AmfUe) NasIntegrityVerified(payload []byte) bool {
 }
 
 // ReuseForInboundNAS reports whether an inbound NAS PDU that resolved to this
-// committed context by GUTI/5G-S-TMSI may act on it. Per TS 24.501 §4.4.4.3 a
-// message that is not integrity-verified against the context must not: it is
-// processed on a fresh context instead, so the committed context (and its NAS
-// security context and PDU sessions) is left unchanged. On a fresh context a
-// registration re-authenticates, a service request is rejected with 5GMM cause
-// #9, and a deregistration is ignored — each the spec-mandated outcome.
-//
-// The sole exception is an emergency registration, which §4.4.4.3 exempts from
-// authenticate-first.
+// committed context by GUTI/5G-S-TMSI may act on it: only when it is
+// integrity-verified against the context. Any other message is processed on a
+// fresh context, so context resolution never mutates a committed context — it
+// either reuses a verified one or yields a fresh one, leaving the committed
+// NAS security context and PDU sessions untouched (TS 24.501 §4.4.4.3). On a
+// fresh context a registration re-authenticates, a service request is rejected
+// with 5GMM cause #9, and a deregistration is ignored — each the spec outcome.
 func (ue *AmfUe) ReuseForInboundNAS(payload []byte) bool {
-	if ue.NasIntegrityVerified(payload) {
-		return true
-	}
-
-	return isPlainEmergencyRegistration(payload)
-}
-
-// isPlainEmergencyRegistration reports whether payload is a plain-NAS
-// REGISTRATION REQUEST for emergency services, the one message TS 24.501
-// §4.4.4.3 lets act on an existing context without integrity protection.
-func isPlainEmergencyRegistration(payload []byte) bool {
-	if len(payload) < 2 {
-		return false
-	}
-
-	if nas.GetSecurityHeaderType(payload)&0x0f != nas.SecurityHeaderTypePlainNas {
-		return false
-	}
-
-	buf := make([]byte, len(payload))
-	copy(buf, payload)
-
-	msg := new(nas.Message)
-	if err := msg.PlainNasDecode(&buf); err != nil {
-		return false
-	}
-
-	if msg.GmmMessage == nil || msg.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationRequest {
-		return false
-	}
-
-	rr := msg.RegistrationRequest
-	if rr == nil {
-		return false
-	}
-
-	return rr.GetRegistrationType5GS() == nasMessage.RegistrationType5GSEmergencyRegistration
+	return ue.NasIntegrityVerified(payload)
 }
 
 func decodePlainNAS(msg *nas.Message, payload []byte) (*DecodeResult, error) {
