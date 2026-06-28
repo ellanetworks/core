@@ -8,7 +8,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
-	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
@@ -27,7 +26,7 @@ func (m *MME) handleTrackingAreaUpdate(ctx context.Context, ue *UeContext, plain
 	}
 
 	logger.MmeLog.Info("Tracking Area Update Request",
-		zap.String("imsi", ue.imsi),
+		zap.String("imsi", ue.IMSI()),
 		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 		zap.String("update-type", epsUpdateTypeName(req.EPSUpdateType)),
 		zap.Bool("active-flag", req.ActiveFlag))
@@ -44,14 +43,14 @@ func (m *MME) handleTrackingAreaUpdate(ctx context.Context, ue *UeContext, plain
 		includeBearerStatus: req.EPSBearerContextStatus != nil,
 	})
 	if err != nil {
-		logger.MmeLog.Error("failed to build Tracking Area Update Accept", zap.String("imsi", ue.imsi), zap.Error(err))
+		logger.MmeLog.Error("failed to build Tracking Area Update Accept", zap.String("imsi", ue.IMSI()), zap.Error(err))
 		return
 	}
 
 	// The accept reallocates the GUTI, so it is protected once and guarded by
 	// T3450: it is retransmitted until the UE sends TRACKING AREA UPDATE COMPLETE
 	// (TS 24.301), after which the new GUTI is committed.
-	naspdu, err := m.protectDownlink(ue, accept)
+	naspdu, err := m.protectDownlinkMessage(ue, accept)
 	if err != nil {
 		logger.MmeLog.Error("failed to protect Tracking Area Update Accept", zap.Error(err))
 		return
@@ -63,7 +62,7 @@ func (m *MME) handleTrackingAreaUpdate(ctx context.Context, ue *UeContext, plain
 	// resuming for this TAU needs re-establishment or a deferred release below.
 	if ue.s1.bearersUp {
 		logger.MmeLog.Info("Tracking Area Update accepted",
-			zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi))
+			zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.IMSI()))
 		m.sendDownlink(ctx, ue, naspdu)
 		m.armNASGuard(ue, "Tracking Area Update Accept", naspdu)
 
@@ -71,14 +70,14 @@ func (m *MME) handleTrackingAreaUpdate(ctx context.Context, ue *UeContext, plain
 	}
 
 	if req.ActiveFlag {
-		qos, err := m.resolveQoS(ctx, ue.imsi)
+		qos, err := m.resolveQoS(ctx, ue.IMSI())
 		if err != nil {
-			logger.MmeLog.Error("failed to resolve subscriber QoS", zap.String("imsi", ue.imsi), zap.Error(err))
+			logger.MmeLog.Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
 			return
 		}
 
 		logger.MmeLog.Info("Tracking Area Update accepted (bearer re-established)",
-			zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi))
+			zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.IMSI()))
 		m.sendInitialContextSetup(ctx, ue, qos, naspdu)
 		m.armNASGuard(ue, "Tracking Area Update Accept", naspdu)
 
@@ -94,7 +93,7 @@ func (m *MME) handleTrackingAreaUpdate(ctx context.Context, ue *UeContext, plain
 	ue.s1.tauReleaseOnComplete = true
 
 	logger.MmeLog.Info("Tracking Area Update accepted (returning to idle)",
-		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi))
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.IMSI()))
 	m.sendDownlink(ctx, ue, naspdu)
 	m.armNASGuard(ue, "Tracking Area Update Accept", naspdu)
 }
@@ -107,7 +106,7 @@ func (m *MME) handleTrackingAreaUpdateComplete(ctx context.Context, ue *UeContex
 	m.commitGUTIRealloc(ue)
 
 	logger.MmeLog.Info("Tracking Area Update Complete",
-		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi))
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.IMSI()))
 
 	if ue.s1.tauReleaseOnComplete {
 		ue.s1.tauReleaseOnComplete = false
@@ -206,7 +205,7 @@ func (m *MME) reconcileBearerContextStatus(ue *UeContext, ueStatus uint16) {
 		}
 
 		logger.MmeLog.Info("releasing EPS bearer reported inactive by the UE",
-			zap.String("imsi", ue.imsi), zap.Uint8("ebi", p.ebi))
+			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.ebi))
 		m.releasePDN(ue, p)
 	}
 }
@@ -225,25 +224,11 @@ func (m *MME) bearerContextStatus(ue *UeContext) uint16 {
 // protectDownlink integrity-protects and ciphers a NAS message with the UE's
 // security context, for embedding in another S1AP message (e.g. the Initial
 // Context Setup Request).
-func (m *MME) protectDownlink(ue *UeContext, msg nasMessage) ([]byte, error) {
+func (m *MME) protectDownlinkMessage(ue *UeContext, msg nasMessage) ([]byte, error) {
 	plain, err := msg.Marshal()
 	if err != nil {
 		return nil, err
 	}
 
-	return m.protectDownlinkBytes(ue, plain)
-}
-
-// protectDownlinkBytes integrity-protects and ciphers an already-marshalled NAS
-// message for the UE, advancing the downlink NAS COUNT (TS 24.301).
-func (m *MME) protectDownlinkBytes(ue *UeContext, plain []byte) ([]byte, error) {
-	count, knasInt, knasEnc, eia, eea := ue.downlinkSecCtx()
-
-	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nascommon.NASCount(0, uint8(count)),
-		nascommon.DirectionDownlink, knasInt, knasEnc, integrityAlg(eia), cipherAlg(eea))
-	if err != nil {
-		return nil, err
-	}
-
-	return wire, nil
+	return ue.protectDownlink(plain, eps.SHTIntegrityProtectedCiphered)
 }

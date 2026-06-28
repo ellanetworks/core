@@ -24,7 +24,7 @@ import (
 // Context Release that follows tears down the radio bearers, so the NAS is sent
 // on a Downlink NAS Transport and guarded like other common procedures.
 func (m *MME) deactivateBearer(ctx context.Context, ue *UeContext, p *pdnConnection, esmCause, pti uint8, disconnecting bool) {
-	naspdu, err := m.protectDownlink(ue, &eps.DeactivateEPSBearerContextRequest{
+	naspdu, err := m.protectDownlinkMessage(ue, &eps.DeactivateEPSBearerContextRequest{
 		EPSBearerIdentity:            p.ebi,
 		ProcedureTransactionIdentity: pti,
 		ESMCause:                     esmCause,

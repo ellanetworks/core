@@ -54,7 +54,7 @@ func (m *MME) rejectAuthentication(ctx context.Context, ue *UeContext) {
 	metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultReject)
 
 	logger.MmeLog.Info("authentication rejected",
-		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.imsi))
+		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", ue.IMSI()))
 	m.sendDownlinkMessage(ctx, ue, &eps.AuthenticationReject{})
 	m.releaseUEContext(ctx, ue, causeNASUnspecified)
 }

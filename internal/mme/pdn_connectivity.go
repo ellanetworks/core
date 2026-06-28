@@ -63,7 +63,7 @@ func (m *MME) handlePDNConnectivityRequest(ctx context.Context, ue *UeContext, p
 
 	if cause := esmRequestHeaderCause(pti, req.EPSBearerIdentity); cause != 0 {
 		logger.MmeLog.Info("PDN connectivity rejected: invalid ESM header",
-			zap.String("imsi", ue.imsi), zap.Uint8("pti", pti),
+			zap.String("imsi", ue.IMSI()), zap.Uint8("pti", pti),
 			zap.Uint8("header-ebi", req.EPSBearerIdentity), zap.Uint8("esm-cause", cause))
 		m.rejectPDNConnectivity(ctx, ue, pti, cause)
 
@@ -92,16 +92,16 @@ func (m *MME) handlePDNConnectivityRequest(ctx context.Context, ue *UeContext, p
 
 	if m.findPDNByAPN(ue, apn) != nil {
 		logger.MmeLog.Info("PDN connectivity rejected: APN already connected",
-			zap.String("imsi", ue.imsi), zap.String("apn", apn))
+			zap.String("imsi", ue.IMSI()), zap.String("apn", apn))
 		m.rejectPDNConnectivity(ctx, ue, pti, esmCauseMultiplePDNForAPNNotAllowed)
 
 		return
 	}
 
-	qos, err := m.resolveQoSByAPN(ctx, ue.imsi, apn)
+	qos, err := m.resolveQoSByAPN(ctx, ue.IMSI(), apn)
 	if errors.Is(err, ErrUnknownAPN) {
 		logger.MmeLog.Info("PDN connectivity rejected: APN not in subscriber profile",
-			zap.String("imsi", ue.imsi), zap.String("apn", apn))
+			zap.String("imsi", ue.IMSI()), zap.String("apn", apn))
 		m.rejectPDNConnectivity(ctx, ue, pti, esmCauseUnknownAPN)
 
 		return
@@ -117,14 +117,14 @@ func (m *MME) handlePDNConnectivityRequest(ctx context.Context, ue *UeContext, p
 	p := m.addPDN(ue)
 	if p == nil {
 		logger.MmeLog.Info("PDN connectivity rejected: no free EPS bearer identity",
-			zap.String("imsi", ue.imsi))
+			zap.String("imsi", ue.IMSI()))
 		m.rejectPDNConnectivity(ctx, ue, pti, esmCauseMaxEPSBearersReached)
 
 		return
 	}
 
 	bearer, err := m.session.CreateEPSSession(ctx, models.EPSBearerRequest{
-		IMSI:              ue.imsi,
+		IMSI:              ue.IMSI(),
 		EPSBearerIdentity: p.ebi,
 		PolicyID:          qos.PolicyID,
 		APN:               qos.APN,
@@ -138,7 +138,7 @@ func (m *MME) handlePDNConnectivityRequest(ctx context.Context, ue *UeContext, p
 	})
 	if err != nil {
 		logger.MmeLog.Info("PDN connectivity rejected: session setup failed",
-			zap.String("imsi", ue.imsi), zap.String("apn", apn), zap.Error(err))
+			zap.String("imsi", ue.IMSI()), zap.String("apn", apn), zap.Error(err))
 		m.dropPDN(ue, p.ebi)
 		m.rejectPDNConnectivity(ctx, ue, pti, esmCauseRequestRejectedUnspecified)
 
@@ -168,7 +168,7 @@ func (m *MME) handlePDNConnectivityRequest(ctx context.Context, ue *UeContext, p
 		return
 	}
 
-	naspdu, err := m.protectDownlinkBytes(ue, esm)
+	naspdu, err := ue.protectDownlink(esm, eps.SHTIntegrityProtectedCiphered)
 	if err != nil {
 		logger.MmeLog.Error("failed to protect Activate Default EPS Bearer Context Request", zap.Error(err))
 		m.releasePDN(ue, p)
@@ -177,7 +177,7 @@ func (m *MME) handlePDNConnectivityRequest(ctx context.Context, ue *UeContext, p
 	}
 
 	logger.MmeLog.Info("opening additional PDN connection",
-		zap.String("imsi", ue.imsi), zap.String("apn", apn), zap.Uint8("ebi", p.ebi))
+		zap.String("imsi", ue.IMSI()), zap.String("apn", apn), zap.Uint8("ebi", p.ebi))
 	m.sendERABSetup(ctx, ue, p, qos, naspdu)
 }
 
@@ -260,22 +260,22 @@ func (m *MME) handleERABSetupResponse(conn nasWriter, value []byte) {
 
 		p.enbFTEID = models.FTEID{TEID: uint32(erab.GTPTEID), Addr: enbAddr}
 
-		if err := m.session.ModifyEPSSession(context.Background(), ue.imsi, p.ebi, p.enbFTEID); err != nil {
+		if err := m.session.ModifyEPSSession(context.Background(), ue.IMSI(), p.ebi, p.enbFTEID); err != nil {
 			logger.MmeLog.Error("failed to set the eNB F-TEID on the additional EPS session",
-				zap.String("imsi", ue.imsi), zap.Uint8("ebi", p.ebi), zap.Error(err))
+				zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.ebi), zap.Error(err))
 
 			continue
 		}
 
 		logger.MmeLog.Info("additional PDN connection radio leg established",
-			zap.String("imsi", ue.imsi), zap.String("apn", p.apn), zap.Uint8("ebi", p.ebi),
+			zap.String("imsi", ue.IMSI()), zap.String("apn", p.apn), zap.Uint8("ebi", p.ebi),
 			zap.String("enb-s1u", enbAddr.String()))
 	}
 
 	for _, erab := range msg.ERABFailedToSetup {
 		if p := m.lookupPDN(ue, uint8(erab.ERABID)); p != nil {
 			logger.MmeLog.Warn("eNB failed to set up an additional E-RAB; releasing the PDN connection",
-				zap.String("imsi", ue.imsi), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
+				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
 			m.releasePDN(ue, p)
 		}
 	}
@@ -298,7 +298,7 @@ func (m *MME) handlePDNDisconnectRequest(ctx context.Context, ue *UeContext, pla
 
 	if cause := esmRequestHeaderCause(pti, req.EPSBearerIdentity); cause != 0 {
 		logger.MmeLog.Info("PDN disconnect rejected: invalid ESM header",
-			zap.String("imsi", ue.imsi), zap.Uint8("pti", pti),
+			zap.String("imsi", ue.IMSI()), zap.Uint8("pti", pti),
 			zap.Uint8("header-ebi", req.EPSBearerIdentity), zap.Uint8("esm-cause", cause))
 		m.rejectPDNDisconnect(ctx, ue, pti, cause)
 
@@ -308,7 +308,7 @@ func (m *MME) handlePDNDisconnectRequest(ctx context.Context, ue *UeContext, pla
 	p := m.lookupPDN(ue, req.LinkedEPSBearerIdentity)
 	if p == nil {
 		logger.MmeLog.Info("PDN disconnect rejected: unknown linked EPS bearer",
-			zap.String("imsi", ue.imsi), zap.Uint8("linked-ebi", req.LinkedEPSBearerIdentity))
+			zap.String("imsi", ue.IMSI()), zap.Uint8("linked-ebi", req.LinkedEPSBearerIdentity))
 		m.rejectPDNDisconnect(ctx, ue, pti, esmCauseRequestRejectedUnspecified)
 
 		return
@@ -320,14 +320,14 @@ func (m *MME) handlePDNDisconnectRequest(ctx context.Context, ue *UeContext, pla
 
 	if numPDNs <= 1 {
 		logger.MmeLog.Info("PDN disconnect rejected: last PDN connection",
-			zap.String("imsi", ue.imsi), zap.Uint8("linked-ebi", req.LinkedEPSBearerIdentity))
+			zap.String("imsi", ue.IMSI()), zap.Uint8("linked-ebi", req.LinkedEPSBearerIdentity))
 		m.rejectPDNDisconnect(ctx, ue, pti, esmCauseLastPDNDisconnectNotAllowed)
 
 		return
 	}
 
 	logger.MmeLog.Info("disconnecting PDN connection",
-		zap.String("imsi", ue.imsi), zap.String("apn", p.apn), zap.Uint8("ebi", p.ebi))
+		zap.String("imsi", ue.IMSI()), zap.String("apn", p.apn), zap.Uint8("ebi", p.ebi))
 	m.disconnectBearer(ctx, ue, p, esmCauseRegularDeactivation, pti)
 }
 
@@ -353,13 +353,13 @@ func (m *MME) handleActivateDefaultBearerAccept(ue *UeContext, plain []byte) {
 	p := m.lookupPDN(ue, accept.EPSBearerIdentity)
 	if p == nil {
 		logger.MmeLog.Warn("Activate Default Accept for an unknown EPS bearer",
-			zap.String("imsi", ue.imsi), zap.Uint8("ebi", accept.EPSBearerIdentity))
+			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", accept.EPSBearerIdentity))
 
 		return
 	}
 
 	logger.MmeLog.Info("additional PDN connection active",
-		zap.String("imsi", ue.imsi), zap.String("apn", p.apn), zap.Uint8("ebi", p.ebi))
+		zap.String("imsi", ue.IMSI()), zap.String("apn", p.apn), zap.Uint8("ebi", p.ebi))
 }
 
 // handleActivateDefaultBearerReject releases an additional PDN connection the UE
@@ -373,7 +373,7 @@ func (m *MME) handleActivateDefaultBearerReject(ue *UeContext, plain []byte) {
 
 	if p := m.lookupPDN(ue, reject.EPSBearerIdentity); p != nil {
 		logger.MmeLog.Info("UE rejected an additional PDN connection; releasing it",
-			zap.String("imsi", ue.imsi), zap.Uint8("ebi", p.ebi), zap.Uint8("esm-cause", reject.ESMCause))
+			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.ebi), zap.Uint8("esm-cause", reject.ESMCause))
 		m.releasePDN(ue, p)
 	}
 }
@@ -390,9 +390,9 @@ func (m *MME) rejectPDNConnectivity(ctx context.Context, ue *UeContext, pti, cau
 // releasePDN tears down a PDN connection's anchor session and removes it from the
 // UE, freeing its EPS bearer identity.
 func (m *MME) releasePDN(ue *UeContext, p *pdnConnection) {
-	if err := m.session.ReleaseEPSSession(context.Background(), ue.imsi, p.ebi); err != nil {
+	if err := m.session.ReleaseEPSSession(context.Background(), ue.IMSI(), p.ebi); err != nil {
 		logger.MmeLog.Warn("failed to release PDN connection session",
-			zap.String("imsi", ue.imsi), zap.Uint8("ebi", p.ebi), zap.Error(err))
+			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.ebi), zap.Error(err))
 	}
 
 	ue.mu.Lock()
@@ -409,9 +409,9 @@ func (m *MME) releasePDN(ue *UeContext, p *pdnConnection) {
 // them from the UE. Used when the whole UE context is torn down (detach).
 func (m *MME) releaseAllSessions(ue *UeContext) {
 	for _, p := range m.takeAllPDNs(ue) {
-		if err := m.session.ReleaseEPSSession(context.Background(), ue.imsi, p.ebi); err != nil {
+		if err := m.session.ReleaseEPSSession(context.Background(), ue.IMSI(), p.ebi); err != nil {
 			logger.MmeLog.Warn("failed to release PDN connection session",
-				zap.String("imsi", ue.imsi), zap.Uint8("ebi", p.ebi), zap.Error(err))
+				zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.ebi), zap.Error(err))
 		}
 	}
 }
@@ -420,9 +420,9 @@ func (m *MME) releaseAllSessions(ue *UeContext) {
 // idle UE triggers paging (TS 23.401), without releasing the sessions.
 func (m *MME) deactivateAllSessions(ue *UeContext) {
 	for _, p := range m.snapshotPDNs(ue) {
-		if err := m.session.DeactivateEPSSession(context.Background(), ue.imsi, p.ebi); err != nil {
+		if err := m.session.DeactivateEPSSession(context.Background(), ue.IMSI(), p.ebi); err != nil {
 			logger.MmeLog.Warn("failed to deactivate PDN connection session for paging",
-				zap.String("imsi", ue.imsi), zap.Uint8("ebi", p.ebi), zap.Error(err))
+				zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.ebi), zap.Error(err))
 		}
 	}
 }

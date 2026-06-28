@@ -1,0 +1,67 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+package nas
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/procedure"
+	"github.com/free5gc/nas"
+	"github.com/free5gc/nas/nasConvert"
+	"github.com/free5gc/nas/nasMessage"
+)
+
+// TS 33.501 6.7.2
+func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.SecurityModeComplete, integrityVerified bool) error {
+	if state := ue.GetState(); state != amf.SecurityMode {
+		return fmt.Errorf("state mismatch: receive Security Mode Complete message in state %s", state)
+	}
+
+	if !integrityVerified {
+		return fmt.Errorf("NAS message integrity check failed")
+	}
+
+	conn := ue.NasConn()
+	if conn == nil {
+		return fmt.Errorf("no active NAS connection")
+	}
+
+	if conn.T3560 != nil {
+		conn.T3560.Stop()
+		conn.T3560 = nil
+	}
+
+	conn.Procedures.End(procedure.SecurityMode)
+
+	if ue.SecurityContextIsValid() && integrityVerified {
+		err := ue.UpdateSecurityContext()
+		if err != nil {
+			return fmt.Errorf("error updating security context: %v", err)
+		}
+	}
+
+	if msg.IMEISV != nil {
+		ue.Pei = nasConvert.PeiToString(msg.IMEISV.Octet[:])
+	}
+
+	if msg.NASMessageContainer != nil {
+		contents := msg.GetNASMessageContainerContents()
+
+		m := nas.NewMessage()
+		if err := m.GmmMessageDecode(&contents); err != nil {
+			return fmt.Errorf("failed to decode nas message container: %v", err)
+		}
+
+		messageType := m.GmmHeader.GetMessageType()
+		if messageType != nas.MsgTypeRegistrationRequest {
+			return fmt.Errorf("nas message container Iei type error")
+		}
+
+		return contextSetup(ctx, amfInstance, ue, m.RegistrationRequest)
+	}
+
+	return contextSetup(ctx, amfInstance, ue, conn.RegistrationRequest)
+}

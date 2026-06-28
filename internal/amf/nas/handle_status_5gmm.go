@@ -1,0 +1,26 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+package nas
+
+import (
+	"fmt"
+
+	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/free5gc/nas/nasMessage"
+)
+
+func handleStatus5GMM(ue *amf.UeContext, msg *nasMessage.Status5GMM, integrityVerified bool) error {
+	if ue.GetState() == amf.Deregistered {
+		return fmt.Errorf("UE is in amf.Deregistered state, ignore Status 5GMM message")
+	}
+
+	if !integrityVerified {
+		return fmt.Errorf("NAS message integrity check failed")
+	}
+
+	ue.Log.Error("Received Status 5GMM with cause", logger.Cause(nasMessage.Cause5GMMToString(msg.GetCauseValue())))
+
+	return nil
+}

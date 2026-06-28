@@ -43,9 +43,9 @@ func (m *MME) handleInitialUEMessage(ctx context.Context, conn nasWriter, value 
 	// cannot move the UE. A UE without a resolvable context (e.g. after an MME
 	// restart) falls through to a fresh context below.
 	if len(nas) > 0 && nas[0]>>4 != uint8(eps.SHTPlain) && msg.STMSI != nil {
-		if ue, ok := m.lookupUeByMTMSI(msg.STMSI.MTMSI); ok && ue.emmState.load() == EMMRegistered && ue.secured {
-			plain, count, valid := m.unprotectUplink(ue, nas)
-			if !valid {
+		if ue, ok := m.lookupUeByMTMSI(msg.STMSI.MTMSI); ok && ue.emmState.load() == EMMRegistered && ue.Secured() {
+			plain, count, err := ue.tryUnprotectUplink(nas)
+			if err != nil {
 				logger.MmeLog.Warn("Initial UE Message (resume) failed integrity check",
 					zap.Uint32("m-tmsi", msg.STMSI.MTMSI))
 
@@ -54,7 +54,7 @@ func (m *MME) handleInitialUEMessage(ctx context.Context, conn nasWriter, value 
 
 			ue.touchLastSeen()
 			m.establishS1Connection(ue, conn, msg.ENBUES1APID)
-			ue.ulCount = count + 1
+			ue.commitUplinkCount(count)
 
 			logger.MmeLog.Info("Initial UE Message (resume)",
 				zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)),
@@ -246,9 +246,9 @@ func (m *MME) handleInitialContextSetupResponse(ctx context.Context, conn nasWri
 		ue.s1.bearersUp = true
 	}
 
-	if err := m.session.ModifyEPSSession(ctx, ue.imsi, p.ebi, p.enbFTEID); err != nil {
+	if err := m.session.ModifyEPSSession(ctx, ue.IMSI(), p.ebi, p.enbFTEID); err != nil {
 		logger.MmeLog.Error("failed to set the eNB F-TEID on the EPS session",
-			zap.String("imsi", ue.imsi), zap.Error(err))
+			zap.String("imsi", ue.IMSI()), zap.Error(err))
 
 		return
 	}

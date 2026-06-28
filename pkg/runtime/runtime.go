@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/nas"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/api"
@@ -739,7 +740,7 @@ type nasAdapter struct {
 }
 
 func (n *nasAdapter) HandleNAS(ctx context.Context, ue *amf.RanUe, nasPdu []byte) error {
-	return amf.HandleNAS(ctx, n.amf, ue, nasPdu)
+	return nas.HandleNAS(ctx, n.amf, ue, nasPdu)
 }
 
 // ausfDBAdapter adapts *db.Database to the ausf.SubscriberStore interface.

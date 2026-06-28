@@ -22,9 +22,9 @@ func TestNextNgKsi(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := nextNgKsi(tt.current)
+			got := NextNgKsi(tt.current)
 			if got != tt.want {
-				t.Errorf("nextNgKsi(%d) = %d, want %d", tt.current, got, tt.want)
+				t.Errorf("NextNgKsi(%d) = %d, want %d", tt.current, got, tt.want)
 			}
 		})
 	}

@@ -7,6 +7,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas/nasType"
+	"github.com/free5gc/nas/security"
 )
 
 // Test-support accessors for the unexported NAS security/identity state. They
@@ -50,3 +51,18 @@ func (ue *UeContext) SetUESecurityCapabilityForTest(c *nasType.UESecurityCapabil
 func (ue *UeContext) UESecurityCapabilityForTest() *nasType.UESecurityCapability {
 	return ue.ueSecurityCapability
 }
+
+func (ue *UeContext) SetKgnbForTest(k []uint8) { ue.kgnb = k }
+func (ue *UeContext) KgnbForTest() []uint8     { return ue.kgnb }
+
+func (ue *UeContext) SetNCCForTest(n uint8) { ue.ncc = n }
+func (ue *UeContext) NCCForTest() uint8     { return ue.ncc }
+
+func (ue *UeContext) SetABBAForTest(a []uint8) { ue.abba = a }
+func (ue *UeContext) ABBAForTest() []uint8     { return ue.abba }
+
+func (ue *UeContext) SetULCountForTest(c security.Count) { ue.ulCount = c }
+func (ue *UeContext) ULCountForTest() *security.Count    { return &ue.ulCount }
+
+func (ue *UeContext) SetDLCountForTest(c security.Count) { ue.dlCount = c }
+func (ue *UeContext) DLCountForTest() *security.Count    { return &ue.dlCount }

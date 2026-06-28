@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
-	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.opentelemetry.io/otel/attribute"
@@ -291,10 +290,10 @@ func bitRateToBps(s string) uint64 {
 // network, and falls back to the profile's default policy when no APN is requested.
 func (m *MME) resolveAttachQoS(ctx context.Context, ue *UeContext) (*epsQoS, error) {
 	if ue.requestedAPN != "" {
-		return m.resolveQoSByAPN(ctx, ue.imsi, ue.requestedAPN)
+		return m.resolveQoSByAPN(ctx, ue.IMSI(), ue.requestedAPN)
 	}
 
-	return m.resolveQoS(ctx, ue.imsi)
+	return m.resolveQoS(ctx, ue.IMSI())
 }
 
 func (m *MME) activateDefaultBearer(ctx context.Context, ue *UeContext) {
@@ -303,14 +302,14 @@ func (m *MME) activateDefaultBearer(ctx context.Context, ue *UeContext) {
 		// The requested APN is not bound to any policy in the subscriber's profile
 		// (TS 24.301 §6.5.1.4, ESM cause #27); the default bearer cannot be set up.
 		logger.MmeLog.Info("attach rejected: requested APN not in subscriber profile",
-			zap.String("imsi", ue.imsi), zap.String("apn", ue.requestedAPN))
+			zap.String("imsi", ue.IMSI()), zap.String("apn", ue.requestedAPN))
 		m.rejectAttach(ctx, ue, emmCauseESMFailure)
 
 		return
 	}
 
 	if err != nil {
-		logger.MmeLog.Error("failed to resolve subscriber QoS", zap.String("imsi", ue.imsi), zap.Error(err))
+		logger.MmeLog.Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
 		return
 	}
 
@@ -319,7 +318,7 @@ func (m *MME) activateDefaultBearer(ctx context.Context, ue *UeContext) {
 	// services not allowed" (TS 24.301).
 	if !qos.Allow4G {
 		logger.MmeLog.Info("attach rejected: 4G not allowed for subscriber",
-			zap.String("imsi", ue.imsi))
+			zap.String("imsi", ue.IMSI()))
 		m.rejectAttach(ctx, ue, emmCauseEPSServicesNotAllowed)
 
 		return
@@ -329,7 +328,7 @@ func (m *MME) activateDefaultBearer(ctx context.Context, ue *UeContext) {
 	// the PDN type, allocates the UE address(es), programs the user plane, and
 	// returns the S-GW S1-U F-TEID.
 	bearer, err := m.session.CreateEPSSession(ctx, models.EPSBearerRequest{
-		IMSI:              ue.imsi,
+		IMSI:              ue.IMSI(),
 		EPSBearerIdentity: defaultERABID,
 		PolicyID:          qos.PolicyID,
 		APN:               qos.APN,
@@ -346,7 +345,7 @@ func (m *MME) activateDefaultBearer(ctx context.Context, ue *UeContext) {
 		// IPv4-only data network). The default bearer cannot be set up, so reject
 		// the attach with EMM cause #19 "ESM failure" (TS 24.301).
 		logger.MmeLog.Info("attach rejected: default bearer setup failed",
-			zap.String("imsi", ue.imsi), zap.Error(err))
+			zap.String("imsi", ue.IMSI()), zap.Error(err))
 		m.rejectAttach(ctx, ue, emmCauseESMFailure)
 
 		return
@@ -372,7 +371,7 @@ func (m *MME) activateDefaultBearer(ctx context.Context, ue *UeContext) {
 	p.sgwN3IPv6 = bearer.SGWN3IPv6
 
 	logger.MmeLog.Info("EPS default bearer established",
-		zap.String("imsi", ue.imsi),
+		zap.String("imsi", ue.IMSI()),
 		zap.Uint8("pdn-type", p.pdnType),
 		zap.String("dns", p.dns.String()),
 		zap.Uint8("esm-cause", p.esmCause),
@@ -388,7 +387,7 @@ func (m *MME) activateDefaultBearer(ctx context.Context, ue *UeContext) {
 	// subscriber's single registered context, superseding any prior one. Doing
 	// this here (not when the IMSI was first learned) keeps an unauthenticated
 	// attach from tearing down a registered UE (TS 24.501 §4.4.4.3 analogue).
-	m.commitUEIdentity(ue)
+	m.commitUEIdentity(ue, MintAuthProofForAttachCommit())
 
 	// On Attach the MME deletes any stored UE Radio Capability and omits it from
 	// the Initial Context Setup, so the eNB re-fetches it from the UE (TS 23.401).
@@ -407,32 +406,15 @@ func (m *MME) activateDefaultBearer(ctx context.Context, ue *UeContext) {
 // Request, where the EPS bearer context already exists and only the radio and S1
 // bearers are re-established.
 func (m *MME) sendInitialContextSetup(ctx context.Context, ue *UeContext, qos *epsQoS, naspdu []byte) {
-	// K_eNB is derived from the uplink NAS COUNT of the most recently received
-	// uplink NAS message (the Security Mode Complete on attach, the Service
-	// Request on reconnect), i.e. one less than the next-expected count
+	// Derive K_eNB for delivery to the eNB and seed the X2-handover key chain
+	// (NH for NCC=1, ready for the first Path Switch). Re-seeded on every context
+	// setup, so a Service Request that re-derives K_eNB restarts the chain
 	// (TS 33.401).
-	kenbCount := ue.ulCount
-	if kenbCount > 0 {
-		kenbCount--
-	}
-
-	kenb, err := deriveKeNB(ue.kasme, kenbCount)
+	kenb, kenbCount, err := ue.deriveInitialKeNB()
 	if err != nil {
-		logger.MmeLog.Error("failed to derive K_eNB", zap.Error(err))
+		logger.MmeLog.Error("failed to derive AS keys", zap.Error(err))
 		return
 	}
-
-	// Seed the X2-handover key chain from this K_eNB: NH(NCC=1) is ready for the
-	// first Path Switch (TS 33.401). Re-seeded here on every context
-	// setup, so a Service Request that re-derives K_eNB restarts the chain.
-	nh, err := deriveNH(ue.kasme, kenb[:])
-	if err != nil {
-		logger.MmeLog.Error("failed to derive NH", zap.Error(err))
-		return
-	}
-
-	ue.nh = nh
-	ue.ncc = 1
 
 	uecap, err := eps.ParseUENetworkCapability(ue.ueNetCap)
 	if err != nil {
@@ -493,8 +475,8 @@ func (m *MME) sendInitialContextSetup(ctx context.Context, ue *UeContext, qos *e
 		zap.Uint32("enb-ue-id", uint32(ue.s1.ENBUES1APID)),
 		zap.String("ue-ip", p.ueIP.String()),
 		zap.Uint32("kenb-ul-count", kenbCount),
-		zap.Uint8("eea", ue.eea),
-		zap.Uint8("eia", ue.eia),
+		zap.Uint8("eea", ue.EEA()),
+		zap.Uint8("eia", ue.EIA()),
 	)
 	m.sendS1AP(ctx, ue, S1APProcedureInitialContextSetupRequest, b)
 }
@@ -561,10 +543,7 @@ func (m *MME) buildProtectedAttachAccept(ctx context.Context, ue *UeContext, qos
 		return nil, err
 	}
 
-	count, knasInt, knasEnc, eia, eea := ue.downlinkSecCtx()
-
-	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nascommon.NASCount(0, uint8(count)),
-		nascommon.DirectionDownlink, knasInt, knasEnc, integrityAlg(eia), cipherAlg(eea))
+	wire, err := ue.protectDownlink(plain, eps.SHTIntegrityProtectedCiphered)
 	if err != nil {
 		return nil, err
 	}
@@ -588,7 +567,7 @@ func (m *MME) handleAttachComplete(ctx context.Context, ue *UeContext, plain []b
 
 	logger.MmeLog.Info("UE attached (EMM-REGISTERED)",
 		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
-		zap.String("imsi", ue.imsi),
+		zap.String("imsi", ue.IMSI()),
 	)
 
 	m.sendNetworkName(ctx, ue)
@@ -600,7 +579,7 @@ func (m *MME) handleAttachComplete(ctx context.Context, ue *UeContext, plain []b
 func (m *MME) sendNetworkName(ctx context.Context, ue *UeContext) {
 	op, err := m.bearer.GetOperator(ctx)
 	if err != nil {
-		logger.MmeLog.Warn("failed to get operator for network name", zap.String("imsi", ue.imsi), zap.Error(err))
+		logger.MmeLog.Warn("failed to get operator for network name", zap.String("imsi", ue.IMSI()), zap.Error(err))
 		return
 	}
 

@@ -29,10 +29,10 @@ import (
 func TestAuthProofMintSites(t *testing.T) {
 	allowed := map[string]map[string]struct{}{
 		"MintAuthProofForSMC": {
-			"internal/amf/handle_security_mode_complete.go": {},
+			"internal/amf/nas/handle_security_mode_complete.go": {},
 		},
 		"MintAuthProofForRegistrationRequest": {
-			"internal/amf/handle_registration_request.go": {},
+			"internal/amf/nas/handle_registration_request.go": {},
 		},
 	}
 

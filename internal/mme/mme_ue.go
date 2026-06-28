@@ -260,7 +260,7 @@ func (m *MME) setIMSI(ue *UeContext, imsi string) {
 // mirroring the 5G AMF, which adds the UE to its pool only once security is
 // established — so an unauthenticated attach cannot disturb a registered UE
 // (TS 24.301 §4.4.4.3).
-func (m *MME) commitUEIdentity(ue *UeContext) {
+func (m *MME) commitUEIdentity(ue *UeContext, _ AuthProof) {
 	ue.mu.Lock()
 	imsi := ue.imsi
 	ue.mu.Unlock()
@@ -283,37 +283,6 @@ func (m *MME) commitUEIdentity(ue *UeContext) {
 // (ECM-CONNECTED); an idle UE has none (TS 23.401).
 func (ue *UeContext) connected() bool {
 	return ue.s1 != nil
-}
-
-// downlinkSecCtx reserves the next downlink NAS COUNT and returns the security context to protect with (TS 24.301).
-func (ue *UeContext) downlinkSecCtx() (count uint32, knasInt, knasEnc [16]byte, eia, eea byte) {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	count = ue.dlCount
-	ue.dlCount++
-
-	return count, ue.knasInt, ue.knasEnc, ue.eia, ue.eea
-}
-
-// nextDownlinkCount reserves and returns the next downlink NAS COUNT (TS 24.301).
-func (ue *UeContext) nextDownlinkCount() uint32 {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	count := ue.dlCount
-	ue.dlCount++
-
-	return count
-}
-
-// setEPSSecurityContext installs the negotiated NAS algorithms and derived keys (TS 33.401).
-func (ue *UeContext) setEPSSecurityContext(eea, eia byte, knasEnc, knasInt [16]byte) {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	ue.eea, ue.eia = eea, eia
-	ue.knasEnc, ue.knasInt = knasEnc, knasInt
 }
 
 // markSecured records the IMEI (when reported) and flags the NAS security context established.

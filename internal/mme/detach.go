@@ -49,7 +49,7 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 	logger.MmeLog.Info("network-initiated detach (subscriber deleted)",
 		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("imsi", imsi))
 
-	naspdu, err := m.protectDownlink(ue, &eps.DetachRequestNetwork{TypeOfDetach: detachTypeReattachNotRequired})
+	naspdu, err := m.protectDownlinkMessage(ue, &eps.DetachRequestNetwork{TypeOfDetach: detachTypeReattachNotRequired})
 	if err != nil {
 		logger.MmeLog.Error("failed to protect Detach Request", zap.Error(err))
 		return
@@ -93,7 +93,7 @@ func (m *MME) handleDetachRequest(ctx context.Context, ue *UeContext, plain []by
 	logger.MmeLog.Info("Detach Request",
 		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 		zap.Bool("switch-off", req.SwitchOff),
-		zap.String("imsi", ue.imsi),
+		zap.String("imsi", ue.IMSI()),
 	)
 
 	ue.emmState.store(EMMDeregistered)

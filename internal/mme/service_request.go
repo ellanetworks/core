@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
-	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -46,16 +45,15 @@ func (m *MME) handleServiceRequest(ctx context.Context, conn nasWriter, msg *s1a
 
 	// An unverified Service Request must not move the UE's S1 connection
 	// (TS 24.301 §5.6.1).
-	want, err := eps.ServiceRequestShortMAC([]byte(msg.NASPDU)[:2], ue.knasInt, ue.ulCount,
-		nascommon.DirectionUplink, integrityAlg(ue.eia))
-	if err != nil || want != sr.ShortMAC || uint8(ue.ulCount)&0x1f != sr.SeqShort {
+	ok, want, expSeq, ul := ue.verifyServiceRequestShortMAC([]byte(msg.NASPDU)[:2], sr.ShortMAC, sr.SeqShort)
+	if !ok {
 		logger.MmeLog.Warn("Service Request short-MAC verification failed",
 			zap.Uint32("m-tmsi", msg.STMSI.MTMSI),
 			zap.String("expected-short-mac", fmt.Sprintf("%x", want)),
 			zap.String("received-short-mac", fmt.Sprintf("%x", sr.ShortMAC)),
-			zap.Uint8("expected-sequence", uint8(ue.ulCount)&0x1f),
+			zap.Uint8("expected-sequence", expSeq),
 			zap.Uint8("received-sequence", sr.SeqShort),
-			zap.Uint32("stored-ul-count", ue.ulCount))
+			zap.Uint32("stored-ul-count", ul))
 
 		m.sendServiceReject(ctx, conn, msg.ENBUES1APID)
 
@@ -64,16 +62,16 @@ func (m *MME) handleServiceRequest(ctx context.Context, conn nasWriter, msg *s1a
 
 	m.establishS1Connection(ue, conn, msg.ENBUES1APID)
 
-	ue.ulCount++
+	ue.advanceULCount()
 
 	logger.MmeLog.Info("Service Request accepted",
 		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
 		zap.Uint32("enb-ue-id", uint32(ue.s1.ENBUES1APID)),
-		zap.String("imsi", ue.imsi))
+		zap.String("imsi", ue.IMSI()))
 
-	qos, err := m.resolveQoS(ctx, ue.imsi)
+	qos, err := m.resolveQoS(ctx, ue.IMSI())
 	if err != nil {
-		logger.MmeLog.Error("failed to resolve subscriber QoS", zap.String("imsi", ue.imsi), zap.Error(err))
+		logger.MmeLog.Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
 		return
 	}
 

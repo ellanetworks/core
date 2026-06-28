@@ -333,7 +333,7 @@ func SendRegistrationAccept(
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_registration_accept",
 		trace.WithAttributes(
-			attribute.String("supi", ue.supi.String()),
+			attribute.String("supi", ue.SupiValue().String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -357,11 +357,11 @@ func SendRegistrationAccept(
 			ue.Ambr.Uplink,
 			ue.Ambr.Downlink,
 			ue.AllowedNssai,
-			ue.kgnb,
+			ue.Kgnb(),
 			ue.PlmnID,
 			ue.UeRadioCapability,
 			ue.UeRadioCapabilityForPaging,
-			ue.ueSecurityCapability,
+			ue.UESecCap(),
 			nasMsg,
 			pduSessionResourceSetupList,
 			supportedGUAMI,
@@ -396,11 +396,11 @@ func SendRegistrationAccept(
 						ue.Ambr.Uplink,
 						ue.Ambr.Downlink,
 						ue.AllowedNssai,
-						ue.kgnb,
+						ue.Kgnb(),
 						ue.PlmnID,
 						ue.UeRadioCapability,
 						ue.UeRadioCapabilityForPaging,
-						ue.ueSecurityCapability,
+						ue.UESecCap(),
 						nasMsg,
 						pduSessionResourceSetupList,
 						supportedGUAMI,
@@ -443,7 +443,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_configuration_update_command",
 		trace.WithAttributes(
-			attribute.String("supi", amfUe.supi.String()),
+			attribute.String("supi", amfUe.SupiValue().String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)

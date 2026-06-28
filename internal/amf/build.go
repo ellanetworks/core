@@ -87,9 +87,11 @@ func BuildAuthenticationRequest(ue *UeContext) ([]byte, error) {
 	authenticationRequest.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
 	authenticationRequest.SpareHalfOctetAndSecurityHeaderType.SetSpareHalfOctet(0)
 	authenticationRequest.SetMessageType(nas.MsgTypeAuthenticationRequest)
-	authenticationRequest.SpareHalfOctetAndNgksi = util.SpareHalfOctetAndNgksiToNas(ue.ngKsi)
-	authenticationRequest.ABBA.SetLen(uint8(len(ue.abba)))
-	authenticationRequest.SetABBAContents(ue.abba)
+
+	abba := ue.Abba()
+	authenticationRequest.SpareHalfOctetAndNgksi = util.SpareHalfOctetAndNgksiToNas(ue.NgKsi())
+	authenticationRequest.ABBA.SetLen(uint8(len(abba)))
+	authenticationRequest.SetABBAContents(abba)
 
 	var tmpArray [16]byte
 
@@ -243,17 +245,18 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 	securityModeCommand.SpareHalfOctetAndSecurityHeaderType.SetSpareHalfOctet(0)
 	securityModeCommand.SetMessageType(nas.MsgTypeSecurityModeCommand)
 
-	securityModeCommand.SelectedNASSecurityAlgorithms.SetTypeOfCipheringAlgorithm(ue.cipheringAlg)
-	securityModeCommand.SelectedNASSecurityAlgorithms.SetTypeOfIntegrityProtectionAlgorithm(ue.integrityAlg)
+	securityModeCommand.SelectedNASSecurityAlgorithms.SetTypeOfCipheringAlgorithm(ue.CipheringAlg())
+	securityModeCommand.SelectedNASSecurityAlgorithms.SetTypeOfIntegrityProtectionAlgorithm(ue.IntegrityAlg())
 
-	securityModeCommand.SpareHalfOctetAndNgksi = util.SpareHalfOctetAndNgksiToNas(ue.ngKsi)
+	securityModeCommand.SpareHalfOctetAndNgksi = util.SpareHalfOctetAndNgksiToNas(ue.NgKsi())
 
-	if ue.ueSecurityCapability == nil {
+	ueSecCap := ue.UESecCap()
+	if ueSecCap == nil {
 		return nil, fmt.Errorf("UE security capability not available, cannot build SecurityModeCommand")
 	}
 
-	securityModeCommand.ReplayedUESecurityCapabilities.SetLen(ue.ueSecurityCapability.GetLen())
-	securityModeCommand.ReplayedUESecurityCapabilities.Buffer = ue.ueSecurityCapability.Buffer
+	securityModeCommand.ReplayedUESecurityCapabilities.SetLen(ueSecCap.GetLen())
+	securityModeCommand.ReplayedUESecurityCapabilities.Buffer = ueSecCap.Buffer
 
 	if ue.Pei != "" {
 		securityModeCommand.IMEISVRequest = nasType.NewIMEISVRequest(nasMessage.SecurityModeCommandIMEISVRequestType)
@@ -278,12 +281,13 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 		securityModeCommand.SetHDP(0)
 	}
 
-	ue.securityContextAvailable = true
+	ue.MarkSecurityContextAvailable()
+
 	m.SecurityModeCommand = securityModeCommand
 
 	payload, err := ue.EncodeNASMessage(m)
 	if err != nil {
-		ue.securityContextAvailable = false
+		ue.ClearSecurityContext()
 		return nil, err
 	}
 
@@ -335,8 +339,8 @@ func BuildRegistrationAccept(
 	registrationResult |= nasMessage.AccessType3GPP
 	registrationAccept.SetRegistrationResultValue5GS(registrationResult)
 
-	if ue.guti != etsi.InvalidGUTI {
-		gutiNas := nasConvert.GutiToNas(ue.guti.String())
+	if guti := ue.Guti(); guti != etsi.InvalidGUTI {
+		gutiNas := nasConvert.GutiToNas(guti.String())
 		registrationAccept.GUTI5G = &gutiNas
 		registrationAccept.GUTI5G.SetIei(nasMessage.RegistrationAcceptGUTI5GType)
 	}
@@ -456,11 +460,12 @@ func BuildConfigurationUpdateCommand(ue *UeContext, spnFullName, spnShortName st
 	configurationUpdateCommand.SetMessageType(nas.MsgTypeConfigurationUpdateCommand)
 
 	if includeGUTI {
-		if ue.guti == etsi.InvalidGUTI {
+		guti := ue.Guti()
+		if guti == etsi.InvalidGUTI {
 			return nil, fmt.Errorf("5G-GUTI is required")
 		}
 
-		gutiNas, err := nasConvert.GutiToNasWithError(ue.guti.String())
+		gutiNas, err := nasConvert.GutiToNasWithError(guti.String())
 		if err != nil {
 			return nil, fmt.Errorf("encode GUTI failed: %w", err)
 		}

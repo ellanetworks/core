@@ -46,7 +46,7 @@ func TestDownlinkNASCountConcurrent(t *testing.T) {
 			defer wg.Done()
 
 			for i := 0; i < perWriter; i++ {
-				if _, err := m.protectDownlink(ue, &eps.IdentityRequest{IdentityType: 1}); err != nil {
+				if _, err := m.protectDownlinkMessage(ue, &eps.IdentityRequest{IdentityType: 1}); err != nil {
 					t.Errorf("protectDownlink: %v", err)
 					return
 				}

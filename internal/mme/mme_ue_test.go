@@ -90,7 +90,7 @@ func TestPlainAttachDoesNotSupersedeRegisteredVictimPreAuth(t *testing.T) {
 
 	// Once the new attach is authenticated and accepted, it supersedes the prior
 	// context (a re-attach), so the subscriber maps to exactly one context.
-	m.commitUEIdentity(attacker)
+	m.commitUEIdentity(attacker, MintAuthProofForAttachCommit())
 
 	if got, _ := m.lookupUeByIMSI(victim.imsi); got != attacker {
 		t.Fatal("after commit, the authenticated attach must supersede the prior context")
