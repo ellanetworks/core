@@ -35,9 +35,7 @@ func BuildDeregistrationRequest(opts *DeregistrationRequestOpts) ([]byte, error)
 	deregistrationRequest.SetTSC(nasMessage.TypeOfSecurityContextFlagNative)
 
 	deregistrationRequest.SetNasKeySetIdentifiler(uint8(opts.Ksi))
-	// If AMF previously assigned the UE a 5G-GUTI, reuses it
-	// If the 5G-GUTI is no longer valid, AMF will issue an Identity Request
-	// which we'll answer with the requested Mobility Identity (eg. SUCI)
+
 	if opts.Guti != nil {
 		deregistrationRequest.MobileIdentity5GS = nasType.MobileIdentity5GS{
 			Iei:    opts.Guti.Iei,

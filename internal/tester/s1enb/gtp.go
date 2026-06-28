@@ -18,9 +18,8 @@ import (
 
 const (
 	gtpUDPPort = 2152
-	// gtpHeaderLen is the GTPv1-U header length for a plain 4G G-PDU (no optional
-	// sequence/N-PDU/extension fields, unlike 5G which carries a PDU Session
-	// container extension).
+	// gtpHeaderLen is the GTPv1-U header length for a plain G-PDU with no optional
+	// sequence/N-PDU/extension fields.
 	gtpHeaderLen = 8
 )
 
@@ -223,8 +222,6 @@ func (t *tunnel) close() {
 	}
 }
 
-// tunToGTP reads UE IP packets off the TUN interface, wraps them in a GTP-U
-// G-PDU with the uplink TEID, and sends them to the UPF.
 func (e *ENB) tunToGTP(t *tunnel) {
 	pkt := make([]byte, 2000)
 	pkt[0] = 0x30 // version 1, protocol type GTP, no optional fields
@@ -249,8 +246,6 @@ func (e *ENB) tunToGTP(t *tunnel) {
 	}
 }
 
-// gtpReader decapsulates inbound G-PDUs and writes the payload to the TUN
-// interface registered for the packet's TEID.
 func (e *ENB) gtpReader() {
 	buf := make([]byte, 2000)
 

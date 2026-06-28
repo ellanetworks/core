@@ -11,20 +11,13 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 )
 
-// ExpectedPDUSessionModificationCommand describes the expected content of
-// a NAS PDU Session Modification Command.
 type ExpectedPDUSessionModificationCommand struct {
-	// AmbrUplinkKbps is the expected Session-AMBR uplink in Kbps.
-	// Set to 0 to skip AMBR validation.
+	// 0 skips Session-AMBR uplink validation.
 	AmbrUplinkKbps uint64
-
-	// AmbrDownlinkKbps is the expected Session-AMBR downlink in Kbps.
-	// Set to 0 to skip AMBR validation.
+	// 0 skips Session-AMBR downlink validation.
 	AmbrDownlinkKbps uint64
 }
 
-// PDUSessionModificationCommand validates a received NAS PDU Session
-// Modification Command against expected values.
 func PDUSessionModificationCommand(msg *nas.Message, expected *ExpectedPDUSessionModificationCommand) error {
 	if msg == nil {
 		return fmt.Errorf("NAS message is nil")
@@ -40,7 +33,6 @@ func PDUSessionModificationCommand(msg *nas.Message, expected *ExpectedPDUSessio
 		return fmt.Errorf("PDUSessionModificationCommand is nil in NAS message")
 	}
 
-	// Validate Session-AMBR if expected.
 	if expected.AmbrUplinkKbps > 0 || expected.AmbrDownlinkKbps > 0 {
 		if modCmd.SessionAMBR == nil {
 			return fmt.Errorf("expected Session-AMBR in Modification Command but it was absent")
@@ -66,7 +58,6 @@ func PDUSessionModificationCommand(msg *nas.Message, expected *ExpectedPDUSessio
 	return nil
 }
 
-// ambrToKbps converts the NAS Session-AMBR unit + 16-bit value to Kbps.
 func ambrToKbps(unit uint8, value [2]uint8) uint64 {
 	raw := uint64(binary.BigEndian.Uint16(value[:]))
 

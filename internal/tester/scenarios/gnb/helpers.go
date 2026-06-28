@@ -12,8 +12,6 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-// startGNB starts a gNB against the core in env with the default PLMN/slice/DNN/TAC
-// and awaits the NG Setup Response. Multi-gNB scenarios construct gnb.Start directly.
 func startGNB(env scenarios.Env) (*gnb.GnodeB, error) {
 	g := env.FirstGNB()
 

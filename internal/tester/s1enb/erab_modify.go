@@ -11,11 +11,9 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// ModifyBearerViaERABModify waits for an S1AP E-RAB Modify Request (the QCI/ARP
-// modification path, TS 36.413 §8.2.2), replies with an E-RAB Modify Response,
-// relays the piggybacked MODIFY EPS BEARER CONTEXT REQUEST to the UE with a Modify
-// Accept, and returns both the E-RAB Modify Request (for the E-RAB-level QoS) and
-// the parsed NAS message (for the EPS QoS / APN-AMBR IEs).
+// ModifyBearerViaERABModify drives the S1AP E-RAB Modify QCI/ARP modification
+// path (TS 36.413 §8.2.2). It returns the E-RAB Modify Request (E-RAB-level QoS)
+// and the piggybacked NAS message (EPS QoS / APN-AMBR IEs).
 func (e *ENB) ModifyBearerViaERABModify(ue *UE, enbUEID int64, timeout time.Duration) (*s1ap.ERABModifyRequest, *eps.ModifyEPSBearerContextRequest, error) {
 	frame, err := e.WaitForMessage(enbUEID, Initiating, s1ap.ProcERABModify, timeout)
 	if err != nil {

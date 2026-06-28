@@ -34,8 +34,6 @@ func init() {
 	})
 }
 
-// runS1ENBScaleSequential attaches a batch of UEs back-to-back on one eNB,
-// verifying the MME completes every EPS attach and hands out a distinct GUTI.
 func runS1ENBScaleSequential(_ context.Context, env scenarios.Env, _ any) error {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {

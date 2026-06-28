@@ -66,8 +66,7 @@ func (g *GnodeB) AddTunnel(opts *NewTunnelOpts) (*Tunnel, error) {
 		return nil, fmt.Errorf("could not set TUN interface UP: %v", err)
 	}
 
-	// Give the kernel time to auto-generate the link-local address
-	// before we try to remove it.
+	// Wait for the kernel to auto-generate the link-local address before removing it.
 	time.Sleep(20 * time.Millisecond)
 
 	err = netlink.LinkSetMTU(eth, int(opts.MTU))
@@ -75,10 +74,9 @@ func (g *GnodeB) AddTunnel(opts *NewTunnelOpts) (*Tunnel, error) {
 		return nil, fmt.Errorf("could not set MTU on TUN interface: %v", err)
 	}
 
-	// Delete the kernel's auto-generated link-local address so that
-	// we can add our own (derived from the IID received in the PDU
-	// Session Establishment Accept). The kernel needs a link-local
-	// source address to send Router Solicitations.
+	// Replace the auto-generated link-local with our own (IID from the PDU
+	// Session Establishment Accept); a link-local source is required to send
+	// Router Solicitations.
 	for i := 0; i < 3; i++ {
 		err = delAutoLinkLocal(eth)
 		if err == nil {
@@ -137,10 +135,8 @@ func (g *GnodeB) AddTunnel(opts *NewTunnelOpts) (*Tunnel, error) {
 
 	go tunToGtp(g.N3Conn, t)
 
-	// Add a route so the kernel knows how to reach the N6 network
-	// through this TUN interface. Without this, ping6 returns
-	// "Network is unreachable" because the kernel has no route
-	// to the N6 subnet (fd00:6::/64) in the container's routing table.
+	// Route the N6 subnet (fd00:6::/64) via this TUN interface; the container
+	// has no other route to it.
 	if err := addTunRoute(eth); err != nil {
 		return nil, fmt.Errorf("could not add route for N6 network via TUN interface: %v", err)
 	}
@@ -196,10 +192,9 @@ func (g *GnodeB) GTPReader() { // nolint:gocognit
 		}
 
 		if n < 8 {
-			continue // too short
+			continue
 		}
 
-		// GTPv1-U header
 		if buf[0]&0x30 != 0x30 || buf[1] != 0xFF {
 			continue // not a T-PDU
 		}
@@ -342,11 +337,8 @@ func delAutoLinkLocal(eth netlink.Link) error {
 	return nil
 }
 
-// addTunRoute adds an IPv6 route to the N6 network (fd00:6::/64) via the
-// given TUN interface. This is needed because the container's routing table
-// does not have a route to the N6 network — the only path is through the
-// GTP tunnel, which requires the kernel to deliver packets to the TUN
-// interface.
+// addTunRoute routes the N6 network (fd00:6::/64) via the TUN interface; the
+// container's routing table otherwise has no path to N6.
 func addTunRoute(eth netlink.Link) error {
 	_, dst, err := net.ParseCIDR("fd00:6::/64")
 	if err != nil {
@@ -371,8 +363,6 @@ func addTunRoute(eth netlink.Link) error {
 	return nil
 }
 
-// delTunRoute removes the IPv6 route to the N6 network from the given TUN
-// interface.
 func delTunRoute(eth netlink.Link) error {
 	_, dst, err := net.ParseCIDR("fd00:6::/64")
 	if err != nil {
@@ -392,13 +382,8 @@ func delTunRoute(eth netlink.Link) error {
 	return nil
 }
 
-// WaitForULAAddr waits for an IPv6 ULA address to appear on the given
-// TUN interface. After the TUN interface is configured with the
-// link-local address (fe80::IID), the kernel sends a Router
-// Solicitation, the core responds with a Router Advertisement
-// containing the delegated prefix (e.g. fd45::/64), and the kernel
-// auto-configures the ULA address. This function polls until that
-// address appears or the timeout expires.
+// WaitForULAAddr polls until the kernel SLAAC-configures an IPv6 ULA address
+// on the interface (from the Router Advertisement prefix) or the timeout expires.
 func WaitForULAAddr(ifName string, prefix string, timeout time.Duration) error {
 	start := time.Now()
 
@@ -419,10 +404,8 @@ func WaitForULAAddr(ifName string, prefix string, timeout time.Duration) error {
 			if !addr.IP.IsGlobalUnicast() || addr.IP.String()[:3] != prefix[:3] {
 				continue
 			}
-			// Skip addresses still in DAD (tentative): the kernel
-			// will not use them as a source, and a probe binding
-			// to this interface would fall back to a different
-			// interface's address.
+			// Skip tentative (DAD) addresses: the kernel will not use them as a
+			// source, so a probe would bind another interface's address.
 			if addr.Flags&syscall.IFA_F_TENTATIVE != 0 {
 				continue
 			}

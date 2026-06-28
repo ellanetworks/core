@@ -83,9 +83,6 @@ func dataNetworkChangeFixture(_ scenarios.Env) scenarios.FixtureSpec {
 	}
 }
 
-// attachAndReconfigure starts an eNB, attaches the UE, lets it settle into
-// EMM-REGISTERED, then applies a data-network change via the API. The returned
-// cleanup restores the data network and closes the eNB.
 func attachAndReconfigure(ctx context.Context, env scenarios.Env, p *dataNetworkChangeParams, label string, mutation *client.UpdateDataNetworkOptions) (*s1enb.ENB, *s1enb.UE, *s1enb.AttachResult, func(), error) {
 	if p.EllaAPIAddress == "" || p.EllaAPIToken == "" {
 		return nil, nil, nil, nil, fmt.Errorf("--ella-api-address and --ella-api-token are required")
@@ -118,7 +115,7 @@ func attachAndReconfigure(ctx context.Context, env scenarios.Env, p *dataNetwork
 	}
 
 	// Settle into EMM-REGISTERED so the change reconciles against an established
-	// bearer rather than racing the attach.
+	// bearer and does not race the attach.
 	time.Sleep(2 * time.Second)
 
 	logger.GnbLogger.Info("UE attached; reconfiguring data network", zap.String("change", label))
@@ -143,9 +140,9 @@ func attachAndReconfigure(ctx context.Context, env scenarios.Env, p *dataNetwork
 	return e, ue, attach, cleanup, nil
 }
 
-// runDataNetworkDNSChange verifies a DNS change is propagated to an active EPS
-// bearer in place via a MODIFY EPS BEARER CONTEXT REQUEST carrying the new DNS in
-// the Protocol Configuration Options, without re-establishing it (TS 24.301 §6.4.2).
+// A DNS change reaches the active bearer in place via a MODIFY EPS BEARER CONTEXT
+// REQUEST carrying the new DNS in the Protocol Configuration Options, without
+// re-establishment (TS 24.301 §6.4.2).
 func runDataNetworkDNSChange(ctx context.Context, env scenarios.Env, p *dataNetworkChangeParams) error {
 	e, ue, attach, cleanup, err := attachAndReconfigure(ctx, env, p, "DNS", &client.UpdateDataNetworkOptions{
 		Name:     scenarios.DefaultDNN,
@@ -191,9 +188,9 @@ func runDataNetworkDNSChange(ctx context.Context, env scenarios.Env, p *dataNetw
 	return nil
 }
 
-// runDataNetworkReactivate verifies an MTU or IP-pool change, which the UE cannot
-// adopt in place, deactivates the active EPS bearer with ESM cause #39
-// "reactivation requested" (TS 24.301 §6.4.4.2), after which the UE re-attaches.
+// An MTU or IP-pool change cannot be adopted in place, so the MME deactivates the
+// bearer with ESM cause #39 "reactivation requested" (TS 24.301 §6.4.4.2) and the
+// UE re-attaches.
 func runDataNetworkReactivate(ctx context.Context, env scenarios.Env, p *dataNetworkChangeParams, label string, mutation *client.UpdateDataNetworkOptions) error {
 	e, ue, attach, cleanup, err := attachAndReconfigure(ctx, env, p, label, mutation)
 	if err != nil {

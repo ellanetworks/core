@@ -308,13 +308,8 @@ func (ue *UE) GetMccAndMncInOctets() ([]byte, error) {
 	return resu, nil
 }
 
-// TS 24.501 9.11.3.4.1
-// Routing Indicator shall consist of 1 to 4 digits. The coding of this field is the
-// responsibility of home network operator but BCD coding shall be used. If a network
-// operator decides to assign less than 4 digits to Routing Indicator, the remaining digits
-// shall be coded as "1111" to fill the 4 digits coding of Routing Indicator (see NOTE 2). If
-// no Routing Indicator is configured in the USIM, the UE shall code bits 1 to 4 of octet 8
-// of the Routing Indicator as "0000" and the remaining digits as “1111".
+// TS 24.501 §9.11.3.4.1: the routing indicator is 1-4 BCD digits; unused digits
+// are coded as "1111" (0xF) to fill the 4-digit field.
 func (ue *UE) GetRoutingIndicatorInOctets() ([]byte, error) {
 	if len(ue.UeSecurity.RoutingIndicator) == 0 {
 		ue.UeSecurity.RoutingIndicator = "0"
@@ -329,14 +324,12 @@ func (ue *UE) GetRoutingIndicatorInOctets() ([]byte, error) {
 		routingIndicator = append(routingIndicator, 'F')
 	}
 
-	// Reverse the bytes in group of two
 	for i := 1; i < len(routingIndicator); i += 2 {
 		tmp := routingIndicator[i-1]
 		routingIndicator[i-1] = routingIndicator[i]
 		routingIndicator[i] = tmp
 	}
 
-	// BCD conversion
 	encodedRoutingIndicator, err := hex.DecodeString(string(routingIndicator))
 	if err != nil {
 		return nil, fmt.Errorf("unable to encode routing indicator %s", err)
@@ -452,7 +445,6 @@ func (ue *UE) SetAmfMccAndMnc(mcc string, mnc string) {
 	ue.UeSecurity.Snn = ue.deriveSNN()
 }
 
-// Build SNN (// 5G:mnc093.mcc208.3gppnetwork.org)
 func (ue *UE) deriveSNN() string {
 	var resu string
 	if len(ue.amfInfo.mnc) == 2 {

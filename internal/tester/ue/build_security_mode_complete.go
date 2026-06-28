@@ -90,47 +90,37 @@ func BuildIMEISV(imeisv string) (*nasType.IMEISV, error) {
 		}
 	}
 
-	// digits d[0..15] -> 1..16
 	var d [16]uint8
 	for i := range 16 {
 		d[i] = imeisv[i] - '0'
 	}
 
-	pei := nasType.NewIMEISV(nasMessage.SecurityModeCompleteIMEISVType) // IEI = 0x77
+	pei := nasType.NewIMEISV(nasMessage.SecurityModeCompleteIMEISVType)
 	pei.SetLen(9)
 
-	// Octet[0]: bits7..4 = digit1, bit3 = OddEven (0 = even), bits2..0 = Type (5 = IMEISV)
 	pei.SetIdentityDigit1(d[0])
-	pei.SetOddEvenIdic(0) // even number of digits (16)
+	pei.SetOddEvenIdic(0)
 	pei.SetTypeOfIdentity(nasMessage.MobileIdentity5GSTypeImeisv)
 
-	// Octet[1]..Octet[7]:
-	// lower nibble = digit2,4,6,8,10,12,14
-	// upper nibble = digit3,5,7,9,11,13,15
-	pei.SetIdentityDigitP(d[1])   // Octet[1] low  = digit2
-	pei.SetIdentityDigitP_1(d[2]) // Octet[1] high = digit3
-
-	pei.SetIdentityDigitP_2(d[3]) // Octet[2] low  = digit4
-	pei.SetIdentityDigitP_3(d[4]) // Octet[2] high = digit5
-
-	pei.SetIdentityDigitP_4(d[5]) // Octet[3] low  = digit6
-	pei.SetIdentityDigitP_5(d[6]) // Octet[3] high = digit7
-
-	pei.SetIdentityDigitP_6(d[7]) // Octet[4] low  = digit8
-	pei.SetIdentityDigitP_7(d[8]) // Octet[4] high = digit9
-
-	pei.SetIdentityDigitP_8(d[9])  // Octet[5] low  = digit10
-	pei.SetIdentityDigitP_9(d[10]) // Octet[5] high = digit11
-
-	pei.SetIdentityDigitP_10(d[11]) // Octet[6] low  = digit12
-	pei.SetIdentityDigitP_11(d[12]) // Octet[6] high = digit13
-
-	pei.SetIdentityDigitP_12(d[13]) // Octet[7] low  = digit14
-	pei.SetIdentityDigitP_13(d[14]) // Octet[7] high = digit15
-
-	// Octet[8] (last): upper nibble = 0xF (filler), lower nibble = digit16
-	pei.SetIdentityDigitP_14(d[15]) // Octet[8] low  = digit16
-	pei.SetIdentityDigitP_15(0xF)   // Octet[8] high = filler 0xF  (IMPORTANT)
+	// TS 24.501 §9.11.3.4: each octet packs the next even digit in the low nibble
+	// and the next odd digit in the high nibble; the unused final high nibble is
+	// filled with 0xF.
+	pei.SetIdentityDigitP(d[1])
+	pei.SetIdentityDigitP_1(d[2])
+	pei.SetIdentityDigitP_2(d[3])
+	pei.SetIdentityDigitP_3(d[4])
+	pei.SetIdentityDigitP_4(d[5])
+	pei.SetIdentityDigitP_5(d[6])
+	pei.SetIdentityDigitP_6(d[7])
+	pei.SetIdentityDigitP_7(d[8])
+	pei.SetIdentityDigitP_8(d[9])
+	pei.SetIdentityDigitP_9(d[10])
+	pei.SetIdentityDigitP_10(d[11])
+	pei.SetIdentityDigitP_11(d[12])
+	pei.SetIdentityDigitP_12(d[13])
+	pei.SetIdentityDigitP_13(d[14])
+	pei.SetIdentityDigitP_14(d[15])
+	pei.SetIdentityDigitP_15(0xF)
 
 	return pei, nil
 }

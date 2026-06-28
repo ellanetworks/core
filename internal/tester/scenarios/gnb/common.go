@@ -22,7 +22,6 @@ import (
 	"github.com/free5gc/nas/security"
 )
 
-// subscriber is a scenario-local subscriber stub used by multi-UE helpers.
 type subscriber struct {
 	IMSI           string
 	Key            string
@@ -31,8 +30,6 @@ type subscriber struct {
 	ProfileName    string
 }
 
-// incrementIMSI returns base's numeric value incremented by offset, formatted
-// as a 15-digit IMSI. Panics if base is not 15 numeric digits.
 func incrementIMSI(base string, offset int) string {
 	if len(base) != 15 {
 		panic("incrementIMSI: base must be 15 digits")
@@ -91,9 +88,6 @@ type initialRegistrationOpts struct {
 	GnodeB                 *gnb.GnodeB
 }
 
-// runInitialRegistration walks a UE through the initial registration procedure
-// and asserts key NAS message contents along the way. Used by the basic
-// registration_success scenarios.
 func runInitialRegistration(opts *initialRegistrationOpts) error {
 	err := opts.UE.SendRegistrationRequest(opts.RANUENGAPID, nasMessage.RegistrationType5GSInitialRegistration)
 	if err != nil {
@@ -290,7 +284,6 @@ func validateSecurityModeCommand(nasMsg *nas.Message) error {
 	return nil
 }
 
-// validateRegistrationReject asserts the NAS Registration Reject cause.
 func validateRegistrationReject(msg *nas.Message, cause uint8) error {
 	if msg == nil {
 		return fmt.Errorf("NAS message is nil")
@@ -315,7 +308,6 @@ func validateRegistrationReject(msg *nas.Message, cause uint8) error {
 	return nil
 }
 
-// newUEWithDNN builds a UE for the given subscriber, DNN, and default slice.
 func newUEWithDNN(gNodeB *gnb.GnodeB, sub subscriber, dnn string, pduSessionType uint8) (*ue.UE, error) {
 	return ue.NewUE(&ue.UEOpts{
 		GnodeB:         gNodeB,
@@ -349,9 +341,6 @@ func newUEWithDNN(gNodeB *gnb.GnodeB, sub subscriber, dnn string, pduSessionType
 	})
 }
 
-// newDefaultUE builds a UE using the default test identity and the given
-// subscriber sequence number and msin. Used by scenarios that just need a
-// basic UE with the standard settings.
 func newDefaultUE(gNodeB *gnb.GnodeB, msin, k, opc, sqn string, pduSessionType uint8) (*ue.UE, error) {
 	return ue.NewUE(&ue.UEOpts{
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
@@ -385,9 +374,6 @@ func newDefaultUE(gNodeB *gnb.GnodeB, msin, k, opc, sqn string, pduSessionType u
 	})
 }
 
-// ueRegistrationTest executes a single UE registration/deregistration using
-// the subscriber's configured keys and asserts the PDU Session Establishment
-// Accept against exp.
 func ueRegistrationTest(ranUENGAPID int64, gNodeB *gnb.GnodeB, sub subscriber, dnn string, exp *validate.ExpectedPDUSessionEstablishmentAccept, pduSessionType uint8) error {
 	newUE, err := ue.NewUE(&ue.UEOpts{
 		GnodeB:         gNodeB,

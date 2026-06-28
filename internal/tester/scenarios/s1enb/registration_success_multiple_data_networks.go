@@ -30,10 +30,6 @@ func multiDNName(i int) string   { return fmt.Sprintf("mdn%d", i) }
 func multiDNPool(i int) string   { return fmt.Sprintf("10.%d.0.0/16", 50+i) }
 func multiDNPoolV6(i int) string { return fmt.Sprintf("fd5%d::/48", i) }
 
-// fixtureS1ENBMultipleDataNetworks provisions N subscribers, each bound to its
-// own profile/policy on a distinct data network with its own IP pool(s), so each
-// attach must land on a different network. IPv6 pools are added when the env has
-// IPv6 so the scenario works across address families.
 func fixtureS1ENBMultipleDataNetworks(env scenarios.Env) scenarios.FixtureSpec {
 	dns := make([]scenarios.DataNetworkSpec, 0, multiDNCount)
 	profiles := make([]scenarios.ProfileSpec, 0, multiDNCount)
@@ -75,10 +71,7 @@ func fixtureS1ENBMultipleDataNetworks(env scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{DataNetworks: dns, Profiles: profiles, Policies: policies, Subscribers: subs}
 }
 
-// runS1ENBMultipleDataNetworks attaches each subscriber on one eNB and asserts
-// the default bearer lands on its data network: the matching APN and a UE IPv4
-// from that network's pool (TS 23.401). Sequential because the eNB sim does not
-// demux attach responses per UE.
+// Sequential: the eNB sim does not demux attach responses per UE.
 func runS1ENBMultipleDataNetworks(_ context.Context, env scenarios.Env, _ any) error {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {

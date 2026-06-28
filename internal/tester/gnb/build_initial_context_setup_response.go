@@ -137,7 +137,6 @@ type PDUSessionResourceSetupResponseTransfer struct {
 func buildPDUSessionResourceSetupResponseTransfer(ip netip.Addr, teid uint32, qosId int64) (PDUSessionResourceSetupResponseTransfer, error) {
 	var data PDUSessionResourceSetupResponseTransfer
 
-	// QoS Flow per TNL Information
 	if !ip.IsValid() {
 		return data, fmt.Errorf("invalid IP address: %s", ip)
 	}
@@ -145,7 +144,6 @@ func buildPDUSessionResourceSetupResponseTransfer(ip netip.Addr, teid uint32, qo
 	qosFlowPerTNLInformation := &data.QosFlowPerTNLInformation
 	qosFlowPerTNLInformation.UPTransportLayerInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
 
-	// UP Transport Layer Information in QoS Flow per TNL Information
 	upTransportLayerInformation := &qosFlowPerTNLInformation.UPTransportLayerInformation
 	upTransportLayerInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
 	upTransportLayerInformation.GTPTunnel = new(ngapType.GTPTunnel)
@@ -159,7 +157,6 @@ func buildPDUSessionResourceSetupResponseTransfer(ip netip.Addr, teid uint32, qo
 		upTransportLayerInformation.GTPTunnel.TransportLayerAddress = ngapConvert.IPAddressToNgap("", ip.String())
 	}
 
-	// Associated QoS Flow List in QoS Flow per TNL Information
 	associatedQosFlowList := &qosFlowPerTNLInformation.AssociatedQosFlowList
 
 	associatedQosFlowItem := ngapType.AssociatedQosFlowItem{}

@@ -64,7 +64,6 @@ func (ue *UE) DecodeNAS(message []byte) (*nas.Message, error) {
 		}
 	}
 
-	// decode NAS message.
 	err := m.PlainNasDecode(&payload)
 	if err != nil {
 		return nil, fmt.Errorf("decode NAS error: %v", err)

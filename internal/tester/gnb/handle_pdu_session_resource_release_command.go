@@ -52,7 +52,6 @@ func handlePDUSessionResourceReleaseCommand(gnb *GnodeB, cmd *ngapType.PDUSessio
 		zap.Int("PDU Sessions to release", len(releaseList.List)),
 	)
 
-	// Forward NAS PDU to the UE if present.
 	if nasPDU != nil {
 		ue, err := gnb.LoadUE(ranueNGAPID.Value)
 		if err != nil {
@@ -64,7 +63,6 @@ func handlePDUSessionResourceReleaseCommand(gnb *GnodeB, cmd *ngapType.PDUSessio
 		}
 	}
 
-	// Remove released PDU sessions from gNB state.
 	for _, item := range releaseList.List {
 		pduSessionID := item.PDUSessionID.Value
 		gnb.RemovePDUSession(ranueNGAPID.Value, pduSessionID)
@@ -76,7 +74,6 @@ func handlePDUSessionResourceReleaseCommand(gnb *GnodeB, cmd *ngapType.PDUSessio
 		)
 	}
 
-	// Send PDU Session Resource Release Response.
 	if err := gnb.SendPDUSessionResourceReleaseResponse(&PDUSessionResourceReleaseResponseOpts{
 		AMFUENGAPID:   amfueNGAPID.Value,
 		RANUENGAPID:   ranueNGAPID.Value,

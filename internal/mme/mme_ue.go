@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/udm"
+	"github.com/ellanetworks/core/internal/util/timer"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -102,13 +103,13 @@ type s1Conn struct {
 	releasing bool
 
 	// NAS common-procedure guard (TS 24.301: T3450/T3460/T3470). At most
-	// one common procedure is outstanding at a time, so a single guard suffices;
-	// nasGuardPDU is the downlink message retransmitted on expiry. nasGuardGen
-	// invalidates a stale callback.
-	nasGuardTimer *time.Timer
+	// one common procedure is outstanding at a time, so a single guard suffices.
+	// nasGuardPDU is the downlink message retransmitted on expiry; the shared
+	// timer counts the retransmissions. nasGuardGen invalidates a stale callback
+	// (a timer that fired just before the connection was released or re-armed).
+	nasGuardTimer *timer.Timer
 	nasGuardPDU   []byte
 	nasGuardName  string
-	nasGuardTries int
 	nasGuardGen   uint64
 	// nasGuardOnAbort, when non-nil, makes the guard abort-only: on exhausting
 	// its retransmissions it runs this finalizer and leaves the UE connected,

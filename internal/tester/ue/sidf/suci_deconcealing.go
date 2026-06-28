@@ -33,34 +33,26 @@ const (
 )
 
 var (
-	// Network and identification patterns.
-	// Mobile Country Code; 3 digits
 	mccRegex = `(?P<mcc>\d{3})`
-	// Mobile Network Code; 2 or 3 digits
 	mncRegex = `(?P<mnc>\d{2,3})`
 
-	// MCC-MNC
 	imsiTypeRegex = fmt.Sprintf("(?P<imsiType>0-%s-%s)", mccRegex, mncRegex)
 
-	// The Home Network Identifier consists of a string of
-	// characters with a variable length representing a domain name
-	// as specified in Section 2.2 of RFC 7542
+	// NAI type: variable-length domain name (RFC 7542 §2.2).
 	naiTypeRegex = "(?P<naiType>1-.*)"
 
-	// SUPI type; 0 = IMSI, 1 = NAI (for n3gpp)
+	// SUPI type: 0 = IMSI, 1 = NAI.
 	supiTypeRegex = fmt.Sprintf("(?P<supi_type>%s|%s)",
 		imsiTypeRegex,
 		naiTypeRegex)
 
-	// Routing Indicator, used by the AUSF to find the appropriate UDM when SUCI is encrypted 1-4 digits
 	routingIndicatorRegex = `(?P<routing_indicator>\d{1,4})`
-	// Protection Scheme ID; 0 = NULL Scheme (unencrypted), 1 = Profile A, 2 = Profile B
+	// Protection scheme: 0 = NULL (unencrypted), 1 = Profile A, 2 = Profile B.
 	protectionSchemeRegex = `(?P<protection_scheme_id>(?:[0-2]))`
-	// Public Key ID; 1-255
-	publicKeyIDRegex = `(?P<public_key_id>(?:\d{1,2}|1\d{2}|2[0-4]\d|25[0-5]))`
-	// Scheme Output; unbounded hex string (safe from ReDoS due to bounded length of SUCI)
+	publicKeyIDRegex      = `(?P<public_key_id>(?:\d{1,2}|1\d{2}|2[0-4]\d|25[0-5]))`
+	// Unbounded hex is safe from ReDoS because the overall SUCI length is bounded.
 	schemeOutputRegex = `(?P<scheme_output>[A-Fa-f0-9]+)`
-	// Subscription Concealed Identifier (SUCI) Encrypted SUPI as sent by the UE to the AMF; 3GPP TS 29.503 - Annex C
+	// SUCI grammar per 3GPP TS 29.503 Annex C.
 	suciRegex = regexp.MustCompile(fmt.Sprintf("^suci-%s-%s-%s-%s-%s$",
 		supiTypeRegex,
 		routingIndicatorRegex,
@@ -71,16 +63,16 @@ var (
 )
 
 type Suci struct {
-	SupiType         string // 0 for IMSI, 1 for NAI
-	Mcc              string // 3 digits
-	Mnc              string // 2-3 digits
-	HomeNetworkId    string // variable-length string
-	RoutingIndicator string // 1-4 digits
-	ProtectionScheme string // 0-2
-	PublicKeyID      string // 1-255
-	SchemeOutput     string // hex string
+	SupiType         string
+	Mcc              string
+	Mnc              string
+	HomeNetworkId    string
+	RoutingIndicator string
+	ProtectionScheme string
+	PublicKeyID      string
+	SchemeOutput     string
 
-	Raw string // raw SUCI string
+	Raw string
 }
 
 func ParseSuci(input string) *Suci {
@@ -89,16 +81,16 @@ func ParseSuci(input string) *Suci {
 		return nil
 	}
 
-	// The indices correspond to the order of the regex groups in the pattern
+	// Index gaps skip the nested imsiType subgroups in the SUCI pattern.
 	return &Suci{
-		SupiType:         matches[1], // First capture group
-		Mcc:              matches[3], // Third capture group
-		Mnc:              matches[4], // Fourth capture group
-		HomeNetworkId:    matches[5], // Fifth capture group
-		RoutingIndicator: matches[6], // Sixth capture group
-		ProtectionScheme: matches[7], // Seventh capture group
-		PublicKeyID:      matches[8], // Eighth capture group
-		SchemeOutput:     matches[9], // Ninth capture group
+		SupiType:         matches[1],
+		Mcc:              matches[3],
+		Mnc:              matches[4],
+		HomeNetworkId:    matches[5],
+		RoutingIndicator: matches[6],
+		ProtectionScheme: matches[7],
+		PublicKeyID:      matches[8],
+		SchemeOutput:     matches[9],
 
 		Raw: input,
 	}
@@ -110,7 +102,6 @@ type HomeNetworkPrivateKey struct {
 	PublicKey        *ecdh.PublicKey  `yaml:"PublicKey,omitempty"`
 }
 
-// profile A.
 const (
 	ProfileAMacKeyLen = 32 // octets
 	ProfileAEncKeyLen = 16 // octets
@@ -119,7 +110,6 @@ const (
 	ProfileAHashLen   = 32 // octets
 )
 
-// profile B.
 const (
 	ProfileBMacKeyLen = 32 // octets
 	ProfileBEncKeyLen = 16 // octets
@@ -180,7 +170,6 @@ func Tbcd(value string) string {
 		valueBytes = append(valueBytes, 'F')
 	}
 
-	// Reverse the bytes in group of two
 	for i := 1; i < len(valueBytes); i += 2 {
 		valueBytes[i-1], valueBytes[i] = valueBytes[i], valueBytes[i-1]
 	}

@@ -10,8 +10,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// GlobalENBID returns this eNB's Global eNB ID, used as the target identity in a
-// HANDOVER REQUIRED.
 func (e *ENB) GlobalENBID() s1ap.GlobalENBID {
 	return s1ap.GlobalENBID{
 		PLMNIdentity: e.plmn,
@@ -20,8 +18,7 @@ func (e *ENB) GlobalENBID() s1ap.GlobalENBID {
 }
 
 // SendHandoverRequired starts an S1 handover from this (source) eNB toward target
-// (TS 36.413 §8.4.1). mmeUEID is the UE's MME-UE-S1AP-ID, enbUEID its source
-// eNB-UE-S1AP-ID.
+// (TS 36.413 §8.4.1).
 func (e *ENB) SendHandoverRequired(enbUEID, mmeUEID int64, target s1ap.GlobalENBID) error {
 	req := &s1ap.HandoverRequired{
 		MMEUES1APID:    s1ap.MMEUES1APID(mmeUEID),
@@ -58,9 +55,8 @@ func (e *ENB) WaitForHandoverRequest(timeout time.Duration) (*s1ap.HandoverReque
 }
 
 // SendHandoverRequestAcknowledge admits the handover at this (target) eNB,
-// reporting its S1-U downlink endpoint for the bearer (TS 36.413 §8.4.2).
-// targetENBUEID is the eNB-UE-S1AP-ID this eNB allocates for the UE. It returns
-// the downlink TEID so the caller can build the target GTP tunnel.
+// reporting its S1-U downlink endpoint for the bearer (TS 36.413 §8.4.2). It
+// returns the downlink TEID so the caller can build the target GTP tunnel.
 func (e *ENB) SendHandoverRequestAcknowledge(targetENBUEID, mmeUEID int64, erabID s1ap.ERABID) (dlTEID uint32, err error) {
 	addr := e.n3Addr.To4()
 	if addr == nil {

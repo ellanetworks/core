@@ -39,9 +39,7 @@ func BuildRegistrationRequest(opts *RegistrationRequestOpts) ([]byte, error) {
 	registrationRequest.SetMessageType(nas.MsgTypeRegistrationRequest)
 	registrationRequest.NgksiAndRegistrationType5GS.SetNasKeySetIdentifiler(uint8(opts.UESecurity.NgKsi.Ksi))
 	registrationRequest.SetRegistrationType5GS(opts.RegistrationType)
-	// If AMF previously assigned the UE a 5G-GUTI, reuses it
-	// If the 5G-GUTI is no longer valid, AMF will issue an Identity Request
-	// which we'll answer with the requested Mobility Identity (eg. SUCI)
+
 	if opts.UESecurity.Guti != nil {
 		guti := opts.UESecurity.Guti
 		registrationRequest.MobileIdentity5GS = nasType.MobileIdentity5GS{

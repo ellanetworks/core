@@ -11,19 +11,13 @@ import (
 	"github.com/free5gc/nas"
 )
 
-// ExpectedPCODNS describes expected DNS servers in an Extended PCO.
 type ExpectedPCODNS struct {
-	// IPv4 is the expected IPv4 DNS server address.
-	// Set to "" to skip IPv4 DNS validation.
+	// Empty skips IPv4 DNS validation.
 	IPv4 string
-
-	// IPv6 is the expected IPv6 DNS server address.
-	// Set to "" to skip IPv6 DNS validation.
+	// Empty skips IPv6 DNS validation.
 	IPv6 string
 }
 
-// PCODNS validates DNS server addresses in an Extended Protocol Configuration
-// Options IE inside a NAS message.
 func PCODNS(msg *nas.Message, expected *ExpectedPCODNS) error {
 	if msg == nil {
 		return fmt.Errorf("NAS message is nil")

@@ -88,9 +88,6 @@ func init() {
 	})
 }
 
-// runS1ENBNetworkRule attaches a UE, builds a GTP-U tunnel, and probes the N6
-// destination, requiring the probe to succeed when expectAllowed and fail
-// otherwise. ipv6 selects an IPv6 PDN and probe.
 func runS1ENBNetworkRule(ctx context.Context, env scenarios.Env, params *probeParams, imsi, tunIface string, expectAllowed, ipv6 bool) error {
 	proto, err := probe.ParseProtocol(params.Protocol)
 	if err != nil {

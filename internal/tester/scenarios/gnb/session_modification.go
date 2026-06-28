@@ -114,7 +114,6 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 		return fmt.Errorf("--ella-api-token is required for session modification scenario")
 	}
 
-	// Build Ella API client.
 	cl, err := client.New(&client.Config{BaseURL: p.EllaAPIAddress})
 	if err != nil {
 		return fmt.Errorf("failed to create Ella client: %v", err)
@@ -122,7 +121,6 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 
 	cl.SetToken(p.EllaAPIToken)
 
-	// Start gNB.
 	gNodeB, err := startGNB(env)
 	if err != nil {
 		return err
@@ -130,7 +128,6 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 
 	defer gNodeB.Close()
 
-	// Create UE and register.
 	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
 
 	sub := subscriber{
@@ -162,7 +159,6 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 		zap.Int64("RAN UE NGAP ID", ranUENGAPID),
 	)
 
-	// Validate initial QoS.
 	gnbPDUSession := gNodeB.GetPDUSession(ranUENGAPID, int64(scenarios.DefaultPDUSessionID))
 	if gnbPDUSession == nil {
 		return fmt.Errorf("PDU session not stored on gNB after initial registration")
@@ -177,8 +173,6 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 		return fmt.Errorf("initial QoS validation failed: %v", err)
 	}
 
-	// --- Phase 2: Modify the policy via Ella API ---
-	// Build update options from config, filling in defaults for unchanged fields.
 	apiAmbrUplink := cfg.ambrUplink
 	if apiAmbrUplink == "" {
 		apiAmbrUplink = scenarios.DefaultPolicySessionAmbrUplink
@@ -214,7 +208,7 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 		return fmt.Errorf("failed to update policy: %v", err)
 	}
 
-	// Restore original policy on exit so subsequent scenarios see default values.
+	// Restore the original policy so later scenarios see default values.
 	defer func() {
 		_ = cl.UpdatePolicy(ctx, scenarios.DefaultPolicyName, &client.UpdatePolicyOptions{
 			ProfileName:         scenarios.DefaultProfileName,
@@ -229,7 +223,6 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 
 	logger.Logger.Info("Policy updated, waiting for session modification signalling")
 
-	// --- Phase 3: Wait for N2 (NGAP) Modify Request to arrive at gNB ---
 	_, err = gNodeB.WaitForMessage(
 		ngapType.NGAPPDUPresentInitiatingMessage,
 		ngapType.InitiatingMessagePresentPDUSessionResourceModifyRequest,
@@ -241,7 +234,6 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 
 	logger.Logger.Info("gNB received PDUSessionResourceModifyRequest")
 
-	// --- Phase 4: Wait for N1 (NAS) PDU Session Modification Command ---
 	modCmd, err := newUE.WaitForNASGSMMessage(nas.MsgTypePDUSessionModificationCommand, 15*time.Second)
 	if err != nil {
 		return fmt.Errorf("UE did not receive PDU Session Modification Command: %v", err)
@@ -249,7 +241,6 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 
 	logger.Logger.Info("UE received PDU Session Modification Command")
 
-	// --- Phase 5: Validate the NAS message ---
 	if cfg.ambrUplink != "" || cfg.ambrDownlink != "" {
 		err = validate.PDUSessionModificationCommand(modCmd, &validate.ExpectedPDUSessionModificationCommand{
 			AmbrUplinkKbps:   parseKbps(cfg.ambrUplink),
@@ -260,7 +251,6 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 		}
 	}
 
-	// --- Phase 6: Validate updated QoS on gNB ---
 	updatedSession := gNodeB.GetPDUSession(ranUENGAPID, int64(scenarios.DefaultPDUSessionID))
 	if updatedSession == nil {
 		return fmt.Errorf("PDU session not found on gNB after modification")
@@ -282,7 +272,6 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 		)
 	}
 
-	// --- Cleanup: Deregister UE ---
 	pduSessionIDs := [16]bool{}
 	pduSessionIDs[scenarios.DefaultPDUSessionID] = true
 
@@ -302,8 +291,6 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 	return nil
 }
 
-// parseKbps converts a human-readable bitrate string (e.g. "300 Mbps") to
-// kilobits per second, matching the kbps convention used by the validator.
 func parseKbps(s string) uint64 {
 	if s == "" {
 		return 0

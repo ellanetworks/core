@@ -5,9 +5,9 @@ package mme
 
 import (
 	"context"
-	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/util/timer"
 	"go.uber.org/zap"
 )
 
@@ -62,12 +62,14 @@ func (m *MME) armNASGuardMode(ue *UeContext, name string, nas []byte, onAbort fu
 
 	ue.s1.nasGuardName = name
 	ue.s1.nasGuardPDU = nas
-	ue.s1.nasGuardTries = 0
 	ue.s1.nasGuardOnAbort = onAbort
 
-	ue.s1.nasGuardTimer = time.AfterFunc(m.nasGuardTimeout, func() {
-		m.onNASGuardExpiry(ue, gen)
-	})
+	ue.s1.nasGuardTimer = timer.New(
+		m.nasGuardTimeout,
+		int32(m.nasGuardMaxRetransmit),
+		func(attempt int32) { m.retransmitNASGuard(ue, gen, attempt) },
+		func() { m.expireNASGuard(ue, gen) },
+	)
 }
 
 // stopNASGuard cancels the guard once the UE's response arrives.
@@ -96,10 +98,33 @@ func (m *MME) stopNASGuardLocked(ue *UeContext) {
 	ue.s1.nasGuardOnAbort = nil
 }
 
-// onNASGuardExpiry retransmits the outstanding downlink message, or releases the
-// UE once the retransmission limit is reached (TS 24.301): the UE has
-// stopped answering, so the procedure is aborted and the UE released.
-func (m *MME) onNASGuardExpiry(ue *UeContext, gen uint64) {
+// retransmitNASGuard resends the outstanding downlink message on each guard
+// interval (TS 24.301). gen guards against a timer that fired just before the
+// connection was released or re-armed.
+func (m *MME) retransmitNASGuard(ue *UeContext, gen uint64, attempt int32) {
+	m.mu.Lock()
+
+	if ue.s1 == nil || ue.s1.nasGuardGen != gen {
+		m.mu.Unlock()
+		return
+	}
+
+	pdu := ue.s1.nasGuardPDU
+	name := ue.s1.nasGuardName
+	mmeUEID := ue.s1.MMEUES1APID
+
+	m.mu.Unlock()
+
+	logger.MmeLog.Info("retransmitting NAS message",
+		zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.String("procedure", name), zap.Int("attempt", int(attempt)))
+	// Retransmission is timer-driven, outside the original request; start a fresh root.
+	m.sendDownlink(context.Background(), ue, pdu)
+}
+
+// expireNASGuard runs once the retransmission limit is exhausted: the UE has
+// stopped answering. A critical procedure releases the UE; an abort-only one
+// (TS 24.301 §6.4.2.5, §6.4.4.5) runs its finalizer and leaves the UE connected.
+func (m *MME) expireNASGuard(ue *UeContext, gen uint64) {
 	m.mu.Lock()
 
 	// The connection may have been released (ECM-IDLE) after the timer fired but
@@ -109,47 +134,28 @@ func (m *MME) onNASGuardExpiry(ue *UeContext, gen uint64) {
 		return
 	}
 
-	ue.s1.nasGuardTries++
 	name := ue.s1.nasGuardName
+	mmeUEID := ue.s1.MMEUES1APID
+	onAbort := ue.s1.nasGuardOnAbort
 
-	if ue.s1.nasGuardTries > m.nasGuardMaxRetransmit {
-		ue.s1.nasGuardTimer = nil
-		ue.s1.nasGuardPDU = nil
-		ue.s1.nasGuardGen++
-		mmeUEID := ue.s1.MMEUES1APID
-		onAbort := ue.s1.nasGuardOnAbort
-		ue.s1.nasGuardOnAbort = nil
+	ue.s1.nasGuardTimer = nil
+	ue.s1.nasGuardPDU = nil
+	ue.s1.nasGuardOnAbort = nil
+	ue.s1.nasGuardGen++
 
-		m.mu.Unlock()
+	m.mu.Unlock()
 
-		if onAbort != nil {
-			logger.MmeLog.Info("NAS procedure timed out, aborting (UE stays connected)",
-				zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.String("procedure", name))
-
-			onAbort()
-
-			return
-		}
-
-		logger.MmeLog.Info("NAS procedure timed out, releasing UE",
+	if onAbort != nil {
+		logger.MmeLog.Info("NAS procedure timed out, aborting (UE stays connected)",
 			zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.String("procedure", name))
-		// The guard fires from a timer outside any request; start a fresh root.
-		m.releaseUEContext(context.Background(), ue, causeNASUnspecified)
+
+		onAbort()
 
 		return
 	}
 
-	pdu := ue.s1.nasGuardPDU
-	tries := ue.s1.nasGuardTries
-
-	ue.s1.nasGuardTimer = time.AfterFunc(m.nasGuardTimeout, func() {
-		m.onNASGuardExpiry(ue, gen)
-	})
-
-	m.mu.Unlock()
-
-	logger.MmeLog.Info("retransmitting NAS message",
-		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)), zap.String("procedure", name), zap.Int("attempt", tries))
-	// Retransmission is timer-driven, outside the original request; start a fresh root.
-	m.sendDownlink(context.Background(), ue, pdu)
+	logger.MmeLog.Info("NAS procedure timed out, releasing UE",
+		zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.String("procedure", name))
+	// The guard fires from a timer outside any request; start a fresh root.
+	m.releaseUEContext(context.Background(), ue, causeNASUnspecified)
 }

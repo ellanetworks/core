@@ -29,11 +29,9 @@ func init() {
 	})
 }
 
-// runS1Reset attaches a UE, then has the eNB reset the whole S1 interface
-// (TS 36.413 §8.7.1). The MME must answer with a RESET ACKNOWLEDGE carrying no
-// connection list and drop the UE's S1 context. The association stays up — no
-// fresh S1 Setup — so a subsequent attach on the same eNB proves the interface
-// recovered.
+// A whole-interface S1 Reset (TS 36.413 §8.7.1) must draw a RESET ACKNOWLEDGE
+// with no connection list and keep the association up, so a re-attach on the same
+// eNB proves recovery.
 func runS1Reset(_ context.Context, env scenarios.Env, _ any) error {
 	e, err := startENB(env)
 	if err != nil {
@@ -54,8 +52,8 @@ func runS1Reset(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("attach: %w", err)
 	}
 
-	// Let the MME settle the UE into EMM-REGISTERED / ECM-CONNECTED before the
-	// reset, so it resets an established context rather than racing the attach.
+	// Settle into EMM-REGISTERED before the reset, so it hits an established context
+	// and does not race the attach.
 	time.Sleep(2 * time.Second)
 
 	cause := s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}

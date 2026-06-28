@@ -30,9 +30,7 @@ type PDNResult struct {
 }
 
 // OpenPDN opens an additional PDN connection to apn for an attached UE (TS 24.301
-// §6.5.1): it sends a standalone PDN CONNECTIVITY REQUEST, answers the E-RAB
-// SETUP REQUEST the MME initiates (acknowledging the radio leg and accepting the
-// default bearer it carries), and returns the new bearer's user-plane endpoints.
+// §6.5.1), returning the new bearer's user-plane endpoints.
 func (e *ENB) OpenPDN(ue *UE, mmeUEID, enbUEID int64, apn string, pdnType uint8, timeout time.Duration) (*PDNResult, error) {
 	apnIE, err := eps.MarshalAPN(apn)
 	if err != nil {
@@ -144,10 +142,7 @@ func (e *ENB) OpenPDN(ue *UE, mmeUEID, enbUEID int64, apn string, pdnType uint8,
 }
 
 // DisconnectPDN releases an additional PDN connection (TS 24.301 §6.5.2; TS
-// 23.401 §5.10.3): it sends a PDN DISCONNECT REQUEST naming the PDN's default
-// bearer, answers the network's E-RAB RELEASE COMMAND (which releases the radio
-// bearer and carries the DEACTIVATE EPS BEARER CONTEXT REQUEST), and accepts the
-// deactivation.
+// 23.401 §5.10.3).
 func (e *ENB) DisconnectPDN(ue *UE, mmeUEID, enbUEID int64, linkedEBI uint8, timeout time.Duration) error {
 	disc, err := (&eps.PDNDisconnectRequest{
 		ProcedureTransactionIdentity: ue.nextPTI(),

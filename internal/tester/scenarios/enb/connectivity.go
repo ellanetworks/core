@@ -32,8 +32,6 @@ const (
 	enbTestStartIMSI           = "001017271246546"
 )
 
-// enbSubscriber captures the fields the connectivity scenario needs when
-// building per-UE inputs. It mirrors the old SubscriberConfig subset.
 type enbSubscriber struct {
 	IMSI           string
 	Key            string
@@ -91,8 +89,6 @@ func fixtureEnbConnectivity(env scenarios.Env) scenarios.FixtureSpec {
 	}
 }
 
-// enbIncrementIMSI returns base's numeric value incremented by offset, as a
-// 15-digit IMSI.
 func enbIncrementIMSI(base string, offset int) string {
 	var n uint64
 	for _, ch := range base {
@@ -378,7 +374,6 @@ func runEnbConnectivityTest(
 		zap.String("destination", scenarios.DefaultPingDestination),
 	)
 
-	// NOTE: client-side usage assertion skipped; integration test will verify via its own client.
 	logger.Logger.Debug("client-side usage assertion skipped; integration test will verify",
 		zap.String("IMSI", subscriber.IMSI),
 	)

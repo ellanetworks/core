@@ -13,8 +13,6 @@ import (
 
 const s1enbName = "Ella-Core-Tester-S1eNB"
 
-// startENB starts a single S1AP eNB against the core in env, using the default
-// PLMN/TAC and the configured RAN bind addresses.
 func startENB(env scenarios.Env) (*s1enb.ENB, error) {
 	s1mme, err := s1mmeAddress(env.FirstCore())
 	if err != nil {

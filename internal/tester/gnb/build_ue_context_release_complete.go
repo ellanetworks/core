@@ -34,7 +34,6 @@ func BuildUEContextReleaseComplete(opts *UEContextReleaseCompleteOpts) (ngapType
 	ueContextReleaseComplete := successfulOutcome.Value.UEContextReleaseComplete
 	ueContextReleaseCompleteIEs := &ueContextReleaseComplete.ProtocolIEs
 
-	// AMF UE NGAP ID
 	ie := ngapType.UEContextReleaseCompleteIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
 	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -46,7 +45,6 @@ func BuildUEContextReleaseComplete(opts *UEContextReleaseCompleteOpts) (ngapType
 
 	ueContextReleaseCompleteIEs.List = append(ueContextReleaseCompleteIEs.List, ie)
 
-	// RAN UE NGAP ID
 	ie = ngapType.UEContextReleaseCompleteIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
 	ie.Criticality.Value = ngapType.CriticalityPresentIgnore

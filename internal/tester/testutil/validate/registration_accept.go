@@ -101,7 +101,6 @@ func RegistrationAccept(opts *RegistrationAcceptOpts) error {
 		return fmt.Errorf("could not parse allowed NSSAI: %v", err)
 	}
 
-	// Build expected slice list from either ExpectedSlices or single Sst/Sd.
 	expected := opts.ExpectedSlices
 	if len(expected) == 0 {
 		expected = []ExpectedSlice{{Sst: opts.Sst, Sd: opts.Sd}}
@@ -166,8 +165,8 @@ func nasToAmfId(regionID uint8, setID uint16, pointer uint8) string {
 	return fmt.Sprintf("%02x%02x%02x", b0, b1, b2)
 }
 
-// parseAllowedNSSAI parses the NAS AllowedNSSAI value bytes into a list of slices.
-// Each entry is: [length, SST, (SD[0], SD[1], SD[2])?]
+// parseAllowedNSSAI decodes NAS AllowedNSSAI bytes; each entry is
+// [length, SST, (SD[0], SD[1], SD[2])?].
 func parseAllowedNSSAI(data []byte) ([]ExpectedSlice, error) {
 	var result []ExpectedSlice
 

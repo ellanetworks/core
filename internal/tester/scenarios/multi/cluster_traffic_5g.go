@@ -46,9 +46,8 @@ func init() {
 	})
 }
 
-// runClusterTraffic drives UECount UEs in parallel against one core
-// peer. Returns a concatenated error of every failed UE, not just the
-// first.
+// runClusterTraffic drives UECount UEs in parallel against one core peer,
+// returning a concatenated error of every failed UE.
 func runClusterTraffic(ctx context.Context, env scenarios.Env, p *clusterTrafficParams) error {
 	if len(env.CoreN2Addresses) == 0 {
 		return fmt.Errorf("multi/cluster_traffic_5g requires --ella-core-n2-address")
@@ -153,7 +152,6 @@ func runClusterTraffic(ctx context.Context, env scenarios.Env, p *clusterTraffic
 	return nil
 }
 
-// offsetIMSI returns base + offset zero-padded to 15 digits.
 func offsetIMSI(base string, offset int) (string, error) {
 	n, err := strconv.ParseUint(base, 10, 64)
 	if err != nil {

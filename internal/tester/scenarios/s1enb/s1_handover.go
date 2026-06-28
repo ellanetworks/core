@@ -34,12 +34,9 @@ func init() {
 	})
 }
 
-// runS1ENBHandover drives a full inter-eNB S1 handover (TS 36.413 §8.4, TS 23.401
-// §5.5.1.2.2): attach on the source eNB, ping, then HANDOVER REQUIRED → REQUEST →
-// ACKNOWLEDGE → COMMAND → eNB STATUS TRANSFER → MME STATUS TRANSFER → NOTIFY, and
-// ping again from the target's GTP tunnel. The after-ping proves the MME switched
-// the UPF downlink to the target eNB only at notify. Requires two eNB radios with
-// distinct N3 addresses.
+// Inter-eNB S1 handover (TS 36.413 §8.4, TS 23.401 §5.5.1.2.2). The MME switches
+// the UPF downlink to the target only at Handover Notify, so the pre-notify ping
+// must run via the source and the post-notify ping via the target.
 func runS1ENBHandover(ctx context.Context, env scenarios.Env, _ any) error {
 	if len(env.GNBs) < 2 {
 		return fmt.Errorf("s1_handover requires at least 2 eNB radios, got %d", len(env.GNBs))

@@ -35,10 +35,8 @@ func init() {
 	})
 }
 
-// runS1ENBScaleParallel attaches a batch of UEs concurrently on one eNB,
-// verifying the MME completes every EPS attach and hands out a distinct GUTI
-// under simultaneous load. The eNB sim demultiplexes downlink frames by
-// eNB-UE-S1AP-ID, so each attach consumes only its own messages.
+// Concurrent attaches are safe because the eNB sim demultiplexes downlink frames
+// by eNB-UE-S1AP-ID, so each attach consumes only its own messages.
 func runS1ENBScaleParallel(ctx context.Context, env scenarios.Env, _ any) error {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {

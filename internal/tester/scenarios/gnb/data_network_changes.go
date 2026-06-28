@@ -144,7 +144,6 @@ func runDataNetworkDNSChange(ctx context.Context, env scenarios.Env, p *dataNetw
 		zap.Int64("RAN UE NGAP ID", ranUENGAPID),
 	)
 
-	// --- Phase 2: Change DNS in the data network via API ---
 	newDNS := "1.1.1.1"
 
 	err = cl.UpdateDataNetwork(ctx, &client.UpdateDataNetworkOptions{
@@ -170,7 +169,6 @@ func runDataNetworkDNSChange(ctx context.Context, env scenarios.Env, p *dataNetw
 
 	logger.Logger.Info("Data network DNS updated, waiting for session modification signalling")
 
-	// --- Phase 3: Wait for N1 (NAS) PDU Session Modification Command ---
 	modCmd, err := newUE.WaitForNASGSMMessage(nas.MsgTypePDUSessionModificationCommand, 15*time.Second)
 	if err != nil {
 		return fmt.Errorf("UE did not receive PDU Session Modification Command: %v", err)
@@ -178,7 +176,6 @@ func runDataNetworkDNSChange(ctx context.Context, env scenarios.Env, p *dataNetw
 
 	logger.Logger.Info("UE received PDU Session Modification Command")
 
-	// --- Phase 4: Validate the NAS message contains new DNS in PCO ---
 	err = validate.PCODNS(modCmd, &validate.ExpectedPCODNS{
 		IPv4: newDNS,
 	})
@@ -188,7 +185,6 @@ func runDataNetworkDNSChange(ctx context.Context, env scenarios.Env, p *dataNetw
 
 	logger.Logger.Info("DNS change validated successfully", zap.String("New DNS", newDNS))
 
-	// Cleanup
 	pduSessionIDs := [16]bool{}
 	pduSessionIDs[scenarios.DefaultPDUSessionID] = true
 
@@ -264,7 +260,6 @@ func runDataNetworkMTUChange(ctx context.Context, env scenarios.Env, p *dataNetw
 		zap.Int64("RAN UE NGAP ID", ranUENGAPID),
 	)
 
-	// --- Phase 2: Change MTU in the data network via API ---
 	newMTU := int32(1400)
 
 	err = cl.UpdateDataNetwork(ctx, &client.UpdateDataNetworkOptions{
@@ -290,7 +285,6 @@ func runDataNetworkMTUChange(ctx context.Context, env scenarios.Env, p *dataNetw
 
 	logger.Logger.Info("Data network MTU updated, waiting for session release")
 
-	// --- Phase 3: Wait for PDU Session Release Command from SMF ---
 	releaseCmd, err := newUE.WaitForNASGSMMessage(nas.MsgTypePDUSessionReleaseCommand, 15*time.Second)
 	if err != nil {
 		return fmt.Errorf("UE did not receive PDU Session Release Command: %v", err)
@@ -298,7 +292,6 @@ func runDataNetworkMTUChange(ctx context.Context, env scenarios.Env, p *dataNetw
 
 	logger.Logger.Info("UE received PDU Session Release Command")
 
-	// --- Phase 4: Validate cause #39 "reactivation requested" ---
 	if releaseCmd.PDUSessionReleaseCommand == nil {
 		return fmt.Errorf("PDUSessionReleaseCommand is nil")
 	}
@@ -310,7 +303,6 @@ func runDataNetworkMTUChange(ctx context.Context, env scenarios.Env, p *dataNetw
 
 	logger.Logger.Info("MTU change triggered session release with cause #39 as expected")
 
-	// Cleanup
 	pduSessionIDs := [16]bool{}
 	pduSessionIDs[scenarios.DefaultPDUSessionID] = true
 
@@ -385,7 +377,6 @@ func runDataNetworkPoolChange(ctx context.Context, env scenarios.Env, p *dataNet
 		zap.Int64("RAN UE NGAP ID", ranUENGAPID),
 	)
 
-	// --- Phase 2: Change IPv4 pool in the data network via API ---
 	newIPv4Pool := "10.46.0.0/16"
 
 	err = cl.UpdateDataNetwork(ctx, &client.UpdateDataNetworkOptions{
@@ -411,7 +402,6 @@ func runDataNetworkPoolChange(ctx context.Context, env scenarios.Env, p *dataNet
 
 	logger.Logger.Info("Data network IP pool updated, waiting for session release")
 
-	// --- Phase 3: Wait for PDU Session Release Command from SMF ---
 	releaseCmd, err := newUE.WaitForNASGSMMessage(nas.MsgTypePDUSessionReleaseCommand, 15*time.Second)
 	if err != nil {
 		return fmt.Errorf("UE did not receive PDU Session Release Command: %v", err)
@@ -419,7 +409,6 @@ func runDataNetworkPoolChange(ctx context.Context, env scenarios.Env, p *dataNet
 
 	logger.Logger.Info("UE received PDU Session Release Command")
 
-	// --- Phase 4: Validate cause #39 "reactivation requested" ---
 	if releaseCmd.PDUSessionReleaseCommand == nil {
 		return fmt.Errorf("PDUSessionReleaseCommand is nil")
 	}
@@ -431,7 +420,6 @@ func runDataNetworkPoolChange(ctx context.Context, env scenarios.Env, p *dataNet
 
 	logger.Logger.Info("IP pool change triggered session release with cause #39 as expected")
 
-	// Cleanup
 	pduSessionIDs := [16]bool{}
 	pduSessionIDs[scenarios.DefaultPDUSessionID] = true
 

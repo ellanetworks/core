@@ -24,9 +24,6 @@ func init() {
 	})
 }
 
-// runS1ENBAttachRejectUnknownIMSI attaches with an IMSI the core does not know
-// and verifies the MME answers with ATTACH REJECT cause "IMSI unknown in HSS"
-// (TS 24.301 §5.5.1.2.5).
 func runS1ENBAttachRejectUnknownIMSI(_ context.Context, env scenarios.Env, _ any) error {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {

@@ -44,7 +44,7 @@ type UE struct {
 
 	pdnType    uint8                  // requested PDN type (eps.PDNTypeIPv4 / IPv6 / IPv4v6)
 	apn        string                 // requested APN in the Attach Request ("" = subscriber default)
-	attachGUTI *eps.EPSMobileIdentity // when set, the Attach Request presents this GUTI rather than the IMSI
+	attachGUTI *eps.EPSMobileIdentity // when set, the Attach Request presents this GUTI as the UE identity
 
 	kasme   []byte
 	knasEnc [16]byte

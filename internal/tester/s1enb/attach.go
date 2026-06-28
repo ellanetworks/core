@@ -18,7 +18,7 @@ import (
 type AttachResult struct {
 	MMEUES1APID int64
 	ENBUES1APID int64
-	ERABID      s1ap.ERABID // the default bearer's E-RAB ID
+	ERABID      s1ap.ERABID
 	GUTI        *eps.EPSMobileIdentity
 
 	// IdentityRequested is set when the MME answered the Attach Request with an
@@ -63,9 +63,8 @@ type AttachResult struct {
 	DLTEID     uint32 // eNB downlink TEID reported to the MME
 }
 
-// Attach drives a full EPS attach for ue (TS 24.301 §5.5.1.2): Attach Request →
-// EPS-AKA authentication → Security Mode Control → Initial Context Setup (with
-// the Attach Accept) → Attach Complete. It returns once Attach Complete is sent.
+// Attach drives a full EPS attach for ue (TS 24.301 §5.5.1.2), returning once
+// Attach Complete is sent.
 func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 	enbUEID := e.AllocateENBUEID()
 
@@ -78,11 +77,8 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 		return nil, err
 	}
 
-	// 1. An unresolvable GUTI draws an Identity Request first (TS 24.301 §5.4.4);
-	//    answer it with the IMSI, then expect the Authentication Request. The first
-	//    NAS is plain, so skip any protected frame left by a prior UE on the same
-	//    association (e.g. its post-attach EMM INFORMATION) that this UE cannot
-	//    decrypt — this keeps sequential multi-UE attach on one eNB clean.
+	// An unresolvable GUTI draws an Identity Request first (TS 24.301 §5.4.4),
+	// answered with the IMSI.
 	downlink, mmeUEID, err := e.waitForPlainDownlink(enbUEID, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("await Authentication/Identity Request: %w", err)
@@ -107,7 +103,6 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 		}
 	}
 
-	// 2. Authentication Request (plain downlink) → Authentication Response.
 	if mt, err := eps.PeekMessageType(downlink); err != nil || mt != eps.MsgAuthenticationRequest {
 		return nil, fmt.Errorf("expected Authentication Request, got message type %#x (err %v)", mt, err)
 	}
@@ -121,7 +116,6 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 		return nil, err
 	}
 
-	// 3. Security Mode Command (protected downlink) → Security Mode Complete.
 	smcWire, _, err := e.WaitForDownlinkNAS(enbUEID, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("await Security Mode Command: %w", err)
@@ -136,8 +130,6 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 		return nil, err
 	}
 
-	// 4. Initial Context Setup Request carries the Attach Accept; reply with the
-	//    Initial Context Setup Response and process the Attach Accept.
 	icsFrame, err := e.WaitForMessage(enbUEID, Initiating, s1ap.ProcInitialContextSetup, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("await Initial Context Setup Request: %w", err)
@@ -152,8 +144,6 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 		return nil, fmt.Errorf("initial context setup request without an E-RAB")
 	}
 
-	// The E-RAB carries the S-GW/UPF S1-U endpoint (the uplink target); the eNB
-	// reports its own downlink endpoint in the response.
 	erab := ics.ERABToBeSetup[0]
 
 	upf, err := e.selectUpfAddr(erab.TransportLayerAddress)
@@ -177,7 +167,6 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 		return nil, fmt.Errorf("parse Attach Accept: %w", err)
 	}
 
-	// 5. Attach Complete.
 	attachComplete, err := ue.buildAttachComplete(accept.ESMMessageContainer)
 	if err != nil {
 		return nil, err

@@ -57,14 +57,12 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, req *ngapType.PDUSession
 	for _, item := range modifyList.List {
 		pduSessionID := item.PDUSessionID.Value
 
-		// Forward NAS PDU to the UE if present.
 		if item.NASPDU != nil {
 			if err := ue.SendDownlinkNAS(item.NASPDU.Value, amfueNGAPID.Value, ranueNGAPID.Value); err != nil {
 				return fmt.Errorf("forward NAS PDU for PDU session %d: %v", pduSessionID, err)
 			}
 		}
 
-		// Parse the Modify Request Transfer to update stored QoS info.
 		if item.PDUSessionResourceModifyRequestTransfer != nil {
 			modInfo, err := getPDUSessionInfoFromModifyRequestTransfer(item.PDUSessionResourceModifyRequestTransfer)
 			if err != nil {
@@ -73,7 +71,6 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, req *ngapType.PDUSession
 					zap.Int64("PDU Session ID", pduSessionID),
 				)
 			} else {
-				// Update the stored PDU session with new QoS values.
 				gnb.UpdatePDUSessionQoS(ranueNGAPID.Value, pduSessionID, modInfo)
 
 				logger.GnbLogger.Debug(
@@ -88,7 +85,6 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, req *ngapType.PDUSession
 		}
 	}
 
-	// Send PDU Session Resource Modify Response.
 	pduSessionIDs := make([]int64, 0, len(modifyList.List))
 	for _, item := range modifyList.List {
 		pduSessionIDs = append(pduSessionIDs, item.PDUSessionID.Value)
@@ -112,8 +108,6 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, req *ngapType.PDUSession
 	return nil
 }
 
-// PDUSessionModifyInfo holds the QoS parameters extracted from a
-// PDU Session Resource Modify Request Transfer.
 type PDUSessionModifyInfo struct {
 	FiveQi       int64
 	PriArp       int64

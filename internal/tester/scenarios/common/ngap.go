@@ -10,8 +10,6 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-// ExtractAmfUeNgapIDFromHandoverRequest decodes a HandoverRequest NGAP message
-// and returns the AMF UE NGAP ID it contains.
 func ExtractAmfUeNgapIDFromHandoverRequest(data []byte) (int64, error) {
 	pdu, err := ngap.Decoder(data)
 	if err != nil {

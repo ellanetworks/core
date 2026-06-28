@@ -34,10 +34,8 @@ func init() {
 	})
 }
 
-// runSessionHold registers a single UE, establishes a PDU session, and
-// blocks until ctx is cancelled. The PDU session (and its IP lease)
-// remains active for the lifetime of the process, which lets external
-// tests observe the BGP route advertisement before tear-down.
+// runSessionHold holds the PDU session and its IP lease open until ctx is
+// cancelled so external tests can observe the BGP route advertisement before tear-down.
 func runSessionHold(ctx context.Context, env scenarios.Env) error {
 	gNodeB, err := startGNB(env)
 	if err != nil {

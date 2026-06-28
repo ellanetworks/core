@@ -69,11 +69,8 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, pduSessionResourceSetupRe
 	for _, pduSession := range protocolIEIDPDUSessionResourceSetupListSUReq.List {
 		pduSessionID := pduSession.PDUSessionID.Value
 
-		// PDUSessionNASPDU may be omitted by some AMF implementations when there is
-		// no NAS payload to deliver. Treat that as a non-fatal condition: if a
-		// NAS PDU is present, deliver it to the UE; otherwise continue and try
-		// to parse the PDU Session Resource Setup Request Transfer (if present)
-		// to extract UPF/TEID information.
+		// Some AMF implementations omit PDUSessionNASPDU when there is no NAS
+		// payload; this is non-fatal.
 		if pduSession.PDUSessionNASPDU == nil {
 			logger.GnbLogger.Debug("PDU Session Resource Setup Request contains no PDUSessionNASPDU, skipping NAS delivery", zap.Any("pduSession", pduSession))
 		} else {
@@ -83,14 +80,12 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, pduSessionResourceSetupRe
 			}
 		}
 
-		// If the transfer is missing we can't build UPF/TEID info; log and skip
-		// storing PDU session information rather than failing the whole NGAP
-		// handling flow.
+		// A missing transfer yields no UPF/TEID info; skip the store without
+		// failing the whole NGAP flow.
 		pduSessionInfo, err := getPDUSessionInfoFromSetupRequestTransfer(gnb, pduSession.PDUSessionResourceSetupRequestTransfer)
 		if err != nil {
 			logger.GnbLogger.Debug("could not validate PDU Session Resource Setup Transfer, skipping PDU session store", zap.Error(err), zap.Any("pduSession", pduSession))
 
-			// continue processing other PDU sessions if any
 			continue
 		}
 

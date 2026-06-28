@@ -3,9 +3,8 @@
 
 package scenarios
 
-// Default values shared between scenario runners and the integration
-// fixture package. The integration suite provisions Core with these values;
-// scenarios consume them directly.
+// Defaults the integration suite provisions on Core and scenarios consume
+// directly, keeping a single source of truth for both.
 const (
 	DefaultMCC = "001"
 	DefaultMNC = "01"
@@ -47,7 +46,6 @@ const (
 	DefaultPingDestination   = "10.6.0.3"
 	DefaultPingDestinationV6 = "fd00:6::3"
 
-	// DefaultProbePort is the TCP/UDP echo port exposed by the on-N6
-	// responder service used by core-tester scenarios.
+	// DefaultProbePort is the TCP/UDP echo port exposed by the on-N6 responder.
 	DefaultProbePort = 34242
 )

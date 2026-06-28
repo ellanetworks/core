@@ -79,11 +79,10 @@ func sessionModFixture(_ scenarios.Env) scenarios.FixtureSpec {
 	}
 }
 
-// runSessionModification attaches a UE, edits its policy mid-session via the API,
-// and verifies the MME applies the change in place (TS 24.301 §6.4.2): a QCI/ARP
-// change arrives in an S1AP E-RAB Modify Request (TS 36.413 §8.2.2) with the new
-// EPS QoS piggybacked in the NAS-PDU; a Session-AMBR-only change arrives in a
-// standalone Modify EPS Bearer Context Request carrying the new APN-AMBR.
+// A mid-session policy change applies in place (TS 24.301 §6.4.2): a QCI/ARP
+// change via an S1AP E-RAB Modify Request (TS 36.413 §8.2.2) with the new EPS QoS
+// piggybacked in the NAS-PDU; a Session-AMBR-only change via a standalone Modify
+// EPS Bearer Context Request carrying the new APN-AMBR.
 func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionModParams, cfg sessionModConfig) error {
 	if p.EllaAPIAddress == "" || p.EllaAPIToken == "" {
 		return fmt.Errorf("--ella-api-address and --ella-api-token are required")
@@ -125,7 +124,7 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 	}
 
 	// Settle into EMM-REGISTERED so the change reconciles against an established
-	// bearer rather than racing the attach.
+	// bearer and does not race the attach.
 	time.Sleep(2 * time.Second)
 
 	want := defaultSessionModPolicy()
@@ -189,8 +188,6 @@ func assertQoSModification(e *s1enb.ENB, ue *s1enb.UE, enbUEID int64, cfg sessio
 	return nil
 }
 
-// assertAMBROnlyModification validates the standalone path: a Session-AMBR-only
-// change arrives in a Modify EPS Bearer Context Request carrying the new APN-AMBR.
 func assertAMBROnlyModification(e *s1enb.ENB, ue *s1enb.UE, enbUEID int64, cfg sessionModConfig) error {
 	nasReq, err := e.ModifyBearer(ue, enbUEID, 20*time.Second)
 	if err != nil {
@@ -216,8 +213,6 @@ func assertModifyAPNAMBR(nasReq *eps.ModifyEPSBearerContextRequest, cfg sessionM
 	return nil
 }
 
-// defaultSessionModPolicy is the baseline default policy, used as the starting
-// point for an update and to restore it afterwards.
 func defaultSessionModPolicy() client.UpdatePolicyOptions {
 	return client.UpdatePolicyOptions{
 		ProfileName:         scenarios.DefaultProfileName,
