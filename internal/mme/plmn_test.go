@@ -16,7 +16,7 @@ func TestEncodePLMN(t *testing.T) {
 		want     s1ap.PLMNIdentity
 	}{
 		{"001", "01", s1ap.PLMNIdentity{0x00, 0xf1, 0x10}},  // 2-digit MNC
-		{"310", "260", s1ap.PLMNIdentity{0x13, 0x20, 0x06}}, // 3-digit MNC
+		{"310", "260", s1ap.PLMNIdentity{0x13, 0x00, 0x62}}, // 3-digit MNC (TS 23.003: octet2 = MNC3|MCC3, octet3 = MNC2|MNC1)
 	}
 	for _, c := range cases {
 		got, err := encodePLMN(models.PlmnID{Mcc: c.mcc, Mnc: c.mnc})
