@@ -21,7 +21,7 @@ func newDecoderTestUE(t *testing.T) *UeContext {
 
 	ue := NewUeContext()
 	ue.Log = zap.NewNop()
-	ue.SecurityContextAvailable = true
+	ue.securityContextAvailable = true
 
 	radio := &Radio{
 		Name:   "test-gNB",
@@ -174,7 +174,7 @@ func TestDecodeNASMessage_PlainServiceRequestRejected(t *testing.T) {
 		t.Errorf("expected TS 24.501 §4.4.4.3 rejection, got: %v", err)
 	}
 
-	if !ue.SecurityContextAvailable {
+	if !ue.securityContextAvailable {
 		t.Error("decoder must NOT tear down SecurityContextAvailable on a hostile plain NAS message (DoS amplification)")
 	}
 }
@@ -194,7 +194,7 @@ func TestDecodeNASMessage_PlainULNasTransportRejected(t *testing.T) {
 		t.Errorf("expected TS 24.501 §4.4.4.3 rejection, got: %v", err)
 	}
 
-	if !ue.SecurityContextAvailable {
+	if !ue.securityContextAvailable {
 		t.Error("decoder must NOT tear down SecurityContextAvailable on a hostile plain NAS message")
 	}
 }
@@ -204,7 +204,7 @@ func TestDecodeNASMessage_PlainULNasTransportRejected(t *testing.T) {
 // mutate security state.
 func TestDecodeNASMessage_PlainRegistrationRequest_Bootstrap(t *testing.T) {
 	ue := newDecoderTestUE(t)
-	ue.SecurityContextAvailable = false // fresh UE
+	ue.securityContextAvailable = false // fresh UE
 	payload := encodePlainRegistrationRequest(t)
 
 	result, err := DecodeNASMessage(ue, payload)
@@ -220,7 +220,7 @@ func TestDecodeNASMessage_PlainRegistrationRequest_Bootstrap(t *testing.T) {
 		t.Errorf("expected VerdictPlainAllowed, got %d", result.Verdict)
 	}
 
-	if ue.SecurityContextAvailable {
+	if ue.securityContextAvailable {
 		t.Error("a fresh UE must still have SecurityContextAvailable=false after the decoder runs")
 	}
 }
@@ -245,7 +245,7 @@ func TestDecodeNASMessage_PlainRegistrationRequest_WithExistingContext(t *testin
 		t.Errorf("expected VerdictPlainAllowed, got %d", result.Verdict)
 	}
 
-	if !ue.SecurityContextAvailable {
+	if !ue.securityContextAvailable {
 		t.Error("decoder must NOT clear SecurityContextAvailable; that is the handler's job")
 	}
 }
@@ -270,7 +270,7 @@ func TestDecodeNASMessage_PlainDeregistrationRequest_PassesDecoder(t *testing.T)
 		t.Errorf("expected VerdictPlainAllowed, got %d", result.Verdict)
 	}
 
-	if !ue.SecurityContextAvailable {
+	if !ue.securityContextAvailable {
 		t.Error("decoder must NOT clear SecurityContextAvailable")
 	}
 }

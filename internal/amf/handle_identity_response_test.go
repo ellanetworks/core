@@ -35,7 +35,7 @@ func emptyValidation(ue *UeContext) error {
 func newTestUe(integrityVerified bool, guti, oldGuti etsi.GUTI, tmsi etsi.TMSI) *UeContext {
 	_ = integrityVerified
 	ue := NewUeContext()
-	ue.Guti = guti
+	ue.guti = guti
 	ue.OldGuti = oldGuti
 	ue.Tmsi = tmsi
 
@@ -395,16 +395,16 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 	ue.supi = supi
 	ue.ForceState(Authentication)
 	ue.Tai = ue.RanUe().Tai
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.securityContextAvailable = true
+	ue.ngKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.knasEnc = key
+	ue.knasInt = key
+	ue.cipheringAlg = algo
+	ue.integrityAlg = security.AlgIntegrity128NIA0
 
-	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount.Get())
+	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ulCount.Get())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -435,7 +435,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 		t.Fatalf("expected a protected and ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.ulCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -484,16 +484,16 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 			ue.Pei = "testpei"
 			ue.ForceState(ContextSetup)
 			ue.Tai = ue.RanUe().Tai
-			ue.SecurityContextAvailable = true
-			ue.NgKsi.Ksi = 1
+			ue.securityContextAvailable = true
+			ue.ngKsi.Ksi = 1
 			key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 			algo := security.AlgCiphering128NEA2
-			ue.KnasEnc = key
-			ue.KnasInt = key
-			ue.CipheringAlg = algo
-			ue.IntegrityAlg = security.AlgIntegrity128NIA0
+			ue.knasEnc = key
+			ue.knasInt = key
+			ue.cipheringAlg = algo
+			ue.integrityAlg = security.AlgIntegrity128NIA0
 
-			registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount.Get())
+			registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ulCount.Get())
 			if err != nil {
 				t.Fatalf("could not build registration request message: %v", err)
 			}
@@ -528,7 +528,7 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 				t.Fatalf("expected a protected and ciphered NAS message")
 			}
 
-			if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+			if err := security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.ulCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 				t.Fatalf("could not decrypt NAS message: %v", err)
 			}
 
@@ -573,16 +573,16 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 			ue.Pei = "testpei"
 			ue.ForceState(ContextSetup)
 			ue.Tai = ue.RanUe().Tai
-			ue.SecurityContextAvailable = true
-			ue.NgKsi.Ksi = 1
+			ue.securityContextAvailable = true
+			ue.ngKsi.Ksi = 1
 			key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 			algo := security.AlgCiphering128NEA2
-			ue.KnasEnc = key
-			ue.KnasInt = key
-			ue.CipheringAlg = algo
-			ue.IntegrityAlg = security.AlgIntegrity128NIA0
+			ue.knasEnc = key
+			ue.knasInt = key
+			ue.cipheringAlg = algo
+			ue.integrityAlg = security.AlgIntegrity128NIA0
 
-			registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount.Get())
+			registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ulCount.Get())
 			if err != nil {
 				t.Fatalf("could not build registration request message: %v", err)
 			}

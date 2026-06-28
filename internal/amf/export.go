@@ -255,9 +255,9 @@ func (amf *AMF) CountUEPDUSessions(supi etsi.SUPI) int {
 		return 0
 	}
 
-	ue.Mutex.Lock()
+	ue.mu.Lock()
 	n := len(ue.SmContextList)
-	ue.Mutex.Unlock()
+	ue.mu.Unlock()
 
 	return n
 }
@@ -271,7 +271,7 @@ func (amf *AMF) GetUEPDUSessions(supi etsi.SUPI) ([]PDUSessionExport, bool) {
 		return nil, false
 	}
 
-	ue.Mutex.Lock()
+	ue.mu.Lock()
 
 	smCopies := make([]smContextCopy, 0, len(ue.SmContextList))
 	for _, sc := range ue.SmContextList {
@@ -282,7 +282,7 @@ func (amf *AMF) GetUEPDUSessions(supi etsi.SUPI) ([]PDUSessionExport, bool) {
 		})
 	}
 
-	ue.Mutex.Unlock()
+	ue.mu.Unlock()
 
 	sessions := amf.buildPDUSessions(smCopies)
 
@@ -304,7 +304,7 @@ type smContextCopy struct {
 // exportUeContext copies scalar fields under ue.Mutex, then queries SMF outside
 // the lock.
 func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
-	ue.Mutex.Lock()
+	ue.mu.Lock()
 
 	conn := ue.NasConn()
 
@@ -341,7 +341,7 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 			Supi:    ue.supi.String(),
 			Pei:     ue.Pei,
 			PlmnID:  ue.PlmnID,
-			Guti:    ue.Guti.String(),
+			Guti:    ue.guti.String(),
 			OldGuti: ue.OldGuti.String(),
 			Tmsi:    ue.Tmsi.String(),
 			OldTmsi: ue.OldTmsi.String(),
@@ -350,12 +350,12 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 		State: UEStateExport{
 			GMMState:                 string(ue.state),
 			OngoingProcedures:        ongoing,
-			SecurityContextAvailable: ue.SecurityContextAvailable,
+			SecurityContextAvailable: ue.securityContextAvailable,
 		},
 		Security: UESecurityExport{
 			CipheringAlgorithm: ue.cipheringAlgName(),
 			IntegrityAlgorithm: ue.integrityAlgName(),
-			NgKsi:              ue.NgKsi,
+			NgKsi:              ue.ngKsi,
 		},
 		Location: UELocationExport{
 			Current:          copyUserLocation(ue.Location),
@@ -414,7 +414,7 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 		export.RANConnection = rc
 	}
 
-	ue.Mutex.Unlock()
+	ue.mu.Unlock()
 
 	// Build PDU sessions OUTSIDE the UE lock to avoid holding two locks simultaneously.
 	export.PDUSessions = amf.buildPDUSessions(smCopies)

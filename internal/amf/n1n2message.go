@@ -86,7 +86,7 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 		ue.Ambr.Uplink,
 		ue.Ambr.Downlink,
 		ue.AllowedNssai,
-		ue.Kgnb,
+		ue.kgnb,
 		ue.PlmnID,
 		ue.UeRadioCapability,
 		ue.UeRadioCapabilityForPaging,
@@ -136,7 +136,7 @@ func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.
 	}
 
 	pkg, err := send.BuildPaging(
-		ue.Guti,
+		ue.guti,
 		ue.RegistrationArea,
 		ue.UeRadioCapabilityForPaging,
 		nil,
@@ -352,7 +352,7 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 			ue.Ambr.Uplink,
 			ue.Ambr.Downlink,
 			ue.AllowedNssai,
-			ue.Kgnb,
+			ue.kgnb,
 			ue.PlmnID,
 			ue.UeRadioCapability,
 			ue.UeRadioCapabilityForPaging,

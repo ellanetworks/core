@@ -72,7 +72,7 @@ func sendServiceAccept(
 			ue.Ambr.Uplink,
 			ue.Ambr.Downlink,
 			ue.AllowedNssai,
-			ue.Kgnb,
+			ue.kgnb,
 			ue.PlmnID,
 			ue.UeRadioCapability,
 			ue.UeRadioCapabilityForPaging,
@@ -176,10 +176,10 @@ func handleServiceRequest(ctx context.Context, amfInstance *AMF, ue *UeContext, 
 		// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS
 		// message container IE, the UE shall set the security header type of the initial NAS message to
 		// "integrity protected"; then the AMF shall decipher the value part of the NAS message container IE
-		err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP,
+		err := security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.ulCount.Get(), security.Bearer3GPP,
 			security.DirectionUplink, contents)
 		if err != nil {
-			ue.SecurityContextAvailable = false
+			ue.securityContextAvailable = false
 		} else {
 			m := nas.NewMessage()
 			if err := m.GmmMessageDecode(&contents); err != nil {
@@ -258,13 +258,13 @@ func handleServiceRequest(ctx context.Context, amfInstance *AMF, ue *UeContext, 
 	}
 
 	// Copy SmContextList under lock for safe concurrent iteration.
-	ue.Mutex.Lock()
+	ue.mu.Lock()
 
 	smContextSnapshot := make(map[uint8]*SmContext, len(ue.SmContextList))
 	for id, sc := range ue.SmContextList {
 		smContextSnapshot[id] = sc
 	}
-	ue.Mutex.Unlock()
+	ue.mu.Unlock()
 
 	// If the UE has uplink data pending for some PDU sessions, we need to activate them
 	if msg.UplinkDataStatus != nil {

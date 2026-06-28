@@ -102,9 +102,9 @@ func TestDeregister_DoesNotHoldLockDuringSmfRelease(t *testing.T) {
 	fakeSmf := &deregisterTestSmf{}
 	relockCount := 0
 	fakeSmf.onRelease = func(_ context.Context, _ string) error {
-		ue.Mutex.Lock()
+		ue.mu.Lock()
 		_ = ue.state
-		ue.Mutex.Unlock()
+		ue.mu.Unlock()
 
 		relockCount++
 

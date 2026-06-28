@@ -42,7 +42,7 @@ func updateUEIdentity(ue *UeContext, mobileIdentityContents []uint8, integrityVe
 			return fmt.Errorf("UE sent invalid GUTI: %v", err)
 		}
 
-		if guti != ue.Guti && guti != ue.OldGuti {
+		if guti != ue.guti && guti != ue.OldGuti {
 			return fmt.Errorf("UE sent unknown GUTI")
 		}
 	case nasMessage.MobileIdentity5GSType5gSTmsi:

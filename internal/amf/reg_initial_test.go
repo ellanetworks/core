@@ -37,7 +37,7 @@ func TestHandleInitialRegistration_EmptyAllowedNssai_RejectsRegistration(t *test
 	}
 
 	ue.supi = mustSUPIFromPrefixed("imsi-001019756139935")
-	ue.Kamf = "0000000000000000000000000000000000000000000000000000000000000000"
+	ue.kamf = "0000000000000000000000000000000000000000000000000000000000000000"
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {

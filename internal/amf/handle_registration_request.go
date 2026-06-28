@@ -54,7 +54,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *AMF, ue 
 	}
 
 	if !integrityVerified {
-		ue.SecurityContextAvailable = false
+		ue.securityContextAvailable = false
 	}
 
 	// Supersession of concurrent AMF-initiated procedures per TS 24.501.
@@ -89,7 +89,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *AMF, ue 
 	if registrationRequest.NASMessageContainer != nil && integrityVerified {
 		contents := registrationRequest.GetNASMessageContainerContents()
 
-		err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
+		err := security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.ulCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
 		if err != nil {
 			metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultReject)
 
@@ -176,15 +176,15 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *AMF, ue 
 	// NgKsi: TS 24.501 9.11.3.32
 	switch registrationRequest.GetTSC() {
 	case nasMessage.TypeOfSecurityContextFlagNative:
-		ue.NgKsi.Tsc = models.ScTypeNative
+		ue.ngKsi.Tsc = models.ScTypeNative
 	case nasMessage.TypeOfSecurityContextFlagMapped:
-		ue.NgKsi.Tsc = models.ScTypeMapped
+		ue.ngKsi.Tsc = models.ScTypeMapped
 	}
 
-	ue.NgKsi.Ksi = nextNgKsi(int32(registrationRequest.NgksiAndRegistrationType5GS.GetNasKeySetIdentifiler()))
-	if ue.NgKsi.Tsc != models.ScTypeNative || ue.NgKsi.Ksi == 7 {
-		ue.NgKsi.Tsc = models.ScTypeNative
-		ue.NgKsi.Ksi = 0
+	ue.ngKsi.Ksi = nextNgKsi(int32(registrationRequest.NgksiAndRegistrationType5GS.GetNasKeySetIdentifiler()))
+	if ue.ngKsi.Tsc != models.ScTypeNative || ue.ngKsi.Ksi == 7 {
+		ue.ngKsi.Tsc = models.ScTypeNative
+		ue.ngKsi.Ksi = 0
 	}
 
 	// Copy UserLocation from ranUe

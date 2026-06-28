@@ -92,7 +92,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *AMF, ue *UeCont
 
 	ue.AllocateRegistrationArea(operatorInfo.Tais)
 
-	ue.Log.Debug("use original GUTI", logger.GUTI(ue.Guti.String()))
+	ue.Log.Debug("use original GUTI", logger.GUTI(ue.guti.String()))
 
 	// TS 24.501 §5.5.1.2.8 f: a successful initial registration supersedes any
 	// earlier 5GMM context for this subscriber. The old context is deleted only

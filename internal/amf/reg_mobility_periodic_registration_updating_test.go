@@ -87,7 +87,7 @@ func decryptAndDecodeNasPdu(t *testing.T, ue *UeContext, nasPdu []byte, dlCountO
 	copy(payload, nasPdu)
 	payload = payload[7:]
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get()+dlCountOffset, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.ulCount.Get()+dlCountOffset, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -127,16 +127,16 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*UeContext, *FakeNGAPSender, *FakeS
 	ue.supi = supi
 	ue.Pei = "imei-490154203237518"
 	ue.Tai = ue.RanUe().Tai
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.securityContextAvailable = true
+	ue.ngKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.knasEnc = key
+	ue.knasInt = key
+	ue.cipheringAlg = algo
+	ue.integrityAlg = security.AlgIntegrity128NIA0
 
-	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount.Get())
+	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ulCount.Get())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -151,7 +151,7 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*UeContext, *FakeNGAPSender, *FakeS
 func TestMobilityReg_DerivateAnKeyError(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.Kamf = "not-valid-hex"
+	ue.kamf = "not-valid-hex"
 
 	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err == nil {
@@ -979,16 +979,16 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 	ue.supi = supi
 	ue.Pei = "imei-490154203237518"
 	ue.Tai = ue.RanUe().Tai
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.securityContextAvailable = true
+	ue.ngKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.knasEnc = key
+	ue.knasInt = key
+	ue.cipheringAlg = algo
+	ue.integrityAlg = security.AlgIntegrity128NIA0
 
-	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount.Get())
+	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ulCount.Get())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}

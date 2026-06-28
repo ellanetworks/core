@@ -186,12 +186,12 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 	}
 
 	ue.ForceState(SecurityMode)
-	ue.SecurityContextAvailable = true
-	ue.NgKsi = models.NgKsi{Ksi: 0}
+	ue.securityContextAvailable = true
+	ue.ngKsi = models.NgKsi{Ksi: 0}
 
-	ue.Kgnb = []uint8{}
-	ue.NH = []uint8{}
-	ue.NCC = 0
+	ue.kgnb = []uint8{}
+	ue.nh = []uint8{}
+	ue.ncc = 0
 
 	msg := buildTestSecurityModeCompleteMessage()
 
@@ -200,8 +200,8 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if len(ue.Kgnb) == 0 || len(ue.NH) == 0 || ue.NCC == 0 {
-		t.Fatalf("expected security context to be updated, got: Kgnb: %v, NH: %v, NCC: %v", ue.Kgnb, ue.NH, ue.NCC)
+	if len(ue.kgnb) == 0 || len(ue.nh) == 0 || ue.ncc == 0 {
+		t.Fatalf("expected security context to be updated, got: Kgnb: %v, NH: %v, NCC: %v", ue.kgnb, ue.nh, ue.ncc)
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
@@ -235,13 +235,13 @@ func TestHandleSecurityMode_ValidSecurityContextWithBadAMFKey_UpdatesSecurityCon
 	}
 
 	ue.ForceState(SecurityMode)
-	ue.SecurityContextAvailable = true
-	ue.NgKsi = models.NgKsi{Ksi: 0}
+	ue.securityContextAvailable = true
+	ue.ngKsi = models.NgKsi{Ksi: 0}
 
-	ue.Kgnb = []uint8{}
-	ue.NH = []uint8{}
-	ue.NCC = 0
-	ue.Kamf = "this is not hex"
+	ue.kgnb = []uint8{}
+	ue.nh = []uint8{}
+	ue.ncc = 0
+	ue.kamf = "this is not hex"
 
 	expected := "error updating security context"
 
@@ -252,8 +252,8 @@ func TestHandleSecurityMode_ValidSecurityContextWithBadAMFKey_UpdatesSecurityCon
 		t.Fatalf("expected error starting with: %v, got: %v", expected, err)
 	}
 
-	if len(ue.Kgnb) != 0 || len(ue.NH) != 0 || ue.NCC != 0 {
-		t.Fatalf("expected security context to be not be updated, got: Kgnb: %v, NH: %v, NCC: %v", ue.Kgnb, ue.NH, ue.NCC)
+	if len(ue.kgnb) != 0 || len(ue.nh) != 0 || ue.ncc != 0 {
+		t.Fatalf("expected security context to be not be updated, got: Kgnb: %v, NH: %v, NCC: %v", ue.kgnb, ue.nh, ue.ncc)
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
@@ -290,10 +290,10 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 	ue.supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.knasEnc = key
+	ue.knasInt = key
+	ue.cipheringAlg = algo
+	ue.integrityAlg = security.AlgIntegrity128NIA0
 	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
 
 	msg, err := buildTestSecurityModeCompleteMessageWithRegistrationRequest()
@@ -357,10 +357,10 @@ func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 	ue.supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.knasEnc = key
+	ue.knasInt = key
+	ue.cipheringAlg = algo
+	ue.integrityAlg = security.AlgIntegrity128NIA0
 	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
 
 	msg, err := buildTestSecurityModeCompleteMessageWithRegistrationRequest()

@@ -23,8 +23,8 @@ import (
 //
 // See TS 24.501 §4.4.4.3 and TS 33.501 §6.4.6 step 3 for the policy.
 func DecodeNASMessage(ue *UeContext, payload []byte) (*DecodeResult, error) {
-	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	if payload == nil {
 		return nil, fmt.Errorf("nas payload is empty")
@@ -67,10 +67,10 @@ func (ue *UeContext) NasIntegrityVerified(payload []byte) bool {
 		return false
 	}
 
-	ue.Mutex.RLock()
-	defer ue.Mutex.RUnlock()
+	ue.mu.RLock()
+	defer ue.mu.RUnlock()
 
-	if !ue.SecurityContextAvailable {
+	if !ue.securityContextAvailable {
 		return false
 	}
 
@@ -88,14 +88,14 @@ func (ue *UeContext) NasIntegrityVerified(payload []byte) bool {
 	receivedMac := payload[2:6]
 	sqn := payload[6]
 
-	cnt := ue.ULCount // value copy; never committed back to the context
+	cnt := ue.ulCount // value copy; never committed back to the context
 	if cnt.SQN() > sqn {
 		cnt.SetOverflow(cnt.Overflow() + 1)
 	}
 
 	cnt.SetSQN(sqn)
 
-	mac, err := security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, cnt.Get(), security.Bearer3GPP, security.DirectionUplink, payload[6:])
+	mac, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, cnt.Get(), security.Bearer3GPP, security.DirectionUplink, payload[6:])
 	if err != nil {
 		return false
 	}
@@ -153,7 +153,7 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *A
 	// Work on a copy of the uplink count and commit it to the security context
 	// only once the MAC is verified, so an unauthenticated message cannot
 	// advance (desync) the count of a genuine UE (TS 33.501 §6.4.3).
-	cnt := ue.ULCount
+	cnt := ue.ulCount
 
 	switch msg.SecurityHeaderType {
 	case nas.SecurityHeaderTypeIntegrityProtected:
@@ -174,7 +174,7 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *A
 
 	cnt.SetSQN(sequenceNumber)
 
-	mac32, err := security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, cnt.Get(), security.Bearer3GPP,
+	mac32, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, cnt.Get(), security.Bearer3GPP,
 		security.DirectionUplink, payload)
 	if err != nil {
 		return nil, fmt.Errorf("error calculating mac: %+v", err)
@@ -186,9 +186,9 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *A
 	}
 
 	if ciphered {
-		ue.Log.Debug("Decrypt NAS message", zap.Uint8("algorithm", ue.CipheringAlg), zap.Uint32("ULCount", cnt.Get()))
+		ue.Log.Debug("Decrypt NAS message", zap.Uint8("algorithm", ue.cipheringAlg), zap.Uint32("ULCount", cnt.Get()))
 
-		if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, cnt.Get(), security.Bearer3GPP,
+		if err = security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, cnt.Get(), security.Bearer3GPP,
 			security.DirectionUplink, payload[1:]); err != nil {
 			return nil, fmt.Errorf("error encrypting: %+v", err)
 		}
@@ -214,7 +214,7 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *A
 	}
 
 	if macVerified {
-		ue.ULCount = cnt
+		ue.ulCount = cnt
 
 		// First verified message establishes secure exchange on the connection (TS 24.501 §4.4.4.3).
 		if conn != nil {

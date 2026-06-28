@@ -78,9 +78,9 @@ const (
 // capability against the AMF's stored value per TS 33.501 §6.7.3.1. It
 // never mutates ue.
 func (ue *UeContext) VerifyUESecurityCapability(received *nasType.UESecurityCapability) VerifyResult {
-	ue.Mutex.RLock()
+	ue.mu.RLock()
 	stored := ue.ueSecurityCapability
-	ue.Mutex.RUnlock()
+	ue.mu.RUnlock()
 
 	if stored == nil {
 		return VerifyNoStoredValue
@@ -102,8 +102,8 @@ func (ue *UeContext) VerifyUESecurityCapability(received *nasType.UESecurityCapa
 // authorized call sites in this package; this makes downgrade via an
 // unauthenticated code path structurally impossible.
 func (ue *UeContext) SetUESecurityCapability(caps *nasType.UESecurityCapability, _ AuthProof) {
-	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	ue.ueSecurityCapability = caps
 }

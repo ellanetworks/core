@@ -168,9 +168,9 @@ func (amf *AMF) AddUeContextToPool(ue *UeContext) error {
 func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext) {
 	ue.Deregister(ctx)
 
-	ue.Mutex.Lock()
+	ue.mu.Lock()
 	ranUe := ue.ranUe
-	ue.Mutex.Unlock()
+	ue.mu.Unlock()
 
 	if ranUe != nil {
 		err := ranUe.Remove(ctx)
@@ -201,7 +201,7 @@ func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
 	// guarded by T3522; the accept — or T3522 exhaustion — then removes the
 	// context. An idle or unsecured UE cannot be signalled, so it is removed
 	// locally.
-	if ue.RanUe() != nil && ue.SecurityContextAvailable {
+	if ue.RanUe() != nil && ue.securityContextAvailable {
 		if err := amf.sendNetworkInitiatedDeregistration(ctx, ue); err != nil {
 			logger.AmfLog.Warn("failed to send network-initiated deregistration; removing UE context locally",
 				zap.Error(err), logger.SUPI(supi.String()))
@@ -424,7 +424,7 @@ func (amf *AMF) FindUeContextByGuti(guti etsi.GUTI) (*UeContext, bool) {
 	defer amf.mu.RUnlock()
 
 	for _, ue := range amf.UEs {
-		if ue.Guti == guti || ue.OldGuti == guti {
+		if ue.guti == guti || ue.OldGuti == guti {
 			return ue, true
 		}
 	}
@@ -522,8 +522,8 @@ func (a *AMF) ReAllocateGuti(ctx context.Context, ue *UeContext, supportedGuami 
 	}
 
 	ue.Tmsi = tmsi
-	ue.OldGuti = ue.Guti
-	ue.Guti, err = etsi.NewGUTI(
+	ue.OldGuti = ue.guti
+	ue.guti, err = etsi.NewGUTI(
 		supportedGuami.PlmnID.Mcc,
 		supportedGuami.PlmnID.Mnc,
 		supportedGuami.AmfID,
@@ -635,9 +635,9 @@ func (amf *AMF) StopAllTimers() {
 	amf.mu.RUnlock()
 
 	for _, ue := range ues {
-		ue.Mutex.Lock()
+		ue.mu.Lock()
 		ue.stopAllTimersLocked()
-		ue.Mutex.Unlock()
+		ue.mu.Unlock()
 	}
 }
 

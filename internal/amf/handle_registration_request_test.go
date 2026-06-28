@@ -544,8 +544,8 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 
 	ue.Suci = "testsuci"
 	ue.supi = mustSUPIFromPrefixed("imsi-001019756139935")
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.securityContextAvailable = true
+	ue.ngKsi.Ksi = 1
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
@@ -704,8 +704,8 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 
 	ue.Suci = "testsuci"
 	ue.supi = mustSUPIFromPrefixed("imsi-001019756139935")
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.securityContextAvailable = true
+	ue.ngKsi.Ksi = 1
 	ue.ForceState(SecurityMode)
 	ue.NasConn().T3560 = NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
 
@@ -775,17 +775,17 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 
 	ue.Suci = "testsuci"
 	ue.supi = supi
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.securityContextAvailable = true
+	ue.ngKsi.Ksi = 1
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.knasEnc = key
+	ue.knasInt = key
+	ue.cipheringAlg = algo
+	ue.integrityAlg = security.AlgIntegrity128NIA0
 
-	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount.Get())
+	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ulCount.Get())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -811,7 +811,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 		t.Fatalf("expected a protected and ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.ulCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -854,23 +854,23 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 
 	ue.Suci = "testsuci"
 	ue.supi = supi
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.securityContextAvailable = true
+	ue.ngKsi.Ksi = 1
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.knasEnc = key
+	ue.knasInt = key
+	ue.cipheringAlg = algo
+	ue.integrityAlg = security.AlgIntegrity128NIA0
 
-	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount.Get())
+	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ulCount.Get())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
 	key = [16]uint8{0x00, 0x00, 0x00, 0x00, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
-	ue.KnasEnc = key
+	ue.knasEnc = key
 
 	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
 	if err == nil {
@@ -929,7 +929,7 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 	ue.Suci = "testsuci"
 	ue.supi = supi
 	// Simulate MAC verification failure (AMF has no valid security context)
-	ue.SecurityContextAvailable = false
+	ue.securityContextAvailable = false
 
 	// Build a registration request with a ciphered NASMessageContainer
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -1010,8 +1010,8 @@ func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
 
-	if ue.NgKsi.Ksi != 4 {
-		t.Fatalf("expected ngKSI=4 (next after 3), got %d", ue.NgKsi.Ksi)
+	if ue.ngKsi.Ksi != 4 {
+		t.Fatalf("expected ngKSI=4 (next after 3), got %d", ue.ngKsi.Ksi)
 	}
 }
 
@@ -1053,8 +1053,8 @@ func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
 
-	if ue.NgKsi.Ksi != 0 {
-		t.Fatalf("expected ngKSI=0 (wrapped from 6), got %d", ue.NgKsi.Ksi)
+	if ue.ngKsi.Ksi != 0 {
+		t.Fatalf("expected ngKSI=0 (wrapped from 6), got %d", ue.ngKsi.Ksi)
 	}
 }
 
@@ -1096,12 +1096,12 @@ func TestHandleRegistrationRequest_NgKsi_NoKeyAvailable(t *testing.T) {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
 
-	if ue.NgKsi.Ksi != 0 {
-		t.Fatalf("expected ngKSI=0 (reset from no-key-available=7), got %d", ue.NgKsi.Ksi)
+	if ue.ngKsi.Ksi != 0 {
+		t.Fatalf("expected ngKSI=0 (reset from no-key-available=7), got %d", ue.ngKsi.Ksi)
 	}
 
-	if ue.NgKsi.Tsc != models.ScTypeNative {
-		t.Fatalf("expected TSC=NATIVE, got %v", ue.NgKsi.Tsc)
+	if ue.ngKsi.Tsc != models.ScTypeNative {
+		t.Fatalf("expected TSC=NATIVE, got %v", ue.ngKsi.Tsc)
 	}
 }
 

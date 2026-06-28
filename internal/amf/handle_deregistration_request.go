@@ -21,7 +21,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 	// Reject unauthenticated Deregistration Requests while the AMF still
 	// holds a valid security context (TS 24.501 §4.4.4.3 defense in depth).
 	// A UE that lost its keys can recover via Initial Registration.
-	if !integrityVerified && ue.SecurityContextAvailable {
+	if !integrityVerified && ue.securityContextAvailable {
 		return fmt.Errorf("rejecting unauthenticated Deregistration Request from UE with valid security context")
 	}
 

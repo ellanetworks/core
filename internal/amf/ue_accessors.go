@@ -24,8 +24,8 @@ func (ue *UeContext) SmContextRefs() []SmContextRef {
 		return nil
 	}
 
-	ue.Mutex.RLock()
-	defer ue.Mutex.RUnlock()
+	ue.mu.RLock()
+	defer ue.mu.RUnlock()
 
 	refs := make([]SmContextRef, 0, len(ue.SmContextList))
 	for id, sc := range ue.SmContextList {
@@ -43,10 +43,10 @@ func (ue *UeContext) NextHopNCC() ([]uint8, uint8) {
 		return nil, 0
 	}
 
-	ue.Mutex.RLock()
-	defer ue.Mutex.RUnlock()
+	ue.mu.RLock()
+	defer ue.mu.RUnlock()
 
-	return ue.NH, ue.NCC
+	return ue.nh, ue.ncc
 }
 
 // HasSecurityContext reports whether a 5G NAS security context is available.
@@ -55,10 +55,10 @@ func (ue *UeContext) HasSecurityContext() bool {
 		return false
 	}
 
-	ue.Mutex.RLock()
-	defer ue.Mutex.RUnlock()
+	ue.mu.RLock()
+	defer ue.mu.RUnlock()
 
-	return ue.SecurityContextAvailable
+	return ue.securityContextAvailable
 }
 
 // SupiValue returns the UE's SUPI.
@@ -67,8 +67,8 @@ func (ue *UeContext) SupiValue() etsi.SUPI {
 		return etsi.SUPI{}
 	}
 
-	ue.Mutex.RLock()
-	defer ue.Mutex.RUnlock()
+	ue.mu.RLock()
+	defer ue.mu.RUnlock()
 
 	return ue.supi
 }
@@ -79,8 +79,8 @@ func (ue *UeContext) UESecCap() *nasType.UESecurityCapability {
 		return nil
 	}
 
-	ue.Mutex.RLock()
-	defer ue.Mutex.RUnlock()
+	ue.mu.RLock()
+	defer ue.mu.RUnlock()
 
 	return ue.ueSecurityCapability
 }
