@@ -96,6 +96,14 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 	ue.Log.Debug("use original GUTI", logger.GUTI(ue.Guti.String()))
 
+	// TS 24.501 §5.5.1.2.8 f: a successful initial registration supersedes any
+	// earlier 5GMM context for this subscriber. The old context is deleted only
+	// here, once the new registration is authenticated, so that an
+	// unauthenticated registration on a fresh context never tears it down.
+	if existing, ok := amfInstance.FindAMFUEBySupi(ue.Supi); ok && existing != ue {
+		amfInstance.DeregisterAndRemoveAMFUE(ctx, existing)
+	}
+
 	err = amfInstance.AddAmfUeToUePool(ue)
 	if err != nil {
 		return fmt.Errorf("error adding AMF UE to UE pool: %v", err)

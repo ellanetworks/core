@@ -129,7 +129,11 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 			return nil, fmt.Errorf("error decoding plain nas: %+v", err)
 		}
 	case nas.SecurityHeaderTypePlainNas:
-		if err := msg.PlainNasDecode(&payload); err != nil {
+		// Decode a copy so the original payload remains intact for the
+		// integrity check used in the reuse decision below.
+		p := payload
+
+		if err := msg.PlainNasDecode(&p); err != nil {
 			return nil, fmt.Errorf("error decoding plain nas: %+v", err)
 		}
 	default:
@@ -196,6 +200,14 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 	ue, _ := amfInstance.FindAmfUeByGuti(guti)
 	if ue == nil {
 		logger.WithTrace(ctx, logger.AmfLog).Warn("UE Context not found", logger.GUTI(guti.String()))
+		return nil, nil
+	}
+
+	if !ue.ReuseForInboundNAS(payload) {
+		// TS 24.501 §4.4.4.3: this message cites an existing context but is not
+		// authenticated for it. Register on a fresh context pending
+		// authentication; the committed context is left unchanged on failure.
+		logger.WithTrace(ctx, logger.AmfLog).Info("NAS message cites a known GUTI but is not authenticated for that context; using a fresh context", logger.GUTI(guti.String()))
 		return nil, nil
 	}
 

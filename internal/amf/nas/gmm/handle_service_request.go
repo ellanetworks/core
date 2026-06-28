@@ -200,10 +200,12 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 		conn.RetransmissionOfInitialNASMsg = macFailed
 	}
 
-	// Service Reject if the SecurityContext is invalid
+	// Service Reject if the SecurityContext is invalid. TS 24.501 §4.4.4.3: a
+	// service request failing the integrity check is rejected with 5GMM cause
+	// #9 and the 5GMM-context and 5G NAS security context are left unchanged, so
+	// an unauthenticated message cannot tear down a genuine UE's security state.
 	if !ue.SecurityContextIsValid() || macFailed {
-		ue.Log.Warn("No security context", logger.SUPI(ue.Supi.String()))
-		ue.Current().SecurityContextAvailable = false
+		ue.Log.Warn("No valid security context for service request", logger.SUPI(ue.Supi.String()))
 
 		err := message.SendServiceReject(ctx, ranUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		if err != nil {

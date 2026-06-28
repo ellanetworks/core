@@ -178,8 +178,10 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 		t.Fatalf("expected a service reject essage, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.Current().SecurityContextAvailable {
-		t.Fatalf("expected security context to change to not available")
+	// TS 24.501 §4.4.4.3: a service request failing the integrity check is
+	// rejected with cause #9 and the 5G NAS security context is kept unchanged.
+	if !ue.Current().SecurityContextAvailable {
+		t.Fatalf("security context must be kept unchanged on a mac-failed service request (TS 24.501 §4.4.4.3)")
 	}
 }
 

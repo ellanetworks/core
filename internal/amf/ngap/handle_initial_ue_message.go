@@ -77,6 +77,12 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 			if amfUe, ok := amfInstance.FindAmfUeByGuti(guti); !ok {
 				logger.WithTrace(ctx, ranUe.Log).Warn("Unknown UE", logger.GUTI(guti.String()))
+			} else if !amfUe.ReuseForInboundNAS(msg.NASPDU) {
+				// TS 24.501 §4.4.4.3: this message cites an existing context but
+				// is not authenticated for it. Do not bind to or mutate the live
+				// context; the NAS layer registers it on a fresh context pending
+				// authentication.
+				logger.WithTrace(ctx, ranUe.Log).Info("Initial UE Message cites a known GUTI but is not authenticated for that context; registering on a fresh context", logger.GUTI(guti.String()))
 			} else {
 				logger.WithTrace(ctx, ranUe.Log).Debug("find AmfUe", logger.GUTI(guti.String()))
 				/* checking the guti-ue belongs to this amf instance */
