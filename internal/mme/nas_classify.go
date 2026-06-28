@@ -14,13 +14,9 @@ import "github.com/ellanetworks/core/nas/eps"
 type verdict int
 
 const (
-	// verdictReject: the PDU must be dropped.
 	verdictReject verdict = iota
-	// verdictIntegrityVerified: integrity-protected and the MAC verified.
 	verdictIntegrityVerified
-	// verdictPlainAllowed: plain NAS whose type is on the §4.4.4.3 whitelist.
 	verdictPlainAllowed
-	// verdictMacFailedAllowed: integrity-protected, MAC failed, type whitelisted.
 	verdictMacFailedAllowed
 )
 
@@ -70,9 +66,9 @@ func plainNasAllowed(mt eps.MessageType) bool {
 	return false
 }
 
-// macFailedAllowed reports whether an EMM message may be processed after the
-// integrity check fails, before secure exchange is established on the connection
-// (TS 24.301 §4.4.4.3). It matches plainNasAllowed in this architecture.
+// macFailedAllowed reports whether an EMM message may be processed after a failed
+// integrity check, before secure exchange is established on the connection; the
+// §4.4.4.3 whitelist is the same as plainNasAllowed (TS 24.301 §4.4.4.3).
 func macFailedAllowed(mt eps.MessageType) bool {
 	return plainNasAllowed(mt)
 }

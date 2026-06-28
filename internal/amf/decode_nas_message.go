@@ -208,7 +208,7 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *A
 	}
 
 	// TS 24.501 §4.4.4.3: once secure exchange is established, a message failing
-	// the integrity check is discarded rather than processed.
+	// the integrity check is discarded.
 	if conn != nil && conn.secureExchangeEstablished && !macVerified {
 		return nil, fmt.Errorf("nas message discarded: integrity check failed after secure exchange established (TS 24.501 §4.4.4.3)")
 	}
@@ -216,8 +216,7 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *A
 	if macVerified {
 		ue.ULCount = cnt
 
-		// A successfully integrity-checked message marks secure exchange of NAS
-		// messages as established for this connection (TS 24.501 §4.4.4.3).
+		// First verified message establishes secure exchange on the connection (TS 24.501 §4.4.4.3).
 		if conn != nil {
 			conn.secureExchangeEstablished = true
 		}

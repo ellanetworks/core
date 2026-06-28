@@ -13,10 +13,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// handleAuthenticationFailure handles an AUTHENTICATION FAILURE (TS 24.301).
-// A first synch failure (#21) with a valid AUTS triggers SQN
-// re-synchronisation and a new AUTHENTICATION REQUEST; every other case — MAC
-// failure (#20), a repeated synch failure, or an invalid AUTS — is rejected.
+// handleAuthenticationFailure re-synchronises SQN and issues a new AUTHENTICATION
+// REQUEST on a first synch failure (#21) with a valid AUTS; every other case — MAC
+// failure (#20), a repeated synch failure, or an invalid AUTS — is rejected
+// (TS 24.301).
 func (m *MME) handleAuthenticationFailure(ctx context.Context, ue *UeContext, plain []byte) {
 	m.stopNASGuard(ue)
 

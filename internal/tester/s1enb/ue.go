@@ -108,9 +108,8 @@ func (ue *UE) UseUnknownGUTI() {
 }
 
 // S1APSecurityCapabilities returns the UE's EPS algorithm capabilities in the
-// S1AP UESecurityCapabilities encoding (the EEA0/EIA0 bit is dropped, so the
-// octet is shifted left), matching how the MME stored them at attach. Used to
-// replay capabilities in a Path Switch Request.
+// S1AP UESecurityCapabilities encoding: the EEA0/EIA0 bit is dropped, so the
+// octet is shifted left, matching how the MME stored them at attach.
 func (ue *UE) S1APSecurityCapabilities() s1ap.UESecurityCapabilities {
 	return s1ap.UESecurityCapabilities{
 		EncryptionAlgorithms:          uint16(ue.netCapEEA<<1) << 8,

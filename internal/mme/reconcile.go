@@ -316,7 +316,6 @@ func (m *MME) reactivateBearer(ctx context.Context, ue *UeContext, p *pdnConnect
 	m.deactivateBearer(ctx, ue, p, eps.ESMCauseReactivationRequested, 0, false)
 }
 
-// handleESM dispatches an uplink ESM (session management) NAS message.
 func (m *MME) handleESM(ctx context.Context, ue *UeContext, plain []byte) {
 	mt, err := eps.PeekESMMessageType(plain)
 	if err != nil {

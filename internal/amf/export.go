@@ -301,8 +301,8 @@ type smContextCopy struct {
 	inactive bool
 }
 
-// exportUeContext builds an UeContextExport for a single UE.
-// It acquires ue.Mutex to copy scalar fields, then queries SMF outside the lock.
+// exportUeContext copies scalar fields under ue.Mutex, then queries SMF outside
+// the lock.
 func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 	ue.Mutex.Lock()
 

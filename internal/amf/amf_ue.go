@@ -147,12 +147,9 @@ func (ue *UeContext) NasConn() *ActiveNasConnection {
 }
 
 // RotateContext discards the current 5GMM security and session state and starts
-// a fresh per-registration context. Used when a UE re-initiates registration:
-// the prior context is discarded per TS 24.501 handling of an initial
-// registration arriving in 5GMM-REGISTERED. The prior per-registration ctx is
-// cancelled, unwinding procedures and in-flight RPCs derived from it. The NAS
-// connection is intentionally left unset: AttachRanUe creates it once the RanUe
-// is known.
+// a fresh per-registration context, cancelling the prior ctx to unwind its
+// procedures and in-flight RPCs (TS 24.501: an initial registration arriving in
+// 5GMM-REGISTERED). The NAS connection is left unset until a RanUe is attached.
 func (ue *UeContext) RotateContext() {
 	if old := ue.active.Swap(nil); old != nil {
 		old.stopTimers()

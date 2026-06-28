@@ -60,8 +60,7 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 }
 
 // handleDetachAccept completes a network-initiated detach: the UE has acknowledged,
-// so stop the guard and release and delete its context (the UE is already
-// EMM-DEREGISTERED).
+// so its context is released and deleted (it is already EMM-DEREGISTERED).
 func (m *MME) handleDetachAccept(ctx context.Context, ue *UeContext) {
 	m.stopNASGuard(ue)
 	logger.MmeLog.Info("Detach Accept", zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)))

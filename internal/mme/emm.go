@@ -59,7 +59,6 @@ func (m *MME) handleNAS(ctx context.Context, ue *UeContext, nas []byte) {
 
 	securityHeader := nas[0] >> 4
 
-	// Plain NAS message.
 	if securityHeader == uint8(eps.SHTPlain) {
 		mt, err := eps.PeekMessageType(nas)
 		if err != nil {
@@ -89,7 +88,6 @@ func (m *MME) handleNAS(ctx context.Context, ue *UeContext, nas []byte) {
 		return
 	}
 
-	// Security-protected NAS message.
 	if len(nas) < 6 {
 		logger.MmeLog.Warn("security-protected NAS message too short")
 		return
@@ -116,8 +114,7 @@ func (m *MME) handleNAS(ctx context.Context, ue *UeContext, nas []byte) {
 		// estimates to a stale count whose MAC fails to verify.
 		ue.ulCount = count + 1
 
-		// A successfully integrity-checked message establishes secure exchange of
-		// NAS messages on this connection (TS 24.301 §4.4.4.3).
+		// First verified message establishes secure exchange on the connection (TS 24.301 §4.4.4.3).
 		if conn != nil {
 			conn.secureExchangeEstablished = true
 		}
@@ -127,7 +124,6 @@ func (m *MME) handleNAS(ctx context.Context, ue *UeContext, nas []byte) {
 		return
 	}
 
-	// Integrity check failed.
 	body := nas[6:]
 
 	// A switch-off DETACH REQUEST is honoured without integrity protection only
@@ -139,7 +135,6 @@ func (m *MME) handleNAS(ctx context.Context, ue *UeContext, nas []byte) {
 		return
 	}
 
-	// Once secure exchange is established, a failed-integrity message is discarded.
 	if connSecured {
 		logger.MmeLog.Warn("discarding NAS message: integrity check failed after secure exchange established",
 			zap.String("imsi", ue.imsi))
