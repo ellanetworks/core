@@ -75,7 +75,7 @@ func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 
 	conn.AuthenticationCtx = response
 
-	ue.Current().ABBA = []uint8{0x00, 0x00} // set ABBA value as described at TS 33.501 Annex A.7.1
+	ue.ABBA = []uint8{0x00, 0x00} // set ABBA value as described at TS 33.501 Annex A.7.1
 
 	err = message.SendAuthenticationRequest(ctx, amfInstance, ranUe)
 	if err != nil {

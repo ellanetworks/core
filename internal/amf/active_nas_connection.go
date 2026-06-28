@@ -19,7 +19,7 @@ import (
 // goroutines are not pre-empted, so they must check for nil where they
 // dereference the connection.
 type ActiveNasConnection struct {
-	parent *FivegmmContext
+	parent *UeContext
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -51,7 +51,7 @@ type ActiveNasConnection struct {
 	N1N2Message                     *models.N1N2MessageTransferRequest
 }
 
-func newActiveNasConnection(parent *FivegmmContext, ranUe *RanUe) *ActiveNasConnection {
+func newActiveNasConnection(parent *UeContext, ranUe *RanUe) *ActiveNasConnection {
 	ctx, cancel := context.WithCancel(parent.ctx)
 
 	return &ActiveNasConnection{
@@ -67,7 +67,7 @@ func (conn *ActiveNasConnection) Ctx() context.Context {
 	return conn.ctx
 }
 
-func (conn *ActiveNasConnection) Parent() *FivegmmContext {
+func (conn *ActiveNasConnection) Parent() *UeContext {
 	return conn.parent
 }
 

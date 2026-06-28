@@ -71,14 +71,14 @@ func sendServiceAccept(
 
 		err = ranUe.SendInitialContextSetupRequest(
 			ctx,
-			ue.Current().Ambr.Uplink,
-			ue.Current().Ambr.Downlink,
-			ue.Current().AllowedNssai,
-			ue.Current().Kgnb,
+			ue.Ambr.Uplink,
+			ue.Ambr.Downlink,
+			ue.AllowedNssai,
+			ue.Kgnb,
 			ue.PlmnID,
-			ue.Current().UeRadioCapability,
-			ue.Current().UeRadioCapabilityForPaging,
-			ue.Current().UESecurityCapability,
+			ue.UeRadioCapability,
+			ue.UeRadioCapabilityForPaging,
+			ue.UESecurityCapability,
 			nasPdu,
 			&ctxList,
 			supportedGUAMI,
@@ -96,8 +96,8 @@ func sendServiceAccept(
 
 		err = ranUe.SendPDUSessionResourceSetupRequest(
 			ctx,
-			ue.Current().Ambr.Uplink,
-			ue.Current().Ambr.Downlink,
+			ue.Ambr.Uplink,
+			ue.Ambr.Downlink,
 			nasPdu,
 			suList,
 		)
@@ -178,10 +178,10 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS
 		// message container IE, the UE shall set the security header type of the initial NAS message to
 		// "integrity protected"; then the AMF shall decipher the value part of the NAS message container IE
-		err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP,
+		err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP,
 			security.DirectionUplink, contents)
 		if err != nil {
-			ue.Current().SecurityContextAvailable = false
+			ue.SecurityContextAvailable = false
 		} else {
 			m := nas.NewMessage()
 			if err := m.GmmMessageDecode(&contents); err != nil {
@@ -262,8 +262,8 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	// Copy SmContextList under lock for safe concurrent iteration.
 	ue.Mutex.Lock()
 
-	smContextSnapshot := make(map[uint8]*amf.SmContext, len(ue.Current().SmContextList))
-	for id, sc := range ue.Current().SmContextList {
+	smContextSnapshot := make(map[uint8]*amf.SmContext, len(ue.SmContextList))
+	for id, sc := range ue.SmContextList {
 		smContextSnapshot[id] = sc
 	}
 	ue.Mutex.Unlock()

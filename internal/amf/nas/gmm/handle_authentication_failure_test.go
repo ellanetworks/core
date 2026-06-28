@@ -165,13 +165,13 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiIncremented_SendsAuthR
 	}
 
 	ue.ForceState(amf.Authentication)
-	ue.Current().NgKsi = models.NgKsi{Ksi: 3}
+	ue.NgKsi = models.NgKsi{Ksi: 3}
 	ue.NasConn().AuthFailureCauseSynchFailureTimes = 2
 	ue.NasConn().AuthenticationCtx = &ausf.AuthResult{
 		Rand: hex.EncodeToString(make([]byte, 16)),
 		Autn: hex.EncodeToString(make([]byte, 16)),
 	}
-	ue.Current().ABBA = []uint8{0x00, 0x00}
+	ue.ABBA = []uint8{0x00, 0x00}
 
 	amfInstance := amf.New(nil, nil, nil)
 
@@ -182,8 +182,8 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiIncremented_SendsAuthR
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if ue.Current().NgKsi.Ksi != 4 {
-		t.Fatalf("expected NgKsi.Ksi to be 4, got: %d", ue.Current().NgKsi.Ksi)
+	if ue.NgKsi.Ksi != 4 {
+		t.Fatalf("expected NgKsi.Ksi to be 4, got: %d", ue.NgKsi.Ksi)
 	}
 
 	if ue.NasConn().AuthFailureCauseSynchFailureTimes != 0 {
@@ -219,12 +219,12 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiWrapsToZero(t *testing
 	}
 
 	ue.ForceState(amf.Authentication)
-	ue.Current().NgKsi = models.NgKsi{Ksi: 6}
+	ue.NgKsi = models.NgKsi{Ksi: 6}
 	ue.NasConn().AuthenticationCtx = &ausf.AuthResult{
 		Rand: hex.EncodeToString(make([]byte, 16)),
 		Autn: hex.EncodeToString(make([]byte, 16)),
 	}
-	ue.Current().ABBA = []uint8{0x00, 0x00}
+	ue.ABBA = []uint8{0x00, 0x00}
 
 	amfInstance := amf.New(nil, nil, nil)
 
@@ -235,8 +235,8 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiWrapsToZero(t *testing
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if ue.Current().NgKsi.Ksi != 0 {
-		t.Fatalf("expected NgKsi.Ksi to wrap to 0, got: %d", ue.Current().NgKsi.Ksi)
+	if ue.NgKsi.Ksi != 0 {
+		t.Fatalf("expected NgKsi.Ksi to wrap to 0, got: %d", ue.NgKsi.Ksi)
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
@@ -280,8 +280,8 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_Success(t *testing.T
 		t.Fatal("expected AuthenticationCtx to be updated from AUSF response")
 	}
 
-	if len(ue.Current().ABBA) != 2 || ue.Current().ABBA[0] != 0x00 || ue.Current().ABBA[1] != 0x00 {
-		t.Fatalf("expected ABBA to be {0x00, 0x00}, got: %v", ue.Current().ABBA)
+	if len(ue.ABBA) != 2 || ue.ABBA[0] != 0x00 || ue.ABBA[1] != 0x00 {
+		t.Fatalf("expected ABBA to be {0x00, 0x00}, got: %v", ue.ABBA)
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {

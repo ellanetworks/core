@@ -58,7 +58,7 @@ func TestInitialContextSetupResponse_SetupItemsForwardedToSmf(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
-	amfUe.Current().SmContextList[1] = &amf.SmContext{
+	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
@@ -99,7 +99,7 @@ func TestInitialContextSetupResponse_FailedItemsForwardedToSmf(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
-	amfUe.Current().SmContextList[1] = &amf.SmContext{
+	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
@@ -163,7 +163,7 @@ func TestInitialContextSetupResponse_InvalidPDUSessionID(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
-	amfUe.Current().SmContextList[1] = &amf.SmContext{
+	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
@@ -194,11 +194,11 @@ func TestInitialContextSetupResponse_MixedSetupAndFailedItems(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
-	amfUe.Current().SmContextList[1] = &amf.SmContext{
+	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
-	amfUe.Current().SmContextList[2] = &amf.SmContext{
+	amfUe.SmContextList[2] = &amf.SmContext{
 		Ref:    "ref-session-2",
 		Snssai: &models.Snssai{Sst: 1},
 	}

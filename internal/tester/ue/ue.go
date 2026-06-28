@@ -37,6 +37,10 @@ const (
 	MM5G_IDLE                 = 0x06
 )
 
+// ngKSINoKey is the ngKSI "no key is available" value (TS 24.501 §9.11.3.32):
+// the UE holds no current 5G NAS security context.
+const ngKSINoKey = 7
+
 type UESecurity struct {
 	Supi                 string
 	Msin                 string
@@ -166,7 +170,7 @@ func NewUE(opts *UEOpts) (*UE, error) {
 
 	ue.UeSecurity.IntegrityAlg = integAlg
 	ue.UeSecurity.CipheringAlg = cipherAlg
-	ue.UeSecurity.NgKsi.Ksi = 7
+	ue.UeSecurity.NgKsi.Ksi = ngKSINoKey
 	ue.UeSecurity.NgKsi.Tsc = models.ScType_NATIVE
 
 	ue.SetAuthSubscription(opts.K, opts.OpC, opts.Amf, opts.Sqn)
@@ -689,6 +693,16 @@ func (ue *UE) SendRegistrationRequest(ranUENGAPID int64, regType uint8) error {
 	})
 	if err != nil {
 		return fmt.Errorf("could not build Registration Request NAS PDU: %v", err)
+	}
+
+	// TS 24.501 §4.4.6: a UE with a current 5G NAS security context integrity
+	// protects the initial NAS message of a new connection, so the AMF can
+	// verify it and reuse the context; without one the message stays plain.
+	if ue.UeSecurity.NgKsi.Ksi != ngKSINoKey {
+		nasPDU, err = ue.EncodeNasPduWithSecurity(nasPDU, nas.SecurityHeaderTypeIntegrityProtected)
+		if err != nil {
+			return fmt.Errorf("could not integrity-protect Registration Request NAS PDU: %v", err)
+		}
 	}
 
 	err = ue.Gnb.SendInitialUEMessage(nasPDU, ranUENGAPID, ue.UeSecurity.Guti, ngapType.RRCEstablishmentCausePresentMoSignalling)

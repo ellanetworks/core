@@ -61,7 +61,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		conn.AuthFailureCauseSynchFailureTimes = 0
 
 		ue.Log.Warn("Select new NgKsi")
-		ue.Current().NgKsi.Ksi = nextNgKsi(ue.Current().NgKsi.Ksi)
+		ue.NgKsi.Ksi = nextNgKsi(ue.NgKsi.Ksi)
 
 		err := message.SendAuthenticationRequest(ctx, amfInstance, ranUe)
 		if err != nil {
@@ -100,7 +100,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		}
 
 		conn.AuthenticationCtx = response
-		ue.Current().ABBA = []uint8{0x00, 0x00}
+		ue.ABBA = []uint8{0x00, 0x00}
 
 		err = message.SendAuthenticationRequest(ctx, amfInstance, ranUe)
 		if err != nil {

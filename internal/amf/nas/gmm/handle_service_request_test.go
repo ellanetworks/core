@@ -91,7 +91,7 @@ func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T)
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.Current().SecurityContextAvailable = false
+	ue.SecurityContextAvailable = false
 
 	m := buildTestServiceRequest()
 
@@ -148,7 +148,7 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.Current().SecurityContextAvailable = true
+	ue.SecurityContextAvailable = true
 
 	m := buildTestServiceRequest()
 
@@ -180,7 +180,7 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 
 	// TS 24.501 §4.4.4.3: a service request failing the integrity check is
 	// rejected with cause #9 and the 5G NAS security context is kept unchanged.
-	if !ue.Current().SecurityContextAvailable {
+	if !ue.SecurityContextAvailable {
 		t.Fatalf("security context must be kept unchanged on a mac-failed service request (TS 24.501 §4.4.4.3)")
 	}
 }
@@ -212,21 +212,21 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.Current().SecurityContextAvailable = true
-	ue.Current().NgKsi.Ksi = 1
+	ue.SecurityContextAvailable = true
+	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.Current().KnasEnc = key
-	ue.Current().KnasInt = key
-	ue.Current().CipheringAlg = algo
-	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.KnasEnc = key
+	ue.KnasInt = key
+	ue.CipheringAlg = algo
+	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeSignalling)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeSignalling)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	ue.Current().CipheringAlg = 200
+	ue.CipheringAlg = 200
 
 	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 	if err != nil {
@@ -287,7 +287,7 @@ func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeData)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeData)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
@@ -345,7 +345,7 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.Current().SecurityContextAvailable = true
+	ue.SecurityContextAvailable = true
 
 	ue.NasConn().T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
@@ -417,16 +417,16 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 	ue.NasConn().T3565 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.Current().SecurityContextAvailable = true
-	ue.Current().NgKsi.Ksi = 1
+	ue.SecurityContextAvailable = true
+	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.Current().KnasEnc = key
-	ue.Current().KnasInt = key
-	ue.Current().CipheringAlg = algo
-	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.KnasEnc = key
+	ue.KnasInt = key
+	ue.CipheringAlg = algo
+	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeSignalling)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeSignalling)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
@@ -452,7 +452,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -498,16 +498,16 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 	ue.NasConn().T3565 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.Current().SecurityContextAvailable = true
-	ue.Current().NgKsi.Ksi = 1
+	ue.SecurityContextAvailable = true
+	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.Current().KnasEnc = key
-	ue.Current().KnasInt = key
-	ue.Current().CipheringAlg = algo
-	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.KnasEnc = key
+	ue.KnasInt = key
+	ue.CipheringAlg = algo
+	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeData)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeData)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
@@ -533,7 +533,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -587,16 +587,16 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe().Tai
-	ue.Current().SecurityContextAvailable = true
-	ue.Current().NgKsi.Ksi = 1
+	ue.SecurityContextAvailable = true
+	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.Current().KnasEnc = key
-	ue.Current().KnasInt = key
-	ue.Current().CipheringAlg = algo
-	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.KnasEnc = key
+	ue.KnasInt = key
+	ue.CipheringAlg = algo
+	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
@@ -622,7 +622,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -682,17 +682,17 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 	ue.ForceState(amf.Registered)
 	ue.Guti = mustTestGuti("001", "01", "cafe42", 0x00000001)
 	ue.Tai = ue.RanUe().Tai
-	ue.Current().SecurityContextAvailable = true
-	ue.Current().NgKsi.Ksi = 1
+	ue.SecurityContextAvailable = true
+	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.Current().KnasEnc = key
-	ue.Current().KnasInt = key
-	ue.Current().CipheringAlg = algo
-	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.KnasEnc = key
+	ue.KnasInt = key
+	ue.CipheringAlg = algo
+	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1}
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
@@ -748,19 +748,19 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe().Tai
-	ue.Current().SecurityContextAvailable = true
-	ue.Current().NgKsi.Ksi = 1
+	ue.SecurityContextAvailable = true
+	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.Current().KnasEnc = key
-	ue.Current().KnasInt = key
-	ue.Current().CipheringAlg = algo
-	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
-	ue.Current().Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.KnasEnc = key
+	ue.KnasInt = key
+	ue.CipheringAlg = algo
+	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai}
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
@@ -786,7 +786,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -815,7 +815,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -883,20 +883,20 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe().Tai
-	ue.Current().SecurityContextAvailable = true
-	ue.Current().NgKsi.Ksi = 1
+	ue.SecurityContextAvailable = true
+	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA1
-	ue.Current().KnasEnc = key
-	ue.Current().KnasInt = key
-	ue.Current().CipheringAlg = algo
-	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
-	ue.Current().Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.KnasEnc = key
+	ue.KnasInt = key
+	ue.CipheringAlg = algo
+	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
 	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}}
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
@@ -922,7 +922,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -955,7 +955,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1023,20 +1023,20 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe().Tai
-	ue.Current().SecurityContextAvailable = true
-	ue.Current().NgKsi.Ksi = 1
+	ue.SecurityContextAvailable = true
+	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.Current().KnasEnc = key
-	ue.Current().KnasInt = key
-	ue.Current().CipheringAlg = algo
-	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
-	ue.Current().Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.KnasEnc = key
+	ue.KnasInt = key
+	ue.CipheringAlg = algo
+	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
 	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}}
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
@@ -1062,7 +1062,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1103,7 +1103,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1171,21 +1171,21 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe().Tai
-	ue.Current().SecurityContextAvailable = true
-	ue.Current().NgKsi.Ksi = 1
+	ue.SecurityContextAvailable = true
+	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.Current().KnasEnc = key
-	ue.Current().KnasInt = key
-	ue.Current().CipheringAlg = algo
-	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
-	ue.Current().Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.KnasEnc = key
+	ue.KnasInt = key
+	ue.CipheringAlg = algo
+	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
 	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}}
 	ue.RanUe().UeContextRequest = true
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
@@ -1211,7 +1211,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1240,7 +1240,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1308,15 +1308,15 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe().Tai
-	ue.Current().SecurityContextAvailable = true
-	ue.Current().NgKsi.Ksi = 1
+	ue.SecurityContextAvailable = true
+	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.Current().KnasEnc = key
-	ue.Current().KnasInt = key
-	ue.Current().CipheringAlg = algo
-	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
-	ue.Current().Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.KnasEnc = key
+	ue.KnasInt = key
+	ue.CipheringAlg = algo
+	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
 
@@ -1332,7 +1332,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		BinaryDataN1Message: n1msg,
 	}
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
@@ -1358,7 +1358,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1387,7 +1387,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1420,7 +1420,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get()+2, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get()+2, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1483,22 +1483,22 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.Current().SecurityContextAvailable = true
-	ue.Current().NgKsi.Ksi = 1
+	ue.SecurityContextAvailable = true
+	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.Current().KnasEnc = key
-	ue.Current().KnasInt = key
-	ue.Current().CipheringAlg = algo
-	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.KnasEnc = key
+	ue.KnasInt = key
+	ue.CipheringAlg = algo
+	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 
 	// Inject an out-of-range PDU session ID (255) directly into SmContextList,
 	// bypassing CreateSmContext validation. This simulates a malicious UE that
 	// somehow stored an invalid session ID (e.g., via a hypothetical future bug).
 	// The read-side bounds checks in handleServiceRequest must still prevent a panic.
-	ue.Current().SmContextList[255] = &amf.SmContext{Ref: "malicious-ref", Snssai: &snssai}
+	ue.SmContextList[255] = &amf.SmContext{Ref: "malicious-ref", Snssai: &snssai}
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeData)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeData)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
@@ -1541,20 +1541,20 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.Current().SecurityContextAvailable = true
-	ue.Current().NgKsi.Ksi = 1
+	ue.SecurityContextAvailable = true
+	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.Current().KnasEnc = key
-	ue.Current().KnasInt = key
-	ue.Current().CipheringAlg = algo
-	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.KnasEnc = key
+	ue.KnasInt = key
+	ue.CipheringAlg = algo
+	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 
 	// Inject an out-of-range PDU session ID (200) directly into SmContextList,
 	// bypassing CreateSmContext validation to test the read-side safety net.
-	ue.Current().SmContextList[200] = &amf.SmContext{Ref: "malicious-ref", Snssai: &snssai}
+	ue.SmContextList[200] = &amf.SmContext{Ref: "malicious-ref", Snssai: &snssai}
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeData)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeData)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}

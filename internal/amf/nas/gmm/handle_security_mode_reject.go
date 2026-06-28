@@ -32,7 +32,7 @@ func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *nasMe
 
 	ue.Log.Error("UE rejected the security mode command, abort the ongoing procedure", logger.Cause(nasMessage.Cause5GMMToString(msg.GetCauseValue())), logger.SUPI(ue.Supi.String()))
 
-	ue.Current().SecurityContextAvailable = false
+	ue.SecurityContextAvailable = false
 
 	ranUe := ue.RanUe()
 	if ranUe == nil {

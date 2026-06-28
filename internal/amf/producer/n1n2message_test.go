@@ -303,7 +303,7 @@ func TestTransferN1N2Message_InitialContextAlreadySent(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000003", func(u *amf.UeContext) {
-		u.Current().Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
+		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
 	})
 
 	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
@@ -332,7 +332,7 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 	amfInstance := amf.New(fakeDB, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000004", func(u *amf.UeContext) {
-		u.Current().Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
+		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
 	})
 
 	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
@@ -362,7 +362,7 @@ func TestModifyN1N2Message_IdleRegisteredUE_ReturnsNotReachable(t *testing.T) {
 	ue := addUE(t, amfInstance, "001010000000014", func(u *amf.UeContext) {
 		u.ForceState(amf.Registered)
 		u.Guti = testGUTI(t)
-		u.Current().RegistrationArea = []models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}}
+		u.RegistrationArea = []models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}}
 	})
 
 	radio := &amf.Radio{
@@ -477,7 +477,7 @@ func TestN2MessageTransferOrPage_ConnectedUE_InitialCtxSent(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000009", func(u *amf.UeContext) {
-		u.Current().Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
+		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
 	})
 
 	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}

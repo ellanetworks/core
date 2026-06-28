@@ -67,7 +67,7 @@ func TransferN1N2Message(ctx context.Context, amfInstance *amf.AMF, supi etsi.SU
 
 		send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
 
-		err := ranUe.SendPDUSessionResourceSetupRequest(ctx, ue.Current().Ambr.Uplink, ue.Current().Ambr.Downlink, nil, list)
+		err := ranUe.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
 		if err != nil {
 			return fmt.Errorf("send pdu session resource setup request error: %v", err)
 		}
@@ -88,14 +88,14 @@ func TransferN1N2Message(ctx context.Context, amfInstance *amf.AMF, supi etsi.SU
 
 	err = ranUe.SendInitialContextSetupRequest(
 		ctx,
-		ue.Current().Ambr.Uplink,
-		ue.Current().Ambr.Downlink,
-		ue.Current().AllowedNssai,
-		ue.Current().Kgnb,
+		ue.Ambr.Uplink,
+		ue.Ambr.Downlink,
+		ue.AllowedNssai,
+		ue.Kgnb,
 		ue.PlmnID,
-		ue.Current().UeRadioCapability,
-		ue.Current().UeRadioCapabilityForPaging,
-		ue.Current().UESecurityCapability,
+		ue.UeRadioCapability,
+		ue.UeRadioCapabilityForPaging,
+		ue.UESecurityCapability,
 		nil,
 		&list,
 		operatorInfo.Guami,
@@ -142,8 +142,8 @@ func storeN1N2AndPage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConte
 
 	pkg, err := send.BuildPaging(
 		ue.Guti,
-		ue.Current().RegistrationArea,
-		ue.Current().UeRadioCapabilityForPaging,
+		ue.RegistrationArea,
+		ue.UeRadioCapabilityForPaging,
 		nil,
 	)
 	if err != nil {
@@ -334,7 +334,7 @@ func N2MessageTransferOrPage(ctx context.Context, amfInstance *amf.AMF, supi ets
 			list := ngapType.PDUSessionResourceSetupListSUReq{}
 			send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 
-			err := ranUe.SendPDUSessionResourceSetupRequest(ctx, ue.Current().Ambr.Uplink, ue.Current().Ambr.Downlink, nil, list)
+			err := ranUe.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
 			if err != nil {
 				return fmt.Errorf("send pdu session resource setup request error: %v", err)
 			}
@@ -354,14 +354,14 @@ func N2MessageTransferOrPage(ctx context.Context, amfInstance *amf.AMF, supi ets
 
 		err = ranUe.SendInitialContextSetupRequest(
 			ctx,
-			ue.Current().Ambr.Uplink,
-			ue.Current().Ambr.Downlink,
-			ue.Current().AllowedNssai,
-			ue.Current().Kgnb,
+			ue.Ambr.Uplink,
+			ue.Ambr.Downlink,
+			ue.AllowedNssai,
+			ue.Kgnb,
 			ue.PlmnID,
-			ue.Current().UeRadioCapability,
-			ue.Current().UeRadioCapabilityForPaging,
-			ue.Current().UESecurityCapability,
+			ue.UeRadioCapability,
+			ue.UeRadioCapabilityForPaging,
+			ue.UESecurityCapability,
 			nil,
 			&list,
 			operatorInfo.Guami,

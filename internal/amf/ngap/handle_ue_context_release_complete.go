@@ -78,8 +78,8 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 				id  uint8
 			}
 
-			smContextRefs := make([]smCtxRef, 0, len(amfUe.Current().SmContextList))
-			for pduSessionID, smContext := range amfUe.Current().SmContextList {
+			smContextRefs := make([]smCtxRef, 0, len(amfUe.SmContextList))
+			for pduSessionID, smContext := range amfUe.SmContextList {
 				smContextRefs = append(smContextRefs, smCtxRef{ref: smContext.Ref, id: pduSessionID})
 			}
 
@@ -115,7 +115,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 		}
 
 		// No valid security context exists for this UE, so delete the AMF UE context
-		if !amfUe.Current().SecurityContextAvailable {
+		if !amfUe.SecurityContextAvailable {
 			logger.WithTrace(ctx, ranUe.Log).Info("No valid security context for UE, deleting AMF UE context", logger.SUPI(amfUe.Supi.String()))
 			amfInstance.DeregisterAndRemoveUeContext(ctx, amfUe)
 		}

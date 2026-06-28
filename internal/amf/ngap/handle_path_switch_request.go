@@ -141,9 +141,9 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			ctx,
 			ranUe.AmfUeNgapID,
 			ranUe.RanUeNgapID,
-			amfUe.Current().UESecurityCapability,
-			amfUe.Current().NCC,
-			amfUe.Current().NH,
+			amfUe.UESecurityCapability,
+			amfUe.NCC,
+			amfUe.NH,
 			pduSessionResourceSwitchedList,
 			pduSessionResourceReleasedListPSAck,
 			snssaiList,
@@ -197,7 +197,7 @@ func verifyUESecurityCapabilitiesOnPathSwitch(
 	case amf.VerifyMismatch:
 		logger.WithTrace(ctx, ranUe.Log).Warn(
 			"UE 5G security capabilities reported by target gNB differ from locally stored values; ignoring received values (TS 33.501 §6.7.3.1)",
-			zap.Binary("stored", amfUe.Current().UESecurityCapability.Buffer),
+			zap.Binary("stored", amfUe.UESecurityCapability.Buffer),
 			zap.Binary("received", reported.Buffer),
 		)
 	}

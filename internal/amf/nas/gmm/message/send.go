@@ -229,7 +229,7 @@ func SendRegistrationReject(ctx context.Context, ue *amf.RanUe, cause5GMM uint8)
 	)
 	defer span.End()
 
-	nasMsg, err := BuildRegistrationReject(int(ue.UeContext().Current().T3502Value.Seconds()), cause5GMM)
+	nasMsg, err := BuildRegistrationReject(int(ue.UeContext().T3502Value.Seconds()), cause5GMM)
 	if err != nil {
 		return fmt.Errorf("error building registration reject: %s", err.Error())
 	}
@@ -355,14 +355,14 @@ func SendRegistrationAccept(
 
 		err = ranUe.SendInitialContextSetupRequest(
 			ctx,
-			ue.Current().Ambr.Uplink,
-			ue.Current().Ambr.Downlink,
-			ue.Current().AllowedNssai,
-			ue.Current().Kgnb,
+			ue.Ambr.Uplink,
+			ue.Ambr.Downlink,
+			ue.AllowedNssai,
+			ue.Kgnb,
 			ue.PlmnID,
-			ue.Current().UeRadioCapability,
-			ue.Current().UeRadioCapabilityForPaging,
-			ue.Current().UESecurityCapability,
+			ue.UeRadioCapability,
+			ue.UeRadioCapabilityForPaging,
+			ue.UESecurityCapability,
 			nasMsg,
 			pduSessionResourceSetupList,
 			supportedGUAMI,
@@ -394,14 +394,14 @@ func SendRegistrationAccept(
 				if retryRanUe.UeContextRequest && retryRanUe.ICS != amf.ICSCompleted {
 					err = retryRanUe.SendInitialContextSetupRequest(
 						context.Background(),
-						ue.Current().Ambr.Uplink,
-						ue.Current().Ambr.Downlink,
-						ue.Current().AllowedNssai,
-						ue.Current().Kgnb,
+						ue.Ambr.Uplink,
+						ue.Ambr.Downlink,
+						ue.AllowedNssai,
+						ue.Kgnb,
 						ue.PlmnID,
-						ue.Current().UeRadioCapability,
-						ue.Current().UeRadioCapabilityForPaging,
-						ue.Current().UESecurityCapability,
+						ue.UeRadioCapability,
+						ue.UeRadioCapabilityForPaging,
+						ue.UESecurityCapability,
 						nasMsg,
 						pduSessionResourceSetupList,
 						supportedGUAMI,

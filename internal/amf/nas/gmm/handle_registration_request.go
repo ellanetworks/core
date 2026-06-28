@@ -56,7 +56,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	}
 
 	if !integrityVerified {
-		ue.Current().SecurityContextAvailable = false
+		ue.SecurityContextAvailable = false
 	}
 
 	// Supersession of concurrent AMF-initiated procedures per TS 24.501.
@@ -91,7 +91,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	if registrationRequest.NASMessageContainer != nil && integrityVerified {
 		contents := registrationRequest.GetNASMessageContainerContents()
 
-		err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
+		err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
 		if err != nil {
 			metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultReject)
 
@@ -178,15 +178,15 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	// NgKsi: TS 24.501 9.11.3.32
 	switch registrationRequest.GetTSC() {
 	case nasMessage.TypeOfSecurityContextFlagNative:
-		ue.Current().NgKsi.Tsc = models.ScTypeNative
+		ue.NgKsi.Tsc = models.ScTypeNative
 	case nasMessage.TypeOfSecurityContextFlagMapped:
-		ue.Current().NgKsi.Tsc = models.ScTypeMapped
+		ue.NgKsi.Tsc = models.ScTypeMapped
 	}
 
-	ue.Current().NgKsi.Ksi = nextNgKsi(int32(registrationRequest.NgksiAndRegistrationType5GS.GetNasKeySetIdentifiler()))
-	if ue.Current().NgKsi.Tsc != models.ScTypeNative || ue.Current().NgKsi.Ksi == 7 {
-		ue.Current().NgKsi.Tsc = models.ScTypeNative
-		ue.Current().NgKsi.Ksi = 0
+	ue.NgKsi.Ksi = nextNgKsi(int32(registrationRequest.NgksiAndRegistrationType5GS.GetNasKeySetIdentifiler()))
+	if ue.NgKsi.Tsc != models.ScTypeNative || ue.NgKsi.Ksi == 7 {
+		ue.NgKsi.Tsc = models.ScTypeNative
+		ue.NgKsi.Ksi = 0
 	}
 
 	// Copy UserLocation from ranUe
@@ -263,7 +263,7 @@ func acceptRegistrationUESecurityCapability(ue *amf.UeContext, received *nasType
 		ue.Log.Warn(
 			"UE security capabilities in Mobility/Periodic Registration differ from stored values; ignoring received values (TS 33.501 §6.7.3.1)",
 			zap.String("registrationType", getRegistrationType5GSName(conn.RegistrationType5GS)),
-			zap.Binary("stored", ue.Current().UESecurityCapability.Buffer),
+			zap.Binary("stored", ue.UESecurityCapability.Buffer),
 			zap.Binary("received", received.Buffer),
 		)
 	}

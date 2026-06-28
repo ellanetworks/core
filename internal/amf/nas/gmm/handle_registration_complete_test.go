@@ -39,18 +39,18 @@ func setupRegistrationCompleteUE(t *testing.T) (*amf.UeContext, *FakeNGAPSender)
 
 	ue.Suci = "testsuci"
 	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
-	ue.Current().SecurityContextAvailable = true
-	ue.Current().NgKsi.Ksi = 1
+	ue.SecurityContextAvailable = true
+	ue.NgKsi.Ksi = 1
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.Current().KnasEnc = key
-	ue.Current().KnasInt = key
-	ue.Current().CipheringAlg = algo
-	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.KnasEnc = key
+	ue.KnasInt = key
+	ue.CipheringAlg = algo
+	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 
-	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.Current().ULCount.Get())
+	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount.Get())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestHandleRegistrationComplete_SendsConfigurationUpdateCommand(t *testing.T
 	payload := make([]byte, len(nasPdu)-7)
 	copy(payload, nasPdu[7:])
 
-	err = security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, 0, security.Bearer3GPP, security.DirectionDownlink, payload)
+	err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, 0, security.Bearer3GPP, security.DirectionDownlink, payload)
 	if err != nil {
 		t.Fatalf("NAS decrypt failed: %v", err)
 	}
@@ -173,7 +173,7 @@ func TestHandleRegistrationComplete_ReleasedWhenNoFORPending_NoUDSPending_and_No
 	ue, ngapSender := setupRegistrationCompleteUE(t)
 	ue.NasConn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
 	ue.NasConn().RegistrationRequest.UplinkDataStatus = nil
-	ue.Current().SmContextList = make(map[uint8]*amf.SmContext)
+	ue.SmContextList = make(map[uint8]*amf.SmContext)
 
 	amfInstance := newTestAMF()
 
@@ -200,7 +200,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenFORPending(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
 	ue.NasConn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestPending)
 	ue.NasConn().RegistrationRequest.UplinkDataStatus = nil
-	ue.Current().SmContextList = make(map[uint8]*amf.SmContext)
+	ue.SmContextList = make(map[uint8]*amf.SmContext)
 
 	amfInstance := newTestAMF()
 
@@ -227,7 +227,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenUDSPending(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
 	ue.NasConn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
 	ue.NasConn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{}
-	ue.Current().SmContextList = make(map[uint8]*amf.SmContext)
+	ue.SmContextList = make(map[uint8]*amf.SmContext)
 
 	amfInstance := newTestAMF()
 

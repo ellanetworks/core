@@ -198,11 +198,11 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 	if ulNasTransport.SNSSAI != nil {
 		snssai = util.SnssaiToModels(ulNasTransport.SNSSAI)
 	} else {
-		if len(ue.Current().AllowedNssai) == 0 {
+		if len(ue.AllowedNssai) == 0 {
 			return fmt.Errorf("allowed nssai is empty in UE context")
 		}
 
-		snssai = &ue.Current().AllowedNssai[0]
+		snssai = &ue.AllowedNssai[0]
 	}
 
 	if ulNasTransport.DNN != nil && ulNasTransport.DNN.GetLen() > 0 {

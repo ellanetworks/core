@@ -72,7 +72,7 @@ func (fdb *failingSubscriberDB) NodeID() int { return 0 }
 // decryptAndDecodeNasPdu decrypts a ciphered NAS PDU using the UE's security context
 // and decodes it, returning the NAS message. It verifies the security header is
 // IntegrityProtectedAndCiphered. The dlCountOffset parameter specifies the offset
-// from ue.Current().ULCount.Get() to use as the DL count (0 for the first message, 1 for
+// from ue.ULCount.Get() to use as the DL count (0 for the first message, 1 for
 // the second, etc.).
 func decryptAndDecodeNasPdu(t *testing.T, ue *amf.UeContext, nasPdu []byte, dlCountOffset uint32) *nas.Message {
 	t.Helper()
@@ -88,7 +88,7 @@ func decryptAndDecodeNasPdu(t *testing.T, ue *amf.UeContext, nasPdu []byte, dlCo
 	copy(payload, nasPdu)
 	payload = payload[7:]
 
-	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get()+dlCountOffset, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get()+dlCountOffset, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -128,16 +128,16 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *FakeNGAPSender, *F
 	ue.Supi = supi
 	ue.Pei = "imei-490154203237518"
 	ue.Tai = ue.RanUe().Tai
-	ue.Current().SecurityContextAvailable = true
-	ue.Current().NgKsi.Ksi = 1
+	ue.SecurityContextAvailable = true
+	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.Current().KnasEnc = key
-	ue.Current().KnasInt = key
-	ue.Current().CipheringAlg = algo
-	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.KnasEnc = key
+	ue.KnasInt = key
+	ue.CipheringAlg = algo
+	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 
-	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.Current().ULCount.Get())
+	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount.Get())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -152,7 +152,7 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *FakeNGAPSender, *F
 func TestMobilityReg_DerivateAnKeyError(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.Current().Kamf = "not-valid-hex"
+	ue.Kamf = "not-valid-hex"
 
 	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err == nil {
@@ -232,8 +232,8 @@ func TestMobilityReg_NilCapability5GMM_Periodic_Continues(t *testing.T) {
 func TestMobilityReg_UpdateType5GS_ClearsRadioCapability(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.Current().UeRadioCapability = "some-capability"
-	ue.Current().UeRadioCapabilityForPaging = &models.UERadioCapabilityForPaging{}
+	ue.UeRadioCapability = "some-capability"
+	ue.UeRadioCapabilityForPaging = &models.UERadioCapabilityForPaging{}
 
 	updateType := nasType.NewUpdateType5GS(nasMessage.RegistrationRequestUpdateType5GSType)
 	updateType.SetNGRanRcu(nasMessage.NGRanRadioCapabilityUpdateNeeded)
@@ -244,11 +244,11 @@ func TestMobilityReg_UpdateType5GS_ClearsRadioCapability(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if ue.Current().UeRadioCapability != "" {
-		t.Fatalf("expected UeRadioCapability to be cleared, got %q", ue.Current().UeRadioCapability)
+	if ue.UeRadioCapability != "" {
+		t.Fatalf("expected UeRadioCapability to be cleared, got %q", ue.UeRadioCapability)
 	}
 
-	if ue.Current().UeRadioCapabilityForPaging != nil {
+	if ue.UeRadioCapabilityForPaging != nil {
 		t.Fatalf("expected UeRadioCapabilityForPaging to be nil")
 	}
 
@@ -296,8 +296,8 @@ func TestMobilityReg_RequestedDRXParameters(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if ue.Current().UESpecificDRX != 0x03 {
-		t.Fatalf("expected UESpecificDRX to be 0x03, got 0x%02x", ue.Current().UESpecificDRX)
+	if ue.UESpecificDRX != 0x03 {
+		t.Fatalf("expected UESpecificDRX to be 0x03, got 0x%02x", ue.UESpecificDRX)
 	}
 
 	// Should send DownlinkNasTransport with RegistrationAccept
@@ -980,16 +980,16 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 	ue.Supi = supi
 	ue.Pei = "imei-490154203237518"
 	ue.Tai = ue.RanUe().Tai
-	ue.Current().SecurityContextAvailable = true
-	ue.Current().NgKsi.Ksi = 1
+	ue.SecurityContextAvailable = true
+	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.Current().KnasEnc = key
-	ue.Current().KnasInt = key
-	ue.Current().CipheringAlg = algo
-	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.KnasEnc = key
+	ue.KnasInt = key
+	ue.CipheringAlg = algo
+	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 
-	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.Current().ULCount.Get())
+	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount.Get())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -1004,16 +1004,16 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 	}
 
 	// Verify AllowedNssai was populated with both slices
-	if len(ue.Current().AllowedNssai) != 2 {
-		t.Fatalf("expected 2 allowed NSSAIs, got %d", len(ue.Current().AllowedNssai))
+	if len(ue.AllowedNssai) != 2 {
+		t.Fatalf("expected 2 allowed NSSAIs, got %d", len(ue.AllowedNssai))
 	}
 
-	if ue.Current().AllowedNssai[0].Sst != 1 || ue.Current().AllowedNssai[0].Sd != "010203" {
-		t.Fatalf("expected first slice SST=1 SD=010203, got SST=%d SD=%s", ue.Current().AllowedNssai[0].Sst, ue.Current().AllowedNssai[0].Sd)
+	if ue.AllowedNssai[0].Sst != 1 || ue.AllowedNssai[0].Sd != "010203" {
+		t.Fatalf("expected first slice SST=1 SD=010203, got SST=%d SD=%s", ue.AllowedNssai[0].Sst, ue.AllowedNssai[0].Sd)
 	}
 
-	if ue.Current().AllowedNssai[1].Sst != 2 || ue.Current().AllowedNssai[1].Sd != "aabbcc" {
-		t.Fatalf("expected second slice SST=2 SD=aabbcc, got SST=%d SD=%s", ue.Current().AllowedNssai[1].Sst, ue.Current().AllowedNssai[1].Sd)
+	if ue.AllowedNssai[1].Sst != 2 || ue.AllowedNssai[1].Sd != "aabbcc" {
+		t.Fatalf("expected second slice SST=2 SD=aabbcc, got SST=%d SD=%s", ue.AllowedNssai[1].Sst, ue.AllowedNssai[1].Sd)
 	}
 
 	// Verify the RegistrationAccept was sent and contains multi-NSSAI

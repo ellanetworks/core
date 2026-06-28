@@ -68,11 +68,11 @@ type securityStateSnapshot struct {
 
 func snapshotSecurityState(ue *UeContext) securityStateSnapshot {
 	return securityStateSnapshot{
-		SecurityContextAvailable: ue.Current().SecurityContextAvailable,
-		CipheringAlg:             ue.Current().CipheringAlg,
-		IntegrityAlg:             ue.Current().IntegrityAlg,
-		UESecurityCapability:     ue.Current().UESecurityCapability,
-		KnasInt:                  ue.Current().KnasInt,
-		KnasEnc:                  ue.Current().KnasEnc,
+		SecurityContextAvailable: ue.SecurityContextAvailable,
+		CipheringAlg:             ue.CipheringAlg,
+		IntegrityAlg:             ue.IntegrityAlg,
+		UESecurityCapability:     ue.UESecurityCapability,
+		KnasInt:                  ue.KnasInt,
+		KnasEnc:                  ue.KnasEnc,
 	}
 }

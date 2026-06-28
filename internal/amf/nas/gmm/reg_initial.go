@@ -75,8 +75,8 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return fmt.Errorf("registration Reject [No allowed S-NSSAI in subscription]")
 	}
 
-	ue.Current().AllowedNssai = subscriberProfile.AllowedNssai
-	ue.Current().Ambr = subscriberProfile.Ambr
+	ue.AllowedNssai = subscriberProfile.AllowedNssai
+	ue.Ambr = subscriberProfile.Ambr
 
 	if conn.RegistrationRequest.MICOIndication != nil {
 		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", conn.RegistrationRequest.GetRAAI()))
@@ -89,7 +89,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 			drx = nasMessage.DRXValueNotSpecified
 		}
 
-		ue.Current().UESpecificDRX = drx
+		ue.UESpecificDRX = drx
 	}
 
 	ue.AllocateRegistrationArea(operatorInfo.Tais)
@@ -109,8 +109,8 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return fmt.Errorf("error adding AMF UE to UE pool: %v", err)
 	}
 
-	ue.Current().T3502Value = amfInstance.T3502Value
-	ue.Current().T3512Value = amfInstance.T3512Value
+	ue.T3502Value = amfInstance.T3502Value
+	ue.T3512Value = amfInstance.T3512Value
 
 	err = amfInstance.ReAllocateGuti(ctx, ue, operatorInfo.Guami)
 	if err != nil {

@@ -73,7 +73,7 @@ func TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim(t *testing
 	victim.Log = zap.NewNop()
 	victim.Supi = supi
 	victim.Guti = guti
-	victim.Current().SecurityContextAvailable = true
+	victim.SecurityContextAvailable = true
 	victim.ForceState(amf.Registered)
 
 	if err := amfInstance.AddUeContextToPool(victim); err != nil {
@@ -89,7 +89,7 @@ func TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim(t *testing
 		t.Fatal("a plain registration must be routed to a fresh context, not bound to the registered victim (TS 24.501 §4.4.4.3)")
 	}
 
-	if !victim.Current().SecurityContextAvailable {
+	if !victim.SecurityContextAvailable {
 		t.Fatal("victim security context must remain intact")
 	}
 

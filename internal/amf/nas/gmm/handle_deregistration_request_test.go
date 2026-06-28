@@ -188,7 +188,7 @@ func TestHandleDeregistrationRequest_MacFailed_RejectsForgery(t *testing.T) {
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.Current().SecurityContextAvailable = true
+	ue.SecurityContextAvailable = true
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
@@ -213,7 +213,7 @@ func TestHandleDeregistrationRequest_MacFailed_RejectsForgery(t *testing.T) {
 		t.Fatalf("UE must remain Registered after rejecting forgery, got %s", ue.GetState())
 	}
 
-	if !ue.Current().SecurityContextAvailable {
+	if !ue.SecurityContextAvailable {
 		t.Error("handler must not tear down SecurityContextAvailable on a forged request")
 	}
 }

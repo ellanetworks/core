@@ -40,8 +40,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 	if conn.RegistrationRequest.UpdateType5GS != nil {
 		if conn.RegistrationRequest.GetNGRanRcu() == nasMessage.NGRanRadioCapabilityUpdateNeeded {
-			ue.Current().UeRadioCapability = ""
-			ue.Current().UeRadioCapabilityForPaging = nil
+			ue.UeRadioCapability = ""
+			ue.UeRadioCapabilityForPaging = nil
 		}
 	}
 
@@ -66,7 +66,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return fmt.Errorf("registration Reject [No allowed S-NSSAI in subscription]")
 	}
 
-	ue.Current().AllowedNssai = subscriberProfile.AllowedNssai
+	ue.AllowedNssai = subscriberProfile.AllowedNssai
 
 	// The 5GMM capability IE is optional (TS 24.501 Table 8.2.6.1.1) and is
 	// re-sent only when it changes (§5.5.1.3.2). Its absence is not an error:
@@ -84,7 +84,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 			drx = nasMessage.DRXValueNotSpecified
 		}
 
-		ue.Current().UESpecificDRX = drx
+		ue.UESpecificDRX = drx
 	}
 
 	if len(ue.Pei) == 0 {
@@ -100,7 +100,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return nil
 	}
 
-	ue.Current().Ambr = subscriberProfile.Ambr
+	ue.Ambr = subscriberProfile.Ambr
 
 	var (
 		reactivationResult        *[16]bool
@@ -185,8 +185,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 					err = ranUe.SendPDUSessionResourceSetupRequest(
 						ctx,
-						ue.Current().Ambr.Uplink,
-						ue.Current().Ambr.Downlink,
+						ue.Ambr.Uplink,
+						ue.Ambr.Downlink,
 						nasPdu,
 						suList,
 					)
@@ -262,8 +262,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 			err := ranUe.SendPDUSessionResourceSetupRequest(
 				ctx,
-				ue.Current().Ambr.Uplink,
-				ue.Current().Ambr.Downlink,
+				ue.Ambr.Uplink,
+				ue.Ambr.Downlink,
 				nasPdu,
 				suList,
 			)

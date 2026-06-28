@@ -201,7 +201,7 @@ func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
 	// guarded by T3522; the accept — or T3522 exhaustion — then removes the
 	// context. An idle or unsecured UE cannot be signalled, so it is removed
 	// locally.
-	if ue.RanUe() != nil && ue.Current().SecurityContextAvailable {
+	if ue.RanUe() != nil && ue.SecurityContextAvailable {
 		if err := amf.sendNetworkInitiatedDeregistration(ctx, ue); err != nil {
 			logger.AmfLog.Warn("failed to send network-initiated deregistration; removing UE context locally",
 				zap.Error(err), logger.SUPI(supi.String()))
@@ -572,7 +572,7 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) e
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	taiList := ue.Current().RegistrationArea
+	taiList := ue.RegistrationArea
 
 	for _, ran := range amf.Radios {
 		for _, item := range ran.SupportedTAIs {

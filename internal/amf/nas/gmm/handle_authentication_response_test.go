@@ -359,15 +359,15 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 		Rand:      "DEADBEEF",
 		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
 	}
-	ue.Current().UESecurityCapability = &nasType.UESecurityCapability{
+	ue.UESecurityCapability = &nasType.UESecurityCapability{
 		Iei:    nasMessage.RegistrationRequestUESecurityCapabilityType,
 		Len:    2,
 		Buffer: []uint8{0x00, 0x00},
 	}
-	ue.Current().UESecurityCapability.SetEA0_5G(1)
-	ue.Current().UESecurityCapability.SetEA1_128_5G(1)
-	ue.Current().UESecurityCapability.SetIA0_5G(1)
-	ue.Current().UESecurityCapability.SetIA1_128_5G(1)
+	ue.UESecurityCapability.SetEA0_5G(1)
+	ue.UESecurityCapability.SetEA1_128_5G(1)
+	ue.UESecurityCapability.SetIA0_5G(1)
+	ue.UESecurityCapability.SetIA1_128_5G(1)
 
 	err = handleAuthenticationResponse(t.Context(), amfInstance, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 	if err != nil {

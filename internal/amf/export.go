@@ -256,7 +256,7 @@ func (amf *AMF) CountUEPDUSessions(supi etsi.SUPI) int {
 	}
 
 	ue.Mutex.Lock()
-	n := len(ue.Current().SmContextList)
+	n := len(ue.SmContextList)
 	ue.Mutex.Unlock()
 
 	return n
@@ -273,8 +273,8 @@ func (amf *AMF) GetUEPDUSessions(supi etsi.SUPI) ([]PDUSessionExport, bool) {
 
 	ue.Mutex.Lock()
 
-	smCopies := make([]smContextCopy, 0, len(ue.Current().SmContextList))
-	for _, sc := range ue.Current().SmContextList {
+	smCopies := make([]smContextCopy, 0, len(ue.SmContextList))
+	for _, sc := range ue.SmContextList {
 		smCopies = append(smCopies, smContextCopy{
 			ref:      sc.Ref,
 			snssai:   copyPtr(sc.Snssai),
@@ -350,21 +350,21 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 		State: UEStateExport{
 			GMMState:                 string(ue.state),
 			OngoingProcedures:        ongoing,
-			SecurityContextAvailable: ue.Current().SecurityContextAvailable,
+			SecurityContextAvailable: ue.SecurityContextAvailable,
 		},
 		Security: UESecurityExport{
 			CipheringAlgorithm: ue.cipheringAlgName(),
 			IntegrityAlgorithm: ue.integrityAlgName(),
-			NgKsi:              ue.Current().NgKsi,
+			NgKsi:              ue.NgKsi,
 		},
 		Location: UELocationExport{
 			Current:          copyUserLocation(ue.Location),
 			Tai:              ue.Tai,
-			RegistrationArea: append([]models.Tai(nil), ue.Current().RegistrationArea...),
+			RegistrationArea: append([]models.Tai(nil), ue.RegistrationArea...),
 		},
 		Subscription: UESubscriptionExport{
-			AllowedNssai: append([]models.Snssai(nil), ue.Current().AllowedNssai...),
-			Ambr:         copyPtr(ue.Current().Ambr),
+			AllowedNssai: append([]models.Snssai(nil), ue.AllowedNssai...),
+			Ambr:         copyPtr(ue.Ambr),
 		},
 		Registration: UERegistrationExport{
 			Type:                 regType,
@@ -373,16 +373,16 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 			AuthFailureSyncTimes: authSyncTimes,
 		},
 		Timers: UETimersExport{
-			T3512ValueSeconds:   int64(ue.Current().T3512Value / time.Second),
-			T3502ValueSeconds:   int64(ue.Current().T3502Value / time.Second),
+			T3512ValueSeconds:   int64(ue.T3512Value / time.Second),
+			T3502ValueSeconds:   int64(ue.T3502Value / time.Second),
 			T3513Paging:         timerStatus(t3513),
 			T3565Notification:   timerStatus(t3565),
 			T3560Auth:           timerStatus(t3560),
 			T3550Registration:   timerStatus(t3550),
 			T3555ConfigUpdate:   timerStatus(t3555),
 			T3522Deregistration: timerStatus(t3522),
-			MobileReachable:     timerStatus(ue.Current().MobileReachableTimer),
-			ImplicitDereg:       timerStatus(ue.Current().ImplicitDeregistrationTimer),
+			MobileReachable:     timerStatus(ue.MobileReachableTimer),
+			ImplicitDereg:       timerStatus(ue.ImplicitDeregistrationTimer),
 		},
 		LastActivity: UELastActivityExport{
 			Timestamp: ue.LastSeenAt,
@@ -391,8 +391,8 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 	}
 
 	// Copy SmContextList refs while holding the UE lock.
-	smCopies := make([]smContextCopy, 0, len(ue.Current().SmContextList))
-	for _, sc := range ue.Current().SmContextList {
+	smCopies := make([]smContextCopy, 0, len(ue.SmContextList))
+	for _, sc := range ue.SmContextList {
 		smCopies = append(smCopies, smContextCopy{
 			ref:      sc.Ref,
 			snssai:   copyPtr(sc.Snssai),

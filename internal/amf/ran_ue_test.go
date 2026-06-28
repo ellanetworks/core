@@ -189,7 +189,7 @@ func TestRemoveAllUeInRan_MidContextSetup_Deregisters(t *testing.T) {
 func TestRemoveAllUeInRan_Registered_StaysRegistered(t *testing.T) {
 	radio := newTestRadioForRanUe()
 	ue, _ := newBoundUeContext(t, radio)
-	ue.Current().T3512Value = 1 * time.Second
+	ue.T3512Value = 1 * time.Second
 	ue.ForceState(amf.Registered)
 
 	radio.RemoveAllUeInRan(context.Background())

@@ -71,8 +71,8 @@ func TestAllocateRegistrationArea(t *testing.T) {
 			ue.Tai = tc.ueTai
 			ue.AllocateRegistrationArea(tc.supportedTais)
 
-			if !reflect.DeepEqual(tc.expected, ue.Current().RegistrationArea) && len(tc.expected) != 0 && len(ue.Current().RegistrationArea) != 0 {
-				t.Fatalf("expected: %v, got: %v", tc.expected, ue.Current().RegistrationArea)
+			if !reflect.DeepEqual(tc.expected, ue.RegistrationArea) && len(tc.expected) != 0 && len(ue.RegistrationArea) != 0 {
+				t.Fatalf("expected: %v, got: %v", tc.expected, ue.RegistrationArea)
 			}
 		})
 	}
@@ -94,7 +94,7 @@ func TestSnapshotCipheringAlgorithm(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ue := amf.NewUeContext()
-			ue.Current().CipheringAlg = tc.alg
+			ue.CipheringAlg = tc.alg
 
 			snap := ue.Snapshot()
 			if snap.CipheringAlgorithm != tc.expected {
@@ -120,7 +120,7 @@ func TestSnapshotIntegrityAlgorithm(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ue := amf.NewUeContext()
-			ue.Current().IntegrityAlg = tc.alg
+			ue.IntegrityAlg = tc.alg
 
 			snap := ue.Snapshot()
 			if snap.IntegrityAlgorithm != tc.expected {
@@ -190,7 +190,7 @@ func TestIsAllowedNssai(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ue := amf.NewUeContext()
-			ue.Current().AllowedNssai = tc.allowed
+			ue.AllowedNssai = tc.allowed
 
 			got := ue.IsAllowedNssai(tc.target)
 			if got != tc.expected {
@@ -331,7 +331,7 @@ func TestSelectSecurityAlg(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ue := amf.NewUeContext()
-			ue.Current().UESecurityCapability = tc.cap
+			ue.UESecurityCapability = tc.cap
 
 			err := ue.SelectSecurityAlg(tc.intOrder, tc.encOrder)
 
@@ -351,12 +351,12 @@ func TestSelectSecurityAlg(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			if ue.Current().IntegrityAlg != tc.wantIntAlg {
-				t.Errorf("IntegrityAlg: got %d, want %d", ue.Current().IntegrityAlg, tc.wantIntAlg)
+			if ue.IntegrityAlg != tc.wantIntAlg {
+				t.Errorf("IntegrityAlg: got %d, want %d", ue.IntegrityAlg, tc.wantIntAlg)
 			}
 
-			if ue.Current().CipheringAlg != tc.wantEncAlg {
-				t.Errorf("CipheringAlg: got %d, want %d", ue.Current().CipheringAlg, tc.wantEncAlg)
+			if ue.CipheringAlg != tc.wantEncAlg {
+				t.Errorf("CipheringAlg: got %d, want %d", ue.CipheringAlg, tc.wantEncAlg)
 			}
 		})
 	}

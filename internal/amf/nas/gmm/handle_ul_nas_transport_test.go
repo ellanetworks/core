@@ -326,7 +326,7 @@ func TestTransport5GSMMessage_ExistingPduSession_NotAllowedNssai_SendsDLNASTrans
 	}
 
 	// Set the UE's allowed NSSAI to SST=1, SD="010203"
-	ue.Current().AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
 
 	// Create an SM context with a DIFFERENT NSSAI (SST=2)
 	var pduSessionID uint8 = 5
@@ -540,7 +540,7 @@ func TestTransport5GSMMessage_SmContextExists_InitialRequest_DeletesContextAndCr
 
 	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
 
-	ue.Current().AllowedNssai = []models.Snssai{*snssai}
+	ue.AllowedNssai = []models.Snssai{*snssai}
 
 	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {
@@ -575,7 +575,7 @@ func TestTransport5GSMMessage_InitialRequest_SmfReturnsErrorAndReject_ForwardsRe
 	var pduSessionID uint8 = 4
 
 	snssai := &models.Snssai{Sst: 1, Sd: "010203"}
-	ue.Current().AllowedNssai = []models.Snssai{*snssai}
+	ue.AllowedNssai = []models.Snssai{*snssai}
 
 	smPayload := []byte{0x2E, 0x03, 0x00, 0xC1, 0x00}
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
@@ -617,7 +617,7 @@ func TestTransport5GSMMessage_InitialRequest_SmfReturnsErrorOnly_SendsFallbackAn
 	var pduSessionID uint8 = 5
 
 	snssai := &models.Snssai{Sst: 1, Sd: "010203"}
-	ue.Current().AllowedNssai = []models.Snssai{*snssai}
+	ue.AllowedNssai = []models.Snssai{*snssai}
 
 	smPayload := []byte{0x2E, 0x03, 0x00, 0xC1, 0x00}
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
@@ -903,7 +903,7 @@ func TestTransport5GSMMessage_SmContextExists_DuplicatePDU_Success(t *testing.T)
 	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
 
 	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
-	ue.Current().AllowedNssai = []models.Snssai{*snssai}
+	ue.AllowedNssai = []models.Snssai{*snssai}
 
 	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {
@@ -949,7 +949,7 @@ func TestTransport5GSMMessage_SmContextExists_ExistingPduSession_AllowedNssai_Fo
 	}
 
 	snssai := &models.Snssai{Sst: 1, Sd: "010203"}
-	ue.Current().AllowedNssai = []models.Snssai{*snssai}
+	ue.AllowedNssai = []models.Snssai{*snssai}
 
 	var pduSessionID uint8 = 5
 
@@ -1081,7 +1081,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_DefaultSNSSAIAndDNN(t *
 	}
 
 	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
-	ue.Current().AllowedNssai = []models.Snssai{{Sst: 1, Sd: "aabbcc"}}
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "aabbcc"}}
 
 	var pduSessionID uint8 = 2
 
@@ -1136,7 +1136,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_NilAllowedNssai_Error(t
 	}
 
 	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
-	ue.Current().AllowedNssai = nil
+	ue.AllowedNssai = nil
 
 	var pduSessionID uint8 = 1
 
@@ -1169,7 +1169,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorRe
 	}
 
 	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
-	ue.Current().AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
 
 	var pduSessionID uint8 = 1
 
@@ -1226,7 +1226,7 @@ func TestTransport5GSMMessage_ExistingPduSession_MultiSliceAllowedNssai_MatchesS
 	}
 
 	// UE is allowed 3 slices
-	ue.Current().AllowedNssai = []models.Snssai{
+	ue.AllowedNssai = []models.Snssai{
 		{Sst: 1, Sd: "010203"},
 		{Sst: 2, Sd: "aabbcc"},
 		{Sst: 3, Sd: "ddeeff"},
@@ -1270,7 +1270,7 @@ func TestTransport5GSMMessage_ExistingPduSession_MultiSliceAllowedNssai_NotInLis
 	}
 
 	// UE is allowed 3 slices, but the SM context uses a different one
-	ue.Current().AllowedNssai = []models.Snssai{
+	ue.AllowedNssai = []models.Snssai{
 		{Sst: 1, Sd: "010203"},
 		{Sst: 2, Sd: "aabbcc"},
 		{Sst: 3, Sd: "ddeeff"},
@@ -1305,7 +1305,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_MultiSliceDefaultSNSSAI
 	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
 
 	// UE has 3 allowed slices — default should be the first
-	ue.Current().AllowedNssai = []models.Snssai{
+	ue.AllowedNssai = []models.Snssai{
 		{Sst: 1, Sd: "aabbcc"},
 		{Sst: 2, Sd: "010203"},
 		{Sst: 3, Sd: "ddeeff"},

@@ -190,10 +190,10 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 		ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 		ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
 		ue.ForceState(amf.Registered)
-		ue.Current().SecurityContextAvailable = true
-		ue.Current().CipheringAlg = security.AlgCiphering128NEA2
-		ue.Current().IntegrityAlg = security.AlgIntegrity128NIA2
-		ue.Current().NgKsi = models.NgKsi{Ksi: 1}
+		ue.SecurityContextAvailable = true
+		ue.CipheringAlg = security.AlgCiphering128NEA2
+		ue.IntegrityAlg = security.AlgIntegrity128NIA2
+		ue.NgKsi = models.NgKsi{Ksi: 1}
 		ue.Location = models.UserLocation{
 			NrLocation: &models.NrLocation{
 				Tai:                      &models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
@@ -203,13 +203,13 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 			},
 		}
 		ue.Tai = models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}
-		ue.Current().RegistrationArea = []models.Tai{
+		ue.RegistrationArea = []models.Tai{
 			{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
 			{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000002"},
 		}
-		ue.Current().AllowedNssai = []models.Snssai{{Sst: 1, Sd: "000001"}}
-		ue.Current().Ambr = &models.Ambr{Uplink: "1000000", Downlink: "2000000"}
-		ue.Current().SmContextList[5] = &amf.SmContext{
+		ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "000001"}}
+		ue.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "2000000"}
+		ue.SmContextList[5] = &amf.SmContext{
 			Ref:    "imsi-001010000000002-5",
 			Snssai: &models.Snssai{Sst: 1, Sd: "000001"},
 		}
@@ -218,8 +218,8 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 		ranUe.Tai = models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}
 		ue.AttachRanUe(ranUe)
 		ue.NasConn().T3513 = amf.NewTimer(1*time.Hour, 3, func(_ int32) {}, func() {})
-		ue.Current().T3512Value = 3600 * time.Second
-		ue.Current().T3502Value = 720 * time.Second
+		ue.T3512Value = 3600 * time.Second
+		ue.T3502Value = 720 * time.Second
 		ue.LastSeenAt = time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
 		ue.LastSeenRadio = "gNB-001"
 		ue.NasConn().RegistrationType5GS = 1
@@ -520,7 +520,7 @@ func TestExportJSON_NilLocationPointers(t *testing.T) {
 func TestExportJSON_PDUSessionNilSMFContext(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	addTestUE(t, amfInstance, "001010000000007", func(ue *amf.UeContext) {
-		ue.Current().SmContextList[1] = &amf.SmContext{
+		ue.SmContextList[1] = &amf.SmContext{
 			Ref:                "nonexistent-ref",
 			Snssai:             &models.Snssai{Sst: 1, Sd: "000001"},
 			PduSessionInactive: true,
@@ -583,7 +583,7 @@ func TestExportJSON_MultipleAllowedNSSAI(t *testing.T) {
 
 	addTestUE(t, amfInstance, "001010000000099", func(ue *amf.UeContext) {
 		ue.ForceState(amf.Registered)
-		ue.Current().AllowedNssai = []models.Snssai{
+		ue.AllowedNssai = []models.Snssai{
 			{Sst: 1, Sd: "010203"},
 			{Sst: 2, Sd: "aabbcc"},
 			{Sst: 3, Sd: ""},

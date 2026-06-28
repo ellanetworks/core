@@ -128,9 +128,9 @@ func (r *SessionReconciler) Reconcile() {
 
 func (r *SessionReconciler) reconcileUE(ue *UeContext) {
 	ue.Mutex.RLock()
-	smContextRefs := make([]string, 0, len(ue.Current().SmContextList))
+	smContextRefs := make([]string, 0, len(ue.SmContextList))
 
-	for _, smCtx := range ue.Current().SmContextList {
+	for _, smCtx := range ue.SmContextList {
 		smContextRefs = append(smContextRefs, smCtx.Ref)
 	}
 
