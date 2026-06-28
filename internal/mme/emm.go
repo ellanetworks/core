@@ -129,6 +129,15 @@ func (m *MME) handleNAS(ctx context.Context, ue *UeContext, nas []byte) {
 		// Advance the expected count past the accepted message, so a replay
 		// estimates to a stale count whose MAC fails to verify.
 		ue.ulCount = count + 1
+	} else if ue.secured {
+		// TS 24.301 §4.4.4.3: once secure exchange of NAS messages is established
+		// for the connection, a message that is not integrity protected is
+		// discarded, so a forged plain NAS message cannot disrupt an
+		// authenticated UE (e.g. a spoofed DETACH REQUEST tearing it down).
+		logger.MmeLog.Warn("discarding plain NAS message: secure exchange already established",
+			zap.String("imsi", ue.imsi))
+
+		return
 	}
 
 	m.dispatchEMM(ctx, ue, plain, integrityVerified)

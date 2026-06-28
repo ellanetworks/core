@@ -56,6 +56,35 @@ func TestDetachSubscriberNetworkInitiated(t *testing.T) {
 	}
 }
 
+// TestPlainDetachOnSecuredUEDiscarded asserts TS 24.301 §4.4.4.3: once secure
+// exchange of NAS messages is established, a message that is not integrity
+// protected is discarded. A spoofed plain DETACH REQUEST injected on a secured
+// UE's connection must not deregister or release it.
+func TestPlainDetachOnSecuredUEDiscarded(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	detach := &eps.DetachRequestUE{
+		TypeOfDetach:      1,
+		EPSMobileIdentity: eps.EPSMobileIdentity{Type: eps.IdentityGUTI, MCC: "001", MNC: "01", MMEGroupID: 1, MMECode: 1, MTMSI: 1},
+	}
+
+	plain, err := detach.Marshal()
+	if err != nil {
+		t.Fatalf("marshal detach: %v", err)
+	}
+
+	m.handleNAS(context.Background(), ue, plain)
+
+	if ue.emmState.load() != EMMRegistered {
+		t.Fatal("a plain detach on a secured UE must be discarded, not deregister it (TS 24.301 §4.4.4.3)")
+	}
+
+	if _, ok := m.lookupUeByIMSI(ue.imsi); !ok {
+		t.Fatal("secured UE context must remain after a discarded plain detach")
+	}
+}
+
 // TestDetachSubscriberUnansweredReleases confirms a network-initiated detach
 // whose Detach Accept never arrives is retransmitted and then releases the UE
 // context, so a silent UE cannot leak it (TS 24.301: T3422).
