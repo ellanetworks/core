@@ -37,7 +37,7 @@ func setupRegistrationCompleteUE(t *testing.T) (*UeContext, *FakeNGAPSender) {
 	}
 
 	ue.Suci = "testsuci"
-	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
+	ue.supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}

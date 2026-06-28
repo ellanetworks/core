@@ -261,7 +261,7 @@ func acceptRegistrationUESecurityCapability(ue *UeContext, received *nasType.UES
 		ue.Log.Warn(
 			"UE security capabilities in Mobility/Periodic Registration differ from stored values; ignoring received values (TS 33.501 §6.7.3.1)",
 			zap.String("registrationType", getRegistrationType5GSName(conn.RegistrationType5GS)),
-			zap.Binary("stored", ue.UESecurityCapability.Buffer),
+			zap.Binary("stored", ue.ueSecurityCapability.Buffer),
 			zap.Binary("received", received.Buffer),
 		)
 	}

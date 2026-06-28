@@ -76,7 +76,7 @@ func sendServiceAccept(
 			ue.PlmnID,
 			ue.UeRadioCapability,
 			ue.UeRadioCapabilityForPaging,
-			ue.UESecurityCapability,
+			ue.ueSecurityCapability,
 			nasPdu,
 			&ctxList,
 			supportedGUAMI,
@@ -203,7 +203,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *AMF, ue *UeContext, 
 	// #9 and the 5GMM-context and 5G NAS security context are left unchanged, so
 	// an unauthenticated message cannot tear down a genuine UE's security state.
 	if !ue.SecurityContextIsValid() || !integrityVerified {
-		ue.Log.Warn("No valid security context for service request", logger.SUPI(ue.Supi.String()))
+		ue.Log.Warn("No valid security context for service request", logger.SUPI(ue.supi.String()))
 
 		err := SendServiceReject(ctx, ranUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		if err != nil {
@@ -224,7 +224,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *AMF, ue *UeContext, 
 
 	serviceType := msg.GetServiceTypeValue()
 
-	logger.WithTrace(ctx, logger.AmfLog).Debug("Handle Service Request", logger.SUPI(ue.Supi.String()), zap.String("serviceType", serviceTypeToString(serviceType)))
+	logger.WithTrace(ctx, logger.AmfLog).Debug("Handle Service Request", logger.SUPI(ue.supi.String()), zap.String("serviceType", serviceTypeToString(serviceType)))
 
 	var (
 		reactivationResult, acceptPduSessionPsi *[16]bool

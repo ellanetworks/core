@@ -124,7 +124,7 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*UeContext, *FakeNGAPSender, *FakeS
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Supi = supi
+	ue.supi = supi
 	ue.Pei = "imei-490154203237518"
 	ue.Tai = ue.RanUe().Tai
 	ue.SecurityContextAvailable = true
@@ -976,7 +976,7 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Supi = supi
+	ue.supi = supi
 	ue.Pei = "imei-490154203237518"
 	ue.Tai = ue.RanUe().Tai
 	ue.SecurityContextAvailable = true

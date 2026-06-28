@@ -22,7 +22,7 @@ func handleDeregistrationAccept(ctx context.Context, ue *UeContext) error {
 
 	ranUe := ue.RanUe()
 	if ranUe == nil {
-		logger.WithTrace(ctx, logger.AmfLog).Warn("RanUe is nil, cannot send UE Context Release Command", logger.SUPI(ue.Supi.String()))
+		logger.WithTrace(ctx, logger.AmfLog).Warn("RanUe is nil, cannot send UE Context Release Command", logger.SUPI(ue.supi.String()))
 		return nil
 	}
 

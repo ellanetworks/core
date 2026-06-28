@@ -77,7 +77,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *AMF, ue *UeC
 		return failAuthentication(ctx, ue, ranUe, conn)
 	}
 
-	ue.Supi = supi
+	ue.supi = supi
 
 	err = ue.DerivateKamf(kseaf)
 	if err != nil {

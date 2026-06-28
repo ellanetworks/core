@@ -338,7 +338,7 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 
 	export := UeContextExport{
 		Identity: UEIdentityExport{
-			Supi:    ue.Supi.String(),
+			Supi:    ue.supi.String(),
 			Pei:     ue.Pei,
 			PlmnID:  ue.PlmnID,
 			Guti:    ue.Guti.String(),

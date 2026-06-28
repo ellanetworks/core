@@ -392,7 +392,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 	}
 
 	ue.Suci = "testsuci"
-	ue.Supi = supi
+	ue.supi = supi
 	ue.ForceState(Authentication)
 	ue.Tai = ue.RanUe().Tai
 	ue.SecurityContextAvailable = true
@@ -480,7 +480,7 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 			}
 
 			ue.Suci = "testsuci"
-			ue.Supi = supi
+			ue.supi = supi
 			ue.Pei = "testpei"
 			ue.ForceState(ContextSetup)
 			ue.Tai = ue.RanUe().Tai
@@ -569,7 +569,7 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 			}
 
 			ue.Suci = "testsuci"
-			ue.Supi = supi
+			ue.supi = supi
 			ue.Pei = "testpei"
 			ue.ForceState(ContextSetup)
 			ue.Tai = ue.RanUe().Tai

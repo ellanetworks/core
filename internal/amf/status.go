@@ -79,8 +79,8 @@ func (amf *AMF) RegisteredSubscribersForRadio(radioName string) []string {
 		match := ue.state == Registered && ue.ranUe != nil && ue.ranUe.radio != nil && ue.ranUe.radio.Name == radioName
 		ue.Mutex.Unlock()
 
-		if match && ue.Supi.IsValid() && ue.Supi.IsIMSI() {
-			imsis = append(imsis, ue.Supi.IMSI())
+		if match && ue.supi.IsValid() && ue.supi.IsIMSI() {
+			imsis = append(imsis, ue.supi.IMSI())
 		}
 	}
 

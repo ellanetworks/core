@@ -71,7 +71,7 @@ func snapshotSecurityState(ue *UeContext) securityStateSnapshot {
 		SecurityContextAvailable: ue.SecurityContextAvailable,
 		CipheringAlg:             ue.CipheringAlg,
 		IntegrityAlg:             ue.IntegrityAlg,
-		UESecurityCapability:     ue.UESecurityCapability,
+		UESecurityCapability:     ue.ueSecurityCapability,
 		KnasInt:                  ue.KnasInt,
 		KnasEnc:                  ue.KnasEnc,
 	}

@@ -25,7 +25,7 @@ func sendUEAuthenticationAuthenticateRequest(ctx context.Context, amfInstance *A
 }
 
 func identityVerification(ue *UeContext) bool {
-	return ue.Supi.IsValid() || len(ue.Suci) != 0
+	return ue.supi.IsValid() || len(ue.Suci) != 0
 }
 
 func authenticationProcedure(ctx context.Context, amfInstance *AMF, ue *UeContext) (bool, error) {

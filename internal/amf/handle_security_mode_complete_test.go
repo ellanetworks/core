@@ -287,7 +287,7 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 	}
 
 	ue.ForceState(SecurityMode)
-	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
+	ue.supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
 	ue.KnasEnc = key
@@ -354,7 +354,7 @@ func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 	}
 
 	ue.ForceState(SecurityMode)
-	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
+	ue.supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
 	ue.KnasEnc = key

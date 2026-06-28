@@ -50,7 +50,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	}
 
 	if !amfUe.SecurityContextIsValid() {
-		logger.WithTrace(ctx, ranUe.Log).Error("No Security Context", logger.SUPI(amfUe.Supi.String()))
+		logger.WithTrace(ctx, ranUe.Log).Error("No Security Context", logger.SUPI(amfUe.SupiValue().String()))
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnspecified)
 
 		return
@@ -137,13 +137,15 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			return
 		}
 
+		nh, ncc := amfUe.NextHopNCC()
+
 		err = ranUe.Radio().NGAPSender.SendPathSwitchRequestAcknowledge(
 			ctx,
 			ranUe.AmfUeNgapID,
 			ranUe.RanUeNgapID,
-			amfUe.UESecurityCapability,
-			amfUe.NCC,
-			amfUe.NH,
+			amfUe.UESecCap(),
+			ncc,
+			nh,
 			pduSessionResourceSwitchedList,
 			pduSessionResourceReleasedListPSAck,
 			snssaiList,
@@ -197,7 +199,7 @@ func verifyUESecurityCapabilitiesOnPathSwitch(
 	case amf.VerifyMismatch:
 		logger.WithTrace(ctx, ranUe.Log).Warn(
 			"UE 5G security capabilities reported by target gNB differ from locally stored values; ignoring received values (TS 33.501 §6.7.3.1)",
-			zap.Binary("stored", amfUe.UESecurityCapability.Buffer),
+			zap.Binary("stored", amfUe.UESecCap().Buffer),
 			zap.Binary("received", reported.Buffer),
 		)
 	}

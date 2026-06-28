@@ -48,7 +48,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	subscriberProfile, err := amfInstance.GetSubscriberProfile(ctx, ue.Supi)
+	subscriberProfile, err := amfInstance.GetSubscriberProfile(ctx, ue.supi)
 	if err != nil {
 		return fmt.Errorf("error getting subscriber profile: %v", err)
 	}

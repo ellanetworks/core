@@ -32,7 +32,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *AMF, ue *UeCont
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	subscriberProfile, err := amfInstance.GetSubscriberProfile(ctx, ue.Supi)
+	subscriberProfile, err := amfInstance.GetSubscriberProfile(ctx, ue.supi)
 	if err != nil {
 		return fmt.Errorf("error getting subscriber profile: %v", err)
 	}
@@ -98,7 +98,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *AMF, ue *UeCont
 	// earlier 5GMM context for this subscriber. The old context is deleted only
 	// here, once the new registration is authenticated, so that an
 	// unauthenticated registration on a fresh context never tears it down.
-	if existing, ok := amfInstance.FindUeContextBySupi(ue.Supi); ok && existing != ue {
+	if existing, ok := amfInstance.FindUeContextBySupi(ue.supi); ok && existing != ue {
 		amfInstance.DeregisterAndRemoveUeContext(ctx, existing)
 	}
 

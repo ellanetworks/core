@@ -168,14 +168,16 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
+	nh, ncc := amfUe.NextHopNCC()
+
 	err = targetUe.SendHandoverRequest(
 		ctx,
 		sourceUe.HandOverType,
 		amfUe.Ambr.Uplink,
 		amfUe.Ambr.Downlink,
-		amfUe.UESecurityCapability,
-		amfUe.NCC,
-		amfUe.NH,
+		amfUe.UESecCap(),
+		ncc,
+		nh,
 		msg.Cause,
 		pduSessionReqList,
 		msg.SourceToTargetTransparentContainer,

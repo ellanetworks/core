@@ -206,7 +206,7 @@ func establishPDUSession(ctx context.Context, amfInstance *AMF, ue *UeContext, r
 	if ulNasTransport.DNN != nil && ulNasTransport.DNN.GetLen() > 0 {
 		dnn = ulNasTransport.GetDNN()
 	} else {
-		dnnResp, err := amfInstance.GetSubscriberDnn(ctx, ue.Supi, snssai)
+		dnnResp, err := amfInstance.GetSubscriberDnn(ctx, ue.supi, snssai)
 		if err != nil {
 			return fmt.Errorf("failed to get subscriber data: %v", err)
 		}
@@ -214,7 +214,7 @@ func establishPDUSession(ctx context.Context, amfInstance *AMF, ue *UeContext, r
 		dnn = dnnResp
 	}
 
-	smContextRef, errResponse, err := amfInstance.Smf.CreateSmContext(ctx, ue.Supi, pduSessionID, dnn, snssai, smMessage)
+	smContextRef, errResponse, err := amfInstance.Smf.CreateSmContext(ctx, ue.supi, pduSessionID, dnn, snssai, smMessage)
 
 	// The SMF produced a 5GSM reject. Delivering it is a normal negative outcome,
 	// not a 5GMM protocol error, so return nil (TS 24.501 §6.4.1.x).

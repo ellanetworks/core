@@ -36,7 +36,7 @@ func TestHandleInitialRegistration_EmptyAllowedNssai_RejectsRegistration(t *test
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
+	ue.supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	ue.Kamf = "0000000000000000000000000000000000000000000000000000000000000000"
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)

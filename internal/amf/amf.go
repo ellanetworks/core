@@ -152,14 +152,14 @@ func (a *AMF) allocateAmfUeNgapID() (int64, error) {
 }
 
 func (amf *AMF) AddUeContextToPool(ue *UeContext) error {
-	if !ue.Supi.IsValid() {
+	if !ue.supi.IsValid() {
 		return fmt.Errorf("supi is empty")
 	}
 
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
 
-	amf.UEs[ue.Supi] = ue
+	amf.UEs[ue.supi] = ue
 	ue.smf = amf.Smf
 
 	return nil
@@ -181,12 +181,12 @@ func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext)
 
 	amf.tmsi.Free(ue.Tmsi)
 
-	if !ue.Supi.IsValid() {
+	if !ue.supi.IsValid() {
 		return
 	}
 
 	amf.mu.Lock()
-	delete(amf.UEs, ue.Supi)
+	delete(amf.UEs, ue.supi)
 	amf.mu.Unlock()
 }
 

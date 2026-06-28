@@ -235,7 +235,7 @@ func addUE(t *testing.T, amfInstance *amf.AMF, imsi string, setup func(*amf.UeCo
 	t.Helper()
 	supi := mustSUPIFromIMSI(t, imsi)
 	ue := amf.NewUeContext()
-	ue.Supi = supi
+	ue.SetSupiForTest(supi)
 
 	ue.Log = zap.NewNop()
 	if setup != nil {
@@ -291,7 +291,7 @@ func TestTransferN1N2Message_UENotConnected(t *testing.T) {
 
 	ue := addUE(t, amfInstance, "001010000000002", nil)
 
-	err := amfInstance.TransferN1N2Message(context.Background(), ue.Supi, newReq())
+	err := amfInstance.TransferN1N2Message(context.Background(), ue.SupiForTest(), newReq())
 	if err == nil {
 		t.Fatal("expected error for UE not connected to RAN")
 	}
@@ -310,7 +310,7 @@ func TestTransferN1N2Message_InitialContextAlreadySent(t *testing.T) {
 	ranUe.ICS = amf.ICSPending
 	ue.AttachRanUe(ranUe)
 
-	err := amfInstance.TransferN1N2Message(context.Background(), ue.Supi, newReq())
+	err := amfInstance.TransferN1N2Message(context.Background(), ue.SupiForTest(), newReq())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -339,7 +339,7 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 	ranUe.ICS = amf.ICSNotStarted
 	ue.AttachRanUe(ranUe)
 
-	err := amfInstance.TransferN1N2Message(context.Background(), ue.Supi, newReq())
+	err := amfInstance.TransferN1N2Message(context.Background(), ue.SupiForTest(), newReq())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -360,7 +360,7 @@ func TestModifyN1N2Message_IdleRegisteredUE_ReturnsNotReachable(t *testing.T) {
 
 	ue := addUE(t, amfInstance, "001010000000014", func(u *amf.UeContext) {
 		u.ForceState(amf.Registered)
-		u.Guti = testGUTI(t)
+		u.SetGutiForTest(testGUTI(t))
 		u.RegistrationArea = []models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}}
 	})
 
@@ -374,7 +374,7 @@ func TestModifyN1N2Message_IdleRegisteredUE_ReturnsNotReachable(t *testing.T) {
 	amfInstance.Radios[nil] = radio
 
 	// UE has no RanUe attached → CM-IDLE
-	err := amfInstance.ModifyN1N2Message(context.Background(), ue.Supi, 1, []byte{0x01, 0x02}, []byte{0x03, 0x04})
+	err := amfInstance.ModifyN1N2Message(context.Background(), ue.SupiForTest(), 1, []byte{0x01, 0x02}, []byte{0x03, 0x04})
 	if err == nil {
 		t.Fatal("expected ErrUENotReachable for idle UE")
 	}
@@ -435,7 +435,7 @@ func TestN2MessageTransferOrPage_OnGoingPaging(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.Supi, newReq())
+	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
 	if err == nil {
 		t.Fatal("expected error for ongoing paging")
 	}
@@ -450,7 +450,7 @@ func TestN2MessageTransferOrPage_OnGoingRegistration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.Supi, newReq())
+	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
 	if err == nil {
 		t.Fatal("expected error for ongoing registration")
 	}
@@ -465,7 +465,7 @@ func TestN2MessageTransferOrPage_OnGoingN2Handover(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.Supi, newReq())
+	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
 	if err == nil {
 		t.Fatal("expected error for ongoing N2 handover")
 	}
@@ -484,7 +484,7 @@ func TestN2MessageTransferOrPage_ConnectedUE_InitialCtxSent(t *testing.T) {
 	ranUe.ICS = amf.ICSPending
 	ue.AttachRanUe(ranUe)
 
-	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.Supi, newReq())
+	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -499,7 +499,7 @@ func TestN2MessageTransferOrPage_NotRegistered_NoPaging(t *testing.T) {
 
 	ue := addUE(t, amfInstance, "001010000000010", nil)
 
-	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.Supi, newReq())
+	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
 	if err == nil {
 		t.Fatal("expected error for UE not in registered state")
 	}
@@ -522,7 +522,7 @@ func TestTransferN1Msg_UENotConnected(t *testing.T) {
 
 	ue := addUE(t, amfInstance, "001010000000012", nil)
 
-	err := amfInstance.TransferN1Msg(context.Background(), ue.Supi, []byte{0x01}, 1)
+	err := amfInstance.TransferN1Msg(context.Background(), ue.SupiForTest(), []byte{0x01}, 1)
 	if err == nil {
 		t.Fatal("expected error for UE not connected to RAN")
 	}
@@ -538,7 +538,7 @@ func TestTransferN1Msg_Success(t *testing.T) {
 	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
 	ue.AttachRanUe(ranUe)
 
-	err := amfInstance.TransferN1Msg(context.Background(), ue.Supi, []byte{0x01}, 1)
+	err := amfInstance.TransferN1Msg(context.Background(), ue.SupiForTest(), []byte{0x01}, 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

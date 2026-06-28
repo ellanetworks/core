@@ -30,7 +30,7 @@ func SendDLNASTransport(ctx context.Context, ue *RanUe, payloadContainerType uin
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_downlink_nas_transport",
 		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().Supi.String()),
+			attribute.String("supi", ue.UeContext().supi.String()),
 			attribute.Int("pduSessionID", int(pduSessionID)),
 			attribute.Int("cause", int(cause)),
 		),
@@ -63,7 +63,7 @@ func SendIdentityRequest(ctx context.Context, ue *RanUe, typeOfIdentity uint8) e
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_identity_request",
 		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().Supi.String()),
+			attribute.String("supi", ue.UeContext().supi.String()),
 			attribute.Int("typeOfIdentity", int(typeOfIdentity)),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -90,7 +90,7 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *AMF, ue *RanUe)
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_authentication_request",
 		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().Supi.String()),
+			attribute.String("supi", ue.UeContext().supi.String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -139,7 +139,7 @@ func SendServiceAccept(ctx context.Context, ue *RanUe, pDUSessionStatus *[16]boo
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_service_accept",
 		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().Supi.String()),
+			attribute.String("supi", ue.UeContext().supi.String()),
 			attribute.Int("pduSessionIDErrorCount", len(errPduSessionID)),
 			attribute.Int("causeErrorCount", len(errCause)),
 		),
@@ -167,7 +167,7 @@ func SendAuthenticationReject(ctx context.Context, ue *RanUe) error {
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_authentication_reject",
 		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().Supi.String()),
+			attribute.String("supi", ue.UeContext().supi.String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -193,7 +193,7 @@ func SendServiceReject(ctx context.Context, ue *RanUe, cause uint8) error {
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_service_reject",
 		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().Supi.String()),
+			attribute.String("supi", ue.UeContext().supi.String()),
 			attribute.Int("cause", int(cause)),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -221,7 +221,7 @@ func SendRegistrationReject(ctx context.Context, ue *RanUe, cause5GMM uint8) err
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_registration_reject",
 		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().Supi.String()),
+			attribute.String("supi", ue.UeContext().supi.String()),
 			attribute.Int("cause", int(cause5GMM)),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -248,7 +248,7 @@ func SendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *RanUe) e
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_security_mode_command",
 		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().Supi.String()),
+			attribute.String("supi", ue.UeContext().supi.String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -296,7 +296,7 @@ func SendDeregistrationAccept(ctx context.Context, ue *RanUe) error {
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_deregistration_accept",
 		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().Supi.String()),
+			attribute.String("supi", ue.UeContext().supi.String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -333,7 +333,7 @@ func SendRegistrationAccept(
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_registration_accept",
 		trace.WithAttributes(
-			attribute.String("supi", ue.Supi.String()),
+			attribute.String("supi", ue.supi.String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -361,7 +361,7 @@ func SendRegistrationAccept(
 			ue.PlmnID,
 			ue.UeRadioCapability,
 			ue.UeRadioCapabilityForPaging,
-			ue.UESecurityCapability,
+			ue.ueSecurityCapability,
 			nasMsg,
 			pduSessionResourceSetupList,
 			supportedGUAMI,
@@ -400,7 +400,7 @@ func SendRegistrationAccept(
 						ue.PlmnID,
 						ue.UeRadioCapability,
 						ue.UeRadioCapabilityForPaging,
-						ue.UESecurityCapability,
+						ue.ueSecurityCapability,
 						nasMsg,
 						pduSessionResourceSetupList,
 						supportedGUAMI,
@@ -443,7 +443,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_configuration_update_command",
 		trace.WithAttributes(
-			attribute.String("supi", amfUe.Supi.String()),
+			attribute.String("supi", amfUe.supi.String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)

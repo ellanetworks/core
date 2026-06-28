@@ -70,7 +70,7 @@ func TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim(t *testing
 
 	victim := NewUeContext()
 	victim.Log = zap.NewNop()
-	victim.Supi = supi
+	victim.supi = supi
 	victim.Guti = guti
 	victim.SecurityContextAvailable = true
 	victim.ForceState(Registered)

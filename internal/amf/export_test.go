@@ -26,7 +26,7 @@ func addTestUE(t *testing.T, amfInstance *amf.AMF, imsi string, setup func(*amf.
 	}
 
 	ue := amf.NewUeContext()
-	ue.Supi = supi
+	ue.SetSupiForTest(supi)
 	ue.Log = zap.NewNop()
 
 	setup(ue)
@@ -190,10 +190,10 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 		ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 		ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
 		ue.ForceState(amf.Registered)
-		ue.SecurityContextAvailable = true
-		ue.CipheringAlg = security.AlgCiphering128NEA2
-		ue.IntegrityAlg = security.AlgIntegrity128NIA2
-		ue.NgKsi = models.NgKsi{Ksi: 1}
+		ue.SetSecurityContextAvailableForTest(true)
+		ue.SetCipheringAlgForTest(security.AlgCiphering128NEA2)
+		ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA2)
+		ue.SetNgKsiForTest(models.NgKsi{Ksi: 1})
 		ue.Location = models.UserLocation{
 			NrLocation: &models.NrLocation{
 				Tai:                      &models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},

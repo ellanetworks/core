@@ -62,7 +62,7 @@ type UeContext struct {
 	/* Ue Identity*/
 	PlmnID  models.PlmnID
 	Suci    string
-	Supi    etsi.SUPI
+	supi    etsi.SUPI
 	Pei     string
 	Tmsi    etsi.TMSI
 	OldTmsi etsi.TMSI
@@ -89,7 +89,7 @@ type UeContext struct {
 
 	// NAS security context per TS 33.501.
 	SecurityContextAvailable bool
-	UESecurityCapability     *nasType.UESecurityCapability
+	ueSecurityCapability     *nasType.UESecurityCapability
 	NgKsi                    models.NgKsi
 	KnasInt                  [16]uint8
 	KnasEnc                  [16]uint8
@@ -182,7 +182,7 @@ func (ue *UeContext) AttachNasConnection(ranUe *RanUe) *ActiveNasConnection {
 // field state to that of a freshly-constructed context.
 func (ue *UeContext) resetSecurityContext() {
 	ue.SecurityContextAvailable = false
-	ue.UESecurityCapability = nil
+	ue.ueSecurityCapability = nil
 	ue.NgKsi = models.NgKsi{}
 	ue.KnasInt = [16]uint8{}
 	ue.KnasEnc = [16]uint8{}
@@ -430,11 +430,11 @@ func (ue *UeContext) Snapshot() UESnapshot {
 
 // Kamf Derivation function defined in TS 33.501 Annex A.7
 func (ue *UeContext) DerivateKamf(kseaf string) error {
-	if !ue.Supi.IsValid() || !ue.Supi.IsIMSI() {
+	if !ue.supi.IsValid() || !ue.supi.IsIMSI() {
 		return fmt.Errorf("supi is not a valid IMSI")
 	}
 
-	P0 := []byte(ue.Supi.IMSI())
+	P0 := []byte(ue.supi.IMSI())
 	L0 := ueauth.KDFLen(P0)
 	P1 := ue.ABBA
 	L1 := ueauth.KDFLen(P1)
@@ -561,7 +561,7 @@ func (ue *UeContext) UpdateNH() error {
 }
 
 func (ue *UeContext) SelectSecurityAlg(intOrder, encOrder []uint8) error {
-	if ue.UESecurityCapability == nil {
+	if ue.ueSecurityCapability == nil {
 		return fmt.Errorf("UE security capability not available, cannot negotiate NAS security algorithms")
 	}
 
@@ -571,13 +571,13 @@ func (ue *UeContext) SelectSecurityAlg(intOrder, encOrder []uint8) error {
 	for _, intAlg := range intOrder {
 		switch intAlg {
 		case security.AlgIntegrity128NIA0:
-			ueSupported = ue.UESecurityCapability.GetIA0_5G()
+			ueSupported = ue.ueSecurityCapability.GetIA0_5G()
 		case security.AlgIntegrity128NIA1:
-			ueSupported = ue.UESecurityCapability.GetIA1_128_5G()
+			ueSupported = ue.ueSecurityCapability.GetIA1_128_5G()
 		case security.AlgIntegrity128NIA2:
-			ueSupported = ue.UESecurityCapability.GetIA2_128_5G()
+			ueSupported = ue.ueSecurityCapability.GetIA2_128_5G()
 		case security.AlgIntegrity128NIA3:
-			ueSupported = ue.UESecurityCapability.GetIA3_128_5G()
+			ueSupported = ue.ueSecurityCapability.GetIA3_128_5G()
 		}
 
 		if ueSupported == 1 {
@@ -598,13 +598,13 @@ func (ue *UeContext) SelectSecurityAlg(intOrder, encOrder []uint8) error {
 	for _, encAlg := range encOrder {
 		switch encAlg {
 		case security.AlgCiphering128NEA0:
-			ueSupported = ue.UESecurityCapability.GetEA0_5G()
+			ueSupported = ue.ueSecurityCapability.GetEA0_5G()
 		case security.AlgCiphering128NEA1:
-			ueSupported = ue.UESecurityCapability.GetEA1_128_5G()
+			ueSupported = ue.ueSecurityCapability.GetEA1_128_5G()
 		case security.AlgCiphering128NEA2:
-			ueSupported = ue.UESecurityCapability.GetEA2_128_5G()
+			ueSupported = ue.ueSecurityCapability.GetEA2_128_5G()
 		case security.AlgCiphering128NEA3:
-			ueSupported = ue.UESecurityCapability.GetEA3_128_5G()
+			ueSupported = ue.ueSecurityCapability.GetEA3_128_5G()
 		}
 
 		if ueSupported == 1 {
@@ -779,13 +779,13 @@ func (ue *UeContext) ResetMobileReachableTimer() {
 		ue.ImplicitDeregistrationTimer = nil
 	}
 
-	ue.Log.Debug("starting mobile reachable timer", logger.SUPI(ue.Supi.String()))
+	ue.Log.Debug("starting mobile reachable timer", logger.SUPI(ue.supi.String()))
 
 	ue.MobileReachableTimer = NewTimer(
 		ue.T3512Value+(4*time.Minute),
 		1,
 		func(expireTimes int32) {
-			ue.Log.Debug("mobile reachable timer expired", logger.SUPI(ue.Supi.String()))
+			ue.Log.Debug("mobile reachable timer expired", logger.SUPI(ue.supi.String()))
 			ue.startImplicitDeregistrationTimer()
 		},
 		func() {},
@@ -918,7 +918,7 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 		}
 	}
 
-	ue.Log.Debug("ue deregistered", logger.SUPI(ue.Supi.String()))
+	ue.Log.Debug("ue deregistered", logger.SUPI(ue.supi.String()))
 }
 
 func (ue *UeContext) releaseSmContexts(ctx context.Context) {

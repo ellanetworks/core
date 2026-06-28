@@ -94,7 +94,7 @@ func TestSnapshotCipheringAlgorithm(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ue := amf.NewUeContext()
-			ue.CipheringAlg = tc.alg
+			ue.SetCipheringAlgForTest(tc.alg)
 
 			snap := ue.Snapshot()
 			if snap.CipheringAlgorithm != tc.expected {
@@ -120,7 +120,7 @@ func TestSnapshotIntegrityAlgorithm(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ue := amf.NewUeContext()
-			ue.IntegrityAlg = tc.alg
+			ue.SetIntegrityAlgForTest(tc.alg)
 
 			snap := ue.Snapshot()
 			if snap.IntegrityAlgorithm != tc.expected {
@@ -331,7 +331,7 @@ func TestSelectSecurityAlg(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ue := amf.NewUeContext()
-			ue.UESecurityCapability = tc.cap
+			ue.SetUESecurityCapabilityForTest(tc.cap)
 
 			err := ue.SelectSecurityAlg(tc.intOrder, tc.encOrder)
 
@@ -351,12 +351,12 @@ func TestSelectSecurityAlg(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			if ue.IntegrityAlg != tc.wantIntAlg {
-				t.Errorf("IntegrityAlg: got %d, want %d", ue.IntegrityAlg, tc.wantIntAlg)
+			if ue.IntegrityAlgForTest() != tc.wantIntAlg {
+				t.Errorf("IntegrityAlg: got %d, want %d", ue.IntegrityAlgForTest(), tc.wantIntAlg)
 			}
 
-			if ue.CipheringAlg != tc.wantEncAlg {
-				t.Errorf("CipheringAlg: got %d, want %d", ue.CipheringAlg, tc.wantEncAlg)
+			if ue.CipheringAlgForTest() != tc.wantEncAlg {
+				t.Errorf("CipheringAlg: got %d, want %d", ue.CipheringAlgForTest(), tc.wantEncAlg)
 			}
 		})
 	}

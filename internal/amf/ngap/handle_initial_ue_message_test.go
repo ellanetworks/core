@@ -115,14 +115,14 @@ func TestHandleInitialUEMessage_5GSTMSI_UnverifiedDoesNotAttach(t *testing.T) {
 	}
 
 	amfUe := amf.NewUeContext()
-	amfUe.Guti = guti
+	amfUe.SetGutiForTest(guti)
 
 	supi, err := etsi.NewSUPIFromIMSI("001010000000001")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	amfUe.Supi = supi
+	amfUe.SetSupiForTest(supi)
 	amfUe.Log = logger.AmfLog
 
 	err = amfInstance.AddUeContextToPool(amfUe)
@@ -248,14 +248,14 @@ func TestHandleInitialUEMessage_RegisteredUE_DoesNotPanic(t *testing.T) {
 	}
 
 	amfUe := amf.NewUeContext()
-	amfUe.Guti = guti
+	amfUe.SetGutiForTest(guti)
 
 	supi, err := etsi.NewSUPIFromIMSI("001010000000002")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	amfUe.Supi = supi
+	amfUe.SetSupiForTest(supi)
 	amfUe.Log = logger.AmfLog
 
 	err = amfInstance.AddUeContextToPool(amfUe)

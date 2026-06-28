@@ -44,14 +44,14 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	// Per 3GPP TS 23.502 §4.9.1.3.3 step 7, the SMF sends N4 Session
 	// Modification to the UPF with the new AN tunnel info at this point.
-	for _, smContext := range amfUe.SmContextList {
-		if smContext.Ref == "" {
+	for _, sr := range amfUe.SmContextRefs() {
+		if sr.Ref == "" {
 			continue
 		}
 
-		if err := amfInstance.Smf.UpdateSmContextN2HandoverComplete(ctx, smContext.Ref); err != nil {
+		if err := amfInstance.Smf.UpdateSmContextN2HandoverComplete(ctx, sr.Ref); err != nil {
 			logger.WithTrace(ctx, targetUe.Log).Error("failed to update SM context for handover completion",
-				zap.String("smContextRef", smContext.Ref), zap.Error(err))
+				zap.String("smContextRef", sr.Ref), zap.Error(err))
 
 			continue
 		}

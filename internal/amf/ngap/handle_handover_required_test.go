@@ -233,11 +233,11 @@ func TestHandoverRequired(t *testing.T) {
 
 	// Set up the UeContext with valid security context
 	amfUe := amf.NewUeContext()
-	amfUe.Supi = supi
-	amfUe.SecurityContextAvailable = true
-	amfUe.NgKsi.Ksi = 1
-	amfUe.Kamf = kamfHex
-	amfUe.NH = make([]byte, 32)
+	amfUe.SetSupiForTest(supi)
+	amfUe.SetSecurityContextAvailableForTest(true)
+	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
+	amfUe.SetKamfForTest(kamfHex)
+	amfUe.SetNHForTest(make([]byte, 32))
 	amfUe.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
 	amfUe.Log = logger.AmfLog
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
@@ -422,7 +422,7 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 
 	// Create UeContext with invalid security context
 	amfUe := amf.NewUeContext()
-	amfUe.SecurityContextAvailable = false
+	amfUe.SetSecurityContextAvailableForTest(false)
 	amfUe.Log = logger.AmfLog
 
 	sourceNGAPSender := &FakeNGAPSender{}
@@ -523,11 +523,11 @@ func TestHandoverRequired_UnknownTarget(t *testing.T) {
 	smfInstance.NewSession(supi, pduSessionID, dnn, &models.Snssai{Sst: 1})
 
 	amfUe := amf.NewUeContext()
-	amfUe.Supi = supi
-	amfUe.SecurityContextAvailable = true
-	amfUe.NgKsi.Ksi = 1
-	amfUe.Kamf = kamfHex
-	amfUe.NH = make([]byte, 32)
+	amfUe.SetSupiForTest(supi)
+	amfUe.SetSecurityContextAvailableForTest(true)
+	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
+	amfUe.SetKamfForTest(kamfHex)
+	amfUe.SetNHForTest(make([]byte, 32))
 	amfUe.Log = logger.AmfLog
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    smf.CanonicalName(supi, pduSessionID),

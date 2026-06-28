@@ -248,12 +248,12 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 
 	securityModeCommand.SpareHalfOctetAndNgksi = util.SpareHalfOctetAndNgksiToNas(ue.NgKsi)
 
-	if ue.UESecurityCapability == nil {
+	if ue.ueSecurityCapability == nil {
 		return nil, fmt.Errorf("UE security capability not available, cannot build SecurityModeCommand")
 	}
 
-	securityModeCommand.ReplayedUESecurityCapabilities.SetLen(ue.UESecurityCapability.GetLen())
-	securityModeCommand.ReplayedUESecurityCapabilities.Buffer = ue.UESecurityCapability.Buffer
+	securityModeCommand.ReplayedUESecurityCapabilities.SetLen(ue.ueSecurityCapability.GetLen())
+	securityModeCommand.ReplayedUESecurityCapabilities.Buffer = ue.ueSecurityCapability.Buffer
 
 	if ue.Pei != "" {
 		securityModeCommand.IMEISVRequest = nasType.NewIMEISVRequest(nasMessage.SecurityModeCommandIMEISVRequestType)

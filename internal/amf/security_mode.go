@@ -12,14 +12,14 @@ import (
 )
 
 func securityMode(ctx context.Context, amfInstance *AMF, ue *UeContext) error {
-	logger.WithTrace(ctx, logger.AmfLog).Debug("Security Mode Procedure", logger.SUPI(ue.Supi.String()))
+	logger.WithTrace(ctx, logger.AmfLog).Debug("Security Mode Procedure", logger.SUPI(ue.supi.String()))
 
 	ctx, span := gmmTracer.Start(ctx, "nas/security_mode")
 	defer span.End()
 
 	ue.TransitionTo(SecurityMode)
 
-	ue.Log = ue.Log.With(logger.SUPI(ue.Supi.String()))
+	ue.Log = ue.Log.With(logger.SUPI(ue.supi.String()))
 
 	conn := ue.NasConn()
 	if conn == nil {

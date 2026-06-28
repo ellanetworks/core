@@ -57,7 +57,7 @@ func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
 		},
 	}, nil, &smf)
 
-	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
+	ue.supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	if err := amfInstance.AddUeContextToPool(ue); err != nil {
 		t.Fatalf("could not add UE to AMF pool: %v", err)
 	}

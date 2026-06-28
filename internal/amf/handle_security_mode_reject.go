@@ -29,7 +29,7 @@ func handleSecurityModeReject(ctx context.Context, ue *UeContext, msg *nasMessag
 		conn.Procedures.End(procedure.SecurityMode)
 	}
 
-	ue.Log.Error("UE rejected the security mode command, abort the ongoing procedure", logger.Cause(nasMessage.Cause5GMMToString(msg.GetCauseValue())), logger.SUPI(ue.Supi.String()))
+	ue.Log.Error("UE rejected the security mode command, abort the ongoing procedure", logger.Cause(nasMessage.Cause5GMMToString(msg.GetCauseValue())), logger.SUPI(ue.supi.String()))
 
 	ue.SecurityContextAvailable = false
 

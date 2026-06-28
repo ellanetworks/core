@@ -41,7 +41,7 @@ func TestAddUeContextToUePool_Success(t *testing.T) {
 	supi := newSUPI(t, "001010000000002")
 
 	ue := amf.NewUeContext()
-	ue.Supi = supi
+	ue.SetSupiForTest(supi)
 	ue.Log = zap.NewNop()
 
 	if err := amfInstance.AddUeContextToPool(ue); err != nil {
@@ -75,7 +75,7 @@ func TestDeregisterAndRemoveAMFUE(t *testing.T) {
 	supi := newSUPI(t, "001010000000005")
 
 	ue := amf.NewUeContext()
-	ue.Supi = supi
+	ue.SetSupiForTest(supi)
 	ue.Log = zap.NewNop()
 
 	if err := amfInstance.AddUeContextToPool(ue); err != nil {
@@ -96,7 +96,7 @@ func TestRemoveUEBySupi(t *testing.T) {
 	supi := newSUPI(t, "001010000000006")
 
 	ue := amf.NewUeContext()
-	ue.Supi = supi
+	ue.SetSupiForTest(supi)
 	ue.Log = zap.NewNop()
 
 	if err := amfInstance.AddUeContextToPool(ue); err != nil {
@@ -145,7 +145,7 @@ func TestFindUeContextByGuti(t *testing.T) {
 	}
 
 	addTestUE(t, amfInstance, "001010000000009", func(ue *amf.UeContext) {
-		ue.Guti = guti
+		ue.SetGutiForTest(guti)
 	})
 
 	found, ok := amfInstance.FindUeContextByGuti(guti)
@@ -153,8 +153,8 @@ func TestFindUeContextByGuti(t *testing.T) {
 		t.Fatal("expected to find UE by GUTI")
 	}
 
-	if found.Guti != guti {
-		t.Fatalf("GUTI mismatch: got %v, want %v", found.Guti, guti)
+	if found.GutiForTest() != guti {
+		t.Fatalf("GUTI mismatch: got %v, want %v", found.GutiForTest(), guti)
 	}
 }
 

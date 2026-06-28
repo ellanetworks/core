@@ -521,7 +521,7 @@ func TestTransport5GSMMessage_SmContextExists_InitialRequest_DeletesContextAndCr
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
+	ue.supi = mustSUPIFromPrefixed("imsi-001010000000001")
 
 	var pduSessionID uint8 = 3
 
@@ -569,7 +569,7 @@ func TestTransport5GSMMessage_InitialRequest_SmfReturnsErrorAndReject_ForwardsRe
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
+	ue.supi = mustSUPIFromPrefixed("imsi-001010000000001")
 
 	var pduSessionID uint8 = 4
 
@@ -611,7 +611,7 @@ func TestTransport5GSMMessage_InitialRequest_SmfReturnsErrorOnly_SendsFallbackAn
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
+	ue.supi = mustSUPIFromPrefixed("imsi-001010000000001")
 
 	var pduSessionID uint8 = 5
 
@@ -901,7 +901,7 @@ func TestTransport5GSMMessage_SmContextExists_DuplicatePDU_Success(t *testing.T)
 
 	amfInstance := New(&FakeDBInstance{}, nil, fakeSmf)
 
-	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
+	ue.supi = mustSUPIFromPrefixed("imsi-001010000000001")
 	ue.AllowedNssai = []models.Snssai{*snssai}
 
 	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
@@ -1017,7 +1017,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_WithSNSSAIAndDNN_Create
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
+	ue.supi = mustSUPIFromPrefixed("imsi-001010000000001")
 
 	var pduSessionID uint8 = 1
 
@@ -1079,7 +1079,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_DefaultSNSSAIAndDNN(t *
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
+	ue.supi = mustSUPIFromPrefixed("imsi-001010000000001")
 	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "aabbcc"}}
 
 	var pduSessionID uint8 = 2
@@ -1134,7 +1134,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_NilAllowedNssai_Error(t
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
+	ue.supi = mustSUPIFromPrefixed("imsi-001010000000001")
 	ue.AllowedNssai = nil
 
 	var pduSessionID uint8 = 1
@@ -1167,7 +1167,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorRe
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
+	ue.supi = mustSUPIFromPrefixed("imsi-001010000000001")
 	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
 
 	var pduSessionID uint8 = 1
@@ -1301,7 +1301,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_MultiSliceDefaultSNSSAI
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
+	ue.supi = mustSUPIFromPrefixed("imsi-001010000000001")
 
 	// UE has 3 allowed slices — default should be the first
 	ue.AllowedNssai = []models.Snssai{

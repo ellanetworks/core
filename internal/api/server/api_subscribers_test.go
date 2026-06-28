@@ -333,7 +333,7 @@ func mockSessionForSubscriber(amfInstance *amf.AMF, testSmfInstance *smf.SMF, im
 	ue, found := amfInstance.FindUeContextBySupi(supi)
 	if !found {
 		ue = amf.NewUeContext()
-		ue.Supi = supi
+		ue.SetSupiForTest(supi)
 
 		if err := amfInstance.AddUeContextToPool(ue); err != nil {
 			return fmt.Errorf("failed to add UE to AMF pool: %w", err)

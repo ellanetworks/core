@@ -18,12 +18,13 @@ func buildTestUE(t *testing.T) *amf.UeContext {
 	t.Helper()
 
 	ue := amf.NewUeContext()
-	ue.SecurityContextAvailable = true
+	ue.SetSecurityContextAvailableForTest(true)
+
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = security.AlgCiphering128NEA2
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.SetKnasEncForTest(key)
+	ue.SetKnasIntForTest(key)
+	ue.SetCipheringAlgForTest(security.AlgCiphering128NEA2)
+	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
 	return ue
 }
@@ -41,7 +42,7 @@ func decryptNAS(t *testing.T, ue *amf.UeContext, raw []byte) *nas.Message {
 
 	// DLCount was incremented after encode, so the count used for encoding is DLCount-1.
 	// Since we start at 0 and encode once, the count used is 0.
-	err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, 0, security.Bearer3GPP, security.DirectionDownlink, payload)
+	err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), 0, security.Bearer3GPP, security.DirectionDownlink, payload)
 	if err != nil {
 		t.Fatalf("NAS decrypt failed: %v", err)
 	}
@@ -97,7 +98,7 @@ func TestBuildConfigurationUpdateCommand_WithGUTI(t *testing.T) {
 		t.Fatalf("failed to create GUTI: %v", err)
 	}
 
-	ue.Guti = guti
+	ue.SetGutiForTest(guti)
 
 	raw, err := amf.BuildConfigurationUpdateCommand(ue, "ELLACORE5G", "ELLACORE", true)
 	if err != nil {
@@ -126,7 +127,7 @@ func TestBuildConfigurationUpdateCommand_WithGUTI(t *testing.T) {
 
 func TestBuildConfigurationUpdateCommand_WithGUTI_InvalidGUTI_Error(t *testing.T) {
 	ue := buildTestUE(t)
-	ue.Guti = etsi.InvalidGUTI
+	ue.SetGutiForTest(etsi.InvalidGUTI)
 
 	_, err := amf.BuildConfigurationUpdateCommand(ue, "ELLACORE5G", "ELLACORE", true)
 	if err == nil {

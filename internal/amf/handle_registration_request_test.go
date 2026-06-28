@@ -480,7 +480,7 @@ func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 	}
 
 	ue.Suci = "testsuci"
-	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
+	ue.supi = mustSUPIFromPrefixed("imsi-001019756139935")
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
@@ -543,7 +543,7 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 	ue.RanUe().Tai.Tac = "CAFE64"
 
 	ue.Suci = "testsuci"
-	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
+	ue.supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 
@@ -644,7 +644,7 @@ func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t 
 	}
 
 	ue.Suci = "testsuci"
-	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
+	ue.supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	ue.ForceState(Authentication)
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
@@ -703,7 +703,7 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 	}
 
 	ue.Suci = "testsuci"
-	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
+	ue.supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	ue.ForceState(SecurityMode)
@@ -774,7 +774,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 	}
 
 	ue.Suci = "testsuci"
-	ue.Supi = supi
+	ue.supi = supi
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 
@@ -853,7 +853,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 	}
 
 	ue.Suci = "testsuci"
-	ue.Supi = supi
+	ue.supi = supi
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 
@@ -927,7 +927,7 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 	}
 
 	ue.Suci = "testsuci"
-	ue.Supi = supi
+	ue.supi = supi
 	// Simulate MAC verification failure (AMF has no valid security context)
 	ue.SecurityContextAvailable = false
 
@@ -998,7 +998,7 @@ func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
 	}
 
 	ue.Suci = "testsuci"
-	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
+	ue.supi = mustSUPIFromPrefixed("imsi-001019756139935")
 
 	m, err := buildTestRegistrationRequestMessageWithNgKsi(0, nil, 0, 3)
 	if err != nil {
@@ -1041,7 +1041,7 @@ func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
 	}
 
 	ue.Suci = "testsuci"
-	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
+	ue.supi = mustSUPIFromPrefixed("imsi-001019756139935")
 
 	m, err := buildTestRegistrationRequestMessageWithNgKsi(0, nil, 0, 6)
 	if err != nil {
@@ -1084,7 +1084,7 @@ func TestHandleRegistrationRequest_NgKsi_NoKeyAvailable(t *testing.T) {
 	}
 
 	ue.Suci = "testsuci"
-	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
+	ue.supi = mustSUPIFromPrefixed("imsi-001019756139935")
 
 	m, err := buildTestRegistrationRequestMessageWithNgKsi(0, nil, 0, 7)
 	if err != nil {
@@ -1215,12 +1215,12 @@ func newUESecCaps(ea, ia uint8) *nasType.UESecurityCapability {
 func TestAcceptRegistrationUESecurityCapability_InitialOverwrites(t *testing.T) {
 	ue := NewUeContext()
 	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
-	ue.UESecurityCapability = newUESecCaps(0xE0, 0xE0) // EA1/2/3 + IA1/2/3
+	ue.ueSecurityCapability = newUESecCaps(0xE0, 0xE0) // EA1/2/3 + IA1/2/3
 
 	incoming := newUESecCaps(0x80, 0x80) // only EA1 + IA1
 	acceptRegistrationUESecurityCapability(ue, incoming)
 
-	if ue.UESecurityCapability != incoming {
+	if ue.ueSecurityCapability != incoming {
 		t.Fatalf("Initial Registration must replace stored caps")
 	}
 }
@@ -1228,12 +1228,12 @@ func TestAcceptRegistrationUESecurityCapability_InitialOverwrites(t *testing.T) 
 func TestAcceptRegistrationUESecurityCapability_EmergencyOverwrites(t *testing.T) {
 	ue := NewUeContext()
 	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSEmergencyRegistration
-	ue.UESecurityCapability = newUESecCaps(0xE0, 0xE0)
+	ue.ueSecurityCapability = newUESecCaps(0xE0, 0xE0)
 
 	incoming := newUESecCaps(0x00, 0x00)
 	acceptRegistrationUESecurityCapability(ue, incoming)
 
-	if ue.UESecurityCapability != incoming {
+	if ue.ueSecurityCapability != incoming {
 		t.Fatalf("Emergency Registration must replace stored caps")
 	}
 }
@@ -1241,12 +1241,12 @@ func TestAcceptRegistrationUESecurityCapability_EmergencyOverwrites(t *testing.T
 func TestAcceptRegistrationUESecurityCapability_MobilityNoStored(t *testing.T) {
 	ue := NewUeContext()
 	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
-	ue.UESecurityCapability = nil
+	ue.ueSecurityCapability = nil
 
 	incoming := newUESecCaps(0xE0, 0xE0)
 	acceptRegistrationUESecurityCapability(ue, incoming)
 
-	if ue.UESecurityCapability != incoming {
+	if ue.ueSecurityCapability != incoming {
 		t.Fatalf("Mobility Update with no stored caps must adopt received caps")
 	}
 }
@@ -1260,17 +1260,17 @@ func TestAcceptRegistrationUESecurityCapability_MobilityRejectsDowngrade(t *test
 	ue := NewUeContext()
 	ue.Log = logger.AmfLog
 	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
-	ue.UESecurityCapability = stored
+	ue.ueSecurityCapability = stored
 
 	attacker := newUESecCaps(0x00, 0x00)
 	acceptRegistrationUESecurityCapability(ue, attacker)
 
-	if ue.UESecurityCapability != stored {
+	if ue.ueSecurityCapability != stored {
 		t.Fatalf("Mobility Update must NOT overwrite stored caps with forged downgrade (TS 33.501 §6.7.3.1)")
 	}
 
-	if !bytes.Equal(ue.UESecurityCapability.Buffer, []byte{0xE0, 0xE0}) {
-		t.Fatalf("stored caps corrupted: %#v", ue.UESecurityCapability.Buffer)
+	if !bytes.Equal(ue.ueSecurityCapability.Buffer, []byte{0xE0, 0xE0}) {
+		t.Fatalf("stored caps corrupted: %#v", ue.ueSecurityCapability.Buffer)
 	}
 }
 
@@ -1280,11 +1280,11 @@ func TestAcceptRegistrationUESecurityCapability_PeriodicRejectsDowngrade(t *test
 	ue := NewUeContext()
 	ue.Log = logger.AmfLog
 	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSPeriodicRegistrationUpdating
-	ue.UESecurityCapability = stored
+	ue.ueSecurityCapability = stored
 
 	acceptRegistrationUESecurityCapability(ue, newUESecCaps(0x00, 0x00))
 
-	if ue.UESecurityCapability != stored {
+	if ue.ueSecurityCapability != stored {
 		t.Fatalf("Periodic Update must NOT overwrite stored caps with forged downgrade")
 	}
 }
@@ -1295,11 +1295,11 @@ func TestAcceptRegistrationUESecurityCapability_MobilityIdenticalCapsNoop(t *tes
 	ue := NewUeContext()
 	ue.Log = logger.AmfLog
 	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
-	ue.UESecurityCapability = stored
+	ue.ueSecurityCapability = stored
 
 	acceptRegistrationUESecurityCapability(ue, newUESecCaps(0xE0, 0xE0))
 
-	if ue.UESecurityCapability != stored {
+	if ue.ueSecurityCapability != stored {
 		t.Fatalf("Mobility Update with identical caps must be a no-op on the stored pointer")
 	}
 }
