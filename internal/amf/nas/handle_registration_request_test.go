@@ -1,0 +1,1325 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+package nas
+
+import (
+	"bytes"
+	"context"
+	"encoding/hex"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/ausf"
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
+	"github.com/free5gc/nas"
+	"github.com/free5gc/nas/nasMessage"
+	"github.com/free5gc/nas/nasType"
+	"github.com/free5gc/nas/security"
+)
+
+func TestGetRegistrationType5GSName(t *testing.T) {
+	inputs := []uint8{
+		0,
+		nasMessage.RegistrationType5GSInitialRegistration,
+		nasMessage.RegistrationType5GSMobilityRegistrationUpdating,
+		nasMessage.RegistrationType5GSPeriodicRegistrationUpdating,
+		nasMessage.RegistrationType5GSEmergencyRegistration,
+		nasMessage.RegistrationType5GSReserved,
+		127,
+	}
+	expected := []string{
+		"Unknown",
+		"Initial Registration",
+		"Mobility Registration Updating",
+		"Periodic Registration Updating",
+		"Emergency Registration",
+		"Reserved",
+		"Unknown",
+	}
+
+	for i, input := range inputs {
+		r := getRegistrationType5GSName(input)
+		if r != expected[i] {
+			t.Errorf("expected '%s' for code '%d' but got '%s", expected[i], input, r)
+		}
+	}
+}
+
+// TestHandleRegistrationRequest_NilRanUE validates the graceful
+// handling of the degenerate case where RanUE is nil
+func TestHandleRegistrationRequest_NilRanUE(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.AMF{}
+
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	ue := amf.NewUeContext()
+
+	err = handleRegistrationRequest(ctx, &amfInstance, ue, m, true)
+	if err == nil {
+		t.Fatalf("nil amf.RanUe should error out")
+	}
+}
+
+// TestHandleRegistrationRequest_ErrorMissingIdentity validates the graceful
+// handling of the case where a UE sends a Registration Request missing
+// Mobile Identity 5GS field
+func TestHandleRegistrationRequest_ErrorMissingIdentity(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.AMF{}
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	m.RegistrationRequest.MobileIdentity5GS = nasType.MobileIdentity5GS{}
+
+	expected := "mobile identity 5GS is empty"
+
+	err = handleRegistrationRequest(ctx, &amfInstance, ue, m, true)
+	if err == nil {
+		t.Fatalf("registration request should be rejected")
+	}
+
+	if !strings.Contains(err.Error(), expected) {
+		t.Fatalf("expected '%s', got '%v'", expected, err)
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 0 {
+		t.Fatalf("should not have sent a Downlink NAS Transport message")
+	}
+}
+
+// TestHandleRegistrationRequest_ErrorMissingOperatorInfo validates the graceful
+// handling of the case where an operator is not configured.
+func TestHandleRegistrationRequest_ErrorMissingOperatorInfo(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: nil,
+	}, nil, nil)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	expected := "error getting operator info"
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
+	if err == nil {
+		t.Fatalf("registration request should be rejected")
+	}
+
+	if !strings.Contains(err.Error(), expected) {
+		t.Fatalf("expected '%s', got '%v'", expected, err)
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 0 {
+		t.Fatalf("should not have sent a Downlink NAS Transport message")
+	}
+}
+
+// TestHandleRegistrationRequest_RejectTrackingAreaNotAllowed validates that a
+// registration request for a non-allowed tracking area is rejected.
+func TestHandleRegistrationRequest_RejectTrackingAreaNotAllowed(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, nil, nil)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.RanUe().Tai = models.Tai{
+		PlmnID: &models.PlmnID{
+			Mcc: "999",
+			Mnc: "99",
+		},
+		Tac: "42",
+	}
+
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	expected := "registration Reject [Tracking area not allowed]"
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
+	if err == nil {
+		t.Fatalf("registration request should be rejected")
+	}
+
+	if !strings.Contains(err.Error(), expected) {
+		t.Fatalf("expected '%s', got '%v'", expected, err)
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("should have sent a Downlink NAS Transport message")
+	}
+
+	resp := ngapSender.SentDownlinkNASTransport[0]
+	nm := new(nas.Message)
+	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+
+	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
+		t.Fatalf("expected a plain NAS message")
+	}
+
+	err = nm.PlainNasDecode(&resp.NasPdu)
+	if err != nil {
+		t.Fatalf("could not decode plain NAS message")
+	}
+
+	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationReject {
+		t.Fatalf("expected a registration reject message, got '%v'", nm.GmmHeader.GetMessageType())
+	}
+}
+
+// TestHandleRegistrationRequest_RejectMissingSecurityCapability validates that a
+// registration request with missing UE Security Capability is rejected.
+func TestHandleRegistrationRequest_RejectMissingSecurityCapability(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, nil, nil)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	m.UESecurityCapability = nil
+
+	expected := "registration request does not contain UE security capability"
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
+	if err == nil {
+		t.Fatalf("registration request should be rejected")
+	}
+
+	if !strings.Contains(err.Error(), expected) {
+		t.Fatalf("expected '%s', got '%v'", expected, err)
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("should have sent a Downlink NAS Transport message")
+	}
+
+	resp := ngapSender.SentDownlinkNASTransport[0]
+	nm := new(nas.Message)
+	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+
+	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
+		t.Fatalf("expected a plain NAS message")
+	}
+
+	err = nm.PlainNasDecode(&resp.NasPdu)
+	if err != nil {
+		t.Fatalf("could not decode plain NAS message")
+	}
+
+	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationReject {
+		t.Fatalf("expected a registration reject message, got '%v'", nm.GmmHeader.GetMessageType())
+	}
+}
+
+// TestHandleRegistrationRequest_RejectMissingSecurityCapability_Mobility
+// validates that a Mobility Registration Updating without UE Security
+// Capability is rejected. Per TS 24.501 §8.2.6.4 the UE shall include the
+// IE for every registration type except periodic registration updating.
+func TestHandleRegistrationRequest_RejectMissingSecurityCapability_Mobility(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, nil, nil)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	m.SetRegistrationType5GS(nasMessage.RegistrationType5GSMobilityRegistrationUpdating)
+	m.UESecurityCapability = nil
+
+	expected := "registration request does not contain UE security capability"
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
+	if err == nil {
+		t.Fatalf("registration request should be rejected")
+	}
+
+	if !strings.Contains(err.Error(), expected) {
+		t.Fatalf("expected '%s', got '%v'", expected, err)
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("should have sent a Downlink NAS Transport message")
+	}
+
+	resp := ngapSender.SentDownlinkNASTransport[0]
+	nm := new(nas.Message)
+	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+
+	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
+		t.Fatalf("expected a plain NAS message")
+	}
+
+	if err := nm.PlainNasDecode(&resp.NasPdu); err != nil {
+		t.Fatalf("could not decode plain NAS message")
+	}
+
+	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationReject {
+		t.Fatalf("expected a registration reject message, got '%v'", nm.GmmHeader.GetMessageType())
+	}
+}
+
+// TestHandleRegistrationRequest_PeriodicAllowsMissingSecurityCapability
+// validates that a periodic registration updating may omit the UE Security
+// Capability IE per TS 24.501 §8.2.6.4.
+func TestHandleRegistrationRequest_PeriodicAllowsMissingSecurityCapability(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, nil, nil)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	m.SetRegistrationType5GS(nasMessage.RegistrationType5GSPeriodicRegistrationUpdating)
+	m.UESecurityCapability = nil
+
+	if err := handleRegistrationRequestMessage(ctx, amfInstance, ue, m.RegistrationRequest, true); err != nil {
+		t.Fatalf("periodic registration without UE security capability should not be rejected here, got: %v", err)
+	}
+
+	for _, sent := range ngapSender.SentDownlinkNASTransport {
+		nm := new(nas.Message)
+
+		nm.SecurityHeaderType = nas.GetSecurityHeaderType(sent.NasPdu) & 0x0f
+		if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
+			continue
+		}
+
+		if err := nm.PlainNasDecode(&sent.NasPdu); err != nil {
+			continue
+		}
+
+		if nm.GmmHeader.GetMessageType() == nas.MsgTypeRegistrationReject {
+			t.Fatalf("periodic registration should not produce a RegistrationReject for missing UE security capability")
+		}
+	}
+}
+
+// TestHandleRegistrationRequest_Timers_Stopped validates that the timers
+// T3513 and T3565 are stopped when receiving a registration request.
+func TestHandleRegistrationRequest_Timers_Stopped(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, nil, nil)
+
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.NasConn().T3513 = amf.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
+	ue.NasConn().T3565 = amf.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
+
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
+	if err != nil {
+		t.Fatalf("registration request should be accepted, got: %v", err)
+	}
+
+	if ue.NasConn().T3513 != nil {
+		t.Fatalf("timer T3513 should have been stopped")
+	}
+
+	if ue.NasConn().T3565 != nil {
+		t.Fatalf("timer T3565 should have been stopped")
+	}
+}
+
+// TestHandleRegistrationRequest_IdentityRequest_MissingSUCI_SUPI validates that
+// a registration request for a UE missing SUCI and SUPI triggers an
+// Identity Request message.
+func TestHandleRegistrationRequest_IdentityRequest_MissingSUCI_SUPI(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, nil, nil)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
+	if err != nil {
+		t.Fatalf("registration request should be accepted, got: %v", err)
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("should have sent a Downlink NAS Transport message")
+	}
+
+	resp := ngapSender.SentDownlinkNASTransport[0]
+	nm := new(nas.Message)
+	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+
+	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
+		t.Fatalf("expected a plain NAS message")
+	}
+
+	err = nm.PlainNasDecode(&resp.NasPdu)
+	if err != nil {
+		t.Fatalf("could not decode plain NAS message")
+	}
+
+	if nm.GmmHeader.GetMessageType() != nas.MsgTypeIdentityRequest {
+		t.Fatalf("expected an identity request message, got '%v'", nm.GmmHeader.GetMessageType())
+	}
+}
+
+// TestHandleRegistrationRequest_AuthenticationRequest validates that a
+// Registration Request for a UE with proper identity but without a valid
+// security context triggers an amf.Authentication Request message.
+func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.Suci = "testsuci"
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
+	if err != nil {
+		t.Fatalf("registration request should be accepted, got: %v", err)
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("should have sent a Downlink NAS Transport message")
+	}
+
+	resp := ngapSender.SentDownlinkNASTransport[0]
+	nm := new(nas.Message)
+	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+
+	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
+		t.Fatalf("expected a plain NAS message")
+	}
+
+	err = nm.PlainNasDecode(&resp.NasPdu)
+	if err != nil {
+		t.Fatalf("could not decode plain NAS message")
+	}
+
+	if nm.GmmHeader.GetMessageType() != nas.MsgTypeAuthenticationRequest {
+		t.Fatalf("expected an authentication request message, got '%v'", nm.GmmHeader.GetMessageType())
+	}
+}
+
+// TestHandleRegistrationRequest_RegistrationAccepted validates that a
+// Registration Request for a UE with valid security context is accepted
+// with a properly ciphered message.
+func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"CAFE64\"]",
+		},
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.Tai.Tac = "CAFE64"
+	ue.RanUe().Tai.Tac = "CAFE64"
+
+	ue.Suci = "testsuci"
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+	ue.SetSecurityContextAvailableForTest(true)
+	{
+		ng := ue.NgKsiForTest()
+		ng.Ksi = 1
+		ue.SetNgKsiForTest(ng)
+	}
+
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
+	if err != nil {
+		t.Fatalf("registration request should be accepted, got: %v", err)
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("should have sent a Downlink NAS Transport message")
+	}
+
+	resp := ngapSender.SentDownlinkNASTransport[0]
+	nm := new(nas.Message)
+	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+
+	if nm.SecurityHeaderType != nas.SecurityHeaderTypeIntegrityProtectedAndCiphered {
+		t.Fatalf("expected a protected and ciphered NAS message")
+	}
+
+	decoded, err := amf.DecodeNASMessage(ue, resp.NasPdu)
+	if err != nil {
+		t.Fatalf("could not decode ciphered NAS message")
+	}
+
+	if decoded.Message.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
+		t.Fatalf("expected a registration accept message, got '%v'", decoded.Message.GmmHeader.GetMessageType())
+	}
+}
+
+// TestHandleRegistrationRequest_UEStateContextSetup_ResetToDeregistered validates
+// that a Registration Request from a UE in the Context Setup state resets the
+// UE's state to deregister, ignoring the request.
+func TestHandleRegistrationRequest_UEStateContextSetup_ResetToDeregistered(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, nil, nil)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.ForceState(amf.ContextSetup)
+
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
+	if err != nil {
+		t.Fatalf("registration request should be accepted, got: %v", err)
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 0 {
+		t.Fatalf("should not have sent a Downlink NAS Transport message")
+	}
+
+	if ue.GetState() != amf.Deregistered {
+		t.Fatalf("state should be deregistered, got: %v", ue.GetState())
+	}
+}
+
+// TestHandleRegistrationRequest_UEStateAuthentication_Error validates that
+// a registration request for a UE in the middle of an amf.Authentication procedure
+// triggers an error.
+func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.Suci = "testsuci"
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+	ue.ForceState(amf.Authentication)
+
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
+	if err != nil {
+		t.Fatalf("registration request in state amf.Authentication should restart, got: %v", err)
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("should have sent a Downlink NAS Transport message (AuthenticationRequest), got %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	resp := ngapSender.SentDownlinkNASTransport[0]
+	nm := new(nas.Message)
+	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+
+	err = nm.PlainNasDecode(&resp.NasPdu)
+	if err != nil {
+		t.Fatalf("could not decode NAS message: %v", err)
+	}
+
+	if nm.GmmHeader.GetMessageType() != nas.MsgTypeAuthenticationRequest {
+		t.Fatalf("expected AuthenticationRequest, got message type %d", nm.GmmHeader.GetMessageType())
+	}
+}
+
+// TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest validates
+// that a registration request coming in while the amf.SecurityMode procedure is
+// on-going resets the state of the UE to deregistered, triggering a new
+// AuthenticationRequest.
+func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
+	amfInstance.T3560Cfg.Enable = false // Prevent timer from being re-started during re-entry.
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.Suci = "testsuci"
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+	ue.SetSecurityContextAvailableForTest(true)
+	{
+		ng := ue.NgKsiForTest()
+		ng.Ksi = 1
+		ue.SetNgKsiForTest(ng)
+	}
+
+	ue.ForceState(amf.SecurityMode)
+	ue.NasConn().T3560 = amf.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
+
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
+	if err != nil {
+		t.Fatalf("registration request should be accepted, got: %v", err)
+	}
+
+	if ue.NasConn().T3560 != nil {
+		t.Fatalf("timer T3560 should be stopped")
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("should have sent a Downlink NAS Transport message")
+	}
+
+	resp := ngapSender.SentDownlinkNASTransport[0]
+	nm := new(nas.Message)
+	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+
+	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
+		t.Fatalf("expected a plain NAS message")
+	}
+
+	err = nm.PlainNasDecode(&resp.NasPdu)
+	if err != nil {
+		t.Fatalf("could not decode plain NAS message")
+	}
+
+	if nm.GmmHeader.GetMessageType() != nas.MsgTypeAuthenticationRequest {
+		t.Fatalf("expected an authentication request message, got '%v'", nm.GmmHeader.GetMessageType())
+	}
+}
+
+// TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted validates that
+// a Registration Request with ciphered NAS is properly decrypted and accepted
+// with a ciphered Registration Accept message.
+func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T) {
+	ctx := context.TODO()
+	rand := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	autn := []byte{17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
+	supi := mustSUPIFromPrefixed("imsi-001019756139935")
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(rand),
+			Autn: hex.EncodeToString(autn),
+		},
+		Supi:  supi,
+		Kseaf: "testkey",
+	}, nil)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.Suci = "testsuci"
+	ue.SetSupiForTest(supi)
+	ue.SetSecurityContextAvailableForTest(true)
+	{
+		ng := ue.NgKsiForTest()
+		ng.Ksi = 1
+		ue.SetNgKsiForTest(ng)
+	}
+
+	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
+	algo := security.AlgCiphering128NEA2
+
+	ue.SetKnasEncForTest(key)
+	ue.SetKnasIntForTest(key)
+	ue.SetCipheringAlgForTest(algo)
+	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
+
+	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCountForTest().Get())
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
+	if err != nil {
+		t.Fatalf("registration request should be accepted, got: %v", err)
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("should have sent a Downlink NAS Transport message")
+	}
+
+	resp := ngapSender.SentDownlinkNASTransport[0]
+	nm := new(nas.Message)
+	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+
+	payload := make([]byte, len(resp.NasPdu))
+	copy(payload, resp.NasPdu)
+	payload = payload[7:]
+
+	if nm.SecurityHeaderType != nas.SecurityHeaderTypeIntegrityProtectedAndCiphered {
+		t.Fatalf("expected a protected and ciphered NAS message")
+	}
+
+	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+		t.Fatalf("could not decrypt NAS message: %v", err)
+	}
+
+	err = nm.PlainNasDecode(&payload)
+	if err != nil {
+		t.Fatalf("could not decode ciphered NAS message: %v", err)
+	}
+
+	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
+		t.Fatalf("expected a registration accept message, got '%v'", nm.GmmHeader.GetMessageType())
+	}
+}
+
+// TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey validates that
+// a ciphered registration request with a wrong key is rejected with a plain NAS message.
+func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *testing.T) {
+	ctx := context.TODO()
+	rand := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	autn := []byte{17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
+	supi := mustSUPIFromPrefixed("imsi-001019756139935")
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(rand),
+			Autn: hex.EncodeToString(autn),
+		},
+		Supi:  supi,
+		Kseaf: "testkey",
+	}, nil)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.Suci = "testsuci"
+	ue.SetSupiForTest(supi)
+	ue.SetSecurityContextAvailableForTest(true)
+	{
+		ng := ue.NgKsiForTest()
+		ng.Ksi = 1
+		ue.SetNgKsiForTest(ng)
+	}
+
+	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
+	algo := security.AlgCiphering128NEA2
+
+	ue.SetKnasEncForTest(key)
+	ue.SetKnasIntForTest(key)
+	ue.SetCipheringAlgForTest(algo)
+	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
+
+	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCountForTest().Get())
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	key = [16]uint8{0x00, 0x00, 0x00, 0x00, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
+	ue.SetKnasEncForTest(key)
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
+	if err == nil {
+		t.Fatalf("registration request should be rejected, got: %v", err)
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("should have sent a Downlink NAS Transport message")
+	}
+
+	resp := ngapSender.SentDownlinkNASTransport[0]
+	nm := new(nas.Message)
+	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+
+	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
+		t.Fatalf("expected a plain NAS message")
+	}
+
+	err = nm.PlainNasDecode(&resp.NasPdu)
+	if err != nil {
+		t.Fatalf("could not decode plain NAS message")
+	}
+
+	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationReject {
+		t.Fatalf("expected an registration reject message, got '%v'", nm.GmmHeader.GetMessageType())
+	}
+}
+
+// TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer validates that
+// when MAC verification fails (no valid security context), the NASMessageContainer
+// decryption is skipped and the registration proceeds with cleartext IEs only,
+// triggering an authentication request instead of a decode error.
+func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testing.T) {
+	ctx := context.TODO()
+	supi := mustSUPIFromPrefixed("imsi-001019756139935")
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  supi,
+		Kseaf: "testkey",
+	}, nil)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.Suci = "testsuci"
+	ue.SetSupiForTest(supi)
+	// Simulate MAC verification failure (amf.AMF has no valid security context)
+	ue.SetSecurityContextAvailableForTest(false)
+
+	// Build a registration request with a ciphered NASMessageContainer
+	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
+	algo := security.AlgCiphering128NEA2
+
+	m, err := buildTestRegistrationRequestMessage(algo, &key, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, false)
+	if err != nil {
+		t.Fatalf("registration request with MAC failure should proceed with cleartext IEs, got: %v", err)
+	}
+
+	// Should have sent an authentication request (not a registration reject)
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("should have sent a Downlink NAS Transport message, got %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	resp := ngapSender.SentDownlinkNASTransport[0]
+	nm := new(nas.Message)
+	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+
+	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
+		t.Fatalf("expected a plain NAS message")
+	}
+
+	err = nm.PlainNasDecode(&resp.NasPdu)
+	if err != nil {
+		t.Fatalf("could not decode plain NAS message: %v", err)
+	}
+
+	if nm.GmmHeader.GetMessageType() != nas.MsgTypeAuthenticationRequest {
+		t.Fatalf("expected an authentication request (re-auth after MAC failure), got '%v'", nm.GmmHeader.GetMessageType())
+	}
+
+	if !ue.NasConn().RetransmissionOfInitialNASMsg {
+		t.Fatalf("RetransmissionOfInitialNASMsg should be set when MAC failed with NASMessageContainer")
+	}
+}
+
+// TestHandleRegistrationRequest_NgKsi_Increment validates that the amf.AMF
+// allocates the next available ngKSI slot (current + 1) to avoid reusing
+// the UE's active key, per 3GPP TS 24.501 section 9.11.3.32.
+func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
+
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.Suci = "testsuci"
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	m, err := buildTestRegistrationRequestMessageWithNgKsi(0, nil, 0, 3)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
+	if err != nil {
+		t.Fatalf("registration request should be accepted, got: %v", err)
+	}
+
+	if ue.NgKsiForTest().Ksi != 4 {
+		t.Fatalf("expected ngKSI=4 (next after 3), got %d", ue.NgKsiForTest().Ksi)
+	}
+}
+
+// TestHandleRegistrationRequest_NgKsi_WrapAt6 validates that when the UE sends
+// ngKSI=6 (the maximum valid value), the amf.AMF wraps around to 0 rather than
+// using value 7 (which means "no key available").
+func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
+
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.Suci = "testsuci"
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	m, err := buildTestRegistrationRequestMessageWithNgKsi(0, nil, 0, 6)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
+	if err != nil {
+		t.Fatalf("registration request should be accepted, got: %v", err)
+	}
+
+	if ue.NgKsiForTest().Ksi != 0 {
+		t.Fatalf("expected ngKSI=0 (wrapped from 6), got %d", ue.NgKsiForTest().Ksi)
+	}
+}
+
+// TestHandleRegistrationRequest_NgKsi_NoKeyAvailable validates that when the UE
+// sends ngKSI=7 ("no key available"), the amf.AMF handles it gracefully by
+// resetting to 0 with native security context type.
+func TestHandleRegistrationRequest_NgKsi_NoKeyAvailable(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
+
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.Suci = "testsuci"
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	m, err := buildTestRegistrationRequestMessageWithNgKsi(0, nil, 0, 7)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
+	if err != nil {
+		t.Fatalf("registration request should be accepted, got: %v", err)
+	}
+
+	if ue.NgKsiForTest().Ksi != 0 {
+		t.Fatalf("expected ngKSI=0 (reset from no-key-available=7), got %d", ue.NgKsiForTest().Ksi)
+	}
+
+	if ue.NgKsiForTest().Tsc != models.ScTypeNative {
+		t.Fatalf("expected TSC=NATIVE, got %v", ue.NgKsiForTest().Tsc)
+	}
+}
+
+func buildTestRegistrationRequestMessage(cipherAlg uint8, key *[16]uint8, ulcount uint32) (*nas.GmmMessage, error) {
+	return buildTestRegistrationRequestMessageWithNgKsi(cipherAlg, key, ulcount, 0)
+}
+
+func buildTestRegistrationRequestMessageWithNgKsi(cipherAlg uint8, key *[16]uint8, ulcount uint32, ngKsi uint8) (*nas.GmmMessage, error) {
+	m := nas.NewGmmMessage()
+
+	registrationRequest := nasMessage.NewRegistrationRequest(0)
+	registrationRequest.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
+	registrationRequest.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
+	registrationRequest.SetSpareHalfOctet(0x00)
+	registrationRequest.SetMessageType(nas.MsgTypeRegistrationRequest)
+	registrationRequest.NgksiAndRegistrationType5GS.SetNasKeySetIdentifiler(ngKsi)
+	registrationRequest.SetRegistrationType5GS(nasMessage.RegistrationType5GSInitialRegistration)
+	registrationRequest.SetFOR(1)
+	registrationRequest.MobileIdentity5GS = nasType.MobileIdentity5GS{
+		Iei:    nasMessage.MobileIdentity5GSType5gGuti,
+		Len:    15,
+		Buffer: make([]uint8, 15),
+	}
+	registrationRequest.UESecurityCapability = &nasType.UESecurityCapability{}
+
+	if key != nil {
+		registrationRequest.UESecurityCapability = &nasType.UESecurityCapability{
+			Iei:    nasMessage.RegistrationRequestUESecurityCapabilityType,
+			Len:    2,
+			Buffer: []uint8{0x00, 0x00},
+		}
+		registrationRequest.SetEA0_5G(1)
+		registrationRequest.SetEA1_128_5G(1)
+		registrationRequest.SetEA2_128_5G(1)
+		registrationRequest.SetEA2_128_5G(0)
+		registrationRequest.SetIA0_5G(1)
+		registrationRequest.SetIA1_128_5G(1)
+		registrationRequest.SetIA2_128_5G(1)
+		registrationRequest.SetIA2_128_5G(0)
+	}
+
+	m.RegistrationRequest = registrationRequest
+	m.SetMessageType(nas.MsgTypeRegistrationRequest)
+
+	if key == nil {
+		return m, nil
+	}
+
+	data := new(bytes.Buffer)
+
+	err := m.EncodeRegistrationRequest(data)
+	if err != nil {
+		return nil, fmt.Errorf("could not encode registration request: %v", err)
+	}
+
+	nasPdu := data.Bytes()
+
+	if err = security.NASEncrypt(cipherAlg, *key, ulcount, security.Bearer3GPP, security.DirectionUplink, nasPdu); err != nil {
+		return nil, fmt.Errorf("could not encrypt NAS message: %v", err)
+	}
+
+	registrationRequest.NASMessageContainer = nasType.NewNASMessageContainer(nasMessage.RegistrationRequestNASMessageContainerType)
+	registrationRequest.NASMessageContainer.SetLen(uint16(len(nasPdu)))
+	registrationRequest.SetNASMessageContainerContents(nasPdu)
+	registrationRequest.UplinkDataStatus = nil
+	registrationRequest.PDUSessionStatus = nil
+
+	return m, nil
+}
+
+func buildUeAndRadio() (*amf.UeContext, *FakeNGAPSender, error) {
+	ue := amf.NewUeContext()
+
+	ngapSender := FakeNGAPSender{}
+	radio := amf.Radio{
+		RanUEs:     make(map[int64]*amf.RanUe),
+		Conn:       nil,
+		Log:        logger.AmfLog.With(logger.RanAddr("test_localhost")),
+		NGAPSender: &ngapSender,
+	}
+
+	amfInstance := amf.New(nil, nil, nil)
+
+	ranUe, err := amfInstance.NewRanUe(&radio, 0)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create a new ranUe: %v", err)
+	}
+
+	ranUe.Tai = models.Tai{
+		PlmnID: &models.PlmnID{
+			Mcc: "001",
+			Mnc: "01",
+		},
+		Tac: "000001",
+	}
+
+	ue.AttachRanUe(ranUe)
+
+	return ue, &ngapSender, nil
+}
+
+// newUESecCaps builds a UESecurityCapability with a 2-byte {EA, IA} payload.
+func newUESecCaps(ea, ia uint8) *nasType.UESecurityCapability {
+	return &nasType.UESecurityCapability{
+		Iei:    nasMessage.RegistrationRequestUESecurityCapabilityType,
+		Len:    2,
+		Buffer: []uint8{ea, ia},
+	}
+}
+
+func TestAcceptRegistrationUESecurityCapability_InitialOverwrites(t *testing.T) {
+	ue := amf.NewUeContext()
+	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
+	ue.SetUESecurityCapabilityForTest(newUESecCaps(0xE0, 0xE0)) // EA1/2/3 + IA1/2/3
+
+	incoming := newUESecCaps(0x80, 0x80) // only EA1 + IA1
+	acceptRegistrationUESecurityCapability(ue, incoming)
+
+	if ue.UESecurityCapabilityForTest() != incoming {
+		t.Fatalf("Initial Registration must replace stored caps")
+	}
+}
+
+func TestAcceptRegistrationUESecurityCapability_EmergencyOverwrites(t *testing.T) {
+	ue := amf.NewUeContext()
+	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSEmergencyRegistration
+	ue.SetUESecurityCapabilityForTest(newUESecCaps(0xE0, 0xE0))
+
+	incoming := newUESecCaps(0x00, 0x00)
+	acceptRegistrationUESecurityCapability(ue, incoming)
+
+	if ue.UESecurityCapabilityForTest() != incoming {
+		t.Fatalf("Emergency Registration must replace stored caps")
+	}
+}
+
+func TestAcceptRegistrationUESecurityCapability_MobilityNoStored(t *testing.T) {
+	ue := amf.NewUeContext()
+	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
+	ue.SetUESecurityCapabilityForTest(nil)
+
+	incoming := newUESecCaps(0xE0, 0xE0)
+	acceptRegistrationUESecurityCapability(ue, incoming)
+
+	if ue.UESecurityCapabilityForTest() != incoming {
+		t.Fatalf("Mobility Update with no stored caps must adopt received caps")
+	}
+}
+
+// TestAcceptRegistrationUESecurityCapability_MobilityRejectsDowngrade is
+// the regression for TS 33.501 §6.7.3.1 downgrade protection on Mobility
+// Registration Update.
+func TestAcceptRegistrationUESecurityCapability_MobilityRejectsDowngrade(t *testing.T) {
+	stored := newUESecCaps(0xE0, 0xE0)
+
+	ue := amf.NewUeContext()
+	ue.Log = logger.AmfLog
+	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
+	ue.SetUESecurityCapabilityForTest(stored)
+
+	attacker := newUESecCaps(0x00, 0x00)
+	acceptRegistrationUESecurityCapability(ue, attacker)
+
+	if ue.UESecurityCapabilityForTest() != stored {
+		t.Fatalf("Mobility Update must NOT overwrite stored caps with forged downgrade (TS 33.501 §6.7.3.1)")
+	}
+
+	if !bytes.Equal(ue.UESecurityCapabilityForTest().Buffer, []byte{0xE0, 0xE0}) {
+		t.Fatalf("stored caps corrupted: %#v", ue.UESecurityCapabilityForTest().Buffer)
+	}
+}
+
+func TestAcceptRegistrationUESecurityCapability_PeriodicRejectsDowngrade(t *testing.T) {
+	stored := newUESecCaps(0xE0, 0xE0)
+
+	ue := amf.NewUeContext()
+	ue.Log = logger.AmfLog
+	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSPeriodicRegistrationUpdating
+	ue.SetUESecurityCapabilityForTest(stored)
+
+	acceptRegistrationUESecurityCapability(ue, newUESecCaps(0x00, 0x00))
+
+	if ue.UESecurityCapabilityForTest() != stored {
+		t.Fatalf("Periodic Update must NOT overwrite stored caps with forged downgrade")
+	}
+}
+
+func TestAcceptRegistrationUESecurityCapability_MobilityIdenticalCapsNoop(t *testing.T) {
+	stored := newUESecCaps(0xE0, 0xE0)
+
+	ue := amf.NewUeContext()
+	ue.Log = logger.AmfLog
+	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
+	ue.SetUESecurityCapabilityForTest(stored)
+
+	acceptRegistrationUESecurityCapability(ue, newUESecCaps(0xE0, 0xE0))
+
+	if ue.UESecurityCapabilityForTest() != stored {
+		t.Fatalf("Mobility Update with identical caps must be a no-op on the stored pointer")
+	}
+}

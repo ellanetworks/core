@@ -29,14 +29,14 @@ import (
 // missing UE context or a marshal failure is reported. The eNB broadcast itself
 // is best-effort — a per-eNB write failure does not fail the call.
 func (m *MME) Page(ctx context.Context, imsi string) error {
-	ue, ok := m.lookupUeByIMSI(imsi)
+	ue, ok := m.LookupUeByIMSI(imsi)
 	if !ok {
 		return fmt.Errorf("paging: no context for imsi %s", imsi)
 	}
 
 	m.mu.RLock()
 
-	skip := ue.connected() || ue.pagingTimer != nil
+	skip := ue.Connected() || ue.pagingTimer != nil
 
 	m.mu.RUnlock()
 
@@ -108,7 +108,7 @@ func (m *MME) onPagingExpiry(ue *UeContext, gen uint64) {
 		return
 	}
 
-	if ue.connected() {
+	if ue.Connected() {
 		m.stopPagingLocked(ue)
 		m.mu.Unlock()
 
@@ -144,19 +144,19 @@ func (m *MME) onPagingExpiry(ue *UeContext, gen uint64) {
 // the IMSI-derived UE identity index, the PS domain, and the operator's tracking
 // area (TS 36.413).
 func (m *MME) buildPaging(ctx context.Context, ue *UeContext) (*s1ap.Paging, error) {
-	plmn, err := m.operatorPLMN(ctx)
+	plmn, err := m.OperatorPLMN(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("paging: operator PLMN: %w", err)
 	}
 
-	tac, err := m.operatorTAC(ctx)
+	tac, err := m.OperatorTAC(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("paging: operator TAC: %w", err)
 	}
 
-	_, mmeCode := m.mmeIdentity()
+	_, mmeCode := m.MmeIdentity()
 
-	plmnID, err := encodePLMN(plmn)
+	plmnID, err := EncodePLMN(plmn)
 	if err != nil {
 		return nil, fmt.Errorf("paging: %w", err)
 	}
@@ -198,11 +198,11 @@ func (m *MME) broadcastPaging(ctx context.Context, b []byte) {
 	m.mu.RUnlock()
 
 	for _, conn := range conns {
-		if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamNonUE}); err != nil {
+		if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: S1apStreamNonUE}); err != nil {
 			logger.MmeLog.Warn("failed to send Paging to eNB", zap.Error(err))
 			continue
 		}
 
-		m.logNetworkEvent(ctx, conn, S1APProcedurePaging, logger.DirectionOutbound, b)
+		m.LogNetworkEvent(ctx, conn, S1APProcedurePaging, logger.DirectionOutbound, b)
 	}
 }

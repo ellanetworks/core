@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasMessage"
@@ -22,7 +21,7 @@ func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 
 	ranUe.TouchLastSeen()
 
-	amfUe := ranUe.AmfUe()
+	amfUe := ranUe.UeContext()
 	if amfUe == nil {
 		// No AMF UE bound, so no NAS state to clean up. Pass ReleaseNormal
 		// — the cause is moot when there is no NAS connection to release.
@@ -55,7 +54,7 @@ func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 }
 
 func sendStatus5GMM(ctx context.Context, ranUe *amf.RanUe, cause uint8) {
-	pdu, err := message.BuildStatus5GMM(cause)
+	pdu, err := amf.BuildStatus5GMM(cause)
 	if err != nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("failed to build 5GMM STATUS", zap.Error(err))
 		return

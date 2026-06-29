@@ -37,11 +37,7 @@ func init() {
 }
 
 func fixtureConnectivityMultiPDUSession(env scenarios.Env) scenarios.FixtureSpec {
-	// Scenario validates UE-AMBR at 500 Mbps, distinct from the baseline
-	// default profile (100 Mbps). The fixture declares its own profile
-	// "multi-pdu-profile" (500 Mbps) and two policies pinning that profile
-	// to (default slice, default DN) for PDU session 1 and to
-	// (enterprise slice, enterprise DN) for PDU session 2.
+	// Validates UE-AMBR at 500 Mbps, distinct from the baseline default profile (100 Mbps).
 	enterpriseIPPool := "10.46.0.0/16"
 	enterpriseDNS := "8.8.4.4"
 

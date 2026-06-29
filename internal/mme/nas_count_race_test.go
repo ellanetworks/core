@@ -24,12 +24,12 @@ func TestDownlinkNASCountConcurrent(t *testing.T) {
 	conn := new(sctp.SCTPConn)
 	m.trackENB(conn, ENBInfo{Name: "enb-a", ID: "00f110-1"})
 
-	ue := m.newUe(conn, 7)
+	ue := m.NewUe(conn, 7)
 	ue.imsi = "001010000000001"
 	ue.emmState.store(EMMRegistered)
 	ue.eea = 0 // EEA0/EIA0 (null algorithms): Protect needs no real key material.
 	ue.eia = 0
-	ue.imei = "353456789012347"
+	ue.Imei = "353456789012347"
 
 	const (
 		writers    = 8
@@ -46,7 +46,7 @@ func TestDownlinkNASCountConcurrent(t *testing.T) {
 			defer wg.Done()
 
 			for i := 0; i < perWriter; i++ {
-				if _, err := m.protectDownlink(ue, &eps.IdentityRequest{IdentityType: 1}); err != nil {
+				if _, err := m.ProtectDownlinkMessage(ue, &eps.IdentityRequest{IdentityType: 1}); err != nil {
 					t.Errorf("protectDownlink: %v", err)
 					return
 				}

@@ -81,10 +81,8 @@ func parsePayloadSizes(csv string) ([]int, error) {
 	return sizes, nil
 }
 
-// runS1ENBNATChecksum attaches a UE and sweeps TCP and UDP probes of varying
-// payload size through source_nat. The egress checksums are verified from a
-// packet capture, so the scenario only drives traffic. IPv4 only: source_nat
-// does not NAT IPv6.
+// Egress checksums are verified from a packet capture, so the scenario only
+// drives traffic. IPv4 only: source_nat does not NAT IPv6.
 func runS1ENBNATChecksum(ctx context.Context, env scenarios.Env, params *natChecksumParams) error {
 	sizes, err := parsePayloadSizes(params.PayloadBytes)
 	if err != nil {

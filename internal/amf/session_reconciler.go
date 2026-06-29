@@ -107,7 +107,7 @@ func (r *SessionReconciler) loop(ctx context.Context, done chan struct{}) {
 // and push updates to the UPF and UE where needed.
 func (r *SessionReconciler) Reconcile() {
 	r.amf.mu.RLock()
-	ues := make([]*AmfUe, 0, len(r.amf.UEs))
+	ues := make([]*UeContext, 0, len(r.amf.UEs))
 
 	for _, ue := range r.amf.UEs {
 		if ue.GetState() == Registered {
@@ -126,15 +126,15 @@ func (r *SessionReconciler) Reconcile() {
 	}
 }
 
-func (r *SessionReconciler) reconcileUE(ue *AmfUe) {
-	ue.Mutex.RLock()
-	smContextRefs := make([]string, 0, len(ue.Current().SmContextList))
+func (r *SessionReconciler) reconcileUE(ue *UeContext) {
+	ue.mu.RLock()
+	smContextRefs := make([]string, 0, len(ue.SmContextList))
 
-	for _, smCtx := range ue.Current().SmContextList {
+	for _, smCtx := range ue.SmContextList {
 		smContextRefs = append(smContextRefs, smCtx.Ref)
 	}
 
-	ue.Mutex.RUnlock()
+	ue.mu.RUnlock()
 
 	for _, ref := range smContextRefs {
 		if ref == "" {

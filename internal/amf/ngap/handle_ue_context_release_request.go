@@ -29,8 +29,8 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 
 	if msg.Cause != nil {
 		fields := []zap.Field{logger.Cause(causeToString(*msg.Cause))}
-		if ranUe.AmfUe() != nil {
-			fields = append(fields, logger.SUPI(ranUe.AmfUe().Supi.String()))
+		if ranUe.UeContext() != nil {
+			fields = append(fields, logger.SUPI(ranUe.UeContext().SupiValue().String()))
 		}
 
 		logger.WithTrace(ctx, ranUe.Log).Info("UE Context Release Cause", fields...)
@@ -41,7 +41,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 		}
 	}
 
-	amfUe := ranUe.AmfUe()
+	amfUe := ranUe.UeContext()
 	if amfUe != nil {
 		if amfUe.GetState() == amf.Registered {
 			logger.WithTrace(ctx, ranUe.Log).Info("Ue Context in GMM-Registered")
@@ -68,29 +68,15 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 			} else {
 				logger.WithTrace(ctx, ranUe.Log).Info("Pdu Session IDs not received from gNB, Releasing the UE Context with SMF using local context")
 
-				amfUe.Mutex.Lock()
-
-				type smCtxRef struct {
-					ref string
-					id  uint8
-				}
-
-				smContextRefs := make([]smCtxRef, 0, len(amfUe.Current().SmContextList))
-				for pduSessionID, smContext := range amfUe.Current().SmContextList {
-					if smContext.PduSessionInactive {
-						logger.WithTrace(ctx, ranUe.Log).Info("Pdu Session is inactive so not sending deactivate to SMF", logger.PDUSessionID(pduSessionID))
+				for _, sr := range amfUe.SmContextRefs() {
+					if sr.Inactive {
+						logger.WithTrace(ctx, ranUe.Log).Info("Pdu Session is inactive so not sending deactivate to SMF", logger.PDUSessionID(sr.PduSessionID))
 						continue
 					}
 
-					smContextRefs = append(smContextRefs, smCtxRef{ref: smContext.Ref, id: pduSessionID})
-				}
-
-				amfUe.Mutex.Unlock()
-
-				for _, sr := range smContextRefs {
-					err := amfInstance.Smf.DeactivateSmContext(ctx, sr.ref)
+					err := amfInstance.Smf.DeactivateSmContext(ctx, sr.Ref)
 					if err != nil {
-						logger.WithTrace(ctx, ranUe.Log).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", sr.id))
+						logger.WithTrace(ctx, ranUe.Log).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
 					}
 				}
 			}
@@ -104,24 +90,10 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 				return
 			}
 
-			amfUe.Mutex.Lock()
-
-			type smCtxRef struct {
-				ref string
-				id  uint8
-			}
-
-			smContextRefs := make([]smCtxRef, 0, len(amfUe.Current().SmContextList))
-			for pduSessionID, smContext := range amfUe.Current().SmContextList {
-				smContextRefs = append(smContextRefs, smCtxRef{ref: smContext.Ref, id: pduSessionID})
-			}
-
-			amfUe.Mutex.Unlock()
-
-			for _, sr := range smContextRefs {
-				err := amfInstance.Smf.ReleaseSmContext(ctx, sr.ref)
+			for _, sr := range amfUe.SmContextRefs() {
+				err := amfInstance.Smf.ReleaseSmContext(ctx, sr.Ref)
 				if err != nil {
-					logger.WithTrace(ctx, ranUe.Log).Error("error sending release sm context request", zap.Error(err), zap.Uint8("PduSessionID", sr.id))
+					logger.WithTrace(ctx, ranUe.Log).Error("error sending release sm context request", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
 				}
 			}
 

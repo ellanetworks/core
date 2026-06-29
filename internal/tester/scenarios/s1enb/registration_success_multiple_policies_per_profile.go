@@ -30,10 +30,8 @@ func init() {
 	})
 }
 
-// fixtureS1ENBMultiplePoliciesPerProfile provisions one profile with two policies
-// on distinct data networks: the default (internet) and an enterprise APN. The
-// first policy is the profile's default; the enterprise policy is reachable only
-// by a UE that requests its APN at attach.
+// One profile with two policies on distinct data networks; the enterprise policy
+// is reachable only by a UE that requests its APN at attach.
 func fixtureS1ENBMultiplePoliciesPerProfile(env scenarios.Env) scenarios.FixtureSpec {
 	enterprise := scenarios.DataNetworkSpec{
 		Name:     ppEnterpriseDNN,
@@ -70,10 +68,9 @@ func fixtureS1ENBMultiplePoliciesPerProfile(env scenarios.Env) scenarios.Fixture
 	}
 }
 
-// runS1ENBMultiplePoliciesPerProfile attaches two UEs on one profile and asserts
-// per-attach APN selection (TS 24.301 §6.5.1.3): a UE that requests no APN lands on
-// the profile's default policy, and a UE that requests the enterprise APN lands on
-// that non-default policy (distinct QCI, Session-AMBR, and IP pool).
+// Per-attach APN selection (TS 24.301 §6.5.1.3): a UE requesting no APN lands on
+// the profile's default policy, one requesting the enterprise APN lands on that
+// non-default policy.
 func runS1ENBMultiplePoliciesPerProfile(_ context.Context, env scenarios.Env, _ any) error {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {

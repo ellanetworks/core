@@ -48,7 +48,6 @@ func NewUeContextReleaseRequestBuilder() *UeContextReleaseRequestBuilder {
 }
 
 func (builder *UeContextReleaseRequestBuilder) SetAmfUeNgapId(amfUeNgapID int64) *UeContextReleaseRequestBuilder {
-	// AMF UE NGAP ID
 	ie := ngapType.UEContextReleaseRequestIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -64,7 +63,6 @@ func (builder *UeContextReleaseRequestBuilder) SetAmfUeNgapId(amfUeNgapID int64)
 }
 
 func (builder *UeContextReleaseRequestBuilder) SetRanUeNgapId(ranUeNgapID int64) *UeContextReleaseRequestBuilder {
-	// RAN UE NGAP ID
 	ie := ngapType.UEContextReleaseRequestIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -89,7 +87,6 @@ func (builder *UeContextReleaseRequestBuilder) SetPduSessionResourceListCxtRelRe
 
 		pDUSessionResourceListCxtRelReq := ie.Value.PDUSessionResourceListCxtRelReq
 
-		// PDU Session Resource Item in PDU session Resource List
 		for i, pduSessionID := range pduSessions {
 			if !pduSessionID {
 				continue

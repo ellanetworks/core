@@ -22,7 +22,7 @@ func HandleInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF,
 
 	ranUe.TouchLastSeen()
 
-	amfUe := ranUe.AmfUe()
+	amfUe := ranUe.UeContext()
 	if amfUe == nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("amfUe is nil")
 		return

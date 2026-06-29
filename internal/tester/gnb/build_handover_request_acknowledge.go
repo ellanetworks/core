@@ -12,34 +12,28 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-// HandoverRequestAcknowledgeOpts contains the parameters needed to build a
-// HandoverRequestAcknowledge message (target gNB → AMF).
 type HandoverRequestAcknowledgeOpts struct {
 	AMFUENGAPID int64
 	RANUENGAPID int64
 
-	// PDUSessions lists the admitted PDU sessions with their DL tunnel info.
 	PDUSessions []HandoverAdmittedPDUSession
 
-	// TargetToSourceTransparentContainer is an opaque RRC container.
+	// Opaque RRC container.
 	TargetToSourceTransparentContainer []byte
 }
 
-// HandoverAdmittedPDUSession describes one admitted PDU session.
 type HandoverAdmittedPDUSession struct {
 	PDUSessionID int64
 	DLTeid       uint32
 	DLIP         netip.Addr
 }
 
-// BuildHandoverRequestAcknowledge constructs an NGAP HandoverRequestAcknowledge PDU.
 func BuildHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) (ngapType.NGAPPDU, error) {
 	pdu := ngapType.NGAPPDU{}
 
 	msg := &ngapType.HandoverRequestAcknowledge{}
 	ies := &msg.ProtocolIEs
 
-	// AMF UE NGAP ID
 	{
 		ie := ngapType.HandoverRequestAcknowledgeIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
@@ -49,7 +43,6 @@ func BuildHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) (ngap
 		ies.List = append(ies.List, ie)
 	}
 
-	// RAN UE NGAP ID
 	{
 		ie := ngapType.HandoverRequestAcknowledgeIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
@@ -59,7 +52,6 @@ func BuildHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) (ngap
 		ies.List = append(ies.List, ie)
 	}
 
-	// PDU Session Resource Admitted List
 	{
 		ie := ngapType.HandoverRequestAcknowledgeIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceAdmittedList
@@ -85,7 +77,6 @@ func BuildHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) (ngap
 		ies.List = append(ies.List, ie)
 	}
 
-	// Target to Source Transparent Container
 	{
 		ie := ngapType.HandoverRequestAcknowledgeIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDTargetToSourceTransparentContainer
@@ -111,9 +102,6 @@ func BuildHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) (ngap
 	return pdu, nil
 }
 
-// buildHandoverRequestAcknowledgeTransfer builds the APER-encoded
-// HandoverRequestAcknowledgeTransfer containing the DL GTP tunnel info
-// for the target gNB.
 func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip netip.Addr) ([]byte, error) {
 	transfer := ngapType.HandoverRequestAcknowledgeTransfer{}
 

@@ -70,11 +70,9 @@ func unmarshalQosRule(b []byte) (QosRule, int, error) {
 
 	cur := 0
 
-	// Identifier
 	r.Identifier = b[cur]
 	cur++
 
-	// Content length (2B, BE)
 	if len(b[cur:]) < 2 {
 		return r, 0, io.ErrUnexpectedEOF
 	}
@@ -212,8 +210,8 @@ func unmarshalPacketFilter(b []byte) (PacketFilter, int, error) {
 
 		valLen, known := pfComponentValueLen(t)
 		if !known {
-			// Unknown type → preserve the rest opaquely starting at this type byte
-			i-- // include t itself
+			// Unknown type: preserve the remaining bytes verbatim, including t.
+			i--
 			comps = append(comps, PacketFilterComponent{
 				ComponentType:  t,
 				ComponentValue: append([]byte(nil), content[i:]...),

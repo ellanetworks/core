@@ -5,11 +5,9 @@ package mme
 
 import (
 	"bytes"
-	"context"
 	"testing"
 
 	nascommon "github.com/ellanetworks/core/nas/common"
-	"github.com/ellanetworks/core/nas/eps"
 )
 
 // TestReplayedUESecCapClearsUCS2 reproduces the iPhone Security Mode Reject
@@ -21,11 +19,11 @@ func TestReplayedUESecCapClearsUCS2(t *testing.T) {
 	// EEA=0x80, EIA=0x80, octet5 UEA=0xc0, octet6 = UCS2(bit8) | UIA1(bit7) = 0xc0.
 	ueNetCap := []byte{0x80, 0x80, 0xc0, 0xc0}
 
-	got := replayedUESecCap(ueNetCap, nil)
+	got := ReplayedUESecCap(ueNetCap, nil)
 	want := []byte{0x80, 0x80, 0xc0, 0x40} // octet 6 UCS2 cleared, UIA1 retained
 
 	if !bytes.Equal(got, want) {
-		t.Fatalf("replayedUESecCap(% x) = % x, want % x (octet 6 bit 8 must be cleared)", ueNetCap, got, want)
+		t.Fatalf("ReplayedUESecCap(% x) = % x, want % x (octet 6 bit 8 must be cleared)", ueNetCap, got, want)
 	}
 }
 
@@ -33,11 +31,11 @@ func TestReplayedUESecCapClearsUCS2(t *testing.T) {
 // (e.g. the srsUE test SIM): the replay is the two algorithm octets, no UMTS
 // octets appended.
 func TestReplayedUESecCapMinimal(t *testing.T) {
-	got := replayedUESecCap([]byte{0xe0, 0xe0}, nil)
+	got := ReplayedUESecCap([]byte{0xe0, 0xe0}, nil)
 	want := []byte{0xe0, 0xe0}
 
 	if !bytes.Equal(got, want) {
-		t.Fatalf("replayedUESecCap = % x, want % x", got, want)
+		t.Fatalf("ReplayedUESecCap = % x, want % x", got, want)
 	}
 }
 
@@ -49,10 +47,10 @@ func TestReplayedUESecCapGERAN(t *testing.T) {
 	msNetCap := []byte{0x80, 0x40}               // GEA1 (octet1 bit8), GEA2 (octet2 bit7)
 	want := []byte{0x80, 0x80, 0xc0, 0x40, 0x60} // octet 7 = GEA1(bit7) | GEA2(bit6)
 
-	got := replayedUESecCap(ueNetCap, msNetCap)
+	got := ReplayedUESecCap(ueNetCap, msNetCap)
 
 	if !bytes.Equal(got, want) {
-		t.Fatalf("replayedUESecCap = % x, want % x", got, want)
+		t.Fatalf("ReplayedUESecCap = % x, want % x", got, want)
 	}
 }
 
@@ -60,22 +58,22 @@ func TestReplayedUESecCapGERAN(t *testing.T) {
 // algorithms: octets 5-6 are present and zero-filled ahead of octet 7
 // (TS 24.301 §9.9.3.36).
 func TestReplayedUESecCapGERANNoUMTS(t *testing.T) {
-	got := replayedUESecCap([]byte{0xe0, 0xe0}, []byte{0x80, 0x00})
+	got := ReplayedUESecCap([]byte{0xe0, 0xe0}, []byte{0x80, 0x00})
 	want := []byte{0xe0, 0xe0, 0x00, 0x00, 0x40} // GEA1 only
 
 	if !bytes.Equal(got, want) {
-		t.Fatalf("replayedUESecCap = % x, want % x", got, want)
+		t.Fatalf("ReplayedUESecCap = % x, want % x", got, want)
 	}
 }
 
 // TestReplayedUESecCapNoGERAN confirms an all-zero GEA bitmap (UE supports no
 // Gb-mode algorithm) omits octet 7 (TS 24.301 §9.9.3.36).
 func TestReplayedUESecCapNoGERAN(t *testing.T) {
-	got := replayedUESecCap([]byte{0x80, 0x80, 0xc0, 0x40}, []byte{0x00, 0x00})
+	got := ReplayedUESecCap([]byte{0x80, 0x80, 0xc0, 0x40}, []byte{0x00, 0x00})
 	want := []byte{0x80, 0x80, 0xc0, 0x40}
 
 	if !bytes.Equal(got, want) {
-		t.Fatalf("replayedUESecCap = % x, want % x", got, want)
+		t.Fatalf("ReplayedUESecCap = % x, want % x", got, want)
 	}
 }
 
@@ -114,52 +112,28 @@ func TestSelectEPSAlgorithm(t *testing.T) {
 // A UE that advertises no integrity algorithm common with the operator policy is
 // rejected (EMM cause #23), not silently downgraded to the null algorithm
 // (TS 33.401 §5).
-func TestStartSecurityModeRejectsNoCommonIntegrity(t *testing.T) {
-	m := newTestMME(t)
-	cc := &captureConn{}
-	ue := m.newUe(cc, 7)
-	ue.imsi = testSubscriber.IMSI
-	ue.kasme = make([]byte, 32)
-	ue.ueNetCap = eps.UENetworkCapability{EEA: 0xff, EIA: 0x00}.Marshal()
-
-	m.startSecurityMode(context.Background(), ue)
-
-	if ue.secured {
-		t.Fatal("UE secured despite no common integrity algorithm")
-	}
-
-	reject, err := eps.ParseAttachReject(decodeDownlinkNAS(t, cc.sent[0]))
-	if err != nil {
-		t.Fatalf("expected Attach Reject, got: %v", err)
-	}
-
-	if reject.Cause != emmCauseUESecCapsMismatch {
-		t.Fatalf("Attach Reject cause = %d, want %d", reject.Cause, emmCauseUESecCapsMismatch)
-	}
-}
-
 func TestCipherIntegrityAlgMapping(t *testing.T) {
-	if _, ok := cipherAlg(1).(nascommon.SNOW3GCipher); !ok {
-		t.Errorf("cipherAlg(1) = %T, want SNOW3GCipher", cipherAlg(1))
+	if _, ok := CipherAlg(1).(nascommon.SNOW3GCipher); !ok {
+		t.Errorf("CipherAlg(1) = %T, want SNOW3GCipher", CipherAlg(1))
 	}
 
-	if _, ok := cipherAlg(2).(nascommon.AESCTRCipher); !ok {
-		t.Errorf("cipherAlg(2) = %T, want AESCTRCipher", cipherAlg(2))
+	if _, ok := CipherAlg(2).(nascommon.AESCTRCipher); !ok {
+		t.Errorf("CipherAlg(2) = %T, want AESCTRCipher", CipherAlg(2))
 	}
 
-	if _, ok := cipherAlg(0).(nascommon.NullCipher); !ok {
-		t.Errorf("cipherAlg(0) = %T, want NullCipher", cipherAlg(0))
+	if _, ok := CipherAlg(0).(nascommon.NullCipher); !ok {
+		t.Errorf("CipherAlg(0) = %T, want NullCipher", CipherAlg(0))
 	}
 
-	if _, ok := integrityAlg(1).(nascommon.SNOW3GIntegrity); !ok {
-		t.Errorf("integrityAlg(1) = %T, want SNOW3GIntegrity", integrityAlg(1))
+	if _, ok := IntegrityAlg(1).(nascommon.SNOW3GIntegrity); !ok {
+		t.Errorf("IntegrityAlg(1) = %T, want SNOW3GIntegrity", IntegrityAlg(1))
 	}
 
-	if _, ok := integrityAlg(2).(nascommon.AESCMACIntegrity); !ok {
-		t.Errorf("integrityAlg(2) = %T, want AESCMACIntegrity", integrityAlg(2))
+	if _, ok := IntegrityAlg(2).(nascommon.AESCMACIntegrity); !ok {
+		t.Errorf("IntegrityAlg(2) = %T, want AESCMACIntegrity", IntegrityAlg(2))
 	}
 
-	if _, ok := integrityAlg(0).(nascommon.NullIntegrity); !ok {
-		t.Errorf("integrityAlg(0) = %T, want NullIntegrity", integrityAlg(0))
+	if _, ok := IntegrityAlg(0).(nascommon.NullIntegrity); !ok {
+		t.Errorf("IntegrityAlg(0) = %T, want NullIntegrity", IntegrityAlg(0))
 	}
 }

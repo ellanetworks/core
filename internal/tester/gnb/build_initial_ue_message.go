@@ -78,7 +78,6 @@ func BuildInitialUEMessage(opts *InitialUEMessageOpts) (ngapType.NGAPPDU, error)
 	initialUEMessage := initiatingMessage.Value.InitialUEMessage
 	initialUEMessageIEs := &initialUEMessage.ProtocolIEs
 
-	// RAN UE NGAP ID
 	ie := ngapType.InitialUEMessageIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -90,7 +89,6 @@ func BuildInitialUEMessage(opts *InitialUEMessageOpts) (ngapType.NGAPPDU, error)
 
 	initialUEMessageIEs.List = append(initialUEMessageIEs.List, ie)
 
-	// NAS-PDU
 	ie = ngapType.InitialUEMessageIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDNASPDU
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -102,7 +100,6 @@ func BuildInitialUEMessage(opts *InitialUEMessageOpts) (ngapType.NGAPPDU, error)
 
 	initialUEMessageIEs.List = append(initialUEMessageIEs.List, ie)
 
-	// User Location Information
 	ie = ngapType.InitialUEMessageIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDUserLocationInformation
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -122,7 +119,6 @@ func BuildInitialUEMessage(opts *InitialUEMessageOpts) (ngapType.NGAPPDU, error)
 
 	initialUEMessageIEs.List = append(initialUEMessageIEs.List, ie)
 
-	// RRC Establishment Cause
 	ie = ngapType.InitialUEMessageIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDRRCEstablishmentCause
 	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -134,7 +130,6 @@ func BuildInitialUEMessage(opts *InitialUEMessageOpts) (ngapType.NGAPPDU, error)
 
 	initialUEMessageIEs.List = append(initialUEMessageIEs.List, ie)
 
-	// 5G-S-TSMI (optional)
 	if opts.Guti5g != nil {
 		ie = ngapType.InitialUEMessageIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDFiveGSTMSI
@@ -156,9 +151,7 @@ func BuildInitialUEMessage(opts *InitialUEMessageOpts) (ngapType.NGAPPDU, error)
 
 		initialUEMessageIEs.List = append(initialUEMessageIEs.List, ie)
 	}
-	// AMF Set ID (optional)
 
-	// UE Context Request (optional)
 	ie = ngapType.InitialUEMessageIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDUEContextRequest
 	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -167,6 +160,5 @@ func BuildInitialUEMessage(opts *InitialUEMessageOpts) (ngapType.NGAPPDU, error)
 	ie.Value.UEContextRequest.Value = ngapType.UEContextRequestPresentRequested
 	initialUEMessageIEs.List = append(initialUEMessageIEs.List, ie)
 
-	// Allowed NSSAI (optional)
 	return pdu, nil
 }

@@ -32,7 +32,7 @@ func TestNasNonDeliveryIndication_UnknownAmfUeNgapID(t *testing.T) {
 func TestNasNonDeliveryIndication_UEFoundDispatchesNAS(t *testing.T) {
 	ran := newTestRadio()
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
@@ -59,7 +59,7 @@ func TestNasNonDeliveryIndication_VerifyNASCalledWithPDU(t *testing.T) {
 
 	ran := newTestRadio()
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
@@ -96,7 +96,7 @@ func TestNasNonDeliveryIndication_NilPDU_PropagatesCorrectly(t *testing.T) {
 
 	ran := newTestRadio()
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)

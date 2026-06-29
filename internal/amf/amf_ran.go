@@ -103,7 +103,7 @@ func (r *Radio) RemoveAllUeInRan(ctx context.Context) {
 // NAS connection loss: mid-registration UEs are aborted (TS 24.501
 // §5.5.1.2.8); registered UEs start the mobile reachable timer (§5.3.7).
 func applyStatefulNasCleanup(ctx context.Context, ranUe *RanUe) {
-	ue := ranUe.AmfUe()
+	ue := ranUe.UeContext()
 	if ue == nil {
 		return
 	}
@@ -205,8 +205,8 @@ func (r *Radio) ConnectedSubscribers() []string {
 
 	supis := make([]string, 0, len(r.RanUEs))
 	for _, ranUe := range r.RanUEs {
-		if ranUe.amfUe != nil && ranUe.amfUe.Supi.IsValid() && ranUe.amfUe.Supi.IsIMSI() {
-			supis = append(supis, ranUe.amfUe.Supi.IMSI())
+		if ranUe.amfUe != nil && ranUe.amfUe.supi.IsValid() && ranUe.amfUe.supi.IsIMSI() {
+			supis = append(supis, ranUe.amfUe.supi.IMSI())
 		}
 	}
 

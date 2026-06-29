@@ -33,6 +33,8 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
+	mmenas "github.com/ellanetworks/core/internal/mme/nas"
+	mmes1ap "github.com/ellanetworks/core/internal/mme/s1ap"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	amfsctp "github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/sessions"
@@ -42,6 +44,7 @@ import (
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/upf"
 	"github.com/ellanetworks/core/internal/upf/bpfdump"
+	"github.com/ellanetworks/core/s1ap"
 	"github.com/ellanetworks/core/version"
 	nasLogger "github.com/free5gc/nas/logger"
 	"go.opentelemetry.io/otel/sdk/trace"
@@ -481,6 +484,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// consumes the shared credential authority (over the same subscriber store as
 	// the AUSF) for EPS-AKA vectors and the shared SQN.
 	mmeInstance := mme.New(udm.New(ausfStore, keyResolver), dbInstance, smfInstance)
+	mmeInstance.NAS = &mmeNASAdapter{mme: mmeInstance}
 
 	// Let the SMF page idle 4G UEs through the MME when downlink data arrives.
 	smfInstance.SetMME(mmeInstance)
@@ -576,9 +580,24 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't start AMF: %w", err)
 	}
 
-	// 4G S1-MME control plane. Bind the RAN-facing interface (same address as
-	// N2) on the standard S1AP port.
-	if err := mmeInstance.Start(ctx, cfg.Interfaces.N2.Address, mme.DefaultS1MMEPort); err != nil {
+	// 4G S1-MME control plane. The composition root owns the SCTP listener and
+	// routes decoded PDUs into the S1AP transport layer (mirrors the AMF/NGAP
+	// wiring above). Bind the RAN-facing interface (same address as N2) on the
+	// standard S1AP port.
+	mmeServer := amfsctp.NewServer(amfsctp.Config{
+		PPID:   mme.S1apPPID,
+		Name:   "S1-MME",
+		Logger: logger.MmeLog,
+	}, amfsctp.Callbacks{
+		Dispatch: func(ctx context.Context, conn *amfsctp.SCTPConn, msg []byte) {
+			mmes1ap.Dispatch(ctx, mmeInstance, conn, msg)
+		},
+		OnDisconnect: func(conn *amfsctp.SCTPConn) {
+			mmeInstance.RemoveENB(conn)
+		},
+	})
+
+	if err := mmeServer.ListenAndServe(ctx, cfg.Interfaces.N2.Address, mme.DefaultS1MMEPort, interfaceName); err != nil {
 		return fmt.Errorf("couldn't start MME: %w", err)
 	}
 
@@ -644,7 +663,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		logger.EllaLog.Info("Shutting down MME")
 
 		mmeCtx, mmeCancel := context.WithTimeout(context.Background(), stepTimeout)
-		mmeInstance.Shutdown(mmeCtx)
+		mmeServer.Shutdown(mmeCtx)
 		mmeCancel()
 
 		// 4. Stop the BGP reconciler, then the BGP speaker. The reconciler
@@ -741,6 +760,24 @@ type nasAdapter struct {
 
 func (n *nasAdapter) HandleNAS(ctx context.Context, ue *amf.RanUe, nasPdu []byte) error {
 	return nas.HandleNAS(ctx, n.amf, ue, nasPdu)
+}
+
+// mmeNASAdapter injects the 4G EMM/ESM NAS layer (internal/mme/nas) into the MME
+// kernel so its S1AP layer dispatches uplink NAS without the kernel importing nas.
+type mmeNASAdapter struct {
+	mme *mme.MME
+}
+
+func (a *mmeNASAdapter) HandleNAS(ctx context.Context, ue *mme.UeContext, pdu []byte) {
+	mmenas.HandleNAS(a.mme, ctx, ue, pdu)
+}
+
+func (a *mmeNASAdapter) HandleServiceRequest(ctx context.Context, conn mme.NasWriter, msg *s1ap.InitialUEMessage) {
+	mmenas.HandleServiceRequest(a.mme, ctx, conn, msg)
+}
+
+func (a *mmeNASAdapter) DispatchEMM(ctx context.Context, ue *mme.UeContext, plain []byte, integrityVerified bool) {
+	mmenas.DispatchEMM(a.mme, ctx, ue, plain, integrityVerified)
 }
 
 // ausfDBAdapter adapts *db.Database to the ausf.SubscriberStore interface.

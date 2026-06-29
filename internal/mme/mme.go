@@ -11,25 +11,28 @@ package mme
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/s1ap"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 // DefaultS1MMEPort is the standard S1-MME SCTP port (TS 36.412).
 const DefaultS1MMEPort = 36412
+
+// NASHandler is the EMM/ESM NAS layer's entry surface, implemented in
+// internal/mme/nas and injected so the S1AP layer dispatches uplink NAS without
+// the kernel importing its layers (kernel ⊅ nas).
+type NASHandler interface {
+	HandleNAS(ctx context.Context, ue *UeContext, nas []byte)
+	HandleServiceRequest(ctx context.Context, conn NasWriter, msg *s1ap.InitialUEMessage)
+	DispatchEMM(ctx context.Context, ue *UeContext, plain []byte, integrityVerified bool)
+}
 
 // MME is Ella Core's 4G Mobility Management Entity control-plane network function.
 // epsSessionManager is the converged session anchor (SMF acting as PGW-C) the
@@ -67,8 +70,9 @@ type epsSessionManager interface {
 //   - UeContext.mu guards that UE's data: the EPS NAS security context (keys and
 //     NAS COUNTs), the PDN/bearer state (the pdns map, defaultEBI, and each
 //     connection's in-flight modification flags), and imsi. The security context
-//     is reached only through chokepoint methods (downlinkSecCtx, nextDownlinkCount,
-//     setEPSSecurityContext, markSecured, securitySnapshot) so the COUNT invariant
+//     is reached only through chokepoint methods (installNASSecurityContext,
+//     protectDownlink, tryUnprotectUplink, deriveInitialKeNB, markSecured,
+//     securitySnapshot) so the keys never leave the kernel and the COUNT invariant
 //     is auditable in one place.
 //   - UeContext.emmState is atomic — an enum read on the hot path, kept lock-free.
 //     The ECM state is derived from whether the UE holds an S1-connection (ue.s1).
@@ -82,15 +86,15 @@ type epsSessionManager interface {
 // first observe emmState == EMM-REGISTERED (status, reconcile) are safe without
 // UeContext.mu — the atomic store at registration carries the happens-before.
 type MME struct {
-	srv     *sctp.Server
-	cred    *udm.Service
-	bearer  bearerStore
-	session epsSessionManager
+	Cred    *udm.Service
+	Bearer  bearerStore
+	Session epsSessionManager
+	NAS     NASHandler
 
 	mu          sync.RWMutex
 	enbs        map[*sctp.SCTPConn]*enbState
-	enbByID     map[string]nasWriter  // S1-setup-complete eNBs keyed by Global eNB ID, for S1-handover target resolution
-	conns       map[uint32]*s1Conn    // UE-associated S1-connections keyed by MME-UE-S1AP-ID; conn.ue is nil until a UE context is bound
+	enbByID     map[string]NasWriter  // S1-setup-complete eNBs keyed by Global eNB ID, for S1-handover target resolution
+	conns       map[uint32]*S1Conn    // UE-associated S1-connections keyed by MME-UE-S1AP-ID; conn.ue is nil until a UE context is bound
 	ues         map[string]*UeContext // persistent UE contexts keyed by IMSI; survives the connection across ECM-IDLE
 	byMTMSI     map[uint32]*UeContext // keyed by M-TMSI, for S-TMSI lookup
 	nextMMEUEID uint32
@@ -157,12 +161,12 @@ const defaultHandoverGuardTimeout = 10 * time.Second
 // that allocates the UE IP. The MME never holds subscriber keys or the SQN.
 func New(cred *udm.Service, bearer bearerStore, session epsSessionManager) *MME {
 	return &MME{
-		cred:        cred,
-		bearer:      bearer,
-		session:     session,
+		Cred:        cred,
+		Bearer:      bearer,
+		Session:     session,
 		enbs:        make(map[*sctp.SCTPConn]*enbState),
-		enbByID:     make(map[string]nasWriter),
-		conns:       make(map[uint32]*s1Conn),
+		enbByID:     make(map[string]NasWriter),
+		conns:       make(map[uint32]*S1Conn),
 		ues:         make(map[string]*UeContext),
 		byMTMSI:     make(map[uint32]*UeContext),
 		nextMMEUEID: 1,
@@ -181,406 +185,5 @@ func New(cred *udm.Service, bearer bearerStore, session epsSessionManager) *MME 
 	}
 }
 
-// Start binds the S1-MME SCTP listener and begins accepting eNB associations.
-func (m *MME) Start(ctx context.Context, address string, port int) error {
-	m.srv = sctp.NewServer(sctp.Config{
-		PPID:   s1apPPID,
-		Name:   "S1-MME",
-		Logger: logger.MmeLog,
-	}, sctp.Callbacks{
-		Dispatch:     m.dispatch,
-		OnDisconnect: m.removeENB,
-	})
-
-	return m.srv.ListenAndServe(ctx, address, port, "")
-}
-
-// Shutdown stops the S1-MME server, closing the listener and all associations.
-func (m *MME) Shutdown(ctx context.Context) {
-	if m.srv != nil {
-		m.srv.Shutdown(ctx)
-	}
-}
-
 // tracer instruments the MME's S1AP/EMM control plane.
-var tracer = otel.Tracer("ella-core/mme")
-
-// dispatch decodes an S1AP PDU and routes it to the matching procedure handler.
-func (m *MME) dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
-	// Inbound S1AP carries no propagated trace context, so this is a fresh root
-	// span.
-	ctx, span := tracer.Start(ctx, "s1ap/receive",
-		trace.WithSpanKind(trace.SpanKindServer),
-		trace.WithAttributes(
-			attribute.Int("s1ap.message_size", len(msg)),
-			attribute.String("network.protocol.name", "s1ap"),
-			attribute.String("network.transport", "sctp"),
-		),
-	)
-	defer span.End()
-
-	if conn != nil {
-		span.SetAttributes(
-			attribute.String("network.peer.address", addrString(conn.RemoteAddr())),
-			attribute.String("network.local.address", addrString(conn.LocalAddr())),
-		)
-	}
-
-	pdu, err := s1ap.Unmarshal(msg)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to decode S1AP PDU")
-		logger.MmeLog.Warn("failed to decode S1AP PDU", zap.Error(err))
-
-		return
-	}
-
-	messageType := s1apMessageType(pdu)
-	span.SetAttributes(attribute.String("s1ap.message_type", string(messageType)))
-
-	// Track the eNB from an S1 Setup Request before logging, so the inbound
-	// event is attributed to the radio ahead of the outbound S1 Setup Response.
-	isSetup := false
-	if im, ok := pdu.(*s1ap.InitiatingMessage); ok && im.ProcedureCode == s1ap.ProcS1Setup {
-		isSetup = true
-
-		m.trackENBFromSetup(conn, im.Value)
-	}
-
-	m.touchENB(conn)
-	m.logNetworkEvent(ctx, conn, messageType, logger.DirectionInbound, msg)
-
-	// TS 36.413: S1 Setup is the first S1AP procedure on a TNL
-	// association. Until it completes, drop every other message — including UE
-	// signalling from an eNB whose S1 Setup was rejected.
-	if !isSetup && !m.enbSetupComplete(conn) {
-		logger.MmeLog.Warn("S1AP message before S1 Setup, dropping",
-			zap.String("message-type", string(messageType)))
-
-		return
-	}
-
-	switch p := pdu.(type) {
-	case *s1ap.InitiatingMessage:
-		switch p.ProcedureCode {
-		case s1ap.ProcS1Setup:
-			m.handleS1Setup(ctx, conn, p.Value)
-		case s1ap.ProcInitialUEMessage:
-			m.handleInitialUEMessage(ctx, conn, p.Value)
-		case s1ap.ProcUplinkNASTransport:
-			m.handleUplinkNASTransport(ctx, conn, p.Value)
-		case s1ap.ProcUEContextReleaseRequest:
-			m.handleUEContextReleaseRequest(ctx, conn, p.Value)
-		case s1ap.ProcUECapabilityInfoIndication:
-			m.handleUECapabilityInfoIndication(conn, p.Value)
-		case s1ap.ProcPathSwitchRequest:
-			m.handlePathSwitchRequest(ctx, conn, p.Value)
-		case s1ap.ProcHandoverPreparation:
-			m.handleHandoverRequired(ctx, conn, p.Value)
-		case s1ap.ProcHandoverNotification:
-			m.handleHandoverNotify(ctx, conn, p.Value)
-		case s1ap.ProcENBStatusTransfer:
-			m.handleENBStatusTransfer(ctx, conn, p.Value)
-		case s1ap.ProcHandoverCancel:
-			m.handleHandoverCancel(ctx, conn, p.Value)
-		case s1ap.ProcErrorIndication:
-			m.handleErrorIndication(ctx, conn, p.Value)
-		case s1ap.ProcReset:
-			m.handleReset(conn, p.Value)
-		case s1ap.ProcENBConfigurationUpdate:
-			m.handleENBConfigurationUpdate(ctx, conn, p.Value)
-		default:
-			logger.MmeLog.Debug("ignoring S1AP initiating message", zap.Int("procedure-code", int(p.ProcedureCode)))
-		}
-	case *s1ap.SuccessfulOutcome:
-		switch p.ProcedureCode {
-		case s1ap.ProcInitialContextSetup:
-			m.handleInitialContextSetupResponse(ctx, conn, p.Value)
-		case s1ap.ProcUEContextRelease:
-			m.handleUEContextReleaseComplete(conn, p.Value)
-		case s1ap.ProcERABSetup:
-			m.handleERABSetupResponse(conn, p.Value)
-		case s1ap.ProcERABModify:
-			m.handleERABModifyResponse(p.Value)
-		case s1ap.ProcERABRelease:
-			m.handleERABReleaseResponse(conn, p.Value)
-		case s1ap.ProcHandoverResourceAllocation:
-			m.handleHandoverRequestAcknowledge(ctx, conn, p.Value)
-		default:
-			logger.MmeLog.Debug("ignoring S1AP successful outcome", zap.Int("procedure-code", int(p.ProcedureCode)))
-		}
-	case *s1ap.UnsuccessfulOutcome:
-		switch p.ProcedureCode {
-		case s1ap.ProcHandoverResourceAllocation:
-			m.handleHandoverFailure(ctx, conn, p.Value)
-		default:
-			logger.MmeLog.Debug("ignoring S1AP unsuccessful outcome", zap.Int("procedure-code", int(p.ProcedureCode)))
-		}
-	default:
-		logger.MmeLog.Debug("ignoring S1AP PDU")
-	}
-}
-
-// causeUnknownPLMN is S1AP Cause Misc "unknown-PLMN" (TS 36.413, the
-// sixth Misc root value), returned in S1 Setup Failure when the eNB broadcasts no
-// PLMN this MME serves.
-var causeUnknownPLMN = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscUnknownPLMN}
-
-// causeNoServedTAC is S1AP Cause Misc "unspecified", returned in an S1 Setup or
-// ENB Configuration Update Failure when the eNB broadcasts a served PLMN but no
-// TAC this MME serves. TS 36.413 §8.7.3.4 mandates rejection only on Unknown
-// PLMN; rejecting an unserved TAC matches the AMF, which fails NG Setup and RAN
-// Configuration Update on the same condition.
-var causeNoServedTAC = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscUnspecified}
-
-// handleS1Setup answers an eNB's S1 Setup Request: an S1 Setup Response when the
-// eNB broadcasts a TAI (PLMN + TAC) this MME serves, otherwise an S1 Setup
-// Failure with cause "Unknown PLMN" or, for an unserved TAC, "unspecified"
-// (TS 36.413).
-func (m *MME) handleS1Setup(ctx context.Context, conn *sctp.SCTPConn, value []byte) {
-	plmn, err := m.operatorPLMN(ctx)
-	if err != nil {
-		logger.MmeLog.Error("failed to get operator PLMN for S1 Setup", zap.Error(err))
-		return
-	}
-
-	tacs, err := m.operatorTACs(ctx)
-	if err != nil {
-		logger.MmeLog.Error("failed to get operator TACs for S1 Setup", zap.Error(err))
-		return
-	}
-
-	mmeGroupID, mmeCode := m.mmeIdentity()
-
-	req, outBytes, accepted, reason, err := s1SetupOutcomeFor(value, plmn, tacs, mmeGroupID, mmeCode)
-	if err != nil {
-		logger.MmeLog.Error("failed to handle S1 Setup Request", zap.Error(err))
-		return
-	}
-
-	logger.MmeLog.Info("S1 Setup Request",
-		zap.String("enb-name", req.ENBName),
-		zap.Uint32("enb-id", req.GlobalENBID.ENBID.Value),
-	)
-
-	if !accepted {
-		if _, err := conn.WriteMsg(outBytes, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamNonUE}); err != nil {
-			logger.MmeLog.Error("failed to send S1 Setup Failure", zap.Error(err))
-			return
-		}
-
-		m.logNetworkEvent(ctx, conn, S1APProcedureS1SetupFailure, logger.DirectionOutbound, outBytes)
-
-		logger.MmeLog.Warn("S1 Setup rejected",
-			zap.String("enb-name", req.ENBName),
-			zap.String("reason", reason),
-			zap.String("served-plmn", plmn.Mcc+"/"+plmn.Mnc))
-
-		return
-	}
-
-	if _, err := conn.WriteMsg(outBytes, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamNonUE}); err != nil {
-		logger.MmeLog.Error("failed to send S1 Setup Response", zap.Error(err))
-		return
-	}
-
-	m.logNetworkEvent(ctx, conn, S1APProcedureS1SetupResponse, logger.DirectionOutbound, outBytes)
-
-	// S1 Setup has completed: allow the eNB's UE-associated signalling through the
-	// dispatcher's setup-first gate (TS 36.413).
-	m.markENBSetupComplete(conn)
-
-	logger.MmeLog.Info("S1 Setup Response sent", zap.String("enb-name", req.ENBName))
-}
-
-// handleENBConfigurationUpdate answers an eNB's ENB CONFIGURATION UPDATE: it
-// validates that any updated supported TAs still broadcast a PLMN this MME serves
-// (otherwise an ENB CONFIGURATION UPDATE FAILURE with cause "Unknown PLMN"),
-// stores an updated eNB name, and acknowledges (TS 36.413 §8.7.4). The eNB blocks
-// on this response, so an unhandled update would stall its reconfiguration.
-func (m *MME) handleENBConfigurationUpdate(ctx context.Context, conn *sctp.SCTPConn, value []byte) {
-	req, err := s1ap.ParseENBConfigurationUpdate(value)
-	if err != nil {
-		logger.MmeLog.Warn("failed to decode ENB Configuration Update", zap.Error(err))
-		return
-	}
-
-	plmn, err := m.operatorPLMN(ctx)
-	if err != nil {
-		logger.MmeLog.Error("failed to get operator PLMN for ENB Configuration Update", zap.Error(err))
-		return
-	}
-
-	tacs, err := m.operatorTACs(ctx)
-	if err != nil {
-		logger.MmeLog.Error("failed to get operator TACs for ENB Configuration Update", zap.Error(err))
-		return
-	}
-
-	out, accepted, err := enbConfigUpdateOutcomeFor(req, plmn, tacs)
-	if err != nil {
-		logger.MmeLog.Error("failed to handle ENB Configuration Update", zap.Error(err))
-		return
-	}
-
-	msgType := S1APProcedureENBConfigUpdateAck
-	if !accepted {
-		msgType = S1APProcedureENBConfigUpdateFailure
-	}
-
-	if _, err := conn.WriteMsg(out, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamNonUE}); err != nil {
-		logger.MmeLog.Error("failed to send ENB Configuration Update response", zap.Error(err))
-		return
-	}
-
-	m.logNetworkEvent(ctx, conn, msgType, logger.DirectionOutbound, out)
-
-	if !accepted {
-		logger.MmeLog.Warn("ENB Configuration Update rejected: eNB broadcasts no TAI (PLMN + TAC) served by this MME")
-		return
-	}
-
-	if req.ENBName != "" {
-		m.updateENBName(conn, req.ENBName)
-	}
-
-	if len(req.SupportedTAs) > 0 {
-		m.updateENBSupportedTAs(conn, enbSupportedTAIs(req.SupportedTAs))
-	}
-
-	logger.MmeLog.Info("ENB Configuration Update acknowledged", zap.String("enb-name", req.ENBName))
-}
-
-// enbConfigUpdateOutcomeFor produces the S1AP response to an ENB CONFIGURATION
-// UPDATE: an Acknowledge when any updated supported TAs still broadcast a TAI
-// (PLMN + TAC) this MME serves, otherwise an ENB CONFIGURATION UPDATE FAILURE
-// with cause "Unknown PLMN" or, for an unserved TAC, "unspecified"
-// (TS 36.413 §8.7.4). accepted reports which was produced. An update with no
-// supported TAs (a name- or DRX-only change) is always accepted.
-func enbConfigUpdateOutcomeFor(req *s1ap.ENBConfigurationUpdate, plmn models.PlmnID, tacs []uint16) (out []byte, accepted bool, err error) {
-	if len(req.SupportedTAs) > 0 {
-		served, err := encodePLMN(plmn)
-		if err != nil {
-			return nil, false, fmt.Errorf("mme: encode served PLMN: %w", err)
-		}
-
-		cause, ok := servedTAICause(req.SupportedTAs, served, tacs)
-		if !ok {
-			out, err = (&s1ap.ENBConfigurationUpdateFailure{Cause: cause}).Marshal()
-			if err != nil {
-				return nil, false, fmt.Errorf("mme: marshal ENB Configuration Update Failure: %w", err)
-			}
-
-			return out, false, nil
-		}
-	}
-
-	out, err = (&s1ap.ENBConfigurationUpdateAcknowledge{}).Marshal()
-	if err != nil {
-		return nil, false, fmt.Errorf("mme: marshal ENB Configuration Update Acknowledge: %w", err)
-	}
-
-	return out, true, nil
-}
-
-// s1SetupOutcomeFor decodes an S1 Setup Request and produces the S1AP message to
-// send back: an S1 Setup Response when the eNB broadcasts a TAI (PLMN + TAC) this
-// MME serves, otherwise an S1 Setup Failure with cause "Unknown PLMN" or, for an
-// unserved TAC, "unspecified" (TS 36.413). accepted reports which outcome was
-// produced; reason is a human-readable rejection summary, empty when accepted.
-func s1SetupOutcomeFor(reqValue []byte, plmn models.PlmnID, tacs []uint16, mmeGroupID uint16, mmeCode uint8) (req *s1ap.S1SetupRequest, out []byte, accepted bool, reason string, err error) {
-	req, err = s1ap.ParseS1SetupRequest(reqValue)
-	if err != nil {
-		return nil, nil, false, "", fmt.Errorf("mme: parse S1 Setup Request: %w", err)
-	}
-
-	served, err := encodePLMN(plmn)
-	if err != nil {
-		return req, nil, false, "", fmt.Errorf("mme: encode served PLMN: %w", err)
-	}
-
-	if cause, ok := servedTAICause(req.SupportedTAs, served, tacs); !ok {
-		out, err = (&s1ap.S1SetupFailure{Cause: cause}).Marshal()
-		if err != nil {
-			return req, nil, false, "", fmt.Errorf("mme: marshal S1 Setup Failure: %w", err)
-		}
-
-		reason = "eNB broadcasts no PLMN served by this MME (Unknown PLMN)"
-		if cause == causeNoServedTAC {
-			reason = "eNB broadcasts a served PLMN but no TAC served by this MME"
-		}
-
-		return req, out, false, reason, nil
-	}
-
-	resp, err := buildS1SetupResponse(plmn, mmeGroupID, mmeCode)
-	if err != nil {
-		return req, nil, false, "", err
-	}
-
-	out, err = resp.Marshal()
-	if err != nil {
-		return req, nil, false, "", fmt.Errorf("mme: marshal S1 Setup Response: %w", err)
-	}
-
-	return req, out, true, "", nil
-}
-
-// servedTAICause reports whether the eNB broadcasts a TAI this MME serves and, if
-// not, the S1AP cause to reject with: "Unknown PLMN" when no broadcast PLMN
-// matches, otherwise "unspecified" when a served PLMN is broadcast but with no
-// served TAC (TS 36.413). ok is true (and cause unset) when a served TAI exists.
-func servedTAICause(tas s1ap.SupportedTAs, plmn s1ap.PLMNIdentity, tacs []uint16) (cause s1ap.Cause, ok bool) {
-	if !enbBroadcastsPLMN(tas, plmn) {
-		return causeUnknownPLMN, false
-	}
-
-	if !enbBroadcastsServedTAI(tas, plmn, tacs) {
-		return causeNoServedTAC, false
-	}
-
-	return s1ap.Cause{}, true
-}
-
-// enbBroadcastsPLMN reports whether any PLMN the eNB broadcasts across its
-// supported TAs equals plmn (TS 36.413).
-func enbBroadcastsPLMN(tas s1ap.SupportedTAs, plmn s1ap.PLMNIdentity) bool {
-	for _, ta := range tas {
-		for _, b := range ta.BroadcastPLMNs {
-			if b == plmn {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-// enbBroadcastsServedTAI reports whether the eNB broadcasts a TAI this MME serves:
-// a supported TA whose TAC is one of tacs and that also broadcasts plmn
-// (TS 36.413).
-func enbBroadcastsServedTAI(tas s1ap.SupportedTAs, plmn s1ap.PLMNIdentity, tacs []uint16) bool {
-	for _, ta := range tas {
-		served := false
-
-		for _, t := range tacs {
-			if t == uint16(ta.TAC) {
-				served = true
-
-				break
-			}
-		}
-
-		if !served {
-			continue
-		}
-
-		for _, b := range ta.BroadcastPLMNs {
-			if b == plmn {
-				return true
-			}
-		}
-	}
-
-	return false
-}
+var Tracer = otel.Tracer("ella-core/mme")

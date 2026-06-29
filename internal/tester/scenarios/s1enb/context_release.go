@@ -28,9 +28,6 @@ func init() {
 	})
 }
 
-// runS1ENBContextRelease attaches a UE, has the eNB request an S1 release on
-// inactivity, and validates the MME's UE CONTEXT RELEASE COMMAND: a radioNetwork
-// user-inactivity Cause and the paired UE-S1AP-IDs (TS 36.413 §8.3.3).
 func runS1ENBContextRelease(_ context.Context, env scenarios.Env, _ any) error {
 	e, err := startENB(env)
 	if err != nil {

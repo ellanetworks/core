@@ -39,7 +39,7 @@ func HandleHandoverCancel(ctx context.Context, ran *amf.Radio, msg decode.Handov
 	}
 
 	// Clear the N2 Handover procedure since it was cancelled by the source.
-	if amfUe := sourceUe.AmfUe(); amfUe != nil {
+	if amfUe := sourceUe.UeContext(); amfUe != nil {
 		if conn := amfUe.NasConn(); conn != nil {
 			conn.Procedures.End(procedure.N2Handover)
 		}

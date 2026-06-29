@@ -44,7 +44,6 @@ func GetPLMNIdentity(mcc string, mnc string) ngapType.PLMNIdentity {
 func GetMccAndMncInOctets(mccStr string, mncStr string) ([]byte, error) {
 	var res string
 
-	// reverse mcc and mnc
 	mcc := reverse(mccStr)
 	mnc := reverse(mncStr)
 

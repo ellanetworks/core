@@ -53,10 +53,10 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *FakeNGAPSender, *am
 		},
 	}
 
-	amfUe := amf.NewAmfUe()
-	amfUe.Supi = supi
+	amfUe := amf.NewUeContext()
+	amfUe.SetSupiForTest(supi)
 	amfUe.Log = logger.AmfLog
-	amfUe.Current().SmContextList[pduSessionID] = &amf.SmContext{
+	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    smf.CanonicalName(supi, pduSessionID),
 		Snssai: &models.Snssai{Sst: 1},
 	}
@@ -136,7 +136,7 @@ func TestHandoverRequestAcknowledge_NoSourceUe(t *testing.T) {
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	targetUe := amf.NewRanUeForTest(ran, 2, 1, logger.AmfLog)
@@ -201,11 +201,11 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SendsPreparationFailur
 	}
 }
 
-// TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceAmfUeDetached
+// TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceUeContextDetached
 // verifies that when no PDU sessions are admitted and the source UE's AMF UE
 // context has been detached (e.g. due to a concurrent deregistration), the
 // handler does not panic.
-func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceAmfUeDetached(t *testing.T) {
+func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceUeContextDetached(t *testing.T) {
 	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t)
 
 	targetUe := targetRan.FindUEByAmfUeNgapID(1)
@@ -213,12 +213,12 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceAmfUeDetached(t 
 		t.Fatal("target UE not found on target radio")
 	}
 
-	sourceAmfUe := targetUe.SourceUe.AmfUe()
-	if sourceAmfUe == nil {
+	sourceUeContext := targetUe.SourceUe.UeContext()
+	if sourceUeContext == nil {
 		t.Fatal("source AMF UE not found")
 	}
 
-	sourceAmfUe.ReleaseNasConnection(nil)
+	sourceUeContext.ReleaseNasConnection(nil)
 
 	amfID := int64(1)
 	ranID := int64(2)

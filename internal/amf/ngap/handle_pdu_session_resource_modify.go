@@ -21,7 +21,7 @@ func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, r
 	ranUe.TouchLastSeen()
 	logger.WithTrace(ctx, ranUe.Log).Debug("Handle PDUSessionResourceNotify", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
 
-	amfUe := ranUe.AmfUe()
+	amfUe := ranUe.UeContext()
 	if amfUe == nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("amfUe is nil")
 		return

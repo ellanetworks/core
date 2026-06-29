@@ -22,12 +22,12 @@ func mustHex(t *testing.T, s string) []byte {
 func TestDeriveNASAndKeNB(t *testing.T) {
 	kasme := mustHex(t, "238e457e0f758badbca8d34bb2612c10428d426757cb5553b2b184fa64bfc549")
 
-	enc, err := deriveKNASEnc(kasme, 2) // 128-EEA2
+	enc, err := DeriveKNASEnc(kasme, 2) // 128-EEA2
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	integ, err := deriveKNASInt(kasme, 2) // 128-EIA2
+	integ, err := DeriveKNASInt(kasme, 2) // 128-EIA2
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,12 +36,12 @@ func TestDeriveNASAndKeNB(t *testing.T) {
 		t.Fatal("NAS ciphering and integrity keys must differ")
 	}
 
-	again, err := deriveKNASEnc(kasme, 2)
+	again, err := DeriveKNASEnc(kasme, 2)
 	if err != nil || again != enc {
 		t.Fatalf("derivation not deterministic: %v", err)
 	}
 
-	kenb, err := deriveKeNB(kasme, 0)
+	kenb, err := DeriveKeNB(kasme, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestDeriveNASAndKeNB(t *testing.T) {
 func TestDeriveNHChain(t *testing.T) {
 	kasme := mustHex(t, "238e457e0f758badbca8d34bb2612c10428d426757cb5553b2b184fa64bfc549")
 
-	kenb, err := deriveKeNB(kasme, 0)
+	kenb, err := DeriveKeNB(kasme, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

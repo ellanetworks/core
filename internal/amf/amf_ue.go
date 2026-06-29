@@ -25,6 +25,7 @@ import (
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
+	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/nas/security"
 	"go.uber.org/zap"
 )
@@ -53,19 +54,19 @@ type SmContext struct {
 	PduSessionInactive bool
 }
 
-type AmfUe struct {
-	Mutex sync.RWMutex
+type UeContext struct {
+	mu sync.RWMutex
 
 	/* Gmm State */
 	state StateType
 	/* Ue Identity*/
 	PlmnID  models.PlmnID
 	Suci    string
-	Supi    etsi.SUPI
+	supi    etsi.SUPI
 	Pei     string
 	Tmsi    etsi.TMSI
 	OldTmsi etsi.TMSI
-	Guti    etsi.GUTI
+	guti    etsi.GUTI
 	OldGuti etsi.GUTI
 	/* User Location*/
 	Location models.UserLocation
@@ -79,78 +80,97 @@ type AmfUe struct {
 
 	Log *zap.Logger
 
-	current atomic.Pointer[FivegmmContext]
+	// ctx is the per-registration context. NAS connection contexts derive from
+	// it; cancelling it on RotateContext unwinds procedures and in-flight RPCs.
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	active atomic.Pointer[ActiveNasConnection]
+
+	// NAS security context per TS 33.501.
+	securityContextAvailable bool
+	ueSecurityCapability     *nasType.UESecurityCapability
+	ngKsi                    models.NgKsi
+	knasInt                  [16]uint8
+	knasEnc                  [16]uint8
+	kgnb                     []uint8
+	nh                       []uint8
+	ncc                      uint8
+	ulCount                  security.Count
+	dlCount                  security.Count
+	cipheringAlg             uint8
+	integrityAlg             uint8
+	kamf                     string
+	abba                     []uint8
+
+	Ambr                       *models.Ambr
+	AllowedNssai               []models.Snssai
+	RegistrationArea           []models.Tai
+	UeRadioCapability          string
+	UeRadioCapabilityForPaging *models.UERadioCapabilityForPaging
+	UESpecificDRX              uint8
+	SmContextList              map[uint8]*SmContext
+
+	T3502Value time.Duration
+	T3512Value time.Duration
+
+	MobileReachableTimer        *Timer
+	ImplicitDeregistrationTimer *Timer
 }
 
-func NewAmfUe() *AmfUe {
-	ue := &AmfUe{
-		state: Deregistered,
+func NewUeContext() *UeContext {
+	ue := &UeContext{
+		state:            Deregistered,
+		SmContextList:    make(map[uint8]*SmContext),
+		RegistrationArea: make([]models.Tai, 0),
 	}
 
-	fc := newFivegmmContext(ue)
-	fc.active.Store(newActiveNasConnection(fc, nil))
-	ue.current.Store(fc)
+	ue.ctx, ue.cancel = context.WithCancel(context.Background())
+	ue.active.Store(newActiveNasConnection(ue, nil))
 
 	return ue
 }
 
-func (ue *AmfUe) Current() *FivegmmContext {
+// Ctx returns the per-registration context. NAS connection contexts derive
+// from it; it is cancelled and replaced when the 5GMM context is rotated.
+func (ue *UeContext) Ctx() context.Context {
+	return ue.ctx
+}
+
+// NasConn returns the active NAS connection, or nil if none is established.
+func (ue *UeContext) NasConn() *ActiveNasConnection {
 	if ue == nil {
 		return nil
 	}
 
-	return ue.current.Load()
+	return ue.active.Load()
 }
 
-// NasConn returns the active NAS connection of the current 5GMM context,
-// or nil if no NAS connection is established.
-func (ue *AmfUe) NasConn() *ActiveNasConnection {
-	fc := ue.Current()
-	if fc == nil {
-		return nil
+// RotateContext discards the current 5GMM security and session state and starts
+// a fresh per-registration context, cancelling the prior ctx to unwind its
+// procedures and in-flight RPCs (TS 24.501: an initial registration arriving in
+// 5GMM-REGISTERED). The NAS connection is left unset until a RanUe is attached.
+func (ue *UeContext) RotateContext() {
+	if old := ue.active.Swap(nil); old != nil {
+		old.stopTimers()
+		old.cancel()
 	}
 
-	return fc.active.Load()
-}
+	ue.stopIdleTimers()
 
-// SwapContext atomically replaces the active 5GMM context. The previous
-// context is closed: its ActiveNasConnection is released and its ctx is
-// cancelled, unwinding procedures and in-flight RPCs derived from it.
-func (ue *AmfUe) SwapContext(fresh *FivegmmContext) *FivegmmContext {
-	old := ue.current.Swap(fresh)
-	if old != nil {
-		old.close()
+	if ue.cancel != nil {
+		ue.cancel()
 	}
 
-	return fresh
+	ue.ctx, ue.cancel = context.WithCancel(context.Background())
+
+	ue.resetSecurityContext()
 }
 
-// RotateContext installs a fresh 5GMM context and returns it. Used when
-// a UE re-initiates registration: the prior context is discarded per
-// TS 24.501 handling of an initial registration arriving in 5GMM-REGISTERED.
-// RotateContext installs a fresh 5GMM context, replacing the previous one.
-// The NAS connection is intentionally left unset: AttachRanUe creates it once
-// the RanUe is known.
-func (ue *AmfUe) RotateContext() *FivegmmContext {
-	fresh := newFivegmmContext(ue)
-	ue.SwapContext(fresh)
-
-	return fresh
-}
-
-// AttachNasConnection installs a fresh NAS connection on the current
-// 5GMM context, replacing any prior one.
-func (ue *AmfUe) AttachNasConnection(ranUe *RanUe) *ActiveNasConnection {
-	fc := ue.current.Load()
-	if fc == nil {
-		fc = newFivegmmContext(ue)
-		if !ue.current.CompareAndSwap(nil, fc) {
-			fc = ue.current.Load()
-		}
-	}
-
-	conn := newActiveNasConnection(fc, ranUe)
-	if old := fc.active.Swap(conn); old != nil {
+// AttachNasConnection installs a fresh NAS connection, replacing any prior one.
+func (ue *UeContext) AttachNasConnection(ranUe *RanUe) *ActiveNasConnection {
+	conn := newActiveNasConnection(ue, ranUe)
+	if old := ue.active.Swap(conn); old != nil {
 		old.stopTimers()
 		old.cancel()
 	}
@@ -158,26 +178,68 @@ func (ue *AmfUe) AttachNasConnection(ranUe *RanUe) *ActiveNasConnection {
 	return conn
 }
 
+// resetSecurityContext clears the 5GMM security and session state, returning the
+// field state to that of a freshly-constructed context.
+func (ue *UeContext) resetSecurityContext() {
+	ue.securityContextAvailable = false
+	ue.ueSecurityCapability = nil
+	ue.ngKsi = models.NgKsi{}
+	ue.knasInt = [16]uint8{}
+	ue.knasEnc = [16]uint8{}
+	ue.kgnb = nil
+	ue.nh = nil
+	ue.ncc = 0
+	ue.ulCount = security.Count{}
+	ue.dlCount = security.Count{}
+	ue.cipheringAlg = 0
+	ue.integrityAlg = 0
+	ue.kamf = ""
+	ue.abba = nil
+	ue.Ambr = nil
+	ue.AllowedNssai = nil
+	ue.RegistrationArea = make([]models.Tai, 0)
+	ue.UeRadioCapability = ""
+	ue.UeRadioCapabilityForPaging = nil
+	ue.UESpecificDRX = 0
+	ue.SmContextList = make(map[uint8]*SmContext)
+	ue.T3502Value = 0
+	ue.T3512Value = 0
+}
+
+// stopIdleTimers stops and clears the registered-but-idle timers (mobile
+// reachable and implicit deregistration).
+func (ue *UeContext) stopIdleTimers() {
+	if ue.MobileReachableTimer != nil {
+		ue.MobileReachableTimer.Stop()
+		ue.MobileReachableTimer = nil
+	}
+
+	if ue.ImplicitDeregistrationTimer != nil {
+		ue.ImplicitDeregistrationTimer.Stop()
+		ue.ImplicitDeregistrationTimer = nil
+	}
+}
+
 // RanUe returns the currently attached RanUe, or nil.
 // The read is synchronized via ue.Mutex so the returned pointer is a
 // consistent snapshot.  Callers must capture the result in a local
 // variable and reuse it — never call RanUe() twice in the same
 // code path, as the underlying pointer may change between calls.
-func (ue *AmfUe) RanUe() *RanUe {
+func (ue *UeContext) RanUe() *RanUe {
 	if ue == nil {
 		return nil
 	}
 
-	ue.Mutex.RLock()
+	ue.mu.RLock()
 	r := ue.ranUe
-	ue.Mutex.RUnlock()
+	ue.mu.RUnlock()
 
 	return r
 }
 
-func (ue *AmfUe) GetState() StateType {
-	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
+func (ue *UeContext) GetState() StateType {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	return ue.state
 }
@@ -185,22 +247,22 @@ func (ue *AmfUe) GetState() StateType {
 // ForceState sets the UE state unconditionally, bypassing transition validation.
 // It exists for test precondition setup in external packages. Production code
 // must use TransitionTo.
-func (ue *AmfUe) ForceState(s StateType) {
-	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
+func (ue *UeContext) ForceState(s StateType) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	ue.state = s
 }
 
-func (ue *AmfUe) TransitionTo(target StateType) {
-	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
+func (ue *UeContext) TransitionTo(target StateType) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	ue.transitionToLocked(target)
 }
 
 // transitionToLocked enforces allowed state transitions and must only be called while ue.Mutex is held.
-func (ue *AmfUe) transitionToLocked(target StateType) {
+func (ue *UeContext) transitionToLocked(target StateType) {
 	if ue.state == target {
 		return
 	}
@@ -226,12 +288,12 @@ func (ue *AmfUe) transitionToLocked(target StateType) {
 	ue.state = Deregistered
 }
 
-func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
+func (ue *UeContext) AttachRanUe(ranUe *RanUe) {
 	if ranUe == nil {
 		return
 	}
 
-	ue.Mutex.Lock()
+	ue.mu.Lock()
 
 	oldRanUe := ue.ranUe
 
@@ -253,17 +315,17 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 
 	ue.Log = logger.AmfLog.With(logger.AmfUeNgapID(ranUe.AmfUeNgapID))
 
-	ue.Mutex.Unlock()
+	ue.mu.Unlock()
 
-	if fc := ue.current.Load(); fc != nil && fc.active.Load() == nil {
-		fc.active.Store(newActiveNasConnection(fc, ranUe))
+	if ue.active.Load() == nil {
+		ue.active.Store(newActiveNasConnection(ue, ranUe))
 	}
 }
 
-func (ue *AmfUe) AllocateRegistrationArea(supportedTais []models.Tai) {
+func (ue *UeContext) AllocateRegistrationArea(supportedTais []models.Tai) {
 	// clear the previous registration area if need
-	if len(ue.Current().RegistrationArea) > 0 {
-		ue.Current().RegistrationArea = nil
+	if len(ue.RegistrationArea) > 0 {
+		ue.RegistrationArea = nil
 	}
 
 	taiList := make([]models.Tai, len(supportedTais))
@@ -271,14 +333,14 @@ func (ue *AmfUe) AllocateRegistrationArea(supportedTais []models.Tai) {
 
 	for _, supportTai := range taiList {
 		if supportTai.Equal(ue.Tai) {
-			ue.Current().RegistrationArea = append(ue.Current().RegistrationArea, supportTai)
+			ue.RegistrationArea = append(ue.RegistrationArea, supportTai)
 			break
 		}
 	}
 }
 
-func (ue *AmfUe) IsAllowedNssai(targetSNssai *models.Snssai) bool {
-	for _, s := range ue.Current().AllowedNssai {
+func (ue *UeContext) IsAllowedNssai(targetSNssai *models.Snssai) bool {
+	for _, s := range ue.AllowedNssai {
 		if s.Equal(*targetSNssai) {
 			return true
 		}
@@ -287,14 +349,14 @@ func (ue *AmfUe) IsAllowedNssai(targetSNssai *models.Snssai) bool {
 	return false
 }
 
-func (ue *AmfUe) SecurityContextIsValid() bool {
-	return ue.Current().SecurityContextAvailable && ue.Current().NgKsi.Ksi != nasMessage.NasKeySetIdentifierNoKeyIsAvailable
+func (ue *UeContext) SecurityContextIsValid() bool {
+	return ue.securityContextAvailable && ue.ngKsi.Ksi != nasMessage.NasKeySetIdentifierNoKeyIsAvailable
 }
 
 // cipheringAlgName returns the human-readable name for the negotiated NAS ciphering algorithm.
 // Must be called while holding ue.Mutex.
-func (ue *AmfUe) cipheringAlgName() string {
-	switch ue.Current().CipheringAlg {
+func (ue *UeContext) cipheringAlgName() string {
+	switch ue.cipheringAlg {
 	case security.AlgCiphering128NEA0:
 		return "NEA0"
 	case security.AlgCiphering128NEA1:
@@ -310,8 +372,8 @@ func (ue *AmfUe) cipheringAlgName() string {
 
 // integrityAlgName returns the human-readable name for the negotiated NAS integrity algorithm.
 // Must be called while holding ue.Mutex.
-func (ue *AmfUe) integrityAlgName() string {
-	switch ue.Current().IntegrityAlg {
+func (ue *UeContext) integrityAlgName() string {
+	switch ue.integrityAlg {
 	case security.AlgIntegrity128NIA0:
 		return "NIA0"
 	case security.AlgIntegrity128NIA1:
@@ -327,9 +389,9 @@ func (ue *AmfUe) integrityAlgName() string {
 
 // TouchLastSeen updates the UE's last-seen timestamp and radio name.
 // Must be called while the UE mutex is NOT held (it acquires the lock).
-func (ue *AmfUe) TouchLastSeen(radioName string) {
-	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
+func (ue *UeContext) TouchLastSeen(radioName string) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	ue.LastSeenAt = time.Now()
 	if radioName != "" {
@@ -350,9 +412,9 @@ type UESnapshot struct {
 
 // Snapshot returns a point-in-time copy of the UE's connection state.
 // The caller can safely read the returned value without holding any lock.
-func (ue *AmfUe) Snapshot() UESnapshot {
-	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
+func (ue *UeContext) Snapshot() UESnapshot {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	snap := UESnapshot{
 		State:              ue.state,
@@ -367,14 +429,14 @@ func (ue *AmfUe) Snapshot() UESnapshot {
 }
 
 // Kamf Derivation function defined in TS 33.501 Annex A.7
-func (ue *AmfUe) DerivateKamf(kseaf string) error {
-	if !ue.Supi.IsValid() || !ue.Supi.IsIMSI() {
+func (ue *UeContext) DerivateKamf(kseaf string) error {
+	if !ue.supi.IsValid() || !ue.supi.IsIMSI() {
 		return fmt.Errorf("supi is not a valid IMSI")
 	}
 
-	P0 := []byte(ue.Supi.IMSI())
+	P0 := []byte(ue.supi.IMSI())
 	L0 := ueauth.KDFLen(P0)
-	P1 := ue.Current().ABBA
+	P1 := ue.abba
 	L1 := ueauth.KDFLen(P1)
 
 	kSeafDecode, err := hex.DecodeString(kseaf)
@@ -387,20 +449,20 @@ func (ue *AmfUe) DerivateKamf(kseaf string) error {
 		return fmt.Errorf("could not get kdf value: %v", err)
 	}
 
-	ue.Current().Kamf = hex.EncodeToString(kAmfBytes)
+	ue.kamf = hex.EncodeToString(kAmfBytes)
 
 	return nil
 }
 
 // Algorithm key Derivation function defined in TS 33.501 Annex A.9
-func (ue *AmfUe) DerivateAlgKey() error {
+func (ue *UeContext) DerivateAlgKey() error {
 	// Security Key
 	P0 := []byte{security.NNASEncAlg}
 	L0 := ueauth.KDFLen(P0)
-	P1 := []byte{ue.Current().CipheringAlg}
+	P1 := []byte{ue.cipheringAlg}
 	L1 := ueauth.KDFLen(P1)
 
-	kAmfBytes, err := hex.DecodeString(ue.Current().Kamf)
+	kAmfBytes, err := hex.DecodeString(ue.kamf)
 	if err != nil {
 		return fmt.Errorf("decode kamf error: %v", err)
 	}
@@ -410,12 +472,12 @@ func (ue *AmfUe) DerivateAlgKey() error {
 		return fmt.Errorf("get kdf value error: %v", err)
 	}
 
-	copy(ue.Current().KnasEnc[:], kenc[16:32])
+	copy(ue.knasEnc[:], kenc[16:32])
 
 	// Integrity Key
 	P0 = []byte{security.NNASIntAlg}
 	L0 = ueauth.KDFLen(P0)
-	P1 = []byte{ue.Current().IntegrityAlg}
+	P1 = []byte{ue.integrityAlg}
 	L1 = ueauth.KDFLen(P1)
 
 	kint, err := ueauth.GetKDFValue(kAmfBytes, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
@@ -423,20 +485,20 @@ func (ue *AmfUe) DerivateAlgKey() error {
 		return fmt.Errorf("get kdf value error: %v", err)
 	}
 
-	copy(ue.Current().KnasInt[:], kint[16:32])
+	copy(ue.knasInt[:], kint[16:32])
 
 	return nil
 }
 
 // Access Network key Derivation function defined in TS 33.501 Annex A.9
-func (ue *AmfUe) DerivateAnKey() error {
+func (ue *UeContext) DerivateAnKey() error {
 	P0 := make([]byte, 4)
-	binary.BigEndian.PutUint32(P0, ue.Current().ULCount.Get())
+	binary.BigEndian.PutUint32(P0, ue.ulCount.Get())
 	L0 := ueauth.KDFLen(P0)
 	P1 := []byte{security.AccessType3GPP}
 	L1 := ueauth.KDFLen(P1)
 
-	kAmfBytes, err := hex.DecodeString(ue.Current().Kamf)
+	kAmfBytes, err := hex.DecodeString(ue.kamf)
 	if err != nil {
 		return fmt.Errorf("could not decode kamf: %v", err)
 	}
@@ -446,17 +508,17 @@ func (ue *AmfUe) DerivateAnKey() error {
 		return fmt.Errorf("could not get kdf value: %v", err)
 	}
 
-	ue.Current().Kgnb = key
+	ue.kgnb = key
 
 	return nil
 }
 
 // NH Derivation function defined in TS 33.501 Annex A.10
-func (ue *AmfUe) DerivateNH(syncInput []byte) error {
+func (ue *UeContext) DerivateNH(syncInput []byte) error {
 	P0 := syncInput
 	L0 := ueauth.KDFLen(P0)
 
-	kAmfBytes, err := hex.DecodeString(ue.Current().Kamf)
+	kAmfBytes, err := hex.DecodeString(ue.kamf)
 	if err != nil {
 		return fmt.Errorf("could not decode kamf: %v", err)
 	}
@@ -466,31 +528,31 @@ func (ue *AmfUe) DerivateNH(syncInput []byte) error {
 		return fmt.Errorf("could not get kdf value: %v", err)
 	}
 
-	ue.Current().NH = nh
+	ue.nh = nh
 
 	return nil
 }
 
-func (ue *AmfUe) UpdateSecurityContext() error {
+func (ue *UeContext) UpdateSecurityContext() error {
 	err := ue.DerivateAnKey()
 	if err != nil {
 		return fmt.Errorf("error deriving AnKey: %v", err)
 	}
 
-	err = ue.DerivateNH(ue.Current().Kgnb)
+	err = ue.DerivateNH(ue.kgnb)
 	if err != nil {
 		return fmt.Errorf("error deriving NH: %v", err)
 	}
 
-	ue.Current().NCC = 1
+	ue.ncc = 1
 
 	return nil
 }
 
-func (ue *AmfUe) UpdateNH() error {
-	ue.Current().NCC = (ue.Current().NCC + 1) % 8
+func (ue *UeContext) UpdateNH() error {
+	ue.ncc = (ue.ncc + 1) % 8
 
-	err := ue.DerivateNH(ue.Current().NH)
+	err := ue.DerivateNH(ue.nh)
 	if err != nil {
 		return fmt.Errorf("error deriving NH: %v", err)
 	}
@@ -498,8 +560,8 @@ func (ue *AmfUe) UpdateNH() error {
 	return nil
 }
 
-func (ue *AmfUe) SelectSecurityAlg(intOrder, encOrder []uint8) error {
-	if ue.Current().UESecurityCapability == nil {
+func (ue *UeContext) SelectSecurityAlg(intOrder, encOrder []uint8) error {
+	if ue.ueSecurityCapability == nil {
 		return fmt.Errorf("UE security capability not available, cannot negotiate NAS security algorithms")
 	}
 
@@ -509,17 +571,17 @@ func (ue *AmfUe) SelectSecurityAlg(intOrder, encOrder []uint8) error {
 	for _, intAlg := range intOrder {
 		switch intAlg {
 		case security.AlgIntegrity128NIA0:
-			ueSupported = ue.Current().UESecurityCapability.GetIA0_5G()
+			ueSupported = ue.ueSecurityCapability.GetIA0_5G()
 		case security.AlgIntegrity128NIA1:
-			ueSupported = ue.Current().UESecurityCapability.GetIA1_128_5G()
+			ueSupported = ue.ueSecurityCapability.GetIA1_128_5G()
 		case security.AlgIntegrity128NIA2:
-			ueSupported = ue.Current().UESecurityCapability.GetIA2_128_5G()
+			ueSupported = ue.ueSecurityCapability.GetIA2_128_5G()
 		case security.AlgIntegrity128NIA3:
-			ueSupported = ue.Current().UESecurityCapability.GetIA3_128_5G()
+			ueSupported = ue.ueSecurityCapability.GetIA3_128_5G()
 		}
 
 		if ueSupported == 1 {
-			ue.Current().IntegrityAlg = intAlg
+			ue.integrityAlg = intAlg
 			intFound = true
 
 			break
@@ -536,17 +598,17 @@ func (ue *AmfUe) SelectSecurityAlg(intOrder, encOrder []uint8) error {
 	for _, encAlg := range encOrder {
 		switch encAlg {
 		case security.AlgCiphering128NEA0:
-			ueSupported = ue.Current().UESecurityCapability.GetEA0_5G()
+			ueSupported = ue.ueSecurityCapability.GetEA0_5G()
 		case security.AlgCiphering128NEA1:
-			ueSupported = ue.Current().UESecurityCapability.GetEA1_128_5G()
+			ueSupported = ue.ueSecurityCapability.GetEA1_128_5G()
 		case security.AlgCiphering128NEA2:
-			ueSupported = ue.Current().UESecurityCapability.GetEA2_128_5G()
+			ueSupported = ue.ueSecurityCapability.GetEA2_128_5G()
 		case security.AlgCiphering128NEA3:
-			ueSupported = ue.Current().UESecurityCapability.GetEA3_128_5G()
+			ueSupported = ue.ueSecurityCapability.GetEA3_128_5G()
 		}
 
 		if ueSupported == 1 {
-			ue.Current().CipheringAlg = encAlg
+			ue.cipheringAlg = encAlg
 			encFound = true
 
 			break
@@ -562,7 +624,7 @@ func (ue *AmfUe) SelectSecurityAlg(intOrder, encOrder []uint8) error {
 
 // ClearRegistrationRequestData clears transient registration fields and
 // cancels any active procedures on the current NAS connection.
-func (ue *AmfUe) ClearRegistrationRequestData() {
+func (ue *UeContext) ClearRegistrationRequestData() {
 	conn := ue.NasConn()
 	if conn == nil {
 		return
@@ -583,21 +645,21 @@ func (ue *AmfUe) ClearRegistrationRequestData() {
 	}
 }
 
-func (ue *AmfUe) ClearRegistrationData(ctx context.Context) {
+func (ue *UeContext) ClearRegistrationData(ctx context.Context) {
 	ue.releaseSmContexts(ctx)
 
-	ue.Current().SmContextList = make(map[uint8]*SmContext)
+	ue.SmContextList = make(map[uint8]*SmContext)
 }
 
-func (ue *AmfUe) CreateSmContext(pduSessionID uint8, ref string, snssai *models.Snssai) error {
+func (ue *UeContext) CreateSmContext(pduSessionID uint8, ref string, snssai *models.Snssai) error {
 	if pduSessionID < 1 || pduSessionID > 15 {
 		return fmt.Errorf("invalid PDU session ID %d: must be in range 1-15 per TS 24.501", pduSessionID)
 	}
 
-	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
-	ue.Current().SmContextList[pduSessionID] = &SmContext{
+	ue.SmContextList[pduSessionID] = &SmContext{
 		Ref:    ref,
 		Snssai: snssai,
 	}
@@ -605,36 +667,36 @@ func (ue *AmfUe) CreateSmContext(pduSessionID uint8, ref string, snssai *models.
 	return nil
 }
 
-func (ue *AmfUe) DeleteSmContext(pduSessionID uint8) {
-	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
+func (ue *UeContext) DeleteSmContext(pduSessionID uint8) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
-	delete(ue.Current().SmContextList, pduSessionID)
+	delete(ue.SmContextList, pduSessionID)
 }
 
-func (ue *AmfUe) SmContextFindByPDUSessionID(pduSessionID uint8) (*SmContext, bool) {
-	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
+func (ue *UeContext) SmContextFindByPDUSessionID(pduSessionID uint8) (*SmContext, bool) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
-	smContext, ok := ue.Current().SmContextList[pduSessionID]
+	smContext, ok := ue.SmContextList[pduSessionID]
 
 	return smContext, ok
 }
 
-func (ue *AmfUe) SetSmContextInactive(pduSessionID uint8) {
-	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
+func (ue *UeContext) SetSmContextInactive(pduSessionID uint8) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
-	if sc, ok := ue.Current().SmContextList[pduSessionID]; ok {
+	if sc, ok := ue.SmContextList[pduSessionID]; ok {
 		sc.PduSessionInactive = true
 	}
 }
 
-func (ue *AmfUe) HasActivePduSessions() bool {
-	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
+func (ue *UeContext) HasActivePduSessions() bool {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
-	for _, smContext := range ue.Current().SmContextList {
+	for _, smContext := range ue.SmContextList {
 		if !smContext.PduSessionInactive {
 			return true
 		}
@@ -643,7 +705,7 @@ func (ue *AmfUe) HasActivePduSessions() bool {
 	return false
 }
 
-func (ue *AmfUe) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
+func (ue *UeContext) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 	if ue == nil {
 		return nil, fmt.Errorf("amf ue is nil")
 	}
@@ -652,11 +714,11 @@ func (ue *AmfUe) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 		return nil, fmt.Errorf("nas message is nil")
 	}
 
-	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	// Plain NAS message
-	if !ue.Current().SecurityContextAvailable {
+	if !ue.securityContextAvailable {
 		return msg.PlainNasEncode()
 	}
 
@@ -669,8 +731,8 @@ func (ue *AmfUe) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 	case nas.SecurityHeaderTypeIntegrityProtectedAndCiphered:
 		needCiphering = true
 	case nas.SecurityHeaderTypeIntegrityProtectedWithNew5gNasSecurityContext:
-		ue.Current().ULCount.Set(0, 0)
-		ue.Current().DLCount.Set(0, 0)
+		ue.ulCount.Set(0, 0)
+		ue.dlCount.Set(0, 0)
 	default:
 		return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeaderType)
 	}
@@ -682,15 +744,15 @@ func (ue *AmfUe) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 	}
 
 	if needCiphering {
-		if err = security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().DLCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+		if err = security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.dlCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 			return nil, fmt.Errorf("error encrypting: %+v", err)
 		}
 	}
 
 	// add sequece number
-	payload = append([]byte{ue.Current().DLCount.SQN()}, payload[:]...)
+	payload = append([]byte{ue.dlCount.SQN()}, payload[:]...)
 
-	mac32, err := security.NASMacCalculate(ue.Current().IntegrityAlg, ue.Current().KnasInt, ue.Current().DLCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload)
+	mac32, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, ue.dlCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload)
 	if err != nil {
 		return nil, fmt.Errorf("MAC calcuate error: %+v", err)
 	}
@@ -703,69 +765,69 @@ func (ue *AmfUe) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 	payload = append(msgSecurityHeader, payload[:]...)
 
 	// Increase DL Count
-	ue.Current().DLCount.AddOne()
+	ue.dlCount.AddOne()
 
 	return payload, nil
 }
 
-func (ue *AmfUe) ResetMobileReachableTimer() {
-	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
+func (ue *UeContext) ResetMobileReachableTimer() {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
-	if ue.Current().ImplicitDeregistrationTimer != nil {
-		ue.Current().ImplicitDeregistrationTimer.Stop()
-		ue.Current().ImplicitDeregistrationTimer = nil
+	if ue.ImplicitDeregistrationTimer != nil {
+		ue.ImplicitDeregistrationTimer.Stop()
+		ue.ImplicitDeregistrationTimer = nil
 	}
 
-	ue.Log.Debug("starting mobile reachable timer", logger.SUPI(ue.Supi.String()))
+	ue.Log.Debug("starting mobile reachable timer", logger.SUPI(ue.supi.String()))
 
-	ue.Current().MobileReachableTimer = NewTimer(
-		ue.Current().T3512Value+(4*time.Minute),
+	ue.MobileReachableTimer = NewTimer(
+		ue.T3512Value+(4*time.Minute),
 		1,
 		func(expireTimes int32) {
-			ue.Log.Debug("mobile reachable timer expired", logger.SUPI(ue.Supi.String()))
+			ue.Log.Debug("mobile reachable timer expired", logger.SUPI(ue.supi.String()))
 			ue.startImplicitDeregistrationTimer()
 		},
 		func() {},
 	)
 }
 
-func (ue *AmfUe) StopMobileReachableTimer() {
-	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
+func (ue *UeContext) StopMobileReachableTimer() {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	ue.Log.Debug("stopping mobile reachable timer")
 
-	if ue.Current().MobileReachableTimer != nil {
-		ue.Current().MobileReachableTimer.Stop()
-		ue.Current().MobileReachableTimer = nil
+	if ue.MobileReachableTimer != nil {
+		ue.MobileReachableTimer.Stop()
+		ue.MobileReachableTimer = nil
 	}
 }
 
-func (ue *AmfUe) StopImplicitDeregistrationTimer() {
-	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
+func (ue *UeContext) StopImplicitDeregistrationTimer() {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	ue.Log.Debug("stopping implicit deregistration timer")
 
-	if ue.Current().ImplicitDeregistrationTimer != nil {
-		ue.Current().ImplicitDeregistrationTimer.Stop()
-		ue.Current().ImplicitDeregistrationTimer = nil
+	if ue.ImplicitDeregistrationTimer != nil {
+		ue.ImplicitDeregistrationTimer.Stop()
+		ue.ImplicitDeregistrationTimer = nil
 	}
 }
 
-func (ue *AmfUe) startImplicitDeregistrationTimer() {
-	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
+func (ue *UeContext) startImplicitDeregistrationTimer() {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	ue.Log.Debug("starting implicit deregistration timer")
 
-	ue.Current().ImplicitDeregistrationTimer = NewTimer(2*time.Minute, 1, func(expireTimes int32) { ue.Deregister(context.Background()) }, func() {})
+	ue.ImplicitDeregistrationTimer = NewTimer(2*time.Minute, 1, func(expireTimes int32) { ue.Deregister(context.Background()) }, func() {})
 }
 
-func (ue *AmfUe) StopProcedureTimers() {
-	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
+func (ue *UeContext) StopProcedureTimers() {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	conn := ue.NasConn()
 	if conn == nil {
@@ -782,7 +844,7 @@ func (ue *AmfUe) StopProcedureTimers() {
 // ReleaseNasConnection releases the NAS signalling connection between
 // this AMF UE and a RAN UE. Target, when non-nil, makes the release a
 // no-op if a newer RAN UE has already taken over.
-func (ue *AmfUe) ReleaseNasConnection(target *RanUe) {
+func (ue *UeContext) ReleaseNasConnection(target *RanUe) {
 	if ue == nil {
 		return
 	}
@@ -798,9 +860,9 @@ func (ue *AmfUe) ReleaseNasConnection(target *RanUe) {
 	}
 }
 
-func (ue *AmfUe) detachRanUeIfMatch(target *RanUe) bool {
-	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
+func (ue *UeContext) detachRanUeIfMatch(target *RanUe) bool {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	if ue.ranUe == nil {
 		return false
@@ -822,25 +884,12 @@ func (ue *AmfUe) detachRanUeIfMatch(target *RanUe) bool {
 // stopAllTimersLocked stops every idle timer on the 5GMM context. Caller
 // must hold ue.Mutex. Procedure retransmission timers are torn down via
 // NAS-connection ctx cancellation.
-func (ue *AmfUe) stopAllTimersLocked() {
-	fc := ue.Current()
-	if fc == nil {
-		return
-	}
-
-	if fc.ImplicitDeregistrationTimer != nil {
-		fc.ImplicitDeregistrationTimer.Stop()
-		fc.ImplicitDeregistrationTimer = nil
-	}
-
-	if fc.MobileReachableTimer != nil {
-		fc.MobileReachableTimer.Stop()
-		fc.MobileReachableTimer = nil
-	}
+func (ue *UeContext) stopAllTimersLocked() {
+	ue.stopIdleTimers()
 }
 
-func (ue *AmfUe) Deregister(ctx context.Context) {
-	ue.Mutex.Lock()
+func (ue *UeContext) Deregister(ctx context.Context) {
+	ue.mu.Lock()
 
 	if conn := ue.NasConn(); conn != nil {
 		conn.Release()
@@ -851,13 +900,13 @@ func (ue *AmfUe) Deregister(ctx context.Context) {
 	ue.transitionToLocked(Deregistered)
 
 	// Copy refs and clear map while protected by UE lock.
-	smContextRefs := make([]string, 0, len(ue.Current().SmContextList))
-	for _, smContext := range ue.Current().SmContextList {
+	smContextRefs := make([]string, 0, len(ue.SmContextList))
+	for _, smContext := range ue.SmContextList {
 		smContextRefs = append(smContextRefs, smContext.Ref)
 	}
 
-	ue.Current().SmContextList = make(map[uint8]*SmContext)
-	ue.Mutex.Unlock()
+	ue.SmContextList = make(map[uint8]*SmContext)
+	ue.mu.Unlock()
 
 	// External SMF calls must happen without holding UE lock.
 	if ue.smf != nil {
@@ -869,24 +918,24 @@ func (ue *AmfUe) Deregister(ctx context.Context) {
 		}
 	}
 
-	ue.Log.Debug("ue deregistered", logger.SUPI(ue.Supi.String()))
+	ue.Log.Debug("ue deregistered", logger.SUPI(ue.supi.String()))
 }
 
-func (ue *AmfUe) releaseSmContexts(ctx context.Context) {
+func (ue *UeContext) releaseSmContexts(ctx context.Context) {
 	if ue.smf == nil {
 		return
 	}
 
 	// Copy refs under lock, then release lock before external SMF calls.
-	ue.Mutex.Lock()
+	ue.mu.Lock()
 
-	smContextRefs := make([]string, 0, len(ue.Current().SmContextList))
-	for _, smContext := range ue.Current().SmContextList {
+	smContextRefs := make([]string, 0, len(ue.SmContextList))
+	for _, smContext := range ue.SmContextList {
 		smContextRefs = append(smContextRefs, smContext.Ref)
 	}
 
-	ue.Current().SmContextList = make(map[uint8]*SmContext)
-	ue.Mutex.Unlock()
+	ue.SmContextList = make(map[uint8]*SmContext)
+	ue.mu.Unlock()
 
 	for _, smContextRef := range smContextRefs {
 		err := ue.smf.ReleaseSmContext(ctx, smContextRef)

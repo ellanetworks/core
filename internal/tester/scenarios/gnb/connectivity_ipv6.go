@@ -283,7 +283,6 @@ func runConnectivityIPv6Test(
 		zap.String("destination", scenarios.DefaultPingDestinationV6),
 	)
 
-	// NOTE: client-side usage assertion skipped; integration test will verify.
 	logger.Logger.Debug("client-side usage assertion skipped; integration test will verify",
 		zap.String("IMSI", sub.IMSI),
 	)

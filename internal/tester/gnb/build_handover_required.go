@@ -12,42 +12,33 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-// HandoverRequiredOpts contains the parameters needed to build a
-// HandoverRequired message (source gNB → AMF).
 type HandoverRequiredOpts struct {
 	AMFUENGAPID int64
 	RANUENGAPID int64
 
-	// HandoverType: ngapType.HandoverTypeIntra5GS (0) or InterSystem (1).
+	// ngapType.HandoverTypeIntra5GS (0) or InterSystem (1).
 	HandoverType int64
 
-	// Cause for the handover.
 	CausePresent int
 	CauseValue   int64
 
-	// TargetID: target gNB identity.
 	TargetMcc   string
 	TargetMnc   string
 	TargetGnbID string
 	TargetTac   string
 
-	// PDU Sessions to hand over. Each entry is a PDU session ID mapped to
-	// a HandoverRequiredTransfer (opaque bytes from the source gNB).
 	PDUSessions []HandoverRequiredPDUSession
 
-	// SourceToTargetTransparentContainer is an opaque RRC container.
+	// Opaque RRC container.
 	SourceToTargetTransparentContainer []byte
 }
 
-// HandoverRequiredPDUSession describes one PDU session in HandoverRequired.
 type HandoverRequiredPDUSession struct {
 	PDUSessionID int64
-	// HandoverRequiredTransfer is the APER-encoded transfer IE.
-	// If nil, a minimal default is built.
+	// APER-encoded transfer IE; a minimal default is built when nil.
 	HandoverRequiredTransfer []byte
 }
 
-// BuildHandoverRequired constructs an NGAP HandoverRequired PDU.
 func BuildHandoverRequired(opts *HandoverRequiredOpts) (ngapType.NGAPPDU, error) {
 	pdu := ngapType.NGAPPDU{}
 
@@ -58,7 +49,6 @@ func BuildHandoverRequired(opts *HandoverRequiredOpts) (ngapType.NGAPPDU, error)
 	msg := &ngapType.HandoverRequired{}
 	ies := &msg.ProtocolIEs
 
-	// AMF UE NGAP ID
 	{
 		ie := ngapType.HandoverRequiredIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
@@ -68,7 +58,6 @@ func BuildHandoverRequired(opts *HandoverRequiredOpts) (ngapType.NGAPPDU, error)
 		ies.List = append(ies.List, ie)
 	}
 
-	// RAN UE NGAP ID
 	{
 		ie := ngapType.HandoverRequiredIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
@@ -78,7 +67,6 @@ func BuildHandoverRequired(opts *HandoverRequiredOpts) (ngapType.NGAPPDU, error)
 		ies.List = append(ies.List, ie)
 	}
 
-	// Handover Type
 	{
 		ie := ngapType.HandoverRequiredIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDHandoverType
@@ -88,7 +76,6 @@ func BuildHandoverRequired(opts *HandoverRequiredOpts) (ngapType.NGAPPDU, error)
 		ies.List = append(ies.List, ie)
 	}
 
-	// Cause
 	{
 		ie := ngapType.HandoverRequiredIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDCause
@@ -121,7 +108,6 @@ func BuildHandoverRequired(opts *HandoverRequiredOpts) (ngapType.NGAPPDU, error)
 		ies.List = append(ies.List, ie)
 	}
 
-	// Target ID
 	{
 		ie := ngapType.HandoverRequiredIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDTargetID
@@ -164,7 +150,6 @@ func BuildHandoverRequired(opts *HandoverRequiredOpts) (ngapType.NGAPPDU, error)
 		ies.List = append(ies.List, ie)
 	}
 
-	// PDU Session Resource List HO Required
 	{
 		ie := ngapType.HandoverRequiredIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceListHORqd
@@ -176,7 +161,6 @@ func BuildHandoverRequired(opts *HandoverRequiredOpts) (ngapType.NGAPPDU, error)
 		for _, ps := range opts.PDUSessions {
 			transfer := ps.HandoverRequiredTransfer
 			if transfer == nil {
-				// Build a minimal HandoverRequiredTransfer.
 				var err error
 
 				transfer, err = buildMinimalHandoverRequiredTransfer()
@@ -196,7 +180,6 @@ func BuildHandoverRequired(opts *HandoverRequiredOpts) (ngapType.NGAPPDU, error)
 		ies.List = append(ies.List, ie)
 	}
 
-	// Source to Target Transparent Container
 	{
 		ie := ngapType.HandoverRequiredIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDSourceToTargetTransparentContainer
@@ -223,9 +206,8 @@ func BuildHandoverRequired(opts *HandoverRequiredOpts) (ngapType.NGAPPDU, error)
 	return pdu, nil
 }
 
-// buildMinimalHandoverRequiredTransfer builds a minimal APER-encoded
-// HandoverRequiredTransfer (essentially empty, since the SMF only decodes
-// it but doesn't need meaningful content for the basic flow).
+// buildMinimalHandoverRequiredTransfer builds an empty APER-encoded transfer;
+// the SMF decodes it but requires no content for the basic flow.
 func buildMinimalHandoverRequiredTransfer() ([]byte, error) {
 	transfer := ngapType.HandoverRequiredTransfer{}
 
@@ -237,9 +219,6 @@ func buildMinimalHandoverRequiredTransfer() ([]byte, error) {
 	return buf, nil
 }
 
-// BuildHandoverRequiredTransferWithDirectForwarding builds a
-// HandoverRequiredTransfer indicating direct forwarding path availability.
-// Not strictly required but useful for completeness.
 func BuildHandoverRequiredTransferWithDirectForwarding(_ netip.Addr) ([]byte, error) {
 	transfer := ngapType.HandoverRequiredTransfer{
 		DirectForwardingPathAvailability: &ngapType.DirectForwardingPathAvailability{

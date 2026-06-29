@@ -15,7 +15,7 @@ func TestTransitionTo_AllowedTransitions(t *testing.T) {
 	// Every edge declared in validTransitions must succeed.
 	for from, targets := range validTransitions {
 		for _, to := range targets {
-			ue := NewAmfUe()
+			ue := NewUeContext()
 			ue.Log = zap.NewNop()
 			ue.state = from
 
@@ -45,7 +45,7 @@ func TestTransitionTo_InvalidTransitionResetsToDeregistered(t *testing.T) {
 		{Registered, ContextSetup},
 	}
 	for _, tc := range invalid {
-		ue := NewAmfUe()
+		ue := NewUeContext()
 		ue.Log = zap.NewNop()
 		ue.state = tc.from
 
@@ -59,7 +59,7 @@ func TestTransitionTo_InvalidTransitionResetsToDeregistered(t *testing.T) {
 
 func TestTransitionTo_IdempotentSameState(t *testing.T) {
 	for _, s := range []StateType{Deregistered, Authentication, SecurityMode, ContextSetup, Registered} {
-		ue := NewAmfUe()
+		ue := NewUeContext()
 		ue.Log = zap.NewNop()
 		ue.state = s
 
@@ -72,7 +72,7 @@ func TestTransitionTo_IdempotentSameState(t *testing.T) {
 }
 
 func TestTransitionTo_FullRegistrationCycle(t *testing.T) {
-	ue := NewAmfUe()
+	ue := NewUeContext()
 	ue.Log = zap.NewNop()
 
 	steps := []StateType{
@@ -92,7 +92,7 @@ func TestTransitionTo_FullRegistrationCycle(t *testing.T) {
 }
 
 func TestTransitionTo_ConcurrentSafety(t *testing.T) {
-	ue := NewAmfUe()
+	ue := NewUeContext()
 	ue.Log = zap.NewNop()
 
 	var wg sync.WaitGroup
@@ -118,7 +118,7 @@ func TestTransitionTo_ConcurrentSafety(t *testing.T) {
 }
 
 func TestGetState_ReturnsCurrentState(t *testing.T) {
-	ue := NewAmfUe()
+	ue := NewUeContext()
 	if got := ue.GetState(); got != Deregistered {
 		t.Fatalf("new UE should be Deregistered, got %s", got)
 	}
@@ -129,8 +129,8 @@ func TestGetState_ReturnsCurrentState(t *testing.T) {
 	}
 }
 
-func TestNewAmfUe_DefaultState(t *testing.T) {
-	ue := NewAmfUe()
+func TestNewUeContext_DefaultState(t *testing.T) {
+	ue := NewUeContext()
 	if ue.state != Deregistered {
 		t.Fatalf("expected initial state Deregistered, got %s", ue.state)
 	}

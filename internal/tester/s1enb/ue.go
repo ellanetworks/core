@@ -44,7 +44,7 @@ type UE struct {
 
 	pdnType    uint8                  // requested PDN type (eps.PDNTypeIPv4 / IPv6 / IPv4v6)
 	apn        string                 // requested APN in the Attach Request ("" = subscriber default)
-	attachGUTI *eps.EPSMobileIdentity // when set, the Attach Request presents this GUTI rather than the IMSI
+	attachGUTI *eps.EPSMobileIdentity // when set, the Attach Request presents this GUTI as the UE identity
 
 	kasme   []byte
 	knasEnc [16]byte
@@ -81,7 +81,7 @@ func (ue *UE) nextPTI() uint8 {
 func (ue *UE) protectUplink(plain []byte) ([]byte, error) {
 	out, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered,
 		nascommon.NASCount(0, ue.ulCount), nascommon.DirectionUplink,
-		ue.knasInt, ue.knasEnc, ue.integrityAlg(), ue.cipherAlg())
+		ue.knasInt, ue.knasEnc, ue.IntegrityAlg(), ue.CipherAlg())
 	if err != nil {
 		return nil, err
 	}
@@ -108,9 +108,8 @@ func (ue *UE) UseUnknownGUTI() {
 }
 
 // S1APSecurityCapabilities returns the UE's EPS algorithm capabilities in the
-// S1AP UESecurityCapabilities encoding (the EEA0/EIA0 bit is dropped, so the
-// octet is shifted left), matching how the MME stored them at attach. Used to
-// replay capabilities in a Path Switch Request.
+// S1AP UESecurityCapabilities encoding: the EEA0/EIA0 bit is dropped, so the
+// octet is shifted left, matching how the MME stored them at attach.
 func (ue *UE) S1APSecurityCapabilities() s1ap.UESecurityCapabilities {
 	return s1ap.UESecurityCapabilities{
 		EncryptionAlgorithms:          uint16(ue.netCapEEA<<1) << 8,
@@ -247,7 +246,7 @@ func (ue *UE) handleSecurityModeCommand(wire []byte) ([]byte, error) {
 
 	out, err := eps.Protect(complete, eps.SHTIntegrityProtectedCiphered,
 		nascommon.NASCount(0, ue.ulCount), nascommon.DirectionUplink,
-		ue.knasInt, ue.knasEnc, ue.integrityAlg(), ue.cipherAlg())
+		ue.knasInt, ue.knasEnc, ue.IntegrityAlg(), ue.CipherAlg())
 	if err != nil {
 		return nil, fmt.Errorf("protect Security Mode Complete: %w", err)
 	}
@@ -265,7 +264,7 @@ func (ue *UE) unprotectDownlink(wire []byte) ([]byte, error) {
 	}
 
 	return eps.Unprotect(wire, nascommon.NASCount(0, wire[5]), nascommon.DirectionDownlink,
-		ue.knasInt, ue.knasEnc, ue.integrityAlg(), ue.cipherAlg())
+		ue.knasInt, ue.knasEnc, ue.IntegrityAlg(), ue.CipherAlg())
 }
 
 // buildAttachComplete acknowledges the default EPS bearer carried in the Attach
@@ -287,7 +286,7 @@ func (ue *UE) buildAttachComplete(acceptESM []byte) ([]byte, error) {
 
 	out, err := eps.Protect(complete, eps.SHTIntegrityProtectedCiphered,
 		nascommon.NASCount(0, ue.ulCount), nascommon.DirectionUplink,
-		ue.knasInt, ue.knasEnc, ue.integrityAlg(), ue.cipherAlg())
+		ue.knasInt, ue.knasEnc, ue.IntegrityAlg(), ue.CipherAlg())
 	if err != nil {
 		return nil, fmt.Errorf("protect Attach Complete: %w", err)
 	}
@@ -314,7 +313,7 @@ func (ue *UE) buildDetachRequest() ([]byte, error) {
 
 	out, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered,
 		nascommon.NASCount(0, ue.ulCount), nascommon.DirectionUplink,
-		ue.knasInt, ue.knasEnc, ue.integrityAlg(), ue.cipherAlg())
+		ue.knasInt, ue.knasEnc, ue.IntegrityAlg(), ue.CipherAlg())
 	if err != nil {
 		return nil, fmt.Errorf("protect Detach Request: %w", err)
 	}
@@ -333,7 +332,7 @@ func (ue *UE) buildServiceRequest() ([]byte, error) {
 	octet1 := ue.ulCount & 0x1f                      // KSI 0 | 5-bit sequence
 
 	mac, err := eps.ServiceRequestShortMAC([]byte{octet0, octet1}, ue.knasInt, uint32(ue.ulCount),
-		nascommon.DirectionUplink, ue.integrityAlg())
+		nascommon.DirectionUplink, ue.IntegrityAlg())
 	if err != nil {
 		return nil, fmt.Errorf("compute Service Request short MAC: %w", err)
 	}
@@ -354,7 +353,7 @@ func (ue *UE) buildTrackingAreaUpdateRequest(updateType uint8, activeFlag bool) 
 
 	out, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered,
 		nascommon.NASCount(0, ue.ulCount), nascommon.DirectionUplink,
-		ue.knasInt, ue.knasEnc, ue.integrityAlg(), ue.cipherAlg())
+		ue.knasInt, ue.knasEnc, ue.IntegrityAlg(), ue.CipherAlg())
 	if err != nil {
 		return nil, fmt.Errorf("protect Tracking Area Update Request: %w", err)
 	}
@@ -374,7 +373,7 @@ func (ue *UE) buildTrackingAreaUpdateComplete() ([]byte, error) {
 
 	out, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered,
 		nascommon.NASCount(0, ue.ulCount), nascommon.DirectionUplink,
-		ue.knasInt, ue.knasEnc, ue.integrityAlg(), ue.cipherAlg())
+		ue.knasInt, ue.knasEnc, ue.IntegrityAlg(), ue.CipherAlg())
 	if err != nil {
 		return nil, fmt.Errorf("protect Tracking Area Update Complete: %w", err)
 	}
@@ -415,7 +414,7 @@ func deriveNASKey(kasme []byte, distinguisher, algID byte) ([16]byte, error) {
 	return k, nil
 }
 
-func (ue *UE) cipherAlg() nascommon.Cipher {
+func (ue *UE) CipherAlg() nascommon.Cipher {
 	switch ue.eea {
 	case 1:
 		return nascommon.SNOW3GCipher{}
@@ -426,7 +425,7 @@ func (ue *UE) cipherAlg() nascommon.Cipher {
 	}
 }
 
-func (ue *UE) integrityAlg() nascommon.Integrity {
+func (ue *UE) IntegrityAlg() nascommon.Integrity {
 	switch ue.eia {
 	case 1:
 		return nascommon.SNOW3GIntegrity{}

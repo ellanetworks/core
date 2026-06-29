@@ -28,17 +28,17 @@ func TestHandleHandoverFailure_MissingCause(t *testing.T) {
 	}
 }
 
-// TestHandleHandoverFailure_SourceAmfUeDetached verifies that a handover
+// TestHandleHandoverFailure_SourceUeContextDetached verifies that a handover
 // failure is handled gracefully when the source UE's AMF UE context has been
 // detached (e.g. due to a concurrent deregistration).
-func TestHandleHandoverFailure_SourceAmfUeDetached(t *testing.T) {
+func TestHandleHandoverFailure_SourceUeContextDetached(t *testing.T) {
 	sourceRan := newTestRadio()
 	targetRan := newTestRadio()
 	sourceSender := sourceRan.NGAPSender.(*FakeNGAPSender)
 	targetSender := targetRan.NGAPSender.(*FakeNGAPSender)
 	amfInstance := newTestAMF()
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	sourceUe := amf.NewRanUeForTest(sourceRan, 10, 100, logger.AmfLog)

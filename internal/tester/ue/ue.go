@@ -37,6 +37,10 @@ const (
 	MM5G_IDLE                 = 0x06
 )
 
+// ngKSINoKey is the ngKSI "no key is available" value (TS 24.501 §9.11.3.32):
+// the UE holds no current 5G NAS security context.
+const ngKSINoKey = 7
+
 type UESecurity struct {
 	Supi                 string
 	Msin                 string
@@ -159,14 +163,14 @@ func NewUE(opts *UEOpts) (*UE, error) {
 	ue.PDUSessionID = opts.PDUSessionID
 	ue.PDUSessionType = opts.PDUSessionType
 
-	integAlg, cipherAlg, err := SelectAlgorithms(ue.UeSecurity.UeSecurityCapability)
+	integAlg, CipherAlg, err := SelectAlgorithms(ue.UeSecurity.UeSecurityCapability)
 	if err != nil {
 		return nil, fmt.Errorf("could not select security algorithms: %v", err)
 	}
 
 	ue.UeSecurity.IntegrityAlg = integAlg
-	ue.UeSecurity.CipheringAlg = cipherAlg
-	ue.UeSecurity.NgKsi.Ksi = 7
+	ue.UeSecurity.CipheringAlg = CipherAlg
+	ue.UeSecurity.NgKsi.Ksi = ngKSINoKey
 	ue.UeSecurity.NgKsi.Tsc = models.ScType_NATIVE
 
 	ue.SetAuthSubscription(opts.K, opts.OpC, opts.Amf, opts.Sqn)
@@ -304,13 +308,8 @@ func (ue *UE) GetMccAndMncInOctets() ([]byte, error) {
 	return resu, nil
 }
 
-// TS 24.501 9.11.3.4.1
-// Routing Indicator shall consist of 1 to 4 digits. The coding of this field is the
-// responsibility of home network operator but BCD coding shall be used. If a network
-// operator decides to assign less than 4 digits to Routing Indicator, the remaining digits
-// shall be coded as "1111" to fill the 4 digits coding of Routing Indicator (see NOTE 2). If
-// no Routing Indicator is configured in the USIM, the UE shall code bits 1 to 4 of octet 8
-// of the Routing Indicator as "0000" and the remaining digits as “1111".
+// TS 24.501 §9.11.3.4.1: the routing indicator is 1-4 BCD digits; unused digits
+// are coded as "1111" (0xF) to fill the 4-digit field.
 func (ue *UE) GetRoutingIndicatorInOctets() ([]byte, error) {
 	if len(ue.UeSecurity.RoutingIndicator) == 0 {
 		ue.UeSecurity.RoutingIndicator = "0"
@@ -325,14 +324,12 @@ func (ue *UE) GetRoutingIndicatorInOctets() ([]byte, error) {
 		routingIndicator = append(routingIndicator, 'F')
 	}
 
-	// Reverse the bytes in group of two
 	for i := 1; i < len(routingIndicator); i += 2 {
 		tmp := routingIndicator[i-1]
 		routingIndicator[i-1] = routingIndicator[i]
 		routingIndicator[i] = tmp
 	}
 
-	// BCD conversion
 	encodedRoutingIndicator, err := hex.DecodeString(string(routingIndicator))
 	if err != nil {
 		return nil, fmt.Errorf("unable to encode routing indicator %s", err)
@@ -448,7 +445,6 @@ func (ue *UE) SetAmfMccAndMnc(mcc string, mnc string) {
 	ue.UeSecurity.Snn = ue.deriveSNN()
 }
 
-// Build SNN (// 5G:mnc093.mcc208.3gppnetwork.org)
 func (ue *UE) deriveSNN() string {
 	var resu string
 	if len(ue.amfInfo.mnc) == 2 {
@@ -689,6 +685,16 @@ func (ue *UE) SendRegistrationRequest(ranUENGAPID int64, regType uint8) error {
 	})
 	if err != nil {
 		return fmt.Errorf("could not build Registration Request NAS PDU: %v", err)
+	}
+
+	// TS 24.501 §4.4.6: a UE with a current 5G NAS security context integrity
+	// protects the initial NAS message of a new connection, so the AMF can
+	// verify it and reuse the context; without one the message stays plain.
+	if ue.UeSecurity.NgKsi.Ksi != ngKSINoKey {
+		nasPDU, err = ue.EncodeNasPduWithSecurity(nasPDU, nas.SecurityHeaderTypeIntegrityProtected)
+		if err != nil {
+			return fmt.Errorf("could not integrity-protect Registration Request NAS PDU: %v", err)
+		}
 	}
 
 	err = ue.Gnb.SendInitialUEMessage(nasPDU, ranUENGAPID, ue.UeSecurity.Guti, ngapType.RRCEstablishmentCausePresentMoSignalling)

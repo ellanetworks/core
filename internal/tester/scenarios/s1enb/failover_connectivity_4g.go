@@ -44,13 +44,6 @@ func init() {
 	})
 }
 
-// runS1ENBFailoverConnectivity is a two-phase HA scenario:
-//
-//  1. Attach a UE on the eNB's primary MME, establish a bearer, verify
-//     connectivity, then emit the phase-1 marker on stdout so the orchestrator
-//     can kill the primary.
-//  2. Wait for the eNB to fail over to a new MME, attach a fresh UE there, and
-//     verify connectivity again.
 func runS1ENBFailoverConnectivity(ctx context.Context, env scenarios.Env) error {
 	if len(env.CoreN2Addresses) < 2 {
 		return fmt.Errorf("ha/failover_connectivity_4g requires at least 2 core addresses; got %d", len(env.CoreN2Addresses))

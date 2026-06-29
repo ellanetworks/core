@@ -37,9 +37,8 @@ func init() {
 	})
 }
 
-// multiPDNFixture provisions a profile with two policies: the default APN
-// (internet) and an enterprise APN with its own IP pool. 4G has no S-NSSAI, so
-// both sit on the default slice and the MME resolves them by APN.
+// 4G carries no S-NSSAI, so the default and enterprise policies share the default
+// slice and the MME resolves them by APN.
 func multiPDNFixture(_ scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{
 		Profiles: []scenarios.ProfileSpec{
@@ -74,9 +73,6 @@ func multiPDNFixture(_ scenarios.Env) scenarios.FixtureSpec {
 	}
 }
 
-// runS1ENBMultiPDN attaches a UE on the default APN, opens a second PDN to the
-// enterprise APN, and verifies connectivity on both with distinct UE IPs, then
-// disconnects the second PDN and detaches.
 func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 	s1mme, err := s1mmeAddress(env.FirstCore())
 	if err != nil {

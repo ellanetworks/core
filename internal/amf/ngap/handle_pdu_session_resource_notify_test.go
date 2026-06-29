@@ -29,7 +29,7 @@ func TestPDUSessionResourceNotify_UnknownAmfUeNgapID(t *testing.T) {
 	assertErrorIndicationEchoesIDs(t, errInd, 999, 99)
 }
 
-func TestPDUSessionResourceNotify_NilAmfUe(t *testing.T) {
+func TestPDUSessionResourceNotify_NilUeContext(t *testing.T) {
 	ran := newTestRadio()
 	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 
@@ -46,9 +46,9 @@ func TestPDUSessionResourceNotify_ReleasedSessionDeactivated(t *testing.T) {
 	fakeSmf := &FakeSmfSbi{}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
-	amfUe.Current().SmContextList[1] = &amf.SmContext{
+	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
@@ -75,7 +75,7 @@ func TestPDUSessionResourceNotify_ReleasedSessionDeactivated(t *testing.T) {
 		t.Errorf("DeactivateSmContext ref = %q, want %q", fakeSmf.DeactivateSmContextCalls[0], "ref-session-1")
 	}
 
-	sc := amfUe.Current().SmContextList[1]
+	sc := amfUe.SmContextList[1]
 	if sc == nil {
 		t.Fatal("SmContext was removed instead of marked inactive")
 	}
@@ -90,7 +90,7 @@ func TestPDUSessionResourceNotify_ReleasedSessionSmContextNotFound(t *testing.T)
 	fakeSmf := &FakeSmfSbi{}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
@@ -117,7 +117,7 @@ func TestPDUSessionResourceNotify_InvalidPDUSessionID(t *testing.T) {
 	fakeSmf := &FakeSmfSbi{}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
@@ -144,7 +144,7 @@ func TestPDUSessionResourceNotify_NotifyListLogsWarning(t *testing.T) {
 	fakeSmf := &FakeSmfSbi{}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)

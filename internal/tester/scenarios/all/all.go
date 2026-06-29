@@ -2,13 +2,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 // Package all blank-imports every scenario subpackage so their init()
-// registrations execute when the top-level binary imports this package.
-//
-// cmd/core-tester imports this package for side effects only.
+// registrations execute when a binary imports this package for side effects.
 package all
 
 import (
-	// Individual scenario packages:
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/enb"
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/gnb"
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/ha"

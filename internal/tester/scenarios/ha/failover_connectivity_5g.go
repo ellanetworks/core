@@ -47,17 +47,6 @@ func init() {
 	})
 }
 
-// runFailoverConnectivity is a two-phase scenario:
-//
-//  1. Register the UE on the gNB's primary peer (CoreN2Addresses[0]),
-//     establish a PDU session, verify connectivity by pinging through the
-//     tunnel. Emit the phase-1 marker on stdout so the orchestrator can
-//     kill the primary.
-//  2. Wait for the gNB to fail over to a new peer. Register a fresh UE
-//     (new RAN-UE-NGAP-ID) on the new peer, establish a PDU session,
-//     verify connectivity again.
-//
-// Exits 0 only if both phases succeed.
 func runFailoverConnectivity(ctx context.Context, env scenarios.Env) error {
 	if len(env.CoreN2Addresses) < 2 {
 		return fmt.Errorf("ha/failover_connectivity_5g requires at least 2 core addresses; got %d", len(env.CoreN2Addresses))
@@ -95,7 +84,6 @@ func runFailoverConnectivity(ctx context.Context, env scenarios.Env) error {
 	primaryPeer := gNodeB.ActivePeerAddress()
 	logger.Logger.Info("phase1: active peer set", zap.String("peer", primaryPeer))
 
-	// Phase 1: register + connectivity on the primary peer.
 	if err := registerAndPing(
 		ctx,
 		gNodeB,
@@ -107,15 +95,10 @@ func runFailoverConnectivity(ctx context.Context, env scenarios.Env) error {
 
 	logger.Logger.Info("phase1: connectivity verified", zap.String("peer", primaryPeer))
 
-	// Signal the orchestrator. Stdout is mirrored back to the Go test; a
-	// simple substring match on this token triggers the kill.
 	fmt.Println(failoverMarker)
 
 	_ = os.Stdout.Sync()
 
-	// Wait for the gNB to switch to a different active peer. Triggered
-	// when the orchestrator kills the primary core: SCTP read errors in
-	// the gNB's receiver, which promotes the next peer in the list.
 	waitCtx, cancel := context.WithTimeout(ctx, failoverTimeout)
 	newPeer, err := gNodeB.WaitForActivePeerChange(waitCtx)
 
@@ -139,10 +122,8 @@ func runFailoverConnectivity(ctx context.Context, env scenarios.Env) error {
 		zap.String("to", newPeer),
 	)
 
-	// Wait for the new peer's NG Setup Response. gNB promotes by dialing
-	// + sending NGSetupRequest; the response lands in receivedFrames via
-	// the new receiver goroutine. Consuming it here ensures the new AMF
-	// is handshaken and ready to accept UE signalling.
+	// Consume the new peer's NG Setup Response so its AMF is handshaken and
+	// ready before UE signalling begins.
 	if _, err := gNodeB.WaitForMessage(
 		ngapType.NGAPPDUPresentSuccessfulOutcome,
 		ngapType.SuccessfulOutcomePresentNGSetupResponse,
@@ -151,22 +132,11 @@ func runFailoverConnectivity(ctx context.Context, env scenarios.Env) error {
 		return fmt.Errorf("phase2: wait for NG Setup Response on new peer: %w", err)
 	}
 
-	// Phase 2 triggers AUSF to bump the subscriber's sequenceNumber, a
-	// Raft-replicated write. Since Core now forwards Propose calls
-	// follower→leader in-process, ANY surviving peer can service the
-	// Registration Request: writes issued against a follower land on
-	// the current leader via /cluster/internal/propose.
-	//
-	// What we still need to wait for: the election itself. Killing the
-	// previous leader starts a heartbeat-timeout → election cycle (a
-	// few seconds). Until a new leader is elected, forwarded writes
-	// return ErrLeadershipLost and the NAS layer sends Registration
-	// Reject. We retry against the same peer with a small backoff
-	// until the leader settles.
-	//
-	// Each attempt uses a fresh RAN-UE-NGAP-ID and tunnel name so stale
-	// gNB-local context from a failed attempt doesn't collide with the
-	// retry.
+	// Registration bumps the subscriber's sequenceNumber, a Raft-replicated
+	// write. Killing the leader starts a heartbeat-timeout → election cycle
+	// of a few seconds, during which forwarded writes return
+	// ErrLeadershipLost and NAS sends Registration Reject. Retry with backoff
+	// until the new leader settles.
 	const (
 		phase2Deadline = 30 * time.Second
 		phase2Backoff  = 2 * time.Second
@@ -210,9 +180,9 @@ func runFailoverConnectivity(ctx context.Context, env scenarios.Env) error {
 	return nil
 }
 
-// registerAndPing wraps common.RegisterAndPing with the default
-// subscriber. Phase 2 reuses the IMSI under a fresh RAN-UE-NGAP-ID
-// and tunnel name to avoid colliding with phase 1's gNB state.
+// registerAndPing wraps common.RegisterAndPing with the default subscriber.
+// A fresh RAN-UE-NGAP-ID and tunnel name per call keep retried attempts from
+// colliding with stale gNB-local context.
 func registerAndPing(ctx context.Context, gNodeB *gnb.GnodeB, ranUENGAPID int64, tunInterfaceName string) error {
 	return common.RegisterAndPing(ctx, &common.RegisterAndPingOpts{
 		GNB:              gNodeB,

@@ -54,8 +54,8 @@ func TestS1APMessageType(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := s1apMessageType(tc.pdu); got != tc.want {
-				t.Fatalf("s1apMessageType = %q, want %q", got, tc.want)
+			if got := S1APMessageType(tc.pdu); got != tc.want {
+				t.Fatalf("S1APMessageType = %q, want %q", got, tc.want)
 			}
 		})
 	}

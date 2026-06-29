@@ -13,8 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 )
 
-// attachAndPing attaches ue, builds a GTP-U tunnel for its default bearer, pings
-// the N6 destination through it, then tears the tunnel down.
 func attachAndPing(ctx context.Context, e *s1enb.ENB, ue *s1enb.UE, tunIface string) error {
 	res, err := e.Attach(ue, 15*time.Second)
 	if err != nil {

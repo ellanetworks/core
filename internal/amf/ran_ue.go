@@ -36,9 +36,9 @@ const (
 
 // RanUe represents one UE's radio-level state on a single Radio.
 // It has no mutex of its own. It is protected either by the owning Radio's
-// single SCTP goroutine, or by AmfUe.Mutex when accessed via AmfUe.RanUe().
+// single SCTP goroutine, or by UeContext.Mutex when accessed via UeContext.RanUe().
 //
-// AmfUe.RanUe() acquires a read-lock internally and returns a consistent
+// UeContext.RanUe() acquires a read-lock internally and returns a consistent
 // snapshot. Callers must capture the returned pointer in a local variable
 // and reuse it — never call RanUe() twice in the same code path.
 type RanUe struct {
@@ -49,7 +49,7 @@ type RanUe struct {
 	TargetUe         *RanUe
 	Tai              models.Tai
 	Location         models.UserLocation
-	amfUe            *AmfUe
+	amfUe            *UeContext
 	radio            *Radio
 	ReleaseAction    RelAction
 	UeContextRequest bool
@@ -80,8 +80,8 @@ func (ranUe *RanUe) Radio() *Radio {
 	return ranUe.radio
 }
 
-// AmfUe returns the currently attached AmfUe, or nil.
-func (ranUe *RanUe) AmfUe() *AmfUe {
+// UeContext returns the currently attached UeContext, or nil.
+func (ranUe *RanUe) UeContext() *UeContext {
 	if ranUe == nil {
 		return nil
 	}
@@ -89,8 +89,8 @@ func (ranUe *RanUe) AmfUe() *AmfUe {
 	return ranUe.amfUe
 }
 
-// TouchLastSeen propagates a last-seen timestamp to the associated AmfUe.
-// Safe to call on nil receivers or when AmfUe/Radio is nil.
+// TouchLastSeen propagates a last-seen timestamp to the associated UeContext.
+// Safe to call on nil receivers or when UeContext/Radio is nil.
 func (ranUe *RanUe) TouchLastSeen() {
 	if ranUe == nil || ranUe.amfUe == nil {
 		return

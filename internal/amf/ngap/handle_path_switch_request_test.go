@@ -136,13 +136,14 @@ func newTestAMFWithSmf(smf amf.SmfSbi) *amf.AMF {
 	}, nil, smf)
 }
 
-func newValidAmfUe() *amf.AmfUe {
-	amfUe := amf.NewAmfUe()
-	amfUe.Supi, _ = etsi.NewSUPIFromPrefixed("imsi-001010000000001")
-	amfUe.Current().SecurityContextAvailable = true
-	amfUe.Current().NgKsi.Ksi = 1
-	amfUe.Current().Kamf = "0000000000000000000000000000000000000000000000000000000000000000"
-	amfUe.Current().NH = make([]byte, 32)
+func newValidUeContext() *amf.UeContext {
+	amfUe := amf.NewUeContext()
+	supi, _ := etsi.NewSUPIFromPrefixed("imsi-001010000000001")
+	amfUe.SetSupiForTest(supi)
+	amfUe.SetSecurityContextAvailableForTest(true)
+	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
+	amfUe.SetKamfForTest("0000000000000000000000000000000000000000000000000000000000000000")
+	amfUe.SetNHForTest(make([]byte, 32))
 	amfUe.Log = logger.AmfLog
 
 	return amfUe
@@ -194,7 +195,7 @@ func TestPathSwitchRequest_UnknownUE(t *testing.T) {
 	}
 }
 
-func TestPathSwitchRequest_NilAmfUe(t *testing.T) {
+func TestPathSwitchRequest_NilUeContext(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 	sourceRan := &amf.Radio{
 		Log:        logger.AmfLog,
@@ -202,7 +203,7 @@ func TestPathSwitchRequest_NilAmfUe(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	// RanUe exists but AmfUe is nil
+	// RanUe exists but UeContext is nil
 	amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
 
 	targetNGAPSender := &FakeNGAPSender{}
@@ -236,7 +237,7 @@ func TestPathSwitchRequest_NilAmfUe(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	// Should send failure because AmfUe is nil
+	// Should send failure because UeContext is nil
 	if len(targetNGAPSender.SentPathSwitchRequestFailures) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestFailure, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestFailures))
@@ -251,9 +252,9 @@ func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := amf.NewAmfUe()
-	amfUe.Current().SecurityContextAvailable = false
-	amfUe.Current().NgKsi.Ksi = nasMessage.NasKeySetIdentifierNoKeyIsAvailable
+	amfUe := amf.NewUeContext()
+	amfUe.SetSecurityContextAvailableForTest(false)
+	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: nasMessage.NasKeySetIdentifierNoKeyIsAvailable})
 	amfUe.Log = logger.AmfLog
 
 	ranUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
@@ -305,7 +306,7 @@ func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := newValidAmfUe()
+	amfUe := newValidUeContext()
 	// SmContextList is empty — no PDU session ID 1
 
 	ranUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
@@ -373,8 +374,8 @@ func TestPathSwitchRequest_SmfReturnsError(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := newValidAmfUe()
-	amfUe.Current().SmContextList[1] = &amf.SmContext{
+	amfUe := newValidUeContext()
+	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
@@ -452,9 +453,9 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := newValidAmfUe()
-	amfUe.Current().Kamf = kamfHex
-	amfUe.Current().SmContextList[pduSessionID] = &amf.SmContext{
+	amfUe := newValidUeContext()
+	amfUe.SetKamfForTest(kamfHex)
+	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
@@ -571,9 +572,9 @@ func TestPathSwitchRequest_DuplicatePDUSessionIDs(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := newValidAmfUe()
-	amfUe.Current().Kamf = kamfHex
-	amfUe.Current().SmContextList[pduSessionID] = &amf.SmContext{
+	amfUe := newValidUeContext()
+	amfUe.SetKamfForTest(kamfHex)
+	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
@@ -652,9 +653,9 @@ func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := newValidAmfUe()
+	amfUe := newValidUeContext()
 	// Session 1 has a context, session 2 does not
-	amfUe.Current().SmContextList[1] = &amf.SmContext{
+	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
@@ -736,12 +737,12 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := newValidAmfUe()
-	amfUe.Current().SmContextList[1] = &amf.SmContext{
+	amfUe := newValidUeContext()
+	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
-	amfUe.Current().SmContextList[2] = &amf.SmContext{
+	amfUe.SmContextList[2] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-2",
 		Snssai: &models.Snssai{Sst: 1},
 	}
@@ -838,16 +839,16 @@ func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := newValidAmfUe()
-	amfUe.Current().UESecurityCapability = &nasType.UESecurityCapability{}
-	amfUe.Current().UESecurityCapability.SetLen(4)
-	amfUe.Current().UESecurityCapability.SetEA1_128_5G(1)
-	amfUe.Current().UESecurityCapability.SetEA2_128_5G(1)
-	amfUe.Current().UESecurityCapability.SetEA3_128_5G(1)
-	amfUe.Current().UESecurityCapability.SetIA1_128_5G(1)
-	amfUe.Current().UESecurityCapability.SetIA2_128_5G(1)
-	amfUe.Current().UESecurityCapability.SetIA3_128_5G(1)
-	amfUe.Current().SmContextList[1] = &amf.SmContext{
+	amfUe := newValidUeContext()
+	amfUe.SetUESecurityCapabilityForTest(&nasType.UESecurityCapability{})
+	amfUe.UESecurityCapabilityForTest().SetLen(4)
+	amfUe.UESecurityCapabilityForTest().SetEA1_128_5G(1)
+	amfUe.UESecurityCapabilityForTest().SetEA2_128_5G(1)
+	amfUe.UESecurityCapabilityForTest().SetEA3_128_5G(1)
+	amfUe.UESecurityCapabilityForTest().SetIA1_128_5G(1)
+	amfUe.UESecurityCapabilityForTest().SetIA2_128_5G(1)
+	amfUe.UESecurityCapabilityForTest().SetIA3_128_5G(1)
+	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
@@ -908,27 +909,27 @@ func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	if got := amfUe.Current().UESecurityCapability.GetEA1_128_5G(); got != 1 {
+	if got := amfUe.UESecurityCapabilityForTest().GetEA1_128_5G(); got != 1 {
 		t.Errorf("stored EA1_128_5G was overwritten: got %d, want 1", got)
 	}
 
-	if got := amfUe.Current().UESecurityCapability.GetEA2_128_5G(); got != 1 {
+	if got := amfUe.UESecurityCapabilityForTest().GetEA2_128_5G(); got != 1 {
 		t.Errorf("stored EA2_128_5G was overwritten: got %d, want 1", got)
 	}
 
-	if got := amfUe.Current().UESecurityCapability.GetEA3_128_5G(); got != 1 {
+	if got := amfUe.UESecurityCapabilityForTest().GetEA3_128_5G(); got != 1 {
 		t.Errorf("stored EA3_128_5G was overwritten: got %d, want 1", got)
 	}
 
-	if got := amfUe.Current().UESecurityCapability.GetIA1_128_5G(); got != 1 {
+	if got := amfUe.UESecurityCapabilityForTest().GetIA1_128_5G(); got != 1 {
 		t.Errorf("stored IA1_128_5G was overwritten: got %d, want 1", got)
 	}
 
-	if got := amfUe.Current().UESecurityCapability.GetIA2_128_5G(); got != 1 {
+	if got := amfUe.UESecurityCapabilityForTest().GetIA2_128_5G(); got != 1 {
 		t.Errorf("stored IA2_128_5G was overwritten: got %d, want 1", got)
 	}
 
-	if got := amfUe.Current().UESecurityCapability.GetIA3_128_5G(); got != 1 {
+	if got := amfUe.UESecurityCapabilityForTest().GetIA3_128_5G(); got != 1 {
 		t.Errorf("stored IA3_128_5G was overwritten: got %d, want 1", got)
 	}
 
@@ -963,12 +964,12 @@ func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := newValidAmfUe()
-	amfUe.Current().UESecurityCapability = &nasType.UESecurityCapability{}
-	amfUe.Current().UESecurityCapability.SetLen(4)
-	amfUe.Current().UESecurityCapability.SetEA1_128_5G(1)
-	amfUe.Current().UESecurityCapability.SetIA2_128_5G(1)
-	amfUe.Current().SmContextList[1] = &amf.SmContext{
+	amfUe := newValidUeContext()
+	amfUe.SetUESecurityCapabilityForTest(&nasType.UESecurityCapability{})
+	amfUe.UESecurityCapabilityForTest().SetLen(4)
+	amfUe.UESecurityCapabilityForTest().SetEA1_128_5G(1)
+	amfUe.UESecurityCapabilityForTest().SetIA2_128_5G(1)
+	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
@@ -1029,15 +1030,15 @@ func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	if got := amfUe.Current().UESecurityCapability.GetEA1_128_5G(); got != 1 {
+	if got := amfUe.UESecurityCapabilityForTest().GetEA1_128_5G(); got != 1 {
 		t.Errorf("stored EA1_128_5G changed after matching path switch: got %d, want 1", got)
 	}
 
-	if got := amfUe.Current().UESecurityCapability.GetIA2_128_5G(); got != 1 {
+	if got := amfUe.UESecurityCapabilityForTest().GetIA2_128_5G(); got != 1 {
 		t.Errorf("stored IA2_128_5G changed after matching path switch: got %d, want 1", got)
 	}
 
-	if got := amfUe.Current().UESecurityCapability.GetEA2_128_5G(); got != 0 {
+	if got := amfUe.UESecurityCapabilityForTest().GetEA2_128_5G(); got != 0 {
 		t.Errorf("stored EA2_128_5G unexpectedly set: got %d, want 0", got)
 	}
 
@@ -1068,12 +1069,12 @@ func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := newValidAmfUe()
-	amfUe.Current().UESecurityCapability = &nasType.UESecurityCapability{}
-	amfUe.Current().UESecurityCapability.SetLen(4)
-	amfUe.Current().UESecurityCapability.SetEA1_128_5G(1)
-	amfUe.Current().UESecurityCapability.SetIA2_128_5G(1)
-	amfUe.Current().SmContextList[1] = &amf.SmContext{
+	amfUe := newValidUeContext()
+	amfUe.SetUESecurityCapabilityForTest(&nasType.UESecurityCapability{})
+	amfUe.UESecurityCapabilityForTest().SetLen(4)
+	amfUe.UESecurityCapabilityForTest().SetEA1_128_5G(1)
+	amfUe.UESecurityCapabilityForTest().SetIA2_128_5G(1)
+	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
@@ -1131,11 +1132,11 @@ func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	if got := amfUe.Current().UESecurityCapability.GetEA1_128_5G(); got != 1 {
+	if got := amfUe.UESecurityCapabilityForTest().GetEA1_128_5G(); got != 1 {
 		t.Errorf("stored EA1_128_5G was modified by malformed IE: got %d, want 1", got)
 	}
 
-	if got := amfUe.Current().UESecurityCapability.GetIA2_128_5G(); got != 1 {
+	if got := amfUe.UESecurityCapabilityForTest().GetIA2_128_5G(); got != 1 {
 		t.Errorf("stored IA2_128_5G was modified by malformed IE: got %d, want 1", got)
 	}
 

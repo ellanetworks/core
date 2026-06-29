@@ -13,7 +13,6 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/producer"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/ipam"
@@ -380,11 +379,11 @@ type smfAMFAdapter struct {
 }
 
 func (a *smfAMFAdapter) TransferN1(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error {
-	return producer.TransferN1Msg(ctx, a.amf, supi, n1Msg, pduSessionID)
+	return a.amf.TransferN1Msg(ctx, supi, n1Msg, pduSessionID)
 }
 
 func (a *smfAMFAdapter) TransferN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n1Msg, n2Msg []byte) error {
-	return producer.TransferN1N2Message(ctx, a.amf, supi, models.N1N2MessageTransferRequest{
+	return a.amf.TransferN1N2Message(ctx, supi, models.N1N2MessageTransferRequest{
 		PduSessionID:            pduSessionID,
 		SNssai:                  snssai,
 		BinaryDataN1Message:     n1Msg,
@@ -393,8 +392,8 @@ func (a *smfAMFAdapter) TransferN1N2(ctx context.Context, supi etsi.SUPI, pduSes
 }
 
 func (a *smfAMFAdapter) ModifyN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Msg []byte) error {
-	err := producer.ModifyN1N2Message(ctx, a.amf, supi, pduSessionID, n1Msg, n2Msg)
-	if errors.Is(err, producer.ErrUENotReachable) {
+	err := a.amf.ModifyN1N2Message(ctx, supi, pduSessionID, n1Msg, n2Msg)
+	if errors.Is(err, amfContext.ErrUENotReachable) {
 		return smf.ErrUENotReachable
 	}
 
@@ -402,8 +401,8 @@ func (a *smfAMFAdapter) ModifyN1N2(ctx context.Context, supi etsi.SUPI, pduSessi
 }
 
 func (a *smfAMFAdapter) ReleaseSession(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Transfer []byte) error {
-	err := producer.ReleaseSessionMessage(ctx, a.amf, supi, pduSessionID, n1Msg, n2Transfer)
-	if errors.Is(err, producer.ErrUENotReachable) {
+	err := a.amf.ReleaseSessionMessage(ctx, supi, pduSessionID, n1Msg, n2Transfer)
+	if errors.Is(err, amfContext.ErrUENotReachable) {
 		return smf.ErrUENotReachable
 	}
 
@@ -411,7 +410,7 @@ func (a *smfAMFAdapter) ReleaseSession(ctx context.Context, supi etsi.SUPI, pduS
 }
 
 func (a *smfAMFAdapter) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte) error {
-	return producer.N2MessageTransferOrPage(ctx, a.amf, supi, models.N1N2MessageTransferRequest{
+	return a.amf.N2MessageTransferOrPage(ctx, supi, models.N1N2MessageTransferRequest{
 		PduSessionID:            pduSessionID,
 		SNssai:                  snssai,
 		BinaryDataN2Information: n2Msg,

@@ -36,9 +36,7 @@ type RegisterAndPingOpts struct {
 	TunInterfaceName string
 }
 
-// RegisterAndPing drives one UE: Initial Registration, PDU Session
-// Establishment, GTP tunnel, and a short ping. Safe to call
-// concurrently for distinct UEs on the same gNB.
+// RegisterAndPing is safe to call concurrently for distinct UEs on the same gNB.
 func RegisterAndPing(ctx context.Context, opts *RegisterAndPingOpts) error {
 	if opts.GNB == nil {
 		return fmt.Errorf("GNB is required")

@@ -7,8 +7,6 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-// HandoverNotifyOpts contains the parameters needed to build a
-// HandoverNotify message (target gNB → AMF).
 type HandoverNotifyOpts struct {
 	AMFUENGAPID int64
 	RANUENGAPID int64
@@ -20,7 +18,6 @@ type HandoverNotifyOpts struct {
 	GnbID string
 }
 
-// BuildHandoverNotify constructs an NGAP HandoverNotify PDU.
 func BuildHandoverNotify(opts *HandoverNotifyOpts) (ngapType.NGAPPDU, error) {
 	pdu := ngapType.NGAPPDU{}
 
@@ -44,7 +41,6 @@ func BuildHandoverNotify(opts *HandoverNotifyOpts) (ngapType.NGAPPDU, error) {
 	msg := &ngapType.HandoverNotify{}
 	ies := &msg.ProtocolIEs
 
-	// AMF UE NGAP ID
 	{
 		ie := ngapType.HandoverNotifyIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
@@ -54,7 +50,6 @@ func BuildHandoverNotify(opts *HandoverNotifyOpts) (ngapType.NGAPPDU, error) {
 		ies.List = append(ies.List, ie)
 	}
 
-	// RAN UE NGAP ID
 	{
 		ie := ngapType.HandoverNotifyIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
@@ -64,7 +59,6 @@ func BuildHandoverNotify(opts *HandoverNotifyOpts) (ngapType.NGAPPDU, error) {
 		ies.List = append(ies.List, ie)
 	}
 
-	// User Location Information
 	{
 		ie := ngapType.HandoverNotifyIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDUserLocationInformation

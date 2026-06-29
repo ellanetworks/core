@@ -1,0 +1,549 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+//
+// SPDX-License-Identifier: BUSL-1.1
+
+package amf_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
+	"github.com/ellanetworks/core/internal/amf/procedure"
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/internal/smf"
+	"github.com/free5gc/aper"
+	"github.com/free5gc/nas/nasType"
+	"github.com/free5gc/ngap/ngapType"
+	"go.uber.org/zap"
+)
+
+// --- Fakes ---
+
+type fakeNGAPSender struct {
+	pduSessionSetupCalls      int
+	initialContextSetupCalls  int
+	downlinkNasTransportCalls int
+	pagingCalls               int
+}
+
+func (f *fakeNGAPSender) SendToRan(_ context.Context, _ []byte, proc send.NGAPProcedure) error {
+	if proc == send.NGAPProcedurePaging {
+		f.pagingCalls++
+	}
+
+	return nil
+}
+func (f *fakeNGAPSender) SendNGSetupFailure(context.Context, *ngapType.Cause) error { return nil }
+func (f *fakeNGAPSender) SendNGSetupResponse(context.Context, *models.Guami, []models.Snssai, string, int64) error {
+	return nil
+}
+
+func (f *fakeNGAPSender) SendNGResetAcknowledge(context.Context, *ngapType.UEAssociatedLogicalNGConnectionList) error {
+	return nil
+}
+
+func (f *fakeNGAPSender) SendErrorIndication(context.Context, *int64, *int64, *ngapType.Cause, *ngapType.CriticalityDiagnostics) error {
+	return nil
+}
+
+func (f *fakeNGAPSender) SendRanConfigurationUpdateAcknowledge(context.Context, *ngapType.CriticalityDiagnostics) error {
+	return nil
+}
+
+func (f *fakeNGAPSender) SendRanConfigurationUpdateFailure(context.Context, ngapType.Cause, *ngapType.CriticalityDiagnostics) error {
+	return nil
+}
+
+func (f *fakeNGAPSender) SendDownlinkRanConfigurationTransfer(context.Context, *ngapType.SONConfigurationTransfer) error {
+	return nil
+}
+
+func (f *fakeNGAPSender) SendPathSwitchRequestFailure(context.Context, int64, int64, *ngapType.PDUSessionResourceReleasedListPSFail, *ngapType.CriticalityDiagnostics) error {
+	return nil
+}
+
+func (f *fakeNGAPSender) SendAMFStatusIndication(context.Context, ngapType.UnavailableGUAMIList) error {
+	return nil
+}
+
+func (f *fakeNGAPSender) SendUEContextReleaseCommand(context.Context, int64, int64, int, aper.Enumerated) error {
+	return nil
+}
+
+func (f *fakeNGAPSender) SendDownlinkNasTransport(_ context.Context, _, _ int64, _ []byte, _ *ngapType.MobilityRestrictionList) error {
+	f.downlinkNasTransportCalls++
+	return nil
+}
+
+func (f *fakeNGAPSender) SendPDUSessionResourceReleaseCommand(context.Context, int64, int64, []byte, ngapType.PDUSessionResourceToReleaseListRelCmd) error {
+	return nil
+}
+
+func (f *fakeNGAPSender) SendHandoverCancelAcknowledge(context.Context, int64, int64) error {
+	return nil
+}
+
+func (f *fakeNGAPSender) SendPDUSessionResourceModifyConfirm(context.Context, int64, int64, ngapType.PDUSessionResourceModifyListModCfm, ngapType.PDUSessionResourceFailedToModifyListModCfm) error {
+	return nil
+}
+
+func (f *fakeNGAPSender) SendPDUSessionResourceModifyRequest(_ context.Context, _, _ int64, _ ngapType.PDUSessionResourceModifyListModReq) error {
+	return nil
+}
+
+func (f *fakeNGAPSender) SendPDUSessionResourceSetupRequest(_ context.Context, _, _ int64, _, _ string, _ []byte, _ ngapType.PDUSessionResourceSetupListSUReq) error {
+	f.pduSessionSetupCalls++
+	return nil
+}
+
+func (f *fakeNGAPSender) SendHandoverPreparationFailure(context.Context, int64, int64, ngapType.Cause, *ngapType.CriticalityDiagnostics) error {
+	return nil
+}
+
+func (f *fakeNGAPSender) SendLocationReportingControl(context.Context, int64, int64, ngapType.EventType) error {
+	return nil
+}
+
+func (f *fakeNGAPSender) SendHandoverCommand(context.Context, int64, int64, ngapType.HandoverType, ngapType.PDUSessionResourceHandoverList, ngapType.PDUSessionResourceToReleaseListHOCmd, ngapType.TargetToSourceTransparentContainer) error {
+	return nil
+}
+
+func (f *fakeNGAPSender) SendInitialContextSetupRequest(_ context.Context, _, _ int64, _, _ string, _ []models.Snssai, _ []byte, _ models.PlmnID, _ string, _ *models.UERadioCapabilityForPaging, _ *nasType.UESecurityCapability, _ []byte, _ *ngapType.PDUSessionResourceSetupListCxtReq, _ *models.Guami) error {
+	f.initialContextSetupCalls++
+	return nil
+}
+
+func (f *fakeNGAPSender) SendPathSwitchRequestAcknowledge(context.Context, int64, int64, *nasType.UESecurityCapability, uint8, []byte, ngapType.PDUSessionResourceSwitchedList, ngapType.PDUSessionResourceReleasedListPSAck, []models.Snssai) error {
+	return nil
+}
+
+func (f *fakeNGAPSender) SendHandoverRequest(context.Context, int64, ngapType.HandoverType, string, string, *nasType.UESecurityCapability, uint8, []byte, ngapType.Cause, ngapType.PDUSessionResourceSetupListHOReq, ngapType.SourceToTargetTransparentContainer, []models.Snssai, *models.Guami) error {
+	return nil
+}
+
+type fakeDBInstance struct {
+	operator *db.Operator
+}
+
+func (f *fakeDBInstance) GetOperator(context.Context) (*db.Operator, error) {
+	return f.operator, nil
+}
+
+func (f *fakeDBInstance) GetSubscriber(context.Context, string) (*db.Subscriber, error) {
+	return nil, nil
+}
+
+func (f *fakeDBInstance) GetDataNetworkByID(context.Context, string) (*db.DataNetwork, error) {
+	return nil, nil
+}
+
+func (f *fakeDBInstance) GetNetworkSliceByID(context.Context, string) (*db.NetworkSlice, error) {
+	return nil, nil
+}
+
+func (f *fakeDBInstance) ListNetworkSlicesByIDs(context.Context, []string) ([]db.NetworkSlice, error) {
+	return nil, nil
+}
+
+func (f *fakeDBInstance) GetProfileByID(context.Context, string) (*db.Profile, error) {
+	return nil, nil
+}
+
+func (f *fakeDBInstance) ListAllNetworkSlices(context.Context) ([]db.NetworkSlice, error) {
+	return nil, nil
+}
+
+func (f *fakeDBInstance) GetPolicyByProfileAndSlice(context.Context, string, string) (*db.Policy, error) {
+	return nil, nil
+}
+
+func (f *fakeDBInstance) ListPoliciesByProfile(context.Context, string) ([]db.Policy, error) {
+	return nil, nil
+}
+
+func (f *fakeDBInstance) NodeID() int { return 0 }
+
+type fakeSmf struct{}
+
+func (f *fakeSmf) GetSession(string) *smf.SMContext      { return nil }
+func (f *fakeSmf) SessionsByDNN(string) []*smf.SMContext { return nil }
+func (f *fakeSmf) SessionCount() int                     { return 0 }
+func (f *fakeSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, []byte) (string, []byte, error) {
+	return "", nil, nil
+}
+func (f *fakeSmf) ActivateSmContext(context.Context, string) ([]byte, error) { return nil, nil }
+func (f *fakeSmf) DeactivateSmContext(context.Context, string) error         { return nil }
+func (f *fakeSmf) ReleaseSmContext(context.Context, string) error            { return nil }
+func (f *fakeSmf) UpdateSmContextN1Msg(context.Context, string, []byte) (*smf.UpdateResult, error) {
+	return nil, nil
+}
+
+func (f *fakeSmf) UpdateSmContextN2InfoPduResSetupRsp(context.Context, string, []byte) error {
+	return nil
+}
+
+func (f *fakeSmf) UpdateSmContextN2InfoPduResSetupFail(context.Context, string, []byte) error {
+	return nil
+}
+func (f *fakeSmf) UpdateSmContextN2InfoPduResRelRsp(context.Context, string) error { return nil }
+func (f *fakeSmf) UpdateSmContextCauseDuplicatePDUSessionID(context.Context, string) ([]byte, error) {
+	return nil, nil
+}
+
+func (f *fakeSmf) UpdateSmContextN2HandoverPreparing(context.Context, string, []byte) ([]byte, error) {
+	return nil, nil
+}
+
+func (f *fakeSmf) UpdateSmContextN2HandoverPrepared(context.Context, string, []byte) ([]byte, error) {
+	return nil, nil
+}
+
+func (f *fakeSmf) UpdateSmContextN2HandoverComplete(context.Context, string) error { return nil }
+
+func (f *fakeSmf) UpdateSmContextXnHandoverPathSwitchReq(context.Context, string, []byte) ([]byte, error) {
+	return nil, nil
+}
+func (f *fakeSmf) UpdateSmContextHandoverFailed(context.Context, string, []byte) error { return nil }
+
+func (f *fakeSmf) ReconcileSmContext(context.Context, *models.SessionReconcileRequest) error {
+	return nil
+}
+
+func (f *fakeSmf) GetSessionPolicy(context.Context, etsi.SUPI, *models.Snssai, string) (*smf.Policy, error) {
+	return nil, nil
+}
+
+// --- Helpers ---
+
+func mustSUPIFromIMSI(t *testing.T, imsi string) etsi.SUPI {
+	t.Helper()
+
+	s, err := etsi.NewSUPIFromIMSI(imsi)
+	if err != nil {
+		t.Fatalf("bad IMSI: %v", err)
+	}
+
+	return s
+}
+
+func addUE(t *testing.T, amfInstance *amf.AMF, imsi string, setup func(*amf.UeContext)) *amf.UeContext {
+	t.Helper()
+	supi := mustSUPIFromIMSI(t, imsi)
+	ue := amf.NewUeContext()
+	ue.SetSupiForTest(supi)
+
+	ue.Log = zap.NewNop()
+	if setup != nil {
+		setup(ue)
+	}
+
+	if err := amfInstance.AddUeContextToPool(ue); err != nil {
+		t.Fatalf("AddUeContextToPool: %v", err)
+	}
+
+	return ue
+}
+
+func testGUTI(t *testing.T) etsi.GUTI {
+	t.Helper()
+
+	tmsi, err := etsi.NewTMSI(0x01020304)
+	if err != nil {
+		t.Fatalf("build TMSI: %v", err)
+	}
+
+	guti, err := etsi.NewGUTI("001", "01", "cafe00", tmsi)
+	if err != nil {
+		t.Fatalf("build GUTI: %v", err)
+	}
+
+	return guti
+}
+
+func newReq() models.N1N2MessageTransferRequest {
+	return models.N1N2MessageTransferRequest{
+		PduSessionID:            1,
+		SNssai:                  &models.Snssai{Sst: 1, Sd: "010203"},
+		BinaryDataN1Message:     []byte{0x01, 0x02},
+		BinaryDataN2Information: []byte{0x03, 0x04},
+	}
+}
+
+// --- TransferN1N2Message tests ---
+
+func TestTransferN1N2Message_UENotFound(t *testing.T) {
+	amfInstance := amf.New(nil, nil, nil)
+	supi := mustSUPIFromIMSI(t, "001010000000001")
+
+	err := amfInstance.TransferN1N2Message(context.Background(), supi, newReq())
+	if err == nil {
+		t.Fatal("expected error for missing UE")
+	}
+}
+
+func TestTransferN1N2Message_UENotConnected(t *testing.T) {
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+
+	ue := addUE(t, amfInstance, "001010000000002", nil)
+
+	err := amfInstance.TransferN1N2Message(context.Background(), ue.SupiForTest(), newReq())
+	if err == nil {
+		t.Fatal("expected error for UE not connected to RAN")
+	}
+}
+
+func TestTransferN1N2Message_InitialContextAlreadySent(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+
+	ue := addUE(t, amfInstance, "001010000000003", func(u *amf.UeContext) {
+		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
+	})
+
+	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
+	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
+	ranUe.ICS = amf.ICSPending
+	ue.AttachRanUe(ranUe)
+
+	err := amfInstance.TransferN1N2Message(context.Background(), ue.SupiForTest(), newReq())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if sender.pduSessionSetupCalls != 1 {
+		t.Fatalf("expected 1 PDUSessionResourceSetupRequest, got %d", sender.pduSessionSetupCalls)
+	}
+}
+
+func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	fakeDB := &fakeDBInstance{
+		operator: &db.Operator{
+			Mcc: "001",
+			Mnc: "01",
+		},
+	}
+	amfInstance := amf.New(fakeDB, nil, &fakeSmf{})
+
+	ue := addUE(t, amfInstance, "001010000000004", func(u *amf.UeContext) {
+		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
+	})
+
+	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
+	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
+	ranUe.ICS = amf.ICSNotStarted
+	ue.AttachRanUe(ranUe)
+
+	err := amfInstance.TransferN1N2Message(context.Background(), ue.SupiForTest(), newReq())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if sender.initialContextSetupCalls != 1 {
+		t.Fatalf("expected 1 InitialContextSetupRequest, got %d", sender.initialContextSetupCalls)
+	}
+
+	if ranUe.ICS != amf.ICSPending {
+		t.Fatalf("expected ranUe.ICS == ICSPending, got %v", ranUe.ICS)
+	}
+}
+
+func TestModifyN1N2Message_IdleRegisteredUE_ReturnsNotReachable(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+	amfInstance.Radios = make(map[*sctp.SCTPConn]*amf.Radio)
+
+	ue := addUE(t, amfInstance, "001010000000014", func(u *amf.UeContext) {
+		u.ForceState(amf.Registered)
+		u.SetGutiForTest(testGUTI(t))
+		u.RegistrationArea = []models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}}
+	})
+
+	radio := &amf.Radio{
+		NGAPSender: sender,
+		RanUEs:     make(map[int64]*amf.RanUe),
+		SupportedTAIs: []amf.SupportedTAI{{
+			Tai: models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
+		}},
+	}
+	amfInstance.Radios[nil] = radio
+
+	// UE has no RanUe attached → CM-IDLE
+	err := amfInstance.ModifyN1N2Message(context.Background(), ue.SupiForTest(), 1, []byte{0x01, 0x02}, []byte{0x03, 0x04})
+	if err == nil {
+		t.Fatal("expected ErrUENotReachable for idle UE")
+	}
+
+	if err != amf.ErrUENotReachable {
+		t.Fatalf("expected ErrUENotReachable, got: %v", err)
+	}
+
+	// No paging should have been triggered.
+	if sender.pagingCalls != 0 {
+		t.Fatalf("expected 0 paging calls, got %d", sender.pagingCalls)
+	}
+
+	// No N1N2 message stored on UE.
+	if ue.NasConn() != nil && ue.NasConn().N1N2Message != nil {
+		t.Fatal("expected no stored N1N2 message")
+	}
+}
+
+func TestReleaseSessionMessage_IdleUE_ReturnsNotReachable(t *testing.T) {
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+
+	addUE(t, amfInstance, "001010000000015", func(u *amf.UeContext) {
+		u.ForceState(amf.Registered)
+	})
+
+	supi := mustSUPIFromIMSI(t, "001010000000015")
+
+	// UE has no RanUe attached → CM-IDLE
+	err := amfInstance.ReleaseSessionMessage(context.Background(), supi, 1, []byte{0x01}, []byte{0x02})
+	if err == nil {
+		t.Fatal("expected ErrUENotReachable for idle UE")
+	}
+
+	if err != amf.ErrUENotReachable {
+		t.Fatalf("expected ErrUENotReachable, got: %v", err)
+	}
+}
+
+// --- N2MessageTransferOrPage tests ---
+
+func TestN2MessageTransferOrPage_UENotFound(t *testing.T) {
+	amfInstance := amf.New(nil, nil, nil)
+	supi := mustSUPIFromIMSI(t, "001010000000005")
+
+	err := amfInstance.N2MessageTransferOrPage(context.Background(), supi, newReq())
+	if err == nil {
+		t.Fatal("expected error for missing UE")
+	}
+}
+
+func TestN2MessageTransferOrPage_OnGoingPaging(t *testing.T) {
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+
+	ue := addUE(t, amfInstance, "001010000000006", nil)
+
+	if _, err := ue.NasConn().Procedures.Begin(context.Background(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+		t.Fatal(err)
+	}
+
+	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
+	if err == nil {
+		t.Fatal("expected error for ongoing paging")
+	}
+}
+
+func TestN2MessageTransferOrPage_OnGoingRegistration(t *testing.T) {
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+
+	ue := addUE(t, amfInstance, "001010000000007", nil)
+
+	if _, err := ue.NasConn().Procedures.Begin(context.Background(), procedure.Procedure{Type: procedure.Registration}); err != nil {
+		t.Fatal(err)
+	}
+
+	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
+	if err == nil {
+		t.Fatal("expected error for ongoing registration")
+	}
+}
+
+func TestN2MessageTransferOrPage_OnGoingN2Handover(t *testing.T) {
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+
+	ue := addUE(t, amfInstance, "001010000000008", nil)
+
+	if _, err := ue.NasConn().Procedures.Begin(context.Background(), procedure.Procedure{Type: procedure.N2Handover}); err != nil {
+		t.Fatal(err)
+	}
+
+	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
+	if err == nil {
+		t.Fatal("expected error for ongoing N2 handover")
+	}
+}
+
+func TestN2MessageTransferOrPage_ConnectedUE_InitialCtxSent(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+
+	ue := addUE(t, amfInstance, "001010000000009", func(u *amf.UeContext) {
+		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
+	})
+
+	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
+	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
+	ranUe.ICS = amf.ICSPending
+	ue.AttachRanUe(ranUe)
+
+	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if sender.pduSessionSetupCalls != 1 {
+		t.Fatalf("expected 1 PDUSessionResourceSetupRequest, got %d", sender.pduSessionSetupCalls)
+	}
+}
+
+func TestN2MessageTransferOrPage_NotRegistered_NoPaging(t *testing.T) {
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+
+	ue := addUE(t, amfInstance, "001010000000010", nil)
+
+	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
+	if err == nil {
+		t.Fatal("expected error for UE not in registered state")
+	}
+}
+
+// --- TransferN1Msg tests ---
+
+func TestTransferN1Msg_UENotFound(t *testing.T) {
+	amfInstance := amf.New(nil, nil, nil)
+	supi := mustSUPIFromIMSI(t, "001010000000011")
+
+	err := amfInstance.TransferN1Msg(context.Background(), supi, []byte{0x01}, 1)
+	if err == nil {
+		t.Fatal("expected error for missing UE")
+	}
+}
+
+func TestTransferN1Msg_UENotConnected(t *testing.T) {
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+
+	ue := addUE(t, amfInstance, "001010000000012", nil)
+
+	err := amfInstance.TransferN1Msg(context.Background(), ue.SupiForTest(), []byte{0x01}, 1)
+	if err == nil {
+		t.Fatal("expected error for UE not connected to RAN")
+	}
+}
+
+func TestTransferN1Msg_Success(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+
+	ue := addUE(t, amfInstance, "001010000000013", nil)
+
+	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
+	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
+	ue.AttachRanUe(ranUe)
+
+	err := amfInstance.TransferN1Msg(context.Background(), ue.SupiForTest(), []byte{0x01}, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if sender.downlinkNasTransportCalls != 1 {
+		t.Fatalf("expected 1 DownlinkNasTransport, got %d", sender.downlinkNasTransportCalls)
+	}
+}

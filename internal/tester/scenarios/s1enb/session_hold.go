@@ -30,9 +30,6 @@ func init() {
 	})
 }
 
-// runS1ENBSessionHold attaches a single UE, establishing the default EPS bearer
-// and its IP lease, then blocks until ctx is cancelled. The IP family follows the
-// env so the lease can be IPv4 or IPv6.
 func runS1ENBSessionHold(ctx context.Context, env scenarios.Env, _ any) error {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {

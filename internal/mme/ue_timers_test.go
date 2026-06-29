@@ -6,8 +6,6 @@ package mme
 import (
 	"testing"
 	"time"
-
-	"github.com/ellanetworks/core/s1ap"
 )
 
 func eventually(t *testing.T, d time.Duration, cond func() bool) {
@@ -33,13 +31,13 @@ func TestMobileReachableEscalatesToImplicitDetach(t *testing.T) {
 	m.mobileReachableTime = 10 * time.Millisecond
 	m.implicitDetachTime = 10 * time.Millisecond
 
-	ue, _ := idleRegisteredUE(t, m)
-	testPDN(ue).apn = "internet" // so the implicit detach releases the EPS session
+	ue := idleRegisteredUE(t, m)
+	testPDN(ue).Apn = "internet" // so the implicit detach releases the EPS session
 
-	m.startMobileReachable(ue)
+	m.StartMobileReachable(ue)
 
 	eventually(t, time.Second, func() bool {
-		_, ok := m.lookupUeByIMSI(ue.imsi)
+		_, ok := m.LookupUeByIMSI(ue.imsi)
 		return !ok
 	})
 
@@ -47,7 +45,7 @@ func TestMobileReachableEscalatesToImplicitDetach(t *testing.T) {
 		t.Fatalf("emmState = %v, want EMMDeregistered after implicit detach", ue.emmState.load())
 	}
 
-	if !m.session.(*fakeSessionManager).released {
+	if !m.Session.(*fakeSessionManager).released {
 		t.Fatal("EPS session not released on implicit detach")
 	}
 }
@@ -59,51 +57,21 @@ func TestReconnectStopsIdleTimers(t *testing.T) {
 	m.mobileReachableTime = 20 * time.Millisecond
 	m.implicitDetachTime = 20 * time.Millisecond
 
-	ue, _ := idleRegisteredUE(t, m)
-	testPDN(ue).apn = "internet"
+	ue := idleRegisteredUE(t, m)
+	testPDN(ue).Apn = "internet"
 
-	m.startMobileReachable(ue)
-	m.establishS1Connection(ue, &captureConn{}, 9)
+	m.StartMobileReachable(ue)
+	m.EstablishS1Connection(ue, &captureConn{}, 9)
 
 	time.Sleep(100 * time.Millisecond)
 
-	if _, ok := m.lookupUeByIMSI(ue.imsi); !ok {
+	if _, ok := m.LookupUeByIMSI(ue.imsi); !ok {
 		t.Fatal("UE implicitly detached despite reconnecting")
 	}
 
-	if m.session.(*fakeSessionManager).released {
+	if m.Session.(*fakeSessionManager).released {
 		t.Fatal("EPS session released despite reconnecting")
 	}
 }
 
 // TestUEContextReleaseCompleteArmsMobileReachable confirms the supervision is
-// armed when a registered UE moves to ECM-IDLE on an S1 release.
-func TestUEContextReleaseCompleteArmsMobileReachable(t *testing.T) {
-	m := newTestMME(t)
-
-	ue, cc := securedUE(t, m) // connected; the release moves it to ECM-IDLE
-
-	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: 7}
-
-	b, err := complete.Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	cpdu, err := s1ap.Unmarshal(b)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	m.handleUEContextReleaseComplete(cc, cpdu.(*s1ap.SuccessfulOutcome).Value)
-
-	if ue.connected() {
-		t.Fatal("UE still connected after S1 release")
-	}
-
-	if ue.mobileReachableTimer == nil {
-		t.Fatal("mobile reachable timer not armed when UE moved to ECM-IDLE")
-	}
-
-	m.removeUe(ue) // stop the default-duration timer
-}

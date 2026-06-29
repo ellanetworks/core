@@ -16,7 +16,7 @@ import (
 // DEREGISTRATION REQUEST (TS 24.501 §8.2.14) over 3GPP access, integrity
 // protected and ciphered with the UE's security context. Re-registration is not
 // requested: the subscriber was removed, so the UE stays deregistered.
-func buildDeregistrationRequest(ue *AmfUe) ([]byte, error) {
+func buildDeregistrationRequest(ue *UeContext) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeDeregistrationRequestUETerminatedDeregistration)
@@ -46,7 +46,7 @@ func buildDeregistrationRequest(ue *AmfUe) ([]byte, error) {
 // exhaustion the UE context is removed regardless, so a silent UE cannot leak
 // the context. On a normal accept the context is removed by the
 // nw-initiated-deregistration UE context release.
-func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *AmfUe) error {
+func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeContext) error {
 	ranUe := ue.RanUe()
 	if ranUe == nil {
 		return fmt.Errorf("ranUe is nil")
@@ -89,7 +89,7 @@ func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *AmfU
 
 		conn.T3522 = nil
 
-		amf.DeregisterAndRemoveAMFUE(context.Background(), ue)
+		amf.DeregisterAndRemoveUeContext(context.Background(), ue)
 	})
 
 	return nil

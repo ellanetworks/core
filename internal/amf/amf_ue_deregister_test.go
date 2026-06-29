@@ -94,17 +94,17 @@ func (s *deregisterTestSmf) GetSessionPolicy(context.Context, etsi.SUPI, *models
 }
 
 func TestDeregister_DoesNotHoldLockDuringSmfRelease(t *testing.T) {
-	ue := NewAmfUe()
+	ue := NewUeContext()
 	ue.Log = zap.NewNop()
-	ue.Current().SmContextList[1] = &SmContext{Ref: "ref-1"}
-	ue.Current().SmContextList[2] = &SmContext{Ref: "ref-2"}
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
+	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
 
 	fakeSmf := &deregisterTestSmf{}
 	relockCount := 0
 	fakeSmf.onRelease = func(_ context.Context, _ string) error {
-		ue.Mutex.Lock()
+		ue.mu.Lock()
 		_ = ue.state
-		ue.Mutex.Unlock()
+		ue.mu.Unlock()
 
 		relockCount++
 
@@ -129,8 +129,8 @@ func TestDeregister_DoesNotHoldLockDuringSmfRelease(t *testing.T) {
 		t.Fatalf("expected state %q, got %q", Deregistered, ue.state)
 	}
 
-	if len(ue.Current().SmContextList) != 0 {
-		t.Fatalf("expected SmContextList to be cleared, got %d entries", len(ue.Current().SmContextList))
+	if len(ue.SmContextList) != 0 {
+		t.Fatalf("expected SmContextList to be cleared, got %d entries", len(ue.SmContextList))
 	}
 
 	if len(fakeSmf.releaseCalls) != 2 {

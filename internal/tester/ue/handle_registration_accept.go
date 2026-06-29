@@ -34,9 +34,8 @@ func handleRegistrationAccept(ue *UE, msg *nas.Message, amfUENGAPID int64, ranUE
 		return fmt.Errorf("could not send UplinkNASTransport: %v", err)
 	}
 
-	// We sleep because there is no response expected from the Registration Complete message,
-	// and if we send the PDU Session Establishment Request too quickly after,
-	// the Core may not have finished processing the Registration Complete yet.
+	// Registration Complete has no response; pause so the Core finishes processing
+	// it before the PDU Session Establishment Request arrives.
 	time.Sleep(500 * time.Millisecond)
 
 	logger.UeLogger.Debug(

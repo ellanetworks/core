@@ -22,7 +22,7 @@ func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) 
 	ran := newTestRadio()
 	amfInstance := newTestAMF()
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.ForceState(amf.Registered)
 	amfUe.Log = logger.AmfLog
 
@@ -61,7 +61,7 @@ func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
 	ran := newTestRadio()
 	amfInstance := newTestAMF()
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.ForceState(amf.Registered)
 	amfUe.Log = logger.AmfLog
 

@@ -20,10 +20,8 @@ type HomeNetworkPublicKey struct {
 }
 
 func profileAEncrypt(msin string, hnPubkey *ecdh.PublicKey) (string, error) {
-	// Profile A curve
 	x25519Curve := ecdh.X25519()
 
-	// The UE generates an ephemeral key to transmit its SUPI to network
 	ephemeralPriv, err := x25519Curve.GenerateKey(rand.Reader)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate ephemeral X25519 key: %w", err)
@@ -31,7 +29,6 @@ func profileAEncrypt(msin string, hnPubkey *ecdh.PublicKey) (string, error) {
 
 	ephemeralPub := ephemeralPriv.PublicKey().Bytes()
 
-	// ECDH between UE's ephemeral key and Home Network Public Key
 	sharedKey, err := ephemeralPriv.ECDH(hnPubkey)
 	if err != nil {
 		return "", fmt.Errorf("failed to compute ECDH: %w", err)
@@ -65,16 +62,13 @@ func profileAEncrypt(msin string, hnPubkey *ecdh.PublicKey) (string, error) {
 }
 
 func profileBEncrypt(msin string, hnPubkey *ecdh.PublicKey) (string, error) {
-	// Profile B curve
 	p256Curve := ecdh.P256()
 
-	// The UE generates an ephemeral key to transmit its SUPI to network
 	ephemeralPriv, err := p256Curve.GenerateKey(rand.Reader)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate ephemeral P256 key: %w", err)
 	}
 
-	// ECDH between UE's ephemeral key and Home Network Public Key
 	sharedKey, err := ephemeralPriv.ECDH(hnPubkey)
 	if err != nil {
 		return "", fmt.Errorf("failed to compute ECDH: %w", err)

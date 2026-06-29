@@ -30,7 +30,6 @@ func BuildPDUSessionResourceReleaseResponse(opts *PDUSessionResourceReleaseRespo
 	releaseResponse := successfulOutcome.Value.PDUSessionResourceReleaseResponse
 	ies := &releaseResponse.ProtocolIEs
 
-	// AMF UE NGAP ID
 	amfIE := ngapType.PDUSessionResourceReleaseResponseIEs{}
 	amfIE.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
 	amfIE.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -39,7 +38,6 @@ func BuildPDUSessionResourceReleaseResponse(opts *PDUSessionResourceReleaseRespo
 	amfIE.Value.AMFUENGAPID.Value = opts.AMFUENGAPID
 	ies.List = append(ies.List, amfIE)
 
-	// RAN UE NGAP ID
 	ranIE := ngapType.PDUSessionResourceReleaseResponseIEs{}
 	ranIE.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
 	ranIE.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -48,7 +46,6 @@ func BuildPDUSessionResourceReleaseResponse(opts *PDUSessionResourceReleaseRespo
 	ranIE.Value.RANUENGAPID.Value = opts.RANUENGAPID
 	ies.List = append(ies.List, ranIE)
 
-	// PDU Session Resource Released List
 	relListIE := ngapType.PDUSessionResourceReleaseResponseIEs{}
 	relListIE.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceReleasedListRelRes
 	relListIE.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -61,7 +58,6 @@ func BuildPDUSessionResourceReleaseResponse(opts *PDUSessionResourceReleaseRespo
 		item := ngapType.PDUSessionResourceReleasedItemRelRes{}
 		item.PDUSessionID.Value = pduSessionID
 
-		// Build an empty Release Response Transfer (success acknowledgement)
 		transfer := &ngapType.PDUSessionResourceReleaseResponseTransfer{}
 
 		transferBytes, err := aper.MarshalWithParams(transfer, "valueExt")

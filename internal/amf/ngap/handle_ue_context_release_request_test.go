@@ -53,7 +53,7 @@ func TestHandleUEContextReleaseRequest_UEFoundRegistered(t *testing.T) {
 	sender := ran.NGAPSender.(*FakeNGAPSender)
 	amfInstance := newTestAMF()
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 	amfUe.ForceState(amf.Registered)
 

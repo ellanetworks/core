@@ -30,10 +30,8 @@ func init() {
 }
 
 func fixtureRegistrationSuccessNoSD(env scenarios.Env) scenarios.FixtureSpec {
-	// Scenario registers a UE with SD="". Slice selection requires an
-	// exact SST+SD match, so the baseline slice (SD=DefaultSD) won't
-	// match. Fixture declares a scoped slice with SD="" and a scoped
-	// profile+policy pair binding it to the baseline default DN.
+	// Slice selection requires an exact SST+SD match, so an SD="" UE needs a
+	// dedicated SD="" slice; the baseline slice (SD=DefaultSD) won't match.
 	return scenarios.FixtureSpec{
 		Profiles: []scenarios.ProfileSpec{
 			{

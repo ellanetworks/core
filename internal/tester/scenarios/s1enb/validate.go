@@ -12,10 +12,8 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// expectedAttach describes the signaled default-bearer fields a successful EPS
-// attach must carry, limited to what Ella Core signals over S1AP/EPS NAS:
-// IP-in-subnet, APN/DNN, PDN type, QCI, and the per-APN Session-AMBR (APN-AMBR
-// IE, TS 24.301 §9.9.4.2).
+// expectedAttach is the set of signaled default-bearer fields a successful EPS
+// attach must carry, limited to what Ella Core signals over S1AP/EPS NAS.
 type expectedAttach struct {
 	UEIPv4Subnet        netip.Prefix // UE IPv4 must fall inside this subnet (zero value => skip)
 	APN                 string       // Access Point Name in the Activate Default EPS Bearer Context Request (empty => skip)
@@ -30,12 +28,10 @@ type expectedAttach struct {
 	RequireUEIPv6       bool         // the attach must carry an IPv6 interface identifier
 }
 
-// familyExpect is the baseline attach expectation for env's IP family: the
-// negotiated PDN type and APN, an IPv4-in-pool check when IPv4 is present, and an
-// IPv6 interface-identifier check when IPv6 is present. The global IPv6 prefix is
-// not asserted — EPS signals only the IID, the prefix arrives via SLAAC. The EPS
-// PDN type and the 5G PDU-session type share values (IPv4=1/IPv6=2/IPv4v6=3), so
-// env.PDUSessionType() selects the family identically to the 5G scenarios.
+// familyExpect is the baseline attach expectation for env's IP family. The global
+// IPv6 prefix is not asserted — EPS signals only the IID, the prefix arrives via
+// SLAAC. EPS PDN type and 5G PDU-session type share values (IPv4=1/IPv6=2/
+// IPv4v6=3), so env.PDUSessionType() selects the family for both.
 func familyExpect(env scenarios.Env, apn, ipv4Pool string) expectedAttach {
 	exp := expectedAttach{
 		APN:                 apn,
@@ -59,9 +55,6 @@ func familyExpect(env scenarios.Env, apn, ipv4Pool string) expectedAttach {
 
 const mbpsToBps = 1_000_000
 
-// defaultExpectedAttach is the baseline expectation for a UE on the default
-// profile/policy/data-network: an IPv4 lease from the default pool, the default
-// APN, IPv4 PDN type, QCI 9, and 100/100 Mbps Session-AMBR.
 func defaultExpectedAttach() expectedAttach {
 	return expectedAttach{
 		UEIPv4Subnet:        netip.MustParsePrefix(scenarios.DefaultUEIPv4Pool),
@@ -74,9 +67,8 @@ func defaultExpectedAttach() expectedAttach {
 	}
 }
 
-// assertAttach checks an EPS attach's AttachResult against exp, returning a
-// descriptive error on the first mismatch. Zero-valued expectation fields are
-// skipped so callers assert only what their scenario provisions.
+// Zero-valued expectation fields are skipped so callers assert only what their
+// scenario provisions.
 func assertAttach(res *s1enb.AttachResult, exp expectedAttach) error {
 	if exp.RequireGUTI && res.GUTI == nil {
 		return fmt.Errorf("attach: MME assigned no GUTI")
@@ -96,8 +88,7 @@ func assertAttach(res *s1enb.AttachResult, exp expectedAttach) error {
 	}, exp)
 }
 
-// assertPDN checks an additional PDN connection's PDNResult against exp. A
-// secondary PDN carries no GUTI, so exp.RequireGUTI is ignored here.
+// A secondary PDN carries no GUTI, so exp.RequireGUTI is ignored here.
 func assertPDN(pdn *s1enb.PDNResult, exp expectedAttach) error {
 	return assertBearer(bearerFields{
 		pdnType: pdn.PDNType, qci: pdn.QCI, arp: pdn.ARP, apn: pdn.APN, ueIPv4: pdn.UEIPv4,
@@ -115,7 +106,6 @@ type bearerFields struct {
 	sessAmbrDLBps, sessAmbrULBps uint64
 }
 
-// assertBearer checks bearer fields against exp; zero-valued expectations skip.
 func assertBearer(b bearerFields, exp expectedAttach) error {
 	if exp.PDNType != 0 && b.pdnType != exp.PDNType {
 		return fmt.Errorf("bearer: PDN type = %d, want %d", b.pdnType, exp.PDNType)

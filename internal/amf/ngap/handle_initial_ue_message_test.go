@@ -88,7 +88,11 @@ func TestHandleInitialUEMessage_ReusedRanUeNgapID_EvictsStale(t *testing.T) {
 	}
 }
 
-func TestHandleInitialUEMessage_5GSTMSI_KnownUE_AttachesAmfUe(t *testing.T) {
+// TestHandleInitialUEMessage_5GSTMSI_UnverifiedDoesNotAttach asserts TS 24.501
+// §4.4.4.3: an Initial UE Message that resolves to a known UE by 5G-S-TMSI but
+// is not integrity-verified against that context must not bind to it. The
+// message is still forwarded to NAS, which processes it on a fresh context.
+func TestHandleInitialUEMessage_5GSTMSI_UnverifiedDoesNotAttach(t *testing.T) {
 	fakeNAS := &FakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 	amfInstance.DBInstance = &FakeDBInstance{
@@ -110,18 +114,18 @@ func TestHandleInitialUEMessage_5GSTMSI_KnownUE_AttachesAmfUe(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	amfUe := amf.NewAmfUe()
-	amfUe.Guti = guti
+	amfUe := amf.NewUeContext()
+	amfUe.SetGutiForTest(guti)
 
 	supi, err := etsi.NewSUPIFromIMSI("001010000000001")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	amfUe.Supi = supi
+	amfUe.SetSupiForTest(supi)
 	amfUe.Log = logger.AmfLog
 
-	err = amfInstance.AddAmfUeToUePool(amfUe)
+	err = amfInstance.AddUeContextToPool(amfUe)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,8 +151,8 @@ func TestHandleInitialUEMessage_5GSTMSI_KnownUE_AttachesAmfUe(t *testing.T) {
 		t.Fatal("ran.FindUEByRanUeNgapID(1) is nil")
 	}
 
-	if ranUe.AmfUe() != amfUe {
-		t.Error("ranUe.AmfUe() does not point to the expected AmfUe")
+	if ranUe.UeContext() == amfUe {
+		t.Error("an unverified Initial UE Message must not bind to the existing context (TS 24.501 §4.4.4.3)")
 	}
 
 	if len(fakeNAS.Calls) != 1 {
@@ -193,8 +197,8 @@ func TestHandleInitialUEMessage_5GSTMSI_UnknownUE_NASStillCalled(t *testing.T) {
 		t.Fatal("ran.FindUEByRanUeNgapID(1) is nil")
 	}
 
-	if ranUe.AmfUe() != nil {
-		t.Error("ranUe.AmfUe() should be nil for unknown UE")
+	if ranUe.UeContext() != nil {
+		t.Error("ranUe.UeContext() should be nil for unknown UE")
 	}
 }
 
@@ -243,18 +247,18 @@ func TestHandleInitialUEMessage_RegisteredUE_DoesNotPanic(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	amfUe := amf.NewAmfUe()
-	amfUe.Guti = guti
+	amfUe := amf.NewUeContext()
+	amfUe.SetGutiForTest(guti)
 
 	supi, err := etsi.NewSUPIFromIMSI("001010000000002")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	amfUe.Supi = supi
+	amfUe.SetSupiForTest(supi)
 	amfUe.Log = logger.AmfLog
 
-	err = amfInstance.AddAmfUeToUePool(amfUe)
+	err = amfInstance.AddUeContextToPool(amfUe)
 	if err != nil {
 		t.Fatal(err)
 	}

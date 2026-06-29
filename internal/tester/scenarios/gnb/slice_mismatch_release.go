@@ -126,9 +126,8 @@ func runSliceMismatchRelease(ctx context.Context, env scenarios.Env, p *sliceMis
 		zap.Int64("RAN UE NGAP ID", ranUENGAPID),
 	)
 
-	// --- Phase 2: Change the subscriber's slice to trigger mismatch ---
-	// Remove the default slice from the subscriber's profile so the SMF
-	// detects that the session's Snssai no longer matches any slice.
+	// Switch to a profile without the default slice so the SMF detects the
+	// session's Snssai matches no configured slice.
 	logger.Logger.Info("Updating subscriber profile to remove default slice",
 		zap.String("IMSI", sub.IMSI),
 	)
@@ -140,9 +139,7 @@ func runSliceMismatchRelease(ctx context.Context, env scenarios.Env, p *sliceMis
 		return fmt.Errorf("failed to update subscriber profile: %v", err)
 	}
 
-	// --- Phase 3: Wait for N2 (NGAP) PDU Session Resource Release Command ---
-	// The SMF initiates a release with cause #39 "reactivation requested"
-	// when the slice mismatch is detected.
+	// On slice mismatch the SMF releases with cause #39 "reactivation requested".
 	_, err = gNodeB.WaitForMessage(
 		ngapType.NGAPPDUPresentInitiatingMessage,
 		ngapType.InitiatingMessagePresentPDUSessionResourceReleaseCommand,
@@ -154,7 +151,6 @@ func runSliceMismatchRelease(ctx context.Context, env scenarios.Env, p *sliceMis
 
 	logger.Logger.Info("gNB received PDUSessionResourceReleaseCommand")
 
-	// --- Phase 4: Wait for N1 (NAS) PDU Session Release Command with cause #39 ---
 	releaseCmd, err := newUE.WaitForNASGSMMessage(nas.MsgTypePDUSessionReleaseCommand, 15*time.Second)
 	if err != nil {
 		return fmt.Errorf("UE did not receive PDU Session Release Command: %v", err)
@@ -162,7 +158,6 @@ func runSliceMismatchRelease(ctx context.Context, env scenarios.Env, p *sliceMis
 
 	logger.Logger.Info("UE received PDU Session Release Command")
 
-	// --- Phase 5: Validate the release cause is #39 "reactivation requested" ---
 	if releaseCmd.PDUSessionReleaseCommand == nil {
 		return fmt.Errorf("PDU Session Release Command message is nil")
 	}
@@ -176,12 +171,10 @@ func runSliceMismatchRelease(ctx context.Context, env scenarios.Env, p *sliceMis
 		zap.Uint8("cause", cause),
 	)
 
-	// --- Cleanup: Restore subscriber profile ---
 	_ = cl.UpdateSubscriber(ctx, sub.IMSI, &client.UpdateSubscriberOptions{
 		ProfileName: scenarios.DefaultProfileName,
 	})
 
-	// Deregister UE.
 	pduSessionIDs := [16]bool{}
 	pduSessionIDs[scenarios.DefaultPDUSessionID] = true
 

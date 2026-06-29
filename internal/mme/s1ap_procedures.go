@@ -53,10 +53,10 @@ const (
 	S1APProcedureUnknown                     S1APProcedure = "UnknownMessage"
 )
 
-// s1apMessageType resolves a decoded S1AP PDU to its message name. The S1AP
+// S1APMessageType resolves a decoded S1AP PDU to its message name. The S1AP
 // message identity is the procedure code qualified by the PDU category, since a
 // procedure spans request/response/failure (e.g. S1 Setup).
-func s1apMessageType(pdu any) S1APProcedure {
+func S1APMessageType(pdu any) S1APProcedure {
 	switch p := pdu.(type) {
 	case *s1ap.InitiatingMessage:
 		return s1apInitiatingMessageType(p.ProcedureCode)

@@ -30,7 +30,6 @@ func BuildPDUSessionResourceModifyResponse(opts *PDUSessionResourceModifyRespons
 	modifyResponse := successfulOutcome.Value.PDUSessionResourceModifyResponse
 	ies := &modifyResponse.ProtocolIEs
 
-	// AMF UE NGAP ID
 	amfIE := ngapType.PDUSessionResourceModifyResponseIEs{}
 	amfIE.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
 	amfIE.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -39,7 +38,6 @@ func BuildPDUSessionResourceModifyResponse(opts *PDUSessionResourceModifyRespons
 	amfIE.Value.AMFUENGAPID.Value = opts.AMFUENGAPID
 	ies.List = append(ies.List, amfIE)
 
-	// RAN UE NGAP ID
 	ranIE := ngapType.PDUSessionResourceModifyResponseIEs{}
 	ranIE.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
 	ranIE.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -48,7 +46,6 @@ func BuildPDUSessionResourceModifyResponse(opts *PDUSessionResourceModifyRespons
 	ranIE.Value.RANUENGAPID.Value = opts.RANUENGAPID
 	ies.List = append(ies.List, ranIE)
 
-	// PDU Session Resource Modify Response List
 	modListIE := ngapType.PDUSessionResourceModifyResponseIEs{}
 	modListIE.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceModifyListModRes
 	modListIE.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -61,12 +58,10 @@ func BuildPDUSessionResourceModifyResponse(opts *PDUSessionResourceModifyRespons
 		item := ngapType.PDUSessionResourceModifyItemModRes{}
 		item.PDUSessionID.Value = pduSessionID
 
-		// Build an empty Modify Response Transfer (success acknowledgement)
 		transfer := &ngapType.PDUSessionResourceModifyResponseTransfer{}
 
 		transferBytes, err := aper.MarshalWithParams(transfer, "valueExt")
 		if err != nil {
-			// If we can't encode, skip this session in the response
 			continue
 		}
 

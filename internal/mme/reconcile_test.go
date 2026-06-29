@@ -21,15 +21,15 @@ func connectedBearerUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 
 	ue, cc := securedUE(t, m)
 	p := testPDN(ue)
-	p.apn = "internet"
+	p.Apn = "internet"
 
 	// Record the QoS a real activation would, so a reconcile against an unchanged
 	// policy is a no-op.
-	if qos, err := m.resolveQoSByAPN(context.Background(), ue.imsi, p.apn); err == nil {
-		p.sessAmbrDLBps = bitRateToBps(qos.SessAmbrDLStr)
-		p.sessAmbrULBps = bitRateToBps(qos.SessAmbrULStr)
-		p.qci = qos.QCI
-		p.arp = qos.ARP
+	if qos, err := ResolveQoSByAPN(m, context.Background(), ue.imsi, p.Apn); err == nil {
+		p.SessAmbrDLBps = BitRateToBps(qos.SessAmbrDLStr)
+		p.SessAmbrULBps = BitRateToBps(qos.SessAmbrULStr)
+		p.Qci = qos.QCI
+		p.Arp = qos.ARP
 	}
 
 	return ue, cc
@@ -41,13 +41,13 @@ func TestReconcileDataNetworkReactivatesChangedBearer(t *testing.T) {
 
 	// A fingerprint that differs from the current resolved config simulates a
 	// data-network reconfiguration applied while the bearer was up.
-	testPDN(ue).dnConfig = "stale|config|0.0.0.0|0"
+	testPDN(ue).DnConfig = "stale|config|0.0.0.0|0"
 
 	m.ReconcileDataNetwork(context.Background())
 
-	defer m.stopNASGuard(ue)
+	defer m.StopNASGuard(ue)
 
-	if !testPDN(ue).deactivating {
+	if !testPDN(ue).Deactivating {
 		t.Fatal("UE not marked deactivating after a data-network change")
 	}
 
@@ -77,16 +77,16 @@ func TestReconcileDataNetworkSkipsUnchanged(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
 
-	qos, err := m.resolveQoS(context.Background(), ue.imsi)
+	qos, err := ResolveQoS(m, context.Background(), ue.imsi)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	testPDN(ue).dnConfig = qos.dnFingerprint() // matches current → no change
+	testPDN(ue).DnConfig = qos.DnFingerprint() // matches current → no change
 
 	m.ReconcileDataNetwork(context.Background())
 
-	if testPDN(ue).deactivating {
+	if testPDN(ue).Deactivating {
 		t.Fatal("UE reactivated despite an unchanged data-network config")
 	}
 
@@ -98,82 +98,42 @@ func TestReconcileDataNetworkSkipsUnchanged(t *testing.T) {
 func TestReconcileDataNetworkSkipsIdleUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
-	m.freeS1Conn(ue) // an idle UE picks up the change on its next attach
-	testPDN(ue).dnConfig = "stale|config|0.0.0.0|0"
+	m.FreeS1Conn(ue) // an idle UE picks up the change on its next attach
+	testPDN(ue).DnConfig = "stale|config|0.0.0.0|0"
 
 	m.ReconcileDataNetwork(context.Background())
 
-	if testPDN(ue).deactivating || len(cc.sent) != 0 {
-		t.Fatalf("idle UE should not be signalled; deactivating=%v sent=%d", testPDN(ue).deactivating, len(cc.sent))
+	if testPDN(ue).Deactivating || len(cc.sent) != 0 {
+		t.Fatalf("idle UE should not be signalled; deactivating=%v sent=%d", testPDN(ue).Deactivating, len(cc.sent))
 	}
 }
 
 // TestDeactivateBearerAcceptReleases drives the uplink DEACTIVATE EPS BEARER
-// CONTEXT ACCEPT through handleNAS (exercising ESM routing) and verifies the MME
-// releases the session and the S1 context so the UE re-attaches.
-func TestDeactivateBearerAcceptReleases(t *testing.T) {
-	m := newTestMME(t)
-	ue, cc := connectedBearerUE(t, m)
-	testPDN(ue).deactivating = true
-
-	plain, err := (&eps.DeactivateEPSBearerContextAccept{EPSBearerIdentity: defaultERABID}).Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered,
-		nascommon.NASCount(0, uint8(ue.ulCount)), nascommon.DirectionUplink,
-		ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	m.handleNAS(context.Background(), ue, wire)
-
-	if !m.session.(*fakeSessionManager).released {
-		t.Fatal("EPS session not released after Deactivate Accept")
-	}
-
-	if ue.emmState.load() != EMMDeregistered {
-		t.Fatal("UE not EMM-DEREGISTERED after Deactivate Accept")
-	}
-
-	if len(cc.sent) != 1 {
-		t.Fatalf("expected a UE Context Release Command after Deactivate Accept, got %d", len(cc.sent))
-	}
-
-	parseUEContextReleaseCommand(t, cc.sent[0])
-}
-
-// TestReconcileDataNetworkModifiesDNSOnly verifies a DNS-only change is applied
-// in place with a MODIFY EPS BEARER CONTEXT REQUEST (no deactivation), mirroring
-// the 5G PDU Session Modification path, and that dnConfig is committed only when
-// the UE accepts.
 func TestReconcileDataNetworkModifiesDNSOnly(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
-	testPDN(ue).pdnType = eps.PDNTypeIPv4
+	testPDN(ue).PdnType = eps.PDNTypeIPv4
 
-	qos, err := m.resolveQoS(context.Background(), ue.imsi)
+	qos, err := ResolveQoS(m, context.Background(), ue.imsi)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// A fingerprint identical to the current one except the DNS field: only DNS
 	// changed, so the bearer is modified in place rather than reactivated.
-	parts := strings.Split(qos.dnFingerprint(), "|")
+	parts := strings.Split(qos.DnFingerprint(), "|")
 	parts[2] = "9.9.9.9"
-	testPDN(ue).dnConfig = strings.Join(parts, "|")
+	testPDN(ue).DnConfig = strings.Join(parts, "|")
 
 	m.ReconcileDataNetwork(context.Background())
 
-	defer m.stopNASGuard(ue)
+	defer m.StopNASGuard(ue)
 
-	if !testPDN(ue).modifying {
+	if !testPDN(ue).Modifying {
 		t.Fatal("UE not marked modifying after a DNS-only change")
 	}
 
-	if testPDN(ue).deactivating {
+	if testPDN(ue).Deactivating {
 		t.Fatal("DNS-only change must not deactivate the bearer")
 	}
 
@@ -194,7 +154,7 @@ func TestReconcileDataNetworkModifiesDNSOnly(t *testing.T) {
 		t.Fatalf("message type = %#x (err %v), want Modify EPS Bearer Context Request", mt, err)
 	}
 
-	if testPDN(ue).dnConfig == qos.dnFingerprint() {
+	if testPDN(ue).DnConfig == qos.DnFingerprint() {
 		t.Fatal("dnConfig committed before the UE accepted the modification")
 	}
 }
@@ -207,34 +167,34 @@ func TestReconcileDataNetworkModifiesSessionAMBR(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
 	p := testPDN(ue)
-	p.pdnType = eps.PDNTypeIPv4
+	p.PdnType = eps.PDNTypeIPv4
 
-	qos, err := m.resolveQoS(context.Background(), ue.imsi)
+	qos, err := ResolveQoS(m, context.Background(), ue.imsi)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	wantDL := bitRateToBps(qos.SessAmbrDLStr)
-	wantUL := bitRateToBps(qos.SessAmbrULStr)
+	wantDL := BitRateToBps(qos.SessAmbrDLStr)
+	wantUL := BitRateToBps(qos.SessAmbrULStr)
 
 	// DN config unchanged; only the stored Session-AMBR differs from the policy.
-	p.dnConfig = qos.dnFingerprint()
-	p.sessAmbrDLBps = wantDL / 2
-	p.sessAmbrULBps = wantUL / 2
+	p.DnConfig = qos.DnFingerprint()
+	p.SessAmbrDLBps = wantDL / 2
+	p.SessAmbrULBps = wantUL / 2
 
 	m.ReconcileDataNetwork(context.Background())
 
-	defer m.stopNASGuard(ue)
+	defer m.StopNASGuard(ue)
 
-	if !p.modifying {
+	if !p.Modifying {
 		t.Fatal("UE not marked modifying after a Session-AMBR change")
 	}
 
-	if p.deactivating {
+	if p.Deactivating {
 		t.Fatal("Session-AMBR change must not deactivate the bearer")
 	}
 
-	fsm := m.session.(*fakeSessionManager)
+	fsm := m.Session.(*fakeSessionManager)
 	if !fsm.ambrUpdated || fsm.ambrUplink != qos.SessAmbrULStr || fsm.ambrDownlink != qos.SessAmbrDLStr {
 		t.Fatalf("UPF Session-AMBR not updated to %s/%s, got %+v", qos.SessAmbrULStr, qos.SessAmbrDLStr, fsm)
 	}
@@ -265,7 +225,7 @@ func TestReconcileDataNetworkModifiesSessionAMBR(t *testing.T) {
 		t.Fatalf("APN-AMBR = %d/%d bps, want %d/%d", dl, ul, wantDL, wantUL)
 	}
 
-	if p.sessAmbrDLBps == wantDL {
+	if p.SessAmbrDLBps == wantDL {
 		t.Fatal("Session-AMBR committed before the UE accepted the modification")
 	}
 }
@@ -278,25 +238,25 @@ func TestReconcileDataNetworkDefersAMBROnQERFailure(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
 	p := testPDN(ue)
-	p.pdnType = eps.PDNTypeIPv4
+	p.PdnType = eps.PDNTypeIPv4
 
-	qos, err := m.resolveQoS(context.Background(), ue.imsi)
+	qos, err := ResolveQoS(m, context.Background(), ue.imsi)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	staleDL := bitRateToBps(qos.SessAmbrDLStr) / 2
-	staleUL := bitRateToBps(qos.SessAmbrULStr) / 2
+	staleDL := BitRateToBps(qos.SessAmbrDLStr) / 2
+	staleUL := BitRateToBps(qos.SessAmbrULStr) / 2
 
-	p.dnConfig = qos.dnFingerprint()
-	p.sessAmbrDLBps = staleDL
-	p.sessAmbrULBps = staleUL
+	p.DnConfig = qos.DnFingerprint()
+	p.SessAmbrDLBps = staleDL
+	p.SessAmbrULBps = staleUL
 
-	m.session.(*fakeSessionManager).ambrErr = errors.New("upf unavailable")
+	m.Session.(*fakeSessionManager).ambrErr = errors.New("upf unavailable")
 
 	m.ReconcileDataNetwork(context.Background())
 
-	if p.modifying {
+	if p.Modifying {
 		t.Fatal("modification marked in-flight despite the QER update failing")
 	}
 
@@ -304,7 +264,7 @@ func TestReconcileDataNetworkDefersAMBROnQERFailure(t *testing.T) {
 		t.Fatalf("UE signalled a Session-AMBR the data plane rejected: %d message(s) sent", len(cc.sent))
 	}
 
-	if p.sessAmbrDLBps != staleDL || p.sessAmbrULBps != staleUL {
+	if p.SessAmbrDLBps != staleDL || p.SessAmbrULBps != staleUL {
 		t.Fatal("stored Session-AMBR changed; the next reconcile would not retry")
 	}
 }
@@ -317,29 +277,29 @@ func TestReconcileDataNetworkModifiesQoSViaERABModify(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
 	p := testPDN(ue)
-	p.pdnType = eps.PDNTypeIPv4
+	p.PdnType = eps.PDNTypeIPv4
 
-	qos, err := m.resolveQoS(context.Background(), ue.imsi)
+	qos, err := ResolveQoS(m, context.Background(), ue.imsi)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// DN and Session-AMBR unchanged; only the QCI/ARP differ from the stored values.
-	p.dnConfig = qos.dnFingerprint()
-	p.sessAmbrDLBps = bitRateToBps(qos.SessAmbrDLStr)
-	p.sessAmbrULBps = bitRateToBps(qos.SessAmbrULStr)
-	p.qci = qos.QCI + 1
-	p.arp = qos.ARP + 1
+	p.DnConfig = qos.DnFingerprint()
+	p.SessAmbrDLBps = BitRateToBps(qos.SessAmbrDLStr)
+	p.SessAmbrULBps = BitRateToBps(qos.SessAmbrULStr)
+	p.Qci = qos.QCI + 1
+	p.Arp = qos.ARP + 1
 
 	m.ReconcileDataNetwork(context.Background())
 
-	defer m.stopNASGuard(ue)
+	defer m.StopNASGuard(ue)
 
-	if !p.modifying {
+	if !p.Modifying {
 		t.Fatal("UE not marked modifying after a QoS change")
 	}
 
-	if p.deactivating {
+	if p.Deactivating {
 		t.Fatal("QoS change must not deactivate the bearer")
 	}
 
@@ -388,7 +348,7 @@ func TestReconcileDataNetworkModifiesQoSViaERABModify(t *testing.T) {
 		t.Fatalf("NAS New-EPS-QoS = % x, want QCI %d", nasReq.NewEPSQoS, qos.QCI)
 	}
 
-	if p.qci == qos.QCI {
+	if p.Qci == qos.QCI {
 		t.Fatal("QCI committed before the UE accepted the modification")
 	}
 }
@@ -401,27 +361,27 @@ func TestReconcileDataNetworkModifiesQoSAndAMBRTogether(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
 	p := testPDN(ue)
-	p.pdnType = eps.PDNTypeIPv4
+	p.PdnType = eps.PDNTypeIPv4
 
-	qos, err := m.resolveQoS(context.Background(), ue.imsi)
+	qos, err := ResolveQoS(m, context.Background(), ue.imsi)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	wantDL := bitRateToBps(qos.SessAmbrDLStr)
-	wantUL := bitRateToBps(qos.SessAmbrULStr)
+	wantDL := BitRateToBps(qos.SessAmbrDLStr)
+	wantUL := BitRateToBps(qos.SessAmbrULStr)
 
-	p.dnConfig = qos.dnFingerprint()
-	p.sessAmbrDLBps = wantDL / 2 // Session-AMBR changed
-	p.sessAmbrULBps = wantUL / 2
-	p.qci = qos.QCI + 1 // QoS changed
-	p.arp = qos.ARP + 1
+	p.DnConfig = qos.DnFingerprint()
+	p.SessAmbrDLBps = wantDL / 2 // Session-AMBR changed
+	p.SessAmbrULBps = wantUL / 2
+	p.Qci = qos.QCI + 1 // QoS changed
+	p.Arp = qos.ARP + 1
 
 	m.ReconcileDataNetwork(context.Background())
 
-	defer m.stopNASGuard(ue)
+	defer m.StopNASGuard(ue)
 
-	fsm := m.session.(*fakeSessionManager)
+	fsm := m.Session.(*fakeSessionManager)
 	if !fsm.ambrUpdated {
 		t.Fatal("UPF Session-AMBR not updated on a combined QoS+AMBR change")
 	}
@@ -473,52 +433,11 @@ func TestReconcileDataNetworkModifiesQoSAndAMBRTogether(t *testing.T) {
 }
 
 // TestModifyBearerAcceptCommitsConfig drives a MODIFY EPS BEARER CONTEXT ACCEPT
-// through handleNAS and verifies the pending data-network fingerprint is
-// committed and the bearer stays up (no release).
-func TestModifyBearerAcceptCommitsConfig(t *testing.T) {
-	m := newTestMME(t)
-	ue, cc := connectedBearerUE(t, m)
-	testPDN(ue).modifying = true
-	testPDN(ue).pendingDNConfig = "10.45.0.0/16|fd45::/48|9.9.9.9|1500"
-
-	plain, err := (&eps.ModifyEPSBearerContextAccept{EPSBearerIdentity: defaultERABID}).Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered,
-		nascommon.NASCount(0, uint8(ue.ulCount)), nascommon.DirectionUplink,
-		ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	m.handleNAS(context.Background(), ue, wire)
-
-	if testPDN(ue).modifying {
-		t.Fatal("UE still marked modifying after Modify Accept")
-	}
-
-	if testPDN(ue).dnConfig != "10.45.0.0/16|fd45::/48|9.9.9.9|1500" {
-		t.Fatalf("dnConfig = %q, want the committed pending fingerprint", testPDN(ue).dnConfig)
-	}
-
-	if m.session.(*fakeSessionManager).released {
-		t.Fatal("EPS session released on a modification (must stay up)")
-	}
-
-	if len(cc.sent) != 0 {
-		t.Fatalf("modification accept must not trigger downlink S1AP, got %d", len(cc.sent))
-	}
-}
-
-// TestReconcileUEIdleNoPanic checks reconciling a UE that has moved to ECM-IDLE
-// returns without dereferencing the freed S1 connection.
 func TestReconcileUEIdleNoPanic(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
-	testPDN(ue).apn = "internet"
-	m.freeS1Conn(ue)
+	testPDN(ue).Apn = "internet"
+	m.FreeS1Conn(ue)
 
-	m.reconcileUE(context.Background(), ue)
+	m.ReconcileUE(context.Background(), ue)
 }

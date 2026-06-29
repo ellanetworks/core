@@ -51,7 +51,7 @@ func TestHandoverNotify_UnknownRanUeNgapID(t *testing.T) {
 	}
 }
 
-func TestHandoverNotify_NilAmfUe(t *testing.T) {
+func TestHandoverNotify_NilUeContext(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
@@ -82,7 +82,7 @@ func TestHandoverNotify_NoSourceUe(t *testing.T) {
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	targetUe := amf.NewRanUeForTest(ran, 2, 1, logger.AmfLog)
@@ -109,7 +109,7 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	sourceUe := amf.NewRanUeForTest(sourceRan, 10, 100, logger.AmfLog)
@@ -163,7 +163,7 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 	}
 
 	if amfUe.RanUe() != targetUe {
-		t.Error("expected AmfUe.RanUe to be attached to targetUe")
+		t.Error("expected UeContext.RanUe to be attached to targetUe")
 	}
 
 	if len(targetNGAPSender.SentErrorIndications) != 0 {
@@ -180,7 +180,7 @@ func TestHandoverNotify_SmfUpdateFails_StillReleasesSource(t *testing.T) {
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	sourceUe := amf.NewRanUeForTest(sourceRan, 10, 100, logger.AmfLog)
@@ -220,6 +220,6 @@ func TestHandoverNotify_SmfUpdateFails_StillReleasesSource(t *testing.T) {
 	}
 
 	if amfUe.RanUe() != targetUe {
-		t.Error("expected AmfUe.RanUe to be attached to targetUe even when SMF fails")
+		t.Error("expected UeContext.RanUe to be attached to targetUe even when SMF fails")
 	}
 }

@@ -78,7 +78,6 @@ func BuildUplinkNasTransport(opts *UplinkNasTransportOpts) (ngapType.NGAPPDU, er
 	uplinkNasTransport := initiatingMessage.Value.UplinkNASTransport
 	uplinkNasTransportIEs := &uplinkNasTransport.ProtocolIEs
 
-	// AMF UE NGAP ID
 	ie := ngapType.UplinkNASTransportIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -90,7 +89,6 @@ func BuildUplinkNasTransport(opts *UplinkNasTransportOpts) (ngapType.NGAPPDU, er
 
 	uplinkNasTransportIEs.List = append(uplinkNasTransportIEs.List, ie)
 
-	// RAN UE NGAP ID
 	ie = ngapType.UplinkNASTransportIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -102,7 +100,6 @@ func BuildUplinkNasTransport(opts *UplinkNasTransportOpts) (ngapType.NGAPPDU, er
 
 	uplinkNasTransportIEs.List = append(uplinkNasTransportIEs.List, ie)
 
-	// NAS-PDU
 	ie = ngapType.UplinkNASTransportIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDNASPDU
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -114,7 +111,6 @@ func BuildUplinkNasTransport(opts *UplinkNasTransportOpts) (ngapType.NGAPPDU, er
 
 	uplinkNasTransportIEs.List = append(uplinkNasTransportIEs.List, ie)
 
-	// User Location Information
 	ie = ngapType.UplinkNASTransportIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDUserLocationInformation
 	ie.Criticality.Value = ngapType.CriticalityPresentIgnore

@@ -30,11 +30,6 @@ func init() {
 	})
 }
 
-// runS1ENBX2PathSwitch attaches a UE on a source eNB, then has a target eNB issue
-// a PATH SWITCH REQUEST for it (the MME-side completion of an X2 handover,
-// TS 36.413 §8.4.4) and verifies the MME replies with a PATH SWITCH REQUEST
-// ACKNOWLEDGE carrying a fresh security context. Both eNBs run from this one
-// container as distinct S1 associations.
 func runS1ENBX2PathSwitch(_ context.Context, env scenarios.Env, _ any) error {
 	s1mme, err := s1mmeAddress(env.FirstCore())
 	if err != nil {

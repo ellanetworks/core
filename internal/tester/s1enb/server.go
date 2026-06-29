@@ -194,7 +194,6 @@ func Start(opts *StartOpts) (*ENB, error) {
 	}
 	e.cond = sync.NewCond(&e.mu)
 
-	// Open the S1-U (GTP-U) socket so connectivity scenarios can run a datapath.
 	if opts.EnableDatapath {
 		if opts.ENBN3Address == "" {
 			return nil, fmt.Errorf("s1enb: EnableDatapath requires ENBN3Address")
@@ -404,7 +403,6 @@ func (e *ENB) WaitForActivePeerChange(ctx context.Context) (string, error) {
 	}
 }
 
-// AllocateENBUEID returns a fresh eNB UE S1AP ID for a new UE.
 func (e *ENB) AllocateENBUEID() int64 {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -415,12 +413,10 @@ func (e *ENB) AllocateENBUEID() int64 {
 	return id
 }
 
-// WaitForMessage blocks until an inbound S1AP PDU of the given category and
-// procedure code is available (consuming it), or the timeout elapses.
-// WaitForMessage blocks until a frame of (cat, code) targeting enbUEID arrives, or
-// timeout elapses. enbUEID is NoUEID for non-UE-associated messages (S1 Setup,
-// Reset). Filtering by enbUEID lets concurrent per-UE flows share one association
-// without consuming each other's frames.
+// WaitForMessage blocks until a frame of (cat, code) targeting enbUEID arrives
+// (consuming it), or timeout elapses. enbUEID is NoUEID for non-UE-associated
+// messages (S1 Setup, Reset). Filtering by enbUEID lets concurrent per-UE flows
+// share one association without consuming each other's frames.
 func (e *ENB) WaitForMessage(enbUEID int64, cat Category, code s1ap.ProcedureCode, timeout time.Duration) (Frame, error) {
 	deadline := time.Now().Add(timeout)
 
@@ -485,7 +481,6 @@ func (e *ENB) SendMessage(pdu []byte, ueAssociated bool) error {
 	return writeMessage(conn, pdu, ueAssociated)
 }
 
-// writeMessage writes a marshalled S1AP PDU to a specific SCTP connection.
 func writeMessage(conn *sctp.SCTPConn, pdu []byte, ueAssociated bool) error {
 	var stream uint16
 	if ueAssociated {

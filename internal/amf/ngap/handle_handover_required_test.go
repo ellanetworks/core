@@ -231,16 +231,16 @@ func TestHandoverRequired(t *testing.T) {
 		},
 	}
 
-	// Set up the AmfUe with valid security context
-	amfUe := amf.NewAmfUe()
-	amfUe.Supi = supi
-	amfUe.Current().SecurityContextAvailable = true
-	amfUe.Current().NgKsi.Ksi = 1
-	amfUe.Current().Kamf = kamfHex
-	amfUe.Current().NH = make([]byte, 32)
-	amfUe.Current().Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
+	// Set up the UeContext with valid security context
+	amfUe := amf.NewUeContext()
+	amfUe.SetSupiForTest(supi)
+	amfUe.SetSecurityContextAvailableForTest(true)
+	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
+	amfUe.SetKamfForTest(kamfHex)
+	amfUe.SetNHForTest(make([]byte, 32))
+	amfUe.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
 	amfUe.Log = logger.AmfLog
-	amfUe.Current().SmContextList[pduSessionID] = &amf.SmContext{
+	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    smf.CanonicalName(supi, pduSessionID),
 		Snssai: &models.Snssai{Sst: 1},
 	}
@@ -420,9 +420,9 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 		t.Fatalf("failed to build HandoverRequired: %v", err)
 	}
 
-	// Create AmfUe with invalid security context
-	amfUe := amf.NewAmfUe()
-	amfUe.Current().SecurityContextAvailable = false
+	// Create UeContext with invalid security context
+	amfUe := amf.NewUeContext()
+	amfUe.SetSecurityContextAvailableForTest(false)
 	amfUe.Log = logger.AmfLog
 
 	sourceNGAPSender := &FakeNGAPSender{}
@@ -522,14 +522,14 @@ func TestHandoverRequired_UnknownTarget(t *testing.T) {
 	smfInstance := smf.New(nil, nil, nil, nil)
 	smfInstance.NewSession(supi, pduSessionID, dnn, &models.Snssai{Sst: 1})
 
-	amfUe := amf.NewAmfUe()
-	amfUe.Supi = supi
-	amfUe.Current().SecurityContextAvailable = true
-	amfUe.Current().NgKsi.Ksi = 1
-	amfUe.Current().Kamf = kamfHex
-	amfUe.Current().NH = make([]byte, 32)
+	amfUe := amf.NewUeContext()
+	amfUe.SetSupiForTest(supi)
+	amfUe.SetSecurityContextAvailableForTest(true)
+	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
+	amfUe.SetKamfForTest(kamfHex)
+	amfUe.SetNHForTest(make([]byte, 32))
 	amfUe.Log = logger.AmfLog
-	amfUe.Current().SmContextList[pduSessionID] = &amf.SmContext{
+	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    smf.CanonicalName(supi, pduSessionID),
 		Snssai: &models.Snssai{Sst: 1},
 	}

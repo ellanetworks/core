@@ -12,8 +12,7 @@ import (
 )
 
 // Detach performs a UE-originating EPS detach for an attached UE (TS 24.301
-// §5.5.2.2): it sends a DETACH REQUEST, verifies the MME's DETACH ACCEPT, then
-// completes the S1 context release the MME triggers.
+// §5.5.2.2).
 func (e *ENB) Detach(ue *UE, mmeUEID, enbUEID int64, timeout time.Duration) error {
 	detach, err := ue.buildDetachRequest()
 	if err != nil {
@@ -24,9 +23,8 @@ func (e *ENB) Detach(ue *UE, mmeUEID, enbUEID int64, timeout time.Duration) erro
 		return fmt.Errorf("send Detach Request: %w", err)
 	}
 
-	// Wait for DETACH ACCEPT, skipping any proactive downlink NAS the MME may have
-	// sent after attach (e.g. EMM INFORMATION with the network name/time), which a
-	// real UE ignores.
+	// Skip proactive downlink NAS the MME interleaves (e.g. EMM INFORMATION),
+	// which a real UE ignores, until the DETACH ACCEPT.
 	deadline := time.Now().Add(timeout)
 
 	for {
@@ -59,8 +57,7 @@ func (e *ENB) Detach(ue *UE, mmeUEID, enbUEID int64, timeout time.Duration) erro
 }
 
 // ReleaseContext performs an eNB-initiated S1 UE context release (TS 36.413
-// §8.3.2): it sends a UE CONTEXT RELEASE REQUEST and completes the release the
-// MME commands. The UE drops to ECM-IDLE.
+// §8.3.2), dropping the UE to ECM-IDLE.
 func (e *ENB) ReleaseContext(mmeUEID, enbUEID int64, cause s1ap.Cause, timeout time.Duration) error {
 	if err := e.SendUEContextReleaseRequest(mmeUEID, enbUEID, cause); err != nil {
 		return err
@@ -80,9 +77,7 @@ type ServiceRequestResult struct {
 }
 
 // ServiceRequest performs a mobile-originated EPS service request for a UE in
-// ECM-IDLE (TS 24.301 §5.6.1): it sends a SERVICE REQUEST identified by the UE's
-// S-TMSI and completes the Initial Context Setup the MME uses to re-establish the
-// bearer.
+// ECM-IDLE (TS 24.301 §5.6.1), re-establishing the bearer.
 func (e *ENB) ServiceRequest(ue *UE, guti *eps.EPSMobileIdentity, timeout time.Duration) (*ServiceRequestResult, error) {
 	if guti == nil {
 		return nil, fmt.Errorf("s1enb: service request requires the UE's GUTI")
@@ -136,9 +131,8 @@ func (e *ENB) ServiceRequest(ue *UE, guti *eps.EPSMobileIdentity, timeout time.D
 }
 
 // PeriodicTrackingAreaUpdate performs a mobile-originated periodic TAU for a UE
-// in ECM-IDLE (TS 24.301 §5.5.3.3): it sends a periodic TRACKING AREA UPDATE
-// REQUEST identified by the UE's S-TMSI, acknowledges the GUTI-reallocating TAU
-// ACCEPT with a TAU COMPLETE, and completes the S1 release back to ECM-IDLE.
+// in ECM-IDLE (TS 24.301 §5.5.3.3), acknowledging the GUTI-reallocating TAU
+// ACCEPT and releasing back to ECM-IDLE.
 func (e *ENB) PeriodicTrackingAreaUpdate(ue *UE, guti *eps.EPSMobileIdentity, timeout time.Duration) error {
 	if guti == nil {
 		return fmt.Errorf("s1enb: tracking area update requires the UE's GUTI")
@@ -155,10 +149,8 @@ func (e *ENB) PeriodicTrackingAreaUpdate(ue *UE, guti *eps.EPSMobileIdentity, ti
 		return err
 	}
 
-	// Await the TAU Accept, skipping any proactive downlink NAS the MME sends on
-	// the re-established connection (e.g. EMM INFORMATION 0x61), which a real UE
-	// ignores. mmeUEID is taken from the Accept so the Complete is delivered on
-	// the connection the MME re-keyed for this update.
+	// mmeUEID is taken from the Accept so the Complete is delivered on the
+	// connection the MME re-keyed for this update.
 	mmeUEID, err := e.awaitDownlinkNAS(ue, enbUEID, eps.MsgTrackingAreaUpdateAccept, timeout)
 	if err != nil {
 		return fmt.Errorf("await Tracking Area Update Accept: %w", err)
@@ -212,8 +204,6 @@ func (e *ENB) awaitDownlinkNAS(ue *UE, enbUEID int64, want eps.MessageType, time
 	}
 }
 
-// completeContextRelease awaits the UE CONTEXT RELEASE COMMAND and acknowledges
-// it with a UE CONTEXT RELEASE COMPLETE, ending the release procedure.
 func (e *ENB) completeContextRelease(enbUEID int64, timeout time.Duration) error {
 	cmd, err := e.WaitForUEContextReleaseCommand(enbUEID, timeout)
 	if err != nil {

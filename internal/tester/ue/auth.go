@@ -11,8 +11,8 @@ import (
 	"github.com/free5gc/util/ueauth"
 )
 
-// Algorithm key Derivation function defined in TS 33.501 Annex A.9
-func AlgorithmKeyDerivation(cipheringAlg uint8, kamf []byte, knasEnc *[16]uint8, integrityAlg uint8, knasInt *[16]uint8) error {
+// TS 33.501 Annex A.9.
+func AlgorithmKeyDerivation(cipheringAlg uint8, kamf []byte, knasEnc *[16]uint8, IntegrityAlg uint8, knasInt *[16]uint8) error {
 	P0 := []byte{security.NNASEncAlg}
 	L0 := ueauth.KDFLen(P0)
 	P1 := []byte{cipheringAlg}
@@ -25,10 +25,9 @@ func AlgorithmKeyDerivation(cipheringAlg uint8, kamf []byte, knasEnc *[16]uint8,
 
 	copy(knasEnc[:], kenc[16:32])
 
-	// Integrity Key
 	P0 = []byte{security.NNASIntAlg}
 	L0 = ueauth.KDFLen(P0)
-	P1 = []byte{integrityAlg}
+	P1 = []byte{IntegrityAlg}
 	L1 = ueauth.KDFLen(P1)
 
 	kint, err := ueauth.GetKDFValue(kamf, ueauth.FC_FOR_ALGORITHM_KEY_DERIVATION, P0, L0, P1, L1)
@@ -42,7 +41,6 @@ func AlgorithmKeyDerivation(cipheringAlg uint8, kamf []byte, knasEnc *[16]uint8,
 }
 
 func SelectAlgorithms(securityCapability *nasType.UESecurityCapability) (uint8, uint8, error) {
-	// set the algorithms of integrity
 	var (
 		integrityAlgorithm uint8
 		cipheringAlgorithm uint8
@@ -62,7 +60,6 @@ func SelectAlgorithms(securityCapability *nasType.UESecurityCapability) (uint8, 
 		integrityAlgorithm = security.AlgIntegrity128NIA3
 	}
 
-	// set the algorithms of ciphering
 	if securityCapability.GetEA0_5G() == 1 {
 		cipheringAlgorithm = security.AlgCiphering128NEA0
 	} else if securityCapability.GetEA1_128_5G() == 1 {

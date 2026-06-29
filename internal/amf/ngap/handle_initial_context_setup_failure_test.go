@@ -52,7 +52,7 @@ func TestHandleInitialContextSetupFailure_UnknownAmfUeNgapID(t *testing.T) {
 	assertErrorIndicationEchoesIDs(t, errInd, 999, 99)
 }
 
-func TestHandleInitialContextSetupFailure_NilAmfUe(t *testing.T) {
+func TestHandleInitialContextSetupFailure_NilUeContext(t *testing.T) {
 	ran := newTestRadio()
 	amfInstance := newTestAMF()
 
@@ -75,7 +75,7 @@ func TestHandleInitialContextSetupFailure_T3550Running(t *testing.T) {
 	fakeSmf := &FakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 	amfUe.ForceState(amf.ContextSetup)
 	conn := amfUe.NasConn()
@@ -109,9 +109,9 @@ func TestHandleInitialContextSetupFailure_PDUSessionFailureForwardedToSmf(t *tes
 	fakeSmf := &FakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
-	amfUe.Current().SmContextList[1] = &amf.SmContext{
+	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}

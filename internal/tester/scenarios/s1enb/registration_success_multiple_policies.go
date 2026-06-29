@@ -26,9 +26,6 @@ func init() {
 	})
 }
 
-// fixtureS1ENBMultiplePolicies provisions N subscribers, each bound to its own
-// profile/policy pair (profile0/policy0 .. profileN-1/policyN-1) on the baseline
-// slice and data network, with policy i carrying QCI 5+i.
 func fixtureS1ENBMultiplePolicies(_ scenarios.Env) scenarios.FixtureSpec {
 	profiles := make([]scenarios.ProfileSpec, 0, multiPolicyCount)
 	policies := make([]scenarios.PolicySpec, 0, multiPolicyCount)
@@ -59,10 +56,7 @@ func fixtureS1ENBMultiplePolicies(_ scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{Profiles: profiles, Policies: policies, Subscribers: subs}
 }
 
-// runS1ENBMultiplePolicies attaches each subscriber on one eNB and asserts the
-// default bearer carries its policy's QCI (5+i), per-policy Session-AMBR
-// (10·(i+1)/50·(i+1) Mbps), and the baseline signaled fields (IP∈pool, APN, PDN
-// type). Sequential because the eNB sim does not demux attach responses per UE.
+// Sequential: the eNB sim does not demux attach responses per UE.
 func runS1ENBMultiplePolicies(_ context.Context, env scenarios.Env, _ any) error {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {

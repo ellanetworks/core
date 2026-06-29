@@ -40,8 +40,6 @@ func init() {
 	})
 }
 
-// runS1ENBRegistrationSuccess attaches a UE over S1AP and verifies the MME
-// completes the EPS attach and assigns a GUTI (TS 24.301 §5.5.1.2).
 func runS1ENBRegistrationSuccess(_ context.Context, env scenarios.Env, _ any) error {
 	s1mme, err := s1mmeAddress(env.FirstCore())
 	if err != nil {
@@ -87,8 +85,6 @@ func runS1ENBRegistrationSuccess(_ context.Context, env scenarios.Env, _ any) er
 	return assertAttach(res, familyExpect(env, scenarios.DefaultDNN, scenarios.DefaultUEIPv4Pool))
 }
 
-// s1mmeAddress derives the S1-MME endpoint from the core's N2 address: the same
-// host, on the S1-MME port.
 func s1mmeAddress(coreN2 string) (string, error) {
 	host, _, err := net.SplitHostPort(coreN2)
 	if err != nil {

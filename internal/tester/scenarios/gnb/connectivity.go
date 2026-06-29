@@ -277,7 +277,6 @@ func runConnectivityTest(
 		zap.String("destination", pingDestination),
 	)
 
-	// NOTE: client-side usage assertion skipped; integration test will verify.
 	logger.Logger.Debug("client-side usage assertion skipped; integration test will verify",
 		zap.String("IMSI", sub.IMSI),
 	)

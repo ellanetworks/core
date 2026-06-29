@@ -94,9 +94,6 @@ func runS1ENBConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
 	return eg.Wait()
 }
 
-// runS1ENBConnectivityUE attaches a UE and pings the N6 destination, drops the UE
-// to ECM-IDLE with an S1 release (the ping must then fail), re-establishes the
-// bearer with a service request, and pings again (TS 24.301 §5.6.1).
 func runS1ENBConnectivityUE(ctx context.Context, e *s1enb.ENB, imsi string, k, opc [16]byte, tunIface string) error {
 	ue := e.NewUE(imsi, k, opc)
 

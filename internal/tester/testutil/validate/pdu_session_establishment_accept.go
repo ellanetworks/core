@@ -72,7 +72,6 @@ func PDUSessionEstablishmentAccept(nasMsg *nas.Message, opts *ExpectedPDUSession
 		return fmt.Errorf("session ambr is missing")
 	}
 
-	// validate that bitrate is equal to 100 Mbps
 	downlinkValue := nasMsg.PDUSessionEstablishmentAccept.GetSessionAMBRForDownlink()
 	uplinkValue := nasMsg.PDUSessionEstablishmentAccept.GetSessionAMBRForUplink()
 
@@ -149,7 +148,6 @@ func PDUSessionEstablishmentAccept(nasMsg *nas.Message, opts *ExpectedPDUSession
 		return fmt.Errorf("unexpected number of AuthorizedQosFlowDescriptions Parameters: %d, expected: 1", len(qosFlowDesc.ParamList))
 	}
 
-	// check FiveQI
 	if qosFlowDesc.ParamList[0].ParamID != testutil.QFDParamID5QI {
 		return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions Parameter Type: %d, expected: %d", qosFlowDesc.ParamList[0].ParamID, testutil.QFDParamID5QI)
 	}

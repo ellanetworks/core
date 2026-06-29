@@ -16,25 +16,25 @@ func TestConnectedSubscribers(t *testing.T) {
 	conn := new(sctp.SCTPConn)
 	m.trackENB(conn, ENBInfo{Name: "enb-a", ID: "00f110-1"})
 
-	registered := m.newUe(conn, 7)
+	registered := m.NewUe(conn, 7)
 	registerTestUE(m, registered, "001010000000001")
 	registered.emmState.store(EMMRegistered)
 	registered.eea = 2
 	registered.eia = 2
-	registered.imei = "353456789012347"
-	testPDN(registered).apn = "internet"
-	registered.ambrUplink = "1 Gbps"
-	registered.ambrDownlink = "2 Gbps"
-	testPDN(registered).ueIP = netip.MustParseAddr("10.45.0.2")
-	registered.touchLastSeen()
+	registered.Imei = "353456789012347"
+	testPDN(registered).Apn = "internet"
+	registered.AmbrUplink = "1 Gbps"
+	registered.AmbrDownlink = "2 Gbps"
+	testPDN(registered).UeIP = netip.MustParseAddr("10.45.0.2")
+	registered.TouchLastSeen()
 
-	deregistered := m.newUe(conn, 8)
+	deregistered := m.NewUe(conn, 8)
 	registerTestUE(m, deregistered, "001010000000002")
 	deregistered.emmState.store(EMMDeregistered)
 
 	// A registered context with no IMSI is never indexed by subscriber identity,
 	// so it is excluded from the status surface.
-	noIMSI := m.newUe(conn, 9)
+	noIMSI := m.NewUe(conn, 9)
 	noIMSI.emmState.store(EMMRegistered)
 
 	got := m.ConnectedSubscribers()
@@ -65,8 +65,8 @@ func TestConnectedSubscribers(t *testing.T) {
 	}
 
 	session := st.Sessions[0]
-	if session.APN != "internet" || session.IPv4Address != "10.45.0.2" || session.BearerID != defaultERABID {
-		t.Fatalf("session = %+v, want APN internet / IP 10.45.0.2 / bearer %d", session, defaultERABID)
+	if session.APN != "internet" || session.IPv4Address != "10.45.0.2" || session.BearerID != DefaultERABID {
+		t.Fatalf("session = %+v, want APN internet / IP 10.45.0.2 / bearer %d", session, DefaultERABID)
 	}
 
 	if st.Imei != "353456789012347" {
@@ -91,12 +91,12 @@ func TestStatusIncludesIdleSubscriber(t *testing.T) {
 	ue, _ := securedUE(t, m)
 	registerTestUE(m, ue, "001010000000001")
 	ue.emmState.store(EMMRegistered)
-	testPDN(ue).apn = "internet"
+	testPDN(ue).Apn = "internet"
 
-	m.freeS1Conn(ue)
+	m.FreeS1Conn(ue)
 
-	if ue.connected() {
-		t.Fatal("UE still connected after freeS1Conn")
+	if ue.Connected() {
+		t.Fatal("UE still connected after FreeS1Conn")
 	}
 
 	if got := m.CountRegisteredSubscribers(); got != 1 {
@@ -116,7 +116,7 @@ func TestStatusIncludesIdleSubscriber(t *testing.T) {
 		t.Fatal("idle registered subscriber missing from ConnectedSubscribers")
 	}
 
-	m.removeUe(ue) // stop the default-duration timer
+	m.RemoveUe(ue) // stop the default-duration timer
 }
 
 func TestMobileIdentityDigitsIMEISV(t *testing.T) {
@@ -136,7 +136,7 @@ func TestLookupSubscriber(t *testing.T) {
 	conn := new(sctp.SCTPConn)
 	m.trackENB(conn, ENBInfo{Name: "enb-a", ID: "00f110-1"})
 
-	ue := m.newUe(conn, 7)
+	ue := m.NewUe(conn, 7)
 	registerTestUE(m, ue, "001010000000001")
 	ue.emmState.store(EMMRegistered)
 
@@ -158,11 +158,11 @@ func TestCountRegisteredSubscribers(t *testing.T) {
 	m := newTestMME(t)
 	conn := new(sctp.SCTPConn)
 
-	a := m.newUe(conn, 7)
+	a := m.NewUe(conn, 7)
 	registerTestUE(m, a, "001010000000001")
 	a.emmState.store(EMMRegistered)
 
-	b := m.newUe(conn, 8)
+	b := m.NewUe(conn, 8)
 	registerTestUE(m, b, "001010000000002")
 	b.emmState.store(EMMDeregistered)
 

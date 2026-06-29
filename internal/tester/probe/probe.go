@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 // Package probe issues ICMP/TCP/UDP connectivity probes from a UE TUN interface
-// to an N6 destination, used by both the 5G (gnb/ue) and 4G (s1enb) connectivity
-// and network-rule scenarios. ICMP shells out to ping/ping6; TCP and UDP use
-// sockets pinned to the TUN via SO_BINDTODEVICE, mirroring ping -I.
+// to an N6 destination. ICMP shells out to ping/ping6; TCP and UDP pin sockets to
+// the TUN via SO_BINDTODEVICE, mirroring ping -I.
 package probe
 
 import (
@@ -17,7 +16,6 @@ import (
 	"time"
 )
 
-// Protocol selects the wire protocol used by Run.
 type Protocol string
 
 const (
@@ -27,18 +25,14 @@ const (
 )
 
 const (
-	// AttemptCount is the number of probe attempts (echoes, datagrams, or TCP
-	// connections) per Run, matching ping -c N semantics.
-	AttemptCount = 3
-	// AttemptTimeout bounds each individual probe attempt.
+	// AttemptCount mirrors ping -c N: probe attempts per Run.
+	AttemptCount   = 3
 	AttemptTimeout = 1 * time.Second
 )
 
-// DefaultPayload is sent on every TCP/UDP probe attempt. Pinned so flow-report
-// byte counts are deterministic across runs.
+// DefaultPayload is pinned so flow-report byte counts are deterministic across runs.
 var DefaultPayload = []byte("ella-tester-probe")
 
-// MakePayload returns a deterministic payload of exactly n bytes.
 func MakePayload(n int) []byte {
 	p := make([]byte, n)
 	for i := range p {
@@ -48,7 +42,6 @@ func MakePayload(n int) []byte {
 	return p
 }
 
-// ParseProtocol validates a protocol string (icmp|tcp|udp).
 func ParseProtocol(s string) (Protocol, error) {
 	switch Protocol(s) {
 	case ICMP, TCP, UDP:
@@ -58,8 +51,7 @@ func ParseProtocol(s string) (Protocol, error) {
 	}
 }
 
-// Run issues a probe of the given protocol from tun to dst:port. ICMP ignores
-// port. Returns nil on success (at least one reply received).
+// Run probes dst:port from tun; ICMP ignores port. Returns nil once one reply arrives.
 func Run(ctx context.Context, protocol Protocol, tun, dst string, port int, ipv6 bool) error {
 	switch protocol {
 	case ICMP:
@@ -85,8 +77,6 @@ func Run(ctx context.Context, protocol Protocol, tun, dst string, port int, ipv6
 	}
 }
 
-// bindToDeviceControl returns a net.Dialer Control function that pins the socket
-// to the given interface via SO_BINDTODEVICE, mirroring ping -I tun.
 func bindToDeviceControl(tun string) func(network, address string, c syscall.RawConn) error {
 	return func(_, _ string, c syscall.RawConn) error {
 		var sockErr error
@@ -102,9 +92,8 @@ func bindToDeviceControl(tun string) func(network, address string, c syscall.Raw
 	}
 }
 
-// SendUDP sends count datagrams to dst:port via tun on a single socket. All
-// datagrams are sent regardless of per-attempt errors so flow-report packet
-// counts are deterministic. Returns nil if at least one reply was received.
+// SendUDP sends all count datagrams regardless of per-attempt errors so flow-report
+// packet counts stay deterministic. Returns nil if at least one reply was received.
 func SendUDP(ctx context.Context, tun, dst string, port, count int, perAttemptTimeout time.Duration, payload []byte) error {
 	dialer := net.Dialer{
 		Timeout: perAttemptTimeout,
@@ -151,9 +140,8 @@ func SendUDP(ctx context.Context, tun, dst string, port, count int, perAttemptTi
 	return nil
 }
 
-// SendTCP opens count short-lived TCP connections to dst:port via tun. All
-// connections are attempted regardless of per-attempt errors so flow counts are
-// deterministic. Returns nil if at least one connection completed.
+// SendTCP attempts all count connections regardless of per-attempt errors so flow
+// counts stay deterministic. Returns nil if at least one connection completed.
 func SendTCP(ctx context.Context, tun, dst string, port, count int, perAttemptTimeout time.Duration, payload []byte) error {
 	dialer := net.Dialer{
 		Timeout: perAttemptTimeout,

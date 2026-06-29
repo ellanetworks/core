@@ -182,11 +182,10 @@ func (e *ENB) SendUplinkNASTransport(mmeUEID, enbUEID int64, nas []byte) error {
 	return e.SendMessage(b, true)
 }
 
-// SendPathSwitchRequest sends a PATH SWITCH REQUEST as the target eNB after an
-// X2 handover (TS 36.413 §8.4.4): it asks the MME to switch the downlink of the
-// given E-RAB to this eNB's S1-U endpoint. sourceMMEUEID is the MME UE S1AP ID
-// the UE held on the source eNB. It returns the eNB downlink TEID it reported, so
-// the caller can build the target GTP tunnel the UPF now forwards downlink to.
+// SendPathSwitchRequest sends a PATH SWITCH REQUEST as the target eNB after an X2
+// handover (TS 36.413 §8.4.4), asking the MME to switch the E-RAB downlink to this
+// eNB's S1-U endpoint. It returns the eNB downlink TEID it reported, so the caller
+// can build the target GTP tunnel.
 func (e *ENB) SendPathSwitchRequest(enbUEID, sourceMMEUEID int64, erabID s1ap.ERABID, caps s1ap.UESecurityCapabilities) (dlTEID uint32, err error) {
 	addr := e.n3Addr.To4()
 	if addr == nil {

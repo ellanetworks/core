@@ -26,10 +26,7 @@ func init() {
 }
 
 func fixtureRegistrationSuccessMultiplePolicies(env scenarios.Env) scenarios.FixtureSpec {
-	// Scenario expects UE i to see Session AMBR = (10*(i+1), 50*(i+1)) Mbps
-	// with 5qi = 5+i, for i=0..4. All 5 UEs are fixture-scoped: each has its
-	// own profile/policy pair (profile0/policy0 .. profile4/policy4) bound to
-	// the baseline default slice and DN.
+	// UE i is expected to see Session AMBR = (10*(i+1), 50*(i+1)) Mbps with 5qi = 5+i, for i=0..4.
 	profiles := make([]scenarios.ProfileSpec, 0, 5)
 	policies := make([]scenarios.PolicySpec, 0, 5)
 	subs := make([]scenarios.SubscriberSpec, 0, 5)

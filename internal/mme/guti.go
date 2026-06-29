@@ -13,12 +13,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// assignGUTI allocates a fresh, unpredictable M-TMSI, builds the GUTI for the
+// AssignGUTI allocates a fresh, unpredictable M-TMSI, builds the GUTI for the
 // serving PLMN and the configured MME identity (group ID + code, TS 23.003),
 // and indexes the UE by its M-TMSI for later S-TMSI-addressed procedures. The
 // MME reallocates a GUTI on every IMSI attach (TS 24.301). Any M-TMSI it holds
 // is freed for reuse.
-func (m *MME) assignGUTI(ue *UeContext, plmn models.PlmnID, mmeGroupID uint16, mmeCode uint8) eps.EPSMobileIdentity {
+func (m *MME) AssignGUTI(ue *UeContext, plmn models.PlmnID, mmeGroupID uint16, mmeCode uint8) eps.EPSMobileIdentity {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -72,12 +72,12 @@ func (m *MME) freeMTMSILocked(mtmsi uint32) {
 	m.mtmsi.Free(t)
 }
 
-// reallocateGUTI stages a new GUTI for a TAU without dropping the old one: both
+// ReallocateGUTI stages a new GUTI for a TAU without dropping the old one: both
 // M-TMSIs stay indexed (and the UE keeps being paged with the old one) until
 // TRACKING AREA UPDATE COMPLETE commits the new GUTI (TS 24.301). A
 // reallocation already in flight (e.g. on a retransmitted TAU) reuses the staged
 // M-TMSI.
-func (m *MME) reallocateGUTI(ue *UeContext, plmn models.PlmnID, mmeGroupID uint16, mmeCode uint8) eps.EPSMobileIdentity {
+func (m *MME) ReallocateGUTI(ue *UeContext, plmn models.PlmnID, mmeGroupID uint16, mmeCode uint8) eps.EPSMobileIdentity {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -102,9 +102,9 @@ func (m *MME) reallocateGUTI(ue *UeContext, plmn models.PlmnID, mmeGroupID uint1
 	}
 }
 
-// commitGUTIRealloc finalises a GUTI reallocation once the UE acknowledges it:
+// CommitGUTIRealloc finalises a GUTI reallocation once the UE acknowledges it:
 // the old M-TMSI is unindexed and freed, leaving only the new GUTI valid.
-func (m *MME) commitGUTIRealloc(ue *UeContext) {
+func (m *MME) CommitGUTIRealloc(ue *UeContext) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

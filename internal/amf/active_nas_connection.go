@@ -19,7 +19,7 @@ import (
 // goroutines are not pre-empted, so they must check for nil where they
 // dereference the connection.
 type ActiveNasConnection struct {
-	parent *FivegmmContext
+	parent *UeContext
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -35,6 +35,12 @@ type ActiveNasConnection struct {
 	T3555 *Timer
 	T3522 *Timer
 
+	// secureExchangeEstablished records that secure exchange of NAS messages has
+	// been established on this connection (a NAS message has been successfully
+	// integrity-checked). Once set, TS 24.501 §4.4.4.3 requires discarding any
+	// further message that is not integrity protected or fails the check.
+	secureExchangeEstablished bool
+
 	AuthenticationCtx                 *ausf.AuthResult
 	AuthFailureCauseSynchFailureTimes int
 
@@ -45,7 +51,7 @@ type ActiveNasConnection struct {
 	N1N2Message                     *models.N1N2MessageTransferRequest
 }
 
-func newActiveNasConnection(parent *FivegmmContext, ranUe *RanUe) *ActiveNasConnection {
+func newActiveNasConnection(parent *UeContext, ranUe *RanUe) *ActiveNasConnection {
 	ctx, cancel := context.WithCancel(parent.ctx)
 
 	return &ActiveNasConnection{
@@ -61,7 +67,7 @@ func (conn *ActiveNasConnection) Ctx() context.Context {
 	return conn.ctx
 }
 
-func (conn *ActiveNasConnection) Parent() *FivegmmContext {
+func (conn *ActiveNasConnection) Parent() *UeContext {
 	return conn.parent
 }
 

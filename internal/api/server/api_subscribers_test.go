@@ -330,12 +330,12 @@ func mockSessionForSubscriber(amfInstance *amf.AMF, testSmfInstance *smf.SMF, im
 		return fmt.Errorf("failed to create SUPI from IMSI: %w", err)
 	}
 
-	ue, found := amfInstance.FindAMFUEBySupi(supi)
+	ue, found := amfInstance.FindUeContextBySupi(supi)
 	if !found {
-		ue = amf.NewAmfUe()
-		ue.Supi = supi
+		ue = amf.NewUeContext()
+		ue.SetSupiForTest(supi)
 
-		if err := amfInstance.AddAmfUeToUePool(ue); err != nil {
+		if err := amfInstance.AddUeContextToPool(ue); err != nil {
 			return fmt.Errorf("failed to add UE to AMF pool: %w", err)
 		}
 	}

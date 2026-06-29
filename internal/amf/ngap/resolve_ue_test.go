@@ -69,7 +69,7 @@ func setupCrossRadioScenario(t *testing.T) (legitimateRan, attackerRan *amf.Radi
 
 	ranUe = amf.NewRanUeForTest(legitimateRan, 1, 10, logger.AmfLog)
 
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 	amfUe.AttachRanUe(ranUe)
 

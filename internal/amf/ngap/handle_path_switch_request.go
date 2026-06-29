@@ -41,16 +41,16 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	ranUe.TouchLastSeen()
 	logger.WithTrace(ctx, ranUe.Log).Debug("Handle Path Switch Request", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
-	amfUe := ranUe.AmfUe()
+	amfUe := ranUe.UeContext()
 	if amfUe == nil {
-		logger.WithTrace(ctx, ranUe.Log).Error("AmfUe is nil")
+		logger.WithTrace(ctx, ranUe.Log).Error("UeContext is nil")
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnspecified)
 
 		return
 	}
 
 	if !amfUe.SecurityContextIsValid() {
-		logger.WithTrace(ctx, ranUe.Log).Error("No Security Context", logger.SUPI(amfUe.Supi.String()))
+		logger.WithTrace(ctx, ranUe.Log).Error("No Security Context", logger.SUPI(amfUe.SupiValue().String()))
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnspecified)
 
 		return
@@ -137,13 +137,15 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			return
 		}
 
+		nh, ncc := amfUe.NextHopNCC()
+
 		err = ranUe.Radio().NGAPSender.SendPathSwitchRequestAcknowledge(
 			ctx,
 			ranUe.AmfUeNgapID,
 			ranUe.RanUeNgapID,
-			amfUe.Current().UESecurityCapability,
-			amfUe.Current().NCC,
-			amfUe.Current().NH,
+			amfUe.UESecCap(),
+			ncc,
+			nh,
 			pduSessionResourceSwitchedList,
 			pduSessionResourceReleasedListPSAck,
 			snssaiList,
@@ -167,7 +169,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 func verifyUESecurityCapabilitiesOnPathSwitch(
 	ctx context.Context,
 	ranUe *amf.RanUe,
-	amfUe *amf.AmfUe,
+	amfUe *amf.UeContext,
 	received *ngapType.UESecurityCapabilities,
 ) {
 	if received == nil {
@@ -197,7 +199,7 @@ func verifyUESecurityCapabilitiesOnPathSwitch(
 	case amf.VerifyMismatch:
 		logger.WithTrace(ctx, ranUe.Log).Warn(
 			"UE 5G security capabilities reported by target gNB differ from locally stored values; ignoring received values (TS 33.501 §6.7.3.1)",
-			zap.Binary("stored", amfUe.Current().UESecurityCapability.Buffer),
+			zap.Binary("stored", amfUe.UESecCap().Buffer),
 			zap.Binary("received", reported.Buffer),
 		)
 	}

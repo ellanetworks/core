@@ -27,7 +27,7 @@ func TestUERadioCapabilityInfoIndication_UnknownAmfUeNgapID(t *testing.T) {
 	assertErrorIndicationEchoesIDs(t, errInd, 999, 99)
 }
 
-func TestUERadioCapabilityInfoIndication_NilAmfUe(t *testing.T) {
+func TestUERadioCapabilityInfoIndication_NilUeContext(t *testing.T) {
 	ran := newTestRadio()
 	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 
@@ -39,7 +39,7 @@ func TestUERadioCapabilityInfoIndication_NilAmfUe(t *testing.T) {
 
 func TestUERadioCapabilityInfoIndication_SetsRadioCapability(t *testing.T) {
 	ran := newTestRadio()
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
@@ -51,14 +51,14 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapability(t *testing.T) {
 		UERadioCapability: []byte{0xDE, 0xAD, 0xBE, 0xEF},
 	})
 
-	if amfUe.Current().UeRadioCapability != "deadbeef" {
-		t.Errorf("UeRadioCapability = %q, want %q", amfUe.Current().UeRadioCapability, "deadbeef")
+	if amfUe.UeRadioCapability != "deadbeef" {
+		t.Errorf("UeRadioCapability = %q, want %q", amfUe.UeRadioCapability, "deadbeef")
 	}
 }
 
 func TestUERadioCapabilityInfoIndication_SetsRadioCapabilityForPaging(t *testing.T) {
 	ran := newTestRadio()
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
@@ -77,22 +77,22 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapabilityForPaging(t *testing
 		},
 	})
 
-	if amfUe.Current().UeRadioCapabilityForPaging == nil {
+	if amfUe.UeRadioCapabilityForPaging == nil {
 		t.Fatal("UeRadioCapabilityForPaging is nil")
 	}
 
-	if amfUe.Current().UeRadioCapabilityForPaging.NR != "cafe" {
-		t.Errorf("NR = %q, want %q", amfUe.Current().UeRadioCapabilityForPaging.NR, "cafe")
+	if amfUe.UeRadioCapabilityForPaging.NR != "cafe" {
+		t.Errorf("NR = %q, want %q", amfUe.UeRadioCapabilityForPaging.NR, "cafe")
 	}
 
-	if amfUe.Current().UeRadioCapabilityForPaging.EUTRA != "babe" {
-		t.Errorf("EUTRA = %q, want %q", amfUe.Current().UeRadioCapabilityForPaging.EUTRA, "babe")
+	if amfUe.UeRadioCapabilityForPaging.EUTRA != "babe" {
+		t.Errorf("EUTRA = %q, want %q", amfUe.UeRadioCapabilityForPaging.EUTRA, "babe")
 	}
 }
 
 func TestUERadioCapabilityInfoIndication_NilCapabilityFieldsNoOp(t *testing.T) {
 	ran := newTestRadio()
-	amfUe := amf.NewAmfUe()
+	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
 	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
@@ -103,11 +103,11 @@ func TestUERadioCapabilityInfoIndication_NilCapabilityFieldsNoOp(t *testing.T) {
 		AMFUENGAPID: 10,
 	})
 
-	if amfUe.Current().UeRadioCapability != "" {
-		t.Errorf("UeRadioCapability = %q, want empty", amfUe.Current().UeRadioCapability)
+	if amfUe.UeRadioCapability != "" {
+		t.Errorf("UeRadioCapability = %q, want empty", amfUe.UeRadioCapability)
 	}
 
-	if amfUe.Current().UeRadioCapabilityForPaging != nil {
-		t.Errorf("UeRadioCapabilityForPaging = %+v, want nil", amfUe.Current().UeRadioCapabilityForPaging)
+	if amfUe.UeRadioCapabilityForPaging != nil {
+		t.Errorf("UeRadioCapabilityForPaging = %+v, want nil", amfUe.UeRadioCapabilityForPaging)
 	}
 }

@@ -10,9 +10,9 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// AttachExpectReject sends an Attach Request and expects the MME to answer with
-// an ATTACH REJECT rather than authenticating (e.g. an unknown IMSI, TS 24.301
-// §5.5.1.2.5). It returns the EMM cause carried in the reject.
+// AttachExpectReject sends an Attach Request and expects an ATTACH REJECT without
+// authentication (e.g. an unknown IMSI, TS 24.301 §5.5.1.2.5), returning the EMM
+// cause it carries.
 func (e *ENB) AttachExpectReject(ue *UE, timeout time.Duration) (uint8, error) {
 	enbUEID := e.AllocateENBUEID()
 
@@ -39,10 +39,9 @@ func (e *ENB) AttachExpectReject(ue *UE, timeout time.Duration) (uint8, error) {
 	return reject.Cause, nil
 }
 
-// AttachExpectAuthReject sends an Attach Request, answers the Authentication
-// Request, and expects an AUTHENTICATION REJECT — the MME's response when the
-// RES does not match (e.g. a wrong key, TS 24.301 §5.4.2.5). ue must hold
-// credentials that do not match the provisioned subscriber.
+// AttachExpectAuthReject answers the Authentication Request expecting an
+// AUTHENTICATION REJECT, the MME's response when RES does not match (TS 24.301
+// §5.4.2.5). ue must hold credentials that do not match the provisioned subscriber.
 func (e *ENB) AttachExpectAuthReject(ue *UE, timeout time.Duration) error {
 	enbUEID := e.AllocateENBUEID()
 

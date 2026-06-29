@@ -81,10 +81,8 @@ func parsePayloadSizes(csv string) ([]int, error) {
 	return sizes, nil
 }
 
-// runNATChecksum brings up a single UE + PDU session, then sweeps TCP and
-// UDP probes of varying payload size through source_nat. It asserts only
-// that the probes complete; the egress L4 checksum is verified out-of-band
-// by the integration test, which captures the post-NAT frames on N6.
+// runNATChecksum asserts only that the probes complete; the egress L4 checksum
+// is verified out-of-band by the integration test capturing post-NAT frames on N6.
 func runNATChecksum(ctx context.Context, env scenarios.Env, params *natChecksumParams) error {
 	sizes, err := parsePayloadSizes(params.PayloadBytes)
 	if err != nil {

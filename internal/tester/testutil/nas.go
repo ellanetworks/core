@@ -87,9 +87,8 @@ func SDFromNAS(sd [3]uint8) string {
 	return fmt.Sprintf("%x%x%x", sd[0], sd[1], sd[2])
 }
 
-// DNSFromExtendProtocolConfigurationOptionsContents extracts DNS server
-// addresses from Extended Protocol Configuration Options contents.
-// Returns (nil, nil) when no DNS servers are present.
+// DNSFromExtendProtocolConfigurationOptionsContents returns (nil, nil) when the
+// PCO carries no DNS servers.
 func DNSFromExtendProtocolConfigurationOptionsContents(pco_buf []byte) ([]string, error) {
 	pco := nasConvert.NewProtocolConfigurationOptions()
 

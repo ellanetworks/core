@@ -37,11 +37,9 @@ const (
 
 func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 	switch msgType {
-	// Non-UE procedures
 	case NGAPProcedureNGSetupRequest, NGAPProcedureNGReset:
 		return 0, nil
 
-	// UE-associated procedures
 	case NGAPProcedureInitialUEMessage, NGAPProcedureUplinkNASTransport,
 		NGAPProcedureInitialContextSetupResponse, NGAPProcedurePDUSessionResourceSetupResponse,
 		NGAPProcedurePDUSessionResourceModifyResponse, NGAPProcedurePDUSessionResourceReleaseResponse,
@@ -207,10 +205,9 @@ func (g *GnodeB) SendToRan(packet []byte, msgType NGAPProcedure) error {
 	return writeToConn(conn, packet, msgType)
 }
 
-// writeToConn writes packet to conn on the SCTP stream for msgType. Used by
-// both SendToRan (for post-setup traffic) and n2DialAndActivateLocked (for
-// the initial NG Setup Request). The latter holds g.n2Mu write-locked and
-// cannot reach back through SendToRan.
+// writeToConn writes packet to conn on the SCTP stream for msgType. The locked
+// startup path (n2DialAndActivateLocked) holds g.n2Mu and so cannot route
+// through SendToRan.
 func writeToConn(conn *sctp.SCTPConn, packet []byte, msgType NGAPProcedure) error {
 	if conn == nil {
 		return fmt.Errorf("ran conn is nil")
@@ -241,7 +238,6 @@ func writeToConn(conn *sctp.SCTPConn, packet []byte, msgType NGAPProcedure) erro
 	return nil
 }
 
-// SendHandoverRequired sends a HandoverRequired message from the source gNB.
 func (g *GnodeB) SendHandoverRequired(opts *HandoverRequiredOpts) error {
 	opts.TargetMcc = firstNonEmpty(opts.TargetMcc, g.MCC)
 	opts.TargetMnc = firstNonEmpty(opts.TargetMnc, g.MNC)
@@ -265,8 +261,6 @@ func (g *GnodeB) SendHandoverRequired(opts *HandoverRequiredOpts) error {
 	return nil
 }
 
-// SendHandoverRequestAcknowledge sends a HandoverRequestAcknowledge from the
-// target gNB in response to a HandoverRequest.
 func (g *GnodeB) SendHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) error {
 	pdu, err := BuildHandoverRequestAcknowledge(opts)
 	if err != nil {
@@ -286,8 +280,6 @@ func (g *GnodeB) SendHandoverRequestAcknowledge(opts *HandoverRequestAcknowledge
 	return nil
 }
 
-// SendHandoverNotify sends a HandoverNotify message from the target gNB
-// to indicate handover completion.
 func (g *GnodeB) SendHandoverNotify(opts *HandoverNotifyOpts) error {
 	opts.Mcc = firstNonEmpty(opts.Mcc, g.MCC)
 	opts.Mnc = firstNonEmpty(opts.Mnc, g.MNC)

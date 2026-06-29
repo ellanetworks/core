@@ -13,8 +13,8 @@ import (
 	"github.com/ellanetworks/core/internal/smf"
 )
 
-// AmfUeExport is the JSON-serializable export of a single UE's AMF state.
-type AmfUeExport struct {
+// UeContextExport is the JSON-serializable export of a single UE's AMF state.
+type UeContextExport struct {
 	Identity      UEIdentityExport            `json:"identity"`
 	State         UEStateExport               `json:"state"`
 	Security      UESecurityExport            `json:"security"`
@@ -230,19 +230,19 @@ func timerStatus(t *Timer) TimerStatusExport {
 // It acquires the AMF lock to get the list of UEs, then acquires
 // locks per-UE and calls into the SMF singleton for PDU session
 // details. Safe to call concurrently with normal AMF operation.
-func (amf *AMF) ExportUEs(_ context.Context) ([]AmfUeExport, error) {
+func (amf *AMF) ExportUEs(_ context.Context) ([]UeContextExport, error) {
 	amf.mu.RLock()
 
-	ues := make([]*AmfUe, 0, len(amf.UEs))
+	ues := make([]*UeContext, 0, len(amf.UEs))
 	for _, ue := range amf.UEs {
 		ues = append(ues, ue)
 	}
 
 	amf.mu.RUnlock()
 
-	exports := make([]AmfUeExport, 0, len(ues))
+	exports := make([]UeContextExport, 0, len(ues))
 	for _, ue := range ues {
-		exports = append(exports, amf.exportAmfUe(ue))
+		exports = append(exports, amf.exportUeContext(ue))
 	}
 
 	return exports, nil
@@ -250,14 +250,14 @@ func (amf *AMF) ExportUEs(_ context.Context) ([]AmfUeExport, error) {
 
 // CountUEPDUSessions returns the number of PDU sessions for a UE identified by SUPI.
 func (amf *AMF) CountUEPDUSessions(supi etsi.SUPI) int {
-	ue, ok := amf.FindAMFUEBySupi(supi)
+	ue, ok := amf.FindUeContextBySupi(supi)
 	if !ok {
 		return 0
 	}
 
-	ue.Mutex.Lock()
-	n := len(ue.Current().SmContextList)
-	ue.Mutex.Unlock()
+	ue.mu.Lock()
+	n := len(ue.SmContextList)
+	ue.mu.Unlock()
 
 	return n
 }
@@ -266,15 +266,15 @@ func (amf *AMF) CountUEPDUSessions(supi etsi.SUPI) int {
 // Returns the PDU session exports and true if the UE exists, false otherwise.
 // Safe to call concurrently with normal AMF operation.
 func (amf *AMF) GetUEPDUSessions(supi etsi.SUPI) ([]PDUSessionExport, bool) {
-	ue, ok := amf.FindAMFUEBySupi(supi)
+	ue, ok := amf.FindUeContextBySupi(supi)
 	if !ok {
 		return nil, false
 	}
 
-	ue.Mutex.Lock()
+	ue.mu.Lock()
 
-	smCopies := make([]smContextCopy, 0, len(ue.Current().SmContextList))
-	for _, sc := range ue.Current().SmContextList {
+	smCopies := make([]smContextCopy, 0, len(ue.SmContextList))
+	for _, sc := range ue.SmContextList {
 		smCopies = append(smCopies, smContextCopy{
 			ref:      sc.Ref,
 			snssai:   copyPtr(sc.Snssai),
@@ -282,7 +282,7 @@ func (amf *AMF) GetUEPDUSessions(supi etsi.SUPI) ([]PDUSessionExport, bool) {
 		})
 	}
 
-	ue.Mutex.Unlock()
+	ue.mu.Unlock()
 
 	sessions := amf.buildPDUSessions(smCopies)
 
@@ -301,10 +301,10 @@ type smContextCopy struct {
 	inactive bool
 }
 
-// exportAmfUe builds an AmfUeExport for a single UE.
-// It acquires ue.Mutex to copy scalar fields, then queries SMF outside the lock.
-func (amf *AMF) exportAmfUe(ue *AmfUe) AmfUeExport {
-	ue.Mutex.Lock()
+// exportUeContext copies scalar fields under ue.Mutex, then queries SMF outside
+// the lock.
+func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
+	ue.mu.Lock()
 
 	conn := ue.NasConn()
 
@@ -336,12 +336,12 @@ func (amf *AMF) exportAmfUe(ue *AmfUe) AmfUeExport {
 		t3522 = conn.T3522
 	}
 
-	export := AmfUeExport{
+	export := UeContextExport{
 		Identity: UEIdentityExport{
-			Supi:    ue.Supi.String(),
+			Supi:    ue.supi.String(),
 			Pei:     ue.Pei,
 			PlmnID:  ue.PlmnID,
-			Guti:    ue.Guti.String(),
+			Guti:    ue.guti.String(),
 			OldGuti: ue.OldGuti.String(),
 			Tmsi:    ue.Tmsi.String(),
 			OldTmsi: ue.OldTmsi.String(),
@@ -350,21 +350,21 @@ func (amf *AMF) exportAmfUe(ue *AmfUe) AmfUeExport {
 		State: UEStateExport{
 			GMMState:                 string(ue.state),
 			OngoingProcedures:        ongoing,
-			SecurityContextAvailable: ue.Current().SecurityContextAvailable,
+			SecurityContextAvailable: ue.securityContextAvailable,
 		},
 		Security: UESecurityExport{
 			CipheringAlgorithm: ue.cipheringAlgName(),
 			IntegrityAlgorithm: ue.integrityAlgName(),
-			NgKsi:              ue.Current().NgKsi,
+			NgKsi:              ue.ngKsi,
 		},
 		Location: UELocationExport{
 			Current:          copyUserLocation(ue.Location),
 			Tai:              ue.Tai,
-			RegistrationArea: append([]models.Tai(nil), ue.Current().RegistrationArea...),
+			RegistrationArea: append([]models.Tai(nil), ue.RegistrationArea...),
 		},
 		Subscription: UESubscriptionExport{
-			AllowedNssai: append([]models.Snssai(nil), ue.Current().AllowedNssai...),
-			Ambr:         copyPtr(ue.Current().Ambr),
+			AllowedNssai: append([]models.Snssai(nil), ue.AllowedNssai...),
+			Ambr:         copyPtr(ue.Ambr),
 		},
 		Registration: UERegistrationExport{
 			Type:                 regType,
@@ -373,16 +373,16 @@ func (amf *AMF) exportAmfUe(ue *AmfUe) AmfUeExport {
 			AuthFailureSyncTimes: authSyncTimes,
 		},
 		Timers: UETimersExport{
-			T3512ValueSeconds:   int64(ue.Current().T3512Value / time.Second),
-			T3502ValueSeconds:   int64(ue.Current().T3502Value / time.Second),
+			T3512ValueSeconds:   int64(ue.T3512Value / time.Second),
+			T3502ValueSeconds:   int64(ue.T3502Value / time.Second),
 			T3513Paging:         timerStatus(t3513),
 			T3565Notification:   timerStatus(t3565),
 			T3560Auth:           timerStatus(t3560),
 			T3550Registration:   timerStatus(t3550),
 			T3555ConfigUpdate:   timerStatus(t3555),
 			T3522Deregistration: timerStatus(t3522),
-			MobileReachable:     timerStatus(ue.Current().MobileReachableTimer),
-			ImplicitDereg:       timerStatus(ue.Current().ImplicitDeregistrationTimer),
+			MobileReachable:     timerStatus(ue.MobileReachableTimer),
+			ImplicitDereg:       timerStatus(ue.ImplicitDeregistrationTimer),
 		},
 		LastActivity: UELastActivityExport{
 			Timestamp: ue.LastSeenAt,
@@ -391,8 +391,8 @@ func (amf *AMF) exportAmfUe(ue *AmfUe) AmfUeExport {
 	}
 
 	// Copy SmContextList refs while holding the UE lock.
-	smCopies := make([]smContextCopy, 0, len(ue.Current().SmContextList))
-	for _, sc := range ue.Current().SmContextList {
+	smCopies := make([]smContextCopy, 0, len(ue.SmContextList))
+	for _, sc := range ue.SmContextList {
 		smCopies = append(smCopies, smContextCopy{
 			ref:      sc.Ref,
 			snssai:   copyPtr(sc.Snssai),
@@ -414,7 +414,7 @@ func (amf *AMF) exportAmfUe(ue *AmfUe) AmfUeExport {
 		export.RANConnection = rc
 	}
 
-	ue.Mutex.Unlock()
+	ue.mu.Unlock()
 
 	// Build PDU sessions OUTSIDE the UE lock to avoid holding two locks simultaneously.
 	export.PDUSessions = amf.buildPDUSessions(smCopies)

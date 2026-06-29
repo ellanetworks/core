@@ -13,7 +13,22 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
+	"github.com/ellanetworks/core/nas/eps"
 )
+
+// idleRegisteredUE returns a registered UE parked in ECM-IDLE — the state just
+// before a Service Request or paging.
+func idleRegisteredUE(t *testing.T, m *MME) *UeContext {
+	t.Helper()
+
+	ue, _ := securedUE(t, m)
+	ue.UeNetCap = eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal()
+	testPDN(ue).SgwFTEID = testSGWFTEID
+	m.AssignGUTI(ue, models.PlmnID{Mcc: "001", Mnc: "01"}, 1, 1)
+	m.FreeS1Conn(ue)
+
+	return ue
+}
 
 // Fixtures the fake session manager returns.
 var (
@@ -67,21 +82,6 @@ func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, _ uin
 // hookSessionManager runs onModify on the first ModifyEPSSession, so a test can
 // simulate a concurrent release (freeing ue.s1) during the unlocked user-plane
 // switch of a Path Switch or Handover Notify.
-type hookSessionManager struct {
-	*fakeSessionManager
-	onModify func()
-	fired    bool
-}
-
-func (h *hookSessionManager) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb models.FTEID) error {
-	if !h.fired && h.onModify != nil {
-		h.fired = true
-		h.onModify()
-	}
-
-	return h.fakeSessionManager.ModifyEPSSession(ctx, imsi, ebi, enb)
-}
-
 func (f *fakeSessionManager) UpdateEPSSessionAMBR(_ context.Context, _ string, _ uint8, ambrUplink, ambrDownlink string) error {
 	if f.ambrErr != nil {
 		return f.ambrErr
@@ -104,22 +104,6 @@ func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string, _ ui
 	f.released = true
 
 	return nil
-}
-
-// erroringSessionManager fails CreateEPSSession, standing in for a data network
-// that cannot serve the UE's requested PDN type.
-type erroringSessionManager struct{ fakeSessionManager }
-
-func (erroringSessionManager) CreateEPSSession(context.Context, models.EPSBearerRequest) (models.EPSBearer, error) {
-	return models.EPSBearer{}, fmt.Errorf("no IP pool available for DNN")
-}
-
-// barredBearerStore is a fakeBearerStore whose profile forbids 4G access, to
-// drive the access-restriction reject path.
-type barredBearerStore struct{ fakeBearerStore }
-
-func (barredBearerStore) GetProfileByID(_ context.Context, id string) (*db.Profile, error) {
-	return &db.Profile{ID: id, UeAmbrDownlink: "1 Gbps", UeAmbrUplink: "1 Gbps", Allow4G: false, Allow5G: true}, nil
 }
 
 // fakeBearerStore resolves a fixed default-bearer QoS (QCI 9, APN "internet",
@@ -233,8 +217,8 @@ func newTestMME(t *testing.T) *MME {
 
 // testPDN returns the UE's default PDN connection (on the default EPS bearer
 // identity), creating it if absent, so tests can set and read per-bearer fields.
-func testPDN(ue *UeContext) *pdnConnection {
-	ue.defaultEBI = defaultERABID
+func testPDN(ue *UeContext) *PdnConnection {
+	ue.DefaultEBI = DefaultERABID
 
-	return ue.ensurePDN(defaultERABID)
+	return ue.EnsurePDN(DefaultERABID)
 }

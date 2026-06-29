@@ -62,9 +62,9 @@ func (s *enbState) info() ENBInfo {
 	}
 }
 
-// enbSupportedTAIs flattens an S1 Setup Request's Supported TAs into the TAIs the
+// EnbSupportedTAIs flattens an S1 Setup Request's Supported TAs into the TAIs the
 // eNB broadcasts: one entry per (broadcast PLMN, TAC) pair (TS 36.413 §8.7.3.2).
-func enbSupportedTAIs(tas s1ap.SupportedTAs) []ENBTAI {
+func EnbSupportedTAIs(tas s1ap.SupportedTAs) []ENBTAI {
 	out := make([]ENBTAI, 0, len(tas))
 	for _, ta := range tas {
 		for _, plmn := range ta.BroadcastPLMNs {
@@ -76,7 +76,7 @@ func enbSupportedTAIs(tas s1ap.SupportedTAs) []ENBTAI {
 }
 
 // enbID renders a Global eNB ID as "<plmn>-<enb-id>" for display.
-func enbID(g s1ap.GlobalENBID) string {
+func ENBID(g s1ap.GlobalENBID) string {
 	p := g.PLMNIdentity
 
 	return fmt.Sprintf("%02x%02x%02x-%x", p[0], p[1], p[2], g.ENBID.Value)
@@ -104,17 +104,17 @@ func (m *MME) addENB(conn *sctp.SCTPConn, req *s1ap.S1SetupRequest) {
 	now := time.Now()
 	m.trackENB(conn, ENBInfo{
 		Name:          req.ENBName,
-		ID:            enbID(req.GlobalENBID),
+		ID:            ENBID(req.GlobalENBID),
 		Address:       address,
 		ConnectedAt:   now,
 		LastSeenAt:    now,
-		SupportedTAIs: enbSupportedTAIs(req.SupportedTAs),
+		SupportedTAIs: EnbSupportedTAIs(req.SupportedTAs),
 	})
 }
 
-// trackENBFromSetup records the eNB from an S1 Setup Request's raw value. Parse
+// TrackENBFromSetup records the eNB from an S1 Setup Request's raw value. Parse
 // failures are surfaced by the S1 Setup handler.
-func (m *MME) trackENBFromSetup(conn *sctp.SCTPConn, value []byte) {
+func (m *MME) TrackENBFromSetup(conn *sctp.SCTPConn, value []byte) {
 	req, err := s1ap.ParseS1SetupRequest(value)
 	if err != nil {
 		return
@@ -123,10 +123,10 @@ func (m *MME) trackENBFromSetup(conn *sctp.SCTPConn, value []byte) {
 	m.addENB(conn, req)
 }
 
-// markENBSetupComplete records that the eNB on conn completed S1 Setup, arming
+// MarkENBSetupComplete records that the eNB on conn completed S1 Setup, arming
 // the dispatcher's setup-first gate (TS 36.413). No-op if the eNB is
 // not tracked.
-func (m *MME) markENBSetupComplete(conn *sctp.SCTPConn) {
+func (m *MME) MarkENBSetupComplete(conn *sctp.SCTPConn) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -138,21 +138,21 @@ func (m *MME) markENBSetupComplete(conn *sctp.SCTPConn) {
 	}
 }
 
-// findENBByGlobalID resolves a Global eNB ID to the S1-setup-complete association
+// FindENBByGlobalID resolves a Global eNB ID to the S1-setup-complete association
 // of that eNB (nil/false when no such eNB is connected), for routing an S1
 // handover's HANDOVER REQUEST to the target (TS 36.413 §8.4.2).
-func (m *MME) findENBByGlobalID(g s1ap.GlobalENBID) (nasWriter, bool) {
+func (m *MME) FindENBByGlobalID(g s1ap.GlobalENBID) (NasWriter, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	conn, ok := m.enbByID[enbID(g)]
+	conn, ok := m.enbByID[ENBID(g)]
 
 	return conn, ok
 }
 
-// updateENBName updates the stored name of a connected eNB from an eNB
+// UpdateENBName updates the stored name of a connected eNB from an eNB
 // Configuration Update (TS 36.413 §8.7.4).
-func (m *MME) updateENBName(conn *sctp.SCTPConn, name string) {
+func (m *MME) UpdateENBName(conn *sctp.SCTPConn, name string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -161,10 +161,10 @@ func (m *MME) updateENBName(conn *sctp.SCTPConn, name string) {
 	}
 }
 
-// updateENBSupportedTAs replaces a connected eNB's broadcast TAIs from an eNB
+// UpdateENBSupportedTAs replaces a connected eNB's broadcast TAIs from an eNB
 // Configuration Update's Supported TAs IE, which carries the whole list
 // (TS 36.413 §8.7.4). No-op if the eNB is not tracked.
-func (m *MME) updateENBSupportedTAs(conn *sctp.SCTPConn, tais []ENBTAI) {
+func (m *MME) UpdateENBSupportedTAs(conn *sctp.SCTPConn, tais []ENBTAI) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -173,8 +173,8 @@ func (m *MME) updateENBSupportedTAs(conn *sctp.SCTPConn, tais []ENBTAI) {
 	}
 }
 
-// enbSetupComplete reports whether the eNB on conn has completed S1 Setup.
-func (m *MME) enbSetupComplete(conn *sctp.SCTPConn) bool {
+// ENBSetupComplete reports whether the eNB on conn has completed S1 Setup.
+func (m *MME) ENBSetupComplete(conn *sctp.SCTPConn) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -183,9 +183,9 @@ func (m *MME) enbSetupComplete(conn *sctp.SCTPConn) bool {
 	return s != nil && s.setupComplete
 }
 
-// touchENB records inbound S1AP activity from an eNB association as its last-seen
+// TouchENB records inbound S1AP activity from an eNB association as its last-seen
 // time. It is a no-op for an association not yet recorded (pre-S1 Setup).
-func (m *MME) touchENB(conn *sctp.SCTPConn) {
+func (m *MME) TouchENB(conn *sctp.SCTPConn) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -194,10 +194,10 @@ func (m *MME) touchENB(conn *sctp.SCTPConn) {
 	}
 }
 
-// removeENB drops a connected eNB when its association closes.
-func (m *MME) removeENB(conn *sctp.SCTPConn) {
+// RemoveENB drops a connected eNB when its association closes.
+func (m *MME) RemoveENB(conn *sctp.SCTPConn) {
 	m.mu.Lock()
-	if s := m.enbs[conn]; s != nil && m.enbByID[s.id] == nasWriter(conn) {
+	if s := m.enbs[conn]; s != nil && m.enbByID[s.id] == NasWriter(conn) {
 		delete(m.enbByID, s.id)
 	}
 
@@ -210,16 +210,16 @@ func (m *MME) removeENB(conn *sctp.SCTPConn) {
 // reclaimUEsOnConnLoss handles the connections of an eNB whose SCTP association
 // dropped without a graceful S1 release, so no UE Context Release Complete will
 // arrive for them. Idle UEs are left alone — they run conn-independent supervision.
-func (m *MME) reclaimUEsOnConnLoss(conn nasWriter) {
-	m.reclaimConns(m.connsOnConn(conn), "eNB disconnect")
+func (m *MME) reclaimUEsOnConnLoss(conn NasWriter) {
+	m.ReclaimConns(m.ConnsOnConn(conn), "eNB disconnect")
 }
 
-// reclaimConns reclaims a set of UE-associated connections an eNB no longer holds
+// ReclaimConns reclaims a set of UE-associated connections an eNB no longer holds
 // (an SCTP drop or an S1 Reset). A UE's active connection moves the UE to ECM-IDLE
 // (or, mid-attach, drops it); a handover target connection aborts the handover,
 // leaving the UE on its surviving source; a detached or bare connection is removed.
 // trigger names the cause for the event log.
-func (m *MME) reclaimConns(conns []*s1Conn, trigger string) {
+func (m *MME) ReclaimConns(conns []*S1Conn, trigger string) {
 	m.mu.Lock()
 
 	var (
@@ -242,7 +242,7 @@ func (m *MME) reclaimConns(conns []*s1Conn, trigger string) {
 		seen[ue] = struct{}{}
 
 		switch {
-		case c == ue.s1:
+		case c == ue.S1:
 			// The UE's active connection is gone. A handover prepared on a (still
 			// live) target eNB is released explicitly, like the guard-timer abort, so
 			// the target does not hold the context until its own TS1RELOCoverall.
@@ -262,7 +262,7 @@ func (m *MME) reclaimConns(conns []*s1Conn, trigger string) {
 	m.mu.Unlock()
 
 	for _, r := range releaseTargets {
-		m.sendUEContextRelease(context.Background(), r.conn, r.mmeID, r.enbID)
+		SendUEContextRelease(m, context.Background(), r.conn, r.mmeID, r.enbID)
 	}
 
 	for _, ue := range orphaned {
@@ -273,7 +273,7 @@ func (m *MME) reclaimConns(conns []*s1Conn, trigger string) {
 // s1Release names a UE-associated connection to send a UE Context Release Command
 // to, captured under the lock for a send after it is released.
 type s1Release struct {
-	conn  nasWriter
+	conn  NasWriter
 	mmeID s1ap.MMEUES1APID
 	enbID s1ap.ENBUES1APID
 }

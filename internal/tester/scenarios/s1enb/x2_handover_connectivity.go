@@ -35,11 +35,9 @@ func init() {
 	})
 }
 
-// runS1ENBX2HandoverConnectivity attaches a UE on a source eNB and pings the N6
-// destination, then has a target eNB issue a PATH SWITCH REQUEST (the MME-side
-// completion of an X2 handover, TS 36.413 §8.4.4) and pings again from the
-// target's GTP tunnel. The after-ping proves the MME reprogrammed the UPF downlink
-// to the target eNB. Requires two eNB radios with distinct N3 addresses.
+// X2 handover completes MME-side via a PATH SWITCH REQUEST (TS 36.413 §8.4.4);
+// the post-switch ping from the target's tunnel proves the MME reprogrammed the
+// UPF downlink to the target eNB.
 func runS1ENBX2HandoverConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
 	if len(env.GNBs) < 2 {
 		return fmt.Errorf("x2_handover_connectivity requires at least 2 eNB radios, got %d", len(env.GNBs))

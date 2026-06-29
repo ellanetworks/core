@@ -43,7 +43,6 @@ func BuildNGSetupRequest(opts *NGSetupRequestOpts) (ngapType.NGAPPDU, error) {
 		return ngapType.NGAPPDU{}, fmt.Errorf("could not get plmnID in octets: %v", err)
 	}
 
-	// Build slice list: use Slices if provided, otherwise fall back to single Sst/Sd.
 	slices := opts.Slices
 	if len(slices) == 0 {
 		if opts.Sst == 0 {
@@ -97,7 +96,6 @@ func BuildNGSetupRequest(opts *NGSetupRequestOpts) (ngapType.NGAPPDU, error) {
 
 	nGSetupRequestIEs.List = append(nGSetupRequestIEs.List, ie)
 
-	// RANNodeName
 	ie = ngapType.NGSetupRequestIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDRANNodeName
 	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -148,7 +146,6 @@ func BuildNGSetupRequest(opts *NGSetupRequestOpts) (ngapType.NGAPPDU, error) {
 
 	nGSetupRequestIEs.List = append(nGSetupRequestIEs.List, ie)
 
-	// PagingDRX
 	ie = ngapType.NGSetupRequestIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDDefaultPagingDRX
 	ie.Criticality.Value = ngapType.CriticalityPresentIgnore

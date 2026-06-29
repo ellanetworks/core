@@ -20,12 +20,12 @@ func newTestRadioForRanUe() *amf.Radio {
 	}
 }
 
-func newBoundAmfUe(t *testing.T, radio *amf.Radio) (*amf.AmfUe, *amf.RanUe) {
+func newBoundUeContext(t *testing.T, radio *amf.Radio) (*amf.UeContext, *amf.RanUe) {
 	t.Helper()
 
 	ranUe := amf.NewRanUeForTest(radio, 1, 10, logger.AmfLog)
 
-	ue := amf.NewAmfUe()
+	ue := amf.NewUeContext()
 	ue.Log = logger.AmfLog
 	ue.AttachRanUe(ranUe)
 
@@ -36,7 +36,7 @@ func newBoundAmfUe(t *testing.T, radio *amf.Radio) (*amf.AmfUe, *amf.RanUe) {
 // failure.
 func TestReleaseNasConnection_AbortsProcedures(t *testing.T) {
 	radio := newTestRadioForRanUe()
-	ue, ranUe := newBoundAmfUe(t, radio)
+	ue, ranUe := newBoundUeContext(t, radio)
 
 	conn := ue.NasConn()
 	if _, err := conn.Procedures.Begin(conn.Ctx(), procedure.Procedure{Type: procedure.Authentication}); err != nil {
@@ -73,7 +73,7 @@ func waitFor(t *testing.T, cond func() bool) {
 
 func TestReleaseNasConnection_AbortsSecurityMode(t *testing.T) {
 	radio := newTestRadioForRanUe()
-	ue, ranUe := newBoundAmfUe(t, radio)
+	ue, ranUe := newBoundUeContext(t, radio)
 
 	conn := ue.NasConn()
 	if _, err := conn.Procedures.Begin(conn.Ctx(), procedure.Procedure{Type: procedure.SecurityMode}); err != nil {
@@ -92,7 +92,7 @@ func TestReleaseNasConnection_AbortsSecurityMode(t *testing.T) {
 // procedure set and the current binding.
 func TestReleaseNasConnection_AfterRebind_IsNoop(t *testing.T) {
 	radio := newTestRadioForRanUe()
-	ue, sourceRanUe := newBoundAmfUe(t, radio)
+	ue, sourceRanUe := newBoundUeContext(t, radio)
 
 	targetRanUe := amf.NewRanUeForTest(radio, 2, 20, logger.AmfLog)
 
@@ -118,7 +118,7 @@ func TestReleaseNasConnection_AfterRebind_IsNoop(t *testing.T) {
 // detach the current one.
 func TestReleaseNasConnection_StaleTarget_NoDetach(t *testing.T) {
 	radio := newTestRadioForRanUe()
-	ue, _ := newBoundAmfUe(t, radio)
+	ue, _ := newBoundUeContext(t, radio)
 
 	staleRanUe := amf.NewRanUeForTest(radio, 99, 990, logger.AmfLog)
 
@@ -132,7 +132,7 @@ func TestReleaseNasConnection_StaleTarget_NoDetach(t *testing.T) {
 // SCTP disconnect aborts procedures across all UEs on the radio.
 func TestRemoveAllUeInRan_AbortsProcedures(t *testing.T) {
 	radio := newTestRadioForRanUe()
-	ue, _ := newBoundAmfUe(t, radio)
+	ue, _ := newBoundUeContext(t, radio)
 
 	conn := ue.NasConn()
 	if _, err := conn.Procedures.Begin(conn.Ctx(), procedure.Procedure{Type: procedure.SecurityMode}); err != nil {
@@ -150,7 +150,7 @@ func TestRemoveAllUeInRan_AbortsProcedures(t *testing.T) {
 // (TS 24.501 §5.5.1.2.8(a)).
 func TestRemoveAllUeInRan_MidAuthentication_Deregisters(t *testing.T) {
 	radio := newTestRadioForRanUe()
-	ue, _ := newBoundAmfUe(t, radio)
+	ue, _ := newBoundUeContext(t, radio)
 	ue.ForceState(amf.Authentication)
 
 	radio.RemoveAllUeInRan(context.Background())
@@ -162,7 +162,7 @@ func TestRemoveAllUeInRan_MidAuthentication_Deregisters(t *testing.T) {
 
 func TestRemoveAllUeInRan_MidSecurityMode_Deregisters(t *testing.T) {
 	radio := newTestRadioForRanUe()
-	ue, _ := newBoundAmfUe(t, radio)
+	ue, _ := newBoundUeContext(t, radio)
 	ue.ForceState(amf.SecurityMode)
 
 	radio.RemoveAllUeInRan(context.Background())
@@ -174,7 +174,7 @@ func TestRemoveAllUeInRan_MidSecurityMode_Deregisters(t *testing.T) {
 
 func TestRemoveAllUeInRan_MidContextSetup_Deregisters(t *testing.T) {
 	radio := newTestRadioForRanUe()
-	ue, _ := newBoundAmfUe(t, radio)
+	ue, _ := newBoundUeContext(t, radio)
 	ue.ForceState(amf.ContextSetup)
 
 	radio.RemoveAllUeInRan(context.Background())
@@ -188,8 +188,8 @@ func TestRemoveAllUeInRan_MidContextSetup_Deregisters(t *testing.T) {
 // (TS 24.501 §5.3.7).
 func TestRemoveAllUeInRan_Registered_StaysRegistered(t *testing.T) {
 	radio := newTestRadioForRanUe()
-	ue, _ := newBoundAmfUe(t, radio)
-	ue.Current().T3512Value = 1 * time.Second
+	ue, _ := newBoundUeContext(t, radio)
+	ue.T3512Value = 1 * time.Second
 	ue.ForceState(amf.Registered)
 
 	radio.RemoveAllUeInRan(context.Background())
@@ -201,7 +201,7 @@ func TestRemoveAllUeInRan_Registered_StaysRegistered(t *testing.T) {
 
 func TestRemoveAllUeInRan_Deregistered_NoAction(t *testing.T) {
 	radio := newTestRadioForRanUe()
-	ue, _ := newBoundAmfUe(t, radio)
+	ue, _ := newBoundUeContext(t, radio)
 
 	radio.RemoveAllUeInRan(context.Background())
 
@@ -210,7 +210,7 @@ func TestRemoveAllUeInRan_Deregistered_NoAction(t *testing.T) {
 	}
 }
 
-func TestRemoveAllUeInRan_NoAmfUe(t *testing.T) {
+func TestRemoveAllUeInRan_NoUeContext(t *testing.T) {
 	radio := newTestRadioForRanUe()
 	amf.NewRanUeForTest(radio, 1, 10, logger.AmfLog)
 

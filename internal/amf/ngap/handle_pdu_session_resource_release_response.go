@@ -35,7 +35,7 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *a
 
 	ranUe.TouchLastSeen()
 
-	amfUe := ranUe.AmfUe()
+	amfUe := ranUe.UeContext()
 	if amfUe == nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("amfUe is nil")
 		return

@@ -23,9 +23,6 @@ func init() {
 	})
 }
 
-// runS1ENBSetupFailureUnknownPLMN sends an S1 Setup Request advertising a PLMN
-// the core does not serve and verifies the MME answers with an S1 SETUP FAILURE
-// carrying cause Misc "unknown-PLMN" (TS 36.413 §8.7.3.4).
 func runS1ENBSetupFailureUnknownPLMN(_ context.Context, env scenarios.Env, _ any) error {
 	s1mme, err := s1mmeAddress(env.FirstCore())
 	if err != nil {

@@ -108,7 +108,7 @@ func runAuthenticationWrongKey(_ context.Context, env scenarios.Env, _ any) erro
 }
 
 func sendAuthenticationResponseWithWrongKey(ranUENGAPID int64, u *ue.UE) error {
-	// The SNN will be used to derive wrong keys.
+	// A nonsense serving network name forces derivation of wrong keys.
 	u.UeSecurity.Snn = "an unreasonable serving network name"
 
 	err := u.SendRegistrationRequest(ranUENGAPID, nasMessage.RegistrationType5GSInitialRegistration)

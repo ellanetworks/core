@@ -72,7 +72,6 @@ type GnodeB struct {
 	n2SetupOpts NGSetupRequestOpts
 }
 
-// n2Peer is one ordered N2 endpoint.
 type n2Peer struct {
 	address string
 	conn    *sctp.SCTPConn
@@ -142,7 +141,6 @@ func (g *GnodeB) GetPDUSession(ranUeId int64, pduSessionID int64) *PDUSessionInf
 	return sessions[pduSessionID]
 }
 
-// GetPDUSessions returns all PDU sessions for a given RAN UE.
 func (g *GnodeB) GetPDUSessions(ranUeId int64) map[int64]*PDUSessionInformation {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -150,7 +148,6 @@ func (g *GnodeB) GetPDUSessions(ranUeId int64) map[int64]*PDUSessionInformation 
 	return g.PDUSessions[ranUeId]
 }
 
-// RemovePDUSession removes a PDU session from the gNB state for a given UE.
 func (g *GnodeB) RemovePDUSession(ranUeId int64, pduSessionID int64) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -167,8 +164,6 @@ func (g *GnodeB) RemovePDUSession(ranUeId int64, pduSessionID int64) {
 	delete(sessions, pduSessionID)
 }
 
-// UpdatePDUSessionQoS updates the QoS parameters of an existing PDU session
-// in response to a PDU Session Resource Modify Request from the core.
 func (g *GnodeB) UpdatePDUSessionQoS(ranUeId int64, pduSessionID int64, info *PDUSessionModifyInfo) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -310,9 +305,8 @@ type SCTPFrame struct {
 	Info *sctp.SndRcvInfo
 }
 
-// NewGnodeB constructs a gNB with a single pre-dialed N2 conn. Used by
-// ng-eNB scenarios that dial their own SCTP elsewhere. Starts the
-// receiver on the given conn.
+// NewGnodeB constructs a gNB around a single pre-dialed N2 conn, for ng-eNB
+// scenarios that dial their own SCTP, and starts the receiver on it.
 func NewGnodeB(
 	gnbID string,
 	mcc string,
@@ -364,19 +358,16 @@ type StartOpts struct {
 	DNN    string
 	TAC    string
 	Name   string
-	// CoreN2Addresses is the ordered list of Ella Core N2 endpoints. The
-	// gNB uses the first as primary; on failure, it falls through to the
-	// next in order. A single-entry list matches the pre-multi-peer
-	// behaviour.
+	// Ordered Ella Core N2 endpoints: the gNB uses the first as primary and
+	// falls through to the next on failure.
 	CoreN2Addresses []string
 	GnbN2Address    string
 	GnbN3Address    string
 }
 
-// Start builds a gNB and establishes one active N2 SCTP association.
-// Addresses in CoreN2Addresses are tried in order; the first one where
-// dial + NG Setup send succeed becomes active. On all-fail, Start
-// returns an error.
+// Start builds a gNB and establishes one active N2 SCTP association. The
+// CoreN2Addresses are tried in order; the first where dial and NG Setup send
+// both succeed becomes active, else Start returns an error.
 func Start(opts *StartOpts) (*GnodeB, error) {
 	if len(opts.CoreN2Addresses) == 0 {
 		return nil, fmt.Errorf("at least one CoreN2Address required")
@@ -641,8 +632,6 @@ func (g *GnodeB) promoteNextFromReceiver(failedIdx int, failedConn *sctp.SCTPCon
 	logger.GnbLogger.Error("gnb failover: no remaining N2 peers")
 }
 
-// ActivePeerAddress returns the current active peer's address, or the empty
-// string when no peer is active.
 func (g *GnodeB) ActivePeerAddress() string {
 	g.n2Mu.RLock()
 	defer g.n2Mu.RUnlock()
@@ -654,9 +643,8 @@ func (g *GnodeB) ActivePeerAddress() string {
 	return g.n2Peers[g.n2Active].address
 }
 
-// WaitForActivePeerChange blocks until the active peer transitions (either
-// to a new peer or to no-active), or ctx is cancelled. Returns the new
-// active peer's address (empty when no active peer).
+// WaitForActivePeerChange blocks until the active peer transitions or ctx is
+// cancelled, returning the new active peer's address (empty when none).
 func (g *GnodeB) WaitForActivePeerChange(ctx context.Context) (string, error) {
 	g.n2Mu.RLock()
 	ch := g.n2Change
@@ -670,9 +658,8 @@ func (g *GnodeB) WaitForActivePeerChange(ctx context.Context) (string, error) {
 	}
 }
 
-// TriggerFailover closes the current active peer's SCTP conn, causing the
-// receiver to detect the error and promote the next peer. Intended for
-// tests that want to force a failover without killing the remote.
+// TriggerFailover closes the active peer's SCTP conn so the receiver promotes
+// the next peer, forcing a failover in tests without killing the remote.
 func (g *GnodeB) TriggerFailover() {
 	g.n2Mu.RLock()
 
@@ -689,25 +676,17 @@ func (g *GnodeB) TriggerFailover() {
 	}
 }
 
-// RotateToNextPeer deliberately moves the active SCTP association to the
-// next non-failed peer in the configured list, wrapping around if needed.
+// RotateToNextPeer moves the active SCTP association to the next non-failed
+// peer under n2Mu, wrapping around. The previous peer is left n2StatePending
+// (not failed) so a later rotation can return to it: a follower that rejects
+// our writes today may become the Raft leader tomorrow.
 //
-// Unlike TriggerFailover (which relies on the receiver goroutine detecting
-// an SCTP close and calling promoteNextFromReceiver — a path that marks the
-// peer n2StateFailed and does not wrap), this method owns the transition
-// synchronously under n2Mu and leaves the previous peer in n2StatePending.
-// The previous peer remains a valid candidate for future rotations: a
-// follower that rejected our writes today may become the Raft leader
-// tomorrow, and we want to come back to it.
+// Returns ErrNoRotationCandidate when no other non-failed peer exists, leaving
+// the active peer untouched. If every candidate dial fails, the gNB ends up
+// with no active peer and the error describes the last dial failure.
 //
-// Returns ErrNoRotationCandidate when no other non-failed peer exists. In
-// that case the current active peer is left untouched. If every candidate
-// dial fails, the gNB ends up with no active peer (same state as complete
-// failover exhaustion) and the error describes the last dial failure.
-//
-// The receiver goroutine for the previous peer will still fire on the
-// conn close, but by the time it acquires n2Mu the active index has moved
-// and its existing `g.n2Active != failedIdx` guard makes it a no-op.
+// The previous peer's receiver still fires on conn close, but its
+// `g.n2Active != failedIdx` guard makes it a no-op once the index has moved.
 func (g *GnodeB) RotateToNextPeer() error {
 	g.n2Mu.Lock()
 	defer g.n2Mu.Unlock()

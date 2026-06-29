@@ -11,14 +11,11 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// ReactivateBearer waits for the MME's DEACTIVATE EPS BEARER CONTEXT REQUEST,
-// acknowledges it with a DEACTIVATE EPS BEARER CONTEXT ACCEPT, and completes the
-// S1 context release the MME triggers — the EPS reaction to a data-network
-// reconfiguration (TS 24.301 §6.4.4.2). It returns the parsed request so the
-// caller can assert ESM cause #39 "reactivation requested". Proactive downlink
-// NAS the MME interleaves (e.g. EMM INFORMATION) is skipped, as a real UE would.
-// Deactivating the last default bearer leaves the UE EMM-DEREGISTERED, so it
-// re-attaches afterward to pick up the new configuration.
+// ReactivateBearer handles a network-initiated bearer deactivation, the EPS
+// reaction to a data-network reconfiguration (TS 24.301 §6.4.4.2). It returns the
+// parsed request so the caller can assert ESM cause #39 "reactivation requested".
+// Proactive downlink NAS the MME interleaves (e.g. EMM INFORMATION) is skipped, as
+// a real UE would.
 func (e *ENB) ReactivateBearer(ue *UE, enbUEID int64, timeout time.Duration) (*eps.DeactivateEPSBearerContextRequest, error) {
 	deadline := time.Now().Add(timeout)
 
@@ -65,12 +62,11 @@ func (e *ENB) ReactivateBearer(ue *UE, enbUEID int64, timeout time.Duration) (*e
 	}
 }
 
-// ModifyBearer awaits the MME's MODIFY EPS BEARER CONTEXT REQUEST and
-// acknowledges it with a MODIFY EPS BEARER CONTEXT ACCEPT — the EPS reaction to
-// an in-place data-network change (a DNS update) that does not re-establish the
-// bearer (TS 24.301 §6.4.2). It returns the parsed request so the caller can
-// assert the new DNS in the Protocol Configuration Options. Proactive downlink
-// NAS (e.g. EMM INFORMATION) is skipped, as a real UE would.
+// ModifyBearer handles a network-initiated bearer modification, the EPS reaction
+// to an in-place data-network change (a DNS update) that does not re-establish the
+// bearer (TS 24.301 §6.4.2). It returns the parsed request so the caller can assert
+// the new DNS in the Protocol Configuration Options. Proactive downlink NAS (e.g.
+// EMM INFORMATION) is skipped, as a real UE would.
 func (e *ENB) ModifyBearer(ue *UE, enbUEID int64, timeout time.Duration) (*eps.ModifyEPSBearerContextRequest, error) {
 	deadline := time.Now().Add(timeout)
 
@@ -113,9 +109,6 @@ func (e *ENB) ModifyBearer(ue *UE, enbUEID int64, timeout time.Duration) (*eps.M
 	}
 }
 
-// buildDeactivateEPSBearerContextAccept builds the protected DEACTIVATE EPS
-// BEARER CONTEXT ACCEPT acknowledging a network-initiated deactivation
-// (TS 24.301 §8.3.9).
 func (ue *UE) buildDeactivateEPSBearerContextAccept(ebi, pti uint8) ([]byte, error) {
 	plain, err := (&eps.DeactivateEPSBearerContextAccept{
 		EPSBearerIdentity:            ebi,
@@ -127,7 +120,7 @@ func (ue *UE) buildDeactivateEPSBearerContextAccept(ebi, pti uint8) ([]byte, err
 
 	out, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered,
 		nascommon.NASCount(0, ue.ulCount), nascommon.DirectionUplink,
-		ue.knasInt, ue.knasEnc, ue.integrityAlg(), ue.cipherAlg())
+		ue.knasInt, ue.knasEnc, ue.IntegrityAlg(), ue.CipherAlg())
 	if err != nil {
 		return nil, fmt.Errorf("protect Deactivate EPS Bearer Context Accept: %w", err)
 	}
@@ -137,9 +130,6 @@ func (ue *UE) buildDeactivateEPSBearerContextAccept(ebi, pti uint8) ([]byte, err
 	return out, nil
 }
 
-// buildModifyEPSBearerContextAccept builds the protected MODIFY EPS BEARER
-// CONTEXT ACCEPT acknowledging a network-initiated modification (TS 24.301
-// §8.3.19).
 func (ue *UE) buildModifyEPSBearerContextAccept(ebi, pti uint8) ([]byte, error) {
 	plain, err := (&eps.ModifyEPSBearerContextAccept{
 		EPSBearerIdentity:            ebi,
@@ -151,7 +141,7 @@ func (ue *UE) buildModifyEPSBearerContextAccept(ebi, pti uint8) ([]byte, error) 
 
 	out, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered,
 		nascommon.NASCount(0, ue.ulCount), nascommon.DirectionUplink,
-		ue.knasInt, ue.knasEnc, ue.integrityAlg(), ue.cipherAlg())
+		ue.knasInt, ue.knasEnc, ue.IntegrityAlg(), ue.CipherAlg())
 	if err != nil {
 		return nil, fmt.Errorf("protect Modify EPS Bearer Context Accept: %w", err)
 	}

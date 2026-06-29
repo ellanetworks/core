@@ -27,8 +27,6 @@ func init() {
 	})
 }
 
-// runS1ENBDeregistration attaches a UE, then has it detach and verifies the MME
-// answers DETACH ACCEPT and releases the S1 context (TS 24.301 §5.5.2.2).
 func runS1ENBDeregistration(_ context.Context, env scenarios.Env, _ any) error {
 	e, err := startENB(env)
 	if err != nil {

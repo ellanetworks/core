@@ -2,10 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 // Package scenarios is the registry and runtime for core-tester scenarios.
-//
-// Each scenario lives in its own file and registers itself with Register at
-// init time. core-tester list enumerates names; core-tester run --scenario
-// <name> dispatches to the registered Runner.
+// Each scenario registers itself with Register at init time.
 package scenarios
 
 import (
@@ -17,22 +14,18 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// Scenario describes a single RAN/UE scenario.
 type Scenario struct {
 	// Name is the value passed to --scenario.
 	Name string
 
-	// BindFlags attaches scenario-specific flags to fs. It is called once
-	// per invocation. The returned value is handed to Run as-is.
+	// BindFlags attaches scenario-specific flags to fs; its return value is
+	// handed to Run as-is.
 	BindFlags func(fs *pflag.FlagSet) any
 
-	// Run executes the scenario. params is whatever BindFlags returned;
-	// env carries the common flag values (core N2 addresses, gNB specs).
 	Run func(ctx context.Context, env Env, params any) error
 
-	// Fixture (optional) returns the Ella Core fixture this scenario needs
-	// provisioned before it runs. The integration test applies this via
-	// the fixture package. When nil, only the baseline fixture applies.
+	// Fixture returns the Ella Core fixture to provision before the scenario
+	// runs. When nil, only the baseline fixture applies.
 	Fixture func(env Env) FixtureSpec
 }
 
@@ -41,7 +34,7 @@ var (
 	registry = map[string]Scenario{}
 )
 
-// Register adds s to the registry. Panics on duplicate name.
+// Register adds s to the registry, panicking on a duplicate name.
 func Register(s Scenario) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -53,7 +46,6 @@ func Register(s Scenario) {
 	registry[s.Name] = s
 }
 
-// Get returns the named scenario, or false if not found.
 func Get(name string) (Scenario, bool) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -63,7 +55,6 @@ func Get(name string) (Scenario, bool) {
 	return s, ok
 }
 
-// List returns all registered scenario names, sorted.
 func List() []string {
 	mu.Lock()
 	defer mu.Unlock()
