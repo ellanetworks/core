@@ -29,10 +29,7 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 		return fmt.Errorf("no active NAS connection")
 	}
 
-	if conn.T3560 != nil {
-		conn.T3560.Stop()
-		conn.T3560 = nil
-	}
+	conn.T3560.Stop()
 
 	conn.Procedures.End(procedure.SecurityMode)
 

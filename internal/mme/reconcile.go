@@ -216,7 +216,7 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *PdnConnection,
 		m.SendDownlink(ctx, ue, naspdu)
 	}
 
-	m.ArmNASGuardAbortOnly(ue, "Modify EPS Bearer Context Request", naspdu, func() {
+	m.ArmESMGuardAbortOnly(ue, p, "Modify EPS Bearer Context Request", naspdu, func() {
 		// An aborted modification leaves the UE connected and its data-network
 		// fingerprint stale, so the backstop reconcile retries it later.
 		ue.mu.Lock()

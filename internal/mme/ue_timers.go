@@ -4,8 +4,6 @@
 package mme
 
 import (
-	"time"
-
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
@@ -22,7 +20,7 @@ func (m *MME) StartMobileReachable(ue *UeContext) {
 	m.stopIdleTimersLocked(ue)
 	gen := ue.idleGen
 
-	ue.mobileReachableTimer = time.AfterFunc(m.mobileReachableTime, func() {
+	ue.mobileReachableTimer.ArmOnce(m.mobileReachableTime, func() {
 		m.onMobileReachableExpiry(ue, gen)
 	})
 }
@@ -31,16 +29,8 @@ func (m *MME) StartMobileReachable(ue *UeContext) {
 // that has already fired becomes a no-op. The caller holds m.mu.
 func (m *MME) stopIdleTimersLocked(ue *UeContext) {
 	ue.idleGen++
-
-	if ue.mobileReachableTimer != nil {
-		ue.mobileReachableTimer.Stop()
-		ue.mobileReachableTimer = nil
-	}
-
-	if ue.implicitDetachTimer != nil {
-		ue.implicitDetachTimer.Stop()
-		ue.implicitDetachTimer = nil
-	}
+	ue.mobileReachableTimer.Stop()
+	ue.implicitDetachTimer.Stop()
 }
 
 // onMobileReachableExpiry escalates to the implicit detach timer (TS 24.301).
@@ -54,11 +44,9 @@ func (m *MME) onMobileReachableExpiry(ue *UeContext, gen uint64) {
 		return
 	}
 
-	ue.mobileReachableTimer = nil
-
 	logger.MmeLog.Debug("mobile reachable timer expired", zap.String("imsi", ue.imsi))
 
-	ue.implicitDetachTimer = time.AfterFunc(m.implicitDetachTime, func() {
+	ue.implicitDetachTimer.ArmOnce(m.implicitDetachTime, func() {
 		m.onImplicitDetachExpiry(ue, gen)
 	})
 }
@@ -75,7 +63,6 @@ func (m *MME) onImplicitDetachExpiry(ue *UeContext, gen uint64) {
 		return
 	}
 
-	ue.implicitDetachTimer = nil
 	ue.emmState.store(EMMDeregistered)
 	imsi := ue.imsi
 

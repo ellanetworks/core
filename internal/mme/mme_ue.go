@@ -9,10 +9,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/udm"
-	"github.com/ellanetworks/core/internal/util/timer"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -64,6 +64,12 @@ type PdnConnection struct {
 	PendingSessAmbrULBps uint64
 	PendingQCI           uint8
 	PendingARP           uint8
+
+	// guard supervises this bearer's outstanding ESM procedure (Modify/Deactivate,
+	// T3486/T3495). It is per-bearer because a UE with several PDN connections can
+	// have an ESM procedure outstanding on each at once; the guard invalidates a
+	// callback whose firing races a stop, release or re-arm.
+	guard guard.Guard
 }
 
 // S1Conn is a UE's transient state for one UE-associated logical S1-connection
@@ -102,22 +108,14 @@ type S1Conn struct {
 	// releasing gates the registry op during a UE Context Release.
 	releasing bool
 
-	// NAS common-procedure guard (TS 24.301: T3450/T3460/T3470). At most
-	// one common procedure is outstanding at a time, so a single guard suffices.
-	// nasGuardPDU is the downlink message retransmitted on expiry; the shared
-	// timer counts the retransmissions. nasGuardGen invalidates a stale callback
-	// (a timer that fired just before the connection was released or re-armed).
-	nasGuardTimer *timer.Timer
-	nasGuardPDU   []byte
-	nasGuardName  string
-	nasGuardGen   uint64
-	// nasGuardOnAbort, when non-nil, makes the guard abort-only: on exhausting
-	// its retransmissions it runs this finalizer and leaves the UE connected,
-	// rather than releasing the context. Used for non-critical procedures whose
-	// failure must not drop the UE — a bearer modification (TS 24.301 §6.4.2.5:
-	// on T3486 expiry the bearer stays active) or a single-PDN deactivation
-	// (§6.4.4.5: on T3495 expiry the bearer is deactivated locally).
-	nasGuardOnAbort func()
+	// EMM common-procedure guard (TS 24.301: T3450/T3460/T3470). EMM common and
+	// specific procedures are mutually exclusive (one at a time), so a single guard
+	// suffices for them. The retransmitted message and abort policy are captured in
+	// the guard's callbacks at arm time; the guard invalidates a callback whose
+	// firing races a release or re-arm. ESM bearer procedures are guarded
+	// per-bearer on PdnConnection, since they run on the independent ESM sublayer
+	// and one can be outstanding per bearer concurrently with each other and EMM.
+	nasGuard guard.Guard
 }
 
 // UeContext is the MME's persistent per-UE EMM context: subscriber identity, the
@@ -210,18 +208,15 @@ type UeContext struct {
 	// the UE has no S1-connection (TS 24.301), armed in ECM-IDLE and cancelled on
 	// reconnect. idleGen invalidates a timer callback that fired just as a reconnect
 	// or re-arm ran.
-	mobileReachableTimer *time.Timer
-	implicitDetachTimer  *time.Timer
+	mobileReachableTimer guard.Guard
+	implicitDetachTimer  guard.Guard
 	idleGen              uint64
 
 	// Paging supervision (T3413, TS 24.301 §5.6.2): armed when the MME pages an
-	// idle UE for buffered downlink data, retransmitted a bounded number of times,
-	// and cancelled when the UE reconnects. pagingPDU is the S1AP Paging message
-	// retransmitted on expiry; pagingGen invalidates a stale callback.
-	pagingTimer *time.Timer
-	pagingPDU   []byte
-	pagingTries int
-	pagingGen   uint64
+	// idle UE for buffered downlink data, retransmitted a bounded number of times
+	// (the guard counts them), and cancelled when the UE reconnects. The Paging PDU
+	// is captured by the retransmit closure.
+	pagingTimer guard.Guard
 }
 
 // TouchLastSeen records the current time as the UE's most recent uplink NAS

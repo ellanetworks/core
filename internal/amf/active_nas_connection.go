@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/ausf"
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas/nasMessage"
@@ -28,12 +29,12 @@ type ActiveNasConnection struct {
 
 	Procedures *procedure.Registry
 
-	T3513 *Timer
-	T3565 *Timer
-	T3560 *Timer
-	T3550 *Timer
-	T3555 *Timer
-	T3522 *Timer
+	T3513 guard.Guard
+	T3565 guard.Guard
+	T3560 guard.Guard
+	T3550 guard.Guard
+	T3555 guard.Guard
+	T3522 guard.Guard
 
 	// secureExchangeEstablished records that secure exchange of NAS messages has
 	// been established on this connection (a NAS message has been successfully
@@ -82,12 +83,10 @@ func (conn *ActiveNasConnection) Release() {
 }
 
 // stopTimers stops every retransmission timer owned by this connection.
-// Go time.Timer values do not observe ctx cancellation; they must be
-// stopped explicitly to prevent stale firings on a released RAN UE.
+// Go timers do not observe ctx cancellation; they must be stopped explicitly to
+// prevent stale firings on a released RAN UE.
 func (conn *ActiveNasConnection) stopTimers() {
-	for _, t := range []*Timer{conn.T3513, conn.T3565, conn.T3560, conn.T3550, conn.T3555, conn.T3522} {
-		if t != nil {
-			t.Stop()
-		}
+	for _, g := range []*guard.Guard{&conn.T3513, &conn.T3565, &conn.T3560, &conn.T3550, &conn.T3555, &conn.T3522} {
+		g.Stop()
 	}
 }

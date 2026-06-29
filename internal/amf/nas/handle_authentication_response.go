@@ -35,10 +35,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 		return fmt.Errorf("no active NAS connection")
 	}
 
-	if conn.T3560 != nil {
-		conn.T3560.Stop()
-		conn.T3560 = nil
-	}
+	conn.T3560.Stop()
 
 	if conn.AuthenticationCtx == nil {
 		return fmt.Errorf("ue amf.Authentication Context is nil")

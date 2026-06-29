@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 )
@@ -213,16 +214,17 @@ func policyDataFromSMF(src *smf.Policy) *PolicyDataExport {
 	}
 }
 
-// timerStatus returns a TimerStatusExport for the given timer. Safe to call with nil.
-func timerStatus(t *Timer) TimerStatusExport {
-	if t == nil {
+// timerStatus returns a TimerStatusExport for a NAS retransmission guard. Safe to
+// call with nil.
+func timerStatus(g *guard.Guard) TimerStatusExport {
+	if g == nil {
 		return TimerStatusExport{Active: false}
 	}
 
 	return TimerStatusExport{
-		Active:      t.IsActive(),
-		ExpireCount: t.ExpireTimes(),
-		MaxRetries:  t.MaxRetryTimes(),
+		Active:      g.Active(),
+		ExpireCount: g.ExpireTimes(),
+		MaxRetries:  g.MaxRetryTimes(),
 	}
 }
 
@@ -314,12 +316,12 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 		identityType  uint8
 		retransmit    bool
 		authSyncTimes int
-		t3513         *Timer
-		t3565         *Timer
-		t3560         *Timer
-		t3550         *Timer
-		t3555         *Timer
-		t3522         *Timer
+		t3513         *guard.Guard
+		t3565         *guard.Guard
+		t3560         *guard.Guard
+		t3550         *guard.Guard
+		t3555         *guard.Guard
+		t3522         *guard.Guard
 	)
 
 	if conn != nil {
@@ -328,12 +330,12 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 		identityType = conn.IdentityTypeUsedForRegistration
 		retransmit = conn.RetransmissionOfInitialNASMsg
 		authSyncTimes = conn.AuthFailureCauseSynchFailureTimes
-		t3513 = conn.T3513
-		t3565 = conn.T3565
-		t3560 = conn.T3560
-		t3550 = conn.T3550
-		t3555 = conn.T3555
-		t3522 = conn.T3522
+		t3513 = &conn.T3513
+		t3565 = &conn.T3565
+		t3560 = &conn.T3560
+		t3550 = &conn.T3550
+		t3555 = &conn.T3555
+		t3522 = &conn.T3522
 	}
 
 	export := UeContextExport{
@@ -381,8 +383,8 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 			T3550Registration:   timerStatus(t3550),
 			T3555ConfigUpdate:   timerStatus(t3555),
 			T3522Deregistration: timerStatus(t3522),
-			MobileReachable:     timerStatus(ue.MobileReachableTimer),
-			ImplicitDereg:       timerStatus(ue.ImplicitDeregistrationTimer),
+			MobileReachable:     timerStatus(&ue.MobileReachableTimer),
+			ImplicitDereg:       timerStatus(&ue.ImplicitDeregistrationTimer),
 		},
 		LastActivity: UELastActivityExport{
 			Timestamp: ue.LastSeenAt,

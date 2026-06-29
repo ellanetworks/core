@@ -69,12 +69,10 @@ func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeCo
 	}
 
 	cfg := amf.T3522Cfg
-	conn.T3522 = NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+	conn.T3522.Arm(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 		retryRanUe := ue.RanUe()
 		if retryRanUe == nil {
 			ue.Log.Warn("UE context released, abort retransmission of Deregistration Request")
-
-			conn.T3522 = nil
 
 			return
 		}
@@ -86,8 +84,6 @@ func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeCo
 		}
 	}, func() {
 		ue.Log.Warn("T3522 expired, abort network-initiated deregistration and remove UE context")
-
-		conn.T3522 = nil
 
 		amf.DeregisterAndRemoveUeContext(context.Background(), ue)
 	})

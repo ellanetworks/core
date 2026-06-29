@@ -40,6 +40,44 @@ func RegisterMetrics() {
 	prometheus.MustRegister(signalingMessages, registrationAttempts)
 }
 
+// RegisterRadioGauges registers the connected-radio and registered-subscriber
+// gauges, each broken down by RAT. The callbacks tally the live counts from the
+// AMF (5G) and MME (4G); a nil callback contributes zero, so a single-RAT
+// deployment can omit the absent side.
+func RegisterRadioGauges(radios5G, subscribers5G, radios4G, subscribers4G func() int) {
+	radiosDesc := prometheus.NewDesc(
+		"app_connected_radios",
+		"Number of radios currently connected to Ella Core, by RAT (5G gNBs, 4G eNBs).",
+		[]string{"rat"},
+		nil,
+	)
+
+	subscribersDesc := prometheus.NewDesc(
+		"app_registered_subscribers",
+		"Number of subscribers currently registered in Ella Core, by RAT (5GS, EPS).",
+		[]string{"rat"},
+		nil,
+	)
+
+	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+		ch <- prometheus.MustNewConstMetric(radiosDesc, prometheus.GaugeValue, float64(countOrZero(radios5G)), RAT5G)
+
+		ch <- prometheus.MustNewConstMetric(radiosDesc, prometheus.GaugeValue, float64(countOrZero(radios4G)), RAT4G)
+
+		ch <- prometheus.MustNewConstMetric(subscribersDesc, prometheus.GaugeValue, float64(countOrZero(subscribers5G)), RAT5G)
+
+		ch <- prometheus.MustNewConstMetric(subscribersDesc, prometheus.GaugeValue, float64(countOrZero(subscribers4G)), RAT4G)
+	}))
+}
+
+func countOrZero(f func() int) int {
+	if f == nil {
+		return 0
+	}
+
+	return f()
+}
+
 // SignalingMessage records one NGAP/S1AP message. rat is RAT4G or RAT5G; direction
 // is "inbound" or "outbound"; msgType is the procedure/message name.
 func SignalingMessage(rat, direction, msgType string) {

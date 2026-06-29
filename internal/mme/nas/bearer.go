@@ -17,11 +17,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// t3412PeriodicTAU is the periodic tracking area update timer advertised to the
-// UE, GPRS Timer encoded (TS 24.008): unit decihours (bits 8-6 =
-// 010), value 9 → 54 minutes, the T3412 default of TS 24.301.
-const t3412PeriodicTAU uint8 = 0x49
-
 // activateDefaultBearer builds the Attach Accept (carrying the default-bearer
 // activation and the UE IP) and sends it to the eNB inside an Initial Context
 // Setup Request, with K_eNB and the UE security capabilities for AS security.
@@ -247,9 +242,14 @@ func buildProtectedAttachAccept(m *mme.MME, ctx context.Context, ue *mme.UeConte
 
 	guti := m.AssignGUTI(ue, plmn, mmeGroupID, mmeCode)
 
+	t3412, err := eps.EncodeGPRSTimer(mme.T3412PeriodicTAU)
+	if err != nil {
+		return nil, fmt.Errorf("encode T3412: %w", err)
+	}
+
 	accept := &eps.AttachAccept{
 		EPSAttachResult:     eps.AttachResultEPS,
-		T3412:               t3412PeriodicTAU,
+		T3412:               t3412,
 		TAIList:             taiList,
 		ESMMessageContainer: esm,
 		GUTI:                &guti,

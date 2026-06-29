@@ -34,7 +34,7 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 		// CONTEXT REQUEST still needs an answer: guard it with T3495 so it is
 		// retransmitted, and on exhaustion release just this PDN connection
 		// locally rather than dropping the UE (TS 24.301 §6.4.4.5).
-		m.ArmNASGuardAbortOnly(ue, "Deactivate EPS Bearer Context Request", naspdu, func() {
+		m.ArmESMGuardAbortOnly(ue, p, "Deactivate EPS Bearer Context Request", naspdu, func() {
 			m.ReleasePDN(ue, p)
 		})
 
@@ -42,7 +42,7 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 	}
 
 	m.SendDownlink(ctx, ue, naspdu)
-	m.ArmNASGuard(ue, "Deactivate EPS Bearer Context Request", naspdu)
+	m.ArmESMGuard(ue, p, "Deactivate EPS Bearer Context Request", naspdu)
 }
 
 // DisconnectBearer tears down the UE's PDN connection p with a regular

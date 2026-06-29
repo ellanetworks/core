@@ -60,6 +60,67 @@ func TestNASGuardAbortOnlyRunsFinalizer(t *testing.T) {
 	}
 }
 
+// TestESMGuardUsesESMTimeout confirms the ESM bearer-procedure guard (T3486
+// modify, T3495 deactivate) fires at the ESM interval, not the common-procedure
+// interval. The common timeout is set long so that only the ESM interval can
+// drive the retransmissions within the test window.
+func TestESMGuardUsesESMTimeout(t *testing.T) {
+	m := newTestMME(t)
+	m.nasGuardTimeout = 10 * time.Second
+	m.esmGuardTimeout = 5 * time.Millisecond
+	m.nasGuardMaxRetransmit = 2
+
+	ue, cc := securedUE(t, m)
+
+	p := &PdnConnection{Ebi: 5}
+
+	finalized := make(chan struct{}, 1)
+
+	m.ArmESMGuardAbortOnly(ue, p, "Modify EPS Bearer Context Request", []byte{0x07, 0xc9}, func() {
+		finalized <- struct{}{}
+	})
+
+	select {
+	case <-finalized:
+	case <-time.After(time.Second):
+		t.Fatal("ESM guard did not fire at esmGuardTimeout; likely using the common-procedure timeout")
+	}
+
+	if got := cc.count(); got != 2 {
+		t.Fatalf("sent %d messages, want 2 ESM retransmissions", got)
+	}
+}
+
+// TestPerBearerESMGuardsAreIndependent is the property that fixes the verified
+// single-guard gap: each bearer's ESM procedure has its own guard, so a procedure
+// outstanding on one bearer (or on EMM) does not cancel another's retransmissions.
+// With a single shared guard, arming the second would cancel the first and its
+// finalizer would never run.
+func TestPerBearerESMGuardsAreIndependent(t *testing.T) {
+	m := newTestMME(t)
+	m.esmGuardTimeout = 5 * time.Millisecond
+	m.nasGuardMaxRetransmit = 1
+
+	ue, _ := securedUE(t, m)
+
+	p1 := &PdnConnection{Ebi: 5}
+	p2 := &PdnConnection{Ebi: 6}
+
+	a1 := make(chan struct{}, 1)
+	a2 := make(chan struct{}, 1)
+
+	m.ArmESMGuardAbortOnly(ue, p1, "Modify EPS Bearer Context Request", []byte{0x07, 0xc9}, func() { a1 <- struct{}{} })
+	m.ArmESMGuardAbortOnly(ue, p2, "Deactivate EPS Bearer Context Request", []byte{0x07, 0xcd}, func() { a2 <- struct{}{} })
+
+	for i, ch := range []chan struct{}{a1, a2} {
+		select {
+		case <-ch:
+		case <-time.After(time.Second):
+			t.Fatalf("ESM guard %d finalizer never ran: a concurrent bearer's guard cancelled it", i+1)
+		}
+	}
+}
+
 // TestNASGuardStoppedByResponse confirms a UE response cancels the guard before
 // it can retransmit or release.
 func TestNASGuardStoppedByResponse(t *testing.T) {
@@ -79,7 +140,7 @@ func TestNASGuardStoppedByResponse(t *testing.T) {
 		t.Fatal("UE released despite the guarded response arriving")
 	}
 
-	if ue.S1.nasGuardTimer != nil {
+	if ue.S1.nasGuard.Active() {
 		t.Fatal("NAS guard still armed after the response")
 	}
 

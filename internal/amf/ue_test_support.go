@@ -4,6 +4,8 @@
 package amf
 
 import (
+	"time"
+
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas/nasType"
@@ -13,6 +15,10 @@ import (
 // Test-support accessors for the unexported NAS security/identity state. They
 // let external test packages (amf_test, ngap_test) construct and inspect a UE in
 // a given security state without exporting the fields themselves.
+
+// SetHandoverGuardTimeoutForTest overrides the N2 handover supervision timeout so
+// tests can drive the guard quickly.
+func (a *AMF) SetHandoverGuardTimeoutForTest(d time.Duration) { a.handoverGuardTimeout = d }
 
 func (ue *UeContext) SetSupiForTest(s etsi.SUPI) { ue.supi = s }
 func (ue *UeContext) SupiForTest() etsi.SUPI     { return ue.supi }

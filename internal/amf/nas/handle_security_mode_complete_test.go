@@ -94,7 +94,7 @@ func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
 	}
 
 	ue.ForceState(amf.SecurityMode)
-	ue.NasConn().T3560 = amf.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
+	ue.NasConn().T3560.Arm(10*time.Minute, 10, func(e int32) {}, func() {})
 
 	msg := buildTestSecurityModeCompleteMessage()
 
@@ -103,7 +103,7 @@ func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if ue.NasConn().T3560 != nil {
+	if ue.NasConn().T3560.Active() {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
 	}
 
@@ -138,7 +138,7 @@ func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
 	}
 
 	ue.ForceState(amf.SecurityMode)
-	ue.NasConn().T3560 = amf.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
+	ue.NasConn().T3560.Arm(10*time.Minute, 10, func(e int32) {}, func() {})
 
 	msg := buildTestSecurityModeCompleteMessage()
 	msg.IMEISV = &nasType.IMEISV{

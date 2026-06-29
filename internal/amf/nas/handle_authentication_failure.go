@@ -28,10 +28,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		return fmt.Errorf("no active NAS connection")
 	}
 
-	if conn.T3560 != nil {
-		conn.T3560.Stop()
-		conn.T3560 = nil
-	}
+	conn.T3560.Stop()
 
 	switch msg.GetCauseValue() {
 	case nasMessage.Cause5GMMMACFailure:

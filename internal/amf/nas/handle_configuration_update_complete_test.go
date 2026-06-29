@@ -49,7 +49,7 @@ func TestHandleConfigurationUpdateComplete_MacFailed(t *testing.T) {
 func TestHandleConfigurationUpdateComplete_T3555Stopped_OldGutiFreed(t *testing.T) {
 	ue := amf.NewUeContext()
 	ue.ForceState(amf.Registered)
-	ue.NasConn().T3555 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.NasConn().T3555.Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.OldGuti = mustTestGuti("001", "01", "cafe42", 0x12345678)
 	ue.OldTmsi = mustValidTestTmsi(0x12345678)
 
@@ -60,7 +60,7 @@ func TestHandleConfigurationUpdateComplete_T3555Stopped_OldGutiFreed(t *testing.
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if ue.NasConn().T3555 != nil {
+	if ue.NasConn().T3555.Active() {
 		t.Fatal("expected timer T3555 to be stopped and cleared")
 	}
 

@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"context"
+	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
@@ -47,6 +48,17 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		logger.WithTrace(ctx, sourceUe.Log).Info("N2Handover rejected by procedure registry", zap.Error(beginErr))
 		return
 	}
+
+	// Supervision is armed only once the target is engaged (see end of function).
+	// Until then — and on every preparation-failure path — the procedure must not
+	// be left active, or it would pin the UE with no deadline to clear it.
+	armed := false
+
+	defer func() {
+		if !armed {
+			conn.Procedures.End(procedure.N2Handover)
+		}
+	}()
 
 	if !amfUe.SecurityContextIsValid() {
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Authentication Failure]")
@@ -187,5 +199,37 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	if err != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover request to target UE", zap.Error(err))
 		return
+	}
+
+	// Bound the handover (HANDOVER REQUIRED → NOTIFY): if the target gNB never
+	// completes it, the guard abandons the handover and releases the target.
+	// Armed here, after the target is engaged, so its cleanup captures the target
+	// directly and the timer goroutine has a happens-before edge to this setup.
+	if supErr := conn.Procedures.Supervise(conn.Ctx(), procedure.N2Handover,
+		time.Now().Add(amfInstance.HandoverGuardTimeout()),
+		handoverGuardExpiry(sourceUe, targetUe)); supErr != nil {
+		logger.WithTrace(ctx, sourceUe.Log).Warn("could not arm N2 handover guard", zap.Error(supErr))
+	} else {
+		armed = true
+	}
+}
+
+// handoverGuardExpiry abandons a stalled N2 handover. The procedure registry runs
+// it when the supervision deadline elapses (or the source NAS connection is
+// cancelled) before HANDOVER NOTIFY arrives — the target gNB never completed the
+// handover. The half-prepared target UE context is released; the source is left in
+// place (its own TNGRELOCprep/Overall timers abort the handover on the radio),
+// mirroring the MME's onHandoverGuardExpiry (TS 38.413 §8.4). A normal completion
+// (HANDOVER NOTIFY/FAILURE/CANCEL) ends the procedure, which stops this timer
+// before it can fire, so the captured target is touched by at most one goroutine.
+func handoverGuardExpiry(sourceUe, targetUe *amf.RanUe) func(context.Context) error {
+	return func(cctx context.Context) error {
+		logger.WithTrace(cctx, sourceUe.Log).Warn("N2 handover abandoned: target gNB did not complete it in time, releasing target")
+
+		targetUe.ReleaseAction = amf.UeContextReleaseHandover
+
+		return targetUe.SendUEContextReleaseCommand(cctx,
+			ngapType.CausePresentRadioNetwork,
+			ngapType.CauseRadioNetworkPresentTngrelocoverallExpiry)
 	}
 }

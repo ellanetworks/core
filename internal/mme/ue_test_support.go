@@ -140,4 +140,4 @@ func (m *MME) FireHandoverGuardForTest(ue *UeContext, gen uint64) { m.onHandover
 func (m *MME) ReclaimUEsOnConnLossForTest(conn NasWriter) { m.reclaimUEsOnConnLoss(conn) }
 
 // MobileReachableArmedForTest reports whether the mobile-reachable timer is armed.
-func (ue *UeContext) MobileReachableArmedForTest() bool { return ue.mobileReachableTimer != nil }
+func (ue *UeContext) MobileReachableArmedForTest() bool { return ue.mobileReachableTimer.Active() }

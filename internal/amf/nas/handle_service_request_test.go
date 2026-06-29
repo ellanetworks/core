@@ -353,7 +353,8 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 	ue.ForceState(amf.Registered)
 	ue.SetSecurityContextAvailableForTest(true)
 
-	ue.NasConn().T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.NasConn().T3513.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+
 	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
 		t.Fatal(err)
 	}
@@ -386,7 +387,7 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 		t.Fatalf("expected a service accept message, got '%v'", decoded.Message.GmmHeader.GetMessageType())
 	}
 
-	if ue.NasConn().T3513 != nil {
+	if ue.NasConn().T3513.Active() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
@@ -420,7 +421,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.NasConn().T3565 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.NasConn().T3565.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
 	ue.SetSecurityContextAvailableForTest(true)
@@ -477,7 +478,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 		t.Fatalf("expected a service accept message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.NasConn().T3565 != nil {
+	if ue.NasConn().T3565.Active() {
 		t.Fatalf("expected timer T3565 to be stopped and cleared")
 	}
 }
@@ -507,7 +508,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.NasConn().T3565 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.NasConn().T3565.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
 	ue.SetSecurityContextAvailableForTest(true)
@@ -564,7 +565,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 		t.Fatalf("expected a service accept message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.NasConn().T3565 != nil {
+	if ue.NasConn().T3565.Active() {
 		t.Fatalf("expected timer T3565 to be stopped and cleared")
 	}
 }
@@ -596,7 +597,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 
-	ue.NasConn().T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.NasConn().T3513.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+
 	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
 		t.Fatal(err)
 	}
@@ -659,7 +661,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 		t.Fatalf("expected a service accept message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.NasConn().T3513 != nil {
+	if ue.NasConn().T3513.Active() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
@@ -697,7 +699,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.NasConn().T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.NasConn().T3513.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+
 	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
 		t.Fatal(err)
 	}
@@ -769,7 +772,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	ue.NasConn().T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.NasConn().T3513.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+
 	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
 		t.Fatal(err)
 	}
@@ -864,11 +868,11 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 		t.Fatalf("expected a configuration update command message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.NasConn().T3513 != nil {
+	if ue.NasConn().T3513.Active() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if ue.NasConn().T3555 == nil {
+	if !ue.NasConn().T3555.Active() {
 		t.Fatalf("expected timer T3555 to be started")
 	}
 
@@ -910,7 +914,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	ue.NasConn().T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.NasConn().T3513.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+
 	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
 		t.Fatal(err)
 	}
@@ -1010,11 +1015,11 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected a configuration update command message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.NasConn().T3513 != nil {
+	if ue.NasConn().T3513.Active() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if ue.NasConn().T3555 == nil {
+	if !ue.NasConn().T3555.Active() {
 		t.Fatalf("expected timer T3555 to be started")
 	}
 
@@ -1056,7 +1061,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	ue.NasConn().T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.NasConn().T3513.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+
 	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
 		t.Fatal(err)
 	}
@@ -1164,11 +1170,11 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected a configuration update command message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.NasConn().T3513 != nil {
+	if ue.NasConn().T3513.Active() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if ue.NasConn().T3555 == nil {
+	if !ue.NasConn().T3555.Active() {
 		t.Fatalf("expected timer T3555 to be started")
 	}
 
@@ -1210,7 +1216,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	ue.NasConn().T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.NasConn().T3513.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+
 	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
 		t.Fatal(err)
 	}
@@ -1307,11 +1314,11 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 		t.Fatalf("expected a configuration update command message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.NasConn().T3513 != nil {
+	if ue.NasConn().T3513.Active() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if ue.NasConn().T3555 == nil {
+	if !ue.NasConn().T3555.Active() {
 		t.Fatalf("expected timer T3555 to be started")
 	}
 
@@ -1353,7 +1360,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	ue.NasConn().T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.NasConn().T3513.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+
 	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
 		t.Fatal(err)
 	}
@@ -1493,11 +1501,11 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		t.Fatalf("expected a configuration update command message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.NasConn().T3513 != nil {
+	if ue.NasConn().T3513.Active() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if ue.NasConn().T3555 == nil {
+	if !ue.NasConn().T3555.Active() {
 		t.Fatalf("expected timer T3555 to be started")
 	}
 

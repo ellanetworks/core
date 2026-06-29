@@ -489,8 +489,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// Let the SMF page idle 4G UEs through the MME when downlink data arrives.
 	smfInstance.SetMME(mmeInstance)
 
-	amf.RegisterMetrics(amfInstance, mmeInstance.CountENBs, mmeInstance.CountRegisteredSubscribers)
 	metrics.RegisterMetrics()
+	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountENBs, mmeInstance.CountRegisteredSubscribers)
 
 	// Session reconciler: watches the session_reconcile changefeed topic
 	// and reconciles every local PDU session against the current DB policy.

@@ -23,6 +23,17 @@ func eventually(t *testing.T, d time.Duration, cond func() bool) {
 	t.Fatal("condition not met within deadline")
 }
 
+// TestMobileReachableDerivesFromT3412 pins the mobile reachable timer to the
+// periodic-TAU timer + 4 min (TS 24.301 §5.3.5), so the two cannot drift if
+// T3412PeriodicTAU changes — the same value the Attach Accept advertises.
+func TestMobileReachableDerivesFromT3412(t *testing.T) {
+	m := newTestMME(t)
+
+	if got, want := m.mobileReachableTime, T3412PeriodicTAU+4*time.Minute; got != want {
+		t.Fatalf("mobileReachableTime = %v, want T3412PeriodicTAU + 4min = %v", got, want)
+	}
+}
+
 // TestMobileReachableEscalatesToImplicitDetach drives the full idle-supervision
 // escalation (TS 24.301 §5.3.5): the mobile reachable timer expires, the
 // implicit detach timer expires, and the UE is released locally.

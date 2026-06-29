@@ -34,7 +34,11 @@ var matrix = map[matrixKey]matrixEntry{
 	{UEContextMod, N2Handover}: {blocked: true, rule: "C4"},
 }
 
-func conflicts(active, incoming Type) (blocked bool, rule string) {
+// amfRules binds the 5GMM conflict matrix and re-entrancy policy to the generic
+// procedure engine's Rules interface.
+type amfRules struct{}
+
+func (amfRules) Conflicts(active, incoming Type) (blocked bool, rule string) {
 	if e, ok := matrix[matrixKey{active, incoming}]; ok {
 		return e.blocked, e.rule
 	}
@@ -42,8 +46,8 @@ func conflicts(active, incoming Type) (blocked bool, rule string) {
 	return false, ""
 }
 
-// isReentrant returns true for procedure types that allow multiple
+// Reentrant returns true for procedure types that allow multiple
 // concurrent instances (e.g. Paging for different PDU sessions).
-func isReentrant(t Type) bool {
+func (amfRules) Reentrant(t Type) bool {
 	return t == Paging
 }

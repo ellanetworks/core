@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/internal/smf/ngap"
-	"github.com/ellanetworks/core/internal/util/timer"
 	"go.uber.org/zap"
 )
 
@@ -72,7 +71,7 @@ func (s *SMF) armRetransmit(smContext *SMContext, d time.Duration, resend func()
 	supi := smContext.Supi
 	pduSessionID := smContext.PDUSessionID
 
-	smContext.startProcedureTimer(timer.New(d, maxSMProcedureRetransmissions,
+	smContext.procedureTimer.Arm(d, maxSMProcedureRetransmissions,
 		func(expiry int32) {
 			if s.GetSession(ref) == nil {
 				return
@@ -93,7 +92,6 @@ func (s *SMF) armRetransmit(smContext *SMContext, d time.Duration, resend func()
 			sc.Mutex.Lock()
 			defer sc.Mutex.Unlock()
 
-			sc.stopProcedureTimer()
 			abort(sc)
-		}))
+		})
 }

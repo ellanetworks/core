@@ -152,15 +152,8 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		return fmt.Errorf("no active NAS connection")
 	}
 
-	if conn.T3513 != nil {
-		conn.T3513.Stop()
-		conn.T3513 = nil
-	}
-
-	if conn.T3565 != nil {
-		conn.T3565.Stop()
-		conn.T3565 = nil
-	}
+	conn.T3513.Stop()
+	conn.T3565.Stop()
 
 	if conn.Procedures.Active(procedure.Paging) {
 		conn.Procedures.End(procedure.Paging)

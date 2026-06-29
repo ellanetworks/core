@@ -22,11 +22,7 @@ func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *nasMe
 	defer ue.Deregister(ctx)
 
 	if conn := ue.NasConn(); conn != nil {
-		if conn.T3560 != nil {
-			conn.T3560.Stop()
-			conn.T3560 = nil
-		}
-
+		conn.T3560.Stop()
 		conn.Procedures.End(procedure.SecurityMode)
 	}
 

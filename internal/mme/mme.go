@@ -112,6 +112,11 @@ type MME struct {
 	nasGuardTimeout       time.Duration
 	nasGuardMaxRetransmit int
 
+	// ESM bearer-procedure guard (TS 24.301: T3486 modify, T3495 deactivate),
+	// which the spec sets longer than the common-procedure timers. Field so tests
+	// can shorten it.
+	esmGuardTimeout time.Duration
+
 	// Paging supervision (T3413, TS 24.301 §5.6.2). Fields so tests can shorten
 	// them.
 	pagingTimeout       time.Duration
@@ -123,12 +128,19 @@ type MME struct {
 	handoverGuardTimeout time.Duration
 }
 
-// mobileReachableTime supervises the UE's periodic tracking area updating; its
-// default is T3412 + 4 minutes (TS 24.301). implicitDetachTime is the
-// grace period the MME waits after the mobile reachable timer before it
+// T3412PeriodicTAU is the periodic tracking-area-update timer the MME advertises
+// to UEs (TS 24.301). It is the single source for both the value encoded into the
+// Attach Accept and the mobile reachable timer below, so the two cannot drift if
+// it ever becomes configurable.
+const T3412PeriodicTAU = 54 * time.Minute
+
+// mobileReachableTime supervises the UE's periodic tracking area updating: it is
+// the periodic-TAU timer + 4 minutes (TS 24.301 §5.3.5), derived from
+// T3412PeriodicTAU exactly as the AMF derives T3512 + 4 minutes. implicitDetachTime
+// is the grace period the MME waits after the mobile reachable timer before it
 // implicitly detaches an unreachable UE (the value is network-dependent).
 const (
-	defaultMobileReachableTime = 58 * time.Minute
+	defaultMobileReachableTime = T3412PeriodicTAU + 4*time.Minute
 	defaultImplicitDetachTime  = 2 * time.Minute
 )
 
@@ -140,6 +152,11 @@ const (
 	defaultNASGuardTimeout       = 6 * time.Second
 	defaultNASGuardMaxRetransmit = 4
 )
+
+// defaultESMGuardTimeout is the retransmission interval for the ESM bearer
+// procedures (T3486 modify, T3495 deactivate, TS 24.301 §10.2.1): 8 s, longer
+// than the 6 s common-procedure guard.
+const defaultESMGuardTimeout = 8 * time.Second
 
 // The paging supervision timer T3413 bounds how long the MME waits for a paged
 // UE to respond before retransmitting and, after a bounded number of attempts,
@@ -177,6 +194,7 @@ func New(cred *udm.Service, bearer bearerStore, session epsSessionManager) *MME 
 
 		nasGuardTimeout:       defaultNASGuardTimeout,
 		nasGuardMaxRetransmit: defaultNASGuardMaxRetransmit,
+		esmGuardTimeout:       defaultESMGuardTimeout,
 
 		pagingTimeout:       defaultPagingTimeout,
 		pagingMaxRetransmit: defaultPagingMaxRetransmit,

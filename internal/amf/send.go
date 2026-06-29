@@ -110,7 +110,7 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *AMF, ue *RanUe)
 
 	if amfInstance.T3560Cfg.Enable {
 		cfg := amfInstance.T3560Cfg
-		conn.T3560 = NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+		conn.T3560.Arm(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.Log.Warn("T3560 expires, retransmit Authentication Request", zap.Any("expireTimes", expireTimes))
 
 			err := ue.SendDownlinkNasTransport(context.Background(), nasMsg, nil)
@@ -269,7 +269,7 @@ func SendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *RanUe) e
 	if amfInstance.T3560Cfg.Enable {
 		cfg := amfInstance.T3560Cfg
 		conn := amfUe.NasConn()
-		conn.T3560 = NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+		conn.T3560.Arm(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.Log.Warn("T3560 expires, retransmit Security Mode Command", zap.Any("expireTimes", expireTimes))
 
 			err = ue.SendDownlinkNasTransport(context.Background(), nasMsg, nil)
@@ -383,12 +383,10 @@ func SendRegistrationAccept(
 	if amfInstance.T3550Cfg.Enable {
 		cfg := amfInstance.T3550Cfg
 		conn := ue.NasConn()
-		conn.T3550 = NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+		conn.T3550.Arm(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			retryRanUe := ue.RanUe()
 			if retryRanUe == nil {
 				ue.Log.Warn("[NAS] UE Context released, abort retransmission of Registration Accept")
-
-				conn.T3550 = nil
 			} else {
 				if retryRanUe.UeContextRequest && retryRanUe.ICS != ICSCompleted {
 					err = retryRanUe.SendInitialContextSetupRequest(
@@ -426,7 +424,6 @@ func SendRegistrationAccept(
 		}, func() {
 			ue.Log.Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))
 
-			conn.T3550 = nil
 			// TS 24.501 5.5.1.2.8 case c, 5.5.1.3.8 case c
 			ue.TransitionTo(Registered)
 			ue.ClearRegistrationRequestData()
@@ -486,14 +483,12 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 
 		amfUe.Log.Info("start T3555 timer")
 		conn := amfUe.NasConn()
-		conn.T3555 = NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+		conn.T3555.Arm(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.Log.Warn("timer T3555 expired, retransmit Configuration Update Command", zap.Int32("retry", expireTimes))
 
 			retryRanUe := amfUe.RanUe()
 			if retryRanUe == nil {
 				amfUe.Log.Warn("UE Context released, abort retransmission of Configuration Update Command")
-
-				conn.T3555 = nil
 
 				return
 			}

@@ -5,8 +5,8 @@ package mme
 
 import (
 	"context"
-	"time"
 
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
@@ -43,7 +43,7 @@ type handoverContext struct {
 	newNH  [32]byte
 	newNCC uint8
 	// guardTimer abandons the handover if the target never completes it (TS 36.413 §8.4).
-	guardTimer *time.Timer
+	guardTimer guard.Guard
 }
 
 // PrepareHandover allocates a target association, advances the {NH, NCC} chain, and
@@ -84,7 +84,7 @@ func (m *MME) PrepareHandover(ue *UeContext, target NasWriter, reqMMEID s1ap.MME
 		newNH:  newNH,
 		newNCC: newNCC,
 	}
-	ho.guardTimer = time.AfterFunc(m.handoverGuardTimeout, func() { m.onHandoverGuardExpiry(ue, gen) })
+	ho.guardTimer.ArmOnce(m.handoverGuardTimeout, func() { m.onHandoverGuardExpiry(ue, gen) })
 	ue.handover = ho
 	ue.keyChainBusy = true
 	targetMMEID = targetConn.MMEUES1APID
@@ -281,9 +281,7 @@ func (m *MME) clearHandoverLocked(ue *UeContext) {
 		return
 	}
 
-	if ho.guardTimer != nil {
-		ho.guardTimer.Stop()
-	}
+	ho.guardTimer.Stop()
 
 	if ho.target != nil && ho.target != ue.S1 {
 		ho.target.ue = nil

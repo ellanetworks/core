@@ -138,11 +138,11 @@ func TestHandleAuthenticationResponse_TimerT3560Stopped(t *testing.T) {
 		HxresStar: "not a match",
 	}
 	conn.IdentityTypeUsedForRegistration = nasMessage.MobileIdentity5GSTypeSuci
-	conn.T3560 = amf.NewTimer(10*time.Minute, 5, func(e int32) {}, func() {})
+	conn.T3560.Arm(10*time.Minute, 5, func(e int32) {}, func() {})
 
 	_ = handleAuthenticationResponse(t.Context(), amf.New(nil, nil, nil), ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 
-	if conn.T3560 != nil {
+	if conn.T3560.Active() {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
 	}
 }

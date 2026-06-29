@@ -50,8 +50,6 @@ func handleESM(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte)
 // selects the PDN connection, so a modification of an additional PDN commits to
 // the right bearer.
 func handleModifyBearerAccept(m *mme.MME, ue *mme.UeContext, plain []byte) {
-	m.StopNASGuard(ue)
-
 	p := m.DefaultPDN(ue)
 	if accept, err := eps.ParseModifyEPSBearerContextAccept(plain); err == nil {
 		if named := m.LookupPDN(ue, accept.EPSBearerIdentity); named != nil {
@@ -62,6 +60,8 @@ func handleModifyBearerAccept(m *mme.MME, ue *mme.UeContext, plain []byte) {
 	if p == nil {
 		return
 	}
+
+	m.StopESMGuard(p)
 
 	if !ue.CommitBearerModification(p) {
 		return
@@ -74,8 +74,6 @@ func handleModifyBearerAccept(m *mme.MME, ue *mme.UeContext, plain []byte) {
 // handleModifyBearerReject abandons the modification when the UE rejects it
 // (TS 24.301 §6.4.2.4), leaving the stored config stale so the backstop retries.
 func handleModifyBearerReject(m *mme.MME, ue *mme.UeContext, plain []byte) {
-	m.StopNASGuard(ue)
-
 	p := m.DefaultPDN(ue)
 	if rej, err := eps.ParseModifyEPSBearerContextReject(plain); err == nil {
 		if named := m.LookupPDN(ue, rej.EPSBearerIdentity); named != nil {
@@ -84,6 +82,7 @@ func handleModifyBearerReject(m *mme.MME, ue *mme.UeContext, plain []byte) {
 	}
 
 	if p != nil {
+		m.StopESMGuard(p)
 		ue.ClearPendingModify(p)
 	}
 
@@ -97,8 +96,6 @@ func handleModifyBearerReject(m *mme.MME, ue *mme.UeContext, plain []byte) {
 // for the default bearer instead releases the S1 context so the UE re-attaches
 // and picks up the new data-network configuration (TS 24.301 §6.4.4.2).
 func handleDeactivateBearerAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
-	m.StopNASGuard(ue)
-
 	p := m.DefaultPDN(ue)
 	if accept, err := eps.ParseDeactivateEPSBearerContextAccept(plain); err == nil {
 		if named := m.LookupPDN(ue, accept.EPSBearerIdentity); named != nil {
@@ -109,6 +106,8 @@ func handleDeactivateBearerAccept(m *mme.MME, ctx context.Context, ue *mme.UeCon
 	if p == nil {
 		return
 	}
+
+	m.StopESMGuard(p)
 
 	// Only reactivating the attach (first) PDN's default bearer detaches the UE so
 	// it re-attaches with the new configuration (TS 24.301 §6.4.4.2). A PDN

@@ -71,15 +71,8 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		ue.Log.Warn("failed to begin registration procedure", zap.Error(err))
 	}
 
-	if conn.T3513 != nil {
-		conn.T3513.Stop()
-		conn.T3513 = nil
-	}
-
-	if conn.T3565 != nil {
-		conn.T3565.Stop()
-		conn.T3565 = nil
-	}
+	conn.T3513.Stop()
+	conn.T3565.Stop()
 
 	// TS 24.501 4.4.6: If NASMessageContainer is present, it contains a ciphered inner Registration Request
 	// carrying non-cleartext IEs, which must be decrypted and processed instead of the outer

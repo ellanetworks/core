@@ -126,8 +126,16 @@ type AMF struct {
 	T3555Cfg                 TimerValue
 	T3560Cfg                 TimerValue
 	T3565Cfg                 TimerValue
-	Smf                      SmfSbi
-	NAS                      NASHandler
+	// handoverGuardTimeout bounds an N2 handover (HANDOVER REQUIRED → NOTIFY); see
+	// defaultHandoverGuardTimeout. Mirrors the MME's handoverGuardTimeout.
+	handoverGuardTimeout time.Duration
+	Smf                  SmfSbi
+	NAS                  NASHandler
+}
+
+// HandoverGuardTimeout returns the N2 handover supervision timeout.
+func (a *AMF) HandoverGuardTimeout() time.Duration {
+	return a.handoverGuardTimeout
 }
 
 func (a *AMF) allocateTMSI(ctx context.Context) (etsi.TMSI, error) {
@@ -478,11 +486,20 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 		T3555Cfg:                 defaultTimerCfg,
 		T3560Cfg:                 defaultTimerCfg,
 		T3565Cfg:                 defaultTimerCfg,
+		handoverGuardTimeout:     defaultHandoverGuardTimeout,
 		NetworkFeatureSupport5GS: &NetworkFeatureSupport5GS{Enable: true, ImsVoPS: 1},
 	}
 
 	return a
 }
+
+// defaultHandoverGuardTimeout bounds an N2 handover from HANDOVER REQUIRED to
+// HANDOVER NOTIFY. It is generous relative to the source gNB's
+// TNGRELOCprep/TNGRELOCOverall so a normal handover always completes first; it
+// fires only when the target gNB never answers (TS 38.413 §8.4), abandoning the
+// half-prepared handover so a silent target cannot pin the UE's N2Handover
+// procedure. Mirrors the MME's defaultHandoverGuardTimeout.
+const defaultHandoverGuardTimeout = 10 * time.Second
 
 var defaultTimerCfg = TimerValue{
 	Enable:        true,
@@ -593,7 +610,7 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) e
 	if amf.T3513Cfg.Enable {
 		cfg := amf.T3513Cfg
 		conn := ue.NasConn()
-		conn.T3513 = NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+		conn.T3513.Arm(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			ue.Log.Info("t3513 expires, retransmit paging", zap.Int32("retry", expireTimes))
 
 			for _, ran := range amf.ListRadios() {
@@ -613,8 +630,6 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) e
 			}
 		}, func() {
 			ue.Log.Warn("T3513 expires, abort paging procedure", zap.Int32("retry", cfg.MaxRetryTimes))
-
-			conn.T3513 = nil
 		})
 	}
 

@@ -20,6 +20,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf/procedure"
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/ueauth"
@@ -114,8 +115,13 @@ type UeContext struct {
 	T3502Value time.Duration
 	T3512Value time.Duration
 
-	MobileReachableTimer        *Timer
-	ImplicitDeregistrationTimer *Timer
+	// Idle-mode supervision (TS 24.501): the mobile reachable timer escalates to
+	// implicit deregistration. idleGen bumps on every (re)arm/stop so an expiry
+	// that fired just as the UE reconnected is ignored when it re-checks under
+	// ue.mu. Both are one logical episode keyed by idleGen.
+	MobileReachableTimer        guard.Guard
+	ImplicitDeregistrationTimer guard.Guard
+	idleGen                     uint64
 }
 
 func NewUeContext() *UeContext {
@@ -206,18 +212,12 @@ func (ue *UeContext) resetSecurityContext() {
 	ue.T3512Value = 0
 }
 
-// stopIdleTimers stops and clears the registered-but-idle timers (mobile
-// reachable and implicit deregistration).
+// stopIdleTimers cancels both idle-mode timers and bumps idleGen so an expiry
+// that has already fired becomes a no-op. Caller holds ue.mu.
 func (ue *UeContext) stopIdleTimers() {
-	if ue.MobileReachableTimer != nil {
-		ue.MobileReachableTimer.Stop()
-		ue.MobileReachableTimer = nil
-	}
-
-	if ue.ImplicitDeregistrationTimer != nil {
-		ue.ImplicitDeregistrationTimer.Stop()
-		ue.ImplicitDeregistrationTimer = nil
-	}
+	ue.idleGen++
+	ue.MobileReachableTimer.Stop()
+	ue.ImplicitDeregistrationTimer.Stop()
 }
 
 // RanUe returns the currently attached RanUe, or nil.
@@ -774,55 +774,66 @@ func (ue *UeContext) ResetMobileReachableTimer() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	if ue.ImplicitDeregistrationTimer != nil {
-		ue.ImplicitDeregistrationTimer.Stop()
-		ue.ImplicitDeregistrationTimer = nil
-	}
+	ue.stopIdleTimers()
+	gen := ue.idleGen
 
 	ue.Log.Debug("starting mobile reachable timer", logger.SUPI(ue.supi.String()))
 
-	ue.MobileReachableTimer = NewTimer(
-		ue.T3512Value+(4*time.Minute),
-		1,
-		func(expireTimes int32) {
-			ue.Log.Debug("mobile reachable timer expired", logger.SUPI(ue.supi.String()))
-			ue.startImplicitDeregistrationTimer()
-		},
-		func() {},
-	)
+	ue.MobileReachableTimer.ArmOnce(ue.T3512Value+(4*time.Minute), func() {
+		ue.onMobileReachableExpiry(gen)
+	})
 }
 
+// StopMobileReachableTimer ends idle-mode supervision when the UE becomes
+// reachable again.
 func (ue *UeContext) StopMobileReachableTimer() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.Log.Debug("stopping mobile reachable timer")
-
-	if ue.MobileReachableTimer != nil {
-		ue.MobileReachableTimer.Stop()
-		ue.MobileReachableTimer = nil
-	}
+	ue.Log.Debug("stopping idle-mode timers")
+	ue.stopIdleTimers()
 }
 
+// StopImplicitDeregistrationTimer ends idle-mode supervision when the UE becomes
+// reachable again.
 func (ue *UeContext) StopImplicitDeregistrationTimer() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.Log.Debug("stopping implicit deregistration timer")
-
-	if ue.ImplicitDeregistrationTimer != nil {
-		ue.ImplicitDeregistrationTimer.Stop()
-		ue.ImplicitDeregistrationTimer = nil
-	}
+	ue.Log.Debug("stopping idle-mode timers")
+	ue.stopIdleTimers()
 }
 
-func (ue *UeContext) startImplicitDeregistrationTimer() {
+// onMobileReachableExpiry escalates to the implicit deregistration timer once the
+// mobile reachable timer fires (TS 24.501). It no-ops if a reconnect bumped
+// idleGen after this timer was armed.
+func (ue *UeContext) onMobileReachableExpiry(gen uint64) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.Log.Debug("starting implicit deregistration timer")
+	if ue.idleGen != gen {
+		return
+	}
 
-	ue.ImplicitDeregistrationTimer = NewTimer(2*time.Minute, 1, func(expireTimes int32) { ue.Deregister(context.Background()) }, func() {})
+	ue.Log.Debug("mobile reachable timer expired", logger.SUPI(ue.supi.String()))
+
+	ue.ImplicitDeregistrationTimer.ArmOnce(2*time.Minute, func() {
+		ue.onImplicitDeregistrationExpiry(gen)
+	})
+}
+
+// onImplicitDeregistrationExpiry deregisters an unreachable UE (TS 24.501). It
+// no-ops if a reconnect bumped idleGen after the implicit timer was armed.
+func (ue *UeContext) onImplicitDeregistrationExpiry(gen uint64) {
+	ue.mu.Lock()
+	stale := ue.idleGen != gen
+	ue.mu.Unlock()
+
+	if stale {
+		return
+	}
+
+	ue.Deregister(context.Background())
 }
 
 func (ue *UeContext) StopProcedureTimers() {
@@ -834,10 +845,8 @@ func (ue *UeContext) StopProcedureTimers() {
 		return
 	}
 
-	for _, t := range []*Timer{conn.T3513, conn.T3565, conn.T3560, conn.T3550, conn.T3555, conn.T3522} {
-		if t != nil {
-			t.Stop()
-		}
+	for _, g := range []*guard.Guard{&conn.T3513, &conn.T3565, &conn.T3560, &conn.T3550, &conn.T3555, &conn.T3522} {
+		g.Stop()
 	}
 }
 

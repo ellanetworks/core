@@ -189,6 +189,67 @@ func TestDeadlineExpiry(t *testing.T) {
 	}
 }
 
+func TestSuperviseArmsDeadlineAfterBegin(t *testing.T) {
+	r := newTestRegistry()
+	ctx := context.Background()
+
+	if _, err := r.Begin(ctx, procedure.Procedure{Type: procedure.N2Handover}); err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+
+	var cancelled atomic.Bool
+
+	err := r.Supervise(ctx, procedure.N2Handover, time.Now().Add(50*time.Millisecond),
+		func(context.Context) error { cancelled.Store(true); return nil })
+	if err != nil {
+		t.Fatalf("Supervise failed: %v", err)
+	}
+
+	time.Sleep(150 * time.Millisecond)
+
+	if !cancelled.Load() {
+		t.Fatal("expected supervised cancel callback to fire on timeout")
+	}
+
+	if r.Active(procedure.N2Handover) {
+		t.Fatal("expected N2Handover removed after supervised timeout")
+	}
+}
+
+func TestSuperviseTimerStoppedByEnd(t *testing.T) {
+	r := newTestRegistry()
+	ctx := context.Background()
+
+	if _, err := r.Begin(ctx, procedure.Procedure{Type: procedure.N2Handover}); err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+
+	var cancelled atomic.Bool
+
+	if err := r.Supervise(ctx, procedure.N2Handover, time.Now().Add(50*time.Millisecond),
+		func(context.Context) error { cancelled.Store(true); return nil }); err != nil {
+		t.Fatalf("Supervise failed: %v", err)
+	}
+
+	r.End(procedure.N2Handover)
+
+	time.Sleep(150 * time.Millisecond)
+
+	if cancelled.Load() {
+		t.Fatal("End must stop the supervision timer so the cancel never fires")
+	}
+}
+
+func TestSuperviseNotActive(t *testing.T) {
+	r := newTestRegistry()
+
+	err := r.Supervise(context.Background(), procedure.N2Handover, time.Now().Add(time.Minute),
+		func(context.Context) error { return nil })
+	if !errors.Is(err, procedure.ErrNotActive) {
+		t.Fatalf("expected ErrNotActive, got %v", err)
+	}
+}
+
 func TestCancelCallbackPanicRecovery(t *testing.T) {
 	r := newTestRegistry()
 	ctx := context.Background()
