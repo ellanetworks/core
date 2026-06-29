@@ -18,15 +18,15 @@ import (
 func TestInitialContextSetupResponseRelaysENBFTEID(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.newUe(cc, 7)
+	ue := m.NewUe(cc, 7)
 	ue.imsi = testSubscriber.IMSI
-	testPDN(ue).apn = "internet"
+	testPDN(ue).Apn = "internet"
 
 	resp := &s1ap.InitialContextSetupResponse{
-		MMEUES1APID: ue.s1.MMEUES1APID,
+		MMEUES1APID: ue.S1.MMEUES1APID,
 		ENBUES1APID: 7,
 		ERABSetup: []s1ap.ERABSetupItemCtxtSURes{{
-			ERABID:                s1ap.ERABID(defaultERABID),
+			ERABID:                s1ap.ERABID(DefaultERABID),
 			TransportLayerAddress: s1ap.TransportLayerAddress([]byte{10, 3, 0, 3}),
 			GTPTEID:               s1ap.GTPTEID(0x55),
 		}},
@@ -46,11 +46,11 @@ func TestInitialContextSetupResponseRelaysENBFTEID(t *testing.T) {
 
 	want := models.FTEID{TEID: 0x55, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 3})}
 
-	if testPDN(ue).enbFTEID != want {
-		t.Fatalf("testPDN(ue).enbFTEID = %+v, want %+v", testPDN(ue).enbFTEID, want)
+	if testPDN(ue).EnbFTEID != want {
+		t.Fatalf("testPDN(ue).enbFTEID = %+v, want %+v", testPDN(ue).EnbFTEID, want)
 	}
 
-	fsm, ok := m.session.(*fakeSessionManager)
+	fsm, ok := m.Session.(*fakeSessionManager)
 	if !ok {
 		t.Fatal("session manager is not the fake")
 	}
@@ -81,15 +81,15 @@ func TestInitialContextSetupResponseENBTransportFamily(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newTestMME(t)
 			cc := &captureConn{}
-			ue := m.newUe(cc, 7)
+			ue := m.NewUe(cc, 7)
 			ue.imsi = testSubscriber.IMSI
-			testPDN(ue).apn = "internet"
+			testPDN(ue).Apn = "internet"
 
 			resp := &s1ap.InitialContextSetupResponse{
-				MMEUES1APID: ue.s1.MMEUES1APID,
+				MMEUES1APID: ue.S1.MMEUES1APID,
 				ENBUES1APID: 7,
 				ERABSetup: []s1ap.ERABSetupItemCtxtSURes{{
-					ERABID:                s1ap.ERABID(defaultERABID),
+					ERABID:                s1ap.ERABID(DefaultERABID),
 					TransportLayerAddress: s1ap.TransportLayerAddress(tc.tla),
 					GTPTEID:               s1ap.GTPTEID(0x55),
 				}},
@@ -107,8 +107,8 @@ func TestInitialContextSetupResponseENBTransportFamily(t *testing.T) {
 
 			m.handleInitialContextSetupResponse(context.Background(), cc, pdu.(*s1ap.SuccessfulOutcome).Value)
 
-			if testPDN(ue).enbFTEID.Addr != tc.want {
-				t.Fatalf("eNB F-TEID address = %v, want %v", testPDN(ue).enbFTEID.Addr, tc.want)
+			if testPDN(ue).EnbFTEID.Addr != tc.want {
+				t.Fatalf("eNB F-TEID address = %v, want %v", testPDN(ue).EnbFTEID.Addr, tc.want)
 			}
 		})
 	}

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package nas
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/udm"
 	nascommon "github.com/ellanetworks/core/nas/common"
@@ -73,7 +74,7 @@ func decodeDownlinkNAS(t *testing.T, pdu []byte) []byte {
 func TestAttachRecoveryAfterMMERestart(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.newUe(cc, 7)
+	ue := m.NewUe(cc, 7)
 
 	esm, err := (&eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: 1}).Marshal()
 	if err != nil {
@@ -100,7 +101,7 @@ func TestAttachRecoveryAfterMMERestart(t *testing.T) {
 	// context: SHT|PD, 4-octet MAC, sequence, then the inner Attach Request.
 	nas := append([]byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x04}, attachBytes...)
 
-	m.handleNAS(context.Background(), ue, nas)
+	HandleNAS(m, context.Background(), ue, nas)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one downlink (Identity Request), got %d", len(cc.sent))
@@ -120,7 +121,7 @@ func TestAttachRecoveryAfterMMERestart(t *testing.T) {
 func TestIdentityResponseRecoveryAfterMMERestart(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.newUe(cc, 8)
+	ue := m.NewUe(cc, 8)
 
 	// Mobile identity for testSubscriber.IMSI (TS 24.008 §10.5.1.4): first digit in
 	// the high nibble of octet 1, IMSI type + odd flag in the low nibble, then the
@@ -138,7 +139,7 @@ func TestIdentityResponseRecoveryAfterMMERestart(t *testing.T) {
 	// Integrity-protected envelope (SHT=1) with a MAC the MME cannot reproduce.
 	nas := append([]byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x21}, idResp...)
 
-	m.handleNAS(context.Background(), ue, nas)
+	HandleNAS(m, context.Background(), ue, nas)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one downlink (Authentication Request), got %d", len(cc.sent))
@@ -148,24 +149,24 @@ func TestIdentityResponseRecoveryAfterMMERestart(t *testing.T) {
 		t.Fatalf("expected Authentication Request, got mt=%#x err=%v", mt, err)
 	}
 
-	if ue.imsi != testSubscriber.IMSI {
-		t.Fatalf("ue.imsi = %q, want %q", ue.imsi, testSubscriber.IMSI)
+	if ue.IMSI() != testSubscriber.IMSI {
+		t.Fatalf("ue.imsi = %q, want %q", ue.IMSI(), testSubscriber.IMSI)
 	}
 }
 
 // nativeGUTIAttach builds an integrity-protected combined ATTACH REQUEST that
 // carries `ue`'s native GUTI, protected with `ue`'s NAS security context — the
 // message a returning UE sends when it still holds a context the MME assigned.
-func nativeGUTIAttach(t *testing.T, m *MME, ue *UeContext) []byte {
+func nativeGUTIAttach(t *testing.T, m *mme.MME, ue *mme.UeContext) []byte {
 	t.Helper()
 
-	plmn, err := m.operatorPLMN(context.Background())
+	plmn, err := m.OperatorPLMN(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	group, code := m.mmeIdentity()
-	guti := m.assignGUTI(ue, plmn, group, code)
+	group, code := m.MmeIdentity()
+	guti := m.AssignGUTI(ue, plmn, group, code)
 
 	esm, err := (&eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: 1}).Marshal()
 	if err != nil {
@@ -186,7 +187,7 @@ func nativeGUTIAttach(t *testing.T, m *MME, ue *UeContext) []byte {
 	}
 
 	wire, err := eps.Protect(attachBytes, eps.SHTIntegrityProtected, nascommon.NASCount(0, 0),
-		nascommon.DirectionUplink, ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+		nascommon.DirectionUplink, ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,42 +202,42 @@ func nativeGUTIAttach(t *testing.T, m *MME, ue *UeContext) []byte {
 func TestAttachReusesContextForNativeGUTI(t *testing.T) {
 	m := newTestMME(t)
 	existing, _ := securedUE(t, m)
-	existing.dlCount = 7 // a live downlink chain that reuse must continue, not reset
+	existing.SetDLCountForTest(7) // a live downlink chain that reuse must continue, not reset
 
 	wire := nativeGUTIAttach(t, m, existing)
 
 	cc := &captureConn{}
-	fresh := m.newUe(cc, 9)
-	m.handleNAS(context.Background(), fresh, wire)
+	fresh := m.NewUe(cc, 9)
+	HandleNAS(m, context.Background(), fresh, wire)
 
 	// The held context is reused in place — the connection is rebound onto it and
 	// the transient context the Initial UE Message created is discarded.
-	if got, ok := m.lookupUeByIMSI(existing.imsi); !ok || got != existing {
+	if got, ok := m.LookupUeByIMSI(existing.IMSI()); !ok || got != existing {
 		t.Fatal("held context not reused in place")
 	}
 
-	if fresh.s1 != nil {
+	if fresh.S1 != nil {
 		t.Fatal("transient context not discarded after context reuse")
 	}
 
-	if existing.s1 == nil || existing.s1.conn != cc {
+	if existing.S1 == nil || existing.S1.ConnForTest() != cc {
 		t.Fatal("held context not rebound to the returning UE's connection")
 	}
 
 	// Authentication is skipped on a valid native GUTI.
-	if existing.authVector != nil {
+	if existing.AuthVector != nil {
 		t.Fatal("authentication was not skipped on a valid native GUTI")
 	}
 
 	// NAS COUNTs continue (TS 24.301 §4.4.3, §5.4.3.3): a native context is reused,
 	// not re-derived, so the counts are never reset to zero — reusing them with the
 	// same keys would be a keystream reuse.
-	if existing.ulCount != 1 {
-		t.Fatalf("uplink NAS COUNT = %d, want 1 (continued past the Attach)", existing.ulCount)
+	if existing.ULCount() != 1 {
+		t.Fatalf("uplink NAS COUNT = %d, want 1 (continued past the Attach)", existing.ULCount())
 	}
 
-	if existing.dlCount < 7 {
-		t.Fatalf("downlink NAS COUNT reset to %d on context reuse (keystream reuse)", existing.dlCount)
+	if existing.DLCountForTest() < 7 {
+		t.Fatalf("downlink NAS COUNT reset to %d on context reuse (keystream reuse)", existing.DLCountForTest())
 	}
 
 	// The security mode procedure is skipped: the only downlink is the Initial
@@ -254,16 +255,16 @@ func TestAttachReusesContextForNativeGUTI(t *testing.T) {
 func TestAttachNativeGUTIBadMACFallsBackToAuth(t *testing.T) {
 	m := newTestMME(t)
 	existing, _ := securedUE(t, m)
-	oldID := existing.s1.MMEUES1APID
+	oldID := existing.S1.MMEUES1APID
 
 	wire := nativeGUTIAttach(t, m, existing)
 	wire[1] ^= 0xff // corrupt the MAC
 
 	cc := &captureConn{}
-	fresh := m.newUe(cc, 9)
-	m.handleNAS(context.Background(), fresh, wire)
+	fresh := m.NewUe(cc, 9)
+	HandleNAS(m, context.Background(), fresh, wire)
 
-	if _, ok := m.lookupUe(oldID); !ok {
+	if _, ok := m.LookupUe(oldID); !ok {
 		t.Fatal("context was removed despite a MAC mismatch")
 	}
 
@@ -277,17 +278,17 @@ func TestAttachNativeGUTIBadMACFallsBackToAuth(t *testing.T) {
 func TestAttachNativeGUTIReplayDoesNotRemoveContext(t *testing.T) {
 	m := newTestMME(t)
 	existing, _ := securedUE(t, m)
-	oldID := existing.s1.MMEUES1APID
+	oldID := existing.S1.MMEUES1APID
 
 	wire := nativeGUTIAttach(t, m, existing) // protected at NASCount(0, 0)
 
-	existing.ulCount = 50
+	existing.SetULCountForTest(50)
 
 	cc := &captureConn{}
-	attacker := m.newUe(cc, 9)
-	m.handleNAS(context.Background(), attacker, wire)
+	attacker := m.NewUe(cc, 9)
+	HandleNAS(m, context.Background(), attacker, wire)
 
-	if _, ok := m.lookupUe(oldID); !ok {
+	if _, ok := m.LookupUe(oldID); !ok {
 		t.Fatal("live context removed by a replayed stale-count Attach")
 	}
 }
@@ -295,7 +296,7 @@ func TestAttachNativeGUTIReplayDoesNotRemoveContext(t *testing.T) {
 func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.newUe(cc, 7)
+	ue := m.NewUe(cc, 7)
 
 	// 1. UE → Attach Request (IMSI), EEA2/EIA2 capable, with a PDN Connectivity
 	// Request in the ESM container.
@@ -317,7 +318,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleNAS(context.Background(), ue, attachBytes)
+	HandleNAS(m, context.Background(), ue, attachBytes)
 
 	// MME → Authentication Request.
 	if len(cc.sent) != 1 {
@@ -338,14 +339,14 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	kasme := ue.authVector.KASME
+	kasme := ue.AuthVector.KASME
 
 	authResp, err := (&eps.AuthenticationResponse{RES: res}).Marshal()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	m.handleNAS(context.Background(), ue, authResp)
+	HandleNAS(m, context.Background(), ue, authResp)
 
 	// MME → Security Mode Command (integrity protected with the new context).
 	if len(cc.sent) != 2 {
@@ -354,12 +355,12 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 
 	smcWire := decodeDownlinkNAS(t, cc.sent[1])
 
-	knasEnc, err := deriveKNASEnc(kasme, 2)
+	knasEnc, err := mme.DeriveKNASEnc(kasme, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	knasInt, err := deriveKNASInt(kasme, 2)
+	knasInt, err := mme.DeriveKNASInt(kasme, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -382,7 +383,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 	// The unprotected Attach is hashed into the SMC HashMME (TS 24.301 §5.4.3.2).
 	wantHash := sha256.Sum256(attachBytes)
 	if !bytes.Equal(smc.HASHMME, wantHash[:8]) {
-		t.Fatalf("SMC HashMME = %x, want %x", smc.HASHMME, wantHash[:8])
+		t.Fatalf("SMC mme.HashMME = %x, want %x", smc.HASHMME, wantHash[:8])
 	}
 
 	// 3. UE → Security Mode Complete (integrity protected + ciphered), returning
@@ -400,21 +401,21 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleNAS(context.Background(), ue, smCompleteWire)
+	HandleNAS(m, context.Background(), ue, smCompleteWire)
 
-	if !ue.secured {
+	if !ue.Secured() {
 		t.Fatal("NAS security context not established after Security Mode Complete")
 	}
 
 	// The IMEISV is converted to a 15-digit IMEI for the status API.
-	if ue.imei != "035063821436588" {
-		t.Fatalf("IMEI from IMEISV = %q, want 035063821436588", ue.imei)
+	if ue.Imei != "035063821436588" {
+		t.Fatalf("IMEI from IMEISV = %q, want 035063821436588", ue.Imei)
 	}
 
 	// Initial Context Setup seeds the X2-handover key chain: NH(NCC=1) is ready
 	// for a later Path Switch (TS 33.401 §7.2.8.4).
-	if ue.ncc != 1 || ue.nh == ([32]byte{}) {
-		t.Fatalf("NH chain not seeded: ncc=%d nh-zero=%v", ue.ncc, ue.nh == ([32]byte{}))
+	if ue.NCCForTest() != 1 || ue.NHForTest() == ([32]byte{}) {
+		t.Fatalf("NH chain not seeded: ncc=%d nh-zero=%v", ue.NCCForTest(), ue.NHForTest() == ([32]byte{}))
 	}
 
 	// MME → Initial Context Setup Request (default bearer + Attach Accept).
@@ -424,13 +425,13 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 
 	ics := parseInitialContextSetup(t, cc.sent[2])
 
-	if ics.MMEUES1APID != ue.s1.MMEUES1APID || ics.ENBUES1APID != 7 || len(ics.ERABToBeSetup) != 1 {
+	if ics.MMEUES1APID != ue.S1.MMEUES1APID || ics.ENBUES1APID != 7 || len(ics.ERABToBeSetup) != 1 {
 		t.Fatalf("unexpected Initial Context Setup Request: %+v", ics)
 	}
 
 	// K_eNB uses the uplink NAS COUNT of the Security Mode Complete (one less
 	// than the next-expected count).
-	wantKeNB, err := deriveKeNB(kasme, ue.ulCount-1)
+	wantKeNB, err := mme.DeriveKeNB(kasme, ue.ULCount()-1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -440,7 +441,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 	}
 
 	erab := ics.ERABToBeSetup[0]
-	if erab.ERABID != s1ap.ERABID(defaultERABID) || erab.QoS.QCI != s1ap.QCI(9) ||
+	if erab.ERABID != s1ap.ERABID(mme.DefaultERABID) || erab.QoS.QCI != s1ap.QCI(9) ||
 		erab.GTPTEID != s1ap.GTPTEID(testSGWFTEID.TEID) {
 		t.Fatalf("unexpected E-RAB: %+v", erab)
 	}
@@ -471,7 +472,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatalf("unexpected GUTI: %+v", accept.GUTI)
 	}
 
-	if _, ok := m.lookupUeByMTMSI(accept.GUTI.MTMSI); !ok {
+	if _, ok := m.LookupUeByMTMSI(accept.GUTI.MTMSI); !ok {
 		t.Fatal("UE not indexed by its assigned M-TMSI")
 	}
 
@@ -495,15 +496,15 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	completeWire, err := eps.Protect(complete, eps.SHTIntegrityProtectedCiphered, nascommon.NASCount(0, uint8(ue.ulCount)),
+	completeWire, err := eps.Protect(complete, eps.SHTIntegrityProtectedCiphered, nascommon.NASCount(0, uint8(ue.ULCount())),
 		nascommon.DirectionUplink, knasInt, knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	m.handleNAS(context.Background(), ue, completeWire)
+	HandleNAS(m, context.Background(), ue, completeWire)
 
-	if ue.emmState.load() != EMMRegistered {
+	if ue.EMMState() != mme.EMMRegistered {
 		t.Fatal("UE not EMM-REGISTERED after Attach Complete")
 	}
 }
@@ -516,16 +517,16 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 func TestSecurityModeRejectReleasesUE(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.newUe(cc, 7)
+	ue := m.NewUe(cc, 7)
 
 	plain, err := (&eps.SecurityModeReject{Cause: 23}).Marshal()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	m.handleNAS(context.Background(), ue, plain)
+	HandleNAS(m, context.Background(), ue, plain)
 
-	if !ue.s1.releasing {
+	if !ue.S1.ReleasingForTest() {
 		t.Fatal("UE not released after Security Mode Reject")
 	}
 

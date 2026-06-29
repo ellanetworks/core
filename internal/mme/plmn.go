@@ -13,7 +13,7 @@ import (
 
 // encodePLMN encodes an MCC/MNC pair into the 3-octet TBCD PLMN identity
 // (TS 23.003), via the codec shared with the 5G stack in nas/common.
-func encodePLMN(plmn models.PlmnID) (s1ap.PLMNIdentity, error) {
+func EncodePLMN(plmn models.PlmnID) (s1ap.PLMNIdentity, error) {
 	b, err := nascommon.EncodePLMN(plmn.Mcc, plmn.Mnc)
 	if err != nil {
 		return s1ap.PLMNIdentity{}, fmt.Errorf("mme: encode PLMN mcc=%q mnc=%q: %w", plmn.Mcc, plmn.Mnc, err)

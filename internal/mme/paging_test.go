@@ -31,7 +31,7 @@ func TestUEIdentityIndex(t *testing.T) {
 // it marshals to a valid S1AP Paging PDU.
 func TestBuildPaging(t *testing.T) {
 	m := newTestMME(t)
-	ue, _ := idleRegisteredUE(t, m)
+	ue := idleRegisteredUE(t, m)
 
 	paging, err := m.buildPaging(context.Background(), ue)
 	if err != nil {
@@ -73,7 +73,7 @@ func TestBuildPaging(t *testing.T) {
 // idle (and no eNBs are connected, so the broadcast is a no-op).
 func TestPageNoENBs(t *testing.T) {
 	m := newTestMME(t)
-	ue, _ := idleRegisteredUE(t, m)
+	ue := idleRegisteredUE(t, m)
 
 	if err := m.Page(context.Background(), ue.imsi); err != nil {
 		t.Fatalf("Page: %v", err)
@@ -97,7 +97,7 @@ func TestPagingRetransmitsThenAbandons(t *testing.T) {
 	m.pagingTimeout = 5 * time.Millisecond
 	m.pagingMaxRetransmit = 2
 
-	ue, _ := idleRegisteredUE(t, m)
+	ue := idleRegisteredUE(t, m)
 
 	if err := m.Page(context.Background(), ue.imsi); err != nil {
 		t.Fatalf("Page: %v", err)
@@ -123,7 +123,7 @@ func TestPagingStoppedOnReconnect(t *testing.T) {
 	m := newTestMME(t)
 	m.pagingTimeout = time.Hour // long enough not to fire during the test
 
-	ue, _ := idleRegisteredUE(t, m)
+	ue := idleRegisteredUE(t, m)
 
 	if err := m.Page(context.Background(), ue.imsi); err != nil {
 		t.Fatalf("Page: %v", err)
@@ -133,7 +133,7 @@ func TestPagingStoppedOnReconnect(t *testing.T) {
 		t.Fatal("paging not supervised after Page")
 	}
 
-	m.establishS1Connection(ue, &captureConn{}, 9)
+	m.EstablishS1Connection(ue, &captureConn{}, 9)
 
 	if m.pagingActive(ue) {
 		t.Fatal("paging supervision not stopped when the UE reconnected")

@@ -49,9 +49,9 @@ func (m *MME) logNetworkEvent(ctx context.Context, conn *sctp.SCTPConn, messageT
 	)
 }
 
-// logOutboundS1AP records an outbound S1AP message. The UE-facing writer is the
+// LogOutboundS1AP records an outbound S1AP message. The UE-facing writer is the
 // SCTP association; events from non-SCTP writers (tests) are skipped.
-func (m *MME) logOutboundS1AP(ctx context.Context, conn nasWriter, messageType S1APProcedure, raw []byte) {
+func (m *MME) LogOutboundS1AP(ctx context.Context, conn NasWriter, messageType S1APProcedure, raw []byte) {
 	sctpConn, ok := conn.(*sctp.SCTPConn)
 	if !ok {
 		return

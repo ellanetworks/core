@@ -35,8 +35,8 @@ var causeUnknownPairUES1APID = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Va
 //
 // On any of these an Error Indication carrying the received AP IDs is returned
 // to the sender (TS 36.413) and the function returns (nil, false).
-func (m *MME) resolveUE(conn nasWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID) (*UeContext, bool) {
-	ue, ok := m.lookupUe(mmeID)
+func (m *MME) resolveUE(conn NasWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID) (*UeContext, bool) {
+	ue, ok := m.LookupUe(mmeID)
 	if !ok {
 		logger.MmeLog.Warn("UE-associated S1AP message with unknown MME-UE-S1AP-ID",
 			zap.Uint32("mme-ue-id", uint32(mmeID)), zap.Uint32("enb-ue-id", uint32(enbID)))
@@ -45,7 +45,7 @@ func (m *MME) resolveUE(conn nasWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUE
 		return nil, false
 	}
 
-	if ue.s1.conn != conn {
+	if ue.S1.conn != conn {
 		logger.MmeLog.Warn("UE-associated S1AP message for an MME-UE-S1AP-ID on a different S1 association",
 			zap.Uint32("mme-ue-id", uint32(mmeID)), zap.Uint32("enb-ue-id", uint32(enbID)))
 		m.sendErrorIndication(conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
@@ -53,7 +53,7 @@ func (m *MME) resolveUE(conn nasWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUE
 		return nil, false
 	}
 
-	if !ue.connected() {
+	if !ue.Connected() {
 		logger.MmeLog.Warn("UE-associated S1AP message for an MME-UE-S1AP-ID with no active S1 connection",
 			zap.Uint32("mme-ue-id", uint32(mmeID)), zap.Uint32("enb-ue-id", uint32(enbID)))
 		m.sendErrorIndication(conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
@@ -61,10 +61,10 @@ func (m *MME) resolveUE(conn nasWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUE
 		return nil, false
 	}
 
-	if ue.s1.ENBUES1APID != enbID {
+	if ue.S1.ENBUES1APID != enbID {
 		logger.MmeLog.Warn("UE-associated S1AP message with an inconsistent eNB-UE-S1AP-ID",
 			zap.Uint32("mme-ue-id", uint32(mmeID)),
-			zap.Uint32("stored-enb-ue-id", uint32(ue.s1.ENBUES1APID)),
+			zap.Uint32("stored-enb-ue-id", uint32(ue.S1.ENBUES1APID)),
 			zap.Uint32("received-enb-ue-id", uint32(enbID)))
 		m.sendErrorIndication(conn, &mmeID, &enbID, causeUnknownPairUES1APID)
 
@@ -76,7 +76,7 @@ func (m *MME) resolveUE(conn nasWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUE
 
 // sendErrorIndication replies to the sending eNB with an ERROR INDICATION
 // carrying the UE S1AP ID pair and a cause (TS 36.413).
-func (m *MME) sendErrorIndication(conn nasWriter, mmeID *s1ap.MMEUES1APID, enbID *s1ap.ENBUES1APID, cause s1ap.Cause) {
+func (m *MME) sendErrorIndication(conn NasWriter, mmeID *s1ap.MMEUES1APID, enbID *s1ap.ENBUES1APID, cause s1ap.Cause) {
 	c := cause
 	ind := &s1ap.ErrorIndication{MMEUES1APID: mmeID, ENBUES1APID: enbID, Cause: &c}
 
@@ -93,7 +93,7 @@ func (m *MME) sendErrorIndication(conn nasWriter, mmeID *s1ap.MMEUES1APID, enbID
 
 	// Error Indications are sent from resolution failures across many handlers,
 	// some outside a request span; use a fresh root.
-	m.logOutboundS1AP(context.Background(), conn, S1APProcedureErrorIndication, b)
+	m.LogOutboundS1AP(context.Background(), conn, S1APProcedureErrorIndication, b)
 }
 
 // handleErrorIndication processes an ERROR INDICATION from the eNB (TS 36.413).
@@ -126,7 +126,7 @@ func (m *MME) handleErrorIndication(ctx context.Context, _ *sctp.SCTPConn, value
 		return
 	}
 
-	if ue, ok := m.lookupUe(*msg.MMEUES1APID); ok {
-		m.releaseUEContext(ctx, ue, causeNASUnspecified)
+	if ue, ok := m.LookupUe(*msg.MMEUES1APID); ok {
+		m.ReleaseUEContext(ctx, ue, CauseNASUnspecified)
 	}
 }

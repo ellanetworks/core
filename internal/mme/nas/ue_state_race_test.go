@@ -1,12 +1,14 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package nas
 
 import (
 	"context"
 	"sync"
 	"testing"
+
+	"github.com/ellanetworks/core/internal/mme"
 )
 
 // TestUEStateConcurrentAccess drives the goroutines that touch a connected UE in
@@ -55,7 +57,7 @@ func TestUEStateConcurrentAccess(t *testing.T) {
 		defer wg.Done()
 
 		for i := 0; i < iters; i++ {
-			m.handleModifyBearerReject(ue, nil)
+			handleModifyBearerReject(m, ue, nil)
 		}
 	}()
 
@@ -67,7 +69,7 @@ func TestUEStateConcurrentAccess(t *testing.T) {
 		defer wg.Done()
 
 		for i := 0; i < iters; i++ {
-			ue.emmState.store(EMMRegistered)
+			ue.SetEMMState(mme.EMMRegistered)
 		}
 	}()
 
@@ -75,7 +77,7 @@ func TestUEStateConcurrentAccess(t *testing.T) {
 }
 
 // TestS1IdentityConcurrentSendVsResume reproduces AC1: a UE resuming from
-// ECM-IDLE rebinds its S1 identity (conn, MME/ENB-UE-S1AP-IDs) on the dispatch
+// ECM-IDLE rebinds its S1 identity (conn, mme.MME/ENB-UE-S1AP-IDs) on the dispatch
 // goroutine while an off-dispatch send (e.g. a network-initiated detach) reads
 // it. Run with -race.
 func TestS1IdentityConcurrentSendVsResume(t *testing.T) {
@@ -94,7 +96,7 @@ func TestS1IdentityConcurrentSendVsResume(t *testing.T) {
 		defer wg.Done()
 
 		for i := 0; i < iters; i++ {
-			m.establishS1Connection(ue, cc2, 9)
+			m.EstablishS1Connection(ue, cc2, 9)
 		}
 	}()
 
@@ -104,7 +106,7 @@ func TestS1IdentityConcurrentSendVsResume(t *testing.T) {
 		defer wg.Done()
 
 		for i := 0; i < iters; i++ {
-			m.sendDownlink(context.Background(), ue, []byte{0x07, 0x42})
+			m.SendDownlink(context.Background(), ue, []byte{0x07, 0x42})
 		}
 	}()
 

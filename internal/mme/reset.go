@@ -23,7 +23,7 @@ import (
 // removed only the radio leg; the EMM registration survives and the UE stays
 // pageable); an incomplete attach is aborted. This is the per-UE handling of an
 // abrupt radio-context loss, shared with eNB disconnect.
-func (m *MME) handleReset(conn nasWriter, value []byte) {
+func (m *MME) handleReset(conn NasWriter, value []byte) {
 	req, err := s1ap.ParseReset(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Reset", zap.Error(err))
@@ -53,7 +53,7 @@ func (m *MME) handleReset(conn nasWriter, value []byte) {
 
 // sendResetAcknowledge answers a RESET with RESET ACKNOWLEDGE (TS 36.413
 // §9.1.2.7). connectionList is non-nil only for a part-of-interface reset.
-func (m *MME) sendResetAcknowledge(conn nasWriter, connectionList []s1ap.UEAssociatedLogicalS1ConnectionItem) {
+func (m *MME) sendResetAcknowledge(conn NasWriter, connectionList []s1ap.UEAssociatedLogicalS1ConnectionItem) {
 	ack := &s1ap.ResetAcknowledge{ConnectionList: connectionList}
 
 	b, err := ack.Marshal()
@@ -68,5 +68,5 @@ func (m *MME) sendResetAcknowledge(conn nasWriter, connectionList []s1ap.UEAssoc
 	}
 
 	// Reset handling is not tied to a single UE request span; use a fresh root.
-	m.logOutboundS1AP(context.Background(), conn, S1APProcedureResetAcknowledge, b)
+	m.LogOutboundS1AP(context.Background(), conn, S1APProcedureResetAcknowledge, b)
 }

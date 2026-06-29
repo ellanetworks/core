@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package nas
 
 import (
 	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/udm"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
@@ -28,10 +29,10 @@ func (spnBearerStore) GetOperator(_ context.Context) (*db.Operator, error) {
 // network name to the UE in an integrity-protected EMM INFORMATION message
 // (TS 24.301 §5.4.5).
 func TestSendNetworkName(t *testing.T) {
-	m := New(udm.New(newFakeCredStore(), noopKeyResolver), spnBearerStore{}, &fakeSessionManager{})
+	m := mme.New(udm.New(newFakeCredStore(), noopKeyResolver), spnBearerStore{}, &fakeSessionManager{})
 	ue, cc := securedUE(t, m)
 
-	m.sendNetworkName(context.Background(), ue)
+	sendNetworkName(m, context.Background(), ue)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one EMM INFORMATION downlink, got %d", len(cc.sent))
@@ -40,7 +41,7 @@ func TestSendNetworkName(t *testing.T) {
 	dl := decodeDownlinkNAS(t, cc.sent[0])
 
 	plain, err := eps.Unprotect(dl, nascommon.NASCount(0, dl[5]), nascommon.DirectionDownlink,
-		ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
 	if err != nil {
 		t.Fatalf("unprotect EMM INFORMATION: %v", err)
 	}
@@ -56,7 +57,7 @@ func TestSendNetworkNameNoSPN(t *testing.T) {
 	m := newTestMME(t) // fakeBearerStore has no SPN configured
 	ue, cc := securedUE(t, m)
 
-	m.sendNetworkName(context.Background(), ue)
+	sendNetworkName(m, context.Background(), ue)
 
 	if len(cc.sent) != 0 {
 		t.Fatalf("expected no downlink without an SPN, got %d", len(cc.sent))

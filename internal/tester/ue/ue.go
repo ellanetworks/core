@@ -163,13 +163,13 @@ func NewUE(opts *UEOpts) (*UE, error) {
 	ue.PDUSessionID = opts.PDUSessionID
 	ue.PDUSessionType = opts.PDUSessionType
 
-	integAlg, cipherAlg, err := SelectAlgorithms(ue.UeSecurity.UeSecurityCapability)
+	integAlg, CipherAlg, err := SelectAlgorithms(ue.UeSecurity.UeSecurityCapability)
 	if err != nil {
 		return nil, fmt.Errorf("could not select security algorithms: %v", err)
 	}
 
 	ue.UeSecurity.IntegrityAlg = integAlg
-	ue.UeSecurity.CipheringAlg = cipherAlg
+	ue.UeSecurity.CipheringAlg = CipherAlg
 	ue.UeSecurity.NgKsi.Ksi = ngKSINoKey
 	ue.UeSecurity.NgKsi.Tsc = models.ScType_NATIVE
 

@@ -36,8 +36,8 @@ func (ue *UeContext) HasKASME() bool {
 	return len(ue.kasme) > 0
 }
 
-// setKASME installs K_ASME derived from the EPS authentication vector (TS 33.401).
-func (ue *UeContext) setKASME(kasme []byte) {
+// SetKASME installs K_ASME derived from the EPS authentication vector (TS 33.401).
+func (ue *UeContext) SetKASME(kasme []byte) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -76,31 +76,31 @@ func (ue *UeContext) Secured() bool {
 	return ue.secured
 }
 
-// advanceULCount increments the expected uplink NAS COUNT past an accepted
+// AdvanceULCount increments the expected uplink NAS COUNT past an accepted
 // message (TS 24.301).
-func (ue *UeContext) advanceULCount() {
+func (ue *UeContext) AdvanceULCount() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
 	ue.ulCount++
 }
 
-// commitUplinkCount advances the expected uplink NAS COUNT past the verified
+// CommitUplinkCount advances the expected uplink NAS COUNT past the verified
 // message, so a replay estimates to a stale count whose MAC fails to verify
 // (TS 24.301).
-func (ue *UeContext) commitUplinkCount(count uint32) {
+func (ue *UeContext) CommitUplinkCount(count uint32) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
 	ue.ulCount = count + 1
 }
 
-// tryUnprotectUplink verifies and deciphers a protected uplink NAS message
+// TryUnprotectUplink verifies and deciphers a protected uplink NAS message
 // against the UE's security context, returning the plain message and the full
 // NAS COUNT it estimated. It does not mutate the UE, so a caller resolving a UE
 // by S-TMSI can authenticate the message before binding the context. The keys
 // never leave the kernel (TS 33.401).
-func (ue *UeContext) tryUnprotectUplink(nas []byte) (plain []byte, count uint32, err error) {
+func (ue *UeContext) TryUnprotectUplink(nas []byte) (plain []byte, count uint32, err error) {
 	if len(nas) < 6 {
 		return nil, 0, fmt.Errorf("nas message too short")
 	}
@@ -118,7 +118,7 @@ func (ue *UeContext) tryUnprotectUplink(nas []byte) (plain []byte, count uint32,
 	count = nascommon.NASCount(overflow, recvSeq)
 
 	p, err := eps.Unprotect(nas, count, nascommon.DirectionUplink,
-		ue.knasInt, ue.knasEnc, integrityAlg(ue.eia), cipherAlg(ue.eea))
+		ue.knasInt, ue.knasEnc, IntegrityAlg(ue.eia), CipherAlg(ue.eea))
 	if err != nil {
 		return nil, 0, err
 	}
@@ -126,10 +126,10 @@ func (ue *UeContext) tryUnprotectUplink(nas []byte) (plain []byte, count uint32,
 	return p, count, nil
 }
 
-// protectDownlink reserves the next downlink NAS COUNT and integrity-protects
+// ProtectDownlink reserves the next downlink NAS COUNT and integrity-protects
 // (and ciphers, per the security header type) an already-marshalled NAS message
 // with the UE's security context. The keys never leave the kernel (TS 24.301).
-func (ue *UeContext) protectDownlink(plain []byte, sht eps.SecurityHeaderType) ([]byte, error) {
+func (ue *UeContext) ProtectDownlink(plain []byte, sht eps.SecurityHeaderType) ([]byte, error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -137,22 +137,22 @@ func (ue *UeContext) protectDownlink(plain []byte, sht eps.SecurityHeaderType) (
 	ue.dlCount++
 
 	return eps.Protect(plain, sht, nascommon.NASCount(0, uint8(count)),
-		nascommon.DirectionDownlink, ue.knasInt, ue.knasEnc, integrityAlg(ue.eia), cipherAlg(ue.eea))
+		nascommon.DirectionDownlink, ue.knasInt, ue.knasEnc, IntegrityAlg(ue.eia), CipherAlg(ue.eea))
 }
 
-// installNASSecurityContext derives the NAS keys from K_ASME for the negotiated
+// InstallNASSecurityContext derives the NAS keys from K_ASME for the negotiated
 // algorithms and installs the EPS NAS security context (TS 33.401). The
 // AuthProof witnesses that EPS-AKA authentication has succeeded.
-func (ue *UeContext) installNASSecurityContext(eea, eia byte, _ AuthProof) error {
+func (ue *UeContext) InstallNASSecurityContext(eea, eia byte, _ AuthProof) error {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	knasEnc, err := deriveKNASEnc(ue.kasme, eea)
+	knasEnc, err := DeriveKNASEnc(ue.kasme, eea)
 	if err != nil {
 		return err
 	}
 
-	knasInt, err := deriveKNASInt(ue.kasme, eia)
+	knasInt, err := DeriveKNASInt(ue.kasme, eia)
 	if err != nil {
 		return err
 	}
@@ -163,18 +163,18 @@ func (ue *UeContext) installNASSecurityContext(eea, eia byte, _ AuthProof) error
 	return nil
 }
 
-// verifyServiceRequestShortMAC recomputes the Service Request short-MAC over the
+// VerifyServiceRequestShortMAC recomputes the Service Request short-MAC over the
 // supplied NAS header and compares it (and the truncated sequence number)
 // against the values the UE sent (TS 24.301 §5.6.1). It returns the diagnostics
 // for logging on failure; the keys never leave the kernel.
-func (ue *UeContext) verifyServiceRequestShortMAC(head []byte, gotMAC [2]byte, gotSeq uint8) (ok bool, want [2]byte, expSeq uint8, ul uint32) {
+func (ue *UeContext) VerifyServiceRequestShortMAC(head []byte, gotMAC [2]byte, gotSeq uint8) (ok bool, want [2]byte, expSeq uint8, ul uint32) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
 	ul = ue.ulCount
 	expSeq = uint8(ue.ulCount) & 0x1f
 
-	want, err := eps.ServiceRequestShortMAC(head, ue.knasInt, ue.ulCount, nascommon.DirectionUplink, integrityAlg(ue.eia))
+	want, err := eps.ServiceRequestShortMAC(head, ue.knasInt, ue.ulCount, nascommon.DirectionUplink, IntegrityAlg(ue.eia))
 	if err != nil {
 		return false, [2]byte{}, expSeq, ul
 	}
@@ -182,12 +182,12 @@ func (ue *UeContext) verifyServiceRequestShortMAC(head []byte, gotMAC [2]byte, g
 	return want == gotMAC && expSeq == gotSeq, want, expSeq, ul
 }
 
-// deriveInitialKeNB derives K_eNB from K_ASME and the last uplink NAS COUNT and
+// DeriveInitialKeNB derives K_eNB from K_ASME and the last uplink NAS COUNT and
 // seeds the X2-handover key chain (NH for NCC=1) for the first path switch
 // (TS 33.401). It returns K_eNB for delivery to the eNB in the Initial Context
 // Setup, plus the NAS COUNT it used (for diagnostics). K_ASME never leaves the
 // kernel.
-func (ue *UeContext) deriveInitialKeNB() (kenb [32]byte, kenbCount uint32, err error) {
+func (ue *UeContext) DeriveInitialKeNB() (kenb [32]byte, kenbCount uint32, err error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -200,7 +200,7 @@ func (ue *UeContext) deriveInitialKeNB() (kenb [32]byte, kenbCount uint32, err e
 		kenbCount--
 	}
 
-	kenb, err = deriveKeNB(ue.kasme, kenbCount)
+	kenb, err = DeriveKeNB(ue.kasme, kenbCount)
 	if err != nil {
 		return [32]byte{}, kenbCount, err
 	}

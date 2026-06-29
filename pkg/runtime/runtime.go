@@ -33,6 +33,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
+	mmenas "github.com/ellanetworks/core/internal/mme/nas"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	amfsctp "github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/sessions"
@@ -42,6 +43,7 @@ import (
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/upf"
 	"github.com/ellanetworks/core/internal/upf/bpfdump"
+	"github.com/ellanetworks/core/s1ap"
 	"github.com/ellanetworks/core/version"
 	nasLogger "github.com/free5gc/nas/logger"
 	"go.opentelemetry.io/otel/sdk/trace"
@@ -481,6 +483,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// consumes the shared credential authority (over the same subscriber store as
 	// the AUSF) for EPS-AKA vectors and the shared SQN.
 	mmeInstance := mme.New(udm.New(ausfStore, keyResolver), dbInstance, smfInstance)
+	mmeInstance.NAS = &mmeNASAdapter{mme: mmeInstance}
 
 	// Let the SMF page idle 4G UEs through the MME when downlink data arrives.
 	smfInstance.SetMME(mmeInstance)
@@ -741,6 +744,24 @@ type nasAdapter struct {
 
 func (n *nasAdapter) HandleNAS(ctx context.Context, ue *amf.RanUe, nasPdu []byte) error {
 	return nas.HandleNAS(ctx, n.amf, ue, nasPdu)
+}
+
+// mmeNASAdapter injects the 4G EMM/ESM NAS layer (internal/mme/nas) into the MME
+// kernel so its S1AP layer dispatches uplink NAS without the kernel importing nas.
+type mmeNASAdapter struct {
+	mme *mme.MME
+}
+
+func (a *mmeNASAdapter) HandleNAS(ctx context.Context, ue *mme.UeContext, pdu []byte) {
+	mmenas.HandleNAS(a.mme, ctx, ue, pdu)
+}
+
+func (a *mmeNASAdapter) HandleServiceRequest(ctx context.Context, conn mme.NasWriter, msg *s1ap.InitialUEMessage) {
+	mmenas.HandleServiceRequest(a.mme, ctx, conn, msg)
+}
+
+func (a *mmeNASAdapter) DispatchEMM(ctx context.Context, ue *mme.UeContext, plain []byte, integrityVerified bool) {
+	mmenas.DispatchEMM(a.mme, ctx, ue, plain, integrityVerified)
 }
 
 // ausfDBAdapter adapts *db.Database to the ausf.SubscriberStore interface.

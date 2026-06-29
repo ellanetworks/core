@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package nas
 
 import (
 	"context"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/mme"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
 )
@@ -14,7 +15,7 @@ import (
 // trackingAreaUpdateNAS builds a protected TRACKING AREA UPDATE REQUEST at the
 // UE's current uplink NAS COUNT, optionally carrying an EPS bearer context status
 // IE (IEI 0x57) when bearerStatus is non-nil.
-func trackingAreaUpdateNAS(t *testing.T, ue *UeContext, activeFlag bool, bearerStatus *uint16) []byte {
+func trackingAreaUpdateNAS(t *testing.T, ue *mme.UeContext, activeFlag bool, bearerStatus *uint16) []byte {
 	t.Helper()
 
 	updateType := uint8(0)
@@ -28,8 +29,8 @@ func trackingAreaUpdateNAS(t *testing.T, ue *UeContext, activeFlag bool, bearerS
 		plain = append(plain, 0x57, 0x02, byte(*bearerStatus), byte(*bearerStatus>>8))
 	}
 
-	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nascommon.NASCount(0, uint8(ue.ulCount)),
-		nascommon.DirectionUplink, ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nascommon.NASCount(0, uint8(ue.ULCount())),
+		nascommon.DirectionUplink, ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +45,7 @@ func TestTrackingAreaUpdateConnectedAccepted(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m) // ECM-CONNECTED, secured, EMM-REGISTERED
 
-	m.handleNAS(context.Background(), ue, trackingAreaUpdateNAS(t, ue, false, nil))
+	HandleNAS(m, context.Background(), ue, trackingAreaUpdateNAS(t, ue, false, nil))
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one downlink (TAU Accept), got %d", len(cc.sent))
@@ -53,7 +54,7 @@ func TestTrackingAreaUpdateConnectedAccepted(t *testing.T) {
 	dl := decodeDownlinkNAS(t, cc.sent[0])
 
 	accept, err := eps.Unprotect(dl, nascommon.NASCount(0, dl[5]), nascommon.DirectionDownlink,
-		ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
 	if err != nil {
 		t.Fatalf("unprotect TAU Accept: %v", err)
 	}
@@ -75,7 +76,7 @@ func TestTrackingAreaUpdateConnectedAccepted(t *testing.T) {
 		t.Fatalf("EPS-only TAU Accept carries EMM cause #%d, want none", *parsed.EMMCause)
 	}
 
-	if ue.emmState.load() != EMMRegistered || !ue.connected() {
+	if ue.EMMState() != mme.EMMRegistered || !ue.Connected() {
 		t.Fatal("UE should remain registered and connected after a periodic TAU")
 	}
 }
@@ -89,17 +90,17 @@ func TestTrackingAreaUpdateReconcilesBearerContextStatus(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m) // ECM-CONNECTED, secured, EMM-REGISTERED
 
-	m.addDefaultPDN(ue) // EBI 5
-	ue.ensurePDN(6)     // an additional PDN connection
+	m.AddDefaultPDN(ue) // EBI 5
+	ue.EnsurePDN(6)     // an additional PDN connection
 
 	status := uint16(1 << 5) // the UE reports only EBI 5 active
-	m.handleNAS(context.Background(), ue, trackingAreaUpdateNAS(t, ue, false, &status))
+	HandleNAS(m, context.Background(), ue, trackingAreaUpdateNAS(t, ue, false, &status))
 
-	if _, ok := ue.pdns[6]; ok {
+	if _, ok := ue.Pdns[6]; ok {
 		t.Fatal("EBI 6 should be released locally after the UE reports it inactive")
 	}
 
-	if _, ok := ue.pdns[5]; !ok {
+	if _, ok := ue.Pdns[5]; !ok {
 		t.Fatal("EBI 5 should remain active")
 	}
 
@@ -110,7 +111,7 @@ func TestTrackingAreaUpdateReconcilesBearerContextStatus(t *testing.T) {
 	dl := decodeDownlinkNAS(t, cc.sent[0])
 
 	accept, err := eps.Unprotect(dl, nascommon.NASCount(0, dl[5]), nascommon.DirectionDownlink,
-		ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
 	if err != nil {
 		t.Fatalf("unprotect TAU Accept: %v", err)
 	}
@@ -134,7 +135,7 @@ func TestTrackingAreaUpdateCombinedSignalsCSDomainUnavailable(t *testing.T) {
 	ue, cc := securedUE(t, m) // ECM-CONNECTED, secured, EMM-REGISTERED
 
 	// EPS update type 2 = combined TA/LA updating with IMSI attach.
-	m.handleTrackingAreaUpdate(context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x02})
+	handleTrackingAreaUpdate(m, context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x02})
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one downlink (TAU Accept), got %d", len(cc.sent))
@@ -143,7 +144,7 @@ func TestTrackingAreaUpdateCombinedSignalsCSDomainUnavailable(t *testing.T) {
 	dl := decodeDownlinkNAS(t, cc.sent[0])
 
 	accept, err := eps.Unprotect(dl, nascommon.NASCount(0, dl[5]), nascommon.DirectionDownlink,
-		ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
 	if err != nil {
 		t.Fatalf("unprotect TAU Accept: %v", err)
 	}
@@ -153,8 +154,8 @@ func TestTrackingAreaUpdateCombinedSignalsCSDomainUnavailable(t *testing.T) {
 		t.Fatalf("parse TAU Accept: %v", err)
 	}
 
-	if parsed.EMMCause == nil || *parsed.EMMCause != emmCauseCSDomainNotAvailable {
-		t.Fatalf("EMM cause = %v, want #%d (CS domain not available)", parsed.EMMCause, emmCauseCSDomainNotAvailable)
+	if parsed.EMMCause == nil || *parsed.EMMCause != mme.EmmCauseCSDomainNotAvailable {
+		t.Fatalf("EMM cause = %v, want #%d (CS domain not available)", parsed.EMMCause, mme.EmmCauseCSDomainNotAvailable)
 	}
 }
 
@@ -166,26 +167,26 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
-	plmn, err := m.operatorPLMN(context.Background())
+	plmn, err := m.OperatorPLMN(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	group, code := m.mmeIdentity()
-	m.assignGUTI(ue, plmn, group, code)
-	oldMTMSI := ue.mtmsi
+	group, code := m.MmeIdentity()
+	m.AssignGUTI(ue, plmn, group, code)
+	oldMTMSI := ue.MtmsiForTest()
 
-	m.handleTrackingAreaUpdate(context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x03}) // periodic
+	handleTrackingAreaUpdate(m, context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x03}) // periodic
 
-	if ue.oldMTMSI != oldMTMSI || ue.mtmsi == oldMTMSI {
-		t.Fatalf("GUTI not reallocated: mtmsi=%d oldMTMSI=%d (was %d)", ue.mtmsi, ue.oldMTMSI, oldMTMSI)
+	if ue.OldMTMSIForTest() != oldMTMSI || ue.MtmsiForTest() == oldMTMSI {
+		t.Fatalf("GUTI not reallocated: mtmsi=%d oldMTMSI=%d (was %d)", ue.MtmsiForTest(), ue.OldMTMSIForTest(), oldMTMSI)
 	}
 
-	if _, ok := m.lookupUeByMTMSI(oldMTMSI); !ok {
+	if _, ok := m.LookupUeByMTMSI(oldMTMSI); !ok {
 		t.Fatal("old M-TMSI must stay resolvable until TAU Complete")
 	}
 
-	if _, ok := m.lookupUeByMTMSI(ue.mtmsi); !ok {
+	if _, ok := m.LookupUeByMTMSI(ue.MtmsiForTest()); !ok {
 		t.Fatal("new M-TMSI not resolvable")
 	}
 
@@ -193,7 +194,7 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 	dl := decodeDownlinkNAS(t, cc.sent[0])
 
 	plain, err := eps.Unprotect(dl, nascommon.NASCount(0, dl[5]), nascommon.DirectionDownlink,
-		ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
 	if err != nil {
 		t.Fatalf("unprotect TAU Accept: %v", err)
 	}
@@ -203,22 +204,22 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 		t.Fatalf("parse TAU Accept: %v", err)
 	}
 
-	if parsed.GUTI == nil || parsed.GUTI.MTMSI != ue.mtmsi {
-		t.Fatalf("TAU Accept GUTI = %+v, want M-TMSI %d", parsed.GUTI, ue.mtmsi)
+	if parsed.GUTI == nil || parsed.GUTI.MTMSI != ue.MtmsiForTest() {
+		t.Fatalf("TAU Accept GUTI = %+v, want M-TMSI %d", parsed.GUTI, ue.MtmsiForTest())
 	}
 
 	// TAU Complete commits the new GUTI and frees the old M-TMSI.
-	m.handleTrackingAreaUpdateComplete(context.Background(), ue)
+	handleTrackingAreaUpdateComplete(m, context.Background(), ue)
 
-	if ue.oldMTMSI != 0 {
+	if ue.OldMTMSIForTest() != 0 {
 		t.Fatal("reallocation not committed after TAU Complete")
 	}
 
-	if _, ok := m.lookupUeByMTMSI(oldMTMSI); ok {
+	if _, ok := m.LookupUeByMTMSI(oldMTMSI); ok {
 		t.Fatal("old M-TMSI still resolvable after TAU Complete")
 	}
 
-	if _, ok := m.lookupUeByMTMSI(ue.mtmsi); !ok {
+	if _, ok := m.LookupUeByMTMSI(ue.MtmsiForTest()); !ok {
 		t.Fatal("new M-TMSI lost after TAU Complete")
 	}
 }
@@ -230,9 +231,9 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 func TestTrackingAreaUpdateIdleNoActiveFlagReleases(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	ue.mtmsi = 1 // a GUTI to reallocate
+	ue.SetMtmsiForTest(1) // a GUTI to reallocate
 
-	m.handleTrackingAreaUpdate(context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x00})
+	handleTrackingAreaUpdate(m, context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x00})
 
 	// Only the TAU Accept goes out; the release waits for TAU Complete.
 	if len(cc.sent) != 1 {
@@ -242,18 +243,18 @@ func TestTrackingAreaUpdateIdleNoActiveFlagReleases(t *testing.T) {
 	// The UE is ECM-CONNECTED for the exchange so its TAU Complete resolves on the
 	// re-established connection (would be dropped as "no active connection"
 	// otherwise, TS 36.413 §10.6).
-	if !ue.connected() {
+	if !ue.Connected() {
 		t.Fatal("UE not ECM-CONNECTED for the TAU exchange; TAU Complete would be rejected")
 	}
 
-	if ue.oldMTMSI == 0 {
+	if ue.OldMTMSIForTest() == 0 {
 		t.Fatal("GUTI reallocation not pending after TAU Accept")
 	}
 
 	// UE Completes: the new GUTI commits and the UE is released to ECM-IDLE.
-	m.handleTrackingAreaUpdateComplete(context.Background(), ue)
+	handleTrackingAreaUpdateComplete(m, context.Background(), ue)
 
-	if ue.oldMTMSI != 0 {
+	if ue.OldMTMSIForTest() != 0 {
 		t.Fatal("old M-TMSI not freed after TAU Complete")
 	}
 
@@ -263,7 +264,7 @@ func TestTrackingAreaUpdateIdleNoActiveFlagReleases(t *testing.T) {
 
 	parseUEContextReleaseCommand(t, cc.sent[1])
 
-	if ue.emmState.load() != EMMRegistered {
+	if ue.EMMState() != mme.EMMRegistered {
 		t.Fatal("UE should remain EMM-REGISTERED after a periodic TAU")
 	}
 }
@@ -275,11 +276,11 @@ func TestTrackingAreaUpdateIdleActiveFlagReestablishes(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := idleRegisteredUE(t, m)
 	cc := &captureConn{}
-	m.establishS1Connection(ue, cc, 9) // the resume re-binds the connection
+	m.EstablishS1Connection(ue, cc, 9) // the resume re-binds the connection
 
-	m.handleTrackingAreaUpdate(context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x08})
+	handleTrackingAreaUpdate(m, context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x08})
 
-	if !ue.connected() {
+	if !ue.Connected() {
 		t.Fatal("UE not ECM-CONNECTED after an active-flag TAU")
 	}
 
@@ -303,7 +304,7 @@ func TestTrackingAreaUpdateRecovery(t *testing.T) {
 	// cannot reproduce (no context), sequence 1, and an inner plain TAU REQUEST.
 	nas := []byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x01, 0x07, byte(eps.MsgTrackingAreaUpdateRequest)}
 
-	m.handleInitialUEMessage(context.Background(), cc, initiatingValue(t, initialUEMessagePDU(t, 7, nas)))
+	m.HandleInitialUEMessage(context.Background(), cc, initiatingValue(t, initialUEMessagePDU(t, 7, nas)))
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one downlink (TAU Reject), got %d", len(cc.sent))
@@ -314,11 +315,11 @@ func TestTrackingAreaUpdateRecovery(t *testing.T) {
 		t.Fatalf("not a TAU Reject: %v", err)
 	}
 
-	if rej.Cause != emmCauseUEIdentityUnderivable {
-		t.Fatalf("TAU Reject cause = %d, want %d", rej.Cause, emmCauseUEIdentityUnderivable)
+	if rej.Cause != mme.EmmCauseUEIdentityUnderivable {
+		t.Fatalf("TAU Reject cause = %d, want %d", rej.Cause, mme.EmmCauseUEIdentityUnderivable)
 	}
 
-	if len(m.conns) != 0 {
-		t.Fatalf("bare connection not released after the TAU Reject: %d remain", len(m.conns))
+	if m.ConnCountForTest() != 0 {
+		t.Fatalf("bare connection not released after the TAU Reject: %d remain", m.ConnCountForTest())
 	}
 }

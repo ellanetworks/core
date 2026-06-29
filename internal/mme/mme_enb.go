@@ -141,7 +141,7 @@ func (m *MME) markENBSetupComplete(conn *sctp.SCTPConn) {
 // findENBByGlobalID resolves a Global eNB ID to the S1-setup-complete association
 // of that eNB (nil/false when no such eNB is connected), for routing an S1
 // handover's HANDOVER REQUEST to the target (TS 36.413 §8.4.2).
-func (m *MME) findENBByGlobalID(g s1ap.GlobalENBID) (nasWriter, bool) {
+func (m *MME) findENBByGlobalID(g s1ap.GlobalENBID) (NasWriter, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -197,7 +197,7 @@ func (m *MME) touchENB(conn *sctp.SCTPConn) {
 // removeENB drops a connected eNB when its association closes.
 func (m *MME) removeENB(conn *sctp.SCTPConn) {
 	m.mu.Lock()
-	if s := m.enbs[conn]; s != nil && m.enbByID[s.id] == nasWriter(conn) {
+	if s := m.enbs[conn]; s != nil && m.enbByID[s.id] == NasWriter(conn) {
 		delete(m.enbByID, s.id)
 	}
 
@@ -210,7 +210,7 @@ func (m *MME) removeENB(conn *sctp.SCTPConn) {
 // reclaimUEsOnConnLoss handles the connections of an eNB whose SCTP association
 // dropped without a graceful S1 release, so no UE Context Release Complete will
 // arrive for them. Idle UEs are left alone — they run conn-independent supervision.
-func (m *MME) reclaimUEsOnConnLoss(conn nasWriter) {
+func (m *MME) reclaimUEsOnConnLoss(conn NasWriter) {
 	m.reclaimConns(m.connsOnConn(conn), "eNB disconnect")
 }
 
@@ -219,7 +219,7 @@ func (m *MME) reclaimUEsOnConnLoss(conn nasWriter) {
 // (or, mid-attach, drops it); a handover target connection aborts the handover,
 // leaving the UE on its surviving source; a detached or bare connection is removed.
 // trigger names the cause for the event log.
-func (m *MME) reclaimConns(conns []*s1Conn, trigger string) {
+func (m *MME) reclaimConns(conns []*S1Conn, trigger string) {
 	m.mu.Lock()
 
 	var (
@@ -242,7 +242,7 @@ func (m *MME) reclaimConns(conns []*s1Conn, trigger string) {
 		seen[ue] = struct{}{}
 
 		switch {
-		case c == ue.s1:
+		case c == ue.S1:
 			// The UE's active connection is gone. A handover prepared on a (still
 			// live) target eNB is released explicitly, like the guard-timer abort, so
 			// the target does not hold the context until its own TS1RELOCoverall.
@@ -273,7 +273,7 @@ func (m *MME) reclaimConns(conns []*s1Conn, trigger string) {
 // s1Release names a UE-associated connection to send a UE Context Release Command
 // to, captured under the lock for a send after it is released.
 type s1Release struct {
-	conn  nasWriter
+	conn  NasWriter
 	mmeID s1ap.MMEUES1APID
 	enbID s1ap.ENBUES1APID
 }

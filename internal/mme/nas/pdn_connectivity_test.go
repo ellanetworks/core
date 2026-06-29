@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package nas
 
 import (
 	"context"
 	"net/netip"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
@@ -78,13 +79,13 @@ func findERABReleaseCommand(t *testing.T, cc *captureConn) *s1ap.ERABReleaseComm
 
 // lastDownlinkESM decodes the most recent protected downlink NAS message the MME
 // sent and returns its plaintext (e.g. a PDN Connectivity / Disconnect Reject).
-func lastDownlinkESM(t *testing.T, ue *UeContext, cc *captureConn) []byte {
+func lastDownlinkESM(t *testing.T, ue *mme.UeContext, cc *captureConn) []byte {
 	t.Helper()
 
 	wire := decodeDownlinkNAS(t, cc.sent[len(cc.sent)-1])
 
 	plain, err := eps.Unprotect(wire, nascommon.NASCount(0, wire[5]), nascommon.DirectionDownlink,
-		ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
 	if err != nil {
 		t.Fatalf("unprotect downlink: %v", err)
 	}
@@ -101,7 +102,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 	ue, cc := securedUE(t, m)
 
 	p0 := testPDN(ue)
-	p0.apn = "internet"
+	p0.Apn = "internet"
 
 	apnIE, err := eps.MarshalAPN("ims")
 	if err != nil {
@@ -115,15 +116,15 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handlePDNConnectivityRequest(context.Background(), ue, connReq)
+	handlePDNConnectivityRequest(m, context.Background(), ue, connReq)
 
-	p := ue.pdnForAPN("ims")
+	p := ue.PdnForAPN("ims")
 	if p == nil {
 		t.Fatal("second PDN connection not created")
 	}
 
-	if p.ebi != 6 {
-		t.Fatalf("second PDN EBI = %d, want 6", p.ebi)
+	if p.Ebi != 6 {
+		t.Fatalf("second PDN EBI = %d, want 6", p.Ebi)
 	}
 
 	req := findERABSetupRequest(t, cc)
@@ -138,7 +139,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 	}
 
 	resp := &s1ap.ERABSetupResponse{
-		MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: ue.s1.ENBUES1APID,
+		MMEUES1APID: ue.S1.MMEUES1APID, ENBUES1APID: ue.S1.ENBUES1APID,
 		ERABSetup: []s1ap.ERABSetupItemBearerSURes{{
 			ERABID: 6, TransportLayerAddress: s1ap.TransportLayerAddress(tla), GTPTEID: 0x1234,
 		}},
@@ -154,13 +155,13 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleERABSetupResponse(cc, rpdu.(*s1ap.SuccessfulOutcome).Value)
+	m.HandleERABSetupResponse(cc, rpdu.(*s1ap.SuccessfulOutcome).Value)
 
-	if ue.pdns[6].enbFTEID.TEID != 0x1234 {
-		t.Fatalf("eNB F-TEID not recorded on the second PDN: %+v", ue.pdns[6].enbFTEID)
+	if ue.Pdns[6].EnbFTEID.TEID != 0x1234 {
+		t.Fatalf("eNB F-TEID not recorded on the second PDN: %+v", ue.Pdns[6].EnbFTEID)
 	}
 
-	if !m.session.(*fakeSessionManager).modifiedENB.Addr.IsValid() {
+	if !m.Session.(*fakeSessionManager).modifiedENB.Addr.IsValid() {
 		t.Fatal("ModifyEPSSession not called for the second PDN")
 	}
 
@@ -170,7 +171,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleActivateDefaultBearerAccept(ue, acc)
+	handleActivateDefaultBearerAccept(m, ue, acc)
 
 	// UE disconnects the second PDN.
 	dis, err := (&eps.PDNDisconnectRequest{ProcedureTransactionIdentity: 3, LinkedEPSBearerIdentity: 6}).Marshal()
@@ -178,10 +179,10 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handlePDNDisconnectRequest(context.Background(), ue, dis)
+	handlePDNDisconnectRequest(m, context.Background(), ue, dis)
 
-	if !ue.pdns[6].deactivating || !ue.pdns[6].disconnecting {
-		t.Fatalf("deactivation not in flight for the disconnected PDN: %+v", ue.pdns[6])
+	if !ue.Pdns[6].Deactivating || !ue.Pdns[6].Disconnecting {
+		t.Fatalf("deactivation not in flight for the disconnected PDN: %+v", ue.Pdns[6])
 	}
 
 	// The deactivation of an additional PDN releases the radio bearer via an
@@ -194,7 +195,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 
 	// The eNB confirms the release; then the UE accepts the deactivation.
 	relResp := &s1ap.ERABReleaseResponse{
-		MMEUES1APID: ue.s1.MMEUES1APID, ENBUES1APID: ue.s1.ENBUES1APID,
+		MMEUES1APID: ue.S1.MMEUES1APID, ENBUES1APID: ue.S1.ENBUES1APID,
 		ERABReleased: []s1ap.ERABReleaseItemBearerRelComp{{ERABID: 6}},
 	}
 
@@ -208,28 +209,28 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleERABReleaseResponse(cc, rrpdu.(*s1ap.SuccessfulOutcome).Value)
+	m.HandleERABReleaseResponse(cc, rrpdu.(*s1ap.SuccessfulOutcome).Value)
 
 	da, err := (&eps.DeactivateEPSBearerContextAccept{EPSBearerIdentity: 6, ProcedureTransactionIdentity: 3}).Marshal()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	m.handleDeactivateBearerAccept(context.Background(), ue, da)
+	handleDeactivateBearerAccept(m, context.Background(), ue, da)
 
-	if _, ok := ue.pdns[6]; ok {
+	if _, ok := ue.Pdns[6]; ok {
 		t.Fatal("second PDN not released after disconnect accept")
 	}
 
-	if _, ok := m.lookupUe(ue.s1.MMEUES1APID); !ok {
+	if _, ok := m.LookupUe(ue.S1.MMEUES1APID); !ok {
 		t.Fatal("UE removed by a single-PDN disconnect; expected it to stay registered")
 	}
 
-	if ue.emmState.load() != EMMRegistered {
-		t.Fatalf("UE emmState = %v after PDN disconnect, want EMMRegistered", ue.emmState.load())
+	if ue.EMMState() != mme.EMMRegistered {
+		t.Fatalf("UE emmState = %v after PDN disconnect, want mme.EMMRegistered", ue.EMMState())
 	}
 
-	if p := m.defaultPDN(ue); p == nil || p.apn != "internet" {
+	if p := m.DefaultPDN(ue); p == nil || p.Apn != "internet" {
 		t.Fatal("default PDN disturbed by the second PDN's disconnect")
 	}
 }
@@ -241,16 +242,16 @@ func TestConnectedSubscriberReportsAllPDNs(t *testing.T) {
 	ue, _ := securedUE(t, m)
 
 	def := testPDN(ue)
-	def.apn = "internet"
-	def.pdnType = eps.PDNTypeIPv4
-	def.ueIP = netip.MustParseAddr("10.45.0.2")
+	def.Apn = "internet"
+	def.PdnType = eps.PDNTypeIPv4
+	def.UeIP = netip.MustParseAddr("10.45.0.2")
 
-	second := ue.ensurePDN(6)
-	second.apn = "ims"
-	second.pdnType = eps.PDNTypeIPv4
-	second.ueIP = netip.MustParseAddr("10.46.0.2")
+	second := ue.EnsurePDN(6)
+	second.Apn = "ims"
+	second.PdnType = eps.PDNTypeIPv4
+	second.UeIP = netip.MustParseAddr("10.46.0.2")
 
-	cs, ok := m.LookupSubscriber(ue.imsi)
+	cs, ok := m.LookupSubscriber(ue.IMSI())
 	if !ok {
 		t.Fatal("subscriber not found")
 	}
@@ -272,7 +273,7 @@ func TestAdditionalPDNRejectedUnknownAPN(t *testing.T) {
 	ue, cc := securedUE(t, m)
 
 	p0 := testPDN(ue)
-	p0.apn = "internet"
+	p0.Apn = "internet"
 
 	apnIE, err := eps.MarshalAPN("enterprise")
 	if err != nil {
@@ -286,9 +287,9 @@ func TestAdditionalPDNRejectedUnknownAPN(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handlePDNConnectivityRequest(context.Background(), ue, connReq)
+	handlePDNConnectivityRequest(m, context.Background(), ue, connReq)
 
-	if ue.pdnForAPN("enterprise") != nil {
+	if ue.PdnForAPN("enterprise") != nil {
 		t.Fatal("PDN created for an APN not in the profile")
 	}
 
@@ -325,16 +326,16 @@ func TestPDNConnectivityRejectedInvalidHeader(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newTestMME(t)
 			ue, cc := securedUE(t, m)
-			testPDN(ue).apn = "internet"
+			testPDN(ue).Apn = "internet"
 
 			plain, err := tc.req.Marshal()
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			m.handlePDNConnectivityRequest(context.Background(), ue, plain)
+			handlePDNConnectivityRequest(m, context.Background(), ue, plain)
 
-			if ue.pdnForAPN("ims") != nil {
+			if ue.PdnForAPN("ims") != nil {
 				t.Fatal("PDN created despite an invalid ESM header")
 			}
 
@@ -366,14 +367,14 @@ func TestPDNDisconnectRejectedInvalidHeader(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newTestMME(t)
 			ue, cc := securedUE(t, m)
-			testPDN(ue).apn = "internet"
+			testPDN(ue).Apn = "internet"
 
 			plain, err := tc.req.Marshal()
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			m.handlePDNDisconnectRequest(context.Background(), ue, plain)
+			handlePDNDisconnectRequest(m, context.Background(), ue, plain)
 
 			reject, err := eps.ParsePDNDisconnectReject(lastDownlinkESM(t, ue, cc))
 			if err != nil {
@@ -394,16 +395,16 @@ func TestLastPDNDisconnectRejected(t *testing.T) {
 	ue, cc := securedUE(t, m)
 
 	p0 := testPDN(ue)
-	p0.apn = "internet"
+	p0.Apn = "internet"
 
-	dis, err := (&eps.PDNDisconnectRequest{ProcedureTransactionIdentity: 5, LinkedEPSBearerIdentity: defaultERABID}).Marshal()
+	dis, err := (&eps.PDNDisconnectRequest{ProcedureTransactionIdentity: 5, LinkedEPSBearerIdentity: mme.DefaultERABID}).Marshal()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	m.handlePDNDisconnectRequest(context.Background(), ue, dis)
+	handlePDNDisconnectRequest(m, context.Background(), ue, dis)
 
-	if m.defaultPDN(ue) == nil {
+	if m.DefaultPDN(ue) == nil {
 		t.Fatal("the only PDN was disconnected; expected it to be retained")
 	}
 

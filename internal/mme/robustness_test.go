@@ -103,7 +103,7 @@ func TestDropStaleUe(t *testing.T) {
 	m := newTestMME(t)
 
 	cc := &captureConn{}
-	m.newUe(cc, 7)
+	m.NewUe(cc, 7)
 
 	m.dropStaleUe(cc, 7)
 
@@ -122,7 +122,7 @@ func TestNonAttachInitialUEMessageCreatesNoContext(t *testing.T) {
 	// A plain EMM STATUS — a valid EMM message that is not an Attach Request.
 	emmStatus := []byte{0x07, 0x60, 0x00}
 	for i := 0; i < 100; i++ {
-		m.handleInitialUEMessage(context.Background(), nil, initiatingValue(t, initialUEMessagePDU(t, s1ap.ENBUES1APID(1000+i), emmStatus)))
+		m.HandleInitialUEMessage(context.Background(), nil, initiatingValue(t, initialUEMessagePDU(t, s1ap.ENBUES1APID(1000+i), emmStatus)))
 	}
 
 	if got := len(m.conns); got != 0 {
@@ -136,13 +136,13 @@ func TestNonAttachInitialUEMessageCreatesNoContext(t *testing.T) {
 func TestBareConnectionIgnoredByLookups(t *testing.T) {
 	m := newTestMME(t)
 
-	c := m.newConn(&captureConn{}, 7)
+	c := m.NewConn(&captureConn{}, 7)
 
 	if c.ue != nil {
 		t.Fatal("new connection is not bare")
 	}
 
-	if _, ok := m.lookupUe(c.MMEUES1APID); ok {
+	if _, ok := m.LookupUe(c.MMEUES1APID); ok {
 		t.Fatal("bare connection resolved as a UE")
 	}
 
@@ -150,7 +150,7 @@ func TestBareConnectionIgnoredByLookups(t *testing.T) {
 		t.Fatalf("bare connection counted as a registered subscriber: got %d", got)
 	}
 
-	m.releaseBareConn(c)
+	m.ReleaseBareConn(c)
 
 	if got := len(m.conns); got != 0 {
 		t.Fatalf("bare connection not removed by release: %d remain", got)

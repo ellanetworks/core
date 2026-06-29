@@ -1,36 +1,37 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package nas
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
 
-// handleServiceRequest handles a mobile-originated SERVICE REQUEST (TS 24.301)
+// HandleServiceRequest handles a mobile-originated SERVICE REQUEST (TS 24.301)
 // carried in an Initial UE Message from an EMM-IDLE UE. It resolves the
 // UE by the S-TMSI, verifies the short MAC against the stored NAS context, binds
 // the UE to the new S1 association, and re-establishes the S1 context and
 // default bearer (ECM-IDLE → ECM-CONNECTED).
-func (m *MME) handleServiceRequest(ctx context.Context, conn nasWriter, msg *s1ap.InitialUEMessage) {
+func HandleServiceRequest(m *mme.MME, ctx context.Context, conn mme.NasWriter, msg *s1ap.InitialUEMessage) {
 	if msg.STMSI == nil {
 		logger.MmeLog.Warn("Service Request without an S-TMSI")
-		m.sendServiceReject(ctx, conn, msg.ENBUES1APID)
+		sendServiceReject(m, ctx, conn, msg.ENBUES1APID)
 
 		return
 	}
 
-	ue, ok := m.lookupUeByMTMSI(msg.STMSI.MTMSI)
-	if !ok || ue.emmState.load() != EMMRegistered {
+	ue, ok := m.LookupUeByMTMSI(msg.STMSI.MTMSI)
+	if !ok || ue.EMMState() != mme.EMMRegistered {
 		logger.MmeLog.Info("Service Request for an unknown or deregistered UE",
 			zap.Uint32("m-tmsi", msg.STMSI.MTMSI))
-		m.sendServiceReject(ctx, conn, msg.ENBUES1APID)
+		sendServiceReject(m, ctx, conn, msg.ENBUES1APID)
 
 		return
 	}
@@ -38,14 +39,14 @@ func (m *MME) handleServiceRequest(ctx context.Context, conn nasWriter, msg *s1a
 	sr, err := eps.ParseServiceRequest([]byte(msg.NASPDU))
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Service Request", zap.Error(err))
-		m.sendServiceReject(ctx, conn, msg.ENBUES1APID)
+		sendServiceReject(m, ctx, conn, msg.ENBUES1APID)
 
 		return
 	}
 
 	// An unverified Service Request must not move the UE's S1 connection
 	// (TS 24.301 §5.6.1).
-	ok, want, expSeq, ul := ue.verifyServiceRequestShortMAC([]byte(msg.NASPDU)[:2], sr.ShortMAC, sr.SeqShort)
+	ok, want, expSeq, ul := ue.VerifyServiceRequestShortMAC([]byte(msg.NASPDU)[:2], sr.ShortMAC, sr.SeqShort)
 	if !ok {
 		logger.MmeLog.Warn("Service Request short-MAC verification failed",
 			zap.Uint32("m-tmsi", msg.STMSI.MTMSI),
@@ -55,34 +56,34 @@ func (m *MME) handleServiceRequest(ctx context.Context, conn nasWriter, msg *s1a
 			zap.Uint8("received-sequence", sr.SeqShort),
 			zap.Uint32("stored-ul-count", ul))
 
-		m.sendServiceReject(ctx, conn, msg.ENBUES1APID)
+		sendServiceReject(m, ctx, conn, msg.ENBUES1APID)
 
 		return
 	}
 
-	m.establishS1Connection(ue, conn, msg.ENBUES1APID)
+	m.EstablishS1Connection(ue, conn, msg.ENBUES1APID)
 
-	ue.advanceULCount()
+	ue.AdvanceULCount()
 
 	logger.MmeLog.Info("Service Request accepted",
-		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
-		zap.Uint32("enb-ue-id", uint32(ue.s1.ENBUES1APID)),
+		zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)),
+		zap.Uint32("enb-ue-id", uint32(ue.S1.ENBUES1APID)),
 		zap.String("imsi", ue.IMSI()))
 
-	qos, err := m.resolveQoS(ctx, ue.IMSI())
+	qos, err := mme.ResolveQoS(m, ctx, ue.IMSI())
 	if err != nil {
 		logger.MmeLog.Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
 		return
 	}
 
-	m.sendInitialContextSetup(ctx, ue, qos, nil)
+	sendInitialContextSetup(m, ctx, ue, qos, nil)
 }
 
 // sendServiceReject sends a SERVICE REJECT with cause #9 (TS 24.301 §5.6.1.5)
 // over a bare connection, so a rejected request never touches a resolved UE.
-func (m *MME) sendServiceReject(ctx context.Context, conn nasWriter, enbUEID s1ap.ENBUES1APID) {
-	c := m.newConn(conn, enbUEID)
-	defer m.releaseBareConn(c)
+func sendServiceReject(m *mme.MME, ctx context.Context, conn mme.NasWriter, enbUEID s1ap.ENBUES1APID) {
+	c := m.NewConn(conn, enbUEID)
+	defer m.ReleaseBareConn(c)
 
-	m.sendOverConn(ctx, c, &eps.ServiceReject{Cause: emmCauseUEIdentityUnderivable})
+	m.SendOverConn(ctx, c, &eps.ServiceReject{Cause: mme.EmmCauseUEIdentityUnderivable})
 }

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package nas
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/udm"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
@@ -16,16 +17,16 @@ import (
 
 // activateFromAccept unprotects an Attach Accept and decodes the embedded
 // Activate Default EPS Bearer Context Request.
-func activateFromAccept(t *testing.T, m *MME, ue *UeContext) *eps.ActivateDefaultEPSBearerContextRequest {
+func activateFromAccept(t *testing.T, m *mme.MME, ue *mme.UeContext) *eps.ActivateDefaultEPSBearerContextRequest {
 	t.Helper()
 
-	wire, err := m.buildProtectedAttachAccept(context.Background(), ue, &epsQoS{APN: "internet", QCI: 9, MTU: 1400})
+	wire, err := buildProtectedAttachAccept(m, context.Background(), ue, &mme.EpsQoS{APN: "internet", QCI: 9, MTU: 1400})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	plain, err := eps.Unprotect(wire, nascommon.NASCount(0, wire[5]), nascommon.DirectionDownlink,
-		ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,16 +50,16 @@ func activateFromAccept(t *testing.T, m *MME, ue *UeContext) *eps.ActivateDefaul
 func TestAttachAcceptIMSVoPS(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
-	testPDN(ue).pdnType = eps.PDNTypeIPv4
-	testPDN(ue).ueIP = testUEIP
+	testPDN(ue).PdnType = eps.PDNTypeIPv4
+	testPDN(ue).UeIP = testUEIP
 
-	wire, err := m.buildProtectedAttachAccept(context.Background(), ue, &epsQoS{APN: "internet", QCI: 9, MTU: 1400})
+	wire, err := buildProtectedAttachAccept(m, context.Background(), ue, &mme.EpsQoS{APN: "internet", QCI: 9, MTU: 1400})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	plain, err := eps.Unprotect(wire, nascommon.NASCount(0, wire[5]), nascommon.DirectionDownlink,
-		ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,9 +79,9 @@ func TestAttachAcceptIMSVoPS(t *testing.T) {
 func TestAttachAcceptDNSPCO(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
-	testPDN(ue).pdnType = eps.PDNTypeIPv4
-	testPDN(ue).ueIP = testUEIP
-	testPDN(ue).dns = netip.MustParseAddr("8.8.8.8")
+	testPDN(ue).PdnType = eps.PDNTypeIPv4
+	testPDN(ue).UeIP = testUEIP
+	testPDN(ue).Dns = netip.MustParseAddr("8.8.8.8")
 
 	activate := activateFromAccept(t, m, ue)
 
@@ -96,9 +97,9 @@ func TestAttachAcceptDNSPCO(t *testing.T) {
 func TestAttachAcceptIPv6NoLinkMTU(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
-	testPDN(ue).pdnType = eps.PDNTypeIPv6
-	testPDN(ue).ueIPv6IID = testUEIPv6IID
-	testPDN(ue).dns = netip.MustParseAddr("2001:4860:4860::8888")
+	testPDN(ue).PdnType = eps.PDNTypeIPv6
+	testPDN(ue).UeIPv6IID = testUEIPv6IID
+	testPDN(ue).Dns = netip.MustParseAddr("2001:4860:4860::8888")
 
 	activate := activateFromAccept(t, m, ue)
 
@@ -115,9 +116,9 @@ func TestAttachAcceptIPv6NoLinkMTU(t *testing.T) {
 func TestAttachAcceptDowngradeCause(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
-	testPDN(ue).pdnType = eps.PDNTypeIPv4
-	testPDN(ue).ueIP = testUEIP
-	testPDN(ue).esmCause = eps.ESMCausePDNTypeIPv4OnlyAllowed
+	testPDN(ue).PdnType = eps.PDNTypeIPv4
+	testPDN(ue).UeIP = testUEIP
+	testPDN(ue).EsmCause = eps.ESMCausePDNTypeIPv4OnlyAllowed
 
 	activate := activateFromAccept(t, m, ue)
 
@@ -130,10 +131,10 @@ func TestAttachAcceptDowngradeCause(t *testing.T) {
 // profile that forbids 4G is rejected with EMM cause #7 "EPS services not
 // allowed" (Core Network type restriction, TS 23.501 §5.3.4 / TS 24.301 §9.9.3.9).
 func TestActivateDefaultBearerRejectsWhen4GNotAllowed(t *testing.T) {
-	m := New(udm.New(newFakeCredStore(), noopKeyResolver), barredBearerStore{}, &fakeSessionManager{})
+	m := mme.New(udm.New(newFakeCredStore(), noopKeyResolver), barredBearerStore{}, &fakeSessionManager{})
 	ue, cc := securedUE(t, m)
 
-	m.activateDefaultBearer(context.Background(), ue)
+	activateDefaultBearer(m, context.Background(), ue)
 
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected Attach Reject + UE Context Release Command, got %d", len(cc.sent))
@@ -144,8 +145,8 @@ func TestActivateDefaultBearerRejectsWhen4GNotAllowed(t *testing.T) {
 		t.Fatalf("not an Attach Reject: %v", err)
 	}
 
-	if rej.Cause != emmCauseEPSServicesNotAllowed {
-		t.Fatalf("Attach Reject cause = %d, want %d (EPS services not allowed)", rej.Cause, emmCauseEPSServicesNotAllowed)
+	if rej.Cause != mme.EmmCauseEPSServicesNotAllowed {
+		t.Fatalf("Attach Reject cause = %d, want %d (EPS services not allowed)", rej.Cause, mme.EmmCauseEPSServicesNotAllowed)
 	}
 
 	parseUEContextReleaseCommand(t, cc.sent[1])
@@ -155,10 +156,10 @@ func TestActivateDefaultBearerRejectsWhen4GNotAllowed(t *testing.T) {
 // cannot establish the default bearer, the attach is rejected with EMM cause
 // #19 "ESM failure" and the S1 context is released (TS 24.301 §5.5.1.2.5).
 func TestActivateDefaultBearerRejectsOnSessionFailure(t *testing.T) {
-	m := New(udm.New(newFakeCredStore(), noopKeyResolver), fakeBearerStore{}, &erroringSessionManager{})
+	m := mme.New(udm.New(newFakeCredStore(), noopKeyResolver), fakeBearerStore{}, &erroringSessionManager{})
 	ue, cc := securedUE(t, m)
 
-	m.activateDefaultBearer(context.Background(), ue)
+	activateDefaultBearer(m, context.Background(), ue)
 
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected Attach Reject + UE Context Release Command, got %d", len(cc.sent))
@@ -169,8 +170,8 @@ func TestActivateDefaultBearerRejectsOnSessionFailure(t *testing.T) {
 		t.Fatalf("not an Attach Reject: %v", err)
 	}
 
-	if rej.Cause != emmCauseESMFailure {
-		t.Fatalf("Attach Reject cause = %d, want %d (ESM failure)", rej.Cause, emmCauseESMFailure)
+	if rej.Cause != mme.EmmCauseESMFailure {
+		t.Fatalf("Attach Reject cause = %d, want %d (ESM failure)", rej.Cause, mme.EmmCauseESMFailure)
 	}
 
 	parseUEContextReleaseCommand(t, cc.sent[1])
@@ -195,17 +196,17 @@ func TestAttachAcceptPDNAddress(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newTestMME(t)
 			ue, _ := securedUE(t, m)
-			testPDN(ue).pdnType = tc.pdnType
-			testPDN(ue).ueIP = testUEIP
-			testPDN(ue).ueIPv6IID = testUEIPv6IID
+			testPDN(ue).PdnType = tc.pdnType
+			testPDN(ue).UeIP = testUEIP
+			testPDN(ue).UeIPv6IID = testUEIPv6IID
 
-			wire, err := m.buildProtectedAttachAccept(context.Background(), ue, &epsQoS{APN: "internet", QCI: 9})
+			wire, err := buildProtectedAttachAccept(m, context.Background(), ue, &mme.EpsQoS{APN: "internet", QCI: 9})
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			plain, err := eps.Unprotect(wire, nascommon.NASCount(0, wire[5]), nascommon.DirectionDownlink,
-				ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+				ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
 			if err != nil {
 				t.Fatal(err)
 			}

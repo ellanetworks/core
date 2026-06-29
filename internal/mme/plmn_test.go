@@ -19,7 +19,7 @@ func TestEncodePLMN(t *testing.T) {
 		{"310", "260", s1ap.PLMNIdentity{0x13, 0x00, 0x62}}, // 3-digit MNC (TS 23.003: octet2 = MNC3|MCC3, octet3 = MNC2|MNC1)
 	}
 	for _, c := range cases {
-		got, err := encodePLMN(models.PlmnID{Mcc: c.mcc, Mnc: c.mnc})
+		got, err := EncodePLMN(models.PlmnID{Mcc: c.mcc, Mnc: c.mnc})
 		if err != nil {
 			t.Fatalf("%s/%s: %v", c.mcc, c.mnc, err)
 		}
@@ -31,12 +31,12 @@ func TestEncodePLMN(t *testing.T) {
 }
 
 func TestEncodePLMNInvalid(t *testing.T) {
-	if _, err := encodePLMN(models.PlmnID{Mcc: "1", Mnc: "01"}); err == nil {
+	if _, err := EncodePLMN(models.PlmnID{Mcc: "1", Mnc: "01"}); err == nil {
 		t.Fatal("expected error for malformed MCC")
 	}
 }
 
-// TestDecodePLMNRoundTrip confirms decodePLMN inverts encodePLMN for both 2- and
+// TestDecodePLMNRoundTrip confirms decodePLMN inverts EncodePLMN for both 2- and
 // 3-digit MNCs (TS 23.003).
 func TestDecodePLMNRoundTrip(t *testing.T) {
 	cases := []models.PlmnID{
@@ -48,7 +48,7 @@ func TestDecodePLMNRoundTrip(t *testing.T) {
 
 	for _, want := range cases {
 		t.Run(want.Mcc+"-"+want.Mnc, func(t *testing.T) {
-			encoded, err := encodePLMN(want)
+			encoded, err := EncodePLMN(want)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -63,12 +63,12 @@ func TestDecodePLMNRoundTrip(t *testing.T) {
 // TestENBSupportedTAIs confirms an S1 Setup Request's Supported TAs flatten into
 // one TAI per (broadcast PLMN, TAC) pair (TS 36.413 §8.7.3.2).
 func TestENBSupportedTAIs(t *testing.T) {
-	plmnA, err := encodePLMN(models.PlmnID{Mcc: "999", Mnc: "01"})
+	plmnA, err := EncodePLMN(models.PlmnID{Mcc: "999", Mnc: "01"})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	plmnB, err := encodePLMN(models.PlmnID{Mcc: "001", Mnc: "01"})
+	plmnB, err := EncodePLMN(models.PlmnID{Mcc: "001", Mnc: "01"})
 	if err != nil {
 		t.Fatal(err)
 	}

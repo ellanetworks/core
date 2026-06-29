@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package nas
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
@@ -17,28 +18,28 @@ import (
 
 // idleRegisteredUE returns a secured, EMM-REGISTERED UE with an assigned GUTI,
 // parked in ECM-IDLE — the state a UE is in just before a Service Request.
-func idleRegisteredUE(t *testing.T, m *MME) (*UeContext, eps.EPSMobileIdentity) {
+func idleRegisteredUE(t *testing.T, m *mme.MME) (*mme.UeContext, eps.EPSMobileIdentity) {
 	t.Helper()
 
 	ue, _ := securedUE(t, m)
-	ue.ueNetCap = eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal()
-	testPDN(ue).sgwFTEID = testSGWFTEID // S-GW S1-U persists across idle, as after a real attach
-	guti := m.assignGUTI(ue, models.PlmnID{Mcc: "001", Mnc: "01"}, 1, 1)
-	m.freeS1Conn(ue)
+	ue.UeNetCap = eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal()
+	testPDN(ue).SgwFTEID = testSGWFTEID // S-GW S1-U persists across idle, as after a real attach
+	guti := m.AssignGUTI(ue, models.PlmnID{Mcc: "001", Mnc: "01"}, 1, 1)
+	m.FreeS1Conn(ue)
 
 	return ue, guti
 }
 
 // serviceRequestNAS builds the 4-octet SERVICE REQUEST a UE would send at its
 // current uplink NAS COUNT.
-func serviceRequestNAS(t *testing.T, ue *UeContext) []byte {
+func serviceRequestNAS(t *testing.T, ue *mme.UeContext) []byte {
 	t.Helper()
 
 	octet0 := uint8(eps.SHTServiceRequest)<<4 | 0x07 // security header type | PD (EMM)
-	octet1 := uint8(ue.ulCount) & 0x1f               // KSI 0 | 5-bit sequence
+	octet1 := uint8(ue.ULCount()) & 0x1f             // KSI 0 | 5-bit sequence
 
-	mac, err := eps.ServiceRequestShortMAC([]byte{octet0, octet1}, ue.knasInt, ue.ulCount,
-		nascommon.DirectionUplink, integrityAlg(ue.eia))
+	mac, err := eps.ServiceRequestShortMAC([]byte{octet0, octet1}, ue.KnasIntForTest(), ue.ULCount(),
+		nascommon.DirectionUplink, mme.IntegrityAlg(ue.EIA()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +52,7 @@ func TestServiceRequestReestablishes(t *testing.T) {
 	ue, guti := idleRegisteredUE(t, m)
 
 	radioCap := []byte{0x10, 0x20, 0x30}
-	ue.radioCapability = radioCap
+	ue.RadioCapability = radioCap
 
 	cc := &captureConn{}
 	msg := &s1ap.InitialUEMessage{
@@ -60,14 +61,14 @@ func TestServiceRequestReestablishes(t *testing.T) {
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
 	}
 
-	m.handleServiceRequest(context.Background(), cc, msg)
+	HandleServiceRequest(m, context.Background(), cc, msg)
 
-	if !ue.connected() {
+	if !ue.Connected() {
 		t.Fatal("UE not ECM-CONNECTED after Service Request")
 	}
 
-	if ue.s1.ENBUES1APID != 9 {
-		t.Fatalf("UE not bound to the new eNB UE id, got %d", ue.s1.ENBUES1APID)
+	if ue.S1.ENBUES1APID != 9 {
+		t.Fatalf("UE not bound to the new eNB UE id, got %d", ue.S1.ENBUES1APID)
 	}
 
 	if len(cc.sent) != 1 {
@@ -105,11 +106,11 @@ func TestServiceRequestS1UTransportFamily(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newTestMME(t)
 			ue, guti := idleRegisteredUE(t, m)
-			testPDN(ue).sgwFTEID = models.FTEID{TEID: 0x1234, Addr: tc.sgwV4}
-			testPDN(ue).sgwN3IPv6 = tc.sgwV6
+			testPDN(ue).SgwFTEID = models.FTEID{TEID: 0x1234, Addr: tc.sgwV4}
+			testPDN(ue).SgwN3IPv6 = tc.sgwV6
 
 			cc := &captureConn{}
-			m.handleServiceRequest(context.Background(), cc, &s1ap.InitialUEMessage{
+			HandleServiceRequest(m, context.Background(), cc, &s1ap.InitialUEMessage{
 				ENBUES1APID: 9,
 				NASPDU:      s1ap.NASPDU(serviceRequestNAS(t, ue)),
 				STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
@@ -136,7 +137,7 @@ func TestServiceRequestAllocatesFreshMMEUES1APID(t *testing.T) {
 	m := newTestMME(t)
 	ue, guti := idleRegisteredUE(t, m)
 
-	if ue.connected() {
+	if ue.Connected() {
 		t.Fatal("a UE in ECM-IDLE must hold no S1-connection")
 	}
 
@@ -147,14 +148,14 @@ func TestServiceRequestAllocatesFreshMMEUES1APID(t *testing.T) {
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
 	}
 
-	m.handleServiceRequest(context.Background(), cc, msg)
+	HandleServiceRequest(m, context.Background(), cc, msg)
 
-	if !ue.connected() {
+	if !ue.Connected() {
 		t.Fatal("UE not bound to a connection after Service Request")
 	}
 
-	if got, ok := m.lookupUe(ue.s1.MMEUES1APID); !ok || got != ue {
-		t.Fatal("UE not indexed under its fresh MME-UE-S1AP-ID")
+	if got, ok := m.LookupUe(ue.S1.MMEUES1APID); !ok || got != ue {
+		t.Fatal("UE not indexed under its fresh mme.MME-UE-S1AP-ID")
 	}
 }
 
@@ -168,7 +169,7 @@ func TestServiceRequestUnknownSTMSIRejected(t *testing.T) {
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: 0xDEADBEEF},
 	}
 
-	m.handleServiceRequest(context.Background(), cc, msg)
+	HandleServiceRequest(m, context.Background(), cc, msg)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected Service Reject, got %d S1AP messages", len(cc.sent))
@@ -198,9 +199,9 @@ func TestServiceRequestBadMACRejected(t *testing.T) {
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
 	}
 
-	m.handleServiceRequest(context.Background(), cc, msg)
+	HandleServiceRequest(m, context.Background(), cc, msg)
 
-	if ue.connected() {
+	if ue.Connected() {
 		t.Fatal("UE reconnected despite a bad short MAC")
 	}
 
@@ -232,9 +233,9 @@ func TestResumeBadMACDoesNotRebindVictim(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleInitialUEMessage(context.Background(), nil, initiatingValue(t, b))
+	m.HandleInitialUEMessage(context.Background(), nil, initiatingValue(t, b))
 
-	if ue.connected() {
+	if ue.Connected() {
 		t.Fatal("a forged resume connected the idle victim")
 	}
 }
@@ -249,13 +250,13 @@ func TestServiceRequestBadMACDoesNotRebindVictim(t *testing.T) {
 	nas[3] ^= 0xff
 
 	attacker := &captureConn{}
-	m.handleServiceRequest(context.Background(), attacker, &s1ap.InitialUEMessage{
+	HandleServiceRequest(m, context.Background(), attacker, &s1ap.InitialUEMessage{
 		ENBUES1APID: 9,
 		NASPDU:      s1ap.NASPDU(nas),
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
 	})
 
-	if ue.connected() {
+	if ue.Connected() {
 		t.Fatal("a forged Service Request connected the idle victim to the attacker")
 	}
 }

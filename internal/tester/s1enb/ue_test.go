@@ -54,13 +54,13 @@ func TestUEKeyDerivationRoundTrip(t *testing.T) {
 		plain := []byte{0x07, 0x42, 0x01, 0x02, 0x03}
 
 		wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nascommon.NASCount(0, 0),
-			nascommon.DirectionUplink, ue.knasInt, ue.knasEnc, ue.integrityAlg(), ue.cipherAlg())
+			nascommon.DirectionUplink, ue.knasInt, ue.knasEnc, ue.IntegrityAlg(), ue.CipherAlg())
 		if err != nil {
 			t.Fatalf("alg %d: protect: %v", alg, err)
 		}
 
 		back, err := eps.Unprotect(wire, nascommon.NASCount(0, wire[5]), nascommon.DirectionUplink,
-			ue.knasInt, ue.knasEnc, ue.integrityAlg(), ue.cipherAlg())
+			ue.knasInt, ue.knasEnc, ue.IntegrityAlg(), ue.CipherAlg())
 		if err != nil {
 			t.Fatalf("alg %d: unprotect: %v", alg, err)
 		}

@@ -12,7 +12,7 @@ import (
 // emmMessageTypeName renders an EMM message type for logging (TS 24.301).
 // It covers types the eps codec does not yet model (e.g. tracking area
 // updating) so dropped messages are identifiable in logs.
-func emmMessageTypeName(mt eps.MessageType) string {
+func EmmMessageTypeName(mt eps.MessageType) string {
 	switch uint8(mt) {
 	case 0x41:
 		return "AttachRequest"

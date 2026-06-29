@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package nas
 
 import (
 	"context"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
@@ -16,7 +17,7 @@ import (
 func TestAttachUnknownIMSI(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.newUe(cc, 7)
+	ue := m.NewUe(cc, 7)
 
 	esm, err := (&eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: 1}).Marshal()
 	if err != nil {
@@ -36,7 +37,7 @@ func TestAttachUnknownIMSI(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleNAS(context.Background(), ue, b)
+	HandleNAS(m, context.Background(), ue, b)
 
 	// Expect Attach Reject (downlink NAS) followed by the UE Context Release Command.
 	if len(cc.sent) != 2 {
@@ -48,8 +49,8 @@ func TestAttachUnknownIMSI(t *testing.T) {
 		t.Fatalf("not an Attach Reject: %v", err)
 	}
 
-	if rej.Cause != emmCauseIMSIUnknownInHSS {
-		t.Fatalf("Attach Reject cause = %d, want %d", rej.Cause, emmCauseIMSIUnknownInHSS)
+	if rej.Cause != mme.EmmCauseIMSIUnknownInHSS {
+		t.Fatalf("Attach Reject cause = %d, want %d", rej.Cause, mme.EmmCauseIMSIUnknownInHSS)
 	}
 
 	parseUEContextReleaseCommand(t, cc.sent[1])

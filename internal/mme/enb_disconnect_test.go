@@ -10,16 +10,16 @@ import "testing"
 func TestENBDisconnectRetainsRegisteredUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	testPDN(ue).apn = "internet"
+	testPDN(ue).Apn = "internet"
 
 	m.reclaimUEsOnConnLoss(cc)
 
-	got, ok := m.lookupUeByIMSI(ue.imsi)
+	got, ok := m.LookupUeByIMSI(ue.imsi)
 	if !ok || got != ue {
 		t.Fatal("registered UE deleted on eNB disconnect; expected ECM-IDLE retention")
 	}
 
-	if got.connected() {
+	if got.Connected() {
 		t.Fatal("UE not in ECM-IDLE after eNB disconnect")
 	}
 
@@ -27,11 +27,11 @@ func TestENBDisconnectRetainsRegisteredUE(t *testing.T) {
 		t.Fatal("mobile reachable timer not armed after eNB disconnect")
 	}
 
-	if !m.session.(*fakeSessionManager).deactivated {
+	if !m.Session.(*fakeSessionManager).deactivated {
 		t.Fatal("EPS session not deactivated for paging after eNB disconnect")
 	}
 
-	m.removeUe(ue) // stop the default-duration timer
+	m.RemoveUe(ue) // stop the default-duration timer
 }
 
 // TestENBDisconnectDropsMidAttachUE confirms a UE that had not completed
@@ -40,15 +40,15 @@ func TestENBDisconnectDropsMidAttachUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 	ue.emmState.store(EMMDeregistered) // attach not yet completed
-	testPDN(ue).apn = "internet"
+	testPDN(ue).Apn = "internet"
 
 	m.reclaimUEsOnConnLoss(cc)
 
-	if _, ok := m.lookupUeByIMSI(ue.imsi); ok {
+	if _, ok := m.LookupUeByIMSI(ue.imsi); ok {
 		t.Fatal("incomplete-registration UE retained on eNB disconnect; expected drop")
 	}
 
-	if !m.session.(*fakeSessionManager).released {
+	if !m.Session.(*fakeSessionManager).released {
 		t.Fatal("EPS session not released when dropping an incomplete UE")
 	}
 }
@@ -58,16 +58,16 @@ func TestENBDisconnectDropsMidAttachUE(t *testing.T) {
 func TestENBDisconnectLeavesIdleUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	m.freeS1Conn(ue) // already idle
+	m.FreeS1Conn(ue) // already idle
 
 	m.reclaimUEsOnConnLoss(cc)
 
-	got, ok := m.lookupUeByIMSI(ue.imsi)
-	if !ok || got != ue || got.connected() {
+	got, ok := m.LookupUeByIMSI(ue.imsi)
+	if !ok || got != ue || got.Connected() {
 		t.Fatal("idle UE disturbed by an unrelated eNB disconnect")
 	}
 
-	if m.session.(*fakeSessionManager).deactivated {
+	if m.Session.(*fakeSessionManager).deactivated {
 		t.Fatal("idle UE's session re-deactivated on eNB disconnect")
 	}
 }

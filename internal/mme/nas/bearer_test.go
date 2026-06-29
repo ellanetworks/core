@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package nas
 
 import (
 	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/udm"
 )
 
@@ -26,9 +27,9 @@ func (s tacBearerStore) GetOperator(_ context.Context) (*db.Operator, error) {
 // than narrowed (TS 23.003). "000064" is hex 0x64 (decimal would be 64), "00ffff"
 // is the largest valid LTE TAC, and "010002" exceeds 16 bits and is dropped.
 func TestOperatorTACsHex(t *testing.T) {
-	m := New(udm.New(newFakeCredStore(), noopKeyResolver), tacBearerStore{tacs: `["000064","00ffff","010002"]`}, &fakeSessionManager{})
+	m := mme.New(udm.New(newFakeCredStore(), noopKeyResolver), tacBearerStore{tacs: `["000064","00ffff","010002"]`}, &fakeSessionManager{})
 
-	got, err := m.operatorTACs(context.Background())
+	got, err := m.OperatorTACs(context.Background())
 	if err != nil {
 		t.Fatalf("operatorTACs: %v", err)
 	}
@@ -64,8 +65,8 @@ func TestBitRateToBps(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		if got := bitRateToBps(c.in); got != c.want {
-			t.Errorf("bitRateToBps(%q) = %d, want %d", c.in, got, c.want)
+		if got := mme.BitRateToBps(c.in); got != c.want {
+			t.Errorf("mme.BitRateToBps(%q) = %d, want %d", c.in, got, c.want)
 		}
 	}
 }

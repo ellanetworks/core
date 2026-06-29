@@ -80,8 +80,8 @@ func pathSwitchUE(t *testing.T, m *MME) *UeContext {
 	t.Helper()
 
 	ue, _ := securedUE(t, m)
-	testPDN(ue).apn = "internet"
-	ue.ueNetCap = eps.UENetworkCapability{EEA: 0xe0, EIA: 0xe0}.Marshal()
+	testPDN(ue).Apn = "internet"
+	ue.UeNetCap = eps.UENetworkCapability{EEA: 0xe0, EIA: 0xe0}.Marshal()
 	ue.ncc = 1
 
 	for i := range ue.nh {
@@ -93,7 +93,7 @@ func pathSwitchUE(t *testing.T, m *MME) *UeContext {
 
 func switchedDLItem() s1ap.ERABToBeSwitchedDLItem {
 	return s1ap.ERABToBeSwitchedDLItem{
-		ERABID:                s1ap.ERABID(defaultERABID),
+		ERABID:                s1ap.ERABID(DefaultERABID),
 		TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
 		GTPTEID:               0x99,
 	}
@@ -103,7 +103,7 @@ func samplePathSwitchRequest(ue *UeContext) *s1ap.PathSwitchRequest {
 	return &s1ap.PathSwitchRequest{
 		ENBUES1APID:        42,
 		ERABToBeSwitchedDL: []s1ap.ERABToBeSwitchedDLItem{switchedDLItem()},
-		SourceMMEUES1APID:  ue.s1.MMEUES1APID,
+		SourceMMEUES1APID:  ue.S1.MMEUES1APID,
 		EUTRANCGI:          s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1},
 		TAI:                s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
 		// Matches the stored capabilities (EEA/EIA 0xe0, EEA0/EIA0 bit dropped).
@@ -128,13 +128,13 @@ func TestPathSwitchSwitchesDownlinkAndAcks(t *testing.T) {
 
 	// Downlink switched to the new eNB S1-U endpoint.
 	wantFTEID := models.FTEID{TEID: 0x99, Addr: netip.AddrFrom4([4]byte{10, 4, 0, 2})}
-	if fsm := m.session.(*fakeSessionManager); fsm.modifiedENB != wantFTEID {
+	if fsm := m.Session.(*fakeSessionManager); fsm.modifiedENB != wantFTEID {
 		t.Fatalf("ModifyEPSSession eNB F-TEID = %+v, want %+v", fsm.modifiedENB, wantFTEID)
 	}
 
 	// S1 association moved to the target eNB.
-	if ue.s1.conn != target || ue.s1.ENBUES1APID != 42 || testPDN(ue).enbFTEID != wantFTEID {
-		t.Fatalf("association not switched: conn=%v enb-id=%d fteid=%+v", ue.s1.conn == target, ue.s1.ENBUES1APID, testPDN(ue).enbFTEID)
+	if ue.S1.conn != target || ue.S1.ENBUES1APID != 42 || testPDN(ue).EnbFTEID != wantFTEID {
+		t.Fatalf("association not switched: conn=%v enb-id=%d fteid=%+v", ue.S1.conn == target, ue.S1.ENBUES1APID, testPDN(ue).EnbFTEID)
 	}
 
 	// Key chain advanced: NCC 1 -> 2 and NH = KDF(KASME, previous NH).
@@ -148,7 +148,7 @@ func TestPathSwitchSwitchesDownlinkAndAcks(t *testing.T) {
 
 	ack := parsePathSwitchAck(t, target.sent[0])
 
-	if ack.MMEUES1APID != ue.s1.MMEUES1APID || ack.ENBUES1APID != 42 {
+	if ack.MMEUES1APID != ue.S1.MMEUES1APID || ack.ENBUES1APID != 42 {
 		t.Fatalf("ack UE IDs: mme=%#x enb=%d", ack.MMEUES1APID, ack.ENBUES1APID)
 	}
 
@@ -191,7 +191,7 @@ func TestPathSwitchUnknownUEFails(t *testing.T) {
 // rejected with cause authentication-failure (TS 33.401 §7.2.8).
 func TestPathSwitchNoSecurityContextFails(t *testing.T) {
 	m := newTestMME(t)
-	ue := m.newUe(&captureConn{}, 7) // not secured
+	ue := m.NewUe(&captureConn{}, 7) // not secured
 
 	target := &captureConn{}
 	m.handlePathSwitchRequest(context.Background(), target, pathSwitchValue(t, samplePathSwitchRequest(ue)))
@@ -205,7 +205,7 @@ func TestPathSwitchNoSecurityContextFails(t *testing.T) {
 	}
 
 	// The downlink must not have been switched.
-	if m.session.(*fakeSessionManager).modifiedENB != (models.FTEID{}) {
+	if m.Session.(*fakeSessionManager).modifiedENB != (models.FTEID{}) {
 		t.Fatal("downlink switched despite missing security context")
 	}
 }
@@ -240,7 +240,7 @@ func TestPathSwitchUnknownERABFails(t *testing.T) {
 	ue := pathSwitchUE(t, m)
 
 	req := samplePathSwitchRequest(ue)
-	req.ERABToBeSwitchedDL[0].ERABID = s1ap.ERABID(defaultERABID + 1) // not the default bearer
+	req.ERABToBeSwitchedDL[0].ERABID = s1ap.ERABID(DefaultERABID + 1) // not the default bearer
 
 	target := &captureConn{}
 	m.handlePathSwitchRequest(context.Background(), target, pathSwitchValue(t, req))
@@ -249,12 +249,12 @@ func TestPathSwitchUnknownERABFails(t *testing.T) {
 		t.Fatalf("cause = %+v, want transport-resource-unavailable", fail.Cause)
 	}
 
-	if m.session.(*fakeSessionManager).modifiedENB != (models.FTEID{}) {
+	if m.Session.(*fakeSessionManager).modifiedENB != (models.FTEID{}) {
 		t.Fatal("downlink switched for an unresolved E-RAB")
 	}
 
-	if ue.ncc != 1 || ue.s1.conn == target {
-		t.Fatalf("UE moved on a failed path switch: ncc=%d moved=%v", ue.ncc, ue.s1.conn == target)
+	if ue.ncc != 1 || ue.S1.conn == target {
+		t.Fatalf("UE moved on a failed path switch: ncc=%d moved=%v", ue.ncc, ue.S1.conn == target)
 	}
 }
 
@@ -286,13 +286,13 @@ func TestPathSwitchUEReleasedDuringSwitch(t *testing.T) {
 	m := newTestMME(t)
 	ue := pathSwitchUE(t, m)
 
-	base := m.session.(*fakeSessionManager)
-	m.session = &hookSessionManager{fakeSessionManager: base, onModify: func() { m.freeS1Conn(ue) }}
+	base := m.Session.(*fakeSessionManager)
+	m.Session = &hookSessionManager{fakeSessionManager: base, onModify: func() { m.FreeS1Conn(ue) }}
 
 	target := &captureConn{}
 	m.handlePathSwitchRequest(context.Background(), target, pathSwitchValue(t, samplePathSwitchRequest(ue)))
 
-	if ue.s1 != nil {
+	if ue.S1 != nil {
 		t.Fatal("UE unexpectedly reconnected after being released mid-switch")
 	}
 

@@ -10,10 +10,10 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// hashMME returns the 8-octet HashMME for the SECURITY MODE COMMAND — the 64 most
+// HashMME returns the 8-octet HashMME for the SECURITY MODE COMMAND — the 64 most
 // significant bits of the SHA-256 of the triggering plain Attach/TAU — or nil when
 // there is nothing to hash (TS 24.301 §5.4.3.2, TS 33.401 §6.4.2.1).
-func hashMME(input []byte) []byte {
+func HashMME(input []byte) []byte {
 	if len(input) == 0 {
 		return nil
 	}
@@ -29,7 +29,7 @@ func hashMME(input []byte) []byte {
 // (NULL ≡ EEA0/EIA0, SNOW3G ≡ 128-EEA1/128-EIA1, AES ≡ 128-EEA2/128-EIA2). It
 // reports false when the UE and operator share no algorithm, so the caller
 // rejects the attach without falling back to the null algorithm.
-func selectAlgorithms(ueNetCap []byte, ciphering, integrity []string) (eea, eia byte, ok bool) {
+func SelectAlgorithms(ueNetCap []byte, ciphering, integrity []string) (eea, eia byte, ok bool) {
 	uecap, err := eps.ParseUENetworkCapability(ueNetCap)
 	if err != nil {
 		return 0, 0, false
@@ -94,13 +94,13 @@ func geaOctet(msNetCap []byte) byte {
 	return gea1<<6 | extended
 }
 
-// replayedUESecCap builds the Replayed UE security capabilities IE that the
+// ReplayedUESecCap builds the Replayed UE security capabilities IE that the
 // SECURITY MODE COMMAND echoes back so the UE can detect bidding-down (TS 24.301).
 // The UE rejects the command with cause #23 if the replay differs from the
 // capabilities it sent: EPS algorithms from the UE network capability, UMTS
 // algorithms from its octets 5-6, and GERAN algorithms from the MS network
 // capability.
-func replayedUESecCap(ueNetCap, msNetCap []byte) []byte {
+func ReplayedUESecCap(ueNetCap, msNetCap []byte) []byte {
 	uecap, err := eps.ParseUENetworkCapability(ueNetCap)
 	if err != nil {
 		return nil
@@ -129,10 +129,10 @@ func replayedUESecCap(ueNetCap, msNetCap []byte) []byte {
 	return out
 }
 
-// integrityAlg / cipherAlg map an EPS algorithm identity to the nas
+// IntegrityAlg / CipherAlg map an EPS algorithm identity to the nas
 // implementation: null (EIA0/EEA0), SNOW3G (128-EIA1/128-EEA1), or AES
 // (128-EIA2/128-EEA2). An unrecognized value falls back to null.
-func integrityAlg(eia byte) nascommon.Integrity {
+func IntegrityAlg(eia byte) nascommon.Integrity {
 	switch eia {
 	case 1:
 		return nascommon.SNOW3GIntegrity{}
@@ -143,7 +143,7 @@ func integrityAlg(eia byte) nascommon.Integrity {
 	}
 }
 
-func cipherAlg(eea byte) nascommon.Cipher {
+func CipherAlg(eea byte) nascommon.Cipher {
 	switch eea {
 	case 1:
 		return nascommon.SNOW3GCipher{}

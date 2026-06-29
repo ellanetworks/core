@@ -13,9 +13,9 @@ import (
 // S1AP causes (TS 36.413) the MME uses when releasing a UE context:
 // "nas: detach" after a detach, and "nas: unspecified" after an attach reject.
 var (
-	causeNASNormalRelease = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASNormalRelease}
-	causeNASDetach        = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASDetach}
-	causeNASUnspecified   = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASUnspecified}
+	CauseNASNormalRelease = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASNormalRelease}
+	CauseNASDetach        = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASDetach}
+	CauseNASUnspecified   = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASUnspecified}
 )
 
 // s1apCauseGroupName is the display name of each S1AP cause group (TS 36.413)
@@ -38,3 +38,15 @@ func s1apCauseName(c *s1ap.Cause) string {
 
 	return fmt.Sprintf("%s: %s (%d)", group, name, index)
 }
+
+// EMM cause values (TS 24.301).
+const (
+	EmmCauseIMSIUnknownInHSS      uint8 = 2
+	EmmCauseEPSServicesNotAllowed uint8 = 7
+	EmmCauseUEIdentityUnderivable uint8 = 9
+	EmmCauseCSDomainNotAvailable  uint8 = 18
+	EmmCauseESMFailure            uint8 = 19
+	EmmCauseMACFailure            uint8 = 20
+	EmmCauseSynchFailure          uint8 = 21
+	EmmCauseUESecCapsMismatch     uint8 = 23
+)

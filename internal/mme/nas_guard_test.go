@@ -18,7 +18,7 @@ func TestNASGuardRetransmitsThenReleases(t *testing.T) {
 
 	ue, cc := securedUE(t, m)
 
-	m.armNASGuard(ue, "Authentication Request", []byte{0x07, 0x52})
+	m.ArmNASGuard(ue, "Authentication Request", []byte{0x07, 0x52})
 
 	// Two retransmissions plus the UE Context Release Command. Wait for all three
 	// sends rather than the releasing flag, which releaseUEContext sets just before
@@ -40,7 +40,7 @@ func TestNASGuardAbortOnlyRunsFinalizer(t *testing.T) {
 
 	finalized := make(chan struct{}, 1)
 
-	m.armNASGuardAbortOnly(ue, "Deactivate EPS Bearer Context Request", []byte{0x07, 0xc9}, func() {
+	m.ArmNASGuardAbortOnly(ue, "Deactivate EPS Bearer Context Request", []byte{0x07, 0xc9}, func() {
 		finalized <- struct{}{}
 	})
 
@@ -50,7 +50,7 @@ func TestNASGuardAbortOnlyRunsFinalizer(t *testing.T) {
 		t.Fatal("abort-only finalizer not run after retransmissions exhausted")
 	}
 
-	if ue.s1.releasing {
+	if ue.S1.releasing {
 		t.Fatal("abort-only guard released the UE; expected it to stay connected")
 	}
 
@@ -69,17 +69,17 @@ func TestNASGuardStoppedByResponse(t *testing.T) {
 
 	ue, cc := securedUE(t, m)
 
-	m.armNASGuard(ue, "Authentication Request", []byte{0x07, 0x52})
-	m.stopNASGuard(ue)
+	m.ArmNASGuard(ue, "Authentication Request", []byte{0x07, 0x52})
+	m.StopNASGuard(ue)
 
 	// The guard is cancelled, so after the timeout window nothing mutates the UE.
 	time.Sleep(50 * time.Millisecond)
 
-	if ue.s1.releasing {
+	if ue.S1.releasing {
 		t.Fatal("UE released despite the guarded response arriving")
 	}
 
-	if ue.s1.nasGuardTimer != nil {
+	if ue.S1.nasGuardTimer != nil {
 		t.Fatal("NAS guard still armed after the response")
 	}
 

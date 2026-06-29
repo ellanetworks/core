@@ -42,18 +42,18 @@ func deriveNASKey(kasme []byte, distinguisher, algID byte) ([16]byte, error) {
 	return k, nil
 }
 
-// deriveKNASEnc derives the NAS ciphering key for the given EEA algorithm id.
-func deriveKNASEnc(kasme []byte, algID byte) ([16]byte, error) {
+// DeriveKNASEnc derives the NAS ciphering key for the given EEA algorithm id.
+func DeriveKNASEnc(kasme []byte, algID byte) ([16]byte, error) {
 	return deriveNASKey(kasme, nasEncAlgDistinguisher, algID)
 }
 
-// deriveKNASInt derives the NAS integrity key for the given EIA algorithm id.
-func deriveKNASInt(kasme []byte, algID byte) ([16]byte, error) {
+// DeriveKNASInt derives the NAS integrity key for the given EIA algorithm id.
+func DeriveKNASInt(kasme []byte, algID byte) ([16]byte, error) {
 	return deriveNASKey(kasme, nasIntAlgDistinguisher, algID)
 }
 
-// deriveKeNB derives K_eNB from K_ASME and the uplink NAS COUNT (TS 33.401).
-func deriveKeNB(kasme []byte, ulNASCount uint32) ([32]byte, error) {
+// DeriveKeNB derives K_eNB from K_ASME and the uplink NAS COUNT (TS 33.401).
+func DeriveKeNB(kasme []byte, ulNASCount uint32) ([32]byte, error) {
 	var k [32]byte
 
 	p0 := make([]byte, 4)

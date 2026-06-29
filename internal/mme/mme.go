@@ -31,6 +31,15 @@ import (
 // DefaultS1MMEPort is the standard S1-MME SCTP port (TS 36.412).
 const DefaultS1MMEPort = 36412
 
+// NASHandler is the EMM/ESM NAS layer's entry surface, implemented in
+// internal/mme/nas and injected so the S1AP layer dispatches uplink NAS without
+// the kernel importing its layers (kernel ⊅ nas).
+type NASHandler interface {
+	HandleNAS(ctx context.Context, ue *UeContext, nas []byte)
+	HandleServiceRequest(ctx context.Context, conn NasWriter, msg *s1ap.InitialUEMessage)
+	DispatchEMM(ctx context.Context, ue *UeContext, plain []byte, integrityVerified bool)
+}
+
 // MME is Ella Core's 4G Mobility Management Entity control-plane network function.
 // epsSessionManager is the converged session anchor (SMF acting as PGW-C) the
 // MME delegates EPS default-bearer establishment to: it allocates the UE IP and
@@ -84,14 +93,15 @@ type epsSessionManager interface {
 // UeContext.mu — the atomic store at registration carries the happens-before.
 type MME struct {
 	srv     *sctp.Server
-	cred    *udm.Service
-	bearer  bearerStore
-	session epsSessionManager
+	Cred    *udm.Service
+	Bearer  bearerStore
+	Session epsSessionManager
+	NAS     NASHandler
 
 	mu          sync.RWMutex
 	enbs        map[*sctp.SCTPConn]*enbState
-	enbByID     map[string]nasWriter  // S1-setup-complete eNBs keyed by Global eNB ID, for S1-handover target resolution
-	conns       map[uint32]*s1Conn    // UE-associated S1-connections keyed by MME-UE-S1AP-ID; conn.ue is nil until a UE context is bound
+	enbByID     map[string]NasWriter  // S1-setup-complete eNBs keyed by Global eNB ID, for S1-handover target resolution
+	conns       map[uint32]*S1Conn    // UE-associated S1-connections keyed by MME-UE-S1AP-ID; conn.ue is nil until a UE context is bound
 	ues         map[string]*UeContext // persistent UE contexts keyed by IMSI; survives the connection across ECM-IDLE
 	byMTMSI     map[uint32]*UeContext // keyed by M-TMSI, for S-TMSI lookup
 	nextMMEUEID uint32
@@ -158,12 +168,12 @@ const defaultHandoverGuardTimeout = 10 * time.Second
 // that allocates the UE IP. The MME never holds subscriber keys or the SQN.
 func New(cred *udm.Service, bearer bearerStore, session epsSessionManager) *MME {
 	return &MME{
-		cred:        cred,
-		bearer:      bearer,
-		session:     session,
+		Cred:        cred,
+		Bearer:      bearer,
+		Session:     session,
 		enbs:        make(map[*sctp.SCTPConn]*enbState),
-		enbByID:     make(map[string]nasWriter),
-		conns:       make(map[uint32]*s1Conn),
+		enbByID:     make(map[string]NasWriter),
+		conns:       make(map[uint32]*S1Conn),
 		ues:         make(map[string]*UeContext),
 		byMTMSI:     make(map[uint32]*UeContext),
 		nextMMEUEID: 1,
@@ -204,13 +214,13 @@ func (m *MME) Shutdown(ctx context.Context) {
 }
 
 // tracer instruments the MME's S1AP/EMM control plane.
-var tracer = otel.Tracer("ella-core/mme")
+var Tracer = otel.Tracer("ella-core/mme")
 
 // dispatch decodes an S1AP PDU and routes it to the matching procedure handler.
 func (m *MME) dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 	// Inbound S1AP carries no propagated trace context, so this is a fresh root
 	// span.
-	ctx, span := tracer.Start(ctx, "s1ap/receive",
+	ctx, span := Tracer.Start(ctx, "s1ap/receive",
 		trace.WithSpanKind(trace.SpanKindServer),
 		trace.WithAttributes(
 			attribute.Int("s1ap.message_size", len(msg)),
@@ -267,7 +277,7 @@ func (m *MME) dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 		case s1ap.ProcS1Setup:
 			m.handleS1Setup(ctx, conn, p.Value)
 		case s1ap.ProcInitialUEMessage:
-			m.handleInitialUEMessage(ctx, conn, p.Value)
+			m.HandleInitialUEMessage(ctx, conn, p.Value)
 		case s1ap.ProcUplinkNASTransport:
 			m.handleUplinkNASTransport(ctx, conn, p.Value)
 		case s1ap.ProcUEContextReleaseRequest:
@@ -298,13 +308,13 @@ func (m *MME) dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 		case s1ap.ProcInitialContextSetup:
 			m.handleInitialContextSetupResponse(ctx, conn, p.Value)
 		case s1ap.ProcUEContextRelease:
-			m.handleUEContextReleaseComplete(conn, p.Value)
+			m.HandleUEContextReleaseComplete(conn, p.Value)
 		case s1ap.ProcERABSetup:
-			m.handleERABSetupResponse(conn, p.Value)
+			m.HandleERABSetupResponse(conn, p.Value)
 		case s1ap.ProcERABModify:
 			m.handleERABModifyResponse(p.Value)
 		case s1ap.ProcERABRelease:
-			m.handleERABReleaseResponse(conn, p.Value)
+			m.HandleERABReleaseResponse(conn, p.Value)
 		case s1ap.ProcHandoverResourceAllocation:
 			m.handleHandoverRequestAcknowledge(ctx, conn, p.Value)
 		default:
@@ -339,19 +349,19 @@ var causeNoServedTAC = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseM
 // Failure with cause "Unknown PLMN" or, for an unserved TAC, "unspecified"
 // (TS 36.413).
 func (m *MME) handleS1Setup(ctx context.Context, conn *sctp.SCTPConn, value []byte) {
-	plmn, err := m.operatorPLMN(ctx)
+	plmn, err := m.OperatorPLMN(ctx)
 	if err != nil {
 		logger.MmeLog.Error("failed to get operator PLMN for S1 Setup", zap.Error(err))
 		return
 	}
 
-	tacs, err := m.operatorTACs(ctx)
+	tacs, err := m.OperatorTACs(ctx)
 	if err != nil {
 		logger.MmeLog.Error("failed to get operator TACs for S1 Setup", zap.Error(err))
 		return
 	}
 
-	mmeGroupID, mmeCode := m.mmeIdentity()
+	mmeGroupID, mmeCode := m.MmeIdentity()
 
 	req, outBytes, accepted, reason, err := s1SetupOutcomeFor(value, plmn, tacs, mmeGroupID, mmeCode)
 	if err != nil {
@@ -406,13 +416,13 @@ func (m *MME) handleENBConfigurationUpdate(ctx context.Context, conn *sctp.SCTPC
 		return
 	}
 
-	plmn, err := m.operatorPLMN(ctx)
+	plmn, err := m.OperatorPLMN(ctx)
 	if err != nil {
 		logger.MmeLog.Error("failed to get operator PLMN for ENB Configuration Update", zap.Error(err))
 		return
 	}
 
-	tacs, err := m.operatorTACs(ctx)
+	tacs, err := m.OperatorTACs(ctx)
 	if err != nil {
 		logger.MmeLog.Error("failed to get operator TACs for ENB Configuration Update", zap.Error(err))
 		return
@@ -460,7 +470,7 @@ func (m *MME) handleENBConfigurationUpdate(ctx context.Context, conn *sctp.SCTPC
 // supported TAs (a name- or DRX-only change) is always accepted.
 func enbConfigUpdateOutcomeFor(req *s1ap.ENBConfigurationUpdate, plmn models.PlmnID, tacs []uint16) (out []byte, accepted bool, err error) {
 	if len(req.SupportedTAs) > 0 {
-		served, err := encodePLMN(plmn)
+		served, err := EncodePLMN(plmn)
 		if err != nil {
 			return nil, false, fmt.Errorf("mme: encode served PLMN: %w", err)
 		}
@@ -495,7 +505,7 @@ func s1SetupOutcomeFor(reqValue []byte, plmn models.PlmnID, tacs []uint16, mmeGr
 		return nil, nil, false, "", fmt.Errorf("mme: parse S1 Setup Request: %w", err)
 	}
 
-	served, err := encodePLMN(plmn)
+	served, err := EncodePLMN(plmn)
 	if err != nil {
 		return req, nil, false, "", fmt.Errorf("mme: encode served PLMN: %w", err)
 	}

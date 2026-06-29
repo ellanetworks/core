@@ -16,7 +16,7 @@ const (
 // servedGUMMEIs builds the Served GUMMEIs advertised in the S1 Setup Response:
 // the operator PLMN combined with the configured MME group ID and code.
 func servedGUMMEIs(plmn models.PlmnID, mmeGroupID uint16, mmeCode uint8) (s1ap.ServedGUMMEIs, error) {
-	p, err := encodePLMN(plmn)
+	p, err := EncodePLMN(plmn)
 	if err != nil {
 		return nil, err
 	}

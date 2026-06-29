@@ -84,6 +84,6 @@ func (m *MME) onImplicitDetachExpiry(ue *UeContext, gen uint64) {
 	logger.MmeLog.Info("implicit detach: UE unreachable, releasing context",
 		zap.String("imsi", imsi))
 
-	m.releaseAllSessions(ue)
-	m.removeUe(ue)
+	m.ReleaseAllSessions(ue)
+	m.RemoveUe(ue)
 }

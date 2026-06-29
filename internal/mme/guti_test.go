@@ -14,8 +14,8 @@ func TestAssignGUTI(t *testing.T) {
 	m := newTestMME(t)
 	plmn := models.PlmnID{Mcc: "001", Mnc: "01"}
 
-	ue := m.newUe(&captureConn{}, 7)
-	guti := m.assignGUTI(ue, plmn, 0x1234, 0x56)
+	ue := m.NewUe(&captureConn{}, 7)
+	guti := m.AssignGUTI(ue, plmn, 0x1234, 0x56)
 
 	if guti.Type != eps.IdentityGUTI || guti.MCC != "001" || guti.MNC != "01" ||
 		guti.MMEGroupID != 0x1234 || guti.MMECode != 0x56 {
@@ -26,21 +26,21 @@ func TestAssignGUTI(t *testing.T) {
 		t.Fatalf("UE M-TMSI = %d, GUTI M-TMSI = %d", ue.mtmsi, guti.MTMSI)
 	}
 
-	got, ok := m.lookupUeByMTMSI(guti.MTMSI)
+	got, ok := m.LookupUeByMTMSI(guti.MTMSI)
 	if !ok || got != ue {
 		t.Fatal("UE not indexed by its M-TMSI")
 	}
 
 	// A second UE gets a distinct M-TMSI.
-	ue2 := m.newUe(&captureConn{}, 8)
-	if guti2 := m.assignGUTI(ue2, plmn, 0x1234, 0x56); guti2.MTMSI == guti.MTMSI {
+	ue2 := m.NewUe(&captureConn{}, 8)
+	if guti2 := m.AssignGUTI(ue2, plmn, 0x1234, 0x56); guti2.MTMSI == guti.MTMSI {
 		t.Fatalf("M-TMSI not unique: both %d", guti2.MTMSI)
 	}
 
 	// Releasing the UE clears the index.
-	m.removeUe(ue)
+	m.RemoveUe(ue)
 
-	if _, ok := m.lookupUeByMTMSI(guti.MTMSI); ok {
+	if _, ok := m.LookupUeByMTMSI(guti.MTMSI); ok {
 		t.Fatal("M-TMSI index not cleared on UE removal")
 	}
 }
@@ -52,20 +52,20 @@ func TestAssignGUTI(t *testing.T) {
 func TestAssignGUTIReallocationFreesOld(t *testing.T) {
 	m := newTestMME(t)
 	plmn := models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue := m.newUe(&captureConn{}, 7)
+	ue := m.NewUe(&captureConn{}, 7)
 
-	first := m.assignGUTI(ue, plmn, 1, 1).MTMSI
-	second := m.assignGUTI(ue, plmn, 1, 1).MTMSI
+	first := m.AssignGUTI(ue, plmn, 1, 1).MTMSI
+	second := m.AssignGUTI(ue, plmn, 1, 1).MTMSI
 
 	if first == second {
 		t.Fatal("reallocation reused the same M-TMSI")
 	}
 
-	if _, ok := m.lookupUeByMTMSI(first); ok {
+	if _, ok := m.LookupUeByMTMSI(first); ok {
 		t.Fatal("previous M-TMSI still indexed after reallocation")
 	}
 
-	if got, ok := m.lookupUeByMTMSI(second); !ok || got != ue {
+	if got, ok := m.LookupUeByMTMSI(second); !ok || got != ue {
 		t.Fatal("UE not indexed by its new M-TMSI")
 	}
 }

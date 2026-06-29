@@ -120,7 +120,7 @@ func (ue *UE) buildDeactivateEPSBearerContextAccept(ebi, pti uint8) ([]byte, err
 
 	out, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered,
 		nascommon.NASCount(0, ue.ulCount), nascommon.DirectionUplink,
-		ue.knasInt, ue.knasEnc, ue.integrityAlg(), ue.cipherAlg())
+		ue.knasInt, ue.knasEnc, ue.IntegrityAlg(), ue.CipherAlg())
 	if err != nil {
 		return nil, fmt.Errorf("protect Deactivate EPS Bearer Context Accept: %w", err)
 	}
@@ -141,7 +141,7 @@ func (ue *UE) buildModifyEPSBearerContextAccept(ebi, pti uint8) ([]byte, error) 
 
 	out, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered,
 		nascommon.NASCount(0, ue.ulCount), nascommon.DirectionUplink,
-		ue.knasInt, ue.knasEnc, ue.integrityAlg(), ue.cipherAlg())
+		ue.knasInt, ue.knasEnc, ue.IntegrityAlg(), ue.CipherAlg())
 	if err != nil {
 		return nil, fmt.Errorf("protect Modify EPS Bearer Context Accept: %w", err)
 	}

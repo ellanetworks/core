@@ -28,7 +28,7 @@ var (
 // with PATH SWITCH REQUEST ACKNOWLEDGE — or a FAILURE when the path cannot be
 // switched. value is the initiatingMessage open-type payload; conn is the target
 // eNB's association the request arrived on.
-func (m *MME) handlePathSwitchRequest(ctx context.Context, conn nasWriter, value []byte) {
+func (m *MME) handlePathSwitchRequest(ctx context.Context, conn NasWriter, value []byte) {
 	req, err := s1ap.ParsePathSwitchRequest(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Path Switch Request", zap.Error(err))
@@ -45,7 +45,7 @@ func (m *MME) handlePathSwitchRequest(ctx context.Context, conn nasWriter, value
 		return
 	}
 
-	ue, ok := m.lookupUe(req.SourceMMEUES1APID)
+	ue, ok := m.LookupUe(req.SourceMMEUES1APID)
 	if !ok {
 		logger.MmeLog.Warn("Path Switch Request for unknown UE",
 			zap.Uint32("source-mme-ue-id", uint32(req.SourceMMEUES1APID)))
@@ -54,43 +54,33 @@ func (m *MME) handlePathSwitchRequest(ctx context.Context, conn nasWriter, value
 		return
 	}
 
-	if !ue.secured || len(ue.kasme) == 0 {
+	if !ue.Secured() || !ue.HasKASME() {
 		logger.MmeLog.Warn("Path Switch Request for a UE without a security context",
-			zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)))
+			zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)))
 		m.sendPathSwitchFailure(conn, req, causePathSwitchNoSecurity)
 
 		return
 	}
 
-	// Claim the {NH, NCC} chain under the lock — refusing if a Path Switch or S1
-	// handover is concurrently advancing it, which would derive the same NH for two
-	// targets. The claim is held until commit so a handover cannot start in the
-	// unlocked derive/switch window below.
-	m.mu.Lock()
-	if ue.keyChainBusy {
-		m.mu.Unlock()
+	// Claim the {NH, NCC} chain — refusing if a Path Switch or S1 handover is
+	// concurrently advancing it, which would derive the same NH for two targets. The
+	// claim is held until commit so a handover cannot start in the unlocked
+	// derive/switch window below.
+	curNH, curNCC, mmeID, ok := m.beginPathSwitch(ue)
+	if !ok {
 		logger.MmeLog.Warn("Path Switch Request while the key chain is being advanced",
-			zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)))
+			zap.Uint32("mme-ue-id", uint32(mmeID)))
 		m.sendPathSwitchFailure(conn, req, causePathSwitchUPFailure)
 
 		return
 	}
 
-	ue.keyChainBusy = true
-	curNH, curNCC := ue.nh, ue.ncc
-	mmeID := ue.s1.MMEUES1APID // a release in the unlocked window below may nil ue.s1
-	m.mu.Unlock()
-
-	defer func() {
-		m.mu.Lock()
-		ue.keyChainBusy = false
-		m.mu.Unlock()
-	}()
+	defer m.clearKeyChainBusy(ue)
 
 	// Compute the next NH before any user-plane change so a derivation error leaves
 	// the UE on the source eNB cleanly; the chain is committed only after at least
 	// one E-RAB is switched (TS 33.401 — no rollback once advanced).
-	newNH, err := deriveNH(ue.kasme, curNH[:])
+	newNH, err := m.advancePathSwitchNH(ue, curNH)
 	if err != nil {
 		logger.MmeLog.Error("failed to advance NH for Path Switch", zap.Error(err))
 		m.sendPathSwitchFailure(conn, req, causePathSwitchUPFailure)
@@ -115,22 +105,14 @@ func (m *MME) handlePathSwitchRequest(ctx context.Context, conn nasWriter, value
 	// advanced {NH, NCC}. NCC is a 3-bit chaining counter (TS 33.401). The UE may
 	// have been released during the unlocked switch above (its source association
 	// dropping), so the commit is gated on the connection still being present.
-	m.mu.Lock()
-	if ue.s1 == nil {
-		m.mu.Unlock()
+	ncc, ok := m.commitPathSwitch(ue, conn, req.ENBUES1APID, newNH, curNCC)
+	if !ok {
 		logger.MmeLog.Warn("Path Switch Request: UE released during the user-plane switch",
 			zap.Uint32("mme-ue-id", uint32(mmeID)))
 		m.sendPathSwitchFailure(conn, req, causePathSwitchUPFailure)
 
 		return
 	}
-
-	ue.s1.conn = conn
-	ue.s1.ENBUES1APID = req.ENBUES1APID
-	ue.nh = newNH
-	ue.ncc = (curNCC + 1) & 0x07
-	ncc := ue.ncc
-	m.mu.Unlock()
 
 	ack := &s1ap.PathSwitchRequestAcknowledge{
 		MMEUES1APID:            mmeID,
@@ -150,7 +132,7 @@ func (m *MME) handlePathSwitchRequest(ctx context.Context, conn nasWriter, value
 		zap.Uint32("enb-ue-id", uint32(req.ENBUES1APID)),
 		zap.Int("e-rabs-switched", switched),
 		zap.Uint8("ncc", ncc))
-	m.sendS1AP(ctx, ue, S1APProcedurePathSwitchRequestAck, b)
+	m.SendS1AP(ctx, ue, S1APProcedurePathSwitchRequestAck, b)
 }
 
 // switchPathBearers points the downlink of each E-RAB in the to-be-switched list
@@ -164,7 +146,7 @@ func (m *MME) switchPathBearers(ctx context.Context, ue *UeContext, mmeID s1ap.M
 	switched := 0
 
 	for _, erab := range items {
-		p := m.lookupPDN(ue, uint8(erab.ERABID))
+		p := m.LookupPDN(ue, uint8(erab.ERABID))
 		if p == nil {
 			logger.MmeLog.Warn("Path Switch Request lists an unknown E-RAB; not switched",
 				zap.Uint32("mme-ue-id", uint32(mmeID)), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
@@ -182,14 +164,14 @@ func (m *MME) switchPathBearers(ctx context.Context, ue *UeContext, mmeID s1ap.M
 
 		fteid := models.FTEID{TEID: uint32(erab.GTPTEID), Addr: addr}
 
-		if err := m.session.ModifyEPSSession(ctx, ue.imsi, p.ebi, fteid); err != nil {
+		if err := m.Session.ModifyEPSSession(ctx, ue.IMSI(), p.Ebi, fteid); err != nil {
 			logger.MmeLog.Error("failed to switch an EPS session downlink to the target eNB",
-				zap.String("imsi", ue.imsi), zap.Uint8("e-rab-id", uint8(erab.ERABID)), zap.Error(err))
+				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", uint8(erab.ERABID)), zap.Error(err))
 
 			continue
 		}
 
-		p.enbFTEID = fteid
+		p.EnbFTEID = fteid
 		switched++
 
 		logger.MmeLog.Debug("Path Switch: E-RAB downlink switched",
@@ -203,7 +185,7 @@ func (m *MME) switchPathBearers(ctx context.Context, ue *UeContext, mmeID s1ap.M
 
 // sendPathSwitchFailure sends a PATH SWITCH REQUEST FAILURE on the association the
 // request arrived on (TS 36.413). The UE keeps its source-eNB context.
-func (m *MME) sendPathSwitchFailure(conn nasWriter, req *s1ap.PathSwitchRequest, cause s1ap.Cause) {
+func (m *MME) sendPathSwitchFailure(conn NasWriter, req *s1ap.PathSwitchRequest, cause s1ap.Cause) {
 	fail := &s1ap.PathSwitchRequestFailure{
 		MMEUES1APID: req.SourceMMEUES1APID,
 		ENBUES1APID: req.ENBUES1APID,
@@ -222,7 +204,7 @@ func (m *MME) sendPathSwitchFailure(conn nasWriter, req *s1ap.PathSwitchRequest,
 	}
 
 	// A Path Switch Failure can be sent before the UE is resolved; use a fresh root.
-	m.logOutboundS1AP(context.Background(), conn, S1APProcedurePathSwitchRequestFailure, b)
+	m.LogOutboundS1AP(context.Background(), conn, S1APProcedurePathSwitchRequestFailure, b)
 }
 
 // pathSwitchSecurityCapabilities compares the UE security capabilities the target
@@ -232,19 +214,19 @@ func (m *MME) sendPathSwitchFailure(conn nasWriter, req *s1ap.PathSwitchRequest,
 // capabilities cannot be parsed) it returns nil and the IE is omitted. The stored
 // values are never overwritten with the received ones.
 func (m *MME) pathSwitchSecurityCapabilities(ue *UeContext, received s1ap.UESecurityCapabilities) *s1ap.UESecurityCapabilities {
-	uecap, err := eps.ParseUENetworkCapability(ue.ueNetCap)
+	uecap, err := eps.ParseUENetworkCapability(ue.UeNetCap)
 	if err != nil {
 		return nil
 	}
 
-	stored := s1apSecurityCapabilities(uecap)
+	stored := S1apSecurityCapabilities(uecap)
 
 	if received == stored {
 		return nil
 	}
 
 	logger.MmeLog.Warn("UE security capabilities reported by target eNB differ from stored; replaying stored values",
-		zap.Uint32("mme-ue-id", uint32(ue.s1.MMEUES1APID)),
+		zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)),
 		zap.Uint16("received-eea", received.EncryptionAlgorithms),
 		zap.Uint16("received-eia", received.IntegrityProtectionAlgorithms),
 		zap.Uint16("stored-eea", stored.EncryptionAlgorithms),

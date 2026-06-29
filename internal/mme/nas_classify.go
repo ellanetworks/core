@@ -16,17 +16,17 @@ type verdict int
 const (
 	verdictReject verdict = iota
 	verdictIntegrityVerified
-	verdictPlainAllowed
-	verdictMacFailedAllowed
+	VerdictPlainAllowed
+	VerdictMacFailedAllowed
 )
 
 // classifyNasPdu reports whether an EMM message of the given type may be
 // processed, given its security header and (for protected messages) MAC result,
 // per TS 24.301 §4.4.4.3.
-func classifyNasPdu(mt eps.MessageType, securityHeader uint8, macVerified bool) verdict {
+func ClassifyNasPdu(mt eps.MessageType, securityHeader uint8, macVerified bool) verdict {
 	if securityHeader == uint8(eps.SHTPlain) {
 		if plainNasAllowed(mt) {
-			return verdictPlainAllowed
+			return VerdictPlainAllowed
 		}
 
 		return verdictReject
@@ -37,7 +37,7 @@ func classifyNasPdu(mt eps.MessageType, securityHeader uint8, macVerified bool) 
 	}
 
 	if macFailedAllowed(mt) {
-		return verdictMacFailedAllowed
+		return VerdictMacFailedAllowed
 	}
 
 	return verdictReject

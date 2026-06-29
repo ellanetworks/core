@@ -21,10 +21,10 @@ import (
 func TestAuthProofMintSites(t *testing.T) {
 	allowed := map[string]map[string]struct{}{
 		"MintAuthProofForSecurityMode": {
-			"internal/mme/emm.go": {},
+			"internal/mme/nas/emm.go": {},
 		},
 		"MintAuthProofForAttachCommit": {
-			"internal/mme/bearer.go": {},
+			"internal/mme/nas/bearer.go": {},
 		},
 	}
 

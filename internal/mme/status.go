@@ -40,8 +40,8 @@ type SubscriberSession struct {
 func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 	radioName := ""
 
-	if ue.s1 != nil {
-		if conn, ok := ue.s1.conn.(*sctp.SCTPConn); ok {
+	if ue.S1 != nil {
+		if conn, ok := ue.S1.conn.(*sctp.SCTPConn); ok {
 			if s := m.enbs[conn]; s != nil {
 				radioName = s.name
 			}
@@ -58,21 +58,21 @@ func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 		IntegrityAlgorithm: epsIntegrityAlgName(eia),
 	}
 
-	for _, p := range m.snapshotPDNs(ue) {
+	for _, p := range m.SnapshotPDNs(ue) {
 		s := SubscriberSession{
-			BearerID:     p.ebi,
-			APN:          p.apn,
-			PDNType:      p.pdnType,
-			AMBRUplink:   ue.ambrUplink,
-			AMBRDownlink: ue.ambrDownlink,
+			BearerID:     p.Ebi,
+			APN:          p.Apn,
+			PDNType:      p.PdnType,
+			AMBRUplink:   ue.AmbrUplink,
+			AMBRDownlink: ue.AmbrDownlink,
 		}
 
-		if p.ueIP.IsValid() {
-			s.IPv4Address = p.ueIP.String()
+		if p.UeIP.IsValid() {
+			s.IPv4Address = p.UeIP.String()
 		}
 
-		if p.ueIPv6Prefix.IsValid() {
-			s.IPv6Prefix = p.ueIPv6Prefix.String()
+		if p.UeIPv6Prefix.IsValid() {
+			s.IPv6Prefix = p.UeIPv6Prefix.String()
 		}
 
 		cs.Sessions = append(cs.Sessions, s)

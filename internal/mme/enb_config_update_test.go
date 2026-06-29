@@ -16,7 +16,7 @@ var servedPLMN = models.PlmnID{Mcc: "001", Mnc: "01"}
 func servedPLMNIdentity(t *testing.T) s1ap.PLMNIdentity {
 	t.Helper()
 
-	p, err := encodePLMN(servedPLMN)
+	p, err := EncodePLMN(servedPLMN)
 	if err != nil {
 		t.Fatal(err)
 	}
