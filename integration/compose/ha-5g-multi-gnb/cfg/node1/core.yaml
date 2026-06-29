@@ -9,7 +9,6 @@ db:
 interfaces:
   n2:
     address: "10.100.0.11"
-    port: 38412
   n3:
     address: "10.3.0.11"
   n6:
