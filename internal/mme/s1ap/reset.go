@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package s1ap
 
 import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -23,7 +24,7 @@ import (
 // removed only the radio leg; the EMM registration survives and the UE stays
 // pageable); an incomplete attach is aborted. This is the per-UE handling of an
 // abrupt radio-context loss, shared with eNB disconnect.
-func (m *MME) handleReset(conn NasWriter, value []byte) {
+func handleReset(m *mme.MME, conn mme.NasWriter, value []byte) {
 	req, err := s1ap.ParseReset(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Reset", zap.Error(err))
@@ -31,29 +32,29 @@ func (m *MME) handleReset(conn NasWriter, value []byte) {
 	}
 
 	if req.ResetType.All {
-		affected := m.connsOnConn(conn)
-		m.reclaimConns(affected, "S1 reset")
+		affected := m.ConnsOnConn(conn)
+		m.ReclaimConns(affected, "S1 reset")
 
 		logger.MmeLog.Info("S1 Reset (whole interface)", zap.Int("connections", len(affected)))
-		m.sendResetAcknowledge(conn, nil)
+		sendResetAcknowledge(m, conn, nil)
 
 		return
 	}
 
-	affected := m.connsForConnectionList(conn, req.ResetType.Part)
-	m.reclaimConns(affected, "S1 reset")
+	affected := m.ConnsForConnectionList(conn, req.ResetType.Part)
+	m.ReclaimConns(affected, "S1 reset")
 
 	logger.MmeLog.Info("S1 Reset (part of interface)",
 		zap.Int("requested", len(req.ResetType.Part)), zap.Int("connections", len(affected)))
 
 	// TS 36.413 §8.7.1.2.1: the acknowledge echoes the UE-associated logical
 	// S1-connections that were reset.
-	m.sendResetAcknowledge(conn, req.ResetType.Part)
+	sendResetAcknowledge(m, conn, req.ResetType.Part)
 }
 
 // sendResetAcknowledge answers a RESET with RESET ACKNOWLEDGE (TS 36.413
 // §9.1.2.7). connectionList is non-nil only for a part-of-interface reset.
-func (m *MME) sendResetAcknowledge(conn NasWriter, connectionList []s1ap.UEAssociatedLogicalS1ConnectionItem) {
+func sendResetAcknowledge(m *mme.MME, conn mme.NasWriter, connectionList []s1ap.UEAssociatedLogicalS1ConnectionItem) {
 	ack := &s1ap.ResetAcknowledge{ConnectionList: connectionList}
 
 	b, err := ack.Marshal()
@@ -62,11 +63,11 @@ func (m *MME) sendResetAcknowledge(conn NasWriter, connectionList []s1ap.UEAssoc
 		return
 	}
 
-	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamNonUE}); err != nil {
+	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: mme.S1apWirePPID, Stream: mme.S1apStreamNonUE}); err != nil {
 		logger.MmeLog.Error("failed to send Reset Acknowledge", zap.Error(err))
 		return
 	}
 
 	// Reset handling is not tied to a single UE request span; use a fresh root.
-	m.LogOutboundS1AP(context.Background(), conn, S1APProcedureResetAcknowledge, b)
+	m.LogOutboundS1AP(context.Background(), conn, mme.S1APProcedureResetAcknowledge, b)
 }

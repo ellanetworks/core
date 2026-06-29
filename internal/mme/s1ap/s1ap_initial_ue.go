@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package s1ap
 
 import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -17,7 +18,7 @@ import (
 // (TS 36.413). A SERVICE REQUEST re-establishes an existing EMM-IDLE
 // context (resolved by S-TMSI); anything else (an Attach Request) starts a new
 // one.
-func (m *MME) HandleInitialUEMessage(ctx context.Context, conn NasWriter, value []byte) {
+func HandleInitialUEMessage(m *mme.MME, ctx context.Context, conn mme.NasWriter, value []byte) {
 	msg, err := s1ap.ParseInitialUEMessage(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Initial UE Message", zap.Error(err))
@@ -37,7 +38,7 @@ func (m *MME) HandleInitialUEMessage(ctx context.Context, conn NasWriter, value 
 	// cannot move the UE. A UE without a resolvable context (e.g. after an MME
 	// restart) falls through to a fresh context below.
 	if len(nas) > 0 && nas[0]>>4 != uint8(eps.SHTPlain) && msg.STMSI != nil {
-		if ue, ok := m.LookupUeByMTMSI(msg.STMSI.MTMSI); ok && ue.emmState.load() == EMMRegistered && ue.Secured() {
+		if ue, ok := m.LookupUeByMTMSI(msg.STMSI.MTMSI); ok && ue.EMMState() == mme.EMMRegistered && ue.Secured() {
 			plain, count, err := ue.TryUnprotectUplink(nas)
 			if err != nil {
 				logger.MmeLog.Warn("Initial UE Message (resume) failed integrity check",
@@ -77,7 +78,7 @@ func (m *MME) HandleInitialUEMessage(ctx context.Context, conn NasWriter, value 
 			metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
 			logger.MmeLog.Info("Tracking Area Update rejected; UE will re-attach",
 				zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
-			m.SendOverConn(ctx, c, &eps.TrackingAreaUpdateReject{Cause: EmmCauseUEIdentityUnderivable})
+			m.SendOverConn(ctx, c, &eps.TrackingAreaUpdateReject{Cause: mme.EmmCauseUEIdentityUnderivable})
 		} else {
 			logger.MmeLog.Debug("dropping non-Attach Initial UE Message",
 				zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
@@ -88,8 +89,8 @@ func (m *MME) HandleInitialUEMessage(ctx context.Context, conn NasWriter, value 
 		return
 	}
 
-	m.dropStaleUe(conn, msg.ENBUES1APID)
-	ue := m.bindConn(c)
+	m.DropStaleUe(conn, msg.ENBUES1APID)
+	ue := m.BindConn(c)
 
 	logger.MmeLog.Info("Initial UE Message",
 		zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)),
@@ -157,14 +158,14 @@ func isProtectedTrackingAreaUpdate(nas []byte) bool {
 
 // handleUplinkNASTransport routes an uplink NAS message to its UE context
 // (TS 36.413).
-func (m *MME) handleUplinkNASTransport(ctx context.Context, conn NasWriter, value []byte) {
+func handleUplinkNASTransport(m *mme.MME, ctx context.Context, conn mme.NasWriter, value []byte) {
 	msg, err := s1ap.ParseUplinkNASTransport(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Uplink NAS Transport", zap.Error(err))
 		return
 	}
 
-	ue, ok := m.resolveUE(conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ok := resolveUE(m, conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}

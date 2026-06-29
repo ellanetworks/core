@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package s1ap
 
 import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -15,14 +16,14 @@ import (
 // HandleERABSetupResponse processes the eNB's answer to an E-RAB SETUP REQUEST
 // (TS 36.413 §8.2.1): it records the eNB S1-U endpoint of each established E-RAB
 // on the anchor session, and releases any E-RAB the eNB failed to set up.
-func (m *MME) HandleERABSetupResponse(conn NasWriter, value []byte) {
+func HandleERABSetupResponse(m *mme.MME, conn mme.NasWriter, value []byte) {
 	msg, err := s1ap.ParseERABSetupResponse(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode E-RAB Setup Response", zap.Error(err))
 		return
 	}
 
-	ue, ok := m.resolveUE(conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ok := resolveUE(m, conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
@@ -70,7 +71,7 @@ func (m *MME) HandleERABSetupResponse(conn NasWriter, value []byte) {
 // handleERABModifyResponse records the eNB's E-RAB Modify outcome. The procedure
 // completes on the NAS Modify Accept, so a failed-to-modify list is logged but
 // does not itself abort the modification (TS 36.413 §8.2.2).
-func (m *MME) handleERABModifyResponse(value []byte) {
+func handleERABModifyResponse(value []byte) {
 	resp, err := s1ap.ParseERABModifyResponse(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode E-RAB Modify Response", zap.Error(err))

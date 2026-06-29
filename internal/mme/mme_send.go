@@ -83,7 +83,7 @@ func (m *MME) SendDownlink(ctx context.Context, ue *UeContext, nas []byte) {
 		return
 	}
 
-	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamUE}); err != nil {
+	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: S1apStreamUE}); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send Downlink NAS Transport")
 		logger.MmeLog.Error("failed to send Downlink NAS Transport", zap.Error(err))
@@ -118,7 +118,7 @@ func (m *MME) SendS1APConn(ctx context.Context, conn NasWriter, messageType S1AP
 	)
 	defer span.End()
 
-	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamUE}); err != nil {
+	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: S1apStreamUE}); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send S1AP message")
 		logger.MmeLog.Error("failed to send S1AP message", zap.String("message-type", string(messageType)), zap.Error(err))

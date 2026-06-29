@@ -23,15 +23,15 @@ import (
 // re-establishes.
 func (m *MME) ReconcileDataNetwork(ctx context.Context) {
 	for _, ue := range m.ConnectedUEs() {
-		m.reconcileUE(ctx, ue)
+		m.ReconcileUE(ctx, ue)
 	}
 }
 
-// reconcileUE reconciles every PDN connection of a UE against the current
+// ReconcileUE reconciles every PDN connection of a UE against the current
 // data-network configuration. Only a registered UE with an active S1 connection
 // is signalled; an idle UE is signalled when it returns to ECM-CONNECTED
 // (reconcileBearer on the ICS Response) or by the next backstop sweep.
-func (m *MME) reconcileUE(ctx context.Context, ue *UeContext) {
+func (m *MME) ReconcileUE(ctx context.Context, ue *UeContext) {
 	// ue.s1 is freed concurrently by a release goroutine, and reconciliation is
 	// deferred while an S1 handover is in flight (an E-RAB Modify or Release would
 	// collide with the handover's bearer signalling, TS 36.413 §8.4.1.2); the next

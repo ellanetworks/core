@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package s1ap
 
 import (
 	"testing"
@@ -35,7 +35,7 @@ func TestResolveUEUnknownMMEUES1APIDSendsErrorIndication(t *testing.T) {
 	m := newTestMME(t)
 
 	conn := &captureConn{}
-	if ue, ok := m.resolveUE(conn, 4242, 7); ok || ue != nil {
+	if ue, ok := resolveUE(m, conn, 4242, 7); ok || ue != nil {
 		t.Fatalf("expected resolution to fail for an unknown MME-UE-S1AP-ID")
 	}
 
@@ -62,7 +62,7 @@ func TestResolveUEInconsistentENBUES1APIDSendsErrorIndication(t *testing.T) {
 	m := newTestMME(t)
 	ue, conn := securedUE(t, m) // ENBUES1APID == 7
 
-	if got, ok := m.resolveUE(conn, ue.S1.MMEUES1APID, 99); ok || got != nil {
+	if got, ok := resolveUE(m, conn, ue.S1.MMEUES1APID, 99); ok || got != nil {
 		t.Fatalf("expected resolution to fail for a mismatched eNB-UE-S1AP-ID")
 	}
 
@@ -89,7 +89,7 @@ func TestResolveUEValidPairResolves(t *testing.T) {
 	m := newTestMME(t)
 	ue, conn := securedUE(t, m) // ENBUES1APID == 7
 
-	got, ok := m.resolveUE(conn, ue.S1.MMEUES1APID, ue.S1.ENBUES1APID)
+	got, ok := resolveUE(m, conn, ue.S1.MMEUES1APID, ue.S1.ENBUES1APID)
 	if !ok || got != ue {
 		t.Fatalf("expected the valid AP-ID pair to resolve to the UE")
 	}

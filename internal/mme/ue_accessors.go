@@ -7,6 +7,7 @@ package mme
 import (
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/models"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
 )
@@ -214,4 +215,14 @@ func (ue *UeContext) DeriveInitialKeNB() (kenb [32]byte, kenbCount uint32, err e
 	ue.ncc = 1
 
 	return kenb, kenbCount, nil
+}
+
+// Conn returns the S1 association's writer (the eNB SCTP connection).
+func (c *S1Conn) Conn() NasWriter { return c.conn }
+
+// SetPDNEnbFTEID records the eNB S1-U endpoint on a PDN connection under the UE lock.
+func (m *MME) SetPDNEnbFTEID(ue *UeContext, p *PdnConnection, f models.FTEID) {
+	ue.mu.Lock()
+	p.EnbFTEID = f
+	ue.mu.Unlock()
 }

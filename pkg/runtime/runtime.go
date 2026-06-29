@@ -34,6 +34,7 @@ import (
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
 	mmenas "github.com/ellanetworks/core/internal/mme/nas"
+	mmes1ap "github.com/ellanetworks/core/internal/mme/s1ap"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	amfsctp "github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/sessions"
@@ -484,6 +485,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// the AUSF) for EPS-AKA vectors and the shared SQN.
 	mmeInstance := mme.New(udm.New(ausfStore, keyResolver), dbInstance, smfInstance)
 	mmeInstance.NAS = &mmeNASAdapter{mme: mmeInstance}
+	mmeInstance.S1AP = &mmeS1APAdapter{mme: mmeInstance}
 
 	// Let the SMF page idle 4G UEs through the MME when downlink data arrives.
 	smfInstance.SetMME(mmeInstance)
@@ -897,4 +899,15 @@ func collectUEPools(ctx context.Context, dbInstance *db.Database) []netip.Prefix
 	}
 
 	return pools
+}
+
+// mmeS1APAdapter injects the 4G S1AP transport layer (internal/mme/s1ap) into the
+// MME kernel so the SCTP dispatch routes a decoded PDU to its procedure handler
+// without the kernel importing s1ap.
+type mmeS1APAdapter struct {
+	mme *mme.MME
+}
+
+func (a *mmeS1APAdapter) Route(ctx context.Context, conn *amfsctp.SCTPConn, pdu any) {
+	mmes1ap.Route(a.mme, ctx, conn, pdu)
 }

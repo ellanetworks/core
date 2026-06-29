@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package s1ap
 
 import (
 	"testing"
 
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -56,35 +57,35 @@ func TestS1ResetWholeInterface(t *testing.T) {
 	m := newTestMME(t)
 
 	ue1, cc := securedUE(t, m)
-	registerTestUE(m, ue1, "001010000000010")
+	m.RegisterUEForTest(ue1, "001010000000010")
 	testPDN(ue1).Apn = "internet"
 
 	ue2 := m.NewUe(cc, 8)
-	ue2.emmState.store(EMMRegistered)
-	registerTestUE(m, ue2, "001010000000011")
+	ue2.SetEMMState(mme.EMMRegistered)
+	m.RegisterUEForTest(ue2, "001010000000011")
 	testPDN(ue2).Apn = "internet"
 
 	other, _ := securedUE(t, m)
-	registerTestUE(m, other, "001010000000012")
+	m.RegisterUEForTest(other, "001010000000012")
 	testPDN(other).Apn = "internet"
 
 	cause := s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}
-	m.handleReset(cc, resetValue(t, &s1ap.Reset{Cause: cause, ResetType: s1ap.ResetType{All: true}}))
+	handleReset(m, cc, resetValue(t, &s1ap.Reset{Cause: cause, ResetType: s1ap.ResetType{All: true}}))
 
-	for _, ue := range []*UeContext{ue1, ue2} {
-		got, ok := m.LookupUeByIMSI(ue.imsi)
+	for _, ue := range []*mme.UeContext{ue1, ue2} {
+		got, ok := m.LookupUeByIMSI(ue.IMSI())
 		if !ok || got != ue {
-			t.Fatalf("registered UE %q deleted by S1 reset; expected ECM-IDLE retention", ue.imsi)
+			t.Fatalf("registered UE %q deleted by S1 reset; expected ECM-IDLE retention", ue.IMSI())
 		}
 
 		if got.Connected() {
-			t.Fatalf("UE %q not in ECM-IDLE after S1 reset", ue.imsi)
+			t.Fatalf("UE %q not in ECM-IDLE after S1 reset", ue.IMSI())
 		}
 
 		m.RemoveUe(ue) // stop the default-duration timer
 	}
 
-	if got, ok := m.LookupUeByIMSI(other.imsi); !ok || !got.Connected() {
+	if got, ok := m.LookupUeByIMSI(other.IMSI()); !ok || !got.Connected() {
 		t.Fatal("UE on another association disturbed by S1 reset")
 	}
 
@@ -103,33 +104,33 @@ func TestS1ResetPartOfInterface(t *testing.T) {
 	m := newTestMME(t)
 
 	ue1, cc := securedUE(t, m)
-	registerTestUE(m, ue1, "001010000000010")
+	m.RegisterUEForTest(ue1, "001010000000010")
 	testPDN(ue1).Apn = "internet"
 
 	ue2 := m.NewUe(cc, 8)
-	ue2.emmState.store(EMMRegistered)
-	registerTestUE(m, ue2, "001010000000011")
+	ue2.SetEMMState(mme.EMMRegistered)
+	m.RegisterUEForTest(ue2, "001010000000011")
 	testPDN(ue2).Apn = "internet"
 
 	mmeID := ue1.S1.MMEUES1APID
 	enbID := ue1.S1.ENBUES1APID
 	cause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}
 
-	m.handleReset(cc, resetValue(t, &s1ap.Reset{
+	handleReset(m, cc, resetValue(t, &s1ap.Reset{
 		Cause: cause,
 		ResetType: s1ap.ResetType{Part: []s1ap.UEAssociatedLogicalS1ConnectionItem{
 			{MMEUES1APID: &mmeID, ENBUES1APID: &enbID},
 		}},
 	}))
 
-	got1, ok := m.LookupUeByIMSI(ue1.imsi)
+	got1, ok := m.LookupUeByIMSI(ue1.IMSI())
 	if !ok || got1 != ue1 || got1.Connected() {
 		t.Fatalf("listed UE not released to ECM-IDLE: ok=%v connected=%v", ok, got1.Connected())
 	}
 
 	m.RemoveUe(ue1)
 
-	if got2, ok := m.LookupUeByIMSI(ue2.imsi); !ok || !got2.Connected() {
+	if got2, ok := m.LookupUeByIMSI(ue2.IMSI()); !ok || !got2.Connected() {
 		t.Fatal("unlisted UE disturbed by part-of-interface reset")
 	}
 
@@ -150,13 +151,13 @@ func TestS1ResetDropsMidAttachUE(t *testing.T) {
 	m := newTestMME(t)
 
 	ue, cc := securedUE(t, m)
-	ue.emmState.store(EMMDeregistered) // attach not yet completed
+	ue.SetEMMState(mme.EMMDeregistered) // attach not yet completed
 	testPDN(ue).Apn = "internet"
 
 	cause := s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}
-	m.handleReset(cc, resetValue(t, &s1ap.Reset{Cause: cause, ResetType: s1ap.ResetType{All: true}}))
+	handleReset(m, cc, resetValue(t, &s1ap.Reset{Cause: cause, ResetType: s1ap.ResetType{All: true}}))
 
-	if _, ok := m.LookupUeByIMSI(ue.imsi); ok {
+	if _, ok := m.LookupUeByIMSI(ue.IMSI()); ok {
 		t.Fatal("incomplete-registration UE retained after S1 reset; expected drop")
 	}
 

@@ -28,7 +28,7 @@ type bearerStore interface {
 	NodeID() int
 }
 
-// s1apSecurityCapabilities maps a UE's EPS NAS algorithm support to the S1AP UE
+// S1apSecurityCapabilities maps a UE's EPS NAS algorithm support to the S1AP UE
 // Security Capabilities the eNB selects AS algorithms from. The S1AP BIT STRING
 // omits the EEA0/EIA0 (mandatory null-algorithm) bit, so the UE network
 // capability octet is shifted left and placed in the high byte (TS 36.413

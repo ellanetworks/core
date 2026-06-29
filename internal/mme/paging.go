@@ -198,7 +198,7 @@ func (m *MME) broadcastPaging(ctx context.Context, b []byte) {
 	m.mu.RUnlock()
 
 	for _, conn := range conns {
-		if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamNonUE}); err != nil {
+		if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: S1apStreamNonUE}); err != nil {
 			logger.MmeLog.Warn("failed to send Paging to eNB", zap.Error(err))
 			continue
 		}

@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package s1ap
 
 import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/nas/eps"
@@ -28,7 +29,7 @@ var (
 // with PATH SWITCH REQUEST ACKNOWLEDGE — or a FAILURE when the path cannot be
 // switched. value is the initiatingMessage open-type payload; conn is the target
 // eNB's association the request arrived on.
-func (m *MME) handlePathSwitchRequest(ctx context.Context, conn NasWriter, value []byte) {
+func handlePathSwitchRequest(m *mme.MME, ctx context.Context, conn mme.NasWriter, value []byte) {
 	req, err := s1ap.ParsePathSwitchRequest(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Path Switch Request", zap.Error(err))
@@ -40,7 +41,7 @@ func (m *MME) handlePathSwitchRequest(ctx context.Context, conn NasWriter, value
 	if id, dup := duplicateERABID(req.ERABToBeSwitchedDL); dup {
 		logger.MmeLog.Warn("Path Switch Request with a duplicate E-RAB ID",
 			zap.Uint32("source-mme-ue-id", uint32(req.SourceMMEUES1APID)), zap.Uint8("e-rab-id", uint8(id)))
-		m.sendPathSwitchFailure(conn, req, causeMultipleERABInstances)
+		sendPathSwitchFailure(m, conn, req, causeMultipleERABInstances)
 
 		return
 	}
@@ -49,7 +50,7 @@ func (m *MME) handlePathSwitchRequest(ctx context.Context, conn NasWriter, value
 	if !ok {
 		logger.MmeLog.Warn("Path Switch Request for unknown UE",
 			zap.Uint32("source-mme-ue-id", uint32(req.SourceMMEUES1APID)))
-		m.sendPathSwitchFailure(conn, req, causeUnknownMMEUES1APID)
+		sendPathSwitchFailure(m, conn, req, causeUnknownMMEUES1APID)
 
 		return
 	}
@@ -57,7 +58,7 @@ func (m *MME) handlePathSwitchRequest(ctx context.Context, conn NasWriter, value
 	if !ue.Secured() || !ue.HasKASME() {
 		logger.MmeLog.Warn("Path Switch Request for a UE without a security context",
 			zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)))
-		m.sendPathSwitchFailure(conn, req, causePathSwitchNoSecurity)
+		sendPathSwitchFailure(m, conn, req, causePathSwitchNoSecurity)
 
 		return
 	}
@@ -66,50 +67,50 @@ func (m *MME) handlePathSwitchRequest(ctx context.Context, conn NasWriter, value
 	// concurrently advancing it, which would derive the same NH for two targets. The
 	// claim is held until commit so a handover cannot start in the unlocked
 	// derive/switch window below.
-	curNH, curNCC, mmeID, ok := m.beginPathSwitch(ue)
+	curNH, curNCC, mmeID, ok := m.BeginPathSwitch(ue)
 	if !ok {
 		logger.MmeLog.Warn("Path Switch Request while the key chain is being advanced",
 			zap.Uint32("mme-ue-id", uint32(mmeID)))
-		m.sendPathSwitchFailure(conn, req, causePathSwitchUPFailure)
+		sendPathSwitchFailure(m, conn, req, causePathSwitchUPFailure)
 
 		return
 	}
 
-	defer m.clearKeyChainBusy(ue)
+	defer m.ClearKeyChainBusy(ue)
 
 	// Compute the next NH before any user-plane change so a derivation error leaves
 	// the UE on the source eNB cleanly; the chain is committed only after at least
 	// one E-RAB is switched (TS 33.401 — no rollback once advanced).
-	newNH, err := m.advancePathSwitchNH(ue, curNH)
+	newNH, err := m.AdvancePathSwitchNH(ue, curNH)
 	if err != nil {
 		logger.MmeLog.Error("failed to advance NH for Path Switch", zap.Error(err))
-		m.sendPathSwitchFailure(conn, req, causePathSwitchUPFailure)
+		sendPathSwitchFailure(m, conn, req, causePathSwitchUPFailure)
 
 		return
 	}
 
 	// Switch the downlink of every E-RAB in the list to the endpoint it carries.
-	switched := m.switchPathBearers(ctx, ue, mmeID, req.ERABToBeSwitchedDL)
+	switched := switchPathBearers(m, ctx, ue, mmeID, req.ERABToBeSwitchedDL)
 	if switched == 0 {
 		// TS 36.413: the UP path was switched for no E-RAB.
 		logger.MmeLog.Warn("Path Switch Request switched no E-RAB",
 			zap.Uint32("mme-ue-id", uint32(mmeID)))
-		m.sendPathSwitchFailure(conn, req, causePathSwitchUPFailure)
+		sendPathSwitchFailure(m, conn, req, causePathSwitchUPFailure)
 
 		return
 	}
 
-	replayCaps := m.pathSwitchSecurityCapabilities(ue, req.UESecurityCapabilities)
+	replayCaps := pathSwitchSecurityCapabilities(ue, req.UESecurityCapabilities)
 
 	// UP switch succeeded: move the S1 association to the target eNB and commit the
 	// advanced {NH, NCC}. NCC is a 3-bit chaining counter (TS 33.401). The UE may
 	// have been released during the unlocked switch above (its source association
 	// dropping), so the commit is gated on the connection still being present.
-	ncc, ok := m.commitPathSwitch(ue, conn, req.ENBUES1APID, newNH, curNCC)
+	ncc, ok := m.CommitPathSwitch(ue, conn, req.ENBUES1APID, newNH, curNCC)
 	if !ok {
 		logger.MmeLog.Warn("Path Switch Request: UE released during the user-plane switch",
 			zap.Uint32("mme-ue-id", uint32(mmeID)))
-		m.sendPathSwitchFailure(conn, req, causePathSwitchUPFailure)
+		sendPathSwitchFailure(m, conn, req, causePathSwitchUPFailure)
 
 		return
 	}
@@ -132,7 +133,7 @@ func (m *MME) handlePathSwitchRequest(ctx context.Context, conn NasWriter, value
 		zap.Uint32("enb-ue-id", uint32(req.ENBUES1APID)),
 		zap.Int("e-rabs-switched", switched),
 		zap.Uint8("ncc", ncc))
-	m.SendS1AP(ctx, ue, S1APProcedurePathSwitchRequestAck, b)
+	m.SendS1AP(ctx, ue, mme.S1APProcedurePathSwitchRequestAck, b)
 }
 
 // switchPathBearers points the downlink of each E-RAB in the to-be-switched list
@@ -142,7 +143,7 @@ func (m *MME) handlePathSwitchRequest(ctx context.Context, conn NasWriter, value
 // to a PDN connection, or whose endpoint is malformed or fails to switch, is
 // logged and skipped — not silently dropped — and counts as not switched
 // (TS 36.413).
-func (m *MME) switchPathBearers(ctx context.Context, ue *UeContext, mmeID s1ap.MMEUES1APID, items []s1ap.ERABToBeSwitchedDLItem) int {
+func switchPathBearers(m *mme.MME, ctx context.Context, ue *mme.UeContext, mmeID s1ap.MMEUES1APID, items []s1ap.ERABToBeSwitchedDLItem) int {
 	switched := 0
 
 	for _, erab := range items {
@@ -185,7 +186,7 @@ func (m *MME) switchPathBearers(ctx context.Context, ue *UeContext, mmeID s1ap.M
 
 // sendPathSwitchFailure sends a PATH SWITCH REQUEST FAILURE on the association the
 // request arrived on (TS 36.413). The UE keeps its source-eNB context.
-func (m *MME) sendPathSwitchFailure(conn NasWriter, req *s1ap.PathSwitchRequest, cause s1ap.Cause) {
+func sendPathSwitchFailure(m *mme.MME, conn mme.NasWriter, req *s1ap.PathSwitchRequest, cause s1ap.Cause) {
 	fail := &s1ap.PathSwitchRequestFailure{
 		MMEUES1APID: req.SourceMMEUES1APID,
 		ENBUES1APID: req.ENBUES1APID,
@@ -198,13 +199,13 @@ func (m *MME) sendPathSwitchFailure(conn NasWriter, req *s1ap.PathSwitchRequest,
 		return
 	}
 
-	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamUE}); err != nil {
+	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: mme.S1apWirePPID, Stream: mme.S1apStreamUE}); err != nil {
 		logger.MmeLog.Error("failed to send Path Switch Request Failure", zap.Error(err))
 		return
 	}
 
 	// A Path Switch Failure can be sent before the UE is resolved; use a fresh root.
-	m.LogOutboundS1AP(context.Background(), conn, S1APProcedurePathSwitchRequestFailure, b)
+	m.LogOutboundS1AP(context.Background(), conn, mme.S1APProcedurePathSwitchRequestFailure, b)
 }
 
 // pathSwitchSecurityCapabilities compares the UE security capabilities the target
@@ -213,13 +214,13 @@ func (m *MME) sendPathSwitchFailure(conn NasWriter, req *s1ap.PathSwitchRequest,
 // Acknowledge so the eNB corrects its context; on a match (or when the stored
 // capabilities cannot be parsed) it returns nil and the IE is omitted. The stored
 // values are never overwritten with the received ones.
-func (m *MME) pathSwitchSecurityCapabilities(ue *UeContext, received s1ap.UESecurityCapabilities) *s1ap.UESecurityCapabilities {
+func pathSwitchSecurityCapabilities(ue *mme.UeContext, received s1ap.UESecurityCapabilities) *s1ap.UESecurityCapabilities {
 	uecap, err := eps.ParseUENetworkCapability(ue.UeNetCap)
 	if err != nil {
 		return nil
 	}
 
-	stored := S1apSecurityCapabilities(uecap)
+	stored := mme.S1apSecurityCapabilities(uecap)
 
 	if received == stored {
 		return nil

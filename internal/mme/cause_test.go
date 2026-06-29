@@ -26,9 +26,9 @@ func TestS1APCauseName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := s1apCauseName(&tt.cause)
+			got := S1apCauseName(&tt.cause)
 			if got != tt.want {
-				t.Errorf("s1apCauseName = %q, want %q", got, tt.want)
+				t.Errorf("S1apCauseName = %q, want %q", got, tt.want)
 			}
 		})
 	}

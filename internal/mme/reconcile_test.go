@@ -439,5 +439,5 @@ func TestReconcileUEIdleNoPanic(t *testing.T) {
 	testPDN(ue).Apn = "internet"
 	m.FreeS1Conn(ue)
 
-	m.reconcileUE(context.Background(), ue)
+	m.ReconcileUE(context.Background(), ue)
 }

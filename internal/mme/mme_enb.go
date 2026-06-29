@@ -76,7 +76,7 @@ func enbSupportedTAIs(tas s1ap.SupportedTAs) []ENBTAI {
 }
 
 // enbID renders a Global eNB ID as "<plmn>-<enb-id>" for display.
-func enbID(g s1ap.GlobalENBID) string {
+func ENBID(g s1ap.GlobalENBID) string {
 	p := g.PLMNIdentity
 
 	return fmt.Sprintf("%02x%02x%02x-%x", p[0], p[1], p[2], g.ENBID.Value)
@@ -104,7 +104,7 @@ func (m *MME) addENB(conn *sctp.SCTPConn, req *s1ap.S1SetupRequest) {
 	now := time.Now()
 	m.trackENB(conn, ENBInfo{
 		Name:          req.ENBName,
-		ID:            enbID(req.GlobalENBID),
+		ID:            ENBID(req.GlobalENBID),
 		Address:       address,
 		ConnectedAt:   now,
 		LastSeenAt:    now,
@@ -138,14 +138,14 @@ func (m *MME) markENBSetupComplete(conn *sctp.SCTPConn) {
 	}
 }
 
-// findENBByGlobalID resolves a Global eNB ID to the S1-setup-complete association
+// FindENBByGlobalID resolves a Global eNB ID to the S1-setup-complete association
 // of that eNB (nil/false when no such eNB is connected), for routing an S1
 // handover's HANDOVER REQUEST to the target (TS 36.413 §8.4.2).
-func (m *MME) findENBByGlobalID(g s1ap.GlobalENBID) (NasWriter, bool) {
+func (m *MME) FindENBByGlobalID(g s1ap.GlobalENBID) (NasWriter, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	conn, ok := m.enbByID[enbID(g)]
+	conn, ok := m.enbByID[ENBID(g)]
 
 	return conn, ok
 }
@@ -211,15 +211,15 @@ func (m *MME) removeENB(conn *sctp.SCTPConn) {
 // dropped without a graceful S1 release, so no UE Context Release Complete will
 // arrive for them. Idle UEs are left alone — they run conn-independent supervision.
 func (m *MME) reclaimUEsOnConnLoss(conn NasWriter) {
-	m.reclaimConns(m.connsOnConn(conn), "eNB disconnect")
+	m.ReclaimConns(m.ConnsOnConn(conn), "eNB disconnect")
 }
 
-// reclaimConns reclaims a set of UE-associated connections an eNB no longer holds
+// ReclaimConns reclaims a set of UE-associated connections an eNB no longer holds
 // (an SCTP drop or an S1 Reset). A UE's active connection moves the UE to ECM-IDLE
 // (or, mid-attach, drops it); a handover target connection aborts the handover,
 // leaving the UE on its surviving source; a detached or bare connection is removed.
 // trigger names the cause for the event log.
-func (m *MME) reclaimConns(conns []*S1Conn, trigger string) {
+func (m *MME) ReclaimConns(conns []*S1Conn, trigger string) {
 	m.mu.Lock()
 
 	var (
@@ -262,7 +262,7 @@ func (m *MME) reclaimConns(conns []*S1Conn, trigger string) {
 	m.mu.Unlock()
 
 	for _, r := range releaseTargets {
-		m.sendUEContextRelease(context.Background(), r.conn, r.mmeID, r.enbID)
+		SendUEContextRelease(m, context.Background(), r.conn, r.mmeID, r.enbID)
 	}
 
 	for _, ue := range orphaned {

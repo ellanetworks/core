@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package s1ap
 
 import (
 	"context"
 	"net/netip"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
@@ -76,30 +77,33 @@ func parsePathSwitchFailure(t *testing.T, pdu []byte) *s1ap.PathSwitchRequestFai
 // pathSwitchUE returns a secured UE seeded as if Initial Context Setup had run:
 // the X2 key chain is at NCC=1 with a known NH, and the UE network capability is
 // set so the replayed-capability comparison runs against real values.
-func pathSwitchUE(t *testing.T, m *MME) *UeContext {
+func pathSwitchUE(t *testing.T, m *mme.MME) *mme.UeContext {
 	t.Helper()
 
 	ue, _ := securedUE(t, m)
 	testPDN(ue).Apn = "internet"
 	ue.UeNetCap = eps.UENetworkCapability{EEA: 0xe0, EIA: 0xe0}.Marshal()
-	ue.ncc = 1
+	ue.SetNCCForTest(1)
 
-	for i := range ue.nh {
-		ue.nh[i] = byte(0x40 + i)
+	var nh [32]byte
+	for i := range nh {
+		nh[i] = byte(0x40 + i)
 	}
+
+	ue.SetNHForTest(nh)
 
 	return ue
 }
 
 func switchedDLItem() s1ap.ERABToBeSwitchedDLItem {
 	return s1ap.ERABToBeSwitchedDLItem{
-		ERABID:                s1ap.ERABID(DefaultERABID),
+		ERABID:                s1ap.ERABID(mme.DefaultERABID),
 		TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
 		GTPTEID:               0x99,
 	}
 }
 
-func samplePathSwitchRequest(ue *UeContext) *s1ap.PathSwitchRequest {
+func samplePathSwitchRequest(ue *mme.UeContext) *s1ap.PathSwitchRequest {
 	return &s1ap.PathSwitchRequest{
 		ENBUES1APID:        42,
 		ERABToBeSwitchedDL: []s1ap.ERABToBeSwitchedDLItem{switchedDLItem()},
@@ -118,13 +122,13 @@ func TestPathSwitchSwitchesDownlinkAndAcks(t *testing.T) {
 	m := newTestMME(t)
 	ue := pathSwitchUE(t, m)
 
-	wantNH, err := deriveNH(ue.kasme, ue.nh[:])
+	wantNH, err := ue.DeriveNextNHForTest()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	target := &captureConn{}
-	m.handlePathSwitchRequest(context.Background(), target, pathSwitchValue(t, samplePathSwitchRequest(ue)))
+	handlePathSwitchRequest(m, context.Background(), target, pathSwitchValue(t, samplePathSwitchRequest(ue)))
 
 	// Downlink switched to the new eNB S1-U endpoint.
 	wantFTEID := models.FTEID{TEID: 0x99, Addr: netip.AddrFrom4([4]byte{10, 4, 0, 2})}
@@ -133,13 +137,13 @@ func TestPathSwitchSwitchesDownlinkAndAcks(t *testing.T) {
 	}
 
 	// S1 association moved to the target eNB.
-	if ue.S1.conn != target || ue.S1.ENBUES1APID != 42 || testPDN(ue).EnbFTEID != wantFTEID {
-		t.Fatalf("association not switched: conn=%v enb-id=%d fteid=%+v", ue.S1.conn == target, ue.S1.ENBUES1APID, testPDN(ue).EnbFTEID)
+	if ue.S1.Conn() != target || ue.S1.ENBUES1APID != 42 || testPDN(ue).EnbFTEID != wantFTEID {
+		t.Fatalf("association not switched: conn=%v enb-id=%d fteid=%+v", ue.S1.Conn() == target, ue.S1.ENBUES1APID, testPDN(ue).EnbFTEID)
 	}
 
 	// Key chain advanced: NCC 1 -> 2 and NH = KDF(KASME, previous NH).
-	if ue.ncc != 2 || ue.nh != wantNH {
-		t.Fatalf("key chain not advanced: ncc=%d nh-match=%v", ue.ncc, ue.nh == wantNH)
+	if ue.NCCForTest() != 2 || ue.NHForTest() != wantNH {
+		t.Fatalf("key chain not advanced: ncc=%d nh-match=%v", ue.NCCForTest(), ue.NHForTest() == wantNH)
 	}
 
 	if target.count() != 1 {
@@ -176,7 +180,7 @@ func TestPathSwitchUnknownUEFails(t *testing.T) {
 	}
 
 	target := &captureConn{}
-	m.handlePathSwitchRequest(context.Background(), target, pathSwitchValue(t, req))
+	handlePathSwitchRequest(m, context.Background(), target, pathSwitchValue(t, req))
 
 	if target.count() != 1 {
 		t.Fatalf("expected one downlink (Failure), got %d", target.count())
@@ -194,7 +198,7 @@ func TestPathSwitchNoSecurityContextFails(t *testing.T) {
 	ue := m.NewUe(&captureConn{}, 7) // not secured
 
 	target := &captureConn{}
-	m.handlePathSwitchRequest(context.Background(), target, pathSwitchValue(t, samplePathSwitchRequest(ue)))
+	handlePathSwitchRequest(m, context.Background(), target, pathSwitchValue(t, samplePathSwitchRequest(ue)))
 
 	if target.count() != 1 {
 		t.Fatalf("expected one downlink (Failure), got %d", target.count())
@@ -221,14 +225,14 @@ func TestPathSwitchDuplicateERABFails(t *testing.T) {
 	req.ERABToBeSwitchedDL = append(req.ERABToBeSwitchedDL, switchedDLItem())
 
 	target := &captureConn{}
-	m.handlePathSwitchRequest(context.Background(), target, pathSwitchValue(t, req))
+	handlePathSwitchRequest(m, context.Background(), target, pathSwitchValue(t, req))
 
 	if fail := parsePathSwitchFailure(t, target.sent[0]); fail.Cause != causeMultipleERABInstances {
 		t.Fatalf("cause = %+v, want multiple-E-RAB-ID-instances", fail.Cause)
 	}
 
-	if ue.ncc != 1 {
-		t.Fatalf("key chain advanced on a rejected path switch: ncc=%d", ue.ncc)
+	if ue.NCCForTest() != 1 {
+		t.Fatalf("key chain advanced on a rejected path switch: ncc=%d", ue.NCCForTest())
 	}
 }
 
@@ -240,10 +244,10 @@ func TestPathSwitchUnknownERABFails(t *testing.T) {
 	ue := pathSwitchUE(t, m)
 
 	req := samplePathSwitchRequest(ue)
-	req.ERABToBeSwitchedDL[0].ERABID = s1ap.ERABID(DefaultERABID + 1) // not the default bearer
+	req.ERABToBeSwitchedDL[0].ERABID = s1ap.ERABID(mme.DefaultERABID + 1) // not the default bearer
 
 	target := &captureConn{}
-	m.handlePathSwitchRequest(context.Background(), target, pathSwitchValue(t, req))
+	handlePathSwitchRequest(m, context.Background(), target, pathSwitchValue(t, req))
 
 	if fail := parsePathSwitchFailure(t, target.sent[0]); fail.Cause != causePathSwitchUPFailure {
 		t.Fatalf("cause = %+v, want transport-resource-unavailable", fail.Cause)
@@ -253,8 +257,8 @@ func TestPathSwitchUnknownERABFails(t *testing.T) {
 		t.Fatal("downlink switched for an unresolved E-RAB")
 	}
 
-	if ue.ncc != 1 || ue.S1.conn == target {
-		t.Fatalf("UE moved on a failed path switch: ncc=%d moved=%v", ue.ncc, ue.S1.conn == target)
+	if ue.NCCForTest() != 1 || ue.S1.Conn() == target {
+		t.Fatalf("UE moved on a failed path switch: ncc=%d moved=%v", ue.NCCForTest(), ue.S1.Conn() == target)
 	}
 }
 
@@ -269,7 +273,7 @@ func TestPathSwitchCapabilityMismatchReplaysStored(t *testing.T) {
 	req.UESecurityCapabilities = s1ap.UESecurityCapabilities{EncryptionAlgorithms: 0x8000, IntegrityProtectionAlgorithms: 0x8000}
 
 	target := &captureConn{}
-	m.handlePathSwitchRequest(context.Background(), target, pathSwitchValue(t, req))
+	handlePathSwitchRequest(m, context.Background(), target, pathSwitchValue(t, req))
 
 	ack := parsePathSwitchAck(t, target.sent[0])
 
@@ -290,7 +294,7 @@ func TestPathSwitchUEReleasedDuringSwitch(t *testing.T) {
 	m.Session = &hookSessionManager{fakeSessionManager: base, onModify: func() { m.FreeS1Conn(ue) }}
 
 	target := &captureConn{}
-	m.handlePathSwitchRequest(context.Background(), target, pathSwitchValue(t, samplePathSwitchRequest(ue)))
+	handlePathSwitchRequest(m, context.Background(), target, pathSwitchValue(t, samplePathSwitchRequest(ue)))
 
 	if ue.S1 != nil {
 		t.Fatal("UE unexpectedly reconnected after being released mid-switch")

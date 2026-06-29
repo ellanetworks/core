@@ -439,9 +439,9 @@ func (m *MME) NewConn(conn NasWriter, enbUEID s1ap.ENBUES1APID) *S1Conn {
 	return c
 }
 
-// bindConn attaches a fresh persistent UE context to a bare connection, once the
+// BindConn attaches a fresh persistent UE context to a bare connection, once the
 // connection's first NAS message warrants one (an Attach Request).
-func (m *MME) bindConn(c *S1Conn) *UeContext {
+func (m *MME) BindConn(c *S1Conn) *UeContext {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -465,7 +465,7 @@ func (m *MME) ReleaseBareConn(c *S1Conn) {
 
 // NewUe registers a bare connection and immediately binds a UE context to it.
 func (m *MME) NewUe(conn NasWriter, enbUEID s1ap.ENBUES1APID) *UeContext {
-	return m.bindConn(m.NewConn(conn, enbUEID))
+	return m.BindConn(m.NewConn(conn, enbUEID))
 }
 
 // EstablishS1Connection binds a UE returning from ECM-IDLE to a fresh
@@ -639,8 +639,8 @@ func (m *MME) releaseContextLockedPart(ue *UeContext) (registered bool, imsi str
 	return registered, imsi, mmeUEID
 }
 
-// connsOnConn returns every UE-associated connection on the given eNB association.
-func (m *MME) connsOnConn(conn NasWriter) []*S1Conn {
+// ConnsOnConn returns every UE-associated connection on the given eNB association.
+func (m *MME) ConnsOnConn(conn NasWriter) []*S1Conn {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -655,11 +655,11 @@ func (m *MME) connsOnConn(conn NasWriter) []*S1Conn {
 	return out
 }
 
-// connsForConnectionList resolves the UE-associated connections named by a
+// ConnsForConnectionList resolves the UE-associated connections named by a
 // part-of-interface reset list, scoped to the association the reset arrived on.
 // Each item is matched by its MME-UE-S1AP-ID, else by its eNB-UE-S1AP-ID; an item
 // naming no known connection is skipped (it is still echoed in the acknowledge).
-func (m *MME) connsForConnectionList(conn NasWriter, items []s1ap.UEAssociatedLogicalS1ConnectionItem) []*S1Conn {
+func (m *MME) ConnsForConnectionList(conn NasWriter, items []s1ap.UEAssociatedLogicalS1ConnectionItem) []*S1Conn {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -684,10 +684,10 @@ func (m *MME) connsForConnectionList(conn NasWriter, items []s1ap.UEAssociatedLo
 	return out
 }
 
-// dropStaleUe removes any context bound to the same eNB association and
+// DropStaleUe removes any context bound to the same eNB association and
 // ENB-UE-S1AP-ID, so a fresh Initial UE Message (e.g. a re-attach reusing the
 // eNB UE id) does not leak the previous context.
-func (m *MME) dropStaleUe(conn NasWriter, enbUEID s1ap.ENBUES1APID) {
+func (m *MME) DropStaleUe(conn NasWriter, enbUEID s1ap.ENBUES1APID) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

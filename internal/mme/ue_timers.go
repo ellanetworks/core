@@ -10,12 +10,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// startMobileReachable arms the mobile reachable timer when the UE moves to
+// StartMobileReachable arms the mobile reachable timer when the UE moves to
 // ECM-IDLE (TS 24.301): the MME supervises the UE's periodic tracking
 // area updating, and on expiry escalates to the implicit detach timer. A fresh
 // idle period restarts the timer, so any prior timer (and its in-flight
 // callback) is cancelled first.
-func (m *MME) startMobileReachable(ue *UeContext) {
+func (m *MME) StartMobileReachable(ue *UeContext) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

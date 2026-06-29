@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package s1ap
 
 import (
 	"context"
 	"net/netip"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -19,14 +20,14 @@ func TestInitialContextSetupResponseRelaysENBFTEID(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 	ue := m.NewUe(cc, 7)
-	ue.imsi = testSubscriber.IMSI
+	ue.SetIMSIForTest(testSubscriber.IMSI)
 	testPDN(ue).Apn = "internet"
 
 	resp := &s1ap.InitialContextSetupResponse{
 		MMEUES1APID: ue.S1.MMEUES1APID,
 		ENBUES1APID: 7,
 		ERABSetup: []s1ap.ERABSetupItemCtxtSURes{{
-			ERABID:                s1ap.ERABID(DefaultERABID),
+			ERABID:                s1ap.ERABID(mme.DefaultERABID),
 			TransportLayerAddress: s1ap.TransportLayerAddress([]byte{10, 3, 0, 3}),
 			GTPTEID:               s1ap.GTPTEID(0x55),
 		}},
@@ -42,7 +43,7 @@ func TestInitialContextSetupResponseRelaysENBFTEID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleInitialContextSetupResponse(context.Background(), cc, pdu.(*s1ap.SuccessfulOutcome).Value)
+	handleInitialContextSetupResponse(m, context.Background(), cc, pdu.(*s1ap.SuccessfulOutcome).Value)
 
 	want := models.FTEID{TEID: 0x55, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 3})}
 
@@ -82,14 +83,14 @@ func TestInitialContextSetupResponseENBTransportFamily(t *testing.T) {
 			m := newTestMME(t)
 			cc := &captureConn{}
 			ue := m.NewUe(cc, 7)
-			ue.imsi = testSubscriber.IMSI
+			ue.SetIMSIForTest(testSubscriber.IMSI)
 			testPDN(ue).Apn = "internet"
 
 			resp := &s1ap.InitialContextSetupResponse{
 				MMEUES1APID: ue.S1.MMEUES1APID,
 				ENBUES1APID: 7,
 				ERABSetup: []s1ap.ERABSetupItemCtxtSURes{{
-					ERABID:                s1ap.ERABID(DefaultERABID),
+					ERABID:                s1ap.ERABID(mme.DefaultERABID),
 					TransportLayerAddress: s1ap.TransportLayerAddress(tc.tla),
 					GTPTEID:               s1ap.GTPTEID(0x55),
 				}},
@@ -105,7 +106,7 @@ func TestInitialContextSetupResponseENBTransportFamily(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			m.handleInitialContextSetupResponse(context.Background(), cc, pdu.(*s1ap.SuccessfulOutcome).Value)
+			handleInitialContextSetupResponse(m, context.Background(), cc, pdu.(*s1ap.SuccessfulOutcome).Value)
 
 			if testPDN(ue).EnbFTEID.Addr != tc.want {
 				t.Fatalf("eNB F-TEID address = %v, want %v", testPDN(ue).EnbFTEID.Addr, tc.want)

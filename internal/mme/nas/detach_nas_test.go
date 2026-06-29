@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
+	mmes1ap "github.com/ellanetworks/core/internal/mme/s1ap"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
@@ -49,7 +50,7 @@ func TestDetachSubscriberNetworkInitiated(t *testing.T) {
 	b, _ := complete.Marshal()
 	pdu, _ := s1ap.Unmarshal(b)
 
-	m.HandleUEContextReleaseComplete(cc, pdu.(*s1ap.SuccessfulOutcome).Value)
+	mmes1ap.HandleUEContextReleaseComplete(m, cc, pdu.(*s1ap.SuccessfulOutcome).Value)
 
 	if _, ok := m.LookupUeByIMSI(ue.IMSI()); ok {
 		t.Fatal("UE context not deleted after network-initiated detach")
@@ -140,7 +141,7 @@ func TestDetachSwitchOff(t *testing.T) {
 	b, _ := complete.Marshal()
 	pdu, _ := s1ap.Unmarshal(b)
 
-	m.HandleUEContextReleaseComplete(cc, pdu.(*s1ap.SuccessfulOutcome).Value)
+	mmes1ap.HandleUEContextReleaseComplete(m, cc, pdu.(*s1ap.SuccessfulOutcome).Value)
 
 	if _, ok := m.LookupUeByIMSI(ue.IMSI()); ok {
 		t.Fatal("UE context not deleted after release complete")

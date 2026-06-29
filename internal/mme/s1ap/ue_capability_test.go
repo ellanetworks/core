@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package s1ap
 
 import (
 	"bytes"
@@ -27,7 +27,7 @@ func TestUECapabilityInfoIndicationStoresRadioCapability(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleUECapabilityInfoIndication(cc, initiatingValue(t, b))
+	handleUECapabilityInfoIndication(m, cc, initiatingValue(t, b))
 
 	if !bytes.Equal(ue.RadioCapability, radioCap) {
 		t.Fatalf("radio capability = %x, want %x", ue.RadioCapability, radioCap)
@@ -49,7 +49,7 @@ func TestUECapabilityInfoIndicationUnknownUE(t *testing.T) {
 	}
 
 	// Must not panic or create a context for an unknown MME-UE-S1AP-ID.
-	m.handleUECapabilityInfoIndication(&captureConn{}, initiatingValue(t, b))
+	handleUECapabilityInfoIndication(m, &captureConn{}, initiatingValue(t, b))
 
 	if _, ok := m.LookupUe(999); ok {
 		t.Fatal("unexpected UE context for unknown MME-UE-S1AP-ID")

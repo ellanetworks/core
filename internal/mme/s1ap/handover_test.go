@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package s1ap
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
@@ -24,7 +25,7 @@ var targetGlobalENBID = s1ap.GlobalENBID{
 // handoverUE builds a secured, registered UE on a source eNB with one PDN
 // connection, and registers a target eNB association. It returns the UE, the
 // source conn, and the target conn.
-func handoverUE(t *testing.T, m *MME) (*UeContext, *captureConn, *captureConn) {
+func handoverUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn, *captureConn) {
 	t.Helper()
 
 	ue, source := securedUE(t, m)
@@ -34,22 +35,23 @@ func handoverUE(t *testing.T, m *MME) (*UeContext, *captureConn, *captureConn) {
 	p.SgwFTEID = models.FTEID{TEID: 0x1111, Addr: netip.AddrFrom4([4]byte{10, 0, 0, 1})}
 	ue.UeNetCap = eps.UENetworkCapability{EEA: 0xe0, EIA: 0xe0}.Marshal()
 	ue.AmbrUplink, ue.AmbrDownlink = "1 Gbps", "1 Gbps"
-	ue.ncc = 1
+	ue.SetNCCForTest(1)
 
-	for i := range ue.nh {
-		ue.nh[i] = byte(0x40 + i)
+	var nh [32]byte
+	for i := range nh {
+		nh[i] = byte(0x40 + i)
 	}
+
+	ue.SetNHForTest(nh)
 
 	target := &captureConn{}
 
-	m.mu.Lock()
-	m.enbByID[enbID(targetGlobalENBID)] = target
-	m.mu.Unlock()
+	m.RegisterENBByIDForTest(targetGlobalENBID, target)
 
 	return ue, source, target
 }
 
-func sampleHandoverRequired(ue *UeContext) *s1ap.HandoverRequired {
+func sampleHandoverRequired(ue *mme.UeContext) *s1ap.HandoverRequired {
 	return &s1ap.HandoverRequired{
 		MMEUES1APID:    ue.S1.MMEUES1APID,
 		ENBUES1APID:    ue.S1.ENBUES1APID,
@@ -141,10 +143,10 @@ func targetMMEUEID(t *testing.T, target *captureConn) s1ap.MMEUES1APID {
 // driveToPrepared runs HANDOVER REQUIRED then HANDOVER REQUEST ACKNOWLEDGE so the
 // handover reaches the prepared state, returning the target's MME-UE-S1AP-ID and
 // eNB-UE-S1AP-ID.
-func driveToPrepared(t *testing.T, m *MME, ue *UeContext, source, target *captureConn) (s1ap.MMEUES1APID, s1ap.ENBUES1APID) {
+func driveToPrepared(t *testing.T, m *mme.MME, ue *mme.UeContext, source, target *captureConn) (s1ap.MMEUES1APID, s1ap.ENBUES1APID) {
 	t.Helper()
 
-	m.handleHandoverRequired(context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
+	handleHandoverRequired(m, context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
 	if target.count() != 1 {
 		t.Fatalf("expected one HANDOVER REQUEST to the target, got %d", target.count())
@@ -158,14 +160,14 @@ func driveToPrepared(t *testing.T, m *MME, ue *UeContext, source, target *captur
 		MMEUES1APID: targetMME,
 		ENBUES1APID: targetENBUEID,
 		ERABAdmitted: []s1ap.ERABAdmittedItem{{
-			ERABID:                s1ap.ERABID(DefaultERABID),
+			ERABID:                s1ap.ERABID(mme.DefaultERABID),
 			TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
 			GTPTEID:               0x99,
 		}},
 		TargetToSource: s1ap.TransparentContainer{0xaa},
 	}
 
-	m.handleHandoverRequestAcknowledge(context.Background(), target, successfulValue(t, mustMarshal(t, ack.Marshal)))
+	handleHandoverRequestAcknowledge(m, context.Background(), target, successfulValue(t, mustMarshal(t, ack.Marshal)))
 
 	return targetMME, targetENBUEID
 }
@@ -181,14 +183,14 @@ func TestHandoverHappyPath(t *testing.T) {
 	sourceMME := ue.S1.MMEUES1APID
 	sourceENB := ue.S1.ENBUES1APID
 
-	wantNH, err := deriveNH(ue.kasme, ue.nh[:])
+	wantNH, err := ue.DeriveNextNHForTest()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// HANDOVER REQUIRED → HANDOVER REQUEST to the target, carrying the target's own
 	// fresh MME-UE-S1AP-ID.
-	m.handleHandoverRequired(context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
+	handleHandoverRequired(m, context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
 	req, ok := lastPDU(t, target).(*s1ap.InitiatingMessage)
 	if !ok || req.ProcedureCode != s1ap.ProcHandoverResourceAllocation {
@@ -223,14 +225,14 @@ func TestHandoverHappyPath(t *testing.T) {
 		MMEUES1APID: targetMME,
 		ENBUES1APID: targetENBUEID,
 		ERABAdmitted: []s1ap.ERABAdmittedItem{{
-			ERABID:                s1ap.ERABID(DefaultERABID),
+			ERABID:                s1ap.ERABID(mme.DefaultERABID),
 			TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
 			GTPTEID:               0x99,
 		}},
 		TargetToSource: s1ap.TransparentContainer{0xaa},
 	}
 
-	m.handleHandoverRequestAcknowledge(context.Background(), target, successfulValue(t, mustMarshal(t, ack.Marshal)))
+	handleHandoverRequestAcknowledge(m, context.Background(), target, successfulValue(t, mustMarshal(t, ack.Marshal)))
 
 	cmd, ok := lastPDU(t, source).(*s1ap.SuccessfulOutcome)
 	if !ok || cmd.ProcedureCode != s1ap.ProcHandoverPreparation {
@@ -248,7 +250,7 @@ func TestHandoverHappyPath(t *testing.T) {
 
 	// eNB STATUS TRANSFER (source id) → MME STATUS TRANSFER (target id) to the target.
 	st := &s1ap.ENBStatusTransfer{MMEUES1APID: sourceMME, ENBUES1APID: sourceENB, Container: s1ap.StatusTransferContainer{0xde, 0xad}}
-	m.handleENBStatusTransfer(context.Background(), source, initiatingValue(t, mustMarshal(t, st.Marshal)))
+	handleENBStatusTransfer(m, context.Background(), source, initiatingValue(t, mustMarshal(t, st.Marshal)))
 
 	mst, ok := lastPDU(t, target).(*s1ap.InitiatingMessage)
 	if !ok || mst.ProcedureCode != s1ap.ProcMMEStatusTransfer {
@@ -267,7 +269,7 @@ func TestHandoverHappyPath(t *testing.T) {
 		EUTRANCGI:   s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1},
 		TAI:         s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
 	}
-	m.handleHandoverNotify(context.Background(), target, initiatingValue(t, mustMarshal(t, notify.Marshal)))
+	handleHandoverNotify(m, context.Background(), target, initiatingValue(t, mustMarshal(t, notify.Marshal)))
 
 	wantFTEID := models.FTEID{TEID: 0x99, Addr: netip.AddrFrom4([4]byte{10, 4, 0, 2})}
 	if fsm := m.Session.(*fakeSessionManager); fsm.modifiedENB != wantFTEID {
@@ -275,15 +277,15 @@ func TestHandoverHappyPath(t *testing.T) {
 	}
 
 	// The UE's active connection is now the target connection (its own id).
-	if ue.S1.conn != target || ue.S1.MMEUES1APID != targetMME || ue.S1.ENBUES1APID != targetENBUEID || testPDN(ue).EnbFTEID != wantFTEID {
-		t.Fatalf("association not moved to the target connection: conn=%v mme-id=%d enb-id=%d", ue.S1.conn == target, ue.S1.MMEUES1APID, ue.S1.ENBUES1APID)
+	if ue.S1.Conn() != target || ue.S1.MMEUES1APID != targetMME || ue.S1.ENBUES1APID != targetENBUEID || testPDN(ue).EnbFTEID != wantFTEID {
+		t.Fatalf("association not moved to the target connection: conn=%v mme-id=%d enb-id=%d", ue.S1.Conn() == target, ue.S1.MMEUES1APID, ue.S1.ENBUES1APID)
 	}
 
-	if ue.ncc != 2 || ue.nh != wantNH {
-		t.Fatalf("key chain not committed: ncc=%d nh-match=%v", ue.ncc, ue.nh == wantNH)
+	if ue.NCCForTest() != 2 || ue.NHForTest() != wantNH {
+		t.Fatalf("key chain not committed: ncc=%d nh-match=%v", ue.NCCForTest(), ue.NHForTest() == wantNH)
 	}
 
-	if ue.handover != nil {
+	if ue.HasHandoverForTest() {
 		t.Fatal("handover context not cleared after notify")
 	}
 
@@ -301,7 +303,7 @@ func TestHandoverHappyPath(t *testing.T) {
 	// The source Release Complete (source id) removes the source connection without
 	// disturbing the moved UE, which is found under the target id.
 	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: sourceMME, ENBUES1APID: sourceENB}
-	m.HandleUEContextReleaseComplete(source, successfulValue(t, mustMarshal(t, complete.Marshal)))
+	HandleUEContextReleaseComplete(m, source, successfulValue(t, mustMarshal(t, complete.Marshal)))
 
 	if _, ok := m.LookupUe(sourceMME); ok {
 		t.Fatal("source connection not removed by its Release Complete")
@@ -311,7 +313,7 @@ func TestHandoverHappyPath(t *testing.T) {
 		t.Fatal("UE not found under the target id after the source release")
 	}
 
-	if ue.S1.conn != target {
+	if ue.S1.Conn() != target {
 		t.Fatal("UE association disturbed by the source Release Complete")
 	}
 }
@@ -321,9 +323,9 @@ func TestHandoverHappyPath(t *testing.T) {
 func TestHandoverRequiredNoSecurityFails(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
-	ue.secured = false
+	ue.SetSecuredForTest(false)
 
-	m.handleHandoverRequired(context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
+	handleHandoverRequired(m, context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
 	if target.count() != 0 {
 		t.Fatalf("expected no HANDOVER REQUEST, got %d", target.count())
@@ -339,7 +341,7 @@ func TestHandoverRequiredNoSecurityFails(t *testing.T) {
 		t.Fatalf("cause = %+v, want authentication-failure", fail.Cause)
 	}
 
-	if ue.handover != nil {
+	if ue.HasHandoverForTest() {
 		t.Fatal("handover context left set on failure")
 	}
 }
@@ -353,7 +355,7 @@ func TestHandoverRequiredUnknownTargetFails(t *testing.T) {
 	req := sampleHandoverRequired(ue)
 	req.TargetID.TargeteNBID.GlobalENBID.ENBID.Value = 999 // not registered
 
-	m.handleHandoverRequired(context.Background(), source, initiatingValue(t, mustMarshal(t, req.Marshal)))
+	handleHandoverRequired(m, context.Background(), source, initiatingValue(t, mustMarshal(t, req.Marshal)))
 
 	uo, ok := lastPDU(t, source).(*s1ap.UnsuccessfulOutcome)
 	if !ok {
@@ -372,17 +374,17 @@ func TestHandoverConcurrentRefused(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
 
-	m.handleHandoverRequired(context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
+	handleHandoverRequired(m, context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
-	if ue.handover == nil {
+	if !ue.HasHandoverForTest() {
 		t.Fatal("first handover did not start")
 	}
 
-	first := ue.handover
+	firstGen := ue.HandoverGenForTest()
 
-	m.handleHandoverRequired(context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
+	handleHandoverRequired(m, context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
-	if ue.handover != first {
+	if !ue.HasHandoverForTest() || ue.HandoverGenForTest() != firstGen {
 		t.Fatal("second handover disturbed the in-flight one")
 	}
 
@@ -398,16 +400,16 @@ func TestPathSwitchRefusedDuringHandover(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, _ := handoverUE(t, m)
 
-	m.handleHandoverRequired(context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
+	handleHandoverRequired(m, context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
-	if ue.handover == nil {
+	if !ue.HasHandoverForTest() {
 		t.Fatal("handover did not start")
 	}
 
-	ncc, nh, conn := ue.ncc, ue.nh, ue.S1.conn
+	ncc, nh, conn := ue.NCCForTest(), ue.NHForTest(), ue.S1.Conn()
 
 	target := &captureConn{}
-	m.handlePathSwitchRequest(context.Background(), target, pathSwitchValue(t, samplePathSwitchRequest(ue)))
+	handlePathSwitchRequest(m, context.Background(), target, pathSwitchValue(t, samplePathSwitchRequest(ue)))
 
 	if target.count() != 1 {
 		t.Fatalf("expected one downlink (Path Switch Failure), got %d", target.count())
@@ -415,7 +417,7 @@ func TestPathSwitchRefusedDuringHandover(t *testing.T) {
 
 	parsePathSwitchFailure(t, target.sent[0])
 
-	if ue.ncc != ncc || ue.nh != nh || ue.S1.conn != conn {
+	if ue.NCCForTest() != ncc || ue.NHForTest() != nh || ue.S1.Conn() != conn {
 		t.Fatal("Path Switch advanced the key chain or moved the association during a handover")
 	}
 }
@@ -426,13 +428,11 @@ func TestHandoverRefusedWhileKeyChainBusy(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
 
-	m.mu.Lock()
-	ue.keyChainBusy = true // a Path Switch is mid-advance
-	m.mu.Unlock()
+	ue.SetKeyChainBusyForTest(true) // a Path Switch is mid-advance
 
-	m.handleHandoverRequired(context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
+	handleHandoverRequired(m, context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
-	if ue.handover != nil {
+	if ue.HasHandoverForTest() {
 		t.Fatal("handover started while the key chain was busy")
 	}
 
@@ -453,13 +453,13 @@ func TestHandoverGuardSurvivesContextRelease(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, _ := handoverUE(t, m)
 
-	m.handleHandoverRequired(context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
+	handleHandoverRequired(m, context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
-	if ue.handover == nil {
+	if !ue.HasHandoverForTest() {
 		t.Fatal("handover did not start")
 	}
 
-	gen := ue.handoverGen
+	gen := ue.HandoverGenForTest()
 
 	m.FreeS1Conn(ue)
 
@@ -468,7 +468,7 @@ func TestHandoverGuardSurvivesContextRelease(t *testing.T) {
 	}
 
 	// The orphaned guard timer firing must not panic on the freed connection.
-	m.onHandoverGuardExpiry(ue, gen)
+	m.FireHandoverGuardForTest(ue, gen)
 }
 
 // TestHandoverFailureFailsToSource checks a HANDOVER FAILURE from the target ends
@@ -477,12 +477,12 @@ func TestHandoverFailureFailsToSource(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
 
-	m.handleHandoverRequired(context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
+	handleHandoverRequired(m, context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
 	fail := &s1ap.HandoverFailure{MMEUES1APID: targetMMEUEID(t, target), Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 12}}
-	m.handleHandoverFailure(context.Background(), target, unsuccessfulValue(t, mustMarshal(t, fail.Marshal)))
+	handleHandoverFailure(m, context.Background(), target, unsuccessfulValue(t, mustMarshal(t, fail.Marshal)))
 
-	if ue.handover != nil {
+	if ue.HasHandoverForTest() {
 		t.Fatal("handover not cleared after failure")
 	}
 
@@ -491,7 +491,7 @@ func TestHandoverFailureFailsToSource(t *testing.T) {
 		t.Fatalf("expected HANDOVER PREPARATION FAILURE to source, got %T", lastPDU(t, source))
 	}
 
-	if ue.S1.conn != source {
+	if ue.S1.Conn() != source {
 		t.Fatal("UE association moved on a failed handover")
 	}
 }
@@ -505,9 +505,9 @@ func TestHandoverCancelReleasesTarget(t *testing.T) {
 	targetMME, targetENBUEID := driveToPrepared(t, m, ue, source, target)
 
 	cancel := &s1ap.HandoverCancel{MMEUES1APID: ue.S1.MMEUES1APID, ENBUES1APID: ue.S1.ENBUES1APID, Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5}}
-	m.handleHandoverCancel(context.Background(), source, initiatingValue(t, mustMarshal(t, cancel.Marshal)))
+	handleHandoverCancel(m, context.Background(), source, initiatingValue(t, mustMarshal(t, cancel.Marshal)))
 
-	if ue.handover != nil {
+	if ue.HasHandoverForTest() {
 		t.Fatal("handover not cleared after cancel")
 	}
 
@@ -523,14 +523,14 @@ func TestHandoverCancelReleasesTarget(t *testing.T) {
 		t.Fatalf("expected HANDOVER CANCEL ACKNOWLEDGE to source, got %T", lastPDU(t, source))
 	}
 
-	if ue.S1.conn != source {
+	if ue.S1.Conn() != source {
 		t.Fatal("UE association moved on a cancelled handover")
 	}
 
 	// The target's Release Complete (target id) does not disturb the UE, which stays
 	// on the source.
 	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: targetMME, ENBUES1APID: targetENBUEID}
-	m.HandleUEContextReleaseComplete(target, successfulValue(t, mustMarshal(t, complete.Marshal)))
+	HandleUEContextReleaseComplete(m, target, successfulValue(t, mustMarshal(t, complete.Marshal)))
 
 	if _, ok := m.LookupUe(ue.S1.MMEUES1APID); !ok {
 		t.Fatal("UE removed by the target Release Complete")
@@ -550,7 +550,7 @@ func TestHandoverPartialAdmissionReleasesFailedPDN(t *testing.T) {
 	second.Qci, second.Arp = 5, 7
 	second.SgwFTEID = models.FTEID{TEID: 0x2222, Addr: netip.AddrFrom4([4]byte{10, 0, 0, 2})}
 
-	m.handleHandoverRequired(context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
+	handleHandoverRequired(m, context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
 	req, _ := s1ap.ParseHandoverRequest(lastPDU(t, target).(*s1ap.InitiatingMessage).Value)
 	if len(req.ERABToBeSetup) != 2 {
@@ -566,14 +566,14 @@ func TestHandoverPartialAdmissionReleasesFailedPDN(t *testing.T) {
 		MMEUES1APID: targetMME,
 		ENBUES1APID: targetENBUEID,
 		ERABAdmitted: []s1ap.ERABAdmittedItem{{
-			ERABID:                s1ap.ERABID(DefaultERABID),
+			ERABID:                s1ap.ERABID(mme.DefaultERABID),
 			TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
 			GTPTEID:               0x99,
 		}},
 		ERABFailedToSetup: []s1ap.ERABItem{{ERABID: 6, Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}}},
 		TargetToSource:    s1ap.TransparentContainer{0xaa},
 	}
-	m.handleHandoverRequestAcknowledge(context.Background(), target, successfulValue(t, mustMarshal(t, ack.Marshal)))
+	handleHandoverRequestAcknowledge(m, context.Background(), target, successfulValue(t, mustMarshal(t, ack.Marshal)))
 
 	// HANDOVER COMMAND lists EBI 6 in the bearers-to-release list.
 	cmd, _ := s1ap.ParseHandoverCommand(lastPDU(t, source).(*s1ap.SuccessfulOutcome).Value)
@@ -587,7 +587,7 @@ func TestHandoverPartialAdmissionReleasesFailedPDN(t *testing.T) {
 		EUTRANCGI:   s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1},
 		TAI:         s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
 	}
-	m.handleHandoverNotify(context.Background(), target, initiatingValue(t, mustMarshal(t, notify.Marshal)))
+	handleHandoverNotify(m, context.Background(), target, initiatingValue(t, mustMarshal(t, notify.Marshal)))
 
 	// The rejected PDN was released and dropped; the admitted one survives.
 	if fsm := m.Session.(*fakeSessionManager); !fsm.released {
@@ -598,7 +598,7 @@ func TestHandoverPartialAdmissionReleasesFailedPDN(t *testing.T) {
 		t.Fatal("rejected PDN connection not dropped")
 	}
 
-	if m.LookupPDN(ue, DefaultERABID) == nil {
+	if m.LookupPDN(ue, mme.DefaultERABID) == nil {
 		t.Fatal("admitted PDN connection dropped")
 	}
 }
@@ -613,16 +613,14 @@ func TestHandoverCancelDuringCommitIgnored(t *testing.T) {
 	driveToPrepared(t, m, ue, source, target)
 
 	// Simulate the in-flight user-plane switch of HANDOVER NOTIFY.
-	m.mu.Lock()
-	ue.handover.state = hoCommitting
-	m.mu.Unlock()
+	ue.ForceHandoverCommittingForTest()
 
 	targetBefore := target.count()
 
 	cancel := &s1ap.HandoverCancel{MMEUES1APID: ue.S1.MMEUES1APID, ENBUES1APID: ue.S1.ENBUES1APID, Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5}}
-	m.handleHandoverCancel(context.Background(), source, initiatingValue(t, mustMarshal(t, cancel.Marshal)))
+	handleHandoverCancel(m, context.Background(), source, initiatingValue(t, mustMarshal(t, cancel.Marshal)))
 
-	if ue.handover == nil {
+	if !ue.HasHandoverForTest() {
 		t.Fatal("a committing handover was torn down by a late cancel")
 	}
 
@@ -641,7 +639,7 @@ func TestHandoverCancelDuringCommitIgnored(t *testing.T) {
 // the source eNB.
 func TestHandoverGuardTimerAbandons(t *testing.T) {
 	m := newTestMME(t)
-	m.handoverGuardTimeout = 50 * time.Millisecond
+	m.SetHandoverGuardTimeoutForTest(50 * time.Millisecond)
 
 	ue, source, target := handoverUE(t, m)
 
@@ -658,12 +656,8 @@ func TestHandoverGuardTimerAbandons(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	m.mu.RLock()
-
-	cleared := ue.handover == nil
-	conn := ue.S1.conn
-
-	m.mu.RUnlock()
+	cleared := !ue.HasHandoverForTest()
+	conn := ue.S1.Conn()
 
 	if !cleared {
 		t.Fatal("handover not cleared after guard expiry")
@@ -691,7 +685,7 @@ func TestHandoverPartialAdmissionPromotesDefault(t *testing.T) {
 	second.Qci, second.Arp = 5, 7
 	second.SgwFTEID = models.FTEID{TEID: 0x2222, Addr: netip.AddrFrom4([4]byte{10, 0, 0, 2})}
 
-	m.handleHandoverRequired(context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
+	handleHandoverRequired(m, context.Background(), source, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
 	targetMME := targetMMEUEID(t, target)
 
@@ -706,10 +700,10 @@ func TestHandoverPartialAdmissionPromotesDefault(t *testing.T) {
 			TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
 			GTPTEID:               0x99,
 		}},
-		ERABFailedToSetup: []s1ap.ERABItem{{ERABID: s1ap.ERABID(DefaultERABID), Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}}},
+		ERABFailedToSetup: []s1ap.ERABItem{{ERABID: s1ap.ERABID(mme.DefaultERABID), Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}}},
 		TargetToSource:    s1ap.TransparentContainer{0xaa},
 	}
-	m.handleHandoverRequestAcknowledge(context.Background(), target, successfulValue(t, mustMarshal(t, ack.Marshal)))
+	handleHandoverRequestAcknowledge(m, context.Background(), target, successfulValue(t, mustMarshal(t, ack.Marshal)))
 
 	notify := &s1ap.HandoverNotify{
 		MMEUES1APID: targetMME,
@@ -717,15 +711,13 @@ func TestHandoverPartialAdmissionPromotesDefault(t *testing.T) {
 		EUTRANCGI:   s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1},
 		TAI:         s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
 	}
-	m.handleHandoverNotify(context.Background(), target, initiatingValue(t, mustMarshal(t, notify.Marshal)))
+	handleHandoverNotify(m, context.Background(), target, initiatingValue(t, mustMarshal(t, notify.Marshal)))
 
-	if m.LookupPDN(ue, DefaultERABID) != nil {
+	if m.LookupPDN(ue, mme.DefaultERABID) != nil {
 		t.Fatal("rejected attach-default PDN not dropped")
 	}
 
-	ue.mu.Lock()
 	defaultEBI := ue.DefaultEBI
-	ue.mu.Unlock()
 
 	if defaultEBI != 6 {
 		t.Fatalf("default EBI = %d, want 6 (promoted survivor)", defaultEBI)
@@ -745,9 +737,9 @@ func TestHandoverTargetConnLossAborts(t *testing.T) {
 		t.Fatal("target connection not registered during preparation")
 	}
 
-	m.reclaimUEsOnConnLoss(target)
+	m.ReclaimUEsOnConnLossForTest(target)
 
-	if ue.handover != nil {
+	if ue.HasHandoverForTest() {
 		t.Fatal("handover not aborted when the target association dropped")
 	}
 
@@ -755,7 +747,7 @@ func TestHandoverTargetConnLossAborts(t *testing.T) {
 		t.Fatal("target connection not removed when its association dropped")
 	}
 
-	if ue.S1 == nil || ue.S1.conn != source {
+	if ue.S1 == nil || ue.S1.Conn() != source {
 		t.Fatal("UE not left on its source after the target association dropped")
 	}
 }
@@ -769,18 +761,18 @@ func TestHandoverSourceConnLossReclaims(t *testing.T) {
 
 	targetMME, _ := driveToPrepared(t, m, ue, source, target)
 
-	m.reclaimUEsOnConnLoss(source)
+	m.ReclaimUEsOnConnLossForTest(source)
 
 	if _, ok := m.LookupUe(targetMME); ok {
 		t.Fatal("target connection not dropped when the source association dropped")
 	}
 
-	got, ok := m.LookupUeByIMSI(ue.imsi)
+	got, ok := m.LookupUeByIMSI(ue.IMSI())
 	if !ok || got != ue || got.Connected() {
 		t.Fatal("UE not reclaimed to ECM-IDLE on source association loss")
 	}
 
-	if got.handover != nil {
+	if got.HasHandoverForTest() {
 		t.Fatal("handover not cleared on source association loss")
 	}
 
@@ -797,9 +789,9 @@ func TestHandoverTargetResetAborts(t *testing.T) {
 	targetMME, _ := driveToPrepared(t, m, ue, source, target)
 
 	cause := s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}
-	m.handleReset(target, resetValue(t, &s1ap.Reset{Cause: cause, ResetType: s1ap.ResetType{All: true}}))
+	handleReset(m, target, resetValue(t, &s1ap.Reset{Cause: cause, ResetType: s1ap.ResetType{All: true}}))
 
-	if ue.handover != nil {
+	if ue.HasHandoverForTest() {
 		t.Fatal("handover not aborted by a reset on the target eNB")
 	}
 
@@ -807,7 +799,7 @@ func TestHandoverTargetResetAborts(t *testing.T) {
 		t.Fatal("target connection not removed by the target reset")
 	}
 
-	if ue.S1 == nil || ue.S1.conn != source {
+	if ue.S1 == nil || ue.S1.Conn() != source {
 		t.Fatal("UE not left on its source after a reset on the target eNB")
 	}
 }
@@ -822,7 +814,7 @@ func TestHandoverSourceConnLossReleasesTarget(t *testing.T) {
 	driveToPrepared(t, m, ue, source, target)
 	before := target.count()
 
-	m.reclaimUEsOnConnLoss(source)
+	m.ReclaimUEsOnConnLossForTest(source)
 
 	if target.count() != before+1 {
 		t.Fatalf("target not released on source loss: count %d -> %d", before, target.count())
@@ -854,13 +846,13 @@ func TestHandoverNotifyUEReleasedDuringSwitch(t *testing.T) {
 		EUTRANCGI:   s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1},
 		TAI:         s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
 	}
-	m.handleHandoverNotify(context.Background(), target, initiatingValue(t, mustMarshal(t, notify.Marshal)))
+	handleHandoverNotify(m, context.Background(), target, initiatingValue(t, mustMarshal(t, notify.Marshal)))
 
 	if ue.S1 != nil {
 		t.Fatal("released UE resurrected onto the target by Handover Notify")
 	}
 
-	if ue.handover != nil {
+	if ue.HasHandoverForTest() {
 		t.Fatal("handover not cleared after the UE was released mid-switch")
 	}
 }

@@ -45,7 +45,7 @@ func (m *MME) SendOverConn(ctx context.Context, c *S1Conn, msg nasMessage) {
 		return
 	}
 
-	if _, err := c.conn.WriteMsg(pdu, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamUE}); err != nil {
+	if _, err := c.conn.WriteMsg(pdu, &sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: S1apStreamUE}); err != nil {
 		logger.MmeLog.Error("failed to send Downlink NAS Transport", zap.Error(err))
 		return
 	}

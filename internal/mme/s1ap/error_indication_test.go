@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package s1ap
 
 import (
 	"context"
@@ -22,7 +22,7 @@ func TestErrorIndicationReleasesReferencedUE(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleErrorIndication(context.Background(), nil, initiatingValue(t, b))
+	handleErrorIndication(m, context.Background(), nil, initiatingValue(t, b))
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected the referenced UE to be released, got %d S1AP messages", len(cc.sent))
@@ -40,5 +40,5 @@ func TestErrorIndicationWithoutUEIsNoop(t *testing.T) {
 	}
 
 	// No UE referenced: log only, no release, no panic.
-	m.handleErrorIndication(context.Background(), nil, initiatingValue(t, b))
+	handleErrorIndication(m, context.Background(), nil, initiatingValue(t, b))
 }

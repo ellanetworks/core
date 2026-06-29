@@ -70,9 +70,9 @@ func (m *MME) ReleaseAllSessions(ue *UeContext) {
 	}
 }
 
-// deactivateAllSessions buffers every PDN connection's downlink so data for the
+// DeactivateAllSessions buffers every PDN connection's downlink so data for the
 // idle UE triggers paging (TS 23.401), without releasing the sessions.
-func (m *MME) deactivateAllSessions(ue *UeContext) {
+func (m *MME) DeactivateAllSessions(ue *UeContext) {
 	for _, p := range m.SnapshotPDNs(ue) {
 		if err := m.Session.DeactivateEPSSession(context.Background(), ue.IMSI(), p.Ebi); err != nil {
 			logger.MmeLog.Warn("failed to deactivate PDN connection session for paging",

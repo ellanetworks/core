@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
+	mmes1ap "github.com/ellanetworks/core/internal/mme/s1ap"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
 )
@@ -304,7 +305,7 @@ func TestTrackingAreaUpdateRecovery(t *testing.T) {
 	// cannot reproduce (no context), sequence 1, and an inner plain TAU REQUEST.
 	nas := []byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x01, 0x07, byte(eps.MsgTrackingAreaUpdateRequest)}
 
-	m.HandleInitialUEMessage(context.Background(), cc, initiatingValue(t, initialUEMessagePDU(t, 7, nas)))
+	mmes1ap.HandleInitialUEMessage(m, context.Background(), cc, initiatingValue(t, initialUEMessagePDU(t, 7, nas)))
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one downlink (TAU Reject), got %d", len(cc.sent))

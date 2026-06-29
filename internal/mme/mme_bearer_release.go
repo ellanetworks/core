@@ -12,17 +12,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// DeactivateBearer asks the UE to deactivate one EPS bearer, carrying the
-// DEACTIVATE EPS BEARER CONTEXT REQUEST with the given ESM cause and procedure
-// transaction identity (TS 24.301 §6.4.4).
-//
-// When the deactivation leaves the UE connected — a PDN disconnect, or a
-// reactivation of an additional PDN — the NAS rides in an S1AP E-RAB RELEASE
-// COMMAND so the eNB releases that radio bearer in the same step (TS 23.401
-// §5.10.3 "Deactivate Bearer Request"). When it instead deactivates the attach
-// (first) bearer with reactivation requested, the UE re-attaches and the full UE
-// Context Release that follows tears down the radio bearers, so the NAS is sent
-// on a Downlink NAS Transport and guarded like other common procedures.
 func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnection, esmCause, pti uint8, disconnecting bool) {
 	naspdu, err := m.ProtectDownlinkMessage(ue, &eps.DeactivateEPSBearerContextRequest{
 		EPSBearerIdentity:            p.Ebi,
@@ -58,6 +47,7 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 
 // DisconnectBearer tears down the UE's PDN connection p with a regular
 // deactivation; the UE is not asked to re-establish it.
+
 func (m *MME) DisconnectBearer(ctx context.Context, ue *UeContext, p *PdnConnection, esmCause, pti uint8) {
 	m.DeactivateBearer(ctx, ue, p, esmCause, pti, true)
 }
@@ -65,6 +55,7 @@ func (m *MME) DisconnectBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 // sendERABRelease releases a UE's E-RAB at the eNB while the UE stays connected,
 // carrying the DEACTIVATE EPS BEARER CONTEXT REQUEST in the NAS-PDU so the eNB
 // both releases the radio bearer and delivers the NAS (TS 36.413 §8.2.3).
+
 func (m *MME) sendERABRelease(ctx context.Context, ue *UeContext, p *PdnConnection, naspdu []byte) {
 	cmd := &s1ap.ERABReleaseCommand{
 		MMEUES1APID: ue.S1.MMEUES1APID,
@@ -88,21 +79,3 @@ func (m *MME) sendERABRelease(ctx context.Context, ue *UeContext, p *PdnConnecti
 // HandleERABReleaseResponse logs the eNB's confirmation that the radio bearer was
 // released (TS 36.413 §8.2.3). The PDN connection's session is released when the
 // UE answers the DEACTIVATE EPS BEARER CONTEXT REQUEST (handleDeactivateBearerAccept).
-func (m *MME) HandleERABReleaseResponse(conn NasWriter, value []byte) {
-	msg, err := s1ap.ParseERABReleaseResponse(value)
-	if err != nil {
-		logger.MmeLog.Warn("failed to decode E-RAB Release Response", zap.Error(err))
-		return
-	}
-
-	ue, ok := m.resolveUE(conn, msg.MMEUES1APID, msg.ENBUES1APID)
-	if !ok {
-		return
-	}
-
-	for _, erab := range msg.ERABReleased {
-		logger.MmeLog.Info("E-RAB released at eNB",
-			zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)), zap.String("imsi", ue.imsi),
-			zap.Uint8("e-rab-id", uint8(erab.ERABID)))
-	}
-}

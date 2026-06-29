@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package s1ap
 
 import (
 	"context"
 	"net/netip"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -36,14 +37,14 @@ func enbTransportAddress(tla s1ap.TransportLayerAddress) (netip.Addr, bool) {
 // handleInitialContextSetupResponse records the eNB's bearer-setup result
 // (TS 36.413): the eNB S1-U F-TEID it returns is handed to the anchor
 // as the session's downlink endpoint.
-func (m *MME) handleInitialContextSetupResponse(ctx context.Context, conn NasWriter, value []byte) {
+func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, conn mme.NasWriter, value []byte) {
 	msg, err := s1ap.ParseInitialContextSetupResponse(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Initial Context Setup Response", zap.Error(err))
 		return
 	}
 
-	ue, ok := m.resolveUE(conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ok := resolveUE(m, conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
@@ -96,6 +97,6 @@ func (m *MME) handleInitialContextSetupResponse(ctx context.Context, conn NasWri
 	// Deliver any pending data-network change to a UE that just re-established
 	// its bearer from ECM-IDLE (Service Request): the radio bearer is now up, so
 	// a modify/reactivate is deliverable. During attach this is a no-op — the UE
-	// is not yet EMM-REGISTERED — so reconcileUE returns early.
-	m.reconcileUE(ctx, ue)
+	// is not yet EMM-REGISTERED — so ReconcileUE returns early.
+	m.ReconcileUE(ctx, ue)
 }

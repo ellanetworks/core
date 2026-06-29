@@ -27,8 +27,8 @@ var s1apCauseGroupName = map[s1ap.CauseGroup]string{
 	s1ap.CauseGroupMisc:         "Misc",
 }
 
-// s1apCauseName renders an S1AP cause as "<group>: <name> (<value>)".
-func s1apCauseName(c *s1ap.Cause) string {
+// S1apCauseName renders an S1AP cause as "<group>: <name> (<value>)".
+func S1apCauseName(c *s1ap.Cause) string {
 	group, ok := s1apCauseGroupName[c.Group]
 	if !ok {
 		return fmt.Sprintf("group-%d: value-%d", int(c.Group), c.Value)

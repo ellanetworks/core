@@ -82,21 +82,6 @@ func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, _ uin
 // hookSessionManager runs onModify on the first ModifyEPSSession, so a test can
 // simulate a concurrent release (freeing ue.s1) during the unlocked user-plane
 // switch of a Path Switch or Handover Notify.
-type hookSessionManager struct {
-	*fakeSessionManager
-	onModify func()
-	fired    bool
-}
-
-func (h *hookSessionManager) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb models.FTEID) error {
-	if !h.fired && h.onModify != nil {
-		h.fired = true
-		h.onModify()
-	}
-
-	return h.fakeSessionManager.ModifyEPSSession(ctx, imsi, ebi, enb)
-}
-
 func (f *fakeSessionManager) UpdateEPSSessionAMBR(_ context.Context, _ string, _ uint8, ambrUplink, ambrDownlink string) error {
 	if f.ambrErr != nil {
 		return f.ambrErr

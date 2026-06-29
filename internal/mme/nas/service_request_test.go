@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
+	mmes1ap "github.com/ellanetworks/core/internal/mme/s1ap"
 	"github.com/ellanetworks/core/internal/models"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
@@ -233,7 +234,7 @@ func TestResumeBadMACDoesNotRebindVictim(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.HandleInitialUEMessage(context.Background(), nil, initiatingValue(t, b))
+	mmes1ap.HandleInitialUEMessage(m, context.Background(), nil, initiatingValue(t, b))
 
 	if ue.Connected() {
 		t.Fatal("a forged resume connected the idle victim")

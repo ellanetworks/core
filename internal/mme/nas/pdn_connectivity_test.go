@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
+	mmes1ap "github.com/ellanetworks/core/internal/mme/s1ap"
 	"github.com/ellanetworks/core/internal/models"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
@@ -155,7 +156,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.HandleERABSetupResponse(cc, rpdu.(*s1ap.SuccessfulOutcome).Value)
+	mmes1ap.HandleERABSetupResponse(m, cc, rpdu.(*s1ap.SuccessfulOutcome).Value)
 
 	if ue.Pdns[6].EnbFTEID.TEID != 0x1234 {
 		t.Fatalf("eNB F-TEID not recorded on the second PDN: %+v", ue.Pdns[6].EnbFTEID)
@@ -209,7 +210,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.HandleERABReleaseResponse(cc, rrpdu.(*s1ap.SuccessfulOutcome).Value)
+	mmes1ap.HandleERABReleaseResponse(m, cc, rrpdu.(*s1ap.SuccessfulOutcome).Value)
 
 	da, err := (&eps.DeactivateEPSBearerContextAccept{EPSBearerIdentity: 6, ProcedureTransactionIdentity: 3}).Marshal()
 	if err != nil {

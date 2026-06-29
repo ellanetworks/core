@@ -40,6 +40,13 @@ type NASHandler interface {
 	DispatchEMM(ctx context.Context, ue *UeContext, plain []byte, integrityVerified bool)
 }
 
+// S1APHandler is the S1AP transport layer (internal/mme/s1ap), injected so the
+// kernel routes a decoded S1AP PDU to its procedure handler without importing the
+// layer (kernel ⊅ s1ap).
+type S1APHandler interface {
+	Route(ctx context.Context, conn *sctp.SCTPConn, pdu any)
+}
+
 // MME is Ella Core's 4G Mobility Management Entity control-plane network function.
 // epsSessionManager is the converged session anchor (SMF acting as PGW-C) the
 // MME delegates EPS default-bearer establishment to: it allocates the UE IP and
@@ -97,6 +104,7 @@ type MME struct {
 	Bearer  bearerStore
 	Session epsSessionManager
 	NAS     NASHandler
+	S1AP    S1APHandler
 
 	mu          sync.RWMutex
 	enbs        map[*sctp.SCTPConn]*enbState
@@ -271,64 +279,21 @@ func (m *MME) dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 		return
 	}
 
-	switch p := pdu.(type) {
-	case *s1ap.InitiatingMessage:
-		switch p.ProcedureCode {
+	if im, ok := pdu.(*s1ap.InitiatingMessage); ok {
+		switch im.ProcedureCode {
 		case s1ap.ProcS1Setup:
-			m.handleS1Setup(ctx, conn, p.Value)
-		case s1ap.ProcInitialUEMessage:
-			m.HandleInitialUEMessage(ctx, conn, p.Value)
-		case s1ap.ProcUplinkNASTransport:
-			m.handleUplinkNASTransport(ctx, conn, p.Value)
-		case s1ap.ProcUEContextReleaseRequest:
-			m.handleUEContextReleaseRequest(ctx, conn, p.Value)
-		case s1ap.ProcUECapabilityInfoIndication:
-			m.handleUECapabilityInfoIndication(conn, p.Value)
-		case s1ap.ProcPathSwitchRequest:
-			m.handlePathSwitchRequest(ctx, conn, p.Value)
-		case s1ap.ProcHandoverPreparation:
-			m.handleHandoverRequired(ctx, conn, p.Value)
-		case s1ap.ProcHandoverNotification:
-			m.handleHandoverNotify(ctx, conn, p.Value)
-		case s1ap.ProcENBStatusTransfer:
-			m.handleENBStatusTransfer(ctx, conn, p.Value)
-		case s1ap.ProcHandoverCancel:
-			m.handleHandoverCancel(ctx, conn, p.Value)
-		case s1ap.ProcErrorIndication:
-			m.handleErrorIndication(ctx, conn, p.Value)
-		case s1ap.ProcReset:
-			m.handleReset(conn, p.Value)
+			m.handleS1Setup(ctx, conn, im.Value)
+
+			return
 		case s1ap.ProcENBConfigurationUpdate:
-			m.handleENBConfigurationUpdate(ctx, conn, p.Value)
-		default:
-			logger.MmeLog.Debug("ignoring S1AP initiating message", zap.Int("procedure-code", int(p.ProcedureCode)))
+			m.handleENBConfigurationUpdate(ctx, conn, im.Value)
+
+			return
 		}
-	case *s1ap.SuccessfulOutcome:
-		switch p.ProcedureCode {
-		case s1ap.ProcInitialContextSetup:
-			m.handleInitialContextSetupResponse(ctx, conn, p.Value)
-		case s1ap.ProcUEContextRelease:
-			m.HandleUEContextReleaseComplete(conn, p.Value)
-		case s1ap.ProcERABSetup:
-			m.HandleERABSetupResponse(conn, p.Value)
-		case s1ap.ProcERABModify:
-			m.handleERABModifyResponse(p.Value)
-		case s1ap.ProcERABRelease:
-			m.HandleERABReleaseResponse(conn, p.Value)
-		case s1ap.ProcHandoverResourceAllocation:
-			m.handleHandoverRequestAcknowledge(ctx, conn, p.Value)
-		default:
-			logger.MmeLog.Debug("ignoring S1AP successful outcome", zap.Int("procedure-code", int(p.ProcedureCode)))
-		}
-	case *s1ap.UnsuccessfulOutcome:
-		switch p.ProcedureCode {
-		case s1ap.ProcHandoverResourceAllocation:
-			m.handleHandoverFailure(ctx, conn, p.Value)
-		default:
-			logger.MmeLog.Debug("ignoring S1AP unsuccessful outcome", zap.Int("procedure-code", int(p.ProcedureCode)))
-		}
-	default:
-		logger.MmeLog.Debug("ignoring S1AP PDU")
+	}
+
+	if m.S1AP != nil {
+		m.S1AP.Route(ctx, conn, pdu)
 	}
 }
 
@@ -375,7 +340,7 @@ func (m *MME) handleS1Setup(ctx context.Context, conn *sctp.SCTPConn, value []by
 	)
 
 	if !accepted {
-		if _, err := conn.WriteMsg(outBytes, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamNonUE}); err != nil {
+		if _, err := conn.WriteMsg(outBytes, &sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: S1apStreamNonUE}); err != nil {
 			logger.MmeLog.Error("failed to send S1 Setup Failure", zap.Error(err))
 			return
 		}
@@ -390,7 +355,7 @@ func (m *MME) handleS1Setup(ctx context.Context, conn *sctp.SCTPConn, value []by
 		return
 	}
 
-	if _, err := conn.WriteMsg(outBytes, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamNonUE}); err != nil {
+	if _, err := conn.WriteMsg(outBytes, &sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: S1apStreamNonUE}); err != nil {
 		logger.MmeLog.Error("failed to send S1 Setup Response", zap.Error(err))
 		return
 	}
@@ -439,7 +404,7 @@ func (m *MME) handleENBConfigurationUpdate(ctx context.Context, conn *sctp.SCTPC
 		msgType = S1APProcedureENBConfigUpdateFailure
 	}
 
-	if _, err := conn.WriteMsg(out, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamNonUE}); err != nil {
+	if _, err := conn.WriteMsg(out, &sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: S1apStreamNonUE}); err != nil {
 		logger.MmeLog.Error("failed to send ENB Configuration Update response", zap.Error(err))
 		return
 	}
