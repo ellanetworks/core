@@ -62,9 +62,9 @@ func (s *enbState) info() ENBInfo {
 	}
 }
 
-// enbSupportedTAIs flattens an S1 Setup Request's Supported TAs into the TAIs the
+// EnbSupportedTAIs flattens an S1 Setup Request's Supported TAs into the TAIs the
 // eNB broadcasts: one entry per (broadcast PLMN, TAC) pair (TS 36.413 §8.7.3.2).
-func enbSupportedTAIs(tas s1ap.SupportedTAs) []ENBTAI {
+func EnbSupportedTAIs(tas s1ap.SupportedTAs) []ENBTAI {
 	out := make([]ENBTAI, 0, len(tas))
 	for _, ta := range tas {
 		for _, plmn := range ta.BroadcastPLMNs {
@@ -108,13 +108,13 @@ func (m *MME) addENB(conn *sctp.SCTPConn, req *s1ap.S1SetupRequest) {
 		Address:       address,
 		ConnectedAt:   now,
 		LastSeenAt:    now,
-		SupportedTAIs: enbSupportedTAIs(req.SupportedTAs),
+		SupportedTAIs: EnbSupportedTAIs(req.SupportedTAs),
 	})
 }
 
-// trackENBFromSetup records the eNB from an S1 Setup Request's raw value. Parse
+// TrackENBFromSetup records the eNB from an S1 Setup Request's raw value. Parse
 // failures are surfaced by the S1 Setup handler.
-func (m *MME) trackENBFromSetup(conn *sctp.SCTPConn, value []byte) {
+func (m *MME) TrackENBFromSetup(conn *sctp.SCTPConn, value []byte) {
 	req, err := s1ap.ParseS1SetupRequest(value)
 	if err != nil {
 		return
@@ -123,10 +123,10 @@ func (m *MME) trackENBFromSetup(conn *sctp.SCTPConn, value []byte) {
 	m.addENB(conn, req)
 }
 
-// markENBSetupComplete records that the eNB on conn completed S1 Setup, arming
+// MarkENBSetupComplete records that the eNB on conn completed S1 Setup, arming
 // the dispatcher's setup-first gate (TS 36.413). No-op if the eNB is
 // not tracked.
-func (m *MME) markENBSetupComplete(conn *sctp.SCTPConn) {
+func (m *MME) MarkENBSetupComplete(conn *sctp.SCTPConn) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -150,9 +150,9 @@ func (m *MME) FindENBByGlobalID(g s1ap.GlobalENBID) (NasWriter, bool) {
 	return conn, ok
 }
 
-// updateENBName updates the stored name of a connected eNB from an eNB
+// UpdateENBName updates the stored name of a connected eNB from an eNB
 // Configuration Update (TS 36.413 §8.7.4).
-func (m *MME) updateENBName(conn *sctp.SCTPConn, name string) {
+func (m *MME) UpdateENBName(conn *sctp.SCTPConn, name string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -161,10 +161,10 @@ func (m *MME) updateENBName(conn *sctp.SCTPConn, name string) {
 	}
 }
 
-// updateENBSupportedTAs replaces a connected eNB's broadcast TAIs from an eNB
+// UpdateENBSupportedTAs replaces a connected eNB's broadcast TAIs from an eNB
 // Configuration Update's Supported TAs IE, which carries the whole list
 // (TS 36.413 §8.7.4). No-op if the eNB is not tracked.
-func (m *MME) updateENBSupportedTAs(conn *sctp.SCTPConn, tais []ENBTAI) {
+func (m *MME) UpdateENBSupportedTAs(conn *sctp.SCTPConn, tais []ENBTAI) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -173,8 +173,8 @@ func (m *MME) updateENBSupportedTAs(conn *sctp.SCTPConn, tais []ENBTAI) {
 	}
 }
 
-// enbSetupComplete reports whether the eNB on conn has completed S1 Setup.
-func (m *MME) enbSetupComplete(conn *sctp.SCTPConn) bool {
+// ENBSetupComplete reports whether the eNB on conn has completed S1 Setup.
+func (m *MME) ENBSetupComplete(conn *sctp.SCTPConn) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -183,9 +183,9 @@ func (m *MME) enbSetupComplete(conn *sctp.SCTPConn) bool {
 	return s != nil && s.setupComplete
 }
 
-// touchENB records inbound S1AP activity from an eNB association as its last-seen
+// TouchENB records inbound S1AP activity from an eNB association as its last-seen
 // time. It is a no-op for an association not yet recorded (pre-S1 Setup).
-func (m *MME) touchENB(conn *sctp.SCTPConn) {
+func (m *MME) TouchENB(conn *sctp.SCTPConn) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -194,8 +194,8 @@ func (m *MME) touchENB(conn *sctp.SCTPConn) {
 	}
 }
 
-// removeENB drops a connected eNB when its association closes.
-func (m *MME) removeENB(conn *sctp.SCTPConn) {
+// RemoveENB drops a connected eNB when its association closes.
+func (m *MME) RemoveENB(conn *sctp.SCTPConn) {
 	m.mu.Lock()
 	if s := m.enbs[conn]; s != nil && m.enbByID[s.id] == NasWriter(conn) {
 		delete(m.enbByID, s.id)

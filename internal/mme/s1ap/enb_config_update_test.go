@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package s1ap
 
 import (
 	"testing"
 
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -16,7 +17,7 @@ var servedPLMN = models.PlmnID{Mcc: "001", Mnc: "01"}
 func servedPLMNIdentity(t *testing.T) s1ap.PLMNIdentity {
 	t.Helper()
 
-	p, err := EncodePLMN(servedPLMN)
+	p, err := mme.EncodePLMN(servedPLMN)
 	if err != nil {
 		t.Fatal(err)
 	}

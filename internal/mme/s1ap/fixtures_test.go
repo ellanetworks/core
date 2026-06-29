@@ -248,7 +248,6 @@ func newTestMME(t *testing.T) *mme.MME {
 
 	m := mme.New(udm.New(newFakeCredStore(), noopKeyResolver), fakeBearerStore{}, &fakeSessionManager{})
 	m.NAS = &nasHandler{m: m}
-	m.S1AP = &s1apHandler{m: m}
 
 	return m
 }
@@ -266,14 +265,6 @@ func (h *nasHandler) HandleServiceRequest(ctx context.Context, conn mme.NasWrite
 
 func (h *nasHandler) DispatchEMM(ctx context.Context, ue *mme.UeContext, plain []byte, integrityVerified bool) {
 	nas.DispatchEMM(h.m, ctx, ue, plain, integrityVerified)
-}
-
-// s1apHandler implements mme.S1APHandler over this package's Route, so the kernel
-// dispatch routes UE-associated PDUs in tests.
-type s1apHandler struct{ m *mme.MME }
-
-func (h *s1apHandler) Route(ctx context.Context, conn *sctp.SCTPConn, pdu any) {
-	Route(h.m, ctx, conn, pdu)
 }
 
 // securedUE returns a registered UE with a valid EPS NAS security context.

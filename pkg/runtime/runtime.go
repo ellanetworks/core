@@ -485,7 +485,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// the AUSF) for EPS-AKA vectors and the shared SQN.
 	mmeInstance := mme.New(udm.New(ausfStore, keyResolver), dbInstance, smfInstance)
 	mmeInstance.NAS = &mmeNASAdapter{mme: mmeInstance}
-	mmeInstance.S1AP = &mmeS1APAdapter{mme: mmeInstance}
 
 	// Let the SMF page idle 4G UEs through the MME when downlink data arrives.
 	smfInstance.SetMME(mmeInstance)
@@ -581,9 +580,24 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't start AMF: %w", err)
 	}
 
-	// 4G S1-MME control plane. Bind the RAN-facing interface (same address as
-	// N2) on the standard S1AP port.
-	if err := mmeInstance.Start(ctx, cfg.Interfaces.N2.Address, mme.DefaultS1MMEPort); err != nil {
+	// 4G S1-MME control plane. The composition root owns the SCTP listener and
+	// routes decoded PDUs into the S1AP transport layer (mirrors the AMF/NGAP
+	// wiring above). Bind the RAN-facing interface (same address as N2) on the
+	// standard S1AP port.
+	mmeServer := amfsctp.NewServer(amfsctp.Config{
+		PPID:   mme.S1apPPID,
+		Name:   "S1-MME",
+		Logger: logger.MmeLog,
+	}, amfsctp.Callbacks{
+		Dispatch: func(ctx context.Context, conn *amfsctp.SCTPConn, msg []byte) {
+			mmes1ap.Dispatch(ctx, mmeInstance, conn, msg)
+		},
+		OnDisconnect: func(conn *amfsctp.SCTPConn) {
+			mmeInstance.RemoveENB(conn)
+		},
+	})
+
+	if err := mmeServer.ListenAndServe(ctx, cfg.Interfaces.N2.Address, mme.DefaultS1MMEPort, interfaceName); err != nil {
 		return fmt.Errorf("couldn't start MME: %w", err)
 	}
 
@@ -649,7 +663,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		logger.EllaLog.Info("Shutting down MME")
 
 		mmeCtx, mmeCancel := context.WithTimeout(context.Background(), stepTimeout)
-		mmeInstance.Shutdown(mmeCtx)
+		mmeServer.Shutdown(mmeCtx)
 		mmeCancel()
 
 		// 4. Stop the BGP reconciler, then the BGP speaker. The reconciler
@@ -899,15 +913,4 @@ func collectUEPools(ctx context.Context, dbInstance *db.Database) []netip.Prefix
 	}
 
 	return pools
-}
-
-// mmeS1APAdapter injects the 4G S1AP transport layer (internal/mme/s1ap) into the
-// MME kernel so the SCTP dispatch routes a decoded PDU to its procedure handler
-// without the kernel importing s1ap.
-type mmeS1APAdapter struct {
-	mme *mme.MME
-}
-
-func (a *mmeS1APAdapter) Route(ctx context.Context, conn *amfsctp.SCTPConn, pdu any) {
-	mmes1ap.Route(a.mme, ctx, conn, pdu)
 }

@@ -84,14 +84,14 @@ func TestENBSupportedTAIs(t *testing.T) {
 		{PlmnID: models.PlmnID{Mcc: "999", Mnc: "01"}, TAC: 7},
 	}
 
-	got := enbSupportedTAIs(tas)
+	got := EnbSupportedTAIs(tas)
 	if len(got) != len(want) {
-		t.Fatalf("enbSupportedTAIs: got %d TAIs, want %d", len(got), len(want))
+		t.Fatalf("EnbSupportedTAIs: got %d TAIs, want %d", len(got), len(want))
 	}
 
 	for i := range want {
 		if got[i] != want[i] {
-			t.Errorf("enbSupportedTAIs[%d]: got %+v, want %+v", i, got[i], want[i])
+			t.Errorf("EnbSupportedTAIs[%d]: got %+v, want %+v", i, got[i], want[i])
 		}
 	}
 }

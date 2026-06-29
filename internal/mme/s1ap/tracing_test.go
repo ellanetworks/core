@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package s1ap
 
 import (
 	"context"
@@ -31,7 +31,7 @@ func TestDispatchRecordsReceiveSpan(t *testing.T) {
 
 	// A nil conn gates the message, but the receive span is created and ended
 	// before the gate, so it is recorded regardless.
-	m.dispatch(context.Background(), nil, raw)
+	Dispatch(context.Background(), m, nil, raw)
 
 	emitted := testSpanRecorder.Ended()[before:]
 

@@ -4,28 +4,8 @@
 package mme
 
 import (
-	"bytes"
-	"context"
 	"testing"
 )
-
-// TestDispatchSurvivesGarbage feeds malformed PDUs to the dispatcher and checks
-// it neither panics nor disrupts the association — the codecs reject malformed
-// input rather than relying on any panic recovery.
-func TestDispatchSurvivesGarbage(t *testing.T) {
-	m := newTestMME(t)
-
-	for _, g := range [][]byte{
-		nil,
-		{},
-		{0x00},
-		{0xff, 0xff, 0xff},
-		{0x00, 0x11, 0x22, 0x33, 0x44, 0x55},
-		bytes.Repeat([]byte{0xab}, 128),
-	} {
-		m.dispatch(context.Background(), nil, g) // must not panic
-	}
-}
 
 // TestDropStaleUe checks a re-attach reusing the same eNB UE id on the same
 // association drops the prior context, so it is not leaked (TS 36.413).

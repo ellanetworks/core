@@ -203,6 +203,6 @@ func (m *MME) broadcastPaging(ctx context.Context, b []byte) {
 			continue
 		}
 
-		m.logNetworkEvent(ctx, conn, S1APProcedurePaging, logger.DirectionOutbound, b)
+		m.LogNetworkEvent(ctx, conn, S1APProcedurePaging, logger.DirectionOutbound, b)
 	}
 }

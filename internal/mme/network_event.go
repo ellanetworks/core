@@ -11,7 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/sctp"
 )
 
-func addrString(a net.Addr) string {
+func AddrString(a net.Addr) string {
 	if a == nil {
 		return ""
 	}
@@ -30,9 +30,9 @@ func (m *MME) enbNameByConn(conn *sctp.SCTPConn) string {
 	return ""
 }
 
-// logNetworkEvent records an S1AP message exchanged with an eNB so it appears in
+// LogNetworkEvent records an S1AP message exchanged with an eNB so it appears in
 // the network events log alongside 5G NGAP traffic.
-func (m *MME) logNetworkEvent(ctx context.Context, conn *sctp.SCTPConn, messageType S1APProcedure, dir logger.LogDirection, raw []byte) {
+func (m *MME) LogNetworkEvent(ctx context.Context, conn *sctp.SCTPConn, messageType S1APProcedure, dir logger.LogDirection, raw []byte) {
 	if conn == nil {
 		return
 	}
@@ -42,8 +42,8 @@ func (m *MME) logNetworkEvent(ctx context.Context, conn *sctp.SCTPConn, messageT
 		logger.S1APNetworkProtocol,
 		string(messageType),
 		dir,
-		addrString(conn.LocalAddr()),
-		addrString(conn.RemoteAddr()),
+		AddrString(conn.LocalAddr()),
+		AddrString(conn.RemoteAddr()),
 		m.enbNameByConn(conn),
 		raw,
 	)
@@ -57,5 +57,5 @@ func (m *MME) LogOutboundS1AP(ctx context.Context, conn NasWriter, messageType S
 		return
 	}
 
-	m.logNetworkEvent(ctx, sctpConn, messageType, logger.DirectionOutbound, raw)
+	m.LogNetworkEvent(ctx, sctpConn, messageType, logger.DirectionOutbound, raw)
 }

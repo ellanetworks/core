@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package s1ap
 
 import (
 	"testing"
