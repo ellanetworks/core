@@ -9,7 +9,6 @@ package amf
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 )
 
@@ -60,27 +59,10 @@ func AttachSourceUeTargetUe(sourceUe, targetUe *RanUe) error {
 	}
 
 	targetUe.amfUe = amfUe
-	targetUe.SourceUe = sourceUe
-	sourceUe.TargetUe = targetUe
+
+	// Install the handover FSM — the single source of truth for the source/target
+	// pair (see handover.go); torn down by UeContext.ClearHandover.
+	amfUe.BeginHandover(sourceUe, targetUe)
 
 	return nil
-}
-
-func DetachSourceUeTargetUe(ranUe *RanUe) {
-	if ranUe == nil {
-		logger.AmfLog.Error("ranUe is Nil")
-		return
-	}
-
-	if ranUe.TargetUe != nil {
-		targetUe := ranUe.TargetUe
-
-		ranUe.TargetUe = nil
-		targetUe.SourceUe = nil
-	} else if ranUe.SourceUe != nil {
-		source := ranUe.SourceUe
-
-		ranUe.SourceUe = nil
-		source.TargetUe = nil
-	}
 }

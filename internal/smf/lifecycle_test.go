@@ -636,15 +636,25 @@ func TestCreateSmContext_PFCPEstablishmentFailure(t *testing.T) {
 
 	n1Msg := buildPDUSessionEstRequest()
 
-	_, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
 	if err == nil {
 		t.Fatal("expected error when PFCP establishment fails")
 	}
 
+	// The reject is returned for the AMF to deliver, like every other create
+	// failure, rather than actively sent via TransferN1.
+	if rejectN1 == nil {
+		t.Fatal("expected reject N1 message")
+	}
+
+	if got := rejectCauseCode(t, rejectN1); got != nasMessage.Cause5GSMRequestRejectedUnspecified {
+		t.Fatalf("expected cause %d (RequestRejectedUnspecified), got %d", nasMessage.Cause5GSMRequestRejectedUnspecified, got)
+	}
+
 	amfCb.mu.Lock()
-	if len(amfCb.n1Calls) != 1 {
+	if len(amfCb.n1Calls) != 0 {
 		amfCb.mu.Unlock()
-		t.Fatalf("expected 1 TransferN1 call (reject), got %d", len(amfCb.n1Calls))
+		t.Fatalf("expected no TransferN1 call (reject returned, not sent), got %d", len(amfCb.n1Calls))
 	}
 	amfCb.mu.Unlock()
 }
@@ -1822,7 +1832,7 @@ func TestHandleDownlinkDataReportEPS(t *testing.T) {
 
 	supi := testSUPI()
 	smCtx := s.NewSession(supi, 5, testDNN, testSnssai) // EPS session keyed by the default bearer EBI
-	smCtx.IsEPS = true
+	smCtx.Access = smf.Access4G
 	seid := s.AllocateLocalSEID()
 	smCtx.SetPFCPSession(seid)
 

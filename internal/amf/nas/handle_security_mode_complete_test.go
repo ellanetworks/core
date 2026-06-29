@@ -201,7 +201,7 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if len(ue.KgnbForTest()) == 0 || len(ue.NHForTest()) == 0 || ue.NCCForTest() == 0 {
+	if len(ue.KgnbForTest()) == 0 || ue.NHForTest() == [32]uint8{} || ue.NCCForTest() == 0 {
 		t.Fatalf("expected security context to be updated, got: Kgnb: %v, NH: %v, NCC: %v", ue.KgnbForTest(), ue.NHForTest(), ue.NCCForTest())
 	}
 
@@ -253,7 +253,7 @@ func TestHandleSecurityMode_ValidSecurityContextWithBadAMFKey_UpdatesSecurityCon
 		t.Fatalf("expected error starting with: %v, got: %v", expected, err)
 	}
 
-	if len(ue.KgnbForTest()) != 0 || len(ue.NHForTest()) != 0 || ue.NCCForTest() != 0 {
+	if len(ue.KgnbForTest()) != 0 || ue.NHForTest() != [32]uint8{} || ue.NCCForTest() != 0 {
 		t.Fatalf("expected security context to be not be updated, got: Kgnb: %v, NH: %v, NCC: %v", ue.KgnbForTest(), ue.NHForTest(), ue.NCCForTest())
 	}
 

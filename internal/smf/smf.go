@@ -6,7 +6,6 @@ package smf
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"net"
 	"net/netip"
@@ -34,59 +33,51 @@ var ErrDNNNotFound = errors.New("data network not found")
 var ErrDNNNotInSlice = errors.New("data network not found in slice")
 
 // ErrNoPolicyMatch indicates that no policy matches the session's slice (SST/SD)
-// and DNN. This typically means the admin changed the slice configuration and
-// the session's stored S-NSSAI no longer maps to any configured slice.
+// and DNN.
 var ErrNoPolicyMatch = errors.New("no matching policy for slice and DNN")
 
 // ErrUENotReachable indicates that the UE is in CM-IDLE state and the requested
 // signaling cannot be delivered over the radio. AMFCallback implementations
 // must return this error (wrapping is fine) when the UE has no active RAN
-// connection. Callers should handle gracefully — e.g. commit policy locally
-// and defer radio delivery until the UE reconnects.
+// connection.
 var ErrUENotReachable = errors.New("UE is in CM-IDLE state")
 
-// SessionQuerier provides read-only access to active sessions.
-// External packages (API, AMF export, metrics) use this interface
-// instead of a package-level SMF singleton.
+// SessionQuerier provides read-only access to active sessions for external
+// packages (API, AMF export, metrics), avoiding a package-level SMF singleton.
 type SessionQuerier interface {
 	GetSession(ref string) *SMContext
 	SessionsByDNN(dnn string) []*SMContext
 	SessionCount() int
 }
 
-// PCF abstracts the Policy Control Function (3GPP TS 23.503).
-// In a full 3GPP deployment, this would be the Npcf_SMPolicyControl service.
-// Here it is backed by the local database, but the interface keeps the
-// SMF ↔ PCF boundary explicit.
+// PCF abstracts the Policy Control Function (3GPP TS 23.503), backed by the local
+// database. The interface keeps the SMF ↔ PCF boundary explicit.
 type PCF interface {
 	// GetSessionPolicy returns the PCC rules (QoS + traffic filters) and DNN
-	// configuration for a subscriber identified by IMSI, in the given network
-	// slice and DNN. This mirrors the 3GPP Npcf_SMPolicyControl_Create
-	// service operation which returns all session policy data in one call.
+	// configuration for a subscriber, mirroring the 3GPP
+	// Npcf_SMPolicyControl_Create operation that returns all session policy in
+	// one call.
 	GetSessionPolicy(ctx context.Context, imsi string, snssai *models.Snssai, dnn string) (*Policy, error)
 }
 
 // SessionStore is the minimal DB surface the SMF needs for session-level
 // data operations (IP management, usage accounting, flow reports).
 type SessionStore interface {
-	// AllocateIP assigns an IPv4 address from the given data network's pool.
 	AllocateIP(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error)
 
-	// ReleaseIP frees the lease associated with a session.
-	// Returns the released IPv4 address so the caller can withdraw the BGP route.
+	// ReleaseIP frees the session's lease and returns the freed IPv4 address so
+	// the caller can withdraw the BGP route.
 	ReleaseIP(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error)
 
-	// AllocateIPv6 assigns a /64 prefix from the given data network's IPv6 pool.
-	// Returns the prefix base address (lower 64 bits = 0).
+	// AllocateIPv6 assigns a /64 prefix from the data network's IPv6 pool and
+	// returns its base address (lower 64 bits = 0).
 	AllocateIPv6(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error)
 
-	// ReleaseIPv6 frees the IPv6 prefix lease associated with a session.
 	ReleaseIPv6(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error)
 
-	// IncrementDailyUsage adds uplink/downlink byte counts to a subscriber's daily usage.
 	IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error
 
-	// InsertFlowReports persists multiple flow measurement records in a single transaction.
+	// InsertFlowReports persists flow measurement records in one transaction.
 	InsertFlowReports(ctx context.Context, reports []*models.FlowReportRequest) error
 }
 
@@ -107,14 +98,12 @@ type UPFClient interface {
 	// containing the delegated /64 prefix.
 	RegisterIPv6Session(ctx context.Context, reg *models.IPv6SessionRegistration) error
 
-	// UnregisterIPv6Session removes the IPv6 session from the RA responder.
 	UnregisterIPv6Session(ctx context.Context, ulTEID uint32) error
 }
 
 // AMFCallback abstracts the SMF → AMF communication.
 // This breaks the circular dependency between the SMF and AMF packages.
 type AMFCallback interface {
-	// TransferN1 delivers a NAS message to the UE.
 	TransferN1(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error
 
 	// TransferN1N2 delivers a combined N1+N2 message for PDU Session Setup.
@@ -138,10 +127,10 @@ type AMFCallback interface {
 	N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte) error
 }
 
-// MMECallback abstracts the SMF → MME communication for 4G paging, mirroring
-// AMFCallback. It breaks the circular dependency between the SMF and MME
-// packages: the MME (a 4G EPS session anchor) registers itself so the SMF can
-// page an idle UE when downlink data arrives.
+// MMECallback abstracts the SMF → MME communication for 4G paging. It breaks the
+// circular dependency between the SMF and MME packages: the MME (a 4G EPS session
+// anchor) registers itself so the SMF can page an idle UE when downlink data
+// arrives.
 type MMECallback interface {
 	// Page triggers an S1AP Paging for the idle UE identified by IMSI so it
 	// re-establishes the bearer (TS 23.401 §5.3.4.3).
@@ -164,7 +153,7 @@ type ResolvedNetworkRule struct {
 // Policy contains the QoS parameters, network rules, and DNN configuration
 // the SMF needs for a session.
 type Policy struct {
-	PolicyID     string // DB primary key (UUID); populated by GetSessionPolicy
+	PolicyID     string // DB primary key (UUID)
 	Ambr         models.Ambr
 	QosData      models.QosData
 	NetworkRules []*ResolvedNetworkRule
@@ -238,8 +227,7 @@ func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Op
 	return s
 }
 
-// SetUPF sets the UPF client adapter. This allows late binding of the UPF adapter
-// after the SMF instance and dispatcher have been initialized.
+// SetUPF binds the UPF client after the SMF and dispatcher are initialized.
 func (s *SMF) SetUPF(upf UPFClient) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -247,9 +235,8 @@ func (s *SMF) SetUPF(upf UPFClient) {
 	s.upf = upf
 }
 
-// SetMME registers the 4G MME so the SMF can page idle EPS UEs. The MME is
-// constructed after the SMF (it uses the SMF as its session anchor), so it binds
-// itself here once both exist.
+// SetMME registers the 4G MME so the SMF can page idle EPS UEs. The MME uses the
+// SMF as its session anchor, so it binds itself here once both exist.
 func (s *SMF) SetMME(mme MMECallback) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -262,7 +249,7 @@ func (s *SMF) AllocateLocalSEID() uint64 {
 	return atomic.AddUint64(&s.seidCounter, 1)
 }
 
-// NewSession creates a new SMContext, adds it to the pool, and returns it.
+// NewSession creates a new SMContext and adds it to the pool.
 func (s *SMF) NewSession(supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai) *SMContext {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -363,7 +350,7 @@ func (s *SMF) SessionCountByRAT() (fourG, fiveG int) {
 	defer s.mu.RUnlock()
 
 	for _, ctx := range s.pool {
-		if ctx.IsEPS {
+		if ctx.IsEPS() {
 			fourG++
 		} else {
 			fiveG++
@@ -381,90 +368,4 @@ func (s *SMF) GetSessionPolicy(ctx context.Context, supi etsi.SUPI, snssai *mode
 	defer span.End()
 
 	return s.pcf.GetSessionPolicy(ctx, supi.IMSI(), snssai, dnn)
-}
-
-// --- PDR/FAR/QER/URR allocation (delegated to the ID generators) ---
-
-// NewPDR allocates a new Packet Detection Rule with an associated FAR.
-func (s *SMF) NewPDR() (*PDR, error) {
-	pdrID, err := s.pdrIDs.Allocate()
-	if err != nil {
-		return nil, fmt.Errorf("could not allocate PDR ID: %v", err)
-	}
-
-	far, err := s.NewFAR()
-	if err != nil {
-		return nil, err
-	}
-
-	return &PDR{
-		PDRID: uint16(pdrID),
-		FAR:   far,
-	}, nil
-}
-
-// NewFAR allocates a new Forwarding Action Rule (default: drop).
-func (s *SMF) NewFAR() (*FAR, error) {
-	farID, err := s.farIDs.Allocate()
-	if err != nil {
-		return nil, fmt.Errorf("could not allocate FAR ID: %v", err)
-	}
-
-	return &FAR{
-		FARID:       uint32(farID),
-		ApplyAction: models.ApplyAction{Drop: true},
-	}, nil
-}
-
-// NewQER allocates a new QoS Enhancement Rule from policy data.
-func (s *SMF) NewQER(policy *Policy) (*QER, error) {
-	qerID, err := s.qerIDs.Allocate()
-	if err != nil {
-		return nil, fmt.Errorf("could not allocate QER ID: %v", err)
-	}
-
-	return &QER{
-		QERID: uint32(qerID),
-		QFI:   policy.QosData.QFI,
-		GateStatus: &models.GateStatus{
-			ULGate: models.GateOpen,
-			DLGate: models.GateOpen,
-		},
-		MBR: &models.MBR{
-			ULMBR: bitRateTokbps(policy.Ambr.Uplink),
-			DLMBR: bitRateTokbps(policy.Ambr.Downlink),
-		},
-	}, nil
-}
-
-// NewURR allocates a new Usage Reporting Rule.
-func (s *SMF) NewURR() (*URR, error) {
-	urrID, err := s.urrIDs.Allocate()
-	if err != nil {
-		return nil, fmt.Errorf("could not allocate URR ID: %v", err)
-	}
-
-	return &URR{
-		URRID: uint32(urrID),
-	}, nil
-}
-
-// RemovePDR frees a PDR ID.
-func (s *SMF) RemovePDR(pdr *PDR) {
-	s.pdrIDs.FreeID(int64(pdr.PDRID))
-}
-
-// RemoveFAR frees a FAR ID.
-func (s *SMF) RemoveFAR(far *FAR) {
-	s.farIDs.FreeID(int64(far.FARID))
-}
-
-// RemoveQER frees a QER ID.
-func (s *SMF) RemoveQER(qer *QER) {
-	s.qerIDs.FreeID(int64(qer.QERID))
-}
-
-// RemoveURR frees a URR ID.
-func (s *SMF) RemoveURR(urr *URR) {
-	s.urrIDs.FreeID(int64(urr.URRID))
 }

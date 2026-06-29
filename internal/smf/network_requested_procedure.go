@@ -16,11 +16,10 @@ import (
 )
 
 // startRelease runs the network-requested PDU session release procedure
-// (TS 24.501 §6.3.3): it frees the user-plane resources, sends the PDU Session
-// Release Command with the given PTI and 5GSM cause, and either releases the
-// session locally (UE in CM-IDLE, where N1 delivery is not possible) or arms
-// T3592 to retransmit the command until the UE replies or the retransmission
-// limit is reached. Caller must hold smContext.Mutex.
+// (TS 24.501 §6.3.3): it frees the user-plane resources and sends the PDU
+// Session Release Command. A UE in CM-IDLE is released locally (no N1
+// delivery); otherwise T3592 retransmits the command until the UE replies or
+// the retransmission limit is reached. Caller must hold smContext.Mutex.
 func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti, cause uint8) error {
 	s.releaseAllocatedAddresses(ctx, smContext)
 

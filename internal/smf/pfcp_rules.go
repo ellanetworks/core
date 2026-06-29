@@ -7,10 +7,11 @@
 package smf
 
 import (
+	"fmt"
+
 	"github.com/ellanetworks/core/internal/models"
 )
 
-// ToPDR flattens a PDR into the message struct the UPF expects.
 func (p *PDR) ToPDR() models.PDR {
 	mp := models.PDR{
 		PDRID:              p.PDRID,
@@ -33,7 +34,6 @@ func (p *PDR) ToPDR() models.PDR {
 	return mp
 }
 
-// ToFAR flattens a FAR into the message struct the UPF expects.
 func (f *FAR) ToFAR() models.FAR {
 	return models.FAR{
 		FARID:                f.FARID,
@@ -42,7 +42,6 @@ func (f *FAR) ToFAR() models.FAR {
 	}
 }
 
-// ToQER flattens a QER into the message struct the UPF expects.
 func (q *QER) ToQER() models.QER {
 	return models.QER{
 		QERID:      q.QERID,
@@ -52,16 +51,14 @@ func (q *QER) ToQER() models.QER {
 	}
 }
 
-// ToURR flattens a URR into the message struct the UPF expects.
 func (u *URR) ToURR() models.URR {
 	return models.URR{
 		URRID: u.URRID,
 	}
 }
 
-// BuildEstablishRequest converts live SMF rule slices into the flat message
-// struct the UPF expects for session establishment, then marks all rules as
-// created so subsequent modifications use the correct state.
+// BuildEstablishRequest converts live SMF rule slices into the UPF message
+// struct, marking each rule RuleCreate so later modifications dispatch correctly.
 func BuildEstablishRequest(
 	localSEID uint64,
 	imsi string,
@@ -111,10 +108,9 @@ func BuildEstablishRequest(
 	}
 }
 
-// BuildModifyRequest converts live SMF rule slices into the flat message
-// struct the UPF expects for session modification. Rules are dispatched
-// into Create/Update/Remove buckets based on their RuleState, then all
-// states are advanced to RuleCreate.
+// BuildModifyRequest converts live SMF rule slices into the UPF message struct,
+// dispatching each rule into a Create/Update/Remove bucket by its RuleState and
+// then advancing it to RuleCreate.
 func BuildModifyRequest(
 	remoteSEID uint64,
 	policyID string,
@@ -214,4 +210,82 @@ type QER struct {
 // Usage Report Rule
 type URR struct {
 	URRID uint32
+}
+
+// NewPDR allocates a PDR with an associated FAR.
+func (s *SMF) NewPDR() (*PDR, error) {
+	pdrID, err := s.pdrIDs.Allocate()
+	if err != nil {
+		return nil, fmt.Errorf("could not allocate PDR ID: %v", err)
+	}
+
+	far, err := s.NewFAR()
+	if err != nil {
+		return nil, err
+	}
+
+	return &PDR{
+		PDRID: uint16(pdrID),
+		FAR:   far,
+	}, nil
+}
+
+// NewFAR allocates a FAR defaulting to drop.
+func (s *SMF) NewFAR() (*FAR, error) {
+	farID, err := s.farIDs.Allocate()
+	if err != nil {
+		return nil, fmt.Errorf("could not allocate FAR ID: %v", err)
+	}
+
+	return &FAR{
+		FARID:       uint32(farID),
+		ApplyAction: models.ApplyAction{Drop: true},
+	}, nil
+}
+
+func (s *SMF) NewQER(policy *Policy) (*QER, error) {
+	qerID, err := s.qerIDs.Allocate()
+	if err != nil {
+		return nil, fmt.Errorf("could not allocate QER ID: %v", err)
+	}
+
+	return &QER{
+		QERID: uint32(qerID),
+		QFI:   policy.QosData.QFI,
+		GateStatus: &models.GateStatus{
+			ULGate: models.GateOpen,
+			DLGate: models.GateOpen,
+		},
+		MBR: &models.MBR{
+			ULMBR: bitRateTokbps(policy.Ambr.Uplink),
+			DLMBR: bitRateTokbps(policy.Ambr.Downlink),
+		},
+	}, nil
+}
+
+func (s *SMF) NewURR() (*URR, error) {
+	urrID, err := s.urrIDs.Allocate()
+	if err != nil {
+		return nil, fmt.Errorf("could not allocate URR ID: %v", err)
+	}
+
+	return &URR{
+		URRID: uint32(urrID),
+	}, nil
+}
+
+func (s *SMF) RemovePDR(pdr *PDR) {
+	s.pdrIDs.FreeID(int64(pdr.PDRID))
+}
+
+func (s *SMF) RemoveFAR(far *FAR) {
+	s.farIDs.FreeID(int64(far.FARID))
+}
+
+func (s *SMF) RemoveQER(qer *QER) {
+	s.qerIDs.FreeID(int64(qer.QERID))
+}
+
+func (s *SMF) RemoveURR(urr *URR) {
+	s.urrIDs.FreeID(int64(urr.URRID))
 }

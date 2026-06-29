@@ -186,10 +186,11 @@ type UeContext struct {
 	nh  [32]byte
 	ncc uint8
 
-	// keyChainBusy is set while a Path Switch or S1 handover is advancing the
-	// {NH, NCC} chain. Both procedures refuse to start while it is set, so they
-	// cannot derive a fresh NH from the same base for two targets (TS 33.401
-	// §7.2.8). Guarded by MME.mu.
+	// keyChainBusy is set while a key-changing procedure — a NAS security mode, a
+	// Path Switch, or an S1 handover — is advancing the {NH, NCC} chain. The others
+	// refuse to start while it is set, so two procedures cannot re-key from the
+	// same base concurrently and desync the AS/NAS key chain (TS 33.501 §6.9.5.1,
+	// TS 33.401 §7.2.8). Guarded by MME.mu.
 	keyChainBusy bool
 
 	// handover is the in-flight S1 handover (nil when none). It holds the source
@@ -560,6 +561,10 @@ func (m *MME) freeS1ConnLocked(ue *UeContext) {
 	// fire on a freed connection.
 	m.clearHandoverLocked(ue)
 	m.stopNASGuardLocked(ue)
+	// Releasing the connection ends any in-flight key-changing procedure on it
+	// (e.g. a security mode whose Complete never arrived), so the {NH, NCC} chain
+	// claim must not outlive it and block a later procedure (TS 33.401 §7.2.8).
+	ue.keyChainBusy = false
 	m.releaseConnIDLocked(uint32(ue.S1.MMEUES1APID))
 	ue.S1 = nil
 }

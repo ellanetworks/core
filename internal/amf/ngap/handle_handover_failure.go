@@ -40,13 +40,17 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 
 	targetUe.TouchLastSeen()
 
-	sourceUe := targetUe.SourceUe
+	amfUe := targetUe.UeContext()
+
+	sourceUe := amfUe.HandoverSource()
 	if sourceUe == nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("N2 Handover between AMF has not been implemented yet")
 	} else {
-		if sourceUeContext := sourceUe.UeContext(); sourceUeContext != nil {
-			sourceUeContext.NasConn().Procedures.End(procedure.N2Handover)
+		if conn := amfUe.NasConn(); conn != nil {
+			conn.Procedures.End(procedure.N2Handover)
 		}
+
+		amfUe.ClearHandover()
 
 		failureCause := ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,

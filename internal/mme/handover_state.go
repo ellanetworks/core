@@ -242,11 +242,31 @@ func (m *MME) BeginPathSwitch(ue *UeContext) (curNH [32]byte, curNCC uint8, mmeI
 	return curNH, curNCC, mmeID, true
 }
 
-// ClearKeyChainBusy releases the {NH, NCC} chain claim taken by BeginPathSwitch.
+// ClearKeyChainBusy releases the {NH, NCC} chain claim taken by BeginPathSwitch
+// or the NAS security mode procedure.
 func (m *MME) ClearKeyChainBusy(ue *UeContext) {
 	m.mu.Lock()
 	ue.keyChainBusy = false
 	m.mu.Unlock()
+}
+
+// TryClaimKeyChain claims the {NH, NCC} key chain for ue so a key-changing
+// procedure — a NAS security mode, Path Switch, or S1 handover — cannot run
+// concurrently with another and desync the AS/NAS key chain (TS 33.501 §6.9.5.1,
+// TS 33.401 §7.2.8). It returns false when the chain is already claimed. The
+// claim is released by ClearKeyChainBusy, by handover/path-switch completion, or
+// when the connection is freed.
+func (m *MME) TryClaimKeyChain(ue *UeContext) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if ue.keyChainBusy {
+		return false
+	}
+
+	ue.keyChainBusy = true
+
+	return true
 }
 
 // AdvancePathSwitchNH derives the next hop for a Path Switch from the current NH

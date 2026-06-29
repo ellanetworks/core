@@ -34,3 +34,26 @@ func TestStartSecurityModeRejectsNoCommonIntegrity(t *testing.T) {
 		t.Fatalf("Attach Reject cause = %d, want %d", reject.Cause, mme.EmmCauseUESecCapsMismatch)
 	}
 }
+
+// TestStartSecurityModeClaimsKeyChain asserts the security mode procedure claims
+// the {NH,NCC} key chain while the SECURITY MODE COMMAND is in flight, so a
+// concurrent S1 handover / Path Switch is refused (TS 33.501 §6.9.5.1, TS 33.401
+// §7.2.8).
+func TestStartSecurityModeClaimsKeyChain(t *testing.T) {
+	m := newTestMME(t)
+	cc := &captureConn{}
+	ue := m.NewUe(cc, 7)
+	ue.SetIMSIForTest(testSubscriber.IMSI)
+	ue.SetKASMEForTest(make([]byte, 32))
+	ue.UeNetCap = eps.UENetworkCapability{EEA: 0xff, EIA: 0xff}.Marshal()
+
+	startSecurityMode(m, context.Background(), ue)
+
+	if len(cc.sent) == 0 {
+		t.Fatal("expected a Security Mode Command to be sent")
+	}
+
+	if _, _, _, ok := m.BeginPathSwitch(ue); ok {
+		t.Fatal("Path Switch started while a Security Mode Command was in flight")
+	}
+}

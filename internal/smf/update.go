@@ -6,7 +6,6 @@ package smf
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"net/netip"
 
@@ -127,8 +126,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		return &UpdateResult{N1Msg: n1SmMsg}, nil
 
 	case nas.MsgTypePDUSessionReleaseComplete:
-		// The UE acknowledged the release; stop T3592 and remove the session
-		// (TS 24.501 §6.3.3.3).
+		// Release acknowledged; stop T3592 (TS 24.501 §6.3.3.3).
 		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Complete received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
@@ -216,8 +214,6 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
 
-	// Register the IPv6 session for RA responses now that the gNB tunnel
-	// endpoint is known.
 	s.registerIPv6SessionIfNeeded(ctx, smContext)
 
 	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
@@ -242,9 +238,8 @@ func handleUpdateN2MsgPDUResourceSetupResp(binaryDataN2SmInformation []byte, smC
 		pdrList = append(pdrList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR)
 		farList = append(farList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR)
 
-		// The UL PDR's OuterHeaderRemoval is set during initial PDR creation before the gNB IP
-		// is known, so it may be wrong. Mark it for update so the corrected value (set by
-		// handlePDUSessionResourceSetupResponseTransfer below) is pushed to the UPF.
+		// Initial PDR creation set the UL OuterHeaderRemoval before the gNB IP was
+		// known; mark it for update so the corrected value reaches the UPF.
 		smContext.Tunnel.DataPath.UpLinkTunnel.PDR.State = RuleUpdate
 		pdrList = append(pdrList, smContext.Tunnel.DataPath.UpLinkTunnel.PDR)
 	}
@@ -256,6 +251,18 @@ func handleUpdateN2MsgPDUResourceSetupResp(binaryDataN2SmInformation []byte, smC
 	return pdrList, farList, nil
 }
 
+// anchorFromGTPTunnel reads the AN N3 endpoint (TEID + transport address) from an
+// NGAP GTP tunnel IE.
+func anchorFromGTPTunnel(t *ngapType.GTPTunnel) AnchorBinding {
+	ipv4, ipv6 := ngap.ParseTransportLayerAddress(t.TransportLayerAddress.Value)
+
+	return AnchorBinding{
+		TEID: binary.BigEndian.Uint32(t.GTPTEID.Value),
+		IPv4: ipv4,
+		IPv6: ipv6,
+	}
+}
+
 func handlePDUSessionResourceSetupResponseTransfer(b []byte, smContext *SMContext) error {
 	resourceSetupResponseTransfer := ngapType.PDUSessionResourceSetupResponseTransfer{}
 
@@ -263,40 +270,12 @@ func handlePDUSessionResourceSetupResponseTransfer(b []byte, smContext *SMContex
 		return fmt.Errorf("failed to unmarshall resource setup response transfer: %s", err.Error())
 	}
 
-	QosFlowPerTNLInformation := resourceSetupResponseTransfer.DLQosFlowPerTNLInformation
-
-	if QosFlowPerTNLInformation.UPTransportLayerInformation.Present != ngapType.UPTransportLayerInformationPresentGTPTunnel {
+	tnl := resourceSetupResponseTransfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation
+	if tnl.Present != ngapType.UPTransportLayerInformationPresentGTPTunnel {
 		return fmt.Errorf("expected qos flow per tnl information up transport layer information present to be gtp tunnel")
 	}
 
-	gtpTunnel := QosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel
-
-	teid := binary.BigEndian.Uint32(gtpTunnel.GTPTEID.Value)
-
-	anIPv4, anIPv6 := ngap.ParseTransportLayerAddress(gtpTunnel.TransportLayerAddress.Value)
-	smContext.Tunnel.ANInformation.IPv4Address = anIPv4
-	smContext.Tunnel.ANInformation.IPv6Address = anIPv6
-	smContext.Tunnel.ANInformation.TEID = teid
-
-	if smContext.Tunnel.DataPath.Activated {
-		if anIPv6 != nil {
-			smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
-				Description: models.OuterHeaderCreationGtpUUdpIpv6,
-				TEID:        teid,
-				IPv6Address: anIPv6,
-			}
-			ohr := models.OuterHeaderRemovalGtpUUdpIpv6
-			smContext.Tunnel.DataPath.UpLinkTunnel.PDR.OuterHeaderRemoval = &ohr
-		} else {
-			smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
-				Description: models.OuterHeaderCreationGtpUUdpIpv4,
-				TEID:        teid,
-				IPv4Address: anIPv4.To4(),
-			}
-			ohr := models.OuterHeaderRemovalGtpUUdpIpv4
-			smContext.Tunnel.DataPath.UpLinkTunnel.PDR.OuterHeaderRemoval = &ohr
-		}
-	}
+	smContext.bindAccessTunnel(anchorFromGTPTunnel(tnl.GTPTunnel))
 
 	return nil
 }
@@ -367,8 +346,8 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 
 	smContext := s.GetSession(smContextRef)
 	if smContext == nil {
-		// Session already removed (e.g. by slice-mismatch release).
-		// Idempotent: returning nil lets the AMF complete its cleanup.
+		// Session already removed (e.g. by slice-mismatch release); return nil to
+		// keep the response idempotent.
 		logger.SmfLog.Info("SM context already removed, skipping",
 			zap.String("smContextRef", smContextRef))
 
@@ -378,8 +357,7 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	// The gNB released the radio resources; the release procedure is complete
-	// on the N2 side, so stop T3592 (TS 24.501 §6.3.3).
+	// N2 release complete; stop T3592 (TS 24.501 §6.3.3).
 	smContext.stopProcedureTimer()
 
 	if smContext.PDUSessionReleaseDueToDupPduID {
@@ -438,372 +416,6 @@ func (s *SMF) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smC
 	return n2Rsp, nil
 }
 
-// UpdateSmContextN2HandoverPreparing handles the handover-required N2 message
-// and returns a PDUSession Resource Setup Request Transfer for the target radio.
-func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
-	_, span := tracer.Start(ctx, "smf/update_sm_context_n2_handover_preparing",
-		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
-	)
-	defer span.End()
-
-	if smContextRef == "" {
-		span.RecordError(fmt.Errorf("SM Context reference is missing"))
-		span.SetStatus(codes.Error, "SM Context reference is missing")
-
-		return nil, fmt.Errorf("SM Context reference is missing")
-	}
-
-	smContext := s.GetSession(smContextRef)
-	if smContext == nil {
-		span.RecordError(fmt.Errorf("sm context not found"))
-		span.SetStatus(codes.Error, "sm context not found")
-
-		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
-	}
-
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
-
-	if err := handleHandoverRequiredTransfer(n2Data); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to handle handover required transfer")
-
-		return nil, fmt.Errorf("handle HandoverRequiredTransfer failed: %v", err)
-	}
-
-	n2Rsp, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType))
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to build PDU session resource setup request transfer")
-
-		return nil, fmt.Errorf("build PDUSession Resource Setup Request Transfer Error: %v", err)
-	}
-
-	return n2Rsp, nil
-}
-
-func handleHandoverRequiredTransfer(b []byte) error {
-	handoverRequiredTransfer := ngapType.HandoverRequiredTransfer{}
-
-	if err := aper.UnmarshalWithParams(b, &handoverRequiredTransfer, "valueExt"); err != nil {
-		return fmt.Errorf("failed to unmarshall handover required transfer: %s", err.Error())
-	}
-
-	return nil
-}
-
-// UpdateSmContextN2HandoverPrepared handles the handover request acknowledge
-// from the target radio and returns a Handover Command Transfer.
-func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
-	_, span := tracer.Start(ctx, "smf/update_sm_context_n2_handover_prepared",
-		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
-	)
-	defer span.End()
-
-	if smContextRef == "" {
-		span.RecordError(fmt.Errorf("SM Context reference is missing"))
-		span.SetStatus(codes.Error, "SM Context reference is missing")
-
-		return nil, fmt.Errorf("SM Context reference is missing")
-	}
-
-	smContext := s.GetSession(smContextRef)
-	if smContext == nil {
-		span.RecordError(fmt.Errorf("sm context not found"))
-		span.SetStatus(codes.Error, "sm context not found")
-
-		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
-	}
-
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
-
-	if err := handleHandoverRequestAcknowledgeTransfer(n2Data, smContext); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to handle handover request acknowledge transfer")
-
-		return nil, fmt.Errorf("handle HandoverRequestAcknowledgeTransfer failed: %v", err)
-	}
-
-	n2Rsp, err := ngap.BuildHandoverCommandTransfer(smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to build handover command transfer")
-
-		return nil, fmt.Errorf("build Handover Command Transfer Error: %v", err)
-	}
-
-	return n2Rsp, nil
-}
-
-// UpdateSmContextN2HandoverComplete handles the handover completion phase.
-// Called by the AMF after the UE has successfully moved to the target gNB.
-// Per 3GPP TS 23.502 §4.9.1.3.3 step 7, the SMF sends an N4 Session
-// Modification Request to the UPF with the new AN tunnel info at this point.
-func (s *SMF) UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRef string) error {
-	ctx, span := tracer.Start(ctx, "smf/update_sm_context_n2_handover_complete",
-		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
-	)
-	defer span.End()
-
-	if smContextRef == "" {
-		span.RecordError(fmt.Errorf("SM context reference is missing"))
-		span.SetStatus(codes.Error, "SM context reference is missing")
-
-		return fmt.Errorf("SM context reference is missing")
-	}
-
-	smContext := s.GetSession(smContextRef)
-	if smContext == nil {
-		span.RecordError(fmt.Errorf("sm context not found"))
-		span.SetStatus(codes.Error, "sm context not found")
-
-		return fmt.Errorf("sm context not found: %s", smContextRef)
-	}
-
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
-
-	if smContext.Tunnel.DataPath.Activated {
-		if smContext.PFCPContext == nil {
-			span.RecordError(fmt.Errorf("pfcp session context not found"))
-			span.SetStatus(codes.Error, "pfcp session context not found")
-
-			return fmt.Errorf("pfcp session context not found")
-		}
-
-		var (
-			pdrList []*PDR
-			farList []*FAR
-		)
-
-		pdrList = append(pdrList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR)
-		farList = append(farList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR)
-
-		smContext.Tunnel.DataPath.UpLinkTunnel.PDR.State = RuleUpdate
-		pdrList = append(pdrList, smContext.Tunnel.DataPath.UpLinkTunnel.PDR)
-
-		if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-			smContext.PFCPContext.RemoteSEID,
-			"",
-			pdrList, farList, nil,
-		)); err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "failed to modify PFCP session")
-
-			return fmt.Errorf("failed to send PFCP session modification request: %v", err)
-		}
-
-		s.registerIPv6SessionIfNeeded(ctx, smContext)
-
-		logger.SmfLog.Info("Sent PFCP session modification for N2 handover completion",
-			logger.SUPI(smContext.Supi.String()),
-			logger.PDUSessionID(smContext.PDUSessionID))
-	}
-
-	return nil
-}
-
-func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) error {
-	handoverRequestAcknowledgeTransfer := ngapType.HandoverRequestAcknowledgeTransfer{}
-
-	if err := aper.UnmarshalWithParams(b, &handoverRequestAcknowledgeTransfer, "valueExt"); err != nil {
-		return fmt.Errorf("failed to unmarshall handover request acknowledge transfer: %s", err.Error())
-	}
-
-	GTPTunnel := handoverRequestAcknowledgeTransfer.DLNGUUPTNLInformation.GTPTunnel
-	if GTPTunnel == nil || len(GTPTunnel.GTPTEID.Value) < 4 {
-		return fmt.Errorf("handover request acknowledge transfer is missing the DL GTP tunnel")
-	}
-
-	teid := binary.BigEndian.Uint32(GTPTunnel.GTPTEID.Value)
-
-	anIPv4, anIPv6 := ngap.ParseTransportLayerAddress(GTPTunnel.TransportLayerAddress.Value)
-	smContext.Tunnel.ANInformation.IPv4Address = anIPv4
-	smContext.Tunnel.ANInformation.IPv6Address = anIPv6
-	smContext.Tunnel.ANInformation.TEID = teid
-
-	if smContext.Tunnel.DataPath.Activated {
-		dlFAR := smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR
-
-		// A data path activated before its downlink endpoint was known has no
-		// forwarding parameters; the handover target supplies them now.
-		if dlFAR.ForwardingParameters == nil {
-			dlFAR.ForwardingParameters = &models.ForwardingParameters{}
-		}
-
-		if anIPv6 != nil {
-			dlFAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
-				Description: models.OuterHeaderCreationGtpUUdpIpv6,
-				TEID:        teid,
-				IPv6Address: anIPv6,
-			}
-			ohr := models.OuterHeaderRemovalGtpUUdpIpv6
-			smContext.Tunnel.DataPath.UpLinkTunnel.PDR.OuterHeaderRemoval = &ohr
-		} else {
-			dlFAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
-				Description: models.OuterHeaderCreationGtpUUdpIpv4,
-				TEID:        teid,
-				IPv4Address: anIPv4,
-			}
-			ohr := models.OuterHeaderRemovalGtpUUdpIpv4
-			smContext.Tunnel.DataPath.UpLinkTunnel.PDR.OuterHeaderRemoval = &ohr
-		}
-
-		dlFAR.State = RuleUpdate
-	}
-
-	return nil
-}
-
-// UpdateSmContextXnHandoverPathSwitchReq handles an Xn handover path-switch request.
-func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
-	ctx, span := tracer.Start(ctx, "smf/update_sm_context_handover_path_switch_request",
-		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
-	)
-	defer span.End()
-
-	if smContextRef == "" {
-		return nil, fmt.Errorf("SM Context reference is missing")
-	}
-
-	smContext := s.GetSession(smContextRef)
-	if smContext == nil {
-		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
-	}
-
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
-
-	pdrList, farList, n2buf, err := handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data, smContext)
-	if err != nil {
-		return nil, fmt.Errorf("error handling N2 message: %v", err)
-	}
-
-	if smContext.PFCPContext == nil {
-		return nil, fmt.Errorf("pfcp session context not found for upf")
-	}
-
-	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.RemoteSEID,
-		"",
-		pdrList, farList, nil,
-	)); err != nil {
-		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
-	}
-
-	// Re-register the IPv6 session with the new gNB tunnel endpoint.
-	s.registerIPv6SessionIfNeeded(ctx, smContext)
-
-	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-
-	return n2buf, nil
-}
-
-func handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data []byte, smContext *SMContext) ([]*PDR, []*FAR, []byte, error) {
-	logger.SmfLog.Debug("handle Path Switch Request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-
-	if err := handlePathSwitchRequestTransfer(n2Data, smContext); err != nil {
-		return nil, nil, nil, fmt.Errorf("handle PathSwitchRequestTransfer failed: %v", err)
-	}
-
-	n2Buf, err := ngap.BuildPathSwitchRequestAcknowledgeTransfer(smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("build Path Switch Transfer Error: %v", err)
-	}
-
-	var pdrList []*PDR
-
-	var farList []*FAR
-
-	if smContext.Tunnel.DataPath.Activated {
-		pdrList = append(pdrList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR)
-		farList = append(farList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR)
-
-		// The UL PDR's OuterHeaderRemoval is corrected by handlePathSwitchRequestTransfer above;
-		// include it in the update list so the new value reaches the UPF.
-		smContext.Tunnel.DataPath.UpLinkTunnel.PDR.State = RuleUpdate
-		pdrList = append(pdrList, smContext.Tunnel.DataPath.UpLinkTunnel.PDR)
-	}
-
-	return pdrList, farList, n2Buf, nil
-}
-
-func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
-	pathSwitchRequestTransfer := ngapType.PathSwitchRequestTransfer{}
-
-	if err := aper.UnmarshalWithParams(b, &pathSwitchRequestTransfer, "valueExt"); err != nil {
-		return err
-	}
-
-	if pathSwitchRequestTransfer.DLNGUUPTNLInformation.Present != ngapType.UPTransportLayerInformationPresentGTPTunnel {
-		return errors.New("pathSwitchRequestTransfer.DLNGUUPTNLInformation.Present")
-	}
-
-	gtpTunnel := pathSwitchRequestTransfer.DLNGUUPTNLInformation.GTPTunnel
-
-	teid := binary.BigEndian.Uint32(gtpTunnel.GTPTEID.Value)
-
-	anIPv4, anIPv6 := ngap.ParseTransportLayerAddress(gtpTunnel.TransportLayerAddress.Value)
-	smContext.Tunnel.ANInformation.IPv4Address = anIPv4
-	smContext.Tunnel.ANInformation.IPv6Address = anIPv6
-
-	smContext.Tunnel.ANInformation.TEID = teid
-
-	if smContext.Tunnel.DataPath.Activated {
-		if anIPv6 != nil {
-			smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
-				Description: models.OuterHeaderCreationGtpUUdpIpv6,
-				TEID:        teid,
-				IPv6Address: anIPv6,
-			}
-			ohr := models.OuterHeaderRemovalGtpUUdpIpv6
-			smContext.Tunnel.DataPath.UpLinkTunnel.PDR.OuterHeaderRemoval = &ohr
-		} else {
-			smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
-				Description: models.OuterHeaderCreationGtpUUdpIpv4,
-				TEID:        teid,
-				IPv4Address: anIPv4.To4(),
-			}
-			ohr := models.OuterHeaderRemovalGtpUUdpIpv4
-			smContext.Tunnel.DataPath.UpLinkTunnel.PDR.OuterHeaderRemoval = &ohr
-		}
-
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
-	}
-
-	return nil
-}
-
-// UpdateSmContextHandoverFailed handles a path switch failure.
-func (s *SMF) UpdateSmContextHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error {
-	_, span := tracer.Start(ctx, "smf/update_sm_context_handover_failed",
-		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
-	)
-	defer span.End()
-
-	if smContextRef == "" {
-		return fmt.Errorf("SM Context reference is missing")
-	}
-
-	smContext := s.GetSession(smContextRef)
-	if smContext == nil {
-		return fmt.Errorf("sm context not found: %s", smContextRef)
-	}
-
-	return handlePathSwitchRequestSetupFailedTransfer(n2Data)
-}
-
-func handlePathSwitchRequestSetupFailedTransfer(b []byte) error {
-	pathSwitchRequestSetupFailedTransfer := ngapType.PathSwitchRequestSetupFailedTransfer{}
-
-	if err := aper.UnmarshalWithParams(b, &pathSwitchRequestSetupFailedTransfer, "valueExt"); err != nil {
-		return fmt.Errorf("failed to unmarshall path switch request setup failed transfer: %s", err.Error())
-	}
-
-	return nil
-}
-
 // registerIPv6SessionIfNeeded registers the IPv6 session with the UPF's RA
 // responder if the session has a delegated IPv6 prefix and the gNB's tunnel
 // endpoint is known. Must be called with smContext.Mutex held.
@@ -850,15 +462,6 @@ func (s *SMF) registerIPv6SessionIfNeeded(ctx context.Context, smContext *SMCont
 		mtu = uint32(smContext.PolicyData.MTU)
 	}
 
-	// The downlink FAR's S1-U marking (set only for 4G EPS bearers) decides
-	// whether the RA is encapsulated PSC-less, matching the data path.
-	var s1u bool
-	if dl := smContext.Tunnel.DataPath.DownLinkTunnel; dl != nil && dl.PDR != nil &&
-		dl.PDR.FAR != nil && dl.PDR.FAR.ForwardingParameters != nil &&
-		dl.PDR.FAR.ForwardingParameters.OuterHeaderCreation != nil {
-		s1u = dl.PDR.FAR.ForwardingParameters.OuterHeaderCreation.S1U
-	}
-
 	reg := &models.IPv6SessionRegistration{
 		UplinkTEID:   smContext.Tunnel.DataPath.UpLinkTunnel.TEID,
 		DownlinkTEID: anInfo.TEID,
@@ -866,7 +469,9 @@ func (s *SMF) registerIPv6SessionIfNeeded(ctx context.Context, smContext *SMCont
 		Prefix:       netip.PrefixFrom(prefixAddr, 64),
 		MTU:          mtu,
 		QFI:          qfi,
-		S1U:          s1u,
+		// A 4G S1-U bearer carries the RA PSC-less; 5G N3 carries the PDU Session
+		// Container. The encap follows the access, matching the data path.
+		S1U: !smContext.Access.usesPSC(),
 	}
 
 	if err := s.upf.RegisterIPv6Session(ctx, reg); err != nil {
@@ -876,173 +481,4 @@ func (s *SMF) registerIPv6SessionIfNeeded(ctx context.Context, smContext *SMCont
 			logger.PDUSessionID(smContext.PDUSessionID),
 		)
 	}
-}
-
-// --- NGAP cause string helpers (moved from pdusession) ---
-
-func radioNetworkCauseString(cause aper.Enumerated) string {
-	switch cause {
-	case ngapType.CauseRadioNetworkPresentUnspecified:
-		return "unspecified"
-	case ngapType.CauseRadioNetworkPresentTxnrelocoverallExpiry:
-		return "txNRelocOverallExpiry"
-	case ngapType.CauseRadioNetworkPresentSuccessfulHandover:
-		return "successfulHandover"
-	case ngapType.CauseRadioNetworkPresentReleaseDueToNgranGeneratedReason:
-		return "releaseDueToNgranGeneratedReason"
-	case ngapType.CauseRadioNetworkPresentReleaseDueTo5gcGeneratedReason:
-		return "releaseDueTo5gcGeneratedReason"
-	case ngapType.CauseRadioNetworkPresentHandoverCancelled:
-		return "handoverCancelled"
-	case ngapType.CauseRadioNetworkPresentPartialHandover:
-		return "partialHandover"
-	case ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem:
-		return "hoFailureInTarget5GCNgranNodeOrTargetSystem"
-	case ngapType.CauseRadioNetworkPresentHoTargetNotAllowed:
-		return "hoTargetNotAllowed"
-	case ngapType.CauseRadioNetworkPresentTngrelocoverallExpiry:
-		return "tnGRelocOverallExpiry"
-	case ngapType.CauseRadioNetworkPresentTngrelocprepExpiry:
-		return "tnGRelocPrepExpiry"
-	case ngapType.CauseRadioNetworkPresentCellNotAvailable:
-		return "cellNotAvailable"
-	case ngapType.CauseRadioNetworkPresentUnknownTargetID:
-		return "unknownTargetID"
-	case ngapType.CauseRadioNetworkPresentNoRadioResourcesAvailableInTargetCell:
-		return "noRadioResourcesAvailableInTargetCell"
-	case ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID:
-		return "unknownLocalUENGAPID"
-	case ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID:
-		return "inconsistentRemoteUENGAPID"
-	case ngapType.CauseRadioNetworkPresentHandoverDesirableForRadioReason:
-		return "handoverDesirableForRadioReason"
-	case ngapType.CauseRadioNetworkPresentTimeCriticalHandover:
-		return "timeCriticalHandover"
-	case ngapType.CauseRadioNetworkPresentResourceOptimisationHandover:
-		return "resourceOptimisationHandover"
-	case ngapType.CauseRadioNetworkPresentReduceLoadInServingCell:
-		return "reduceLoadInServingCell"
-	case ngapType.CauseRadioNetworkPresentUserInactivity:
-		return "userInactivity"
-	case ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost:
-		return "radioConnectionWithUeLost"
-	case ngapType.CauseRadioNetworkPresentRadioResourcesNotAvailable:
-		return "radioResourcesNotAvailable"
-	case ngapType.CauseRadioNetworkPresentInvalidQosCombination:
-		return "invalidQosCombination"
-	case ngapType.CauseRadioNetworkPresentFailureInRadioInterfaceProcedure:
-		return "failureInRadioInterfaceProcedure"
-	case ngapType.CauseRadioNetworkPresentInteractionWithOtherProcedure:
-		return "interactionWithOtherProcedure"
-	case ngapType.CauseRadioNetworkPresentUnknownPDUSessionID:
-		return "unknownPDUSessionID"
-	case ngapType.CauseRadioNetworkPresentUnkownQosFlowID:
-		return "unkownQosFlowID"
-	case ngapType.CauseRadioNetworkPresentMultiplePDUSessionIDInstances:
-		return "multiplePDUSessionIDInstances"
-	case ngapType.CauseRadioNetworkPresentMultipleQosFlowIDInstances:
-		return "multipleQosFlowIDInstances"
-	case ngapType.CauseRadioNetworkPresentEncryptionAndOrIntegrityProtectionAlgorithmsNotSupported:
-		return "encryptionAndOrIntegrityProtectionAlgorithmsNotSupported"
-	case ngapType.CauseRadioNetworkPresentNgIntraSystemHandoverTriggered:
-		return "ngIntraSystemHandoverTriggered"
-	case ngapType.CauseRadioNetworkPresentNgInterSystemHandoverTriggered:
-		return "ngInterSystemHandoverTriggered"
-	case ngapType.CauseRadioNetworkPresentXnHandoverTriggered:
-		return "xnHandoverTriggered"
-	case ngapType.CauseRadioNetworkPresentNotSupported5QIValue:
-		return "notSupported5QIValue"
-	case ngapType.CauseRadioNetworkPresentUeContextTransfer:
-		return "ueContextTransfer"
-	case ngapType.CauseRadioNetworkPresentImsVoiceEpsFallbackOrRatFallbackTriggered:
-		return "imsVoiceEpsFallbackOrRatFallbackTriggered"
-	case ngapType.CauseRadioNetworkPresentUpIntegrityProtectionNotPossible:
-		return "upIntegrityProtectionNotPossible"
-	case ngapType.CauseRadioNetworkPresentUpConfidentialityProtectionNotPossible:
-		return "upConfidentialityProtectionNotPossible"
-	case ngapType.CauseRadioNetworkPresentSliceNotSupported:
-		return "sliceNotSupported"
-	case ngapType.CauseRadioNetworkPresentUeInRrcInactiveStateNotReachable:
-		return "ueInRrcInactiveStateNotReachable"
-	case ngapType.CauseRadioNetworkPresentRedirection:
-		return "redirection"
-	case ngapType.CauseRadioNetworkPresentResourcesNotAvailableForTheSlice:
-		return "resourcesNotAvailableForTheSlice"
-	case ngapType.CauseRadioNetworkPresentUeMaxIntegrityProtectedDataRateReason:
-		return "ueMaxIntegrityProtectedDataRateReason"
-	case ngapType.CauseRadioNetworkPresentReleaseDueToCnDetectedMobility:
-		return "releaseDueToCnDetectedMobility"
-	case ngapType.CauseRadioNetworkPresentN26InterfaceNotAvailable:
-		return "n26InterfaceNotAvailable"
-	case ngapType.CauseRadioNetworkPresentReleaseDueToPreEmption:
-		return "releaseDueToPreEmption"
-	}
-
-	return "unknown"
-}
-
-func transportCauseString(cause aper.Enumerated) string {
-	switch cause {
-	case ngapType.CauseTransportPresentTransportResourceUnavailable:
-		return "transportResourceUnavailable"
-	case ngapType.CauseTransportPresentUnspecified:
-		return "unspecified"
-	}
-
-	return "unknown"
-}
-
-func nasCauseString(cause aper.Enumerated) string {
-	switch cause {
-	case ngapType.CauseNasPresentNormalRelease:
-		return "normalRelease"
-	case ngapType.CauseNasPresentAuthenticationFailure:
-		return "authenticationFailure"
-	case ngapType.CauseNasPresentDeregister:
-		return "deregister"
-	case ngapType.CauseNasPresentUnspecified:
-		return "unspecified"
-	}
-
-	return "unknown"
-}
-
-func protocolCauseString(cause aper.Enumerated) string {
-	switch cause {
-	case ngapType.CauseProtocolPresentTransferSyntaxError:
-		return "transferSyntaxError"
-	case ngapType.CauseProtocolPresentAbstractSyntaxErrorReject:
-		return "abstractSyntaxErrorReject"
-	case ngapType.CauseProtocolPresentAbstractSyntaxErrorIgnoreAndNotify:
-		return "abstractSyntaxErrorIgnoreAndNotify"
-	case ngapType.CauseProtocolPresentMessageNotCompatibleWithReceiverState:
-		return "messageNotCompatibleWithReceiverState"
-	case ngapType.CauseProtocolPresentSemanticError:
-		return "semanticError"
-	case ngapType.CauseProtocolPresentAbstractSyntaxErrorFalselyConstructedMessage:
-		return "abstractSyntaxErrorFalselyConstructedMessage"
-	case ngapType.CauseProtocolPresentUnspecified:
-		return "unspecified"
-	}
-
-	return "unknown"
-}
-
-func miscCauseString(cause aper.Enumerated) string {
-	switch cause {
-	case ngapType.CauseMiscPresentControlProcessingOverload:
-		return "controlProcessingOverload"
-	case ngapType.CauseMiscPresentNotEnoughUserPlaneProcessingResources:
-		return "notEnoughUserPlaneProcessingResources"
-	case ngapType.CauseMiscPresentHardwareFailure:
-		return "hardwareFailure"
-	case ngapType.CauseMiscPresentOmIntervention:
-		return "omIntervention"
-	case ngapType.CauseMiscPresentUnknownPLMN:
-		return "unknownPLMN"
-	case ngapType.CauseMiscPresentUnspecified:
-		return "unspecified"
-	}
-
-	return "unknown"
 }

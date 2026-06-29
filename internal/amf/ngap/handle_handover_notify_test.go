@@ -86,8 +86,8 @@ func TestHandoverNotify_NoSourceUe(t *testing.T) {
 	amfUe.Log = logger.AmfLog
 
 	targetUe := amf.NewRanUeForTest(ran, 2, 1, logger.AmfLog)
-	targetUe.SourceUe = nil
 	amfUe.AttachRanUe(targetUe)
+	// No handover installed, so HandoverSource() is nil.
 
 	amfInstance := amf.New(nil, nil, nil)
 
@@ -129,6 +129,9 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to attach source/target: %v", err)
 	}
+
+	// Handover Notify requires a prepared handover (the acknowledge step ran).
+	amfUe.MarkHandoverPrepared()
 
 	amfInstance := amf.New(nil, nil, nil)
 
@@ -200,6 +203,9 @@ func TestHandoverNotify_SmfUpdateFails_StillReleasesSource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to attach source/target: %v", err)
 	}
+
+	// Handover Notify requires a prepared handover (the acknowledge step ran).
+	amfUe.MarkHandoverPrepared()
 
 	fakeSmf := &FakeSmfSbi{
 		N2HandoverCompleteErr: fmt.Errorf("smf unreachable"),

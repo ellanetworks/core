@@ -8,11 +8,8 @@ import (
 	"fmt"
 )
 
-// GenerateIID returns a cryptographically random 64-bit Interface Identifier
-// (IID) for use in IPv6 PDU sessions. Per 3GPP TS 24.501, the SMF generates
-// a random IID that is sent to the UE in the PDU Session Establishment Accept.
-// The UE forms a link-local address (fe80::IID) and uses Router Solicitation /
-// Router Advertisement to learn the delegated /64 prefix.
+// GenerateIID returns a cryptographically random 64-bit IPv6 Interface
+// Identifier sent to the UE in the PDU Session Establishment Accept (TS 24.501).
 func GenerateIID() ([8]byte, error) {
 	var iid [8]byte
 
@@ -23,14 +20,11 @@ func GenerateIID() ([8]byte, error) {
 	return iid, nil
 }
 
-// iIDMaxRetries is the maximum number of attempts to generate a unique IID
-// before giving up. With a 64-bit space, collisions are astronomically unlikely
-// (birthday bound ~2^32 samples for 50% probability), but we bound retries
-// to avoid an infinite loop in the pathological case.
+// iIDMaxRetries bounds the unique-IID search so a pathological run of collisions
+// cannot loop forever; collisions in a 64-bit space are already astronomically rare.
 const iIDMaxRetries = 3
 
-// assignIID generates a unique IID by checking against existing sessions for
-// the given DNN. It retries up to iIDMaxRetries times if a collision is found.
+// assignIID returns an IID not already in use by another session on the DNN.
 func (s *SMF) assignIID(dnn string) ([8]byte, error) {
 	s.mu.RLock()
 	seen := make(map[[8]byte]bool, len(s.pool))

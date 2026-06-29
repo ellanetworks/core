@@ -47,8 +47,8 @@ func (ue *UeContext) NgKsiForTest() models.NgKsi     { return ue.ngKsi }
 func (ue *UeContext) SetKamfForTest(k string) { ue.kamf = k }
 func (ue *UeContext) KamfForTest() string     { return ue.kamf }
 
-func (ue *UeContext) SetNHForTest(nh []uint8) { ue.nh = nh }
-func (ue *UeContext) NHForTest() []uint8      { return ue.nh }
+func (ue *UeContext) SetNHForTest(nh []uint8) { copy(ue.nh[:], nh) }
+func (ue *UeContext) NHForTest() [32]uint8    { return ue.nh }
 
 func (ue *UeContext) SetUESecurityCapabilityForTest(c *nasType.UESecurityCapability) {
 	ue.ueSecurityCapability = c

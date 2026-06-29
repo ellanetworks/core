@@ -57,6 +57,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	defer func() {
 		if !armed {
 			conn.Procedures.End(procedure.N2Handover)
+			amfUe.ClearHandover()
 		}
 	}()
 
@@ -189,7 +190,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		amfUe.Ambr.Downlink,
 		amfUe.UESecCap(),
 		ncc,
-		nh,
+		nh[:],
 		msg.Cause,
 		pduSessionReqList,
 		msg.SourceToTargetTransparentContainer,
@@ -225,6 +226,8 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 func handoverGuardExpiry(sourceUe, targetUe *amf.RanUe) func(context.Context) error {
 	return func(cctx context.Context) error {
 		logger.WithTrace(cctx, sourceUe.Log).Warn("N2 handover abandoned: target gNB did not complete it in time, releasing target")
+
+		sourceUe.UeContext().ClearHandover()
 
 		targetUe.ReleaseAction = amf.UeContextReleaseHandover
 

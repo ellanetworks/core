@@ -40,9 +40,9 @@ func (ue *UeContext) SmContextRefs() []SmContextRef {
 // NextHopNCC returns the AS security next hop and its chaining count for the
 // transport layer to derive the target gNB key at handover/path switch
 // (TS 33.501).
-func (ue *UeContext) NextHopNCC() ([]uint8, uint8) {
+func (ue *UeContext) NextHopNCC() ([32]uint8, uint8) {
 	if ue == nil {
-		return nil, 0
+		return [32]uint8{}, 0
 	}
 
 	ue.mu.RLock()

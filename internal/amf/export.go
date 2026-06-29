@@ -387,8 +387,8 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 			ImplicitDereg:       timerStatus(&ue.ImplicitDeregistrationTimer),
 		},
 		LastActivity: UELastActivityExport{
-			Timestamp: ue.LastSeenAt,
-			RadioNode: ue.LastSeenRadio,
+			Timestamp: ue.LastSeenAtTime(),
+			RadioNode: ue.LastSeenRadioName(),
 		},
 	}
 

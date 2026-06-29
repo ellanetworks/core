@@ -145,7 +145,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			ranUe.RanUeNgapID,
 			amfUe.UESecCap(),
 			ncc,
-			nh,
+			nh[:],
 			pduSessionResourceSwitchedList,
 			pduSessionResourceReleasedListPSAck,
 			snssaiList,

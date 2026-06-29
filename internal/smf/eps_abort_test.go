@@ -10,11 +10,11 @@ import (
 	"github.com/ellanetworks/core/etsi"
 )
 
-// TestAbortEPSSessionOwnsByHandle checks that rolling back a partially-created
+// TestAbortSessionOwnsByHandle checks that rolling back a partially-created
 // session removes only that exact context from the pool. If a concurrent create
 // has already replaced the (IMSI,EBI) entry, the rollback must leave the live
 // session intact rather than tearing down the second call's session (F4).
-func TestAbortEPSSessionOwnsByHandle(t *testing.T) {
+func TestAbortSessionOwnsByHandle(t *testing.T) {
 	s := &SMF{pool: make(map[string]*SMContext)}
 
 	supi, err := etsi.NewSUPIFromIMSI("001010000000001")
@@ -35,14 +35,14 @@ func TestAbortEPSSessionOwnsByHandle(t *testing.T) {
 
 	// Roll back the first (failed) create. scA has no tunnel or leases, so only
 	// the pool removal runs — and it must be a no-op because scB owns the entry.
-	s.abortEPSSession(context.Background(), scA, "internet", ebi)
+	s.abortSession(context.Background(), scA)
 
 	if got := s.GetSession(ref); got != scB {
 		t.Fatalf("abort of a stale context removed the live session: got %v, want scB", got)
 	}
 
 	// Aborting the current owner does remove it.
-	s.abortEPSSession(context.Background(), scB, "internet", ebi)
+	s.abortSession(context.Background(), scB)
 
 	if got := s.GetSession(ref); got != nil {
 		t.Fatalf("abort of the current context did not remove it: got %v", got)

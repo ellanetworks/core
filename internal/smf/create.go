@@ -9,8 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
-	"net/netip"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
@@ -29,18 +27,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// netipToIP converts a netip.Addr to a net.IP for use with existing NAS/NGAP code.
-func netipToIP(addr netip.Addr) net.IP {
-	if addr.Is4() {
-		b := addr.As4()
-		return net.IP(b[:])
-	}
-
-	b := addr.As16()
-
-	return net.IP(b[:])
-}
-
 // nasToNgapPDUSessionType maps a NAS PDU session type value to the NGAP
 // equivalent used in PDUSessionResourceSetupRequestTransfer.
 func nasToNgapPDUSessionType(nasType uint8) aper.Enumerated {
@@ -54,9 +40,9 @@ func nasToNgapPDUSessionType(nasType uint8) aper.Enumerated {
 	}
 }
 
-// CreateSmContext creates a new PDU session. It decodes the NAS message, retrieves the
-// subscriber policy and DNN info, allocates an IP, creates the data path, sends
-// PFCP rules to the UPF, and delivers the accept/reject to the AMF.
+// CreateSmContext creates a new PDU session: it decodes the NAS message,
+// resolves the subscriber policy, allocates the UE address, programs the UPF,
+// and delivers the accept/reject to the AMF.
 func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, n1Msg []byte) (string, []byte, error) {
 	ctx, span := tracer.Start(ctx, "smf/create_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -68,8 +54,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	)
 	defer span.End()
 
-	// Decode the NAS message before making any state changes so we can
-	// validate prerequisites and build a proper reject if needed.
+	// Decode before any state changes so a failure can still build a reject.
 	m := nas.NewMessage()
 
 	if err := m.GsmMessageDecode(&n1Msg); err != nil {
@@ -110,78 +95,119 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return "", rsp, nil
 	}
 
-	smContext := s.GetSession(CanonicalName(supi, pduSessionID))
-	if smContext != nil {
-		s.handlePduSessionContextReplacement(ctx, smContext)
+	// Record exactly one establishment outcome per attempt. The decode,
+	// message-type, and PTI returns above are not establishment attempts, so
+	// they precede this defer.
+	var establishmentResult string
+
+	defer func() { recordSessionEstablishmentResult(metrics.RAT5G, establishmentResult) }()
+
+	if existing := s.GetSession(CanonicalName(supi, pduSessionID)); existing != nil {
+		s.handlePduSessionContextReplacement(ctx, existing)
 	}
 
-	smContext = s.NewSession(supi, pduSessionID, dnn, snssai)
-
-	// Clean up the session on any failure path to avoid leaking IPs and IDs.
-	success := false
-
-	defer func() {
-		if !success {
-			smContext.Mutex.Lock()
-			s.releaseAllocatedAddresses(ctx, smContext)
-
-			if smContext.Tunnel != nil {
-				if err := s.releaseTunnel(ctx, smContext); err != nil {
-					logger.WithTrace(ctx, logger.SmfLog).Error("release tunnel failed during cleanup", zap.Error(err))
-				}
-			}
-			smContext.Mutex.Unlock()
-			s.removeSessionUnlocked(ctx, smContext.CanonicalName())
-		}
-	}()
-
-	pco, addrs, pti, policy, cause, errRsp, err := s.handlePDUSessionSMContextCreate(ctx, m, smContext)
+	policy, err := s.GetSessionPolicy(ctx, supi, snssai, dnn)
 	if err != nil {
+		establishmentResult = metrics.ResultReject
+
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, reqPTI, establishmentRejectCause(err))
+		if buildErr != nil {
+			return "", nil, fmt.Errorf("failed to find subscriber policy: %v (build reject failed: %v)", err, buildErr)
+		}
+
+		return "", rsp, fmt.Errorf("failed to find subscriber policy: %v", err)
+	}
+
+	requestedType := nasMessage.PDUSessionTypeIPv4
+	if m.PDUSessionType != nil {
+		requestedType = m.PDUSessionEstablishmentRequest.GetPDUSessionTypeValue()
+	}
+
+	negotiatedType, err := s.negotiatePDUSessionType(ctx, requestedType, policy)
+	if err != nil {
+		establishmentResult = metrics.ResultReject
+
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, reqPTI, pduSessionTypeRejectCause(requestedType, policy))
+		if buildErr != nil {
+			return "", nil, fmt.Errorf("PDU session type negotiation failed: %v (build reject failed: %v)", err, buildErr)
+		}
+
+		return "", rsp, fmt.Errorf("PDU session type negotiation failed: %v", err)
+	}
+
+	pco, err := parsePDUSessionRequest(m.PDUSessionEstablishmentRequest)
+	if err != nil {
+		establishmentResult = metrics.ResultReject
+
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, reqPTI, nasMessage.Cause5GSMRequestRejectedUnspecified)
+		if buildErr != nil {
+			return "", nil, fmt.Errorf("parse PDU session request failed: %v (build reject failed: %v)", err, buildErr)
+		}
+
+		return "", rsp, fmt.Errorf("parse PDU session request failed: %v", err)
+	}
+
+	sc, _, err := s.establishSession(ctx, SessionRequest{
+		Supi:    supi,
+		Key:     pduSessionID,
+		Dnn:     dnn,
+		Snssai:  snssai,
+		Access:  Access5G,
+		PDUType: negotiatedType,
+		Policy:  policy,
+	})
+	if err != nil {
+		establishmentResult = metrics.ResultReject
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to create SM context")
 
-		return "", errRsp, fmt.Errorf("failed to create SM Context: %v", err)
-	}
-
-	if errRsp != nil {
-		return "", errRsp, nil
-	}
-
-	span.AddEvent("nas_decoded")
-	span.AddEvent("policy_retrieved")
-
-	smContext.SetPolicyData(policy)
-
-	err = s.sendPFCPRules(ctx, smContext)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to send PFCP rules")
-
-		sendErr := s.sendPduSessionEstablishmentReject(ctx, smContext, pti)
-		if sendErr != nil {
-			return "", nil, fmt.Errorf("failed to send pdu session establishment reject n1 message: %v", sendErr)
+		cause := nasMessage.Cause5GSMRequestRejectedUnspecified
+		if errors.Is(err, errUEAddressAllocation) {
+			cause = nasMessage.Cause5GSMInsufficientResources
 		}
 
-		return "", nil, fmt.Errorf("failed to create SM Context: %v", err)
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, reqPTI, cause)
+		if buildErr != nil {
+			return "", nil, fmt.Errorf("failed to create SM Context: %v (build reject failed: %v)", err, buildErr)
+		}
+
+		return "", rsp, fmt.Errorf("failed to create SM Context: %v", err)
 	}
 
-	span.AddEvent("pfcp_rules_sent")
+	// IPv4v6 narrowed to a single family is signalled in the accept with 5GSM
+	// cause #50/#51 (TS 24.501 §6.4.1.3).
+	var cause uint8
+
+	switch narrowPDUType(requestedType, sc.PDUSessionType) {
+	case narrowIPv4Only:
+		cause = nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed
+	case narrowIPv6Only:
+		cause = nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed
+	}
+
+	addrs := &smfNas.PDUSessionAddresses{
+		PDUSessionType: sc.PDUSessionType,
+		IPv4Address:    sc.PDUIPV4Address,
+		IPv6IID:        sc.IPv6IID,
+	}
+
+	// The PFCP session is up, so the establishment counts as an accept even if
+	// the N1N2 delivery below fails.
+	establishmentResult = metrics.ResultAccept
 
 	alwaysOnRequested := m.PDUSessionEstablishmentRequest.AlwaysonPDUSessionRequested != nil
 
-	err = s.sendPduSessionEstablishmentAccept(ctx, smContext, policy, pco, addrs, pti, cause, alwaysOnIndication(alwaysOnRequested))
-	if err != nil {
+	if err := s.sendPduSessionEstablishmentAccept(ctx, sc, policy, pco, addrs, reqPTI, cause, alwaysOnIndication(alwaysOnRequested)); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send PDU session establishment accept")
+
+		s.abortSession(ctx, sc)
 
 		return "", nil, fmt.Errorf("failed to send pdu session establishment accept n1 message: %v", err)
 	}
 
-	span.AddEvent("session_accepted")
-
-	success = true
-
-	return smContext.CanonicalName(), nil, nil
+	return sc.CanonicalName(), nil, nil
 }
 
 func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SMContext) {
@@ -198,190 +224,6 @@ func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SM
 	}
 }
 
-func (s *SMF) handlePDUSessionSMContextCreate(
-	ctx context.Context,
-	m *nas.Message,
-	smContext *SMContext,
-) (
-	*smfNas.ProtocolConfigurationOptions,
-	*smfNas.PDUSessionAddresses,
-	uint8,
-	*Policy,
-	uint8,
-	[]byte,
-	error,
-) {
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
-
-	pti := m.PDUSessionEstablishmentRequest.GetPTI()
-
-	policy, err := s.GetSessionPolicy(ctx, smContext.Supi, smContext.Snssai, smContext.Dnn)
-	if err != nil {
-		SessionEstablishmentAttempts.WithLabelValues(metrics.RAT5G, "reject").Inc()
-
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, establishmentRejectCause(err))
-		if buildErr != nil {
-			logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject message", zap.Error(buildErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-		}
-
-		return nil, nil, 0, nil, 0, rsp, fmt.Errorf("failed to find subscriber policy: %v", err)
-	}
-
-	requestedType := nasMessage.PDUSessionTypeIPv4
-	if m.PDUSessionType != nil {
-		requestedType = m.PDUSessionEstablishmentRequest.GetPDUSessionTypeValue()
-	}
-
-	negotiatedType, err := s.negotiatePDUSessionType(ctx, requestedType, policy)
-	if err != nil {
-		SessionEstablishmentAttempts.WithLabelValues(metrics.RAT5G, "reject").Inc()
-
-		cause := pduSessionTypeRejectCause(requestedType, policy)
-
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, cause)
-		if buildErr != nil {
-			logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject message", zap.Error(buildErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-		}
-
-		return nil, nil, 0, nil, 0, rsp, fmt.Errorf("PDU session type negotiation failed: %v", err)
-	}
-
-	smContext.PDUSessionType = negotiatedType
-
-	// When the UE asked for IPv4v6 but the data network offers a single family,
-	// the network signals the limitation with 5GSM cause #50/#51 in the PDU
-	// Session Establishment Accept (TS 24.501 §6.4.1.3).
-	var cause uint8
-
-	if requestedType == nasMessage.PDUSessionTypeIPv4IPv6 && negotiatedType != nasMessage.PDUSessionTypeIPv4IPv6 {
-		if negotiatedType == nasMessage.PDUSessionTypeIPv4 {
-			cause = nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed
-		} else {
-			cause = nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed
-		}
-	}
-
-	addrs := &smfNas.PDUSessionAddresses{PDUSessionType: negotiatedType}
-
-	// dlPdrIP keys the downlink PDR: the IPv4 address for IPv4/IPv4v6, the /64
-	// prefix base for IPv6-only.
-	var dlPdrIP netip.Addr
-
-	if negotiatedType == nasMessage.PDUSessionTypeIPv4 || negotiatedType == nasMessage.PDUSessionTypeIPv4IPv6 {
-		ipv4Addr, allocErr := s.store.AllocateIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
-		if allocErr != nil {
-			SessionEstablishmentAttempts.WithLabelValues(metrics.RAT5G, "reject").Inc()
-
-			rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMInsufficientResources)
-			if buildErr != nil {
-				logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject message", zap.Error(buildErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-			}
-
-			return nil, nil, 0, nil, 0, rsp, fmt.Errorf("failed to allocate IPv4 address: %v", allocErr)
-		}
-
-		smContext.PDUIPV4Address = netipToIP(ipv4Addr)
-		addrs.IPv4Address = smContext.PDUIPV4Address
-		dlPdrIP = ipv4Addr
-
-		logger.WithTrace(ctx, logger.SmfLog).Info("Allocated IPv4 address", logger.IPAddress(ipv4Addr.String()), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-	}
-
-	if negotiatedType == nasMessage.PDUSessionTypeIPv6 || negotiatedType == nasMessage.PDUSessionTypeIPv4IPv6 {
-		ipv6Prefix, allocErr := s.store.AllocateIPv6(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
-		if allocErr != nil {
-			if smContext.PDUIPV4Address != nil {
-				if _, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID); releaseErr != nil {
-					logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv4 after IPv6 allocation error", zap.Error(releaseErr))
-				}
-
-				smContext.PDUIPV4Address = nil
-			}
-
-			SessionEstablishmentAttempts.WithLabelValues(metrics.RAT5G, "reject").Inc()
-
-			rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMInsufficientResources)
-			if buildErr != nil {
-				logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject message", zap.Error(buildErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-			}
-
-			return nil, nil, 0, nil, 0, rsp, fmt.Errorf("failed to allocate IPv6 prefix: %v", allocErr)
-		}
-
-		smContext.PDUIPV6Prefix = netipToIP(ipv6Prefix)
-
-		iid, iidErr := s.assignIID(smContext.Dnn)
-		if iidErr != nil {
-			if _, releaseErr := s.store.ReleaseIPv6(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID); releaseErr != nil {
-				logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv6 after IID generation error", zap.Error(releaseErr))
-			}
-
-			if smContext.PDUIPV4Address != nil {
-				if _, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID); releaseErr != nil {
-					logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv4 after IID generation error", zap.Error(releaseErr))
-				}
-			}
-
-			return nil, nil, 0, nil, 0, nil, fmt.Errorf("failed to generate IID: %v", iidErr)
-		}
-
-		smContext.IPv6IID = iid
-		addrs.IPv6IID = iid
-
-		if negotiatedType == nasMessage.PDUSessionTypeIPv6 {
-			dlPdrIP = ipv6Prefix
-		}
-
-		logger.WithTrace(ctx, logger.SmfLog).Info("Allocated IPv6 prefix", logger.IPv6Prefix(ipv6Prefix.String()), logger.IPv6IID(fmt.Sprintf("%x", iid)), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-	}
-
-	smContext.PDUSessionID = m.PDUSessionEstablishmentRequest.GetPDUSessionID()
-
-	pco, err := parsePDUSessionRequest(m.PDUSessionEstablishmentRequest)
-	if err != nil {
-		logger.WithTrace(ctx, logger.SmfLog).Error("failed to handle PDU Session Establishment Request", zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-
-		s.releaseAllocatedAddresses(ctx, smContext)
-
-		SessionEstablishmentAttempts.WithLabelValues(metrics.RAT5G, "reject").Inc()
-
-		response, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
-		if buildErr != nil {
-			logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject message", zap.Error(buildErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-		}
-
-		return nil, nil, 0, nil, 0, response, err
-	}
-
-	defaultPath := &DataPath{
-		UpLinkTunnel:   &GTPTunnel{},
-		DownLinkTunnel: &GTPTunnel{},
-	}
-
-	smContext.Tunnel = &UPTunnel{
-		DataPath: defaultPath,
-	}
-
-	err = defaultPath.ActivateTunnelAndPDR(s, smContext, policy, dlPdrIP)
-	if err != nil {
-		s.releaseAllocatedAddresses(ctx, smContext)
-
-		SessionEstablishmentAttempts.WithLabelValues(metrics.RAT5G, "reject").Inc()
-
-		response, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
-		if buildErr != nil {
-			logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject message", zap.Error(buildErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-		}
-
-		return nil, nil, 0, nil, 0, response, fmt.Errorf("couldn't activate data path: %v", err)
-	}
-
-	logger.WithTrace(ctx, logger.SmfLog).Info("Successfully created PDU session context", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-
-	return pco, addrs, pti, policy, cause, nil, nil
-}
-
 // establishmentRejectCause maps a session-policy lookup failure to the 5GSM
 // cause of the PDU Session Establishment Reject (TS 24.501 §9.11.4.2): #70 when
 // the slice is served but not the DNN, #27 when the DNN is unknown, and the
@@ -394,93 +236,6 @@ func establishmentRejectCause(err error) uint8 {
 		return nasMessage.Cause5GSMMissingOrUnknownDNN
 	default:
 		return nasMessage.Cause5GSMRequestRejectedUnspecified
-	}
-}
-
-// pduSessionTypeRejectCause maps a failed PDU session type negotiation
-// to the 5GSM cause prescribed by TS 24.501 §6.4.1.4.1.
-//
-//   - IPv6 requested, only IPv4 supported           → #50 IPv4 only allowed
-//   - IPv4 requested, only IPv6 supported           → #51 IPv6 only allowed
-//   - IPv4/IPv6/IPv4v6 requested, neither supported → #28 unknown PDU session type
-//   - Unstructured, Ethernet, reserved values       → #28 unknown PDU session type
-func pduSessionTypeRejectCause(requested uint8, policy *Policy) uint8 {
-	hasIPv4 := policy.IPv4Pool != ""
-	hasIPv6 := policy.IPv6Pool != ""
-
-	switch requested {
-	case nasMessage.PDUSessionTypeIPv6:
-		if hasIPv4 && !hasIPv6 {
-			return nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed
-		}
-	case nasMessage.PDUSessionTypeIPv4:
-		if !hasIPv4 && hasIPv6 {
-			return nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed
-		}
-	}
-
-	return nasMessage.Cause5GSMUnknownPDUSessionType
-}
-
-// negotiatePDUSessionType resolves the final PDU session type based on
-// what the UE requested and what pools are available. For single-stack
-// requests the UE's choice is honored only if the corresponding pool exists;
-// otherwise the request is rejected. For dual-stack (IPv4v6) requests the
-// type is downgraded to whichever single stack is available.
-func (s *SMF) negotiatePDUSessionType(_ context.Context, requested uint8, policy *Policy) (uint8, error) {
-	hasIPv4 := policy.IPv4Pool != ""
-	hasIPv6 := policy.IPv6Pool != ""
-
-	switch requested {
-	case nasMessage.PDUSessionTypeIPv4:
-		if hasIPv4 {
-			return nasMessage.PDUSessionTypeIPv4, nil
-		}
-
-		return 0, fmt.Errorf("no IPv4 pool available for DNN")
-
-	case nasMessage.PDUSessionTypeIPv6:
-		if hasIPv6 {
-			return nasMessage.PDUSessionTypeIPv6, nil
-		}
-
-		return 0, fmt.Errorf("no IPv6 pool available for DNN")
-
-	case nasMessage.PDUSessionTypeIPv4IPv6:
-		if hasIPv4 && hasIPv6 {
-			return nasMessage.PDUSessionTypeIPv4IPv6, nil
-		}
-
-		if hasIPv4 {
-			return nasMessage.PDUSessionTypeIPv4, nil
-		}
-
-		if hasIPv6 {
-			return nasMessage.PDUSessionTypeIPv6, nil
-		}
-
-		return 0, fmt.Errorf("no IP pool available for DNN")
-
-	default:
-		return 0, fmt.Errorf("unsupported PDU session type: %d", requested)
-	}
-}
-
-func (s *SMF) releaseAllocatedAddresses(ctx context.Context, smContext *SMContext) {
-	if smContext.PDUIPV4Address != nil {
-		if _, err := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID); err != nil {
-			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv4 address", zap.Error(err))
-		}
-
-		smContext.PDUIPV4Address = nil
-	}
-
-	if smContext.PDUIPV6Prefix != nil {
-		if _, err := s.store.ReleaseIPv6(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID); err != nil {
-			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv6 address", zap.Error(err))
-		}
-
-		smContext.PDUIPV6Prefix = nil
 	}
 }
 
@@ -522,161 +277,6 @@ func parsePDUSessionRequest(req *nasMessage.PDUSessionEstablishmentRequest) (*sm
 	return pco, nil
 }
 
-func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
-	ctx, span := tracer.Start(ctx, "smf/send_pfcp_rules",
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
-	defer span.End()
-
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
-
-	dataPath := smContext.Tunnel.DataPath
-	if !dataPath.Activated {
-		logger.WithTrace(ctx, logger.SmfLog).Debug("DataPath is not activated, skip sending PFCP rules")
-		return nil
-	}
-
-	pdrList := make([]*PDR, 0, 3)
-	farList := make([]*FAR, 0, 2)
-	qerList := make([]*QER, 0, 2)
-	urrList := make([]*URR, 0, 2)
-
-	if dataPath.UpLinkTunnel != nil && dataPath.UpLinkTunnel.PDR != nil {
-		pdrList = append(pdrList, dataPath.UpLinkTunnel.PDR)
-		farList = append(farList, dataPath.UpLinkTunnel.PDR.FAR)
-
-		if dataPath.UpLinkTunnel.PDR.QER != nil {
-			qerList = append(qerList, dataPath.UpLinkTunnel.PDR.QER)
-		}
-
-		if dataPath.UpLinkTunnel.PDR.URR != nil {
-			urrList = append(urrList, dataPath.UpLinkTunnel.PDR.URR)
-		}
-	}
-
-	if dataPath.DownLinkTunnel != nil && dataPath.DownLinkTunnel.PDR != nil {
-		pdrList = append(pdrList, dataPath.DownLinkTunnel.PDR)
-		farList = append(farList, dataPath.DownLinkTunnel.PDR.FAR)
-
-		if dataPath.DownLinkTunnel.PDR.QER != nil {
-			qerList = append(qerList, dataPath.DownLinkTunnel.PDR.QER)
-		}
-
-		if dataPath.DownLinkTunnel.PDR.URR != nil {
-			urrList = append(urrList, dataPath.DownLinkTunnel.PDR.URR)
-		}
-	}
-
-	if dataPath.SecondPDR != nil {
-		pdrList = append(pdrList, dataPath.SecondPDR)
-
-		if dataPath.SecondPDR.QER != nil {
-			qerList = append(qerList, dataPath.SecondPDR.QER)
-		}
-
-		if dataPath.SecondPDR.URR != nil {
-			urrList = append(urrList, dataPath.SecondPDR.URR)
-		}
-	}
-
-	if smContext.PFCPContext == nil {
-		span.RecordError(fmt.Errorf("PFCP context not initialized"))
-		span.SetStatus(codes.Error, "PFCP context not initialized")
-
-		return fmt.Errorf("PFCP context not initialized")
-	}
-
-	var policyID string
-	if smContext.PolicyData != nil {
-		policyID = smContext.PolicyData.PolicyID
-	}
-
-	if smContext.PFCPContext.RemoteSEID == 0 {
-		req := BuildEstablishRequest(
-			smContext.PFCPContext.LocalSEID,
-			smContext.Supi.IMSI(),
-			policyID,
-			pdrList, farList, qerList, urrList,
-		)
-
-		resp, err := s.upf.EstablishSession(ctx, req)
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "failed to establish PFCP session")
-
-			return fmt.Errorf("failed to send PFCP session establishment request: %v", err)
-		}
-
-		smContext.PFCPContext.RemoteSEID = resp.RemoteSEID
-
-		for _, cp := range resp.CreatedPDRs {
-			if cp.TEID != 0 {
-				smContext.Tunnel.DataPath.UpLinkTunnel.TEID = cp.TEID
-				smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4 = cp.N3IPv4
-				smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6 = cp.N3IPv6
-
-				break
-			}
-		}
-
-		if dataPath.DownLinkTunnel != nil && dataPath.DownLinkTunnel.PDR != nil {
-			dataPath.DownLinkTunnel.PDR.State = RuleCreate
-		}
-
-		if dataPath.SecondPDR != nil {
-			dataPath.SecondPDR.State = RuleCreate
-		}
-
-		return nil
-	}
-
-	err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.RemoteSEID,
-		policyID,
-		pdrList, farList, qerList,
-	))
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to modify PFCP session")
-
-		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
-	}
-
-	logger.WithTrace(ctx, logger.SmfLog).Info("Sent PFCP session modification request to upf")
-
-	return nil
-}
-
-func (s *SMF) sendPduSessionEstablishmentReject(ctx context.Context, smContext *SMContext, pti uint8) error {
-	ctx, span := tracer.Start(ctx, "smf/send_pdu_session_establishment_reject",
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
-	defer span.End()
-
-	SessionEstablishmentAttempts.WithLabelValues(metrics.RAT5G, "reject").Inc()
-
-	smNasBuf, err := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to build PDU session establishment reject")
-
-		return fmt.Errorf("build GSM PDUSessionEstablishmentReject failed: %v", err)
-	}
-
-	err = s.amf.TransferN1(ctx, smContext.Supi, smNasBuf, smContext.PDUSessionID)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to transfer N1 message")
-
-		return fmt.Errorf("failed to send n1 message: %v", err)
-	}
-
-	logger.WithTrace(ctx, logger.SmfLog).Debug("Sent n1 message", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-
-	return nil
-}
-
 // alwaysOnIndication resolves the Always-on PDU session indication for an
 // Establishment Accept (TS 24.501 §6.4.1): "not allowed" (APSI 0) when the UE
 // requested an always-on session, or omitted (nil) otherwise. The "required"
@@ -705,8 +305,6 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
-
-	SessionEstablishmentAttempts.WithLabelValues(metrics.RAT5G, "accept").Inc()
 
 	n1Msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(&policy.Ambr, &policy.QosData, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, policy.DNS, policy.MTU, cause, addrs, alwaysOn)
 	if err != nil {
