@@ -45,8 +45,7 @@ const extractIEFields = (x: any): IEFields => {
   if (!x || typeof x !== "object") return {};
   const idEnum = (x.ID ?? x.id) as EnumLike | undefined;
   const criticalityEnum = (x.Criticality ?? x.criticality) as
-    | EnumLike
-    | undefined;
+    EnumLike | undefined;
   const value = (x.Value ?? x.value) as unknown;
   const error = (x.Error ?? x.error) as string | undefined;
   return { idEnum, criticalityEnum, value, error };
