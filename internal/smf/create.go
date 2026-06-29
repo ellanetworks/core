@@ -228,14 +228,11 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 		return nil, nil, 0, nil, 0, rsp, fmt.Errorf("failed to find subscriber policy: %v", err)
 	}
 
-	// Determine the requested PDU session type.
-	requestedType := nasMessage.PDUSessionTypeIPv4 // default
+	requestedType := nasMessage.PDUSessionTypeIPv4
 	if m.PDUSessionType != nil {
 		requestedType = m.PDUSessionEstablishmentRequest.GetPDUSessionTypeValue()
 	}
 
-	// Negotiate the PDU session type based on what the UE requested and
-	// what pools are available on the data network.
 	negotiatedType, err := s.negotiatePDUSessionType(ctx, requestedType, policy)
 	if err != nil {
 		SessionEstablishmentAttempts.WithLabelValues(metrics.RAT5G, "reject").Inc()
@@ -252,10 +249,9 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 
 	smContext.PDUSessionType = negotiatedType
 
-	// Compute the 5GSM cause for the PDU SESSION ESTABLISHMENT ACCEPT message.
-	// Per TS 24.501 §6.4.1.3, when the UE requests IPv4v6 but the network
-	// supports only a single stack, the SMF shall include the appropriate
-	// cause (#50 or #51) in the ACCEPT message.
+	// When the UE asked for IPv4v6 but the data network offers a single family,
+	// the network signals the limitation with 5GSM cause #50/#51 in the PDU
+	// Session Establishment Accept (TS 24.501 §6.4.1.3).
 	var cause uint8
 
 	if requestedType == nasMessage.PDUSessionTypeIPv4IPv6 && negotiatedType != nasMessage.PDUSessionTypeIPv4IPv6 {
@@ -266,14 +262,12 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 		}
 	}
 
-	// Allocate addresses based on negotiated type.
 	addrs := &smfNas.PDUSessionAddresses{PDUSessionType: negotiatedType}
 
-	// The UE IP used for downlink PDR keying — for IPv4 or IPv4v6 this is
-	// the IPv4 address; for IPv6-only it's the /64 prefix base.
+	// dlPdrIP keys the downlink PDR: the IPv4 address for IPv4/IPv4v6, the /64
+	// prefix base for IPv6-only.
 	var dlPdrIP netip.Addr
 
-	// IPv4 allocation (for IPv4 and IPv4v6).
 	if negotiatedType == nasMessage.PDUSessionTypeIPv4 || negotiatedType == nasMessage.PDUSessionTypeIPv4IPv6 {
 		ipv4Addr, allocErr := s.store.AllocateIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
 		if allocErr != nil {
@@ -294,11 +288,9 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 		logger.WithTrace(ctx, logger.SmfLog).Info("Allocated IPv4 address", logger.IPAddress(ipv4Addr.String()), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 	}
 
-	// IPv6 allocation (for IPv6 and IPv4v6).
 	if negotiatedType == nasMessage.PDUSessionTypeIPv6 || negotiatedType == nasMessage.PDUSessionTypeIPv4IPv6 {
 		ipv6Prefix, allocErr := s.store.AllocateIPv6(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
 		if allocErr != nil {
-			// Roll back IPv4 if dual-stack.
 			if smContext.PDUIPV4Address != nil {
 				if _, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID); releaseErr != nil {
 					logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv4 after IPv6 allocation error", zap.Error(releaseErr))
@@ -321,7 +313,6 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 
 		iid, iidErr := s.assignIID(smContext.Dnn)
 		if iidErr != nil {
-			// Roll back allocations.
 			if _, releaseErr := s.store.ReleaseIPv6(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID); releaseErr != nil {
 				logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv6 after IID generation error", zap.Error(releaseErr))
 			}
@@ -338,7 +329,6 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 		smContext.IPv6IID = iid
 		addrs.IPv6IID = iid
 
-		// For IPv6-only, the downlink PDR is keyed on the /64 prefix base.
 		if negotiatedType == nasMessage.PDUSessionTypeIPv6 {
 			dlPdrIP = ipv6Prefix
 		}
@@ -392,14 +382,6 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 	return pco, addrs, pti, policy, cause, nil, nil
 }
 
-// pduSessionTypeRejectCause maps a failed PDU session type negotiation
-// to the 5GSM cause prescribed by TS 24.501 §6.4.1.4.1.
-//
-//   - IPv6 requested, only IPv4 supported           → #50 IPv4 only allowed
-//   - IPv4 requested, only IPv6 supported           → #51 IPv6 only allowed
-//   - IPv4/IPv6/IPv4v6 requested, neither supported → #28 unknown PDU session type
-//   - Unstructured, Ethernet, reserved values       → #28 unknown PDU session type
-//
 // establishmentRejectCause maps a session-policy lookup failure to the 5GSM
 // cause of the PDU Session Establishment Reject (TS 24.501 §9.11.4.2): #70 when
 // the slice is served but not the DNN, #27 when the DNN is unknown, and the
@@ -415,6 +397,13 @@ func establishmentRejectCause(err error) uint8 {
 	}
 }
 
+// pduSessionTypeRejectCause maps a failed PDU session type negotiation
+// to the 5GSM cause prescribed by TS 24.501 §6.4.1.4.1.
+//
+//   - IPv6 requested, only IPv4 supported           → #50 IPv4 only allowed
+//   - IPv4 requested, only IPv6 supported           → #51 IPv6 only allowed
+//   - IPv4/IPv6/IPv4v6 requested, neither supported → #28 unknown PDU session type
+//   - Unstructured, Ethernet, reserved values       → #28 unknown PDU session type
 func pduSessionTypeRejectCause(requested uint8, policy *Policy) uint8 {
 	hasIPv4 := policy.IPv4Pool != ""
 	hasIPv6 := policy.IPv6Pool != ""
@@ -477,8 +466,6 @@ func (s *SMF) negotiatePDUSessionType(_ context.Context, requested uint8, policy
 	}
 }
 
-// releaseAllocatedAddresses releases any IP addresses that were allocated
-// during session creation. Used on error paths.
 func (s *SMF) releaseAllocatedAddresses(ctx context.Context, smContext *SMContext) {
 	if smContext.PDUIPV4Address != nil {
 		if _, err := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID); err != nil {

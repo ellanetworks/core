@@ -61,7 +61,9 @@ func HandleServiceRequest(m *mme.MME, ctx context.Context, conn mme.NasWriter, m
 		return
 	}
 
-	m.EstablishS1Connection(ue, conn, msg.ENBUES1APID)
+	if !m.EstablishS1Connection(ue, conn, msg.ENBUES1APID) {
+		return
+	}
 
 	ue.AdvanceULCount()
 
@@ -83,6 +85,10 @@ func HandleServiceRequest(m *mme.MME, ctx context.Context, conn mme.NasWriter, m
 // over a bare connection, so a rejected request never touches a resolved UE.
 func sendServiceReject(m *mme.MME, ctx context.Context, conn mme.NasWriter, enbUEID s1ap.ENBUES1APID) {
 	c := m.NewConn(conn, enbUEID)
+	if c == nil {
+		return
+	}
+
 	defer m.ReleaseBareConn(c)
 
 	m.SendOverConn(ctx, c, &eps.ServiceReject{Cause: mme.EmmCauseUEIdentityUnderivable})

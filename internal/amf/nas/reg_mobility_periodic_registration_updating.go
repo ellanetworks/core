@@ -57,10 +57,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	if len(subscriberProfile.AllowedNssai) == 0 {
 		metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultReject)
 
-		err = amf.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
-		if err != nil {
-			return fmt.Errorf("error sending registration reject: %v", err)
-		}
+		amf.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
 
 		return fmt.Errorf("registration Reject [No allowed S-NSSAI in subscription]")
 	}
@@ -89,10 +86,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	if len(ue.Pei) == 0 {
 		ue.Log.Debug("The UE did not provide PEI")
 
-		err := amf.SendIdentityRequest(ctx, ranUe, nasMessage.MobileIdentity5GSTypeImei)
-		if err != nil {
-			return fmt.Errorf("error sending identity request: %v", err)
-		}
+		amf.SendIdentityRequest(ctx, ranUe, nasMessage.MobileIdentity5GSTypeImei)
 
 		ue.Log.Info("sent identity request to UE")
 
@@ -197,18 +191,12 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 				} else {
 					metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultAccept)
 
-					err := amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
-					if err != nil {
-						return fmt.Errorf("error sending GMM registration accept: %v", err)
-					}
+					amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
 
 					ue.Log.Info("Sent GMM registration accept")
 				}
 
-				err := amf.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
-				if err != nil {
-					return fmt.Errorf("error sending downlink nas transport message: %v", err)
-				}
+				amf.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
 
 				conn.N1N2Message = nil
 
@@ -242,10 +230,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	if ranUe.UeContextRequest {
 		metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultAccept)
 
-		err := amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
-		if err != nil {
-			return fmt.Errorf("error sending GMM registration accept: %v", err)
-		}
+		amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
 
 		ue.Log.Info("Sent GMM registration accept")
 

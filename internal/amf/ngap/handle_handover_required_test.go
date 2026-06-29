@@ -297,9 +297,7 @@ func TestHandoverRequired(t *testing.T) {
 			Mnc: "01",
 		},
 	}, nil, &FakeSmfSbi{SMF: smfInstance})
-	amfInstance.Radios = map[*sctp.SCTPConn]*amf.Radio{
-		new(sctp.SCTPConn): targetRan,
-	}
+	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
 
 	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, decodeHandoverRequiredOrFatal(t, msg.InitiatingMessage.Value.HandoverRequired))
 
@@ -699,7 +697,7 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 	}
 
 	amfInstance := amf.New(&FakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, &FakeSmfSbi{SMF: smfInstance})
-	amfInstance.Radios = map[*sctp.SCTPConn]*amf.Radio{new(sctp.SCTPConn): targetRan}
+	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
 
 	// Drive the guard quickly; the target gNB never answers the HANDOVER REQUEST.
 	amfInstance.SetHandoverGuardTimeoutForTest(20 * time.Millisecond)

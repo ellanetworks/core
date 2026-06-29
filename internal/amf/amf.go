@@ -114,6 +114,7 @@ type AMF struct {
 	Ausf                     Authenticator
 	UEs                      map[etsi.SUPI]*UeContext
 	Radios                   map[*sctp.SCTPConn]*Radio
+	radiosByID               map[string]*Radio // radios that have claimed a Global RAN Node ID, for O(1) target resolution
 	RelativeCapacity         int64
 	Name                     string
 	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS
@@ -292,29 +293,37 @@ func (amf *AMF) FindRadioByConn(conn *sctp.SCTPConn) (*Radio, bool) {
 	return ran, true
 }
 
+// radioIDKey is the radiosByID index key for a Global RAN Node ID, prefixed by
+// node type so the gNB/ng-eNB/N3IWF identifier spaces cannot collide. Returns
+// false when no identifier is set.
+func radioIDKey(id *models.GlobalRanNodeID) (string, bool) {
+	switch {
+	case id == nil:
+		return "", false
+	case id.GNbID != nil:
+		return "gnb:" + id.GNbID.GNBValue, true
+	case id.NgeNbID != "":
+		return "ngenb:" + id.NgeNbID, true
+	case id.N3IwfID != "":
+		return "n3iwf:" + id.N3IwfID, true
+	}
+
+	return "", false
+}
+
 // use ranNodeID to find RAN context, return *AmfRan and ok bit
 func (amf *AMF) FindRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool) {
+	key, ok := radioIDKey(&ranNodeID)
+	if !ok {
+		return nil, false
+	}
+
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	for _, amfRan := range amf.Radios {
-		switch amfRan.RanPresent {
-		case RanPresentGNbID:
-			if amfRan.RanID.GNbID.GNBValue == ranNodeID.GNbID.GNBValue {
-				return amfRan, true
-			}
-		case RanPresentNgeNbID:
-			if amfRan.RanID.NgeNbID == ranNodeID.NgeNbID {
-				return amfRan, true
-			}
-		case RanPresentN3IwfID:
-			if amfRan.RanID.N3IwfID == ranNodeID.N3IwfID {
-				return amfRan, true
-			}
-		}
-	}
+	radio, ok := amf.radiosByID[key]
 
-	return nil, false
+	return radio, ok
 }
 
 // ClaimRanID assigns ranNodeID to radio, evicting any other radio holding the
@@ -323,27 +332,27 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID *ngapType.GlobalRANNodeID) *R
 	newID := util.RanIDToModels(*ranNodeID)
 	present := ranNodeID.Present
 
+	key, _ := radioIDKey(&newID)
+
 	amf.mu.Lock()
 
-	var evicted *Radio
+	evicted := amf.radiosByID[key]
+	if evicted == radio {
+		evicted = nil
+	}
 
-	for _, other := range amf.Radios {
-		if other == radio {
-			continue
-		}
+	if evicted != nil {
+		delete(amf.Radios, evicted.Conn)
+	}
 
-		if !ranIDMatches(other.RanPresent, other.RanID, present, &newID) {
-			continue
-		}
-
-		evicted = other
-		delete(amf.Radios, other.Conn)
-
-		break
+	// Drop a stale index entry if this radio previously claimed a different ID.
+	if oldKey, ok := radioIDKey(radio.RanID); ok && oldKey != key {
+		delete(amf.radiosByID, oldKey)
 	}
 
 	radio.RanPresent = present
 	radio.RanID = &newID
+	amf.radiosByID[key] = radio
 	amf.mu.Unlock()
 
 	if evicted != nil {
@@ -355,27 +364,6 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID *ngapType.GlobalRANNodeID) *R
 	}
 
 	return evicted
-}
-
-func ranIDMatches(aPresent int, a *models.GlobalRanNodeID, bPresent int, b *models.GlobalRanNodeID) bool {
-	if a == nil || b == nil || aPresent != bPresent {
-		return false
-	}
-
-	switch aPresent {
-	case RanPresentGNbID:
-		if a.GNbID == nil || b.GNbID == nil {
-			return false
-		}
-
-		return a.GNbID.GNBValue == b.GNbID.GNBValue
-	case RanPresentNgeNbID:
-		return a.NgeNbID == b.NgeNbID
-	case RanPresentN3IwfID:
-		return a.N3IwfID == b.N3IwfID
-	}
-
-	return false
 }
 
 func (amf *AMF) ListRadios() []*Radio {
@@ -421,6 +409,26 @@ func (amf *AMF) RemoveRadio(ctx context.Context, ran *Radio) {
 	defer amf.mu.Unlock()
 
 	delete(amf.Radios, ran.Conn)
+
+	if key, ok := radioIDKey(ran.RanID); ok && amf.radiosByID[key] == ran {
+		delete(amf.radiosByID, key)
+	}
+}
+
+// IndexRadioForTest registers a directly-constructed radio in both the
+// by-connection and by-RAN-ID maps — the production effect of NewRadio followed
+// by ClaimRanID at NG Setup. It exists for tests that build a Radio with its
+// RanID already set; production radios claim their ID via ClaimRanID.
+func (amf *AMF) IndexRadioForTest(conn *sctp.SCTPConn, radio *Radio) {
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
+
+	radio.Conn = conn
+	amf.Radios[conn] = radio
+
+	if key, ok := radioIDKey(radio.RanID); ok {
+		amf.radiosByID[key] = radio
+	}
 }
 
 func (amf *AMF) FindUeContextByGuti(guti etsi.GUTI) (*UeContext, bool) {
@@ -470,6 +478,7 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 	a := &AMF{
 		UEs:                      make(map[etsi.SUPI]*UeContext),
 		Radios:                   make(map[*sctp.SCTPConn]*Radio),
+		radiosByID:               make(map[string]*Radio),
 		DBInstance:               db,
 		Ausf:                     ausf,
 		Smf:                      smf,

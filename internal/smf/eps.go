@@ -20,16 +20,15 @@ import (
 	"go.uber.org/zap"
 )
 
-// The SMF (acting as the combined PGW-C, TS 23.501 §4.3) keys each 4G PDN
-// connection by its default bearer's EPS bearer identity (5..15) as the PDU
-// session id, so one IMSI can hold several. A subscriber is never attached to 4G
-// and 5G at once, so the EBI cannot collide with a live 5G PDU session id.
+// The SMF (combined PGW-C, TS 23.501 §4.3) keys each 4G PDN connection by its
+// default bearer's EPS bearer identity (5..15) as the PDU session id. A
+// subscriber is never on 4G and 5G at once, so the EBI cannot collide with a
+// live 5G PDU session id.
 
-// validateEPSBearerRequest rejects inputs that would otherwise silently degrade
-// the bearer rather than fail it: an EBI outside the default-bearer range (5..15,
-// TS 24.007 §11.2.3.1.5), an AMBR that does not parse to a positive rate (which
-// would program a zero-rate QER), or a non-empty DNS that is not an IP literal
-// (which would drop the DNS option).
+// validateEPSBearerRequest rejects inputs the data path would otherwise accept
+// and degrade: a zero AMBR programs a zero-rate QER, and a non-IP DNS drops the
+// DNS option. An EBI outside 5..15 is not a valid default bearer (TS 24.007
+// §11.2.3.1.5).
 func validateEPSBearerRequest(req models.EPSBearerRequest) error {
 	if req.EPSBearerIdentity < 5 || req.EPSBearerIdentity > 15 {
 		return fmt.Errorf("EPS bearer identity %d out of range (5..15)", req.EPSBearerIdentity)
@@ -51,13 +50,12 @@ func validateEPSBearerRequest(req models.EPSBearerRequest) error {
 }
 
 // CreateEPSSession negotiates the PDN type, allocates the UE address(es), and
-// programs the user plane for a 4G default EPS bearer, with the SMF as the
-// converged session anchor (SMF+PGW-C / combined S-GW-U+P-GW-U, TS 23.401
-// §4.4.3, TS 23.501 §4.3). For IPv6/IPv4v6 it allocates a /64 prefix and a SLAAC
-// interface identifier (the prefix reaches the UE later via Router Advertisement
-// once ModifyEPSSession registers the IPv6 session). It returns the negotiated
-// type, the allocated addresses, and the S-GW S1-U F-TEID the eNB sends uplink
-// traffic to; the eNB downlink endpoint is supplied later via ModifyEPSSession.
+// programs the user plane for a 4G default EPS bearer with the SMF as converged
+// anchor (SMF+PGW-C, TS 23.401 §4.4.3). For IPv6/IPv4v6 it allocates a /64
+// prefix and a SLAAC interface identifier; the prefix reaches the UE via Router
+// Advertisement once ModifyEPSSession registers the IPv6 session. It returns the
+// negotiated type, the addresses, and the S-GW S1-U F-TEID for uplink; the eNB
+// downlink endpoint arrives later via ModifyEPSSession.
 func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest) (bearer models.EPSBearer, err error) {
 	ctx, span := tracer.Start(ctx, "smf/create_eps_session",
 		trace.WithAttributes(
@@ -195,7 +193,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 // ModifyEPSSession sets the downlink endpoint of an established EPS session to
 // the eNB S1-U F-TEID learned from the Initial Context Setup Response, so the
 // UPF encapsulates downlink traffic toward the eNB (plain, PSC-less GTP-U on
-// S1-U). It mirrors the 5G handling of the gNB F-TEID from the N2 setup response.
+// S1-U).
 func (s *SMF) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb models.FTEID) error {
 	ctx, span := tracer.Start(ctx, "smf/modify_eps_session",
 		trace.WithAttributes(
@@ -386,7 +384,7 @@ func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, imsi string, ebi uint8, 
 		return fmt.Errorf("failed to modify PFCP session for %s: %w", imsi, err)
 	}
 
-	// The data plane now enforces the new rate; reflect it in the cached policy.
+	// Cache the new rate only after the data plane has accepted it.
 	if smContext.PolicyData != nil {
 		smContext.PolicyData.Ambr.Uplink = ambrUplink
 		smContext.PolicyData.Ambr.Downlink = ambrDownlink
@@ -407,10 +405,10 @@ func (s *SMF) ReleaseEPSSession(ctx context.Context, imsi string, ebi uint8) err
 }
 
 // DeactivateEPSSession puts the 4G default bearer into buffering mode when the UE
-// goes ECM-IDLE: the downlink FAR is switched from forward to buffer so downlink
-// data raises a notification (the paging trigger) instead of being sent to the
-// released eNB tunnel. The session is retained; ModifyEPSSession restores
-// forwarding on the next Service Request.
+// goes ECM-IDLE: the downlink FAR switches from forward to buffer, so downlink
+// data raises a notification (the paging trigger) and is not sent to the released
+// eNB tunnel. The session is retained; ModifyEPSSession restores forwarding on
+// the next Service Request.
 func (s *SMF) DeactivateEPSSession(ctx context.Context, imsi string, ebi uint8) error {
 	supi, err := etsi.NewSUPIFromIMSI(imsi)
 	if err != nil {
@@ -422,9 +420,9 @@ func (s *SMF) DeactivateEPSSession(ctx context.Context, imsi string, ebi uint8) 
 
 // abortEPSSession rolls back the partially-created session sc: it tears down the
 // UPF session if one was established, frees whichever address leases were taken,
-// and removes the context from the pool. It acts on the caller's own sc rather
-// than re-fetching by name, so a concurrent CreateEPSSession that replaced the
-// pool entry for the same (IMSI,EBI) is never torn down by this rollback.
+// and removes the context from the pool. It acts on the caller's own sc, not a
+// re-fetch by name, so a concurrent CreateEPSSession that replaced the pool entry
+// for the same (IMSI,EBI) is never torn down by this rollback.
 func (s *SMF) abortEPSSession(ctx context.Context, sc *SMContext, apn string, ebi uint8) {
 	if sc == nil {
 		return

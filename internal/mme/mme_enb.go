@@ -128,13 +128,33 @@ func (m *MME) TrackENBFromSetup(conn *sctp.SCTPConn, value []byte) {
 // not tracked.
 func (m *MME) MarkENBSetupComplete(conn *sctp.SCTPConn) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
-	if s := m.enbs[conn]; s != nil {
-		s.setupComplete = true
-		// Index the association by Global eNB ID so an S1 handover can resolve a
-		// HANDOVER REQUIRED's target to its association (TS 36.413 §8.4.1).
-		m.enbByID[s.id] = conn
+	s := m.enbs[conn]
+	if s == nil {
+		m.mu.Unlock()
+		return
+	}
+
+	s.setupComplete = true
+
+	// Index the association by Global eNB ID so an S1 handover can resolve a
+	// HANDOVER REQUIRED's target to its association (TS 36.413 §8.4.1). A
+	// re-associating eNB that completes S1 Setup under an ID still held by a
+	// different live association supersedes it: the stale association is evicted
+	// and torn down so the ID resolves to the current one and an S1 handover cannot
+	// target a dead eNB.
+	var stale *sctp.SCTPConn
+	if prev, ok := m.enbByID[s.id].(*sctp.SCTPConn); ok && prev != conn {
+		stale = prev
+		delete(m.enbs, prev)
+	}
+
+	m.enbByID[s.id] = conn
+	m.mu.Unlock()
+
+	if stale != nil {
+		m.reclaimUEsOnConnLoss(stale)
+		_ = stale.Close()
 	}
 }
 
@@ -231,7 +251,7 @@ func (m *MME) ReclaimConns(conns []*S1Conn, trigger string) {
 	for _, c := range conns {
 		ue := c.ue
 		if ue == nil {
-			delete(m.conns, uint32(c.MMEUES1APID))
+			m.releaseConnIDLocked(uint32(c.MMEUES1APID))
 			continue
 		}
 
@@ -255,7 +275,7 @@ func (m *MME) ReclaimConns(conns []*S1Conn, trigger string) {
 			m.clearHandoverLocked(ue) // a handover target: abort, leaving the UE on its source
 		default:
 			c.ue = nil
-			delete(m.conns, uint32(c.MMEUES1APID))
+			m.releaseConnIDLocked(uint32(c.MMEUES1APID))
 		}
 	}
 

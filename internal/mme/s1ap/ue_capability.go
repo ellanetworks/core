@@ -17,7 +17,7 @@ import (
 func handleUECapabilityInfoIndication(m *mme.MME, conn mme.NasWriter, value []byte) {
 	msg, err := s1ap.ParseUECapabilityInfoIndication(value)
 	if err != nil {
-		logger.MmeLog.Warn("failed to decode UE Capability Info Indication", zap.Error(err))
+		handleParseError(m, conn, s1ap.ProcUECapabilityInfoIndication, err)
 		return
 	}
 

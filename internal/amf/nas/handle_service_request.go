@@ -105,10 +105,7 @@ func sendServiceAccept(
 
 		ue.Log.Info("sent service accept")
 	} else {
-		err := amf.SendServiceAccept(ctx, ranUe, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
-		if err != nil {
-			return fmt.Errorf("error sending service accept: %v", err)
-		}
+		amf.SendServiceAccept(ctx, ranUe, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 
 		ue.Log.Info("sent service accept")
 	}
@@ -132,15 +129,11 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 	// TS 24.501 5.6.1.1: reject service request from deregistered UE
 	if state == amf.Deregistered {
-		err := amf.SendServiceReject(ctx, ranUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
-		if err != nil {
-			return fmt.Errorf("error sending service reject: %v", err)
-		}
+		amf.SendServiceReject(ctx, ranUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 
 		ranUe.ReleaseAction = amf.UeContextN2NormalRelease
 
-		err = ranUe.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
-		if err != nil {
+		if err := ranUe.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease); err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}
 
@@ -197,17 +190,13 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	if !ue.SecurityContextIsValid() || !integrityVerified {
 		ue.Log.Warn("No valid security context for service request", logger.SUPI(ue.SupiValue().String()))
 
-		err := amf.SendServiceReject(ctx, ranUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
-		if err != nil {
-			return fmt.Errorf("error sending service reject: %v", err)
-		}
+		amf.SendServiceReject(ctx, ranUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 
 		ue.Log.Info("sent service reject")
 
 		ranUe.ReleaseAction = amf.UeContextN2NormalRelease
 
-		err = ranUe.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
-		if err != nil {
+		if err := ranUe.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease); err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}
 
@@ -319,10 +308,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 					return fmt.Errorf("error sending service accept: %v", err)
 				}
 
-				err = amf.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
-				if err != nil {
-					return fmt.Errorf("error sending downlink nas transport message: %v", err)
-				}
+				amf.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
 
 				ue.Log.Info("sent downlink nas transport message")
 

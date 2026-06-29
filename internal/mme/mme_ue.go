@@ -10,10 +10,12 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/guard"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/s1ap"
+	"go.uber.org/zap"
 )
 
 // NasWriter is the subset of the SCTP connection the MME uses to send S1AP to an
@@ -425,13 +427,37 @@ func (m *MME) NewConn(conn NasWriter, enbUEID s1ap.ENBUES1APID) *S1Conn {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	id := m.nextMMEUEID
-	m.nextMMEUEID++
+	id, ok := m.allocConnIDLocked()
+	if !ok {
+		return nil
+	}
 
 	c := &S1Conn{ENBUES1APID: enbUEID, MMEUES1APID: s1ap.MMEUES1APID(id), conn: conn}
 	m.conns[id] = c
 
 	return c
+}
+
+// allocConnIDLocked reserves an MME-UE-S1AP-ID from the recycling allocator,
+// which does not reuse a released identifier immediately (TS 36.413). The caller
+// holds m.mu. It returns false only when every identifier in the S1AP range is
+// concurrently in use — unreachable in practice — in which case the connection
+// is refused rather than colliding with a live one.
+func (m *MME) allocConnIDLocked() (uint32, bool) {
+	id, err := m.mmeUEIDs.Allocate()
+	if err != nil {
+		logger.MmeLog.Error("cannot allocate MME-UE-S1AP-ID: identifier space exhausted", zap.Error(err))
+		return 0, false
+	}
+
+	return uint32(id), true
+}
+
+// releaseConnIDLocked drops a connection from the active table and returns its
+// MME-UE-S1AP-ID to the allocator for later reuse. The caller holds m.mu.
+func (m *MME) releaseConnIDLocked(id uint32) {
+	delete(m.conns, id)
+	m.mmeUEIDs.FreeID(int64(id))
 }
 
 // BindConn attaches a fresh persistent UE context to a bare connection, once the
@@ -455,19 +481,24 @@ func (m *MME) ReleaseBareConn(c *S1Conn) {
 		return
 	}
 
-	delete(m.conns, uint32(c.MMEUES1APID))
+	m.releaseConnIDLocked(uint32(c.MMEUES1APID))
 }
 
 // NewUe registers a bare connection and immediately binds a UE context to it.
 func (m *MME) NewUe(conn NasWriter, enbUEID s1ap.ENBUES1APID) *UeContext {
-	return m.BindConn(m.NewConn(conn, enbUEID))
+	c := m.NewConn(conn, enbUEID)
+	if c == nil {
+		return nil
+	}
+
+	return m.BindConn(c)
 }
 
 // EstablishS1Connection binds a UE returning from ECM-IDLE to a fresh
 // UE-associated logical S1-connection, allocating a new MME-UE-S1AP-ID (the
 // released one must not be reused, TS 36.413). Any prior connection and its
 // idle/paging supervision are released first.
-func (m *MME) EstablishS1Connection(ue *UeContext, conn NasWriter, enbUEID s1ap.ENBUES1APID) {
+func (m *MME) EstablishS1Connection(ue *UeContext, conn NasWriter, enbUEID s1ap.ENBUES1APID) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -475,8 +506,10 @@ func (m *MME) EstablishS1Connection(ue *UeContext, conn NasWriter, enbUEID s1ap.
 	m.stopPagingLocked(ue)
 	m.freeS1ConnLocked(ue)
 
-	id := m.nextMMEUEID
-	m.nextMMEUEID++
+	id, ok := m.allocConnIDLocked()
+	if !ok {
+		return false
+	}
 
 	// A resume only reaches here after its message was integrity-verified against
 	// the held context (service request short-MAC, TAU/initial-message unprotect),
@@ -484,6 +517,8 @@ func (m *MME) EstablishS1Connection(ue *UeContext, conn NasWriter, enbUEID s1ap.
 	c := &S1Conn{MMEUES1APID: s1ap.MMEUES1APID(id), ENBUES1APID: enbUEID, conn: conn, ue: ue, secureExchangeEstablished: true}
 	ue.S1 = c
 	m.conns[id] = c
+
+	return true
 }
 
 // AdoptConn moves the connection an Initial UE Message created onto a held
@@ -525,7 +560,7 @@ func (m *MME) freeS1ConnLocked(ue *UeContext) {
 	// fire on a freed connection.
 	m.clearHandoverLocked(ue)
 	m.stopNASGuardLocked(ue)
-	delete(m.conns, uint32(ue.S1.MMEUES1APID))
+	m.releaseConnIDLocked(uint32(ue.S1.MMEUES1APID))
 	ue.S1 = nil
 }
 

@@ -29,7 +29,7 @@ var (
 func handleHandoverRequired(m *mme.MME, ctx context.Context, conn mme.NasWriter, value []byte) {
 	req, err := s1ap.ParseHandoverRequired(value)
 	if err != nil {
-		logger.MmeLog.Warn("failed to decode Handover Required", zap.Error(err))
+		handleParseError(m, conn, s1ap.ProcHandoverPreparation, err)
 		return
 	}
 
@@ -219,7 +219,7 @@ func handleHandoverFailure(m *mme.MME, ctx context.Context, conn mme.NasWriter, 
 func handleENBStatusTransfer(m *mme.MME, ctx context.Context, conn mme.NasWriter, value []byte) {
 	st, err := s1ap.ParseENBStatusTransfer(value)
 	if err != nil {
-		logger.MmeLog.Warn("failed to decode eNB Status Transfer", zap.Error(err))
+		handleParseError(m, conn, s1ap.ProcENBStatusTransfer, err)
 		return
 	}
 
@@ -253,7 +253,7 @@ func handleENBStatusTransfer(m *mme.MME, ctx context.Context, conn mme.NasWriter
 func handleHandoverNotify(m *mme.MME, ctx context.Context, conn mme.NasWriter, value []byte) {
 	notify, err := s1ap.ParseHandoverNotify(value)
 	if err != nil {
-		logger.MmeLog.Warn("failed to decode Handover Notify", zap.Error(err))
+		handleParseError(m, conn, s1ap.ProcHandoverNotification, err)
 		return
 	}
 
@@ -325,7 +325,7 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, conn mme.NasWriter, v
 func handleHandoverCancel(m *mme.MME, ctx context.Context, conn mme.NasWriter, value []byte) {
 	cancel, err := s1ap.ParseHandoverCancel(value)
 	if err != nil {
-		logger.MmeLog.Warn("failed to decode Handover Cancel", zap.Error(err))
+		handleParseError(m, conn, s1ap.ProcHandoverCancel, err)
 		return
 	}
 

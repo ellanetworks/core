@@ -51,9 +51,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 		ue.Log.Info("registration rejected: 5G not allowed for subscriber")
 
-		if err = amf.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMM5GSServicesNotAllowed); err != nil {
-			return fmt.Errorf("error sending registration reject: %v", err)
-		}
+		amf.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
 
 		return fmt.Errorf("registration Reject [5G not allowed for subscriber]")
 	}
@@ -66,10 +64,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 		metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultReject)
 
-		err = amf.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
-		if err != nil {
-			return fmt.Errorf("error sending registration reject: %v", err)
-		}
+		amf.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
 
 		return fmt.Errorf("registration Reject [No allowed S-NSSAI in subscription]")
 	}
@@ -119,10 +114,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 	metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultAccept)
 
-	err = amf.SendRegistrationAccept(ctx, amfInstance, ue, nil, nil, nil, nil, nil, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
-	if err != nil {
-		return fmt.Errorf("error sending GMM registration accept: %v", err)
-	}
+	amf.SendRegistrationAccept(ctx, amfInstance, ue, nil, nil, nil, nil, nil, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
 
 	return nil
 }

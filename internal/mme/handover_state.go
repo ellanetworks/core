@@ -71,8 +71,12 @@ func (m *MME) PrepareHandover(ue *UeContext, target NasWriter, reqMMEID s1ap.MME
 
 	newNCC = (ue.ncc + 1) & 0x07
 
-	tid := m.nextMMEUEID
-	m.nextMMEUEID++
+	tid, idOK := m.allocConnIDLocked()
+	if !idOK {
+		m.mu.Unlock()
+		return 0, [32]byte{}, 0, false
+	}
+
 	targetConn := &S1Conn{MMEUES1APID: s1ap.MMEUES1APID(tid), conn: target, ue: ue}
 	m.conns[tid] = targetConn
 
@@ -285,7 +289,7 @@ func (m *MME) clearHandoverLocked(ue *UeContext) {
 
 	if ho.target != nil && ho.target != ue.S1 {
 		ho.target.ue = nil
-		delete(m.conns, uint32(ho.target.MMEUES1APID))
+		m.releaseConnIDLocked(uint32(ho.target.MMEUES1APID))
 	}
 
 	ue.handover = nil
@@ -367,7 +371,7 @@ func (m *MME) ReleaseDetachedConn(conn NasWriter, mmeUEID s1ap.MMEUES1APID, enbU
 		return false
 	}
 
-	delete(m.conns, uint32(mmeUEID))
+	m.releaseConnIDLocked(uint32(mmeUEID))
 
 	return true
 }

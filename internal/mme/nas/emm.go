@@ -42,118 +42,22 @@ func HandleNAS(m *mme.MME, ctx context.Context, ue *mme.UeContext, nas []byte) {
 		return
 	}
 
-	// Secure exchange is tracked per NAS signalling connection (TS 24.301
-	// §4.4.4.3), matching the 5G AMF; ue.secured is the separate per-UE
-	// "has a security context" notion used by handover/path-switch.
-	conn := ue.S1
-	connSecured := conn != nil && conn.SecureExchangeEstablished()
-
-	securityHeader := nas[0] >> 4
-
-	if securityHeader == uint8(eps.SHTPlain) {
-		mt, err := eps.PeekMessageType(nas)
-		if err != nil {
-			logger.MmeLog.Warn("failed to read EMM message type", zap.Error(err))
-			return
-		}
-
-		// TS 24.301 §4.4.4.3: once secure exchange is established on the
-		// connection, a message that is not integrity protected is discarded, so a
-		// forged plain NAS message cannot disrupt an authenticated UE.
-		if connSecured {
-			logger.MmeLog.Warn("discarding plain NAS message: secure exchange already established",
-				zap.String("imsi", ue.IMSI()))
-
-			return
-		}
-
-		if mme.ClassifyNasPdu(mt, securityHeader, false) != mme.VerdictPlainAllowed {
-			logger.MmeLog.Warn("discarding plain NAS message not permitted without integrity (TS 24.301 §4.4.4.3)",
-				zap.String("message", mme.EmmMessageTypeName(mt)))
-
-			return
-		}
-
-		DispatchEMM(m, ctx, ue, nas, false)
-
+	result, err := mme.DecodeNASMessage(ue, nas)
+	if err != nil {
+		// DecodeNASMessage has logged the reason; the PDU is dropped.
 		return
 	}
 
-	if len(nas) < 6 {
-		logger.MmeLog.Warn("security-protected NAS message too short")
+	// A returning UE's ATTACH REQUEST can fail the fresh context's MAC yet carry a
+	// native GUTI whose held EPS security context verifies it; that context is
+	// reused and authentication skipped (TS 23.401) ahead of the normal dispatch.
+	// reuseContextForGUTIAttach verifies the held context's MAC against the raw
+	// PDU, so it is a no-op for any other message, identity, or a plain PDU.
+	if !result.IntegrityVerified && reuseContextForGUTIAttach(m, ctx, ue, nas, result.Plain) {
 		return
 	}
 
-	// Verify against the UE's security context. Replay protection: a stale or
-	// replayed message estimates to a NAS COUNT whose MAC fails to verify, so it
-	// is dropped (TS 24.301).
-	p, count, err := ue.TryUnprotectUplink(nas)
-	if err == nil {
-		ue.CommitUplinkCount(count)
-
-		// First verified message establishes secure exchange on the connection (TS 24.301 §4.4.4.3).
-		if conn != nil {
-			conn.MarkSecureExchangeEstablished()
-		}
-
-		DispatchEMM(m, ctx, ue, p, true)
-
-		return
-	}
-
-	body := nas[6:]
-
-	// A switch-off DETACH REQUEST is honoured without integrity protection only
-	// before secure exchange is established (TS 24.301 §4.4.4.3). Its body is
-	// readable even under a null-cipher security header, so it is checked before
-	// the type peek below (which a genuinely ciphered body would defeat).
-	if !connSecured && isSwitchOffDetach(body) {
-		handleDetachRequest(m, ctx, ue, body)
-		return
-	}
-
-	if connSecured {
-		logger.MmeLog.Warn("discarding NAS message: integrity check failed after secure exchange established",
-			zap.String("imsi", ue.IMSI()))
-
-		return
-	}
-
-	// The plaintext type is readable only for an integrity-only (unciphered)
-	// security header (types 1 and 3); a ciphered body peeks to a meaningless type,
-	// so such a message is dropped.
-	if securityHeader != uint8(eps.SHTIntegrityProtected) && securityHeader != uint8(eps.SHTIntegrityProtectedNewContext) {
-		logger.MmeLog.Warn("NAS integrity check failed",
-			zap.Error(err),
-			zap.Uint8("security-header-type", securityHeader),
-			zap.Bool("has-security-context", ue.HasKASME()))
-
-		return
-	}
-
-	mt, perr := eps.PeekMessageType(body)
-	if perr != nil {
-		logger.MmeLog.Warn("NAS integrity check failed; unreadable message type", zap.Error(err))
-		return
-	}
-
-	// TS 24.301 §4.4.4.3: certain EMM messages are processed even when the MAC
-	// fails, but only before secure exchange is established (no usable security
-	// context, e.g. a fresh context after an MME restart). The subscriber is
-	// authenticated before the procedure is progressed.
-	if mme.ClassifyNasPdu(mt, securityHeader, false) != mme.VerdictMacFailedAllowed {
-		logger.MmeLog.Warn("NAS integrity check failed",
-			zap.Error(err),
-			zap.String("attempted-message", mme.EmmMessageTypeName(mt)),
-			zap.Uint8("security-header-type", securityHeader),
-			zap.Uint32("expected-ul-count", ue.ULCount()),
-			zap.Uint8("integrity-alg", ue.EIA()),
-			zap.Bool("has-security-context", ue.HasKASME()))
-
-		return
-	}
-
-	processWithoutIntegrity(m, ctx, ue, mt, nas, body)
+	DispatchEMM(m, ctx, ue, result.Plain, result.IntegrityVerified)
 }
 
 // DispatchEMM routes a plain NAS message to its procedure handler, splitting ESM
@@ -203,40 +107,6 @@ func DispatchEMM(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byt
 			zap.String("message-type", mme.EmmMessageTypeName(mt)),
 			zap.Int("message-type-value", int(mt)))
 	}
-}
-
-// processWithoutIntegrity routes an EMM message the MME must accept without a
-// verifiable MAC (TS 24.301) to its procedure handler, using the
-// unciphered plaintext body. It returns false for message types outside that
-// list (or otherwise unrecoverable), which the caller then drops. nas is the
-// full protected message (needed to reuse a held context on a GUTI attach);
-// body is its plaintext.
-func processWithoutIntegrity(m *mme.MME, ctx context.Context, ue *mme.UeContext, mt eps.MessageType, nas, body []byte) bool {
-	switch mt {
-	case eps.MsgAttachRequest:
-		// Authenticate before processing the attach further (TS 24.301).
-		// A native GUTI the MME still holds lets it reuse the
-		// security context and skip authentication (TS 23.401).
-		if !reuseContextForGUTIAttach(m, ctx, ue, nas, body) {
-			handleAttachRequest(m, ctx, ue, body, false)
-		}
-	case eps.MsgIdentityResponse:
-		// The IMSI is carried in cleartext; identification continues to
-		// authentication, which rebuilds the security context.
-		handleIdentityResponse(m, ctx, ue, body)
-	case eps.MsgAuthenticationResponse:
-		handleAuthenticationResponse(m, ctx, ue, body)
-	case eps.MsgAuthenticationFailure:
-		handleAuthenticationFailure(m, ctx, ue, body)
-	case eps.MsgSecurityModeReject:
-		handleSecurityModeReject(m, ctx, ue, body)
-	case eps.MsgDetachRequest:
-		handleDetachRequest(m, ctx, ue, body)
-	default:
-		return false
-	}
-
-	return true
 }
 
 // handleSecurityModeReject handles a SECURITY MODE REJECT (TS 24.301): the

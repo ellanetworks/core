@@ -92,9 +92,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 // authentication and deregisters the UE.
 func failAuthentication(ctx context.Context, ue *amf.UeContext, ranUe *amf.RanUe, conn *amf.ActiveNasConnection) error {
 	if conn.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
-		if err := amf.SendIdentityRequest(ctx, ranUe, nasMessage.MobileIdentity5GSTypeSuci); err != nil {
-			return fmt.Errorf("send identity request error: %s", err)
-		}
+		amf.SendIdentityRequest(ctx, ranUe, nasMessage.MobileIdentity5GSTypeSuci)
 
 		ue.Log.Info("sent identity request")
 
@@ -103,9 +101,7 @@ func failAuthentication(ctx context.Context, ue *amf.UeContext, ranUe *amf.RanUe
 
 	defer ue.Deregister(ctx)
 
-	if err := amf.SendAuthenticationReject(ctx, ranUe); err != nil {
-		return fmt.Errorf("error sending GMM authentication reject: %v", err)
-	}
+	amf.SendAuthenticationReject(ctx, ranUe)
 
 	return nil
 }

@@ -20,19 +20,19 @@ func TestClassifyNasPdu(t *testing.T) {
 		macVerified bool
 		want        verdict
 	}{
-		{"plain whitelisted", eps.MsgAttachRequest, plain, false, VerdictPlainAllowed},
-		{"plain whitelisted detach", eps.MsgDetachRequest, plain, false, VerdictPlainAllowed},
+		{"plain whitelisted", eps.MsgAttachRequest, plain, false, verdictPlainAllowed},
+		{"plain whitelisted detach", eps.MsgDetachRequest, plain, false, verdictPlainAllowed},
 		{"plain non-whitelisted (attach complete)", eps.MsgAttachComplete, plain, false, verdictReject},
 		{"plain non-whitelisted (security mode complete)", eps.MsgSecurityModeComplete, plain, false, verdictReject},
 		{"protected verified", eps.MsgAttachComplete, prot, true, verdictIntegrityVerified},
-		{"protected mac-failed whitelisted", eps.MsgAttachRequest, prot, false, VerdictMacFailedAllowed},
+		{"protected mac-failed whitelisted", eps.MsgAttachRequest, prot, false, verdictMacFailedAllowed},
 		{"protected mac-failed non-whitelisted", eps.MsgSecurityModeComplete, prot, false, verdictReject},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := ClassifyNasPdu(tc.mt, tc.sht, tc.macVerified); got != tc.want {
-				t.Fatalf("ClassifyNasPdu(%s) = %d, want %d", tc.name, got, tc.want)
+			if got := classifyNasPdu(tc.mt, tc.sht, tc.macVerified); got != tc.want {
+				t.Fatalf("classifyNasPdu(%s) = %d, want %d", tc.name, got, tc.want)
 			}
 		})
 	}

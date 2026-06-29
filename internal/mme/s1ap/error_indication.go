@@ -79,8 +79,36 @@ func resolveUE(m *mme.MME, conn mme.NasWriter, mmeID s1ap.MMEUES1APID, enbID s1a
 // carrying the UE S1AP ID pair and a cause (TS 36.413).
 func sendErrorIndication(m *mme.MME, conn mme.NasWriter, mmeID *s1ap.MMEUES1APID, enbID *s1ap.ENBUES1APID, cause s1ap.Cause) {
 	c := cause
-	ind := &s1ap.ErrorIndication{MMEUES1APID: mmeID, ENBUES1APID: enbID, Cause: &c}
+	emitErrorIndication(m, conn, &s1ap.ErrorIndication{MMEUES1APID: mmeID, ENBUES1APID: enbID, Cause: &c})
+}
 
+// handleParseError reports a fatal decode of an eNB-initiated S1AP initiating
+// message to the sending eNB with an ERROR INDICATION carrying Cause
+// "transfer-syntax-error" and Criticality Diagnostics naming the procedure
+// (TS 36.413 §10.4), instead of dropping the PDU silently. The UE S1AP ID pair is
+// absent because the decode failure prevented reading it. It mirrors the 5G AMF's
+// fatal-decode Error Indication; an ERROR INDICATION is never sent in response to
+// one, to avoid a loop.
+func handleParseError(m *mme.MME, conn mme.NasWriter, proc s1ap.ProcedureCode, err error) {
+	logger.MmeLog.Warn("failed to decode S1AP message",
+		zap.Int("procedure-code", int(proc)),
+		zap.Error(err))
+
+	crit := s1ap.CriticalityReject
+	trigger := s1ap.TriggeringInitiatingMessage
+
+	emitErrorIndication(m, conn, &s1ap.ErrorIndication{
+		Cause: &s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolTransferSyntaxError},
+		CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{
+			ProcedureCode:        &proc,
+			TriggeringMessage:    &trigger,
+			ProcedureCriticality: &crit,
+		},
+	})
+}
+
+// emitErrorIndication marshals and sends an ERROR INDICATION to the eNB.
+func emitErrorIndication(m *mme.MME, conn mme.NasWriter, ind *s1ap.ErrorIndication) {
 	b, err := ind.Marshal()
 	if err != nil {
 		logger.MmeLog.Error("failed to marshal Error Indication", zap.Error(err))
