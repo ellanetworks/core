@@ -66,7 +66,7 @@ type Radio struct {
 	Name          string
 	Conn          *sctp.SCTPConn
 	ConnectedAt   time.Time
-	lastSeenAt    atomic.Int64 // Unix nanoseconds; use GetLastSeenAt()/TouchLastSeen()
+	lastSeen      atomic.Int64 // Unix nanoseconds; use LastSeenAt()/TouchLastSeen()
 	SupportedTAIs []SupportedTAI
 	mu            sync.RWMutex     // protects RanUEs
 	RanUEs        map[int64]*RanUe // Key: AMF UE NGAP ID (unique and set for the UE's whole lifetime; the RAN UE NGAP ID is unassigned until a handover target is acknowledged)
@@ -108,7 +108,7 @@ func applyStatefulNasCleanup(ctx context.Context, ranUe *RanUe) {
 		return
 	}
 
-	switch ue.GetState() {
+	switch ue.State() {
 	case Registered:
 		ue.ResetMobileReachableTimer()
 	case Authentication, SecurityMode, ContextSetup:
@@ -147,12 +147,12 @@ func (r *Radio) FindUEByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 }
 
 func (r *Radio) TouchLastSeen() {
-	r.lastSeenAt.Store(time.Now().UnixNano())
+	r.lastSeen.Store(time.Now().UnixNano())
 }
 
-// GetLastSeenAt returns the last-seen timestamp. Safe for concurrent use.
-func (r *Radio) GetLastSeenAt() time.Time {
-	ns := r.lastSeenAt.Load()
+// LastSeenAt returns the last-seen timestamp. Safe for concurrent use.
+func (r *Radio) LastSeenAt() time.Time {
+	ns := r.lastSeen.Load()
 	if ns == 0 {
 		return time.Time{}
 	}
@@ -162,7 +162,7 @@ func (r *Radio) GetLastSeenAt() time.Time {
 
 // SetLastSeenAt sets the last-seen timestamp. Safe for concurrent use.
 func (r *Radio) SetLastSeenAt(t time.Time) {
-	r.lastSeenAt.Store(t.UnixNano())
+	r.lastSeen.Store(t.UnixNano())
 }
 
 // NodeID returns the RAN node identifier string regardless of radio type.

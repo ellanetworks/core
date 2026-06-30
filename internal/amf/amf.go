@@ -234,9 +234,9 @@ func (amf *AMF) FindUeContextBySupi(supi etsi.SUPI) (*UeContext, bool) {
 	return value, true
 }
 
-// GetUESnapshot atomically looks up the UE by SUPI and returns a
+// UESnapshot atomically looks up the UE by SUPI and returns a
 // point-in-time snapshot of its connection state.
-func (amf *AMF) GetUESnapshot(supi etsi.SUPI) (UESnapshot, bool) {
+func (amf *AMF) UESnapshot(supi etsi.SUPI) (UESnapshot, bool) {
 	ue, ok := amf.FindUeContextBySupi(supi)
 	if !ok {
 		return UESnapshot{}, false
@@ -389,7 +389,7 @@ func (amf *AMF) CountRegisteredSubscribers() int {
 	count := 0
 
 	for _, ue := range amf.UEs {
-		if ue.GetState() == Registered {
+		if ue.State() == Registered {
 			count++
 		}
 	}
@@ -456,9 +456,9 @@ func (amf *AMF) FindRanUeByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 	return nil
 }
 
-// GetNetworkFeatureSupport returns the 5GS network feature support config.
+// NetworkFeatureSupport returns the 5GS network feature support config.
 // If not configured, returns a zero-value struct with Enable set to true (the default).
-func (amf *AMF) GetNetworkFeatureSupport() NetworkFeatureSupport5GS {
+func (amf *AMF) NetworkFeatureSupport() NetworkFeatureSupport5GS {
 	if amf.NetworkFeatureSupport5GS != nil {
 		return *amf.NetworkFeatureSupport5GS
 	}
@@ -560,7 +560,7 @@ func (a *AMF) FreeOldGuti(ue *UeContext) {
 }
 
 func (amf *AMF) StmsiToGuti(ctx context.Context, buf [7]byte) (etsi.GUTI, error) {
-	operatorInfo, err := amf.GetOperatorInfo(ctx)
+	operatorInfo, err := amf.OperatorInfo(ctx)
 	if err != nil {
 		return etsi.InvalidGUTI, fmt.Errorf("could not get operator info: %v", err)
 	}

@@ -545,7 +545,7 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -618,8 +618,8 @@ func TestHandleRegistrationRequest_UEStateContextSetup_ResetToDeregistered(t *te
 		t.Fatalf("should not have sent a Downlink NAS Transport message")
 	}
 
-	if ue.GetState() != amf.Deregistered {
-		t.Fatalf("state should be deregistered, got: %v", ue.GetState())
+	if ue.State() != amf.Deregistered {
+		t.Fatalf("state should be deregistered, got: %v", ue.State())
 	}
 }
 
@@ -709,7 +709,7 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -785,7 +785,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(supi)
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -869,7 +869,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(supi)
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -949,7 +949,7 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(supi)
 	// Simulate MAC verification failure (amf.AMF has no valid security context)
-	ue.SetSecurityContextAvailableForTest(false)
+	ue.SetSecuredForTest(false)
 
 	// Build a registration request with a ciphered NASMessageContainer
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}

@@ -90,7 +90,7 @@ func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integri
 }
 
 func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.IdentityResponse, integrityVerified bool) error {
-	switch ue.GetState() {
+	switch ue.State() {
 	case amf.Authentication:
 		mobileIdentityContents := msg.GetMobileIdentityContents()
 
@@ -137,7 +137,7 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 			}
 		}
 	default:
-		return fmt.Errorf("state mismatch: receive Identity Response message in state %s", ue.GetState())
+		return fmt.Errorf("state mismatch: receive Identity Response message in state %s", ue.State())
 	}
 
 	return nil

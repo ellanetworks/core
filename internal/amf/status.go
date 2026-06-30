@@ -18,7 +18,7 @@ func (amf *AMF) IsSubscriberRegistered(supi etsi.SUPI) bool {
 		return false
 	}
 
-	return amfUE.GetState() == Registered
+	return amfUE.State() == Registered
 }
 
 // RadioNameForSubscriber returns the radio name for a registered subscriber,
@@ -57,7 +57,7 @@ func (amf *AMF) LastSeenAtForSubscriber(supi etsi.SUPI) time.Time {
 		return time.Time{}
 	}
 
-	return ue.LastSeenAtTime()
+	return ue.lastSeenTime()
 }
 
 // RegisteredSubscribersForRadio returns the IMSIs of all subscribers that are

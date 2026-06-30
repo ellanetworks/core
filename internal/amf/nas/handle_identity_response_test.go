@@ -396,7 +396,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 	ue.SetSupiForTest(supi)
 	ue.ForceState(amf.Authentication)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -491,7 +491,7 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 			ue.Pei = "testpei"
 			ue.ForceState(amf.ContextSetup)
 			ue.Tai = ue.RanUe().Tai
-			ue.SetSecurityContextAvailableForTest(true)
+			ue.SetSecuredForTest(true)
 			{
 				ng := ue.NgKsiForTest()
 				ng.Ksi = 1
@@ -586,7 +586,7 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 			ue.Pei = "testpei"
 			ue.ForceState(amf.ContextSetup)
 			ue.Tai = ue.RanUe().Tai
-			ue.SetSecurityContextAvailableForTest(true)
+			ue.SetSecuredForTest(true)
 			{
 				ng := ue.NgKsiForTest()
 				ng.Ksi = 1
@@ -624,8 +624,8 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 				t.Fatalf("should not have sent a Downlink NAS Transport message")
 			}
 
-			if ue.GetState() != amf.Deregistered {
-				t.Fatalf("ue should have transitioned to amf.Deregistered state, but got: %v", ue.GetState())
+			if ue.State() != amf.Deregistered {
+				t.Fatalf("ue should have transitioned to amf.Deregistered state, but got: %v", ue.State())
 			}
 		})
 	}

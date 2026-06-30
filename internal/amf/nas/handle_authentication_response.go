@@ -21,7 +21,7 @@ import (
 
 // TS 24.501
 func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.AuthenticationResponse) error {
-	if state := ue.GetState(); state != amf.Authentication {
+	if state := ue.State(); state != amf.Authentication {
 		return fmt.Errorf("state mismatch: receive amf.Authentication Response message in state %s", state)
 	}
 

@@ -156,7 +156,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
+	operatorInfo, err := amfInstance.OperatorInfo(ctx)
 	if err != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Error("Could not get operator info", zap.Error(err))
 		return

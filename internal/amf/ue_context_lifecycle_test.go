@@ -138,7 +138,7 @@ func TestUeContext_RotateContext(t *testing.T) {
 
 	ue := amf.NewUeContext()
 	conn := ue.AttachNasConnection(ranUe)
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 
 	oldCtx := ue.Ctx()
 
@@ -160,7 +160,7 @@ func TestUeContext_RotateContext(t *testing.T) {
 		t.Error("NAS connection still set after RotateContext")
 	}
 
-	if ue.SecurityContextAvailableForTest() {
+	if ue.SecuredForTest() {
 		t.Error("security context not reset after RotateContext")
 	}
 }

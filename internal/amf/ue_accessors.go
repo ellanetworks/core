@@ -51,7 +51,7 @@ func (ue *UeContext) NextHopNCC() ([32]uint8, uint8) {
 	return ue.nh, ue.ncc
 }
 
-func (ue *UeContext) HasSecurityContext() bool {
+func (ue *UeContext) Secured() bool {
 	if ue == nil {
 		return false
 	}
@@ -62,7 +62,7 @@ func (ue *UeContext) HasSecurityContext() bool {
 	return ue.secured
 }
 
-func (ue *UeContext) SupiValue() etsi.SUPI {
+func (ue *UeContext) Supi() etsi.SUPI {
 	if ue == nil {
 		return etsi.SUPI{}
 	}
@@ -174,14 +174,14 @@ func (ue *UeContext) SetAbba(abba []uint8) {
 	ue.abba = abba
 }
 
-func (ue *UeContext) ClearSecurityContext() {
+func (ue *UeContext) ClearSecured() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
 	ue.secured = false
 }
 
-func (ue *UeContext) MarkSecurityContextAvailable() {
+func (ue *UeContext) MarkSecured() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 

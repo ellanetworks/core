@@ -174,7 +174,7 @@ func TestGetUESnapshot(t *testing.T) {
 
 	supi := newSUPI(t, "001010000000011")
 
-	_, ok := amfInstance.GetUESnapshot(supi)
+	_, ok := amfInstance.UESnapshot(supi)
 	if ok {
 		t.Fatal("expected no snapshot for missing UE")
 	}
@@ -186,7 +186,7 @@ func TestGetUESnapshot(t *testing.T) {
 		ue.SetLastSeenForTest(now, "")
 	})
 
-	snap, ok := amfInstance.GetUESnapshot(supi)
+	snap, ok := amfInstance.UESnapshot(supi)
 	if !ok {
 		t.Fatal("expected snapshot for existing UE")
 	}

@@ -140,7 +140,7 @@ func newValidUeContext() *amf.UeContext {
 	amfUe := amf.NewUeContext()
 	supi, _ := etsi.NewSUPIFromPrefixed("imsi-001010000000001")
 	amfUe.SetSupiForTest(supi)
-	amfUe.SetSecurityContextAvailableForTest(true)
+	amfUe.SetSecuredForTest(true)
 	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
 	amfUe.SetKamfForTest("0000000000000000000000000000000000000000000000000000000000000000")
 	amfUe.SetNHForTest(make([]byte, 32))
@@ -253,7 +253,7 @@ func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 	}
 
 	amfUe := amf.NewUeContext()
-	amfUe.SetSecurityContextAvailableForTest(false)
+	amfUe.SetSecuredForTest(false)
 	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: nasMessage.NasKeySetIdentifierNoKeyIsAvailable})
 	amfUe.Log = logger.AmfLog
 

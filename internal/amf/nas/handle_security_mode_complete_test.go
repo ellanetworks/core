@@ -187,7 +187,7 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 	}
 
 	ue.ForceState(amf.SecurityMode)
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	ue.SetNgKsiForTest(models.NgKsi{Ksi: 0})
 
 	ue.SetKgnbForTest([]uint8{})

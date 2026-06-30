@@ -13,8 +13,8 @@ import (
 )
 
 func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) error {
-	if ue.GetState() != amf.ContextSetup {
-		return fmt.Errorf("state mismatch: receive Registration Complete message in state %s", ue.GetState())
+	if ue.State() != amf.ContextSetup {
+		return fmt.Errorf("state mismatch: receive Registration Complete message in state %s", ue.State())
 	}
 
 	ue.TransitionTo(amf.Registered)

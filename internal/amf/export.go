@@ -250,10 +250,10 @@ func (amf *AMF) CountUEPDUSessions(supi etsi.SUPI) int {
 	return n
 }
 
-// GetUEPDUSessions returns the PDU sessions for a single UE identified by SUPI.
+// UEPDUSessions returns the PDU sessions for a single UE identified by SUPI.
 // Returns the PDU session exports and true if the UE exists, false otherwise.
 // Safe to call concurrently with normal AMF operation.
-func (amf *AMF) GetUEPDUSessions(supi etsi.SUPI) ([]PDUSessionExport, bool) {
+func (amf *AMF) UEPDUSessions(supi etsi.SUPI) ([]PDUSessionExport, bool) {
 	ue, ok := amf.FindUeContextBySupi(supi)
 	if !ok {
 		return nil, false
@@ -373,7 +373,7 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 			ImplicitDereg:       timerStatus(&ue.implicitDeregistrationTimer),
 		},
 		LastActivity: UELastActivityExport{
-			Timestamp: ue.LastSeenAtTime(),
+			Timestamp: ue.lastSeenTime(),
 			RadioNode: ue.LastSeenRadioName(),
 		},
 	}

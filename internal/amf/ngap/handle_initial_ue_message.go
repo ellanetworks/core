@@ -53,7 +53,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		if msg.FiveGSTMSI != nil {
 			logger.WithTrace(ctx, ranUe.Log).Debug("Receive 5G-S-TMSI")
 
-			operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
+			operatorInfo, err := amfInstance.OperatorInfo(ctx)
 			if err != nil {
 				logger.WithTrace(ctx, ranUe.Log).Error("Could not get operator info", zap.Error(err))
 				return

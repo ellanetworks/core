@@ -114,7 +114,7 @@ func sendServiceAccept(
 
 // TS 24501 5.6.1
 func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.ServiceRequest, integrityVerified bool) error {
-	state := ue.GetState()
+	state := ue.State()
 	if state != amf.Deregistered && state != amf.Registered {
 		return fmt.Errorf("state mismatch: receive Service Request message in state %s", state)
 	}
@@ -157,7 +157,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 		err := ue.DecryptUplinkContents(contents)
 		if err != nil {
-			ue.ClearSecurityContext()
+			ue.ClearSecured()
 		} else {
 			m := nas.NewMessage()
 			if err := m.GmmMessageDecode(&contents); err != nil {
@@ -180,7 +180,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	// #9 and the 5GMM-context and 5G NAS security context are left unchanged, so
 	// an unauthenticated message cannot tear down a genuine UE's security state.
 	if !ue.SecurityContextIsValid() || !integrityVerified {
-		ue.Log.Warn("No valid security context for service request", logger.SUPI(ue.SupiValue().String()))
+		ue.Log.Warn("No valid security context for service request", logger.SUPI(ue.Supi().String()))
 
 		amf.SendServiceReject(ctx, ranUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 
@@ -197,7 +197,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 	serviceType := msg.GetServiceTypeValue()
 
-	logger.WithTrace(ctx, logger.AmfLog).Debug("Handle Service Request", logger.SUPI(ue.SupiValue().String()), zap.String("serviceType", serviceTypeToString(serviceType)))
+	logger.WithTrace(ctx, logger.AmfLog).Debug("Handle Service Request", logger.SUPI(ue.Supi().String()), zap.String("serviceType", serviceTypeToString(serviceType)))
 
 	var (
 		reactivationResult, acceptPduSessionPsi *[16]bool
@@ -213,7 +213,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		ue.Log.Warn("emergency service is not supported")
 	}
 
-	operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
+	operatorInfo, err := amfInstance.OperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}

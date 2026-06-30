@@ -251,7 +251,7 @@ func TestHandoverRequired(t *testing.T) {
 	// Set up the UeContext with valid security context
 	amfUe := amf.NewUeContext()
 	amfUe.SetSupiForTest(supi)
-	amfUe.SetSecurityContextAvailableForTest(true)
+	amfUe.SetSecuredForTest(true)
 	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
 	amfUe.SetKamfForTest(kamfHex)
 	amfUe.SetNHForTest(make([]byte, 32))
@@ -437,7 +437,7 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 
 	// Create UeContext with invalid security context
 	amfUe := amf.NewUeContext()
-	amfUe.SetSecurityContextAvailableForTest(false)
+	amfUe.SetSecuredForTest(false)
 	amfUe.Log = logger.AmfLog
 
 	sourceNGAPSender := &FakeNGAPSender{}
@@ -539,7 +539,7 @@ func TestHandoverRequired_UnknownTarget(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 	amfUe.SetSupiForTest(supi)
-	amfUe.SetSecurityContextAvailableForTest(true)
+	amfUe.SetSecuredForTest(true)
 	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
 	amfUe.SetKamfForTest(kamfHex)
 	amfUe.SetNHForTest(make([]byte, 32))
@@ -664,7 +664,7 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 	amfUe.SetSupiForTest(supi)
-	amfUe.SetSecurityContextAvailableForTest(true)
+	amfUe.SetSecuredForTest(true)
 	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
 	amfUe.SetKamfForTest(kamfHex)
 	amfUe.SetNHForTest(make([]byte, 32))

@@ -54,7 +54,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	}
 
 	if !integrityVerified {
-		ue.ClearSecurityContext()
+		ue.ClearSecured()
 	}
 
 	// Supersession of concurrent amf.AMF-initiated procedures per TS 24.501.
@@ -130,7 +130,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		return errors.New("mobile identity 5GS is empty")
 	}
 
-	operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
+	operatorInfo, err := amfInstance.OperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
@@ -244,7 +244,7 @@ func acceptRegistrationUESecurityCapability(ue *amf.UeContext, received *nasType
 }
 
 func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nas.GmmMessage, integrityVerified bool) error {
-	state := ue.GetState()
+	state := ue.State()
 
 	switch state {
 	case amf.Deregistered, amf.Registered, amf.Authentication:

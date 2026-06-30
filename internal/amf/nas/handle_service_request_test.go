@@ -91,7 +91,7 @@ func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T)
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.SetSecurityContextAvailableForTest(false)
+	ue.SetSecuredForTest(false)
 
 	m := buildTestServiceRequest()
 
@@ -148,7 +148,7 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 
 	m := buildTestServiceRequest()
 
@@ -180,7 +180,7 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 
 	// TS 24.501: a service request failing the integrity check is
 	// rejected with cause #9 and the 5G NAS security context is kept unchanged.
-	if !ue.SecurityContextAvailableForTest() {
+	if !ue.SecuredForTest() {
 		t.Fatalf("security context must be kept unchanged on a mac-failed service request (TS 24.501)")
 	}
 }
@@ -212,7 +212,7 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -351,7 +351,7 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 
 	ue.NasConn().T3513.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 
@@ -424,7 +424,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 	ue.NasConn().T3565.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -511,7 +511,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 	ue.NasConn().T3565.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -607,7 +607,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 	ue.ForceState(amf.Registered)
 	ue.SetGutiForTest(oldguti)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -709,7 +709,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 	ue.ForceState(amf.Registered)
 	ue.SetGutiForTest(mustTestGuti("001", "01", "cafe42", 0x00000001))
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -782,7 +782,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 	ue.ForceState(amf.Registered)
 	ue.SetGutiForTest(oldguti)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -924,7 +924,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.ForceState(amf.Registered)
 	ue.SetGutiForTest(oldguti)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -1071,7 +1071,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.ForceState(amf.Registered)
 	ue.SetGutiForTest(oldguti)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -1226,7 +1226,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	ue.ForceState(amf.Registered)
 	ue.SetGutiForTest(oldguti)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -1370,7 +1370,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 	ue.ForceState(amf.Registered)
 	ue.SetGutiForTest(oldguti)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -1551,7 +1551,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -1615,7 +1615,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1

@@ -72,7 +72,7 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 		return nil
 	}
 
-	operatorInfo, err := amf.GetOperatorInfo(ctx)
+	operatorInfo, err := amf.OperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
@@ -124,7 +124,7 @@ func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.
 		return fmt.Errorf("temporary reject handover ongoing")
 	}
 
-	if ue.GetState() != Registered {
+	if ue.State() != Registered {
 		return fmt.Errorf("ue is not in registered state")
 	}
 
@@ -332,7 +332,7 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 			return nil
 		}
 
-		operatorInfo, err := amf.GetOperatorInfo(ctx)
+		operatorInfo, err := amf.OperatorInfo(ctx)
 		if err != nil {
 			return fmt.Errorf("error getting operator info: %v", err)
 		}

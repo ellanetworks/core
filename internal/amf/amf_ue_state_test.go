@@ -21,7 +21,7 @@ func TestTransitionTo_AllowedTransitions(t *testing.T) {
 
 			ue.TransitionTo(to)
 
-			if got := ue.GetState(); got != to {
+			if got := ue.State(); got != to {
 				t.Errorf("TransitionTo(%s→%s): expected %s, got %s", from, to, to, got)
 			}
 		}
@@ -51,7 +51,7 @@ func TestTransitionTo_InvalidTransitionResetsToDeregistered(t *testing.T) {
 
 		ue.TransitionTo(tc.to)
 
-		if got := ue.GetState(); got != Deregistered {
+		if got := ue.State(); got != Deregistered {
 			t.Errorf("TransitionTo(%s→%s): expected Deregistered (fallback), got %s", tc.from, tc.to, got)
 		}
 	}
@@ -65,7 +65,7 @@ func TestTransitionTo_IdempotentSameState(t *testing.T) {
 
 		ue.TransitionTo(s)
 
-		if got := ue.GetState(); got != s {
+		if got := ue.State(); got != s {
 			t.Errorf("TransitionTo(%s→%s): expected idempotent %s, got %s", s, s, s, got)
 		}
 	}
@@ -85,7 +85,7 @@ func TestTransitionTo_FullRegistrationCycle(t *testing.T) {
 	for i, step := range steps {
 		ue.TransitionTo(step)
 
-		if got := ue.GetState(); got != step {
+		if got := ue.State(); got != step {
 			t.Fatalf("step %d: expected %s, got %s", i, step, got)
 		}
 	}
@@ -110,7 +110,7 @@ func TestTransitionTo_ConcurrentSafety(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			_ = ue.GetState()
+			_ = ue.State()
 		}()
 	}
 
@@ -119,12 +119,12 @@ func TestTransitionTo_ConcurrentSafety(t *testing.T) {
 
 func TestGetState_ReturnsCurrentState(t *testing.T) {
 	ue := NewUeContext()
-	if got := ue.GetState(); got != Deregistered {
+	if got := ue.State(); got != Deregistered {
 		t.Fatalf("new UE should be Deregistered, got %s", got)
 	}
 
 	ue.state = Registered
-	if got := ue.GetState(); got != Registered {
+	if got := ue.State(); got != Registered {
 		t.Fatalf("expected Registered, got %s", got)
 	}
 }

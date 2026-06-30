@@ -110,7 +110,7 @@ func (r *SessionReconciler) Reconcile() {
 	ues := make([]*UeContext, 0, len(r.amf.UEs))
 
 	for _, ue := range r.amf.UEs {
-		if ue.GetState() == Registered {
+		if ue.State() == Registered {
 			ues = append(ues, ue)
 		}
 	}

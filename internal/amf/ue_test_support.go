@@ -27,8 +27,8 @@ func (ue *UeContext) SupiForTest() etsi.SUPI     { return ue.supi }
 func (ue *UeContext) SetGutiForTest(g etsi.GUTI) { ue.guti = g }
 func (ue *UeContext) GutiForTest() etsi.GUTI     { return ue.guti }
 
-func (ue *UeContext) SetSecurityContextAvailableForTest(b bool) { ue.secured = b }
-func (ue *UeContext) SecurityContextAvailableForTest() bool     { return ue.secured }
+func (ue *UeContext) SetSecuredForTest(b bool) { ue.secured = b }
+func (ue *UeContext) SecuredForTest() bool     { return ue.secured }
 
 func (ue *UeContext) SetIntegrityAlgForTest(a uint8) { ue.integrityAlg = a }
 func (ue *UeContext) IntegrityAlgForTest() uint8     { return ue.integrityAlg }

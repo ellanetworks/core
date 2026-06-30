@@ -209,7 +209,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 	if ulNasTransport.DNN != nil && ulNasTransport.DNN.GetLen() > 0 {
 		dnn = ulNasTransport.GetDNN()
 	} else {
-		dnnResp, err := amfInstance.GetSubscriberDnn(ctx, ue.SupiValue(), snssai)
+		dnnResp, err := amfInstance.SubscriberDnn(ctx, ue.Supi(), snssai)
 		if err != nil {
 			return fmt.Errorf("failed to get subscriber data: %v", err)
 		}
@@ -217,7 +217,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 		dnn = dnnResp
 	}
 
-	smContextRef, errResponse, err := amfInstance.Smf.CreateSmContext(ctx, ue.SupiValue(), pduSessionID, dnn, snssai, smMessage)
+	smContextRef, errResponse, err := amfInstance.Smf.CreateSmContext(ctx, ue.Supi(), pduSessionID, dnn, snssai, smMessage)
 
 	// The SMF produced a 5GSM reject. Delivering it is a normal negative outcome,
 	// not a 5GMM protocol error, so return nil (TS 24.501).
@@ -257,8 +257,8 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 }
 
 func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.ULNASTransport, integrityVerified bool) error {
-	if ue.GetState() != amf.Registered {
-		return fmt.Errorf("expected UE to be in state %s during UL NAS Transport, instead it was %s", amf.Registered, ue.GetState())
+	if ue.State() != amf.Registered {
+		return fmt.Errorf("expected UE to be in state %s during UL NAS Transport, instead it was %s", amf.Registered, ue.State())
 	}
 
 	if !integrityVerified {

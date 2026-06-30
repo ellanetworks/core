@@ -128,7 +128,7 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *FakeNGAPSender, *F
 	ue.SetSupiForTest(supi)
 	ue.Pei = "imei-490154203237518"
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -345,7 +345,7 @@ func TestMobilityReg_GetSubscriberProfileError(t *testing.T) {
 
 	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err == nil {
-		t.Fatal("expected error for GetSubscriberProfile failure, got nil")
+		t.Fatal("expected error for SubscriberProfile failure, got nil")
 	}
 
 	const wantPrefix = "error getting subscriber profile:"
@@ -872,7 +872,7 @@ func TestMobilityReg_NoUeContextRequest_EmptySuList_DownlinkNasTransport(t *test
 }
 
 // multiSliceDB returns multiple policies spanning two different slices,
-// causing GetSubscriberProfile to return a multi-element AllowedNssai.
+// causing SubscriberProfile to return a multi-element AllowedNssai.
 type multiSliceDB struct {
 	Operator *db.Operator
 }
@@ -968,7 +968,7 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 	ue.SetSupiForTest(supi)
 	ue.Pei = "imei-490154203237518"
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1

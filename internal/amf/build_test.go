@@ -18,7 +18,7 @@ func buildTestUE(t *testing.T) *amf.UeContext {
 	t.Helper()
 
 	ue := amf.NewUeContext()
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	ue.SetKnasEncForTest(key)

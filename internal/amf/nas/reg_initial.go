@@ -27,12 +27,12 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return fmt.Errorf("error updating security context: %v", err)
 	}
 
-	operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
+	operatorInfo, err := amfInstance.OperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	subscriberProfile, err := amfInstance.GetSubscriberProfile(ctx, ue.SupiValue())
+	subscriberProfile, err := amfInstance.SubscriberProfile(ctx, ue.Supi())
 	if err != nil {
 		return fmt.Errorf("error getting subscriber profile: %v", err)
 	}
@@ -94,7 +94,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 	// earlier 5GMM context for this subscriber. The old context is deleted only
 	// here, once the new registration is authenticated, so that an
 	// unauthenticated registration on a fresh context never tears it down.
-	if existing, ok := amfInstance.FindUeContextBySupi(ue.SupiValue()); ok && existing != ue {
+	if existing, ok := amfInstance.FindUeContextBySupi(ue.Supi()); ok && existing != ue {
 		amfInstance.DeregisterAndRemoveUeContext(ctx, existing)
 	}
 

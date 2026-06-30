@@ -51,7 +51,7 @@ type OperatorInfo struct {
 	Guami *models.Guami
 }
 
-func (amf *AMF) GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
+func (amf *AMF) OperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 	ctx, span := tracer.Start(ctx, "amf/get_operator_info")
 	defer span.End()
 
@@ -139,7 +139,7 @@ type SubscriberProfile struct {
 	Allow5G bool
 }
 
-func (amf *AMF) GetSubscriberProfile(ctx context.Context, supi etsi.SUPI) (*SubscriberProfile, error) {
+func (amf *AMF) SubscriberProfile(ctx context.Context, supi etsi.SUPI) (*SubscriberProfile, error) {
 	ctx, span := tracer.Start(ctx, "amf/get_subscriber_profile",
 		trace.WithAttributes(
 			attribute.String("supi", supi.String()),
@@ -205,7 +205,7 @@ func (amf *AMF) GetSubscriberProfile(ctx context.Context, supi etsi.SUPI) (*Subs
 	}, nil
 }
 
-func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai) (string, error) {
+func (amf *AMF) SubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai) (string, error) {
 	if snssai == nil {
 		return "", fmt.Errorf("snssai is nil")
 	}
@@ -291,10 +291,10 @@ var integrityNameToAlg = map[string]uint8{
 	"AES":    security.AlgIntegrity128NIA2,
 }
 
-// GetSecurityAlgorithms loads the configured NAS security algorithm preference
+// SecurityAlgorithms loads the configured NAS security algorithm preference
 // order from the database and returns them as uint8 slices ready for
 // SelectSecurityAlg.
-func (amf *AMF) GetSecurityAlgorithms(ctx context.Context) ([]uint8, []uint8, error) {
+func (amf *AMF) SecurityAlgorithms(ctx context.Context) ([]uint8, []uint8, error) {
 	ctx, span := tracer.Start(ctx, "amf/get_security_algorithms")
 	defer span.End()
 

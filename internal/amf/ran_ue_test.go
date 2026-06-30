@@ -155,8 +155,8 @@ func TestRemoveAllUeInRan_MidAuthentication_Deregisters(t *testing.T) {
 
 	radio.RemoveAllUeInRan(context.Background())
 
-	if ue.GetState() != amf.Deregistered {
-		t.Errorf("state = %s, want Deregistered", ue.GetState())
+	if ue.State() != amf.Deregistered {
+		t.Errorf("state = %s, want Deregistered", ue.State())
 	}
 }
 
@@ -167,8 +167,8 @@ func TestRemoveAllUeInRan_MidSecurityMode_Deregisters(t *testing.T) {
 
 	radio.RemoveAllUeInRan(context.Background())
 
-	if ue.GetState() != amf.Deregistered {
-		t.Errorf("state = %s, want Deregistered", ue.GetState())
+	if ue.State() != amf.Deregistered {
+		t.Errorf("state = %s, want Deregistered", ue.State())
 	}
 }
 
@@ -179,8 +179,8 @@ func TestRemoveAllUeInRan_MidContextSetup_Deregisters(t *testing.T) {
 
 	radio.RemoveAllUeInRan(context.Background())
 
-	if ue.GetState() != amf.Deregistered {
-		t.Errorf("state = %s, want Deregistered", ue.GetState())
+	if ue.State() != amf.Deregistered {
+		t.Errorf("state = %s, want Deregistered", ue.State())
 	}
 }
 
@@ -194,8 +194,8 @@ func TestRemoveAllUeInRan_Registered_StaysRegistered(t *testing.T) {
 
 	radio.RemoveAllUeInRan(context.Background())
 
-	if ue.GetState() != amf.Registered {
-		t.Errorf("state = %s, want Registered (mobile reachable timer running)", ue.GetState())
+	if ue.State() != amf.Registered {
+		t.Errorf("state = %s, want Registered (mobile reachable timer running)", ue.State())
 	}
 }
 
@@ -205,8 +205,8 @@ func TestRemoveAllUeInRan_Deregistered_NoAction(t *testing.T) {
 
 	radio.RemoveAllUeInRan(context.Background())
 
-	if ue.GetState() != amf.Deregistered {
-		t.Errorf("state = %s, want Deregistered", ue.GetState())
+	if ue.State() != amf.Deregistered {
+		t.Errorf("state = %s, want Deregistered", ue.State())
 	}
 }
 

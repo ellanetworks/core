@@ -71,7 +71,7 @@ type UeContext struct {
 	Location models.UserLocation
 	Tai      models.Tai
 	// Updated lock-free on every UE-specific NGAP message (hot path).
-	lastSeenAt    atomic.Int64 // Unix nanoseconds; use LastSeenAtTime()/TouchLastSeen()
+	lastSeen      atomic.Int64 // Unix nanoseconds; use lastSeenTime()/TouchLastSeen()
 	lastSeenRadio atomic.Pointer[string]
 	ranUe         *RanUe
 
@@ -237,7 +237,7 @@ func (ue *UeContext) RanUe() *RanUe {
 	return r
 }
 
-func (ue *UeContext) GetState() StateType {
+func (ue *UeContext) State() StateType {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -308,7 +308,7 @@ func (ue *UeContext) AttachRanUe(ranUe *RanUe) {
 		}
 	}
 
-	ue.lastSeenAt.Store(time.Now().UnixNano())
+	ue.lastSeen.Store(time.Now().UnixNano())
 
 	if ranUe.radio != nil {
 		name := ranUe.radio.Name
@@ -389,17 +389,17 @@ func (ue *UeContext) integrityAlgName() string {
 // TouchLastSeen updates the UE's last-seen timestamp and radio name lock-free —
 // it is on the uplink hot path (every UE-specific NGAP message).
 func (ue *UeContext) TouchLastSeen(radioName string) {
-	ue.lastSeenAt.Store(time.Now().UnixNano())
+	ue.lastSeen.Store(time.Now().UnixNano())
 
 	if radioName != "" {
 		ue.lastSeenRadio.Store(&radioName)
 	}
 }
 
-// LastSeenAtTime returns the UE's most recent last-seen time, or the zero time
+// lastSeenTime returns the UE's most recent last-seen time, or the zero time
 // if it has never been seen. Safe for concurrent use.
-func (ue *UeContext) LastSeenAtTime() time.Time {
-	ns := ue.lastSeenAt.Load()
+func (ue *UeContext) lastSeenTime() time.Time {
+	ns := ue.lastSeen.Load()
 	if ns == 0 {
 		return time.Time{}
 	}
@@ -419,7 +419,7 @@ func (ue *UeContext) LastSeenRadioName() string {
 
 // SetLastSeenForTest sets the UE's last-seen time and radio. For tests only.
 func (ue *UeContext) SetLastSeenForTest(t time.Time, radio string) {
-	ue.lastSeenAt.Store(t.UnixNano())
+	ue.lastSeen.Store(t.UnixNano())
 
 	if radio != "" {
 		ue.lastSeenRadio.Store(&radio)
@@ -448,7 +448,7 @@ func (ue *UeContext) Snapshot() UESnapshot {
 		Pei:                ue.Pei,
 		CipheringAlgorithm: ue.cipheringAlgName(),
 		IntegrityAlgorithm: ue.integrityAlgName(),
-		LastSeenAt:         ue.LastSeenAtTime(),
+		LastSeenAt:         ue.lastSeenTime(),
 		LastSeenRadio:      ue.LastSeenRadioName(),
 	}
 

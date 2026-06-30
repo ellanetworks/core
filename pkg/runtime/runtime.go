@@ -720,7 +720,7 @@ func closeAMF(ctx context.Context, amfInstance *amf.AMF, srv *amfsctp.Server) {
 	// Use a short dedicated timeout for the DB query so it doesn't
 	// consume the caller's full shutdown budget.
 	queryCtx, queryCancel := context.WithTimeout(ctx, 2*time.Second)
-	operatorInfo, err := amfInstance.GetOperatorInfo(queryCtx)
+	operatorInfo, err := amfInstance.OperatorInfo(queryCtx)
 
 	queryCancel()
 

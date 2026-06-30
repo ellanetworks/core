@@ -281,13 +281,13 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 		securityModeCommand.SetHDP(0)
 	}
 
-	ue.MarkSecurityContextAvailable()
+	ue.MarkSecured()
 
 	m.SecurityModeCommand = securityModeCommand
 
 	payload, err := ue.EncodeNASMessage(m)
 	if err != nil {
-		ue.ClearSecurityContext()
+		ue.ClearSecured()
 		return nil, err
 	}
 
@@ -388,7 +388,7 @@ func BuildRegistrationAccept(
 		registrationAccept.AllowedNSSAI.SetSNSSAIValue(buf)
 	}
 
-	nfs := amfInstance.GetNetworkFeatureSupport()
+	nfs := amfInstance.NetworkFeatureSupport()
 	if nfs.Enable {
 		registrationAccept.NetworkFeatureSupport5GS = nasType.NewNetworkFeatureSupport5GS(nasMessage.RegistrationAcceptNetworkFeatureSupport5GSType)
 		registrationAccept.NetworkFeatureSupport5GS.SetLen(2)

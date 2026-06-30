@@ -222,7 +222,7 @@ func SendRegistrationAccept(
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_registration_accept",
 		trace.WithAttributes(
-			attribute.String("supi", ue.SupiValue().String()),
+			attribute.String("supi", ue.Supi().String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -327,7 +327,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_configuration_update_command",
 		trace.WithAttributes(
-			attribute.String("supi", amfUe.SupiValue().String()),
+			attribute.String("supi", amfUe.Supi().String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
