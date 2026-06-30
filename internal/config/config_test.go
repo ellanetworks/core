@@ -257,6 +257,79 @@ func TestValidConfigNoTLSSuccess(t *testing.T) {
 	}
 }
 
+func TestN2PortResolution(t *testing.T) {
+	config.CheckInterfaceExistsFunc = func(name string) (bool, error) { return true, nil }
+	config.GetInterfaceNameFunc = func(name string) (string, error) { return InterfaceName, nil }
+	config.GetVLANConfigForInterfaceFunc = func(name string) (*config.VlanConfig, error) { return nil, nil }
+
+	const tmpl = `logging:
+  system:
+    level: "info"
+    output: "stdout"
+  audit:
+    output: "stdout"
+db:
+  path: "test"
+interfaces:
+  n2:
+%s
+  n3:
+    address: "33.33.33.3"
+  n6:
+    name: "enp6s0"
+  api:
+    address: "0.0.0.0"
+    port: 5002
+xdp:
+  attach-mode: "native"
+`
+
+	cases := []struct {
+		name         string
+		n2           string
+		wantNGAP     int
+		wantS1AP     int
+		wantErrParts string
+	}{
+		{"defaults when omitted", "    address: \"0.0.0.0\"", 38412, 36412, ""},
+		{"explicit ngap and s1ap", "    address: \"0.0.0.0\"\n    ngap-port: 1111\n    s1ap-port: 2222", 1111, 2222, ""},
+		{"deprecated port aliases ngap", "    address: \"0.0.0.0\"\n    port: 9999", 9999, 36412, ""},
+		{"port and ngap-port together", "    address: \"0.0.0.0\"\n    port: 9999\n    ngap-port: 8888", 0, 0, "interfaces.n2.port is deprecated"},
+		{"colliding ports", "    address: \"0.0.0.0\"\n    ngap-port: 5000\n    s1ap-port: 5000", 0, 0, "must differ"},
+		{"out of range", "    address: \"0.0.0.0\"\n    ngap-port: 70000", 0, 0, "between 1 and 65535"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := t.TempDir() + "/config.yaml"
+			if err := os.WriteFile(path, []byte(strings.Replace(tmpl, "%s", tc.n2, 1)), 0o600); err != nil {
+				t.Fatalf("write config: %v", err)
+			}
+
+			conf, err := config.Validate(path)
+			if tc.wantErrParts != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErrParts) {
+					t.Fatalf("expected error containing %q, got %v", tc.wantErrParts, err)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if conf.Interfaces.N2.Port != tc.wantNGAP {
+				t.Errorf("NGAP port = %d, want %d", conf.Interfaces.N2.Port, tc.wantNGAP)
+			}
+
+			if conf.Interfaces.N2.S1APPort != tc.wantS1AP {
+				t.Errorf("S1AP port = %d, want %d", conf.Interfaces.N2.S1APPort, tc.wantS1AP)
+			}
+		})
+	}
+}
+
 func TestBadConfigFail(t *testing.T) {
 	cases := []struct {
 		Name               string

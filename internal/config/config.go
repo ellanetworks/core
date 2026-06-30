@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/vishvananda/netlink"
 	"gopkg.in/yaml.v2"
 )
@@ -18,6 +19,13 @@ import (
 const (
 	AttachModeNative  = "native"
 	AttachModeGeneric = "generic"
+)
+
+const (
+	// DefaultNGAPPort is the standard 5G N2 / NGAP SCTP port (3GPP TS 38.412).
+	DefaultNGAPPort = 38412
+	// DefaultS1APPort is the standard 4G S1-MME / S1AP SCTP port (3GPP TS 36.412).
+	DefaultS1APPort = 36412
 )
 
 // AddressFamily specifies which IP address family to return when resolving an interface IP.
@@ -65,9 +73,11 @@ type TLSYaml struct {
 }
 
 type N2InterfaceYaml struct {
-	Name    string `yaml:"name"`
-	Address string `yaml:"address"`
-	Port    int    `yaml:"port"`
+	Name     string `yaml:"name"`
+	Address  string `yaml:"address"`
+	Port     int    `yaml:"port"`
+	NGAPPort int    `yaml:"ngap-port"`
+	S1APPort int    `yaml:"s1ap-port"`
 }
 
 type N3InterfaceYaml struct {
@@ -143,9 +153,10 @@ type ConfigYAML struct {
 }
 
 type N2Interface struct {
-	Name    string
-	Address string
-	Port    int
+	Name     string
+	Address  string
+	Port     int
+	S1APPort int
 }
 
 type N3Interface struct {
@@ -397,7 +408,35 @@ func Validate(filePath string) (Config, error) {
 		config.Interfaces.N2.Address = n2Address
 	}
 
-	config.Interfaces.N2.Port = c.Interfaces.N2.Port
+	ngapPort := c.Interfaces.N2.NGAPPort
+	switch {
+	case c.Interfaces.N2.Port != 0 && ngapPort != 0:
+		return Config{}, errors.New("interfaces.n2.port is deprecated; set only interfaces.n2.ngap-port")
+	case c.Interfaces.N2.Port != 0:
+		logger.EllaLog.Warn("interfaces.n2.port is deprecated, use interfaces.n2.ngap-port")
+
+		ngapPort = c.Interfaces.N2.Port
+	case ngapPort == 0:
+		ngapPort = DefaultNGAPPort
+	}
+
+	s1apPort := c.Interfaces.N2.S1APPort
+	if s1apPort == 0 {
+		s1apPort = DefaultS1APPort
+	}
+
+	for label, p := range map[string]int{"interfaces.n2.ngap-port": ngapPort, "interfaces.n2.s1ap-port": s1apPort} {
+		if p < 1 || p > 65535 {
+			return Config{}, fmt.Errorf("%s must be between 1 and 65535", label)
+		}
+	}
+
+	if ngapPort == s1apPort {
+		return Config{}, errors.New("interfaces.n2.ngap-port and interfaces.n2.s1ap-port must differ")
+	}
+
+	config.Interfaces.N2.Port = ngapPort
+	config.Interfaces.N2.S1APPort = s1apPort
 
 	if c.Interfaces.API.Name != "" {
 		config.Interfaces.API.Name = apiInterfaceName

@@ -22,9 +22,6 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
-// DefaultS1MMEPort is the standard S1-MME SCTP port (TS 36.412).
-const DefaultS1MMEPort = 36412
-
 // NASHandler is the EMM/ESM NAS layer's entry surface, implemented in
 // internal/mme/nas and injected so the S1AP layer dispatches uplink NAS without
 // the kernel importing its layers (kernel ⊅ nas).

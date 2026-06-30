@@ -12,7 +12,6 @@ configs:
       interfaces:
         n2:
           address: "10.3.0.2"
-          port: 38412
         n3:
           name: "n3"
         n6:
