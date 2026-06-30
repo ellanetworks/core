@@ -27,13 +27,11 @@ const (
 	esmCauseInvalidPTIValue             uint8 = 81
 )
 
-// esmRequestHeaderCause validates the ESM header of a UE-requested message that
-// is not associated with a bearer context — a PDN Connectivity or PDN Disconnect
-// Request (TS 24.301 §7.3). The procedure transaction identity must be assigned
-// (1..254, not the unassigned 0 or reserved 255), and the header EPS bearer
-// identity must be "no EPS bearer identity assigned" (0). It returns the ESM
-// cause to reject with — #81 "invalid PTI value" or #43 "invalid EPS bearer
-// identity" — or 0 when the header is valid.
+// esmRequestHeaderCause validates the ESM header of a UE-requested message not
+// associated with a bearer context — a PDN Connectivity or PDN Disconnect Request
+// (TS 24.301 §7.3). The PTI must be assigned (1..254) and the header EPS bearer
+// identity must be 0 ("no EPS bearer identity assigned"). It returns the reject
+// cause #81 or #43, or 0 when the header is valid.
 func esmRequestHeaderCause(pti, headerEBI uint8) uint8 {
 	if pti == 0 || pti == 255 {
 		return esmCauseInvalidPTIValue
@@ -47,12 +45,8 @@ func esmRequestHeaderCause(pti, headerEBI uint8) uint8 {
 }
 
 // handlePDNConnectivityRequest opens an additional PDN connection (a second default
-// bearer to another APN) for a UE that is already EMM-REGISTERED (TS 24.301
-// §6.5.1; TS 23.401 §5.10.2). The UE names the data network in the Access Point
-// Name IE; the MME authorises it against the subscriber's profile, allocates an
-// EPS bearer identity, asks the anchor for a session, and sets up the radio leg
-// with an E-RAB SETUP REQUEST carrying the ACTIVATE DEFAULT EPS BEARER CONTEXT
-// REQUEST.
+// bearer to the APN the UE names) for an already EMM-REGISTERED UE, authorised
+// against the subscriber's profile (TS 24.301 §6.5.1; TS 23.401 §5.10.2).
 func handlePDNConnectivityRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
 	req, err := eps.ParsePDNConnectivityRequest(plain)
 	if err != nil {

@@ -10,11 +10,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// ensureDefaultPDN promotes the lowest surviving admitted PDN to the UE's default
-// when the attach-default PDN was released during a partial-admission handover, so
-// a registered UE always retains a default PDN connection (its EPS last-resort
-// connectivity, TS 23.401). A no-op when a default still exists or no admitted PDN
-// survives.
+// EnsureDefaultPDN promotes the lowest surviving admitted PDN to the UE's default
+// when a partial-admission handover released the attach-default PDN, so a registered
+// UE keeps EPS last-resort connectivity (TS 23.401).
 func EnsureDefaultPDN(ue *UeContext, admitted []AdmittedERAB) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -40,9 +38,9 @@ func EnsureDefaultPDN(ue *UeContext, admitted []AdmittedERAB) {
 	}
 }
 
-// handoverBearers snapshots the UE's PDN connections into the E-RABs To Be Setup
-// list of a HANDOVER REQUEST (TS 36.413 §9.1.5.4): each bearer's serving GW S1-U
-// uplink endpoint and QoS. It returns false when the UE has no usable bearer.
+// HandoverBearers snapshots the UE's PDN connections into the E-RABs To Be Setup
+// list of a HANDOVER REQUEST (TS 36.413 §9.1.5.4), reporting false when the UE has
+// no usable bearer.
 func HandoverBearers(ue *UeContext) ([]s1ap.ERABToBeSetupItemHOReq, bool) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

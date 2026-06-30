@@ -39,7 +39,6 @@ func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 	}
 
 	if !identityVerification(ue) {
-		// Request UE's SUCI by sending identity request
 		ue.Log.Debug("UE has no SUCI / SUPI - send identity request to UE")
 
 		amf.SendIdentityRequest(ctx, ranUe, nasMessage.MobileIdentity5GSTypeSuci)
@@ -49,7 +48,6 @@ func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 		return false, nil
 	}
 
-	// Check whether UE has SUCI and SUPI
 	ue.Log.Debug("UE has SUCI / SUPI")
 
 	if ue.SecurityContextIsValid() {

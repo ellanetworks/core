@@ -27,7 +27,7 @@ var nasSendTracer = otel.Tracer("ella-core/amf/nas/send")
 // signalling connection. A build failure is an invariant violation logged at
 // Error (the message is dropped, failing safe); a transport failure is logged at
 // Warn — delivery assurance is owned by the procedure's retransmission timer
-// (TS 24.501), not the caller. It mirrors the MME's void+log NAS send leaf.
+// (TS 24.501), not the caller.
 func sendGmm(ctx context.Context, ue *RanUe, spanName string, attrs []attribute.KeyValue, build func(*UeContext) ([]byte, error)) {
 	if ue == nil || ue.UeContext() == nil {
 		logger.AmfLog.Error("cannot send NAS message: ue or amf ue is nil", zap.String("message", spanName))

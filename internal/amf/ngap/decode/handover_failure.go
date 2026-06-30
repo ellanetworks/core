@@ -22,12 +22,10 @@ import (
 // 38.413 §9.2.3.3). AMFUENGAPID and Cause are mandatory-ignore;
 // CriticalityDiagnostics is optional-ignore. The procedure is class 1,
 // so the procedure-level criticality is "reject". A missing or malformed
-// AMF-UE-NGAP-ID yields a non-fatal report with a zero ID — the handler
-// will fail to locate the UE and emit an error indication. Duplicate
-// IEs follow a last-wins policy.
+// AMF-UE-NGAP-ID yields a non-fatal report with a zero ID. Duplicate IEs
+// follow a last-wins policy.
 //
-// CriticalityDiagnostics aliases the source PDU buffer; the handler
-// forwards it to the source gNB on HandoverPreparationFailure.
+// CriticalityDiagnostics aliases the source PDU buffer.
 func DecodeHandoverFailure(in *ngapType.HandoverFailure) (HandoverFailure, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeHandoverResourceAllocation,

@@ -17,9 +17,9 @@ func authenticateOrReject(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 	startAuthentication(m, ctx, ue)
 }
 
-// startAuthentication requests an EPS-AKA vector from the credential authority
-// and challenges the UE. A subscriber the authority cannot serve (e.g. an
-// unknown IMSI) is rejected with ATTACH REJECT #2.
+// startAuthentication challenges the UE with an EPS-AKA vector. A subscriber the
+// credential authority cannot serve (e.g. an unknown IMSI) is rejected with
+// ATTACH REJECT #2.
 func startAuthentication(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 	if err := sendAuthRequest(m, ctx, ue, "", ""); err != nil {
 		logger.MmeLog.Info("attach rejected: cannot authenticate subscriber",
@@ -28,9 +28,9 @@ func startAuthentication(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 	}
 }
 
-// sendAuthRequest obtains an EPS-AKA vector from the credential authority (the
-// resync params drive an AUTS re-synchronisation when set) and sends an
-// AUTHENTICATION REQUEST. It returns an error if no vector could be produced.
+// sendAuthRequest obtains an EPS-AKA vector from the credential authority and
+// sends an AUTHENTICATION REQUEST. A set resync pair drives an AUTS
+// re-synchronisation.
 func sendAuthRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, resyncAuts, resyncRand string) error {
 	op, err := m.OperatorPLMN(ctx)
 	if err != nil {

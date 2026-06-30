@@ -84,7 +84,6 @@ func buildNGSetupResponse(guami *models.Guami, snssaiList []models.Snssai, amfNa
 
 	nGSetupResponseIEs.List = append(nGSetupResponseIEs.List, ie)
 
-	// ServedGUAMIList
 	ie = ngapType.NGSetupResponseIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDPLMNSupportList
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -268,7 +267,6 @@ func buildErrorIndication(amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause
 }
 
 func buildRanConfigurationUpdateAcknowledge(criticalityDiagnostics *ngapType.CriticalityDiagnostics) ([]byte, error) {
-	// criticality ->from received node when received node can't comprehend the IE or missing IE
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
@@ -301,9 +299,6 @@ func buildRanConfigurationUpdateAcknowledge(criticalityDiagnostics *ngapType.Cri
 func buildRanConfigurationUpdateFailure(
 	cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) ([]byte, error) {
-	// criticality ->from received node when received node can't comprehend the IE or missing IE
-	// If the AMF cannot accept the update,
-	// it shall respond with a RAN CONFIGURATION UPDATE FAILURE message and appropriate cause value.
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentUnsuccessfulOutcome
@@ -357,7 +352,6 @@ func buildRanConfigurationUpdateFailure(
 func buildDownlinkRanConfigurationTransfer(
 	sONConfigurationTransfer *ngapType.SONConfigurationTransfer,
 ) ([]byte, error) {
-	// sONConfigurationTransfer = sONConfigurationTransfer from uplink Ran Configuration Transfer
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
@@ -388,8 +382,6 @@ func buildDownlinkRanConfigurationTransfer(
 	return ngap.Encoder(pdu)
 }
 
-// pduSessionResourceReleasedList: provided by AMF, and the transfer data is from SMF
-// criticalityDiagnostics: from received node when received not comprehended IE or missing IE
 func buildPathSwitchRequestFailure(
 	amfUeNgapID,
 	ranUeNgapID int64,
@@ -457,12 +449,7 @@ func buildPathSwitchRequestFailure(
 	return ngap.Encoder(pdu)
 }
 
-// An AMF shall be able to instruct other peer CP NFs, subscribed to receive such a notification,
-// that it will be unavailable on this AMF and its corresponding target AMF(s).
-// If CP NF does not subscribe to receive AMF unavailable notification, the CP NF may attempt
-// forwarding the transaction towards the old AMF and detect that the AMF is unavailable. When
-// it detects unavailable, it marks the AMF and its associated GUAMI(s) as unavailable.
-// Defined in 23.501 5.21.2.2.2
+// Notifies peer CP NFs that this AMF and its GUAMI(s) are unavailable (TS 23.501 §5.21.2.2.2).
 func buildAMFStatusIndication(unavailableGUAMIList ngapType.UnavailableGUAMIList) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
@@ -744,8 +731,6 @@ func buildHandoverCancelAcknowledge(amfUENGAPID int64, ranUENGAPID int64) ([]byt
 	return ngap.Encoder(pdu)
 }
 
-// pduSessionResourceModifyConfirmList: provided by AMF, and transfer data is return from SMF
-// pduSessionResourceFailedToModifyList: provided by AMF, and transfer data is return from SMF
 func buildPDUSessionResourceModifyConfirm(
 	amfUENGAPID int64,
 	ranUENGAPID int64,
@@ -860,8 +845,6 @@ func buildPDUSessionResourceModifyRequest(amfUENGAPID int64, ranUENGAPID int64, 
 	return ngap.Encoder(pdu)
 }
 
-// nasPDU: from nas layer
-// pduSessionResourceSetupRequestList: provided by AMF, and transfer data is from SMF
 func buildPDUSessionResourceSetupRequest(amfUENGAPID int64, ranUENGAPID int64, bitrateUplink string, bitrateDownlink string, nasPdu []byte, pduSessionResourceSetupRequestList ngapType.PDUSessionResourceSetupListSUReq) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
@@ -941,10 +924,6 @@ func buildPDUSessionResourceSetupRequest(amfUENGAPID int64, ranUENGAPID int64, b
 }
 
 func buildHandoverPreparationFailure(amfUENgapID int64, ranUENGAPID int64, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) ([]byte, error) {
-	// cause = initiate the Handover Cancel procedure with the appropriate value for the Cause IE.
-
-	// criticalityDiagnostics = criticalityDiagonstics IE in receiver node's error indication
-	// when received node can't comprehend the IE or missing IE
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentUnsuccessfulOutcome
@@ -1010,17 +989,9 @@ func buildHandoverPreparationFailure(amfUENgapID int64, ranUENGAPID int64, cause
 	return ngap.Encoder(pdu)
 }
 
-// AOI List is from SMF
-// The SMF may subscribe to the UE mobility event notification from the AMF
-// (e.g. location reporting, UE moving into or out of Area Of Interest) TS 23.502 4.3.2.2.1 Step.17
-// The Location Reporting Control message shall identify the UE for which reports are requested and
-// may include Reporting Type, Location Reporting Level, Area Of Interest and
-// Request Reference ID TS 23.502 4.10 LocationReportingProcedure
-// The AMF may request the NG-RAN location reporting with event reporting type
-// (e.g. UE location or UE presence in Area of Interest),
-// reporting mode and its related parameters (e.g. number of reporting) TS 23.501 5.4.7
-// Location Reference ID To Be Cancelled IE shall be present if
-// the Event Type IE is set to "Stop UE presence in the area of interest".
+// SMF-requested NG-RAN location reporting (TS 23.502 §4.10, TS 23.501 §5.4.7). The Location
+// Reference ID To Be Cancelled IE is present only when the Event Type is "Stop UE presence in
+// the area of interest".
 func buildLocationReportingControl(
 	amfueNgapID int64,
 	ranueNgapID int64,
@@ -1091,10 +1062,6 @@ func buildLocationReportingControl(
 	return ngap.Encoder(pdu)
 }
 
-// pduSessionResourceHandoverList: provided by amf and transfer is return from smf
-// pduSessionResourceToReleaseList: provided by amf and transfer is return from smf
-// criticalityDiagnostics = criticalityDiagonstics IE in receiver node's error indication
-// when received node can't comprehend the IE or missing IE
 func buildHandoverCommand(
 	amfUENGAPID int64,
 	ranUENGAPID int64,
@@ -1209,24 +1176,6 @@ func buildInitialContextSetupRequest(
 	pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq,
 	supportedGUAMI *models.Guami,
 ) ([]byte, error) {
-	// Old AMF: new amf should get old amf's amf name
-
-	// rrcInactiveTransitionReportRequest: configured by amf
-	// This IE is used to request the NG-RAN node to report or stop reporting to the 5GC
-	// when the UE enters or leaves RRC_INACTIVE state. (TS 38.413 9.3.1.91)
-
-	// accessType indicate amfUe send this msg for which accessType
-	// emergencyFallbackIndicator: configured by amf (TS 23.501 5.16.4.11)
-	// coreNetworkAssistanceInfo TS 23.501 5.4.6, 5.4.6.2
-
-	// Mobility Restriction List TS 23.501 5.3.4
-	// TS 23.501 5.3.4.1.1: For a given UE, the core network determines the Mobility restrictions
-	// based on UE subscription information.
-	// TS 38.413 9.3.1.85: This IE defines roaming or access restrictions for subsequent mobility action for
-	// which the NR-RAN provides information about the target of the mobility action towards
-	// the UE, e.g., handover, or for SCG selection during dual connectivity operation or for
-	// assigning proper RNAs. If the NG-RAN receives the Mobility Restriction List IE, it shall
-	// overwrite previously received mobility restriction information.
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
@@ -1266,9 +1215,7 @@ func buildInitialContextSetupRequest(
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 
-	// UE Aggregate Maximum Bit Rate (conditional: if pdu session resource setup)
-	// The subscribed UE-AMBR is a subscription parameter which is
-	// retrieved from UDM and provided to the (R)AN by the AMF
+	// UE Aggregate Maximum Bit Rate (conditional on PDU session resource setup)
 	if pduSessionResourceSetupRequestList != nil {
 		ie = ngapType.InitialContextSetupRequestIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDUEAggregateMaximumBitRate
@@ -1426,35 +1373,6 @@ func buildInitialContextSetupRequest(
 		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 	}
 
-	// Masked IMEISV (optional)
-	// TS 38.413 9.3.1.54; TS 23.003 6.2; TS 23.501 5.9.3
-	// last 4 digits of the SNR masked by setting the corresponding bits to 1.
-	// The first to fourth bits correspond to the first digit of the IMEISV,
-	// the fifth to eighth bits correspond to the second digit of the IMEISV, and so on
-	/*if amfUe.Pei != "" && strings.HasPrefix(amfUe.Pei, "imeisv") {
-		ie = ngapType.InitialContextSetupRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDMaskedIMEISV
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentMaskedIMEISV
-		ie.Value.MaskedIMEISV = new(ngapType.MaskedIMEISV)
-
-		imeisv := strings.TrimPrefix(amfUe.Pei, "imeisv-")
-		imeisvBytes, err := hex.DecodeString(imeisv)
-		if err != nil {
-			logger.AmfLog.Errorf("[Build Error] DecodeString imeisv error: %+v", err)
-		}
-
-		var maskedImeisv []byte
-		maskedImeisv = append(maskedImeisv, imeisvBytes[:5]...)
-		maskedImeisv = append(maskedImeisv, []byte{0xff, 0xff}...)
-		maskedImeisv = append(maskedImeisv, imeisvBytes[7])
-		ie.Value.MaskedIMEISV.Value = aper.BitString{
-			BitLength: 64,
-			Bytes:     maskedImeisv,
-		}
-		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
-	}*/
-
 	// NAS-PDU (optional)
 	if nasPdu != nil {
 		ie = ngapType.InitialContextSetupRequestIEs{}
@@ -1503,15 +1421,6 @@ func buildInitialContextSetupRequest(
 	return byteMsg, nil
 }
 
-// pduSessionResourceSwitchedList: provided by AMF, and the transfer data is from SMF
-// pduSessionResourceReleasedList: provided by AMF, and the transfer data is from SMF
-// newSecurityContextIndicator: if AMF has activated a new 5G NAS security context,
-// set it to true, otherwise set to false
-// coreNetworkAssistanceInformation: provided by AMF,
-// based on collection of UE behaviour statistics and/or other available
-// information about the expected UE behaviour. TS 23.501 5.4.6, 5.4.6.2
-// rrcInactiveTransitionReportRequest: configured by amf
-// criticalityDiagnostics: from received node when received not comprehended IE or missing IE
 func buildPathSwitchRequestAcknowledge(
 	amfUeNgapID int64,
 	ranUeNgapID int64,
@@ -1644,13 +1553,6 @@ func buildPathSwitchRequestAcknowledge(
 	return ngap.Encoder(pdu)
 }
 
-/*The PGW-C+SMF (V-SMF in the case of home-routed roaming scenario only) sends
-a Nsmf_PDUSession_CreateSMContext Response(N2 SM Information (PDU Session ID, cause code)) to the AMF.*/
-// Cause is from SMF
-// pduSessionResourceSetupList provided by AMF, and the transfer data is from SMF
-// sourceToTargetTransparentContainer is received from S-RAN
-// nsci: new security context indicator, if amfUe has updated security context,
-// set nsci to true, otherwise set to false
 func buildHandoverRequest(
 	amfUeNgapID int64,
 	targetUEHandoverType ngapType.HandoverType,

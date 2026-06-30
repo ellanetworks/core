@@ -38,7 +38,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	// Advance the FSM hoPrepared→hoCommitting; an out-of-order Handover Notify (no
 	// prepared handover) does not match and is dropped before the user plane is
-	// switched. The context is ended below in lockstep with End(N2Handover).
+	// switched.
 	if !amfUe.MarkHandoverCommitting() {
 		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Notify with no prepared handover; dropping")
 		return

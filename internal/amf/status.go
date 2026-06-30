@@ -42,13 +42,12 @@ func (amf *AMF) RadioNameForSubscriber(supi etsi.SUPI) string {
 	return ue.ranUe.radio.Name
 }
 
-// LastSeenAtForSubscriber returns the last-seen timestamp for a registered
-// subscriber, or the zero time if not available.
+// LastSeenAtForSubscriber returns the last-seen timestamp for a subscriber, or
+// the zero time if not available.
 //
-// Note: the AMF mutex is released before acquiring the UE mutex.  Between the
-// two locks the UE could deregister, so we may return a stale LastSeenAt for a
-// UE that has just left.  This is acceptable — the field is advisory and the
-// caller will get a zero time on the next poll once the UE is fully removed.
+// The AMF mutex is released before acquiring the UE mutex, so a UE that
+// deregisters between the two locks may yield a stale timestamp. The field is
+// advisory, and the next poll returns zero once the UE is fully removed.
 func (amf *AMF) LastSeenAtForSubscriber(supi etsi.SUPI) time.Time {
 	amf.mu.RLock()
 	ue, ok := amf.UEs[supi]

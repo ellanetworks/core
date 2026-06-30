@@ -25,13 +25,13 @@ type NasWriter interface {
 }
 
 // PdnConnection is one PDN connection: a default EPS bearer to an APN, its
-// negotiated addressing as allocated by the SMF+PGW-C anchor, and the flags that
-// serialise an in-flight reconfiguration (TS 24.301 §6.5). A UE holds one per
-// active APN, keyed by EPS bearer identity.
+// anchor-allocated addressing, and the flags serialising an in-flight
+// reconfiguration (TS 24.301 §6.5). A UE holds one per active APN, keyed by EPS
+// bearer identity.
 type PdnConnection struct {
 	Ebi          uint8
 	Apn          string
-	PdnType      uint8      // negotiated PDN type
+	PdnType      uint8
 	UeIP         netip.Addr // IPv4 address (for IPv4 / IPv4v6)
 	UeIPv6Prefix netip.Addr // /64 prefix base (for IPv6 / IPv4v6)
 	UeIPv6IID    [8]byte    // SLAAC interface identifier sent to the UE
@@ -54,7 +54,7 @@ type PdnConnection struct {
 	Deactivating bool
 	// Disconnecting marks a deactivation triggered by a UE PDN disconnect: on the
 	// DEACTIVATE ACCEPT only this PDN connection is released, leaving the UE
-	// connected, rather than the whole UE being re-attached (TS 24.301 §6.5.2).
+	// connected (TS 24.301 §6.5.2).
 	Disconnecting bool
 	// Modifying is set while a bearer modification (in-place DNS and/or Session-AMBR
 	// update) is in flight, so a duplicate reconcile does not re-send it. The
@@ -95,13 +95,11 @@ type S1Conn struct {
 	// bearers).
 	BearersUp bool
 
-	// secureExchangeEstablished records that secure exchange of NAS messages has
-	// been established on this connection (a NAS message has been successfully
-	// integrity-checked, or the connection was created by a verified resume).
-	// Once set, TS 24.301 §4.4.4.3 requires discarding any further message that
-	// is not integrity protected or fails the check. It is per-connection (the
-	// spec scopes it "for the NAS signalling connection"), matching the 5G AMF's
-	// ActiveNasConnection.secureExchangeEstablished.
+	// secureExchangeEstablished records that secure NAS exchange is established on
+	// this connection (a message integrity-checked, or a verified resume). Once
+	// set, TS 24.301 §4.4.4.3 requires discarding any further message that is not
+	// integrity protected or fails the check. Per-connection, as the spec scopes
+	// it to the NAS signalling connection.
 	secureExchangeEstablished bool
 
 	// TauReleaseOnComplete defers the S1 release of a no-active TAU until the
@@ -111,12 +109,10 @@ type S1Conn struct {
 	releasing bool
 
 	// EMM common-procedure guard (TS 24.301: T3450/T3460/T3470). EMM common and
-	// specific procedures are mutually exclusive (one at a time), so a single guard
-	// suffices for them. The retransmitted message and abort policy are captured in
-	// the guard's callbacks at arm time; the guard invalidates a callback whose
-	// firing races a release or re-arm. ESM bearer procedures are guarded
-	// per-bearer on PdnConnection, since they run on the independent ESM sublayer
-	// and one can be outstanding per bearer concurrently with each other and EMM.
+	// specific procedures are mutually exclusive, so a single guard suffices; it
+	// invalidates a callback whose firing races a release or re-arm. ESM bearer
+	// procedures are guarded per-bearer on PdnConnection, running on the
+	// independent ESM sublayer concurrently with each other and EMM.
 	nasGuard guard.Guard
 }
 
@@ -239,13 +235,11 @@ func (ue *UeContext) lastSeenTime() time.Time {
 	return time.Unix(0, ns)
 }
 
-// SetIMSI records the UE's IMSI (under ue.mu, so a concurrent lookupUeByIMSI
-// scan never reads it mid-write) so authentication and subscriber-data lookups
-// can use it. It deliberately does NOT index the UE by IMSI or supersede a prior
-// context for the same subscriber — that happens only once the attach is
-// authenticated, in commitUEIdentity. Deferring the supersede keeps an
-// unauthenticated attach citing a victim's (cleartext) IMSI from tearing down
-// the victim's context (TS 24.301 §4.4.4.3).
+// SetIMSI records the UE's IMSI under ue.mu (so a concurrent lookupUeByIMSI scan
+// never reads it mid-write). It does not index the UE by IMSI or supersede a
+// prior context — that waits until the attach is authenticated, in
+// commitUEIdentity — so an unauthenticated attach citing a victim's cleartext
+// IMSI cannot tear down the victim's context (TS 24.301 §4.4.4.3).
 func (m *MME) SetIMSI(ue *UeContext, imsi string) {
 	ue.mu.Lock()
 	ue.imsi = imsi
@@ -253,11 +247,9 @@ func (m *MME) SetIMSI(ue *UeContext, imsi string) {
 }
 
 // CommitUEIdentity indexes the UE by IMSI and supersedes any prior context for
-// the same subscriber (a re-attach), so a subscriber maps to exactly one UE
-// context. It runs only after the attach is authenticated and accepted —
-// mirroring the 5G AMF, which adds the UE to its pool only once security is
-// established — so an unauthenticated attach cannot disturb a registered UE
-// (TS 24.301 §4.4.4.3).
+// the same subscriber, so a subscriber maps to exactly one context. It runs only
+// after the attach is authenticated and accepted, so an unauthenticated attach
+// cannot disturb a registered UE (TS 24.301 §4.4.4.3).
 func (m *MME) CommitUEIdentity(ue *UeContext, _ AuthProof) {
 	ue.mu.Lock()
 	imsi := ue.imsi
@@ -443,7 +435,7 @@ func (m *MME) NewConn(conn NasWriter, enbUEID s1ap.ENBUES1APID) *S1Conn {
 // which does not reuse a released identifier immediately (TS 36.413). The caller
 // holds m.mu. It returns false only when every identifier in the S1AP range is
 // concurrently in use — unreachable in practice — in which case the connection
-// is refused rather than colliding with a live one.
+// is refused, never colliding with a live one.
 func (m *MME) allocConnIDLocked() (uint32, bool) {
 	id, err := m.mmeUEIDs.Allocate()
 	if err != nil {

@@ -18,9 +18,9 @@ import (
 // }
 
 // DecodeNGReset validates an NGReset PDU body (3GPP TS 38.413 §9.2.6.10).
-// Cause is mandatory-ignore and ResetType is mandatory-reject. The
-// procedure is class 1, so the procedure-level criticality is "reject".
-// Duplicate IEs follow a last-wins policy.
+// Cause is mandatory-ignore and ResetType is mandatory-reject. Class 1
+// procedure, so procedure-level criticality is "reject". Duplicate IEs
+// follow a last-wins policy.
 func DecodeNGReset(in *ngapType.NGReset) (NGReset, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeNGReset,

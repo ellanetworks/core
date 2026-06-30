@@ -58,9 +58,8 @@ type SmContext struct {
 type UeContext struct {
 	mu sync.RWMutex
 
-	/* Gmm State */
 	state StateType
-	/* Ue Identity*/
+
 	PlmnID  models.PlmnID
 	Suci    string
 	supi    etsi.SUPI
@@ -69,17 +68,16 @@ type UeContext struct {
 	OldTmsi etsi.TMSI
 	guti    etsi.GUTI
 	OldGuti etsi.GUTI
-	/* User Location*/
+
 	Location models.UserLocation
 	Tai      models.Tai
-	// Last seen — updated lock-free on every UE-specific NGAP message (hot path),
-	// mirroring the 4G MME's atomic last-seen idiom.
+	// Updated lock-free on every UE-specific NGAP message (hot path).
 	lastSeenAt    atomic.Int64 // Unix nanoseconds; use LastSeenAtTime()/TouchLastSeen()
 	lastSeenRadio atomic.Pointer[string]
 	ranUe         *RanUe
 
 	// handover is the in-flight N2 handover FSM (nil when none); see handover.go.
-	// Guarded by mu. Mirrors the 4G MME's ue.handover.
+	// Guarded by mu.
 	handover *handoverContext
 
 	smf SmfSbi
@@ -100,7 +98,7 @@ type UeContext struct {
 	knasInt                  [16]uint8
 	knasEnc                  [16]uint8
 	kgnb                     []uint8
-	nh                       [32]uint8 // AS key-chain Next Hop, 256 bits (TS 33.501); fixed-size like the 4G MME's
+	nh                       [32]uint8 // AS key-chain Next Hop, 256 bits (TS 33.501)
 	ncc                      uint8
 	ulCount                  security.Count
 	dlCount                  security.Count
@@ -225,11 +223,9 @@ func (ue *UeContext) stopIdleTimers() {
 	ue.ImplicitDeregistrationTimer.Stop()
 }
 
-// RanUe returns the currently attached RanUe, or nil.
-// The read is synchronized via ue.Mutex so the returned pointer is a
-// consistent snapshot.  Callers must capture the result in a local
-// variable and reuse it — never call RanUe() twice in the same
-// code path, as the underlying pointer may change between calls.
+// RanUe returns the currently attached RanUe, or nil. Callers must capture the
+// result in a local and reuse it — never call RanUe() twice in the same code
+// path, as the underlying pointer may change between calls.
 func (ue *UeContext) RanUe() *RanUe {
 	if ue == nil {
 		return nil
@@ -330,7 +326,6 @@ func (ue *UeContext) AttachRanUe(ranUe *RanUe) {
 }
 
 func (ue *UeContext) AllocateRegistrationArea(supportedTais []models.Tai) {
-	// clear the previous registration area if need
 	if len(ue.RegistrationArea) > 0 {
 		ue.RegistrationArea = nil
 	}
@@ -360,8 +355,7 @@ func (ue *UeContext) SecurityContextIsValid() bool {
 	return ue.securityContextAvailable && ue.ngKsi.Ksi != nasMessage.NasKeySetIdentifierNoKeyIsAvailable
 }
 
-// cipheringAlgName returns the human-readable name for the negotiated NAS ciphering algorithm.
-// Must be called while holding ue.Mutex.
+// cipheringAlgName must be called while holding ue.Mutex.
 func (ue *UeContext) cipheringAlgName() string {
 	switch ue.cipheringAlg {
 	case security.AlgCiphering128NEA0:
@@ -377,8 +371,7 @@ func (ue *UeContext) cipheringAlgName() string {
 	}
 }
 
-// integrityAlgName returns the human-readable name for the negotiated NAS integrity algorithm.
-// Must be called while holding ue.Mutex.
+// integrityAlgName must be called while holding ue.Mutex.
 func (ue *UeContext) integrityAlgName() string {
 	switch ue.integrityAlg {
 	case security.AlgIntegrity128NIA0:
@@ -491,7 +484,6 @@ func (ue *UeContext) DerivateKamf(kseaf string) error {
 
 // Algorithm key Derivation function defined in TS 33.501 Annex A.9
 func (ue *UeContext) DerivateAlgKey() error {
-	// Security Key
 	P0 := []byte{security.NNASEncAlg}
 	L0 := ueauth.KDFLen(P0)
 	P1 := []byte{ue.cipheringAlg}
@@ -509,7 +501,6 @@ func (ue *UeContext) DerivateAlgKey() error {
 
 	copy(ue.knasEnc[:], kenc[16:32])
 
-	// Integrity Key
 	P0 = []byte{security.NNASIntAlg}
 	L0 = ueauth.KDFLen(P0)
 	P1 = []byte{ue.integrityAlg}
@@ -756,13 +747,11 @@ func (ue *UeContext) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	// Plain NAS message
 	if !ue.securityContextAvailable {
 		return msg.PlainNasEncode()
 	}
 
-	// Security protected NAS Message
-	// a security protected NAS message must be integrity protected, and ciphering is optional
+	// A security-protected NAS message must be integrity protected; ciphering is optional.
 	needCiphering := false
 
 	switch msg.SecurityHeaderType {
@@ -776,7 +765,6 @@ func (ue *UeContext) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 		return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeaderType)
 	}
 
-	// encode plain nas first
 	payload, err := msg.PlainNasEncode()
 	if err != nil {
 		return nil, fmt.Errorf("error encoding plain nas: %+v", err)
@@ -788,7 +776,6 @@ func (ue *UeContext) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 		}
 	}
 
-	// add sequece number
 	payload = append([]byte{ue.dlCount.SQN()}, payload[:]...)
 
 	mac32, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, ue.dlCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload)
@@ -796,14 +783,11 @@ func (ue *UeContext) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 		return nil, fmt.Errorf("MAC calcuate error: %+v", err)
 	}
 
-	// Add mac value
 	payload = append(mac32, payload[:]...)
 
-	// Add EPD and Security Type
 	msgSecurityHeader := []byte{msg.ProtocolDiscriminator, msg.SecurityHeaderType}
 	payload = append(msgSecurityHeader, payload[:]...)
 
-	// Increase DL Count
 	ue.dlCount.AddOne()
 
 	return payload, nil

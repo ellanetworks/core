@@ -388,7 +388,6 @@ func BuildRegistrationAccept(
 		registrationAccept.AllowedNSSAI.SetSNSSAIValue(buf)
 	}
 
-	// 5gs network feature support
 	nfs := amfInstance.GetNetworkFeatureSupport()
 	if nfs.Enable {
 		registrationAccept.NetworkFeatureSupport5GS = nasType.NewNetworkFeatureSupport5GS(nasMessage.RegistrationAcceptNetworkFeatureSupport5GSType)
@@ -426,14 +425,6 @@ func BuildRegistrationAccept(
 	registrationAccept.T3512Value.SetLen(1)
 	t3512 := nasConvert.GPRSTimer3ToNas(int(ue.T3512Value.Seconds()))
 	registrationAccept.T3512Value.Octet = t3512
-
-	// Temporary: commented this timer because UESIM is not supporting
-	/*if ue.T3502Value != 0 {
-		registrationAccept.T3502Value = nasType.NewT3502Value(nasMessage.RegistrationAcceptT3502ValueType)
-		registrationAccept.T3502Value.SetLen(1)
-		t3502 := nasConvert.GPRSTimer2ToNas(ue.T3502Value)
-		registrationAccept.T3502Value.SetGPRSTimer2Value(t3502)
-	}*/
 
 	if ue.UESpecificDRX != nasMessage.DRXValueNotSpecified {
 		registrationAccept.NegotiatedDRXParameters = nasType.NewNegotiatedDRXParameters(nasMessage.RegistrationAcceptNegotiatedDRXParametersType)

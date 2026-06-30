@@ -100,7 +100,6 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 			logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
 		}
 
-		// No valid security context exists for this UE, so delete the AMF UE context
 		if !amfUe.HasSecurityContext() {
 			logger.WithTrace(ctx, ranUe.Log).Info("No valid security context for UE, deleting AMF UE context", logger.SUPI(amfUe.SupiValue().String()))
 			amfInstance.DeregisterAndRemoveUeContext(ctx, amfUe)

@@ -21,10 +21,9 @@ const (
 
 // GlobalRANNodeID wraps the validated free5gc CHOICE. When Kind is not
 // Unknown, the variant pointer matching Kind and any nested
-// *aper.BitString are non-nil. Raw is a transitional accessor — like
-// UserLocationInformation.Raw, the bytes inside the returned pointer
-// alias the source PDU buffer and must be consumed within the
-// synchronous handler invocation.
+// *aper.BitString are non-nil. The bytes inside Raw alias the source
+// PDU buffer and must be consumed within the synchronous handler
+// invocation.
 type GlobalRANNodeID struct {
 	kind GlobalRANNodeKind
 	raw  *ngapType.GlobalRANNodeID
@@ -45,11 +44,9 @@ const (
 // UserLocationInformation wraps the free5gc CHOICE. When Kind is not
 // Unknown, raw and the variant pointer matching Kind are both non-nil.
 //
-// Raw is a transitional accessor for callers not yet migrated to typed
-// fields. Unlike NASPDU and FiveGTMSI, the bytes inside the returned
-// pointer are NOT copied out of the source PDU buffer; callers must
-// finish consuming the value within the synchronous handler invocation
-// driven by the dispatcher.
+// Unlike NASPDU and FiveGTMSI, the bytes inside Raw are not copied out
+// of the source PDU buffer; callers must finish consuming the value
+// within the synchronous handler invocation.
 type UserLocationInformation struct {
 	kind UserLocationKind
 	raw  *ngapType.UserLocationInformation
@@ -129,7 +126,7 @@ type PathSwitchRequest struct {
 //
 // TargetID, PDUSessionResourceItems and SourceToTargetTransparentContainer
 // alias the source PDU buffer; callers must finish consuming them within
-// the synchronous handler invocation driven by the dispatcher.
+// the synchronous handler invocation.
 type HandoverRequired struct {
 	AMFUENGAPID                        int64
 	RANUENGAPID                        int64
@@ -181,8 +178,7 @@ type UplinkNASTransport struct {
 // callers can distinguish "no IE" from "IE present, no items".
 //
 // PDUSessionResourceList aliases the source PDU buffer; callers must
-// finish consuming it within the synchronous handler invocation driven
-// by the dispatcher.
+// finish consuming it within the synchronous handler invocation.
 type UEContextReleaseRequest struct {
 	AMFUENGAPID            int64
 	RANUENGAPID            int64
@@ -233,7 +229,7 @@ type HandoverCancel struct {
 //
 // UERadioCapability and UERadioCapabilityForPaging alias the source
 // PDU buffer; callers must finish consuming them within the synchronous
-// handler invocation driven by the dispatcher.
+// handler invocation.
 type UERadioCapabilityInfoIndication struct {
 	AMFUENGAPID                int64
 	RANUENGAPID                int64
@@ -267,8 +263,7 @@ type NASNonDeliveryIndication struct {
 //
 // PDUSessionResourceFailedToSetupItems aliases the source PDU buffer
 // (PDUSessionResourceSetupUnsuccessfulTransfer octet strings); callers must
-// finish consuming it within the synchronous handler invocation driven by
-// the dispatcher.
+// finish consuming it within the synchronous handler invocation.
 type InitialContextSetupFailure struct {
 	AMFUENGAPID                          int64
 	RANUENGAPID                          int64
@@ -310,8 +305,7 @@ type HandoverFailure struct {
 // and PDUSessionResourceList are optional and may be nil.
 //
 // All non-scalar fields alias the source PDU buffer; callers must
-// finish consuming them within the synchronous handler invocation
-// driven by the dispatcher.
+// finish consuming them within the synchronous handler invocation.
 type UEContextReleaseComplete struct {
 	AMFUENGAPID                                *int64
 	RANUENGAPID                                *int64
@@ -385,7 +379,7 @@ type PDUSessionResourceModifyResponse struct {
 // AdmittedItems and FailedToSetupItems alias the source PDU buffer
 // (HandoverRequestAcknowledgeTransfer / HandoverResourceAllocationUnsuccessfulTransfer
 // octet strings); callers must finish consuming them within the synchronous
-// handler invocation driven by the dispatcher.
+// handler invocation.
 type HandoverRequestAcknowledge struct {
 	AMFUENGAPID                        *int64
 	RANUENGAPID                        *int64
@@ -402,8 +396,7 @@ type HandoverRequestAcknowledge struct {
 // skip the location update.
 //
 // UserLocationInformation aliases the source PDU buffer; callers must
-// finish consuming it within the synchronous handler invocation driven
-// by the dispatcher.
+// finish consuming it within the synchronous handler invocation.
 type HandoverNotify struct {
 	AMFUENGAPID             int64
 	RANUENGAPID             int64
@@ -421,8 +414,7 @@ type HandoverNotify struct {
 //
 // PDUSessionResourceReleasedItems aliases the source PDU buffer
 // (PDUSessionResourceNotifyReleasedTransfer octet strings); callers
-// must finish consuming it within the synchronous handler invocation
-// driven by the dispatcher.
+// must finish consuming it within the synchronous handler invocation.
 type PDUSessionResourceNotify struct {
 	AMFUENGAPID                     int64
 	RANUENGAPID                     int64
@@ -441,8 +433,7 @@ type PDUSessionResourceNotify struct {
 // optional-ignore.
 //
 // All pointer fields alias the source PDU buffer; callers must finish
-// consuming them within the synchronous handler invocation driven by
-// the dispatcher.
+// consuming them within the synchronous handler invocation.
 type LocationReport struct {
 	AMFUENGAPID                    int64
 	RANUENGAPID                    int64
@@ -459,8 +450,7 @@ type LocationReport struct {
 //
 // SONConfigurationTransferUL aliases the source PDU buffer (TargetRANNodeID,
 // SourceRANNodeID and XnTNLConfigurationInfo inside); callers must finish
-// consuming it within the synchronous handler invocation driven by the
-// dispatcher.
+// consuming it within the synchronous handler invocation.
 type UplinkRANConfigurationTransfer struct {
 	SONConfigurationTransferUL *ngapType.SONConfigurationTransfer
 }

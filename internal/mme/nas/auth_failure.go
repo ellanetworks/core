@@ -35,7 +35,6 @@ func handleAuthenticationFailure(m *mme.MME, ctx context.Context, ue *mme.UeCont
 
 		logger.MmeLog.Info("re-synchronising SQN, re-authenticating", zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)))
 
-		// The credential authority resyncs from AUTS and issues a fresh vector.
 		if err := sendAuthRequest(m, ctx, ue, hex.EncodeToString(resp.AUTS), hex.EncodeToString(ue.AuthVector.RAND[:])); err != nil {
 			logger.MmeLog.Warn("SQN re-synchronisation failed", zap.Error(err))
 			rejectAuthentication(m, ctx, ue)
@@ -44,8 +43,7 @@ func handleAuthenticationFailure(m *mme.MME, ctx context.Context, ue *mme.UeCont
 		return
 	}
 
-	// MAC failure, a repeated synch failure, or a bad AUTS: the UE attaches with
-	// its IMSI, so per TS 24.301 the network aborts with a reject.
+	// The UE attaches with its IMSI, so per TS 24.301 these cases abort with a reject.
 	rejectAuthentication(m, ctx, ue)
 }
 

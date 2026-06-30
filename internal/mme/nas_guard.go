@@ -38,8 +38,8 @@ func (m *MME) ArmNASGuard(ue *UeContext, name string, nas []byte) {
 }
 
 // ArmNASGuardAbortOnly arms the EMM guard in abort-only mode: exhausting the
-// retransmissions runs onAbort and leaves the UE connected rather than releasing
-// it. onAbort finalizes the procedure locally.
+// retransmissions runs onAbort, which finalizes the procedure locally and leaves
+// the UE connected.
 func (m *MME) ArmNASGuardAbortOnly(ue *UeContext, name string, nas []byte, onAbort func()) {
 	m.armNASGuardMode(ue, name, nas, onAbort)
 }
@@ -121,9 +121,9 @@ func (m *MME) StopESMGuard(p *PdnConnection) {
 }
 
 // retransmitNASGuard resends the outstanding downlink message on each guard
-// interval (TS 24.301). It no-ops if the connection it guarded is no longer the
-// UE's current one (released or replaced); the guard already suppresses a firing
-// that races a stop or re-arm.
+// interval (TS 24.301). It no-ops if the guarded connection is not the UE's
+// current one (released or replaced); the guard already suppresses a firing that
+// races a stop or re-arm.
 func (m *MME) retransmitNASGuard(ue *UeContext, conn *S1Conn, name string, pdu []byte, attempt int32) {
 	m.mu.Lock()
 
@@ -145,8 +145,8 @@ func (m *MME) retransmitNASGuard(ue *UeContext, conn *S1Conn, name string, pdu [
 // expireNASGuard runs once the retransmission limit is exhausted: the UE has
 // stopped answering. A critical procedure releases the UE; an abort-only one
 // (TS 24.301 §6.4.2.5, §6.4.4.5) runs its finalizer and leaves the UE connected.
-// It no-ops if the connection it guarded is no longer current, so a guard that
-// outlives its connection neither releases the UE nor runs its finalizer.
+// It no-ops if the guarded connection is not current, so a guard that outlives
+// its connection neither releases the UE nor runs its finalizer.
 func (m *MME) expireNASGuard(ue *UeContext, conn *S1Conn, name string, onAbort func()) {
 	m.mu.Lock()
 

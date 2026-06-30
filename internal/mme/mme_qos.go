@@ -29,10 +29,10 @@ type EpsQoS struct {
 	IPv6Pool      string
 	DNS           string // data-network DNS server, advertised to the UE via PCO
 	MTU           uint16
-	Allow4G       bool // whether the subscriber's profile permits EPS/4G access
+	Allow4G       bool
 }
 
-// resolveQoS maps the subscriber's profile → policy → data network to the EPS
+// ResolveQoS maps the subscriber's profile → policy → data network to the EPS
 // default-bearer QoS. With no S-NSSAI in 4G, the profile's first policy is the
 // default bearer.
 func ResolveQoS(m *MME, ctx context.Context, imsi string) (*EpsQoS, error) {

@@ -47,8 +47,7 @@ func handleESM(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte)
 
 // handleModifyBearerAccept commits the new bearer configuration once the UE accepts
 // the in-place modification (TS 24.301 §6.4.2.3). The accept's EPS bearer identity
-// selects the PDN connection, so a modification of an additional PDN commits to
-// the right bearer.
+// selects the PDN connection, so an additional PDN commits to the right bearer.
 func handleModifyBearerAccept(m *mme.MME, ue *mme.UeContext, plain []byte) {
 	p := m.DefaultPDN(ue)
 	if accept, err := eps.ParseModifyEPSBearerContextAccept(plain); err == nil {
@@ -109,10 +108,9 @@ func handleDeactivateBearerAccept(m *mme.MME, ctx context.Context, ue *mme.UeCon
 
 	m.StopESMGuard(p)
 
-	// Only reactivating the attach (first) PDN's default bearer detaches the UE so
-	// it re-attaches with the new configuration (TS 24.301 §6.4.4.2). A PDN
-	// disconnect, or a reactivation of an additional PDN, releases just that PDN
-	// connection and leaves the UE connected.
+	// Reactivating the attach PDN's default bearer detaches the UE so it re-attaches
+	// with the new configuration (TS 24.301 §6.4.4.2); any other case releases just
+	// that PDN connection and leaves the UE connected.
 	releaseOnly := ue.BearerReleaseOnly(p)
 
 	if releaseOnly {

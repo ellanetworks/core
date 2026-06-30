@@ -35,9 +35,6 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 	m.SendS1AP(ctx, ue, S1APProcedureUEContextReleaseCommand, b)
 }
 
-// handleUEContextReleaseRequest handles an eNB-initiated release (TS 36.413,
-// e.g. radio-link failure or inactivity) by issuing a release command.
-
 func (m *MME) releaseUEContextLocally(ue *UeContext, trigger string) {
 	registered, imsi, mmeUEID := m.releaseContextLockedPart(ue)
 

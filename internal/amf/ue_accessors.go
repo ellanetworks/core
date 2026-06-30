@@ -51,7 +51,6 @@ func (ue *UeContext) NextHopNCC() ([32]uint8, uint8) {
 	return ue.nh, ue.ncc
 }
 
-// HasSecurityContext reports whether a 5G NAS security context is available.
 func (ue *UeContext) HasSecurityContext() bool {
 	if ue == nil {
 		return false
@@ -63,7 +62,6 @@ func (ue *UeContext) HasSecurityContext() bool {
 	return ue.securityContextAvailable
 }
 
-// SupiValue returns the UE's SUPI.
 func (ue *UeContext) SupiValue() etsi.SUPI {
 	if ue == nil {
 		return etsi.SUPI{}
@@ -75,7 +73,6 @@ func (ue *UeContext) SupiValue() etsi.SUPI {
 	return ue.supi
 }
 
-// UESecCap returns the UE's 5G security capabilities.
 func (ue *UeContext) UESecCap() *nasType.UESecurityCapability {
 	if ue == nil {
 		return nil
@@ -87,7 +84,6 @@ func (ue *UeContext) UESecCap() *nasType.UESecurityCapability {
 	return ue.ueSecurityCapability
 }
 
-// Guti returns the UE's GUTI.
 func (ue *UeContext) Guti() etsi.GUTI {
 	if ue == nil {
 		return etsi.GUTI{}
@@ -99,7 +95,6 @@ func (ue *UeContext) Guti() etsi.GUTI {
 	return ue.guti
 }
 
-// NgKsi returns the UE's NAS key set identifier.
 func (ue *UeContext) NgKsi() models.NgKsi {
 	if ue == nil {
 		return models.NgKsi{}
@@ -123,7 +118,6 @@ func (ue *UeContext) Abba() []uint8 {
 	return ue.abba
 }
 
-// CipheringAlg returns the selected NAS ciphering algorithm.
 func (ue *UeContext) CipheringAlg() uint8 {
 	if ue == nil {
 		return 0
@@ -135,7 +129,6 @@ func (ue *UeContext) CipheringAlg() uint8 {
 	return ue.cipheringAlg
 }
 
-// IntegrityAlg returns the selected NAS integrity algorithm.
 func (ue *UeContext) IntegrityAlg() uint8 {
 	if ue == nil {
 		return 0
@@ -159,7 +152,6 @@ func (ue *UeContext) Kgnb() []uint8 {
 	return ue.kgnb
 }
 
-// SetSupi records the UE's SUPI.
 func (ue *UeContext) SetSupi(supi etsi.SUPI) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -167,7 +159,6 @@ func (ue *UeContext) SetSupi(supi etsi.SUPI) {
 	ue.supi = supi
 }
 
-// SetNgKsi records the UE's NAS key set identifier.
 func (ue *UeContext) SetNgKsi(ngKsi models.NgKsi) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -183,7 +174,6 @@ func (ue *UeContext) SetAbba(abba []uint8) {
 	ue.abba = abba
 }
 
-// ClearSecurityContext marks the 5G NAS security context as unavailable.
 func (ue *UeContext) ClearSecurityContext() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -191,7 +181,6 @@ func (ue *UeContext) ClearSecurityContext() {
 	ue.securityContextAvailable = false
 }
 
-// MarkSecurityContextAvailable marks the 5G NAS security context as available.
 func (ue *UeContext) MarkSecurityContextAvailable() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

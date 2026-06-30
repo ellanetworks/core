@@ -41,11 +41,8 @@ func buildDeregistrationRequest(ue *UeContext) ([]byte, error) {
 }
 
 // sendNetworkInitiatedDeregistration sends a UE-terminated DEREGISTRATION
-// REQUEST to a connected UE and arms T3522 (TS 24.501 §5.5.2.3): if the UE does
-// not answer with DEREGISTRATION ACCEPT the request is retransmitted, and on
-// exhaustion the UE context is removed regardless, so a silent UE cannot leak
-// the context. On a normal accept the context is removed by the
-// nw-initiated-deregistration UE context release.
+// REQUEST and arms T3522 (TS 24.501 §5.5.2.3): an unanswered request is
+// retransmitted, and on exhaustion the UE context is removed regardless.
 func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeContext) error {
 	ranUe := ue.RanUe()
 	if ranUe == nil {

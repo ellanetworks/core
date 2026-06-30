@@ -28,7 +28,6 @@ type UeContextExport struct {
 	RANConnection *RANConnectionExport        `json:"ran_connection,omitempty"`
 }
 
-// UEIdentityExport contains the identifiers for a UE.
 type UEIdentityExport struct {
 	Supi    string        `json:"supi"`
 	Pei     string        `json:"pei,omitempty"`
@@ -40,7 +39,6 @@ type UEIdentityExport struct {
 	Suci    string        `json:"suci,omitempty"`
 }
 
-// UEStateExport contains the current GMM and procedure state of a UE.
 type UEStateExport struct {
 	GMMState                 string   `json:"gmm_state"`
 	OngoingProcedures        []string `json:"ongoing_procedures"`
@@ -54,20 +52,17 @@ type UESecurityExport struct {
 	NgKsi              models.NgKsi `json:"ng_ksi"`
 }
 
-// UELocationExport contains location information for a UE.
 type UELocationExport struct {
 	Current          models.UserLocation `json:"current"`
 	Tai              models.Tai          `json:"tai"`
 	RegistrationArea []models.Tai        `json:"registration_area"`
 }
 
-// UESubscriptionExport contains subscription data for a UE.
 type UESubscriptionExport struct {
 	AllowedNssai []models.Snssai `json:"allowed_nssai,omitempty"`
 	Ambr         *models.Ambr    `json:"ambr,omitempty"`
 }
 
-// PDUSessionExport contains the export of a single PDU session.
 type PDUSessionExport struct {
 	Ref                            string            `json:"ref"`
 	PDUSessionID                   uint8             `json:"pdu_session_id"`
@@ -83,19 +78,16 @@ type PDUSessionExport struct {
 	PFCPLocalSEID                  *uint64           `json:"pfcp_local_seid,omitempty"`
 }
 
-// PolicyDataExport is the JSON-serializable QoS policy snapshot for a PDU session.
 type PolicyDataExport struct {
 	Ambr    *models.Ambr    `json:"Ambr,omitempty"`
 	QosData *models.QosData `json:"QosData,omitempty"`
 }
 
-// TunnelExport contains the AN tunnel endpoint information for a PDU session.
 type TunnelExport struct {
 	ANIPAddress string `json:"an_ip_address,omitempty"`
 	ANTEID      uint32 `json:"an_teid,omitempty"`
 }
 
-// UERegistrationExport contains registration procedure information for a UE.
 type UERegistrationExport struct {
 	Type                 uint8 `json:"type"`
 	IdentityTypeUsed     uint8 `json:"identity_type_used"`
@@ -103,14 +95,12 @@ type UERegistrationExport struct {
 	AuthFailureSyncTimes int   `json:"auth_failure_sync_times"`
 }
 
-// TimerStatusExport contains the status of a single 3GPP timer.
 type TimerStatusExport struct {
 	Active      bool  `json:"active"`
 	ExpireCount int32 `json:"expire_count,omitempty"`
 	MaxRetries  int32 `json:"max_retries,omitempty"`
 }
 
-// UETimersExport contains the status of all 3GPP timers for a UE.
 type UETimersExport struct {
 	T3512ValueSeconds   int64             `json:"t3512_value_seconds"`
 	T3502ValueSeconds   int64             `json:"t3502_value_seconds"`
@@ -124,13 +114,11 @@ type UETimersExport struct {
 	ImplicitDereg       TimerStatusExport `json:"implicit_deregistration"`
 }
 
-// UELastActivityExport contains the last-seen activity info for a UE.
 type UELastActivityExport struct {
 	Timestamp time.Time `json:"timestamp"`
 	RadioNode string    `json:"radio_node,omitempty"`
 }
 
-// RANConnectionExport contains a lightweight summary of the RAN UE connection.
 type RANConnectionExport struct {
 	RanUeNgapID int64      `json:"ran_ue_ngap_id"`
 	AmfUeNgapID int64      `json:"amf_ue_ngap_id"`
@@ -195,7 +183,6 @@ func copyUserLocation(loc models.UserLocation) models.UserLocation {
 	return out
 }
 
-// policyDataFromSMF converts an SMF Policy to the export struct.
 func policyDataFromSMF(src *smf.Policy) *PolicyDataExport {
 	if src == nil {
 		return nil
@@ -250,7 +237,6 @@ func (amf *AMF) ExportUEs(_ context.Context) ([]UeContextExport, error) {
 	return exports, nil
 }
 
-// CountUEPDUSessions returns the number of PDU sessions for a UE identified by SUPI.
 func (amf *AMF) CountUEPDUSessions(supi etsi.SUPI) int {
 	ue, ok := amf.FindUeContextBySupi(supi)
 	if !ok {
@@ -392,7 +378,6 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 		},
 	}
 
-	// Copy SmContextList refs while holding the UE lock.
 	smCopies := make([]smContextCopy, 0, len(ue.SmContextList))
 	for _, sc := range ue.SmContextList {
 		smCopies = append(smCopies, smContextCopy{
@@ -402,7 +387,6 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 		})
 	}
 
-	// Capture RAN UE info while holding the UE lock.
 	if ue.ranUe != nil {
 		rc := &RANConnectionExport{
 			RanUeNgapID: ue.ranUe.RanUeNgapID,
@@ -418,13 +402,12 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 
 	ue.mu.Unlock()
 
-	// Build PDU sessions OUTSIDE the UE lock to avoid holding two locks simultaneously.
+	// Build PDU sessions outside the UE lock to avoid holding two locks at once.
 	export.PDUSessions = amf.buildPDUSessions(smCopies)
 
 	return export
 }
 
-// buildPDUSessions enriches AMF SmContext copies with SMF context data.
 func (amf *AMF) buildPDUSessions(copies []smContextCopy) map[string]PDUSessionExport {
 	result := make(map[string]PDUSessionExport, len(copies))
 	smfSessions := amf.Smf

@@ -20,12 +20,11 @@ import (
 // }
 
 // DecodeRANConfigurationUpdate validates a RANConfigurationUpdate PDU
-// body (3GPP TS 38.413 §9.2.6.6). All IEs are optional, so the decoder
-// never raises a missing-mandatory diagnostic; only malformed IEs are
-// reported. SupportedTAList is optional-reject (a malformed value
-// produces a fatal report); RANNodeName, DefaultPagingDRX and
-// GlobalRANNodeID are optional-ignore. The procedure is class 1, so the
-// procedure-level criticality is "reject". Duplicate IEs follow a
+// body (3GPP TS 38.413 §9.2.6.6). All IEs are optional, so only
+// malformed IEs are reported. SupportedTAList is optional-reject (a
+// malformed value is fatal); RANNodeName, DefaultPagingDRX and
+// GlobalRANNodeID are optional-ignore. The procedure is class 1 with
+// procedure-level criticality "reject". Duplicate IEs follow a
 // last-wins policy.
 func DecodeRANConfigurationUpdate(in *ngapType.RANConfigurationUpdate) (RANConfigurationUpdate, *Report) {
 	report := &Report{

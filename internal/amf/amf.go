@@ -32,7 +32,6 @@ import (
 )
 
 // Authenticator is the interface the AMF requires from the AUSF.
-// *ausf.AUSF satisfies this interface directly.
 type Authenticator interface {
 	Authenticate(ctx context.Context, suci string, plmn models.PlmnID, resync *ausf.ResyncInfo) (*ausf.AuthResult, error)
 	Confirm(ctx context.Context, resStar, suci string) (etsi.SUPI, string, error)
@@ -106,7 +105,6 @@ type NASHandler interface {
 type AMF struct {
 	mu sync.RWMutex
 
-	// Allocators (owned, not exported)
 	tmsi    *etsi.TmsiAllocator
 	ngapIDs *idgenerator.IDGenerator
 
@@ -128,7 +126,7 @@ type AMF struct {
 	T3560Cfg                 TimerValue
 	T3565Cfg                 TimerValue
 	// handoverGuardTimeout bounds an N2 handover (HANDOVER REQUIRED → NOTIFY); see
-	// defaultHandoverGuardTimeout. Mirrors the MME's handoverGuardTimeout.
+	// defaultHandoverGuardTimeout.
 	handoverGuardTimeout time.Duration
 	Smf                  SmfSbi
 	NAS                  NASHandler
@@ -237,8 +235,7 @@ func (amf *AMF) FindUeContextBySupi(supi etsi.SUPI) (*UeContext, bool) {
 }
 
 // GetUESnapshot atomically looks up the UE by SUPI and returns a
-// point-in-time snapshot of its connection state. Returns the snapshot
-// and true if the UE exists, or a zero-value snapshot and false otherwise.
+// point-in-time snapshot of its connection state.
 func (amf *AMF) GetUESnapshot(supi etsi.SUPI) (UESnapshot, bool) {
 	ue, ok := amf.FindUeContextBySupi(supi)
 	if !ok {
@@ -311,7 +308,6 @@ func radioIDKey(id *models.GlobalRanNodeID) (string, bool) {
 	return "", false
 }
 
-// use ranNodeID to find RAN context, return *AmfRan and ok bit
 func (amf *AMF) FindRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool) {
 	key, ok := radioIDKey(&ranNodeID)
 	if !ok {
@@ -345,7 +341,7 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID *ngapType.GlobalRANNodeID) *R
 		delete(amf.Radios, evicted.Conn)
 	}
 
-	// Drop a stale index entry if this radio previously claimed a different ID.
+	// Drop the radio's stale index entry when it already holds a different ID.
 	if oldKey, ok := radioIDKey(radio.RanID); ok && oldKey != key {
 		delete(amf.radiosByID, oldKey)
 	}
@@ -416,9 +412,8 @@ func (amf *AMF) RemoveRadio(ctx context.Context, ran *Radio) {
 }
 
 // IndexRadioForTest registers a directly-constructed radio in both the
-// by-connection and by-RAN-ID maps — the production effect of NewRadio followed
-// by ClaimRanID at NG Setup. It exists for tests that build a Radio with its
-// RanID already set; production radios claim their ID via ClaimRanID.
+// by-connection and by-RAN-ID maps, mirroring NewRadio followed by ClaimRanID.
+// For tests that build a Radio with its RanID already set.
 func (amf *AMF) IndexRadioForTest(conn *sctp.SCTPConn, radio *Radio) {
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
@@ -471,9 +466,7 @@ func (amf *AMF) GetNetworkFeatureSupport() NetworkFeatureSupport5GS {
 	return NetworkFeatureSupport5GS{Enable: true}
 }
 
-// New creates a fully initialized AMF. All dependencies are explicit
-// parameters; allocators are owned and zeroed. Call Start to open the
-// N2 listener.
+// New creates a fully initialized AMF. Call Start to open the N2 listener.
 func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 	a := &AMF{
 		UEs:                      make(map[etsi.SUPI]*UeContext),
@@ -504,10 +497,10 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 
 // defaultHandoverGuardTimeout bounds an N2 handover from HANDOVER REQUIRED to
 // HANDOVER NOTIFY. It is generous relative to the source gNB's
-// TNGRELOCprep/TNGRELOCOverall so a normal handover always completes first; it
-// fires only when the target gNB never answers (TS 38.413 §8.4), abandoning the
+// TNGRELOCprep/TNGRELOCOverall so a normal handover completes first; it fires
+// only when the target gNB never answers (TS 38.413 §8.4), abandoning the
 // half-prepared handover so a silent target cannot pin the UE's N2Handover
-// procedure. Mirrors the MME's defaultHandoverGuardTimeout.
+// procedure.
 const defaultHandoverGuardTimeout = 10 * time.Second
 
 var defaultTimerCfg = TimerValue{
@@ -665,7 +658,6 @@ func (amf *AMF) StopAllTimers() {
 	}
 }
 
-// RemoveUEBySupi removes the UE with the given SUPI from the UE pool.
 func (amf *AMF) RemoveUEBySupi(supi etsi.SUPI) {
 	amf.mu.Lock()
 	defer amf.mu.Unlock()

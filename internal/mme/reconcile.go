@@ -115,7 +115,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnecti
 
 // dnsOnlyChange reports whether the data-network fingerprint changed in the DNS
 // field alone (IP pools and MTU unchanged), so the bearer can be modified in
-// place rather than reactivated. A malformed stored fingerprint returns false,
+// place without reactivation. A malformed stored fingerprint returns false,
 // so the caller falls back to the safe reactivation path. The fingerprint is
 // "ipv4pool|ipv6pool|dns|mtu" (EpsQoS.DnFingerprint).
 func dnsOnlyChange(oldFingerprint, newFingerprint string) bool {
@@ -217,8 +217,6 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *PdnConnection,
 	}
 
 	m.ArmESMGuardAbortOnly(ue, p, "Modify EPS Bearer Context Request", naspdu, func() {
-		// An aborted modification leaves the UE connected and its data-network
-		// fingerprint stale, so the backstop reconcile retries it later.
 		ue.mu.Lock()
 		if p := ue.defaultPDNLocked(); p != nil {
 			ClearPendingModifyLocked(p)

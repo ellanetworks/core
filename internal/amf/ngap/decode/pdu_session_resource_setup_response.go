@@ -23,9 +23,9 @@ import (
 // DecodePDUSessionResourceSetupResponse validates a
 // PDUSessionResourceSetupResponse PDU body (3GPP TS 38.413 §9.2.1.2).
 // All IEs are criticality-ignore. AMFUENGAPID and RANUENGAPID are
-// mandatory-ignore and surfaced as pointers (handler does conditional
-// fallback lookups). SetupItems and FailedToSetupItems are optional.
-// Duplicate IEs follow a last-wins policy.
+// mandatory-ignore and surfaced as pointers. SetupItems and
+// FailedToSetupItems are optional. Duplicate IEs follow a last-wins
+// policy.
 func DecodePDUSessionResourceSetupResponse(in *ngapType.PDUSessionResourceSetupResponse) (PDUSessionResourceSetupResponse, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodePDUSessionResourceSetup,

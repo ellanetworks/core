@@ -32,7 +32,6 @@ func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, r
 	}
 
 	if msg.HasNotifyList {
-		// QoS flow-level notifications — forwarding to SMF is not yet implemented.
 		logger.WithTrace(ctx, ranUe.Log).Warn("PDUSessionResourceNotifyList received but QoS flow notification forwarding is not implemented")
 	}
 

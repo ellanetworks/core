@@ -18,8 +18,6 @@ import (
 
 var tracer = otel.Tracer("ella-core/amf")
 
-// This file contains calls to db to get configuration data
-
 func getPaginateIndexes(page int, perPage int, total int) (int, int) {
 	startIndex := (page - 1) * perPage
 
@@ -156,13 +154,11 @@ func (amf *AMF) GetSubscriberProfile(ctx context.Context, supi etsi.SUPI) (*Subs
 		return nil, fmt.Errorf("couldn't get subscriber %s: %w", imsi, err)
 	}
 
-	// Derive allowed NSSAI from the subscriber's profile policies.
 	policies, err := amf.DBInstance.ListPoliciesByProfile(ctx, subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't list policies for profile %s: %w", subscriber.ProfileID, err)
 	}
 
-	// Collect unique slice IDs and batch-fetch.
 	sliceIDSet := make(map[string]struct{})
 	for _, p := range policies {
 		sliceIDSet[p.SliceID] = struct{}{}
@@ -194,7 +190,6 @@ func (amf *AMF) GetSubscriberProfile(ctx context.Context, supi etsi.SUPI) (*Subs
 		})
 	}
 
-	// Derive bitrate from the subscriber's profile.
 	profile, err := amf.DBInstance.GetProfileByID(ctx, subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %s: %v", subscriber.ProfileID, err)
@@ -236,7 +231,6 @@ func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *mo
 		return "", fmt.Errorf("couldn't list policies for profile %s: %v", subscriber.ProfileID, err)
 	}
 
-	// Batch-fetch all referenced network slices.
 	sliceIDSet := make(map[string]struct{})
 	for _, p := range policies {
 		sliceIDSet[p.SliceID] = struct{}{}

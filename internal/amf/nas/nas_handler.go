@@ -26,7 +26,7 @@ import (
 
 var nasTracer = otel.Tracer("ella-core/amf/nas")
 
-// HandleNAS processes an uplink NAS PDU and emits a span around the entire operation.
+// HandleNAS processes an uplink NAS PDU.
 func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu []byte) error {
 	if ue == nil {
 		return fmt.Errorf("ue is nil")
@@ -101,9 +101,9 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu 
 	return nil
 }
 
-/*
-fetch Guti if present incase of integrity protected Nas Message
-*/
+// fetchUeContextWithMobileIdentity resolves an existing UE context from the GUTI
+// or 5G-S-TMSI carried by an inbound NAS message. It returns nil when the message
+// must register on a fresh context.
 func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF, payload []byte) (*amf.UeContext, error) {
 	if payload == nil {
 		return nil, fmt.Errorf("nas payload is empty")

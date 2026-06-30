@@ -12,11 +12,9 @@
 // CriticalityDiagnostics IE (3GPP TS 38.413 §10.3).
 //
 // Duplicate IE policy: when an IE id appears multiple times in a single
-// message, the last well-formed occurrence wins. TS 38.413 forbids
-// duplicates outright, but recording a per-IE diagnostic for every
-// duplicate would force callers to drop messages that real-world gNBs
-// might send. Decoders silently accept duplicates and overwrite earlier
-// values.
+// message, the last well-formed occurrence wins. TS 38.413 §10.3 forbids
+// duplicates, but rejecting them would drop messages that real-world
+// gNBs send.
 package decode
 
 import (

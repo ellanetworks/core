@@ -18,7 +18,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// TS 23.502 4.9.1
 func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.PathSwitchRequest) {
 	// TS 38.413 §8.4.4.4: a to-be-switched downlink list that repeats a PDU
 	// Session ID is an abnormal condition the AMF rejects with a Path Switch
@@ -161,11 +160,10 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	}
 }
 
-// verifyUESecurityCapabilitiesOnPathSwitch compares the UE 5G security
-// capabilities reported by the target gNB against the AMF's stored
-// values via the VerifyUESecurityCapability accessor and logs any
-// mismatch (TS 33.501 §6.7.3.1). It never mutates amfUe — stored values
-// are preserved by construction because the handler has no AuthProof.
+// verifyUESecurityCapabilitiesOnPathSwitch logs any mismatch between the UE 5G
+// security capabilities reported by the target gNB and the AMF's stored values
+// (TS 33.501 §6.7.3.1). It never mutates amfUe; the reported values are not
+// trusted on the path-switch path.
 func verifyUESecurityCapabilitiesOnPathSwitch(
 	ctx context.Context,
 	ranUe *amf.RanUe,
@@ -211,8 +209,7 @@ func verifyUESecurityCapabilitiesOnPathSwitch(
 //
 // E-UTRA (EEA/EIA) bits carried by the NGAP IE are intentionally
 // dropped: this AMF does not negotiate E-UTRA algorithms with the UE,
-// so the verify path compares only the 5G NR columns. This matches the
-// legacy behaviour of the pre-refactor handler.
+// so the verify path compares only the 5G NR columns.
 func ngapToNasUESecurityCapability(received *ngapType.UESecurityCapabilities) *nasType.UESecurityCapability {
 	out := &nasType.UESecurityCapability{}
 	out.SetLen(2)

@@ -22,11 +22,10 @@ import (
 // DecodePDUSessionResourceModifyIndication validates a
 // PDUSessionResourceModifyIndication PDU body (3GPP TS 38.413 §9.2.1.6).
 // AMFUENGAPID, RANUENGAPID and PDUSessionResourceModifyListModInd are
-// mandatory-reject so missing or malformed values produce a fatal
-// report. The PDUSessionResourceModifyListModInd IE is validated for
-// presence only — the handler does not consume its contents. The
-// optional UserLocationInformation IE is not decoded (no consumer).
-// Duplicate IEs follow a last-wins policy.
+// mandatory-reject; missing or malformed values produce a fatal report.
+// PDUSessionResourceModifyListModInd is validated for presence only.
+// UserLocationInformation is optional. Duplicate IEs follow a last-wins
+// policy.
 func DecodePDUSessionResourceModifyIndication(in *ngapType.PDUSessionResourceModifyIndication) (PDUSessionResourceModifyIndication, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodePDUSessionResourceModifyIndication,

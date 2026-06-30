@@ -66,7 +66,6 @@ func startSecurityMode(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 		return
 	}
 
-	// EPS-AKA has succeeded; install the negotiated NAS security context.
 	if err := ue.InstallNASSecurityContext(eea, eia, mme.MintAuthProofForSecurityMode()); err != nil {
 		logger.MmeLog.Error("failed to install NAS security context", zap.Error(err))
 		return

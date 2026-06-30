@@ -22,7 +22,6 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return fmt.Errorf("no active NAS connection")
 	}
 
-	// update Kgnb/Kn3iwf
 	err := ue.UpdateSecurityContext()
 	if err != nil {
 		return fmt.Errorf("error updating security context: %v", err)

@@ -16,14 +16,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// Dispatch decodes an inbound S1AP PDU and routes it to its procedure handler.
-// The composition root (pkg/runtime) wires the S1-MME SCTP listener directly to
-// this entry, mirroring the 5G AMF's ngap.Dispatch. The eNB-association
-// procedures (S1 Setup, ENB Configuration Update) are handled here; UE-associated
-// PDUs are delegated to Route.
+// Dispatch decodes an inbound S1AP PDU and routes it to its procedure handler
+// (TS 36.413).
 func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) {
-	// Inbound S1AP carries no propagated trace context, so this is a fresh root
-	// span.
+	// Inbound S1AP carries no propagated trace context; fresh root span.
 	ctx, span := mme.Tracer.Start(ctx, "s1ap/receive",
 		trace.WithSpanKind(trace.SpanKindServer),
 		trace.WithAttributes(
@@ -53,8 +49,8 @@ func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) 
 	messageType := mme.S1APMessageType(pdu)
 	span.SetAttributes(attribute.String("s1ap.message_type", string(messageType)))
 
-	// Track the eNB from an S1 Setup Request before logging, so the inbound
-	// event is attributed to the radio ahead of the outbound S1 Setup Response.
+	// Track the eNB before logging so the inbound event is attributed to the
+	// radio ahead of the outbound S1 Setup Response.
 	isSetup := false
 	if im, ok := pdu.(*s1ap.InitiatingMessage); ok && im.ProcedureCode == s1ap.ProcS1Setup {
 		isSetup = true
@@ -65,9 +61,9 @@ func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) 
 	m.TouchENB(conn)
 	m.LogNetworkEvent(ctx, conn, messageType, logger.DirectionInbound, msg)
 
-	// TS 36.413: S1 Setup is the first S1AP procedure on a TNL
-	// association. Until it completes, drop every other message — including UE
-	// signalling from an eNB whose S1 Setup was rejected.
+	// TS 36.413: S1 Setup is the first procedure on a TNL association. Until it
+	// completes, drop every other message, including UE signalling from an eNB
+	// whose S1 Setup was rejected.
 	if !isSetup && !m.ENBSetupComplete(conn) {
 		logger.MmeLog.Warn("S1AP message before S1 Setup, dropping",
 			zap.String("message-type", string(messageType)))

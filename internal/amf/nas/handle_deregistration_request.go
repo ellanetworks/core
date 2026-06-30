@@ -34,7 +34,6 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 		return nil
 	}
 
-	// if Deregistration type is not switch-off, send Deregistration Accept
 	if msg.GetSwitchOff() == 0 {
 		amf.SendDeregistrationAccept(ctx, ranUe)
 

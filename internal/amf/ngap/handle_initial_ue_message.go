@@ -85,7 +85,6 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 				logger.WithTrace(ctx, ranUe.Log).Info("Initial UE Message cites a known GUTI but is not authenticated for that context; registering on a fresh context", logger.GUTI(guti.String()))
 			} else {
 				logger.WithTrace(ctx, ranUe.Log).Debug("find UeContext", logger.GUTI(guti.String()))
-				/* checking the guti-ue belongs to this amf instance */
 
 				if amfUe.RanUe() != nil {
 					logger.WithTrace(ctx, ranUe.Log).Debug("Implicit Deregistration", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))

@@ -18,24 +18,11 @@ import (
 // one stored against its MME-UE-S1AP-ID.
 var causeUnknownPairUES1APID = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnknownPairUES1APID}
 
-// resolveUE looks up a UE context for a UE-associated S1AP message and validates
-// the AP ID pair (TS 36.413). At the MME the local AP ID is the MME-UE-S1AP-ID
-// and the remote AP ID is the eNB-UE-S1AP-ID, so the UE is found by the
-// MME-UE-S1AP-ID and the eNB-UE-S1AP-ID is then cross-checked.
-//
-//   - An MME-UE-S1AP-ID the MME does not hold is an unknown local AP ID.
-//   - An MME-UE-S1AP-ID held by a UE on a different S1 association does not name
-//     a UE-associated logical S1 connection on the receiving association, so on
-//     that association it is an unknown local AP ID. The global MME-UE-S1AP-ID
-//     map is shared across eNBs; this scopes resolution to the sender so one eNB
-//     cannot act on a UE attached through another (TS 36.413).
-//   - An MME-UE-S1AP-ID held by an ECM-IDLE UE no longer identifies an active
-//     UE-associated logical S1 connection (the connection was released; the UE
-//     re-establishes under a fresh AP ID), so it is also an unknown local AP ID.
-//   - An eNB-UE-S1AP-ID different from the stored one is an inconsistent pair.
-//
-// On any of these an Error Indication carrying the received AP IDs is returned
-// to the sender (TS 36.413) and the function returns (nil, false).
+// resolveUE finds a UE-associated message's UE by its MME-UE-S1AP-ID and
+// cross-checks the eNB-UE-S1AP-ID, returning (nil, false) and an Error Indication
+// to the sender otherwise (TS 36.413). The MME-UE-S1AP-ID map is shared across
+// eNBs, so a hit is scoped to the sending association: this stops one eNB acting
+// on a UE attached through another.
 func resolveUE(m *mme.MME, conn mme.NasWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID) (*mme.UeContext, bool) {
 	ue, ok := m.LookupUe(mmeID)
 	if !ok {
@@ -82,13 +69,10 @@ func sendErrorIndication(m *mme.MME, conn mme.NasWriter, mmeID *s1ap.MMEUES1APID
 	emitErrorIndication(m, conn, &s1ap.ErrorIndication{MMEUES1APID: mmeID, ENBUES1APID: enbID, Cause: &c})
 }
 
-// handleParseError reports a fatal decode of an eNB-initiated S1AP initiating
-// message to the sending eNB with an ERROR INDICATION carrying Cause
-// "transfer-syntax-error" and Criticality Diagnostics naming the procedure
-// (TS 36.413 §10.4), instead of dropping the PDU silently. The UE S1AP ID pair is
-// absent because the decode failure prevented reading it. It mirrors the 5G AMF's
-// fatal-decode Error Indication; an ERROR INDICATION is never sent in response to
-// one, to avoid a loop.
+// handleParseError reports a failed decode of an eNB-initiated initiating message
+// with an ERROR INDICATION carrying Cause "transfer-syntax-error" and Criticality
+// Diagnostics naming the procedure (TS 36.413 §10.4). It must not be used in reply
+// to an ERROR INDICATION, to avoid a loop.
 func handleParseError(m *mme.MME, conn mme.NasWriter, proc s1ap.ProcedureCode, err error) {
 	logger.MmeLog.Warn("failed to decode S1AP message",
 		zap.Int("procedure-code", int(proc)),
@@ -120,8 +104,8 @@ func emitErrorIndication(m *mme.MME, conn mme.NasWriter, ind *s1ap.ErrorIndicati
 		return
 	}
 
-	// Error Indications are sent from resolution failures across many handlers,
-	// some outside a request span; use a fresh root.
+	// Resolution failures fire from many handlers, some outside a request span;
+	// fresh root.
 	m.LogOutboundS1AP(context.Background(), conn, mme.S1APProcedureErrorIndication, b)
 }
 

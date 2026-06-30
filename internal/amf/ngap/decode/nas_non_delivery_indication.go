@@ -21,13 +21,12 @@ import (
 
 // DecodeNASNonDeliveryIndication validates a NASNonDeliveryIndication
 // PDU body (3GPP TS 38.413 §9.2.5.5). AMFUENGAPID and RANUENGAPID are
-// mandatory-reject; NASPDU and Cause are mandatory-ignore. The
-// procedure is class 2, so the procedure-level criticality is "ignore".
-// Duplicate IEs follow a last-wins policy.
+// mandatory-reject; NASPDU and Cause are mandatory-ignore. Class 2
+// procedure, so procedure-level criticality is "ignore". Duplicate IEs
+// follow a last-wins policy.
 //
-// NASPDU is copied out of the source PDU buffer (like in
-// UplinkNASTransport) so the handler may forward it to NAS processing
-// across asynchronous boundaries.
+// NASPDU is copied out of the source buffer so it can be forwarded to
+// NAS processing across asynchronous boundaries.
 func DecodeNASNonDeliveryIndication(in *ngapType.NASNonDeliveryIndication) (NASNonDeliveryIndication, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeNASNonDeliveryIndication,

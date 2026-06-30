@@ -13,17 +13,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// handleReset processes a RESET from the eNB (TS 36.413 §8.7.1). The eNB has
-// lost its UE-associated logical S1 connections and asks the MME to release the
-// matching contexts; the MME must answer with RESET ACKNOWLEDGE or the eNB
-// cannot reuse the released UE-S1AP-IDs. A whole-interface reset clears every UE
-// on the association; a part-of-interface reset clears only the listed ones. The
-// SCTP association itself stays up, so the eNB remains S1-Setup-complete.
-//
-// A released UE that completed registration is kept in ECM-IDLE (the reset
-// removed only the radio leg; the EMM registration survives and the UE stays
-// pageable); an incomplete attach is aborted. This is the per-UE handling of an
-// abrupt radio-context loss, shared with eNB disconnect.
+// handleReset releases the UE contexts a RESET names and answers with RESET
+// ACKNOWLEDGE, which the eNB needs before it can reuse the released UE-S1AP-IDs
+// (TS 36.413 §8.7.1). A whole-interface reset clears every UE on the association,
+// a part-of-interface reset only the listed ones; the SCTP association stays up,
+// so the eNB remains S1-Setup-complete. A released UE that completed registration
+// is kept pageable in ECM-IDLE; an incomplete attach is aborted.
 func handleReset(m *mme.MME, conn mme.NasWriter, value []byte) {
 	req, err := s1ap.ParseReset(value)
 	if err != nil {

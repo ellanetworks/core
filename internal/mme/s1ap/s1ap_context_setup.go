@@ -56,8 +56,6 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, conn mme
 		return
 	}
 
-	// The eNB returns its S1-U F-TEID (the downlink endpoint); hand it to the
-	// anchor so the UPF encapsulates downlink traffic toward the eNB.
 	erab := msg.ERABSetup[0]
 
 	enbAddr, ok := enbTransportAddress(erab.TransportLayerAddress)
@@ -94,9 +92,8 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, conn mme
 		zap.String("enb-s1u", p.EnbFTEID.Addr.String()),
 	)
 
-	// Deliver any pending data-network change to a UE that just re-established
-	// its bearer from ECM-IDLE (Service Request): the radio bearer is now up, so
-	// a modify/reactivate is deliverable. During attach this is a no-op — the UE
-	// is not yet EMM-REGISTERED — so ReconcileUE returns early.
+	// With the radio bearer up, a pending data-network change for a UE re-established
+	// from ECM-IDLE is now deliverable; during attach the UE is not yet
+	// EMM-REGISTERED, so ReconcileUE returns early.
 	m.ReconcileUE(ctx, ue)
 }

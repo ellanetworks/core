@@ -29,7 +29,7 @@ func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 	// UE confirmed receipt of the new GUTI — free the old one (TS 24.501 5.5.1.2.4 step 20)
 	amfInstance.FreeOldGuti(ue)
 
-	// Send NITZ (network name + timezone) to UE per TS 24.501
+	// Configuration update command carries NITZ (network name + time zone) per TS 24.501.
 	amf.SendConfigurationUpdateCommand(ctx, amfInstance, ue, false)
 
 	forPending := conn.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestPending

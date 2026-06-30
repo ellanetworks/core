@@ -11,8 +11,8 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// encodePLMN encodes an MCC/MNC pair into the 3-octet TBCD PLMN identity
-// (TS 23.003), via the codec shared with the 5G stack in nas/common.
+// EncodePLMN encodes an MCC/MNC pair into the 3-octet TBCD PLMN identity
+// (TS 23.003).
 func EncodePLMN(plmn models.PlmnID) (s1ap.PLMNIdentity, error) {
 	b, err := nascommon.EncodePLMN(plmn.Mcc, plmn.Mnc)
 	if err != nil {
@@ -22,8 +22,8 @@ func EncodePLMN(plmn models.PlmnID) (s1ap.PLMNIdentity, error) {
 	return s1ap.PLMNIdentity(b), nil
 }
 
-// decodePLMN decodes a 3-octet TBCD PLMN identity into its MCC/MNC pair, the
-// inverse of encodePLMN (TS 23.003).
+// decodePLMN decodes a 3-octet TBCD PLMN identity into its MCC/MNC pair
+// (TS 23.003).
 func decodePLMN(p s1ap.PLMNIdentity) models.PlmnID {
 	mcc, mnc := nascommon.DecodePLMN([3]byte(p))
 

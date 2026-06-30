@@ -87,7 +87,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	targetRan, ok := amfInstance.FindRadioByRanID(targetRanNodeID)
 	if !ok {
 		// The target gNB is not served by this AMF, so preparation cannot
-		// proceed; fail it explicitly rather than leave the source waiting
+		// proceed; fail it explicitly so the source is not left waiting
 		// (TS 38.413 §8.4.1.3).
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Unknown Target ID]", zap.Any("targetRanNodeID", targetRanNodeID))
 
@@ -107,7 +107,6 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	// Handover in same AMF
 	sourceUe.HandOverType.Value = msg.HandoverType.Value
 
 	var pduSessionReqList ngapType.PDUSessionResourceSetupListHOReq

@@ -85,8 +85,7 @@ func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 }
 
 // ConnectedSubscribers returns the status of every EMM-registered UE keyed by
-// IMSI. A registered UE has one default EPS bearer (TS 23.401), reported
-// as a single session.
+// IMSI.
 func (m *MME) ConnectedSubscribers() map[string]ConnectedSubscriber {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

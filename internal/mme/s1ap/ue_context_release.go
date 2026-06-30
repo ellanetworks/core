@@ -12,11 +12,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// ReleaseUEContext starts the S1 UE Context Release procedure for a UE
-// (TS 36.413, TS 23.401). It is idempotent per UE so a detach and an
-// eNB-initiated release request cannot both emit a command. Whether the context
-// is deleted or retained in ECM-IDLE is decided at release-complete from the EMM
-// state, since the two state machines are independent.
+// handleUEContextReleaseRequest handles an eNB-initiated UE Context Release
+// Request (inactivity or radio-link failure), starting the S1 release procedure
+// (TS 36.413). Whether the context is deleted or retained in ECM-IDLE is decided
+// at release-complete from the EMM state.
 func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, conn mme.NasWriter, value []byte) {
 	msg, err := s1ap.ParseUEContextReleaseRequest(value)
 	if err != nil {
@@ -29,21 +28,17 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, conn mme.Nas
 		return
 	}
 
-	// An eNB-initiated release (inactivity/RLF) moves the UE to ECM-IDLE; the EMM
-	// context is retained. The cause distinguishes a normal inactivity release
-	// from a radio-link failure.
 	fields := []zap.Field{
 		zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)),
 		zap.String("imsi", ue.IMSI()),
 		zap.String("cause", mme.S1apCauseName(&msg.Cause)),
 	}
 
-	// A release that arrives after the NAS security context is established but
-	// before the UE is EMM-REGISTERED aborts the attach: the eNB tore down the
-	// RRC connection before INITIAL CONTEXT SETUP RESPONSE and ATTACH COMPLETE,
-	// so the UE will restart the whole attach. Surface it as a failure rather
-	// than a routine idle release, and report whether the eNB acknowledged the
-	// context setup (ics-response-received).
+	// A release after the NAS security context is established but before the UE is
+	// EMM-REGISTERED aborts an in-progress attach: the eNB tore down the RRC
+	// connection before INITIAL CONTEXT SETUP RESPONSE and ATTACH COMPLETE, so the
+	// UE restarts the whole attach. Surface it as a failure, reporting whether the
+	// eNB acknowledged the context setup (ics-response-received).
 	if ue.Secured() && ue.EMMState() == mme.EMMDeregistered {
 		icsReceived := false
 		if p := m.DefaultPDN(ue); p != nil {
@@ -59,9 +54,8 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, conn mme.Nas
 	m.ReleaseUEContext(ctx, ue, msg.Cause)
 }
 
-// HandleUEContextReleaseComplete completes the release (TS 36.413):
-// either deleting the UE context (detach) or retaining it in ECM-IDLE.
-
+// HandleUEContextReleaseComplete completes the release (TS 36.413): either
+// deleting the UE context (detach) or retaining it in ECM-IDLE.
 func HandleUEContextReleaseComplete(m *mme.MME, conn mme.NasWriter, value []byte) {
 	msg, err := s1ap.ParseUEContextReleaseComplete(value)
 	if err != nil {
@@ -106,11 +100,3 @@ func HandleUEContextReleaseComplete(m *mme.MME, conn mme.NasWriter, value []byte
 	logger.MmeLog.Info("UE moved to ECM-IDLE",
 		zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)), zap.String("imsi", ue.IMSI()))
 }
-
-// releaseUEContextLocally reclaims a UE whose S1 radio context is gone with no
-// per-UE S1AP signalling — an eNB association that dropped abruptly or an S1
-// Reset. trigger names the cause for the event log. A UE that completed
-// registration is retained in ECM-IDLE under mobile reachable supervision — it
-// re-establishes via a Service Request or is implicitly detached if it never
-// returns (TS 24.301). A UE that had not completed registration is dropped,
-// aborting the procedure.

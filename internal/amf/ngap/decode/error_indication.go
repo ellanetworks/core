@@ -20,13 +20,12 @@ import (
 // }
 
 // DecodeErrorIndication validates an ErrorIndication PDU body (3GPP TS
-// 38.413 §9.2.7.2). All four IEs are optional-ignore. AMF-UE-NGAP-ID
-// and RAN-UE-NGAP-ID are validated structurally but not surfaced — no
-// current handler reads them. The spec also requires that at least one
-// of Cause or CriticalityDiagnostics be present; the decoder leaves
-// that semantic check to the handler. The procedure is class 2, so the
-// procedure-level criticality is "ignore". Duplicate IEs follow a
-// last-wins policy.
+// 38.413 §9.2.7.2). All four IEs are optional-ignore; the procedure is
+// class 2 (procedure-level criticality "ignore"). AMF-UE-NGAP-ID and
+// RAN-UE-NGAP-ID are validated structurally but not surfaced. The
+// decoder does not enforce the spec rule that at least one of Cause or
+// CriticalityDiagnostics be present. Duplicate IEs follow a last-wins
+// policy.
 func DecodeErrorIndication(in *ngapType.ErrorIndication) (ErrorIndication, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeErrorIndication,

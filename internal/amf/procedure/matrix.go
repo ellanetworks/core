@@ -24,13 +24,9 @@ type matrixKey struct {
 }
 
 var matrix = map[matrixKey]matrixEntry{
-	// SecurityMode (active) vs N2Handover (incoming) — Rule 1
 	{SecurityMode, N2Handover}: {blocked: true, rule: "C1"},
-	// N2Handover (active) vs SecurityMode (incoming) — Rule 2
 	{N2Handover, SecurityMode}: {blocked: true, rule: "C2"},
-	// N2Handover (active) vs UEContextMod (incoming) — Rule 4
 	{N2Handover, UEContextMod}: {blocked: true, rule: "C4"},
-	// UEContextMod (active) vs N2Handover (incoming) — Rule 4
 	{UEContextMod, N2Handover}: {blocked: true, rule: "C4"},
 }
 

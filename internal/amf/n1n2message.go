@@ -183,27 +183,22 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 
 	ranUe := ue.RanUe()
 	if ranUe == nil {
-		// Per TS 23.502 §4.2.3.3 step 3b: when the UE is in CM-IDLE, the AMF
-		// may ignore the N2 SM information. Since the gNB has released all
-		// radio resources for this session, there is nothing to "modify".
-		// The caller should commit the policy change; when the UE transitions
-		// back to CM-CONNECTED, ActivateSmContext will build a fresh
-		// PDUSessionResourceSetupRequestTransfer with the updated QoS.
+		// Per TS 23.502 §4.2.3.3 step 3b: in CM-IDLE the AMF may ignore the N2
+		// SM information. The gNB has released the session's radio resources,
+		// so there is nothing to modify; the updated QoS applies on the next
+		// CM-CONNECTED setup.
 		return ErrUENotReachable
 	}
 
-	// Build the DL NAS Transport wrapping the N1 SM message.
 	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
 
 	if n2Msg == nil {
-		// N1-only delivery (e.g. DNS update via Extended PCO).
-		// Per TS 23.502 §4.3.3.2: "When the SMF sends the PDU Session
-		// Modification Command transparently through NG-RAN, the N2 SM
-		// information is not included." The RAN forwards the NAS PDU to
-		// the UE without modifying any radio resources.
+		// N1-only delivery (e.g. DNS update via Extended PCO). Per TS 23.502
+		// §4.3.3.2, when the Modification Command is sent transparently through
+		// NG-RAN the N2 SM information is omitted and no radio resources change.
 		if err := ranUe.SendDownlinkNasTransport(ctx, nasPdu, nil); err != nil {
 			return fmt.Errorf("send downlink NAS transport: %w", err)
 		}
@@ -262,13 +257,11 @@ func (amf *AMF) ReleaseSessionMessage(ctx context.Context, supi etsi.SUPI, pduSe
 		return ErrUENotReachable
 	}
 
-	// Build the DL NAS Transport wrapping the N1 SM message.
 	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
 
-	// Construct the release list with a single session item.
 	list := ngapType.PDUSessionResourceToReleaseListRelCmd{
 		List: []ngapType.PDUSessionResourceToReleaseItemRelCmd{
 			{

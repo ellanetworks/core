@@ -74,8 +74,6 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		pduSessionResourceToReleaseList ngapType.PDUSessionResourceToReleaseListHOCmd
 	)
 
-	// describe in 23.502 4.9.1.3.2 step11
-
 	for _, item := range msg.AdmittedItems {
 		pduSessionIDUint8, ok := validPDUSessionID(item.PDUSessionID.Value)
 		if !ok {

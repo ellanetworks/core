@@ -143,8 +143,7 @@ func (r *SessionReconciler) reconcileUE(ue *UeContext) {
 
 		policy, reason := r.fetchSessionPolicy(ref)
 
-		// Empty reason means a transient error occurred; skip this session
-		// and let the backstop timer retry later.
+		// ReconcileSkip signals a transient error; let the backstop timer retry.
 		if reason == models.ReconcileSkip {
 			continue
 		}

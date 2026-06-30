@@ -23,8 +23,7 @@ func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 
 	amfUe := ranUe.UeContext()
 	if amfUe == nil {
-		// No AMF UE bound, so no NAS state to clean up. Pass ReleaseNormal
-		// — the cause is moot when there is no NAS connection to release.
+		// No AMF UE bound, so there is no NAS state to clean up.
 		err := ranUe.Remove(ctx)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error("error removing ran ue context", zap.Error(err))

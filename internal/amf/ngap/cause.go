@@ -28,7 +28,6 @@ func getCause(cause *ngapType.Cause) (int, aper.Enumerated, error) {
 	}
 }
 
-// causeToString renders an NGAP cause for logging (TS 38.413 §9.3.1.2).
 func causeToString(cause ngapType.Cause) string {
 	return ngapcause.CauseToString(cause)
 }

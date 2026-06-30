@@ -334,7 +334,6 @@ func (ranUe *RanUe) SwitchToRan(newRan *Radio, ranUeNgapID int64) error {
 	newRan.RanUEs[ranUe.AmfUeNgapID] = ranUe
 	newRan.mu.Unlock()
 
-	// switch to newRan
 	ranUe.radio = newRan
 	ranUe.RanUeNgapID = ranUeNgapID
 	ranUe.Log = newRan.Log.With(logger.AmfUeNgapID(ranUe.AmfUeNgapID))

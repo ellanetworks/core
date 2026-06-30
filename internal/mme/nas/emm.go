@@ -39,10 +39,9 @@ func HandleNAS(m *mme.MME, ctx context.Context, ue *mme.UeContext, nas []byte) {
 	}
 
 	// A returning UE's ATTACH REQUEST can fail the fresh context's MAC yet carry a
-	// native GUTI whose held EPS security context verifies it; that context is
-	// reused and authentication skipped (TS 23.401) ahead of the normal dispatch.
-	// reuseContextForGUTIAttach verifies the held context's MAC against the raw
-	// PDU, so it is a no-op for any other message, identity, or a plain PDU.
+	// native GUTI whose held EPS security context verifies it; that context is then
+	// reused and authentication skipped (TS 23.401). The check verifies the held
+	// MAC against the raw PDU, so it is a no-op for any other message or a plain PDU.
 	if !result.IntegrityVerified && reuseContextForGUTIAttach(m, ctx, ue, nas, result.Plain) {
 		return
 	}

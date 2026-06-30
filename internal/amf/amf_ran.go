@@ -139,7 +139,6 @@ func (r *Radio) UpdateUERanNgapID(ranUe *RanUe, newRanUeNgapID int64) {
 	ranUe.RanUeNgapID = newRanUeNgapID
 }
 
-// FindUEByAmfUeNgapID returns the RAN UE with the given AMF UE NGAP ID, or nil.
 func (r *Radio) FindUEByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

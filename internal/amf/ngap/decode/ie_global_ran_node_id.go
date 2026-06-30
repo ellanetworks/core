@@ -7,11 +7,9 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-// decodeGlobalRANNodeID validates the CHOICE structure of a
-// GlobalRANNodeID IE and the inner CHOICE of the selected variant. On
-// success, the variant pointer matching the discriminator is non-nil
-// and any nested *aper.BitString is non-nil, so callers (notably
-// util.RanIDToModels) can deref without further checks.
+// decodeGlobalRANNodeID validates the GlobalRANNodeID CHOICE and the inner
+// CHOICE of the selected variant. On success the variant pointer matching
+// the discriminator and any nested *aper.BitString are non-nil.
 func decodeGlobalRANNodeID(in *ngapType.GlobalRANNodeID) (GlobalRANNodeID, bool) {
 	if in == nil {
 		return GlobalRANNodeID{}, false

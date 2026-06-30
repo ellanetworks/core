@@ -10,18 +10,15 @@ import (
 )
 
 // sessionReconcileBackstop is the period of the data-network reconciler's safety
-// sweep, matching the 5G AMF's session reconciler. It recovers from a dropped or
-// coalesced changefeed wakeup and from UEs that were transitioning (mid-attach,
-// idle) when a data-network change applied.
+// sweep, recovering from a dropped or coalesced changefeed wakeup and from UEs
+// transitioning (mid-attach, idle) when a data-network change applied.
 const sessionReconcileBackstop = 5 * time.Minute
 
 // MMESessionReconciler propagates data-network reconfiguration to active EPS
-// bearers: on a session_reconcile changefeed wakeup it re-evaluates every
-// connected bearer against the current policy and modifies or reactivates it
-// (TS 24.301 §6.4.2 / §6.4.4.2), and a periodic backstop sweep recovers from a
-// dropped wakeup. It mirrors the 5G AMF's SessionReconciler; unlike the AMF (which
-// delegates the diff to the SMF) the diff itself is MME-owned, since the EPC has
-// no SMF for session management.
+// bearers: a session_reconcile changefeed wakeup re-evaluates every connected
+// bearer against the current policy and modifies or reactivates it (TS 24.301
+// §6.4.2 / §6.4.4.2), with a periodic backstop sweep recovering from a dropped
+// wakeup. The diff is MME-owned, since the EPC has no SMF for session management.
 type MMESessionReconciler struct {
 	mme      *MME
 	wakeup   <-chan struct{}

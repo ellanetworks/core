@@ -54,7 +54,6 @@ func sendServiceAccept(
 	supportedGUAMI *models.Guami,
 ) error {
 	if ranUe.UeContextRequest {
-		// update Kgnb/Kn3iwf
 		err := ue.UpdateSecurityContext()
 		if err != nil {
 			return fmt.Errorf("error updating security context: %v", err)
@@ -115,8 +114,6 @@ func sendServiceAccept(
 
 // TS 24501 5.6.1
 func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.ServiceRequest, integrityVerified bool) error {
-	// Validate state before accessing amf.RanUe — state checks are cheap and
-	// independent of the RAN connection.
 	state := ue.GetState()
 	if state != amf.Deregistered && state != amf.Registered {
 		return fmt.Errorf("state mismatch: receive Service Request message in state %s", state)
@@ -152,16 +149,12 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		conn.Procedures.End(procedure.Paging)
 	}
 
-	// TS 24.501 8.2.6.21: if the UE is sending a REGISTRATION REQUEST message as an initial NAS message,
-	// the UE has a valid 5G NAS security context and the UE needs to send non-cleartext IEs
-	// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS message
-	// container IE, the UE shall set the security header type of the initial NAS message to "integrity protected"
+	// TS 24.501 §4.4.6: an integrity-protected SERVICE REQUEST carrying a NAS
+	// message container holds the real initial NAS message in that container;
+	// decipher it and use it in place of the outer message.
 	if msg.NASMessageContainer != nil && (ue.SecurityContextIsValid() && integrityVerified) {
 		contents := msg.GetNASMessageContainerContents()
 
-		// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS
-		// message container IE, the UE shall set the security header type of the initial NAS message to
-		// "integrity protected"; then the amf.AMF shall decipher the value part of the NAS message container IE
 		err := ue.DecryptUplinkContents(contents)
 		if err != nil {
 			ue.ClearSecurityContext()
@@ -175,11 +168,10 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			if messageType != nas.MsgTypeServiceRequest {
 				return fmt.Errorf("expected service request message, got %d", messageType)
 			}
-			// TS 24.501 4.4.6: The amf.AMF shall consider the NAS message that is obtained from the NAS message container
-			// IE as the initial NAS message that triggered the procedure
+
 			msg = m.ServiceRequest
 		}
-		// TS 33.501 6.4.6 step 3: if the initial NAS message was protected but did not pass the integrity check
+		// TS 33.501 §6.4.6 step 3: protected initial NAS message that failed the integrity check.
 		conn.RetransmissionOfInitialNASMsg = !integrityVerified
 	}
 
@@ -241,7 +233,6 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	// Copy SmContextList under lock for safe concurrent iteration.
 	smContextSnapshot := ue.SmContextSnapshot()
 
-	// If the UE has uplink data pending for some PDU sessions, we need to activate them
 	if msg.UplinkDataStatus != nil {
 		uplinkDataPsi := nasConvert.PSIToBooleanArray(msg.UplinkDataStatus.Buffer)
 		reactivationResult = new([16]bool)
@@ -322,9 +313,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 				var nasPdu []byte
 				if n1Msg != nil {
-					// This case is currently not tested and seems wrong. I was not able to find a case
-					// for this, and the NAS message stored for the UE is added in way that decryption does
-					// not seem to work.
+					// Untested path: the stored N1 message may not decrypt correctly here.
 					nasPdu, err = amf.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil)
 					if err != nil {
 						return fmt.Errorf("error building DL NAS transport message: %v", err)

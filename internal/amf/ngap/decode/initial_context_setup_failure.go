@@ -23,10 +23,8 @@ import (
 // DecodeInitialContextSetupFailure validates an InitialContextSetupFailure
 // PDU body (3GPP TS 38.413 §9.2.2.3). AMFUENGAPID, RANUENGAPID and Cause
 // are mandatory-ignore; PDUSessionResourceFailedToSetupListCxtFail and
-// CriticalityDiagnostics are optional-ignore. The procedure is class 1,
-// so the procedure-level criticality is "reject". A missing or malformed
-// AMF/RAN-UE-NGAP-ID yields a non-fatal report with a zero ID — the
-// handler will fail to locate the UE and log. Duplicate IEs follow a
+// CriticalityDiagnostics are optional-ignore. Class 1 procedure, so
+// procedure-level criticality is "reject". Duplicate IEs follow a
 // last-wins policy.
 func DecodeInitialContextSetupFailure(in *ngapType.InitialContextSetupFailure) (InitialContextSetupFailure, *Report) {
 	report := &Report{

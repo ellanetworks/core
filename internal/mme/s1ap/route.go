@@ -14,8 +14,7 @@ import (
 )
 
 // Route dispatches a decoded UE-associated S1AP PDU to its procedure handler
-// (TS 36.413). The kernel handles the eNB-association procedures (S1 Setup, ENB
-// Configuration Update) and routes everything else here via mme.S1APHandler.
+// (TS 36.413).
 func Route(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, pdu any) {
 	switch p := pdu.(type) {
 	case *s1ap.InitiatingMessage:
