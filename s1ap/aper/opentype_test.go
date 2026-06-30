@@ -14,7 +14,7 @@ func TestOpenTypeKnownVectors(t *testing.T) {
 		want  []byte
 	}{
 		{[]byte{0xaa, 0xbb}, []byte{0x02, 0xaa, 0xbb}},
-		{[]byte{}, []byte{0x01, 0x00}}, // X.691 §10.1.3: minimum one octet
+		{[]byte{}, []byte{0x01, 0x00}}, // X.691: minimum one octet
 		{bytes.Repeat([]byte{0x7e}, 200), append([]byte{0x80, 0xc8}, bytes.Repeat([]byte{0x7e}, 200)...)},
 	}
 	for _, c := range cases {

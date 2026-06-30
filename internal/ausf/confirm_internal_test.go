@@ -123,7 +123,7 @@ func TestConfirmSuccess(t *testing.T) {
 		t.Fatalf("expected IMSI %s, got %s", intTestIMSI, supi.IMSI())
 	}
 
-	if kseaf == "" {
+	if len(kseaf) == 0 {
 		t.Fatal("expected non-empty Kseaf")
 	}
 }
@@ -183,8 +183,8 @@ func TestConfirmSuccess_ReturnsCorrectKseaf(t *testing.T) {
 		t.Fatalf("Confirm failed: %v", err)
 	}
 
-	if gotKseaf != hex.EncodeToString(expectedKseaf) {
-		t.Fatalf("Kseaf mismatch:\n  got  %s\n  want %s", gotKseaf, hex.EncodeToString(expectedKseaf))
+	if hex.EncodeToString(gotKseaf) != hex.EncodeToString(expectedKseaf) {
+		t.Fatalf("Kseaf mismatch:\n  got  %s\n  want %s", hex.EncodeToString(gotKseaf), hex.EncodeToString(expectedKseaf))
 	}
 }
 

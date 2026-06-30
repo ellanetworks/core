@@ -10,7 +10,7 @@ import (
 	"github.com/free5gc/nas"
 )
 
-// TestPlainNasAllowed pins down the TS 24.501 §4.4.4.3 whitelist used by
+// TestPlainNasAllowed pins down the TS 24.501 whitelist used by
 // the NAS decoder for plain NAS PDUs. Any change to this list is a
 // security boundary change.
 func TestPlainNasAllowed(t *testing.T) {
@@ -67,7 +67,7 @@ func TestPlainNasAllowed(t *testing.T) {
 // plain-NAS whitelist.
 func TestPlainNasAllowed_RejectsServiceRequest(t *testing.T) {
 	if plainNasAllowed(nas.MsgTypeServiceRequest) {
-		t.Fatal("ServiceRequest must NOT be on the plain-NAS whitelist (TS 24.501 §4.4.4.3)")
+		t.Fatal("ServiceRequest must NOT be on the plain-NAS whitelist (TS 24.501)")
 	}
 }
 
@@ -75,12 +75,12 @@ func TestPlainNasAllowed_RejectsServiceRequest(t *testing.T) {
 // plain-NAS whitelist.
 func TestPlainNasAllowed_RejectsULNasTransport(t *testing.T) {
 	if plainNasAllowed(nas.MsgTypeULNASTransport) {
-		t.Fatal("ULNASTransport must NOT be on the plain-NAS whitelist (TS 24.501 §4.4.4.3)")
+		t.Fatal("ULNASTransport must NOT be on the plain-NAS whitelist (TS 24.501)")
 	}
 }
 
 // TestMacFailedAllowed pins down the macFailedAllowed whitelist
-// (plainNasAllowed plus ServiceRequest, per TS 33.501 §6.4.6 step 3).
+// (plainNasAllowed plus ServiceRequest, per TS 33.501).
 func TestMacFailedAllowed(t *testing.T) {
 	allowed := map[uint8]bool{
 		nas.MsgTypeRegistrationRequest:                              true,

@@ -338,7 +338,7 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 		State: UEStateExport{
 			GMMState:                 string(ue.state),
 			OngoingProcedures:        ongoing,
-			SecurityContextAvailable: ue.securityContextAvailable,
+			SecurityContextAvailable: ue.secured,
 		},
 		Security: UESecurityExport{
 			CipheringAlgorithm: ue.cipheringAlgName(),
@@ -369,8 +369,8 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 			T3550Registration:   timerStatus(t3550),
 			T3555ConfigUpdate:   timerStatus(t3555),
 			T3522Deregistration: timerStatus(t3522),
-			MobileReachable:     timerStatus(&ue.MobileReachableTimer),
-			ImplicitDereg:       timerStatus(&ue.ImplicitDeregistrationTimer),
+			MobileReachable:     timerStatus(&ue.mobileReachableTimer),
+			ImplicitDereg:       timerStatus(&ue.implicitDeregistrationTimer),
 		},
 		LastActivity: UELastActivityExport{
 			Timestamp: ue.LastSeenAtTime(),

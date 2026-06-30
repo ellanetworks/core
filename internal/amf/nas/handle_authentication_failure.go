@@ -59,7 +59,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		amf.SendAuthenticationRequest(ctx, amfInstance, ranUe)
 
 		ue.Log.Info("Sent authentication request")
-	case nasMessage.Cause5GMMSynchFailure: // TS 24.501 5.4.1.3.7 case f
+	case nasMessage.Cause5GMMSynchFailure: // TS 24.501
 		ue.Log.Warn("amf.Authentication Failure 5GMM Cause: Synch Failure")
 
 		conn.AuthFailureCauseSynchFailureTimes++

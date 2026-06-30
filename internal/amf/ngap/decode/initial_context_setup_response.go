@@ -21,7 +21,7 @@ import (
 // }
 
 // DecodeInitialContextSetupResponse validates an InitialContextSetupResponse
-// PDU body (3GPP TS 38.413 §9.2.2.2). AMFUENGAPID and RANUENGAPID are
+// PDU body (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are
 // mandatory-ignore; every IE is criticality ignore. Duplicate IEs follow
 // a last-wins policy.
 func DecodeInitialContextSetupResponse(in *ngapType.InitialContextSetupResponse) (InitialContextSetupResponse, *Report) {

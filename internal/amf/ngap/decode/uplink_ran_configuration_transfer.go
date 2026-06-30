@@ -17,7 +17,7 @@ import (
 // }
 
 // DecodeUplinkRANConfigurationTransfer validates an
-// UplinkRANConfigurationTransfer PDU body (3GPP TS 38.413 §9.2.6.8).
+// UplinkRANConfigurationTransfer PDU body (3GPP TS 38.413).
 // All IEs are optional-ignore. SONConfigurationTransferUL is surfaced
 // because the handler needs it to forward the embedded SON data.
 // ENDCSONConfigurationTransferUL is consumed for validation only.

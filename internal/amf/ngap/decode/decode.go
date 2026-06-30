@@ -9,10 +9,10 @@
 // (the dispatcher) must construct a non-nil Report; the methods on
 // *Report assume a non-nil receiver. A *Report describes any structural
 // problems found while decoding the PDU and maps onto an NGAP
-// CriticalityDiagnostics IE (3GPP TS 38.413 §10.3).
+// CriticalityDiagnostics IE (3GPP TS 38.413).
 //
 // Duplicate IE policy: when an IE id appears multiple times in a single
-// message, the last well-formed occurrence wins. TS 38.413 §10.3 forbids
+// message, the last well-formed occurrence wins. TS 38.413 forbids
 // duplicates, but rejecting them would drop messages that real-world
 // gNBs send.
 package decode

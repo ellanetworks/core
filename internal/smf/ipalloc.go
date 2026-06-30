@@ -69,7 +69,7 @@ func (s *SMF) negotiatePDUSessionType(_ context.Context, requested uint8, policy
 }
 
 // pduSessionTypeRejectCause maps a failed PDU session type negotiation
-// to the 5GSM cause prescribed by TS 24.501 §6.4.1.4.1.
+// to the 5GSM cause prescribed by TS 24.501.
 //
 //   - IPv6 requested, only IPv4 supported           → #50 IPv4 only allowed
 //   - IPv4 requested, only IPv6 supported           → #51 IPv6 only allowed
@@ -103,7 +103,7 @@ const (
 
 // narrowPDUType reports whether the negotiated type narrows the UE's IPv4v6
 // request to a single family, so each access can signal the matching single-stack
-// cause: 5GSM #50/#51 (TS 24.501 §6.4.1.3) or ESM #50/#51 (TS 24.301 §6.5.1.3).
+// cause: 5GSM #50/#51 (TS 24.501) or ESM #50/#51 (TS 24.301).
 func narrowPDUType(requested, negotiated uint8) pduTypeNarrowing {
 	if requested != nasMessage.PDUSessionTypeIPv4IPv6 || negotiated == nasMessage.PDUSessionTypeIPv4IPv6 {
 		return narrowNone

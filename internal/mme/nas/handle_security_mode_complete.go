@@ -15,8 +15,8 @@ import (
 
 func handleSecurityModeComplete(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
 	m.StopNASGuard(ue)
-	// The security mode procedure is complete; release the key-chain claim so a
-	// subsequent handover or Path Switch can proceed (TS 33.401 §7.2.8).
+	// Release the key-chain claim so a subsequent handover or Path Switch can
+	// proceed (TS 33.401 §7.2.8).
 	m.ClearKeyChainBusy(ue)
 
 	smc, err := eps.ParseSecurityModeComplete(plain)

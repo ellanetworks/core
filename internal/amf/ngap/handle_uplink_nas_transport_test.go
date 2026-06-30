@@ -45,9 +45,9 @@ func TestHandleUplinkNasTransport_UnknownRanUe_SendsErrorIndication(t *testing.T
 }
 
 // TestHandleUplinkNasTransport_UnknownAmfUeNgapID_SendsErrorIndication covers
-// TS 38.413 §10.6: an AMF UE NGAP ID the AMF never allocated is an unknown local
+// TS 38.413: an AMF UE NGAP ID the AMF never allocated is an unknown local
 // AP ID, so the AMF answers with an Error Indication carrying the received AP IDs
-// (§8.7.5.2) and cause "Unknown local UE NGAP ID".
+// and cause "Unknown local UE NGAP ID".
 func TestHandleUplinkNasTransport_UnknownAmfUeNgapID_SendsErrorIndication(t *testing.T) {
 	ran := newTestRadio()
 	sender := ran.NGAPSender.(*FakeNGAPSender)
@@ -71,7 +71,7 @@ func TestHandleUplinkNasTransport_UnknownAmfUeNgapID_SendsErrorIndication(t *tes
 }
 
 // TestHandleUplinkNasTransport_InconsistentRanUeNgapID_SendsErrorIndication
-// covers TS 38.413 §10.6: a RAN UE NGAP ID different from the one stored for the
+// covers TS 38.413: a RAN UE NGAP ID different from the one stored for the
 // connection is an inconsistent remote AP ID, so the AMF answers with an Error
 // Indication carrying the received AP IDs and cause "Inconsistent remote UE NGAP
 // ID".
@@ -172,8 +172,8 @@ func TestHandleUplinkNasTransport_LocationUpdatedBeforeNAS(t *testing.T) {
 }
 
 // An error from the NAS handler means no NAS response was produced (a delivered
-// reject returns nil), so the AMF answers with a 5GMM STATUS #111 (TS 24.501
-// §7.x) rather than leaving the UE without a response.
+// reject returns nil), so the AMF answers with a 5GMM STATUS #111 (TS 24.501)
+// rather than leaving the UE without a response.
 func TestHandleUplinkNasTransport_NASError_SendsStatus5GMM(t *testing.T) {
 	fakeNAS := &FakeNASHandler{Err: errors.New("unhandled NAS message")}
 	cause := uplinkNASStatusCause(t, fakeNAS)

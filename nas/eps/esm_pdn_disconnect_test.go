@@ -40,7 +40,7 @@ func TestPDNDisconnectRequestRoundTrip(t *testing.T) {
 
 func TestPDNDisconnectRequestSpareHalfOctetIgnored(t *testing.T) {
 	// A sender that fills the spare high half-octet must not corrupt the linked
-	// EPS bearer identity (TS 24.301 §9.9.4.6).
+	// EPS bearer identity (TS 24.301).
 	wire := []byte{PDESM, 0x02, uint8(MsgPDNDisconnectRequest), 0xF5}
 
 	out, err := ParsePDNDisconnectRequest(wire)

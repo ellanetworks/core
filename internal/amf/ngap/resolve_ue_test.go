@@ -39,7 +39,7 @@ func assertSingleErrorIndication(t *testing.T, sender *FakeNGAPSender, wantCause
 }
 
 // assertErrorIndicationEchoesIDs checks the Error Indication carries the received
-// AP IDs (TS 38.413 §8.7.5.2, §10.6).
+// AP IDs (TS 38.413).
 func assertErrorIndicationEchoesIDs(t *testing.T, errInd *ErrorIndication, wantAmf, wantRan int64) {
 	t.Helper()
 
@@ -230,7 +230,7 @@ func TestCrossRadio_HandoverFailure(t *testing.T) {
 }
 
 // TestResolveUE_UnknownAmfUeNgapID verifies that an AMF UE NGAP ID the AMF never
-// allocated is reported as an unknown local AP ID (TS 38.413 §10.6), with the
+// allocated is reported as an unknown local AP ID (TS 38.413), with the
 // received AP IDs echoed back.
 func TestResolveUE_UnknownAmfUeNgapID(t *testing.T) {
 	legitimateRan, _, _, amfInstance := setupCrossRadioScenario(t)
@@ -249,7 +249,7 @@ func TestResolveUE_UnknownAmfUeNgapID(t *testing.T) {
 
 // TestResolveUE_InconsistentRanUeNgapID verifies that a known AMF UE NGAP ID with
 // a RAN UE NGAP ID different from the stored one is reported as an inconsistent
-// remote AP ID (TS 38.413 §10.6), with the received AP IDs echoed back.
+// remote AP ID (TS 38.413), with the received AP IDs echoed back.
 func TestResolveUE_InconsistentRanUeNgapID(t *testing.T) {
 	legitimateRan, _, _, amfInstance := setupCrossRadioScenario(t)
 	sender := legitimateRan.NGAPSender.(*FakeNGAPSender)

@@ -10,9 +10,9 @@ import (
 )
 
 // StatusTransferContainer holds the eNB Status Transfer Transparent Container
-// (TS 36.413 §9.2.1.x) as its raw open-type value bytes. The MME does not
+// (TS 36.413) as its raw open-type value bytes. The MME does not
 // interpret the PDCP-SN/HFN COUNT values it carries; it relays the container
-// verbatim from ENB STATUS TRANSFER into MME STATUS TRANSFER (§8.4.6/§8.4.7).
+// verbatim from ENB STATUS TRANSFER into MME STATUS TRANSFER.
 type StatusTransferContainer []byte
 
 func (c StatusTransferContainer) field(id ProtocolIEID) ieField {
@@ -22,7 +22,7 @@ func (c StatusTransferContainer) field(id ProtocolIEID) ieField {
 	}}
 }
 
-// ENBStatusTransfer is the ENB STATUS TRANSFER message (TS 36.413 §9.1.5... in
+// ENBStatusTransfer is the ENB STATUS TRANSFER message (TS 36.413 in
 // the eNB Status Transfer procedure), sent by the source eNB to convey PDCP-SN
 // and HFN status to the target eNB via the MME.
 type ENBStatusTransfer struct {
@@ -118,7 +118,7 @@ func ParseENBStatusTransfer(value []byte) (*ENBStatusTransfer, error) {
 	return m, nil
 }
 
-// MMEStatusTransfer is the MME STATUS TRANSFER message (TS 36.413 §9.1.5... in
+// MMEStatusTransfer is the MME STATUS TRANSFER message (TS 36.413 in
 // the MME Status Transfer procedure), sent by the MME to relay the source eNB's
 // status container to the target eNB.
 type MMEStatusTransfer struct {

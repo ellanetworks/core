@@ -17,7 +17,7 @@ import (
 // header (EPD, security header type, 4-byte MAC, sequence number) with a MAC
 // computed over [sqn || inner] against the UE's current security context, with
 // the sequence number folded into the count exactly as decodeProtectedNAS does
-// (TS 33.501 §6.4.3.1).
+// (TS 33.501).
 func wrapIntegrityProtected(t *testing.T, ue *UeContext, inner []byte, sqn uint8) []byte {
 	t.Helper()
 
@@ -114,7 +114,7 @@ func TestNasIntegrityVerified_PlainMessageRejected(t *testing.T) {
 func TestNasIntegrityVerified_NoSecurityContextRejected(t *testing.T) {
 	ue := newSecuredUE(t)
 	pdu := wrapIntegrityProtected(t, ue, encodePlainRegistrationRequest(t), 0)
-	ue.securityContextAvailable = false
+	ue.secured = false
 
 	if ue.NasIntegrityVerified(pdu) {
 		t.Fatal("without an available security context nothing can verify")
@@ -138,7 +138,7 @@ func TestNasIntegrityVerified_DoesNotMutateCount(t *testing.T) {
 // TestReuseForInboundNAS_PlainInitialRegistrationDiverted is the core
 // regression for the GUTI-spoof DoS: a plain (unauthenticated) initial
 // registration that resolved to an existing context must NOT reuse it
-// (TS 24.501 §4.4.4.3).
+// (TS 24.501).
 func TestReuseForInboundNAS_PlainInitialRegistrationDiverted(t *testing.T) {
 	ue := newSecuredUE(t)
 
@@ -161,7 +161,7 @@ func TestReuseForInboundNAS_IntegrityVerifiedRegistrationReuses(t *testing.T) {
 // TestReuseForInboundNAS_UnverifiedNonEmergencyDiverted confirms the gate
 // diverts every unverified message that resolved to a committed context —
 // service request and deregistration included — so none can act on it. Each is
-// handled correctly on a fresh context (TS 24.501 §4.4.4.3).
+// handled correctly on a fresh context (TS 24.501).
 func TestReuseForInboundNAS_UnverifiedNonEmergencyDiverted(t *testing.T) {
 	ue := newSecuredUE(t)
 
@@ -177,7 +177,7 @@ func TestReuseForInboundNAS_UnverifiedNonEmergencyDiverted(t *testing.T) {
 // TestReuseForInboundNAS_PlainEmergencyDiverted confirms context resolution is
 // uniform: even a plain emergency registration does not reuse a committed
 // context — it is processed on a fresh one, so the committed context is never
-// mutated by an unverified message (TS 24.501 §4.4.4.3).
+// mutated by an unverified message (TS 24.501).
 func TestReuseForInboundNAS_PlainEmergencyDiverted(t *testing.T) {
 	ue := newSecuredUE(t)
 
@@ -216,8 +216,8 @@ func TestDecodeNASMessage_MacFailedDoesNotAdvanceULCount(t *testing.T) {
 	}
 }
 
-// TestDecodeNASMessage_SecureExchangeEstablished_DiscardsPlain asserts TS 24.501
-// §4.4.4.3: plain NAS is admitted while bootstrapping, a verified message
+// TestDecodeNASMessage_SecureExchangeEstablished_DiscardsPlain asserts TS 24.501:
+// plain NAS is admitted while bootstrapping, a verified message
 // establishes secure exchange for the connection, and after that a plain
 // message is discarded.
 func TestDecodeNASMessage_SecureExchangeEstablished_DiscardsPlain(t *testing.T) {
@@ -236,17 +236,17 @@ func TestDecodeNASMessage_SecureExchangeEstablished_DiscardsPlain(t *testing.T) 
 	}
 
 	if !ue.NasConn().secureExchangeEstablished {
-		t.Fatal("a verified message must establish secure exchange (TS 24.501 §4.4.4.3)")
+		t.Fatal("a verified message must establish secure exchange (TS 24.501)")
 	}
 
 	if _, err := DecodeNASMessage(ue, encodePlainRegistrationRequest(t)); err == nil {
-		t.Fatal("a plain message must be discarded once secure exchange is established (TS 24.501 §4.4.4.3)")
+		t.Fatal("a plain message must be discarded once secure exchange is established (TS 24.501)")
 	}
 }
 
 // TestDecodeNASMessage_SecureExchangeEstablished_DiscardsMacFailed asserts that
 // once secure exchange is established, a message failing the integrity check is
-// discarded rather than admitted as mac-failed (TS 24.501 §4.4.4.3).
+// discarded rather than admitted as mac-failed (TS 24.501).
 func TestDecodeNASMessage_SecureExchangeEstablished_DiscardsMacFailed(t *testing.T) {
 	ue := newSecuredUE(t)
 
@@ -262,6 +262,6 @@ func TestDecodeNASMessage_SecureExchangeEstablished_DiscardsMacFailed(t *testing
 	bad[3] ^= 0xff // corrupt the MAC
 
 	if _, err := DecodeNASMessage(ue, bad); err == nil {
-		t.Fatal("a mac-failed message must be discarded once secure exchange is established (TS 24.501 §4.4.4.3)")
+		t.Fatal("a mac-failed message must be discarded once secure exchange is established (TS 24.501)")
 	}
 }

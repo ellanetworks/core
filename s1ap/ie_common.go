@@ -30,7 +30,7 @@ func decodePLMNIdentity(r *aper.Reader) (PLMNIdentity, error) {
 
 // encodeName encodes ENBname / MMEname. Without a PER-visible alphabet
 // constraint a PrintableString encodes as 8 bits per character, so it shares
-// the OCTET STRING encoding with an extensible SIZE(1..150) bound (X.691 §27).
+// the OCTET STRING encoding with an extensible SIZE(1..150) bound (X.691).
 func encodeName(w *aper.Writer, s string) error {
 	return w.WriteOctetString([]byte(s), 1, nameMaxLen, true)
 }

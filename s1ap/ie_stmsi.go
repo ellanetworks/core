@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/s1ap/aper"
 )
 
-// STMSI is the S-TMSI IE (TS 36.413 §9.2.3.6): the MME Code plus the M-TMSI that
+// STMSI is the S-TMSI IE (TS 36.413): the MME Code plus the M-TMSI that
 // together identify a UE within an MME pool. The eNB includes it in the Initial
 // UE Message when the UE re-establishes with an S-TMSI (e.g. a Service Request).
 //

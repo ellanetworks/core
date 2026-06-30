@@ -12,16 +12,16 @@ import (
 
 // These IE codecs produce/consume the *value part* of an information element
 // (the bytes inside its LV/LV-E length). The MME composes them into the
-// message's LV fields. References are to TS 24.301 §9.9.
+// message's LV fields. References are to TS 24.301.
 
-// PDN type values (TS 24.301 §9.9.4.10).
+// PDN type values (TS 24.301).
 const (
 	PDNTypeIPv4   uint8 = 1
 	PDNTypeIPv6   uint8 = 2
 	PDNTypeIPv4v6 uint8 = 3
 )
 
-// PDNAddress is the PDN address (§9.9.4.9): the IP assigned to the UE. IPv4 is
+// PDNAddress is the PDN address: the IP assigned to the UE. IPv4 is
 // the 4-octet address; IPv6IID the 8-octet interface identifier.
 type PDNAddress struct {
 	PDNType uint8
@@ -95,7 +95,7 @@ func ParsePDNAddress(b []byte) (PDNAddress, error) {
 	return a, nil
 }
 
-// EPSQoS is the EPS quality of service (§9.9.4.3). For a non-GBR default bearer
+// EPSQoS is the EPS quality of service. For a non-GBR default bearer
 // only the QCI is present; BitRates holds the optional MBR/GBR octets.
 type EPSQoS struct {
 	QCI      uint8
@@ -129,7 +129,7 @@ func ParseEPSQoS(b []byte) (EPSQoS, error) {
 	return EPSQoS{QCI: qci, BitRates: rest}, nil
 }
 
-// MarshalAPN encodes a dot-separated APN into labels (TS 23.003 §9.1): each label
+// MarshalAPN encodes a dot-separated APN into labels (TS 23.003): each label
 // is a 1-octet length followed by its characters.
 func MarshalAPN(apn string) ([]byte, error) {
 	var w common.Writer
@@ -164,7 +164,7 @@ func ParseAPN(b []byte) (string, error) {
 	return strings.Join(labels, "."), nil
 }
 
-// APNAMBR is the APN aggregate maximum bit rate (§9.9.4.2). DownlinkOctet and
+// APNAMBR is the APN aggregate maximum bit rate. DownlinkOctet and
 // UplinkOctet use the GPRS bit-rate coding; Extended holds the optional
 // higher-rate octets.
 type APNAMBR struct {
@@ -208,7 +208,7 @@ func ParseAPNAMBR(b []byte) (APNAMBR, error) {
 
 // APNAMBRFromBitsPerSecond builds an APN-AMBR from downlink/uplink rates (bits
 // per second); it is the inverse of BitsPerSecond, and Marshal then renders the
-// wire octets per TS 24.301 §9.9.4.2 (TS 24.008 §10.5.6.5): the base octet
+// wire octets per TS 24.301 (TS 24.008): the base octet
 // (≤8640 kbps), the extended octet (octets 5/6, ≤256 Mbps), and the extended-2
 // octet (octets 7/8, up to 10 Gbps) for higher rates.
 func APNAMBRFromBitsPerSecond(downlinkBps, uplinkBps uint64) APNAMBR {
@@ -217,7 +217,7 @@ func APNAMBRFromBitsPerSecond(downlinkBps, uplinkBps uint64) APNAMBR {
 
 	a := APNAMBR{DownlinkOctet: dlBase, UplinkOctet: ulBase}
 
-	// Octets are present together per pair (§9.9.4.2); a higher octet pair implies
+	// Octets are present together per pair; a higher octet pair implies
 	// the lower one. A direction that does not need an extension carries 0x00,
 	// meaning "use the lower octet".
 	switch {
@@ -269,7 +269,7 @@ func encodeAPNAMBROctet(bps uint64) (base, ext, ext2 uint8) {
 }
 
 // encodeAPNAMBRExtended returns the extended octet (octet 5/6) and extended-2
-// octet (octet 7/8) for rates above 8640 kbps (TS 24.008 §10.5.6.5).
+// octet (octet 7/8) for rates above 8640 kbps (TS 24.008).
 func encodeAPNAMBRExtended(kbps uint64) (ext, ext2 uint8) {
 	mbps := kbps / 1000
 
@@ -287,7 +287,7 @@ func encodeAPNAMBRExtended(kbps uint64) (ext, ext2 uint8) {
 }
 
 // encodeAPNAMBRExtended2 returns the extended-2 octet (octet 7/8) for rates above
-// 256 Mbps (TS 24.008 §10.5.6.5).
+// 256 Mbps (TS 24.008).
 func encodeAPNAMBRExtended2(mbps uint64) uint8 {
 	switch {
 	case mbps <= 500:
@@ -337,7 +337,7 @@ func decodeAPNAMBRExtended(ext uint8) uint64 {
 }
 
 // decodeAPNAMBRExtended2 decodes a non-zero extended-2 octet (octet 7/8) to
-// bits/s (TS 24.008 §10.5.6.5).
+// bits/s (TS 24.008).
 func decodeAPNAMBRExtended2(ext2 uint8) uint64 {
 	switch {
 	case ext2 <= 0x3D:
@@ -349,9 +349,9 @@ func decodeAPNAMBRExtended2(ext2 uint8) uint64 {
 	}
 }
 
-// TAIList is a tracking area identity list (§9.9.3.33) of list type "00" — one
+// TAIList is a tracking area identity list of list type "00" — one
 // PLMN with one or more TACs, the form an MME emits in ATTACH ACCEPT. Other list
-// types are rejected on decode (deferred).
+// types are rejected on decode.
 type TAIList struct {
 	MCC, MNC string
 	TACs     []uint16
@@ -415,7 +415,7 @@ func ParseTAIList(b []byte) (TAIList, error) {
 	return l, nil
 }
 
-// UENetworkCapability is the UE network capability (§9.9.3.34). EEA and EIA are
+// UENetworkCapability is the UE network capability. EEA and EIA are
 // the EPS encryption / integrity algorithm bitmaps; Rest holds the remaining
 // (UMTS/extended) octets.
 type UENetworkCapability struct {

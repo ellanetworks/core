@@ -10,7 +10,7 @@ import (
 )
 
 // ERABReleaseItemBearerRelComp ::= SEQUENCE { e-RAB-ID, iE-Extensions OPTIONAL }
-// (extensible): an E-RAB the eNB confirms released (TS 36.413 §9.1.3.4).
+// (extensible): an E-RAB the eNB confirms released (TS 36.413).
 type ERABReleaseItemBearerRelComp struct {
 	ERABID ERABID
 }
@@ -40,9 +40,9 @@ func decodeERABReleaseItemBearerRelComp(r *aper.Reader) (ERABReleaseItemBearerRe
 	return it, nil
 }
 
-// ERABReleaseCommand is the E-RAB RELEASE COMMAND message (TS 36.413 §9.1.3.3),
+// ERABReleaseCommand is the E-RAB RELEASE COMMAND message (TS 36.413),
 // sent by the MME to release one or more E-RABs of a UE that stays connected —
-// the radio leg of a PDN connection being disconnected (TS 23.401 §5.10.3,
+// the radio leg of a PDN connection being disconnected (TS 23.401,
 // "Deactivate Bearer Request"). The DEACTIVATE EPS BEARER CONTEXT REQUEST NAS
 // message rides in the optional NAS-PDU IE, so the eNB releases the radio bearer
 // and delivers the NAS in one step.
@@ -160,7 +160,7 @@ func ParseERABReleaseCommand(value []byte) (*ERABReleaseCommand, error) {
 	return m, nil
 }
 
-// ERABReleaseResponse is the E-RAB RELEASE RESPONSE message (TS 36.413 §9.1.3.4),
+// ERABReleaseResponse is the E-RAB RELEASE RESPONSE message (TS 36.413),
 // sent by the eNB once the E-RAB(s) are released.
 type ERABReleaseResponse struct {
 	MMEUES1APID            MMEUES1APID

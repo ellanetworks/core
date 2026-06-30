@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/s1ap/aper"
 )
 
-// UES1APIDs is the UE-S1AP-IDs CHOICE (TS 36.413 §9.2.3.x): either the
+// UES1APIDs is the UE-S1AP-IDs CHOICE (TS 36.413): either the
 // UE-S1AP-ID-pair (both identities, the form an MME sends) or a bare
 // MME-UE-S1AP-ID. Pair selects which alternative.
 type UES1APIDs struct {
@@ -88,8 +88,8 @@ func decodeUES1APIDs(r *aper.Reader) (UES1APIDs, error) {
 	}
 }
 
-// UEContextReleaseCommand is the UE CONTEXT RELEASE COMMAND message (TS 36.413
-// §9.1.4.6), sent by the MME to release a UE's S1 context.
+// UEContextReleaseCommand is the UE CONTEXT RELEASE COMMAND message (TS 36.413),
+// sent by the MME to release a UE's S1 context.
 type UEContextReleaseCommand struct {
 	UES1APIDs UES1APIDs
 	Cause     Cause
@@ -177,8 +177,8 @@ func ParseUEContextReleaseCommand(value []byte) (*UEContextReleaseCommand, error
 	return m, nil
 }
 
-// UEContextReleaseComplete is the UE CONTEXT RELEASE COMPLETE message (TS 36.413
-// §9.1.4.7), sent by the eNB once the context is released.
+// UEContextReleaseComplete is the UE CONTEXT RELEASE COMPLETE message (TS 36.413),
+// sent by the eNB once the context is released.
 type UEContextReleaseComplete struct {
 	MMEUES1APID            MMEUES1APID
 	ENBUES1APID            ENBUES1APID
@@ -278,8 +278,8 @@ func ParseUEContextReleaseComplete(value []byte) (*UEContextReleaseComplete, err
 	return m, nil
 }
 
-// UEContextReleaseRequest is the UE CONTEXT RELEASE REQUEST message (TS 36.413
-// §9.1.4.5), sent by the eNB to request release of a UE's S1 context (e.g. on
+// UEContextReleaseRequest is the UE CONTEXT RELEASE REQUEST message (TS 36.413),
+// sent by the eNB to request release of a UE's S1 context (e.g. on
 // radio-link failure or inactivity).
 type UEContextReleaseRequest struct {
 	MMEUES1APID MMEUES1APID

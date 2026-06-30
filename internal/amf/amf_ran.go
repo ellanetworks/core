@@ -51,7 +51,7 @@ type NGAPSender interface {
 	SendHandoverPreparationFailure(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error
 	SendLocationReportingControl(ctx context.Context, amfUENgapID int64, ranUENgapID int64, eventType ngapType.EventType) error
 	SendHandoverCommand(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, handOverType ngapType.HandoverType, pduSessionResourceHandoverList ngapType.PDUSessionResourceHandoverList, pduSessionResourceToReleaseList ngapType.PDUSessionResourceToReleaseListHOCmd, container ngapType.TargetToSourceTransparentContainer) error
-	SendInitialContextSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, allowedNssai []models.Snssai, kgnb []byte, plmnID models.PlmnID, ueRadioCapability string, ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging, ueSecurityCapability *nasType.UESecurityCapability, nasPdu []byte, pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq, supportedGUAMI *models.Guami) error
+	SendInitialContextSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, allowedNssai []models.Snssai, kgnb []byte, plmnID models.PlmnID, ueRadioCapability []byte, ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging, ueSecurityCapability *nasType.UESecurityCapability, nasPdu []byte, pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq, supportedGUAMI *models.Guami) error
 	SendPathSwitchRequestAcknowledge(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ueSecurityCapability *nasType.UESecurityCapability, ncc uint8, nh []byte, pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList, pduSessionResourceReleasedList ngapType.PDUSessionResourceReleasedListPSAck, snssaiList []models.Snssai) error
 	SendHandoverRequest(ctx context.Context, amfUeNgapID int64, handOverType ngapType.HandoverType, uplinkAmbr string, downlinkAmbr string, ueSecurityCapability *nasType.UESecurityCapability, ncc uint8, nh []byte, cause ngapType.Cause, pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq, sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer, snssaiList []models.Snssai, supportedGUAMI *models.Guami) error
 }
@@ -100,8 +100,8 @@ func (r *Radio) RemoveAllUeInRan(ctx context.Context) {
 }
 
 // applyStatefulNasCleanup runs the GMM state-machine cleanup that follows
-// NAS connection loss: mid-registration UEs are aborted (TS 24.501
-// §5.5.1.2.8); registered UEs start the mobile reachable timer (§5.3.7).
+// NAS connection loss: mid-registration UEs are aborted (TS 24.501);
+// registered UEs start the mobile reachable timer.
 func applyStatefulNasCleanup(ctx context.Context, ranUe *RanUe) {
 	ue := ranUe.UeContext()
 	if ue == nil {

@@ -14,19 +14,11 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-// BuildPDUSessionResourceModifyRequestTransfer constructs the N2 SM Information
-// for a PDU Session Resource Modify Request (TS 38.413 §9.3.4.3).
-//
-// It includes:
-//   - PDU Session Aggregate Maximum Bit Rate (when ambr is non-nil)
-//   - QoS Flow Add or Modify Request List (when qosData is non-nil)
-//
-// This is used during network-requested PDU Session Modification (TS 23.502
-// §4.3.3.2) to update the gNB with new QoS parameters and/or session AMBR.
+// BuildPDUSessionResourceModifyRequestTransfer builds the N2 SM Information for a
+// PDU Session Resource Modify Request (TS 38.413).
 func BuildPDUSessionResourceModifyRequestTransfer(ambr *models.Ambr, qosData *models.QosData) ([]byte, error) {
 	transfer := ngapType.PDUSessionResourceModifyRequestTransfer{}
 
-	// PDU Session Aggregate Maximum Bit Rate (IE ID 130)
 	if ambr != nil {
 		ie := ngapType.PDUSessionResourceModifyRequestTransferIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDPDUSessionAggregateMaximumBitRate
@@ -45,7 +37,6 @@ func BuildPDUSessionResourceModifyRequestTransfer(ambr *models.Ambr, qosData *mo
 		transfer.ProtocolIEs.List = append(transfer.ProtocolIEs.List, ie)
 	}
 
-	// QoS Flow Add or Modify Request List (IE ID 135)
 	if qosData != nil {
 		arpPreemptCap := ngapType.PreEmptionCapabilityPresentMayTriggerPreEmption
 		if qosData.Arp != nil && qosData.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {

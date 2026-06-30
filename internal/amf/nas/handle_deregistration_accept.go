@@ -12,7 +12,7 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-// TS 23.502 4.2.2.3
+// TS 23.502
 func handleDeregistrationAccept(ctx context.Context, ue *amf.UeContext) error {
 	if conn := ue.NasConn(); conn != nil {
 		conn.T3522.Stop()

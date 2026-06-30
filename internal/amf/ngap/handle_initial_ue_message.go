@@ -78,7 +78,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			if amfUe, ok := amfInstance.FindUeContextByGuti(guti); !ok {
 				logger.WithTrace(ctx, ranUe.Log).Warn("Unknown UE", logger.GUTI(guti.String()))
 			} else if !amfUe.ReuseForInboundNAS(msg.NASPDU) {
-				// TS 24.501 §4.4.4.3: this message cites an existing context but
+				// TS 24.501: this message cites an existing context but
 				// is not authenticated for it. Do not bind to or mutate the live
 				// context; the NAS layer registers it on a fresh context pending
 				// authentication.

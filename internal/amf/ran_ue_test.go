@@ -147,7 +147,7 @@ func TestRemoveAllUeInRan_AbortsProcedures(t *testing.T) {
 }
 
 // Mid-registration UEs are deregistered on lower-layer failure
-// (TS 24.501 §5.5.1.2.8(a)).
+// (TS 24.501).
 func TestRemoveAllUeInRan_MidAuthentication_Deregisters(t *testing.T) {
 	radio := newTestRadioForRanUe()
 	ue, _ := newBoundUeContext(t, radio)
@@ -185,7 +185,7 @@ func TestRemoveAllUeInRan_MidContextSetup_Deregisters(t *testing.T) {
 }
 
 // Registered UEs keep their state and start the mobile reachable timer
-// (TS 24.501 §5.3.7).
+// (TS 24.501).
 func TestRemoveAllUeInRan_Registered_StaysRegistered(t *testing.T) {
 	radio := newTestRadioForRanUe()
 	ue, _ := newBoundUeContext(t, radio)

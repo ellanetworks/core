@@ -3,7 +3,7 @@
 
 package s1ap
 
-// ProtocolIE-ID values (TS 36.413 §9.3, S1AP-Constants).
+// ProtocolIE-ID values (TS 36.413, S1AP-Constants).
 const (
 	idMMEUES1APID                               ProtocolIEID = 0
 	idHandoverType                              ProtocolIEID = 1

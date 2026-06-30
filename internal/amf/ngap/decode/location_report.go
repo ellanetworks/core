@@ -21,7 +21,7 @@ import (
 // }
 
 // DecodeLocationReport validates a LocationReport PDU body (3GPP TS
-// 38.413 §9.2.4.2). AMFUENGAPID and RANUENGAPID are mandatory-reject;
+// 38.413). AMFUENGAPID and RANUENGAPID are mandatory-reject;
 // UserLocationInformation and LocationReportingRequestType are
 // mandatory-ignore; UEPresenceInAreaOfInterestList is optional-ignore.
 // Class 2 procedure, so procedure-level criticality is "ignore".

@@ -10,7 +10,7 @@ import (
 	"github.com/ellanetworks/core/nas/common"
 )
 
-// ESMMessageType is an EPS Session Management message type (TS 24.301 §9.8).
+// ESMMessageType is an EPS Session Management message type (TS 24.301).
 type ESMMessageType uint8
 
 const (
@@ -31,7 +31,7 @@ const (
 	MsgESMStatus                              ESMMessageType = 0xE8
 )
 
-// ESM cause values (TS 24.301 §9.9.4.4).
+// ESM cause values (TS 24.301).
 const (
 	ESMCauseReactivationRequested  uint8 = 39
 	ESMCausePDNTypeIPv4OnlyAllowed uint8 = 50
@@ -68,7 +68,7 @@ func PeekESMMessageType(b []byte) (ESMMessageType, error) {
 }
 
 // writeESMHeader emits the 3-octet ESM header: EPS-bearer-identity + protocol
-// discriminator, procedure transaction identity, message type (TS 24.301 §8.3).
+// discriminator, procedure transaction identity, message type (TS 24.301).
 func writeESMHeader(w *common.Writer, ebi, pti uint8, mt ESMMessageType) {
 	w.U8(ebi<<4 | PDESM)
 	w.U8(pti)

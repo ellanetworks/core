@@ -26,8 +26,8 @@ func (ue *UeContext) SmContextRefs() []SmContextRef {
 		return nil
 	}
 
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	refs := make([]SmContextRef, 0, len(ue.SmContextList))
 	for id, sc := range ue.SmContextList {
@@ -45,8 +45,8 @@ func (ue *UeContext) NextHopNCC() ([32]uint8, uint8) {
 		return [32]uint8{}, 0
 	}
 
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	return ue.nh, ue.ncc
 }
@@ -56,10 +56,10 @@ func (ue *UeContext) HasSecurityContext() bool {
 		return false
 	}
 
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
-	return ue.securityContextAvailable
+	return ue.secured
 }
 
 func (ue *UeContext) SupiValue() etsi.SUPI {
@@ -67,8 +67,8 @@ func (ue *UeContext) SupiValue() etsi.SUPI {
 		return etsi.SUPI{}
 	}
 
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	return ue.supi
 }
@@ -78,8 +78,8 @@ func (ue *UeContext) UESecCap() *nasType.UESecurityCapability {
 		return nil
 	}
 
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	return ue.ueSecurityCapability
 }
@@ -89,8 +89,8 @@ func (ue *UeContext) Guti() etsi.GUTI {
 		return etsi.GUTI{}
 	}
 
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	return ue.guti
 }
@@ -100,8 +100,8 @@ func (ue *UeContext) NgKsi() models.NgKsi {
 		return models.NgKsi{}
 	}
 
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	return ue.ngKsi
 }
@@ -112,8 +112,8 @@ func (ue *UeContext) Abba() []uint8 {
 		return nil
 	}
 
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	return ue.abba
 }
@@ -123,8 +123,8 @@ func (ue *UeContext) CipheringAlg() uint8 {
 		return 0
 	}
 
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	return ue.cipheringAlg
 }
@@ -134,8 +134,8 @@ func (ue *UeContext) IntegrityAlg() uint8 {
 		return 0
 	}
 
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	return ue.integrityAlg
 }
@@ -146,8 +146,8 @@ func (ue *UeContext) Kgnb() []uint8 {
 		return nil
 	}
 
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	return ue.kgnb
 }
@@ -178,21 +178,21 @@ func (ue *UeContext) ClearSecurityContext() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.securityContextAvailable = false
+	ue.secured = false
 }
 
 func (ue *UeContext) MarkSecurityContextAvailable() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.securityContextAvailable = true
+	ue.secured = true
 }
 
 // DecryptUplinkContents deciphers an uplink NAS container in place against the
 // UE's ciphering key and current uplink count (TS 33.501).
 func (ue *UeContext) DecryptUplinkContents(contents []byte) error {
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	return security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.ulCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
 }
@@ -200,8 +200,8 @@ func (ue *UeContext) DecryptUplinkContents(contents []byte) error {
 // SmContextSnapshot returns a locked shallow copy of the UE's PDU session SM
 // contexts for safe concurrent iteration.
 func (ue *UeContext) SmContextSnapshot() map[uint8]*SmContext {
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	snapshot := make(map[uint8]*SmContext, len(ue.SmContextList))
 	for id, sc := range ue.SmContextList {

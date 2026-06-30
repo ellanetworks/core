@@ -20,7 +20,7 @@ import (
 // }
 
 // DecodeUERadioCapabilityInfoIndication validates a
-// UERadioCapabilityInfoIndication PDU body (3GPP TS 38.413 §9.2.7.7).
+// UERadioCapabilityInfoIndication PDU body (3GPP TS 38.413).
 // AMFUENGAPID and RANUENGAPID are mandatory-reject; UERadioCapability
 // is mandatory-ignore; UERadioCapabilityForPaging is optional-ignore.
 // The procedure is class 2, so the procedure-level criticality is

@@ -39,7 +39,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 	if conn.RegistrationRequest.UpdateType5GS != nil {
 		if conn.RegistrationRequest.GetNGRanRcu() == nasMessage.NGRanRadioCapabilityUpdateNeeded {
-			ue.UeRadioCapability = ""
+			ue.UeRadioCapability = nil
 			ue.UeRadioCapabilityForPaging = nil
 		}
 	}
@@ -64,9 +64,9 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 	ue.AllowedNssai = subscriberProfile.AllowedNssai
 
-	// The 5GMM capability IE is optional (TS 24.501 Table 8.2.6.1.1), re-sent only
-	// when it changes (§5.5.1.3.2); a missing optional IE is treated as not present
-	// (§7.7.1), not an error.
+	// The 5GMM capability IE is optional (TS 24.501), re-sent only
+	// when it changes; a missing optional IE is treated as not present,
+	// not an error.
 
 	if conn.RegistrationRequest.MICOIndication != nil {
 		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", conn.RegistrationRequest.GetRAAI()))

@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 // Package eps implements the EPS NAS codec of TS 24.301 (4G): EMM/ESM message
-// headers, the security-protected message wrapper, and (in later phases) the
-// message and information-element catalog. It builds on github.com/ellanetworks/
-// nas/common for octet framing and the integrity/cipher algorithms.
+// headers, the security-protected message wrapper, and the message and
+// information-element catalog. It builds on github.com/ellanetworks/nas/common
+// for octet framing and the integrity/cipher algorithms.
 package eps
 
 import (
@@ -14,14 +14,14 @@ import (
 	"github.com/ellanetworks/core/nas/common"
 )
 
-// Protocol discriminators (TS 24.007 §11.2.3.1.1).
+// Protocol discriminators (TS 24.007).
 const (
 	PDEMM uint8 = 0x07 // EPS Mobility Management
 	PDESM uint8 = 0x02 // EPS Session Management
 )
 
 // SecurityHeaderType identifies the protection applied to an EMM message
-// (TS 24.301 §9.3.1).
+// (TS 24.301).
 type SecurityHeaderType uint8
 
 const (
@@ -32,8 +32,8 @@ const (
 	SHTIntegrityProtectedCipheredNewContext SecurityHeaderType = 4
 
 	// SHTServiceRequest marks the SERVICE REQUEST message, which carries no
-	// message identity and a 2-octet short MAC instead of the normal wrapper
-	// (TS 24.301 §9.3.1, §8.2.25).
+	// message identity and a 2-octet short MAC in place of the normal wrapper
+	// (TS 24.301).
 	SHTServiceRequest SecurityHeaderType = 12
 )
 
@@ -48,8 +48,8 @@ var ErrNotEMM = errors.New("nas/eps: not an EMM message")
 // security-protected message was expected.
 var ErrNotProtected = errors.New("nas/eps: message is not security protected")
 
-// SecurityProtectedMessage is the outer EMM security wrapper (TS 24.301 §9.1.1,
-// figure in §9.5): a security-header-type + protocol-discriminator octet, a
+// SecurityProtectedMessage is the outer EMM security wrapper (TS 24.301,
+// figure in): a security-header-type + protocol-discriminator octet, a
 // 4-octet message authentication code, a 1-octet sequence number, and the inner
 // NAS message (ciphered when the header type indicates).
 type SecurityProtectedMessage struct {

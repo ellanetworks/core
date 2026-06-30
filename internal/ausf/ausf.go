@@ -6,7 +6,6 @@ package ausf
 import (
 	"context"
 	"crypto/subtle"
-	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
@@ -45,7 +44,7 @@ type ResyncInfo struct {
 
 type authContext struct {
 	supi      etsi.SUPI
-	kseaf     string
+	kseaf     []byte
 	xresStar  string
 	rand      string
 	createdAt time.Time
@@ -178,7 +177,7 @@ func (a *AUSF) Authenticate(ctx context.Context, suci string, plmn models.PlmnID
 	a.mu.Lock()
 	a.pool[suci] = &authContext{
 		supi:      heav.SUPI,
-		kseaf:     hex.EncodeToString(kseaf),
+		kseaf:     kseaf,
 		xresStar:  heav.XresStar,
 		rand:      heav.RAND,
 		createdAt: a.clock(),
@@ -196,7 +195,7 @@ func (a *AUSF) Authenticate(ctx context.Context, suci string, plmn models.PlmnID
 // Confirm verifies the UE's RES* against the cached XRES*.
 // On success it returns the SUPI and Kseaf. The cached context is
 // deleted regardless of outcome.
-func (a *AUSF) Confirm(ctx context.Context, resStar, suci string) (etsi.SUPI, string, error) {
+func (a *AUSF) Confirm(ctx context.Context, resStar, suci string) (etsi.SUPI, []byte, error) {
 	_, span := tracer.Start(ctx, "ausf/confirm",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -211,11 +210,11 @@ func (a *AUSF) Confirm(ctx context.Context, resStar, suci string) (etsi.SUPI, st
 	a.mu.Unlock()
 
 	if !ok {
-		return etsi.InvalidSUPI, "", fmt.Errorf("ausf ue context not found for suci: %s", suci)
+		return etsi.InvalidSUPI, nil, fmt.Errorf("ausf ue context not found for suci: %s", suci)
 	}
 
 	if subtle.ConstantTimeCompare([]byte(resStar), []byte(cached.xresStar)) != 1 {
-		return etsi.InvalidSUPI, "", fmt.Errorf("RES* mismatch for suci: %s", suci)
+		return etsi.InvalidSUPI, nil, fmt.Errorf("RES* mismatch for suci: %s", suci)
 	}
 
 	return cached.supi, cached.kseaf, nil

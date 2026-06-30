@@ -22,7 +22,7 @@ import (
 // }
 
 // DecodeHandoverRequestAcknowledge validates a HandoverRequestAcknowledge
-// PDU body (3GPP TS 38.413 §9.2.3.3 / Handover Resource Allocation).
+// PDU body (3GPP TS 38.413 / Handover Resource Allocation).
 // AMFUENGAPID, RANUENGAPID and PDUSessionResourceAdmittedList are
 // mandatory-ignore. AMFUENGAPID and RANUENGAPID are surfaced as pointers
 // because 0 is a valid NGAP UE NGAP ID and absent must be

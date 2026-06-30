@@ -17,15 +17,14 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// The SMF (combined PGW-C, TS 23.501 §4.3) keys each 4G PDN connection by its
+// The SMF (combined PGW-C, TS 23.501) keys each 4G PDN connection by its
 // default bearer's EPS bearer identity (5..15) as the PDU session id. A
 // subscriber is never on 4G and 5G at once, so the EBI cannot collide with a
 // live 5G PDU session id.
 
 // validateEPSBearerRequest rejects inputs the data path would otherwise accept
 // and degrade: a zero AMBR programs a zero-rate QER, and a non-IP DNS drops the
-// DNS option. An EBI outside 5..15 is not a valid default bearer (TS 24.007
-// §11.2.3.1.5).
+// DNS option. An EBI outside 5..15 is not a valid default bearer (TS 24.007).
 func validateEPSBearerRequest(req models.EPSBearerRequest) error {
 	if req.EPSBearerIdentity < 5 || req.EPSBearerIdentity > 15 {
 		return fmt.Errorf("EPS bearer identity %d out of range (5..15)", req.EPSBearerIdentity)
@@ -47,7 +46,7 @@ func validateEPSBearerRequest(req models.EPSBearerRequest) error {
 }
 
 // CreateEPSSession programs the user plane for a 4G default EPS bearer with the
-// SMF as converged anchor (SMF+PGW-C, TS 23.401 §4.4.3). For IPv6/IPv4v6 the
+// SMF as converged anchor (SMF+PGW-C, TS 23.401). For IPv6/IPv4v6 the
 // delegated /64 prefix reaches the UE via Router Advertisement only once
 // ModifyEPSSession registers the IPv6 session. The returned S-GW S1-U F-TEID
 // carries uplink; the eNB downlink endpoint arrives later via ModifyEPSSession.
@@ -113,7 +112,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 
 	// When the UE asked for IPv4v6 but the data network offers a single family,
 	// the Activate Default EPS Bearer Context Request carries ESM cause #50/#51
-	// (TS 24.301 §6.5.1.3).
+	// (TS 24.301).
 	switch narrowPDUType(req.RequestedPDNType, pdnType) {
 	case narrowIPv4Only:
 		bearer.ESMCause = eps.ESMCausePDNTypeIPv4OnlyAllowed

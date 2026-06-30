@@ -124,7 +124,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
-	// TS 24.501 5.6.1.1: reject service request from deregistered UE
+	// TS 24.501: reject service request from deregistered UE
 	if state == amf.Deregistered {
 		amf.SendServiceReject(ctx, ranUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 
@@ -149,7 +149,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		conn.Procedures.End(procedure.Paging)
 	}
 
-	// TS 24.501 §4.4.6: an integrity-protected SERVICE REQUEST carrying a NAS
+	// TS 24.501: an integrity-protected SERVICE REQUEST carrying a NAS
 	// message container holds the real initial NAS message in that container;
 	// decipher it and use it in place of the outer message.
 	if msg.NASMessageContainer != nil && (ue.SecurityContextIsValid() && integrityVerified) {
@@ -171,11 +171,11 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 			msg = m.ServiceRequest
 		}
-		// TS 33.501 §6.4.6 step 3: protected initial NAS message that failed the integrity check.
+		// TS 33.501: protected initial NAS message that failed the integrity check.
 		conn.RetransmissionOfInitialNASMsg = !integrityVerified
 	}
 
-	// Service Reject if the SecurityContext is invalid. TS 24.501 §4.4.4.3: a
+	// Service Reject if the SecurityContext is invalid. TS 24.501: a
 	// service request failing the integrity check is rejected with 5GMM cause
 	// #9 and the 5GMM-context and 5G NAS security context are left unchanged, so
 	// an unauthenticated message cannot tear down a genuine UE's security state.
@@ -285,7 +285,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 	switch serviceType {
 	case nasMessage.ServiceTypeMobileTerminatedServices: // Triggered by Network
-		// TS 24.501 5.4.4.1 - We need to assign a new GUTI after a successful Service Request
+		// TS 24.501 requires assigning a new GUTI after a successful Service Request
 		// triggered by a paging request.
 		if conn.N1N2Message != nil {
 			requestData := conn.N1N2Message

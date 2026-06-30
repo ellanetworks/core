@@ -20,7 +20,7 @@ import (
 // }
 
 // DecodeErrorIndication validates an ErrorIndication PDU body (3GPP TS
-// 38.413 §9.2.7.2). All four IEs are optional-ignore; the procedure is
+// 38.413). All four IEs are optional-ignore; the procedure is
 // class 2 (procedure-level criticality "ignore"). AMF-UE-NGAP-ID and
 // RAN-UE-NGAP-ID are validated structurally but not surfaced. The
 // decoder does not enforce the spec rule that at least one of Cause or

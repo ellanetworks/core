@@ -11,7 +11,6 @@ package amf
 import (
 	"context"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"slices"
 	"sync"
@@ -56,7 +55,7 @@ type SmContext struct {
 }
 
 type UeContext struct {
-	mu sync.RWMutex
+	mu sync.Mutex
 
 	state StateType
 
@@ -92,25 +91,25 @@ type UeContext struct {
 	active atomic.Pointer[ActiveNasConnection]
 
 	// NAS security context per TS 33.501.
-	securityContextAvailable bool
-	ueSecurityCapability     *nasType.UESecurityCapability
-	ngKsi                    models.NgKsi
-	knasInt                  [16]uint8
-	knasEnc                  [16]uint8
-	kgnb                     []uint8
-	nh                       [32]uint8 // AS key-chain Next Hop, 256 bits (TS 33.501)
-	ncc                      uint8
-	ulCount                  security.Count
-	dlCount                  security.Count
-	cipheringAlg             uint8
-	integrityAlg             uint8
-	kamf                     string
-	abba                     []uint8
+	secured              bool
+	ueSecurityCapability *nasType.UESecurityCapability
+	ngKsi                models.NgKsi
+	knasInt              [16]uint8
+	knasEnc              [16]uint8
+	kgnb                 []uint8
+	nh                   [32]uint8 // AS key-chain Next Hop, 256 bits (TS 33.501)
+	ncc                  uint8
+	ulCount              security.Count
+	dlCount              security.Count
+	cipheringAlg         uint8
+	integrityAlg         uint8
+	kamf                 []uint8
+	abba                 []uint8
 
 	Ambr                       *models.Ambr
 	AllowedNssai               []models.Snssai
 	RegistrationArea           []models.Tai
-	UeRadioCapability          string
+	UeRadioCapability          []byte
 	UeRadioCapabilityForPaging *models.UERadioCapabilityForPaging
 	UESpecificDRX              uint8
 	SmContextList              map[uint8]*SmContext
@@ -122,8 +121,8 @@ type UeContext struct {
 	// implicit deregistration. idleGen bumps on every (re)arm/stop so an expiry
 	// that fired just as the UE reconnected is ignored when it re-checks under
 	// ue.mu. Both are one logical episode keyed by idleGen.
-	MobileReachableTimer        guard.Guard
-	ImplicitDeregistrationTimer guard.Guard
+	mobileReachableTimer        guard.Guard
+	implicitDeregistrationTimer guard.Guard
 	idleGen                     uint64
 }
 
@@ -190,7 +189,7 @@ func (ue *UeContext) AttachNasConnection(ranUe *RanUe) *ActiveNasConnection {
 // resetSecurityContext clears the 5GMM security and session state, returning the
 // field state to that of a freshly-constructed context.
 func (ue *UeContext) resetSecurityContext() {
-	ue.securityContextAvailable = false
+	ue.secured = false
 	ue.ueSecurityCapability = nil
 	ue.ngKsi = models.NgKsi{}
 	ue.knasInt = [16]uint8{}
@@ -202,12 +201,12 @@ func (ue *UeContext) resetSecurityContext() {
 	ue.dlCount = security.Count{}
 	ue.cipheringAlg = 0
 	ue.integrityAlg = 0
-	ue.kamf = ""
+	ue.kamf = nil
 	ue.abba = nil
 	ue.Ambr = nil
 	ue.AllowedNssai = nil
 	ue.RegistrationArea = make([]models.Tai, 0)
-	ue.UeRadioCapability = ""
+	ue.UeRadioCapability = nil
 	ue.UeRadioCapabilityForPaging = nil
 	ue.UESpecificDRX = 0
 	ue.SmContextList = make(map[uint8]*SmContext)
@@ -219,8 +218,8 @@ func (ue *UeContext) resetSecurityContext() {
 // that has already fired becomes a no-op. Caller holds ue.mu.
 func (ue *UeContext) stopIdleTimers() {
 	ue.idleGen++
-	ue.MobileReachableTimer.Stop()
-	ue.ImplicitDeregistrationTimer.Stop()
+	ue.mobileReachableTimer.Stop()
+	ue.implicitDeregistrationTimer.Stop()
 }
 
 // RanUe returns the currently attached RanUe, or nil. Callers must capture the
@@ -231,9 +230,9 @@ func (ue *UeContext) RanUe() *RanUe {
 		return nil
 	}
 
-	ue.mu.RLock()
+	ue.mu.Lock()
 	r := ue.ranUe
-	ue.mu.RUnlock()
+	ue.mu.Unlock()
 
 	return r
 }
@@ -352,7 +351,7 @@ func (ue *UeContext) IsAllowedNssai(targetSNssai *models.Snssai) bool {
 }
 
 func (ue *UeContext) SecurityContextIsValid() bool {
-	return ue.securityContextAvailable && ue.ngKsi.Ksi != nasMessage.NasKeySetIdentifierNoKeyIsAvailable
+	return ue.secured && ue.ngKsi.Ksi != nasMessage.NasKeySetIdentifierNoKeyIsAvailable
 }
 
 // cipheringAlgName must be called while holding ue.Mutex.
@@ -456,8 +455,8 @@ func (ue *UeContext) Snapshot() UESnapshot {
 	return snap
 }
 
-// Kamf Derivation function defined in TS 33.501 Annex A.7
-func (ue *UeContext) DerivateKamf(kseaf string) error {
+// Kamf Derivation function defined in TS 33.501
+func (ue *UeContext) DerivateKamf(kseaf []byte) error {
 	if !ue.supi.IsValid() || !ue.supi.IsIMSI() {
 		return fmt.Errorf("supi is not a valid IMSI")
 	}
@@ -467,34 +466,24 @@ func (ue *UeContext) DerivateKamf(kseaf string) error {
 	P1 := ue.abba
 	L1 := ueauth.KDFLen(P1)
 
-	kSeafDecode, err := hex.DecodeString(kseaf)
-	if err != nil {
-		return fmt.Errorf("could not decode kseaf: %v", err)
-	}
-
-	kAmfBytes, err := ueauth.GetKDFValue(kSeafDecode, ueauth.FCForKamfDerivation, P0, L0, P1, L1)
+	kAmfBytes, err := ueauth.GetKDFValue(kseaf, ueauth.FCForKamfDerivation, P0, L0, P1, L1)
 	if err != nil {
 		return fmt.Errorf("could not get kdf value: %v", err)
 	}
 
-	ue.kamf = hex.EncodeToString(kAmfBytes)
+	ue.kamf = kAmfBytes
 
 	return nil
 }
 
-// Algorithm key Derivation function defined in TS 33.501 Annex A.9
+// Algorithm key Derivation function defined in TS 33.501
 func (ue *UeContext) DerivateAlgKey() error {
 	P0 := []byte{security.NNASEncAlg}
 	L0 := ueauth.KDFLen(P0)
 	P1 := []byte{ue.cipheringAlg}
 	L1 := ueauth.KDFLen(P1)
 
-	kAmfBytes, err := hex.DecodeString(ue.kamf)
-	if err != nil {
-		return fmt.Errorf("decode kamf error: %v", err)
-	}
-
-	kenc, err := ueauth.GetKDFValue(kAmfBytes, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
+	kenc, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
 	if err != nil {
 		return fmt.Errorf("get kdf value error: %v", err)
 	}
@@ -506,7 +495,7 @@ func (ue *UeContext) DerivateAlgKey() error {
 	P1 = []byte{ue.integrityAlg}
 	L1 = ueauth.KDFLen(P1)
 
-	kint, err := ueauth.GetKDFValue(kAmfBytes, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
+	kint, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
 	if err != nil {
 		return fmt.Errorf("get kdf value error: %v", err)
 	}
@@ -516,7 +505,7 @@ func (ue *UeContext) DerivateAlgKey() error {
 	return nil
 }
 
-// Access Network key Derivation function defined in TS 33.501 Annex A.9
+// Access Network key Derivation function defined in TS 33.501
 func (ue *UeContext) DerivateAnKey() error {
 	P0 := make([]byte, 4)
 	binary.BigEndian.PutUint32(P0, ue.ulCount.Get())
@@ -524,12 +513,7 @@ func (ue *UeContext) DerivateAnKey() error {
 	P1 := []byte{security.AccessType3GPP}
 	L1 := ueauth.KDFLen(P1)
 
-	kAmfBytes, err := hex.DecodeString(ue.kamf)
-	if err != nil {
-		return fmt.Errorf("could not decode kamf: %v", err)
-	}
-
-	key, err := ueauth.GetKDFValue(kAmfBytes, ueauth.FCForKgnbKn3iwfDerivation, P0, L0, P1, L1)
+	key, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForKgnbKn3iwfDerivation, P0, L0, P1, L1)
 	if err != nil {
 		return fmt.Errorf("could not get kdf value: %v", err)
 	}
@@ -539,17 +523,12 @@ func (ue *UeContext) DerivateAnKey() error {
 	return nil
 }
 
-// NH Derivation function defined in TS 33.501 Annex A.10
+// NH Derivation function defined in TS 33.501
 func (ue *UeContext) DerivateNH(syncInput []byte) error {
 	P0 := syncInput
 	L0 := ueauth.KDFLen(P0)
 
-	kAmfBytes, err := hex.DecodeString(ue.kamf)
-	if err != nil {
-		return fmt.Errorf("could not decode kamf: %v", err)
-	}
-
-	nh, err := ueauth.GetKDFValue(kAmfBytes, ueauth.FCForNhDerivation, P0, L0)
+	nh, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForNhDerivation, P0, L0)
 	if err != nil {
 		return fmt.Errorf("could not get kdf value: %v", err)
 	}
@@ -747,7 +726,7 @@ func (ue *UeContext) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	if !ue.securityContextAvailable {
+	if !ue.secured {
 		return msg.PlainNasEncode()
 	}
 
@@ -802,7 +781,7 @@ func (ue *UeContext) ResetMobileReachableTimer() {
 
 	ue.Log.Debug("starting mobile reachable timer", logger.SUPI(ue.supi.String()))
 
-	ue.MobileReachableTimer.ArmOnce(ue.T3512Value+(4*time.Minute), func() {
+	ue.mobileReachableTimer.ArmOnce(ue.T3512Value+(4*time.Minute), func() {
 		ue.onMobileReachableExpiry(gen)
 	})
 }
@@ -840,7 +819,7 @@ func (ue *UeContext) onMobileReachableExpiry(gen uint64) {
 
 	ue.Log.Debug("mobile reachable timer expired", logger.SUPI(ue.supi.String()))
 
-	ue.ImplicitDeregistrationTimer.ArmOnce(2*time.Minute, func() {
+	ue.implicitDeregistrationTimer.ArmOnce(2*time.Minute, func() {
 		ue.onImplicitDeregistrationExpiry(gen)
 	})
 }

@@ -43,8 +43,7 @@ func (r *Reader) U8() (uint8, error) {
 	return v, nil
 }
 
-// PeekU8 returns the next octet without consuming it — used to dispatch on the
-// IEI of an optional (non-imperative) information element.
+// PeekU8 returns the next octet without consuming it.
 func (r *Reader) PeekU8() (uint8, error) {
 	if err := r.need(1, "peek"); err != nil {
 		return 0, err
@@ -78,7 +77,7 @@ func (r *Reader) Bytes(n int) ([]byte, error) {
 	return out, nil
 }
 
-// LV reads a value prefixed by a 1-octet length (TS 24.007 §11.2.1.1.2, used by
+// LV reads a value prefixed by a 1-octet length (TS 24.007, used by
 // IE formats LV and TLV after the IEI is consumed).
 func (r *Reader) LV() ([]byte, error) {
 	n, err := r.U8()

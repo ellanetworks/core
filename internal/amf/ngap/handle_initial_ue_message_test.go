@@ -88,8 +88,8 @@ func TestHandleInitialUEMessage_ReusedRanUeNgapID_EvictsStale(t *testing.T) {
 	}
 }
 
-// TestHandleInitialUEMessage_5GSTMSI_UnverifiedDoesNotAttach asserts TS 24.501
-// §4.4.4.3: an Initial UE Message that resolves to a known UE by 5G-S-TMSI but
+// TestHandleInitialUEMessage_5GSTMSI_UnverifiedDoesNotAttach asserts TS 24.501:
+// an Initial UE Message that resolves to a known UE by 5G-S-TMSI but
 // is not integrity-verified against that context must not bind to it. The
 // message is still forwarded to NAS, which processes it on a fresh context.
 func TestHandleInitialUEMessage_5GSTMSI_UnverifiedDoesNotAttach(t *testing.T) {
@@ -152,7 +152,7 @@ func TestHandleInitialUEMessage_5GSTMSI_UnverifiedDoesNotAttach(t *testing.T) {
 	}
 
 	if ranUe.UeContext() == amfUe {
-		t.Error("an unverified Initial UE Message must not bind to the existing context (TS 24.501 §4.4.4.3)")
+		t.Error("an unverified Initial UE Message must not bind to the existing context (TS 24.501)")
 	}
 
 	if len(fakeNAS.Calls) != 1 {

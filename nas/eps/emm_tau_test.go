@@ -178,7 +178,7 @@ func TestTrackingAreaUpdateAcceptGUTI(t *testing.T) {
 
 // TestTrackingAreaUpdateAcceptBearerContextStatus confirms the EPS bearer context
 // status IE round-trips in the accept and is decoded behind the GUTI and TAI list
-// it follows in the canonical order (TS 24.301 §8.2.26).
+// it follows in the canonical order (TS 24.301).
 func TestTrackingAreaUpdateAcceptBearerContextStatus(t *testing.T) {
 	status := uint16(1<<5 | 1<<7)
 	cause := uint8(18)

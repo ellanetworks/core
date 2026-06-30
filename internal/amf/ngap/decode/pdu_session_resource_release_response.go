@@ -21,7 +21,7 @@ import (
 // }
 
 // DecodePDUSessionResourceReleaseResponse validates a
-// PDUSessionResourceReleaseResponse PDU body (3GPP TS 38.413 §9.2.1.5).
+// PDUSessionResourceReleaseResponse PDU body (3GPP TS 38.413).
 // All IEs are criticality-ignore. AMFUENGAPID, RANUENGAPID and
 // PDUSessionResourceReleasedListRelRes are mandatory-ignore; a missing
 // or malformed value yields a non-fatal report. AMFUENGAPID and

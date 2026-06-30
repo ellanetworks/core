@@ -223,7 +223,7 @@ func BuildRegistrationReject(t3502Value int, cause5GMM uint8) ([]byte, error) {
 	return m.PlainNasEncode()
 }
 
-// TS 24.501 8.2.25
+// TS 24.501
 func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 	conn := ue.NasConn()
 	if conn == nil {
@@ -437,7 +437,7 @@ func BuildRegistrationAccept(
 	return ue.EncodeNASMessage(m)
 }
 
-// TS 24.501 - 5.4.4 Generic UE configuration update procedure - 5.4.4.1 General
+// TS 24.501 Generic UE configuration update procedure.
 // includeGUTI controls whether a new 5G-GUTI is included (e.g. during service request GUTI re-allocation).
 func BuildConfigurationUpdateCommand(ue *UeContext, spnFullName, spnShortName string, includeGUTI bool) ([]byte, error) {
 	m := nas.NewMessage()
@@ -503,7 +503,7 @@ func BuildConfigurationUpdateCommand(ue *UeContext, spnFullName, spnShortName st
 }
 
 // encodeNetworkName encodes a network name string into the format defined by
-// TS 24.008 §10.5.3.5a (Network Name IE). It uses the GSM 7-bit default
+// TS 24.008 (Network Name IE). It uses the GSM 7-bit default
 // alphabet with no CI appended.
 func encodeNetworkName(name string) []byte {
 	chars := len(name)
@@ -515,7 +515,7 @@ func encodeNetworkName(name string) []byte {
 	// Byte 0: ext=1 (bit 7), coding scheme=0 (bits 6-4), addCI=0 (bit 3), spare bits (bits 2-0)
 	buf[0] = 0x80 | (spareBits & 0x07)
 
-	// Pack 7-bit characters into octets (TS 23.038 §6.1.2)
+	// Pack 7-bit characters into octets (TS 23.038)
 	bitOffset := 0
 
 	for i := range chars {

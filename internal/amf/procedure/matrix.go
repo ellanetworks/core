@@ -3,7 +3,7 @@
 
 package procedure
 
-// Conflict matrix encoding TS 33.501 §6.9.5.1 rules.
+// Conflict matrix encoding TS 33.501 rules.
 //
 // conflicts(active, incoming) returns (blocked, ruleCode).
 // The matrix is asymmetric: row = active, column = incoming.

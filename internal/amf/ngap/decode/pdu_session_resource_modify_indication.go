@@ -20,7 +20,7 @@ import (
 // }
 
 // DecodePDUSessionResourceModifyIndication validates a
-// PDUSessionResourceModifyIndication PDU body (3GPP TS 38.413 §9.2.1.6).
+// PDUSessionResourceModifyIndication PDU body (3GPP TS 38.413).
 // AMFUENGAPID, RANUENGAPID and PDUSessionResourceModifyListModInd are
 // mandatory-reject; missing or malformed values produce a fatal report.
 // PDUSessionResourceModifyListModInd is validated for presence only.

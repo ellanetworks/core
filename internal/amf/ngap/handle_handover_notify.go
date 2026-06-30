@@ -52,7 +52,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	amfUe.ClearHandover()
 
-	// Per 3GPP TS 23.502 §4.9.1.3.3 step 7, the SMF sends N4 Session
+	// Per 3GPP TS 23.502, the SMF sends N4 Session
 	// Modification to the UPF with the new AN tunnel info at this point.
 	for _, sr := range amfUe.SmContextRefs() {
 		if sr.Ref == "" {

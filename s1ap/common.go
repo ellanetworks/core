@@ -58,7 +58,7 @@ const (
 type ProtocolIEID uint16
 
 // ProcedureCode ::= INTEGER (0..255). The named values are the S1AP elementary
-// procedure codes (TS 36.413 §9.3, S1AP-Constants).
+// procedure codes (TS 36.413, S1AP-Constants).
 type ProcedureCode uint8
 
 const (

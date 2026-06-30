@@ -19,7 +19,7 @@ import (
 // }
 
 // DecodeHandoverNotify validates a HandoverNotify PDU body (3GPP TS
-// 38.413 §9.2.3.5). AMFUENGAPID and RANUENGAPID are mandatory-reject, so
+// 38.413). AMFUENGAPID and RANUENGAPID are mandatory-reject, so
 // missing or malformed values produce a fatal report.
 // UserLocationInformation is mandatory-ignore: a missing or malformed
 // value yields a non-fatal report and a nil pointer. HandoverNotification

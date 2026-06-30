@@ -169,7 +169,7 @@ func TestSkipExtensionAdditions(t *testing.T) {
 
 // TestEnvelopeLayout encodes an InitiatingMessage envelope by hand from the
 // structured primitives and checks the exact byte layout, validating that they
-// compose into the real S1AP-PDU framing (TS 36.413 §9.3).
+// compose into the real S1AP-PDU framing (TS 36.413).
 func TestEnvelopeLayout(t *testing.T) {
 	var w Writer
 

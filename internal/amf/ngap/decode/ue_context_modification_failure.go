@@ -20,7 +20,7 @@ import (
 // }
 
 // DecodeUEContextModificationFailure validates a UEContextModificationFailure
-// PDU body (3GPP TS 38.413 §9.2.2.8). All four IEs are mandatory-ignore /
+// PDU body (3GPP TS 38.413). All four IEs are mandatory-ignore /
 // optional-ignore, so the decoder records diagnostics in *Report but never
 // raises a fatal error. The procedure is class 1, so the procedure-level
 // criticality is "reject". Duplicate IEs follow a last-wins policy.

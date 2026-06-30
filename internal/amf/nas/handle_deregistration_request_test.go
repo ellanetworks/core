@@ -181,7 +181,7 @@ func TestHandleDeregistrationRequest_SwitchOff_NoDeregistrationAccept(t *testing
 
 // TestHandleDeregistrationRequest_MacFailed_RejectsForgery verifies the
 // handler rejects a MacFailed Deregistration Request while the amf.AMF still
-// holds a valid security context (TS 24.501 §4.4.4.3 defense in depth).
+// holds a valid security context (TS 24.501 defense in depth).
 func TestHandleDeregistrationRequest_MacFailed_RejectsForgery(t *testing.T) {
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {

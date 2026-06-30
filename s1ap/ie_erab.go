@@ -116,7 +116,7 @@ const (
 )
 
 // preemptionRootCount is the number of root values of both pre-emption
-// ENUMERATEDs (TS 36.413 §9.2.1.60/§9.2.1.61).
+// ENUMERATEDs (TS 36.413).
 const preemptionRootCount = 2
 
 // AllocationAndRetentionPriority ::= SEQUENCE { priorityLevel,

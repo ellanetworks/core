@@ -38,7 +38,7 @@ type ActiveNasConnection struct {
 
 	// secureExchangeEstablished records that secure exchange of NAS messages has
 	// been established on this connection (a NAS message has been successfully
-	// integrity-checked). Once set, TS 24.501 §4.4.4.3 requires discarding any
+	// integrity-checked). Once set, TS 24.501 requires discarding any
 	// further message that is not integrity protected or fails the check.
 	secureExchangeEstablished bool
 

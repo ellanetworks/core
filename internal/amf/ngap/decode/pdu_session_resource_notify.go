@@ -21,7 +21,7 @@ import (
 // }
 
 // DecodePDUSessionResourceNotify validates a PDUSessionResourceNotify
-// PDU body (3GPP TS 38.413 §9.2.1.8). AMFUENGAPID and RANUENGAPID are
+// PDU body (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are
 // mandatory-reject. PDUSessionResourceNotifyList is optional-reject:
 // missing is allowed, a malformed inner pointer is fatal.
 // PDUSessionResourceReleasedListNot and UserLocationInformation are

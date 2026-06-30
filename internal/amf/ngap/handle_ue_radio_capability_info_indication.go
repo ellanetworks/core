@@ -34,7 +34,7 @@ func HandleUERadioCapabilityInfoIndication(ctx gocontext.Context, ran *amf.Radio
 	}
 
 	if msg.UERadioCapability != nil {
-		amfUe.UeRadioCapability = hex.EncodeToString(msg.UERadioCapability)
+		amfUe.UeRadioCapability = msg.UERadioCapability
 	}
 
 	if msg.UERadioCapabilityForPaging != nil {

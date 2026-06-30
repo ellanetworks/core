@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/nas/common"
 )
 
-// EMM tracking area updating message types (TS 24.301 §9.8, Table 9.8.1).
+// EMM tracking area updating message types (TS 24.301).
 const (
 	MsgTrackingAreaUpdateRequest  MessageType = 0x48
 	MsgTrackingAreaUpdateAccept   MessageType = 0x49
@@ -17,38 +17,38 @@ const (
 	MsgTrackingAreaUpdateReject   MessageType = 0x4b
 )
 
-// EPS update result values (TS 24.301 §9.9.3.13).
+// EPS update result values (TS 24.301).
 const (
 	EPSUpdateResultTA       uint8 = 0
 	EPSUpdateResultCombined uint8 = 1
 )
 
-// EPS update type values (TS 24.301 §9.9.3.14).
+// EPS update type values (TS 24.301).
 const (
 	EPSUpdateTypeTA       uint8 = 0
 	EPSUpdateTypePeriodic uint8 = 3
 )
 
 // TrackingAreaUpdateRequest is the UE's request to update its registration
-// (TS 24.301 §8.2.29). The mandatory EPS update type half-octet is decoded (the
+// (TS 24.301). The mandatory EPS update type half-octet is decoded (the
 // active flag drives whether the network re-establishes the radio bearer); the
 // optional EPS bearer context status, when present, reports which EPS bearers the
-// UE still considers active so the network can reconcile (§5.5.3.2.4).
+// UE still considers active so the network can reconcile.
 type TrackingAreaUpdateRequest struct {
-	EPSUpdateType uint8 // EPS update type value (bits 1-3, TS 24.301 §9.9.3.14)
+	EPSUpdateType uint8 // EPS update type value (bits 1-3, TS 24.301)
 	ActiveFlag    bool  // bit 4: bearer establishment requested
 	NASKeySetID   uint8
 	// EPSBearerContextStatus is the EBI activity bitmap (bit n = EBI n active),
-	// nil when the UE did not include the IE (IEI 0x57, TS 24.301 §9.9.2.1).
+	// nil when the UE did not include the IE (IEI 0x57, TS 24.301).
 	EPSBearerContextStatus *uint16
 }
 
 // epsBearerContextStatusIEI is the IEI of the EPS bearer context status IE in the
-// TRACKING AREA UPDATE REQUEST and ACCEPT (TS 24.301 §9.9.2.1).
+// TRACKING AREA UPDATE REQUEST and ACCEPT (TS 24.301).
 const epsBearerContextStatusIEI = 0x57
 
 // tauRequestOptionalIEs lists the full-octet optional IEs of the TRACKING AREA
-// UPDATE REQUEST (TS 24.301 §8.2.29), transcribed so the walker can delimit every
+// UPDATE REQUEST (TS 24.301), transcribed so the walker can delimit every
 // IE and reach the EPS bearer context status regardless of what precedes it.
 // Type-1/2 IEs (IEI ≥ 0x80) are delimited generically and are not listed.
 var tauRequestOptionalIEs = []common.OptionalIE{
@@ -78,8 +78,7 @@ var tauRequestOptionalIEs = []common.OptionalIE{
 }
 
 // encodeEPSBearerContextStatus encodes the EBI activity bitmap into the two-octet
-// value (octet 1 = EBI 0-7, octet 2 = EBI 8-15; bit n = EBI n, TS 24.301
-// §9.9.2.1).
+// value (octet 1 = EBI 0-7, octet 2 = EBI 8-15; bit n = EBI n, TS 24.301).
 func encodeEPSBearerContextStatus(status uint16) []byte {
 	return []byte{byte(status), byte(status >> 8)}
 }
@@ -96,7 +95,7 @@ func parseEPSBearerContextStatus(value []byte) (uint16, error) {
 // Marshal encodes the plain TRACKING AREA UPDATE REQUEST. Only the mandatory EPS
 // update type octet (NAS key set identifier | active flag | update type) is
 // written; the UE is resolved from the S-TMSI in the S1AP Initial UE Message, so
-// the old GUTI is omitted (the receiver here ignores it, TS 24.301 §8.2.29).
+// the old GUTI is omitted (the receiver here ignores it, TS 24.301).
 func (m *TrackingAreaUpdateRequest) Marshal() ([]byte, error) {
 	var w common.Writer
 
@@ -162,11 +161,11 @@ func ParseTrackingAreaUpdateRequest(b []byte) (*TrackingAreaUpdateRequest, error
 }
 
 // taiListIEI is the IEI of the optional TAI list information element in
-// TRACKING AREA UPDATE ACCEPT (TS 24.301 §8.2.26).
+// TRACKING AREA UPDATE ACCEPT (TS 24.301).
 const taiListIEI = 0x54
 
 // TrackingAreaUpdateAccept accepts a tracking area updating procedure
-// (TS 24.301 §8.2.26). The mandatory EPS update result is encoded; the optional
+// (TS 24.301). The mandatory EPS update result is encoded; the optional
 // GUTI, TAI list, EMM cause, and EPS network feature support follow when present.
 type TrackingAreaUpdateAccept struct {
 	EPSUpdateResult uint8
@@ -174,15 +173,15 @@ type TrackingAreaUpdateAccept struct {
 	TAIList         []byte             // TAI list value (IEI 0x54), when present
 	// EPSBearerContextStatus is the EBI activity bitmap the MME reports back when
 	// the UE included one in the request (bit n = EBI n active, IEI 0x57,
-	// TS 24.301 §9.9.2.1, §5.5.3.2.4); nil when the IE is absent.
+	// TS 24.301); nil when the IE is absent.
 	EPSBearerContextStatus *uint16
 	EMMCause               *uint8 // EMM cause (IEI 0x53), when present
-	// EPS network feature support (IEI 0x64), when present (TS 24.301 §9.9.3.12A).
+	// EPS network feature support (IEI 0x64), when present (TS 24.301).
 	EPSNetworkFeatureSupport *EPSNetworkFeatureSupport
 }
 
 // tauAcceptIEs are the optional IEs Ella Core emits in a TRACKING AREA UPDATE
-// ACCEPT (TS 24.301 §8.2.26): the reallocated GUTI, the TAI list, the EPS bearer
+// ACCEPT (TS 24.301): the reallocated GUTI, the TAI list, the EPS bearer
 // context status, the EMM cause, and the EPS network feature support. EMM cause
 // is a type-3 IE with a one-octet value; the others are type-4 TLVs.
 var tauAcceptIEs = []common.OptionalIE{
@@ -193,10 +192,9 @@ var tauAcceptIEs = []common.OptionalIE{
 	{IEI: epsNetworkFeatureSupportIEI, Format: common.IETLV},
 }
 
-// Marshal encodes the plain TRACKING AREA UPDATE ACCEPT message. The optional
-// IEs are written in their canonical order: GUTI (0x50), TAI list (0x54), EMM
-// cause (0x53). A GUTI reallocates the UE's identity and is acknowledged with
-// TRACKING AREA UPDATE COMPLETE (TS 24.301 §5.5.3.2.4).
+// Marshal encodes the plain TRACKING AREA UPDATE ACCEPT message. A GUTI
+// reallocates the UE's identity and is acknowledged with TRACKING AREA UPDATE
+// COMPLETE (TS 24.301).
 func (m *TrackingAreaUpdateAccept) Marshal() ([]byte, error) {
 	var w common.Writer
 
@@ -301,7 +299,7 @@ func ParseTrackingAreaUpdateAccept(b []byte) (*TrackingAreaUpdateAccept, error) 
 }
 
 // TrackingAreaUpdateComplete is the UE's acknowledgement of a TAU Accept that
-// reallocated the GUTI (TS 24.301 §8.2.28). It carries no information elements.
+// reallocated the GUTI (TS 24.301). It carries no information elements.
 type TrackingAreaUpdateComplete struct{}
 
 // Marshal encodes the plain TRACKING AREA UPDATE COMPLETE message.
@@ -326,8 +324,8 @@ func ParseTrackingAreaUpdateComplete(b []byte) (*TrackingAreaUpdateComplete, err
 }
 
 // TrackingAreaUpdateReject is the network's rejection of a tracking area
-// updating procedure (TS 24.301 §8.2.27). With EMM cause #9 or #10 the UE
-// accepts it without integrity protection (§4.4.4.2) and re-attaches.
+// updating procedure (TS 24.301). With EMM cause #9 or #10 the UE
+// accepts it without integrity protection and re-attaches.
 type TrackingAreaUpdateReject struct {
 	Cause uint8
 }

@@ -21,7 +21,7 @@ import (
 // dispatches to a GMM handler based on the verdict. The only ue mutation
 // performed here is advancing ue.ULCount.
 //
-// See TS 24.501 §4.4.4.3 and TS 33.501 §6.4.6 step 3 for the policy.
+// See TS 24.501 and TS 33.501 for the policy.
 func DecodeNASMessage(ue *UeContext, payload []byte) (*DecodeResult, error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -40,11 +40,11 @@ func DecodeNASMessage(ue *UeContext, payload []byte) (*DecodeResult, error) {
 	conn := ue.NasConn()
 
 	if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
-		// TS 24.501 §4.4.4.3: once secure exchange of NAS messages is
+		// TS 24.501: once secure exchange of NAS messages is
 		// established for the connection, a message that is not integrity
 		// protected is discarded.
 		if conn != nil && conn.secureExchangeEstablished {
-			return nil, fmt.Errorf("plain NAS message discarded: secure exchange already established (TS 24.501 §4.4.4.3)")
+			return nil, fmt.Errorf("plain NAS message discarded: secure exchange already established (TS 24.501)")
 		}
 
 		return decodePlainNAS(msg, payload)
@@ -61,16 +61,16 @@ func DecodeNASMessage(ue *UeContext, payload []byte) (*DecodeResult, error) {
 //
 // It is the authorization gate for an inbound message that resolved to an
 // existing context by GUTI/5G-S-TMSI: only a message proven to originate from
-// the holder of the keys may act on that context (TS 24.501 §4.4.4.3).
+// the holder of the keys may act on that context (TS 24.501).
 func (ue *UeContext) NasIntegrityVerified(payload []byte) bool {
 	if ue == nil {
 		return false
 	}
 
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
-	if !ue.securityContextAvailable {
+	if !ue.secured {
 		return false
 	}
 
@@ -108,7 +108,7 @@ func (ue *UeContext) NasIntegrityVerified(payload []byte) bool {
 // integrity-verified against the context. Any other message is processed on a
 // fresh context, so context resolution never mutates a committed context — it
 // either reuses a verified one or yields a fresh one, leaving the committed
-// NAS security context and PDU sessions untouched (TS 24.501 §4.4.4.3). On a
+// NAS security context and PDU sessions untouched (TS 24.501). On a
 // fresh context a registration re-authenticates, a service request is rejected
 // with 5GMM cause #9, and a deregistration is ignored — each the spec outcome.
 func (ue *UeContext) ReuseForInboundNAS(payload []byte) bool {
@@ -129,7 +129,7 @@ func decodePlainNAS(msg *nas.Message, payload []byte) (*DecodeResult, error) {
 	verdict := classifyNasPdu(msgType, nas.SecurityHeaderTypePlainNas, false)
 	if verdict == VerdictReject {
 		return nil, fmt.Errorf(
-			"plain NAS message type %d not permitted by TS 24.501 §4.4.4.3",
+			"plain NAS message type %d not permitted by TS 24.501",
 			msgType,
 		)
 	}
@@ -152,7 +152,7 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *A
 
 	// Work on a copy of the uplink count and commit it to the security context
 	// only once the MAC is verified, so an unauthenticated message cannot
-	// advance (desync) the count of a genuine UE (TS 33.501 §6.4.3).
+	// advance (desync) the count of a genuine UE (TS 33.501).
 	cnt := ue.ulCount
 
 	switch msg.SecurityHeaderType {
@@ -207,16 +207,16 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *A
 		return nil, fmt.Errorf("mac verification failed for the nas message: %v", msgType)
 	}
 
-	// TS 24.501 §4.4.4.3: once secure exchange is established, a message failing
+	// TS 24.501: once secure exchange is established, a message failing
 	// the integrity check is discarded.
 	if conn != nil && conn.secureExchangeEstablished && !macVerified {
-		return nil, fmt.Errorf("nas message discarded: integrity check failed after secure exchange established (TS 24.501 §4.4.4.3)")
+		return nil, fmt.Errorf("nas message discarded: integrity check failed after secure exchange established (TS 24.501)")
 	}
 
 	if macVerified {
 		ue.ulCount = cnt
 
-		// First verified message establishes secure exchange on the connection (TS 24.501 §4.4.4.3).
+		// First verified message establishes secure exchange on the connection (TS 24.501).
 		if conn != nil {
 			conn.secureExchangeEstablished = true
 		}

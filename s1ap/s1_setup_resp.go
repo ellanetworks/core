@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/s1ap/aper"
 )
 
-// S1SetupResponse is the S1 SETUP RESPONSE message (TS 36.413 §9.1.8.5). An
+// S1SetupResponse is the S1 SETUP RESPONSE message (TS 36.413). An
 // empty MMEName means the optional mMEname IE is absent; a nil
 // CriticalityDiagnostics means that optional IE is absent.
 type S1SetupResponse struct {

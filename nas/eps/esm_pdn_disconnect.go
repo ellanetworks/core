@@ -5,8 +5,8 @@ package eps
 
 import "github.com/ellanetworks/core/nas/common"
 
-// PDNDisconnectRequest is the PDN DISCONNECT REQUEST message (TS 24.301
-// §8.3.21), sent by the UE to release one of its PDN connections. The header EPS
+// PDNDisconnectRequest is the PDN DISCONNECT REQUEST message (TS 24.301),
+// sent by the UE to release one of its PDN connections. The header EPS
 // bearer identity is "no bearer assigned" (0); the PDN to disconnect is named by
 // the Linked EPS Bearer Identity (the default bearer of that PDN connection).
 type PDNDisconnectRequest struct {
@@ -27,7 +27,7 @@ func (m *PDNDisconnectRequest) Marshal() ([]byte, error) {
 
 // ParsePDNDisconnectRequest decodes the message. The Linked EPS Bearer Identity
 // is the low half-octet of the octet after the header (the high half-octet is
-// spare, TS 24.301 §9.9.4.6).
+// spare, TS 24.301).
 func ParsePDNDisconnectRequest(b []byte) (*PDNDisconnectRequest, error) {
 	r := common.NewReader(b)
 
@@ -48,7 +48,7 @@ func ParsePDNDisconnectRequest(b []byte) (*PDNDisconnectRequest, error) {
 	}, nil
 }
 
-// PDNDisconnectReject is the PDN DISCONNECT REJECT message (TS 24.301 §8.3.22),
+// PDNDisconnectReject is the PDN DISCONNECT REJECT message (TS 24.301),
 // sent by the network when it cannot honour a PDN disconnect request (e.g. the
 // linked bearer is the last PDN connection, ESM cause #49).
 type PDNDisconnectReject struct {

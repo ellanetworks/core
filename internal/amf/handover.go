@@ -4,7 +4,7 @@
 package amf
 
 // hoState is the stage of an in-flight N2 handover, validated on each transition
-// so an out-of-order NGAP message cannot advance it (TS 38.413 §8.4).
+// so an out-of-order NGAP message cannot advance it (TS 38.413).
 type hoState uint8
 
 const (
@@ -16,7 +16,7 @@ const (
 // handoverContext is the explicit N2 handover FSM for one UE: the single source of
 // truth for the source/target RanUe pair and the procedure's stage, guarded by
 // UeContext.mu. The procedure registry tracks the same handover for conflict and
-// supervision (§6.9.5.1) and is cleared in lockstep; the SMF owns the per-session
+// supervision and is cleared in lockstep; the SMF owns the per-session
 // N2 transfer, this FSM owns only the source/target relationship and ordering.
 type handoverContext struct {
 	state  hoState
@@ -98,8 +98,8 @@ func (ue *UeContext) HandoverSource() *RanUe {
 		return nil
 	}
 
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	if ue.handover == nil {
 		return nil
@@ -114,8 +114,8 @@ func (ue *UeContext) HandoverTarget() *RanUe {
 		return nil
 	}
 
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	if ue.handover == nil {
 		return nil
@@ -129,8 +129,8 @@ func (ue *UeContext) HandoverInProgress() bool {
 		return false
 	}
 
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	return ue.handover != nil
 }

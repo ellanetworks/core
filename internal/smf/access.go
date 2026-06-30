@@ -4,7 +4,7 @@
 package smf
 
 // AccessType is the radio access a session is established over. The SMF is the
-// combined SMF+PGW-C (TS 23.501 §4.3), so it anchors both; the access keys the
+// combined SMF+PGW-C (TS 23.501), so it anchors both; the access keys the
 // spec-mandated 4G/5G differences over an otherwise-shared session core.
 type AccessType uint8
 
@@ -17,5 +17,5 @@ const (
 func (sc *SMContext) IsEPS() bool { return sc.Access == Access4G }
 
 // usesPSC reports whether the user-plane GTP-U carries the PDU Session Container
-// (and thus the QFI). 5G N3/N9 do; 4G S1-U does not. TS 23.501 §5.7.1, TS 38.415.
+// (and thus the QFI). 5G N3/N9 do; 4G S1-U does not. TS 23.501, TS 38.415.
 func (a AccessType) usesPSC() bool { return a == Access5G }

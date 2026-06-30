@@ -5,8 +5,8 @@ package common
 
 import "fmt"
 
-// IEFormat classifies a NAS L3 information element's encoding (TS 24.007
-// §11.2.1.1). It tells the walker how to delimit an IE in a message's variable
+// IEFormat classifies a NAS L3 information element's encoding (TS 24.007).
+// It tells the walker how to delimit an IE in a message's variable
 // part.
 type IEFormat uint8
 
@@ -26,7 +26,7 @@ const (
 
 // OptionalIE describes one IE of a message's variable part: its IEI, its format,
 // and (for IETV3 only) its fixed value length. A message declares these in a
-// table transcribed from the IE list in its spec definition (TS 24.301 §8.2.x).
+// table transcribed from the IE list in its spec definition (TS 24.301).
 type OptionalIE struct {
 	IEI    uint8
 	Format IEFormat
@@ -34,15 +34,15 @@ type OptionalIE struct {
 }
 
 // WalkOptionalIEs walks the variable (optional) part of a NAS message, delimiting
-// each IE with table and passing its IEI and value to emit (TS 24.007 §11.2).
+// each IE with table and passing its IEI and value to emit (TS 24.007).
 //
 // A type-1/2 IE (IEI ≥ 0x80) is always one octet — emit receives the high-nibble
 // IEI and the low nibble as the value — and needs no table entry. A full-octet
 // IEI (< 0x80) must appear in table to be delimited; one that does not cannot be
 // length-delimited safely (its format is not derivable from the IEI), so the walk
-// stops and returns the undecoded remainder for the caller to keep verbatim
-// rather than guessing a length and corrupting the parse. All reads are bounded
-// by r, so a hostile length octet cannot over-read.
+// stops and returns the undecoded remainder for the caller to keep verbatim;
+// guessing a length could corrupt the parse. All reads are bounded by r, so a
+// hostile length octet cannot over-read.
 func WalkOptionalIEs(r *Reader, table []OptionalIE, emit func(iei uint8, value []byte) error) (rest []byte, err error) {
 	for r.Remaining() > 0 {
 		iei, err := r.PeekU8()

@@ -313,7 +313,7 @@ func SendRegistrationAccept(
 		}, func() {
 			ue.Log.Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))
 
-			// TS 24.501 5.5.1.2.8 case c, 5.5.1.3.8 case c
+			// TS 24.501
 			ue.TransitionTo(Registered)
 			ue.ClearRegistrationRequestData()
 		})

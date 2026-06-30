@@ -76,7 +76,7 @@ type epsSessionManager interface {
 //     connection's in-flight modification flags), and imsi. The security context
 //     is reached only through chokepoint methods (installNASSecurityContext,
 //     protectDownlink, tryUnprotectUplink, deriveInitialKeNB, markSecured,
-//     securitySnapshot) so the keys never leave the kernel and the COUNT invariant
+//     Snapshot) so the keys never leave the kernel and the COUNT invariant
 //     is auditable in one place.
 //   - UeContext.emmState is atomic — an enum read on the hot path, kept lock-free.
 //     The ECM state is derived from whether the UE holds an S1-connection (ue.s1).

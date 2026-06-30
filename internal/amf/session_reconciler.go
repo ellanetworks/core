@@ -127,14 +127,14 @@ func (r *SessionReconciler) Reconcile() {
 }
 
 func (r *SessionReconciler) reconcileUE(ue *UeContext) {
-	ue.mu.RLock()
+	ue.mu.Lock()
 	smContextRefs := make([]string, 0, len(ue.SmContextList))
 
 	for _, smCtx := range ue.SmContextList {
 		smContextRefs = append(smContextRefs, smCtx.Ref)
 	}
 
-	ue.mu.RUnlock()
+	ue.mu.Unlock()
 
 	for _, ref := range smContextRefs {
 		if ref == "" {

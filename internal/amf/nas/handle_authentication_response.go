@@ -19,7 +19,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// TS 24.501 5.4.1
+// TS 24.501
 func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.AuthenticationResponse) error {
 	if state := ue.GetState(); state != amf.Authentication {
 		return fmt.Errorf("state mismatch: receive amf.Authentication Response message in state %s", state)
@@ -42,7 +42,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 	}
 
 	if msg.AuthenticationResponseParameter == nil {
-		// No RES* to verify: unsuccessful authentication (TS 24.501 §5.4.1.3.5).
+		// No RES* to verify: unsuccessful authentication (TS 24.501).
 		ue.Log.Error("amf.Authentication Response missing RES* (amf.Authentication response parameter IE)")
 
 		return failAuthentication(ctx, ue, ranUe, conn)
@@ -50,7 +50,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 
 	resStar := msg.GetRES()
 
-	// Calculate HRES* (TS 33.501 Annex A.5)
+	// Calculate HRES* (TS 33.501)
 	p0, err := hex.DecodeString(conn.AuthenticationCtx.Rand)
 	if err != nil {
 		return fmt.Errorf("failed to decode RAND: %s", err)
@@ -84,7 +84,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 	return securityMode(ctx, amfInstance, ue)
 }
 
-// failAuthentication applies TS 24.501 §5.4.1.3.5 to an unacceptable
+// failAuthentication applies TS 24.501 to an unacceptable
 // authentication response (RES* absent, HRES* mismatch, or AUSF rejection): a UE
 // identified by 5G-GUTI is re-identified via SUCI and authentication restarts;
 // otherwise authentication is rejected and the UE deregistered.

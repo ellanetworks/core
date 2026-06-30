@@ -65,7 +65,7 @@ func (amf *AMF) GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 		return nil, fmt.Errorf("failed to get supported TAIs: %w", err)
 	}
 
-	// 3GPP TS 23.003 §2.10.1: AMF Identifier = <AMF Region ID><AMF Set ID><AMF Pointer>
+	// 3GPP TS 23.003: AMF Identifier = <AMF Region ID><AMF Set ID><AMF Pointer>
 	amfID := fmt.Sprintf("%06x", (operator.AmfRegionID<<16)|(operator.AmfSetID<<6)|amf.DBInstance.NodeID())
 
 	operatorInfo := &OperatorInfo{
@@ -135,7 +135,7 @@ type SubscriberProfile struct {
 	AllowedNssai []models.Snssai
 	Ambr         *models.Ambr
 	// Allow5G is the subscriber's 5G/5GC access permission (Core Network type
-	// restriction, TS 23.501 §5.3.4).
+	// restriction, TS 23.501).
 	Allow5G bool
 }
 
@@ -278,7 +278,7 @@ func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *mo
 }
 
 // NAS security algorithms are stored as RAT-neutral identities shared by EPS and
-// 5G (TS 24.301 §9.9.3.23 ≡ TS 24.501 §9.11.3.34): NULL(0), SNOW3G(1), AES(2).
+// 5G (TS 24.301 ≡ TS 24.501): NULL(0), SNOW3G(1), AES(2).
 var cipheringNameToAlg = map[string]uint8{
 	"NULL":   security.AlgCiphering128NEA0,
 	"SNOW3G": security.AlgCiphering128NEA1,

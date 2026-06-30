@@ -87,7 +87,6 @@ func buildPDUSessionReleaseComplete(pduSessionID, pti uint8) []byte {
 	return buf
 }
 
-// status5GSMCause decodes a 5GSM STATUS NAS message and returns its cause.
 func status5GSMCause(t *testing.T, raw []byte) uint8 {
 	t.Helper()
 
@@ -104,7 +103,7 @@ func status5GSMCause(t *testing.T, raw []byte) uint8 {
 }
 
 // A PDU SESSION RELEASE COMPLETE whose PTI matches no procedure in use is
-// answered with a 5GSM STATUS #47 "PTI mismatch" (TS 24.501 §7.3.1 a).
+// answered with a 5GSM STATUS #47 "PTI mismatch" (TS 24.501).
 func TestUpdateSmContextN1Msg_ReleaseComplete_PTIMismatch(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -129,7 +128,7 @@ func TestUpdateSmContextN1Msg_ReleaseComplete_PTIMismatch(t *testing.T) {
 }
 
 // A PDU SESSION RELEASE COMPLETE whose PTI matches the in-flight release
-// procedure is processed, not answered with a STATUS (TS 24.501 §7.3.1 a).
+// procedure is processed, not answered with a STATUS (TS 24.501).
 func TestUpdateSmContextN1Msg_ReleaseComplete_PTIInUse(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -154,7 +153,7 @@ func TestUpdateSmContextN1Msg_ReleaseComplete_PTIInUse(t *testing.T) {
 }
 
 // A PDU SESSION RELEASE REQUEST with an unassigned PTI is answered with a 5GSM
-// STATUS #81 and must not tear down the session (TS 24.501 §7.3.1 c).
+// STATUS #81 and must not tear down the session (TS 24.501).
 func TestUpdateSmContextN1Msg_ReleaseRequest_UnassignedPTI(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)

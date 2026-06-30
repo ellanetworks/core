@@ -580,7 +580,7 @@ func TestCreateSmContext_DNNNotFound(t *testing.T) {
 
 // TestCreateSmContext_DNNNotInSlice verifies that when the slice is served but
 // no policy provides the requested DNN, the SMF rejects with 5GSM cause #70
-// "missing or unknown DNN in a slice" (TS 24.501 §9.11.4.2).
+// "missing or unknown DNN in a slice" (TS 24.501).
 func TestCreateSmContext_DNNNotInSlice(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	pcf.policy = nil
@@ -642,7 +642,7 @@ func TestCreateSmContext_PFCPEstablishmentFailure(t *testing.T) {
 	}
 
 	// The reject is returned for the AMF to deliver, like every other create
-	// failure, rather than actively sent via TransferN1.
+	// failure; the create path never actively sends it via TransferN1.
 	if rejectN1 == nil {
 		t.Fatal("expected reject N1 message")
 	}
@@ -689,7 +689,7 @@ func TestCreateSmContext_WrongNASMessageType(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	// A well-formed but inappropriate GSM message (release request rather than establishment).
+	// A well-formed but inappropriate GSM message (release request, not establishment).
 	n1Msg := buildPDUSessionReleaseRequest(1, 10)
 
 	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)

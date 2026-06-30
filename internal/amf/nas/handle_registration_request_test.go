@@ -261,7 +261,7 @@ func TestHandleRegistrationRequest_RejectMissingSecurityCapability(t *testing.T)
 
 // TestHandleRegistrationRequest_RejectMissingSecurityCapability_Mobility
 // validates that a Mobility Registration Updating without UE Security
-// Capability is rejected. Per TS 24.501 §8.2.6.4 the UE shall include the
+// Capability is rejected. Per TS 24.501 the UE shall include the
 // IE for every registration type except periodic registration updating.
 func TestHandleRegistrationRequest_RejectMissingSecurityCapability_Mobility(t *testing.T) {
 	ctx := context.TODO()
@@ -320,7 +320,7 @@ func TestHandleRegistrationRequest_RejectMissingSecurityCapability_Mobility(t *t
 
 // TestHandleRegistrationRequest_PeriodicAllowsMissingSecurityCapability
 // validates that a periodic registration updating may omit the UE Security
-// Capability IE per TS 24.501 §8.2.6.4.
+// Capability IE per TS 24.501.
 func TestHandleRegistrationRequest_PeriodicAllowsMissingSecurityCapability(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&FakeDBInstance{
@@ -472,7 +472,7 @@ func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-		Kseaf: "testkey",
+		Kseaf: []byte("testkey"),
 	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -532,7 +532,7 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-		Kseaf: "testkey",
+		Kseaf: []byte("testkey"),
 	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -640,7 +640,7 @@ func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t 
 			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-		Kseaf: "testkey",
+		Kseaf: []byte("testkey"),
 	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -698,7 +698,7 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-		Kseaf: "testkey",
+		Kseaf: []byte("testkey"),
 	}, nil)
 	amfInstance.T3560Cfg.Enable = false // Prevent timer from being re-started during re-entry.
 
@@ -775,7 +775,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 			Autn: hex.EncodeToString(autn),
 		},
 		Supi:  supi,
-		Kseaf: "testkey",
+		Kseaf: []byte("testkey"),
 	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -859,7 +859,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 			Autn: hex.EncodeToString(autn),
 		},
 		Supi:  supi,
-		Kseaf: "testkey",
+		Kseaf: []byte("testkey"),
 	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -938,7 +938,7 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
 		Supi:  supi,
-		Kseaf: "testkey",
+		Kseaf: []byte("testkey"),
 	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -1009,7 +1009,7 @@ func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
 			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-		Kseaf: "testkey",
+		Kseaf: []byte("testkey"),
 	}, nil)
 
 	ue, _, err := buildUeAndRadio()
@@ -1052,7 +1052,7 @@ func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
 			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-		Kseaf: "testkey",
+		Kseaf: []byte("testkey"),
 	}, nil)
 
 	ue, _, err := buildUeAndRadio()
@@ -1095,7 +1095,7 @@ func TestHandleRegistrationRequest_NgKsi_NoKeyAvailable(t *testing.T) {
 			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-		Kseaf: "testkey",
+		Kseaf: []byte("testkey"),
 	}, nil)
 
 	ue, _, err := buildUeAndRadio()
@@ -1272,7 +1272,7 @@ func TestAcceptRegistrationUESecurityCapability_MobilityNoStored(t *testing.T) {
 }
 
 // TestAcceptRegistrationUESecurityCapability_MobilityRejectsDowngrade is
-// the regression for TS 33.501 §6.7.3.1 downgrade protection on Mobility
+// the regression for TS 33.501 downgrade protection on Mobility
 // Registration Update.
 func TestAcceptRegistrationUESecurityCapability_MobilityRejectsDowngrade(t *testing.T) {
 	stored := newUESecCaps(0xE0, 0xE0)
@@ -1286,7 +1286,7 @@ func TestAcceptRegistrationUESecurityCapability_MobilityRejectsDowngrade(t *test
 	acceptRegistrationUESecurityCapability(ue, attacker)
 
 	if ue.UESecurityCapabilityForTest() != stored {
-		t.Fatalf("Mobility Update must NOT overwrite stored caps with forged downgrade (TS 33.501 §6.7.3.1)")
+		t.Fatalf("Mobility Update must NOT overwrite stored caps with forged downgrade (TS 33.501)")
 	}
 
 	if !bytes.Equal(ue.UESecurityCapabilityForTest().Buffer, []byte{0xE0, 0xE0}) {

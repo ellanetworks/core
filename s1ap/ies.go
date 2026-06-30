@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/s1ap/aper"
 )
 
-// Container size bounds (TS 36.413 §9.3, S1AP-Constants).
+// Container size bounds (TS 36.413, S1AP-Constants).
 const (
 	maxProtocolIEs        = 65535
 	maxProtocolExtensions = 65535
@@ -47,9 +47,8 @@ func (e rawIE) field() ieField {
 }
 
 // RawIE is an exported view of a ProtocolIE-Field the message layer does not
-// model: its id, criticality, and raw open-type value bytes (TS 36.413 §9.3).
-// It lets callers surface IEs present on the wire that the typed fields omit,
-// rather than dropping them.
+// model: its id, criticality, and raw open-type value bytes (TS 36.413).
+// It lets callers surface IEs present on the wire that the typed fields omit.
 type RawIE struct {
 	ID          ProtocolIEID
 	Criticality Criticality
@@ -79,7 +78,7 @@ func (u unmodeledIEs) UnknownIEs() []RawIE {
 	return out
 }
 
-// encodeIEContainer writes a ProtocolIE-Container (TS 36.413 §9.3): the field
+// encodeIEContainer writes a ProtocolIE-Container (TS 36.413): the field
 // count as a constrained length, then each ProtocolIE-Field as
 // { id, criticality, value-as-open-type } in order.
 func encodeIEContainer(w *aper.Writer, fields []ieField) error {
@@ -116,13 +115,13 @@ func encodeIEContainer(w *aper.Writer, fields []ieField) error {
 	return nil
 }
 
-// maxnoofERABs bounds the E-RAB SEQUENCE-OF lists (TS 36.413 §9.3).
+// maxnoofERABs bounds the E-RAB SEQUENCE-OF lists (TS 36.413).
 const maxnoofERABs = 256
 
 // encodeSingleContainerList writes a SEQUENCE (SIZE(1..ub)) OF
 // ProtocolIE-SingleContainer: a constrained count, then each item as a
 // { id, criticality, value-as-open-type } field with the fixed item id and
-// criticality. Used by the E-RAB and TAI lists (TS 36.413 §9.3). ub is each
+// criticality. Used by the E-RAB and TAI lists (TS 36.413). ub is each
 // list's ASN.1 SIZE bound; it is coincidental that the current lists share 256.
 //
 //nolint:unparam
@@ -193,10 +192,9 @@ func decodeSingleContainerList(r *aper.Reader, ub int) ([][]byte, error) {
 }
 
 // decodeItemList reads a SEQUENCE (SIZE(1..ub)) OF ProtocolIE-SingleContainer
-// (TS 36.413 §9.3). Each item is its own APER open type, so dec is handed a
-// fresh reader over that item's octets — element decoders therefore take an
-// *aper.Reader like every other decoder, and the open-type boundary lives here
-// rather than being re-stated at each call site.
+// (TS 36.413). Each item is its own APER open type, so dec receives a
+// fresh reader over that item's octets and the open-type boundary stays here,
+// not at each call site.
 func decodeItemList[T any](r *aper.Reader, ub int, dec func(*aper.Reader) (T, error)) ([]T, error) {
 	raw, err := decodeSingleContainerList(r, ub)
 	if err != nil {
@@ -230,7 +228,7 @@ func encoderList[T interface{ encode(*aper.Writer) error }](items []T) []func(*a
 
 // skipSequenceExtensions steps over a SEQUENCE's optional iE-Extensions
 // (ProtocolExtensionContainer) and extension additions when they are present but
-// not modeled (TS 36.413 §9.3).
+// not modeled (TS 36.413).
 func skipSequenceExtensions(r *aper.Reader, extContainer, extAdditions bool) error {
 	if extContainer {
 		if err := skipExtensionContainer(r); err != nil {
@@ -247,8 +245,7 @@ func skipSequenceExtensions(r *aper.Reader, extContainer, extAdditions bool) err
 
 // decodeIEContainer reads a ProtocolIE-Container into the fields in wire order,
 // preserving every field (including ids the caller does not model) for dispatch
-// by id. The field slice grows by append, so a corrupt count cannot force a
-// large allocation: the loop fails as soon as the input is exhausted.
+// by id.
 func decodeIEContainer(r *aper.Reader) ([]rawIE, error) {
 	n, err := r.ReadConstrainedLength(0, maxProtocolIEs)
 	if err != nil {
@@ -258,7 +255,7 @@ func decodeIEContainer(r *aper.Reader) ([]rawIE, error) {
 	return readContainerFields(r, n)
 }
 
-// skipExtensionContainer consumes a ProtocolExtensionContainer (TS 36.413 §9.3)
+// skipExtensionContainer consumes a ProtocolExtensionContainer (TS 36.413)
 // and discards it. The container differs from a ProtocolIE-Container only in its
 // SIZE(1..maxProtocolExtensions) bound; its fields decode identically. Used to
 // step over the optional iE-Extensions of IEs whose extensions are not modeled.

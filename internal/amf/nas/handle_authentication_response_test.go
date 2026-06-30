@@ -19,7 +19,7 @@ import (
 )
 
 // A missing RES* (nil amf.Authentication response parameter IE) is treated as an
-// unsuccessful authentication per TS 24.501 §5.4.1.3.5: a GUTI-identified UE is
+// unsuccessful authentication per TS 24.501: a GUTI-identified UE is
 // asked to identify via SUCI, a SUCI-identified UE is rejected.
 func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *testing.T) {
 	testcases := []struct {
@@ -247,7 +247,7 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 					Autn: hex.EncodeToString(make([]byte, 16)),
 				},
 				Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-				Kseaf: "testkey",
+				Kseaf: []byte("testkey"),
 				Error: fmt.Errorf("failure"),
 			}, nil)
 
@@ -292,45 +292,6 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 	}
 }
 
-func TestHandleAuthenticationResponse_DeriveKamf_Failure(t *testing.T) {
-	amfInstance := amf.New(&FakeDBInstance{
-		Operator: &db.Operator{
-			Mcc:           "001",
-			Mnc:           "01",
-			SupportedTACs: "[\"1\"]",
-		},
-	}, &FakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
-		},
-		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-		Kseaf: "testkey",
-	}, nil)
-
-	ue, ngapSender, err := buildUeAndRadio()
-	if err != nil {
-		t.Fatalf("could not create UE and radio: %v", err)
-	}
-
-	ue.ForceState(amf.Authentication)
-	ue.NasConn().AuthenticationCtx = &ausf.AuthResult{
-		Rand:      "DEADBEEF",
-		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
-	}
-
-	expected := "couldn't derive Kamf: could not decode kseaf: encoding/hex: invalid byte: U+0074 't'"
-	err = handleAuthenticationResponse(t.Context(), amfInstance, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
-
-	if err == nil || err.Error() != expected {
-		t.Fatalf("expected error: %v, got: %v", expected, err)
-	}
-
-	if len(ngapSender.SentDownlinkNASTransport) != 0 {
-		t.Fatalf("should have sent a Downlink NAS Transport message")
-	}
-}
-
 func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 	amfInstance := amf.New(&FakeDBInstance{
 		Operator: &db.Operator{
@@ -346,7 +307,7 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-		Kseaf: "C0FFEE",
+		Kseaf: []byte{0xC0, 0xFF, 0xEE},
 	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()

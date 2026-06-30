@@ -20,7 +20,7 @@ import (
 // }
 
 // DecodeRANConfigurationUpdate validates a RANConfigurationUpdate PDU
-// body (3GPP TS 38.413 §9.2.6.6). All IEs are optional, so only
+// body (3GPP TS 38.413). All IEs are optional, so only
 // malformed IEs are reported. SupportedTAList is optional-reject (a
 // malformed value is fatal); RANNodeName, DefaultPagingDRX and
 // GlobalRANNodeID are optional-ignore. The procedure is class 1 with

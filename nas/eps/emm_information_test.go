@@ -9,7 +9,7 @@ import (
 )
 
 func TestEMMInformationMarshal(t *testing.T) {
-	// "Ella" in the GSM 7-bit default alphabet, packed (TS 24.008 §10.5.3.5a):
+	// "Ella" in the GSM 7-bit default alphabet, packed (TS 24.008):
 	// coding-scheme octet 0x84 (ext, GSM 7-bit, 4 spare bits) + 45 36 3b 0c.
 	b, err := (&EMMInformation{FullNetworkName: "Ella", ShortNetworkName: "Ella"}).Marshal()
 	if err != nil {

@@ -21,7 +21,7 @@ import (
 // }
 
 // DecodeInitialContextSetupFailure validates an InitialContextSetupFailure
-// PDU body (3GPP TS 38.413 §9.2.2.3). AMFUENGAPID, RANUENGAPID and Cause
+// PDU body (3GPP TS 38.413). AMFUENGAPID, RANUENGAPID and Cause
 // are mandatory-ignore; PDUSessionResourceFailedToSetupListCxtFail and
 // CriticalityDiagnostics are optional-ignore. Class 1 procedure, so
 // procedure-level criticality is "reject". Duplicate IEs follow a

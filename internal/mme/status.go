@@ -48,14 +48,14 @@ func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 		}
 	}
 
-	imei, eea, eia := ue.securitySnapshot()
+	snap := ue.Snapshot()
 
 	cs := ConnectedSubscriber{
 		RadioName:          radioName,
-		Imei:               imei,
-		LastSeenAt:         ue.lastSeenTime(),
-		CipheringAlgorithm: epsCipheringAlgName(eea),
-		IntegrityAlgorithm: epsIntegrityAlgName(eia),
+		Imei:               snap.Imei,
+		LastSeenAt:         snap.LastSeenAt,
+		CipheringAlgorithm: snap.CipheringAlgorithm,
+		IntegrityAlgorithm: snap.IntegrityAlgorithm,
 	}
 
 	for _, p := range m.SnapshotPDNs(ue) {

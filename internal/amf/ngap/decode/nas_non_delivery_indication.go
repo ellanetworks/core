@@ -20,7 +20,7 @@ import (
 // }
 
 // DecodeNASNonDeliveryIndication validates a NASNonDeliveryIndication
-// PDU body (3GPP TS 38.413 §9.2.5.5). AMFUENGAPID and RANUENGAPID are
+// PDU body (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are
 // mandatory-reject; NASPDU and Cause are mandatory-ignore. Class 2
 // procedure, so procedure-level criticality is "ignore". Duplicate IEs
 // follow a last-wins policy.

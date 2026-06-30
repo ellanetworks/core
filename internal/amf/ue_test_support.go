@@ -4,6 +4,7 @@
 package amf
 
 import (
+	"encoding/hex"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
@@ -26,8 +27,8 @@ func (ue *UeContext) SupiForTest() etsi.SUPI     { return ue.supi }
 func (ue *UeContext) SetGutiForTest(g etsi.GUTI) { ue.guti = g }
 func (ue *UeContext) GutiForTest() etsi.GUTI     { return ue.guti }
 
-func (ue *UeContext) SetSecurityContextAvailableForTest(b bool) { ue.securityContextAvailable = b }
-func (ue *UeContext) SecurityContextAvailableForTest() bool     { return ue.securityContextAvailable }
+func (ue *UeContext) SetSecurityContextAvailableForTest(b bool) { ue.secured = b }
+func (ue *UeContext) SecurityContextAvailableForTest() bool     { return ue.secured }
 
 func (ue *UeContext) SetIntegrityAlgForTest(a uint8) { ue.integrityAlg = a }
 func (ue *UeContext) IntegrityAlgForTest() uint8     { return ue.integrityAlg }
@@ -44,8 +45,8 @@ func (ue *UeContext) KnasEncForTest() [16]uint8     { return ue.knasEnc }
 func (ue *UeContext) SetNgKsiForTest(n models.NgKsi) { ue.ngKsi = n }
 func (ue *UeContext) NgKsiForTest() models.NgKsi     { return ue.ngKsi }
 
-func (ue *UeContext) SetKamfForTest(k string) { ue.kamf = k }
-func (ue *UeContext) KamfForTest() string     { return ue.kamf }
+func (ue *UeContext) SetKamfForTest(k string) { ue.kamf, _ = hex.DecodeString(k) }
+func (ue *UeContext) KamfForTest() []uint8    { return ue.kamf }
 
 func (ue *UeContext) SetNHForTest(nh []uint8) { copy(ue.nh[:], nh) }
 func (ue *UeContext) NHForTest() [32]uint8    { return ue.nh }

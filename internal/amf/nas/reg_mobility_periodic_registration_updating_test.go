@@ -155,24 +155,6 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *FakeNGAPSender, *F
 	return ue, ngapSender, fakeSmf, amfInstance
 }
 
-func TestMobilityReg_DerivateAnKeyError(t *testing.T) {
-	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
-
-	ue.SetKamfForTest("not-valid-hex")
-
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err == nil {
-		t.Fatal("expected error for invalid Kamf, got nil")
-	}
-
-	if got := err.Error(); got != "error deriving AnKey: could not decode kamf: encoding/hex: invalid byte 0x6e ('n') in decoding string of length 13" {
-		// Just check prefix to be resilient
-		if len(got) < 20 || got[:20] != "error deriving AnKey" {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	}
-}
-
 func TestMobilityReg_GetOperatorInfoError(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
@@ -190,7 +172,7 @@ func TestMobilityReg_GetOperatorInfoError(t *testing.T) {
 }
 
 // A mobility registration update with no 5GMM capability IE is valid: the IE
-// is optional and re-sent only on change (TS 24.501 §5.5.1.3.2, §7.7.1), so the
+// is optional and re-sent only on change (TS 24.501), so the
 // amf.AMF accepts rather than rejecting.
 func TestMobilityReg_NilCapability5GMM_Mobility_Continues(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
@@ -238,7 +220,7 @@ func TestMobilityReg_NilCapability5GMM_Periodic_Continues(t *testing.T) {
 func TestMobilityReg_UpdateType5GS_ClearsRadioCapability(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.UeRadioCapability = "some-capability"
+	ue.UeRadioCapability = []byte("some-capability")
 	ue.UeRadioCapabilityForPaging = &models.UERadioCapabilityForPaging{}
 
 	updateType := nasType.NewUpdateType5GS(nasMessage.RegistrationRequestUpdateType5GSType)
@@ -250,8 +232,8 @@ func TestMobilityReg_UpdateType5GS_ClearsRadioCapability(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if ue.UeRadioCapability != "" {
-		t.Fatalf("expected UeRadioCapability to be cleared, got %q", ue.UeRadioCapability)
+	if len(ue.UeRadioCapability) != 0 {
+		t.Fatalf("expected UeRadioCapability to be cleared, got %x", ue.UeRadioCapability)
 	}
 
 	if ue.UeRadioCapabilityForPaging != nil {

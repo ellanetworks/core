@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/s1ap/aper"
 )
 
-// maxnoofErrors bounds CriticalityDiagnostics-IE-List (TS 36.413 §9.3).
+// maxnoofErrors bounds CriticalityDiagnostics-IE-List (TS 36.413).
 const maxnoofErrors = 256
 
 // TypeOfError ::= ENUMERATED { not-understood, missing, ... } (extensible).
@@ -22,7 +22,7 @@ const (
 	typeOfErrorRootCount = 2
 )
 
-// CriticalityDiagnosticsIEItem reports one offending IE (TS 36.413 §9.2.1.4).
+// CriticalityDiagnosticsIEItem reports one offending IE (TS 36.413).
 type CriticalityDiagnosticsIEItem struct {
 	IECriticality Criticality
 	IEID          ProtocolIEID

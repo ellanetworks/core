@@ -3,7 +3,7 @@
 
 // Package procedure is the AMF's view of the shared procedure registry
 // (internal/procedure): it defines the 5GMM procedure type set and the TS 33.501
-// §6.9.5.1 conflict matrix (matrix.go), and binds them to the generic engine.
+// conflict matrix (matrix.go), and binds them to the generic engine.
 package procedure
 
 import (

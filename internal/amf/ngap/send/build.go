@@ -449,7 +449,7 @@ func buildPathSwitchRequestFailure(
 	return ngap.Encoder(pdu)
 }
 
-// Notifies peer CP NFs that this AMF and its GUAMI(s) are unavailable (TS 23.501 §5.21.2.2.2).
+// Notifies peer CP NFs that this AMF and its GUAMI(s) are unavailable (TS 23.501).
 func buildAMFStatusIndication(unavailableGUAMIList ngapType.UnavailableGUAMIList) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
@@ -798,8 +798,8 @@ func buildPDUSessionResourceModifyConfirm(
 }
 
 // buildPDUSessionResourceModifyRequest encodes a PDUSessionResourceModifyRequest
-// NGAP message (3GPP TS 38.413 §9.2.1.3). This is the AMF→gNB message for
-// network-initiated PDU Session Modification (TS 23.502 §4.3.3.2).
+// NGAP message (3GPP TS 38.413). This is the AMF→gNB message for
+// network-initiated PDU Session Modification (TS 23.502).
 func buildPDUSessionResourceModifyRequest(amfUENGAPID int64, ranUENGAPID int64, pduSessionResourceModifyList ngapType.PDUSessionResourceModifyListModReq) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
@@ -989,7 +989,7 @@ func buildHandoverPreparationFailure(amfUENgapID int64, ranUENGAPID int64, cause
 	return ngap.Encoder(pdu)
 }
 
-// SMF-requested NG-RAN location reporting (TS 23.502 §4.10, TS 23.501 §5.4.7). The Location
+// SMF-requested NG-RAN location reporting (TS 23.502, TS 23.501). The Location
 // Reference ID To Be Cancelled IE is present only when the Event Type is "Stop UE presence in
 // the area of interest".
 func buildLocationReportingControl(
@@ -1169,7 +1169,7 @@ func buildInitialContextSetupRequest(
 	allowedNssai []models.Snssai,
 	kgnodeb []byte,
 	servingPlmnID models.PlmnID,
-	radioCapability string,
+	radioCapability []byte,
 	ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging,
 	ueSecurityCapability *nasType.UESecurityCapability,
 	nasPdu []byte,
@@ -1357,19 +1357,13 @@ func buildInitialContextSetupRequest(
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 
 	// UE Radio Capability (optional)
-	if radioCapability != "" {
+	if len(radioCapability) > 0 {
 		ie = ngapType.InitialContextSetupRequestIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDUERadioCapability
 		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
 		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentUERadioCapability
 		ie.Value.UERadioCapability = new(ngapType.UERadioCapability)
-
-		uecapa, err := hex.DecodeString(radioCapability)
-		if err != nil {
-			return nil, fmt.Errorf("cannot decode UeRadioCapability: %+v", err)
-		}
-
-		ie.Value.UERadioCapability.Value = uecapa
+		ie.Value.UERadioCapability.Value = radioCapability
 		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 	}
 
@@ -1750,7 +1744,7 @@ func BuildIEMobilityRestrictionList(plmnID models.PlmnID) (*ngapType.MobilityRes
 
 // Paging Priority: is included only if the AMF receives an Namf_Communication_N1N2MessageTransfer message
 // with an ARP value associated with
-// priority services (e.g., MPS, MCS), as configured by the operator. (TS 23.502 4.2.3.3, TS 23.501 5.22.3)
+// priority services (e.g., MPS, MCS), as configured by the operator. (TS 23.502, TS 23.501)
 func BuildPaging(
 	guti etsi.GUTI,
 	registrationArea []models.Tai,

@@ -23,7 +23,7 @@ func HandleNGReset(ctx context.Context, ran *amf.Radio, msg decode.NGReset) {
 	switch msg.ResetType.Present {
 	case ngapType.ResetTypePresentNGInterface:
 		logger.WithTrace(ctx, ran.Log).Debug("ResetType Present: NG Interface")
-		// TS 38.413 §8.7.4: NG Reset is initiated when one side has lost its
+		// TS 38.413: NG Reset is initiated when one side has lost its
 		// UE-associated logical NG-connection context. Treat as lower layer
 		// failure so ongoing NAS procedures are aborted per TS 24.501.
 		ran.RemoveAllUeInRan(ctx)

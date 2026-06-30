@@ -6,17 +6,17 @@ package eps
 import "github.com/ellanetworks/core/nas/common"
 
 // authFailureParameterIEI is the IEI of the optional Authentication failure
-// parameter (AUTS) in AUTHENTICATION FAILURE (TS 24.301 §8.2.5). It is a type-4
-// TLV IE (TS 24.301 §9.9.3.1).
+// parameter (AUTS) in AUTHENTICATION FAILURE (TS 24.301). It is a type-4
+// TLV IE (TS 24.301).
 const authFailureParameterIEI uint8 = 0x30
 
 // authenticationFailureIEs are the optional IEs of an AUTHENTICATION FAILURE
-// (TS 24.301 §8.2.5): the Authentication failure parameter (AUTS).
+// (TS 24.301): the Authentication failure parameter (AUTS).
 var authenticationFailureIEs = []common.OptionalIE{
 	{IEI: authFailureParameterIEI, Format: common.IETLV},
 }
 
-// AuthenticationRequest is the AUTHENTICATION REQUEST message (TS 24.301 §8.2.7),
+// AuthenticationRequest is the AUTHENTICATION REQUEST message (TS 24.301),
 // sent by the MME with the EPS-AKA challenge.
 type AuthenticationRequest struct {
 	NASKeySetIdentifier uint8
@@ -68,8 +68,8 @@ func ParseAuthenticationRequest(b []byte) (*AuthenticationRequest, error) {
 	return m, nil
 }
 
-// AuthenticationResponse is the AUTHENTICATION RESPONSE message (TS 24.301
-// §8.2.8), carrying the UE's RES.
+// AuthenticationResponse is the AUTHENTICATION RESPONSE message (TS 24.301),
+// carrying the UE's RES.
 type AuthenticationResponse struct {
 	RES []byte
 }
@@ -103,7 +103,7 @@ func ParseAuthenticationResponse(b []byte) (*AuthenticationResponse, error) {
 	return &AuthenticationResponse{RES: res}, nil
 }
 
-// AuthenticationReject is the AUTHENTICATION REJECT message (TS 24.301 §8.2.6).
+// AuthenticationReject is the AUTHENTICATION REJECT message (TS 24.301).
 // It has no mandatory information elements.
 type AuthenticationReject struct{}
 
@@ -127,7 +127,7 @@ func ParseAuthenticationReject(b []byte) (*AuthenticationReject, error) {
 	return &AuthenticationReject{}, nil
 }
 
-// AuthenticationFailure is the AUTHENTICATION FAILURE message (TS 24.301 §8.2.5).
+// AuthenticationFailure is the AUTHENTICATION FAILURE message (TS 24.301).
 // AUTS is the optional Authentication failure parameter (present for a
 // "synch failure"); it is nil when absent.
 type AuthenticationFailure struct {

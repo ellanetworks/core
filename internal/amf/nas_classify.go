@@ -20,11 +20,11 @@ const (
 	// its MAC verified successfully.
 	VerdictIntegrityVerified
 	// VerdictPlainAllowed means the PDU was plain NAS and its message
-	// type is on the TS 24.501 §4.4.4.3 whitelist. Handlers run with
+	// type is on the TS 24.501 whitelist. Handlers run with
 	// MacFailed=true.
 	VerdictPlainAllowed
 	// VerdictMacFailedAllowed means the PDU was integrity-protected, its
-	// MAC failed, and its message type is on the TS 33.501 §6.4.6 step 3
+	// MAC failed, and its message type is on the TS 33.501
 	// whitelist. Handlers run with MacFailed=true.
 	VerdictMacFailedAllowed
 )
@@ -67,7 +67,7 @@ func classifyNasPdu(msgType, securityHeader uint8, macVerified bool) Verdict {
 }
 
 // plainNasAllowed reports whether a NAS message type may be processed
-// without integrity protection per TS 24.501 §4.4.4.3.
+// without integrity protection per TS 24.501.
 func plainNasAllowed(msgType uint8) bool {
 	switch msgType {
 	case nas.MsgTypeRegistrationRequest,
@@ -84,7 +84,7 @@ func plainNasAllowed(msgType uint8) bool {
 }
 
 // macFailedAllowed reports whether a NAS message type may be processed
-// after MAC verification failure per TS 33.501 §6.4.6 step 3. It extends
+// after MAC verification failure per TS 33.501. It extends
 // plainNasAllowed with ServiceRequest.
 func macFailedAllowed(msgType uint8) bool {
 	if plainNasAllowed(msgType) {

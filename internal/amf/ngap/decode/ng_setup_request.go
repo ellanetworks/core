@@ -8,7 +8,7 @@ import (
 )
 
 // DecodeNGSetupRequest validates an NGSetupRequest PDU body
-// (3GPP TS 38.413 §9.2.6.1). Mandatory IEs: GlobalRANNodeID and
+// (3GPP TS 38.413). Mandatory IEs: GlobalRANNodeID and
 // SupportedTAList (criticality reject), DefaultPagingDRX (ignore).
 // RANNodeName is optional. DefaultPagingDRX is validated for presence
 // only. Duplicate IEs follow a last-wins policy.

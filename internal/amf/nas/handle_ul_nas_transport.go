@@ -107,7 +107,7 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		return fmt.Errorf("old pdu session id is not supported")
 	}
 
-	// Reserved or unassigned PDU session identity value (TS 24.501 §7.3.2 c)).
+	// Reserved or unassigned PDU session identity value (TS 24.501).
 	if pduSessionID < 1 || pduSessionID > 15 {
 		sendPayloadNotForwarded(ctx, ranUe, pduSessionID, smMessage)
 		return nil
@@ -132,7 +132,7 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		requestType.GetRequestTypeValue() == nasMessage.ULNASTransportRequestTypeInitialRequest
 
 	// Duplicate PDU session ID: an initial request for an active session locally
-	// releases it and re-establishes (TS 24.501 §5.4.5.2.5 item 12).
+	// releases it and re-establishes (TS 24.501).
 	if smContextExist && isInitialRequest {
 		ue.DeleteSmContext(pduSessionID)
 
@@ -141,7 +141,7 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 	if smContextExist {
 		// Existing PDU session whose S-NSSAI is not allowed for the access type
-		// (TS 24.501 §5.4.5.2.5 item 14).
+		// (TS 24.501).
 		if requestType != nil &&
 			requestType.GetRequestTypeValue() == nasMessage.ULNASTransportRequestTypeExistingPduSession &&
 			!ue.IsAllowedNssai(smContext.Snssai) {
@@ -151,7 +151,7 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			return nil
 		}
 
-		// Forward to the SMF of the routing context (TS 24.501 §5.4.5.2.3 i/ii).
+		// Forward to the SMF of the routing context (TS 24.501).
 		return forward5GSMMessageToSMF(ctx, amfInstance, ue, pduSessionID, smContext.Ref, smMessage)
 	}
 
@@ -159,21 +159,20 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		return establishPDUSession(ctx, amfInstance, ue, ranUe, ulNasTransport, pduSessionID, smMessage)
 	}
 
-	// A 5GSM STATUS for a PDU session with no context is ignored (TS 24.501 §7.3.2 d)).
+	// A 5GSM STATUS for a PDU session with no context is ignored (TS 24.501).
 	if isStatus5GSM(smMessage) {
 		ue.Log.Warn("5GSM STATUS for unknown PDU session, ignoring", zap.Uint8("pduSessionID", pduSessionID))
 		return nil
 	}
 
-	// No routing context and not an initial request (TS 24.501 §5.4.5.2.5 item 7).
+	// No routing context and not an initial request (TS 24.501).
 	sendPayloadNotForwarded(ctx, ranUe, pduSessionID, smMessage)
 
 	return nil
 }
 
 // sendPayloadNotForwarded returns the 5GSM message to the UE in a DL NAS
-// TRANSPORT with 5GMM cause #90 "payload was not forwarded" (TS 24.501
-// §5.4.5.3.1 case e)/f)).
+// TRANSPORT with 5GMM cause #90 "payload was not forwarded" (TS 24.501).
 func sendPayloadNotForwarded(ctx context.Context, ranUe *amf.RanUe, pduSessionID uint8, smMessage []byte) {
 	amf.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 }
@@ -188,7 +187,7 @@ func isStatus5GSM(smMessage []byte) bool {
 }
 
 // establishPDUSession selects an SMF and creates the SM context for an initial
-// request (TS 24.501 §5.4.5.2.3 iii). When the SMF rejects, its reject message
+// request (TS 24.501). When the SMF rejects, its reject message
 // is returned to the UE; when it produces none, the payload is reported as not
 // forwarded.
 func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, ranUe *amf.RanUe, ulNasTransport *nasMessage.ULNASTransport, pduSessionID uint8, smMessage []byte) error {
@@ -221,7 +220,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 	smContextRef, errResponse, err := amfInstance.Smf.CreateSmContext(ctx, ue.SupiValue(), pduSessionID, dnn, snssai, smMessage)
 
 	// The SMF produced a 5GSM reject. Delivering it is a normal negative outcome,
-	// not a 5GMM protocol error, so return nil (TS 24.501 §6.4.1.x).
+	// not a 5GMM protocol error, so return nil (TS 24.501).
 	if errResponse != nil {
 		amf.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, errResponse, pduSessionID, 0)
 
@@ -231,7 +230,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 	}
 
 	// The SMF failed without producing a reject. Tell the UE the payload was not
-	// forwarded (5GMM cause #90) so it does not time out (TS 24.501 §5.4.5.3.1).
+	// forwarded (5GMM cause #90) so it does not time out (TS 24.501).
 	if err != nil {
 		ue.Log.Error("couldn't create sm context", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 
@@ -242,7 +241,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 
 	// The SMF processed the message but produced no context and no response,
 	// e.g. an establishment request with a reserved PTI it had to ignore
-	// (TS 24.501 §7.3.1 d). Send nothing.
+	// (TS 24.501). Send nothing.
 	if smContextRef == "" {
 		ue.Log.Info("SMF ignored the PDU session establishment request, sending no response", zap.Uint8("pduSessionID", pduSessionID))
 		return nil
@@ -267,7 +266,7 @@ func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	}
 
 	switch msg.GetPayloadContainerType() {
-	// TS 24.501 5.4.5.2.3 case a)
+	// TS 24.501
 	case nasMessage.PayloadContainerTypeN1SMInfo:
 		return transport5GSMMessage(ctx, amfInstance, ue, msg)
 	case nasMessage.PayloadContainerTypeSMS:

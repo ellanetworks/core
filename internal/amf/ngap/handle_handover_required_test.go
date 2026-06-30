@@ -476,7 +476,7 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 // TestHandoverRequired_UnknownTarget verifies that when the target gNB is not
 // served by this AMF, handover preparation fails gracefully: the source UE
 // receives a HandoverPreparationFailure with cause UnknownTargetID rather than
-// being left without a response (TS 38.413 §8.4.1.3).
+// being left without a response (TS 38.413).
 func TestHandoverRequired_UnknownTarget(t *testing.T) {
 	const (
 		targetGnbID  = "000102"

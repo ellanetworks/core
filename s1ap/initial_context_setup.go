@@ -10,7 +10,7 @@ import (
 )
 
 // InitialContextSetupRequest is the INITIAL CONTEXT SETUP REQUEST message
-// (TS 36.413 §9.1.4.1), sent by the MME to set up the UE context and default
+// (TS 36.413), sent by the MME to set up the UE context and default
 // E-RAB(s). Unmodeled IEs are preserved.
 type InitialContextSetupRequest struct {
 	MMEUES1APID               MMEUES1APID
@@ -19,9 +19,9 @@ type InitialContextSetupRequest struct {
 	ERABToBeSetup             []ERABToBeSetupItemCtxtSUReq
 	UESecurityCapabilities    UESecurityCapabilities
 	SecurityKey               SecurityKey
-	// UERadioCapability is the optional UE Radio Capability IE (TS 36.413
-	// §9.1.4.1); when set, the eNB reuses it instead of re-fetching it from the
-	// UE over the air (TS 23.401 §5.11.2).
+	// UERadioCapability is the optional UE Radio Capability IE (TS 36.413);
+	// when set, the eNB reuses it and skips re-fetching it from the
+	// UE over the air (TS 23.401).
 	UERadioCapability []byte
 
 	unmodeledIEs
@@ -139,7 +139,7 @@ func decodeERABToBeSetupList(r *aper.Reader) ([]ERABToBeSetupItemCtxtSUReq, erro
 }
 
 // InitialContextSetupResponse is the INITIAL CONTEXT SETUP RESPONSE message
-// (TS 36.413 §9.1.4.2), sent by the eNB once the E-RAB(s) are set up.
+// (TS 36.413), sent by the eNB once the E-RAB(s) are set up.
 type InitialContextSetupResponse struct {
 	MMEUES1APID            MMEUES1APID
 	ENBUES1APID            ENBUES1APID
@@ -264,7 +264,7 @@ func decodeERABItemList(r *aper.Reader) ([]ERABItem, error) {
 }
 
 // InitialContextSetupFailure is the INITIAL CONTEXT SETUP FAILURE message
-// (TS 36.413 §9.1.4.3).
+// (TS 36.413).
 type InitialContextSetupFailure struct {
 	MMEUES1APID            MMEUES1APID
 	ENBUES1APID            ENBUES1APID

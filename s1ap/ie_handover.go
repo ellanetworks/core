@@ -11,7 +11,7 @@ import (
 
 // HandoverType ::= ENUMERATED { intralte, ltetoutran, ltetogeran, utrantolte,
 // gerantolte, ..., eps-to-5gs, fivegs-to-eps } (extensible). Only intralte is in
-// scope for S1 handover within E-UTRAN (TS 36.413 §9.2.1.4).
+// scope for S1 handover within E-UTRAN (TS 36.413).
 type HandoverType uint8
 
 const (
@@ -43,7 +43,7 @@ func decodeHandoverType(r *aper.Reader) (HandoverType, error) {
 
 // TransparentContainer ::= OCTET STRING. The Source-to-Target and
 // Target-to-Source containers carry the source/target RAN's RRC information
-// (TS 36.413 §9.2.1.x); the MME relays them opaquely (TS 36.300).
+// (TS 36.413); the MME relays them opaquely (TS 36.300).
 type TransparentContainer []byte
 
 func (c TransparentContainer) encode(w *aper.Writer) error {
@@ -57,7 +57,7 @@ func decodeTransparentContainer(r *aper.Reader) (TransparentContainer, error) {
 
 // TargeteNB-ID ::= SEQUENCE { global-ENB-ID, selected-TAI, iE-Extensions
 // OPTIONAL } (extensible). It names the target eNB and the TAI of the target
-// cell (TS 36.413 §9.2.1.x).
+// cell (TS 36.413).
 type TargeteNBID struct {
 	GlobalENBID GlobalENBID
 	SelectedTAI TAI
@@ -98,7 +98,7 @@ func decodeTargeteNBID(r *aper.Reader) (TargeteNBID, error) {
 
 // TargetID ::= CHOICE { targeteNB-ID, targetRNC-ID, cGI, ..., targetgNgRanNode-ID }.
 // Only the first root alternative (targeteNB-ID), an intra-E-UTRAN handover
-// target, is modeled; the others are out of scope (TS 36.413 §9.2.1.40).
+// target, is modeled; the others are out of scope (TS 36.413).
 type TargetID struct {
 	TargeteNBID TargeteNBID
 }
@@ -134,7 +134,7 @@ func decodeTargetID(r *aper.Reader) (TargetID, error) {
 // ERABToBeSetupItemHOReq ::= SEQUENCE { e-RAB-ID, transportLayerAddress,
 // gTP-TEID, e-RABlevelQosParameters, iE-Extensions OPTIONAL } (extensible). The
 // transport address and TEID are the serving GW's S1-U uplink endpoint the
-// target eNB sends uplink user data to (TS 36.413 §9.1.5.4). The optional
+// target eNB sends uplink user data to (TS 36.413). The optional
 // Data-Forwarding-Not-Possible extension is not modeled; data forwarding is not
 // requested.
 type ERABToBeSetupItemHOReq struct {
@@ -202,7 +202,7 @@ func decodeERABToBeSetupListHOReq(r *aper.Reader) ([]ERABToBeSetupItemHOReq, err
 // OPTIONAL, uL-GTP-TEID OPTIONAL, iE-Extensions OPTIONAL } (extensible). The
 // mandatory transport address and TEID are the target eNB's S1-U downlink
 // endpoint; the optional DL/UL pairs are data-forwarding tunnels the MME does not
-// use (TS 36.413 §9.1.5.5).
+// use (TS 36.413).
 type ERABAdmittedItem struct {
 	ERABID                ERABID
 	TransportLayerAddress TransportLayerAddress

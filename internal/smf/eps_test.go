@@ -74,7 +74,7 @@ func TestCreateEPSSessionIPv4(t *testing.T) {
 
 // TestCreateEPSSessionBindsPolicyID checks the EPS session carries the policy ID
 // into the UPF establish request, so the data path binds the session to the
-// policy's network rules (SDF filters), as the 5G path does.
+// policy's network rules (SDF filters).
 func TestCreateEPSSessionBindsPolicyID(t *testing.T) {
 	store, upf := epsTestSMF()
 	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
@@ -142,7 +142,7 @@ func TestCreateEPSSessionIPv4v6(t *testing.T) {
 
 // TestCreateEPSSessionSGWN3Family checks the S-GW S1-U endpoint advertised to the
 // eNB carries whichever N3 family the UPF reports — IPv4, IPv6, or both — so a 4G
-// bearer can run its user plane over IPv6 the same way 5G N3 does.
+// bearer can run its user plane over IPv6.
 func TestCreateEPSSessionSGWN3Family(t *testing.T) {
 	v4 := netip.AddrFrom4([4]byte{10, 3, 0, 2})
 	v6 := netip.MustParseAddr("2001:db8:3::10")
@@ -203,10 +203,9 @@ func TestCreateEPSSessionUPFFailureReleasesTunnel(t *testing.T) {
 	}
 }
 
-// TestCreateEPSSessionRejectsInvalidRequest checks the EPS entry point fails a
-// request with an out-of-range EBI, an unparseable AMBR, or a malformed DNS
-// rather than silently programming a degraded bearer (F6). The UPF must not be
-// touched for a rejected request.
+// TestCreateEPSSessionRejectsInvalidRequest checks the EPS entry point rejects a
+// request with an out-of-range EBI, an unparseable AMBR, or a malformed DNS (F6).
+// The UPF must not be touched for a rejected request.
 func TestCreateEPSSessionRejectsInvalidRequest(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -252,7 +251,7 @@ func TestCreateEPSSessionNoIPv6Pool(t *testing.T) {
 
 // TestCreateEPSSessionDowngradeCause checks an IPv4v6 request on a single-stack
 // data network is assigned the available family with the matching ESM cause
-// (#50/#51, TS 24.301 §6.5.1.3).
+// (#50/#51, TS 24.301).
 func TestCreateEPSSessionDowngradeCause(t *testing.T) {
 	for _, tc := range []struct {
 		name      string

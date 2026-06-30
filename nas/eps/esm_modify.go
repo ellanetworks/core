@@ -6,29 +6,28 @@ package eps
 import "github.com/ellanetworks/core/nas/common"
 
 // ModifyEPSBearerContextRequest is the MODIFY EPS BEARER CONTEXT REQUEST
-// (TS 24.301 §8.3.18): the ESM header followed by entirely optional IEs. The
+// (TS 24.301): the ESM header followed by entirely optional IEs. The
 // network uses it to update an active bearer's parameters in place — the per-APN
-// Session-AMBR (APN-AMBR, §9.9.4.2) and/or the Protocol Configuration Options
-// carrying a changed DNS server (TS 24.008 §10.5.6.3) — without deactivating the
+// Session-AMBR (APN-AMBR) and/or the Protocol Configuration Options
+// carrying a changed DNS server (TS 24.008) — without deactivating the
 // bearer.
 type ModifyEPSBearerContextRequest struct {
 	EPSBearerIdentity            uint8
 	ProcedureTransactionIdentity uint8
-	NewEPSQoS                    []byte // EPS QoS value part (§9.9.4.3, QCI), empty = omit
-	APNAMBR                      []byte // APN-AMBR value part (§9.9.4.2), empty = omit
+	NewEPSQoS                    []byte // EPS QoS value part (QCI), empty = omit
+	APNAMBR                      []byte // APN-AMBR value part, empty = omit
 	ProtocolConfigurationOptions []byte
 }
 
 // modifyEPSBearerContextRequestIEs are the optional IEs Ella Core sends in a
-// MODIFY EPS BEARER CONTEXT REQUEST (TS 24.301 §8.3.18), in message order.
+// MODIFY EPS BEARER CONTEXT REQUEST (TS 24.301), in message order.
 var modifyEPSBearerContextRequestIEs = []common.OptionalIE{
 	{IEI: newEPSQoSIEI, Format: common.IETLV},
 	{IEI: apnAMBRIEI, Format: common.IETLV},
 	{IEI: protocolConfigurationOptionsIEI, Format: common.IETLV},
 }
 
-// Marshal encodes the MODIFY EPS BEARER CONTEXT REQUEST. The optional IEs are
-// written in the order defined by TS 24.301 §8.3.18.1 (New EPS QoS, APN-AMBR, PCO).
+// Marshal encodes the MODIFY EPS BEARER CONTEXT REQUEST.
 func (m *ModifyEPSBearerContextRequest) Marshal() ([]byte, error) {
 	var w common.Writer
 
@@ -92,7 +91,7 @@ func ParseModifyEPSBearerContextRequest(b []byte) (*ModifyEPSBearerContextReques
 }
 
 // ModifyEPSBearerContextAccept is the MODIFY EPS BEARER CONTEXT ACCEPT
-// (TS 24.301 §8.3.19): the UE's acknowledgement, carrying no mandatory
+// (TS 24.301): the UE's acknowledgement, carrying no mandatory
 // information beyond the ESM header. Its optional IEs are not used.
 type ModifyEPSBearerContextAccept struct {
 	EPSBearerIdentity            uint8
@@ -121,7 +120,7 @@ func ParseModifyEPSBearerContextAccept(b []byte) (*ModifyEPSBearerContextAccept,
 }
 
 // ModifyEPSBearerContextReject is the MODIFY EPS BEARER CONTEXT REJECT
-// (TS 24.301 §8.3.20): the UE's refusal of a network-requested modification,
+// (TS 24.301): the UE's refusal of a network-requested modification,
 // carrying a mandatory ESM cause.
 type ModifyEPSBearerContextReject struct {
 	EPSBearerIdentity            uint8

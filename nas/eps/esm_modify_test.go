@@ -63,7 +63,7 @@ func TestModifyEPSBearerContextRequestAPNAMBRRoundTrip(t *testing.T) {
 		t.Fatalf("marshal: %v", err)
 	}
 
-	// TS 24.301 §8.3.18.1: APN-AMBR precedes PCO in message order.
+	// TS 24.301: APN-AMBR precedes PCO in message order.
 	if wire[3] != apnAMBRIEI {
 		t.Fatalf("first optional IEI = %#x, want APN-AMBR %#x", wire[3], apnAMBRIEI)
 	}
@@ -111,7 +111,7 @@ func TestModifyEPSBearerContextRequestNewEPSQoSRoundTrip(t *testing.T) {
 		t.Fatalf("marshal: %v", err)
 	}
 
-	// TS 24.301 §8.3.18.1: New EPS QoS precedes APN-AMBR.
+	// TS 24.301: New EPS QoS precedes APN-AMBR.
 	if wire[3] != newEPSQoSIEI {
 		t.Fatalf("first optional IEI = %#x, want New EPS QoS %#x", wire[3], newEPSQoSIEI)
 	}

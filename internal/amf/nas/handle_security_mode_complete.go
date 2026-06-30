@@ -14,7 +14,7 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 )
 
-// TS 33.501 6.7.2
+// TS 33.501
 func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.SecurityModeComplete, integrityVerified bool) error {
 	if state := ue.GetState(); state != amf.SecurityMode {
 		return fmt.Errorf("state mismatch: receive Security Mode Complete message in state %s", state)

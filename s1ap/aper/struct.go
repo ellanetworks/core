@@ -7,7 +7,7 @@ import "fmt"
 
 // putExtensibleIndex writes an extension marker (when ext) followed by an index
 // that is either a root bit-field value or, for an extension addition, a
-// normally-small number. Shared by ENUMERATED (X.691 §13) and CHOICE (§22),
+// normally-small number. Shared by ENUMERATED (X.691) and CHOICE,
 // whose index encodings are identical.
 func (w *Writer) putExtensibleIndex(index, nRoot int, ext, isExt bool) error {
 	if ext {
@@ -55,7 +55,7 @@ func (r *Reader) getExtensibleIndex(nRoot int, ext bool) (index int, isExt bool,
 }
 
 // WriteEnum encodes an ENUMERATED value by its index among the nRoot root
-// values (X.691 §13). ext reports whether the type is extensible; set isExt and
+// values (X.691). ext reports whether the type is extensible; set isExt and
 // pass the index among extension values when the value is an extension addition.
 func (w *Writer) WriteEnum(index, nRoot int, ext, isExt bool) error {
 	return w.putExtensibleIndex(index, nRoot, ext, isExt)
@@ -68,7 +68,7 @@ func (r *Reader) ReadEnum(nRoot int, ext bool) (index int, isExt bool, err error
 }
 
 // WriteChoiceIndex encodes the chosen alternative of a CHOICE among nRoot root
-// alternatives (X.691 §22). For an extension alternative, set isExt and pass
+// alternatives (X.691). For an extension alternative, set isExt and pass
 // the index among extension alternatives; the caller then writes the value as
 // an open type.
 func (w *Writer) WriteChoiceIndex(index, nRoot int, ext, isExt bool) error {
@@ -81,7 +81,7 @@ func (r *Reader) ReadChoiceIndex(nRoot int, ext bool) (index int, isExt bool, er
 	return r.getExtensibleIndex(nRoot, ext)
 }
 
-// WriteNSLength encodes a normally-small length n >= 1 (X.691 §10.9.3.4), used
+// WriteNSLength encodes a normally-small length n >= 1 (X.691), used
 // for the SEQUENCE extension-addition bitmap.
 func (w *Writer) WriteNSLength(n int) error {
 	if n < 1 {
@@ -117,7 +117,7 @@ func (r *Reader) ReadNSLength() (int, error) {
 	return r.ReadLength()
 }
 
-// WriteSequencePreamble writes a SEQUENCE preamble (X.691 §18): the extension
+// WriteSequencePreamble writes a SEQUENCE preamble (X.691): the extension
 // bit (when the type is extensible) followed by one presence bit per OPTIONAL
 // or DEFAULT root field, in declaration order. Pass extPresent = true only when
 // extension additions are encoded after the root.
@@ -155,7 +155,7 @@ func (r *Reader) ReadSequencePreamble(extensible bool, nOptional int) (extPresen
 }
 
 // SkipExtensionAdditions consumes the extension-addition block of an extensible
-// SEQUENCE whose preamble reported additions present (X.691 §18.7-18.9): the
+// SEQUENCE whose preamble reported additions present (X.691): the
 // normally-small-length bitmap followed by that many open-type fields, which
 // are read and discarded. This lets the decoder accept messages carrying
 // additions it does not model.

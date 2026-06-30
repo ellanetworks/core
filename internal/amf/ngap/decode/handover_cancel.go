@@ -19,7 +19,7 @@ import (
 // }
 
 // DecodeHandoverCancel validates a HandoverCancel PDU body (3GPP TS
-// 38.413 §9.2.3.4). AMFUENGAPID and RANUENGAPID are mandatory-reject;
+// 38.413). AMFUENGAPID and RANUENGAPID are mandatory-reject;
 // Cause is mandatory-ignore. The procedure is class 1, so the
 // procedure-level criticality is "reject". Duplicate IEs follow a
 // last-wins policy.

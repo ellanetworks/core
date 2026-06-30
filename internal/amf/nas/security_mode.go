@@ -58,7 +58,7 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 
 	// The security mode control procedure stays in flight until SECURITY MODE
 	// COMPLETE, the T3560 abort callback, or UE context release — not a single
-	// transport send (TS 24.501 §5.4.2).
+	// transport send (TS 24.501).
 	amf.SendSecurityModeCommand(ctx, amfInstance, ranUe)
 
 	return nil

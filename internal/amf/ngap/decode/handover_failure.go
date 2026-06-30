@@ -19,7 +19,7 @@ import (
 // }
 
 // DecodeHandoverFailure validates a HandoverFailure PDU body (3GPP TS
-// 38.413 §9.2.3.3). AMFUENGAPID and Cause are mandatory-ignore;
+// 38.413). AMFUENGAPID and Cause are mandatory-ignore;
 // CriticalityDiagnostics is optional-ignore. The procedure is class 1,
 // so the procedure-level criticality is "reject". A missing or malformed
 // AMF-UE-NGAP-ID yields a non-fatal report with a zero ID. Duplicate IEs

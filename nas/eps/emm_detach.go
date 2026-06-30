@@ -5,7 +5,7 @@ package eps
 
 import "github.com/ellanetworks/core/nas/common"
 
-// Type of detach values (TS 24.301 §9.9.3.7). For UE-originating detach:
+// Type of detach values (TS 24.301). For UE-originating detach:
 // 1 = EPS detach, 2 = IMSI detach, 3 = combined EPS/IMSI detach.
 const (
 	DetachTypeEPS      uint8 = 1
@@ -14,13 +14,13 @@ const (
 )
 
 // detachRequestNetworkIEs are the optional IEs of a network-originating DETACH
-// REQUEST (TS 24.301 §8.2.12): the EMM cause.
+// REQUEST (TS 24.301): the EMM cause.
 var detachRequestNetworkIEs = []common.OptionalIE{
 	{IEI: emmCauseIEI, Format: common.IETV3, Len: 1},
 }
 
-// DetachRequestUE is the UE-originating DETACH REQUEST message (TS 24.301
-// §8.2.11). SwitchOff indicates the UE is powering off, in which case the
+// DetachRequestUE is the UE-originating DETACH REQUEST message (TS 24.301).
+// SwitchOff indicates the UE is powering off, in which case the
 // network does not send a Detach Accept.
 type DetachRequestUE struct {
 	SwitchOff           bool
@@ -86,7 +86,7 @@ func ParseDetachRequestUE(b []byte) (*DetachRequestUE, error) {
 }
 
 // DetachRequestNetwork is the network-originating DETACH REQUEST message
-// (TS 24.301 §8.2.12). EMMCause is nil when the optional cause is absent.
+// (TS 24.301). EMMCause is nil when the optional cause is absent.
 type DetachRequestNetwork struct {
 	TypeOfDetach uint8
 	EMMCause     *uint8
@@ -137,7 +137,7 @@ func ParseDetachRequestNetwork(b []byte) (*DetachRequestNetwork, error) {
 	return m, nil
 }
 
-// DetachAccept is the DETACH ACCEPT message (TS 24.301 §8.2.10), used in both
+// DetachAccept is the DETACH ACCEPT message (TS 24.301), used in both
 // directions; it has no information elements beyond the header.
 type DetachAccept struct{}
 

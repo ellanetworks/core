@@ -13,7 +13,7 @@ import (
 // transportLayerAddress, gTP-TEID, nAS-PDU, iE-Extensions OPTIONAL }
 // (extensible). The NAS-PDU is mandatory:
 // the E-RAB Setup carries the ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST for an
-// additional PDN connection (TS 36.413 §9.1.3.1).
+// additional PDN connection (TS 36.413).
 type ERABToBeSetupItemBearerSUReq struct {
 	ERABID                ERABID
 	QoS                   ERABLevelQoSParameters
@@ -81,10 +81,10 @@ func decodeERABToBeSetupItemBearerSUReq(r *aper.Reader) (ERABToBeSetupItemBearer
 
 // ERABSetupItemBearerSURes has the same structure as ERABSetupItemCtxtSURes
 // (e-RAB-ID, transportLayerAddress, gTP-TEID): the eNB endpoint the UPF sends
-// downlink traffic to (TS 36.413 §9.1.3.2). The two decode identically.
+// downlink traffic to (TS 36.413). The two decode identically.
 type ERABSetupItemBearerSURes = ERABSetupItemCtxtSURes
 
-// ERABSetupRequest is the E-RAB SETUP REQUEST message (TS 36.413 §9.1.3.1), sent
+// ERABSetupRequest is the E-RAB SETUP REQUEST message (TS 36.413), sent
 // by the MME to add one or more E-RABs (and their default bearers) to an
 // established UE context — the radio leg of an additional PDN connection.
 type ERABSetupRequest struct {
@@ -198,7 +198,7 @@ func decodeERABToBeSetupBearerList(r *aper.Reader) ([]ERABToBeSetupItemBearerSUR
 	return decodeItemList(r, maxnoofERABs, decodeERABToBeSetupItemBearerSUReq)
 }
 
-// ERABSetupResponse is the E-RAB SETUP RESPONSE message (TS 36.413 §9.1.3.2),
+// ERABSetupResponse is the E-RAB SETUP RESPONSE message (TS 36.413),
 // sent by the eNB once the E-RAB(s) are set up. ERABSetup carries the eNB S1-U
 // endpoint for each established E-RAB; ERABFailedToSetup lists those rejected.
 type ERABSetupResponse struct {

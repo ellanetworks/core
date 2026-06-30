@@ -24,12 +24,12 @@ import (
 // session.
 //
 // QoS/AMBR/DNS changes use the network-requested PDU Session Modification
-// procedure (TS 23.502 §4.3.3.2): PFCP update plus N1+N2 to the UE and gNB.
+// procedure (TS 23.502): PFCP update plus N1+N2 to the UE and gNB.
 //
 // Slice (SST/SD), MTU, or IP pool changes release the session with cause #39
-// "reactivation requested" (TS 24.501 table 11.4.2.1) so the UE re-establishes
-// with the correct configuration; TS 23.501 §5.6.10.4 does not address dynamic
-// MTU adjustment, and IP pools have no in-place modification mechanism.
+// "reactivation requested" (TS 24.501) so the UE re-establishes with the
+// correct configuration; TS 23.501 does not address dynamic MTU adjustment,
+// and IP pools have no in-place modification mechanism.
 func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconcileRequest) error {
 	if req == nil {
 		return fmt.Errorf("reconcile request is nil")
@@ -78,7 +78,7 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 	}
 
 	// Slice (SST/SD) change: stored Snssai matches no configured slice. Release
-	// with cause #39 so the UE re-establishes on the new slice (TS 23.502 §4.3.4.2).
+	// with cause #39 so the UE re-establishes on the new slice (TS 23.502).
 	if req.Reason == models.ReconcileSliceMismatch {
 		return s.sendSessionRelease(ctx, smContext)
 	}
@@ -196,12 +196,12 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 		)
 	}
 
-	// Send N1 (NAS) + N2 (NGAP) to the UE and gNB (TS 23.502 §4.3.3.2).
+	// Send N1 (NAS) + N2 (NGAP) to the UE and gNB (TS 23.502).
 	//
-	// If the UE is in CM-IDLE, N1N2 delivery is skipped (TS 23.502 §4.2.3.3
-	// step 3b: the AMF may ignore N2 SM information when the UE is unreachable);
-	// the policy is still committed so ActivateSmContext returns updated QoS when
-	// the UE returns to CM-CONNECTED.
+	// If the UE is in CM-IDLE, N1N2 delivery is skipped (TS 23.502: the AMF may
+	// ignore N2 SM information when the UE is unreachable); the policy is still
+	// committed so ActivateSmContext returns updated QoS when the UE returns to
+	// CM-CONNECTED.
 	if (hasAmbrChange || hasQoSChange || hasDNSChange) && req.NewPolicy != nil {
 		if err := s.sendSessionModification(ctx, smContext, newPolicy, hasAmbrChange, hasQoSChange, hasDNSChange); err != nil {
 			if errors.Is(err, ErrUENotReachable) {
@@ -235,12 +235,12 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 }
 
 // sendSessionModification builds and sends N1+N2 messages for the network-
-// requested PDU Session Modification (TS 23.502 §4.3.3.2).
+// requested PDU Session Modification (TS 23.502).
 //
 // N1 (to UE): PDU Session Modification Command containing:
-//   - Session-AMBR IE (when ambr changed, TS 24.501 §8.3.9.3)
-//   - Authorized QoS flow descriptions IE (when 5QI/ARP changed, TS 24.501 §8.3.9.8)
-//   - Extended PCO with DNS server address(es) (when DNS changed, TS 24.501 §6.3.2)
+//   - Session-AMBR IE (when ambr changed, TS 24.501)
+//   - Authorized QoS flow descriptions IE (when 5QI/ARP changed, TS 24.501)
+//   - Extended PCO with DNS server address(es) (when DNS changed, TS 24.501)
 //
 // N2 (to gNB): PDU Session Resource Modify Request Transfer containing:
 //   - PDU Session Aggregate Maximum Bit Rate (when AMBR changed)
@@ -295,12 +295,12 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 
 	// A network-requested modification uses PTI "no procedure transaction
 	// identity assigned" (0) and awaits the UE's Modification Complete or
-	// Command Reject (TS 24.501 §6.3.2, §7.3.1 a).
+	// Command Reject (TS 24.501).
 	smContext.MarkPTIInUse(0)
 
 	// T3591 retransmits the command until the UE replies; on the final expiry
 	// the procedure is aborted and the session stays PDU SESSION ACTIVE
-	// (TS 24.501 §6.3.2.5). The committed PFCP/policy change is not rolled back.
+	// (TS 24.501). The committed PFCP/policy change is not rolled back.
 	supi := smContext.Supi
 	pduSessionID := smContext.PDUSessionID
 	s.armRetransmit(smContext, s.t3591,
@@ -323,7 +323,7 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 }
 
 // updatePFCPRules pushes the policy's QoS (QFI + session-AMBR) to the UPF data
-// plane (TS 29.244 clause 7.5.4).
+// plane (TS 29.244).
 func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy *Policy) error {
 	return s.applySessionQERs(ctx, smContext, policy.PolicyID, policy.QosData.QFI, policy.Ambr.Uplink, policy.Ambr.Downlink)
 }
@@ -335,8 +335,8 @@ func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy 
 // AMBR update for both 5G reconciliation and 4G UpdateEPSSessionAMBR.
 //
 // QER MBR is set to the session AMBR because this implementation supports a single
-// QoS flow per session (non-GBR only): per TS 23.501 §5.7.2.2 the session AMBR is
-// the aggregate non-GBR limit, which with one flow equals the per-flow MBR. If
+// QoS flow per session (non-GBR only): per TS 23.501 the session AMBR is the
+// aggregate non-GBR limit, which with one flow equals the per-flow MBR. If
 // multiple or GBR flows are ever supported, this must use per-flow MBR values.
 //
 // The caller holds smContext.Mutex.
@@ -417,9 +417,9 @@ func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policy
 }
 
 // sendSessionRelease performs the network-requested PDU session release
-// (TS 23.502 §4.3.4.2, TS 24.501 §6.3.3) triggered by a slice (SST/SD) change,
-// using cause #39 "reactivation requested" so the UE re-establishes on the
-// correct slice (TS 24.501 table 11.4.2.1). Caller must hold smContext.Mutex.
+// (TS 23.502, TS 24.501) triggered by a slice (SST/SD) change, using cause #39
+// "reactivation requested" so the UE re-establishes on the correct slice
+// (TS 24.501). Caller must hold smContext.Mutex.
 func (s *SMF) sendSessionRelease(ctx context.Context, smContext *SMContext) error {
 	return s.startRelease(ctx, smContext, 0, nasMessage.Cause5GSMReactivationRequested)
 }

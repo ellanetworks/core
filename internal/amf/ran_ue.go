@@ -161,7 +161,7 @@ func (ranUe *RanUe) SendInitialContextSetupRequest(
 	allowedNssai []models.Snssai,
 	kgnb []byte,
 	plmnID models.PlmnID,
-	ueRadioCapability string,
+	ueRadioCapability []byte,
 	ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging,
 	ueSecurityCapability *nasType.UESecurityCapability,
 	nasPdu []byte,

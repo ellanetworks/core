@@ -34,7 +34,7 @@ import (
 // Authenticator is the interface the AMF requires from the AUSF.
 type Authenticator interface {
 	Authenticate(ctx context.Context, suci string, plmn models.PlmnID, resync *ausf.ResyncInfo) (*ausf.AuthResult, error)
-	Confirm(ctx context.Context, resStar, suci string) (etsi.SUPI, string, error)
+	Confirm(ctx context.Context, resStar, suci string) (etsi.SUPI, []byte, error)
 }
 
 const (
@@ -118,7 +118,7 @@ type AMF struct {
 	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS
 	T3502Value               time.Duration
 	T3512Value               time.Duration
-	TimeZone                 string // "[+-]HH:MM[+][1-2]", Refer to TS 29.571 - 5.2.2 Simple Data Types
+	TimeZone                 string // "[+-]HH:MM[+][1-2]", Refer to TS 29.571 Simple Data Types
 	T3513Cfg                 TimerValue
 	T3522Cfg                 TimerValue
 	T3550Cfg                 TimerValue
@@ -208,7 +208,7 @@ func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
 	// guarded by T3522; the accept — or T3522 exhaustion — then removes the
 	// context. An idle or unsecured UE cannot be signalled, so it is removed
 	// locally.
-	if ue.RanUe() != nil && ue.securityContextAvailable {
+	if ue.RanUe() != nil && ue.secured {
 		if err := amf.sendNetworkInitiatedDeregistration(ctx, ue); err != nil {
 			logger.AmfLog.Warn("failed to send network-initiated deregistration; removing UE context locally",
 				zap.Error(err), logger.SUPI(supi.String()))
@@ -498,7 +498,7 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 // defaultHandoverGuardTimeout bounds an N2 handover from HANDOVER REQUIRED to
 // HANDOVER NOTIFY. It is generous relative to the source gNB's
 // TNGRELOCprep/TNGRELOCOverall so a normal handover completes first; it fires
-// only when the target gNB never answers (TS 38.413 §8.4), abandoning the
+// only when the target gNB never answers (TS 38.413), abandoning the
 // half-prepared handover so a silent target cannot pin the UE's N2Handover
 // procedure.
 const defaultHandoverGuardTimeout = 10 * time.Second

@@ -287,12 +287,27 @@ func (ue *UeContext) MarkSecured(imei string) {
 	ue.secured = true
 }
 
-// securitySnapshot returns the IMEI and selected NAS algorithms for the status API.
-func (ue *UeContext) securitySnapshot() (imei string, eea, eia byte) {
+// UESnapshot is a read-only, point-in-time copy of a UE's identity and NAS
+// security view for the status API. It is safe to read without holding a lock.
+type UESnapshot struct {
+	Imei               string
+	LastSeenAt         time.Time
+	CipheringAlgorithm string // EPS NAS ciphering, e.g. "EEA2" (TS 33.401)
+	IntegrityAlgorithm string // EPS NAS integrity, e.g. "EIA2"
+}
+
+// Snapshot returns a point-in-time copy of the UE's identity and NAS security
+// view. The caller can safely read the returned value without holding a lock.
+func (ue *UeContext) Snapshot() UESnapshot {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return ue.Imei, ue.eea, ue.eia
+	return UESnapshot{
+		Imei:               ue.Imei,
+		LastSeenAt:         ue.lastSeenTime(),
+		CipheringAlgorithm: epsCipheringAlgName(ue.eea),
+		IntegrityAlgorithm: epsIntegrityAlgName(ue.eia),
+	}
 }
 
 // defaultPDNLocked returns the UE's default PDN connection (the bearer

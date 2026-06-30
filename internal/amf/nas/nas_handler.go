@@ -155,7 +155,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 			// A SUCI is a one-time concealed identity, not a handle to an existing
 			// context. Always register on a fresh context; any prior context for
 			// the same subscriber is superseded only once this registration is
-			// authenticated (TS 24.501 §5.5.1.2.8 f, reconciled by SUPI on accept).
+			// authenticated (TS 24.501, reconciled by SUPI on accept).
 			suci, _ := nasConvert.SuciToString(mobileIdentity5GSContents)
 			logger.WithTrace(ctx, logger.AmfLog).Debug("Suci received in Registration Request Message; using a fresh context", zap.String("suci", suci))
 
@@ -202,7 +202,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 	}
 
 	if !ue.ReuseForInboundNAS(payload) {
-		// TS 24.501 §4.4.4.3: this message cites an existing context but is not
+		// TS 24.501: this message cites an existing context but is not
 		// integrity-verified for it. Register on a fresh context; the committed
 		// context (its NAS security context and PDU sessions) is left unchanged.
 		logger.WithTrace(ctx, logger.AmfLog).Info("NAS message cites a known GUTI but is not authenticated for that context; using a fresh context", logger.GUTI(guti.String()))

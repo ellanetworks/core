@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/s1ap/aper"
 )
 
-// CauseGroup selects a Cause CHOICE alternative (TS 36.413 §9.2.1.3).
+// CauseGroup selects a Cause CHOICE alternative (TS 36.413).
 type CauseGroup uint8
 
 const (
@@ -23,7 +23,7 @@ const (
 )
 
 // causeGroupRootCount is the number of root ENUMERATED values in each group's
-// CauseXxx type, which sets the index width (TS 36.413 §9.2.1.3).
+// CauseXxx type, which sets the index width (TS 36.413).
 var causeGroupRootCount = [causeRootGroups]int{
 	CauseGroupRadioNetwork: 36,
 	CauseGroupTransport:    2,
@@ -32,7 +32,7 @@ var causeGroupRootCount = [causeRootGroups]int{
 	CauseGroupMisc:         6,
 }
 
-// Named root values of each Cause group's ENUMERATED (TS 36.413 §9.2.1.3) that
+// Named root values of each Cause group's ENUMERATED (TS 36.413) that
 // Ella Core emits. Each value is its group's enumeration index, so the same
 // number means different things in different groups — the group prefix names it.
 const (
@@ -54,8 +54,8 @@ const (
 )
 
 // Cause ::= CHOICE of five extensible ENUMERATED groups. Value is the chosen
-// group's enumeration index; Extended is set when Value names an extension
-// addition of that enumeration rather than a root value.
+// group's enumeration index; Extended is true when Value indexes an extension
+// addition of that enumeration and false when it indexes a root value.
 type Cause struct {
 	Group    CauseGroup
 	Value    int

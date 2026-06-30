@@ -6,10 +6,10 @@ package eps
 import "github.com/ellanetworks/core/nas/common"
 
 // DeactivateEPSBearerContextRequest is the DEACTIVATE EPS BEARER CONTEXT REQUEST
-// (TS 24.301 §8.3.10): the ESM header followed by a mandatory ESM cause. Cause
+// (TS 24.301): the ESM header followed by a mandatory ESM cause. Cause
 // #39 "reactivation requested" tells the UE to deactivate the bearer and
 // re-establish the PDN connection with the network's updated configuration
-// (TS 24.301 §6.4.4.2).
+// (TS 24.301).
 type DeactivateEPSBearerContextRequest struct {
 	EPSBearerIdentity            uint8
 	ProcedureTransactionIdentity uint8
@@ -48,7 +48,7 @@ func ParseDeactivateEPSBearerContextRequest(b []byte) (*DeactivateEPSBearerConte
 }
 
 // DeactivateEPSBearerContextAccept is the DEACTIVATE EPS BEARER CONTEXT ACCEPT
-// (TS 24.301 §8.3.9): the UE's acknowledgement of the deactivation, carrying no
+// (TS 24.301): the UE's acknowledgement of the deactivation, carrying no
 // mandatory information beyond the ESM header.
 type DeactivateEPSBearerContextAccept struct {
 	EPSBearerIdentity            uint8

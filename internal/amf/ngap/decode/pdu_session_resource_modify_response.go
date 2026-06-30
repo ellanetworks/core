@@ -22,7 +22,7 @@ import (
 // }
 
 // DecodePDUSessionResourceModifyResponse validates a
-// PDUSessionResourceModifyResponse PDU body (3GPP TS 38.413 §9.2.1.4).
+// PDUSessionResourceModifyResponse PDU body (3GPP TS 38.413).
 // All IEs are criticality-ignore. AMFUENGAPID and RANUENGAPID are
 // mandatory-ignore and surfaced as pointers. UserLocationInformation is
 // optional. Duplicate IEs follow a last-wins policy.

@@ -286,7 +286,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-		Kseaf: "testkey",
+		Kseaf: []byte("testkey"),
 	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -340,7 +340,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-		Kseaf: "testkey",
+		Kseaf: []byte("testkey"),
 	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -384,7 +384,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
 		Supi:  supi,
-		Kseaf: "testkey",
+		Kseaf: []byte("testkey"),
 	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -478,7 +478,7 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 					Autn: hex.EncodeToString(make([]byte, 16)),
 				},
 				Supi:  supi,
-				Kseaf: "testkey",
+				Kseaf: []byte("testkey"),
 			}, nil)
 
 			ue, ngapSender, err := buildUeAndRadio()
@@ -573,7 +573,7 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 					Autn: hex.EncodeToString(make([]byte, 16)),
 				},
 				Supi:  supi,
-				Kseaf: "testkey",
+				Kseaf: []byte("testkey"),
 			}, nil)
 
 			ue, ngapSender, err := buildUeAndRadio()
@@ -643,7 +643,7 @@ func TestHandleIdentityResponse_IdentityError(t *testing.T) {
 					Autn: hex.EncodeToString(make([]byte, 16)),
 				},
 				Supi:  supi,
-				Kseaf: "testkey",
+				Kseaf: []byte("testkey"),
 			}, nil)
 
 			ue, ngapSender, err := buildUeAndRadio()

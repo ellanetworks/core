@@ -17,7 +17,7 @@ import (
 //  ...
 // }
 
-// DecodeNGReset validates an NGReset PDU body (3GPP TS 38.413 §9.2.6.10).
+// DecodeNGReset validates an NGReset PDU body (3GPP TS 38.413).
 // Cause is mandatory-ignore and ResetType is mandatory-reject. Class 1
 // procedure, so procedure-level criticality is "reject". Duplicate IEs
 // follow a last-wins policy.

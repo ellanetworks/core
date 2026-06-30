@@ -26,7 +26,7 @@ func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 
 	conn.T3550.Stop()
 
-	// UE confirmed receipt of the new GUTI — free the old one (TS 24.501 5.5.1.2.4 step 20)
+	// UE confirmed receipt of the new GUTI — free the old one (TS 24.501)
 	amfInstance.FreeOldGuti(ue)
 
 	// Configuration update command carries NITZ (network name + time zone) per TS 24.501.

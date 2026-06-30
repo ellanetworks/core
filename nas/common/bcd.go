@@ -3,7 +3,7 @@
 
 package common
 
-// DecodeTBCD decodes a telephony-BCD octet string (TS 24.008 §10.5.1): two
+// DecodeTBCD decodes a telephony-BCD octet string (TS 24.008): two
 // digits per octet, least-significant nibble first. A 0xF nibble is the
 // odd-length filler and is skipped. Only decimal digits are produced (sufficient
 // for EPS identities such as IMSI/IMEI).
@@ -54,7 +54,7 @@ func EncodeTBCD(digits string) ([]byte, error) {
 }
 
 // EncodePLMN packs an MCC (3 digits) and MNC (2 or 3 digits) into the 3-octet
-// PLMN identity of TS 24.301 §9.9.3.x / TS 24.008 §10.5.1.3. A 2-digit MNC sets
+// PLMN identity of TS 24.301 / TS 24.008. A 2-digit MNC sets
 // the MNC-digit-3 nibble to 0xF.
 func EncodePLMN(mcc, mnc string) ([3]byte, error) {
 	var out [3]byte

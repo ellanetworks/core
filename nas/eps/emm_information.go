@@ -5,19 +5,19 @@ package eps
 
 import "github.com/ellanetworks/core/nas/common"
 
-// MsgEMMInformation is the EMM INFORMATION message type (TS 24.301 §9.8).
+// MsgEMMInformation is the EMM INFORMATION message type (TS 24.301).
 const MsgEMMInformation MessageType = 0x61
 
 // IEIs of the network-name information elements in EMM INFORMATION
-// (TS 24.301 §8.2.13).
+// (TS 24.301).
 const (
 	fullNameForNetworkIEI  uint8 = 0x43
 	shortNameForNetworkIEI uint8 = 0x45
 )
 
-// EMMInformation is the EMM INFORMATION message (TS 24.301 §8.2.13), sent by the
+// EMMInformation is the EMM INFORMATION message (TS 24.301), sent by the
 // MME to provide the network name to the UE. The procedure is optional in the
-// network (§5.4.5.1); the MME sends it integrity-protected and ciphered after
+// network; the MME sends it integrity-protected and ciphered after
 // attach. Only the network-name IEs are carried.
 type EMMInformation struct {
 	FullNetworkName  string
@@ -50,8 +50,8 @@ func (m *EMMInformation) Marshal() ([]byte, error) {
 }
 
 // encodeNetworkName encodes a network name into the Network name IE value
-// (TS 24.301 §9.9.3.24 ≡ TS 24.008 §10.5.3.5a): a coding-scheme octet followed by
-// the name in the GSM 7-bit default alphabet (TS 23.038 §6.1.2), packed, with no
+// (TS 24.301 ≡ TS 24.008): a coding-scheme octet followed by
+// the name in the GSM 7-bit default alphabet (TS 23.038), packed, with no
 // country initials. Characters are masked to 7 bits, so the input is expected to
 // be ASCII.
 func encodeNetworkName(name string) []byte {

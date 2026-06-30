@@ -88,7 +88,6 @@ func startSecurityMode(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 		return
 	}
 
-	// Integrity protected with the new EPS security context (TS 24.301).
 	wire, err := ue.ProtectDownlink(plain, eps.SHTIntegrityProtectedNewContext)
 	if err != nil {
 		logger.MmeLog.Error("failed to protect Security Mode Command", zap.Error(err))

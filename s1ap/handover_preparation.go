@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/s1ap/aper"
 )
 
-// HandoverRequired is the HANDOVER REQUIRED message (TS 36.413 §9.1.5.1), sent by
+// HandoverRequired is the HANDOVER REQUIRED message (TS 36.413), sent by
 // the source eNB to start the Handover Preparation procedure. SourceToTarget is
 // the opaque source-eNB-to-target-eNB transparent container relayed to the target.
 type HandoverRequired struct {
@@ -120,9 +120,9 @@ func ParseHandoverRequired(value []byte) (*HandoverRequired, error) {
 	return m, nil
 }
 
-// HandoverCommand is the HANDOVER COMMAND message (TS 36.413 §9.1.5.2), the
+// HandoverCommand is the HANDOVER COMMAND message (TS 36.413), the
 // successful outcome the MME returns to the source eNB. ERABToRelease lists the
-// bearers the target did not admit (TS 23.401 §5.5.1.2.2 step 9); TargetToSource
+// bearers the target did not admit (TS 23.401); TargetToSource
 // is the opaque target-to-source transparent container.
 type HandoverCommand struct {
 	MMEUES1APID    MMEUES1APID
@@ -233,7 +233,7 @@ func ParseHandoverCommand(value []byte) (*HandoverCommand, error) {
 }
 
 // HandoverPreparationFailure is the HANDOVER PREPARATION FAILURE message
-// (TS 36.413 §9.1.5.3), the unsuccessful outcome the MME returns to the source
+// (TS 36.413), the unsuccessful outcome the MME returns to the source
 // eNB when the handover cannot be prepared. The UE keeps its source-eNB context.
 type HandoverPreparationFailure struct {
 	MMEUES1APID MMEUES1APID

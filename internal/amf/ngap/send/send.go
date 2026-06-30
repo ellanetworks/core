@@ -20,7 +20,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// NGAPPPID is the SCTP payload protocol identifier for NGAP (TS 38.412 §7),
+// NGAPPPID is the SCTP payload protocol identifier for NGAP (TS 38.412),
 // set on every NGAP datagram the AMF sends and required on the listener.
 const NGAPPPID uint32 = 60
 
@@ -200,7 +200,7 @@ func (s *RealNGAPSender) SendPathSwitchRequestFailure(ctx context.Context, amfUe
 	return nil
 }
 
-// Notifies peer CP NFs that this AMF and its GUAMI(s) are unavailable (TS 23.501 §5.21.2.2.2).
+// Notifies peer CP NFs that this AMF and its GUAMI(s) are unavailable (TS 23.501).
 func (s *RealNGAPSender) SendAMFStatusIndication(ctx context.Context, unavailableGUAMIList ngapType.UnavailableGUAMIList) error {
 	pkt, err := buildAMFStatusIndication(unavailableGUAMIList)
 	if err != nil {
@@ -327,7 +327,7 @@ func (s *RealNGAPSender) SendHandoverPreparationFailure(ctx context.Context, amf
 	return nil
 }
 
-// SMF-requested NG-RAN location reporting (TS 23.502 §4.10, TS 23.501 §5.4.7).
+// SMF-requested NG-RAN location reporting (TS 23.502, TS 23.501).
 func (s *RealNGAPSender) SendLocationReportingControl(ctx context.Context, amfUENgapID int64, ranUENgapID int64, eventType ngapType.EventType) error {
 	pkt, err := buildLocationReportingControl(amfUENgapID, ranUENgapID, eventType)
 	if err != nil {
@@ -380,7 +380,7 @@ func (s *RealNGAPSender) SendInitialContextSetupRequest(
 	allowedNssai []models.Snssai,
 	kgnb []byte,
 	plmnID models.PlmnID,
-	ueRadioCapability string,
+	ueRadioCapability []byte,
 	ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging,
 	ueSecurityCapability *nasType.UESecurityCapability,
 	nasPdu []byte,

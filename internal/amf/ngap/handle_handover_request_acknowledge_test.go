@@ -123,7 +123,7 @@ func TestHandoverRequestAcknowledge_UeNotFound(t *testing.T) {
 	}
 
 	if len(fakeNGAPSender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication (TS 38.413 §10.6), got %d", len(fakeNGAPSender.SentErrorIndications))
+		t.Fatalf("expected 1 ErrorIndication (TS 38.413), got %d", len(fakeNGAPSender.SentErrorIndications))
 	}
 }
 
@@ -318,7 +318,7 @@ func TestHandoverRequestAcknowledge_HappyPath(t *testing.T) {
 // TestHandoverRequestAcknowledge_PartialAdmission verifies that when the target
 // admits some PDU sessions and fails others, the Handover Command confirms the
 // admitted ones in the Handover List and lists the failed ones in the PDU
-// Session Resource To Release List (TS 38.413 §8.4.1.2 / §8.4.2.2).
+// Session Resource To Release List (TS 38.413).
 func TestHandoverRequestAcknowledge_PartialAdmission(t *testing.T) {
 	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t)
 
@@ -383,7 +383,7 @@ func TestHandoverRequestAcknowledge_PartialAdmission(t *testing.T) {
 	}
 
 	if len(cmd.ToReleaseList.List) != 1 || cmd.ToReleaseList.List[0].PDUSessionID.Value != 2 {
-		t.Fatalf("expected to-release list to contain session 2 (TS 38.413 §8.4.1.2), got %+v", cmd.ToReleaseList.List)
+		t.Fatalf("expected to-release list to contain session 2 (TS 38.413), got %+v", cmd.ToReleaseList.List)
 	}
 
 	// The to-release item must carry a decodable HandoverPreparationUnsuccessfulTransfer.

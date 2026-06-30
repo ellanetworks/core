@@ -5,7 +5,7 @@ package s1ap
 
 import "github.com/ellanetworks/core/s1ap/aper"
 
-// maxnoof bounds for ServedGUMMEIs and its lists (TS 36.413 §9.3).
+// maxnoof bounds for ServedGUMMEIs and its lists (TS 36.413).
 const (
 	maxnoofRATs        = 8
 	maxnoofPLMNsPerMME = 32
@@ -50,7 +50,7 @@ func decodeMMECode(r *aper.Reader) (MMECode, error) {
 }
 
 // GUMMEI ::= SEQUENCE { pLMN-Identity, mME-Group-ID, mME-Code, iE-Extensions
-// OPTIONAL } (extensible), TS 36.413 §9.2.3.9. Identifies the MME an eNB
+// OPTIONAL } (extensible), TS 36.413. Identifies the MME an eNB
 // selected; carried in INITIAL UE MESSAGE when the eNB does not run NNSF.
 type GUMMEI struct {
 	PLMNIdentity PLMNIdentity

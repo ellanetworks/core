@@ -8,7 +8,7 @@ import (
 )
 
 // DecodePathSwitchRequest validates a PathSwitchRequest PDU body
-// (3GPP TS 38.413 §9.2.3.1). Mandatory IEs: RANUENGAPID,
+// (3GPP TS 38.413). Mandatory IEs: RANUENGAPID,
 // SourceAMFUENGAPID and PDUSessionResourceToBeSwitchedDLList
 // (criticality reject), UserLocationInformation and
 // UESecurityCapabilities (ignore).

@@ -88,7 +88,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	if !ok {
 		// The target gNB is not served by this AMF, so preparation cannot
 		// proceed; fail it explicitly so the source is not left waiting
-		// (TS 38.413 §8.4.1.3).
+		// (TS 38.413).
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Unknown Target ID]", zap.Any("targetRanNodeID", targetRanNodeID))
 
 		failureCause := ngapType.Cause{
@@ -219,7 +219,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 // cancelled) before HANDOVER NOTIFY arrives — the target gNB never completed the
 // handover. The half-prepared target UE context is released; the source is left in
 // place (its own TNGRELOCprep/Overall timers abort the handover on the radio),
-// mirroring the MME's onHandoverGuardExpiry (TS 38.413 §8.4). A normal completion
+// mirroring the MME's onHandoverGuardExpiry (TS 38.413). A normal completion
 // (HANDOVER NOTIFY/FAILURE/CANCEL) ends the procedure, which stops this timer
 // before it can fire, so the captured target is touched by at most one goroutine.
 func handoverGuardExpiry(sourceUe, targetUe *amf.RanUe) func(context.Context) error {

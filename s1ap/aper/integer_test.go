@@ -24,7 +24,7 @@ func TestConstrainedIntKnownVectors(t *testing.T) {
 		// range 257..65536: two aligned octets.
 		{"two octets", 0x0102, 0, 65535, []byte{0x01, 0x02}},
 		// range > 64K: octet-count + aligned value. MME-UE-S1AP-ID is
-		// INTEGER(0..4294967295); see TS 36.413 / X.691 §11.5.7.4.
+		// INTEGER(0..4294967295); see TS 36.413 / X.691.
 		{"mme-ue-id 1", 1, 0, 4294967295, []byte{0x00, 0x01}},
 		{"mme-ue-id 256", 256, 0, 4294967295, []byte{0x40, 0x01, 0x00}},
 		// ENB-UE-S1AP-ID is INTEGER(0..16777215): range 2^24, byteLen 3.

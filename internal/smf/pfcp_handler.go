@@ -15,8 +15,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// HandleDownlinkDataReport processes a downlink data notification from the UPF,
-// triggering paging via the AMF so the UE re-establishes its radio bearer.
 func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.DownlinkDataReport) error {
 	ctx, span := tracer.Start(ctx, "smf/handle_downlink_data_report")
 	defer span.End()
@@ -26,8 +24,7 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 		return fmt.Errorf("failed to find SMContext for seid %d", report.SEID)
 	}
 
-	// A 4G EPS session is paged via the MME; the bearer is re-established by the
-	// UE's Service Request (TS 23.401 §5.3.4.3).
+	// A 4G EPS session is paged via the MME (TS 23.401).
 	if smContext.IsEPS() {
 		if s.mme == nil {
 			return fmt.Errorf("no MME registered to page EPS UE %s", smContext.Supi.IMSI())
@@ -48,8 +45,6 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 	return nil
 }
 
-// HandleUsageReport processes a usage report from the UPF,
-// persisting the volume counters for the subscriber.
 func (s *SMF) HandleUsageReport(ctx context.Context, report *models.UsageReport) error {
 	ctx, span := tracer.Start(ctx, "smf/handle_usage_report")
 	defer span.End()
@@ -73,8 +68,6 @@ func (s *SMF) HandleUsageReport(ctx context.Context, report *models.UsageReport)
 	return nil
 }
 
-// SendFlowReports persists a batch of flow measurement records from the UPF
-// in a single database transaction.
 func (s *SMF) SendFlowReports(ctx context.Context, reqs []*models.FlowReportRequest) error {
 	ctx, span := tracer.Start(ctx, "smf/send_flow_reports",
 		trace.WithAttributes(attribute.Int("batch_size", len(reqs))),
@@ -111,7 +104,6 @@ func (s *SMF) SendFlowReports(ctx context.Context, reqs []*models.FlowReportRequ
 	return nil
 }
 
-// IncrementDailyUsage delegates daily usage accounting to the store.
 func (s *SMF) IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error {
 	return s.store.IncrementDailyUsage(ctx, imsi, uplinkBytes, downlinkBytes)
 }
