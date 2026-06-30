@@ -27,7 +27,7 @@ func TestHandleUEContextModificationFailure_UnknownRanUeNgapID(t *testing.T) {
 	ngap.HandleUEContextModificationFailure(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication (TS 38.413 §10.6), got %d", len(sender.SentErrorIndications))
+		t.Fatalf("expected 1 ErrorIndication (TS 38.413), got %d", len(sender.SentErrorIndications))
 	}
 }
 

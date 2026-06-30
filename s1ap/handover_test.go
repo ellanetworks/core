@@ -69,7 +69,7 @@ func TestHandoverRequiredRoundTrip(t *testing.T) {
 
 // TestHandoverTypeRootValuesRoundTrip checks every root HandoverType decodes
 // faithfully; restricting handover to intralte is an MME-layer policy, not a
-// codec concern (TS 36.413 §9.2.1.4).
+// codec concern (TS 36.413).
 func TestHandoverTypeRootValuesRoundTrip(t *testing.T) {
 	for ht := HandoverTypeIntraLTE; ht <= HandoverTypeGERANtoLTE; ht++ {
 		in := &HandoverRequired{
@@ -103,7 +103,7 @@ func TestHandoverTypeRootValuesRoundTrip(t *testing.T) {
 }
 
 // TestTargetIDNonENBAlternativeRejected checks the parser rejects a TargetID
-// CHOICE arm other than targeteNB-ID, which is out of scope (TS 36.413 §9.2.1.40).
+// CHOICE arm other than targeteNB-ID, which is out of scope (TS 36.413).
 func TestTargetIDNonENBAlternativeRejected(t *testing.T) {
 	var w aper.Writer
 

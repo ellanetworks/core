@@ -91,8 +91,8 @@ func TestHandleAuthenticationFailure_MACFailure_DeregistersAndSendsReject(t *tes
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if ue.GetState() != amf.Deregistered {
-		t.Fatalf("expected UE state to be amf.Deregistered, got: %s", ue.GetState())
+	if ue.State() != amf.Deregistered {
+		t.Fatalf("expected UE state to be amf.Deregistered, got: %s", ue.State())
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
@@ -132,8 +132,8 @@ func TestHandleAuthenticationFailure_Non5GAuthUnacceptable_DeregistersAndSendsRe
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if ue.GetState() != amf.Deregistered {
-		t.Fatalf("expected UE state to be amf.Deregistered, got: %s", ue.GetState())
+	if ue.State() != amf.Deregistered {
+		t.Fatalf("expected UE state to be amf.Deregistered, got: %s", ue.State())
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
@@ -350,8 +350,8 @@ func TestHandleAuthenticationFailure_SynchFailure_SecondTime_DeregistersAndSends
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if ue.GetState() != amf.Deregistered {
-		t.Fatalf("expected UE state to be amf.Deregistered, got: %s", ue.GetState())
+	if ue.State() != amf.Deregistered {
+		t.Fatalf("expected UE state to be amf.Deregistered, got: %s", ue.State())
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {

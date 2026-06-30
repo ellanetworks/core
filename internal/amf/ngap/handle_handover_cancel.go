@@ -40,14 +40,13 @@ func HandleHandoverCancel(ctx context.Context, ran *amf.Radio, msg decode.Handov
 
 	amfUe := sourceUe.UeContext()
 
-	// Read the target from the FSM before tearing it down below.
+	// Capture the target before ClearHandover wipes it.
 	targetUe := amfUe.HandoverTarget()
 	if targetUe == nil {
 		logger.WithTrace(ctx, sourceUe.Log).Error("N2 Handover between AMF has not been implemented yet")
 		return
 	}
 
-	// Clear the N2 Handover procedure since it was cancelled by the source.
 	if amfUe != nil {
 		if conn := amfUe.NasConn(); conn != nil {
 			conn.Procedures.End(procedure.N2Handover)

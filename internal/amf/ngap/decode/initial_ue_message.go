@@ -8,7 +8,7 @@ import (
 )
 
 // DecodeInitialUEMessage validates an InitialUEMessage PDU body
-// (3GPP TS 38.413 §9.2.5.1). Mandatory IEs are RANUENGAPID, NASPDU,
+// (3GPP TS 38.413). Mandatory IEs are RANUENGAPID, NASPDU,
 // UserLocationInformation (all reject) and RRCEstablishmentCause
 // (ignore). Duplicate IEs follow a last-wins policy.
 func DecodeInitialUEMessage(in *ngapType.InitialUEMessage) (InitialUEMessage, *Report) {

@@ -8,15 +8,12 @@ import (
 )
 
 // DecodePathSwitchRequest validates a PathSwitchRequest PDU body
-// (3GPP TS 38.413 §9.2.3.1). Mandatory IEs are RANUENGAPID,
-// SourceAMFUENGAPID, PDUSessionResourceToBeSwitchedDLList (all reject),
-// UserLocationInformation and UESecurityCapabilities (both ignore).
+// (3GPP TS 38.413). Mandatory IEs: RANUENGAPID,
+// SourceAMFUENGAPID and PDUSessionResourceToBeSwitchedDLList
+// (criticality reject), UserLocationInformation and
+// UESecurityCapabilities (ignore).
 // PDUSessionResourceFailedToSetupListPSReq is optional. Duplicate IEs
 // follow a last-wins policy.
-//
-// UESecurityCapabilities is exposed as the validated free5gc pointer:
-// the handler walks NRencryptionAlgorithms / NRintegrityProtectionAlgorithms
-// directly, and a flattened decoded form is left for a follow-up.
 func DecodePathSwitchRequest(in *ngapType.PathSwitchRequest) (PathSwitchRequest, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodePathSwitchRequest,

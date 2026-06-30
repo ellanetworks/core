@@ -410,7 +410,7 @@ func TestTransport5GSMMessage_NoSmContext_NoRequestType_SendsDLNASTransport(t *t
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	// No SM context for this PDU session ID and no Request Type IE (TS 24.501 §7.3.2 c)).
+	// No SM context for this PDU session ID and no Request Type IE (TS 24.501).
 	smPayload := []byte{0x2E, 0x01, 0x00, 0xC9}
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(1))
@@ -451,7 +451,7 @@ func TestTransport5GSMMessage_ReservedPduSessionID_SendsDLNASTransport(t *testin
 	}
 
 	// Reserved PDU session identity value (16 is outside the 1-15 range),
-	// TS 24.501 §7.3.2 c).
+	// TS 24.501.
 	smPayload := []byte{0x2E, 0x10, 0x00, 0xC9}
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(16))

@@ -74,8 +74,6 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		pduSessionResourceToReleaseList ngapType.PDUSessionResourceToReleaseListHOCmd
 	)
 
-	// describe in 23.502 4.9.1.3.2 step11
-
 	for _, item := range msg.AdmittedItems {
 		pduSessionIDUint8, ok := validPDUSessionID(item.PDUSessionID.Value)
 		if !ok {
@@ -99,7 +97,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 	}
 
 	// Sessions the target did not admit go in the to-release list so the source
-	// frees them (TS 38.413 §8.4.1.2); they stay on the source, so no SMF update.
+	// frees them (TS 38.413); they stay on the source, so no SMF update.
 	for _, item := range msg.FailedToSetupItems {
 		if _, ok := validPDUSessionID(item.PDUSessionID.Value); !ok {
 			logger.WithTrace(ctx, targetUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))

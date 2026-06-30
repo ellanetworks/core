@@ -368,7 +368,7 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			return
 		}
 
-		snap, found := amfInstance.GetUESnapshot(supi)
+		snap, found := amfInstance.UESnapshot(supi)
 
 		subscriberStatus := SubscriberDetailStatus{
 			Registered: false,
@@ -398,7 +398,7 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			}
 		}
 
-		pduSessions, _ := amfInstance.GetUEPDUSessions(supi)
+		pduSessions, _ := amfInstance.UEPDUSessions(supi)
 
 		sessions := make([]Session, 0, len(pduSessions))
 		for _, pdu := range pduSessions {

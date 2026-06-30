@@ -13,16 +13,16 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-// TS 23.502 4.2.2.3
+// TS 23.502
 func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, ue *amf.UeContext, msg *nasMessage.DeregistrationRequestUEOriginatingDeregistration, integrityVerified bool) error {
-	if state := ue.GetState(); state != amf.Registered {
+	if state := ue.State(); state != amf.Registered {
 		return fmt.Errorf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", state)
 	}
 
 	// Reject unauthenticated Deregistration Requests while the amf.AMF still
-	// holds a valid security context (TS 24.501 §4.4.4.3 defense in depth).
+	// holds a valid security context (TS 24.501 defense in depth).
 	// A UE that lost its keys can recover via Initial Registration.
-	if !integrityVerified && ue.HasSecurityContext() {
+	if !integrityVerified && ue.Secured() {
 		return fmt.Errorf("rejecting unauthenticated Deregistration Request from UE with valid security context")
 	}
 
@@ -30,18 +30,17 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 
 	ranUe := ue.RanUe()
 	if ranUe == nil {
-		logger.WithTrace(ctx, logger.AmfLog).Warn("amf.RanUe is nil, cannot send UE Context Release Command", logger.SUPI(ue.SupiValue().String()))
+		logger.WithTrace(ctx, logger.AmfLog).Warn("amf.RanUe is nil, cannot send UE Context Release Command", logger.SUPI(ue.Supi().String()))
 		return nil
 	}
 
-	// if Deregistration type is not switch-off, send Deregistration Accept
 	if msg.GetSwitchOff() == 0 {
 		amf.SendDeregistrationAccept(ctx, ranUe)
 
 		ue.Log.Info("sent deregistration accept")
 	}
 
-	// TS 23.502 4.2.6, 4.12.3
+	// TS 23.502
 	targetDeregistrationAccessType := msg.GetAccessType()
 	if targetDeregistrationAccessType != nasMessage.AccessType3GPP {
 		return nil

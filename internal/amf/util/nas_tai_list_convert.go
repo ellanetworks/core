@@ -12,7 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-// TS 24.501 9.11.3.9
+// TS 24.501
 func TaiListToNas(taiList []models.Tai) ([]uint8, error) {
 	var taiListNas []uint8
 

@@ -13,8 +13,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// DeactivateSmContext puts a PDU session into buffering mode (e.g. UE went idle):
-// it sets the downlink FAR to buffer and sends a PFCP modification.
+// DeactivateSmContext puts a PDU session into buffering mode when the UE goes idle:
+// the downlink FAR switches to buffer via a PFCP modification.
 func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) error {
 	ctx, span := tracer.Start(ctx, "smf/deactivate_session",
 		trace.WithSpanKind(trace.SpanKindInternal),

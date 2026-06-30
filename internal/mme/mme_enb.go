@@ -75,7 +75,7 @@ func EnbSupportedTAIs(tas s1ap.SupportedTAs) []ENBTAI {
 	return out
 }
 
-// enbID renders a Global eNB ID as "<plmn>-<enb-id>" for display.
+// ENBID renders a Global eNB ID as "<plmn>-<enb-id>" for display.
 func ENBID(g s1ap.GlobalENBID) string {
 	p := g.PLMNIdentity
 

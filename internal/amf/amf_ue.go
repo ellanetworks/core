@@ -11,7 +11,6 @@ package amf
 import (
 	"context"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"slices"
 	"sync"
@@ -56,11 +55,10 @@ type SmContext struct {
 }
 
 type UeContext struct {
-	mu sync.RWMutex
+	mu sync.Mutex
 
-	/* Gmm State */
 	state StateType
-	/* Ue Identity*/
+
 	PlmnID  models.PlmnID
 	Suci    string
 	supi    etsi.SUPI
@@ -69,17 +67,16 @@ type UeContext struct {
 	OldTmsi etsi.TMSI
 	guti    etsi.GUTI
 	OldGuti etsi.GUTI
-	/* User Location*/
+
 	Location models.UserLocation
 	Tai      models.Tai
-	// Last seen — updated lock-free on every UE-specific NGAP message (hot path),
-	// mirroring the 4G MME's atomic last-seen idiom.
-	lastSeenAt    atomic.Int64 // Unix nanoseconds; use LastSeenAtTime()/TouchLastSeen()
+	// Updated lock-free on every UE-specific NGAP message (hot path).
+	lastSeen      atomic.Int64 // Unix nanoseconds; use lastSeenTime()/TouchLastSeen()
 	lastSeenRadio atomic.Pointer[string]
 	ranUe         *RanUe
 
 	// handover is the in-flight N2 handover FSM (nil when none); see handover.go.
-	// Guarded by mu. Mirrors the 4G MME's ue.handover.
+	// Guarded by mu.
 	handover *handoverContext
 
 	smf SmfSbi
@@ -94,25 +91,25 @@ type UeContext struct {
 	active atomic.Pointer[ActiveNasConnection]
 
 	// NAS security context per TS 33.501.
-	securityContextAvailable bool
-	ueSecurityCapability     *nasType.UESecurityCapability
-	ngKsi                    models.NgKsi
-	knasInt                  [16]uint8
-	knasEnc                  [16]uint8
-	kgnb                     []uint8
-	nh                       [32]uint8 // AS key-chain Next Hop, 256 bits (TS 33.501); fixed-size like the 4G MME's
-	ncc                      uint8
-	ulCount                  security.Count
-	dlCount                  security.Count
-	cipheringAlg             uint8
-	integrityAlg             uint8
-	kamf                     string
-	abba                     []uint8
+	secured              bool
+	ueSecurityCapability *nasType.UESecurityCapability
+	ngKsi                models.NgKsi
+	knasInt              [16]uint8
+	knasEnc              [16]uint8
+	kgnb                 []uint8
+	nh                   [32]uint8 // AS key-chain Next Hop, 256 bits (TS 33.501)
+	ncc                  uint8
+	ulCount              security.Count
+	dlCount              security.Count
+	cipheringAlg         uint8
+	integrityAlg         uint8
+	kamf                 []uint8
+	abba                 []uint8
 
 	Ambr                       *models.Ambr
 	AllowedNssai               []models.Snssai
 	RegistrationArea           []models.Tai
-	UeRadioCapability          string
+	UeRadioCapability          []byte
 	UeRadioCapabilityForPaging *models.UERadioCapabilityForPaging
 	UESpecificDRX              uint8
 	SmContextList              map[uint8]*SmContext
@@ -124,8 +121,8 @@ type UeContext struct {
 	// implicit deregistration. idleGen bumps on every (re)arm/stop so an expiry
 	// that fired just as the UE reconnected is ignored when it re-checks under
 	// ue.mu. Both are one logical episode keyed by idleGen.
-	MobileReachableTimer        guard.Guard
-	ImplicitDeregistrationTimer guard.Guard
+	mobileReachableTimer        guard.Guard
+	implicitDeregistrationTimer guard.Guard
 	idleGen                     uint64
 }
 
@@ -192,7 +189,7 @@ func (ue *UeContext) AttachNasConnection(ranUe *RanUe) *ActiveNasConnection {
 // resetSecurityContext clears the 5GMM security and session state, returning the
 // field state to that of a freshly-constructed context.
 func (ue *UeContext) resetSecurityContext() {
-	ue.securityContextAvailable = false
+	ue.secured = false
 	ue.ueSecurityCapability = nil
 	ue.ngKsi = models.NgKsi{}
 	ue.knasInt = [16]uint8{}
@@ -204,12 +201,12 @@ func (ue *UeContext) resetSecurityContext() {
 	ue.dlCount = security.Count{}
 	ue.cipheringAlg = 0
 	ue.integrityAlg = 0
-	ue.kamf = ""
+	ue.kamf = nil
 	ue.abba = nil
 	ue.Ambr = nil
 	ue.AllowedNssai = nil
 	ue.RegistrationArea = make([]models.Tai, 0)
-	ue.UeRadioCapability = ""
+	ue.UeRadioCapability = nil
 	ue.UeRadioCapabilityForPaging = nil
 	ue.UESpecificDRX = 0
 	ue.SmContextList = make(map[uint8]*SmContext)
@@ -221,28 +218,26 @@ func (ue *UeContext) resetSecurityContext() {
 // that has already fired becomes a no-op. Caller holds ue.mu.
 func (ue *UeContext) stopIdleTimers() {
 	ue.idleGen++
-	ue.MobileReachableTimer.Stop()
-	ue.ImplicitDeregistrationTimer.Stop()
+	ue.mobileReachableTimer.Stop()
+	ue.implicitDeregistrationTimer.Stop()
 }
 
-// RanUe returns the currently attached RanUe, or nil.
-// The read is synchronized via ue.Mutex so the returned pointer is a
-// consistent snapshot.  Callers must capture the result in a local
-// variable and reuse it — never call RanUe() twice in the same
-// code path, as the underlying pointer may change between calls.
+// RanUe returns the currently attached RanUe, or nil. Callers must capture the
+// result in a local and reuse it — never call RanUe() twice in the same code
+// path, as the underlying pointer may change between calls.
 func (ue *UeContext) RanUe() *RanUe {
 	if ue == nil {
 		return nil
 	}
 
-	ue.mu.RLock()
+	ue.mu.Lock()
 	r := ue.ranUe
-	ue.mu.RUnlock()
+	ue.mu.Unlock()
 
 	return r
 }
 
-func (ue *UeContext) GetState() StateType {
+func (ue *UeContext) State() StateType {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -313,7 +308,7 @@ func (ue *UeContext) AttachRanUe(ranUe *RanUe) {
 		}
 	}
 
-	ue.lastSeenAt.Store(time.Now().UnixNano())
+	ue.lastSeen.Store(time.Now().UnixNano())
 
 	if ranUe.radio != nil {
 		name := ranUe.radio.Name
@@ -330,7 +325,6 @@ func (ue *UeContext) AttachRanUe(ranUe *RanUe) {
 }
 
 func (ue *UeContext) AllocateRegistrationArea(supportedTais []models.Tai) {
-	// clear the previous registration area if need
 	if len(ue.RegistrationArea) > 0 {
 		ue.RegistrationArea = nil
 	}
@@ -357,11 +351,10 @@ func (ue *UeContext) IsAllowedNssai(targetSNssai *models.Snssai) bool {
 }
 
 func (ue *UeContext) SecurityContextIsValid() bool {
-	return ue.securityContextAvailable && ue.ngKsi.Ksi != nasMessage.NasKeySetIdentifierNoKeyIsAvailable
+	return ue.secured && ue.ngKsi.Ksi != nasMessage.NasKeySetIdentifierNoKeyIsAvailable
 }
 
-// cipheringAlgName returns the human-readable name for the negotiated NAS ciphering algorithm.
-// Must be called while holding ue.Mutex.
+// cipheringAlgName must be called while holding ue.Mutex.
 func (ue *UeContext) cipheringAlgName() string {
 	switch ue.cipheringAlg {
 	case security.AlgCiphering128NEA0:
@@ -377,8 +370,7 @@ func (ue *UeContext) cipheringAlgName() string {
 	}
 }
 
-// integrityAlgName returns the human-readable name for the negotiated NAS integrity algorithm.
-// Must be called while holding ue.Mutex.
+// integrityAlgName must be called while holding ue.Mutex.
 func (ue *UeContext) integrityAlgName() string {
 	switch ue.integrityAlg {
 	case security.AlgIntegrity128NIA0:
@@ -397,17 +389,17 @@ func (ue *UeContext) integrityAlgName() string {
 // TouchLastSeen updates the UE's last-seen timestamp and radio name lock-free —
 // it is on the uplink hot path (every UE-specific NGAP message).
 func (ue *UeContext) TouchLastSeen(radioName string) {
-	ue.lastSeenAt.Store(time.Now().UnixNano())
+	ue.lastSeen.Store(time.Now().UnixNano())
 
 	if radioName != "" {
 		ue.lastSeenRadio.Store(&radioName)
 	}
 }
 
-// LastSeenAtTime returns the UE's most recent last-seen time, or the zero time
+// lastSeenTime returns the UE's most recent last-seen time, or the zero time
 // if it has never been seen. Safe for concurrent use.
-func (ue *UeContext) LastSeenAtTime() time.Time {
-	ns := ue.lastSeenAt.Load()
+func (ue *UeContext) lastSeenTime() time.Time {
+	ns := ue.lastSeen.Load()
 	if ns == 0 {
 		return time.Time{}
 	}
@@ -427,7 +419,7 @@ func (ue *UeContext) LastSeenRadioName() string {
 
 // SetLastSeenForTest sets the UE's last-seen time and radio. For tests only.
 func (ue *UeContext) SetLastSeenForTest(t time.Time, radio string) {
-	ue.lastSeenAt.Store(t.UnixNano())
+	ue.lastSeen.Store(t.UnixNano())
 
 	if radio != "" {
 		ue.lastSeenRadio.Store(&radio)
@@ -456,15 +448,15 @@ func (ue *UeContext) Snapshot() UESnapshot {
 		Pei:                ue.Pei,
 		CipheringAlgorithm: ue.cipheringAlgName(),
 		IntegrityAlgorithm: ue.integrityAlgName(),
-		LastSeenAt:         ue.LastSeenAtTime(),
+		LastSeenAt:         ue.lastSeenTime(),
 		LastSeenRadio:      ue.LastSeenRadioName(),
 	}
 
 	return snap
 }
 
-// Kamf Derivation function defined in TS 33.501 Annex A.7
-func (ue *UeContext) DerivateKamf(kseaf string) error {
+// Kamf Derivation function defined in TS 33.501
+func (ue *UeContext) DerivateKamf(kseaf []byte) error {
 	if !ue.supi.IsValid() || !ue.supi.IsIMSI() {
 		return fmt.Errorf("supi is not a valid IMSI")
 	}
@@ -474,48 +466,36 @@ func (ue *UeContext) DerivateKamf(kseaf string) error {
 	P1 := ue.abba
 	L1 := ueauth.KDFLen(P1)
 
-	kSeafDecode, err := hex.DecodeString(kseaf)
-	if err != nil {
-		return fmt.Errorf("could not decode kseaf: %v", err)
-	}
-
-	kAmfBytes, err := ueauth.GetKDFValue(kSeafDecode, ueauth.FCForKamfDerivation, P0, L0, P1, L1)
+	kAmfBytes, err := ueauth.GetKDFValue(kseaf, ueauth.FCForKamfDerivation, P0, L0, P1, L1)
 	if err != nil {
 		return fmt.Errorf("could not get kdf value: %v", err)
 	}
 
-	ue.kamf = hex.EncodeToString(kAmfBytes)
+	ue.kamf = kAmfBytes
 
 	return nil
 }
 
-// Algorithm key Derivation function defined in TS 33.501 Annex A.9
+// Algorithm key Derivation function defined in TS 33.501
 func (ue *UeContext) DerivateAlgKey() error {
-	// Security Key
 	P0 := []byte{security.NNASEncAlg}
 	L0 := ueauth.KDFLen(P0)
 	P1 := []byte{ue.cipheringAlg}
 	L1 := ueauth.KDFLen(P1)
 
-	kAmfBytes, err := hex.DecodeString(ue.kamf)
-	if err != nil {
-		return fmt.Errorf("decode kamf error: %v", err)
-	}
-
-	kenc, err := ueauth.GetKDFValue(kAmfBytes, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
+	kenc, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
 	if err != nil {
 		return fmt.Errorf("get kdf value error: %v", err)
 	}
 
 	copy(ue.knasEnc[:], kenc[16:32])
 
-	// Integrity Key
 	P0 = []byte{security.NNASIntAlg}
 	L0 = ueauth.KDFLen(P0)
 	P1 = []byte{ue.integrityAlg}
 	L1 = ueauth.KDFLen(P1)
 
-	kint, err := ueauth.GetKDFValue(kAmfBytes, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
+	kint, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
 	if err != nil {
 		return fmt.Errorf("get kdf value error: %v", err)
 	}
@@ -525,7 +505,7 @@ func (ue *UeContext) DerivateAlgKey() error {
 	return nil
 }
 
-// Access Network key Derivation function defined in TS 33.501 Annex A.9
+// Access Network key Derivation function defined in TS 33.501
 func (ue *UeContext) DerivateAnKey() error {
 	P0 := make([]byte, 4)
 	binary.BigEndian.PutUint32(P0, ue.ulCount.Get())
@@ -533,12 +513,7 @@ func (ue *UeContext) DerivateAnKey() error {
 	P1 := []byte{security.AccessType3GPP}
 	L1 := ueauth.KDFLen(P1)
 
-	kAmfBytes, err := hex.DecodeString(ue.kamf)
-	if err != nil {
-		return fmt.Errorf("could not decode kamf: %v", err)
-	}
-
-	key, err := ueauth.GetKDFValue(kAmfBytes, ueauth.FCForKgnbKn3iwfDerivation, P0, L0, P1, L1)
+	key, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForKgnbKn3iwfDerivation, P0, L0, P1, L1)
 	if err != nil {
 		return fmt.Errorf("could not get kdf value: %v", err)
 	}
@@ -548,17 +523,12 @@ func (ue *UeContext) DerivateAnKey() error {
 	return nil
 }
 
-// NH Derivation function defined in TS 33.501 Annex A.10
+// NH Derivation function defined in TS 33.501
 func (ue *UeContext) DerivateNH(syncInput []byte) error {
 	P0 := syncInput
 	L0 := ueauth.KDFLen(P0)
 
-	kAmfBytes, err := hex.DecodeString(ue.kamf)
-	if err != nil {
-		return fmt.Errorf("could not decode kamf: %v", err)
-	}
-
-	nh, err := ueauth.GetKDFValue(kAmfBytes, ueauth.FCForNhDerivation, P0, L0)
+	nh, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForNhDerivation, P0, L0)
 	if err != nil {
 		return fmt.Errorf("could not get kdf value: %v", err)
 	}
@@ -756,13 +726,11 @@ func (ue *UeContext) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	// Plain NAS message
-	if !ue.securityContextAvailable {
+	if !ue.secured {
 		return msg.PlainNasEncode()
 	}
 
-	// Security protected NAS Message
-	// a security protected NAS message must be integrity protected, and ciphering is optional
+	// A security-protected NAS message must be integrity protected; ciphering is optional.
 	needCiphering := false
 
 	switch msg.SecurityHeaderType {
@@ -776,7 +744,6 @@ func (ue *UeContext) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 		return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeaderType)
 	}
 
-	// encode plain nas first
 	payload, err := msg.PlainNasEncode()
 	if err != nil {
 		return nil, fmt.Errorf("error encoding plain nas: %+v", err)
@@ -788,7 +755,6 @@ func (ue *UeContext) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 		}
 	}
 
-	// add sequece number
 	payload = append([]byte{ue.dlCount.SQN()}, payload[:]...)
 
 	mac32, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, ue.dlCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload)
@@ -796,14 +762,11 @@ func (ue *UeContext) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 		return nil, fmt.Errorf("MAC calcuate error: %+v", err)
 	}
 
-	// Add mac value
 	payload = append(mac32, payload[:]...)
 
-	// Add EPD and Security Type
 	msgSecurityHeader := []byte{msg.ProtocolDiscriminator, msg.SecurityHeaderType}
 	payload = append(msgSecurityHeader, payload[:]...)
 
-	// Increase DL Count
 	ue.dlCount.AddOne()
 
 	return payload, nil
@@ -818,7 +781,7 @@ func (ue *UeContext) ResetMobileReachableTimer() {
 
 	ue.Log.Debug("starting mobile reachable timer", logger.SUPI(ue.supi.String()))
 
-	ue.MobileReachableTimer.ArmOnce(ue.T3512Value+(4*time.Minute), func() {
+	ue.mobileReachableTimer.ArmOnce(ue.T3512Value+(4*time.Minute), func() {
 		ue.onMobileReachableExpiry(gen)
 	})
 }
@@ -856,7 +819,7 @@ func (ue *UeContext) onMobileReachableExpiry(gen uint64) {
 
 	ue.Log.Debug("mobile reachable timer expired", logger.SUPI(ue.supi.String()))
 
-	ue.ImplicitDeregistrationTimer.ArmOnce(2*time.Minute, func() {
+	ue.implicitDeregistrationTimer.ArmOnce(2*time.Minute, func() {
 		ue.onImplicitDeregistrationExpiry(gen)
 	})
 }

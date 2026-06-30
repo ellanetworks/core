@@ -60,7 +60,7 @@ func (m *MME) ReleasePDN(ue *UeContext, p *PdnConnection) {
 }
 
 // ReleaseAllSessions releases every PDN connection's anchor session and clears
-// them from the UE. Used when the whole UE context is torn down (detach).
+// them from the UE.
 func (m *MME) ReleaseAllSessions(ue *UeContext) {
 	for _, p := range takeAllPDNs(ue) {
 		if err := m.Session.ReleaseEPSSession(context.Background(), ue.IMSI(), p.Ebi); err != nil {

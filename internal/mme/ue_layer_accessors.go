@@ -55,7 +55,7 @@ func (ue *UeContext) ClearPendingModify(p *PdnConnection) {
 }
 
 // BearerReleaseOnly reports whether deactivating p releases only that PDN
-// connection (an additional PDN, or a disconnect) rather than detaching the UE
+// connection (an additional PDN, or a disconnect) without detaching the UE
 // (TS 24.301 §6.4.4.2/§6.5.2).
 func (ue *UeContext) BearerReleaseOnly(p *PdnConnection) bool {
 	ue.mu.Lock()

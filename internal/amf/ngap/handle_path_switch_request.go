@@ -18,9 +18,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// TS 23.502 4.9.1
 func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.PathSwitchRequest) {
-	// TS 38.413 §8.4.4.4: a to-be-switched downlink list that repeats a PDU
+	// TS 38.413: a to-be-switched downlink list that repeats a PDU
 	// Session ID is an abnormal condition the AMF rejects with a Path Switch
 	// Request Failure.
 	if id, dup := duplicatePDUSessionID(msg.PDUSessionResourceItems); dup {
@@ -50,7 +49,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	}
 
 	if !amfUe.SecurityContextIsValid() {
-		logger.WithTrace(ctx, ranUe.Log).Error("No Security Context", logger.SUPI(amfUe.SupiValue().String()))
+		logger.WithTrace(ctx, ranUe.Log).Error("No Security Context", logger.SUPI(amfUe.Supi().String()))
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnspecified)
 
 		return
@@ -115,10 +114,10 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 		}
 	}
 
-	// TS 23.502 4.9.1.2.2 step 7: send ack to Target NG-RAN. If none of the requested PDU Sessions have been switched
+	// TS 23.502: send ack to Target NG-RAN. If none of the requested PDU Sessions have been switched
 	// successfully, the AMF shall send an N2 Path Switch Request Failure message to the Target NG-RAN
 	if len(pduSessionResourceSwitchedList.List) > 0 {
-		// TS 33.501 §6.9.2.3.2: compute fresh {NH, NCC} for the Ack
+		// TS 33.501: compute fresh {NH, NCC} for the Ack
 		err := amfUe.UpdateNH()
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error("error updating NH", zap.Error(err))
@@ -155,17 +154,16 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			return
 		}
 	} else {
-		// TS 38.413 §8.4.4.3: no PDU session switched, so the whole path switch
+		// TS 38.413: no PDU session switched, so the whole path switch
 		// fails and every requested session is released.
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnspecified)
 	}
 }
 
-// verifyUESecurityCapabilitiesOnPathSwitch compares the UE 5G security
-// capabilities reported by the target gNB against the AMF's stored
-// values via the VerifyUESecurityCapability accessor and logs any
-// mismatch (TS 33.501 §6.7.3.1). It never mutates amfUe — stored values
-// are preserved by construction because the handler has no AuthProof.
+// verifyUESecurityCapabilitiesOnPathSwitch logs any mismatch between the UE 5G
+// security capabilities reported by the target gNB and the AMF's stored values
+// (TS 33.501). It never mutates amfUe; the reported values are not
+// trusted on the path-switch path.
 func verifyUESecurityCapabilitiesOnPathSwitch(
 	ctx context.Context,
 	ranUe *amf.RanUe,
@@ -198,7 +196,7 @@ func verifyUESecurityCapabilitiesOnPathSwitch(
 		return
 	case amf.VerifyMismatch:
 		logger.WithTrace(ctx, ranUe.Log).Warn(
-			"UE 5G security capabilities reported by target gNB differ from locally stored values; ignoring received values (TS 33.501 §6.7.3.1)",
+			"UE 5G security capabilities reported by target gNB differ from locally stored values; ignoring received values (TS 33.501)",
 			zap.Binary("stored", amfUe.UESecCap().Buffer),
 			zap.Binary("received", reported.Buffer),
 		)
@@ -211,8 +209,7 @@ func verifyUESecurityCapabilitiesOnPathSwitch(
 //
 // E-UTRA (EEA/EIA) bits carried by the NGAP IE are intentionally
 // dropped: this AMF does not negotiate E-UTRA algorithms with the UE,
-// so the verify path compares only the 5G NR columns. This matches the
-// legacy behaviour of the pre-refactor handler.
+// so the verify path compares only the 5G NR columns.
 func ngapToNasUESecurityCapability(received *ngapType.UESecurityCapabilities) *nasType.UESecurityCapability {
 	out := &nasType.UESecurityCapability{}
 	out.SetLen(2)

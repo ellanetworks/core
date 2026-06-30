@@ -16,7 +16,7 @@ const (
 )
 
 // TestEncodeAPNAMBRSpecVectors checks the encoded octets against TS 24.301
-// §9.9.4.2 for representative rates, including the extended-octet ranges the
+// for representative rates, including the extended-octet ranges the
 // policy session-AMBR values fall in.
 func TestEncodeAPNAMBRSpecVectors(t *testing.T) {
 	tests := []struct {
@@ -81,7 +81,7 @@ func TestAPNAMBRRoundTrip(t *testing.T) {
 }
 
 // TestAPNAMBRExtended2RoundTrip checks rates above 256 Mbps round-trip through the
-// extended-2 octets (TS 24.008 §10.5.6.5): 4 Mbps granularity to 500 Mbps, 10 Mbps
+// extended-2 octets (TS 24.008): 4 Mbps granularity to 500 Mbps, 10 Mbps
 // to 1500 Mbps, 100 Mbps to 10 Gbps.
 func TestAPNAMBRExtended2RoundTrip(t *testing.T) {
 	exact := []uint64{260, 300, 400, 500, 510, 600, 1000, 1500, 1600, 2000, 5000, 10000}

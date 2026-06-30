@@ -21,7 +21,7 @@ import (
 // }
 
 // DecodeUEContextModificationResponse validates a UEContextModificationResponse
-// PDU body (3GPP TS 38.413 §9.2.2.7). All IEs are criticality-ignore.
+// PDU body (3GPP TS 38.413). All IEs are criticality-ignore.
 // AMFUENGAPID and RANUENGAPID are mandatory-ignore and surfaced as
 // pointers because the handler differentiates absent vs present (RAN
 // fallback when AMF is absent) and 0 is a valid NGAP UE NGAP ID.

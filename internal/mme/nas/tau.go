@@ -14,11 +14,9 @@ import (
 )
 
 // handleTrackingAreaUpdate handles a verified TRACKING AREA UPDATE REQUEST
-// (TS 24.301). A UE already in ECM-CONNECTED (periodic update over Uplink
-// NAS Transport) keeps its bearers and is accepted over Downlink NAS Transport.
-// A UE returning from ECM-IDLE is accepted over the Initial Context Setup when it
-// requests bearers (active flag), otherwise over Downlink NAS Transport followed
-// by an S1 release back to ECM-IDLE.
+// (TS 24.301). A UE already ECM-CONNECTED keeps its bearers; a UE returning from
+// ECM-IDLE re-establishes them when it sets the active flag, else is released back
+// to ECM-IDLE after acknowledging the accept.
 func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
 	req, err := eps.ParseTrackingAreaUpdateRequest(plain)
 	if err != nil {
@@ -48,9 +46,8 @@ func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext
 		return
 	}
 
-	// The accept reallocates the GUTI, so it is protected once and guarded by
-	// T3450: it is retransmitted until the UE sends TRACKING AREA UPDATE COMPLETE
-	// (TS 24.301), after which the new GUTI is committed.
+	// The accept reallocates the GUTI, so it is guarded by T3450 and retransmitted
+	// until TRACKING AREA UPDATE COMPLETE commits the new GUTI (TS 24.301).
 	naspdu, err := m.ProtectDownlinkMessage(ue, accept)
 	if err != nil {
 		logger.MmeLog.Error("failed to protect Tracking Area Update Accept", zap.Error(err))
@@ -59,8 +56,8 @@ func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext
 
 	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultAccept)
 
-	// A UE already fully connected (bearers up) keeps its connection; only a UE
-	// resuming for this TAU needs re-establishment or a deferred release below.
+	// A fully connected UE (bearers up) keeps its connection; a UE resuming for this
+	// TAU needs re-establishment or the deferred release below.
 	if ue.S1.BearersUp {
 		logger.MmeLog.Info("Tracking Area Update accepted",
 			zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)), zap.String("imsi", ue.IMSI()))
@@ -85,12 +82,10 @@ func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext
 		return
 	}
 
-	// No active flag: the UE returns to ECM-IDLE, but only after it acknowledges
-	// the reallocated GUTI — the S1 release is deferred to TAU Complete (or to the
-	// guard's timeout if the UE never answers). The UE resumed onto an active S1
-	// connection for this exchange, so it is ECM-CONNECTED until the deferred
-	// release; without this the TAU Complete would be rejected as having no active
-	// connection (TS 36.413 §10.6 handling).
+	// No active flag: defer the S1 release to TAU Complete (or the guard timeout)
+	// so the UE stays ECM-CONNECTED to acknowledge the reallocated GUTI; releasing
+	// earlier would reject the TAU Complete as having no active connection
+	// (TS 36.413 §10.6).
 	ue.S1.TauReleaseOnComplete = true
 
 	logger.MmeLog.Info("Tracking Area Update accepted (returning to idle)",
@@ -115,8 +110,7 @@ func handleTrackingAreaUpdateComplete(m *mme.MME, ctx context.Context, ue *mme.U
 	}
 }
 
-// epsUpdateTypeName renders an EPS update type value (TS 24.301) for
-// logging, distinguishing a periodic update from a tracking-area-driven one.
+// epsUpdateTypeName renders an EPS update type for logging (TS 24.301).
 func epsUpdateTypeName(v uint8) string {
 	switch v {
 	case 0:
@@ -139,13 +133,6 @@ func isCombinedUpdate(updateType uint8) bool {
 	return updateType == 1 || updateType == 2
 }
 
-// trackingAreaUpdateAccept builds a TRACKING AREA UPDATE ACCEPT including the
-// operator's current TAI list (TS 24.301), so the UE's registered area is
-// refreshed and its tracking-area updating is bounded. It reallocates the GUTI on
-// every TAU to refresh the UE's temporary identity; the UE
-// acknowledges with TRACKING AREA UPDATE COMPLETE. A combined update succeeds for
-// EPS services only: the MME has no SGs interface, so EMM cause #18 is included
-// to stop the UE attempting CS registration.
 // tauAcceptOptions selects the optional parts of a TRACKING AREA UPDATE ACCEPT:
 // combined for a combined EPS/IMSI update, includeBearerStatus to echo the UE's
 // EPS bearer context status (TS 24.301).
@@ -154,6 +141,10 @@ type tauAcceptOptions struct {
 	includeBearerStatus bool
 }
 
+// trackingAreaUpdateAccept builds a TRACKING AREA UPDATE ACCEPT with the operator's
+// current TAI list and a reallocated GUTI (TS 24.301). A combined update includes
+// EMM cause #18, since the MME has no SGs interface, to stop the UE attempting CS
+// registration.
 func trackingAreaUpdateAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext, opts tauAcceptOptions) (*eps.TrackingAreaUpdateAccept, error) {
 	plmn, err := m.OperatorPLMN(ctx)
 	if err != nil {
@@ -195,10 +186,9 @@ func trackingAreaUpdateAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext
 	return accept, nil
 }
 
-// reconcileBearerContextStatus deactivates locally — without peer-to-peer
-// signalling — the EPS bearer contexts the MME holds but the UE reports inactive
-// in its TRACKING AREA UPDATE REQUEST bearer context status (TS 24.301
-// §5.5.3.2.4). bit n of the bitmap is EBI n.
+// reconcileBearerContextStatus locally releases the EPS bearer contexts the MME
+// holds but the UE reports inactive in its TRACKING AREA UPDATE REQUEST bearer
+// context status (TS 24.301 §5.5.3.2.4). Bit n of the bitmap is EBI n.
 func reconcileBearerContextStatus(m *mme.MME, ue *mme.UeContext, ueStatus uint16) {
 	for _, p := range m.SnapshotPDNs(ue) {
 		if ueStatus&(uint16(1)<<p.Ebi) != 0 {

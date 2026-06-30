@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/s1ap/aper"
 )
 
-// InitialUEMessage is the INITIAL UE MESSAGE (TS 36.413 §9.1.7.1), sent by the
+// InitialUEMessage is the INITIAL UE MESSAGE (TS 36.413), sent by the
 // eNB to deliver a UE's first NAS message. Unmodeled IEs are preserved.
 type InitialUEMessage struct {
 	ENBUES1APID           ENBUES1APID
@@ -134,7 +134,7 @@ func ParseInitialUEMessage(value []byte) (*InitialUEMessage, error) {
 	return m, nil
 }
 
-// UplinkNASTransport is the UPLINK NAS TRANSPORT message (TS 36.413 §9.1.7.3),
+// UplinkNASTransport is the UPLINK NAS TRANSPORT message (TS 36.413),
 // sent by the eNB to relay a UE's NAS message on an established UE context.
 type UplinkNASTransport struct {
 	MMEUES1APID MMEUES1APID
@@ -239,8 +239,8 @@ func ParseUplinkNASTransport(value []byte) (*UplinkNASTransport, error) {
 	return m, nil
 }
 
-// DownlinkNASTransport is the DOWNLINK NAS TRANSPORT message (TS 36.413
-// §9.1.7.2), sent by the MME to relay a NAS message to the UE.
+// DownlinkNASTransport is the DOWNLINK NAS TRANSPORT message (TS 36.413),
+// sent by the MME to relay a NAS message to the UE.
 type DownlinkNASTransport struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID

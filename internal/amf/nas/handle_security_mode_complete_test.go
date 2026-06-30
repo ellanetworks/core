@@ -83,7 +83,7 @@ func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		nil,
 	)
@@ -127,7 +127,7 @@ func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		nil,
 	)
@@ -176,7 +176,7 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		nil,
 	)
@@ -187,7 +187,7 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 	}
 
 	ue.ForceState(amf.SecurityMode)
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	ue.SetNgKsiForTest(models.NgKsi{Ksi: 0})
 
 	ue.SetKgnbForTest([]uint8{})
@@ -210,58 +210,6 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 	}
 }
 
-func TestHandleSecurityMode_ValidSecurityContextWithBadAMFKey_UpdatesSecurityContextError(t *testing.T) {
-	amfInstance := amf.New(
-		&FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				SupportedTACs: "[\"1\"]",
-			},
-		},
-		&FakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
-			},
-			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
-		},
-		nil,
-	)
-
-	ue, ngapSender, err := buildUeAndRadio()
-	if err != nil {
-		t.Fatalf("could not build UE and radio: %v", err)
-	}
-
-	ue.ForceState(amf.SecurityMode)
-	ue.SetSecurityContextAvailableForTest(true)
-	ue.SetNgKsiForTest(models.NgKsi{Ksi: 0})
-
-	ue.SetKgnbForTest([]uint8{})
-	ue.SetNHForTest([]uint8{})
-	ue.SetNCCForTest(0)
-	ue.SetKamfForTest("this is not hex")
-
-	expected := "error updating security context"
-
-	msg := buildTestSecurityModeCompleteMessage()
-
-	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, true)
-	if err == nil || !strings.HasPrefix(err.Error(), expected) {
-		t.Fatalf("expected error starting with: %v, got: %v", expected, err)
-	}
-
-	if len(ue.KgnbForTest()) != 0 || ue.NHForTest() != [32]uint8{} || ue.NCCForTest() != 0 {
-		t.Fatalf("expected security context to be not be updated, got: Kgnb: %v, NH: %v, NCC: %v", ue.KgnbForTest(), ue.NHForTest(), ue.NCCForTest())
-	}
-
-	if len(ngapSender.SentDownlinkNASTransport) != 0 {
-		t.Fatalf("should not have sent a Downlink NAS Transport message")
-	}
-}
-
 func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.T) {
 	amfInstance := amf.New(
 		&FakeDBInstance{
@@ -277,7 +225,7 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		&FakeSmf{},
 	)
@@ -346,7 +294,7 @@ func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		nil,
 	)

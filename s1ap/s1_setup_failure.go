@@ -36,7 +36,7 @@ func decodeTimeToWait(r *aper.Reader) (TimeToWait, error) {
 	return TimeToWait(idx), nil
 }
 
-// S1SetupFailure is the S1 SETUP FAILURE message (TS 36.413 §9.1.8.6). TimeToWait
+// S1SetupFailure is the S1 SETUP FAILURE message (TS 36.413). TimeToWait
 // and CriticalityDiagnostics are optional (nil = absent).
 type S1SetupFailure struct {
 	Cause                  Cause

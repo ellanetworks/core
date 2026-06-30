@@ -113,7 +113,7 @@ func (f *fakeNGAPSender) SendHandoverCommand(context.Context, int64, int64, ngap
 	return nil
 }
 
-func (f *fakeNGAPSender) SendInitialContextSetupRequest(_ context.Context, _, _ int64, _, _ string, _ []models.Snssai, _ []byte, _ models.PlmnID, _ string, _ *models.UERadioCapabilityForPaging, _ *nasType.UESecurityCapability, _ []byte, _ *ngapType.PDUSessionResourceSetupListCxtReq, _ *models.Guami) error {
+func (f *fakeNGAPSender) SendInitialContextSetupRequest(_ context.Context, _, _ int64, _, _ string, _ []models.Snssai, _ []byte, _ models.PlmnID, _ []byte, _ *models.UERadioCapabilityForPaging, _ *nasType.UESecurityCapability, _ []byte, _ *ngapType.PDUSessionResourceSetupListCxtReq, _ *models.Guami) error {
 	f.initialContextSetupCalls++
 	return nil
 }

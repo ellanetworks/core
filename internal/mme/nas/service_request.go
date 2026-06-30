@@ -15,9 +15,8 @@ import (
 )
 
 // HandleServiceRequest handles a mobile-originated SERVICE REQUEST (TS 24.301)
-// carried in an Initial UE Message from an EMM-IDLE UE. It resolves the
-// UE by the S-TMSI, verifies the short MAC against the stored NAS context, binds
-// the UE to the new S1 association, and re-establishes the S1 context and
+// carried in an Initial UE Message: it resolves the UE by S-TMSI, verifies the
+// short MAC against the stored NAS context, and re-establishes the S1 context and
 // default bearer (ECM-IDLE → ECM-CONNECTED).
 func HandleServiceRequest(m *mme.MME, ctx context.Context, conn mme.NasWriter, msg *s1ap.InitialUEMessage) {
 	if msg.STMSI == nil {

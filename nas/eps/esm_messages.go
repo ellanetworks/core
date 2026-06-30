@@ -5,8 +5,8 @@ package eps
 
 import "github.com/ellanetworks/core/nas/common"
 
-// PDNConnectivityRequest is the PDN CONNECTIVITY REQUEST message (TS 24.301
-// §8.3.20), sent by the UE — inside the Attach Request's ESM container for the
+// PDNConnectivityRequest is the PDN CONNECTIVITY REQUEST message (TS 24.301),
+// sent by the UE — inside the Attach Request's ESM container for the
 // default bearer, or standalone to open an additional PDN connection. For an
 // additional connection the UE names the data network in the Access Point Name
 // optional IE; ProtocolConfigurationOptions carries the UE's PCO request (e.g.
@@ -18,21 +18,22 @@ type PDNConnectivityRequest struct {
 	PDNType                      uint8
 	AccessPointName              []byte // APN value part (IEI 0x28), nil if absent
 	ProtocolConfigurationOptions []byte // PCO value part (IEI 0x27), nil if absent
-	// ESMInformationTransferFlag is the EIT bit (IEI 0xD, TS 24.301 §9.9.4.5): the
-	// UE will supply the APN and PCO in an ESM INFORMATION RESPONSE rather than here.
+	// ESMInformationTransferFlag is the EIT bit (IEI 0xD, TS 24.301): the
+	// UE will supply the APN and PCO in an ESM INFORMATION RESPONSE, not in this
+	// message.
 	ESMInformationTransferFlag bool
 }
 
-// accessPointNameIEI is the IEI of the Access Point Name optional IE (TS 24.301
-// §9.9.4.1); esmInformationTransferFlagIEI is the IEI of the ESM information
-// transfer flag, a type-1 IE (TS 24.301 §9.9.4.5).
+// accessPointNameIEI is the IEI of the Access Point Name optional IE (TS 24.301);
+// esmInformationTransferFlagIEI is the IEI of the ESM information
+// transfer flag, a type-1 IE (TS 24.301).
 const (
 	accessPointNameIEI            uint8 = 0x28
 	esmInformationTransferFlagIEI uint8 = 0xD
 )
 
 // pdnConnectivityRequestIEs are the optional IEs Ella Core consumes from a PDN
-// CONNECTIVITY REQUEST (TS 24.301 §8.3.20): the Access Point Name and Protocol
+// CONNECTIVITY REQUEST (TS 24.301): the Access Point Name and Protocol
 // Configuration Options, both type-4 TLVs. The ESM information transfer flag that
 // may precede them is a type-1 IE the walker delimits inherently, so the APN is
 // reached even when it does not lead the optional part.
@@ -73,7 +74,7 @@ func (m *PDNConnectivityRequest) Marshal() ([]byte, error) {
 
 // ParsePDNConnectivityRequest decodes a PDN CONNECTIVITY REQUEST message,
 // extracting the Access Point Name and Protocol Configuration Options from the
-// optional part with the shared IE walker (TS 24.301 §8.3.20).
+// optional part with the shared IE walker (TS 24.301).
 func ParsePDNConnectivityRequest(b []byte) (*PDNConnectivityRequest, error) {
 	r := common.NewReader(b)
 
@@ -112,8 +113,7 @@ func ParsePDNConnectivityRequest(b []byte) (*PDNConnectivityRequest, error) {
 	return m, nil
 }
 
-// PDNConnectivityReject is the PDN CONNECTIVITY REJECT message (TS 24.301
-// §8.3.21).
+// PDNConnectivityReject is the PDN CONNECTIVITY REJECT message (TS 24.301).
 type PDNConnectivityReject struct {
 	EPSBearerIdentity            uint8
 	ProcedureTransactionIdentity uint8
@@ -150,7 +150,7 @@ func ParsePDNConnectivityReject(b []byte) (*PDNConnectivityReject, error) {
 }
 
 // ActivateDefaultEPSBearerContextRequest is the ACTIVATE DEFAULT EPS BEARER
-// CONTEXT REQUEST message (TS 24.301 §8.3.1), sent by the MME to set up the
+// CONTEXT REQUEST message (TS 24.301), sent by the MME to set up the
 // default bearer. PDNAddress carries the assigned UE IP.
 type ActivateDefaultEPSBearerContextRequest struct {
 	EPSBearerIdentity            uint8
@@ -159,21 +159,20 @@ type ActivateDefaultEPSBearerContextRequest struct {
 	AccessPointName              []byte
 	PDNAddress                   []byte
 	// APNAMBR, when set, is the APN aggregate maximum bit rate IE value (TS
-	// 24.301 §9.9.4.2) — the EPS per-APN session-AMBR signaled to the UE for
+	// 24.301) — the EPS per-APN session-AMBR signaled to the UE for
 	// uplink enforcement. Encoded as the APN-AMBR TLV optional IE (IEI 0x5E).
 	APNAMBR []byte
 	// ESMCause, when set, carries the reason the network assigned a narrower PDN
-	// type than the UE requested, e.g. #50/#51 on an IPv4v6 downgrade (TS 24.301
-	// §6.5.1.3). Encoded as the ESM cause TV optional IE (IEI 0x58).
+	// type than the UE requested, e.g. #50/#51 on an IPv4v6 downgrade (TS 24.301).
+	// Encoded as the ESM cause TV optional IE (IEI 0x58).
 	ESMCause *uint8
 	// ProtocolConfigurationOptions carries the network-to-UE PCO value (e.g. DNS
 	// server addresses), encoded as the PCO TLV optional IE (IEI 0x27).
 	ProtocolConfigurationOptions []byte
 }
 
-// esmCauseIEI is the IEI of the ESM cause optional IE; protocolConfigurationIEI
-// Options is the IEI of the protocol configuration options IE (TS 24.301
-// §8.3.6.1).
+// Optional-IE identifiers carried by the EPS bearer-context ESM messages
+// (TS 24.301): new EPS QoS, APN-AMBR, ESM cause, and PCO.
 const (
 	newEPSQoSIEI                    uint8 = 0x5B
 	apnAMBRIEI                      uint8 = 0x5E
@@ -182,7 +181,7 @@ const (
 )
 
 // activateDefaultEPSBearerContextRequestIEs are the optional IEs Ella Core emits
-// in an ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST (TS 24.301 §8.3.1): the
+// in an ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST (TS 24.301): the
 // APN-AMBR (a type-4 TLV), the ESM cause (a type-3 IE with a one-octet value),
 // and the Protocol Configuration Options (a type-4 TLV).
 var activateDefaultEPSBearerContextRequestIEs = []common.OptionalIE{
@@ -229,7 +228,7 @@ func (m *ActivateDefaultEPSBearerContextRequest) Marshal() ([]byte, error) {
 
 // ParseActivateDefaultEPSBearerContextRequest decodes the message, extracting the
 // ESM cause and Protocol Configuration Options from the optional part with the
-// shared IE walker (TS 24.301 §8.3.1).
+// shared IE walker (TS 24.301).
 func ParseActivateDefaultEPSBearerContextRequest(b []byte) (*ActivateDefaultEPSBearerContextRequest, error) {
 	r := common.NewReader(b)
 
@@ -274,7 +273,7 @@ func ParseActivateDefaultEPSBearerContextRequest(b []byte) (*ActivateDefaultEPSB
 }
 
 // ActivateDefaultEPSBearerContextAccept is the ACTIVATE DEFAULT EPS BEARER
-// CONTEXT ACCEPT message (TS 24.301 §8.3.2).
+// CONTEXT ACCEPT message (TS 24.301).
 type ActivateDefaultEPSBearerContextAccept struct {
 	EPSBearerIdentity            uint8
 	ProcedureTransactionIdentity uint8
@@ -302,7 +301,7 @@ func ParseActivateDefaultEPSBearerContextAccept(b []byte) (*ActivateDefaultEPSBe
 }
 
 // ActivateDefaultEPSBearerContextReject is the ACTIVATE DEFAULT EPS BEARER
-// CONTEXT REJECT message (TS 24.301 §8.3.3).
+// CONTEXT REJECT message (TS 24.301).
 type ActivateDefaultEPSBearerContextReject struct {
 	EPSBearerIdentity            uint8
 	ProcedureTransactionIdentity uint8
@@ -338,8 +337,8 @@ func ParseActivateDefaultEPSBearerContextReject(b []byte) (*ActivateDefaultEPSBe
 	}, nil
 }
 
-// ESMInformationRequest is the ESM INFORMATION REQUEST message (TS 24.301
-// §8.3.13). It has no information elements beyond the header.
+// ESMInformationRequest is the ESM INFORMATION REQUEST message (TS 24.301).
+// It has no information elements beyond the header.
 type ESMInformationRequest struct {
 	EPSBearerIdentity            uint8
 	ProcedureTransactionIdentity uint8
@@ -366,8 +365,8 @@ func ParseESMInformationRequest(b []byte) (*ESMInformationRequest, error) {
 	return &ESMInformationRequest{EPSBearerIdentity: ebi, ProcedureTransactionIdentity: pti}, nil
 }
 
-// ESMInformationResponse is the ESM INFORMATION RESPONSE message (TS 24.301
-// §8.3.14), the UE's reply to an ESM INFORMATION REQUEST, carrying the Access
+// ESMInformationResponse is the ESM INFORMATION RESPONSE message (TS 24.301),
+// the UE's reply to an ESM INFORMATION REQUEST, carrying the Access
 // Point Name and/or Protocol Configuration Options it withheld from the PDN
 // CONNECTIVITY REQUEST.
 type ESMInformationResponse struct {
@@ -378,7 +377,7 @@ type ESMInformationResponse struct {
 }
 
 // esmInformationResponseIEs are the optional IEs of an ESM INFORMATION RESPONSE
-// (TS 24.301 §8.3.14): the Access Point Name and the Protocol Configuration
+// (TS 24.301): the Access Point Name and the Protocol Configuration
 // Options, both type-4 TLVs.
 var esmInformationResponseIEs = []common.OptionalIE{
 	{IEI: accessPointNameIEI, Format: common.IETLV},
@@ -438,7 +437,7 @@ func ParseESMInformationResponse(b []byte) (*ESMInformationResponse, error) {
 	return m, nil
 }
 
-// ESMStatus is the ESM STATUS message (TS 24.301 §8.3.15).
+// ESMStatus is the ESM STATUS message (TS 24.301).
 type ESMStatus struct {
 	EPSBearerIdentity            uint8
 	ProcedureTransactionIdentity uint8

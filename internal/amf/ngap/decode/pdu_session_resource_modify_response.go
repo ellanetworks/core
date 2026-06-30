@@ -22,12 +22,10 @@ import (
 // }
 
 // DecodePDUSessionResourceModifyResponse validates a
-// PDUSessionResourceModifyResponse PDU body (3GPP TS 38.413 §9.2.1.4).
+// PDUSessionResourceModifyResponse PDU body (3GPP TS 38.413).
 // All IEs are criticality-ignore. AMFUENGAPID and RANUENGAPID are
-// mandatory-ignore and surfaced as pointers (handler does conditional
-// fallback lookups). UserLocationInformation is optional. The
-// per-PDU-session lists are not surfaced because the current handler
-// does not consume them. Duplicate IEs follow a last-wins policy.
+// mandatory-ignore and surfaced as pointers. UserLocationInformation is
+// optional. Duplicate IEs follow a last-wins policy.
 func DecodePDUSessionResourceModifyResponse(in *ngapType.PDUSessionResourceModifyResponse) (PDUSessionResourceModifyResponse, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodePDUSessionResourceModify,

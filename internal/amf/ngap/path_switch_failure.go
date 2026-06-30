@@ -18,8 +18,8 @@ import (
 // sendPathSwitchRequestFailure rejects a Path Switch Request, naming every
 // distinct requested PDU session in the mandatory PDU Session Resource Released
 // List, each with an AMF-generated Path Switch Request Unsuccessful Transfer
-// carrying causeValue (TS 38.413 §9.2.3.10; the AMF generating the transfer is
-// the §8.4.4.4 note exception).
+// carrying causeValue (TS 38.413; the AMF generating the transfer is the note
+// exception).
 func sendPathSwitchRequestFailure(ctx context.Context, ran *amf.Radio, msg decode.PathSwitchRequest, causeValue aper.Enumerated) {
 	released, err := pathSwitchReleasedList(msg.PDUSessionResourceItems, causeValue)
 	if err != nil {
@@ -32,7 +32,7 @@ func sendPathSwitchRequestFailure(ctx context.Context, ran *amf.Radio, msg decod
 }
 
 // pathSwitchReleasedList builds the PDU Session Resource Released List for a
-// Path Switch Request Failure (TS 38.413 §9.2.3.10): one item per distinct
+// Path Switch Request Failure (TS 38.413): one item per distinct
 // requested PDU session, each carrying an Unsuccessful Transfer with causeValue.
 func pathSwitchReleasedList(items []ngapType.PDUSessionResourceToBeSwitchedDLItem, causeValue aper.Enumerated) (*ngapType.PDUSessionResourceReleasedListPSFail, error) {
 	transfer, err := buildPathSwitchRequestUnsuccessfulTransfer(causeValue)
@@ -61,7 +61,7 @@ func pathSwitchReleasedList(items []ngapType.PDUSessionResourceToBeSwitchedDLIte
 }
 
 // buildPathSwitchRequestUnsuccessfulTransfer encodes a Path Switch Request
-// Unsuccessful Transfer (TS 38.413 §9.3.4.20) carrying a radio-network cause.
+// Unsuccessful Transfer (TS 38.413) carrying a radio-network cause.
 func buildPathSwitchRequestUnsuccessfulTransfer(causeValue aper.Enumerated) ([]byte, error) {
 	transfer := ngapType.PathSwitchRequestUnsuccessfulTransfer{
 		Cause: ngapType.Cause{

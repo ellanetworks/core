@@ -17,9 +17,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// activateDefaultBearer builds the Attach Accept (carrying the default-bearer
-// activation and the UE IP) and sends it to the eNB inside an Initial Context
-// Setup Request, with K_eNB and the UE security capabilities for AS security.
+// activateDefaultBearer establishes the UE's default-bearer session and sends the
+// Attach Accept to the eNB inside an Initial Context Setup Request.
 func activateDefaultBearer(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 	qos, err := mme.ResolveAttachQoS(m, ctx, ue)
 	if errors.Is(err, mme.ErrUnknownAPN) {
@@ -37,9 +36,8 @@ func activateDefaultBearer(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 		return
 	}
 
-	// Subscriber access control (Core Network type restriction, TS 23.501):
-	// if the profile does not permit 4G, reject the attach with EMM cause #7 "EPS
-	// services not allowed" (TS 24.301).
+	// A profile that does not permit 4G (Core Network type restriction, TS 23.501)
+	// is rejected with EMM cause #7 "EPS services not allowed" (TS 24.301).
 	if !qos.Allow4G {
 		logger.MmeLog.Info("attach rejected: 4G not allowed for subscriber",
 			zap.String("imsi", ue.IMSI()))
@@ -48,8 +46,7 @@ func activateDefaultBearer(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 		return
 	}
 
-	// Delegate the default-bearer session to the SMF+PGW-C anchor: it negotiates
-	// the PDN type, allocates the UE address(es), programs the user plane, and
+	// The SMF+PGW-C anchor owns the session: it allocates the UE address(es) and
 	// returns the S-GW S1-U F-TEID.
 	bearer, err := m.Session.CreateEPSSession(ctx, models.EPSBearerRequest{
 		IMSI:              ue.IMSI(),
@@ -107,33 +104,28 @@ func activateDefaultBearer(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 		return
 	}
 
-	// The attach is now authenticated and accepted, so this context becomes the
-	// subscriber's single registered context, superseding any prior one. Doing
-	// this here (not when the IMSI was first learned) keeps an unauthenticated
-	// attach from tearing down a registered UE (TS 24.501 §4.4.4.3 analogue).
+	// Supersede any prior context for this subscriber only now that the attach is
+	// authenticated and accepted, so an unauthenticated attach cannot tear down a
+	// registered UE (TS 24.501 §4.4.4.3 analogue).
 	m.CommitUEIdentity(ue, mme.MintAuthProofForAttachCommit())
 
-	// On Attach the MME deletes any stored UE Radio Capability and omits it from
-	// the Initial Context Setup, so the eNB re-fetches it from the UE (TS 23.401).
+	// Drop any stored UE Radio Capability and omit it from the Initial Context
+	// Setup, so the eNB re-fetches it from the UE (TS 23.401).
 	ue.RadioCapability = nil
 
 	sendInitialContextSetup(m, ctx, ue, qos, naspdu)
 
-	// Guard the Attach Accept: if the UE does not send Attach Complete, the MME
-	// retransmits it and ultimately releases the UE (T3450, TS 24.301).
+	// T3450 retransmits the Attach Accept, then releases the UE, if no Attach
+	// Complete arrives (TS 24.301).
 	m.ArmNASGuard(ue, "Attach Accept", naspdu)
 }
 
-// sendInitialContextSetup establishes the UE's S1 context and default E-RAB at
-// the eNB (TS 36.413), with K_eNB and the UE security capabilities for AS
-// security. naspdu carries the Attach Accept on attach; it is nil on a Service
-// Request, where the EPS bearer context already exists and only the radio and S1
-// bearers are re-established.
+// sendInitialContextSetup establishes the UE's S1 context and default E-RAB at the
+// eNB (TS 36.413). naspdu carries the Attach Accept on attach; it is nil on a
+// Service Request, where only the radio and S1 bearers are re-established.
 func sendInitialContextSetup(m *mme.MME, ctx context.Context, ue *mme.UeContext, qos *mme.EpsQoS, naspdu []byte) {
-	// Derive K_eNB for delivery to the eNB and seed the X2-handover key chain
-	// (NH for NCC=1, ready for the first Path Switch). Re-seeded on every context
-	// setup, so a Service Request that re-derives K_eNB restarts the chain
-	// (TS 33.401).
+	// Derive K_eNB and seed the X2-handover key chain (NH for NCC=1). Re-seeded on
+	// every context setup, so a Service Request restarts the chain (TS 33.401).
 	kenb, kenbCount, err := ue.DeriveInitialKeNB()
 	if err != nil {
 		logger.MmeLog.Error("failed to derive AS keys", zap.Error(err))
@@ -152,8 +144,8 @@ func sendInitialContextSetup(m *mme.MME, ctx context.Context, ue *mme.UeContext,
 		return
 	}
 
-	// The S1-U endpoint is advertised as the IPv4, IPv6, or dual-stack transport
-	// layer address the N3 has (TS 36.413).
+	// The S1-U endpoint advertises whichever transport address family the N3 has
+	// (TS 36.413).
 	sgwTLA, err := models.EncodeTransportLayerAddress(p.SgwFTEID.Addr, p.SgwN3IPv6)
 	if err != nil {
 		logger.MmeLog.Error("failed to encode S-GW transport layer address", zap.Error(err))
@@ -178,7 +170,6 @@ func sendInitialContextSetup(m *mme.MME, ctx context.Context, ue *mme.UeContext,
 			GTPTEID:               s1ap.GTPTEID(p.SgwFTEID.TEID),
 			NASPDU:                s1ap.NASPDU(naspdu),
 		}},
-		// The eNB selects AS algorithms from these bitmaps.
 		UESecurityCapabilities: mme.S1apSecurityCapabilities(uecap),
 		SecurityKey:            kenb,
 		UERadioCapability:      ue.RadioCapability,
@@ -190,10 +181,8 @@ func sendInitialContextSetup(m *mme.MME, ctx context.Context, ue *mme.UeContext,
 		return
 	}
 
-	// The eNB derives the AS keys from K_eNB and applies the selected algorithms;
-	// a mismatch with the UE's own derivation fails the RRC reconfiguration and
-	// the eNB releases the UE (TS 33.401). Record the inputs so such a
-	// failure can be told apart from a radio-side release.
+	// Log the AS-key inputs so an eNB RRC-reconfiguration failure from a key or
+	// algorithm mismatch can be told apart from a radio-side release (TS 33.401).
 	logger.MmeLog.Info("Initial Context Setup Request",
 		zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)),
 		zap.Uint32("enb-ue-id", uint32(ue.S1.ENBUES1APID)),
@@ -323,10 +312,8 @@ func sendNetworkName(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 }
 
 // buildActivateDefaultESM assembles the ACTIVATE DEFAULT EPS BEARER CONTEXT
-// REQUEST for a PDN connection (TS 24.301 §8.3.1): the negotiated PDN address,
-// QoS, APN, and the PCO carrying the DNS server and (for IPv4-capable bearers)
-// the IPv4 Link MTU. It is carried inside the Attach Accept for the default
-// bearer and inside the E-RAB Setup Request for an additional PDN connection.
+// REQUEST for a PDN connection (TS 24.301 §8.3.1): PDN address, QoS, APN, and the
+// PCO carrying DNS and (for IPv4-capable bearers) the IPv4 Link MTU.
 func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8) ([]byte, error) {
 	apn, err := eps.MarshalAPN(qos.APN)
 	if err != nil {
@@ -358,10 +345,9 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8) (
 		APNAMBR: eps.APNAMBRFromBitsPerSecond(mme.BitRateToBps(qos.SessAmbrDLStr), mme.BitRateToBps(qos.SessAmbrULStr)).Marshal(),
 	}
 
-	// Advertise the DNS server and, for IPv4-capable bearers, the IPv4 Link MTU
-	// to the UE in the PCO (TS 24.008). SLAAC carries no DNS, so the PCO is the
-	// only way an IPv6 UE learns its resolver; the IPv6 link MTU is carried in the
-	// Router Advertisement (there is no IPv6 PCO MTU container).
+	// Advertise DNS and, for IPv4-capable bearers, the IPv4 Link MTU in the PCO
+	// (TS 24.008): SLAAC carries no DNS, so the PCO is the only way an IPv6 UE learns
+	// its resolver; the IPv6 link MTU rides the Router Advertisement.
 	var dnsServers [][]byte
 
 	if p.Dns.IsValid() {

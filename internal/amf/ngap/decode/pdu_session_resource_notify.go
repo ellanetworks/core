@@ -21,12 +21,11 @@ import (
 // }
 
 // DecodePDUSessionResourceNotify validates a PDUSessionResourceNotify
-// PDU body (3GPP TS 38.413 §9.2.1.8). AMFUENGAPID and RANUENGAPID are
-// mandatory-reject. PDUSessionResourceNotifyList is optional-reject —
-// missing is allowed, but a malformed inner pointer is reported as
-// fatal; HasNotifyList records presence. PDUSessionResourceReleasedListNot
-// and UserLocationInformation are optional-ignore.
-// PDUSessionResourceNotify is a class 2 procedure with procedure-level
+// PDU body (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are
+// mandatory-reject. PDUSessionResourceNotifyList is optional-reject:
+// missing is allowed, a malformed inner pointer is fatal.
+// PDUSessionResourceReleasedListNot and UserLocationInformation are
+// optional-ignore. The procedure is class 2 with procedure-level
 // criticality "ignore". Duplicate IEs follow a last-wins policy.
 func DecodePDUSessionResourceNotify(in *ngapType.PDUSessionResourceNotify) (PDUSessionResourceNotify, *Report) {
 	report := &Report{

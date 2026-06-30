@@ -23,7 +23,7 @@ import (
 // }
 
 // DecodeUplinkNASTransport validates an UplinkNASTransport PDU body
-// (3GPP TS 38.413 §9.2.5.3). Mandatory IEs are AMFUENGAPID, RANUENGAPID
+// (3GPP TS 38.413). Mandatory IEs are AMFUENGAPID, RANUENGAPID
 // and NASPDU (all reject) and UserLocationInformation (ignore). The
 // non-3GPP-access optional IEs (W-AGF/TNGF/TWIF identity information)
 // are not consumed by any handler. Duplicate IEs follow a last-wins

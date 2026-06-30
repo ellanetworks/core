@@ -22,7 +22,7 @@ import (
 // }
 
 // DecodeUEContextReleaseComplete validates a UEContextReleaseComplete PDU
-// body (3GPP TS 38.413 §9.2.2.4). AMFUENGAPID and RANUENGAPID are
+// body (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are
 // mandatory-ignore so a missing or malformed value yields a non-fatal
 // report and a nil pointer in the decoded struct. The handler must
 // nil-check before driving lookups. UserLocationInformation,

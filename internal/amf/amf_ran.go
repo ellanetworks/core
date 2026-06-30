@@ -51,7 +51,7 @@ type NGAPSender interface {
 	SendHandoverPreparationFailure(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error
 	SendLocationReportingControl(ctx context.Context, amfUENgapID int64, ranUENgapID int64, eventType ngapType.EventType) error
 	SendHandoverCommand(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, handOverType ngapType.HandoverType, pduSessionResourceHandoverList ngapType.PDUSessionResourceHandoverList, pduSessionResourceToReleaseList ngapType.PDUSessionResourceToReleaseListHOCmd, container ngapType.TargetToSourceTransparentContainer) error
-	SendInitialContextSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, allowedNssai []models.Snssai, kgnb []byte, plmnID models.PlmnID, ueRadioCapability string, ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging, ueSecurityCapability *nasType.UESecurityCapability, nasPdu []byte, pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq, supportedGUAMI *models.Guami) error
+	SendInitialContextSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, allowedNssai []models.Snssai, kgnb []byte, plmnID models.PlmnID, ueRadioCapability []byte, ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging, ueSecurityCapability *nasType.UESecurityCapability, nasPdu []byte, pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq, supportedGUAMI *models.Guami) error
 	SendPathSwitchRequestAcknowledge(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ueSecurityCapability *nasType.UESecurityCapability, ncc uint8, nh []byte, pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList, pduSessionResourceReleasedList ngapType.PDUSessionResourceReleasedListPSAck, snssaiList []models.Snssai) error
 	SendHandoverRequest(ctx context.Context, amfUeNgapID int64, handOverType ngapType.HandoverType, uplinkAmbr string, downlinkAmbr string, ueSecurityCapability *nasType.UESecurityCapability, ncc uint8, nh []byte, cause ngapType.Cause, pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq, sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer, snssaiList []models.Snssai, supportedGUAMI *models.Guami) error
 }
@@ -66,7 +66,7 @@ type Radio struct {
 	Name          string
 	Conn          *sctp.SCTPConn
 	ConnectedAt   time.Time
-	lastSeenAt    atomic.Int64 // Unix nanoseconds; use GetLastSeenAt()/TouchLastSeen()
+	lastSeen      atomic.Int64 // Unix nanoseconds; use LastSeenAt()/TouchLastSeen()
 	SupportedTAIs []SupportedTAI
 	mu            sync.RWMutex     // protects RanUEs
 	RanUEs        map[int64]*RanUe // Key: AMF UE NGAP ID (unique and set for the UE's whole lifetime; the RAN UE NGAP ID is unassigned until a handover target is acknowledged)
@@ -100,15 +100,15 @@ func (r *Radio) RemoveAllUeInRan(ctx context.Context) {
 }
 
 // applyStatefulNasCleanup runs the GMM state-machine cleanup that follows
-// NAS connection loss: mid-registration UEs are aborted (TS 24.501
-// §5.5.1.2.8); registered UEs start the mobile reachable timer (§5.3.7).
+// NAS connection loss: mid-registration UEs are aborted (TS 24.501);
+// registered UEs start the mobile reachable timer.
 func applyStatefulNasCleanup(ctx context.Context, ranUe *RanUe) {
 	ue := ranUe.UeContext()
 	if ue == nil {
 		return
 	}
 
-	switch ue.GetState() {
+	switch ue.State() {
 	case Registered:
 		ue.ResetMobileReachableTimer()
 	case Authentication, SecurityMode, ContextSetup:
@@ -139,7 +139,6 @@ func (r *Radio) UpdateUERanNgapID(ranUe *RanUe, newRanUeNgapID int64) {
 	ranUe.RanUeNgapID = newRanUeNgapID
 }
 
-// FindUEByAmfUeNgapID returns the RAN UE with the given AMF UE NGAP ID, or nil.
 func (r *Radio) FindUEByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -148,12 +147,12 @@ func (r *Radio) FindUEByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 }
 
 func (r *Radio) TouchLastSeen() {
-	r.lastSeenAt.Store(time.Now().UnixNano())
+	r.lastSeen.Store(time.Now().UnixNano())
 }
 
-// GetLastSeenAt returns the last-seen timestamp. Safe for concurrent use.
-func (r *Radio) GetLastSeenAt() time.Time {
-	ns := r.lastSeenAt.Load()
+// LastSeenAt returns the last-seen timestamp. Safe for concurrent use.
+func (r *Radio) LastSeenAt() time.Time {
+	ns := r.lastSeen.Load()
 	if ns == 0 {
 		return time.Time{}
 	}
@@ -163,7 +162,7 @@ func (r *Radio) GetLastSeenAt() time.Time {
 
 // SetLastSeenAt sets the last-seen timestamp. Safe for concurrent use.
 func (r *Radio) SetLastSeenAt(t time.Time) {
-	r.lastSeenAt.Store(t.UnixNano())
+	r.lastSeen.Store(t.UnixNano())
 }
 
 // NodeID returns the RAN node identifier string regardless of radio type.

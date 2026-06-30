@@ -18,8 +18,6 @@ import (
 
 var tracer = otel.Tracer("ella-core/amf")
 
-// This file contains calls to db to get configuration data
-
 func getPaginateIndexes(page int, perPage int, total int) (int, int) {
 	startIndex := (page - 1) * perPage
 
@@ -53,7 +51,7 @@ type OperatorInfo struct {
 	Guami *models.Guami
 }
 
-func (amf *AMF) GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
+func (amf *AMF) OperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 	ctx, span := tracer.Start(ctx, "amf/get_operator_info")
 	defer span.End()
 
@@ -67,7 +65,7 @@ func (amf *AMF) GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 		return nil, fmt.Errorf("failed to get supported TAIs: %w", err)
 	}
 
-	// 3GPP TS 23.003 §2.10.1: AMF Identifier = <AMF Region ID><AMF Set ID><AMF Pointer>
+	// 3GPP TS 23.003: AMF Identifier = <AMF Region ID><AMF Set ID><AMF Pointer>
 	amfID := fmt.Sprintf("%06x", (operator.AmfRegionID<<16)|(operator.AmfSetID<<6)|amf.DBInstance.NodeID())
 
 	operatorInfo := &OperatorInfo{
@@ -137,11 +135,11 @@ type SubscriberProfile struct {
 	AllowedNssai []models.Snssai
 	Ambr         *models.Ambr
 	// Allow5G is the subscriber's 5G/5GC access permission (Core Network type
-	// restriction, TS 23.501 §5.3.4).
+	// restriction, TS 23.501).
 	Allow5G bool
 }
 
-func (amf *AMF) GetSubscriberProfile(ctx context.Context, supi etsi.SUPI) (*SubscriberProfile, error) {
+func (amf *AMF) SubscriberProfile(ctx context.Context, supi etsi.SUPI) (*SubscriberProfile, error) {
 	ctx, span := tracer.Start(ctx, "amf/get_subscriber_profile",
 		trace.WithAttributes(
 			attribute.String("supi", supi.String()),
@@ -156,13 +154,11 @@ func (amf *AMF) GetSubscriberProfile(ctx context.Context, supi etsi.SUPI) (*Subs
 		return nil, fmt.Errorf("couldn't get subscriber %s: %w", imsi, err)
 	}
 
-	// Derive allowed NSSAI from the subscriber's profile policies.
 	policies, err := amf.DBInstance.ListPoliciesByProfile(ctx, subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't list policies for profile %s: %w", subscriber.ProfileID, err)
 	}
 
-	// Collect unique slice IDs and batch-fetch.
 	sliceIDSet := make(map[string]struct{})
 	for _, p := range policies {
 		sliceIDSet[p.SliceID] = struct{}{}
@@ -194,7 +190,6 @@ func (amf *AMF) GetSubscriberProfile(ctx context.Context, supi etsi.SUPI) (*Subs
 		})
 	}
 
-	// Derive bitrate from the subscriber's profile.
 	profile, err := amf.DBInstance.GetProfileByID(ctx, subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %s: %v", subscriber.ProfileID, err)
@@ -210,7 +205,7 @@ func (amf *AMF) GetSubscriberProfile(ctx context.Context, supi etsi.SUPI) (*Subs
 	}, nil
 }
 
-func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai) (string, error) {
+func (amf *AMF) SubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai) (string, error) {
 	if snssai == nil {
 		return "", fmt.Errorf("snssai is nil")
 	}
@@ -236,7 +231,6 @@ func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *mo
 		return "", fmt.Errorf("couldn't list policies for profile %s: %v", subscriber.ProfileID, err)
 	}
 
-	// Batch-fetch all referenced network slices.
 	sliceIDSet := make(map[string]struct{})
 	for _, p := range policies {
 		sliceIDSet[p.SliceID] = struct{}{}
@@ -284,7 +278,7 @@ func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *mo
 }
 
 // NAS security algorithms are stored as RAT-neutral identities shared by EPS and
-// 5G (TS 24.301 §9.9.3.23 ≡ TS 24.501 §9.11.3.34): NULL(0), SNOW3G(1), AES(2).
+// 5G (TS 24.301 ≡ TS 24.501): NULL(0), SNOW3G(1), AES(2).
 var cipheringNameToAlg = map[string]uint8{
 	"NULL":   security.AlgCiphering128NEA0,
 	"SNOW3G": security.AlgCiphering128NEA1,
@@ -297,10 +291,10 @@ var integrityNameToAlg = map[string]uint8{
 	"AES":    security.AlgIntegrity128NIA2,
 }
 
-// GetSecurityAlgorithms loads the configured NAS security algorithm preference
+// SecurityAlgorithms loads the configured NAS security algorithm preference
 // order from the database and returns them as uint8 slices ready for
 // SelectSecurityAlg.
-func (amf *AMF) GetSecurityAlgorithms(ctx context.Context) ([]uint8, []uint8, error) {
+func (amf *AMF) SecurityAlgorithms(ctx context.Context) ([]uint8, []uint8, error) {
 	ctx, span := tracer.Start(ctx, "amf/get_security_algorithms")
 	defer span.End()
 

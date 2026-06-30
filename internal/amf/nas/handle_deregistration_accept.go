@@ -12,7 +12,7 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-// TS 23.502 4.2.2.3
+// TS 23.502
 func handleDeregistrationAccept(ctx context.Context, ue *amf.UeContext) error {
 	if conn := ue.NasConn(); conn != nil {
 		conn.T3522.Stop()
@@ -22,7 +22,7 @@ func handleDeregistrationAccept(ctx context.Context, ue *amf.UeContext) error {
 
 	ranUe := ue.RanUe()
 	if ranUe == nil {
-		logger.WithTrace(ctx, logger.AmfLog).Warn("amf.RanUe is nil, cannot send UE Context Release Command", logger.SUPI(ue.SupiValue().String()))
+		logger.WithTrace(ctx, logger.AmfLog).Warn("amf.RanUe is nil, cannot send UE Context Release Command", logger.SUPI(ue.Supi().String()))
 		return nil
 	}
 

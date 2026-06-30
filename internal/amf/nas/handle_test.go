@@ -276,7 +276,7 @@ func (fng *FakeNGAPSender) SendHandoverCommand(ctx context.Context, amfUeNgapID 
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendInitialContextSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, allowedNssai []models.Snssai, kgnb []byte, plmnID models.PlmnID, ueRadioCapability string, ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging, ueSecurityCapability *nasType.UESecurityCapability, nasPdu []byte, pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq, supportedGUAMI *models.Guami) error {
+func (fng *FakeNGAPSender) SendInitialContextSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, allowedNssai []models.Snssai, kgnb []byte, plmnID models.PlmnID, ueRadioCapability []byte, ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging, ueSecurityCapability *nasType.UESecurityCapability, nasPdu []byte, pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq, supportedGUAMI *models.Guami) error {
 	fng.SentInitialContextSetupRequest = append(
 		fng.SentInitialContextSetupRequest,
 		&NGInitialContextSetupRequest{
@@ -316,7 +316,7 @@ func (fng *FakeNGAPSender) SendHandoverRequest(
 
 type FakeAusf struct {
 	Supi    etsi.SUPI
-	Kseaf   string
+	Kseaf   []byte
 	Error   error
 	AvKgAka *ausf.AuthResult
 }
@@ -329,9 +329,9 @@ func (a *FakeAusf) Authenticate(ctx context.Context, suci string, plmn models.Pl
 	return a.AvKgAka, nil
 }
 
-func (a *FakeAusf) Confirm(ctx context.Context, resStar string, suci string) (etsi.SUPI, string, error) {
+func (a *FakeAusf) Confirm(ctx context.Context, resStar string, suci string) (etsi.SUPI, []byte, error) {
 	if a.Error != nil {
-		return etsi.InvalidSUPI, "", a.Error
+		return etsi.InvalidSUPI, nil, a.Error
 	}
 
 	return a.Supi, a.Kseaf, nil

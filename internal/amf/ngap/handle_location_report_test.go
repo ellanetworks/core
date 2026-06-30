@@ -35,7 +35,7 @@ func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) 
 
 // TestHandleLocationReport_UnknownAmfUeNgapID verifies that a Location Report
 // whose AMF UE NGAP ID the AMF never allocated draws an Error Indication with the
-// received AP IDs (TS 38.413 §10.6).
+// received AP IDs (TS 38.413).
 func TestHandleLocationReport_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio()
 	sender := ran.NGAPSender.(*FakeNGAPSender)

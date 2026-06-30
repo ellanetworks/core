@@ -110,7 +110,7 @@ func TestAttachNetworkRoundTrips(t *testing.T) {
 }
 
 // TestEPSNetworkFeatureSupportRoundTrips checks the EPS network feature support
-// IE (TS 24.301 §9.9.3.12A) encodes as IEI 0x64, length 1, octet 3 bit 1 for the
+// IE (TS 24.301) encodes as IEI 0x64, length 1, octet 3 bit 1 for the
 // IMS VoPS indicator and survives a round trip in ATTACH ACCEPT and TRACKING
 // AREA UPDATE ACCEPT.
 func TestEPSNetworkFeatureSupportRoundTrips(t *testing.T) {

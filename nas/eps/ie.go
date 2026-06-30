@@ -10,7 +10,7 @@ import (
 	"github.com/ellanetworks/core/nas/common"
 )
 
-// EPS attach type values (TS 24.301 §9.9.3.11).
+// EPS attach type values (TS 24.301).
 const (
 	AttachTypeEPS          uint8 = 1
 	AttachTypeCombined     uint8 = 2
@@ -18,7 +18,7 @@ const (
 )
 
 // MobileIdentityType is the type-of-identity field of an EPS mobile identity
-// (TS 24.301 §9.9.3.12).
+// (TS 24.301).
 type MobileIdentityType uint8
 
 const (
@@ -27,7 +27,7 @@ const (
 	IdentityGUTI MobileIdentityType = 6
 )
 
-// EPSMobileIdentity is an EPS mobile identity (TS 24.301 §9.9.3.12): a GUTI, or
+// EPSMobileIdentity is an EPS mobile identity (TS 24.301): a GUTI, or
 // an IMSI/IMEI carried as packed BCD digits.
 type EPSMobileIdentity struct {
 	Type MobileIdentityType

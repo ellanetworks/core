@@ -14,7 +14,7 @@ import (
 )
 
 func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.AuthenticationFailure) error {
-	if state := ue.GetState(); state != amf.Authentication {
+	if state := ue.State(); state != amf.Authentication {
 		return fmt.Errorf("state mismatch: receive amf.Authentication Failure message in state %s", state)
 	}
 
@@ -59,7 +59,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		amf.SendAuthenticationRequest(ctx, amfInstance, ranUe)
 
 		ue.Log.Info("Sent authentication request")
-	case nasMessage.Cause5GMMSynchFailure: // TS 24.501 5.4.1.3.7 case f
+	case nasMessage.Cause5GMMSynchFailure: // TS 24.501
 		ue.Log.Warn("amf.Authentication Failure 5GMM Cause: Synch Failure")
 
 		conn.AuthFailureCauseSynchFailureTimes++

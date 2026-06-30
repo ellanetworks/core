@@ -49,7 +49,7 @@ func MintAuthProofForSMC() AuthProof {
 // The security property this mint establishes is not "the UE has been
 // authenticated" — it has not — but "the AMF is in the registration
 // request handler, and any stored UESecurityCapability installed here
-// will be re-verified by the SMC replay check per TS 33.501 §6.7.3.1
+// will be re-verified by the SMC replay check per TS 33.501
 // before any PDU session is accepted." That is the actual downgrade
 // protection for Initial/Emergency Registration and for first-time
 // capability adoption in Mobility/Periodic Registration Update.
@@ -65,8 +65,7 @@ const (
 	// VerifyMatch means the peer-reported value equals the stored value.
 	VerifyMatch VerifyResult = iota
 	// VerifyMismatch means the peer-reported value differs from the
-	// stored value; the stored value must be preserved (TS 33.501
-	// §6.7.3.1).
+	// stored value; the stored value must be preserved (TS 33.501).
 	VerifyMismatch
 	// VerifyNoStoredValue means the AMF has no stored value to compare
 	// against. The caller decides whether to adopt the received value
@@ -75,12 +74,12 @@ const (
 )
 
 // VerifyUESecurityCapability compares a peer-reported UE security
-// capability against the AMF's stored value per TS 33.501 §6.7.3.1. It
+// capability against the AMF's stored value per TS 33.501. It
 // never mutates ue.
 func (ue *UeContext) VerifyUESecurityCapability(received *nasType.UESecurityCapability) VerifyResult {
-	ue.mu.RLock()
+	ue.mu.Lock()
 	stored := ue.ueSecurityCapability
-	ue.mu.RUnlock()
+	ue.mu.Unlock()
 
 	if stored == nil {
 		return VerifyNoStoredValue

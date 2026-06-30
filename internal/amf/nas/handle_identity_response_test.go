@@ -286,7 +286,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-		Kseaf: "testkey",
+		Kseaf: []byte("testkey"),
 	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -340,7 +340,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-		Kseaf: "testkey",
+		Kseaf: []byte("testkey"),
 	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -384,7 +384,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
 		Supi:  supi,
-		Kseaf: "testkey",
+		Kseaf: []byte("testkey"),
 	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -396,7 +396,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 	ue.SetSupiForTest(supi)
 	ue.ForceState(amf.Authentication)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -478,7 +478,7 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 					Autn: hex.EncodeToString(make([]byte, 16)),
 				},
 				Supi:  supi,
-				Kseaf: "testkey",
+				Kseaf: []byte("testkey"),
 			}, nil)
 
 			ue, ngapSender, err := buildUeAndRadio()
@@ -491,7 +491,7 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 			ue.Pei = "testpei"
 			ue.ForceState(amf.ContextSetup)
 			ue.Tai = ue.RanUe().Tai
-			ue.SetSecurityContextAvailableForTest(true)
+			ue.SetSecuredForTest(true)
 			{
 				ng := ue.NgKsiForTest()
 				ng.Ksi = 1
@@ -573,7 +573,7 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 					Autn: hex.EncodeToString(make([]byte, 16)),
 				},
 				Supi:  supi,
-				Kseaf: "testkey",
+				Kseaf: []byte("testkey"),
 			}, nil)
 
 			ue, ngapSender, err := buildUeAndRadio()
@@ -586,7 +586,7 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 			ue.Pei = "testpei"
 			ue.ForceState(amf.ContextSetup)
 			ue.Tai = ue.RanUe().Tai
-			ue.SetSecurityContextAvailableForTest(true)
+			ue.SetSecuredForTest(true)
 			{
 				ng := ue.NgKsiForTest()
 				ng.Ksi = 1
@@ -624,8 +624,8 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 				t.Fatalf("should not have sent a Downlink NAS Transport message")
 			}
 
-			if ue.GetState() != amf.Deregistered {
-				t.Fatalf("ue should have transitioned to amf.Deregistered state, but got: %v", ue.GetState())
+			if ue.State() != amf.Deregistered {
+				t.Fatalf("ue should have transitioned to amf.Deregistered state, but got: %v", ue.State())
 			}
 		})
 	}
@@ -643,7 +643,7 @@ func TestHandleIdentityResponse_IdentityError(t *testing.T) {
 					Autn: hex.EncodeToString(make([]byte, 16)),
 				},
 				Supi:  supi,
-				Kseaf: "testkey",
+				Kseaf: []byte("testkey"),
 			}, nil)
 
 			ue, ngapSender, err := buildUeAndRadio()

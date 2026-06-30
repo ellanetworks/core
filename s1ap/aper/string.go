@@ -9,7 +9,7 @@ import "fmt"
 const Unbounded = -1
 
 // stringNeedsAlign reports whether string content is octet-aligned. Per the
-// X.691 §15/§16 NOTE 1 rule, a fixed length of 16 bits or fewer stays in the
+// X.691 NOTE 1 rule, a fixed length of 16 bits or fewer stays in the
 // bit-field; any variable length or longer fixed length is aligned.
 func stringNeedsAlign(lb, ub, unitBits int) bool {
 	return lb != ub || ub*unitBits > 16
@@ -39,7 +39,7 @@ func (w *Writer) putString(data []byte, nUnits, lb, ub, unitBits int, ext bool) 
 	}
 
 	if ub < 0 || !inRoot {
-		// Unbounded form (X.691 §16.8); also carries out-of-root values. The
+		// Unbounded form (X.691); also carries out-of-root values. The
 		// length determinant aligns, so content follows octet-aligned.
 		if err := w.WriteLength(nUnits); err != nil {
 			return err
@@ -106,7 +106,7 @@ func (r *Reader) getString(lb, ub, unitBits int, ext bool) (int, error) {
 }
 
 // WriteOctetString encodes an OCTET STRING of b whose length in octets is
-// constrained to [lb, ub] (X.691 §16). Pass ub = [Unbounded] for no upper
+// constrained to [lb, ub] (X.691). Pass ub = [Unbounded] for no upper
 // bound and ext = true when the size constraint is extensible. A fixed length
 // of two octets or fewer stays in the bit-field; longer content is aligned.
 func (w *Writer) WriteOctetString(b []byte, lb, ub int, ext bool) error {
@@ -124,7 +124,7 @@ func (r *Reader) ReadOctetString(lb, ub int, ext bool) ([]byte, error) {
 }
 
 // WriteBitString encodes a BIT STRING of nbits bits taken MSB-first from b,
-// whose length is constrained to [lb, ub] bits (X.691 §15). b must hold at
+// whose length is constrained to [lb, ub] bits (X.691). b must hold at
 // least ceil(nbits/8) octets. A fixed length of 16 bits or fewer stays in the
 // bit-field; longer content is aligned.
 func (w *Writer) WriteBitString(b []byte, nbits, lb, ub int, ext bool) error {

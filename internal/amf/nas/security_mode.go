@@ -13,14 +13,14 @@ import (
 )
 
 func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) error {
-	logger.WithTrace(ctx, logger.AmfLog).Debug("Security Mode Procedure", logger.SUPI(ue.SupiValue().String()))
+	logger.WithTrace(ctx, logger.AmfLog).Debug("Security Mode Procedure", logger.SUPI(ue.Supi().String()))
 
 	ctx, span := gmmTracer.Start(ctx, "nas/security_mode")
 	defer span.End()
 
 	ue.TransitionTo(amf.SecurityMode)
 
-	ue.Log = ue.Log.With(logger.SUPI(ue.SupiValue().String()))
+	ue.Log = ue.Log.With(logger.SUPI(ue.Supi().String()))
 
 	conn := ue.NasConn()
 	if conn == nil {
@@ -32,7 +32,7 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 		return contextSetup(ctx, amfInstance, ue, conn.RegistrationRequest)
 	}
 
-	integrityOrder, cipheringOrder, err := amfInstance.GetSecurityAlgorithms(ctx)
+	integrityOrder, cipheringOrder, err := amfInstance.SecurityAlgorithms(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting security algorithms: %v", err)
 	}
@@ -56,9 +56,9 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 		return fmt.Errorf("security mode blocked by conflict: %w", beginErr)
 	}
 
-	// The security mode control procedure is now in flight: it is ended by
-	// SECURITY MODE COMPLETE, by the T3560 abort callback, or by UE context
-	// release — not by a single transport send (TS 24.501 §5.4.2).
+	// The security mode control procedure stays in flight until SECURITY MODE
+	// COMPLETE, the T3560 abort callback, or UE context release — not a single
+	// transport send (TS 24.501).
 	amf.SendSecurityModeCommand(ctx, amfInstance, ranUe)
 
 	return nil

@@ -8,14 +8,10 @@ import (
 )
 
 // DecodeNGSetupRequest validates an NGSetupRequest PDU body
-// (3GPP TS 38.413 §9.2.6.1). Mandatory IEs are GlobalRANNodeID,
-// SupportedTAList and DefaultPagingDRX (all reject for the procedure,
-// reject criticality on the IE itself for GlobalRANNodeID and
-// SupportedTAList, ignore for DefaultPagingDRX). RANNodeName is
-// optional. Duplicate IEs follow a last-wins policy.
-//
-// DefaultPagingDRX is validated for presence and structural validity
-// but not stored: no current handler consumes the value.
+// (3GPP TS 38.413). Mandatory IEs: GlobalRANNodeID and
+// SupportedTAList (criticality reject), DefaultPagingDRX (ignore).
+// RANNodeName is optional. DefaultPagingDRX is validated for presence
+// only. Duplicate IEs follow a last-wins policy.
 func DecodeNGSetupRequest(in *ngapType.NGSetupRequest) (NGSetupRequest, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeNGSetup,

@@ -10,7 +10,7 @@ import (
 	"github.com/ellanetworks/core/nas/common"
 )
 
-// MessageType is an EMM message type (TS 24.301 §9.8, Table 9.8.1).
+// MessageType is an EMM message type (TS 24.301).
 type MessageType uint8
 
 const (

@@ -6,8 +6,8 @@ package aper
 import "fmt"
 
 // Reader decodes APER primitives from an octet buffer. Every read is
-// bounds-checked; a read past the end returns a [DecodeError] rather than
-// panicking.
+// bounds-checked; a read past the end returns a [DecodeError] and does not
+// panic.
 type Reader struct {
 	buf  []byte
 	bits int // total bits consumed
@@ -56,13 +56,13 @@ func (r *Reader) ReadBits(n int) (uint64, error) {
 	return v, nil
 }
 
-// ReadBool reads a single boolean bit (X.691 §12).
+// ReadBool reads a single boolean bit (X.691).
 func (r *Reader) ReadBool() (bool, error) {
 	b, err := r.ReadBit()
 	return b == 1, err
 }
 
-// Align discards bits up to the next octet boundary (X.691 §10.1).
+// Align discards bits up to the next octet boundary (X.691).
 func (r *Reader) Align() error {
 	for r.bits%8 != 0 {
 		if _, err := r.ReadBit(); err != nil {

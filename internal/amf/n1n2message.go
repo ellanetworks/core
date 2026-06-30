@@ -25,7 +25,7 @@ import (
 )
 
 // ErrUENotReachable is returned when the UE is in CM-IDLE state and the
-// requested signaling cannot be delivered. Per TS 23.502 §4.2.3.3 step 3b,
+// requested signaling cannot be delivered. Per TS 23.502,
 // the AMF may ignore the N2 SM information when the UE is not reachable and
 // the caller should defer delivery until the UE transitions to CM-CONNECTED.
 var ErrUENotReachable = errors.New("UE is in CM-IDLE state")
@@ -72,7 +72,7 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 		return nil
 	}
 
-	operatorInfo, err := amf.GetOperatorInfo(ctx)
+	operatorInfo, err := amf.OperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
@@ -124,7 +124,7 @@ func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.
 		return fmt.Errorf("temporary reject handover ongoing")
 	}
 
-	if ue.GetState() != Registered {
+	if ue.State() != Registered {
 		return fmt.Errorf("ue is not in registered state")
 	}
 
@@ -157,14 +157,14 @@ func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.
 // the gNB when radio-resource changes are needed.
 //
 // When n2Msg is nil (e.g. DNS-only change carried in Extended PCO), the NAS
-// message is delivered transparently via Downlink NAS Transport (TS 38.413
-// §8.6.2) — no gNB resource modification is required.
+// message is delivered transparently via Downlink NAS Transport (TS 38.413)
+// — no gNB resource modification is required.
 //
 // When n2Msg is present (AMBR/QoS changes), the AMF sends a
-// PDUSessionResourceModifyRequest (TS 38.413 §9.2.1.5) which carries both the
+// PDUSessionResourceModifyRequest (TS 38.413) which carries both the
 // N1 NAS PDU and the mandatory N2 transfer IE for the gNB.
 //
-// This implements TS 23.502 §4.3.3.2 steps 3–5.
+// This implements TS 23.502.
 func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Msg []byte) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -183,27 +183,22 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 
 	ranUe := ue.RanUe()
 	if ranUe == nil {
-		// Per TS 23.502 §4.2.3.3 step 3b: when the UE is in CM-IDLE, the AMF
-		// may ignore the N2 SM information. Since the gNB has released all
-		// radio resources for this session, there is nothing to "modify".
-		// The caller should commit the policy change; when the UE transitions
-		// back to CM-CONNECTED, ActivateSmContext will build a fresh
-		// PDUSessionResourceSetupRequestTransfer with the updated QoS.
+		// Per TS 23.502: in CM-IDLE the AMF may ignore the N2
+		// SM information. The gNB has released the session's radio resources,
+		// so there is nothing to modify; the updated QoS applies on the next
+		// CM-CONNECTED setup.
 		return ErrUENotReachable
 	}
 
-	// Build the DL NAS Transport wrapping the N1 SM message.
 	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
 
 	if n2Msg == nil {
-		// N1-only delivery (e.g. DNS update via Extended PCO).
-		// Per TS 23.502 §4.3.3.2: "When the SMF sends the PDU Session
-		// Modification Command transparently through NG-RAN, the N2 SM
-		// information is not included." The RAN forwards the NAS PDU to
-		// the UE without modifying any radio resources.
+		// N1-only delivery (e.g. DNS update via Extended PCO). Per TS 23.502,
+		// when the Modification Command is sent transparently through
+		// NG-RAN the N2 SM information is omitted and no radio resources change.
 		if err := ranUe.SendDownlinkNasTransport(ctx, nasPdu, nil); err != nil {
 			return fmt.Errorf("send downlink NAS transport: %w", err)
 		}
@@ -215,7 +210,7 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 
 	// N1+N2 delivery: gNB resource modification required (AMBR/QoS change).
 	// The PDUSessionResourceModifyRequestTransfer IE is mandatory per
-	// TS 38.413 §9.2.1.5, so this path must only be taken when n2Msg is set.
+	// TS 38.413, so this path must only be taken when n2Msg is set.
 	list := ngapType.PDUSessionResourceModifyListModReq{
 		List: []ngapType.PDUSessionResourceModifyItemModReq{
 			{
@@ -240,7 +235,7 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 // ReleaseSessionMessage sends a PDUSessionResourceReleaseCommand to the gNB,
 // carrying the N1 NAS PDU (PDU Session Release Command) and the N2 transfer
 // (PDU Session Resource Release Command Transfer).
-// This implements the network-initiated PDU Session Release (TS 23.502 §4.3.4.2).
+// This implements the network-initiated PDU Session Release (TS 23.502).
 func (amf *AMF) ReleaseSessionMessage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Transfer []byte) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -262,13 +257,11 @@ func (amf *AMF) ReleaseSessionMessage(ctx context.Context, supi etsi.SUPI, pduSe
 		return ErrUENotReachable
 	}
 
-	// Build the DL NAS Transport wrapping the N1 SM message.
 	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
 
-	// Construct the release list with a single session item.
 	list := ngapType.PDUSessionResourceToReleaseListRelCmd{
 		List: []ngapType.PDUSessionResourceToReleaseItemRelCmd{
 			{
@@ -339,7 +332,7 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 			return nil
 		}
 
-		operatorInfo, err := amf.GetOperatorInfo(ctx)
+		operatorInfo, err := amf.OperatorInfo(ctx)
 		if err != nil {
 			return fmt.Errorf("error getting operator info: %v", err)
 		}

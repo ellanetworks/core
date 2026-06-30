@@ -27,7 +27,7 @@ var nasSendTracer = otel.Tracer("ella-core/amf/nas/send")
 // signalling connection. A build failure is an invariant violation logged at
 // Error (the message is dropped, failing safe); a transport failure is logged at
 // Warn — delivery assurance is owned by the procedure's retransmission timer
-// (TS 24.501), not the caller. It mirrors the MME's void+log NAS send leaf.
+// (TS 24.501), not the caller.
 func sendGmm(ctx context.Context, ue *RanUe, spanName string, attrs []attribute.KeyValue, build func(*UeContext) ([]byte, error)) {
 	if ue == nil || ue.UeContext() == nil {
 		logger.AmfLog.Error("cannot send NAS message: ue or amf ue is nil", zap.String("message", spanName))
@@ -222,7 +222,7 @@ func SendRegistrationAccept(
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_registration_accept",
 		trace.WithAttributes(
-			attribute.String("supi", ue.SupiValue().String()),
+			attribute.String("supi", ue.Supi().String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -313,7 +313,7 @@ func SendRegistrationAccept(
 		}, func() {
 			ue.Log.Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))
 
-			// TS 24.501 5.5.1.2.8 case c, 5.5.1.3.8 case c
+			// TS 24.501
 			ue.TransitionTo(Registered)
 			ue.ClearRegistrationRequestData()
 		})
@@ -327,7 +327,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_configuration_update_command",
 		trace.WithAttributes(
-			attribute.String("supi", amfUe.SupiValue().String()),
+			attribute.String("supi", amfUe.Supi().String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)

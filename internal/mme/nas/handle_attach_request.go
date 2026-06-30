@@ -54,9 +54,9 @@ func ingestAttachRequest(ue *mme.UeContext, req *eps.AttachRequest) {
 	ue.EsmContainer = req.ESMMessageContainer
 	ue.CombinedAttach = req.EPSAttachType == epsAttachTypeCombined
 
-	// The UE's requested PDN type (IPv4/IPv6/IPv4v6) and optional requested APN ride
-	// in the PDN Connectivity Request inside the ESM container; default the PDN type
-	// to IPv4 if absent/unparsable and leave the APN empty (= use the default policy).
+	// The requested PDN type and APN ride in the PDN Connectivity Request inside the
+	// ESM container; absent or unparsable, the PDN type defaults to IPv4 and the APN
+	// stays empty (the default policy).
 	ue.RequestedPDNType = eps.PDNTypeIPv4
 	ue.RequestedAPN = ""
 
@@ -88,11 +88,10 @@ func isNativeGUTI(m *mme.MME, ctx context.Context, id eps.EPSMobileIdentity) boo
 	return id.MCC == plmn.Mcc && id.MNC == plmn.Mnc && id.MMEGroupID == group && id.MMECode == code
 }
 
-// reuseContextForGUTIAttach handles an integrity-protected ATTACH REQUEST whose
-// MAC the fresh context cannot verify, by resolving a native GUTI to a held EPS
-// security context (TS 23.401). If the Attach verifies against that
-// context, the MME reuses it and skips authentication; otherwise it returns
-// false so the caller falls back to a normal re-identify + authenticate attach.
+// reuseContextForGUTIAttach resolves a native GUTI in an ATTACH REQUEST the fresh
+// context cannot MAC-verify to a held EPS security context (TS 23.401). On a match
+// the MME reuses that context and skips authentication, returning true; otherwise
+// it returns false so the caller falls back to a re-identify + authenticate attach.
 // nas is the full integrity-protected message; body is its plaintext.
 func reuseContextForGUTIAttach(m *mme.MME, ctx context.Context, ue *mme.UeContext, nas, body []byte) bool {
 	req, err := eps.ParseAttachRequest(body)
@@ -117,12 +116,11 @@ func reuseContextForGUTIAttach(m *mme.MME, ctx context.Context, ue *mme.UeContex
 		return false
 	}
 
-	// Authentic returning UE: reuse the held EPS security context in place. The
-	// connection is rebound onto it and its NAS COUNTs continue (a native context is
-	// reused, not re-derived, so the counts are never reset — TS 24.301 §4.4.3,
-	// §5.4.3.3). Authentication and the security mode procedure are skipped; the
-	// Attach Accept rides the reused context at the continued counts, mirroring the
-	// 5G AMF and the EPS spec's native-context reuse.
+	// Authentic returning UE: rebind the connection onto the held EPS security
+	// context and continue its NAS COUNTs. A native context is reused, not re-derived,
+	// so the counts are never reset and the Attach Accept rides them at their current
+	// value; authentication and the security mode procedure are skipped
+	// (TS 24.301 §4.4.3, §5.4.3.3).
 	m.AdoptConn(existing, ue)
 	existing.CommitUplinkCount(count)
 

@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/s1ap/aper"
 )
 
-// S1SetupRequest is the S1 SETUP REQUEST message (TS 36.413 §9.1.8.4). An empty
+// S1SetupRequest is the S1 SETUP REQUEST message (TS 36.413). An empty
 // ENBName means the optional eNBname IE is absent. IEs that are not modeled are
 // preserved in unknownIEs so the message round-trips.
 type S1SetupRequest struct {

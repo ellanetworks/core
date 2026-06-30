@@ -9,10 +9,9 @@ import (
 	"github.com/ellanetworks/core/s1ap/aper"
 )
 
-// ErrorIndication is the ERROR INDICATION message (TS 36.413 §9.1.4.3). It
+// ErrorIndication is the ERROR INDICATION message (TS 36.413). It
 // reports a protocol error not handled by a procedure-specific failure message.
-// All IEs are optional; CriticalityDiagnostics and S-TMSI are preserved but not
-// decoded.
+// All IEs are optional.
 type ErrorIndication struct {
 	MMEUES1APID            *MMEUES1APID
 	ENBUES1APID            *ENBUES1APID

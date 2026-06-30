@@ -401,7 +401,7 @@ func notifyRANsUnavailable(ctx context.Context, amfInstance *amf.AMF, timeout ti
 	}
 
 	queryCtx, queryCancel := context.WithTimeout(ctx, timeout)
-	operatorInfo, err := amfInstance.GetOperatorInfo(queryCtx)
+	operatorInfo, err := amfInstance.OperatorInfo(queryCtx)
 
 	queryCancel()
 

@@ -26,7 +26,7 @@ import (
 
 var nasTracer = otel.Tracer("ella-core/amf/nas")
 
-// HandleNAS processes an uplink NAS PDU and emits a span around the entire operation.
+// HandleNAS processes an uplink NAS PDU.
 func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu []byte) error {
 	if ue == nil {
 		return fmt.Errorf("ue is nil")
@@ -82,7 +82,7 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu 
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
 			attribute.String("nas.message_type", msgTypeName),
-			attribute.String("ue.supi", ue.UeContext().SupiValue().String()),
+			attribute.String("ue.supi", ue.UeContext().Supi().String()),
 		),
 	)
 	defer span.End()
@@ -90,20 +90,20 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu 
 	logger.WithTrace(ctx, logger.AmfLog).Info(
 		"Received NAS message",
 		logger.MessageType(msgTypeName),
-		logger.SUPI(ue.UeContext().SupiValue().String()),
+		logger.SUPI(ue.UeContext().Supi().String()),
 	)
 
 	err = HandleGmmMessage(ctx, amfInstance, ue.UeContext(), msg.GmmMessage, integrityVerified)
 	if err != nil {
-		return fmt.Errorf("error handling NAS message for supi %s: %v", ue.UeContext().SupiValue().String(), err)
+		return fmt.Errorf("error handling NAS message for supi %s: %v", ue.UeContext().Supi().String(), err)
 	}
 
 	return nil
 }
 
-/*
-fetch Guti if present incase of integrity protected Nas Message
-*/
+// fetchUeContextWithMobileIdentity resolves an existing UE context from the GUTI
+// or 5G-S-TMSI carried by an inbound NAS message. It returns nil when the message
+// must register on a fresh context.
 func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF, payload []byte) (*amf.UeContext, error) {
 	if payload == nil {
 		return nil, fmt.Errorf("nas payload is empty")
@@ -155,7 +155,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 			// A SUCI is a one-time concealed identity, not a handle to an existing
 			// context. Always register on a fresh context; any prior context for
 			// the same subscriber is superseded only once this registration is
-			// authenticated (TS 24.501 §5.5.1.2.8 f, reconciled by SUPI on accept).
+			// authenticated (TS 24.501, reconciled by SUPI on accept).
 			suci, _ := nasConvert.SuciToString(mobileIdentity5GSContents)
 			logger.WithTrace(ctx, logger.AmfLog).Debug("Suci received in Registration Request Message; using a fresh context", zap.String("suci", suci))
 
@@ -202,7 +202,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 	}
 
 	if !ue.ReuseForInboundNAS(payload) {
-		// TS 24.501 §4.4.4.3: this message cites an existing context but is not
+		// TS 24.501: this message cites an existing context but is not
 		// integrity-verified for it. Register on a fresh context; the committed
 		// context (its NAS security context and PDU sessions) is left unchanged.
 		logger.WithTrace(ctx, logger.AmfLog).Info("NAS message cites a known GUTI but is not authenticated for that context; using a fresh context", logger.GUTI(guti.String()))

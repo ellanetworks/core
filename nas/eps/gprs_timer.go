@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// GPRS Timer unit codes (TS 24.008 §10.5.7.3): the high three bits of the octet.
+// GPRS Timer unit codes (TS 24.008): the high three bits of the octet.
 const (
 	gprsTimerUnit2Seconds  uint8 = 0b000
 	gprsTimerUnit1Minute   uint8 = 0b001
@@ -26,11 +26,10 @@ var gprsTimerUnits = []struct {
 	{gprsTimerUnitDecihours, 6 * time.Minute}, // 1 decihour = 1/10 hour
 }
 
-// EncodeGPRSTimer encodes d as a one-octet GPRS Timer IE value (TS 24.008
-// §10.5.7.3): the high three bits select the unit and the low five bits the
-// value (0–31). It returns an error if d cannot be represented exactly, so a
-// configured timer that the IE cannot carry fails loudly rather than silently
-// rounding.
+// EncodeGPRSTimer encodes d as a one-octet GPRS Timer IE value (TS 24.008):
+// the high three bits select the unit and the low five bits the
+// value (0–31). It returns an error when d cannot be represented exactly, so a
+// configured timer the IE cannot carry fails loudly.
 func EncodeGPRSTimer(d time.Duration) (uint8, error) {
 	for _, u := range gprsTimerUnits {
 		if d%u.step != 0 {
@@ -43,5 +42,5 @@ func EncodeGPRSTimer(d time.Duration) (uint8, error) {
 		}
 	}
 
-	return 0, fmt.Errorf("eps: cannot encode %v as a GPRS Timer (TS 24.008 §10.5.7.3)", d)
+	return 0, fmt.Errorf("eps: cannot encode %v as a GPRS Timer (TS 24.008)", d)
 }

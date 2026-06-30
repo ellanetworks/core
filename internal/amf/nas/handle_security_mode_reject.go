@@ -15,7 +15,7 @@ import (
 )
 
 func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *nasMessage.SecurityModeReject) error {
-	if state := ue.GetState(); state != amf.SecurityMode {
+	if state := ue.State(); state != amf.SecurityMode {
 		return fmt.Errorf("state mismatch: receive Security Mode Reject message in state %s", state)
 	}
 
@@ -26,9 +26,9 @@ func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *nasMe
 		conn.Procedures.End(procedure.SecurityMode)
 	}
 
-	ue.Log.Error("UE rejected the security mode command, abort the ongoing procedure", logger.Cause(nasMessage.Cause5GMMToString(msg.GetCauseValue())), logger.SUPI(ue.SupiValue().String()))
+	ue.Log.Error("UE rejected the security mode command, abort the ongoing procedure", logger.Cause(nasMessage.Cause5GMMToString(msg.GetCauseValue())), logger.SUPI(ue.Supi().String()))
 
-	ue.ClearSecurityContext()
+	ue.ClearSecured()
 
 	ranUe := ue.RanUe()
 	if ranUe == nil {

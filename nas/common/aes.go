@@ -11,7 +11,7 @@ import (
 
 // AESCMACIntegrity is 128-EIA2: AES-CMAC over
 // COUNT‖(BEARER<<3|DIRECTION<<2)‖0³‖message, truncated to the first 4 octets
-// (TS 33.401 §B.2.2).
+// (TS 33.401).
 type AESCMACIntegrity struct{}
 
 func (AESCMACIntegrity) MAC(key [16]byte, count uint32, bearer, direction uint8, msg []byte) ([4]byte, error) {
@@ -33,10 +33,10 @@ func (AESCMACIntegrity) MAC(key [16]byte, count uint32, bearer, direction uint8,
 }
 
 // AESCTRCipher is 128-EEA2: AES in counter mode with the 16-octet counter block
-// COUNT‖(BEARER<<3|DIRECTION<<2)‖0¹¹ (TS 33.401 §B.1.2). The block is not a fixed
+// COUNT‖(BEARER<<3|DIRECTION<<2)‖0¹¹ (TS 33.401). The block is not a fixed
 // nonce — it is derived from the per-message NAS COUNT, which is strictly
 // monotonic per direction and never repeats within a security context
-// (TS 24.301 §4.4.3), giving the uniqueness CTR requires.
+// (TS 24.301), giving the uniqueness CTR requires.
 type AESCTRCipher struct{}
 
 func (AESCTRCipher) Apply(key [16]byte, count uint32, bearer, direction uint8, data []byte) ([]byte, error) {
@@ -58,9 +58,7 @@ func (AESCTRCipher) Apply(key [16]byte, count uint32, bearer, direction uint8, d
 }
 
 // aesCMAC computes AES-CMAC (RFC 4493 / NIST SP 800-38B) over msg. It is the
-// building block of 128-EIA2; the NAS-MAC is its first four octets. Implemented
-// on top of crypto/aes (no external dependency) and verified against the
-// RFC 4493 test vectors.
+// building block of 128-EIA2; the NAS-MAC is its first four octets.
 func aesCMAC(key, msg []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {

@@ -99,8 +99,8 @@ func TestHandleInitialContextSetupFailure_T3550Running(t *testing.T) {
 		t.Error("expected T3550 to be nil after failure")
 	}
 
-	if amfUe.GetState() != amf.Deregistered {
-		t.Errorf("expected state Deregistered, got %s", amfUe.GetState())
+	if amfUe.State() != amf.Deregistered {
+		t.Errorf("expected state Deregistered, got %s", amfUe.State())
 	}
 }
 

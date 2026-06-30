@@ -15,10 +15,9 @@ import (
 var gmmTracer = otel.Tracer("ella-core/amf/nas/handler")
 
 // HandleGmmMessage dispatches an inbound GMM message to its handler.
-// integrityVerified is true when the message was integrity-protected and its MAC
-// verified; it is false when the message was admitted without verified integrity
-// by the decoder verdict (plain or mac-failed but whitelisted). Handlers that
-// vary their response based on integrity status receive it.
+// integrityVerified is true only when the message was integrity-protected with a
+// verified MAC; it is false when the decoder admitted the message without verified
+// integrity (plain, or MAC-failed but whitelisted).
 func HandleGmmMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nas.GmmMessage, integrityVerified bool) error {
 	msgType := msg.GetMessageType()
 

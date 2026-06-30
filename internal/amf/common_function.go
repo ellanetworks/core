@@ -60,8 +60,6 @@ func AttachSourceUeTargetUe(sourceUe, targetUe *RanUe) error {
 
 	targetUe.amfUe = amfUe
 
-	// Install the handover FSM — the single source of truth for the source/target
-	// pair (see handover.go); torn down by UeContext.ClearHandover.
 	amfUe.BeginHandover(sourceUe, targetUe)
 
 	return nil

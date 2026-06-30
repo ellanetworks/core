@@ -3,7 +3,7 @@
 
 package aper
 
-// WriteLength encodes an unconstrained length determinant (X.691 §11.9.3).
+// WriteLength encodes an unconstrained length determinant (X.691).
 // Counts up to 16383 use the one- or two-octet form; larger counts require the
 // 16K-fragmented form and return [ErrFragmented].
 func (w *Writer) WriteLength(n int) error {
@@ -27,7 +27,7 @@ func (w *Writer) WriteLength(n int) error {
 	return nil
 }
 
-// ReadLength decodes an unconstrained length determinant (X.691 §11.9.3).
+// ReadLength decodes an unconstrained length determinant (X.691).
 func (r *Reader) ReadLength() (int, error) {
 	if err := r.Align(); err != nil {
 		return 0, err
@@ -56,7 +56,7 @@ func (r *Reader) ReadLength() (int, error) {
 
 // WriteConstrainedLength encodes a length/count constrained to [lb, ub]. When
 // ub is below 64K the count is a constrained whole number; otherwise it falls
-// back to the unconstrained determinant (X.691 §11.9.4.1).
+// back to the unconstrained determinant (X.691).
 func (w *Writer) WriteConstrainedLength(n, lb, ub int) error {
 	if ub >= 65536 {
 		return w.WriteLength(n)

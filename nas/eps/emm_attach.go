@@ -6,7 +6,7 @@ package eps
 import "github.com/ellanetworks/core/nas/common"
 
 // IEIs of the ATTACH REQUEST optional information elements that the message
-// orders at or before the MS network capability (TS 24.301 §8.2.4).
+// orders at or before the MS network capability (TS 24.301).
 const (
 	oldPTMSISignatureIEI        = 0x19 // TV, 3-octet value
 	additionalGUTIIEI           = 0x50 // TLV
@@ -16,7 +16,7 @@ const (
 )
 
 // attachRequestIEs are the optional IEs the ATTACH REQUEST orders at or before
-// the MS network capability (TS 24.301 §8.2.4). The walker delimits them so the
+// the MS network capability (TS 24.301). The walker delimits them so the
 // MS network capability is read correctly regardless of which precede it; IEs
 // that follow it are not consumed by Ella Core.
 var attachRequestIEs = []common.OptionalIE{
@@ -27,10 +27,9 @@ var attachRequestIEs = []common.OptionalIE{
 	{IEI: msNetworkCapabilityIEI, Format: common.IETLV},
 }
 
-// AttachRequest is the ATTACH REQUEST message (TS 24.301 §8.2.4), sent by the UE
-// to initiate EPS attach. The mandatory information elements are decoded;
-// MSNetworkCapability is decoded out of the optional part as a convenience for
-// the GERAN security capabilities the SECURITY MODE COMMAND replays.
+// AttachRequest is the ATTACH REQUEST message (TS 24.301).
+// MSNetworkCapability is decoded from the optional part for the GERAN security
+// capabilities the SECURITY MODE COMMAND replays.
 type AttachRequest struct {
 	EPSAttachType       uint8
 	NASKeySetIdentifier uint8

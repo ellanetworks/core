@@ -45,7 +45,7 @@ func TestHandlePDUSessionResourceSetupResponse_UnknownAMFUENGAPID(t *testing.T) 
 
 	sender := ran.NGAPSender.(*FakeNGAPSender)
 	if len(sender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication (TS 38.413 §10.6), got %d", len(sender.SentErrorIndications))
+		t.Fatalf("expected 1 ErrorIndication (TS 38.413), got %d", len(sender.SentErrorIndications))
 	}
 }
 
@@ -62,7 +62,7 @@ func TestHandlePDUSessionResourceSetupResponse_OnlyUnknownRANUENGAPID(t *testing
 
 	sender := ran.NGAPSender.(*FakeNGAPSender)
 	if len(sender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication (TS 38.413 §10.6), got %d", len(sender.SentErrorIndications))
+		t.Fatalf("expected 1 ErrorIndication (TS 38.413), got %d", len(sender.SentErrorIndications))
 	}
 }
 

@@ -10,20 +10,20 @@ import (
 )
 
 // maxnoofIndividualS1ConnectionsToReset bounds the UE-associated logical
-// S1-connection lists in Reset/Reset Acknowledge (TS 36.413 §9.3).
+// S1-connection lists in Reset/Reset Acknowledge (TS 36.413).
 const maxnoofIndividualS1ConnectionsToReset = 256
 
 // resetTypeChoiceRootCount is the number of root alternatives of the ResetType
-// CHOICE: s1-Interface and partOfS1-Interface (TS 36.413 §9.2.1.3).
+// CHOICE: s1-Interface and partOfS1-Interface (TS 36.413).
 const resetTypeChoiceRootCount = 2
 
 // resetAllRootCount is the number of root values of ResetAll ENUMERATED
-// { reset-all, ... } (TS 36.413 §9.2.1.3).
+// { reset-all, ... } (TS 36.413).
 const resetAllRootCount = 1
 
 // UEAssociatedLogicalS1ConnectionItem identifies one UE-associated logical
-// S1-connection by its MME-UE-S1AP-ID and/or eNB-UE-S1AP-ID (TS 36.413
-// §9.2.3.x). Both identities are optional; an item may carry either or both.
+// S1-connection by its MME-UE-S1AP-ID and/or eNB-UE-S1AP-ID (TS 36.413).
+// Both identities are optional; an item may carry either or both.
 type UEAssociatedLogicalS1ConnectionItem struct {
 	MMEUES1APID *MMEUES1APID
 	ENBUES1APID *ENBUES1APID
@@ -80,7 +80,7 @@ func decodeUEAssociatedLogicalS1ConnectionItem(r *aper.Reader) (UEAssociatedLogi
 	return it, nil
 }
 
-// ResetType is the ResetType CHOICE (TS 36.413 §9.2.1.3): All selects
+// ResetType is the ResetType CHOICE (TS 36.413): All selects
 // s1-Interface (ResetAll, value reset-all), reset of the whole S1 interface;
 // otherwise Part selects partOfS1-Interface, the UE-associated logical
 // S1-connections to reset.
@@ -134,7 +134,7 @@ func decodeResetType(r *aper.Reader) (ResetType, error) {
 	}
 }
 
-// Reset is the RESET message (TS 36.413 §9.1.2.6), sent by the eNB or MME to
+// Reset is the RESET message (TS 36.413), sent by the eNB or MME to
 // reset the whole S1 interface or a subset of its UE-associated logical
 // connections.
 type Reset struct {
@@ -224,7 +224,7 @@ func ParseReset(value []byte) (*Reset, error) {
 	return m, nil
 }
 
-// ResetAcknowledge is the RESET ACKNOWLEDGE message (TS 36.413 §9.1.2.7). The
+// ResetAcknowledge is the RESET ACKNOWLEDGE message (TS 36.413). The
 // ConnectionList is present only in answer to a partOfS1-Interface reset, where
 // it echoes the UE-associated logical S1-connections that were reset.
 type ResetAcknowledge struct {

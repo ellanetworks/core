@@ -38,7 +38,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	// Advance the FSM hoPrepared→hoCommitting; an out-of-order Handover Notify (no
 	// prepared handover) does not match and is dropped before the user plane is
-	// switched. The context is ended below in lockstep with End(N2Handover).
+	// switched.
 	if !amfUe.MarkHandoverCommitting() {
 		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Notify with no prepared handover; dropping")
 		return
@@ -52,7 +52,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	amfUe.ClearHandover()
 
-	// Per 3GPP TS 23.502 §4.9.1.3.3 step 7, the SMF sends N4 Session
+	// Per 3GPP TS 23.502, the SMF sends N4 Session
 	// Modification to the UPF with the new AN tunnel info at this point.
 	for _, sr := range amfUe.SmContextRefs() {
 		if sr.Ref == "" {

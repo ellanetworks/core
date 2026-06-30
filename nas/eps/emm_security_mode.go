@@ -7,8 +7,8 @@ import "github.com/ellanetworks/core/nas/common"
 
 // imeisvRequestIEI is the IEI of the IMEISV request information element (type 1)
 // in SECURITY MODE COMMAND; imeisvRequested is its "IMEISV requested" value
-// (TS 24.301 §9.9.3.18). imeisvIEI is the IEI of the IMEISV mobile-identity TLV
-// returned in SECURITY MODE COMPLETE (TS 24.301 §8.2.21).
+// (TS 24.301). imeisvIEI is the IEI of the IMEISV mobile-identity TLV
+// returned in SECURITY MODE COMPLETE (TS 24.301).
 const (
 	imeisvRequestIEI uint8 = 0xC
 	imeisvRequested  uint8 = 0x1
@@ -16,7 +16,7 @@ const (
 	hashMMEIEI       uint8 = 0x4F
 )
 
-// SecurityModeCommand is the SECURITY MODE COMMAND message (TS 24.301 §8.2.20),
+// SecurityModeCommand is the SECURITY MODE COMMAND message (TS 24.301),
 // sent by the MME to select the NAS security algorithms. The optional part is
 // preserved verbatim.
 type SecurityModeCommand struct {
@@ -25,7 +25,7 @@ type SecurityModeCommand struct {
 	NASKeySetIdentifier            uint8
 	ReplayedUESecurityCapabilities []byte
 	IMEISVRequested                bool   // request the UE's IMEISV in SECURITY MODE COMPLETE
-	HASHMME                        []byte // 8-octet hash of the triggering plain Attach/TAU (TS 24.301 §9.9.3.50), nil when absent
+	HASHMME                        []byte // 8-octet hash of the triggering plain Attach/TAU (TS 24.301), nil when absent
 }
 
 // Marshal encodes the plain SECURITY MODE COMMAND message.
@@ -33,7 +33,7 @@ func (m *SecurityModeCommand) Marshal() ([]byte, error) {
 	var w common.Writer
 
 	writeEMMHeader(&w, MsgSecurityModeCommand)
-	w.U8(m.CipheringAlgorithm&0x07<<4 | m.IntegrityAlgorithm&0x07) // selected NAS security algorithms (§9.9.3.23)
+	w.U8(m.CipheringAlgorithm&0x07<<4 | m.IntegrityAlgorithm&0x07) // selected NAS security algorithms
 	w.U8(m.NASKeySetIdentifier & 0x0F)                             // NAS KSI | spare half octet
 
 	if err := w.LV(m.ReplayedUESecurityCapabilities); err != nil {
@@ -102,20 +102,20 @@ func ParseSecurityModeCommand(b []byte) (*SecurityModeCommand, error) {
 }
 
 // securityModeCommandIEs are the optional type-4 IEs Ella Core round-trips in a
-// SECURITY MODE COMMAND (TS 24.301 §8.2.20): the HashMME.
+// SECURITY MODE COMMAND (TS 24.301): the HashMME.
 var securityModeCommandIEs = []common.OptionalIE{
 	{IEI: hashMMEIEI, Format: common.IETLV},
 }
 
-// SecurityModeComplete is the SECURITY MODE COMPLETE message (TS 24.301
-// §8.2.21). It has no mandatory information elements; the UE includes its IMEISV
+// SecurityModeComplete is the SECURITY MODE COMPLETE message (TS 24.301).
+// It has no mandatory information elements; the UE includes its IMEISV
 // (a mobile identity, IEI 0x23) when the MME requested it.
 type SecurityModeComplete struct {
 	IMEISV []byte // IMEISV mobile-identity value (IEI 0x23), when present
 }
 
 // securityModeCompleteIEs are the optional IEs Ella Core consumes from a
-// SECURITY MODE COMPLETE (TS 24.301 §8.2.21): the UE's IMEISV mobile identity.
+// SECURITY MODE COMPLETE (TS 24.301): the UE's IMEISV mobile identity.
 var securityModeCompleteIEs = []common.OptionalIE{
 	{IEI: imeisvIEI, Format: common.IETLV},
 }
@@ -160,7 +160,7 @@ func ParseSecurityModeComplete(b []byte) (*SecurityModeComplete, error) {
 	return m, nil
 }
 
-// SecurityModeReject is the SECURITY MODE REJECT message (TS 24.301 §8.2.22).
+// SecurityModeReject is the SECURITY MODE REJECT message (TS 24.301).
 type SecurityModeReject struct {
 	Cause uint8
 }

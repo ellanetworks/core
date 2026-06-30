@@ -12,8 +12,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// resolveUE looks up a UE context on the sending radio per TS 38.413 clause
-// 10.6 (Handling of AP ID). At the AMF the local AP ID is the AMF UE NGAP ID and
+// resolveUE looks up a UE context on the sending radio per TS 38.413 (Handling
+// of AP ID). At the AMF the local AP ID is the AMF UE NGAP ID and
 // the remote AP ID is the RAN UE NGAP ID, so the connection is identified by the
 // AMF UE NGAP ID and the RAN UE NGAP ID is then cross-checked.
 //
@@ -22,7 +22,7 @@ import (
 //     AP ID.
 //
 // On either error an Error Indication carrying the received AP IDs is sent to
-// the sender (clause 10.6, clause 8.7.5.2) and the function returns (nil, false).
+// the sender (TS 38.413) and the function returns (nil, false).
 func resolveUE(ctx context.Context, ran *amf.Radio, ranID *int64, amfID *int64) (*amf.RanUe, bool) {
 	if amfID != nil {
 		ranUe := ran.FindUEByAmfUeNgapID(*amfID)

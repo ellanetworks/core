@@ -4,8 +4,7 @@
 package amf
 
 // hoState is the stage of an in-flight N2 handover, validated on each transition
-// so an out-of-order NGAP message cannot advance it. It mirrors the 4G MME's
-// hoState (TS 38.413 §8.4).
+// so an out-of-order NGAP message cannot advance it (TS 38.413).
 type hoState uint8
 
 const (
@@ -15,11 +14,10 @@ const (
 )
 
 // handoverContext is the explicit N2 handover FSM for one UE: the single source of
-// truth for the source/target RanUe pair and the procedure's stage. It mirrors the
-// 4G MME's handoverContext and is guarded by UeContext.mu. The procedure registry
-// tracks the same handover for conflict and supervision (§6.9.5.1) and is cleared in
-// lockstep with it; the SMF owns the per-session N2 transfer; this FSM owns only the
-// source/target relationship and the ordering.
+// truth for the source/target RanUe pair and the procedure's stage, guarded by
+// UeContext.mu. The procedure registry tracks the same handover for conflict and
+// supervision and is cleared in lockstep; the SMF owns the per-session
+// N2 transfer, this FSM owns only the source/target relationship and ordering.
 type handoverContext struct {
 	state  hoState
 	source *RanUe
@@ -42,8 +40,7 @@ func (ue *UeContext) BeginHandover(source, target *RanUe) {
 // MarkHandoverCommitting advances the FSM from hoPrepared to hoCommitting when the
 // UE reaches the target (HANDOVER NOTIFY). It returns false when there is no
 // handover or it is not at hoPrepared, so an out-of-order HANDOVER NOTIFY is
-// rejected. The AMF commits synchronously, so the context is then ended by the
-// caller via ClearHandover.
+// rejected.
 func (ue *UeContext) MarkHandoverCommitting() bool {
 	if ue == nil {
 		return false
@@ -62,8 +59,8 @@ func (ue *UeContext) MarkHandoverCommitting() bool {
 }
 
 // ClearHandover ends the handover FSM, leaving no in-flight handover. Idempotent;
-// safe on a nil receiver. Called wherever End(N2Handover) is called, so the FSM
-// stays in lockstep with the procedure registry.
+// safe on a nil receiver. Kept in lockstep with the procedure registry's
+// End(N2Handover).
 func (ue *UeContext) ClearHandover() {
 	if ue == nil {
 		return
@@ -101,8 +98,8 @@ func (ue *UeContext) HandoverSource() *RanUe {
 		return nil
 	}
 
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	if ue.handover == nil {
 		return nil
@@ -117,8 +114,8 @@ func (ue *UeContext) HandoverTarget() *RanUe {
 		return nil
 	}
 
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	if ue.handover == nil {
 		return nil
@@ -127,14 +124,13 @@ func (ue *UeContext) HandoverTarget() *RanUe {
 	return ue.handover.target
 }
 
-// HandoverInProgress reports whether a handover FSM is installed for this UE.
 func (ue *UeContext) HandoverInProgress() bool {
 	if ue == nil {
 		return false
 	}
 
-	ue.mu.RLock()
-	defer ue.mu.RUnlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	return ue.handover != nil
 }

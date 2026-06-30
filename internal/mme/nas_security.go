@@ -23,7 +23,7 @@ func HashMME(input []byte) []byte {
 	return sum[:8]
 }
 
-// selectAlgorithms picks the EPS NAS algorithms allowed by both the UE network
+// SelectAlgorithms picks the EPS NAS algorithms allowed by both the UE network
 // capability and the operator policy (TS 33.401), in the operator's order of
 // preference. The operator's list uses the RAT-neutral algorithm identities
 // (NULL ≡ EEA0/EIA0, SNOW3G ≡ 128-EEA1/128-EIA1, AES ≡ 128-EEA2/128-EIA2). It

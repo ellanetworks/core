@@ -110,7 +110,7 @@ func (r *SessionReconciler) Reconcile() {
 	ues := make([]*UeContext, 0, len(r.amf.UEs))
 
 	for _, ue := range r.amf.UEs {
-		if ue.GetState() == Registered {
+		if ue.State() == Registered {
 			ues = append(ues, ue)
 		}
 	}
@@ -127,14 +127,14 @@ func (r *SessionReconciler) Reconcile() {
 }
 
 func (r *SessionReconciler) reconcileUE(ue *UeContext) {
-	ue.mu.RLock()
+	ue.mu.Lock()
 	smContextRefs := make([]string, 0, len(ue.SmContextList))
 
 	for _, smCtx := range ue.SmContextList {
 		smContextRefs = append(smContextRefs, smCtx.Ref)
 	}
 
-	ue.mu.RUnlock()
+	ue.mu.Unlock()
 
 	for _, ref := range smContextRefs {
 		if ref == "" {
@@ -143,8 +143,7 @@ func (r *SessionReconciler) reconcileUE(ue *UeContext) {
 
 		policy, reason := r.fetchSessionPolicy(ref)
 
-		// Empty reason means a transient error occurred; skip this session
-		// and let the backstop timer retry later.
+		// ReconcileSkip signals a transient error; let the backstop timer retry.
 		if reason == models.ReconcileSkip {
 			continue
 		}

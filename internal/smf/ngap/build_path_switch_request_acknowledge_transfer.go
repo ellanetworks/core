@@ -14,14 +14,13 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-// TS 38.413 9.3.4.9
+// TS 38.413
 func BuildPathSwitchRequestAcknowledgeTransfer(teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr) ([]byte, error) {
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, teid)
 
 	pathSwitchRequestAcknowledgeTransfer := ngapType.PathSwitchRequestAcknowledgeTransfer{}
 
-	// UL NG-U UP TNL Information(optional) TS 38.413 9.3.2.2
 	pathSwitchRequestAcknowledgeTransfer.ULNGUUPTNLInformation = new(ngapType.UPTransportLayerInformation)
 	pathSwitchRequestAcknowledgeTransfer.ULNGUUPTNLInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
 	pathSwitchRequestAcknowledgeTransfer.ULNGUUPTNLInformation.GTPTunnel = new(ngapType.GTPTunnel)
@@ -34,7 +33,6 @@ func BuildPathSwitchRequestAcknowledgeTransfer(teid uint32, n3IPv4 netip.Addr, n
 
 	pathSwitchRequestAcknowledgeTransfer.ULNGUUPTNLInformation.GTPTunnel.TransportLayerAddress.Value = tla
 
-	// Security Indication(optional) TS 38.413 9.3.1.27
 	pathSwitchRequestAcknowledgeTransfer.SecurityIndication = new(ngapType.SecurityIndication)
 	pathSwitchRequestAcknowledgeTransfer.SecurityIndication.IntegrityProtectionIndication.Value = ngapType.IntegrityProtectionIndicationPresentNotNeeded
 	pathSwitchRequestAcknowledgeTransfer.SecurityIndication.ConfidentialityProtectionIndication.Value = ngapType.ConfidentialityProtectionIndicationPresentNotNeeded

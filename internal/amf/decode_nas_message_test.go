@@ -21,7 +21,7 @@ func newDecoderTestUE(t *testing.T) *UeContext {
 
 	ue := NewUeContext()
 	ue.Log = zap.NewNop()
-	ue.securityContextAvailable = true
+	ue.secured = true
 
 	radio := &Radio{
 		Name:   "test-gNB",
@@ -160,7 +160,7 @@ func encodePlainRegistrationRequest(t *testing.T) []byte {
 }
 
 // TestDecodeNASMessage_PlainServiceRequestRejected verifies a plain
-// ServiceRequest is rejected by the decoder (TS 24.501 §4.4.4.3).
+// ServiceRequest is rejected by the decoder (TS 24.501).
 func TestDecodeNASMessage_PlainServiceRequestRejected(t *testing.T) {
 	ue := newDecoderTestUE(t)
 	payload := encodePlainServiceRequest(t)
@@ -171,10 +171,10 @@ func TestDecodeNASMessage_PlainServiceRequestRejected(t *testing.T) {
 	}
 
 	if !strings.Contains(err.Error(), "not permitted by TS 24.501") {
-		t.Errorf("expected TS 24.501 §4.4.4.3 rejection, got: %v", err)
+		t.Errorf("expected TS 24.501 rejection, got: %v", err)
 	}
 
-	if !ue.securityContextAvailable {
+	if !ue.secured {
 		t.Error("decoder must NOT tear down SecurityContextAvailable on a hostile plain NAS message (DoS amplification)")
 	}
 }
@@ -191,10 +191,10 @@ func TestDecodeNASMessage_PlainULNasTransportRejected(t *testing.T) {
 	}
 
 	if !strings.Contains(err.Error(), "not permitted by TS 24.501") {
-		t.Errorf("expected TS 24.501 §4.4.4.3 rejection, got: %v", err)
+		t.Errorf("expected TS 24.501 rejection, got: %v", err)
 	}
 
-	if !ue.securityContextAvailable {
+	if !ue.secured {
 		t.Error("decoder must NOT tear down SecurityContextAvailable on a hostile plain NAS message")
 	}
 }
@@ -204,7 +204,7 @@ func TestDecodeNASMessage_PlainULNasTransportRejected(t *testing.T) {
 // mutate security state.
 func TestDecodeNASMessage_PlainRegistrationRequest_Bootstrap(t *testing.T) {
 	ue := newDecoderTestUE(t)
-	ue.securityContextAvailable = false // fresh UE
+	ue.secured = false // fresh UE
 	payload := encodePlainRegistrationRequest(t)
 
 	result, err := DecodeNASMessage(ue, payload)
@@ -220,7 +220,7 @@ func TestDecodeNASMessage_PlainRegistrationRequest_Bootstrap(t *testing.T) {
 		t.Errorf("expected VerdictPlainAllowed, got %d", result.Verdict)
 	}
 
-	if ue.securityContextAvailable {
+	if ue.secured {
 		t.Error("a fresh UE must still have SecurityContextAvailable=false after the decoder runs")
 	}
 }
@@ -245,21 +245,21 @@ func TestDecodeNASMessage_PlainRegistrationRequest_WithExistingContext(t *testin
 		t.Errorf("expected VerdictPlainAllowed, got %d", result.Verdict)
 	}
 
-	if !ue.securityContextAvailable {
+	if !ue.secured {
 		t.Error("decoder must NOT clear SecurityContextAvailable; that is the handler's job")
 	}
 }
 
 // TestDecodeNASMessage_PlainDeregistrationRequest_PassesDecoder verifies
 // a plain DeregistrationRequest is accepted by the decoder (it is on the
-// §4.4.4.3 whitelist).
+// whitelist).
 func TestDecodeNASMessage_PlainDeregistrationRequest_PassesDecoder(t *testing.T) {
 	ue := newDecoderTestUE(t)
 	payload := encodePlainDeregistrationRequest(t)
 
 	result, err := DecodeNASMessage(ue, payload)
 	if err != nil {
-		t.Fatalf("plain DeregistrationRequest is on the §4.4.4.3 whitelist; decoder must return it: %v", err)
+		t.Fatalf("plain DeregistrationRequest is on the whitelist; decoder must return it: %v", err)
 	}
 
 	if result.Message.GmmHeader.GetMessageType() != nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration {
@@ -270,7 +270,7 @@ func TestDecodeNASMessage_PlainDeregistrationRequest_PassesDecoder(t *testing.T)
 		t.Errorf("expected VerdictPlainAllowed, got %d", result.Verdict)
 	}
 
-	if !ue.securityContextAvailable {
+	if !ue.secured {
 		t.Error("decoder must NOT clear SecurityContextAvailable")
 	}
 }

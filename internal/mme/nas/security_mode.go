@@ -66,7 +66,6 @@ func startSecurityMode(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 		return
 	}
 
-	// EPS-AKA has succeeded; install the negotiated NAS security context.
 	if err := ue.InstallNASSecurityContext(eea, eia, mme.MintAuthProofForSecurityMode()); err != nil {
 		logger.MmeLog.Error("failed to install NAS security context", zap.Error(err))
 		return
@@ -89,7 +88,6 @@ func startSecurityMode(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 		return
 	}
 
-	// Integrity protected with the new EPS security context (TS 24.301).
 	wire, err := ue.ProtectDownlink(plain, eps.SHTIntegrityProtectedNewContext)
 	if err != nil {
 		logger.MmeLog.Error("failed to protect Security Mode Command", zap.Error(err))

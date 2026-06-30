@@ -31,12 +31,12 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, conn mme.NasWriter,
 		return
 	}
 
-	// A security-protected NAS message from a UE that presents its S-TMSI is a
-	// resume in an existing security context (e.g. a TAU from idle). The message
-	// is authenticated against the resolved context before the context is bound to
-	// the requesting association (TS 24.301 §4.4.4.3), so an unverified message
-	// cannot move the UE. A UE without a resolvable context (e.g. after an MME
-	// restart) falls through to a fresh context below.
+	// A security-protected NAS message from a UE presenting its S-TMSI is a resume
+	// in an existing security context (e.g. a TAU from idle). It is authenticated
+	// against the resolved context before the context is bound to the requesting
+	// association (TS 24.301 §4.4.4.3), so an unverified message cannot move the UE.
+	// A UE without a resolvable context (e.g. after an MME restart) falls through to
+	// a fresh context below.
 	if len(nas) > 0 && nas[0]>>4 != uint8(eps.SHTPlain) && msg.STMSI != nil {
 		if ue, ok := m.LookupUeByMTMSI(msg.STMSI.MTMSI); ok && ue.EMMState() == mme.EMMRegistered && ue.Secured() {
 			plain, count, err := ue.TryUnprotectUplink(nas)
@@ -79,7 +79,7 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, conn mme.NasWriter,
 	if !isInitialAttach(nas) {
 		// A protected TRACKING AREA UPDATE the MME cannot resolve (e.g. a periodic
 		// update after an MME restart) is rejected with EMM cause #9 over the bare
-		// connection, so the UE re-attaches at once instead of waiting out T3430
+		// connection, so the UE re-attaches at once without waiting out T3430
 		// (TS 24.301 §5.5.3.2.5).
 		if isProtectedTrackingAreaUpdate(nas) {
 			metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
@@ -108,10 +108,9 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, conn mme.NasWriter,
 }
 
 // isInitialAttach reports whether a fresh connection's first NAS message is an
-// ATTACH REQUEST — the only message warranting a new UE context (TS 24.301):
-// plain for an IMSI or foreign-GUTI attach, or integrity-only for a native-GUTI
-// re-attach whose body is readable without a security context. A ciphered or
-// non-EMM message cannot be an initial attach the network can act on.
+// ATTACH REQUEST — the only message warranting a new UE context (TS 24.301). A
+// ciphered or non-EMM message cannot be an initial attach the network can act on,
+// so only a plain or integrity-protected (peekable) body matches.
 func isInitialAttach(nas []byte) bool {
 	pd, err := eps.ProtocolDiscriminator(nas)
 	if err != nil || pd != eps.PDEMM {

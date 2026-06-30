@@ -181,7 +181,7 @@ func TestHandleDeregistrationRequest_SwitchOff_NoDeregistrationAccept(t *testing
 
 // TestHandleDeregistrationRequest_MacFailed_RejectsForgery verifies the
 // handler rejects a MacFailed Deregistration Request while the amf.AMF still
-// holds a valid security context (TS 24.501 §4.4.4.3 defense in depth).
+// holds a valid security context (TS 24.501 defense in depth).
 func TestHandleDeregistrationRequest_MacFailed_RejectsForgery(t *testing.T) {
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -189,7 +189,7 @@ func TestHandleDeregistrationRequest_MacFailed_RejectsForgery(t *testing.T) {
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
@@ -210,11 +210,11 @@ func TestHandleDeregistrationRequest_MacFailed_RejectsForgery(t *testing.T) {
 		t.Fatal("must not release UE context on a forged request")
 	}
 
-	if ue.GetState() != amf.Registered {
-		t.Fatalf("UE must remain amf.Registered after rejecting forgery, got %s", ue.GetState())
+	if ue.State() != amf.Registered {
+		t.Fatalf("UE must remain amf.Registered after rejecting forgery, got %s", ue.State())
 	}
 
-	if !ue.SecurityContextAvailableForTest() {
+	if !ue.SecuredForTest() {
 		t.Error("handler must not tear down SecurityContextAvailable on a forged request")
 	}
 }

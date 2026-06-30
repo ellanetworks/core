@@ -10,10 +10,10 @@ import "encoding/binary"
 // Annex B). This is an independent implementation of the published algorithm.
 //
 // The two substitution boxes and the GF(2^8)/GF(2^32) constants below are the
-// fixed values defined by TS 35.215 §A.3–§A.4; every conformant implementation
+// fixed values defined by TS 35.215; every conformant implementation
 // uses these exact tables.
 
-// sBoxSR is the SNOW 3G SR substitution box (the Rijndael S-box), TS 35.215 §A.3.
+// sBoxSR is the SNOW 3G SR substitution box (the Rijndael S-box), TS 35.215.
 var sBoxSR = [256]byte{
 	0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
 	0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
@@ -33,7 +33,7 @@ var sBoxSR = [256]byte{
 	0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16,
 }
 
-// sBoxSQ is the SNOW 3G SQ substitution box, TS 35.215 §A.3.
+// sBoxSQ is the SNOW 3G SQ substitution box, TS 35.215.
 var sBoxSQ = [256]byte{
 	0x25, 0x24, 0x73, 0x67, 0xd7, 0xae, 0x5c, 0x30, 0xa4, 0xee, 0x6e, 0xcb, 0x7d, 0xb5, 0x82, 0xdb,
 	0xe4, 0x8e, 0x48, 0x49, 0x4f, 0x5d, 0x6a, 0x78, 0x70, 0x88, 0xe8, 0x5f, 0x5e, 0x84, 0x65, 0xe2,
@@ -53,7 +53,7 @@ var sBoxSQ = [256]byte{
 	0x56, 0xe1, 0x77, 0xc9, 0x1e, 0x9e, 0x95, 0xa3, 0x90, 0x19, 0xa8, 0x6c, 0x09, 0xd0, 0xf0, 0x86,
 }
 
-// mulX multiplies in GF(2^8) by x modulo the polynomial c (TS 35.215 §3.1.1).
+// mulX multiplies in GF(2^8) by x modulo the polynomial c (TS 35.215).
 func mulX(v, c byte) byte {
 	if v&0x80 != 0 {
 		return (v << 1) ^ c
@@ -63,10 +63,10 @@ func mulX(v, c byte) byte {
 }
 
 // alphaPoly is the GF(2^8) reduction polynomial for MULalpha/DIValpha
-// (TS 35.215 §3.4).
+// (TS 35.215).
 const alphaPoly byte = 0xa9
 
-// mulXPow raises mulX by alphaPoly to the i-th power (TS 35.215 §3.1.2), as used
+// mulXPow raises mulX by alphaPoly to the i-th power (TS 35.215), as used
 // by MULalpha and DIValpha.
 func mulXPow(v byte, i int) byte {
 	r := v
@@ -78,7 +78,7 @@ func mulXPow(v byte, i int) byte {
 }
 
 // snow3gS1 / snow3gS2 are the 32-bit S-box functions S1 (SR, constant 0x1b) and
-// S2 (SQ, constant 0x69) of TS 35.215 §3.3.
+// S2 (SQ, constant 0x69) of TS 35.215.
 func snow3gS1(w uint32) uint32 {
 	return sBoxWord(w, &sBoxSR, 0x1b)
 }
@@ -102,7 +102,7 @@ func sBoxWord(w uint32, box *[256]byte, c byte) uint32 {
 }
 
 // mulAlpha / divAlpha multiply/divide an 8-bit value by alpha in GF(2^32),
-// returning the 32-bit result (TS 35.215 §3.4.x), polynomial constant 0xa9.
+// returning the 32-bit result (TS 35.215), polynomial constant 0xa9.
 func mulAlpha(c byte) uint32 {
 	return uint32(mulXPow(c, 23))<<24 |
 		uint32(mulXPow(c, 245))<<16 |
@@ -117,13 +117,13 @@ func divAlpha(c byte) uint32 {
 		uint32(mulXPow(c, 64))
 }
 
-// snow3g holds the 16-stage LFSR and 3-register FSM of TS 35.215 §3.
+// snow3g holds the 16-stage LFSR and 3-register FSM of TS 35.215.
 type snow3g struct {
 	lfsr       [16]uint32
 	r1, r2, r3 uint32
 }
 
-// clockFSM advances the FSM one step and returns its output F (TS 35.215 §3.5).
+// clockFSM advances the FSM one step and returns its output F (TS 35.215).
 func (s *snow3g) clockFSM(s15, s5 uint32) uint32 {
 	f := (s15 + s.r1) ^ s.r2
 	next := s.r2 + (s.r3 ^ s5)
@@ -135,7 +135,7 @@ func (s *snow3g) clockFSM(s15, s5 uint32) uint32 {
 }
 
 // clockLFSR advances the LFSR one step. f is the FSM feedback during the
-// initialisation phase and zero during keystream generation (TS 35.215 §3.4).
+// initialisation phase and zero during keystream generation (TS 35.215).
 func (s *snow3g) clockLFSR(f uint32) {
 	v := (s.lfsr[0] << 8) ^ mulAlpha(byte(s.lfsr[0]>>24)) ^ s.lfsr[2] ^
 		(s.lfsr[11] >> 8) ^ divAlpha(byte(s.lfsr[11])) ^ f
@@ -145,7 +145,7 @@ func (s *snow3g) clockLFSR(f uint32) {
 }
 
 // newSnow3g loads the 128-bit key and IV (each four 32-bit words, index 0 least
-// significant) and runs the 32-round initialisation (TS 35.215 §4.1).
+// significant) and runs the 32-round initialisation (TS 35.215).
 func newSnow3g(key, iv [4]uint32) *snow3g {
 	const inv = 0xffffffff
 
@@ -164,7 +164,7 @@ func newSnow3g(key, iv [4]uint32) *snow3g {
 	return s
 }
 
-// keystream produces n 32-bit keystream words (TS 35.215 §4.2).
+// keystream produces n 32-bit keystream words (TS 35.215).
 func (s *snow3g) keystream(n int) []uint32 {
 	s.clockFSM(s.lfsr[15], s.lfsr[5])
 	s.clockLFSR(0)
@@ -180,7 +180,7 @@ func (s *snow3g) keystream(n int) []uint32 {
 }
 
 // snow3gKeyWords splits a 16-octet key into four 32-bit words, index 0 being the
-// least significant (TS 35.215 §4.1).
+// least significant (TS 35.215).
 func snow3gKeyWords(key [16]byte) [4]uint32 {
 	return [4]uint32{
 		binary.BigEndian.Uint32(key[12:16]),
@@ -191,7 +191,7 @@ func snow3gKeyWords(key [16]byte) [4]uint32 {
 }
 
 // SNOW3GCipher is 128-EEA1: SNOW 3G keystream XOR over the NAS payload, with the
-// f8 IV derived from COUNT, BEARER and DIRECTION (TS 33.401 §B.1).
+// f8 IV derived from COUNT, BEARER and DIRECTION (TS 33.401).
 type SNOW3GCipher struct{}
 
 func (SNOW3GCipher) Apply(key [16]byte, count uint32, bearer, direction uint8, data []byte) ([]byte, error) {
@@ -210,7 +210,7 @@ func (SNOW3GCipher) Apply(key [16]byte, count uint32, bearer, direction uint8, d
 }
 
 // snow3gMacPoly is the GF(2^64) reduction polynomial used by the 128-EIA1
-// universal hash (TS 35.215 §4.4).
+// universal hash (TS 35.215).
 const snow3gMacPoly uint64 = 0x1b
 
 func mulX64(v, c uint64) uint64 {
@@ -230,7 +230,7 @@ func mulXPow64(v uint64, i int, c uint64) uint64 {
 	return r
 }
 
-// mul64 multiplies v and p in GF(2^64) modulo c (TS 35.215 §4.3).
+// mul64 multiplies v and p in GF(2^64) modulo c (TS 35.215).
 func mul64(v, p, c uint64) uint64 {
 	var r uint64
 
@@ -244,7 +244,7 @@ func mul64(v, p, c uint64) uint64 {
 }
 
 // SNOW3GIntegrity is 128-EIA1: the SNOW 3G f9 universal-hash MAC, with the IV
-// derived from COUNT, BEARER and DIRECTION (TS 33.401 §B.2). It returns the
+// derived from COUNT, BEARER and DIRECTION (TS 33.401). It returns the
 // 4-octet NAS-MAC.
 type SNOW3GIntegrity struct{}
 

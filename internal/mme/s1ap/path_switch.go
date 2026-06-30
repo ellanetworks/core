@@ -24,11 +24,9 @@ var (
 )
 
 // handlePathSwitchRequest handles an X2-handover PATH SWITCH REQUEST from the
-// target eNB (TS 36.413): it switches the S1-U downlink to the new eNB,
-// advances the {NH, NCC} key chain, moves the UE's S1 association, and replies
-// with PATH SWITCH REQUEST ACKNOWLEDGE — or a FAILURE when the path cannot be
-// switched. value is the initiatingMessage open-type payload; conn is the target
-// eNB's association the request arrived on.
+// target eNB, advancing the {NH, NCC} key chain and switching the UE's S1-U
+// downlink, or replying with FAILURE (TS 36.413). conn is the target eNB's
+// association.
 func handlePathSwitchRequest(m *mme.MME, ctx context.Context, conn mme.NasWriter, value []byte) {
 	req, err := s1ap.ParsePathSwitchRequest(value)
 	if err != nil {
@@ -63,10 +61,10 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, conn mme.NasWriter
 		return
 	}
 
-	// Claim the {NH, NCC} chain — refusing if a Path Switch or S1 handover is
-	// concurrently advancing it, which would derive the same NH for two targets. The
-	// claim is held until commit so a handover cannot start in the unlocked
-	// derive/switch window below.
+	// Claim the {NH, NCC} chain, refusing if a Path Switch or S1 handover is
+	// concurrently advancing it (which would derive the same NH for two targets).
+	// Held until commit so a handover cannot start in the unlocked derive/switch
+	// window below.
 	curNH, curNCC, mmeID, ok := m.BeginPathSwitch(ue)
 	if !ok {
 		logger.MmeLog.Warn("Path Switch Request while the key chain is being advanced",
@@ -89,7 +87,6 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, conn mme.NasWriter
 		return
 	}
 
-	// Switch the downlink of every E-RAB in the list to the endpoint it carries.
 	switched := switchPathBearers(m, ctx, ue, mmeID, req.ERABToBeSwitchedDL)
 	if switched == 0 {
 		// TS 36.413: the UP path was switched for no E-RAB.
@@ -102,10 +99,9 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, conn mme.NasWriter
 
 	replayCaps := pathSwitchSecurityCapabilities(ue, req.UESecurityCapabilities)
 
-	// UP switch succeeded: move the S1 association to the target eNB and commit the
-	// advanced {NH, NCC}. NCC is a 3-bit chaining counter (TS 33.401). The UE may
-	// have been released during the unlocked switch above (its source association
-	// dropping), so the commit is gated on the connection still being present.
+	// The UE may have been released during the unlocked switch above (its source
+	// association dropping), so the commit is gated on the connection still being
+	// present. NCC is a 3-bit chaining counter (TS 33.401).
 	ncc, ok := m.CommitPathSwitch(ue, conn, req.ENBUES1APID, newNH, curNCC)
 	if !ok {
 		logger.MmeLog.Warn("Path Switch Request: UE released during the user-plane switch",
@@ -137,12 +133,9 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, conn mme.NasWriter
 }
 
 // switchPathBearers points the downlink of each E-RAB in the to-be-switched list
-// at the target eNB endpoint it carries, and returns how many were switched. Each
-// E-RAB is matched to its PDN connection by EPS bearer identity and switched
-// independently with one ModifyEPSSession call. An E-RAB the MME cannot resolve
-// to a PDN connection, or whose endpoint is malformed or fails to switch, is
-// logged and skipped — not silently dropped — and counts as not switched
-// (TS 36.413).
+// at the target eNB endpoint it carries and returns how many were switched. An
+// E-RAB that cannot be resolved or has an unusable endpoint is skipped and counts
+// as not switched (TS 36.413).
 func switchPathBearers(m *mme.MME, ctx context.Context, ue *mme.UeContext, mmeID s1ap.MMEUES1APID, items []s1ap.ERABToBeSwitchedDLItem) int {
 	switched := 0
 
@@ -209,11 +202,10 @@ func sendPathSwitchFailure(m *mme.MME, conn mme.NasWriter, req *s1ap.PathSwitchR
 }
 
 // pathSwitchSecurityCapabilities compares the UE security capabilities the target
-// eNB reported against the MME's stored values (TS 36.413, TS 33.401).
-// On a mismatch it returns the stored values to replay in the
-// Acknowledge so the eNB corrects its context; on a match (or when the stored
-// capabilities cannot be parsed) it returns nil and the IE is omitted. The stored
-// values are never overwritten with the received ones.
+// eNB reported against the MME's stored values, returning the stored values to
+// replay in the Acknowledge on a mismatch so the eNB corrects its context, or nil
+// (IE omitted) otherwise (TS 36.413, TS 33.401). The stored values are never
+// overwritten with the received ones.
 func pathSwitchSecurityCapabilities(ue *mme.UeContext, received s1ap.UESecurityCapabilities) *s1ap.UESecurityCapabilities {
 	uecap, err := eps.ParseUENetworkCapability(ue.UeNetCap)
 	if err != nil {

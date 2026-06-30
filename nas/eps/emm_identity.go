@@ -5,7 +5,7 @@ package eps
 
 import "github.com/ellanetworks/core/nas/common"
 
-// IdentityRequest is the IDENTITY REQUEST message (TS 24.301 §8.2.18). The
+// IdentityRequest is the IDENTITY REQUEST message (TS 24.301). The
 // identity type selects which identity the network wants (e.g. 1 = IMSI).
 type IdentityRequest struct {
 	IdentityType uint8
@@ -37,8 +37,8 @@ func ParseIdentityRequest(b []byte) (*IdentityRequest, error) {
 	return &IdentityRequest{IdentityType: octet & 0x07}, nil
 }
 
-// IdentityResponse is the IDENTITY RESPONSE message (TS 24.301 §8.2.19). The
-// Mobile identity is kept as its raw value part (TS 24.008 §10.5.1.4 coding).
+// IdentityResponse is the IDENTITY RESPONSE message (TS 24.301). The
+// Mobile identity is kept as its raw value part (TS 24.008 coding).
 type IdentityResponse struct {
 	MobileIdentity []byte
 }

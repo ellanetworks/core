@@ -223,7 +223,7 @@ func BuildRegistrationReject(t3502Value int, cause5GMM uint8) ([]byte, error) {
 	return m.PlainNasEncode()
 }
 
-// TS 24.501 8.2.25
+// TS 24.501
 func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 	conn := ue.NasConn()
 	if conn == nil {
@@ -281,13 +281,13 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 		securityModeCommand.SetHDP(0)
 	}
 
-	ue.MarkSecurityContextAvailable()
+	ue.MarkSecured()
 
 	m.SecurityModeCommand = securityModeCommand
 
 	payload, err := ue.EncodeNASMessage(m)
 	if err != nil {
-		ue.ClearSecurityContext()
+		ue.ClearSecured()
 		return nil, err
 	}
 
@@ -388,8 +388,7 @@ func BuildRegistrationAccept(
 		registrationAccept.AllowedNSSAI.SetSNSSAIValue(buf)
 	}
 
-	// 5gs network feature support
-	nfs := amfInstance.GetNetworkFeatureSupport()
+	nfs := amfInstance.NetworkFeatureSupport()
 	if nfs.Enable {
 		registrationAccept.NetworkFeatureSupport5GS = nasType.NewNetworkFeatureSupport5GS(nasMessage.RegistrationAcceptNetworkFeatureSupport5GSType)
 		registrationAccept.NetworkFeatureSupport5GS.SetLen(2)
@@ -427,14 +426,6 @@ func BuildRegistrationAccept(
 	t3512 := nasConvert.GPRSTimer3ToNas(int(ue.T3512Value.Seconds()))
 	registrationAccept.T3512Value.Octet = t3512
 
-	// Temporary: commented this timer because UESIM is not supporting
-	/*if ue.T3502Value != 0 {
-		registrationAccept.T3502Value = nasType.NewT3502Value(nasMessage.RegistrationAcceptT3502ValueType)
-		registrationAccept.T3502Value.SetLen(1)
-		t3502 := nasConvert.GPRSTimer2ToNas(ue.T3502Value)
-		registrationAccept.T3502Value.SetGPRSTimer2Value(t3502)
-	}*/
-
 	if ue.UESpecificDRX != nasMessage.DRXValueNotSpecified {
 		registrationAccept.NegotiatedDRXParameters = nasType.NewNegotiatedDRXParameters(nasMessage.RegistrationAcceptNegotiatedDRXParametersType)
 		registrationAccept.NegotiatedDRXParameters.SetLen(1)
@@ -446,7 +437,7 @@ func BuildRegistrationAccept(
 	return ue.EncodeNASMessage(m)
 }
 
-// TS 24.501 - 5.4.4 Generic UE configuration update procedure - 5.4.4.1 General
+// TS 24.501 Generic UE configuration update procedure.
 // includeGUTI controls whether a new 5G-GUTI is included (e.g. during service request GUTI re-allocation).
 func BuildConfigurationUpdateCommand(ue *UeContext, spnFullName, spnShortName string, includeGUTI bool) ([]byte, error) {
 	m := nas.NewMessage()
@@ -512,7 +503,7 @@ func BuildConfigurationUpdateCommand(ue *UeContext, spnFullName, spnShortName st
 }
 
 // encodeNetworkName encodes a network name string into the format defined by
-// TS 24.008 §10.5.3.5a (Network Name IE). It uses the GSM 7-bit default
+// TS 24.008 (Network Name IE). It uses the GSM 7-bit default
 // alphabet with no CI appended.
 func encodeNetworkName(name string) []byte {
 	chars := len(name)
@@ -524,7 +515,7 @@ func encodeNetworkName(name string) []byte {
 	// Byte 0: ext=1 (bit 7), coding scheme=0 (bits 6-4), addCI=0 (bit 3), spare bits (bits 2-0)
 	buf[0] = 0x80 | (spareBits & 0x07)
 
-	// Pack 7-bit characters into octets (TS 23.038 §6.1.2)
+	// Pack 7-bit characters into octets (TS 23.038)
 	bitOffset := 0
 
 	for i := range chars {

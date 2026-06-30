@@ -57,8 +57,8 @@ func (u *URR) ToURR() models.URR {
 	}
 }
 
-// BuildEstablishRequest converts live SMF rule slices into the UPF message
-// struct, marking each rule RuleCreate so later modifications dispatch correctly.
+// BuildEstablishRequest advances each rule to RuleCreate so later modifications
+// dispatch as updates.
 func BuildEstablishRequest(
 	localSEID uint64,
 	imsi string,
@@ -108,9 +108,8 @@ func BuildEstablishRequest(
 	}
 }
 
-// BuildModifyRequest converts live SMF rule slices into the UPF message struct,
-// dispatching each rule into a Create/Update/Remove bucket by its RuleState and
-// then advancing it to RuleCreate.
+// BuildModifyRequest buckets each rule by its RuleState and advances it to
+// RuleCreate.
 func BuildModifyRequest(
 	remoteSEID uint64,
 	policyID string,
@@ -174,7 +173,7 @@ const (
 
 type RuleState uint8
 
-// Packet Detection Rule. Table 7.5.2.2-1
+// Packet Detection Rule.
 type PDR struct {
 	OuterHeaderRemoval *uint8
 
@@ -187,7 +186,7 @@ type PDR struct {
 	PDRID uint16
 }
 
-// Forwarding Action Rule. 7.5.2.3-1
+// Forwarding Action Rule.
 type FAR struct {
 	ForwardingParameters *models.ForwardingParameters
 

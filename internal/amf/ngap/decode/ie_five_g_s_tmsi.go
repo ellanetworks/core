@@ -9,7 +9,7 @@ import (
 )
 
 // decodeFiveGSTMSI enforces the field widths from 3GPP TS 38.413
-// §9.3.1.13 (AMFSetID: 10 bits, AMFPointer: 6 bits, 5G-TMSI: 4 octets)
+// (AMFSetID: 10 bits, AMFPointer: 6 bits, 5G-TMSI: 4 octets)
 // and copies bytes out so the result is independent of the PDU buffer.
 func decodeFiveGSTMSI(in *ngapType.FiveGSTMSI) (FiveGSTMSI, bool) {
 	if in == nil {

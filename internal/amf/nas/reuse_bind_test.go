@@ -52,7 +52,7 @@ func plainRegistrationWithGuti(t *testing.T, guti []byte) []byte {
 // end-to-end regression for the GUTI-spoof DoS: a plain (unauthenticated)
 // initial REGISTRATION REQUEST that resolves by GUTI to a registered UE must be
 // routed to a fresh context, leaving the victim's committed context untouched
-// (TS 24.501 §4.4.4.3).
+// (TS 24.501).
 func TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim(t *testing.T) {
 	// type byte 0x02 = 5G-GUTI; PLMN 001/01; amf.AMF id 0xcafe00; 5G-TMSI 1.
 	gutiBytes := []byte{0x02, 0x00, 0xf1, 0x10, 0xca, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x01}
@@ -73,7 +73,7 @@ func TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim(t *testing
 	victim.Log = zap.NewNop()
 	victim.SetSupiForTest(supi)
 	victim.SetGutiForTest(guti)
-	victim.SetSecurityContextAvailableForTest(true)
+	victim.SetSecuredForTest(true)
 	victim.ForceState(amf.Registered)
 
 	if err := amfInstance.AddUeContextToPool(victim); err != nil {
@@ -86,14 +86,14 @@ func TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim(t *testing
 	}
 
 	if got != nil {
-		t.Fatal("a plain registration must be routed to a fresh context, not bound to the registered victim (TS 24.501 §4.4.4.3)")
+		t.Fatal("a plain registration must be routed to a fresh context, not bound to the registered victim (TS 24.501)")
 	}
 
-	if !victim.SecurityContextAvailableForTest() {
+	if !victim.SecuredForTest() {
 		t.Fatal("victim security context must remain intact")
 	}
 
-	if victim.GetState() != amf.Registered {
-		t.Fatalf("victim must remain amf.Registered, got %v", victim.GetState())
+	if victim.State() != amf.Registered {
+		t.Fatalf("victim must remain amf.Registered, got %v", victim.State())
 	}
 }

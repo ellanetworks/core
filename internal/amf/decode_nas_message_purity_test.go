@@ -68,7 +68,7 @@ type securityStateSnapshot struct {
 
 func snapshotSecurityState(ue *UeContext) securityStateSnapshot {
 	return securityStateSnapshot{
-		SecurityContextAvailable: ue.securityContextAvailable,
+		SecurityContextAvailable: ue.secured,
 		CipheringAlg:             ue.cipheringAlg,
 		IntegrityAlg:             ue.integrityAlg,
 		UESecurityCapability:     ue.ueSecurityCapability,

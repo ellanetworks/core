@@ -13,7 +13,7 @@ import (
 )
 
 // buildDeregistrationRequest assembles a network-initiated (UE-terminated)
-// DEREGISTRATION REQUEST (TS 24.501 §8.2.14) over 3GPP access, integrity
+// DEREGISTRATION REQUEST (TS 24.501) over 3GPP access, integrity
 // protected and ciphered with the UE's security context. Re-registration is not
 // requested: the subscriber was removed, so the UE stays deregistered.
 func buildDeregistrationRequest(ue *UeContext) ([]byte, error) {
@@ -41,11 +41,8 @@ func buildDeregistrationRequest(ue *UeContext) ([]byte, error) {
 }
 
 // sendNetworkInitiatedDeregistration sends a UE-terminated DEREGISTRATION
-// REQUEST to a connected UE and arms T3522 (TS 24.501 §5.5.2.3): if the UE does
-// not answer with DEREGISTRATION ACCEPT the request is retransmitted, and on
-// exhaustion the UE context is removed regardless, so a silent UE cannot leak
-// the context. On a normal accept the context is removed by the
-// nw-initiated-deregistration UE context release.
+// REQUEST and arms T3522 (TS 24.501): an unanswered request is
+// retransmitted, and on exhaustion the UE context is removed regardless.
 func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeContext) error {
 	ranUe := ue.RanUe()
 	if ranUe == nil {

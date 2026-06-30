@@ -41,7 +41,7 @@ func getRegistrationType5GSName(regType5Gs uint8) string {
 	}
 }
 
-// Handle cleartext IEs of Registration Request, which cleattext IEs defined in TS 24.501 4.4.6
+// handleRegistrationRequestMessage processes the cleartext IEs of the Registration Request (TS 24.501).
 func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, registrationRequest *nasMessage.RegistrationRequest, integrityVerified bool) error {
 	ranUe := ue.RanUe()
 	if ranUe == nil {
@@ -54,12 +54,12 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	}
 
 	if !integrityVerified {
-		ue.ClearSecurityContext()
+		ue.ClearSecured()
 	}
 
 	// Supersession of concurrent amf.AMF-initiated procedures per TS 24.501.
-	// §5.4.2.7(c): abort amf.SecurityMode when a UE-initiated registration
-	// arrives. §5.5.1.3.3, §5.5.1.2.7: abort N2 Handover similarly.
+	// Abort amf.SecurityMode when a UE-initiated registration
+	// arrives. Abort N2 Handover similarly.
 	for _, t := range []procedure.Type{procedure.SecurityMode, procedure.N2Handover} {
 		if conn.Procedures.Active(t) {
 			_ = conn.Procedures.Cancel(ctx, t)
@@ -74,11 +74,10 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	conn.T3513.Stop()
 	conn.T3565.Stop()
 
-	// TS 24.501 4.4.6: If NASMessageContainer is present, it contains a ciphered inner Registration Request
-	// carrying non-cleartext IEs, which must be decrypted and processed instead of the outer
-	// However, if MAC verification failed, we don't have valid security keys to decrypt the
-	// NASMessageContainer. In that case, skip it and proceed with the cleartext IEs only.
-	// The subsequent authentication procedure will re-establish the security context.
+	// TS 24.501: a present NASMessageContainer holds a ciphered inner
+	// Registration Request with the non-cleartext IEs. Decrypt it only when
+	// integrity is verified; a MAC failure means no valid keys, so fall back to
+	// the cleartext IEs and let the subsequent authentication re-establish security.
 	if registrationRequest.NASMessageContainer != nil && integrityVerified {
 		contents := registrationRequest.GetNASMessageContainerContents()
 
@@ -131,13 +130,13 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		return errors.New("mobile identity 5GS is empty")
 	}
 
-	operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
+	operatorInfo, err := amfInstance.OperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
 	conn.IdentityTypeUsedForRegistration = nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0])
-	switch conn.IdentityTypeUsedForRegistration { // get type of identity
+	switch conn.IdentityTypeUsedForRegistration {
 	case nasMessage.MobileIdentity5GSTypeNoIdentity:
 		ue.Log.Debug("No Identity used for registration")
 	case nasMessage.MobileIdentity5GSTypeSuci:
@@ -160,7 +159,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		ue.Log.Debug("UE used IMEISV identity for registration", zap.String("imeisv", imeisv))
 	}
 
-	// NgKsi: TS 24.501 9.11.3.32
+	// NgKsi: TS 24.501
 	ngKsi := models.NgKsi{}
 
 	switch registrationRequest.GetTSC() {
@@ -178,11 +177,9 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 
 	ue.SetNgKsi(ngKsi)
 
-	// Copy UserLocation from ranUe
 	ue.Location = ranUe.Location
 	ue.Tai = ranUe.Tai
 
-	// Check TAI
 	if !amf.InTaiList(ue.Tai, operatorInfo.Tais) {
 		metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultReject)
 
@@ -191,7 +188,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		return fmt.Errorf("registration Reject [Tracking area not allowed]")
 	}
 
-	// TS 24.501 §8.2.6.4: the UE shall include the UE security capability IE,
+	// TS 24.501: the UE shall include the UE security capability IE,
 	// unless it performs a periodic registration updating procedure.
 	if registrationRequest.UESecurityCapability == nil &&
 		conn.RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
@@ -210,14 +207,11 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 }
 
 // acceptRegistrationUESecurityCapability applies the received UE Security
-// Capability to the stored amf.UeContext state, enforcing TS 33.501 §6.7.3.1
-// downgrade protection. Initial and Emergency Registration overwrite the
-// stored value (they mint an amf.AuthProof); Mobility and Periodic
-// Registration Update keep the existing stored value on match and log
-// any mismatch. When no stored value exists at all (first observation
-// in a Mobility/Periodic update), the received caps are adopted through
-// the same audited write path, with downgrade protection deferred to
-// the SMC replay check.
+// Capability under TS 33.501 downgrade protection. Initial and
+// Emergency Registration overwrite the stored value; Mobility and Periodic
+// Registration Update keep it on match and log any mismatch. With no stored
+// value, the received caps are adopted through the same audited write path,
+// downgrade protection deferred to the SMC replay check.
 func acceptRegistrationUESecurityCapability(ue *amf.UeContext, received *nasType.UESecurityCapability) {
 	conn := ue.NasConn()
 	if conn == nil {
@@ -231,20 +225,17 @@ func acceptRegistrationUESecurityCapability(ue *amf.UeContext, received *nasType
 		return
 	}
 
-	// Mobility / Periodic Registration Update: read-only path by default.
 	switch ue.VerifyUESecurityCapability(received) {
 	case amf.VerifyMatch:
 		return
 	case amf.VerifyNoStoredValue:
-		// No stored value to protect. Route through the same audited
-		// setter as Initial Registration so every write to
-		// UESecurityCapability is grep-findable via SetUESecurityCapability.
-		// Downgrade protection relies on the SMC replay check per
-		// TS 33.501 §6.7.3.1.
+		// No stored value to protect; route through the same audited setter so
+		// every write to UESecurityCapability is grep-findable. Downgrade
+		// protection relies on the SMC replay check (TS 33.501).
 		ue.SetUESecurityCapability(received, amf.MintAuthProofForRegistrationRequest())
 	case amf.VerifyMismatch:
 		ue.Log.Warn(
-			"UE security capabilities in Mobility/Periodic Registration differ from stored values; ignoring received values (TS 33.501 §6.7.3.1)",
+			"UE security capabilities in Mobility/Periodic Registration differ from stored values; ignoring received values (TS 33.501)",
 			zap.String("registrationType", getRegistrationType5GSName(conn.RegistrationType5GS)),
 			zap.Binary("stored", ue.UESecCap().Buffer),
 			zap.Binary("received", received.Buffer),
@@ -253,7 +244,7 @@ func acceptRegistrationUESecurityCapability(ue *amf.UeContext, received *nasType
 }
 
 func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nas.GmmMessage, integrityVerified bool) error {
-	state := ue.GetState()
+	state := ue.State()
 
 	switch state {
 	case amf.Deregistered, amf.Registered, amf.Authentication:

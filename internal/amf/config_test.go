@@ -13,7 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
-// configTestDB implements amf.DBer for GetSubscriberProfile / GetOperatorInfo tests.
+// configTestDB implements amf.DBer for SubscriberProfile / OperatorInfo tests.
 type configTestDB struct {
 	subscriber *db.Subscriber
 	subErr     error
@@ -72,7 +72,7 @@ func (d *configTestDB) ListAllNetworkSlices(context.Context) ([]db.NetworkSlice,
 		return d.allSlices, nil
 	}
 
-	// Build from the slices map so GetSubscriberProfile tests work.
+	// Build from the slices map so SubscriberProfile tests work.
 	var out []db.NetworkSlice
 	for _, s := range d.slices {
 		out = append(out, *s)
@@ -108,7 +108,7 @@ func TestGetSubscriberProfile_SinglePolicy(t *testing.T) {
 
 	amfInstance := amf.New(fakeDB, nil, nil)
 
-	profile, err := amfInstance.GetSubscriberProfile(context.Background(), mustSUPI(t))
+	profile, err := amfInstance.SubscriberProfile(context.Background(), mustSUPI(t))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestGetSubscriberProfile_MultiplePoliciesDifferentSlices(t *testing.T) {
 
 	amfInstance := amf.New(fakeDB, nil, nil)
 
-	profile, err := amfInstance.GetSubscriberProfile(context.Background(), mustSUPI(t))
+	profile, err := amfInstance.SubscriberProfile(context.Background(), mustSUPI(t))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestGetSubscriberProfile_DeduplicatesSameSlice(t *testing.T) {
 
 	amfInstance := amf.New(fakeDB, nil, nil)
 
-	profile, err := amfInstance.GetSubscriberProfile(context.Background(), mustSUPI(t))
+	profile, err := amfInstance.SubscriberProfile(context.Background(), mustSUPI(t))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestGetSubscriberProfile_NilSD(t *testing.T) {
 
 	amfInstance := amf.New(fakeDB, nil, nil)
 
-	profile, err := amfInstance.GetSubscriberProfile(context.Background(), mustSUPI(t))
+	profile, err := amfInstance.SubscriberProfile(context.Background(), mustSUPI(t))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestGetSubscriberProfile_NoPolicies(t *testing.T) {
 
 	amfInstance := amf.New(fakeDB, nil, nil)
 
-	profile, err := amfInstance.GetSubscriberProfile(context.Background(), mustSUPI(t))
+	profile, err := amfInstance.SubscriberProfile(context.Background(), mustSUPI(t))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -237,7 +237,7 @@ func TestGetSubscriberProfile_SubscriberNotFound(t *testing.T) {
 
 	amfInstance := amf.New(fakeDB, nil, nil)
 
-	_, err := amfInstance.GetSubscriberProfile(context.Background(), mustSUPI(t))
+	_, err := amfInstance.SubscriberProfile(context.Background(), mustSUPI(t))
 	if err == nil {
 		t.Fatal("expected error for missing subscriber, got nil")
 	}
@@ -251,7 +251,7 @@ func TestGetSubscriberProfile_PolicyListError(t *testing.T) {
 
 	amfInstance := amf.New(fakeDB, nil, nil)
 
-	_, err := amfInstance.GetSubscriberProfile(context.Background(), mustSUPI(t))
+	_, err := amfInstance.SubscriberProfile(context.Background(), mustSUPI(t))
 	if err == nil {
 		t.Fatal("expected error for policy list failure, got nil")
 	}
@@ -341,7 +341,7 @@ func TestGetOperatorInfo_AmfID(t *testing.T) {
 
 			amfInstance := amf.New(fakeDB, nil, nil)
 
-			info, err := amfInstance.GetOperatorInfo(context.Background())
+			info, err := amfInstance.OperatorInfo(context.Background())
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

@@ -65,7 +65,7 @@ func decodeERABToBeSwitchedDLList(r *aper.Reader) ([]ERABToBeSwitchedDLItem, err
 
 // SecurityContext ::= SEQUENCE { nextHopChainingCount INTEGER (0..7),
 // nextHopParameter SecurityKey, iE-Extensions OPTIONAL } (extensible). It carries
-// the {NCC, NH} the target eNB uses to derive the next KeNB (TS 33.401 §7.2.8).
+// the {NCC, NH} the target eNB uses to derive the next KeNB (TS 33.401).
 type SecurityContext struct {
 	NextHopChainingCount uint8
 	NextHopParameter     SecurityKey
@@ -104,10 +104,10 @@ func decodeSecurityContext(r *aper.Reader) (SecurityContext, error) {
 	return SecurityContext{NextHopChainingCount: uint8(ncc), NextHopParameter: nh}, nil
 }
 
-// PathSwitchRequest is the PATH SWITCH REQUEST message (TS 36.413 §9.1.5.8), sent
+// PathSwitchRequest is the PATH SWITCH REQUEST message (TS 36.413), sent
 // by the target eNB after an X2 handover to switch the downlink GTP tunnel to
 // itself. SourceMMEUES1APID is the MME UE S1AP ID the source eNB held, used to
-// find the UE context. Unmodeled IEs are preserved.
+// find the UE context.
 type PathSwitchRequest struct {
 	ENBUES1APID            ENBUES1APID
 	ERABToBeSwitchedDL     []ERABToBeSwitchedDLItem
@@ -219,7 +219,7 @@ func ParsePathSwitchRequest(value []byte) (*PathSwitchRequest, error) {
 }
 
 // PathSwitchRequestAcknowledge is the PATH SWITCH REQUEST ACKNOWLEDGE message
-// (TS 36.413 §9.1.5.9), sent by the MME once the downlink path has been switched.
+// (TS 36.413), sent by the MME once the downlink path has been switched.
 // SecurityContext carries the {NCC, NH}; UESecurityCapabilities is included only
 // when the MME's stored capabilities differ from those the eNB reported.
 type PathSwitchRequestAcknowledge struct {
@@ -338,8 +338,8 @@ func ParsePathSwitchRequestAcknowledge(value []byte) (*PathSwitchRequestAcknowle
 	return m, nil
 }
 
-// PathSwitchRequestFailure is the PATH SWITCH REQUEST FAILURE message (TS 36.413
-// §9.1.5.10), sent by the MME when the downlink path could not be switched for
+// PathSwitchRequestFailure is the PATH SWITCH REQUEST FAILURE message (TS 36.413),
+// sent by the MME when the downlink path could not be switched for
 // any E-RAB.
 type PathSwitchRequestFailure struct {
 	MMEUES1APID MMEUES1APID

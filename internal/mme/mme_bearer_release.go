@@ -12,6 +12,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// DeactivateBearer asks the UE to deactivate EPS bearer p with the given ESM
+// cause and PTI. A disconnect or a non-default bearer releases only this PDN
+// connection on timeout; the default bearer instead detaches the UE (TS 24.301 §6.4.4).
 func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnection, esmCause, pti uint8, disconnecting bool) {
 	naspdu, err := m.ProtectDownlinkMessage(ue, &eps.DeactivateEPSBearerContextRequest{
 		EPSBearerIdentity:            p.Ebi,
@@ -47,7 +50,6 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 
 // DisconnectBearer tears down the UE's PDN connection p with a regular
 // deactivation; the UE is not asked to re-establish it.
-
 func (m *MME) DisconnectBearer(ctx context.Context, ue *UeContext, p *PdnConnection, esmCause, pti uint8) {
 	m.DeactivateBearer(ctx, ue, p, esmCause, pti, true)
 }
@@ -55,7 +57,6 @@ func (m *MME) DisconnectBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 // sendERABRelease releases a UE's E-RAB at the eNB while the UE stays connected,
 // carrying the DEACTIVATE EPS BEARER CONTEXT REQUEST in the NAS-PDU so the eNB
 // both releases the radio bearer and delivers the NAS (TS 36.413 §8.2.3).
-
 func (m *MME) sendERABRelease(ctx context.Context, ue *UeContext, p *PdnConnection, naspdu []byte) {
 	cmd := &s1ap.ERABReleaseCommand{
 		MMEUES1APID: ue.S1.MMEUES1APID,
@@ -75,7 +76,3 @@ func (m *MME) sendERABRelease(ctx context.Context, ue *UeContext, p *PdnConnecti
 
 	m.SendS1AP(ctx, ue, S1APProcedureERABReleaseCommand, b)
 }
-
-// HandleERABReleaseResponse logs the eNB's confirmation that the radio bearer was
-// released (TS 36.413 §8.2.3). The PDN connection's session is released when the
-// UE answers the DEACTIVATE EPS BEARER CONTEXT REQUEST (handleDeactivateBearerAccept).

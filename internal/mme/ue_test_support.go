@@ -88,7 +88,6 @@ func (c *S1Conn) ConnForTest() NasWriter { return c.conn }
 
 func (c *S1Conn) ReleasingForTest() bool { return c.releasing }
 
-// ConnCountForTest returns the number of registered UE-associated S1 connections.
 func (m *MME) ConnCountForTest() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -96,18 +95,13 @@ func (m *MME) ConnCountForTest() int {
 	return len(m.conns)
 }
 
-// HasHandoverForTest reports whether an S1 handover is in flight.
 func (ue *UeContext) HasHandoverForTest() bool { return ue.handover != nil }
 
-// HandoverGenForTest returns the handover generation counter (bumped when an
-// in-flight handover is cleared or replaced).
 func (ue *UeContext) HandoverGenForTest() uint64 { return ue.handoverGen }
 
-// SetKeyChainBusyForTest marks the {NH,NCC} key chain as mid-advance.
 func (ue *UeContext) SetKeyChainBusyForTest(v bool) { ue.keyChainBusy = v }
 
-// ForceHandoverCommittingForTest moves an in-flight handover to the committing
-// state, for test setup of the commit/cancel race.
+// ForceHandoverCommittingForTest sets up the commit/cancel race.
 func (ue *UeContext) ForceHandoverCommittingForTest() {
 	if ue.handover != nil {
 		ue.handover.state = hoCommitting
@@ -120,24 +114,16 @@ func (ue *UeContext) DeriveNextNHForTest() ([32]byte, error) {
 	return deriveNH(ue.kasme, ue.nh[:])
 }
 
-// RegisterENBByIDForTest registers a target eNB connection by its Global eNB ID,
-// for S1-handover target resolution in tests.
 func (m *MME) RegisterENBByIDForTest(g s1ap.GlobalENBID, conn NasWriter) {
 	m.mu.Lock()
 	m.enbByID[ENBID(g)] = conn
 	m.mu.Unlock()
 }
 
-// SetHandoverGuardTimeoutForTest shortens the S1-handover guard timer so tests
-// can drive its expiry quickly.
 func (m *MME) SetHandoverGuardTimeoutForTest(d time.Duration) { m.handoverGuardTimeout = d }
 
-// FireHandoverGuardForTest invokes the handover guard-timer callback directly.
 func (m *MME) FireHandoverGuardForTest(ue *UeContext, gen uint64) { m.onHandoverGuardExpiry(ue, gen) }
 
-// ReclaimUEsOnConnLossForTest simulates an eNB SCTP disconnect, reclaiming the
-// UE-associated connections it held.
 func (m *MME) ReclaimUEsOnConnLossForTest(conn NasWriter) { m.reclaimUEsOnConnLoss(conn) }
 
-// MobileReachableArmedForTest reports whether the mobile-reachable timer is armed.
 func (ue *UeContext) MobileReachableArmedForTest() bool { return ue.mobileReachableTimer.Active() }

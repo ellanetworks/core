@@ -15,7 +15,7 @@ import (
 
 // TS 24501 5.6.3.2
 func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.NotificationResponse, integrityVerified bool) error {
-	if state := ue.GetState(); state != amf.Registered {
+	if state := ue.State(); state != amf.Registered {
 		return fmt.Errorf("state mismatch: receive Notification Response message in state %s", state)
 	}
 
@@ -28,7 +28,7 @@ func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *a
 	}
 
 	if msg.PDUSessionStatus == nil {
-		logger.WithTrace(ctx, logger.AmfLog).Debug("PDUSessionStatus IE is not present in Notification Response message, no PDU session to release", logger.SUPI(ue.SupiValue().String()))
+		logger.WithTrace(ctx, logger.AmfLog).Debug("PDUSessionStatus IE is not present in Notification Response message, no PDU session to release", logger.SUPI(ue.Supi().String()))
 		return nil
 	}
 

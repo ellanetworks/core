@@ -9,11 +9,11 @@ import (
 	"github.com/ellanetworks/core/s1ap/aper"
 )
 
-// HandoverRequest is the HANDOVER REQUEST message (TS 36.413 §9.1.5.4), sent by
+// HandoverRequest is the HANDOVER REQUEST message (TS 36.413), sent by
 // the MME to the target eNB to reserve resources for an incoming handover. It
 // carries no eNB UE S1AP ID: the target eNB allocates its own and returns it in
 // the HANDOVER REQUEST ACKNOWLEDGE. SecurityContext carries the {NCC, NH} the
-// target uses to derive KeNB (TS 33.401 §7.2.8); SourceToTarget is the opaque
+// target uses to derive KeNB (TS 33.401); SourceToTarget is the opaque
 // source-to-target transparent container.
 type HandoverRequest struct {
 	MMEUES1APID            MMEUES1APID
@@ -136,7 +136,7 @@ func ParseHandoverRequest(value []byte) (*HandoverRequest, error) {
 }
 
 // HandoverRequestAcknowledge is the HANDOVER REQUEST ACKNOWLEDGE message
-// (TS 36.413 §9.1.5.5), the successful outcome the target eNB returns. ERABAdmitted
+// (TS 36.413), the successful outcome the target eNB returns. ERABAdmitted
 // carries the target eNB's S1-U downlink endpoint per E-RAB; ERABFailedToSetup
 // lists the bearers the target rejected; TargetToSource is the opaque target-to-
 // source transparent container.
@@ -250,7 +250,7 @@ func ParseHandoverRequestAcknowledge(value []byte) (*HandoverRequestAcknowledge,
 	return m, nil
 }
 
-// HandoverFailure is the HANDOVER FAILURE message (TS 36.413 §9.1.5... in the
+// HandoverFailure is the HANDOVER FAILURE message (TS 36.413 in the
 // Handover Resource Allocation procedure), the unsuccessful outcome the target eNB
 // returns when it cannot admit the handover. It carries no eNB UE S1AP ID: the
 // target allocated no UE context.

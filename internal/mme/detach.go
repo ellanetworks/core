@@ -12,8 +12,7 @@ import (
 )
 
 // detachTypeReattachNotRequired is the network-originating detach type meaning
-// the UE shall not re-attach (TS 24.301) — used when a subscriber is
-// removed.
+// the UE shall not re-attach (TS 24.301).
 const detachTypeReattachNotRequired uint8 = 2
 
 // DetachSubscriber sends a network-initiated DETACH REQUEST (TS 24.301)

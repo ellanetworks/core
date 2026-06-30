@@ -76,7 +76,7 @@ type epsSessionManager interface {
 //     connection's in-flight modification flags), and imsi. The security context
 //     is reached only through chokepoint methods (installNASSecurityContext,
 //     protectDownlink, tryUnprotectUplink, deriveInitialKeNB, markSecured,
-//     securitySnapshot) so the keys never leave the kernel and the COUNT invariant
+//     Snapshot) so the keys never leave the kernel and the COUNT invariant
 //     is auditable in one place.
 //   - UeContext.emmState is atomic — an enum read on the hot path, kept lock-free.
 //     The ECM state is derived from whether the UE holds an S1-connection (ue.s1).
@@ -106,29 +106,20 @@ type MME struct {
 	// with allocate/free.
 	mtmsi *etsi.TmsiAllocator
 
-	// Idle-mode reachability supervision (TS 24.301). Fields so tests can
-	// shorten them.
-	mobileReachableTime time.Duration
+	// Supervision timers are fields, not constants, so tests can shorten them.
+	mobileReachableTime time.Duration // idle-mode reachability (TS 24.301)
 	implicitDetachTime  time.Duration
 
-	// NAS common-procedure guard (TS 24.301: T3450/T3460/T3470). Fields so
-	// tests can shorten them.
-	nasGuardTimeout       time.Duration
+	nasGuardTimeout       time.Duration // NAS common-procedure guard (TS 24.301: T3450/T3460/T3470)
 	nasGuardMaxRetransmit int
 
-	// ESM bearer-procedure guard (TS 24.301: T3486 modify, T3495 deactivate),
-	// which the spec sets longer than the common-procedure timers. Field so tests
-	// can shorten it.
-	esmGuardTimeout time.Duration
+	esmGuardTimeout time.Duration // ESM bearer-procedure guard (TS 24.301: T3486/T3495), longer than the common-procedure guard
 
-	// Paging supervision (T3413, TS 24.301 §5.6.2). Fields so tests can shorten
-	// them.
-	pagingTimeout       time.Duration
+	pagingTimeout       time.Duration // paging supervision (T3413, TS 24.301 §5.6.2)
 	pagingMaxRetransmit int
 
-	// S1-handover supervision bounds the whole procedure (HANDOVER REQUIRED →
-	// NOTIFY) so a target that goes silent does not pin the UE's handover slot.
-	// Field so tests can shorten it.
+	// handoverGuardTimeout bounds the whole S1 handover (HANDOVER REQUIRED → NOTIFY)
+	// so a silent target does not pin the UE's handover slot.
 	handoverGuardTimeout time.Duration
 }
 
@@ -207,5 +198,5 @@ func New(cred *udm.Service, bearer bearerStore, session epsSessionManager) *MME 
 	}
 }
 
-// tracer instruments the MME's S1AP/EMM control plane.
+// Tracer instruments the MME's S1AP/EMM control plane.
 var Tracer = otel.Tracer("ella-core/mme")

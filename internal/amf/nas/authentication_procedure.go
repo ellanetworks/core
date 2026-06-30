@@ -26,7 +26,7 @@ func sendUEAuthenticationAuthenticateRequest(ctx context.Context, amfInstance *a
 }
 
 func identityVerification(ue *amf.UeContext) bool {
-	return ue.SupiValue().IsValid() || len(ue.Suci) != 0
+	return ue.Supi().IsValid() || len(ue.Suci) != 0
 }
 
 func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) (bool, error) {
@@ -39,7 +39,6 @@ func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 	}
 
 	if !identityVerification(ue) {
-		// Request UE's SUCI by sending identity request
 		ue.Log.Debug("UE has no SUCI / SUPI - send identity request to UE")
 
 		amf.SendIdentityRequest(ctx, ranUe, nasMessage.MobileIdentity5GSTypeSuci)
@@ -49,7 +48,6 @@ func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 		return false, nil
 	}
 
-	// Check whether UE has SUCI and SUPI
 	ue.Log.Debug("UE has SUCI / SUPI")
 
 	if ue.SecurityContextIsValid() {
@@ -71,7 +69,7 @@ func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 
 	conn.AuthenticationCtx = response
 
-	ue.SetAbba([]uint8{0x00, 0x00}) // set ABBA value as described at TS 33.501 Annex A.7.1
+	ue.SetAbba([]uint8{0x00, 0x00}) // set ABBA value as described in TS 33.501
 
 	amf.SendAuthenticationRequest(ctx, amfInstance, ranUe)
 

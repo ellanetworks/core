@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/s1ap/aper"
 )
 
-// UE S1AP ID ranges (TS 36.413 §9.2.3).
+// UE S1AP ID ranges (TS 36.413).
 const (
 	enbUES1APIDMax = 16777215   // INTEGER (0..2^24-1)
 	mmeUES1APIDMax = 4294967295 // INTEGER (0..2^32-1)

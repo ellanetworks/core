@@ -12,10 +12,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// handleSecurityModeReject handles a SECURITY MODE REJECT (TS 24.301): the
-// UE rejected the selected NAS security algorithms, so the security mode control
-// procedure — and the attach/service procedure that triggered it — is aborted
-// and the UE's S1 context released.
+// handleSecurityModeReject aborts the security mode procedure, and the attach or
+// service procedure that triggered it, releasing the UE's S1 context when the UE
+// rejects the selected NAS security algorithms (TS 24.301).
 func handleSecurityModeReject(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
 	m.StopNASGuard(ue)
 

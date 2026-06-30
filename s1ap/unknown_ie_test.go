@@ -9,7 +9,7 @@ import (
 )
 
 // TestUnknownIERoundTrip checks a ProtocolIE the message type does not model is
-// preserved through Marshal/Parse and surfaced by UnknownIEs (TS 36.413 §9.3),
+// preserved through Marshal/Parse and surfaced by UnknownIEs (TS 36.413),
 // so a present IE is never silently dropped. UECapabilityInfoIndication is used
 // because it previously discarded unmodeled IEs entirely.
 func TestUnknownIERoundTrip(t *testing.T) {
@@ -83,7 +83,7 @@ func TestUnknownIEsNilWhenNone(t *testing.T) {
 }
 
 // TestErrorIndicationCriticalityDiagnostics checks the CriticalityDiagnostics IE
-// (TS 36.413 §9.2.1.4) round-trips on a message — Error Indication — where it was
+// (TS 36.413) round-trips on a message — Error Indication — where it was
 // previously dropped.
 func TestErrorIndicationCriticalityDiagnostics(t *testing.T) {
 	pc := ProcInitialContextSetup

@@ -12,15 +12,15 @@ import (
 const (
 	maxnoofTAIs = 256
 
-	// CNDomain ::= ENUMERATED { ps, cs } (non-extensible, TS 36.413 §9.2.3.22).
+	// CNDomain ::= ENUMERATED { ps, cs } (non-extensible, TS 36.413).
 	cnDomainRootCount = 2
-	// UEPagingID ::= CHOICE { s-TMSI, iMSI, ... } (extensible, §9.2.3.13).
+	// UEPagingID ::= CHOICE { s-TMSI, iMSI, ... } (extensible).
 	uePagingIDRootCount   = 2
 	uePagingIDChoiceSTMSI = 0
 )
 
-// CNDomain selects the core-network domain a Paging targets (TS 36.413
-// §9.2.3.22). Ella Core pages the PS domain.
+// CNDomain selects the core-network domain a Paging targets (TS 36.413).
+// Ella Core pages the PS domain.
 type CNDomain uint8
 
 const (
@@ -28,7 +28,7 @@ const (
 	CNDomainCS CNDomain = 1
 )
 
-// Paging is the PAGING message (TS 36.413 §9.1.6): a non-UE-associated message
+// Paging is the PAGING message (TS 36.413): a non-UE-associated message
 // the MME sends to eNB(s) to reach an ECM-IDLE UE. Ella Core uses the S-TMSI
 // paging identity and pages the operator's tracking area(s).
 //
@@ -39,8 +39,8 @@ const (
 //	    TAIList                SEQUENCE (SIZE(1..256)) OF TAIItem,
 //	    ... }
 type Paging struct {
-	UEIdentityIndexValue uint16 // 10-bit UE identity index (IMSI mod 1024)
-	STMSI                STMSI  // UE Paging Identity (s-TMSI alternative)
+	UEIdentityIndexValue uint16
+	STMSI                STMSI // UE Paging Identity (s-TMSI alternative)
 	CNDomain             CNDomain
 	TAIList              []TAI
 

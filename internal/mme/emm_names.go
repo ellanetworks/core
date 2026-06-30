@@ -9,9 +9,9 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// emmMessageTypeName renders an EMM message type for logging (TS 24.301).
-// It covers types the eps codec does not yet model (e.g. tracking area
-// updating) so dropped messages are identifiable in logs.
+// EmmMessageTypeName renders an EMM message type for logging (TS 24.301). It
+// covers types the eps codec does not model, so dropped messages stay
+// identifiable in logs.
 func EmmMessageTypeName(mt eps.MessageType) string {
 	switch uint8(mt) {
 	case 0x41:

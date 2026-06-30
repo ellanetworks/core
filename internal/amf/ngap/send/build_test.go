@@ -116,7 +116,7 @@ func TestBuildInitialContextSetupRequest_MultipleAllowedNSSAI(t *testing.T) {
 	encoded, err := buildInitialContextSetupRequest(
 		1, 2, "1000000", "2000000",
 		allowedNssai, kgnodeb, servingPlmnID,
-		"", nil, ueSecurityCap, nil, nil,
+		nil, nil, ueSecurityCap, nil, nil,
 		&models.Guami{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, AmfID: "cafe00"},
 	)
 	if err != nil {
@@ -160,7 +160,7 @@ func TestBuildInitialContextSetupRequest_EmptyAllowedNSSAI_Error(t *testing.T) {
 	_, err := buildInitialContextSetupRequest(
 		1, 2, "1000000", "2000000",
 		[]models.Snssai{}, kgnodeb, models.PlmnID{Mcc: "001", Mnc: "01"},
-		"", nil, ueSecurityCap, nil, nil,
+		nil, nil, ueSecurityCap, nil, nil,
 		&models.Guami{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, AmfID: "cafe00"},
 	)
 	if err == nil {

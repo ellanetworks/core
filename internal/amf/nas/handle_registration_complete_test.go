@@ -39,7 +39,7 @@ func setupRegistrationCompleteUE(t *testing.T) (*amf.UeContext, *FakeNGAPSender)
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1

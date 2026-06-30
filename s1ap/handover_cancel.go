@@ -9,9 +9,8 @@ import (
 	"github.com/ellanetworks/core/s1ap/aper"
 )
 
-// HandoverCancel is the HANDOVER CANCEL message (TS 36.413 §9.1.5.11), sent by
-// the source eNB to cancel an ongoing or prepared handover (TS 23.401
-// §5.5.1.2.4).
+// HandoverCancel is the HANDOVER CANCEL message (TS 36.413), sent by
+// the source eNB to cancel an ongoing or prepared handover (TS 23.401).
 type HandoverCancel struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
@@ -105,8 +104,8 @@ func ParseHandoverCancel(value []byte) (*HandoverCancel, error) {
 	return m, nil
 }
 
-// HandoverCancelAcknowledge is the HANDOVER CANCEL ACKNOWLEDGE message (TS 36.413
-// §9.1.5.12), the successful outcome the MME returns to confirm the handover has
+// HandoverCancelAcknowledge is the HANDOVER CANCEL ACKNOWLEDGE message (TS 36.413),
+// the successful outcome the MME returns to confirm the handover has
 // been cancelled and target resources released.
 type HandoverCancelAcknowledge struct {
 	MMEUES1APID MMEUES1APID

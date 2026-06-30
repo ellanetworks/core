@@ -39,7 +39,7 @@ func lowMask(octets int) uint64 {
 	return (uint64(1) << uint(8*octets)) - 1
 }
 
-// WriteConstrainedInt encodes v in the inclusive range [lb, ub] (X.691 §11.5).
+// WriteConstrainedInt encodes v in the inclusive range [lb, ub] (X.691).
 // The bounds are assumed to satisfy ub-lb < 2^63, which holds for every S1AP
 // constraint (the widest is INTEGER(0..2^32-1)).
 func (w *Writer) WriteConstrainedInt(v, lb, ub int64) error {
@@ -51,16 +51,16 @@ func (w *Writer) WriteConstrainedInt(v, lb, ub int64) error {
 	n := uint64(v - lb)
 
 	switch {
-	case rang == 1: // §11.5.4: single value carries no bits
-	case rang <= 255: // §11.5.7.1: bit-field
+	case rang == 1: // single value carries no bits
+	case rang <= 255: // bit-field
 		w.WriteBits(n, bitsForRange(rang))
-	case rang == 256: // §11.5.7.2: one octet, aligned
+	case rang == 256: // one octet, aligned
 		w.Align()
 		w.WriteBits(n, 8)
-	case rang <= 65536: // §11.5.7.3: two octets, aligned
+	case rang <= 65536: // two octets, aligned
 		w.Align()
 		w.WriteBits(n, 16)
-	default: // §11.5.7.4: octet count, aligned, then the value octets
+	default: // octet count, aligned, then the value octets
 		valOctets := minOctets(n)
 		maxOctets := minOctets(rang - 1)
 		w.WriteBits(uint64(valOctets-1), bitsForRange(uint64(maxOctets)))
@@ -73,7 +73,7 @@ func (w *Writer) WriteConstrainedInt(v, lb, ub int64) error {
 
 // ReadConstrainedInt decodes a constrained whole number in [lb, ub]. A value
 // that decodes outside the range (for example a bit-field pattern with no
-// assigned value) is rejected, matching X.691 §11.5 strictly.
+// assigned value) is rejected, matching X.691 strictly.
 func (r *Reader) ReadConstrainedInt(lb, ub int64) (int64, error) {
 	rang := uint64(ub-lb) + 1
 
@@ -143,7 +143,7 @@ func (r *Reader) ReadConstrainedInt(lb, ub int64) (int64, error) {
 	return lb + int64(n), nil
 }
 
-// WriteSemiConstrainedInt encodes v >= lb with no upper bound (X.691 §11.7).
+// WriteSemiConstrainedInt encodes v >= lb with no upper bound (X.691).
 func (w *Writer) WriteSemiConstrainedInt(v, lb int64) error {
 	if v < lb {
 		return errOutOfRange("semi-constrained int", v, lb, v)
@@ -197,7 +197,7 @@ func twosComplementLen(v int64) int {
 }
 
 // WriteUnconstrainedInt encodes v with no bounds, as a length-prefixed
-// 2's-complement integer (X.691 §11.8).
+// 2's-complement integer (X.691).
 func (w *Writer) WriteUnconstrainedInt(v int64) error {
 	oct := twosComplementLen(v)
 	if err := w.WriteLength(oct); err != nil {
@@ -231,7 +231,7 @@ func (r *Reader) ReadUnconstrainedInt() (int64, error) {
 }
 
 // WriteNormallySmall encodes a non-negative whole number that is usually small
-// (X.691 §11.6): values 0..63 take a 7-bit bit-field, larger values fall back
+// (X.691): values 0..63 take a 7-bit bit-field, larger values fall back
 // to a semi-constrained encoding.
 func (w *Writer) WriteNormallySmall(v uint64) error {
 	if v <= 63 {

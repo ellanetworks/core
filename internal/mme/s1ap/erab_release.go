@@ -10,17 +10,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// DeactivateBearer asks the UE to deactivate one EPS bearer, carrying the
-// DEACTIVATE EPS BEARER CONTEXT REQUEST with the given ESM cause and procedure
-// transaction identity (TS 24.301 §6.4.4).
-//
-// When the deactivation leaves the UE connected — a PDN disconnect, or a
-// reactivation of an additional PDN — the NAS rides in an S1AP E-RAB RELEASE
-// COMMAND so the eNB releases that radio bearer in the same step (TS 23.401
-// §5.10.3 "Deactivate Bearer Request"). When it instead deactivates the attach
-// (first) bearer with reactivation requested, the UE re-attaches and the full UE
-// Context Release that follows tears down the radio bearers, so the NAS is sent
-// on a Downlink NAS Transport and guarded like other common procedures.
+// HandleERABReleaseResponse logs the eNB's confirmation that each E-RAB was
+// released (TS 36.413 §8.2.3).
 func HandleERABReleaseResponse(m *mme.MME, conn mme.NasWriter, value []byte) {
 	msg, err := s1ap.ParseERABReleaseResponse(value)
 	if err != nil {

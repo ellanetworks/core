@@ -53,7 +53,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		if msg.FiveGSTMSI != nil {
 			logger.WithTrace(ctx, ranUe.Log).Debug("Receive 5G-S-TMSI")
 
-			operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
+			operatorInfo, err := amfInstance.OperatorInfo(ctx)
 			if err != nil {
 				logger.WithTrace(ctx, ranUe.Log).Error("Could not get operator info", zap.Error(err))
 				return
@@ -78,14 +78,13 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			if amfUe, ok := amfInstance.FindUeContextByGuti(guti); !ok {
 				logger.WithTrace(ctx, ranUe.Log).Warn("Unknown UE", logger.GUTI(guti.String()))
 			} else if !amfUe.ReuseForInboundNAS(msg.NASPDU) {
-				// TS 24.501 §4.4.4.3: this message cites an existing context but
+				// TS 24.501: this message cites an existing context but
 				// is not authenticated for it. Do not bind to or mutate the live
 				// context; the NAS layer registers it on a fresh context pending
 				// authentication.
 				logger.WithTrace(ctx, ranUe.Log).Info("Initial UE Message cites a known GUTI but is not authenticated for that context; registering on a fresh context", logger.GUTI(guti.String()))
 			} else {
 				logger.WithTrace(ctx, ranUe.Log).Debug("find UeContext", logger.GUTI(guti.String()))
-				/* checking the guti-ue belongs to this amf instance */
 
 				if amfUe.RanUe() != nil {
 					logger.WithTrace(ctx, ranUe.Log).Debug("Implicit Deregistration", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))

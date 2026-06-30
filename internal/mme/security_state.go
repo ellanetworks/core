@@ -5,22 +5,16 @@
 package mme
 
 // AuthProof is an unforgeable witness that the caller is entitled to mutate
-// security-critical state on a UeContext. Holding an AuthProof is a precondition
-// for installing the NAS security context and committing the UE identity.
+// security-critical state on a UeContext: installing the NAS security context or
+// committing the UE identity. It has no exported constructor and is minted only
+// at two authorized sites in this package:
 //
-// AuthProof has no exported constructor. It may only be minted from within the
-// mme package, at exactly two authorized call sites:
+//   - MintAuthProofForSecurityMode, after EPS-AKA authentication succeeds, to
+//     install the negotiated NAS keys.
+//   - MintAuthProofForAttachCommit, when the authenticated UE is indexed by IMSI
+//     and supersedes any prior context for the subscriber.
 //
-//   - the Security Mode procedure, after the authentication (EPS-AKA) has
-//     succeeded, when the negotiated NAS keys are installed
-//     (MintAuthProofForSecurityMode).
-//   - the attach-accept path, when the authenticated UE is indexed by IMSI and
-//     supersedes any prior context for the subscriber
-//     (MintAuthProofForAttachCommit).
-//
-// Grepping for the two Mint* names gives the full set of mint call sites outside
-// this file — see TestAuthProofMintSites for the enforcing test. The unexported
-// field prevents other packages from forging an AuthProof via struct literal.
+// TestAuthProofMintSites enforces that these are the only mint sites.
 type AuthProof struct {
 	_ struct{} // unexported field forbids struct-literal construction outside this package
 }

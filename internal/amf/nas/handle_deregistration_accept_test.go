@@ -25,8 +25,8 @@ func TestHandleDeregistrationAccept_T3522Stopped_UEContextReleaseCommand(t *test
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if ue.GetState() != amf.Deregistered {
-		t.Fatalf("expected UE to be deregistered, but was: %s", ue.GetState())
+	if ue.State() != amf.Deregistered {
+		t.Fatalf("expected UE to be deregistered, but was: %s", ue.State())
 	}
 
 	if conn.T3522.Active() {

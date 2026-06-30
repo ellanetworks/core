@@ -48,14 +48,14 @@ func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 		}
 	}
 
-	imei, eea, eia := ue.securitySnapshot()
+	snap := ue.Snapshot()
 
 	cs := ConnectedSubscriber{
 		RadioName:          radioName,
-		Imei:               imei,
-		LastSeenAt:         ue.lastSeenTime(),
-		CipheringAlgorithm: epsCipheringAlgName(eea),
-		IntegrityAlgorithm: epsIntegrityAlgName(eia),
+		Imei:               snap.Imei,
+		LastSeenAt:         snap.LastSeenAt,
+		CipheringAlgorithm: snap.CipheringAlgorithm,
+		IntegrityAlgorithm: snap.IntegrityAlgorithm,
 	}
 
 	for _, p := range m.SnapshotPDNs(ue) {
@@ -85,8 +85,7 @@ func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 }
 
 // ConnectedSubscribers returns the status of every EMM-registered UE keyed by
-// IMSI. A registered UE has one default EPS bearer (TS 23.401), reported
-// as a single session.
+// IMSI.
 func (m *MME) ConnectedSubscribers() map[string]ConnectedSubscriber {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

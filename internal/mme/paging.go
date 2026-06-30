@@ -15,18 +15,11 @@ import (
 )
 
 // Page sends an S1AP Paging for an EMM-REGISTERED, ECM-IDLE UE so it
-// re-establishes the S1 connection (via a Service Request) and the buffered
-// downlink data is delivered (TS 23.401). It pages every connected eNB:
-// Ella Core is single-TAC, so all eNBs serve the paging tracking area. The
-// paging procedure is supervised: if the UE does not respond, the Paging is
-// retransmitted up to a bounded number of times, then abandoned (T3413,
-// TS 24.301 §5.6.2). A repeated trigger while a paging procedure is already in
-// progress is folded into it rather than restarting the supervision.
-//
-// A nil error means the paging was sent or deliberately skipped (the UE is
-// already ECM-CONNECTED or a paging procedure is already running); only a
-// missing UE context or a marshal failure is reported. The eNB broadcast itself
-// is best-effort — a per-eNB write failure does not fail the call.
+// re-establishes the S1 connection and buffered downlink data is delivered
+// (TS 23.401). Ella Core is single-TAC, so every connected eNB is paged. The
+// procedure is supervised and retransmitted up to a bound, then abandoned (T3413,
+// TS 24.301 §5.6.2). A nil error covers a deliberate skip (already ECM-CONNECTED,
+// or paging in progress); only a missing context or marshal failure is reported.
 func (m *MME) Page(ctx context.Context, imsi string) error {
 	ue, ok := m.LookupUeByIMSI(imsi)
 	if !ok {
@@ -117,9 +110,7 @@ func (m *MME) abandonPaging(ue *UeContext) {
 	logger.MmeLog.Info("paging unanswered, abandoning procedure", zap.String("imsi", imsi))
 }
 
-// buildPaging assembles the Paging message for a UE: the S-TMSI paging identity,
-// the IMSI-derived UE identity index, the PS domain, and the operator's tracking
-// area (TS 36.413).
+// buildPaging assembles the Paging message for a UE (TS 36.413).
 func (m *MME) buildPaging(ctx context.Context, ue *UeContext) (*s1ap.Paging, error) {
 	plmn, err := m.OperatorPLMN(ctx)
 	if err != nil {

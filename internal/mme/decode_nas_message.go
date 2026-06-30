@@ -12,10 +12,8 @@ import (
 )
 
 // DecodeResult is the outcome of decoding an inbound EMM NAS PDU: the plaintext
-// body to dispatch and how it was authorized. It mirrors the 5G AMF's
-// DecodeResult — the caller dispatches on it without seeing the internal verdict.
+// body to dispatch and how it was authorized.
 type DecodeResult struct {
-	// Plain is the plaintext EMM body to dispatch.
 	Plain []byte
 	// IntegrityVerified is true when the PDU's MAC verified against the UE's
 	// security context. A false value covers both a plain whitelisted PDU and one
@@ -28,15 +26,15 @@ type DecodeResult struct {
 // against TS 24.301 §4.4.4.3, returning a DecodeResult or an error (already
 // logged) when the PDU must be dropped. The only UE state it mutates is the
 // uplink NAS COUNT (committed only on a verified MAC) and the connection's
-// secure-exchange flag. It mirrors the 5G AMF's DecodeNASMessage.
+// secure-exchange flag.
 func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	if len(nas) < 1 {
 		return nil, fmt.Errorf("nas payload is empty")
 	}
 
 	// Secure exchange is tracked per NAS signalling connection (TS 24.301
-	// §4.4.4.3), matching the 5G AMF; ue.secured is the separate per-UE
-	// "has a security context" notion used by handover/path-switch.
+	// §4.4.4.3); ue.secured is the separate per-UE "has a security context"
+	// notion used by handover/path-switch.
 	conn := ue.S1
 	connSecured := conn != nil && conn.SecureExchangeEstablished()
 

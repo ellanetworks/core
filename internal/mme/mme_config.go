@@ -37,12 +37,10 @@ func (m *MME) MmeIdentity() (uint16, uint8) {
 	return defaultMMEGroupID, uint8(m.Bearer.NodeID() & 0xFF)
 }
 
-// OperatorTACs returns the operator's supported Tracking Area Codes that are
-// valid for E-UTRAN. A TAC is an OCTET STRING, so its configured form is hex
-// (matching the AMF, which compares the gNB's hex-encoded TAC against this same
-// operator config). The E-UTRAN TAC is 2 octets and the 5GS TAC 3 (TS 23.003), so
-// a configured value above 16 bits is a 5GS-only TAC and is excluded here rather
-// than narrowed, which would let it falsely match a 16-bit eNB TAC.
+// OperatorTACs returns the operator's E-UTRAN-valid Tracking Area Codes. A TAC is
+// an OCTET STRING configured as hex (matching the AMF's gNB-TAC comparison). The
+// E-UTRAN TAC is 2 octets and the 5GS TAC 3 (TS 23.003); a configured value above
+// 16 bits is a 5GS-only TAC, excluded here so it cannot match a 16-bit eNB TAC.
 func (m *MME) OperatorTACs(ctx context.Context) ([]uint16, error) {
 	op, err := m.Bearer.GetOperator(ctx)
 	if err != nil {

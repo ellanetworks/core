@@ -11,7 +11,7 @@ import (
 )
 
 // nasBearer is the BEARER input to the EPS NAS integrity/cipher algorithms.
-// NAS has no radio bearer, so the value is the constant 0 (TS 33.401 §8).
+// NAS has no radio bearer, so the value is the constant 0 (TS 33.401).
 const nasBearer uint8 = 0
 
 // ErrMACMismatch reports a failed integrity check in Unprotect.
@@ -90,7 +90,7 @@ func Unprotect(
 }
 
 // macInput is the integrity-protected span: the sequence-number octet followed
-// by the (ciphered) NAS message payload (TS 24.301 §4.4.4.3).
+// by the (ciphered) NAS message payload (TS 24.301).
 func macInput(seq uint8, payload []byte) []byte {
 	out := make([]byte, 0, len(payload)+1)
 	out = append(out, seq)

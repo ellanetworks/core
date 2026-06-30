@@ -20,21 +20,18 @@ const (
 	mmeName                   = "ella"
 )
 
-// causeUnknownPLMN is S1AP Cause Misc "unknown-PLMN" (TS 36.413, the
-// sixth Misc root value), returned in S1 Setup Failure when the eNB broadcasts no
-// PLMN this MME serves.
+// causeUnknownPLMN is S1AP Cause Misc "unknown-PLMN" (TS 36.413), returned in S1
+// Setup Failure when the eNB broadcasts no PLMN this MME serves.
 var causeUnknownPLMN = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscUnknownPLMN}
 
-// causeNoServedTAC is S1AP Cause Misc "unspecified", returned in an S1 Setup or
-// ENB Configuration Update Failure when the eNB broadcasts a served PLMN but no
-// TAC this MME serves. TS 36.413 §8.7.3.4 mandates rejection only on Unknown
-// PLMN; rejecting an unserved TAC matches the AMF, which fails NG Setup and RAN
-// Configuration Update on the same condition.
+// causeNoServedTAC is S1AP Cause Misc "unspecified", returned when the eNB
+// broadcasts a served PLMN but no TAC this MME serves. TS 36.413 §8.7.3.4
+// mandates rejection only on Unknown PLMN; rejecting an unserved TAC matches the
+// AMF's NG Setup / RAN Configuration Update handling.
 var causeNoServedTAC = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscUnspecified}
 
-// handleS1Setup answers an eNB's S1 Setup Request: an S1 Setup Response when the
-// eNB broadcasts a TAI (PLMN + TAC) this MME serves, otherwise an S1 Setup
-// Failure with cause "Unknown PLMN" or, for an unserved TAC, "unspecified"
+// handleS1Setup answers an eNB's S1 Setup Request with an S1 Setup Response when
+// the eNB broadcasts a TAI this MME serves, otherwise an S1 Setup Failure
 // (TS 36.413).
 func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value []byte) {
 	plmn, err := m.OperatorPLMN(ctx)
@@ -93,10 +90,9 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 }
 
 // handleENBConfigurationUpdate answers an eNB's ENB CONFIGURATION UPDATE: it
-// validates that any updated supported TAs still broadcast a PLMN this MME serves
-// (otherwise an ENB CONFIGURATION UPDATE FAILURE with cause "Unknown PLMN"),
-// stores an updated eNB name, and acknowledges (TS 36.413 §8.7.4). The eNB blocks
-// on this response, so an unhandled update would stall its reconfiguration.
+// validates any updated supported TAs against the served PLMN/TAC, stores an
+// updated eNB name, and acknowledges, or fails the update (TS 36.413 §8.7.4). The
+// eNB blocks on this response, so an unhandled update stalls its reconfiguration.
 func handleENBConfigurationUpdate(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value []byte) {
 	req, err := s1ap.ParseENBConfigurationUpdate(value)
 	if err != nil {
@@ -151,11 +147,9 @@ func handleENBConfigurationUpdate(m *mme.MME, ctx context.Context, conn *sctp.SC
 }
 
 // enbConfigUpdateOutcomeFor produces the S1AP response to an ENB CONFIGURATION
-// UPDATE: an Acknowledge when any updated supported TAs still broadcast a TAI
-// (PLMN + TAC) this MME serves, otherwise an ENB CONFIGURATION UPDATE FAILURE
-// with cause "Unknown PLMN" or, for an unserved TAC, "unspecified"
-// (TS 36.413 §8.7.4). accepted reports which was produced. An update with no
-// supported TAs (a name- or DRX-only change) is always accepted.
+// UPDATE: an Acknowledge when any updated supported TAs still broadcast a served
+// TAI, otherwise a Failure (TS 36.413 §8.7.4); accepted reports which. An update
+// with no supported TAs (a name- or DRX-only change) is always accepted.
 func enbConfigUpdateOutcomeFor(req *s1ap.ENBConfigurationUpdate, plmn models.PlmnID, tacs []uint16) (out []byte, accepted bool, err error) {
 	if len(req.SupportedTAs) > 0 {
 		served, err := mme.EncodePLMN(plmn)
@@ -183,10 +177,9 @@ func enbConfigUpdateOutcomeFor(req *s1ap.ENBConfigurationUpdate, plmn models.Plm
 }
 
 // s1SetupOutcomeFor decodes an S1 Setup Request and produces the S1AP message to
-// send back: an S1 Setup Response when the eNB broadcasts a TAI (PLMN + TAC) this
-// MME serves, otherwise an S1 Setup Failure with cause "Unknown PLMN" or, for an
-// unserved TAC, "unspecified" (TS 36.413). accepted reports which outcome was
-// produced; reason is a human-readable rejection summary, empty when accepted.
+// send back: an S1 Setup Response when the eNB broadcasts a served TAI, otherwise
+// an S1 Setup Failure (TS 36.413). accepted reports which outcome; reason is a
+// human-readable rejection summary, empty when accepted.
 func s1SetupOutcomeFor(reqValue []byte, plmn models.PlmnID, tacs []uint16, mmeGroupID uint16, mmeCode uint8) (req *s1ap.S1SetupRequest, out []byte, accepted bool, reason string, err error) {
 	req, err = s1ap.ParseS1SetupRequest(reqValue)
 	if err != nil {
@@ -226,9 +219,9 @@ func s1SetupOutcomeFor(reqValue []byte, plmn models.PlmnID, tacs []uint16, mmeGr
 }
 
 // servedTAICause reports whether the eNB broadcasts a TAI this MME serves and, if
-// not, the S1AP cause to reject with: "Unknown PLMN" when no broadcast PLMN
-// matches, otherwise "unspecified" when a served PLMN is broadcast but with no
-// served TAC (TS 36.413). ok is true (and cause unset) when a served TAI exists.
+// not, the cause to reject with: "Unknown PLMN" when no broadcast PLMN matches,
+// otherwise "unspecified" when a served PLMN is broadcast but no served TAC
+// (TS 36.413). ok is true (cause unset) when a served TAI exists.
 func servedTAICause(tas s1ap.SupportedTAs, plmn s1ap.PLMNIdentity, tacs []uint16) (cause s1ap.Cause, ok bool) {
 	if !enbBroadcastsPLMN(tas, plmn) {
 		return causeUnknownPLMN, false

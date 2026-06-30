@@ -161,7 +161,7 @@ func (ranUe *RanUe) SendInitialContextSetupRequest(
 	allowedNssai []models.Snssai,
 	kgnb []byte,
 	plmnID models.PlmnID,
-	ueRadioCapability string,
+	ueRadioCapability []byte,
 	ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging,
 	ueSecurityCapability *nasType.UESecurityCapability,
 	nasPdu []byte,
@@ -334,7 +334,6 @@ func (ranUe *RanUe) SwitchToRan(newRan *Radio, ranUeNgapID int64) error {
 	newRan.RanUEs[ranUe.AmfUeNgapID] = ranUe
 	newRan.mu.Unlock()
 
-	// switch to newRan
 	ranUe.radio = newRan
 	ranUe.RanUeNgapID = ranUeNgapID
 	ranUe.Log = newRan.Log.With(logger.AmfUeNgapID(ranUe.AmfUeNgapID))
@@ -447,7 +446,7 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, amf *AMF, userLocationIn
 		ranUe.Location.N3gaLocation.UeIpv6Addr = ipv6Addr
 		ranUe.Location.N3gaLocation.PortNumber = ngapConvert.PortNumberToInt(port)
 
-		operatorInfo, err := amf.GetOperatorInfo(ctx)
+		operatorInfo, err := amf.OperatorInfo(ctx)
 		if err != nil {
 			logger.AmfLog.Error("Error getting supported TAI list", zap.Error(err))
 			return

@@ -190,7 +190,7 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 		ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 		ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
 		ue.ForceState(amf.Registered)
-		ue.SetSecurityContextAvailableForTest(true)
+		ue.SetSecuredForTest(true)
 		ue.SetCipheringAlgForTest(security.AlgCiphering128NEA2)
 		ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA2)
 		ue.SetNgKsiForTest(models.NgKsi{Ksi: 1})

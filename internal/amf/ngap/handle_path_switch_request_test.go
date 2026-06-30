@@ -140,7 +140,7 @@ func newValidUeContext() *amf.UeContext {
 	amfUe := amf.NewUeContext()
 	supi, _ := etsi.NewSUPIFromPrefixed("imsi-001010000000001")
 	amfUe.SetSupiForTest(supi)
-	amfUe.SetSecurityContextAvailableForTest(true)
+	amfUe.SetSecuredForTest(true)
 	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
 	amfUe.SetKamfForTest("0000000000000000000000000000000000000000000000000000000000000000")
 	amfUe.SetNHForTest(make([]byte, 32))
@@ -253,7 +253,7 @@ func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 	}
 
 	amfUe := amf.NewUeContext()
-	amfUe.SetSecurityContextAvailableForTest(false)
+	amfUe.SetSecuredForTest(false)
 	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: nasMessage.NasKeySetIdentifierNoKeyIsAvailable})
 	amfUe.Log = logger.AmfLog
 
@@ -354,11 +354,11 @@ func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 			len(targetNGAPSender.SentPathSwitchRequestFailures))
 	}
 
-	// TS 38.413 §9.2.3.10: the failure must name the unswitched session in its
+	// TS 38.413: the failure must name the unswitched session in its
 	// mandatory PDU Session Resource Released List.
 	released := targetNGAPSender.SentPathSwitchRequestFailures[0].PduSessionResourceReleasedList
 	if released == nil || len(released.List) != 1 {
-		t.Fatalf("failure must carry a released list naming the unswitched session (TS 38.413 §9.2.3.10); got %v", released)
+		t.Fatalf("failure must carry a released list naming the unswitched session (TS 38.413); got %v", released)
 	}
 
 	if released.List[0].PDUSessionID.Value != 1 {
@@ -553,7 +553,7 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 	}
 }
 
-// TestPathSwitchRequest_DuplicatePDUSessionIDs verifies TS 38.413 §8.4.4.4: a
+// TestPathSwitchRequest_DuplicatePDUSessionIDs verifies TS 38.413: a
 // to-be-switched downlink list that repeats a PDU Session ID is rejected with a
 // Path Switch Request Failure, even for an otherwise-switchable UE context, and
 // neither the SMF nor an acknowledge is invoked.
@@ -627,9 +627,9 @@ func TestPathSwitchRequest_DuplicatePDUSessionIDs(t *testing.T) {
 	}
 
 	// The duplicated PDU Session ID appears once in the mandatory released list
-	// (TS 38.413 §9.2.3.10).
+	// (TS 38.413).
 	if failure.PduSessionResourceReleasedList == nil || len(failure.PduSessionResourceReleasedList.List) != 1 {
-		t.Fatalf("failure must carry a deduplicated released list (TS 38.413 §9.2.3.10); got %v", failure.PduSessionResourceReleasedList)
+		t.Fatalf("failure must carry a deduplicated released list (TS 38.413); got %v", failure.PduSessionResourceReleasedList)
 	}
 
 	if got := failure.PduSessionResourceReleasedList.List[0].PDUSessionID.Value; got != int64(pduSessionID) {
@@ -830,7 +830,7 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 
 // TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten verifies the
 // AMF keeps its stored UE 5G security capabilities when the target gNB
-// reports different values in a PathSwitchRequest (TS 33.501 §6.7.3.1).
+// reports different values in a PathSwitchRequest (TS 33.501).
 func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
 	sourceNGAPSender := &FakeNGAPSender{}
 	sourceRan := &amf.Radio{

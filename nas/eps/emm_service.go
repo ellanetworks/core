@@ -9,10 +9,10 @@ import (
 	"github.com/ellanetworks/core/nas/common"
 )
 
-// MsgServiceReject is the SERVICE REJECT message identity (TS 24.301 Table 9.8.1).
+// MsgServiceReject is the SERVICE REJECT message identity (TS 24.301).
 const MsgServiceReject MessageType = 0x4e
 
-// ServiceRequest is the SERVICE REQUEST message (TS 24.301 §8.2.25): a 4-octet
+// ServiceRequest is the SERVICE REQUEST message (TS 24.301): a 4-octet
 // frame with no message identity — the security header type octet, then the KSI
 // and a 5-bit truncated NAS sequence number, then a 2-octet short MAC. The UE
 // sends it from EMM-IDLE to re-establish the NAS connection.
@@ -37,7 +37,7 @@ func ParseServiceRequest(b []byte) (*ServiceRequest, error) {
 }
 
 // ServiceRequestShortMAC computes the 2-octet short MAC of a SERVICE REQUEST
-// (TS 24.301 §9.9.3.28): the NAS-MAC over the message header (the security
+// (TS 24.301): the NAS-MAC over the message header (the security
 // header type/PD octet and the KSI/sequence octet), truncated to its two least
 // significant octets. header must be the first two octets of the message.
 func ServiceRequestShortMAC(header []byte, kNASint [16]byte, count uint32, direction uint8, integ common.Integrity) ([2]byte, error) {
@@ -49,7 +49,7 @@ func ServiceRequestShortMAC(header []byte, kNASint [16]byte, count uint32, direc
 	return [2]byte{mac[2], mac[3]}, nil
 }
 
-// ServiceReject is the SERVICE REJECT message (TS 24.301 §8.2.24), sent by the
+// ServiceReject is the SERVICE REJECT message (TS 24.301), sent by the
 // network to refuse a service request with an EMM cause.
 type ServiceReject struct {
 	Cause uint8

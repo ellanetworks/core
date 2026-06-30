@@ -20,7 +20,7 @@ import (
 // }
 
 // DecodeUEContextReleaseRequest validates a UEContextReleaseRequest PDU
-// body (3GPP TS 38.413 §9.2.2.5). AMFUENGAPID and RANUENGAPID are
+// body (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are
 // mandatory-reject; Cause is mandatory-ignore; PDUSessionResourceList
 // is optional-reject. Duplicate IEs follow a last-wins policy. The
 // procedure is class 2 (no response), so the procedure-level

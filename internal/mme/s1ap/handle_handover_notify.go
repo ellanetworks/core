@@ -12,9 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// handleHandoverNotify completes the handover once the UE reaches the target: it
-// switches the user plane, commits the {NH, NCC} chain, moves the active S1
-// connection to the target, and releases the source by its own MME-UE-S1AP-ID
+// handleHandoverNotify completes the handover once the UE reaches the target
 // (TS 36.413 §8.4.3, TS 23.401 §5.5.1.2.2 steps 13-19). conn is the target.
 func handleHandoverNotify(m *mme.MME, ctx context.Context, conn mme.NasWriter, value []byte) {
 	notify, err := s1ap.ParseHandoverNotify(value)
@@ -52,7 +50,6 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, conn mme.NasWriter, v
 		m.SetPDNEnbFTEID(ue, p, a.EnbFTEID)
 	}
 
-	// Release the PDN connections whose default bearer the target rejected.
 	for _, ebi := range releaseEBIs {
 		if err := m.Session.ReleaseEPSSession(ctx, ue.IMSI(), ebi); err != nil {
 			logger.MmeLog.Error("failed to release a rejected PDN connection after handover",
@@ -67,8 +64,8 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, conn mme.NasWriter, v
 	sourceConn, sourceMMEID, sourceENBID, targetMMEID, ok := m.FinishHandoverCommit(ue, conn, notify.ENBUES1APID)
 	if !ok {
 		// A concurrent release (e.g. the source association dropping) tore the UE
-		// down during the unlocked user-plane switch above and cleared the handover;
-		// it is moot, so leave the UE released.
+		// down during the unlocked user-plane switch and cleared the handover; leave
+		// it released.
 		logger.MmeLog.Warn("Handover Notify: UE released during the user-plane switch",
 			zap.Uint32("target-mme-ue-id", uint32(notify.MMEUES1APID)))
 

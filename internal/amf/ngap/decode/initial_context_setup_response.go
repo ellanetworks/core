@@ -21,12 +21,9 @@ import (
 // }
 
 // DecodeInitialContextSetupResponse validates an InitialContextSetupResponse
-// PDU body (3GPP TS 38.413 §9.2.2.2). AMFUENGAPID and RANUENGAPID are
-// mandatory-ignore — every IE in this message is criticality ignore, so
-// any structural problem yields a non-fatal report and the handler must
-// still be invoked. The optional CriticalityDiagnostics IE is consumed
-// only for log/debug purposes and is intentionally not surfaced.
-// Duplicate IEs follow a last-wins policy.
+// PDU body (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are
+// mandatory-ignore; every IE is criticality ignore. Duplicate IEs follow
+// a last-wins policy.
 func DecodeInitialContextSetupResponse(in *ngapType.InitialContextSetupResponse) (InitialContextSetupResponse, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeInitialContextSetup,

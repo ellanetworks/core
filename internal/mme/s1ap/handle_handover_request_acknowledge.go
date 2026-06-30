@@ -26,7 +26,6 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, conn mme.
 
 	ue, ok := m.LookupUe(ack.MMEUES1APID)
 	if !ok {
-		// No UE for this target id; release the context the ack just created.
 		mme.SendUEContextRelease(m, ctx, conn, ack.MMEUES1APID, ack.ENBUES1APID)
 		return
 	}
@@ -93,9 +92,8 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, conn mme.
 	m.SendS1APConn(ctx, sourceConn, mme.S1APProcedureHandoverCommand, b)
 }
 
-// failedHandoverEBIs returns the EPS bearer identities the target eNB did not
-// admit: those it explicitly failed plus any the source offered that are missing
-// from the admitted set.
+// failedHandoverEBIs returns the EPS bearer identities the target eNB reported
+// failed to set up and that are absent from the admitted set.
 func failedHandoverEBIs(ack *s1ap.HandoverRequestAcknowledge, admitted []mme.AdmittedERAB) []uint8 {
 	admittedSet := make(map[uint8]struct{}, len(admitted))
 	for _, a := range admitted {

@@ -22,6 +22,6 @@ func (e *DecodeError) Error() string {
 }
 
 // ErrFragmented is returned for the 16K-fragmented form of a length
-// determinant (X.691 §11.9.3.8), which S1AP needs only for payloads larger
+// determinant (X.691), which S1AP needs only for payloads larger
 // than 16383 octets.
 var ErrFragmented = errors.New("aper: 16K-fragmented length determinant not supported")

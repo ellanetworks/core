@@ -32,10 +32,9 @@ import (
 )
 
 // Authenticator is the interface the AMF requires from the AUSF.
-// *ausf.AUSF satisfies this interface directly.
 type Authenticator interface {
 	Authenticate(ctx context.Context, suci string, plmn models.PlmnID, resync *ausf.ResyncInfo) (*ausf.AuthResult, error)
-	Confirm(ctx context.Context, resStar, suci string) (etsi.SUPI, string, error)
+	Confirm(ctx context.Context, resStar, suci string) (etsi.SUPI, []byte, error)
 }
 
 const (
@@ -106,7 +105,6 @@ type NASHandler interface {
 type AMF struct {
 	mu sync.RWMutex
 
-	// Allocators (owned, not exported)
 	tmsi    *etsi.TmsiAllocator
 	ngapIDs *idgenerator.IDGenerator
 
@@ -120,7 +118,7 @@ type AMF struct {
 	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS
 	T3502Value               time.Duration
 	T3512Value               time.Duration
-	TimeZone                 string // "[+-]HH:MM[+][1-2]", Refer to TS 29.571 - 5.2.2 Simple Data Types
+	TimeZone                 string // "[+-]HH:MM[+][1-2]", Refer to TS 29.571 Simple Data Types
 	T3513Cfg                 TimerValue
 	T3522Cfg                 TimerValue
 	T3550Cfg                 TimerValue
@@ -128,7 +126,7 @@ type AMF struct {
 	T3560Cfg                 TimerValue
 	T3565Cfg                 TimerValue
 	// handoverGuardTimeout bounds an N2 handover (HANDOVER REQUIRED → NOTIFY); see
-	// defaultHandoverGuardTimeout. Mirrors the MME's handoverGuardTimeout.
+	// defaultHandoverGuardTimeout.
 	handoverGuardTimeout time.Duration
 	Smf                  SmfSbi
 	NAS                  NASHandler
@@ -210,7 +208,7 @@ func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
 	// guarded by T3522; the accept — or T3522 exhaustion — then removes the
 	// context. An idle or unsecured UE cannot be signalled, so it is removed
 	// locally.
-	if ue.RanUe() != nil && ue.securityContextAvailable {
+	if ue.RanUe() != nil && ue.secured {
 		if err := amf.sendNetworkInitiatedDeregistration(ctx, ue); err != nil {
 			logger.AmfLog.Warn("failed to send network-initiated deregistration; removing UE context locally",
 				zap.Error(err), logger.SUPI(supi.String()))
@@ -236,10 +234,9 @@ func (amf *AMF) FindUeContextBySupi(supi etsi.SUPI) (*UeContext, bool) {
 	return value, true
 }
 
-// GetUESnapshot atomically looks up the UE by SUPI and returns a
-// point-in-time snapshot of its connection state. Returns the snapshot
-// and true if the UE exists, or a zero-value snapshot and false otherwise.
-func (amf *AMF) GetUESnapshot(supi etsi.SUPI) (UESnapshot, bool) {
+// UESnapshot atomically looks up the UE by SUPI and returns a
+// point-in-time snapshot of its connection state.
+func (amf *AMF) UESnapshot(supi etsi.SUPI) (UESnapshot, bool) {
 	ue, ok := amf.FindUeContextBySupi(supi)
 	if !ok {
 		return UESnapshot{}, false
@@ -311,7 +308,6 @@ func radioIDKey(id *models.GlobalRanNodeID) (string, bool) {
 	return "", false
 }
 
-// use ranNodeID to find RAN context, return *AmfRan and ok bit
 func (amf *AMF) FindRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool) {
 	key, ok := radioIDKey(&ranNodeID)
 	if !ok {
@@ -345,7 +341,7 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID *ngapType.GlobalRANNodeID) *R
 		delete(amf.Radios, evicted.Conn)
 	}
 
-	// Drop a stale index entry if this radio previously claimed a different ID.
+	// Drop the radio's stale index entry when it already holds a different ID.
 	if oldKey, ok := radioIDKey(radio.RanID); ok && oldKey != key {
 		delete(amf.radiosByID, oldKey)
 	}
@@ -393,7 +389,7 @@ func (amf *AMF) CountRegisteredSubscribers() int {
 	count := 0
 
 	for _, ue := range amf.UEs {
-		if ue.GetState() == Registered {
+		if ue.State() == Registered {
 			count++
 		}
 	}
@@ -416,9 +412,8 @@ func (amf *AMF) RemoveRadio(ctx context.Context, ran *Radio) {
 }
 
 // IndexRadioForTest registers a directly-constructed radio in both the
-// by-connection and by-RAN-ID maps — the production effect of NewRadio followed
-// by ClaimRanID at NG Setup. It exists for tests that build a Radio with its
-// RanID already set; production radios claim their ID via ClaimRanID.
+// by-connection and by-RAN-ID maps, mirroring NewRadio followed by ClaimRanID.
+// For tests that build a Radio with its RanID already set.
 func (amf *AMF) IndexRadioForTest(conn *sctp.SCTPConn, radio *Radio) {
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
@@ -461,9 +456,9 @@ func (amf *AMF) FindRanUeByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 	return nil
 }
 
-// GetNetworkFeatureSupport returns the 5GS network feature support config.
+// NetworkFeatureSupport returns the 5GS network feature support config.
 // If not configured, returns a zero-value struct with Enable set to true (the default).
-func (amf *AMF) GetNetworkFeatureSupport() NetworkFeatureSupport5GS {
+func (amf *AMF) NetworkFeatureSupport() NetworkFeatureSupport5GS {
 	if amf.NetworkFeatureSupport5GS != nil {
 		return *amf.NetworkFeatureSupport5GS
 	}
@@ -471,9 +466,7 @@ func (amf *AMF) GetNetworkFeatureSupport() NetworkFeatureSupport5GS {
 	return NetworkFeatureSupport5GS{Enable: true}
 }
 
-// New creates a fully initialized AMF. All dependencies are explicit
-// parameters; allocators are owned and zeroed. Call Start to open the
-// N2 listener.
+// New creates a fully initialized AMF. Call Start to open the N2 listener.
 func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 	a := &AMF{
 		UEs:                      make(map[etsi.SUPI]*UeContext),
@@ -504,10 +497,10 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 
 // defaultHandoverGuardTimeout bounds an N2 handover from HANDOVER REQUIRED to
 // HANDOVER NOTIFY. It is generous relative to the source gNB's
-// TNGRELOCprep/TNGRELOCOverall so a normal handover always completes first; it
-// fires only when the target gNB never answers (TS 38.413 §8.4), abandoning the
+// TNGRELOCprep/TNGRELOCOverall so a normal handover completes first; it fires
+// only when the target gNB never answers (TS 38.413), abandoning the
 // half-prepared handover so a silent target cannot pin the UE's N2Handover
-// procedure. Mirrors the MME's defaultHandoverGuardTimeout.
+// procedure.
 const defaultHandoverGuardTimeout = 10 * time.Second
 
 var defaultTimerCfg = TimerValue{
@@ -567,7 +560,7 @@ func (a *AMF) FreeOldGuti(ue *UeContext) {
 }
 
 func (amf *AMF) StmsiToGuti(ctx context.Context, buf [7]byte) (etsi.GUTI, error) {
-	operatorInfo, err := amf.GetOperatorInfo(ctx)
+	operatorInfo, err := amf.OperatorInfo(ctx)
 	if err != nil {
 		return etsi.InvalidGUTI, fmt.Errorf("could not get operator info: %v", err)
 	}
@@ -665,7 +658,6 @@ func (amf *AMF) StopAllTimers() {
 	}
 }
 
-// RemoveUEBySupi removes the UE with the given SUPI from the UE pool.
 func (amf *AMF) RemoveUEBySupi(supi etsi.SUPI) {
 	amf.mu.Lock()
 	defer amf.mu.Unlock()

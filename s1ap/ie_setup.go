@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/s1ap/aper"
 )
 
-// ENBIDKind selects an ENB-ID CHOICE alternative (TS 36.413 §9.2.1.37).
+// ENBIDKind selects an ENB-ID CHOICE alternative (TS 36.413).
 type ENBIDKind uint8
 
 const (
@@ -298,7 +298,7 @@ func decodePagingDRX(r *aper.Reader) (PagingDRX, error) {
 	return PagingDRX(idx), nil
 }
 
-// maxnoof constants for S1 Setup IEs (TS 36.413 §9.3, S1AP-Constants).
+// maxnoof constants for S1 Setup IEs (TS 36.413, S1AP-Constants).
 const (
 	maxnoofTACs   = 256
 	maxnoofBPLMNs = 6

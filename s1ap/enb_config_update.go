@@ -9,10 +9,9 @@ import (
 	"github.com/ellanetworks/core/s1ap/aper"
 )
 
-// ENBConfigurationUpdate is the ENB CONFIGURATION UPDATE message (TS 36.413
-// §9.1.8.7), sent by a running eNB to update its configuration (name, supported
-// TAs, default paging DRX) without redoing S1 Setup. Every IE is optional; the
-// eNB sends only what changed. Unmodeled IEs are preserved.
+// ENBConfigurationUpdate is the ENB CONFIGURATION UPDATE message (TS 36.413),
+// sent by a running eNB to update its configuration without redoing
+// S1 Setup. Every IE is optional; the eNB sends only what changed.
 type ENBConfigurationUpdate struct {
 	ENBName          string       // "" = absent
 	SupportedTAs     SupportedTAs // nil = absent
@@ -114,7 +113,7 @@ func ParseENBConfigurationUpdate(value []byte) (*ENBConfigurationUpdate, error) 
 }
 
 // ENBConfigurationUpdateAcknowledge is the ENB CONFIGURATION UPDATE ACKNOWLEDGE
-// message (TS 36.413 §9.1.8.8), the MME's success response.
+// message (TS 36.413), the MME's success response.
 type ENBConfigurationUpdateAcknowledge struct {
 	CriticalityDiagnostics *CriticalityDiagnostics
 
@@ -198,7 +197,7 @@ func ParseENBConfigurationUpdateAcknowledge(value []byte) (*ENBConfigurationUpda
 }
 
 // ENBConfigurationUpdateFailure is the ENB CONFIGURATION UPDATE FAILURE message
-// (TS 36.413 §9.1.8.9), the MME's rejection (e.g. the updated TAs broadcast no
+// (TS 36.413), the MME's rejection (e.g. the updated TAs broadcast no
 // served PLMN).
 type ENBConfigurationUpdateFailure struct {
 	Cause                  Cause

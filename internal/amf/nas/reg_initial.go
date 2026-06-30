@@ -22,25 +22,24 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return fmt.Errorf("no active NAS connection")
 	}
 
-	// update Kgnb/Kn3iwf
 	err := ue.UpdateSecurityContext()
 	if err != nil {
 		return fmt.Errorf("error updating security context: %v", err)
 	}
 
-	operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
+	operatorInfo, err := amfInstance.OperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	subscriberProfile, err := amfInstance.GetSubscriberProfile(ctx, ue.SupiValue())
+	subscriberProfile, err := amfInstance.SubscriberProfile(ctx, ue.Supi())
 	if err != nil {
 		return fmt.Errorf("error getting subscriber profile: %v", err)
 	}
 
-	// Subscriber access control (Core Network type restriction, TS 23.501 §5.3.4):
+	// Subscriber access control (Core Network type restriction, TS 23.501):
 	// if the profile does not permit 5G, reject with 5GMM cause #7 "5GS services
-	// not allowed" (TS 24.501 §9.11.3.2).
+	// not allowed" (TS 24.501).
 	if !subscriberProfile.Allow5G {
 		ranUe := ue.RanUe()
 		if ranUe == nil {
@@ -91,11 +90,11 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 	guti := ue.Guti()
 	ue.Log.Debug("use original GUTI", logger.GUTI(guti.String()))
 
-	// TS 24.501 §5.5.1.2.8 f: a successful initial registration supersedes any
+	// TS 24.501: a successful initial registration supersedes any
 	// earlier 5GMM context for this subscriber. The old context is deleted only
 	// here, once the new registration is authenticated, so that an
 	// unauthenticated registration on a fresh context never tears it down.
-	if existing, ok := amfInstance.FindUeContextBySupi(ue.SupiValue()); ok && existing != ue {
+	if existing, ok := amfInstance.FindUeContextBySupi(ue.Supi()); ok && existing != ue {
 		amfInstance.DeregisterAndRemoveUeContext(ctx, existing)
 	}
 

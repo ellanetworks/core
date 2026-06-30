@@ -5,7 +5,7 @@ package aper
 
 // WriteOpenType wraps an already-encoded inner value as an open type: an
 // unconstrained length determinant followed by the octet-aligned content
-// (X.691 §10.2). The inner encoding is at least one octet (§10.1.3).
+// (X.691). The inner encoding is at least one octet.
 func (w *Writer) WriteOpenType(inner []byte) error {
 	if len(inner) == 0 {
 		inner = []byte{0x00}

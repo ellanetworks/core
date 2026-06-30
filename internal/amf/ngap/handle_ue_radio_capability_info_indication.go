@@ -34,7 +34,7 @@ func HandleUERadioCapabilityInfoIndication(ctx gocontext.Context, ran *amf.Radio
 	}
 
 	if msg.UERadioCapability != nil {
-		amfUe.UeRadioCapability = hex.EncodeToString(msg.UERadioCapability)
+		amfUe.UeRadioCapability = msg.UERadioCapability
 	}
 
 	if msg.UERadioCapabilityForPaging != nil {
@@ -49,7 +49,4 @@ func HandleUERadioCapabilityInfoIndication(ctx gocontext.Context, ran *amf.Radio
 				msg.UERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA.Value)
 		}
 	}
-
-	// TS 38.413 8.14.1.2/TS 23.502 4.2.8a step5/TS 23.501, clause 5.4.4.1.
-	// send its most up to date UE Radio Capability information to the RAN in the N2 REQUEST message.
 }

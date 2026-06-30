@@ -23,8 +23,7 @@ func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 
 	amfUe := ranUe.UeContext()
 	if amfUe == nil {
-		// No AMF UE bound, so no NAS state to clean up. Pass ReleaseNormal
-		// — the cause is moot when there is no NAS connection to release.
+		// No AMF UE bound, so there is no NAS state to clean up.
 		err := ranUe.Remove(ctx)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error("error removing ran ue context", zap.Error(err))
@@ -46,7 +45,7 @@ func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 
 	// A handler returns an error only when no NAS response was produced (a
 	// delivered reject and similar normal outcomes return nil). Answer with a
-	// 5GMM STATUS so the UE is not left waiting (TS 24.501 §7.x).
+	// 5GMM STATUS so the UE is not left waiting (TS 24.501).
 	if err := amfInstance.NAS.HandleNAS(ctx, ranUe, msg.NASPDU); err != nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("error handling NAS message", zap.Error(err))
 		sendStatus5GMM(ctx, ranUe, nasMessage.Cause5GMMProtocolErrorUnspecified)

@@ -10,15 +10,15 @@ import (
 )
 
 // UECapabilityInfoIndication is the UE CAPABILITY INFO INDICATION message
-// (TS 36.413 §8.9), sent by the eNB to give the MME the UE's radio capability.
+// (TS 36.413), sent by the eNB to give the MME the UE's radio capability.
 // Only the fields the MME consumes are modelled; the UE Radio Capability is an
 // OCTET STRING carried opaquely (the MME stores it and replays it in the INITIAL
-// CONTEXT SETUP REQUEST per TS 23.401 §5.11.2).
+// CONTEXT SETUP REQUEST per TS 23.401).
 type UECapabilityInfoIndication struct {
 	MMEUES1APID                MMEUES1APID
 	ENBUES1APID                ENBUES1APID
 	UERadioCapability          []byte
-	UERadioCapabilityForPaging []byte // paging-specific capability (TS 36.413 §9.2.1.98), when present
+	UERadioCapabilityForPaging []byte // paging-specific capability (TS 36.413), when present
 	unmodeledIEs
 }
 

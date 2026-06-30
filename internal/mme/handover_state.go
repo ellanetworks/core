@@ -190,8 +190,8 @@ func (m *MME) FinishHandoverCommit(ue *UeContext, conn NasWriter, notifyENBID s1
 	source := ho.source
 	ue.nh = ho.newNH
 	ue.ncc = ho.newNCC
-	ue.S1 = ho.target // the target becomes the UE's active connection
-	source.ue = nil   // detach the source; its Release Complete removes the connection
+	ue.S1 = ho.target
+	source.ue = nil // its Release Complete removes the connection
 	m.clearHandoverLocked(ue)
 
 	return source.conn, source.MMEUES1APID, source.ENBUES1APID, ue.S1.MMEUES1APID, true

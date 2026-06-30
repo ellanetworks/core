@@ -4,6 +4,7 @@
 package ngap_test
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -51,8 +52,8 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapability(t *testing.T) {
 		UERadioCapability: []byte{0xDE, 0xAD, 0xBE, 0xEF},
 	})
 
-	if amfUe.UeRadioCapability != "deadbeef" {
-		t.Errorf("UeRadioCapability = %q, want %q", amfUe.UeRadioCapability, "deadbeef")
+	if !bytes.Equal(amfUe.UeRadioCapability, []byte{0xDE, 0xAD, 0xBE, 0xEF}) {
+		t.Errorf("UeRadioCapability = %x, want %x", amfUe.UeRadioCapability, []byte{0xDE, 0xAD, 0xBE, 0xEF})
 	}
 }
 
@@ -103,8 +104,8 @@ func TestUERadioCapabilityInfoIndication_NilCapabilityFieldsNoOp(t *testing.T) {
 		AMFUENGAPID: 10,
 	})
 
-	if amfUe.UeRadioCapability != "" {
-		t.Errorf("UeRadioCapability = %q, want empty", amfUe.UeRadioCapability)
+	if len(amfUe.UeRadioCapability) != 0 {
+		t.Errorf("UeRadioCapability = %x, want empty", amfUe.UeRadioCapability)
 	}
 
 	if amfUe.UeRadioCapabilityForPaging != nil {

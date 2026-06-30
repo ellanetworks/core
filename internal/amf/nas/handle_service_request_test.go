@@ -80,7 +80,7 @@ func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T)
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		nil,
 	)
@@ -91,7 +91,7 @@ func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T)
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.SetSecurityContextAvailableForTest(false)
+	ue.SetSecuredForTest(false)
 
 	m := buildTestServiceRequest()
 
@@ -137,7 +137,7 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		nil,
 	)
@@ -148,7 +148,7 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 
 	m := buildTestServiceRequest()
 
@@ -178,10 +178,10 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 		t.Fatalf("expected a service reject essage, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	// TS 24.501 §4.4.4.3: a service request failing the integrity check is
+	// TS 24.501: a service request failing the integrity check is
 	// rejected with cause #9 and the 5G NAS security context is kept unchanged.
-	if !ue.SecurityContextAvailableForTest() {
-		t.Fatalf("security context must be kept unchanged on a mac-failed service request (TS 24.501 §4.4.4.3)")
+	if !ue.SecuredForTest() {
+		t.Fatalf("security context must be kept unchanged on a mac-failed service request (TS 24.501)")
 	}
 }
 
@@ -200,7 +200,7 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		nil,
 	)
@@ -212,7 +212,7 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -276,7 +276,7 @@ func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		nil,
 	)
@@ -340,7 +340,7 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		nil,
 	)
@@ -351,7 +351,7 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 
 	ue.NasConn().T3513.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 
@@ -411,7 +411,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		nil,
 	)
@@ -424,7 +424,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 	ue.NasConn().T3565.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -498,7 +498,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		nil,
 	)
@@ -511,7 +511,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 	ue.NasConn().T3565.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -585,7 +585,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		&FakeSmf{},
 	)
@@ -607,7 +607,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 	ue.ForceState(amf.Registered)
 	ue.SetGutiForTest(oldguti)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -689,7 +689,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		nil,
 	)
@@ -709,7 +709,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 	ue.ForceState(amf.Registered)
 	ue.SetGutiForTest(mustTestGuti("001", "01", "cafe42", 0x00000001))
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -757,7 +757,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		&FakeSmf{},
 	)
@@ -782,7 +782,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 	ue.ForceState(amf.Registered)
 	ue.SetGutiForTest(oldguti)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -900,7 +900,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		&FakeSmf{Error: fmt.Errorf("error activating PDU session")},
 	)
@@ -924,7 +924,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.ForceState(amf.Registered)
 	ue.SetGutiForTest(oldguti)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -1047,7 +1047,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		&FakeSmf{Error: nil},
 	)
@@ -1071,7 +1071,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.ForceState(amf.Registered)
 	ue.SetGutiForTest(oldguti)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -1202,7 +1202,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		&FakeSmf{Error: nil},
 	)
@@ -1226,7 +1226,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	ue.ForceState(amf.Registered)
 	ue.SetGutiForTest(oldguti)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -1346,7 +1346,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		&FakeSmf{Error: nil},
 	)
@@ -1370,7 +1370,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 	ue.ForceState(amf.Registered)
 	ue.SetGutiForTest(oldguti)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -1537,7 +1537,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		&FakeSmf{},
 	)
@@ -1551,7 +1551,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1
@@ -1601,7 +1601,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+			Kseaf: []byte("testkey"),
 		},
 		&FakeSmf{},
 	)
@@ -1615,7 +1615,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.SetSecurityContextAvailableForTest(true)
+	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
 		ng.Ksi = 1

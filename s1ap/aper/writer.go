@@ -24,15 +24,14 @@ func (w *Writer) WriteBit(b uint) {
 }
 
 // WriteBits writes the low n bits of v, most significant first. n must be in
-// the range 0..64; the caller must honour this. All internal callers derive n
-// from the X.691 rules, so it always holds.
+// the range 0..64; the caller must honour this.
 func (w *Writer) WriteBits(v uint64, n int) {
 	for i := n - 1; i >= 0; i-- {
 		w.WriteBit(uint(v >> uint(i)))
 	}
 }
 
-// WriteBool writes a single boolean bit (X.691 §12).
+// WriteBool writes a single boolean bit (X.691).
 func (w *Writer) WriteBool(b bool) {
 	if b {
 		w.WriteBit(1)
@@ -41,7 +40,7 @@ func (w *Writer) WriteBool(b bool) {
 	}
 }
 
-// Align pads with zero bits up to the next octet boundary (X.691 §10.1).
+// Align pads with zero bits up to the next octet boundary (X.691).
 func (w *Writer) Align() {
 	for w.bits%8 != 0 {
 		w.WriteBit(0)

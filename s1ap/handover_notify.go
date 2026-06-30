@@ -9,10 +9,10 @@ import (
 	"github.com/ellanetworks/core/s1ap/aper"
 )
 
-// HandoverNotify is the HANDOVER NOTIFY message (TS 36.413 §9.1.5... in the
+// HandoverNotify is the HANDOVER NOTIFY message (TS 36.413 in the
 // Handover Notification procedure), sent by the target eNB once the UE has
-// arrived in the target cell and the S1 handover is complete (TS 23.401
-// §5.5.1.2.2 step 13). It carries the target eNB's UE S1AP ID and the UE's new
+// arrived in the target cell and the S1 handover is complete (TS 23.401).
+// It carries the target eNB's UE S1AP ID and the UE's new
 // location.
 type HandoverNotify struct {
 	MMEUES1APID MMEUES1APID

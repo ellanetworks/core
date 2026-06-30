@@ -49,7 +49,7 @@ func TestHandleHandoverCancel_UnknownRanUeNgapID(t *testing.T) {
 
 // TestHandleHandoverCancel_UnknownAmfUeNgapID verifies that a HandoverCancel
 // whose AMF UE NGAP ID the AMF never allocated is treated as an unknown local AP
-// ID (TS 38.413 §10.6): an Error Indication carrying the received AP IDs is sent,
+// ID (TS 38.413): an Error Indication carrying the received AP IDs is sent,
 // with no acknowledge to the source and no release toward the target.
 func TestHandleHandoverCancel_UnknownAmfUeNgapID(t *testing.T) {
 	sourceRan := newTestRadio()

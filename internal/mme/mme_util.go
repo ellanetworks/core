@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// bitRateToBps parses an "<n> <unit>" bitrate string (e.g. "1 Gbps") to bits/s.
+// BitRateToBps parses an "<n> <unit>" bitrate string (e.g. "1 Gbps") to bits/s.
 func BitRateToBps(s string) uint64 {
 	parts := strings.Split(s, " ")
 	if len(parts) != 2 {

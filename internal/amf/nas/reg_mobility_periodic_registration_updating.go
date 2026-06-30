@@ -39,17 +39,17 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 	if conn.RegistrationRequest.UpdateType5GS != nil {
 		if conn.RegistrationRequest.GetNGRanRcu() == nasMessage.NGRanRadioCapabilityUpdateNeeded {
-			ue.UeRadioCapability = ""
+			ue.UeRadioCapability = nil
 			ue.UeRadioCapabilityForPaging = nil
 		}
 	}
 
-	operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
+	operatorInfo, err := amfInstance.OperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	subscriberProfile, err := amfInstance.GetSubscriberProfile(ctx, ue.SupiValue())
+	subscriberProfile, err := amfInstance.SubscriberProfile(ctx, ue.Supi())
 	if err != nil {
 		return fmt.Errorf("error getting subscriber profile: %v", err)
 	}
@@ -64,10 +64,9 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 	ue.AllowedNssai = subscriberProfile.AllowedNssai
 
-	// The 5GMM capability IE is optional (TS 24.501 Table 8.2.6.1.1) and is
-	// re-sent only when it changes (§5.5.1.3.2). Its absence is not an error:
-	// per §7.7.1 the receiver treats a missing optional IE as not present and
-	// proceeds.
+	// The 5GMM capability IE is optional (TS 24.501), re-sent only
+	// when it changes; a missing optional IE is treated as not present,
+	// not an error.
 
 	if conn.RegistrationRequest.MICOIndication != nil {
 		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", conn.RegistrationRequest.GetRAAI()))
@@ -110,7 +109,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		for idx, hasUplinkData := range uplinkDataPsi {
 			pduSessionID := uint8(idx)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
-				// uplink data are pending for the corresponding PDU session identity
 				if hasUplinkData {
 					binaryDataN2SmInformation, err := amfInstance.Smf.ActivateSmContext(ctx, smContext.Ref)
 					if err != nil {

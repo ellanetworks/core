@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/s1ap/aper"
 )
 
-// S1AP-PDU CHOICE root alternatives (TS 36.413 §9.3), in declaration order.
+// S1AP-PDU CHOICE root alternatives (TS 36.413), in declaration order.
 const (
 	pduInitiatingMessage = iota
 	pduSuccessfulOutcome

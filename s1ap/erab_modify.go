@@ -12,7 +12,7 @@ import (
 // ERABToBeModifiedItemBearerModReq ::= SEQUENCE { e-RAB-ID,
 // e-RABLevelQoSParameters, nAS-PDU, iE-Extensions OPTIONAL } (extensible). The
 // NAS-PDU carries the MODIFY EPS BEARER CONTEXT REQUEST for the bearer
-// (TS 36.413 §9.1.3.3). Unlike E-RAB Setup there is no transport layer address:
+// (TS 36.413). Unlike E-RAB Setup there is no transport layer address:
 // the S1-U endpoint is unchanged.
 type ERABToBeModifiedItemBearerModReq struct {
 	ERABID ERABID
@@ -63,7 +63,7 @@ func decodeERABToBeModifiedItemBearerModReq(r *aper.Reader) (ERABToBeModifiedIte
 
 // ERABModifyItemBearerModRes ::= SEQUENCE { e-RAB-ID, iE-Extensions OPTIONAL }
 // (extensible): one successfully modified E-RAB in the E-RAB MODIFY RESPONSE
-// (TS 36.413 §9.1.3.4).
+// (TS 36.413).
 type ERABModifyItemBearerModRes struct {
 	ERABID ERABID
 }
@@ -93,7 +93,7 @@ func decodeERABModifyItemBearerModRes(r *aper.Reader) (ERABModifyItemBearerModRe
 	return it, nil
 }
 
-// ERABModifyRequest is the E-RAB MODIFY REQUEST message (TS 36.413 §9.1.3.3),
+// ERABModifyRequest is the E-RAB MODIFY REQUEST message (TS 36.413),
 // sent by the MME to change the QoS of one or more active E-RABs. The new
 // E-RAB-level QoS (QCI, ARP) reconfigures the radio bearer; the piggybacked
 // NAS-PDU carries the MODIFY EPS BEARER CONTEXT REQUEST to the UE.
@@ -208,7 +208,7 @@ func decodeERABToBeModifiedList(r *aper.Reader) ([]ERABToBeModifiedItemBearerMod
 	return decodeItemList(r, maxnoofERABs, decodeERABToBeModifiedItemBearerModReq)
 }
 
-// ERABModifyResponse is the E-RAB MODIFY RESPONSE message (TS 36.413 §9.1.3.4),
+// ERABModifyResponse is the E-RAB MODIFY RESPONSE message (TS 36.413),
 // sent by the eNB once the radio bearer QoS is reconfigured. ERABModify lists the
 // successfully modified E-RABs; ERABFailedToModify lists those rejected.
 type ERABModifyResponse struct {

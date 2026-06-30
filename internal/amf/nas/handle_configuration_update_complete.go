@@ -10,7 +10,7 @@ import (
 )
 
 func handleConfigurationUpdateComplete(amfInstance *amf.AMF, ue *amf.UeContext, integrityVerified bool) error {
-	if state := ue.GetState(); state != amf.Registered {
+	if state := ue.State(); state != amf.Registered {
 		return fmt.Errorf("state mismatch: receive Configuration Update Complete message in state %s", state)
 	}
 

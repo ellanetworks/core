@@ -5,14 +5,13 @@ package eps
 
 import "github.com/ellanetworks/core/nas/common"
 
-// EPS attach result values (TS 24.301 §9.9.3.10).
+// EPS attach result values (TS 24.301).
 const (
 	AttachResultEPS      uint8 = 1
 	AttachResultCombined uint8 = 2
 )
 
-// AttachAccept is the ATTACH ACCEPT message (TS 24.301 §8.2.1), sent by the MME
-// to accept an attach.
+// AttachAccept is the ATTACH ACCEPT message (TS 24.301).
 type AttachAccept struct {
 	EPSAttachResult     uint8
 	T3412               uint8
@@ -20,12 +19,12 @@ type AttachAccept struct {
 	ESMMessageContainer []byte
 	GUTI                *EPSMobileIdentity // assigned GUTI (IEI 0x50), when present
 	EMMCause            *uint8             // EMM cause (IEI 0x53), when present
-	// EPS network feature support (IEI 0x64), when present (TS 24.301 §9.9.3.12A).
+	// EPS network feature support (IEI 0x64), when present (TS 24.301).
 	EPSNetworkFeatureSupport *EPSNetworkFeatureSupport
 }
 
 // attachAcceptIEs are the optional IEs Ella Core emits in an ATTACH ACCEPT
-// (TS 24.301 §8.2.1): the assigned GUTI, the EMM cause, and the EPS network
+// (TS 24.301): the assigned GUTI, the EMM cause, and the EPS network
 // feature support. EMM cause is a type-3 IE with a one-octet value; the others
 // are type-4 TLVs.
 var attachAcceptIEs = []common.OptionalIE{
@@ -35,10 +34,10 @@ var attachAcceptIEs = []common.OptionalIE{
 }
 
 // EPSNetworkFeatureSupport is the EPS network feature support IE
-// (TS 24.301 §9.9.3.12A), a type 4 IE whose content is 1 to 3 octets; only the
+// (TS 24.301), a type 4 IE whose content is 1 to 3 octets; only the
 // first content octet is modelled. IMSVoPS is its bit 1 (IMS voice over PS
 // session indicator), which the UE feeds to voice access-domain selection
-// (TS 23.221 §7.2a). A UE that omits the higher octets reads them as zero.
+// (TS 23.221). A UE that omits the higher octets reads them as zero.
 type EPSNetworkFeatureSupport struct {
 	IMSVoPS bool
 }
@@ -153,7 +152,7 @@ func ParseAttachAccept(b []byte) (*AttachAccept, error) {
 	return m, nil
 }
 
-// AttachComplete is the ATTACH COMPLETE message (TS 24.301 §8.2.2).
+// AttachComplete is the ATTACH COMPLETE message (TS 24.301).
 type AttachComplete struct {
 	ESMMessageContainer []byte
 }
@@ -187,7 +186,7 @@ func ParseAttachComplete(b []byte) (*AttachComplete, error) {
 	return &AttachComplete{ESMMessageContainer: esm}, nil
 }
 
-// AttachReject is the ATTACH REJECT message (TS 24.301 §8.2.3). Ella Core sends
+// AttachReject is the ATTACH REJECT message (TS 24.301). Ella Core sends
 // only the mandatory EMM cause.
 type AttachReject struct {
 	Cause uint8
