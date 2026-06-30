@@ -9,10 +9,10 @@ package amf
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/procedure"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
@@ -23,69 +23,62 @@ import (
 
 var nasSendTracer = otel.Tracer("ella-core/amf/nas/send")
 
-func SendDLNASTransport(ctx context.Context, ue *RanUe, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause uint8) error {
+// sendGmm builds a downlink 5GMM NAS message and hands it to the RAN over the
+// signalling connection. A build failure is an invariant violation logged at
+// Error (the message is dropped, failing safe); a transport failure is logged at
+// Warn — delivery assurance is owned by the procedure's retransmission timer
+// (TS 24.501), not the caller. It mirrors the MME's void+log NAS send leaf.
+func sendGmm(ctx context.Context, ue *RanUe, spanName string, attrs []attribute.KeyValue, build func(*UeContext) ([]byte, error)) {
 	if ue == nil || ue.UeContext() == nil {
-		return fmt.Errorf("ue or amf ue is nil")
+		logger.AmfLog.Error("cannot send NAS message: ue or amf ue is nil", zap.String("message", spanName))
+		return
 	}
 
-	ctx, span := nasSendTracer.Start(ctx, "nas/send_downlink_nas_transport",
-		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().supi.String()),
-			attribute.Int("pduSessionID", int(pduSessionID)),
-			attribute.Int("cause", int(cause)),
-		),
+	amfUe := ue.UeContext()
+
+	ctx, span := nasSendTracer.Start(ctx, spanName,
+		trace.WithAttributes(append(attrs, attribute.String("supi", amfUe.supi.String()))...),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 
+	nasMsg, err := build(amfUe)
+	if err != nil {
+		amfUe.Log.Error("failed to build NAS message", zap.String("message", spanName), zap.Error(err))
+		return
+	}
+
+	if err := ue.SendDownlinkNasTransport(ctx, nasMsg, nil); err != nil {
+		amfUe.Log.Warn("failed to send downlink NAS transport", zap.String("message", spanName), zap.Error(err))
+	}
+}
+
+func SendDLNASTransport(ctx context.Context, ue *RanUe, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause uint8) {
 	var causePtr *uint8
 	if cause != 0 {
 		causePtr = &cause
 	}
 
-	nasMsg, err := BuildDLNASTransport(ue.UeContext(), payloadContainerType, nasPdu, pduSessionID, causePtr)
-	if err != nil {
-		return fmt.Errorf("error building downlink NAS transport message: %s", err.Error())
-	}
-
-	err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
-	if err != nil {
-		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
-	}
-
-	return nil
+	sendGmm(ctx, ue, "nas/send_downlink_nas_transport",
+		[]attribute.KeyValue{
+			attribute.Int("pduSessionID", int(pduSessionID)),
+			attribute.Int("cause", int(cause)),
+		},
+		func(amfUe *UeContext) ([]byte, error) {
+			return BuildDLNASTransport(amfUe, payloadContainerType, nasPdu, pduSessionID, causePtr)
+		})
 }
 
-func SendIdentityRequest(ctx context.Context, ue *RanUe, typeOfIdentity uint8) error {
-	if ue == nil || ue.UeContext() == nil {
-		return fmt.Errorf("ue or amf ue is nil")
-	}
-
-	ctx, span := nasSendTracer.Start(ctx, "nas/send_identity_request",
-		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().supi.String()),
-			attribute.Int("typeOfIdentity", int(typeOfIdentity)),
-		),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
-	defer span.End()
-
-	nasMsg, err := BuildIdentityRequest(typeOfIdentity)
-	if err != nil {
-		return fmt.Errorf("error building identity request: %s", err.Error())
-	}
-
-	err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
-	if err != nil {
-		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
-	}
-
-	return nil
+func SendIdentityRequest(ctx context.Context, ue *RanUe, typeOfIdentity uint8) {
+	sendGmm(ctx, ue, "nas/send_identity_request",
+		[]attribute.KeyValue{attribute.Int("typeOfIdentity", int(typeOfIdentity))},
+		func(_ *UeContext) ([]byte, error) { return BuildIdentityRequest(typeOfIdentity) })
 }
 
-func SendAuthenticationRequest(ctx context.Context, amfInstance *AMF, ue *RanUe) error {
+func SendAuthenticationRequest(ctx context.Context, amfInstance *AMF, ue *RanUe) {
 	if ue == nil || ue.UeContext() == nil {
-		return fmt.Errorf("ue or amf ue is nil")
+		logger.AmfLog.Error("cannot send Authentication Request: ue or amf ue is nil")
+		return
 	}
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_authentication_request",
@@ -100,23 +93,23 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *AMF, ue *RanUe)
 
 	conn := amfUe.NasConn()
 	if conn == nil || conn.AuthenticationCtx == nil {
-		return fmt.Errorf("authentication context of UE is nil")
+		amfUe.Log.Error("cannot send Authentication Request: authentication context of UE is nil")
+		return
 	}
 
 	nasMsg, err := BuildAuthenticationRequest(amfUe)
 	if err != nil {
-		return fmt.Errorf("error building authentication request: %s", err.Error())
+		amfUe.Log.Error("failed to build authentication request", zap.Error(err))
+		return
 	}
 
 	if amfInstance.T3560Cfg.Enable {
 		cfg := amfInstance.T3560Cfg
-		conn.T3560 = NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+		conn.T3560.Arm(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.Log.Warn("T3560 expires, retransmit Authentication Request", zap.Any("expireTimes", expireTimes))
 
-			err := ue.SendDownlinkNasTransport(context.Background(), nasMsg, nil)
-			if err != nil {
+			if err := ue.SendDownlinkNasTransport(context.Background(), nasMsg, nil); err != nil {
 				amfUe.Log.Error("could not send downlink NAS transport message", zap.Error(err))
-				return
 			}
 		}, func() {
 			amfUe.Log.Warn("T3560 Expires, abort authentication procedure & ongoing 5GMM procedure", zap.Any("expireTimes", cfg.MaxRetryTimes))
@@ -124,126 +117,46 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *AMF, ue *RanUe)
 		})
 	}
 
-	err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
-	if err != nil {
-		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
+	if err := ue.SendDownlinkNasTransport(ctx, nasMsg, nil); err != nil {
+		amfUe.Log.Warn("failed to send downlink NAS transport", zap.String("message", "nas/send_authentication_request"), zap.Error(err))
 	}
-
-	return nil
 }
 
-func SendServiceAccept(ctx context.Context, ue *RanUe, pDUSessionStatus *[16]bool, reactivationResult *[16]bool, errPduSessionID, errCause []uint8) error {
-	if ue == nil || ue.UeContext() == nil {
-		return fmt.Errorf("ue or amf ue is nil")
-	}
-
-	ctx, span := nasSendTracer.Start(ctx, "nas/send_service_accept",
-		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().supi.String()),
+func SendServiceAccept(ctx context.Context, ue *RanUe, pDUSessionStatus *[16]bool, reactivationResult *[16]bool, errPduSessionID, errCause []uint8) {
+	sendGmm(ctx, ue, "nas/send_service_accept",
+		[]attribute.KeyValue{
 			attribute.Int("pduSessionIDErrorCount", len(errPduSessionID)),
 			attribute.Int("causeErrorCount", len(errCause)),
-		),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
-	defer span.End()
-
-	nasMsg, err := BuildServiceAccept(ue.UeContext(), pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
-	if err != nil {
-		return fmt.Errorf("error building service accept: %s", err.Error())
-	}
-
-	err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
-	if err != nil {
-		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
-	}
-
-	return nil
+		},
+		func(amfUe *UeContext) ([]byte, error) {
+			return BuildServiceAccept(amfUe, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
+		})
 }
 
-func SendAuthenticationReject(ctx context.Context, ue *RanUe) error {
-	if ue == nil || ue.UeContext() == nil {
-		return fmt.Errorf("ue or amf ue is nil")
-	}
-
-	ctx, span := nasSendTracer.Start(ctx, "nas/send_authentication_reject",
-		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().supi.String()),
-		),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
-	defer span.End()
-
-	nasMsg, err := BuildAuthenticationReject()
-	if err != nil {
-		return fmt.Errorf("error building authentication reject: %s", err.Error())
-	}
-
-	err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
-	if err != nil {
-		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
-	}
-
-	return nil
+func SendAuthenticationReject(ctx context.Context, ue *RanUe) {
+	sendGmm(ctx, ue, "nas/send_authentication_reject", nil,
+		func(_ *UeContext) ([]byte, error) { return BuildAuthenticationReject() })
 }
 
-func SendServiceReject(ctx context.Context, ue *RanUe, cause uint8) error {
-	if ue == nil || ue.UeContext() == nil {
-		return fmt.Errorf("ue or amf ue is nil")
-	}
-
-	ctx, span := nasSendTracer.Start(ctx, "nas/send_service_reject",
-		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().supi.String()),
-			attribute.Int("cause", int(cause)),
-		),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
-	defer span.End()
-
-	nasMsg, err := BuildServiceReject(cause)
-	if err != nil {
-		return fmt.Errorf("error building service reject: %s", err.Error())
-	}
-
-	err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
-	if err != nil {
-		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
-	}
-
-	return nil
+func SendServiceReject(ctx context.Context, ue *RanUe, cause uint8) {
+	sendGmm(ctx, ue, "nas/send_service_reject",
+		[]attribute.KeyValue{attribute.Int("cause", int(cause))},
+		func(_ *UeContext) ([]byte, error) { return BuildServiceReject(cause) })
 }
 
 // T3502: This IE may be included to indicate a value for timer T3502 during the initial registration
-func SendRegistrationReject(ctx context.Context, ue *RanUe, cause5GMM uint8) error {
-	if ue == nil || ue.UeContext() == nil {
-		return fmt.Errorf("ue or amf ue is nil")
-	}
-
-	ctx, span := nasSendTracer.Start(ctx, "nas/send_registration_reject",
-		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().supi.String()),
-			attribute.Int("cause", int(cause5GMM)),
-		),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
-	defer span.End()
-
-	nasMsg, err := BuildRegistrationReject(int(ue.UeContext().T3502Value.Seconds()), cause5GMM)
-	if err != nil {
-		return fmt.Errorf("error building registration reject: %s", err.Error())
-	}
-
-	err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
-	if err != nil {
-		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
-	}
-
-	return nil
+func SendRegistrationReject(ctx context.Context, ue *RanUe, cause5GMM uint8) {
+	sendGmm(ctx, ue, "nas/send_registration_reject",
+		[]attribute.KeyValue{attribute.Int("cause", int(cause5GMM))},
+		func(amfUe *UeContext) ([]byte, error) {
+			return BuildRegistrationReject(int(amfUe.T3502Value.Seconds()), cause5GMM)
+		})
 }
 
-func SendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *RanUe) error {
+func SendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *RanUe) {
 	if ue == nil || ue.UeContext() == nil {
-		return fmt.Errorf("ue or amf ue is nil")
+		logger.AmfLog.Error("cannot send Security Mode Command: ue or amf ue is nil")
+		return
 	}
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_security_mode_command",
@@ -254,26 +167,25 @@ func SendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *RanUe) e
 	)
 	defer span.End()
 
-	nasMsg, err := BuildSecurityModeCommand(ue.UeContext())
-	if err != nil {
-		return fmt.Errorf("error building security mode command: %s", err.Error())
-	}
-
-	err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
-	if err != nil {
-		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
-	}
-
 	amfUe := ue.UeContext()
+
+	nasMsg, err := BuildSecurityModeCommand(amfUe)
+	if err != nil {
+		amfUe.Log.Error("failed to build security mode command", zap.Error(err))
+		return
+	}
+
+	if err := ue.SendDownlinkNasTransport(ctx, nasMsg, nil); err != nil {
+		amfUe.Log.Warn("failed to send downlink NAS transport", zap.String("message", "nas/send_security_mode_command"), zap.Error(err))
+	}
 
 	if amfInstance.T3560Cfg.Enable {
 		cfg := amfInstance.T3560Cfg
 		conn := amfUe.NasConn()
-		conn.T3560 = NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+		conn.T3560.Arm(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.Log.Warn("T3560 expires, retransmit Security Mode Command", zap.Any("expireTimes", expireTimes))
 
-			err = ue.SendDownlinkNasTransport(context.Background(), nasMsg, nil)
-			if err != nil {
+			if err := ue.SendDownlinkNasTransport(context.Background(), nasMsg, nil); err != nil {
 				amfUe.Log.Error("could not send downlink NAS transport message", zap.Error(err))
 				return
 			}
@@ -285,35 +197,11 @@ func SendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *RanUe) e
 			amfInstance.DeregisterAndRemoveUeContext(context.Background(), amfUe)
 		})
 	}
-
-	return nil
 }
 
-func SendDeregistrationAccept(ctx context.Context, ue *RanUe) error {
-	if ue == nil || ue.UeContext() == nil {
-		return fmt.Errorf("ue or amf ue is nil")
-	}
-
-	ctx, span := nasSendTracer.Start(ctx, "nas/send_deregistration_accept",
-		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().supi.String()),
-		),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
-	defer span.End()
-
-	nasMsg, err := BuildDeregistrationAccept()
-	if err != nil {
-		return fmt.Errorf("error building deregistration accept: %s", err.Error())
-	}
-
-	err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
-	if err != nil {
-		ue.UeContext().Log.Error("could not send downlink NAS transport message", zap.Error(err))
-		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
-	}
-
-	return nil
+func SendDeregistrationAccept(ctx context.Context, ue *RanUe) {
+	sendGmm(ctx, ue, "nas/send_deregistration_accept", nil,
+		func(_ *UeContext) ([]byte, error) { return BuildDeregistrationAccept() })
 }
 
 func SendRegistrationAccept(
@@ -326,9 +214,10 @@ func SendRegistrationAccept(
 	pduSessionResourceSetupList *ngapType.PDUSessionResourceSetupListCxtReq,
 	equivalentPlmnID models.PlmnID,
 	supportedGUAMI *models.Guami,
-) error {
+) {
 	if ue == nil {
-		return fmt.Errorf("ue is nil")
+		logger.AmfLog.Error("cannot send Registration Accept: ue is nil")
+		return
 	}
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_registration_accept",
@@ -341,18 +230,20 @@ func SendRegistrationAccept(
 
 	nasMsg, err := BuildRegistrationAccept(amfInstance, ue, pDUSessionStatus, reactivationResult, errPduSessionID, errCause, equivalentPlmnID)
 	if err != nil {
-		return fmt.Errorf("error building registration accept: %s", err.Error())
+		ue.Log.Error("failed to build registration accept", zap.Error(err))
+		return
 	}
 
 	ranUe := ue.RanUe()
 	if ranUe == nil {
-		return fmt.Errorf("ranUe is nil")
+		ue.Log.Error("cannot send Registration Accept: ranUe is nil")
+		return
 	}
 
 	if ranUe.UeContextRequest {
 		ranUe.ICS = ICSPending
 
-		err = ranUe.SendInitialContextSetupRequest(
+		if err := ranUe.SendInitialContextSetupRequest(
 			ctx,
 			ue.Ambr.Uplink,
 			ue.Ambr.Downlink,
@@ -365,30 +256,26 @@ func SendRegistrationAccept(
 			nasMsg,
 			pduSessionResourceSetupList,
 			supportedGUAMI,
-		)
-		if err != nil {
-			return fmt.Errorf("error sending initial context setup request: %s", err.Error())
+		); err != nil {
+			ue.Log.Warn("failed to send initial context setup request", zap.Error(err))
+		} else {
+			ue.Log.Info("Sent NGAP initial context setup request")
 		}
-
-		ue.Log.Info("Sent NGAP initial context setup request")
 	} else {
-		err = ranUe.SendDownlinkNasTransport(ctx, nasMsg, nil)
-		if err != nil {
-			return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
+		if err := ranUe.SendDownlinkNasTransport(ctx, nasMsg, nil); err != nil {
+			ue.Log.Warn("failed to send downlink NAS transport", zap.Error(err))
+		} else {
+			ue.Log.Info("Sent GMM registration accept")
 		}
-
-		ue.Log.Info("Sent GMM registration accept")
 	}
 
 	if amfInstance.T3550Cfg.Enable {
 		cfg := amfInstance.T3550Cfg
 		conn := ue.NasConn()
-		conn.T3550 = NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+		conn.T3550.Arm(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			retryRanUe := ue.RanUe()
 			if retryRanUe == nil {
 				ue.Log.Warn("[NAS] UE Context released, abort retransmission of Registration Accept")
-
-				conn.T3550 = nil
 			} else {
 				if retryRanUe.UeContextRequest && retryRanUe.ICS != ICSCompleted {
 					err = retryRanUe.SendInitialContextSetupRequest(
@@ -426,14 +313,11 @@ func SendRegistrationAccept(
 		}, func() {
 			ue.Log.Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))
 
-			conn.T3550 = nil
 			// TS 24.501 5.5.1.2.8 case c, 5.5.1.3.8 case c
 			ue.TransitionTo(Registered)
 			ue.ClearRegistrationRequestData()
 		})
 	}
-
-	return nil
 }
 
 func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe *UeContext, includeGUTI bool) {
@@ -486,14 +370,12 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 
 		amfUe.Log.Info("start T3555 timer")
 		conn := amfUe.NasConn()
-		conn.T3555 = NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+		conn.T3555.Arm(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.Log.Warn("timer T3555 expired, retransmit Configuration Update Command", zap.Int32("retry", expireTimes))
 
 			retryRanUe := amfUe.RanUe()
 			if retryRanUe == nil {
 				amfUe.Log.Warn("UE Context released, abort retransmission of Configuration Update Command")
-
-				conn.T3555 = nil
 
 				return
 			}

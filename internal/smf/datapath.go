@@ -124,8 +124,8 @@ func (dp *DataPath) ActivateDlLinkPdr(anIPv4 net.IP, anIPv6 net.IP, teid uint32,
 
 	dp.DownLinkTunnel.PDR.PDI.UEIPAddress = ueIP
 
-	// When both addresses are available, IPv6 is preferred for the downlink tunnel.
-	// This preference is intentional and is documented in the configuration file reference.
+	// IPv6 is preferred for the downlink tunnel when both AN addresses exist
+	// (documented in the configuration file reference).
 	if anIPv6 != nil {
 		dp.DownLinkTunnel.PDR.FAR.ForwardingParameters = &models.ForwardingParameters{
 			OuterHeaderCreation: &models.OuterHeaderCreation{

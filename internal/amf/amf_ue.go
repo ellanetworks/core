@@ -20,6 +20,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf/procedure"
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/ueauth"
@@ -71,10 +72,15 @@ type UeContext struct {
 	/* User Location*/
 	Location models.UserLocation
 	Tai      models.Tai
-	/* Last Seen — updated on every UE-specific NGAP message */
-	LastSeenAt    time.Time
-	LastSeenRadio string
+	// Last seen — updated lock-free on every UE-specific NGAP message (hot path),
+	// mirroring the 4G MME's atomic last-seen idiom.
+	lastSeenAt    atomic.Int64 // Unix nanoseconds; use LastSeenAtTime()/TouchLastSeen()
+	lastSeenRadio atomic.Pointer[string]
 	ranUe         *RanUe
+
+	// handover is the in-flight N2 handover FSM (nil when none); see handover.go.
+	// Guarded by mu. Mirrors the 4G MME's ue.handover.
+	handover *handoverContext
 
 	smf SmfSbi
 
@@ -94,7 +100,7 @@ type UeContext struct {
 	knasInt                  [16]uint8
 	knasEnc                  [16]uint8
 	kgnb                     []uint8
-	nh                       []uint8
+	nh                       [32]uint8 // AS key-chain Next Hop, 256 bits (TS 33.501); fixed-size like the 4G MME's
 	ncc                      uint8
 	ulCount                  security.Count
 	dlCount                  security.Count
@@ -114,8 +120,13 @@ type UeContext struct {
 	T3502Value time.Duration
 	T3512Value time.Duration
 
-	MobileReachableTimer        *Timer
-	ImplicitDeregistrationTimer *Timer
+	// Idle-mode supervision (TS 24.501): the mobile reachable timer escalates to
+	// implicit deregistration. idleGen bumps on every (re)arm/stop so an expiry
+	// that fired just as the UE reconnected is ignored when it re-checks under
+	// ue.mu. Both are one logical episode keyed by idleGen.
+	MobileReachableTimer        guard.Guard
+	ImplicitDeregistrationTimer guard.Guard
+	idleGen                     uint64
 }
 
 func NewUeContext() *UeContext {
@@ -187,7 +198,7 @@ func (ue *UeContext) resetSecurityContext() {
 	ue.knasInt = [16]uint8{}
 	ue.knasEnc = [16]uint8{}
 	ue.kgnb = nil
-	ue.nh = nil
+	ue.nh = [32]uint8{}
 	ue.ncc = 0
 	ue.ulCount = security.Count{}
 	ue.dlCount = security.Count{}
@@ -206,18 +217,12 @@ func (ue *UeContext) resetSecurityContext() {
 	ue.T3512Value = 0
 }
 
-// stopIdleTimers stops and clears the registered-but-idle timers (mobile
-// reachable and implicit deregistration).
+// stopIdleTimers cancels both idle-mode timers and bumps idleGen so an expiry
+// that has already fired becomes a no-op. Caller holds ue.mu.
 func (ue *UeContext) stopIdleTimers() {
-	if ue.MobileReachableTimer != nil {
-		ue.MobileReachableTimer.Stop()
-		ue.MobileReachableTimer = nil
-	}
-
-	if ue.ImplicitDeregistrationTimer != nil {
-		ue.ImplicitDeregistrationTimer.Stop()
-		ue.ImplicitDeregistrationTimer = nil
-	}
+	ue.idleGen++
+	ue.MobileReachableTimer.Stop()
+	ue.ImplicitDeregistrationTimer.Stop()
 }
 
 // RanUe returns the currently attached RanUe, or nil.
@@ -308,9 +313,11 @@ func (ue *UeContext) AttachRanUe(ranUe *RanUe) {
 		}
 	}
 
-	ue.LastSeenAt = time.Now()
+	ue.lastSeenAt.Store(time.Now().UnixNano())
+
 	if ranUe.radio != nil {
-		ue.LastSeenRadio = ranUe.radio.Name
+		name := ranUe.radio.Name
+		ue.lastSeenRadio.Store(&name)
 	}
 
 	ue.Log = logger.AmfLog.With(logger.AmfUeNgapID(ranUe.AmfUeNgapID))
@@ -387,15 +394,43 @@ func (ue *UeContext) integrityAlgName() string {
 	}
 }
 
-// TouchLastSeen updates the UE's last-seen timestamp and radio name.
-// Must be called while the UE mutex is NOT held (it acquires the lock).
+// TouchLastSeen updates the UE's last-seen timestamp and radio name lock-free —
+// it is on the uplink hot path (every UE-specific NGAP message).
 func (ue *UeContext) TouchLastSeen(radioName string) {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
+	ue.lastSeenAt.Store(time.Now().UnixNano())
 
-	ue.LastSeenAt = time.Now()
 	if radioName != "" {
-		ue.LastSeenRadio = radioName
+		ue.lastSeenRadio.Store(&radioName)
+	}
+}
+
+// LastSeenAtTime returns the UE's most recent last-seen time, or the zero time
+// if it has never been seen. Safe for concurrent use.
+func (ue *UeContext) LastSeenAtTime() time.Time {
+	ns := ue.lastSeenAt.Load()
+	if ns == 0 {
+		return time.Time{}
+	}
+
+	return time.Unix(0, ns)
+}
+
+// LastSeenRadioName returns the name of the radio the UE was last seen on, or ""
+// if it has never been seen. Safe for concurrent use.
+func (ue *UeContext) LastSeenRadioName() string {
+	if p := ue.lastSeenRadio.Load(); p != nil {
+		return *p
+	}
+
+	return ""
+}
+
+// SetLastSeenForTest sets the UE's last-seen time and radio. For tests only.
+func (ue *UeContext) SetLastSeenForTest(t time.Time, radio string) {
+	ue.lastSeenAt.Store(t.UnixNano())
+
+	if radio != "" {
+		ue.lastSeenRadio.Store(&radio)
 	}
 }
 
@@ -421,8 +456,8 @@ func (ue *UeContext) Snapshot() UESnapshot {
 		Pei:                ue.Pei,
 		CipheringAlgorithm: ue.cipheringAlgName(),
 		IntegrityAlgorithm: ue.integrityAlgName(),
-		LastSeenAt:         ue.LastSeenAt,
-		LastSeenRadio:      ue.LastSeenRadio,
+		LastSeenAt:         ue.LastSeenAtTime(),
+		LastSeenRadio:      ue.LastSeenRadioName(),
 	}
 
 	return snap
@@ -528,7 +563,11 @@ func (ue *UeContext) DerivateNH(syncInput []byte) error {
 		return fmt.Errorf("could not get kdf value: %v", err)
 	}
 
-	ue.nh = nh
+	if len(nh) != len(ue.nh) {
+		return fmt.Errorf("unexpected NH length %d, want %d", len(nh), len(ue.nh))
+	}
+
+	ue.nh = [32]uint8(nh)
 
 	return nil
 }
@@ -552,7 +591,7 @@ func (ue *UeContext) UpdateSecurityContext() error {
 func (ue *UeContext) UpdateNH() error {
 	ue.ncc = (ue.ncc + 1) % 8
 
-	err := ue.DerivateNH(ue.nh)
+	err := ue.DerivateNH(ue.nh[:])
 	if err != nil {
 		return fmt.Errorf("error deriving NH: %v", err)
 	}
@@ -774,55 +813,66 @@ func (ue *UeContext) ResetMobileReachableTimer() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	if ue.ImplicitDeregistrationTimer != nil {
-		ue.ImplicitDeregistrationTimer.Stop()
-		ue.ImplicitDeregistrationTimer = nil
-	}
+	ue.stopIdleTimers()
+	gen := ue.idleGen
 
 	ue.Log.Debug("starting mobile reachable timer", logger.SUPI(ue.supi.String()))
 
-	ue.MobileReachableTimer = NewTimer(
-		ue.T3512Value+(4*time.Minute),
-		1,
-		func(expireTimes int32) {
-			ue.Log.Debug("mobile reachable timer expired", logger.SUPI(ue.supi.String()))
-			ue.startImplicitDeregistrationTimer()
-		},
-		func() {},
-	)
+	ue.MobileReachableTimer.ArmOnce(ue.T3512Value+(4*time.Minute), func() {
+		ue.onMobileReachableExpiry(gen)
+	})
 }
 
+// StopMobileReachableTimer ends idle-mode supervision when the UE becomes
+// reachable again.
 func (ue *UeContext) StopMobileReachableTimer() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.Log.Debug("stopping mobile reachable timer")
-
-	if ue.MobileReachableTimer != nil {
-		ue.MobileReachableTimer.Stop()
-		ue.MobileReachableTimer = nil
-	}
+	ue.Log.Debug("stopping idle-mode timers")
+	ue.stopIdleTimers()
 }
 
+// StopImplicitDeregistrationTimer ends idle-mode supervision when the UE becomes
+// reachable again.
 func (ue *UeContext) StopImplicitDeregistrationTimer() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.Log.Debug("stopping implicit deregistration timer")
-
-	if ue.ImplicitDeregistrationTimer != nil {
-		ue.ImplicitDeregistrationTimer.Stop()
-		ue.ImplicitDeregistrationTimer = nil
-	}
+	ue.Log.Debug("stopping idle-mode timers")
+	ue.stopIdleTimers()
 }
 
-func (ue *UeContext) startImplicitDeregistrationTimer() {
+// onMobileReachableExpiry escalates to the implicit deregistration timer once the
+// mobile reachable timer fires (TS 24.501). It no-ops if a reconnect bumped
+// idleGen after this timer was armed.
+func (ue *UeContext) onMobileReachableExpiry(gen uint64) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.Log.Debug("starting implicit deregistration timer")
+	if ue.idleGen != gen {
+		return
+	}
 
-	ue.ImplicitDeregistrationTimer = NewTimer(2*time.Minute, 1, func(expireTimes int32) { ue.Deregister(context.Background()) }, func() {})
+	ue.Log.Debug("mobile reachable timer expired", logger.SUPI(ue.supi.String()))
+
+	ue.ImplicitDeregistrationTimer.ArmOnce(2*time.Minute, func() {
+		ue.onImplicitDeregistrationExpiry(gen)
+	})
+}
+
+// onImplicitDeregistrationExpiry deregisters an unreachable UE (TS 24.501). It
+// no-ops if a reconnect bumped idleGen after the implicit timer was armed.
+func (ue *UeContext) onImplicitDeregistrationExpiry(gen uint64) {
+	ue.mu.Lock()
+	stale := ue.idleGen != gen
+	ue.mu.Unlock()
+
+	if stale {
+		return
+	}
+
+	ue.Deregister(context.Background())
 }
 
 func (ue *UeContext) StopProcedureTimers() {
@@ -834,10 +884,8 @@ func (ue *UeContext) StopProcedureTimers() {
 		return
 	}
 
-	for _, t := range []*Timer{conn.T3513, conn.T3565, conn.T3560, conn.T3550, conn.T3555, conn.T3522} {
-		if t != nil {
-			t.Stop()
-		}
+	for _, g := range []*guard.Guard{&conn.T3513, &conn.T3565, &conn.T3560, &conn.T3550, &conn.T3555, &conn.T3522} {
+		g.Stop()
 	}
 }
 

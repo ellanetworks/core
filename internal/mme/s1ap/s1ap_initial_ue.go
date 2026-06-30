@@ -21,7 +21,7 @@ import (
 func HandleInitialUEMessage(m *mme.MME, ctx context.Context, conn mme.NasWriter, value []byte) {
 	msg, err := s1ap.ParseInitialUEMessage(value)
 	if err != nil {
-		logger.MmeLog.Warn("failed to decode Initial UE Message", zap.Error(err))
+		handleParseError(m, conn, s1ap.ProcInitialUEMessage, err)
 		return
 	}
 
@@ -48,7 +48,11 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, conn mme.NasWriter,
 			}
 
 			ue.TouchLastSeen()
-			m.EstablishS1Connection(ue, conn, msg.ENBUES1APID)
+
+			if !m.EstablishS1Connection(ue, conn, msg.ENBUES1APID) {
+				return
+			}
+
 			ue.CommitUplinkCount(count)
 
 			logger.MmeLog.Info("Initial UE Message (resume)",
@@ -68,6 +72,9 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, conn mme.NasWriter,
 	// connection without binding one, so an unauthenticated peer cannot exhaust UE
 	// contexts.
 	c := m.NewConn(conn, msg.ENBUES1APID)
+	if c == nil {
+		return
+	}
 
 	if !isInitialAttach(nas) {
 		// A protected TRACKING AREA UPDATE the MME cannot resolve (e.g. a periodic
@@ -161,7 +168,7 @@ func isProtectedTrackingAreaUpdate(nas []byte) bool {
 func handleUplinkNASTransport(m *mme.MME, ctx context.Context, conn mme.NasWriter, value []byte) {
 	msg, err := s1ap.ParseUplinkNASTransport(value)
 	if err != nil {
-		logger.MmeLog.Warn("failed to decode Uplink NAS Transport", zap.Error(err))
+		handleParseError(m, conn, s1ap.ProcUplinkNASTransport, err)
 		return
 	}
 

@@ -140,8 +140,8 @@ func TestHandoverRequestAcknowledge_NoSourceUe(t *testing.T) {
 	amfUe.Log = logger.AmfLog
 
 	targetUe := amf.NewRanUeForTest(ran, 2, 1, logger.AmfLog)
-	targetUe.SourceUe = nil
 	amfUe.AttachRanUe(targetUe)
+	// No handover installed, so HandoverSource() is nil.
 
 	amfInstance := newTestAMF()
 	amfInstance.Radios[new(sctp.SCTPConn)] = ran
@@ -213,7 +213,7 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceUeContextDetache
 		t.Fatal("target UE not found on target radio")
 	}
 
-	sourceUeContext := targetUe.SourceUe.UeContext()
+	sourceUeContext := targetUe.UeContext()
 	if sourceUeContext == nil {
 		t.Fatal("source AMF UE not found")
 	}

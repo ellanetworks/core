@@ -58,14 +58,10 @@ func TestHandleHandoverCancel_UnknownAmfUeNgapID(t *testing.T) {
 	targetRan := newTestRadio()
 	targetSender := targetRan.NGAPSender.(*FakeNGAPSender)
 
-	sourceUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
-	targetUe := amf.NewRanUeForTest(targetRan, 2, 20, logger.AmfLog)
-
-	sourceUe.TargetUe = targetUe
-	targetUe.SourceUe = sourceUe
+	amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
 
 	msg := decode.HandoverCancel{
-		AMFUENGAPID: 999, // does not match sourceUe.AmfUeNgapID (10)
+		AMFUENGAPID: 999, // does not match the source UE's AmfUeNgapID (10)
 		RANUENGAPID: 1,
 		Cause: &ngapType.Cause{
 			Present:      ngapType.CausePresentRadioNetwork,
@@ -97,8 +93,13 @@ func TestHandleHandoverCancel_HappyPath(t *testing.T) {
 	sourceUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
 	targetUe := amf.NewRanUeForTest(targetRan, 2, 20, logger.AmfLog)
 
-	sourceUe.TargetUe = targetUe
-	targetUe.SourceUe = sourceUe
+	amfUe := amf.NewUeContext()
+	amfUe.Log = logger.AmfLog
+	amfUe.AttachRanUe(sourceUe)
+
+	if err := amf.AttachSourceUeTargetUe(sourceUe, targetUe); err != nil {
+		t.Fatalf("AttachSourceUeTargetUe: %v", err)
+	}
 
 	msg := decode.HandoverCancel{
 		AMFUENGAPID: 10,

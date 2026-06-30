@@ -53,12 +53,6 @@ import (
 
 var getInterfaceIPs = config.GetInterfaceIPs
 
-// mmeReconcileBackstop is the period of the MME data-network reconciler's
-// safety sweep, matching the AMF session reconciler's backstop. It recovers
-// from a dropped/coalesced changefeed wakeup or a UE that was transitioning
-// when a data-network change applied.
-const mmeReconcileBackstop = 5 * time.Minute
-
 type RuntimeConfig struct {
 	ConfigPath          string
 	RegisterExtraRoutes func(mux *http.ServeMux)
@@ -489,8 +483,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// Let the SMF page idle 4G UEs through the MME when downlink data arrives.
 	smfInstance.SetMME(mmeInstance)
 
-	amf.RegisterMetrics(amfInstance, mmeInstance.CountENBs, mmeInstance.CountRegisteredSubscribers)
 	metrics.RegisterMetrics()
+	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountENBs, mmeInstance.CountRegisteredSubscribers)
 
 	// Session reconciler: watches the session_reconcile changefeed topic
 	// and reconciles every local PDU session against the current DB policy.
@@ -514,25 +508,17 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// sessions. A periodic backstop sweep mirrors the AMF reconciler's, recovering
 	// from a dropped or coalesced changefeed wakeup and from UEs that were
 	// transitioning (mid-attach, idle) when the change applied.
-	mmeReconcileWakeup, stopMmeReconcileWakeup := dbInstance.Changefeed().Wakeup(db.TopicSessionReconcile)
+	mmeReconciler := mme.NewMMESessionReconciler(mmeInstance, func() <-chan struct{} {
+		wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicSessionReconcile)
 
-	go func() {
-		defer stopMmeReconcileWakeup()
+		go func() {
+			<-ctx.Done()
+			stop()
+		}()
 
-		ticker := time.NewTicker(mmeReconcileBackstop)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-mmeReconcileWakeup:
-				mmeInstance.ReconcileDataNetwork(ctx)
-			case <-ticker.C:
-				mmeInstance.ReconcileDataNetwork(ctx)
-			}
-		}
-	}()
+		return wakeup
+	}())
+	mmeReconciler.Start()
 
 	// --- Phase B: upgrade the API server to serve all routes now that
 	// the cluster is formed, settings are seeded, and NFs are running. ---
@@ -559,9 +545,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		Dispatch: func(ctx context.Context, conn *amfsctp.SCTPConn, msg []byte) {
 			ngap.Dispatch(ctx, amfInstance, conn, msg)
 		},
-		Notify: func(conn *amfsctp.SCTPConn, notification amfsctp.Notification) {
-			ngap.HandleSCTPNotification(amfInstance, conn, notification)
-		},
+		// A single disconnect path (mirroring the S1-MME wiring below): the server
+		// always runs OnDisconnect when a connection's read loop ends, which covers
+		// every SCTP teardown (COMM_LOST/SHUTDOWN deliver a notification and then end
+		// the read loop), so no separate Notify handler is needed.
 		OnDisconnect: func(conn *amfsctp.SCTPConn) {
 			if ran, ok := amfInstance.FindRadioByConn(conn); ok {
 				amfInstance.RemoveRadio(context.Background(), ran)
@@ -671,10 +658,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		logger.EllaLog.Info("Shutting down BGP reconciler")
 		bgpReconciler.Stop()
 
-		// 4b. Stop the session reconciler so no more reconcile calls land
-		// on a shutting-down SMF.
-		logger.EllaLog.Info("Shutting down session reconciler")
+		// 4b. Stop the session reconcilers so no more reconcile calls land
+		// on a shutting-down SMF or eNB.
+		logger.EllaLog.Info("Shutting down session reconcilers")
 		sessionReconciler.Stop()
+		mmeReconciler.Stop()
 
 		logger.EllaLog.Info("Shutting down BGP")
 

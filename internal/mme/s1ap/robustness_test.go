@@ -63,6 +63,40 @@ func plainAttachNAS(t *testing.T) []byte {
 // whose NAS is not an Attach Request binds no UE context and leaves no connection
 // behind (its bare connection is released), so an unauthenticated peer cannot
 // exhaust contexts (TS 24.301).
+// TestHandleParseError_EmitsErrorIndication asserts that an undecodable
+// UE-associated S1AP message draws an ERROR INDICATION carrying Criticality
+// Diagnostics that name the procedure (TS 36.413 §10.4) instead of being silently
+// dropped, mirroring the 5G AMF's fatal-decode response.
+func TestHandleParseError_EmitsErrorIndication(t *testing.T) {
+	m := newTestMME(t)
+	cc := &captureConn{}
+
+	handleUEContextReleaseRequest(m, context.Background(), cc, []byte{0xff, 0xff, 0xff})
+
+	if cc.count() != 1 {
+		t.Fatalf("expected 1 Error Indication, got %d", cc.count())
+	}
+
+	ind := parseOutboundErrorIndication(t, cc.sent[0])
+
+	if ind.Cause == nil || ind.Cause.Group != s1ap.CauseGroupProtocol {
+		t.Errorf("cause = %+v, want protocol group", ind.Cause)
+	}
+
+	cd := ind.CriticalityDiagnostics
+	if cd == nil {
+		t.Fatal("Error Indication carried no Criticality Diagnostics")
+	}
+
+	if cd.ProcedureCode == nil || *cd.ProcedureCode != s1ap.ProcUEContextReleaseRequest {
+		t.Errorf("diagnostics procedure-code = %v, want %d", cd.ProcedureCode, s1ap.ProcUEContextReleaseRequest)
+	}
+
+	if cd.TriggeringMessage == nil || *cd.TriggeringMessage != s1ap.TriggeringInitiatingMessage {
+		t.Errorf("diagnostics triggering-message = %v, want initiating", cd.TriggeringMessage)
+	}
+}
+
 func TestNonAttachInitialUEMessageCreatesNoContext(t *testing.T) {
 	m := newTestMME(t)
 

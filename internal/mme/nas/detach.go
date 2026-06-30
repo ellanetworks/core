@@ -20,19 +20,6 @@ func handleDetachAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASDetach)
 }
 
-// isSwitchOffDetach reports whether body is a plain UE-originating DETACH
-// REQUEST with the switch-off flag set — the one NAS message the MME accepts
-// without integrity protection (TS 24.301).
-func isSwitchOffDetach(body []byte) bool {
-	if mt, err := eps.PeekMessageType(body); err != nil || mt != eps.MsgDetachRequest {
-		return false
-	}
-
-	req, err := eps.ParseDetachRequestUE(body)
-
-	return err == nil && req.SwitchOff
-}
-
 // handleDetachRequest handles a UE-originating DETACH REQUEST (TS 24.301):
 // for a non-switch-off detach it replies with Detach Accept, then releases the
 // UE's S1 context.

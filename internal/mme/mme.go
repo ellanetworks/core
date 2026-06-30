@@ -18,9 +18,16 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/udm"
+	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/ellanetworks/core/s1ap"
 	"go.opentelemetry.io/otel"
 )
+
+// DefaultS1MMEPort is the standard S1-MME SCTP port (TS 36.412).
+const DefaultS1MMEPort = 36412
+
+// maxMMEUES1APID is the largest MME-UE-S1AP-ID, INTEGER (0..2^32-1) (TS 36.413).
+const maxMMEUES1APID int64 = 4294967295
 
 // NASHandler is the EMM/ESM NAS layer's entry surface, implemented in
 // internal/mme/nas and injected so the S1AP layer dispatches uplink NAS without
@@ -61,7 +68,7 @@ type epsSessionManager interface {
 // fixed ordering, plus two atomics:
 //
 //   - MME.mu guards the registry and lifecycle: the ues/byMTMSI/enbs maps,
-//     nextMMEUEID, the M-TMSI allocator, each UE's S1 identity (conn,
+//     the MME-UE-S1AP-ID allocator, the M-TMSI allocator, each UE's S1 identity (conn,
 //     MME/ENB-UE-S1AP-IDs), the idle/paging/NAS-guard timers and their generation
 //     counters, and the releasing flag.
 //   - UeContext.mu guards that UE's data: the EPS NAS security context (keys and
@@ -88,13 +95,13 @@ type MME struct {
 	Session epsSessionManager
 	NAS     NASHandler
 
-	mu          sync.RWMutex
-	enbs        map[*sctp.SCTPConn]*enbState
-	enbByID     map[string]NasWriter  // S1-setup-complete eNBs keyed by Global eNB ID, for S1-handover target resolution
-	conns       map[uint32]*S1Conn    // UE-associated S1-connections keyed by MME-UE-S1AP-ID; conn.ue is nil until a UE context is bound
-	ues         map[string]*UeContext // persistent UE contexts keyed by IMSI; survives the connection across ECM-IDLE
-	byMTMSI     map[uint32]*UeContext // keyed by M-TMSI, for S-TMSI lookup
-	nextMMEUEID uint32
+	mu       sync.RWMutex
+	enbs     map[*sctp.SCTPConn]*enbState
+	enbByID  map[string]NasWriter     // S1-setup-complete eNBs keyed by Global eNB ID, for S1-handover target resolution
+	conns    map[uint32]*S1Conn       // UE-associated S1-connections keyed by MME-UE-S1AP-ID; conn.ue is nil until a UE context is bound
+	ues      map[string]*UeContext    // persistent UE contexts keyed by IMSI; survives the connection across ECM-IDLE
+	byMTMSI  map[uint32]*UeContext    // keyed by M-TMSI, for S-TMSI lookup
+	mmeUEIDs *idgenerator.IDGenerator // recycling MME-UE-S1AP-ID allocator (TS 36.413 no-immediate-reuse)
 	// mtmsi allocates an unpredictable M-TMSI (TS 23.401 privacy): random MSBs
 	// with allocate/free.
 	mtmsi *etsi.TmsiAllocator
@@ -109,6 +116,11 @@ type MME struct {
 	nasGuardTimeout       time.Duration
 	nasGuardMaxRetransmit int
 
+	// ESM bearer-procedure guard (TS 24.301: T3486 modify, T3495 deactivate),
+	// which the spec sets longer than the common-procedure timers. Field so tests
+	// can shorten it.
+	esmGuardTimeout time.Duration
+
 	// Paging supervision (T3413, TS 24.301 §5.6.2). Fields so tests can shorten
 	// them.
 	pagingTimeout       time.Duration
@@ -120,12 +132,19 @@ type MME struct {
 	handoverGuardTimeout time.Duration
 }
 
-// mobileReachableTime supervises the UE's periodic tracking area updating; its
-// default is T3412 + 4 minutes (TS 24.301). implicitDetachTime is the
-// grace period the MME waits after the mobile reachable timer before it
+// T3412PeriodicTAU is the periodic tracking-area-update timer the MME advertises
+// to UEs (TS 24.301). It is the single source for both the value encoded into the
+// Attach Accept and the mobile reachable timer below, so the two cannot drift if
+// it ever becomes configurable.
+const T3412PeriodicTAU = 54 * time.Minute
+
+// mobileReachableTime supervises the UE's periodic tracking area updating: it is
+// the periodic-TAU timer + 4 minutes (TS 24.301 §5.3.5), derived from
+// T3412PeriodicTAU exactly as the AMF derives T3512 + 4 minutes. implicitDetachTime
+// is the grace period the MME waits after the mobile reachable timer before it
 // implicitly detaches an unreachable UE (the value is network-dependent).
 const (
-	defaultMobileReachableTime = 58 * time.Minute
+	defaultMobileReachableTime = T3412PeriodicTAU + 4*time.Minute
 	defaultImplicitDetachTime  = 2 * time.Minute
 )
 
@@ -137,6 +156,11 @@ const (
 	defaultNASGuardTimeout       = 6 * time.Second
 	defaultNASGuardMaxRetransmit = 4
 )
+
+// defaultESMGuardTimeout is the retransmission interval for the ESM bearer
+// procedures (T3486 modify, T3495 deactivate, TS 24.301 §10.2.1): 8 s, longer
+// than the 6 s common-procedure guard.
+const defaultESMGuardTimeout = 8 * time.Second
 
 // The paging supervision timer T3413 bounds how long the MME waits for a paged
 // UE to respond before retransmitting and, after a bounded number of attempts,
@@ -158,22 +182,23 @@ const defaultHandoverGuardTimeout = 10 * time.Second
 // that allocates the UE IP. The MME never holds subscriber keys or the SQN.
 func New(cred *udm.Service, bearer bearerStore, session epsSessionManager) *MME {
 	return &MME{
-		Cred:        cred,
-		Bearer:      bearer,
-		Session:     session,
-		enbs:        make(map[*sctp.SCTPConn]*enbState),
-		enbByID:     make(map[string]NasWriter),
-		conns:       make(map[uint32]*S1Conn),
-		ues:         make(map[string]*UeContext),
-		byMTMSI:     make(map[uint32]*UeContext),
-		nextMMEUEID: 1,
-		mtmsi:       etsi.NewTMSIAllocator(),
+		Cred:     cred,
+		Bearer:   bearer,
+		Session:  session,
+		enbs:     make(map[*sctp.SCTPConn]*enbState),
+		enbByID:  make(map[string]NasWriter),
+		conns:    make(map[uint32]*S1Conn),
+		ues:      make(map[string]*UeContext),
+		byMTMSI:  make(map[uint32]*UeContext),
+		mmeUEIDs: idgenerator.NewGenerator(1, maxMMEUES1APID),
+		mtmsi:    etsi.NewTMSIAllocator(),
 
 		mobileReachableTime: defaultMobileReachableTime,
 		implicitDetachTime:  defaultImplicitDetachTime,
 
 		nasGuardTimeout:       defaultNASGuardTimeout,
 		nasGuardMaxRetransmit: defaultNASGuardMaxRetransmit,
+		esmGuardTimeout:       defaultESMGuardTimeout,
 
 		pagingTimeout:       defaultPagingTimeout,
 		pagingMaxRetransmit: defaultPagingMaxRetransmit,

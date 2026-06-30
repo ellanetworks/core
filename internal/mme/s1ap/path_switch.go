@@ -32,7 +32,7 @@ var (
 func handlePathSwitchRequest(m *mme.MME, ctx context.Context, conn mme.NasWriter, value []byte) {
 	req, err := s1ap.ParsePathSwitchRequest(value)
 	if err != nil {
-		logger.MmeLog.Warn("failed to decode Path Switch Request", zap.Error(err))
+		handleParseError(m, conn, s1ap.ProcPathSwitchRequest, err)
 		return
 	}
 

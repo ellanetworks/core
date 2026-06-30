@@ -14,9 +14,8 @@ import (
 
 // TS 23.502 4.2.2.3
 func handleDeregistrationAccept(ctx context.Context, ue *amf.UeContext) error {
-	if conn := ue.NasConn(); conn != nil && conn.T3522 != nil {
+	if conn := ue.NasConn(); conn != nil {
 		conn.T3522.Stop()
-		conn.T3522 = nil
 	}
 
 	defer ue.Deregister(ctx)

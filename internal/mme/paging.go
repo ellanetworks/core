@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
@@ -36,7 +35,7 @@ func (m *MME) Page(ctx context.Context, imsi string) error {
 
 	m.mu.RLock()
 
-	skip := ue.Connected() || ue.pagingTimer != nil
+	skip := ue.Connected() || ue.pagingTimer.Active()
 
 	m.mu.RUnlock()
 
@@ -63,81 +62,59 @@ func (m *MME) Page(ctx context.Context, imsi string) error {
 	return nil
 }
 
-// armPaging starts the paging supervision timer for a UE just paged. A timer
+// armPaging starts the paging supervision guard for a UE just paged. A guard
 // already running (a paging procedure in progress) is left untouched.
 func (m *MME) armPaging(ue *UeContext, pdu []byte) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if ue.pagingTimer != nil {
+	if ue.pagingTimer.Active() {
 		return
 	}
 
-	ue.pagingPDU = pdu
-	ue.pagingTries = 0
-	gen := ue.pagingGen
-
-	ue.pagingTimer = time.AfterFunc(m.pagingTimeout, func() {
-		m.onPagingExpiry(ue, gen)
-	})
+	ue.pagingTimer.Arm(m.pagingTimeout, int32(m.pagingMaxRetransmit),
+		func(attempt int32) { m.retransmitPaging(ue, pdu, attempt) },
+		func() { m.abandonPaging(ue) })
 }
 
-// stopPagingLocked cancels paging supervision and bumps pagingGen so an
-// in-flight callback becomes a no-op. The caller holds m.mu.
+// stopPagingLocked cancels paging supervision. The guard invalidates any
+// in-flight callback. The caller holds m.mu.
 func (m *MME) stopPagingLocked(ue *UeContext) {
-	ue.pagingGen++
-
-	if ue.pagingTimer != nil {
-		ue.pagingTimer.Stop()
-		ue.pagingTimer = nil
-	}
-
-	ue.pagingPDU = nil
-	ue.pagingTries = 0
+	ue.pagingTimer.Stop()
 }
 
-// onPagingExpiry retransmits the Paging or, once the retransmission budget is
-// exhausted, abandons the paging procedure (TS 24.301 §5.6.2; TS 23.401
-// §5.3.4.3). The buffered downlink data remains at the anchor and the UE stays
-// under mobile-reachable supervision until it returns or is implicitly detached.
-func (m *MME) onPagingExpiry(ue *UeContext, gen uint64) {
-	m.mu.Lock()
+// retransmitPaging resends the Paging on each guard interval (T3413, TS 24.301
+// §5.6.2). If the UE has answered (ECM-CONNECTED) it stops the guard instead.
+func (m *MME) retransmitPaging(ue *UeContext, pdu []byte, attempt int32) {
+	m.mu.RLock()
 
-	if ue.pagingGen != gen {
-		m.mu.Unlock()
+	connected := ue.Connected()
+	imsi := ue.imsi
+
+	m.mu.RUnlock()
+
+	if connected {
+		ue.pagingTimer.Stop()
 		return
 	}
-
-	if ue.Connected() {
-		m.stopPagingLocked(ue)
-		m.mu.Unlock()
-
-		return
-	}
-
-	if ue.pagingTries >= m.pagingMaxRetransmit {
-		imsi := ue.imsi
-		m.stopPagingLocked(ue)
-		m.mu.Unlock()
-
-		logger.MmeLog.Info("paging unanswered, abandoning procedure", zap.String("imsi", imsi))
-
-		return
-	}
-
-	ue.pagingTries++
-	pdu := ue.pagingPDU
-	tries := ue.pagingTries
-
-	ue.pagingTimer = time.AfterFunc(m.pagingTimeout, func() {
-		m.onPagingExpiry(ue, gen)
-	})
-
-	m.mu.Unlock()
 
 	logger.MmeLog.Info("paging unanswered, retransmitting",
-		zap.String("imsi", ue.imsi), zap.Int("attempt", tries))
+		zap.String("imsi", imsi), zap.Int32("attempt", attempt))
 	m.broadcastPaging(context.Background(), pdu)
+}
+
+// abandonPaging runs once the retransmission budget is exhausted (TS 24.301
+// §5.6.2; TS 23.401 §5.3.4.3). The buffered downlink data remains at the anchor
+// and the UE stays under mobile-reachable supervision until it returns or is
+// implicitly detached.
+func (m *MME) abandonPaging(ue *UeContext) {
+	m.mu.RLock()
+
+	imsi := ue.imsi
+
+	m.mu.RUnlock()
+
+	logger.MmeLog.Info("paging unanswered, abandoning procedure", zap.String("imsi", imsi))
 }
 
 // buildPaging assembles the Paging message for a UE: the S-TMSI paging identity,

@@ -58,10 +58,7 @@ func (amf *AMF) LastSeenAtForSubscriber(supi etsi.SUPI) time.Time {
 		return time.Time{}
 	}
 
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	return ue.LastSeenAt
+	return ue.LastSeenAtTime()
 }
 
 // RegisteredSubscribersForRadio returns the IMSIs of all subscribers that are

@@ -20,23 +20,16 @@ import (
 	"go.uber.org/zap"
 )
 
-// ReconcileSmContext applies policy changes to an active PDU session.
-// It compares the old and new policy data, updates the UPF via PFCP if QoS
-// parameters changed, and sends N1+N2 messages to the UE and gNB when session
-// QoS or AMBR changes.
+// ReconcileSmContext applies an OAM-initiated policy change to an active PDU
+// session.
 //
-// When the reason is ReconcileSliceMismatch, the session is released with
-// cause #39 "reactivation requested" (TS 24.501 table 11.4.2.1) so the UE
-// re-establishes on the correct slice.
+// QoS/AMBR/DNS changes use the network-requested PDU Session Modification
+// procedure (TS 23.502 §4.3.3.2): PFCP update plus N1+N2 to the UE and gNB.
 //
-// For QoS/AMBR/DNS changes this implements the 3GPP network-requested PDU Session
-// Modification procedure (TS 23.502 clause 4.3.3.2) triggered by an
-// OAM-initiated policy update.
-//
-// For MTU or IP pool changes the session is released with cause #39 so the UE
-// re-establishes with the updated configuration (TS 23.501 §5.6.10.4 does not
-// address dynamic MTU adjustment; IP pools have no in-place modification
-// mechanism).
+// Slice (SST/SD), MTU, or IP pool changes release the session with cause #39
+// "reactivation requested" (TS 24.501 table 11.4.2.1) so the UE re-establishes
+// with the correct configuration; TS 23.501 §5.6.10.4 does not address dynamic
+// MTU adjustment, and IP pools have no in-place modification mechanism.
 func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconcileRequest) error {
 	if req == nil {
 		return fmt.Errorf("reconcile request is nil")
@@ -84,21 +77,15 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 		return nil
 	}
 
-	// --- Slice mismatch: network-initiated release ---
-	// When SST/SD changed, the session's stored Snssai no longer matches any
-	// slice. Per TS 23.502 §4.3.4.2, release with cause #39 so the UE
-	// automatically re-establishes on the new slice.
+	// Slice (SST/SD) change: stored Snssai matches no configured slice. Release
+	// with cause #39 so the UE re-establishes on the new slice (TS 23.502 §4.3.4.2).
 	if req.Reason == models.ReconcileSliceMismatch {
 		return s.sendSessionRelease(ctx, smContext)
 	}
 
-	// --- MTU or IP pool change: network-initiated release ---
-	// Per TS 23.501 §5.6.10.4 NOTE 3, dynamic MTU adjustment during an active
-	// session is not addressed. IP pool changes would invalidate already-
-	// assigned addresses. Release with cause #39 so the UE re-establishes.
-	//
-	// Zero/empty values in the delta are treated as "not specified" (unchanged)
-	// to avoid spurious releases when the caller provides a partial delta.
+	// MTU or IP pool change: release for re-establishment. Zero/empty delta
+	// values mean "unspecified" (unchanged), avoiding spurious releases on a
+	// partial delta.
 	if req.NewPolicy != nil {
 		mtuChanged := req.NewPolicy.MTU != 0 && smContext.PolicyData.MTU != req.NewPolicy.MTU
 		ipv4PoolChanged := req.NewPolicy.IPv4Pool != "" && smContext.PolicyData.IPv4Pool != req.NewPolicy.IPv4Pool
@@ -120,7 +107,7 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 		}
 	}
 
-	// --- QoS/AMBR/DNS modification path ---
+	// QoS/AMBR/DNS modification path.
 	oldQoS := smContext.PolicyData.QosData
 	oldAmbr := smContext.PolicyData.Ambr
 
@@ -185,7 +172,6 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 		}
 	}
 
-	// Push QoS changes to the UPF via PFCP Session Modification.
 	if hasQoSChange || hasAmbrChange {
 		if err := s.updatePFCPRules(ctx, smContext, newPolicy); err != nil {
 			span.RecordError(err)
@@ -210,17 +196,12 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 		)
 	}
 
-	// Send N1 (NAS) + N2 (NGAP) messages to notify the UE and gNB of changes.
-	// Per TS 23.502 clause 4.3.3.2, the SMF sends:
-	//   - N1: PDU Session Modification Command (Session-AMBR, QoS flow
-	//     descriptions, DNS server addresses via Extended PCO)
-	//   - N2: PDU Session Resource Modify Request Transfer (PDU Session
-	//     Aggregate Maximum Bit Rate, QoS Flow Add or Modify Request List)
+	// Send N1 (NAS) + N2 (NGAP) to the UE and gNB (TS 23.502 §4.3.3.2).
 	//
-	// If the UE is in CM-IDLE, N1N2 delivery is skipped (per TS 23.502 §4.2.3.3
-	// step 3b: the AMF may ignore the N2 SM information when the UE is not
-	// reachable). The policy is still committed so that ActivateSmContext
-	// returns updated QoS when the UE transitions back to CM-CONNECTED.
+	// If the UE is in CM-IDLE, N1N2 delivery is skipped (TS 23.502 §4.2.3.3
+	// step 3b: the AMF may ignore N2 SM information when the UE is unreachable);
+	// the policy is still committed so ActivateSmContext returns updated QoS when
+	// the UE returns to CM-CONNECTED.
 	if (hasAmbrChange || hasQoSChange || hasDNSChange) && req.NewPolicy != nil {
 		if err := s.sendSessionModification(ctx, smContext, newPolicy, hasAmbrChange, hasQoSChange, hasDNSChange); err != nil {
 			if errors.Is(err, ErrUENotReachable) {
@@ -243,10 +224,9 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 		}
 	}
 
-	// Commit policy data after PFCP succeeds. N1/N2 delivery may be skipped
-	// (UE idle) — this is intentional: ActivateSmContext rebuilds the Setup
-	// Transfer from PolicyData, so the UE gets updated QoS on reconnect.
-	// If PFCP or a real N1/N2 failure returned above, we never reach here.
+	// Commit policy after PFCP succeeds. Skipped N1/N2 delivery (UE idle) is fine:
+	// ActivateSmContext rebuilds the Setup Transfer from PolicyData, so the UE
+	// gets updated QoS on reconnect.
 	if (hasQoSChange || hasAmbrChange || hasDNSChange) && req.NewPolicy != nil {
 		smContext.PolicyData = newPolicy
 	}
@@ -269,7 +249,6 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 // When only DNS changes (no AMBR/QoS), only N1 is sent since DNS is a NAS-level
 // parameter that does not affect the gNB.
 func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext, policy *Policy, hasAmbrChange, hasQoSChange, hasDNSChange bool) error {
-	// Build N1 NAS message.
 	var n1Ambr *models.Ambr
 	if hasAmbrChange {
 		n1Ambr = &policy.Ambr
@@ -290,8 +269,7 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 		return fmt.Errorf("build PDU Session Modification Command (N1): %w", err)
 	}
 
-	// Build N2 NGAP message only when AMBR or QoS changed.
-	// DNS is carried in the NAS Extended PCO and does not require N2 signaling.
+	// DNS travels in the NAS Extended PCO and needs no N2 signaling.
 	var n2Msg []byte
 
 	if hasAmbrChange || hasQoSChange {
@@ -311,9 +289,6 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 		}
 	}
 
-	// Deliver combined N1+N2 (or N1-only for DNS changes) via the AMF.
-	// The AMF will send a PDUSessionResourceModifyRequest (TS 38.413 §9.2.1.5)
-	// to the gNB, carrying the NAS PDU piggy-backed in the per-session modify item.
 	if err := s.amf.ModifyN1N2(ctx, smContext.Supi, smContext.PDUSessionID, n1Msg, n2Msg); err != nil {
 		return fmt.Errorf("transfer N1N2 message: %w", err)
 	}
@@ -347,10 +322,25 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 	return nil
 }
 
-// updatePFCPRules rebuilds the QER with the new rate limits and sends a PFCP
-// Session Modification Request to the UPF. This enforces the updated QoS
-// parameters in the data plane (TS 29.244 clause 7.5.4).
+// updatePFCPRules pushes the policy's QoS (QFI + session-AMBR) to the UPF data
+// plane (TS 29.244 clause 7.5.4).
 func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy *Policy) error {
+	return s.applySessionQERs(ctx, smContext, policy.PolicyID, policy.QosData.QFI, policy.Ambr.Uplink, policy.Ambr.Downlink)
+}
+
+// applySessionQERs sets every distinct session QER (deduped across UL/DL) to the
+// given QFI and AMBR-derived MBR, marks them for update, and sends a PFCP Session
+// Modification. On a failed modify it restores each QER's prior MBR/QFI/state, so
+// the cached rules never run ahead of the data plane. It is the shared data-plane
+// AMBR update for both 5G reconciliation and 4G UpdateEPSSessionAMBR.
+//
+// QER MBR is set to the session AMBR because this implementation supports a single
+// QoS flow per session (non-GBR only): per TS 23.501 §5.7.2.2 the session AMBR is
+// the aggregate non-GBR limit, which with one flow equals the per-flow MBR. If
+// multiple or GBR flows are ever supported, this must use per-flow MBR values.
+//
+// The caller holds smContext.Mutex.
+func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policyID string, qfi uint8, ambrUplink, ambrDownlink string) error {
 	if smContext.PFCPContext == nil || smContext.PFCPContext.RemoteSEID == 0 {
 		return fmt.Errorf("PFCP session not established")
 	}
@@ -360,55 +350,53 @@ func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy 
 	}
 
 	dataPath := smContext.Tunnel.DataPath
-	qerList := make([]*QER, 0, 2)
 
-	// Collect QERs from both tunnel directions.
-	// Note: QER MBR is set to session AMBR because this implementation supports
-	// a single QoS flow per PDU session (non-GBR only). Per TS 23.501 §5.7.2.2,
-	// session AMBR is the aggregate limit across all non-GBR flows. With only
-	// one flow, session AMBR equals the per-flow MBR. If multiple flows or GBR
-	// flows are ever supported, this must be changed to use per-flow MBR values.
-	if dataPath.UpLinkTunnel != nil && dataPath.UpLinkTunnel.PDR != nil && dataPath.UpLinkTunnel.PDR.QER != nil {
-		qer := dataPath.UpLinkTunnel.PDR.QER
-		qer.QFI = policy.QosData.QFI
-		qer.MBR = &models.MBR{
-			ULMBR: bitRateTokbps(policy.Ambr.Uplink),
-			DLMBR: bitRateTokbps(policy.Ambr.Downlink),
-		}
-		qer.State = RuleUpdate
-		qerList = append(qerList, qer)
+	type qerSnapshot struct {
+		qer   *QER
+		mbr   *models.MBR
+		qfi   uint8
+		state RuleState
 	}
 
-	if dataPath.DownLinkTunnel != nil && dataPath.DownLinkTunnel.PDR != nil && dataPath.DownLinkTunnel.PDR.QER != nil {
-		found := false
+	var (
+		qerList   []*QER
+		snapshots []qerSnapshot
+	)
 
-		for _, existing := range qerList {
-			if existing.QERID == dataPath.DownLinkTunnel.PDR.QER.QERID {
-				found = true
+	for _, t := range []*GTPTunnel{dataPath.UpLinkTunnel, dataPath.DownLinkTunnel} {
+		if t == nil || t.PDR == nil || t.PDR.QER == nil {
+			continue
+		}
+
+		qer := t.PDR.QER
+
+		listed := false
+
+		for _, q := range qerList {
+			if q.QERID == qer.QERID {
+				listed = true
 
 				break
 			}
 		}
 
-		if !found && dataPath.DownLinkTunnel.PDR.QER != nil {
-			qer := dataPath.DownLinkTunnel.PDR.QER
-			qer.QFI = policy.QosData.QFI
-			qer.MBR = &models.MBR{
-				ULMBR: bitRateTokbps(policy.Ambr.Uplink),
-				DLMBR: bitRateTokbps(policy.Ambr.Downlink),
-			}
-			qer.State = RuleUpdate
-			qerList = append(qerList, qer)
+		if listed {
+			continue
 		}
+
+		snapshots = append(snapshots, qerSnapshot{qer: qer, mbr: qer.MBR, qfi: qer.QFI, state: qer.State})
+
+		qer.QFI = qfi
+		qer.MBR = &models.MBR{
+			ULMBR: bitRateTokbps(ambrUplink),
+			DLMBR: bitRateTokbps(ambrDownlink),
+		}
+		qer.State = RuleUpdate
+		qerList = append(qerList, qer)
 	}
 
 	if len(qerList) == 0 {
-		return fmt.Errorf("no QERs found to update")
-	}
-
-	var policyID string
-	if policy != nil {
-		policyID = policy.PolicyID
+		return fmt.Errorf("no QERs to update")
 	}
 
 	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
@@ -416,7 +404,13 @@ func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy 
 		policyID,
 		nil, nil, qerList,
 	)); err != nil {
-		return fmt.Errorf("failed to modify PFCP session: %v", err)
+		for _, snap := range snapshots {
+			snap.qer.MBR = snap.mbr
+			snap.qer.QFI = snap.qfi
+			snap.qer.State = snap.state
+		}
+
+		return fmt.Errorf("failed to modify PFCP session: %w", err)
 	}
 
 	return nil

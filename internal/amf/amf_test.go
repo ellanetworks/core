@@ -183,7 +183,7 @@ func TestGetUESnapshot(t *testing.T) {
 
 	addTestUE(t, amfInstance, "001010000000011", func(ue *amf.UeContext) {
 		ue.ForceState(amf.Registered)
-		ue.LastSeenAt = now
+		ue.SetLastSeenForTest(now, "")
 	})
 
 	snap, ok := amfInstance.GetUESnapshot(supi)
@@ -191,7 +191,7 @@ func TestGetUESnapshot(t *testing.T) {
 		t.Fatal("expected snapshot for existing UE")
 	}
 
-	if snap.LastSeenAt != now {
+	if !snap.LastSeenAt.Equal(now) {
 		t.Fatalf("LastSeenAt mismatch: got %v, want %v", snap.LastSeenAt, now)
 	}
 }

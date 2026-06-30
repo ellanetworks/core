@@ -65,13 +65,13 @@ func TestHandleAuthenticationFailure_T3560Stopped(t *testing.T) {
 
 	ue.ForceState(amf.Authentication)
 	conn := ue.NasConn()
-	conn.T3560 = amf.NewTimer(10*time.Minute, 5, func(e int32) {}, func() {})
+	conn.T3560.Arm(10*time.Minute, 5, func(e int32) {}, func() {})
 
 	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMMACFailure, nil)
 
 	_ = handleAuthenticationFailure(t.Context(), amf.New(nil, nil, nil), ue, msg)
 
-	if conn.T3560 != nil {
+	if conn.T3560.Active() {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
 	}
 }

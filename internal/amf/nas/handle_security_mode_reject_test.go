@@ -41,7 +41,7 @@ func TestHandleSecurityModeReject_T3560Stopped_UEContextReleased(t *testing.T) {
 	ue.RanUe().ReleaseAction = amf.UeContextN2NormalRelease
 	ue.ForceState(amf.SecurityMode)
 	conn := ue.NasConn()
-	conn.T3560 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	conn.T3560.Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 
 	m := buildTestSecurityModeReject()
 
@@ -50,7 +50,7 @@ func TestHandleSecurityModeReject_T3560Stopped_UEContextReleased(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if conn.T3560 != nil {
+	if conn.T3560.Active() {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
 	}
 

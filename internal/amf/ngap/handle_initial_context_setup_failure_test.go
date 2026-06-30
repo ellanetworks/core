@@ -79,7 +79,7 @@ func TestHandleInitialContextSetupFailure_T3550Running(t *testing.T) {
 	amfUe.Log = logger.AmfLog
 	amfUe.ForceState(amf.ContextSetup)
 	conn := amfUe.NasConn()
-	conn.T3550 = amf.NewTimer(time.Hour, 4, func(int32) {}, func() {})
+	conn.T3550.Arm(time.Hour, 4, func(int32) {}, func() {})
 
 	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
@@ -95,7 +95,7 @@ func TestHandleInitialContextSetupFailure_T3550Running(t *testing.T) {
 
 	ngap.HandleInitialContextSetupFailure(context.Background(), amfInstance, ran, msg)
 
-	if conn.T3550 != nil {
+	if conn.T3550.Active() {
 		t.Error("expected T3550 to be nil after failure")
 	}
 

@@ -27,7 +27,7 @@ import (
 func handleReset(m *mme.MME, conn mme.NasWriter, value []byte) {
 	req, err := s1ap.ParseReset(value)
 	if err != nil {
-		logger.MmeLog.Warn("failed to decode Reset", zap.Error(err))
+		handleParseError(m, conn, s1ap.ProcReset, err)
 		return
 	}
 

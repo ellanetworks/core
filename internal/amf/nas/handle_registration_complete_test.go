@@ -62,7 +62,7 @@ func setupRegistrationCompleteUE(t *testing.T) (*amf.UeContext, *FakeNGAPSender)
 	}
 
 	ue.ForceState(amf.ContextSetup)
-	ue.NasConn().T3550 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.NasConn().T3550.Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.NasConn().RegistrationRequest = m.RegistrationRequest
 	ue.NasConn().RegistrationType5GS = 42
 	ue.NasConn().IdentityTypeUsedForRegistration = 42
@@ -110,7 +110,7 @@ func TestHandleRegistrationComplete_T3550StoppedAndCleared_RegistrationDataClear
 		t.Fatalf("should not have sent a UE Context Release Command message")
 	}
 
-	if ue.NasConn().T3550 != nil {
+	if ue.NasConn().T3550.Active() {
 		t.Fatalf("expected timer T3550 to be stopped and cleared")
 	}
 
@@ -192,7 +192,7 @@ func TestHandleRegistrationComplete_ReleasedWhenNoFORPending_NoUDSPending_and_No
 		t.Fatalf("should have sent a UE Context Release Command message")
 	}
 
-	if ue.NasConn().T3550 != nil {
+	if ue.NasConn().T3550.Active() {
 		t.Fatalf("expected timer T3550 to be stopped and cleared")
 	}
 
@@ -219,7 +219,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenFORPending(t *testing.T) {
 		t.Fatalf("should not have sent a UE Context Release Command message")
 	}
 
-	if ue.NasConn().T3550 != nil {
+	if ue.NasConn().T3550.Active() {
 		t.Fatalf("expected timer T3550 to be stopped and cleared")
 	}
 
@@ -246,7 +246,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenUDSPending(t *testing.T) {
 		t.Fatalf("should not have sent a UE Context Release Command message")
 	}
 
-	if ue.NasConn().T3550 != nil {
+	if ue.NasConn().T3550.Active() {
 		t.Fatalf("expected timer T3550 to be stopped and cleared")
 	}
 
@@ -273,7 +273,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenActiveSession(t *testing.T) {
 		t.Fatalf("should not have sent a UE Context Release Command message")
 	}
 
-	if ue.NasConn().T3550 != nil {
+	if ue.NasConn().T3550.Active() {
 		t.Fatalf("expected timer T3550 to be stopped and cleared")
 	}
 

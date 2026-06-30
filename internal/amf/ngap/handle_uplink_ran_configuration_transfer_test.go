@@ -68,7 +68,7 @@ func TestUplinkRanConfigurationTransfer_ForwardsToTargetRan(t *testing.T) {
 	}
 
 	amfInstance := newTestAMFWithSmf(&FakeSmfSbi{})
-	amfInstance.Radios[new(sctp.SCTPConn)] = targetRan
+	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
 
 	sonTransfer := &ngapType.SONConfigurationTransfer{
 		TargetRANNodeID: ngapType.TargetRANNodeID{

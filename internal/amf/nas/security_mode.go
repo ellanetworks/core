@@ -56,12 +56,10 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 		return fmt.Errorf("security mode blocked by conflict: %w", beginErr)
 	}
 
-	err = amf.SendSecurityModeCommand(ctx, amfInstance, ranUe)
-	if err != nil {
-		conn.Procedures.End(procedure.SecurityMode)
-
-		return fmt.Errorf("error sending security mode command: %v", err)
-	}
+	// The security mode control procedure is now in flight: it is ended by
+	// SECURITY MODE COMPLETE, by the T3560 abort callback, or by UE context
+	// release — not by a single transport send (TS 24.501 §5.4.2).
+	amf.SendSecurityModeCommand(ctx, amfInstance, ranUe)
 
 	return nil
 }

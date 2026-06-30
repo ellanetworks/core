@@ -5,8 +5,8 @@ package mme
 
 import (
 	"context"
-	"time"
 
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
@@ -43,7 +43,7 @@ type handoverContext struct {
 	newNH  [32]byte
 	newNCC uint8
 	// guardTimer abandons the handover if the target never completes it (TS 36.413 §8.4).
-	guardTimer *time.Timer
+	guardTimer guard.Guard
 }
 
 // PrepareHandover allocates a target association, advances the {NH, NCC} chain, and
@@ -71,8 +71,12 @@ func (m *MME) PrepareHandover(ue *UeContext, target NasWriter, reqMMEID s1ap.MME
 
 	newNCC = (ue.ncc + 1) & 0x07
 
-	tid := m.nextMMEUEID
-	m.nextMMEUEID++
+	tid, idOK := m.allocConnIDLocked()
+	if !idOK {
+		m.mu.Unlock()
+		return 0, [32]byte{}, 0, false
+	}
+
 	targetConn := &S1Conn{MMEUES1APID: s1ap.MMEUES1APID(tid), conn: target, ue: ue}
 	m.conns[tid] = targetConn
 
@@ -84,7 +88,7 @@ func (m *MME) PrepareHandover(ue *UeContext, target NasWriter, reqMMEID s1ap.MME
 		newNH:  newNH,
 		newNCC: newNCC,
 	}
-	ho.guardTimer = time.AfterFunc(m.handoverGuardTimeout, func() { m.onHandoverGuardExpiry(ue, gen) })
+	ho.guardTimer.ArmOnce(m.handoverGuardTimeout, func() { m.onHandoverGuardExpiry(ue, gen) })
 	ue.handover = ho
 	ue.keyChainBusy = true
 	targetMMEID = targetConn.MMEUES1APID
@@ -238,11 +242,31 @@ func (m *MME) BeginPathSwitch(ue *UeContext) (curNH [32]byte, curNCC uint8, mmeI
 	return curNH, curNCC, mmeID, true
 }
 
-// ClearKeyChainBusy releases the {NH, NCC} chain claim taken by BeginPathSwitch.
+// ClearKeyChainBusy releases the {NH, NCC} chain claim taken by BeginPathSwitch
+// or the NAS security mode procedure.
 func (m *MME) ClearKeyChainBusy(ue *UeContext) {
 	m.mu.Lock()
 	ue.keyChainBusy = false
 	m.mu.Unlock()
+}
+
+// TryClaimKeyChain claims the {NH, NCC} key chain for ue so a key-changing
+// procedure — a NAS security mode, Path Switch, or S1 handover — cannot run
+// concurrently with another and desync the AS/NAS key chain (TS 33.501 §6.9.5.1,
+// TS 33.401 §7.2.8). It returns false when the chain is already claimed. The
+// claim is released by ClearKeyChainBusy, by handover/path-switch completion, or
+// when the connection is freed.
+func (m *MME) TryClaimKeyChain(ue *UeContext) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if ue.keyChainBusy {
+		return false
+	}
+
+	ue.keyChainBusy = true
+
+	return true
 }
 
 // AdvancePathSwitchNH derives the next hop for a Path Switch from the current NH
@@ -281,13 +305,11 @@ func (m *MME) clearHandoverLocked(ue *UeContext) {
 		return
 	}
 
-	if ho.guardTimer != nil {
-		ho.guardTimer.Stop()
-	}
+	ho.guardTimer.Stop()
 
 	if ho.target != nil && ho.target != ue.S1 {
 		ho.target.ue = nil
-		delete(m.conns, uint32(ho.target.MMEUES1APID))
+		m.releaseConnIDLocked(uint32(ho.target.MMEUES1APID))
 	}
 
 	ue.handover = nil
@@ -369,7 +391,7 @@ func (m *MME) ReleaseDetachedConn(conn NasWriter, mmeUEID s1ap.MMEUES1APID, enbU
 		return false
 	}
 
-	delete(m.conns, uint32(mmeUEID))
+	m.releaseConnIDLocked(uint32(mmeUEID))
 
 	return true
 }

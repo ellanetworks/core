@@ -383,8 +383,8 @@ func TestHandleRegistrationRequest_Timers_Stopped(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.NasConn().T3513 = amf.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
-	ue.NasConn().T3565 = amf.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
+	ue.NasConn().T3513.Arm(10*time.Minute, 10, func(e int32) {}, func() {})
+	ue.NasConn().T3565.Arm(10*time.Minute, 10, func(e int32) {}, func() {})
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
@@ -396,11 +396,11 @@ func TestHandleRegistrationRequest_Timers_Stopped(t *testing.T) {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
 
-	if ue.NasConn().T3513 != nil {
+	if ue.NasConn().T3513.Active() {
 		t.Fatalf("timer T3513 should have been stopped")
 	}
 
-	if ue.NasConn().T3565 != nil {
+	if ue.NasConn().T3565.Active() {
 		t.Fatalf("timer T3565 should have been stopped")
 	}
 }
@@ -717,7 +717,7 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 	}
 
 	ue.ForceState(amf.SecurityMode)
-	ue.NasConn().T3560 = amf.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
+	ue.NasConn().T3560.Arm(10*time.Minute, 10, func(e int32) {}, func() {})
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
@@ -729,7 +729,7 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
 
-	if ue.NasConn().T3560 != nil {
+	if ue.NasConn().T3560.Active() {
 		t.Fatalf("timer T3560 should be stopped")
 	}
 

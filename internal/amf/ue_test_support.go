@@ -4,6 +4,8 @@
 package amf
 
 import (
+	"time"
+
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas/nasType"
@@ -13,6 +15,10 @@ import (
 // Test-support accessors for the unexported NAS security/identity state. They
 // let external test packages (amf_test, ngap_test) construct and inspect a UE in
 // a given security state without exporting the fields themselves.
+
+// SetHandoverGuardTimeoutForTest overrides the N2 handover supervision timeout so
+// tests can drive the guard quickly.
+func (a *AMF) SetHandoverGuardTimeoutForTest(d time.Duration) { a.handoverGuardTimeout = d }
 
 func (ue *UeContext) SetSupiForTest(s etsi.SUPI) { ue.supi = s }
 func (ue *UeContext) SupiForTest() etsi.SUPI     { return ue.supi }
@@ -41,8 +47,8 @@ func (ue *UeContext) NgKsiForTest() models.NgKsi     { return ue.ngKsi }
 func (ue *UeContext) SetKamfForTest(k string) { ue.kamf = k }
 func (ue *UeContext) KamfForTest() string     { return ue.kamf }
 
-func (ue *UeContext) SetNHForTest(nh []uint8) { ue.nh = nh }
-func (ue *UeContext) NHForTest() []uint8      { return ue.nh }
+func (ue *UeContext) SetNHForTest(nh []uint8) { copy(ue.nh[:], nh) }
+func (ue *UeContext) NHForTest() [32]uint8    { return ue.nh }
 
 func (ue *UeContext) SetUESecurityCapabilityForTest(c *nasType.UESecurityCapability) {
 	ue.ueSecurityCapability = c

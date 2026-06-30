@@ -9,11 +9,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ellanetworks/core/internal/guard"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/udm"
-	"github.com/ellanetworks/core/internal/util/timer"
 	"github.com/ellanetworks/core/s1ap"
+	"go.uber.org/zap"
 )
 
 // NasWriter is the subset of the SCTP connection the MME uses to send S1AP to an
@@ -64,6 +66,12 @@ type PdnConnection struct {
 	PendingSessAmbrULBps uint64
 	PendingQCI           uint8
 	PendingARP           uint8
+
+	// guard supervises this bearer's outstanding ESM procedure (Modify/Deactivate,
+	// T3486/T3495). It is per-bearer because a UE with several PDN connections can
+	// have an ESM procedure outstanding on each at once; the guard invalidates a
+	// callback whose firing races a stop, release or re-arm.
+	guard guard.Guard
 }
 
 // S1Conn is a UE's transient state for one UE-associated logical S1-connection
@@ -102,22 +110,14 @@ type S1Conn struct {
 	// releasing gates the registry op during a UE Context Release.
 	releasing bool
 
-	// NAS common-procedure guard (TS 24.301: T3450/T3460/T3470). At most
-	// one common procedure is outstanding at a time, so a single guard suffices.
-	// nasGuardPDU is the downlink message retransmitted on expiry; the shared
-	// timer counts the retransmissions. nasGuardGen invalidates a stale callback
-	// (a timer that fired just before the connection was released or re-armed).
-	nasGuardTimer *timer.Timer
-	nasGuardPDU   []byte
-	nasGuardName  string
-	nasGuardGen   uint64
-	// nasGuardOnAbort, when non-nil, makes the guard abort-only: on exhausting
-	// its retransmissions it runs this finalizer and leaves the UE connected,
-	// rather than releasing the context. Used for non-critical procedures whose
-	// failure must not drop the UE — a bearer modification (TS 24.301 §6.4.2.5:
-	// on T3486 expiry the bearer stays active) or a single-PDN deactivation
-	// (§6.4.4.5: on T3495 expiry the bearer is deactivated locally).
-	nasGuardOnAbort func()
+	// EMM common-procedure guard (TS 24.301: T3450/T3460/T3470). EMM common and
+	// specific procedures are mutually exclusive (one at a time), so a single guard
+	// suffices for them. The retransmitted message and abort policy are captured in
+	// the guard's callbacks at arm time; the guard invalidates a callback whose
+	// firing races a release or re-arm. ESM bearer procedures are guarded
+	// per-bearer on PdnConnection, since they run on the independent ESM sublayer
+	// and one can be outstanding per bearer concurrently with each other and EMM.
+	nasGuard guard.Guard
 }
 
 // UeContext is the MME's persistent per-UE EMM context: subscriber identity, the
@@ -186,10 +186,11 @@ type UeContext struct {
 	nh  [32]byte
 	ncc uint8
 
-	// keyChainBusy is set while a Path Switch or S1 handover is advancing the
-	// {NH, NCC} chain. Both procedures refuse to start while it is set, so they
-	// cannot derive a fresh NH from the same base for two targets (TS 33.401
-	// §7.2.8). Guarded by MME.mu.
+	// keyChainBusy is set while a key-changing procedure — a NAS security mode, a
+	// Path Switch, or an S1 handover — is advancing the {NH, NCC} chain. The others
+	// refuse to start while it is set, so two procedures cannot re-key from the
+	// same base concurrently and desync the AS/NAS key chain (TS 33.501 §6.9.5.1,
+	// TS 33.401 §7.2.8). Guarded by MME.mu.
 	keyChainBusy bool
 
 	// handover is the in-flight S1 handover (nil when none). It holds the source
@@ -210,18 +211,15 @@ type UeContext struct {
 	// the UE has no S1-connection (TS 24.301), armed in ECM-IDLE and cancelled on
 	// reconnect. idleGen invalidates a timer callback that fired just as a reconnect
 	// or re-arm ran.
-	mobileReachableTimer *time.Timer
-	implicitDetachTimer  *time.Timer
+	mobileReachableTimer guard.Guard
+	implicitDetachTimer  guard.Guard
 	idleGen              uint64
 
 	// Paging supervision (T3413, TS 24.301 §5.6.2): armed when the MME pages an
-	// idle UE for buffered downlink data, retransmitted a bounded number of times,
-	// and cancelled when the UE reconnects. pagingPDU is the S1AP Paging message
-	// retransmitted on expiry; pagingGen invalidates a stale callback.
-	pagingTimer *time.Timer
-	pagingPDU   []byte
-	pagingTries int
-	pagingGen   uint64
+	// idle UE for buffered downlink data, retransmitted a bounded number of times
+	// (the guard counts them), and cancelled when the UE reconnects. The Paging PDU
+	// is captured by the retransmit closure.
+	pagingTimer guard.Guard
 }
 
 // TouchLastSeen records the current time as the UE's most recent uplink NAS
@@ -430,13 +428,37 @@ func (m *MME) NewConn(conn NasWriter, enbUEID s1ap.ENBUES1APID) *S1Conn {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	id := m.nextMMEUEID
-	m.nextMMEUEID++
+	id, ok := m.allocConnIDLocked()
+	if !ok {
+		return nil
+	}
 
 	c := &S1Conn{ENBUES1APID: enbUEID, MMEUES1APID: s1ap.MMEUES1APID(id), conn: conn}
 	m.conns[id] = c
 
 	return c
+}
+
+// allocConnIDLocked reserves an MME-UE-S1AP-ID from the recycling allocator,
+// which does not reuse a released identifier immediately (TS 36.413). The caller
+// holds m.mu. It returns false only when every identifier in the S1AP range is
+// concurrently in use — unreachable in practice — in which case the connection
+// is refused rather than colliding with a live one.
+func (m *MME) allocConnIDLocked() (uint32, bool) {
+	id, err := m.mmeUEIDs.Allocate()
+	if err != nil {
+		logger.MmeLog.Error("cannot allocate MME-UE-S1AP-ID: identifier space exhausted", zap.Error(err))
+		return 0, false
+	}
+
+	return uint32(id), true
+}
+
+// releaseConnIDLocked drops a connection from the active table and returns its
+// MME-UE-S1AP-ID to the allocator for later reuse. The caller holds m.mu.
+func (m *MME) releaseConnIDLocked(id uint32) {
+	delete(m.conns, id)
+	m.mmeUEIDs.FreeID(int64(id))
 }
 
 // BindConn attaches a fresh persistent UE context to a bare connection, once the
@@ -460,19 +482,24 @@ func (m *MME) ReleaseBareConn(c *S1Conn) {
 		return
 	}
 
-	delete(m.conns, uint32(c.MMEUES1APID))
+	m.releaseConnIDLocked(uint32(c.MMEUES1APID))
 }
 
 // NewUe registers a bare connection and immediately binds a UE context to it.
 func (m *MME) NewUe(conn NasWriter, enbUEID s1ap.ENBUES1APID) *UeContext {
-	return m.BindConn(m.NewConn(conn, enbUEID))
+	c := m.NewConn(conn, enbUEID)
+	if c == nil {
+		return nil
+	}
+
+	return m.BindConn(c)
 }
 
 // EstablishS1Connection binds a UE returning from ECM-IDLE to a fresh
 // UE-associated logical S1-connection, allocating a new MME-UE-S1AP-ID (the
 // released one must not be reused, TS 36.413). Any prior connection and its
 // idle/paging supervision are released first.
-func (m *MME) EstablishS1Connection(ue *UeContext, conn NasWriter, enbUEID s1ap.ENBUES1APID) {
+func (m *MME) EstablishS1Connection(ue *UeContext, conn NasWriter, enbUEID s1ap.ENBUES1APID) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -480,8 +507,10 @@ func (m *MME) EstablishS1Connection(ue *UeContext, conn NasWriter, enbUEID s1ap.
 	m.stopPagingLocked(ue)
 	m.freeS1ConnLocked(ue)
 
-	id := m.nextMMEUEID
-	m.nextMMEUEID++
+	id, ok := m.allocConnIDLocked()
+	if !ok {
+		return false
+	}
 
 	// A resume only reaches here after its message was integrity-verified against
 	// the held context (service request short-MAC, TAU/initial-message unprotect),
@@ -489,6 +518,8 @@ func (m *MME) EstablishS1Connection(ue *UeContext, conn NasWriter, enbUEID s1ap.
 	c := &S1Conn{MMEUES1APID: s1ap.MMEUES1APID(id), ENBUES1APID: enbUEID, conn: conn, ue: ue, secureExchangeEstablished: true}
 	ue.S1 = c
 	m.conns[id] = c
+
+	return true
 }
 
 // AdoptConn moves the connection an Initial UE Message created onto a held
@@ -530,7 +561,11 @@ func (m *MME) freeS1ConnLocked(ue *UeContext) {
 	// fire on a freed connection.
 	m.clearHandoverLocked(ue)
 	m.stopNASGuardLocked(ue)
-	delete(m.conns, uint32(ue.S1.MMEUES1APID))
+	// Releasing the connection ends any in-flight key-changing procedure on it
+	// (e.g. a security mode whose Complete never arrived), so the {NH, NCC} chain
+	// claim must not outlive it and block a later procedure (TS 33.401 §7.2.8).
+	ue.keyChainBusy = false
+	m.releaseConnIDLocked(uint32(ue.S1.MMEUES1APID))
 	ue.S1 = nil
 }
 

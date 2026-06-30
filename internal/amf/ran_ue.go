@@ -45,8 +45,6 @@ type RanUe struct {
 	RanUeNgapID      int64
 	AmfUeNgapID      int64
 	HandOverType     ngapType.HandoverType
-	SourceUe         *RanUe
-	TargetUe         *RanUe
 	Tai              models.Tai
 	Location         models.UserLocation
 	amfUe            *UeContext

@@ -28,30 +28,21 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		return fmt.Errorf("no active NAS connection")
 	}
 
-	if conn.T3560 != nil {
-		conn.T3560.Stop()
-		conn.T3560 = nil
-	}
+	conn.T3560.Stop()
 
 	switch msg.GetCauseValue() {
 	case nasMessage.Cause5GMMMACFailure:
 		ue.Log.Warn("amf.Authentication Failure Cause: Mac Failure")
 		ue.Deregister(ctx)
 
-		err := amf.SendAuthenticationReject(ctx, ranUe)
-		if err != nil {
-			return fmt.Errorf("error sending GMM authentication reject: %v", err)
-		}
+		amf.SendAuthenticationReject(ctx, ranUe)
 
 		return nil
 	case nasMessage.Cause5GMMNon5GAuthenticationUnacceptable:
 		ue.Log.Warn("amf.Authentication Failure Cause: Non-5G amf.Authentication Unacceptable")
 		ue.Deregister(ctx)
 
-		err := amf.SendAuthenticationReject(ctx, ranUe)
-		if err != nil {
-			return fmt.Errorf("error sending GMM authentication reject: %v", err)
-		}
+		amf.SendAuthenticationReject(ctx, ranUe)
 
 		return nil
 	case nasMessage.Cause5GMMngKSIAlreadyInUse:
@@ -65,10 +56,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		ngKsi.Ksi = amf.NextNgKsi(ngKsi.Ksi)
 		ue.SetNgKsi(ngKsi)
 
-		err := amf.SendAuthenticationRequest(ctx, amfInstance, ranUe)
-		if err != nil {
-			return fmt.Errorf("send authentication request error: %s", err)
-		}
+		amf.SendAuthenticationRequest(ctx, amfInstance, ranUe)
 
 		ue.Log.Info("Sent authentication request")
 	case nasMessage.Cause5GMMSynchFailure: // TS 24.501 5.4.1.3.7 case f
@@ -79,10 +67,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 			ue.Log.Warn("2 consecutive Synch Failure, terminate authentication procedure")
 			ue.Deregister(ctx)
 
-			err := amf.SendAuthenticationReject(ctx, ranUe)
-			if err != nil {
-				return fmt.Errorf("error sending GMM authentication reject: %v", err)
-			}
+			amf.SendAuthenticationReject(ctx, ranUe)
 
 			return nil
 		}
@@ -105,10 +90,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 
 		ue.SetAbba([]uint8{0x00, 0x00})
 
-		err = amf.SendAuthenticationRequest(ctx, amfInstance, ranUe)
-		if err != nil {
-			return fmt.Errorf("send authentication request error: %s", err)
-		}
+		amf.SendAuthenticationRequest(ctx, amfInstance, ranUe)
 
 		ue.Log.Info("Sent authentication request")
 	}

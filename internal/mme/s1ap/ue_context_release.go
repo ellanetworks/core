@@ -20,7 +20,7 @@ import (
 func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, conn mme.NasWriter, value []byte) {
 	msg, err := s1ap.ParseUEContextReleaseRequest(value)
 	if err != nil {
-		logger.MmeLog.Warn("failed to decode UE Context Release Request", zap.Error(err))
+		handleParseError(m, conn, s1ap.ProcUEContextReleaseRequest, err)
 		return
 	}
 

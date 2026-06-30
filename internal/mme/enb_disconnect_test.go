@@ -23,7 +23,7 @@ func TestENBDisconnectRetainsRegisteredUE(t *testing.T) {
 		t.Fatal("UE not in ECM-IDLE after eNB disconnect")
 	}
 
-	if got.mobileReachableTimer == nil {
+	if !got.mobileReachableTimer.Active() {
 		t.Fatal("mobile reachable timer not armed after eNB disconnect")
 	}
 

@@ -42,10 +42,7 @@ func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 		// Request UE's SUCI by sending identity request
 		ue.Log.Debug("UE has no SUCI / SUPI - send identity request to UE")
 
-		err := amf.SendIdentityRequest(ctx, ranUe, nasMessage.MobileIdentity5GSTypeSuci)
-		if err != nil {
-			return false, fmt.Errorf("error sending identity request: %v", err)
-		}
+		amf.SendIdentityRequest(ctx, ranUe, nasMessage.MobileIdentity5GSTypeSuci)
 
 		ue.Log.Info("sent identity request")
 
@@ -76,10 +73,7 @@ func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 
 	ue.SetAbba([]uint8{0x00, 0x00}) // set ABBA value as described at TS 33.501 Annex A.7.1
 
-	err = amf.SendAuthenticationRequest(ctx, amfInstance, ranUe)
-	if err != nil {
-		return false, fmt.Errorf("error sending authentication request: %v", err)
-	}
+	amf.SendAuthenticationRequest(ctx, amfInstance, ranUe)
 
 	return false, nil
 }

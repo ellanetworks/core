@@ -217,11 +217,10 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 		ranUe := amf.NewRanUeForTest(radio, 42, 100, zap.NewNop())
 		ranUe.Tai = models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}
 		ue.AttachRanUe(ranUe)
-		ue.NasConn().T3513 = amf.NewTimer(1*time.Hour, 3, func(_ int32) {}, func() {})
+		ue.NasConn().T3513.Arm(1*time.Hour, 3, func(_ int32) {}, func() {})
 		ue.T3512Value = 3600 * time.Second
 		ue.T3502Value = 720 * time.Second
-		ue.LastSeenAt = time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
-		ue.LastSeenRadio = "gNB-001"
+		ue.SetLastSeenForTest(time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC), "gNB-001")
 		ue.NasConn().RegistrationType5GS = 1
 		ue.NasConn().IdentityTypeUsedForRegistration = 1
 		ue.NasConn().RetransmissionOfInitialNASMsg = true

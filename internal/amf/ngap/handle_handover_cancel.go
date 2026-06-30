@@ -38,17 +38,22 @@ func HandleHandoverCancel(ctx context.Context, ran *amf.Radio, msg decode.Handov
 		}
 	}
 
-	// Clear the N2 Handover procedure since it was cancelled by the source.
-	if amfUe := sourceUe.UeContext(); amfUe != nil {
-		if conn := amfUe.NasConn(); conn != nil {
-			conn.Procedures.End(procedure.N2Handover)
-		}
-	}
+	amfUe := sourceUe.UeContext()
 
-	targetUe := sourceUe.TargetUe
+	// Read the target from the FSM before tearing it down below.
+	targetUe := amfUe.HandoverTarget()
 	if targetUe == nil {
 		logger.WithTrace(ctx, sourceUe.Log).Error("N2 Handover between AMF has not been implemented yet")
 		return
+	}
+
+	// Clear the N2 Handover procedure since it was cancelled by the source.
+	if amfUe != nil {
+		if conn := amfUe.NasConn(); conn != nil {
+			conn.Procedures.End(procedure.N2Handover)
+		}
+
+		amfUe.ClearHandover()
 	}
 
 	targetUe.ReleaseAction = amf.UeContextReleaseHandover

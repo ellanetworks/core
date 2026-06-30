@@ -94,7 +94,7 @@ func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
 	}
 
 	ue.ForceState(amf.SecurityMode)
-	ue.NasConn().T3560 = amf.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
+	ue.NasConn().T3560.Arm(10*time.Minute, 10, func(e int32) {}, func() {})
 
 	msg := buildTestSecurityModeCompleteMessage()
 
@@ -103,7 +103,7 @@ func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if ue.NasConn().T3560 != nil {
+	if ue.NasConn().T3560.Active() {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
 	}
 
@@ -138,7 +138,7 @@ func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
 	}
 
 	ue.ForceState(amf.SecurityMode)
-	ue.NasConn().T3560 = amf.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
+	ue.NasConn().T3560.Arm(10*time.Minute, 10, func(e int32) {}, func() {})
 
 	msg := buildTestSecurityModeCompleteMessage()
 	msg.IMEISV = &nasType.IMEISV{
@@ -201,7 +201,7 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if len(ue.KgnbForTest()) == 0 || len(ue.NHForTest()) == 0 || ue.NCCForTest() == 0 {
+	if len(ue.KgnbForTest()) == 0 || ue.NHForTest() == [32]uint8{} || ue.NCCForTest() == 0 {
 		t.Fatalf("expected security context to be updated, got: Kgnb: %v, NH: %v, NCC: %v", ue.KgnbForTest(), ue.NHForTest(), ue.NCCForTest())
 	}
 
@@ -253,7 +253,7 @@ func TestHandleSecurityMode_ValidSecurityContextWithBadAMFKey_UpdatesSecurityCon
 		t.Fatalf("expected error starting with: %v, got: %v", expected, err)
 	}
 
-	if len(ue.KgnbForTest()) != 0 || len(ue.NHForTest()) != 0 || ue.NCCForTest() != 0 {
+	if len(ue.KgnbForTest()) != 0 || ue.NHForTest() != [32]uint8{} || ue.NCCForTest() != 0 {
 		t.Fatalf("expected security context to be not be updated, got: Kgnb: %v, NH: %v, NCC: %v", ue.KgnbForTest(), ue.NHForTest(), ue.NCCForTest())
 	}
 

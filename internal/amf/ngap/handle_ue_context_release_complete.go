@@ -115,22 +115,14 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 
 		amfInstance.DeregisterAndRemoveUeContext(ctx, amfUe)
 	case amf.UeContextReleaseHandover:
-		logger.WithTrace(ctx, ranUe.Log).Info("Release UE Context : Release for Handover", logger.SUPI(amfUe.SupiValue().String()))
+		// ranUe is the TARGET being released after a failed or cancelled handover;
+		// the source remains the active RAN UE. A successful handover already moved
+		// the UE to the target at HANDOVER NOTIFY and detached the source, so the
+		// source's release takes the amfUe==nil early-return above and never reaches
+		// here.
+		logger.WithTrace(ctx, ranUe.Log).Info("Release target UE context after handover failure/cancel", logger.SUPI(amfUe.SupiValue().String()))
 
-		if ranUe.TargetUe != nil {
-			// Success path: ranUe is the SOURCE being released after a
-			// completed handover (HandoverNotify). Transfer the AMF UE
-			// association to the target. The target UE is already on
-			// the correct radio (set during HandoverRequired/SwitchToRan).
-			amfUe.AttachRanUe(ranUe.TargetUe)
-		} else {
-			// Failure/cancel path: ranUe is the TARGET being released
-			// after a failed or cancelled handover. The source UE
-			// remains the active RAN UE — just clean up the target.
-			logger.WithTrace(ctx, ranUe.Log).Info("Release target UE context after handover failure/cancel", logger.SUPI(amfUe.SupiValue().String()))
-		}
-
-		amf.DetachSourceUeTargetUe(ranUe)
+		amfUe.ClearHandover()
 
 		err := ranUe.Remove(ctx)
 		if err != nil {

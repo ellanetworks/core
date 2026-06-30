@@ -27,9 +27,8 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 	}
 
 	// A 4G EPS session is paged via the MME; the bearer is re-established by the
-	// UE's Service Request (TS 23.401 §5.3.4.3). The 5G N2 resource-setup transfer
-	// below does not apply.
-	if smContext.IsEPS {
+	// UE's Service Request (TS 23.401 §5.3.4.3).
+	if smContext.IsEPS() {
 		if s.mme == nil {
 			return fmt.Errorf("no MME registered to page EPS UE %s", smContext.Supi.IMSI())
 		}

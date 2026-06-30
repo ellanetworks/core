@@ -13,8 +13,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// DeactivateSmContext puts a PDU session into buffering mode (e.g. UE went idle).
-// It modifies the DL FAR to buffer instead of forward and sends a PFCP modification.
+// DeactivateSmContext puts a PDU session into buffering mode (e.g. UE went idle):
+// it sets the downlink FAR to buffer and sends a PFCP modification.
 func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) error {
 	ctx, span := tracer.Start(ctx, "smf/deactivate_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -36,9 +36,8 @@ func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) erro
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	// Session already fully torn down (e.g. PFCP released but SM context
-	// orphaned because radio disconnected before N2 response).  Nothing to
-	// deactivate — treat as a no-op.
+	// Session already fully torn down (e.g. radio disconnected before the N2
+	// response orphaned the SM context); nothing to deactivate.
 	if smContext.Tunnel == nil && smContext.PFCPContext == nil {
 		logger.WithTrace(ctx, logger.SmfLog).Debug("session already torn down, skipping deactivation",
 			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))

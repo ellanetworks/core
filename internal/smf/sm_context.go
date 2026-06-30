@@ -13,8 +13,8 @@ import (
 	"sync"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/util/timer"
 )
 
 type PFCPSessionContext struct {
@@ -47,11 +47,12 @@ type SMContext struct {
 	PDUSessionType                 uint8   // negotiated type: nasMessage.PDUSessionTypeIPv4/IPv6/IPv4IPv6
 	PDUSessionReleaseDueToDupPduID bool
 
-	// IsEPS marks a 4G EPS session (PGW-C role): its PDUSessionID is the default
-	// bearer's EPS bearer identity (5..15), which overlaps the 5G PDU session id
-	// range, so the RAT cannot be inferred from the id. Downlink data for an EPS
-	// session is paged via the MME (TS 23.401 §5.3.4.3), not the 5G N2 path.
-	IsEPS bool
+	// Access is the radio access the session was established over. Access4G marks
+	// a 4G EPS session (PGW-C role): its PDUSessionID is the default bearer's EPS
+	// bearer identity (5..15), which overlaps the 5G PDU session id range, so the
+	// RAT cannot be inferred from the id. Downlink data for an EPS session is
+	// paged via the MME (TS 23.401 §5.3.4.3), not the 5G N2 path.
+	Access AccessType
 
 	// outstandingPTIs holds the PTI of each 5GSM procedure awaiting a UE
 	// completion or reject on this PDU session (TS 24.501 §7.3.1). A completion
@@ -59,26 +60,17 @@ type SMContext struct {
 	// Guarded by Mutex.
 	outstandingPTIs map[uint8]struct{}
 
-	// procedureTimer is the T3591/T3592 retransmission timer for the outstanding
+	// procedureTimer is the T3591/T3592 retransmission guard for the outstanding
 	// network-requested modification or release command (TS 24.501 §6.3.2.5,
-	// §6.3.3). Guarded by Mutex.
-	procedureTimer *timer.Timer
+	// §6.3.3). Its generation counter invalidates a firing that races a stop, so a
+	// completed procedure cannot retransmit a stale command. Guarded by Mutex.
+	procedureTimer guard.Guard
 }
 
-// startProcedureTimer arms the network-requested-procedure retransmission timer,
-// replacing any previous one. Caller must hold Mutex.
-func (smContext *SMContext) startProcedureTimer(t *timer.Timer) {
-	smContext.stopProcedureTimer()
-	smContext.procedureTimer = t
-}
-
-// stopProcedureTimer stops the retransmission timer if one is armed. Caller must
-// hold Mutex.
+// stopProcedureTimer stops the retransmission guard once the UE replies. Safe to
+// call when none is armed. Caller must hold Mutex.
 func (smContext *SMContext) stopProcedureTimer() {
-	if smContext.procedureTimer != nil {
-		smContext.procedureTimer.Stop()
-		smContext.procedureTimer = nil
-	}
+	smContext.procedureTimer.Stop()
 }
 
 // MarkPTIInUse records that a 5GSM procedure with the given PTI is outstanding
