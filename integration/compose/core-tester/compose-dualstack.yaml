@@ -12,7 +12,6 @@ configs:
       interfaces:
         n2:
           name: "eth0"
-          port: 38412
         n3:
           name: "n3"
         n6:

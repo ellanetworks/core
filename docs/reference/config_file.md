@@ -21,14 +21,16 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
 - `db` (object): The database configuration.
     - `path` (string): The path to the directory holding the database file (`ella.db`).
 - `interfaces` (object): The network interfaces configuration.
-    - `n2` (object): The configuration for the n2 interface. This interface should be connected to the radios.
+    - `n2` (object): The configuration for the n2 interface (N2 in 5G, S1-MME in 4G). This is the control-plane interface to the radios; the same interface serves both 5G gNBs and 4G eNBs over SCTP.
         - `name` (string): The name of the network interface to listen on (optional: either name or address must be provided). When set, the server binds to all IP addresses configured on this interface. Link-local addresses (IPv6 link-local and IPv4 link-local) are automatically excluded.
         - `address` (string): The IP address to listen on. Supports both IPv4 and IPv6 addresses (optional: either name or address must be provided). When set, the server binds to this specific address.
-        - `port` (int): The port to listen on.
-    - `n3` (object): The configuration for the n3 interface. This interface should be connected to the radios.
+        - `ngap-port` (int, optional): The SCTP port for the 5G N2 / NGAP listener. Default `38412`.
+        - `s1ap-port` (int, optional): The SCTP port for the 4G S1-MME / S1AP listener. Default `36412`.
+        - `port` (int, optional): Deprecated alias for `ngap-port`. Cannot be set together with `ngap-port`.
+    - `n3` (object): The configuration for the n3 interface (N3 in 5G, S1-U in 4G). This interface should be connected to the radios.
         - `name` (string): The name of the network interface (optional: either name or address must be provided).
         - `address` (string): The address to listen on. Supports both IPv4 and IPv6 (optional: either name or address must be provided).
-    - `n6` (object): The configuration for the n6 interface. This interface should be connected to the internet.
+    - `n6` (object): The configuration for the n6 interface (N6 in 5G, SGi in 4G). This interface should be connected to the internet.
         - `name` (string): The name of the network interface.
     - `api` (object): The configuration for the api interface.
         - `name` (string): The name of the network interface to listen on (optional: either name or address must be provided). When set, the server listens on all addresses (`0.0.0.0`) but uses `SO_BINDTODEVICE` to restrict incoming traffic to this interface. Use this when you want to bind to a device without pinning to a specific IP address.
@@ -74,7 +76,6 @@ db:
 interfaces:
   n2:
     address: "22.22.22.2"
-    port: 38412
   n3:
     name: "ens5"
   n6:
@@ -120,7 +121,6 @@ The following example demonstrates using an IPv6 address for those interfaces:
 interfaces:
   n2:
     address: "2001:db8::1"
-    port: 38412
   n3:
     address: "2001:db8::1"
   n6:
@@ -136,7 +136,6 @@ The following example demonstrates using all non link-local addresses for those 
 interfaces:
   n2:
     name: "ens5"
-    port: 38412
   n3:
     address: "ens4"
   n6:

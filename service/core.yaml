@@ -1,26 +1,87 @@
+# Ella Core configuration file.
+# When you use the Ella Core snap, this file is located at
+# /var/snap/ella-core/common/config.yaml. After modifying it, restart Ella Core
+# with `sudo snap restart ella-core.cored` for the changes to take effect.
+
+# The logging configuration.
 logging:
+  # The system logging configuration.
   system:
+    # The log level. Options are trace, debug, info, warn, error, and fatal.
     level: "info"
+    # The output for the logs. Options are stdout and file.
     output: "stdout"
+    # The path to the log file. Only used if output is set to file.
+    # path: "/var/snap/ella-core/common/log/ella_system.log"
+  # The audit logging configuration.
   audit:
+    # The output for the logs. Options are stdout and file.
     output: "stdout"
+    # The path to the log file. Only used if output is set to file.
+    # path: "/var/snap/ella-core/common/log/ella_audit.log"
+
+# The database configuration.
 db:
+  # The path to the directory holding the database file (ella.db).
   path: "/var/snap/ella-core/common/data/ella.db"
+
+# The network interfaces configuration.
 interfaces:
+  # The n2 interface (N2 in 5G, S1-MME in 4G). This is the control-plane
+  # interface to the radios; the same interface serves both 5G gNBs and 4G eNBs.
   n2:
+    # The IP address to listen on. Supports both IPv4 and IPv6 addresses
+    # (optional: either name or address must be provided).
     address: "10.3.0.2"
-    port: 38412
+    # The name of the network interface to listen on (optional: either name or
+    # address must be provided). When set, the server binds to all IP addresses
+    # configured on this interface, excluding link-local addresses.
+    # name: "ens5"
+    # The SCTP port for the 5G N2 / NGAP listener. Default 38412.
+    # ngap-port: 38412
+    # The SCTP port for the 4G S1-MME / S1AP listener. Default 36412.
+    # s1ap-port: 36412
+  # The n3 interface (N3 in 5G, S1-U in 4G). This interface should be connected
+  # to the radios.
   n3:
+    # The name of the network interface (optional: either name or address must
+    # be provided).
     name: "ens5"
+    # The address to listen on. Supports both IPv4 and IPv6 (optional: either
+    # name or address must be provided).
+    # address: "10.3.0.2"
+  # The n6 interface (N6 in 5G, SGi in 4G). This interface should be connected
+  # to the internet.
   n6:
+    # The name of the network interface.
     name: "ens3"
+  # The api interface, serving the HTTP API and UI.
   api:
+    # The IP address to listen on. Supports both IPv4 and IPv6 addresses
+    # (optional: either name or address must be provided).
     address: "0.0.0.0"
+    # The name of the network interface to listen on (optional: either name or
+    # address must be provided). When set, the server listens on all addresses
+    # but uses SO_BINDTODEVICE to restrict incoming traffic to this interface.
+    # name: "ens3"
+    # The port to listen on.
     port: 5002
+    # The TLS configuration (optional).
     tls:
+      # The path to the TLS certificate file (optional).
       cert: "/var/snap/ella-core/common/cert.pem"
+      # The path to the TLS key file (optional).
       key: "/var/snap/ella-core/common/key.pem"
+
+# The XDP configuration.
 xdp:
+  # The XDP attach mode. Options are native and generic. native is the most
+  # performant option and only works on supported drivers.
   attach-mode: "native"
+
+# The telemetry configuration.
 telemetry:
+  # Whether telemetry is enabled or not. Default is false.
   enabled: false
+  # The endpoint for the OpenTelemetry Protocol (OTLP) collector.
+  # otlp-endpoint: "localhost:4317"

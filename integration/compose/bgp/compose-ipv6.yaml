@@ -12,7 +12,6 @@ configs:
       interfaces:
         n2:
           address: "2001:db8:1::10"
-          port: 38412
         n3:
           name: "n3"
         n6:

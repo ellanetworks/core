@@ -569,8 +569,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	// 4G S1-MME control plane. The composition root owns the SCTP listener and
 	// routes decoded PDUs into the S1AP transport layer (mirrors the AMF/NGAP
-	// wiring above). Bind the RAN-facing interface (same address as N2) on the
-	// standard S1AP port.
+	// wiring above). Bind the RAN-facing interface (same address as N2).
 	mmeServer := amfsctp.NewServer(amfsctp.Config{
 		PPID:   mme.S1apPPID,
 		Name:   "S1-MME",
@@ -584,7 +583,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		},
 	})
 
-	if err := mmeServer.ListenAndServe(ctx, cfg.Interfaces.N2.Address, mme.DefaultS1MMEPort, interfaceName); err != nil {
+	if err := mmeServer.ListenAndServe(ctx, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.S1APPort, interfaceName); err != nil {
 		return fmt.Errorf("couldn't start MME: %w", err)
 	}
 

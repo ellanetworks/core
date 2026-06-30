@@ -15,7 +15,6 @@ data:
     interfaces:
       n2:
         address: "192.168.253.3"
-        port: 38412
       n3:
         name: "n3"
       n6:
