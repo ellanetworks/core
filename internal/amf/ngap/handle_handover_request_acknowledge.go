@@ -120,9 +120,9 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	// Advance the FSM hoPreparing→hoPrepared (HANDOVER COMMAND about to be sent);
-	// a duplicate or out-of-order acknowledge does not match and is dropped.
-	if !amfInstance.MarkHandoverPrepared(amfUe) {
+	// Drop a duplicate or out-of-order acknowledge without advancing the FSM, so it
+	// cannot tear down an already-prepared handover in the empty-admit path below.
+	if !amfInstance.HandoverPreparing(amfUe) {
 		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge with no handover at the preparing stage; dropping")
 		return
 	}
@@ -155,6 +155,13 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 			logger.WithTrace(ctx, targetUe.Log).Error("error sending handover preparation failure", zap.Error(err))
 		}
 
+		return
+	}
+
+	// The target admitted at least one session; advance hoPreparing→hoPrepared
+	// (HANDOVER COMMAND about to be sent).
+	if !amfInstance.MarkHandoverPrepared(amfUe) {
+		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge: handover advanced concurrently; dropping")
 		return
 	}
 

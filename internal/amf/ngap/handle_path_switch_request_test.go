@@ -530,7 +530,7 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 	}
 
 	if ack.NCC == 0 {
-		t.Error("expected NCC > 0 after UpdateNH")
+		t.Error("expected NCC > 0 after advancing the NH chain")
 	}
 
 	// Verify the PDU session switched list contains the session

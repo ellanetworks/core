@@ -559,15 +559,14 @@ func (ue *UeContext) UpdateSecurityContext() error {
 	return nil
 }
 
-func (ue *UeContext) UpdateNH() error {
-	ue.ncc = (ue.ncc + 1) % 8
+// AdvancePathSwitchNH derives the next {NH, NCC} of the AS key chain for a path
+// switch (TS 33.501 §6.9.2.1.1) without committing them to the UE, so the chain
+// is advanced only once the switch is confirmed (see AMF.CommitPathSwitch).
+func (ue *UeContext) AdvancePathSwitchNH() (nh [32]uint8, ncc uint8, err error) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
-	err := ue.DerivateNH(ue.nh[:])
-	if err != nil {
-		return fmt.Errorf("error deriving NH: %v", err)
-	}
-
-	return nil
+	return ue.deriveNextNHLocked()
 }
 
 // deriveNextNHLocked returns the next {NH, NCC} of the AS key chain (TS 33.501

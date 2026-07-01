@@ -387,27 +387,35 @@ func (ranUe *RanUe) Remove(ctx context.Context) error {
 	return nil
 }
 
-func (ranUe *RanUe) SwitchToRan(newRan *Radio, ranUeNgapID int64) error {
-	if ranUe == nil {
-		return fmt.Errorf("ran ue is nil")
+// CommitPathSwitch re-points the UE at the target radio and commits the advanced
+// {NH, NCC} chain atomically under the registry lock (TS 33.501 §6.9.2.1.1). It
+// returns false if the UE was released during the user-plane switch, leaving the
+// chain unadvanced so the source context stays consistent. The global ranUEs
+// index is keyed by the unchanged AMF UE NGAP ID, so the switch only re-points
+// the UE at its new radio and RAN UE NGAP ID.
+func (a *AMF) CommitPathSwitch(ue *UeContext, ranUe *RanUe, ran *Radio, ranUeNgapID int64, nh [32]uint8, ncc uint8) bool {
+	a.mu.Lock()
+
+	if ranUe == nil || ran == nil || a.ranUEs[ranUe.AmfUeNgapID] != ranUe {
+		a.mu.Unlock()
+
+		return false
 	}
 
-	if newRan == nil {
-		return fmt.Errorf("new ran is nil")
-	}
-
-	// The global ranUEs index is keyed by the unchanged AMF UE NGAP ID, so the
-	// switch only re-points the UE at its new radio and RAN UE NGAP ID.
-	newRan.amf.mu.Lock()
-	ranUe.radio = newRan
+	ranUe.radio = ran
 	ranUe.RanUeNgapID = ranUeNgapID
-	newRan.amf.mu.Unlock()
 
-	ranUe.Log = newRan.Log.With(logger.AmfUeNgapID(ranUe.AmfUeNgapID))
+	ue.mu.Lock()
+	ue.nh = nh
+	ue.ncc = ncc
+	ue.mu.Unlock()
 
+	a.mu.Unlock()
+
+	ranUe.Log = ran.Log.With(logger.AmfUeNgapID(ranUe.AmfUeNgapID))
 	ranUe.Log.Info("ran ue switched to new Ran", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
-	return nil
+	return true
 }
 
 func (ranUe *RanUe) UpdateLocation(ctx context.Context, amf *AMF, userLocationInformation *ngapType.UserLocationInformation) {

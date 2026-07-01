@@ -118,16 +118,11 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	// TS 23.502: send ack to Target NG-RAN. If none of the requested PDU Sessions have been switched
 	// successfully, the AMF shall send an N2 Path Switch Request Failure message to the Target NG-RAN
 	if len(pduSessionResourceSwitchedList.List) > 0 {
-		// TS 33.501: compute fresh {NH, NCC} for the Ack
-		err := amfUe.UpdateNH()
+		// TS 33.501: derive fresh {NH, NCC} but commit them only once the switch is
+		// confirmed, so an abandoned path switch never advances the live AS key chain.
+		nh, ncc, err := amfUe.AdvancePathSwitchNH()
 		if err != nil {
-			logger.WithTrace(ctx, ranUe.Log).Error("error updating NH", zap.Error(err))
-			return
-		}
-
-		err = ranUe.SwitchToRan(ran, msg.RANUENGAPID)
-		if err != nil {
-			logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
+			logger.WithTrace(ctx, ranUe.Log).Error("error advancing NH", zap.Error(err))
 			return
 		}
 
@@ -137,7 +132,15 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			return
 		}
 
-		nh, ncc := amfUe.NextHopNCC()
+		// Re-point the UE at the target radio and commit the chain atomically; a UE
+		// released during the user-plane switch fails the path switch with the chain
+		// left unadvanced.
+		if !amfInstance.CommitPathSwitch(amfUe, ranUe, ran, msg.RANUENGAPID, nh, ncc) {
+			logger.WithTrace(ctx, ranUe.Log).Warn("Path Switch Request: UE released during the user-plane switch")
+			sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnspecified)
+
+			return
+		}
 
 		pkt, err := send.BuildPathSwitchRequestAcknowledge(
 			ranUe.AmfUeNgapID,

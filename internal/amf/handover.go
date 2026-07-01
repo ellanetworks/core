@@ -105,6 +105,33 @@ func (a *AMF) MarkHandoverCommitting(ue *UeContext) bool {
 	return true
 }
 
+// FinishHandoverCommit completes a committing handover: it moves the UE onto the
+// target RanUe and clears the FSM, atomically under the registry lock. It returns
+// false — leaving the UE where it was — when the handover is no longer committing
+// or the target RanUe was released during the (unlocked) user-plane switch, so a
+// handover cannot complete onto a UE that has gone away (TS 23.502).
+func (a *AMF) FinishHandoverCommit(ue *UeContext, targetUe *RanUe) bool {
+	if ue == nil {
+		return false
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if ue.handover == nil || ue.handover.state != hoCommitting {
+		return false
+	}
+
+	if targetUe == nil || a.ranUEs[targetUe.AmfUeNgapID] != targetUe {
+		return false
+	}
+
+	ue.handover = nil
+	ue.AttachRanUe(targetUe)
+
+	return true
+}
+
 // ClearHandover ends the handover FSM, leaving no in-flight handover. Idempotent;
 // safe on a nil UE. Kept in lockstep with the procedure registry's End(N2Handover).
 func (a *AMF) ClearHandover(ue *UeContext) {
@@ -136,6 +163,21 @@ func (a *AMF) MarkHandoverPrepared(ue *UeContext) bool {
 	ue.handover.state = hoPrepared
 
 	return true
+}
+
+// HandoverPreparing reports whether a handover is in progress and still at the
+// preparing stage, without advancing it. It lets HANDOVER REQUEST ACKNOWLEDGE
+// drop a duplicate before validating the admitted-session list, so a duplicate
+// cannot tear down an already-prepared handover.
+func (a *AMF) HandoverPreparing(ue *UeContext) bool {
+	if ue == nil {
+		return false
+	}
+
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	return ue.handover != nil && ue.handover.state == hoPreparing
 }
 
 // HandoverSource returns the source RanUe of the in-flight handover, or nil.

@@ -44,14 +44,6 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return
 	}
 
-	logger.WithTrace(ctx, targetUe.Log).Info("Handle Handover notification Finished")
-
-	if conn := amfUe.NasConn(); conn != nil {
-		conn.Procedures.End(procedure.N2Handover)
-	}
-
-	amfInstance.ClearHandover(amfUe)
-
 	// Per 3GPP TS 23.502, the SMF sends N4 Session
 	// Modification to the UPF with the new AN tunnel info at this point.
 	for _, sr := range amfUe.SmContextRefs() {
@@ -67,7 +59,19 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		}
 	}
 
-	amfUe.AttachRanUe(targetUe)
+	// Move the UE onto the target and clear the FSM, gated on the UE still being
+	// present after the unlocked user-plane switch; only then end the procedure and
+	// release the source (TS 23.502).
+	if !amfInstance.FinishHandoverCommit(amfUe, targetUe) {
+		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Notify: UE released during the user-plane switch")
+		return
+	}
+
+	logger.WithTrace(ctx, targetUe.Log).Info("Handle Handover notification Finished")
+
+	if conn := amfUe.NasConn(); conn != nil {
+		conn.Procedures.End(procedure.N2Handover)
+	}
 
 	sourceUe.ReleaseAction = amf.UeContextReleaseHandover
 
