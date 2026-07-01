@@ -17,7 +17,7 @@ import (
 
 func TestNasNonDeliveryIndication_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	ngap.HandleNasNonDeliveryIndication(context.Background(), amfInstance, ran, decode.NASNonDeliveryIndication{

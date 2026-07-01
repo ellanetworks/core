@@ -17,7 +17,7 @@ import (
 
 func TestHandlePDUSessionResourceReleaseResponse_MissingIDs(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	msg := decode.PDUSessionResourceReleaseResponse{}

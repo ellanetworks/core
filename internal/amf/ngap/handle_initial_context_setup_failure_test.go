@@ -18,7 +18,7 @@ import (
 
 func TestHandleInitialContextSetupFailure_MissingCause(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 	msg := decode.InitialContextSetupFailure{
 		AMFUENGAPID: 1,
@@ -34,7 +34,7 @@ func TestHandleInitialContextSetupFailure_MissingCause(t *testing.T) {
 
 func TestHandleInitialContextSetupFailure_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	msg := decode.InitialContextSetupFailure{

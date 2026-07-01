@@ -12,6 +12,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -65,8 +66,10 @@ func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		}
 
 	case ngapType.EventTypePresentStopChangeOfServeCell:
-		err := ranUe.Radio().NGAPSender.SendLocationReportingControl(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, msg.LocationReportingRequestType.EventType)
+		pkt, err := send.BuildLocationReportingControl(ranUe.AmfUeNgapID, ranUe.RanUeNgapID, msg.LocationReportingRequestType.EventType)
 		if err != nil {
+			logger.WithTrace(ctx, ranUe.Log).Error("error building location reporting control", zap.Error(err))
+		} else if err := ranUe.Radio().SendToRan(ctx, send.NGAPProcedureLocationReportingControl, pkt); err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error("error sending location reporting control", zap.Error(err))
 		}
 	case ngapType.EventTypePresentStopUePresenceInAreaOfInterest:

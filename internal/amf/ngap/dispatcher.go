@@ -260,7 +260,7 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 				return
 			}
 
-			HandlePDUSessionResourceModifyIndication(ctx, ran, decoded)
+			HandlePDUSessionResourceModifyIndication(ctx, amfInstance, ran, decoded)
 		default:
 			ran.Log.Warn("Not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", initiatingMessage.ProcedureCode.Value))
 		}

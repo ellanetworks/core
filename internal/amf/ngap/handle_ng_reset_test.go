@@ -28,7 +28,7 @@ func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sender,
+		Conn:          sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -63,7 +63,7 @@ func TestHandleNGReset_PartOfNGInterface(t *testing.T) {
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sender,
+		Conn:          sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -119,7 +119,7 @@ func TestHandleNGReset_PartOfNGInterface_UnknownUE(t *testing.T) {
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sender,
+		Conn:          sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))

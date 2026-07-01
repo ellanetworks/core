@@ -21,16 +21,11 @@ import (
 func wrapIntegrityProtected(t *testing.T, ue *UeContext, inner []byte, sqn uint8) []byte {
 	t.Helper()
 
-	cnt := ue.ulCount
-	if cnt.SQN() > sqn {
-		cnt.SetOverflow(cnt.Overflow() + 1)
-	}
-
-	cnt.SetSQN(sqn)
+	cnt := ue.ulCount.ReconcileUplink(sqn)
 
 	seqAndMsg := append([]byte{sqn}, inner...)
 
-	mac, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, cnt.Get(), security.Bearer3GPP, security.DirectionUplink, seqAndMsg)
+	mac, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, cnt.Value(), security.Bearer3GPP, security.DirectionUplink, seqAndMsg)
 	if err != nil {
 		t.Fatalf("NASMacCalculate: %v", err)
 	}
@@ -127,11 +122,11 @@ func TestNasIntegrityVerified_DoesNotMutateCount(t *testing.T) {
 	ue := newSecuredUE(t)
 	pdu := wrapIntegrityProtected(t, ue, encodePlainRegistrationRequest(t), 0)
 
-	before := ue.ulCount.Get()
+	before := ue.ulCount.Value()
 	_ = ue.NasIntegrityVerified(pdu)
 
-	if ue.ulCount.Get() != before {
-		t.Fatalf("ULCount must not change: before=%d after=%d", before, ue.ulCount.Get())
+	if ue.ulCount.Value() != before {
+		t.Fatalf("ULCount must not change: before=%d after=%d", before, ue.ulCount.Value())
 	}
 }
 
@@ -197,14 +192,14 @@ func TestDecodeNASMessage_MacFailedDoesNotAdvanceULCount(t *testing.T) {
 	bad := append([]byte(nil), pdu...)
 	bad[3] ^= 0xff // corrupt the MAC
 
-	before := ue.ulCount.Get()
+	before := ue.ulCount.Value()
 
 	if _, err := DecodeNASMessage(ue, bad); err != nil {
 		t.Fatalf("a mac-failed service request must be admitted (VerdictMacFailedAllowed): %v", err)
 	}
 
-	if ue.ulCount.Get() != before {
-		t.Fatalf("a mac-failed message must not advance ULCount: before=%d after=%d", before, ue.ulCount.Get())
+	if ue.ulCount.Value() != before {
+		t.Fatalf("a mac-failed message must not advance ULCount: before=%d after=%d", before, ue.ulCount.Value())
 	}
 
 	if _, err := DecodeNASMessage(ue, pdu); err != nil {

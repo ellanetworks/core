@@ -18,7 +18,7 @@ import (
 
 func TestInitialContextSetupResponse_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMFWithSmf(&fakeSmfSbi{})
 
 	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, decode.InitialContextSetupResponse{

@@ -137,7 +137,7 @@ func ListRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 			radioAddress := ""
 
 			if radio.Conn != nil {
-				if addr := radio.Conn.RemoteAddr(); addr != nil {
+				if addr := radio.RemoteAddr(); addr != nil {
 					radioAddress = addr.String()
 				}
 			}
@@ -201,7 +201,7 @@ func GetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 			radioAddress := ""
 
 			if radio.Conn != nil {
-				if addr := radio.Conn.RemoteAddr(); addr != nil {
+				if addr := radio.RemoteAddr(); addr != nil {
 					radioAddress = addr.String()
 				}
 			}

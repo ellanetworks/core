@@ -64,7 +64,7 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *fakeNGAPSender, *am
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sourceNGAPSender,
+		Conn:          sourceNGAPSender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	sourceRan.BindAMFForTest(amf.New(nil, nil, nil))
@@ -75,7 +75,7 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *fakeNGAPSender, *am
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    targetNGAPSender,
+		Conn:          targetNGAPSender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	targetRan.BindAMFForTest(amf.New(nil, nil, nil))
@@ -98,7 +98,7 @@ func TestHandoverRequestAcknowledge_UeNotFound(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sender,
+		Conn:          sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -131,7 +131,7 @@ func TestHandoverRequestAcknowledge_NoSourceUe(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sender,
+		Conn:          sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))

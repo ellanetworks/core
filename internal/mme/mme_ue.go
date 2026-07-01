@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/udm"
+	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -171,8 +172,8 @@ type UeContext struct {
 	knasInt     [16]byte
 	eea         byte
 	eia         byte
-	ulCount     uint32
-	dlCount     uint32
+	ulCount     nascommon.Count
+	dlCount     nascommon.Count
 	secured     bool
 	resyncTried bool
 

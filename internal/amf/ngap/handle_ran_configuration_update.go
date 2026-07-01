@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
@@ -86,13 +87,23 @@ func HandleRanConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 	}
 
 	if cause.Present == ngapType.CausePresentNothing {
-		err := ran.NGAPSender.SendRanConfigurationUpdateAcknowledge(ctx, nil)
+		pkt, err := send.BuildRanConfigurationUpdateAcknowledge(nil)
 		if err != nil {
+			logger.WithTrace(ctx, ran.Log).Error("error building ran configuration update acknowledge", zap.Error(err))
+			return
+		}
+
+		if err := ran.SendToRan(ctx, send.NGAPProcedureRanConfigurationUpdateAcknowledge, pkt); err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("error sending ran configuration update acknowledge", zap.Error(err))
 		}
 	} else {
-		err := ran.NGAPSender.SendRanConfigurationUpdateFailure(ctx, cause, nil)
+		pkt, err := send.BuildRanConfigurationUpdateFailure(cause, nil)
 		if err != nil {
+			logger.WithTrace(ctx, ran.Log).Error("error building ran configuration update failure", zap.Error(err))
+			return
+		}
+
+		if err := ran.SendToRan(ctx, send.NGAPProcedureRanConfigurationUpdateFailure, pkt); err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("error sending ran configuration update failure", zap.Error(err))
 		}
 	}

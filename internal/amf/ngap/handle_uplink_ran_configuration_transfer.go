@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
@@ -31,8 +32,13 @@ func HandleUplinkRanConfigurationTransfer(ctx context.Context, amfInstance *amf.
 		return
 	}
 
-	err := targetRan.NGAPSender.SendDownlinkRanConfigurationTransfer(ctx, msg.SONConfigurationTransferUL)
+	pkt, err := send.BuildDownlinkRanConfigurationTransfer(msg.SONConfigurationTransferUL)
 	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("error building downlink ran configuration transfer", zap.Error(err))
+		return
+	}
+
+	if err := targetRan.SendToRan(ctx, send.NGAPProcedureDownlinkRanConfigurationTransfer, pkt); err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error sending downlink ran configuration transfer", zap.Error(err))
 		return
 	}

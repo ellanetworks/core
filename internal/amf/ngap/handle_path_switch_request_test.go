@@ -144,6 +144,11 @@ func newValidUeContext() *amf.UeContext {
 	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
 	amfUe.SetKamfForTest("0000000000000000000000000000000000000000000000000000000000000000")
 	amfUe.SetNHForTest(make([]byte, 32))
+
+	secCap := &nasType.UESecurityCapability{}
+	secCap.SetLen(2)
+	amfUe.SetUESecurityCapabilityForTest(secCap)
+
 	amfUe.Log = logger.AmfLog
 
 	return amfUe
@@ -152,8 +157,8 @@ func newValidUeContext() *amf.UeContext {
 func TestPathSwitchRequest_UnknownUE(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sender,
+		Log:  logger.AmfLog,
+		Conn: sender,
 	}
 
 	amfInstance := newTestAMFWithSmf(&fakeSmfSbi{})
@@ -198,8 +203,8 @@ func TestPathSwitchRequest_UnknownUE(t *testing.T) {
 func TestPathSwitchRequest_NilUeContext(t *testing.T) {
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sourceNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
 	// RanUe exists but UeContext is nil
@@ -207,8 +212,8 @@ func TestPathSwitchRequest_NilUeContext(t *testing.T) {
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
 	amfInstance := newTestAMFWithSmf(&fakeSmfSbi{})
@@ -247,8 +252,8 @@ func TestPathSwitchRequest_NilUeContext(t *testing.T) {
 func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sender,
+		Log:  logger.AmfLog,
+		Conn: sender,
 	}
 
 	amfUe := amf.NewUeContext()
@@ -261,8 +266,8 @@ func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
 	amfInstance := newTestAMFWithSmf(&fakeSmfSbi{})
@@ -301,8 +306,8 @@ func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sourceNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
 	amfUe := newValidUeContext()
@@ -313,8 +318,8 @@ func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
 	fakeSmf := &fakeSmfSbi{PathSwitchResponse: []byte{0x01}}
@@ -369,8 +374,8 @@ func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 func TestPathSwitchRequest_SmfReturnsError(t *testing.T) {
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sourceNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
 	amfUe := newValidUeContext()
@@ -384,8 +389,8 @@ func TestPathSwitchRequest_SmfReturnsError(t *testing.T) {
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
 	fakeSmf := &fakeSmfSbi{
@@ -448,8 +453,8 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sourceNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
 	amfUe := newValidUeContext()
@@ -464,8 +469,8 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
 	n2Response := []byte{0xAA, 0xBB, 0xCC}
@@ -567,8 +572,8 @@ func TestPathSwitchRequest_DuplicatePDUSessionIDs(t *testing.T) {
 
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sourceNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
 	amfUe := newValidUeContext()
@@ -583,8 +588,8 @@ func TestPathSwitchRequest_DuplicatePDUSessionIDs(t *testing.T) {
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
 	fakeSmf := &fakeSmfSbi{PathSwitchResponse: []byte{0xAA, 0xBB, 0xCC}}
@@ -648,8 +653,8 @@ func TestPathSwitchRequest_DuplicatePDUSessionIDs(t *testing.T) {
 func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sourceNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
 	amfUe := newValidUeContext()
@@ -664,8 +669,8 @@ func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
 	fakeSmf := &fakeSmfSbi{
@@ -732,8 +737,8 @@ func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sourceNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
 	amfUe := newValidUeContext()
@@ -751,8 +756,8 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
 	fakeSmf := &fakeSmfSbi{
@@ -834,8 +839,8 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sourceNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
 	amfUe := newValidUeContext()
@@ -857,8 +862,8 @@ func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
 	fakeSmf := &fakeSmfSbi{
@@ -959,8 +964,8 @@ func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
 func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sourceNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
 	amfUe := newValidUeContext()
@@ -978,8 +983,8 @@ func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
 	fakeSmf := &fakeSmfSbi{
@@ -1064,8 +1069,8 @@ func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sourceNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
 	amfUe := newValidUeContext()
@@ -1083,8 +1088,8 @@ func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
 	fakeSmf := &fakeSmfSbi{

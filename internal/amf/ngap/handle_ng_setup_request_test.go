@@ -183,7 +183,7 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sender,
+		Conn:          sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -240,7 +240,7 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testi
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sender,
+		Conn:          sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -298,7 +298,7 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sender,
+		Conn:          sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -399,7 +399,7 @@ func TestHandleNGSetupRequest_MultipleSlicesInRequest(t *testing.T) {
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sender,
+		Conn:          sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -477,7 +477,7 @@ func TestHandleNGSetupRequest_ResponseContainsAllConfiguredSlices(t *testing.T) 
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sender,
+		Conn:          sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -557,7 +557,7 @@ func TestHandleNGSetupRequest_NGSetupFailure_PLMNMismatch(t *testing.T) {
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sender,
+		Conn:          sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -601,7 +601,7 @@ func TestHandleNGSetupRequest_DBFailure_SendsNGSetupFailure(t *testing.T) {
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sender,
+		Conn:          sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -640,7 +640,7 @@ func TestHandleNGSetupRequest_SliceDBFailure_SendsNGSetupFailure(t *testing.T) {
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sender,
+		Conn:          sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -682,7 +682,7 @@ func TestHandleNGSetupRequest_NoSliceOverlap_SucceedsWithWarning(t *testing.T) {
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sender,
+		Conn:          sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))

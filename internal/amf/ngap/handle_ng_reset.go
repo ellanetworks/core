@@ -12,6 +12,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -29,8 +30,13 @@ func HandleNGReset(ctx context.Context, ran *amf.Radio, msg decode.NGReset) {
 		ran.RemoveAllUeInRan(ctx)
 		logger.WithTrace(ctx, ran.Log).Debug("All UE Context in RAN have been removed")
 
-		err := ran.NGAPSender.SendNGResetAcknowledge(ctx, nil)
+		pkt, err := send.BuildNGResetAcknowledge(nil)
 		if err != nil {
+			logger.WithTrace(ctx, ran.Log).Error("error building NG Reset Acknowledge", zap.Error(err))
+			return
+		}
+
+		if err := ran.SendToRan(ctx, send.NGAPProcedureNGResetAcknowledge, pkt); err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("error sending NG Reset Acknowledge", zap.Error(err))
 			return
 		}
@@ -74,8 +80,13 @@ func HandleNGReset(ctx context.Context, ran *amf.Radio, msg decode.NGReset) {
 			}
 		}
 
-		err := ran.NGAPSender.SendNGResetAcknowledge(ctx, partOfNGInterface)
+		pkt, err := send.BuildNGResetAcknowledge(partOfNGInterface)
 		if err != nil {
+			logger.WithTrace(ctx, ran.Log).Error("error building NG Reset Acknowledge", zap.Error(err))
+			return
+		}
+
+		if err := ran.SendToRan(ctx, send.NGAPProcedureNGResetAcknowledge, pkt); err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("error sending NG Reset Acknowledge", zap.Error(err))
 			return
 		}

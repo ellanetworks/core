@@ -5,6 +5,10 @@ package send
 
 import "fmt"
 
+// NGAPPPID is the SCTP payload protocol identifier for NGAP (TS 38.412),
+// set on every NGAP datagram the AMF sends and required on the listener.
+const NGAPPPID uint32 = 60
+
 type NGAPProcedure string
 
 const (
@@ -36,7 +40,7 @@ const (
 	NGAPProcedureUEContextReleaseCommand          NGAPProcedure = "UEContextReleaseCommand"
 )
 
-func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
+func GetSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 	switch msgType {
 	// Non-UE procedures
 	case NGAPProcedureNGSetupResponse, NGAPProcedureNGSetupFailure,

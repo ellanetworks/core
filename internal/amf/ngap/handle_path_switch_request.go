@@ -12,6 +12,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapType"
@@ -138,8 +139,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 		nh, ncc := amfUe.NextHopNCC()
 
-		err = ranUe.Radio().NGAPSender.SendPathSwitchRequestAcknowledge(
-			ctx,
+		pkt, err := send.BuildPathSwitchRequestAcknowledge(
 			ranUe.AmfUeNgapID,
 			ranUe.RanUeNgapID,
 			amfUe.UESecCap(),
@@ -150,6 +150,11 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			snssaiList,
 		)
 		if err != nil {
+			logger.WithTrace(ctx, ranUe.Log).Error("error building path switch request acknowledge", zap.Error(err))
+			return
+		}
+
+		if err := ranUe.Radio().SendToRan(ctx, send.NGAPProcedurePathSwitchRequestAcknowledge, pkt); err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error("error sending path switch request acknowledge", zap.Error(err))
 			return
 		}

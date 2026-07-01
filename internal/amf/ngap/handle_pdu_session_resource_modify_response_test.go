@@ -41,7 +41,7 @@ func TestPDUSessionResourceModifyResponse_CrossRadioRejected(t *testing.T) {
 
 	// A different radio claims the same AMF-UE-NGAP-ID — must be rejected.
 	attackerRan := newTestRadio(newTestAMF())
-	attackerSender := attackerRan.NGAPSender.(*fakeNGAPSender)
+	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 	amfID := int64(10)
 
 	ngap.HandlePDUSessionResourceModifyResponse(context.Background(), amfInstance, attackerRan, decode.PDUSessionResourceModifyResponse{

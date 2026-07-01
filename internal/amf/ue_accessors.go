@@ -183,7 +183,7 @@ func (ue *UeContext) DecryptUplinkContents(contents []byte) error {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.ulCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
+	return security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.ulCount.Value(), security.Bearer3GPP, security.DirectionUplink, contents)
 }
 
 // SmContextSnapshot returns a locked shallow copy of the UE's PDU session SM

@@ -21,10 +21,10 @@ import (
 func TestHandleHandoverCancel_UnknownRanUeNgapID(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 
 	msg := decode.HandoverCancel{
-		AMFUENGAPID: 1099511627776,
+		AMFUENGAPID: 1099511627775,
 		RANUENGAPID: 99,
 		Cause: &ngapType.Cause{
 			Present:      ngapType.CausePresentRadioNetwork,
@@ -55,10 +55,10 @@ func TestHandleHandoverCancel_UnknownRanUeNgapID(t *testing.T) {
 func TestHandleHandoverCancel_UnknownAmfUeNgapID(t *testing.T) {
 	amfInstance := newTestAMF()
 	sourceRan := newTestRadio(amfInstance)
-	sourceSender := sourceRan.NGAPSender.(*fakeNGAPSender)
+	sourceSender := sourceRan.Conn.(*fakeNGAPSender)
 
 	targetRan := newTestRadio(amfInstance)
-	targetSender := targetRan.NGAPSender.(*fakeNGAPSender)
+	targetSender := targetRan.Conn.(*fakeNGAPSender)
 
 	amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
 
@@ -88,10 +88,10 @@ func TestHandleHandoverCancel_UnknownAmfUeNgapID(t *testing.T) {
 func TestHandleHandoverCancel_HappyPath(t *testing.T) {
 	amfInstance := newTestAMF()
 	sourceRan := newTestRadio(amfInstance)
-	sourceSender := sourceRan.NGAPSender.(*fakeNGAPSender)
+	sourceSender := sourceRan.Conn.(*fakeNGAPSender)
 
 	targetRan := newTestRadio(amfInstance)
-	targetSender := targetRan.NGAPSender.(*fakeNGAPSender)
+	targetSender := targetRan.Conn.(*fakeNGAPSender)
 
 	sourceUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
 	targetUe := amf.NewRanUeForTest(targetRan, 2, 20, logger.AmfLog)

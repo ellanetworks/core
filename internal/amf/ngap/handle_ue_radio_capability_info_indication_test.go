@@ -17,7 +17,7 @@ import (
 
 func TestUERadioCapabilityInfoIndication_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 
 	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), ran, decode.UERadioCapabilityInfoIndication{
 		RANUENGAPID: 99,

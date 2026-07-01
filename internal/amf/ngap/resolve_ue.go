@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -71,10 +72,7 @@ func sendUnknownLocalUEError(ctx context.Context, ran *amf.Radio, amfID, ranID *
 		},
 	}
 
-	err := ran.NGAPSender.SendErrorIndication(ctx, amfID, ranID, &cause, nil)
-	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
-	}
+	sendErrorIndication(ctx, ran, amfID, ranID, &cause)
 }
 
 func sendInconsistentRemoteUEError(ctx context.Context, ran *amf.Radio, amfID, ranID *int64) {
@@ -85,8 +83,17 @@ func sendInconsistentRemoteUEError(ctx context.Context, ran *amf.Radio, amfID, r
 		},
 	}
 
-	err := ran.NGAPSender.SendErrorIndication(ctx, amfID, ranID, &cause, nil)
+	sendErrorIndication(ctx, ran, amfID, ranID, &cause)
+}
+
+func sendErrorIndication(ctx context.Context, ran *amf.Radio, amfID, ranID *int64, cause *ngapType.Cause) {
+	pkt, err := send.BuildErrorIndication(amfID, ranID, cause, nil)
 	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("error building error indication", zap.Error(err))
+		return
+	}
+
+	if err := ran.SendToRan(ctx, send.NGAPProcedureErrorIndication, pkt); err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
 	}
 }

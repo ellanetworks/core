@@ -20,13 +20,21 @@ import (
 	"go.uber.org/zap"
 )
 
+func sendNGSetupFailure(ctx context.Context, ran *amf.Radio, cause *ngapType.Cause) {
+	pkt, err := send.BuildNGSetupFailure(cause)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("error building NG Setup Failure", zap.Error(err))
+		return
+	}
+
+	if err := ran.SendToRan(ctx, send.NGAPProcedureNGSetupFailure, pkt); err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("error sending NG Setup Failure", zap.Error(err))
+	}
+}
+
 func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.NGSetupRequest) {
 	if msg.RANNodeName != "" {
 		ran.Name = msg.RANNodeName
-
-		if realSender, ok := ran.NGAPSender.(*send.RealNGAPSender); ok {
-			realSender.RadioName = ran.Name
-		}
 	}
 
 	if len(ran.SupportedTAIs) != 0 {
@@ -34,16 +42,12 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	}
 
 	if len(msg.SupportedTAItems) == 0 {
-		err := ran.NGAPSender.SendNGSetupFailure(ctx, &ngapType.Cause{
+		sendNGSetupFailure(ctx, ran, &ngapType.Cause{
 			Present: ngapType.CausePresentMisc,
 			Misc: &ngapType.CauseMisc{
 				Value: ngapType.CauseMiscPresentUnspecified,
 			},
 		})
-		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending NG Setup Failure", zap.Error(err))
-			return
-		}
 
 		logger.WithTrace(ctx, ran.Log).Warn("NG Setup failure: No supported TA exist in NG Setup request")
 
@@ -74,7 +78,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("Could not get operator info", zap.Error(err))
 
-		_ = ran.NGAPSender.SendNGSetupFailure(ctx, &ngapType.Cause{
+		sendNGSetupFailure(ctx, ran, &ngapType.Cause{
 			Present: ngapType.CausePresentMisc,
 			Misc:    &ngapType.CauseMisc{Value: ngapType.CauseMiscPresentUnspecified},
 		})
@@ -83,14 +87,10 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	}
 
 	if !amf.AnyPLMNMatch(ran.SupportedTAIs, operatorInfo.Guami.PlmnID) {
-		err := ran.NGAPSender.SendNGSetupFailure(ctx, &ngapType.Cause{
+		sendNGSetupFailure(ctx, ran, &ngapType.Cause{
 			Present: ngapType.CausePresentMisc,
 			Misc:    &ngapType.CauseMisc{Value: ngapType.CauseMiscPresentUnknownPLMN},
 		})
-		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending NG Setup Failure", zap.Error(err))
-			return
-		}
 
 		logger.WithTrace(ctx, ran.Log).Warn("No broadcast PLMN matches operator", zap.Any("gnb_tai_list", ran.SupportedTAIs), zap.Any("operator_plmn", operatorInfo.Guami.PlmnID))
 
@@ -110,14 +110,10 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	}
 
 	if !taiFound {
-		err := ran.NGAPSender.SendNGSetupFailure(ctx, &ngapType.Cause{
+		sendNGSetupFailure(ctx, ran, &ngapType.Cause{
 			Present: ngapType.CausePresentMisc,
 			Misc:    &ngapType.CauseMisc{Value: ngapType.CauseMiscPresentUnspecified},
 		})
-		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending NG Setup Failure", zap.Error(err))
-			return
-		}
 
 		logger.WithTrace(ctx, ran.Log).Warn("PLMN matches but no served TAC found", zap.Any("gnb_tai_list", ran.SupportedTAIs), zap.Any("core_tai_list", operatorInfo.Tais))
 
@@ -128,7 +124,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("Could not list operator SNSSAI", zap.Error(err))
 
-		_ = ran.NGAPSender.SendNGSetupFailure(ctx, &ngapType.Cause{
+		sendNGSetupFailure(ctx, ran, &ngapType.Cause{
 			Present: ngapType.CausePresentMisc,
 			Misc:    &ngapType.CauseMisc{Value: ngapType.CauseMiscPresentUnspecified},
 		})
@@ -169,8 +165,8 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	evicted := amfInstance.ClaimRanID(ran, msg.GlobalRANNodeID.Raw())
 	if evicted != nil {
 		evictedRemote := ""
-		if evicted.Conn != nil && evicted.Conn.RemoteAddr() != nil {
-			evictedRemote = evicted.Conn.RemoteAddr().String()
+		if evicted.RemoteAddr() != nil {
+			evictedRemote = evicted.RemoteAddr().String()
 		}
 
 		logger.WithTrace(ctx, ran.Log).Warn("Evicted existing NG-C association with duplicate Global RAN Node ID",
@@ -179,8 +175,13 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		)
 	}
 
-	err = ran.NGAPSender.SendNGSetupResponse(ctx, operatorInfo.Guami, snssaiList, amfInstance.Name, amfInstance.RelativeCapacity)
+	pkt, err := send.BuildNGSetupResponse(operatorInfo.Guami, snssaiList, amfInstance.Name, amfInstance.RelativeCapacity)
 	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("error building NG Setup Response", zap.Error(err))
+		return
+	}
+
+	if err := ran.SendToRan(ctx, send.NGAPProcedureNGSetupResponse, pkt); err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error sending NG Setup Response", zap.Error(err))
 		return
 	}

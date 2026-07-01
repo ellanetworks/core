@@ -14,7 +14,7 @@ import (
 
 func TestHandleErrorIndication_EmptyIEs(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 
 	ngap.HandleErrorIndication(context.Background(), ran, decode.ErrorIndication{})
 
@@ -25,7 +25,7 @@ func TestHandleErrorIndication_EmptyIEs(t *testing.T) {
 
 func TestHandleErrorIndication_WithCause(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 
 	msg := decode.ErrorIndication{
 		Cause: &ngapType.Cause{
@@ -43,7 +43,7 @@ func TestHandleErrorIndication_WithCause(t *testing.T) {
 
 func TestHandleErrorIndication_WithCriticalityDiagnostics(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 
 	msg := decode.ErrorIndication{
 		CriticalityDiagnostics: &ngapType.CriticalityDiagnostics{},

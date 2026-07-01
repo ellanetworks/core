@@ -84,7 +84,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 			logger.WithTrace(ctx, ranUe.Log).Info("Ue Context in Non GMM-Registered")
 			ranUe.ReleaseAction = amf.UeContextReleaseUeContext
 
-			err := ran.NGAPSender.SendUEContextReleaseCommand(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, causeGroup, causeValue)
+			err := ranUe.SendUEContextReleaseCommand(ctx, causeGroup, causeValue)
 			if err != nil {
 				logger.WithTrace(ctx, ranUe.Log).Error("error sending ue context release command", zap.Error(err))
 				return
@@ -103,7 +103,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 
 	ranUe.ReleaseAction = amf.UeContextN2NormalRelease
 
-	err = ran.NGAPSender.SendUEContextReleaseCommand(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, causeGroup, causeValue)
+	err = ranUe.SendUEContextReleaseCommand(ctx, causeGroup, causeValue)
 	if err != nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("error sending ue context release command", zap.Error(err))
 		return

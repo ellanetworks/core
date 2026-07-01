@@ -38,7 +38,7 @@ func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) 
 
 	targetRanUe.ReleaseAction = amf.UeContextReleaseHandover
 
-	amfInstance.Radios = map[*sctp.SCTPConn]*amf.Radio{new(sctp.SCTPConn): ran}
+	amfInstance.Radios = map[amf.NGAPWriter]*amf.Radio{new(sctp.SCTPConn): ran}
 
 	amfID := int64(200)
 	ranID := int64(2)
@@ -68,7 +68,7 @@ func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
 	ranUe := amf.NewRanUeForTest(ran, 1, 100, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
 
-	amfInstance.Radios = map[*sctp.SCTPConn]*amf.Radio{new(sctp.SCTPConn): ran}
+	amfInstance.Radios = map[amf.NGAPWriter]*amf.Radio{new(sctp.SCTPConn): ran}
 
 	amfID := int64(100)
 	ranID := int64(1)

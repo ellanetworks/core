@@ -302,7 +302,7 @@ func TestHandleInitialUEMessage_NASReturnsError_SendsStatus5GMM(t *testing.T) {
 		t.Fatalf("NAS calls = %d, want 1", len(fakeNAS.Calls))
 	}
 
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("DownlinkNASTransport sent = %d, want 1", len(sender.SentDownlinkNASTransport))
 	}

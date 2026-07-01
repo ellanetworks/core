@@ -18,7 +18,7 @@ import (
 
 func TestHandlePDUSessionResourceSetupResponse_EmptyMessage(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	msg := decode.PDUSessionResourceSetupResponse{}
@@ -34,7 +34,7 @@ func TestHandlePDUSessionResourceSetupResponse_UnknownAMFUENGAPID(t *testing.T) 
 	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
 
-	amfID := int64(1379640380095)
+	amfID := int64(1099511627775)
 	ranID := int64(99)
 	msg := decode.PDUSessionResourceSetupResponse{
 		AMFUENGAPID: &amfID,
@@ -43,7 +43,7 @@ func TestHandlePDUSessionResourceSetupResponse_UnknownAMFUENGAPID(t *testing.T) 
 
 	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
 
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication (TS 38.413), got %d", len(sender.SentErrorIndications))
 	}
@@ -60,7 +60,7 @@ func TestHandlePDUSessionResourceSetupResponse_OnlyUnknownRANUENGAPID(t *testing
 
 	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
 
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication (TS 38.413), got %d", len(sender.SentErrorIndications))
 	}

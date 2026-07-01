@@ -88,7 +88,7 @@ func decryptAndDecodeNasPdu(t *testing.T, ue *amf.UeContext, nasPdu []byte, dlCo
 	copy(payload, nasPdu)
 	payload = payload[7:]
 
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Get()+dlCountOffset, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Value()+dlCountOffset, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -143,7 +143,7 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *fakeNGAPSender, *f
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCountForTest().Get())
+	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCountForTest().Value())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -405,6 +405,8 @@ func TestMobilityReg_EmptyAllowedNssai_RejectsRegistration(t *testing.T) {
 
 func TestMobilityReg_UplinkDataStatus_ActivateSuccess_UeContextRequest(t *testing.T) {
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	setTestUESecurityCapability(ue)
 
 	// Set up PDU session 2
 	snssai := &models.Snssai{Sst: 1}
@@ -781,6 +783,8 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 
 func TestMobilityReg_UeContextRequest_True_InitialContextSetup(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	setTestUESecurityCapability(ue)
 
 	ue.RanUe().UeContextRequest = true
 
@@ -983,7 +987,7 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCountForTest().Get())
+	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCountForTest().Value())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}

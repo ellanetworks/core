@@ -17,7 +17,7 @@ import (
 
 func TestHandleHandoverFailure_MissingCause(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 	msg := decode.HandoverFailure{AMFUENGAPID: 1}
 
@@ -34,8 +34,8 @@ func TestHandleHandoverFailure_MissingCause(t *testing.T) {
 func TestHandleHandoverFailure_SourceUeContextDetached(t *testing.T) {
 	sourceRan := newTestRadio(newTestAMF())
 	targetRan := newTestRadio(newTestAMF())
-	sourceSender := sourceRan.NGAPSender.(*fakeNGAPSender)
-	targetSender := targetRan.NGAPSender.(*fakeNGAPSender)
+	sourceSender := sourceRan.Conn.(*fakeNGAPSender)
+	targetSender := targetRan.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	amfUe := amf.NewUeContext()
@@ -84,8 +84,8 @@ func TestHandleHandoverFailure_SourceUeContextDetached(t *testing.T) {
 func TestHandleHandoverFailure_NotFromPreparedTarget(t *testing.T) {
 	sourceRan := newTestRadio(newTestAMF())
 	targetRan := newTestRadio(newTestAMF())
-	sourceSender := sourceRan.NGAPSender.(*fakeNGAPSender)
-	targetSender := targetRan.NGAPSender.(*fakeNGAPSender)
+	sourceSender := sourceRan.Conn.(*fakeNGAPSender)
+	targetSender := targetRan.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	amfUe := amf.NewUeContext()

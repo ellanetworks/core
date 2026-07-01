@@ -17,7 +17,7 @@ import (
 
 func TestHandleUEContextModificationFailure_UnknownRanUeNgapID(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 	ranUeNgapID := int64(1)
 	msg := decode.UEContextModificationFailure{

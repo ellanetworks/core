@@ -71,7 +71,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	sourceUe.ReleaseAction = amf.UeContextReleaseHandover
 
-	err := sourceUe.Radio().NGAPSender.SendUEContextReleaseCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, ngapType.CausePresentRadioNetwork, ngapType.CauseRadioNetworkPresentSuccessfulHandover)
+	err := sourceUe.SendUEContextReleaseCommand(ctx, ngapType.CausePresentRadioNetwork, ngapType.CauseRadioNetworkPresentSuccessfulHandover)
 	if err != nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("error sending ue context release command", zap.Error(err))
 		return

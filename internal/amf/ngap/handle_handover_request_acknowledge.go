@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/aper"
@@ -149,7 +150,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 			return
 		}
 
-		err := sourceUe.Radio().NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
+		err := sourceUe.SendHandoverPreparationFailure(ctx, *cause, nil)
 		if err != nil {
 			logger.WithTrace(ctx, targetUe.Log).Error("error sending handover preparation failure", zap.Error(err))
 		}
@@ -157,8 +158,13 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	err := sourceUe.Radio().NGAPSender.SendHandoverCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, sourceUe.HandOverType, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, msg.TargetToSourceTransparentContainer)
+	pkt, err := send.BuildHandoverCommand(sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, sourceUe.HandOverType, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, msg.TargetToSourceTransparentContainer)
 	if err != nil {
+		logger.WithTrace(ctx, targetUe.Log).Error("error building handover command", zap.Error(err))
+		return
+	}
+
+	if err := sourceUe.Radio().SendToRan(ctx, send.NGAPProcedureHandoverCommand, pkt); err != nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("error sending handover command to source UE", zap.Error(err))
 	}
 }

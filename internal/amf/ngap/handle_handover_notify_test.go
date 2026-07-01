@@ -19,7 +19,7 @@ func TestHandoverNotify_UnknownRanUeNgapID(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sender,
+		Conn:          sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -55,7 +55,7 @@ func TestHandoverNotify_NilUeContext(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sender,
+		Conn:          sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -77,7 +77,7 @@ func TestHandoverNotify_NoSourceUe(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sender,
+		Conn:          sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -106,7 +106,7 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sourceNGAPSender,
+		Conn:          sourceNGAPSender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	sourceRan.BindAMFForTest(amfInstance)
@@ -120,7 +120,7 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    targetNGAPSender,
+		Conn:          targetNGAPSender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	targetRan.BindAMFForTest(amfInstance)
@@ -180,7 +180,7 @@ func TestHandoverNotify_SmfUpdateFails_StillReleasesSource(t *testing.T) {
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sourceNGAPSender,
+		Conn:          sourceNGAPSender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	sourceRan.BindAMFForTest(amfInstance)
@@ -194,7 +194,7 @@ func TestHandoverNotify_SmfUpdateFails_StillReleasesSource(t *testing.T) {
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    targetNGAPSender,
+		Conn:          targetNGAPSender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 	targetRan.BindAMFForTest(amfInstance)

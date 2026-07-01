@@ -57,6 +57,7 @@ type SmfSbi interface {
 	UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRef string) error
 	UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
+	UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error
 	ReconcileSmContext(ctx context.Context, req *models.SessionReconcileRequest) error
 	GetSessionPolicy(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (*smf.Policy, error)
@@ -129,7 +130,7 @@ type AMF struct {
 	UEs                      map[etsi.SUPI]*UeContext
 	uesByGuti                map[etsi.GUTI]*UeContext // 5G-GUTI (current and in-flight old) -> UE, for O(1) inbound resolution
 	ranUEs                   map[int64]*RanUe         // UE-associated NGAP connections keyed by AMF-UE-NGAP-ID (globally unique); the owning radio is ranUe.radio
-	Radios                   map[*sctp.SCTPConn]*Radio
+	Radios                   map[NGAPWriter]*Radio
 	radiosByID               map[string]*Radio // radios that have claimed a Global RAN Node ID, for O(1) target resolution
 	RelativeCapacity         int64
 	Name                     string
@@ -289,9 +290,6 @@ func (amf *AMF) NewRadio(conn *sctp.SCTPConn) (*Radio, error) {
 
 	now := time.Now()
 	radio := Radio{
-		NGAPSender: &send.RealNGAPSender{
-			Conn: conn,
-		},
 		amf:           amf,
 		SupportedTAIs: make([]SupportedTAI, 0),
 		Conn:          conn,
@@ -386,7 +384,7 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID *ngapType.GlobalRANNodeID) *R
 		evicted.RemoveAllUeInRan(context.Background())
 
 		if evicted.Conn != nil {
-			_ = evicted.Conn.Close()
+			_ = evicted.Close()
 		}
 	}
 
@@ -449,8 +447,13 @@ func (amf *AMF) IndexRadioForTest(conn *sctp.SCTPConn, radio *Radio) {
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
 
-	radio.Conn = conn
-	amf.Radios[conn] = radio
+	radio.amf = amf
+
+	if radio.Conn == nil {
+		radio.Conn = conn
+	}
+
+	amf.Radios[radio.Conn] = radio
 
 	if key, ok := radioIDKey(radio.RanID); ok {
 		amf.radiosByID[key] = radio
@@ -496,7 +499,7 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 		UEs:                      make(map[etsi.SUPI]*UeContext),
 		uesByGuti:                make(map[etsi.GUTI]*UeContext),
 		ranUEs:                   make(map[int64]*RanUe),
-		Radios:                   make(map[*sctp.SCTPConn]*Radio),
+		Radios:                   make(map[NGAPWriter]*Radio),
 		radiosByID:               make(map[string]*Radio),
 		DBInstance:               db,
 		Ausf:                     ausf,
@@ -673,7 +676,7 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) e
 	for _, ran := range amf.Radios {
 		for _, item := range ran.SupportedTAIs {
 			if InTaiList(item.Tai, taiList) {
-				err := ran.NGAPSender.SendToRan(ctx, ngapBuf, send.NGAPProcedurePaging)
+				err := amf.SendToRan(ctx, ran, send.NGAPProcedurePaging, ngapBuf)
 				if err != nil {
 					ue.Log.Error("failed to send paging", zap.Error(err))
 					continue
@@ -695,7 +698,7 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) e
 			for _, ran := range amf.ListRadios() {
 				for _, item := range ran.SupportedTAIs {
 					if InTaiList(item.Tai, taiList) {
-						err := ran.NGAPSender.SendToRan(context.Background(), ngapBuf, send.NGAPProcedurePaging)
+						err := amf.SendToRan(context.Background(), ran, send.NGAPProcedurePaging, ngapBuf)
 						if err != nil {
 							ue.Log.Error("failed to send paging", zap.Error(err))
 							continue

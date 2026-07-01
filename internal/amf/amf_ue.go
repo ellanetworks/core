@@ -23,6 +23,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/ueauth"
+	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
@@ -99,8 +100,8 @@ type UeContext struct {
 	kgnb                 []uint8
 	nh                   [32]uint8 // AS key-chain Next Hop, 256 bits (TS 33.501)
 	ncc                  uint8
-	ulCount              security.Count
-	dlCount              security.Count
+	ulCount              nascommon.Count
+	dlCount              nascommon.Count
 	cipheringAlg         uint8
 	integrityAlg         uint8
 	kamf                 []uint8
@@ -197,8 +198,8 @@ func (ue *UeContext) resetSecurityContext() {
 	ue.kgnb = nil
 	ue.nh = [32]uint8{}
 	ue.ncc = 0
-	ue.ulCount = security.Count{}
-	ue.dlCount = security.Count{}
+	ue.ulCount = 0
+	ue.dlCount = 0
 	ue.cipheringAlg = 0
 	ue.integrityAlg = 0
 	ue.kamf = nil
@@ -508,7 +509,7 @@ func (ue *UeContext) DerivateAlgKey() error {
 // Access Network key Derivation function defined in TS 33.501
 func (ue *UeContext) DerivateAnKey() error {
 	P0 := make([]byte, 4)
-	binary.BigEndian.PutUint32(P0, ue.ulCount.Get())
+	binary.BigEndian.PutUint32(P0, ue.ulCount.Value())
 	L0 := ueauth.KDFLen(P0)
 	P1 := []byte{security.AccessType3GPP}
 	L1 := ueauth.KDFLen(P1)
@@ -754,8 +755,8 @@ func (ue *UeContext) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 	case nas.SecurityHeaderTypeIntegrityProtectedAndCiphered:
 		needCiphering = true
 	case nas.SecurityHeaderTypeIntegrityProtectedWithNew5gNasSecurityContext:
-		ue.ulCount.Set(0, 0)
-		ue.dlCount.Set(0, 0)
+		ue.ulCount = 0
+		ue.dlCount = 0
 	default:
 		return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeaderType)
 	}
@@ -766,14 +767,14 @@ func (ue *UeContext) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 	}
 
 	if needCiphering {
-		if err = security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.dlCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+		if err = security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.dlCount.Value(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 			return nil, fmt.Errorf("error encrypting: %+v", err)
 		}
 	}
 
 	payload = append([]byte{ue.dlCount.SQN()}, payload[:]...)
 
-	mac32, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, ue.dlCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload)
+	mac32, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, ue.dlCount.Value(), security.Bearer3GPP, security.DirectionDownlink, payload)
 	if err != nil {
 		return nil, fmt.Errorf("MAC calcuate error: %+v", err)
 	}
@@ -783,7 +784,7 @@ func (ue *UeContext) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 	msgSecurityHeader := []byte{msg.ProtocolDiscriminator, msg.SecurityHeaderType}
 	payload = append(msgSecurityHeader, payload[:]...)
 
-	ue.dlCount.AddOne()
+	ue.dlCount = ue.dlCount.Next()
 
 	return payload, nil
 }

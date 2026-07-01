@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
@@ -23,7 +24,9 @@ func handleDecodeReport(ctx context.Context, ran *amf.Radio, report *decode.Repo
 	if report.Fatal() {
 		cd := report.ToCriticalityDiagnostics()
 
-		if err := ran.NGAPSender.SendErrorIndication(ctx, nil, nil, nil, &cd); err != nil {
+		if pkt, err := send.BuildErrorIndication(nil, nil, nil, &cd); err != nil {
+			logger.WithTrace(ctx, ran.Log).Error("error building error indication", zap.Error(err))
+		} else if err := ran.SendToRan(ctx, send.NGAPProcedureErrorIndication, pkt); err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
 		}
 

@@ -27,7 +27,7 @@ func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) 
 
 	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
 
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 0 {
 		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}
@@ -38,7 +38,7 @@ func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) 
 // received AP IDs (TS 38.413).
 func TestHandleLocationReport_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	msg := decode.LocationReport{
@@ -81,7 +81,7 @@ func TestHandleLocationReport_UePresenceInAreaOfInterest_NilList(t *testing.T) {
 
 	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
 
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 0 {
 		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}
@@ -112,7 +112,7 @@ func TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled(t *test
 
 	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
 
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 0 {
 		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}
@@ -151,7 +151,7 @@ func TestHandleLocationReport_UePresence_NilAreaOfInterestList(t *testing.T) {
 
 	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
 
-	sender := ran.NGAPSender.(*fakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 0 {
 		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}

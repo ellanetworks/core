@@ -22,7 +22,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func buildNGSetupResponse(guami *models.Guami, snssaiList []models.Snssai, amfName string, amfRelativeCapacity int64) ([]byte, error) {
+func BuildNGSetupResponse(guami *models.Guami, snssaiList []models.Snssai, amfName string, amfRelativeCapacity int64) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
@@ -118,7 +118,7 @@ func buildNGSetupResponse(guami *models.Guami, snssaiList []models.Snssai, amfNa
 	return ngap.Encoder(pdu)
 }
 
-func buildNGSetupFailure(cause *ngapType.Cause) ([]byte, error) {
+func BuildNGSetupFailure(cause *ngapType.Cause) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentUnsuccessfulOutcome
@@ -145,7 +145,7 @@ func buildNGSetupFailure(cause *ngapType.Cause) ([]byte, error) {
 	return ngap.Encoder(pdu)
 }
 
-func buildNGResetAcknowledge(partOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList) ([]byte, error) {
+func BuildNGResetAcknowledge(partOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
@@ -198,7 +198,7 @@ func buildNGResetAcknowledge(partOfNGInterface *ngapType.UEAssociatedLogicalNGCo
 	return ngap.Encoder(pdu)
 }
 
-func buildErrorIndication(amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) ([]byte, error) {
+func BuildErrorIndication(amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
@@ -266,7 +266,7 @@ func buildErrorIndication(amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause
 	return ngap.Encoder(pdu)
 }
 
-func buildRanConfigurationUpdateAcknowledge(criticalityDiagnostics *ngapType.CriticalityDiagnostics) ([]byte, error) {
+func BuildRanConfigurationUpdateAcknowledge(criticalityDiagnostics *ngapType.CriticalityDiagnostics) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
@@ -296,7 +296,7 @@ func buildRanConfigurationUpdateAcknowledge(criticalityDiagnostics *ngapType.Cri
 	return ngap.Encoder(pdu)
 }
 
-func buildRanConfigurationUpdateFailure(
+func BuildRanConfigurationUpdateFailure(
 	cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
@@ -349,7 +349,7 @@ func buildRanConfigurationUpdateFailure(
 	return ngap.Encoder(pdu)
 }
 
-func buildDownlinkRanConfigurationTransfer(
+func BuildDownlinkRanConfigurationTransfer(
 	sONConfigurationTransfer *ngapType.SONConfigurationTransfer,
 ) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
@@ -382,7 +382,7 @@ func buildDownlinkRanConfigurationTransfer(
 	return ngap.Encoder(pdu)
 }
 
-func buildPathSwitchRequestFailure(
+func BuildPathSwitchRequestFailure(
 	amfUeNgapID,
 	ranUeNgapID int64,
 	pduSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListPSFail,
@@ -450,7 +450,7 @@ func buildPathSwitchRequestFailure(
 }
 
 // Notifies peer CP NFs that this AMF and its GUAMI(s) are unavailable (TS 23.501).
-func buildAMFStatusIndication(unavailableGUAMIList ngapType.UnavailableGUAMIList) ([]byte, error) {
+func BuildAMFStatusIndication(unavailableGUAMIList ngapType.UnavailableGUAMIList) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
@@ -480,7 +480,7 @@ func buildAMFStatusIndication(unavailableGUAMIList ngapType.UnavailableGUAMIList
 	return ngap.Encoder(pdu)
 }
 
-func buildPDUSessionResourceReleaseCommand(amfUENgapID int64, ranUENgapID int64, nasPdu []byte, pduSessionResourceReleasedList ngapType.PDUSessionResourceToReleaseListRelCmd) ([]byte, error) {
+func BuildPDUSessionResourceReleaseCommand(amfUENgapID int64, ranUENgapID int64, nasPdu []byte, pduSessionResourceReleasedList ngapType.PDUSessionResourceToReleaseListRelCmd) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
@@ -543,7 +543,7 @@ func buildPDUSessionResourceReleaseCommand(amfUENgapID int64, ranUENgapID int64,
 	return ngap.Encoder(pdu)
 }
 
-func buildUEContextReleaseCommand(amfUENGAPID int64, ranUENGAPID int64, causePresent int, cause aper.Enumerated) ([]byte, error) {
+func BuildUEContextReleaseCommand(amfUENGAPID int64, ranUENGAPID int64, causePresent int, cause aper.Enumerated) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
@@ -621,7 +621,7 @@ func buildUEContextReleaseCommand(amfUENGAPID int64, ranUENGAPID int64, causePre
 	return ngap.Encoder(pdu)
 }
 
-func buildDownlinkNasTransport(amfUENGAPID int64, ranUENGAPID int64, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) ([]byte, error) {
+func BuildDownlinkNasTransport(amfUENGAPID int64, ranUENGAPID int64, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
@@ -689,7 +689,7 @@ func buildDownlinkNasTransport(amfUENGAPID int64, ranUENGAPID int64, nasPdu []by
 	return ngap.Encoder(pdu)
 }
 
-func buildHandoverCancelAcknowledge(amfUENGAPID int64, ranUENGAPID int64) ([]byte, error) {
+func BuildHandoverCancelAcknowledge(amfUENGAPID int64, ranUENGAPID int64) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
@@ -731,7 +731,7 @@ func buildHandoverCancelAcknowledge(amfUENGAPID int64, ranUENGAPID int64) ([]byt
 	return ngap.Encoder(pdu)
 }
 
-func buildPDUSessionResourceModifyConfirm(
+func BuildPDUSessionResourceModifyConfirm(
 	amfUENGAPID int64,
 	ranUENGAPID int64,
 	pduSessionResourceModifyConfirmList ngapType.PDUSessionResourceModifyListModCfm,
@@ -776,13 +776,16 @@ func buildPDUSessionResourceModifyConfirm(
 
 	pDUSessionResourceModifyConfirmIEs.List = append(pDUSessionResourceModifyConfirmIEs.List, ie)
 
-	// PDU Session Resource Modify Confirm List
-	ie = ngapType.PDUSessionResourceModifyConfirmIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceModifyListModCfm
-	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-	ie.Value.Present = ngapType.PDUSessionResourceModifyConfirmIEsPresentPDUSessionResourceModifyListModCfm
-	ie.Value.PDUSessionResourceModifyListModCfm = &pduSessionResourceModifyConfirmList
-	pDUSessionResourceModifyConfirmIEs.List = append(pDUSessionResourceModifyConfirmIEs.List, ie)
+	// PDU Session Resource Modify Confirm List (optional; TS 38.413 sizes the
+	// list SEQUENCE(SIZE(1..maxnoof)), so an empty list is omitted).
+	if len(pduSessionResourceModifyConfirmList.List) > 0 {
+		ie = ngapType.PDUSessionResourceModifyConfirmIEs{}
+		ie.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceModifyListModCfm
+		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+		ie.Value.Present = ngapType.PDUSessionResourceModifyConfirmIEsPresentPDUSessionResourceModifyListModCfm
+		ie.Value.PDUSessionResourceModifyListModCfm = &pduSessionResourceModifyConfirmList
+		pDUSessionResourceModifyConfirmIEs.List = append(pDUSessionResourceModifyConfirmIEs.List, ie)
+	}
 
 	// PDU Session Resource Failed to Modify List
 	if len(pduSessionResourceFailedToModifyList.List) > 0 {
@@ -797,10 +800,10 @@ func buildPDUSessionResourceModifyConfirm(
 	return ngap.Encoder(pdu)
 }
 
-// buildPDUSessionResourceModifyRequest encodes a PDUSessionResourceModifyRequest
+// BuildPDUSessionResourceModifyRequest encodes a PDUSessionResourceModifyRequest
 // NGAP message (3GPP TS 38.413). This is the AMF→gNB message for
 // network-initiated PDU Session Modification (TS 23.502).
-func buildPDUSessionResourceModifyRequest(amfUENGAPID int64, ranUENGAPID int64, pduSessionResourceModifyList ngapType.PDUSessionResourceModifyListModReq) ([]byte, error) {
+func BuildPDUSessionResourceModifyRequest(amfUENGAPID int64, ranUENGAPID int64, pduSessionResourceModifyList ngapType.PDUSessionResourceModifyListModReq) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
@@ -845,7 +848,7 @@ func buildPDUSessionResourceModifyRequest(amfUENGAPID int64, ranUENGAPID int64, 
 	return ngap.Encoder(pdu)
 }
 
-func buildPDUSessionResourceSetupRequest(amfUENGAPID int64, ranUENGAPID int64, bitrateUplink string, bitrateDownlink string, nasPdu []byte, pduSessionResourceSetupRequestList ngapType.PDUSessionResourceSetupListSUReq) ([]byte, error) {
+func BuildPDUSessionResourceSetupRequest(amfUENGAPID int64, ranUENGAPID int64, bitrateUplink string, bitrateDownlink string, nasPdu []byte, pduSessionResourceSetupRequestList ngapType.PDUSessionResourceSetupListSUReq) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
@@ -923,7 +926,7 @@ func buildPDUSessionResourceSetupRequest(amfUENGAPID int64, ranUENGAPID int64, b
 	return ngap.Encoder(pdu)
 }
 
-func buildHandoverPreparationFailure(amfUENgapID int64, ranUENGAPID int64, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) ([]byte, error) {
+func BuildHandoverPreparationFailure(amfUENgapID int64, ranUENGAPID int64, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentUnsuccessfulOutcome
@@ -992,7 +995,7 @@ func buildHandoverPreparationFailure(amfUENgapID int64, ranUENGAPID int64, cause
 // SMF-requested NG-RAN location reporting (TS 23.502, TS 23.501). The Location
 // Reference ID To Be Cancelled IE is present only when the Event Type is "Stop UE presence in
 // the area of interest".
-func buildLocationReportingControl(
+func BuildLocationReportingControl(
 	amfueNgapID int64,
 	ranueNgapID int64,
 	eventType ngapType.EventType,
@@ -1062,7 +1065,7 @@ func buildLocationReportingControl(
 	return ngap.Encoder(pdu)
 }
 
-func buildHandoverCommand(
+func BuildHandoverCommand(
 	amfUENGAPID int64,
 	ranUENGAPID int64,
 	sourceUEhandoverType ngapType.HandoverType,
@@ -1161,7 +1164,7 @@ func buildHandoverCommand(
 	return ngap.Encoder(pdu)
 }
 
-func buildInitialContextSetupRequest(
+func BuildInitialContextSetupRequest(
 	amfUENgapID int64,
 	ranUENgapID int64,
 	bitrateUplink string,
@@ -1415,7 +1418,7 @@ func buildInitialContextSetupRequest(
 	return byteMsg, nil
 }
 
-func buildPathSwitchRequestAcknowledge(
+func BuildPathSwitchRequestAcknowledge(
 	amfUeNgapID int64,
 	ranUeNgapID int64,
 	ueSecurityCapability *nasType.UESecurityCapability,
@@ -1547,7 +1550,7 @@ func buildPathSwitchRequestAcknowledge(
 	return ngap.Encoder(pdu)
 }
 
-func buildHandoverRequest(
+func BuildHandoverRequest(
 	amfUeNgapID int64,
 	targetUEHandoverType ngapType.HandoverType,
 	ambrUplink string,
