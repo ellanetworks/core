@@ -695,12 +695,15 @@ func CollectUEPools(ctx context.Context, dbInstance *db.Database) []netip.Prefix
 	var pools []netip.Prefix
 
 	for _, dn := range dataNetworks {
-		prefix, err := netip.ParsePrefix(dn.IPv4Pool)
-		if err != nil {
-			continue
+		if prefix, err := netip.ParsePrefix(dn.IPv4Pool); err == nil {
+			pools = append(pools, prefix)
 		}
 
-		pools = append(pools, prefix)
+		if dn.IPv6Pool != "" {
+			if prefix, err := netip.ParsePrefix(dn.IPv6Pool); err == nil {
+				pools = append(pools, prefix)
+			}
+		}
 	}
 
 	return pools
