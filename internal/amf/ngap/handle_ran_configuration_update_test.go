@@ -150,6 +150,66 @@ func TestHandleRanConfigurationUpdate_NoMatchingTAC(t *testing.T) {
 		t.Fatalf("expected Misc cause, got present=%d", failure.Cause.Present)
 	}
 
+	// The gNB broadcasts a served PLMN but no served TAC; TS 38.413 has no
+	// dedicated cause for an unserved TAC, so the reject cause is Misc/unspecified
+	// (Unknown PLMN is reserved for when no PLMN matches).
+	if failure.Cause.Misc == nil || failure.Cause.Misc.Value != ngapType.CauseMiscPresentUnspecified {
+		t.Fatalf("expected Misc/Unspecified cause, got %+v", failure.Cause.Misc)
+	}
+}
+
+// TestHandleRanConfigurationUpdate_NoMatchingPLMN rejects with Misc/Unknown PLMN
+// when no PLMN the gNB broadcasts is served by the AMF (TS 38.413 §8.7.1.4).
+func TestHandleRanConfigurationUpdate_NoMatchingPLMN(t *testing.T) {
+	ran := newTestRadio(newTestAMF())
+	sender := ran.Conn.(*fakeNGAPSender)
+
+	amfInstance := newTestAMFWithSmfAndDB(&fakeSmfSbi{})
+	amfInstance.DBInstance = &fakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: `["000064"]`,
+		},
+	}
+
+	otherPLMN, err := getMccAndMncInOctets("999", "99")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sst, _, err := getSliceInBytes(1, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	msg := decode.RANConfigurationUpdate{
+		SupportedTAItems: []ngapType.SupportedTAItem{
+			{
+				TAC: ngapType.TAC{Value: []byte{0x00, 0x00, 0x64}},
+				BroadcastPLMNList: ngapType.BroadcastPLMNList{
+					List: []ngapType.BroadcastPLMNItem{
+						{
+							PLMNIdentity: ngapType.PLMNIdentity{Value: otherPLMN},
+							TAISliceSupportList: ngapType.SliceSupportList{
+								List: []ngapType.SliceSupportItem{
+									{SNSSAI: ngapType.SNSSAI{SST: ngapType.SST{Value: sst}}},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ngap.HandleRanConfigurationUpdate(context.Background(), amfInstance, ran, msg)
+
+	if len(sender.SentRanConfigurationUpdateFailures) != 1 {
+		t.Fatalf("expected 1 failure, got %d", len(sender.SentRanConfigurationUpdateFailures))
+	}
+
+	failure := sender.SentRanConfigurationUpdateFailures[0]
 	if failure.Cause.Misc == nil || failure.Cause.Misc.Value != ngapType.CauseMiscPresentUnknownPLMN {
 		t.Fatalf("expected Misc/UnknownPLMN cause, got %+v", failure.Cause.Misc)
 	}
