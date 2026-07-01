@@ -17,14 +17,14 @@ import (
 )
 
 func TestUplinkRanConfigurationTransfer_NilSONConfiguration(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
 
 	ngap.HandleUplinkRanConfigurationTransfer(context.Background(), amfInstance, ran, decode.UplinkRANConfigurationTransfer{})
 }
 
 func TestUplinkRanConfigurationTransfer_TargetRanNotFound(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
 
 	msg := decode.UplinkRANConfigurationTransfer{
@@ -51,9 +51,9 @@ func TestUplinkRanConfigurationTransfer_TargetRanNotFound(t *testing.T) {
 }
 
 func TestUplinkRanConfigurationTransfer_ForwardsToTargetRan(t *testing.T) {
-	sourceRan := newTestRadio()
+	sourceRan := newTestRadio(newTestAMF())
 
-	targetSender := &FakeNGAPSender{}
+	targetSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
 		RanPresent: amf.RanPresentGNbID,
 		RanID: &models.GlobalRanNodeID{
@@ -63,11 +63,10 @@ func TestUplinkRanConfigurationTransfer_ForwardsToTargetRan(t *testing.T) {
 			},
 		},
 		NGAPSender: targetSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
 		Log:        sourceRan.Log,
 	}
 
-	amfInstance := newTestAMFWithSmf(&FakeSmfSbi{})
+	amfInstance := newTestAMFWithSmf(&fakeSmfSbi{})
 	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
 
 	sonTransfer := &ngapType.SONConfigurationTransfer{

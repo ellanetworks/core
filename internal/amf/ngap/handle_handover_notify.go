@@ -30,7 +30,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return
 	}
 
-	sourceUe := amfUe.HandoverSource()
+	sourceUe := amfInstance.HandoverSource(amfUe)
 	if sourceUe == nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("N2 Handover between AMF has not been implemented yet")
 		return
@@ -39,7 +39,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	// Advance the FSM hoPrepared→hoCommitting; an out-of-order Handover Notify (no
 	// prepared handover) does not match and is dropped before the user plane is
 	// switched.
-	if !amfUe.MarkHandoverCommitting() {
+	if !amfInstance.MarkHandoverCommitting(amfUe) {
 		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Notify with no prepared handover; dropping")
 		return
 	}
@@ -50,7 +50,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		conn.Procedures.End(procedure.N2Handover)
 	}
 
-	amfUe.ClearHandover()
+	amfInstance.ClearHandover(amfUe)
 
 	// Per 3GPP TS 23.502, the SMF sends N4 Session
 	// Modification to the UPF with the new AN tunnel info at this point.

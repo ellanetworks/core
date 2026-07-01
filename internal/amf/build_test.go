@@ -60,7 +60,7 @@ func decryptNAS(t *testing.T, ue *amf.UeContext, raw []byte) *nas.Message {
 func TestBuildConfigurationUpdateCommand_WithoutGUTI(t *testing.T) {
 	ue := buildTestUE(t)
 
-	raw, err := amf.BuildConfigurationUpdateCommand(ue, "ELLACORE5G", "ELLACORE", false)
+	raw, err := amf.BuildConfigurationUpdateCommand(amf.New(nil, nil, nil), ue, "ELLACORE5G", "ELLACORE", false)
 	if err != nil {
 		t.Fatalf("BuildConfigurationUpdateCommand failed: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestBuildConfigurationUpdateCommand_WithGUTI(t *testing.T) {
 
 	ue.SetGutiForTest(guti)
 
-	raw, err := amf.BuildConfigurationUpdateCommand(ue, "ELLACORE5G", "ELLACORE", true)
+	raw, err := amf.BuildConfigurationUpdateCommand(amf.New(nil, nil, nil), ue, "ELLACORE5G", "ELLACORE", true)
 	if err != nil {
 		t.Fatalf("BuildConfigurationUpdateCommand failed: %v", err)
 	}
@@ -129,7 +129,7 @@ func TestBuildConfigurationUpdateCommand_WithGUTI_InvalidGUTI_Error(t *testing.T
 	ue := buildTestUE(t)
 	ue.SetGutiForTest(etsi.InvalidGUTI)
 
-	_, err := amf.BuildConfigurationUpdateCommand(ue, "ELLACORE5G", "ELLACORE", true)
+	_, err := amf.BuildConfigurationUpdateCommand(amf.New(nil, nil, nil), ue, "ELLACORE5G", "ELLACORE", true)
 	if err == nil {
 		t.Fatal("expected error when includeGUTI is true but GUTI is invalid")
 	}

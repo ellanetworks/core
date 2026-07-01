@@ -67,14 +67,14 @@ func TestHandleServiceRequest_WrongStateError(t *testing.T) {
 
 func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -124,14 +124,14 @@ func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T)
 
 func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -187,14 +187,14 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 
 func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -263,14 +263,14 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 
 func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -327,14 +327,14 @@ func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
 
 func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -398,14 +398,14 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 
 func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -485,14 +485,14 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 
 func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -572,14 +572,14 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -587,7 +587,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
 		},
-		&FakeSmf{},
+		&fakeSmf{},
 	)
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -676,14 +676,14 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession_Error(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -744,14 +744,14 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUSession_ServiceAccept(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -759,7 +759,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
 		},
-		&FakeSmf{},
+		&fakeSmf{},
 	)
 	amfInstance.T3555Cfg = amf.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
 
@@ -887,14 +887,14 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPDUSession_ServiceAccept_UplinkPDUError(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -902,7 +902,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
 		},
-		&FakeSmf{Error: fmt.Errorf("error activating PDU session")},
+		&fakeSmf{Error: fmt.Errorf("error activating PDU session")},
 	)
 	amfInstance.T3555Cfg = amf.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
 
@@ -1034,14 +1034,14 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPDUSession_ServiceAccept_UplinkPDUSuccess(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -1049,7 +1049,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
 		},
-		&FakeSmf{Error: nil},
+		&fakeSmf{Error: nil},
 	)
 	amfInstance.T3555Cfg = amf.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
 
@@ -1189,14 +1189,14 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_ExistingPDUSession_ServiceAccept_UplinkPDUSuccess(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -1204,7 +1204,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
 		},
-		&FakeSmf{Error: nil},
+		&fakeSmf{Error: nil},
 	)
 	amfInstance.T3555Cfg = amf.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
 
@@ -1333,14 +1333,14 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_ServiceAccept(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -1348,7 +1348,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
 		},
-		&FakeSmf{Error: nil},
+		&fakeSmf{Error: nil},
 	)
 	amfInstance.T3555Cfg = amf.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
 
@@ -1524,14 +1524,14 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 // This is a regression test for an index-out-of-range crash (DoS vulnerability).
 func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -1539,7 +1539,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
 		},
-		&FakeSmf{},
+		&fakeSmf{},
 	)
 
 	ue, _, err := buildUeAndRadio()
@@ -1588,14 +1588,14 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 // a PDU session ID >= 16 (outside the [16]bool PSI array bounds).
 func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -1603,7 +1603,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
 		},
-		&FakeSmf{},
+		&fakeSmf{},
 	)
 
 	ue, _, err := buildUeAndRadio()

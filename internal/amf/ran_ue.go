@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -284,10 +285,33 @@ func (ranUe *RanUe) SendHandoverRequest(
 // Remove tears down the RAN UE: it releases the NAS signalling connection
 // to the bound AMF UE (with the given cause), removes the RAN UE from the
 // radio's UE table, and frees its NGAP ID.
+// abortHandoverIfPreparedTarget ends an in-flight N2 handover when this RanUe is
+// its prepared target and the target is being removed (the target gNB association
+// was reset or lost). The procedure is ended on the source — which stops the
+// supervision guard — and the FSM cleared at once, rather than leaving a stale
+// handover until the guard deadline. The source is left in place (its own handover
+// timers abort it on the radio), mirroring the MME's ReclaimConns.
+func (ranUe *RanUe) abortHandoverIfPreparedTarget(ctx context.Context) {
+	ue := ranUe.amfUe
+	if ue == nil || ranUe.radio.amf.HandoverTarget(ue) != ranUe {
+		return
+	}
+
+	if conn := ue.NasConn(); conn != nil {
+		conn.Procedures.End(procedure.N2Handover)
+	}
+
+	ranUe.radio.amf.ClearHandover(ue)
+
+	logger.WithTrace(ctx, ranUe.Log).Info("aborted in-flight N2 handover: target association removed")
+}
+
 func (ranUe *RanUe) Remove(ctx context.Context) error {
 	if ranUe == nil {
 		return fmt.Errorf("ran ue is nil")
 	}
+
+	ranUe.abortHandoverIfPreparedTarget(ctx)
 
 	if ranUe.amfUe != nil {
 		ranUe.amfUe.ReleaseNasConnection(ranUe)
@@ -298,9 +322,9 @@ func (ranUe *RanUe) Remove(ctx context.Context) error {
 		return fmt.Errorf("ran not found in ranUe")
 	}
 
-	ran.mu.Lock()
-	delete(ran.RanUEs, ranUe.AmfUeNgapID)
-	ran.mu.Unlock()
+	ran.amf.mu.Lock()
+	delete(ran.amf.ranUEs, ranUe.AmfUeNgapID)
+	ran.amf.mu.Unlock()
 
 	if ranUe.freeNgapID != nil {
 		ranUe.freeNgapID(ranUe.AmfUeNgapID)
@@ -323,19 +347,13 @@ func (ranUe *RanUe) SwitchToRan(newRan *Radio, ranUeNgapID int64) error {
 		return fmt.Errorf("new ran is nil")
 	}
 
-	oldRan := ranUe.radio
-
-	// move ranUe from oldRan to newRan (keyed by the unchanged AMF UE NGAP ID)
-	oldRan.mu.Lock()
-	delete(oldRan.RanUEs, ranUe.AmfUeNgapID)
-	oldRan.mu.Unlock()
-
-	newRan.mu.Lock()
-	newRan.RanUEs[ranUe.AmfUeNgapID] = ranUe
-	newRan.mu.Unlock()
-
+	// The global ranUEs index is keyed by the unchanged AMF UE NGAP ID, so the
+	// switch only re-points the UE at its new radio and RAN UE NGAP ID.
+	newRan.amf.mu.Lock()
 	ranUe.radio = newRan
 	ranUe.RanUeNgapID = ranUeNgapID
+	newRan.amf.mu.Unlock()
+
 	ranUe.Log = newRan.Log.With(logger.AmfUeNgapID(ranUe.AmfUeNgapID))
 
 	ranUe.Log.Info("ran ue switched to new Ran", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
@@ -472,9 +490,15 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, amf *AMF, userLocationIn
 	}
 }
 
-// NewRanUeForTest creates a RanUe and registers it in radio.RanUEs.
-// It is intended for use in external test packages only.
+// NewRanUeForTest creates a RanUe and registers it in the AMF's ranUEs index.
+// It is intended for use in external test packages only. If the radio is not yet
+// bound to an AMF, a throwaway one is created so a handler invoked with this same
+// radio resolves the UE; tests that share a specific AMF must BindAMFForTest first.
 func NewRanUeForTest(radio *Radio, ranUeNgapID, amfUeNgapID int64, log *zap.Logger) *RanUe {
+	if radio.amf == nil {
+		radio.amf = New(nil, nil, nil)
+	}
+
 	ranUe := &RanUe{
 		RanUeNgapID: ranUeNgapID,
 		AmfUeNgapID: amfUeNgapID,
@@ -482,9 +506,9 @@ func NewRanUeForTest(radio *Radio, ranUeNgapID, amfUeNgapID int64, log *zap.Logg
 		Log:         log,
 	}
 
-	radio.mu.Lock()
-	radio.RanUEs[amfUeNgapID] = ranUe
-	radio.mu.Unlock()
+	radio.amf.mu.Lock()
+	radio.amf.ranUEs[amfUeNgapID] = ranUe
+	radio.amf.mu.Unlock()
 
 	return ranUe
 }

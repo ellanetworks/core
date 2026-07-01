@@ -48,8 +48,8 @@ func TestHandleNotificationResponse_MacFailed(t *testing.T) {
 }
 
 func TestHandleNotificationResponse_T3565Stopped_NoPDUSessionStatus_NoSmContextReleased(t *testing.T) {
-	smf := FakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
-	amfInstance := amf.New(&FakeDBInstance{
+	smf := fakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -82,8 +82,8 @@ func TestHandleNotificationResponse_T3565Stopped_NoPDUSessionStatus_NoSmContextR
 }
 
 func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextReleased(t *testing.T) {
-	smf := FakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
-	amfInstance := amf.New(&FakeDBInstance{
+	smf := fakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",

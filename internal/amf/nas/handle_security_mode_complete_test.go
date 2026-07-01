@@ -70,14 +70,14 @@ func TestHandleSecurityMode_MacFailed(t *testing.T) {
 
 func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"1\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -114,14 +114,14 @@ func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
 
 func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"1\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -163,14 +163,14 @@ func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
 
 func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"1\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -212,14 +212,14 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 
 func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"1\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -227,7 +227,7 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
 		},
-		&FakeSmf{},
+		&fakeSmf{},
 	)
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -281,14 +281,14 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 
 func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"1\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),

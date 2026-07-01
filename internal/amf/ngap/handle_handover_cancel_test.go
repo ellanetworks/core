@@ -19,8 +19,9 @@ import (
 // gracefully — no panic, and an ErrorIndication is sent.
 // Regression test.
 func TestHandleHandoverCancel_UnknownRanUeNgapID(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+	sender := ran.NGAPSender.(*fakeNGAPSender)
 
 	msg := decode.HandoverCancel{
 		AMFUENGAPID: 1099511627776,
@@ -31,7 +32,7 @@ func TestHandleHandoverCancel_UnknownRanUeNgapID(t *testing.T) {
 		},
 	}
 
-	ngap.HandleHandoverCancel(context.Background(), ran, msg)
+	ngap.HandleHandoverCancel(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
@@ -52,11 +53,12 @@ func TestHandleHandoverCancel_UnknownRanUeNgapID(t *testing.T) {
 // ID (TS 38.413): an Error Indication carrying the received AP IDs is sent,
 // with no acknowledge to the source and no release toward the target.
 func TestHandleHandoverCancel_UnknownAmfUeNgapID(t *testing.T) {
-	sourceRan := newTestRadio()
-	sourceSender := sourceRan.NGAPSender.(*FakeNGAPSender)
+	amfInstance := newTestAMF()
+	sourceRan := newTestRadio(amfInstance)
+	sourceSender := sourceRan.NGAPSender.(*fakeNGAPSender)
 
-	targetRan := newTestRadio()
-	targetSender := targetRan.NGAPSender.(*FakeNGAPSender)
+	targetRan := newTestRadio(amfInstance)
+	targetSender := targetRan.NGAPSender.(*fakeNGAPSender)
 
 	amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
 
@@ -69,7 +71,7 @@ func TestHandleHandoverCancel_UnknownAmfUeNgapID(t *testing.T) {
 		},
 	}
 
-	ngap.HandleHandoverCancel(context.Background(), sourceRan, msg)
+	ngap.HandleHandoverCancel(context.Background(), amfInstance, sourceRan, msg)
 
 	errInd := assertSingleErrorIndication(t, sourceSender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
 	assertErrorIndicationEchoesIDs(t, errInd, 999, 1)
@@ -84,11 +86,12 @@ func TestHandleHandoverCancel_UnknownAmfUeNgapID(t *testing.T) {
 }
 
 func TestHandleHandoverCancel_HappyPath(t *testing.T) {
-	sourceRan := newTestRadio()
-	sourceSender := sourceRan.NGAPSender.(*FakeNGAPSender)
+	amfInstance := newTestAMF()
+	sourceRan := newTestRadio(amfInstance)
+	sourceSender := sourceRan.NGAPSender.(*fakeNGAPSender)
 
-	targetRan := newTestRadio()
-	targetSender := targetRan.NGAPSender.(*FakeNGAPSender)
+	targetRan := newTestRadio(amfInstance)
+	targetSender := targetRan.NGAPSender.(*fakeNGAPSender)
 
 	sourceUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
 	targetUe := amf.NewRanUeForTest(targetRan, 2, 20, logger.AmfLog)
@@ -110,7 +113,7 @@ func TestHandleHandoverCancel_HappyPath(t *testing.T) {
 		},
 	}
 
-	ngap.HandleHandoverCancel(context.Background(), sourceRan, msg)
+	ngap.HandleHandoverCancel(context.Background(), amfInstance, sourceRan, msg)
 
 	if len(targetSender.SentUEContextReleaseCommands) != 1 {
 		t.Fatalf("expected 1 UEContextReleaseCommand on target, got %d", len(targetSender.SentUEContextReleaseCommands))

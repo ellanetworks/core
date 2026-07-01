@@ -176,7 +176,7 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 				return
 			}
 
-			HandleHandoverCancel(ctx, ran, decoded)
+			HandleHandoverCancel(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeUEContextReleaseRequest:
 			decoded, report := decode.DecodeUEContextReleaseRequest(pdu.InitiatingMessage.Value.UEContextReleaseRequest)
 			if !handleDecodeReport(ctx, ran, report) {

@@ -135,7 +135,8 @@ func TestRadioNodeID(t *testing.T) {
 // their distinct AMF UE NGAP IDs and must coexist, then each becomes reachable
 // by its assigned RAN UE NGAP ID.
 func TestRadioConcurrentHandoverTargetsCoexist(t *testing.T) {
-	radio := &amf.Radio{Log: logger.AmfLog, RanUEs: make(map[int64]*amf.RanUe)}
+	radio := &amf.Radio{Log: logger.AmfLog}
+	radio.BindAMFForTest(amf.New(nil, nil, nil))
 
 	target1 := amf.NewRanUeForTest(radio, models.RanUeNgapIDUnspecified, 500, logger.AmfLog)
 	target2 := amf.NewRanUeForTest(radio, models.RanUeNgapIDUnspecified, 501, logger.AmfLog)

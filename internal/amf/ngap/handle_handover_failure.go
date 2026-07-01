@@ -42,7 +42,18 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 
 	amfUe := targetUe.UeContext()
 
-	sourceUe := amfUe.HandoverSource()
+	// Only the prepared target may fail the handover. A HANDOVER FAILURE arriving on
+	// any other association holding this AMF UE NGAP ID must not tear down the
+	// in-flight handover (TS 38.413 §8.4.2: the procedure is between the AMF and the
+	// target NG-RAN node).
+	if amfUe == nil || amfInstance.HandoverTarget(amfUe) != targetUe {
+		logger.WithTrace(ctx, ran.Log).Warn("ignoring Handover Failure not from the prepared handover target",
+			zap.Int64("AmfUeNgapID", msg.AMFUENGAPID))
+
+		return
+	}
+
+	sourceUe := amfInstance.HandoverSource(amfUe)
 	if sourceUe == nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("N2 Handover between AMF has not been implemented yet")
 	} else {
@@ -50,7 +61,7 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 			conn.Procedures.End(procedure.N2Handover)
 		}
 
-		amfUe.ClearHandover()
+		amfInstance.ClearHandover(amfUe)
 
 		failureCause := ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,

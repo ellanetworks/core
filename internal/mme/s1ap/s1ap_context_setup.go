@@ -56,43 +56,56 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, conn mme
 		return
 	}
 
-	erab := msg.ERABSetup[0]
+	// A UE re-established from ECM-IDLE (or one holding multiple PDN connections) sets
+	// up every active bearer in one Initial Context Setup, so record the eNB S1-U
+	// F-TEID for each E-RAB the eNB confirmed, not only the first (TS 36.413). A bad or
+	// unknown E-RAB is skipped, not fatal to the rest.
+	setup := 0
 
-	enbAddr, ok := enbTransportAddress(erab.TransportLayerAddress)
-	if !ok {
-		logger.MmeLog.Warn("Initial Context Setup Response with an invalid eNB transport address",
-			zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)))
+	for _, erab := range msg.ERABSetup {
+		enbAddr, ok := enbTransportAddress(erab.TransportLayerAddress)
+		if !ok {
+			logger.MmeLog.Warn("Initial Context Setup Response with an invalid eNB transport address",
+				zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)), zap.Int("erab-id", int(erab.ERABID)))
 
-		return
+			continue
+		}
+
+		p := m.LookupPDN(ue, uint8(erab.ERABID))
+		if p == nil {
+			logger.MmeLog.Warn("Initial Context Setup Response for an unknown E-RAB",
+				zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)), zap.Int("erab-id", int(erab.ERABID)))
+
+			continue
+		}
+
+		p.EnbFTEID = models.FTEID{TEID: uint32(erab.GTPTEID), Addr: enbAddr}
+
+		if err := m.Session.ModifyEPSSession(ctx, ue.IMSI(), p.Ebi, p.EnbFTEID); err != nil {
+			logger.MmeLog.Error("failed to set the eNB F-TEID on the EPS session",
+				zap.String("imsi", ue.IMSI()), zap.Int("erab-id", int(erab.ERABID)), zap.Error(err))
+
+			continue
+		}
+
+		setup++
+
+		logger.MmeLog.Info("Initial Context Setup Response",
+			zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)),
+			zap.Int("erab-id", int(erab.ERABID)),
+			zap.String("enb-s1u", p.EnbFTEID.Addr.String()),
+		)
 	}
 
-	p := m.LookupPDN(ue, uint8(erab.ERABID))
-	if p == nil {
-		logger.MmeLog.Warn("Initial Context Setup Response for an unknown E-RAB",
-			zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)), zap.Int("erab-id", int(erab.ERABID)))
-
+	if setup == 0 {
 		return
 	}
-
-	p.EnbFTEID = models.FTEID{TEID: uint32(erab.GTPTEID), Addr: enbAddr}
 
 	if ue.S1 != nil {
 		ue.S1.BearersUp = true
 	}
 
-	if err := m.Session.ModifyEPSSession(ctx, ue.IMSI(), p.Ebi, p.EnbFTEID); err != nil {
-		logger.MmeLog.Error("failed to set the eNB F-TEID on the EPS session",
-			zap.String("imsi", ue.IMSI()), zap.Error(err))
-
-		return
-	}
-
-	logger.MmeLog.Info("Initial Context Setup Response",
-		zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)),
-		zap.String("enb-s1u", p.EnbFTEID.Addr.String()),
-	)
-
-	// With the radio bearer up, a pending data-network change for a UE re-established
+	// With the radio bearer(s) up, a pending data-network change for a UE re-established
 	// from ECM-IDLE is now deliverable; during attach the UE is not yet
 	// EMM-REGISTERED, so ReconcileUE returns early.
 	m.ReconcileUE(ctx, ue)

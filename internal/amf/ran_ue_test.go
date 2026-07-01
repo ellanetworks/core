@@ -14,10 +14,12 @@ import (
 )
 
 func newTestRadioForRanUe() *amf.Radio {
-	return &amf.Radio{
-		Log:    logger.AmfLog,
-		RanUEs: make(map[int64]*amf.RanUe),
+	ran := &amf.Radio{
+		Log: logger.AmfLog,
 	}
+	ran.BindAMFForTest(amf.New(nil, nil, nil))
+
+	return ran
 }
 
 func newBoundUeContext(t *testing.T, radio *amf.Radio) (*amf.UeContext, *amf.RanUe) {
@@ -216,7 +218,7 @@ func TestRemoveAllUeInRan_NoUeContext(t *testing.T) {
 
 	radio.RemoveAllUeInRan(context.Background())
 
-	if len(radio.RanUEs) != 0 {
-		t.Errorf("RanUEs count = %d, want 0", len(radio.RanUEs))
+	if radio.NumUEsForTest() != 0 {
+		t.Errorf("RanUEs count = %d, want 0", radio.NumUEsForTest())
 	}
 }

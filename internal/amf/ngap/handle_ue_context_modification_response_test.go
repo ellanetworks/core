@@ -15,8 +15,8 @@ import (
 )
 
 func TestHandleUEContextModificationResponse_UnknownRanUeNgapID(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	ran := newTestRadio(newTestAMF())
+	sender := ran.NGAPSender.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	ranID := int64(1)
@@ -32,7 +32,7 @@ func TestHandleUEContextModificationResponse_UnknownRanUeNgapID(t *testing.T) {
 }
 
 func TestHandleUEContextModificationResponse_UEFound(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
 	amfInstance.Radios[new(sctp.SCTPConn)] = ran
 

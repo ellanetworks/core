@@ -17,6 +17,53 @@ import (
 // let external test packages (amf_test, ngap_test) construct and inspect a UE in
 // a given security state without exporting the fields themselves.
 
+// BindAMFForTest wires a test-constructed Radio to an AMF so the UEs registered on
+// it (via NewRanUeForTest / the handlers) live in the AMF's ranUEs index. Any UEs
+// already registered on this radio (e.g. via NewRanUeForTest before the AMF was
+// known) migrate to a, so binding order does not matter in tests.
+func (r *Radio) BindAMFForTest(a *AMF) {
+	old := r.amf
+	r.amf = a
+
+	if old == nil || old == a {
+		return
+	}
+
+	old.mu.Lock()
+	moved := make(map[int64]*RanUe)
+
+	for id, ranUe := range old.ranUEs {
+		if ranUe.radio == r {
+			moved[id] = ranUe
+			delete(old.ranUEs, id)
+		}
+	}
+
+	old.mu.Unlock()
+
+	a.mu.Lock()
+	for id, ranUe := range moved {
+		a.ranUEs[id] = ranUe
+	}
+	a.mu.Unlock()
+}
+
+// NumUEsForTest counts the UE-associated NGAP connections currently on this radio.
+func (r *Radio) NumUEsForTest() int {
+	r.amf.mu.RLock()
+	defer r.amf.mu.RUnlock()
+
+	n := 0
+
+	for _, ranUe := range r.amf.ranUEs {
+		if ranUe.radio == r {
+			n++
+		}
+	}
+
+	return n
+}
+
 // SetHandoverGuardTimeoutForTest overrides the N2 handover supervision timeout so
 // tests can drive the guard quickly.
 func (a *AMF) SetHandoverGuardTimeoutForTest(d time.Duration) { a.handoverGuardTimeout = d }
@@ -26,6 +73,18 @@ func (ue *UeContext) SupiForTest() etsi.SUPI     { return ue.supi }
 
 func (ue *UeContext) SetGutiForTest(g etsi.GUTI) { ue.guti = g }
 func (ue *UeContext) GutiForTest() etsi.GUTI     { return ue.guti }
+
+// AssignGutiForTest assigns guti to ue and indexes it for resolution, as
+// ReAllocateGuti does in production.
+func (a *AMF) AssignGutiForTest(ue *UeContext, guti etsi.GUTI) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	ue.guti = guti
+	if guti != etsi.InvalidGUTI {
+		a.uesByGuti[guti] = ue
+	}
+}
 
 func (ue *UeContext) SetSecuredForTest(b bool) { ue.secured = b }
 func (ue *UeContext) SecuredForTest() bool     { return ue.secured }

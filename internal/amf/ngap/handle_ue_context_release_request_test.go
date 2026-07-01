@@ -15,9 +15,9 @@ import (
 )
 
 func TestHandleUEContextReleaseRequest_UnknownUENGAPIDs(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	sender := ran.NGAPSender.(*fakeNGAPSender)
 
 	msg := decode.UEContextReleaseRequest{
 		AMFUENGAPID: 999999,
@@ -49,8 +49,8 @@ func TestHandleUEContextReleaseRequest_UnknownUENGAPIDs(t *testing.T) {
 }
 
 func TestHandleUEContextReleaseRequest_UEFoundRegistered(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	ran := newTestRadio(newTestAMF())
+	sender := ran.NGAPSender.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	amfUe := amf.NewUeContext()

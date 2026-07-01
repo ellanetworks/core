@@ -18,7 +18,7 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 )
 
-func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integrityVerified bool) error {
+func updateUEIdentity(amfInstance *amf.AMF, ue *amf.UeContext, mobileIdentityContents []uint8, integrityVerified bool) error {
 	if ue == nil {
 		return fmt.Errorf("amf.UeContext is nil")
 	}
@@ -43,7 +43,7 @@ func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integri
 			return fmt.Errorf("UE sent invalid GUTI: %v", err)
 		}
 
-		if guti != ue.Guti() && guti != ue.OldGuti {
+		if guti != amfInstance.Guti(ue) && guti != amfInstance.OldGuti(ue) {
 			return fmt.Errorf("UE sent unknown GUTI")
 		}
 	case nasMessage.MobileIdentity5GSType5gSTmsi:
@@ -94,7 +94,7 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 	case amf.Authentication:
 		mobileIdentityContents := msg.GetMobileIdentityContents()
 
-		if err := updateUEIdentity(ue, mobileIdentityContents, integrityVerified); err != nil {
+		if err := updateUEIdentity(amfInstance, ue, mobileIdentityContents, integrityVerified); err != nil {
 			return fmt.Errorf("error handling identity response: %v", err)
 		}
 
@@ -113,7 +113,7 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 	case amf.ContextSetup:
 		mobileIdentityContents := msg.GetMobileIdentityContents()
 
-		if err := updateUEIdentity(ue, mobileIdentityContents, integrityVerified); err != nil {
+		if err := updateUEIdentity(amfInstance, ue, mobileIdentityContents, integrityVerified); err != nil {
 			return fmt.Errorf("error handling identity response: %v", err)
 		}
 

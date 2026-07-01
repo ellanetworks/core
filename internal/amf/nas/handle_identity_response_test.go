@@ -240,7 +240,7 @@ func TestUpdateUeIdentity(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			integrityVerified := !strings.Contains(tc.name, "MacFailed")
-			err := updateUEIdentity(tc.ue, tc.mi, integrityVerified)
+			err := updateUEIdentity(amf.New(nil, nil, nil), tc.ue, tc.mi, integrityVerified)
 
 			if tc.expected_err == nil && err != nil {
 				t.Fatalf("expected error to be nil, got %v", err)
@@ -274,13 +274,13 @@ func TestHandleIdentityResponse_InvalidStateError(t *testing.T) {
 }
 
 func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *testing.T) {
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
 			SupportedTACs: "[\"000001\"]",
 		},
-	}, &FakeAusf{
+	}, &fakeAusf{
 		AvKgAka: &ausf.AuthResult{
 			Rand: hex.EncodeToString(make([]byte, 16)),
 			Autn: hex.EncodeToString(make([]byte, 16)),
@@ -328,13 +328,13 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 }
 
 func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *testing.T) {
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
 			SupportedTACs: "[\"000001\"]",
 		},
-	}, &FakeAusf{
+	}, &fakeAusf{
 		AvKgAka: &ausf.AuthResult{
 			Rand: hex.EncodeToString(make([]byte, 16)),
 			Autn: hex.EncodeToString(make([]byte, 16)),
@@ -372,13 +372,13 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 
 func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *testing.T) {
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
 			SupportedTACs: "[\"000001\"]",
 		},
-	}, &FakeAusf{
+	}, &fakeAusf{
 		AvKgAka: &ausf.AuthResult{
 			Rand: hex.EncodeToString(make([]byte, 16)),
 			Autn: hex.EncodeToString(make([]byte, 16)),
@@ -466,13 +466,13 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {
 			supi := mustSUPIFromPrefixed("imsi-001019756139935")
-			amfInstance := amf.New(&FakeDBInstance{
+			amfInstance := amf.New(&fakeDBInstance{
 				Operator: &db.Operator{
 					Mcc:           "001",
 					Mnc:           "01",
 					SupportedTACs: "[\"000001\"]",
 				},
-			}, &FakeAusf{
+			}, &fakeAusf{
 				AvKgAka: &ausf.AuthResult{
 					Rand: hex.EncodeToString(make([]byte, 16)),
 					Autn: hex.EncodeToString(make([]byte, 16)),
@@ -567,7 +567,7 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {
 			supi := mustSUPIFromPrefixed("imsi-001019756139935")
-			amfInstance := amf.New(&FakeDBInstance{}, &FakeAusf{
+			amfInstance := amf.New(&fakeDBInstance{}, &fakeAusf{
 				AvKgAka: &ausf.AuthResult{
 					Rand: hex.EncodeToString(make([]byte, 16)),
 					Autn: hex.EncodeToString(make([]byte, 16)),
@@ -637,7 +637,7 @@ func TestHandleIdentityResponse_IdentityError(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {
 			supi := mustSUPIFromPrefixed("imsi-001019756139935")
-			amfInstance := amf.New(&FakeDBInstance{}, &FakeAusf{
+			amfInstance := amf.New(&fakeDBInstance{}, &fakeAusf{
 				AvKgAka: &ausf.AuthResult{
 					Rand: hex.EncodeToString(make([]byte, 16)),
 					Autn: hex.EncodeToString(make([]byte, 16)),

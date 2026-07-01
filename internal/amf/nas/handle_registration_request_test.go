@@ -109,7 +109,7 @@ func TestHandleRegistrationRequest_ErrorMissingIdentity(t *testing.T) {
 // handling of the case where an operator is not configured.
 func TestHandleRegistrationRequest_ErrorMissingOperatorInfo(t *testing.T) {
 	ctx := context.TODO()
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: nil,
 	}, nil, nil)
 
@@ -143,7 +143,7 @@ func TestHandleRegistrationRequest_ErrorMissingOperatorInfo(t *testing.T) {
 // registration request for a non-allowed tracking area is rejected.
 func TestHandleRegistrationRequest_RejectTrackingAreaNotAllowed(t *testing.T) {
 	ctx := context.TODO()
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -206,7 +206,7 @@ func TestHandleRegistrationRequest_RejectTrackingAreaNotAllowed(t *testing.T) {
 // registration request with missing UE Security Capability is rejected.
 func TestHandleRegistrationRequest_RejectMissingSecurityCapability(t *testing.T) {
 	ctx := context.TODO()
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -265,7 +265,7 @@ func TestHandleRegistrationRequest_RejectMissingSecurityCapability(t *testing.T)
 // IE for every registration type except periodic registration updating.
 func TestHandleRegistrationRequest_RejectMissingSecurityCapability_Mobility(t *testing.T) {
 	ctx := context.TODO()
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -323,7 +323,7 @@ func TestHandleRegistrationRequest_RejectMissingSecurityCapability_Mobility(t *t
 // Capability IE per TS 24.501.
 func TestHandleRegistrationRequest_PeriodicAllowsMissingSecurityCapability(t *testing.T) {
 	ctx := context.TODO()
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -370,7 +370,7 @@ func TestHandleRegistrationRequest_PeriodicAllowsMissingSecurityCapability(t *te
 // T3513 and T3565 are stopped when receiving a registration request.
 func TestHandleRegistrationRequest_Timers_Stopped(t *testing.T) {
 	ctx := context.TODO()
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -410,7 +410,7 @@ func TestHandleRegistrationRequest_Timers_Stopped(t *testing.T) {
 // Identity Request message.
 func TestHandleRegistrationRequest_IdentityRequest_MissingSUCI_SUPI(t *testing.T) {
 	ctx := context.TODO()
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -460,13 +460,13 @@ func TestHandleRegistrationRequest_IdentityRequest_MissingSUCI_SUPI(t *testing.T
 // security context triggers an amf.Authentication Request message.
 func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 	ctx := context.TODO()
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
 			SupportedTACs: "[\"000001\"]",
 		},
-	}, &FakeAusf{
+	}, &fakeAusf{
 		AvKgAka: &ausf.AuthResult{
 			Rand: hex.EncodeToString(make([]byte, 16)),
 			Autn: hex.EncodeToString(make([]byte, 16)),
@@ -520,13 +520,13 @@ func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 // with a properly ciphered message.
 func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 	ctx := context.TODO()
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
 			SupportedTACs: "[\"CAFE64\"]",
 		},
-	}, &FakeAusf{
+	}, &fakeAusf{
 		AvKgAka: &ausf.AuthResult{
 			Rand: hex.EncodeToString(make([]byte, 16)),
 			Autn: hex.EncodeToString(make([]byte, 16)),
@@ -589,7 +589,7 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 // UE's state to deregister, ignoring the request.
 func TestHandleRegistrationRequest_UEStateContextSetup_ResetToDeregistered(t *testing.T) {
 	ctx := context.TODO()
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -628,13 +628,13 @@ func TestHandleRegistrationRequest_UEStateContextSetup_ResetToDeregistered(t *te
 // triggers an error.
 func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t *testing.T) {
 	ctx := context.TODO()
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
 			SupportedTACs: "[\"000001\"]",
 		},
-	}, &FakeAusf{
+	}, &fakeAusf{
 		AvKgAka: &ausf.AuthResult{
 			Rand: hex.EncodeToString(make([]byte, 16)),
 			Autn: hex.EncodeToString(make([]byte, 16)),
@@ -686,13 +686,13 @@ func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t 
 // AuthenticationRequest.
 func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing.T) {
 	ctx := context.TODO()
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
 			SupportedTACs: "[\"000001\"]",
 		},
-	}, &FakeAusf{
+	}, &fakeAusf{
 		AvKgAka: &ausf.AuthResult{
 			Rand: hex.EncodeToString(make([]byte, 16)),
 			Autn: hex.EncodeToString(make([]byte, 16)),
@@ -763,13 +763,13 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 	rand := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	autn := []byte{17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
 			SupportedTACs: "[\"000001\"]",
 		},
-	}, &FakeAusf{
+	}, &fakeAusf{
 		AvKgAka: &ausf.AuthResult{
 			Rand: hex.EncodeToString(rand),
 			Autn: hex.EncodeToString(autn),
@@ -847,13 +847,13 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 	rand := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	autn := []byte{17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
 			SupportedTACs: "[\"000001\"]",
 		},
-	}, &FakeAusf{
+	}, &fakeAusf{
 		AvKgAka: &ausf.AuthResult{
 			Rand: hex.EncodeToString(rand),
 			Autn: hex.EncodeToString(autn),
@@ -926,13 +926,13 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testing.T) {
 	ctx := context.TODO()
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
 			SupportedTACs: "[\"000001\"]",
 		},
-	}, &FakeAusf{
+	}, &fakeAusf{
 		AvKgAka: &ausf.AuthResult{
 			Rand: hex.EncodeToString(make([]byte, 16)),
 			Autn: hex.EncodeToString(make([]byte, 16)),
@@ -997,13 +997,13 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 // the UE's active key, per 3GPP TS 24.501 section 9.11.3.32.
 func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
 	ctx := context.TODO()
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
 			SupportedTACs: "[\"000001\"]",
 		},
-	}, &FakeAusf{
+	}, &fakeAusf{
 		AvKgAka: &ausf.AuthResult{
 			Rand: hex.EncodeToString(make([]byte, 16)),
 			Autn: hex.EncodeToString(make([]byte, 16)),
@@ -1040,13 +1040,13 @@ func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
 // using value 7 (which means "no key available").
 func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
 	ctx := context.TODO()
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
 			SupportedTACs: "[\"000001\"]",
 		},
-	}, &FakeAusf{
+	}, &fakeAusf{
 		AvKgAka: &ausf.AuthResult{
 			Rand: hex.EncodeToString(make([]byte, 16)),
 			Autn: hex.EncodeToString(make([]byte, 16)),
@@ -1083,13 +1083,13 @@ func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
 // resetting to 0 with native security context type.
 func TestHandleRegistrationRequest_NgKsi_NoKeyAvailable(t *testing.T) {
 	ctx := context.TODO()
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
 			SupportedTACs: "[\"000001\"]",
 		},
-	}, &FakeAusf{
+	}, &fakeAusf{
 		AvKgAka: &ausf.AuthResult{
 			Rand: hex.EncodeToString(make([]byte, 16)),
 			Autn: hex.EncodeToString(make([]byte, 16)),
@@ -1192,12 +1192,11 @@ func buildTestRegistrationRequestMessageWithNgKsi(cipherAlg uint8, key *[16]uint
 	return m, nil
 }
 
-func buildUeAndRadio() (*amf.UeContext, *FakeNGAPSender, error) {
+func buildUeAndRadio() (*amf.UeContext, *fakeNGAPSender, error) {
 	ue := amf.NewUeContext()
 
-	ngapSender := FakeNGAPSender{}
+	ngapSender := fakeNGAPSender{}
 	radio := amf.Radio{
-		RanUEs:     make(map[int64]*amf.RanUe),
 		Conn:       nil,
 		Log:        logger.AmfLog.With(logger.RanAddr("test_localhost")),
 		NGAPSender: &ngapSender,

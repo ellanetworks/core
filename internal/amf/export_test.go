@@ -213,7 +213,8 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 			Ref:    "imsi-001010000000002-5",
 			Snssai: &models.Snssai{Sst: 1, Sd: "000001"},
 		}
-		radio := &amf.Radio{Name: "gNB-001", RanUEs: make(map[int64]*amf.RanUe), Log: zap.NewNop()}
+		radio := &amf.Radio{Name: "gNB-001", Log: zap.NewNop()}
+		radio.BindAMFForTest(amf.New(nil, nil, nil))
 		ranUe := amf.NewRanUeForTest(radio, 42, 100, zap.NewNop())
 		ranUe.Tai = models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}
 		ue.AttachRanUe(ranUe)

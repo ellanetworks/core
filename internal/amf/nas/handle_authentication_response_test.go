@@ -27,7 +27,10 @@ func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *test
 		idType  uint8
 		msgType uint8
 	}{
-		{"used GUTI", nasMessage.MobileIdentity5GSType5gGuti, nas.MsgTypeIdentityRequest},
+		// The AMF authenticates identify-first (on the UE's SUCI), so an
+		// authentication failure is rejected regardless of the identity the UE
+		// registered with — no redundant re-identification (mirrors the MME).
+		{"used GUTI", nasMessage.MobileIdentity5GSType5gGuti, nas.MsgTypeAuthenticationReject},
 		{"used SUCI", nasMessage.MobileIdentity5GSTypeSuci, nas.MsgTypeAuthenticationReject},
 	}
 
@@ -158,7 +161,7 @@ func TestHandleAuthenticationResponse_hResStartMismatch(t *testing.T) {
 		{
 			"used GUTI",
 			nasMessage.MobileIdentity5GSType5gGuti,
-			nas.MsgTypeIdentityRequest,
+			nas.MsgTypeAuthenticationReject,
 		},
 		{
 			"used SUCI",
@@ -219,11 +222,13 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 	}
 
 	testcases := []TestCase{
+		// Identify-first: an authentication failure rejects and deregisters
+		// regardless of the registration identity (mirrors the MME).
 		{
 			"used GUTI",
 			nasMessage.MobileIdentity5GSType5gGuti,
-			nas.MsgTypeIdentityRequest,
-			amf.Authentication,
+			nas.MsgTypeAuthenticationReject,
+			amf.Deregistered,
 		},
 		{
 			"used SUCI",
@@ -235,13 +240,13 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			amfInstance := amf.New(&FakeDBInstance{
+			amfInstance := amf.New(&fakeDBInstance{
 				Operator: &db.Operator{
 					Mcc:           "001",
 					Mnc:           "01",
 					SupportedTACs: "[\"1\"]",
 				},
-			}, &FakeAusf{
+			}, &fakeAusf{
 				AvKgAka: &ausf.AuthResult{
 					Rand: hex.EncodeToString(make([]byte, 16)),
 					Autn: hex.EncodeToString(make([]byte, 16)),
@@ -293,7 +298,7 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 }
 
 func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -301,7 +306,7 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 			Integrity:     `["SNOW3G","NULL"]`,
 			Ciphering:     `["SNOW3G","NULL"]`,
 		},
-	}, &FakeAusf{
+	}, &fakeAusf{
 		AvKgAka: &ausf.AuthResult{
 			Rand: hex.EncodeToString(make([]byte, 16)),
 			Autn: hex.EncodeToString(make([]byte, 16)),

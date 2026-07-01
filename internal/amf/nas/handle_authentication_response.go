@@ -45,7 +45,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 		// No RES* to verify: unsuccessful authentication (TS 24.501).
 		ue.Log.Error("amf.Authentication Response missing RES* (amf.Authentication response parameter IE)")
 
-		return failAuthentication(ctx, ue, ranUe, conn)
+		return failAuthentication(ctx, ue, ranUe)
 	}
 
 	resStar := msg.GetRES()
@@ -64,14 +64,14 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 	if subtle.ConstantTimeCompare([]byte(hResStar), []byte(conn.AuthenticationCtx.HxresStar)) != 1 {
 		ue.Log.Error("HRES* Validation Failure")
 
-		return failAuthentication(ctx, ue, ranUe, conn)
+		return failAuthentication(ctx, ue, ranUe)
 	}
 
 	supi, kseaf, err := amfInstance.Ausf.Confirm(ctx, hex.EncodeToString(resStar[:]), ue.Suci)
 	if err != nil {
 		logger.WithTrace(ctx, logger.AmfLog).Error("5G AKA Confirmation Request Procedure failed", zap.Error(err))
 
-		return failAuthentication(ctx, ue, ranUe, conn)
+		return failAuthentication(ctx, ue, ranUe)
 	}
 
 	ue.SetSupi(supi)
@@ -84,19 +84,14 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 	return securityMode(ctx, amfInstance, ue)
 }
 
-// failAuthentication applies TS 24.501 to an unacceptable
-// authentication response (RES* absent, HRES* mismatch, or AUSF rejection): a UE
-// identified by 5G-GUTI is re-identified via SUCI and authentication restarts;
-// otherwise authentication is rejected and the UE deregistered.
-func failAuthentication(ctx context.Context, ue *amf.UeContext, ranUe *amf.RanUe, conn *amf.ActiveNasConnection) error {
-	if conn.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
-		amf.SendIdentityRequest(ctx, ranUe, nasMessage.MobileIdentity5GSTypeSuci)
-
-		ue.Log.Info("sent identity request")
-
-		return nil
-	}
-
+// failAuthentication rejects an unacceptable authentication response (RES* absent,
+// HRES* mismatch, or AUSF rejection) and deregisters the UE (TS 24.501). The AMF
+// authenticates on the UE-provided SUCI (identify-first: an untrusted 5G-GUTI is
+// re-identified via SUCI before authentication, a trusted one reuses its verified
+// context and skips it), so a RES* failure is a genuine credential failure — there
+// is no stale GUTI→identity mapping to recover by re-identifying. This mirrors the
+// MME, which likewise rejects on authentication failure having identified first.
+func failAuthentication(ctx context.Context, ue *amf.UeContext, ranUe *amf.RanUe) error {
 	defer ue.Deregister(ctx)
 
 	amf.SendAuthenticationReject(ctx, ranUe)

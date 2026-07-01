@@ -16,8 +16,8 @@ import (
 )
 
 func TestNasNonDeliveryIndication_UnknownAmfUeNgapID(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	ran := newTestRadio(newTestAMF())
+	sender := ran.NGAPSender.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	ngap.HandleNasNonDeliveryIndication(context.Background(), amfInstance, ran, decode.NASNonDeliveryIndication{
@@ -30,7 +30,7 @@ func TestNasNonDeliveryIndication_UnknownAmfUeNgapID(t *testing.T) {
 }
 
 func TestNasNonDeliveryIndication_UEFoundDispatchesNAS(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 
 	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
@@ -54,10 +54,10 @@ func TestNasNonDeliveryIndication_UEFoundDispatchesNAS(t *testing.T) {
 }
 
 func TestNasNonDeliveryIndication_VerifyNASCalledWithPDU(t *testing.T) {
-	fakeNAS := &FakeNASHandler{}
+	fakeNAS := &fakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 
 	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
@@ -91,10 +91,10 @@ func TestNasNonDeliveryIndication_VerifyNASCalledWithPDU(t *testing.T) {
 }
 
 func TestNasNonDeliveryIndication_NilPDU_PropagatesCorrectly(t *testing.T) {
-	fakeNAS := &FakeNASHandler{}
+	fakeNAS := &fakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 
 	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog

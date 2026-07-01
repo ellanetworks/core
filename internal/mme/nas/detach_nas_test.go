@@ -86,6 +86,39 @@ func TestPlainDetachOnSecuredUEDiscarded(t *testing.T) {
 	}
 }
 
+// TestPlainDetachSecuredUEFreshConnectionRejected verifies a secured UE that has
+// not yet established secure exchange on this connection (a fresh S1 link, so the
+// chokepoint's per-connection guard does not fire) still cannot be deregistered by
+// an unprotected DETACH REQUEST: the handler rejects it on ue.Secured(), mirroring
+// the AMF (TS 24.301 §4.4.4.3 defense in depth).
+func TestPlainDetachSecuredUEFreshConnectionRejected(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+	ue.S1.SetSecureExchangeEstablishedForTest(false) // fresh connection: connSecured is false
+
+	plain, err := (&eps.DetachRequestUE{
+		TypeOfDetach:      eps.DetachTypeEPS,
+		EPSMobileIdentity: eps.EPSMobileIdentity{Type: eps.IdentityGUTI, MCC: "001", MNC: "01", MMEGroupID: 1, MMECode: 1, MTMSI: 1},
+	}).Marshal()
+	if err != nil {
+		t.Fatalf("marshal detach: %v", err)
+	}
+
+	HandleNAS(m, context.Background(), ue, plain)
+
+	if ue.EMMState() != mme.EMMRegistered {
+		t.Fatal("an unprotected detach from a secured UE on a fresh connection must be rejected")
+	}
+
+	if len(cc.sent) != 0 {
+		t.Fatalf("no S1AP should be sent for a rejected detach, got %d", len(cc.sent))
+	}
+
+	if _, ok := m.LookupUeByIMSI(ue.IMSI()); !ok {
+		t.Fatal("secured UE context must remain")
+	}
+}
+
 // TestDetachSubscriberUnansweredReleases confirms a network-initiated detach
 // whose Detach Accept never arrives is retransmitted and then releases the UE
 // context, so a silent UE cannot leak it (TS 24.301: T3422).

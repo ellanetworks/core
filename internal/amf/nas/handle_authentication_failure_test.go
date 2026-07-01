@@ -260,7 +260,7 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_Success(t *testing.T
 		Autn: hex.EncodeToString(make([]byte, 16)),
 	}
 
-	amfInstance := amf.New(nil, &FakeAusf{
+	amfInstance := amf.New(nil, &fakeAusf{
 		AvKgAka: expectedAv,
 	}, nil)
 
@@ -317,7 +317,7 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_AusfError(t *testing
 	ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
 	ue.Tai = ue.RanUe().Tai
 
-	amfInstance := amf.New(nil, &FakeAusf{
+	amfInstance := amf.New(nil, &fakeAusf{
 		Error: fmt.Errorf("ausf unavailable"),
 	}, nil)
 

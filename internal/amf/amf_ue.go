@@ -569,6 +569,22 @@ func (ue *UeContext) UpdateNH() error {
 	return nil
 }
 
+// deriveNextNHLocked returns the next {NH, NCC} of the AS key chain (TS 33.501
+// §6.9.2.1.1) without committing them to the UE, so a handover can stage the pair
+// and commit it only on completion. Caller holds ue.mu.
+func (ue *UeContext) deriveNextNHLocked() ([32]uint8, uint8, error) {
+	out, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForNhDerivation, ue.nh[:], ueauth.KDFLen(ue.nh[:]))
+	if err != nil {
+		return [32]uint8{}, 0, fmt.Errorf("could not get kdf value: %v", err)
+	}
+
+	if len(out) != len(ue.nh) {
+		return [32]uint8{}, 0, fmt.Errorf("unexpected NH length %d, want %d", len(out), len(ue.nh))
+	}
+
+	return [32]uint8(out), (ue.ncc + 1) % 8, nil
+}
+
 func (ue *UeContext) SelectSecurityAlg(intOrder, encOrder []uint8) error {
 	if ue.ueSecurityCapability == nil {
 		return fmt.Errorf("UE security capability not available, cannot negotiate NAS security algorithms")

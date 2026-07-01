@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleHandoverCancel(ctx context.Context, ran *amf.Radio, msg decode.HandoverCancel) {
+func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.HandoverCancel) {
 	sourceUe, ok := resolveUE(ctx, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
 	if !ok {
 		return
@@ -41,7 +41,7 @@ func HandleHandoverCancel(ctx context.Context, ran *amf.Radio, msg decode.Handov
 	amfUe := sourceUe.UeContext()
 
 	// Capture the target before ClearHandover wipes it.
-	targetUe := amfUe.HandoverTarget()
+	targetUe := amfInstance.HandoverTarget(amfUe)
 	if targetUe == nil {
 		logger.WithTrace(ctx, sourceUe.Log).Error("N2 Handover between AMF has not been implemented yet")
 		return
@@ -52,7 +52,7 @@ func HandleHandoverCancel(ctx context.Context, ran *amf.Radio, msg decode.Handov
 			conn.Procedures.End(procedure.N2Handover)
 		}
 
-		amfUe.ClearHandover()
+		amfInstance.ClearHandover(amfUe)
 	}
 
 	targetUe.ReleaseAction = amf.UeContextReleaseHandover

@@ -17,8 +17,8 @@ import (
 )
 
 func TestHandlePDUSessionResourceSetupResponse_EmptyMessage(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	ran := newTestRadio(newTestAMF())
+	sender := ran.NGAPSender.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	msg := decode.PDUSessionResourceSetupResponse{}
@@ -31,7 +31,7 @@ func TestHandlePDUSessionResourceSetupResponse_EmptyMessage(t *testing.T) {
 }
 
 func TestHandlePDUSessionResourceSetupResponse_UnknownAMFUENGAPID(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
 
 	amfID := int64(1379640380095)
@@ -43,14 +43,14 @@ func TestHandlePDUSessionResourceSetupResponse_UnknownAMFUENGAPID(t *testing.T) 
 
 	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
 
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	sender := ran.NGAPSender.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication (TS 38.413), got %d", len(sender.SentErrorIndications))
 	}
 }
 
 func TestHandlePDUSessionResourceSetupResponse_OnlyUnknownRANUENGAPID(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
 
 	ranID := int64(42)
@@ -60,15 +60,15 @@ func TestHandlePDUSessionResourceSetupResponse_OnlyUnknownRANUENGAPID(t *testing
 
 	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
 
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	sender := ran.NGAPSender.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication (TS 38.413), got %d", len(sender.SentErrorIndications))
 	}
 }
 
 func TestHandlePDUSessionResourceSetupResponse_HappyPath(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	ran := newTestRadio(newTestAMF())
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
 	amfInstance.Radios[new(sctp.SCTPConn)] = ran
 
@@ -109,8 +109,8 @@ func TestHandlePDUSessionResourceSetupResponse_HappyPath(t *testing.T) {
 }
 
 func TestHandlePDUSessionResourceSetupResponse_FailedItemForwardedToSmf(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	ran := newTestRadio(newTestAMF())
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
 	amfInstance.Radios[new(sctp.SCTPConn)] = ran
 

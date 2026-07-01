@@ -19,7 +19,7 @@ import (
 )
 
 func newTestAMF() *amf.AMF {
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			SpnFullName:  "Ella Networks",
 			SpnShortName: "Ella",
@@ -29,7 +29,7 @@ func newTestAMF() *amf.AMF {
 	return amfInstance
 }
 
-func setupRegistrationCompleteUE(t *testing.T) (*amf.UeContext, *FakeNGAPSender) {
+func setupRegistrationCompleteUE(t *testing.T) (*amf.UeContext, *fakeNGAPSender) {
 	t.Helper()
 
 	ue, ngapSender, err := buildUeAndRadio()

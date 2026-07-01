@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/models"
 	"go.uber.org/zap"
 )
 
@@ -144,9 +145,8 @@ func TestFindUeContextByGuti(t *testing.T) {
 		t.Fatalf("NewGUTI: %v", err)
 	}
 
-	addTestUE(t, amfInstance, "001010000000009", func(ue *amf.UeContext) {
-		ue.SetGutiForTest(guti)
-	})
+	ue := addTestUE(t, amfInstance, "001010000000009", func(ue *amf.UeContext) {})
+	amfInstance.AssignGutiForTest(ue, guti)
 
 	found, ok := amfInstance.FindUeContextByGuti(guti)
 	if !ok {
@@ -155,6 +155,60 @@ func TestFindUeContextByGuti(t *testing.T) {
 
 	if found.GutiForTest() != guti {
 		t.Fatalf("GUTI mismatch: got %v, want %v", found.GutiForTest(), guti)
+	}
+}
+
+// TestGutiIndexLifecycle verifies the GUTI resolution index is maintained through
+// the production reallocation window (old GUTI resolves until freed) and removal.
+func TestGutiIndexLifecycle(t *testing.T) {
+	amfInstance := amf.New(nil, nil, nil)
+	guami := &models.Guami{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, AmfID: "cafe00"}
+
+	ue := addTestUE(t, amfInstance, "001010000000011", func(ue *amf.UeContext) {})
+
+	if err := amfInstance.ReAllocateGuti(context.Background(), ue, guami); err != nil {
+		t.Fatalf("ReAllocateGuti: %v", err)
+	}
+
+	guti1 := ue.GutiForTest()
+	if found, ok := amfInstance.FindUeContextByGuti(guti1); !ok || found != ue {
+		t.Fatal("UE not resolvable by its GUTI after allocation")
+	}
+
+	// Reallocation: both the new and the in-flight old GUTI resolve to the UE.
+	if err := amfInstance.ReAllocateGuti(context.Background(), ue, guami); err != nil {
+		t.Fatalf("ReAllocateGuti (realloc): %v", err)
+	}
+
+	guti2 := ue.GutiForTest()
+	if guti2 == guti1 {
+		t.Fatal("reallocation should produce a new GUTI")
+	}
+
+	if found, ok := amfInstance.FindUeContextByGuti(guti2); !ok || found != ue {
+		t.Fatal("UE not resolvable by its new GUTI")
+	}
+
+	if found, ok := amfInstance.FindUeContextByGuti(guti1); !ok || found != ue {
+		t.Fatal("UE not resolvable by its old GUTI during the reallocation window")
+	}
+
+	// FreeOldGuti: the old GUTI stops resolving; the current one still resolves.
+	amfInstance.FreeOldGuti(ue)
+
+	if _, ok := amfInstance.FindUeContextByGuti(guti1); ok {
+		t.Fatal("old GUTI must not resolve after FreeOldGuti")
+	}
+
+	if _, ok := amfInstance.FindUeContextByGuti(guti2); !ok {
+		t.Fatal("current GUTI must still resolve after FreeOldGuti")
+	}
+
+	// Removal: no GUTI resolves to the removed UE.
+	amfInstance.RemoveUEBySupi(ue.SupiForTest())
+
+	if _, ok := amfInstance.FindUeContextByGuti(guti2); ok {
+		t.Fatal("removed UE must not resolve by GUTI")
 	}
 }
 

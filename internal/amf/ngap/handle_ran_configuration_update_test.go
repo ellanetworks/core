@@ -14,9 +14,9 @@ import (
 )
 
 func TestHandleRanConfigurationUpdate_NoSupportedTAs(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	sender := ran.NGAPSender.(*fakeNGAPSender)
 
 	ngap.HandleRanConfigurationUpdate(context.Background(), amfInstance, ran, decode.RANConfigurationUpdate{})
 
@@ -39,11 +39,11 @@ func TestHandleRanConfigurationUpdate_NoSupportedTAs(t *testing.T) {
 }
 
 func TestHandleRanConfigurationUpdate_MatchingTAs(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	ran := newTestRadio(newTestAMF())
+	sender := ran.NGAPSender.(*fakeNGAPSender)
 
-	amfInstance := newTestAMFWithSmfAndDB(&FakeSmfSbi{})
-	amfInstance.DBInstance = &FakeDBInstance{
+	amfInstance := newTestAMFWithSmfAndDB(&fakeSmfSbi{})
+	amfInstance.DBInstance = &fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -93,11 +93,11 @@ func TestHandleRanConfigurationUpdate_MatchingTAs(t *testing.T) {
 }
 
 func TestHandleRanConfigurationUpdate_NoMatchingTAC(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	ran := newTestRadio(newTestAMF())
+	sender := ran.NGAPSender.(*fakeNGAPSender)
 
-	amfInstance := newTestAMFWithSmfAndDB(&FakeSmfSbi{})
-	amfInstance.DBInstance = &FakeDBInstance{
+	amfInstance := newTestAMFWithSmfAndDB(&fakeSmfSbi{})
+	amfInstance.DBInstance = &fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",

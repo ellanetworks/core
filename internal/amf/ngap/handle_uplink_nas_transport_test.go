@@ -19,8 +19,8 @@ import (
 )
 
 func TestHandleUplinkNasTransport_UnknownRanUe_SendsErrorIndication(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	ran := newTestRadio(newTestAMF())
+	sender := ran.NGAPSender.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	ngap.HandleUplinkNasTransport(context.Background(), amfInstance, ran, decode.UplinkNASTransport{
@@ -49,9 +49,9 @@ func TestHandleUplinkNasTransport_UnknownRanUe_SendsErrorIndication(t *testing.T
 // AP ID, so the AMF answers with an Error Indication carrying the received AP IDs
 // and cause "Unknown local UE NGAP ID".
 func TestHandleUplinkNasTransport_UnknownAmfUeNgapID_SendsErrorIndication(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
-	fakeNAS := &FakeNASHandler{}
+	ran := newTestRadio(newTestAMF())
+	sender := ran.NGAPSender.(*fakeNGAPSender)
+	fakeNAS := &fakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 
 	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
@@ -76,9 +76,9 @@ func TestHandleUplinkNasTransport_UnknownAmfUeNgapID_SendsErrorIndication(t *tes
 // Indication carrying the received AP IDs and cause "Inconsistent remote UE NGAP
 // ID".
 func TestHandleUplinkNasTransport_InconsistentRanUeNgapID_SendsErrorIndication(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
-	fakeNAS := &FakeNASHandler{}
+	ran := newTestRadio(newTestAMF())
+	sender := ran.NGAPSender.(*fakeNGAPSender)
+	fakeNAS := &fakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 
 	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
@@ -98,7 +98,7 @@ func TestHandleUplinkNasTransport_InconsistentRanUeNgapID_SendsErrorIndication(t
 }
 
 func TestHandleUplinkNasTransport_NilUeContext_RemovesRanUe(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
 
 	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
@@ -115,10 +115,10 @@ func TestHandleUplinkNasTransport_NilUeContext_RemovesRanUe(t *testing.T) {
 }
 
 func TestHandleUplinkNasTransport_HappyPath_NASDispatched(t *testing.T) {
-	fakeNAS := &FakeNASHandler{}
+	fakeNAS := &fakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 
 	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
@@ -148,10 +148,10 @@ func TestHandleUplinkNasTransport_HappyPath_NASDispatched(t *testing.T) {
 }
 
 func TestHandleUplinkNasTransport_LocationUpdatedBeforeNAS(t *testing.T) {
-	fakeNAS := &FakeNASHandler{}
+	fakeNAS := &fakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 
 	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
@@ -175,7 +175,7 @@ func TestHandleUplinkNasTransport_LocationUpdatedBeforeNAS(t *testing.T) {
 // reject returns nil), so the AMF answers with a 5GMM STATUS #111 (TS 24.501)
 // rather than leaving the UE without a response.
 func TestHandleUplinkNasTransport_NASError_SendsStatus5GMM(t *testing.T) {
-	fakeNAS := &FakeNASHandler{Err: errors.New("unhandled NAS message")}
+	fakeNAS := &fakeNASHandler{Err: errors.New("unhandled NAS message")}
 	cause := uplinkNASStatusCause(t, fakeNAS)
 
 	if cause != nasMessage.Cause5GMMProtocolErrorUnspecified {
@@ -186,12 +186,12 @@ func TestHandleUplinkNasTransport_NASError_SendsStatus5GMM(t *testing.T) {
 // uplinkNASStatusCause drives an uplink NAS transport whose handler returns
 // fakeNAS.Err, and returns the 5GMM cause of the single 5GMM STATUS the AMF
 // sends in response.
-func uplinkNASStatusCause(t *testing.T, fakeNAS *FakeNASHandler) uint8 {
+func uplinkNASStatusCause(t *testing.T, fakeNAS *fakeNASHandler) uint8 {
 	t.Helper()
 
 	amfInstance := newTestAMFWithNAS(fakeNAS)
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	ran := newTestRadio(newTestAMF())
+	sender := ran.NGAPSender.(*fakeNGAPSender)
 
 	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog

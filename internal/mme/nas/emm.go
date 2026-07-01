@@ -84,7 +84,7 @@ func DispatchEMM(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byt
 	case eps.MsgAttachComplete:
 		handleAttachComplete(m, ctx, ue, plain)
 	case eps.MsgDetachRequest:
-		handleDetachRequest(m, ctx, ue, plain)
+		handleDetachRequest(m, ctx, ue, plain, integrityVerified)
 	case eps.MsgDetachAccept:
 		handleDetachAccept(m, ctx, ue)
 	case eps.MsgTrackingAreaUpdateRequest:

@@ -179,13 +179,14 @@ func buildNGSetupRequest(opts *NGSetupRequestOpts) (*ngapType.NGAPPDU, error) {
 }
 
 func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
+	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    fakeNGAPSender,
+		NGAPSender:    sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
+	ran.BindAMFForTest(amf.New(nil, nil, nil))
 
 	// Use a valid TAC to satisfy the decoder (missing IE → ErrorIndication
 	// at the dispatcher layer, not NGSetupFailure here), then erase the
@@ -204,7 +205,7 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 		t.Fatalf("failed to build NGSetupRequest: %v", err)
 	}
 
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc: "001",
 			Mnc: "01",
@@ -216,11 +217,11 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 
 	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decoded)
 
-	if len(fakeNGAPSender.SentNGSetupFailures) != 1 {
-		t.Fatalf("expected 1 NGSetupFailure to be sent, but got %d", len(fakeNGAPSender.SentNGSetupFailures))
+	if len(sender.SentNGSetupFailures) != 1 {
+		t.Fatalf("expected 1 NGSetupFailure to be sent, but got %d", len(sender.SentNGSetupFailures))
 	}
 
-	cause := fakeNGAPSender.SentNGSetupFailures[0].Cause
+	cause := sender.SentNGSetupFailures[0].Cause
 	if cause.Present != ngapType.CausePresentMisc {
 		t.Fatalf("expected Cause Present to be Miscellaneous, but got %v", cause.Present)
 	}
@@ -235,13 +236,14 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 }
 
 func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
+	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    fakeNGAPSender,
+		NGAPSender:    sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
+	ran.BindAMFForTest(amf.New(nil, nil, nil))
 
 	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
 		Name:  "TestRAN",
@@ -267,17 +269,17 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testi
 		t.Fatalf("failed to set supported TACS: %v", err)
 	}
 
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: op,
 	}, nil, nil)
 
 	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
 
-	if len(fakeNGAPSender.SentNGSetupFailures) != 1 {
-		t.Fatalf("expected 1 NGSetupFailure to be sent, but got %d", len(fakeNGAPSender.SentNGSetupFailures))
+	if len(sender.SentNGSetupFailures) != 1 {
+		t.Fatalf("expected 1 NGSetupFailure to be sent, but got %d", len(sender.SentNGSetupFailures))
 	}
 
-	cause := fakeNGAPSender.SentNGSetupFailures[0].Cause
+	cause := sender.SentNGSetupFailures[0].Cause
 	if cause.Present != ngapType.CausePresentMisc {
 		t.Fatalf("expected Cause Present to be Miscellaneous, but got %v", cause.Present)
 	}
@@ -292,13 +294,14 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testi
 }
 
 func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
+	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    fakeNGAPSender,
+		NGAPSender:    sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
+	ran.BindAMFForTest(amf.New(nil, nil, nil))
 
 	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
 		Name:  "TestRAN",
@@ -324,18 +327,18 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 		t.Fatalf("failed to set supported TACS: %v", err)
 	}
 
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: op,
 	}, nil, nil)
 	amfInstance.Name = "ella-core"
 
 	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
 
-	if len(fakeNGAPSender.SentNGSetupResponses) != 1 {
-		t.Fatalf("expected 1 NGSetupResponse to be sent, but got %d", len(fakeNGAPSender.SentNGSetupResponses))
+	if len(sender.SentNGSetupResponses) != 1 {
+		t.Fatalf("expected 1 NGSetupResponse to be sent, but got %d", len(sender.SentNGSetupResponses))
 	}
 
-	response := fakeNGAPSender.SentNGSetupResponses[0]
+	response := sender.SentNGSetupResponses[0]
 
 	if response.Guami == nil {
 		t.Errorf("expected Guami to be set in NGSetupResponse, but it was nil")
@@ -392,13 +395,14 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 }
 
 func TestHandleNGSetupRequest_MultipleSlicesInRequest(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
+	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    fakeNGAPSender,
+		NGAPSender:    sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
+	ran.BindAMFForTest(amf.New(nil, nil, nil))
 
 	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
 		Name:  "TestRAN",
@@ -427,15 +431,15 @@ func TestHandleNGSetupRequest_MultipleSlicesInRequest(t *testing.T) {
 		t.Fatalf("failed to set supported TACs: %v", err)
 	}
 
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: op,
 	}, nil, nil)
 	amfInstance.Name = "ella-core"
 
 	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
 
-	if len(fakeNGAPSender.SentNGSetupResponses) != 1 {
-		t.Fatalf("expected 1 NGSetupResponse, got %d", len(fakeNGAPSender.SentNGSetupResponses))
+	if len(sender.SentNGSetupResponses) != 1 {
+		t.Fatalf("expected 1 NGSetupResponse, got %d", len(sender.SentNGSetupResponses))
 	}
 
 	// Verify ran.SupportedTAIs has all 3 slices from the request
@@ -469,13 +473,14 @@ func TestHandleNGSetupRequest_MultipleSlicesInRequest(t *testing.T) {
 }
 
 func TestHandleNGSetupRequest_ResponseContainsAllConfiguredSlices(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
+	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    fakeNGAPSender,
+		NGAPSender:    sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
+	ran.BindAMFForTest(amf.New(nil, nil, nil))
 
 	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
 		Name:  "TestRAN",
@@ -504,7 +509,7 @@ func TestHandleNGSetupRequest_ResponseContainsAllConfiguredSlices(t *testing.T) 
 	sd1 := "010203"
 	sd2 := "aabbcc"
 
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: op,
 		Slices: []db.NetworkSlice{
 			{ID: "slice-1", Name: "eMBB", Sst: 1, Sd: &sd1},
@@ -516,11 +521,11 @@ func TestHandleNGSetupRequest_ResponseContainsAllConfiguredSlices(t *testing.T) 
 
 	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
 
-	if len(fakeNGAPSender.SentNGSetupResponses) != 1 {
-		t.Fatalf("expected 1 NGSetupResponse, got %d", len(fakeNGAPSender.SentNGSetupResponses))
+	if len(sender.SentNGSetupResponses) != 1 {
+		t.Fatalf("expected 1 NGSetupResponse, got %d", len(sender.SentNGSetupResponses))
 	}
 
-	response := fakeNGAPSender.SentNGSetupResponses[0]
+	response := sender.SentNGSetupResponses[0]
 
 	// Verify the response carries all 3 configured slices from DB
 	if len(response.SnssaiList) != 3 {
@@ -548,13 +553,14 @@ func TestHandleNGSetupRequest_ResponseContainsAllConfiguredSlices(t *testing.T) 
 }
 
 func TestHandleNGSetupRequest_NGSetupFailure_PLMNMismatch(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
+	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    fakeNGAPSender,
+		NGAPSender:    sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
+	ran.BindAMFForTest(amf.New(nil, nil, nil))
 
 	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
 		Name:  "TestRAN",
@@ -576,28 +582,29 @@ func TestHandleNGSetupRequest_NGSetupFailure_PLMNMismatch(t *testing.T) {
 		t.Fatalf("failed to set supported TACs: %v", err)
 	}
 
-	amfInstance := amf.New(&FakeDBInstance{Operator: op}, nil, nil)
+	amfInstance := amf.New(&fakeDBInstance{Operator: op}, nil, nil)
 
 	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
 
-	if len(fakeNGAPSender.SentNGSetupFailures) != 1 {
-		t.Fatalf("expected 1 NGSetupFailure, got %d", len(fakeNGAPSender.SentNGSetupFailures))
+	if len(sender.SentNGSetupFailures) != 1 {
+		t.Fatalf("expected 1 NGSetupFailure, got %d", len(sender.SentNGSetupFailures))
 	}
 
-	cause := fakeNGAPSender.SentNGSetupFailures[0].Cause
+	cause := sender.SentNGSetupFailures[0].Cause
 	if cause.Present != ngapType.CausePresentMisc || cause.Misc.Value != ngapType.CauseMiscPresentUnknownPLMN {
 		t.Errorf("expected UnknownPLMN cause for PLMN mismatch, got present=%d misc=%d", cause.Present, cause.Misc.Value)
 	}
 }
 
 func TestHandleNGSetupRequest_DBFailure_SendsNGSetupFailure(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
+	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    fakeNGAPSender,
+		NGAPSender:    sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
+	ran.BindAMFForTest(amf.New(nil, nil, nil))
 
 	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
 		Name:  "TestRAN",
@@ -612,30 +619,31 @@ func TestHandleNGSetupRequest_DBFailure_SendsNGSetupFailure(t *testing.T) {
 		t.Fatalf("failed to build NGSetupRequest: %v", err)
 	}
 
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		OperatorErr: fmt.Errorf("database unavailable"),
 	}, nil, nil)
 
 	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
 
-	if len(fakeNGAPSender.SentNGSetupFailures) != 1 {
-		t.Fatalf("expected NGSetupFailure on DB error, got %d", len(fakeNGAPSender.SentNGSetupFailures))
+	if len(sender.SentNGSetupFailures) != 1 {
+		t.Fatalf("expected NGSetupFailure on DB error, got %d", len(sender.SentNGSetupFailures))
 	}
 
-	cause := fakeNGAPSender.SentNGSetupFailures[0].Cause
+	cause := sender.SentNGSetupFailures[0].Cause
 	if cause.Present != ngapType.CausePresentMisc || cause.Misc.Value != ngapType.CauseMiscPresentUnspecified {
 		t.Errorf("expected Unspecified cause on DB failure, got present=%d misc=%d", cause.Present, cause.Misc.Value)
 	}
 }
 
 func TestHandleNGSetupRequest_SliceDBFailure_SendsNGSetupFailure(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
+	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    fakeNGAPSender,
+		NGAPSender:    sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
+	ran.BindAMFForTest(amf.New(nil, nil, nil))
 
 	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
 		Name:  "TestRAN",
@@ -657,26 +665,27 @@ func TestHandleNGSetupRequest_SliceDBFailure_SendsNGSetupFailure(t *testing.T) {
 		t.Fatalf("failed to set supported TACs: %v", err)
 	}
 
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator:  op,
 		SlicesErr: fmt.Errorf("slice query failed"),
 	}, nil, nil)
 
 	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
 
-	if len(fakeNGAPSender.SentNGSetupFailures) != 1 {
-		t.Fatalf("expected NGSetupFailure on slice DB error, got %d", len(fakeNGAPSender.SentNGSetupFailures))
+	if len(sender.SentNGSetupFailures) != 1 {
+		t.Fatalf("expected NGSetupFailure on slice DB error, got %d", len(sender.SentNGSetupFailures))
 	}
 }
 
 func TestHandleNGSetupRequest_NoSliceOverlap_SucceedsWithWarning(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
+	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    fakeNGAPSender,
+		NGAPSender:    sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
+	ran.BindAMFForTest(amf.New(nil, nil, nil))
 
 	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
 		Name:  "TestRAN",
@@ -698,7 +707,7 @@ func TestHandleNGSetupRequest_NoSliceOverlap_SucceedsWithWarning(t *testing.T) {
 		t.Fatalf("failed to set supported TACs: %v", err)
 	}
 
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: op,
 		Slices:   []db.NetworkSlice{{ID: "s1", Name: "eMBB", Sst: 1}},
 	}, nil, nil)
@@ -706,11 +715,11 @@ func TestHandleNGSetupRequest_NoSliceOverlap_SucceedsWithWarning(t *testing.T) {
 
 	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
 
-	if len(fakeNGAPSender.SentNGSetupResponses) != 1 {
-		t.Fatalf("expected NGSetupResponse even with no slice overlap, got %d responses", len(fakeNGAPSender.SentNGSetupResponses))
+	if len(sender.SentNGSetupResponses) != 1 {
+		t.Fatalf("expected NGSetupResponse even with no slice overlap, got %d responses", len(sender.SentNGSetupResponses))
 	}
 
-	if len(fakeNGAPSender.SentNGSetupFailures) != 0 {
-		t.Errorf("expected no NGSetupFailure for slice mismatch, got %d", len(fakeNGAPSender.SentNGSetupFailures))
+	if len(sender.SentNGSetupFailures) != 0 {
+		t.Errorf("expected no NGSetupFailure for slice mismatch, got %d", len(sender.SentNGSetupFailures))
 	}
 }

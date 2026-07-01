@@ -345,7 +345,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 		return
 	}
 
-	nasMsg, err := BuildConfigurationUpdateCommand(amfUe, operator.SpnFullName, operator.SpnShortName, includeGUTI)
+	nasMsg, err := BuildConfigurationUpdateCommand(amfInstance, amfUe, operator.SpnFullName, operator.SpnShortName, includeGUTI)
 	if err != nil {
 		amfUe.Log.Error("error building ConfigurationUpdateCommand", zap.Error(err))
 		return

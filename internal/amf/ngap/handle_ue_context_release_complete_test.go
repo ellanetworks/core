@@ -19,7 +19,7 @@ import (
 // after a handover failure, the target UE (which only has SourceUe set, not
 // TargetUe) can be cleanly released without panicking.
 func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
 
 	amfUe := amf.NewUeContext()
@@ -58,7 +58,7 @@ func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) 
 // UEContextReleaseComplete referencing a PDU session ID that has no SmContext
 // does NOT panic.
 func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
 
 	amfUe := amf.NewUeContext()

@@ -96,12 +96,28 @@ type NASHandler interface {
 	HandleNAS(ctx context.Context, ue *RanUe, nasPdu []byte) error
 }
 
+// Concurrency model — a registry lock, a per-UE lock, and atomics:
+//
+//   - AMF.mu guards the registry and connection lifecycle: the UEs/uesByGuti maps,
+//     the Radios/radiosByID maps, the ranUEs index (UE-associated NGAP connections by
+//     AMF-UE-NGAP-ID, plus their identity fields RanUeNgapID/owning radio), the
+//     handover FSM (ue.handover), and the UE's 5G-GUTI/5G-TMSI identity keys.
+//   - UeContext.Mutex guards that UE's data: the security context (keys, NAS COUNTs,
+//     the NH/NCC key chain), the mobility state, the SM contexts, and the RanUe
+//     binding (ue.ranUe).
+//   - Hot non-security fields are atomics: last-seen and the active NAS connection
+//     pointer.
+//
+// Shared invariant (identical in the MME): security key material — the keys, NAS
+// COUNTs, and the NH/NCC key chain — is derived, read, and committed only under
+// UeContext.Mutex, never under the registry lock.
+//
 // Lock ordering (acquire in this order, never reverse):
 //
 //	AMF.mu  →  UeContext.Mutex
 //
-// Never hold UeContext.Mutex while acquiring AMF.mu.
-// Never hold any lock while making external calls (SMF, DB, NGAP send).
+// Never hold UeContext.Mutex while acquiring AMF.mu. Never hold any lock across an
+// external call (SMF, DB, NGAP send): snapshot, release, then call.
 type AMF struct {
 	mu sync.RWMutex
 
@@ -111,6 +127,8 @@ type AMF struct {
 	DBInstance               DBer
 	Ausf                     Authenticator
 	UEs                      map[etsi.SUPI]*UeContext
+	uesByGuti                map[etsi.GUTI]*UeContext // 5G-GUTI (current and in-flight old) -> UE, for O(1) inbound resolution
+	ranUEs                   map[int64]*RanUe         // UE-associated NGAP connections keyed by AMF-UE-NGAP-ID (globally unique); the owning radio is ranUe.radio
 	Radios                   map[*sctp.SCTPConn]*Radio
 	radiosByID               map[string]*Radio // radios that have claimed a Global RAN Node ID, for O(1) target resolution
 	RelativeCapacity         int64
@@ -188,13 +206,26 @@ func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext)
 
 	amf.tmsi.Free(ue.Tmsi)
 
-	if !ue.supi.IsValid() {
-		return
+	amf.mu.Lock()
+	amf.removeGutiIndexLocked(ue)
+
+	if ue.supi.IsValid() {
+		delete(amf.UEs, ue.supi)
 	}
 
-	amf.mu.Lock()
-	delete(amf.UEs, ue.supi)
 	amf.mu.Unlock()
+}
+
+// removeGutiIndexLocked drops the UE's current and in-flight old GUTI from the
+// resolution index. Caller holds amf.mu.
+func (amf *AMF) removeGutiIndexLocked(ue *UeContext) {
+	if ue.guti != etsi.InvalidGUTI {
+		delete(amf.uesByGuti, ue.guti)
+	}
+
+	if ue.OldGuti != etsi.InvalidGUTI {
+		delete(amf.uesByGuti, ue.OldGuti)
+	}
 }
 
 func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
@@ -261,7 +292,7 @@ func (amf *AMF) NewRadio(conn *sctp.SCTPConn) (*Radio, error) {
 		NGAPSender: &send.RealNGAPSender{
 			Conn: conn,
 		},
-		RanUEs:        make(map[int64]*RanUe),
+		amf:           amf,
 		SupportedTAIs: make([]SupportedTAI, 0),
 		Conn:          conn,
 		ConnectedAt:   now,
@@ -434,26 +465,19 @@ func (amf *AMF) FindUeContextByGuti(guti etsi.GUTI) (*UeContext, bool) {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	for _, ue := range amf.UEs {
-		if ue.guti == guti || ue.OldGuti == guti {
-			return ue, true
-		}
-	}
+	// uesByGuti indexes both the current and the in-flight old GUTI of every UE
+	// (maintained by ReAllocateGuti/FreeOldGuti and the removal paths), so an
+	// inbound GUTI/5G-S-TMSI resolves in O(1) rather than scanning every UE.
+	ue, ok := amf.uesByGuti[guti]
 
-	return nil, false
+	return ue, ok
 }
 
 func (amf *AMF) FindRanUeByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	for _, ran := range amf.Radios {
-		if ranUe := ran.FindUEByAmfUeNgapID(amfUeNgapID); ranUe != nil {
-			return ranUe
-		}
-	}
-
-	return nil
+	return amf.ranUEs[amfUeNgapID]
 }
 
 // NetworkFeatureSupport returns the 5GS network feature support config.
@@ -470,6 +494,8 @@ func (amf *AMF) NetworkFeatureSupport() NetworkFeatureSupport5GS {
 func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 	a := &AMF{
 		UEs:                      make(map[etsi.SUPI]*UeContext),
+		uesByGuti:                make(map[etsi.GUTI]*UeContext),
+		ranUEs:                   make(map[int64]*RanUe),
 		Radios:                   make(map[*sctp.SCTPConn]*Radio),
 		radiosByID:               make(map[string]*Radio),
 		DBInstance:               db,
@@ -524,36 +550,87 @@ func (a *AMF) NewRanUe(radio *Radio, ranUeNgapID int64) (*RanUe, error) {
 		freeNgapID:  a.ngapIDs.FreeID,
 	}
 
-	radio.mu.Lock()
-	radio.RanUEs[amfUeNgapID] = ranUe
-	radio.mu.Unlock()
+	a.mu.Lock()
+	a.ranUEs[amfUeNgapID] = ranUe
+	a.mu.Unlock()
 
 	return ranUe, nil
 }
 
-// ReAllocateGuti allocates a new 5G-GUTI for the UE and preserves the old one.
+// ReAllocateGuti allocates a new 5G-GUTI for the UE and preserves the old one
+// (resolvable until the UE acknowledges the reallocation, when FreeOldGuti runs).
+// The GUTI index is kept in step under a.mu.
 func (a *AMF) ReAllocateGuti(ctx context.Context, ue *UeContext, supportedGuami *models.Guami) error {
-	ue.OldTmsi = ue.Tmsi
-
 	tmsi, err := a.allocateTMSI(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to allocate TMSI: %v", err)
 	}
 
-	ue.Tmsi = tmsi
-	ue.OldGuti = ue.guti
-	ue.guti, err = etsi.NewGUTI(
+	newGuti, err := etsi.NewGUTI(
 		supportedGuami.PlmnID.Mcc,
 		supportedGuami.PlmnID.Mnc,
 		supportedGuami.AmfID,
 		tmsi,
 	)
+	if err != nil {
+		return err
+	}
 
-	return err
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// The current GUTI becomes the old one and stays indexed; the two-generations-old
+	// GUTI it overwrites is dropped so it can no longer resolve to this UE.
+	if ue.OldGuti != etsi.InvalidGUTI {
+		delete(a.uesByGuti, ue.OldGuti)
+	}
+
+	ue.OldTmsi = ue.Tmsi
+	ue.OldGuti = ue.guti
+	ue.Tmsi = tmsi
+	ue.guti = newGuti
+
+	a.uesByGuti[newGuti] = ue
+
+	return nil
 }
 
-// FreeOldGuti releases the previous TMSI/GUTI for the UE.
+// Guti returns the UE's current 5G-GUTI. The GUTI is a registry key — allocated and
+// indexed under a.mu by ReAllocateGuti — so it is read under the registry lock, the
+// same tier as the MME's M-TMSI.
+func (a *AMF) Guti(ue *UeContext) etsi.GUTI {
+	if ue == nil {
+		return etsi.GUTI{}
+	}
+
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	return ue.guti
+}
+
+// OldGuti returns the UE's in-flight previous 5G-GUTI, valid during a reallocation
+// window (until FreeOldGuti), read under the registry lock.
+func (a *AMF) OldGuti(ue *UeContext) etsi.GUTI {
+	if ue == nil {
+		return etsi.GUTI{}
+	}
+
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	return ue.OldGuti
+}
+
+// FreeOldGuti releases the previous TMSI/GUTI for the UE and unindexes the old GUTI.
 func (a *AMF) FreeOldGuti(ue *UeContext) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if ue.OldGuti != etsi.InvalidGUTI {
+		delete(a.uesByGuti, ue.OldGuti)
+	}
+
 	a.tmsi.Free(ue.OldTmsi)
 	ue.OldGuti = etsi.InvalidGUTI
 	ue.OldTmsi = etsi.InvalidTMSI
@@ -661,6 +738,10 @@ func (amf *AMF) StopAllTimers() {
 func (amf *AMF) RemoveUEBySupi(supi etsi.SUPI) {
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
+
+	if ue, ok := amf.UEs[supi]; ok {
+		amf.removeGutiIndexLocked(ue)
+	}
 
 	delete(amf.UEs, supi)
 }

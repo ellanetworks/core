@@ -18,11 +18,11 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-type FakeDBInstance struct {
+type fakeDBInstance struct {
 	Operator *db.Operator
 }
 
-func (fdb *FakeDBInstance) GetOperator(ctx context.Context) (*db.Operator, error) {
+func (fdb *fakeDBInstance) GetOperator(ctx context.Context) (*db.Operator, error) {
 	if fdb.Operator == nil {
 		return nil, fmt.Errorf("could not get operator")
 	}
@@ -30,14 +30,14 @@ func (fdb *FakeDBInstance) GetOperator(ctx context.Context) (*db.Operator, error
 	return fdb.Operator, nil
 }
 
-func (fdb *FakeDBInstance) GetDataNetworkByID(ctx context.Context, id string) (*db.DataNetwork, error) {
+func (fdb *fakeDBInstance) GetDataNetworkByID(ctx context.Context, id string) (*db.DataNetwork, error) {
 	return &db.DataNetwork{
 		ID:   id,
 		Name: "TestDataNetwork",
 	}, nil
 }
 
-func (fdb *FakeDBInstance) GetNetworkSliceByID(_ context.Context, id string) (*db.NetworkSlice, error) {
+func (fdb *fakeDBInstance) GetNetworkSliceByID(_ context.Context, id string) (*db.NetworkSlice, error) {
 	sd1 := "010203"
 	sd2 := "aabbcc"
 	slices := map[string]*db.NetworkSlice{
@@ -53,7 +53,7 @@ func (fdb *FakeDBInstance) GetNetworkSliceByID(_ context.Context, id string) (*d
 	return s, nil
 }
 
-func (fdb *FakeDBInstance) ListNetworkSlicesByIDs(_ context.Context, ids []string) ([]db.NetworkSlice, error) {
+func (fdb *fakeDBInstance) ListNetworkSlicesByIDs(_ context.Context, ids []string) ([]db.NetworkSlice, error) {
 	sd1 := "010203"
 	sd2 := "aabbcc"
 	slices := map[string]db.NetworkSlice{
@@ -72,17 +72,17 @@ func (fdb *FakeDBInstance) ListNetworkSlicesByIDs(_ context.Context, ids []strin
 	return out, nil
 }
 
-func (fdb *FakeDBInstance) GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error) {
+func (fdb *fakeDBInstance) GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error) {
 	return &db.Subscriber{
 		Imsi: imsi,
 	}, nil
 }
 
-func (fdb *FakeDBInstance) GetProfileByID(ctx context.Context, id string) (*db.Profile, error) {
+func (fdb *fakeDBInstance) GetProfileByID(ctx context.Context, id string) (*db.Profile, error) {
 	return &db.Profile{ID: id, Name: "TestProfile", Allow4G: true, Allow5G: true}, nil
 }
 
-func (fdb *FakeDBInstance) ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error) {
+func (fdb *fakeDBInstance) ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error) {
 	sd1 := "010203"
 	sd2 := "aabbcc"
 
@@ -92,18 +92,18 @@ func (fdb *FakeDBInstance) ListAllNetworkSlices(ctx context.Context) ([]db.Netwo
 	}, nil
 }
 
-func (fdb *FakeDBInstance) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID string) (*db.Policy, error) {
+func (fdb *fakeDBInstance) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID string) (*db.Policy, error) {
 	return &db.Policy{ID: "policy-1", Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: "dn-1"}, nil
 }
 
-func (fdb *FakeDBInstance) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {
+func (fdb *fakeDBInstance) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {
 	return []db.Policy{
 		{ID: "policy-1", Name: "TestPolicy", ProfileID: "profile-1", SliceID: "slice-1", DataNetworkID: "dn-1"},
 		{ID: "policy-2", Name: "TestPolicy2", ProfileID: "profile-1", SliceID: "slice-2", DataNetworkID: "dn-1"},
 	}, nil
 }
 
-func (fdb *FakeDBInstance) NodeID() int { return 0 }
+func (fdb *fakeDBInstance) NodeID() int { return 0 }
 
 type NGDLNasTransport struct {
 	AmfUeNGAPID int64
@@ -142,7 +142,7 @@ type NGPDUSessionResourceReleaseCommand struct {
 	List        ngapType.PDUSessionResourceToReleaseListRelCmd
 }
 
-type FakeNGAPSender struct {
+type fakeNGAPSender struct {
 	SentDownlinkNASTransport             []*NGDLNasTransport
 	SentPDUSessionResourceSetupRequest   []*NGPDUSessionResourceSetupRequest
 	SentInitialContextSetupRequest       []*NGInitialContextSetupRequest
@@ -150,47 +150,47 @@ type FakeNGAPSender struct {
 	SentPDUSessionResourceReleaseCommand []*NGPDUSessionResourceReleaseCommand
 }
 
-func (fng *FakeNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType send.NGAPProcedure) error {
+func (fng *fakeNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType send.NGAPProcedure) error {
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendNGSetupFailure(ctx context.Context, cause *ngapType.Cause) error {
+func (fng *fakeNGAPSender) SendNGSetupFailure(ctx context.Context, cause *ngapType.Cause) error {
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendNGSetupResponse(ctx context.Context, guami *models.Guami, snssaiList []models.Snssai, amfName string, amfRelativeCapacity int64) error {
+func (fng *fakeNGAPSender) SendNGSetupResponse(ctx context.Context, guami *models.Guami, snssaiList []models.Snssai, amfName string, amfRelativeCapacity int64) error {
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendNGResetAcknowledge(ctx context.Context, partOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList) error {
+func (fng *fakeNGAPSender) SendNGResetAcknowledge(ctx context.Context, partOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList) error {
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendErrorIndication(ctx context.Context, amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+func (fng *fakeNGAPSender) SendErrorIndication(ctx context.Context, amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendRanConfigurationUpdateAcknowledge(ctx context.Context, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+func (fng *fakeNGAPSender) SendRanConfigurationUpdateAcknowledge(ctx context.Context, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendRanConfigurationUpdateFailure(ctx context.Context, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+func (fng *fakeNGAPSender) SendRanConfigurationUpdateFailure(ctx context.Context, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendDownlinkRanConfigurationTransfer(ctx context.Context, transfer *ngapType.SONConfigurationTransfer) error {
+func (fng *fakeNGAPSender) SendDownlinkRanConfigurationTransfer(ctx context.Context, transfer *ngapType.SONConfigurationTransfer) error {
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendPathSwitchRequestFailure(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, pduSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListPSFail, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+func (fng *fakeNGAPSender) SendPathSwitchRequestFailure(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, pduSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListPSFail, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendAMFStatusIndication(ctx context.Context, unavailableGUAMIList ngapType.UnavailableGUAMIList) error {
+func (fng *fakeNGAPSender) SendAMFStatusIndication(ctx context.Context, unavailableGUAMIList ngapType.UnavailableGUAMIList) error {
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendUEContextReleaseCommand(
+func (fng *fakeNGAPSender) SendUEContextReleaseCommand(
 	ctx context.Context,
 	amfUeNgapID int64,
 	ranUeNgapID int64,
@@ -209,7 +209,7 @@ func (fng *FakeNGAPSender) SendUEContextReleaseCommand(
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendDownlinkNasTransport(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) error {
+func (fng *fakeNGAPSender) SendDownlinkNasTransport(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) error {
 	fng.SentDownlinkNASTransport = append(
 		fng.SentDownlinkNASTransport,
 		&NGDLNasTransport{
@@ -222,7 +222,7 @@ func (fng *FakeNGAPSender) SendDownlinkNasTransport(ctx context.Context, amfUeNg
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendPDUSessionResourceReleaseCommand(ctx context.Context, amfUENgapID int64, ranUENgapID int64, nasPdu []byte, pduSessionResourceReleasedList ngapType.PDUSessionResourceToReleaseListRelCmd) error {
+func (fng *fakeNGAPSender) SendPDUSessionResourceReleaseCommand(ctx context.Context, amfUENgapID int64, ranUENgapID int64, nasPdu []byte, pduSessionResourceReleasedList ngapType.PDUSessionResourceToReleaseListRelCmd) error {
 	fng.SentPDUSessionResourceReleaseCommand = append(
 		fng.SentPDUSessionResourceReleaseCommand,
 		&NGPDUSessionResourceReleaseCommand{
@@ -236,19 +236,19 @@ func (fng *FakeNGAPSender) SendPDUSessionResourceReleaseCommand(ctx context.Cont
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendHandoverCancelAcknowledge(ctx context.Context, amfUENGAPID int64, ranUENGAPID int64) error {
+func (fng *fakeNGAPSender) SendHandoverCancelAcknowledge(ctx context.Context, amfUENGAPID int64, ranUENGAPID int64) error {
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendPDUSessionResourceModifyConfirm(ctx context.Context, amfUENGAPID int64, ranUENGAPID int64, pduSessionResourceModifyConfirmList ngapType.PDUSessionResourceModifyListModCfm, pduSessionResourceFailedToModifyList ngapType.PDUSessionResourceFailedToModifyListModCfm) error {
+func (fng *fakeNGAPSender) SendPDUSessionResourceModifyConfirm(ctx context.Context, amfUENGAPID int64, ranUENGAPID int64, pduSessionResourceModifyConfirmList ngapType.PDUSessionResourceModifyListModCfm, pduSessionResourceFailedToModifyList ngapType.PDUSessionResourceFailedToModifyListModCfm) error {
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendPDUSessionResourceModifyRequest(ctx context.Context, amfUENGAPID int64, ranUENGAPID int64, pduSessionResourceModifyList ngapType.PDUSessionResourceModifyListModReq) error {
+func (fng *fakeNGAPSender) SendPDUSessionResourceModifyRequest(ctx context.Context, amfUENGAPID int64, ranUENGAPID int64, pduSessionResourceModifyList ngapType.PDUSessionResourceModifyListModReq) error {
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendPDUSessionResourceSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, nasPdu []byte, pduSessionResourceSetupRequestList ngapType.PDUSessionResourceSetupListSUReq) error {
+func (fng *fakeNGAPSender) SendPDUSessionResourceSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, nasPdu []byte, pduSessionResourceSetupRequestList ngapType.PDUSessionResourceSetupListSUReq) error {
 	fng.SentPDUSessionResourceSetupRequest = append(
 		fng.SentPDUSessionResourceSetupRequest,
 		&NGPDUSessionResourceSetupRequest{
@@ -264,19 +264,19 @@ func (fng *FakeNGAPSender) SendPDUSessionResourceSetupRequest(ctx context.Contex
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendHandoverPreparationFailure(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+func (fng *fakeNGAPSender) SendHandoverPreparationFailure(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendLocationReportingControl(ctx context.Context, amfUENgapID int64, ranUENgapID int64, eventType ngapType.EventType) error {
+func (fng *fakeNGAPSender) SendLocationReportingControl(ctx context.Context, amfUENgapID int64, ranUENgapID int64, eventType ngapType.EventType) error {
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendHandoverCommand(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, handOverType ngapType.HandoverType, pduSessionResourceHandoverList ngapType.PDUSessionResourceHandoverList, pduSessionResourceToReleaseList ngapType.PDUSessionResourceToReleaseListHOCmd, container ngapType.TargetToSourceTransparentContainer) error {
+func (fng *fakeNGAPSender) SendHandoverCommand(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, handOverType ngapType.HandoverType, pduSessionResourceHandoverList ngapType.PDUSessionResourceHandoverList, pduSessionResourceToReleaseList ngapType.PDUSessionResourceToReleaseListHOCmd, container ngapType.TargetToSourceTransparentContainer) error {
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendInitialContextSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, allowedNssai []models.Snssai, kgnb []byte, plmnID models.PlmnID, ueRadioCapability []byte, ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging, ueSecurityCapability *nasType.UESecurityCapability, nasPdu []byte, pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq, supportedGUAMI *models.Guami) error {
+func (fng *fakeNGAPSender) SendInitialContextSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, allowedNssai []models.Snssai, kgnb []byte, plmnID models.PlmnID, ueRadioCapability []byte, ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging, ueSecurityCapability *nasType.UESecurityCapability, nasPdu []byte, pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq, supportedGUAMI *models.Guami) error {
 	fng.SentInitialContextSetupRequest = append(
 		fng.SentInitialContextSetupRequest,
 		&NGInitialContextSetupRequest{
@@ -292,11 +292,11 @@ func (fng *FakeNGAPSender) SendInitialContextSetupRequest(ctx context.Context, a
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendPathSwitchRequestAcknowledge(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ueSecurityCapability *nasType.UESecurityCapability, ncc uint8, nh []byte, pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList, pduSessionResourceReleasedList ngapType.PDUSessionResourceReleasedListPSAck, snssaiList []models.Snssai) error {
+func (fng *fakeNGAPSender) SendPathSwitchRequestAcknowledge(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ueSecurityCapability *nasType.UESecurityCapability, ncc uint8, nh []byte, pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList, pduSessionResourceReleasedList ngapType.PDUSessionResourceReleasedListPSAck, snssaiList []models.Snssai) error {
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendHandoverRequest(
+func (fng *fakeNGAPSender) SendHandoverRequest(
 	ctx context.Context,
 	amfUeNgapID int64,
 	handOverType ngapType.HandoverType,
@@ -314,14 +314,14 @@ func (fng *FakeNGAPSender) SendHandoverRequest(
 	return nil
 }
 
-type FakeAusf struct {
+type fakeAusf struct {
 	Supi    etsi.SUPI
 	Kseaf   []byte
 	Error   error
 	AvKgAka *ausf.AuthResult
 }
 
-func (a *FakeAusf) Authenticate(ctx context.Context, suci string, plmn models.PlmnID, resync *ausf.ResyncInfo) (*ausf.AuthResult, error) {
+func (a *fakeAusf) Authenticate(ctx context.Context, suci string, plmn models.PlmnID, resync *ausf.ResyncInfo) (*ausf.AuthResult, error) {
 	if a.Error != nil {
 		return nil, a.Error
 	}
@@ -329,7 +329,7 @@ func (a *FakeAusf) Authenticate(ctx context.Context, suci string, plmn models.Pl
 	return a.AvKgAka, nil
 }
 
-func (a *FakeAusf) Confirm(ctx context.Context, resStar string, suci string) (etsi.SUPI, []byte, error) {
+func (a *fakeAusf) Confirm(ctx context.Context, resStar string, suci string) (etsi.SUPI, []byte, error) {
 	if a.Error != nil {
 		return etsi.InvalidSUPI, nil, a.Error
 	}
@@ -354,7 +354,7 @@ type SmfReleaseSmContextCall struct {
 	SmContextRef string
 }
 
-type FakeSmf struct {
+type fakeSmf struct {
 	Error             error
 	ReleasedSmContext []string
 
@@ -401,7 +401,7 @@ type SmfDuplicatePDUCall struct {
 	SmContextRef string
 }
 
-func (s *FakeSmf) ActivateSmContext(_ context.Context, smContextRef string) ([]byte, error) {
+func (s *fakeSmf) ActivateSmContext(_ context.Context, smContextRef string) ([]byte, error) {
 	s.ActivateSmContextCalls = append(s.ActivateSmContextCalls, SmfActivateSmContextCall{
 		SmContextRef: smContextRef,
 	})
@@ -422,7 +422,7 @@ func (s *FakeSmf) ActivateSmContext(_ context.Context, smContextRef string) ([]b
 	return resp, nil
 }
 
-func (s *FakeSmf) ReleaseSmContext(ctx context.Context, smContextRef string) error {
+func (s *fakeSmf) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	s.ReleaseSmContextCalls = append(s.ReleaseSmContextCalls, SmfReleaseSmContextCall{
 		SmContextRef: smContextRef,
 	})
@@ -440,15 +440,15 @@ func (s *FakeSmf) ReleaseSmContext(ctx context.Context, smContextRef string) err
 	return nil
 }
 
-func (s *FakeSmf) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
+func (s *fakeSmf) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
 	return nil, s.Error
 }
 
-func (s *FakeSmf) UpdateSmContextHandoverFailed(_ context.Context, smContextRef string, n2Data []byte) error {
+func (s *fakeSmf) UpdateSmContextHandoverFailed(_ context.Context, smContextRef string, n2Data []byte) error {
 	return s.Error
 }
 
-func (s *FakeSmf) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*smf.UpdateResult, error) {
+func (s *fakeSmf) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*smf.UpdateResult, error) {
 	s.UpdateN1MsgCalls = append(s.UpdateN1MsgCalls, SmfUpdateN1MsgCall{
 		SmContextRef: smContextRef,
 		N1Msg:        n1Msg,
@@ -457,7 +457,7 @@ func (s *FakeSmf) UpdateSmContextN1Msg(ctx context.Context, smContextRef string,
 	return s.UpdateN1MsgResponse, s.UpdateN1MsgError
 }
 
-func (s *FakeSmf) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, n1Msg []byte) (string, []byte, error) {
+func (s *fakeSmf) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, n1Msg []byte) (string, []byte, error) {
 	s.CreateSmContextCalls = append(s.CreateSmContextCalls, SmfCreateSmContextCall{
 		Supi:         supi,
 		PduSessionID: pduSessionID,
@@ -469,7 +469,7 @@ func (s *FakeSmf) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessio
 	return s.CreateSmContextRef, s.CreateSmContextErrResp, s.CreateSmContextError
 }
 
-func (s *FakeSmf) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error) {
+func (s *fakeSmf) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error) {
 	s.DuplicatePDUCalls = append(s.DuplicatePDUCalls, SmfDuplicatePDUCall{
 		SmContextRef: smContextRef,
 	})
@@ -477,45 +477,45 @@ func (s *FakeSmf) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context,
 	return s.DuplicatePDUResponse, s.DuplicatePDUError
 }
 
-func (s *FakeSmf) DeactivateSmContext(_ context.Context, _ string) error {
+func (s *fakeSmf) DeactivateSmContext(_ context.Context, _ string) error {
 	return s.Error
 }
 
-func (s *FakeSmf) UpdateSmContextN2InfoPduResSetupRsp(_ context.Context, _ string, _ []byte) error {
+func (s *fakeSmf) UpdateSmContextN2InfoPduResSetupRsp(_ context.Context, _ string, _ []byte) error {
 	return s.Error
 }
 
-func (s *FakeSmf) UpdateSmContextN2InfoPduResSetupFail(_ context.Context, _ string, _ []byte) error {
+func (s *fakeSmf) UpdateSmContextN2InfoPduResSetupFail(_ context.Context, _ string, _ []byte) error {
 	return s.Error
 }
 
-func (s *FakeSmf) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, _ string) error {
+func (s *fakeSmf) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, _ string) error {
 	return s.Error
 }
 
-func (s *FakeSmf) UpdateSmContextN2HandoverPreparing(_ context.Context, _ string, _ []byte) ([]byte, error) {
+func (s *fakeSmf) UpdateSmContextN2HandoverPreparing(_ context.Context, _ string, _ []byte) ([]byte, error) {
 	return nil, s.Error
 }
 
-func (s *FakeSmf) UpdateSmContextN2HandoverPrepared(_ context.Context, _ string, _ []byte) ([]byte, error) {
+func (s *fakeSmf) UpdateSmContextN2HandoverPrepared(_ context.Context, _ string, _ []byte) ([]byte, error) {
 	return nil, s.Error
 }
 
-func (s *FakeSmf) UpdateSmContextN2HandoverComplete(_ context.Context, _ string) error {
+func (s *fakeSmf) UpdateSmContextN2HandoverComplete(_ context.Context, _ string) error {
 	return s.Error
 }
 
-func (s *FakeSmf) GetSession(_ string) *smf.SMContext { return nil }
+func (s *fakeSmf) GetSession(_ string) *smf.SMContext { return nil }
 
-func (s *FakeSmf) SessionsByDNN(_ string) []*smf.SMContext { return nil }
+func (s *fakeSmf) SessionsByDNN(_ string) []*smf.SMContext { return nil }
 
-func (s *FakeSmf) SessionCount() int { return 0 }
+func (s *fakeSmf) SessionCount() int { return 0 }
 
-func (s *FakeSmf) ReconcileSmContext(_ context.Context, _ *models.SessionReconcileRequest) error {
+func (s *fakeSmf) ReconcileSmContext(_ context.Context, _ *models.SessionReconcileRequest) error {
 	return s.Error
 }
 
-func (s *FakeSmf) GetSessionPolicy(_ context.Context, _ etsi.SUPI, _ *models.Snssai, _ string) (*smf.Policy, error) {
+func (s *fakeSmf) GetSessionPolicy(_ context.Context, _ etsi.SUPI, _ *models.Snssai, _ string) (*smf.Policy, error) {
 	return nil, nil
 }
 

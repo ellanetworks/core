@@ -17,7 +17,7 @@ import (
 	"github.com/free5gc/nas/security"
 )
 
-// failingSubscriberDB is a FakeDBInstance variant that returns an error for GetSubscriber.
+// failingSubscriberDB is a fakeDBInstance variant that returns an error for GetSubscriber.
 type failingSubscriberDB struct {
 	Operator *db.Operator
 }
@@ -101,15 +101,15 @@ func decryptAndDecodeNasPdu(t *testing.T, ue *amf.UeContext, nasPdu []byte, dlCo
 
 // buildMobilityRegUeAndAMF creates a UE and amf.AMF configured for mobility/periodic
 // registration updating tests. The UE has security context, a valid registration
-// request, Pei, Supi, and matching Tai. The amf.AMF has a valid Operator, FakeSmf, and
+// request, Pei, Supi, and matching Tai. The amf.AMF has a valid Operator, fakeSmf, and
 // UEs map. Returns the UE, ngapSender, fakeSmf, and amf.AMF.
-func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *FakeNGAPSender, *FakeSmf, *amf.AMF) {
+func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *fakeNGAPSender, *fakeSmf, *amf.AMF) {
 	t.Helper()
 
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")
-	fakeSmf := &FakeSmf{}
+	fakeSmf := &fakeSmf{}
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
@@ -158,7 +158,7 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *FakeNGAPSender, *F
 func TestMobilityReg_GetOperatorInfoError(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	amfInstance.DBInstance = &FakeDBInstance{Operator: nil}
+	amfInstance.DBInstance = &fakeDBInstance{Operator: nil}
 
 	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err == nil {
@@ -357,7 +357,7 @@ func TestMobilityReg_GetSubscriberProfileError(t *testing.T) {
 func TestMobilityReg_EmptyAllowedNssai_RejectsRegistration(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	amfInstance.DBInstance = &emptyPolicyDB{FakeDBInstance: &FakeDBInstance{
+	amfInstance.DBInstance = &emptyPolicyDB{fakeDBInstance: &fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -950,7 +950,7 @@ func (m *multiSliceDB) NodeID() int { return 0 }
 
 func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")
-	fakeSmf := &FakeSmf{}
+	fakeSmf := &fakeSmf{}
 	dbInstance := &multiSliceDB{
 		Operator: &db.Operator{
 			Mcc:           "001",

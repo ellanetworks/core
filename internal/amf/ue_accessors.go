@@ -84,17 +84,6 @@ func (ue *UeContext) UESecCap() *nasType.UESecurityCapability {
 	return ue.ueSecurityCapability
 }
 
-func (ue *UeContext) Guti() etsi.GUTI {
-	if ue == nil {
-		return etsi.GUTI{}
-	}
-
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	return ue.guti
-}
-
 func (ue *UeContext) NgKsi() models.NgKsi {
 	if ue == nil {
 		return models.NgKsi{}

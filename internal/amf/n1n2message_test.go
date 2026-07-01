@@ -305,7 +305,8 @@ func TestTransferN1N2Message_InitialContextAlreadySent(t *testing.T) {
 		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
 	})
 
-	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
+	radio := &amf.Radio{NGAPSender: sender}
+	radio.BindAMFForTest(amfInstance)
 	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
 	ranUe.ICS = amf.ICSPending
 	ue.AttachRanUe(ranUe)
@@ -334,7 +335,8 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
 	})
 
-	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
+	radio := &amf.Radio{NGAPSender: sender}
+	radio.BindAMFForTest(amfInstance)
 	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
 	ranUe.ICS = amf.ICSNotStarted
 	ue.AttachRanUe(ranUe)
@@ -366,11 +368,11 @@ func TestModifyN1N2Message_IdleRegisteredUE_ReturnsNotReachable(t *testing.T) {
 
 	radio := &amf.Radio{
 		NGAPSender: sender,
-		RanUEs:     make(map[int64]*amf.RanUe),
 		SupportedTAIs: []amf.SupportedTAI{{
 			Tai: models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
 		}},
 	}
+	radio.BindAMFForTest(amfInstance)
 	amfInstance.Radios[nil] = radio
 
 	// UE has no RanUe attached → CM-IDLE
@@ -479,7 +481,8 @@ func TestN2MessageTransferOrPage_ConnectedUE_InitialCtxSent(t *testing.T) {
 		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
 	})
 
-	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
+	radio := &amf.Radio{NGAPSender: sender}
+	radio.BindAMFForTest(amfInstance)
 	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
 	ranUe.ICS = amf.ICSPending
 	ue.AttachRanUe(ranUe)
@@ -534,7 +537,8 @@ func TestTransferN1Msg_Success(t *testing.T) {
 
 	ue := addUE(t, amfInstance, "001010000000013", nil)
 
-	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
+	radio := &amf.Radio{NGAPSender: sender}
+	radio.BindAMFForTest(amfInstance)
 	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
 	ue.AttachRanUe(ranUe)
 

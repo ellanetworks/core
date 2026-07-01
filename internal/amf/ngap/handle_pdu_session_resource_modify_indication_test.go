@@ -15,8 +15,8 @@ import (
 )
 
 func TestPDUSessionResourceModifyIndication_UnknownRanUeNgapID(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	ran := newTestRadio(newTestAMF())
+	sender := ran.NGAPSender.(*fakeNGAPSender)
 
 	ngap.HandlePDUSessionResourceModifyIndication(context.Background(), ran, decode.PDUSessionResourceModifyIndication{
 		RANUENGAPID: 99,
@@ -37,8 +37,8 @@ func TestPDUSessionResourceModifyIndication_UnknownRanUeNgapID(t *testing.T) {
 }
 
 func TestPDUSessionResourceModifyIndication_UnknownAmfUeNgapID(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	ran := newTestRadio(newTestAMF())
+	sender := ran.NGAPSender.(*fakeNGAPSender)
 
 	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 
@@ -56,8 +56,8 @@ func TestPDUSessionResourceModifyIndication_UnknownAmfUeNgapID(t *testing.T) {
 }
 
 func TestPDUSessionResourceModifyIndication_SendsModifyConfirm(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	ran := newTestRadio(newTestAMF())
+	sender := ran.NGAPSender.(*fakeNGAPSender)
 
 	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 

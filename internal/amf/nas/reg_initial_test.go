@@ -14,7 +14,7 @@ import (
 )
 
 type emptyPolicyDB struct {
-	*FakeDBInstance
+	*fakeDBInstance
 }
 
 func (fdb *emptyPolicyDB) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {
@@ -24,7 +24,7 @@ func (fdb *emptyPolicyDB) ListPoliciesByProfile(_ context.Context, _ string) ([]
 func TestHandleInitialRegistration_EmptyAllowedNssai_RejectsRegistration(t *testing.T) {
 	ctx := context.TODO()
 
-	amfInstance := amf.New(&emptyPolicyDB{FakeDBInstance: &FakeDBInstance{
+	amfInstance := amf.New(&emptyPolicyDB{fakeDBInstance: &fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",

@@ -113,7 +113,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		pduSessionResourceToReleaseList.List = append(pduSessionResourceToReleaseList.List, releaseItem)
 	}
 
-	sourceUe := amfUe.HandoverSource()
+	sourceUe := amfInstance.HandoverSource(amfUe)
 	if sourceUe == nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("handover between different Ue has not been implement yet")
 		return
@@ -121,7 +121,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 
 	// Advance the FSM hoPreparing→hoPrepared (HANDOVER COMMAND about to be sent);
 	// a duplicate or out-of-order acknowledge does not match and is dropped.
-	if !amfUe.MarkHandoverPrepared() {
+	if !amfInstance.MarkHandoverPrepared(amfUe) {
 		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge with no handover at the preparing stage; dropping")
 		return
 	}
@@ -141,7 +141,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 
 		if sourceUeContext := sourceUe.UeContext(); sourceUeContext != nil {
 			sourceUeContext.NasConn().Procedures.End(procedure.N2Handover)
-			sourceUeContext.ClearHandover()
+			amfInstance.ClearHandover(sourceUeContext)
 		}
 
 		if sourceUe.Radio() == nil {

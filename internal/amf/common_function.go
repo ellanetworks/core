@@ -60,7 +60,11 @@ func AttachSourceUeTargetUe(sourceUe, targetUe *RanUe) error {
 
 	targetUe.amfUe = amfUe
 
-	amfUe.BeginHandover(sourceUe, targetUe)
+	if err := sourceUe.radio.amf.BeginHandover(amfUe, sourceUe, targetUe); err != nil {
+		targetUe.amfUe = nil
+
+		return fmt.Errorf("begin handover: %w", err)
+	}
 
 	return nil
 }

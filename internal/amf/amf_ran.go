@@ -10,7 +10,6 @@ package amf
 
 import (
 	"context"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -68,8 +67,7 @@ type Radio struct {
 	ConnectedAt   time.Time
 	lastSeen      atomic.Int64 // Unix nanoseconds; use LastSeenAt()/TouchLastSeen()
 	SupportedTAIs []SupportedTAI
-	mu            sync.RWMutex     // protects RanUEs
-	RanUEs        map[int64]*RanUe // Key: AMF UE NGAP ID (unique and set for the UE's whole lifetime; the RAN UE NGAP ID is unassigned until a handover target is acknowledged)
+	amf           *AMF // the owning AMF; its registry lock (amf.mu) guards the ranUEs index this radio's UEs live in
 	Log           *zap.Logger
 }
 
@@ -80,14 +78,17 @@ type SupportedTAI struct {
 
 // RemoveAllUeInRan removes every RAN UE bound to this radio.
 func (r *Radio) RemoveAllUeInRan(ctx context.Context) {
-	r.mu.RLock()
+	r.amf.mu.RLock()
 
-	ues := make([]*RanUe, 0, len(r.RanUEs))
-	for _, ranUe := range r.RanUEs {
-		ues = append(ues, ranUe)
+	ues := make([]*RanUe, 0)
+
+	for _, ranUe := range r.amf.ranUEs {
+		if ranUe.radio == r {
+			ues = append(ues, ranUe)
+		}
 	}
 
-	r.mu.RUnlock()
+	r.amf.mu.RUnlock()
 
 	for _, ranUe := range ues {
 		applyStatefulNasCleanup(ctx, ranUe)
@@ -117,11 +118,11 @@ func applyStatefulNasCleanup(ctx context.Context, ranUe *RanUe) {
 }
 
 func (r *Radio) FindUEByRanUeNgapID(ranUeNgapID int64) *RanUe {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.amf.mu.RLock()
+	defer r.amf.mu.RUnlock()
 
-	for _, ranUe := range r.RanUEs {
-		if ranUe.RanUeNgapID == ranUeNgapID {
+	for _, ranUe := range r.amf.ranUEs {
+		if ranUe.radio == r && ranUe.RanUeNgapID == ranUeNgapID {
 			return ranUe
 		}
 	}
@@ -133,17 +134,21 @@ func (r *Radio) FindUEByRanUeNgapID(ranUeNgapID int64) *RanUe {
 // in HandoverRequestAcknowledge. The UE is keyed by its AMF UE NGAP ID, so only
 // the field is updated.
 func (r *Radio) UpdateUERanNgapID(ranUe *RanUe, newRanUeNgapID int64) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.amf.mu.Lock()
+	defer r.amf.mu.Unlock()
 
 	ranUe.RanUeNgapID = newRanUeNgapID
 }
 
 func (r *Radio) FindUEByAmfUeNgapID(amfUeNgapID int64) *RanUe {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.amf.mu.RLock()
+	defer r.amf.mu.RUnlock()
 
-	return r.RanUEs[amfUeNgapID]
+	if ranUe := r.amf.ranUEs[amfUeNgapID]; ranUe != nil && ranUe.radio == r {
+		return ranUe
+	}
+
+	return nil
 }
 
 func (r *Radio) TouchLastSeen() {
@@ -199,13 +204,25 @@ func (r *Radio) RanNodeTypeName() string {
 }
 
 func (r *Radio) ConnectedSubscribers() []string {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.amf.mu.RLock()
 
-	supis := make([]string, 0, len(r.RanUEs))
-	for _, ranUe := range r.RanUEs {
-		if ranUe.amfUe != nil && ranUe.amfUe.supi.IsValid() && ranUe.amfUe.supi.IsIMSI() {
-			supis = append(supis, ranUe.amfUe.supi.IMSI())
+	ues := make([]*UeContext, 0)
+
+	for _, ranUe := range r.amf.ranUEs {
+		if ranUe.radio == r && ranUe.amfUe != nil {
+			ues = append(ues, ranUe.amfUe)
+		}
+	}
+
+	r.amf.mu.RUnlock()
+
+	// Read each supi through its accessor (UeContext.mu), not the raw field under
+	// r.mu, so a concurrent SetSupi cannot race this scan.
+	supis := make([]string, 0, len(ues))
+	for _, ue := range ues {
+		supi := ue.Supi()
+		if supi.IsValid() && supi.IsIMSI() {
+			supis = append(supis, supi.IMSI())
 		}
 	}
 
