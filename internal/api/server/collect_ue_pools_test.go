@@ -21,6 +21,7 @@ func TestCollectUEPoolsIncludesIPv6(t *testing.T) {
 	if err != nil {
 		t.Fatalf("couldn't create database: %s", err)
 	}
+
 	defer func() { _ = dbInstance.Close() }()
 
 	if err := dbInstance.CreateDataNetwork(ctx, &db.DataNetwork{
