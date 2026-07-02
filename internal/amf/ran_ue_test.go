@@ -153,7 +153,7 @@ func TestRemoveAllUeInRan_AbortsProcedures(t *testing.T) {
 func TestRemoveAllUeInRan_MidAuthentication_Deregisters(t *testing.T) {
 	radio := newTestRadioForRanUe()
 	ue, _ := newBoundUeContext(t, radio)
-	ue.ForceState(amf.Authentication)
+	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 
 	radio.RemoveAllUeInRan(context.Background())
 
@@ -165,7 +165,7 @@ func TestRemoveAllUeInRan_MidAuthentication_Deregisters(t *testing.T) {
 func TestRemoveAllUeInRan_MidSecurityMode_Deregisters(t *testing.T) {
 	radio := newTestRadioForRanUe()
 	ue, _ := newBoundUeContext(t, radio)
-	ue.ForceState(amf.SecurityMode)
+	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
 
 	radio.RemoveAllUeInRan(context.Background())
 
@@ -177,7 +177,7 @@ func TestRemoveAllUeInRan_MidSecurityMode_Deregisters(t *testing.T) {
 func TestRemoveAllUeInRan_MidContextSetup_Deregisters(t *testing.T) {
 	radio := newTestRadioForRanUe()
 	ue, _ := newBoundUeContext(t, radio)
-	ue.ForceState(amf.ContextSetup)
+	ue.ForceRegStepForTest(amf.RegStepContextSetup)
 
 	radio.RemoveAllUeInRan(context.Background())
 

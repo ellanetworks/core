@@ -33,16 +33,10 @@ func TestTransitionTo_InvalidTransitionResetsToDeregistered(t *testing.T) {
 		from, to StateType
 	}{
 		{Deregistered, Registered},
-		{Deregistered, SecurityMode},
-		{Deregistered, ContextSetup},
-		{Authentication, Registered},
-		{Authentication, ContextSetup},
-		{SecurityMode, Registered},
-		{SecurityMode, Authentication},
-		{ContextSetup, Authentication},
-		{ContextSetup, SecurityMode},
-		{Registered, SecurityMode},
-		{Registered, ContextSetup},
+		{Deregistered, DeregistrationInitiated},
+		{RegistrationInitiated, DeregistrationInitiated},
+		{DeregistrationInitiated, RegistrationInitiated},
+		{DeregistrationInitiated, Registered},
 	}
 	for _, tc := range invalid {
 		ue := NewUeContext()
@@ -58,7 +52,7 @@ func TestTransitionTo_InvalidTransitionResetsToDeregistered(t *testing.T) {
 }
 
 func TestTransitionTo_IdempotentSameState(t *testing.T) {
-	for _, s := range []StateType{Deregistered, Authentication, SecurityMode, ContextSetup, Registered} {
+	for _, s := range []StateType{Deregistered, RegistrationInitiated, Registered, DeregistrationInitiated} {
 		ue := NewUeContext()
 		ue.Log = zap.NewNop()
 		ue.state = s
@@ -76,10 +70,9 @@ func TestTransitionTo_FullRegistrationCycle(t *testing.T) {
 	ue.Log = zap.NewNop()
 
 	steps := []StateType{
-		Authentication,
-		SecurityMode,
-		ContextSetup,
+		RegistrationInitiated,
 		Registered,
+		DeregistrationInitiated,
 		Deregistered,
 	}
 	for i, step := range steps {
@@ -88,6 +81,43 @@ func TestTransitionTo_FullRegistrationCycle(t *testing.T) {
 		if got := ue.State(); got != step {
 			t.Fatalf("step %d: expected %s, got %s", i, step, got)
 		}
+	}
+}
+
+// TestRegStep_TracksRegistrationSubPhase checks that the registration sub-phase
+// follows the mobility-management state: it starts at the authentication exchange
+// on entering RegistrationInitiated, advances within it, and clears on leaving.
+func TestRegStep_TracksRegistrationSubPhase(t *testing.T) {
+	ue := NewUeContext()
+	ue.Log = zap.NewNop()
+
+	if got := ue.RegStep(); got != RegStepNone {
+		t.Fatalf("a fresh UE must carry no registration sub-phase, got %d", got)
+	}
+
+	ue.TransitionTo(RegistrationInitiated)
+
+	if got := ue.RegStep(); got != RegStepAuthenticating {
+		t.Fatalf("entering RegistrationInitiated must start at the authentication exchange, got %d", got)
+	}
+
+	ue.AdvanceRegStep(RegStepSecurityMode)
+
+	if got := ue.RegStep(); got != RegStepSecurityMode {
+		t.Fatalf("AdvanceRegStep must move the sub-phase, got %d", got)
+	}
+
+	ue.TransitionTo(Registered)
+
+	if got := ue.RegStep(); got != RegStepNone {
+		t.Fatalf("leaving RegistrationInitiated must clear the sub-phase, got %d", got)
+	}
+
+	// AdvanceRegStep is a no-op outside RegistrationInitiated.
+	ue.AdvanceRegStep(RegStepContextSetup)
+
+	if got := ue.RegStep(); got != RegStepNone {
+		t.Fatalf("AdvanceRegStep outside RegistrationInitiated must be a no-op, got %d", got)
 	}
 }
 
@@ -105,7 +135,7 @@ func TestTransitionTo_ConcurrentSafety(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			ue.TransitionTo(Authentication)
+			ue.TransitionTo(RegistrationInitiated)
 		}()
 		go func() {
 			defer wg.Done()

@@ -129,11 +129,18 @@ func (ue *UeContext) ProtectDownlink(plain []byte, sht eps.SecurityHeaderType) (
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	count := ue.dlCount
+	// Protect with the current NAS COUNT and advance only once the message is
+	// protected, so a protection failure does not consume a downlink COUNT
+	// (TS 24.301 §4.4.3.1).
+	wire, err := eps.Protect(plain, sht, ue.dlCount.Value(),
+		nascommon.DirectionDownlink, ue.knasInt, ue.knasEnc, IntegrityAlg(ue.eia), CipherAlg(ue.eea))
+	if err != nil {
+		return nil, err
+	}
+
 	ue.dlCount = ue.dlCount.Next()
 
-	return eps.Protect(plain, sht, count.Value(),
-		nascommon.DirectionDownlink, ue.knasInt, ue.knasEnc, IntegrityAlg(ue.eia), CipherAlg(ue.eea))
+	return wire, nil
 }
 
 // InstallNASSecurityContext derives the NAS keys from K_ASME for the negotiated
@@ -155,6 +162,10 @@ func (ue *UeContext) InstallNASSecurityContext(eea, eia byte, _ AuthProof) error
 
 	ue.eea, ue.eia = eea, eia
 	ue.knasEnc, ue.knasInt = knasEnc, knasInt
+
+	// A new EPS security context starts both NAS COUNTs at zero, so the initial
+	// SECURITY MODE COMMAND rides downlink COUNT 0 (TS 24.301 §4.4.3.1).
+	ue.ulCount, ue.dlCount = 0, 0
 
 	return nil
 }

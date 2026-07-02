@@ -17,7 +17,7 @@ import (
 )
 
 func TestHandleRegeristrationRequest(t *testing.T) {
-	testcases := []amf.StateType{amf.Deregistered, amf.Authentication, amf.SecurityMode, amf.ContextSetup}
+	testcases := []amf.StateType{amf.Deregistered, amf.RegistrationInitiated, amf.DeregistrationInitiated}
 	for _, tc := range testcases {
 		t.Run(fmt.Sprintf("State-%s", tc), func(t *testing.T) {
 			ue, ngapSender, err := buildUeAndRadio()

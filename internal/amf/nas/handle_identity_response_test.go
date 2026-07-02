@@ -258,12 +258,19 @@ func TestUpdateUeIdentity(t *testing.T) {
 }
 
 func TestHandleIdentityResponse_InvalidStateError(t *testing.T) {
-	testcases := []amf.StateType{amf.Deregistered, amf.Registered, amf.SecurityMode}
+	testcases := []struct {
+		name  string
+		setup func(*amf.UeContext)
+	}{
+		{"Deregistered", func(ue *amf.UeContext) { ue.ForceState(amf.Deregistered) }},
+		{"Registered", func(ue *amf.UeContext) { ue.ForceState(amf.Registered) }},
+		{"SecurityMode", func(ue *amf.UeContext) { ue.ForceRegStepForTest(amf.RegStepSecurityMode) }},
+	}
 
 	for _, tc := range testcases {
-		t.Run(string(tc), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			ue := amf.NewUeContext()
-			ue.ForceState(tc)
+			tc.setup(ue)
 
 			err := handleIdentityResponse(context.TODO(), amf.New(nil, nil, nil), ue, &nasMessage.IdentityResponse{}, true)
 			if err == nil {
@@ -295,7 +302,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 	}
 
 	ue.Suci = ""
-	ue.ForceState(amf.Authentication)
+	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	ue.Tai = ue.RanUe().Tai
 
 	m := buildTestIdentityResponseMessage()
@@ -349,7 +356,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 	}
 
 	ue.Suci = ""
-	ue.ForceState(amf.Authentication)
+	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	ue.Tai = models.Tai{}
 
 	m := buildTestIdentityResponseMessage()
@@ -394,7 +401,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(supi)
-	ue.ForceState(amf.Authentication)
+	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	ue.Tai = ue.RanUe().Tai
 	ue.SetSecuredForTest(true)
 	{
@@ -489,7 +496,7 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 			ue.Suci = "testsuci"
 			ue.SetSupiForTest(supi)
 			ue.Pei = "testpei"
-			ue.ForceState(amf.ContextSetup)
+			ue.ForceRegStepForTest(amf.RegStepContextSetup)
 			ue.Tai = ue.RanUe().Tai
 			ue.SetSecuredForTest(true)
 			{
@@ -584,7 +591,7 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 			ue.Suci = "testsuci"
 			ue.SetSupiForTest(supi)
 			ue.Pei = "testpei"
-			ue.ForceState(amf.ContextSetup)
+			ue.ForceRegStepForTest(amf.RegStepContextSetup)
 			ue.Tai = ue.RanUe().Tai
 			ue.SetSecuredForTest(true)
 			{
@@ -632,10 +639,16 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 }
 
 func TestHandleIdentityResponse_IdentityError(t *testing.T) {
-	testcases := []amf.StateType{amf.Authentication, amf.ContextSetup}
+	testcases := []struct {
+		name  string
+		setup func(*amf.UeContext)
+	}{
+		{"Authenticating", func(ue *amf.UeContext) { ue.ForceRegStepForTest(amf.RegStepAuthenticating) }},
+		{"ContextSetup", func(ue *amf.UeContext) { ue.ForceRegStepForTest(amf.RegStepContextSetup) }},
+	}
 
 	for _, tc := range testcases {
-		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			supi := mustSUPIFromPrefixed("imsi-001019756139935")
 			amfInstance := amf.New(&fakeDBInstance{}, &fakeAusf{
 				AvKgAka: &ausf.AuthResult{
@@ -651,7 +664,7 @@ func TestHandleIdentityResponse_IdentityError(t *testing.T) {
 				t.Fatalf("could not create UE and radio: %v", err)
 			}
 
-			ue.ForceState(tc)
+			tc.setup(ue)
 
 			m := buildTestIdentityResponseMessage()
 			m.SetMobileIdentityContents([]uint8{})

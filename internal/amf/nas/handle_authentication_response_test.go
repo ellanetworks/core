@@ -18,7 +18,7 @@ import (
 	"github.com/free5gc/nas/nasType"
 )
 
-// A missing RES* (nil amf.Authentication response parameter IE) is treated as an
+// A missing RES* (nil authentication response parameter IE) is treated as an
 // unsuccessful authentication per TS 24.501: a GUTI-identified UE is
 // asked to identify via SUCI, a SUCI-identified UE is rejected.
 func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *testing.T) {
@@ -41,7 +41,7 @@ func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *test
 				t.Fatalf("could not create UE and radio: %v", err)
 			}
 
-			ue.ForceState(amf.Authentication)
+			ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 			ue.NasConn().AuthenticationCtx = &ausf.AuthResult{Rand: "DEADBEEF"}
 			ue.NasConn().IdentityTypeUsedForRegistration = tc.idType
 
@@ -85,7 +85,7 @@ func TestHandleAuthenticationResponse_PreconditionErrors(t *testing.T) {
 
 				return ue
 			}(),
-			fmt.Errorf("state mismatch: receive amf.Authentication Response message in state %s", amf.Deregistered),
+			fmt.Errorf("state mismatch: receive Authentication Response message outside the authentication exchange (state %s)", amf.Deregistered),
 		},
 		{
 			"nil authentication context",
@@ -95,7 +95,7 @@ func TestHandleAuthenticationResponse_PreconditionErrors(t *testing.T) {
 					panic(err)
 				}
 
-				ue.ForceState(amf.Authentication)
+				ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 
 				return ue
 			}(),
@@ -109,7 +109,7 @@ func TestHandleAuthenticationResponse_PreconditionErrors(t *testing.T) {
 					panic(err)
 				}
 
-				ue.ForceState(amf.Authentication)
+				ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 				ue.NasConn().AuthenticationCtx = &ausf.AuthResult{Rand: "Not hex"}
 
 				return ue
@@ -134,7 +134,7 @@ func TestHandleAuthenticationResponse_TimerT3560Stopped(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.Authentication)
+	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	conn := ue.NasConn()
 	conn.AuthenticationCtx = &ausf.AuthResult{
 		Rand:      "DEADBEEF",
@@ -177,7 +177,7 @@ func TestHandleAuthenticationResponse_hResStartMismatch(t *testing.T) {
 				t.Fatalf("could not create UE and radio: %v", err)
 			}
 
-			ue.ForceState(amf.Authentication)
+			ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 			ue.NasConn().AuthenticationCtx = &ausf.AuthResult{
 				Rand:      "DEADBEEF",
 				HxresStar: "not a match",
@@ -261,7 +261,7 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 				t.Fatalf("could not create UE and radio: %v", err)
 			}
 
-			ue.ForceState(amf.Authentication)
+			ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 			ue.NasConn().AuthenticationCtx = &ausf.AuthResult{
 				Rand:      "DEADBEEF",
 				HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
@@ -320,7 +320,7 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.Authentication)
+	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	ue.NasConn().AuthenticationCtx = &ausf.AuthResult{
 		Rand:      "DEADBEEF",
 		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",

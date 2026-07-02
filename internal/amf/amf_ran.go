@@ -82,7 +82,7 @@ func applyStatefulNasCleanup(ctx context.Context, ranUe *RanUe) {
 	switch ue.State() {
 	case Registered:
 		ue.ResetMobileReachableTimer()
-	case Authentication, SecurityMode, ContextSetup:
+	case RegistrationInitiated, DeregistrationInitiated:
 		ue.Deregister(ctx)
 	}
 }

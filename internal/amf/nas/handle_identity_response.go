@@ -90,8 +90,8 @@ func updateUEIdentity(amfInstance *amf.AMF, ue *amf.UeContext, mobileIdentityCon
 }
 
 func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.IdentityResponse, integrityVerified bool) error {
-	switch ue.State() {
-	case amf.Authentication:
+	switch ue.RegStep() {
+	case amf.RegStepAuthenticating:
 		mobileIdentityContents := msg.GetMobileIdentityContents()
 
 		if err := updateUEIdentity(amfInstance, ue, mobileIdentityContents, integrityVerified); err != nil {
@@ -110,7 +110,7 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 
 		return nil
 
-	case amf.ContextSetup:
+	case amf.RegStepContextSetup:
 		mobileIdentityContents := msg.GetMobileIdentityContents()
 
 		if err := updateUEIdentity(amfInstance, ue, mobileIdentityContents, integrityVerified); err != nil {

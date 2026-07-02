@@ -77,7 +77,7 @@ func TestHandleInitialContextSetupFailure_T3550Running(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
-	amfUe.ForceState(amf.ContextSetup)
+	amfUe.ForceRegStepForTest(amf.RegStepContextSetup)
 	conn := amfUe.NasConn()
 	conn.T3550.Arm(time.Hour, 4, func(int32) {}, func() {})
 

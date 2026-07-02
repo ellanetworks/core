@@ -49,7 +49,7 @@ func TestServiceTypeToString(t *testing.T) {
 }
 
 func TestHandleServiceRequest_WrongStateError(t *testing.T) {
-	testcases := []amf.StateType{amf.SecurityMode, amf.Authentication, amf.ContextSetup}
+	testcases := []amf.StateType{amf.RegistrationInitiated, amf.DeregistrationInitiated}
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
 			expected := fmt.Sprintf("state mismatch: receive Service Request message in state %s", tc)

@@ -39,7 +39,7 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, conn mme.Nas
 	// connection before INITIAL CONTEXT SETUP RESPONSE and ATTACH COMPLETE, so the
 	// UE restarts the whole attach. Surface it as a failure, reporting whether the
 	// eNB acknowledged the context setup (ics-response-received).
-	if ue.Secured() && ue.EMMState() == mme.EMMDeregistered {
+	if ue.Secured() && ue.EMMState() == mme.EMMRegistrationInitiated {
 		icsReceived := false
 		if p := m.DefaultPDN(ue); p != nil {
 			icsReceived = p.EnbFTEID.TEID != 0
@@ -77,9 +77,10 @@ func HandleUEContextReleaseComplete(m *mme.MME, conn mme.NasWriter, value []byte
 		return
 	}
 
-	// Independent state machines (TS 23.401): a detached UE is deleted; a
-	// still-registered UE is retained in ECM-IDLE.
-	if ue.EMMState() == mme.EMMDeregistered {
+	// Independent state machines (TS 23.401): a UE that is not EMM-REGISTERED — a
+	// detached UE or an aborted in-progress attach — is deleted; a still-registered
+	// UE is retained in ECM-IDLE.
+	if ue.EMMState() != mme.EMMRegistered {
 		m.ReleaseAllSessions(ue)
 		m.RemoveUe(ue)
 		logger.MmeLog.Info("UE context released", zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)))

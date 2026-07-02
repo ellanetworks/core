@@ -457,7 +457,7 @@ func TestHandleRegistrationRequest_IdentityRequest_MissingSUCI_SUPI(t *testing.T
 
 // TestHandleRegistrationRequest_AuthenticationRequest validates that a
 // Registration Request for a UE with proper identity but without a valid
-// security context triggers an amf.Authentication Request message.
+// security context triggers an Authentication Request message.
 func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -602,7 +602,7 @@ func TestHandleRegistrationRequest_UEStateContextSetup_ResetToDeregistered(t *te
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.ContextSetup)
+	ue.ForceRegStepForTest(amf.RegStepContextSetup)
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
@@ -624,7 +624,7 @@ func TestHandleRegistrationRequest_UEStateContextSetup_ResetToDeregistered(t *te
 }
 
 // TestHandleRegistrationRequest_UEStateAuthentication_Error validates that
-// a registration request for a UE in the middle of an amf.Authentication procedure
+// a registration request for a UE in the middle of an authentication procedure
 // triggers an error.
 func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t *testing.T) {
 	ctx := context.TODO()
@@ -650,7 +650,7 @@ func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t 
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
-	ue.ForceState(amf.Authentication)
+	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
@@ -659,7 +659,7 @@ func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t 
 
 	err = handleRegistrationRequest(ctx, amfInstance, ue, m, true)
 	if err != nil {
-		t.Fatalf("registration request in state amf.Authentication should restart, got: %v", err)
+		t.Fatalf("registration request during authentication should restart, got: %v", err)
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
@@ -681,7 +681,7 @@ func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t 
 }
 
 // TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest validates
-// that a registration request coming in while the amf.SecurityMode procedure is
+// that a registration request coming in while the security mode procedure is
 // on-going resets the state of the UE to deregistered, triggering a new
 // AuthenticationRequest.
 func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing.T) {
@@ -716,7 +716,7 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 		ue.SetNgKsiForTest(ng)
 	}
 
-	ue.ForceState(amf.SecurityMode)
+	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
 	ue.NasConn().T3560.Arm(10*time.Minute, 10, func(e int32) {}, func() {})
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)

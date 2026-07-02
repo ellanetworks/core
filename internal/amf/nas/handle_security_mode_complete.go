@@ -16,8 +16,8 @@ import (
 
 // TS 33.501
 func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.SecurityModeComplete, integrityVerified bool) error {
-	if state := ue.State(); state != amf.SecurityMode {
-		return fmt.Errorf("state mismatch: receive Security Mode Complete message in state %s", state)
+	if step := ue.RegStep(); step != amf.RegStepSecurityMode {
+		return fmt.Errorf("state mismatch: receive Security Mode Complete message outside the security mode exchange (state %s)", ue.State())
 	}
 
 	if !integrityVerified {

@@ -17,6 +17,16 @@ import (
 // let external test packages (amf_test, ngap_test) construct and inspect a UE in
 // a given security state without exporting the fields themselves.
 
+// ForceRegStepForTest puts the UE in RegistrationInitiated at the given
+// registration sub-phase, for test precondition setup in external packages.
+func (ue *UeContext) ForceRegStepForTest(step RegStep) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.state = RegistrationInitiated
+	ue.regStep = step
+}
+
 // BindAMFForTest wires a test-constructed Radio to an AMF so the UEs registered on
 // it (via NewRanUeForTest / the handlers) live in the AMF's ranUEs index. Any UEs
 // already registered on this radio (e.g. via NewRanUeForTest before the AMF was

@@ -22,19 +22,23 @@ import (
 )
 
 func TestHandleSecurityMode_WrongUEMode(t *testing.T) {
-	testcases := []amf.StateType{
-		amf.Deregistered,
-		amf.Authentication,
-		amf.ContextSetup,
-		amf.Registered,
+	testcases := []struct {
+		name  string
+		setup func(*amf.UeContext)
+		state amf.StateType
+	}{
+		{"Deregistered", func(ue *amf.UeContext) { ue.ForceState(amf.Deregistered) }, amf.Deregistered},
+		{"Registered", func(ue *amf.UeContext) { ue.ForceState(amf.Registered) }, amf.Registered},
+		{"Authenticating", func(ue *amf.UeContext) { ue.ForceRegStepForTest(amf.RegStepAuthenticating) }, amf.RegistrationInitiated},
+		{"ContextSetup", func(ue *amf.UeContext) { ue.ForceRegStepForTest(amf.RegStepContextSetup) }, amf.RegistrationInitiated},
 	}
 
 	for _, tc := range testcases {
-		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {
-			expected := fmt.Errorf("state mismatch: receive Security Mode Complete message in state %s", tc)
+		t.Run(tc.name, func(t *testing.T) {
+			expected := fmt.Errorf("state mismatch: receive Security Mode Complete message outside the security mode exchange (state %s)", tc.state)
 
 			ue := amf.NewUeContext()
-			ue.ForceState(tc)
+			tc.setup(ue)
 
 			err := handleSecurityModeComplete(
 				t.Context(),
@@ -54,7 +58,7 @@ func TestHandleSecurityMode_MacFailed(t *testing.T) {
 	expected := "NAS message integrity check failed"
 
 	ue := amf.NewUeContext()
-	ue.ForceState(amf.SecurityMode)
+	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
 
 	err := handleSecurityModeComplete(
 		t.Context(),
@@ -93,7 +97,7 @@ func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.SecurityMode)
+	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
 	ue.NasConn().T3560.Arm(10*time.Minute, 10, func(e int32) {}, func() {})
 
 	msg := buildTestSecurityModeCompleteMessage()
@@ -137,7 +141,7 @@ func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.SecurityMode)
+	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
 	ue.NasConn().T3560.Arm(10*time.Minute, 10, func(e int32) {}, func() {})
 
 	msg := buildTestSecurityModeCompleteMessage()
@@ -186,7 +190,7 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.SecurityMode)
+	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
 	ue.SetSecuredForTest(true)
 	ue.SetNgKsiForTest(models.NgKsi{Ksi: 0})
 
@@ -235,7 +239,7 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.SecurityMode)
+	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -304,7 +308,7 @@ func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.SecurityMode)
+	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}

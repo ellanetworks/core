@@ -53,7 +53,7 @@ func pduSessionIDPtr(id uint8) *uint8 {
 }
 
 func TestHandleULNASTransport_WrongState_Error(t *testing.T) {
-	testcases := []amf.StateType{amf.Deregistered, amf.Authentication, amf.SecurityMode, amf.ContextSetup}
+	testcases := []amf.StateType{amf.Deregistered, amf.RegistrationInitiated, amf.DeregistrationInitiated}
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
 			ue, _, err := buildUeAndRadio()

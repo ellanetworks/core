@@ -34,20 +34,32 @@ import (
 type StateType string
 
 const (
-	Deregistered   StateType = "Deregistered"
-	Authentication StateType = "Authentication"
-	SecurityMode   StateType = "SecurityMode"
-	ContextSetup   StateType = "ContextSetup"
-	Registered     StateType = "Registered"
+	Deregistered            StateType = "Deregistered"
+	RegistrationInitiated   StateType = "RegistrationInitiated"
+	Registered              StateType = "Registered"
+	DeregistrationInitiated StateType = "DeregistrationInitiated"
 )
 
 var validTransitions = map[StateType][]StateType{
-	Deregistered:   {Authentication},
-	Authentication: {SecurityMode, Deregistered},
-	SecurityMode:   {ContextSetup, Deregistered},
-	ContextSetup:   {Registered, Deregistered},
-	Registered:     {Authentication, Deregistered},
+	Deregistered:            {RegistrationInitiated},
+	RegistrationInitiated:   {Registered, Deregistered},
+	Registered:              {RegistrationInitiated, DeregistrationInitiated, Deregistered},
+	DeregistrationInitiated: {Deregistered},
 }
+
+// RegStep is the phase within the registration procedure. The whole procedure is
+// a single 5GMM mobility-management state, 5GMM-REGISTERED-INITIATED
+// (TS 24.501 §5.1.3.2); RegStep tracks progress through it and is meaningful only
+// while the state is RegistrationInitiated. Ordering of the authentication,
+// security mode, and context-setup exchanges is enforced against it.
+type RegStep uint8
+
+const (
+	RegStepNone RegStep = iota
+	RegStepAuthenticating
+	RegStepSecurityMode
+	RegStepContextSetup
+)
 
 type SmContext struct {
 	Ref                string
@@ -58,7 +70,8 @@ type SmContext struct {
 type UeContext struct {
 	mu sync.Mutex
 
-	state StateType
+	state   StateType
+	regStep RegStep
 
 	PlmnID  models.PlmnID
 	Suci    string
@@ -252,7 +265,7 @@ func (ue *UeContext) ForceState(s StateType) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.state = s
+	ue.setStateLocked(s)
 }
 
 func (ue *UeContext) TransitionTo(target StateType) {
@@ -275,7 +288,7 @@ func (ue *UeContext) transitionToLocked(target StateType) {
 				zap.String("to", string(target)))
 		}
 
-		ue.state = target
+		ue.setStateLocked(target)
 
 		return
 	}
@@ -286,7 +299,40 @@ func (ue *UeContext) transitionToLocked(target StateType) {
 			zap.String("to", string(target)))
 	}
 
-	ue.state = Deregistered
+	ue.setStateLocked(Deregistered)
+}
+
+// setStateLocked assigns the state and resets the registration sub-phase: entering
+// RegistrationInitiated starts at the authentication exchange; any other state
+// carries no sub-phase.
+func (ue *UeContext) setStateLocked(target StateType) {
+	ue.state = target
+
+	if target == RegistrationInitiated {
+		ue.regStep = RegStepAuthenticating
+	} else {
+		ue.regStep = RegStepNone
+	}
+}
+
+// RegStep returns the phase within the registration procedure (meaningful only in
+// RegistrationInitiated).
+func (ue *UeContext) RegStep() RegStep {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.regStep
+}
+
+// AdvanceRegStep moves the registration sub-phase forward while the UE is
+// registration-initiated; it is a no-op in any other state.
+func (ue *UeContext) AdvanceRegStep(step RegStep) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if ue.state == RegistrationInitiated {
+		ue.regStep = step
+	}
 }
 
 func (ue *UeContext) AttachRanUe(ranUe *RanUe) {

@@ -25,8 +25,10 @@ func TestDetachSubscriberNetworkInitiated(t *testing.T) {
 		t.Fatalf("expected network Detach Request, got %d", len(cc.sent))
 	}
 
-	if ue.EMMState() != mme.EMMDeregistered {
-		t.Fatal("UE not EMM-DEREGISTERED after network-initiated detach")
+	// The connected UE stays EMM-DEREGISTERED-INITIATED while T3422 guards the
+	// DETACH REQUEST, reaching EMM-DEREGISTERED on Detach Accept (TS 24.301 §5.1.3.2).
+	if ue.EMMState() != mme.EMMDeregistrationInitiated {
+		t.Fatal("UE not EMM-DEREGISTERED-INITIATED after network-initiated detach")
 	}
 
 	wire := decodeDownlinkNAS(t, cc.sent[0])

@@ -10,6 +10,24 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
+// TestProtectDownlink_AdvancesCountByOne verifies a successful protect advances
+// the downlink NAS COUNT by exactly one, using the pre-increment value for the
+// message (TS 24.301 §4.4.3.1). The protection-failure path (COUNT not consumed)
+// is unreachable here — eps.Protect does not fail for a fixed-size key and a
+// valid algorithm — so only the success contract is asserted.
+func TestProtectDownlink_AdvancesCountByOne(t *testing.T) {
+	ue, _ := securedUE(t, newTestMME(t))
+	ue.SetDLCountForTest(10)
+
+	if _, err := ue.ProtectDownlink([]byte{0x07, 0x42}, eps.SHTIntegrityProtectedCiphered); err != nil {
+		t.Fatalf("ProtectDownlink: %v", err)
+	}
+
+	if got := ue.DLCountForTest(); got != 11 {
+		t.Fatalf("downlink NAS COUNT = %d, want 11 after one successful protect", got)
+	}
+}
+
 // TestProtectDownlinkAppliesOverflow is the regression for the downlink NAS
 // COUNT overflow: two downlink messages 256 apart carry the same 8-bit sequence
 // number but differ in the 16-bit overflow counter, so the NAS COUNT input to

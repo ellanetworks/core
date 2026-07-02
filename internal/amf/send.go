@@ -9,6 +9,7 @@ package amf
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/procedure"
@@ -153,10 +154,13 @@ func SendRegistrationReject(ctx context.Context, ue *RanUe, cause5GMM uint8) {
 		})
 }
 
-func SendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *RanUe) {
+// SendSecurityModeCommand builds and sends the SECURITY MODE COMMAND and arms
+// its T3560 retransmission timer. It returns an error only when the message
+// cannot be built (nothing goes in flight, so the caller releases the procedure);
+// a transport send failure is covered by T3560 and is not fatal.
+func SendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *RanUe) error {
 	if ue == nil || ue.UeContext() == nil {
-		logger.AmfLog.Error("cannot send Security Mode Command: ue or amf ue is nil")
-		return
+		return fmt.Errorf("cannot send Security Mode Command: ue or amf ue is nil")
 	}
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_security_mode_command",
@@ -171,8 +175,7 @@ func SendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *RanUe) {
 
 	nasMsg, err := BuildSecurityModeCommand(amfUe)
 	if err != nil {
-		amfUe.Log.Error("failed to build security mode command", zap.Error(err))
-		return
+		return fmt.Errorf("failed to build security mode command: %w", err)
 	}
 
 	if err := ue.SendDownlinkNasTransport(ctx, nasMsg, nil); err != nil {
@@ -197,6 +200,8 @@ func SendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *RanUe) {
 			amfInstance.DeregisterAndRemoveUeContext(context.Background(), amfUe)
 		})
 	}
+
+	return nil
 }
 
 func SendDeregistrationAccept(ctx context.Context, ue *RanUe) {

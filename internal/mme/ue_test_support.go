@@ -128,3 +128,7 @@ func (m *MME) FireHandoverGuardForTest(ue *UeContext, gen uint64) { m.onHandover
 func (m *MME) ReclaimUEsOnConnLossForTest(conn NasWriter) { m.reclaimUEsOnConnLoss(conn) }
 
 func (ue *UeContext) MobileReachableArmedForTest() bool { return ue.mobileReachableTimer.Active() }
+
+// ForceEMMStateForTest sets the EMM state directly, bypassing transition
+// validation, for test precondition setup.
+func (ue *UeContext) ForceEMMStateForTest(s EMMState) { ue.emmState.store(s) }

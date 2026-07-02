@@ -18,7 +18,7 @@ import (
 )
 
 func TestHandleNotificationResponse_NotRegisteredError(t *testing.T) {
-	testcases := []amf.StateType{amf.Authentication, amf.Deregistered, amf.ContextSetup, amf.SecurityMode}
+	testcases := []amf.StateType{amf.Deregistered, amf.RegistrationInitiated, amf.DeregistrationInitiated}
 
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {

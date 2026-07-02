@@ -61,7 +61,7 @@ func setupRegistrationCompleteUE(t *testing.T) (*amf.UeContext, *fakeNGAPSender)
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	ue.ForceState(amf.ContextSetup)
+	ue.ForceRegStepForTest(amf.RegStepContextSetup)
 	ue.NasConn().T3550.Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.NasConn().RegistrationRequest = m.RegistrationRequest
 	ue.NasConn().RegistrationType5GS = 42
@@ -79,14 +79,23 @@ func setupRegistrationCompleteUE(t *testing.T) (*amf.UeContext, *fakeNGAPSender)
 }
 
 func TestHandleRegistrationComplete_WrongState_Error(t *testing.T) {
-	testcases := []amf.StateType{amf.Deregistered, amf.Authentication, amf.Registered, amf.SecurityMode}
+	testcases := []struct {
+		name  string
+		setup func(*amf.UeContext)
+		state amf.StateType
+	}{
+		{"Deregistered", func(ue *amf.UeContext) { ue.ForceState(amf.Deregistered) }, amf.Deregistered},
+		{"Registered", func(ue *amf.UeContext) { ue.ForceState(amf.Registered) }, amf.Registered},
+		{"Authenticating", func(ue *amf.UeContext) { ue.ForceRegStepForTest(amf.RegStepAuthenticating) }, amf.RegistrationInitiated},
+		{"SecurityMode", func(ue *amf.UeContext) { ue.ForceRegStepForTest(amf.RegStepSecurityMode) }, amf.RegistrationInitiated},
+	}
 
 	for _, tc := range testcases {
-		t.Run(string(tc), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			ue := amf.NewUeContext()
-			ue.ForceState(tc)
+			tc.setup(ue)
 
-			expected := fmt.Sprintf("state mismatch: receive Registration Complete message in state %s", tc)
+			expected := fmt.Sprintf("state mismatch: receive Registration Complete message outside context setup (state %s)", tc.state)
 
 			err := handleRegistrationComplete(t.Context(), newTestAMF(), ue)
 			if err == nil || err.Error() != expected {
