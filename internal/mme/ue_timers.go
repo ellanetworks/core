@@ -63,7 +63,7 @@ func (m *MME) onImplicitDetachExpiry(ue *UeContext, gen uint64) {
 		return
 	}
 
-	ue.emmState.store(EMMDeregistered)
+	ue.SetEMMState(EMMDeregistered)
 	imsi := ue.imsi
 
 	m.mu.Unlock()

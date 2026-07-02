@@ -10,13 +10,11 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
-	"github.com/free5gc/aper"
 	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -31,99 +29,26 @@ type fakeNGAPSender struct {
 	pagingCalls               int
 }
 
-func (f *fakeNGAPSender) SendToRan(_ context.Context, _ []byte, proc send.NGAPProcedure) error {
-	if proc == send.NGAPProcedurePaging {
-		f.pagingCalls++
+// WriteMsg counts the sent NGAP PDU by procedure, standing in for a gNB
+// association. The NGAP-PDU APER header is byte 0 = outcome choice (0x00 is an
+// InitiatingMessage) and byte 1 = procedure code (TS 38.413); the transparent N2
+// payloads carried here are opaque, so the message is identified from the header
+// without a full decode.
+func (f *fakeNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
+	if len(b) >= 2 && b[0] == 0x00 {
+		switch int64(b[1]) {
+		case ngapType.ProcedureCodePaging:
+			f.pagingCalls++
+		case ngapType.ProcedureCodePDUSessionResourceSetup:
+			f.pduSessionSetupCalls++
+		case ngapType.ProcedureCodeInitialContextSetup:
+			f.initialContextSetupCalls++
+		case ngapType.ProcedureCodeDownlinkNASTransport:
+			f.downlinkNasTransportCalls++
+		}
 	}
 
-	return nil
-}
-func (f *fakeNGAPSender) SendNGSetupFailure(context.Context, *ngapType.Cause) error { return nil }
-func (f *fakeNGAPSender) SendNGSetupResponse(context.Context, *models.Guami, []models.Snssai, string, int64) error {
-	return nil
-}
-
-func (f *fakeNGAPSender) SendNGResetAcknowledge(context.Context, *ngapType.UEAssociatedLogicalNGConnectionList) error {
-	return nil
-}
-
-func (f *fakeNGAPSender) SendErrorIndication(context.Context, *int64, *int64, *ngapType.Cause, *ngapType.CriticalityDiagnostics) error {
-	return nil
-}
-
-func (f *fakeNGAPSender) SendRanConfigurationUpdateAcknowledge(context.Context, *ngapType.CriticalityDiagnostics) error {
-	return nil
-}
-
-func (f *fakeNGAPSender) SendRanConfigurationUpdateFailure(context.Context, ngapType.Cause, *ngapType.CriticalityDiagnostics) error {
-	return nil
-}
-
-func (f *fakeNGAPSender) SendDownlinkRanConfigurationTransfer(context.Context, *ngapType.SONConfigurationTransfer) error {
-	return nil
-}
-
-func (f *fakeNGAPSender) SendPathSwitchRequestFailure(context.Context, int64, int64, *ngapType.PDUSessionResourceReleasedListPSFail, *ngapType.CriticalityDiagnostics) error {
-	return nil
-}
-
-func (f *fakeNGAPSender) SendAMFStatusIndication(context.Context, ngapType.UnavailableGUAMIList) error {
-	return nil
-}
-
-func (f *fakeNGAPSender) SendUEContextReleaseCommand(context.Context, int64, int64, int, aper.Enumerated) error {
-	return nil
-}
-
-func (f *fakeNGAPSender) SendDownlinkNasTransport(_ context.Context, _, _ int64, _ []byte, _ *ngapType.MobilityRestrictionList) error {
-	f.downlinkNasTransportCalls++
-	return nil
-}
-
-func (f *fakeNGAPSender) SendPDUSessionResourceReleaseCommand(context.Context, int64, int64, []byte, ngapType.PDUSessionResourceToReleaseListRelCmd) error {
-	return nil
-}
-
-func (f *fakeNGAPSender) SendHandoverCancelAcknowledge(context.Context, int64, int64) error {
-	return nil
-}
-
-func (f *fakeNGAPSender) SendPDUSessionResourceModifyConfirm(context.Context, int64, int64, ngapType.PDUSessionResourceModifyListModCfm, ngapType.PDUSessionResourceFailedToModifyListModCfm) error {
-	return nil
-}
-
-func (f *fakeNGAPSender) SendPDUSessionResourceModifyRequest(_ context.Context, _, _ int64, _ ngapType.PDUSessionResourceModifyListModReq) error {
-	return nil
-}
-
-func (f *fakeNGAPSender) SendPDUSessionResourceSetupRequest(_ context.Context, _, _ int64, _, _ string, _ []byte, _ ngapType.PDUSessionResourceSetupListSUReq) error {
-	f.pduSessionSetupCalls++
-	return nil
-}
-
-func (f *fakeNGAPSender) SendHandoverPreparationFailure(context.Context, int64, int64, ngapType.Cause, *ngapType.CriticalityDiagnostics) error {
-	return nil
-}
-
-func (f *fakeNGAPSender) SendLocationReportingControl(context.Context, int64, int64, ngapType.EventType) error {
-	return nil
-}
-
-func (f *fakeNGAPSender) SendHandoverCommand(context.Context, int64, int64, ngapType.HandoverType, ngapType.PDUSessionResourceHandoverList, ngapType.PDUSessionResourceToReleaseListHOCmd, ngapType.TargetToSourceTransparentContainer) error {
-	return nil
-}
-
-func (f *fakeNGAPSender) SendInitialContextSetupRequest(_ context.Context, _, _ int64, _, _ string, _ []models.Snssai, _ []byte, _ models.PlmnID, _ []byte, _ *models.UERadioCapabilityForPaging, _ *nasType.UESecurityCapability, _ []byte, _ *ngapType.PDUSessionResourceSetupListCxtReq, _ *models.Guami) error {
-	f.initialContextSetupCalls++
-	return nil
-}
-
-func (f *fakeNGAPSender) SendPathSwitchRequestAcknowledge(context.Context, int64, int64, *nasType.UESecurityCapability, uint8, []byte, ngapType.PDUSessionResourceSwitchedList, ngapType.PDUSessionResourceReleasedListPSAck, []models.Snssai) error {
-	return nil
-}
-
-func (f *fakeNGAPSender) SendHandoverRequest(context.Context, int64, ngapType.HandoverType, string, string, *nasType.UESecurityCapability, uint8, []byte, ngapType.Cause, ngapType.PDUSessionResourceSetupListHOReq, ngapType.SourceToTargetTransparentContainer, []models.Snssai, *models.Guami) error {
-	return nil
+	return len(b), nil
 }
 
 type fakeDBInstance struct {
@@ -206,6 +131,10 @@ func (f *fakeSmf) UpdateSmContextN2HandoverPrepared(context.Context, string, []b
 func (f *fakeSmf) UpdateSmContextN2HandoverComplete(context.Context, string) error { return nil }
 
 func (f *fakeSmf) UpdateSmContextXnHandoverPathSwitchReq(context.Context, string, []byte) ([]byte, error) {
+	return nil, nil
+}
+
+func (f *fakeSmf) UpdateSmContextN2ModifyIndication(context.Context, string, []byte) ([]byte, error) {
 	return nil, nil
 }
 func (f *fakeSmf) UpdateSmContextHandoverFailed(context.Context, string, []byte) error { return nil }
@@ -302,10 +231,11 @@ func TestTransferN1N2Message_InitialContextAlreadySent(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000003", func(u *amf.UeContext) {
-		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
+		u.Ambr = &models.Ambr{Uplink: "1000000 bps", Downlink: "1000000 bps"}
 	})
 
-	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
 	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
 	ranUe.ICS = amf.ICSPending
 	ue.AttachRanUe(ranUe)
@@ -331,10 +261,17 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 	amfInstance := amf.New(fakeDB, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000004", func(u *amf.UeContext) {
-		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
+		u.Ambr = &models.Ambr{Uplink: "1000000 bps", Downlink: "1000000 bps"}
+		u.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+		u.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
+
+		secCap := &nasType.UESecurityCapability{}
+		secCap.SetLen(2)
+		u.SetUESecurityCapabilityForTest(secCap)
 	})
 
-	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
 	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
 	ranUe.ICS = amf.ICSNotStarted
 	ue.AttachRanUe(ranUe)
@@ -356,7 +293,7 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 func TestModifyN1N2Message_IdleRegisteredUE_ReturnsNotReachable(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
-	amfInstance.Radios = make(map[*sctp.SCTPConn]*amf.Radio)
+	amfInstance.Radios = make(map[amf.NGAPWriter]*amf.Radio)
 
 	ue := addUE(t, amfInstance, "001010000000014", func(u *amf.UeContext) {
 		u.ForceState(amf.Registered)
@@ -365,12 +302,12 @@ func TestModifyN1N2Message_IdleRegisteredUE_ReturnsNotReachable(t *testing.T) {
 	})
 
 	radio := &amf.Radio{
-		NGAPSender: sender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Conn: sender,
 		SupportedTAIs: []amf.SupportedTAI{{
 			Tai: models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
 		}},
 	}
+	radio.BindAMFForTest(amfInstance)
 	amfInstance.Radios[nil] = radio
 
 	// UE has no RanUe attached → CM-IDLE
@@ -476,10 +413,11 @@ func TestN2MessageTransferOrPage_ConnectedUE_InitialCtxSent(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000009", func(u *amf.UeContext) {
-		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
+		u.Ambr = &models.Ambr{Uplink: "1000000 bps", Downlink: "1000000 bps"}
 	})
 
-	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
 	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
 	ranUe.ICS = amf.ICSPending
 	ue.AttachRanUe(ranUe)
@@ -534,7 +472,8 @@ func TestTransferN1Msg_Success(t *testing.T) {
 
 	ue := addUE(t, amfInstance, "001010000000013", nil)
 
-	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
 	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
 	ue.AttachRanUe(ranUe)
 

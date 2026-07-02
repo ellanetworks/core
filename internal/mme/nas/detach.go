@@ -23,7 +23,18 @@ func handleDetachAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 // handleDetachRequest handles a UE-originating DETACH REQUEST (TS 24.301):
 // for a non-switch-off detach it replies with Detach Accept, then releases the
 // UE's S1 context.
-func handleDetachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
+func handleDetachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte, integrityVerified bool) {
+	// Reject an unprotected DETACH REQUEST while the MME still holds a valid security
+	// context: a UE with keys must integrity-protect it, so a forged plain detach
+	// cannot deregister an authenticated UE (TS 24.301 §4.4.4.3 defense in depth,
+	// mirroring the AMF). A UE that lost its keys can recover via a fresh Attach.
+	if !integrityVerified && ue.Secured() {
+		logger.MmeLog.Warn("rejecting unauthenticated Detach Request from UE with valid security context",
+			zap.String("imsi", ue.IMSI()))
+
+		return
+	}
+
 	req, err := eps.ParseDetachRequestUE(plain)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Detach Request", zap.Error(err))

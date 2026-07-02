@@ -10,17 +10,13 @@ package amf
 
 import (
 	"context"
-	"sync"
+	"net"
 	"sync/atomic"
 	"time"
 
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/nas/nasType"
-	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
@@ -30,46 +26,18 @@ const (
 	RanPresentN3IwfID = 3
 )
 
-type NGAPSender interface {
-	SendToRan(ctx context.Context, packet []byte, msgType send.NGAPProcedure) error
-	SendNGSetupFailure(ctx context.Context, cause *ngapType.Cause) error
-	SendNGSetupResponse(ctx context.Context, guami *models.Guami, snssaiList []models.Snssai, amfName string, amfRelativeCapacity int64) error
-	SendNGResetAcknowledge(ctx context.Context, partOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList) error
-	SendErrorIndication(ctx context.Context, amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error
-	SendRanConfigurationUpdateAcknowledge(ctx context.Context, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error
-	SendRanConfigurationUpdateFailure(ctx context.Context, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error
-	SendDownlinkRanConfigurationTransfer(ctx context.Context, transfer *ngapType.SONConfigurationTransfer) error
-	SendPathSwitchRequestFailure(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, pduSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListPSFail, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error
-	SendAMFStatusIndication(ctx context.Context, unavailableGUAMIList ngapType.UnavailableGUAMIList) error
-	SendUEContextReleaseCommand(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, causePresent int, cause aper.Enumerated) error
-	SendDownlinkNasTransport(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) error
-	SendPDUSessionResourceReleaseCommand(ctx context.Context, amfUENgapID int64, ranUENgapID int64, nasPdu []byte, pduSessionResourceReleasedList ngapType.PDUSessionResourceToReleaseListRelCmd) error
-	SendHandoverCancelAcknowledge(ctx context.Context, amfUENgapID int64, ranUENgapID int64) error
-	SendPDUSessionResourceModifyConfirm(ctx context.Context, amfUENgapID int64, ranUENgapID int64, pduSessionResourceModifyConfirmList ngapType.PDUSessionResourceModifyListModCfm, pduSessionResourceFailedToModifyList ngapType.PDUSessionResourceFailedToModifyListModCfm) error
-	SendPDUSessionResourceModifyRequest(ctx context.Context, amfUENgapID int64, ranUENgapID int64, pduSessionResourceModifyList ngapType.PDUSessionResourceModifyListModReq) error
-	SendPDUSessionResourceSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, nasPdu []byte, pduSessionResourceSetupRequestList ngapType.PDUSessionResourceSetupListSUReq) error
-	SendHandoverPreparationFailure(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error
-	SendLocationReportingControl(ctx context.Context, amfUENgapID int64, ranUENgapID int64, eventType ngapType.EventType) error
-	SendHandoverCommand(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, handOverType ngapType.HandoverType, pduSessionResourceHandoverList ngapType.PDUSessionResourceHandoverList, pduSessionResourceToReleaseList ngapType.PDUSessionResourceToReleaseListHOCmd, container ngapType.TargetToSourceTransparentContainer) error
-	SendInitialContextSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, allowedNssai []models.Snssai, kgnb []byte, plmnID models.PlmnID, ueRadioCapability []byte, ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging, ueSecurityCapability *nasType.UESecurityCapability, nasPdu []byte, pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq, supportedGUAMI *models.Guami) error
-	SendPathSwitchRequestAcknowledge(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ueSecurityCapability *nasType.UESecurityCapability, ncc uint8, nh []byte, pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList, pduSessionResourceReleasedList ngapType.PDUSessionResourceReleasedListPSAck, snssaiList []models.Snssai) error
-	SendHandoverRequest(ctx context.Context, amfUeNgapID int64, handOverType ngapType.HandoverType, uplinkAmbr string, downlinkAmbr string, ueSecurityCapability *nasType.UESecurityCapability, ncc uint8, nh []byte, cause ngapType.Cause, pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq, sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer, snssaiList []models.Snssai, supportedGUAMI *models.Guami) error
-}
-
 // Radio represents one SCTP association to a gNB.
 // All mutations happen on the single goroutine serving this connection.
 // Do not access Radio fields from other goroutines without synchronization.
 type Radio struct {
 	RanPresent    int
 	RanID         *models.GlobalRanNodeID
-	NGAPSender    NGAPSender
 	Name          string
-	Conn          *sctp.SCTPConn
+	Conn          NGAPWriter
 	ConnectedAt   time.Time
 	lastSeen      atomic.Int64 // Unix nanoseconds; use LastSeenAt()/TouchLastSeen()
 	SupportedTAIs []SupportedTAI
-	mu            sync.RWMutex     // protects RanUEs
-	RanUEs        map[int64]*RanUe // Key: AMF UE NGAP ID (unique and set for the UE's whole lifetime; the RAN UE NGAP ID is unassigned until a handover target is acknowledged)
+	amf           *AMF // the owning AMF; its registry lock (amf.mu) guards the ranUEs index this radio's UEs live in
 	Log           *zap.Logger
 }
 
@@ -80,14 +48,17 @@ type SupportedTAI struct {
 
 // RemoveAllUeInRan removes every RAN UE bound to this radio.
 func (r *Radio) RemoveAllUeInRan(ctx context.Context) {
-	r.mu.RLock()
+	r.amf.mu.RLock()
 
-	ues := make([]*RanUe, 0, len(r.RanUEs))
-	for _, ranUe := range r.RanUEs {
-		ues = append(ues, ranUe)
+	ues := make([]*RanUe, 0)
+
+	for _, ranUe := range r.amf.ranUEs {
+		if ranUe.radio == r {
+			ues = append(ues, ranUe)
+		}
 	}
 
-	r.mu.RUnlock()
+	r.amf.mu.RUnlock()
 
 	for _, ranUe := range ues {
 		applyStatefulNasCleanup(ctx, ranUe)
@@ -111,17 +82,17 @@ func applyStatefulNasCleanup(ctx context.Context, ranUe *RanUe) {
 	switch ue.State() {
 	case Registered:
 		ue.ResetMobileReachableTimer()
-	case Authentication, SecurityMode, ContextSetup:
+	case RegistrationInitiated, DeregistrationInitiated:
 		ue.Deregister(ctx)
 	}
 }
 
 func (r *Radio) FindUEByRanUeNgapID(ranUeNgapID int64) *RanUe {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.amf.mu.RLock()
+	defer r.amf.mu.RUnlock()
 
-	for _, ranUe := range r.RanUEs {
-		if ranUe.RanUeNgapID == ranUeNgapID {
+	for _, ranUe := range r.amf.ranUEs {
+		if ranUe.radio == r && ranUe.RanUeNgapID == ranUeNgapID {
 			return ranUe
 		}
 	}
@@ -133,17 +104,21 @@ func (r *Radio) FindUEByRanUeNgapID(ranUeNgapID int64) *RanUe {
 // in HandoverRequestAcknowledge. The UE is keyed by its AMF UE NGAP ID, so only
 // the field is updated.
 func (r *Radio) UpdateUERanNgapID(ranUe *RanUe, newRanUeNgapID int64) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.amf.mu.Lock()
+	defer r.amf.mu.Unlock()
 
 	ranUe.RanUeNgapID = newRanUeNgapID
 }
 
 func (r *Radio) FindUEByAmfUeNgapID(amfUeNgapID int64) *RanUe {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.amf.mu.RLock()
+	defer r.amf.mu.RUnlock()
 
-	return r.RanUEs[amfUeNgapID]
+	if ranUe := r.amf.ranUEs[amfUeNgapID]; ranUe != nil && ranUe.radio == r {
+		return ranUe
+	}
+
+	return nil
 }
 
 func (r *Radio) TouchLastSeen() {
@@ -163,6 +138,25 @@ func (r *Radio) LastSeenAt() time.Time {
 // SetLastSeenAt sets the last-seen timestamp. Safe for concurrent use.
 func (r *Radio) SetLastSeenAt(t time.Time) {
 	r.lastSeen.Store(t.UnixNano())
+}
+
+// RemoteAddr returns the gNB's remote address, or nil for a non-SCTP writer
+// (a test double).
+func (r *Radio) RemoteAddr() net.Addr {
+	if conn, ok := r.Conn.(*sctp.SCTPConn); ok {
+		return conn.RemoteAddr()
+	}
+
+	return nil
+}
+
+// Close closes the underlying SCTP association; a no-op for a non-SCTP writer.
+func (r *Radio) Close() error {
+	if conn, ok := r.Conn.(*sctp.SCTPConn); ok {
+		return conn.Close()
+	}
+
+	return nil
 }
 
 // NodeID returns the RAN node identifier string regardless of radio type.
@@ -199,13 +193,25 @@ func (r *Radio) RanNodeTypeName() string {
 }
 
 func (r *Radio) ConnectedSubscribers() []string {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.amf.mu.RLock()
 
-	supis := make([]string, 0, len(r.RanUEs))
-	for _, ranUe := range r.RanUEs {
-		if ranUe.amfUe != nil && ranUe.amfUe.supi.IsValid() && ranUe.amfUe.supi.IsIMSI() {
-			supis = append(supis, ranUe.amfUe.supi.IMSI())
+	ues := make([]*UeContext, 0)
+
+	for _, ranUe := range r.amf.ranUEs {
+		if ranUe.radio == r && ranUe.amfUe != nil {
+			ues = append(ues, ranUe.amfUe)
+		}
+	}
+
+	r.amf.mu.RUnlock()
+
+	// Read each supi through its accessor (UeContext.mu), not the raw field under
+	// r.mu, so a concurrent SetSupi cannot race this scan.
+	supis := make([]string, 0, len(ues))
+	for _, ue := range ues {
+		supi := ue.Supi()
+		if supi.IsValid() && supi.IsIMSI() {
+			supis = append(supis, supi.IMSI())
 		}
 	}
 

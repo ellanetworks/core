@@ -69,7 +69,7 @@ func TestUEStateConcurrentAccess(t *testing.T) {
 		defer wg.Done()
 
 		for i := 0; i < iters; i++ {
-			ue.SetEMMState(mme.EMMRegistered)
+			ue.ForceEMMStateForTest(mme.EMMRegistered)
 		}
 	}()
 

@@ -729,9 +729,14 @@ func closeAMF(ctx context.Context, amfInstance *amf.AMF, srv *amfsctp.Server) {
 	} else {
 		unavailableGuamiList := send.BuildUnavailableGUAMIList(operatorInfo.Guami)
 
-		for _, ran := range amfInstance.ListRadios() {
-			if err := ran.NGAPSender.SendAMFStatusIndication(ctx, unavailableGuamiList); err != nil {
-				logger.AmfLog.Error("failed to send AMF Status Indication to RAN", zap.Error(err))
+		pkt, buildErr := send.BuildAMFStatusIndication(unavailableGuamiList)
+		if buildErr != nil {
+			logger.AmfLog.Error("failed to build AMF Status Indication", zap.Error(buildErr))
+		} else {
+			for _, ran := range amfInstance.ListRadios() {
+				if err := ran.SendToRan(ctx, send.NGAPProcedureAMFStatusIndication, pkt); err != nil {
+					logger.AmfLog.Error("failed to send AMF Status Indication to RAN", zap.Error(err))
+				}
 			}
 		}
 	}

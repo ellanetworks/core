@@ -22,7 +22,7 @@ import (
 
 // setupHandoverAckTestContext creates the AMF, source/target UEs, radios, and
 // SMF context needed for handover request acknowledge tests.
-func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *FakeNGAPSender, *amf.AMF) {
+func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *fakeNGAPSender, *amf.AMF) {
 	t.Helper()
 
 	const (
@@ -61,24 +61,24 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *FakeNGAPSender, *am
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	sourceNGAPSender := &FakeNGAPSender{}
+	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    sourceNGAPSender,
-		RanUEs:        make(map[int64]*amf.RanUe),
+		Conn:          sourceNGAPSender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
+	sourceRan.BindAMFForTest(amf.New(nil, nil, nil))
 
 	sourceUe := amf.NewRanUeForTest(sourceRan, 10, 100, logger.AmfLog)
 	amfUe.AttachRanUe(sourceUe)
 
-	targetNGAPSender := &FakeNGAPSender{}
+	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    targetNGAPSender,
-		RanUEs:        make(map[int64]*amf.RanUe),
+		Conn:          targetNGAPSender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
+	targetRan.BindAMFForTest(amf.New(nil, nil, nil))
 
 	targetUe := amf.NewRanUeForTest(targetRan, 2, 1, logger.AmfLog)
 
@@ -87,7 +87,7 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *FakeNGAPSender, *am
 		t.Fatalf("failed to attach source/target: %v", err)
 	}
 
-	amfInstance := amf.New(nil, nil, &FakeSmfSbi{SMF: smfInstance})
+	amfInstance := amf.New(nil, nil, &fakeSmfSbi{SMF: smfInstance})
 	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
 	amfInstance.Radios[new(sctp.SCTPConn)] = targetRan
 
@@ -95,13 +95,13 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *FakeNGAPSender, *am
 }
 
 func TestHandoverRequestAcknowledge_UeNotFound(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
+	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    fakeNGAPSender,
-		RanUEs:        make(map[int64]*amf.RanUe),
+		Conn:          sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
+	ran.BindAMFForTest(amf.New(nil, nil, nil))
 
 	amfInstance := newTestAMF()
 	amfInstance.Radios[new(sctp.SCTPConn)] = ran
@@ -118,23 +118,23 @@ func TestHandoverRequestAcknowledge_UeNotFound(t *testing.T) {
 
 	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, ran, msg)
 
-	if len(fakeNGAPSender.SentHandoverCommands) != 0 {
-		t.Fatalf("expected no HandoverCommand, got %d", len(fakeNGAPSender.SentHandoverCommands))
+	if len(sender.SentHandoverCommands) != 0 {
+		t.Fatalf("expected no HandoverCommand, got %d", len(sender.SentHandoverCommands))
 	}
 
-	if len(fakeNGAPSender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication (TS 38.413), got %d", len(fakeNGAPSender.SentErrorIndications))
+	if len(sender.SentErrorIndications) != 1 {
+		t.Fatalf("expected 1 ErrorIndication (TS 38.413), got %d", len(sender.SentErrorIndications))
 	}
 }
 
 func TestHandoverRequestAcknowledge_NoSourceUe(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
+	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
 		Log:           logger.AmfLog,
-		NGAPSender:    fakeNGAPSender,
-		RanUEs:        make(map[int64]*amf.RanUe),
+		Conn:          sender,
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
+	ran.BindAMFForTest(amf.New(nil, nil, nil))
 
 	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
@@ -158,12 +158,12 @@ func TestHandoverRequestAcknowledge_NoSourceUe(t *testing.T) {
 
 	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, ran, msg)
 
-	if len(fakeNGAPSender.SentHandoverCommands) != 0 {
-		t.Fatalf("expected no HandoverCommand, got %d", len(fakeNGAPSender.SentHandoverCommands))
+	if len(sender.SentHandoverCommands) != 0 {
+		t.Fatalf("expected no HandoverCommand, got %d", len(sender.SentHandoverCommands))
 	}
 
-	if len(fakeNGAPSender.SentHandoverPreparationFailures) != 0 {
-		t.Fatalf("expected no HandoverPreparationFailure, got %d", len(fakeNGAPSender.SentHandoverPreparationFailures))
+	if len(sender.SentHandoverPreparationFailures) != 0 {
+		t.Fatalf("expected no HandoverPreparationFailure, got %d", len(sender.SentHandoverPreparationFailures))
 	}
 }
 

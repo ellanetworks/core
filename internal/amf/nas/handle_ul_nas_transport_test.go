@@ -53,7 +53,7 @@ func pduSessionIDPtr(id uint8) *uint8 {
 }
 
 func TestHandleULNASTransport_WrongState_Error(t *testing.T) {
-	testcases := []amf.StateType{amf.Deregistered, amf.Authentication, amf.SecurityMode, amf.ContextSetup}
+	testcases := []amf.StateType{amf.Deregistered, amf.RegistrationInitiated, amf.DeregistrationInitiated}
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
 			ue, _, err := buildUeAndRadio()
@@ -534,11 +534,11 @@ func TestTransport5GSMMessage_SmContextExists_InitialRequest_DeletesContextAndCr
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
 	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialRequest)
 
-	fakeSmf := &FakeSmf{
+	fakeSmf := &fakeSmf{
 		CreateSmContextRef: "new-ref-123",
 	}
 
-	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
+	amfInstance := amf.New(&fakeDBInstance{}, nil, fakeSmf)
 
 	ue.AllowedNssai = []models.Snssai{*snssai}
 
@@ -582,12 +582,12 @@ func TestTransport5GSMMessage_InitialRequest_SmfReturnsErrorAndReject_ForwardsRe
 	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialRequest)
 
 	smfReject := []byte{0xDE, 0xAD, 0xBE, 0xEF}
-	fakeSmf := &FakeSmf{
+	fakeSmf := &fakeSmf{
 		CreateSmContextErrResp: smfReject,
 		CreateSmContextError:   fmt.Errorf("malformed NAS in establishment request"),
 	}
 
-	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
+	amfInstance := amf.New(&fakeDBInstance{}, nil, fakeSmf)
 
 	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {
@@ -623,11 +623,11 @@ func TestTransport5GSMMessage_InitialRequest_SmfReturnsErrorOnly_SendsFallbackAn
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
 	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialRequest)
 
-	fakeSmf := &FakeSmf{
+	fakeSmf := &fakeSmf{
 		CreateSmContextError: fmt.Errorf("smf is unavailable"),
 	}
 
-	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
+	amfInstance := amf.New(&fakeDBInstance{}, nil, fakeSmf)
 
 	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {
@@ -669,7 +669,7 @@ func TestForward5GSMMessageToSMF_UpdateError_ReturnsError(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	fakeSmf := &FakeSmf{
+	fakeSmf := &fakeSmf{
 		UpdateN1MsgError: fmt.Errorf("smf unavailable"),
 	}
 
@@ -691,7 +691,7 @@ func TestForward5GSMMessageToSMF_NilResponse_NoError(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	fakeSmf := &FakeSmf{
+	fakeSmf := &fakeSmf{
 		UpdateN1MsgResponse: nil,
 	}
 
@@ -709,7 +709,7 @@ func TestForward5GSMMessageToSMF_N1Only_SendsDLNASTransport(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	fakeSmf := &FakeSmf{
+	fakeSmf := &fakeSmf{
 		UpdateN1MsgResponse: &smf.UpdateResult{
 			N1Msg: []byte{0x2E, 0x01, 0x00, 0xD6, 0x24},
 		},
@@ -750,7 +750,7 @@ func TestForward5GSMMessageToSMF_N2NotPduResRel_ReturnsNil(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	fakeSmf := &FakeSmf{
+	fakeSmf := &fakeSmf{
 		UpdateN1MsgResponse: &smf.UpdateResult{
 			N2Msg:     []byte{0x01, 0x02},
 			ReleaseN2: false,
@@ -782,7 +782,7 @@ func TestForward5GSMMessageToSMF_N2PduResRel_SendsReleaseCommand(t *testing.T) {
 
 	n2Data := []byte{0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00}
 
-	fakeSmf := &FakeSmf{
+	fakeSmf := &fakeSmf{
 		UpdateN1MsgResponse: &smf.UpdateResult{
 			N2Msg:     n2Data,
 			ReleaseN2: true,
@@ -809,7 +809,7 @@ func TestForward5GSMMessageToSMF_N1AndN2PduResRel_SendsReleaseCommandWithN1(t *t
 
 	n2Data := []byte{0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00}
 
-	fakeSmf := &FakeSmf{
+	fakeSmf := &fakeSmf{
 		UpdateN1MsgResponse: &smf.UpdateResult{
 			N1Msg:     []byte{0x2E, 0x01, 0x00, 0xD6, 0x24},
 			N2Msg:     n2Data,
@@ -854,7 +854,7 @@ func TestTransport5GSMMessage_SmContextExists_NoRequestType_ForwardsToSMF(t *tes
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
 	// No request type set
 
-	fakeSmf := &FakeSmf{
+	fakeSmf := &fakeSmf{
 		UpdateN1MsgResponse: nil, // nil response
 	}
 
@@ -896,11 +896,11 @@ func TestTransport5GSMMessage_SmContextExists_DuplicatePDU_Success(t *testing.T)
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
 	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialRequest)
 
-	fakeSmf := &FakeSmf{
+	fakeSmf := &fakeSmf{
 		CreateSmContextRef: "new-ref-after-dup",
 	}
 
-	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
+	amfInstance := amf.New(&fakeDBInstance{}, nil, fakeSmf)
 
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001010000000001"))
 	ue.AllowedNssai = []models.Snssai{*snssai}
@@ -960,7 +960,7 @@ func TestTransport5GSMMessage_SmContextExists_ExistingPduSession_AllowedNssai_Fo
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
 	setRequestType(msg, nasMessage.ULNASTransportRequestTypeExistingPduSession)
 
-	fakeSmf := &FakeSmf{
+	fakeSmf := &fakeSmf{
 		UpdateN1MsgResponse: nil,
 	}
 
@@ -996,7 +996,7 @@ func TestTransport5GSMMessage_SmContextExists_DefaultRequestType_ForwardsToSMF(t
 	// Set an unusual request type value (7 is not one of the defined cases) to trigger the default case
 	setRequestType(msg, 7)
 
-	fakeSmf := &FakeSmf{
+	fakeSmf := &fakeSmf{
 		UpdateN1MsgResponse: nil,
 	}
 
@@ -1039,11 +1039,11 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_WithSNSSAIAndDNN_Create
 	msg.DNN.SetLen(uint8(len(dnnValue)))
 	msg.SetDNN(dnnValue)
 
-	fakeSmf := &FakeSmf{
+	fakeSmf := &fakeSmf{
 		CreateSmContextRef: "new-ctx-ref",
 	}
 
-	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
+	amfInstance := amf.New(&fakeDBInstance{}, nil, fakeSmf)
 
 	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {
@@ -1092,11 +1092,11 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_DefaultSNSSAIAndDNN(t *
 
 	// No SNSSAI or DNN set on the NAS message
 
-	fakeSmf := &FakeSmf{
+	fakeSmf := &fakeSmf{
 		CreateSmContextRef: "default-ctx-ref",
 	}
 
-	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
+	amfInstance := amf.New(&fakeDBInstance{}, nil, fakeSmf)
 
 	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {
@@ -1114,7 +1114,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_DefaultSNSSAIAndDNN(t *
 		t.Fatalf("expected default SNSSAI SST=1 SD=aabbcc, got: SST=%d SD=%s", call.Snssai.Sst, call.Snssai.Sd)
 	}
 
-	// Should use DNN from DB (FakeDBInstance returns "TestDataNetwork")
+	// Should use DNN from DB (fakeDBInstance returns "TestDataNetwork")
 	if call.Dnn != "TestDataNetwork" {
 		t.Fatalf("expected DNN 'TestDataNetwork', got: %s", call.Dnn)
 	}
@@ -1147,9 +1147,9 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_NilAllowedNssai_Error(t
 
 	// No SNSSAI set on the NAS message, and UE.AllowedNssai is nil
 
-	fakeSmf := &FakeSmf{}
+	fakeSmf := &fakeSmf{}
 
-	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
+	amfInstance := amf.New(&fakeDBInstance{}, nil, fakeSmf)
 
 	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err == nil {
@@ -1179,12 +1179,12 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorRe
 	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialRequest)
 
 	// CreateSmContext returns an error response (N1 rejection message)
-	fakeSmf := &FakeSmf{
+	fakeSmf := &fakeSmf{
 		CreateSmContextErrResp: []byte{0x2E, 0x01, 0x00, 0xC2, 0x24},
 		CreateSmContextError:   fmt.Errorf("policy not found"),
 	}
 
-	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
+	amfInstance := amf.New(&fakeDBInstance{}, nil, fakeSmf)
 
 	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {
@@ -1242,7 +1242,7 @@ func TestTransport5GSMMessage_ExistingPduSession_MultiSliceAllowedNssai_MatchesS
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
 	setRequestType(msg, nasMessage.ULNASTransportRequestTypeExistingPduSession)
 
-	fakeSmf := &FakeSmf{
+	fakeSmf := &fakeSmf{
 		UpdateN1MsgResponse: nil,
 	}
 
@@ -1320,11 +1320,11 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_MultiSliceDefaultSNSSAI
 
 	// No SNSSAI or DNN set on the NAS message → should use AllowedNssai[0]
 
-	fakeSmf := &FakeSmf{
+	fakeSmf := &fakeSmf{
 		CreateSmContextRef: "multi-slice-ref",
 	}
 
-	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
+	amfInstance := amf.New(&fakeDBInstance{}, nil, fakeSmf)
 
 	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {

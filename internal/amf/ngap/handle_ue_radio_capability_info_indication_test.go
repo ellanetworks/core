@@ -16,8 +16,8 @@ import (
 )
 
 func TestUERadioCapabilityInfoIndication_UnknownAmfUeNgapID(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	ran := newTestRadio(newTestAMF())
+	sender := ran.Conn.(*fakeNGAPSender)
 
 	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), ran, decode.UERadioCapabilityInfoIndication{
 		RANUENGAPID: 99,
@@ -29,7 +29,7 @@ func TestUERadioCapabilityInfoIndication_UnknownAmfUeNgapID(t *testing.T) {
 }
 
 func TestUERadioCapabilityInfoIndication_NilUeContext(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 
 	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), ran, decode.UERadioCapabilityInfoIndication{
@@ -39,7 +39,7 @@ func TestUERadioCapabilityInfoIndication_NilUeContext(t *testing.T) {
 }
 
 func TestUERadioCapabilityInfoIndication_SetsRadioCapability(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
@@ -58,7 +58,7 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapability(t *testing.T) {
 }
 
 func TestUERadioCapabilityInfoIndication_SetsRadioCapabilityForPaging(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 
@@ -92,7 +92,7 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapabilityForPaging(t *testing
 }
 
 func TestUERadioCapabilityInfoIndication_NilCapabilityFieldsNoOp(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
 

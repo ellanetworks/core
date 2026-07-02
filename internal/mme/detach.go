@@ -26,18 +26,21 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 		return
 	}
 
-	ue.emmState.store(EMMDeregistered)
-
 	// An idle UE (ECM-IDLE) holds no S1 connection to carry the DETACH REQUEST, so
 	// release its sessions and context locally. The deleted subscriber is denied at
 	// its next contact, as it can no longer authenticate.
 	if !m.UeConnected(ue) {
+		ue.SetEMMState(EMMDeregistered)
 		logger.MmeLog.Info("releasing idle UE on subscriber deletion", zap.String("imsi", imsi))
 		m.ReleaseAllSessions(ue)
 		m.RemoveUe(ue)
 
 		return
 	}
+
+	// The connected UE is asked to detach; T3422 guards the DETACH REQUEST and the
+	// UE stays EMM-DEREGISTERED-INITIATED until it accepts or the guard exhausts.
+	ue.SetEMMState(EMMDeregistrationInitiated)
 
 	logger.MmeLog.Info("network-initiated detach (subscriber deleted)",
 		zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)), zap.String("imsi", imsi))

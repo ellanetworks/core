@@ -87,7 +87,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 	ue.AllocateRegistrationArea(operatorInfo.Tais)
 
-	guti := ue.Guti()
+	guti := amfInstance.Guti(ue)
 	ue.Log.Debug("use original GUTI", logger.GUTI(guti.String()))
 
 	// TS 24.501: a successful initial registration supersedes any

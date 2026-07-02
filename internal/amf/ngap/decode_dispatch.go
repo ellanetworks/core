@@ -8,23 +8,35 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
 
-// handleDecodeReport sends ErrorIndication for fatal decode errors and
-// returns false so the dispatcher skips the handler. Non-fatal errors
-// (ignore-criticality) are logged without sending ErrorIndication.
+// handleDecodeReport returns false so the dispatcher skips the handler on a
+// fatal decode error, and true otherwise. On a fatal error it answers an
+// initiating message with an ErrorIndication but leaves a response to local
+// error handling (TS 38.413 §10.3.4.2, §10.3.5). Non-fatal errors
+// (ignore-criticality) are logged without an ErrorIndication.
 func handleDecodeReport(ctx context.Context, ran *amf.Radio, report *decode.Report) bool {
 	if !report.HasItems() {
 		return true
 	}
 
 	if report.Fatal() {
-		cd := report.ToCriticalityDiagnostics()
+		// A fatal decode of an initiating message is answered with an Error
+		// Indication; a fatal decode of a response (successful/unsuccessful
+		// outcome) is left to local error handling — the procedure's guard timer
+		// fails it, and the gNB is not sent an Error Indication (TS 38.413
+		// §10.3.4.2, §10.3.5).
+		if report.FromInitiatingMessage() {
+			cd := report.ToCriticalityDiagnostics()
 
-		if err := ran.NGAPSender.SendErrorIndication(ctx, nil, nil, nil, &cd); err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
+			if pkt, err := send.BuildErrorIndication(nil, nil, nil, &cd); err != nil {
+				logger.WithTrace(ctx, ran.Log).Error("error building error indication", zap.Error(err))
+			} else if err := ran.SendToRan(ctx, send.NGAPProcedureErrorIndication, pkt); err != nil {
+				logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
+			}
 		}
 
 		logger.WithTrace(ctx, ran.Log).Error("fatal NGAP decode error",

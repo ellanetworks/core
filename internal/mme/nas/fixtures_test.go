@@ -272,7 +272,7 @@ func securedUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) {
 	}
 
 	ue.S1.MarkSecureExchangeEstablished()
-	ue.SetEMMState(mme.EMMRegistered)
+	ue.ForceEMMStateForTest(mme.EMMRegistered)
 	m.RegisterUEForTest(ue, testSubscriber.IMSI)
 
 	return ue, cc

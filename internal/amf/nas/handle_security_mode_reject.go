@@ -15,8 +15,8 @@ import (
 )
 
 func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *nasMessage.SecurityModeReject) error {
-	if state := ue.State(); state != amf.SecurityMode {
-		return fmt.Errorf("state mismatch: receive Security Mode Reject message in state %s", state)
+	if step := ue.RegStep(); step != amf.RegStepSecurityMode {
+		return fmt.Errorf("state mismatch: receive Security Mode Reject message outside the security mode exchange (state %s)", ue.State())
 	}
 
 	defer ue.Deregister(ctx)

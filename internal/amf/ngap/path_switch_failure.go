@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
@@ -26,7 +27,13 @@ func sendPathSwitchRequestFailure(ctx context.Context, ran *amf.Radio, msg decod
 		logger.WithTrace(ctx, ran.Log).Error("error building path switch released list", zap.Error(err))
 	}
 
-	if err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, msg.SourceAMFUENGAPID, msg.RANUENGAPID, released, nil); err != nil {
+	pkt, err := send.BuildPathSwitchRequestFailure(msg.SourceAMFUENGAPID, msg.RANUENGAPID, released, nil)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("error building path switch request failure", zap.Error(err))
+		return
+	}
+
+	if err := ran.SendToRan(ctx, send.NGAPProcedurePathSwitchRequestFailure, pkt); err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error sending path switch request failure", zap.Error(err))
 	}
 }

@@ -121,7 +121,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 		// here.
 		logger.WithTrace(ctx, ranUe.Log).Info("Release target UE context after handover failure/cancel", logger.SUPI(amfUe.Supi().String()))
 
-		amfUe.ClearHandover()
+		amfInstance.ClearHandover(amfUe)
 
 		err := ranUe.Remove(ctx)
 		if err != nil {

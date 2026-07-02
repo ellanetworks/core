@@ -24,9 +24,8 @@ func newDecoderTestUE(t *testing.T) *UeContext {
 	ue.secured = true
 
 	radio := &Radio{
-		Name:   "test-gNB",
-		RanUEs: make(map[int64]*RanUe),
-		Log:    zap.NewNop(),
+		Name: "test-gNB",
+		Log:  zap.NewNop(),
 	}
 	ranUe := &RanUe{
 		radio:       radio,

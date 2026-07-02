@@ -75,6 +75,8 @@ func DecodePDUSessionResourceModifyIndication(in *ngapType.PDUSessionResourceMod
 				report.Malformed(ie.Id.Value, ngapType.CriticalityPresentReject)
 				continue
 			}
+
+			out.PDUSessionResourceItems = ie.Value.PDUSessionResourceModifyListModInd.List
 		}
 	}
 

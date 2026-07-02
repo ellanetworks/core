@@ -339,7 +339,7 @@ func BuildRegistrationAccept(
 	registrationResult |= nasMessage.AccessType3GPP
 	registrationAccept.SetRegistrationResultValue5GS(registrationResult)
 
-	if guti := ue.Guti(); guti != etsi.InvalidGUTI {
+	if guti := amfInstance.Guti(ue); guti != etsi.InvalidGUTI {
 		gutiNas := nasConvert.GutiToNas(guti.String())
 		registrationAccept.GUTI5G = &gutiNas
 		registrationAccept.GUTI5G.SetIei(nasMessage.RegistrationAcceptGUTI5GType)
@@ -439,7 +439,7 @@ func BuildRegistrationAccept(
 
 // TS 24.501 Generic UE configuration update procedure.
 // includeGUTI controls whether a new 5G-GUTI is included (e.g. during service request GUTI re-allocation).
-func BuildConfigurationUpdateCommand(ue *UeContext, spnFullName, spnShortName string, includeGUTI bool) ([]byte, error) {
+func BuildConfigurationUpdateCommand(amfInstance *AMF, ue *UeContext, spnFullName, spnShortName string, includeGUTI bool) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeConfigurationUpdateCommand)
@@ -451,7 +451,7 @@ func BuildConfigurationUpdateCommand(ue *UeContext, spnFullName, spnShortName st
 	configurationUpdateCommand.SetMessageType(nas.MsgTypeConfigurationUpdateCommand)
 
 	if includeGUTI {
-		guti := ue.Guti()
+		guti := amfInstance.Guti(ue)
 		if guti == etsi.InvalidGUTI {
 			return nil, fmt.Errorf("5G-GUTI is required")
 		}

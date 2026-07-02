@@ -23,6 +23,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/ueauth"
+	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
@@ -33,20 +34,32 @@ import (
 type StateType string
 
 const (
-	Deregistered   StateType = "Deregistered"
-	Authentication StateType = "Authentication"
-	SecurityMode   StateType = "SecurityMode"
-	ContextSetup   StateType = "ContextSetup"
-	Registered     StateType = "Registered"
+	Deregistered            StateType = "Deregistered"
+	RegistrationInitiated   StateType = "RegistrationInitiated"
+	Registered              StateType = "Registered"
+	DeregistrationInitiated StateType = "DeregistrationInitiated"
 )
 
 var validTransitions = map[StateType][]StateType{
-	Deregistered:   {Authentication},
-	Authentication: {SecurityMode, Deregistered},
-	SecurityMode:   {ContextSetup, Deregistered},
-	ContextSetup:   {Registered, Deregistered},
-	Registered:     {Authentication, Deregistered},
+	Deregistered:            {RegistrationInitiated},
+	RegistrationInitiated:   {Registered, Deregistered},
+	Registered:              {RegistrationInitiated, DeregistrationInitiated, Deregistered},
+	DeregistrationInitiated: {Deregistered},
 }
+
+// RegStep is the phase within the registration procedure. The whole procedure is
+// a single 5GMM mobility-management state, 5GMM-REGISTERED-INITIATED
+// (TS 24.501 §5.1.3.2); RegStep tracks progress through it and is meaningful only
+// while the state is RegistrationInitiated. Ordering of the authentication,
+// security mode, and context-setup exchanges is enforced against it.
+type RegStep uint8
+
+const (
+	RegStepNone RegStep = iota
+	RegStepAuthenticating
+	RegStepSecurityMode
+	RegStepContextSetup
+)
 
 type SmContext struct {
 	Ref                string
@@ -57,7 +70,8 @@ type SmContext struct {
 type UeContext struct {
 	mu sync.Mutex
 
-	state StateType
+	state   StateType
+	regStep RegStep
 
 	PlmnID  models.PlmnID
 	Suci    string
@@ -99,8 +113,8 @@ type UeContext struct {
 	kgnb                 []uint8
 	nh                   [32]uint8 // AS key-chain Next Hop, 256 bits (TS 33.501)
 	ncc                  uint8
-	ulCount              security.Count
-	dlCount              security.Count
+	ulCount              nascommon.Count
+	dlCount              nascommon.Count
 	cipheringAlg         uint8
 	integrityAlg         uint8
 	kamf                 []uint8
@@ -197,8 +211,8 @@ func (ue *UeContext) resetSecurityContext() {
 	ue.kgnb = nil
 	ue.nh = [32]uint8{}
 	ue.ncc = 0
-	ue.ulCount = security.Count{}
-	ue.dlCount = security.Count{}
+	ue.ulCount = 0
+	ue.dlCount = 0
 	ue.cipheringAlg = 0
 	ue.integrityAlg = 0
 	ue.kamf = nil
@@ -251,7 +265,7 @@ func (ue *UeContext) ForceState(s StateType) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.state = s
+	ue.setStateLocked(s)
 }
 
 func (ue *UeContext) TransitionTo(target StateType) {
@@ -274,7 +288,7 @@ func (ue *UeContext) transitionToLocked(target StateType) {
 				zap.String("to", string(target)))
 		}
 
-		ue.state = target
+		ue.setStateLocked(target)
 
 		return
 	}
@@ -285,7 +299,40 @@ func (ue *UeContext) transitionToLocked(target StateType) {
 			zap.String("to", string(target)))
 	}
 
-	ue.state = Deregistered
+	ue.setStateLocked(Deregistered)
+}
+
+// setStateLocked assigns the state and resets the registration sub-phase: entering
+// RegistrationInitiated starts at the authentication exchange; any other state
+// carries no sub-phase.
+func (ue *UeContext) setStateLocked(target StateType) {
+	ue.state = target
+
+	if target == RegistrationInitiated {
+		ue.regStep = RegStepAuthenticating
+	} else {
+		ue.regStep = RegStepNone
+	}
+}
+
+// RegStep returns the phase within the registration procedure (meaningful only in
+// RegistrationInitiated).
+func (ue *UeContext) RegStep() RegStep {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.regStep
+}
+
+// AdvanceRegStep moves the registration sub-phase forward while the UE is
+// registration-initiated; it is a no-op in any other state.
+func (ue *UeContext) AdvanceRegStep(step RegStep) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if ue.state == RegistrationInitiated {
+		ue.regStep = step
+	}
 }
 
 func (ue *UeContext) AttachRanUe(ranUe *RanUe) {
@@ -508,7 +555,7 @@ func (ue *UeContext) DerivateAlgKey() error {
 // Access Network key Derivation function defined in TS 33.501
 func (ue *UeContext) DerivateAnKey() error {
 	P0 := make([]byte, 4)
-	binary.BigEndian.PutUint32(P0, ue.ulCount.Get())
+	binary.BigEndian.PutUint32(P0, ue.ulCount.Value())
 	L0 := ueauth.KDFLen(P0)
 	P1 := []byte{security.AccessType3GPP}
 	L1 := ueauth.KDFLen(P1)
@@ -558,15 +605,30 @@ func (ue *UeContext) UpdateSecurityContext() error {
 	return nil
 }
 
-func (ue *UeContext) UpdateNH() error {
-	ue.ncc = (ue.ncc + 1) % 8
+// AdvancePathSwitchNH derives the next {NH, NCC} of the AS key chain for a path
+// switch (TS 33.501 §6.9.2.1.1) without committing them to the UE, so the chain
+// is advanced only once the switch is confirmed (see AMF.CommitPathSwitch).
+func (ue *UeContext) AdvancePathSwitchNH() (nh [32]uint8, ncc uint8, err error) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
-	err := ue.DerivateNH(ue.nh[:])
+	return ue.deriveNextNHLocked()
+}
+
+// deriveNextNHLocked returns the next {NH, NCC} of the AS key chain (TS 33.501
+// §6.9.2.1.1) without committing them to the UE, so a handover can stage the pair
+// and commit it only on completion. Caller holds ue.mu.
+func (ue *UeContext) deriveNextNHLocked() ([32]uint8, uint8, error) {
+	out, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForNhDerivation, ue.nh[:], ueauth.KDFLen(ue.nh[:]))
 	if err != nil {
-		return fmt.Errorf("error deriving NH: %v", err)
+		return [32]uint8{}, 0, fmt.Errorf("could not get kdf value: %v", err)
 	}
 
-	return nil
+	if len(out) != len(ue.nh) {
+		return [32]uint8{}, 0, fmt.Errorf("unexpected NH length %d, want %d", len(out), len(ue.nh))
+	}
+
+	return [32]uint8(out), (ue.ncc + 1) % 8, nil
 }
 
 func (ue *UeContext) SelectSecurityAlg(intOrder, encOrder []uint8) error {
@@ -738,8 +800,8 @@ func (ue *UeContext) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 	case nas.SecurityHeaderTypeIntegrityProtectedAndCiphered:
 		needCiphering = true
 	case nas.SecurityHeaderTypeIntegrityProtectedWithNew5gNasSecurityContext:
-		ue.ulCount.Set(0, 0)
-		ue.dlCount.Set(0, 0)
+		ue.ulCount = 0
+		ue.dlCount = 0
 	default:
 		return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeaderType)
 	}
@@ -750,14 +812,14 @@ func (ue *UeContext) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 	}
 
 	if needCiphering {
-		if err = security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.dlCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+		if err = security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.dlCount.Value(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 			return nil, fmt.Errorf("error encrypting: %+v", err)
 		}
 	}
 
 	payload = append([]byte{ue.dlCount.SQN()}, payload[:]...)
 
-	mac32, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, ue.dlCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload)
+	mac32, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, ue.dlCount.Value(), security.Bearer3GPP, security.DirectionDownlink, payload)
 	if err != nil {
 		return nil, fmt.Errorf("MAC calcuate error: %+v", err)
 	}
@@ -767,7 +829,7 @@ func (ue *UeContext) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 	msgSecurityHeader := []byte{msg.ProtocolDiscriminator, msg.SecurityHeaderType}
 	payload = append(msgSecurityHeader, payload[:]...)
 
-	ue.dlCount.AddOne()
+	ue.dlCount = ue.dlCount.Next()
 
 	return payload, nil
 }

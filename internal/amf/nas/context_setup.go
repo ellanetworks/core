@@ -15,7 +15,7 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, 
 	ctx, span := gmmTracer.Start(ctx, "nas/context_setup")
 	defer span.End()
 
-	ue.TransitionTo(amf.ContextSetup)
+	ue.AdvanceRegStep(amf.RegStepContextSetup)
 
 	conn := ue.NasConn()
 	if conn == nil {

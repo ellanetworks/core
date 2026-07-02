@@ -14,10 +14,12 @@ import (
 )
 
 func newTestRadioForRanUe() *amf.Radio {
-	return &amf.Radio{
-		Log:    logger.AmfLog,
-		RanUEs: make(map[int64]*amf.RanUe),
+	ran := &amf.Radio{
+		Log: logger.AmfLog,
 	}
+	ran.BindAMFForTest(amf.New(nil, nil, nil))
+
+	return ran
 }
 
 func newBoundUeContext(t *testing.T, radio *amf.Radio) (*amf.UeContext, *amf.RanUe) {
@@ -151,7 +153,7 @@ func TestRemoveAllUeInRan_AbortsProcedures(t *testing.T) {
 func TestRemoveAllUeInRan_MidAuthentication_Deregisters(t *testing.T) {
 	radio := newTestRadioForRanUe()
 	ue, _ := newBoundUeContext(t, radio)
-	ue.ForceState(amf.Authentication)
+	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 
 	radio.RemoveAllUeInRan(context.Background())
 
@@ -163,7 +165,7 @@ func TestRemoveAllUeInRan_MidAuthentication_Deregisters(t *testing.T) {
 func TestRemoveAllUeInRan_MidSecurityMode_Deregisters(t *testing.T) {
 	radio := newTestRadioForRanUe()
 	ue, _ := newBoundUeContext(t, radio)
-	ue.ForceState(amf.SecurityMode)
+	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
 
 	radio.RemoveAllUeInRan(context.Background())
 
@@ -175,7 +177,7 @@ func TestRemoveAllUeInRan_MidSecurityMode_Deregisters(t *testing.T) {
 func TestRemoveAllUeInRan_MidContextSetup_Deregisters(t *testing.T) {
 	radio := newTestRadioForRanUe()
 	ue, _ := newBoundUeContext(t, radio)
-	ue.ForceState(amf.ContextSetup)
+	ue.ForceRegStepForTest(amf.RegStepContextSetup)
 
 	radio.RemoveAllUeInRan(context.Background())
 
@@ -216,7 +218,7 @@ func TestRemoveAllUeInRan_NoUeContext(t *testing.T) {
 
 	radio.RemoveAllUeInRan(context.Background())
 
-	if len(radio.RanUEs) != 0 {
-		t.Errorf("RanUEs count = %d, want 0", len(radio.RanUEs))
+	if radio.NumUEsForTest() != 0 {
+		t.Errorf("RanUEs count = %d, want 0", radio.NumUEsForTest())
 	}
 }

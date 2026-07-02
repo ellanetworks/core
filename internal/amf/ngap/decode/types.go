@@ -462,8 +462,9 @@ type UplinkRANConfigurationTransfer struct {
 // PDUSessionResourceModifyListModInd contents — presence validation
 // happens in the decoder and the list itself is not surfaced.
 type PDUSessionResourceModifyIndication struct {
-	AMFUENGAPID int64
-	RANUENGAPID int64
+	AMFUENGAPID             int64
+	RANUENGAPID             int64
+	PDUSessionResourceItems []ngapType.PDUSessionResourceModifyItemModInd
 }
 
 // RANConfigurationUpdate is a decoded NGAP RANConfigurationUpdate

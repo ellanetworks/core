@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -102,56 +104,78 @@ func (ranUe *RanUe) TouchLastSeen() {
 	ranUe.amfUe.TouchLastSeen(radioName)
 }
 
-func (ranUe *RanUe) ngapSender() (NGAPSender, error) {
+// sendTarget resolves the AMF and radio this RAN UE sends through, mirroring the
+// MME's S1Identity resolution before a send.
+func (ranUe *RanUe) sendTarget() (*AMF, *Radio, error) {
 	if ranUe == nil {
-		return nil, fmt.Errorf("ran ue is nil")
+		return nil, nil, fmt.Errorf("ran ue is nil")
 	}
 
 	if ranUe.radio == nil {
-		return nil, fmt.Errorf("radio is nil")
+		return nil, nil, fmt.Errorf("radio is nil")
 	}
 
-	if ranUe.radio.NGAPSender == nil {
-		return nil, fmt.Errorf("ngap sender is nil")
+	if ranUe.radio.amf == nil {
+		return nil, nil, fmt.Errorf("amf is nil")
 	}
 
-	return ranUe.radio.NGAPSender, nil
+	return ranUe.radio.amf, ranUe.radio, nil
 }
 
 func (ranUe *RanUe) SendDownlinkNasTransport(ctx context.Context, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) error {
-	sender, err := ranUe.ngapSender()
+	amfInstance, radio, err := ranUe.sendTarget()
 	if err != nil {
 		return err
 	}
 
-	return sender.SendDownlinkNasTransport(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, nasPdu, mobilityRestrictionList)
+	pkt, err := send.BuildDownlinkNasTransport(ranUe.AmfUeNgapID, ranUe.RanUeNgapID, nasPdu, mobilityRestrictionList)
+	if err != nil {
+		return err
+	}
+
+	return amfInstance.SendToRan(ctx, radio, send.NGAPProcedureDownlinkNasTransport, pkt)
 }
 
 func (ranUe *RanUe) SendUEContextReleaseCommand(ctx context.Context, causePresent int, cause aper.Enumerated) error {
-	sender, err := ranUe.ngapSender()
+	amfInstance, radio, err := ranUe.sendTarget()
 	if err != nil {
 		return err
 	}
 
-	return sender.SendUEContextReleaseCommand(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, causePresent, cause)
+	pkt, err := send.BuildUEContextReleaseCommand(ranUe.AmfUeNgapID, ranUe.RanUeNgapID, causePresent, cause)
+	if err != nil {
+		return err
+	}
+
+	return amfInstance.SendToRan(ctx, radio, send.NGAPProcedureUEContextReleaseCommand, pkt)
 }
 
 func (ranUe *RanUe) SendPDUSessionResourceSetupRequest(ctx context.Context, ambrUp string, ambrDown string, nasPdu []byte, list ngapType.PDUSessionResourceSetupListSUReq) error {
-	sender, err := ranUe.ngapSender()
+	amfInstance, radio, err := ranUe.sendTarget()
 	if err != nil {
 		return err
 	}
 
-	return sender.SendPDUSessionResourceSetupRequest(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, ambrUp, ambrDown, nasPdu, list)
+	pkt, err := send.BuildPDUSessionResourceSetupRequest(ranUe.AmfUeNgapID, ranUe.RanUeNgapID, ambrUp, ambrDown, nasPdu, list)
+	if err != nil {
+		return err
+	}
+
+	return amfInstance.SendToRan(ctx, radio, send.NGAPProcedurePDUSessionResourceSetupRequest, pkt)
 }
 
 func (ranUe *RanUe) SendPDUSessionResourceReleaseCommand(ctx context.Context, nasPdu []byte, list ngapType.PDUSessionResourceToReleaseListRelCmd) error {
-	sender, err := ranUe.ngapSender()
+	amfInstance, radio, err := ranUe.sendTarget()
 	if err != nil {
 		return err
 	}
 
-	return sender.SendPDUSessionResourceReleaseCommand(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, nasPdu, list)
+	pkt, err := send.BuildPDUSessionResourceReleaseCommand(ranUe.AmfUeNgapID, ranUe.RanUeNgapID, nasPdu, list)
+	if err != nil {
+		return err
+	}
+
+	return amfInstance.SendToRan(ctx, radio, send.NGAPProcedurePDUSessionResourceReleaseCommand, pkt)
 }
 
 func (ranUe *RanUe) SendInitialContextSetupRequest(
@@ -168,13 +192,12 @@ func (ranUe *RanUe) SendInitialContextSetupRequest(
 	pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq,
 	supportedGUAMI *models.Guami,
 ) error {
-	sender, err := ranUe.ngapSender()
+	amfInstance, radio, err := ranUe.sendTarget()
 	if err != nil {
 		return err
 	}
 
-	return sender.SendInitialContextSetupRequest(
-		ctx,
+	pkt, err := send.BuildInitialContextSetupRequest(
 		ranUe.AmfUeNgapID,
 		ranUe.RanUeNgapID,
 		ambrUp,
@@ -189,6 +212,11 @@ func (ranUe *RanUe) SendInitialContextSetupRequest(
 		pduSessionResourceSetupRequestList,
 		supportedGUAMI,
 	)
+	if err != nil {
+		return err
+	}
+
+	return amfInstance.SendToRan(ctx, radio, send.NGAPProcedureInitialContextSetupRequest, pkt)
 }
 
 func (ranUe *RanUe) SendPDUSessionResourceModifyConfirm(
@@ -196,53 +224,71 @@ func (ranUe *RanUe) SendPDUSessionResourceModifyConfirm(
 	pduSessionResourceModifyConfirmList ngapType.PDUSessionResourceModifyListModCfm,
 	pduSessionResourceFailedToModifyList ngapType.PDUSessionResourceFailedToModifyListModCfm,
 ) error {
-	sender, err := ranUe.ngapSender()
+	amfInstance, radio, err := ranUe.sendTarget()
 	if err != nil {
 		return err
 	}
 
-	return sender.SendPDUSessionResourceModifyConfirm(
-		ctx,
+	pkt, err := send.BuildPDUSessionResourceModifyConfirm(
 		ranUe.AmfUeNgapID,
 		ranUe.RanUeNgapID,
 		pduSessionResourceModifyConfirmList,
 		pduSessionResourceFailedToModifyList,
 	)
+	if err != nil {
+		return err
+	}
+
+	return amfInstance.SendToRan(ctx, radio, send.NGAPProcedurePDUSessionResourceModifyConfirm, pkt)
 }
 
 func (ranUe *RanUe) SendPDUSessionResourceModifyRequest(
 	ctx context.Context,
 	pduSessionResourceModifyList ngapType.PDUSessionResourceModifyListModReq,
 ) error {
-	sender, err := ranUe.ngapSender()
+	amfInstance, radio, err := ranUe.sendTarget()
 	if err != nil {
 		return err
 	}
 
-	return sender.SendPDUSessionResourceModifyRequest(
-		ctx,
+	pkt, err := send.BuildPDUSessionResourceModifyRequest(
 		ranUe.AmfUeNgapID,
 		ranUe.RanUeNgapID,
 		pduSessionResourceModifyList,
 	)
+	if err != nil {
+		return err
+	}
+
+	return amfInstance.SendToRan(ctx, radio, send.NGAPProcedurePDUSessionResourceModifyRequest, pkt)
 }
 
 func (ranUe *RanUe) SendHandoverPreparationFailure(ctx context.Context, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
-	sender, err := ranUe.ngapSender()
+	amfInstance, radio, err := ranUe.sendTarget()
 	if err != nil {
 		return err
 	}
 
-	return sender.SendHandoverPreparationFailure(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, cause, criticalityDiagnostics)
+	pkt, err := send.BuildHandoverPreparationFailure(ranUe.AmfUeNgapID, ranUe.RanUeNgapID, cause, criticalityDiagnostics)
+	if err != nil {
+		return err
+	}
+
+	return amfInstance.SendToRan(ctx, radio, send.NGAPProcedureHandoverPreparationFailure, pkt)
 }
 
 func (ranUe *RanUe) SendHandoverCancelAcknowledge(ctx context.Context) error {
-	sender, err := ranUe.ngapSender()
+	amfInstance, radio, err := ranUe.sendTarget()
 	if err != nil {
 		return err
 	}
 
-	return sender.SendHandoverCancelAcknowledge(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID)
+	pkt, err := send.BuildHandoverCancelAcknowledge(ranUe.AmfUeNgapID, ranUe.RanUeNgapID)
+	if err != nil {
+		return err
+	}
+
+	return amfInstance.SendToRan(ctx, radio, send.NGAPProcedureHandoverCancelAcknowledge, pkt)
 }
 
 func (ranUe *RanUe) SendHandoverRequest(
@@ -259,13 +305,12 @@ func (ranUe *RanUe) SendHandoverRequest(
 	snssaiList []models.Snssai,
 	supportedGUAMI *models.Guami,
 ) error {
-	sender, err := ranUe.ngapSender()
+	amfInstance, radio, err := ranUe.sendTarget()
 	if err != nil {
 		return err
 	}
 
-	return sender.SendHandoverRequest(
-		ctx,
+	pkt, err := send.BuildHandoverRequest(
 		ranUe.AmfUeNgapID,
 		handOverType,
 		uplinkAmbr,
@@ -279,15 +324,43 @@ func (ranUe *RanUe) SendHandoverRequest(
 		snssaiList,
 		supportedGUAMI,
 	)
+	if err != nil {
+		return err
+	}
+
+	return amfInstance.SendToRan(ctx, radio, send.NGAPProcedureHandoverRequest, pkt)
 }
 
 // Remove tears down the RAN UE: it releases the NAS signalling connection
 // to the bound AMF UE (with the given cause), removes the RAN UE from the
 // radio's UE table, and frees its NGAP ID.
+// abortHandoverIfPreparedTarget ends an in-flight N2 handover when this RanUe is
+// its prepared target and the target is being removed (the target gNB association
+// was reset or lost). The procedure is ended on the source — which stops the
+// supervision guard — and the FSM cleared at once, rather than leaving a stale
+// handover until the guard deadline. The source is left in place (its own handover
+// timers abort it on the radio), mirroring the MME's ReclaimConns.
+func (ranUe *RanUe) abortHandoverIfPreparedTarget(ctx context.Context) {
+	ue := ranUe.amfUe
+	if ue == nil || ranUe.radio.amf.HandoverTarget(ue) != ranUe {
+		return
+	}
+
+	if conn := ue.NasConn(); conn != nil {
+		conn.Procedures.End(procedure.N2Handover)
+	}
+
+	ranUe.radio.amf.ClearHandover(ue)
+
+	logger.WithTrace(ctx, ranUe.Log).Info("aborted in-flight N2 handover: target association removed")
+}
+
 func (ranUe *RanUe) Remove(ctx context.Context) error {
 	if ranUe == nil {
 		return fmt.Errorf("ran ue is nil")
 	}
+
+	ranUe.abortHandoverIfPreparedTarget(ctx)
 
 	if ranUe.amfUe != nil {
 		ranUe.amfUe.ReleaseNasConnection(ranUe)
@@ -298,9 +371,9 @@ func (ranUe *RanUe) Remove(ctx context.Context) error {
 		return fmt.Errorf("ran not found in ranUe")
 	}
 
-	ran.mu.Lock()
-	delete(ran.RanUEs, ranUe.AmfUeNgapID)
-	ran.mu.Unlock()
+	ran.amf.mu.Lock()
+	delete(ran.amf.ranUEs, ranUe.AmfUeNgapID)
+	ran.amf.mu.Unlock()
 
 	if ranUe.freeNgapID != nil {
 		ranUe.freeNgapID(ranUe.AmfUeNgapID)
@@ -314,33 +387,35 @@ func (ranUe *RanUe) Remove(ctx context.Context) error {
 	return nil
 }
 
-func (ranUe *RanUe) SwitchToRan(newRan *Radio, ranUeNgapID int64) error {
-	if ranUe == nil {
-		return fmt.Errorf("ran ue is nil")
+// CommitPathSwitch re-points the UE at the target radio and commits the advanced
+// {NH, NCC} chain atomically under the registry lock (TS 33.501 §6.9.2.1.1). It
+// returns false if the UE was released during the user-plane switch, leaving the
+// chain unadvanced so the source context stays consistent. The global ranUEs
+// index is keyed by the unchanged AMF UE NGAP ID, so the switch only re-points
+// the UE at its new radio and RAN UE NGAP ID.
+func (a *AMF) CommitPathSwitch(ue *UeContext, ranUe *RanUe, ran *Radio, ranUeNgapID int64, nh [32]uint8, ncc uint8) bool {
+	a.mu.Lock()
+
+	if ranUe == nil || ran == nil || a.ranUEs[ranUe.AmfUeNgapID] != ranUe {
+		a.mu.Unlock()
+
+		return false
 	}
 
-	if newRan == nil {
-		return fmt.Errorf("new ran is nil")
-	}
-
-	oldRan := ranUe.radio
-
-	// move ranUe from oldRan to newRan (keyed by the unchanged AMF UE NGAP ID)
-	oldRan.mu.Lock()
-	delete(oldRan.RanUEs, ranUe.AmfUeNgapID)
-	oldRan.mu.Unlock()
-
-	newRan.mu.Lock()
-	newRan.RanUEs[ranUe.AmfUeNgapID] = ranUe
-	newRan.mu.Unlock()
-
-	ranUe.radio = newRan
+	ranUe.radio = ran
 	ranUe.RanUeNgapID = ranUeNgapID
-	ranUe.Log = newRan.Log.With(logger.AmfUeNgapID(ranUe.AmfUeNgapID))
 
+	ue.mu.Lock()
+	ue.nh = nh
+	ue.ncc = ncc
+	ue.mu.Unlock()
+
+	a.mu.Unlock()
+
+	ranUe.Log = ran.Log.With(logger.AmfUeNgapID(ranUe.AmfUeNgapID))
 	ranUe.Log.Info("ran ue switched to new Ran", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
-	return nil
+	return true
 }
 
 func (ranUe *RanUe) UpdateLocation(ctx context.Context, amf *AMF, userLocationInformation *ngapType.UserLocationInformation) {
@@ -472,9 +547,15 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, amf *AMF, userLocationIn
 	}
 }
 
-// NewRanUeForTest creates a RanUe and registers it in radio.RanUEs.
-// It is intended for use in external test packages only.
+// NewRanUeForTest creates a RanUe and registers it in the AMF's ranUEs index.
+// It is intended for use in external test packages only. If the radio is not yet
+// bound to an AMF, a throwaway one is created so a handler invoked with this same
+// radio resolves the UE; tests that share a specific AMF must BindAMFForTest first.
 func NewRanUeForTest(radio *Radio, ranUeNgapID, amfUeNgapID int64, log *zap.Logger) *RanUe {
+	if radio.amf == nil {
+		radio.amf = New(nil, nil, nil)
+	}
+
 	ranUe := &RanUe{
 		RanUeNgapID: ranUeNgapID,
 		AmfUeNgapID: amfUeNgapID,
@@ -482,9 +563,9 @@ func NewRanUeForTest(radio *Radio, ranUeNgapID, amfUeNgapID int64, log *zap.Logg
 		Log:         log,
 	}
 
-	radio.mu.Lock()
-	radio.RanUEs[amfUeNgapID] = ranUe
-	radio.mu.Unlock()
+	radio.amf.mu.Lock()
+	radio.amf.ranUEs[amfUeNgapID] = ranUe
+	radio.amf.mu.Unlock()
 
 	return ranUe
 }

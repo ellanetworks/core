@@ -58,6 +58,8 @@ func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeCo
 		return fmt.Errorf("send downlink nas transport: %w", err)
 	}
 
+	ue.TransitionTo(DeregistrationInitiated)
+
 	ue.Log.Info("sent network-initiated Deregistration Request")
 
 	conn := ue.NasConn()

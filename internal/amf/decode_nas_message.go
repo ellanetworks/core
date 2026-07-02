@@ -88,14 +88,9 @@ func (ue *UeContext) NasIntegrityVerified(payload []byte) bool {
 	receivedMac := payload[2:6]
 	sqn := payload[6]
 
-	cnt := ue.ulCount // value copy; never committed back to the context
-	if cnt.SQN() > sqn {
-		cnt.SetOverflow(cnt.Overflow() + 1)
-	}
+	cnt := ue.ulCount.ReconcileUplink(sqn) // never committed back to the context
 
-	cnt.SetSQN(sqn)
-
-	mac, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, cnt.Get(), security.Bearer3GPP, security.DirectionUplink, payload[6:])
+	mac, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, cnt.Value(), security.Bearer3GPP, security.DirectionUplink, payload[6:])
 	if err != nil {
 		return false
 	}
@@ -162,19 +157,14 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *A
 	case nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext:
 		ciphered = true
 
-		cnt.Set(0, 0)
+		cnt = 0
 	default:
 		return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeaderType)
 	}
 
-	if cnt.SQN() > sequenceNumber {
-		ue.Log.Debug("set ULCount overflow")
-		cnt.SetOverflow(cnt.Overflow() + 1)
-	}
+	cnt = cnt.ReconcileUplink(sequenceNumber)
 
-	cnt.SetSQN(sequenceNumber)
-
-	mac32, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, cnt.Get(), security.Bearer3GPP,
+	mac32, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, cnt.Value(), security.Bearer3GPP,
 		security.DirectionUplink, payload)
 	if err != nil {
 		return nil, fmt.Errorf("error calculating mac: %+v", err)
@@ -186,9 +176,9 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *A
 	}
 
 	if ciphered {
-		ue.Log.Debug("Decrypt NAS message", zap.Uint8("algorithm", ue.cipheringAlg), zap.Uint32("ULCount", cnt.Get()))
+		ue.Log.Debug("Decrypt NAS message", zap.Uint8("algorithm", ue.cipheringAlg), zap.Uint32("ULCount", cnt.Value()))
 
-		if err = security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, cnt.Get(), security.Bearer3GPP,
+		if err = security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, cnt.Value(), security.Bearer3GPP,
 			security.DirectionUplink, payload[1:]); err != nil {
 			return nil, fmt.Errorf("error encrypting: %+v", err)
 		}

@@ -61,15 +61,17 @@ func (m *MME) PrepareHandover(ue *UeContext, target NasWriter, reqMMEID s1ap.MME
 		return 0, [32]byte{}, 0, false
 	}
 
+	ue.mu.Lock()
 	newNH, err := deriveNH(ue.kasme, ue.nh[:])
+	newNCC = (ue.ncc + 1) & 0x07
+	ue.mu.Unlock()
+
 	if err != nil {
 		m.mu.Unlock()
 		logger.MmeLog.Error("failed to advance NH for handover", zap.Error(err))
 
 		return 0, [32]byte{}, 0, false
 	}
-
-	newNCC = (ue.ncc + 1) & 0x07
 
 	tid, idOK := m.allocConnIDLocked()
 	if !idOK {
@@ -188,8 +190,12 @@ func (m *MME) FinishHandoverCommit(ue *UeContext, conn NasWriter, notifyENBID s1
 	}
 
 	source := ho.source
+
+	ue.mu.Lock()
 	ue.nh = ho.newNH
 	ue.ncc = ho.newNCC
+	ue.mu.Unlock()
+
 	ue.S1 = ho.target
 	source.ue = nil // its Release Complete removes the connection
 	m.clearHandoverLocked(ue)
@@ -237,7 +243,10 @@ func (m *MME) BeginPathSwitch(ue *UeContext) (curNH [32]byte, curNCC uint8, mmeI
 	}
 
 	ue.keyChainBusy = true
+
+	ue.mu.Lock()
 	curNH, curNCC = ue.nh, ue.ncc
+	ue.mu.Unlock()
 
 	return curNH, curNCC, mmeID, true
 }
@@ -272,6 +281,9 @@ func (m *MME) TryClaimKeyChain(ue *UeContext) bool {
 // AdvancePathSwitchNH derives the next hop for a Path Switch from the current NH
 // (TS 33.401 §7.2.8). kasme stays inside the kernel.
 func (m *MME) AdvancePathSwitchNH(ue *UeContext, curNH [32]byte) ([32]byte, error) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
 	return deriveNH(ue.kasme, curNH[:])
 }
 
@@ -288,10 +300,14 @@ func (m *MME) CommitPathSwitch(ue *UeContext, conn NasWriter, enbUEID s1ap.ENBUE
 
 	ue.S1.conn = conn
 	ue.S1.ENBUES1APID = enbUEID
+
+	ue.mu.Lock()
 	ue.nh = newNH
 	ue.ncc = (curNCC + 1) & 0x07
+	newNCC := ue.ncc
+	ue.mu.Unlock()
 
-	return ue.ncc, true
+	return newNCC, true
 }
 
 // clearHandoverLocked drops the UE's in-flight handover context, stops its guard

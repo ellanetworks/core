@@ -14,14 +14,23 @@ import (
 )
 
 func TestHandleSecurityModeReject_NotSecurityMode(t *testing.T) {
-	testcases := []amf.StateType{amf.Authentication, amf.Deregistered, amf.ContextSetup, amf.Registered}
+	testcases := []struct {
+		name  string
+		setup func(*amf.UeContext)
+		state amf.StateType
+	}{
+		{"Deregistered", func(ue *amf.UeContext) { ue.ForceState(amf.Deregistered) }, amf.Deregistered},
+		{"Registered", func(ue *amf.UeContext) { ue.ForceState(amf.Registered) }, amf.Registered},
+		{"Authenticating", func(ue *amf.UeContext) { ue.ForceRegStepForTest(amf.RegStepAuthenticating) }, amf.RegistrationInitiated},
+		{"ContextSetup", func(ue *amf.UeContext) { ue.ForceRegStepForTest(amf.RegStepContextSetup) }, amf.RegistrationInitiated},
+	}
 
 	for _, tc := range testcases {
-		t.Run(string(tc), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			ue := amf.NewUeContext()
-			ue.ForceState(tc)
+			tc.setup(ue)
 
-			expected := fmt.Sprintf("state mismatch: receive Security Mode Reject message in state %s", tc)
+			expected := fmt.Sprintf("state mismatch: receive Security Mode Reject message outside the security mode exchange (state %s)", tc.state)
 
 			err := handleSecurityModeReject(t.Context(), ue, nil)
 			if err == nil || err.Error() != expected {
@@ -39,7 +48,7 @@ func TestHandleSecurityModeReject_T3560Stopped_UEContextReleased(t *testing.T) {
 
 	ue.SetSecuredForTest(true)
 	ue.RanUe().ReleaseAction = amf.UeContextN2NormalRelease
-	ue.ForceState(amf.SecurityMode)
+	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
 	conn := ue.NasConn()
 	conn.T3560.Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 

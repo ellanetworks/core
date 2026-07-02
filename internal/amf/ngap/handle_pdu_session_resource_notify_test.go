@@ -16,8 +16,8 @@ import (
 )
 
 func TestPDUSessionResourceNotify_UnknownAmfUeNgapID(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	ran := newTestRadio(newTestAMF())
+	sender := ran.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, decode.PDUSessionResourceNotify{
@@ -30,7 +30,7 @@ func TestPDUSessionResourceNotify_UnknownAmfUeNgapID(t *testing.T) {
 }
 
 func TestPDUSessionResourceNotify_NilUeContext(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 
 	amfInstance := newTestAMF()
@@ -42,8 +42,8 @@ func TestPDUSessionResourceNotify_NilUeContext(t *testing.T) {
 }
 
 func TestPDUSessionResourceNotify_ReleasedSessionDeactivated(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	ran := newTestRadio(newTestAMF())
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
 
 	amfUe := amf.NewUeContext()
@@ -86,8 +86,8 @@ func TestPDUSessionResourceNotify_ReleasedSessionDeactivated(t *testing.T) {
 }
 
 func TestPDUSessionResourceNotify_ReleasedSessionSmContextNotFound(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	ran := newTestRadio(newTestAMF())
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
 
 	amfUe := amf.NewUeContext()
@@ -113,8 +113,8 @@ func TestPDUSessionResourceNotify_ReleasedSessionSmContextNotFound(t *testing.T)
 }
 
 func TestPDUSessionResourceNotify_InvalidPDUSessionID(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	ran := newTestRadio(newTestAMF())
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
 
 	amfUe := amf.NewUeContext()
@@ -140,8 +140,8 @@ func TestPDUSessionResourceNotify_InvalidPDUSessionID(t *testing.T) {
 }
 
 func TestPDUSessionResourceNotify_NotifyListLogsWarning(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	ran := newTestRadio(newTestAMF())
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
 
 	amfUe := amf.NewUeContext()

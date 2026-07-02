@@ -17,8 +17,8 @@ import (
 )
 
 func TestHandleInitialContextSetupFailure_MissingCause(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	ran := newTestRadio(newTestAMF())
+	sender := ran.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 	msg := decode.InitialContextSetupFailure{
 		AMFUENGAPID: 1,
@@ -33,8 +33,8 @@ func TestHandleInitialContextSetupFailure_MissingCause(t *testing.T) {
 }
 
 func TestHandleInitialContextSetupFailure_UnknownAmfUeNgapID(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	ran := newTestRadio(newTestAMF())
+	sender := ran.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	msg := decode.InitialContextSetupFailure{
@@ -53,7 +53,7 @@ func TestHandleInitialContextSetupFailure_UnknownAmfUeNgapID(t *testing.T) {
 }
 
 func TestHandleInitialContextSetupFailure_NilUeContext(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
 
 	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
@@ -71,13 +71,13 @@ func TestHandleInitialContextSetupFailure_NilUeContext(t *testing.T) {
 }
 
 func TestHandleInitialContextSetupFailure_T3550Running(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	ran := newTestRadio(newTestAMF())
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
 
 	amfUe := amf.NewUeContext()
 	amfUe.Log = logger.AmfLog
-	amfUe.ForceState(amf.ContextSetup)
+	amfUe.ForceRegStepForTest(amf.RegStepContextSetup)
 	conn := amfUe.NasConn()
 	conn.T3550.Arm(time.Hour, 4, func(int32) {}, func() {})
 
@@ -105,8 +105,8 @@ func TestHandleInitialContextSetupFailure_T3550Running(t *testing.T) {
 }
 
 func TestHandleInitialContextSetupFailure_PDUSessionFailureForwardedToSmf(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	ran := newTestRadio(newTestAMF())
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
 
 	amfUe := amf.NewUeContext()

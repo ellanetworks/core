@@ -81,6 +81,10 @@ func (s *deregisterTestSmf) UpdateSmContextXnHandoverPathSwitchReq(context.Conte
 	return nil, nil
 }
 
+func (s *deregisterTestSmf) UpdateSmContextN2ModifyIndication(context.Context, string, []byte) ([]byte, error) {
+	return nil, nil
+}
+
 func (s *deregisterTestSmf) UpdateSmContextHandoverFailed(context.Context, string, []byte) error {
 	return nil
 }

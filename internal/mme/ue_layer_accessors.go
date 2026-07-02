@@ -6,8 +6,10 @@ package mme
 // EMMState returns the UE's EMM registration state.
 func (ue *UeContext) EMMState() EMMState { return ue.emmState.load() }
 
-// SetEMMState sets the UE's EMM registration state.
-func (ue *UeContext) SetEMMState(s EMMState) { ue.emmState.store(s) }
+// SetEMMState moves the UE's EMM registration state through the validated
+// transition graph (TS 24.301 §5.1.3.2); an unexpected transition fails safe to
+// EMM-DEREGISTERED.
+func (ue *UeContext) SetEMMState(s EMMState) { ue.emmState.transition(s) }
 
 // ResyncTried reports whether SQN re-synchronisation has already been attempted
 // for the in-progress authentication (TS 33.401).

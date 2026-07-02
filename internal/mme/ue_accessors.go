@@ -66,7 +66,7 @@ func (ue *UeContext) ULCount() uint32 {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return ue.ulCount
+	return ue.ulCount.Value()
 }
 
 // Secured reports whether the NAS security context is established.
@@ -83,7 +83,7 @@ func (ue *UeContext) AdvanceULCount() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.ulCount++
+	ue.ulCount = ue.ulCount.Next()
 }
 
 // CommitUplinkCount advances the expected uplink NAS COUNT past the verified
@@ -93,7 +93,7 @@ func (ue *UeContext) CommitUplinkCount(count uint32) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.ulCount = count + 1
+	ue.ulCount = nascommon.Count(count).Next()
 }
 
 // TryUnprotectUplink verifies and deciphers a protected uplink NAS message
@@ -111,12 +111,7 @@ func (ue *UeContext) TryUnprotectUplink(nas []byte) (plain []byte, count uint32,
 
 	recvSeq := nas[5]
 
-	overflow := uint16(ue.ulCount >> 8)
-	if recvSeq < uint8(ue.ulCount) {
-		overflow++
-	}
-
-	count = nascommon.NASCount(overflow, recvSeq)
+	count = ue.ulCount.ReconcileUplink(recvSeq).Value()
 
 	p, err := eps.Unprotect(nas, count, nascommon.DirectionUplink,
 		ue.knasInt, ue.knasEnc, IntegrityAlg(ue.eia), CipherAlg(ue.eea))
@@ -134,11 +129,18 @@ func (ue *UeContext) ProtectDownlink(plain []byte, sht eps.SecurityHeaderType) (
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	count := ue.dlCount
-	ue.dlCount++
-
-	return eps.Protect(plain, sht, nascommon.NASCount(0, uint8(count)),
+	// Protect with the current NAS COUNT and advance only once the message is
+	// protected, so a protection failure does not consume a downlink COUNT
+	// (TS 24.301 §4.4.3.1).
+	wire, err := eps.Protect(plain, sht, ue.dlCount.Value(),
 		nascommon.DirectionDownlink, ue.knasInt, ue.knasEnc, IntegrityAlg(ue.eia), CipherAlg(ue.eea))
+	if err != nil {
+		return nil, err
+	}
+
+	ue.dlCount = ue.dlCount.Next()
+
+	return wire, nil
 }
 
 // InstallNASSecurityContext derives the NAS keys from K_ASME for the negotiated
@@ -161,6 +163,10 @@ func (ue *UeContext) InstallNASSecurityContext(eea, eia byte, _ AuthProof) error
 	ue.eea, ue.eia = eea, eia
 	ue.knasEnc, ue.knasInt = knasEnc, knasInt
 
+	// A new EPS security context starts both NAS COUNTs at zero, so the initial
+	// SECURITY MODE COMMAND rides downlink COUNT 0 (TS 24.301 §4.4.3.1).
+	ue.ulCount, ue.dlCount = 0, 0
+
 	return nil
 }
 
@@ -172,10 +178,10 @@ func (ue *UeContext) VerifyServiceRequestShortMAC(head []byte, gotMAC [2]byte, g
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ul = ue.ulCount
-	expSeq = uint8(ue.ulCount) & 0x1f
+	ul = ue.ulCount.Value()
+	expSeq = ue.ulCount.SQN() & 0x1f
 
-	want, err := eps.ServiceRequestShortMAC(head, ue.knasInt, ue.ulCount, nascommon.DirectionUplink, IntegrityAlg(ue.eia))
+	want, err := eps.ServiceRequestShortMAC(head, ue.knasInt, ue.ulCount.Value(), nascommon.DirectionUplink, IntegrityAlg(ue.eia))
 	if err != nil {
 		return false, [2]byte{}, expSeq, ul
 	}
@@ -196,7 +202,7 @@ func (ue *UeContext) DeriveInitialKeNB() (kenb [32]byte, kenbCount uint32, err e
 	// uplink NAS message (the Security Mode Complete on attach, the Service
 	// Request on reconnect), i.e. one less than the next-expected count
 	// (TS 33.401).
-	kenbCount = ue.ulCount
+	kenbCount = ue.ulCount.Value()
 	if kenbCount > 0 {
 		kenbCount--
 	}

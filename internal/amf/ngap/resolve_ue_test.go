@@ -19,7 +19,7 @@ import (
 
 // assertSingleErrorIndication checks that exactly one Error Indication was sent
 // with the given radio-network cause, and returns it.
-func assertSingleErrorIndication(t *testing.T, sender *FakeNGAPSender, wantCause aper.Enumerated) *ErrorIndication {
+func assertSingleErrorIndication(t *testing.T, sender *fakeNGAPSender, wantCause aper.Enumerated) *ErrorIndication {
 	t.Helper()
 
 	if len(sender.SentErrorIndications) != 1 {
@@ -60,8 +60,8 @@ func assertErrorIndicationEchoesIDs(t *testing.T, errInd *ErrorIndication, wantA
 func setupCrossRadioScenario(t *testing.T) (legitimateRan, attackerRan *amf.Radio, ranUe *amf.RanUe, amfInstance *amf.AMF) {
 	t.Helper()
 
-	legitimateRan = newTestRadio()
-	attackerRan = newTestRadio()
+	legitimateRan = newTestRadio(newTestAMF())
+	attackerRan = newTestRadio(newTestAMF())
 
 	amfInstance = newTestAMF()
 	amfInstance.Radios[new(sctp.SCTPConn)] = legitimateRan
@@ -81,7 +81,7 @@ func setupCrossRadioScenario(t *testing.T) (legitimateRan, attackerRan *amf.Radi
 // AMF-UE-NGAP-ID that belongs to a UE on a different radio.
 func TestCrossRadio_PDUSessionResourceSetupResponse(t *testing.T) {
 	legitimateRan, attackerRan, ranUe, amfInstance := setupCrossRadioScenario(t)
-	attackerSender := attackerRan.NGAPSender.(*FakeNGAPSender)
+	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
 	amfID := int64(10)
 	ranID := int64(1)
@@ -107,7 +107,7 @@ func TestCrossRadio_PDUSessionResourceSetupResponse(t *testing.T) {
 // rejection for PDUSessionResourceModifyResponse.
 func TestCrossRadio_PDUSessionResourceModifyResponse(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
-	attackerSender := attackerRan.NGAPSender.(*FakeNGAPSender)
+	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
 	amfID := int64(10)
 	ngap.HandlePDUSessionResourceModifyResponse(context.Background(), amfInstance, attackerRan, decode.PDUSessionResourceModifyResponse{
@@ -123,7 +123,7 @@ func TestCrossRadio_PDUSessionResourceModifyResponse(t *testing.T) {
 // rejection for UEContextModificationResponse.
 func TestCrossRadio_UEContextModificationResponse(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
-	attackerSender := attackerRan.NGAPSender.(*FakeNGAPSender)
+	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
 	amfID := int64(10)
 	ngap.HandleUEContextModificationResponse(context.Background(), amfInstance, attackerRan, decode.UEContextModificationResponse{
@@ -139,7 +139,7 @@ func TestCrossRadio_UEContextModificationResponse(t *testing.T) {
 // rejection for UEContextModificationFailure.
 func TestCrossRadio_UEContextModificationFailure(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
-	attackerSender := attackerRan.NGAPSender.(*FakeNGAPSender)
+	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
 	amfID := int64(10)
 	ngap.HandleUEContextModificationFailure(context.Background(), amfInstance, attackerRan, decode.UEContextModificationFailure{
@@ -155,7 +155,7 @@ func TestCrossRadio_UEContextModificationFailure(t *testing.T) {
 // rejection for UEContextReleaseRequest.
 func TestCrossRadio_UEContextReleaseRequest(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
-	attackerSender := attackerRan.NGAPSender.(*FakeNGAPSender)
+	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
 	ngap.HandleUEContextReleaseRequest(context.Background(), amfInstance, attackerRan, decode.UEContextReleaseRequest{
 		AMFUENGAPID: 10,
@@ -175,7 +175,7 @@ func TestCrossRadio_UEContextReleaseRequest(t *testing.T) {
 // rejection for UEContextReleaseComplete.
 func TestCrossRadio_UEContextReleaseComplete(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
-	attackerSender := attackerRan.NGAPSender.(*FakeNGAPSender)
+	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
 	amfID := int64(10)
 	ranID := int64(1)
@@ -193,7 +193,7 @@ func TestCrossRadio_UEContextReleaseComplete(t *testing.T) {
 // rejection for HandoverRequestAcknowledge.
 func TestCrossRadio_HandoverRequestAcknowledge(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
-	attackerSender := attackerRan.NGAPSender.(*FakeNGAPSender)
+	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
 	amfID := int64(10)
 	ranID := int64(1)
@@ -218,7 +218,7 @@ func TestCrossRadio_HandoverRequestAcknowledge(t *testing.T) {
 // rejection for HandoverFailure.
 func TestCrossRadio_HandoverFailure(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
-	attackerSender := attackerRan.NGAPSender.(*FakeNGAPSender)
+	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
 	ngap.HandleHandoverFailure(context.Background(), amfInstance, attackerRan, decode.HandoverFailure{
 		AMFUENGAPID: 10,
@@ -234,7 +234,7 @@ func TestCrossRadio_HandoverFailure(t *testing.T) {
 // received AP IDs echoed back.
 func TestResolveUE_UnknownAmfUeNgapID(t *testing.T) {
 	legitimateRan, _, _, amfInstance := setupCrossRadioScenario(t)
-	sender := legitimateRan.NGAPSender.(*FakeNGAPSender)
+	sender := legitimateRan.Conn.(*fakeNGAPSender)
 
 	ranID := int64(1)
 	wrongAmfID := int64(999)
@@ -252,7 +252,7 @@ func TestResolveUE_UnknownAmfUeNgapID(t *testing.T) {
 // remote AP ID (TS 38.413), with the received AP IDs echoed back.
 func TestResolveUE_InconsistentRanUeNgapID(t *testing.T) {
 	legitimateRan, _, _, amfInstance := setupCrossRadioScenario(t)
-	sender := legitimateRan.NGAPSender.(*FakeNGAPSender)
+	sender := legitimateRan.Conn.(*fakeNGAPSender)
 
 	amfID := int64(10)
 	wrongRanID := int64(2)

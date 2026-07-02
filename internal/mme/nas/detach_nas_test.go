@@ -25,8 +25,10 @@ func TestDetachSubscriberNetworkInitiated(t *testing.T) {
 		t.Fatalf("expected network Detach Request, got %d", len(cc.sent))
 	}
 
-	if ue.EMMState() != mme.EMMDeregistered {
-		t.Fatal("UE not EMM-DEREGISTERED after network-initiated detach")
+	// The connected UE stays EMM-DEREGISTERED-INITIATED while T3422 guards the
+	// DETACH REQUEST, reaching EMM-DEREGISTERED on Detach Accept (TS 24.301 §5.1.3.2).
+	if ue.EMMState() != mme.EMMDeregistrationInitiated {
+		t.Fatal("UE not EMM-DEREGISTERED-INITIATED after network-initiated detach")
 	}
 
 	wire := decodeDownlinkNAS(t, cc.sent[0])
@@ -83,6 +85,39 @@ func TestPlainDetachOnSecuredUEDiscarded(t *testing.T) {
 
 	if _, ok := m.LookupUeByIMSI(ue.IMSI()); !ok {
 		t.Fatal("secured UE context must remain after a discarded plain detach")
+	}
+}
+
+// TestPlainDetachSecuredUEFreshConnectionRejected verifies a secured UE that has
+// not yet established secure exchange on this connection (a fresh S1 link, so the
+// chokepoint's per-connection guard does not fire) still cannot be deregistered by
+// an unprotected DETACH REQUEST: the handler rejects it on ue.Secured(), mirroring
+// the AMF (TS 24.301 §4.4.4.3 defense in depth).
+func TestPlainDetachSecuredUEFreshConnectionRejected(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+	ue.S1.SetSecureExchangeEstablishedForTest(false) // fresh connection: connSecured is false
+
+	plain, err := (&eps.DetachRequestUE{
+		TypeOfDetach:      eps.DetachTypeEPS,
+		EPSMobileIdentity: eps.EPSMobileIdentity{Type: eps.IdentityGUTI, MCC: "001", MNC: "01", MMEGroupID: 1, MMECode: 1, MTMSI: 1},
+	}).Marshal()
+	if err != nil {
+		t.Fatalf("marshal detach: %v", err)
+	}
+
+	HandleNAS(m, context.Background(), ue, plain)
+
+	if ue.EMMState() != mme.EMMRegistered {
+		t.Fatal("an unprotected detach from a secured UE on a fresh connection must be rejected")
+	}
+
+	if len(cc.sent) != 0 {
+		t.Fatalf("no S1AP should be sent for a rejected detach, got %d", len(cc.sent))
+	}
+
+	if _, ok := m.LookupUeByIMSI(ue.IMSI()); !ok {
+		t.Fatal("secured UE context must remain")
 	}
 }
 

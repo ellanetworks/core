@@ -6,6 +6,7 @@ package mme
 import (
 	"time"
 
+	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -19,9 +20,9 @@ func (ue *UeContext) SetKnasEncForTest(k [16]byte) { ue.knasEnc = k }
 
 func (ue *UeContext) SetKASMEForTest(k []byte) { ue.kasme = k }
 
-func (ue *UeContext) SetULCountForTest(c uint32) { ue.ulCount = c }
-func (ue *UeContext) SetDLCountForTest(c uint32) { ue.dlCount = c }
-func (ue *UeContext) DLCountForTest() uint32     { return ue.dlCount }
+func (ue *UeContext) SetULCountForTest(c uint32) { ue.ulCount = nascommon.Count(c) }
+func (ue *UeContext) SetDLCountForTest(c uint32) { ue.dlCount = nascommon.Count(c) }
+func (ue *UeContext) DLCountForTest() uint32     { return ue.dlCount.Value() }
 
 func (ue *UeContext) SetEIAForTest(a byte) { ue.eia = a }
 func (ue *UeContext) SetEEAForTest(a byte) { ue.eea = a }
@@ -127,3 +128,7 @@ func (m *MME) FireHandoverGuardForTest(ue *UeContext, gen uint64) { m.onHandover
 func (m *MME) ReclaimUEsOnConnLossForTest(conn NasWriter) { m.reclaimUEsOnConnLoss(conn) }
 
 func (ue *UeContext) MobileReachableArmedForTest() bool { return ue.mobileReachableTimer.Active() }
+
+// ForceEMMStateForTest sets the EMM state directly, bypassing transition
+// validation, for test precondition setup.
+func (ue *UeContext) ForceEMMStateForTest(s EMMState) { ue.emmState.store(s) }

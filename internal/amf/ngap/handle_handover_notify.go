@@ -30,7 +30,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return
 	}
 
-	sourceUe := amfUe.HandoverSource()
+	sourceUe := amfInstance.HandoverSource(amfUe)
 	if sourceUe == nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("N2 Handover between AMF has not been implemented yet")
 		return
@@ -39,18 +39,10 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	// Advance the FSM hoPrepared→hoCommitting; an out-of-order Handover Notify (no
 	// prepared handover) does not match and is dropped before the user plane is
 	// switched.
-	if !amfUe.MarkHandoverCommitting() {
+	if !amfInstance.MarkHandoverCommitting(amfUe) {
 		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Notify with no prepared handover; dropping")
 		return
 	}
-
-	logger.WithTrace(ctx, targetUe.Log).Info("Handle Handover notification Finished")
-
-	if conn := amfUe.NasConn(); conn != nil {
-		conn.Procedures.End(procedure.N2Handover)
-	}
-
-	amfUe.ClearHandover()
 
 	// Per 3GPP TS 23.502, the SMF sends N4 Session
 	// Modification to the UPF with the new AN tunnel info at this point.
@@ -67,11 +59,23 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		}
 	}
 
-	amfUe.AttachRanUe(targetUe)
+	// Move the UE onto the target and clear the FSM, gated on the UE still being
+	// present after the unlocked user-plane switch; only then end the procedure and
+	// release the source (TS 23.502).
+	if !amfInstance.FinishHandoverCommit(amfUe, targetUe) {
+		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Notify: UE released during the user-plane switch")
+		return
+	}
+
+	logger.WithTrace(ctx, targetUe.Log).Info("Handle Handover notification Finished")
+
+	if conn := amfUe.NasConn(); conn != nil {
+		conn.Procedures.End(procedure.N2Handover)
+	}
 
 	sourceUe.ReleaseAction = amf.UeContextReleaseHandover
 
-	err := sourceUe.Radio().NGAPSender.SendUEContextReleaseCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, ngapType.CausePresentRadioNetwork, ngapType.CauseRadioNetworkPresentSuccessfulHandover)
+	err := sourceUe.SendUEContextReleaseCommand(ctx, ngapType.CausePresentRadioNetwork, ngapType.CauseRadioNetworkPresentSuccessfulHandover)
 	if err != nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("error sending ue context release command", zap.Error(err))
 		return

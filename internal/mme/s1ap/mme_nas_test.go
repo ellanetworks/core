@@ -114,3 +114,58 @@ func TestInitialContextSetupResponseENBTransportFamily(t *testing.T) {
 		})
 	}
 }
+
+// TestInitialContextSetupResponseMultipleERABs checks the MME records the eNB S1-U
+// F-TEID for every E-RAB in the response, not only the first — a UE re-established
+// from ECM-IDLE with multiple PDN connections sets up all its bearers at once.
+func TestInitialContextSetupResponseMultipleERABs(t *testing.T) {
+	m := newTestMME(t)
+	cc := &captureConn{}
+	ue := m.NewUe(cc, 7)
+	ue.SetIMSIForTest(testSubscriber.IMSI)
+
+	p1 := testPDN(ue) // default bearer, EBI 5
+	p1.Apn = "internet"
+	p2 := ue.EnsurePDN(6) // second PDN connection, EBI 6
+	p2.Apn = "ims"
+
+	resp := &s1ap.InitialContextSetupResponse{
+		MMEUES1APID: ue.S1.MMEUES1APID,
+		ENBUES1APID: 7,
+		ERABSetup: []s1ap.ERABSetupItemCtxtSURes{
+			{
+				ERABID:                s1ap.ERABID(mme.DefaultERABID),
+				TransportLayerAddress: s1ap.TransportLayerAddress([]byte{10, 3, 0, 3}),
+				GTPTEID:               s1ap.GTPTEID(0x55),
+			},
+			{
+				ERABID:                s1ap.ERABID(6),
+				TransportLayerAddress: s1ap.TransportLayerAddress([]byte{10, 3, 0, 4}),
+				GTPTEID:               s1ap.GTPTEID(0x66),
+			},
+		},
+	}
+
+	b, err := resp.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pdu, err := s1ap.Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handleInitialContextSetupResponse(m, context.Background(), cc, pdu.(*s1ap.SuccessfulOutcome).Value)
+
+	want1 := models.FTEID{TEID: 0x55, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 3})}
+	want2 := models.FTEID{TEID: 0x66, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 4})}
+
+	if p1.EnbFTEID != want1 {
+		t.Fatalf("default bearer eNB F-TEID = %+v, want %+v", p1.EnbFTEID, want1)
+	}
+
+	if p2.EnbFTEID != want2 {
+		t.Fatalf("second bearer eNB F-TEID = %+v, want %+v", p2.EnbFTEID, want2)
+	}
+}

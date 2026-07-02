@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
@@ -63,36 +64,55 @@ func HandleRanConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 			return
 		}
 
-		var found bool
-
-		for i, tai := range ran.SupportedTAIs {
-			if amf.InTaiList(tai.Tai, operatorInfo.Tais) {
-				logger.WithTrace(ctx, ran.Log).Debug("handle ran configuration update", zap.Any("SERVED_TAI_INDEX", i))
-
-				found = true
-
-				break
-			}
-		}
-
-		if !found {
-			logger.WithTrace(ctx, ran.Log).Warn("Cannot find Served TAI in Core")
+		if !amf.AnyPLMNMatch(ran.SupportedTAIs, operatorInfo.Guami.PlmnID) {
+			logger.WithTrace(ctx, ran.Log).Warn("No broadcast PLMN matches operator", zap.Any("gnb_tai_list", ran.SupportedTAIs), zap.Any("operator_plmn", operatorInfo.Guami.PlmnID))
 
 			cause.Present = ngapType.CausePresentMisc
 			cause.Misc = &ngapType.CauseMisc{
 				Value: ngapType.CauseMiscPresentUnknownPLMN,
 			}
+		} else {
+			var found bool
+
+			for i, tai := range ran.SupportedTAIs {
+				if amf.InTaiList(tai.Tai, operatorInfo.Tais) {
+					logger.WithTrace(ctx, ran.Log).Debug("handle ran configuration update", zap.Any("SERVED_TAI_INDEX", i))
+
+					found = true
+
+					break
+				}
+			}
+
+			if !found {
+				logger.WithTrace(ctx, ran.Log).Warn("PLMN matches but no served TAC found", zap.Any("gnb_tai_list", ran.SupportedTAIs), zap.Any("core_tai_list", operatorInfo.Tais))
+
+				cause.Present = ngapType.CausePresentMisc
+				cause.Misc = &ngapType.CauseMisc{
+					Value: ngapType.CauseMiscPresentUnspecified,
+				}
+			}
 		}
 	}
 
 	if cause.Present == ngapType.CausePresentNothing {
-		err := ran.NGAPSender.SendRanConfigurationUpdateAcknowledge(ctx, nil)
+		pkt, err := send.BuildRanConfigurationUpdateAcknowledge(nil)
 		if err != nil {
+			logger.WithTrace(ctx, ran.Log).Error("error building ran configuration update acknowledge", zap.Error(err))
+			return
+		}
+
+		if err := ran.SendToRan(ctx, send.NGAPProcedureRanConfigurationUpdateAcknowledge, pkt); err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("error sending ran configuration update acknowledge", zap.Error(err))
 		}
 	} else {
-		err := ran.NGAPSender.SendRanConfigurationUpdateFailure(ctx, cause, nil)
+		pkt, err := send.BuildRanConfigurationUpdateFailure(cause, nil)
 		if err != nil {
+			logger.WithTrace(ctx, ran.Log).Error("error building ran configuration update failure", zap.Error(err))
+			return
+		}
+
+		if err := ran.SendToRan(ctx, send.NGAPProcedureRanConfigurationUpdateFailure, pkt); err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("error sending ran configuration update failure", zap.Error(err))
 		}
 	}

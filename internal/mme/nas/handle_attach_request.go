@@ -34,6 +34,10 @@ func handleAttachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, pla
 
 	ingestAttachRequest(ue, req)
 
+	// The attach procedure is under way until ATTACH COMPLETE (TS 24.301 §5.1.3.2):
+	// EMM-REGISTERED-INITIATED. An attach supersedes any prior state.
+	ue.SetEMMState(mme.EMMRegistrationInitiated)
+
 	if req.EPSMobileIdentity.Type == eps.IdentityIMSI {
 		m.SetIMSI(ue, req.EPSMobileIdentity.Digits)
 		authenticateOrReject(m, ctx, ue)

@@ -14,8 +14,8 @@ import (
 )
 
 func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.AuthenticationFailure) error {
-	if state := ue.State(); state != amf.Authentication {
-		return fmt.Errorf("state mismatch: receive amf.Authentication Failure message in state %s", state)
+	if step := ue.RegStep(); step != amf.RegStepAuthenticating {
+		return fmt.Errorf("state mismatch: receive Authentication Failure message outside the authentication exchange (state %s)", ue.State())
 	}
 
 	ranUe := ue.RanUe()

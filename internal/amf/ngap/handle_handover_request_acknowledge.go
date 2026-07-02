@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/aper"
@@ -113,15 +114,15 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		pduSessionResourceToReleaseList.List = append(pduSessionResourceToReleaseList.List, releaseItem)
 	}
 
-	sourceUe := amfUe.HandoverSource()
+	sourceUe := amfInstance.HandoverSource(amfUe)
 	if sourceUe == nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("handover between different Ue has not been implement yet")
 		return
 	}
 
-	// Advance the FSM hoPreparing→hoPrepared (HANDOVER COMMAND about to be sent);
-	// a duplicate or out-of-order acknowledge does not match and is dropped.
-	if !amfUe.MarkHandoverPrepared() {
+	// Drop a duplicate or out-of-order acknowledge without advancing the FSM, so it
+	// cannot tear down an already-prepared handover in the empty-admit path below.
+	if !amfInstance.HandoverPreparing(amfUe) {
 		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge with no handover at the preparing stage; dropping")
 		return
 	}
@@ -141,7 +142,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 
 		if sourceUeContext := sourceUe.UeContext(); sourceUeContext != nil {
 			sourceUeContext.NasConn().Procedures.End(procedure.N2Handover)
-			sourceUeContext.ClearHandover()
+			amfInstance.ClearHandover(sourceUeContext)
 		}
 
 		if sourceUe.Radio() == nil {
@@ -149,7 +150,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 			return
 		}
 
-		err := sourceUe.Radio().NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
+		err := sourceUe.SendHandoverPreparationFailure(ctx, *cause, nil)
 		if err != nil {
 			logger.WithTrace(ctx, targetUe.Log).Error("error sending handover preparation failure", zap.Error(err))
 		}
@@ -157,8 +158,20 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	err := sourceUe.Radio().NGAPSender.SendHandoverCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, sourceUe.HandOverType, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, msg.TargetToSourceTransparentContainer)
+	// The target admitted at least one session; advance hoPreparing→hoPrepared
+	// (HANDOVER COMMAND about to be sent).
+	if !amfInstance.MarkHandoverPrepared(amfUe) {
+		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge: handover advanced concurrently; dropping")
+		return
+	}
+
+	pkt, err := send.BuildHandoverCommand(sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, sourceUe.HandOverType, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, msg.TargetToSourceTransparentContainer)
 	if err != nil {
+		logger.WithTrace(ctx, targetUe.Log).Error("error building handover command", zap.Error(err))
+		return
+	}
+
+	if err := sourceUe.Radio().SendToRan(ctx, send.NGAPProcedureHandoverCommand, pkt); err != nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("error sending handover command to source UE", zap.Error(err))
 	}
 }

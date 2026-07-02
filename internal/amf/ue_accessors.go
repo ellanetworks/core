@@ -37,20 +37,6 @@ func (ue *UeContext) SmContextRefs() []SmContextRef {
 	return refs
 }
 
-// NextHopNCC returns the AS security next hop and its chaining count for the
-// transport layer to derive the target gNB key at handover/path switch
-// (TS 33.501).
-func (ue *UeContext) NextHopNCC() ([32]uint8, uint8) {
-	if ue == nil {
-		return [32]uint8{}, 0
-	}
-
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	return ue.nh, ue.ncc
-}
-
 func (ue *UeContext) Secured() bool {
 	if ue == nil {
 		return false
@@ -82,17 +68,6 @@ func (ue *UeContext) UESecCap() *nasType.UESecurityCapability {
 	defer ue.mu.Unlock()
 
 	return ue.ueSecurityCapability
-}
-
-func (ue *UeContext) Guti() etsi.GUTI {
-	if ue == nil {
-		return etsi.GUTI{}
-	}
-
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	return ue.guti
 }
 
 func (ue *UeContext) NgKsi() models.NgKsi {
@@ -194,7 +169,7 @@ func (ue *UeContext) DecryptUplinkContents(contents []byte) error {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.ulCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
+	return security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.ulCount.Value(), security.Bearer3GPP, security.DirectionUplink, contents)
 }
 
 // SmContextSnapshot returns a locked shallow copy of the UE's PDU session SM

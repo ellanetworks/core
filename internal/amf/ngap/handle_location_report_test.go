@@ -15,7 +15,7 @@ import (
 )
 
 func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
 
 	amf.NewRanUeForTest(ran, 1, 1, logger.AmfLog)
@@ -27,7 +27,7 @@ func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) 
 
 	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
 
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 0 {
 		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}
@@ -37,8 +37,8 @@ func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) 
 // whose AMF UE NGAP ID the AMF never allocated draws an Error Indication with the
 // received AP IDs (TS 38.413).
 func TestHandleLocationReport_UnknownAmfUeNgapID(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	ran := newTestRadio(newTestAMF())
+	sender := ran.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	msg := decode.LocationReport{
@@ -61,7 +61,7 @@ func TestHandleLocationReport_UnknownAmfUeNgapID(t *testing.T) {
 // optional UEPresenceInAreaOfInterestList IE does NOT panic.
 // This is a regression test for a nil pointer dereference (CVE-like DoS).
 func TestHandleLocationReport_UePresenceInAreaOfInterest_NilList(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
 
 	amf.NewRanUeForTest(ran, 1, 1, logger.AmfLog)
@@ -81,7 +81,7 @@ func TestHandleLocationReport_UePresenceInAreaOfInterest_NilList(t *testing.T) {
 
 	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
 
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 0 {
 		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}
@@ -92,7 +92,7 @@ func TestHandleLocationReport_UePresenceInAreaOfInterest_NilList(t *testing.T) {
 // without LocationReportingReferenceIDToBeCancelled does NOT panic.
 // Reproduces GHSA-f2f3-9cx3-wcmf Bug 1.
 func TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
 
 	amf.NewRanUeForTest(ran, 1, 1, logger.AmfLog)
@@ -112,7 +112,7 @@ func TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled(t *test
 
 	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
 
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 0 {
 		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}
@@ -123,7 +123,7 @@ func TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled(t *test
 // UEPresenceInAreaOfInterestList but nil AreaOfInterestList does NOT panic.
 // Reproduces GHSA-f2f3-9cx3-wcmf Bug 2.
 func TestHandleLocationReport_UePresence_NilAreaOfInterestList(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
 
 	amf.NewRanUeForTest(ran, 1, 1, logger.AmfLog)
@@ -151,7 +151,7 @@ func TestHandleLocationReport_UePresence_NilAreaOfInterestList(t *testing.T) {
 
 	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
 
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 0 {
 		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}

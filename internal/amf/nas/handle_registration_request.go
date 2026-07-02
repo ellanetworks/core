@@ -57,9 +57,8 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		ue.ClearSecured()
 	}
 
-	// Supersession of concurrent amf.AMF-initiated procedures per TS 24.501.
-	// Abort amf.SecurityMode when a UE-initiated registration
-	// arrives. Abort N2 Handover similarly.
+	// Supersession of concurrent network-initiated procedures per TS 24.501:
+	// a UE-initiated registration aborts an in-flight security mode or N2 handover.
 	for _, t := range []procedure.Type{procedure.SecurityMode, procedure.N2Handover} {
 		if conn.Procedures.Active(t) {
 			_ = conn.Procedures.Cancel(ctx, t)
@@ -245,18 +244,19 @@ func acceptRegistrationUESecurityCapability(ue *amf.UeContext, received *nasType
 
 func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nas.GmmMessage, integrityVerified bool) error {
 	state := ue.State()
+	step := ue.RegStep()
 
-	switch state {
-	case amf.Deregistered, amf.Registered, amf.Authentication:
+	switch {
+	case state == amf.Deregistered, state == amf.Registered, step == amf.RegStepAuthenticating:
 		if err := handleRegistrationRequestMessage(ctx, amfInstance, ue, msg.RegistrationRequest, integrityVerified); err != nil {
 			return fmt.Errorf("failed handling registration request: %v", err)
 		}
 
-		ue.TransitionTo(amf.Authentication)
+		ue.TransitionTo(amf.RegistrationInitiated)
 
 		pass, err := authenticationProcedure(ctx, amfInstance, ue)
 		if err != nil {
-			ue.Log.Warn("amf.Authentication procedure failed, rejecting registration", zap.Error(err))
+			ue.Log.Warn("authentication procedure failed, rejecting registration", zap.Error(err))
 
 			defer ue.Deregister(ctx)
 
@@ -281,7 +281,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 			return securityMode(ctx, amfInstance, ue)
 		}
 
-	case amf.SecurityMode:
+	case step == amf.RegStepSecurityMode:
 		ue.Deregister(ctx)
 		ue.RotateContext()
 
@@ -290,10 +290,10 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 		}
 
 		return HandleGmmMessage(ctx, amfInstance, ue, msg, integrityVerified)
-	case amf.ContextSetup:
+	case step == amf.RegStepContextSetup:
 		defer ue.Deregister(ctx)
 
-		ue.Log.Info("state reset to amf.Deregistered")
+		ue.Log.Info("registration reset to Deregistered")
 
 		return nil
 	default:

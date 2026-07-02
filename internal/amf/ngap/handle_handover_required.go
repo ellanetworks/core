@@ -57,7 +57,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	defer func() {
 		if !armed {
 			conn.Procedures.End(procedure.N2Handover)
-			amfUe.ClearHandover()
+			amfInstance.ClearHandover(amfUe)
 		}
 	}()
 
@@ -150,12 +150,6 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	err := amfUe.UpdateNH()
-	if err != nil {
-		logger.WithTrace(ctx, sourceUe.Log).Error("error updating NH", zap.Error(err))
-		return
-	}
-
 	operatorInfo, err := amfInstance.OperatorInfo(ctx)
 	if err != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Error("Could not get operator info", zap.Error(err))
@@ -180,7 +174,13 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	nh, ncc := amfUe.NextHopNCC()
+	// The HANDOVER REQUEST carries the AS key chain {NH, NCC} staged at preparation;
+	// it is committed to the UE only when the UE reaches the target (NOTIFY).
+	nh, ncc, ok := amfInstance.StagedHandoverNH(amfUe)
+	if !ok {
+		logger.WithTrace(ctx, sourceUe.Log).Error("no staged handover NH after attach")
+		return
+	}
 
 	err = targetUe.SendHandoverRequest(
 		ctx,
@@ -207,7 +207,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	// directly and the timer goroutine has a happens-before edge to this setup.
 	if supErr := conn.Procedures.Supervise(conn.Ctx(), procedure.N2Handover,
 		time.Now().Add(amfInstance.HandoverGuardTimeout()),
-		handoverGuardExpiry(sourceUe, targetUe)); supErr != nil {
+		handoverGuardExpiry(amfInstance, sourceUe, targetUe)); supErr != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Warn("could not arm N2 handover guard", zap.Error(supErr))
 	} else {
 		armed = true
@@ -222,11 +222,11 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 // mirroring the MME's onHandoverGuardExpiry (TS 38.413). A normal completion
 // (HANDOVER NOTIFY/FAILURE/CANCEL) ends the procedure, which stops this timer
 // before it can fire, so the captured target is touched by at most one goroutine.
-func handoverGuardExpiry(sourceUe, targetUe *amf.RanUe) func(context.Context) error {
+func handoverGuardExpiry(amfInstance *amf.AMF, sourceUe, targetUe *amf.RanUe) func(context.Context) error {
 	return func(cctx context.Context) error {
 		logger.WithTrace(cctx, sourceUe.Log).Warn("N2 handover abandoned: target gNB did not complete it in time, releasing target")
 
-		sourceUe.UeContext().ClearHandover()
+		amfInstance.ClearHandover(sourceUe.UeContext())
 
 		targetUe.ReleaseAction = amf.UeContextReleaseHandover
 

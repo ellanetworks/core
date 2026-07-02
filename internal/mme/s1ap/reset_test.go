@@ -61,7 +61,7 @@ func TestS1ResetWholeInterface(t *testing.T) {
 	testPDN(ue1).Apn = "internet"
 
 	ue2 := m.NewUe(cc, 8)
-	ue2.SetEMMState(mme.EMMRegistered)
+	ue2.ForceEMMStateForTest(mme.EMMRegistered)
 	m.RegisterUEForTest(ue2, "001010000000011")
 	testPDN(ue2).Apn = "internet"
 
@@ -108,7 +108,7 @@ func TestS1ResetPartOfInterface(t *testing.T) {
 	testPDN(ue1).Apn = "internet"
 
 	ue2 := m.NewUe(cc, 8)
-	ue2.SetEMMState(mme.EMMRegistered)
+	ue2.ForceEMMStateForTest(mme.EMMRegistered)
 	m.RegisterUEForTest(ue2, "001010000000011")
 	testPDN(ue2).Apn = "internet"
 

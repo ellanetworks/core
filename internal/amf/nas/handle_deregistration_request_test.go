@@ -17,7 +17,7 @@ import (
 )
 
 func TestHandleRegeristrationRequest(t *testing.T) {
-	testcases := []amf.StateType{amf.Deregistered, amf.Authentication, amf.SecurityMode, amf.ContextSetup}
+	testcases := []amf.StateType{amf.Deregistered, amf.RegistrationInitiated, amf.DeregistrationInitiated}
 	for _, tc := range testcases {
 		t.Run(fmt.Sprintf("State-%s", tc), func(t *testing.T) {
 			ue, ngapSender, err := buildUeAndRadio()
@@ -42,7 +42,7 @@ func TestHandleRegeristrationRequest(t *testing.T) {
 }
 
 func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
-	smf := FakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
+	smf := fakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
 	ue, _, err := buildUeAndRadio()
@@ -50,7 +50,7 @@ func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
 		t.Fatalf("could not build test ue: %v", err)
 	}
 
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",

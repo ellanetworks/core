@@ -87,6 +87,14 @@ func (r *Report) HasItems() bool {
 	return r.ProcedureRejected || len(r.Items) > 0
 }
 
+// FromInitiatingMessage reports whether the decoded message was an initiating
+// message rather than a successful or unsuccessful outcome. A fatal decode of an
+// initiating message is answered with an Error Indication; a fatal decode of a
+// response is left to local error handling (TS 38.413 §10.3.4.2, §10.3.5).
+func (r *Report) FromInitiatingMessage() bool {
+	return r != nil && r.TriggeringMessage == ngapType.TriggeringMessagePresentInitiatingMessage
+}
+
 func (r *Report) ToCriticalityDiagnostics() ngapType.CriticalityDiagnostics {
 	cd := ngapType.CriticalityDiagnostics{
 		ProcedureCode: &ngapType.ProcedureCode{
