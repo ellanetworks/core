@@ -45,9 +45,13 @@ func TestMatchMeasurementResponse(t *testing.T) {
 	}
 
 	t.Run("match", func(t *testing.T) {
-		m := matchMeasurementResponse(msgs, measID, base.Add(-time.Second))
+		m, fail := matchMeasurementResponse(msgs, measID, base.Add(-time.Second))
 		if m == nil {
 			t.Fatal("expected a match, got nil")
+		}
+
+		if fail != nil {
+			t.Fatalf("expected no failure, got %+v", fail)
 		}
 
 		if m.TA == nil || *m.TA != 100 {
@@ -56,20 +60,122 @@ func TestMatchMeasurementResponse(t *testing.T) {
 	})
 
 	t.Run("wrong measurement id", func(t *testing.T) {
-		if m := matchMeasurementResponse(msgs, 3, base.Add(-time.Second)); m != nil {
+		m, fail := matchMeasurementResponse(msgs, 3, base.Add(-time.Second))
+		if m != nil {
 			t.Errorf("expected nil for non-matching measurement ID, got %+v", m)
+		}
+
+		if fail != nil {
+			t.Errorf("expected no failure, got %+v", fail)
 		}
 	})
 
 	t.Run("message older than notBefore", func(t *testing.T) {
-		if m := matchMeasurementResponse(msgs, measID, base.Add(time.Second)); m != nil {
+		m, fail := matchMeasurementResponse(msgs, measID, base.Add(time.Second))
+		if m != nil {
 			t.Errorf("expected nil for stale message, got %+v", m)
+		}
+
+		if fail != nil {
+			t.Errorf("expected no failure, got %+v", fail)
 		}
 	})
 
 	t.Run("no messages", func(t *testing.T) {
-		if m := matchMeasurementResponse(nil, measID, base); m != nil {
+		m, fail := matchMeasurementResponse(nil, measID, base)
+		if m != nil {
 			t.Errorf("expected nil for empty message set, got %+v", m)
+		}
+
+		if fail != nil {
+			t.Errorf("expected no failure, got %+v", fail)
+		}
+	})
+
+	t.Run("failure response", func(t *testing.T) {
+		failPDU, err := nrppa.BuildECIDMeasurementInitiationFailure(measID, nrppa.Cause{Group: nrppa.CauseGroupRadioNetwork, Value: 0})
+		if err != nil {
+			t.Fatalf("BuildECIDMeasurementInitiationFailure: %v", err)
+		}
+
+		failMsgs := []amf.NRPPaMessage{
+			{Payload: failPDU, Timestamp: base},
+		}
+
+		m, fail := matchMeasurementResponse(failMsgs, measID, base.Add(-time.Second))
+		if m != nil {
+			t.Errorf("expected nil measurements for failure, got %+v", m)
+		}
+
+		if fail == nil {
+			t.Fatal("expected a failure, got nil")
+		}
+
+		if fail.LMFUEMeasurementID != measID {
+			t.Errorf("expected LMFUEMeasurementID=%d, got %d", measID, fail.LMFUEMeasurementID)
+		}
+	})
+
+	t.Run("failure with wrong measurement id", func(t *testing.T) {
+		failPDU, err := nrppa.BuildECIDMeasurementInitiationFailure(99, nrppa.Cause{Group: nrppa.CauseGroupRadioNetwork, Value: 0})
+		if err != nil {
+			t.Fatalf("BuildECIDMeasurementInitiationFailure: %v", err)
+		}
+
+		failMsgs := []amf.NRPPaMessage{
+			{Payload: failPDU, Timestamp: base},
+		}
+
+		m, fail := matchMeasurementResponse(failMsgs, measID, base.Add(-time.Second))
+		if m != nil {
+			t.Errorf("expected nil for non-matching measurement ID, got %+v", m)
+		}
+
+		if fail != nil {
+			t.Errorf("expected no failure for non-matching ID, got %+v", fail)
+		}
+	})
+}
+
+// TestNRRSRPRSRQConversions locks in the NR (not E-UTRA) SS-/CSI- RSRP/RSRQ
+// report-value → dBm/dB mappings from TS 38.133. The RSRP=101 / RSRQ=66 cases
+// correspond to the real gNB capture used to validate E-CID decoding.
+func TestNRRSRPRSRQConversions(t *testing.T) {
+	t.Run("SS-RSRP", func(t *testing.T) {
+		cases := map[int64]int32{
+			0:   -15600, // < -156 dBm
+			1:   -15600, // -156 dBm
+			101: -5600,  // -56 dBm (captured value)
+			127: -3000,  // -30 dBm
+		}
+		for v, want := range cases {
+			if got := ssrsrpToDBm(v); got != want {
+				t.Errorf("ssrsrpToDBm(%d) = %d, want %d", v, got, want)
+			}
+		}
+	})
+
+	t.Run("SS-RSRQ", func(t *testing.T) {
+		cases := map[int64]int32{
+			0:   -4300, // < -43 dB
+			1:   -4300, // -43 dB
+			66:  -1050, // -10.5 dB (captured value)
+			127: 2000,  // +20 dB
+		}
+		for v, want := range cases {
+			if got := ssrsrqToDB(v); got != want {
+				t.Errorf("ssrsrqToDB(%d) = %d, want %d", v, got, want)
+			}
+		}
+	})
+
+	t.Run("CSI shares SS mapping", func(t *testing.T) {
+		if got, want := csirsrpToDBm(101), ssrsrpToDBm(101); got != want {
+			t.Errorf("csirsrpToDBm(101) = %d, want %d", got, want)
+		}
+
+		if got, want := csirsrqToDB(66), ssrsrqToDB(66); got != want {
+			t.Errorf("csirsrqToDB(66) = %d, want %d", got, want)
 		}
 	})
 }

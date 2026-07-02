@@ -5,15 +5,15 @@ package nrppatype
 
 // Open-type / extension containers.
 //
-// For the E-CID MVP these are never populated: every CHOICE choice-Extension
-// alternative and every SEQUENCE iE-Extensions field is modelled as an empty
-// open-type struct (mirroring ngapType's `ProtocolIESingleContainer*ExtIEs
-// struct{}` pattern). The field types exist so the surrounding CHOICE/SEQUENCE
-// has the right shape, but the values are always nil/absent on the wire.
+// Most choice-Extension / iE-Extensions containers are empty structs (the
+// values are always nil/absent on the wire). The exceptions are those that
+// carry NR measurement types over the wire: MeasuredResultsValue-ExtensionIE
+// is modelled as a full ProtocolIEField (id + criticality + open type) so that
+// gNB-reported SS-RSRP, SS-RSRQ, CSI-RSRP and CSI-RSRQ decode correctly.
 //
-// Limitation: a peer that actually carries one of these extensions cannot be
-// decoded; supporting that would require the full ProtocolExtensionField
-// modelling (id + criticality + skippable open type).
+// The remaining empty structs mirror ngapType's `struct{}` pattern: the types
+// exist so surrounding CHOICE/SEQUENCE have the right shape, but the values
+// are always nil/absent on the wire for the E-CID MVP.
 
 // --- ProtocolIE-Single-Container { ... } choice-Extension open types ---
 
@@ -24,7 +24,9 @@ type ProtocolIESingleContainerCauseExtensionIE struct{}
 type ProtocolIESingleContainerNGRANCellExtensionIE struct{}
 
 // MeasuredResultsValue-ExtensionIE.
-type ProtocolIESingleContainerMeasuredResultsValueExtensionIE struct{}
+type ProtocolIESingleContainerMeasuredResultsValueExtensionIE struct {
+	MeasuredResultsValueExtIEs *MeasuredResultsValueExtIEs
+}
 
 // --- ProtocolExtensionContainer { ... } iE-Extensions open types ---
 
@@ -51,3 +53,24 @@ type ProtocolExtensionContainerResultRSRPEUTRAItemExtIEs struct{}
 
 // ResultRSRQ-EUTRA-Item-ExtIEs.
 type ProtocolExtensionContainerResultRSRQEUTRAItemExtIEs struct{}
+
+// ResultSS-RSRP-Item-ExtIEs.
+type ProtocolExtensionContainerResultSSRSRPItemExtIEs struct{}
+
+// ResultSS-RSRP-PerSSB-Item-ExtIEs.
+type ProtocolExtensionContainerResultSSRSRPPerSSBItemExtIEs struct{}
+
+// ResultSS-RSRQ-Item-ExtIEs.
+type ProtocolExtensionContainerResultSSRSRQItemExtIEs struct{}
+
+// ResultSS-RSRQ-PerSSB-Item-ExtIEs.
+type ProtocolExtensionContainerResultSSRSRQPerSSBItemExtIEs struct{}
+
+// CGI-NR-ExtIEs.
+type ProtocolExtensionContainerCGINRExtIEs struct{}
+
+// ResultCSI-RSRP-Item-ExtIEs.
+type ProtocolExtensionContainerResultCSIRSRPItemExtIEs struct{}
+
+// ResultCSI-RSRQ-Item-ExtIEs.
+type ProtocolExtensionContainerResultCSIRSRQItemExtIEs struct{}

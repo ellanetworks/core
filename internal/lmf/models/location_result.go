@@ -46,4 +46,10 @@ type LocationResult struct {
 	RSRQ     *int32   `json:"rsrq,omitempty"`           // dB × 100
 	TA       *int32   `json:"timing_advance,omitempty"` // slots
 	Distance *float64 `json:"distance_m,omitempty"`     // estimated from TA or Rx-Tx
+
+	// NR-specific E-CID measurements (SSB/CSI-RS based, TS 38.305 §8.9)
+	SSRSRP  *int32 `json:"ss_rsrp,omitempty"`  // SSB-based RSRP, dBm × 100
+	SSRSRQ  *int32 `json:"ss_rsrq,omitempty"`  // SSB-based RSRQ, dB × 100
+	CSIRSRP *int32 `json:"csi_rsrp,omitempty"` // CSI-RS-based RSRP, dBm × 100
+	CSIRSRQ *int32 `json:"csi_rsrq,omitempty"` // CSI-RS-based RSRQ, dB × 100
 }

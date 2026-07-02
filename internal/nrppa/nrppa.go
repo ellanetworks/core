@@ -66,6 +66,10 @@ const (
 	MeasTimingAdvanceType2
 	MeasRSRP
 	MeasRSRQ
+	MeasSSRSRP
+	MeasSSRSRQ
+	MeasCSIRSRP
+	MeasCSIRSRQ
 )
 
 // CauseGroup identifies which Cause CHOICE alternative was decoded.
@@ -118,6 +122,58 @@ type ECIDResult struct {
 	APPosition         *APPosition
 	TimingAdvanceType1 *int64 // valueTimingAdvanceType1-EUTRA (0..7690)
 	TimingAdvanceType2 *int64 // valueTimingAdvanceType2-EUTRA (0..7690)
+
+	// NR-specific measurements (Rel-16+, TS 38.455)
+	ResultSSRSRP  *SSRSRPResult
+	ResultSSRSRQ  *SSRSRQResult
+	ResultCSIRSRP *CSIRSRPResult
+	ResultCSIRSRQ *CSIRSRQResult
+}
+
+// SSRSRPResult contains the decoded SS-RSRP measurements.
+type SSRSRPResult struct {
+	Items []SSRSRPItem
+}
+
+// SSRSRPItem is a single SS-RSRP measurement entry.
+type SSRSRPItem struct {
+	NRPCI int64
+	Value int64 // 0..97, maps to -140..-44 dBm
+}
+
+// SSRSRQResult contains the decoded SS-RSRQ measurements.
+type SSRSRQResult struct {
+	Items []SSRSRQItem
+}
+
+// SSRSRQItem is a single SS-RSRQ measurement entry.
+type SSRSRQItem struct {
+	NRPCI int64
+	Value int64 // 0..34, maps to -19.5..3 dB
+}
+
+// CSIRSRPResult contains the decoded CSI-RSRP measurements.
+type CSIRSRPResult struct {
+	Items []CSIRSRPItem
+}
+
+// CSIRSRPItem is a single CSI-RSRP measurement entry.
+type CSIRSRPItem struct {
+	NRPCI      int64
+	CSIRSIndex int64
+	Value      int64 // 0..126, maps to -150..-1 dBm
+}
+
+// CSIRSRQResult contains the decoded CSI-RSRQ measurements.
+type CSIRSRQResult struct {
+	Items []CSIRSRQItem
+}
+
+// CSIRSRQItem is a single CSI-RSRQ measurement entry.
+type CSIRSRQItem struct {
+	NRPCI      int64
+	CSIRSIndex int64
+	Value      int64 // 0..34, maps to -19.5..3 dB
 }
 
 // ECIDRequest is a decoded E-CIDMeasurementInitiationRequest.

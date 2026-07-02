@@ -14,7 +14,6 @@ func migrateV15(ctx context.Context, tx *sql.Tx) error {
 	stmt := fmt.Sprintf(`CREATE TABLE %s (
 		id TEXT PRIMARY KEY,
 		supi TEXT NOT NULL,
-		amf_id TEXT NOT NULL,
 		session_type INTEGER NOT NULL DEFAULT 0,
 		method TEXT NOT NULL DEFAULT 'cell_id',
 		qos_response_time_ms INTEGER,

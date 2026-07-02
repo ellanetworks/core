@@ -17,7 +17,8 @@ import (
 
 // ecidMeasurementTimeout bounds how long determineECIDLocation waits for the
 // gNB's NRPPa UEPositioningInformation response before falling back to Cell ID.
-const ecidMeasurementTimeout = 3 * time.Second
+// Increased from 3s to 10s to account for gNB processing time and network latency.
+const ecidMeasurementTimeout = 10 * time.Second
 
 // determineECIDLocation computes location using the E-CID (Enhanced Cell ID) method.
 // E-CID extends basic Cell ID with radio measurements (RSRP, RSRQ, TA, Rx-Tx)
@@ -47,6 +48,10 @@ func (l *LMF) determineECIDLocation(supi etsi.SUPI) (*models.LocationResult, err
 		result.RSRP = measurements.RSRP
 		result.RSRQ = measurements.RSRQ
 		result.TA = measurements.TA
+		result.SSRSRP = measurements.SSRSRP
+		result.SSRSRQ = measurements.SSRSRQ
+		result.CSIRSRP = measurements.CSIRSRP
+		result.CSIRSRQ = measurements.CSIRSRQ
 
 		// 4. Estimate distance from Timing Advance or Rx-Tx
 		if measurements.TA != nil {

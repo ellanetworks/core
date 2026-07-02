@@ -30,7 +30,6 @@ func NewSessionManager(d *db.Database) *SessionManager {
 // CreateSessionParams holds the parameters for creating a positioning session.
 type CreateSessionParams struct {
 	SUPI              string
-	AMFID             string
 	RequestType       RequestType
 	Method            PositioningMethod
 	QoSResponseTimeMs *int
@@ -46,7 +45,6 @@ func (m *SessionManager) CreateSession(ctx context.Context, params CreateSession
 
 	s := &db.PositioningSession{
 		SUPI:              params.SUPI,
-		AMFID:             params.AMFID,
 		SessionType:       int(SessionTypeFromRequest(params.RequestType)),
 		Method:            string(method),
 		QoSResponseTimeMs: params.QoSResponseTimeMs,

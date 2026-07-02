@@ -15,6 +15,12 @@ type RadioMeasurements struct {
 	TA                 *int32 // Timing Advance in slots
 	RxTxTimeDifference *int32 // INTEGER (0..61565) per TS 38.455
 
+	// NR-specific measurements (SSB/CSI-RS based, TS 38.305 §8.9)
+	SSRSRP  *int32 // SSB-based RSRP, dBm × 100
+	SSRSRQ  *int32 // SSB-based RSRQ, dB × 100
+	CSIRSRP *int32 // CSI-RS-based RSRP, dBm × 100
+	CSIRSRQ *int32 // CSI-RS-based RSRQ, dB × 100
+
 	// APPosition is the serving cell's NG-RANAccessPointPosition, when the RAN
 	// reports it in an NRPPa E-CID measurement result (optional).
 	APPosition *APPosition
@@ -73,8 +79,11 @@ func (ue *UeContext) SetNRPPaMessage(data []byte) {
 	ue.nrppaMu.Lock()
 	defer ue.nrppaMu.Unlock()
 
+	payload := make([]byte, len(data))
+	copy(payload, data)
+
 	msg := NRPPaMessage{
-		Payload:   data,
+		Payload:   payload,
 		Timestamp: time.Now(),
 	}
 

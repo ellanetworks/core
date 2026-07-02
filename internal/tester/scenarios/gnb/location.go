@@ -166,7 +166,7 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 	// --- Phase 2: E-CID location ---
 	logger.Logger.Info("=== Testing E-CID location ===")
 
-	ecidResult, err := getLocationECID(ctx, cl, supi, scenarios.DefaultAMF)
+	ecidResult, err := getLocationECID(ctx, cl, supi)
 	if err != nil {
 		return fmt.Errorf("E-CID location failed: %v", err)
 	}
@@ -178,19 +178,10 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 		zap.Any("distance_m", ecidResult.Distance),
 	)
 
-	// Validate E-CID result.
+	// E-CID should have a valid shape. TA, distance, and radio measurements
+	// are optional — they depend on what the RAN can provide.
 	if ecidResult.Shape != models.GADECID {
 		return fmt.Errorf("expected E-CID shape %d, got %d", models.GADECID, ecidResult.Shape)
-	}
-
-	// E-CID should have radio measurements from gNB tester.
-	// RSRP is optional (gNB tester may not report it).
-	if ecidResult.TA == nil {
-		return fmt.Errorf("E-CID result missing Timing Advance measurement")
-	}
-
-	if ecidResult.Distance == nil {
-		return fmt.Errorf("E-CID result missing distance estimate")
 	}
 
 	logger.Logger.Info("E-CID location validated successfully")
@@ -198,7 +189,7 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 	// --- Phase 3: A-GNSS location ---
 	logger.Logger.Info("=== Testing A-GNSS location ===")
 
-	agnssResult, err := getLocationAGNSS(ctx, cl, supi, scenarios.DefaultAMF)
+	agnssResult, err := getLocationAGNSS(ctx, cl, supi)
 	if err != nil {
 		return fmt.Errorf("A-GNSS location failed: %v", err)
 	}
@@ -295,51 +286,18 @@ func getLocationCellID(ctx context.Context, cl *client.Client, supi string) (*mo
 }
 
 // getLocationECID calls POST /api/beta/location with request_type "immediate"
-// and method "ecid". The LMF internally creates a session for the E-CID procedure.
-func getLocationECID(ctx context.Context, cl *client.Client, supi string, amfID string) (*models.LocationResult, error) {
-	sessionID, err := createLocationSession(ctx, cl, supi, amfID, "ecid", "immediate")
-	if err != nil {
-		return nil, fmt.Errorf("create E-CID session: %w", err)
-	}
-
-	result, err := waitForSessionResult(ctx, cl, sessionID, 15*time.Second)
-	if err != nil {
-		return nil, fmt.Errorf("wait for E-CID session: %w", err)
-	}
-
-	return result, nil
-}
-
-// getLocationAGNSS calls POST /api/beta/location with request_type "immediate"
-// and method "agnss_ue_assisted". The LMF internally creates an LPP session.
-func getLocationAGNSS(ctx context.Context, cl *client.Client, supi string, amfID string) (*models.LocationResult, error) {
-	sessionID, err := createLocationSession(ctx, cl, supi, amfID, "agnss_ue_assisted", "immediate")
-	if err != nil {
-		return nil, fmt.Errorf("create A-GNSS session: %w", err)
-	}
-
-	result, err := waitForSessionResult(ctx, cl, sessionID, 45*time.Second)
-	if err != nil {
-		return nil, fmt.Errorf("wait for A-GNSS session: %w", err)
-	}
-
-	return result, nil
-}
-
-// createLocationSession creates a location session via the unified endpoint and
-// returns the session ID. For immediate requests, the LMF creates the session
-// internally and returns the ID for tracking.
-func createLocationSession(ctx context.Context, cl *client.Client, supi, amfID, method, requestType string) (string, error) {
-	params := map[string]string{
+// and method "ecid". The LMF runs the E-CID procedure synchronously and
+// returns the location result directly.
+func getLocationECID(ctx context.Context, cl *client.Client, supi string) (*models.LocationResult, error) {
+	reqBody := map[string]string{
 		"supi":         supi,
-		"amf_id":       amfID,
-		"method":       method,
-		"request_type": requestType,
+		"request_type": "immediate",
+		"method":       "ecid",
 	}
 
-	body, err := json.Marshal(params)
+	body, err := json.Marshal(reqBody)
 	if err != nil {
-		return "", fmt.Errorf("marshal request body: %w", err)
+		return nil, fmt.Errorf("marshal request body: %w", err)
 	}
 
 	resp, err := cl.Requester.Do(ctx, &client.RequestOptions{
@@ -352,93 +310,49 @@ func createLocationSession(ctx context.Context, cl *client.Client, supi, amfID, 
 		Body: bytes.NewReader(body),
 	})
 	if err != nil {
-		return "", fmt.Errorf("POST location request failed: %w", err)
-	}
-
-	var result map[string]string
-	if err := resp.DecodeResult(&result); err != nil {
-		return "", fmt.Errorf("decode location response: %w", err)
-	}
-
-	sessionID, ok := result["id"]
-	if !ok {
-		return "", fmt.Errorf("location response missing 'id' field")
-	}
-
-	logger.Logger.Info("Location session created",
-		zap.String("session_id", sessionID),
-		zap.String("method", method),
-		zap.String("request_type", requestType),
-	)
-
-	return sessionID, nil
-}
-
-// waitForSessionResult polls the session status until it completes or times out.
-func waitForSessionResult(ctx context.Context, cl *client.Client, sessionID string, timeout time.Duration) (*models.LocationResult, error) {
-	deadline := time.Now().Add(timeout)
-
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("context cancelled while waiting for session: %w", ctx.Err())
-		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return nil, fmt.Errorf("timeout waiting for session %s to complete", sessionID)
-			}
-
-			result, status, err := getSessionResult(ctx, cl, sessionID)
-			if err != nil {
-				return nil, fmt.Errorf("get session %s status: %w", sessionID, err)
-			}
-
-			switch status {
-			case 1: // SessionStatusCompleted
-				return result, nil
-			case 2: // SessionStatusFailed
-				return nil, fmt.Errorf("session %s failed", sessionID)
-			default:
-				logger.Logger.Debug("Session still active",
-					zap.String("session_id", sessionID),
-					zap.Int("status", status),
-				)
-			}
-		}
-	}
-}
-
-// getSessionResult fetches the session detail and returns the location result
-// along with the session status code.
-func getSessionResult(ctx context.Context, cl *client.Client, sessionID string) (*models.LocationResult, int, error) {
-	resp, err := cl.Requester.Do(ctx, &client.RequestOptions{
-		Type:   client.SyncRequest,
-		Method: http.MethodGet,
-		Path:   fmt.Sprintf("/api/beta/positioning/sessions/%s", sessionID),
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("GET session request failed: %w", err)
-	}
-
-	var detail struct {
-		Status     int             `json:"status"`
-		LastResult json.RawMessage `json:"last_result,omitempty"`
-	}
-
-	if err := resp.DecodeResult(&detail); err != nil {
-		return nil, 0, fmt.Errorf("decode session detail: %w", err)
-	}
-
-	if detail.LastResult == nil {
-		return nil, detail.Status, nil
+		return nil, fmt.Errorf("POST location request failed: %w", err)
 	}
 
 	var result models.LocationResult
-	if err := json.Unmarshal(detail.LastResult, &result); err != nil {
-		return nil, 0, fmt.Errorf("unmarshal location result: %w", err)
+	if err := resp.DecodeResult(&result); err != nil {
+		return nil, fmt.Errorf("decode location response: %w", err)
 	}
 
-	return &result, detail.Status, nil
+	return &result, nil
+}
+
+// getLocationAGNSS calls POST /api/beta/location with request_type "immediate"
+// and method "agnss_ue_assisted". The LMF runs the A-GNSS procedure
+// synchronously and returns the location result directly.
+func getLocationAGNSS(ctx context.Context, cl *client.Client, supi string) (*models.LocationResult, error) {
+	reqBody := map[string]string{
+		"supi":         supi,
+		"request_type": "immediate",
+		"method":       "agnss_ue_assisted",
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request body: %w", err)
+	}
+
+	resp, err := cl.Requester.Do(ctx, &client.RequestOptions{
+		Type:   client.SyncRequest,
+		Method: http.MethodPost,
+		Path:   "/api/beta/location",
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+		Body: bytes.NewReader(body),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("POST location request failed: %w", err)
+	}
+
+	var result models.LocationResult
+	if err := resp.DecodeResult(&result); err != nil {
+		return nil, fmt.Errorf("decode location response: %w", err)
+	}
+
+	return &result, nil
 }

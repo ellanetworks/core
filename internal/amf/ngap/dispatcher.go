@@ -298,6 +298,10 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 
 				// Resolve UE context via AMF-UE-NGAP-ID
 				if amfUeNgapID != nil {
+					ran.Log.Debug("Looking up UE by AMF UE NGAP ID",
+						zap.Int64("amfUeNgapID", *amfUeNgapID),
+					)
+
 					ranUe := ran.FindUEByAmfUeNgapID(*amfUeNgapID)
 					if ranUe == nil {
 						ran.Log.Warn("Unknown AMF UE NGAP ID in NRPPa transport",
@@ -305,6 +309,11 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 
 						break
 					}
+
+					ran.Log.Debug("Found UE by AMF UE NGAP ID",
+						zap.Int64("amfUeNgapID", *amfUeNgapID),
+						zap.Int64("ranUeNgapID", ranUe.RanUeNgapID),
+					)
 
 					if ranUeNgapID != nil && ranUe.RanUeNgapID != *ranUeNgapID {
 						ran.Log.Warn("Inconsistent RAN UE NGAP ID in NRPPa transport",
@@ -317,7 +326,19 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 					// Store raw NRPPa PDU in UE context for LMF to consume
 					if ue := ranUe.UeContext(); ue != nil {
 						ue.SetNRPPaMessage(nrppaPdu)
+						ran.Log.Debug("Stored NRPPa message in UE context",
+							zap.Int64("amfUeNgapID", *amfUeNgapID),
+							zap.Int("payloadLen", len(nrppaPdu)),
+						)
+					} else {
+						ran.Log.Warn("No AMF UE context found for NRPPa transport",
+							zap.Int64("amfUeNgapID", *amfUeNgapID),
+						)
 					}
+				} else {
+					ran.Log.Warn("NRPPa transport received but AMF UE NGAP ID is missing",
+						zap.Int("payloadLen", len(nrppaPdu)),
+					)
 				}
 			}
 		default:
