@@ -45,11 +45,13 @@ type InitiatingMessage struct {
 const (
 	InitiatingMessagePresentNothing int = iota /* No components present */
 	InitiatingMessagePresentECIDMeasurementInitiationRequest
+	InitiatingMessagePresentECIDMeasurementTerminationCommand
 )
 
 type InitiatingMessageValue struct {
-	Present                          int
-	ECIDMeasurementInitiationRequest *ECIDMeasurementInitiationRequest `aper:"valueExt,referenceFieldValue:2"`
+	Present                           int
+	ECIDMeasurementInitiationRequest  *ECIDMeasurementInitiationRequest  `aper:"valueExt,referenceFieldValue:2"`
+	ECIDMeasurementTerminationCommand *ECIDMeasurementTerminationCommand `aper:"valueExt,referenceFieldValue:5"`
 }
 
 //	SuccessfulOutcome ::= SEQUENCE {

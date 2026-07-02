@@ -109,3 +109,37 @@ type ECIDMeasurementInitiationFailureIEsValue struct {
 	Cause                  *Cause                  `aper:"valueLB:0,valueUB:3,referenceFieldValue:0"`
 	CriticalityDiagnostics *CriticalityDiagnostics `aper:"valueExt,referenceFieldValue:1"`
 }
+
+// =====================================================================
+// E-CIDMeasurementTerminationCommand (NRPPA-PDU-Contents)
+// =====================================================================
+
+// E-CIDMeasurementTerminationCommand ::= SEQUENCE { protocolIEs ..., ... }.
+// LMF → RAN, Class 2 elementary procedure (no response). Carries the
+// LMF-UE-Measurement-ID and RAN-UE-Measurement-ID identifying the measurement
+// association to release (TS 38.455 §9.1.4).
+type ECIDMeasurementTerminationCommand struct {
+	ProtocolIEs ProtocolIEContainerECIDMeasurementTerminationCommandIEs
+}
+
+type ProtocolIEContainerECIDMeasurementTerminationCommandIEs struct {
+	List []ECIDMeasurementTerminationCommandIEs `aper:"sizeLB:0,sizeUB:65535"`
+}
+
+type ECIDMeasurementTerminationCommandIEs struct {
+	Id          ProtocolIEID
+	Criticality Criticality
+	Value       ECIDMeasurementTerminationCommandIEsValue `aper:"openType,referenceFieldName:Id"`
+}
+
+const (
+	ECIDMeasurementTerminationCommandIEsPresentNothing int = iota /* No components present */
+	ECIDMeasurementTerminationCommandIEsPresentLMFUEMeasurementID
+	ECIDMeasurementTerminationCommandIEsPresentRANUEMeasurementID
+)
+
+type ECIDMeasurementTerminationCommandIEsValue struct {
+	Present            int
+	LMFUEMeasurementID *UEMeasurementID `aper:"referenceFieldValue:2"`
+	RANUEMeasurementID *UEMeasurementID `aper:"referenceFieldValue:6"`
+}

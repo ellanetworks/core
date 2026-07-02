@@ -24,17 +24,28 @@ func ParsePDU(b []byte) (*ParsedPDU, error) {
 	switch pdu.Present {
 	case nrppatype.NRPPaPDUPresentInitiatingMessage:
 		im := pdu.InitiatingMessage
-		if im == nil || im.ProcedureCode.Value != nrppatype.ProcedureCodeECIDMeasurementInitiation {
+		if im == nil {
 			return out, nil
 		}
 
-		req := im.Value.ECIDMeasurementInitiationRequest
-		if req == nil {
-			return out, nil
-		}
+		switch im.ProcedureCode.Value {
+		case nrppatype.ProcedureCodeECIDMeasurementInitiation:
+			req := im.Value.ECIDMeasurementInitiationRequest
+			if req == nil {
+				return out, nil
+			}
 
-		out.Kind = KindECIDMeasurementInitiationRequest
-		out.Request = parseRequest(req)
+			out.Kind = KindECIDMeasurementInitiationRequest
+			out.Request = parseRequest(req)
+		case nrppatype.ProcedureCodeECIDMeasurementTermination:
+			cmd := im.Value.ECIDMeasurementTerminationCommand
+			if cmd == nil {
+				return out, nil
+			}
+
+			out.Kind = KindECIDMeasurementTerminationCommand
+			out.Termination = parseTermination(cmd)
+		}
 
 	case nrppatype.NRPPaPDUPresentSuccessfulOutcome:
 		so := pdu.SuccessfulOutcome
@@ -107,6 +118,27 @@ func parseRequest(req *nrppatype.ECIDMeasurementInitiationRequest) *ECIDRequest 
 							MeasurementQuantityValue(item.MeasurementQuantitiesValue.Value))
 					}
 				}
+			}
+		}
+	}
+
+	return out
+}
+
+func parseTermination(cmd *nrppatype.ECIDMeasurementTerminationCommand) *ECIDTermination {
+	out := &ECIDTermination{}
+
+	for i := range cmd.ProtocolIEs.List {
+		ie := &cmd.ProtocolIEs.List[i]
+
+		switch ie.Id.Value {
+		case nrppatype.ProtocolIEIDLMFUEMeasurementID:
+			if v := ie.Value.LMFUEMeasurementID; v != nil {
+				out.LMFUEMeasurementID = v.Value
+			}
+		case nrppatype.ProtocolIEIDRANUEMeasurementID:
+			if v := ie.Value.RANUEMeasurementID; v != nil {
+				out.RANUEMeasurementID = v.Value
 			}
 		}
 	}

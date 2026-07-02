@@ -122,9 +122,32 @@ func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measur
 	defer ticker.Stop()
 
 	for {
-		m, fail := matchMeasurementResponse(ue.GetNRPPaMessages(), measurementID, notBefore)
-		if m != nil {
+		resp, fail := matchMeasurementResponse(ue.GetNRPPaMessages(), measurementID, notBefore)
+		if resp != nil {
+			// Some gNBs (observed with a real O-CU-CP) do not echo the
+			// LMF-assigned LMF-UE-Measurement-ID back in the response; they
+			// keep returning the id of the first/active measurement instead.
+			// Because the LMF issues exactly one on-demand E-CID request per UE
+			// at a time and only considers responses received at/after
+			// notBefore, the newest such response is unambiguously ours — so we
+			// accept it and just log the id discrepancy rather than time out.
+			if resp.LMFUEMeasurementID != measurementID {
+				logger.LmfLog.Warn("gNB returned a different LMF-UE-Measurement-ID; accepting newest fresh E-CID response",
+					zap.String("supi", supi.String()),
+					zap.Int64("expectedMeasurementID", measurementID),
+					zap.Int64("receivedMeasurementID", resp.LMFUEMeasurementID),
+				)
+			}
+
+			m := mapECIDResult(resp.Result)
 			ue.SetRadioMeasurements(m)
+
+			// Release the measurement association in the gNB so subsequent
+			// on-demand requests are treated as fresh measurements. Best-effort:
+			// the E-CID fix is already complete, so failures here are logged but
+			// not propagated. Use the ids the gNB actually reported.
+			c.terminateMeasurement(ctx, supi, resp.LMFUEMeasurementID, resp.RANUEMeasurementID)
+
 			return m, nil
 		}
 
@@ -147,19 +170,78 @@ func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measur
 	}
 }
 
+// terminateMeasurement sends an NRPPa E-CIDMeasurementTerminationCommand for the
+// given measurement to the RAN, releasing the measurement association in the
+// gNB. The Termination Command is a Class 2 procedure (no response), so this is
+// fire-and-forget. Errors are logged and swallowed: by the time it is called the
+// E-CID fix has already been obtained.
+func (c *Client) terminateMeasurement(ctx context.Context, supi etsi.SUPI, lmfMeasID, ranMeasID int64) {
+	amfUe, ok := c.amf.FindUeContextBySupi(supi)
+	if !ok {
+		return
+	}
+
+	ranUe := amfUe.RanUe()
+	if ranUe == nil {
+		return
+	}
+
+	ran := ranUe.Radio()
+	if ran == nil || ran.NGAPSender == nil {
+		return
+	}
+
+	payload, err := nrppa.BuildECIDMeasurementTerminationCommand(lmfMeasID, ranMeasID)
+	if err != nil {
+		logger.LmfLog.Warn("failed to build NRPPa E-CID termination command",
+			zap.String("supi", supi.String()),
+			zap.Error(err),
+		)
+
+		return
+	}
+
+	if err := ran.NGAPSender.SendDownlinkNRPPaTransport(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, 0, payload); err != nil {
+		logger.LmfLog.Warn("failed to send NRPPa E-CID termination command",
+			zap.String("supi", supi.String()),
+			zap.Error(err),
+		)
+
+		return
+	}
+
+	logger.LmfLog.Debug("NRPPa E-CID measurement terminated",
+		zap.String("supi", supi.String()),
+		zap.Int64("lmfMeasurementID", lmfMeasID),
+		zap.Int64("ranMeasurementID", ranMeasID),
+	)
+}
+
 // measurementPollInterval is how often WaitForMeasurements polls the UE
 // context for a matching NRPPa response.
 const measurementPollInterval = 50 * time.Millisecond
 
 // matchMeasurementResponse scans NRPPa messages (newest first) for an
 // E-CIDMeasurementInitiationResponse or E-CIDMeasurementInitiationFailure
-// matching measurementID and received at or after notBefore.
+// received at or after notBefore.
+//
+// Correlation prefers an exact LMF-UE-Measurement-ID match, but falls back to
+// the newest fresh E-CID Initiation message when no exact match exists. The
+// fallback is necessary because some gNBs do not echo the LMF-assigned
+// measurement id; since the LMF has exactly one outstanding on-demand E-CID
+// request per UE and only considers messages at/after notBefore, the newest
+// such message is unambiguously the response to the current request.
 //
 // Returns:
-//   - (measurements, nil) on success
-//   - (nil, cause) when the RAN explicitly rejected the request
-//   - (nil, nil) when no matching response or failure was found
-func matchMeasurementResponse(messages []amf.NRPPaMessage, measurementID int64, notBefore time.Time) (*amf.RadioMeasurements, *nrppa.ECIDFailure) {
+//   - (response, nil) on success
+//   - (nil, failure) when the RAN explicitly rejected the request
+//   - (nil, nil) when no fresh response or failure was found
+func matchMeasurementResponse(messages []amf.NRPPaMessage, measurementID int64, notBefore time.Time) (*nrppa.ECIDResponse, *nrppa.ECIDFailure) {
+	var (
+		fallbackResponse *nrppa.ECIDResponse
+		fallbackFailure  *nrppa.ECIDFailure
+	)
+
 	for i := len(messages) - 1; i >= 0; i-- {
 		msg := messages[i]
 		if msg.Timestamp.Before(notBefore) {
@@ -192,7 +274,11 @@ func matchMeasurementResponse(messages []amf.NRPPaMessage, measurementID int64, 
 
 		if parsed.Response != nil && parsed.Kind == nrppa.KindECIDMeasurementInitiationResponse {
 			if parsed.Response.LMFUEMeasurementID == measurementID {
-				return mapECIDResult(parsed.Response.Result), nil
+				return parsed.Response, nil
+			}
+			// Newest fresh response (scan is newest-first) becomes the fallback.
+			if fallbackResponse == nil && fallbackFailure == nil {
+				fallbackResponse = parsed.Response
 			}
 
 			continue
@@ -203,8 +289,22 @@ func matchMeasurementResponse(messages []amf.NRPPaMessage, measurementID int64, 
 				return nil, parsed.Failure
 			}
 
+			if fallbackResponse == nil && fallbackFailure == nil {
+				fallbackFailure = parsed.Failure
+			}
+
 			continue
 		}
+	}
+
+	// No exact LMF-UE-Measurement-ID match: fall back to the newest fresh
+	// E-CID Initiation message received for this UE.
+	if fallbackResponse != nil {
+		return fallbackResponse, nil
+	}
+
+	if fallbackFailure != nil {
+		return nil, fallbackFailure
 	}
 
 	return nil, nil

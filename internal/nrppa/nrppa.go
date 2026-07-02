@@ -53,6 +53,7 @@ const (
 	KindECIDMeasurementInitiationRequest
 	KindECIDMeasurementInitiationResponse
 	KindECIDMeasurementInitiationFailure
+	KindECIDMeasurementTerminationCommand
 )
 
 // MeasurementQuantityValue enumerates the E-CID measurement quantities
@@ -197,12 +198,19 @@ type ECIDFailure struct {
 	Cause              Cause
 }
 
+// ECIDTermination is a decoded E-CIDMeasurementTerminationCommand.
+type ECIDTermination struct {
+	LMFUEMeasurementID int64
+	RANUEMeasurementID int64
+}
+
 // ParsedPDU is the discriminated result of ParsePDU.
 type ParsedPDU struct {
-	Kind     MessageKind
-	Request  *ECIDRequest
-	Response *ECIDResponse
-	Failure  *ECIDFailure
+	Kind        MessageKind
+	Request     *ECIDRequest
+	Response    *ECIDResponse
+	Failure     *ECIDFailure
+	Termination *ECIDTermination
 }
 
 // reject and ignore return the NRPPa criticality wrappers used when building IEs.
