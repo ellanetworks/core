@@ -7,6 +7,37 @@ import (
 	"testing"
 )
 
+// TestRoundTrip_ECIDMeasurementTerminationCommand verifies the E-CID Measurement
+// Termination Command (procedureCode 5) round-trips with both measurement ids.
+func TestRoundTrip_ECIDMeasurementTerminationCommand(t *testing.T) {
+	const (
+		lmfMeasID = int64(4)
+		ranMeasID = int64(1)
+	)
+
+	encoded, err := BuildECIDMeasurementTerminationCommand(lmfMeasID, ranMeasID)
+	if err != nil {
+		t.Fatalf("BuildECIDMeasurementTerminationCommand: %v", err)
+	}
+
+	parsed, err := ParsePDU(encoded)
+	if err != nil {
+		t.Fatalf("ParsePDU: %v", err)
+	}
+
+	if parsed.Kind != KindECIDMeasurementTerminationCommand || parsed.Termination == nil {
+		t.Fatalf("unexpected parse result: %+v", parsed)
+	}
+
+	if parsed.Termination.LMFUEMeasurementID != lmfMeasID {
+		t.Errorf("LMF-UE-Measurement-ID: got %d, want %d", parsed.Termination.LMFUEMeasurementID, lmfMeasID)
+	}
+
+	if parsed.Termination.RANUEMeasurementID != ranMeasID {
+		t.Errorf("RAN-UE-Measurement-ID: got %d, want %d", parsed.Termination.RANUEMeasurementID, ranMeasID)
+	}
+}
+
 // TestRoundTrip_ECIDMeasurementInitiationRequest is Stage B: a Request carrying
 // MeasurementQuantities round-trips with all fields intact.
 func TestRoundTrip_ECIDMeasurementInitiationRequest(t *testing.T) {

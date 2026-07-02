@@ -45,8 +45,8 @@ func TestMatchMeasurementResponse(t *testing.T) {
 	}
 
 	t.Run("match", func(t *testing.T) {
-		m, fail := matchMeasurementResponse(msgs, measID, base.Add(-time.Second))
-		if m == nil {
+		resp, fail := matchMeasurementResponse(msgs, measID, base.Add(-time.Second))
+		if resp == nil {
 			t.Fatal("expected a match, got nil")
 		}
 
@@ -54,26 +54,34 @@ func TestMatchMeasurementResponse(t *testing.T) {
 			t.Fatalf("expected no failure, got %+v", fail)
 		}
 
+		m := mapECIDResult(resp.Result)
 		if m.TA == nil || *m.TA != 100 {
 			t.Errorf("expected TA=100, got %v", m.TA)
 		}
 	})
 
-	t.Run("wrong measurement id", func(t *testing.T) {
-		m, fail := matchMeasurementResponse(msgs, 3, base.Add(-time.Second))
-		if m != nil {
-			t.Errorf("expected nil for non-matching measurement ID, got %+v", m)
+	t.Run("different measurement id falls back to newest fresh response", func(t *testing.T) {
+		// Some gNBs do not echo the LMF-assigned measurement id. Since only
+		// fresh messages (>= notBefore) are considered and there is one
+		// outstanding request per UE, the newest fresh response is accepted.
+		resp, fail := matchMeasurementResponse(msgs, 3, base.Add(-time.Second))
+		if resp == nil {
+			t.Fatal("expected tolerant fallback to newest fresh response, got nil")
 		}
 
 		if fail != nil {
 			t.Errorf("expected no failure, got %+v", fail)
 		}
+
+		if resp.LMFUEMeasurementID != measID {
+			t.Errorf("expected fallback to response with id %d, got %d", measID, resp.LMFUEMeasurementID)
+		}
 	})
 
 	t.Run("message older than notBefore", func(t *testing.T) {
-		m, fail := matchMeasurementResponse(msgs, measID, base.Add(time.Second))
-		if m != nil {
-			t.Errorf("expected nil for stale message, got %+v", m)
+		resp, fail := matchMeasurementResponse(msgs, measID, base.Add(time.Second))
+		if resp != nil {
+			t.Errorf("expected nil for stale message, got %+v", resp)
 		}
 
 		if fail != nil {
@@ -82,9 +90,9 @@ func TestMatchMeasurementResponse(t *testing.T) {
 	})
 
 	t.Run("no messages", func(t *testing.T) {
-		m, fail := matchMeasurementResponse(nil, measID, base)
-		if m != nil {
-			t.Errorf("expected nil for empty message set, got %+v", m)
+		resp, fail := matchMeasurementResponse(nil, measID, base)
+		if resp != nil {
+			t.Errorf("expected nil for empty message set, got %+v", resp)
 		}
 
 		if fail != nil {
@@ -102,9 +110,9 @@ func TestMatchMeasurementResponse(t *testing.T) {
 			{Payload: failPDU, Timestamp: base},
 		}
 
-		m, fail := matchMeasurementResponse(failMsgs, measID, base.Add(-time.Second))
-		if m != nil {
-			t.Errorf("expected nil measurements for failure, got %+v", m)
+		resp, fail := matchMeasurementResponse(failMsgs, measID, base.Add(-time.Second))
+		if resp != nil {
+			t.Errorf("expected nil measurements for failure, got %+v", resp)
 		}
 
 		if fail == nil {
@@ -116,7 +124,7 @@ func TestMatchMeasurementResponse(t *testing.T) {
 		}
 	})
 
-	t.Run("failure with wrong measurement id", func(t *testing.T) {
+	t.Run("failure with different measurement id still reported", func(t *testing.T) {
 		failPDU, err := nrppa.BuildECIDMeasurementInitiationFailure(99, nrppa.Cause{Group: nrppa.CauseGroupRadioNetwork, Value: 0})
 		if err != nil {
 			t.Fatalf("BuildECIDMeasurementInitiationFailure: %v", err)
@@ -126,13 +134,13 @@ func TestMatchMeasurementResponse(t *testing.T) {
 			{Payload: failPDU, Timestamp: base},
 		}
 
-		m, fail := matchMeasurementResponse(failMsgs, measID, base.Add(-time.Second))
-		if m != nil {
-			t.Errorf("expected nil for non-matching measurement ID, got %+v", m)
+		resp, fail := matchMeasurementResponse(failMsgs, measID, base.Add(-time.Second))
+		if resp != nil {
+			t.Errorf("expected nil response, got %+v", resp)
 		}
 
-		if fail != nil {
-			t.Errorf("expected no failure for non-matching ID, got %+v", fail)
+		if fail == nil {
+			t.Fatal("expected tolerant fallback to newest fresh failure, got nil")
 		}
 	})
 }

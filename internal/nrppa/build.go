@@ -192,6 +192,50 @@ func BuildECIDMeasurementInitiationFailure(lmfMeasID int64, cause Cause) ([]byte
 	return Encoder(pdu)
 }
 
+// BuildECIDMeasurementTerminationCommand builds an E-CIDMeasurementTermination
+// Command InitiatingMessage PDU (procedureCode = 5). It releases the measurement
+// association in the RAN identified by lmfMeasID/ranMeasID. This is a Class 2
+// procedure (no response) and is sent LMF → RAN.
+func BuildECIDMeasurementTerminationCommand(lmfMeasID, ranMeasID int64) ([]byte, error) {
+	cmd := &nrppatype.ECIDMeasurementTerminationCommand{}
+	list := &cmd.ProtocolIEs.List
+
+	// id-LMF-UE-Measurement-ID (mandatory, reject).
+	{
+		ie := nrppatype.ECIDMeasurementTerminationCommandIEs{}
+		ie.Id.Value = nrppatype.ProtocolIEIDLMFUEMeasurementID
+		ie.Criticality = reject()
+		ie.Value.Present = nrppatype.ECIDMeasurementTerminationCommandIEsPresentLMFUEMeasurementID
+		ie.Value.LMFUEMeasurementID = &nrppatype.UEMeasurementID{Value: lmfMeasID}
+		*list = append(*list, ie)
+	}
+
+	// id-RAN-UE-Measurement-ID (mandatory, reject).
+	{
+		ie := nrppatype.ECIDMeasurementTerminationCommandIEs{}
+		ie.Id.Value = nrppatype.ProtocolIEIDRANUEMeasurementID
+		ie.Criticality = reject()
+		ie.Value.Present = nrppatype.ECIDMeasurementTerminationCommandIEsPresentRANUEMeasurementID
+		ie.Value.RANUEMeasurementID = &nrppatype.UEMeasurementID{Value: ranMeasID}
+		*list = append(*list, ie)
+	}
+
+	pdu := nrppatype.NRPPaPDU{
+		Present: nrppatype.NRPPaPDUPresentInitiatingMessage,
+		InitiatingMessage: &nrppatype.InitiatingMessage{
+			ProcedureCode:      nrppatype.ProcedureCode{Value: nrppatype.ProcedureCodeECIDMeasurementTermination},
+			Criticality:        reject(),
+			NRPPATransactionID: transactionIDFor(lmfMeasID),
+			Value: nrppatype.InitiatingMessageValue{
+				Present:                           nrppatype.InitiatingMessagePresentECIDMeasurementTerminationCommand,
+				ECIDMeasurementTerminationCommand: cmd,
+			},
+		},
+	}
+
+	return Encoder(pdu)
+}
+
 // buildCause maps a caller-facing Cause to the aper Cause CHOICE.
 func buildCause(c Cause) *nrppatype.Cause {
 	out := &nrppatype.Cause{}
