@@ -53,8 +53,8 @@ This path creates a new system user.
 - `password` (string): The password of the user.
 - `role_id` (int): The role ID of the user. Allowed values:
     - 1 (admin): Administrator user with full access to network and system resources.
-    - 2 (network manager): Network manager user with full access to network resources.
-    - 3 (read only): Read-only user with only read access to network resources.
+    - 2 (read only): Read-only user with only read access to network resources.
+    - 3 (network manager): Network manager user with full access to network resources.
 
 ### Sample Response
 
@@ -78,8 +78,8 @@ This path updates an existing system user.
 
 - `role_id` (int): The role of the user. Allowed values:
     - 1 (admin): Administrator user with full access to network and system resources.
-    - 2 (network manager): Network manager user with full access to network resources.
-    - 3 (read only): Read-only user with only read access to network resources.
+    - 2 (read only): Read-only user with only read access to network resources.
+    - 3 (network manager): Network manager user with full access to network resources.
 
 ### Sample Response
 
@@ -215,21 +215,29 @@ This path returns the list of API tokens for the authenticated user.
 | ------ | ----------------------------- |
 | GET    | `/api/v1/users/me/api-tokens` |
 
-### Parameters
+### Query Parameters
 
-None
+| Name       | In    | Type | Default | Allowed | Description               |
+| ---------- | ----- | ---- | ------- | ------- | ------------------------- |
+| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.       |
+| `per_page` | query | int  | `25`    | `1…100` | Number of items per page. |
 
 ### Sample Response
 
 ```json
 {
-    "result": [
-        {
-            "id": "Xl2yU1rcy2BP",
-            "name": "My Token",
-            "expires_at": "2024-12-31T23:59:59Z"
-        }
-    ]
+    "result": {
+        "items": [
+            {
+                "id": "Xl2yU1rcy2BP",
+                "name": "My Token",
+                "expires_at": "2024-12-31T23:59:59Z"
+            }
+        ],
+        "page": 1,
+        "per_page": 25,
+        "total_count": 1
+    }
 }
 ```
 
@@ -239,7 +247,7 @@ This path deletes an API token for the authenticated user.
 
 | Method | Path                                    |
 | ------ | --------------------------------------- |
-| DELETE | `/api/v1/users/me/api-tokens/{tokenID}` |
+| DELETE | `/api/v1/users/me/api-tokens/{id}` |
 
 ### Parameters
 
@@ -274,13 +282,18 @@ This path returns a paginated list of API tokens belonging to the specified user
 
 ```json
 {
-    "result": [
-        {
-            "id": "Xl2yU1rcy2BP",
-            "name": "CI Pipeline",
-            "expires_at": "2026-12-31T23:59:59Z"
-        }
-    ]
+    "result": {
+        "items": [
+            {
+                "id": "Xl2yU1rcy2BP",
+                "name": "CI Pipeline",
+                "expires_at": "2026-12-31T23:59:59Z"
+            }
+        ],
+        "page": 1,
+        "per_page": 25,
+        "total_count": 1
+    }
 }
 ```
 
@@ -316,7 +329,7 @@ This path deletes an API token belonging to the specified user. Requires admin p
 
 | Method | Path                                         |
 | ------ | -------------------------------------------- |
-| DELETE | `/api/v1/users/{email}/api-tokens/{tokenID}` |
+| DELETE | `/api/v1/users/{email}/api-tokens/{id}` |
 
 ### Parameters
 

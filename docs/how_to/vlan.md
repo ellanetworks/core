@@ -12,11 +12,11 @@ logging:
   audit:
     output: "stdout"
 db:
-  path: "/var/snap/ella-core/common/data"
+  path: "/var/snap/ella-core/common/data/ella.db"
 interfaces:
   n2:
     address: "10.3.0.2"
-    port: 38412
+    ngap-port: 38412
   n3:
     name: "ens5.103"
   n6:

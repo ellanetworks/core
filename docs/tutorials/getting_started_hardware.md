@@ -50,12 +50,12 @@ sudo snap connect ella-core:firewall-control
 Edit the configuration file:
 
 ```shell
-sudo vim /var/snap/ella-core/common/config.yaml
+sudo vim /var/snap/ella-core/common/core.yaml
 ```
 
 Set the network interfaces to match your system. In this example, `ens5` is connected to the radio and `ens3` is connected to the internet:
 
-```yaml title="/var/snap/ella-core/common/config.yaml"
+```yaml title="/var/snap/ella-core/common/core.yaml"
 logging:
   system:
     level: "info"
@@ -63,11 +63,11 @@ logging:
   audit:
     output: "stdout"
 db:
-  path: "/var/snap/ella-core/common/data/core.db"
+  path: "/var/snap/ella-core/common/data/ella.db"
 interfaces:
   n2:
     name: "ens5"
-    port: 38412
+    ngap-port: 38412
   n3:
     name: "ens5"
   n6:

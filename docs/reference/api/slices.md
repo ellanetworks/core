@@ -51,7 +51,7 @@ This path creates a new slice.
 ### Parameters
 
 - `name` (string): The name of the slice.
-- `sst` (integer): The Slice Service Type (SST). Must be an 8-bit integer (0-255).
+- `sst` (integer): The Slice Service Type (SST). Must be an integer between 1 and 255.
 - `sd` (optional string): The Service Differentiator (SD). Must be a 3-byte hexadecimal string without the "0x" prefix. Ex. "010203".
 
 ### Sample Response
@@ -98,7 +98,7 @@ This path updates an existing slice.
 
 ### Parameters
 
-- `sst` (integer): The Slice Service Type (SST). Must be an 8-bit integer (0-255).
+- `sst` (integer): The Slice Service Type (SST). Must be an integer between 1 and 255.
 - `sd` (optional string): The Service Differentiator (SD). Must be a 3-byte hexadecimal string without the "0x" prefix. Ex. "010203".
 
 ### Sample Response

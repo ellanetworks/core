@@ -32,7 +32,7 @@ This path returns the list of audit logs.
     "result": {
         "items": [
             {
-                "id": 1,
+                "id": "1",
                 "timestamp": "2025-08-12T16:58:00.810-0400",
                 "level": "INFO",
                 "user": "guillaume@ellanetworks.com",
@@ -87,7 +87,7 @@ None
 ```json
 {
     "result": {
-        "days": 30
+        "days": 7
     }
 }
 ```

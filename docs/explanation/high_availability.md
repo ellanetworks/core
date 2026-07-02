@@ -15,13 +15,16 @@ HA is designed around the [Raft Consensus Algorithm](https://raft.github.io/): a
 
 ## What HA covers
 
-Deploy three or five nodes. A quorum is a majority of voters: 2 of 3, or 3 of 5. Three nodes tolerate one failure; five nodes tolerate two. Within those bounds, surviving voters keep accepting writes, radio traffic, and operator changes with no manual intervention.
+Deploy three or five nodes. A *voter* is a node that counts toward quorum, and a quorum is a majority of voters: 2 of 3, or 3 of 5. Three nodes tolerate one failure; five nodes tolerate two. Within those bounds, surviving voters keep accepting writes, radio traffic, and operator changes with no manual intervention.
 
-Two things HA does not handle automatically. If more than half the voters fail at the same time, the cluster loses quorum and writes stall until enough nodes return — or the cluster is restored from backup via [Disaster recovery](#disaster-recovery). And UE sessions on a dead node drop; those UEs re-register on a surviving node.
+Two things HA does not handle automatically:
+
+- **Loss of quorum.** If more than half the voters fail at the same time, the cluster loses quorum and writes stall until enough nodes return — or the cluster is restored from backup via [Disaster recovery](#disaster-recovery).
+- **In-flight UE sessions.** Sessions on a dead node drop; those UEs re-register on a surviving node.
 
 ## What replicates, and what does not
 
-Network-wide resources — subscribers, profiles, policies, slices, data networks, network rules, IP leases, users, API tokens, audit logs, the operator configuration — replicate across the cluster. If a node dies, the survivors hold the same state, automatically elect a new leader, and keep accepting writes.
+Network-wide resources — subscribers, profiles, policies, slices, data networks, network rules, IP leases, users, API tokens, audit logs, the operator configuration — replicate across the cluster. Every replicated record carries a globally-unique ID, so rows created on different nodes never collide. If a node dies, the survivors hold the same state, automatically elect a new leader, and keep accepting writes.
 
 Per-node configuration does not replicate. This covers the local data-plane and routing settings each node owns: static routes, BGP settings, BGP peers and import prefixes, NAT, the N3 external address, and flow accounting. To configure these on an HA cluster, hit each node's API directly — a change made on one node does not propagate to its peers. This lets nodes in different racks or AZs run with different upstream gateways and BGP topologies.
 
@@ -33,13 +36,7 @@ Observability is per-node: each instance exposes its own Prometheus endpoint, ra
 
 A UE's user-plane traffic flows through the node that handled its registration — that node runs its User Plane and terminates its GTP-U tunnel. Each data network has one cluster-wide IP pool; the replicated lease table guarantees no two UEs receive the same address, and each lease records the node currently serving it.
 
-When BGP is enabled, each node advertises a `/32` route for every UE session it hosts (see [Advertising routes via BGP](bgp.md)). When a UE re-registers on a different node after failover, the lease's owning node is updated in place — the UE keeps its IP — and the new node's speaker begins advertising the same `/32` from its N6. The dead node's BGP session times out after the hold timer (30–180 s, peer-dependent), its routes are withdrawn, and upstream routing converges on the survivor without operator action.
-
-## Replicated identifiers
-
-Every replicated resource — subscribers, profiles, policies, slices, data networks, network rules, IP leases, users, sessions, API tokens, audit logs, retention policies — carries a UUIDv7 primary key generated at the API handler before the request enters the replicated state machine. This is a structural invariant: the primary key of a replicated row is decided before the request is captured, never derived from local mutable state on the leader.
-
-The alternative — server-side `INTEGER PRIMARY KEY AUTOINCREMENT` — is unsafe in this architecture. The leader captures changesets by wrapping the apply in `BEGIN; INSERT; CAPTURE; ROLLBACK; propose-via-Raft`, so the captured INSERT carries an id assigned from `sqlite_sequence`. Two captures back-to-back can pick the same id whenever they see the same `sqlite_sequence` snapshot — most observably when a new leader's first capture races with a previous-term entry that has been replicated but not yet applied to its FSM. The follower then rejects the second INSERT with a CONFLICT and the FSM crashes. Generating UUIDs at the handler eliminates the class: two handlers cannot pick the same UUID, regardless of timing or which node is leader.
+When BGP is enabled, each node advertises a `/32` route for every UE session it hosts (see [Advertising routes via BGP](bgp.md)). When a UE re-registers on a different node after failover, the lease's owning node is updated in place — the UE keeps its IP — and the new node's speaker begins advertising the same `/32` from its N6. The dead node's BGP session times out after the hold timer (90 s by default, configurable per peer), its routes are withdrawn, and upstream routing converges on the survivor without operator action.
 
 ## Failover and timing
 
@@ -77,17 +74,17 @@ Drain is triggered by an operator via the cluster API. Removal requires a draine
 
 ## Scaling the cluster
 
-New voters join in two steps. The operator registers the node as a non-voter, which lets it catch up on the Raft log without counting toward quorum; once the node has been healthy and up-to-date for a short stabilization window, the cluster automatically promotes it to a voter. Operators who want to promote immediately can call the promote endpoint by hand.
+A new node joins as a voter by default: once it has exchanged its join token and started, the leader adds it directly to the voting set. If you would rather have the node catch up on the Raft log before it counts toward quorum, set `initial-suffrage: nonvoter` in its config — it then joins as a non-voter and Autopilot promotes it to a voter automatically once it has been healthy and up-to-date for a short stabilization window (or you can promote it immediately via the promote endpoint).
 
 Shrinking is symmetric. Drain the node, then remove it; the remaining voters continue serving writes while the configuration change commits.
 
 ## Inter-node communication using mTLS
 
-Every inter-node connection is mutually authenticated over TLS. Each node owns a long-lived self-signed cluster certificate; trust between nodes is established by SHA-256 fingerprint pinning in a Raft-replicated table. New nodes join by exchanging a single-use HMAC join token (minted by an admin from the Cluster page) for the right to register their own certificate's fingerprint with the leader. Once the row is replicated, every voter accepts the new node's handshakes. Certificates are bound to the cluster's identity via a SPIFFE URI, so credentials from one cluster cannot authenticate into another. Removing a node deletes its pin row, immediately revoking its access cluster-wide.
+Every inter-node connection is mutually authenticated over TLS. Each node owns a long-lived, self-signed cluster certificate. To admit a new node, an admin mints a single-use join token from the Cluster page; the node presents it once to register itself, after which every voter accepts its connections. Certificates are scoped to a single cluster, so credentials from one cluster cannot authenticate into another. Removing a node immediately revokes its access cluster-wide.
 
 ## Disaster recovery
 
-HA clusters recover from total loss through an offline, backup-driven path. An operator stops every node, seeds one node from a backup archive, and starts it — it comes up as a single-voter cluster carrying the restored state. The remaining voters then rejoin with fresh join tokens. The backup archive carries the cluster identity (operator row) and the pin registry (`cluster_node_certs`), so the restored leader trusts itself immediately; freshly-joined voters re-register their own pins through the standard join flow. The step-by-step procedure lives in [Backup and Restore](../how_to/backup_and_restore.md).
+HA clusters recover from total loss through an offline, backup-driven path. An operator stops every node, seeds one node from a backup archive, and starts it — it comes up as a single-voter cluster carrying the restored state. The remaining voters then rejoin with fresh join tokens. The backup archive carries the cluster's identity and its trusted-node registrations, so the restored leader trusts itself immediately; freshly-joined voters re-register through the standard join flow. The step-by-step procedure lives in [Backup and Restore](../how_to/backup_and_restore.md).
 
 ## Rolling upgrades
 

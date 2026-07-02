@@ -20,7 +20,7 @@ This path retrieves usage data for network subscribers.
 | ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
 | `start`      | query | string  | `now-7d` |         | Start date for usage data. Format: YYYY-MM-DD.   |
 | `end`        | query | string  | `now`    |         | End date for usage data. Format: YYYY-MM-DD.     |
-| `group_by`   | query | string  | `day`    | `day`, `subscriber` | Grouping method for usage data.  |
+| `group_by`   | query | string  | _required_ | `day`, `subscriber` | Grouping method for usage data. Required — omitting it returns `400`. |
 | `subscriber` | query | string  | ``     |          | Filter usage data for a specific subscriber.     |
 
 ### Sample Response

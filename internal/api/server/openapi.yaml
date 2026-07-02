@@ -1561,7 +1561,8 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -1584,7 +1585,8 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         "200":
           description: The private key for the home network key.
@@ -4486,7 +4488,7 @@ components:
       properties:
         address:
           type: string
-          description: IPv4 address of the peer.
+          description: IPv4 or IPv6 address of the peer.
         remoteAS:
           type: integer
           description: Remote autonomous system number.
@@ -4513,7 +4515,7 @@ components:
       properties:
         address:
           type: string
-          description: IPv4 address of the peer.
+          description: IPv4 or IPv6 address of the peer.
         remoteAS:
           type: integer
           description: Remote autonomous system number.
@@ -4635,33 +4637,43 @@ components:
     N2Interface:
       type: object
       properties:
-        address:
-          type: string
+        addresses:
+          type: array
+          items:
+            type: string
         port:
           type: integer
-      required: [address, port]
+        interface:
+          type: string
+      required: [addresses, port]
 
     N3Interface:
       type: object
       properties:
         name:
           type: string
-        address:
-          type: string
+        addresses:
+          type: array
+          items:
+            type: string
         external_address:
           type: string
         vlan:
           $ref: "#/components/schemas/Vlan"
-      required: [name, address, external_address]
+      required: [name, addresses, external_address]
 
     N6Interface:
       type: object
       properties:
         name:
           type: string
+        addresses:
+          type: array
+          items:
+            type: string
         vlan:
           $ref: "#/components/schemas/Vlan"
-      required: [name]
+      required: [name, addresses]
 
     APIInterface:
       type: object

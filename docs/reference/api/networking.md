@@ -54,10 +54,10 @@ This path creates a new Data Network.
 ### Parameters
 
 - `name` (string): The Name of the Data Network (dnn)
-- `ipv4_pool` (string): The IPv4 pool of the data network in CIDR notation. Example: `172.250.0.0/24`.
+- `ipv4_pool` (string, optional): The IPv4 pool of the data network in CIDR notation. Example: `172.250.0.0/24`. At least one of `ipv4_pool` or `ipv6_pool` must be provided.
 - `ipv6_pool` (string, optional): The IPv6 pool of the data network in CIDR notation. Example: `2001:db8::/48`.
 - `dns` (string): The IP address of the DNS server of the data network. Example: `8.8.8.8`.
-- `mtu` (integer): The MTU of the data network. Must be an integer between 0 and 65535.
+- `mtu` (integer): The MTU of the data network. Must be an integer between 1 and 65535.
 
 ### Sample Response
 
@@ -79,10 +79,10 @@ This path updates an existing data network.
 
 ### Parameters
 
-- `ipv4_pool` (string): The IPv4 pool of the data network in CIDR notation. Example: `172.250.0.0/24`.
+- `ipv4_pool` (string, optional): The IPv4 pool of the data network in CIDR notation. Example: `172.250.0.0/24`. At least one of `ipv4_pool` or `ipv6_pool` must be provided.
 - `ipv6_pool` (string, optional): The IPv6 pool of the data network in CIDR notation. Example: `2001:db8::/48`.
 - `dns` (string): The IP address of the DNS server of the data network. Example: `8.8.8.8`.
-- `mtu` (integer): The MTU of the data network. Must be an integer between 0 and 65535.
+- `mtu` (integer): The MTU of the data network. Must be an integer between 1 and 65535.
 
 ### Sample Response
 
@@ -249,19 +249,21 @@ None
 {
     "result": {
         "n2": {
-            "address": "192.168.40.6",
-            "port": 38412
+            "addresses": ["192.168.40.6"],
+            "port": 38412,
+            "interface": "eth0"
         },
         "n3": {
             "name": "wlp131s0",
-            "address": "192.168.40.6",
+            "addresses": ["192.168.40.6"],
             "external_address": ""
         },
         "n6": {
-            "name": "lo"
+            "name": "lo",
+            "addresses": ["10.0.0.1"]
         },
         "api": {
-            "address": "",
+            "addresses": ["192.168.1.10"],
             "port": 5002
         }
     }
@@ -367,7 +369,7 @@ This path creates a new route.
 - `destination` (string): The destination IP address of the route in CIDR notation. Examples: `0.0.0.0/0` (IPv4) or `::/0` (IPv6).
 - `gateway` (string): The IP address of the gateway of the route. Examples: `1.2.3.4` (IPv4) or `2001:db8::1` (IPv6).
 - `interface` (string): The outgoing interface of the route. Allowed values: `n3`, `n6`.
-- `metric` (int): The metric of the route. Must be an integer between 0 and 255.
+- `metric` (int): The metric of the route. Must be a non-negative integer.
 
 ### Sample Response
 
@@ -375,7 +377,7 @@ This path creates a new route.
 {
     "result": {
         "message": "Route created successfully",
-        "id": 4
+        "id": "4"
     }
 }
 ```
@@ -401,7 +403,8 @@ None
         "destination": "0.0.0.0/0",
         "gateway": "203.0.113.1",
         "interface": "n6",
-        "metric": 0
+        "metric": 0,
+        "source": "static"
     }
 }
 ```
@@ -447,7 +450,7 @@ None
 ```json
 {
     "result": {
-        "enabled": true,
+        "enabled": true
     }
 }
 ```
@@ -547,24 +550,29 @@ None
             {
                 "prefix": "127.0.0.0/8",
                 "source": "builtin",
-                "description": "loopback"
+                "description": "IPv4 Loopback"
             },
             {
                 "prefix": "172.250.0.0/24",
                 "source": "data_network",
-                "description": "data network: internet"
+                "description": "UE IP pool (internet)"
             },
             {
-                "prefix": "192.168.40.0/24",
+                "prefix": "192.168.40.6/32",
                 "source": "interface",
-                "description": "N3 interface subnet"
+                "description": "N3 interface address"
+            },
+            {
+                "prefix": "192.168.5.0/24",
+                "source": "interface",
+                "description": "N6 interface subnet"
             }
         ]
     }
 }
 ```
 
-The `rejectedPrefixes` array lists prefixes that are always rejected by the safety filter. These are derived from N3/N6 interface subnets, data network IP pools, and built-in prefixes (link-local, loopback, multicast). They are read-only and cannot be configured.
+The `rejectedPrefixes` array lists prefixes that are always rejected by the safety filter. These are derived from the N3 interface address, N6 interface subnets, data network IP pools, and built-in prefixes (link-local, loopback, multicast). They are read-only and cannot be configured.
 
 ## Update BGP Settings
 
@@ -578,7 +586,7 @@ Updates the BGP configuration. Enabling BGP starts the embedded BGP speaker. Cha
 
 - `enabled` (boolean): Enable or disable BGP.
 - `localAS` (integer): The local autonomous system number.
-- `routerID` (string): The BGP router ID (IPv4 address format).
+- `routerID` (string): The BGP router ID (an IPv4 or IPv6 address).
 - `listenAddress` (string): The address and port to listen on (e.g. `:179`).
 
 ### Sample Response
@@ -693,7 +701,7 @@ Adds a new BGP peer. If BGP is running, the peer is added to the live speaker im
 
 ### Parameters
 
-- `address` (string, required): The IPv4 address of the peer.
+- `address` (string, required): The IPv4 or IPv6 address of the peer.
 - `remoteAS` (integer, required): The remote autonomous system number.
 - `holdTime` (integer): The BGP hold timer in seconds (default `90`, minimum `3`). Keepalive is derived as holdTime / 3.
 - `password` (string): MD5 authentication password. Omit or set to empty string for no authentication.
@@ -720,7 +728,7 @@ Updates an existing BGP peer. If BGP is running, the peer is reconfigured in the
 
 ### Parameters
 
-- `address` (string, required): The IPv4 address of the peer.
+- `address` (string, required): The IPv4 or IPv6 address of the peer.
 - `remoteAS` (integer, required): The remote autonomous system number.
 - `holdTime` (integer): The BGP hold timer in seconds (default `90`, minimum `3`).
 - `password` (string): MD5 authentication password.

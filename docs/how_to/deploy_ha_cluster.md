@@ -28,7 +28,7 @@ db:
 interfaces:
   n2:
     address: "10.0.0.1"
-    port: 38412
+    ngap-port: 38412
   n3:
     name: "n3"
   n6:

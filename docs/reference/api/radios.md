@@ -31,6 +31,7 @@ This path returns the list of radios in the inventory.
 | `name`           | string | Radio name. |
 | `id`             | string | Radio identifier. |
 | `address`        | string | Radio address. |
+| `type`           | string | Radio type: `gNB`, `ng-eNB`, `eNB`, `N3IWF`, or `Unknown`. |
 | `supported_tais` | array  | **Deprecated.** Use [Get a Radio](#get-a-radio) for supported TAIs. This field will be removed in a future release. |
 
 ### Sample Response
@@ -43,6 +44,7 @@ This path returns the list of radios in the inventory.
                 "name": "gnb1",
                 "id": "001:01:000102",
                 "address": "10.1.107.203/192.168.251.5:9487",
+                "type": "gNB",
                 "supported_tais": []
             }
         ],
@@ -143,6 +145,8 @@ This path returns the list of radio events.
             {
                 "id": 1,
                 "timestamp": "2025-08-12T16:58:00.810-0400",
+                "radio": "gnb1",
+                "address": "10.1.107.203:9487",
                 "protocol": "NGAP",
                 "message_type": "PDU Session Establishment Accept",
                 "direction": "inbound",
@@ -268,7 +272,7 @@ None
 ```json
 {
     "result": {
-        "message": "All radio events have been deleted successfully"
+        "message": "All radio events cleared successfully"
     }
 }
 ```
