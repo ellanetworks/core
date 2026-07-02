@@ -28,7 +28,7 @@ None
             "mnc": "01"
         },
         "tracking": {
-            "supportedTACs": [
+            "supportedTacs": [
                 "001",
                 "002",
                 "003"
@@ -36,7 +36,7 @@ None
         },
         "homeNetworkKeys": [
                 {
-                    "id": 1,
+                    "id": "0197b3a4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
                     "keyIdentifier": 0,
                     "scheme": "A",
                     "publicKey": "021bd3c0ba857e6f45b6ecb76ad826fd27fecef441f23d0e418b645829261e16"
@@ -87,7 +87,7 @@ This path updates the operator tracking information. The Tracking Area Codes (TA
 
 ### Parameters
 
-- `supportedTACs` (array): An array of supported TACs (Tracking Area Codes). Each TAC must be a 24-bit integer.
+- `supportedTacs` (array): An array of supported TACs (Tracking Area Codes). Each TAC must be a 6-character hex string.
 
 ### Sample Response
 
@@ -155,7 +155,7 @@ Returns the private key for a home network key. This is a sensitive operation th
 
 ### Parameters
 
-- `id` (integer, path): The database ID of the home network key.
+- `id` (string, path): The UUID of the home network key.
 
 ### Sample Response
 
@@ -177,7 +177,7 @@ Removes a home network key. UEs using this key will no longer be able to registe
 
 ### Parameters
 
-- `id` (integer, path): The database ID of the home network key.
+- `id` (string, path): The UUID of the home network key.
 
 ### Sample Response
 

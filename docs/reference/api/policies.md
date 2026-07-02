@@ -25,6 +25,7 @@ This path returns the list of policies.
 | ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
 | `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
 | `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
+| `profile_name` | query | str |     |         | Filter by profile name.       |
 
 ### Sample Response
 
@@ -40,7 +41,8 @@ This path returns the list of policies.
                 "session_ambr_downlink": "100 Mbps",
                 "var5qi": 9,
                 "arp": 1,
-                "data_network_name": "internet"
+                "data_network_name": "internet",
+                "default": true
             }
         ],
         "page": 1,
@@ -68,6 +70,7 @@ This path creates a new policy. Optionally, you can create network rules as part
 - `var5qi` (integer): 5G QoS Identifier (5QI). Signaled to the radio, which uses it for scheduling (latency budget, error rate, priority); on a 4G radio it is signaled as the equivalent QCI. Valid values: 5, 6, 7, 8, 9, 69, 70, 79, 80 (non-GBR only).
 - `arp` (integer): Allocation and Retention Priority (1–15). Used by the radio at session setup for admission control and pre-emption decisions. Has no effect on traffic once the session is established. 1 = highest priority.
 - `data_network_name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
+- `default` (boolean, optional): Make this the profile's default APN/DNN binding (used for the 4G default bearer and 5G fallback). The first policy created in a profile becomes the default regardless.
 - `rules` (object, optional): Network rules to create with the policy, organized by direction. Rules are created in the order provided.
 
 ### Rules Object Structure
@@ -198,6 +201,7 @@ This path updates an existing policy. Network rules are always replaced on every
 - `var5qi` (integer): 5G QoS Identifier (5QI). Signaled to the radio, which uses it for scheduling (latency budget, error rate, priority); on a 4G radio it is signaled as the equivalent QCI. Valid values: 5, 6, 7, 8, 9, 69, 70, 79, 80 (non-GBR only).
 - `arp` (integer): Allocation and Retention Priority (1–15). Used by the radio at session setup for admission control and pre-emption decisions. Has no effect on traffic once the session is established. 1 = highest priority.
 - `data_network_name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
+- `default` (boolean, optional): Make this the profile's default APN/DNN binding, clearing the previous default. Omitted or false leaves it unchanged.
 - `rules` (object, optional): Network rules to set on the policy. Existing rules are always deleted first. If this field is omitted, all existing rules are deleted.
 
 ### Rules Behavior
@@ -289,6 +293,7 @@ None
         "var5qi": 9,
         "arp": 1,
         "data_network_name": "internet",
+        "default": false,
         "rules": {
             "uplink": [
                 {
@@ -343,7 +348,8 @@ If a policy has no associated rules, the `rules` field will be omitted:
         "session_ambr_downlink": "10 Mbps",
         "var5qi": 9,
         "arp": 1,
-        "data_network_name": "internet"
+        "data_network_name": "internet",
+        "default": false
     }
 }
 ```

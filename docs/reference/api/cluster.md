@@ -29,7 +29,8 @@ None
             "apiAddress": "https://10.0.0.1:5000",
             "binaryVersion": "v1.12.0",
             "suffrage": "voter",
-            "isLeader": true
+            "isLeader": true,
+            "drainState": "active"
         },
         {
             "nodeId": 2,
@@ -37,7 +38,8 @@ None
             "apiAddress": "https://10.0.0.2:5000",
             "binaryVersion": "v1.12.0",
             "suffrage": "voter",
-            "isLeader": false
+            "isLeader": false,
+            "drainState": "active"
         }
     ]
 }
@@ -45,7 +47,7 @@ None
 
 ## Remove a Cluster Member
 
-This path removes a node from the Raft cluster. The node must be drained first (`drainState == "drained"`) unless `force=true` is set. Requires admin privileges.
+This path removes a node from the Raft cluster. The node must be drained first (`drainState == "drained"`) unless `force=true` is set. The current leader cannot be removed regardless of `force`. Requires admin privileges.
 
 | Method | Path                            |
 | ------ | ------------------------------- |

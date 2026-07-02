@@ -37,7 +37,7 @@ This guide walks through adding a node to an existing Ella Core high-availabilit
     sudo snap start --enable ella-core.cored
     ```
 
-5. On the **Cluster** page, verify the new node appears and is shown as **Healthy**. Autopilot promotes it to voter automatically after a short stabilization window.
+5. On the **Cluster** page, verify the new node appears and is shown as a **Voter** and **Healthy**. It joins the voting set directly.
 
 ## Verify the new cluster size
 

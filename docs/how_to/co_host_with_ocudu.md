@@ -59,11 +59,11 @@ logging:
   audit:
     output: "stdout"
 db:
-  path: "/var/snap/ella-core/common/data"
+  path: "/var/snap/ella-core/common/data/ella.db"
 interfaces:
   n2:
     name: "n3-upf-veth"
-    port: 38412
+    ngap-port: 38412
   n3:
     name: "n3-upf-veth"
   n6:

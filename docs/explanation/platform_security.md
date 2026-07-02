@@ -31,7 +31,10 @@ Every request is authorized against a role-based permission system with three bu
 - **User passwords** are stored as one-way hashes. Verification uses constant-time comparison to prevent timing attacks.
 - **API token secrets** are stored as one-way hashes. The raw token is returned only once at creation time and is never retrievable afterward.
 - **Session tokens** are cryptographically random values. Only a one-way hash is persisted.
-- **JWT signing secret** is generated randomly at startup and held only in memory. It is never written to disk or exposed through the API. A service restart invalidates all previously issued tokens.
+- **JWT signing secret** is a cryptographically random value generated once and stored in the database. It is never exposed through the API. Rotating it invalidates all previously issued tokens and sessions.
+
+!!! warning
+    Database backups contain the full database, including subscriber secrets (Key, OPc, SQN) and the JWT signing secret. Store and transfer backups encrypted and treat them as admin credentials.
 
 ## Transport Security
 
@@ -42,6 +45,8 @@ The TLS configuration is defined in the [configuration file](../reference/config
 For production deployments, replace the self-signed certificate with one issued by a trusted Certificate Authority (CA) and restrict access to the private key.
 
 Ella Core supports TLS `1.2` and `1.3`.
+
+In a [high-availability](high_availability.md) cluster, inter-node communication is secured with mutual TLS (TLS `1.3`) using fingerprint-pinned, per-node self-signed certificates.
 
 ## Minimal Attack Surface
 

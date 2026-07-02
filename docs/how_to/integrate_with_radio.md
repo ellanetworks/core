@@ -16,8 +16,6 @@ Follow this guide to integrate Ella Core with a radio. This guide assumes you ha
     - **MCC**: The Mobile Country Code for the operator.
     - **MNC**: The Mobile Network Code for the operator.
     - **Supported TACs**: A list of supported Tracking Area Codes (TACs).
-    - **SST**: The Slice/Service Type.
-    - **SD**: The Service Differentiator.
 
 ## 2. Configure the radio
 

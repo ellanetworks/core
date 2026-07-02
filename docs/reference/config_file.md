@@ -12,14 +12,14 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
 
 - `logging` (object): The logging configuration.
     - `system` (object): The system logging configuration.
-        - `level` (string): The log level. Options are `trace`, `debug`, `info`, `warn`, `error`, and `fatal`.
+        - `level` (string): The log level. Options are `debug`, `info`, `warn`, `error`, and `fatal`.
         - `output` (string): The output for the logs. Options are `stdout` and `file`.
         - `path` (string): The path to the log file. This is only used if the output is set to `file`.
     - `audit` (object): The audit logging configuration.
         - `output` (string): The output for the logs. Options are `stdout` and `file`.
         - `path` (string): The path to the log file. This is only used if the output is set to `file`.
 - `db` (object): The database configuration.
-    - `path` (string): The path to the directory holding the database file (`ella.db`).
+    - `path` (string): The path to the SQLite database file. The parent directory must already exist. The file should be named `ella.db`, as backup and restore expect that name.
 - `interfaces` (object): The network interfaces configuration.
     - `n2` (object): The configuration for the n2 interface (N2 in 5G, S1-MME in 4G). This is the control-plane interface to the radios; the same interface serves both 5G gNBs and 4G eNBs over SCTP.
         - `name` (string): The name of the network interface to listen on (optional: either name or address must be provided). When set, the server binds to all IP addresses configured on this interface. Link-local addresses (IPv6 link-local and IPv4 link-local) are automatically excluded.
@@ -59,7 +59,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `trailing-logs` (int, optional): Number of Raft log entries retained after a snapshot so a briefly-disconnected follower can catch up by log replay instead of receiving a full snapshot. Defaults to `10240`, which is correct for the vast majority of deployments. Lower it only if the Raft log is growing unboundedly under sustained write load; raise it only if followers repeatedly fall behind and trigger snapshot installs. Setting it too low on a cluster with a large database can put followers in a loop where they keep downloading snapshots and never converge.
 
 !!! note
-    When you use the Ella Core snap, the configuration file is located at `/var/snap/ella-core/common/config.yaml`. After modifying the configuration file, restart Ella Core with `sudo snap restart ella-core.cored` for the changes to take effect.
+    When you use the Ella Core snap, the configuration file is located at `/var/snap/ella-core/common/core.yaml`. After modifying the configuration file, restart Ella Core with `sudo snap restart ella-core.cored` for the changes to take effect.
 
 ## Example
 
@@ -72,7 +72,7 @@ logging:
     output: "file"
     path: "/var/log/ella_system.log"
 db:
-  path: "/var/lib/ella-core"
+  path: "/var/lib/ella-core/ella.db"
 interfaces:
   n2:
     address: "22.22.22.2"
