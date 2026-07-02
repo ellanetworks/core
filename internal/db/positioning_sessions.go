@@ -34,7 +34,7 @@ const (
 )
 
 const (
-	createPositioningSessionStmt      = `INSERT INTO %s (id, supi, amf_id, session_type, method, qos_response_time_ms, qos_horizontal_accuracy_m, status, last_result, created_at, updated_at) VALUES ($PositioningSession.id, $PositioningSession.supi, $PositioningSession.amf_id, $PositioningSession.session_type, $PositioningSession.method, $PositioningSession.qos_response_time_ms, $PositioningSession.qos_horizontal_accuracy_m, $PositioningSession.status, $PositioningSession.last_result, $PositioningSession.created_at, $PositioningSession.updated_at);`
+	createPositioningSessionStmt      = `INSERT INTO %s (id, supi, session_type, method, qos_response_time_ms, qos_horizontal_accuracy_m, status, last_result, created_at, updated_at) VALUES ($PositioningSession.id, $PositioningSession.supi, $PositioningSession.session_type, $PositioningSession.method, $PositioningSession.qos_response_time_ms, $PositioningSession.qos_horizontal_accuracy_m, $PositioningSession.status, $PositioningSession.last_result, $PositioningSession.created_at, $PositioningSession.updated_at);`
 	getPositioningSessionStmt         = `SELECT &PositioningSession.* FROM %s WHERE id==$PositioningSession.id;`
 	listPositioningSessionsBySupiStmt = `SELECT &PositioningSession.* FROM %s WHERE supi==$PositioningSession.supi AND status==$PositioningSession.status ORDER BY created_at DESC;`
 	listPositioningSessionsAllStmt    = `SELECT &PositioningSession.* FROM %s WHERE supi==$PositioningSession.supi ORDER BY created_at DESC;`
@@ -46,7 +46,6 @@ const (
 type PositioningSession struct {
 	ID                string  `db:"id"`
 	SUPI              string  `db:"supi"`
-	AMFID             string  `db:"amf_id"`
 	SessionType       int     `db:"session_type"`
 	Method            string  `db:"method"`
 	QoSResponseTimeMs *int    `db:"qos_response_time_ms"`

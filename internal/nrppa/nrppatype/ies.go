@@ -326,8 +326,13 @@ const (
 )
 
 // MeasuredResults ::= SEQUENCE (SIZE (1..maxNoMeas=64)) OF MeasuredResultsValue.
-// Element is a (non-"..."-extensible) CHOICE of 6 alternatives → the List field
-// carries both the size bounds and valueLB:0,valueUB:5 (propagated to elements).
+// Element is a NON-extensible CHOICE with 6 root alternatives (5 EUTRA types +
+// choice-Extension). Per TS 38.455 §9.3.5 the CHOICE has no "..." marker; the
+// choice-Extension alternative IS the extensibility mechanism (a
+// ProtocolIE-Single-Container). The index is therefore a plain constrained value
+// (range 0..5 → 3 bits), so the List tag uses valueLB:0,valueUB:5 and NO
+// valueExt. This matches the real gNB wire encoding (verified against a PCAP:
+// Choice Index range 6, 3 bits, value 5 = choice-Extension).
 type MeasuredResults struct {
 	List []MeasuredResultsValue `aper:"sizeLB:1,sizeUB:64,valueLB:0,valueUB:5"`
 }
@@ -338,7 +343,8 @@ type MeasuredResults struct {
 //	    valueTimingAdvanceType2-EUTRA INTEGER (0..7690),
 //	    resultRSRP-EUTRA              ResultRSRP-EUTRA,
 //	    resultRSRQ-EUTRA              ResultRSRQ-EUTRA,
-//	    choice-Extension              ...
+//	    choice-Extension              ProtocolIE-Single-Container
+//	                                      {{ MeasuredResultsValue-ExtensionIE }}
 //	}
 const (
 	MeasuredResultsValuePresentNothing int = iota /* No components present */
@@ -358,6 +364,47 @@ type MeasuredResultsValue struct {
 	ResultRSRPEUTRA              *ResultRSRPEUTRA
 	ResultRSRQEUTRA              *ResultRSRQEUTRA
 	ChoiceExtension              *ProtocolIESingleContainerMeasuredResultsValueExtensionIE
+}
+
+// =====================================================================
+// MeasuredResultsValue-ExtensionIE types (TS 38.455 §9.3.5)
+// =====================================================================
+//
+//	MeasuredResultsValue-ExtensionIE NRPPA-PROTOCOL-IES ::= {
+//	    { ID id-ResultSS-RSRP  CRITICALITY ignore TYPE ResultSS-RSRP  PRESENCE mandatory }|
+//	    { ID id-ResultSS-RSRQ  CRITICALITY ignore TYPE ResultSS-RSRQ  PRESENCE mandatory }|
+//	    { ID id-ResultCSI-RSRP CRITICALITY ignore TYPE ResultCSI-RSRP PRESENCE mandatory }|
+//	    { ID id-ResultCSI-RSRQ CRITICALITY ignore TYPE ResultCSI-RSRQ PRESENCE mandatory }|
+//	    { ID id-AngleOfArrivalNR  CRITICALITY ignore TYPE UL-AoA      PRESENCE mandatory }|
+//	    { ID id-NR-TADV           CRITICALITY ignore TYPE NR-TADV     PRESENCE mandatory }|
+//	    { ID id-UE-Rx-Tx-Time-Diff CRITICALITY ignore TYPE
+//	                                  UE-Rx-Tx-Time-Diff PRESENCE mandatory },
+//	    ...
+//	}
+//
+// MeasuredResultsValueExtIEs is the ProtocolIEField (id + criticality + open
+// type) that sits inside the choice-Extension ProtocolIE-Single-Container.
+
+type MeasuredResultsValueExtIEs struct {
+	Id          ProtocolIEID
+	Criticality Criticality
+	Value       MeasuredResultsValueExtIEsValue `aper:"openType,referenceFieldName:Id"`
+}
+
+const (
+	MeasuredResultsValueExtIEsPresentNothing int = iota
+	MeasuredResultsValueExtIEsPresentResultSSRSRP
+	MeasuredResultsValueExtIEsPresentResultSSRSRQ
+	MeasuredResultsValueExtIEsPresentResultCSIRSRP
+	MeasuredResultsValueExtIEsPresentResultCSIRSRQ
+)
+
+type MeasuredResultsValueExtIEsValue struct {
+	Present       int
+	ResultSSRSRP  *ResultSSRSRP  `aper:"referenceFieldValue:32"`
+	ResultSSRSRQ  *ResultSSRSRQ  `aper:"referenceFieldValue:33"`
+	ResultCSIRSRP *ResultCSIRSRP `aper:"referenceFieldValue:34"`
+	ResultCSIRSRQ *ResultCSIRSRQ `aper:"referenceFieldValue:35"`
 }
 
 // ResultRSRP-EUTRA ::= SEQUENCE (SIZE (1..maxCellReport=9)) OF
@@ -389,4 +436,148 @@ type ResultRSRQEUTRAItem struct {
 	EARFCN         EARFCN
 	ValueRSRQEUTRA ValueRSRQEUTRA
 	IEExtensions   *ProtocolExtensionContainerResultRSRQEUTRAItemExtIEs `aper:"optional"`
+}
+
+// =====================================================================
+// NR-specific measurement result types (TS 38.455 Rel-16+)
+// =====================================================================
+
+// ResultSS-RSRP ::= SEQUENCE (SIZE (1..maxCellReport=9)) OF ResultSS-RSRP-Item.
+type ResultSSRSRP struct {
+	List []ResultSSRSRPItem `aper:"valueExt,sizeLB:1,sizeUB:9"`
+}
+
+//	ResultSS-RSRP-Item ::= SEQUENCE {
+//	    nR-PCI            NR-PCI,
+//	    nR-ARFCN          NR-ARFCN,
+//	    cGI-NR            CGI-NR                       OPTIONAL,
+//	    valueSS-RSRP-Cell INTEGER (0..127)             OPTIONAL,
+//	    sS-RSRP-PerSSB    SEQUENCE (SIZE(1..maxNoSSBs=64)) OF ResultSS-RSRP-PerSSB-Item OPTIONAL,
+//	    iE-Extensions     ProtocolExtensionContainer   OPTIONAL,
+//	    ...
+//	}
+//
+// Extensible SEQUENCE with 4 optional fields (the per-element extension bit is
+// supplied by the valueExt on the parent List). Verified against a real gNB
+// PCAP: the item carries cGI-NR, valueSS-RSRP-Cell and sS-RSRP-PerSSB.
+type ResultSSRSRPItem struct {
+	NRPCI           NRPCI
+	NRARFCN         NRARFCN
+	CGINR           *CGINR                                            `aper:"optional,valueExt"`
+	ValueSSRSRPCell *int64                                            `aper:"optional,valueLB:0,valueUB:127"`
+	SSRSRPPerSSB    *ResultSSRSRPPerSSB                               `aper:"optional"`
+	IEExtensions    *ProtocolExtensionContainerResultSSRSRPItemExtIEs `aper:"optional"`
+}
+
+// sS-RSRP-PerSSB ::= SEQUENCE (SIZE(1..maxNoSSBs=64)) OF ResultSS-RSRP-PerSSB-Item.
+type ResultSSRSRPPerSSB struct {
+	List []ResultSSRSRPPerSSBItem `aper:"valueExt,sizeLB:1,sizeUB:64"`
+}
+
+//	ResultSS-RSRP-PerSSB-Item ::= SEQUENCE {
+//	    sSB-Index    SSB-Index,          -- INTEGER (0..63)
+//	    valueSS-RSRP INTEGER (0..127),
+//	    iE-Extensions ProtocolExtensionContainer OPTIONAL,
+//	    ...
+//	}
+type ResultSSRSRPPerSSBItem struct {
+	SSBIndex     int64                                                   `aper:"valueLB:0,valueUB:63"`
+	ValueSSRSRP  int64                                                   `aper:"valueLB:0,valueUB:127"`
+	IEExtensions *ProtocolExtensionContainerResultSSRSRPPerSSBItemExtIEs `aper:"optional"`
+}
+
+// ResultSS-RSRQ ::= SEQUENCE (SIZE (1..maxCellReport=9)) OF ResultSS-RSRQ-Item.
+type ResultSSRSRQ struct {
+	List []ResultSSRSRQItem `aper:"valueExt,sizeLB:1,sizeUB:9"`
+}
+
+//	ResultSS-RSRQ-Item ::= SEQUENCE {
+//	    nR-PCI            NR-PCI,
+//	    nR-ARFCN          NR-ARFCN,
+//	    cGI-NR            CGI-NR                       OPTIONAL,
+//	    valueSS-RSRQ-Cell INTEGER (0..127)             OPTIONAL,
+//	    sS-RSRQ-PerSSB    SEQUENCE (SIZE(1..maxNoSSBs=64)) OF ResultSS-RSRQ-PerSSB-Item OPTIONAL,
+//	    iE-Extensions     ProtocolExtensionContainer   OPTIONAL,
+//	    ...
+//	}
+type ResultSSRSRQItem struct {
+	NRPCI           NRPCI
+	NRARFCN         NRARFCN
+	CGINR           *CGINR                                            `aper:"optional,valueExt"`
+	ValueSSRSRQCell *int64                                            `aper:"optional,valueLB:0,valueUB:127"`
+	SSRSRQPerSSB    *ResultSSRSRQPerSSB                               `aper:"optional"`
+	IEExtensions    *ProtocolExtensionContainerResultSSRSRQItemExtIEs `aper:"optional"`
+}
+
+// sS-RSRQ-PerSSB ::= SEQUENCE (SIZE(1..maxNoSSBs=64)) OF ResultSS-RSRQ-PerSSB-Item.
+type ResultSSRSRQPerSSB struct {
+	List []ResultSSRSRQPerSSBItem `aper:"valueExt,sizeLB:1,sizeUB:64"`
+}
+
+//	ResultSS-RSRQ-PerSSB-Item ::= SEQUENCE {
+//	    sSB-Index    SSB-Index,          -- INTEGER (0..63)
+//	    valueSS-RSRQ INTEGER (0..127),
+//	    iE-Extensions ProtocolExtensionContainer OPTIONAL,
+//	    ...
+//	}
+type ResultSSRSRQPerSSBItem struct {
+	SSBIndex     int64                                                   `aper:"valueLB:0,valueUB:63"`
+	ValueSSRSRQ  int64                                                   `aper:"valueLB:0,valueUB:127"`
+	IEExtensions *ProtocolExtensionContainerResultSSRSRQPerSSBItemExtIEs `aper:"optional"`
+}
+
+// CGI-NR ::= SEQUENCE { pLMN-Identity PLMN-Identity, nRcellIdentifier
+// NR-Cell-Identity, iE-Extensions OPTIONAL, ... }. Extensible, 1 optional field.
+type CGINR struct {
+	PLMNIdentity     PLMNIdentity
+	NRCellIdentifier NRCellIdentity
+	IEExtensions     *ProtocolExtensionContainerCGINRExtIEs `aper:"optional"`
+}
+
+// ResultCSI-RSRP ::= SEQUENCE (SIZE (1..maxCellReport=9)) OF ResultCSI-RSRP-Item.
+type ResultCSIRSRP struct {
+	List []ResultCSIRSRPItem `aper:"valueExt,sizeLB:1,sizeUB:9"`
+}
+
+type ResultCSIRSRPItem struct {
+	NRPCI        NRPCI
+	NRARFCN      NRARFCN
+	CSIRSIndex   *int64 `aper:"optional"`
+	ValueCSIRSRP ValueCSIRSRP
+	IEExtensions *ProtocolExtensionContainerResultCSIRSRPItemExtIEs `aper:"optional"`
+}
+
+// ResultCSI-RSRQ ::= SEQUENCE (SIZE (1..maxCellReport=9)) OF ResultCSI-RSRQ-Item.
+type ResultCSIRSRQ struct {
+	List []ResultCSIRSRQItem `aper:"valueExt,sizeLB:1,sizeUB:9"`
+}
+
+type ResultCSIRSRQItem struct {
+	NRPCI        NRPCI
+	NRARFCN      NRARFCN
+	CSIRSIndex   *int64 `aper:"optional"`
+	ValueCSIRSRQ ValueCSIRSRQ
+	IEExtensions *ProtocolExtensionContainerResultCSIRSRQItemExtIEs `aper:"optional"`
+}
+
+// NRPCI ::= INTEGER (0..1007). NOT extensible (verified against real gNB PCAP).
+type NRPCI struct {
+	Value int64 `aper:"valueLB:0,valueUB:1007"`
+}
+
+// NRARFCN ::= INTEGER (0..maxNRARFCN=3279165). NOT extensible (verified against
+// real gNB PCAP: an extension bit here would be misread as part of the length
+// determinant and break decoding).
+type NRARFCN struct {
+	Value int64 `aper:"valueLB:0,valueUB:3279165"`
+}
+
+// ValueCSI-RSRP ::= INTEGER (0..126, ...). Extensible.
+type ValueCSIRSRP struct {
+	Value int64 `aper:"valueLB:0,valueUB:126,valueExt"`
+}
+
+// ValueCSI-RSRQ ::= INTEGER (0..34, ...). Extensible.
+type ValueCSIRSRQ struct {
+	Value int64 `aper:"valueLB:0,valueUB:34,valueExt"`
 }

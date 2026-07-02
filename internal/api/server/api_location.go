@@ -19,7 +19,6 @@ import (
 // LocationRequest is the unified request body for all location operations.
 type LocationRequest struct {
 	SUPI              string `json:"supi"`
-	AMFID             string `json:"amf_id"`
 	RequestType       string `json:"request_type"`
 	Method            string `json:"method"`
 	SessionID         string `json:"session_id"`
@@ -117,11 +116,6 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 			}
 		}
 
-		if req.AMFID == "" {
-			writeError(r.Context(), w, http.StatusBadRequest, "amf_id is required", nil, logger.APILog)
-			return
-		}
-
 		supi, err := etsi.NewSUPIFromPrefixed(req.SUPI)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid SUPI", err, logger.APILog)
@@ -140,7 +134,6 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 		case lmf.MethodECID:
 			sessionID, err := lmfInstance.SessionManager().CreateSession(r.Context(), lmf.CreateSessionParams{
 				SUPI:              req.SUPI,
-				AMFID:             req.AMFID,
 				RequestType:       lmf.RequestType(req.RequestType),
 				Method:            method,
 				QoSResponseTimeMs: req.QoSResponseTimeMs,
@@ -173,7 +166,7 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 				return
 			}
 
-			writeResponse(r.Context(), w, map[string]string{"id": sessionID}, http.StatusCreated, logger.APILog)
+			writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)
 
 			return
 
@@ -187,7 +180,12 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 					zap.String("method", string(method)),
 					zap.Error(err),
 				)
-			} else if sessionID != "" {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to determine location", err, logger.APILog)
+
+				return
+			}
+
+			if sessionID != "" {
 				// Session was created and completed by the LPP state machine.
 				// Ensure the result is stored for the tester to retrieve.
 				if err := lmfInstance.SessionManager().CompleteSession(r.Context(), sessionID, result); err != nil {
@@ -198,7 +196,7 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 				}
 			}
 
-			writeResponse(r.Context(), w, map[string]string{"id": sessionID}, http.StatusCreated, logger.APILog)
+			writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)
 
 			return
 		}
@@ -207,7 +205,6 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 		// just create the session and return the ID.
 		sessionID, err := lmfInstance.SessionManager().CreateSession(r.Context(), lmf.CreateSessionParams{
 			SUPI:              req.SUPI,
-			AMFID:             req.AMFID,
 			RequestType:       lmf.RequestType(req.RequestType),
 			Method:            method,
 			QoSResponseTimeMs: req.QoSResponseTimeMs,

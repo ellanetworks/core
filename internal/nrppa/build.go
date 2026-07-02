@@ -267,6 +267,129 @@ func buildECIDMeasurementResult(r *ECIDResult) (*nrppatype.ECIDMeasurementResult
 		})
 	}
 
+	// Append NR measurement types (SS-RSRP, SS-RSRQ, CSI-RSRP, CSI-RSRQ) as
+	// choice-Extension IEs, matching the ASN.1 in TS 38.455 §9.3.5. Each entry
+	// is a ProtocolIE-Single-Container with id / criticality / open-type value
+	// so that the aper codec dispatches on the ProtocolIEID.
+
+	if r.ResultSSRSRP != nil {
+		ssrsrp := &nrppatype.ResultSSRSRP{}
+
+		for _, item := range r.ResultSSRSRP.Items {
+			value := item.Value
+			ssrsrp.List = append(ssrsrp.List, nrppatype.ResultSSRSRPItem{
+				NRPCI:           nrppatype.NRPCI{Value: item.NRPCI},
+				NRARFCN:         nrppatype.NRARFCN{Value: 0},
+				ValueSSRSRPCell: &value,
+			})
+		}
+
+		measured.List = append(measured.List, nrppatype.MeasuredResultsValue{
+			Present: nrppatype.MeasuredResultsValuePresentChoiceExtension,
+			ChoiceExtension: &nrppatype.ProtocolIESingleContainerMeasuredResultsValueExtensionIE{
+				MeasuredResultsValueExtIEs: &nrppatype.MeasuredResultsValueExtIEs{
+					Id:          nrppatype.ProtocolIEID{Value: nrppatype.ProtocolIEIDResultSSRSRP},
+					Criticality: nrppatype.Criticality{Value: nrppatype.CriticalityPresentIgnore},
+					Value: nrppatype.MeasuredResultsValueExtIEsValue{
+						Present:      nrppatype.MeasuredResultsValueExtIEsPresentResultSSRSRP,
+						ResultSSRSRP: ssrsrp,
+					},
+				},
+			},
+		})
+	}
+
+	if r.ResultSSRSRQ != nil {
+		ssrsrq := &nrppatype.ResultSSRSRQ{}
+
+		for _, item := range r.ResultSSRSRQ.Items {
+			value := item.Value
+			ssrsrq.List = append(ssrsrq.List, nrppatype.ResultSSRSRQItem{
+				NRPCI:           nrppatype.NRPCI{Value: item.NRPCI},
+				NRARFCN:         nrppatype.NRARFCN{Value: 0},
+				ValueSSRSRQCell: &value,
+			})
+		}
+
+		measured.List = append(measured.List, nrppatype.MeasuredResultsValue{
+			Present: nrppatype.MeasuredResultsValuePresentChoiceExtension,
+			ChoiceExtension: &nrppatype.ProtocolIESingleContainerMeasuredResultsValueExtensionIE{
+				MeasuredResultsValueExtIEs: &nrppatype.MeasuredResultsValueExtIEs{
+					Id:          nrppatype.ProtocolIEID{Value: nrppatype.ProtocolIEIDResultSSRSRQ},
+					Criticality: nrppatype.Criticality{Value: nrppatype.CriticalityPresentIgnore},
+					Value: nrppatype.MeasuredResultsValueExtIEsValue{
+						Present:      nrppatype.MeasuredResultsValueExtIEsPresentResultSSRSRQ,
+						ResultSSRSRQ: ssrsrq,
+					},
+				},
+			},
+		})
+	}
+
+	if r.ResultCSIRSRP != nil {
+		csirsrp := &nrppatype.ResultCSIRSRP{}
+
+		for _, item := range r.ResultCSIRSRP.Items {
+			ie := nrppatype.ResultCSIRSRPItem{
+				NRPCI:        nrppatype.NRPCI{Value: item.NRPCI},
+				NRARFCN:      nrppatype.NRARFCN{Value: 0},
+				ValueCSIRSRP: nrppatype.ValueCSIRSRP{Value: item.Value},
+			}
+			if item.CSIRSIndex != 0 {
+				idx := item.CSIRSIndex
+				ie.CSIRSIndex = &idx
+			}
+
+			csirsrp.List = append(csirsrp.List, ie)
+		}
+
+		measured.List = append(measured.List, nrppatype.MeasuredResultsValue{
+			Present: nrppatype.MeasuredResultsValuePresentChoiceExtension,
+			ChoiceExtension: &nrppatype.ProtocolIESingleContainerMeasuredResultsValueExtensionIE{
+				MeasuredResultsValueExtIEs: &nrppatype.MeasuredResultsValueExtIEs{
+					Id:          nrppatype.ProtocolIEID{Value: nrppatype.ProtocolIEIDResultCSIRSRP},
+					Criticality: nrppatype.Criticality{Value: nrppatype.CriticalityPresentIgnore},
+					Value: nrppatype.MeasuredResultsValueExtIEsValue{
+						Present:       nrppatype.MeasuredResultsValueExtIEsPresentResultCSIRSRP,
+						ResultCSIRSRP: csirsrp,
+					},
+				},
+			},
+		})
+	}
+
+	if r.ResultCSIRSRQ != nil {
+		csirsrq := &nrppatype.ResultCSIRSRQ{}
+
+		for _, item := range r.ResultCSIRSRQ.Items {
+			ie := nrppatype.ResultCSIRSRQItem{
+				NRPCI:        nrppatype.NRPCI{Value: item.NRPCI},
+				NRARFCN:      nrppatype.NRARFCN{Value: 0},
+				ValueCSIRSRQ: nrppatype.ValueCSIRSRQ{Value: item.Value},
+			}
+			if item.CSIRSIndex != 0 {
+				idx := item.CSIRSIndex
+				ie.CSIRSIndex = &idx
+			}
+
+			csirsrq.List = append(csirsrq.List, ie)
+		}
+
+		measured.List = append(measured.List, nrppatype.MeasuredResultsValue{
+			Present: nrppatype.MeasuredResultsValuePresentChoiceExtension,
+			ChoiceExtension: &nrppatype.ProtocolIESingleContainerMeasuredResultsValueExtensionIE{
+				MeasuredResultsValueExtIEs: &nrppatype.MeasuredResultsValueExtIEs{
+					Id:          nrppatype.ProtocolIEID{Value: nrppatype.ProtocolIEIDResultCSIRSRQ},
+					Criticality: nrppatype.Criticality{Value: nrppatype.CriticalityPresentIgnore},
+					Value: nrppatype.MeasuredResultsValueExtIEsValue{
+						Present:       nrppatype.MeasuredResultsValueExtIEsPresentResultCSIRSRQ,
+						ResultCSIRSRQ: csirsrq,
+					},
+				},
+			},
+		})
+	}
+
 	if len(measured.List) > 0 {
 		mr.MeasuredResults = measured
 	}

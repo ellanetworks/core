@@ -29,8 +29,8 @@ func TestSessionManager_CreateSession(t *testing.T) {
 	smgr := NewSessionManager(database)
 
 	sessionID, err := smgr.CreateSession(context.Background(), CreateSessionParams{
-		SUPI:        "imsi-123456789012345",
-		AMFID:       "amf-001",
+		SUPI: "imsi-123456789012345",
+
 		RequestType: RequestImmediate,
 		Method:      MethodCellID,
 	})
@@ -60,8 +60,8 @@ func TestSessionManager_CreateSession_DefaultMethod(t *testing.T) {
 	smgr := NewSessionManager(database)
 
 	sessionID, err := smgr.CreateSession(context.Background(), CreateSessionParams{
-		SUPI:        "imsi-123456789012345",
-		AMFID:       "amf-001",
+		SUPI: "imsi-123456789012345",
+
 		RequestType: RequestImmediate,
 	})
 	if err != nil {
@@ -95,8 +95,8 @@ func TestSessionManager_CreateSession_PersonicSessionType(t *testing.T) {
 	smgr := NewSessionManager(database)
 
 	sessionID, err := smgr.CreateSession(context.Background(), CreateSessionParams{
-		SUPI:        "imsi-123456789012345",
-		AMFID:       "amf-001",
+		SUPI: "imsi-123456789012345",
+
 		RequestType: RequestPeriodic,
 		Method:      MethodECID,
 	})
@@ -131,8 +131,8 @@ func TestSessionManager_CreateSession_TriggeredSessionType(t *testing.T) {
 	smgr := NewSessionManager(database)
 
 	sessionID, err := smgr.CreateSession(context.Background(), CreateSessionParams{
-		SUPI:        "imsi-123456789012345",
-		AMFID:       "amf-001",
+		SUPI: "imsi-123456789012345",
+
 		RequestType: RequestTriggered,
 		Method:      MethodECID,
 	})
@@ -167,8 +167,8 @@ func TestSessionManager_GetSession(t *testing.T) {
 	smgr := NewSessionManager(database)
 
 	sessionID, err := smgr.CreateSession(context.Background(), CreateSessionParams{
-		SUPI:        "imsi-123456789012345",
-		AMFID:       "amf-001",
+		SUPI: "imsi-123456789012345",
+
 		RequestType: RequestImmediate,
 		Method:      MethodCellID,
 	})
@@ -207,8 +207,8 @@ func TestSessionManager_CompleteSession(t *testing.T) {
 	smgr := NewSessionManager(database)
 
 	sessionID, err := smgr.CreateSession(context.Background(), CreateSessionParams{
-		SUPI:        "imsi-123456789012345",
-		AMFID:       "amf-001",
+		SUPI: "imsi-123456789012345",
+
 		RequestType: RequestImmediate,
 		Method:      MethodCellID,
 	})
@@ -251,8 +251,8 @@ func TestSessionManager_FailSession(t *testing.T) {
 	smgr := NewSessionManager(database)
 
 	sessionID, err := smgr.CreateSession(context.Background(), CreateSessionParams{
-		SUPI:        "imsi-123456789012345",
-		AMFID:       "amf-001",
+		SUPI: "imsi-123456789012345",
+
 		RequestType: RequestImmediate,
 		Method:      MethodCellID,
 	})
@@ -292,8 +292,8 @@ func TestSessionManager_CancelSession(t *testing.T) {
 	smgr := NewSessionManager(database)
 
 	sessionID, err := smgr.CreateSession(context.Background(), CreateSessionParams{
-		SUPI:        "imsi-123456789012345",
-		AMFID:       "amf-001",
+		SUPI: "imsi-123456789012345",
+
 		RequestType: RequestImmediate,
 		Method:      MethodCellID,
 	})
@@ -335,8 +335,8 @@ func TestSessionManager_ListSessionsBySupi(t *testing.T) {
 	supi := "imsi-123456789012345"
 
 	_, err = smgr.CreateSession(context.Background(), CreateSessionParams{
-		SUPI:        supi,
-		AMFID:       "amf-001",
+		SUPI: supi,
+
 		RequestType: RequestImmediate,
 		Method:      MethodCellID,
 	})
@@ -345,8 +345,8 @@ func TestSessionManager_ListSessionsBySupi(t *testing.T) {
 	}
 
 	_, err = smgr.CreateSession(context.Background(), CreateSessionParams{
-		SUPI:        supi,
-		AMFID:       "amf-001",
+		SUPI: supi,
+
 		RequestType: RequestImmediate,
 		Method:      MethodAGNSSAssisted,
 	})
@@ -383,8 +383,8 @@ func TestSessionManager_GetActiveSessionBySupi(t *testing.T) {
 	supi := "imsi-123456789012345"
 
 	_, err = smgr.CreateSession(context.Background(), CreateSessionParams{
-		SUPI:        supi,
-		AMFID:       "amf-001",
+		SUPI: supi,
+
 		RequestType: RequestImmediate,
 		Method:      MethodCellID,
 	})
@@ -393,8 +393,8 @@ func TestSessionManager_GetActiveSessionBySupi(t *testing.T) {
 	}
 
 	_, err = smgr.CreateSession(context.Background(), CreateSessionParams{
-		SUPI:        supi,
-		AMFID:       "amf-001",
+		SUPI: supi,
+
 		RequestType: RequestImmediate,
 		Method:      MethodAGNSSAssisted,
 	})

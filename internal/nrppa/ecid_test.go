@@ -200,6 +200,69 @@ func TestRoundTrip_Response_EUTRACell(t *testing.T) {
 	}
 }
 
+// TestRoundTrip_Response_NRMeasurements encodes SS-RSRP, SS-RSRQ, CSI-RSRP and
+// CSI-RSRQ via choice-Extension and verifies the round-trip preserves all values.
+func TestRoundTrip_Response_NRMeasurements(t *testing.T) {
+	nrCell := uint64(0x123456789)
+
+	ssrsrpVal := int64(42) // maps to -99 dBm
+	ssrsrqVal := int64(18) // maps to about -10.5 dB
+	csirsrpVal := int64(60)
+	csirsrqVal := int64(25)
+
+	result := &ECIDResult{
+		ServingCell: ServingCell{
+			PLMNIdentity:   []byte{0x00, 0xf1, 0x10},
+			NRCellIdentity: &nrCell,
+		},
+		ServingCellTAC: []byte{0x00, 0x00, 0x01},
+		ResultSSRSRP: &SSRSRPResult{
+			Items: []SSRSRPItem{{NRPCI: 1, Value: ssrsrpVal}},
+		},
+		ResultSSRSRQ: &SSRSRQResult{
+			Items: []SSRSRQItem{{NRPCI: 1, Value: ssrsrqVal}},
+		},
+		ResultCSIRSRP: &CSIRSRPResult{
+			Items: []CSIRSRPItem{{NRPCI: 1, Value: csirsrpVal}},
+		},
+		ResultCSIRSRQ: &CSIRSRQResult{
+			Items: []CSIRSRQItem{{NRPCI: 1, Value: csirsrqVal}},
+		},
+	}
+
+	encoded, err := BuildECIDMeasurementInitiationResponse(1, 2, result)
+	if err != nil {
+		t.Fatalf("BuildECIDMeasurementInitiationResponse: %v", err)
+	}
+
+	parsed, err := ParsePDU(encoded)
+	if err != nil {
+		t.Fatalf("ParsePDU: %v", err)
+	}
+
+	if parsed.Response == nil || parsed.Response.Result == nil {
+		t.Fatal("missing response/result")
+	}
+
+	got := parsed.Response.Result
+
+	if got.ResultSSRSRP == nil || len(got.ResultSSRSRP.Items) != 1 || got.ResultSSRSRP.Items[0].Value != ssrsrpVal {
+		t.Errorf("SS-RSRP: got %+v, want value=%d", got.ResultSSRSRP, ssrsrpVal)
+	}
+
+	if got.ResultSSRSRQ == nil || len(got.ResultSSRSRQ.Items) != 1 || got.ResultSSRSRQ.Items[0].Value != ssrsrqVal {
+		t.Errorf("SS-RSRQ: got %+v, want value=%d", got.ResultSSRSRQ, ssrsrqVal)
+	}
+
+	if got.ResultCSIRSRP == nil || len(got.ResultCSIRSRP.Items) != 1 || got.ResultCSIRSRP.Items[0].Value != csirsrpVal {
+		t.Errorf("CSI-RSRP: got %+v, want value=%d", got.ResultCSIRSRP, csirsrpVal)
+	}
+
+	if got.ResultCSIRSRQ == nil || len(got.ResultCSIRSRQ.Items) != 1 || got.ResultCSIRSRQ.Items[0].Value != csirsrqVal {
+		t.Errorf("CSI-RSRQ: got %+v, want value=%d", got.ResultCSIRSRQ, csirsrqVal)
+	}
+}
+
 // TestRoundTrip_Response_NoResult checks a response without an
 // E-CID-MeasurementResult (the optional IE absent) round-trips.
 func TestRoundTrip_Response_NoResult(t *testing.T) {

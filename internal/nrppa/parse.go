@@ -225,6 +225,28 @@ func parseECIDMeasurementResult(mr *nrppatype.ECIDMeasurementResult) *ECIDResult
 					ta := *v.ValueTimingAdvanceType2EUTRA
 					out.TimingAdvanceType2 = &ta
 				}
+			case nrppatype.MeasuredResultsValuePresentChoiceExtension:
+				if v.ChoiceExtension != nil && v.ChoiceExtension.MeasuredResultsValueExtIEs != nil {
+					ext := v.ChoiceExtension.MeasuredResultsValueExtIEs
+					switch ext.Value.Present {
+					case nrppatype.MeasuredResultsValueExtIEsPresentResultSSRSRP:
+						if ext.Value.ResultSSRSRP != nil {
+							out.ResultSSRSRP = parseSSRSRPResult(ext.Value.ResultSSRSRP)
+						}
+					case nrppatype.MeasuredResultsValueExtIEsPresentResultSSRSRQ:
+						if ext.Value.ResultSSRSRQ != nil {
+							out.ResultSSRSRQ = parseSSRSRQResult(ext.Value.ResultSSRSRQ)
+						}
+					case nrppatype.MeasuredResultsValueExtIEsPresentResultCSIRSRP:
+						if ext.Value.ResultCSIRSRP != nil {
+							out.ResultCSIRSRP = parseCSIRSRPResult(ext.Value.ResultCSIRSRP)
+						}
+					case nrppatype.MeasuredResultsValueExtIEsPresentResultCSIRSRQ:
+						if ext.Value.ResultCSIRSRQ != nil {
+							out.ResultCSIRSRQ = parseCSIRSRQResult(ext.Value.ResultCSIRSRQ)
+						}
+					}
+				}
 			}
 		}
 	}
@@ -277,4 +299,90 @@ func bitStringToUint64(bs aper.BitString) uint64 {
 	}
 
 	return v
+}
+
+// parseSSRSRPResult decodes SS-RSRP measurements.
+func parseSSRSRPResult(r *nrppatype.ResultSSRSRP) *SSRSRPResult {
+	out := &SSRSRPResult{}
+
+	for i := range r.List {
+		item := r.List[i]
+
+		var value int64
+		if item.ValueSSRSRPCell != nil {
+			value = *item.ValueSSRSRPCell
+		}
+
+		out.Items = append(out.Items, SSRSRPItem{
+			NRPCI: item.NRPCI.Value,
+			Value: value,
+		})
+	}
+
+	return out
+}
+
+// parseSSRSRQResult decodes SS-RSRQ measurements.
+func parseSSRSRQResult(r *nrppatype.ResultSSRSRQ) *SSRSRQResult {
+	out := &SSRSRQResult{}
+
+	for i := range r.List {
+		item := r.List[i]
+
+		var value int64
+		if item.ValueSSRSRQCell != nil {
+			value = *item.ValueSSRSRQCell
+		}
+
+		out.Items = append(out.Items, SSRSRQItem{
+			NRPCI: item.NRPCI.Value,
+			Value: value,
+		})
+	}
+
+	return out
+}
+
+// parseCSIRSRPResult decodes CSI-RSRP measurements.
+func parseCSIRSRPResult(r *nrppatype.ResultCSIRSRP) *CSIRSRPResult {
+	out := &CSIRSRPResult{}
+
+	for i := range r.List {
+		item := r.List[i]
+
+		var csirIndex int64
+		if item.CSIRSIndex != nil {
+			csirIndex = *item.CSIRSIndex
+		}
+
+		out.Items = append(out.Items, CSIRSRPItem{
+			NRPCI:      item.NRPCI.Value,
+			CSIRSIndex: csirIndex,
+			Value:      item.ValueCSIRSRP.Value,
+		})
+	}
+
+	return out
+}
+
+// parseCSIRSRQResult decodes CSI-RSRQ measurements.
+func parseCSIRSRQResult(r *nrppatype.ResultCSIRSRQ) *CSIRSRQResult {
+	out := &CSIRSRQResult{}
+
+	for i := range r.List {
+		item := r.List[i]
+
+		var csirIndex int64
+		if item.CSIRSIndex != nil {
+			csirIndex = *item.CSIRSIndex
+		}
+
+		out.Items = append(out.Items, CSIRSRQItem{
+			NRPCI:      item.NRPCI.Value,
+			CSIRSIndex: csirIndex,
+			Value:      item.ValueCSIRSRQ.Value,
+		})
+	}
+
+	return out
 }

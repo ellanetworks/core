@@ -27,7 +27,6 @@ func TestPositioningSessionCreateDelete(t *testing.T) {
 
 	session := &db.PositioningSession{
 		SUPI:        "imsi-001010000000001",
-		AMFID:       "amf-1",
 		SessionType: db.SessionTypeImmediate,
 		Method:      "cell_id",
 		Status:      db.SessionStatusActive,

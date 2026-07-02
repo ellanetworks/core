@@ -17,7 +17,6 @@ import (
 type SessionListItem struct {
 	ID          string `json:"id"`
 	SUPI        string `json:"supi"`
-	AMFID       string `json:"amf_id"`
 	SessionType int    `json:"session_type"`
 	Method      string `json:"method"`
 	Status      int    `json:"status"`
@@ -29,7 +28,6 @@ type SessionListItem struct {
 type SessionDetail struct {
 	ID                string          `json:"id"`
 	SUPI              string          `json:"supi"`
-	AMFID             string          `json:"amf_id"`
 	SessionType       int             `json:"session_type"`
 	Method            string          `json:"method"`
 	Status            int             `json:"status"`
@@ -61,7 +59,6 @@ func ListSessions(dbInstance *db.Database) http.Handler {
 			items = append(items, SessionListItem{
 				ID:          s.ID,
 				SUPI:        s.SUPI,
-				AMFID:       s.AMFID,
 				SessionType: s.SessionType,
 				Method:      s.Method,
 				Status:      s.Status,
@@ -94,7 +91,6 @@ func GetSession(dbInstance *db.Database) http.Handler {
 		writeResponse(r.Context(), w, SessionDetail{
 			ID:                session.ID,
 			SUPI:              session.SUPI,
-			AMFID:             session.AMFID,
 			SessionType:       session.SessionType,
 			Method:            session.Method,
 			Status:            session.Status,
