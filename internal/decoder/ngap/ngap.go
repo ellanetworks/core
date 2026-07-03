@@ -97,6 +97,10 @@ func buildNGAPSummary(msg NGAPMessage) string {
 			if nasPdu, ok := ie.Value.(NASPDU); ok && nasPdu.Decoded != nil {
 				summary += ", NAS=" + nasMessageTypeName(nasPdu.Decoded)
 			}
+		case "NRPPaPDU":
+			if nrppaPdu, ok := ie.Value.(NRPPaPDU); ok && nrppaPdu.Decoded != nil && nrppaPdu.Decoded.Kind.Label != "" {
+				summary += ", NRPPa=" + nrppaPdu.Decoded.Kind.Label
+			}
 		case "Cause":
 			if causeEnum, ok := ie.Value.(utils.EnumField[uint64]); ok {
 				summary += ", Cause=" + causeEnum.Label
@@ -149,6 +153,14 @@ func buildInitiatingMessage(initMsg ngapType.InitiatingMessage) NGAPMessageValue
 		return buildAMFStatusIndication(*initMsg.Value.AMFStatusIndication)
 	case ngapType.InitiatingMessagePresentPaging:
 		return buildPaging(*initMsg.Value.Paging)
+	case ngapType.InitiatingMessagePresentDownlinkUEAssociatedNRPPaTransport:
+		return buildDownlinkUEAssociatedNRPPaTransport(*initMsg.Value.DownlinkUEAssociatedNRPPaTransport)
+	case ngapType.InitiatingMessagePresentUplinkUEAssociatedNRPPaTransport:
+		return buildUplinkUEAssociatedNRPPaTransport(*initMsg.Value.UplinkUEAssociatedNRPPaTransport)
+	case ngapType.InitiatingMessagePresentDownlinkNonUEAssociatedNRPPaTransport:
+		return buildDownlinkNonUEAssociatedNRPPaTransport(*initMsg.Value.DownlinkNonUEAssociatedNRPPaTransport)
+	case ngapType.InitiatingMessagePresentUplinkNonUEAssociatedNRPPaTransport:
+		return buildUplinkNonUEAssociatedNRPPaTransport(*initMsg.Value.UplinkNonUEAssociatedNRPPaTransport)
 	default:
 		return NGAPMessageValue{
 			Error: fmt.Sprintf("Unsupported message %d", initMsg.Value.Present),

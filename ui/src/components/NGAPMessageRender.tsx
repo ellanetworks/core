@@ -180,13 +180,30 @@ const getNasHeader = (nasPdu: any): string => {
   return `${messageType} (${secHeader})`;
 };
 
-const NasPduBlock: React.FC<{ nasPdu: any; depth: number; title: string }> = ({
-  nasPdu,
-  depth,
-  title,
-}) => {
+// --- NRPPa-PDU helpers ---
+
+const isNrppaPdu = (v: unknown): boolean =>
+  !!v && typeof v === "object" && (v as any).protocol === "NRPPa";
+
+const getNrppaHeader = (nrppaPdu: any): string => {
+  const decoded = nrppaPdu?.decoded;
+  if (!decoded) return "undecoded";
+  if (decoded.error) return "decode error";
+  return decoded.kind?.label || "Unknown";
+};
+
+/**
+ * Renders an embedded protocol PDU (NAS or NRPPa) with a distinct accent
+ * border, a header line ("title — summary"), the raw hex, and the decoded tree.
+ */
+const ProtocolPduBlock: React.FC<{
+  pdu: any;
+  depth: number;
+  title: string;
+  header: string;
+  accentColor: string;
+}> = ({ pdu, depth, title, header, accentColor }) => {
   const [open, setOpen] = React.useState(true);
-  const nasHeader = getNasHeader(nasPdu);
 
   return (
     <>
@@ -201,27 +218,55 @@ const NasPduBlock: React.FC<{ nasPdu: any; depth: number; title: string }> = ({
           {" \u2014\u00A0"}
         </Box>
         <Box component="span" sx={{ fontWeight: 600 }}>
-          {nasHeader}
+          {header}
         </Box>
       </TreeRow>
       <Collapse in={open}>
         <Box
           sx={{
             borderLeft: 3,
-            borderColor: "info.main",
+            borderColor: accentColor,
             ml: `${(depth + 1) * INDENT_PX + CHEVRON_W / 2}px`,
             pl: 1.5,
           }}
         >
-          {nasPdu.raw_hex && (
-            <KVLine depth={0} k="raw_hex" v={String(nasPdu.raw_hex)} />
+          {pdu.raw_hex && (
+            <KVLine depth={0} k="raw_hex" v={String(pdu.raw_hex)} />
           )}
-          {nasPdu.decoded && <GenericNode value={nasPdu.decoded} depth={0} />}
+          {pdu.decoded && <GenericNode value={pdu.decoded} depth={0} />}
         </Box>
       </Collapse>
     </>
   );
 };
+
+const NasPduBlock: React.FC<{ nasPdu: any; depth: number; title: string }> = ({
+  nasPdu,
+  depth,
+  title,
+}) => (
+  <ProtocolPduBlock
+    pdu={nasPdu}
+    depth={depth}
+    title={title}
+    header={getNasHeader(nasPdu)}
+    accentColor="info.main"
+  />
+);
+
+const NrppaPduBlock: React.FC<{
+  nrppaPdu: any;
+  depth: number;
+  title: string;
+}> = ({ nrppaPdu, depth, title }) => (
+  <ProtocolPduBlock
+    pdu={nrppaPdu}
+    depth={depth}
+    title={title}
+    header={getNrppaHeader(nrppaPdu)}
+    accentColor="secondary.main"
+  />
+);
 
 // --- NGAP IE block ---
 
@@ -267,6 +312,16 @@ const NgapIEBlock: React.FC<{ ie: any; depth: number; label?: string }> = ({
     return (
       <>
         <NasPduBlock nasPdu={value} depth={depth} title={title} />
+        {error && <KVLine depth={depth + 1} k="Error" v={String(error)} />}
+      </>
+    );
+  }
+
+  // NRPPa-PDU: render with protocol layer distinction
+  if (isNrppaPdu(value)) {
+    return (
+      <>
+        <NrppaPduBlock nrppaPdu={value} depth={depth} title={title} />
         {error && <KVLine depth={depth + 1} k="Error" v={String(error)} />}
       </>
     );
@@ -449,6 +504,17 @@ const CollapsibleObject: React.FC<{
                   <NasPduBlock
                     key={k}
                     nasPdu={v}
+                    depth={childDepth}
+                    title={k}
+                  />
+                );
+              }
+              // NRPPa-PDU detection in nested structs
+              if (isNrppaPdu(v)) {
+                return (
+                  <NrppaPduBlock
+                    key={k}
+                    nrppaPdu={v}
                     depth={childDepth}
                     title={k}
                   />

@@ -42,6 +42,8 @@ func inferValueType(v any) string {
 		return "bytes"
 	case NASPDU:
 		return "nas_pdu"
+	case NRPPaPDU:
+		return "nrppa_pdu"
 	case utils.Enum:
 		return "enum"
 	default:
