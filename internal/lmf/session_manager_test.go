@@ -348,7 +348,7 @@ func TestSessionManager_ListSessionsBySupi(t *testing.T) {
 		SUPI: supi,
 
 		RequestType: RequestImmediate,
-		Method:      MethodAGNSSAssisted,
+		Method:      MethodECID,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
@@ -396,7 +396,7 @@ func TestSessionManager_GetActiveSessionBySupi(t *testing.T) {
 		SUPI: supi,
 
 		RequestType: RequestImmediate,
-		Method:      MethodAGNSSAssisted,
+		Method:      MethodECID,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)

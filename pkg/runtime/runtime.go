@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas"
 	"github.com/ellanetworks/core/internal/amf/ngap"
@@ -505,11 +504,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	lmfInstance := lmf.New(amfInstance, dbInstance)
 
-	// Wire AMF→LMF LPP transport: AMF forwards UL NAS LPP payloads to LMF.
-	lmfAMF := &lmfBridge{amf: amfInstance, lmf: lmfInstance}
-	lmfInstance.SetLPPHandler(lmfAMF)
-	amfInstance.LPPHandler = lmfAMF
-
 	// Session reconciler: watches the session_reconcile changefeed topic
 	// and reconciles every local PDU session against the current DB policy.
 	// Triggered by profile, subscriber, and policy writes.
@@ -790,39 +784,6 @@ func (a *mmeNASAdapter) HandleServiceRequest(ctx context.Context, conn mme.NasWr
 
 func (a *mmeNASAdapter) DispatchEMM(ctx context.Context, ue *mme.UeContext, plain []byte, integrityVerified bool) {
 	mmenas.DispatchEMM(a.mme, ctx, ue, plain, integrityVerified)
-}
-
-// lmfBridge implements both amf.LPPHandler and lmf.LPPHandler, enabling bidirectional
-// LPP transport between AMF and LMF. The AMF uses it to forward UL NAS payloads
-// containing LPP to the LMF; the LMF uses it to send LPP responses down to the UE
-// via the AMF's NAS stack.
-//
-// The bridge holds direct pointers to both AMF and LMF, while both components hold
-// interface references to the bridge (amf.LPPHandler and lmf.LPPHandler). This creates
-// a cyclic reference graph, but it is safe: all structs live for process lifetime,
-// Go's GC handles reference cycles, and the interface direction prevents true
-// circular dependencies (neither AMF nor LMF calls back into the bridge from their
-// constructors).
-type lmfBridge struct {
-	amf *amf.AMF
-	lmf *lmf.LMF
-}
-
-func (b *lmfBridge) ForwardLPP(ctx context.Context, supi etsi.SUPI, lppData []byte) error {
-	return lmf.ForwardLPPToLMF(b.lmf, ctx, supi, lppData)
-}
-
-func (b *lmfBridge) ForwardLPPToUE(ctx context.Context, supi string, lppData []byte) error {
-	supiEtsi, err := etsi.NewSUPIFromPrefixed(supi)
-	if err != nil {
-		return fmt.Errorf("invalid SUPI %q: %w", supi, err)
-	}
-
-	if err := b.amf.TransferN1LPPMsg(ctx, supiEtsi, lppData); err != nil {
-		return fmt.Errorf("transfer LPP to UE: %w", err)
-	}
-
-	return nil
 }
 
 // ausfDBAdapter adapts *db.Database to the ausf.SubscriberStore interface.

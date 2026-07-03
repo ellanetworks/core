@@ -272,17 +272,7 @@ func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	case nasMessage.PayloadContainerTypeSMS:
 		return fmt.Errorf("PayloadContainerTypeSMS has not been implemented yet in UL NAS TRANSPORT")
 	case nasMessage.PayloadContainerTypeLPP:
-		lppData := msg.GetPayloadContainerContents()
-		ue.Log.Debug("UL NAS Transport carries LPP payload", zap.Int("length", len(lppData)))
-
-		if amfInstance.LPPHandler != nil {
-			if err := amfInstance.LPPHandler.ForwardLPP(ctx, ue.Supi(), lppData); err != nil {
-				ue.Log.Error("failed to forward LPP to LMF", zap.Error(err))
-				return fmt.Errorf("forward LPP to LMF: %w", err)
-			}
-		} else {
-			return fmt.Errorf("LPP handler not configured")
-		}
+		return fmt.Errorf("PayloadContainerTypeLPP has not been implemented yet in UL NAS TRANSPORT")
 	case nasMessage.PayloadContainerTypeSOR:
 		return fmt.Errorf("PayloadContainerTypeSOR has not been implemented yet in UL NAS TRANSPORT")
 	case nasMessage.PayloadContainerTypeUEPolicy:

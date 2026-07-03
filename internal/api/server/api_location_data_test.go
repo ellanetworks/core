@@ -69,18 +69,3 @@ func TestToLocationData_ECID_NR_Verbose(t *testing.T) {
 		t.Errorf("expected verbose SS-RSRP -5600, got %+v", ld.SupplementaryMeasurements)
 	}
 }
-
-func TestToLocationData_AGNSS(t *testing.T) {
-	r := &models.LocationResult{
-		Shape:              models.GADEllipsoidalPoint,
-		Latitude:           450000000,
-		Longitude:          214500000,
-		HorizontalAccuracy: 10,
-	}
-
-	ld := toLocationData(r, false)
-
-	if m := ld.PositioningDataList[0].Method; m != posMethodGNSS {
-		t.Errorf("expected GNSS, got %q", m)
-	}
-}
