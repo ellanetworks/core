@@ -7,6 +7,66 @@ import (
 	"testing"
 )
 
+// TestRoundTrip_Response_NRTimingAndAngle verifies the NR-specific extension
+// measured results — Angle of Arrival NR (UL-AoA), Value Timing Advance NR and
+// UE Rx-Tx Time Difference — round-trip through encode/decode intact.
+func TestRoundTrip_Response_NRTimingAndAngle(t *testing.T) {
+	nrCell := uint64(0x123456789)
+	nrTA := int64(100)
+	rxTx := int64(1200)
+	zenith := int64(450)
+
+	result := &ECIDResult{
+		ServingCell: ServingCell{
+			PLMNIdentity:   []byte{0x00, 0xf1, 0x10},
+			NRCellIdentity: &nrCell,
+		},
+		ServingCellTAC:  []byte{0x00, 0x00, 0x01},
+		NRTimingAdvance: &nrTA,
+		UERxTxTimeDiff:  &rxTx,
+		AoA: &AoAResult{
+			AzimuthRaw: 900, // 90.0°
+			ZenithRaw:  &zenith,
+		},
+	}
+
+	encoded, err := BuildECIDMeasurementInitiationResponse(1, 2, result)
+	if err != nil {
+		t.Fatalf("BuildECIDMeasurementInitiationResponse: %v", err)
+	}
+
+	parsed, err := ParsePDU(encoded)
+	if err != nil {
+		t.Fatalf("ParsePDU: %v", err)
+	}
+
+	if parsed.Response == nil || parsed.Response.Result == nil {
+		t.Fatal("missing response/result")
+	}
+
+	got := parsed.Response.Result
+
+	if got.NRTimingAdvance == nil || *got.NRTimingAdvance != nrTA {
+		t.Errorf("NR-TADV: got %v, want %d", got.NRTimingAdvance, nrTA)
+	}
+
+	if got.UERxTxTimeDiff == nil || *got.UERxTxTimeDiff != rxTx {
+		t.Errorf("UE Rx-Tx: got %v, want %d", got.UERxTxTimeDiff, rxTx)
+	}
+
+	if got.AoA == nil {
+		t.Fatal("AoA is nil")
+	}
+
+	if got.AoA.AzimuthRaw != 900 || got.AoA.AzimuthDegrees < 89.99 || got.AoA.AzimuthDegrees > 90.01 {
+		t.Errorf("AoA azimuth: got raw=%d deg=%f, want raw=900 deg=90", got.AoA.AzimuthRaw, got.AoA.AzimuthDegrees)
+	}
+
+	if got.AoA.ZenithRaw == nil || *got.AoA.ZenithRaw != 450 || got.AoA.ZenithDegrees == nil {
+		t.Errorf("AoA zenith: got %+v, want raw=450 deg=45", got.AoA)
+	}
+}
+
 // TestRoundTrip_ECIDMeasurementTerminationCommand verifies the E-CID Measurement
 // Termination Command (procedureCode 5) round-trips with both measurement ids.
 func TestRoundTrip_ECIDMeasurementTerminationCommand(t *testing.T) {

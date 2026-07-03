@@ -225,6 +225,13 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("GET /api/beta/positioning/sessions/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadPositioningSessions, GetSession(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/beta/positioning/sessions/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeletePositioningSession, CancelSession(lmfInstance))).ServeHTTP)
 
+	// Cell positions - provisioned antenna coordinates for Cell-ID / E-CID
+	mux.HandleFunc("GET /api/beta/cell-positions", Authenticate(jwtSecret, dbInstance, Authorize(PermListCellPositions, ListCellPositions(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/beta/cell-positions/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadCellPosition, GetCellPosition(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/beta/cell-positions", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateCellPosition, CreateCellPosition(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/beta/cell-positions/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateCellPosition, UpdateCellPosition(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/beta/cell-positions/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteCellPosition, DeleteCellPosition(dbInstance))).ServeHTTP)
+
 	// Cluster (Authenticated, admin only)
 	mux.HandleFunc("GET /api/v1/cluster/members", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, ListClusterMembers(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/cluster/members/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, RemoveClusterMember(dbInstance))).ServeHTTP)

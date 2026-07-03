@@ -4,18 +4,52 @@
 package lmf
 
 import (
+	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/lmf/models"
 	coremodels "github.com/ellanetworks/core/internal/models"
 )
 
+func fptr(v float64) *float64 { return &v }
+
+// testDBWithCell builds a throwaway database and provisions a single
+// cell-position row so Cell-ID/E-CID can anchor a coordinate.
+func testDBWithCell(t *testing.T, rat, mcc, mnc, cellID string) *db.Database {
+	t.Helper()
+
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(t.TempDir(), "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("failed to create test database: %v", err)
+	}
+
+	t.Cleanup(func() { _ = database.Close() })
+
+	cp := &db.CellPosition{
+		RAT:                  rat,
+		Mcc:                  mcc,
+		Mnc:                  mnc,
+		CellIdentity:         cellID,
+		Latitude:             45.0,
+		Longitude:            21.5,
+		UncertaintySemiMajor: fptr(100),
+		UncertaintySemiMinor: fptr(100),
+	}
+	if err := database.CreateCellPosition(context.Background(), cp); err != nil {
+		t.Fatalf("failed to provision cell position: %v", err)
+	}
+
+	return database
+}
+
 func TestDetermineLocation_NR(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
-	lmfInstance := New(amfInstance, nil)
+	lmfInstance := New(amfInstance, testDBWithCell(t, db.RATNR, "262", "01", "0x00000001"))
 
 	// Create a test UE with NR location
 	supi, err := etsi.NewSUPIFromIMSI("123456789012345")
@@ -46,7 +80,7 @@ func TestDetermineLocation_NR(t *testing.T) {
 		t.Fatalf("failed to add UE to AMF: %v", err)
 	}
 
-	result, _, err := lmfInstance.DetermineLocation(supi, MethodCellID)
+	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, MethodCellID)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -57,6 +91,10 @@ func TestDetermineLocation_NR(t *testing.T) {
 
 	if result.Shape != models.GADCellID {
 		t.Errorf("expected shape GADCellID, got %d", result.Shape)
+	}
+
+	if result.Latitude == 0 || result.Longitude == 0 {
+		t.Errorf("expected coordinate from cell-position table, got lat=%d lon=%d", result.Latitude, result.Longitude)
 	}
 
 	if result.AccessType != "NR" {
@@ -74,7 +112,7 @@ func TestDetermineLocation_NR(t *testing.T) {
 
 func TestDetermineLocation_EUTRA(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
-	lmfInstance := New(amfInstance, nil)
+	lmfInstance := New(amfInstance, testDBWithCell(t, db.RATEUTRA, "262", "01", "0x00000002"))
 
 	supi, err := etsi.NewSUPIFromIMSI("123456789012346")
 	if err != nil {
@@ -102,7 +140,7 @@ func TestDetermineLocation_EUTRA(t *testing.T) {
 		t.Fatalf("failed to add UE to AMF: %v", err)
 	}
 
-	result, _, err := lmfInstance.DetermineLocation(supi, MethodCellID)
+	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, MethodCellID)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -125,7 +163,7 @@ func TestDetermineLocation_NotFound(t *testing.T) {
 		t.Fatalf("failed to create SUPI: %v", err)
 	}
 
-	_, _, err = lmfInstance.DetermineLocation(supi, MethodCellID)
+	_, _, err = lmfInstance.DetermineLocation(context.Background(), supi, MethodCellID)
 	if err == nil {
 		t.Fatal("expected error for non-existent UE")
 	}
@@ -160,7 +198,7 @@ func TestDetermineLocation_Unregistered(t *testing.T) {
 		t.Fatalf("failed to add UE to AMF: %v", err)
 	}
 
-	_, _, err = lmfInstance.DetermineLocation(supi, MethodCellID)
+	_, _, err = lmfInstance.DetermineLocation(context.Background(), supi, MethodCellID)
 	if err == nil {
 		t.Fatal("expected error for unregistered UE")
 	}
@@ -185,7 +223,7 @@ func TestDetermineLocation_NoLocation(t *testing.T) {
 		t.Fatalf("failed to add UE to AMF: %v", err)
 	}
 
-	_, _, err = lmfInstance.DetermineLocation(supi, MethodCellID)
+	_, _, err = lmfInstance.DetermineLocation(context.Background(), supi, MethodCellID)
 	if err == nil {
 		t.Fatal("expected error for UE with no location")
 	}

@@ -36,7 +36,7 @@ var migrations = []migration{
 	{12, "replace chain-PKI cluster TLS with fingerprint pinning (cluster_node_certs)", migrateV12},
 	{13, "add ipv6Pool column to data_networks and poolType column to ip_leases", migrateV13},
 	{14, "add 4G config: profile allowed access (4G/5G), policy default binding; RAT-neutral NAS algorithm names", migrateV14},
-	{15, "add positioning_sessions table for LMF session tracking", migrateV15},
+	{15, "add positioning_sessions and cell_positions tables for LMF", migrateV15},
 }
 
 // baselineVersion is the highest migration that runs locally during

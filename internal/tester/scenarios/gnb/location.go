@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/client"
-	"github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
@@ -131,101 +130,93 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 	// Extract SUPI from UE security context.
 	supi := newUE.UeSecurity.Supi
 
-	// --- Phase 1: Cell ID location ---
-	logger.Logger.Info("=== Testing Cell ID location ===")
-
-	cellIDResult, err := getLocationCellID(ctx, cl, supi)
-	if err != nil {
-		return fmt.Errorf("cell ID location failed: %v", err)
-	}
-
-	logger.Logger.Info("Cell ID location retrieved",
-		zap.Int("shape", int(cellIDResult.Shape)),
-		zap.String("access_type", cellIDResult.AccessType),
-	)
-
-	// Validate Cell ID result has expected fields.
-	if cellIDResult.Shape != models.GADCellID {
-		return fmt.Errorf("expected Cell ID shape %d, got %d", models.GADCellID, cellIDResult.Shape)
-	}
-
-	if cellIDResult.AccessType != "NR" {
-		return fmt.Errorf("expected access type NR, got %s", cellIDResult.AccessType)
-	}
-
-	if cellIDResult.TAI == nil {
-		return fmt.Errorf("cell ID result missing TAI")
-	}
-
-	if cellIDResult.NCGI == nil {
-		return fmt.Errorf("cell ID result missing NCGI")
-	}
-
-	logger.Logger.Info("Cell ID location validated successfully")
-
-	// --- Phase 2: E-CID location ---
+	// --- Phase 1: E-CID location ---
+	// E-CID is anchored by the gNB's NG-RAN Access Point Position, so it yields
+	// a coordinate without any provisioning. Its response also carries the
+	// canonical serving NCGI we use to provision the cell-position table.
 	logger.Logger.Info("=== Testing E-CID location ===")
 
-	ecidResult, err := getLocationECID(ctx, cl, supi)
+	ecidResult, err := getLocation(ctx, cl, supi, "ecid")
 	if err != nil {
 		return fmt.Errorf("E-CID location failed: %v", err)
 	}
 
-	logger.Logger.Info("E-CID location retrieved",
-		zap.Int("shape", int(ecidResult.Shape)),
-		zap.Any("rsrp", ecidResult.RSRP),
-		zap.Any("ta", ecidResult.TA),
-		zap.Any("distance_m", ecidResult.Distance),
-	)
-
-	// E-CID should have a valid shape. TA, distance, and radio measurements
-	// are optional — they depend on what the RAN can provide.
-	if ecidResult.Shape != models.GADECID {
-		return fmt.Errorf("expected E-CID shape %d, got %d", models.GADECID, ecidResult.Shape)
+	if ecidResult.LocationEstimate == nil || ecidResult.LocationEstimate.Point == nil {
+		return fmt.Errorf("E-CID result missing locationEstimate point")
 	}
 
-	logger.Logger.Info("E-CID location validated successfully")
+	if ecidResult.Ncgi == nil {
+		return fmt.Errorf("E-CID result missing ncgi")
+	}
 
-	// --- Phase 3: A-GNSS location ---
+	if m := positioningMethod(ecidResult); m != "ECID" && m != "NR_ECID" {
+		return fmt.Errorf("expected E-CID positioning method, got %q", m)
+	}
+
+	logger.Logger.Info("E-CID location validated successfully",
+		zap.String("shape", ecidResult.LocationEstimate.Shape),
+		zap.Float64("lat", ecidResult.LocationEstimate.Point.Lat),
+		zap.Float64("lon", ecidResult.LocationEstimate.Point.Lon),
+	)
+
+	// --- Phase 2: provision the serving cell's position ---
+	logger.Logger.Info("=== Provisioning cell position ===",
+		zap.String("nrCellId", ecidResult.Ncgi.NrCellID))
+
+	if err := provisionCellPosition(ctx, cl, ecidResult.Ncgi.PlmnID.Mcc, ecidResult.Ncgi.PlmnID.Mnc, ecidResult.Ncgi.NrCellID); err != nil {
+		logger.Logger.Warn("cell position provisioning returned an error (may already exist)", zap.Error(err))
+	}
+
+	// --- Phase 3: Cell ID location ---
+	// With the cell position provisioned, Cell-ID resolves a coordinate from
+	// the table.
+	logger.Logger.Info("=== Testing Cell ID location ===")
+
+	cellIDResult, err := getLocation(ctx, cl, supi, "cell_id")
+	if err != nil {
+		return fmt.Errorf("cell ID location failed: %v", err)
+	}
+
+	if cellIDResult.LocationEstimate == nil || cellIDResult.LocationEstimate.Point == nil {
+		return fmt.Errorf("cell ID result missing locationEstimate point (is the cell provisioned?)")
+	}
+
+	if m := positioningMethod(cellIDResult); m != "CELLID" {
+		return fmt.Errorf("expected CELLID positioning method, got %q", m)
+	}
+
+	if cellIDResult.Ncgi == nil {
+		return fmt.Errorf("cell ID result missing NCGI")
+	}
+
+	logger.Logger.Info("Cell ID location validated successfully",
+		zap.String("shape", cellIDResult.LocationEstimate.Shape),
+		zap.Float64("lat", cellIDResult.LocationEstimate.Point.Lat),
+	)
+
+	// --- Phase 4: A-GNSS location ---
 	logger.Logger.Info("=== Testing A-GNSS location ===")
 
-	agnssResult, err := getLocationAGNSS(ctx, cl, supi)
+	agnssResult, err := getLocation(ctx, cl, supi, "agnss_ue_assisted")
 	if err != nil {
 		return fmt.Errorf("A-GNSS location failed: %v", err)
 	}
 
-	logger.Logger.Info("A-GNSS location retrieved",
-		zap.Int("shape", int(agnssResult.Shape)),
-		zap.Int32("latitude", agnssResult.Latitude),
-		zap.Int32("longitude", agnssResult.Longitude),
-		zap.Int32("altitude", agnssResult.Altitude),
-		zap.Uint32("horizontal_accuracy", agnssResult.HorizontalAccuracy),
-	)
-
-	// Validate A-GNSS result.
-	if agnssResult.Shape != models.GADEllipsoidalPoint {
-		return fmt.Errorf("expected A-GNSS shape %d, got %d", models.GADEllipsoidalPoint, agnssResult.Shape)
+	if agnssResult.LocationEstimate == nil || agnssResult.LocationEstimate.Point == nil {
+		return fmt.Errorf("A-GNSS result missing locationEstimate point")
 	}
 
-	// A-GNSS should have coordinates from UE tester.
-	if agnssResult.Latitude == 0 {
-		return fmt.Errorf("A-GNSS result has zero latitude")
+	if m := positioningMethod(agnssResult); m != "GNSS" {
+		return fmt.Errorf("expected GNSS positioning method, got %q", m)
 	}
 
-	if agnssResult.Longitude == 0 {
-		return fmt.Errorf("A-GNSS result has zero longitude")
+	// A-GNSS coordinates come from the UE tester: 45.0°N, 21.45°E.
+	if lat := agnssResult.LocationEstimate.Point.Lat; lat < 44.99 || lat > 45.01 {
+		return fmt.Errorf("A-GNSS latitude mismatch: expected ~45.0, got %f", lat)
 	}
 
-	// Expected coordinates: 45.0°N, 21.45°E (stored as 1e-7 degrees).
-	expectedLat := int32(45.0 * 1e7)
-	expectedLon := int32(21.45 * 1e7)
-
-	if agnssResult.Latitude != expectedLat {
-		return fmt.Errorf("A-GNSS latitude mismatch: expected %d, got %d", expectedLat, agnssResult.Latitude)
-	}
-
-	if agnssResult.Longitude != expectedLon {
-		return fmt.Errorf("A-GNSS longitude mismatch: expected %d, got %d", expectedLon, agnssResult.Longitude)
+	if lon := agnssResult.LocationEstimate.Point.Lon; lon < 21.44 || lon > 21.46 {
+		return fmt.Errorf("A-GNSS longitude mismatch: expected ~21.45, got %f", lon)
 	}
 
 	logger.Logger.Info("A-GNSS location validated successfully")
@@ -250,13 +241,57 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 	return nil
 }
 
-// getLocationCellID calls POST /api/beta/location with request_type "immediate"
-// to retrieve the UE's location using the Cell ID method.
-func getLocationCellID(ctx context.Context, cl *client.Client, supi string) (*models.LocationResult, error) {
+// locationData is a minimal view of the spec-shaped LocationData response
+// (TS 29.572) returned by POST /api/beta/location.
+type locationData struct {
+	LocationEstimate    *locGeoArea      `json:"locationEstimate"`
+	PositioningDataList []locMethodUsage `json:"positioningDataList"`
+	Ncgi                *locNcgi         `json:"ncgi"`
+}
+
+type locGeoArea struct {
+	Shape       string       `json:"shape"`
+	Point       *locGeoPoint `json:"point"`
+	Uncertainty *float64     `json:"uncertainty"`
+}
+
+type locGeoPoint struct {
+	Lat float64 `json:"lat"`
+	Lon float64 `json:"lon"`
+}
+
+type locMethodUsage struct {
+	Method string `json:"method"`
+	Mode   string `json:"mode"`
+	Usage  string `json:"usage"`
+}
+
+type locPlmn struct {
+	Mcc string `json:"mcc"`
+	Mnc string `json:"mnc"`
+}
+
+type locNcgi struct {
+	PlmnID   locPlmn `json:"plmnId"`
+	NrCellID string  `json:"nrCellId"`
+}
+
+// positioningMethod returns the first reported positioning method, or "".
+func positioningMethod(d *locationData) string {
+	if len(d.PositioningDataList) == 0 {
+		return ""
+	}
+
+	return d.PositioningDataList[0].Method
+}
+
+// getLocation calls POST /api/beta/location for the given method and decodes the
+// spec-shaped LocationData response.
+func getLocation(ctx context.Context, cl *client.Client, supi, method string) (*locationData, error) {
 	reqBody := map[string]string{
 		"supi":         supi,
 		"request_type": "immediate",
-		"method":       "cell_id",
+		"method":       method,
 	}
 
 	body, err := json.Marshal(reqBody)
@@ -277,7 +312,7 @@ func getLocationCellID(ctx context.Context, cl *client.Client, supi string) (*mo
 		return nil, fmt.Errorf("POST location request failed: %w", err)
 	}
 
-	var result models.LocationResult
+	var result locationData
 	if err := resp.DecodeResult(&result); err != nil {
 		return nil, fmt.Errorf("decode location response: %w", err)
 	}
@@ -285,74 +320,37 @@ func getLocationCellID(ctx context.Context, cl *client.Client, supi string) (*mo
 	return &result, nil
 }
 
-// getLocationECID calls POST /api/beta/location with request_type "immediate"
-// and method "ecid". The LMF runs the E-CID procedure synchronously and
-// returns the location result directly.
-func getLocationECID(ctx context.Context, cl *client.Client, supi string) (*models.LocationResult, error) {
-	reqBody := map[string]string{
-		"supi":         supi,
-		"request_type": "immediate",
-		"method":       "ecid",
+// provisionCellPosition provisions an antenna coordinate for the given NR cell
+// so Cell-ID / E-CID can anchor a location estimate.
+func provisionCellPosition(ctx context.Context, cl *client.Client, mcc, mnc, nrCellID string) error {
+	reqBody := map[string]any{
+		"rat":                    "nr",
+		"mcc":                    mcc,
+		"mnc":                    mnc,
+		"cell_identity":          nrCellID,
+		"latitude":               45.0,
+		"longitude":              21.45,
+		"uncertainty_semi_major": 150.0,
+		"uncertainty_semi_minor": 150.0,
 	}
 
 	body, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("marshal request body: %w", err)
+		return fmt.Errorf("marshal request body: %w", err)
 	}
 
-	resp, err := cl.Requester.Do(ctx, &client.RequestOptions{
+	_, err = cl.Requester.Do(ctx, &client.RequestOptions{
 		Type:   client.SyncRequest,
 		Method: http.MethodPost,
-		Path:   "/api/beta/location",
+		Path:   "/api/beta/cell-positions",
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
 		Body: bytes.NewReader(body),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("POST location request failed: %w", err)
+		return fmt.Errorf("POST cell-positions request failed: %w", err)
 	}
 
-	var result models.LocationResult
-	if err := resp.DecodeResult(&result); err != nil {
-		return nil, fmt.Errorf("decode location response: %w", err)
-	}
-
-	return &result, nil
-}
-
-// getLocationAGNSS calls POST /api/beta/location with request_type "immediate"
-// and method "agnss_ue_assisted". The LMF runs the A-GNSS procedure
-// synchronously and returns the location result directly.
-func getLocationAGNSS(ctx context.Context, cl *client.Client, supi string) (*models.LocationResult, error) {
-	reqBody := map[string]string{
-		"supi":         supi,
-		"request_type": "immediate",
-		"method":       "agnss_ue_assisted",
-	}
-
-	body, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request body: %w", err)
-	}
-
-	resp, err := cl.Requester.Do(ctx, &client.RequestOptions{
-		Type:   client.SyncRequest,
-		Method: http.MethodPost,
-		Path:   "/api/beta/location",
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-		Body: bytes.NewReader(body),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("POST location request failed: %w", err)
-	}
-
-	var result models.LocationResult
-	if err := resp.DecodeResult(&result); err != nil {
-		return nil, fmt.Errorf("decode location response: %w", err)
-	}
-
-	return &result, nil
+	return nil
 }

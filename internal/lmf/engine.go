@@ -22,23 +22,26 @@ var ErrNotFound = errors.New("UE not found or not registered")
 // DetermineLocation computes the current location of the UE identified by
 // supi using the configured positioning method. Returns the location result,
 // the session ID (if a session was created), and any error.
-func (l *LMF) DetermineLocation(supi etsi.SUPI, method PositioningMethod) (*models.LocationResult, string, error) {
+func (l *LMF) DetermineLocation(ctx context.Context, supi etsi.SUPI, method PositioningMethod) (*models.LocationResult, string, error) {
 	switch method {
 	case MethodCellID:
-		result, err := l.determineCellIDLocation(supi)
+		result, err := l.determineCellIDLocation(ctx, supi)
 		return result, "", err
 	case MethodECID:
-		result, err := l.determineECIDLocation(supi)
+		result, err := l.determineECIDLocation(ctx, supi)
 		return result, "", err
 	case MethodAGNSSAssisted, MethodAGNSSBased:
-		return l.determineAGNSSLocation(supi, method)
+		return l.determineAGNSSLocation(ctx, supi, method)
 	default:
 		return nil, "", fmt.Errorf("unsupported positioning method: %s", method)
 	}
 }
 
-// determineCellIDLocation computes location using the Cell ID method.
-func (l *LMF) determineCellIDLocation(supi etsi.SUPI) (*models.LocationResult, error) {
+// determineCellIDLocation computes location using the Cell ID method. It maps
+// the serving cell to its provisioned geographic position; if no coordinate is
+// available for the cell it returns ErrNoLocationEstimate (a Cell-ID estimate
+// without coordinates is not a valid TS 29.572 LocationData).
+func (l *LMF) determineCellIDLocation(ctx context.Context, supi etsi.SUPI) (*models.LocationResult, error) {
 	if !l.amf.IsUERegistered(supi) {
 		return nil, fmt.Errorf("UE not registered: %w", ErrNotFound)
 	}
@@ -54,6 +57,13 @@ func (l *LMF) determineCellIDLocation(supi etsi.SUPI) (*models.LocationResult, e
 
 	result := computeCellIDLocation(supi, loc)
 
+	coord, ok := l.resolveCellCoordinate(ctx, loc, nil)
+	if !ok {
+		return nil, ErrNoLocationEstimate
+	}
+
+	applyCellCoordinate(result, coord)
+
 	logger.LmfLog.Info("location computed",
 		zap.String("supi", supi.String()),
 		zap.String("method", "cell_id"),
@@ -68,8 +78,8 @@ func (l *LMF) determineCellIDLocation(supi etsi.SUPI) (*models.LocationResult, e
 // requests location, and extracts the fix from ProvideLocationInformation.
 // For AGNSS-based: LMF sends assistance data and waits for the UE to compute.
 // Returns the location result, session ID, and any error.
-func (l *LMF) determineAGNSSLocation(supi etsi.SUPI, method PositioningMethod) (*models.LocationResult, string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method PositioningMethod) (*models.LocationResult, string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	logger.LmfLog.Info("A-GNSS positioning via LPP",

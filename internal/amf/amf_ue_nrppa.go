@@ -21,6 +21,11 @@ type RadioMeasurements struct {
 	CSIRSRP *int32 // CSI-RS-based RSRP, dBm × 100
 	CSIRSRQ *int32 // CSI-RS-based RSRQ, dB × 100
 
+	// NR-specific timing/angle measurements (TS 38.455 §9.2.5 extension IEs).
+	NRTimingAdvance   *int32   // Value Timing Advance NR (0..7690), TS 38.133 mapping
+	AoAAzimuthDegrees *float64 // UL Angle of Arrival azimuth, decimal degrees
+	AoAZenithDegrees  *float64 // UL Angle of Arrival zenith, decimal degrees (optional)
+
 	// APPosition is the serving cell's NG-RANAccessPointPosition, when the RAN
 	// reports it in an NRPPa E-CID measurement result (optional).
 	APPosition *APPosition
