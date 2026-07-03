@@ -54,15 +54,21 @@ func TestAdvanceSQN(t *testing.T) {
 		},
 		{
 			name:  "wraps at sqnMax minus IndStep",
-			input: "07ffffffffdf",
+			input: "ffffffffffdf",
 			delta: 32,
-			want:  "07ffffffffff",
+			want:  "ffffffffffff",
 		},
 		{
 			name:  "wraps past sqnMax",
-			input: "07ffffffffff",
+			input: "ffffffffffff",
 			delta: 32,
 			want:  "00000000001f",
+		},
+		{
+			name:  "SQN above 2^43 is preserved (not truncated to 43 bits)",
+			input: "080000000000",
+			delta: 32,
+			want:  "080000000020",
 		},
 		{
 			name:  "delta of 1",
@@ -281,13 +287,13 @@ func TestAdvanceSQN_BoundaryValues(t *testing.T) {
 	}{
 		{
 			name:  "sqnMax wraps to itself minus 1",
-			input: "07fffffffffe",
+			input: "fffffffffffe",
 			delta: 1,
-			want:  "07ffffffffff",
+			want:  "ffffffffffff",
 		},
 		{
 			name:  "sqnMax plus 1 wraps to zero",
-			input: "07ffffffffff",
+			input: "ffffffffffff",
 			delta: 1,
 			want:  "000000000000",
 		},
@@ -299,7 +305,7 @@ func TestAdvanceSQN_BoundaryValues(t *testing.T) {
 		},
 		{
 			name:  "resync step from sqnMax wraps correctly",
-			input: "07ffffffffff",
+			input: "ffffffffffff",
 			delta: 33,
 			want:  "000000000020",
 		},
