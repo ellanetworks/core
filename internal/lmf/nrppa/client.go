@@ -40,10 +40,12 @@ func (c *Client) nextMeasurementID() int64 {
 // RAN. Cell-ID comes from AMF location context; timing advance and AP position
 // are optional NRPPa enhancements.
 //
-// Requesting both legacy (Rel-15) and NR-specific (Rel-16+) measurement types
-// for maximum gNB compatibility. The gNB returns whichever measurements it supports.
-// TS 38.455: rSRP/rSRQ are the generic/legacy types; SS-RSRP/SS-RSRQ/CSI-RSRP/CSI-RSRQ
-// are NR-specific SSB/CSI-RS based measurements added in Rel-16.
+// For an NR cell the relevant quantities are the NR-specific ones (TS 38.455):
+// SS/CSI RSRP/RSRQ for signal level, and angleOfArrivalNR / timingAdvanceNR /
+// uE-Rx-Tx-Time-Diff for angle and timing. The legacy rSRP/rSRQ are kept for
+// gNBs that only report the generic quantities. We deliberately do NOT request
+// the E-UTRA timingAdvanceType1/type2 — an NR gNB reports timingAdvanceNR
+// instead. The gNB returns whichever quantities it supports and omits the rest.
 var ecidMeasurementQuantities = []nrppa.MeasurementQuantityValue{
 	nrppa.MeasRSRP,
 	nrppa.MeasRSRQ,
@@ -51,6 +53,9 @@ var ecidMeasurementQuantities = []nrppa.MeasurementQuantityValue{
 	nrppa.MeasSSRSRQ,
 	nrppa.MeasCSIRSRP,
 	nrppa.MeasCSIRSRQ,
+	nrppa.MeasAngleOfArrivalNR,
+	nrppa.MeasTimingAdvanceNR,
+	nrppa.MeasUERxTxTimeDiff,
 }
 
 // RequestMeasurements sends an NRPPa E-CIDMeasurementInitiationRequest to the
@@ -328,6 +333,28 @@ func mapECIDResult(result *nrppa.ECIDResult) *amf.RadioMeasurements {
 	case result.TimingAdvanceType2 != nil:
 		ta := int32(*result.TimingAdvanceType2)
 		m.TA = &ta
+	}
+
+	// NR timing measurements (TS 38.455 §9.2.5 extension IEs).
+	if result.NRTimingAdvance != nil {
+		nrta := int32(*result.NRTimingAdvance)
+		m.NRTimingAdvance = &nrta
+	}
+
+	if result.UERxTxTimeDiff != nil {
+		rxtx := int32(*result.UERxTxTimeDiff)
+		m.RxTxTimeDifference = &rxtx
+	}
+
+	// NR Angle of Arrival (azimuth, optional zenith), decimal degrees.
+	if result.AoA != nil {
+		az := result.AoA.AzimuthDegrees
+		m.AoAAzimuthDegrees = &az
+
+		if result.AoA.ZenithDegrees != nil {
+			ze := *result.AoA.ZenithDegrees
+			m.AoAZenithDegrees = &ze
+		}
 	}
 
 	// Map NR-specific measurements (SSB/CSI-RS based)

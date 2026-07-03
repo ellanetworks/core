@@ -4,6 +4,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,6 +34,9 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request body", err, logger.APILog)
 			return
 		}
+
+		// verbose=true attaches the non-standard supplementaryMeasurements block.
+		verbose := r.URL.Query().Get("verbose") == "true"
 
 		requestType := lmf.RequestType(req.RequestType)
 		switch requestType {
@@ -98,19 +102,13 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 					return
 				}
 
-				result, _, err := lmfInstance.DetermineLocation(supi, method)
+				result, _, err := lmfInstance.DetermineLocation(r.Context(), supi, method)
 				if err != nil {
-					if errors.Is(err, lmf.ErrNotFound) {
-						writeError(r.Context(), w, http.StatusNotFound, "UE not found or not registered", err, logger.APILog)
-						return
-					}
-
-					writeError(r.Context(), w, http.StatusInternalServerError, "Failed to determine location", err, logger.APILog)
-
+					writeLocationError(r.Context(), w, err)
 					return
 				}
 
-				writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)
+				writeResponse(r.Context(), w, toLocationData(result, verbose), http.StatusOK, logger.APILog)
 
 				return
 			}
@@ -145,7 +143,7 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 			}
 
 			// Run the positioning procedure and complete the session with the result.
-			result, _, err := lmfInstance.DetermineLocation(supi, method)
+			result, _, err := lmfInstance.DetermineLocation(r.Context(), supi, method)
 			if err != nil {
 				logger.LmfLog.Warn("Positioning procedure failed",
 					zap.String("session_id", sessionID),
@@ -153,7 +151,7 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 					zap.Error(err),
 				)
 				_ = lmfInstance.SessionManager().FailSession(r.Context(), sessionID)
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to determine location", err, logger.APILog)
+				writeLocationError(r.Context(), w, err)
 
 				return
 			} else if err := lmfInstance.SessionManager().CompleteSession(r.Context(), sessionID, result); err != nil {
@@ -166,21 +164,21 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 				return
 			}
 
-			writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)
+			writeResponse(r.Context(), w, toLocationData(result, verbose), http.StatusOK, logger.APILog)
 
 			return
 
 		case lmf.MethodAGNSSAssisted, lmf.MethodAGNSSBased:
 			// A-GNSS creates its own LPP session via DetermineLocation.
 			// The LPP state machine completes the session when done.
-			result, sessionID, err := lmfInstance.DetermineLocation(supi, method)
+			result, sessionID, err := lmfInstance.DetermineLocation(r.Context(), supi, method)
 			if err != nil {
 				logger.LmfLog.Warn("Positioning procedure failed",
 					zap.String("session_id", sessionID),
 					zap.String("method", string(method)),
 					zap.Error(err),
 				)
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to determine location", err, logger.APILog)
+				writeLocationError(r.Context(), w, err)
 
 				return
 			}
@@ -196,7 +194,7 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 				}
 			}
 
-			writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)
+			writeResponse(r.Context(), w, toLocationData(result, verbose), http.StatusOK, logger.APILog)
 
 			return
 		}
@@ -217,4 +215,18 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 
 		writeResponse(r.Context(), w, map[string]string{"id": sessionID}, http.StatusCreated, logger.APILog)
 	})
+}
+
+// writeLocationError maps LMF errors to HTTP responses. A missing UE and an
+// unavailable location estimate are both 404 (client-actionable); anything else
+// is a 500.
+func writeLocationError(ctx context.Context, w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, lmf.ErrNotFound):
+		writeError(ctx, w, http.StatusNotFound, "UE not found or not registered", err, logger.APILog)
+	case errors.Is(err, lmf.ErrNoLocationEstimate):
+		writeError(ctx, w, http.StatusNotFound, "location estimate unavailable: no coordinate for serving cell", err, logger.APILog)
+	default:
+		writeError(ctx, w, http.StatusInternalServerError, "Failed to determine location", err, logger.APILog)
+	}
 }

@@ -15,6 +15,12 @@ import (
 const (
 	sampleNRCellIdentity uint64 = 0x000000010 // 36-bit NR cell identity
 	sampleTimingAdvance  int64  = 100         // valueTimingAdvanceType1-EUTRA (0..7690)
+
+	// NR-specific sample measurements (TS 38.455 §9.2.5 extension IEs).
+	sampleNRTimingAdvance int64 = 100  // Value Timing Advance NR (0..7690)
+	sampleUERxTxTimeDiff  int64 = 1200 // UE Rx-Tx Time Difference (0..61565)
+	sampleAoAAzimuth      int64 = 900  // 0.1° units → 90.0°
+	sampleAoAZenith       int64 = 450  // 0.1° units → 45.0°
 )
 
 var (
@@ -52,6 +58,9 @@ func BuildNRPPaECIDMeasurementResponse(opts *NRPPaECIDResponseOpts) (ngapType.NG
 
 	nrCell := sampleNRCellIdentity
 	ta := opts.TimingAdvance
+	nrTA := sampleNRTimingAdvance
+	rxTx := sampleUERxTxTimeDiff
+	zenith := sampleAoAZenith
 
 	result := &nrppa.ECIDResult{
 		ServingCell: nrppa.ServingCell{
@@ -61,6 +70,12 @@ func BuildNRPPaECIDMeasurementResponse(opts *NRPPaECIDResponseOpts) (ngapType.NG
 		ServingCellTAC:     sampleServingCellTAC,
 		APPosition:         sampleAccessPointPosition(),
 		TimingAdvanceType1: &ta,
+		NRTimingAdvance:    &nrTA,
+		UERxTxTimeDiff:     &rxTx,
+		AoA: &nrppa.AoAResult{
+			AzimuthRaw: sampleAoAAzimuth,
+			ZenithRaw:  &zenith,
+		},
 	}
 
 	nrppaPdu, err := nrppa.BuildECIDMeasurementInitiationResponse(

@@ -434,11 +434,89 @@ func buildECIDMeasurementResult(r *ECIDResult) (*nrppatype.ECIDMeasurementResult
 		})
 	}
 
+	if r.AoA != nil {
+		appendAoA(measured, r.AoA)
+	}
+
+	if r.NRTimingAdvance != nil {
+		appendNRTADV(measured, *r.NRTimingAdvance)
+	}
+
+	if r.UERxTxTimeDiff != nil {
+		appendUERxTx(measured, *r.UERxTxTimeDiff)
+	}
+
 	if len(measured.List) > 0 {
 		mr.MeasuredResults = measured
 	}
 
 	return mr, nil
+}
+
+// appendAoA appends an Angle-of-Arrival-NR measured result (choice-Extension).
+func appendAoA(measured *nrppatype.MeasuredResults, a *AoAResult) {
+	ul := &nrppatype.ULAoA{AzimuthAoA: a.AzimuthRaw}
+
+	if a.ZenithRaw != nil {
+		z := *a.ZenithRaw
+		ul.ZenithAoA = &z
+	}
+
+	if a.LCSToGCS != nil {
+		ul.LCSToGCSTranslation = &nrppatype.LCSToGCSTranslation{
+			Alpha: int64(a.LCSToGCS.AlphaDegrees * 10),
+			Beta:  int64(a.LCSToGCS.BetaDegrees * 10),
+			Gamma: int64(a.LCSToGCS.GammaDegrees * 10),
+		}
+	}
+
+	measured.List = append(measured.List, nrppatype.MeasuredResultsValue{
+		Present: nrppatype.MeasuredResultsValuePresentChoiceExtension,
+		ChoiceExtension: &nrppatype.ProtocolIESingleContainerMeasuredResultsValueExtensionIE{
+			MeasuredResultsValueExtIEs: &nrppatype.MeasuredResultsValueExtIEs{
+				Id:          nrppatype.ProtocolIEID{Value: nrppatype.ProtocolIEIDAngleOfArrivalNR},
+				Criticality: nrppatype.Criticality{Value: nrppatype.CriticalityPresentIgnore},
+				Value: nrppatype.MeasuredResultsValueExtIEsValue{
+					Present:          nrppatype.MeasuredResultsValueExtIEsPresentAngleOfArrivalNR,
+					AngleOfArrivalNR: ul,
+				},
+			},
+		},
+	})
+}
+
+// appendNRTADV appends a Value-Timing-Advance-NR measured result.
+func appendNRTADV(measured *nrppatype.MeasuredResults, tadv int64) {
+	measured.List = append(measured.List, nrppatype.MeasuredResultsValue{
+		Present: nrppatype.MeasuredResultsValuePresentChoiceExtension,
+		ChoiceExtension: &nrppatype.ProtocolIESingleContainerMeasuredResultsValueExtensionIE{
+			MeasuredResultsValueExtIEs: &nrppatype.MeasuredResultsValueExtIEs{
+				Id:          nrppatype.ProtocolIEID{Value: nrppatype.ProtocolIEIDNRTADV},
+				Criticality: nrppatype.Criticality{Value: nrppatype.CriticalityPresentIgnore},
+				Value: nrppatype.MeasuredResultsValueExtIEsValue{
+					Present: nrppatype.MeasuredResultsValueExtIEsPresentNRTADV,
+					NRTADV:  &nrppatype.NRTADV{Value: tadv},
+				},
+			},
+		},
+	})
+}
+
+// appendUERxTx appends a UE-Rx-Tx-Time-Diff measured result.
+func appendUERxTx(measured *nrppatype.MeasuredResults, v int64) {
+	measured.List = append(measured.List, nrppatype.MeasuredResultsValue{
+		Present: nrppatype.MeasuredResultsValuePresentChoiceExtension,
+		ChoiceExtension: &nrppatype.ProtocolIESingleContainerMeasuredResultsValueExtensionIE{
+			MeasuredResultsValueExtIEs: &nrppatype.MeasuredResultsValueExtIEs{
+				Id:          nrppatype.ProtocolIEID{Value: nrppatype.ProtocolIEIDUERxTxTimeDiff},
+				Criticality: nrppatype.Criticality{Value: nrppatype.CriticalityPresentIgnore},
+				Value: nrppatype.MeasuredResultsValueExtIEsValue{
+					Present:        nrppatype.MeasuredResultsValueExtIEsPresentUERxTxTimeDiff,
+					UERxTxTimeDiff: &nrppatype.UERxTxTimeDiff{Value: v},
+				},
+			},
+		},
+	})
 }
 
 // buildAccessPointPosition maps a caller-facing APPosition to the aper type.

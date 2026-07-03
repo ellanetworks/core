@@ -277,6 +277,20 @@ func parseECIDMeasurementResult(mr *nrppatype.ECIDMeasurementResult) *ECIDResult
 						if ext.Value.ResultCSIRSRQ != nil {
 							out.ResultCSIRSRQ = parseCSIRSRQResult(ext.Value.ResultCSIRSRQ)
 						}
+					case nrppatype.MeasuredResultsValueExtIEsPresentAngleOfArrivalNR:
+						if ext.Value.AngleOfArrivalNR != nil {
+							out.AoA = parseULAoA(ext.Value.AngleOfArrivalNR)
+						}
+					case nrppatype.MeasuredResultsValueExtIEsPresentNRTADV:
+						if ext.Value.NRTADV != nil {
+							v := ext.Value.NRTADV.Value
+							out.NRTimingAdvance = &v
+						}
+					case nrppatype.MeasuredResultsValueExtIEsPresentUERxTxTimeDiff:
+						if ext.Value.UERxTxTimeDiff != nil {
+							v := ext.Value.UERxTxTimeDiff.Value
+							out.UERxTxTimeDiff = &v
+						}
 					}
 				}
 			}
@@ -331,6 +345,32 @@ func bitStringToUint64(bs aper.BitString) uint64 {
 	}
 
 	return v
+}
+
+// parseULAoA decodes an NR UL Angle of Arrival, converting the 0.1-degree
+// integer units to decimal degrees.
+func parseULAoA(a *nrppatype.ULAoA) *AoAResult {
+	out := &AoAResult{
+		AzimuthRaw:     a.AzimuthAoA,
+		AzimuthDegrees: float64(a.AzimuthAoA) / 10.0,
+	}
+
+	if a.ZenithAoA != nil {
+		z := *a.ZenithAoA
+		zd := float64(z) / 10.0
+		out.ZenithRaw = &z
+		out.ZenithDegrees = &zd
+	}
+
+	if a.LCSToGCSTranslation != nil {
+		out.LCSToGCS = &LCSToGCS{
+			AlphaDegrees: float64(a.LCSToGCSTranslation.Alpha) / 10.0,
+			BetaDegrees:  float64(a.LCSToGCSTranslation.Beta) / 10.0,
+			GammaDegrees: float64(a.LCSToGCSTranslation.Gamma) / 10.0,
+		}
+	}
+
+	return out
 }
 
 // parseSSRSRPResult decodes SS-RSRP measurements.

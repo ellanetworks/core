@@ -9,7 +9,8 @@ import (
 	"fmt"
 )
 
-// migrateV15 creates the positioning_sessions table for LMF session tracking.
+// migrateV15 creates the positioning_sessions table for LMF session tracking
+// and the cell_positions table for LMF Cell-ID/E-CID antenna coordinates.
 func migrateV15(ctx context.Context, tx *sql.Tx) error {
 	stmt := fmt.Sprintf(`CREATE TABLE %s (
 		id TEXT PRIMARY KEY,
@@ -36,6 +37,36 @@ func migrateV15(ctx context.Context, tx *sql.Tx) error {
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf(
 		"CREATE INDEX idx_pos_sessions_status ON %s(status)", PositioningSessionsTableName)); err != nil {
 		return fmt.Errorf("create positioning_sessions status index: %w", err)
+	}
+
+	cellStmt := fmt.Sprintf(`CREATE TABLE %s (
+		id TEXT PRIMARY KEY,
+		rat TEXT NOT NULL,
+		mcc TEXT NOT NULL,
+		mnc TEXT NOT NULL,
+		cell_identity TEXT NOT NULL,
+		gnb_id TEXT,
+		latitude REAL NOT NULL,
+		longitude REAL NOT NULL,
+		altitude REAL,
+		uncertainty_semi_major REAL,
+		uncertainty_semi_minor REAL,
+		orientation_major INTEGER,
+		confidence INTEGER,
+		source TEXT NOT NULL DEFAULT 'provisioned',
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	)`, CellPositionsTableName)
+
+	if _, err := tx.ExecContext(ctx, cellStmt); err != nil {
+		return fmt.Errorf("failed to create cell_positions table: %w", err)
+	}
+
+	// A cell (rat + PLMN + cell identity) may only be provisioned once.
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf(
+		"CREATE UNIQUE INDEX idx_cell_positions_cell ON %s(rat, mcc, mnc, cell_identity)",
+		CellPositionsTableName)); err != nil {
+		return fmt.Errorf("create cell_positions unique cell index: %w", err)
 	}
 
 	return nil

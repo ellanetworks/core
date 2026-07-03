@@ -74,3 +74,9 @@ type ProtocolExtensionContainerResultCSIRSRPItemExtIEs struct{}
 
 // ResultCSI-RSRQ-Item-ExtIEs.
 type ProtocolExtensionContainerResultCSIRSRQItemExtIEs struct{}
+
+// UL-AoA-ExtIEs.
+type ProtocolExtensionContainerULAoAExtIEs struct{}
+
+// LCS-to-GCS-Translation-ExtIEs.
+type ProtocolExtensionContainerLCSToGCSTranslationExtIEs struct{}

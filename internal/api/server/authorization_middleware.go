@@ -41,6 +41,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListNetworkRules, PermReadNetworkRule,
 		PermReadLocation,
 		PermReadPositioningSessions,
+		PermListCellPositions, PermReadCellPosition,
 	},
 
 	RoleNetworkManager: {
@@ -63,6 +64,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermCreateNetworkRule, PermListNetworkRules, PermReadNetworkRule, PermUpdateNetworkRule, PermDeleteNetworkRule,
 		PermReadLocation,
 		PermReadPositioningSessions, PermCreatePositioningSession, PermDeletePositioningSession,
+		PermListCellPositions, PermReadCellPosition, PermCreateCellPosition, PermUpdateCellPosition, PermDeleteCellPosition,
 	},
 }
 
@@ -207,6 +209,13 @@ const (
 	PermReadPositioningSessions  = "positioning:sessions:read"
 	PermCreatePositioningSession = "positioning:sessions:create"
 	PermDeletePositioningSession = "positioning:sessions:delete"
+
+	// Cell position permissions
+	PermListCellPositions  = "cell_position:list"
+	PermReadCellPosition   = "cell_position:read"
+	PermCreateCellPosition = "cell_position:create"
+	PermUpdateCellPosition = "cell_position:update"
+	PermDeleteCellPosition = "cell_position:delete"
 )
 
 func Authorize(permission string, next http.Handler) http.Handler {

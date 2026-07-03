@@ -71,6 +71,9 @@ const (
 	MeasSSRSRQ
 	MeasCSIRSRP
 	MeasCSIRSRQ
+	MeasAngleOfArrivalNR
+	MeasTimingAdvanceNR
+	MeasUERxTxTimeDiff
 )
 
 // CauseGroup identifies which Cause CHOICE alternative was decoded.
@@ -129,6 +132,30 @@ type ECIDResult struct {
 	ResultSSRSRQ  *SSRSRQResult
 	ResultCSIRSRP *CSIRSRPResult
 	ResultCSIRSRQ *CSIRSRQResult
+
+	// NR-specific timing/angle measurements (TS 38.455 §9.2.5 extension IEs).
+	AoA             *AoAResult // Angle of Arrival NR (UL-AoA)
+	NRTimingAdvance *int64     // Value Timing Advance NR (0..7690), TS 38.133 mapping
+	UERxTxTimeDiff  *int64     // UE Rx-Tx Time Difference (0..61565), TS 38.215
+}
+
+// AoAResult is a decoded NR UL Angle of Arrival (TS 38.455 §9.2.38). Angles are
+// exposed both raw (0.1-degree integer units, as on the wire) and converted to
+// decimal degrees. Zenith and the LCS-to-GCS rotation are optional.
+type AoAResult struct {
+	AzimuthRaw     int64   // 0..3599 (0.1° units)
+	AzimuthDegrees float64 // 0..359.9
+	ZenithRaw      *int64  // 0..1799 (0.1° units), optional
+	ZenithDegrees  *float64
+	LCSToGCS       *LCSToGCS // optional LCS→GCS rotation angles (degrees)
+}
+
+// LCSToGCS holds the decoded LCS-to-GCS translation angles (TS 38.455 §9.2.69),
+// converted from 0.1-degree units to decimal degrees.
+type LCSToGCS struct {
+	AlphaDegrees float64
+	BetaDegrees  float64
+	GammaDegrees float64
 }
 
 // SSRSRPResult contains the decoded SS-RSRP measurements.

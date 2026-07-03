@@ -52,4 +52,10 @@ type LocationResult struct {
 	SSRSRQ  *int32 `json:"ss_rsrq,omitempty"`  // SSB-based RSRQ, dB × 100
 	CSIRSRP *int32 `json:"csi_rsrp,omitempty"` // CSI-RS-based RSRP, dBm × 100
 	CSIRSRQ *int32 `json:"csi_rsrq,omitempty"` // CSI-RS-based RSRQ, dB × 100
+
+	// NR-specific timing/angle measurements (TS 38.455 §9.2.5 extension IEs)
+	NRTimingAdvance   *int32   `json:"nr_timing_advance,omitempty"`   // Value Timing Advance NR (0..7690)
+	UERxTxTimeDiff    *int32   `json:"ue_rx_tx_time_diff,omitempty"`  // UE Rx-Tx Time Difference (0..61565)
+	AoAAzimuthDegrees *float64 `json:"aoa_azimuth_degrees,omitempty"` // UL Angle of Arrival azimuth
+	AoAZenithDegrees  *float64 `json:"aoa_zenith_degrees,omitempty"`  // UL Angle of Arrival zenith
 }

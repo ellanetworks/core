@@ -22,8 +22,12 @@ const ecidMeasurementTimeout = 10 * time.Second
 
 // determineECIDLocation computes location using the E-CID (Enhanced Cell ID) method.
 // E-CID extends basic Cell ID with radio measurements (RSRP, RSRQ, TA, Rx-Tx)
-// to estimate the UE's distance from the gNB.
-func (l *LMF) determineECIDLocation(supi etsi.SUPI) (*models.LocationResult, error) {
+// to estimate the UE's distance from the gNB. It requires a geographic anchor
+// for the serving cell (RAN-supplied NG-RAN Access Point Position or the
+// provisioned cell-position table); with no anchor it returns
+// ErrNoLocationEstimate. When no radio measurements are available it degrades
+// to a Cell-ID estimate (still requiring the anchor).
+func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI) (*models.LocationResult, error) {
 	// 1. Get serving cell location (same as Cell ID)
 	loc, ok := l.amf.GetUELocation(supi)
 	if !ok {
@@ -35,16 +39,24 @@ func (l *LMF) determineECIDLocation(supi etsi.SUPI) (*models.LocationResult, err
 	}
 
 	// 2. Request radio measurements from the RAN over NRPPa and wait for the
-	//    asynchronous UEPositioningInformation response. On any failure (no
-	//    RAN connection, timeout, decode error) E-CID degrades gracefully to
-	//    Cell ID with measurements left nil.
+	//    asynchronous response. On any failure (no RAN connection, timeout,
+	//    decode error) measurements are left nil and E-CID degrades to Cell ID.
 	measurements := l.fetchECIDMeasurements(supi)
 
-	// 3. Build E-CID result with cell ID + measurements
+	// 3. Anchor the estimate to a geographic coordinate: prefer the RAN-supplied
+	//    NG-RAN Access Point Position, else the provisioned cell-position table.
+	//    Without a coordinate there is no valid location estimate.
+	coord, ok := l.resolveCellCoordinate(ctx, loc, measurements)
+	if !ok {
+		return nil, ErrNoLocationEstimate
+	}
+
+	// 4. Build the result. With measurements it is an E-CID estimate; without
+	//    them it degrades to Cell-ID.
 	result := computeCellIDLocation(supi, loc)
-	result.Shape = models.GADECID
 
 	if measurements != nil {
+		result.Shape = models.GADECID
 		result.RSRP = measurements.RSRP
 		result.RSRQ = measurements.RSRQ
 		result.TA = measurements.TA
@@ -52,52 +64,43 @@ func (l *LMF) determineECIDLocation(supi etsi.SUPI) (*models.LocationResult, err
 		result.SSRSRQ = measurements.SSRSRQ
 		result.CSIRSRP = measurements.CSIRSRP
 		result.CSIRSRQ = measurements.CSIRSRQ
+		result.NRTimingAdvance = measurements.NRTimingAdvance
+		result.UERxTxTimeDiff = measurements.RxTxTimeDifference
+		result.AoAAzimuthDegrees = measurements.AoAAzimuthDegrees
+		result.AoAZenithDegrees = measurements.AoAZenithDegrees
 
-		// 4. Estimate distance from Timing Advance or Rx-Tx
-		if measurements.TA != nil {
+		// Estimate distance from the best available timing measurement. Prefer
+		// the NR timing advance (TS 38.455 Value Timing Advance NR), then the
+		// legacy E-UTRA timing advance, then Rx-Tx.
+		switch {
+		case measurements.NRTimingAdvance != nil:
+			dist := nrTAToDistance(*measurements.NRTimingAdvance)
+			result.Distance = &dist
+		case measurements.TA != nil:
 			dist := taToDistance(*measurements.TA)
 			result.Distance = &dist
-		} else if measurements.RxTxTimeDifference != nil {
+		case measurements.RxTxTimeDifference != nil:
 			dist := rxTxToDistance(*measurements.RxTxTimeDifference)
 			result.Distance = &dist
 		}
-
-		// 5. If the RAN reported the serving cell's NG-RANAccessPointPosition,
-		//    use it for a more precise ellipsoid-point location.
-		if ap := measurements.APPosition; ap != nil {
-			applyAccessPointPosition(result, ap)
-		}
+	} else {
+		// Downgrade: no radio measurements, so this is a Cell-ID estimate.
+		result.Shape = models.GADCellID
 	}
+
+	applyCellCoordinate(result, coord)
 
 	logger.LmfLog.Info("E-CID location computed",
 		zap.String("supi", supi.String()),
 		zap.String("access_type", result.AccessType),
+		zap.Int("shape", int(result.Shape)),
 		zap.Any("rsrp", result.RSRP),
-		zap.Any("ta", result.TA),
+		zap.Any("nr_ta", result.NRTimingAdvance),
+		zap.Any("aoa_azimuth", result.AoAAzimuthDegrees),
 		zap.Any("distance_m", result.Distance),
 	)
 
 	return result, nil
-}
-
-// applyAccessPointPosition upgrades a Cell-ID/E-CID result to an ellipsoid point
-// using the serving cell's NG-RANAccessPointPosition reported over NRPPa. The
-// latitude/longitude are stored in 1e-7 degrees (per LocationResult), the
-// altitude in metres, and the horizontal accuracy from the uncertainty ellipse.
-func applyAccessPointPosition(result *models.LocationResult, ap *amf.APPosition) {
-	result.Latitude = int32(ap.LatitudeDegrees * 1e7)
-	result.Longitude = int32(ap.LongitudeDegrees * 1e7)
-	result.Altitude = int32(ap.Altitude)
-
-	// Use the larger uncertainty semi-axis as the horizontal accuracy estimate.
-	acc := ap.UncertaintySemiMajor
-	if ap.UncertaintySemiMinor > acc {
-		acc = ap.UncertaintySemiMinor
-	}
-
-	if acc >= 0 {
-		result.HorizontalAccuracy = uint32(acc)
-	}
 }
 
 // fetchECIDMeasurements triggers an NRPPa measurement request to the RAN and
@@ -137,6 +140,27 @@ func (l *LMF) fetchECIDMeasurements(supi etsi.SUPI) *amf.RadioMeasurements {
 // Per 3GPP TS 38.133, 1 TA unit ≈ 78 meters (based on 0.52 μs × speed of light / 2).
 func taToDistance(ta int32) float64 {
 	return float64(ta) * 78.0
+}
+
+// nrTADVResolutionSeconds is the assumed time granularity of one NR-TADV report
+// unit. The NRPPa "Value Timing Advance NR" (INTEGER 0..7690, TS 38.455 §9.2.5)
+// shares the value range of the E-UTRA timing-advance report and, per TS 38.133,
+// uses a fixed report mapping expressed against a reference time unit rather than
+// the per-SCS TA-command step — so the conversion is numerology-independent. We
+// use 16·Ts (Ts = 1/(15000·2048) s ≈ 32.55 ns), i.e. the E-UTRA TADV reference
+// granularity (≈0.5208 μs per unit).
+//
+// NOTE: the exact TS 38.133 NR-TADV report-mapping table was not available when
+// this was written; treat this constant as approximate and validate it against
+// TS 38.133 before relying on the distance quantitatively.
+const nrTADVResolutionSeconds = 16.0 / (15000.0 * 2048.0)
+
+// nrTAToDistance converts an NR-TADV report value (TS 38.455 Value Timing
+// Advance NR) to an estimated UE–gNB distance in metres. NR-TADV approximates
+// the round-trip time, so the one-way distance is c·(value·resolution)/2.
+func nrTAToDistance(tadv int32) float64 {
+	const speedOfLight = 299792458.0 // m/s
+	return float64(tadv) * nrTADVResolutionSeconds * speedOfLight / 2.0
 }
 
 // rxTxToDistance converts UE Rx-Tx time difference to distance in meters.

@@ -59,10 +59,13 @@ const (
 	ProtocolIEIDCellPortionID             int64 = 14
 
 	// Extension IE ProtocolIEIDs for MeasuredResultsValue-ExtensionIE (TS 38.455 Rel-18).
-	ProtocolIEIDResultSSRSRP  int64 = 32
-	ProtocolIEIDResultSSRSRQ  int64 = 33
-	ProtocolIEIDResultCSIRSRP int64 = 34
-	ProtocolIEIDResultCSIRSRQ int64 = 35
+	ProtocolIEIDResultSSRSRP     int64 = 32
+	ProtocolIEIDResultSSRSRQ     int64 = 33
+	ProtocolIEIDResultCSIRSRP    int64 = 34
+	ProtocolIEIDResultCSIRSRQ    int64 = 35
+	ProtocolIEIDAngleOfArrivalNR int64 = 36
+	ProtocolIEIDNRTADV           int64 = 94
+	ProtocolIEIDUERxTxTimeDiff   int64 = 118
 )
 
 // NRPPATransactionID ::= INTEGER (0..32767) (NRPPA-CommonDataTypes).

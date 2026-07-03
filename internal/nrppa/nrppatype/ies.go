@@ -397,14 +397,61 @@ const (
 	MeasuredResultsValueExtIEsPresentResultSSRSRQ
 	MeasuredResultsValueExtIEsPresentResultCSIRSRP
 	MeasuredResultsValueExtIEsPresentResultCSIRSRQ
+	MeasuredResultsValueExtIEsPresentAngleOfArrivalNR
+	MeasuredResultsValueExtIEsPresentNRTADV
+	MeasuredResultsValueExtIEsPresentUERxTxTimeDiff
 )
 
 type MeasuredResultsValueExtIEsValue struct {
-	Present       int
-	ResultSSRSRP  *ResultSSRSRP  `aper:"referenceFieldValue:32"`
-	ResultSSRSRQ  *ResultSSRSRQ  `aper:"referenceFieldValue:33"`
-	ResultCSIRSRP *ResultCSIRSRP `aper:"referenceFieldValue:34"`
-	ResultCSIRSRQ *ResultCSIRSRQ `aper:"referenceFieldValue:35"`
+	Present          int
+	ResultSSRSRP     *ResultSSRSRP   `aper:"referenceFieldValue:32"`
+	ResultSSRSRQ     *ResultSSRSRQ   `aper:"referenceFieldValue:33"`
+	ResultCSIRSRP    *ResultCSIRSRP  `aper:"referenceFieldValue:34"`
+	ResultCSIRSRQ    *ResultCSIRSRQ  `aper:"referenceFieldValue:35"`
+	AngleOfArrivalNR *ULAoA          `aper:"valueExt,referenceFieldValue:36"`
+	NRTADV           *NRTADV         `aper:"referenceFieldValue:94"`
+	UERxTxTimeDiff   *UERxTxTimeDiff `aper:"referenceFieldValue:118"`
+}
+
+//	UL-AoA ::= SEQUENCE {
+//		    azimuthAoA           INTEGER (0..3599),
+//		    zenithAoA            INTEGER (0..1799)      OPTIONAL,
+//		    lCS-to-GCS-Translation LCS-to-GCS-Translation OPTIONAL,
+//		    iE-extensions        ProtocolExtensionContainer OPTIONAL,
+//		    ...
+//		}
+//
+// Extensible SEQUENCE (TS 38.455 §9.2.38). Azimuth/zenith in 0.1-degree units.
+type ULAoA struct {
+	AzimuthAoA          int64                                  `aper:"valueLB:0,valueUB:3599"`
+	ZenithAoA           *int64                                 `aper:"optional,valueLB:0,valueUB:1799"`
+	LCSToGCSTranslation *LCSToGCSTranslation                   `aper:"optional,valueExt"`
+	IEExtensions        *ProtocolExtensionContainerULAoAExtIEs `aper:"optional"`
+}
+
+//	LCS-to-GCS-Translation ::= SEQUENCE {
+//		    alpha INTEGER (0..3599), beta INTEGER (0..3599), gamma INTEGER (0..3599),
+//		    iE-Extensions ProtocolExtensionContainer OPTIONAL, ...
+//		}
+//
+// Extensible SEQUENCE (TS 38.455 §9.2.69). Angles in 0.1-degree units.
+type LCSToGCSTranslation struct {
+	Alpha        int64                                                `aper:"valueLB:0,valueUB:3599"`
+	Beta         int64                                                `aper:"valueLB:0,valueUB:3599"`
+	Gamma        int64                                                `aper:"valueLB:0,valueUB:3599"`
+	IEExtensions *ProtocolExtensionContainerLCSToGCSTranslationExtIEs `aper:"optional"`
+}
+
+// NR-TADV ::= INTEGER (0..7690). Non-extensible (TS 38.455 §9.3.5). Report
+// mapping per TS 38.133.
+type NRTADV struct {
+	Value int64 `aper:"valueLB:0,valueUB:7690"`
+}
+
+// UE-Rx-Tx-Time-Diff ::= INTEGER (0..61565). Non-extensible (TS 38.455 §9.3.5).
+// Report mapping per TS 38.215.
+type UERxTxTimeDiff struct {
+	Value int64 `aper:"valueLB:0,valueUB:61565"`
 }
 
 // ResultRSRP-EUTRA ::= SEQUENCE (SIZE (1..maxCellReport=9)) OF

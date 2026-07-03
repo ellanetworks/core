@@ -27,6 +27,7 @@ type LPPHandler interface {
 // calls to obtain a subscriber's current location.
 type LMF struct {
 	amf         *amf.AMF
+	db          *db.Database
 	sessionMgr  *SessionManager
 	lppHandler  LPPHandler
 	nrppaClient *nrppa.Client
@@ -40,6 +41,7 @@ func New(amfInstance *amf.AMF, d *db.Database) *LMF {
 
 	return &LMF{
 		amf:         amfInstance,
+		db:          d,
 		sessionMgr:  NewSessionManager(d),
 		nrppaClient: nrppa.New(amfInstance),
 		lppSessions: make(map[string]*lpp.Session),
