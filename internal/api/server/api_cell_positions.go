@@ -66,32 +66,31 @@ func cellPositionToResponse(c *db.CellPosition) CellPositionResponse {
 	}
 }
 
-// validateCellPositionRequest checks a provisioning payload and returns the
-// normalized RAT, or an error message.
-func (req *CellPositionRequest) validate() (string, error) {
+// validate checks a provisioning payload.
+func (req *CellPositionRequest) validate() error {
 	switch req.RAT {
 	case db.RATNR, db.RATEUTRA:
 	default:
-		return "", fmt.Errorf("rat must be %q or %q", db.RATNR, db.RATEUTRA)
+		return fmt.Errorf("rat must be %q or %q", db.RATNR, db.RATEUTRA)
 	}
 
 	if req.Mcc == "" || req.Mnc == "" {
-		return "", errors.New("mcc and mnc are required")
+		return errors.New("mcc and mnc are required")
 	}
 
 	if req.CellIdentity == "" {
-		return "", errors.New("cell_identity is required")
+		return errors.New("cell_identity is required")
 	}
 
 	if req.Latitude < -90 || req.Latitude > 90 {
-		return "", errors.New("latitude must be within [-90, 90]")
+		return errors.New("latitude must be within [-90, 90]")
 	}
 
 	if req.Longitude < -180 || req.Longitude > 180 {
-		return "", errors.New("longitude must be within [-180, 180]")
+		return errors.New("longitude must be within [-180, 180]")
 	}
 
-	return req.RAT, nil
+	return nil
 }
 
 func (req *CellPositionRequest) toModel() *db.CellPosition {
@@ -148,7 +147,7 @@ func CreateCellPosition(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if _, err := req.validate(); err != nil {
+		if err := req.validate(); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), err, logger.APILog)
 			return
 		}
@@ -171,7 +170,7 @@ func UpdateCellPosition(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if _, err := req.validate(); err != nil {
+		if err := req.validate(); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), err, logger.APILog)
 			return
 		}
