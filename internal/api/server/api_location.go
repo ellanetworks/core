@@ -78,7 +78,7 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 
 		if req.Method != "" {
 			switch lmf.PositioningMethod(req.Method) {
-			case lmf.MethodCellID, lmf.MethodECID, lmf.MethodAGNSSAssisted, lmf.MethodAGNSSBased:
+			case lmf.MethodCellID, lmf.MethodECID:
 			default:
 				writeError(r.Context(), w, http.StatusBadRequest,
 					fmt.Sprintf("unsupported method: %s", req.Method), nil, logger.APILog)
@@ -167,39 +167,9 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 			writeResponse(r.Context(), w, toLocationData(result, verbose), http.StatusOK, logger.APILog)
 
 			return
-
-		case lmf.MethodAGNSSAssisted, lmf.MethodAGNSSBased:
-			// A-GNSS creates its own LPP session via DetermineLocation.
-			// The LPP state machine completes the session when done.
-			result, sessionID, err := lmfInstance.DetermineLocation(r.Context(), supi, method)
-			if err != nil {
-				logger.LmfLog.Warn("Positioning procedure failed",
-					zap.String("session_id", sessionID),
-					zap.String("method", string(method)),
-					zap.Error(err),
-				)
-				writeLocationError(r.Context(), w, err)
-
-				return
-			}
-
-			if sessionID != "" {
-				// Session was created and completed by the LPP state machine.
-				// Ensure the result is stored for the tester to retrieve.
-				if err := lmfInstance.SessionManager().CompleteSession(r.Context(), sessionID, result); err != nil {
-					logger.LmfLog.Warn("Failed to store A-GNSS result",
-						zap.String("session_id", sessionID),
-						zap.Error(err),
-					)
-				}
-			}
-
-			writeResponse(r.Context(), w, toLocationData(result, verbose), http.StatusOK, logger.APILog)
-
-			return
 		}
 
-		// For deferred requests (periodic/triggered) with non-ECID/A-GNSS methods,
+		// For deferred requests (periodic/triggered) with non-ECID methods,
 		// just create the session and return the ID.
 		sessionID, err := lmfInstance.SessionManager().CreateSession(r.Context(), lmf.CreateSessionParams{
 			SUPI:              req.SUPI,

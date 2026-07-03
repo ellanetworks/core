@@ -96,12 +96,6 @@ type NASHandler interface {
 	HandleNAS(ctx context.Context, ue *RanUe, nasPdu []byte) error
 }
 
-// LPPHandler is called by the AMF when an UL NAS Transport carries an LPP payload.
-// The AMF looks up the UE by SUPI and forwards the LPP data to the handler (LMF).
-type LPPHandler interface {
-	ForwardLPP(ctx context.Context, supi etsi.SUPI, lppData []byte) error
-}
-
 // Lock ordering (acquire in this order, never reverse):
 //
 //	AMF.mu  →  UeContext.Mutex
@@ -136,7 +130,6 @@ type AMF struct {
 	handoverGuardTimeout time.Duration
 	Smf                  SmfSbi
 	NAS                  NASHandler
-	LPPHandler           LPPHandler
 }
 
 // HandoverGuardTimeout returns the N2 handover supervision timeout.

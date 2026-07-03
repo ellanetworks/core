@@ -7,10 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/lmf/lpp"
 	"github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
 	coremodels "github.com/ellanetworks/core/internal/models"
@@ -30,8 +28,6 @@ func (l *LMF) DetermineLocation(ctx context.Context, supi etsi.SUPI, method Posi
 	case MethodECID:
 		result, err := l.determineECIDLocation(ctx, supi)
 		return result, "", err
-	case MethodAGNSSAssisted, MethodAGNSSBased:
-		return l.determineAGNSSLocation(ctx, supi, method)
 	default:
 		return nil, "", fmt.Errorf("unsupported positioning method: %s", method)
 	}
@@ -71,94 +67,6 @@ func (l *LMF) determineCellIDLocation(ctx context.Context, supi etsi.SUPI) (*mod
 	)
 
 	return result, nil
-}
-
-// determineAGNSSLocation computes location using A-GNSS via the LPP state
-// machine. For AGNSS-assisted (UE-assisted): LMF requests capabilities, then
-// requests location, and extracts the fix from ProvideLocationInformation.
-// For AGNSS-based: LMF sends assistance data and waits for the UE to compute.
-// Returns the location result, session ID, and any error.
-func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method PositioningMethod) (*models.LocationResult, string, error) {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	logger.LmfLog.Info("A-GNSS positioning via LPP",
-		zap.String("supi", supi.String()),
-		zap.String("method", string(method)),
-	)
-
-	// Create LPP session
-	session, err := l.sessionMgr.CreateLPPSession(ctx, CreateSessionParams{
-		SUPI:              supi.String(),
-		Method:            method,
-		QoSResponseTimeMs: nil,
-		QOSHAccuracyM:     nil,
-	})
-	if err != nil {
-		return nil, "", fmt.Errorf("create LPP session: %w", err)
-	}
-
-	// Wire transport functions
-	session.SetTransport(
-		func(lppMsg []byte) error {
-			return l.lppHandler.ForwardLPPToUE(ctx, supi.String(), lppMsg)
-		},
-		func(result *models.LocationResult) error {
-			return l.sessionMgr.CompleteSession(ctx, session.SessionID(), result)
-		},
-		func() error {
-			return l.sessionMgr.FailSession(ctx, session.SessionID())
-		},
-		func() error {
-			return l.sessionMgr.CancelSession(ctx, session.SessionID())
-		},
-		func() {
-			l.DeregisterLPPSession(session.SessionID())
-		},
-	)
-
-	// Register with LMF for UL message routing
-	l.RegisterLPPSession(session.SessionID(), session)
-
-	// Start the LPP state machine (sends RequestLocationInformation for capabilities)
-	if err := session.StartSession(); err != nil {
-		session.Fail()
-		return nil, session.SessionID(), fmt.Errorf("start LPP session: %w", err)
-	}
-
-	// Wait for location fix with timeout
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			session.Fail()
-			return nil, session.SessionID(), fmt.Errorf("AGNSS positioning timed out: %w", ctx.Err())
-		case <-ticker.C:
-			state := session.State()
-			if state == lpp.LocationReceived {
-				result := session.LocationResult()
-				if result == nil {
-					return nil, session.SessionID(), fmt.Errorf("location result is nil after LocationReceived")
-				}
-
-				return &models.LocationResult{
-					SUPI:               supi.String(),
-					Shape:              models.GADEllipsoidalPoint,
-					Latitude:           result.Latitude,
-					Longitude:          result.Longitude,
-					Altitude:           result.Altitude,
-					HorizontalAccuracy: result.HorizontalAccuracy,
-					VerticalAccuracy:   result.VerticalAccuracy,
-				}, session.SessionID(), nil
-			}
-
-			if state == lpp.SessionFailed {
-				return nil, session.SessionID(), fmt.Errorf("LPP session failed (state=%s)", state)
-			}
-		}
-	}
 }
 
 // computeCellIDLocation converts an AMF UserLocation into a LocationResult
