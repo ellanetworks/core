@@ -516,13 +516,13 @@ func TestWithClock(t *testing.T) {
 	}
 }
 
-func TestAuthenticate_SQNWrapsAt43BitBoundary(t *testing.T) {
+func TestAuthenticate_SQNWrapsAt48BitBoundary(t *testing.T) {
 	store := newFakeStore()
-	// Set SQN just below the 43-bit max so the next +32 wraps.
+	// Set SQN just below the 48-bit max (TS 33.102 §6.3.1) so the next +32 wraps.
 	store.Add(testIMSI, &ausf.Subscriber{
 		PermanentKey:   testK,
 		Opc:            testOPc,
-		SequenceNumber: "07ffffffffe0", // sqnMax - 31
+		SequenceNumber: "ffffffffffe0", // sqnMax - 31
 	})
 
 	a := newTestAUSF(store)
@@ -537,7 +537,7 @@ func TestAuthenticate_SQNWrapsAt43BitBoundary(t *testing.T) {
 	sqn := store.subs[testIMSI].SequenceNumber
 	store.mu.Unlock()
 
-	// 0x07ffffffffe0 + 32 = 0x0800000000000, masked to 43 bits = 0x000000000000
+	// 0xffffffffffe0 + 32 = 0x1000000000000, masked to 48 bits = 0x000000000000
 	if sqn != "000000000000" {
 		t.Fatalf("expected SQN to wrap to 000000000000, got %s", sqn)
 	}
