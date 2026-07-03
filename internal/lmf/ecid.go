@@ -142,25 +142,64 @@ func taToDistance(ta int32) float64 {
 	return float64(ta) * 78.0
 }
 
-// nrTADVResolutionSeconds is the assumed time granularity of one NR-TADV report
-// unit. The NRPPa "Value Timing Advance NR" (INTEGER 0..7690, TS 38.455 §9.2.5)
-// shares the value range of the E-UTRA timing-advance report and, per TS 38.133,
-// uses a fixed report mapping expressed against a reference time unit rather than
-// the per-SCS TA-command step — so the conversion is numerology-independent. We
-// use 16·Ts (Ts = 1/(15000·2048) s ≈ 32.55 ns), i.e. the E-UTRA TADV reference
-// granularity (≈0.5208 μs per unit).
+// NR-TADV report-mapping constants, per TS 38.133 clause 13.5.1 "Report
+// mapping" (Table 13.5.1-1). The NRPPa "NR-TADV" IE (TS 38.455, INTEGER
+// 0..7690) is a non-linear quantization of TADV (TS 38.215 clause 5.2.7),
+// expressed in units of Tc (the NR basic time unit, TS 38.211 clause 4.1):
 //
-// NOTE: the exact TS 38.133 NR-TADV report-mapping table was not available when
-// this was written; treat this constant as approximate and validate it against
-// TS 38.133 before relying on the distance quantitatively.
-const nrTADVResolutionSeconds = 16.0 / (15000.0 * 2048.0)
+//	Tc = 1 / (480000 * 4096) s ≈ 0.5086 ns
+//
+// The reporting range 0..3150848 Tc is split into two uniform regions:
+//   - reported values 0..2047:    128 Tc/step  (TADV 0..262144 Tc)
+//   - reported values 2048..7689: 512 Tc/step  (TADV 262144..3150848 Tc)
+//   - reported value  7690:       open-ended clipping bin, TADV >= 3150848 Tc
+//
+// NOTE (per the TS 38.133 table): "TADV is equal to (gNB Rx-Tx time
+// difference) + NTA_offset, where NTA_offset is based on the information
+// n-TimingAdvanceOffset as specified in TS 38.331". The LMF has no visibility
+// into the cell's RRC-signalled n-TimingAdvanceOffset, so the distance
+// computed below is offset by that (cell- and duplex-mode-specific) constant;
+// treat it as a coarse estimate rather than a corrected round-trip delay.
+const (
+	nrTADVBasicTimeUnitSeconds = 1.0 / (480000.0 * 4096.0)              // Tc, TS 38.211 §4.1
+	nrTADVFineStepTc           = 128                                    // Tc per reported unit, values 0..2047
+	nrTADVFineStepCount        = 2048                                   // number of fine-resolution reported values (0..2047)
+	nrTADVCoarseStepTc         = 512                                    // Tc per reported unit, values 2048..7689
+	nrTADVCoarseStartTc        = nrTADVFineStepCount * nrTADVFineStepTc // 262144 Tc, start of the coarse region
+	nrTADVMaxReportedValue     = 7690                                   // open-ended clipping bin (TADV >= 3150848 Tc)
+)
 
-// nrTAToDistance converts an NR-TADV report value (TS 38.455 Value Timing
-// Advance NR) to an estimated UE–gNB distance in metres. NR-TADV approximates
-// the round-trip time, so the one-way distance is c·(value·resolution)/2.
+// nrTAToDistance converts an NR-TADV report value (TS 38.455 "NR-TADV" IE) to
+// an estimated UE-gNB distance in metres, using the TS 38.133 §13.5.1 report
+// mapping. Each reported value represents a quantization bin; the bin
+// midpoint is used as the representative TADV value (the final open-ended bin
+// uses its lower bound, since it has no upper edge). NR-TADV approximates the
+// round-trip time, so the one-way distance is c·(TADV_Tc·Tc)/2.
 func nrTAToDistance(tadv int32) float64 {
 	const speedOfLight = 299792458.0 // m/s
-	return float64(tadv) * nrTADVResolutionSeconds * speedOfLight / 2.0
+
+	if tadv < 0 {
+		return 0
+	}
+
+	var tadvTc float64
+
+	switch {
+	case tadv < nrTADVFineStepCount:
+		// Fine-resolution region: bin [128n, 128(n+1)) Tc, midpoint 128n+64.
+		tadvTc = float64(tadv)*nrTADVFineStepTc + nrTADVFineStepTc/2
+	case tadv < nrTADVMaxReportedValue:
+		// Coarse-resolution region: bin starts at 262144 Tc.
+		idx := tadv - nrTADVFineStepCount
+		tadvTc = nrTADVCoarseStartTc + float64(idx)*nrTADVCoarseStepTc + nrTADVCoarseStepTc/2
+	default:
+		// Open-ended clipping bin (reported value 7690): TADV >= 3150848 Tc.
+		// No upper edge exists, so use the bin's lower bound.
+		idx := nrTADVMaxReportedValue - nrTADVFineStepCount
+		tadvTc = nrTADVCoarseStartTc + float64(idx)*nrTADVCoarseStepTc
+	}
+
+	return tadvTc * nrTADVBasicTimeUnitSeconds * speedOfLight / 2.0
 }
 
 // rxTxToDistance converts UE Rx-Tx time difference to distance in meters.
