@@ -17,6 +17,13 @@ import (
 	"go.uber.org/zap"
 )
 
+// Audit log actions for the location endpoint. Location lookups reveal a
+// subscriber's physical position and are always audited.
+const (
+	GetSubscriberLocationAction = "get_subscriber_location"
+	CancelLocationSessionAction = "cancel_location_session"
+)
+
 // LocationRequest is the unified request body for all location operations.
 type LocationRequest struct {
 	SUPI              string `json:"supi"`
@@ -34,6 +41,9 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request body", err, logger.APILog)
 			return
 		}
+
+		// Actor for audit logging (best-effort; the request is authenticated).
+		email, _ := r.Context().Value(contextKeyEmail).(string)
 
 		// verbose=true attaches the non-standard supplementaryMeasurements block.
 		verbose := r.URL.Query().Get("verbose") == "true"
@@ -71,6 +81,14 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 				return
 			}
 
+			logger.LogAuditEvent(
+				r.Context(),
+				CancelLocationSessionAction,
+				email,
+				getClientIP(r),
+				"User cancelled location session: "+req.SessionID,
+			)
+
 			w.WriteHeader(http.StatusNoContent)
 
 			return
@@ -86,6 +104,21 @@ func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Hand
 				return
 			}
 		}
+
+		// Audit the sensitive location lookup up front, so the access attempt is
+		// recorded regardless of the outcome (success, not-found, or failure).
+		effectiveMethod := req.Method
+		if effectiveMethod == "" {
+			effectiveMethod = string(lmf.DefaultMethodForRequest(requestType))
+		}
+
+		logger.LogAuditEvent(
+			r.Context(),
+			GetSubscriberLocationAction,
+			email,
+			getClientIP(r),
+			fmt.Sprintf("User requested location for SUPI %s (method=%s, request_type=%s)", req.SUPI, effectiveMethod, req.RequestType),
+		)
 
 		// Cell ID is the only method that returns a result directly without
 		// needing session tracking (no LPP/NRPPa exchange required).

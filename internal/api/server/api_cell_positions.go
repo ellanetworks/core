@@ -13,6 +13,13 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 )
 
+// Audit log actions for cell-position provisioning (mutations).
+const (
+	CreateCellPositionAction = "create_cell_position"
+	UpdateCellPositionAction = "update_cell_position"
+	DeleteCellPositionAction = "delete_cell_position"
+)
+
 // CellPositionRequest is the provisioning payload for a cell antenna position.
 type CellPositionRequest struct {
 	RAT                  string   `json:"rat"` // "nr" or "eutra"
@@ -141,6 +148,12 @@ func GetCellPosition(dbInstance *db.Database) http.Handler {
 
 func CreateCellPosition(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		email, ok := r.Context().Value(contextKeyEmail).(string)
+		if !ok {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			return
+		}
+
 		var req CellPositionRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request body", err, logger.APILog)
@@ -159,11 +172,19 @@ func CreateCellPosition(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(r.Context(), w, CreateSuccessResponse{Message: "Cell position created", ID: model.ID}, http.StatusCreated, logger.APILog)
+
+		logger.LogAuditEvent(r.Context(), CreateCellPositionAction, email, getClientIP(r), fmt.Sprintf("User created cell position %s for %s", cellDescriptor(&req), model.ID))
 	})
 }
 
 func UpdateCellPosition(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		email, ok := r.Context().Value(contextKeyEmail).(string)
+		if !ok {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			return
+		}
+
 		var req CellPositionRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request body", err, logger.APILog)
@@ -190,12 +211,22 @@ func UpdateCellPosition(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Cell position updated"}, http.StatusOK, logger.APILog)
+
+		logger.LogAuditEvent(r.Context(), UpdateCellPositionAction, email, getClientIP(r), fmt.Sprintf("User updated cell position %s (%s)", model.ID, cellDescriptor(&req)))
 	})
 }
 
 func DeleteCellPosition(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := dbInstance.DeleteCellPosition(r.Context(), r.PathValue("id")); err != nil {
+		email, ok := r.Context().Value(contextKeyEmail).(string)
+		if !ok {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			return
+		}
+
+		id := r.PathValue("id")
+
+		if err := dbInstance.DeleteCellPosition(r.Context(), id); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Cell position not found", err, logger.APILog)
 				return
@@ -207,5 +238,13 @@ func DeleteCellPosition(dbInstance *db.Database) http.Handler {
 		}
 
 		w.WriteHeader(http.StatusNoContent)
+
+		logger.LogAuditEvent(r.Context(), DeleteCellPositionAction, email, getClientIP(r), "User deleted cell position: "+id)
 	})
+}
+
+// cellDescriptor renders a short human-readable identity of a provisioned cell
+// for audit-log details.
+func cellDescriptor(req *CellPositionRequest) string {
+	return fmt.Sprintf("%s %s/%s %s", req.RAT, req.Mcc, req.Mnc, req.CellIdentity)
 }
