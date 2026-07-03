@@ -34,8 +34,12 @@ const (
 	getCellPositionStmt       = `SELECT &CellPosition.* FROM %s WHERE id==$CellPosition.id;`
 	getCellPositionByCellStmt = `SELECT &CellPosition.* FROM %s WHERE rat==$CellPosition.rat AND mcc==$CellPosition.mcc AND mnc==$CellPosition.mnc AND cell_identity==$CellPosition.cell_identity;`
 	listCellPositionsStmt     = `SELECT &CellPosition.* FROM %s ORDER BY created_at DESC;`
-	updateCellPositionStmt    = `UPDATE %s SET rat==$CellPosition.rat, mcc==$CellPosition.mcc, mnc==$CellPosition.mnc, cell_identity==$CellPosition.cell_identity, gnb_id==$CellPosition.gnb_id, latitude==$CellPosition.latitude, longitude==$CellPosition.longitude, altitude==$CellPosition.altitude, uncertainty_semi_major==$CellPosition.uncertainty_semi_major, uncertainty_semi_minor==$CellPosition.uncertainty_semi_minor, orientation_major==$CellPosition.orientation_major, confidence==$CellPosition.confidence, source==$CellPosition.source, updated_at==$CellPosition.updated_at WHERE id==$CellPosition.id;`
-	deleteCellPositionStmt    = `DELETE FROM %s WHERE id==$CellPosition.id;`
+	// source is intentionally excluded from the SET clause: it records how the
+	// row originated (currently always "provisioned") and must not change on
+	// edit. CellPositionRequest has no Source field, so leaving it in the SET
+	// clause would blank it on every update.
+	updateCellPositionStmt = `UPDATE %s SET rat==$CellPosition.rat, mcc==$CellPosition.mcc, mnc==$CellPosition.mnc, cell_identity==$CellPosition.cell_identity, gnb_id==$CellPosition.gnb_id, latitude==$CellPosition.latitude, longitude==$CellPosition.longitude, altitude==$CellPosition.altitude, uncertainty_semi_major==$CellPosition.uncertainty_semi_major, uncertainty_semi_minor==$CellPosition.uncertainty_semi_minor, orientation_major==$CellPosition.orientation_major, confidence==$CellPosition.confidence, updated_at==$CellPosition.updated_at WHERE id==$CellPosition.id;`
+	deleteCellPositionStmt = `DELETE FROM %s WHERE id==$CellPosition.id;`
 )
 
 // CellPosition maps a serving cell (NCGI for NR, ECGI for E-UTRA) to a

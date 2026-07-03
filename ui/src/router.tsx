@@ -13,6 +13,7 @@ import SubscriberDetail from "./pages/SubscriberDetail";
 import Radios from "./pages/Radios";
 import RadiosListTab from "./pages/radios/RadiosListTab";
 import RadiosEventsTab from "./pages/radios/EventsTab";
+import CellPositionsTab from "./pages/radios/CellPositionsTab";
 import RadioDetail from "./pages/RadioDetail";
 import Profiles from "./pages/Profiles";
 import ProfileDetail from "./pages/ProfileDetail";
@@ -50,12 +51,13 @@ export default function AppRouter() {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="subscribers" element={<Subscribers />} />
         <Route path="subscribers/:imsi" element={<SubscriberDetail />} />
-        {/* Note: a radio named "events" would match the nested route below
-            instead of radios/:name. Radio names are system-generated so this
-            collision cannot occur in practice. */}
+        {/* Note: a radio named "events" or "cell-positions" would match one of
+            the nested routes below instead of radios/:name. Radio names are
+            system-generated so this collision cannot occur in practice. */}
         <Route path="radios" element={<Radios />}>
           <Route index element={<RadiosListTab />} />
           <Route path="events" element={<RadiosEventsTab />} />
+          <Route path="cell-positions" element={<CellPositionsTab />} />
         </Route>
         <Route path="radios/:name" element={<RadioDetail />} />
         <Route path="profiles" element={<Profiles />} />
