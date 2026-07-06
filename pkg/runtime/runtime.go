@@ -6,6 +6,7 @@ package runtime
 import (
 	"archive/tar"
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -36,6 +37,7 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	mmenas "github.com/ellanetworks/core/internal/mme/nas"
 	mmes1ap "github.com/ellanetworks/core/internal/mme/s1ap"
+	"github.com/ellanetworks/core/internal/netutil"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	amfsctp "github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/sessions"
@@ -61,7 +63,20 @@ type RuntimeConfig struct {
 }
 
 func Start(ctx context.Context, rc RuntimeConfig) error {
-	cfg, err := config.Validate(rc.ConfigPath)
+	// A native-XDP attach on a NIC shared by N2 and N3 briefly flushes the RAN
+	// interface's address, which can be absent at startup. Retry validation
+	// across that window; any non-address error fails fast.
+	var cfg config.Config
+
+	err := netutil.Retry(ctx, netutil.BindTimeout, netutil.BindInterval,
+		func(e error) bool { return errors.Is(e, config.ErrNoInterfaceIP) },
+		func() error {
+			var vErr error
+
+			cfg, vErr = config.Validate(rc.ConfigPath)
+
+			return vErr
+		})
 	if err != nil {
 		return fmt.Errorf("couldn't validate config: %w", err)
 	}
