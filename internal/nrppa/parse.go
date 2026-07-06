@@ -45,6 +45,14 @@ func ParsePDU(b []byte) (*ParsedPDU, error) {
 
 			out.Kind = KindECIDMeasurementTerminationCommand
 			out.Termination = parseTermination(cmd)
+		case nrppatype.ProcedureCodeECIDMeasurementFailureIndication:
+			ind := im.Value.ECIDMeasurementFailureIndication
+			if ind == nil {
+				return out, nil
+			}
+
+			out.Kind = KindECIDMeasurementFailureIndication
+			out.Failure = parseFailureIndication(ind)
 		}
 
 	case nrppatype.NRPPaPDUPresentSuccessfulOutcome:
@@ -181,6 +189,27 @@ func parseFailure(fail *nrppatype.ECIDMeasurementInitiationFailure) *ECIDFailure
 
 	for i := range fail.ProtocolIEs.List {
 		ie := &fail.ProtocolIEs.List[i]
+
+		switch ie.Id.Value {
+		case nrppatype.ProtocolIEIDLMFUEMeasurementID:
+			if v := ie.Value.LMFUEMeasurementID; v != nil {
+				out.LMFUEMeasurementID = v.Value
+			}
+		case nrppatype.ProtocolIEIDCause:
+			if v := ie.Value.Cause; v != nil {
+				out.Cause = parseCause(v)
+			}
+		}
+	}
+
+	return out
+}
+
+func parseFailureIndication(ind *nrppatype.ECIDMeasurementFailureIndication) *ECIDFailure {
+	out := &ECIDFailure{}
+
+	for i := range ind.ProtocolIEs.List {
+		ie := &ind.ProtocolIEs.List[i]
 
 		switch ie.Id.Value {
 		case nrppatype.ProtocolIEIDLMFUEMeasurementID:

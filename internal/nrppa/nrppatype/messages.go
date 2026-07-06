@@ -110,6 +110,38 @@ type ECIDMeasurementInitiationFailureIEsValue struct {
 	CriticalityDiagnostics *CriticalityDiagnostics `aper:"valueExt,referenceFieldValue:1"`
 }
 
+// E-CIDMeasurementFailureIndication ::= SEQUENCE { protocolIEs ..., ... }.
+// RAN → LMF, Class 2 elementary procedure sent when the RAN can no longer
+// provide a measurement it had accepted. Carries LMF-UE-Measurement-ID,
+// RAN-UE-Measurement-ID and a Cause (TS 38.455 §9.1.3).
+type ECIDMeasurementFailureIndication struct {
+	ProtocolIEs ProtocolIEContainerECIDMeasurementFailureIndicationIEs
+}
+
+type ProtocolIEContainerECIDMeasurementFailureIndicationIEs struct {
+	List []ECIDMeasurementFailureIndicationIEs `aper:"sizeLB:0,sizeUB:65535"`
+}
+
+type ECIDMeasurementFailureIndicationIEs struct {
+	Id          ProtocolIEID
+	Criticality Criticality
+	Value       ECIDMeasurementFailureIndicationIEsValue `aper:"openType,referenceFieldName:Id"`
+}
+
+const (
+	ECIDMeasurementFailureIndicationIEsPresentNothing int = iota /* No components present */
+	ECIDMeasurementFailureIndicationIEsPresentLMFUEMeasurementID
+	ECIDMeasurementFailureIndicationIEsPresentRANUEMeasurementID
+	ECIDMeasurementFailureIndicationIEsPresentCause
+)
+
+type ECIDMeasurementFailureIndicationIEsValue struct {
+	Present            int
+	LMFUEMeasurementID *UEMeasurementID `aper:"referenceFieldValue:2"`
+	RANUEMeasurementID *UEMeasurementID `aper:"referenceFieldValue:6"`
+	Cause              *Cause           `aper:"valueLB:0,valueUB:3,referenceFieldValue:0"`
+}
+
 // =====================================================================
 // E-CIDMeasurementTerminationCommand (NRPPA-PDU-Contents)
 // =====================================================================

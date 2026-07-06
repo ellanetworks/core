@@ -54,6 +54,7 @@ const (
 	KindECIDMeasurementInitiationResponse
 	KindECIDMeasurementInitiationFailure
 	KindECIDMeasurementTerminationCommand
+	KindECIDMeasurementFailureIndication
 )
 
 // MeasurementQuantityValue enumerates the E-CID measurement quantities
