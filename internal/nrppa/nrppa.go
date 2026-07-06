@@ -1,0 +1,251 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+// Package nrppa implements a real 3GPP TS 38.455 NRPPa (NR Positioning Protocol
+// A) ASN.1 codec for the E-CID Measurement Initiation procedure, using the
+// aligned-PER library github.com/free5gc/aper over the hand-written, aper-tagged
+// nrppatype structs.
+//
+// NRPPa is transported as an octet string inside NGAP UE-associated transport
+// messages (TS 38.413 §8.10) between the LMF and the RAN. This package provides
+// the low-level Encoder/Decoder plus high-level helpers that build and parse the
+// three E-CID Measurement Initiation messages without exposing raw aper types to
+// callers.
+//
+// Request/response correlation for the MVP is by LMF-UE-Measurement-ID (the
+// LMF-assigned measurement id), echoed by the RAN. The NRPPa transaction id is
+// carried in the elementary-procedure envelope and echoed for completeness.
+package nrppa
+
+import (
+	"github.com/ellanetworks/core/internal/nrppa/nrppatype"
+	"github.com/free5gc/aper"
+)
+
+// Encoder serialises an NRPPa-PDU to aligned-PER bytes. NRPPa-PDU is an
+// extensible CHOICE of three root alternatives (initiating / successful /
+// unsuccessful), hence the top-level params "valueExt,valueLB:0,valueUB:2".
+func Encoder(pdu nrppatype.NRPPaPDU) ([]byte, error) {
+	return aper.MarshalWithParams(pdu, "valueExt,valueLB:0,valueUB:2")
+}
+
+// Decoder parses aligned-PER bytes into an NRPPa-PDU.
+func Decoder(b []byte) (*nrppatype.NRPPaPDU, error) {
+	pdu := &nrppatype.NRPPaPDU{}
+
+	err := aper.UnmarshalWithParams(b, pdu, "valueExt,valueLB:0,valueUB:2")
+	if err != nil {
+		return nil, err
+	}
+
+	return pdu, nil
+}
+
+// =====================================================================
+// Plain caller-facing structs (no raw aper types leak to callers).
+// =====================================================================
+
+// MessageKind discriminates a decoded NRPPa E-CID PDU.
+type MessageKind int
+
+const (
+	KindUnknown MessageKind = iota
+	KindECIDMeasurementInitiationRequest
+	KindECIDMeasurementInitiationResponse
+	KindECIDMeasurementInitiationFailure
+	KindECIDMeasurementTerminationCommand
+	KindECIDMeasurementFailureIndication
+)
+
+// MeasurementQuantityValue enumerates the E-CID measurement quantities
+// (TS 38.455 MeasurementQuantitiesValue, root values only).
+type MeasurementQuantityValue int
+
+const (
+	MeasCellID MeasurementQuantityValue = iota
+	MeasAngleOfArrival
+	MeasTimingAdvanceType1
+	MeasTimingAdvanceType2
+	MeasRSRP
+	MeasRSRQ
+	MeasSSRSRP
+	MeasSSRSRQ
+	MeasCSIRSRP
+	MeasCSIRSRQ
+	MeasAngleOfArrivalNR
+	MeasTimingAdvanceNR
+	MeasUERxTxTimeDiff
+)
+
+// CauseGroup identifies which Cause CHOICE alternative was decoded.
+type CauseGroup int
+
+const (
+	CauseGroupRadioNetwork CauseGroup = iota
+	CauseGroupProtocol
+	CauseGroupMisc
+	CauseGroupChoiceExtension
+)
+
+// Cause is a decoded NRPPa Cause value.
+type Cause struct {
+	Group CauseGroup
+	Value int64 // ENUMERATED ordinal within the group (n/a for choice-Extension)
+}
+
+// APPosition is a decoded NG-RANAccessPointPosition (TS 38.455 §9.2.2 / TS
+// 23.032 ellipsoid point with uncertainty ellipse). LatitudeDegrees /
+// LongitudeDegrees are the WGS-84 decimal-degree conversions.
+type APPosition struct {
+	LatitudeSign           int   // 0 = north, 1 = south
+	Latitude               int64 // encoded magnitude (0..2^23-1)
+	Longitude              int64 // encoded value (-2^23..2^23-1)
+	DirectionOfAltitude    int   // 0 = height, 1 = depth
+	Altitude               int64
+	UncertaintySemiMajor   int64
+	UncertaintySemiMinor   int64
+	OrientationOfMajorAxis int64
+	UncertaintyAltitude    int64
+	Confidence             int64
+
+	LatitudeDegrees  float64
+	LongitudeDegrees float64
+}
+
+// ServingCell is the decoded NG-RAN-CGI (serving cell global identity).
+type ServingCell struct {
+	PLMNIdentity   []byte  // 3 octets
+	NRCellIdentity *uint64 // 36-bit, present for NR cells
+	EUTRACellID    *uint64 // 28-bit, present for E-UTRA cells
+}
+
+// ECIDResult is the gNB-supplied E-CID measurement result carried in an
+// E-CIDMeasurementInitiationResponse.
+type ECIDResult struct {
+	ServingCell        ServingCell
+	ServingCellTAC     []byte // 3 octets
+	APPosition         *APPosition
+	TimingAdvanceType1 *int64 // valueTimingAdvanceType1-EUTRA (0..7690)
+	TimingAdvanceType2 *int64 // valueTimingAdvanceType2-EUTRA (0..7690)
+
+	// NR-specific measurements (Rel-16+, TS 38.455)
+	ResultSSRSRP  *SSRSRPResult
+	ResultSSRSRQ  *SSRSRQResult
+	ResultCSIRSRP *CSIRSRPResult
+	ResultCSIRSRQ *CSIRSRQResult
+
+	// NR-specific timing/angle measurements (TS 38.455 §9.2.5 extension IEs).
+	AoA             *AoAResult // Angle of Arrival NR (UL-AoA)
+	NRTimingAdvance *int64     // Value Timing Advance NR (0..7690), TS 38.133 mapping
+	UERxTxTimeDiff  *int64     // UE Rx-Tx Time Difference (0..61565), TS 38.215
+}
+
+// AoAResult is a decoded NR UL Angle of Arrival (TS 38.455 §9.2.38). Angles are
+// exposed both raw (0.1-degree integer units, as on the wire) and converted to
+// decimal degrees. Zenith and the LCS-to-GCS rotation are optional.
+type AoAResult struct {
+	AzimuthRaw     int64   // 0..3599 (0.1° units)
+	AzimuthDegrees float64 // 0..359.9
+	ZenithRaw      *int64  // 0..1799 (0.1° units), optional
+	ZenithDegrees  *float64
+	LCSToGCS       *LCSToGCS // optional LCS→GCS rotation angles (degrees)
+}
+
+// LCSToGCS holds the decoded LCS-to-GCS translation angles (TS 38.455 §9.2.69),
+// converted from 0.1-degree units to decimal degrees.
+type LCSToGCS struct {
+	AlphaDegrees float64
+	BetaDegrees  float64
+	GammaDegrees float64
+}
+
+// SSRSRPResult contains the decoded SS-RSRP measurements.
+type SSRSRPResult struct {
+	Items []SSRSRPItem
+}
+
+// SSRSRPItem is a single SS-RSRP measurement entry.
+type SSRSRPItem struct {
+	NRPCI int64
+	Value int64 // 0..97, maps to -140..-44 dBm
+}
+
+// SSRSRQResult contains the decoded SS-RSRQ measurements.
+type SSRSRQResult struct {
+	Items []SSRSRQItem
+}
+
+// SSRSRQItem is a single SS-RSRQ measurement entry.
+type SSRSRQItem struct {
+	NRPCI int64
+	Value int64 // 0..34, maps to -19.5..3 dB
+}
+
+// CSIRSRPResult contains the decoded CSI-RSRP measurements.
+type CSIRSRPResult struct {
+	Items []CSIRSRPItem
+}
+
+// CSIRSRPItem is a single CSI-RSRP measurement entry.
+type CSIRSRPItem struct {
+	NRPCI      int64
+	CSIRSIndex int64
+	Value      int64 // 0..126, maps to -150..-1 dBm
+}
+
+// CSIRSRQResult contains the decoded CSI-RSRQ measurements.
+type CSIRSRQResult struct {
+	Items []CSIRSRQItem
+}
+
+// CSIRSRQItem is a single CSI-RSRQ measurement entry.
+type CSIRSRQItem struct {
+	NRPCI      int64
+	CSIRSIndex int64
+	Value      int64 // 0..34, maps to -19.5..3 dB
+}
+
+// ECIDRequest is a decoded E-CIDMeasurementInitiationRequest.
+type ECIDRequest struct {
+	LMFUEMeasurementID    int64
+	ReportCharacteristics int // 0 = onDemand, 1 = periodic
+	MeasurementQuantities []MeasurementQuantityValue
+}
+
+// ECIDResponse is a decoded E-CIDMeasurementInitiationResponse.
+type ECIDResponse struct {
+	LMFUEMeasurementID int64
+	RANUEMeasurementID int64
+	Result             *ECIDResult
+	CellPortionID      *int64
+}
+
+// ECIDFailure is a decoded E-CIDMeasurementInitiationFailure.
+type ECIDFailure struct {
+	LMFUEMeasurementID int64
+	Cause              Cause
+}
+
+// ECIDTermination is a decoded E-CIDMeasurementTerminationCommand.
+type ECIDTermination struct {
+	LMFUEMeasurementID int64
+	RANUEMeasurementID int64
+}
+
+// ParsedPDU is the discriminated result of ParsePDU.
+type ParsedPDU struct {
+	Kind        MessageKind
+	Request     *ECIDRequest
+	Response    *ECIDResponse
+	Failure     *ECIDFailure
+	Termination *ECIDTermination
+}
+
+// reject and ignore return the NRPPa criticality wrappers used when building IEs.
+func reject() nrppatype.Criticality {
+	return nrppatype.Criticality{Value: nrppatype.CriticalityPresentReject}
+}
+
+func ignore() nrppatype.Criticality {
+	return nrppatype.Criticality{Value: nrppatype.CriticalityPresentIgnore}
+}

@@ -61,6 +61,7 @@ var replicatedChangesetTables = []string{
 	ClusterJoinTokensTableName,
 	ClusterJoinHMACTableName,
 	DailyUsageTableName,
+	CellPositionsTableName,
 	"schema_version",
 }
 
@@ -89,6 +90,7 @@ var localOnlyTables = []string{
 	N3SettingsTableName,
 	NATSettingsTableName,
 	FlowAccountingSettingsTableName,
+	PositioningSessionsTableName,
 }
 
 // fsmInternalTables are managed directly by the FSM layer, not through

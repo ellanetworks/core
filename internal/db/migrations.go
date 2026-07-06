@@ -36,6 +36,7 @@ var migrations = []migration{
 	{12, "replace chain-PKI cluster TLS with fingerprint pinning (cluster_node_certs)", migrateV12},
 	{13, "add ipv6Pool column to data_networks and poolType column to ip_leases", migrateV13},
 	{14, "add 4G config: profile allowed access (4G/5G), policy default binding; RAT-neutral NAS algorithm names", migrateV14},
+	{15, "add positioning_sessions and cell_positions tables for LMF", migrateV15},
 }
 
 // baselineVersion is the highest migration that runs locally during
@@ -53,7 +54,7 @@ var migrations = []migration{
 //
 // The leader's Initialize() seed runs before post-baseline migrations apply, so
 // every column or table it writes must exist at the baseline.
-const baselineVersion = 14
+const baselineVersion = 15
 
 // SchemaVersion returns the highest migration version this binary understands.
 // Used during cluster join to reject version-skewed nodes.

@@ -13,7 +13,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
@@ -26,15 +25,17 @@ import {
 } from "@mui/x-data-grid";
 import { useQuery } from "@tanstack/react-query";
 import { getRadio, type APIRadioDetail, type Snssai } from "@/queries/radios";
-import EastIcon from "@mui/icons-material/East";
-import WestIcon from "@mui/icons-material/West";
 import {
   listSubscribersByRadio,
   type APISubscriberSummary,
 } from "@/queries/subscribers";
 import { listRadioEvents, type APIRadioEvent } from "@/queries/radio_events";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSnackbar } from "@/contexts/SnackbarContext";
 import { formatDateTime } from "@/utils/formatters";
+import EastIcon from "@mui/icons-material/East";
+import WestIcon from "@mui/icons-material/West";
+import { Tooltip } from "@mui/material";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const tableContainerSx = {
@@ -65,7 +66,9 @@ const ranNodeTypeChip = (t: string) => {
 const RadioDetail: React.FC = () => {
   const { name } = useParams<{ name: string }>();
   const navigate = useNavigate();
-  const { accessToken, authReady } = useAuth();
+  const { accessToken, authReady, role } = useAuth();
+  const canEdit = role === "Admin" || role === "Network Manager";
+  const { showSnackbar } = useSnackbar();
   const theme = useTheme();
 
   const gridTheme = useMemo(

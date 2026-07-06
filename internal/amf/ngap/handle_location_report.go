@@ -31,6 +31,16 @@ func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	ranUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
 	ranUe.TouchLastSeen()
 
+	// Extract radio measurements from UserLocationInformation if available.
+	// Note: free5gc's UserLocationInformationNR does not include RSRP/RSRQ/TA;
+	// those are sent via NRPPa UEPositioningInformation. For MVP, E-CID
+	// measurements come from mock NRPPa data set via the test harness.
+	if msg.UserLocationInformation != nil {
+		if nr := msg.UserLocationInformation.UserLocationInformationNR; nr != nil {
+			_ = nr // NRCGI, TAI already stored in Location; measurements pending NRPPa
+		}
+	}
+
 	logger.WithTrace(ctx, ranUe.Log).Debug("Handle Location Report", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Any("ReportArea", msg.LocationReportingRequestType.ReportArea))
 
 	switch msg.LocationReportingRequestType.EventType.Value {

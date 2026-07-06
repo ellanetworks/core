@@ -39,6 +39,9 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermGetRadioEvent,
 		PermGetFlowReportsRetentionPolicy, PermListFlowReports,
 		PermListNetworkRules, PermReadNetworkRule,
+		PermReadLocation,
+		PermReadPositioningSessions,
+		PermListCellPositions, PermReadCellPosition,
 	},
 
 	RoleNetworkManager: {
@@ -59,6 +62,9 @@ var PermissionsByRole = map[RoleID][]string{
 		PermGetFlowReportsRetentionPolicy, PermSetFlowReportsRetentionPolicy, PermListFlowReports, PermClearFlowReports,
 		PermSupportBundle,
 		PermCreateNetworkRule, PermListNetworkRules, PermReadNetworkRule, PermUpdateNetworkRule, PermDeleteNetworkRule,
+		PermReadLocation,
+		PermReadPositioningSessions, PermCreatePositioningSession, PermDeletePositioningSession,
+		PermListCellPositions, PermReadCellPosition, PermCreateCellPosition, PermUpdateCellPosition, PermDeleteCellPosition,
 	},
 }
 
@@ -195,6 +201,21 @@ const (
 
 	// Cluster permissions
 	PermManageCluster = "cluster:manage"
+
+	// Location permissions
+	PermReadLocation = "location:read"
+
+	// Positioning permissions
+	PermReadPositioningSessions  = "positioning:sessions:read"
+	PermCreatePositioningSession = "positioning:sessions:create"
+	PermDeletePositioningSession = "positioning:sessions:delete"
+
+	// Cell position permissions
+	PermListCellPositions  = "cell_position:list"
+	PermReadCellPosition   = "cell_position:read"
+	PermCreateCellPosition = "cell_position:create"
+	PermUpdateCellPosition = "cell_position:update"
+	PermDeleteCellPosition = "cell_position:delete"
 )
 
 func Authorize(permission string, next http.Handler) http.Handler {

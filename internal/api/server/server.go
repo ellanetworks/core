@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/lmf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/smf"
@@ -37,6 +38,7 @@ type HandlerConfig struct {
 	ReconcileRoutes     func(context.Context) error
 	RegisterExtraRoutes func(*http.ServeMux)
 	ClusterListener     *listener.Listener
+	LMF                 *lmf.LMF
 }
 
 func NewHandler(cfg HandlerConfig) http.Handler {
@@ -52,6 +54,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	bcryptCost := cfg.BcryptCost
 	reconcileRoutes := cfg.ReconcileRoutes
 	registerExtraRoutes := cfg.RegisterExtraRoutes
+	lmfInstance := cfg.LMF
 
 	mux := http.NewServeMux()
 
@@ -213,6 +216,21 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("GET /api/v1/logs/audit/retention", Authenticate(jwtSecret, dbInstance, Authorize(PermGetAuditLogRetentionPolicy, GetAuditLogRetentionPolicy(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/logs/audit/retention", Authenticate(jwtSecret, dbInstance, Authorize(PermSetAuditLogRetentionPolicy, UpdateAuditLogRetentionPolicy(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/logs/audit", Authenticate(jwtSecret, dbInstance, Authorize(PermListAuditLogs, ListAuditLogs(dbInstance))).ServeHTTP)
+
+	// Location - Unified endpoint (immediate, periodic, triggered, cancel)
+	mux.HandleFunc("POST /api/beta/location", Authenticate(jwtSecret, dbInstance, Authorize(PermReadLocation, GetSubscriberLocation(amfInstance, lmfInstance))).ServeHTTP)
+
+	// Positioning - Session listing and lookup only
+	mux.HandleFunc("GET /api/beta/positioning/sessions", Authenticate(jwtSecret, dbInstance, Authorize(PermReadPositioningSessions, ListSessions(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/beta/positioning/sessions/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadPositioningSessions, GetSession(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/beta/positioning/sessions/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeletePositioningSession, CancelSession(lmfInstance))).ServeHTTP)
+
+	// Cell positions - provisioned antenna coordinates for Cell-ID / E-CID
+	mux.HandleFunc("GET /api/beta/cell-positions", Authenticate(jwtSecret, dbInstance, Authorize(PermListCellPositions, ListCellPositions(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/beta/cell-positions/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadCellPosition, GetCellPosition(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/beta/cell-positions", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateCellPosition, CreateCellPosition(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/beta/cell-positions/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateCellPosition, UpdateCellPosition(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/beta/cell-positions/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteCellPosition, DeleteCellPosition(dbInstance))).ServeHTTP)
 
 	// Cluster (Authenticated, admin only)
 	mux.HandleFunc("GET /api/v1/cluster/members", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, ListClusterMembers(dbInstance))).ServeHTTP)

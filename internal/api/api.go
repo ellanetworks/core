@@ -24,6 +24,7 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
+	"github.com/ellanetworks/core/internal/lmf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/netutil"
@@ -93,6 +94,7 @@ type UpgradeConfig struct {
 	AMF                 *amf.AMF
 	MME                 *mme.MME
 	BGP                 *bgp.BGPService
+	LMF                 *lmf.LMF
 	EmbedFS             fs.FS
 	RegisterExtraRoutes func(*http.ServeMux)
 	ClusterListener     *listener.Listener
@@ -237,6 +239,7 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 		AMF:          opts.AMF,
 		MME:          opts.MME,
 		BGP:          opts.BGP,
+		LMF:          opts.LMF,
 		BcryptCost:   bcrypt.DefaultCost,
 		Ready:        &s.ready,
 		ReconcileRoutes: func(rcCtx context.Context) error {

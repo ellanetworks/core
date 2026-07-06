@@ -31,6 +31,7 @@ import (
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/jobs"
 	"github.com/ellanetworks/core/internal/kernel"
+	"github.com/ellanetworks/core/internal/lmf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
@@ -501,6 +502,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	metrics.RegisterMetrics()
 	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountENBs, mmeInstance.CountRegisteredSubscribers)
 
+	lmfInstance := lmf.New(amfInstance, dbInstance)
+
 	// Session reconciler: watches the session_reconcile changefeed topic
 	// and reconciles every local PDU session against the current DB policy.
 	// Triggered by profile, subscriber, and policy writes.
@@ -543,6 +546,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		AMF:                 amfInstance,
 		MME:                 mmeInstance,
 		BGP:                 bgpService,
+		LMF:                 lmfInstance,
 		EmbedFS:             rc.EmbedFS,
 		RegisterExtraRoutes: rc.RegisterExtraRoutes,
 		ClusterListener:     clusterLn,
