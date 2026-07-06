@@ -26,6 +26,7 @@ import (
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/ellanetworks/core/internal/smf"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -129,30 +130,37 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 	s.httpServer = srv
 
 	go func() {
-		var serveErr error
+		lc := net.ListenConfig{}
+		if cfg.Interfaces.API.Name != "" {
+			lc.Control = func(network, address string, c syscall.RawConn) error {
+				var setSockOptErr error
 
+				if err := c.Control(func(fd uintptr) {
+					setSockOptErr = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, cfg.Interfaces.API.Name)
+				}); err != nil {
+					return err
+				}
+
+				return setSockOptErr
+			}
+		}
+
+		// A bind can transiently fail while a shared N2/N3 interface flaps; retry.
 		var ln net.Listener
 
-		if cfg.Interfaces.API.Name != "" {
-			lc := net.ListenConfig{
-				Control: func(network, address string, c syscall.RawConn) error {
-					var setSockOptErr error
-
-					if err := c.Control(func(fd uintptr) {
-						setSockOptErr = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, cfg.Interfaces.API.Name)
-					}); err != nil {
-						return err
-					}
-
-					return setSockOptErr
-				},
+		listenErr := netutil.Retry(ctx, netutil.BindTimeout, netutil.BindInterval, netutil.IsAddrNotAvailable, func() error {
+			l, err := lc.Listen(ctx, "tcp", httpAddr)
+			if err != nil {
+				return err
 			}
 
-			ln, serveErr = lc.Listen(ctx, "tcp", httpAddr)
-			if serveErr != nil {
-				logger.APILog.Fatal("couldn't create listener", zap.Error(serveErr))
-				return
-			}
+			ln = l
+
+			return nil
+		})
+		if listenErr != nil {
+			logger.APILog.Fatal("couldn't create listener", zap.Error(listenErr))
+			return
 		}
 
 		logFields := []zap.Field{
@@ -164,6 +172,8 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 		}
 
 		logger.APILog.Info("API server started", logFields...)
+
+		var serveErr error
 
 		if scheme == HTTPS {
 			srv.Handler = &s.handler
@@ -185,11 +195,7 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 				},
 			}
 
-			if ln != nil {
-				serveErr = srv.ServeTLS(ln, cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key)
-			} else {
-				serveErr = srv.ListenAndServeTLS(cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key)
-			}
+			serveErr = srv.ServeTLS(ln, cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key)
 		} else {
 			protocols := new(http.Protocols)
 			protocols.SetHTTP1(true)
@@ -197,11 +203,7 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 			srv.Protocols = protocols
 			srv.Handler = &s.handler
 
-			if ln != nil {
-				serveErr = srv.Serve(ln)
-			} else {
-				serveErr = srv.ListenAndServe()
-			}
+			serveErr = srv.Serve(ln)
 		}
 
 		if serveErr != nil && serveErr != http.ErrServerClosed {

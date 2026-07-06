@@ -28,6 +28,11 @@ const (
 	DefaultS1APPort = 36412
 )
 
+// ErrNoInterfaceIP is returned when an interface exists but currently has no
+// usable IP address of the requested family. The condition is transient during
+// an interface flap, so callers may retry.
+var ErrNoInterfaceIP = errors.New("no valid IP address found")
+
 // AddressFamily specifies which IP address family to return when resolving an interface IP.
 type AddressFamily int
 
@@ -551,7 +556,7 @@ var GetInterfaceIPFunc = func(name string, family AddressFamily) (string, error)
 		return ipv4Fallback, nil
 	}
 
-	return "", errors.New("no valid IP address found")
+	return "", ErrNoInterfaceIP
 }
 
 var GetInterfaceNameFunc = func(address string) (string, error) {

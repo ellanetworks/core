@@ -16,10 +16,13 @@ import (
 	"net"
 	"sync"
 
+	"github.com/ellanetworks/core/internal/netutil"
 	"go.uber.org/zap"
 )
 
 const readBufSize uint32 = 131072
+
+var errNoInterfaceAddrs = errors.New("no IP addresses found")
 
 var serverSocketConfig = SocketConfig{
 	InitMsg:   InitMsg{NumOstreams: 2, MaxInstreams: 5, MaxAttempts: 2, MaxInitTimeout: 2},
@@ -72,56 +75,81 @@ func (s *Server) ListenAndServe(ctx context.Context, address string, port int, i
 		addrStr string
 	)
 
-	if interfaceName != "" {
-		iface, err := net.InterfaceByName(interfaceName)
-		if err != nil {
-			return fmt.Errorf("failed to get interface %s: %w", interfaceName, err)
-		}
-
-		addrs, err := iface.Addrs()
-		if err != nil {
-			return fmt.Errorf("failed to get interface addresses: %w", err)
-		}
-
-		var ipAddrs []net.IPAddr
-
-		for _, addr := range addrs {
-			ipNet, ok := addr.(*net.IPNet)
-			if !ok {
-				continue
+	// A bind can transiently fail while a shared N2/N3 interface flaps; retry
+	// resolve and listen together.
+	bind := func() error {
+		if interfaceName != "" {
+			iface, err := net.InterfaceByName(interfaceName)
+			if err != nil {
+				return fmt.Errorf("failed to get interface %s: %w", interfaceName, err)
 			}
 
-			ip := ipNet.IP
-			if ip.IsLoopback() {
-				continue
+			addrs, err := iface.Addrs()
+			if err != nil {
+				return fmt.Errorf("failed to get interface addresses: %w", err)
 			}
 
-			if ip.IsLinkLocalUnicast() {
-				continue
+			var ipAddrs []net.IPAddr
+
+			for _, addr := range addrs {
+				ipNet, ok := addr.(*net.IPNet)
+				if !ok {
+					continue
+				}
+
+				ip := ipNet.IP
+				if ip.IsLoopback() {
+					continue
+				}
+
+				if ip.IsLinkLocalUnicast() {
+					continue
+				}
+
+				ipAddrs = append(ipAddrs, net.IPAddr{IP: ip})
 			}
 
-			ipAddrs = append(ipAddrs, net.IPAddr{IP: ip})
+			if len(ipAddrs) == 0 {
+				return fmt.Errorf("%w on interface %s", errNoInterfaceAddrs, interfaceName)
+			}
+
+			laddr = &SCTPAddr{IPAddrs: ipAddrs, Port: port}
+			addrStr = laddr.String()
+		} else {
+			netAddr, err := net.ResolveIPAddr("ip", address)
+			if err != nil {
+				return fmt.Errorf("error resolving address %q: %w", address, err)
+			}
+
+			laddr = &SCTPAddr{IPAddrs: []net.IPAddr{*netAddr}, Port: port}
+			addrStr = laddr.String()
 		}
 
-		if len(ipAddrs) == 0 {
-			return fmt.Errorf("no IP addresses found on interface %s", interfaceName)
-		}
-
-		laddr = &SCTPAddr{IPAddrs: ipAddrs, Port: port}
-		addrStr = laddr.String()
-	} else {
-		netAddr, err := net.ResolveIPAddr("ip", address)
-		if err != nil {
-			return fmt.Errorf("error resolving address %q: %w", address, err)
-		}
-
-		laddr = &SCTPAddr{IPAddrs: []net.IPAddr{*netAddr}, Port: port}
-		addrStr = laddr.String()
+		return nil
 	}
 
-	listener, err := serverSocketConfig.Listen("sctp", laddr)
+	isTransient := func(err error) bool {
+		return errors.Is(err, errNoInterfaceAddrs) || netutil.IsAddrNotAvailable(err)
+	}
+
+	var listener *SCTPListener
+
+	err := netutil.Retry(ctx, netutil.BindTimeout, netutil.BindInterval, isTransient, func() error {
+		if err := bind(); err != nil {
+			return err
+		}
+
+		l, err := serverSocketConfig.Listen("sctp", laddr)
+		if err != nil {
+			return fmt.Errorf("failed to listen on %s: %w", addrStr, err)
+		}
+
+		listener = l
+
+		return nil
+	})
 	if err != nil {
-		return fmt.Errorf("failed to listen on %s: %w", addrStr, err)
+		return err
 	}
 
 	s.listener = listener
