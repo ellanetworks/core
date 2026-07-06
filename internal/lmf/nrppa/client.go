@@ -278,7 +278,11 @@ func matchMeasurementResponse(messages []amf.NRPPaMessage, measurementID int64, 
 			continue
 		}
 
-		if parsed.Failure != nil && parsed.Kind == nrppa.KindECIDMeasurementInitiationFailure {
+		// Both an Initiation Failure (the RAN rejects the request outright) and a
+		// Failure Indication (the RAN accepted it but can no longer provide the
+		// measurement, TS 38.455 §9.1.3) terminate the wait with the RAN's cause.
+		if parsed.Failure != nil && (parsed.Kind == nrppa.KindECIDMeasurementInitiationFailure ||
+			parsed.Kind == nrppa.KindECIDMeasurementFailureIndication) {
 			if parsed.Failure.LMFUEMeasurementID == measurementID {
 				return nil, parsed.Failure
 			}

@@ -81,3 +81,35 @@ func TestRoundTrip_ECIDFailure_CauseProtocol(t *testing.T) {
 			parsed.Failure.Cause.Group, parsed.Failure.Cause.Value)
 	}
 }
+
+// TestParse_ECIDMeasurementFailureIndication decodes an E-CIDMeasurementFailure
+// Indication (TS 38.455 §9.1.3) captured from a real gNB (initiatingMessage,
+// procedureCode 3). It guards that the LMF recognises the RAN telling it a
+// measurement it accepted can no longer be provided, rather than treating the
+// PDU as unknown and waiting out the measurement timeout.
+func TestParse_ECIDMeasurementFailureIndication(t *testing.T) {
+	// NRPPa-PDU extracted from the captured NGAP UplinkUEAssociatedNRPPaTransport.
+	pdu := []byte{
+		0x00, 0x03, 0x00, 0x00, 0x01, 0x12, 0x00, 0x00,
+		0x03, 0x00, 0x02, 0x00, 0x01, 0x00, 0x00, 0x06,
+		0x00, 0x01, 0x00, 0x00, 0x00, 0x40, 0x01, 0x10,
+	}
+
+	parsed, err := ParsePDU(pdu)
+	if err != nil {
+		t.Fatalf("ParsePDU: %v", err)
+	}
+
+	if parsed.Kind != KindECIDMeasurementFailureIndication || parsed.Failure == nil {
+		t.Fatalf("kind: got %d failure=%v, want FailureIndication", parsed.Kind, parsed.Failure)
+	}
+
+	if parsed.Failure.LMFUEMeasurementID != 1 {
+		t.Errorf("LMF-UE-Measurement-ID: got %d, want 1", parsed.Failure.LMFUEMeasurementID)
+	}
+
+	if parsed.Failure.Cause.Group != CauseGroupRadioNetwork || parsed.Failure.Cause.Value != 2 {
+		t.Errorf("cause: got group=%d value=%d, want radioNetwork/requested-item-temporarily-not-available (0/2)",
+			parsed.Failure.Cause.Group, parsed.Failure.Cause.Value)
+	}
+}
