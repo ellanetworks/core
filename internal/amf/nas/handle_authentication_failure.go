@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/free5gc/nas/nasMessage"
+	"go.uber.org/zap"
 )
 
 func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.AuthenticationFailure) error {
@@ -63,14 +64,16 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		ue.Log.Warn("amf.Authentication Failure 5GMM Cause: Synch Failure")
 
 		conn.AuthFailureCauseSynchFailureTimes++
-		if conn.AuthFailureCauseSynchFailureTimes >= 2 {
-			ue.Log.Warn("2 consecutive Synch Failure, terminate authentication procedure")
+		if conn.AuthFailureCauseSynchFailureTimes >= 10 {
+			ue.Log.Warn("10 consecutive Synch Failure, terminate authentication procedure")
 			ue.Deregister(ctx)
 
 			amf.SendAuthenticationReject(ctx, ranUe)
 
 			return nil
 		}
+
+		ue.Log.Info("Resynchronizing SQN from AUTS", zap.Int("attempt", conn.AuthFailureCauseSynchFailureTimes))
 
 		if msg.AuthenticationFailureParameter == nil {
 			return fmt.Errorf("missing AuthenticationFailureParameter IE for SynchFailure")
