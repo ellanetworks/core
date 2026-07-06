@@ -7,14 +7,12 @@ import {
   Button,
   Chip,
   Skeleton,
-  Stack,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
@@ -27,26 +25,17 @@ import {
 } from "@mui/x-data-grid";
 import { useQuery } from "@tanstack/react-query";
 import { getRadio, type APIRadioDetail, type Snssai } from "@/queries/radios";
-import EastIcon from "@mui/icons-material/East";
-import WestIcon from "@mui/icons-material/West";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
 import {
   listSubscribersByRadio,
   type APISubscriberSummary,
 } from "@/queries/subscribers";
 import { listRadioEvents, type APIRadioEvent } from "@/queries/radio_events";
-import {
-  listCellPositions,
-  deleteCellPosition,
-  type CellPosition,
-  type CellPositionRAT,
-} from "@/queries/cell_positions";
-import CellPositionFormModal from "@/components/CellPositionFormModal";
-import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { formatDateTime } from "@/utils/formatters";
+import EastIcon from "@mui/icons-material/East";
+import WestIcon from "@mui/icons-material/West";
+import { Tooltip } from "@mui/material";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const tableContainerSx = {
@@ -128,49 +117,6 @@ const RadioDetail: React.FC = () => {
     enabled: authReady && !!accessToken && !!name,
     refetchInterval: 5000,
   });
-
-  // Cell positions (location) for this radio: cell_position.gnb_id is an
-  // operator-set free-text field that, by convention, matches the Radio ID
-  // shown above — the backend has no other radio<->cell linkage.
-  const { data: cellPositions, refetch: refetchCellPositions } = useQuery<
-    CellPosition[]
-  >({
-    queryKey: ["cell-positions"],
-    queryFn: () => listCellPositions(accessToken!),
-    enabled: authReady && !!accessToken,
-    refetchInterval: 10000,
-  });
-
-  const radioCellPositions = useMemo(
-    () =>
-      (cellPositions ?? []).filter(
-        (cp) => !!radio?.id && cp.gnb_id === radio.id,
-      ),
-    [cellPositions, radio?.id],
-  );
-
-  const defaultRatForRadio: CellPositionRAT =
-    radio?.type === "gNB" ? "nr" : "eutra";
-  const supportsLocation = radio?.type !== "N3IWF";
-
-  const [isAddLocationOpen, setAddLocationOpen] = useState(false);
-  const [editLocation, setEditLocation] = useState<CellPosition | null>(null);
-  const [deleteLocation, setDeleteLocation] = useState<CellPosition | null>(
-    null,
-  );
-
-  const handleConfirmDeleteLocation = async () => {
-    if (!deleteLocation || !accessToken) return;
-    try {
-      await deleteCellPosition(accessToken, deleteLocation.id);
-      showSnackbar("Cell position deleted successfully.", "success");
-      refetchCellPositions();
-    } catch (error: unknown) {
-      showSnackbar(`Failed to delete cell position: ${String(error)}`, "error");
-    } finally {
-      setDeleteLocation(null);
-    }
-  };
 
   const subscriberColumns: GridColDef<APISubscriberSummary>[] = useMemo(
     () => [
@@ -597,119 +543,6 @@ const RadioDetail: React.FC = () => {
         </Box>
       </Box>
 
-      {/* Location */}
-      {supportsLocation && (
-        <Box sx={{ mt: 3 }}>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={2}
-            sx={{
-              alignItems: { xs: "stretch", sm: "center" },
-              justifyContent: "space-between",
-              mb: 1,
-            }}
-          >
-            <Box>
-              <Typography variant="h6">Location</Typography>
-              <Typography variant="body2" color="textSecondary">
-                Cell positions with gNB ID matching this radio (
-                {radio.id || "—"}). Used to anchor Cell-ID / E-CID location
-                estimates.
-              </Typography>
-            </Box>
-            {canEdit && (
-              <Button
-                variant="contained"
-                color="success"
-                size="small"
-                onClick={() => setAddLocationOpen(true)}
-                sx={{ maxWidth: 220, flexShrink: 0 }}
-              >
-                Add Location
-              </Button>
-            )}
-          </Stack>
-
-          {radioCellPositions.length === 0 ? (
-            <TableContainer sx={tableContainerSx}>
-              <Box sx={{ p: 3, textAlign: "center" }}>
-                <Typography variant="body2" color="textSecondary">
-                  No cell position is associated with this radio yet. See all
-                  provisioned positions under{" "}
-                  <RouterLink to="/radios/cell-positions">
-                    Radios / Cell Positions
-                  </RouterLink>
-                  .
-                </Typography>
-              </Box>
-            </TableContainer>
-          ) : (
-            <TableContainer sx={tableContainerSx}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 600 }}>RAT</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>
-                      Cell Identity
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Latitude</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Longitude</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Altitude (m)</TableCell>
-                    {canEdit && (
-                      <TableCell sx={{ fontWeight: 600 }} align="right">
-                        Actions
-                      </TableCell>
-                    )}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {radioCellPositions.map((cp) => (
-                    <TableRow key={cp.id}>
-                      <TableCell>
-                        <Chip
-                          size="small"
-                          label={cp.rat === "nr" ? "NR (5G)" : "E-UTRA (4G)"}
-                          color={cp.rat === "nr" ? "primary" : "secondary"}
-                          variant="outlined"
-                        />
-                      </TableCell>
-                      <TableCell sx={{ fontFamily: "monospace" }}>
-                        {cp.cell_identity}
-                      </TableCell>
-                      <TableCell>{cp.latitude}</TableCell>
-                      <TableCell>{cp.longitude}</TableCell>
-                      <TableCell>{cp.altitude ?? "—"}</TableCell>
-                      {canEdit && (
-                        <TableCell align="right">
-                          <Tooltip title="Edit">
-                            <Button
-                              size="small"
-                              onClick={() => setEditLocation(cp)}
-                              sx={{ minWidth: 0, p: 0.5 }}
-                            >
-                              <EditIcon fontSize="small" />
-                            </Button>
-                          </Tooltip>
-                          <Tooltip title="Delete">
-                            <Button
-                              size="small"
-                              onClick={() => setDeleteLocation(cp)}
-                              sx={{ minWidth: 0, p: 0.5 }}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </Button>
-                          </Tooltip>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </Box>
-      )}
-
       {/* Recent Network Events */}
       <Box sx={{ mt: 3 }}>
         <Box
@@ -771,39 +604,6 @@ const RadioDetail: React.FC = () => {
           </ThemeProvider>
         )}
       </Box>
-
-      {isAddLocationOpen && (
-        <CellPositionFormModal
-          open
-          onClose={() => setAddLocationOpen(false)}
-          onSuccess={() => {
-            refetchCellPositions();
-            showSnackbar("Cell position created successfully.", "success");
-          }}
-          defaultGnbId={radio.id}
-          defaultRat={defaultRatForRadio}
-        />
-      )}
-      {editLocation && (
-        <CellPositionFormModal
-          open
-          onClose={() => setEditLocation(null)}
-          onSuccess={() => {
-            refetchCellPositions();
-            showSnackbar("Cell position updated successfully.", "success");
-          }}
-          initial={editLocation}
-        />
-      )}
-      {deleteLocation && (
-        <DeleteConfirmationModal
-          open
-          onClose={() => setDeleteLocation(null)}
-          onConfirm={handleConfirmDeleteLocation}
-          title="Confirm Deletion"
-          description={`Are you sure you want to delete the cell position for ${deleteLocation.cell_identity}? This action cannot be undone.`}
-        />
-      )}
     </Box>
   );
 };
