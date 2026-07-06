@@ -37,14 +37,24 @@ func (c *Client) nextMeasurementID() int64 {
 }
 
 // ecidMeasurementQuantities are the E-CID quantities the LMF requests from the
-// RAN. Only the Rel-15 root MeasurementQuantitiesValue set (TS 38.455) is
-// requested. The NR extension quantities (SS/CSI RSRP/RSRQ and angleOfArrivalNR
-// were added in Rel-16; timingAdvanceNR and uE-Rx-Tx-Time-Diff in a later
-// release) are rejected wholesale by a gNB whose NRPPa ASN.1 module predates
-// them, so the root set isolates whether the gNB supports E-CID at all.
+// RAN. Cell-ID comes from AMF location context; timing advance and AP position
+// are optional NRPPa enhancements.
+//
+// For an NR cell the relevant quantities are the NR-specific ones (TS 38.455):
+// SS/CSI RSRP/RSRQ for signal level, and angleOfArrivalNR / timingAdvanceNR /
+// uE-Rx-Tx-Time-Diff for angle and timing. The legacy rSRP/rSRQ are kept for
+// gNBs that only report the generic quantities. We deliberately do NOT request
+// the E-UTRA timingAdvanceType1/type2 — an NR gNB reports timingAdvanceNR.
 var ecidMeasurementQuantities = []nrppa.MeasurementQuantityValue{
 	nrppa.MeasRSRP,
 	nrppa.MeasRSRQ,
+	nrppa.MeasSSRSRP,
+	nrppa.MeasSSRSRQ,
+	nrppa.MeasCSIRSRP,
+	nrppa.MeasCSIRSRQ,
+	nrppa.MeasAngleOfArrivalNR,
+	nrppa.MeasTimingAdvanceNR,
+	nrppa.MeasUERxTxTimeDiff,
 }
 
 // RequestMeasurements sends an NRPPa E-CIDMeasurementInitiationRequest to the
