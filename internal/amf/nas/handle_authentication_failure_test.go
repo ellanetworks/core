@@ -334,14 +334,14 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_AusfError(t *testing
 	}
 }
 
-func TestHandleAuthenticationFailure_SynchFailure_SecondTime_DeregistersAndSendsReject(t *testing.T) {
+func TestHandleAuthenticationFailure_SynchFailure_MaxAttempts_DeregistersAndSendsReject(t *testing.T) {
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
 	ue.ForceState(amf.Authentication)
-	ue.NasConn().AuthFailureCauseSynchFailureTimes = 1
+	ue.NasConn().AuthFailureCauseSynchFailureTimes = 9
 
 	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMSynchFailure, nil)
 

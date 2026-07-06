@@ -44,7 +44,12 @@ func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte, error) {
 	return SQNms, macS, nil
 }
 
-const sqnMax uint64 = 0x7FFFFFFFFFF // 2^43 - 1; bitwise AND mask
+// sqnMax is the wrap-around mask for SQN. Per TS 33.102 §6.3.1, SQN is 48 bits
+// (SQN = SEQ‖IND, where SEQ is 43 bits and IND is 5 bits). The mask must cover
+// the full 48-bit SQN — masking to 43 bits would truncate the high bits of SEQ
+// and corrupt the SQN recovered from a UE's AUTS whose SQN >= 2^43 (e.g. a
+// previously-provisioned USIM using a time-based SQN), breaking re-sync.
+const sqnMax uint64 = 0xFFFFFFFFFFFF // 2^48 - 1; bitwise AND mask
 
 // IndStep is 2^IND_LEN (IND_LEN = 5 per TS 33.102 Annex C) — the number
 // of IND slots. Incrementing SQN by this value advances SEQ by 1 while
@@ -52,7 +57,7 @@ const sqnMax uint64 = 0x7FFFFFFFFFF // 2^43 - 1; bitwise AND mask
 // sequence-number management.
 const IndStep uint64 = 32
 
-// AdvanceSQN adds delta to sqn, masked to 43 bits, and returns the
+// AdvanceSQN adds delta to sqn, masked to 48 bits, and returns the
 // new value as a zero-padded 12-character hex string.
 func AdvanceSQN(sqnHex string, delta uint64) (string, error) {
 	n, err := strconv.ParseUint(sqnHex, 16, 64)
