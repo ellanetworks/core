@@ -14,24 +14,24 @@ import (
 )
 
 func HandleUEContextModificationResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.UEContextModificationResponse) {
-	ranUe, ok := resolveUE(ctx, ran, msg.RANUENGAPID, msg.AMFUENGAPID)
+	ueConn, ok := resolveUE(ctx, amfInstance, ran, msg.RANUENGAPID, msg.AMFUENGAPID)
 	if !ok {
 		return
 	}
 
-	ranUe.TouchLastSeen()
-	logger.WithTrace(ctx, ranUe.Log).Debug("Handle UE Context Modification Response", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+	ueConn.TouchLastSeen()
+	logger.WithTrace(ctx, ueConn.Log).Debug("Handle UE Context Modification Response", zap.Int64("AmfUeNgapID", ueConn.AmfUeNgapID), zap.Int64("RanUeNgapID", ueConn.RanUeNgapID))
 
 	if msg.RRCState != nil {
 		switch msg.RRCState.Value {
 		case ngapType.RRCStatePresentInactive:
-			logger.WithTrace(ctx, ranUe.Log).Debug("UE RRC State: Inactive")
+			logger.WithTrace(ctx, ueConn.Log).Debug("UE RRC State: Inactive")
 		case ngapType.RRCStatePresentConnected:
-			logger.WithTrace(ctx, ranUe.Log).Debug("UE RRC State: Connected")
+			logger.WithTrace(ctx, ueConn.Log).Debug("UE RRC State: Connected")
 		}
 	}
 
 	if msg.UserLocationInformation != nil {
-		ranUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
+		ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
 	}
 }

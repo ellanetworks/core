@@ -14,8 +14,11 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
+	"go.uber.org/zap"
 )
 
 func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integrityVerified bool) error {
@@ -38,12 +41,14 @@ func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integri
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 
-		guti, err := etsi.NewGUTIFromBytes(mobileIdentityContents)
+		guti, err := etsi.NewGUTI5GFromBytes(mobileIdentityContents)
 		if err != nil {
 			return fmt.Errorf("UE sent invalid GUTI: %v", err)
 		}
 
-		if guti != ue.Guti() && guti != ue.OldGuti {
+		// Validate by the 5G-TMSI, the per-UE part the AMF indexes and stores; the
+		// GUAMI is invariant config.
+		if guti.Tmsi != ue.Tmsi() && guti.Tmsi != ue.OldTmsi() {
 			return fmt.Errorf("UE sent unknown GUTI")
 		}
 	case nasMessage.MobileIdentity5GSType5gSTmsi:
@@ -67,7 +72,7 @@ func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integri
 			return fmt.Errorf("invalid TMSI: %v", err)
 		}
 
-		if tmsi != ue.Tmsi && tmsi != ue.OldTmsi {
+		if tmsi != ue.Tmsi() && tmsi != ue.OldTmsi() {
 			return fmt.Errorf("UE sent unknown TMSI")
 		}
 	case nasMessage.MobileIdentity5GSTypeImei:
@@ -75,70 +80,84 @@ func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integri
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 
-		imei := nasConvert.PeiToString(mobileIdentityContents)
-		ue.Pei = imei
+		imei, err := etsi.NewIMEIFromPEI(nasConvert.PeiToString(mobileIdentityContents))
+		if err != nil {
+			return fmt.Errorf("UE sent invalid IMEI: %w", err)
+		}
+
+		ue.Imei = imei
 	case nasMessage.MobileIdentity5GSTypeImeisv:
 		if !integrityVerified {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 
-		imeisv := nasConvert.PeiToString(mobileIdentityContents)
-		ue.Pei = imeisv
+		imeisv, err := etsi.NewIMEIFromPEI(nasConvert.PeiToString(mobileIdentityContents))
+		if err != nil {
+			return fmt.Errorf("UE sent invalid IMEISV: %w", err)
+		}
+
+		ue.Imei = imeisv
 	}
 
 	return nil
 }
 
-func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.IdentityResponse, integrityVerified bool) error {
-	switch ue.State() {
-	case amf.Authentication:
+func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.IdentityResponse, integrityVerified bool) nasreply.Disposition {
+	// The identification procedure is complete on receipt of the response
+	// (TS 24.501 §5.4.3.4).
+	if conn := ue.Conn(); conn != nil {
+		conn.StopNASGuard()
+	}
+
+	switch ue.RegStep() {
+	case amf.RegStepAuthenticating:
 		mobileIdentityContents := msg.GetMobileIdentityContents()
 
 		if err := updateUEIdentity(ue, mobileIdentityContents, integrityVerified); err != nil {
-			return fmt.Errorf("error handling identity response: %v", err)
+			logger.From(ctx, logger.AmfLog).Warn("error handling identity response", zap.Error(err))
+			return nasreply.Handled()
 		}
 
 		pass, err := authenticationProcedure(ctx, amfInstance, ue)
 		if err != nil {
+			logger.From(ctx, logger.AmfLog).Warn("error in authentication procedure", zap.Error(err))
 			ue.Deregister(ctx)
-			return fmt.Errorf("error in authentication procedure: %v", err)
+
+			return nasreply.Handled()
 		}
 
 		if pass {
-			return securityMode(ctx, amfInstance, ue)
+			securityMode(ctx, amfInstance, ue)
 		}
 
-		return nil
+		return nasreply.Handled()
 
-	case amf.ContextSetup:
+	case amf.RegStepContextSetup:
 		mobileIdentityContents := msg.GetMobileIdentityContents()
 
 		if err := updateUEIdentity(ue, mobileIdentityContents, integrityVerified); err != nil {
-			return fmt.Errorf("error handling identity response: %v", err)
+			logger.From(ctx, logger.AmfLog).Warn("error handling identity response", zap.Error(err))
+			return nasreply.Handled()
 		}
 
-		conn := ue.NasConn()
+		conn := ue.Conn()
 		if conn == nil {
-			return fmt.Errorf("no active NAS connection")
+			logger.From(ctx, logger.AmfLog).Warn("no active NAS connection")
+			return nasreply.Handled()
 		}
 
 		switch conn.RegistrationType5GS {
 		case nasMessage.RegistrationType5GSInitialRegistration:
-			if err := HandleInitialRegistration(ctx, amfInstance, ue); err != nil {
-				ue.Deregister(ctx)
-				return fmt.Errorf("error handling initial registration: %v", err)
-			}
+			HandleInitialRegistration(ctx, amfInstance, ue)
 		case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
 			fallthrough
 		case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
-			if err := HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfInstance, ue); err != nil {
-				ue.Deregister(ctx)
-				return fmt.Errorf("error handling mobility and periodic registration updating: %v", err)
-			}
+			HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfInstance, ue)
 		}
 	default:
-		return fmt.Errorf("state mismatch: receive Identity Response message in state %s", ue.State())
+		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Identity Response message", zap.String("state", string(ue.State())))
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	return nil
+	return nasreply.Handled()
 }

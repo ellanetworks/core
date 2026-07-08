@@ -13,11 +13,11 @@ import (
 )
 
 // handleHandoverNotify completes the handover once the UE reaches the target
-// (TS 36.413 §8.4.3, TS 23.401 §5.5.1.2.2 steps 13-19). conn is the target.
-func handleHandoverNotify(m *mme.MME, ctx context.Context, conn mme.NasWriter, value []byte) {
+// (TS 36.413 §8.4.3, TS 23.401 §5.5.1.2.2 steps 13-19).
+func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	notify, err := s1ap.ParseHandoverNotify(value)
 	if err != nil {
-		handleParseError(m, conn, s1ap.ProcHandoverNotification, err)
+		handleParseError(m, radio.Conn, s1ap.ProcHandoverNotification, err)
 		return
 	}
 
@@ -26,9 +26,9 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, conn mme.NasWriter, v
 		return
 	}
 
-	admitted, releaseEBIs, ok := m.BeginHandoverCommit(ue, conn, notify.ENBUES1APID)
+	admitted, releaseEBIs, ok := m.MarkHandoverCommitting(ue, radio.Conn, notify.ENBUES1APID)
 	if !ok {
-		logger.MmeLog.Warn("Handover Notify with no matching prepared handover", zap.Uint32("target-mme-ue-id", uint32(notify.MMEUES1APID)))
+		logger.From(ctx, logger.MmeLog).Warn("Handover Notify with no matching prepared handover", zap.Uint32("target-mme-ue-id", uint32(notify.MMEUES1APID)))
 
 		return
 	}
@@ -41,7 +41,7 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, conn mme.NasWriter, v
 		}
 
 		if err := m.Session.ModifyEPSSession(ctx, ue.IMSI(), a.Ebi, a.EnbFTEID); err != nil {
-			logger.MmeLog.Error("failed to switch an EPS session downlink to the target eNB",
+			logger.From(ctx, logger.MmeLog).Error("failed to switch an EPS session downlink to the target eNB",
 				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", a.Ebi), zap.Error(err))
 
 			continue
@@ -51,9 +51,11 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, conn mme.NasWriter, v
 	}
 
 	for _, ebi := range releaseEBIs {
-		if err := m.Session.ReleaseEPSSession(ctx, ue.IMSI(), ebi); err != nil {
-			logger.MmeLog.Error("failed to release a rejected PDN connection after handover",
-				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", ebi), zap.Error(err))
+		if p := m.LookupPDN(ue, ebi); p != nil {
+			if err := m.Session.ReleaseEPSSession(ctx, p.SessionRef); err != nil {
+				logger.From(ctx, logger.MmeLog).Error("failed to release a rejected PDN connection after handover",
+					zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", ebi), zap.Error(err))
+			}
 		}
 
 		m.DropPDN(ue, ebi)
@@ -61,12 +63,12 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, conn mme.NasWriter, v
 
 	mme.EnsureDefaultPDN(ue, admitted)
 
-	sourceConn, sourceMMEID, sourceENBID, targetMMEID, ok := m.FinishHandoverCommit(ue, conn, notify.ENBUES1APID)
+	sourceConn, sourceMMEID, sourceENBID, targetMMEID, ok := m.FinishHandoverCommit(ue, radio.Conn, notify.ENBUES1APID)
 	if !ok {
 		// A concurrent release (e.g. the source association dropping) tore the UE
 		// down during the unlocked user-plane switch and cleared the handover; leave
 		// it released.
-		logger.MmeLog.Warn("Handover Notify: UE released during the user-plane switch",
+		logger.From(ctx, logger.MmeLog).Warn("Handover Notify: UE released during the user-plane switch",
 			zap.Uint32("target-mme-ue-id", uint32(notify.MMEUES1APID)))
 
 		return
@@ -76,9 +78,9 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, conn mme.NasWriter, v
 		ue.TouchLastSeen()
 	}
 
-	logger.MmeLog.Info("Handover Notify",
+	logger.From(ctx, logger.MmeLog).Info("Handover Notify",
 		zap.Uint32("target-mme-ue-id", uint32(targetMMEID)),
 		zap.Uint32("target-enb-ue-id", uint32(notify.ENBUES1APID)))
 
-	mme.SendUEContextRelease(m, ctx, sourceConn, sourceMMEID, sourceENBID)
+	mme.SendUEContextRelease(m, ctx, sourceConn, sourceMMEID, sourceENBID, true, mme.CauseHandoverSuccess)
 }

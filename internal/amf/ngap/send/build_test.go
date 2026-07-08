@@ -13,10 +13,10 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func createTestGuti() etsi.GUTI {
+func createTestGuti() etsi.GUTI5G {
 	tmsi, _ := etsi.NewTMSI(0x00000001)
 
-	guti, _ := etsi.NewGUTI("001", "01", "cafe00", tmsi)
+	guti, _ := etsi.NewGUTI5G("001", "01", "cafe00", tmsi)
 
 	return guti
 }
@@ -55,9 +55,9 @@ func TestBuildNGSetupResponse_MultipleSlices(t *testing.T) {
 		{Sst: 3, Sd: ""},
 	}
 
-	encoded, err := buildNGSetupResponse(guami, snssaiList, "TestAMF", 255)
+	encoded, err := BuildNGSetupResponse(guami, snssaiList, "TestAMF", 255)
 	if err != nil {
-		t.Fatalf("buildNGSetupResponse failed: %v", err)
+		t.Fatalf("BuildNGSetupResponse failed: %v", err)
 	}
 
 	pdu, err := ngap.Decoder(encoded)
@@ -74,7 +74,6 @@ func TestBuildNGSetupResponse_MultipleSlices(t *testing.T) {
 		t.Fatal("expected NGSetupResponse, got nil")
 	}
 
-	// Find PLMNSupportList IE
 	var plmnSupportList *ngapType.PLMNSupportList
 
 	for _, ie := range resp.ProtocolIEs.List {
@@ -113,14 +112,14 @@ func TestBuildInitialContextSetupRequest_MultipleAllowedNSSAI(t *testing.T) {
 
 	servingPlmnID := models.PlmnID{Mcc: "001", Mnc: "01"}
 
-	encoded, err := buildInitialContextSetupRequest(
+	encoded, err := BuildInitialContextSetupRequest(
 		1, 2, "1000000", "2000000",
 		allowedNssai, kgnodeb, servingPlmnID,
 		nil, nil, ueSecurityCap, nil, nil,
 		&models.Guami{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, AmfID: "cafe00"},
 	)
 	if err != nil {
-		t.Fatalf("buildInitialContextSetupRequest failed: %v", err)
+		t.Fatalf("BuildInitialContextSetupRequest failed: %v", err)
 	}
 
 	pdu, err := ngap.Decoder(encoded)
@@ -130,7 +129,6 @@ func TestBuildInitialContextSetupRequest_MultipleAllowedNSSAI(t *testing.T) {
 
 	icsr := pdu.InitiatingMessage.Value.InitialContextSetupRequest
 
-	// Find AllowedNSSAI IE
 	var allowedNSSAI *ngapType.AllowedNSSAI
 
 	for _, ie := range icsr.ProtocolIEs.List {
@@ -157,7 +155,7 @@ func TestBuildInitialContextSetupRequest_EmptyAllowedNSSAI_Error(t *testing.T) {
 	ueSecurityCap.SetLen(4)
 	ueSecurityCap.Buffer = []uint8{0xf0, 0xf0, 0xf0, 0xf0}
 
-	_, err := buildInitialContextSetupRequest(
+	_, err := BuildInitialContextSetupRequest(
 		1, 2, "1000000", "2000000",
 		[]models.Snssai{}, kgnodeb, models.PlmnID{Mcc: "001", Mnc: "01"},
 		nil, nil, ueSecurityCap, nil, nil,

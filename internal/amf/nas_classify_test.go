@@ -62,7 +62,6 @@ func TestClassifyNasPdu_ExhaustiveTable(t *testing.T) {
 		nas.MsgTypeAuthenticationResponse:                           true,
 		nas.MsgTypeAuthenticationFailure:                            true,
 		nas.MsgTypeSecurityModeReject:                               true,
-		nas.MsgTypeServiceRequest:                                   true,
 		nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration: true,
 		nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:   true,
 	}
@@ -109,15 +108,16 @@ func TestClassifyNasPdu_ExhaustiveTable(t *testing.T) {
 	}
 }
 
-// TestClassifyNasPdu_ServiceRequestOnlyMacFailed pins the
-// ServiceRequest asymmetry: it is only acceptable on the MAC-failed
-// path, never as plain NAS.
-func TestClassifyNasPdu_ServiceRequestOnlyMacFailed(t *testing.T) {
+// TestClassifyNasPdu_ServiceRequestRejected pins that a SERVICE REQUEST is not admitted
+// through the classify path (plain or MAC-failed). It is resolved-or-rejected by the
+// dedicated pre-context HandleServiceRequest (which verifies integrity before binding and
+// answers SERVICE REJECT #9 on failure) — mirrors the MME, whose classify also omits it.
+func TestClassifyNasPdu_ServiceRequestRejected(t *testing.T) {
 	if v := classifyNasPdu(nas.MsgTypeServiceRequest, nas.SecurityHeaderTypePlainNas, false); v != VerdictReject {
 		t.Errorf("plain ServiceRequest must be rejected; got verdict %d", v)
 	}
 
-	if v := classifyNasPdu(nas.MsgTypeServiceRequest, nas.SecurityHeaderTypeIntegrityProtected, false); v != VerdictMacFailedAllowed {
-		t.Errorf("MAC-failed ServiceRequest must be VerdictMacFailedAllowed; got %d", v)
+	if v := classifyNasPdu(nas.MsgTypeServiceRequest, nas.SecurityHeaderTypeIntegrityProtected, false); v != VerdictReject {
+		t.Errorf("MAC-failed ServiceRequest must be rejected in classify (handled by HandleServiceRequest); got %d", v)
 	}
 }

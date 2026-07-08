@@ -9,31 +9,35 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-// sendPathSwitchRequestFailure rejects a Path Switch Request, naming every
-// distinct requested PDU session in the mandatory PDU Session Resource Released
-// List, each with an AMF-generated Path Switch Request Unsuccessful Transfer
-// carrying causeValue (TS 38.413; the AMF generating the transfer is the note
-// exception).
+// sendPathSwitchRequestFailure rejects a Path Switch Request. The AMF itself
+// generates the Path Switch Request Unsuccessful Transfer for each distinct
+// requested PDU session (TS 38.413).
 func sendPathSwitchRequestFailure(ctx context.Context, ran *amf.Radio, msg decode.PathSwitchRequest, causeValue aper.Enumerated) {
 	released, err := pathSwitchReleasedList(msg.PDUSessionResourceItems, causeValue)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error building path switch released list", zap.Error(err))
 	}
 
-	if err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, msg.SourceAMFUENGAPID, msg.RANUENGAPID, released, nil); err != nil {
+	pkt, err := send.BuildPathSwitchRequestFailure(msg.SourceAMFUENGAPID, msg.RANUENGAPID, released, nil)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("error building path switch request failure", zap.Error(err))
+		return
+	}
+
+	if err := ran.SendToRan(ctx, send.NGAPProcedurePathSwitchRequestFailure, pkt); err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error sending path switch request failure", zap.Error(err))
 	}
 }
 
-// pathSwitchReleasedList builds the PDU Session Resource Released List for a
-// Path Switch Request Failure (TS 38.413): one item per distinct
-// requested PDU session, each carrying an Unsuccessful Transfer with causeValue.
+// pathSwitchReleasedList builds the released list with one item per distinct
+// requested PDU session (TS 38.413).
 func pathSwitchReleasedList(items []ngapType.PDUSessionResourceToBeSwitchedDLItem, causeValue aper.Enumerated) (*ngapType.PDUSessionResourceReleasedListPSFail, error) {
 	transfer, err := buildPathSwitchRequestUnsuccessfulTransfer(causeValue)
 	if err != nil {
@@ -60,8 +64,6 @@ func pathSwitchReleasedList(items []ngapType.PDUSessionResourceToBeSwitchedDLIte
 	return list, nil
 }
 
-// buildPathSwitchRequestUnsuccessfulTransfer encodes a Path Switch Request
-// Unsuccessful Transfer (TS 38.413) carrying a radio-network cause.
 func buildPathSwitchRequestUnsuccessfulTransfer(causeValue aper.Enumerated) ([]byte, error) {
 	transfer := ngapType.PathSwitchRequestUnsuccessfulTransfer{
 		Cause: ngapType.Cause{

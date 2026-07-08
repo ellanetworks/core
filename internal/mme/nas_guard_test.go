@@ -13,12 +13,12 @@ import (
 // (TS 24.301 §10.2).
 func TestNASGuardRetransmitsThenReleases(t *testing.T) {
 	m := newTestMME(t)
-	m.nasGuardTimeout = 5 * time.Millisecond
-	m.nasGuardMaxRetransmit = 2
+	m.nasGuardCfg.ExpireTime = 5 * time.Millisecond
+	m.nasGuardCfg.MaxRetryTimes = 2
 
 	ue, cc := securedUE(t, m)
 
-	m.ArmNASGuard(ue, "Authentication Request", []byte{0x07, 0x52})
+	ue.Conn().ArmNASGuard("Authentication Request", []byte{0x07, 0x52})
 
 	// Two retransmissions plus the UE Context Release Command. Wait for all three
 	// sends rather than the releasing flag, which releaseUEContext sets just before
@@ -33,14 +33,14 @@ func TestNASGuardRetransmitsThenReleases(t *testing.T) {
 // than releasing the context (TS 24.301 §6.4.2.5, §6.4.4.5).
 func TestNASGuardAbortOnlyRunsFinalizer(t *testing.T) {
 	m := newTestMME(t)
-	m.nasGuardTimeout = 5 * time.Millisecond
-	m.nasGuardMaxRetransmit = 2
+	m.nasGuardCfg.ExpireTime = 5 * time.Millisecond
+	m.nasGuardCfg.MaxRetryTimes = 2
 
 	ue, cc := securedUE(t, m)
 
 	finalized := make(chan struct{}, 1)
 
-	m.ArmNASGuardAbortOnly(ue, "Deactivate EPS Bearer Context Request", []byte{0x07, 0xc9}, func() {
+	ue.Conn().ArmNASGuardAbortOnly("Deactivate EPS Bearer Context Request", []byte{0x07, 0xc9}, func() {
 		finalized <- struct{}{}
 	})
 
@@ -50,7 +50,7 @@ func TestNASGuardAbortOnlyRunsFinalizer(t *testing.T) {
 		t.Fatal("abort-only finalizer not run after retransmissions exhausted")
 	}
 
-	if ue.S1.releasing {
+	if ue.Conn().releasing {
 		t.Fatal("abort-only guard released the UE; expected it to stay connected")
 	}
 
@@ -66,9 +66,9 @@ func TestNASGuardAbortOnlyRunsFinalizer(t *testing.T) {
 // drive the retransmissions within the test window.
 func TestESMGuardUsesESMTimeout(t *testing.T) {
 	m := newTestMME(t)
-	m.nasGuardTimeout = 10 * time.Second
-	m.esmGuardTimeout = 5 * time.Millisecond
-	m.nasGuardMaxRetransmit = 2
+	m.nasGuardCfg.ExpireTime = 10 * time.Second
+	m.esmGuardCfg.ExpireTime = 5 * time.Millisecond
+	m.esmGuardCfg.MaxRetryTimes = 2
 
 	ue, cc := securedUE(t, m)
 
@@ -98,8 +98,8 @@ func TestESMGuardUsesESMTimeout(t *testing.T) {
 // finalizer would never run.
 func TestPerBearerESMGuardsAreIndependent(t *testing.T) {
 	m := newTestMME(t)
-	m.esmGuardTimeout = 5 * time.Millisecond
-	m.nasGuardMaxRetransmit = 1
+	m.esmGuardCfg.ExpireTime = 5 * time.Millisecond
+	m.esmGuardCfg.MaxRetryTimes = 1
 
 	ue, _ := securedUE(t, m)
 
@@ -125,22 +125,22 @@ func TestPerBearerESMGuardsAreIndependent(t *testing.T) {
 // it can retransmit or release.
 func TestNASGuardStoppedByResponse(t *testing.T) {
 	m := newTestMME(t)
-	m.nasGuardTimeout = 5 * time.Millisecond
-	m.nasGuardMaxRetransmit = 2
+	m.nasGuardCfg.ExpireTime = 5 * time.Millisecond
+	m.nasGuardCfg.MaxRetryTimes = 2
 
 	ue, cc := securedUE(t, m)
 
-	m.ArmNASGuard(ue, "Authentication Request", []byte{0x07, 0x52})
-	m.StopNASGuard(ue)
+	ue.Conn().ArmNASGuard("Authentication Request", []byte{0x07, 0x52})
+	ue.Conn().StopNASGuard()
 
 	// The guard is cancelled, so after the timeout window nothing mutates the UE.
 	time.Sleep(50 * time.Millisecond)
 
-	if ue.S1.releasing {
+	if ue.Conn().releasing {
 		t.Fatal("UE released despite the guarded response arriving")
 	}
 
-	if ue.S1.nasGuard.Active() {
+	if ue.Conn().nasGuard.Active() {
 		t.Fatal("NAS guard still armed after the response")
 	}
 

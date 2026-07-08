@@ -12,19 +12,18 @@ import (
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
 
-// activateDefaultBearer establishes the UE's default-bearer session and sends the
-// Attach Accept to the eNB inside an Initial Context Setup Request.
 func activateDefaultBearer(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 	qos, err := mme.ResolveAttachQoS(m, ctx, ue)
 	if errors.Is(err, mme.ErrUnknownAPN) {
 		// The requested APN is not bound to any policy in the subscriber's profile
-		// (TS 24.301 §6.5.1.4, ESM cause #27); the default bearer cannot be set up.
-		logger.MmeLog.Info("attach rejected: requested APN not in subscriber profile",
+		// (TS 24.301 §6.5.1.4, ESM cause #27).
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: requested APN not in subscriber profile",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", ue.RequestedAPN))
 		rejectAttach(m, ctx, ue, mme.EmmCauseESMFailure)
 
@@ -32,22 +31,20 @@ func activateDefaultBearer(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 	}
 
 	if err != nil {
-		logger.MmeLog.Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
 		return
 	}
 
 	// A profile that does not permit 4G (Core Network type restriction, TS 23.501)
 	// is rejected with EMM cause #7 "EPS services not allowed" (TS 24.301).
 	if !qos.Allow4G {
-		logger.MmeLog.Info("attach rejected: 4G not allowed for subscriber",
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: 4G not allowed for subscriber",
 			zap.String("imsi", ue.IMSI()))
 		rejectAttach(m, ctx, ue, mme.EmmCauseEPSServicesNotAllowed)
 
 		return
 	}
 
-	// The SMF+PGW-C anchor owns the session: it allocates the UE address(es) and
-	// returns the S-GW S1-U F-TEID.
 	bearer, err := m.Session.CreateEPSSession(ctx, models.EPSBearerRequest{
 		IMSI:              ue.IMSI(),
 		EPSBearerIdentity: mme.DefaultERABID,
@@ -63,61 +60,49 @@ func activateDefaultBearer(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 	})
 	if err != nil {
 		// No PDN type the UE requested can be served (e.g. it asked for IPv6 on an
-		// IPv4-only data network). The default bearer cannot be set up, so reject
-		// the attach with EMM cause #19 "ESM failure" (TS 24.301).
-		logger.MmeLog.Info("attach rejected: default bearer setup failed",
+		// IPv4-only data network); reject with EMM cause #19 "ESM failure" (TS 24.301).
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: default bearer setup failed",
 			zap.String("imsi", ue.IMSI()), zap.Error(err))
 		rejectAttach(m, ctx, ue, mme.EmmCauseESMFailure)
 
 		return
 	}
 
-	ue.AmbrUplink = qos.SessAmbrULStr
-	ue.AmbrDownlink = qos.SessAmbrDLStr
+	pdnType, dns, esmCause := m.InstallDefaultBearer(ue, qos, bearer)
 
-	p := m.AddDefaultPDN(ue)
-	p.Apn = qos.APN
-	p.DnConfig = qos.DnFingerprint()
-	p.SessAmbrDLBps = mme.BitRateToBps(qos.SessAmbrDLStr)
-	p.SessAmbrULBps = mme.BitRateToBps(qos.SessAmbrULStr)
-	p.Qci = qos.QCI
-	p.Arp = qos.ARP
-	p.PdnType = bearer.PDNType
-	p.UeIP = bearer.IPv4
-	p.UeIPv6Prefix = bearer.IPv6Prefix
-	p.UeIPv6IID = bearer.IPv6IID
-	p.Dns = bearer.DNS
-	p.EsmCause = bearer.ESMCause
-	p.SgwFTEID = bearer.SGW
-	p.SgwN3IPv6 = bearer.SGWN3IPv6
-
-	logger.MmeLog.Info("EPS default bearer established",
+	logger.From(ctx, logger.MmeLog).Info("EPS default bearer established",
 		zap.String("imsi", ue.IMSI()),
-		zap.Uint8("pdn-type", p.PdnType),
-		zap.String("dns", p.Dns.String()),
-		zap.Uint8("esm-cause", p.EsmCause),
+		zap.Uint8("pdn-type", pdnType),
+		zap.String("dns", dns),
+		zap.Uint8("esm-cause", esmCause),
 	)
 
 	naspdu, err := buildProtectedAttachAccept(m, ctx, ue, qos)
 	if err != nil {
-		logger.MmeLog.Error("failed to build Attach Accept", zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to build Attach Accept", zap.Error(err))
 		return
 	}
 
-	// Supersede any prior context for this subscriber only now that the attach is
+	// Supersede any prior context for this subscriber only once the attach is
 	// authenticated and accepted, so an unauthenticated attach cannot tear down a
 	// registered UE (TS 24.501 §4.4.4.3 analogue).
-	m.CommitUEIdentity(ue, mme.MintAuthProofForAttachCommit())
+	m.CommitUEIdentity(ctx, ue, mme.MintAuthProofForAttachCommit())
 
 	// Drop any stored UE Radio Capability and omit it from the Initial Context
 	// Setup, so the eNB re-fetches it from the UE (TS 23.401).
 	ue.RadioCapability = nil
 
+	ue.AdvanceRegStep(mme.RegStepContextSetup)
+
+	// Keep the sent Attach Accept so a duplicate Attach Request with identical IEs
+	// can be answered by resending it (TS 24.301 §5.5.1.2.7 case d).
+	ue.Conn().AttachAcceptPdu = naspdu
+
 	sendInitialContextSetup(m, ctx, ue, qos, naspdu)
 
 	// T3450 retransmits the Attach Accept, then releases the UE, if no Attach
 	// Complete arrives (TS 24.301).
-	m.ArmNASGuard(ue, "Attach Accept", naspdu)
+	ue.Conn().ArmNASGuard("Attach Accept", naspdu)
 }
 
 // sendInitialContextSetup establishes the UE's S1 context and default E-RAB at the
@@ -128,74 +113,94 @@ func sendInitialContextSetup(m *mme.MME, ctx context.Context, ue *mme.UeContext,
 	// every context setup, so a Service Request restarts the chain (TS 33.401).
 	kenb, kenbCount, err := ue.DeriveInitialKeNB()
 	if err != nil {
-		logger.MmeLog.Error("failed to derive AS keys", zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to derive AS keys", zap.Error(err))
 		return
 	}
 
 	uecap, err := eps.ParseUENetworkCapability(ue.UeNetCap)
 	if err != nil {
-		logger.MmeLog.Error("failed to parse UE network capability", zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to parse UE network capability", zap.Error(err))
 		return
 	}
 
-	p := m.DefaultPDN(ue)
-	if p == nil {
-		logger.MmeLog.Error("Initial Context Setup with no active PDN", zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)))
+	defaultPDN := m.DefaultPDN(ue)
+	if defaultPDN == nil {
+		logger.From(ctx, logger.MmeLog).Error("Initial Context Setup with no active PDN")
 		return
 	}
 
-	// The S1-U endpoint advertises whichever transport address family the N3 has
-	// (TS 36.413).
-	sgwTLA, err := models.EncodeTransportLayerAddress(p.SgwFTEID.Addr, p.SgwN3IPv6)
-	if err != nil {
-		logger.MmeLog.Error("failed to encode S-GW transport layer address", zap.Error(err))
-		return
-	}
+	// A UE re-established from ECM-IDLE reactivates the radio and S1 bearers for all
+	// the active EPS bearers in one Initial Context Setup; the S1 Service Request has
+	// no per-bearer data-status IE, so every active bearer is set up (TS 23.401
+	// §5.3.4.1). The NAS PDU (the Attach Accept, on attach only) rides the default
+	// bearer.
+	pdns := m.SnapshotPDNs(ue)
+	erabs := make([]s1ap.ERABToBeSetupItemCtxtSUReq, 0, len(pdns))
 
-	ics := &s1ap.InitialContextSetupRequest{
-		MMEUES1APID:               ue.S1.MMEUES1APID,
-		ENBUES1APID:               ue.S1.ENBUES1APID,
-		UEAggregateMaximumBitRate: s1ap.UEAggregateMaximumBitRate{DL: s1ap.BitRate(qos.AMBRDL), UL: s1ap.BitRate(qos.AMBRUL)},
-		ERABToBeSetup: []s1ap.ERABToBeSetupItemCtxtSUReq{{
+	for _, p := range pdns {
+		// The S1-U endpoint advertises whichever transport address family the N3 has
+		// (TS 36.413).
+		sgwTLA, err := models.EncodeTransportLayerAddress(p.SgwFTEID.Addr, p.SgwN3IPv6)
+		if err != nil {
+			logger.From(ctx, logger.MmeLog).Error("failed to encode S-GW transport layer address",
+				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", p.Ebi), zap.Error(err))
+
+			continue
+		}
+
+		item := s1ap.ERABToBeSetupItemCtxtSUReq{
 			ERABID: s1ap.ERABID(p.Ebi),
 			QoS: s1ap.ERABLevelQoSParameters{
-				QCI: s1ap.QCI(qos.QCI),
+				QCI: s1ap.QCI(p.Qci),
 				ARP: s1ap.AllocationAndRetentionPriority{
-					PriorityLevel:           qos.ARP,
+					PriorityLevel:           p.Arp,
 					PreemptionCapability:    s1ap.PreemptionShallNotTrigger,
 					PreemptionVulnerability: s1ap.PreemptionNotPreemptable,
 				},
 			},
 			TransportLayerAddress: s1ap.TransportLayerAddress(sgwTLA),
 			GTPTEID:               s1ap.GTPTEID(p.SgwFTEID.TEID),
-			NASPDU:                s1ap.NASPDU(naspdu),
-		}},
-		UESecurityCapabilities: mme.S1apSecurityCapabilities(uecap),
-		SecurityKey:            kenb,
-		UERadioCapability:      ue.RadioCapability,
+		}
+
+		if p.Ebi == defaultPDN.Ebi {
+			item.NASPDU = s1ap.NASPDU(naspdu)
+		}
+
+		erabs = append(erabs, item)
 	}
 
-	b, err := ics.Marshal()
-	if err != nil {
-		logger.MmeLog.Error("failed to marshal Initial Context Setup Request", zap.Error(err))
+	if len(erabs) == 0 {
+		logger.From(ctx, logger.MmeLog).Error("Initial Context Setup with no encodable E-RAB", zap.String("imsi", ue.IMSI()))
 		return
+	}
+
+	ics := &s1ap.InitialContextSetupRequest{
+		UEAggregateMaximumBitRate: s1ap.UEAggregateMaximumBitRate{DL: s1ap.BitRate(qos.AMBRDL), UL: s1ap.BitRate(qos.AMBRUL)},
+		ERABToBeSetup:             erabs,
+		UESecurityCapabilities:    mme.S1apSecurityCapabilities(uecap),
+		SecurityKey:               kenb,
+		UERadioCapability:         ue.RadioCapability,
 	}
 
 	// Log the AS-key inputs so an eNB RRC-reconfiguration failure from a key or
 	// algorithm mismatch can be told apart from a radio-side release (TS 33.401).
-	logger.MmeLog.Info("Initial Context Setup Request",
-		zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)),
-		zap.Uint32("enb-ue-id", uint32(ue.S1.ENBUES1APID)),
-		zap.String("ue-ip", p.UeIP.String()),
+	logger.From(ctx, logger.MmeLog).Info("Initial Context Setup Request",
+		zap.Uint32("enb-ue-id", uint32(ue.Conn().ENBUES1APID)),
+		zap.String("ue-ip", defaultPDN.UeIP.String()),
+		zap.Int("bearers", len(erabs)),
 		zap.Uint32("kenb-ul-count", kenbCount),
 		zap.Uint8("eea", ue.EEA()),
 		zap.Uint8("eia", ue.EIA()),
 	)
-	m.SendS1AP(ctx, ue, mme.S1APProcedureInitialContextSetupRequest, b)
+
+	if err := ue.Conn().SendInitialContextSetup(ctx, ics); err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to send Initial Context Setup Request", zap.Error(err))
+		return
+	}
+
+	ue.Conn().ICS = mme.ICSPending
 }
 
-// buildProtectedAttachAccept assembles the Attach Accept (with the embedded
-// Activate Default EPS Bearer Context Request) and protects it for the UE.
 func buildProtectedAttachAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext, qos *mme.EpsQoS) ([]byte, error) {
 	p := m.DefaultPDN(ue)
 	if p == nil {
@@ -229,7 +234,7 @@ func buildProtectedAttachAccept(m *mme.MME, ctx context.Context, ue *mme.UeConte
 
 	mmeGroupID, mmeCode := m.MmeIdentity()
 
-	guti := m.AssignGUTI(ue, plmn, mmeGroupID, mmeCode)
+	guti := m.ReallocateGUTI(ue, plmn, mmeGroupID, mmeCode)
 
 	t3412, err := eps.EncodeGPRSTimer(mme.T3412PeriodicTAU)
 	if err != nil {
@@ -245,7 +250,7 @@ func buildProtectedAttachAccept(m *mme.MME, ctx context.Context, ue *mme.UeConte
 		// Advertise IMS voice over PS session (TS 24.301). Without it a
 		// voice-centric UE concludes E-UTRAN cannot serve voice and leaves for
 		// another RAT (TS 23.221).
-		EPSNetworkFeatureSupport: &eps.EPSNetworkFeatureSupport{IMSVoPS: true},
+		EPSNetworkFeatureSupport: m.NetworkFeatureSupport(),
 	}
 
 	// The MME has no SGs interface, so a combined EPS/IMSI attach succeeds for
@@ -269,35 +274,41 @@ func buildProtectedAttachAccept(m *mme.MME, ctx context.Context, ue *mme.UeConte
 	return wire, nil
 }
 
-// handleAttachComplete finalises the attach: the UE is EMM-REGISTERED with an active
-// default bearer.
-func handleAttachComplete(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
-	m.StopNASGuard(ue)
+func handleAttachComplete(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+	if ue.RegStep() != mme.RegStepContextSetup {
+		logger.From(ctx, logger.MmeLog).Warn("ignoring Attach Complete outside the context-setup sub-phase")
 
-	if _, err := eps.ParseAttachComplete(plain); err != nil {
-		logger.MmeLog.Warn("failed to decode Attach Complete", zap.Error(err))
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	ue.SetEMMState(mme.EMMRegistered)
+	ue.Conn().StopNASGuard()
+
+	if _, err := eps.ParseAttachComplete(plain); err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("failed to decode Attach Complete", zap.Error(err))
+		return nasreply.Handled()
+	}
+
+	m.CommitGUTIRealloc(ue)
+
+	ue.TransitionTo(mme.EMMRegistered)
 
 	metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultAccept)
 
-	logger.MmeLog.Info("UE attached (EMM-REGISTERED)",
-		zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)),
+	logger.From(ctx, logger.MmeLog).Info("UE attached (EMM-REGISTERED)",
 		zap.String("imsi", ue.IMSI()),
 	)
 
 	sendNetworkName(m, ctx, ue)
+
+	return nasreply.Handled()
 }
 
 // sendNetworkName provides the operator's network name to the UE in an EMM
-// INFORMATION message (TS 24.301). The procedure is optional, so it is skipped
-// when no service provider name is configured.
+// INFORMATION message (TS 24.301).
 func sendNetworkName(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 	op, err := m.Bearer.GetOperator(ctx)
 	if err != nil {
-		logger.MmeLog.Warn("failed to get operator for network name", zap.String("imsi", ue.IMSI()), zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Warn("failed to get operator for network name", zap.String("imsi", ue.IMSI()), zap.Error(err))
 		return
 	}
 
@@ -305,15 +316,14 @@ func sendNetworkName(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 		return
 	}
 
-	m.SendDownlinkProtected(ctx, ue, &eps.EMMInformation{
+	ue.Conn().SendDownlinkProtected(ctx, &eps.EMMInformation{
 		FullNetworkName:  op.SpnFullName,
 		ShortNetworkName: op.SpnShortName,
 	})
 }
 
 // buildActivateDefaultESM assembles the ACTIVATE DEFAULT EPS BEARER CONTEXT
-// REQUEST for a PDN connection (TS 24.301 §8.3.1): PDN address, QoS, APN, and the
-// PCO carrying DNS and (for IPv4-capable bearers) the IPv4 Link MTU.
+// REQUEST for a PDN connection (TS 24.301 §8.3.1).
 func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8) ([]byte, error) {
 	apn, err := eps.MarshalAPN(qos.APN)
 	if err != nil {

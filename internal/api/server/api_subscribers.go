@@ -157,14 +157,7 @@ func isSequenceNumberValid(sequenceNumber string) bool {
 
 // radioIsKnown reports whether a radio name matches a connected 5G gNB or 4G eNB.
 func radioIsKnown(amfInstance *amf.AMF, mmeInstance *mme.MME, name string) bool {
-	_, ranList := amfInstance.ListAmfRan(1, 1000)
-	for _, radio := range ranList {
-		if radio.Name == name {
-			return true
-		}
-	}
-
-	return mmeInstance != nil && mmeInstance.HasENB(name)
+	return amfInstance.HasRadio(name) || (mmeInstance != nil && mmeInstance.HasRadio(name))
 }
 
 func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME) http.Handler {
@@ -193,6 +186,10 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 			mmeStatus = mmeInstance.ConnectedSubscribers()
 		}
 
+		// 5G UEs attached through a gNB are tracked by the AMF, keyed by IMSI. One
+		// snapshot per request so a subscriber's fields cannot tear across reads.
+		amf5GStatus := amfInstance.ConnectedSubscribers()
+
 		// When a radio filter is set, we need to fetch all subscribers and
 		// filter by the runtime AMF/MME state, then paginate in memory.
 		var radioIMSIs map[string]struct{}
@@ -209,8 +206,10 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 			// connected through this radio.
 			radioIMSIs = make(map[string]struct{})
 
-			for _, imsi := range amfInstance.RegisteredSubscribersForRadio(radioFilter) {
-				radioIMSIs[imsi] = struct{}{}
+			for imsi, cs := range amf5GStatus {
+				if cs.RadioName == radioFilter {
+					radioIMSIs[imsi] = struct{}{}
+				}
 			}
 
 			for imsi, st := range mmeStatus {
@@ -265,25 +264,24 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 				return
 			}
 
-			supi, err := etsi.NewSUPIFromIMSI(dbSubscriber.Imsi)
-			if err != nil {
+			if _, err := etsi.NewSUPIFromIMSI(dbSubscriber.Imsi); err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Invalid subscriber IMSI", err, logger.APILog)
 				return
 			}
 
-			registered := amfInstance.IsSubscriberRegistered(supi)
-			radioName := amfInstance.RadioNameForSubscriber(supi)
+			amf5G, registered := amf5GStatus[dbSubscriber.Imsi]
+			radioName := amf5G.RadioName
 
 			subscriberStatus := SubscriberStatus{
 				Registered:  registered,
-				NumSessions: amfInstance.CountUEPDUSessions(supi),
+				NumSessions: amf5G.NumSessions,
 			}
 			if registered {
 				subscriberStatus.RadioAccessType = "5G"
-			}
 
-			if lastSeen := amfInstance.LastSeenAtForSubscriber(supi); !lastSeen.IsZero() {
-				subscriberStatus.LastSeenAt = lastSeen.UTC().Format(time.RFC3339)
+				if !amf5G.LastSeenAt.IsZero() {
+					subscriberStatus.LastSeenAt = amf5G.LastSeenAt.UTC().Format(time.RFC3339)
+				}
 			}
 
 			// A subscriber attached over 4G is not in AMF state; fall back to
@@ -368,7 +366,7 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			return
 		}
 
-		snap, found := amfInstance.UESnapshot(supi)
+		snap, pduSessions, found := amfInstance.LookupSubscriber(supi)
 
 		subscriberStatus := SubscriberDetailStatus{
 			Registered: false,
@@ -385,20 +383,12 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			subscriberStatus.IntegrityAlgorithm = snap.IntegrityAlgorithm
 			subscriberStatus.LastSeenRadio = snap.LastSeenRadio
 
-			if snap.Pei != "" {
-				if converted, err := etsi.IMEIFromPEI(snap.Pei); err == nil {
-					subscriberStatus.Imei = converted
-				} else {
-					logger.APILog.Warn("failed to convert PEI to IMEI", logger.PEI(snap.Pei), zap.Error(err))
-				}
-			}
+			subscriberStatus.Imei = snap.Imei
 
 			if !snap.LastSeenAt.IsZero() {
 				subscriberStatus.LastSeenAt = snap.LastSeenAt.UTC().Format(time.RFC3339)
 			}
 		}
-
-		pduSessions, _ := amfInstance.UEPDUSessions(supi)
 
 		sessions := make([]Session, 0, len(pduSessions))
 		for _, pdu := range pduSessions {

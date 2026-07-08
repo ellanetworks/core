@@ -93,16 +93,16 @@ func convertRadioTaiToReturnTai(tais []amf.SupportedTAI) []SupportedTAI {
 // TAC, matching how gNB TAIs and the operator's supported TACs are represented
 // (TS 23.003: the LTE TAC is the 5GS TAC's two least-significant octets). eNBs
 // carry no S-NSSAIs.
-func convertENBTaiToReturnTai(tais []mme.ENBTAI) []SupportedTAI {
+func convertENBTaiToReturnTai(tais []mme.SupportedTAI) []SupportedTAI {
 	returnedTais := make([]SupportedTAI, 0, len(tais))
 	for _, tai := range tais {
 		returnedTais = append(returnedTais, SupportedTAI{
 			Tai: Tai{
 				PlmnID: PlmnID{
-					Mcc: tai.PlmnID.Mcc,
-					Mnc: tai.PlmnID.Mnc,
+					Mcc: tai.Tai.PlmnID.Mcc,
+					Mnc: tai.Tai.PlmnID.Mnc,
 				},
-				Tac: fmt.Sprintf("%06x", tai.TAC),
+				Tac: tai.Tai.Tac,
 			},
 			SNssais: []Snssai{},
 		})
@@ -127,38 +127,23 @@ func ListRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 			return
 		}
 
-		total, ranList := amfInstance.ListAmfRan(page, perPage)
+		// 4G eNBs and 5G gNBs share one radio namespace, distinguished by node type.
+		// Combine both RATs' full lists and paginate the whole so pagination is
+		// consistent across them (each RAT exposes an all-radios ListRadios()).
+		items := make([]Radio, 0)
 
-		items := make([]Radio, 0, len(ranList))
-
-		for _, radio := range ranList {
-			supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAIs)
-
-			radioAddress := ""
-
-			if radio.Conn != nil {
-				if addr := radio.Conn.RemoteAddr(); addr != nil {
-					radioAddress = addr.String()
-				}
-			}
-
-			radioID := radio.NodeID()
-
-			newRadio := Radio{
+		for _, radio := range amfInstance.ListRadios() {
+			items = append(items, Radio{
 				Name:          radio.Name,
-				ID:            radioID,
-				Address:       radioAddress,
-				RanNodeType:   radio.RanNodeTypeName(),
-				SupportedTAIs: supportedTais,
-			}
-
-			items = append(items, newRadio)
+				ID:            radio.ID,
+				Address:       radio.Address,
+				RanNodeType:   radio.RanNodeType,
+				SupportedTAIs: convertRadioTaiToReturnTai(radio.SupportedTAIs),
+			})
 		}
 
-		// 4G eNBs connected to the MME appear in the same radio list,
-		// distinguished by type.
 		if mmeInstance != nil {
-			for _, enb := range mmeInstance.ListENBs() {
+			for _, enb := range mmeInstance.ListRadios() {
 				items = append(items, Radio{
 					Name:          enb.Name,
 					ID:            enb.ID,
@@ -166,12 +151,24 @@ func ListRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 					RanNodeType:   "eNB",
 					SupportedTAIs: convertENBTaiToReturnTai(enb.SupportedTAIs),
 				})
-				total++
 			}
 		}
 
+		total := len(items)
+
+		start := (page - 1) * perPage
+		end := start + perPage
+
+		if start > total {
+			start = total
+		}
+
+		if end > total {
+			end = total
+		}
+
 		resp := ListRadiosResponse{
-			Items:      items,
+			Items:      items[start:end],
 			Page:       page,
 			PerPage:    perPage,
 			TotalCount: total,
@@ -189,33 +186,19 @@ func GetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 			return
 		}
 
-		_, ranList := amfInstance.ListAmfRan(1, 1000)
-
-		for _, radio := range ranList {
+		for _, radio := range amfInstance.ListRadios() {
 			if radio.Name != radioName {
 				continue
 			}
 
-			supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAIs)
-
-			radioAddress := ""
-
-			if radio.Conn != nil {
-				if addr := radio.Conn.RemoteAddr(); addr != nil {
-					radioAddress = addr.String()
-				}
-			}
-
-			radioID := radio.NodeID()
-
 			result := RadioDetail{
 				Name:          radio.Name,
-				ID:            radioID,
-				Address:       radioAddress,
+				ID:            radio.ID,
+				Address:       radio.Address,
 				ConnectedAt:   radio.ConnectedAt.UTC().Format(time.RFC3339),
-				LastSeenAt:    radio.LastSeenAt().UTC().Format(time.RFC3339),
-				RanNodeType:   radio.RanNodeTypeName(),
-				SupportedTAIs: supportedTais,
+				LastSeenAt:    radio.LastSeenAt.UTC().Format(time.RFC3339),
+				RanNodeType:   radio.RanNodeType,
+				SupportedTAIs: convertRadioTaiToReturnTai(radio.SupportedTAIs),
 			}
 
 			writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)
@@ -226,7 +209,7 @@ func GetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 		// 4G eNBs connected to the MME share the radio namespace, distinguished
 		// by type.
 		if mmeInstance != nil {
-			for _, enb := range mmeInstance.ListENBs() {
+			for _, enb := range mmeInstance.ListRadios() {
 				if enb.Name != radioName {
 					continue
 				}

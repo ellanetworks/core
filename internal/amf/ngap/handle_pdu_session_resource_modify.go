@@ -13,49 +13,49 @@ import (
 )
 
 func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.PDUSessionResourceNotify) {
-	ranUe, ok := resolveUE(ctx, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+	ueConn, ok := resolveUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
 	if !ok {
 		return
 	}
 
-	ranUe.TouchLastSeen()
-	logger.WithTrace(ctx, ranUe.Log).Debug("Handle PDUSessionResourceNotify", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
+	ueConn.TouchLastSeen()
+	logger.WithTrace(ctx, ueConn.Log).Debug("Handle PDUSessionResourceNotify", zap.Int64("AmfUeNgapID", ueConn.AmfUeNgapID))
 
-	amfUe := ranUe.UeContext()
+	amfUe := ueConn.UeContext()
 	if amfUe == nil {
-		logger.WithTrace(ctx, ranUe.Log).Error("amfUe is nil")
+		logger.WithTrace(ctx, ueConn.Log).Error("amfUe is nil")
 		return
 	}
 
 	if msg.UserLocationInformation != nil {
-		ranUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
+		ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
 	}
 
 	if msg.HasNotifyList {
-		logger.WithTrace(ctx, ranUe.Log).Warn("PDUSessionResourceNotifyList received but QoS flow notification forwarding is not implemented")
+		logger.WithTrace(ctx, ueConn.Log).Warn("PDUSessionResourceNotifyList received but QoS flow notification forwarding is not implemented")
 	}
 
 	for _, item := range msg.PDUSessionResourceReleasedItems {
 		pduSessionID, ok := validPDUSessionID(item.PDUSessionID.Value)
 		if !ok {
-			logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+			logger.WithTrace(ctx, ueConn.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
 			continue
 		}
 
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !ok {
-			logger.WithTrace(ctx, ranUe.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, ueConn.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 			continue
 		}
 
-		err := amfInstance.Smf.DeactivateSmContext(ctx, smContext.Ref)
+		err := amfInstance.Session.DeactivateSmContext(ctx, smContext.Ref)
 		if err != nil {
-			logger.WithTrace(ctx, ranUe.Log).Error("DeactivateSmContext failed", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, ueConn.Log).Error("DeactivateSmContext failed", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 			continue
 		}
 
 		amfUe.SetSmContextInactive(pduSessionID)
 
-		logger.WithTrace(ctx, ranUe.Log).Info("deactivated PDU session released by gNB", zap.Uint8("PduSessionID", pduSessionID))
+		logger.WithTrace(ctx, ueConn.Log).Info("deactivated PDU session released by gNB", zap.Uint8("PduSessionID", pduSessionID))
 	}
 }

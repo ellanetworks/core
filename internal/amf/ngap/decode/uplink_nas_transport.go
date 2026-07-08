@@ -22,12 +22,8 @@ import (
 //  ...
 // }
 
-// DecodeUplinkNASTransport validates an UplinkNASTransport PDU body
-// (3GPP TS 38.413). Mandatory IEs are AMFUENGAPID, RANUENGAPID
-// and NASPDU (all reject) and UserLocationInformation (ignore). The
-// non-3GPP-access optional IEs (W-AGF/TNGF/TWIF identity information)
-// are not consumed by any handler. Duplicate IEs follow a last-wins
-// policy.
+// DecodeUplinkNASTransport validates an UplinkNASTransport PDU body (3GPP
+// TS 38.413).
 func DecodeUplinkNASTransport(in *ngapType.UplinkNASTransport) (UplinkNASTransport, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeUplinkNASTransport,

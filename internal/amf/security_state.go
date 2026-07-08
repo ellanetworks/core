@@ -17,8 +17,9 @@ import (
 // AuthProof has no exported constructor. It may only be minted from
 // within the amf package, at exactly two authorized call sites:
 //
-//   - Security Mode Complete handling, after MAC verification succeeds
-//     (MintAuthProofForSMC).
+//   - the Security Mode procedure: installing the NAS security context at
+//     command time and adopting the UE security capability after MAC
+//     verification at complete time (MintAuthProofForSecurityMode).
 //   - Registration Request handling, during request parsing
 //     (MintAuthProofForRegistrationRequest).
 //
@@ -32,13 +33,15 @@ import (
 // surface; this file is the trust boundary to audit for in-package
 // abuses.
 type AuthProof struct {
-	_ struct{} // unexported field forbids struct-literal construction outside this package
+	_ struct{}
 }
 
-// MintAuthProofForSMC returns an AuthProof. It must only be called from
-// the Security Mode Complete handler after MAC verification has
-// succeeded on the SMC message.
-func MintAuthProofForSMC() AuthProof {
+// MintAuthProofForSecurityMode returns an AuthProof. It must only be called from
+// the Security Mode procedure, after primary authentication has succeeded: at
+// command time to install the negotiated NAS security context, and at complete
+// time (after MAC verification on SECURITY MODE COMPLETE) to adopt the UE security
+// capability (TS 33.501).
+func MintAuthProofForSecurityMode() AuthProof {
 	return AuthProof{}
 }
 
@@ -54,6 +57,16 @@ func MintAuthProofForSMC() AuthProof {
 // protection for Initial/Emergency Registration and for first-time
 // capability adoption in Mobility/Periodic Registration Update.
 func MintAuthProofForRegistrationRequest() AuthProof {
+	return AuthProof{}
+}
+
+// MintAuthProofForRegistrationCommit returns an AuthProof. It must only be called
+// from HandleInitialRegistration, after the registration has been authenticated and
+// its security context established, to commit the UE's identity into the pool and
+// supersede any earlier context for the subscriber. Gating the commit on an AuthProof
+// ensures an unauthenticated registration citing a victim's identity can never index
+// itself or tear down the victim's context (TS 24.501 §4.4.4.3).
+func MintAuthProofForRegistrationCommit() AuthProof {
 	return AuthProof{}
 }
 
@@ -105,4 +118,14 @@ func (ue *UeContext) SetUESecurityCapability(caps *nasType.UESecurityCapability,
 	defer ue.mu.Unlock()
 
 	ue.ueSecurityCapability = caps
+}
+
+// NextNgKsi returns the next available NAS Key Set Identifier. KSI is a 3-bit
+// field (0–6 valid, 7 means "no key available"); see TS 24.501 §9.11.3.32.
+func NextNgKsi(current int32) int32 {
+	if current >= 0 && current < 6 {
+		return current + 1
+	}
+
+	return 0
 }

@@ -37,9 +37,8 @@ func TestAttachUnknownIMSI(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	HandleNAS(m, context.Background(), ue, b)
+	HandleNAS(m, context.Background(), ue.Conn(), b)
 
-	// Expect Attach Reject (downlink NAS) followed by the UE Context Release Command.
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected Attach Reject + Release Command, got %d S1AP messages", len(cc.sent))
 	}
@@ -51,6 +50,16 @@ func TestAttachUnknownIMSI(t *testing.T) {
 
 	if rej.Cause != mme.EmmCauseIMSIUnknownInHSS {
 		t.Fatalf("Attach Reject cause = %d, want %d", rej.Cause, mme.EmmCauseIMSIUnknownInHSS)
+	}
+
+	// The reject carries the T3402 back-off (12 min), mirroring the AMF's T3502.
+	wantT3402, err := eps.EncodeGPRSTimer(mme.T3402Backoff)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if rej.T3402 != wantT3402 {
+		t.Fatalf("Attach Reject T3402 = %#x, want %#x (12 min)", rej.T3402, wantT3402)
 	}
 
 	parseUEContextReleaseCommand(t, cc.sent[1])

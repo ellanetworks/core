@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
@@ -49,17 +49,16 @@ func TestServiceTypeToString(t *testing.T) {
 }
 
 func TestHandleServiceRequest_WrongStateError(t *testing.T) {
-	testcases := []amf.StateType{amf.SecurityMode, amf.Authentication, amf.ContextSetup}
+	testcases := []amf.StateType{amf.RegistrationInitiated, amf.DeregistrationInitiated}
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
-			expected := fmt.Sprintf("state mismatch: receive Service Request message in state %s", tc)
-
 			ue := amf.NewUeContext()
-			ue.ForceState(tc)
+			ue.ForceStateForTest(tc)
 
-			err := handleServiceRequest(t.Context(), amf.New(nil, nil, nil), ue, nil, true)
-			if err == nil || err.Error() != expected {
-				t.Fatalf("expected error: %s, got: %v", expected, err)
+			handleServiceRequest(t.Context(), amf.New(nil, nil, nil), ue, nil, true)
+
+			if ue.State() != tc {
+				t.Fatalf("expected out-of-state Service Request to leave state %s unchanged, got %s", tc, ue.State())
 			}
 		})
 	}
@@ -67,14 +66,14 @@ func TestHandleServiceRequest_WrongStateError(t *testing.T) {
 
 func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -90,15 +89,12 @@ func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T)
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 	ue.SetSecuredForTest(false)
 
 	m := buildTestServiceRequest()
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
-	if err != nil {
-		t.Fatalf("expected no errors, got: %v", err)
-	}
+	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -124,14 +120,14 @@ func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T)
 
 func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -147,15 +143,12 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 	ue.SetSecuredForTest(true)
 
 	m := buildTestServiceRequest()
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
-	if err != nil {
-		t.Fatalf("expected no errors, got: %v", err)
-	}
+	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -187,14 +180,14 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 
 func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -210,8 +203,8 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.Registered)
-	ue.Tai = ue.RanUe().Tai
+	ue.ForceStateForTest(amf.Registered)
+	ue.Tai = ue.Conn().Tai
 	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
@@ -227,17 +220,14 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Get(), nasMessage.ServiceTypeSignalling)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Value(), nasMessage.ServiceTypeSignalling)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
 	ue.SetCipheringAlgForTest(200)
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
-	if err != nil {
-		t.Fatalf("expected no errors, got: %v", err)
-	}
+	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -263,14 +253,14 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 
 func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -286,22 +276,19 @@ func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ranUe := ue.RanUe()
+	ueConn := ue.Conn()
 	ue = amf.NewUeContext()
-	ue.AttachRanUe(ranUe)
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Get(), nasMessage.ServiceTypeData)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Value(), nasMessage.ServiceTypeData)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
-	if err != nil {
-		t.Fatalf("expected no errors, got: %v", err)
-	}
+	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -327,14 +314,14 @@ func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
 
 func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -350,21 +337,14 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 	ue.SetSecuredForTest(true)
 
-	ue.NasConn().T3513.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-
-	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
-		t.Fatal(err)
-	}
+	ue.ArmPagingForTest(6*time.Minute, 5)
 
 	m := buildTestServiceRequest()
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
-	if err != nil {
-		t.Fatalf("expected no errors, got: %v", err)
-	}
+	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -387,25 +367,85 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 		t.Fatalf("expected a service accept message, got '%v'", decoded.Message.GmmHeader.GetMessageType())
 	}
 
-	if ue.NasConn().T3513.Active() {
+	if ue.PagingActiveForTest() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
+}
 
-	if ue.NasConn().Procedures.Active(procedure.Paging) {
-		t.Fatalf("expected paging procedure to be completed")
+// A registered UE's service request must always be answered — accepted for a serviceable
+// type, rejected for an unsupported one — never dropped (TS 24.501 §5.6.1.5).
+func TestHandleServiceRequest_ServiceTypeReplies(t *testing.T) {
+	tests := []struct {
+		name        string
+		serviceType uint8
+		wantMsgType uint8
+	}{
+		{"high-priority access is accepted", nasMessage.ServiceTypeHighPriorityAccess, nas.MsgTypeServiceAccept},
+		{"emergency is rejected (unsupported)", nasMessage.ServiceTypeEmergencyServices, nas.MsgTypeServiceReject},
+		{"emergency fallback is rejected", nasMessage.ServiceTypeEmergencyServicesFallback, nas.MsgTypeServiceReject},
+		{"unknown service type is rejected", 0x07, nas.MsgTypeServiceReject},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			amfInstance := amf.New(
+				&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: "[\"000001\"]"}},
+				&fakeAusf{
+					AvKgAka: &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))},
+					Supi:    mustSUPIFromPrefixed("imsi-001019756139935"),
+					Kseaf:   []byte("testkey"),
+				},
+				nil,
+			)
+
+			ue, ngapSender, err := buildUeAndRadio()
+			if err != nil {
+				t.Fatalf("could not build UE and radio: %v", err)
+			}
+
+			ue.ForceStateForTest(amf.Registered)
+			ue.SetSecuredForTest(true)
+
+			m := buildTestServiceRequest()
+			m.SetServiceTypeValue(tc.serviceType)
+
+			handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
+
+			if len(ngapSender.SentDownlinkNASTransport) != 1 {
+				t.Fatalf("service type %d: want exactly 1 downlink reply (never a silent drop), got %d", tc.serviceType, len(ngapSender.SentDownlinkNASTransport))
+			}
+
+			pdu := ngapSender.SentDownlinkNASTransport[0].NasPdu
+
+			var gotType uint8
+			if nas.GetSecurityHeaderType(pdu)&0x0f == nas.SecurityHeaderTypePlainNas {
+				gotType = pdu[2] // plain 5GMM: EPD, SHT, message type
+			} else {
+				decoded, err := amf.DecodeNASMessage(ue, pdu)
+				if err != nil {
+					t.Fatalf("could not decode ciphered downlink reply: %v", err)
+				}
+
+				gotType = decoded.Message.GmmHeader.GetMessageType()
+			}
+
+			if gotType != tc.wantMsgType {
+				t.Fatalf("reply message type = %d, want %d", gotType, tc.wantMsgType)
+			}
+		})
 	}
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -421,9 +461,9 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.NasConn().T3565.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.ForceState(amf.Registered)
-	ue.Tai = ue.RanUe().Tai
+	ue.Conn().NASGuardForTest().Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.ForceStateForTest(amf.Registered)
+	ue.Tai = ue.Conn().Tai
 	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
@@ -439,15 +479,12 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Get(), nasMessage.ServiceTypeSignalling)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Value(), nasMessage.ServiceTypeSignalling)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
-	if err != nil {
-		t.Fatalf("expected no errors, got: %v", err)
-	}
+	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -465,7 +502,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Value(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -478,21 +515,21 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 		t.Fatalf("expected a service accept message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.NasConn().T3565.Active() {
+	if ue.Conn().NASGuardForTest().Active() {
 		t.Fatalf("expected timer T3565 to be stopped and cleared")
 	}
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -508,9 +545,9 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.NasConn().T3565.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.ForceState(amf.Registered)
-	ue.Tai = ue.RanUe().Tai
+	ue.Conn().NASGuardForTest().Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.ForceStateForTest(amf.Registered)
+	ue.Tai = ue.Conn().Tai
 	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
@@ -526,15 +563,12 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Get(), nasMessage.ServiceTypeData)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Value(), nasMessage.ServiceTypeData)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
-	if err != nil {
-		t.Fatalf("expected no errors, got: %v", err)
-	}
+	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -552,7 +586,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Value(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -565,21 +599,21 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 		t.Fatalf("expected a service accept message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.NasConn().T3565.Active() {
+	if ue.Conn().NASGuardForTest().Active() {
 		t.Fatalf("expected timer T3565 to be stopped and cleared")
 	}
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -587,7 +621,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
 		},
-		&FakeSmf{},
+		&fakeSmf{},
 	)
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -597,16 +631,12 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 
-	ue.NasConn().T3513.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-
-	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
-		t.Fatal(err)
-	}
+	ue.ArmPagingForTest(6*time.Minute, 5)
 
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 	ue.SetGutiForTest(oldguti)
-	ue.Tai = ue.RanUe().Tai
+	ue.Tai = ue.Conn().Tai
 	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
@@ -622,15 +652,12 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Value(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
-	if err != nil {
-		t.Fatalf("expected no errors, got: %v", err)
-	}
+	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) < 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -648,7 +675,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Value(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -661,29 +688,29 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 		t.Fatalf("expected a service accept message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.NasConn().T3513.Active() {
+	if ue.PagingActiveForTest() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if ue.GutiForTest() == oldguti {
+	if ue.TmsiForTest() == oldguti.Tmsi {
 		t.Fatal("expected new GUTI to be allocated")
 	}
 
-	if ue.OldGuti != oldguti {
+	if ue.OldTmsi() != oldguti.Tmsi {
 		t.Fatal("expected old GUTI to still be valid")
 	}
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession_Error(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -699,16 +726,12 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.NasConn().T3513.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-
-	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
-		t.Fatal(err)
-	}
+	ue.ArmPagingForTest(6*time.Minute, 5)
 
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 	ue.SetGutiForTest(mustTestGuti("001", "01", "cafe42", 0x00000001))
-	ue.Tai = ue.RanUe().Tai
+	ue.Tai = ue.Conn().Tai
 	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
@@ -723,19 +746,14 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
-	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1}
+	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1})
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Value(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	expected := "service Request triggered by Network for pduSessionID that does not exist"
-
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
-	if err == nil || err.Error() != expected {
-		t.Fatalf("expected error: %s, got: %v", expected, err)
-	}
+	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
 		t.Fatalf("should not have sent a Downlink NAS Transport message")
@@ -744,14 +762,14 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUSession_ServiceAccept(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -759,9 +777,9 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
 		},
-		&FakeSmf{},
+		&fakeSmf{},
 	)
-	amfInstance.T3555Cfg = amf.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
+	amfInstance.NASGuardCfg = guard.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -772,16 +790,12 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	ue.NasConn().T3513.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-
-	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
-		t.Fatal(err)
-	}
+	ue.ArmPagingForTest(6*time.Minute, 5)
 
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 	ue.SetGutiForTest(oldguti)
-	ue.Tai = ue.RanUe().Tai
+	ue.Tai = ue.Conn().Tai
 	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
@@ -798,17 +812,14 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
-	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai}
+	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai})
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Value(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
-	if err != nil {
-		t.Fatalf("expected no errors, got: %v", err)
-	}
+	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 
 	if len(ngapSender.SentPDUSessionResourceSetupRequest) < 1 {
 		t.Fatalf("should have sent a PDU Session Resource Setup Request message")
@@ -826,7 +837,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Value(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -855,7 +866,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Value()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -868,33 +879,33 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 		t.Fatalf("expected a configuration update command message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.NasConn().T3513.Active() {
+	if ue.PagingActiveForTest() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if !ue.NasConn().T3555.Active() {
+	if !ue.Conn().NASGuardForTest().Active() {
 		t.Fatalf("expected timer T3555 to be started")
 	}
 
-	if ue.GutiForTest() == oldguti {
+	if ue.TmsiForTest() == oldguti.Tmsi {
 		t.Fatal("expected new GUTI to be allocated")
 	}
 
-	if ue.OldGuti != oldguti {
+	if ue.OldTmsi() != oldguti.Tmsi {
 		t.Fatal("expected old GUTI to still be valid")
 	}
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPDUSession_ServiceAccept_UplinkPDUError(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -902,9 +913,9 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
 		},
-		&FakeSmf{Error: fmt.Errorf("error activating PDU session")},
+		&fakeSmf{Error: fmt.Errorf("error activating PDU session")},
 	)
-	amfInstance.T3555Cfg = amf.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
+	amfInstance.NASGuardCfg = guard.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -914,16 +925,12 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	ue.NasConn().T3513.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-
-	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
-		t.Fatal(err)
-	}
+	ue.ArmPagingForTest(6*time.Minute, 5)
 
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 	ue.SetGutiForTest(oldguti)
-	ue.Tai = ue.RanUe().Tai
+	ue.Tai = ue.Conn().Tai
 	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
@@ -941,17 +948,14 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
-	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}}
+	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}})
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Value(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
-	if err != nil {
-		t.Fatalf("expected no errors, got: %v", err)
-	}
+	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 
 	if len(ngapSender.SentPDUSessionResourceSetupRequest) < 1 {
 		t.Fatalf("should have sent a PDU Session Resource Setup Request message")
@@ -969,7 +973,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Value(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1002,7 +1006,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Value()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1015,33 +1019,33 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected a configuration update command message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.NasConn().T3513.Active() {
+	if ue.PagingActiveForTest() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if !ue.NasConn().T3555.Active() {
+	if !ue.Conn().NASGuardForTest().Active() {
 		t.Fatalf("expected timer T3555 to be started")
 	}
 
-	if ue.GutiForTest() == oldguti {
+	if ue.TmsiForTest() == oldguti.Tmsi {
 		t.Fatal("expected new GUTI to be allocated")
 	}
 
-	if ue.OldGuti != oldguti {
+	if ue.OldTmsi() != oldguti.Tmsi {
 		t.Fatal("expected old GUTI to still be valid")
 	}
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPDUSession_ServiceAccept_UplinkPDUSuccess(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -1049,9 +1053,9 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
 		},
-		&FakeSmf{Error: nil},
+		&fakeSmf{Error: nil},
 	)
-	amfInstance.T3555Cfg = amf.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
+	amfInstance.NASGuardCfg = guard.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -1061,16 +1065,12 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	ue.NasConn().T3513.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-
-	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
-		t.Fatal(err)
-	}
+	ue.ArmPagingForTest(6*time.Minute, 5)
 
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 	ue.SetGutiForTest(oldguti)
-	ue.Tai = ue.RanUe().Tai
+	ue.Tai = ue.Conn().Tai
 	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
@@ -1088,17 +1088,14 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
-	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}}
+	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}})
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Value(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
-	if err != nil {
-		t.Fatalf("expected no errors, got: %v", err)
-	}
+	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 
 	if len(ngapSender.SentPDUSessionResourceSetupRequest) < 1 {
 		t.Fatalf("should have sent a PDU Session Resource Setup Request message")
@@ -1116,7 +1113,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Value(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1157,7 +1154,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Value()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1170,33 +1167,33 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected a configuration update command message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.NasConn().T3513.Active() {
+	if ue.PagingActiveForTest() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if !ue.NasConn().T3555.Active() {
+	if !ue.Conn().NASGuardForTest().Active() {
 		t.Fatalf("expected timer T3555 to be started")
 	}
 
-	if ue.GutiForTest() == oldguti {
+	if ue.TmsiForTest() == oldguti.Tmsi {
 		t.Fatal("expected new GUTI to be allocated")
 	}
 
-	if ue.OldGuti != oldguti {
+	if ue.OldTmsi() != oldguti.Tmsi {
 		t.Fatal("expected old GUTI to still be valid")
 	}
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_ExistingPDUSession_ServiceAccept_UplinkPDUSuccess(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -1204,28 +1201,27 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
 		},
-		&FakeSmf{Error: nil},
+		&fakeSmf{Error: nil},
 	)
-	amfInstance.T3555Cfg = amf.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
+	amfInstance.NASGuardCfg = guard.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	setTestUESecurityCapability(ue)
+
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	ue.NasConn().T3513.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-
-	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
-		t.Fatal(err)
-	}
+	ue.ArmPagingForTest(6*time.Minute, 5)
 
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 	ue.SetGutiForTest(oldguti)
-	ue.Tai = ue.RanUe().Tai
+	ue.Tai = ue.Conn().Tai
 	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
@@ -1243,18 +1239,15 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
-	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}}
-	ue.RanUe().UeContextRequest = true
+	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}})
+	ue.Conn().UeContextRequest = true
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Value(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
-	if err != nil {
-		t.Fatalf("expected no errors, got: %v", err)
-	}
+	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 
 	if len(ngapSender.SentInitialContextSetupRequest) < 1 {
 		t.Fatalf("should have sent a PDU Session Resource Setup Request message")
@@ -1272,7 +1265,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Value(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1301,7 +1294,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Value()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1314,33 +1307,33 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 		t.Fatalf("expected a configuration update command message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.NasConn().T3513.Active() {
+	if ue.PagingActiveForTest() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if !ue.NasConn().T3555.Active() {
+	if !ue.Conn().NASGuardForTest().Active() {
 		t.Fatalf("expected timer T3555 to be started")
 	}
 
-	if ue.GutiForTest() == oldguti {
+	if ue.TmsiForTest() == oldguti.Tmsi {
 		t.Fatal("expected new GUTI to be allocated")
 	}
 
-	if ue.OldGuti != oldguti {
+	if ue.OldTmsi() != oldguti.Tmsi {
 		t.Fatal("expected old GUTI to still be valid")
 	}
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_ServiceAccept(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -1348,9 +1341,9 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
 		},
-		&FakeSmf{Error: nil},
+		&fakeSmf{Error: nil},
 	)
-	amfInstance.T3555Cfg = amf.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
+	amfInstance.NASGuardCfg = guard.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -1360,16 +1353,12 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	ue.NasConn().T3513.Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-
-	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
-		t.Fatal(err)
-	}
+	ue.ArmPagingForTest(6*time.Minute, 5)
 
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 	ue.SetGutiForTest(oldguti)
-	ue.Tai = ue.RanUe().Tai
+	ue.Tai = ue.Conn().Tai
 	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
@@ -1393,22 +1382,18 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		t.Fatalf("could not build N1 message: %v", err)
 	}
 
-	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{
-		PduSessionID: 1,
-		SNssai:       &snssai,
-		// BinaryDataN2Information: []byte{},
+	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{
+		PduSessionID:        1,
+		SNssai:              &snssai,
 		BinaryDataN1Message: n1msg,
-	}
+	})
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Value(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
-	if err != nil {
-		t.Fatalf("expected no errors, got: %v", err)
-	}
+	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 
 	if len(ngapSender.SentPDUSessionResourceSetupRequest) < 1 {
 		t.Fatalf("should have sent a PDU Session Resource Setup Request message")
@@ -1426,7 +1411,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Value(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1455,7 +1440,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Value()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1488,7 +1473,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Get()+2, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Value()+2, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1501,19 +1486,19 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		t.Fatalf("expected a configuration update command message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.NasConn().T3513.Active() {
+	if ue.PagingActiveForTest() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if !ue.NasConn().T3555.Active() {
+	if !ue.Conn().NASGuardForTest().Active() {
 		t.Fatalf("expected timer T3555 to be started")
 	}
 
-	if ue.GutiForTest() == oldguti {
+	if ue.TmsiForTest() == oldguti.Tmsi {
 		t.Fatal("expected new GUTI to be allocated")
 	}
 
-	if ue.OldGuti != oldguti {
+	if ue.OldTmsi() != oldguti.Tmsi {
 		t.Fatal("expected old GUTI to still be valid")
 	}
 }
@@ -1524,14 +1509,14 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 // This is a regression test for an index-out-of-range crash (DoS vulnerability).
 func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -1539,7 +1524,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
 		},
-		&FakeSmf{},
+		&fakeSmf{},
 	)
 
 	ue, _, err := buildUeAndRadio()
@@ -1549,8 +1534,8 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	ue.ForceState(amf.Registered)
-	ue.Tai = ue.RanUe().Tai
+	ue.ForceStateForTest(amf.Registered)
+	ue.Tai = ue.Conn().Tai
 	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
@@ -1572,15 +1557,12 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 	// The read-side bounds checks in handleServiceRequest must still prevent a panic.
 	ue.SmContextList[255] = &amf.SmContext{Ref: "malicious-ref", Snssai: &snssai}
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Get(), nasMessage.ServiceTypeData)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Value(), nasMessage.ServiceTypeData)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
-	if err != nil {
-		t.Logf("handleServiceRequest returned error (acceptable): %v", err)
-	}
+	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 }
 
 // TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus verifies that a
@@ -1588,14 +1570,14 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 // a PDU session ID >= 16 (outside the [16]bool PSI array bounds).
 func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing.T) {
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		&FakeAusf{
+		&fakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -1603,7 +1585,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
 		},
-		&FakeSmf{},
+		&fakeSmf{},
 	)
 
 	ue, _, err := buildUeAndRadio()
@@ -1613,8 +1595,8 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	ue.ForceState(amf.Registered)
-	ue.Tai = ue.RanUe().Tai
+	ue.ForceStateForTest(amf.Registered)
+	ue.Tai = ue.Conn().Tai
 	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
@@ -1634,7 +1616,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 	// bypassing CreateSmContext validation to test the read-side safety net.
 	ue.SmContextList[200] = &amf.SmContext{Ref: "malicious-ref", Snssai: &snssai}
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Get(), nasMessage.ServiceTypeData)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Value(), nasMessage.ServiceTypeData)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
@@ -1643,10 +1625,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 	// buildTestServiceRequestCiphered). The panic occurs when iterating SmContextList
 	// and indexing into the [16]bool psiArray with pduSessionID >= 16.
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
-	if err != nil {
-		t.Logf("handleServiceRequest returned error (acceptable): %v", err)
-	}
+	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 }
 
 func buildTestServiceRequest() *nas.GmmMessage {

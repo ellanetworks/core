@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
@@ -17,7 +18,7 @@ import (
 	"github.com/free5gc/nas/security"
 )
 
-// failingSubscriberDB is a FakeDBInstance variant that returns an error for GetSubscriber.
+// failingSubscriberDB is a fakeDBInstance variant that returns an error for GetSubscriber.
 type failingSubscriberDB struct {
 	Operator *db.Operator
 }
@@ -88,7 +89,7 @@ func decryptAndDecodeNasPdu(t *testing.T, ue *amf.UeContext, nasPdu []byte, dlCo
 	copy(payload, nasPdu)
 	payload = payload[7:]
 
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Get()+dlCountOffset, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Value()+dlCountOffset, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -101,15 +102,15 @@ func decryptAndDecodeNasPdu(t *testing.T, ue *amf.UeContext, nasPdu []byte, dlCo
 
 // buildMobilityRegUeAndAMF creates a UE and amf.AMF configured for mobility/periodic
 // registration updating tests. The UE has security context, a valid registration
-// request, Pei, Supi, and matching Tai. The amf.AMF has a valid Operator, FakeSmf, and
+// request, Pei, Supi, and matching Tai. The amf.AMF has a valid Operator, fakeSmf, and
 // UEs map. Returns the UE, ngapSender, fakeSmf, and amf.AMF.
-func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *FakeNGAPSender, *FakeSmf, *amf.AMF) {
+func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *fakeNGAPSender, *fakeSmf, *amf.AMF) {
 	t.Helper()
 
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")
-	fakeSmf := &FakeSmf{}
+	fakeSmf := &fakeSmf{}
 	amfInstance := amf.New(
-		&FakeDBInstance{
+		&fakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
@@ -126,8 +127,8 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *FakeNGAPSender, *F
 	}
 
 	ue.SetSupiForTest(supi)
-	ue.Pei = "imei-490154203237518"
-	ue.Tai = ue.RanUe().Tai
+	ue.Imei, _ = etsi.NewIMEIFromPEI("imei-490154203237518")
+	ue.Tai = ue.Conn().Tai
 	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
@@ -143,14 +144,14 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *FakeNGAPSender, *F
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCountForTest().Get())
+	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCountForTest().Value())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	ue.NasConn().RegistrationRequest = registrationRequest.RegistrationRequest
-	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
-	ue.NasConn().RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
+	ue.Conn().RegistrationRequest = registrationRequest.RegistrationRequest
+	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
+	ue.Conn().RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
 
 	return ue, ngapSender, fakeSmf, amfInstance
 }
@@ -158,32 +159,25 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *FakeNGAPSender, *F
 func TestMobilityReg_GetOperatorInfoError(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	amfInstance.DBInstance = &FakeDBInstance{Operator: nil}
+	amfInstance.DBInstance = &fakeDBInstance{Operator: nil}
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err == nil {
-		t.Fatal("expected error for nil Operator, got nil")
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	expected := "error getting operator info: failed to get operator: could not get operator"
-	if err.Error() != expected {
-		t.Fatalf("expected error: %s, got: %v", expected, err)
+	if ue.State() != amf.Deregistered {
+		t.Fatalf("UE should be released to Deregistered, got %v", ue.State())
 	}
 }
 
 // A mobility registration update with no 5GMM capability IE is valid: the IE
 // is optional and re-sent only on change (TS 24.501), so the
-// amf.AMF accepts rather than rejecting.
+// amf.AMF accepts it.
 func TestMobilityReg_NilCapability5GMM_Mobility_Continues(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.NasConn().RegistrationRequest.Capability5GMM = nil
-	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
+	ue.Conn().RegistrationRequest.Capability5GMM = nil
+	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("expected no error for mobility reg with nil Capability5GMM, got: %v", err)
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
@@ -198,15 +192,11 @@ func TestMobilityReg_NilCapability5GMM_Mobility_Continues(t *testing.T) {
 func TestMobilityReg_NilCapability5GMM_Periodic_Continues(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.NasConn().RegistrationRequest.Capability5GMM = nil
-	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSPeriodicRegistrationUpdating
+	ue.Conn().RegistrationRequest.Capability5GMM = nil
+	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSPeriodicRegistrationUpdating
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("expected no error for periodic reg with nil Capability5GMM, got: %v", err)
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	// Should send DownlinkNasTransport with RegistrationAccept (happy path, no UeContextRequest)
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -220,27 +210,23 @@ func TestMobilityReg_NilCapability5GMM_Periodic_Continues(t *testing.T) {
 func TestMobilityReg_UpdateType5GS_ClearsRadioCapability(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.UeRadioCapability = []byte("some-capability")
-	ue.UeRadioCapabilityForPaging = &models.UERadioCapabilityForPaging{}
+	ue.RadioCapability = []byte("some-capability")
+	ue.RadioCapabilityForPaging = &models.UERadioCapabilityForPaging{}
 
 	updateType := nasType.NewUpdateType5GS(nasMessage.RegistrationRequestUpdateType5GSType)
 	updateType.SetNGRanRcu(nasMessage.NGRanRadioCapabilityUpdateNeeded)
-	ue.NasConn().RegistrationRequest.UpdateType5GS = updateType
+	ue.Conn().RegistrationRequest.UpdateType5GS = updateType
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if len(ue.RadioCapability) != 0 {
+		t.Fatalf("expected RadioCapability to be cleared, got %x", ue.RadioCapability)
 	}
 
-	if len(ue.UeRadioCapability) != 0 {
-		t.Fatalf("expected UeRadioCapability to be cleared, got %x", ue.UeRadioCapability)
+	if ue.RadioCapabilityForPaging != nil {
+		t.Fatalf("expected RadioCapabilityForPaging to be nil")
 	}
 
-	if ue.UeRadioCapabilityForPaging != nil {
-		t.Fatalf("expected UeRadioCapabilityForPaging to be nil")
-	}
-
-	// Should send DownlinkNasTransport with RegistrationAccept
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -254,14 +240,10 @@ func TestMobilityReg_UpdateType5GS_ClearsRadioCapability(t *testing.T) {
 func TestMobilityReg_MICOIndication(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.NasConn().RegistrationRequest.MICOIndication = nasType.NewMICOIndication(nasMessage.RegistrationRequestMICOIndicationType)
+	ue.Conn().RegistrationRequest.MICOIndication = nasType.NewMICOIndication(nasMessage.RegistrationRequestMICOIndicationType)
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	// Should send DownlinkNasTransport with RegistrationAccept
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -276,19 +258,15 @@ func TestMobilityReg_RequestedDRXParameters(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	drxParams := nasType.NewRequestedDRXParameters(nasMessage.RegistrationRequestRequestedDRXParametersType)
-	drxParams.SetDRXValue(0x03) // some DRX value
-	ue.NasConn().RegistrationRequest.RequestedDRXParameters = drxParams
+	drxParams.SetDRXValue(0x03)
+	ue.Conn().RegistrationRequest.RequestedDRXParameters = drxParams
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if ue.DRXParameter != 0x03 {
+		t.Fatalf("expected DRXParameter to be 0x03, got 0x%02x", ue.DRXParameter)
 	}
 
-	if ue.UESpecificDRX != 0x03 {
-		t.Fatalf("expected UESpecificDRX to be 0x03, got 0x%02x", ue.UESpecificDRX)
-	}
-
-	// Should send DownlinkNasTransport with RegistrationAccept
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -302,12 +280,9 @@ func TestMobilityReg_RequestedDRXParameters(t *testing.T) {
 func TestMobilityReg_EmptyPei_SendsIdentityRequest(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.Pei = ""
+	ue.Imei = etsi.IMEI{}
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport (IdentityRequest), got %d", len(ngapSender.SentDownlinkNASTransport))
@@ -321,8 +296,7 @@ func TestMobilityReg_EmptyPei_SendsIdentityRequest(t *testing.T) {
 		t.Fatalf("expected plain NAS, got security header type %d", nm.SecurityHeaderType)
 	}
 
-	err = nm.PlainNasDecode(&resp.NasPdu)
-	if err != nil {
+	if err := nm.PlainNasDecode(&resp.NasPdu); err != nil {
 		t.Fatalf("could not decode NAS message: %v", err)
 	}
 
@@ -334,7 +308,6 @@ func TestMobilityReg_EmptyPei_SendsIdentityRequest(t *testing.T) {
 func TestMobilityReg_GetSubscriberProfileError(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	// Override DBInstance with one that returns an error for GetSubscriber
 	amfInstance.DBInstance = &failingSubscriberDB{
 		Operator: &db.Operator{
 			Mcc:           "001",
@@ -343,21 +316,17 @@ func TestMobilityReg_GetSubscriberProfileError(t *testing.T) {
 		},
 	}
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err == nil {
-		t.Fatal("expected error for SubscriberProfile failure, got nil")
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	const wantPrefix = "error getting subscriber profile:"
-	if got := err.Error(); len(got) < len(wantPrefix) || got[:len(wantPrefix)] != wantPrefix {
-		t.Fatalf("unexpected error prefix: %v", err)
+	if ue.State() != amf.Deregistered {
+		t.Fatalf("UE should be released to Deregistered, got %v", ue.State())
 	}
 }
 
 func TestMobilityReg_EmptyAllowedNssai_RejectsRegistration(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	amfInstance.DBInstance = &emptyPolicyDB{FakeDBInstance: &FakeDBInstance{
+	amfInstance.DBInstance = &emptyPolicyDB{fakeDBInstance: &fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -365,13 +334,10 @@ func TestMobilityReg_EmptyAllowedNssai_RejectsRegistration(t *testing.T) {
 		},
 	}}
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err == nil {
-		t.Fatal("expected registration reject for empty AllowedNssai, got nil")
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	if got, want := err.Error(), "registration Reject [No allowed S-NSSAI in subscription]"; got != want {
-		t.Fatalf("expected error %q, got %q", want, got)
+	if ue.State() != amf.Deregistered {
+		t.Fatalf("UE should be released to Deregistered after the reject, got %v", ue.State())
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
@@ -405,24 +371,22 @@ func TestMobilityReg_EmptyAllowedNssai_RejectsRegistration(t *testing.T) {
 
 func TestMobilityReg_UplinkDataStatus_ActivateSuccess_UeContextRequest(t *testing.T) {
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	setTestUESecurityCapability(ue)
 
-	// Set up PDU session 2
 	snssai := &models.Snssai{Sst: 1}
 
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	// UplinkDataStatus: PSI 2 has uplink data (bit 2 in byte 0 = 0x04)
-	ue.NasConn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
+	ue.Conn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
 		Len:    2,
 		Buffer: []uint8{0x04, 0x00},
 	}
 
-	ue.RanUe().UeContextRequest = true
+	ue.Conn().UeContextRequest = true
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
 	if len(fakeSmf.ActivateSmContextCalls) != 1 {
 		t.Fatalf("expected 1 ActivateSmContext call, got %d", len(fakeSmf.ActivateSmContextCalls))
@@ -449,17 +413,14 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_NoUeContextRequest(t *test
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
-	ue.NasConn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
+	ue.Conn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
 		Len:    2,
 		Buffer: []uint8{0x04, 0x00},
 	}
 
-	ue.RanUe().UeContextRequest = false
+	ue.Conn().UeContextRequest = false
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
 	if len(fakeSmf.ActivateSmContextCalls) != 1 {
 		t.Fatalf("expected 1 ActivateSmContext call, got %d", len(fakeSmf.ActivateSmContextCalls))
@@ -482,17 +443,14 @@ func TestMobilityReg_UplinkDataStatus_ActivateError(t *testing.T) {
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
-	ue.NasConn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
+	ue.Conn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
 		Len:    2,
 		Buffer: []uint8{0x04, 0x00},
 	}
 
 	fakeSmf.ActivateSmContextError = fmt.Errorf("activate error")
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
 	if len(fakeSmf.ActivateSmContextCalls) != 1 {
 		t.Fatalf("expected 1 ActivateSmContext call, got %d", len(fakeSmf.ActivateSmContextCalls))
@@ -516,15 +474,12 @@ func TestMobilityReg_PDUSessionStatus_InactiveSession_ReleaseSmContext(t *testin
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	// PDUSessionStatus: PSI 2 is NOT active (bit 2 unset = 0x00)
-	ue.NasConn().RegistrationRequest.PDUSessionStatus = &nasType.PDUSessionStatus{
+	ue.Conn().RegistrationRequest.PDUSessionStatus = &nasType.PDUSessionStatus{
 		Len:    2,
 		Buffer: []uint8{0x00, 0x00},
 	}
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
 	if len(fakeSmf.ReleaseSmContextCalls) != 1 {
 		t.Fatalf("expected 1 ReleaseSmContext call, got %d", len(fakeSmf.ReleaseSmContextCalls))
@@ -538,7 +493,6 @@ func TestMobilityReg_PDUSessionStatus_InactiveSession_ReleaseSmContext(t *testin
 		t.Fatalf("expected ReleasedSmContext to contain 'ref-2', got %v", fakeSmf.ReleasedSmContext)
 	}
 
-	// Should send DownlinkNasTransport with RegistrationAccept
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -556,21 +510,17 @@ func TestMobilityReg_PDUSessionStatus_ActiveSession_NoRelease(t *testing.T) {
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	// PDUSessionStatus: PSI 2 IS active (bit 2 set = 0x04)
-	ue.NasConn().RegistrationRequest.PDUSessionStatus = &nasType.PDUSessionStatus{
+	ue.Conn().RegistrationRequest.PDUSessionStatus = &nasType.PDUSessionStatus{
 		Len:    2,
 		Buffer: []uint8{0x04, 0x00},
 	}
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
 	if len(fakeSmf.ReleaseSmContextCalls) != 0 {
 		t.Fatalf("expected 0 ReleaseSmContext calls, got %d", len(fakeSmf.ReleaseSmContextCalls))
 	}
 
-	// Should send DownlinkNasTransport with RegistrationAccept
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -582,26 +532,31 @@ func TestMobilityReg_PDUSessionStatus_ActiveSession_NoRelease(t *testing.T) {
 }
 
 func TestMobilityReg_PDUSessionStatus_ReleaseError(t *testing.T) {
-	ue, _, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
+	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
-	ue.NasConn().RegistrationRequest.PDUSessionStatus = &nasType.PDUSessionStatus{
+	ue.Conn().RegistrationRequest.PDUSessionStatus = &nasType.PDUSessionStatus{
 		Len:    2,
 		Buffer: []uint8{0x00, 0x00}, // PSI 2 inactive → triggers release
 	}
 
 	fakeSmf.ReleaseSmContextError = fmt.Errorf("release error")
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err == nil {
-		t.Fatal("expected error for ReleaseSmContext failure, got nil")
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	// A ReleaseSmContext failure aborts the update before any Registration Accept is sent.
+	if len(fakeSmf.ReleaseSmContextCalls) != 1 {
+		t.Fatalf("expected one ReleaseSmContext attempt, got %d", len(fakeSmf.ReleaseSmContextCalls))
 	}
 
-	expected := "failed to release sm context: release error"
-	if err.Error() != expected {
-		t.Fatalf("expected error: %s, got: %v", expected, err)
+	if len(ngapSender.SentDownlinkNASTransport) != 0 {
+		t.Fatalf("expected no downlink after release failure, got %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	if len(ngapSender.SentPDUSessionResourceSetupRequest) != 0 {
+		t.Fatalf("expected no PDU session resource setup after release failure, got %d", len(ngapSender.SentPDUSessionResourceSetupRequest))
 	}
 }
 
@@ -612,27 +567,23 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	// UplinkDataStatus with PSI 2 + no UeContextRequest → populates suList
-	ue.NasConn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
+	ue.Conn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
 		Len:    2,
 		Buffer: []uint8{0x04, 0x00},
 	}
-	ue.RanUe().UeContextRequest = false
+	ue.Conn().UeContextRequest = false
 
-	// AllowedPDUSessionStatus + N1N2Message with nil N2Info
-	ue.NasConn().RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
+	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
 		Len:    2,
 		Buffer: []uint8{0x04, 0x00},
 	}
-	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{
+	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
 		BinaryDataN1Message:     []byte{0x01, 0x02},
 		BinaryDataN2Information: nil,
-	}
+	})
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
 	if len(fakeSmf.ActivateSmContextCalls) != 1 {
 		t.Fatalf("expected 1 ActivateSmContext call, got %d", len(fakeSmf.ActivateSmContextCalls))
@@ -647,20 +598,17 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 		t.Fatalf("expected 1 DownlinkNASTransport (DLNASTransport for N1), got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	// PDUSessionResourceSetupRequest carries RegistrationAccept
 	nmSetup := decryptAndDecodeNasPdu(t, ue, ngapSender.SentPDUSessionResourceSetupRequest[0].NasPdu, 0)
 	if nmSetup.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
 		t.Fatalf("expected RegistrationAccept in PDUSessionResourceSetupRequest, got %v", nmSetup.GmmHeader.GetMessageType())
 	}
 
-	// DLNASTransport carries DLNASTransport (N1 message)
 	nmDL := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 1)
 	if nmDL.GmmHeader.GetMessageType() != nas.MsgTypeDLNASTransport {
 		t.Fatalf("expected DLNASTransport, got %v", nmDL.GmmHeader.GetMessageType())
 	}
 
-	// N1N2Message should be cleared
-	if ue.NasConn().N1N2Message != nil {
+	if ue.Conn().N1N2Message() != nil {
 		t.Fatal("expected N1N2Message to be nil after processing")
 	}
 }
@@ -670,23 +618,20 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 
 	// No UplinkDataStatus → suList remains empty
 
-	ue.NasConn().RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
+	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
 		Len:    2,
 		Buffer: []uint8{0x04, 0x00},
 	}
-	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{
+	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
 		BinaryDataN1Message:     []byte{0x01, 0x02},
 		BinaryDataN2Information: nil,
-	}
+	})
 
 	// UeContextRequest=false so amf.SendRegistrationAccept sends DownlinkNasTransport
-	ue.RanUe().UeContextRequest = false
+	ue.Conn().UeContextRequest = false
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
 	// Empty suList → calls amf.SendRegistrationAccept (which sends DLNASTransport since UeContextRequest=false)
 	// Then also sends DLNASTransport for N1 message
@@ -694,19 +639,17 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 		t.Fatalf("expected 2 DownlinkNASTransport (RegistrationAccept + N1 DLNASTransport), got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	// First DLNASTransport is RegistrationAccept
 	nmAccept := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
 	if nmAccept.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
 		t.Fatalf("expected RegistrationAccept in first DLNASTransport, got %v", nmAccept.GmmHeader.GetMessageType())
 	}
 
-	// Second DLNASTransport is DLNASTransport (N1 message)
 	nmN1 := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[1].NasPdu, 1)
 	if nmN1.GmmHeader.GetMessageType() != nas.MsgTypeDLNASTransport {
 		t.Fatalf("expected DLNASTransport in second DLNASTransport, got %v", nmN1.GmmHeader.GetMessageType())
 	}
 
-	if ue.NasConn().N1N2Message != nil {
+	if ue.Conn().N1N2Message() != nil {
 		t.Fatal("expected N1N2Message to be nil after processing")
 	}
 }
@@ -714,31 +657,22 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_MissingSmContext(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.NasConn().RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
+	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
 		Len:    2,
 		Buffer: []uint8{0x04, 0x00},
 	}
 
 	// N1N2 with N2Info, but no amf.SmContext for PduSessionID 3
-	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{
+	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
 		BinaryDataN1Message:     []byte{0x01, 0x02},
 		BinaryDataN2Information: []byte{0x03, 0x04},
-	}
+	})
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err == nil {
-		t.Fatal("expected error for missing amf.SmContext, got nil")
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	expected := "pdu Session Id does not Exists"
-	if err.Error() != expected {
-		t.Fatalf("expected error: %s, got: %v", expected, err)
-	}
-
-	// N1N2Message should be cleared
-	if ue.NasConn().N1N2Message != nil {
-		t.Fatal("expected N1N2Message to be nil after error")
+	if ue.State() != amf.Deregistered {
+		t.Fatalf("UE should be released to Deregistered, got %v", ue.State())
 	}
 }
 
@@ -748,26 +682,22 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(3, "ref-3", snssai)
 
-	ue.NasConn().RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
+	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
 		Len:    2,
 		Buffer: []uint8{0x08, 0x00}, // PSI 3
 	}
 
-	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{
+	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
 		SNssai:                  snssai,
 		BinaryDataN1Message:     []byte{0x01, 0x02},
 		BinaryDataN2Information: []byte{0x03, 0x04},
-	}
+	})
 
-	ue.RanUe().UeContextRequest = false
+	ue.Conn().UeContextRequest = false
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	// The N2Info path appends to suList, then falls through to the final block
 	// UeContextRequest=false + non-empty suList → PDUSessionResourceSetupRequest
 	if len(ngapSender.SentPDUSessionResourceSetupRequest) != 1 {
 		t.Fatalf("expected 1 PDUSessionResourceSetupRequest, got %d", len(ngapSender.SentPDUSessionResourceSetupRequest))
@@ -781,13 +711,12 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 
 func TestMobilityReg_UeContextRequest_True_InitialContextSetup(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	setTestUESecurityCapability(ue)
 
-	ue.RanUe().UeContextRequest = true
+	ue.Conn().UeContextRequest = true
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
 	if len(ngapSender.SentInitialContextSetupRequest) != 1 {
 		t.Fatalf("expected 1 InitialContextSetupRequest, got %d", len(ngapSender.SentInitialContextSetupRequest))
@@ -809,18 +738,14 @@ func TestMobilityReg_NoUeContextRequest_NonEmptySuList(t *testing.T) {
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
-	// UplinkDataStatus with PSI 2
-	ue.NasConn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
+	ue.Conn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
 		Len:    2,
 		Buffer: []uint8{0x04, 0x00},
 	}
 
-	ue.RanUe().UeContextRequest = false
+	ue.Conn().UeContextRequest = false
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
 	if len(fakeSmf.ActivateSmContextCalls) != 1 {
 		t.Fatalf("expected 1 ActivateSmContext call, got %d", len(fakeSmf.ActivateSmContextCalls))
@@ -843,12 +768,9 @@ func TestMobilityReg_NoUeContextRequest_NonEmptySuList(t *testing.T) {
 func TestMobilityReg_NoUeContextRequest_EmptySuList_DownlinkNasTransport(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.RanUe().UeContextRequest = false
+	ue.Conn().UeContextRequest = false
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
@@ -862,7 +784,6 @@ func TestMobilityReg_NoUeContextRequest_EmptySuList_DownlinkNasTransport(t *test
 		t.Fatalf("expected 0 InitialContextSetupRequest, got %d", len(ngapSender.SentInitialContextSetupRequest))
 	}
 
-	// Decode the NAS message to verify it's a RegistrationAccept
 	resp := ngapSender.SentDownlinkNASTransport[0]
 	nm := decryptAndDecodeNasPdu(t, ue, resp.NasPdu, 0)
 
@@ -950,7 +871,7 @@ func (m *multiSliceDB) NodeID() int { return 0 }
 
 func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")
-	fakeSmf := &FakeSmf{}
+	fakeSmf := &fakeSmf{}
 	dbInstance := &multiSliceDB{
 		Operator: &db.Operator{
 			Mcc:           "001",
@@ -966,8 +887,8 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 	}
 
 	ue.SetSupiForTest(supi)
-	ue.Pei = "imei-490154203237518"
-	ue.Tai = ue.RanUe().Tai
+	ue.Imei, _ = etsi.NewIMEIFromPEI("imei-490154203237518")
+	ue.Tai = ue.Conn().Tai
 	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
@@ -983,21 +904,17 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCountForTest().Get())
+	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCountForTest().Value())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	ue.NasConn().RegistrationRequest = registrationRequest.RegistrationRequest
-	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
-	ue.NasConn().RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
+	ue.Conn().RegistrationRequest = registrationRequest.RegistrationRequest
+	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
+	ue.Conn().RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
 
-	err = HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	// Verify AllowedNssai was populated with both slices
 	if len(ue.AllowedNssai) != 2 {
 		t.Fatalf("expected 2 allowed NSSAIs, got %d", len(ue.AllowedNssai))
 	}
@@ -1010,7 +927,6 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 		t.Fatalf("expected second slice SST=2 SD=aabbcc, got SST=%d SD=%s", ue.AllowedNssai[1].Sst, ue.AllowedNssai[1].Sd)
 	}
 
-	// Verify the RegistrationAccept was sent and contains multi-NSSAI
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}

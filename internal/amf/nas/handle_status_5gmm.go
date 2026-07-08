@@ -4,23 +4,21 @@
 package nas
 
 import (
-	"fmt"
+	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/free5gc/nas/nasMessage"
 )
 
-func handleStatus5GMM(ue *amf.UeContext, msg *nasMessage.Status5GMM, integrityVerified bool) error {
+func handleStatus5GMM(ctx context.Context, ue *amf.UeContext, msg *nasMessage.Status5GMM) nasreply.Disposition {
 	if ue.State() == amf.Deregistered {
-		return fmt.Errorf("UE is in amf.Deregistered state, ignore Status 5GMM message")
+		logger.From(ctx, logger.AmfLog).Warn("UE is in amf.Deregistered state, ignore Status 5GMM message")
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	if !integrityVerified {
-		return fmt.Errorf("NAS message integrity check failed")
-	}
+	logger.From(ctx, logger.AmfLog).Error("Received Status 5GMM with cause", logger.Cause(nasMessage.Cause5GMMToString(msg.GetCauseValue())))
 
-	ue.Log.Error("Received Status 5GMM with cause", logger.Cause(nasMessage.Cause5GMMToString(msg.GetCauseValue())))
-
-	return nil
+	return nasreply.Handled()
 }

@@ -13,10 +13,9 @@ func validPDUSessionID(id int64) (uint8, bool) {
 	return uint8(id), true
 }
 
-// duplicatePDUSessionID returns the first PDU Session ID that appears more than
-// once in the Path Switch Request to-be-switched downlink list. TS 38.413
-// requires the AMF to reject such a message with a Path Switch Request
-// Failure.
+// duplicatePDUSessionID returns the first PDU Session ID appearing more than once
+// in the to-be-switched downlink list; TS 38.413 requires the AMF to reject such a
+// Path Switch Request with a Failure.
 func duplicatePDUSessionID(items []ngapType.PDUSessionResourceToBeSwitchedDLItem) (int64, bool) {
 	seen := make(map[int64]struct{}, len(items))
 

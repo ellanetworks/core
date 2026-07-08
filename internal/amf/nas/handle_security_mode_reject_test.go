@@ -4,7 +4,6 @@
 package nas
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -14,18 +13,29 @@ import (
 )
 
 func TestHandleSecurityModeReject_NotSecurityMode(t *testing.T) {
-	testcases := []amf.StateType{amf.Authentication, amf.Deregistered, amf.ContextSetup, amf.Registered}
+	testcases := []struct {
+		name  string
+		setup func(*amf.UeContext)
+	}{
+		{"Deregistered", func(ue *amf.UeContext) { ue.ForceStateForTest(amf.Deregistered) }},
+		{"Registered", func(ue *amf.UeContext) { ue.ForceStateForTest(amf.Registered) }},
+		{"Authenticating", func(ue *amf.UeContext) { ue.ForceRegStepForTest(amf.RegStepAuthenticating) }},
+		{"ContextSetup", func(ue *amf.UeContext) { ue.ForceRegStepForTest(amf.RegStepContextSetup) }},
+	}
 
 	for _, tc := range testcases {
-		t.Run(string(tc), func(t *testing.T) {
-			ue := amf.NewUeContext()
-			ue.ForceState(tc)
+		t.Run(tc.name, func(t *testing.T) {
+			ue, ngapSender, err := buildUeAndRadio()
+			if err != nil {
+				t.Fatalf("could not build test UE and radio: %v", err)
+			}
 
-			expected := fmt.Sprintf("state mismatch: receive Security Mode Reject message in state %s", tc)
+			tc.setup(ue)
 
-			err := handleSecurityModeReject(t.Context(), ue, nil)
-			if err == nil || err.Error() != expected {
-				t.Fatalf("expected error: %s, got %v", expected, err)
+			handleSecurityModeReject(t.Context(), ue, nil)
+
+			if len(ngapSender.SentUEContextReleaseCommand) != 0 {
+				t.Fatalf("expected Security Mode Reject outside the security mode exchange to be ignored, but a UE Context Release Command was sent")
 			}
 		})
 	}
@@ -38,19 +48,16 @@ func TestHandleSecurityModeReject_T3560Stopped_UEContextReleased(t *testing.T) {
 	}
 
 	ue.SetSecuredForTest(true)
-	ue.RanUe().ReleaseAction = amf.UeContextN2NormalRelease
-	ue.ForceState(amf.SecurityMode)
-	conn := ue.NasConn()
-	conn.T3560.Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.Conn().ReleaseAction = amf.UeContextN2NormalRelease
+	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
+	conn := ue.Conn()
+	conn.NASGuardForTest().Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 
 	m := buildTestSecurityModeReject()
 
-	err = handleSecurityModeReject(t.Context(), ue, m.SecurityModeReject)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	handleSecurityModeReject(t.Context(), ue, m.SecurityModeReject)
 
-	if conn.T3560.Active() {
+	if conn.NASGuardForTest().Active() {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
 	}
 

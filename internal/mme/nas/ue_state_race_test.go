@@ -69,7 +69,7 @@ func TestUEStateConcurrentAccess(t *testing.T) {
 		defer wg.Done()
 
 		for i := 0; i < iters; i++ {
-			ue.SetEMMState(mme.EMMRegistered)
+			ue.ForceStateForTest(mme.EMMRegistered)
 		}
 	}()
 
@@ -96,7 +96,7 @@ func TestS1IdentityConcurrentSendVsResume(t *testing.T) {
 		defer wg.Done()
 
 		for i := 0; i < iters; i++ {
-			m.EstablishS1Connection(ue, cc2, 9)
+			establishResumeForTest(m, ue, cc2, 9)
 		}
 	}()
 
@@ -106,7 +106,7 @@ func TestS1IdentityConcurrentSendVsResume(t *testing.T) {
 		defer wg.Done()
 
 		for i := 0; i < iters; i++ {
-			m.SendDownlink(context.Background(), ue, []byte{0x07, 0x42})
+			ue.Conn().SendDownlinkNASTransport(context.Background(), []byte{0x07, 0x42})
 		}
 	}()
 

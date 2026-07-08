@@ -48,7 +48,6 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
 		t.Fatalf("failed to decode NAS message: %v", err)
 	}
 
-	// check that the SD IE is not present
 	if nasMsg.PDUSessionEstablishmentAccept.SNSSAI == nil {
 		t.Errorf("SNSSAI IE is missing")
 	}
@@ -101,7 +100,6 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithoutSD(t *testing.T) {
 		t.Fatalf("failed to decode NAS message: %v", err)
 	}
 
-	// check that the SD IE is not present
 	if nasMsg.PDUSessionEstablishmentAccept.SNSSAI == nil {
 		t.Errorf("SNSSAI IE is missing")
 	}
@@ -365,7 +363,6 @@ func TestBuildGSMPDUSessionEstablishmentAccept_Cause(t *testing.T) {
 		IPv4Address:    net.IP{10, 0, 0, 1},
 	}
 
-	// Test with no cause (normal case)
 	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(ambr, qosData, 1, 1, snssai, "internet", pco, nil, 0, 0, addrs, nil)
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)

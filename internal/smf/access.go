@@ -3,9 +3,8 @@
 
 package smf
 
-// AccessType is the radio access a session is established over. The SMF is the
-// combined SMF+PGW-C (TS 23.501), so it anchors both; the access keys the
-// spec-mandated 4G/5G differences over an otherwise-shared session core.
+// AccessType is the radio access a session is established over. As the combined
+// SMF+PGW-C (TS 23.501), the SMF keys its 4G/5G differences off it.
 type AccessType uint8
 
 const (

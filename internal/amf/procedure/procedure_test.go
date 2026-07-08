@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf/procedure"
+	engine "github.com/ellanetworks/core/internal/procedure"
 	"go.uber.org/zap"
 )
 
@@ -19,11 +20,29 @@ func newTestRegistry() *procedure.Registry {
 	return procedure.NewRegistry(zap.NewNop())
 }
 
+// reentrantTestType and newReentrantTestRegistry exercise the shared engine's
+// re-entrancy / multi-instance mechanism (EndByID, CancelByID, FIFO cancel)
+// without any production type declaring itself reentrant — the AMF's own type set
+// is all mutually exclusive.
+const reentrantTestType procedure.Type = "ReentrantTest"
+
+type reentrantTestRules struct{}
+
+func (reentrantTestRules) Conflicts(procedure.Type, procedure.Type) (bool, string) {
+	return false, ""
+}
+
+func (reentrantTestRules) Reentrant(t procedure.Type) bool { return t == reentrantTestType }
+
+func newReentrantTestRegistry() *procedure.Registry {
+	return engine.NewRegistry(zap.NewNop(), reentrantTestRules{})
+}
+
 func TestBeginEndRoundTrip(t *testing.T) {
 	r := newTestRegistry()
 	ctx := context.Background()
 
-	id, err := r.Begin(ctx, procedure.Procedure{Type: procedure.Registration})
+	id, err := r.Begin(ctx, procedure.Procedure{Type: procedure.SecurityMode})
 	if err != nil {
 		t.Fatalf("Begin failed: %v", err)
 	}
@@ -32,13 +51,13 @@ func TestBeginEndRoundTrip(t *testing.T) {
 		t.Fatal("expected non-zero ID")
 	}
 
-	if !r.Active(procedure.Registration) {
+	if !r.Active(procedure.SecurityMode) {
 		t.Fatal("expected Registration to be active")
 	}
 
-	r.End(procedure.Registration)
+	r.End(procedure.SecurityMode)
 
-	if r.Active(procedure.Registration) {
+	if r.Active(procedure.SecurityMode) {
 		t.Fatal("expected Registration to be inactive after End")
 	}
 }
@@ -58,23 +77,21 @@ func TestSameTypeConflict(t *testing.T) {
 	}
 }
 
-func TestConflictMatrix(t *testing.T) {
+// TestKeyChainMutualExclusion checks the coarse rule (TS 33.501 §6.9.5): every ordered
+// pair of the tracked key-changing procedures {SecurityMode, N2Handover, PathSwitch} is
+// mutually exclusive, since they all mutate the one {NH,NCC}/KgNB chain.
+func TestKeyChainMutualExclusion(t *testing.T) {
 	tests := []struct {
-		first   procedure.Type
-		second  procedure.Type
-		wantErr error
-		desc    string
+		first  procedure.Type
+		second procedure.Type
+		desc   string
 	}{
-		{procedure.SecurityMode, procedure.N2Handover, procedure.ErrConflict, "C1: SMC blocks N2Handover"},
-		{procedure.N2Handover, procedure.SecurityMode, procedure.ErrConflict, "C2: N2Handover blocks SMC"},
-		{procedure.N2Handover, procedure.UEContextMod, procedure.ErrConflict, "C4: N2Handover blocks UEContextMod"},
-		{procedure.UEContextMod, procedure.N2Handover, procedure.ErrConflict, "C4: UEContextMod blocks N2Handover"},
-		{procedure.Registration, procedure.N2Handover, nil, "Registration allows N2Handover"},
-		{procedure.Registration, procedure.Authentication, nil, "Registration allows Authentication"},
-		{procedure.Registration, procedure.SecurityMode, nil, "Registration allows SecurityMode"},
-		{procedure.Authentication, procedure.N2Handover, nil, "Authentication allows N2Handover"},
-		{procedure.Paging, procedure.Registration, nil, "Paging allows Registration"},
-		{procedure.Paging, procedure.N2Handover, nil, "Paging allows N2Handover"},
+		{procedure.SecurityMode, procedure.N2Handover, "SMC blocks N2Handover"},
+		{procedure.N2Handover, procedure.SecurityMode, "N2Handover blocks SMC"},
+		{procedure.SecurityMode, procedure.PathSwitch, "SMC blocks PathSwitch"},
+		{procedure.PathSwitch, procedure.SecurityMode, "PathSwitch blocks SMC"},
+		{procedure.N2Handover, procedure.PathSwitch, "N2Handover blocks PathSwitch"},
+		{procedure.PathSwitch, procedure.N2Handover, "PathSwitch blocks N2Handover"},
 	}
 
 	for _, tt := range tests {
@@ -82,20 +99,13 @@ func TestConflictMatrix(t *testing.T) {
 			r := newTestRegistry()
 			ctx := context.Background()
 
-			_, err := r.Begin(ctx, procedure.Procedure{Type: tt.first})
-			if err != nil {
+			if _, err := r.Begin(ctx, procedure.Procedure{Type: tt.first}); err != nil {
 				t.Fatalf("first Begin(%s) failed: %v", tt.first, err)
 			}
 
-			_, err = r.Begin(ctx, procedure.Procedure{Type: tt.second})
-			if tt.wantErr != nil {
-				if !errors.Is(err, tt.wantErr) {
-					t.Fatalf("expected %v, got %v", tt.wantErr, err)
-				}
-			} else {
-				if err != nil {
-					t.Fatalf("expected no error, got %v", err)
-				}
+			_, err := r.Begin(ctx, procedure.Procedure{Type: tt.second})
+			if !errors.Is(err, procedure.ErrConflict) {
+				t.Fatalf("%s: expected ErrConflict, got %v", tt.desc, err)
 			}
 		})
 	}
@@ -330,15 +340,15 @@ func TestConcurrentBeginConflict(t *testing.T) {
 }
 
 func TestPagingReentrant(t *testing.T) {
-	r := newTestRegistry()
+	r := newReentrantTestRegistry()
 	ctx := context.Background()
 
-	id1, err := r.Begin(ctx, procedure.Procedure{Type: procedure.Paging})
+	id1, err := r.Begin(ctx, procedure.Procedure{Type: reentrantTestType})
 	if err != nil {
 		t.Fatalf("first Paging Begin failed: %v", err)
 	}
 
-	id2, err := r.Begin(ctx, procedure.Procedure{Type: procedure.Paging})
+	id2, err := r.Begin(ctx, procedure.Procedure{Type: reentrantTestType})
 	if err != nil {
 		t.Fatalf("second Paging Begin failed: %v", err)
 	}
@@ -349,13 +359,13 @@ func TestPagingReentrant(t *testing.T) {
 
 	r.EndByID(id1)
 
-	if !r.Active(procedure.Paging) {
+	if !r.Active(reentrantTestType) {
 		t.Fatal("expected Paging still active (second instance)")
 	}
 
 	r.EndByID(id2)
 
-	if r.Active(procedure.Paging) {
+	if r.Active(reentrantTestType) {
 		t.Fatal("expected Paging inactive after both ended")
 	}
 }
@@ -372,7 +382,7 @@ func TestCancelNotActive(t *testing.T) {
 
 func TestEndIsNoopWhenInactive(t *testing.T) {
 	r := newTestRegistry()
-	r.End(procedure.Registration)
+	r.End(procedure.SecurityMode)
 }
 
 func TestEndDoesNotInvokeCancel(t *testing.T) {
@@ -382,7 +392,7 @@ func TestEndDoesNotInvokeCancel(t *testing.T) {
 	var called atomic.Bool
 
 	_, err := r.Begin(ctx, procedure.Procedure{
-		Type: procedure.Registration,
+		Type: procedure.SecurityMode,
 		Cancel: func(context.Context) error {
 			called.Store(true)
 			return nil
@@ -392,7 +402,7 @@ func TestEndDoesNotInvokeCancel(t *testing.T) {
 		t.Fatalf("Begin failed: %v", err)
 	}
 
-	r.End(procedure.Registration)
+	r.End(procedure.SecurityMode)
 
 	if called.Load() {
 		t.Fatal("End should not invoke Cancel callback")
@@ -400,12 +410,12 @@ func TestEndDoesNotInvokeCancel(t *testing.T) {
 }
 
 func TestActiveTypes(t *testing.T) {
-	r := newTestRegistry()
+	r := newReentrantTestRegistry()
 	ctx := context.Background()
 
-	_, _ = r.Begin(ctx, procedure.Procedure{Type: procedure.Registration})
-	_, _ = r.Begin(ctx, procedure.Procedure{Type: procedure.Paging})
-	_, _ = r.Begin(ctx, procedure.Procedure{Type: procedure.Paging})
+	_, _ = r.Begin(ctx, procedure.Procedure{Type: procedure.SecurityMode})
+	_, _ = r.Begin(ctx, procedure.Procedure{Type: reentrantTestType})
+	_, _ = r.Begin(ctx, procedure.Procedure{Type: reentrantTestType})
 
 	types := r.ActiveTypes()
 	if len(types) != 2 {
@@ -414,13 +424,13 @@ func TestActiveTypes(t *testing.T) {
 }
 
 func TestCancelByID(t *testing.T) {
-	r := newTestRegistry()
+	r := newReentrantTestRegistry()
 	ctx := context.Background()
 
 	var cancelledID atomic.Uint64
 
 	id1, _ := r.Begin(ctx, procedure.Procedure{
-		Type: procedure.Paging,
+		Type: reentrantTestType,
 		Cancel: func(context.Context) error {
 			cancelledID.Store(1)
 			return nil
@@ -428,7 +438,7 @@ func TestCancelByID(t *testing.T) {
 	})
 
 	id2, _ := r.Begin(ctx, procedure.Procedure{
-		Type: procedure.Paging,
+		Type: reentrantTestType,
 		Cancel: func(context.Context) error {
 			cancelledID.Store(2)
 			return nil
@@ -444,19 +454,19 @@ func TestCancelByID(t *testing.T) {
 		t.Fatalf("expected cancel of instance 2, got %d", cancelledID.Load())
 	}
 
-	if !r.Active(procedure.Paging) {
+	if !r.Active(reentrantTestType) {
 		t.Fatal("expected Paging still active (first instance)")
 	}
 
 	r.EndByID(id1)
 
-	if r.Active(procedure.Paging) {
+	if r.Active(reentrantTestType) {
 		t.Fatal("expected Paging inactive")
 	}
 }
 
 func TestCancelFIFOForReentrant(t *testing.T) {
-	r := newTestRegistry()
+	r := newReentrantTestRegistry()
 	ctx := context.Background()
 
 	var (
@@ -465,7 +475,7 @@ func TestCancelFIFOForReentrant(t *testing.T) {
 	)
 
 	_, _ = r.Begin(ctx, procedure.Procedure{
-		Type: procedure.Paging,
+		Type: reentrantTestType,
 		Cancel: func(context.Context) error {
 			mu.Lock()
 			defer mu.Unlock()
@@ -477,7 +487,7 @@ func TestCancelFIFOForReentrant(t *testing.T) {
 	})
 
 	_, _ = r.Begin(ctx, procedure.Procedure{
-		Type: procedure.Paging,
+		Type: reentrantTestType,
 		Cancel: func(context.Context) error {
 			mu.Lock()
 			defer mu.Unlock()
@@ -488,13 +498,13 @@ func TestCancelFIFOForReentrant(t *testing.T) {
 		},
 	})
 
-	_ = r.Cancel(ctx, procedure.Paging)
+	_ = r.Cancel(ctx, reentrantTestType)
 
 	if len(order) != 1 || order[0] != 1 {
 		t.Fatalf("expected FIFO cancel of instance 1, got %v", order)
 	}
 
-	if !r.Active(procedure.Paging) {
+	if !r.Active(reentrantTestType) {
 		t.Fatal("expected second Paging instance still active")
 	}
 }

@@ -10,8 +10,6 @@ package amf
 
 import (
 	"context"
-	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
@@ -21,6 +19,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
@@ -57,6 +56,7 @@ type SmfSbi interface {
 	UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRef string) error
 	UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
+	UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error
 	ReconcileSmContext(ctx context.Context, req *models.SessionReconcileRequest) error
 	GetSessionPolicy(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (*smf.Policy, error)
@@ -73,12 +73,6 @@ type NetworkFeatureSupport5GS struct {
 	Mcsi    uint8
 }
 
-type TimerValue struct {
-	Enable        bool
-	ExpireTime    time.Duration
-	MaxRetryTimes int32
-}
-
 type DBer interface {
 	GetOperator(ctx context.Context) (*db.Operator, error)
 	GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error)
@@ -93,46 +87,67 @@ type DBer interface {
 }
 
 type NASHandler interface {
-	HandleNAS(ctx context.Context, ue *RanUe, nasPdu []byte) error
+	HandleNAS(ctx context.Context, ue *UeConn, nasPdu []byte)
+	// IsServiceRequest reports whether an initial NAS PDU is a SERVICE REQUEST, so the NGAP
+	// layer routes it to HandleServiceRequest before minting a context.
+	IsServiceRequest(nasPdu []byte) bool
+	// HandleServiceRequest resolves-or-rejects an initial SERVICE REQUEST without minting a
+	// context (TS 24.501 §5.6.1.5, §4.4.4.3).
+	HandleServiceRequest(ctx context.Context, ue *UeConn, nasPdu []byte)
 }
 
+// Concurrency model — a registry lock, a per-UE lock, and atomics:
+//
+//   - AMF.mu guards the registry and connection lifecycle: the UEs/uesByTmsi maps,
+//     the radios/radiosByID maps, the conns index (UE-associated NGAP connections by
+//     AMF-UE-NGAP-ID, plus their identity fields RanUeNgapID/owning radio), the
+//     handover FSM (ue.handover), and the UE's 5G-GUTI/5G-TMSI identity keys.
+//   - UeContext.Mutex guards that UE's data: the security context (keys, NAS COUNTs,
+//     the NH/NCC key chain), the mobility state, the SM contexts, and the UeConn
+//     binding (ue.active).
+//   - Hot non-security fields are atomics: last-seen and the active NAS connection
+//     pointer.
+//
+// Shared invariant: security key material — the keys, NAS
+// COUNTs, and the NH/NCC key chain — is derived, read, and committed only under
+// UeContext.Mutex, never under the registry lock.
+//
 // Lock ordering (acquire in this order, never reverse):
 //
 //	AMF.mu  →  UeContext.Mutex
 //
-// Never hold UeContext.Mutex while acquiring AMF.mu.
-// Never hold any lock while making external calls (SMF, DB, NGAP send).
+// Never hold UeContext.Mutex while acquiring AMF.mu. Never hold any lock across an
+// external call (SMF, DB, NGAP send): snapshot, release, then call.
 type AMF struct {
 	mu sync.RWMutex
 
 	tmsi    *etsi.TmsiAllocator
-	ngapIDs *idgenerator.IDGenerator
+	connIDs *idgenerator.IDGenerator
 
 	DBInstance               DBer
 	Ausf                     Authenticator
 	UEs                      map[etsi.SUPI]*UeContext
-	Radios                   map[*sctp.SCTPConn]*Radio
-	radiosByID               map[string]*Radio // radios that have claimed a Global RAN Node ID, for O(1) target resolution
+	uesByTmsi                map[etsi.TMSI]*UeContext // 5G-TMSI (current and in-flight old) -> UE; the full GUTI is rebuilt from the constant GUAMI
+	conns                    map[int64]*UeConn        // UE-associated NGAP connections keyed by AMF-UE-NGAP-ID
+	radios                   map[NGAPWriter]*Radio
+	radiosByID               map[string]*Radio // radios that have claimed a Global RAN Node ID
 	RelativeCapacity         int64
 	Name                     string
 	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS
 	T3502Value               time.Duration
 	T3512Value               time.Duration
 	TimeZone                 string // "[+-]HH:MM[+][1-2]", Refer to TS 29.571 Simple Data Types
-	T3513Cfg                 TimerValue
-	T3522Cfg                 TimerValue
-	T3550Cfg                 TimerValue
-	T3555Cfg                 TimerValue
-	T3560Cfg                 TimerValue
-	T3565Cfg                 TimerValue
+	T3513Cfg                 guard.TimerValue
+	// NASGuardCfg configures the single NAS common-procedure supervision timer
+	// (T3550/T3555/T3560/T3565/T3570/T3522 — all 6 s ×4 in TS 24.501 §10.2).
+	NASGuardCfg guard.TimerValue
 	// handoverGuardTimeout bounds an N2 handover (HANDOVER REQUIRED → NOTIFY); see
 	// defaultHandoverGuardTimeout.
 	handoverGuardTimeout time.Duration
-	Smf                  SmfSbi
+	Session              SmfSbi
 	NAS                  NASHandler
 }
 
-// HandoverGuardTimeout returns the N2 handover supervision timeout.
 func (a *AMF) HandoverGuardTimeout() time.Duration {
 	return a.handoverGuardTimeout
 }
@@ -150,7 +165,7 @@ func (a *AMF) allocateTMSI(ctx context.Context) (etsi.TMSI, error) {
 }
 
 func (a *AMF) allocateAmfUeNgapID() (int64, error) {
-	val, err := a.ngapIDs.Allocate()
+	val, err := a.connIDs.Allocate()
 	if err != nil {
 		return -1, fmt.Errorf("could not allocate AmfUeNgapID: %v", err)
 	}
@@ -158,47 +173,96 @@ func (a *AMF) allocateAmfUeNgapID() (int64, error) {
 	return val, nil
 }
 
-func (amf *AMF) AddUeContextToPool(ue *UeContext) error {
+// CommitUEIdentity indexes the UE by SUPI and supersedes any prior context for the
+// same subscriber, so a subscriber maps to exactly one context. The new context is
+// indexed atomically, capturing any prior context under the registry lock; that prior
+// context is then fully torn down — including external SMF session release — outside
+// the lock, its guarded SUPI-delete leaving the new index intact. The AuthProof
+// witnesses that the registration was authenticated first, so an unauthenticated
+// registration citing a victim's identity can never index itself or tear down the
+// victim's context (TS 24.501 §4.4.4.3).
+func (amf *AMF) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) error {
 	if !ue.supi.IsValid() {
 		return fmt.Errorf("supi is empty")
 	}
 
 	amf.mu.Lock()
-	defer amf.mu.Unlock()
-
+	old, superseded := amf.UEs[ue.supi]
+	superseded = superseded && old != ue
 	amf.UEs[ue.supi] = ue
-	ue.smf = amf.Smf
+	ue.smf = amf.Session
+	amf.mu.Unlock()
+
+	if superseded {
+		amf.DeregisterAndRemoveUeContext(ctx, old)
+	}
 
 	return nil
 }
 
+// claimRelease atomically marks the RAN UE as having a UE Context Release Command in
+// flight, returning false when one already is, so a duplicate is suppressed. The flag
+// is not cleared: a completed release removes the RAN UE, and a failed send leaves it
+// claimed.
+func (amf *AMF) claimRelease(ueConn *UeConn) bool {
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
+
+	if ueConn.releasing {
+		return false
+	}
+
+	ueConn.releasing = true
+
+	return true
+}
+
 func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext) {
+	// Defuse idle-mode supervision so a mobile-reachable/implicit-dereg callback
+	// cannot fire against a UE being torn down (e.g. network-initiated
+	// deregistration of an idle UE).
+	amf.StopIdleTimers(ue)
+
+	// Capture the connection before Deregister releases it (Release clears ue.active but
+	// leaves conn.ue intact).
+	ueConn := ue.active.Load()
+
 	ue.Deregister(ctx)
 
-	ue.mu.Lock()
-	ranUe := ue.ranUe
-	ue.mu.Unlock()
-
-	if ranUe != nil {
-		err := ranUe.Remove(ctx)
+	// Only remove the UeConn if it still belongs to this context: a fresh re-registration
+	// transfers the shared radio connection to a new context before this superseded husk is
+	// torn down, and removing it then would kill the live registration.
+	if ueConn != nil && ueConn.ue == ue {
+		err := amf.RemoveUeConn(ctx, ueConn)
 		if err != nil {
 			logger.AmfLog.Error("failed to remove RAN UE", zap.Error(err))
 		}
 	}
 
-	amf.tmsi.Free(ue.Tmsi)
-
-	if !ue.supi.IsValid() {
-		return
+	if ue.tmsi != etsi.InvalidTMSI {
+		amf.tmsi.Free(ue.tmsi)
 	}
 
 	amf.mu.Lock()
-	delete(amf.UEs, ue.supi)
+	amf.removeTmsiIndexLocked(ue)
+
+	// Only delete the SUPI index if it still points to this context: an authenticated
+	// re-registration indexes the new context under the same SUPI before this superseded
+	// context is torn down, and deleting unconditionally would drop the live registration.
+	if ue.supi.IsValid() && amf.UEs[ue.supi] == ue {
+		delete(amf.UEs, ue.supi)
+	}
+
 	amf.mu.Unlock()
+
+	// Cancel the per-registration context now the UE is unreferenced.
+	if ue.cancel != nil {
+		ue.cancel()
+	}
 }
 
 func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
-	ue, ok := amf.FindUeContextBySupi(supi)
+	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
 		logger.AmfLog.Debug("UE with SUPI not found", logger.SUPI(supi.String()))
 		return
@@ -208,7 +272,7 @@ func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
 	// guarded by T3522; the accept — or T3522 exhaustion — then removes the
 	// context. An idle or unsecured UE cannot be signalled, so it is removed
 	// locally.
-	if ue.RanUe() != nil && ue.secured {
+	if ue.Conn() != nil && ue.secured {
 		if err := amf.sendNetworkInitiatedDeregistration(ctx, ue); err != nil {
 			logger.AmfLog.Warn("failed to send network-initiated deregistration; removing UE context locally",
 				zap.Error(err), logger.SUPI(supi.String()))
@@ -222,7 +286,7 @@ func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
 	logger.AmfLog.Info("removed ue context", logger.SUPI(supi.String()))
 }
 
-func (amf *AMF) FindUeContextBySupi(supi etsi.SUPI) (*UeContext, bool) {
+func (amf *AMF) LookupUeBySupi(supi etsi.SUPI) (*UeContext, bool) {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
@@ -234,10 +298,10 @@ func (amf *AMF) FindUeContextBySupi(supi etsi.SUPI) (*UeContext, bool) {
 	return value, true
 }
 
-// UESnapshot atomically looks up the UE by SUPI and returns a
-// point-in-time snapshot of its connection state.
+// UESnapshot returns a point-in-time snapshot of the UE's connection state, or false if
+// the UE is not found.
 func (amf *AMF) UESnapshot(supi etsi.SUPI) (UESnapshot, bool) {
-	ue, ok := amf.FindUeContextBySupi(supi)
+	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
 		return UESnapshot{}, false
 	}
@@ -258,13 +322,10 @@ func (amf *AMF) NewRadio(conn *sctp.SCTPConn) (*Radio, error) {
 
 	now := time.Now()
 	radio := Radio{
-		NGAPSender: &send.RealNGAPSender{
-			Conn: conn,
-		},
-		RanUEs:        make(map[int64]*RanUe),
-		SupportedTAIs: make([]SupportedTAI, 0),
+		amf:           amf,
+		supportedTAIs: make([]SupportedTAI, 0),
 		Conn:          conn,
-		ConnectedAt:   now,
+		connectedAt:   now,
 		Log:           logger.AmfLog.With(logger.RanAddr(remoteAddr.String())),
 	}
 
@@ -273,7 +334,7 @@ func (amf *AMF) NewRadio(conn *sctp.SCTPConn) (*Radio, error) {
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
 
-	amf.Radios[conn] = &radio
+	amf.radios[conn] = &radio
 
 	return &radio, nil
 }
@@ -282,7 +343,7 @@ func (amf *AMF) FindRadioByConn(conn *sctp.SCTPConn) (*Radio, bool) {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	ran, ok := amf.Radios[conn]
+	ran, ok := amf.radios[conn]
 	if !ok {
 		return nil, false
 	}
@@ -338,10 +399,9 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID *ngapType.GlobalRANNodeID) *R
 	}
 
 	if evicted != nil {
-		delete(amf.Radios, evicted.Conn)
+		delete(amf.radios, evicted.Conn)
 	}
 
-	// Drop the radio's stale index entry when it already holds a different ID.
 	if oldKey, ok := radioIDKey(radio.RanID); ok && oldKey != key {
 		delete(amf.radiosByID, oldKey)
 	}
@@ -352,34 +412,63 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID *ngapType.GlobalRANNodeID) *R
 	amf.mu.Unlock()
 
 	if evicted != nil {
-		evicted.RemoveAllUeInRan(context.Background())
+		amf.RemoveAllUeInRan(context.Background(), evicted)
 
 		if evicted.Conn != nil {
-			_ = evicted.Conn.Close()
+			_ = evicted.Close()
 		}
 	}
 
 	return evicted
 }
 
-func (amf *AMF) ListRadios() []*Radio {
-	ranList := make([]*Radio, 0)
-
+// ListRadios returns an immutable snapshot of every connected radio for status/API,
+// so the live *Radio never leaves the AMF.
+func (amf *AMF) ListRadios() []RadioInfo {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	for _, ran := range amf.Radios {
-		ranList = append(ranList, ran)
+	out := make([]RadioInfo, 0, len(amf.radios))
+	for _, ran := range amf.radios {
+		out = append(out, ran.info())
 	}
 
-	return ranList
+	return out
+}
+
+// HasRadio reports whether a radio with the given RAN node name is connected.
+func (amf *AMF) HasRadio(name string) bool {
+	amf.mu.RLock()
+	defer amf.mu.RUnlock()
+
+	for _, ran := range amf.radios {
+		if ran.name == name {
+			return true
+		}
+	}
+
+	return false
+}
+
+// ConnectedRadios returns the live radios, for internal send paths (paging, drain)
+// that must reach the connection. Never hand these to the API — use ListRadios.
+func (amf *AMF) ConnectedRadios() []*Radio {
+	amf.mu.RLock()
+	defer amf.mu.RUnlock()
+
+	out := make([]*Radio, 0, len(amf.radios))
+	for _, ran := range amf.radios {
+		out = append(out, ran)
+	}
+
+	return out
 }
 
 func (amf *AMF) CountRadios() int {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	return len(amf.Radios)
+	return len(amf.radios)
 }
 
 func (amf *AMF) CountRegisteredSubscribers() int {
@@ -399,12 +488,12 @@ func (amf *AMF) CountRegisteredSubscribers() int {
 
 // RemoveRadio removes a radio and all UEs bound to it.
 func (amf *AMF) RemoveRadio(ctx context.Context, ran *Radio) {
-	ran.RemoveAllUeInRan(ctx)
+	amf.RemoveAllUeInRan(ctx, ran)
 
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
 
-	delete(amf.Radios, ran.Conn)
+	delete(amf.radios, ran.Conn)
 
 	if key, ok := radioIDKey(ran.RanID); ok && amf.radiosByID[key] == ran {
 		delete(amf.radiosByID, key)
@@ -418,42 +507,24 @@ func (amf *AMF) IndexRadioForTest(conn *sctp.SCTPConn, radio *Radio) {
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
 
-	radio.Conn = conn
-	amf.Radios[conn] = radio
+	radio.amf = amf
+
+	if radio.Conn == nil {
+		radio.Conn = conn
+	}
+
+	amf.radios[radio.Conn] = radio
 
 	if key, ok := radioIDKey(radio.RanID); ok {
 		amf.radiosByID[key] = radio
 	}
 }
 
-func (amf *AMF) FindUeContextByGuti(guti etsi.GUTI) (*UeContext, bool) {
-	if guti == etsi.InvalidGUTI {
-		return nil, false
-	}
-
+func (amf *AMF) LookupUeConn(amfUeNgapID int64) *UeConn {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	for _, ue := range amf.UEs {
-		if ue.guti == guti || ue.OldGuti == guti {
-			return ue, true
-		}
-	}
-
-	return nil, false
-}
-
-func (amf *AMF) FindRanUeByAmfUeNgapID(amfUeNgapID int64) *RanUe {
-	amf.mu.RLock()
-	defer amf.mu.RUnlock()
-
-	for _, ran := range amf.Radios {
-		if ranUe := ran.FindUEByAmfUeNgapID(amfUeNgapID); ranUe != nil {
-			return ranUe
-		}
-	}
-
-	return nil
+	return amf.conns[amfUeNgapID]
 }
 
 // NetworkFeatureSupport returns the 5GS network feature support config.
@@ -469,25 +540,28 @@ func (amf *AMF) NetworkFeatureSupport() NetworkFeatureSupport5GS {
 // New creates a fully initialized AMF. Call Start to open the N2 listener.
 func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 	a := &AMF{
-		UEs:                      make(map[etsi.SUPI]*UeContext),
-		Radios:                   make(map[*sctp.SCTPConn]*Radio),
-		radiosByID:               make(map[string]*Radio),
-		DBInstance:               db,
-		Ausf:                     ausf,
-		Smf:                      smf,
-		tmsi:                     etsi.NewTMSIAllocator(),
-		ngapIDs:                  idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID),
-		Name:                     "amf",
-		RelativeCapacity:         0xff,
-		TimeZone:                 nasConvert.GetTimeZone(time.Now()),
-		T3502Value:               720 * time.Second,
+		UEs:              make(map[etsi.SUPI]*UeContext),
+		uesByTmsi:        make(map[etsi.TMSI]*UeContext),
+		conns:            make(map[int64]*UeConn),
+		radios:           make(map[NGAPWriter]*Radio),
+		radiosByID:       make(map[string]*Radio),
+		DBInstance:       db,
+		Ausf:             ausf,
+		Session:          smf,
+		tmsi:             etsi.NewTMSIAllocator(),
+		connIDs:          idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID),
+		Name:             "amf",
+		RelativeCapacity: 0xff,
+		TimeZone:         nasConvert.GetTimeZone(time.Now()),
+		T3502Value:       720 * time.Second,
+		// Periodic-registration timer. The spec default of 54 min (TS 24.501 §10.2)
+		// is not representable in the GPRS Timer 3 IE — above 31 min it steps in
+		// 10-min units (TS 24.008 §10.5.7.4a) — so 54 min encodes down to 50 min and
+		// the signalled value diverges from the T3512+4 min mobile-reachable timer.
+		// One hour encodes exactly, keeping the two consistent.
 		T3512Value:               3600 * time.Second,
 		T3513Cfg:                 defaultTimerCfg,
-		T3522Cfg:                 defaultTimerCfg,
-		T3550Cfg:                 defaultTimerCfg,
-		T3555Cfg:                 defaultTimerCfg,
-		T3560Cfg:                 defaultTimerCfg,
-		T3565Cfg:                 defaultTimerCfg,
+		NASGuardCfg:              defaultTimerCfg,
 		handoverGuardTimeout:     defaultHandoverGuardTimeout,
 		NetworkFeatureSupport5GS: &NetworkFeatureSupport5GS{Enable: true, ImsVoPS: 1},
 	}
@@ -503,144 +577,90 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 // procedure.
 const defaultHandoverGuardTimeout = 10 * time.Second
 
-var defaultTimerCfg = TimerValue{
+var defaultTimerCfg = guard.TimerValue{
 	Enable:        true,
 	ExpireTime:    6 * time.Second,
 	MaxRetryTimes: 4,
 }
 
-// NewRanUe allocates a new RAN UE context on the given radio.
-func (a *AMF) NewRanUe(radio *Radio, ranUeNgapID int64) (*RanUe, error) {
+// NewUeConn allocates a new RAN UE context on the given radio.
+func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID int64) (*UeConn, error) {
 	amfUeNgapID, err := a.allocateAmfUeNgapID()
 	if err != nil {
 		return nil, fmt.Errorf("error allocating amf ue ngap id: %+v", err)
 	}
 
-	ranUe := &RanUe{
+	ueConn := &UeConn{
 		AmfUeNgapID: amfUeNgapID,
 		RanUeNgapID: ranUeNgapID,
-		radio:       radio,
+		conn:        radio.Conn,
+		radioName:   radio.name,
+		amf:         a,
 		Log:         radio.Log.With(logger.AmfUeNgapID(amfUeNgapID)),
-		freeNgapID:  a.ngapIDs.FreeID,
+		freeNgapID:  a.connIDs.FreeID,
 	}
 
-	radio.mu.Lock()
-	radio.RanUEs[amfUeNgapID] = ranUe
-	radio.mu.Unlock()
+	a.mu.Lock()
+	a.conns[amfUeNgapID] = ueConn
+	a.mu.Unlock()
 
-	return ranUe, nil
+	return ueConn, nil
 }
 
-// ReAllocateGuti allocates a new 5G-GUTI for the UE and preserves the old one.
-func (a *AMF) ReAllocateGuti(ctx context.Context, ue *UeContext, supportedGuami *models.Guami) error {
-	ue.OldTmsi = ue.Tmsi
-
-	tmsi, err := a.allocateTMSI(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to allocate TMSI: %v", err)
-	}
-
-	ue.Tmsi = tmsi
-	ue.OldGuti = ue.guti
-	ue.guti, err = etsi.NewGUTI(
-		supportedGuami.PlmnID.Mcc,
-		supportedGuami.PlmnID.Mnc,
-		supportedGuami.AmfID,
-		tmsi,
-	)
-
-	return err
-}
-
-// FreeOldGuti releases the previous TMSI/GUTI for the UE.
-func (a *AMF) FreeOldGuti(ue *UeContext) {
-	a.tmsi.Free(ue.OldTmsi)
-	ue.OldGuti = etsi.InvalidGUTI
-	ue.OldTmsi = etsi.InvalidTMSI
-}
-
-func (amf *AMF) StmsiToGuti(ctx context.Context, buf [7]byte) (etsi.GUTI, error) {
-	operatorInfo, err := amf.OperatorInfo(ctx)
-	if err != nil {
-		return etsi.InvalidGUTI, fmt.Errorf("could not get operator info: %v", err)
-	}
-
-	tmpReginID := operatorInfo.Guami.AmfID[:2]
-	amfID := hex.EncodeToString(buf[1:3])
-
-	tmsi5G, err := etsi.NewTMSI(binary.BigEndian.Uint32(buf[3:]))
-	if err != nil {
-		return etsi.InvalidGUTI, err
-	}
-
-	guti, err := etsi.NewGUTI(operatorInfo.Guami.PlmnID.Mcc, operatorInfo.Guami.PlmnID.Mnc, tmpReginID+amfID, tmsi5G)
-	if err != nil {
-		return etsi.InvalidGUTI, err
-	}
-
-	return guti, nil
-}
-
-// SendPaging sends a paging message to all radios whose TAIs match the UE's
-// registration area. If T3513 is enabled, a retransmission timer is started.
+// SendPaging pages an idle UE and arms its paging-supervision timer. The timer is
+// per-UE and persistent (T3513, TS 24.501 §5.4.3): paging targets a UE with no NAS
+// connection, so the timer cannot live on the connection object.
 func (amf *AMF) SendPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) error {
 	if ue == nil {
 		return fmt.Errorf("amf ue is nil")
 	}
 
-	amf.mu.RLock()
-	defer amf.mu.RUnlock()
-
-	taiList := ue.RegistrationArea
-
-	for _, ran := range amf.Radios {
-		for _, item := range ran.SupportedTAIs {
-			if InTaiList(item.Tai, taiList) {
-				err := ran.NGAPSender.SendToRan(ctx, ngapBuf, send.NGAPProcedurePaging)
-				if err != nil {
-					ue.Log.Error("failed to send paging", zap.Error(err))
-					continue
-				}
-
-				ue.Log.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
-
-				break
-			}
-		}
-	}
+	amf.pageRadios(ctx, ue, ngapBuf)
 
 	if amf.T3513Cfg.Enable {
 		cfg := amf.T3513Cfg
-		conn := ue.NasConn()
-		conn.T3513.Arm(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
-			ue.Log.Info("t3513 expires, retransmit paging", zap.Int32("retry", expireTimes))
-
-			for _, ran := range amf.ListRadios() {
-				for _, item := range ran.SupportedTAIs {
-					if InTaiList(item.Tai, taiList) {
-						err := ran.NGAPSender.SendToRan(context.Background(), ngapBuf, send.NGAPProcedurePaging)
-						if err != nil {
-							ue.Log.Error("failed to send paging", zap.Error(err))
-							continue
-						}
-
-						ue.Log.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
-
-						break
-					}
+		ue.pagingTimer.Arm(cfg.ExpireTime, cfg.MaxRetryTimes,
+			func(attempt int32) {
+				// The UE answered by re-establishing its connection; stop supervising.
+				if ue.Conn() != nil {
+					ue.pagingTimer.Stop()
+					return
 				}
-			}
-		}, func() {
-			ue.Log.Warn("T3513 expires, abort paging procedure", zap.Int32("retry", cfg.MaxRetryTimes))
-		})
+
+				logger.From(ctx, logger.AmfLog).Info("T3513 expires, retransmit paging", zap.Int32("retry", attempt))
+				amf.pageRadios(context.Background(), ue, ngapBuf)
+			},
+			func() {
+				logger.From(ctx, logger.AmfLog).Warn("T3513 expires, abort paging procedure", zap.Int32("retry", cfg.MaxRetryTimes))
+			})
 	}
 
 	return nil
 }
 
-// StopAllTimers stops every timer on every UE. Call this during shutdown
-// to prevent paging retransmissions and other timer-driven activity from
-// firing while the system is tearing down.
+// pageRadios sends the paging PDU to every radio whose supported TAIs intersect
+// the UE's registration area.
+func (amf *AMF) pageRadios(ctx context.Context, ue *UeContext, ngapBuf []byte) {
+	taiList := ue.RegistrationArea
+
+	for _, ran := range amf.ConnectedRadios() {
+		for _, item := range ran.SupportedTAIList() {
+			if InTaiList(item.Tai, taiList) {
+				if err := amf.SendToRan(ctx, ran.Conn, send.NGAPProcedurePaging, ngapBuf); err != nil {
+					logger.From(ctx, logger.AmfLog).Error("failed to send paging", zap.Error(err))
+					continue
+				}
+
+				logger.From(ctx, logger.AmfLog).Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
+
+				break
+			}
+		}
+	}
+}
+
+// StopAllTimers stops every timer on every UE, so no timer-driven activity fires while
+// the system is tearing down.
 func (amf *AMF) StopAllTimers() {
 	amf.mu.RLock()
 
@@ -662,13 +682,17 @@ func (amf *AMF) RemoveUEBySupi(supi etsi.SUPI) {
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
 
+	if ue, ok := amf.UEs[supi]; ok {
+		amf.removeTmsiIndexLocked(ue)
+	}
+
 	delete(amf.UEs, supi)
 }
 
 // GetUELocation returns the UserLocation for a registered UE, or false if the UE
 // is not found in the AMF's UE pool.
 func (amf *AMF) GetUELocation(supi etsi.SUPI) (models.UserLocation, bool) {
-	ue, ok := amf.FindUeContextBySupi(supi)
+	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
 		return models.UserLocation{}, false
 	}
@@ -676,10 +700,8 @@ func (amf *AMF) GetUELocation(supi etsi.SUPI) (models.UserLocation, bool) {
 	return ue.GetUserLocation(), true
 }
 
-// IsUERegistered returns true if the UE exists in the AMF's UE pool and is in
-// the Registered state.
 func (amf *AMF) IsUERegistered(supi etsi.SUPI) bool {
-	ue, ok := amf.FindUeContextBySupi(supi)
+	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
 		return false
 	}

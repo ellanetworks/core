@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -26,10 +27,10 @@ func TestUplinkNASTransportUnknownUE(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// An unknown MME-UE-S1AP-ID is answered with an Error Indication, not
-	// silently dropped, and no context is created (TS 36.413).
+	// An unknown MME-UE-S1AP-ID is answered with an Error Indication, and no
+	// context is created (TS 36.413).
 	conn := &captureConn{}
-	handleUplinkNASTransport(m, context.Background(), conn, initiatingValue(t, b))
+	handleUplinkNASTransport(m, context.Background(), mme.NewRadioForTest(conn), initiatingValue(t, b))
 
 	if _, ok := m.LookupUe(999); ok {
 		t.Fatal("unexpected UE context for unknown MME-UE-S1AP-ID")

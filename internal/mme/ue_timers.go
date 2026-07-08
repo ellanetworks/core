@@ -4,6 +4,8 @@
 package mme
 
 import (
+	"context"
+
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
@@ -44,17 +46,18 @@ func (m *MME) onMobileReachableExpiry(ue *UeContext, gen uint64) {
 		return
 	}
 
-	logger.MmeLog.Debug("mobile reachable timer expired", zap.String("imsi", ue.imsi))
+	logger.MmeLog.Debug("mobile reachable timer expired", zap.String("imsi", ue.imsiOrEmpty()))
 
 	ue.implicitDetachTimer.ArmOnce(m.implicitDetachTime, func() {
 		m.onImplicitDetachExpiry(ue, gen)
 	})
 }
 
-// onImplicitDetachExpiry implicitly detaches an unreachable UE (TS 24.301):
-// the EPS bearers and UE context are released locally, with no NAS or
-// S1AP signalling since the UE is in ECM-IDLE. The network/DB release runs
-// without m.mu held.
+// onImplicitDetachExpiry implicitly detaches an unreachable UE (TS 24.301): the EPS
+// bearers are released locally (the UE is in ECM-IDLE, so no NAS/S1AP signalling), but
+// the EMM context is retained as a Deregistered husk with its native EPS security
+// context and its IMSI/M-TMSI index, so a later re-attach with the native GUTI can
+// reuse it and skip authentication (TS 24.301 §4.4.2 / annex C).
 func (m *MME) onImplicitDetachExpiry(ue *UeContext, gen uint64) {
 	m.mu.Lock()
 
@@ -63,14 +66,16 @@ func (m *MME) onImplicitDetachExpiry(ue *UeContext, gen uint64) {
 		return
 	}
 
-	ue.emmState.store(EMMDeregistered)
-	imsi := ue.imsi
+	m.stopIdleTimersLocked(ue)
+	ue.TransitionTo(EMMDeregistered)
+	imsi := ue.imsiOrEmpty()
 
 	m.mu.Unlock()
 
-	logger.MmeLog.Info("implicit detach: UE unreachable, releasing context",
+	logger.MmeLog.Info("implicit detach: UE unreachable, deregistering (native security context retained)",
 		zap.String("imsi", imsi))
 
-	m.ReleaseAllSessions(ue)
-	m.RemoveUe(ue)
+	// A timer callback has no request context; the teardown must complete regardless,
+	// so it runs on context.Background().
+	m.ReleaseAllSessions(context.Background(), ue)
 }

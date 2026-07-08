@@ -16,9 +16,9 @@ import (
 )
 
 func TestHandlePDUSessionResourceReleaseResponse_MissingIDs(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
 	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
 
 	msg := decode.PDUSessionResourceReleaseResponse{}
 
@@ -30,19 +30,18 @@ func TestHandlePDUSessionResourceReleaseResponse_MissingIDs(t *testing.T) {
 }
 
 func TestHandlePDUSessionResourceReleaseResponse_UEFoundWithReleasedSessions(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
+	ran := newTestRadio(amfInstance)
 
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
 	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
 	amfUeNgapID := int64(10)
 	ranUeNgapID := int64(1)

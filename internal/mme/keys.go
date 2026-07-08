@@ -13,7 +13,7 @@ import (
 // EPS key-derivation FC values (TS 33.401), as hex strings for
 // ueauth.GetKDFValue.
 const (
-	fcKeNB            = "11" // K_eNB
+	fcKeNB            = "11"
 	fcNextHop         = "12" // NH (next hop), the X2-handover key chain
 	fcEPSAlgorithmKey = "15" // NAS/RRC/UP algorithm keys
 )
@@ -70,10 +70,9 @@ func DeriveKeNB(kasme []byte, ulNASCount uint32) ([32]byte, error) {
 }
 
 // deriveNH derives a Next Hop value from K_ASME and a synchronisation input
-// (TS 33.401): the initial K_eNB for the first NH (NCC=1), then the previous
-// NH for each subsequent one. The MME advances this chain on every X2 handover
-// and hands {NH, NCC} to the target eNB in the Path Switch Acknowledge so it can
-// derive a fresh K_eNB with forward security (TS 33.401).
+// (TS 33.401): the initial K_eNB for the first NH (NCC=1), then the previous NH
+// for each subsequent one. Advancing this {NH, NCC} chain gives the target eNB a
+// fresh K_eNB with forward security on handover.
 func deriveNH(kasme, syncInput []byte) ([32]byte, error) {
 	var nh [32]byte
 

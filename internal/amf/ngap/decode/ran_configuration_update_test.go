@@ -70,6 +70,10 @@ func TestDecodeRANConfigurationUpdate_Happy(t *testing.T) {
 	if len(out.SupportedTAItems[0].BroadcastPLMNList.List) != 1 {
 		t.Errorf("expected 1 broadcast PLMN, got %d", len(out.SupportedTAItems[0].BroadcastPLMNList.List))
 	}
+
+	if out.RANNodeName != "test-gnb" {
+		t.Errorf("RANNodeName = %q, want test-gnb", out.RANNodeName)
+	}
 }
 
 func TestDecodeRANConfigurationUpdate_NilBody(t *testing.T) {
@@ -148,7 +152,6 @@ func TestDecodeRANConfigurationUpdate_NilRANNodeNameIsNonFatal(t *testing.T) {
 		t.Errorf("expected non-fatal report (RANNodeName criticality ignore), got %+v", report)
 	}
 
-	// SupportedTAItems should still come through.
 	if len(out.SupportedTAItems) != 1 {
 		t.Errorf("expected SupportedTAItems still populated, got %+v", out.SupportedTAItems)
 	}

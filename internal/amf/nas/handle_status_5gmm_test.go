@@ -12,8 +12,8 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 )
 
-func TestHandleStatus5GMM_UEDeregistered_Error(t *testing.T) {
-	ue, _, err := buildUeAndRadio()
+func TestHandleStatus5GMM_UEDeregistered_Ignored(t *testing.T) {
+	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
@@ -22,45 +22,27 @@ func TestHandleStatus5GMM_UEDeregistered_Error(t *testing.T) {
 
 	m := buildTestStatus5gmm()
 
-	expected := "UE is in amf.Deregistered state, ignore Status 5GMM message"
+	handleStatus5GMM(context.Background(), ue, m.Status5GMM)
 
-	err = handleStatus5GMM(ue, m.Status5GMM, true)
-	if err == nil || err.Error() != expected {
-		t.Fatalf("expected error: %s, got: %v", expected, err)
+	if len(ngapSender.SentDownlinkNASTransport) != 0 {
+		t.Fatalf("expected Status 5GMM in Deregistered state to be ignored, but a downlink was sent")
 	}
 }
 
-func TestHandleStatus5GMM_MacFailed_Error(t *testing.T) {
-	ue, _, err := buildUeAndRadio()
+func TestHandleStatus5GMM_Registered_Ignored(t *testing.T) {
+	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 
 	m := buildTestStatus5gmm()
 
-	expected := "NAS message integrity check failed"
+	handleStatus5GMM(context.Background(), ue, m.Status5GMM)
 
-	err = handleStatus5GMM(ue, m.Status5GMM, false)
-	if err == nil || err.Error() != expected {
-		t.Fatalf("expected error: %s, got: %v", expected, err)
-	}
-}
-
-func TestHandleStatus5GMM_NoErrror(t *testing.T) {
-	ue, _, err := buildUeAndRadio()
-	if err != nil {
-		t.Fatalf("could not build UE and radio: %v", err)
-	}
-
-	ue.ForceState(amf.Registered)
-
-	m := buildTestStatus5gmm()
-
-	err = handleStatus5GMM(ue, m.Status5GMM, true)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
+	if len(ngapSender.SentDownlinkNASTransport) != 0 {
+		t.Fatalf("expected no downlink for Status 5GMM, but a downlink was sent")
 	}
 }
 

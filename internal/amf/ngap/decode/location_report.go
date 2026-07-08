@@ -21,11 +21,7 @@ import (
 // }
 
 // DecodeLocationReport validates a LocationReport PDU body (3GPP TS
-// 38.413). AMFUENGAPID and RANUENGAPID are mandatory-reject;
-// UserLocationInformation and LocationReportingRequestType are
-// mandatory-ignore; UEPresenceInAreaOfInterestList is optional-ignore.
-// Class 2 procedure, so procedure-level criticality is "ignore".
-// Duplicate IEs follow a last-wins policy.
+// 38.413).
 func DecodeLocationReport(in *ngapType.LocationReport) (LocationReport, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeLocationReport,

@@ -43,6 +43,10 @@ type Paging struct {
 	STMSI                STMSI // UE Paging Identity (s-TMSI alternative)
 	CNDomain             CNDomain
 	TAIList              []TAI
+	// UERadioCapabilityForPaging is the eNB-reported paging-specific capability
+	// (TS 36.413 §9.1.6.1, optional-ignore); when set, the eNB may use it to apply
+	// specific paging schemes. Empty means the IE is omitted.
+	UERadioCapabilityForPaging []byte
 
 	unmodeledIEs
 }
@@ -81,6 +85,14 @@ func (m *Paging) encodeBody(w *aper.Writer) error {
 		{id: idTAIList, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
 			return encodeSingleContainerList(w, maxnoofTAIs, idTAIItem, CriticalityIgnore, taiEncoders)
 		}},
+	}
+
+	// UE Radio Capability for Paging follows the List of TAIs in the message order
+	// (TS 36.413 §9.1.6.1); included only when the eNB reported one.
+	if len(m.UERadioCapabilityForPaging) > 0 {
+		fields = append(fields, ieField{id: idUERadioCapabilityForPaging, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
+			return w.WriteOctetString(m.UERadioCapabilityForPaging, 0, aper.Unbounded, false)
+		}})
 	}
 
 	for _, e := range m.unknownIEs {
@@ -165,6 +177,8 @@ func ParsePaging(value []byte) (*Paging, error) {
 		case idTAIList:
 			m.TAIList, err = decodeItemList(sub, maxnoofTAIs, decodeTAIItem)
 			seenTAIList = true
+		case idUERadioCapabilityForPaging:
+			m.UERadioCapabilityForPaging, err = sub.ReadOctetString(0, aper.Unbounded, false)
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)
 		}

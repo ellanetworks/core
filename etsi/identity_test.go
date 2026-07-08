@@ -111,12 +111,12 @@ func TestNewGUTIInvalid(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			guti, err := etsi.NewGUTI(tc.mcc, tc.mnc, tc.amfid, tc.tmsi)
+			guti, err := etsi.NewGUTI5G(tc.mcc, tc.mnc, tc.amfid, tc.tmsi)
 			if err == nil || err.Error() != tc.expected {
 				t.Fatalf("expected error: %s, got: %v", tc.expected, err)
 			}
 
-			if guti != etsi.InvalidGUTI {
+			if guti != etsi.InvalidGUTI5G {
 				t.Fatalf("expected invalid GUTI, got: %s", &guti)
 			}
 		})
@@ -142,7 +142,7 @@ func TestNewGUTIValid(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run(tc.expected, func(t *testing.T) {
-			guti, err := etsi.NewGUTI(tc.mcc, tc.mnc, tc.amfid, tc.tmsi)
+			guti, err := etsi.NewGUTI5G(tc.mcc, tc.mnc, tc.amfid, tc.tmsi)
 			if err != nil {
 				t.Fatalf("expected no error, got: %v", err)
 			}
@@ -174,12 +174,12 @@ func TestNewGutiFromBytes_Invalid(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			guti, err := etsi.NewGUTIFromBytes(tc.buf)
+			guti, err := etsi.NewGUTI5GFromBytes(tc.buf)
 			if err == nil || err.Error() != tc.expected {
 				t.Fatalf("expected error: %s, got: %v", tc.expected, err)
 			}
 
-			if guti != etsi.InvalidGUTI {
+			if guti != etsi.InvalidGUTI5G {
 				t.Fatalf("expected invalid GUTI, got: %s", &guti)
 			}
 		})
@@ -200,7 +200,7 @@ func TestNewGUTIFromBytes_Valid(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run(tc.expected, func(t *testing.T) {
-			guti, err := etsi.NewGUTIFromBytes(tc.buf)
+			guti, err := etsi.NewGUTI5GFromBytes(tc.buf)
 			if err != nil {
 				t.Fatalf("expected no error, got: %v", err)
 			}

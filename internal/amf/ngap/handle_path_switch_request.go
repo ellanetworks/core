@@ -12,16 +12,39 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/free5gc/aper"
 	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
+// appendPathSwitchReleasedItem records a PDU session the core could not switch in the
+// PATH SWITCH REQUEST ACKNOWLEDGE PDU Session Resource Released List so the NG-RAN
+// releases it; a session left unswitched has no downlink path (TS 38.413 §8.4.4.2).
+func appendPathSwitchReleasedItem(ctx context.Context, ueConn *amf.UeConn, list *ngapType.PDUSessionResourceReleasedListPSAck, pduSessionID uint8, causeValue aper.Enumerated) {
+	transfer, err := aper.MarshalWithParams(ngapType.PathSwitchRequestUnsuccessfulTransfer{
+		Cause: ngapType.Cause{
+			Present:      ngapType.CausePresentRadioNetwork,
+			RadioNetwork: &ngapType.CauseRadioNetwork{Value: causeValue},
+		},
+	}, "valueExt")
+	if err != nil {
+		logger.WithTrace(ctx, ueConn.Log).Error("failed to build PathSwitchRequestUnsuccessfulTransfer", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+		return
+	}
+
+	item := ngapType.PDUSessionResourceReleasedItemPSAck{}
+	item.PDUSessionID.Value = int64(pduSessionID)
+	item.PathSwitchRequestUnsuccessfulTransfer = transfer
+	list.List = append(list.List, item)
+}
+
 func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.PathSwitchRequest) {
-	// TS 38.413: a to-be-switched downlink list that repeats a PDU
-	// Session ID is an abnormal condition the AMF rejects with a Path Switch
-	// Request Failure.
+	// TS 38.413: a to-be-switched downlink list that repeats a PDU Session ID is an
+	// abnormal condition the AMF rejects with a Path Switch Request Failure.
 	if id, dup := duplicatePDUSessionID(msg.PDUSessionResourceItems); dup {
 		logger.WithTrace(ctx, ran.Log).Error("duplicate PDU Session ID in PathSwitchRequest to-be-switched list", zap.Int64("pduSessionID", id))
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentMultiplePDUSessionIDInstances)
@@ -29,37 +52,50 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 		return
 	}
 
-	ranUe := amfInstance.FindRanUeByAmfUeNgapID(msg.SourceAMFUENGAPID)
-	if ranUe == nil {
+	ueConn := amfInstance.LookupUeConn(msg.SourceAMFUENGAPID)
+	if ueConn == nil {
 		logger.WithTrace(ctx, ran.Log).Error("Cannot find UE from sourceAMfUeNgapID", zap.Int64("sourceAMFUENGAPID", msg.SourceAMFUENGAPID))
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
 
 		return
 	}
 
-	ranUe.TouchLastSeen()
-	logger.WithTrace(ctx, ranUe.Log).Debug("Handle Path Switch Request", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+	ueConn.TouchLastSeen()
+	logger.WithTrace(ctx, ueConn.Log).Debug("Handle Path Switch Request", zap.Int64("AmfUeNgapID", ueConn.AmfUeNgapID), zap.Int64("RanUeNgapID", ueConn.RanUeNgapID))
 
-	amfUe := ranUe.UeContext()
+	amfUe := ueConn.UeContext()
 	if amfUe == nil {
-		logger.WithTrace(ctx, ranUe.Log).Error("UeContext is nil")
+		logger.WithTrace(ctx, ueConn.Log).Error("UeContext is nil")
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnspecified)
 
 		return
 	}
 
 	if !amfUe.SecurityContextIsValid() {
-		logger.WithTrace(ctx, ranUe.Log).Error("No Security Context", logger.SUPI(amfUe.Supi().String()))
+		logger.WithTrace(ctx, ueConn.Log).Error("No Security Context", logger.SUPI(amfUe.Supi().String()))
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnspecified)
 
 		return
 	}
 
-	verifyUESecurityCapabilitiesOnPathSwitch(ctx, ranUe, amfUe, msg.UESecurityCapabilities)
+	verifyUESecurityCapabilitiesOnPathSwitch(ctx, ueConn, amfUe, msg.UESecurityCapabilities)
 
-	ranUe.RanUeNgapID = msg.RANUENGAPID
+	ueConn.RanUeNgapID = msg.RANUENGAPID
 
-	ranUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation.Raw())
+	ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation.Raw())
+
+	// Claim the {NH,NCC} key chain for the whole path switch: a concurrent N2 handover or
+	// NAS SMC (possibly on another gNB's dispatch goroutine) must not advance the same
+	// chain in parallel (TS 33.501 §6.9.5). Claimed before the SMF is touched so a rejected
+	// path switch changes nothing. Path switch is synchronous, so hold until return.
+	if !amfUe.BeginKeyChainProc(ctx, procedure.PathSwitch) {
+		logger.WithTrace(ctx, ueConn.Log).Warn("Path Switch rejected: a key-changing procedure is in progress")
+		sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnspecified)
+
+		return
+	}
+
+	defer amfUe.EndKeyChainProc(procedure.PathSwitch)
 
 	var (
 		pduSessionResourceSwitchedList      ngapType.PDUSessionResourceSwitchedList
@@ -69,7 +105,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	for _, item := range msg.PDUSessionResourceItems {
 		pduSessionID, ok := validPDUSessionID(item.PDUSessionID.Value)
 		if !ok {
-			logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+			logger.WithTrace(ctx, ueConn.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
 			continue
 		}
 
@@ -77,13 +113,17 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !ok {
-			logger.WithTrace(ctx, ranUe.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, ueConn.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+			appendPathSwitchReleasedItem(ctx, ueConn, &pduSessionResourceReleasedListPSAck, pduSessionID, ngapType.CauseRadioNetworkPresentUnknownPDUSessionID)
+
 			continue
 		}
 
-		n2Rsp, err := amfInstance.Smf.UpdateSmContextXnHandoverPathSwitchReq(ctx, smContext.Ref, transfer)
+		n2Rsp, err := amfInstance.Session.UpdateSmContextXnHandoverPathSwitchReq(ctx, smContext.Ref, transfer)
 		if err != nil {
-			logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextXnHandover[PathSwitchRequestTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, ueConn.Log).Error("SendUpdateSmContextXnHandover[PathSwitchRequestTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			appendPathSwitchReleasedItem(ctx, ueConn, &pduSessionResourceReleasedListPSAck, pduSessionID, ngapType.CauseRadioNetworkPresentUnspecified)
+
 			continue
 		}
 
@@ -96,7 +136,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	for _, item := range msg.FailedToSetupItems {
 		pduSessionID, ok := validPDUSessionID(item.PDUSessionID.Value)
 		if !ok {
-			logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+			logger.WithTrace(ctx, ueConn.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
 			continue
 		}
 
@@ -104,44 +144,45 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !ok {
-			logger.WithTrace(ctx, ranUe.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, ueConn.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 			continue
 		}
 
-		err := amfInstance.Smf.UpdateSmContextHandoverFailed(ctx, smContext.Ref, transfer)
+		err := amfInstance.Session.UpdateSmContextHandoverFailed(ctx, smContext.Ref, transfer)
 		if err != nil {
-			logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextXnHandoverFailed[PathSwitchRequestSetupFailedTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, ueConn.Log).Error("SendUpdateSmContextXnHandoverFailed[PathSwitchRequestSetupFailedTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 		}
 	}
 
-	// TS 23.502: send ack to Target NG-RAN. If none of the requested PDU Sessions have been switched
-	// successfully, the AMF shall send an N2 Path Switch Request Failure message to the Target NG-RAN
+	// TS 23.502: acknowledge to the target NG-RAN; if no session switched, fail the path switch.
 	if len(pduSessionResourceSwitchedList.List) > 0 {
-		// TS 33.501: compute fresh {NH, NCC} for the Ack
-		err := amfUe.UpdateNH()
+		// TS 33.501: derive fresh {NH, NCC} but commit them only once the switch is
+		// confirmed, so an abandoned path switch never advances the live AS key chain.
+		nh, ncc, err := amfUe.AdvancePathSwitchNH()
 		if err != nil {
-			logger.WithTrace(ctx, ranUe.Log).Error("error updating NH", zap.Error(err))
-			return
-		}
-
-		err = ranUe.SwitchToRan(ran, msg.RANUENGAPID)
-		if err != nil {
-			logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
+			logger.WithTrace(ctx, ueConn.Log).Error("error advancing NH", zap.Error(err))
 			return
 		}
 
 		snssaiList, err := amfInstance.ListOperatorSnssai(ctx)
 		if err != nil {
-			logger.WithTrace(ctx, ranUe.Log).Error("List Operator SNSSAI Error", zap.Error(err))
+			logger.WithTrace(ctx, ueConn.Log).Error("List Operator SNSSAI Error", zap.Error(err))
 			return
 		}
 
-		nh, ncc := amfUe.NextHopNCC()
+		// Re-point the UE at the target radio and commit the chain atomically: a UE
+		// released during the user-plane switch fails the path switch with the chain
+		// left unadvanced.
+		if !amfInstance.CommitPathSwitch(amfUe, ueConn, ran, msg.RANUENGAPID, nh, ncc) {
+			logger.WithTrace(ctx, ueConn.Log).Warn("Path Switch Request: UE released during the user-plane switch")
+			sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnspecified)
 
-		err = ranUe.Radio().NGAPSender.SendPathSwitchRequestAcknowledge(
-			ctx,
-			ranUe.AmfUeNgapID,
-			ranUe.RanUeNgapID,
+			return
+		}
+
+		pkt, err := send.BuildPathSwitchRequestAcknowledge(
+			ueConn.AmfUeNgapID,
+			ueConn.RanUeNgapID,
 			amfUe.UESecCap(),
 			ncc,
 			nh[:],
@@ -150,23 +191,28 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			snssaiList,
 		)
 		if err != nil {
-			logger.WithTrace(ctx, ranUe.Log).Error("error sending path switch request acknowledge", zap.Error(err))
+			logger.WithTrace(ctx, ueConn.Log).Error("error building path switch request acknowledge", zap.Error(err))
+			return
+		}
+
+		if err := ueConn.SendNGAP(ctx, send.NGAPProcedurePathSwitchRequestAcknowledge, pkt); err != nil {
+			logger.WithTrace(ctx, ueConn.Log).Error("error sending path switch request acknowledge", zap.Error(err))
 			return
 		}
 	} else {
-		// TS 38.413: no PDU session switched, so the whole path switch
-		// fails and every requested session is released.
+		// TS 38.413: no session switched, so the path switch fails and every requested
+		// session is released.
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnspecified)
 	}
 }
 
 // verifyUESecurityCapabilitiesOnPathSwitch logs any mismatch between the UE 5G
 // security capabilities reported by the target gNB and the AMF's stored values
-// (TS 33.501). It never mutates amfUe; the reported values are not
-// trusted on the path-switch path.
+// (TS 33.501). It never mutates amfUe: the reported values are not trusted on
+// the path-switch path.
 func verifyUESecurityCapabilitiesOnPathSwitch(
 	ctx context.Context,
-	ranUe *amf.RanUe,
+	ueConn *amf.UeConn,
 	amfUe *amf.UeContext,
 	received *ngapType.UESecurityCapabilities,
 ) {
@@ -176,7 +222,7 @@ func verifyUESecurityCapabilitiesOnPathSwitch(
 
 	if len(received.NRencryptionAlgorithms.Value.Bytes) == 0 ||
 		len(received.NRintegrityProtectionAlgorithms.Value.Bytes) == 0 {
-		logger.WithTrace(ctx, ranUe.Log).Warn(
+		logger.WithTrace(ctx, ueConn.Log).Warn(
 			"UE security capabilities from target gNB have empty NR algorithm bitstrings; ignoring and using locally stored values",
 		)
 
@@ -189,13 +235,13 @@ func verifyUESecurityCapabilitiesOnPathSwitch(
 	case amf.VerifyMatch:
 		return
 	case amf.VerifyNoStoredValue:
-		logger.WithTrace(ctx, ranUe.Log).Warn(
+		logger.WithTrace(ctx, ueConn.Log).Warn(
 			"received UE security capabilities in PathSwitchRequest but AMF has no stored capabilities for this UE",
 		)
 
 		return
 	case amf.VerifyMismatch:
-		logger.WithTrace(ctx, ranUe.Log).Warn(
+		logger.WithTrace(ctx, ueConn.Log).Warn(
 			"UE 5G security capabilities reported by target gNB differ from locally stored values; ignoring received values (TS 33.501)",
 			zap.Binary("stored", amfUe.UESecCap().Buffer),
 			zap.Binary("received", reported.Buffer),
@@ -203,13 +249,12 @@ func verifyUESecurityCapabilitiesOnPathSwitch(
 	}
 }
 
-// ngapToNasUESecurityCapability converts the NGAP UESecurityCapabilities
-// IE to the NAS UESecurityCapability type the AMF stores internally,
-// using the common "first byte only" encoding (EA/IA 1..3 + EIA0).
+// ngapToNasUESecurityCapability converts the NGAP UESecurityCapabilities IE to
+// the NAS UESecurityCapability type the AMF stores internally.
 //
-// E-UTRA (EEA/EIA) bits carried by the NGAP IE are intentionally
-// dropped: this AMF does not negotiate E-UTRA algorithms with the UE,
-// so the verify path compares only the 5G NR columns.
+// E-UTRA (EEA/EIA) bits carried by the NGAP IE are dropped: this AMF does not
+// negotiate E-UTRA algorithms with the UE, so the verify path compares only the
+// 5G NR columns.
 func ngapToNasUESecurityCapability(received *ngapType.UESecurityCapabilities) *nasType.UESecurityCapability {
 	out := &nasType.UESecurityCapability{}
 	out.SetLen(2)

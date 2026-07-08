@@ -4,7 +4,6 @@
 package nas
 
 import (
-	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -17,39 +16,31 @@ import (
 	"github.com/free5gc/nas/nasType"
 )
 
-func TestHandleNotificationResponse_NotRegisteredError(t *testing.T) {
-	testcases := []amf.StateType{amf.Authentication, amf.Deregistered, amf.ContextSetup, amf.SecurityMode}
+func TestHandleNotificationResponse_NotRegisteredIgnored(t *testing.T) {
+	testcases := []amf.StateType{amf.Deregistered, amf.RegistrationInitiated, amf.DeregistrationInitiated}
 
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
-			ue := amf.NewUeContext()
-			ue.ForceState(tc)
+			ue, _, err := buildUeAndRadio()
+			if err != nil {
+				t.Fatalf("could not build test UE and radio: %v", err)
+			}
 
-			expected := fmt.Sprintf("state mismatch: receive Notification Response message in state %s", tc)
+			ue.ForceStateForTest(tc)
+			ue.Conn().NASGuardForTest().Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 
-			err := handleNotificationResponse(t.Context(), nil, ue, nil, true)
-			if err == nil || err.Error() != expected {
-				t.Fatalf("expected error: %s, got %v", expected, err)
+			handleNotificationResponse(t.Context(), nil, ue, nil)
+
+			if !ue.Conn().NASGuardForTest().Active() {
+				t.Fatal("expected out-of-state Notification Response to be ignored, leaving the NAS guard armed")
 			}
 		})
 	}
 }
 
-func TestHandleNotificationResponse_MacFailed(t *testing.T) {
-	ue := amf.NewUeContext()
-	ue.ForceState(amf.Registered)
-
-	expected := "NAS message integrity check failed"
-
-	err := handleNotificationResponse(t.Context(), nil, ue, nil, false)
-	if err == nil || err.Error() != expected {
-		t.Fatalf("expected error: %s, got %v", expected, err)
-	}
-}
-
 func TestHandleNotificationResponse_T3565Stopped_NoPDUSessionStatus_NoSmContextReleased(t *testing.T) {
-	smf := FakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
-	amfInstance := amf.New(&FakeDBInstance{
+	smf := fakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -62,17 +53,14 @@ func TestHandleNotificationResponse_T3565Stopped_NoPDUSessionStatus_NoSmContextR
 		t.Fatalf("could not build test UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.Registered)
-	ue.NasConn().T3565.Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.ForceStateForTest(amf.Registered)
+	ue.Conn().NASGuardForTest().Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 
 	m := buildTestNotifationResponse()
 
-	err = handleNotificationResponse(t.Context(), amfInstance, ue, m.NotificationResponse, true)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	handleNotificationResponse(t.Context(), amfInstance, ue, m.NotificationResponse)
 
-	if ue.NasConn().T3565.Active() {
+	if ue.Conn().NASGuardForTest().Active() {
 		t.Fatal("expected timer T3565 to be stopped and cleared")
 	}
 
@@ -82,8 +70,8 @@ func TestHandleNotificationResponse_T3565Stopped_NoPDUSessionStatus_NoSmContextR
 }
 
 func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextReleased(t *testing.T) {
-	smf := FakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
-	amfInstance := amf.New(&FakeDBInstance{
+	smf := fakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -96,8 +84,8 @@ func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextRelea
 		t.Fatalf("could not build test UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.Registered)
-	ue.NasConn().T3565.Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.ForceStateForTest(amf.Registered)
+	ue.Conn().NASGuardForTest().Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	_ = ue.CreateSmContext(1, "1", &models.Snssai{})
 	_ = ue.CreateSmContext(5, "5", &models.Snssai{})
 	_ = ue.CreateSmContext(8, "8", &models.Snssai{})
@@ -115,12 +103,9 @@ func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextRelea
 	m.NotificationResponse.SetPSI11(1)
 	m.NotificationResponse.SetPSI15(0)
 
-	err = handleNotificationResponse(t.Context(), amfInstance, ue, m.NotificationResponse, true)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	handleNotificationResponse(t.Context(), amfInstance, ue, m.NotificationResponse)
 
-	if ue.NasConn().T3565.Active() {
+	if ue.Conn().NASGuardForTest().Active() {
 		t.Fatal("expected timer T3565 to be stopped and cleared")
 	}
 

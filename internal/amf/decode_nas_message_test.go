@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
@@ -15,26 +16,28 @@ import (
 )
 
 // newDecoderTestUE returns a UE in the "registered with valid security
-// context" state, attached to a fresh RanUe.
+// context" state, attached to a fresh UeConn.
 func newDecoderTestUE(t *testing.T) *UeContext {
 	t.Helper()
 
 	ue := NewUeContext()
-	ue.Log = zap.NewNop()
 	ue.secured = true
 
 	radio := &Radio{
-		Name:   "test-gNB",
-		RanUEs: make(map[int64]*RanUe),
-		Log:    zap.NewNop(),
+		name: "test-gNB",
+		Log:  zap.NewNop(),
 	}
-	ranUe := &RanUe{
-		radio:       radio,
+	radio.BindAMFForTest(New(nil, nil, nil))
+
+	ueConn := &UeConn{
+		conn:        radio.Conn,
+		radioName:   radio.name,
+		amf:         radio.amf,
 		RanUeNgapID: 1,
 		AmfUeNgapID: 1,
 		Log:         zap.NewNop(),
 	}
-	ue.AttachRanUe(ranUe)
+	ueConn.amf.AttachUeConn(ue, ueConn)
 
 	return ue
 }
@@ -179,6 +182,41 @@ func TestDecodeNASMessage_PlainServiceRequestRejected(t *testing.T) {
 	}
 }
 
+// A plain message whose type octet is readable but whose body cannot be decoded is a protocol
+// error: the decoder resolves it to a 5GMM STATUS #96 disposition (TS 24.501 §7.5.1), so the
+// finalizer answers rather than dropping it.
+func TestDecodeNASMessage_MalformedPlain_YieldsStatus96(t *testing.T) {
+	ue := newDecoderTestUE(t)
+	ue.secured = false // fresh UE: the plain path is taken
+
+	// EPD, plain security header, REGISTRATION REQUEST type — then truncated (no mandatory IEs).
+	_, err := DecodeNASMessage(ue, []byte{0x7e, 0x00, nas.MsgTypeRegistrationRequest})
+	if err == nil {
+		t.Fatal("expected a decode error for a truncated registration request")
+	}
+
+	d := DispositionForDecodeError(err)
+	if d.Action != nasreply.ActionStatus || d.Domain != nasreply.DomainMM || d.Cause != nasreply.CauseInvalidMandatoryInfo {
+		t.Errorf("disposition = %+v, want a 5GMM STATUS #96 (invalid mandatory information)", d)
+	}
+}
+
+// A message the decoder discards for a security reason resolves to a silent-discard
+// disposition — the network must never answer forged or non-exempt plain NAS
+// (TS 24.501 §4.4.4.3).
+func TestDecodeNASMessage_PlainRejected_YieldsSilent(t *testing.T) {
+	ue := newDecoderTestUE(t)
+
+	_, err := DecodeNASMessage(ue, encodePlainServiceRequest(t))
+	if err == nil {
+		t.Fatal("expected a decode error for a plain service request on a secured UE")
+	}
+
+	if d := DispositionForDecodeError(err); d.Action != nasreply.ActionSilent {
+		t.Errorf("disposition = %+v, want a silent discard", d)
+	}
+}
+
 // TestDecodeNASMessage_PlainULNasTransportRejected verifies a plain
 // ULNasTransport is rejected by the decoder.
 func TestDecodeNASMessage_PlainULNasTransportRejected(t *testing.T) {
@@ -216,8 +254,8 @@ func TestDecodeNASMessage_PlainRegistrationRequest_Bootstrap(t *testing.T) {
 		t.Fatalf("expected RegistrationRequest, got %+v", result)
 	}
 
-	if result.Verdict != VerdictPlainAllowed {
-		t.Errorf("expected VerdictPlainAllowed, got %d", result.Verdict)
+	if result.IntegrityVerified {
+		t.Errorf("expected a plain NAS message to be not integrity-verified")
 	}
 
 	if ue.secured {
@@ -241,8 +279,8 @@ func TestDecodeNASMessage_PlainRegistrationRequest_WithExistingContext(t *testin
 		t.Fatalf("expected RegistrationRequest, got %d", result.Message.GmmHeader.GetMessageType())
 	}
 
-	if result.Verdict != VerdictPlainAllowed {
-		t.Errorf("expected VerdictPlainAllowed, got %d", result.Verdict)
+	if result.IntegrityVerified {
+		t.Errorf("expected a plain NAS message to be not integrity-verified")
 	}
 
 	if !ue.secured {
@@ -266,8 +304,8 @@ func TestDecodeNASMessage_PlainDeregistrationRequest_PassesDecoder(t *testing.T)
 		t.Fatalf("expected DeregistrationRequest, got %d", result.Message.GmmHeader.GetMessageType())
 	}
 
-	if result.Verdict != VerdictPlainAllowed {
-		t.Errorf("expected VerdictPlainAllowed, got %d", result.Verdict)
+	if result.IntegrityVerified {
+		t.Errorf("expected a plain NAS message to be not integrity-verified")
 	}
 
 	if !ue.secured {

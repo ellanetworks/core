@@ -14,7 +14,6 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-// TS 38.413
 func BuildPathSwitchRequestAcknowledgeTransfer(teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr) ([]byte, error) {
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, teid)

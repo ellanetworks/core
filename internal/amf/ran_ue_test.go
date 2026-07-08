@@ -13,48 +13,73 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 )
 
-func newTestRadioForRanUe() *amf.Radio {
-	return &amf.Radio{
-		Log:    logger.AmfLog,
-		RanUEs: make(map[int64]*amf.RanUe),
+func newTestRadioForUeConn() *amf.Radio {
+	ran := &amf.Radio{
+		Conn: &fakeNGAPSender{},
+		Log:  logger.AmfLog,
 	}
+	ran.BindAMFForTest(amf.New(nil, nil, nil))
+
+	return ran
 }
 
-func newBoundUeContext(t *testing.T, radio *amf.Radio) (*amf.UeContext, *amf.RanUe) {
+func newBoundUeContext(t *testing.T, radio *amf.Radio) (*amf.UeContext, *amf.UeConn) {
 	t.Helper()
 
-	ranUe := amf.NewRanUeForTest(radio, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
 
 	ue := amf.NewUeContext()
-	ue.Log = logger.AmfLog
-	ue.AttachRanUe(ranUe)
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 
-	return ue, ranUe
+	return ue, ueConn
+}
+
+// A UE re-attaching on a new connection must release its previous connection, so the
+// displaced UeConn + AMF-UE-NGAP-ID do not leak in the registry.
+func TestAttachUeConn_ReleasesDisplacedConn(t *testing.T) {
+	radio := newTestRadioForUeConn()
+
+	ue := amf.NewUeContext()
+
+	first := amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
+	amfInstance := first.AMFForTest()
+	amfInstance.AttachUeConn(ue, first)
+
+	second := amf.NewUeConnForTest(radio, 2, 11, logger.AmfLog)
+	amfInstance.AttachUeConn(ue, second)
+
+	if amfInstance.LookupUeConn(10) != nil {
+		t.Fatal("displaced UeConn was not released after re-attach (registry + NGAP-ID leak)")
+	}
+
+	if amfInstance.LookupUeConn(11) != second {
+		t.Fatal("new UeConn is not the UE's active connection after re-attach")
+	}
 }
 
 // Per TS 24.501, ongoing NAS procedures shall be aborted on lower-layer
 // failure.
 func TestReleaseNasConnection_AbortsProcedures(t *testing.T) {
-	radio := newTestRadioForRanUe()
-	ue, ranUe := newBoundUeContext(t, radio)
+	radio := newTestRadioForUeConn()
+	ue, ueConn := newBoundUeContext(t, radio)
 
-	conn := ue.NasConn()
-	if _, err := conn.Procedures.Begin(conn.Ctx(), procedure.Procedure{Type: procedure.Authentication}); err != nil {
+	conn := ue.Conn()
+	if _, err := ue.Procedures().Begin(conn.Ctx(), procedure.Procedure{Type: procedure.SecurityMode}); err != nil {
 		t.Fatalf("begin Authentication: %v", err)
 	}
 
-	ue.ReleaseNasConnection(ranUe)
+	ueConn.AMFForTest().ReleaseNasConnection(ue, ueConn)
 
-	if ue.NasConn() != nil {
+	if ue.Conn() != nil {
 		t.Error("NAS connection still attached after release")
 	}
 
 	waitFor(t, func() bool {
-		return !conn.Procedures.Active(procedure.Authentication)
+		return !ue.Procedures().Active(procedure.SecurityMode)
 	})
 
-	if ue.RanUe() != nil {
-		t.Error("RanUe still attached after release")
+	if ue.Conn() != nil {
+		t.Error("UeConn still attached after release")
 	}
 }
 
@@ -72,88 +97,88 @@ func waitFor(t *testing.T, cond func() bool) {
 }
 
 func TestReleaseNasConnection_AbortsSecurityMode(t *testing.T) {
-	radio := newTestRadioForRanUe()
-	ue, ranUe := newBoundUeContext(t, radio)
+	radio := newTestRadioForUeConn()
+	ue, ueConn := newBoundUeContext(t, radio)
 
-	conn := ue.NasConn()
-	if _, err := conn.Procedures.Begin(conn.Ctx(), procedure.Procedure{Type: procedure.SecurityMode}); err != nil {
+	conn := ue.Conn()
+	if _, err := ue.Procedures().Begin(conn.Ctx(), procedure.Procedure{Type: procedure.SecurityMode}); err != nil {
 		t.Fatalf("begin SecurityMode: %v", err)
 	}
 
-	ue.ReleaseNasConnection(ranUe)
+	ueConn.AMFForTest().ReleaseNasConnection(ue, ueConn)
 
 	waitFor(t, func() bool {
-		return !conn.Procedures.Active(procedure.SecurityMode)
+		return !ue.Procedures().Active(procedure.SecurityMode)
 	})
 }
 
-// After the AMF UE is rebound to a new RanUe, a release for the old
-// RanUe (handover or any stale path) must be a no-op for both the
+// After the AMF UE is rebound to a new UeConn, a release for the old
+// UeConn (handover or any stale path) must be a no-op for both the
 // procedure set and the current binding.
 func TestReleaseNasConnection_AfterRebind_IsNoop(t *testing.T) {
-	radio := newTestRadioForRanUe()
-	ue, sourceRanUe := newBoundUeContext(t, radio)
+	radio := newTestRadioForUeConn()
+	ue, sourceUeConn := newBoundUeContext(t, radio)
 
-	targetRanUe := amf.NewRanUeForTest(radio, 2, 20, logger.AmfLog)
+	targetUeConn := amf.NewUeConnForTest(radio, 2, 20, logger.AmfLog)
 
-	conn := ue.NasConn()
-	if _, err := conn.Procedures.Begin(conn.Ctx(), procedure.Procedure{Type: procedure.N2Handover}); err != nil {
+	conn := ue.Conn()
+	if _, err := ue.Procedures().Begin(conn.Ctx(), procedure.Procedure{Type: procedure.N2Handover}); err != nil {
 		t.Fatalf("begin N2Handover: %v", err)
 	}
 
-	ue.AttachRanUe(targetRanUe)
+	targetUeConn.AMFForTest().AttachUeConn(ue, targetUeConn)
 
-	ue.ReleaseNasConnection(sourceRanUe)
+	sourceUeConn.AMFForTest().ReleaseNasConnection(ue, sourceUeConn)
 
-	if !conn.Procedures.Active(procedure.N2Handover) {
+	if !ue.Procedures().Active(procedure.N2Handover) {
 		t.Error("N2Handover aborted by stale source release")
 	}
 
-	if ue.RanUe() != targetRanUe {
-		t.Error("target RanUe was detached by stale source release")
+	if ue.Conn() != targetUeConn {
+		t.Error("target UeConn was detached by stale source release")
 	}
 }
 
-// Verifies the target-match guard: a release for a stale RanUe must not
+// Verifies the target-match guard: a release for a stale UeConn must not
 // detach the current one.
 func TestReleaseNasConnection_StaleTarget_NoDetach(t *testing.T) {
-	radio := newTestRadioForRanUe()
+	radio := newTestRadioForUeConn()
 	ue, _ := newBoundUeContext(t, radio)
 
-	staleRanUe := amf.NewRanUeForTest(radio, 99, 990, logger.AmfLog)
+	staleUeConn := amf.NewUeConnForTest(radio, 99, 990, logger.AmfLog)
 
-	ue.ReleaseNasConnection(staleRanUe)
+	staleUeConn.AMFForTest().ReleaseNasConnection(ue, staleUeConn)
 
-	if ue.RanUe() == nil {
-		t.Error("current RanUe was detached by stale release")
+	if ue.Conn() == nil {
+		t.Error("current UeConn was detached by stale release")
 	}
 }
 
 // SCTP disconnect aborts procedures across all UEs on the radio.
 func TestRemoveAllUeInRan_AbortsProcedures(t *testing.T) {
-	radio := newTestRadioForRanUe()
+	radio := newTestRadioForUeConn()
 	ue, _ := newBoundUeContext(t, radio)
 
-	conn := ue.NasConn()
-	if _, err := conn.Procedures.Begin(conn.Ctx(), procedure.Procedure{Type: procedure.SecurityMode}); err != nil {
+	conn := ue.Conn()
+	if _, err := ue.Procedures().Begin(conn.Ctx(), procedure.Procedure{Type: procedure.SecurityMode}); err != nil {
 		t.Fatalf("begin SecurityMode: %v", err)
 	}
 
-	radio.RemoveAllUeInRan(context.Background())
+	radio.AMFForTest().RemoveAllUeInRan(context.Background(), radio)
 
 	waitFor(t, func() bool {
-		return !conn.Procedures.Active(procedure.SecurityMode)
+		return !ue.Procedures().Active(procedure.SecurityMode)
 	})
 }
 
 // Mid-registration UEs are deregistered on lower-layer failure
 // (TS 24.501).
 func TestRemoveAllUeInRan_MidAuthentication_Deregisters(t *testing.T) {
-	radio := newTestRadioForRanUe()
+	radio := newTestRadioForUeConn()
 	ue, _ := newBoundUeContext(t, radio)
-	ue.ForceState(amf.Authentication)
+	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 
-	radio.RemoveAllUeInRan(context.Background())
+	radio.AMFForTest().RemoveAllUeInRan(context.Background(), radio)
 
 	if ue.State() != amf.Deregistered {
 		t.Errorf("state = %s, want Deregistered", ue.State())
@@ -161,11 +186,11 @@ func TestRemoveAllUeInRan_MidAuthentication_Deregisters(t *testing.T) {
 }
 
 func TestRemoveAllUeInRan_MidSecurityMode_Deregisters(t *testing.T) {
-	radio := newTestRadioForRanUe()
+	radio := newTestRadioForUeConn()
 	ue, _ := newBoundUeContext(t, radio)
-	ue.ForceState(amf.SecurityMode)
+	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
 
-	radio.RemoveAllUeInRan(context.Background())
+	radio.AMFForTest().RemoveAllUeInRan(context.Background(), radio)
 
 	if ue.State() != amf.Deregistered {
 		t.Errorf("state = %s, want Deregistered", ue.State())
@@ -173,11 +198,11 @@ func TestRemoveAllUeInRan_MidSecurityMode_Deregisters(t *testing.T) {
 }
 
 func TestRemoveAllUeInRan_MidContextSetup_Deregisters(t *testing.T) {
-	radio := newTestRadioForRanUe()
+	radio := newTestRadioForUeConn()
 	ue, _ := newBoundUeContext(t, radio)
-	ue.ForceState(amf.ContextSetup)
+	ue.ForceRegStepForTest(amf.RegStepContextSetup)
 
-	radio.RemoveAllUeInRan(context.Background())
+	radio.AMFForTest().RemoveAllUeInRan(context.Background(), radio)
 
 	if ue.State() != amf.Deregistered {
 		t.Errorf("state = %s, want Deregistered", ue.State())
@@ -187,12 +212,11 @@ func TestRemoveAllUeInRan_MidContextSetup_Deregisters(t *testing.T) {
 // Registered UEs keep their state and start the mobile reachable timer
 // (TS 24.501).
 func TestRemoveAllUeInRan_Registered_StaysRegistered(t *testing.T) {
-	radio := newTestRadioForRanUe()
+	radio := newTestRadioForUeConn()
 	ue, _ := newBoundUeContext(t, radio)
-	ue.T3512Value = 1 * time.Second
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 
-	radio.RemoveAllUeInRan(context.Background())
+	radio.AMFForTest().RemoveAllUeInRan(context.Background(), radio)
 
 	if ue.State() != amf.Registered {
 		t.Errorf("state = %s, want Registered (mobile reachable timer running)", ue.State())
@@ -200,10 +224,10 @@ func TestRemoveAllUeInRan_Registered_StaysRegistered(t *testing.T) {
 }
 
 func TestRemoveAllUeInRan_Deregistered_NoAction(t *testing.T) {
-	radio := newTestRadioForRanUe()
+	radio := newTestRadioForUeConn()
 	ue, _ := newBoundUeContext(t, radio)
 
-	radio.RemoveAllUeInRan(context.Background())
+	radio.AMFForTest().RemoveAllUeInRan(context.Background(), radio)
 
 	if ue.State() != amf.Deregistered {
 		t.Errorf("state = %s, want Deregistered", ue.State())
@@ -211,12 +235,12 @@ func TestRemoveAllUeInRan_Deregistered_NoAction(t *testing.T) {
 }
 
 func TestRemoveAllUeInRan_NoUeContext(t *testing.T) {
-	radio := newTestRadioForRanUe()
-	amf.NewRanUeForTest(radio, 1, 10, logger.AmfLog)
+	radio := newTestRadioForUeConn()
+	amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
 
-	radio.RemoveAllUeInRan(context.Background())
+	radio.AMFForTest().RemoveAllUeInRan(context.Background(), radio)
 
-	if len(radio.RanUEs) != 0 {
-		t.Errorf("RanUEs count = %d, want 0", len(radio.RanUEs))
+	if radio.NumUEsForTest() != 0 {
+		t.Errorf("RanUEs count = %d, want 0", radio.NumUEsForTest())
 	}
 }

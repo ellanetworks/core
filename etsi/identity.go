@@ -18,60 +18,59 @@ import (
 
 var maxMsbValue = big.NewInt(0x003FFFFF)
 
-// GUTI represents a 5G Globally Unique Temporary Identity,
-// as defined by 3GPP.
-type GUTI struct {
+// GUTI5G is a 5G Globally Unique Temporary Identity (5G-GUTI).
+type GUTI5G struct {
 	mcc   string
 	mnc   string
 	Amfid string
 	Tmsi  TMSI
 }
 
-var InvalidGUTI GUTI = GUTI{Tmsi: InvalidTMSI}
+var InvalidGUTI5G GUTI5G = GUTI5G{Tmsi: InvalidTMSI}
 
-func NewGUTI(mcc string, mnc string, amfid string, tmsi TMSI) (GUTI, error) {
+func NewGUTI5G(mcc string, mnc string, amfid string, tmsi TMSI) (GUTI5G, error) {
 	if len(mcc) != 3 {
-		return InvalidGUTI, fmt.Errorf("invalid mcc: %s", mcc)
+		return InvalidGUTI5G, fmt.Errorf("invalid mcc: %s", mcc)
 	}
 
 	_, err := strconv.ParseUint(mcc, 10, 16)
 	if err != nil {
-		return InvalidGUTI, fmt.Errorf("invalid mcc: %s", mcc)
+		return InvalidGUTI5G, fmt.Errorf("invalid mcc: %s", mcc)
 	}
 
 	if len(mnc) < 2 || len(mnc) > 3 {
-		return InvalidGUTI, fmt.Errorf("invalid mnc: %s", mnc)
+		return InvalidGUTI5G, fmt.Errorf("invalid mnc: %s", mnc)
 	}
 
 	_, err = strconv.ParseUint(mnc, 10, 16)
 	if err != nil {
-		return InvalidGUTI, fmt.Errorf("invalid mnc: %s", mnc)
+		return InvalidGUTI5G, fmt.Errorf("invalid mnc: %s", mnc)
 	}
 
 	if len(amfid) != 6 {
-		return InvalidGUTI, fmt.Errorf("invalid amfid: %s", amfid)
+		return InvalidGUTI5G, fmt.Errorf("invalid amfid: %s", amfid)
 	}
 
 	_, err = hex.DecodeString(amfid)
 	if err != nil {
-		return InvalidGUTI, fmt.Errorf("invalid amfid: %s", amfid)
+		return InvalidGUTI5G, fmt.Errorf("invalid amfid: %s", amfid)
 	}
 
 	if tmsi == InvalidTMSI {
-		return InvalidGUTI, fmt.Errorf("invalid tmsi: %s", tmsi.String())
+		return InvalidGUTI5G, fmt.Errorf("invalid tmsi: %s", tmsi.String())
 	}
 
-	return GUTI{mcc: mcc, mnc: mnc, Amfid: strings.ToLower(amfid), Tmsi: tmsi}, nil
+	return GUTI5G{mcc: mcc, mnc: mnc, Amfid: strings.ToLower(amfid), Tmsi: tmsi}, nil
 }
 
-func NewGUTIFromBytes(buf []byte) (GUTI, error) {
+func NewGUTI5GFromBytes(buf []byte) (GUTI5G, error) {
 	if len(buf) != 11 {
-		return InvalidGUTI, fmt.Errorf("invalid GUTI length")
+		return InvalidGUTI5G, fmt.Errorf("invalid GUTI length")
 	}
 
 	mcc, mnc, err := plmnIDToMccMncString(buf[1:4])
 	if err != nil {
-		return InvalidGUTI, fmt.Errorf("invalid PLMN: %v", err)
+		return InvalidGUTI5G, fmt.Errorf("invalid PLMN: %v", err)
 	}
 
 	amfID := hex.EncodeToString(buf[4:7])
@@ -79,26 +78,25 @@ func NewGUTIFromBytes(buf []byte) (GUTI, error) {
 
 	tmsi, err := NewTMSI(tmsi5G)
 	if err != nil {
-		return InvalidGUTI, err
+		return InvalidGUTI5G, err
 	}
 
-	return GUTI{mcc: mcc, mnc: mnc, Amfid: amfID, Tmsi: tmsi}, nil
+	return GUTI5G{mcc: mcc, mnc: mnc, Amfid: amfID, Tmsi: tmsi}, nil
 }
 
-func (g *GUTI) String() string {
+func (g *GUTI5G) String() string {
 	return fmt.Sprintf("%s%s%s%s", g.mcc, g.mnc, g.Amfid, &g.Tmsi)
 }
 
-// TMSI represents a 5G Temporary Mobile Subscriber's Identity,
-// as define by 3GPP.
+// TMSI is a 5G Temporary Mobile Subscriber Identity.
 type TMSI struct {
 	tmsi uint32
 }
 
 var InvalidTMSI TMSI = TMSI{math.MaxUint32}
 
-// NewTMSI creates a TMSI instance from a uint32 value.
-// It returns an error if the resulting TMSI is invalid.
+// NewTMSI wraps v as a TMSI. math.MaxUint32 is the reserved invalid sentinel and
+// yields an error.
 func NewTMSI(v uint32) (TMSI, error) {
 	if v == math.MaxUint32 {
 		return TMSI{v}, fmt.Errorf("invalid TMSI")
@@ -107,22 +105,18 @@ func NewTMSI(v uint32) (TMSI, error) {
 	return TMSI{v}, nil
 }
 
-// String returns the TMSI has an hexadecimal string
-func (t *TMSI) String() string {
+// String returns the TMSI as a hexadecimal string.
+func (t TMSI) String() string {
 	return fmt.Sprintf("%08x", t.tmsi)
 }
 
-// Uint32 returns the 32-bit TMSI value, for building identities (e.g. the 4G
-// GUTI's M-TMSI) that carry it as a plain integer.
-func (t *TMSI) Uint32() uint32 {
+func (t TMSI) Uint32() uint32 {
 	return t.tmsi
 }
 
-// TmsiAllocator allocates and frees TMSI. It keeps
-// track internally of allocated TMSI. Generated TMSIs
-// are round-robined over the 10 least significant bits to spread
-// paging load, as define in TS 23.501. The TMSIs are
-// otherwise allocated randomly to ensure privacy.
+// TmsiAllocator allocates and frees TMSIs. Generated TMSIs are round-robined over
+// the 10 least significant bits to spread paging load (TS 23.501), and are
+// otherwise random for privacy.
 type TmsiAllocator struct {
 	allocated map[TMSI]bool
 	nextLsb   uint32
@@ -130,8 +124,6 @@ type TmsiAllocator struct {
 	sync.Mutex
 }
 
-// NewTMSIAllocator returns a new allocator, that will allocate unique TMSI
-// on demand.
 func NewTMSIAllocator() *TmsiAllocator {
 	ta := TmsiAllocator{
 		allocated: make(map[TMSI]bool),
@@ -141,8 +133,7 @@ func NewTMSIAllocator() *TmsiAllocator {
 	return &ta
 }
 
-// Allocate returns a valid TMSI, or an error if the provided context
-// expires.
+// Allocate returns a fresh unique TMSI, or ctx.Err() if the context expires first.
 func (ta *TmsiAllocator) Allocate(ctx context.Context) (TMSI, error) {
 	for {
 		select {
@@ -177,7 +168,7 @@ func (ta *TmsiAllocator) Allocate(ctx context.Context) (TMSI, error) {
 	}
 }
 
-// Free returns the TMSI to the pool, allowing it to be reallocated.
+// Free returns the TMSI to the pool.
 func (ta *TmsiAllocator) Free(t TMSI) {
 	ta.Lock()
 	defer ta.Unlock()
@@ -222,7 +213,7 @@ func plmnIDToMccMncString(buf []byte) (mcc string, mnc string, err error) {
 
 	plmnID := hex.EncodeToString(tmpBytes)
 	if plmnID[5] == 'f' {
-		plmnID = plmnID[:5] // get plmnID[0~4]
+		plmnID = plmnID[:5]
 	}
 
 	return plmnID[:3], plmnID[3:], nil

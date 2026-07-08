@@ -24,11 +24,7 @@ import (
 // }
 
 // DecodeHandoverRequired validates a HandoverRequired PDU body (3GPP TS
-// 38.413). Six IEs are mandatory-reject (AMFUENGAPID,
-// RANUENGAPID, HandoverType, TargetID, PDUSessionResourceListHORqd,
-// SourceToTargetTransparentContainer) and Cause is mandatory-ignore.
-// DirectForwardingPathAvailability is optional and not surfaced.
-// Duplicate IEs follow a last-wins policy.
+// 38.413).
 func DecodeHandoverRequired(in *ngapType.HandoverRequired) (HandoverRequired, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeHandoverPreparation,

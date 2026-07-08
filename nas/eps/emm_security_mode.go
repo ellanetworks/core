@@ -14,6 +14,11 @@ const (
 	imeisvRequested  uint8 = 0x1
 	imeisvIEI        uint8 = 0x23
 	hashMMEIEI       uint8 = 0x4F
+	// replayedNASMessageIEI is the IEI of the Replayed NAS message container IE
+	// (type 6, TLV-E) the UE returns in SECURITY MODE COMPLETE when its HASHMME
+	// check fails (TS 24.301 §8.2.21.1, §9.9.3.51). It shares the value 0x4F with
+	// hashMMEIEI, in the opposite message direction.
+	replayedNASMessageIEI uint8 = 0x4F
 )
 
 // SecurityModeCommand is the SECURITY MODE COMMAND message (TS 24.301),
@@ -109,15 +114,21 @@ var securityModeCommandIEs = []common.OptionalIE{
 
 // SecurityModeComplete is the SECURITY MODE COMPLETE message (TS 24.301).
 // It has no mandatory information elements; the UE includes its IMEISV
-// (a mobile identity, IEI 0x23) when the MME requested it.
+// (a mobile identity, IEI 0x23) when the MME requested it, and — when its HASHMME
+// check fails — the complete plain ATTACH/TAU REQUEST it originally sent, in the
+// Replayed NAS message container (IEI 0x4F), so the network can recover the
+// genuine triggering message (TS 24.301 §5.4.3.4).
 type SecurityModeComplete struct {
-	IMEISV []byte // IMEISV mobile-identity value (IEI 0x23), when present
+	IMEISV             []byte // IMEISV mobile-identity value (IEI 0x23), when present
+	ReplayedNASMessage []byte // complete triggering NAS message (IEI 0x4F), when present
 }
 
 // securityModeCompleteIEs are the optional IEs Ella Core consumes from a
-// SECURITY MODE COMPLETE (TS 24.301): the UE's IMEISV mobile identity.
+// SECURITY MODE COMPLETE (TS 24.301): the UE's IMEISV mobile identity and the
+// Replayed NAS message container.
 var securityModeCompleteIEs = []common.OptionalIE{
 	{IEI: imeisvIEI, Format: common.IETLV},
+	{IEI: replayedNASMessageIEI, Format: common.IETLVE},
 }
 
 // Marshal encodes the plain SECURITY MODE COMPLETE message.
@@ -130,6 +141,14 @@ func (m *SecurityModeComplete) Marshal() ([]byte, error) {
 		w.U8(imeisvIEI)
 
 		if err := w.LV(m.IMEISV); err != nil {
+			return nil, err
+		}
+	}
+
+	if len(m.ReplayedNASMessage) > 0 {
+		w.U8(replayedNASMessageIEI)
+
+		if err := w.LVE(m.ReplayedNASMessage); err != nil {
 			return nil, err
 		}
 	}
@@ -148,8 +167,11 @@ func ParseSecurityModeComplete(b []byte) (*SecurityModeComplete, error) {
 	m := &SecurityModeComplete{}
 
 	if _, err := common.WalkOptionalIEs(r, securityModeCompleteIEs, func(iei uint8, value []byte) error {
-		if iei == imeisvIEI {
+		switch iei {
+		case imeisvIEI:
 			m.IMEISV = value
+		case replayedNASMessageIEI:
+			m.ReplayedNASMessage = value
 		}
 
 		return nil

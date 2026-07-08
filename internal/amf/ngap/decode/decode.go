@@ -6,10 +6,8 @@
 // internal/amf/ngap must not walk ProtocolIEs.List themselves.
 //
 // Per-message decoder functions return a value plus a *Report. Callers
-// (the dispatcher) must construct a non-nil Report; the methods on
-// *Report assume a non-nil receiver. A *Report describes any structural
-// problems found while decoding the PDU and maps onto an NGAP
-// CriticalityDiagnostics IE (3GPP TS 38.413).
+// must pass a non-nil Report; the mutating methods on *Report assume a
+// non-nil receiver.
 //
 // Duplicate IE policy: when an IE id appears multiple times in a single
 // message, the last well-formed occurrence wins. TS 38.413 forbids
@@ -24,18 +22,16 @@ import (
 
 // Report accumulates structural problems found while decoding a PDU and
 // maps 1:1 onto NGAP CriticalityDiagnostics. A report is fatal iff it
-// carries any reject-criticality item OR ProcedureRejected is set
-// (used for nil/unparseable PDU bodies that cannot be attributed to a
-// specific IE).
+// carries a reject-criticality item or ProcedureRejected is set.
 type Report struct {
 	ProcedureCode        int64
 	TriggeringMessage    aper.Enumerated
 	ProcedureCriticality aper.Enumerated
 	Items                []ErrorItem
 
-	// ProcedureRejected marks the entire procedure as unprocessable
-	// without naming a specific IE. Set when the PDU body itself is
-	// nil; do not pair with per-IE Items.
+	// ProcedureRejected marks the whole procedure unprocessable without
+	// naming an IE. Set when the PDU body is nil; do not pair with per-IE
+	// Items.
 	ProcedureRejected bool
 }
 
@@ -85,6 +81,14 @@ func (r *Report) HasItems() bool {
 	}
 
 	return r.ProcedureRejected || len(r.Items) > 0
+}
+
+// FromInitiatingMessage reports whether the decoded message was an initiating
+// message. Per TS 38.413 §10.3.4.2, §10.3.5, a fatal decode of an initiating
+// message is answered with an Error Indication, while a fatal decode of a
+// response is left to local error handling.
+func (r *Report) FromInitiatingMessage() bool {
+	return r != nil && r.TriggeringMessage == ngapType.TriggeringMessagePresentInitiatingMessage
 }
 
 func (r *Report) ToCriticalityDiagnostics() ngapType.CriticalityDiagnostics {

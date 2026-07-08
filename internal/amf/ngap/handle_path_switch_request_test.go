@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -128,7 +129,7 @@ func buildPathSwitchRequest(
 }
 
 func newTestAMFWithSmf(smf amf.SmfSbi) *amf.AMF {
-	return amf.New(&FakeDBInstance{
+	return amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc: "001",
 			Mnc: "01",
@@ -144,20 +145,23 @@ func newValidUeContext() *amf.UeContext {
 	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
 	amfUe.SetKamfForTest("0000000000000000000000000000000000000000000000000000000000000000")
 	amfUe.SetNHForTest(make([]byte, 32))
-	amfUe.Log = logger.AmfLog
+
+	secCap := &nasType.UESecurityCapability{}
+	secCap.SetLen(2)
+	amfUe.SetUESecurityCapabilityForTest(secCap)
 
 	return amfUe
 }
 
 func TestPathSwitchRequest_UnknownUE(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
+	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: fakeNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: sender,
 	}
 
-	amfInstance := newTestAMFWithSmf(&FakeSmfSbi{})
+	amfInstance := newTestAMFWithSmf(&fakeSmfSbi{})
+	ran.BindAMFForTest(amfInstance)
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -180,12 +184,12 @@ func TestPathSwitchRequest_UnknownUE(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, ran, decodePathSwitchRequestOrFatal(t, msg))
 
-	if len(fakeNGAPSender.SentPathSwitchRequestFailures) != 1 {
+	if len(sender.SentPathSwitchRequestFailures) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestFailure, got %d",
-			len(fakeNGAPSender.SentPathSwitchRequestFailures))
+			len(sender.SentPathSwitchRequestFailures))
 	}
 
-	failure := fakeNGAPSender.SentPathSwitchRequestFailures[0]
+	failure := sender.SentPathSwitchRequestFailures[0]
 	if failure.AmfUeNgapID != 999 {
 		t.Errorf("expected AmfUeNgapID=999, got %d", failure.AmfUeNgapID)
 	}
@@ -196,25 +200,25 @@ func TestPathSwitchRequest_UnknownUE(t *testing.T) {
 }
 
 func TestPathSwitchRequest_NilUeContext(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
+	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: fakeNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
-	// RanUe exists but UeContext is nil
-	amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
+	// UeConn exists but UeContext is nil
+	amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
 
-	targetNGAPSender := &FakeNGAPSender{}
+	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
-	amfInstance := newTestAMFWithSmf(&FakeSmfSbi{})
-	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance := newTestAMFWithSmf(&fakeSmfSbi{})
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+	sourceRan.BindAMFForTest(amfInstance)
+	targetRan.BindAMFForTest(amfInstance)
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -237,7 +241,6 @@ func TestPathSwitchRequest_NilUeContext(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	// Should send failure because UeContext is nil
 	if len(targetNGAPSender.SentPathSwitchRequestFailures) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestFailure, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestFailures))
@@ -245,30 +248,29 @@ func TestPathSwitchRequest_NilUeContext(t *testing.T) {
 }
 
 func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
+	sender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: fakeNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: sender,
 	}
 
 	amfUe := amf.NewUeContext()
 	amfUe.SetSecuredForTest(false)
 	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: nasMessage.NasKeySetIdentifierNoKeyIsAvailable})
-	amfUe.Log = logger.AmfLog
 
-	ranUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	targetNGAPSender := &FakeNGAPSender{}
+	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
-	amfInstance := newTestAMFWithSmf(&FakeSmfSbi{})
-	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance := newTestAMFWithSmf(&fakeSmfSbi{})
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+	sourceRan.BindAMFForTest(amfInstance)
+	targetRan.BindAMFForTest(amfInstance)
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -291,7 +293,6 @@ func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	// Should send failure because security context is not valid
 	if len(targetNGAPSender.SentPathSwitchRequestFailures) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestFailure, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestFailures))
@@ -299,29 +300,29 @@ func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 }
 
 func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
-	sourceNGAPSender := &FakeNGAPSender{}
+	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sourceNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
 	amfUe := newValidUeContext()
 	// SmContextList is empty — no PDU session ID 1
 
-	ranUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	targetNGAPSender := &FakeNGAPSender{}
+	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
-	fakeSmf := &FakeSmfSbi{PathSwitchResponse: []byte{0x01}}
+	fakeSmf := &fakeSmfSbi{PathSwitchResponse: []byte{0x01}}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
-	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+	sourceRan.BindAMFForTest(amfInstance)
+	targetRan.BindAMFForTest(amfInstance)
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -344,7 +345,6 @@ func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	// No PDU sessions could be switched; should send failure
 	if len(fakeSmf.PathSwitchCalls) != 0 {
 		t.Fatalf("expected no SMF calls, got %d", len(fakeSmf.PathSwitchCalls))
 	}
@@ -367,11 +367,10 @@ func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 }
 
 func TestPathSwitchRequest_SmfReturnsError(t *testing.T) {
-	sourceNGAPSender := &FakeNGAPSender{}
+	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sourceNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
 	amfUe := newValidUeContext()
@@ -380,21 +379,22 @@ func TestPathSwitchRequest_SmfReturnsError(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	targetNGAPSender := &FakeNGAPSender{}
+	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
-	fakeSmf := &FakeSmfSbi{
+	fakeSmf := &fakeSmfSbi{
 		PathSwitchErr: fmt.Errorf("PFCP modification failed"),
 	}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
-	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+	sourceRan.BindAMFForTest(amfInstance)
+	targetRan.BindAMFForTest(amfInstance)
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -417,7 +417,6 @@ func TestPathSwitchRequest_SmfReturnsError(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	// SMF call should have been made
 	if len(fakeSmf.PathSwitchCalls) != 1 {
 		t.Fatalf("expected 1 SMF PathSwitch call, got %d", len(fakeSmf.PathSwitchCalls))
 	}
@@ -426,7 +425,6 @@ func TestPathSwitchRequest_SmfReturnsError(t *testing.T) {
 		t.Errorf("expected SmContextRef=imsi-001010000000001-1, got %s", fakeSmf.PathSwitchCalls[0].SmContextRef)
 	}
 
-	// All PDU sessions failed -> should send PathSwitchRequestFailure
 	if len(targetNGAPSender.SentPathSwitchRequestFailures) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestFailure, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestFailures))
@@ -446,11 +444,10 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 		kamfHex           = "0000000000000000000000000000000000000000000000000000000000000000"
 	)
 
-	sourceNGAPSender := &FakeNGAPSender{}
+	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sourceNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
 	amfUe := newValidUeContext()
@@ -460,23 +457,24 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	sourceUe := amf.NewRanUeForTest(sourceRan, 1, sourceAmfUeNgapID, logger.AmfLog)
-	amfUe.AttachRanUe(sourceUe)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, sourceAmfUeNgapID, logger.AmfLog)
+	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
-	targetNGAPSender := &FakeNGAPSender{}
+	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
 	n2Response := []byte{0xAA, 0xBB, 0xCC}
-	fakeSmf := &FakeSmfSbi{
+	fakeSmf := &fakeSmfSbi{
 		PathSwitchResponse: n2Response,
 	}
 
 	amfInstance := newTestAMFWithSmf(fakeSmf)
-	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+	sourceRan.BindAMFForTest(amfInstance)
+	targetRan.BindAMFForTest(amfInstance)
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -499,7 +497,6 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	// Verify SMF was called
 	if len(fakeSmf.PathSwitchCalls) != 1 {
 		t.Fatalf("expected 1 SMF PathSwitch call, got %d", len(fakeSmf.PathSwitchCalls))
 	}
@@ -508,7 +505,6 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 		t.Errorf("expected SmContextRef=imsi-001010000000001-1, got %s", fakeSmf.PathSwitchCalls[0].SmContextRef)
 	}
 
-	// Verify PathSwitchRequestAcknowledge was sent
 	if len(targetNGAPSender.SentPathSwitchRequestAcknowledges) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestAcknowledge, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestAcknowledges))
@@ -525,10 +521,9 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 	}
 
 	if ack.NCC == 0 {
-		t.Error("expected NCC > 0 after UpdateNH")
+		t.Error("expected NCC > 0 after advancing the NH chain")
 	}
 
-	// Verify the PDU session switched list contains the session
 	if len(ack.PDUSessionResourceSwitchedList.List) != 1 {
 		t.Fatalf("expected 1 switched PDU session, got %d", len(ack.PDUSessionResourceSwitchedList.List))
 	}
@@ -537,19 +532,97 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 		t.Errorf("expected PDU session ID %d, got %d", pduSessionID, ack.PDUSessionResourceSwitchedList.List[0].PDUSessionID.Value)
 	}
 
-	// Verify the RAN UE was switched to the new RAN
 	if sourceUe.Radio() != targetRan {
-		t.Error("expected RanUe to be switched to targetRan")
+		t.Error("expected UeConn to be switched to targetRan")
 	}
 
 	if sourceUe.RanUeNgapID != targetRanUeNgapID {
 		t.Errorf("expected RanUeNgapID=%d, got %d", targetRanUeNgapID, sourceUe.RanUeNgapID)
 	}
 
-	// No failures should be sent
 	if len(targetNGAPSender.SentPathSwitchRequestFailures) != 0 {
 		t.Fatalf("expected no PathSwitchRequestFailure, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestFailures))
+	}
+}
+
+// TestPathSwitchRequest_RejectedWhileKeyChainBusy verifies the {NH,NCC} chain claim
+// (TS 33.501 §6.9.5): while an N2 handover holds the key chain, a path switch is
+// rejected with a Path Switch Failure — without touching the SMF or advancing the
+// chain — so the two cannot double-advance the one {NH,NCC} counter.
+func TestPathSwitchRequest_RejectedWhileKeyChainBusy(t *testing.T) {
+	const (
+		pduSessionID      = uint8(1)
+		sourceAmfUeNgapID = int64(10)
+		targetRanUeNgapID = int64(2)
+		kamfHex           = "0000000000000000000000000000000000000000000000000000000000000000"
+	)
+
+	sourceNGAPSender := &fakeNGAPSender{}
+	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: sourceNGAPSender}
+
+	amfUe := newValidUeContext()
+	amfUe.SetKamfForTest(kamfHex)
+	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
+		Ref:    "imsi-001010000000001-1",
+		Snssai: &models.Snssai{Sst: 1},
+	}
+
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, sourceAmfUeNgapID, logger.AmfLog)
+	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+
+	targetNGAPSender := &fakeNGAPSender{}
+	targetRan := &amf.Radio{Log: logger.AmfLog, Conn: targetNGAPSender}
+
+	fakeSmf := &fakeSmfSbi{PathSwitchResponse: []byte{0xAA, 0xBB, 0xCC}}
+
+	amfInstance := newTestAMFWithSmf(fakeSmf)
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+	sourceRan.BindAMFForTest(amfInstance)
+	targetRan.BindAMFForTest(amfInstance)
+
+	// A concurrent N2 handover holds the key chain.
+	if _, err := amfUe.Procedures().Begin(context.Background(), procedure.Procedure{Type: procedure.N2Handover}); err != nil {
+		t.Fatalf("failed to begin N2Handover: %v", err)
+	}
+
+	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
+	if err != nil {
+		t.Fatalf("failed to build transfer: %v", err)
+	}
+
+	msg := buildPathSwitchRequest(
+		&ngapType.AMFUENGAPID{Value: sourceAmfUeNgapID},
+		&ngapType.RANUENGAPID{Value: targetRanUeNgapID},
+		&ngapType.PDUSessionResourceToBeSwitchedDLList{
+			List: []ngapType.PDUSessionResourceToBeSwitchedDLItem{
+				{
+					PDUSessionID:              ngapType.PDUSessionID{Value: int64(pduSessionID)},
+					PathSwitchRequestTransfer: transfer,
+				},
+			},
+		},
+		nil, nil,
+	)
+
+	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
+
+	if len(targetNGAPSender.SentPathSwitchRequestFailures) != 1 {
+		t.Fatalf("expected 1 PathSwitchRequestFailure, got %d", len(targetNGAPSender.SentPathSwitchRequestFailures))
+	}
+
+	if len(targetNGAPSender.SentPathSwitchRequestAcknowledges) != 0 {
+		t.Fatalf("expected no PathSwitchRequestAcknowledge, got %d", len(targetNGAPSender.SentPathSwitchRequestAcknowledges))
+	}
+
+	// The SMF must not be touched: a rejected path switch changes nothing.
+	if len(fakeSmf.PathSwitchCalls) != 0 {
+		t.Fatalf("expected no SMF PathSwitch call on a rejected path switch, got %d", len(fakeSmf.PathSwitchCalls))
+	}
+
+	// The UE stays on its source RAN; the key chain was not advanced.
+	if sourceUe.Radio() != sourceRan {
+		t.Error("expected UeConn to stay on sourceRan after a rejected path switch")
 	}
 }
 
@@ -565,11 +638,10 @@ func TestPathSwitchRequest_DuplicatePDUSessionIDs(t *testing.T) {
 		kamfHex           = "0000000000000000000000000000000000000000000000000000000000000000"
 	)
 
-	sourceNGAPSender := &FakeNGAPSender{}
+	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sourceNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
 	amfUe := newValidUeContext()
@@ -579,19 +651,20 @@ func TestPathSwitchRequest_DuplicatePDUSessionIDs(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	sourceUe := amf.NewRanUeForTest(sourceRan, 1, sourceAmfUeNgapID, logger.AmfLog)
-	amfUe.AttachRanUe(sourceUe)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, sourceAmfUeNgapID, logger.AmfLog)
+	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
-	targetNGAPSender := &FakeNGAPSender{}
+	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
-	fakeSmf := &FakeSmfSbi{PathSwitchResponse: []byte{0xAA, 0xBB, 0xCC}}
+	fakeSmf := &fakeSmfSbi{PathSwitchResponse: []byte{0xAA, 0xBB, 0xCC}}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
-	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+	sourceRan.BindAMFForTest(amfInstance)
+	targetRan.BindAMFForTest(amfInstance)
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -646,11 +719,10 @@ func TestPathSwitchRequest_DuplicatePDUSessionIDs(t *testing.T) {
 }
 
 func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
-	sourceNGAPSender := &FakeNGAPSender{}
+	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sourceNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
 	amfUe := newValidUeContext()
@@ -660,21 +732,22 @@ func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	targetNGAPSender := &FakeNGAPSender{}
+	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
-	fakeSmf := &FakeSmfSbi{
+	fakeSmf := &fakeSmfSbi{
 		PathSwitchResponse: []byte{0xAA},
 	}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
-	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+	sourceRan.BindAMFForTest(amfInstance)
+	targetRan.BindAMFForTest(amfInstance)
 
 	transfer1, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -706,12 +779,11 @@ func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	// Only session 1 should succeed
 	if len(fakeSmf.PathSwitchCalls) != 1 {
 		t.Fatalf("expected 1 SMF PathSwitch call, got %d", len(fakeSmf.PathSwitchCalls))
 	}
 
-	// Should still send acknowledge (at least one session succeeded)
+	// A path switch with at least one switched session is acknowledged, not failed.
 	if len(targetNGAPSender.SentPathSwitchRequestAcknowledges) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestAcknowledge, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestAcknowledges))
@@ -730,11 +802,10 @@ func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 }
 
 func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
-	sourceNGAPSender := &FakeNGAPSender{}
+	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sourceNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
 	amfUe := newValidUeContext()
@@ -747,28 +818,28 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	targetNGAPSender := &FakeNGAPSender{}
+	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
-	fakeSmf := &FakeSmfSbi{
+	fakeSmf := &fakeSmfSbi{
 		PathSwitchResponse: []byte{0xAA},
 	}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
-	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+	sourceRan.BindAMFForTest(amfInstance)
+	targetRan.BindAMFForTest(amfInstance)
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
 		t.Fatalf("failed to build transfer: %v", err)
 	}
 
-	// Build a failed transfer
 	failedTransfer := ngapType.PathSwitchRequestSetupFailedTransfer{
 		Cause: ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
@@ -807,12 +878,10 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	// Path switch succeeded for session 1
 	if len(fakeSmf.PathSwitchCalls) != 1 {
 		t.Fatalf("expected 1 PathSwitch call, got %d", len(fakeSmf.PathSwitchCalls))
 	}
 
-	// Handover failed reported for session 2
 	if len(fakeSmf.HandoverFailedCalls) != 1 {
 		t.Fatalf("expected 1 HandoverFailed call, got %d", len(fakeSmf.HandoverFailedCalls))
 	}
@@ -821,7 +890,6 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 		t.Errorf("expected SmContextRef=imsi-001010000000001-2, got %s", fakeSmf.HandoverFailedCalls[0].SmContextRef)
 	}
 
-	// Should send acknowledge
 	if len(targetNGAPSender.SentPathSwitchRequestAcknowledges) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestAcknowledge, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestAcknowledges))
@@ -832,11 +900,10 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 // AMF keeps its stored UE 5G security capabilities when the target gNB
 // reports different values in a PathSwitchRequest (TS 33.501).
 func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
-	sourceNGAPSender := &FakeNGAPSender{}
+	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sourceNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
 	amfUe := newValidUeContext()
@@ -853,21 +920,22 @@ func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	targetNGAPSender := &FakeNGAPSender{}
+	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
-	fakeSmf := &FakeSmfSbi{
+	fakeSmf := &fakeSmfSbi{
 		PathSwitchResponse: []byte{0xAA},
 	}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
-	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+	sourceRan.BindAMFForTest(amfInstance)
+	targetRan.BindAMFForTest(amfInstance)
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -957,11 +1025,10 @@ func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
 // happy path where the target gNB reports the same capabilities the AMF
 // has stored.
 func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
-	sourceNGAPSender := &FakeNGAPSender{}
+	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sourceNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
 	amfUe := newValidUeContext()
@@ -974,21 +1041,22 @@ func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	targetNGAPSender := &FakeNGAPSender{}
+	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
-	fakeSmf := &FakeSmfSbi{
+	fakeSmf := &fakeSmfSbi{
 		PathSwitchResponse: []byte{0xAA},
 	}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
-	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+	sourceRan.BindAMFForTest(amfInstance)
+	targetRan.BindAMFForTest(amfInstance)
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -1062,11 +1130,10 @@ func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 // bitstrings: the handler must not panic, must leave stored capabilities
 // untouched, and must still emit the PathSwitchRequestAcknowledge.
 func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
-	sourceNGAPSender := &FakeNGAPSender{}
+	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: sourceNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
 	amfUe := newValidUeContext()
@@ -1079,21 +1146,22 @@ func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	targetNGAPSender := &FakeNGAPSender{}
+	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amf.RanUe),
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
-	fakeSmf := &FakeSmfSbi{
+	fakeSmf := &fakeSmfSbi{
 		PathSwitchResponse: []byte{0xAA},
 	}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
-	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+	sourceRan.BindAMFForTest(amfInstance)
+	targetRan.BindAMFForTest(amfInstance)
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -1143,5 +1211,77 @@ func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
 	if len(targetNGAPSender.SentPathSwitchRequestAcknowledges) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestAcknowledge despite malformed security IE, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestAcknowledges))
+	}
+}
+
+// TestPathSwitchRequest_PartialFailureReleasesUnswitched verifies that when the core
+// switches some but not all PDU sessions, the PATH SWITCH REQUEST ACKNOWLEDGE lists
+// the ones it could not switch in the PDU Session Resource Released List so the NG-RAN
+// releases them rather than keeping a session with no downlink path (TS 38.413 §8.4.4.2).
+func TestPathSwitchRequest_PartialFailureReleasesUnswitched(t *testing.T) {
+	const (
+		switchedID        = uint8(1)
+		unswitchedID      = uint8(2)
+		sourceAmfUeNgapID = int64(10)
+		targetRanUeNgapID = int64(2)
+		kamfHex           = "0000000000000000000000000000000000000000000000000000000000000000"
+	)
+
+	sourceNGAPSender := &fakeNGAPSender{}
+	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: sourceNGAPSender}
+
+	amfUe := newValidUeContext()
+	amfUe.SetKamfForTest(kamfHex)
+	// Only the switched session has an SM context; the other resolves to
+	// SmContext-not-found and must be reported in the released list.
+	amfUe.SmContextList[switchedID] = &amf.SmContext{Ref: "imsi-001010000000001-1", Snssai: &models.Snssai{Sst: 1}}
+
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, sourceAmfUeNgapID, logger.AmfLog)
+	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+
+	targetNGAPSender := &fakeNGAPSender{}
+	targetRan := &amf.Radio{Log: logger.AmfLog, Conn: targetNGAPSender}
+
+	fakeSmf := &fakeSmfSbi{PathSwitchResponse: []byte{0xAA, 0xBB, 0xCC}}
+	amfInstance := newTestAMFWithSmf(fakeSmf)
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+	sourceRan.BindAMFForTest(amfInstance)
+	targetRan.BindAMFForTest(amfInstance)
+
+	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
+	if err != nil {
+		t.Fatalf("failed to build transfer: %v", err)
+	}
+
+	msg := buildPathSwitchRequest(
+		&ngapType.AMFUENGAPID{Value: sourceAmfUeNgapID},
+		&ngapType.RANUENGAPID{Value: targetRanUeNgapID},
+		&ngapType.PDUSessionResourceToBeSwitchedDLList{
+			List: []ngapType.PDUSessionResourceToBeSwitchedDLItem{
+				{PDUSessionID: ngapType.PDUSessionID{Value: int64(switchedID)}, PathSwitchRequestTransfer: transfer},
+				{PDUSessionID: ngapType.PDUSessionID{Value: int64(unswitchedID)}, PathSwitchRequestTransfer: transfer},
+			},
+		},
+		nil, nil,
+	)
+
+	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
+
+	if len(targetNGAPSender.SentPathSwitchRequestAcknowledges) != 1 {
+		t.Fatalf("expected 1 PathSwitchRequestAcknowledge, got %d", len(targetNGAPSender.SentPathSwitchRequestAcknowledges))
+	}
+
+	ack := targetNGAPSender.SentPathSwitchRequestAcknowledges[0]
+
+	if len(ack.PDUSessionResourceSwitchedList.List) != 1 {
+		t.Fatalf("expected 1 switched PDU session, got %d", len(ack.PDUSessionResourceSwitchedList.List))
+	}
+
+	if len(ack.PDUSessionResourceReleasedListAck.List) != 1 {
+		t.Fatalf("expected 1 released PDU session (TS 38.413 §8.4.4.2), got %d", len(ack.PDUSessionResourceReleasedListAck.List))
+	}
+
+	if got := ack.PDUSessionResourceReleasedListAck.List[0].PDUSessionID.Value; got != int64(unswitchedID) {
+		t.Fatalf("released PDU session = %d, want %d", got, unswitchedID)
 	}
 }

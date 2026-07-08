@@ -19,7 +19,7 @@ func plainPDU(mt eps.MessageType) []byte {
 // mutate any security-policy field on the UE when accepting a plain NAS PDU on
 // the §4.4.4.3 whitelist. Mirrors the 5G AMF purity test.
 func TestDecodeNASMessage_PurityOnPlainWhitelist(t *testing.T) {
-	ue := &UeContext{imsi: testSubscriber.IMSI}
+	ue := &UeContext{supi: mustSUPI(testSubscriber.IMSI)}
 	before := snapshotSecurityState(ue)
 
 	if _, err := DecodeNASMessage(ue, plainPDU(eps.MsgAttachRequest)); err != nil {
@@ -36,7 +36,7 @@ func TestDecodeNASMessage_PurityOnPlainWhitelist(t *testing.T) {
 // whitelist (TRACKING AREA UPDATE REQUEST). This is the anti-DoS-amplification
 // invariant. Mirrors the 5G AMF purity test.
 func TestDecodeNASMessage_PurityOnPlainReject(t *testing.T) {
-	ue := &UeContext{imsi: testSubscriber.IMSI}
+	ue := &UeContext{supi: mustSUPI(testSubscriber.IMSI)}
 	before := snapshotSecurityState(ue)
 
 	if _, err := DecodeNASMessage(ue, plainPDU(eps.MsgTrackingAreaUpdateRequest)); err == nil {
@@ -71,8 +71,8 @@ func snapshotSecurityState(ue *UeContext) securityStateSnapshot {
 		Kasme:   string(ue.kasme),
 		KnasEnc: ue.knasEnc,
 		KnasInt: ue.knasInt,
-		EEA:     ue.eea,
-		EIA:     ue.eia,
+		EEA:     ue.cipheringAlg,
+		EIA:     ue.integrityAlg,
 		Secured: ue.secured,
 		NH:      ue.nh,
 		NCC:     ue.ncc,

@@ -330,22 +330,20 @@ func mockSessionForSubscriber(amfInstance *amf.AMF, testSmfInstance *smf.SMF, im
 		return fmt.Errorf("failed to create SUPI from IMSI: %w", err)
 	}
 
-	ue, found := amfInstance.FindUeContextBySupi(supi)
+	ue, found := amfInstance.LookupUeBySupi(supi)
 	if !found {
 		ue = amf.NewUeContext()
 		ue.SetSupiForTest(supi)
 
-		if err := amfInstance.AddUeContextToPool(ue); err != nil {
+		if err := amfInstance.CommitUEIdentity(context.Background(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
 			return fmt.Errorf("failed to add UE to AMF pool: %w", err)
 		}
 	}
 
 	pduSessionID := uint8(1)
-	testSmfInstance.NewSession(supi, pduSessionID, dnn, nil)
+	sc := testSmfInstance.NewSession(supi, pduSessionID, dnn, nil)
 
-	sessionRef := smf.CanonicalName(supi, pduSessionID)
-
-	err = ue.CreateSmContext(pduSessionID, sessionRef, nil)
+	err = ue.CreateSmContext(pduSessionID, sc.Ref, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create SmContext: %w", err)
 	}

@@ -9,42 +9,70 @@ package amf
 
 import (
 	"crypto/hmac"
+	"errors"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/security"
 	"go.uber.org/zap"
 )
 
+// decodeError couples a decode or classify failure to the nasreply.Disposition the ingress
+// finalizer must apply, so a NAS PDU the AMF cannot process draws the STATUS the spec mandates
+// or an audited silence — never a bare drop.
+type decodeError struct {
+	disposition nasreply.Disposition
+	detail      string
+}
+
+func (e *decodeError) Error() string { return e.detail }
+
+// DispositionForDecodeError returns the disposition the decode layer attached to err. Any
+// other error (e.g. a plain free5gc decode error not yet classified) resolves to an audited
+// silent discard, so an unexpected failure fails safe rather than replying blindly.
+func DispositionForDecodeError(err error) nasreply.Disposition {
+	if de, ok := errors.AsType[*decodeError](err); ok {
+		return de.disposition
+	}
+
+	return nasreply.Silent(nasreply.ReasonUnspecified)
+}
+
+func silentDecode(reason nasreply.Reason, format string, args ...any) error {
+	return &decodeError{disposition: nasreply.Silent(reason), detail: fmt.Sprintf(format, args...)}
+}
+
+func statusDecode(cause uint8, format string, args ...any) error {
+	return &decodeError{disposition: nasreply.StatusMM(cause), detail: fmt.Sprintf(format, args...)}
+}
+
 // DecodeNASMessage parses a 5GS NAS PDU (plain or security-protected) and
-// returns the decoded message together with a policy Verdict. The caller
-// dispatches to a GMM handler based on the verdict. The only ue mutation
-// performed here is advancing ue.ULCount.
-//
-// See TS 24.501 and TS 33.501 for the policy.
+// returns the decoded message together with a policy Verdict. The only UE
+// mutation performed here is advancing ue.ULCount (TS 24.501, TS 33.501).
 func DecodeNASMessage(ue *UeContext, payload []byte) (*DecodeResult, error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
 	if payload == nil {
-		return nil, fmt.Errorf("nas payload is empty")
+		return nil, silentDecode(nasreply.ReasonTooShort, "nas payload is empty")
 	}
 
 	if len(payload) < 2 {
-		return nil, fmt.Errorf("nas payload is too short")
+		return nil, silentDecode(nasreply.ReasonTooShort, "nas payload is too short")
 	}
 
 	msg := new(nas.Message)
 	msg.SecurityHeaderType = nas.GetSecurityHeaderType(payload) & 0x0f
 
-	conn := ue.NasConn()
+	conn := ue.Conn()
 
 	if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
-		// TS 24.501: once secure exchange of NAS messages is
-		// established for the connection, a message that is not integrity
-		// protected is discarded.
-		if conn != nil && conn.secureExchangeEstablished {
-			return nil, fmt.Errorf("plain NAS message discarded: secure exchange already established (TS 24.501)")
+		// TS 24.501: once secure NAS exchange is established for the
+		// connection, a message that is not integrity protected is discarded.
+		if conn.SecureExchangeEstablished() {
+			return nil, silentDecode(nasreply.ReasonIntegrityFail, "plain NAS discarded: secure exchange established (TS 24.501 §4.4.4.3)")
 		}
 
 		return decodePlainNAS(msg, payload)
@@ -55,9 +83,7 @@ func DecodeNASMessage(ue *UeContext, payload []byte) (*DecodeResult, error) {
 
 // NasIntegrityVerified reports whether payload is an integrity-protected NAS
 // PDU whose MAC verifies against this UE's current 5G NAS security context. It
-// does not mutate any UE state: the uplink count is evaluated on a copy. A
-// plain NAS PDU, a PDU that fails the MAC check, or the absence of a usable
-// security context all return false.
+// does not mutate any UE state: the uplink count is evaluated on a copy.
 //
 // It is the authorization gate for an inbound message that resolved to an
 // existing context by GUTI/5G-S-TMSI: only a message proven to originate from
@@ -88,14 +114,9 @@ func (ue *UeContext) NasIntegrityVerified(payload []byte) bool {
 	receivedMac := payload[2:6]
 	sqn := payload[6]
 
-	cnt := ue.ulCount // value copy; never committed back to the context
-	if cnt.SQN() > sqn {
-		cnt.SetOverflow(cnt.Overflow() + 1)
-	}
+	cnt := ue.ulCount.ReconcileUplink(sqn) // never committed back to the context
 
-	cnt.SetSQN(sqn)
-
-	mac, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, cnt.Get(), security.Bearer3GPP, security.DirectionUplink, payload[6:])
+	mac, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, cnt.Value(), security.Bearer3GPP, security.DirectionUplink, payload[6:])
 	if err != nil {
 		return false
 	}
@@ -104,48 +125,48 @@ func (ue *UeContext) NasIntegrityVerified(payload []byte) bool {
 }
 
 // ReuseForInboundNAS reports whether an inbound NAS PDU that resolved to this
-// committed context by GUTI/5G-S-TMSI may act on it: only when it is
-// integrity-verified against the context. Any other message is processed on a
-// fresh context, so context resolution never mutates a committed context — it
-// either reuses a verified one or yields a fresh one, leaving the committed
-// NAS security context and PDU sessions untouched (TS 24.501). On a
-// fresh context a registration re-authenticates, a service request is rejected
-// with 5GMM cause #9, and a deregistration is ignored — each the spec outcome.
+// committed context by GUTI/5G-S-TMSI may act on it: only when integrity-verified.
+// Any other message is processed on a fresh context, leaving the committed
+// security context and PDU sessions untouched (TS 24.501).
 func (ue *UeContext) ReuseForInboundNAS(payload []byte) bool {
 	return ue.NasIntegrityVerified(payload)
 }
 
 func decodePlainNAS(msg *nas.Message, payload []byte) (*DecodeResult, error) {
+	// PlainNasDecode consumes payload; capture whether the message-type octet was present so
+	// a too-short PDU (§7.2.1, silent) is told apart from a decodable type whose body is
+	// malformed (§7.5.1, 5GMM STATUS #96).
+	typeReadable := len(payload) >= 3
+
 	if err := msg.PlainNasDecode(&payload); err != nil {
-		return nil, err
+		if !typeReadable {
+			return nil, silentDecode(nasreply.ReasonTooShort, "plain NAS too short to classify: %v", err)
+		}
+
+		return nil, statusDecode(nasreply.CauseInvalidMandatoryInfo, "plain NAS decode failed: %v", err)
 	}
 
 	if msg.GmmMessage == nil {
-		return nil, fmt.Errorf("plain NAS message has no GMM body")
+		return nil, silentDecode(nasreply.ReasonOutOfState, "plain NAS message has no GMM body")
 	}
 
 	msgType := msg.GmmHeader.GetMessageType()
 
-	verdict := classifyNasPdu(msgType, nas.SecurityHeaderTypePlainNas, false)
-	if verdict == VerdictReject {
-		return nil, fmt.Errorf(
-			"plain NAS message type %d not permitted by TS 24.501",
-			msgType,
-		)
+	if classifyNasPdu(msgType, nas.SecurityHeaderTypePlainNas, false) == VerdictReject {
+		return nil, silentDecode(nasreply.ReasonIntegrityFail, "plain NAS message type %d not permitted by TS 24.501 §4.4.4.3", msgType)
 	}
 
-	return &DecodeResult{Message: msg, Verdict: verdict}, nil
+	return &DecodeResult{Message: msg, IntegrityVerified: false}, nil
 }
 
-func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *ActiveNasConnection) (*DecodeResult, error) {
+func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *UeConn) (*DecodeResult, error) {
 	if len(payload) < 7 {
-		return nil, fmt.Errorf("nas payload is too short")
+		return nil, silentDecode(nasreply.ReasonTooShort, "nas payload is too short")
 	}
 
 	securityHeader := payload[0:6]
 	sequenceNumber := payload[6]
 	receivedMac32 := securityHeader[2:]
-	// remove security Header except for sequence Number
 	payload = payload[6:]
 
 	ciphered := false
@@ -162,65 +183,63 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *A
 	case nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext:
 		ciphered = true
 
-		cnt.Set(0, 0)
+		cnt = 0
 	default:
-		return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeaderType)
+		return nil, silentDecode(nasreply.ReasonUnspecified, "wrong security header type: 0x%0x", msg.SecurityHeaderType)
 	}
 
-	if cnt.SQN() > sequenceNumber {
-		ue.Log.Debug("set ULCount overflow")
-		cnt.SetOverflow(cnt.Overflow() + 1)
-	}
+	cnt = cnt.ReconcileUplink(sequenceNumber)
 
-	cnt.SetSQN(sequenceNumber)
-
-	mac32, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, cnt.Get(), security.Bearer3GPP,
+	mac32, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, cnt.Value(), security.Bearer3GPP,
 		security.DirectionUplink, payload)
 	if err != nil {
-		return nil, fmt.Errorf("error calculating mac: %+v", err)
+		return nil, silentDecode(nasreply.ReasonUnspecified, "error calculating mac: %+v", err)
 	}
 
 	macVerified := hmac.Equal(mac32, receivedMac32)
 	if !macVerified {
-		ue.Log.Warn("NAS MAC verification failed")
+		logger.AmfLog.Warn("NAS MAC verification failed")
 	}
 
 	if ciphered {
-		ue.Log.Debug("Decrypt NAS message", zap.Uint8("algorithm", ue.cipheringAlg), zap.Uint32("ULCount", cnt.Get()))
+		logger.AmfLog.Debug("Decrypt NAS message", zap.Uint8("algorithm", ue.cipheringAlg), zap.Uint32("ULCount", cnt.Value()))
 
-		if err = security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, cnt.Get(), security.Bearer3GPP,
+		if err = security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, cnt.Value(), security.Bearer3GPP,
 			security.DirectionUplink, payload[1:]); err != nil {
-			return nil, fmt.Errorf("error encrypting: %+v", err)
+			return nil, silentDecode(nasreply.ReasonUnspecified, "error encrypting: %+v", err)
 		}
 	}
 
-	// remove sequence number
 	payload = payload[1:]
 	if err := msg.PlainNasDecode(&payload); err != nil {
-		return nil, err
+		// A malformed body under a verified MAC is a protocol error the sender can act on
+		// (5GMM STATUS #96); under an unverified MAC it is indistinguishable from garbage,
+		// so it is discarded silently (TS 24.501 §4.4.4.3).
+		if macVerified {
+			return nil, statusDecode(nasreply.CauseInvalidMandatoryInfo, "protected NAS decode failed: %v", err)
+		}
+
+		return nil, silentDecode(nasreply.ReasonIntegrityFail, "protected NAS decode failed under unverified MAC: %v", err)
 	}
 
 	msgType := msg.GmmHeader.GetMessageType()
 
-	verdict := classifyNasPdu(msgType, msg.SecurityHeaderType, macVerified)
-	if verdict == VerdictReject {
-		return nil, fmt.Errorf("mac verification failed for the nas message: %v", msgType)
+	if classifyNasPdu(msgType, msg.SecurityHeaderType, macVerified) == VerdictReject {
+		return nil, silentDecode(nasreply.ReasonIntegrityFail, "mac verification failed for the nas message: %v", msgType)
 	}
 
 	// TS 24.501: once secure exchange is established, a message failing
 	// the integrity check is discarded.
-	if conn != nil && conn.secureExchangeEstablished && !macVerified {
-		return nil, fmt.Errorf("nas message discarded: integrity check failed after secure exchange established (TS 24.501)")
+	if conn.SecureExchangeEstablished() && !macVerified {
+		return nil, silentDecode(nasreply.ReasonIntegrityFail, "nas message discarded: integrity check failed after secure exchange established (TS 24.501 §4.4.4.3)")
 	}
 
 	if macVerified {
 		ue.ulCount = cnt
 
 		// First verified message establishes secure exchange on the connection (TS 24.501).
-		if conn != nil {
-			conn.secureExchangeEstablished = true
-		}
+		conn.MarkSecureExchangeEstablished()
 	}
 
-	return &DecodeResult{Message: msg, Verdict: verdict}, nil
+	return &DecodeResult{Message: msg, IntegrityVerified: macVerified}, nil
 }

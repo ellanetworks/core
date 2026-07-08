@@ -77,6 +77,31 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 		return nil
 	}
 
+	// A network-requested modification or release is already outstanding
+	// (T3591/T3592 running); re-firing resends the command and resets the
+	// retransmission counter, or double-frees on release. Defer to the next
+	// backstop sweep.
+	if smContext.procedureTimer.Active() {
+		logger.SmfLog.Debug("a network-requested procedure is in flight, skipping reconciliation",
+			logger.SUPI(smContext.Supi.String()),
+			logger.PDUSessionID(smContext.PDUSessionID),
+		)
+
+		return nil
+	}
+
+	// UE in CM-IDLE (user plane buffering): do not touch any enforcement point
+	// while it is unreachable. The change is applied atomically to UPF + RAN + UE
+	// when the UE reactivates.
+	if !smContext.upConnectionActive() {
+		logger.SmfLog.Debug("UE idle (user plane buffering), deferring reconciliation to reactivation",
+			logger.SUPI(smContext.Supi.String()),
+			logger.PDUSessionID(smContext.PDUSessionID),
+		)
+
+		return nil
+	}
+
 	// Slice (SST/SD) change: stored Snssai matches no configured slice. Release
 	// with cause #39 so the UE re-establishes on the new slice (TS 23.502).
 	if req.Reason == models.ReconcileSliceMismatch {
@@ -107,7 +132,6 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 		}
 	}
 
-	// QoS/AMBR/DNS modification path.
 	oldQoS := smContext.PolicyData.QosData
 	oldAmbr := smContext.PolicyData.Ambr
 
@@ -196,15 +220,17 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 		)
 	}
 
-	// Send N1 (NAS) + N2 (NGAP) to the UE and gNB (TS 23.502).
-	//
 	// If the UE is in CM-IDLE, N1N2 delivery is skipped (TS 23.502: the AMF may
-	// ignore N2 SM information when the UE is unreachable); the policy is still
-	// committed so ActivateSmContext returns updated QoS when the UE returns to
-	// CM-CONNECTED.
+	// ignore N2 SM information when the UE is unreachable) and the policy is
+	// committed immediately; if connected, the commit is deferred until the UE
+	// answers the modification.
+	ueIdle := false
+
 	if (hasAmbrChange || hasQoSChange || hasDNSChange) && req.NewPolicy != nil {
 		if err := s.sendSessionModification(ctx, smContext, newPolicy, hasAmbrChange, hasQoSChange, hasDNSChange); err != nil {
 			if errors.Is(err, ErrUENotReachable) {
+				ueIdle = true
+
 				logger.SmfLog.Debug("UE is idle, skipping N1N2 delivery; policy committed for next activation",
 					logger.SUPI(smContext.Supi.String()),
 					logger.PDUSessionID(smContext.PDUSessionID),
@@ -224,30 +250,28 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 		}
 	}
 
-	// Commit policy after PFCP succeeds. Skipped N1/N2 delivery (UE idle) is fine:
-	// ActivateSmContext rebuilds the Setup Transfer from PolicyData, so the UE
-	// gets updated QoS on reconnect.
 	if (hasQoSChange || hasAmbrChange || hasDNSChange) && req.NewPolicy != nil {
-		smContext.PolicyData = newPolicy
+		if ueIdle {
+			// No procedure to await: commit now. ActivateSmContext rebuilds the Setup
+			// Transfer from PolicyData, so the UE gets updated QoS on reconnect.
+			smContext.PolicyData = newPolicy
+		} else {
+			// UE connected: the modification command is outstanding. Commit only when
+			// the UE answers PDU SESSION MODIFICATION COMPLETE (TS 24.501 §6.3.2.2); a
+			// reject or T3591 abort discards this and keeps the previous configuration
+			// (§6.3.2.5), which the backstop then re-attempts.
+			smContext.pendingPolicy = newPolicy
+		}
 	}
 
 	return nil
 }
 
-// sendSessionModification builds and sends N1+N2 messages for the network-
-// requested PDU Session Modification (TS 23.502).
-//
-// N1 (to UE): PDU Session Modification Command containing:
-//   - Session-AMBR IE (when ambr changed, TS 24.501)
-//   - Authorized QoS flow descriptions IE (when 5QI/ARP changed, TS 24.501)
-//   - Extended PCO with DNS server address(es) (when DNS changed, TS 24.501)
-//
-// N2 (to gNB): PDU Session Resource Modify Request Transfer containing:
-//   - PDU Session Aggregate Maximum Bit Rate (when AMBR changed)
-//   - QoS Flow Add or Modify Request List (when 5QI/ARP changed)
-//
-// When only DNS changes (no AMBR/QoS), only N1 is sent since DNS is a NAS-level
-// parameter that does not affect the gNB.
+// sendSessionModification builds and sends N1+N2 for the network-requested PDU
+// Session Modification (TS 23.502): the PDU Session Modification Command (N1, to
+// UE) and the PDU Session Resource Modify Request Transfer (N2, to gNB), each
+// carrying only the changed AMBR/QoS IEs (TS 24.501). A DNS-only change sends N1
+// alone, since DNS travels in the NAS Extended PCO and does not affect the gNB.
 func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext, policy *Policy, hasAmbrChange, hasQoSChange, hasDNSChange bool) error {
 	var n1Ambr *models.Ambr
 	if hasAmbrChange {
@@ -307,6 +331,11 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 		func() error { return s.amf.ModifyN1N2(context.Background(), supi, pduSessionID, n1Msg, n2Msg) },
 		func(sc *SMContext) {
 			sc.ClearPTIInUse(0)
+			// Discard the uncommitted policy: the UE never confirmed, so the session
+			// keeps its previous configuration and the backstop re-attempts (TS 24.501
+			// §6.3.2.5).
+			sc.pendingPolicy = nil
+
 			logger.SmfLog.Warn("T3591 expired; PDU session modification aborted, session remains active",
 				logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
 		})
@@ -331,8 +360,7 @@ func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy 
 // applySessionQERs sets every distinct session QER (deduped across UL/DL) to the
 // given QFI and AMBR-derived MBR, marks them for update, and sends a PFCP Session
 // Modification. On a failed modify it restores each QER's prior MBR/QFI/state, so
-// the cached rules never run ahead of the data plane. It is the shared data-plane
-// AMBR update for both 5G reconciliation and 4G UpdateEPSSessionAMBR.
+// the cached rules never run ahead of the data plane.
 //
 // QER MBR is set to the session AMBR because this implementation supports a single
 // QoS flow per session (non-GBR only): per TS 23.501 the session AMBR is the
@@ -417,9 +445,8 @@ func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policy
 }
 
 // sendSessionRelease performs the network-requested PDU session release
-// (TS 23.502, TS 24.501) triggered by a slice (SST/SD) change, using cause #39
-// "reactivation requested" so the UE re-establishes on the correct slice
-// (TS 24.501). Caller must hold smContext.Mutex.
+// (TS 23.502, TS 24.501) with cause #39 "reactivation requested" so the UE
+// re-establishes on the correct slice. Caller must hold smContext.Mutex.
 func (s *SMF) sendSessionRelease(ctx context.Context, smContext *SMContext) error {
 	return s.startRelease(ctx, smContext, 0, nasMessage.Cause5GSMReactivationRequested)
 }

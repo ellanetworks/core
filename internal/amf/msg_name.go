@@ -9,7 +9,7 @@ import (
 	"github.com/free5gc/nas"
 )
 
-func MessageName(code uint8) string {
+func GmmMessageTypeName(code uint8) string {
 	switch code {
 	case nas.MsgTypeRegistrationRequest:
 		return "RegistrationRequest"

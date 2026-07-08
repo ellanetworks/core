@@ -4,8 +4,10 @@
 package s1ap
 
 import (
+	"context"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -14,7 +16,7 @@ func TestUEContextReleaseCompleteArmsMobileReachable(t *testing.T) {
 
 	ue, cc := securedUE(t, m) // connected; the release moves it to ECM-IDLE
 
-	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.S1.MMEUES1APID, ENBUES1APID: 7}
+	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: 7}
 
 	b, err := complete.Marshal()
 	if err != nil {
@@ -26,7 +28,7 @@ func TestUEContextReleaseCompleteArmsMobileReachable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	HandleUEContextReleaseComplete(m, cc, cpdu.(*s1ap.SuccessfulOutcome).Value)
+	HandleUEContextReleaseComplete(m, context.Background(), mme.NewRadioForTest(cc), cpdu.(*s1ap.SuccessfulOutcome).Value)
 
 	if ue.Connected() {
 		t.Fatal("UE still connected after S1 release")

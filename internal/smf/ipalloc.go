@@ -14,7 +14,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// netipToIP adapts a netip.Addr to the net.IP the NAS/NGAP code expects.
 func netipToIP(addr netip.Addr) net.IP {
 	if addr.Is4() {
 		b := addr.As4()
@@ -142,7 +141,7 @@ func (s *SMF) allocateUEAddresses(ctx context.Context, sc *SMContext) (netip.Add
 	if sc.PDUSessionType == nasMessage.PDUSessionTypeIPv6 || sc.PDUSessionType == nasMessage.PDUSessionTypeIPv4IPv6 {
 		ipv6Prefix, err := s.store.AllocateIPv6(ctx, imsi, sc.Dnn, sc.PDUSessionID)
 		if err != nil {
-			s.releaseAllocatedAddresses(ctx, sc) // rolls back the IPv4 lease if dual-stack
+			s.releaseAllocatedAddresses(ctx, sc)
 			return netip.Addr{}, ueAddresses{}, fmt.Errorf("allocate UE IPv6 prefix: %w", err)
 		}
 

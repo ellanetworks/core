@@ -16,6 +16,7 @@ const (
 	S1APProcedureInitialUEMessage            S1APProcedure = "InitialUEMessage"
 	S1APProcedureUplinkNASTransport          S1APProcedure = "UplinkNASTransport"
 	S1APProcedureDownlinkNASTransport        S1APProcedure = "DownlinkNASTransport"
+	S1APProcedureNASNonDeliveryIndication    S1APProcedure = "NASNonDeliveryIndication"
 	S1APProcedureInitialContextSetupRequest  S1APProcedure = "InitialContextSetupRequest"
 	S1APProcedureInitialContextSetupResponse S1APProcedure = "InitialContextSetupResponse"
 	S1APProcedureInitialContextSetupFailure  S1APProcedure = "InitialContextSetupFailure"
@@ -79,6 +80,8 @@ func s1apInitiatingMessageType(code s1ap.ProcedureCode) S1APProcedure {
 		return S1APProcedureUplinkNASTransport
 	case s1ap.ProcDownlinkNASTransport:
 		return S1APProcedureDownlinkNASTransport
+	case s1ap.ProcNASNonDeliveryIndication:
+		return S1APProcedureNASNonDeliveryIndication
 	case s1ap.ProcInitialContextSetup:
 		return S1APProcedureInitialContextSetupRequest
 	case s1ap.ProcUEContextReleaseRequest:

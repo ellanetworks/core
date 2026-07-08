@@ -353,7 +353,7 @@ func TestNewSession_AddsToPool(t *testing.T) {
 		t.Fatalf("expected DNN %s, got %s", testDNN, smCtx.Dnn)
 	}
 
-	ref := smf.CanonicalName(supi, 1)
+	ref := smCtx.Ref
 
 	got := s.GetSession(ref)
 	if got != smCtx {
@@ -377,8 +377,8 @@ func TestRemoveSession_RemovesFromPool(t *testing.T) {
 	supi := testSUPI()
 	bgCtx := context.Background()
 
-	s.NewSession(supi, 1, testDNN, testSnssai)
-	ref := smf.CanonicalName(supi, 1)
+	smCtx := s.NewSession(supi, 1, testDNN, testSnssai)
+	ref := smCtx.Ref
 
 	s.RemoveSession(bgCtx, ref)
 
@@ -396,7 +396,7 @@ func TestRemoveSession_ReleasesIP(t *testing.T) {
 
 	smCtx := s.NewSession(supi, 1, testDNN, testSnssai)
 	smCtx.PDUIPV4Address = net.ParseIP("10.0.0.1").To4()
-	ref := smf.CanonicalName(supi, 1)
+	ref := smCtx.Ref
 
 	s.RemoveSession(bgCtx, ref)
 
@@ -658,31 +658,37 @@ func TestConcurrentSessionCreation(t *testing.T) {
 	}
 }
 
-func TestNewSession_ReplacesExisting(t *testing.T) {
+func TestNewSession_DistinctInstancesCoexist(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	supi := testSUPI()
 
-	s.NewSession(supi, 1, testDNN, testSnssai)
+	ctx1 := s.NewSession(supi, 1, testDNN, testSnssai)
 	ctx2 := s.NewSession(supi, 1, "ims", testSnssai)
 
-	ref := smf.CanonicalName(supi, 1)
+	// Two sessions for the same (SUPI, id) get distinct refs and both stay in the
+	// pool, each retrievable by its own ref — neither overwrites the other.
+	if ctx1.Ref == ctx2.Ref {
+		t.Fatalf("second session must get a distinct ref, got %q twice", ctx1.Ref)
+	}
 
-	got := s.GetSession(ref)
+	if s.GetSession(ctx1.Ref) != ctx1 {
+		t.Fatal("first session must remain retrievable by its own ref")
+	}
+
+	got := s.GetSession(ctx2.Ref)
 	if got != ctx2 {
-		t.Fatal("expected the second session to replace the first")
+		t.Fatal("second session must be retrievable by its own ref")
 	}
 
 	if got.Dnn != "ims" {
 		t.Fatalf("expected DNN ims, got %s", got.Dnn)
 	}
 
-	if s.SessionCount() != 1 {
-		t.Fatalf("expected 1 session, got %d", s.SessionCount())
+	if s.SessionCount() != 2 {
+		t.Fatalf("expected 2 coexisting sessions, got %d", s.SessionCount())
 	}
 }
 
-// BGP integration tests were removed when the SMF→BGP coupling was
-// deleted. Route announce/withdraw is now driven by the BGP reconciler
-// reading the replicated ip_leases table; see internal/bgp/reconciler.go
-// and its tests.
+// Route announce/withdraw is driven by the BGP reconciler reading the
+// replicated ip_leases table; see internal/bgp/reconciler.go and its tests.

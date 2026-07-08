@@ -14,8 +14,8 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleHandoverCancel(ctx context.Context, ran *amf.Radio, msg decode.HandoverCancel) {
-	sourceUe, ok := resolveUE(ctx, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.HandoverCancel) {
+	sourceUe, ok := resolveUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
 	if !ok {
 		return
 	}
@@ -40,31 +40,28 @@ func HandleHandoverCancel(ctx context.Context, ran *amf.Radio, msg decode.Handov
 
 	amfUe := sourceUe.UeContext()
 
-	// Capture the target before ClearHandover wipes it.
-	targetUe := amfUe.HandoverTarget()
-	if targetUe == nil {
-		logger.WithTrace(ctx, sourceUe.Log).Error("N2 Handover between AMF has not been implemented yet")
-		return
-	}
-
-	if amfUe != nil {
-		if conn := amfUe.NasConn(); conn != nil {
-			conn.Procedures.End(procedure.N2Handover)
+	// A committing handover (HANDOVER NOTIFY already in flight) is too late to cancel:
+	// CancelHandover leaves it for the NOTIFY to finish and reports aborted=false, so
+	// the target the UE is moving onto is not released out from under it. Only a
+	// cancellable handover ends the procedure and releases a prepared target; the
+	// acknowledge is always sent (TS 38.413 §8.4.5).
+	target, aborted := amfInstance.CancelHandover(amfUe)
+	if aborted {
+		if conn := amfUe.Conn(); conn != nil {
+			conn.Parent().EndKeyChainProc(procedure.N2Handover)
 		}
 
-		amfUe.ClearHandover()
+		if target != nil {
+			target.ReleaseAction = amf.UeContextReleaseHandover
+
+			if err := target.SendUEContextReleaseCommand(ctx, causePresent, causeValue); err != nil {
+				logger.WithTrace(ctx, sourceUe.Log).Error("error sending UE Context Release Command to target UE", zap.Error(err))
+				return
+			}
+		}
 	}
 
-	targetUe.ReleaseAction = amf.UeContextReleaseHandover
-
-	err = targetUe.SendUEContextReleaseCommand(ctx, causePresent, causeValue)
-	if err != nil {
-		logger.WithTrace(ctx, sourceUe.Log).Error("error sending UE Context Release Command to target UE", zap.Error(err))
-		return
-	}
-
-	err = sourceUe.SendHandoverCancelAcknowledge(ctx)
-	if err != nil {
+	if err := sourceUe.SendHandoverCancelAcknowledge(ctx); err != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover cancel acknowledge to source UE", zap.Error(err))
 		return
 	}

@@ -18,7 +18,7 @@ import (
 	"github.com/free5gc/nas/nasType"
 )
 
-// A missing RES* (nil amf.Authentication response parameter IE) is treated as an
+// A missing RES* (nil authentication response parameter IE) is treated as an
 // unsuccessful authentication per TS 24.501: a GUTI-identified UE is
 // asked to identify via SUCI, a SUCI-identified UE is rejected.
 func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *testing.T) {
@@ -27,7 +27,10 @@ func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *test
 		idType  uint8
 		msgType uint8
 	}{
-		{"used GUTI", nasMessage.MobileIdentity5GSType5gGuti, nas.MsgTypeIdentityRequest},
+		// The AMF authenticates identify-first (on the UE's SUCI), so an
+		// authentication failure is rejected regardless of the identity the UE
+		// registered with — no redundant re-identification (mirrors the MME).
+		{"used GUTI", nasMessage.MobileIdentity5GSType5gGuti, nas.MsgTypeAuthenticationReject},
 		{"used SUCI", nasMessage.MobileIdentity5GSTypeSuci, nas.MsgTypeAuthenticationReject},
 	}
 
@@ -38,15 +41,12 @@ func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *test
 				t.Fatalf("could not create UE and radio: %v", err)
 			}
 
-			ue.ForceState(amf.Authentication)
-			ue.NasConn().AuthenticationCtx = &ausf.AuthResult{Rand: "DEADBEEF"}
-			ue.NasConn().IdentityTypeUsedForRegistration = tc.idType
+			ue.ForceRegStepForTest(amf.RegStepAuthenticating)
+			ue.Conn().AuthenticationCtx = &ausf.AuthResult{Rand: "DEADBEEF"}
+			ue.Conn().IdentityTypeUsedForRegistration = tc.idType
 
-			err = handleAuthenticationResponse(context.TODO(), amf.New(nil, nil, nil), ue,
+			handleAuthenticationResponse(context.TODO(), amf.New(nil, nil, nil), ue,
 				&nasMessage.AuthenticationResponse{AuthenticationResponseParameter: nil})
-			if err != nil {
-				t.Fatalf("expected no error, got: %v", err)
-			}
 
 			if len(ngapSender.SentDownlinkNASTransport) != 1 {
 				t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -67,59 +67,47 @@ func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *test
 	}
 }
 
+// Precondition failures (wrong state, missing authentication context, undecodable
+// RAND) leave the authentication exchange untouched: no downlink is emitted.
 func TestHandleAuthenticationResponse_PreconditionErrors(t *testing.T) {
 	type TestCase struct {
-		name string
-		ue   *amf.UeContext
-		err  error
+		name  string
+		setup func(*amf.UeContext)
 	}
 
 	testcases := []TestCase{
 		{
 			"wrong UE state",
-			func() *amf.UeContext {
-				ue := amf.NewUeContext()
-
-				return ue
-			}(),
-			fmt.Errorf("state mismatch: receive amf.Authentication Response message in state %s", amf.Deregistered),
+			func(ue *amf.UeContext) {},
 		},
 		{
 			"nil authentication context",
-			func() *amf.UeContext {
-				ue, _, err := buildUeAndRadio()
-				if err != nil {
-					panic(err)
-				}
-
-				ue.ForceState(amf.Authentication)
-
-				return ue
-			}(),
-			fmt.Errorf("ue amf.Authentication Context is nil"),
+			func(ue *amf.UeContext) {
+				ue.ForceRegStepForTest(amf.RegStepAuthenticating)
+			},
 		},
 		{
 			"invalid rand in UE context",
-			func() *amf.UeContext {
-				ue, _, err := buildUeAndRadio()
-				if err != nil {
-					panic(err)
-				}
-
-				ue.ForceState(amf.Authentication)
-				ue.NasConn().AuthenticationCtx = &ausf.AuthResult{Rand: "Not hex"}
-
-				return ue
-			}(),
-			fmt.Errorf("failed to decode RAND: encoding/hex: invalid byte: U+004E 'N'"),
+			func(ue *amf.UeContext) {
+				ue.ForceRegStepForTest(amf.RegStepAuthenticating)
+				ue.Conn().AuthenticationCtx = &ausf.AuthResult{Rand: "Not hex"}
+			},
 		},
 	}
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := handleAuthenticationResponse(context.TODO(), amf.New(nil, nil, nil), tc.ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
-			if err == nil || err.Error() != tc.err.Error() {
-				t.Fatalf("expected error: %v, got: %v", tc.err, err)
+			ue, ngapSender, err := buildUeAndRadio()
+			if err != nil {
+				t.Fatalf("could not create UE and radio: %v", err)
+			}
+
+			tc.setup(ue)
+
+			handleAuthenticationResponse(context.TODO(), amf.New(nil, nil, nil), ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+
+			if len(ngapSender.SentDownlinkNASTransport) != 0 {
+				t.Fatalf("expected precondition failure to emit no downlink, but a Downlink NAS Transport was sent")
 			}
 		})
 	}
@@ -131,18 +119,18 @@ func TestHandleAuthenticationResponse_TimerT3560Stopped(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.Authentication)
-	conn := ue.NasConn()
+	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
+	conn := ue.Conn()
 	conn.AuthenticationCtx = &ausf.AuthResult{
 		Rand:      "DEADBEEF",
 		HxresStar: "not a match",
 	}
 	conn.IdentityTypeUsedForRegistration = nasMessage.MobileIdentity5GSTypeSuci
-	conn.T3560.Arm(10*time.Minute, 5, func(e int32) {}, func() {})
+	conn.NASGuardForTest().Arm(10*time.Minute, 5, func(e int32) {}, func() {})
 
-	_ = handleAuthenticationResponse(t.Context(), amf.New(nil, nil, nil), ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+	handleAuthenticationResponse(t.Context(), amf.New(nil, nil, nil), ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 
-	if conn.T3560.Active() {
+	if conn.NASGuardForTest().Active() {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
 	}
 }
@@ -158,7 +146,7 @@ func TestHandleAuthenticationResponse_hResStartMismatch(t *testing.T) {
 		{
 			"used GUTI",
 			nasMessage.MobileIdentity5GSType5gGuti,
-			nas.MsgTypeIdentityRequest,
+			nas.MsgTypeAuthenticationReject,
 		},
 		{
 			"used SUCI",
@@ -174,17 +162,14 @@ func TestHandleAuthenticationResponse_hResStartMismatch(t *testing.T) {
 				t.Fatalf("could not create UE and radio: %v", err)
 			}
 
-			ue.ForceState(amf.Authentication)
-			ue.NasConn().AuthenticationCtx = &ausf.AuthResult{
+			ue.ForceRegStepForTest(amf.RegStepAuthenticating)
+			ue.Conn().AuthenticationCtx = &ausf.AuthResult{
 				Rand:      "DEADBEEF",
 				HxresStar: "not a match",
 			}
-			ue.NasConn().IdentityTypeUsedForRegistration = tc.id_type
+			ue.Conn().IdentityTypeUsedForRegistration = tc.id_type
 
-			err = handleAuthenticationResponse(t.Context(), amf.New(nil, nil, nil), ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
-			if err != nil {
-				t.Fatalf("expected no error, got: %v", err)
-			}
+			handleAuthenticationResponse(t.Context(), amf.New(nil, nil, nil), ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 
 			if len(ngapSender.SentDownlinkNASTransport) != 1 {
 				t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -219,11 +204,13 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 	}
 
 	testcases := []TestCase{
+		// Identify-first: an authentication failure rejects and deregisters
+		// regardless of the registration identity (mirrors the MME).
 		{
 			"used GUTI",
 			nasMessage.MobileIdentity5GSType5gGuti,
-			nas.MsgTypeIdentityRequest,
-			amf.Authentication,
+			nas.MsgTypeAuthenticationReject,
+			amf.Deregistered,
 		},
 		{
 			"used SUCI",
@@ -235,13 +222,13 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			amfInstance := amf.New(&FakeDBInstance{
+			amfInstance := amf.New(&fakeDBInstance{
 				Operator: &db.Operator{
 					Mcc:           "001",
 					Mnc:           "01",
 					SupportedTACs: "[\"1\"]",
 				},
-			}, &FakeAusf{
+			}, &fakeAusf{
 				AvKgAka: &ausf.AuthResult{
 					Rand: hex.EncodeToString(make([]byte, 16)),
 					Autn: hex.EncodeToString(make([]byte, 16)),
@@ -256,17 +243,14 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 				t.Fatalf("could not create UE and radio: %v", err)
 			}
 
-			ue.ForceState(amf.Authentication)
-			ue.NasConn().AuthenticationCtx = &ausf.AuthResult{
+			ue.ForceRegStepForTest(amf.RegStepAuthenticating)
+			ue.Conn().AuthenticationCtx = &ausf.AuthResult{
 				Rand:      "DEADBEEF",
 				HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
 			}
-			ue.NasConn().IdentityTypeUsedForRegistration = tc.id_type
+			ue.Conn().IdentityTypeUsedForRegistration = tc.id_type
 
-			err = handleAuthenticationResponse(t.Context(), amfInstance, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
-			if err != nil {
-				t.Fatalf("expected no error, got: %v", err)
-			}
+			handleAuthenticationResponse(t.Context(), amfInstance, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 
 			if len(ngapSender.SentDownlinkNASTransport) != 1 {
 				t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -293,7 +277,7 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 }
 
 func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -301,7 +285,7 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 			Integrity:     `["SNOW3G","NULL"]`,
 			Ciphering:     `["SNOW3G","NULL"]`,
 		},
-	}, &FakeAusf{
+	}, &fakeAusf{
 		AvKgAka: &ausf.AuthResult{
 			Rand: hex.EncodeToString(make([]byte, 16)),
 			Autn: hex.EncodeToString(make([]byte, 16)),
@@ -315,8 +299,8 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.Authentication)
-	ue.NasConn().AuthenticationCtx = &ausf.AuthResult{
+	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
+	ue.Conn().AuthenticationCtx = &ausf.AuthResult{
 		Rand:      "DEADBEEF",
 		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
 	}
@@ -330,10 +314,7 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 	ue.UESecurityCapabilityForTest().SetIA0_5G(1)
 	ue.UESecurityCapabilityForTest().SetIA1_128_5G(1)
 
-	err = handleAuthenticationResponse(t.Context(), amfInstance, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
+	handleAuthenticationResponse(t.Context(), amfInstance, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")

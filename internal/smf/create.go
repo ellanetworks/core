@@ -27,8 +27,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// nasToNgapPDUSessionType maps a NAS PDU session type value to the NGAP
-// equivalent used in PDUSessionResourceSetupRequestTransfer.
 func nasToNgapPDUSessionType(nasType uint8) aper.Enumerated {
 	switch nasType {
 	case nasMessage.PDUSessionTypeIPv6:
@@ -40,9 +38,8 @@ func nasToNgapPDUSessionType(nasType uint8) aper.Enumerated {
 	}
 }
 
-// CreateSmContext creates a new PDU session: it decodes the NAS message,
-// resolves the subscriber policy, allocates the UE address, programs the UPF,
-// and delivers the accept/reject to the AMF.
+// CreateSmContext establishes a new 5G PDU session from the UE's NAS
+// establishment request, returning the SM context ref or a NAS reject message.
 func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, n1Msg []byte) (string, []byte, error) {
 	ctx, span := tracer.Start(ctx, "smf/create_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -95,14 +92,13 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return "", rsp, nil
 	}
 
-	// Record exactly one establishment outcome per attempt. The decode,
-	// message-type, and PTI returns above are not establishment attempts, so
-	// they precede this defer.
+	// Record exactly one establishment outcome per attempt; the returns above are
+	// not establishment attempts, so they precede this defer.
 	var establishmentResult string
 
 	defer func() { recordSessionEstablishmentResult(metrics.RAT5G, establishmentResult) }()
 
-	if existing := s.GetSession(CanonicalName(supi, pduSessionID)); existing != nil {
+	if existing := s.currentSession(supi, pduSessionID); existing != nil {
 		s.handlePduSessionContextReplacement(ctx, existing)
 	}
 
@@ -207,14 +203,14 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return "", nil, fmt.Errorf("failed to send pdu session establishment accept n1 message: %v", err)
 	}
 
-	return sc.CanonicalName(), nil, nil
+	return sc.Ref, nil, nil
 }
 
 func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SMContext) {
 	smCtxt.Mutex.Lock()
 	defer smCtxt.Mutex.Unlock()
 
-	s.RemoveSession(ctx, smCtxt.CanonicalName())
+	s.RemoveSession(ctx, smCtxt.Ref)
 
 	if smCtxt.Tunnel != nil {
 		err := s.releaseTunnel(ctx, smCtxt)

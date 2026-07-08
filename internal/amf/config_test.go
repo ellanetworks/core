@@ -152,7 +152,6 @@ func TestGetSubscriberProfile_MultiplePoliciesDifferentSlices(t *testing.T) {
 		t.Fatalf("expected 2 NSSAIs, got %d", len(profile.AllowedNssai))
 	}
 
-	// Verify both slices are present
 	found := map[int32]bool{}
 	for _, s := range profile.AllowedNssai {
 		found[s.Sst] = true

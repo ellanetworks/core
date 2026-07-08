@@ -8,12 +8,8 @@ import (
 )
 
 // DecodePathSwitchRequest validates a PathSwitchRequest PDU body
-// (3GPP TS 38.413). Mandatory IEs: RANUENGAPID,
-// SourceAMFUENGAPID and PDUSessionResourceToBeSwitchedDLList
-// (criticality reject), UserLocationInformation and
-// UESecurityCapabilities (ignore).
-// PDUSessionResourceFailedToSetupListPSReq is optional. Duplicate IEs
-// follow a last-wins policy.
+// (3GPP TS 38.413). Class 1 procedure: procedure-level criticality is
+// reject.
 func DecodePathSwitchRequest(in *ngapType.PathSwitchRequest) (PathSwitchRequest, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodePathSwitchRequest,

@@ -12,16 +12,7 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 )
 
-// TS 24.501 Table 9.11.4.12
-/*
--	01H (5QI);
--	02H (GFBR uplink);
--	03H (GFBR downlink);
--	04H (MFBR uplink);
--	05H (MFBR downlink);
--	06H (Averaging window); and
--	07H (EPS bearer identity).
-*/
+// QoS flow description parameter identifiers (TS 24.501 Table 9.11.4.12).
 const (
 	QFDParameterID5Qi     uint8 = 0x01
 	QFDParameterIDGfbrUl  uint8 = 0x02
@@ -68,14 +59,12 @@ type QoSFlowDescription struct {
 	QFDLen     uint8
 }
 
-// Qos Flow Description Parameter
 type QosFlowParameter struct {
 	ParamContent []byte
 	ParamID      uint8
 	ParamLen     uint8
 }
 
-// Build Qos Flow Description to be sent to UE
 func BuildAuthorizedQosFlowDescription(qosData *models.QosData) (*QosFlowDescriptionsAuthorized, error) {
 	if qosData == nil {
 		return nil, fmt.Errorf("qos data is nil")
@@ -96,7 +85,6 @@ func BuildAuthorizedQosFlowDescription(qosData *models.QosData) (*QosFlowDescrip
 
 // BuildModifyQosFlowDescription builds a QoS Flow Description with the "modify
 // existing QoS flow description" operation code (TS 24.501 Table 9.11.4.12).
-// Used in PDU Session Modification Command to update 5QI on an existing flow.
 func BuildModifyQosFlowDescription(qosData *models.QosData) (*QosFlowDescriptionsAuthorized, error) {
 	if qosData == nil {
 		return nil, fmt.Errorf("qos data is nil")
@@ -112,9 +100,8 @@ func BuildModifyQosFlowDescription(qosData *models.QosData) (*QosFlowDescription
 	qfd.SetQoSFlowDescOpCode(QFDOpModify)
 	qfd.AddQosFlowParam5Qi(uint8(qosData.Var5qi))
 
-	// For "modify existing QoS flow description", set E-bit to indicate
-	// that parameters list is included and replaces all previously sent
-	// parameters (TS 24.501 Table 9.11.4.12).
+	// E-bit set: the parameters list replaces the flow's entire parameter set
+	// (TS 24.501 Table 9.11.4.12).
 	qfd.NumOfParam |= QFDEbit
 
 	qfDescriptions.AddQFD(&qfd)
@@ -126,76 +113,50 @@ func (d *QosFlowDescriptionsAuthorized) BuildAddQosFlowDescFromQoSDesc(qosData *
 	qfd := QoSFlowDescription{QFDLen: QFDFixLen}
 
 	qfd.SetQoSFlowDescQfi(qosData.QFI)
-
-	// Operation Code
 	qfd.SetQoSFlowDescOpCode(QFDOpCreate)
-
-	// Create Params
-	// 5QI
 	qfd.AddQosFlowParam5Qi(uint8(qosData.Var5qi))
-
-	// Set E-Bit of QFD for the "create new QoS flow description" operation
 	qfd.SetQFDEBitCreateNewQFD()
-
-	// Add QFD to Authorised QFD IE
 	d.AddQFD(&qfd)
 
 	return nil
 }
 
-// bits 6 to 1 of octet(00xxxxxx)
 func (q *QoSFlowDescription) SetQoSFlowDescQfi(val uint8) {
 	q.Qfi = QFDQfiBitmask & val
 }
 
-// Operation code -bits 8 to 6 of octet(xxx00000)
 func (q *QoSFlowDescription) SetQoSFlowDescOpCode(val uint8) {
 	q.OpCode = QFDOpCodeBitmask & val
 }
 
-// E-Bit Encoding
-// For the "create new QoS flow description" operation,
-// 1:	parameters list is included
+// E-bit set to 1 signals that the parameters list is included, for the "create
+// new QoS flow description" operation (TS 24.501 Table 9.11.4.12).
 func (q *QoSFlowDescription) SetQFDEBitCreateNewQFD() {
 	q.NumOfParam |= QFDEbit
 }
 
-// Encode QoSFlowDescriptions IE
 func (d *QosFlowDescriptionsAuthorized) AddQFD(qfd *QoSFlowDescription) {
-	// Add QFI byte
 	d.Content = append(d.Content, qfd.Qfi)
-
-	// Add Operation Code byte
 	d.Content = append(d.Content, qfd.OpCode)
-
-	// Add Num of Param byte
 	d.Content = append(d.Content, qfd.NumOfParam)
 
-	// Iterate through Qos Flow Description's parameters
 	for _, param := range qfd.ParamList {
-		// Add Param Id
 		d.Content = append(d.Content, param.ParamID)
-
-		// Add Param Length
 		d.Content = append(d.Content, param.ParamLen)
-
-		// Add Param Content
 		d.Content = append(d.Content, param.ParamContent...)
 	}
 
-	// Add QFD Len
 	d.IeLen += uint16(qfd.QFDLen)
 }
 
 func (q *QoSFlowDescription) AddQosFlowParam5Qi(val uint8) {
 	qfp := QosFlowParameter{}
 	qfp.ParamID = QFDParameterID5Qi
-	qfp.ParamLen = 1 // 1 Octet
+	qfp.ParamLen = 1
 	qfp.ParamContent = []byte{val}
 
-	// Add to QosFlowDescription
 	q.NumOfParam += 1
 	q.ParamList = append(q.ParamList, qfp)
 
-	q.QFDLen += 3 //(Id + Len + content)
+	q.QFDLen += 3 // Id + Len + content
 }

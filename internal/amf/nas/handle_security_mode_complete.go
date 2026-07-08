@@ -5,43 +5,55 @@ package nas
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/procedure"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
+	"go.uber.org/zap"
 )
 
 // TS 33.501
-func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.SecurityModeComplete, integrityVerified bool) error {
-	if state := ue.State(); state != amf.SecurityMode {
-		return fmt.Errorf("state mismatch: receive Security Mode Complete message in state %s", state)
+func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.SecurityModeComplete, integrityVerified bool) nasreply.Disposition {
+	if step := ue.RegStep(); step != amf.RegStepSecurityMode {
+		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Security Mode Complete message outside the security mode exchange", zap.String("state", string(ue.State())))
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	if !integrityVerified {
-		return fmt.Errorf("NAS message integrity check failed")
-	}
-
-	conn := ue.NasConn()
+	conn := ue.Conn()
 	if conn == nil {
-		return fmt.Errorf("no active NAS connection")
+		logger.From(ctx, logger.AmfLog).Warn("no active NAS connection")
+		return nasreply.Handled()
 	}
 
-	conn.T3560.Stop()
+	conn.StopNASGuard()
 
-	conn.Procedures.End(procedure.SecurityMode)
+	conn.Parent().EndKeyChainProc(procedure.SecurityMode)
 
 	if ue.SecurityContextIsValid() && integrityVerified {
 		err := ue.UpdateSecurityContext()
 		if err != nil {
-			return fmt.Errorf("error updating security context: %v", err)
+			abortRegistration(ctx, amfInstance, ue, "update security context", err)
+			return nasreply.Handled()
 		}
 	}
 
 	if msg.IMEISV != nil {
-		ue.Pei = nasConvert.PeiToString(msg.IMEISV.Octet[:])
+		pei, err := etsi.NewIMEIFromPEI(nasConvert.PeiToString(msg.IMEISV.Octet[:]))
+		if err != nil {
+			// A malformed IMEISV yields no trusted equipment identity; reject and release
+			// (the NAS guard has been stopped).
+			amf.SendRegistrationReject(ctx, conn, nasMessage.Cause5GMMProtocolErrorUnspecified)
+			ue.Deregister(ctx)
+
+			return nasreply.Handled()
+		}
+
+		ue.Imei = pei
 	}
 
 	if msg.NASMessageContainer != nil {
@@ -49,16 +61,22 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 
 		m := nas.NewMessage()
 		if err := m.GmmMessageDecode(&contents); err != nil {
-			return fmt.Errorf("failed to decode nas message container: %v", err)
+			abortRegistration(ctx, amfInstance, ue, "decode NAS message container", err)
+			return nasreply.Handled()
 		}
 
 		messageType := m.GmmHeader.GetMessageType()
 		if messageType != nas.MsgTypeRegistrationRequest {
-			return fmt.Errorf("nas message container Iei type error")
+			abortRegistration(ctx, amfInstance, ue, "unexpected NAS container message type", nil)
+			return nasreply.Handled()
 		}
 
-		return contextSetup(ctx, amfInstance, ue, m.RegistrationRequest)
+		contextSetup(ctx, amfInstance, ue, m.RegistrationRequest)
+
+		return nasreply.Handled()
 	}
 
-	return contextSetup(ctx, amfInstance, ue, conn.RegistrationRequest)
+	contextSetup(ctx, amfInstance, ue, conn.RegistrationRequest)
+
+	return nasreply.Handled()
 }

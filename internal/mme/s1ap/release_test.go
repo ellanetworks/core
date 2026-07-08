@@ -16,11 +16,11 @@ func TestECMIdleBuffersSession(t *testing.T) {
 	ue, cc := securedUE(t, m)
 	testPDN(ue).Apn = "internet"
 
-	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.S1.MMEUES1APID, ENBUES1APID: 7}
+	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: 7}
 	b, _ := complete.Marshal()
 	cpdu, _ := s1ap.Unmarshal(b)
 
-	HandleUEContextReleaseComplete(m, cc, cpdu.(*s1ap.SuccessfulOutcome).Value)
+	HandleUEContextReleaseComplete(m, context.Background(), mme.NewRadioForTest(cc), cpdu.(*s1ap.SuccessfulOutcome).Value)
 
 	if ue.Connected() {
 		t.Fatal("UE not ECM-IDLE after release complete")
@@ -36,14 +36,14 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 	ue, cc := securedUE(t, m)
 
 	req := &s1ap.UEContextReleaseRequest{
-		MMEUES1APID: ue.S1.MMEUES1APID, ENBUES1APID: 7,
+		MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: 7,
 		Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0},
 	}
 
 	b, _ := req.Marshal()
 	pdu, _ := s1ap.Unmarshal(b)
 
-	handleUEContextReleaseRequest(m, context.Background(), cc, pdu.(*s1ap.InitiatingMessage).Value)
+	handleUEContextReleaseRequest(m, context.Background(), mme.NewRadioForTest(cc), pdu.(*s1ap.InitiatingMessage).Value)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected 1 UE Context Release Command, got %d", len(cc.sent))
@@ -60,12 +60,12 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 
 	// Completing an eNB-initiated release moves the UE to ECM-IDLE; the EMM
 	// context is retained, not deleted.
-	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.S1.MMEUES1APID, ENBUES1APID: 7}
+	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: 7}
 
 	b, _ = complete.Marshal()
 	cpdu, _ := s1ap.Unmarshal(b)
 
-	HandleUEContextReleaseComplete(m, cc, cpdu.(*s1ap.SuccessfulOutcome).Value)
+	HandleUEContextReleaseComplete(m, context.Background(), mme.NewRadioForTest(cc), cpdu.(*s1ap.SuccessfulOutcome).Value)
 
 	got, ok := m.LookupUeByIMSI(ue.IMSI())
 	if !ok {
@@ -76,11 +76,11 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 		t.Fatal("UE not marked ECM-IDLE after eNB release")
 	}
 
-	// The released MME-UE-S1AP-ID no longer identifies an active S1 connection.
+	// The released MME-UE-S1AP-ID does not identify an active S1 connection.
 	// A repeat UE Context Release Request on the same association is answered
 	// with an Error Indication, not re-actioned with another release command
 	// (TS 36.413).
-	handleUEContextReleaseRequest(m, context.Background(), cc, pdu.(*s1ap.InitiatingMessage).Value)
+	handleUEContextReleaseRequest(m, context.Background(), mme.NewRadioForTest(cc), pdu.(*s1ap.InitiatingMessage).Value)
 
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected an Error Indication for the released AP ID, got %d S1AP messages", len(cc.sent))
@@ -102,7 +102,7 @@ func TestUEContextReleaseRequestFromForeignENB(t *testing.T) {
 	ue, cc := securedUE(t, m)
 
 	req := &s1ap.UEContextReleaseRequest{
-		MMEUES1APID: ue.S1.MMEUES1APID, ENBUES1APID: ue.S1.ENBUES1APID,
+		MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID,
 		Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0},
 	}
 
@@ -110,13 +110,13 @@ func TestUEContextReleaseRequestFromForeignENB(t *testing.T) {
 	pdu, _ := s1ap.Unmarshal(b)
 
 	foreign := &captureConn{}
-	handleUEContextReleaseRequest(m, context.Background(), foreign, pdu.(*s1ap.InitiatingMessage).Value)
+	handleUEContextReleaseRequest(m, context.Background(), mme.NewRadioForTest(foreign), pdu.(*s1ap.InitiatingMessage).Value)
 
 	if len(cc.sent) != 0 {
 		t.Fatalf("foreign eNB released a UE on another association: %d S1AP messages on the owning association", len(cc.sent))
 	}
 
-	if ue.S1.ReleasingForTest() {
+	if ue.Conn().ReleasingForTest() {
 		t.Fatal("UE marked releasing by a message from a foreign association")
 	}
 

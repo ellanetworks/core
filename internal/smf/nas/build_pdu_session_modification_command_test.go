@@ -29,7 +29,6 @@ func TestBuildPDUSessionModificationCommand_AmbrAndQoS(t *testing.T) {
 		t.Fatalf("BuildPDUSessionModificationCommand failed: %v", err)
 	}
 
-	// Decode and verify round-trip.
 	m := new(nas.Message)
 	if err := m.PlainNasDecode(&encoded); err != nil {
 		t.Fatalf("PlainNasDecode failed: %v", err)
@@ -44,7 +43,6 @@ func TestBuildPDUSessionModificationCommand_AmbrAndQoS(t *testing.T) {
 		t.Fatal("PDUSessionModificationCommand is nil after decode")
 	}
 
-	// Verify SessionAMBR is present with correct IEI.
 	if modCmd.SessionAMBR == nil {
 		t.Fatal("SessionAMBR is nil after decode; IEI likely missing or incorrect")
 	}
@@ -54,7 +52,7 @@ func TestBuildPDUSessionModificationCommand_AmbrAndQoS(t *testing.T) {
 			modCmd.SessionAMBR.GetIei(), nasMessage.PDUSessionModificationCommandSessionAMBRType)
 	}
 
-	// Verify AMBR values: 200 Mbps = unit Mbps (0x06), value 200.
+	// 200 Mbps encodes as unit 1 Mbps (0x06), value 200.
 	ulUnit := modCmd.GetUnitForSessionAMBRForUplink()
 	if ulUnit != nasMessage.SessionAMBRUnit1Mbps {
 		t.Errorf("uplink AMBR unit: got %d, want %d", ulUnit, nasMessage.SessionAMBRUnit1Mbps)
@@ -65,7 +63,6 @@ func TestBuildPDUSessionModificationCommand_AmbrAndQoS(t *testing.T) {
 		t.Errorf("downlink AMBR unit: got %d, want %d", dlUnit, nasMessage.SessionAMBRUnit1Mbps)
 	}
 
-	// Verify QoS flow descriptions are present.
 	if modCmd.AuthorizedQosFlowDescriptions == nil {
 		t.Fatal("AuthorizedQosFlowDescriptions is nil after decode")
 	}

@@ -228,6 +228,10 @@ type PathSwitchRequestAcknowledge struct {
 	UEAggregateMaximumBitRate *UEAggregateMaximumBitRate
 	SecurityContext           SecurityContext
 	UESecurityCapabilities    *UESecurityCapabilities
+	// ERABToBeReleased lists the E-RABs the MME failed to switch the UP path for, so
+	// the eNB releases their data radio bearers (TS 36.413 §8.4.4.2). Empty on a full
+	// switch.
+	ERABToBeReleased []ERABItem
 
 	unmodeledIEs
 }
@@ -250,6 +254,12 @@ func (m *PathSwitchRequestAcknowledge) encodeBody(w *aper.Writer) error {
 	if m.UESecurityCapabilities != nil {
 		caps := *m.UESecurityCapabilities
 		fields = append(fields, ieField{id: idUESecurityCapabilities, crit: CriticalityIgnore, enc: caps.encode})
+	}
+
+	if len(m.ERABToBeReleased) > 0 {
+		fields = append(fields, ieField{id: idERABToBeReleasedList, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
+			return encodeSingleContainerList(w, maxnoofERABs, idERABItem, CriticalityIgnore, encoderList(m.ERABToBeReleased))
+		}})
 	}
 
 	for _, e := range m.unknownIEs {
@@ -322,6 +332,8 @@ func ParsePathSwitchRequestAcknowledge(value []byte) (*PathSwitchRequestAcknowle
 
 			caps, err = decodeUESecurityCapabilities(sub)
 			m.UESecurityCapabilities = &caps
+		case idERABToBeReleasedList:
+			m.ERABToBeReleased, err = decodeERABItemList(sub)
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)
 		}

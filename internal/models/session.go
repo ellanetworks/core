@@ -85,6 +85,9 @@ type EPSBearerRequest struct {
 // identifier; the prefix is delivered to the UE via Router Advertisement), and
 // the S-GW S1-U F-TEID the eNB sends uplink traffic to.
 type EPSBearer struct {
+	// Ref is the anchor session's unique handle. The MME stores it on the PDN
+	// connection and releases/deactivates that exact session by it.
+	Ref        string
 	PDNType    uint8
 	IPv4       netip.Addr
 	IPv6Prefix netip.Addr

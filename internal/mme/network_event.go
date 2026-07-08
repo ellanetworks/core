@@ -23,7 +23,7 @@ func (m *MME) enbNameByConn(conn *sctp.SCTPConn) string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	if s := m.enbs[conn]; s != nil {
+	if s := m.radios[conn]; s != nil {
 		return s.name
 	}
 
@@ -32,8 +32,11 @@ func (m *MME) enbNameByConn(conn *sctp.SCTPConn) string {
 
 // LogNetworkEvent records an S1AP message exchanged with an eNB so it appears in
 // the network events log alongside 5G NGAP traffic.
-func (m *MME) LogNetworkEvent(ctx context.Context, conn *sctp.SCTPConn, messageType S1APProcedure, dir logger.LogDirection, raw []byte) {
-	if conn == nil {
+func (m *MME) LogNetworkEvent(ctx context.Context, conn S1APWriter, messageType S1APProcedure, dir logger.LogDirection, raw []byte) {
+	// Network events carry the SCTP local/remote addresses, so a non-SCTP writer
+	// (a test double) has nothing to log.
+	sc, ok := conn.(*sctp.SCTPConn)
+	if !ok || sc == nil {
 		return
 	}
 
@@ -42,20 +45,14 @@ func (m *MME) LogNetworkEvent(ctx context.Context, conn *sctp.SCTPConn, messageT
 		logger.S1APNetworkProtocol,
 		string(messageType),
 		dir,
-		AddrString(conn.LocalAddr()),
-		AddrString(conn.RemoteAddr()),
-		m.enbNameByConn(conn),
+		AddrString(sc.LocalAddr()),
+		AddrString(sc.RemoteAddr()),
+		m.enbNameByConn(sc),
 		raw,
 	)
 }
 
-// LogOutboundS1AP records an outbound S1AP message. The UE-facing writer is the
-// SCTP association; events from non-SCTP writers (tests) are skipped.
-func (m *MME) LogOutboundS1AP(ctx context.Context, conn NasWriter, messageType S1APProcedure, raw []byte) {
-	sctpConn, ok := conn.(*sctp.SCTPConn)
-	if !ok {
-		return
-	}
-
-	m.LogNetworkEvent(ctx, sctpConn, messageType, logger.DirectionOutbound, raw)
+// LogOutboundS1AP records an outbound S1AP message.
+func (m *MME) LogOutboundS1AP(ctx context.Context, conn S1APWriter, messageType S1APProcedure, raw []byte) {
+	m.LogNetworkEvent(ctx, conn, messageType, logger.DirectionOutbound, raw)
 }

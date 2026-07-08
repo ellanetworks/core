@@ -19,10 +19,7 @@ import (
 // }
 
 // DecodeHandoverCancel validates a HandoverCancel PDU body (3GPP TS
-// 38.413). AMFUENGAPID and RANUENGAPID are mandatory-reject;
-// Cause is mandatory-ignore. The procedure is class 1, so the
-// procedure-level criticality is "reject". Duplicate IEs follow a
-// last-wins policy.
+// 38.413).
 func DecodeHandoverCancel(in *ngapType.HandoverCancel) (HandoverCancel, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeHandoverCancel,

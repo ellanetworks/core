@@ -5,115 +5,152 @@ package nas
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/free5gc/nas/nasMessage"
+	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) error {
+// abortRegistration releases a UE whose in-flight registration failed at the point of
+// failure, so a technical error does not leave it half-registered — an open RAN
+// connection with an allocated AMF-UE-NGAP-ID and no supervision (the idle timers are
+// stopped for the duration of registration).
+func abortRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, reason string, err error) {
+	logger.From(ctx, logger.AmfLog).Error("registration aborted, releasing UE", zap.String("reason", reason), zap.Error(err))
+
+	conn := ue.Conn()
+	if conn == nil {
+		amfInstance.DeregisterAndRemoveUeContext(ctx, ue)
+		return
+	}
+
+	releaseAbortedRegistration(ctx, conn)
+}
+
+// releaseAbortedRegistration tells the gNB to release the RAN context of a UE whose
+// registration was aborted or rejected, then relies on the release guard / Release
+// Complete to delete the (never fully registered) UE context. The network initiates the
+// release of the NAS signalling connection (TS 24.501 §5.3.1.3).
+func releaseAbortedRegistration(ctx context.Context, ueConn *amf.UeConn) {
+	ueConn.ReleaseAction = amf.UeContextReleaseAbortRegistration
+
+	if err := ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentUnspecified); err != nil {
+		// SendUEContextReleaseCommand already released locally on a send failure; log only.
+		logger.From(ctx, logger.AmfLog).Warn("failed to send UE Context Release Command for aborted registration", zap.Error(err))
+	}
+}
+
+func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) {
 	ue.ClearRegistrationData(ctx)
 
-	conn := ue.NasConn()
+	conn := ue.Conn()
 	if conn == nil {
-		return fmt.Errorf("no active NAS connection")
+		logger.From(ctx, logger.AmfLog).Warn("no active NAS connection")
+		return
 	}
 
 	err := ue.UpdateSecurityContext()
 	if err != nil {
-		return fmt.Errorf("error updating security context: %v", err)
+		abortRegistration(ctx, amfInstance, ue, "update security context", err)
+		return
 	}
 
 	operatorInfo, err := amfInstance.OperatorInfo(ctx)
 	if err != nil {
-		return fmt.Errorf("error getting operator info: %v", err)
+		abortRegistration(ctx, amfInstance, ue, "get operator info", err)
+		return
 	}
 
 	subscriberProfile, err := amfInstance.SubscriberProfile(ctx, ue.Supi())
 	if err != nil {
-		return fmt.Errorf("error getting subscriber profile: %v", err)
+		abortRegistration(ctx, amfInstance, ue, "get subscriber profile", err)
+		return
 	}
 
 	// Subscriber access control (Core Network type restriction, TS 23.501):
 	// if the profile does not permit 5G, reject with 5GMM cause #7 "5GS services
 	// not allowed" (TS 24.501).
 	if !subscriberProfile.Allow5G {
-		ranUe := ue.RanUe()
-		if ranUe == nil {
-			return fmt.Errorf("ue is not connected to RAN")
+		ueConn := ue.Conn()
+		if ueConn == nil {
+			logger.From(ctx, logger.AmfLog).Warn("ue is not connected to RAN")
+			return
 		}
 
 		metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultReject)
 
-		ue.Log.Info("registration rejected: 5G not allowed for subscriber")
+		logger.From(ctx, logger.AmfLog).Info("registration rejected: 5G not allowed for subscriber")
 
-		amf.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
+		amf.SendRegistrationReject(ctx, ueConn, nasMessage.Cause5GMM5GSServicesNotAllowed)
 
-		return fmt.Errorf("registration Reject [5G not allowed for subscriber]")
+		releaseAbortedRegistration(ctx, ueConn)
+
+		return
 	}
 
 	if len(subscriberProfile.AllowedNssai) == 0 {
-		ranUe := ue.RanUe()
-		if ranUe == nil {
-			return fmt.Errorf("ue is not connected to RAN")
+		ueConn := ue.Conn()
+		if ueConn == nil {
+			logger.From(ctx, logger.AmfLog).Warn("ue is not connected to RAN")
+			return
 		}
 
 		metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultReject)
 
-		amf.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
+		amf.SendRegistrationReject(ctx, ueConn, nasMessage.Cause5GMM5GSServicesNotAllowed)
 
-		return fmt.Errorf("registration Reject [No allowed S-NSSAI in subscription]")
+		releaseAbortedRegistration(ctx, ueConn)
+
+		return
 	}
 
 	ue.AllowedNssai = subscriberProfile.AllowedNssai
 	ue.Ambr = subscriberProfile.Ambr
 
 	if conn.RegistrationRequest.MICOIndication != nil {
-		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", conn.RegistrationRequest.GetRAAI()))
+		logger.From(ctx, logger.AmfLog).Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", conn.RegistrationRequest.GetRAAI()))
 	}
 
 	if conn.RegistrationRequest.RequestedDRXParameters != nil {
 		drx := conn.RegistrationRequest.GetDRXValue()
 		if drx > nasMessage.DRXcycleParameterT256 {
-			ue.Log.Warn("UE requested reserved DRX value, treating as not specified", zap.Uint8("drxValue", drx))
+			logger.From(ctx, logger.AmfLog).Warn("UE requested reserved DRX value, treating as not specified", zap.Uint8("drxValue", drx))
 			drx = nasMessage.DRXValueNotSpecified
 		}
 
-		ue.UESpecificDRX = drx
+		ue.DRXParameter = drx
 	}
 
 	ue.AllocateRegistrationArea(operatorInfo.Tais)
 
-	guti := ue.Guti()
-	ue.Log.Debug("use original GUTI", logger.GUTI(guti.String()))
-
-	// TS 24.501: a successful initial registration supersedes any
-	// earlier 5GMM context for this subscriber. The old context is deleted only
-	// here, once the new registration is authenticated, so that an
-	// unauthenticated registration on a fresh context never tears it down.
-	if existing, ok := amfInstance.FindUeContextBySupi(ue.Supi()); ok && existing != ue {
-		amfInstance.DeregisterAndRemoveUeContext(ctx, existing)
+	guti, err := amfInstance.Guti(operatorInfo.Guami, ue)
+	if err != nil {
+		abortRegistration(ctx, amfInstance, ue, "build 5G-GUTI", err)
+		return
 	}
 
-	err = amfInstance.AddUeContextToPool(ue)
+	logger.From(ctx, logger.AmfLog).Debug("use original GUTI", logger.GUTI(guti.String()))
+
+	// TS 24.501 §4.4.4.3: a successful, authenticated initial registration supersedes
+	// any earlier 5GMM context for this subscriber. The commit is gated by an AuthProof
+	// and indexes the new context atomically before superseding the old, so an
+	// unauthenticated registration can never index itself or tear down a registered UE.
+	err = amfInstance.CommitUEIdentity(ctx, ue, amf.MintAuthProofForRegistrationCommit())
 	if err != nil {
-		return fmt.Errorf("error adding amf.AMF UE to UE pool: %v", err)
+		abortRegistration(ctx, amfInstance, ue, "commit UE identity", err)
+		return
 	}
 
-	ue.T3502Value = amfInstance.T3502Value
-	ue.T3512Value = amfInstance.T3512Value
-
-	err = amfInstance.ReAllocateGuti(ctx, ue, operatorInfo.Guami)
+	err = amfInstance.ReallocateGUTI(ctx, ue)
 	if err != nil {
-		return fmt.Errorf("error reallocating GUTI to UE: %v", err)
+		abortRegistration(ctx, amfInstance, ue, "reallocate GUTI", err)
+		return
 	}
 
 	metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultAccept)
 
 	amf.SendRegistrationAccept(ctx, amfInstance, ue, nil, nil, nil, nil, nil, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
-
-	return nil
 }

@@ -20,35 +20,38 @@ import (
 	"go.uber.org/zap"
 )
 
+func sendNGSetupFailure(ctx context.Context, ran *amf.Radio, cause *ngapType.Cause) {
+	pkt, err := send.BuildNGSetupFailure(cause)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("error building NG Setup Failure", zap.Error(err))
+		return
+	}
+
+	if err := ran.SendToRan(ctx, send.NGAPProcedureNGSetupFailure, pkt); err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("error sending NG Setup Failure", zap.Error(err))
+	}
+}
+
 func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.NGSetupRequest) {
-	if msg.RANNodeName != "" {
-		ran.Name = msg.RANNodeName
-
-		if realSender, ok := ran.NGAPSender.(*send.RealNGAPSender); ok {
-			realSender.RadioName = ran.Name
-		}
-	}
-
-	if len(ran.SupportedTAIs) != 0 {
-		ran.SupportedTAIs = make([]amf.SupportedTAI, 0)
-	}
+	name := msg.RANNodeName
 
 	if len(msg.SupportedTAItems) == 0 {
-		err := ran.NGAPSender.SendNGSetupFailure(ctx, &ngapType.Cause{
+		sendNGSetupFailure(ctx, ran, &ngapType.Cause{
 			Present: ngapType.CausePresentMisc,
 			Misc: &ngapType.CauseMisc{
 				Value: ngapType.CauseMiscPresentUnspecified,
 			},
 		})
-		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending NG Setup Failure", zap.Error(err))
-			return
-		}
 
 		logger.WithTrace(ctx, ran.Log).Warn("NG Setup failure: No supported TA exist in NG Setup request")
 
 		return
 	}
+
+	// Build the TAI list locally and validate it, then commit name+TAIs to the shared
+	// Radio through the locked setters below — the status path must never read a
+	// half-written field.
+	tais := make([]amf.SupportedTAI, 0)
 
 	for i := 0; i < len(msg.SupportedTAItems); i++ {
 		supportedTAItem := msg.SupportedTAItems[i]
@@ -66,7 +69,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 				supportedTAI.SNssaiList = append(supportedTAI.SNssaiList, util.SNssaiToModels(tAISliceSupportItem.SNSSAI))
 			}
 
-			ran.SupportedTAIs = append(ran.SupportedTAIs, supportedTAI)
+			tais = append(tais, supportedTAI)
 		}
 	}
 
@@ -74,7 +77,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("Could not get operator info", zap.Error(err))
 
-		_ = ran.NGAPSender.SendNGSetupFailure(ctx, &ngapType.Cause{
+		sendNGSetupFailure(ctx, ran, &ngapType.Cause{
 			Present: ngapType.CausePresentMisc,
 			Misc:    &ngapType.CauseMisc{Value: ngapType.CauseMiscPresentUnspecified},
 		})
@@ -82,24 +85,20 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return
 	}
 
-	if !amf.AnyPLMNMatch(ran.SupportedTAIs, operatorInfo.Guami.PlmnID) {
-		err := ran.NGAPSender.SendNGSetupFailure(ctx, &ngapType.Cause{
+	if !amf.AnyPLMNMatch(tais, operatorInfo.Guami.PlmnID) {
+		sendNGSetupFailure(ctx, ran, &ngapType.Cause{
 			Present: ngapType.CausePresentMisc,
 			Misc:    &ngapType.CauseMisc{Value: ngapType.CauseMiscPresentUnknownPLMN},
 		})
-		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending NG Setup Failure", zap.Error(err))
-			return
-		}
 
-		logger.WithTrace(ctx, ran.Log).Warn("No broadcast PLMN matches operator", zap.Any("gnb_tai_list", ran.SupportedTAIs), zap.Any("operator_plmn", operatorInfo.Guami.PlmnID))
+		logger.WithTrace(ctx, ran.Log).Warn("No broadcast PLMN matches operator", zap.Any("gnb_tai_list", tais), zap.Any("operator_plmn", operatorInfo.Guami.PlmnID))
 
 		return
 	}
 
 	var taiFound bool
 
-	for i, tai := range ran.SupportedTAIs {
+	for i, tai := range tais {
 		if amf.InTaiList(tai.Tai, operatorInfo.Tais) {
 			logger.WithTrace(ctx, ran.Log).Debug("Found served TAI in Core", zap.Any("served_tai", tai.Tai), zap.Int("index", i))
 
@@ -110,16 +109,12 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	}
 
 	if !taiFound {
-		err := ran.NGAPSender.SendNGSetupFailure(ctx, &ngapType.Cause{
+		sendNGSetupFailure(ctx, ran, &ngapType.Cause{
 			Present: ngapType.CausePresentMisc,
 			Misc:    &ngapType.CauseMisc{Value: ngapType.CauseMiscPresentUnspecified},
 		})
-		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending NG Setup Failure", zap.Error(err))
-			return
-		}
 
-		logger.WithTrace(ctx, ran.Log).Warn("PLMN matches but no served TAC found", zap.Any("gnb_tai_list", ran.SupportedTAIs), zap.Any("core_tai_list", operatorInfo.Tais))
+		logger.WithTrace(ctx, ran.Log).Warn("PLMN matches but no served TAC found", zap.Any("gnb_tai_list", tais), zap.Any("core_tai_list", operatorInfo.Tais))
 
 		return
 	}
@@ -128,7 +123,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("Could not list operator SNSSAI", zap.Error(err))
 
-		_ = ran.NGAPSender.SendNGSetupFailure(ctx, &ngapType.Cause{
+		sendNGSetupFailure(ctx, ran, &ngapType.Cause{
 			Present: ngapType.CausePresentMisc,
 			Misc:    &ngapType.CauseMisc{Value: ngapType.CauseMiscPresentUnspecified},
 		})
@@ -138,7 +133,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	hasSliceOverlap := false
 
-	for _, tai := range ran.SupportedTAIs {
+	for _, tai := range tais {
 		for _, gnbSlice := range tai.SNssaiList {
 			for _, coreSlice := range snssaiList {
 				if gnbSlice.Equal(coreSlice) {
@@ -160,30 +155,41 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	if !hasSliceOverlap {
 		logger.WithTrace(ctx, ran.Log).Warn("gNB advertises no S-NSSAIs overlapping with operator",
-			zap.Any("gnb_tai_list", ran.SupportedTAIs),
+			zap.Any("gnb_tai_list", tais),
 			zap.Any("core_slices", snssaiList))
 	}
+
+	if name != "" {
+		amfInstance.UpdateRadioName(ran, name)
+	}
+
+	amfInstance.UpdateRadioSupportedTAIs(ran, tais)
 
 	// Claim RanID only after validation passes; the dispatcher's
 	// ran.RanID != nil guard gates all other NGAP handlers.
 	evicted := amfInstance.ClaimRanID(ran, msg.GlobalRANNodeID.Raw())
 	if evicted != nil {
 		evictedRemote := ""
-		if evicted.Conn != nil && evicted.Conn.RemoteAddr() != nil {
-			evictedRemote = evicted.Conn.RemoteAddr().String()
+		if evicted.RemoteAddr() != nil {
+			evictedRemote = evicted.RemoteAddr().String()
 		}
 
 		logger.WithTrace(ctx, ran.Log).Warn("Evicted existing NG-C association with duplicate Global RAN Node ID",
 			zap.String("evicted_remote", evictedRemote),
-			zap.String("evicted_name", evicted.Name),
+			zap.String("evicted_name", evicted.NodeName()),
 		)
 	}
 
-	err = ran.NGAPSender.SendNGSetupResponse(ctx, operatorInfo.Guami, snssaiList, amfInstance.Name, amfInstance.RelativeCapacity)
+	pkt, err := send.BuildNGSetupResponse(operatorInfo.Guami, snssaiList, amfInstance.Name, amfInstance.RelativeCapacity)
 	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("error building NG Setup Response", zap.Error(err))
+		return
+	}
+
+	if err := ran.SendToRan(ctx, send.NGAPProcedureNGSetupResponse, pkt); err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error sending NG Setup Response", zap.Error(err))
 		return
 	}
 
-	logger.WithTrace(ctx, ran.Log).Info("Radio completed NG Setup", zap.String("name", ran.Name))
+	logger.WithTrace(ctx, ran.Log).Info("Radio completed NG Setup", zap.String("name", name))
 }

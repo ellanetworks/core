@@ -28,7 +28,7 @@ func TestDropStaleUe(t *testing.T) {
 func TestBareConnectionIgnoredByLookups(t *testing.T) {
 	m := newTestMME(t)
 
-	c := m.NewConn(&captureConn{}, 7)
+	c := m.NewUeConn(&captureConn{}, 7)
 
 	if c.ue != nil {
 		t.Fatal("new connection is not bare")

@@ -5,42 +5,46 @@ package nas
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
+	"go.uber.org/zap"
 )
 
-func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *nasMessage.SecurityModeReject) error {
-	if state := ue.State(); state != amf.SecurityMode {
-		return fmt.Errorf("state mismatch: receive Security Mode Reject message in state %s", state)
+func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *nasMessage.SecurityModeReject) nasreply.Disposition {
+	if step := ue.RegStep(); step != amf.RegStepSecurityMode {
+		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Security Mode Reject message outside the security mode exchange", zap.String("state", string(ue.State())))
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	defer ue.Deregister(ctx)
 
-	if conn := ue.NasConn(); conn != nil {
-		conn.T3560.Stop()
-		conn.Procedures.End(procedure.SecurityMode)
+	if conn := ue.Conn(); conn != nil {
+		conn.StopNASGuard()
+		conn.Parent().EndKeyChainProc(procedure.SecurityMode)
 	}
 
-	ue.Log.Error("UE rejected the security mode command, abort the ongoing procedure", logger.Cause(nasMessage.Cause5GMMToString(msg.GetCauseValue())), logger.SUPI(ue.Supi().String()))
+	logger.From(ctx, logger.AmfLog).Error("UE rejected the security mode command, abort the ongoing procedure", logger.Cause(nasMessage.Cause5GMMToString(msg.GetCauseValue())), logger.SUPI(ue.Supi().String()))
 
 	ue.ClearSecured()
 
-	ranUe := ue.RanUe()
-	if ranUe == nil {
-		return fmt.Errorf("ue is not connected to RAN")
+	ueConn := ue.Conn()
+	if ueConn == nil {
+		logger.From(ctx, logger.AmfLog).Warn("ue is not connected to RAN")
+		return nasreply.Handled()
 	}
 
-	ranUe.ReleaseAction = amf.UeContextReleaseUeContext
+	ueConn.ReleaseAction = amf.UeContextReleaseUeContext
 
-	err := ranUe.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+	err := ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 	if err != nil {
-		return fmt.Errorf("error sending ue context release command: %v", err)
+		logger.From(ctx, logger.AmfLog).Warn("error sending ue context release command", zap.Error(err))
+		return nasreply.Handled()
 	}
 
-	return nil
+	return nasreply.Handled()
 }

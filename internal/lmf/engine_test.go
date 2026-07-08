@@ -74,9 +74,9 @@ func TestDetermineLocation_NR(t *testing.T) {
 			UeLocationTimestamp:      func() *time.Time { t := time.Now(); return &t }(),
 		},
 	}
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 
-	if err := amfInstance.AddUeContextToPool(ue); err != nil {
+	if err := amfInstance.AddUeContextToPoolForTest(ue); err != nil {
 		t.Fatalf("failed to add UE to AMF: %v", err)
 	}
 
@@ -134,9 +134,9 @@ func TestDetermineLocation_EUTRA(t *testing.T) {
 			AgeOfLocationInformation: 3,
 		},
 	}
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 
-	if err := amfInstance.AddUeContextToPool(ue); err != nil {
+	if err := amfInstance.AddUeContextToPoolForTest(ue); err != nil {
 		t.Fatalf("failed to add UE to AMF: %v", err)
 	}
 
@@ -194,7 +194,7 @@ func TestDetermineLocation_Unregistered(t *testing.T) {
 		},
 	}
 
-	if err := amfInstance.AddUeContextToPool(ue); err != nil {
+	if err := amfInstance.AddUeContextToPoolForTest(ue); err != nil {
 		t.Fatalf("failed to add UE to AMF: %v", err)
 	}
 
@@ -217,9 +217,9 @@ func TestDetermineLocation_NoLocation(t *testing.T) {
 	ue := amf.NewUeContext()
 	ue.SetSupiForTest(supi)
 	ue.Location = coremodels.UserLocation{}
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 
-	if err := amfInstance.AddUeContextToPool(ue); err != nil {
+	if err := amfInstance.AddUeContextToPoolForTest(ue); err != nil {
 		t.Fatalf("failed to add UE to AMF: %v", err)
 	}
 

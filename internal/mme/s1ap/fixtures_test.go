@@ -142,7 +142,7 @@ func (f *fakeSessionManager) DeactivateEPSSession(_ context.Context, _ string, _
 	return nil
 }
 
-func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string, _ uint8) error {
+func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string) error {
 	f.released = true
 
 	return nil
@@ -255,16 +255,12 @@ func newTestMME(t *testing.T) *mme.MME {
 // nasHandler implements mme.NASHandler over the real nas package.
 type nasHandler struct{ m *mme.MME }
 
-func (h *nasHandler) HandleNAS(ctx context.Context, ue *mme.UeContext, pdu []byte) {
-	nas.HandleNAS(h.m, ctx, ue, pdu)
+func (h *nasHandler) HandleNAS(ctx context.Context, conn *mme.UeConn, pdu []byte) {
+	nas.HandleNAS(h.m, ctx, conn, pdu)
 }
 
-func (h *nasHandler) HandleServiceRequest(ctx context.Context, conn mme.NasWriter, msg *s1ap.InitialUEMessage) {
+func (h *nasHandler) HandleServiceRequest(ctx context.Context, conn mme.S1APWriter, msg *s1ap.InitialUEMessage) {
 	nas.HandleServiceRequest(h.m, ctx, conn, msg)
-}
-
-func (h *nasHandler) DispatchEMM(ctx context.Context, ue *mme.UeContext, plain []byte, integrityVerified bool) {
-	nas.DispatchEMM(h.m, ctx, ue, plain, integrityVerified)
 }
 
 // securedUE returns a registered UE with a valid EPS NAS security context.
@@ -283,8 +279,8 @@ func securedUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) {
 		t.Fatal(err)
 	}
 
-	ue.S1.MarkSecureExchangeEstablished()
-	ue.SetEMMState(mme.EMMRegistered)
+	ue.Conn().MarkSecureExchangeEstablished()
+	ue.ForceStateForTest(mme.EMMRegistered)
 	m.RegisterUEForTest(ue, testSubscriber.IMSI)
 
 	return ue, cc

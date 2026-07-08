@@ -42,10 +42,11 @@ func classifyNasPdu(mt eps.MessageType, securityHeader uint8, macVerified bool) 
 }
 
 // plainNasAllowed reports whether an EMM message may be processed without
-// integrity protection (TS 24.301 §4.4.4.3). SERVICE REQUEST and TRACKING AREA
-// UPDATE are integrity-verified at their own S1AP Initial UE Message before a
-// context is bound, so they never reach this EMM dispatch path; a plain DETACH
-// ACCEPT is left to the detach guard.
+// integrity protection before secure exchange is established (TS 24.301 §4.4.4.3).
+// TRACKING AREA UPDATE REQUEST and SERVICE REQUEST are on the spec list but are
+// absent here: each is integrity-verified at its S1AP Initial UE Message (S-TMSI
+// resume / short-MAC) before a context is bound, so it never reaches this EMM
+// dispatch path — and its handler assumes a verified message.
 func plainNasAllowed(mt eps.MessageType) bool {
 	switch mt {
 	case eps.MsgAttachRequest,
@@ -53,7 +54,8 @@ func plainNasAllowed(mt eps.MessageType) bool {
 		eps.MsgAuthenticationResponse,
 		eps.MsgAuthenticationFailure,
 		eps.MsgSecurityModeReject,
-		eps.MsgDetachRequest:
+		eps.MsgDetachRequest,
+		eps.MsgDetachAccept:
 		return true
 	}
 
@@ -61,8 +63,12 @@ func plainNasAllowed(mt eps.MessageType) bool {
 }
 
 // macFailedAllowed reports whether an EMM message may be processed after a failed
-// integrity check, before secure exchange is established; the whitelist matches
-// plainNasAllowed (TS 24.301 §4.4.4.3).
+// integrity check, before secure exchange is established (TS 24.301 §4.4.4.3). The
+// spec's MAC-failed list adds SERVICE REQUEST, EXTENDED SERVICE REQUEST and
+// CONTROL PLANE SERVICE REQUEST to the plain list; none reaches this path (SERVICE
+// REQUEST is security-header-typed and verified at S1AP, and the other two are 4G
+// CS-fallback/CIoT procedures Ella Core does not implement), so the list matches
+// plainNasAllowed.
 func macFailedAllowed(mt eps.MessageType) bool {
 	return plainNasAllowed(mt)
 }

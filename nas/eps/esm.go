@@ -31,11 +31,14 @@ const (
 	MsgESMStatus                              ESMMessageType = 0xE8
 )
 
-// ESM cause values (TS 24.301).
+// ESM cause values (TS 24.301 §9.9.4.4).
 const (
 	ESMCauseReactivationRequested  uint8 = 39
 	ESMCausePDNTypeIPv4OnlyAllowed uint8 = 50
 	ESMCausePDNTypeIPv6OnlyAllowed uint8 = 51
+	ESMCauseInvalidMandatoryInfo   uint8 = 96
+	ESMCauseMessageTypeNonExistent uint8 = 97
+	ESMCauseProtocolErrorUnspec    uint8 = 111
 )
 
 // ErrNotESM reports a protocol discriminator other than ESM.

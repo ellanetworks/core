@@ -39,15 +39,15 @@ func TestNASUplinkReplayRejected(t *testing.T) {
 
 	msg := protectedUplink(t, ue, nascommon.NASCount(0, 0))
 
-	HandleNAS(m, context.Background(), ue, msg)
+	HandleNAS(m, context.Background(), ue.Conn(), msg)
 
 	if ue.ULCount() != 1 {
 		t.Fatalf("valid message not accepted: ulCount = %d, want 1", ue.ULCount())
 	}
 
 	// Replaying the identical bytes must not advance the expected count: the
-	// message now estimates to a stale NAS COUNT and fails the integrity check.
-	HandleNAS(m, context.Background(), ue, msg)
+	// replay estimates to a stale NAS COUNT and fails the integrity check.
+	HandleNAS(m, context.Background(), ue.Conn(), msg)
 
 	if ue.ULCount() != 1 {
 		t.Fatalf("replay accepted: ulCount advanced to %d", ue.ULCount())
@@ -62,14 +62,14 @@ func TestNASUplinkCountWrap(t *testing.T) {
 	ue, _ := securedUE(t, m)
 	ue.SetULCountForTest(255)
 
-	HandleNAS(m, context.Background(), ue, protectedUplink(t, ue, nascommon.NASCount(0, 255)))
+	HandleNAS(m, context.Background(), ue.Conn(), protectedUplink(t, ue, nascommon.NASCount(0, 255)))
 
 	if ue.ULCount() != 256 {
 		t.Fatalf("sequence 255 not accepted: ulCount = %d, want 256", ue.ULCount())
 	}
 
 	// The UE's sequence wraps 255->0 and its overflow becomes 1.
-	HandleNAS(m, context.Background(), ue, protectedUplink(t, ue, nascommon.NASCount(1, 0)))
+	HandleNAS(m, context.Background(), ue.Conn(), protectedUplink(t, ue, nascommon.NASCount(1, 0)))
 
 	if ue.ULCount() != 257 {
 		t.Fatalf("wrapped message not accepted: ulCount = %d, want 257", ue.ULCount())

@@ -186,10 +186,20 @@ func ParseAttachComplete(b []byte) (*AttachComplete, error) {
 	return &AttachComplete{ESMMessageContainer: esm}, nil
 }
 
-// AttachReject is the ATTACH REJECT message (TS 24.301). Ella Core sends
-// only the mandatory EMM cause.
+// AttachReject is the ATTACH REJECT message (TS 24.301). Ella Core sends the
+// mandatory EMM cause and, when non-zero, the optional T3402 value (§8.2.3.4) —
+// the back-off before the UE retries, mirroring the 5G T3502 in REGISTRATION
+// REJECT.
 type AttachReject struct {
 	Cause uint8
+	// T3402 is the encoded one-octet GPRS timer value (§9.9.3.16); 0 omits the IE.
+	T3402 uint8
+}
+
+// attachRejectIEs are the optional IEs Ella Core emits in an ATTACH REJECT: the
+// T3402 value, a type-2 (TV) IE with a one-octet value.
+var attachRejectIEs = []common.OptionalIE{
+	{IEI: t3402ValueIEI, Format: common.IETV3, Len: 1},
 }
 
 // Marshal encodes the plain ATTACH REJECT message.
@@ -198,6 +208,11 @@ func (m *AttachReject) Marshal() ([]byte, error) {
 
 	writeEMMHeader(&w, MsgAttachReject)
 	w.U8(m.Cause)
+
+	if m.T3402 != 0 {
+		w.U8(t3402ValueIEI)
+		w.U8(m.T3402)
+	}
 
 	return w.Bytes(), nil
 }
@@ -215,5 +230,17 @@ func ParseAttachReject(b []byte) (*AttachReject, error) {
 		return nil, err
 	}
 
-	return &AttachReject{Cause: cause}, nil
+	m := &AttachReject{Cause: cause}
+
+	if _, err := common.WalkOptionalIEs(r, attachRejectIEs, func(iei uint8, value []byte) error {
+		if iei == t3402ValueIEI && len(value) == 1 {
+			m.T3402 = value[0]
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return m, nil
 }

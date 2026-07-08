@@ -19,11 +19,10 @@ const (
 	GlobalRANNodeKindN3IWF
 )
 
-// GlobalRANNodeID wraps the validated free5gc CHOICE. When Kind is not
-// Unknown, the variant pointer matching Kind and any nested
-// *aper.BitString are non-nil. The bytes inside Raw alias the source
-// PDU buffer and must be consumed within the synchronous handler
-// invocation.
+// GlobalRANNodeID wraps a validated GlobalRANNodeID CHOICE. When Kind is not
+// Unknown, the variant pointer matching Kind and any nested *aper.BitString are
+// non-nil. Raw aliases the source PDU buffer and must be consumed within the
+// synchronous handler invocation.
 type GlobalRANNodeID struct {
 	kind GlobalRANNodeKind
 	raw  *ngapType.GlobalRANNodeID
@@ -41,12 +40,10 @@ const (
 	UserLocationKindN3IWF
 )
 
-// UserLocationInformation wraps the free5gc CHOICE. When Kind is not
-// Unknown, raw and the variant pointer matching Kind are both non-nil.
-//
-// Unlike NASPDU and FiveGTMSI, the bytes inside Raw are not copied out
-// of the source PDU buffer; callers must finish consuming the value
-// within the synchronous handler invocation.
+// UserLocationInformation wraps a validated UserLocationInformation CHOICE. When
+// Kind is not Unknown, raw and the variant pointer matching Kind are both
+// non-nil. Raw aliases the source PDU buffer and must be consumed within the
+// synchronous handler invocation.
 type UserLocationInformation struct {
 	kind UserLocationKind
 	raw  *ngapType.UserLocationInformation
@@ -62,8 +59,8 @@ type FiveGSTMSI struct {
 }
 
 // InitialUEMessage is a decoded NGAP InitialUEMessage (3GPP TS 38.413).
-// Non-pointer fields are mandatory and populated when the
-// accompanying *Report is non-fatal; pointer fields are optional.
+// Non-pointer fields are mandatory; pointer fields are optional and nil when
+// absent.
 type InitialUEMessage struct {
 	RANUENGAPID             int64
 	NASPDU                  []byte
@@ -74,17 +71,13 @@ type InitialUEMessage struct {
 }
 
 // NGSetupRequest is a decoded NGAP NGSetupRequest (3GPP TS 38.413).
-// GlobalRANNodeID and SupportedTAItems are mandatory and
-// populated when the accompanying *Report is non-fatal. RANNodeName is
-// optional ("" when absent).
+// GlobalRANNodeID and SupportedTAItems are mandatory; RANNodeName is "" when
+// absent.
 //
-// SupportedTAItems aliases the source PDU buffer (TAC, PLMNIdentity
-// and SNSSAI octet strings); like UserLocationInformation.Raw, callers
-// must finish consuming it within the synchronous handler invocation.
-// SupportedTAItems may be empty even after a non-fatal decode: the IE
-// container itself was present but carried zero items, which TS
-// 38.413 forbids structurally but real gNBs occasionally send. The
-// handler decides whether to reject empty lists.
+// SupportedTAItems aliases the source PDU buffer (TAC, PLMNIdentity and SNSSAI
+// octet strings) and must be consumed within the synchronous handler
+// invocation. It may be empty on a non-fatal decode: TS 38.413 forbids a
+// zero-item container, but real gNBs occasionally send one.
 type NGSetupRequest struct {
 	GlobalRANNodeID  GlobalRANNodeID
 	SupportedTAItems []ngapType.SupportedTAItem
@@ -92,22 +85,16 @@ type NGSetupRequest struct {
 }
 
 // PathSwitchRequest is a decoded NGAP PathSwitchRequest (3GPP TS 38.413).
-// RANUENGAPID, SourceAMFUENGAPID and PDUSessionResourceItems
-// are mandatory-reject and populated when the accompanying *Report is
-// non-fatal. UserLocationInformation and UESecurityCapabilities are
-// mandatory-ignore: missing or malformed values yield a non-fatal report
-// and a zero-value field, so the handler must still cope with an empty
-// ULI Kind and a nil UESecurityCapabilities. FailedToSetupItems is
-// optional and may be nil.
+// RANUENGAPID, SourceAMFUENGAPID and PDUSessionResourceItems are
+// mandatory-reject. UserLocationInformation and UESecurityCapabilities are
+// mandatory-ignore: a missing or malformed value yields a zero-value field.
+// FailedToSetupItems is optional and may be nil.
 //
-// PDUSessionResourceItems and FailedToSetupItems alias the source PDU
-// buffer (PathSwitchRequest{Transfer,SetupFailedTransfer} octet
-// strings); like UserLocationInformation.Raw, callers must finish
-// consuming them within the synchronous handler invocation.
-//
-// PDUSessionResourceItems may be structurally empty even on a non-fatal
-// decode: TS 38.413 sizeLB:1 forbids it, but the decoder does not
-// enforce sizeLB and the handler decides how to react.
+// PDUSessionResourceItems and FailedToSetupItems alias the source PDU buffer
+// (PathSwitchRequest{Transfer,SetupFailedTransfer} octet strings) and must be
+// consumed within the synchronous handler invocation. PDUSessionResourceItems
+// may be structurally empty on a non-fatal decode: TS 38.413 sizeLB:1 forbids
+// it but the decoder does not enforce sizeLB.
 type PathSwitchRequest struct {
 	RANUENGAPID             int64
 	SourceAMFUENGAPID       int64
@@ -117,16 +104,14 @@ type PathSwitchRequest struct {
 	FailedToSetupItems      []ngapType.PDUSessionResourceFailedToSetupItemPSReq
 }
 
-// HandoverRequired is a decoded NGAP HandoverRequired (3GPP TS 38.413
-// — Handover Preparation procedure). All fields except Cause
-// correspond to mandatory-reject IEs and are populated when the
-// accompanying *Report is non-fatal. Cause is mandatory-ignore: a
-// missing or malformed value yields a non-fatal report and a zero-value
-// Cause, so the handler must cope with Cause.Present == 0.
+// HandoverRequired is a decoded NGAP HandoverRequired (3GPP TS 38.413, Handover
+// Preparation). All fields except Cause are mandatory-reject. Cause is
+// mandatory-ignore, yielding a zero-value Cause (Present == 0) when missing or
+// malformed.
 //
 // TargetID, PDUSessionResourceItems and SourceToTargetTransparentContainer
-// alias the source PDU buffer; callers must finish consuming them within
-// the synchronous handler invocation.
+// alias the source PDU buffer and must be consumed within the synchronous
+// handler invocation.
 type HandoverRequired struct {
 	AMFUENGAPID                        int64
 	RANUENGAPID                        int64
@@ -138,11 +123,10 @@ type HandoverRequired struct {
 }
 
 // InitialContextSetupResponse is a decoded NGAP InitialContextSetupResponse
-// (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are
-// mandatory-ignore — missing or malformed values yield a non-fatal
-// report with the relevant field left zero. SetupItems and
-// FailedToSetupItems are optional and may be nil. Both alias the source
-// PDU buffer (PDUSessionResourceSetupResponseTransfer /
+// (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are mandatory-ignore, left zero
+// on a missing or malformed value. SetupItems and FailedToSetupItems are
+// optional and may be nil; both alias the source PDU buffer
+// (PDUSessionResourceSetupResponseTransfer /
 // PDUSessionResourceSetupUnsuccessfulTransfer octet strings) and must be
 // consumed within the synchronous handler invocation.
 type InitialContextSetupResponse struct {
@@ -152,15 +136,13 @@ type InitialContextSetupResponse struct {
 	FailedToSetupItems []ngapType.PDUSessionResourceFailedToSetupItemCxtRes
 }
 
-// UplinkNASTransport is a decoded NGAP UplinkNASTransport (3GPP TS
-// 38.413). AMFUENGAPID, RANUENGAPID and NASPDU are mandatory-
-// reject and populated when the accompanying *Report is non-fatal.
-// UserLocationInformation is mandatory-ignore: a missing or malformed
-// value yields a non-fatal report and a zero-value UserLocationKind.
+// UplinkNASTransport is a decoded NGAP UplinkNASTransport (3GPP TS 38.413).
+// AMFUENGAPID, RANUENGAPID and NASPDU are mandatory-reject.
+// UserLocationInformation is mandatory-ignore, yielding a zero-value
+// UserLocationKind when absent or malformed.
 //
-// NASPDU is copied out of the source PDU buffer so the handler may
-// store it across asynchronous boundaries; UserLocationInformation
-// aliases the source buffer like in InitialUEMessage.
+// NASPDU is copied out of the source PDU buffer so it may be stored across
+// asynchronous boundaries; UserLocationInformation aliases the source buffer.
 type UplinkNASTransport struct {
 	AMFUENGAPID             int64
 	RANUENGAPID             int64
@@ -169,16 +151,13 @@ type UplinkNASTransport struct {
 }
 
 // UEContextReleaseRequest is a decoded NGAP UEContextReleaseRequest
-// (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are
-// mandatory-reject and populated when the accompanying *Report is
-// non-fatal. Cause is mandatory-ignore: a missing or malformed value
-// yields a non-fatal report and a nil Cause pointer. PDUSessionResourceList
-// is optional-reject: when the IE is absent the slice is nil; when the
-// IE is present (even with an empty inner list) the slice is non-nil so
-// callers can distinguish "no IE" from "IE present, no items".
+// (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are mandatory-reject. Cause is
+// mandatory-ignore (nil when absent or malformed). PDUSessionResourceList is
+// optional-reject: nil when the IE is absent, non-nil (possibly empty) when the
+// IE is present, distinguishing "no IE" from "IE present, no items".
 //
-// PDUSessionResourceList aliases the source PDU buffer; callers must
-// finish consuming it within the synchronous handler invocation.
+// PDUSessionResourceList aliases the source PDU buffer and must be consumed
+// within the synchronous handler invocation.
 type UEContextReleaseRequest struct {
 	AMFUENGAPID            int64
 	RANUENGAPID            int64
@@ -186,34 +165,30 @@ type UEContextReleaseRequest struct {
 	Cause                  *ngapType.Cause
 }
 
-// NGReset is a decoded NGAP NGReset (3GPP TS 38.413).
-// Cause is mandatory-ignore: a missing or malformed value yields a
-// non-fatal report and a zero-value Cause. ResetType is mandatory-reject;
-// when populated, the inner CHOICE pointer matching ResetType.Present is
-// non-nil. ResetType aliases the source PDU buffer.
+// NGReset is a decoded NGAP NGReset (3GPP TS 38.413). Cause is mandatory-ignore,
+// yielding a zero-value Cause when absent or malformed. ResetType is
+// mandatory-reject; when populated the inner CHOICE pointer matching
+// ResetType.Present is non-nil. ResetType aliases the source PDU buffer.
 type NGReset struct {
 	Cause     ngapType.Cause
 	ResetType *ngapType.ResetType
 }
 
-// ErrorIndication is a decoded NGAP ErrorIndication (3GPP TS 38.413).
-// All four IEs are optional-ignore. The decoder records
-// malformed-IE diagnostics in *Report but never raises a fatal error.
-// Per the spec the message must contain at least one of Cause or
-// CriticalityDiagnostics; the decoder does not enforce this — handlers
-// that care must check it. AMF-UE-NGAP-ID and RAN-UE-NGAP-ID are
-// validated structurally but not surfaced because no current handler
-// uses them.
+// ErrorIndication is a decoded NGAP ErrorIndication (3GPP TS 38.413). All four
+// IEs are optional-ignore; the decoder never raises a fatal error. TS 38.413
+// requires at least one of Cause or CriticalityDiagnostics, which the decoder
+// does not enforce. AMFUENGAPID/RANUENGAPID are nil for a non-UE-associated
+// Error Indication.
 type ErrorIndication struct {
+	AMFUENGAPID            *int64
+	RANUENGAPID            *int64
 	Cause                  *ngapType.Cause
 	CriticalityDiagnostics *ngapType.CriticalityDiagnostics
 }
 
-// HandoverCancel is a decoded NGAP HandoverCancel (3GPP TS 38.413).
-// AMFUENGAPID and RANUENGAPID are mandatory-reject; Cause is
-// mandatory-ignore (missing/malformed → nil pointer in the decoded
-// struct). All fields are populated when the accompanying *Report is
-// non-fatal.
+// HandoverCancel is a decoded NGAP HandoverCancel (3GPP TS 38.413). AMFUENGAPID
+// and RANUENGAPID are mandatory-reject; Cause is mandatory-ignore (nil when
+// absent or malformed).
 type HandoverCancel struct {
 	AMFUENGAPID int64
 	RANUENGAPID int64
@@ -221,15 +196,12 @@ type HandoverCancel struct {
 }
 
 // UERadioCapabilityInfoIndication is a decoded NGAP
-// UERadioCapabilityInfoIndication (3GPP TS 38.413).
-// AMFUENGAPID and RANUENGAPID are mandatory-reject. UERadioCapability
-// is mandatory-ignore — missing or malformed yields a non-fatal report
-// and a nil byte slice. UERadioCapabilityForPaging is optional-ignore
-// and is nil when absent or malformed.
+// UERadioCapabilityInfoIndication (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID
+// are mandatory-reject. UERadioCapability is mandatory-ignore (nil when absent
+// or malformed). UERadioCapabilityForPaging is optional-ignore.
 //
-// UERadioCapability and UERadioCapabilityForPaging alias the source
-// PDU buffer; callers must finish consuming them within the synchronous
-// handler invocation.
+// UERadioCapability and UERadioCapabilityForPaging alias the source PDU buffer
+// and must be consumed within the synchronous handler invocation.
 type UERadioCapabilityInfoIndication struct {
 	AMFUENGAPID                int64
 	RANUENGAPID                int64
@@ -238,15 +210,12 @@ type UERadioCapabilityInfoIndication struct {
 }
 
 // NASNonDeliveryIndication is a decoded NGAP NASNonDeliveryIndication
-// (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are
-// mandatory-reject. NASPDU and Cause are mandatory-ignore: a missing or
-// malformed NASPDU yields an empty byte slice and a missing or
-// malformed Cause yields a zero-value Cause; both leave the report
-// non-fatal so the handler still runs.
+// (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are mandatory-reject. NASPDU and
+// Cause are mandatory-ignore, yielding an empty byte slice and a zero-value
+// Cause respectively.
 //
-// NASPDU is copied out of the source PDU buffer (like in
-// UplinkNASTransport) so the handler may forward it across asynchronous
-// boundaries to NAS processing.
+// NASPDU is copied out of the source PDU buffer so it may be forwarded across
+// asynchronous boundaries to NAS processing.
 type NASNonDeliveryIndication struct {
 	AMFUENGAPID int64
 	RANUENGAPID int64
@@ -255,15 +224,14 @@ type NASNonDeliveryIndication struct {
 }
 
 // InitialContextSetupFailure is a decoded NGAP InitialContextSetupFailure
-// (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are mandatory-
-// reject. Cause is mandatory-ignore: a missing or malformed value yields a
-// non-fatal report and a zero-value Cause. PDUSessionResourceFailedToSetupItems
-// is optional-ignore and may be nil. CriticalityDiagnostics is optional-ignore
-// and not surfaced.
+// (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are mandatory-reject. Cause is
+// mandatory-ignore, yielding a zero-value Cause when absent or malformed.
+// PDUSessionResourceFailedToSetupItems is optional-ignore and may be nil;
+// CriticalityDiagnostics is optional-ignore and not surfaced.
 //
 // PDUSessionResourceFailedToSetupItems aliases the source PDU buffer
-// (PDUSessionResourceSetupUnsuccessfulTransfer octet strings); callers must
-// finish consuming it within the synchronous handler invocation.
+// (PDUSessionResourceSetupUnsuccessfulTransfer octet strings) and must be
+// consumed within the synchronous handler invocation.
 type InitialContextSetupFailure struct {
 	AMFUENGAPID                          int64
 	RANUENGAPID                          int64
@@ -272,13 +240,10 @@ type InitialContextSetupFailure struct {
 }
 
 // UEContextModificationFailure is a decoded NGAP UEContextModificationFailure
-// (3GPP TS 38.413). All four IEs are mandatory-ignore (per the spec
-// criticality matrix), so a missing or malformed value yields a non-fatal
-// report. AMFUENGAPID and RANUENGAPID are pointers because zero is a valid
-// NGAP UE NGAP ID and the handler differentiates "absent" from "present" to
-// drive its lookup logic. Cause is a pointer for the same nil-check the
-// handler performs. CriticalityDiagnostics is optional-ignore and not
-// surfaced.
+// (3GPP TS 38.413). AMFUENGAPID, RANUENGAPID and Cause are mandatory-ignore.
+// AMFUENGAPID and RANUENGAPID are pointers (0 is a valid UE NGAP ID, so absent
+// differs from present). Cause is nil when absent. CriticalityDiagnostics is
+// optional-ignore and not surfaced.
 type UEContextModificationFailure struct {
 	AMFUENGAPID *int64
 	RANUENGAPID *int64
@@ -286,10 +251,8 @@ type UEContextModificationFailure struct {
 }
 
 // HandoverFailure is a decoded NGAP HandoverFailure (3GPP TS 38.413).
-// AMFUENGAPID is mandatory-reject. Cause is mandatory-ignore
-// (a pointer so the handler can fall back to a default cause when absent).
-// CriticalityDiagnostics is optional-ignore and forwarded to the source
-// gNB on the HandoverPreparationFailure response.
+// AMFUENGAPID is mandatory-reject. Cause is mandatory-ignore (nil when absent).
+// CriticalityDiagnostics is optional-ignore.
 type HandoverFailure struct {
 	AMFUENGAPID            int64
 	Cause                  *ngapType.Cause
@@ -297,15 +260,13 @@ type HandoverFailure struct {
 }
 
 // UEContextReleaseComplete is a decoded NGAP UEContextReleaseComplete
-// (3GPP TS 38.413). All IEs are criticality-ignore.
-// AMFUENGAPID and RANUENGAPID are mandatory-ignore: a missing or
-// malformed value yields a non-fatal report and the corresponding
-// pointer is nil. The handler must nil-check both before driving its
-// lookups. UserLocationInformation, InfoOnRecommendedCellsAndRANNodesForPaging
-// and PDUSessionResourceList are optional and may be nil.
+// (3GPP TS 38.413). All IEs are criticality-ignore. AMFUENGAPID and RANUENGAPID
+// are mandatory-ignore, nil on a missing or malformed value.
+// UserLocationInformation, InfoOnRecommendedCellsAndRANNodesForPaging and
+// PDUSessionResourceList are optional and may be nil.
 //
-// All non-scalar fields alias the source PDU buffer; callers must
-// finish consuming them within the synchronous handler invocation.
+// All non-scalar fields alias the source PDU buffer and must be consumed within
+// the synchronous handler invocation.
 type UEContextReleaseComplete struct {
 	AMFUENGAPID                                *int64
 	RANUENGAPID                                *int64
@@ -315,12 +276,11 @@ type UEContextReleaseComplete struct {
 }
 
 // PDUSessionResourceReleaseResponse is a decoded NGAP
-// PDUSessionResourceReleaseResponse (3GPP TS 38.413).
-// AMFUENGAPID, RANUENGAPID and PDUSessionResourceReleasedListRelRes
-// are all mandatory-ignore. AMFUENGAPID and RANUENGAPID are pointers so
-// the handler can nil-check before lookup. PDUSessionResourceReleasedItems
-// aliases the source PDU buffer (PDUSessionResourceReleaseResponseTransfer
-// octet strings). UserLocationInformation is optional-ignore.
+// PDUSessionResourceReleaseResponse (3GPP TS 38.413). AMFUENGAPID, RANUENGAPID
+// and PDUSessionResourceReleasedListRelRes are mandatory-ignore; AMFUENGAPID and
+// RANUENGAPID are pointers. PDUSessionResourceReleasedItems aliases the source
+// PDU buffer (PDUSessionResourceReleaseResponseTransfer octet strings).
+// UserLocationInformation is optional-ignore.
 type PDUSessionResourceReleaseResponse struct {
 	AMFUENGAPID                     *int64
 	RANUENGAPID                     *int64
@@ -329,11 +289,9 @@ type PDUSessionResourceReleaseResponse struct {
 }
 
 // UEContextModificationResponse is a decoded NGAP UEContextModificationResponse
-// (3GPP TS 38.413). All IEs are criticality-ignore. AMFUENGAPID and
-// RANUENGAPID are mandatory-ignore and surfaced as pointers because the
-// handler differentiates absent from present (RAN-only fallback when
-// AMF is missing) and 0 is a valid NGAP UE NGAP ID. RRCState and
-// UserLocationInformation are optional and may be nil.
+// (3GPP TS 38.413). All IEs are criticality-ignore. AMFUENGAPID and RANUENGAPID
+// are mandatory-ignore pointers (0 is a valid UE NGAP ID, so absent differs from
+// present). RRCState and UserLocationInformation are optional and may be nil.
 type UEContextModificationResponse struct {
 	AMFUENGAPID             *int64
 	RANUENGAPID             *int64
@@ -342,11 +300,10 @@ type UEContextModificationResponse struct {
 }
 
 // PDUSessionResourceSetupResponse is a decoded NGAP
-// PDUSessionResourceSetupResponse (3GPP TS 38.413). All IEs
-// are criticality-ignore. AMFUENGAPID and RANUENGAPID are mandatory-ignore
-// and surfaced as pointers (handler does conditional fallback lookups).
-// SetupItems and FailedToSetupItems are optional and may be nil; both
-// alias the source PDU buffer.
+// PDUSessionResourceSetupResponse (3GPP TS 38.413). All IEs are
+// criticality-ignore. AMFUENGAPID and RANUENGAPID are mandatory-ignore pointers.
+// SetupItems and FailedToSetupItems are optional and may be nil; both alias the
+// source PDU buffer.
 type PDUSessionResourceSetupResponse struct {
 	AMFUENGAPID        *int64
 	RANUENGAPID        *int64
@@ -355,11 +312,10 @@ type PDUSessionResourceSetupResponse struct {
 }
 
 // PDUSessionResourceModifyResponse is a decoded NGAP
-// PDUSessionResourceModifyResponse (3GPP TS 38.413). All IEs
-// are criticality-ignore. AMFUENGAPID and RANUENGAPID are mandatory-ignore
-// and surfaced as pointers. UserLocationInformation is optional. The
-// per-PDU-session lists are not surfaced because the current handler
-// does not consume them.
+// PDUSessionResourceModifyResponse (3GPP TS 38.413). All IEs are
+// criticality-ignore. AMFUENGAPID and RANUENGAPID are mandatory-ignore pointers.
+// UserLocationInformation is optional. The per-PDU-session lists are not
+// surfaced.
 type PDUSessionResourceModifyResponse struct {
 	AMFUENGAPID             *int64
 	RANUENGAPID             *int64
@@ -367,19 +323,16 @@ type PDUSessionResourceModifyResponse struct {
 }
 
 // HandoverRequestAcknowledge is a decoded NGAP HandoverRequestAcknowledge
-// (3GPP TS 38.413). AMFUENGAPID, RANUENGAPID,
-// PDUSessionResourceAdmittedList are mandatory-ignore (criticality-ignore
-// per the spec; surfaced as pointers because the handler distinguishes
-// absent vs present and 0 is a valid NGAP UE NGAP ID).
-// TargetToSourceTransparentContainer is mandatory-reject; missing or
-// malformed values yield a fatal report so the dispatcher returns an
-// ErrorIndication with CriticalityDiagnostics. PDUSessionResourceFailedToSetupItems
-// is optional-ignore.
+// (3GPP TS 38.413). AMFUENGAPID, RANUENGAPID and PDUSessionResourceAdmittedList
+// are mandatory-ignore pointers (0 is a valid UE NGAP ID, so absent differs from
+// present). TargetToSourceTransparentContainer is mandatory-reject; a missing or
+// malformed value yields a fatal report. PDUSessionResourceFailedToSetupItems is
+// optional-ignore.
 //
 // AdmittedItems and FailedToSetupItems alias the source PDU buffer
-// (HandoverRequestAcknowledgeTransfer / HandoverResourceAllocationUnsuccessfulTransfer
-// octet strings); callers must finish consuming them within the synchronous
-// handler invocation.
+// (HandoverRequestAcknowledgeTransfer /
+// HandoverResourceAllocationUnsuccessfulTransfer octet strings) and must be
+// consumed within the synchronous handler invocation.
 type HandoverRequestAcknowledge struct {
 	AMFUENGAPID                        *int64
 	RANUENGAPID                        *int64
@@ -388,15 +341,10 @@ type HandoverRequestAcknowledge struct {
 	TargetToSourceTransparentContainer ngapType.TargetToSourceTransparentContainer
 }
 
-// HandoverNotify is a decoded NGAP HandoverNotify (3GPP TS 38.413).
-// AMFUENGAPID and RANUENGAPID are mandatory-reject and
-// populated when the accompanying *Report is non-fatal.
-// UserLocationInformation is mandatory-ignore: a missing or malformed
-// value yields a non-fatal report and a nil pointer so the handler can
-// skip the location update.
-//
-// UserLocationInformation aliases the source PDU buffer; callers must
-// finish consuming it within the synchronous handler invocation.
+// HandoverNotify is a decoded NGAP HandoverNotify (3GPP TS 38.413). AMFUENGAPID
+// and RANUENGAPID are mandatory-reject. UserLocationInformation is
+// mandatory-ignore (nil when absent or malformed) and aliases the source PDU
+// buffer, so it must be consumed within the synchronous handler invocation.
 type HandoverNotify struct {
 	AMFUENGAPID             int64
 	RANUENGAPID             int64
@@ -404,17 +352,15 @@ type HandoverNotify struct {
 }
 
 // PDUSessionResourceNotify is a decoded NGAP PDUSessionResourceNotify
-// (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are
-// mandatory-reject and populated when the accompanying *Report is
-// non-fatal. HasNotifyList records whether the optional-reject
-// PDUSessionResourceNotifyList IE was present; the handler only logs a
-// warning on presence so the contents are not surfaced.
-// PDUSessionResourceReleasedItems and UserLocationInformation are both
+// (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are mandatory-reject.
+// HasNotifyList records whether the optional-reject
+// PDUSessionResourceNotifyList IE was present; its contents are not surfaced.
+// PDUSessionResourceReleasedItems and UserLocationInformation are
 // optional-ignore.
 //
 // PDUSessionResourceReleasedItems aliases the source PDU buffer
-// (PDUSessionResourceNotifyReleasedTransfer octet strings); callers
-// must finish consuming it within the synchronous handler invocation.
+// (PDUSessionResourceNotifyReleasedTransfer octet strings) and must be consumed
+// within the synchronous handler invocation.
 type PDUSessionResourceNotify struct {
 	AMFUENGAPID                     int64
 	RANUENGAPID                     int64
@@ -423,17 +369,13 @@ type PDUSessionResourceNotify struct {
 	UserLocationInformation         *ngapType.UserLocationInformation
 }
 
-// LocationReport is a decoded NGAP LocationReport (3GPP TS 38.413).
-// AMFUENGAPID and RANUENGAPID are mandatory-reject and
-// populated when the accompanying *Report is non-fatal.
-// UserLocationInformation and LocationReportingRequestType are
-// mandatory-ignore — missing or malformed values yield a non-fatal
-// report and leave the corresponding pointer nil so the handler can
-// nil-check before dereferencing. UEPresenceInAreaOfInterestList is
-// optional-ignore.
+// LocationReport is a decoded NGAP LocationReport (3GPP TS 38.413). AMFUENGAPID
+// and RANUENGAPID are mandatory-reject. UserLocationInformation and
+// LocationReportingRequestType are mandatory-ignore, nil when absent or
+// malformed. UEPresenceInAreaOfInterestList is optional-ignore.
 //
-// All pointer fields alias the source PDU buffer; callers must finish
-// consuming them within the synchronous handler invocation.
+// All pointer fields alias the source PDU buffer and must be consumed within the
+// synchronous handler invocation.
 type LocationReport struct {
 	AMFUENGAPID                    int64
 	RANUENGAPID                    int64
@@ -442,41 +384,36 @@ type LocationReport struct {
 	LocationReportingRequestType   *ngapType.LocationReportingRequestType
 }
 
-// UplinkRANConfigurationTransfer is a decoded NGAP
-// UplinkRANConfigurationTransfer (3GPP TS 38.413). All IEs
-// are optional-ignore. SONConfigurationTransferUL is the only IE
-// surfaced — ENDCSONConfigurationTransferUL is consumed for validation
-// only because no current handler uses it.
+// UplinkRANConfigurationTransfer is a decoded NGAP UplinkRANConfigurationTransfer
+// (3GPP TS 38.413). All IEs are optional-ignore. Only SONConfigurationTransferUL
+// is surfaced; ENDCSONConfigurationTransferUL is validated but not surfaced.
 //
 // SONConfigurationTransferUL aliases the source PDU buffer (TargetRANNodeID,
-// SourceRANNodeID and XnTNLConfigurationInfo inside); callers must finish
-// consuming it within the synchronous handler invocation.
+// SourceRANNodeID and XnTNLConfigurationInfo inside) and must be consumed within
+// the synchronous handler invocation.
 type UplinkRANConfigurationTransfer struct {
 	SONConfigurationTransferUL *ngapType.SONConfigurationTransfer
 }
 
 // PDUSessionResourceModifyIndication is a decoded NGAP
-// PDUSessionResourceModifyIndication (3GPP TS 38.413). All
-// three IEs are mandatory-reject so missing or malformed values yield a
-// fatal report. The handler does not consume
-// PDUSessionResourceModifyListModInd contents — presence validation
-// happens in the decoder and the list itself is not surfaced.
+// PDUSessionResourceModifyIndication (3GPP TS 38.413). All three IEs are
+// mandatory-reject, so a missing or malformed value yields a fatal report.
 type PDUSessionResourceModifyIndication struct {
-	AMFUENGAPID int64
-	RANUENGAPID int64
+	AMFUENGAPID             int64
+	RANUENGAPID             int64
+	PDUSessionResourceItems []ngapType.PDUSessionResourceModifyItemModInd
 }
 
 // RANConfigurationUpdate is a decoded NGAP RANConfigurationUpdate
-// (3GPP TS 38.413). All IEs in this message are optional;
-// the decoder records malformed-IE diagnostics in *Report but never
-// reports a missing-mandatory IE. SupportedTAItems is the only IE
-// surfaced because it is the only one the handler currently consumes;
-// when the SupportedTAList IE is absent the slice is nil, when present
-// (even structurally empty) the slice is non-nil.
+// (3GPP TS 38.413). All IEs are optional; the decoder records malformed-IE
+// diagnostics but never reports a missing-mandatory IE. Only SupportedTAItems
+// and RANNodeName are surfaced.
 //
-// SupportedTAItems aliases the source PDU buffer (TAC, PLMNIdentity and
-// SNSSAI octet strings); like UserLocationInformation.Raw, callers must
-// finish consuming it within the synchronous handler invocation.
+// SupportedTAItems aliases the source PDU buffer (TAC, PLMNIdentity and SNSSAI
+// octet strings) and must be consumed within the synchronous handler invocation.
 type RANConfigurationUpdate struct {
+	// SupportedTAItems is nil when the (optional) Supported TA List IE is absent,
+	// signalling the stored TAs are unchanged (TS 38.413 §8.7.2.2).
 	SupportedTAItems []ngapType.SupportedTAItem
+	RANNodeName      string
 }

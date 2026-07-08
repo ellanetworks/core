@@ -39,8 +39,8 @@ type ProtocolConfigurationOptions struct {
 // For IPv4v6, both are set.
 type PDUSessionAddresses struct {
 	PDUSessionType uint8   // nasMessage.PDUSessionTypeIPv4/IPv6/IPv4IPv6
-	IPv4Address    net.IP  // 4-byte IPv4 address (nil for IPv6-only)
-	IPv6IID        [8]byte // Interface Identifier (zero for IPv4-only)
+	IPv4Address    net.IP  // 4-byte IPv4 address
+	IPv6IID        [8]byte // Interface Identifier
 }
 
 func BuildGSMPDUSessionEstablishmentAccept(
@@ -107,20 +107,14 @@ func BuildGSMPDUSessionEstablishmentAccept(
 		m.SetPDUAddressInformation(addr)
 	}
 
-	// Get Authorized QoS Flow Descriptions
 	authQfd, err := BuildAuthorizedQosFlowDescription(qosData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build Authorized QoS Flow Descriptions: %v", err)
 	}
 
-	// Add Default Qos Flow
-	// authQfd.AddDefaultQosFlowDescription(smContext.SmPolicyUpdates[0].SessRuleUpdate.ActiveSessRule)
-
 	m.PDUSessionEstablishmentAccept.AuthorizedQosFlowDescriptions = nasType.NewAuthorizedQosFlowDescriptions(nasMessage.PDUSessionEstablishmentAcceptAuthorizedQosFlowDescriptionsType)
 	m.PDUSessionEstablishmentAccept.AuthorizedQosFlowDescriptions.SetLen(authQfd.IeLen)
 	m.PDUSessionEstablishmentAccept.SetQoSFlowDescriptions(authQfd.Content)
-	// pDUSessionEstablishmentAccept.AuthorizedQosFlowDescriptions.SetLen(6)
-	// pDUSessionEstablishmentAccept.SetQoSFlowDescriptions([]uint8{uint8(authDefQos.Var5qi), 0x20, 0x41, 0x01, 0x01, 0x09})
 
 	m.PDUSessionEstablishmentAccept.SNSSAI = nasType.NewSNSSAI(nasMessage.ULNASTransportSNSSAIType)
 	m.PDUSessionEstablishmentAccept.SetSST(uint8(snssai.Sst))
@@ -143,7 +137,6 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	m.PDUSessionEstablishmentAccept.DNN = nasType.NewDNN(nasMessage.ULNASTransportDNNType)
 	m.PDUSessionEstablishmentAccept.SetDNN(dnn)
 
-	// Always-on PDU session indication (TS 24.501 §6.4.1, §9.11.4.3).
 	if alwaysOn != nil {
 		m.PDUSessionEstablishmentAccept.AlwaysonPDUSessionIndication = nasType.NewAlwaysonPDUSessionIndication(nasMessage.PDUSessionEstablishmentAcceptAlwaysonPDUSessionIndicationType)
 		m.PDUSessionEstablishmentAccept.SetAPSI(*alwaysOn)
@@ -155,7 +148,6 @@ func BuildGSMPDUSessionEstablishmentAccept(
 		)
 		protocolConfigurationOptions := nasConvert.NewProtocolConfigurationOptions()
 
-		// IPv4 DNS
 		if pco.DNSIPv4Request {
 			err := protocolConfigurationOptions.AddDNSServerIPv4Address(dns)
 			if err != nil {
@@ -163,7 +155,6 @@ func BuildGSMPDUSessionEstablishmentAccept(
 			}
 		}
 
-		// IPv6 DNS
 		if pco.DNSIPv6Request {
 			err := protocolConfigurationOptions.AddDNSServerIPv6Address(dns)
 			if err != nil {
@@ -171,7 +162,6 @@ func BuildGSMPDUSessionEstablishmentAccept(
 			}
 		}
 
-		// MTU
 		if pco.IPv4LinkMTURequest {
 			err := protocolConfigurationOptions.AddIPv4LinkMTU(mtu)
 			if err != nil {
@@ -188,7 +178,6 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	return m.PlainNasEncode()
 }
 
-// ModelsToSessionAMBR converts an Ambr model to a NAS SessionAMBR type.
 func ModelsToSessionAMBR(ambr *models.Ambr) (nasType.SessionAMBR, error) {
 	var sessAmbr nasType.SessionAMBR
 

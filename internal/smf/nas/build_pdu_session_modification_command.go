@@ -15,12 +15,8 @@ import (
 )
 
 // BuildPDUSessionModificationCommand constructs a NAS PDU Session Modification
-// Command message (TS 24.501 clause 8.3.9). It includes:
-//   - Session-AMBR IE (when ambr is non-nil, clause 8.3.9.3)
-//   - Authorized QoS flow descriptions IE (when qosData is non-nil, clause 8.3.9.8)
-//   - Extended PCO with DNS server address(es) (when dns is non-nil, clause 6.3.2)
-//
-// At least one of ambr, qosData, or dns must be non-nil.
+// Command message (TS 24.501 clause 8.3.9). At least one of ambr, qosData, or
+// dns must be non-nil.
 func BuildPDUSessionModificationCommand(pduSessionID uint8, ambr *models.Ambr, qosData *models.QosData, dns net.IP) ([]byte, error) {
 	if ambr == nil && qosData == nil && dns == nil {
 		return nil, fmt.Errorf("at least one of ambr, qosData, or dns must be provided")
@@ -35,7 +31,6 @@ func BuildPDUSessionModificationCommand(pduSessionID uint8, ambr *models.Ambr, q
 	m.PDUSessionModificationCommand.SetMessageType(nas.MsgTypePDUSessionModificationCommand)
 	m.PDUSessionModificationCommand.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
 
-	// Session-AMBR IE (TS 24.501 clause 8.3.9.3)
 	if ambr != nil {
 		sessAmbr, err := ModelsToSessionAMBR(ambr)
 		if err != nil {
@@ -47,7 +42,6 @@ func BuildPDUSessionModificationCommand(pduSessionID uint8, ambr *models.Ambr, q
 		m.PDUSessionModificationCommand.SessionAMBR.SetLen(uint8(len(m.PDUSessionModificationCommand.SessionAMBR.Octet)))
 	}
 
-	// Authorized QoS flow descriptions IE (TS 24.501 clause 8.3.9.8)
 	if qosData != nil {
 		authQfd, err := BuildModifyQosFlowDescription(qosData)
 		if err != nil {
@@ -59,7 +53,6 @@ func BuildPDUSessionModificationCommand(pduSessionID uint8, ambr *models.Ambr, q
 		m.PDUSessionModificationCommand.SetQoSFlowDescriptions(authQfd.Content)
 	}
 
-	// Extended PCO with DNS server address(es) (TS 24.501 clause 6.3.2)
 	if dns != nil {
 		m.PDUSessionModificationCommand.ExtendedProtocolConfigurationOptions = nasType.NewExtendedProtocolConfigurationOptions(
 			nasMessage.PDUSessionModificationCommandExtendedProtocolConfigurationOptionsType,

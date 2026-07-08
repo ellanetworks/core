@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"errors"
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
@@ -20,11 +19,11 @@ import (
 	"github.com/free5gc/aper"
 )
 
-func TestHandleInitialUEMessage_CreatesNewRanUe(t *testing.T) {
-	fakeNAS := &FakeNASHandler{}
+func TestHandleInitialUEMessage_CreatesNewUeConn(t *testing.T) {
+	fakeNAS := &fakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 
-	ran := newTestRadio()
+	ran := newTestRadio(amfInstance)
 	ran.RanID = &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "001"}}
 
 	nasPDU := []byte{0xAA, 0xBB, 0xCC}
@@ -34,17 +33,17 @@ func TestHandleInitialUEMessage_CreatesNewRanUe(t *testing.T) {
 		NASPDU:      nasPDU,
 	})
 
-	if len(ran.RanUEs) != 1 {
-		t.Fatalf("len(ran.RanUEs) = %d, want 1", len(ran.RanUEs))
+	if ran.NumUEsForTest() != 1 {
+		t.Fatalf("ran.NumUEsForTest() = %d, want 1", ran.NumUEsForTest())
 	}
 
-	ranUe := ran.FindUEByRanUeNgapID(1)
-	if ranUe == nil {
-		t.Fatal("ran.FindUEByRanUeNgapID(1) is nil")
+	ueConn := amfInstance.FindUEByRanUeNgapID(ran, 1)
+	if ueConn == nil {
+		t.Fatal("FindUEByRanUeNgapID(1) is nil")
 	}
 
-	if ranUe.RanUeNgapID != 1 {
-		t.Errorf("RanUeNgapID = %d, want 1", ranUe.RanUeNgapID)
+	if ueConn.RanUeNgapID != 1 {
+		t.Errorf("RanUeNgapID = %d, want 1", ueConn.RanUeNgapID)
 	}
 
 	if len(fakeNAS.Calls) != 1 {
@@ -56,31 +55,85 @@ func TestHandleInitialUEMessage_CreatesNewRanUe(t *testing.T) {
 	}
 }
 
-func TestHandleInitialUEMessage_ReusedRanUeNgapID_EvictsStale(t *testing.T) {
-	fakeNAS := &FakeNASHandler{}
+// A SERVICE REQUEST Initial UE Message is routed to the dedicated HandleServiceRequest,
+// never through the generic HandleNAS mint path (mirrors the MME's S1AP peek); a request
+// that binds no context leaves no bare RAN connection behind.
+func TestHandleInitialUEMessage_ServiceRequestRoutedToDedicatedHandler(t *testing.T) {
+	fakeNAS := &fakeNASHandler{ServiceRequest: true, LeavesBare: true}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 
-	ran := newTestRadio()
+	ran := newTestRadio(amfInstance)
 	ran.RanID = &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "001"}}
 
-	amf.NewRanUeForTest(ran, 1, 99, logger.AmfLog)
+	nasPDU := []byte{0x7e, 0x00, 0x4c}
+
+	ngap.HandleInitialUEMessage(context.Background(), amfInstance, ran, decode.InitialUEMessage{
+		RANUENGAPID: 1,
+		NASPDU:      nasPDU,
+	})
+
+	if len(fakeNAS.ServiceRequestCalls) != 1 {
+		t.Fatalf("HandleServiceRequest calls = %d, want 1", len(fakeNAS.ServiceRequestCalls))
+	}
+
+	if len(fakeNAS.Calls) != 0 {
+		t.Fatalf("HandleNAS calls = %d, want 0 (a service request must not go through the mint gate)", len(fakeNAS.Calls))
+	}
+
+	if ran.NumUEsForTest() != 0 {
+		t.Fatalf("bare service-request conn not released: NumUEsForTest = %d, want 0", ran.NumUEsForTest())
+	}
+}
+
+// An Initial UE Message whose NAS never resolves to a UE context (undecodable, no
+// usable identity) must not leave a bare RAN connection behind, or an unauthenticated
+// peer could exhaust RAN-UE-NGAP-IDs.
+func TestHandleInitialUEMessage_UnresolvedNAS_ReleasesBareConn(t *testing.T) {
+	fakeNAS := &fakeNASHandler{LeavesBare: true}
+	amfInstance := newTestAMFWithNAS(fakeNAS)
+
+	ran := newTestRadio(amfInstance)
+	ran.RanID = &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "001"}}
+
+	ngap.HandleInitialUEMessage(context.Background(), amfInstance, ran, decode.InitialUEMessage{
+		RANUENGAPID: 1,
+		NASPDU:      []byte{0xAA, 0xBB, 0xCC},
+	})
+
+	if ueConn := amfInstance.FindUEByRanUeNgapID(ran, 1); ueConn != nil {
+		t.Fatal("bare UeConn was not released after an unresolved NAS message")
+	}
+
+	if ran.NumUEsForTest() != 0 {
+		t.Fatalf("ran.NumUEsForTest() = %d, want 0 (bare conn leaked)", ran.NumUEsForTest())
+	}
+}
+
+func TestHandleInitialUEMessage_ReusedRanUeNgapID_EvictsStale(t *testing.T) {
+	fakeNAS := &fakeNASHandler{}
+	amfInstance := newTestAMFWithNAS(fakeNAS)
+
+	ran := newTestRadio(amfInstance)
+	ran.RanID = &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "001"}}
+
+	amf.NewUeConnForTest(ran, 1, 99, logger.AmfLog)
 
 	ngap.HandleInitialUEMessage(context.Background(), amfInstance, ran, decode.InitialUEMessage{
 		RANUENGAPID: 1,
 		NASPDU:      []byte{0x01},
 	})
 
-	if len(ran.RanUEs) != 1 {
-		t.Fatalf("len(ran.RanUEs) = %d, want 1", len(ran.RanUEs))
+	if ran.NumUEsForTest() != 1 {
+		t.Fatalf("ran.NumUEsForTest() = %d, want 1", ran.NumUEsForTest())
 	}
 
-	newRanUe := ran.FindUEByRanUeNgapID(1)
-	if newRanUe == nil {
-		t.Fatal("ran.FindUEByRanUeNgapID(1) is nil")
+	newUeConn := amfInstance.FindUEByRanUeNgapID(ran, 1)
+	if newUeConn == nil {
+		t.Fatal("FindUEByRanUeNgapID(1) is nil")
 	}
 
-	if newRanUe.AmfUeNgapID == 99 {
-		t.Error("stale RanUe was not evicted — same AmfUeNgapID")
+	if newUeConn.AmfUeNgapID == 99 {
+		t.Error("stale UeConn was not evicted — same AmfUeNgapID")
 	}
 
 	if len(fakeNAS.Calls) != 1 {
@@ -93,9 +146,9 @@ func TestHandleInitialUEMessage_ReusedRanUeNgapID_EvictsStale(t *testing.T) {
 // is not integrity-verified against that context must not bind to it. The
 // message is still forwarded to NAS, which processes it on a fresh context.
 func TestHandleInitialUEMessage_5GSTMSI_UnverifiedDoesNotAttach(t *testing.T) {
-	fakeNAS := &FakeNASHandler{}
+	fakeNAS := &fakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
-	amfInstance.DBInstance = &FakeDBInstance{
+	amfInstance.DBInstance = &fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:         "001",
 			Mnc:         "01",
@@ -109,13 +162,13 @@ func TestHandleInitialUEMessage_5GSTMSI_UnverifiedDoesNotAttach(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	guti, err := etsi.NewGUTI("001", "01", "cafe00", tmsi)
+	guti, err := etsi.NewGUTI5G("001", "01", "cafe00", tmsi)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	amfUe := amf.NewUeContext()
-	amfUe.SetGutiForTest(guti)
+	amfInstance.AssignGutiForTest(amfUe, guti)
 
 	supi, err := etsi.NewSUPIFromIMSI("001010000000001")
 	if err != nil {
@@ -123,14 +176,13 @@ func TestHandleInitialUEMessage_5GSTMSI_UnverifiedDoesNotAttach(t *testing.T) {
 	}
 
 	amfUe.SetSupiForTest(supi)
-	amfUe.Log = logger.AmfLog
 
-	err = amfInstance.AddUeContextToPool(amfUe)
+	err = amfInstance.CommitUEIdentity(context.Background(), amfUe, amf.MintAuthProofForRegistrationCommit())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ran := newTestRadio()
+	ran := newTestRadio(amfInstance)
 	ran.RanID = &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "001"}}
 
 	tmsiBytes := make([]byte, 4)
@@ -146,12 +198,12 @@ func TestHandleInitialUEMessage_5GSTMSI_UnverifiedDoesNotAttach(t *testing.T) {
 		},
 	})
 
-	ranUe := ran.FindUEByRanUeNgapID(1)
-	if ranUe == nil {
-		t.Fatal("ran.FindUEByRanUeNgapID(1) is nil")
+	ueConn := amfInstance.FindUEByRanUeNgapID(ran, 1)
+	if ueConn == nil {
+		t.Fatal("FindUEByRanUeNgapID(1) is nil")
 	}
 
-	if ranUe.UeContext() == amfUe {
+	if ueConn.UeContext() == amfUe {
 		t.Error("an unverified Initial UE Message must not bind to the existing context (TS 24.501)")
 	}
 
@@ -161,9 +213,9 @@ func TestHandleInitialUEMessage_5GSTMSI_UnverifiedDoesNotAttach(t *testing.T) {
 }
 
 func TestHandleInitialUEMessage_5GSTMSI_UnknownUE_NASStillCalled(t *testing.T) {
-	fakeNAS := &FakeNASHandler{}
+	fakeNAS := &fakeNASHandler{LeavesBare: true}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
-	amfInstance.DBInstance = &FakeDBInstance{
+	amfInstance.DBInstance = &fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:         "001",
 			Mnc:         "01",
@@ -172,7 +224,7 @@ func TestHandleInitialUEMessage_5GSTMSI_UnknownUE_NASStillCalled(t *testing.T) {
 		},
 	}
 
-	ran := newTestRadio()
+	ran := newTestRadio(amfInstance)
 	ran.RanID = &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "001"}}
 
 	tmsiBytes := make([]byte, 4)
@@ -192,21 +244,18 @@ func TestHandleInitialUEMessage_5GSTMSI_UnknownUE_NASStillCalled(t *testing.T) {
 		t.Fatalf("NAS calls = %d, want 1", len(fakeNAS.Calls))
 	}
 
-	ranUe := ran.FindUEByRanUeNgapID(1)
-	if ranUe == nil {
-		t.Fatal("ran.FindUEByRanUeNgapID(1) is nil")
-	}
-
-	if ranUe.UeContext() != nil {
-		t.Error("ranUe.UeContext() should be nil for unknown UE")
+	// The 5G-S-TMSI resolved to no UE and the NAS body established no context, so the
+	// bare connection is released (mirrors the MME's bare-connection release).
+	if amfInstance.FindUEByRanUeNgapID(ran, 1) != nil {
+		t.Error("bare UeConn was not released after an unknown-UE message established no context")
 	}
 }
 
 func TestHandleInitialUEMessage_SetsUeContextRequest(t *testing.T) {
-	fakeNAS := &FakeNASHandler{}
+	fakeNAS := &fakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 
-	ran := newTestRadio()
+	ran := newTestRadio(amfInstance)
 	ran.RanID = &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "001"}}
 
 	ngap.HandleInitialUEMessage(context.Background(), amfInstance, ran, decode.InitialUEMessage{
@@ -215,20 +264,20 @@ func TestHandleInitialUEMessage_SetsUeContextRequest(t *testing.T) {
 		UEContextRequest: true,
 	})
 
-	ranUe := ran.FindUEByRanUeNgapID(1)
-	if ranUe == nil {
-		t.Fatal("ran.FindUEByRanUeNgapID(1) is nil")
+	ueConn := amfInstance.FindUEByRanUeNgapID(ran, 1)
+	if ueConn == nil {
+		t.Fatal("FindUEByRanUeNgapID(1) is nil")
 	}
 
-	if !ranUe.UeContextRequest {
+	if !ueConn.UeContextRequest {
 		t.Error("UeContextRequest = false, want true")
 	}
 }
 
 func TestHandleInitialUEMessage_RegisteredUE_DoesNotPanic(t *testing.T) {
-	fakeNAS := &FakeNASHandler{}
+	fakeNAS := &fakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
-	amfInstance.DBInstance = &FakeDBInstance{
+	amfInstance.DBInstance = &fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:         "001",
 			Mnc:         "01",
@@ -242,13 +291,13 @@ func TestHandleInitialUEMessage_RegisteredUE_DoesNotPanic(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	guti, err := etsi.NewGUTI("001", "01", "cafe00", tmsi)
+	guti, err := etsi.NewGUTI5G("001", "01", "cafe00", tmsi)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	amfUe := amf.NewUeContext()
-	amfUe.SetGutiForTest(guti)
+	amfInstance.AssignGutiForTest(amfUe, guti)
 
 	supi, err := etsi.NewSUPIFromIMSI("001010000000002")
 	if err != nil {
@@ -256,14 +305,13 @@ func TestHandleInitialUEMessage_RegisteredUE_DoesNotPanic(t *testing.T) {
 	}
 
 	amfUe.SetSupiForTest(supi)
-	amfUe.Log = logger.AmfLog
 
-	err = amfInstance.AddUeContextToPool(amfUe)
+	err = amfInstance.CommitUEIdentity(context.Background(), amfUe, amf.MintAuthProofForRegistrationCommit())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ran := newTestRadio()
+	ran := newTestRadio(amfInstance)
 	ran.RanID = &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "001"}}
 
 	tmsiBytes := make([]byte, 4)
@@ -283,40 +331,5 @@ func TestHandleInitialUEMessage_RegisteredUE_DoesNotPanic(t *testing.T) {
 	// The test verifies the handler reaches that code without panicking.
 	if len(fakeNAS.Calls) != 1 {
 		t.Fatalf("NAS calls = %d, want 1", len(fakeNAS.Calls))
-	}
-}
-
-func TestHandleInitialUEMessage_NASReturnsError_SendsStatus5GMM(t *testing.T) {
-	fakeNAS := &FakeNASHandler{Err: errors.New("nas decode failed")}
-	amfInstance := newTestAMFWithNAS(fakeNAS)
-
-	ran := newTestRadio()
-	ran.RanID = &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "001"}}
-
-	ngap.HandleInitialUEMessage(context.Background(), amfInstance, ran, decode.InitialUEMessage{
-		RANUENGAPID: 1,
-		NASPDU:      []byte{0x01},
-	})
-
-	if len(fakeNAS.Calls) != 1 {
-		t.Fatalf("NAS calls = %d, want 1", len(fakeNAS.Calls))
-	}
-
-	sender := ran.NGAPSender.(*FakeNGAPSender)
-	if len(sender.SentDownlinkNASTransport) != 1 {
-		t.Fatalf("DownlinkNASTransport sent = %d, want 1", len(sender.SentDownlinkNASTransport))
-	}
-
-	nasPdu := sender.SentDownlinkNASTransport[0].NasPdu
-	if len(nasPdu) < 4 {
-		t.Fatalf("NAS PDU too short: %d bytes", len(nasPdu))
-	}
-
-	if nasPdu[2] != 0x64 {
-		t.Errorf("NAS message type = 0x%02x, want 0x64 (5GMM STATUS)", nasPdu[2])
-	}
-
-	if nasPdu[3] != 0x6f {
-		t.Errorf("5GMM cause = 0x%02x, want 0x6f (protocol error unspecified)", nasPdu[3])
 	}
 }

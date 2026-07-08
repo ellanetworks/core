@@ -42,7 +42,6 @@ type APPosition struct {
 	Confidence           int64
 }
 
-// SetRadioMeasurements updates the UE's radio measurements.
 func (ue *UeContext) SetRadioMeasurements(m *RadioMeasurements) {
 	if m == nil {
 		return
@@ -62,9 +61,9 @@ func (ue *UeContext) GetRadioMeasurements() *RadioMeasurements {
 	if ue.radioMeasurements == nil {
 		return nil
 	}
-	// Return a shallow copy so callers can't mutate the stored struct.
-	// The inner pointer fields are treated as immutable: SetRadioMeasurements
-	// always replaces the whole struct rather than mutating fields in place.
+	// Shallow copy so callers can't mutate the stored struct. The inner pointer fields
+	// are safe to share: SetRadioMeasurements always replaces the whole struct, never
+	// mutating fields in place.
 	cp := *ue.radioMeasurements
 
 	return &cp
@@ -79,7 +78,6 @@ type NRPPaMessage struct {
 	Timestamp time.Time
 }
 
-// SetNRPPaMessage stores a raw NRPPa PDU in the UE's message buffer.
 func (ue *UeContext) SetNRPPaMessage(data []byte) {
 	ue.nrppaMu.Lock()
 	defer ue.nrppaMu.Unlock()
@@ -99,7 +97,6 @@ func (ue *UeContext) SetNRPPaMessage(data []byte) {
 	}
 }
 
-// GetNRPPaMessages returns the recent NRPPa messages for this UE.
 func (ue *UeContext) GetNRPPaMessages() []NRPPaMessage {
 	ue.nrppaMu.RLock()
 	defer ue.nrppaMu.RUnlock()

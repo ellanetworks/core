@@ -17,9 +17,9 @@ import (
 )
 
 func TestInitialContextSetupResponse_UnknownAmfUeNgapID(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
-	amfInstance := newTestAMFWithSmf(&FakeSmfSbi{})
+	amfInstance := newTestAMFWithSmf(&fakeSmfSbi{})
+	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
 
 	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, decode.InitialContextSetupResponse{
 		RANUENGAPID: 99,
@@ -31,10 +31,9 @@ func TestInitialContextSetupResponse_UnknownAmfUeNgapID(t *testing.T) {
 }
 
 func TestInitialContextSetupResponse_NilUeContext(t *testing.T) {
-	ran := newTestRadio()
-	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-
-	amfInstance := newTestAMFWithSmf(&FakeSmfSbi{})
+	amfInstance := newTestAMFWithSmf(&fakeSmfSbi{})
+	ran := newTestRadio(amfInstance)
+	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
 	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, decode.InitialContextSetupResponse{
 		RANUENGAPID: 1,
@@ -43,7 +42,7 @@ func TestInitialContextSetupResponse_NilUeContext(t *testing.T) {
 }
 
 func newTestAMFWithSmfAndDB(smf amf.SmfSbi) *amf.AMF {
-	return amf.New(&FakeDBInstance{
+	return amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc: "001",
 			Mnc: "01",
@@ -52,19 +51,18 @@ func newTestAMFWithSmfAndDB(smf amf.SmfSbi) *amf.AMF {
 }
 
 func TestInitialContextSetupResponse_SetupItemsForwardedToSmf(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
+	ran := newTestRadio(amfInstance)
 
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
 	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
 	transfer := []byte{0xAA, 0xBB}
 
@@ -87,25 +85,24 @@ func TestInitialContextSetupResponse_SetupItemsForwardedToSmf(t *testing.T) {
 		t.Errorf("SmContextRef = %q, want %q", fakeSmf.PduResSetupRspCalls[0].SmContextRef, "ref-session-1")
 	}
 
-	if ranUe.ICS != amf.ICSCompleted {
-		t.Error("expected ranUe.ICS == ICSCompleted")
+	if ueConn.ICS() != amf.ICSCompleted {
+		t.Error("expected ueConn.ICS == ICSCompleted")
 	}
 }
 
 func TestInitialContextSetupResponse_FailedItemsForwardedToSmf(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
+	ran := newTestRadio(amfInstance)
 
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
 	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
 	transfer := []byte{0xCC, 0xDD}
 
@@ -130,15 +127,14 @@ func TestInitialContextSetupResponse_FailedItemsForwardedToSmf(t *testing.T) {
 }
 
 func TestInitialContextSetupResponse_SetupItemSmContextNotFound(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
+	ran := newTestRadio(amfInstance)
 
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
 	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, decode.InitialContextSetupResponse{
 		RANUENGAPID: 1,
@@ -157,19 +153,18 @@ func TestInitialContextSetupResponse_SetupItemSmContextNotFound(t *testing.T) {
 }
 
 func TestInitialContextSetupResponse_InvalidPDUSessionID(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
+	ran := newTestRadio(amfInstance)
 
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
 	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
 	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, decode.InitialContextSetupResponse{
 		RANUENGAPID: 1,
@@ -188,12 +183,11 @@ func TestInitialContextSetupResponse_InvalidPDUSessionID(t *testing.T) {
 }
 
 func TestInitialContextSetupResponse_MixedSetupAndFailedItems(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
+	ran := newTestRadio(amfInstance)
 
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
 	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},
@@ -203,8 +197,8 @@ func TestInitialContextSetupResponse_MixedSetupAndFailedItems(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
 	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, decode.InitialContextSetupResponse{
 		RANUENGAPID: 1,
@@ -239,7 +233,7 @@ func TestInitialContextSetupResponse_MixedSetupAndFailedItems(t *testing.T) {
 		t.Errorf("setup fail SmContextRef = %q, want %q", fakeSmf.PduResSetupFailCalls[0].SmContextRef, "ref-session-2")
 	}
 
-	if ranUe.ICS != amf.ICSCompleted {
-		t.Error("expected ranUe.ICS == ICSCompleted")
+	if ueConn.ICS() != amf.ICSCompleted {
+		t.Error("expected ueConn.ICS == ICSCompleted")
 	}
 }

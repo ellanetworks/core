@@ -34,6 +34,12 @@ type UPTunnel struct {
 type SMContext struct {
 	Mutex sync.Mutex
 
+	// Ref is the session's unique pool key, assigned once at creation and never
+	// reused: two sessions for the same (SUPI, PDU session id) get distinct Refs, so a
+	// release targets the exact instance and cannot tear down a newer session that
+	// reused the (SUPI, id) slot. CanonicalName(SUPI, id) is the secondary index key.
+	Ref string
+
 	Supi                           etsi.SUPI
 	Dnn                            string
 	Snssai                         *models.Snssai
@@ -65,12 +71,33 @@ type SMContext struct {
 	// §6.3.3). Its generation counter invalidates a firing that races a stop, so a
 	// completed procedure cannot retransmit a stale command. Guarded by Mutex.
 	procedureTimer guard.Guard
+
+	// pendingPolicy holds the policy of an outstanding network-requested modification,
+	// committed to PolicyData only when the UE answers PDU SESSION MODIFICATION
+	// COMPLETE (TS 24.501 §6.3.2.2); a reject or T3591 abort discards it, keeping the
+	// previous configuration (§6.3.2.5). Guarded by Mutex.
+	pendingPolicy *Policy
 }
 
-// stopProcedureTimer stops the retransmission guard once the UE replies. Safe to
-// call when none is armed. Caller must hold Mutex.
+// stopProcedureTimer stops the retransmission guard; safe to call when none is
+// armed. Caller must hold Mutex.
 func (smContext *SMContext) stopProcedureTimer() {
 	smContext.procedureTimer.Stop()
+}
+
+// upConnectionActive reports whether the downlink FAR is forwarding, as opposed
+// to idle/buffering after DeactivateSmContext (CM-IDLE). Caller must hold Mutex.
+func (smContext *SMContext) upConnectionActive() bool {
+	if smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil {
+		return false
+	}
+
+	dl := smContext.Tunnel.DataPath.DownLinkTunnel
+	if dl == nil || dl.PDR == nil || dl.PDR.FAR == nil {
+		return false
+	}
+
+	return dl.PDR.FAR.ApplyAction.Forw
 }
 
 // MarkPTIInUse records that a 5GSM procedure with the given PTI is outstanding
@@ -89,8 +116,6 @@ func (smContext *SMContext) ClearPTIInUse(pti uint8) {
 	delete(smContext.outstandingPTIs, pti)
 }
 
-// IsPTIInUse reports whether a procedure with the given PTI is outstanding.
-// Caller must hold Mutex.
 func (smContext *SMContext) IsPTIInUse(pti uint8) bool {
 	_, ok := smContext.outstandingPTIs[pti]
 

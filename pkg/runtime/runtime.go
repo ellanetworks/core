@@ -500,7 +500,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	smfInstance.SetMME(mmeInstance)
 
 	metrics.RegisterMetrics()
-	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountENBs, mmeInstance.CountRegisteredSubscribers)
+	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountRadios, mmeInstance.CountRegisteredSubscribers)
 
 	lmfInstance := lmf.New(amfInstance, dbInstance)
 
@@ -526,7 +526,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// sessions. A periodic backstop sweep mirrors the AMF reconciler's, recovering
 	// from a dropped or coalesced changefeed wakeup and from UEs that were
 	// transitioning (mid-attach, idle) when the change applied.
-	mmeReconciler := mme.NewMMESessionReconciler(mmeInstance, func() <-chan struct{} {
+	mmeReconciler := mme.NewSessionReconciler(mmeInstance, func() <-chan struct{} {
 		wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicSessionReconcile)
 
 		go func() {
@@ -598,7 +598,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			mmes1ap.Dispatch(ctx, mmeInstance, conn, msg)
 		},
 		OnDisconnect: func(conn *amfsctp.SCTPConn) {
-			mmeInstance.RemoveENB(conn)
+			mmeInstance.RemoveRadio(conn)
 		},
 	})
 
@@ -608,6 +608,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	supportbundle.AMFDumper = func(ctx context.Context) (any, error) {
 		return amfInstance.ExportUEs(ctx)
+	}
+
+	supportbundle.MMEDumper = func(ctx context.Context) (any, error) {
+		return mmeInstance.ExportUEs(ctx)
 	}
 
 	defer func() {
@@ -748,9 +752,14 @@ func closeAMF(ctx context.Context, amfInstance *amf.AMF, srv *amfsctp.Server) {
 	} else {
 		unavailableGuamiList := send.BuildUnavailableGUAMIList(operatorInfo.Guami)
 
-		for _, ran := range amfInstance.ListRadios() {
-			if err := ran.NGAPSender.SendAMFStatusIndication(ctx, unavailableGuamiList); err != nil {
-				logger.AmfLog.Error("failed to send AMF Status Indication to RAN", zap.Error(err))
+		pkt, buildErr := send.BuildAMFStatusIndication(unavailableGuamiList)
+		if buildErr != nil {
+			logger.AmfLog.Error("failed to build AMF Status Indication", zap.Error(buildErr))
+		} else {
+			for _, ran := range amfInstance.ConnectedRadios() {
+				if err := ran.SendToRan(ctx, send.NGAPProcedureAMFStatusIndication, pkt); err != nil {
+					logger.AmfLog.Error("failed to send AMF Status Indication to RAN", zap.Error(err))
+				}
 			}
 		}
 	}
@@ -764,8 +773,16 @@ type nasAdapter struct {
 	amf *amf.AMF
 }
 
-func (n *nasAdapter) HandleNAS(ctx context.Context, ue *amf.RanUe, nasPdu []byte) error {
-	return nas.HandleNAS(ctx, n.amf, ue, nasPdu)
+func (n *nasAdapter) HandleNAS(ctx context.Context, ue *amf.UeConn, nasPdu []byte) {
+	nas.HandleNAS(ctx, n.amf, ue, nasPdu)
+}
+
+func (n *nasAdapter) IsServiceRequest(nasPdu []byte) bool {
+	return nas.IsServiceRequest(nasPdu)
+}
+
+func (n *nasAdapter) HandleServiceRequest(ctx context.Context, ue *amf.UeConn, nasPdu []byte) {
+	nas.HandleServiceRequest(ctx, n.amf, ue, nasPdu)
 }
 
 // mmeNASAdapter injects the 4G EMM/ESM NAS layer (internal/mme/nas) into the MME
@@ -774,16 +791,12 @@ type mmeNASAdapter struct {
 	mme *mme.MME
 }
 
-func (a *mmeNASAdapter) HandleNAS(ctx context.Context, ue *mme.UeContext, pdu []byte) {
-	mmenas.HandleNAS(a.mme, ctx, ue, pdu)
+func (a *mmeNASAdapter) HandleNAS(ctx context.Context, conn *mme.UeConn, pdu []byte) {
+	mmenas.HandleNAS(a.mme, ctx, conn, pdu)
 }
 
-func (a *mmeNASAdapter) HandleServiceRequest(ctx context.Context, conn mme.NasWriter, msg *s1ap.InitialUEMessage) {
+func (a *mmeNASAdapter) HandleServiceRequest(ctx context.Context, conn mme.S1APWriter, msg *s1ap.InitialUEMessage) {
 	mmenas.HandleServiceRequest(a.mme, ctx, conn, msg)
-}
-
-func (a *mmeNASAdapter) DispatchEMM(ctx context.Context, ue *mme.UeContext, plain []byte, integrityVerified bool) {
-	mmenas.DispatchEMM(a.mme, ctx, ue, plain, integrityVerified)
 }
 
 // ausfDBAdapter adapts *db.Database to the ausf.SubscriberStore interface.

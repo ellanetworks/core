@@ -144,6 +144,7 @@ func TestAttachRequestRoundTrip(t *testing.T) {
 		},
 		UENetworkCapability: []byte{0xf0, 0x70, 0xc0},
 		ESMMessageContainer: []byte{0x02, 0x01, 0xd0, 0x11},
+		DRXParameter:        []byte{0x00, 0x08}, // SPLIT PG CYCLE + CN-specific DRX coefficient
 	}
 
 	b, err := in.Marshal()
@@ -159,7 +160,8 @@ func TestAttachRequestRoundTrip(t *testing.T) {
 	if out.EPSAttachType != in.EPSAttachType || out.NASKeySetIdentifier != in.NASKeySetIdentifier ||
 		out.EPSMobileIdentity != in.EPSMobileIdentity ||
 		!bytes.Equal(out.UENetworkCapability, in.UENetworkCapability) ||
-		!bytes.Equal(out.ESMMessageContainer, in.ESMMessageContainer) {
+		!bytes.Equal(out.ESMMessageContainer, in.ESMMessageContainer) ||
+		!bytes.Equal(out.DRXParameter, in.DRXParameter) {
 		t.Fatalf("mismatch:\n in  %+v\n out %+v", in, out)
 	}
 }

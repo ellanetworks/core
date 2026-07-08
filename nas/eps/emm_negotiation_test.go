@@ -6,6 +6,7 @@ package eps
 import (
 	"bytes"
 	"testing"
+	"time"
 )
 
 func TestSecurityModeRoundTrips(t *testing.T) {
@@ -43,6 +44,26 @@ func TestSecurityModeRoundTrips(t *testing.T) {
 		out, err := ParseSecurityModeComplete(b)
 		if err != nil || !bytes.Equal(out.IMEISV, imeisv) {
 			t.Fatalf("got %+v err %v", out, err)
+		}
+	})
+
+	t.Run("Complete with replayed NAS message container", func(t *testing.T) {
+		imeisv := []byte{0x03, 0x53, 0x60, 0x83, 0x12, 0x34, 0x56, 0x78, 0xf0}
+		replayed := bytes.Repeat([]byte{0xAB}, 300) // exercises the two-octet TLV-E length
+		in := &SecurityModeComplete{IMEISV: imeisv, ReplayedNASMessage: replayed}
+
+		b, err := in.Marshal()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		out, err := ParseSecurityModeComplete(b)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !bytes.Equal(out.IMEISV, imeisv) || !bytes.Equal(out.ReplayedNASMessage, replayed) {
+			t.Fatalf("mismatch:\n in  %+v\n out %+v", in, out)
 		}
 	})
 
@@ -105,6 +126,25 @@ func TestAttachNetworkRoundTrips(t *testing.T) {
 		out, err := ParseAttachReject(b)
 		if err != nil || out.Cause != 11 {
 			t.Fatalf("got %+v err %v", out, err)
+		}
+	})
+
+	t.Run("RejectWithT3402", func(t *testing.T) {
+		t3402, err := EncodeGPRSTimer(12 * time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		in := &AttachReject{Cause: 11, T3402: t3402}
+
+		b, err := in.Marshal()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		out, err := ParseAttachReject(b)
+		if err != nil || out.Cause != 11 || out.T3402 != t3402 {
+			t.Fatalf("T3402 round-trip: got %+v (want cause 11, T3402 %#x), err %v", out, t3402, err)
 		}
 	})
 }

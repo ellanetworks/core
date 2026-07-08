@@ -37,6 +37,9 @@ type AttachRequest struct {
 	UENetworkCapability []byte
 	ESMMessageContainer []byte
 	MSNetworkCapability []byte
+	// DRXParameter is the raw 2-octet DRX parameter the UE requested (TS 24.301
+	// §9.9.3.8, TS 24.008 §10.5.5.6); nil when the UE omitted it.
+	DRXParameter []byte
 }
 
 // Marshal encodes the plain ATTACH REQUEST message.
@@ -61,6 +64,12 @@ func (m *AttachRequest) Marshal() ([]byte, error) {
 
 	if err := w.LVE(m.ESMMessageContainer); err != nil {
 		return nil, err
+	}
+
+	// DRX parameter precedes MS network capability in the message order (TS 24.301).
+	if len(m.DRXParameter) > 0 {
+		w.U8(drxParameterIEI)
+		w.Raw(m.DRXParameter)
 	}
 
 	if len(m.MSNetworkCapability) > 0 {
@@ -107,8 +116,11 @@ func ParseAttachRequest(b []byte) (*AttachRequest, error) {
 	}
 
 	if _, err := common.WalkOptionalIEs(r, attachRequestIEs, func(iei uint8, value []byte) error {
-		if iei == msNetworkCapabilityIEI {
+		switch iei {
+		case msNetworkCapabilityIEI:
 			m.MSNetworkCapability = value
+		case drxParameterIEI:
+			m.DRXParameter = value
 		}
 
 		return nil

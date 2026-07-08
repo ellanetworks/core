@@ -73,7 +73,7 @@ func BuildIdentityRequest(typeOfIdentity uint8) ([]byte, error) {
 }
 
 func BuildAuthenticationRequest(ue *UeContext) ([]byte, error) {
-	conn := ue.NasConn()
+	conn := ue.Conn()
 	if conn == nil || conn.AuthenticationCtx == nil {
 		return nil, fmt.Errorf("no authentication context available")
 	}
@@ -223,9 +223,8 @@ func BuildRegistrationReject(t3502Value int, cause5GMM uint8) ([]byte, error) {
 	return m.PlainNasEncode()
 }
 
-// TS 24.501
 func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
-	conn := ue.NasConn()
+	conn := ue.Conn()
 	if conn == nil {
 		return nil, fmt.Errorf("no active NAS connection")
 	}
@@ -245,8 +244,8 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 	securityModeCommand.SpareHalfOctetAndSecurityHeaderType.SetSpareHalfOctet(0)
 	securityModeCommand.SetMessageType(nas.MsgTypeSecurityModeCommand)
 
-	securityModeCommand.SelectedNASSecurityAlgorithms.SetTypeOfCipheringAlgorithm(ue.CipheringAlg())
-	securityModeCommand.SelectedNASSecurityAlgorithms.SetTypeOfIntegrityProtectionAlgorithm(ue.IntegrityAlg())
+	securityModeCommand.SelectedNASSecurityAlgorithms.SetTypeOfCipheringAlgorithm(ue.NEA())
+	securityModeCommand.SelectedNASSecurityAlgorithms.SetTypeOfIntegrityProtectionAlgorithm(ue.NIA())
 
 	securityModeCommand.SpareHalfOctetAndNgksi = util.SpareHalfOctetAndNgksiToNas(ue.NgKsi())
 
@@ -258,7 +257,7 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 	securityModeCommand.ReplayedUESecurityCapabilities.SetLen(ueSecCap.GetLen())
 	securityModeCommand.ReplayedUESecurityCapabilities.Buffer = ueSecCap.Buffer
 
-	if ue.Pei != "" {
+	if ue.Imei.IsSet() {
 		securityModeCommand.IMEISVRequest = nasType.NewIMEISVRequest(nasMessage.SecurityModeCommandIMEISVRequestType)
 		securityModeCommand.SetIMEISVRequestValue(nasMessage.IMEISVNotRequested)
 	} else {
@@ -313,6 +312,7 @@ func BuildDeregistrationAccept() ([]byte, error) {
 func BuildRegistrationAccept(
 	amfInstance *AMF,
 	ue *UeContext,
+	guti etsi.GUTI5G,
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
 	errPduSessionID, errCause []uint8,
@@ -339,7 +339,7 @@ func BuildRegistrationAccept(
 	registrationResult |= nasMessage.AccessType3GPP
 	registrationAccept.SetRegistrationResultValue5GS(registrationResult)
 
-	if guti := ue.Guti(); guti != etsi.InvalidGUTI {
+	if guti != etsi.InvalidGUTI5G {
 		gutiNas := nasConvert.GutiToNas(guti.String())
 		registrationAccept.GUTI5G = &gutiNas
 		registrationAccept.GUTI5G.SetIei(nasMessage.RegistrationAcceptGUTI5GType)
@@ -423,13 +423,13 @@ func BuildRegistrationAccept(
 
 	registrationAccept.T3512Value = nasType.NewT3512Value(nasMessage.RegistrationAcceptT3512ValueType)
 	registrationAccept.T3512Value.SetLen(1)
-	t3512 := nasConvert.GPRSTimer3ToNas(int(ue.T3512Value.Seconds()))
+	t3512 := nasConvert.GPRSTimer3ToNas(int(amfInstance.T3512Value.Seconds()))
 	registrationAccept.T3512Value.Octet = t3512
 
-	if ue.UESpecificDRX != nasMessage.DRXValueNotSpecified {
+	if ue.DRXParameter != nasMessage.DRXValueNotSpecified {
 		registrationAccept.NegotiatedDRXParameters = nasType.NewNegotiatedDRXParameters(nasMessage.RegistrationAcceptNegotiatedDRXParametersType)
 		registrationAccept.NegotiatedDRXParameters.SetLen(1)
-		registrationAccept.SetDRXValue(ue.UESpecificDRX)
+		registrationAccept.SetDRXValue(ue.DRXParameter)
 	}
 
 	m.RegistrationAccept = registrationAccept
@@ -439,7 +439,7 @@ func BuildRegistrationAccept(
 
 // TS 24.501 Generic UE configuration update procedure.
 // includeGUTI controls whether a new 5G-GUTI is included (e.g. during service request GUTI re-allocation).
-func BuildConfigurationUpdateCommand(ue *UeContext, spnFullName, spnShortName string, includeGUTI bool) ([]byte, error) {
+func BuildConfigurationUpdateCommand(amfInstance *AMF, ue *UeContext, guti etsi.GUTI5G, spnFullName, spnShortName string, includeGUTI bool) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeConfigurationUpdateCommand)
@@ -451,8 +451,7 @@ func BuildConfigurationUpdateCommand(ue *UeContext, spnFullName, spnShortName st
 	configurationUpdateCommand.SetMessageType(nas.MsgTypeConfigurationUpdateCommand)
 
 	if includeGUTI {
-		guti := ue.Guti()
-		if guti == etsi.InvalidGUTI {
+		if guti == etsi.InvalidGUTI5G {
 			return nil, fmt.Errorf("5G-GUTI is required")
 		}
 

@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -23,10 +24,10 @@ import (
 //
 // On either error an Error Indication carrying the received AP IDs is sent to
 // the sender (TS 38.413) and the function returns (nil, false).
-func resolveUE(ctx context.Context, ran *amf.Radio, ranID *int64, amfID *int64) (*amf.RanUe, bool) {
+func resolveUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, ranID *int64, amfID *int64) (*amf.UeConn, bool) {
 	if amfID != nil {
-		ranUe := ran.FindUEByAmfUeNgapID(*amfID)
-		if ranUe == nil {
+		ueConn := amfInstance.FindUEByAmfUeNgapID(ran, *amfID)
+		if ueConn == nil {
 			logger.WithTrace(ctx, ran.Log).Warn("Unknown local AMF-UE-NGAP-ID on this radio",
 				zap.Int64("AmfUeNgapID", *amfID))
 			sendUnknownLocalUEError(ctx, ran, amfID, ranID)
@@ -34,22 +35,22 @@ func resolveUE(ctx context.Context, ran *amf.Radio, ranID *int64, amfID *int64) 
 			return nil, false
 		}
 
-		if ranID != nil && ranUe.RanUeNgapID != *ranID {
+		if ranID != nil && ueConn.RanUeNgapID != *ranID {
 			logger.WithTrace(ctx, ran.Log).Warn("Inconsistent remote RAN-UE-NGAP-ID",
 				zap.Int64("AmfUeNgapID", *amfID),
-				zap.Int64("storedRanUeNgapID", ranUe.RanUeNgapID),
+				zap.Int64("storedRanUeNgapID", ueConn.RanUeNgapID),
 				zap.Int64("receivedRanUeNgapID", *ranID))
 			sendInconsistentRemoteUEError(ctx, ran, amfID, ranID)
 
 			return nil, false
 		}
 
-		return ranUe, true
+		return ueConn, true
 	}
 
 	if ranID != nil {
-		ranUe := ran.FindUEByRanUeNgapID(*ranID)
-		if ranUe == nil {
+		ueConn := amfInstance.FindUEByRanUeNgapID(ran, *ranID)
+		if ueConn == nil {
 			logger.WithTrace(ctx, ran.Log).Warn("Unknown remote RAN-UE-NGAP-ID on this radio",
 				zap.Int64("RanUeNgapID", *ranID))
 			sendInconsistentRemoteUEError(ctx, ran, amfID, ranID)
@@ -57,7 +58,7 @@ func resolveUE(ctx context.Context, ran *amf.Radio, ranID *int64, amfID *int64) 
 			return nil, false
 		}
 
-		return ranUe, true
+		return ueConn, true
 	}
 
 	return nil, false
@@ -71,10 +72,7 @@ func sendUnknownLocalUEError(ctx context.Context, ran *amf.Radio, amfID, ranID *
 		},
 	}
 
-	err := ran.NGAPSender.SendErrorIndication(ctx, amfID, ranID, &cause, nil)
-	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
-	}
+	sendErrorIndication(ctx, ran, amfID, ranID, &cause)
 }
 
 func sendInconsistentRemoteUEError(ctx context.Context, ran *amf.Radio, amfID, ranID *int64) {
@@ -85,8 +83,17 @@ func sendInconsistentRemoteUEError(ctx context.Context, ran *amf.Radio, amfID, r
 		},
 	}
 
-	err := ran.NGAPSender.SendErrorIndication(ctx, amfID, ranID, &cause, nil)
+	sendErrorIndication(ctx, ran, amfID, ranID, &cause)
+}
+
+func sendErrorIndication(ctx context.Context, ran *amf.Radio, amfID, ranID *int64, cause *ngapType.Cause) {
+	pkt, err := send.BuildErrorIndication(amfID, ranID, cause, nil)
 	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("error building error indication", zap.Error(err))
+		return
+	}
+
+	if err := ran.SendToRan(ctx, send.NGAPProcedureErrorIndication, pkt); err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
 	}
 }

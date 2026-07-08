@@ -13,15 +13,15 @@ import (
 )
 
 func HandlePDUSessionResourceModifyResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.PDUSessionResourceModifyResponse) {
-	ranUe, ok := resolveUE(ctx, ran, msg.RANUENGAPID, msg.AMFUENGAPID)
+	ueConn, ok := resolveUE(ctx, amfInstance, ran, msg.RANUENGAPID, msg.AMFUENGAPID)
 	if !ok {
 		return
 	}
 
-	ranUe.TouchLastSeen()
-	logger.WithTrace(ctx, ranUe.Log).Debug("Handle PDUSessionResourceModifyResponse", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
+	ueConn.TouchLastSeen()
+	logger.WithTrace(ctx, ueConn.Log).Debug("Handle PDUSessionResourceModifyResponse", zap.Int64("AmfUeNgapID", ueConn.AmfUeNgapID))
 
 	if msg.UserLocationInformation != nil {
-		ranUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
+		ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
 	}
 }

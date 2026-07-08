@@ -67,18 +67,18 @@ var ecidMeasurementQuantities = []nrppa.MeasurementQuantityValue{
 // WaitForMeasurements. The method parameter is accepted for API compatibility;
 // only E-CID is supported in this MVP.
 func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method string) (int64, error) {
-	amfUe, ok := c.amf.FindUeContextBySupi(supi)
+	amfUe, ok := c.amf.LookupUeBySupi(supi)
 	if !ok {
 		return 0, fmt.Errorf("UE not found: %s", supi)
 	}
 
-	ranUe := amfUe.RanUe()
+	ranUe := amfUe.Conn()
 	if ranUe == nil {
 		return 0, fmt.Errorf("UE has no active RAN connection: %s", supi)
 	}
 
 	ran := ranUe.Radio()
-	if ran == nil || ran.NGAPSender == nil {
+	if ran == nil {
 		return 0, fmt.Errorf("UE has no NGAP sender available: %s", supi)
 	}
 
@@ -89,7 +89,7 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 		return 0, fmt.Errorf("failed to build NRPPa E-CID request: %w", err)
 	}
 
-	err = ran.NGAPSender.SendDownlinkNRPPaTransport(
+	err = ran.SendDownlinkNRPPaTransport(
 		ctx,
 		ranUe.AmfUeNgapID,
 		ranUe.RanUeNgapID,
@@ -118,7 +118,7 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 // immediately so the caller can fall back to Cell ID without waiting for a
 // timeout.
 func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measurementID int64, notBefore time.Time) (*amf.RadioMeasurements, error) {
-	ue, ok := c.amf.FindUeContextBySupi(supi)
+	ue, ok := c.amf.LookupUeBySupi(supi)
 	if !ok {
 		return nil, fmt.Errorf("UE not found: %s", supi)
 	}
@@ -181,18 +181,18 @@ func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measur
 // fire-and-forget. Errors are logged and swallowed: by the time it is called the
 // E-CID fix has already been obtained.
 func (c *Client) terminateMeasurement(ctx context.Context, supi etsi.SUPI, lmfMeasID, ranMeasID int64) {
-	amfUe, ok := c.amf.FindUeContextBySupi(supi)
+	amfUe, ok := c.amf.LookupUeBySupi(supi)
 	if !ok {
 		return
 	}
 
-	ranUe := amfUe.RanUe()
+	ranUe := amfUe.Conn()
 	if ranUe == nil {
 		return
 	}
 
 	ran := ranUe.Radio()
-	if ran == nil || ran.NGAPSender == nil {
+	if ran == nil {
 		return
 	}
 
@@ -206,7 +206,7 @@ func (c *Client) terminateMeasurement(ctx context.Context, supi etsi.SUPI, lmfMe
 		return
 	}
 
-	if err := ran.NGAPSender.SendDownlinkNRPPaTransport(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, 0, payload); err != nil {
+	if err := ran.SendDownlinkNRPPaTransport(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, 0, payload); err != nil {
 		logger.LmfLog.Warn("failed to send NRPPa E-CID termination command",
 			zap.String("supi", supi.String()),
 			zap.Error(err),

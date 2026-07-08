@@ -14,22 +14,24 @@ import (
 
 // handleENBStatusTransfer relays the source's status container to the target as an
 // MME STATUS TRANSFER (TS 36.413 §8.4.6/§8.4.7). Optional: the source may omit it,
-// so it never gates completion. conn is the source.
-func handleENBStatusTransfer(m *mme.MME, ctx context.Context, conn mme.NasWriter, value []byte) {
+// so it never gates completion.
+func handleENBStatusTransfer(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	st, err := s1ap.ParseENBStatusTransfer(value)
 	if err != nil {
-		handleParseError(m, conn, s1ap.ProcENBStatusTransfer, err)
+		handleParseError(m, radio.Conn, s1ap.ProcENBStatusTransfer, err)
 		return
 	}
 
-	ue, ok := resolveUE(m, conn, st.MMEUES1APID, st.ENBUES1APID)
+	ue, ok := resolveUE(m, radio.Conn, st.MMEUES1APID, st.ENBUES1APID)
 	if !ok {
 		return
 	}
+
+	ue.TouchLastSeen()
 
 	targetConn, targetMMEID, targetENBID, ok := m.HandoverStatusTarget(ue)
 	if !ok {
-		logger.MmeLog.Warn("eNB Status Transfer with no handover in progress", zap.Uint32("mme-ue-id", uint32(st.MMEUES1APID)))
+		logger.From(ctx, logger.MmeLog).Warn("eNB Status Transfer with no handover in progress", zap.Uint32("mme-ue-id", uint32(st.MMEUES1APID)))
 
 		return
 	}
@@ -38,7 +40,7 @@ func handleENBStatusTransfer(m *mme.MME, ctx context.Context, conn mme.NasWriter
 
 	b, err := mst.Marshal()
 	if err != nil {
-		logger.MmeLog.Error("failed to marshal MME Status Transfer", zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to marshal MME Status Transfer", zap.Error(err))
 		return
 	}
 

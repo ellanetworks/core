@@ -5,7 +5,6 @@ package amf_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
@@ -60,7 +59,7 @@ func decryptNAS(t *testing.T, ue *amf.UeContext, raw []byte) *nas.Message {
 func TestBuildConfigurationUpdateCommand_WithoutGUTI(t *testing.T) {
 	ue := buildTestUE(t)
 
-	raw, err := amf.BuildConfigurationUpdateCommand(ue, "ELLACORE5G", "ELLACORE", false)
+	raw, err := amf.BuildConfigurationUpdateCommand(amf.New(nil, nil, nil), ue, etsi.InvalidGUTI5G, "ELLACORE5G", "ELLACORE", false)
 	if err != nil {
 		t.Fatalf("BuildConfigurationUpdateCommand failed: %v", err)
 	}
@@ -93,14 +92,14 @@ func TestBuildConfigurationUpdateCommand_WithGUTI(t *testing.T) {
 		t.Fatalf("failed to create TMSI: %v", err)
 	}
 
-	guti, err := etsi.NewGUTI("001", "01", "000001", tmsi)
+	guti, err := etsi.NewGUTI5G("001", "01", "000001", tmsi)
 	if err != nil {
 		t.Fatalf("failed to create GUTI: %v", err)
 	}
 
 	ue.SetGutiForTest(guti)
 
-	raw, err := amf.BuildConfigurationUpdateCommand(ue, "ELLACORE5G", "ELLACORE", true)
+	raw, err := amf.BuildConfigurationUpdateCommand(amf.New(nil, nil, nil), ue, guti, "ELLACORE5G", "ELLACORE", true)
 	if err != nil {
 		t.Fatalf("BuildConfigurationUpdateCommand failed: %v", err)
 	}
@@ -127,9 +126,9 @@ func TestBuildConfigurationUpdateCommand_WithGUTI(t *testing.T) {
 
 func TestBuildConfigurationUpdateCommand_WithGUTI_InvalidGUTI_Error(t *testing.T) {
 	ue := buildTestUE(t)
-	ue.SetGutiForTest(etsi.InvalidGUTI)
+	ue.SetGutiForTest(etsi.InvalidGUTI5G)
 
-	_, err := amf.BuildConfigurationUpdateCommand(ue, "ELLACORE5G", "ELLACORE", true)
+	_, err := amf.BuildConfigurationUpdateCommand(amf.New(nil, nil, nil), ue, etsi.InvalidGUTI5G, "ELLACORE5G", "ELLACORE", true)
 	if err == nil {
 		t.Fatal("expected error when includeGUTI is true but GUTI is invalid")
 	}
@@ -137,7 +136,6 @@ func TestBuildConfigurationUpdateCommand_WithGUTI_InvalidGUTI_Error(t *testing.T
 
 func TestBuildRegistrationAccept_MultipleAllowedNSSAI(t *testing.T) {
 	ue := buildTestUE(t)
-	ue.T3512Value = 3600 * time.Second
 	ue.AllowedNssai = []models.Snssai{
 		{Sst: 1, Sd: "010203"},
 		{Sst: 2, Sd: "aabbcc"},
@@ -145,7 +143,7 @@ func TestBuildRegistrationAccept_MultipleAllowedNSSAI(t *testing.T) {
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	raw, err := amf.BuildRegistrationAccept(amfInstance, ue, nil, nil, nil, nil, models.PlmnID{Mcc: "001", Mnc: "01"})
+	raw, err := amf.BuildRegistrationAccept(amfInstance, ue, etsi.InvalidGUTI5G, nil, nil, nil, nil, models.PlmnID{Mcc: "001", Mnc: "01"})
 	if err != nil {
 		t.Fatalf("BuildRegistrationAccept failed: %v", err)
 	}
@@ -171,14 +169,13 @@ func TestBuildRegistrationAccept_MultipleAllowedNSSAI(t *testing.T) {
 
 func TestBuildRegistrationAccept_SingleAllowedNSSAI(t *testing.T) {
 	ue := buildTestUE(t)
-	ue.T3512Value = 3600 * time.Second
 	ue.AllowedNssai = []models.Snssai{
 		{Sst: 1, Sd: "010203"},
 	}
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	raw, err := amf.BuildRegistrationAccept(amfInstance, ue, nil, nil, nil, nil, models.PlmnID{Mcc: "001", Mnc: "01"})
+	raw, err := amf.BuildRegistrationAccept(amfInstance, ue, etsi.InvalidGUTI5G, nil, nil, nil, nil, models.PlmnID{Mcc: "001", Mnc: "01"})
 	if err != nil {
 		t.Fatalf("BuildRegistrationAccept failed: %v", err)
 	}
@@ -203,12 +200,11 @@ func TestBuildRegistrationAccept_SingleAllowedNSSAI(t *testing.T) {
 
 func TestBuildRegistrationAccept_EmptyAllowedNSSAI(t *testing.T) {
 	ue := buildTestUE(t)
-	ue.T3512Value = 3600 * time.Second
 	ue.AllowedNssai = []models.Snssai{}
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	raw, err := amf.BuildRegistrationAccept(amfInstance, ue, nil, nil, nil, nil, models.PlmnID{Mcc: "001", Mnc: "01"})
+	raw, err := amf.BuildRegistrationAccept(amfInstance, ue, etsi.InvalidGUTI5G, nil, nil, nil, nil, models.PlmnID{Mcc: "001", Mnc: "01"})
 	if err != nil {
 		t.Fatalf("BuildRegistrationAccept failed: %v", err)
 	}

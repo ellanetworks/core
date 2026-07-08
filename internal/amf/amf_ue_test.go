@@ -5,7 +5,6 @@ package amf_test
 
 import (
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
@@ -225,28 +224,28 @@ func TestSelectSecurityAlg(t *testing.T) {
 		cap        *nasType.UESecurityCapability
 		intOrder   []uint8
 		encOrder   []uint8
-		wantErr    string
+		wantFail   bool
 		wantIntAlg uint8
 		wantEncAlg uint8
 	}{
 		{
-			name:    "nil UE security capability",
-			cap:     nil,
-			wantErr: "UE security capability not available",
+			name:     "nil UE security capability",
+			cap:      nil,
+			wantFail: true,
 		},
 		{
 			name:     "no common integrity algorithm",
 			cap:      makeUESecCap(0, 0, 1, 0, 1, 1, 1, 1),
 			intOrder: []uint8{security.AlgIntegrity128NIA1},
 			encOrder: []uint8{security.AlgCiphering128NEA0},
-			wantErr:  "no common NAS integrity algorithm found",
+			wantFail: true,
 		},
 		{
 			name:     "no common ciphering algorithm",
 			cap:      makeUESecCap(1, 1, 1, 1, 0, 0, 1, 0),
 			intOrder: []uint8{security.AlgIntegrity128NIA1},
 			encOrder: []uint8{security.AlgCiphering128NEA1},
-			wantErr:  "no common NAS ciphering algorithm found",
+			wantFail: true,
 		},
 		{
 			name:       "selects highest priority integrity and ciphering",
@@ -301,14 +300,14 @@ func TestSelectSecurityAlg(t *testing.T) {
 			cap:      makeUESecCap(1, 1, 1, 1, 1, 1, 1, 1),
 			intOrder: []uint8{},
 			encOrder: []uint8{},
-			wantErr:  "no common NAS integrity algorithm found",
+			wantFail: true,
 		},
 		{
 			name:     "integrity matches but empty ciphering preference",
 			cap:      makeUESecCap(0, 1, 0, 0, 1, 1, 1, 1),
 			intOrder: []uint8{security.AlgIntegrity128NIA1},
 			encOrder: []uint8{},
-			wantErr:  "no common NAS ciphering algorithm found",
+			wantFail: true,
 		},
 		{
 			name:       "operator preference order is respected: NIA1 before NIA2",
@@ -333,30 +332,26 @@ func TestSelectSecurityAlg(t *testing.T) {
 			ue := amf.NewUeContext()
 			ue.SetUESecurityCapabilityForTest(tc.cap)
 
-			err := ue.SelectSecurityAlg(tc.intOrder, tc.encOrder)
+			nea, nia, ok := ue.SelectSecurityAlg(tc.intOrder, tc.encOrder)
 
-			if tc.wantErr != "" {
-				if err == nil {
-					t.Fatalf("expected error containing %q, got nil", tc.wantErr)
-				}
-
-				if !strings.Contains(err.Error(), tc.wantErr) {
-					t.Fatalf("expected error containing %q, got %q", tc.wantErr, err.Error())
+			if tc.wantFail {
+				if ok {
+					t.Fatalf("expected ok=false, got ok=true (nea=%d nia=%d)", nea, nia)
 				}
 
 				return
 			}
 
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+			if !ok {
+				t.Fatal("expected ok=true, got ok=false")
 			}
 
-			if ue.IntegrityAlgForTest() != tc.wantIntAlg {
-				t.Errorf("IntegrityAlg: got %d, want %d", ue.IntegrityAlgForTest(), tc.wantIntAlg)
+			if nia != tc.wantIntAlg {
+				t.Errorf("integrity alg: got %d, want %d", nia, tc.wantIntAlg)
 			}
 
-			if ue.CipheringAlgForTest() != tc.wantEncAlg {
-				t.Errorf("CipheringAlg: got %d, want %d", ue.CipheringAlgForTest(), tc.wantEncAlg)
+			if nea != tc.wantEncAlg {
+				t.Errorf("ciphering alg: got %d, want %d", nea, tc.wantEncAlg)
 			}
 		})
 	}

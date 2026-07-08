@@ -15,7 +15,7 @@ import (
 // has already replaced the (IMSI,EBI) entry, the rollback must leave the live
 // session intact rather than tearing down the second call's session (F4).
 func TestAbortSessionOwnsByHandle(t *testing.T) {
-	s := &SMF{pool: make(map[string]*SMContext)}
+	s := &SMF{pool: make(map[string]*SMContext), byKey: make(map[string]*SMContext)}
 
 	supi, err := etsi.NewSUPIFromIMSI("001010000000001")
 	if err != nil {
@@ -24,27 +24,35 @@ func TestAbortSessionOwnsByHandle(t *testing.T) {
 
 	const ebi uint8 = 5
 
-	ref := CanonicalName(supi, ebi)
-
 	scA := s.NewSession(supi, ebi, "internet", nil) // first create
-	scB := s.NewSession(supi, ebi, "internet", nil) // second create overwrites the entry
+	scB := s.NewSession(supi, ebi, "internet", nil) // second create — a distinct instance
 
-	if s.GetSession(ref) != scB {
-		t.Fatalf("expected pool to hold the second context after overwrite")
+	// Two sessions for the same (SUPI,EBI) get distinct refs and coexist in the pool;
+	// the latest is the current one for the (SUPI,EBI) slot.
+	if scA.Ref == scB.Ref {
+		t.Fatalf("two sessions for the same (SUPI,EBI) must get distinct refs, got %q twice", scA.Ref)
 	}
 
-	// Roll back the first (failed) create. scA has no tunnel or leases, so only
-	// the pool removal runs — and it must be a no-op because scB owns the entry.
+	if s.currentSession(supi, ebi) != scB {
+		t.Fatalf("expected scB to be the current session for the (SUPI,EBI)")
+	}
+
+	// Roll back the first (failed) create. scA has no tunnel or leases, so only the
+	// pool removal runs — and it must leave scB, which owns the slot, intact.
 	s.abortSession(context.Background(), scA)
 
-	if got := s.GetSession(ref); got != scB {
-		t.Fatalf("abort of a stale context removed the live session: got %v, want scB", got)
+	if s.GetSession(scA.Ref) != nil {
+		t.Fatalf("abort did not remove scA")
 	}
 
-	// Aborting the current owner does remove it.
+	if s.GetSession(scB.Ref) != scB || s.currentSession(supi, ebi) != scB {
+		t.Fatalf("abort of a stale context disturbed the live session scB")
+	}
+
+	// Aborting the current owner does remove it, from both the pool and the index.
 	s.abortSession(context.Background(), scB)
 
-	if got := s.GetSession(ref); got != nil {
-		t.Fatalf("abort of the current context did not remove it: got %v", got)
+	if s.GetSession(scB.Ref) != nil || s.currentSession(supi, ebi) != nil {
+		t.Fatalf("abort of the current context did not remove it")
 	}
 }

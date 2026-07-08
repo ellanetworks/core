@@ -42,6 +42,10 @@ var BpfDumper func(ctx context.Context, tw *tar.Writer) error
 // live AMF/SMF UE state. Returns a JSON-serializable value or nil.
 var AMFDumper func(ctx context.Context) (any, error)
 
+// MMEDumper, when set, is called during support bundle generation to collect
+// live MME UE state. Returns a JSON-serializable value or nil.
+var MMEDumper func(ctx context.Context) (any, error)
+
 // GenerateSupportBundleFromData writes a minimal support bundle containing the
 // provided redacted data as db.json into the writer as a gzipped tar archive.
 // This avoids import cycles: callers (e.g. internal/db) should fetch and redact
@@ -195,6 +199,25 @@ func GenerateSupportBundleFromData(ctx context.Context, data map[string]any, w i
 				logger.APILog.Warn("failed to marshal amf_ues.json", zap.Error(err))
 			} else {
 				_ = writeFile("amf_ues.json", amfJSON)
+			}
+		}
+	}
+
+	// Attempt to dump live MME UE state if a dumper is installed. This is
+	// best-effort: failures are logged but do not abort bundle creation.
+	if MMEDumper != nil {
+		mmeData, err := MMEDumper(ctx)
+		if err != nil {
+			logger.APILog.Warn("mme ue dump failed", zap.Error(err))
+
+			errBs := []byte(err.Error())
+			_ = writeFile("mme_ues_error.txt", errBs)
+		} else if mmeData != nil {
+			mmeJSON, err := json.MarshalIndent(mmeData, "", "  ")
+			if err != nil {
+				logger.APILog.Warn("failed to marshal mme_ues.json", zap.Error(err))
+			} else {
+				_ = writeFile("mme_ues.json", mmeJSON)
 			}
 		}
 	}

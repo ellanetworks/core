@@ -4,7 +4,9 @@
 package mme
 
 import (
+	"context"
 	"crypto/sha256"
+	"fmt"
 
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
@@ -25,11 +27,10 @@ func HashMME(input []byte) []byte {
 
 // SelectAlgorithms picks the EPS NAS algorithms allowed by both the UE network
 // capability and the operator policy (TS 33.401), in the operator's order of
-// preference. The operator's list uses the RAT-neutral algorithm identities
-// (NULL ≡ EEA0/EIA0, SNOW3G ≡ 128-EEA1/128-EIA1, AES ≡ 128-EEA2/128-EIA2). It
-// reports false when the UE and operator share no algorithm, so the caller
-// rejects the attach without falling back to the null algorithm.
-func SelectAlgorithms(ueNetCap []byte, ciphering, integrity []string) (eea, eia byte, ok bool) {
+// preference (EPS algorithm codes as returned by SecurityAlgorithms). It reports
+// false when the UE and operator share no algorithm, so the caller rejects the
+// attach without falling back to the null algorithm.
+func SelectAlgorithms(ueNetCap []byte, integrity, ciphering []uint8) (eea, eia byte, ok bool) {
 	uecap, err := eps.ParseUENetworkCapability(ueNetCap)
 	if err != nil {
 		return 0, 0, false
@@ -56,17 +57,57 @@ func epsAlgorithmValue(name string) (byte, bool) {
 	}
 }
 
+// SecurityAlgorithms returns the operator's configured NAS integrity and ciphering
+// algorithm orders as EPS algorithm codes (TS 33.401), mapping the operator's
+// RAT-neutral names (NULL/SNOW3G/AES) and dropping any it does not recognise.
+func (m *MME) SecurityAlgorithms(ctx context.Context) ([]uint8, []uint8, error) {
+	ctx, span := Tracer.Start(ctx, "mme/get_security_algorithms")
+	defer span.End()
+
+	op, err := m.Bearer.GetOperator(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get operator: %w", err)
+	}
+
+	cipherNames, err := op.GetCiphering()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read ciphering policy: %w", err)
+	}
+
+	integrityNames, err := op.GetIntegrity()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read integrity policy: %w", err)
+	}
+
+	encOrder := make([]uint8, 0, len(cipherNames))
+	for _, name := range cipherNames {
+		alg, ok := epsAlgorithmValue(name)
+		if !ok {
+			return nil, nil, fmt.Errorf("unknown ciphering algorithm: %s", name)
+		}
+
+		encOrder = append(encOrder, alg)
+	}
+
+	intOrder := make([]uint8, 0, len(integrityNames))
+	for _, name := range integrityNames {
+		alg, ok := epsAlgorithmValue(name)
+		if !ok {
+			return nil, nil, fmt.Errorf("unknown integrity algorithm: %s", name)
+		}
+
+		intOrder = append(intOrder, alg)
+	}
+
+	return intOrder, encOrder, nil
+}
+
 // selectEPSAlgorithm returns the first operator-preferred algorithm the UE
 // advertises support for, reporting false when none is common. The null
 // algorithm is selected only when the operator lists it and the UE advertises it
 // (TS 33.401 §5: EIA0 is not an implicit fallback for a non-emergency UE).
-func selectEPSAlgorithm(preference []string, supported func(uint8) bool) (byte, bool) {
-	for _, name := range preference {
-		v, ok := epsAlgorithmValue(name)
-		if !ok {
-			continue
-		}
-
+func selectEPSAlgorithm(preference []uint8, supported func(uint8) bool) (byte, bool) {
+	for _, v := range preference {
 		if supported(v) {
 			return v, true
 		}

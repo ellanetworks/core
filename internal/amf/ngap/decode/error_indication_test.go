@@ -71,6 +71,14 @@ func TestDecodeErrorIndication_Happy(t *testing.T) {
 	if out.CriticalityDiagnostics == nil {
 		t.Error("expected non-nil CriticalityDiagnostics")
 	}
+
+	if out.AMFUENGAPID == nil || *out.AMFUENGAPID != 7 {
+		t.Errorf("AMFUENGAPID = %v, want 7", out.AMFUENGAPID)
+	}
+
+	if out.RANUENGAPID == nil || *out.RANUENGAPID != 11 {
+		t.Errorf("RANUENGAPID = %v, want 11", out.RANUENGAPID)
+	}
 }
 
 func TestDecodeErrorIndication_NilBody(t *testing.T) {

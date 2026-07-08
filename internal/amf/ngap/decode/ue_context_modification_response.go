@@ -21,12 +21,9 @@ import (
 // }
 
 // DecodeUEContextModificationResponse validates a UEContextModificationResponse
-// PDU body (3GPP TS 38.413). All IEs are criticality-ignore.
-// AMFUENGAPID and RANUENGAPID are mandatory-ignore and surfaced as
-// pointers because the handler differentiates absent vs present (RAN
-// fallback when AMF is absent) and 0 is a valid NGAP UE NGAP ID.
-// RRCState and UserLocationInformation are optional. Duplicate IEs
-// follow a last-wins policy.
+// PDU body (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are pointers
+// because 0 is a valid NGAP UE NGAP ID and absent must be distinguishable
+// from present.
 func DecodeUEContextModificationResponse(in *ngapType.UEContextModificationResponse) (UEContextModificationResponse, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeUEContextModification,
