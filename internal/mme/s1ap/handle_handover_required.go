@@ -13,8 +13,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// handleHandoverRequired starts an S1 handover preparation toward the target eNB,
-// or replies HANDOVER PREPARATION FAILURE (TS 36.413 §8.4.1). conn is the source.
+// handleHandoverRequired starts S1 handover preparation toward the target eNB,
+// or replies HANDOVER PREPARATION FAILURE (TS 36.413 §8.4.1).
 func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	req, err := s1ap.ParseHandoverRequired(value)
 	if err != nil {

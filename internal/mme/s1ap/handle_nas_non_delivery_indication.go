@@ -14,10 +14,9 @@ import (
 
 // handleNASNonDeliveryIndication reports a downlink NAS-PDU the eNB could not deliver
 // to the UE (TS 36.413 §8.6). It is report-only: the NAS-PDU IE is the undelivered
-// downlink message, so feeding it back into the uplink path would fail the
-// downlink/uplink integrity check, perturb the uplink NAS count, and pre-security
-// could mint a bogus context. Any retransmission is the NAS layer's. Mirrors the
-// AMF's report-only handler.
+// downlink message, so feeding it into the uplink path would fail the integrity
+// check, perturb the uplink NAS count, and pre-security could mint a bogus context.
+// Retransmission is the NAS layer's.
 func handleNASNonDeliveryIndication(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseNASNonDeliveryIndication(value)
 	if err != nil {

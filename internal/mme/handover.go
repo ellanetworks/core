@@ -92,8 +92,8 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 		newNCC: newNCC,
 	}
 	ue.handover = ho
-	// Supervise the already-begun S1Handover procedure: at TS1RELOCoverall expiry the
-	// registry runs abandonHandover, but only while S1Handover is still active (TS 36.413 §8.4).
+	// Supervise the S1Handover procedure: at TS1RELOCoverall expiry the registry runs
+	// abandonHandover while S1Handover is still active (TS 36.413 §8.4).
 	ue.SuperviseKeyChainProc(context.Background(), procedure.S1Handover, time.Now().Add(m.handoverGuardTimeout), func(context.Context) error {
 		m.abandonHandover(ue)
 

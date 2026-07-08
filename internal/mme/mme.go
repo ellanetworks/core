@@ -65,8 +65,7 @@ type epsSessionManager interface {
 
 // credentialProvider is the UDM surface the MME requires for EPS authentication:
 // generating an EPS-AKA authentication vector for a subscriber (TS 33.401). *udm.Service
-// satisfies it. Held as an interface — like the MME's Bearer/Session deps and the AMF's
-// Ausf — so the dependency is decoupled and mockable.
+// satisfies it. Held as an interface so the dependency is decoupled and mockable.
 type credentialProvider interface {
 	GenerateEPSVector(ctx context.Context, imsi string, plmnID []byte, resyncAuts, resyncRand string) (*udm.EPSAV, error)
 }
@@ -81,8 +80,7 @@ type credentialProvider interface {
 //     fields (conn, MME/ENB-UE-S1AP-IDs, the releasing flag), and the
 //     idle/paging/NAS-guard timers and their generation counters. The UE's
 //     S1-connection *pointer* itself (ue.active) is swapped under MME.mu on bind/release
-//     but is an atomic.Pointer so the hot path reads it lock-free via Conn()
-//     (mirrors the AMF's atomic active NAS connection).
+//     but is an atomic.Pointer so the hot path reads it lock-free via Conn().
 //   - UeContext.mu guards that UE's data: the EMM registration state (emmState),
 //     the EPS NAS security context (keys, NAS COUNTs, and the NH/NCC key chain),
 //     the PDN/bearer state (the pdns map, defaultEBI, and each connection's
@@ -92,7 +90,7 @@ type credentialProvider interface {
 //     never leave the kernel and the COUNT invariant is auditable in one place. The
 //     ECM state is derived from whether the UE holds an S1-connection (ue.active).
 //
-// Shared invariant (identical in the AMF): a UE's registration state and security
+// Shared invariant: a UE's registration state and security
 // key material — the keys, NAS COUNTs, and the NH/NCC key chain — are read and
 // written only under UeContext.mu, never under the registry lock.
 //
@@ -112,8 +110,7 @@ type MME struct {
 	NAS     NASHandler
 
 	// EPSNetworkFeatureSupport is advertised in Attach/TAU Accept (TS 24.301
-	// §9.9.3.12A); nil falls back to the default. The 5G AMF stores the analogous
-	// NetworkFeatureSupport5GS.
+	// §9.9.3.12A); nil falls back to the default.
 	EPSNetworkFeatureSupport *eps.EPSNetworkFeatureSupport
 
 	mu         sync.RWMutex
@@ -131,7 +128,7 @@ type MME struct {
 	mobileReachableTime time.Duration // idle-mode reachability (TS 24.301)
 	implicitDetachTime  time.Duration
 
-	// Retransmitting supervision guards, held as guard.TimerValue (shared with the AMF).
+	// Retransmitting supervision guards, held as guard.TimerValue.
 	nasGuardCfg guard.TimerValue // NAS common-procedure guard (TS 24.301: T3450/T3460/T3470)
 	esmGuardCfg guard.TimerValue // ESM bearer-procedure guard (TS 24.301: T3486/T3495), 4G-only (no AMF peer)
 	pagingCfg   guard.TimerValue // paging supervision (T3413, TS 24.301 §5.6.2)
@@ -149,19 +146,16 @@ const T3412PeriodicTAU = 54 * time.Minute
 
 // T3402Backoff is the value advertised in the T3402 IE of an ATTACH REJECT — the
 // back-off before the UE retries the attach. Both specs default it to 12 min
-// (TS 24.301 §10.2 "T3402 Default 12" / TS 24.501 §10.2 "T3502 Default 12"; the
-// AMF advertises the same 12 min in REGISTRATION REJECT).
+// (TS 24.301 §10.2 “T3402 Default 12” / TS 24.501 §10.2 “T3502 Default 12”).
 const T3402Backoff = 12 * time.Minute
 
-// mobileReachableTime supervises the UE's periodic tracking area updating: it is
-// the periodic-TAU timer + 4 minutes (TS 24.301 §5.3.5), derived from
-// T3412PeriodicTAU exactly as the AMF derives T3512 + 4 minutes. implicitDetachTime
-// is the grace period the MME waits after the mobile reachable timer before it
-// implicitly detaches an unreachable UE (the value is network-dependent).
+// defaultMobileReachableTime supervises the UE's periodic tracking area updating
+// (TS 24.301 §5.3.5). defaultImplicitDetachTime is the grace period after the mobile
+// reachable timer before the MME implicitly detaches an unreachable UE
+// (network-dependent).
 const (
 	// mobileReachableMargin is added to the periodic timer (T3412) to form the mobile
-	// reachable timer: TS 24.301 §5.3.5 — "4 minutes greater than T3412". The AMF derives
-	// the same margin over T3512 (TS 24.501 §5.3.7); the margin is spec-identical on both.
+	// reachable timer: TS 24.301 §5.3.5 — "4 minutes greater than T3412".
 	mobileReachableMargin = 4 * time.Minute
 
 	defaultMobileReachableTime = T3412PeriodicTAU + mobileReachableMargin
@@ -226,8 +220,7 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 }
 
 // NetworkFeatureSupport returns the EPS network feature support advertised to UEs
-// (TS 24.301 §9.9.3.12A), or the default when unset. Mirrors the AMF's
-// NetworkFeatureSupport accessor.
+// (TS 24.301 §9.9.3.12A), or the default when unset.
 func (m *MME) NetworkFeatureSupport() *eps.EPSNetworkFeatureSupport {
 	if m.EPSNetworkFeatureSupport != nil {
 		nfs := *m.EPSNetworkFeatureSupport

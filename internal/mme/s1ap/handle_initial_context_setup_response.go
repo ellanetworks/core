@@ -15,9 +15,8 @@ import (
 )
 
 // enbTransportAddress resolves the eNB S1-U endpoint from an E-RAB Transport
-// Layer Address (TS 36.413): IPv4 (4 octets), IPv6 (16), or dual-stack (20). When
-// the eNB advertises both families the IPv6 endpoint is used. It reports false
-// when no address is present.
+// Layer Address (TS 36.413): IPv4 (4 octets), IPv6 (16), or dual-stack (20),
+// preferring IPv6. It reports false when no address is present.
 func enbTransportAddress(tla s1ap.TransportLayerAddress) (netip.Addr, bool) {
 	v4, v6, err := models.DecodeTransportLayerAddress([]byte(tla))
 	if err != nil {
@@ -35,9 +34,8 @@ func enbTransportAddress(tla s1ap.TransportLayerAddress) (netip.Addr, bool) {
 }
 
 // handleInitialContextSetupResponse records the eNB's bearer-setup result
-// (TS 36.413): the eNB S1-U F-TEID it returns is handed to the anchor as the
-// session's downlink endpoint, and any bearer the eNB reports it could not set up
-// is torn down at the anchor.
+// (TS 36.413): each confirmed eNB S1-U F-TEID becomes the session's downlink
+// endpoint at the anchor; any bearer the eNB could not set up is torn down.
 func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseInitialContextSetupResponse(value)
 	if err != nil {
@@ -52,8 +50,7 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *m
 
 	ue.TouchLastSeen()
 
-	// Tear down any bearer the eNB failed to set up, releasing its anchor session,
-	// before recording the ones it did (TS 36.413 §8.3.1.2).
+	// Tear down bearers the eNB failed to set up (TS 36.413 §8.3.1.2).
 	for _, erab := range msg.ERABFailedToSetup {
 		if p := m.LookupPDN(ue, uint8(erab.ERABID)); p != nil {
 			logger.From(ctx, logger.MmeLog).Warn("eNB failed to set up an E-RAB in Initial Context Setup; releasing the PDN connection",
@@ -69,9 +66,7 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *m
 		return
 	}
 
-	// A UE re-established from ECM-IDLE (or one holding multiple PDN connections) sets
-	// up every active bearer in one Initial Context Setup, so record the eNB S1-U
-	// F-TEID for each E-RAB the eNB confirmed, not only the first (TS 36.413). A bad or
+	// Record the eNB S1-U F-TEID for every confirmed E-RAB (TS 36.413). A bad or
 	// unknown E-RAB is skipped, not fatal to the rest.
 	setup := 0
 
@@ -118,8 +113,7 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *m
 		ue.Conn().ICS = mme.ICSCompleted
 	}
 
-	// With the radio bearer(s) up, a pending data-network change for a UE
-	// re-established from ECM-IDLE becomes deliverable; during attach the UE is not
-	// yet EMM-REGISTERED, so ReconcileUE returns early.
+	// With the radio bearers up, a pending data-network change becomes deliverable.
+	// ReconcileUE returns early for a UE not yet EMM-REGISTERED (attach).
 	m.ReconcileUE(ctx, ue)
 }

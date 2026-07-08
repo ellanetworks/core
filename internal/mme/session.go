@@ -42,8 +42,7 @@ func (m *MME) SnapshotPDNs(ue *UeContext) []*PdnConnection {
 }
 
 // ReleasePDN tears down a PDN connection's anchor session and removes it from the
-// UE, freeing its EPS bearer identity. ctx carries the request span; background and
-// timer callers pass context.Background().
+// UE, freeing its EPS bearer identity.
 func (m *MME) ReleasePDN(ctx context.Context, ue *UeContext, p *PdnConnection) {
 	if err := m.Session.ReleaseEPSSession(ctx, p.SessionRef); err != nil {
 		logger.MmeLog.Warn("failed to release PDN connection session",

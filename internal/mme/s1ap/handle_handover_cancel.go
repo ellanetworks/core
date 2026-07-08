@@ -13,7 +13,7 @@ import (
 )
 
 // handleHandoverCancel releases any prepared target resources and acknowledges,
-// leaving the UE on the source (TS 36.413 §8.4.5). conn is the source.
+// leaving the UE on the source (TS 36.413 §8.4.5).
 func handleHandoverCancel(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	cancel, err := s1ap.ParseHandoverCancel(value)
 	if err != nil {
@@ -28,9 +28,8 @@ func handleHandoverCancel(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 
 	ue.TouchLastSeen()
 
-	// The source eNB states why it is cancelling in the HANDOVER CANCEL Cause IE;
-	// relay it to the target when releasing its prepared resources (TS 36.413
-	// §8.4.5, mirrors the AMF).
+	// Relay the source's HANDOVER CANCEL Cause to the target when releasing its
+	// prepared resources (TS 36.413 §8.4.5).
 	if releaseConn, releaseMMEID, releaseENBID, pair, has := m.CancelHandover(ue); has {
 		mme.SendUEContextRelease(m, ctx, releaseConn, releaseMMEID, releaseENBID, pair, cancel.Cause)
 	}

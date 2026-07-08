@@ -34,8 +34,8 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 	// TS 23.401 §5.4.4 (symmetric with the 5G TS 23.502 §4.3.4.2 step 2): release the
 	// UPF user plane at the start of the deactivation so it drops any remaining packets
 	// and frees the tunnel before the UE's DEACTIVATE EPS BEARER CONTEXT ACCEPT. The PDN
-	// connection is retained for the ESM handshake (T3495); ReleasePDN removes its
-	// bookkeeping on accept or abort, and its session release is then an idempotent no-op.
+	// connection is retained for the ESM handshake (T3495); its later session release is
+	// then an idempotent no-op.
 	if err := m.Session.ReleaseEPSSession(ctx, p.SessionRef); err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to release EPS session on deactivation",
 			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Error(err))

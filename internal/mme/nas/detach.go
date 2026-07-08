@@ -13,10 +13,9 @@ import (
 )
 
 // releaseDetachSessions releases the UE's EPS sessions up front on detach so the
-// UPF drops any remaining packets and frees the tunnel immediately (TS 23.401
-// §5.3.8.2.1), rather than buffering them for paging as the shared S1 release path
-// does for an idle transition. ReleasePDN removes the PDN, so the DeactivateAllSessions
-// run on UE Context Release Complete then finds nothing to buffer.
+// UPF drops remaining packets and frees the tunnel immediately (TS 23.401
+// §5.3.8.2.1). ReleasePDN removes the PDN, so the deactivation on UE Context
+// Release Complete has nothing left to buffer for paging.
 func releaseDetachSessions(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 	for _, p := range m.SnapshotPDNs(ue) {
 		m.ReleasePDN(ctx, ue, p)

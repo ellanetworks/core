@@ -273,8 +273,6 @@ func (s *SMF) NewSession(supi etsi.SUPI, pduSessionID uint8, dnn string, snssai 
 	s.pool[ctx.Ref] = ctx
 	s.byKey[key] = ctx
 
-	logger.SmfLog.Info("session-pool ADD", zap.String("ref", ctx.Ref), zap.String("by", poolTrace()))
-
 	return ctx
 }
 
@@ -331,13 +329,10 @@ func (s *SMF) GetSessionBySEID(seid uint64) *SMContext {
 func (s *SMF) RemoveSession(ctx context.Context, ref string) {
 	smCtx := s.GetSession(ref)
 	if smCtx == nil {
-		logger.SmfLog.Info("session-pool DEL miss (already absent)", zap.String("ref", ref), zap.String("by", poolTrace()))
 		return
 	}
 
 	s.dropFromPool(smCtx)
-
-	logger.SmfLog.Info("session-pool DEL via RemoveSession", zap.String("ref", ref), zap.String("by", poolTrace()))
 
 	if smCtx.PDUIPV4Address != nil {
 		_, err := s.store.ReleaseIP(ctx, smCtx.Supi.IMSI(), smCtx.Dnn, smCtx.PDUSessionID)

@@ -42,8 +42,7 @@ func NewSessionReconciler(m *MME, wakeup <-chan struct{}) *SessionReconciler {
 }
 
 // Start launches the reconciler goroutine. Safe to call while already running;
-// subsequent calls without a paired Stop are no-ops. The first reconcile runs in
-// the goroutine immediately, then the wakeup and periodic ticker take over.
+// subsequent calls without a paired Stop are no-ops.
 func (r *SessionReconciler) Start() {
 	r.mu.Lock()
 	defer r.mu.Unlock()

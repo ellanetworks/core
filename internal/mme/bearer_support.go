@@ -40,7 +40,7 @@ func S1apSecurityCapabilities(uecap eps.UENetworkCapability) s1ap.UESecurityCapa
 	}
 }
 
-// PDNCount returns the number of the UE's PDN connections, read under the lock.
+// PDNCount returns the number of the UE's PDN connections.
 func (ue *UeContext) PDNCount() int {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -49,8 +49,8 @@ func (ue *UeContext) PDNCount() int {
 }
 
 // CommitBearerModification commits a PDN connection's pending in-place
-// modification under the lock, reporting false (a no-op) if no modification was
-// in flight (TS 24.301 §6.4.2.3).
+// modification, reporting false (a no-op) if no modification was in flight
+// (TS 24.301 §6.4.2.3).
 func (ue *UeContext) CommitBearerModification(p *PdnConnection) bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -70,7 +70,7 @@ func (ue *UeContext) CommitBearerModification(p *PdnConnection) bool {
 }
 
 // ClearPendingModify clears a PDN connection's in-flight modification
-// bookkeeping under the lock (TS 24.301 §6.4.2.4).
+// bookkeeping (TS 24.301 §6.4.2.4).
 func (ue *UeContext) ClearPendingModify(p *PdnConnection) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -88,8 +88,7 @@ func (ue *UeContext) BearerReleaseOnly(p *PdnConnection) bool {
 	return p.Ebi != ue.DefaultEBI || p.Disconnecting
 }
 
-// ClearDeactivating clears a PDN connection's in-flight deactivation flag under
-// the lock.
+// ClearDeactivating clears a PDN connection's in-flight deactivation flag.
 func (ue *UeContext) ClearDeactivating(p *PdnConnection) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

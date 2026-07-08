@@ -14,7 +14,7 @@ import (
 
 // handleHandoverFailure fails the preparation toward the source when the target
 // could not admit the handover, leaving the UE on the source (TS 36.413 §8.4.2.3).
-// conn is the target; the failure carries the target's MME-UE-S1AP-ID.
+// The failure carries the target's MME-UE-S1AP-ID.
 func handleHandoverFailure(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	fail, err := s1ap.ParseHandoverFailure(value)
 	if err != nil {
@@ -39,6 +39,6 @@ func handleHandoverFailure(m *mme.MME, ctx context.Context, radio *mme.Radio, va
 
 	// Relay the target's cause in the HANDOVER PREPARATION FAILURE to the source; the
 	// spec asks for "an appropriate cause value" (TS 36.413 §8.4.1.3), and the target's
-	// reason is the most informative, mirroring the AMF.
+	// reason is the most informative.
 	m.FailHandoverToSource(ctx, ue, fail.Cause)
 }

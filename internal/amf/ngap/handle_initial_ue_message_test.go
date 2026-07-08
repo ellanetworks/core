@@ -55,6 +55,36 @@ func TestHandleInitialUEMessage_CreatesNewUeConn(t *testing.T) {
 	}
 }
 
+// A SERVICE REQUEST Initial UE Message is routed to the dedicated HandleServiceRequest,
+// never through the generic HandleNAS mint path (mirrors the MME's S1AP peek); a request
+// that binds no context leaves no bare RAN connection behind.
+func TestHandleInitialUEMessage_ServiceRequestRoutedToDedicatedHandler(t *testing.T) {
+	fakeNAS := &fakeNASHandler{ServiceRequest: true, LeavesBare: true}
+	amfInstance := newTestAMFWithNAS(fakeNAS)
+
+	ran := newTestRadio(amfInstance)
+	ran.RanID = &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "001"}}
+
+	nasPDU := []byte{0x7e, 0x00, 0x4c}
+
+	ngap.HandleInitialUEMessage(context.Background(), amfInstance, ran, decode.InitialUEMessage{
+		RANUENGAPID: 1,
+		NASPDU:      nasPDU,
+	})
+
+	if len(fakeNAS.ServiceRequestCalls) != 1 {
+		t.Fatalf("HandleServiceRequest calls = %d, want 1", len(fakeNAS.ServiceRequestCalls))
+	}
+
+	if len(fakeNAS.Calls) != 0 {
+		t.Fatalf("HandleNAS calls = %d, want 0 (a service request must not go through the mint gate)", len(fakeNAS.Calls))
+	}
+
+	if ran.NumUEsForTest() != 0 {
+		t.Fatalf("bare service-request conn not released: NumUEsForTest = %d, want 0", ran.NumUEsForTest())
+	}
+}
+
 // An Initial UE Message whose NAS never resolves to a UE context (undecodable, no
 // usable identity) must not leave a bare RAN connection behind, or an unauthenticated
 // peer could exhaust RAN-UE-NGAP-IDs.

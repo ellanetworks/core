@@ -736,12 +736,24 @@ type NASCall struct {
 // model a message that establishes none (undecodable, or an identity the network
 // cannot resolve), which the NGAP layer then releases.
 type fakeNASHandler struct {
-	Calls      []NASCall
-	LeavesBare bool
+	Calls               []NASCall
+	LeavesBare          bool
+	ServiceRequest      bool // IsServiceRequest returns this (route to HandleServiceRequest)
+	ServiceRequestCalls []NASCall
 }
 
 func (f *fakeNASHandler) HandleNAS(_ context.Context, ue *amf.UeConn, nasPdu []byte) {
 	f.Calls = append(f.Calls, NASCall{UeConn: ue, NASPDU: nasPdu})
+
+	if !f.LeavesBare && ue.UeContext() == nil {
+		ue.AMFForTest().AttachUeConn(amf.NewUeContext(), ue)
+	}
+}
+
+func (f *fakeNASHandler) IsServiceRequest(_ []byte) bool { return f.ServiceRequest }
+
+func (f *fakeNASHandler) HandleServiceRequest(_ context.Context, ue *amf.UeConn, nasPdu []byte) {
+	f.ServiceRequestCalls = append(f.ServiceRequestCalls, NASCall{UeConn: ue, NASPDU: nasPdu})
 
 	if !f.LeavesBare && ue.UeContext() == nil {
 		ue.AMFForTest().AttachUeConn(amf.NewUeContext(), ue)

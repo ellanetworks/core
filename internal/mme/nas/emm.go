@@ -17,16 +17,14 @@ import (
 
 // HandleNAS is the MME's EMM entry point for an inbound NAS message on a UE
 // connection. A bare connection's first message binds a fresh persistent context
-// here, at the NAS layer (mirrors the AMF's HandleNAS); it then unwraps NAS
-// security when the message is protected and routes the plain message to its
-// procedure handler.
+// here, at the NAS layer.
 func HandleNAS(m *mme.MME, ctx context.Context, conn *mme.UeConn, nas []byte) {
 	ue := conn.UeContext()
 	if ue == nil {
 		// A bare connection binds a persistent context only for an ATTACH REQUEST —
 		// the only message warranting one (TS 24.301) — so an unauthenticated peer
-		// cannot exhaust UE contexts (mirrors the AMF's registration-only mint gate).
-		// A connection left bare here is released by the S1AP layer.
+		// cannot exhaust UE contexts. A connection left bare here is released by the
+		// S1AP layer.
 		if !isInitialAttach(nas) {
 			return
 		}
@@ -37,8 +35,7 @@ func HandleNAS(m *mme.MME, ctx context.Context, conn *mme.UeConn, nas []byte) {
 
 	// Resolve-first: for an as-yet-unsecured context (a fresh Attach), a native GUTI
 	// that verifies against a held EPS security context adopts it before decode, so
-	// everything below runs on the right context (mirrors the AMF). An established
-	// (secured) connection skips this and decodes normally.
+	// everything below runs on the right context.
 	if !ue.Secured() {
 		resolved, drop := resolveAttachContext(m, ctx, ue, nas)
 		if drop {
@@ -65,7 +62,7 @@ func HandleNAS(m *mme.MME, ctx context.Context, conn *mme.UeConn, nas []byte) {
 
 	result, err := mme.DecodeNASMessage(ue, nas)
 	if err != nil {
-		// DecodeNASMessage has logged the reason; the PDU is dropped.
+		// DecodeNASMessage has logged the reason.
 		return
 	}
 
@@ -121,7 +118,7 @@ func HandleEmmMessage(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain 
 	default:
 		// TS 24.301 §7.4: a message type not implemented by the receiver is ignored, but an
 		// EMM STATUS with cause #97 "message type non-existent or not implemented" should be
-		// returned (mirrors the AMF's HandleGmmMessage default).
+		// returned.
 		logger.From(ctx, logger.MmeLog).Warn("unhandled EMM message",
 			zap.String("message-type", mme.EmmMessageTypeName(mt)),
 			zap.Int("message-type-value", int(mt)))

@@ -54,13 +54,10 @@ func (m *MME) onMobileReachableExpiry(ue *UeContext, gen uint64) {
 }
 
 // onImplicitDetachExpiry implicitly detaches an unreachable UE (TS 24.301): the EPS
-// bearers are released locally (no NAS/S1AP signalling — the UE is in ECM-IDLE), but
+// bearers are released locally (the UE is in ECM-IDLE, so no NAS/S1AP signalling), but
 // the EMM context is retained as a Deregistered husk with its native EPS security
-// context and its IMSI/M-TMSI index. This lets a later re-attach with the native GUTI
-// reuse the context and skip authentication (resolveAttachContext), keeping the
-// native security context (TS 24.301 §4.4.2 / annex C). A fresh attach for the same
-// IMSI supersedes the husk (CommitUEIdentity), and subscriber deletion frees it
-// (DetachSubscriber). The network/DB release runs without m.mu held.
+// context and its IMSI/M-TMSI index, so a later re-attach with the native GUTI can
+// reuse it and skip authentication (TS 24.301 §4.4.2 / annex C).
 func (m *MME) onImplicitDetachExpiry(ue *UeContext, gen uint64) {
 	m.mu.Lock()
 

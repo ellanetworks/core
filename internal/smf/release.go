@@ -61,8 +61,6 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	// Remove from pool after all network I/O is complete.
 	s.dropFromPool(smContext)
 
-	logger.SmfLog.Info("session-pool DEL via ReleaseSmContext", zap.String("ref", smContext.Ref), zap.String("by", poolTrace()))
-
 	return err
 }
 
@@ -116,6 +114,4 @@ func (s *SMF) removeSessionUnlocked(_ context.Context, ref string) {
 	}
 
 	s.dropFromPool(sc)
-
-	logger.SmfLog.Info("session-pool DEL via removeSessionUnlocked", zap.String("ref", ref), zap.String("by", poolTrace()))
 }

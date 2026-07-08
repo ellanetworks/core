@@ -13,7 +13,7 @@ import (
 )
 
 // handleHandoverNotify completes the handover once the UE reaches the target
-// (TS 36.413 §8.4.3, TS 23.401 §5.5.1.2.2 steps 13-19). conn is the target.
+// (TS 36.413 §8.4.3, TS 23.401 §5.5.1.2.2 steps 13-19).
 func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	notify, err := s1ap.ParseHandoverNotify(value)
 	if err != nil {

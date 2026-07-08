@@ -24,8 +24,6 @@ func HandleGmmMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConte
 	switch msgType {
 	case nas.MsgTypeRegistrationRequest:
 		handleRegistrationRequest(ctx, amfInstance, ue, msg, integrityVerified)
-	case nas.MsgTypeServiceRequest:
-		handleServiceRequest(ctx, amfInstance, ue, msg.ServiceRequest, integrityVerified)
 	case nas.MsgTypeULNASTransport:
 		handleULNASTransport(ctx, amfInstance, ue, msg.ULNASTransport)
 	case nas.MsgTypeConfigurationUpdateComplete:

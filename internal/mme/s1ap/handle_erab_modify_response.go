@@ -20,8 +20,6 @@ func handleERABModifyResponse(m *mme.MME, value []byte) {
 		return
 	}
 
-	// S1AP-only activity still refreshes liveness (mirrors the AMF touching on every
-	// UE-associated handler); the modification itself completes on the NAS Accept.
 	if ue, ok := m.LookupUe(resp.MMEUES1APID); ok {
 		ue.TouchLastSeen()
 	}

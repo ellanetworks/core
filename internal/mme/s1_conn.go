@@ -11,7 +11,7 @@ import (
 )
 
 // ICSState tracks the S1AP Initial Context Setup progress for one connection
-// (TS 36.413 §8.3). Mirrors the AMF's ICSState.
+// (TS 36.413 §8.3).
 type ICSState int
 
 const (
@@ -34,8 +34,7 @@ type UeConn struct {
 	conn        S1APWriter
 
 	// Log carries the connection's MME-UE-S1AP-ID (the temporary identity, TS
-	// 33.401 §7.1) so handlers correlate by it without repeating the field. It is
-	// per-connection and the id is immutable, so it never goes stale.
+	// 33.401 §7.1) so handlers correlate by it. Per-connection with an immutable id.
 	Log *zap.Logger
 
 	// ue is the persistent UE context bound to this connection, nil until a UE
@@ -44,15 +43,13 @@ type UeConn struct {
 	ue *UeContext
 
 	// m is the owning MME, so connection-scoped methods reach the registry lock and
-	// node-level config without threading it through every call (mirrors the AMF's
-	// connection reaching its NF). Set at creation, immutable.
+	// node-level config without threading it through every call. Set at creation, immutable.
 	m *MME
 
 	// ICS is the S1AP Initial Context Setup progress: it distinguishes a
 	// fully-established connection (ICSCompleted) from one a UE is still resuming on
 	// (e.g. a TAU resume that has not re-established bearers). Dispatch-confined
-	// (mutated only on the eNB's S1AP goroutine), so a plain field — unlike the AMF's
-	// atomic ICS, since 4G has no asynchronous SMF push over N1N2 (TS 23.401 §5.3.4.3).
+	// (mutated only on the eNB's S1AP goroutine), so a plain field suffices.
 	ICS ICSState
 
 	// secureExchangeEstablished records that secure NAS exchange is established on
@@ -64,9 +61,9 @@ type UeConn struct {
 
 	// In-flight authentication working-state, scoped to this connection's attach: a
 	// dropped connection re-authenticates from scratch, so it lives on the connection,
-	// not the persistent context (mirrors the AMF's AuthenticationCtx). AuthVector is
-	// the EPS challenge vector, resyncTried whether SQN re-synchronisation has been
-	// attempted this exchange (TS 24.301 §5.4.2.7). Dispatch-confined.
+	// not the persistent context. AuthVector is the EPS challenge vector, resyncTried
+	// whether SQN re-synchronisation has been attempted this exchange
+	// (TS 24.301 §5.4.2.7). Dispatch-confined.
 	AuthVector  *udm.EPSAV
 	resyncTried bool
 
@@ -74,8 +71,7 @@ type UeConn struct {
 	// is the plaintext ATTACH REQUEST that started the attach, AttachAcceptPdu the
 	// protected ATTACH ACCEPT last sent — kept to resend the ACCEPT on a duplicate
 	// ATTACH REQUEST with identical IEs while awaiting ATTACH COMPLETE. Connection-
-	// scoped like the auth state above (the AMF keeps RegistrationRequest/AcceptPdu on
-	// its connection). Dispatch-confined.
+	// scoped like the auth state above. Dispatch-confined.
 	AttachRequestPlain []byte
 	AttachAcceptPdu    []byte
 
@@ -97,8 +93,7 @@ type UeConn struct {
 	releaseGuard guard.Guard
 }
 
-// StopReleaseGuard cancels the Release-Complete supervision timer, called by the
-// Release Complete handler before it runs the cleanup. Nil-safe.
+// StopReleaseGuard cancels the Release-Complete supervision timer. Nil-safe.
 func (c *UeConn) StopReleaseGuard() {
 	if c == nil {
 		return
@@ -119,9 +114,8 @@ func (ue *UeContext) Conn() *UeConn {
 }
 
 // UeContext returns the persistent UE context bound to this connection, or nil
-// for a bare connection whose first NAS message has not yet warranted one
-// (mirrors the AMF's UeConn.UeContext). Read on the dispatch goroutine, where the
-// binding set under MME.mu is stable.
+// for a bare connection whose first NAS message has not yet warranted one. Read on
+// the dispatch goroutine, where the binding set under MME.mu is stable.
 func (c *UeConn) UeContext() *UeContext {
 	if c == nil {
 		return nil

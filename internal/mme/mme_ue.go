@@ -42,9 +42,8 @@ func (ue *UeContext) EndKeyChainProc(t procedure.Type) {
 }
 
 // SuperviseKeyChainProc arms the registry's supervision timeout on an already-begun
-// key-chain procedure: cancel runs once at the deadline, but only while the procedure
-// is still active (the registry re-checks its id under lock, so no external generation
-// counter is needed). A no-op on a bare test context with no registry.
+// key-chain procedure: cancel runs once at the deadline, and only while the procedure
+// is still active. A no-op on a bare test context with no registry.
 func (ue *UeContext) SuperviseKeyChainProc(ctx context.Context, t procedure.Type, deadline time.Time, cancel func(context.Context) error) {
 	if ue.procedures != nil {
 		_ = ue.procedures.Supervise(ctx, t, deadline, cancel)
@@ -115,14 +114,12 @@ type PdnConnection struct {
 }
 
 // UeContext is the MME's persistent per-UE EMM context: subscriber identity, the
-// EPS NAS security context, and the bearer state. active is the UE's current
-// UE-associated S1-connection, nil while the UE is in ECM-IDLE.
+// EPS NAS security context, and the bearer state.
 type UeContext struct {
 	// active is the UE's current UE-associated S1-connection, nil in ECM-IDLE. It is
 	// an atomic pointer: it is swapped under MME.mu on the connection lifecycle
 	// (bind/release) but read lock-free on the hot path, so a release racing a
-	// handler read is memory-model-safe (mirrors the AMF's atomic active NAS
-	// connection). Read via Conn().
+	// handler read is memory-model-safe. Read via Conn().
 	active atomic.Pointer[UeConn]
 
 	supi     etsi.SUPI
@@ -130,7 +127,7 @@ type UeContext struct {
 	UeNetCap []byte    // raw UE network capability (algorithm selection + replay)
 	MsNetCap []byte    // raw MS network capability value part; source of the replayed GERAN (GEA) capabilities (TS 24.301)
 	// DRXParameter is the UE's requested DRX parameter from the ATTACH REQUEST (TS
-	// 24.301 §9.9.3.8); stored to mirror the AMF's DRXParameter. Nil when omitted.
+	// 24.301 §9.9.3.8). Nil when omitted.
 	DRXParameter    []byte
 	RadioCapability []byte // UE Radio Capability (S1AP UE Capability Info Indication), replayed in Initial Context Setup (TS 23.401)
 	// RadioCapabilityForPaging is the eNB-reported paging-specific capability, included
@@ -194,7 +191,7 @@ type UeContext struct {
 	// mode, Path Switch, S1 handover) in the shared procedure engine. They are
 	// mutually exclusive, so at most one advances the {NH, NCC} chain at a time and
 	// two cannot re-key from the same base concurrently and desync the AS/NAS key
-	// chain (TS 33.501 §6.9.5.1, TS 33.401 §7.2.8; mirrors the AMF). The registry is
+	// chain (TS 33.501 §6.9.5.1, TS 33.401 §7.2.8). The registry is
 	// self-synchronising; the MME claims/releases under MME.mu so a claim is atomic
 	// with the connection/handover state it guards.
 	procedures *procedure.Registry
@@ -291,9 +288,8 @@ func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) 
 	m.mu.Unlock()
 
 	// TS 24.301 §5.5.1.2.4 case f: a genuine re-attach supersedes the old context and
-	// its EPS bearer contexts are deleted. removeContextLocked drops the registry
-	// indices under the lock; ReleaseAllSessions releases the anchor sessions at the
-	// SGW/PGW afterwards (external calls cannot run under m.mu). Mirrors the AMF.
+	// its EPS bearer contexts are deleted. The anchor sessions are released outside
+	// m.mu, since external calls cannot run under it.
 	if superseded {
 		logger.MmeLog.Info("CommitUEIdentity superseding prior UE context; releasing its EPS sessions",
 			zap.String("imsi", supi.IMSI()))
@@ -548,8 +544,8 @@ func (m *MME) releaseConnIDLocked(id uint32) {
 	m.connIDs.FreeID(int64(id))
 }
 
-// NewUeContext creates a fresh persistent UE context, unattached to any connection
-// (mirrors the AMF's NewUeContext). AttachUeConn binds it to a connection.
+// NewUeContext creates a fresh persistent UE context, unattached to any connection.
+// AttachUeConn binds it to a connection.
 func NewUeContext() *UeContext {
 	return &UeContext{procedures: procedure.NewRegistry(logger.MmeLog)}
 }
@@ -581,16 +577,16 @@ func (m *MME) NewUe(conn S1APWriter, enbUEID s1ap.ENBUES1APID) *UeContext {
 
 // attachUeConnLocked binds the bare connection c to a held UE context — a returning
 // UE resuming from ECM-IDLE (S-TMSI) or reusing a native GUTI onto the connection its
-// Initial UE Message created — releasing any connection ue previously held and
-// stopping its idle/paging supervision. The caller holds m.mu. Mirrors the AMF's
-// attachUeConnLocked; secure exchange is established by the subsequent decode, not
-// here (the bare connection carries the message that establishes it).
+// Initial UE Message created — releasing any connection ue still holds and stopping
+// its idle/paging supervision. The caller holds m.mu. Secure exchange is established
+// by the subsequent decode, not here (the bare connection carries the message that
+// establishes it).
 func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) {
 	m.stopIdleTimersLocked(ue)
 	m.stopPagingLocked(ue)
 	// Release any connection the held context still had (a re-attach on a new
 	// connection supersedes the old one); the old RAN context is stale, so this is a
-	// local cleanup with no Release Command (mirrors the AMF's displaced-conn release).
+	// local cleanup with no Release Command.
 	m.freeUeConnLocked(ue)
 
 	// If c was bound to a transient context — a fresh Attach context superseded by a
@@ -603,13 +599,12 @@ func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) {
 	ue.active.Store(c)
 	c.ue = ue
 
-	// Becoming connected is activity; refresh liveness at the bind point (mirrors the
-	// AMF's attachUeConnLocked).
+	// Becoming connected is activity; refresh liveness at the bind point.
 	ue.TouchLastSeen()
 }
 
 // AttachUeConn binds a bare connection to a held UE context under the registry lock,
-// releasing any superseded connection. Mirrors the AMF's AttachUeConn.
+// releasing any superseded connection.
 func (m *MME) AttachUeConn(ue *UeContext, c *UeConn) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

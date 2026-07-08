@@ -158,8 +158,6 @@ func (m *MME) ReclaimUEsOnConnLossForTest(conn S1APWriter) { m.reclaimUEsOnConnL
 
 func (ue *UeContext) MobileReachableArmedForTest() bool { return ue.mobileReachableTimer.Active() }
 
-// ForceStateForTest sets the EMM state directly, bypassing transition
-// validation, for test precondition setup.
 // ForceRegStepForTest sets the attach sub-phase directly, for tests that invoke a
 // handler without driving the UE through the attach flow.
 func (ue *UeContext) ForceRegStepForTest(step RegStep) {
@@ -169,6 +167,8 @@ func (ue *UeContext) ForceRegStepForTest(step RegStep) {
 	ue.regStep = step
 }
 
+// ForceStateForTest sets the EMM state directly, bypassing transition validation,
+// for test precondition setup.
 func (ue *UeContext) ForceStateForTest(s EMMState) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

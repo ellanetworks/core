@@ -59,8 +59,7 @@ func epsAlgorithmValue(name string) (byte, bool) {
 
 // SecurityAlgorithms returns the operator's configured NAS integrity and ciphering
 // algorithm orders as EPS algorithm codes (TS 33.401), mapping the operator's
-// RAT-neutral names (NULL/SNOW3G/AES) and dropping any it does not recognise. The
-// 5G AMF exposes the analogous accessor.
+// RAT-neutral names (NULL/SNOW3G/AES) and dropping any it does not recognise.
 func (m *MME) SecurityAlgorithms(ctx context.Context) ([]uint8, []uint8, error) {
 	ctx, span := Tracer.Start(ctx, "mme/get_security_algorithms")
 	defer span.End()

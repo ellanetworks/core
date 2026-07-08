@@ -79,8 +79,9 @@ func TestPlainNasAllowed_RejectsULNasTransport(t *testing.T) {
 	}
 }
 
-// TestMacFailedAllowed pins down the macFailedAllowed whitelist
-// (plainNasAllowed plus ServiceRequest, per TS 33.501).
+// TestMacFailedAllowed pins down the macFailedAllowed whitelist (equal to plainNasAllowed;
+// SERVICE REQUEST is deliberately absent — it is resolved-or-rejected by the dedicated
+// HandleServiceRequest, not this classify path, mirroring the MME).
 func TestMacFailedAllowed(t *testing.T) {
 	allowed := map[uint8]bool{
 		nas.MsgTypeRegistrationRequest:                              true,
@@ -88,7 +89,6 @@ func TestMacFailedAllowed(t *testing.T) {
 		nas.MsgTypeAuthenticationResponse:                           true,
 		nas.MsgTypeAuthenticationFailure:                            true,
 		nas.MsgTypeSecurityModeReject:                               true,
-		nas.MsgTypeServiceRequest:                                   true,
 		nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration: true,
 		nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:   true,
 	}

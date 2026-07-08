@@ -13,8 +13,8 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-// UeContextExport is a snapshot of one UE's MME context for the support bundle,
-// mirroring the AMF's UeContextExport. Facets with no EPS analog are omitted:
+// UeContextExport is a snapshot of one UE's MME context for the support bundle.
+// Facets with no EPS analog are omitted:
 // SUCI, allowed NSSAI and ng-KSI are 5G-only; per-UE location is dropped because
 // the MME does not retain the decoded ULI; the full GUTI string is omitted (only
 // the M-TMSI is stored per UE), and the NAS-guard procedure name is AMF-only.
@@ -68,8 +68,7 @@ type PDNConnectionExport struct {
 }
 
 // TunnelExport is a PDN connection's S1-U endpoints (TS 36.413): the S-GW side the
-// eNB sends uplink to, and the eNB side learned at Initial Context Setup. Mirrors
-// the AMF's TunnelExport (the access-node N3 endpoint).
+// eNB sends uplink to, and the eNB side learned at Initial Context Setup.
 type TunnelExport struct {
 	SgwS1UAddress string `json:"sgw_s1u_address,omitempty"`
 	SgwS1UTEID    uint32 `json:"sgw_s1u_teid,omitempty"`
@@ -131,8 +130,7 @@ func copyAmbr(src *models.Ambr) *models.Ambr {
 }
 
 // ExportUEs returns a snapshot of every UE context in the MME for the support
-// bundle. Safe to call concurrently with normal operation. Mirrors the AMF's
-// ExportUEs.
+// bundle. Safe to call concurrently with normal operation.
 func (m *MME) ExportUEs(ctx context.Context) ([]UeContextExport, error) {
 	plmn, err := m.OperatorPLMN(ctx)
 	if err != nil {
@@ -224,7 +222,7 @@ func (m *MME) exportUeContext(plmn models.PlmnID, ue *UeContext) UeContextExport
 }
 
 // pdnConnectionExports snapshots the UE's PDN connections, keyed by EPS bearer
-// identity, mirroring the AMF's PDU-session map. The caller holds ue.mu.
+// identity. The caller holds ue.mu.
 func pdnConnectionExports(ue *UeContext) map[string]PDNConnectionExport {
 	if len(ue.Pdns) == 0 {
 		return nil

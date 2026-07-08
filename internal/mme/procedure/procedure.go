@@ -42,15 +42,12 @@ func NewRegistry(log *zap.Logger) *Registry {
 
 // keyChainRules makes every key-changing procedure mutually exclusive: none may run
 // while another advances the {NH, NCC} chain (TS 33.401 §7.2.8). The coarse rule —
-// any one blocks the others — matches the MME's single per-UE key chain; no spec
-// mandates a finer per-pair matrix.
+// any one blocks the others — matches the MME's single per-UE key chain.
 //
 // A conflict rejects the incoming procedure. That is compliant because SecurityMode (the
 // only core-initiated one) is attach-only, so it never collides with a RAN-initiated
 // Path Switch / handover on a bearers-established UE; the only reachable collision is
-// Handover⊗PathSwitch, where rejecting one preserves {NH,NCC} atomicity. If mid-session
-// re-keying is ever added, SMC-vs-RAN-initiated must instead proceed with the OLD KASME
-// (TS 33.401 §7.2.10 rule 3), not reject.
+// Handover⊗PathSwitch, where rejecting one preserves {NH,NCC} atomicity.
 type keyChainRules struct{}
 
 // Conflicts blocks any incoming key-changing procedure while another is active.

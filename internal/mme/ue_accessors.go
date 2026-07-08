@@ -17,9 +17,7 @@ import (
 // (kasme, knasInt, knasEnc) are never returned; the operations that use them are
 // methods so the keys stay inside the UeContext (TS 33.401).
 
-// Tmsi returns the UE's current M-TMSI (0 = none). The field is registry-lock-guarded
-// and written only by the guti realloc/clear methods; the accessor keeps it from being
-// touched lock-free from outside.
+// Tmsi returns the UE's current M-TMSI (0 = none).
 func (ue *UeContext) Tmsi() etsi.TMSI { return ue.tmsi }
 
 // OldTmsi returns the M-TMSI being replaced during a GUTI reallocation (0 = none).
@@ -37,8 +35,8 @@ func (ue *UeContext) IMSI() string {
 	return ue.imsiOrEmpty()
 }
 
-// imsiOrEmpty returns the bare IMSI, or "" when the identity is unset. Unlike
-// etsi.SUPI.IMSI() it does not panic on an unset SUPI. No lock of its own.
+// imsiOrEmpty returns the bare IMSI, or "" when the identity is unset; unlike
+// etsi.SUPI.IMSI() it does not panic on an unset SUPI.
 func (ue *UeContext) imsiOrEmpty() string {
 	if !ue.supi.IsIMSI() {
 		return ""

@@ -777,6 +777,14 @@ func (n *nasAdapter) HandleNAS(ctx context.Context, ue *amf.UeConn, nasPdu []byt
 	nas.HandleNAS(ctx, n.amf, ue, nasPdu)
 }
 
+func (n *nasAdapter) IsServiceRequest(nasPdu []byte) bool {
+	return nas.IsServiceRequest(nasPdu)
+}
+
+func (n *nasAdapter) HandleServiceRequest(ctx context.Context, ue *amf.UeConn, nasPdu []byte) {
+	nas.HandleServiceRequest(ctx, n.amf, ue, nasPdu)
+}
+
 // mmeNASAdapter injects the 4G EMM/ESM NAS layer (internal/mme/nas) into the MME
 // kernel so its S1AP layer dispatches uplink NAS without the kernel importing nas.
 type mmeNASAdapter struct {

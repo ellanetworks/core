@@ -14,7 +14,7 @@ import (
 
 // handleENBStatusTransfer relays the source's status container to the target as an
 // MME STATUS TRANSFER (TS 36.413 §8.4.6/§8.4.7). Optional: the source may omit it,
-// so it never gates completion. conn is the source.
+// so it never gates completion.
 func handleENBStatusTransfer(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	st, err := s1ap.ParseENBStatusTransfer(value)
 	if err != nil {

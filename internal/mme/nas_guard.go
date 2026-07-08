@@ -105,7 +105,7 @@ func (m *MME) armESMGuardMode(ue *UeContext, p *PdnConnection, name string, nas 
 	)
 }
 
-// StopNASGuard cancels the EMM guard once the UE's response arrives.
+// StopNASGuard cancels the EMM guard.
 func (c *UeConn) StopNASGuard() {
 	if c == nil {
 		return
@@ -127,8 +127,8 @@ func (m *MME) stopNASGuardLocked(ue *UeContext) {
 	ue.Conn().nasGuard.Stop()
 }
 
-// StopESMGuard cancels p's ESM bearer-procedure guard once the UE answers. The
-// guard is self-synchronizing, so no registry lock is needed.
+// StopESMGuard cancels p's ESM bearer-procedure guard. The guard is
+// self-synchronizing, so no registry lock is needed.
 func (m *MME) StopESMGuard(p *PdnConnection) {
 	p.guard.Stop()
 }
@@ -153,7 +153,6 @@ func (c *UeConn) retransmitNASGuard(ue *UeContext, name string, pdu []byte, atte
 	logger.MmeLog.Info("retransmitting NAS message",
 		zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.String("procedure", name), zap.Int("attempt", int(attempt)))
 	// Retransmission is timer-driven, outside the original request; start a fresh root.
-	// ue.Conn() == c was verified above, so this sends over the same connection.
 	c.SendDownlinkNASTransport(context.Background(), pdu)
 }
 

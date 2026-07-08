@@ -62,9 +62,8 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 	}
 
 	// Claim the {NH, NCC} chain, refusing if a Path Switch or S1 handover is
-	// concurrently advancing it (which would derive the same NH for two targets).
-	// Held until commit so a handover cannot start in the unlocked derive/switch
-	// window below.
+	// concurrently advancing it (deriving the same NH for two targets). Held until
+	// commit so a handover cannot start in the unlocked derive/switch window below.
 	curNH, curNCC, mmeID, ok := m.BeginPathSwitch(ue)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request while the key chain is being advanced",
@@ -89,7 +88,6 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 
 	switched, released := switchPathBearers(m, ctx, ue, mmeID, req.ERABToBeSwitchedDL)
 	if switched == 0 {
-		// TS 36.413: the UP path was switched for no E-RAB.
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request switched no E-RAB",
 			zap.Uint32("mme-ue-id", uint32(mmeID)))
 		sendPathSwitchFailure(m, radio.Conn, req, causePathSwitchUPFailure)
@@ -99,9 +97,9 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 
 	replayCaps := pathSwitchSecurityCapabilities(ue, req.UESecurityCapabilities)
 
-	// The UE may have been released during the unlocked switch above (its source
-	// association dropping), so the commit is gated on the connection still being
-	// present. NCC is a 3-bit chaining counter (TS 33.401).
+	// The UE may have been released during the unlocked switch above, so the commit is
+	// gated on the connection still being present. NCC is a 3-bit chaining counter
+	// (TS 33.401).
 	ncc, ok := m.CommitPathSwitch(ue, radio.Conn, req.ENBUES1APID, newNH, curNCC)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request: UE released during the user-plane switch",

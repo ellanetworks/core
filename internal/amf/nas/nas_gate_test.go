@@ -16,8 +16,8 @@ import (
 
 // A SERVICE REQUEST that resolves no 5GMM context (e.g. the UE deregistered, or an unknown
 // 5G-S-TMSI) must be answered with a SERVICE REJECT #9 rather than silently dropped
-// (TS 24.501 §5.6.1.5, §4.4.4.3), mirroring the MME's HandleServiceRequest.
-func TestHandleNAS_NoContextServiceRequest_SendsServiceReject(t *testing.T) {
+// (TS 24.501 §5.6.1.5, §4.4.4.3). The dedicated pre-context handler never mints a context.
+func TestHandleServiceRequest_NoContext_SendsServiceReject(t *testing.T) {
 	ngapSender := &fakeNGAPSender{}
 	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: `["000001"]`},
@@ -30,7 +30,7 @@ func TestHandleNAS_NoContextServiceRequest_SendsServiceReject(t *testing.T) {
 		t.Fatalf("could not create ueConn: %v", err)
 	}
 
-	HandleNAS(context.Background(), amfInstance, ueConn, encodePlainServiceRequest(t))
+	HandleServiceRequest(context.Background(), amfInstance, ueConn, encodePlainServiceRequest(t))
 
 	if ueConn.UeContext() != nil {
 		t.Fatal("no-context service request minted a UE context; the bare connection would leak")

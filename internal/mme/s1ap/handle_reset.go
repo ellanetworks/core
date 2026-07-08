@@ -14,9 +14,8 @@ import (
 
 // handleReset releases the UE contexts a RESET names and answers with RESET
 // ACKNOWLEDGE, which the eNB needs before it can reuse the released UE-S1AP-IDs
-// (TS 36.413 §8.7.1). A whole-interface reset clears every UE on the association,
-// a part-of-interface reset only the listed ones. The SCTP association stays up,
-// so the eNB remains S1-Setup-complete.
+// (TS 36.413 §8.7.1). A whole-interface reset clears every UE on the association, a
+// part-of-interface reset only the listed ones. The SCTP association stays up.
 func handleReset(m *mme.MME, radio *mme.Radio, value []byte) {
 	req, err := s1ap.ParseReset(value)
 	if err != nil {

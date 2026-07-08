@@ -83,10 +83,11 @@ func plainNasAllowed(msgType uint8) bool {
 // SERVICE REQUEST is on the spec's MAC-failed list but is a CIoT
 // control-plane procedure Ella Core does not implement, so it has no
 // message-type constant to admit here.
+// macFailedAllowed reports whether a message type is processed when the integrity check
+// fails (TS 24.501 §4.4.4.3 / TS 33.501). SERVICE REQUEST is deliberately absent: it is
+// resolved-or-rejected by the dedicated pre-context HandleServiceRequest (which verifies
+// integrity before binding and rejects #9 on failure), never through this classify path —
+// mirrors the MME, whose macFailedAllowed also omits SERVICE REQUEST.
 func macFailedAllowed(msgType uint8) bool {
-	if plainNasAllowed(msgType) {
-		return true
-	}
-
-	return msgType == nas.MsgTypeServiceRequest
+	return plainNasAllowed(msgType)
 }

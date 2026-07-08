@@ -49,8 +49,7 @@ func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) 
 	messageType := mme.S1APMessageType(pdu)
 	span.SetAttributes(attribute.String("s1ap.message_type", string(messageType)))
 
-	// Track the eNB before logging so the inbound event is attributed to the
-	// radio ahead of the outbound S1 Setup Response.
+	// Track the eNB before logging so the inbound event is attributed to the radio.
 	isSetup := false
 	if im, ok := pdu.(*s1ap.InitiatingMessage); ok && im.ProcedureCode == s1ap.ProcS1Setup {
 		isSetup = true
@@ -58,8 +57,8 @@ func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) 
 		m.TrackRadioFromSetup(conn, im.Value)
 	}
 
-	// Resolve the eNB once at ingress and thread it to handlers, mirroring the AMF's
-	// per-message *Radio. It is nil before S1 Setup records the eNB.
+	// Resolve the eNB once at ingress and thread it to handlers; nil before S1 Setup
+	// records the eNB.
 	radio := m.RadioForConn(conn)
 	if radio != nil {
 		radio.TouchLastSeen()

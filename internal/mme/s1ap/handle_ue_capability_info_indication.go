@@ -9,10 +9,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// handleUECapabilityInfoIndication stores the UE Radio Capability reported by
-// the eNB (TS 36.413). The MME keeps the most up-to-date capability and
-// replays it in subsequent INITIAL CONTEXT SETUP REQUEST messages so the eNB
-// need not re-fetch it from the UE (TS 23.401).
+// handleUECapabilityInfoIndication stores the UE Radio Capability reported by the
+// eNB (TS 36.413), replayed in later INITIAL CONTEXT SETUP REQUEST messages so the
+// eNB need not re-fetch it from the UE (TS 23.401).
 func handleUECapabilityInfoIndication(m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseUECapabilityInfoIndication(value)
 	if err != nil {

@@ -28,9 +28,9 @@ var nasTracer = otel.Tracer("ella-core/amf/nas")
 // HandleNAS processes an uplink NAS PDU on a UE connection. A bare connection's first
 // message binds a fresh persistent context here (mirrors the MME's HandleNAS); a
 // message that establishes none leaves the connection bare for the NGAP layer to
-// release. A SERVICE REQUEST with no resolvable context is answered with a SERVICE
-// REJECT (TS 24.501 §5.6.1.5, §4.4.4.3); other undecodable or unresolved messages are
-// dropped without a STATUS; an unimplemented message type draws a 5GMM STATUS from
+// release. A REGISTRATION REQUEST mints a fresh context; any other unresolved message is
+// dropped without a STATUS (a SERVICE REQUEST is routed to HandleServiceRequest at the
+// NGAP layer, before HandleNAS). An unimplemented message type draws a 5GMM STATUS from
 // HandleGmmMessage (§7.4).
 func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu []byte) {
 	if ue == nil {
@@ -51,20 +51,13 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu
 		}
 
 		if amfUe == nil {
-			// A SERVICE REQUEST the AMF has no 5GMM context for cannot be accepted; it is
-			// answered with SERVICE REJECT #9 "UE identity cannot be derived by the network"
-			// rather than silently dropped (TS 24.501 §5.6.1.5, §4.4.4.3), mirroring the
-			// MME's HandleServiceRequest. No context is minted for it.
-			if isServiceRequest(nasPdu) {
-				rejectBareServiceRequest(ctx, ue)
-				return
-			}
-
-			// Otherwise mint a context only for an initial REGISTRATION REQUEST — the only
-			// message warranting a fresh context (any other cites a context that was not
-			// found and cannot proceed) — so an unauthenticated peer cannot leak a context
-			// per message (mirrors the MME's ATTACH-only gate). A connection left bare here
-			// is released by the NGAP layer.
+			// Mint a context only for an initial REGISTRATION REQUEST — the only message
+			// that establishes a fresh context. A SERVICE REQUEST is resolved-or-rejected
+			// before HandleNAS by HandleServiceRequest (routed at the NGAP layer, mirroring
+			// the MME); any other message cites a context that was not found and cannot
+			// proceed. This keeps minting reserved to registration so an unauthenticated
+			// peer cannot leak a context per message (mirrors the MME's ATTACH-only gate).
+			// A connection left bare here is released by the NGAP layer.
 			if !isRegistrationRequest(nasPdu) {
 				logger.From(ctx, logger.AmfLog).Debug("initial NAS message is not a registration request; leaving the connection bare")
 				return
@@ -130,12 +123,44 @@ func isRegistrationRequest(payload []byte) bool {
 	return ok && mt == nas.MsgTypeRegistrationRequest
 }
 
-// isServiceRequest reports whether a fresh connection's NAS message is a SERVICE REQUEST.
-// Such a message on a connection with no 5GMM context draws a SERVICE REJECT rather than
-// a fresh context (TS 24.501 §5.6.1.5).
-func isServiceRequest(payload []byte) bool {
+// IsServiceRequest reports whether a fresh connection's first NAS message is a SERVICE
+// REQUEST, so the NGAP layer can route it to HandleServiceRequest before the mint gate
+// (mirrors the MME's S1AP peek).
+func IsServiceRequest(payload []byte) bool {
 	mt, ok := peekInitialGmmType(payload)
 	return ok && mt == nas.MsgTypeServiceRequest
+}
+
+// HandleServiceRequest answers an initial SERVICE REQUEST, routed here from the NGAP layer
+// before the HandleNAS mint gate (mirrors the MME's dedicated S1AP handler). It resolves
+// the UE by the request's 5G-S-TMSI — integrity-verified against the held context — and
+// either dispatches the accept/reactivation or answers SERVICE REJECT #9. It never mints
+// a context and leaves the 5GMM/security context unchanged on rejection
+// (TS 24.501 §5.6.1.5, §4.4.4.3).
+func HandleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu []byte) {
+	amfUe, err := fetchUeContextWithMobileIdentity(ctx, amfInstance, nasPdu)
+	if err != nil || amfUe == nil {
+		// No context for the cited 5G-S-TMSI, or the request failed the integrity check:
+		// it cannot be accepted. Answer SERVICE REJECT #9 without binding or mutating any
+		// context; the NGAP layer releases the bare connection.
+		rejectBareServiceRequest(ctx, ue)
+		return
+	}
+
+	amfInstance.AttachUeConn(amfUe, ue)
+	amfInstance.StopIdleTimers(amfUe)
+
+	result, err := amf.DecodeNASMessage(amfUe, nasPdu)
+	if err != nil {
+		return
+	}
+
+	if result.Message.GmmMessage == nil || result.Message.ServiceRequest == nil {
+		logger.From(ctx, logger.AmfLog).Warn("service request routed but decoded body is not a service request")
+		return
+	}
+
+	handleServiceRequest(ctx, amfInstance, amfUe, result.Message.ServiceRequest, result.IntegrityVerified)
 }
 
 // peekInitialGmmType returns the GMM message type of a fresh connection's first NAS PDU,

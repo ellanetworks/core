@@ -18,9 +18,8 @@ func authenticateOrReject(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 }
 
 func startAuthentication(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
-	// A fresh authentication procedure gets its own re-synchronisation budget:
-	// resyncTried scopes to one exchange's consecutive synch failures (TS 24.301
-	// §5.4.2.7).
+	// resyncTried scopes to one authentication exchange's consecutive synch
+	// failures, so a fresh procedure starts with a full budget (TS 24.301 §5.4.2.7).
 	ue.Conn().SetResyncTried(false)
 
 	if err := sendAuthRequest(m, ctx, ue, "", ""); err != nil {

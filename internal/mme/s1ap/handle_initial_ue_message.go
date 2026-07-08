@@ -15,9 +15,8 @@ import (
 )
 
 // HandleInitialUEMessage routes a UE's first NAS message on a new S1 association
-// (TS 36.413). A SERVICE REQUEST re-establishes an existing EMM-IDLE
-// context (resolved by S-TMSI); anything else (an Attach Request) starts a new
-// one.
+// (TS 36.413). A SERVICE REQUEST re-establishes an existing EMM-IDLE context
+// (resolved by S-TMSI); anything else starts a new one.
 func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseInitialUEMessage(value)
 	if err != nil {
@@ -31,11 +30,10 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		return
 	}
 
-	// Every other initial message is tracked by a bare UE-associated S1-connection.
-	// The NAS layer binds a persistent context only for an ATTACH REQUEST (mirrors the
-	// AMF's HandleNAS owning context creation); a recognised resume is bound below, and
-	// anything else leaves the connection bare and is released so an unauthenticated
-	// peer cannot exhaust UE contexts.
+	// A bare UE-associated S1-connection tracks the message. The NAS layer binds a
+	// persistent context only for an ATTACH REQUEST; a recognised resume is bound
+	// below. Anything else leaves the connection bare and releases it so an
+	// unauthenticated peer cannot exhaust UE contexts.
 	c := m.NewUeConn(radio.Conn, msg.ENBUES1APID)
 	if c == nil {
 		return
@@ -47,14 +45,11 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 
 	m.DropStaleUe(radio.Conn, msg.ENBUES1APID)
 
-	// Optimistic S-TMSI resume (mirrors the AMF's 5G-S-TMSI hint): a security-protected
-	// message presenting an S-TMSI that verifies against a held, secured context is a
-	// resume in that context. It is authenticated (a pure check, not committed here)
-	// before the context is bound to the requesting connection (TS 24.301 §4.4.4.3), so
-	// an unverified message cannot move the UE — it is left on the bare connection and
-	// rejected below. The NAS layer decodes once more against the bound context,
-	// committing the uplink NAS COUNT and establishing secure exchange (as for any
-	// message), so this hint is not authoritative.
+	// Optimistic S-TMSI resume: a security-protected message whose S-TMSI resolves a
+	// held, secured context is bound to that context only after the message verifies
+	// against it (a pure check, not committed here) (TS 24.301 §4.4.4.3). An unverified
+	// message cannot move the UE; the NAS layer re-decodes against the bound context to
+	// commit the uplink NAS COUNT, so this hint is not authoritative.
 	if len(nas) > 0 && nas[0]>>4 != uint8(eps.SHTPlain) && msg.STMSI != nil {
 		if ue, ok := m.LookupUeByMTMSI(msg.STMSI.MTMSI); ok && ue.EMMState() == mme.EMMRegistered && ue.Secured() {
 			if _, _, err := ue.TryUnprotectUplink(nas); err == nil {
@@ -71,11 +66,10 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		return
 	}
 
-	// The NAS layer bound no context: the initial message was not an ATTACH REQUEST.
-	// A protected TRACKING AREA UPDATE the MME cannot resolve is rejected with EMM
-	// cause #9 over the bare connection, so the UE re-attaches at once without waiting
-	// out T3430 (TS 24.301 §5.5.3.2.5); any other message is dropped. The bare
-	// connection is then released.
+	// No context was bound. A protected TRACKING AREA UPDATE the MME cannot resolve is
+	// rejected with EMM cause #9 so the UE re-attaches at once without waiting out T3430
+	// (TS 24.301 §5.5.3.2.5); any other message is dropped. The bare connection is
+	// released either way.
 	if isProtectedTrackingAreaUpdate(nas) {
 		metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
 		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update rejected; UE will re-attach",
@@ -90,8 +84,7 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 }
 
 // isProtectedTrackingAreaUpdate reports whether nas is an integrity-protected
-// (peekable) TRACKING AREA UPDATE REQUEST. A ciphered body cannot be peeked, so it
-// is not matched.
+// TRACKING AREA UPDATE REQUEST. A ciphered body cannot be peeked, so it never matches.
 func isProtectedTrackingAreaUpdate(nas []byte) bool {
 	if len(nas) < 6 {
 		return false

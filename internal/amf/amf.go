@@ -88,6 +88,12 @@ type DBer interface {
 
 type NASHandler interface {
 	HandleNAS(ctx context.Context, ue *UeConn, nasPdu []byte)
+	// IsServiceRequest peeks whether an initial NAS PDU is a SERVICE REQUEST, so the NGAP
+	// layer routes it to HandleServiceRequest before the mint gate (mirrors the MME).
+	IsServiceRequest(nasPdu []byte) bool
+	// HandleServiceRequest resolves-or-rejects an initial SERVICE REQUEST without minting a
+	// context (TS 24.501 §5.6.1.5, §4.4.4.3).
+	HandleServiceRequest(ctx context.Context, ue *UeConn, nasPdu []byte)
 }
 
 // Concurrency model — a registry lock, a per-UE lock, and atomics:

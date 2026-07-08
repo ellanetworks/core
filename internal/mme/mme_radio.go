@@ -22,11 +22,10 @@ import (
 // remaining fields are immutable after the eNB associates.
 type Radio struct {
 	// Conn is the eNB's S1 association, the send target for node-level (non-UE)
-	// S1AP. Set at construction and immutable (mirrors the AMF's Radio.Conn).
+	// S1AP. Set at construction and immutable.
 	Conn S1APWriter
 	// m is the owning MME, so node-scoped methods reach the registry lock without
-	// threading it through every call (mirrors the AMF's Radio.amf). Set at
-	// construction, immutable.
+	// threading it through every call. Set at construction, immutable.
 	m           *MME
 	name        string
 	id          string
@@ -46,8 +45,8 @@ type Radio struct {
 }
 
 // SupportedTAI is a Tracking Area Identity an eNB broadcasts: a served PLMN paired
-// with a cell's TAC (TS 36.413 §8.7.3.2). Mirrors the AMF's SupportedTAI; the
-// S-NSSAI list is a 5G-only field, so a 4G eNB's TAI omits it.
+// with a cell's TAC (TS 36.413 §8.7.3.2). The S-NSSAI list is a 5G-only field, so
+// a 4G eNB's TAI omits it.
 type SupportedTAI struct {
 	Tai models.Tai
 }
@@ -243,8 +242,7 @@ func (m *MME) UpdateRadioSupportedTAs(radio *Radio, tais []SupportedTAI) {
 }
 
 // RadioForConn returns the eNB tracked on conn, or nil if none is recorded yet
-// (pre-S1 Setup). The dispatcher resolves the *Radio once at ingress and threads it to
-// handlers, mirroring the AMF's per-message *Radio.
+// (pre-S1 Setup).
 func (m *MME) RadioForConn(conn S1APWriter) *Radio {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -262,13 +260,13 @@ func (r *Radio) SetupComplete() bool {
 }
 
 // TouchLastSeen records inbound S1AP activity from the eNB as its last-seen time.
-// Safe for concurrent use (lastSeen is atomic). Mirrors the AMF's Radio.TouchLastSeen.
+// Safe for concurrent use (lastSeen is atomic).
 func (r *Radio) TouchLastSeen() {
 	r.lastSeen.Store(time.Now().UnixNano())
 }
 
 // NewRadioForTest builds a *Radio wrapping conn for tests in other packages that call
-// S1AP handlers directly (which the dispatcher now hands a resolved *Radio). It is not
+// S1AP handlers directly (which the dispatcher hands a resolved *Radio). It is not
 // registered in the MME, so node-registry methods (SetupComplete) are not usable on it.
 func NewRadioForTest(conn S1APWriter) *Radio {
 	return &Radio{Conn: conn, Log: logger.MmeLog}

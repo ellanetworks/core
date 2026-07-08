@@ -15,7 +15,7 @@ import (
 
 // handleHandoverRequestAcknowledge records the target's downlink endpoints and
 // sends a HANDOVER COMMAND to the source, or fails the handover when no usable
-// bearer was admitted (TS 36.413 §8.4.2). conn is the target.
+// bearer was admitted (TS 36.413 §8.4.2).
 func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	ack, err := s1ap.ParseHandoverRequestAcknowledge(value)
 	if err != nil {

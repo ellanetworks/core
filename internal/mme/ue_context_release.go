@@ -14,8 +14,7 @@ import (
 
 // releaseGuardTimeout bounds the wait for a UE Context Release Complete; on expiry the
 // EMMState-keyed local cleanup runs, so a lost Complete cannot leak the UeConn + M-TMSI
-// (S1AP §8.3 has no MME-side supervision timer, so this is a robustness guard, mirrored
-// on the AMF).
+// (S1AP §8.3 has no MME-side supervision timer, so this is a robustness guard).
 const releaseGuardTimeout = 5 * time.Second
 
 // SendUEContextReleaseCommand builds a UE Context Release Command for this

@@ -187,7 +187,7 @@ func TestReuseForInboundNAS_PlainEmergencyDiverted(t *testing.T) {
 func TestDecodeNASMessage_MacFailedDoesNotAdvanceULCount(t *testing.T) {
 	ue := newSecuredUE(t)
 
-	pdu := wrapIntegrityProtected(t, ue, encodePlainServiceRequest(t), 7)
+	pdu := wrapIntegrityProtected(t, ue, encodePlainRegistrationRequest(t), 7)
 
 	bad := append([]byte(nil), pdu...)
 	bad[3] ^= 0xff // corrupt the MAC
@@ -195,7 +195,7 @@ func TestDecodeNASMessage_MacFailedDoesNotAdvanceULCount(t *testing.T) {
 	before := ue.ulCount.Value()
 
 	if _, err := DecodeNASMessage(ue, bad); err != nil {
-		t.Fatalf("a mac-failed service request must be admitted (VerdictMacFailedAllowed): %v", err)
+		t.Fatalf("a mac-failed registration request must be admitted (VerdictMacFailedAllowed): %v", err)
 	}
 
 	if ue.ulCount.Value() != before {
@@ -203,7 +203,7 @@ func TestDecodeNASMessage_MacFailedDoesNotAdvanceULCount(t *testing.T) {
 	}
 
 	if _, err := DecodeNASMessage(ue, pdu); err != nil {
-		t.Fatalf("a verified service request must decode: %v", err)
+		t.Fatalf("a verified registration request must decode: %v", err)
 	}
 
 	if ue.ulCount.SQN() != 7 {

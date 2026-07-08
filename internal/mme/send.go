@@ -163,8 +163,8 @@ func (c *UeConn) SendOverConn(ctx context.Context, msg nasMessage) {
 
 // The per-command Send<Proc> methods below stamp the UE's S1AP identities
 // (MME/eNB-UE-S1AP-ID) onto the message in one place and send it on the UE's own eNB
-// association — so no handler re-derives the IDs by hand (mirrors the AMF's
-// per-command Send methods). Each returns a marshal error; send errors are logged by
+// association — so no handler re-derives the IDs by hand. Each returns a marshal
+// error; send errors are logged by
 // SendS1AP. Commands targeting a *different* association (in-flight handover) keep
 // using SendS1APConn.
 

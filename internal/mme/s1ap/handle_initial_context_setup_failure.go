@@ -10,11 +10,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// handleInitialContextSetupFailure aborts a UE the eNB reported it could not set
-// up. The eNB has already considered the procedure failed and released its side, so
-// the MME releases the UE locally — aborting an incomplete attach or dropping a
-// re-established UE back to ECM-IDLE — without a UE Context Release Command
-// (TS 36.413 §8.3.1.3).
+// handleInitialContextSetupFailure releases the UE locally without a UE Context
+// Release Command: the eNB reported it could not set up the context and has already
+// released its side (TS 36.413 §8.3.1.3).
 func handleInitialContextSetupFailure(m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseInitialContextSetupFailure(value)
 	if err != nil {

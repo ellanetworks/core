@@ -14,9 +14,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// HandleServiceRequest handles a mobile-originated SERVICE REQUEST (TS 24.301): it
-// resolves the UE by S-TMSI, verifies the short MAC against the stored NAS context,
-// and re-establishes the S1 context (ECM-IDLE → ECM-CONNECTED).
+// HandleServiceRequest handles a mobile-originated SERVICE REQUEST, re-establishing
+// the S1 context (ECM-IDLE → ECM-CONNECTED) once the short MAC verifies against the
+// stored NAS context (TS 24.301).
 func HandleServiceRequest(m *mme.MME, ctx context.Context, conn mme.S1APWriter, msg *s1ap.InitialUEMessage) {
 	if msg.STMSI == nil {
 		logger.From(ctx, logger.MmeLog).Warn("Service Request without an S-TMSI")
@@ -66,7 +66,7 @@ func HandleServiceRequest(m *mme.MME, ctx context.Context, conn mme.S1APWriter, 
 
 	// A resume reaches here only after its message was integrity-verified against the
 	// held context, so secure exchange is established on the new connection from the
-	// outset (mirrors the AMF, which marks it at decode).
+	// outset.
 	m.AttachUeConn(ue, c)
 	c.MarkSecureExchangeEstablished()
 

@@ -36,10 +36,9 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, radio *mme.R
 	}
 
 	// A release after the NAS security context is established but before the UE is
-	// EMM-REGISTERED aborts an in-progress attach: the eNB tore down the RRC
-	// connection before INITIAL CONTEXT SETUP RESPONSE and ATTACH COMPLETE, so the
-	// UE restarts the whole attach. Surface it as a failure, reporting whether the
-	// eNB acknowledged the context setup (ics-response-received).
+	// EMM-REGISTERED aborts an in-progress attach: the eNB dropped the RRC connection
+	// before INITIAL CONTEXT SETUP RESPONSE and ATTACH COMPLETE, so the UE restarts the
+	// attach. Surface it as a failure.
 	if ue.Secured() && ue.EMMState() == mme.EMMRegistrationInitiated {
 		icsReceived := false
 		if p := m.DefaultPDN(ue); p != nil {

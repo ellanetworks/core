@@ -132,7 +132,7 @@ func isNativeGUTI(m *mme.MME, ctx context.Context, id eps.EPSMobileIdentity) boo
 
 // resolveAttachContext resolves the UE context an ATTACH REQUEST runs on BEFORE the
 // message is decoded, so the decode verifies against the right keys and integrity is
-// settled once (mirrors the AMF's resolve-before-decode). A native GUTI whose MAC
+// settled once. A native GUTI whose MAC
 // verifies against a held EPS security context adopts it (authentication and the
 // security mode procedure are then skipped, TS 24.301 §4.4.3); any other Attach stays
 // on the fresh context ue. It returns drop=true only for a colliding Attach during a

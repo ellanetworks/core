@@ -87,7 +87,7 @@ func activateDefaultBearer(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 		return
 	}
 
-	// Supersede any prior context for this subscriber only now that the attach is
+	// Supersede any prior context for this subscriber only once the attach is
 	// authenticated and accepted, so an unauthenticated attach cannot tear down a
 	// registered UE (TS 24.501 §4.4.4.3 analogue).
 	m.CommitUEIdentity(ctx, ue, mme.MintAuthProofForAttachCommit())
