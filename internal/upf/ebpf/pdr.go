@@ -77,6 +77,7 @@ func (bpfObjects *BpfObjects) DeletePdrUplink(teid uint32) error {
 
 func (bpfObjects *BpfObjects) DeletePdrDownlink(addr netip.Addr) error {
 	var err error
+
 	if addr.Is4() {
 		key := addr.As4()
 		err = bpfObjects.PdrsDownlinkIp4.Delete(key)
