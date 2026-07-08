@@ -163,10 +163,9 @@ type Policy struct {
 type SMF struct {
 	mu   sync.RWMutex
 	pool map[string]*SMContext // key: SMContext.Ref (unique per session instance)
-	// byKey indexes the current session for a (SUPI, PDU session id), for the lookups
-	// that legitimately want "the live session for this bearer" (modify, AMBR, idle
-	// deactivation, 5G duplicate detection). A superseded session stays in pool under
-	// its own Ref until released, but is no longer the byKey current.
+	// byKey indexes the current session for a (SUPI, PDU session id). A superseded
+	// session stays in pool under its own Ref until released, but is no longer the
+	// byKey current.
 	byKey  map[string]*SMContext
 	refSeq uint64 // guarded by mu; unique-Ref suffix counter
 
@@ -246,7 +245,6 @@ func (s *SMF) SetMME(mme MMECallback) {
 	s.mme = mme
 }
 
-// AllocateLocalSEID returns the next available local SEID.
 func (s *SMF) AllocateLocalSEID() uint64 {
 	return atomic.AddUint64(&s.seidCounter, 1)
 }
@@ -351,7 +349,6 @@ func (s *SMF) RemoveSession(ctx context.Context, ref string) {
 	logger.SmfLog.Info("SM Context removed", zap.String("smContextRef", ref))
 }
 
-// SessionsByDNN returns all active sessions for a specific DNN.
 func (s *SMF) SessionsByDNN(dnn string) []*SMContext {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -367,7 +364,6 @@ func (s *SMF) SessionsByDNN(dnn string) []*SMContext {
 	return out
 }
 
-// SessionCount returns the number of active sessions.
 func (s *SMF) SessionCount() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

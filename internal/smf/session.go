@@ -26,9 +26,8 @@ var (
 	errUPFSession          = errors.New("UPF session establishment failed")
 )
 
-// SessionRequest is the RAT-agnostic input to establishSession: the 5G and 4G
-// adapters resolve policy and negotiate the PDU/PDN type, then hand the core a
-// common request.
+// SessionRequest is the RAT-agnostic input to establishSession, common to the
+// 5G and 4G paths.
 type SessionRequest struct {
 	Supi    etsi.SUPI
 	Key     uint8 // PDU Session ID (5G) or default-bearer EBI (4G)
@@ -51,7 +50,7 @@ type ueAddresses struct {
 // combined SMF+PGW-C, TS 23.501 §4.3): it allocates the UE address(es), programs
 // the data path, and establishes the UPF (PFCP) session. On failure it rolls the
 // partial session back and wraps a sentinel error for the adapter to map to its
-// NAS cause; on success it returns the unlocked context and allocated addresses.
+// NAS cause.
 func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMContext, ueAddresses, error) {
 	sc := s.NewSession(req.Supi, req.Key, req.Dnn, req.Snssai)
 

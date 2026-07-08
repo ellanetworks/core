@@ -13,8 +13,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// DeactivateSmContext puts a PDU session into buffering mode when the UE goes idle:
-// the downlink FAR switches to buffer via a PFCP modification.
+// DeactivateSmContext switches the downlink FAR to buffering when the UE goes
+// idle, via a PFCP session modification.
 func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) error {
 	ctx, span := tracer.Start(ctx, "smf/deactivate_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -36,8 +36,7 @@ func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) erro
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	// Session already fully torn down (e.g. radio disconnected before the N2
-	// response orphaned the SM context); nothing to deactivate.
+	// Session already torn down; nothing to deactivate.
 	if smContext.Tunnel == nil && smContext.PFCPContext == nil {
 		logger.WithTrace(ctx, logger.SmfLog).Debug("session already torn down, skipping deactivation",
 			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
@@ -63,9 +62,8 @@ func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) erro
 		nil, farList, nil,
 	))
 	if err != nil {
-		// The UPF rejected the modification — the PFCP session is gone
-		// (e.g. after a restart). Nil out the tunnel so that subsequent
-		// Activate/Release calls don't attempt to use a stale session.
+		// A rejection means the PFCP session is gone (e.g. after a UPF restart);
+		// clear it so later Activate/Release calls don't reuse a stale session.
 		logger.WithTrace(ctx, logger.SmfLog).Warn("PFCP session modification failed, clearing stale tunnel",
 			zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID),
 			logger.SEID(localSEID))

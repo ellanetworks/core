@@ -31,7 +31,6 @@ func BuildPDUSessionModificationCommand(pduSessionID uint8, ambr *models.Ambr, q
 	m.PDUSessionModificationCommand.SetMessageType(nas.MsgTypePDUSessionModificationCommand)
 	m.PDUSessionModificationCommand.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
 
-	// TS 24.501 clause 8.3.9.3
 	if ambr != nil {
 		sessAmbr, err := ModelsToSessionAMBR(ambr)
 		if err != nil {
@@ -43,7 +42,6 @@ func BuildPDUSessionModificationCommand(pduSessionID uint8, ambr *models.Ambr, q
 		m.PDUSessionModificationCommand.SessionAMBR.SetLen(uint8(len(m.PDUSessionModificationCommand.SessionAMBR.Octet)))
 	}
 
-	// TS 24.501 clause 8.3.9.8
 	if qosData != nil {
 		authQfd, err := BuildModifyQosFlowDescription(qosData)
 		if err != nil {
@@ -55,7 +53,6 @@ func BuildPDUSessionModificationCommand(pduSessionID uint8, ambr *models.Ambr, q
 		m.PDUSessionModificationCommand.SetQoSFlowDescriptions(authQfd.Content)
 	}
 
-	// TS 24.501 clause 6.3.2
 	if dns != nil {
 		m.PDUSessionModificationCommand.ExtendedProtocolConfigurationOptions = nasType.NewExtendedProtocolConfigurationOptions(
 			nasMessage.PDUSessionModificationCommandExtendedProtocolConfigurationOptionsType,

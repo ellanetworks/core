@@ -50,6 +50,44 @@ func TestHandleServiceRequest_NoContext_SendsServiceReject(t *testing.T) {
 	}
 }
 
+// A recognizable but malformed SERVICE REQUEST (truncated — a protocol error) must still be
+// classified by message type and answered with SERVICE REJECT #96 "invalid mandatory
+// information", not silently dropped (TS 24.501 §5.6.1.8 b).
+func TestHandleServiceRequest_ProtocolError_SendsServiceReject96(t *testing.T) {
+	malformed := []byte{0x7e, 0x00, 0x4c} // plain 5GMM, message type ServiceRequest, no IEs
+
+	if !IsServiceRequest(malformed) {
+		t.Fatal("a truncated plain SERVICE REQUEST must still be recognized by message type")
+	}
+
+	ngapSender := &fakeNGAPSender{}
+	amfInstance := amf.New(&fakeDBInstance{
+		Operator: &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: `["000001"]`},
+	}, nil, nil)
+	radio := amf.Radio{Log: logger.AmfLog, Conn: ngapSender}
+	radio.BindAMFForTest(amfInstance)
+
+	ueConn, err := amfInstance.NewUeConn(&radio, 0)
+	if err != nil {
+		t.Fatalf("could not create ueConn: %v", err)
+	}
+
+	HandleServiceRequest(context.Background(), amfInstance, ueConn, malformed)
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected 1 downlink (SERVICE REJECT), got %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	pdu := ngapSender.SentDownlinkNASTransport[0].NasPdu
+	if len(pdu) < 4 || pdu[2] != nas.MsgTypeServiceReject {
+		t.Fatalf("downlink is not a plain SERVICE REJECT: % x", pdu)
+	}
+
+	if pdu[3] != nasMessage.Cause5GMMInvalidMandatoryInformation {
+		t.Errorf("5GMM cause = 0x%02x, want #96 (invalid mandatory information)", pdu[3])
+	}
+}
+
 func encodePlainServiceRequest(t *testing.T) []byte {
 	t.Helper()
 

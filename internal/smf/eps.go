@@ -250,10 +250,9 @@ func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, imsi string, ebi uint8, 
 }
 
 // ReleaseEPSSession tears down the 4G default bearer identified by its unique
-// session ref: it frees the UPF session (PDRs/FARs/QER + TEID) and the UE IP lease.
-// Releasing by ref (not by (IMSI, EBI)) targets the exact session instance, so
-// superseding an old context cannot tear down a newer session that reused the
-// (IMSI, EBI) slot.
+// session ref, freeing the UPF session (PDRs/FARs/QER + TEID) and the UE IP lease.
+// Releasing by ref targets the exact instance, so superseding an old context cannot
+// tear down a newer session that reused the (IMSI, EBI) slot.
 func (s *SMF) ReleaseEPSSession(ctx context.Context, ref string) error {
 	return s.ReleaseSmContext(ctx, ref)
 }

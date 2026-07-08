@@ -127,15 +127,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 	// TS 24.501: reject service request from deregistered UE
 	if state == amf.Deregistered {
-		amf.SendServiceReject(ctx, ueConn, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
-
-		ueConn.ReleaseAction = amf.UeContextN2NormalRelease
-
-		if err := ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease); err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("error sending ue context release command", zap.Error(err))
-			return
-		}
-
+		rejectService(ctx, ueConn, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		return
 	}
 
@@ -183,16 +175,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	if !ue.SecurityContextIsValid() || !integrityVerified {
 		logger.From(ctx, logger.AmfLog).Warn("No valid security context for service request", logger.SUPI(ue.Supi().String()))
 
-		amf.SendServiceReject(ctx, ueConn, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
-
-		logger.From(ctx, logger.AmfLog).Info("sent service reject")
-
-		ueConn.ReleaseAction = amf.UeContextN2NormalRelease
-
-		if err := ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease); err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("error sending ue context release command", zap.Error(err))
-			return
-		}
+		rejectService(ctx, ueConn, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 
 		return
 	}
@@ -212,7 +195,13 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 	if serviceType == nasMessage.ServiceTypeEmergencyServices ||
 		serviceType == nasMessage.ServiceTypeEmergencyServicesFallback {
-		logger.From(ctx, logger.AmfLog).Warn("emergency service is not supported")
+		// Ella does not provide emergency services; the request cannot be accepted, so
+		// answer SERVICE REJECT #7 "5GS services not allowed" rather than silently dropping
+		// it (TS 24.501 §5.6.1.5).
+		logger.From(ctx, logger.AmfLog).Warn("emergency service is not supported; rejecting service request")
+		rejectService(ctx, ueConn, nasMessage.Cause5GMM5GSServicesNotAllowed)
+
+		return
 	}
 
 	operatorInfo, err := amfInstance.OperatorInfo(ctx)
@@ -354,13 +343,17 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 		amf.SendConfigurationUpdateCommand(ctx, amfInstance, ue, true)
 
-	case nasMessage.ServiceTypeData:
+	case nasMessage.ServiceTypeData, nasMessage.ServiceTypeHighPriorityAccess:
 		if err := sendServiceAccept(ctx, ue, ueConn, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("error sending service accept", zap.Error(err))
 			return
 		}
 	default:
-		logger.From(ctx, logger.AmfLog).Warn("service type is not supported", zap.Uint8("serviceType", serviceType))
+		// TS 24.501 §5.6.1.5: a service request with an unsupported or unknown service type
+		// cannot be accepted; answer SERVICE REJECT rather than silently dropping it.
+		logger.From(ctx, logger.AmfLog).Warn("service type is not supported; rejecting", zap.Uint8("serviceType", serviceType))
+		rejectService(ctx, ueConn, nasMessage.Cause5GMMProtocolErrorUnspecified)
+
 		return
 	}
 
@@ -369,4 +362,15 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	}
 
 	conn.ClearN1N2Message()
+}
+
+// rejectService answers a service request the AMF cannot accept with a SERVICE REJECT
+// carrying cause, then releases the RAN connection (TS 24.501 §5.6.1.5).
+func rejectService(ctx context.Context, ueConn *amf.UeConn, cause uint8) {
+	amf.SendServiceReject(ctx, ueConn, cause)
+
+	ueConn.ReleaseAction = amf.UeContextN2NormalRelease
+	if err := ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease); err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("error sending ue context release command", zap.Error(err))
+	}
 }

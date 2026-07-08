@@ -64,7 +64,6 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	return err
 }
 
-// releaseTunnel deactivates the GTP data path and sends a PFCP deletion request.
 func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
 	if smContext.Tunnel == nil {
 		return nil

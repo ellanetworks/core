@@ -121,12 +121,10 @@ func (d *QosFlowDescriptionsAuthorized) BuildAddQosFlowDescFromQoSDesc(qosData *
 	return nil
 }
 
-// bits 6 to 1 of octet(00xxxxxx)
 func (q *QoSFlowDescription) SetQoSFlowDescQfi(val uint8) {
 	q.Qfi = QFDQfiBitmask & val
 }
 
-// Operation code -bits 8 to 6 of octet(xxx00000)
 func (q *QoSFlowDescription) SetQoSFlowDescOpCode(val uint8) {
 	q.OpCode = QFDOpCodeBitmask & val
 }

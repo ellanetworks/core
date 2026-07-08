@@ -14,7 +14,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// netipToIP adapts a netip.Addr to the net.IP the NAS/NGAP code expects.
 func netipToIP(addr netip.Addr) net.IP {
 	if addr.Is4() {
 		b := addr.As4()

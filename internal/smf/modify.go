@@ -16,11 +16,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// UpdateSmContextN2ModifyIndication handles a PDU Session Resource Modify
-// Indication Transfer from the NG-RAN (TS 38.413 §8.2.5.2): it takes the
-// downlink transport address the NG-RAN provided as the new downlink address for
-// the associated QoS flows and returns a Modify Confirm Transfer carrying the
-// uplink tunnel and the confirmed QoS flows.
+// UpdateSmContextN2ModifyIndication rebinds the downlink tunnel to the NG-RAN's
+// new transport address and returns a Modify Confirm Transfer (TS 38.413 §8.2.5.2).
 func (s *SMF) UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
 	ctx, span := tracer.Start(ctx, "smf/update_sm_context_n2_modify_indication",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
@@ -83,8 +80,8 @@ func (s *SMF) UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRe
 }
 
 // handleModifyIndicationTransfer rebinds the downlink access tunnel to the
-// address in the Modify Indication Transfer and returns the QoS flows the
-// NG-RAN associated with it (TS 38.413 §8.2.5.2).
+// address in the Modify Indication Transfer and returns the associated QoS
+// flows (TS 38.413 §8.2.5.2).
 func handleModifyIndicationTransfer(b []byte, smContext *SMContext) ([]int64, error) {
 	transfer := ngapType.PDUSessionResourceModifyIndicationTransfer{}
 

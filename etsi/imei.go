@@ -52,7 +52,6 @@ func NewIMEIFromPEI(pei string) (IMEI, error) {
 	return IMEI{digits: digits}, nil
 }
 
-// IsSet reports whether an equipment identity is present.
 func (e IMEI) IsSet() bool { return e.digits != "" }
 
 // IMEI returns the normalized 15-digit IMEI (14-digit TAC+serial plus Luhn

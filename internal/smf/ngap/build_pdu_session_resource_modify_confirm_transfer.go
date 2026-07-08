@@ -14,9 +14,8 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-// BuildPDUSessionResourceModifyConfirmTransfer encodes the response to a PDU
-// Session Resource Modify Indication (TS 38.413 §8.2.5.2): the UL NG-U tunnel
-// and the confirmed QoS flows.
+// BuildPDUSessionResourceModifyConfirmTransfer encodes the UL NG-U tunnel and
+// confirmed QoS flows for a PDU Session Resource Modify Confirm (TS 38.413 §8.2.5.2).
 func BuildPDUSessionResourceModifyConfirmTransfer(teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, qfis []int64) ([]byte, error) {
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, teid)

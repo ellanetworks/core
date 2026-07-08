@@ -372,6 +372,70 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 	}
 }
 
+// A registered UE's service request must always be answered — accepted for a serviceable
+// type, rejected for an unsupported one — never silently dropped (TS 24.501 §5.6.1.5).
+func TestHandleServiceRequest_ServiceTypeReplies(t *testing.T) {
+	tests := []struct {
+		name        string
+		serviceType uint8
+		wantMsgType uint8
+	}{
+		{"high-priority access is accepted", nasMessage.ServiceTypeHighPriorityAccess, nas.MsgTypeServiceAccept},
+		{"emergency is rejected (unsupported)", nasMessage.ServiceTypeEmergencyServices, nas.MsgTypeServiceReject},
+		{"emergency fallback is rejected", nasMessage.ServiceTypeEmergencyServicesFallback, nas.MsgTypeServiceReject},
+		{"unknown service type is rejected", 0x07, nas.MsgTypeServiceReject},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			amfInstance := amf.New(
+				&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: "[\"000001\"]"}},
+				&fakeAusf{
+					AvKgAka: &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))},
+					Supi:    mustSUPIFromPrefixed("imsi-001019756139935"),
+					Kseaf:   []byte("testkey"),
+				},
+				nil,
+			)
+
+			ue, ngapSender, err := buildUeAndRadio()
+			if err != nil {
+				t.Fatalf("could not build UE and radio: %v", err)
+			}
+
+			ue.ForceStateForTest(amf.Registered)
+			ue.SetSecuredForTest(true)
+
+			m := buildTestServiceRequest()
+			m.SetServiceTypeValue(tc.serviceType)
+
+			handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
+
+			if len(ngapSender.SentDownlinkNASTransport) != 1 {
+				t.Fatalf("service type %d: want exactly 1 downlink reply (never a silent drop), got %d", tc.serviceType, len(ngapSender.SentDownlinkNASTransport))
+			}
+
+			pdu := ngapSender.SentDownlinkNASTransport[0].NasPdu
+
+			var gotType uint8
+			if nas.GetSecurityHeaderType(pdu)&0x0f == nas.SecurityHeaderTypePlainNas {
+				gotType = pdu[2] // plain 5GMM: EPD, SHT, message type
+			} else {
+				decoded, err := amf.DecodeNASMessage(ue, pdu)
+				if err != nil {
+					t.Fatalf("could not decode ciphered downlink reply: %v", err)
+				}
+
+				gotType = decoded.Message.GmmHeader.GetMessageType()
+			}
+
+			if gotType != tc.wantMsgType {
+				t.Fatalf("reply message type = %d, want %d", gotType, tc.wantMsgType)
+			}
+		})
+	}
+}
+
 func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *testing.T) {
 	amfInstance := amf.New(
 		&fakeDBInstance{

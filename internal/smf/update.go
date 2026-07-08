@@ -126,8 +126,8 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		return &UpdateResult{N1Msg: n1SmMsg}, nil
 
 	case nas.MsgTypePDUSessionReleaseComplete:
-		// Release acknowledged; stop T3592 and now tear down the user plane, held
-		// active through the release window (TS 24.501 §6.3.3.3).
+		// Release acknowledged; stop T3592 and tear down the user plane, held active
+		// through the release window (TS 24.501 §6.3.3.3).
 		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Complete received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
@@ -136,8 +136,8 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		return nil, nil
 
 	case nas.MsgTypePDUSessionModificationComplete:
-		// The UE accepted the modification; stop T3591 and commit the new policy — the
-		// session is now considered modified (TS 24.501 §6.3.2.2).
+		// The UE accepted the modification; stop T3591 and commit the new policy
+		// (TS 24.501 §6.3.2.2, "consider the PDU session as modified").
 		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Modification Complete received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
@@ -480,8 +480,8 @@ func (s *SMF) registerIPv6SessionIfNeeded(ctx context.Context, smContext *SMCont
 		Prefix:       netip.PrefixFrom(prefixAddr, 64),
 		MTU:          mtu,
 		QFI:          qfi,
-		// A 4G S1-U bearer carries the RA PSC-less; 5G N3 carries the PDU Session
-		// Container. The encap follows the access, matching the data path.
+		// A 4G S1-U bearer carries the RA PSC-less; 5G N3 carries it in the PDU
+		// Session Container. The encap follows the access.
 		S1U: !smContext.Access.usesPSC(),
 	}
 

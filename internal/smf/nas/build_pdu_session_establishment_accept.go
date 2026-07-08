@@ -39,8 +39,8 @@ type ProtocolConfigurationOptions struct {
 // For IPv4v6, both are set.
 type PDUSessionAddresses struct {
 	PDUSessionType uint8   // nasMessage.PDUSessionTypeIPv4/IPv6/IPv4IPv6
-	IPv4Address    net.IP  // 4-byte IPv4 address (nil for IPv6-only)
-	IPv6IID        [8]byte // Interface Identifier (zero for IPv4-only)
+	IPv4Address    net.IP  // 4-byte IPv4 address
+	IPv6IID        [8]byte // Interface Identifier
 }
 
 func BuildGSMPDUSessionEstablishmentAccept(
@@ -137,7 +137,6 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	m.PDUSessionEstablishmentAccept.DNN = nasType.NewDNN(nasMessage.ULNASTransportDNNType)
 	m.PDUSessionEstablishmentAccept.SetDNN(dnn)
 
-	// Always-on PDU session indication (TS 24.501 §6.4.1, §9.11.4.3).
 	if alwaysOn != nil {
 		m.PDUSessionEstablishmentAccept.AlwaysonPDUSessionIndication = nasType.NewAlwaysonPDUSessionIndication(nasMessage.PDUSessionEstablishmentAcceptAlwaysonPDUSessionIndicationType)
 		m.PDUSessionEstablishmentAccept.SetAPSI(*alwaysOn)

@@ -129,17 +129,27 @@ func IsServiceRequest(payload []byte) bool {
 
 // HandleServiceRequest answers an initial SERVICE REQUEST, routed here from the NGAP layer
 // before the HandleNAS mint gate. It resolves the UE by the request's 5G-S-TMSI —
-// integrity-verified against the held context — and
-// either dispatches the accept/reactivation or answers SERVICE REJECT #9. It never mints
-// a context and leaves the 5GMM/security context unchanged on rejection
-// (TS 24.501 §5.6.1.5, §4.4.4.3).
+// integrity-verified against the held context — and either dispatches the accept, or
+// answers a SERVICE REJECT (#96 for a protocol error per §5.6.1.8, else #9 when no context
+// can be derived per §5.6.1.5/§4.4.4.3). It never mints a context and leaves the
+// 5GMM/security context unchanged on rejection.
 func HandleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu []byte) {
 	amfUe, err := fetchUeContextWithMobileIdentity(ctx, amfInstance, nasPdu)
-	if err != nil || amfUe == nil {
-		// No context for the cited 5G-S-TMSI, or the request failed the integrity check:
-		// it cannot be accepted. Answer SERVICE REJECT #9 without binding or mutating any
-		// context; the NGAP layer releases the bare connection.
-		rejectBareServiceRequest(ctx, ue)
+	if err != nil {
+		// The SERVICE REQUEST is recognizable but could not be decoded (a protocol error,
+		// e.g. a missing mandatory IE). TS 24.501 §5.6.1.8 b): the AMF shall return a
+		// SERVICE REJECT with cause #96 "invalid mandatory information", not a silent drop.
+		logger.From(ctx, logger.AmfLog).Warn("malformed service request; rejecting", zap.Error(err))
+		rejectBareServiceRequest(ctx, ue, nasMessage.Cause5GMMInvalidMandatoryInformation)
+
+		return
+	}
+
+	if amfUe == nil {
+		// The request decoded, but no 5GMM context exists for the cited 5G-S-TMSI (or it
+		// failed the integrity check): it cannot be accepted. SERVICE REJECT #9 without
+		// binding or mutating any context; the NGAP layer releases the bare connection.
+		rejectBareServiceRequest(ctx, ue, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		return
 	}
 
@@ -159,41 +169,39 @@ func HandleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	handleServiceRequest(ctx, amfInstance, amfUe, result.Message.ServiceRequest, result.IntegrityVerified)
 }
 
-// peekInitialGmmType returns the GMM message type of a fresh connection's first NAS PDU,
-// peeking the plain or integrity-protected body. ok is false for a ciphered or
-// undecodable message the network cannot classify without a security context.
+// peekInitialGmmType returns the GMM message type of a fresh connection's first NAS PDU by
+// reading the message-type octet directly (plain: octet 3; integrity-protected: octet 3 of
+// the inner plain message). It deliberately does NOT fully decode the body, so a
+// recognizable-but-malformed message is still classified by type — the network must answer
+// such a SERVICE REQUEST with a SERVICE REJECT for the protocol error (TS 24.501 §5.6.1.8),
+// not silently drop it. ok is false for a non-5GMM, ciphered, or too-short PDU. Mirrors the
+// MME's raw message-type peek.
 func peekInitialGmmType(payload []byte) (uint8, bool) {
-	if len(payload) < 2 {
+	if len(payload) < 3 || payload[0] != nasMessage.Epd5GSMobilityManagementMessage {
 		return 0, false
 	}
-
-	body := payload
 
 	switch nas.GetSecurityHeaderType(payload) & 0x0f {
 	case nas.SecurityHeaderTypePlainNas:
+		return payload[2], true
 	case nas.SecurityHeaderTypeIntegrityProtected:
-		if len(payload) < 7 {
+		// Security header (EPD, SHT, MAC[4], sequence number) then the inner plain message
+		// (EPD, SHT, message type), so the message type is octet 10 (index 9).
+		if len(payload) < 10 {
 			return 0, false
 		}
 
-		body = payload[7:]
+		return payload[9], true
 	default:
 		return 0, false
 	}
-
-	msg := new(nas.Message)
-	if err := msg.PlainNasDecode(&body); err != nil {
-		return 0, false
-	}
-
-	return msg.GmmHeader.GetMessageType(), true
 }
 
-// rejectBareServiceRequest answers a SERVICE REQUEST that resolved no 5GMM context with
-// SERVICE REJECT #9, sent on the bare connection (no context is minted). The NGAP layer
-// releases the connection afterwards.
-func rejectBareServiceRequest(ctx context.Context, ue *amf.UeConn) {
-	pdu, err := amf.BuildServiceReject(nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+// rejectBareServiceRequest answers a SERVICE REQUEST the AMF cannot accept with a SERVICE
+// REJECT carrying cause, sent on the bare connection (no context is minted or mutated). The
+// NGAP layer releases the connection afterwards (TS 24.501 §5.6.1.5, §5.6.1.8).
+func rejectBareServiceRequest(ctx context.Context, ue *amf.UeConn, cause uint8) {
+	pdu, err := amf.BuildServiceReject(cause)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Error("failed to build service reject for uncontextualized service request", zap.Error(err))
 		return

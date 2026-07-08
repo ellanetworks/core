@@ -92,8 +92,7 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 
 	// UE in CM-IDLE (user plane buffering): do not touch any enforcement point
 	// while it is unreachable. The change is applied atomically to UPF + RAN + UE
-	// when the UE reactivates and the reconcile re-runs on the resulting Initial
-	// Context / PDU Session Resource Setup Response.
+	// when the UE reactivates.
 	if !smContext.upConnectionActive() {
 		logger.SmfLog.Debug("UE idle (user plane buffering), deferring reconciliation to reactivation",
 			logger.SUPI(smContext.Supi.String()),
@@ -221,13 +220,10 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 		)
 	}
 
-	// Send N1 (NAS) + N2 (NGAP) to the UE and gNB (TS 23.502).
-	//
 	// If the UE is in CM-IDLE, N1N2 delivery is skipped (TS 23.502: the AMF may
 	// ignore N2 SM information when the UE is unreachable) and the policy is
-	// committed immediately so ActivateSmContext returns updated QoS when the UE
-	// returns to CM-CONNECTED. If the UE is connected, the commit is deferred until
-	// the UE answers the modification.
+	// committed immediately; if connected, the commit is deferred until the UE
+	// answers the modification.
 	ueIdle := false
 
 	if (hasAmbrChange || hasQoSChange || hasDNSChange) && req.NewPolicy != nil {

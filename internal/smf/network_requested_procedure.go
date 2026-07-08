@@ -21,8 +21,6 @@ import (
 // Release Command until the UE replies or the retransmission limit aborts, at which
 // point the SM context is removed from the pool. Caller must hold smContext.Mutex.
 func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti, cause uint8) error {
-	// TS 23.502 §4.3.4.2 step 2: the user plane must not keep forwarding a session
-	// being released, so free it before sending the PDU Session Release Command.
 	s.releaseUserPlane(ctx, smContext)
 
 	n1Msg, err := nas.BuildGSMPDUSessionReleaseCommand(smContext.PDUSessionID, pti, cause)

@@ -18,8 +18,7 @@ import (
 
 var maxMsbValue = big.NewInt(0x003FFFFF)
 
-// GUTI5G represents a 5G Globally Unique Temporary Identity (5G-GUTI),
-// as defined by 3GPP.
+// GUTI5G is a 5G Globally Unique Temporary Identity (5G-GUTI).
 type GUTI5G struct {
 	mcc   string
 	mnc   string
@@ -89,16 +88,15 @@ func (g *GUTI5G) String() string {
 	return fmt.Sprintf("%s%s%s%s", g.mcc, g.mnc, g.Amfid, &g.Tmsi)
 }
 
-// TMSI represents a 5G Temporary Mobile Subscriber's Identity,
-// as define by 3GPP.
+// TMSI is a 5G Temporary Mobile Subscriber Identity.
 type TMSI struct {
 	tmsi uint32
 }
 
 var InvalidTMSI TMSI = TMSI{math.MaxUint32}
 
-// NewTMSI creates a TMSI instance from a uint32 value.
-// It returns an error if the resulting TMSI is invalid.
+// NewTMSI wraps v as a TMSI. math.MaxUint32 is the reserved invalid sentinel and
+// yields an error.
 func NewTMSI(v uint32) (TMSI, error) {
 	if v == math.MaxUint32 {
 		return TMSI{v}, fmt.Errorf("invalid TMSI")
@@ -112,17 +110,13 @@ func (t TMSI) String() string {
 	return fmt.Sprintf("%08x", t.tmsi)
 }
 
-// Uint32 returns the 32-bit TMSI value, for building identities (e.g. the 4G
-// GUTI5G's M-TMSI) that carry it as a plain integer.
 func (t TMSI) Uint32() uint32 {
 	return t.tmsi
 }
 
-// TmsiAllocator allocates and frees TMSI. It keeps
-// track internally of allocated TMSI. Generated TMSIs
-// are round-robined over the 10 least significant bits to spread
-// paging load, as define in TS 23.501. The TMSIs are
-// otherwise allocated randomly to ensure privacy.
+// TmsiAllocator allocates and frees TMSIs. Generated TMSIs are round-robined over
+// the 10 least significant bits to spread paging load (TS 23.501), and are
+// otherwise random for privacy.
 type TmsiAllocator struct {
 	allocated map[TMSI]bool
 	nextLsb   uint32
@@ -130,8 +124,6 @@ type TmsiAllocator struct {
 	sync.Mutex
 }
 
-// NewTMSIAllocator returns a new allocator, that will allocate unique TMSI
-// on demand.
 func NewTMSIAllocator() *TmsiAllocator {
 	ta := TmsiAllocator{
 		allocated: make(map[TMSI]bool),
@@ -141,8 +133,7 @@ func NewTMSIAllocator() *TmsiAllocator {
 	return &ta
 }
 
-// Allocate returns a valid TMSI, or an error if the provided context
-// expires.
+// Allocate returns a fresh unique TMSI, or ctx.Err() if the context expires first.
 func (ta *TmsiAllocator) Allocate(ctx context.Context) (TMSI, error) {
 	for {
 		select {
@@ -177,7 +168,7 @@ func (ta *TmsiAllocator) Allocate(ctx context.Context) (TMSI, error) {
 	}
 }
 
-// Free returns the TMSI to the pool, allowing it to be reallocated.
+// Free returns the TMSI to the pool.
 func (ta *TmsiAllocator) Free(t TMSI) {
 	ta.Lock()
 	defer ta.Unlock()
@@ -222,7 +213,7 @@ func plmnIDToMccMncString(buf []byte) (mcc string, mnc string, err error) {
 
 	plmnID := hex.EncodeToString(tmpBytes)
 	if plmnID[5] == 'f' {
-		plmnID = plmnID[:5] // get plmnID[0~4]
+		plmnID = plmnID[:5]
 	}
 
 	return plmnID[:3], plmnID[3:], nil
