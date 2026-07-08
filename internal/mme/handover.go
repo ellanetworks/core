@@ -51,7 +51,7 @@ type handoverContext struct {
 func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MMEUES1APID) (targetMMEID s1ap.MMEUES1APID, newNH [32]byte, newNCC uint8, ok bool) {
 	m.mu.Lock()
 
-	if !ue.BeginKeyChainProc(context.Background(), procedure.S1Handover) {
+	if !ue.BeginKeyChainProc(procedure.S1Handover) {
 		m.mu.Unlock()
 		logger.MmeLog.Warn("Handover Required while a key-changing procedure is in progress",
 			zap.Uint32("mme-ue-id", uint32(reqMMEID)))
@@ -94,7 +94,7 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 	ue.handover = ho
 	// Supervise the S1Handover procedure: at TS1RELOCoverall expiry the registry runs
 	// abandonHandover while S1Handover is still active (TS 36.413 §8.4).
-	ue.SuperviseKeyChainProc(context.Background(), procedure.S1Handover, time.Now().Add(m.handoverGuardTimeout), func(context.Context) error {
+	ue.SuperviseKeyChainProc(procedure.S1Handover, time.Now().Add(m.handoverGuardTimeout), func(context.Context) error {
 		m.abandonHandover(ue)
 
 		return nil
@@ -247,7 +247,7 @@ func (m *MME) BeginPathSwitch(ue *UeContext) (curNH [32]byte, curNCC uint8, mmeI
 		mmeID = ue.Conn().MMEUES1APID
 	}
 
-	if !ue.BeginKeyChainProc(context.Background(), procedure.PathSwitch) {
+	if !ue.BeginKeyChainProc(procedure.PathSwitch) {
 		return curNH, curNCC, mmeID, false
 	}
 
@@ -277,7 +277,7 @@ func (m *MME) TryClaimKeyChain(ue *UeContext) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	return ue.BeginKeyChainProc(context.Background(), procedure.SecurityMode)
+	return ue.BeginKeyChainProc(procedure.SecurityMode)
 }
 
 // AdvancePathSwitchNH derives the next hop for a Path Switch from the current NH

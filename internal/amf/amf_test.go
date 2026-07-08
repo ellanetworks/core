@@ -209,6 +209,54 @@ func TestGutiIndexLifecycle(t *testing.T) {
 	}
 }
 
+// TestReallocateGUTIReuseAndFree verifies that a retransmitted reallocation
+// trigger reuses the staged 5G-TMSI (TS 24.501 §5.4.4) and that tearing down
+// mid-reallocation returns both the current and staged 5G-TMSI to the allocator.
+func TestReallocateGUTIReuseAndFree(t *testing.T) {
+	amfInstance := amf.New(nil, nil, nil)
+
+	ue := addTestUE(t, amfInstance, "001010000000012", func(ue *amf.UeContext) {})
+
+	// Initial GUTI assignment: a fresh UE has no TMSI, so nothing is staged as old.
+	if err := amfInstance.ReallocateGUTI(context.Background(), ue); err != nil {
+		t.Fatalf("ReallocateGUTI (initial): %v", err)
+	}
+
+	// Staging reallocation: the current 5G-TMSI moves to old, a new one becomes current.
+	if err := amfInstance.ReallocateGUTI(context.Background(), ue); err != nil {
+		t.Fatalf("ReallocateGUTI (realloc): %v", err)
+	}
+
+	current := ue.TmsiForTest()
+	old := ue.OldTmsi()
+
+	if old == etsi.InvalidTMSI {
+		t.Fatal("reallocation must stage an old 5G-TMSI")
+	}
+
+	if !amfInstance.TmsiInUseForTest(current) || !amfInstance.TmsiInUseForTest(old) {
+		t.Fatal("both current and staged 5G-TMSI must be allocated during the reallocation window")
+	}
+
+	// A retransmitted trigger while the reallocation is in flight reuses the staged
+	// 5G-TMSI rather than allocating another.
+	if err := amfInstance.ReallocateGUTI(context.Background(), ue); err != nil {
+		t.Fatalf("ReallocateGUTI (retransmit): %v", err)
+	}
+
+	if ue.TmsiForTest() != current || ue.OldTmsi() != old {
+		t.Fatalf("retransmit must reuse the staged 5G-TMSI: got current=%v old=%v, want current=%v old=%v",
+			ue.TmsiForTest(), ue.OldTmsi(), current, old)
+	}
+
+	// Teardown mid-reallocation returns both 5G-TMSIs to the allocator.
+	amfInstance.RemoveUEBySupi(ue.SupiForTest())
+
+	if amfInstance.TmsiInUseForTest(current) || amfInstance.TmsiInUseForTest(old) {
+		t.Fatal("teardown must free both the current and staged 5G-TMSI")
+	}
+}
+
 func TestFindUeContextByGuti_InvalidGUTI(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 

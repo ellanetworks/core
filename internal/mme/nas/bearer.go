@@ -234,7 +234,10 @@ func buildProtectedAttachAccept(m *mme.MME, ctx context.Context, ue *mme.UeConte
 
 	mmeGroupID, mmeCode := m.MmeIdentity()
 
-	guti := m.ReallocateGUTI(ue, plmn, mmeGroupID, mmeCode)
+	guti, err := m.ReallocateGUTI(ctx, ue, plmn, mmeGroupID, mmeCode)
+	if err != nil {
+		return nil, err
+	}
 
 	t3412, err := eps.EncodeGPRSTimer(mme.T3412PeriodicTAU)
 	if err != nil {

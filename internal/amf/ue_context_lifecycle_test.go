@@ -37,24 +37,19 @@ func TestDeregisterAndRemoveUeContext_KeepsTransferredUeConn(t *testing.T) {
 	}
 }
 
-// A freshly-constructed UeContext has a live per-registration context and NO
-// connection yet — one is bound when a UeConn attaches (2-level model).
-func TestNewUeContext_HasLiveCtxNoConn(t *testing.T) {
+// A freshly-constructed UeContext has NO connection yet — one is bound when a UeConn
+// attaches (2-level model).
+func TestNewUeContext_HasNoConn(t *testing.T) {
 	ue := amf.NewUeContext()
-
-	if err := ue.Ctx().Err(); err != nil {
-		t.Fatalf("fresh UeContext ctx already cancelled: %v", err)
-	}
 
 	if ue.Conn() != nil {
 		t.Fatal("fresh UeContext should have no connection until a UeConn attaches")
 	}
 }
 
-// AttachUeConn binds the single connection object, giving it a ctx that is a child of
-// the per-registration context and parented to the UeContext; NasConn and UeConn return
-// the same object.
-func TestUeContext_AttachUeConn_BindsConnWithChildCtx(t *testing.T) {
+// AttachUeConn binds the single connection object, parented to the UeContext; NasConn
+// and UeConn return the same object.
+func TestUeContext_AttachUeConn_BindsConn(t *testing.T) {
 	radio := newTestRadioForUeConn()
 	ueConn := amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
 
@@ -65,20 +60,12 @@ func TestUeContext_AttachUeConn_BindsConnWithChildCtx(t *testing.T) {
 		t.Errorf("NasConn() = %p, want %p", ue.Conn(), ueConn)
 	}
 
-	if ue.Conn() != ueConn {
-		t.Errorf("UeConn() = %p, want %p", ue.Conn(), ueConn)
-	}
-
 	if ueConn.Parent() != ue {
 		t.Errorf("Parent() = %p, want %p", ueConn.Parent(), ue)
 	}
-
-	if err := ueConn.Ctx().Err(); err != nil {
-		t.Fatalf("fresh connection ctx already cancelled: %v", err)
-	}
 }
 
-// Release tears down the connection but leaves the per-registration context intact.
+// Release tears down the connection, clearing it from the UeContext.
 func TestUeConn_Release(t *testing.T) {
 	radio := newTestRadioForUeConn()
 	ueConn := amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
@@ -90,14 +77,6 @@ func TestUeConn_Release(t *testing.T) {
 
 	if ue.Conn() != nil {
 		t.Error("NasConn() still set after Release")
-	}
-
-	if ueConn.Ctx().Err() == nil {
-		t.Error("connection ctx not cancelled after Release")
-	}
-
-	if ue.Ctx().Err() != nil {
-		t.Errorf("per-registration ctx cancelled by connection Release: %v", ue.Ctx().Err())
 	}
 }
 
@@ -146,9 +125,5 @@ func TestUeContext_AttachUeConn_ReplacesOld(t *testing.T) {
 
 	if ranUe1.Parent() == ue {
 		t.Error("old UeConn still parented to ue after replacement")
-	}
-
-	if ue.Ctx().Err() != nil {
-		t.Error("per-registration ctx cancelled by reattach")
 	}
 }

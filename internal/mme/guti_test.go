@@ -15,7 +15,11 @@ func TestReallocateGUTI(t *testing.T) {
 	plmn := models.PlmnID{Mcc: "001", Mnc: "01"}
 
 	ue := m.NewUe(&captureConn{}, 7)
-	guti := m.ReallocateGUTI(ue, plmn, 0x1234, 0x56)
+
+	guti, err := m.ReallocateGUTI(t.Context(), ue, plmn, 0x1234, 0x56)
+	if err != nil {
+		t.Fatalf("ReallocateGUTI: %v", err)
+	}
 
 	if guti.Type != eps.IdentityGUTI || guti.MCC != "001" || guti.MNC != "01" ||
 		guti.MMEGroupID != 0x1234 || guti.MMECode != 0x56 {
@@ -32,7 +36,13 @@ func TestReallocateGUTI(t *testing.T) {
 	}
 
 	ue2 := m.NewUe(&captureConn{}, 8)
-	if guti2 := m.ReallocateGUTI(ue2, plmn, 0x1234, 0x56); guti2.MTMSI == guti.MTMSI {
+
+	guti2, err := m.ReallocateGUTI(t.Context(), ue2, plmn, 0x1234, 0x56)
+	if err != nil {
+		t.Fatalf("ReallocateGUTI: %v", err)
+	}
+
+	if guti2.MTMSI == guti.MTMSI {
 		t.Fatalf("M-TMSI not unique: both %d", guti2.MTMSI)
 	}
 
@@ -53,10 +63,21 @@ func TestReallocateGUTITwoPhase(t *testing.T) {
 	plmn := models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue := m.NewUe(&captureConn{}, 7)
 
-	first := m.ReallocateGUTI(ue, plmn, 1, 1).MTMSI
+	firstGUTI, err := m.ReallocateGUTI(t.Context(), ue, plmn, 1, 1)
+	if err != nil {
+		t.Fatalf("ReallocateGUTI: %v", err)
+	}
+
+	first := firstGUTI.MTMSI
+
 	m.CommitGUTIRealloc(ue)
 
-	second := m.ReallocateGUTI(ue, plmn, 1, 1).MTMSI
+	secondGUTI, err := m.ReallocateGUTI(t.Context(), ue, plmn, 1, 1)
+	if err != nil {
+		t.Fatalf("ReallocateGUTI: %v", err)
+	}
+
+	second := secondGUTI.MTMSI
 
 	if first == second {
 		t.Fatal("reallocation reused the same M-TMSI")

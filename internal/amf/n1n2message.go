@@ -108,12 +108,10 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 	return nil
 }
 
+// storeN1N2AndPage buffers an SMF-pushed N1N2 message on the idle UE's persistent
+// context and pages it (TS 23.502 §4.2.3.3). The buffer is delivered on the new
+// connection the UE establishes when it answers the page.
 func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.N1N2MessageTransferRequest) error {
-	nasConn := ue.Conn()
-	if nasConn == nil {
-		return fmt.Errorf("ue has no active NAS connection")
-	}
-
 	if ue.PagingActive() {
 		return fmt.Errorf("higher priority request ongoing")
 	}
@@ -122,7 +120,7 @@ func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.
 		return fmt.Errorf("temporary reject registration ongoing")
 	}
 
-	if nasConn.Parent().Procedures().Active(procedure.N2Handover) {
+	if ue.Procedures().Active(procedure.N2Handover) {
 		return fmt.Errorf("temporary reject handover ongoing")
 	}
 
@@ -130,7 +128,7 @@ func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.
 		return fmt.Errorf("ue is not in registered state")
 	}
 
-	nasConn.SetN1N2Message(&req)
+	ue.SetN1N2Message(&req)
 
 	operatorInfo, err := amf.OperatorInfo(ctx)
 	if err != nil {
@@ -307,9 +305,10 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 		return fmt.Errorf("ue context not found")
 	}
 
-	conn := ue.Conn()
-	if conn == nil {
-		return fmt.Errorf("ue has no active NAS connection")
+	ueConn := ue.Conn()
+	if ueConn == nil {
+		// UE is CM-IDLE: buffer the N2 message and page it (TS 23.502 §4.2.3.3).
+		return amf.storeN1N2AndPage(ctx, ue, req)
 	}
 
 	if ue.PagingActive() {
@@ -320,65 +319,59 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 		return fmt.Errorf("temporary reject registration ongoing")
 	}
 
-	if conn.Parent().Procedures().Active(procedure.N2Handover) {
+	if ueConn.Parent().Procedures().Active(procedure.N2Handover) {
 		return fmt.Errorf("temporary reject handover ongoing")
 	}
 
-	ueConn := ue.Conn()
-	if ueConn != nil {
-		logger.From(ctx, logger.AmfLog).Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
+	logger.From(ctx, logger.AmfLog).Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
 
-		if !ueConn.ClaimICS() {
-			// Context already set up (or in progress): deliver the PDU session standalone.
-			list := ngapType.PDUSessionResourceSetupListSUReq{}
-			send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
+	if !ueConn.ClaimICS() {
+		// Context already set up (or in progress): deliver the PDU session standalone.
+		list := ngapType.PDUSessionResourceSetupListSUReq{}
+		send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 
-			err := ueConn.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
-			if err != nil {
-				return fmt.Errorf("send pdu session resource setup request error: %v", err)
-			}
-
-			logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request to UE")
-
-			return nil
-		}
-
-		// Claimed the Initial Context Setup: bundle the PDU session into it.
-		operatorInfo, err := amf.OperatorInfo(ctx)
+		err := ueConn.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
 		if err != nil {
-			ueConn.ResetICS()
-			return fmt.Errorf("error getting operator info: %v", err)
+			return fmt.Errorf("send pdu session resource setup request error: %v", err)
 		}
 
-		list := ngapType.PDUSessionResourceSetupListCxtReq{}
-		send.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
-
-		err = ueConn.SendInitialContextSetupRequest(
-			ctx,
-			ue.Ambr.Uplink,
-			ue.Ambr.Downlink,
-			ue.AllowedNssai,
-			ue.kgnb,
-			ue.PlmnID,
-			ue.RadioCapability,
-			ue.RadioCapabilityForPaging,
-			ue.ueSecurityCapability,
-			nil,
-			&list,
-			operatorInfo.Guami,
-		)
-		if err != nil {
-			ueConn.ResetICS()
-			return fmt.Errorf("send initial context setup request error: %v", err)
-		}
-
-		logger.From(ctx, logger.AmfLog).Info("Sent NGAP initial context setup request to UE")
+		logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request to UE")
 
 		return nil
 	}
 
-	// UE is CM-IDLE (MICO mode or non-3GPP-only registration): page it.
-	return amf.storeN1N2AndPage(ctx, ue, req)
+	// Claimed the Initial Context Setup: bundle the PDU session into it.
+	operatorInfo, err := amf.OperatorInfo(ctx)
+	if err != nil {
+		ueConn.ResetICS()
+		return fmt.Errorf("error getting operator info: %v", err)
+	}
+
+	list := ngapType.PDUSessionResourceSetupListCxtReq{}
+	send.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
+
+	err = ueConn.SendInitialContextSetupRequest(
+		ctx,
+		ue.Ambr.Uplink,
+		ue.Ambr.Downlink,
+		ue.AllowedNssai,
+		ue.kgnb,
+		ue.PlmnID,
+		ue.RadioCapability,
+		ue.RadioCapabilityForPaging,
+		ue.ueSecurityCapability,
+		nil,
+		&list,
+		operatorInfo.Guami,
+	)
+	if err != nil {
+		ueConn.ResetICS()
+		return fmt.Errorf("send initial context setup request error: %v", err)
+	}
+
+	logger.From(ctx, logger.AmfLog).Info("Sent NGAP initial context setup request to UE")
+
+	return nil
 }
 
 func (amf *AMF) TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error {

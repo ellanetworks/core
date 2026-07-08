@@ -153,9 +153,6 @@ func (a *AMF) HandoverGuardTimeout() time.Duration {
 }
 
 func (a *AMF) allocateTMSI(ctx context.Context) (etsi.TMSI, error) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	val, err := a.tmsi.Allocate(ctx)
 	if err != nil {
 		return val, fmt.Errorf("could not allocate TMSI: %v", err)
@@ -239,12 +236,8 @@ func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext)
 		}
 	}
 
-	if ue.tmsi != etsi.InvalidTMSI {
-		amf.tmsi.Free(ue.tmsi)
-	}
-
 	amf.mu.Lock()
-	amf.removeTmsiIndexLocked(ue)
+	amf.releaseTmsisLocked(ue)
 
 	// Only delete the SUPI index if it still points to this context: an authenticated
 	// re-registration indexes the new context under the same SUPI before this superseded
@@ -254,11 +247,6 @@ func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext)
 	}
 
 	amf.mu.Unlock()
-
-	// Cancel the per-registration context now the UE is unreferenced.
-	if ue.cancel != nil {
-		ue.cancel()
-	}
 }
 
 func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
@@ -683,7 +671,7 @@ func (amf *AMF) RemoveUEBySupi(supi etsi.SUPI) {
 	defer amf.mu.Unlock()
 
 	if ue, ok := amf.UEs[supi]; ok {
-		amf.removeTmsiIndexLocked(ue)
+		amf.releaseTmsisLocked(ue)
 	}
 
 	delete(amf.UEs, supi)

@@ -168,7 +168,11 @@ func nativeGUTIAttach(t *testing.T, m *mme.MME, ue *mme.UeContext) []byte {
 	}
 
 	group, code := m.MmeIdentity()
-	guti := m.ReallocateGUTI(ue, plmn, group, code)
+
+	guti, err := m.ReallocateGUTI(t.Context(), ue, plmn, group, code)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	esm, err := (&eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: 1}).Marshal()
 	if err != nil {

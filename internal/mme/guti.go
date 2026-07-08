@@ -5,12 +5,11 @@ package mme
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
-	"go.uber.org/zap"
 )
 
 // releaseMTMSIsLocked unindexes and frees both the UE's current M-TMSI and any
@@ -39,14 +38,14 @@ func (m *MME) freeMTMSILocked(t etsi.TMSI) {
 // commits the new GUTI (TS 24.301 §5.5.1.2.7, §5.5.3.2.4: the old GUTI stays
 // valid until completion). A reallocation already in flight (e.g. on a
 // retransmitted attach or TAU) reuses the staged M-TMSI.
-func (m *MME) ReallocateGUTI(ue *UeContext, plmn models.PlmnID, mmeGroupID uint16, mmeCode uint8) eps.EPSMobileIdentity {
+func (m *MME) ReallocateGUTI(ctx context.Context, ue *UeContext, plmn models.PlmnID, mmeGroupID uint16, mmeCode uint8) (eps.EPSMobileIdentity, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if ue.oldTmsi.Uint32() == 0 {
-		tmsi, err := m.tmsi.Allocate(context.Background())
+		tmsi, err := m.tmsi.Allocate(ctx)
 		if err != nil {
-			logger.MmeLog.Error("failed to allocate M-TMSI", zap.Error(err))
+			return eps.EPSMobileIdentity{}, fmt.Errorf("allocate M-TMSI: %w", err)
 		}
 
 		ue.oldTmsi = ue.tmsi
@@ -61,7 +60,7 @@ func (m *MME) ReallocateGUTI(ue *UeContext, plmn models.PlmnID, mmeGroupID uint1
 		MMEGroupID: mmeGroupID,
 		MMECode:    mmeCode,
 		MTMSI:      ue.tmsi.Uint32(),
-	}
+	}, nil
 }
 
 // CommitGUTIRealloc finalises a GUTI reallocation once the UE acknowledges it:

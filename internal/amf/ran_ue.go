@@ -83,11 +83,6 @@ type UeConn struct {
 	// is lost it fires once (releaseGuardTimeout) and runs the action-keyed cleanup.
 	releaseGuard guard.Guard
 
-	// ctx is created on bind as a child of the UeContext ctx and cancelled on Release,
-	// unwinding supervised work.
-	ctx    context.Context
-	cancel context.CancelFunc
-
 	// nasGuard is the single supervision timer for the 5GMM common procedures. They are
 	// mutually exclusive, so one guard suffices.
 	nasGuard guard.Guard
@@ -112,7 +107,6 @@ type UeConn struct {
 	RegistrationType5GS             uint8
 	IdentityTypeUsedForRegistration uint8
 	RetransmissionOfInitialNASMsg   bool
-	n1n2Message                     atomic.Pointer[models.N1N2MessageTransferRequest]
 
 	// RegistrationAcceptPdu is the REGISTRATION ACCEPT last sent, kept to resend on a
 	// duplicate REGISTRATION REQUEST with identical IEs while awaiting REGISTRATION
@@ -120,25 +114,17 @@ type UeConn struct {
 	RegistrationAcceptPdu []byte
 }
 
-// Ctx returns the connection-scoped context (nil for a bare, unbound UeConn).
-func (ueConn *UeConn) Ctx() context.Context {
-	return ueConn.ctx
-}
-
 // Parent returns the UeContext this connection is bound to, or nil when bare.
 func (ueConn *UeConn) Parent() *UeContext {
 	return ueConn.ue
 }
 
-// Release cancels the connection context, stops the NAS guard, and clears this
-// connection from its UeContext. Clearing ue.active is done under the registry lock
-// (amf.mu), like bind, so it cannot race an AttachUeConn.
+// Release stops the NAS guard and clears this connection from its UeContext. Clearing
+// ue.active is done under the registry lock (amf.mu), like bind, so it cannot race an
+// AttachUeConn. A key-changing procedure still in flight is left to its supervision
+// deadline (TS 38.413 handover guard), which runs its cleanup.
 func (ueConn *UeConn) Release() {
 	ueConn.stopTimers()
-
-	if ueConn.cancel != nil {
-		ueConn.cancel()
-	}
 
 	a := ueConn.amf
 	if a == nil {
@@ -152,8 +138,7 @@ func (ueConn *UeConn) Release() {
 	a.mu.Unlock()
 }
 
-// stopTimers stops the connection's NAS guard: Go timers do not observe ctx
-// cancellation, so they must be stopped explicitly.
+// stopTimers stops the connection's NAS guard.
 func (ueConn *UeConn) stopTimers() {
 	ueConn.StopNASGuard()
 }
@@ -274,22 +259,6 @@ func (ueConn *UeConn) MarkICSCompleted() {
 // failed so a retry re-attempts the context setup.
 func (ueConn *UeConn) ResetICS() {
 	ueConn.ics.Store(int32(ICSNotStarted))
-}
-
-// N1N2Message returns the SMF-pushed N1N2 message buffered for an idle UE, or nil.
-// It is written by the SMF push path and read/cleared on the UE's reconnect (two
-// different goroutines), so it is atomic; capture the result in a local and reuse it.
-func (ueConn *UeConn) N1N2Message() *models.N1N2MessageTransferRequest {
-	return ueConn.n1n2Message.Load()
-}
-
-// SetN1N2Message buffers an SMF-pushed N1N2 message for delivery when the idle UE reconnects.
-func (ueConn *UeConn) SetN1N2Message(m *models.N1N2MessageTransferRequest) {
-	ueConn.n1n2Message.Store(m)
-}
-
-func (ueConn *UeConn) ClearN1N2Message() {
-	ueConn.n1n2Message.Store(nil)
 }
 
 // The registration/auth status fields (RegistrationType5GS, IdentityTypeUsedForRegistration,

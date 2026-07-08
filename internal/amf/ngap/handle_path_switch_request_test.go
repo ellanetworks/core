@@ -582,7 +582,7 @@ func TestPathSwitchRequest_RejectedWhileKeyChainBusy(t *testing.T) {
 	targetRan.BindAMFForTest(amfInstance)
 
 	// A concurrent N2 handover holds the key chain.
-	if _, err := amfUe.Procedures().Begin(context.Background(), procedure.Procedure{Type: procedure.N2Handover}); err != nil {
+	if err := amfUe.Procedures().Begin(procedure.N2Handover); err != nil {
 		t.Fatalf("failed to begin N2Handover: %v", err)
 	}
 

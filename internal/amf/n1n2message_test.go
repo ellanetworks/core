@@ -328,7 +328,7 @@ func TestModifyN1N2Message_IdleRegisteredUE_ReturnsNotReachable(t *testing.T) {
 		t.Fatalf("expected 0 paging calls, got %d", sender.pagingCalls)
 	}
 
-	if ue.Conn() != nil && ue.Conn().N1N2Message() != nil {
+	if ue.N1N2Message() != nil {
 		t.Fatal("expected no stored N1N2 message")
 	}
 }
@@ -346,7 +346,7 @@ func TestModifyN1N2Message_OngoingN2Handover_Deferred(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 
-	if _, err := ue.Procedures().Begin(context.Background(), procedure.Procedure{Type: procedure.N2Handover}); err != nil {
+	if err := ue.Procedures().Begin(procedure.N2Handover); err != nil {
 		t.Fatal(err)
 	}
 
@@ -502,7 +502,7 @@ func TestN2MessageTransferOrPage_OnGoingN2Handover(t *testing.T) {
 
 	ue := addUE(t, amfInstance, "001010000000008", nil)
 
-	if _, err := ue.Procedures().Begin(context.Background(), procedure.Procedure{Type: procedure.N2Handover}); err != nil {
+	if err := ue.Procedures().Begin(procedure.N2Handover); err != nil {
 		t.Fatal(err)
 	}
 
@@ -534,6 +534,56 @@ func TestN2MessageTransferOrPage_ConnectedUE_InitialCtxSent(t *testing.T) {
 	if sender.pduSessionSetupCalls != 1 {
 		t.Fatalf("expected 1 PDUSessionResourceSetupRequest, got %d", sender.pduSessionSetupCalls)
 	}
+}
+
+func TestN2MessageTransferOrPage_IdleRegisteredUE_Pages(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	fakeDB := &fakeDBInstance{operator: &db.Operator{Mcc: "001", Mnc: "01"}}
+	amfInstance := amf.New(fakeDB, nil, &fakeSmf{})
+	amfInstance.ClearRadiosForTest()
+
+	ue := addUE(t, amfInstance, "001010000000030", func(u *amf.UeContext) {
+		u.ForceStateForTest(amf.Registered)
+		u.SetGutiForTest(testGUTI(t))
+		u.RegistrationArea = []models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}}
+	})
+
+	// A registered UE in CM-IDLE has no NAS connection; downlink data must page it.
+	if conn := ue.Conn(); conn != nil {
+		conn.Release()
+	}
+
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
+	amfInstance.UpdateRadioSupportedTAIs(radio, []amf.SupportedTAI{{
+		Tai: models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
+	}})
+
+	req := newReq()
+
+	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), req)
+	if err != nil {
+		t.Fatalf("expected idle registered UE to be paged, got error: %v", err)
+	}
+
+	if sender.pagingCalls != 1 {
+		t.Fatalf("expected 1 paging call, got %d", sender.pagingCalls)
+	}
+
+	if !ue.PagingActiveForTest() {
+		t.Fatal("expected the persistent per-UE paging timer to be armed")
+	}
+
+	buffered := ue.N1N2Message()
+	if buffered == nil {
+		t.Fatal("expected the N1N2 message to be buffered on the persistent UE context")
+	}
+
+	if buffered.PduSessionID != req.PduSessionID {
+		t.Fatalf("buffered PDU session id: expected %d, got %d", req.PduSessionID, buffered.PduSessionID)
+	}
+
+	ue.StopPaging()
 }
 
 func TestN2MessageTransferOrPage_NotRegistered_NoPaging(t *testing.T) {

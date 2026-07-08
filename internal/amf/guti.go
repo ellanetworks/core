@@ -14,16 +14,23 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-// removeTmsiIndexLocked drops the UE's current and in-flight old 5G-TMSI from the
-// resolution index. Caller holds amf.mu.
-func (amf *AMF) removeTmsiIndexLocked(ue *UeContext) {
+// releaseTmsisLocked unindexes and frees both the UE's current and in-flight old
+// 5G-TMSI, returning them to the allocator. Caller holds amf.mu.
+func (amf *AMF) releaseTmsisLocked(ue *UeContext) {
 	if ue.tmsi != etsi.InvalidTMSI {
 		delete(amf.uesByTmsi, ue.tmsi)
+		amf.freeTmsiLocked(ue.tmsi)
 	}
 
 	if ue.oldTmsi != etsi.InvalidTMSI {
 		delete(amf.uesByTmsi, ue.oldTmsi)
+		amf.freeTmsiLocked(ue.oldTmsi)
 	}
+}
+
+// freeTmsiLocked returns a 5G-TMSI to the allocator for reuse. Caller holds amf.mu.
+func (amf *AMF) freeTmsiLocked(t etsi.TMSI) {
+	amf.tmsi.Free(t)
 }
 
 func (amf *AMF) LookupUeByGuti(guti etsi.GUTI5G) (*UeContext, bool) {
@@ -45,20 +52,20 @@ func (amf *AMF) LookupUeByGuti(guti etsi.GUTI5G) (*UeContext, bool) {
 
 // ReallocateGUTI allocates a new 5G-GUTI for the UE and preserves the old one
 // (resolvable until the UE acknowledges the reallocation, when CommitGUTIRealloc runs).
-// The GUTI index is kept in step under a.mu.
+// A reallocation already in flight reuses its staged 5G-TMSI, so a retransmitted
+// trigger does not burn a fresh one (TS 24.501 §5.4.4). The GUTI index is kept in
+// step under a.mu.
 func (a *AMF) ReallocateGUTI(ctx context.Context, ue *UeContext) error {
-	tmsi, err := a.allocateTMSI(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to allocate TMSI: %v", err)
-	}
-
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	// The current 5G-TMSI becomes the old one and stays indexed; the two-generations-old
-	// TMSI it overwrites is dropped so it stops resolving to this UE.
 	if ue.oldTmsi != etsi.InvalidTMSI {
-		delete(a.uesByTmsi, ue.oldTmsi)
+		return nil
+	}
+
+	tmsi, err := a.allocateTMSI(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to allocate TMSI: %v", err)
 	}
 
 	ue.oldTmsi = ue.tmsi
@@ -114,7 +121,7 @@ func (a *AMF) CommitGUTIRealloc(ue *UeContext) {
 
 	if ue.oldTmsi != etsi.InvalidTMSI {
 		delete(a.uesByTmsi, ue.oldTmsi)
-		a.tmsi.Free(ue.oldTmsi)
+		a.freeTmsiLocked(ue.oldTmsi)
 	}
 
 	ue.oldTmsi = etsi.InvalidTMSI
