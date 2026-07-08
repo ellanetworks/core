@@ -663,8 +663,7 @@ func BuildDownlinkNasTransport(amfUENGAPID int64, ranUENGAPID int64, nasPdu []by
 }
 
 // BuildDownlinkRanStatusTransfer relays the source NG-RAN's PDCP SN/HFN status to the
-// handover target (TS 38.413 §8.4.7). The transparent container is passed through
-// verbatim; all three IEs are criticality reject, presence mandatory.
+// handover target (TS 38.413 §8.4.7).
 func BuildDownlinkRanStatusTransfer(amfUENGAPID int64, ranUENGAPID int64, container *ngapType.RANStatusTransferTransparentContainer) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
@@ -788,8 +787,7 @@ func BuildPDUSessionResourceModifyConfirm(
 
 	pDUSessionResourceModifyConfirmIEs.List = append(pDUSessionResourceModifyConfirmIEs.List, ie)
 
-	// PDU Session Resource Modify Confirm List (optional; TS 38.413 sizes the
-	// list SEQUENCE(SIZE(1..maxnoof)), so an empty list is omitted).
+	// TS 38.413 sizes the list SEQUENCE(SIZE(1..maxnoof)), so an empty list is omitted.
 	if len(pduSessionResourceModifyConfirmList.List) > 0 {
 		ie = ngapType.PDUSessionResourceModifyConfirmIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceModifyListModCfm
@@ -811,8 +809,7 @@ func BuildPDUSessionResourceModifyConfirm(
 	return ngap.Encoder(pdu)
 }
 
-// BuildPDUSessionResourceModifyRequest encodes a PDUSessionResourceModifyRequest
-// NGAP message (3GPP TS 38.413). This is the AMF→gNB message for
+// BuildPDUSessionResourceModifyRequest is the AMF→gNB message for
 // network-initiated PDU Session Modification (TS 23.502).
 func BuildPDUSessionResourceModifyRequest(amfUENGAPID int64, ranUENGAPID int64, pduSessionResourceModifyList ngapType.PDUSessionResourceModifyListModReq) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
@@ -1700,9 +1697,8 @@ func BuildIEMobilityRestrictionList(plmnID models.PlmnID) (*ngapType.MobilityRes
 	}, nil
 }
 
-// Paging Priority: is included only if the AMF receives an Namf_Communication_N1N2MessageTransfer message
-// with an ARP value associated with
-// priority services (e.g., MPS, MCS), as configured by the operator. (TS 23.502, TS 23.501)
+// Paging Priority is included only when the N1N2MessageTransfer carries an ARP value
+// for priority services, e.g. MPS or MCS (TS 23.502).
 func BuildPaging(
 	guti etsi.GUTI5G,
 	registrationArea []models.Tai,
@@ -1926,7 +1922,6 @@ func BuildDownlinkUEAssociatedNRPPaTransport(amfUENGAPID int64, ranUENGAPID int6
 	downlinkNRPPaTransport := initiatingMessage.Value.DownlinkUEAssociatedNRPPaTransport
 	downlinkNRPPaTransportIEs := &downlinkNRPPaTransport.ProtocolIEs
 
-	// AMF UE NGAP ID
 	ie := ngapType.DownlinkUEAssociatedNRPPaTransportIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -1938,7 +1933,6 @@ func BuildDownlinkUEAssociatedNRPPaTransport(amfUENGAPID int64, ranUENGAPID int6
 
 	downlinkNRPPaTransportIEs.List = append(downlinkNRPPaTransportIEs.List, ie)
 
-	// RAN UE NGAP ID
 	ie = ngapType.DownlinkUEAssociatedNRPPaTransportIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -1950,7 +1944,6 @@ func BuildDownlinkUEAssociatedNRPPaTransport(amfUENGAPID int64, ranUENGAPID int6
 
 	downlinkNRPPaTransportIEs.List = append(downlinkNRPPaTransportIEs.List, ie)
 
-	// Routing ID
 	ie = ngapType.DownlinkUEAssociatedNRPPaTransportIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDRoutingID
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -1962,7 +1955,6 @@ func BuildDownlinkUEAssociatedNRPPaTransport(amfUENGAPID int64, ranUENGAPID int6
 
 	downlinkNRPPaTransportIEs.List = append(downlinkNRPPaTransportIEs.List, ie)
 
-	// NRPPa PDU
 	ie = ngapType.DownlinkUEAssociatedNRPPaTransportIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDNRPPaPDU
 	ie.Criticality.Value = ngapType.CriticalityPresentReject

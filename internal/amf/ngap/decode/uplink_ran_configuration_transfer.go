@@ -17,8 +17,7 @@ import (
 // }
 
 // DecodeUplinkRANConfigurationTransfer validates an
-// UplinkRANConfigurationTransfer PDU body (3GPP TS 38.413). Class 2
-// procedure: procedure-level criticality is ignore.
+// UplinkRANConfigurationTransfer PDU body (3GPP TS 38.413).
 func DecodeUplinkRANConfigurationTransfer(in *ngapType.UplinkRANConfigurationTransfer) (UplinkRANConfigurationTransfer, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeUplinkRANConfigurationTransfer,

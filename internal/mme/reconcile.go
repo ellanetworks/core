@@ -57,9 +57,7 @@ func ClearPendingModifyLocked(p *PdnConnection) {
 }
 
 // reconcileBearer reconciles a single PDN connection against its current policy
-// and data-network configuration. A DNS and/or Session-AMBR change is applied in
-// place with a Modify EPS Bearer Context; an IP-pool or MTU change reactivates the
-// bearer.
+// and data-network configuration.
 func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnection) {
 	// Snapshot the connection's mutable policy state under the lock so a NAS
 	// handler or the NAS-guard timer does not mutate the in-flight flags or the

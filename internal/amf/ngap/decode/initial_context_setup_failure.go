@@ -21,8 +21,7 @@ import (
 // }
 
 // DecodeInitialContextSetupFailure validates an InitialContextSetupFailure
-// PDU body (3GPP TS 38.413). Class 1 procedure: procedure-level
-// criticality is reject.
+// PDU body (3GPP TS 38.413).
 func DecodeInitialContextSetupFailure(in *ngapType.InitialContextSetupFailure) (InitialContextSetupFailure, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeInitialContextSetup,

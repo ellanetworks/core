@@ -52,8 +52,7 @@ func (m *MME) LogNetworkEvent(ctx context.Context, conn S1APWriter, messageType 
 	)
 }
 
-// LogOutboundS1AP records an outbound S1AP message. Events from non-SCTP writers
-// (tests) are skipped by LogNetworkEvent.
+// LogOutboundS1AP records an outbound S1AP message.
 func (m *MME) LogOutboundS1AP(ctx context.Context, conn S1APWriter, messageType S1APProcedure, raw []byte) {
 	m.LogNetworkEvent(ctx, conn, messageType, logger.DirectionOutbound, raw)
 }

@@ -20,9 +20,7 @@ import (
 // }
 
 // DecodeUEContextModificationFailure validates a UEContextModificationFailure
-// PDU body (3GPP TS 38.413). All IEs are criticality-ignore, so decoding
-// never yields a fatal report; the class-1 procedure keeps a reject
-// procedure-level criticality. AMFUENGAPID and RANUENGAPID are pointers
+// PDU body (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are pointers
 // because 0 is a valid NGAP UE NGAP ID and absent must be distinguishable
 // from present.
 func DecodeUEContextModificationFailure(in *ngapType.UEContextModificationFailure) (UEContextModificationFailure, *Report) {

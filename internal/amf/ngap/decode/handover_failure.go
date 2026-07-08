@@ -19,9 +19,7 @@ import (
 // }
 
 // DecodeHandoverFailure validates a HandoverFailure PDU body (3GPP TS
-// 38.413). Class 1 procedure: procedure-level criticality is reject.
-//
-// CriticalityDiagnostics aliases the source PDU buffer.
+// 38.413).
 func DecodeHandoverFailure(in *ngapType.HandoverFailure) (HandoverFailure, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeHandoverResourceAllocation,

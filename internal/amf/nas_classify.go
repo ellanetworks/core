@@ -13,21 +13,19 @@ import (
 type Verdict int
 
 const (
-	// VerdictReject means the PDU must be dropped.
 	VerdictReject Verdict = iota
-	// VerdictIntegrityVerified means the PDU was integrity-protected and its MAC verified.
 	VerdictIntegrityVerified
-	// VerdictPlainAllowed means the PDU was plain NAS with a message type on the TS 24.501 whitelist.
+	// VerdictPlainAllowed: plain NAS with a message type on the TS 24.501 whitelist.
 	VerdictPlainAllowed
-	// VerdictMacFailedAllowed means the PDU was integrity-protected, its MAC failed,
-	// and its message type is on the TS 33.501 whitelist.
+	// VerdictMacFailedAllowed: integrity-protected with a failed MAC, message type on
+	// the TS 33.501 whitelist.
 	VerdictMacFailedAllowed
 )
 
 // DecodeResult is the output of the pure NAS decoder. A rejected PDU is returned as
 // a decode error (never a result), so a result is always processable; IntegrityVerified
 // reports whether its MAC was verified — false for a plain or MAC-failed message admitted
-// before secure exchange per TS 24.501 §4.4.4.3. Mirrors the MME's DecodeResult.
+// before secure exchange per TS 24.501 §4.4.4.3.
 type DecodeResult struct {
 	Message           *nas.Message
 	IntegrityVerified bool
@@ -78,16 +76,10 @@ func plainNasAllowed(msgType uint8) bool {
 	}
 }
 
-// macFailedAllowed reports whether a NAS message type may be processed
-// after MAC verification failure per TS 24.501 §4.4.4.3. CONTROL PLANE
-// SERVICE REQUEST is on the spec's MAC-failed list but is a CIoT
-// control-plane procedure Ella Core does not implement, so it has no
-// message-type constant to admit here.
-// macFailedAllowed reports whether a message type is processed when the integrity check
-// fails (TS 24.501 §4.4.4.3 / TS 33.501). SERVICE REQUEST is deliberately absent: it is
-// resolved-or-rejected by the dedicated pre-context HandleServiceRequest (which verifies
-// integrity before binding and rejects #9 on failure), never through this classify path —
-// mirrors the MME, whose macFailedAllowed also omits SERVICE REQUEST.
+// macFailedAllowed reports whether a message type may be processed after an
+// integrity-check failure (TS 24.501 §4.4.4.3, TS 33.501). SERVICE REQUEST, on the
+// spec's list, is absent: it is verified before context binding by the dedicated
+// HandleServiceRequest and rejected with cause #9 on failure, never admitted here.
 func macFailedAllowed(msgType uint8) bool {
 	return plainNasAllowed(msgType)
 }

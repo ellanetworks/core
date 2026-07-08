@@ -16,8 +16,7 @@ import (
 )
 
 // handleENBConfigurationUpdate validates any updated supported TAs against the
-// served PLMN/TAC, stores an updated eNB name, and acknowledges, or fails the
-// update (TS 36.413 §8.7.4).
+// served PLMN/TAC and acknowledges, or fails the update (TS 36.413 §8.7.4).
 func handleENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	req, err := s1ap.ParseENBConfigurationUpdate(value)
 	if err != nil {

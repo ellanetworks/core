@@ -88,7 +88,7 @@ func handleAttachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, pla
 }
 
 // ingestAttachRequest records the attach parameters the rest of the procedure
-// needs (UE network capability, ESM container, attach type, requested PDN type).
+// needs.
 func ingestAttachRequest(ue *mme.UeContext, req *eps.AttachRequest) {
 	ue.UeNetCap = req.UENetworkCapability
 	ue.MsNetCap = req.MSNetworkCapability
@@ -132,8 +132,8 @@ func isNativeGUTI(m *mme.MME, ctx context.Context, id eps.EPSMobileIdentity) boo
 
 // resolveAttachContext resolves the UE context an ATTACH REQUEST runs on BEFORE the
 // message is decoded, so the decode verifies against the right keys and integrity is
-// settled once. A native GUTI whose MAC
-// verifies against a held EPS security context adopts it (authentication and the
+// settled once. A native GUTI whose MAC verifies against a held EPS security
+// context adopts it (authentication and the
 // security mode procedure are then skipped, TS 24.301 §4.4.3); any other Attach stays
 // on the fresh context ue. It returns drop=true only for a colliding Attach during a
 // network-initiated detach (TS 24.301 §5.5.2.3.4 case d), which the caller drops.

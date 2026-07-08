@@ -47,12 +47,11 @@ type UeContext struct {
 	supi   etsi.SUPI
 	Imei   etsi.IMEI // PEI equipment identity, carrying the IMEI/IMEISV (TS 23.501 §5.9.3)
 	// tmsi is the UE's current 5G-TMSI, oldTmsi the in-flight previous one during a
-	// reallocation window. The AMF stores only the per-UE TMSI (indexed in uesByTmsi)
-	// and rebuilds the full 5G-GUTI on demand from the invariant serving GUAMI, so the
-	// node identifier is not duplicated on every UE. Both are InvalidTMSI until a GUTI
-	// is allocated. Guarded by AMF.mu (the registry lock, which also guards the
-	// uesByTmsi index): written only by the guti realloc/clear methods; read via
-	// Tmsi()/OldTmsi() so the registry-lock-guarded state is not touched lock-free.
+	// reallocation window. The full 5G-GUTI is rebuilt on demand from the invariant
+	// serving GUAMI, so the node identifier is not duplicated per UE. Both are
+	// InvalidTMSI until a GUTI is allocated. Guarded by AMF.mu (which also guards the
+	// uesByTmsi index): written only by the guti realloc/clear methods, read via
+	// Tmsi()/OldTmsi().
 	tmsi    etsi.TMSI
 	oldTmsi etsi.TMSI
 
@@ -73,8 +72,7 @@ type UeContext struct {
 	cancel context.CancelFunc
 
 	// active is the UE's single connection object (UeConn = NAS N1 + RAN N2), nil in
-	// CM-IDLE. An atomic pointer so the hot-path read is lock-free (safe to read while
-	// ue.mu is held); swapped on bind/release/handover.
+	// CM-IDLE. Atomic so the hot-path read is lock-free; swapped on bind/release/handover.
 	active atomic.Pointer[UeConn]
 
 	// procedures is the key-chain mutual-exclusion registry (SecurityMode/N2Handover;
@@ -114,11 +112,9 @@ type UeContext struct {
 	implicitDeregistrationTimer guard.Guard
 	idleGen                     uint64
 
-	/* Radio measurements (E-CID) */
 	radioMu           sync.RWMutex
 	radioMeasurements *RadioMeasurements
 
-	/* NRPPa messages (RAN → LMF) */
 	nrppaMu       sync.RWMutex
 	nrppaMessages []NRPPaMessage
 
@@ -144,8 +140,6 @@ func NewUeContext() *UeContext {
 }
 
 // Tmsi returns the UE's current 5G-TMSI (InvalidTMSI until a GUTI is allocated).
-// The field is registry-lock-guarded and written only by the guti realloc/clear
-// methods; the accessor keeps it from being touched lock-free from outside.
 func (ue *UeContext) Tmsi() etsi.TMSI { return ue.tmsi }
 
 // OldTmsi returns the in-flight previous 5G-TMSI during a reallocation window.
@@ -157,7 +151,7 @@ func (ue *UeContext) Procedures() *procedure.Registry {
 }
 
 // BeginKeyChainProc claims a key-changing procedure via the registry, returning false if
-// a conflicting one is active. Nil-safe for bare test contexts. Mirrors the MME.
+// a conflicting one is active. Nil-safe for bare test contexts.
 func (ue *UeContext) BeginKeyChainProc(ctx context.Context, t procedure.Type) bool {
 	if ue.procedures == nil {
 		return true
@@ -204,18 +198,17 @@ func (ue *UeContext) Conn() *UeConn {
 }
 
 // attachUeConnLocked binds ueConn as ue's active connection, defuses idle-mode
-// supervision (the UE is becoming connected), and returns the UE's previous connection
-// when one was displaced (nil otherwise) so the caller can release that superseded
-// connection outside the registry lock. Caller holds amf.mu: the whole connection
-// lifecycle (bind, detach, ue.active) is serialized on the registry lock, so bind and
-// release cannot race; ue.mu guards only per-UE security/session data.
+// supervision, and returns the displaced previous connection (nil if none) so the caller
+// can release it outside the registry lock. Caller holds amf.mu: the whole connection
+// lifecycle (bind, detach, ue.active) is serialized on it, so bind and release cannot
+// race; ue.mu guards only per-UE security/session data.
 func (a *AMF) attachUeConnLocked(ue *UeContext, ueConn *UeConn) *UeConn {
 	oldUeConn := ue.active.Load()
 
 	ueConn.ue = ue
 
-	// Bind the connection context as a child of the per-registration ctx; Release
-	// cancels it, unwinding this connection's supervised procedures/RPCs.
+	// Child of the per-registration ctx; Release cancels it, unwinding this connection's
+	// supervised procedures/RPCs.
 	if ueConn.ctx == nil {
 		ueConn.ctx, ueConn.cancel = context.WithCancel(ue.ctx) // #nosec G118 -- cancel stored on ueConn.cancel, called in UeConn.Release
 	}
@@ -237,8 +230,8 @@ func (a *AMF) attachUeConnLocked(ue *UeContext, ueConn *UeConn) *UeConn {
 
 	ue.active.Store(ueConn)
 
-	// Defusing idle-mode supervision is part of becoming connected; the timers live
-	// under the registry lock held here (TS 24.501 §5.3.7).
+	// The idle-mode supervision timers live under the registry lock held here
+	// (TS 24.501 §5.3.7).
 	a.stopIdleTimersLocked(ue)
 
 	return displaced
@@ -254,10 +247,9 @@ func (a *AMF) AttachUeConn(ue *UeContext, ueConn *UeConn) {
 	displaced := a.attachUeConnLocked(ue, ueConn)
 	a.mu.Unlock()
 
-	// A UE re-attaching on a new connection supersedes its previous RAN connection;
-	// release the orphaned UeConn (registry entry + AMF-UE-NGAP-ID) so it does not leak.
-	// The old RAN context at the gNB is stale (the UE moved), so this is a local cleanup
-	// with no Release Command — mirrors the MME's AttachUeConn → freeUeConnLocked.
+	// Release the superseded UeConn (registry entry + AMF-UE-NGAP-ID) so it does not
+	// leak. The old RAN context at the gNB is stale, so this is a local cleanup with no
+	// Release Command.
 	if displaced != nil {
 		if err := a.RemoveUeConn(context.Background(), displaced); err != nil {
 			logger.AmfLog.Error("failed to release superseded RAN UE on adopt", zap.Error(err))
@@ -347,7 +339,6 @@ type UESnapshot struct {
 }
 
 // Snapshot returns a point-in-time copy of the UE's connection state.
-// The caller can safely read the returned value without holding any lock.
 func (ue *UeContext) Snapshot() UESnapshot {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -385,11 +376,11 @@ func (ue *UeContext) DeriveKamf(kseaf []byte) error {
 	return nil
 }
 
-// InstallNASSecurityContext commits the negotiated NAS algorithms and derives the
-// NAS algorithm keys from kamf, installing the 5G NAS security context under ue.mu
-// (TS 33.501). The AuthProof witnesses that authentication has succeeded. Mirrors
-// the MME's InstallNASSecurityContext. The NAS COUNTs are reset separately in the
-// downlink encode path, keyed off the new-security-context header type (free5gc).
+// InstallNASSecurityContext commits the negotiated NAS algorithms and derives the NAS
+// algorithm keys from kamf, installing the 5G NAS security context under ue.mu
+// (TS 33.501). The AuthProof witnesses that authentication has succeeded. The NAS COUNTs
+// are reset separately in the downlink encode path, keyed off the new-security-context
+// header type.
 func (ue *UeContext) InstallNASSecurityContext(nea, nia byte, _ AuthProof) error {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -492,8 +483,7 @@ func (ue *UeContext) AdvancePathSwitchNH() (nh [32]uint8, ncc uint8, err error) 
 }
 
 // deriveNextNHLocked returns the next {NH, NCC} of the AS key chain (TS 33.501
-// §6.9.2.1.1) without committing them to the UE, so a handover can stage the pair
-// and commit it only on completion. Caller holds ue.mu.
+// §6.9.2.1.1) without committing them to the UE. Caller holds ue.mu.
 func (ue *UeContext) deriveNextNHLocked() ([32]uint8, uint8, error) {
 	out, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForNhDerivation, ue.nh[:], ueauth.KDFLen(ue.nh[:]))
 	if err != nil {
@@ -741,9 +731,9 @@ func (ue *UeContext) PagingActive() bool {
 }
 
 func (ue *UeContext) Deregister(ctx context.Context) {
-	// Clear the active connection under the registry lock (inside Release), before taking
-	// ue.mu, so we never nest ue.mu → registry lock (the order is registry lock → ue.mu).
-	// Release leaves conn.ue intact, as callers still read conn.Parent() after Deregister.
+	// Release (which takes the registry lock) runs before ue.mu, preserving the lock
+	// order registry lock → ue.mu. It leaves conn.ue intact: callers still read
+	// conn.Parent() after Deregister.
 	if conn := ue.Conn(); conn != nil {
 		conn.Release()
 	}
@@ -754,7 +744,6 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 
 	ue.transitionToLocked(Deregistered)
 
-	// Copy refs and clear map while protected by UE lock.
 	smContextRefs := make([]string, 0, len(ue.SmContextList))
 	for _, smContext := range ue.SmContextList {
 		smContextRefs = append(smContextRefs, smContext.Ref)
@@ -778,9 +767,8 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 
 // deactivateSmContexts deactivates the user-plane connection of every PDU session
 // without releasing it, so the UPF releases the N3 tunnel toward the RAN, buffers
-// downlink, and paging reactivates the session (TS 23.501 §5.3.3.2.4 / §5.8.3).
-// Used on abrupt NG-C loss where no UE Context Release Complete arrives, preserving
-// the sessions.
+// downlink, and paging reactivates the session (TS 23.501 §5.3.3.2.4 / §5.8.3). Used on
+// abrupt NG-C loss where no UE Context Release Complete arrives.
 func (ue *UeContext) deactivateSmContexts(ctx context.Context) {
 	if ue == nil || ue.smf == nil {
 		return
@@ -798,7 +786,7 @@ func (ue *UeContext) releaseSmContexts(ctx context.Context) {
 		return
 	}
 
-	// Copy refs under lock, then release lock before external SMF calls.
+	// External SMF calls must not hold ue.mu.
 	ue.mu.Lock()
 
 	smContextRefs := make([]string, 0, len(ue.SmContextList))

@@ -35,26 +35,23 @@ const (
 	UeContextReleaseHandover
 	UeContextReleaseUeContext
 	UeContextReleaseDueToNwInitiatedDeregistraion
-	// UeContextReleaseAbortRegistration releases the RAN context of a UE whose
-	// in-flight registration failed. The UE is never "keep-context, go idle" (it is
-	// not fully registered), so its cleanup deletes the UE context unconditionally —
-	// unlike UeContextReleaseUeContext, which retains a Secured (registered) UE.
+	// UeContextReleaseAbortRegistration releases the RAN context of a UE whose in-flight
+	// registration failed. Cleanup deletes the UE context unconditionally, unlike
+	// UeContextReleaseUeContext, which retains a Secured (registered) UE.
 	UeContextReleaseAbortRegistration
 )
 
 // releaseGuardTimeout bounds the wait for a UE Context Release Complete after a UE
-// Context Release Command is sent; on expiry the action-keyed local cleanup runs, so
-// a lost Complete cannot leak the UeConn + AMF-UE-NGAP-ID (TS 38.413 §8.3 has no CN-
-// side supervision timer, so this is a robustness guard, mirrored on the MME).
+// Context Release Command is sent; on expiry the action-keyed local cleanup runs, so a
+// lost Complete cannot leak the UeConn + AMF-UE-NGAP-ID. TS 38.413 §8.3 defines no CN-
+// side supervision timer; this is a robustness guard.
 const releaseGuardTimeout = 5 * time.Second
 
-// UeConn represents one UE's radio-level state on a single Radio.
-// It has no mutex of its own. It is protected either by the owning Radio's
-// single SCTP goroutine, or by UeContext.Mutex when accessed via UeContext.Conn().
-//
-// UeContext.Conn() acquires a read-lock internally and returns a consistent
-// snapshot. Callers must capture the returned pointer in a local variable
-// and reuse it — never call UeConn() twice in the same code path.
+// UeConn represents one UE's radio-level state on a single Radio. It has no mutex of
+// its own: it is protected either by the owning Radio's single SCTP goroutine, or by
+// UeContext.Mutex when accessed via UeContext.Conn(). Callers of UeContext.Conn() must
+// capture the returned pointer in a local and reuse it — the pointer may change between
+// calls.
 type UeConn struct {
 	RanUeNgapID  int64
 	AmfUeNgapID  int64
@@ -62,17 +59,14 @@ type UeConn struct {
 	Tai          models.Tai
 	Location     models.UserLocation
 	ue           *UeContext
-	// conn is the NGAP association this UE sends through — the send target, and the
-	// key into the AMF's radios index for node metadata. The UeConn does not hold the
-	// Radio object (decoupled, mirroring the MME's UeConn.conn); node metadata is
-	// looked up via amf.radioFor(conn) and the node name is captured into Log at bind.
+	// conn is the NGAP association this UE sends through and the key into the AMF's
+	// radios index for node metadata (looked up via amf.radioFor(conn)).
 	conn NGAPWriter
-	// radioName is the node name captured at bind, for hot-path last-seen tagging
-	// without a registry lookup (the immutable-after-associate name; a rare eNB-config
-	// rename is not reflected on already-bound UEs, matching the captured Log).
+	// radioName is the node name captured at bind, for hot-path last-seen tagging without
+	// a registry lookup. Immutable after bind.
 	radioName string
-	// amf is the owning registry; connection-lifecycle methods reach amf.mu through it
-	// (mirrors the MME's UeConn.m). Always set at creation.
+	// amf is the owning registry; connection-lifecycle methods reach amf.mu through it.
+	// Always set at creation.
 	amf              *AMF
 	ReleaseAction    RelAction
 	UeContextRequest bool
@@ -83,29 +77,23 @@ type UeConn struct {
 	Log        *zap.Logger
 	freeNgapID func(int64)
 	// releasing gates a UE Context Release Command so a second one is not sent for the
-	// same RAN UE (an eNB-initiated release racing a NAS-guard timeout). Guarded by
-	// AMF.mu, like the conns registry it lives in.
+	// same RAN UE. Guarded by AMF.mu, like the conns registry it lives in.
 	releasing bool
-	// releaseGuard supervises a sent UE Context Release Command: it is armed when the
-	// command is sent and stopped on the Release Complete; if the Complete is lost it
-	// fires once (releaseGuardTimeout) and runs the same action-keyed cleanup.
+	// releaseGuard supervises a sent UE Context Release Command; if the Release Complete
+	// is lost it fires once (releaseGuardTimeout) and runs the action-keyed cleanup.
 	releaseGuard guard.Guard
 
-	// Connection-scoped NAS state — the UeConn is the single connection object (NAS N1 +
-	// RAN N2). ctx is created on bind (AttachUeConn) as a child of the UeContext ctx and
-	// cancelled on Release, unwinding supervised work.
+	// ctx is created on bind as a child of the UeContext ctx and cancelled on Release,
+	// unwinding supervised work.
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	// nasGuard is the single supervision timer for the 5GMM common procedures
-	// (identification, authentication, security mode, registration accept,
-	// configuration update, de-registration, notification). They are mutually
-	// exclusive, so one guard suffices. nasGuardName is the procedure it is
-	// currently supervising (for observability).
+	// nasGuard is the single supervision timer for the 5GMM common procedures. They are
+	// mutually exclusive, so one guard suffices.
 	nasGuard guard.Guard
-	// nasGuardName is the procedure the guard currently supervises (observability). It
-	// is written on the NAS-dispatch/network-initiated paths and read by the status
-	// export goroutine, so it is atomic; use nasGuardProcName() to read.
+	// nasGuardName is the procedure the guard currently supervises. It is written on the
+	// NAS-dispatch/network-initiated paths and read by the status export goroutine, so it
+	// is atomic; use nasGuardProcName() to read.
 	nasGuardName atomic.Pointer[string]
 
 	// secureExchangeEstablished records that secure exchange of NAS messages has been
@@ -117,7 +105,7 @@ type UeConn struct {
 	AuthenticationCtx *ausf.AuthResult
 	// resyncTried records whether an SQN re-synchronisation (AUTS) has been attempted
 	// this authentication exchange: the first synch failure resyncs, a second rejects
-	// (TS 24.501 §5.4.1.3.7 f)/NOTE 4). Mirrors the MME's resyncTried.
+	// (TS 24.501 §5.4.1.3.7 f)/NOTE 4).
 	resyncTried bool
 
 	RegistrationRequest             *nasMessage.RegistrationRequest
@@ -142,9 +130,9 @@ func (ueConn *UeConn) Parent() *UeContext {
 	return ueConn.ue
 }
 
-// Release cancels the connection context (unwinding supervised procedures), stops the
-// NAS guard, and clears this connection from its UeContext. Clearing ue.active is done
-// under the registry lock (amf.mu), like bind, so it cannot race an AttachUeConn.
+// Release cancels the connection context, stops the NAS guard, and clears this
+// connection from its UeContext. Clearing ue.active is done under the registry lock
+// (amf.mu), like bind, so it cannot race an AttachUeConn.
 func (ueConn *UeConn) Release() {
 	ueConn.stopTimers()
 
@@ -164,15 +152,14 @@ func (ueConn *UeConn) Release() {
 	a.mu.Unlock()
 }
 
-// stopTimers stops the NAS common-procedure guard owned by this connection. Go timers
-// do not observe ctx cancellation; they must be stopped explicitly.
+// stopTimers stops the connection's NAS guard: Go timers do not observe ctx
+// cancellation, so they must be stopped explicitly.
 func (ueConn *UeConn) stopTimers() {
 	ueConn.StopNASGuard()
 }
 
-// armNASGuardWith arms the connection's NAS common-procedure guard for procedure name
-// with the given retransmit and abort callbacks (a no-op when cfg is disabled). The
-// procedures are mutually exclusive, so arming supersedes any prior one.
+// armNASGuardWith arms the connection's NAS common-procedure guard (a no-op when cfg is
+// disabled). The procedures are mutually exclusive, so arming supersedes any prior one.
 func (ueConn *UeConn) armNASGuardWith(cfg guard.TimerValue, name string, onRetransmit func(int32), onAbort func()) {
 	if !cfg.Enable {
 		return
@@ -197,7 +184,6 @@ func (ueConn *UeConn) nasGuardProcName() string {
 	return ""
 }
 
-// NASGuardActive reports whether a NAS common procedure is currently supervised.
 func (ueConn *UeConn) NASGuardActive() bool {
 	return ueConn.nasGuard.Active()
 }
@@ -220,8 +206,7 @@ func (r *Radio) AMFForTest() *AMF {
 }
 
 // SetRadioForTest registers a radio in the connection index, for external test
-// packages that seed a connected gNB without the SCTP setup path. Mirrors the MME's
-// RegisterENBByIDForTest.
+// packages that seed a connected gNB without the SCTP setup path.
 func (amf *AMF) SetRadioForTest(conn NGAPWriter, r *Radio) {
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
@@ -303,19 +288,17 @@ func (ueConn *UeConn) SetN1N2Message(m *models.N1N2MessageTransferRequest) {
 	ueConn.n1n2Message.Store(m)
 }
 
-// ClearN1N2Message drops the buffered N1N2 message once delivered or abandoned.
 func (ueConn *UeConn) ClearN1N2Message() {
 	ueConn.n1n2Message.Store(nil)
 }
 
 // The registration/auth status fields (RegistrationType5GS, IdentityTypeUsedForRegistration,
-// RetransmissionOfInitialNASMsg, resyncTried) are written on the NAS
-// goroutine and read by the status export from another goroutine. The setters below publish
-// them under the parent UeContext lock — the same lock the export holds — so the export never
-// observes a torn write. The many *same-goroutine* reads (registration/auth logic) stay plain:
-// they never race the export (read vs read) nor each other (one goroutine).
+// RetransmissionOfInitialNASMsg, resyncTried) are written on the NAS goroutine and read by
+// the status export from another goroutine. The setters below publish them under the parent
+// UeContext lock — the lock the export holds — so the export never observes a torn write. The
+// same-goroutine reads (registration/auth logic) stay plain: they race neither the export nor
+// each other.
 
-// SetRegistrationType5GS records the registration type under ue.mu.
 func (ueConn *UeConn) SetRegistrationType5GS(v uint8) {
 	if ueConn.ue != nil {
 		ueConn.ue.mu.Lock()
@@ -325,7 +308,6 @@ func (ueConn *UeConn) SetRegistrationType5GS(v uint8) {
 	ueConn.RegistrationType5GS = v
 }
 
-// SetIdentityTypeUsedForRegistration records the identity type under ue.mu.
 func (ueConn *UeConn) SetIdentityTypeUsedForRegistration(v uint8) {
 	if ueConn.ue != nil {
 		ueConn.ue.mu.Lock()
@@ -335,7 +317,6 @@ func (ueConn *UeConn) SetIdentityTypeUsedForRegistration(v uint8) {
 	ueConn.IdentityTypeUsedForRegistration = v
 }
 
-// SetRetransmissionOfInitialNASMsg records the retransmission flag under ue.mu.
 func (ueConn *UeConn) SetRetransmissionOfInitialNASMsg(v bool) {
 	if ueConn.ue != nil {
 		ueConn.ue.mu.Lock()
@@ -345,8 +326,6 @@ func (ueConn *UeConn) SetRetransmissionOfInitialNASMsg(v bool) {
 	ueConn.RetransmissionOfInitialNASMsg = v
 }
 
-// SetResyncTried records whether an AUTS re-synchronisation has been attempted this
-// authentication exchange, published under ue.mu. Mirrors the MME's SetResyncTried.
 func (ueConn *UeConn) SetResyncTried(v bool) {
 	if ueConn.ue != nil {
 		ueConn.ue.mu.Lock()
@@ -357,7 +336,7 @@ func (ueConn *UeConn) SetResyncTried(v bool) {
 }
 
 // ResyncTried reports whether an AUTS re-synchronisation has already been attempted
-// this authentication exchange. Mirrors the MME's ResyncTried.
+// this authentication exchange.
 func (ueConn *UeConn) ResyncTried() bool {
 	if ueConn.ue != nil {
 		ueConn.ue.mu.Lock()
@@ -430,17 +409,15 @@ func (ueConn *UeConn) sendTarget() (*AMF, NGAPWriter, error) {
 	return ueConn.amf, ueConn.conn, nil
 }
 
-// StopReleaseGuard cancels the Release-Complete supervision timer. Called by the
-// Release Complete handler before it runs the cleanup.
+// StopReleaseGuard cancels the Release-Complete supervision timer.
 func (ueConn *UeConn) StopReleaseGuard() {
 	ueConn.releaseGuard.Stop()
 }
 
-// ReleaseUeConn performs the action-keyed teardown of a UE's RAN connection after a UE
-// Context Release: it deactivates the UE's PDU sessions with the SMF, then — per the
-// UeConn's ReleaseAction — removes the UeConn and, for a full release, the UE context.
-// It runs both on a UE Context Release Complete and, if that Complete is lost, from the
-// release guard's timeout, so a lost Complete cannot leak the UeConn.
+// ReleaseUeConn performs the ReleaseAction-keyed teardown of a UE's RAN connection after
+// a UE Context Release. It runs both on a UE Context Release Complete and, if that
+// Complete is lost, from the release guard's timeout, so a lost Complete cannot leak the
+// UeConn.
 func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {
@@ -471,8 +448,8 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 			logger.From(ctx, ueConn.Log).Error(err.Error())
 		}
 
-		// A UE-originating de-registration of a UE without a valid security context
-		// (never fully registered) deletes the AMF UE context; a registered UE is kept.
+		// A UE without a valid security context (never fully registered) has its AMF UE
+		// context deleted; a registered UE is kept.
 		if !amfUe.Secured() {
 			a.DeregisterAndRemoveUeContext(ctx, amfUe)
 		}
@@ -502,10 +479,9 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 }
 
 // abortHandoverIfPreparedTarget ends an in-flight N2 handover when this UeConn is its
-// prepared target and is being removed (the target gNB association was reset or lost).
-// The procedure is ended on the source, stopping the supervision guard and clearing the
-// FSM at once so no stale handover lingers until the guard deadline. The source is left
-// in place; its own handover timers abort it on the radio.
+// prepared target and is being removed. Ending it on the source stops the supervision
+// guard and clears the FSM at once, so no stale handover lingers until the guard
+// deadline. The source is left in place; its own handover timers abort it on the radio.
 func (ueConn *UeConn) abortHandoverIfPreparedTarget(ctx context.Context) {
 	ue := ueConn.ue
 	if ue == nil || ueConn.amf.HandoverTarget(ue) != ueConn {

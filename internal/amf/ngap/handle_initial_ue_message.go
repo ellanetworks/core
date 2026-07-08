@@ -58,9 +58,9 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	// Route by message class (mirrors the MME's S1AP peek). A SERVICE REQUEST is resolved
-	// and answered (accept, or SERVICE REJECT #9 when no context) by its dedicated handler,
-	// without the optimistic resume or the mint gate — it never mints a context.
+	// A SERVICE REQUEST is resolved and answered (accept, or SERVICE REJECT #9 when no
+	// context) by its dedicated handler, without the optimistic resume or the mint gate —
+	// it never mints a context.
 	if amfInstance.NAS.IsServiceRequest(msg.NASPDU) {
 		amfInstance.NAS.HandleServiceRequest(ctx, ueConn, msg.NASPDU)
 	} else {
@@ -76,8 +76,8 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	// A NAS message that never established a UE context (undecodable, no usable mobile
 	// identity, not a registration request, or a service request the AMF has no context
 	// for) leaves a bare RAN connection; release it so an unauthenticated peer cannot
-	// exhaust RAN-UE-NGAP-IDs (mirrors the MME's ReleaseBareConn). A message that bound a
-	// context is torn down on its own registration path.
+	// exhaust RAN-UE-NGAP-IDs. A message that bound a context is torn down on its own
+	// registration path.
 	if ueConn.UeContext() == nil {
 		if rerr := amfInstance.RemoveUeConn(ctx, ueConn); rerr != nil {
 			logger.WithTrace(ctx, ueConn.Log).Error("failed to release bare RAN UE", zap.Error(rerr))
@@ -89,7 +89,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 // fresh connection when a non-service-request initial NAS message cites a known 5G-S-TMSI,
 // so the NAS layer need not re-resolve it. It binds nothing when the message cannot be
 // authenticated for the cited context (TS 24.501), leaving the NAS layer to register on a
-// fresh context. Mirrors the MME's S1AP S-TMSI resume.
+// fresh context.
 func resumeExistingContext(ctx context.Context, amfInstance *amf.AMF, ueConn *amf.UeConn, msg decode.InitialUEMessage) {
 	if msg.FiveGSTMSI == nil {
 		return

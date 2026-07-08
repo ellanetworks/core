@@ -196,7 +196,7 @@ func (amf *AMF) fetchSessionPolicy(smContextRef string) (*models.SessionPolicyDe
 			return nil, models.ReconcileSliceMismatch
 		}
 
-		// Transient error — log and skip. The backstop timer will retry.
+		// The backstop timer will retry.
 		logger.AmfLog.Warn("transient error fetching session policy, skipping reconciliation",
 			zap.String("smContextRef", smContextRef),
 			zap.Error(err))

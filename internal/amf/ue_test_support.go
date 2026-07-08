@@ -28,10 +28,6 @@ func (amf *AMF) AddUeContextToPoolForTest(ue *UeContext) error {
 	return nil
 }
 
-// Test-support accessors let external test packages (amf_test, ngap_test)
-// construct and inspect a UE's unexported security/identity state without
-// exporting the fields.
-
 // ForceStateForTest sets the UE state unconditionally, bypassing transition
 // validation, for test precondition setup. Production code must use TransitionTo.
 func (ue *UeContext) ForceStateForTest(s StateType) {
@@ -127,8 +123,7 @@ func (ue *UeContext) SupiForTest() etsi.SUPI     { return ue.supi }
 func (ue *UeContext) SetGutiForTest(g etsi.GUTI5G) { ue.tmsi = g.Tmsi }
 func (ue *UeContext) TmsiForTest() etsi.TMSI       { return ue.tmsi }
 
-// AssignGutiForTest stores the GUTI's 5G-TMSI on ue and indexes it for resolution,
-// mirroring ReallocateGUTI in production.
+// AssignGutiForTest stores the GUTI's 5G-TMSI on ue and indexes it for resolution.
 func (a *AMF) AssignGutiForTest(ue *UeContext, guti etsi.GUTI5G) {
 	a.mu.Lock()
 	defer a.mu.Unlock()

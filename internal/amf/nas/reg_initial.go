@@ -17,14 +17,12 @@ import (
 // abortRegistration releases a UE whose in-flight registration failed at the point of
 // failure, so a technical error does not leave it half-registered — an open RAN
 // connection with an allocated AMF-UE-NGAP-ID and no supervision (the idle timers are
-// stopped for the duration of registration). Mirrors the MME's reject/release-at-failure
-// convention.
+// stopped for the duration of registration).
 func abortRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, reason string, err error) {
 	logger.From(ctx, logger.AmfLog).Error("registration aborted, releasing UE", zap.String("reason", reason), zap.Error(err))
 
 	conn := ue.Conn()
 	if conn == nil {
-		// No RAN connection to command; release the context locally.
 		amfInstance.DeregisterAndRemoveUeContext(ctx, ue)
 		return
 	}
@@ -34,9 +32,8 @@ func abortRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCont
 
 // releaseAbortedRegistration tells the gNB to release the RAN context of a UE whose
 // registration was aborted or rejected, then relies on the release guard / Release
-// Complete to delete the (never fully registered) UE context. Telling the gNB — rather
-// than a bare local Deregister — matches the MME's attach-failure path and TS 24.501
-// §5.3.1.3 ("the release of the NAS signalling connection is initiated by the network").
+// Complete to delete the (never fully registered) UE context. The network initiates the
+// release of the NAS signalling connection (TS 24.501 §5.3.1.3).
 func releaseAbortedRegistration(ctx context.Context, ueConn *amf.UeConn) {
 	ueConn.ReleaseAction = amf.UeContextReleaseAbortRegistration
 

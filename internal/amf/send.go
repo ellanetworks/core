@@ -366,7 +366,6 @@ func SendRegistrationAccept(
 		}, func() {
 			logger.From(ctx, logger.AmfLog).Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))
 
-			// TS 24.501
 			ue.TransitionTo(Registered)
 			ue.ClearRegistrationRequestData()
 		})
@@ -374,12 +373,11 @@ func SendRegistrationAccept(
 }
 
 // ArmRegistrationAcceptGuard supervises with T3550 a GUTI-bearing REGISTRATION
-// ACCEPT that was delivered outside SendRegistrationAccept — embedded in a PDU
-// Session Resource Setup Request, or as a plain DL NAS Transport during a
-// mobility/periodic registration update. The AMF always reallocates the 5G-GUTI,
-// so every such accept carries one and must be supervised (TS 24.501 §5.5.1.3.4):
-// on expiry the NAS accept is retransmitted, and on exhaustion the registration is
-// completed locally. Registration Complete stops the timer.
+// ACCEPT delivered outside SendRegistrationAccept — embedded in a PDU Session
+// Resource Setup Request, or as a plain DL NAS Transport during a mobility/periodic
+// registration update. The AMF always reallocates the 5G-GUTI, so every such accept
+// carries one and must be supervised (TS 24.501 §5.5.1.3.4). Registration Complete
+// stops the timer.
 func ArmRegistrationAcceptGuard(amfInstance *AMF, ue *UeContext, nasMsg []byte) {
 	if !amfInstance.NASGuardCfg.Enable {
 		return
@@ -568,7 +566,7 @@ func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, causePres
 	pkt, err := send.BuildUEContextReleaseCommand(ueConn.AmfUeNgapID, ueConn.RanUeNgapID, causePresent, cause)
 	if err != nil {
 		// The command cannot be sent, so no Release Complete will arrive; release
-		// locally now rather than leave the UeConn + claim stuck.
+		// locally now to avoid leaking the UeConn and its claim.
 		amfInstance.ReleaseUeConn(ctx, ueConn)
 		return err
 	}

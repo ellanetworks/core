@@ -217,7 +217,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 			if !exist {
 				conn.ClearN1N2Message()
 				// UE referenced a PDU session id it holds no context for; release the
-				// half-updated registration rather than leak it.
+				// half-updated registration to avoid leaking it.
 				abortRegistration(ctx, amfInstance, ue, "UE referenced unknown PDU session id", nil)
 
 				return

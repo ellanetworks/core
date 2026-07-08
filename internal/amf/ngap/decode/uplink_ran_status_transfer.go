@@ -18,16 +18,16 @@ import (
 //  ...
 // }
 
-// UplinkRANStatusTransfer is the decoded body: the two UE identities and the opaque
-// PDCP SN/HFN status container, which the AMF relays transparently to the target.
+// UplinkRANStatusTransfer is the decoded body; Container is the opaque PDCP
+// SN/HFN status the AMF relays transparently to the handover target.
 type UplinkRANStatusTransfer struct {
 	AMFUENGAPID int64
 	RANUENGAPID int64
 	Container   *ngapType.RANStatusTransferTransparentContainer
 }
 
-// DecodeUplinkRANStatusTransfer validates an UplinkRANStatusTransfer PDU body (3GPP
-// TS 38.413 §8.4.6). Class 1 procedure: procedure-level criticality is reject.
+// DecodeUplinkRANStatusTransfer validates an UplinkRANStatusTransfer PDU body
+// (3GPP TS 38.413 §8.4.6).
 func DecodeUplinkRANStatusTransfer(in *ngapType.UplinkRANStatusTransfer) (UplinkRANStatusTransfer, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeUplinkRANStatusTransfer,

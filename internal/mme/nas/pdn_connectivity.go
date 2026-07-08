@@ -17,7 +17,7 @@ import (
 
 // ESM cause values for PDN connectivity / disconnect (TS 24.301 §9.9.4.4).
 const (
-	esmCauseUnknownAPN                  uint8 = 27 // missing or unknown APN
+	esmCauseUnknownAPN                  uint8 = 27
 	esmCauseRequestRejectedUnspecified  uint8 = 31
 	esmCauseRegularDeactivation         uint8 = 36
 	esmCauseInvalidEPSBearerIdentity    uint8 = 43
@@ -206,9 +206,7 @@ func sendERABSetup(m *mme.MME, ctx context.Context, ue *mme.UeContext, p *mme.Pd
 // handlePDNDisconnectRequest releases one of a UE's PDN connections at its request
 // (TS 24.301 §6.5.2; TS 23.401 §5.10.3). The UE names the PDN by its default
 // bearer's Linked EPS Bearer Identity. The last PDN connection cannot be
-// disconnected this way — the UE detaches instead (ESM cause #49). The bearer is
-// torn down with a DEACTIVATE EPS BEARER CONTEXT REQUEST; the session is released
-// when the UE accepts.
+// disconnected this way — the UE detaches instead (ESM cause #49).
 func handlePDNDisconnectRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
 	req, err := eps.ParsePDNDisconnectRequest(plain)
 	if err != nil {

@@ -32,13 +32,11 @@ func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
 	ueConn.TouchLastSeen()
 
-	// Extract radio measurements from UserLocationInformation if available.
-	// Note: free5gc's UserLocationInformationNR does not include RSRP/RSRQ/TA;
-	// those are sent via NRPPa UEPositioningInformation. For MVP, E-CID
-	// measurements come from mock NRPPa data set via the test harness.
+	// UserLocationInformationNR carries NRCGI/TAI only; RSRP/RSRQ/TA measurements
+	// arrive separately via NRPPa UEPositioningInformation.
 	if msg.UserLocationInformation != nil {
 		if nr := msg.UserLocationInformation.UserLocationInformationNR; nr != nil {
-			_ = nr // NRCGI, TAI already stored in Location; measurements pending NRPPa
+			_ = nr
 		}
 	}
 

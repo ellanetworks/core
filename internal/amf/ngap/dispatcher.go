@@ -262,7 +262,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		case ngapType.ProcedureCodeUplinkUEAssociatedNRPPaTransport:
 			nrppaTransport := pdu.InitiatingMessage.Value.UplinkUEAssociatedNRPPaTransport
 			if nrppaTransport != nil {
-				// Extract AMF UE NGAP ID, RAN UE NGAP ID, and NRPPa PDU
 				var (
 					amfUeNgapID, ranUeNgapID *int64
 					nrppaPdu                 []byte
@@ -294,7 +293,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 					zap.Int("payload_len", len(nrppaPdu)),
 				)
 
-				// Resolve UE context via AMF-UE-NGAP-ID
 				if amfUeNgapID != nil {
 					ran.Log.Debug("Looking up UE by AMF UE NGAP ID",
 						zap.Int64("amfUeNgapID", *amfUeNgapID),
@@ -321,7 +319,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 						break
 					}
 
-					// Store raw NRPPa PDU in UE context for LMF to consume
 					if ue := ranUe.UeContext(); ue != nil {
 						ue.SetNRPPaMessage(nrppaPdu)
 						ran.Log.Debug("Stored NRPPa message in UE context",

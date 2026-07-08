@@ -42,8 +42,6 @@ type UeConn struct {
 	// attached to a context). Guarded by MME.mu.
 	ue *UeContext
 
-	// m is the owning MME, so connection-scoped methods reach the registry lock and
-	// node-level config without threading it through every call. Set at creation, immutable.
 	m *MME
 
 	// ICS is the S1AP Initial Context Setup progress: it distinguishes a

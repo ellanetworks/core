@@ -17,8 +17,7 @@ import (
 //  ...
 // }
 
-// DecodeNGReset validates an NGReset PDU body (3GPP TS 38.413). Class 1
-// procedure: procedure-level criticality is reject.
+// DecodeNGReset validates an NGReset PDU body (3GPP TS 38.413).
 func DecodeNGReset(in *ngapType.NGReset) (NGReset, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeNGReset,

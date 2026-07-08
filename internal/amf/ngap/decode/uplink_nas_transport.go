@@ -23,8 +23,7 @@ import (
 // }
 
 // DecodeUplinkNASTransport validates an UplinkNASTransport PDU body (3GPP
-// TS 38.413). The non-3GPP-access identity IEs (W-AGF/TNGF/TWIF) are
-// optional and not consumed.
+// TS 38.413).
 func DecodeUplinkNASTransport(in *ngapType.UplinkNASTransport) (UplinkNASTransport, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeUplinkNASTransport,

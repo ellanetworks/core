@@ -249,15 +249,11 @@ func (amf *AMF) ExportUEs(ctx context.Context) ([]UeContextExport, error) {
 	return exports, nil
 }
 
-// UEPDUSessions returns the PDU sessions for the UE identified by SUPI, or false
-// if no such UE exists. Safe to call concurrently with normal AMF operation.
-// LookupSubscriber resolves a UE once and returns its detail snapshot together with its
-// PDU sessions, so the two views cannot tear across separate registry lookups (the
-// detail-path analog of ConnectedSubscribers; mirrors the MME's LookupSubscriber). The
-// session detail is built after the UE's session refs are copied under the UE lock,
-// because it reaches the SMF (SMF-delegated sessions, TS 23.501) and must not run under
-// the registry lock — the one architecture-forced difference from the MME, whose PDN
-// data is UE-local.
+// LookupSubscriber resolves a UE by SUPI and returns its snapshot together with its
+// PDU sessions, so the two views cannot tear across separate registry lookups. Session
+// detail is built after the session refs are copied out from under the UE lock, because
+// it reaches the SMF (SMF-delegated sessions, TS 23.501) and must not run under the
+// registry lock.
 func (amf *AMF) LookupSubscriber(supi etsi.SUPI) (UESnapshot, []PDUSessionExport, bool) {
 	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {

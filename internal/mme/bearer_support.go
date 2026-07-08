@@ -88,7 +88,6 @@ func (ue *UeContext) BearerReleaseOnly(p *PdnConnection) bool {
 	return p.Ebi != ue.DefaultEBI || p.Disconnecting
 }
 
-// ClearDeactivating clears a PDN connection's in-flight deactivation flag.
 func (ue *UeContext) ClearDeactivating(p *PdnConnection) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

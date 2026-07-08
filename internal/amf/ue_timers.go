@@ -12,13 +12,11 @@ import (
 
 // mobileReachableMargin is added to the periodic registration timer (T3512) to form
 // the mobile reachable timer: TS 24.501 §5.3.7 — "by default, the mobile reachable
-// timer is 4 minutes greater than the value of timer T3512". The MME derives the same
-// margin over T3412 (TS 24.301 §5.3.5); the margin is spec-identical on both RATs.
+// timer is 4 minutes greater than the value of timer T3512".
 const mobileReachableMargin = 4 * time.Minute
 
 // implicitDeregistrationTime is the delay from mobile-reachable-timer expiry to
-// implicit de-registration of an unreachable UE (TS 24.501 §5.3.7). Mirrors the MME's
-// implicit-detach grace (defaultImplicitDetachTime).
+// implicit de-registration of an unreachable UE (TS 24.501 §5.3.7).
 const implicitDeregistrationTime = 2 * time.Minute
 
 // Idle-mode supervision (TS 24.501 §5.3.7): when the UE goes CM-IDLE the AMF arms

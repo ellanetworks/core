@@ -52,9 +52,7 @@ func DecodeNASMessage(ue *UeContext, payload []byte) (*DecodeResult, error) {
 
 // NasIntegrityVerified reports whether payload is an integrity-protected NAS
 // PDU whose MAC verifies against this UE's current 5G NAS security context. It
-// does not mutate any UE state: the uplink count is evaluated on a copy. A
-// plain NAS PDU, a PDU that fails the MAC check, or the absence of a usable
-// security context all return false.
+// does not mutate any UE state: the uplink count is evaluated on a copy.
 //
 // It is the authorization gate for an inbound message that resolved to an
 // existing context by GUTI/5G-S-TMSI: only a message proven to originate from
@@ -96,11 +94,9 @@ func (ue *UeContext) NasIntegrityVerified(payload []byte) bool {
 }
 
 // ReuseForInboundNAS reports whether an inbound NAS PDU that resolved to this
-// committed context by GUTI/5G-S-TMSI may act on it: only when it is
-// integrity-verified against the context. Any other message is processed on a
-// fresh context, so context resolution never mutates a committed context,
-// leaving the committed NAS security context and PDU sessions untouched
-// (TS 24.501).
+// committed context by GUTI/5G-S-TMSI may act on it: only when integrity-verified.
+// Any other message is processed on a fresh context, leaving the committed
+// security context and PDU sessions untouched (TS 24.501).
 func (ue *UeContext) ReuseForInboundNAS(payload []byte) bool {
 	return ue.NasIntegrityVerified(payload)
 }
@@ -123,7 +119,6 @@ func decodePlainNAS(msg *nas.Message, payload []byte) (*DecodeResult, error) {
 		)
 	}
 
-	// A plain NAS message is never integrity-verified.
 	return &DecodeResult{Message: msg, IntegrityVerified: false}, nil
 }
 

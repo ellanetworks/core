@@ -90,9 +90,8 @@ func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext
 	ue.Conn().ArmNASGuard("Tracking Area Update Accept", naspdu)
 }
 
-// handleTrackingAreaUpdateComplete finalises a GUTI reallocation: it stops the T3450
-// guard, commits the new GUTI (freeing the old M-TMSI), and — for a no-active
-// TAU — releases the UE back to ECM-IDLE (TS 24.301).
+// handleTrackingAreaUpdateComplete finalises a GUTI reallocation; for a no-active
+// TAU it releases the UE back to ECM-IDLE (TS 24.301).
 func handleTrackingAreaUpdateComplete(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 	ue.Conn().StopNASGuard()
 	m.CommitGUTIRealloc(ue)

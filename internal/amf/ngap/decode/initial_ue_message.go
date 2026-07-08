@@ -24,8 +24,8 @@ func DecodeInitialUEMessage(in *ngapType.InitialUEMessage) (InitialUEMessage, *R
 		return out, report
 	}
 
-	// A "have" flag is set when the IE id is observed, before its value is
-	// checked, so a malformed IE is not also reported as missing.
+	// The have-flag is set on IE-id observation, before the value check, so a
+	// malformed IE is not also reported as missing.
 	var (
 		haveRANUENGAPID bool
 		haveNASPDU      bool

@@ -19,7 +19,7 @@ import (
 // }
 
 // DecodeHandoverNotify validates a HandoverNotify PDU body (3GPP TS
-// 38.413). Class 2 procedure: procedure-level criticality is ignore.
+// 38.413).
 func DecodeHandoverNotify(in *ngapType.HandoverNotify) (HandoverNotify, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeHandoverNotification,

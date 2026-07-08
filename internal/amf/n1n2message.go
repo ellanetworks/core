@@ -207,9 +207,9 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 	}
 
 	if n2Msg == nil {
-		// N1-only delivery (e.g. DNS update via Extended PCO). Per TS 23.502,
-		// when the Modification Command is sent transparently through NG-RAN
-		// the N2 SM information is omitted and no radio resources change.
+		// N1-only delivery (e.g. DNS update via Extended PCO): the Modification
+		// Command rides Downlink NAS Transport and no radio resources change
+		// (TS 23.502).
 		if err := ueConn.SendDownlinkNASTransport(ctx, nasPdu, nil); err != nil {
 			return fmt.Errorf("send downlink NAS transport: %w", err)
 		}

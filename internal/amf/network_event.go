@@ -11,10 +11,9 @@ import (
 	"github.com/ellanetworks/core/internal/sctp"
 )
 
-// LogNetworkEvent records an NGAP message exchanged with a gNB so it appears in
-// the network events log alongside 4G S1AP traffic (mirrors the MME's
-// LogNetworkEvent). Addresses come from the radio's concrete SCTP connection; a
-// test writer (or a nil radio/connection) is skipped.
+// LogNetworkEvent records an NGAP message exchanged with a gNB in the network events
+// log. Addresses come from the radio's concrete SCTP connection; a test writer (or a
+// nil radio/connection) is skipped.
 func (a *AMF) LogNetworkEvent(ctx context.Context, conn NGAPWriter, messageType string, dir logger.LogDirection, raw []byte) {
 	if conn == nil {
 		return

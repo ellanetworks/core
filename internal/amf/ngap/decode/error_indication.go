@@ -20,9 +20,8 @@ import (
 // }
 
 // DecodeErrorIndication validates an ErrorIndication PDU body (3GPP TS
-// 38.413). Class 2 procedure: procedure-level criticality is ignore. The
-// spec rule that at least one of Cause or CriticalityDiagnostics be
-// present is not enforced.
+// 38.413). The spec rule that at least one of Cause or
+// CriticalityDiagnostics be present is not enforced.
 func DecodeErrorIndication(in *ngapType.ErrorIndication) (ErrorIndication, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeErrorIndication,

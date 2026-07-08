@@ -45,7 +45,7 @@ func (r *Radio) SendDownlinkNRPPaTransport(ctx context.Context, amfUeNgapID int6
 
 // SendToRan writes a complete NGAP PDU to a gNB association, selecting the SCTP
 // stream from the procedure (TS 38.412). It takes the connection (the send target)
-// directly — a UE sends through ueConn.conn — mirroring the MME's SendS1APConn.
+// directly — a UE sends through ueConn.conn.
 func (a *AMF) SendToRan(ctx context.Context, conn NGAPWriter, msgType send.NGAPProcedure, packet []byte) error {
 	ctx, span := ngapSendTracer.Start(ctx, "ngap/send",
 		trace.WithSpanKind(trace.SpanKindClient),

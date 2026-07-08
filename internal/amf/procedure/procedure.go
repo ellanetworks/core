@@ -20,7 +20,6 @@ type (
 	Registry  = engine.Registry
 )
 
-// Sentinel errors, re-exported from the engine.
 var (
 	ErrConflict      = engine.ErrConflict
 	ErrAlreadyActive = engine.ErrAlreadyActive
@@ -46,7 +45,7 @@ func NewRegistry(log *zap.Logger) *Registry {
 
 // keyChainRules makes the tracked key-changing procedures mutually exclusive: any active one
 // blocks any other, since they all mutate the one {NH, NCC}/KgNB chain (TS 33.501
-// §6.9.5). Identical to the MME's keyChainRules.
+// §6.9.5).
 //
 // A conflict rejects the incoming procedure. That is compliant because SecurityMode (the
 // only core-initiated one) is registration-only, so it never collides with a RAN-initiated

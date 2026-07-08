@@ -41,7 +41,7 @@ func (ue *UeContext) integrityAlgName() string {
 }
 
 // selectNASAlg returns the first network-preferred algorithm the UE supports,
-// reporting false when none is common. Mirrors the MME's selectEPSAlgorithm.
+// reporting false when none is common.
 func selectNASAlg(preference []uint8, supported func(uint8) bool) (byte, bool) {
 	for _, alg := range preference {
 		if supported(alg) {
@@ -56,7 +56,7 @@ func selectNASAlg(preference []uint8, supported func(uint8) bool) (byte, bool) {
 // the UE's security capability, in the network's preference order (TS 33.501),
 // returning ok=false when the UE capability is absent or no common algorithm is
 // found for either. It does not mutate the UE — the caller installs the result via
-// InstallNASSecurityContext. Mirrors the MME's pure SelectAlgorithms.
+// InstallNASSecurityContext.
 func (ue *UeContext) SelectSecurityAlg(intOrder, encOrder []uint8) (nea, nia byte, ok bool) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

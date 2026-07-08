@@ -50,7 +50,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	// Build the TAI list locally and validate it, then commit name+TAIs to the shared
 	// Radio through the locked setters below — the status path must never read a
-	// half-written field (the §1.2 encapsulation).
+	// half-written field.
 	tais := make([]amf.SupportedTAI, 0)
 
 	for i := 0; i < len(msg.SupportedTAItems); i++ {

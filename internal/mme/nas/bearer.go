@@ -17,13 +17,11 @@ import (
 	"go.uber.org/zap"
 )
 
-// activateDefaultBearer establishes the UE's default-bearer session and sends the
-// Attach Accept to the eNB inside an Initial Context Setup Request.
 func activateDefaultBearer(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 	qos, err := mme.ResolveAttachQoS(m, ctx, ue)
 	if errors.Is(err, mme.ErrUnknownAPN) {
 		// The requested APN is not bound to any policy in the subscriber's profile
-		// (TS 24.301 §6.5.1.4, ESM cause #27); the default bearer cannot be set up.
+		// (TS 24.301 §6.5.1.4, ESM cause #27).
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: requested APN not in subscriber profile",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", ue.RequestedAPN))
 		rejectAttach(m, ctx, ue, mme.EmmCauseESMFailure)
@@ -46,8 +44,6 @@ func activateDefaultBearer(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 		return
 	}
 
-	// The SMF+PGW-C anchor owns the session: it allocates the UE address(es) and
-	// returns the S-GW S1-U F-TEID.
 	bearer, err := m.Session.CreateEPSSession(ctx, models.EPSBearerRequest{
 		IMSI:              ue.IMSI(),
 		EPSBearerIdentity: mme.DefaultERABID,
@@ -63,8 +59,7 @@ func activateDefaultBearer(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 	})
 	if err != nil {
 		// No PDN type the UE requested can be served (e.g. it asked for IPv6 on an
-		// IPv4-only data network). The default bearer cannot be set up, so reject
-		// the attach with EMM cause #19 "ESM failure" (TS 24.301).
+		// IPv4-only data network); reject with EMM cause #19 "ESM failure" (TS 24.301).
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: default bearer setup failed",
 			zap.String("imsi", ue.IMSI()), zap.Error(err))
 		rejectAttach(m, ctx, ue, mme.EmmCauseESMFailure)
@@ -137,7 +132,7 @@ func sendInitialContextSetup(m *mme.MME, ctx context.Context, ue *mme.UeContext,
 	// the active EPS bearers in one Initial Context Setup; the S1 Service Request has
 	// no per-bearer data-status IE, so every active bearer is set up (TS 23.401
 	// §5.3.4.1). The NAS PDU (the Attach Accept, on attach only) rides the default
-	// bearer. Each E-RAB carries its PDN's stored QoS.
+	// bearer.
 	pdns := m.SnapshotPDNs(ue)
 	erabs := make([]s1ap.ERABToBeSetupItemCtxtSUReq, 0, len(pdns))
 
@@ -205,8 +200,6 @@ func sendInitialContextSetup(m *mme.MME, ctx context.Context, ue *mme.UeContext,
 	ue.Conn().ICS = mme.ICSPending
 }
 
-// buildProtectedAttachAccept assembles the Attach Accept (with the embedded
-// Activate Default EPS Bearer Context Request) and protects it for the UE.
 func buildProtectedAttachAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext, qos *mme.EpsQoS) ([]byte, error) {
 	p := m.DefaultPDN(ue)
 	if p == nil {
@@ -280,12 +273,7 @@ func buildProtectedAttachAccept(m *mme.MME, ctx context.Context, ue *mme.UeConte
 	return wire, nil
 }
 
-// handleAttachComplete finalises the attach: it commits the GUTI reallocation
-// (freeing the old M-TMSI), leaving the UE EMM-REGISTERED with an active default
-// bearer.
 func handleAttachComplete(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
-	// An ATTACH COMPLETE is only valid once the Attach Accept has been sent
-	// (context-setup sub-phase); out of order, ignore it.
 	if ue.RegStep() != mme.RegStepContextSetup {
 		logger.From(ctx, logger.MmeLog).Warn("ignoring Attach Complete outside the context-setup sub-phase")
 
@@ -313,8 +301,7 @@ func handleAttachComplete(m *mme.MME, ctx context.Context, ue *mme.UeContext, pl
 }
 
 // sendNetworkName provides the operator's network name to the UE in an EMM
-// INFORMATION message (TS 24.301). The procedure is optional, so it is skipped
-// when no service provider name is configured.
+// INFORMATION message (TS 24.301).
 func sendNetworkName(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 	op, err := m.Bearer.GetOperator(ctx)
 	if err != nil {
@@ -333,8 +320,7 @@ func sendNetworkName(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 }
 
 // buildActivateDefaultESM assembles the ACTIVATE DEFAULT EPS BEARER CONTEXT
-// REQUEST for a PDN connection (TS 24.301 §8.3.1): PDN address, QoS, APN, and the
-// PCO carrying DNS and (for IPv4-capable bearers) the IPv4 Link MTU.
+// REQUEST for a PDN connection (TS 24.301 §8.3.1).
 func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8) ([]byte, error) {
 	apn, err := eps.MarshalAPN(qos.APN)
 	if err != nil {

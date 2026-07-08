@@ -26,12 +26,11 @@ import (
 var nasTracer = otel.Tracer("ella-core/amf/nas")
 
 // HandleNAS processes an uplink NAS PDU on a UE connection. A bare connection's first
-// message binds a fresh persistent context here (mirrors the MME's HandleNAS); a
-// message that establishes none leaves the connection bare for the NGAP layer to
-// release. A REGISTRATION REQUEST mints a fresh context; any other unresolved message is
-// dropped without a STATUS (a SERVICE REQUEST is routed to HandleServiceRequest at the
-// NGAP layer, before HandleNAS). An unimplemented message type draws a 5GMM STATUS from
-// HandleGmmMessage (§7.4).
+// message binds a fresh persistent context here; a message that establishes none leaves
+// the connection bare for the NGAP layer to release. A REGISTRATION REQUEST mints a fresh
+// context; any other unresolved message is dropped without a STATUS (a SERVICE REQUEST is
+// routed to HandleServiceRequest at the NGAP layer, before HandleNAS). An unimplemented
+// message type draws a 5GMM STATUS from HandleGmmMessage (§7.4).
 func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu []byte) {
 	if ue == nil {
 		logger.From(ctx, logger.AmfLog).Error("inbound NAS on a nil UE connection")
@@ -53,11 +52,10 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu
 		if amfUe == nil {
 			// Mint a context only for an initial REGISTRATION REQUEST — the only message
 			// that establishes a fresh context. A SERVICE REQUEST is resolved-or-rejected
-			// before HandleNAS by HandleServiceRequest (routed at the NGAP layer, mirroring
-			// the MME); any other message cites a context that was not found and cannot
-			// proceed. This keeps minting reserved to registration so an unauthenticated
-			// peer cannot leak a context per message (mirrors the MME's ATTACH-only gate).
-			// A connection left bare here is released by the NGAP layer.
+			// before HandleNAS by HandleServiceRequest, routed at the NGAP layer; any other
+			// message cites a context that was not found and cannot proceed. This keeps
+			// minting reserved to registration so an unauthenticated peer cannot leak a
+			// context per message. A connection left bare here is released by the NGAP layer.
 			if !isRegistrationRequest(nasPdu) {
 				logger.From(ctx, logger.AmfLog).Debug("initial NAS message is not a registration request; leaving the connection bare")
 				return
@@ -116,24 +114,22 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu
 // isRegistrationRequest reports whether a fresh connection's first NAS message is a
 // REGISTRATION REQUEST — the only message warranting a new UE context (TS 24.501). A
 // ciphered or non-GMM message cannot be an initial registration the network can act
-// on, so only a plain or integrity-protected (peekable) body matches (mirrors the
-// MME's isInitialAttach).
+// on, so only a plain or integrity-protected (peekable) body matches.
 func isRegistrationRequest(payload []byte) bool {
 	mt, ok := peekInitialGmmType(payload)
 	return ok && mt == nas.MsgTypeRegistrationRequest
 }
 
 // IsServiceRequest reports whether a fresh connection's first NAS message is a SERVICE
-// REQUEST, so the NGAP layer can route it to HandleServiceRequest before the mint gate
-// (mirrors the MME's S1AP peek).
+// REQUEST, so the NGAP layer can route it to HandleServiceRequest before the mint gate.
 func IsServiceRequest(payload []byte) bool {
 	mt, ok := peekInitialGmmType(payload)
 	return ok && mt == nas.MsgTypeServiceRequest
 }
 
 // HandleServiceRequest answers an initial SERVICE REQUEST, routed here from the NGAP layer
-// before the HandleNAS mint gate (mirrors the MME's dedicated S1AP handler). It resolves
-// the UE by the request's 5G-S-TMSI — integrity-verified against the held context — and
+// before the HandleNAS mint gate. It resolves the UE by the request's 5G-S-TMSI —
+// integrity-verified against the held context — and
 // either dispatches the accept/reactivation or answers SERVICE REJECT #9. It never mints
 // a context and leaves the 5GMM/security context unchanged on rejection
 // (TS 24.501 §5.6.1.5, §4.4.4.3).

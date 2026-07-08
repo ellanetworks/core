@@ -51,7 +51,7 @@ func HandleGmmMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConte
 	default:
 		// TS 24.501 §7.4: a message type not implemented by the receiver is ignored, but a
 		// 5GMM STATUS with cause #97 "message type non-existent or not implemented" should
-		// be returned (mirrors the MME's DispatchEMM default).
+		// be returned.
 		logger.From(ctx, logger.AmfLog).Warn("unhandled GMM message", logger.MessageType(amf.GmmMessageTypeName(msgType)))
 		sendStatus5GMM(ctx, ue, nasMessage.Cause5GMMMessageTypeNonExistentOrNotImplemented)
 	}

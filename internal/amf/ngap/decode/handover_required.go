@@ -24,7 +24,7 @@ import (
 // }
 
 // DecodeHandoverRequired validates a HandoverRequired PDU body (3GPP TS
-// 38.413). DirectForwardingPathAvailability is optional and not surfaced.
+// 38.413).
 func DecodeHandoverRequired(in *ngapType.HandoverRequired) (HandoverRequired, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeHandoverPreparation,

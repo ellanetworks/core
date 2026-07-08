@@ -19,7 +19,7 @@ import (
 // }
 
 // DecodeHandoverCancel validates a HandoverCancel PDU body (3GPP TS
-// 38.413). Class 1 procedure: procedure-level criticality is reject.
+// 38.413).
 func DecodeHandoverCancel(in *ngapType.HandoverCancel) (HandoverCancel, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeHandoverCancel,

@@ -13,9 +13,9 @@ import (
 )
 
 // sendStatus5GMM sends a 5GMM STATUS over the UE's connection to report an error
-// condition (TS 24.501 §5.4.5, §7.4). Mirrors the MME's sendEMMStatus. It is the
-// NAS layer's only STATUS emitter: the transport layer never answers a discarded or
-// unresolved message (TS 24.501 §4.4.4.3, §7.1).
+// condition (TS 24.501 §5.4.5, §7.4). It is the NAS layer's only STATUS emitter: the
+// transport layer never answers a discarded or unresolved message
+// (TS 24.501 §4.4.4.3, §7.1).
 func sendStatus5GMM(ctx context.Context, ue *amf.UeContext, cause uint8) {
 	conn := ue.Conn()
 	if conn == nil {

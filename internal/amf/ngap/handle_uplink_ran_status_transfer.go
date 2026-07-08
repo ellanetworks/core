@@ -17,7 +17,6 @@ import (
 // to the handover target as a DOWNLINK RAN STATUS TRANSFER (TS 38.413 §8.4.6/§8.4.7),
 // so an N2 handover of PDCP-SN-preserving DRBs is lossless. The transfer is optional
 // (the source may omit it) and non-gating: a missing in-progress handover just drops it.
-// Mirrors the MME's eNB→MME Status Transfer relay.
 func HandleUplinkRanStatusTransfer(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.UplinkRANStatusTransfer) {
 	ueConn, ok := resolveUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
 	if !ok {

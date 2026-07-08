@@ -13,7 +13,7 @@ import (
 // EPS key-derivation FC values (TS 33.401), as hex strings for
 // ueauth.GetKDFValue.
 const (
-	fcKeNB            = "11" // K_eNB
+	fcKeNB            = "11"
 	fcNextHop         = "12" // NH (next hop), the X2-handover key chain
 	fcEPSAlgorithmKey = "15" // NAS/RRC/UP algorithm keys
 )

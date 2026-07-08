@@ -9,7 +9,7 @@ import (
 
 // ConnectedSubscriber is a consistent snapshot of a Registered 5G subscriber's live
 // status for the status API, taken under a single registry lock so the fields cannot
-// tear across per-field reads. Mirrors the MME's ConnectedSubscriber.
+// tear across per-field reads.
 type ConnectedSubscriber struct {
 	RadioName   string
 	NumSessions int
@@ -17,9 +17,8 @@ type ConnectedSubscriber struct {
 }
 
 // ConnectedSubscribers returns a snapshot of every Registered 5G subscriber keyed by
-// IMSI, built under one amf.mu.RLock — one consistent read instead of the per-field
-// accessors that could tear against a concurrent register/idle transition. Mirrors the
-// MME's ConnectedSubscribers.
+// IMSI, built under one amf.mu.RLock so it is a single consistent read that cannot tear
+// against a concurrent register/idle transition.
 func (amf *AMF) ConnectedSubscribers() map[string]ConnectedSubscriber {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()

@@ -324,8 +324,6 @@ type UESnapshot struct {
 	IntegrityAlgorithm string // EPS NAS integrity, e.g. "EIA2"
 }
 
-// Snapshot returns a point-in-time copy of the UE's identity and NAS security
-// view.
 func (ue *UeContext) Snapshot() UESnapshot {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -370,8 +368,6 @@ func (ue *UeContext) allocateEBI() uint8 {
 	return 0
 }
 
-// PdnForAPN returns the PDN connection to the given APN, or nil if the UE has no
-// connection to it.
 func (ue *UeContext) PdnForAPN(apn string) *PdnConnection {
 	for _, p := range ue.Pdns {
 		if p.Apn == apn {

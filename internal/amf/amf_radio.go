@@ -33,22 +33,19 @@ type Radio struct {
 	RanPresent int
 	RanID      *models.GlobalRanNodeID
 	Conn       NGAPWriter
-	// name and supportedTAIs come from the NG Setup / RAN Configuration Update on the
-	// NGAP goroutine and are read by the status API; both are written through
-	// UpdateRadioName / UpdateRadioSupportedTAIs under amf.mu so a status read never
-	// sees a half-written value (mirrors the MME's lock-guarded eNB fields).
-	// connectedAt is set once at construction. Guarded by amf.mu.
+	// name and supportedTAIs are written through UpdateRadioName /
+	// UpdateRadioSupportedTAIs under amf.mu so a concurrent status read never sees a
+	// half-written value. connectedAt is set once at construction. Guarded by amf.mu.
 	name          string
 	supportedTAIs []SupportedTAI
 	connectedAt   time.Time
 	lastSeen      atomic.Int64 // Unix nanoseconds; use LastSeenAt()/TouchLastSeen()
-	amf           *AMF         // the owning AMF; its registry lock (amf.mu) guards the conns index this radio's UEs live in
+	amf           *AMF         // its registry lock (amf.mu) guards the conns index this radio's UEs live in
 	Log           *zap.Logger
 }
 
-// UpdateRadioName sets an already-registered radio's RAN node name under the registry
-// lock, so a concurrent status read never observes a half-written field. Mirrors the
-// MME's UpdateRadioName.
+// UpdateRadioName sets a radio's RAN node name under the registry lock, so a
+// concurrent status read never observes a half-written field.
 func (a *AMF) UpdateRadioName(radio *Radio, name string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -56,8 +53,7 @@ func (a *AMF) UpdateRadioName(radio *Radio, name string) {
 	radio.name = name
 }
 
-// UpdateRadioSupportedTAIs replaces a radio's broadcast TAI list under the registry
-// lock. Mirrors the MME's UpdateRadioSupportedTAs.
+// UpdateRadioSupportedTAIs replaces a radio's broadcast TAI list under the registry lock.
 func (a *AMF) UpdateRadioSupportedTAIs(radio *Radio, tais []SupportedTAI) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -66,8 +62,8 @@ func (a *AMF) UpdateRadioSupportedTAIs(radio *Radio, tais []SupportedTAI) {
 }
 
 // SupportedTAIList returns a snapshot of the radio's broadcast TAIs under the registry
-// lock, for callers on other goroutines (paging) that must not read the live slice
-// while an NGAP handler replaces it.
+// lock, so a caller on another goroutine never reads the live slice while an NGAP
+// handler replaces it.
 func (r *Radio) SupportedTAIList() []SupportedTAI {
 	r.amf.mu.RLock()
 	defer r.amf.mu.RUnlock()
@@ -75,9 +71,8 @@ func (r *Radio) SupportedTAIList() []SupportedTAI {
 	return append([]SupportedTAI(nil), r.supportedTAIs...)
 }
 
-// NodeName returns the radio's RAN node name under the registry lock, for callers not
-// already holding it (e.g. reading another radio's name). Must not be called while
-// holding amf.mu.
+// NodeName returns the radio's RAN node name under the registry lock. Must not be
+// called while holding amf.mu.
 func (r *Radio) NodeName() string {
 	r.amf.mu.RLock()
 	defer r.amf.mu.RUnlock()
@@ -86,8 +81,8 @@ func (r *Radio) NodeName() string {
 }
 
 // RadioNameForTest, RadioSupportedTAIsForTest and RadioConnectedAtForTest read the
-// encapsulated Radio fields under the registry lock for tests in other packages,
-// which cannot name the unexported fields or rely on radio.amf being wired.
+// encapsulated Radio fields under the registry lock for tests in other packages that
+// cannot name the unexported fields.
 func (a *AMF) RadioNameForTest(r *Radio) string {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
@@ -124,7 +119,6 @@ func (a *AMF) radioFor(conn NGAPWriter) *Radio {
 }
 
 // radioNameByConn returns the node name for a connection, or "" when untracked.
-// Mirrors the MME's enbNameByConn.
 func (a *AMF) radioNameByConn(conn NGAPWriter) string {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
@@ -137,8 +131,8 @@ func (a *AMF) radioNameByConn(conn NGAPWriter) string {
 }
 
 // RadioInfo is a read-only snapshot of a connected radio, exposed for status/API so
-// the live *Radio never leaves the AMF. Mirrors the MME's RadioInfo; RanNodeType is
-// 5G-only (the NG-RAN node may be a gNB, ng-eNB, or N3IWF).
+// the live *Radio never leaves the AMF. RanNodeType is 5G-only (the NG-RAN node may
+// be a gNB, ng-eNB, or N3IWF).
 type RadioInfo struct {
 	Name          string
 	ID            string
@@ -166,7 +160,7 @@ func (r *Radio) info() RadioInfo {
 	}
 }
 
-// RemoveAllUeInRan removes every RAN UE bound to radio. Registry op → NF receiver.
+// RemoveAllUeInRan removes every RAN UE bound to radio.
 func (a *AMF) RemoveAllUeInRan(ctx context.Context, radio *Radio) {
 	a.mu.RLock()
 
@@ -190,10 +184,9 @@ func (a *AMF) RemoveAllUeInRan(ctx context.Context, radio *Radio) {
 	}
 }
 
-// RemoveUe applies the post-NAS-connection-loss GMM cleanup and removes one RAN UE,
-// for the abrupt paths that release a specific UE and not the whole radio (a partial
-// NG Reset). It applies the same per-UE handling as RemoveAllUeInRan, so a partial and
-// a whole reset leave a registered UE in the same idle-supervised state.
+// RemoveUe applies the post-NAS-connection-loss GMM cleanup and removes one RAN UE
+// (a partial NG Reset). It applies the same per-UE handling as RemoveAllUeInRan, so a
+// partial and a whole reset leave a registered UE in the same idle-supervised state.
 func (a *AMF) RemoveUe(ctx context.Context, ueConn *UeConn) error {
 	applyStatefulNasCleanup(ctx, a, ueConn)
 
@@ -233,9 +226,8 @@ func (a *AMF) FindUEByRanUeNgapID(radio *Radio, ranUeNgapID int64) *UeConn {
 	return nil
 }
 
-// UpdateUERanNgapID records the RAN UE NGAP ID the target gNB assigned to a UE
-// in HandoverRequestAcknowledge. The UE is keyed by its AMF UE NGAP ID, so only
-// the field is updated.
+// UpdateUERanNgapID records the RAN UE NGAP ID the target gNB assigned to a UE in
+// HandoverRequestAcknowledge.
 func (a *AMF) UpdateUERanNgapID(ueConn *UeConn, newRanUeNgapID int64) {
 	a.mu.Lock()
 	defer a.mu.Unlock()

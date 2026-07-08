@@ -37,7 +37,7 @@ type AdmittedERAB struct {
 type handoverContext struct {
 	state       hoState
 	source      *UeConn // the UE's source association (ue.active during preparation)
-	target      *UeConn // the target association; its ENBUES1APID is learned from the acknowledge
+	target      *UeConn // its ENBUES1APID is learned from the acknowledge
 	admitted    []AdmittedERAB
 	releaseEBIs []uint8 // bearers the target rejected, released at notify (TS 23.401 §5.5.1.2.2 step 15)
 	// {NH, NCC} for the target, advanced at preparation, committed at notify (TS 33.401 §7.2.8).

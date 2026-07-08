@@ -312,10 +312,9 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 	switch {
 	case state == amf.Deregistered, state == amf.Registered, step == amf.RegStepAuthenticating:
 		if err := handleRegistrationRequestMessage(ctx, amfInstance, ue, msg.RegistrationRequest, integrityVerified); err != nil {
-			// handleRegistrationRequestMessage reports parse/decrypt/policy failures (some
-			// after sending a REGISTRATION REJECT) up this chain, which otherwise only logs
-			// them — releasing nothing. Release the half-registered UE here at the point of
-			// failure so it does not leak an open RAN connection under no supervision.
+			// Release the half-registered UE at the point of failure; a failed
+			// handleRegistrationRequestMessage (which may already have sent a REGISTRATION
+			// REJECT) releases nothing, leaking its open RAN connection under no supervision.
 			abortRegistration(ctx, amfInstance, ue, "handle registration request message", err)
 
 			return

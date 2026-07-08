@@ -88,8 +88,8 @@ type DBer interface {
 
 type NASHandler interface {
 	HandleNAS(ctx context.Context, ue *UeConn, nasPdu []byte)
-	// IsServiceRequest peeks whether an initial NAS PDU is a SERVICE REQUEST, so the NGAP
-	// layer routes it to HandleServiceRequest before the mint gate (mirrors the MME).
+	// IsServiceRequest reports whether an initial NAS PDU is a SERVICE REQUEST, so the NGAP
+	// layer routes it to HandleServiceRequest before minting a context.
 	IsServiceRequest(nasPdu []byte) bool
 	// HandleServiceRequest resolves-or-rejects an initial SERVICE REQUEST without minting a
 	// context (TS 24.501 §5.6.1.5, §4.4.4.3).
@@ -127,10 +127,10 @@ type AMF struct {
 	DBInstance               DBer
 	Ausf                     Authenticator
 	UEs                      map[etsi.SUPI]*UeContext
-	uesByTmsi                map[etsi.TMSI]*UeContext // 5G-TMSI (current and in-flight old) -> UE, for O(1) inbound resolution; the full GUTI is rebuilt from the constant GUAMI
-	conns                    map[int64]*UeConn        // UE-associated NGAP connections keyed by AMF-UE-NGAP-ID (globally unique); the send target is ueConn.conn
+	uesByTmsi                map[etsi.TMSI]*UeContext // 5G-TMSI (current and in-flight old) -> UE; the full GUTI is rebuilt from the constant GUAMI
+	conns                    map[int64]*UeConn        // UE-associated NGAP connections keyed by AMF-UE-NGAP-ID
 	radios                   map[NGAPWriter]*Radio
-	radiosByID               map[string]*Radio // radios that have claimed a Global RAN Node ID, for O(1) target resolution
+	radiosByID               map[string]*Radio // radios that have claimed a Global RAN Node ID
 	RelativeCapacity         int64
 	Name                     string
 	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS
@@ -148,7 +148,6 @@ type AMF struct {
 	NAS                  NASHandler
 }
 
-// HandoverGuardTimeout returns the N2 handover supervision timeout.
 func (a *AMF) HandoverGuardTimeout() time.Duration {
 	return a.handoverGuardTimeout
 }
@@ -230,10 +229,9 @@ func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext)
 
 	ue.Deregister(ctx)
 
-	// Only remove the UeConn if it still belongs to this context. A restart-on-fresh
-	// re-registration (handleRegistrationRequest) transfers the shared radio connection
-	// to a new context before this superseded husk is torn down; removing it then would
-	// kill the live registration.
+	// Only remove the UeConn if it still belongs to this context: a fresh re-registration
+	// transfers the shared radio connection to a new context before this superseded husk is
+	// torn down, and removing it then would kill the live registration.
 	if ueConn != nil && ueConn.ue == ue {
 		err := amf.RemoveUeConn(ctx, ueConn)
 		if err != nil {
@@ -248,18 +246,16 @@ func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext)
 	amf.mu.Lock()
 	amf.removeTmsiIndexLocked(ue)
 
-	// Only delete the SUPI index if it still points to this context. An authenticated
-	// re-registration (CommitUEIdentity) indexes the new context under the same SUPI
-	// before this superseded context is torn down; deleting unconditionally would drop
-	// the live registration.
+	// Only delete the SUPI index if it still points to this context: an authenticated
+	// re-registration indexes the new context under the same SUPI before this superseded
+	// context is torn down, and deleting unconditionally would drop the live registration.
 	if ue.supi.IsValid() && amf.UEs[ue.supi] == ue {
 		delete(amf.UEs, ue.supi)
 	}
 
 	amf.mu.Unlock()
 
-	// Cancel the per-registration context now that the UE is unreferenced,
-	// unwinding any work supervised directly on ue.Ctx().
+	// Cancel the per-registration context now the UE is unreferenced.
 	if ue.cancel != nil {
 		ue.cancel()
 	}
@@ -302,8 +298,8 @@ func (amf *AMF) LookupUeBySupi(supi etsi.SUPI) (*UeContext, bool) {
 	return value, true
 }
 
-// UESnapshot atomically looks up the UE by SUPI and returns a
-// point-in-time snapshot of its connection state.
+// UESnapshot returns a point-in-time snapshot of the UE's connection state, or false if
+// the UE is not found.
 func (amf *AMF) UESnapshot(supi etsi.SUPI) (UESnapshot, bool) {
 	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
@@ -427,7 +423,7 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID *ngapType.GlobalRANNodeID) *R
 }
 
 // ListRadios returns an immutable snapshot of every connected radio for status/API,
-// so the live *Radio never leaves the AMF. Mirrors the MME's ListRadios.
+// so the live *Radio never leaves the AMF.
 func (amf *AMF) ListRadios() []RadioInfo {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
@@ -440,8 +436,7 @@ func (amf *AMF) ListRadios() []RadioInfo {
 	return out
 }
 
-// HasRadio reports whether a radio with the given RAN node name is connected. Mirrors
-// the MME's HasRadio.
+// HasRadio reports whether a radio with the given RAN node name is connected.
 func (amf *AMF) HasRadio(name string) bool {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
@@ -664,9 +659,8 @@ func (amf *AMF) pageRadios(ctx context.Context, ue *UeContext, ngapBuf []byte) {
 	}
 }
 
-// StopAllTimers stops every timer on every UE. Call this during shutdown
-// to prevent paging retransmissions and other timer-driven activity from
-// firing while the system is tearing down.
+// StopAllTimers stops every timer on every UE, so no timer-driven activity fires while
+// the system is tearing down.
 func (amf *AMF) StopAllTimers() {
 	amf.mu.RLock()
 
@@ -706,8 +700,6 @@ func (amf *AMF) GetUELocation(supi etsi.SUPI) (models.UserLocation, bool) {
 	return ue.GetUserLocation(), true
 }
 
-// IsUERegistered returns true if the UE exists in the AMF's UE pool and is in
-// the Registered state.
 func (amf *AMF) IsUERegistered(supi etsi.SUPI) bool {
 	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {

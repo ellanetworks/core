@@ -20,8 +20,7 @@ import (
 // }
 
 // DecodeUEContextReleaseRequest validates a UEContextReleaseRequest PDU
-// body (3GPP TS 38.413). Class 2 procedure: procedure-level criticality
-// is ignore.
+// body (3GPP TS 38.413).
 func DecodeUEContextReleaseRequest(in *ngapType.UEContextReleaseRequest) (UEContextReleaseRequest, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeUEContextReleaseRequest,

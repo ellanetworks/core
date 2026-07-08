@@ -21,8 +21,7 @@ const (
 )
 
 // String returns the 5GMM state name. These literals are the exported API/JSON values
-// (`gmm_state`) and conformance output, so they must not change. Mirrors the MME's
-// EMMState.String() (with the 5G state names).
+// (`gmm_state`) and conformance output, so they must not change.
 func (s StateType) String() string {
 	switch s {
 	case Deregistered:

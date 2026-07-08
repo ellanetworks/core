@@ -20,8 +20,7 @@ import (
 // }
 
 // DecodeUERadioCapabilityInfoIndication validates a
-// UERadioCapabilityInfoIndication PDU body (3GPP TS 38.413). Class 2
-// procedure: procedure-level criticality is ignore.
+// UERadioCapabilityInfoIndication PDU body (3GPP TS 38.413).
 func DecodeUERadioCapabilityInfoIndication(in *ngapType.UERadioCapabilityInfoIndication) (UERadioCapabilityInfoIndication, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeUERadioCapabilityInfoIndication,

@@ -22,8 +22,7 @@ import (
 // }
 
 // DecodeUEContextReleaseComplete validates a UEContextReleaseComplete PDU
-// body (3GPP TS 38.413). Mandatory IEs are criticality-ignore, so a
-// missing or malformed value yields a non-fatal report and a nil pointer.
+// body (3GPP TS 38.413).
 func DecodeUEContextReleaseComplete(in *ngapType.UEContextReleaseComplete) (UEContextReleaseComplete, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeUEContextRelease,

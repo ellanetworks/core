@@ -21,11 +21,8 @@ import (
 // name may change via an eNB Configuration Update (guarded by MME.mu); the
 // remaining fields are immutable after the eNB associates.
 type Radio struct {
-	// Conn is the eNB's S1 association, the send target for node-level (non-UE)
-	// S1AP. Set at construction and immutable.
-	Conn S1APWriter
-	// m is the owning MME, so node-scoped methods reach the registry lock without
-	// threading it through every call. Set at construction, immutable.
+	// Conn is the send target for node-level (non-UE) S1AP.
+	Conn        S1APWriter
 	m           *MME
 	name        string
 	id          string
@@ -108,8 +105,7 @@ func (m *MME) trackRadio(key *sctp.SCTPConn, info RadioInfo) {
 	m.radios[key] = s
 }
 
-// addRadio records a connected eNB from a decoded S1 Setup Request, stamping its
-// connection time and initial last-seen.
+// addRadio records a connected eNB from a decoded S1 Setup Request.
 func (m *MME) addRadio(conn *sctp.SCTPConn, req *s1ap.S1SetupRequest) {
 	address := ""
 	if a := conn.RemoteAddr(); a != nil {
@@ -260,7 +256,6 @@ func (r *Radio) SetupComplete() bool {
 }
 
 // TouchLastSeen records inbound S1AP activity from the eNB as its last-seen time.
-// Safe for concurrent use (lastSeen is atomic).
 func (r *Radio) TouchLastSeen() {
 	r.lastSeen.Store(time.Now().UnixNano())
 }
@@ -356,7 +351,6 @@ type s1Release struct {
 	enbID s1ap.ENBUES1APID
 }
 
-// CountRadios returns the number of eNBs currently associated with the MME.
 func (m *MME) CountRadios() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -364,7 +358,6 @@ func (m *MME) CountRadios() int {
 	return len(m.radios)
 }
 
-// HasRadio reports whether an eNB with the given name is currently associated.
 func (m *MME) HasRadio(name string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -378,7 +371,6 @@ func (m *MME) HasRadio(name string) bool {
 	return false
 }
 
-// ListRadios returns the eNBs currently associated with the MME.
 func (m *MME) ListRadios() []RadioInfo {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

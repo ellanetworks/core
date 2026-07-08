@@ -57,8 +57,7 @@ func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) 
 		m.TrackRadioFromSetup(conn, im.Value)
 	}
 
-	// Resolve the eNB once at ingress and thread it to handlers; nil before S1 Setup
-	// records the eNB.
+	// radio is nil until S1 Setup records the eNB.
 	radio := m.RadioForConn(conn)
 	if radio != nil {
 		radio.TouchLastSeen()

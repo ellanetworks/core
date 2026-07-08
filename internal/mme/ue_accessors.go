@@ -58,8 +58,7 @@ func (ue *UeContext) AmbrStrings() (uplink, downlink string) {
 	return ue.Ambr.Uplink, ue.Ambr.Downlink
 }
 
-// HasKASME reports whether K_ASME is present (the UE has authenticated), without
-// exposing the key.
+// HasKASME reports whether K_ASME is present (the UE has authenticated).
 func (ue *UeContext) HasKASME() bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

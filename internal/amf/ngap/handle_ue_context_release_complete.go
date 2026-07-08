@@ -27,8 +27,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 		return
 	}
 
-	// The Complete arrived; cancel the release-supervision guard so it does not also
-	// run the cleanup.
+	// Cancel the release-supervision guard so it does not also run the cleanup.
 	ueConn.StopReleaseGuard()
 
 	if msg.UserLocationInformation != nil {

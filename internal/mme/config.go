@@ -76,7 +76,6 @@ func (m *MME) OperatorTACs(ctx context.Context) ([]uint16, error) {
 	return out, nil
 }
 
-// OperatorTAC returns the operator's first supported Tracking Area Code.
 func (m *MME) OperatorTAC(ctx context.Context) (uint16, error) {
 	tacs, err := m.OperatorTACs(ctx)
 	if err != nil {

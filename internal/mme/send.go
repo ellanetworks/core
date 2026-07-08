@@ -28,7 +28,6 @@ func (ue *UeContext) ProtectDownlinkMessage(msg nasMessage) ([]byte, error) {
 	return ue.ProtectDownlink(plain, eps.SHTIntegrityProtectedCiphered)
 }
 
-// SendDownlinkMessage serializes a plain NAS message and sends it to the UE.
 func (c *UeConn) SendDownlinkMessage(ctx context.Context, msg nasMessage) {
 	if c == nil {
 		return

@@ -72,7 +72,7 @@ func DecodeNASNonDeliveryIndication(in *ngapType.NASNonDeliveryIndication) (NASN
 				continue
 			}
 
-			// Copy so the NAS PDU can outlive the decode buffer when forwarded asynchronously.
+			// Copy so the NAS PDU can outlive the decode buffer.
 			out.NASPDU = append([]byte(nil), ie.Value.NASPDU.Value...)
 
 		case ngapType.ProtocolIEIDCause:

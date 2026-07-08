@@ -223,7 +223,6 @@ func BuildRegistrationReject(t3502Value int, cause5GMM uint8) ([]byte, error) {
 	return m.PlainNasEncode()
 }
 
-// TS 24.501
 func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 	conn := ue.Conn()
 	if conn == nil {

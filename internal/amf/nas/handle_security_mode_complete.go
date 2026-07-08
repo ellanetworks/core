@@ -44,8 +44,8 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 	if msg.IMEISV != nil {
 		pei, err := etsi.NewIMEIFromPEI(nasConvert.PeiToString(msg.IMEISV.Octet[:]))
 		if err != nil {
-			// The UE sent a malformed IMEISV; reject and release rather than proceed
-			// with an untrusted equipment identity (the NAS guard has been stopped).
+			// A malformed IMEISV yields no trusted equipment identity; reject and release
+			// (the NAS guard has been stopped).
 			amf.SendRegistrationReject(ctx, conn, nasMessage.Cause5GMMProtocolErrorUnspecified)
 			ue.Deregister(ctx)
 

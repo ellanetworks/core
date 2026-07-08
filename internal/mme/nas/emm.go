@@ -16,8 +16,7 @@ import (
 )
 
 // HandleNAS is the MME's EMM entry point for an inbound NAS message on a UE
-// connection. A bare connection's first message binds a fresh persistent context
-// here, at the NAS layer.
+// connection.
 func HandleNAS(m *mme.MME, ctx context.Context, conn *mme.UeConn, nas []byte) {
 	ue := conn.UeContext()
 	if ue == nil {
@@ -69,9 +68,7 @@ func HandleNAS(m *mme.MME, ctx context.Context, conn *mme.UeConn, nas []byte) {
 	HandleEmmMessage(m, ctx, ue, result.Plain, result.IntegrityVerified)
 }
 
-// HandleEmmMessage routes a plain NAS message to its procedure handler, splitting ESM
-// session-management messages from EMM mobility messages by protocol
-// discriminator.
+// HandleEmmMessage routes a plain NAS message to its procedure handler.
 func HandleEmmMessage(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte, integrityVerified bool) {
 	if len(plain) > 0 && plain[0]&0x0F == eps.PDESM {
 		handleESM(m, ctx, ue, plain)
