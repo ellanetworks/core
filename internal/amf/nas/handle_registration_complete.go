@@ -8,15 +8,16 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) {
+func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) nasreply.Disposition {
 	if ue.RegStep() != amf.RegStepContextSetup {
 		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Registration Complete message outside context setup", zap.String("state", string(ue.State())))
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	ue.TransitionTo(amf.Registered)
@@ -24,7 +25,7 @@ func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 	conn := ue.Conn()
 	if conn == nil {
 		logger.From(ctx, logger.AmfLog).Warn("no active NAS connection")
-		return
+		return nasreply.Handled()
 	}
 
 	conn.StopNASGuard()
@@ -47,7 +48,7 @@ func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 		ueConn := ue.Conn()
 		if ueConn == nil {
 			logger.From(ctx, logger.AmfLog).Warn("ue is not connected to RAN")
-			return
+			return nasreply.Handled()
 		}
 
 		ueConn.ReleaseAction = amf.UeContextN2NormalRelease
@@ -55,9 +56,11 @@ func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 		err := ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("error sending ue context release command", zap.Error(err))
-			return
+			return nasreply.Handled()
 		}
 	}
 
 	ue.ClearRegistrationRequestData()
+
+	return nasreply.Handled()
 }

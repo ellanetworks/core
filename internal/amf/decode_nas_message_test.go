@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
@@ -178,6 +179,41 @@ func TestDecodeNASMessage_PlainServiceRequestRejected(t *testing.T) {
 
 	if !ue.secured {
 		t.Error("decoder must NOT tear down SecurityContextAvailable on a hostile plain NAS message (DoS amplification)")
+	}
+}
+
+// A plain message whose type octet is readable but whose body cannot be decoded is a protocol
+// error: the decoder resolves it to a 5GMM STATUS #96 disposition (TS 24.501 §7.5.1), so the
+// finalizer answers rather than dropping it.
+func TestDecodeNASMessage_MalformedPlain_YieldsStatus96(t *testing.T) {
+	ue := newDecoderTestUE(t)
+	ue.secured = false // fresh UE: the plain path is taken
+
+	// EPD, plain security header, REGISTRATION REQUEST type — then truncated (no mandatory IEs).
+	_, err := DecodeNASMessage(ue, []byte{0x7e, 0x00, nas.MsgTypeRegistrationRequest})
+	if err == nil {
+		t.Fatal("expected a decode error for a truncated registration request")
+	}
+
+	d := DispositionForDecodeError(err)
+	if d.Action != nasreply.ActionStatus || d.Domain != nasreply.DomainMM || d.Cause != nasreply.CauseInvalidMandatoryInfo {
+		t.Errorf("disposition = %+v, want a 5GMM STATUS #96 (invalid mandatory information)", d)
+	}
+}
+
+// A message the decoder discards for a security reason resolves to a silent-discard
+// disposition — the network must never answer forged or non-exempt plain NAS
+// (TS 24.501 §4.4.4.3).
+func TestDecodeNASMessage_PlainRejected_YieldsSilent(t *testing.T) {
+	ue := newDecoderTestUE(t)
+
+	_, err := DecodeNASMessage(ue, encodePlainServiceRequest(t))
+	if err == nil {
+		t.Fatal("expected a decode error for a plain service request on a secured UE")
+	}
+
+	if d := DispositionForDecodeError(err); d.Action != nasreply.ActionSilent {
+		t.Errorf("disposition = %+v, want a silent discard", d)
 	}
 }
 

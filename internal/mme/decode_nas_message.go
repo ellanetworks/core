@@ -4,12 +4,39 @@
 package mme
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
+
+// decodeError couples a decode or classify failure to the nasreply.Disposition the ingress
+// finalizer must apply, so a NAS PDU the MME cannot process draws an audited silence — never a
+// bare drop. The decoder only peeks the message type, so every decode failure resolves to a
+// silence; a malformed-but-typed message is caught (and answered) by its handler.
+type decodeError struct {
+	disposition nasreply.Disposition
+	detail      string
+}
+
+func (e *decodeError) Error() string { return e.detail }
+
+// DispositionForDecodeError returns the disposition the decode layer attached to err, or an
+// audited silent discard for any other error, so an unexpected failure fails safe.
+func DispositionForDecodeError(err error) nasreply.Disposition {
+	if de, ok := errors.AsType[*decodeError](err); ok {
+		return de.disposition
+	}
+
+	return nasreply.Silent(nasreply.ReasonUnspecified)
+}
+
+func silentDecode(reason nasreply.Reason, format string, args ...any) error {
+	return &decodeError{disposition: nasreply.Silent(reason), detail: fmt.Sprintf(format, args...)}
+}
 
 // DecodeResult is the outcome of decoding an inbound EMM NAS PDU: the plaintext
 // body to dispatch and how it was authorized.
@@ -29,7 +56,7 @@ type DecodeResult struct {
 // secure-exchange flag.
 func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	if len(nas) < 1 {
-		return nil, fmt.Errorf("nas payload is empty")
+		return nil, silentDecode(nasreply.ReasonTooShort, "nas payload is empty")
 	}
 
 	// Secure exchange is tracked per NAS signalling connection (TS 24.301
@@ -44,7 +71,7 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 		mt, err := eps.PeekMessageType(nas)
 		if err != nil {
 			logger.MmeLog.Warn("failed to read EMM message type", zap.Error(err))
-			return nil, fmt.Errorf("read EMM message type: %w", err)
+			return nil, silentDecode(nasreply.ReasonTooShort, "read EMM message type: %v", err)
 		}
 
 		// TS 24.301 §4.4.4.3: once secure exchange is established on the
@@ -54,14 +81,14 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 			logger.MmeLog.Warn("discarding plain NAS message: secure exchange already established",
 				zap.String("imsi", ue.IMSI()))
 
-			return nil, fmt.Errorf("plain NAS discarded: secure exchange established")
+			return nil, silentDecode(nasreply.ReasonIntegrityFail, "plain NAS discarded: secure exchange established (TS 24.301 §4.4.4.3)")
 		}
 
 		if classifyNasPdu(mt, securityHeader, false) != verdictPlainAllowed {
 			logger.MmeLog.Warn("discarding plain NAS message not permitted without integrity (TS 24.301 §4.4.4.3)",
 				zap.String("message", EmmMessageTypeName(mt)))
 
-			return nil, fmt.Errorf("plain NAS %s not permitted", EmmMessageTypeName(mt))
+			return nil, silentDecode(nasreply.ReasonIntegrityFail, "plain NAS %s not permitted (TS 24.301 §4.4.4.3)", EmmMessageTypeName(mt))
 		}
 
 		return &DecodeResult{Plain: nas}, nil
@@ -69,7 +96,7 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 
 	if len(nas) < 6 {
 		logger.MmeLog.Warn("security-protected NAS message too short")
-		return nil, fmt.Errorf("protected NAS message too short")
+		return nil, silentDecode(nasreply.ReasonTooShort, "protected NAS message too short")
 	}
 
 	// Verify against the UE's security context. Replay protection: a stale or
@@ -101,7 +128,7 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 		logger.MmeLog.Warn("discarding NAS message: integrity check failed after secure exchange established",
 			zap.String("imsi", ue.IMSI()))
 
-		return nil, fmt.Errorf("NAS discarded: integrity failed after secure exchange")
+		return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS discarded: integrity failed after secure exchange (TS 24.301 §4.4.4.3)")
 	}
 
 	// The plaintext type is readable only for an integrity-only (unciphered)
@@ -113,13 +140,13 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 			zap.Uint8("security-header-type", securityHeader),
 			zap.Bool("has-security-context", ue.HasKASME()))
 
-		return nil, fmt.Errorf("NAS integrity check failed (ciphered, unreadable): %w", err)
+		return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS integrity check failed (ciphered, unreadable): %v", err)
 	}
 
 	mt, perr := eps.PeekMessageType(body)
 	if perr != nil {
 		logger.MmeLog.Warn("NAS integrity check failed; unreadable message type", zap.Error(err))
-		return nil, fmt.Errorf("NAS integrity check failed; unreadable type: %w", err)
+		return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS integrity check failed; unreadable type: %v", err)
 	}
 
 	// TS 24.301 §4.4.4.3: certain EMM messages are processed even when the MAC
@@ -135,7 +162,7 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 			zap.Uint8("integrity-alg", ue.EIA()),
 			zap.Bool("has-security-context", ue.HasKASME()))
 
-		return nil, fmt.Errorf("NAS integrity check failed: %s not whitelisted", EmmMessageTypeName(mt))
+		return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS integrity check failed: %s not whitelisted", EmmMessageTypeName(mt))
 	}
 
 	return &DecodeResult{Plain: body}, nil

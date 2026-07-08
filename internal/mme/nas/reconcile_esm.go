@@ -8,17 +8,18 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
-func handleESM(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
+func handleESM(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	mt, err := eps.PeekESMMessageType(plain)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to read ESM message type", zap.Error(err))
-		return
+		return nasreply.Silent(nasreply.ReasonTooShort)
 	}
 
 	ctx, span := mme.Tracer.Start(ctx, "mme/esm",
@@ -27,28 +28,32 @@ func handleESM(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte)
 
 	switch mt {
 	case eps.MsgPDNConnectivityRequest:
-		handlePDNConnectivityRequest(m, ctx, ue, plain)
+		return handlePDNConnectivityRequest(m, ctx, ue, plain)
 	case eps.MsgPDNDisconnectRequest:
-		handlePDNDisconnectRequest(m, ctx, ue, plain)
+		return handlePDNDisconnectRequest(m, ctx, ue, plain)
 	case eps.MsgActivateDefaultEPSBearerContextAccept:
-		handleActivateDefaultBearerAccept(m, ue, plain)
+		return handleActivateDefaultBearerAccept(m, ue, plain)
 	case eps.MsgActivateDefaultEPSBearerContextReject:
-		handleActivateDefaultBearerReject(m, ctx, ue, plain)
+		return handleActivateDefaultBearerReject(m, ctx, ue, plain)
 	case eps.MsgDeactivateEPSBearerContextAccept:
-		handleDeactivateBearerAccept(m, ctx, ue, plain)
+		return handleDeactivateBearerAccept(m, ctx, ue, plain)
 	case eps.MsgModifyEPSBearerContextAccept:
-		handleModifyBearerAccept(m, ue, plain)
+		return handleModifyBearerAccept(m, ue, plain)
 	case eps.MsgModifyEPSBearerContextReject:
-		handleModifyBearerReject(m, ue, plain)
+		return handleModifyBearerReject(m, ue, plain)
 	default:
+		// TS 24.301 §7.4: an ESM message type not implemented is answered with an ESM STATUS
+		// #97 "message type non-existent or not implemented" — the MME hosts ESM, so unlike
+		// the AMF (which relays 5GSM to the SMF) it emits the STATUS itself.
 		logger.From(ctx, logger.MmeLog).Warn("unhandled ESM message", zap.Int("message-type-value", int(mt)))
+		return nasreply.StatusSM(nasreply.CauseMessageTypeNotImplemented)
 	}
 }
 
 // handleModifyBearerAccept commits the new bearer configuration once the UE accepts
 // the in-place modification (TS 24.301 §6.4.2.3). The accept's EPS bearer identity
 // selects the PDN connection, so an additional PDN commits to the right bearer.
-func handleModifyBearerAccept(m *mme.MME, ue *mme.UeContext, plain []byte) {
+func handleModifyBearerAccept(m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	p := m.DefaultPDN(ue)
 	if accept, err := eps.ParseModifyEPSBearerContextAccept(plain); err == nil {
 		if named := m.LookupPDN(ue, accept.EPSBearerIdentity); named != nil {
@@ -57,21 +62,23 @@ func handleModifyBearerAccept(m *mme.MME, ue *mme.UeContext, plain []byte) {
 	}
 
 	if p == nil {
-		return
+		return nasreply.Silent(nasreply.ReasonNoContext)
 	}
 
 	m.StopESMGuard(p)
 
 	if !ue.CommitBearerModification(p) {
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	ue.Conn().Log.Info("EPS bearer modified in place", zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
+
+	return nasreply.Handled()
 }
 
 // handleModifyBearerReject abandons the modification when the UE rejects it
 // (TS 24.301 §6.4.2.4), leaving the stored config stale so the backstop retries.
-func handleModifyBearerReject(m *mme.MME, ue *mme.UeContext, plain []byte) {
+func handleModifyBearerReject(m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	p := m.DefaultPDN(ue)
 	if rej, err := eps.ParseModifyEPSBearerContextReject(plain); err == nil {
 		if named := m.LookupPDN(ue, rej.EPSBearerIdentity); named != nil {
@@ -85,6 +92,8 @@ func handleModifyBearerReject(m *mme.MME, ue *mme.UeContext, plain []byte) {
 	}
 
 	ue.Conn().Log.Warn("UE rejected EPS bearer modification", zap.String("imsi", ue.IMSI()))
+
+	return nasreply.Handled()
 }
 
 // handleDeactivateBearerAccept finalises an EPS bearer deactivation. A deactivation
@@ -92,7 +101,7 @@ func handleModifyBearerReject(m *mme.MME, ue *mme.UeContext, plain []byte) {
 // the UE connected (TS 24.301 §6.5.2). A deactivation with reactivation requested
 // for the default bearer releases the S1 context so the UE re-attaches
 // and picks up the new data-network configuration (TS 24.301 §6.4.4.2).
-func handleDeactivateBearerAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
+func handleDeactivateBearerAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	p := m.DefaultPDN(ue)
 	if accept, err := eps.ParseDeactivateEPSBearerContextAccept(plain); err == nil {
 		if named := m.LookupPDN(ue, accept.EPSBearerIdentity); named != nil {
@@ -101,7 +110,7 @@ func handleDeactivateBearerAccept(m *mme.MME, ctx context.Context, ue *mme.UeCon
 	}
 
 	if p == nil {
-		return
+		return nasreply.Silent(nasreply.ReasonNoContext)
 	}
 
 	m.StopESMGuard(p)
@@ -112,7 +121,7 @@ func handleDeactivateBearerAccept(m *mme.MME, ctx context.Context, ue *mme.UeCon
 		logger.From(ctx, logger.MmeLog).Info("PDN connection released", zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
 		m.ReleasePDN(ctx, ue, p)
 
-		return
+		return nasreply.Handled()
 	}
 
 	ue.ClearDeactivating(p)
@@ -122,4 +131,6 @@ func handleDeactivateBearerAccept(m *mme.MME, ctx context.Context, ue *mme.UeCon
 
 	logger.From(ctx, logger.MmeLog).Info("EPS bearer deactivated for reactivation; UE will re-attach", zap.String("imsi", ue.IMSI()))
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASNormalRelease)
+
+	return nasreply.Handled()
 }

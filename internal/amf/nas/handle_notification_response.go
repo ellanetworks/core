@@ -8,16 +8,17 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
 )
 
 // TS 24501 5.6.3.2
-func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.NotificationResponse) {
+func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.NotificationResponse) nasreply.Disposition {
 	if state := ue.State(); state != amf.Registered {
 		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Notification Response message", zap.String("state", string(state)))
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	if conn := ue.Conn(); conn != nil {
@@ -26,7 +27,7 @@ func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *a
 
 	if msg.PDUSessionStatus == nil {
 		logger.WithTrace(ctx, logger.AmfLog).Debug("PDUSessionStatus IE is not present in Notification Response message, no PDU session to release", logger.SUPI(ue.Supi().String()))
-		return
+		return nasreply.Handled()
 	}
 
 	psiArray := nasConvert.PSIToBooleanArray(msg.Buffer)
@@ -38,9 +39,11 @@ func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *a
 				err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref)
 				if err != nil {
 					logger.From(ctx, logger.AmfLog).Warn("failed to release sm context", zap.Error(err))
-					return
+					return nasreply.Handled()
 				}
 			}
 		}
 	}
+
+	return nasreply.Handled()
 }

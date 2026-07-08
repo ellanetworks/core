@@ -14,34 +14,35 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
 )
 
 // TS 24.501
-func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.AuthenticationResponse) {
+func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.AuthenticationResponse) nasreply.Disposition {
 	if step := ue.RegStep(); step != amf.RegStepAuthenticating {
 		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Authentication Response message outside the authentication exchange", zap.String("state", string(ue.State())))
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	ueConn := ue.Conn()
 	if ueConn == nil {
 		logger.From(ctx, logger.AmfLog).Warn("ue is not connected to RAN")
-		return
+		return nasreply.Handled()
 	}
 
 	conn := ue.Conn()
 	if conn == nil {
 		logger.From(ctx, logger.AmfLog).Warn("no active NAS connection")
-		return
+		return nasreply.Handled()
 	}
 
 	conn.StopNASGuard()
 
 	if conn.AuthenticationCtx == nil {
 		logger.From(ctx, logger.AmfLog).Warn("ue amf.Authentication Context is nil")
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	if msg.AuthenticationResponseParameter == nil {
@@ -50,7 +51,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 
 		failAuthentication(ctx, ue, ueConn)
 
-		return
+		return nasreply.Handled()
 	}
 
 	resStar := msg.GetRES()
@@ -59,7 +60,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 	p0, err := hex.DecodeString(conn.AuthenticationCtx.Rand)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("failed to decode RAND", zap.Error(err))
-		return
+		return nasreply.Handled()
 	}
 
 	p1 := resStar[:]
@@ -72,7 +73,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 
 		failAuthentication(ctx, ue, ueConn)
 
-		return
+		return nasreply.Handled()
 	}
 
 	supi, kseaf, err := amfInstance.Ausf.Confirm(ctx, hex.EncodeToString(resStar[:]), ue.Suci)
@@ -81,7 +82,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 
 		failAuthentication(ctx, ue, ueConn)
 
-		return
+		return nasreply.Handled()
 	}
 
 	ue.SetSupi(supi)
@@ -89,10 +90,12 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 	err = ue.DeriveKamf(kseaf)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("couldn't derive Kamf", zap.Error(err))
-		return
+		return nasreply.Handled()
 	}
 
 	securityMode(ctx, amfInstance, ue)
+
+	return nasreply.Handled()
 }
 
 // failAuthentication rejects the authentication response and deregisters the UE

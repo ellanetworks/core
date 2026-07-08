@@ -10,26 +10,27 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
 )
 
-func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.AuthenticationFailure) {
+func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.AuthenticationFailure) nasreply.Disposition {
 	if step := ue.RegStep(); step != amf.RegStepAuthenticating {
 		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Authentication Failure message outside the authentication exchange", zap.String("state", string(ue.State())))
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	ueConn := ue.Conn()
 	if ueConn == nil {
 		logger.From(ctx, logger.AmfLog).Warn("ue is not connected to RAN")
-		return
+		return nasreply.Handled()
 	}
 
 	conn := ue.Conn()
 	if conn == nil {
 		logger.From(ctx, logger.AmfLog).Warn("no active NAS connection")
-		return
+		return nasreply.Handled()
 	}
 
 	// An AUTHENTICATION FAILURE is only valid while a challenge is in flight; in the
@@ -38,7 +39,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 	// release the UE.
 	if conn.AuthenticationCtx == nil {
 		logger.From(ctx, logger.AmfLog).Warn("ignoring Authentication Failure with no authentication in progress")
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	// A cause outside the AUTHENTICATION FAILURE enumeration is a semantically
@@ -55,7 +56,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		logger.From(ctx, logger.AmfLog).Warn("ignoring Authentication Failure with an out-of-enumeration cause",
 			zap.Uint8("cause", msg.GetCauseValue()))
 
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	switch msg.GetCauseValue() {
@@ -65,14 +66,14 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 
 		amf.SendAuthenticationReject(ctx, ueConn)
 
-		return
+		return nasreply.Handled()
 	case nasMessage.Cause5GMMNon5GAuthenticationUnacceptable:
 		logger.From(ctx, logger.AmfLog).Warn("amf.Authentication Failure Cause: Non-5G amf.Authentication Unacceptable")
 		ue.Deregister(ctx)
 
 		amf.SendAuthenticationReject(ctx, ueConn)
 
-		return
+		return nasreply.Handled()
 	case nasMessage.Cause5GMMngKSIAlreadyInUse:
 		logger.From(ctx, logger.AmfLog).Warn("amf.Authentication Failure Cause: NgKSI Already In Use")
 
@@ -96,12 +97,12 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 
 			amf.SendAuthenticationReject(ctx, ueConn)
 
-			return
+			return nasreply.Handled()
 		}
 
 		if msg.AuthenticationFailureParameter == nil {
 			logger.From(ctx, logger.AmfLog).Warn("missing AuthenticationFailureParameter IE for SynchFailure")
-			return
+			return nasreply.Handled()
 		}
 
 		conn.SetResyncTried(true)
@@ -114,7 +115,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		response, err := sendUEAuthenticationAuthenticateRequest(ctx, amfInstance, ue, resynchronizationInfo)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("send UE amf.Authentication Authenticate Request Error", zap.Error(err))
-			return
+			return nasreply.Handled()
 		}
 
 		conn.AuthenticationCtx = response
@@ -125,4 +126,6 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 
 		logger.From(ctx, logger.AmfLog).Info("Sent authentication request")
 	}
+
+	return nasreply.Handled()
 }

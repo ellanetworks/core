@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
@@ -18,11 +19,11 @@ import (
 // (TS 24.301); the UE also requests CS-domain registration.
 const epsAttachTypeCombined uint8 = 2
 
-func handleAttachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte, integrityVerified bool) {
+func handleAttachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte, integrityVerified bool) nasreply.Disposition {
 	req, err := eps.ParseAttachRequest(plain)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to decode Attach Request", zap.Error(err))
-		return
+		return nasreply.Handled()
 	}
 
 	// A network-initiated detach is in progress ("re-attach not required", no EMM
@@ -33,7 +34,7 @@ func handleAttachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, pla
 		logger.From(ctx, logger.MmeLog).Info("ignoring Attach Request during network-initiated detach",
 			zap.Uint32("mme-ue-id", uint32(ue.Conn().MMEUES1APID)))
 
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	// An ATTACH REQUEST received after the ATTACH ACCEPT was sent and before ATTACH
@@ -46,7 +47,7 @@ func handleAttachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, pla
 			zap.Uint32("mme-ue-id", uint32(ue.Conn().MMEUES1APID)))
 		ue.Conn().ResendAttachAccept(ctx)
 
-		return
+		return nasreply.Handled()
 	}
 
 	// An Attach without verified integrity is replayed to the UE as a HashMME in
@@ -72,19 +73,21 @@ func handleAttachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, pla
 		m.ReleaseAllSessions(ctx, ue)
 		activateDefaultBearer(m, ctx, ue)
 
-		return
+		return nasreply.Handled()
 	}
 
 	if req.EPSMobileIdentity.Type == eps.IdentityIMSI {
 		m.SetIMSI(ue, req.EPSMobileIdentity.Digits)
 		authenticateOrReject(m, ctx, ue)
 
-		return
+		return nasreply.Handled()
 	}
 
 	// A foreign or unknown GUTI cannot be resolved locally, so ask the UE for its
 	// IMSI.
 	ue.Conn().SendGuardedMessage(ctx, "Identity Request", &eps.IdentityRequest{IdentityType: 1})
+
+	return nasreply.Handled()
 }
 
 // ingestAttachRequest records the attach parameters the rest of the procedure

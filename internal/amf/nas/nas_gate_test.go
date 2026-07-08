@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 )
@@ -132,11 +133,11 @@ func TestHandleNAS_PlainNonRegistration_BindsNoContext(t *testing.T) {
 	}
 }
 
-// TS 24.501 §7.4: a message type the AMF does not implement inbound is answered with
-// a 5GMM STATUS #97 from the dispatcher (not from the transport layer). Mirrors the
-// MME's DispatchEMM default.
-func TestHandleGmmMessage_UnimplementedType_SendsStatus5GMM(t *testing.T) {
-	ue, ngapSender, err := buildUeAndRadio()
+// TS 24.501 §7.4: a message type the AMF does not implement inbound resolves to a 5GMM
+// STATUS #97 disposition from the dispatcher, which the ingress finalizer sends. Mirrors the
+// MME's EMM dispatch default.
+func TestHandleGmmMessage_UnimplementedType_ReturnsStatus97(t *testing.T) {
+	ue, _, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,19 +145,10 @@ func TestHandleGmmMessage_UnimplementedType_SendsStatus5GMM(t *testing.T) {
 	msg := nas.NewGmmMessage()
 	msg.SetMessageType(nas.MsgTypeRegistrationReject) // a downlink type never handled inbound
 
-	HandleGmmMessage(context.Background(), amf.New(nil, nil, nil), ue, msg, true)
+	d := HandleGmmMessage(context.Background(), amf.New(nil, nil, nil), ue, msg, true)
 
-	if len(ngapSender.SentDownlinkNASTransport) != 1 {
-		t.Fatalf("expected 1 downlink (5GMM STATUS), got %d", len(ngapSender.SentDownlinkNASTransport))
-	}
-
-	pdu := ngapSender.SentDownlinkNASTransport[0].NasPdu
-	if len(pdu) < 4 || pdu[2] != 0x64 {
-		t.Fatalf("downlink is not a plain 5GMM STATUS: % x", pdu)
-	}
-
-	if pdu[3] != 0x61 {
-		t.Errorf("5GMM cause = 0x%02x, want 0x61 (#97 message type non-existent or not implemented)", pdu[3])
+	if d.Action != nasreply.ActionStatus || d.Domain != nasreply.DomainMM || d.Cause != nasreply.CauseMessageTypeNotImplemented {
+		t.Errorf("disposition = %+v, want a 5GMM STATUS #97 (message type non-existent or not implemented)", d)
 	}
 }
 

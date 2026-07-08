@@ -9,17 +9,18 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
 
-func handleAuthenticationResponse(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
+func handleAuthenticationResponse(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	// An AUTHENTICATION RESPONSE is valid only during the attach authentication
 	// sub-phase; out of order, ignore it to avoid re-verifying a stale challenge.
 	if ue.RegStep() != mme.RegStepAuthenticating {
 		logger.From(ctx, logger.MmeLog).Warn("ignoring Authentication Response outside the authentication sub-phase")
 
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	c := ue.Conn()
@@ -28,14 +29,14 @@ func handleAuthenticationResponse(m *mme.MME, ctx context.Context, ue *mme.UeCon
 	resp, err := eps.ParseAuthenticationResponse(plain)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to decode Authentication Response", zap.Error(err))
-		return
+		return nasreply.Handled()
 	}
 
 	if c.AuthVector == nil || subtle.ConstantTimeCompare(resp.RES, c.AuthVector.XRES) != 1 {
 		logger.From(ctx, logger.MmeLog).Warn("authentication failed: RES mismatch")
 		rejectAuthentication(m, ctx, ue)
 
-		return
+		return nasreply.Handled()
 	}
 
 	ue.SetKASME(c.AuthVector.KASME)
@@ -48,4 +49,6 @@ func handleAuthenticationResponse(m *mme.MME, ctx context.Context, ue *mme.UeCon
 
 	logger.From(ctx, logger.MmeLog).Info("authentication succeeded")
 	startSecurityMode(m, ctx, ue)
+
+	return nasreply.Handled()
 }

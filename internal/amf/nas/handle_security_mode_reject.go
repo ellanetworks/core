@@ -9,15 +9,16 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *nasMessage.SecurityModeReject) {
+func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *nasMessage.SecurityModeReject) nasreply.Disposition {
 	if step := ue.RegStep(); step != amf.RegStepSecurityMode {
 		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Security Mode Reject message outside the security mode exchange", zap.String("state", string(ue.State())))
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	defer ue.Deregister(ctx)
@@ -34,7 +35,7 @@ func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *nasMe
 	ueConn := ue.Conn()
 	if ueConn == nil {
 		logger.From(ctx, logger.AmfLog).Warn("ue is not connected to RAN")
-		return
+		return nasreply.Handled()
 	}
 
 	ueConn.ReleaseAction = amf.UeContextReleaseUeContext
@@ -42,6 +43,8 @@ func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *nasMe
 	err := ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("error sending ue context release command", zap.Error(err))
-		return
+		return nasreply.Handled()
 	}
+
+	return nasreply.Handled()
 }

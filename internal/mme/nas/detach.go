@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
@@ -22,14 +23,16 @@ func releaseDetachSessions(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 	}
 }
 
-func handleDetachAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
+func handleDetachAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext) nasreply.Disposition {
 	ue.Conn().StopNASGuard()
 	logger.From(ctx, logger.MmeLog).Info("Detach Accept")
 	releaseDetachSessions(m, ctx, ue)
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASDetach)
+
+	return nasreply.Handled()
 }
 
-func handleDetachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte, integrityVerified bool) {
+func handleDetachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte, integrityVerified bool) nasreply.Disposition {
 	// A UE holding keys must integrity-protect its DETACH REQUEST, so a forged plain
 	// detach cannot deregister an authenticated UE (TS 24.301 §4.4.4.3 defence in
 	// depth). A UE that lost its keys can recover via a fresh Attach.
@@ -37,13 +40,13 @@ func handleDetachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, pla
 		logger.From(ctx, logger.MmeLog).Warn("rejecting unauthenticated Detach Request from UE with valid security context",
 			zap.String("imsi", ue.IMSI()))
 
-		return
+		return nasreply.Silent(nasreply.ReasonIntegrityFail)
 	}
 
 	req, err := eps.ParseDetachRequestUE(plain)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to decode Detach Request", zap.Error(err))
-		return
+		return nasreply.Handled()
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Detach Request",
@@ -64,4 +67,6 @@ func handleDetachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, pla
 	}
 
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASDetach)
+
+	return nasreply.Handled()
 }

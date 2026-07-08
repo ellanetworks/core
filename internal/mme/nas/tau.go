@@ -9,6 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
@@ -17,11 +18,11 @@ import (
 // (TS 24.301). A UE already ECM-CONNECTED keeps its bearers; a UE returning from
 // ECM-IDLE re-establishes them when it sets the active flag, else is released back
 // to ECM-IDLE after acknowledging the accept.
-func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
+func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	req, err := eps.ParseTrackingAreaUpdateRequest(plain)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to decode Tracking Area Update Request", zap.Error(err))
-		return
+		return nasreply.Handled()
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update Request",
@@ -42,7 +43,7 @@ func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext
 	})
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Tracking Area Update Accept", zap.String("imsi", ue.IMSI()), zap.Error(err))
-		return
+		return nasreply.Handled()
 	}
 
 	// The accept reallocates the GUTI, so it is guarded by T3450 and retransmitted
@@ -50,7 +51,7 @@ func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext
 	naspdu, err := ue.ProtectDownlinkMessage(accept)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to protect Tracking Area Update Accept", zap.Error(err))
-		return
+		return nasreply.Handled()
 	}
 
 	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultAccept)
@@ -62,21 +63,21 @@ func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext
 		ue.Conn().SendDownlinkNASTransport(ctx, naspdu)
 		ue.Conn().ArmNASGuard("Tracking Area Update Accept", naspdu)
 
-		return
+		return nasreply.Handled()
 	}
 
 	if req.ActiveFlag {
 		qos, err := mme.ResolveQoS(m, ctx, ue.IMSI())
 		if err != nil {
 			logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
-			return
+			return nasreply.Handled()
 		}
 
 		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted (bearer re-established)", zap.String("imsi", ue.IMSI()))
 		sendInitialContextSetup(m, ctx, ue, qos, naspdu)
 		ue.Conn().ArmNASGuard("Tracking Area Update Accept", naspdu)
 
-		return
+		return nasreply.Handled()
 	}
 
 	// No active flag: defer the S1 release to TAU Complete (or the guard timeout)
@@ -88,11 +89,13 @@ func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext
 	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted (returning to idle)", zap.String("imsi", ue.IMSI()))
 	ue.Conn().SendDownlinkNASTransport(ctx, naspdu)
 	ue.Conn().ArmNASGuard("Tracking Area Update Accept", naspdu)
+
+	return nasreply.Handled()
 }
 
 // handleTrackingAreaUpdateComplete finalises a GUTI reallocation; for a no-active
 // TAU it releases the UE back to ECM-IDLE (TS 24.301).
-func handleTrackingAreaUpdateComplete(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
+func handleTrackingAreaUpdateComplete(m *mme.MME, ctx context.Context, ue *mme.UeContext) nasreply.Disposition {
 	ue.Conn().StopNASGuard()
 	m.CommitGUTIRealloc(ue)
 
@@ -102,6 +105,8 @@ func handleTrackingAreaUpdateComplete(m *mme.MME, ctx context.Context, ue *mme.U
 		ue.Conn().TauReleaseOnComplete = false
 		m.ReleaseUEContext(ctx, ue, mme.CauseNASNormalRelease)
 	}
+
+	return nasreply.Handled()
 }
 
 // epsUpdateTypeName renders an EPS update type for logging (TS 24.301).

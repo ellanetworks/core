@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
@@ -305,7 +306,7 @@ func restartRegistrationOnFreshContext(ctx context.Context, amfInstance *amf.AMF
 	HandleGmmMessage(ctx, amfInstance, fresh, msg, integrityVerified)
 }
 
-func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nas.GmmMessage, integrityVerified bool) {
+func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nas.GmmMessage, integrityVerified bool) nasreply.Disposition {
 	state := ue.State()
 	step := ue.RegStep()
 
@@ -317,7 +318,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 			// REJECT) releases nothing, leaking its open RAN connection under no supervision.
 			abortRegistration(ctx, amfInstance, ue, "handle registration request message", err)
 
-			return
+			return nasreply.Handled()
 		}
 
 		ue.TransitionTo(amf.RegistrationInitiated)
@@ -338,20 +339,24 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 			ueConn := ue.Conn()
 			if ueConn == nil {
 				logger.From(ctx, logger.AmfLog).Warn("ue is not connected to RAN")
-				return
+				return nasreply.Handled()
 			}
 
 			amf.SendRegistrationReject(ctx, ueConn, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 
-			return
+			return nasreply.Handled()
 		}
 
 		if pass {
 			securityMode(ctx, amfInstance, ue)
 		}
 
+		return nasreply.Handled()
+
 	case step == amf.RegStepSecurityMode:
 		restartRegistrationOnFreshContext(ctx, amfInstance, ue, msg, integrityVerified)
+
+		return nasreply.Handled()
 	case step == amf.RegStepContextSetup:
 		// A REGISTRATION REQUEST received after the REGISTRATION ACCEPT was sent and
 		// before REGISTRATION COMPLETE arrives (TS 24.501 §5.5.1.2.8 case d). Identical
@@ -362,16 +367,22 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 			logger.From(ctx, logger.AmfLog).Info("duplicate Registration Request with identical IEs; resending Registration Accept")
 			amf.ResendRegistrationAccept(ctx, amfInstance, ue)
 
-			return
+			return nasreply.Handled()
 		}
 
 		restartRegistrationOnFreshContext(ctx, amfInstance, ue, msg, integrityVerified)
+
+		return nasreply.Handled()
 	case state == amf.DeregistrationInitiated && isInitialRegistration(msg.RegistrationRequest):
 		// A UE-initiated initial or emergency registration during a network-initiated
 		// de-registration aborts the de-registration and progresses the registration
 		// (TS 24.501 §5.5.2.3.5 case d).
 		restartRegistrationOnFreshContext(ctx, amfInstance, ue, msg, integrityVerified)
+
+		return nasreply.Handled()
 	default:
 		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Registration Request message", zap.String("state", string(state)))
+
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 }

@@ -8,13 +8,14 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
 // TS 23.502
-func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, ue *amf.UeContext, msg *nasMessage.DeregistrationRequestUEOriginatingDeregistration, integrityVerified bool) {
+func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, ue *amf.UeContext, msg *nasMessage.DeregistrationRequestUEOriginatingDeregistration, integrityVerified bool) nasreply.Disposition {
 	// No state precondition: TS 24.501 §5.5.2.2.2 has the network process the
 	// UE-initiated de-registration and enter 5GMM-DEREGISTERED regardless of the
 	// current state; the integrity guard below is the security control.
@@ -24,7 +25,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 	// recover via Initial Registration.
 	if !integrityVerified && ue.Secured() {
 		logger.From(ctx, logger.AmfLog).Warn("rejecting unauthenticated Deregistration Request from UE with valid security context")
-		return
+		return nasreply.Silent(nasreply.ReasonIntegrityFail)
 	}
 
 	defer ue.Deregister(ctx)
@@ -32,7 +33,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 	ueConn := ue.Conn()
 	if ueConn == nil {
 		logger.WithTrace(ctx, logger.AmfLog).Warn("amf.UeConn is nil, cannot send UE Context Release Command", logger.SUPI(ue.Supi().String()))
-		return
+		return nasreply.Handled()
 	}
 
 	if msg.GetSwitchOff() == 0 {
@@ -44,7 +45,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 	// TS 23.502
 	targetDeregistrationAccessType := msg.GetAccessType()
 	if targetDeregistrationAccessType != nasMessage.AccessType3GPP {
-		return
+		return nasreply.Handled()
 	}
 
 	ueConn.ReleaseAction = amf.UeContextReleaseUeContext
@@ -52,6 +53,8 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 	err := ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("error sending ue context release command", zap.Error(err))
-		return
+		return nasreply.Handled()
 	}
+
+	return nasreply.Handled()
 }

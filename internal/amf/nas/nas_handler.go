@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
@@ -25,40 +26,46 @@ import (
 
 var nasTracer = otel.Tracer("ella-core/amf/nas")
 
-// HandleNAS processes an uplink NAS PDU on a UE connection. A bare connection's first
-// message binds a fresh persistent context here; a message that establishes none leaves
-// the connection bare for the NGAP layer to release. A REGISTRATION REQUEST mints a fresh
-// context; any other unresolved message is dropped without a STATUS (a SERVICE REQUEST is
-// routed to HandleServiceRequest at the NGAP layer, before HandleNAS). An unimplemented
-// message type draws a 5GMM STATUS from HandleGmmMessage (§7.4).
+// HandleNAS processes an uplink NAS PDU on a UE connection and finalizes the single outcome
+// it resolves to: a REGISTRATION REQUEST mints a fresh persistent context; a message the AMF
+// cannot process draws the STATUS the spec mandates (§7.4, §7.5.1) or an audited silence
+// (§4.4.4.3), never a bare drop; a message that establishes no context leaves the connection
+// bare for the NGAP layer to release. A SERVICE REQUEST is routed to HandleServiceRequest at
+// the NGAP layer, before HandleNAS.
 func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu []byte) {
 	if ue == nil {
 		logger.From(ctx, logger.AmfLog).Error("inbound NAS on a nil UE connection")
 		return
 	}
 
+	dispositionForNAS(ctx, amfInstance, ue, nasPdu).Finalize(ctx, egress{ue: ue})
+}
+
+// dispositionForNAS resolves an inbound NAS PDU to the single outcome the finalizer applies.
+// A SERVICE REQUEST never reaches here — it is resolved-or-rejected by HandleServiceRequest,
+// routed at the NGAP layer before the mint gate.
+func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu []byte) nasreply.Disposition {
 	if nasPdu == nil {
 		logger.From(ctx, logger.AmfLog).Error("inbound NAS with a nil PDU")
-		return
+		return nasreply.Silent(nasreply.ReasonTooShort)
 	}
 
 	if ue.UeContext() == nil {
 		amfUe, err := fetchUeContextWithMobileIdentity(ctx, amfInstance, nasPdu)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("failed to resolve UE context from mobile identity", zap.Error(err))
-			return
+			return amf.DispositionForDecodeError(err)
 		}
 
 		if amfUe == nil {
 			// Mint a context only for an initial REGISTRATION REQUEST — the only message
-			// that establishes a fresh context. A SERVICE REQUEST is resolved-or-rejected
-			// before HandleNAS by HandleServiceRequest, routed at the NGAP layer; any other
-			// message cites a context that was not found and cannot proceed. This keeps
-			// minting reserved to registration so an unauthenticated peer cannot leak a
-			// context per message. A connection left bare here is released by the NGAP layer.
+			// that establishes a fresh context. This keeps minting reserved to registration
+			// so an unauthenticated peer cannot leak a context per message. Any other message
+			// cites a context that was not found; the network cannot act on it and answers
+			// nothing (§7.4). A connection left bare here is released by the NGAP layer.
 			if !isRegistrationRequest(nasPdu) {
 				logger.From(ctx, logger.AmfLog).Debug("initial NAS message is not a registration request; leaving the connection bare")
-				return
+				return nasreply.Silent(nasreply.ReasonNoContext)
 			}
 
 			amfUe = amf.NewUeContext()
@@ -69,22 +76,19 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu
 
 	result, err := amf.DecodeNASMessage(ue.UeContext(), nasPdu)
 	if err != nil {
-		// DecodeNASMessage logged the reason; the PDU is dropped. On a secured
-		// connection a message that fails integrity or arrives plain is discarded
-		// without answer (TS 24.501 §4.4.4.3).
-		return
+		return amf.DispositionForDecodeError(err)
 	}
 
 	msg := result.Message
 
 	if msg.GmmMessage == nil {
 		logger.From(ctx, logger.AmfLog).Warn("decoded NAS message carries no GMM body")
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	if msg.GsmMessage != nil {
 		logger.From(ctx, logger.AmfLog).Warn("standalone 5GSM message on N1 discarded")
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	integrityVerified := result.IntegrityVerified
@@ -108,7 +112,7 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu
 		logger.SUPI(ue.UeContext().Supi().String()),
 	)
 
-	HandleGmmMessage(ctx, amfInstance, ue.UeContext(), msg.GmmMessage, integrityVerified)
+	return HandleGmmMessage(ctx, amfInstance, ue.UeContext(), msg.GmmMessage, integrityVerified)
 }
 
 // isRegistrationRequest reports whether a fresh connection's first NAS message is a
@@ -158,6 +162,7 @@ func HandleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 	result, err := amf.DecodeNASMessage(amfUe, nasPdu)
 	if err != nil {
+		amf.DispositionForDecodeError(err).Finalize(ctx, egress{ue: ue})
 		return
 	}
 

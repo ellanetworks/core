@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
@@ -101,7 +102,7 @@ func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integri
 	return nil
 }
 
-func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.IdentityResponse, integrityVerified bool) {
+func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.IdentityResponse, integrityVerified bool) nasreply.Disposition {
 	// The identification procedure is complete on receipt of the response
 	// (TS 24.501 §5.4.3.4).
 	if conn := ue.Conn(); conn != nil {
@@ -114,7 +115,7 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 
 		if err := updateUEIdentity(ue, mobileIdentityContents, integrityVerified); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("error handling identity response", zap.Error(err))
-			return
+			return nasreply.Handled()
 		}
 
 		pass, err := authenticationProcedure(ctx, amfInstance, ue)
@@ -122,27 +123,27 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 			logger.From(ctx, logger.AmfLog).Warn("error in authentication procedure", zap.Error(err))
 			ue.Deregister(ctx)
 
-			return
+			return nasreply.Handled()
 		}
 
 		if pass {
 			securityMode(ctx, amfInstance, ue)
 		}
 
-		return
+		return nasreply.Handled()
 
 	case amf.RegStepContextSetup:
 		mobileIdentityContents := msg.GetMobileIdentityContents()
 
 		if err := updateUEIdentity(ue, mobileIdentityContents, integrityVerified); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("error handling identity response", zap.Error(err))
-			return
+			return nasreply.Handled()
 		}
 
 		conn := ue.Conn()
 		if conn == nil {
 			logger.From(ctx, logger.AmfLog).Warn("no active NAS connection")
-			return
+			return nasreply.Handled()
 		}
 
 		switch conn.RegistrationType5GS {
@@ -155,6 +156,8 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 		}
 	default:
 		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Identity Response message", zap.String("state", string(ue.State())))
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
+
+	return nasreply.Handled()
 }

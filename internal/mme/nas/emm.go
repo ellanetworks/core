@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/nasreply"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.opentelemetry.io/otel/attribute"
@@ -18,6 +19,13 @@ import (
 // HandleNAS is the MME's EMM entry point for an inbound NAS message on a UE
 // connection.
 func HandleNAS(m *mme.MME, ctx context.Context, conn *mme.UeConn, nas []byte) {
+	dispositionForNAS(m, ctx, conn, nas).Finalize(ctx, egress{conn: conn})
+}
+
+// dispositionForNAS resolves an inbound NAS PDU to the single outcome the finalizer applies:
+// a message the MME cannot process draws the STATUS the spec mandates or an audited silence,
+// never a bare drop.
+func dispositionForNAS(m *mme.MME, ctx context.Context, conn *mme.UeConn, nas []byte) nasreply.Disposition {
 	ue := conn.UeContext()
 	if ue == nil {
 		// A bare connection binds a persistent context only for an ATTACH REQUEST —
@@ -25,7 +33,7 @@ func HandleNAS(m *mme.MME, ctx context.Context, conn *mme.UeConn, nas []byte) {
 		// cannot exhaust UE contexts. A connection left bare here is released by the
 		// S1AP layer.
 		if !isInitialAttach(nas) {
-			return
+			return nasreply.Silent(nasreply.ReasonNoContext)
 		}
 
 		ue = mme.NewUeContext()
@@ -38,7 +46,7 @@ func HandleNAS(m *mme.MME, ctx context.Context, conn *mme.UeConn, nas []byte) {
 	if !ue.Secured() {
 		resolved, drop := resolveAttachContext(m, ctx, ue, nas)
 		if drop {
-			return
+			return nasreply.Silent(nasreply.ReasonUnspecified)
 		}
 
 		ue = resolved
@@ -51,36 +59,33 @@ func HandleNAS(m *mme.MME, ctx context.Context, conn *mme.UeConn, nas []byte) {
 	pd, err := eps.ProtocolDiscriminator(nas)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to read NAS protocol discriminator", zap.Error(err))
-		return
+		return nasreply.Silent(nasreply.ReasonTooShort)
 	}
 
 	if pd != eps.PDEMM {
 		logger.From(ctx, logger.MmeLog).Debug("ignoring standalone ESM NAS message")
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	result, err := mme.DecodeNASMessage(ue, nas)
 	if err != nil {
-		// DecodeNASMessage has logged the reason.
-		return
+		return mme.DispositionForDecodeError(err)
 	}
 
-	HandleEmmMessage(m, ctx, ue, result.Plain, result.IntegrityVerified)
+	return HandleEmmMessage(m, ctx, ue, result.Plain, result.IntegrityVerified)
 }
 
-// HandleEmmMessage routes a plain NAS message to its procedure handler.
-func HandleEmmMessage(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte, integrityVerified bool) {
+// HandleEmmMessage routes a plain NAS message to its procedure handler and reports the single
+// outcome the ingress finalizer applies.
+func HandleEmmMessage(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte, integrityVerified bool) nasreply.Disposition {
 	if len(plain) > 0 && plain[0]&0x0F == eps.PDESM {
-		handleESM(m, ctx, ue, plain)
-		return
+		return handleESM(m, ctx, ue, plain)
 	}
 
 	mt, err := eps.PeekMessageType(plain)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to read EMM message type", zap.Error(err))
-		sendEMMStatus(ctx, ue, mme.EmmCauseProtocolErrorUnspec)
-
-		return
+		return nasreply.StatusMM(nasreply.CauseProtocolErrorUnspecified)
 	}
 
 	ctx, span := mme.Tracer.Start(ctx, "nas/receive",
@@ -89,29 +94,29 @@ func HandleEmmMessage(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain 
 
 	switch mt {
 	case eps.MsgAttachRequest:
-		handleAttachRequest(m, ctx, ue, plain, integrityVerified)
+		return handleAttachRequest(m, ctx, ue, plain, integrityVerified)
 	case eps.MsgIdentityResponse:
-		handleIdentityResponse(m, ctx, ue, plain)
+		return handleIdentityResponse(m, ctx, ue, plain)
 	case eps.MsgAuthenticationResponse:
-		handleAuthenticationResponse(m, ctx, ue, plain)
+		return handleAuthenticationResponse(m, ctx, ue, plain)
 	case eps.MsgAuthenticationFailure:
-		handleAuthenticationFailure(m, ctx, ue, plain)
+		return handleAuthenticationFailure(m, ctx, ue, plain)
 	case eps.MsgSecurityModeComplete:
-		handleSecurityModeComplete(m, ctx, ue, plain)
+		return handleSecurityModeComplete(m, ctx, ue, plain)
 	case eps.MsgSecurityModeReject:
-		handleSecurityModeReject(m, ctx, ue, plain)
+		return handleSecurityModeReject(m, ctx, ue, plain)
 	case eps.MsgAttachComplete:
-		handleAttachComplete(m, ctx, ue, plain)
+		return handleAttachComplete(m, ctx, ue, plain)
 	case eps.MsgDetachRequest:
-		handleDetachRequest(m, ctx, ue, plain, integrityVerified)
+		return handleDetachRequest(m, ctx, ue, plain, integrityVerified)
 	case eps.MsgDetachAccept:
-		handleDetachAccept(m, ctx, ue)
+		return handleDetachAccept(m, ctx, ue)
 	case eps.MsgTrackingAreaUpdateRequest:
-		handleTrackingAreaUpdate(m, ctx, ue, plain)
+		return handleTrackingAreaUpdate(m, ctx, ue, plain)
 	case eps.MsgTrackingAreaUpdateComplete:
-		handleTrackingAreaUpdateComplete(m, ctx, ue)
+		return handleTrackingAreaUpdateComplete(m, ctx, ue)
 	case eps.MsgEMMStatus:
-		handleEMMStatus(plain)
+		return handleEMMStatus(plain)
 	default:
 		// TS 24.301 §7.4: a message type not implemented by the receiver is ignored, but an
 		// EMM STATUS with cause #97 "message type non-existent or not implemented" should be
@@ -119,7 +124,8 @@ func HandleEmmMessage(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain 
 		logger.From(ctx, logger.MmeLog).Warn("unhandled EMM message",
 			zap.String("message-type", mme.EmmMessageTypeName(mt)),
 			zap.Int("message-type-value", int(mt)))
-		sendEMMStatus(ctx, ue, mme.EmmCauseMessageTypeNonExistent)
+
+		return nasreply.StatusMM(nasreply.CauseMessageTypeNotImplemented)
 	}
 }
 

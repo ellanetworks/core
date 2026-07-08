@@ -9,18 +9,19 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
 
-func handleSecurityModeComplete(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
+func handleSecurityModeComplete(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	// A SECURITY MODE COMPLETE is valid only during the security mode sub-phase;
 	// out of order, ignore it. A genuine one is integrity-protected against the
 	// context installed at command send, so this is defence in depth.
 	if ue.RegStep() != mme.RegStepSecurityMode {
 		logger.From(ctx, logger.MmeLog).Warn("ignoring Security Mode Complete outside the security mode sub-phase")
 
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	ue.Conn().StopNASGuard()
@@ -31,7 +32,7 @@ func handleSecurityModeComplete(m *mme.MME, ctx context.Context, ue *mme.UeConte
 	smc, err := eps.ParseSecurityModeComplete(plain)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to decode Security Mode Complete", zap.Error(err))
-		return
+		return nasreply.Handled()
 	}
 
 	// The Security Mode Command requested the IMEISV (TS 24.301); parse it into the
@@ -55,7 +56,7 @@ func handleSecurityModeComplete(m *mme.MME, ctx context.Context, ue *mme.UeConte
 		req, err := eps.ParseAttachRequest(smc.ReplayedNASMessage)
 		if err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("failed to decode replayed NAS message container in Security Mode Complete", zap.Error(err))
-			return
+			return nasreply.Handled()
 		}
 
 		logger.From(ctx, logger.MmeLog).Info("recovered genuine Attach Request from replayed NAS message container", zap.String("imsi", ue.IMSI()))
@@ -68,4 +69,6 @@ func handleSecurityModeComplete(m *mme.MME, ctx context.Context, ue *mme.UeConte
 	)
 
 	activateDefaultBearer(m, ctx, ue)
+
+	return nasreply.Handled()
 }

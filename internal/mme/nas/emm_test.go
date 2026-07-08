@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/udm"
 	nascommon "github.com/ellanetworks/core/nas/common"
@@ -759,10 +760,10 @@ func parseInitialContextSetup(t *testing.T, pdu []byte) *s1ap.InitialContextSetu
 	return ics
 }
 
-// TestDispatchEMM_UnhandledMessageSendsEMMStatus verifies that an unhandled EMM
-// message type is answered with an EMM STATUS so the UE is not left waiting
-// (TS 24.301 §5.7; mirrors the AMF's 5GMM STATUS on NAS protocol error).
-func TestDispatchEMM_UnhandledMessageSendsEMMStatus(t *testing.T) {
+// TestDispatchEMM_UnhandledMessageReturnsEMMStatus verifies that an unhandled EMM message
+// type resolves to an EMM STATUS #97 disposition, which the ingress finalizer sends so the UE
+// is not left waiting (TS 24.301 §5.7, §7.4; mirrors the AMF's 5GMM STATUS #97).
+func TestDispatchEMM_UnhandledMessageReturnsEMMStatus(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 	ue := m.NewUe(cc, 7)
@@ -770,19 +771,29 @@ func TestDispatchEMM_UnhandledMessageSendsEMMStatus(t *testing.T) {
 	// A plain EMM message (SHT=plain, PD=EMM) carrying a type the MME does not handle.
 	plain := []byte{0x07, 0x55}
 
-	HandleEmmMessage(m, context.Background(), ue, plain, true)
+	d := HandleEmmMessage(m, context.Background(), ue, plain, true)
 
-	if len(cc.sent) != 1 {
-		t.Fatalf("expected 1 downlink (EMM STATUS), got %d", len(cc.sent))
+	if d.Action != nasreply.ActionStatus || d.Domain != nasreply.DomainMM || d.Cause != nasreply.CauseMessageTypeNotImplemented {
+		t.Fatalf("disposition = %+v, want an EMM STATUS #97 (message type non-existent or not implemented)", d)
 	}
+}
 
-	status, err := eps.ParseEMMStatus(decodeDownlinkNAS(t, cc.sent[0]))
-	if err != nil {
-		t.Fatalf("parse EMM STATUS: %v", err)
-	}
+// TestDispatchESM_UnhandledMessageReturnsESMStatus verifies the MME closes the ESM gap: an
+// unhandled ESM message type resolves to an ESM STATUS #97 disposition (the MME hosts ESM, so
+// unlike the AMF it emits the STATUS itself). TS 24.301 §7.4, §8.3.13.
+func TestDispatchESM_UnhandledMessageReturnsESMStatus(t *testing.T) {
+	m := newTestMME(t)
+	cc := &captureConn{}
+	ue := m.NewUe(cc, 7)
 
-	if status.EMMCause != mme.EmmCauseMessageTypeNonExistent {
-		t.Fatalf("EMM STATUS cause = %d, want %d", status.EMMCause, mme.EmmCauseMessageTypeNonExistent)
+	// A plain NAS message with the ESM protocol discriminator and an ESM type the MME does
+	// not handle (bearer 0/PTI in octet 1, unhandled message type in octet 3).
+	plain := []byte{0x02, 0x00, 0x55}
+
+	d := HandleEmmMessage(m, context.Background(), ue, plain, true)
+
+	if d.Action != nasreply.ActionStatus || d.Domain != nasreply.DomainSM || d.Cause != nasreply.CauseMessageTypeNotImplemented {
+		t.Fatalf("disposition = %+v, want an ESM STATUS #97 (message type non-existent or not implemented)", d)
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -273,18 +274,18 @@ func buildProtectedAttachAccept(m *mme.MME, ctx context.Context, ue *mme.UeConte
 	return wire, nil
 }
 
-func handleAttachComplete(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
+func handleAttachComplete(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	if ue.RegStep() != mme.RegStepContextSetup {
 		logger.From(ctx, logger.MmeLog).Warn("ignoring Attach Complete outside the context-setup sub-phase")
 
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	ue.Conn().StopNASGuard()
 
 	if _, err := eps.ParseAttachComplete(plain); err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to decode Attach Complete", zap.Error(err))
-		return
+		return nasreply.Handled()
 	}
 
 	m.CommitGUTIRealloc(ue)
@@ -298,6 +299,8 @@ func handleAttachComplete(m *mme.MME, ctx context.Context, ue *mme.UeContext, pl
 	)
 
 	sendNetworkName(m, ctx, ue)
+
+	return nasreply.Handled()
 }
 
 // sendNetworkName provides the operator's network name to the UE in an EMM

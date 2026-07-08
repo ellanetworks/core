@@ -10,11 +10,12 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
 
-func handleAuthenticationFailure(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
+func handleAuthenticationFailure(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	// An AUTHENTICATION FAILURE is admissible without integrity protection
 	// (TS 24.301 §4.4.4.3) and can be injected. It is valid only during the attach
 	// authentication sub-phase; in any other state its handling is
@@ -22,7 +23,7 @@ func handleAuthenticationFailure(m *mme.MME, ctx context.Context, ue *mme.UeCont
 	if ue.RegStep() != mme.RegStepAuthenticating {
 		logger.From(ctx, logger.MmeLog).Warn("ignoring Authentication Failure outside the authentication sub-phase")
 
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	// No challenge is in flight during the identity sub-window, so an
@@ -31,13 +32,13 @@ func handleAuthenticationFailure(m *mme.MME, ctx context.Context, ue *mme.UeCont
 	if c.AuthVector == nil {
 		logger.From(ctx, logger.MmeLog).Warn("ignoring Authentication Failure with no authentication in progress")
 
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	resp, err := eps.ParseAuthenticationFailure(plain)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to decode Authentication Failure", zap.Error(err))
-		return
+		return nasreply.Handled()
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Authentication Failure", zap.Uint8("emm-cause", resp.Cause))
@@ -51,7 +52,7 @@ func handleAuthenticationFailure(m *mme.MME, ctx context.Context, ue *mme.UeCont
 		logger.From(ctx, logger.MmeLog).Warn("ignoring Authentication Failure with an out-of-enumeration cause",
 			zap.Uint8("emm-cause", resp.Cause))
 
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	c.StopNASGuard()
@@ -66,11 +67,13 @@ func handleAuthenticationFailure(m *mme.MME, ctx context.Context, ue *mme.UeCont
 			rejectAuthentication(m, ctx, ue)
 		}
 
-		return
+		return nasreply.Handled()
 	}
 
 	// The UE attaches with its IMSI, so per TS 24.301 these cases abort with a reject.
 	rejectAuthentication(m, ctx, ue)
+
+	return nasreply.Handled()
 }
 
 func rejectAuthentication(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
