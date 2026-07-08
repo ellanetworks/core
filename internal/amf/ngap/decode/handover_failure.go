@@ -19,11 +19,7 @@ import (
 // }
 
 // DecodeHandoverFailure validates a HandoverFailure PDU body (3GPP TS
-// 38.413). AMFUENGAPID and Cause are mandatory-ignore;
-// CriticalityDiagnostics is optional-ignore. The procedure is class 1,
-// so the procedure-level criticality is "reject". A missing or malformed
-// AMF-UE-NGAP-ID yields a non-fatal report with a zero ID. Duplicate IEs
-// follow a last-wins policy.
+// 38.413). Class 1 procedure: procedure-level criticality is reject.
 //
 // CriticalityDiagnostics aliases the source PDU buffer.
 func DecodeHandoverFailure(in *ngapType.HandoverFailure) (HandoverFailure, *Report) {

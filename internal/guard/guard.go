@@ -18,6 +18,16 @@ import (
 	"time"
 )
 
+// TimerValue configures a retransmitting supervision timer that feeds Guard.Arm:
+// ExpireTime is the per-attempt deadline and MaxRetryTimes the retransmit budget.
+// Enable gates the timer — a disabled timer is never armed. Both the AMF and MME
+// hold their retransmitting guard configs (NAS-common, ESM, paging) as TimerValues.
+type TimerValue struct {
+	Enable        bool
+	ExpireTime    time.Duration
+	MaxRetryTimes int32
+}
+
 // Guard is the zero-value-ready timer. Methods are safe for concurrent use;
 // callback closures run without the Guard's lock held, so they may acquire other
 // locks freely.
@@ -27,6 +37,16 @@ type Guard struct {
 	gen     uint64
 	expires int32 // firings so far in the current arming; status/diagnostics only
 	maxRetx int32 // retry limit of the current arming; status/diagnostics only
+}
+
+// ArmWith arms the guard from cfg, a no-op when cfg is disabled — so callers need
+// not repeat the Enable check or unpack ExpireTime/MaxRetryTimes.
+func (g *Guard) ArmWith(cfg TimerValue, onRetransmit func(attempt int32), onAbort func()) {
+	if !cfg.Enable {
+		return
+	}
+
+	g.Arm(cfg.ExpireTime, cfg.MaxRetryTimes, onRetransmit, onAbort)
 }
 
 // Arm cancels any running timer and starts a new one: onRetransmit fires on each

@@ -21,11 +21,8 @@ import (
 // }
 
 // DecodeInitialContextSetupFailure validates an InitialContextSetupFailure
-// PDU body (3GPP TS 38.413). AMFUENGAPID, RANUENGAPID and Cause
-// are mandatory-ignore; PDUSessionResourceFailedToSetupListCxtFail and
-// CriticalityDiagnostics are optional-ignore. Class 1 procedure, so
-// procedure-level criticality is "reject". Duplicate IEs follow a
-// last-wins policy.
+// PDU body (3GPP TS 38.413). Class 1 procedure: procedure-level
+// criticality is reject.
 func DecodeInitialContextSetupFailure(in *ngapType.InitialContextSetupFailure) (InitialContextSetupFailure, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeInitialContextSetup,

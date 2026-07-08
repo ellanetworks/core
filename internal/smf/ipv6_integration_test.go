@@ -554,7 +554,7 @@ func setupIPv6SessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, strin
 		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
 	}
 
-	return smCtx, smf.CanonicalName(supi, 1)
+	return smCtx, smCtx.Ref
 }
 
 // setupDualStackSessionWithTunnel creates a session with a fully populated tunnel
@@ -659,7 +659,7 @@ func TestRemoveSession_IPv6Only_ReleasesIPv6(t *testing.T) {
 	smCtx := s.NewSession(supi, 1, testDNN, testSnssai)
 	smCtx.PDUIPV6Prefix = net.ParseIP("2001:db8::").To16()
 
-	ref := smf.CanonicalName(supi, 1)
+	ref := smCtx.Ref
 
 	s.RemoveSession(ctx, ref)
 
@@ -685,7 +685,7 @@ func TestRemoveSession_DualStack_ReleasesBoth(t *testing.T) {
 	smCtx.PDUIPV4Address = net.ParseIP("10.0.0.1").To4()
 	smCtx.PDUIPV6Prefix = net.ParseIP("2001:db8:abcd::").To16()
 
-	ref := smf.CanonicalName(supi, 1)
+	ref := smCtx.Ref
 
 	s.RemoveSession(ctx, ref)
 
@@ -730,6 +730,12 @@ func TestUpdateSmContextN1Msg_IPv6Release(t *testing.T) {
 	}
 	amfCb.mu.Unlock()
 
+	// The user plane is torn down on Release Complete, not on the request
+	// (TS 23.502 §4.3.4).
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionReleaseComplete(smCtx.PDUSessionID, 5)); err != nil {
+		t.Fatalf("release complete: %v", err)
+	}
+
 	// Verify IPv6 was released.
 	store.mu.Lock()
 	if len(store.releasedIPv6s) == 0 {
@@ -771,6 +777,12 @@ func TestUpdateSmContextN1Msg_DualStackRelease(t *testing.T) {
 		t.Fatalf("expected 1 ReleaseSession call, got %d", len(amfCb.releaseCalls))
 	}
 	amfCb.mu.Unlock()
+
+	// The user plane is torn down on Release Complete, not on the request
+	// (TS 23.502 §4.3.4).
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionReleaseComplete(smCtx.PDUSessionID, 5)); err != nil {
+		t.Fatalf("release complete: %v", err)
+	}
 
 	// Verify both IPv4 and IPv6 were released.
 	store.mu.Lock()
@@ -824,7 +836,7 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_IPv6RegistersIPv6GnbAddress(t *test
 		t.Fatalf("build IPv6 N2 payload: %v", err)
 	}
 
-	if err := s.UpdateSmContextN2InfoPduResSetupRsp(ctx, smCtx.CanonicalName(), n2Data); err != nil {
+	if err := s.UpdateSmContextN2InfoPduResSetupRsp(ctx, smCtx.Ref, n2Data); err != nil {
 		t.Fatalf("UpdateSmContextN2InfoPduResSetupRsp: %v", err)
 	}
 

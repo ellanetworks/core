@@ -5,6 +5,10 @@ package send
 
 import "fmt"
 
+// NGAPPPID is the SCTP payload protocol identifier for NGAP (TS 38.412),
+// set on every NGAP datagram the AMF sends and required on the listener.
+const NGAPPPID uint32 = 60
+
 type NGAPProcedure string
 
 const (
@@ -35,9 +39,10 @@ const (
 	NGAPProcedureHandoverPreparationFailure       NGAPProcedure = "HandoverPreparationFailure"
 	NGAPProcedureUEContextReleaseCommand          NGAPProcedure = "UEContextReleaseCommand"
 	NGAPProcedureDownlinkNRPPaTransport           NGAPProcedure = "DownlinkNRPPaTransport"
+	NGAPProcedureDownlinkRanStatusTransfer        NGAPProcedure = "DownlinkRANStatusTransfer"
 )
 
-func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
+func GetSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 	switch msgType {
 	// Non-UE procedures
 	case NGAPProcedureNGSetupResponse, NGAPProcedureNGSetupFailure,
@@ -55,7 +60,8 @@ func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 		NGAPProcedurePathSwitchRequestAcknowledge, NGAPProcedurePDUSessionResourceModifyRequest,
 		NGAPProcedurePDUSessionResourceModifyConfirm, NGAPProcedureHandoverCancelAcknowledge,
 		NGAPProcedureLocationReportingControl, NGAPProcedurePathSwitchRequestFailure,
-		NGAPProcedureDownlinkNRPPaTransport:
+		NGAPProcedureDownlinkNRPPaTransport,
+		NGAPProcedureDownlinkRanStatusTransfer:
 		return 1, nil
 	default:
 		return 0, fmt.Errorf("NGAP message type (%s) not supported", msgType)

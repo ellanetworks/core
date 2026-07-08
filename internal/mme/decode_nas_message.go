@@ -35,7 +35,7 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	// Secure exchange is tracked per NAS signalling connection (TS 24.301
 	// §4.4.4.3); ue.secured is the separate per-UE "has a security context"
 	// notion used by handover/path-switch.
-	conn := ue.S1
+	conn := ue.Conn()
 	connSecured := conn != nil && conn.SecureExchangeEstablished()
 
 	securityHeader := nas[0] >> 4
@@ -91,10 +91,8 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 
 	// A switch-off DETACH REQUEST is honoured without integrity protection only
 	// before secure exchange is established (TS 24.301 §4.4.4.3). Its body is
-	// readable even under a null-cipher security header, so it is checked before
-	// the type peek below (which a genuinely ciphered body would defeat). DETACH
-	// REQUEST is on the no-integrity whitelist, so it dispatches via the
-	// WithoutIntegrity path.
+	// readable even under a null-cipher security header, so it is checked here,
+	// ahead of the ciphered type peek that a genuinely ciphered body would defeat.
 	if !connSecured && isSwitchOffDetach(body) {
 		return &DecodeResult{Plain: body}, nil
 	}

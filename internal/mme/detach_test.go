@@ -7,12 +7,14 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/ellanetworks/core/etsi"
 )
 
 func TestDetachSubscriberUnansweredReleases(t *testing.T) {
 	m := newTestMME(t)
-	m.nasGuardTimeout = 5 * time.Millisecond
-	m.nasGuardMaxRetransmit = 2
+	m.nasGuardCfg.ExpireTime = 5 * time.Millisecond
+	m.nasGuardCfg.MaxRetryTimes = 2
 
 	ue, cc := securedUE(t, m)
 
@@ -23,7 +25,7 @@ func TestDetachSubscriberUnansweredReleases(t *testing.T) {
 		return cc.count() >= 4
 	})
 
-	if !ue.S1.releasing {
+	if !ue.Conn().releasing {
 		t.Fatal("UE not released after an unanswered network-initiated detach")
 	}
 }
@@ -52,7 +54,7 @@ func securedUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 	}
 
 	ue.kasme = kasme
-	ue.eea, ue.eia = 2, 2
+	ue.cipheringAlg, ue.integrityAlg = 2, 2
 
 	var err error
 	if ue.knasEnc, err = DeriveKNASEnc(kasme, 2); err != nil {
@@ -64,8 +66,8 @@ func securedUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 	}
 
 	ue.secured = true
-	ue.S1.secureExchangeEstablished = true
-	ue.emmState.store(EMMRegistered)
+	ue.Conn().secureExchangeEstablished = true
+	ue.ForceStateForTest(EMMRegistered)
 	registerTestUE(m, ue, testSubscriber.IMSI)
 
 	return ue, cc
@@ -75,12 +77,12 @@ func securedUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 // completed attach would. Re-registering a UE under a new IMSI moves its index.
 func registerTestUE(m *MME, ue *UeContext, imsi string) {
 	m.mu.Lock()
-	if ue.imsi != "" && m.ues[ue.imsi] == ue {
-		delete(m.ues, ue.imsi)
+	if ue.supi.IsIMSI() && m.UEs[ue.supi] == ue {
+		delete(m.UEs, ue.supi)
 	}
 
-	ue.imsi = imsi
-	m.ues[imsi] = ue
+	ue.supi, _ = etsi.NewSUPIFromIMSI(imsi)
+	m.UEs[ue.supi] = ue
 	m.mu.Unlock()
 }
 
@@ -91,11 +93,11 @@ func TestDetachSubscriberIdleReleasesLocally(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
 	testPDN(ue).Apn = "internet"
-	m.FreeS1Conn(ue) // ECM-IDLE: no S1 connection
+	m.FreeUeConn(ue) // ECM-IDLE: no S1 connection
 
-	m.DetachSubscriber(context.Background(), ue.imsi)
+	m.DetachSubscriber(context.Background(), ue.imsiOrEmpty())
 
-	if _, ok := m.LookupUeByIMSI(ue.imsi); ok {
+	if _, ok := m.LookupUeByIMSI(ue.imsiOrEmpty()); ok {
 		t.Fatal("idle UE context not removed on subscriber deletion")
 	}
 
@@ -104,12 +106,46 @@ func TestDetachSubscriberIdleReleasesLocally(t *testing.T) {
 	}
 }
 
+// TestDetachSubscriberConnectedUnsecuredReleasesLocally checks that deleting a
+// subscriber whose UE is connected but has no security context (e.g. mid-attach
+// before security mode) removes the context and releases its sessions locally,
+// rather than leaving the deleted subscriber connected because a protected DETACH
+// REQUEST could not be built (TS 24.301 §5.5.2.3.1 local detach). Mirrors the AMF.
+func TestDetachSubscriberConnectedUnsecuredReleasesLocally(t *testing.T) {
+	m := newTestMME(t)
+
+	cc := &captureConn{}
+	ue := m.NewUe(cc, 7)
+	ue.secured = false // connected, but no NAS security context
+	ue.ForceStateForTest(EMMRegistrationInitiated)
+	registerTestUE(m, ue, testSubscriber.IMSI)
+	testPDN(ue).Apn = "internet"
+
+	if !m.UeConnected(ue) {
+		t.Fatal("test precondition: UE must be connected")
+	}
+
+	m.DetachSubscriber(context.Background(), testSubscriber.IMSI)
+
+	if _, ok := m.LookupUeByIMSI(testSubscriber.IMSI); ok {
+		t.Fatal("connected-but-unsecured UE context not removed on subscriber deletion")
+	}
+
+	if cc.count() != 0 {
+		t.Fatalf("expected no downlink for a local detach (no keys to protect one), got %d", cc.count())
+	}
+
+	if !m.Session.(*fakeSessionManager).released {
+		t.Fatal("EPS session not released on local detach")
+	}
+}
+
 // TestReleaseUEContextIdleNoPanic checks releaseUEContext on a UE whose connection
 // was freed in the gap before it took the lock returns without dereferencing nil.
 func TestReleaseUEContextIdleNoPanic(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
-	m.FreeS1Conn(ue)
+	m.FreeUeConn(ue)
 
 	m.ReleaseUEContext(context.Background(), ue, CauseNASNormalRelease)
 }

@@ -15,47 +15,45 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapConvert"
 	"go.uber.org/zap"
 )
 
 func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.InitialUEMessage) {
-	ranUe := ran.FindUEByRanUeNgapID(msg.RANUENGAPID)
-	if ranUe != nil {
-		// gNB reused a RAN UE NGAP ID before completing the previous
-		// UEContextRelease. Drop the stale ranUe so a deferred
-		// UEContextReleaseComplete carrying the old AMF UE NGAP ID
-		// cannot remove the freshly created context below.
-		logger.WithTrace(ctx, ranUe.Log).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale RanUe",
-			zap.Int64("RanUeNgapID", ranUe.RanUeNgapID),
-			zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
+	ueConn := amfInstance.FindUEByRanUeNgapID(ran, msg.RANUENGAPID)
+	if ueConn != nil {
+		// gNB reused a RAN UE NGAP ID before completing the previous UEContextRelease.
+		// Drop the stale ueConn so a deferred UEContextReleaseComplete carrying the old
+		// AMF UE NGAP ID cannot remove the freshly created context.
+		logger.WithTrace(ctx, ueConn.Log).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale UeConn",
+			zap.Int64("RanUeNgapID", ueConn.RanUeNgapID),
+			zap.Int64("AmfUeNgapID", ueConn.AmfUeNgapID))
 
-		err := ranUe.Remove(ctx)
+		err := amfInstance.RemoveUeConn(ctx, ueConn)
 		if err != nil {
-			logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
+			logger.WithTrace(ctx, ueConn.Log).Error(err.Error())
 		}
 
-		ranUe = nil
+		ueConn = nil
 	}
 
-	if ranUe == nil {
+	if ueConn == nil {
 		var err error
 
-		ranUe, err = amfInstance.NewRanUe(ran, msg.RANUENGAPID)
+		ueConn, err = amfInstance.NewUeConn(ran, msg.RANUENGAPID)
 		if err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("Failed to add Ran UE to the pool", zap.Error(err))
 			return
 		}
 
-		logger.WithTrace(ctx, ranUe.Log).Debug("Added Ran UE to the pool", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+		logger.WithTrace(ctx, ueConn.Log).Debug("Added Ran UE to the pool", zap.Int64("RanUeNgapID", ueConn.RanUeNgapID))
 
 		if msg.FiveGSTMSI != nil {
-			logger.WithTrace(ctx, ranUe.Log).Debug("Receive 5G-S-TMSI")
+			logger.WithTrace(ctx, ueConn.Log).Debug("Receive 5G-S-TMSI")
 
 			operatorInfo, err := amfInstance.OperatorInfo(ctx)
 			if err != nil {
-				logger.WithTrace(ctx, ranUe.Log).Error("Could not get operator info", zap.Error(err))
+				logger.WithTrace(ctx, ueConn.Log).Error("Could not get operator info", zap.Error(err))
 				return
 			}
 
@@ -67,51 +65,58 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 			tmsi, err := etsi.NewTMSI(binary.BigEndian.Uint32(msg.FiveGSTMSI.FiveGTMSI))
 			if err != nil {
-				logger.WithTrace(ctx, ranUe.Log).Warn("invalid tmsi", zap.Error(err))
+				logger.WithTrace(ctx, ueConn.Log).Warn("invalid tmsi", zap.Error(err))
 			}
 
-			guti, err := etsi.NewGUTI(operatorInfo.Guami.PlmnID.Mcc, operatorInfo.Guami.PlmnID.Mnc, amfID, tmsi)
+			guti, err := etsi.NewGUTI5G(operatorInfo.Guami.PlmnID.Mcc, operatorInfo.Guami.PlmnID.Mnc, amfID, tmsi)
 			if err != nil {
-				logger.WithTrace(ctx, ranUe.Log).Warn("invalid guti", zap.Error(err))
+				logger.WithTrace(ctx, ueConn.Log).Warn("invalid guti", zap.Error(err))
 			}
 
-			if amfUe, ok := amfInstance.FindUeContextByGuti(guti); !ok {
-				logger.WithTrace(ctx, ranUe.Log).Warn("Unknown UE", logger.GUTI(guti.String()))
+			if amfUe, ok := amfInstance.LookupUeByGuti(guti); !ok {
+				logger.WithTrace(ctx, ueConn.Log).Warn("Unknown UE", logger.GUTI(guti.String()))
 			} else if !amfUe.ReuseForInboundNAS(msg.NASPDU) {
 				// TS 24.501: this message cites an existing context but
 				// is not authenticated for it. Do not bind to or mutate the live
 				// context; the NAS layer registers it on a fresh context pending
 				// authentication.
-				logger.WithTrace(ctx, ranUe.Log).Info("Initial UE Message cites a known GUTI but is not authenticated for that context; registering on a fresh context", logger.GUTI(guti.String()))
+				logger.WithTrace(ctx, ueConn.Log).Info("Initial UE Message cites a known GUTI but is not authenticated for that context; registering on a fresh context", logger.GUTI(guti.String()))
 			} else {
-				logger.WithTrace(ctx, ranUe.Log).Debug("find UeContext", logger.GUTI(guti.String()))
+				logger.WithTrace(ctx, ueConn.Log).Debug("find UeContext", logger.GUTI(guti.String()))
 
-				if amfUe.RanUe() != nil {
-					logger.WithTrace(ctx, ranUe.Log).Debug("Implicit Deregistration", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+				if amfUe.Conn() != nil {
+					logger.WithTrace(ctx, ueConn.Log).Debug("Implicit Deregistration", zap.Int64("RanUeNgapID", ueConn.RanUeNgapID))
 				}
 
-				logger.WithTrace(ctx, ranUe.Log).Debug("UeContext Attach RanUe", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
-				amfUe.AttachRanUe(ranUe)
+				logger.WithTrace(ctx, ueConn.Log).Debug("UeContext Attach UeConn", zap.Int64("RanUeNgapID", ueConn.RanUeNgapID))
+				amfInstance.AttachUeConn(amfUe, ueConn)
 			}
 		}
 	}
 
-	ranUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation.Raw())
+	ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation.Raw())
 
-	ranUe.UeContextRequest = msg.UEContextRequest
+	ueConn.UeContextRequest = msg.UEContextRequest
 
-	if ranUe.UeContext() != nil {
-		ranUe.UeContext().StopImplicitDeregistrationTimer()
-		ranUe.UeContext().StopMobileReachableTimer()
+	if ueConn.UeContext() != nil {
+		amfInstance.StopIdleTimers(ueConn.UeContext())
 	}
 
 	if amfInstance.NAS == nil {
-		logger.WithTrace(ctx, ranUe.Log).Error("NAS handler not set")
+		logger.WithTrace(ctx, ueConn.Log).Error("NAS handler not set")
 		return
 	}
 
-	if err := amfInstance.NAS.HandleNAS(ctx, ranUe, msg.NASPDU); err != nil {
-		logger.WithTrace(ctx, ranUe.Log).Error("error handling NAS Message", zap.Error(err))
-		sendStatus5GMM(ctx, ranUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
+	amfInstance.NAS.HandleNAS(ctx, ueConn, msg.NASPDU)
+
+	// A NAS message that never established a UE context (undecodable, no usable mobile
+	// identity, or not a registration request) leaves a bare RAN connection; release it
+	// so an unauthenticated peer cannot exhaust RAN-UE-NGAP-IDs (mirrors the MME's
+	// ReleaseBareConn). A message that bound a context is torn down on its own
+	// registration path.
+	if ueConn.UeContext() == nil {
+		if rerr := amfInstance.RemoveUeConn(ctx, ueConn); rerr != nil {
+			logger.WithTrace(ctx, ueConn.Log).Error("failed to release bare RAN UE", zap.Error(rerr))
+		}
 	}
 }

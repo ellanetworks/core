@@ -349,11 +349,12 @@ func TestReleaseEPSSession(t *testing.T) {
 	store, upf := epsTestSMF()
 	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
 
-	if _, err := s.CreateEPSSession(context.Background(), epsRequest(1)); err != nil {
+	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(1))
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := s.ReleaseEPSSession(context.Background(), "001010000000001", epsTestEBI); err != nil {
+	if err := s.ReleaseEPSSession(context.Background(), bearer.Ref); err != nil {
 		t.Fatal(err)
 	}
 

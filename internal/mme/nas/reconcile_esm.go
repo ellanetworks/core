@@ -17,7 +17,7 @@ import (
 func handleESM(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
 	mt, err := eps.PeekESMMessageType(plain)
 	if err != nil {
-		logger.MmeLog.Warn("failed to read ESM message type", zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Warn("failed to read ESM message type", zap.Error(err))
 		return
 	}
 
@@ -33,7 +33,7 @@ func handleESM(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte)
 	case eps.MsgActivateDefaultEPSBearerContextAccept:
 		handleActivateDefaultBearerAccept(m, ue, plain)
 	case eps.MsgActivateDefaultEPSBearerContextReject:
-		handleActivateDefaultBearerReject(m, ue, plain)
+		handleActivateDefaultBearerReject(m, ctx, ue, plain)
 	case eps.MsgDeactivateEPSBearerContextAccept:
 		handleDeactivateBearerAccept(m, ctx, ue, plain)
 	case eps.MsgModifyEPSBearerContextAccept:
@@ -41,7 +41,7 @@ func handleESM(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte)
 	case eps.MsgModifyEPSBearerContextReject:
 		handleModifyBearerReject(m, ue, plain)
 	default:
-		logger.MmeLog.Warn("unhandled ESM message", zap.Int("message-type-value", int(mt)))
+		logger.From(ctx, logger.MmeLog).Warn("unhandled ESM message", zap.Int("message-type-value", int(mt)))
 	}
 }
 
@@ -66,8 +66,7 @@ func handleModifyBearerAccept(m *mme.MME, ue *mme.UeContext, plain []byte) {
 		return
 	}
 
-	logger.MmeLog.Info("EPS bearer modified in place",
-		zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)), zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
+	ue.Conn().Log.Info("EPS bearer modified in place", zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
 }
 
 // handleModifyBearerReject abandons the modification when the UE rejects it
@@ -85,14 +84,13 @@ func handleModifyBearerReject(m *mme.MME, ue *mme.UeContext, plain []byte) {
 		ue.ClearPendingModify(p)
 	}
 
-	logger.MmeLog.Warn("UE rejected EPS bearer modification",
-		zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)), zap.String("imsi", ue.IMSI()))
+	ue.Conn().Log.Warn("UE rejected EPS bearer modification", zap.String("imsi", ue.IMSI()))
 }
 
 // handleDeactivateBearerAccept finalises an EPS bearer deactivation. A deactivation
 // triggered by a UE PDN disconnect releases only that PDN connection and leaves
 // the UE connected (TS 24.301 §6.5.2). A deactivation with reactivation requested
-// for the default bearer instead releases the S1 context so the UE re-attaches
+// for the default bearer releases the S1 context so the UE re-attaches
 // and picks up the new data-network configuration (TS 24.301 §6.4.4.2).
 func handleDeactivateBearerAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
 	p := m.DefaultPDN(ue)
@@ -108,25 +106,20 @@ func handleDeactivateBearerAccept(m *mme.MME, ctx context.Context, ue *mme.UeCon
 
 	m.StopESMGuard(p)
 
-	// Reactivating the attach PDN's default bearer detaches the UE so it re-attaches
-	// with the new configuration (TS 24.301 §6.4.4.2); any other case releases just
-	// that PDN connection and leaves the UE connected.
 	releaseOnly := ue.BearerReleaseOnly(p)
 
 	if releaseOnly {
-		logger.MmeLog.Info("PDN connection released",
-			zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)), zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
-		m.ReleasePDN(ue, p)
+		logger.From(ctx, logger.MmeLog).Info("PDN connection released", zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
+		m.ReleasePDN(ctx, ue, p)
 
 		return
 	}
 
 	ue.ClearDeactivating(p)
 
-	ue.SetEMMState(mme.EMMDeregistered)
-	m.ReleaseAllSessions(ue)
+	ue.TransitionTo(mme.EMMDeregistered)
+	m.ReleaseAllSessions(ctx, ue)
 
-	logger.MmeLog.Info("EPS bearer deactivated for reactivation; UE will re-attach",
-		zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)), zap.String("imsi", ue.IMSI()))
+	logger.From(ctx, logger.MmeLog).Info("EPS bearer deactivated for reactivation; UE will re-attach", zap.String("imsi", ue.IMSI()))
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASNormalRelease)
 }

@@ -16,20 +16,17 @@ func TestHandleDeregistrationAccept_T3522Stopped_UEContextReleaseCommand(t *test
 		t.Fatalf("could not build test UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.Registered)
-	conn := ue.NasConn()
-	conn.T3522.Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.ForceStateForTest(amf.Registered)
+	conn := ue.Conn()
+	conn.NASGuardForTest().Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 
-	err = handleDeregistrationAccept(t.Context(), ue)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	handleDeregistrationAccept(t.Context(), ue)
 
 	if ue.State() != amf.Deregistered {
 		t.Fatalf("expected UE to be deregistered, but was: %s", ue.State())
 	}
 
-	if conn.T3522.Active() {
+	if conn.NASGuardForTest().Active() {
 		t.Fatal("expected timer T3522 to be stopped and cleared")
 	}
 
@@ -44,12 +41,9 @@ func TestHandleDeregistrationAccept_NilRanUE_NoMessage(t *testing.T) {
 		t.Fatalf("could not build test UE and radio: %v", err)
 	}
 
-	ue.ReleaseNasConnection(nil)
+	ue.Conn().AMFForTest().ReleaseNasConnection(ue, nil)
 
-	err = handleDeregistrationAccept(t.Context(), ue)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	handleDeregistrationAccept(t.Context(), ue)
 
 	if len(ngapSender.SentUEContextReleaseCommand) != 0 {
 		t.Fatal("should not have sent a UE Context Release Command message")

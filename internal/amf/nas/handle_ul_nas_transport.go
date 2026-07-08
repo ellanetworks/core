@@ -8,11 +8,11 @@ package nas
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
@@ -28,89 +28,95 @@ func forward5GSMMessageToSMF(
 	pduSessionID uint8,
 	smContextRef string,
 	smMessage []byte,
-) error {
-	ranUe := ue.RanUe()
-	if ranUe == nil {
-		return fmt.Errorf("RAN UE context is nil, cannot forward 5GSM message to SMF")
+) {
+	ueConn := ue.Conn()
+	if ueConn == nil {
+		logger.From(ctx, logger.AmfLog).Warn("RAN UE context is nil, cannot forward 5GSM message to SMF")
+		return
 	}
 
-	response, err := amfInstance.Smf.UpdateSmContextN1Msg(ctx, smContextRef, smMessage)
+	response, err := amfInstance.Session.UpdateSmContextN1Msg(ctx, smContextRef, smMessage)
 	if err != nil {
-		return fmt.Errorf("couldn't send update sm context request: %s", err)
+		logger.From(ctx, logger.AmfLog).Warn("couldn't send update sm context request", zap.Error(err))
+		return
 	}
 
 	if response == nil {
-		ue.Log.Warn("SMF did not return any N1/N2 message", zap.Uint8("pduSessionID", pduSessionID))
-		return nil
+		logger.From(ctx, logger.AmfLog).Warn("SMF did not return any N1/N2 message", zap.Uint8("pduSessionID", pduSessionID))
+		return
 	}
 
 	var n1Msg []byte
 
 	if response.N1Msg != nil {
-		ue.Log.Debug("Receive N1 SM Message from SMF")
+		logger.From(ctx, logger.AmfLog).Debug("Receive N1 SM Message from SMF")
 
 		n1Msg, err = amf.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, response.N1Msg, pduSessionID, nil)
 		if err != nil {
-			return fmt.Errorf("error building DL NAS Transport: %s", err)
+			logger.From(ctx, logger.AmfLog).Warn("error building DL NAS Transport", zap.Error(err))
+			return
 		}
 	}
 
 	if response.N2Msg != nil {
-		ue.Log.Debug("Receive N2 SM Information from SMF")
+		logger.From(ctx, logger.AmfLog).Debug("Receive N2 SM Information from SMF")
 
 		if !response.ReleaseN2 {
-			ue.Log.Debug("amf.AMF forward N2 SM Information to UE")
-			return nil
+			logger.From(ctx, logger.AmfLog).Debug("amf.AMF forward N2 SM Information to UE")
+			return
 		}
 
 		list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 		send.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, response.N2Msg)
 
-		err := ranUe.SendPDUSessionResourceReleaseCommand(ctx, n1Msg, list)
+		err := ueConn.SendPDUSessionResourceReleaseCommand(ctx, n1Msg, list)
 		if err != nil {
-			return fmt.Errorf("error sending pdu session resource release command: %s", err)
+			logger.From(ctx, logger.AmfLog).Warn("error sending pdu session resource release command", zap.Error(err))
+			return
 		}
 
-		ue.Log.Info("sent pdu session resource release command to UE")
+		logger.From(ctx, logger.AmfLog).Info("sent pdu session resource release command to UE")
 
-		return nil
+		return
 	}
 
 	if n1Msg != nil {
-		err := ranUe.SendDownlinkNasTransport(ctx, n1Msg, nil)
+		err := ueConn.SendDownlinkNASTransport(ctx, n1Msg, nil)
 		if err != nil {
-			return fmt.Errorf("error sending downlink nas transport: %s", err)
+			logger.From(ctx, logger.AmfLog).Warn("error sending downlink nas transport", zap.Error(err))
+			return
 		}
 
-		ue.Log.Info("sent downlink nas transport to UE")
+		logger.From(ctx, logger.AmfLog).Info("sent downlink nas transport to UE")
 	}
-
-	return nil
 }
 
-func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, ulNasTransport *nasMessage.ULNASTransport) error {
+func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, ulNasTransport *nasMessage.ULNASTransport) {
 	smMessage := ulNasTransport.GetPayloadContainerContents()
 
 	id := ulNasTransport.PduSessionID2Value
 	if id == nil {
-		return fmt.Errorf("pdu session id is nil")
+		logger.From(ctx, logger.AmfLog).Warn("pdu session id is nil")
+		return
 	}
 
 	pduSessionID := id.GetPduSessionID2Value()
 
-	ranUe := ue.RanUe()
-	if ranUe == nil {
-		return fmt.Errorf("RAN UE context is nil, cannot transport 5GSM message")
+	ueConn := ue.Conn()
+	if ueConn == nil {
+		logger.From(ctx, logger.AmfLog).Warn("RAN UE context is nil, cannot transport 5GSM message")
+		return
 	}
 
 	if ulNasTransport.OldPDUSessionID != nil {
-		return fmt.Errorf("old pdu session id is not supported")
+		logger.From(ctx, logger.AmfLog).Warn("old pdu session id is not supported")
+		return
 	}
 
 	// Reserved or unassigned PDU session identity value (TS 24.501).
 	if pduSessionID < 1 || pduSessionID > 15 {
-		sendPayloadNotForwarded(ctx, ranUe, pduSessionID, smMessage)
-		return nil
+		sendPayloadNotForwarded(ctx, ueConn, pduSessionID, smMessage)
+		return
 	}
 
 	requestType := ulNasTransport.RequestType
@@ -119,10 +125,10 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		switch requestType.GetRequestTypeValue() {
 		case nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest,
 			nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession:
-			ue.Log.Warn("Emergency PDU Session is not supported")
-			sendPayloadNotForwarded(ctx, ranUe, pduSessionID, smMessage)
+			logger.From(ctx, logger.AmfLog).Warn("Emergency PDU Session is not supported")
+			sendPayloadNotForwarded(ctx, ueConn, pduSessionID, smMessage)
 
-			return nil
+			return
 		}
 	}
 
@@ -145,36 +151,36 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		if requestType != nil &&
 			requestType.GetRequestTypeValue() == nasMessage.ULNASTransportRequestTypeExistingPduSession &&
 			!ue.IsAllowedNssai(smContext.Snssai) {
-			ue.Log.Error("S-NSSAI is not allowed for access type", zap.Any("snssai", smContext.Snssai), zap.Uint8("pduSessionID", pduSessionID))
-			sendPayloadNotForwarded(ctx, ranUe, pduSessionID, smMessage)
+			logger.From(ctx, logger.AmfLog).Error("S-NSSAI is not allowed for access type", zap.Any("snssai", smContext.Snssai), zap.Uint8("pduSessionID", pduSessionID))
+			sendPayloadNotForwarded(ctx, ueConn, pduSessionID, smMessage)
 
-			return nil
+			return
 		}
 
-		// Forward to the SMF of the routing context (TS 24.501).
-		return forward5GSMMessageToSMF(ctx, amfInstance, ue, pduSessionID, smContext.Ref, smMessage)
+		forward5GSMMessageToSMF(ctx, amfInstance, ue, pduSessionID, smContext.Ref, smMessage)
+
+		return
 	}
 
 	if isInitialRequest {
-		return establishPDUSession(ctx, amfInstance, ue, ranUe, ulNasTransport, pduSessionID, smMessage)
+		establishPDUSession(ctx, amfInstance, ue, ueConn, ulNasTransport, pduSessionID, smMessage)
+		return
 	}
 
 	// A 5GSM STATUS for a PDU session with no context is ignored (TS 24.501).
 	if isStatus5GSM(smMessage) {
-		ue.Log.Warn("5GSM STATUS for unknown PDU session, ignoring", zap.Uint8("pduSessionID", pduSessionID))
-		return nil
+		logger.From(ctx, logger.AmfLog).Warn("5GSM STATUS for unknown PDU session, ignoring", zap.Uint8("pduSessionID", pduSessionID))
+		return
 	}
 
 	// No routing context and not an initial request (TS 24.501).
-	sendPayloadNotForwarded(ctx, ranUe, pduSessionID, smMessage)
-
-	return nil
+	sendPayloadNotForwarded(ctx, ueConn, pduSessionID, smMessage)
 }
 
 // sendPayloadNotForwarded returns the 5GSM message to the UE in a DL NAS
 // TRANSPORT with 5GMM cause #90 "payload was not forwarded" (TS 24.501).
-func sendPayloadNotForwarded(ctx context.Context, ranUe *amf.RanUe, pduSessionID uint8, smMessage []byte) {
-	amf.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
+func sendPayloadNotForwarded(ctx context.Context, ueConn *amf.UeConn, pduSessionID uint8, smMessage []byte) {
+	amf.SendDLNASTransport(ctx, ueConn, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 }
 
 func isStatus5GSM(smMessage []byte) bool {
@@ -190,7 +196,7 @@ func isStatus5GSM(smMessage []byte) bool {
 // request (TS 24.501). When the SMF rejects, its reject message
 // is returned to the UE; when it produces none, the payload is reported as not
 // forwarded.
-func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, ranUe *amf.RanUe, ulNasTransport *nasMessage.ULNASTransport, pduSessionID uint8, smMessage []byte) error {
+func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, ueConn *amf.UeConn, ulNasTransport *nasMessage.ULNASTransport, pduSessionID uint8, smMessage []byte) {
 	var (
 		snssai *models.Snssai
 		dnn    string
@@ -200,7 +206,8 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 		snssai = util.SnssaiToModels(ulNasTransport.SNSSAI)
 	} else {
 		if len(ue.AllowedNssai) == 0 {
-			return fmt.Errorf("allowed nssai is empty in UE context")
+			logger.From(ctx, logger.AmfLog).Warn("allowed nssai is empty in UE context")
+			return
 		}
 
 		snssai = &ue.AllowedNssai[0]
@@ -211,84 +218,79 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 	} else {
 		dnnResp, err := amfInstance.SubscriberDnn(ctx, ue.Supi(), snssai)
 		if err != nil {
-			return fmt.Errorf("failed to get subscriber data: %v", err)
+			logger.From(ctx, logger.AmfLog).Warn("failed to get subscriber data", zap.Error(err))
+			return
 		}
 
 		dnn = dnnResp
 	}
 
-	smContextRef, errResponse, err := amfInstance.Smf.CreateSmContext(ctx, ue.Supi(), pduSessionID, dnn, snssai, smMessage)
+	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(ctx, ue.Supi(), pduSessionID, dnn, snssai, smMessage)
 
 	// The SMF produced a 5GSM reject. Delivering it is a normal negative outcome,
-	// not a 5GMM protocol error, so return nil (TS 24.501).
+	// not a 5GMM protocol error (TS 24.501).
 	if errResponse != nil {
-		amf.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, errResponse, pduSessionID, 0)
+		amf.SendDLNASTransport(ctx, ueConn, nasMessage.PayloadContainerTypeN1SMInfo, errResponse, pduSessionID, 0)
 
-		ue.Log.Info("PDU session establishment rejected by SMF", zap.Uint8("pduSessionID", pduSessionID), zap.Error(err))
+		logger.From(ctx, logger.AmfLog).Info("PDU session establishment rejected by SMF", zap.Uint8("pduSessionID", pduSessionID), zap.Error(err))
 
-		return nil
+		return
 	}
 
 	// The SMF failed without producing a reject. Tell the UE the payload was not
 	// forwarded (5GMM cause #90) so it does not time out (TS 24.501).
 	if err != nil {
-		ue.Log.Error("couldn't create sm context", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
+		logger.From(ctx, logger.AmfLog).Error("couldn't create sm context", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 
-		sendPayloadNotForwarded(ctx, ranUe, pduSessionID, smMessage)
+		sendPayloadNotForwarded(ctx, ueConn, pduSessionID, smMessage)
 
-		return nil
+		return
 	}
 
 	// The SMF processed the message but produced no context and no response,
 	// e.g. an establishment request with a reserved PTI it had to ignore
 	// (TS 24.501). Send nothing.
 	if smContextRef == "" {
-		ue.Log.Info("SMF ignored the PDU session establishment request, sending no response", zap.Uint8("pduSessionID", pduSessionID))
-		return nil
+		logger.From(ctx, logger.AmfLog).Info("SMF ignored the PDU session establishment request, sending no response", zap.Uint8("pduSessionID", pduSessionID))
+		return
 	}
 
 	if err := ue.CreateSmContext(pduSessionID, smContextRef, snssai); err != nil {
-		return fmt.Errorf("error creating SM context: %w", err)
+		logger.From(ctx, logger.AmfLog).Warn("error creating SM context", zap.Error(err))
+		return
 	}
 
-	ue.Log.Debug("Created sm context for pdu session", zap.Uint8("pduSessionID", pduSessionID))
-
-	return nil
+	logger.From(ctx, logger.AmfLog).Debug("Created sm context for pdu session", zap.Uint8("pduSessionID", pduSessionID))
 }
 
-func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.ULNASTransport, integrityVerified bool) error {
+func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.ULNASTransport) {
 	if ue.State() != amf.Registered {
-		return fmt.Errorf("expected UE to be in state %s during UL NAS Transport, instead it was %s", amf.Registered, ue.State())
-	}
-
-	if !integrityVerified {
-		return fmt.Errorf("NAS message integrity check failed")
+		logger.From(ctx, logger.AmfLog).Warn("expected UE to be in Registered state during UL NAS Transport", zap.String("state", string(ue.State())))
+		return
 	}
 
 	switch msg.GetPayloadContainerType() {
-	// TS 24.501
 	case nasMessage.PayloadContainerTypeN1SMInfo:
-		return transport5GSMMessage(ctx, amfInstance, ue, msg)
+		transport5GSMMessage(ctx, amfInstance, ue, msg)
 	case nasMessage.PayloadContainerTypeSMS:
-		return fmt.Errorf("PayloadContainerTypeSMS has not been implemented yet in UL NAS TRANSPORT")
+		logger.From(ctx, logger.AmfLog).Warn("PayloadContainerTypeSMS has not been implemented yet in UL NAS TRANSPORT")
 	case nasMessage.PayloadContainerTypeLPP:
-		return fmt.Errorf("PayloadContainerTypeLPP has not been implemented yet in UL NAS TRANSPORT")
+		logger.From(ctx, logger.AmfLog).Warn("PayloadContainerTypeLPP has not been implemented yet in UL NAS TRANSPORT")
 	case nasMessage.PayloadContainerTypeSOR:
-		return fmt.Errorf("PayloadContainerTypeSOR has not been implemented yet in UL NAS TRANSPORT")
+		logger.From(ctx, logger.AmfLog).Warn("PayloadContainerTypeSOR has not been implemented yet in UL NAS TRANSPORT")
 	case nasMessage.PayloadContainerTypeUEPolicy:
-		ue.Log.Info("amf.AMF Transfer UEPolicy To PCF")
+		logger.From(ctx, logger.AmfLog).Info("amf.AMF Transfer UEPolicy To PCF")
 	case nasMessage.PayloadContainerTypeUEParameterUpdate:
-		ue.Log.Info("amf.AMF Transfer UEParameterUpdate To UDM")
+		logger.From(ctx, logger.AmfLog).Info("amf.AMF Transfer UEParameterUpdate To UDM")
 
 		upuMac, err := nasConvert.UpuAckToModels(msg.GetPayloadContainerContents())
 		if err != nil {
-			return fmt.Errorf("failed to convert UPU ACK to models: %v", err)
+			logger.From(ctx, logger.AmfLog).Warn("failed to convert UPU ACK to models", zap.Error(err))
+			return
 		}
 
-		ue.Log.Debug("UpuMac in UPU ACK NAS Msg", zap.String("UpuMac", upuMac))
+		logger.From(ctx, logger.AmfLog).Debug("UpuMac in UPU ACK NAS Msg", zap.String("UpuMac", upuMac))
 	case nasMessage.PayloadContainerTypeMultiplePayload:
-		return fmt.Errorf("PayloadContainerTypeMultiplePayload has not been implemented yet in UL NAS TRANSPORT")
+		logger.From(ctx, logger.AmfLog).Warn("PayloadContainerTypeMultiplePayload has not been implemented yet in UL NAS TRANSPORT")
 	}
-
-	return nil
 }

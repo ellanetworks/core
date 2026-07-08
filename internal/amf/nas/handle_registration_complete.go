@@ -5,31 +5,34 @@ package nas
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
+	"go.uber.org/zap"
 )
 
-func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) error {
-	if ue.State() != amf.ContextSetup {
-		return fmt.Errorf("state mismatch: receive Registration Complete message in state %s", ue.State())
+func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) {
+	if ue.RegStep() != amf.RegStepContextSetup {
+		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Registration Complete message outside context setup", zap.String("state", string(ue.State())))
+		return
 	}
 
 	ue.TransitionTo(amf.Registered)
 
-	conn := ue.NasConn()
+	conn := ue.Conn()
 	if conn == nil {
-		return fmt.Errorf("no active NAS connection")
+		logger.From(ctx, logger.AmfLog).Warn("no active NAS connection")
+		return
 	}
 
-	conn.T3550.Stop()
+	conn.StopNASGuard()
 
 	// UE confirmed receipt of the new GUTI — free the old one (TS 24.501)
-	amfInstance.FreeOldGuti(ue)
+	amfInstance.CommitGUTIRealloc(ue)
 
-	// Configuration update command carries NITZ (network name + time zone) per TS 24.501.
+	// Configuration update command delivers the operator network name (TS 24.501).
 	amf.SendConfigurationUpdateCommand(ctx, amfInstance, ue, false)
 
 	forPending := conn.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestPending
@@ -41,20 +44,20 @@ func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 	shouldRelease := !forPending && !udsHasPending && !hasActiveSessions
 
 	if shouldRelease {
-		ranUe := ue.RanUe()
-		if ranUe == nil {
-			return fmt.Errorf("ue is not connected to RAN")
+		ueConn := ue.Conn()
+		if ueConn == nil {
+			logger.From(ctx, logger.AmfLog).Warn("ue is not connected to RAN")
+			return
 		}
 
-		ranUe.ReleaseAction = amf.UeContextN2NormalRelease
+		ueConn.ReleaseAction = amf.UeContextN2NormalRelease
 
-		err := ranUe.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		err := ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
-			return fmt.Errorf("error sending ue context release command: %v", err)
+			logger.From(ctx, logger.AmfLog).Warn("error sending ue context release command", zap.Error(err))
+			return
 		}
 	}
 
 	ue.ClearRegistrationRequestData()
-
-	return nil
 }

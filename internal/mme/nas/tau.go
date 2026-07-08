@@ -20,13 +20,12 @@ import (
 func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
 	req, err := eps.ParseTrackingAreaUpdateRequest(plain)
 	if err != nil {
-		logger.MmeLog.Warn("failed to decode Tracking Area Update Request", zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Warn("failed to decode Tracking Area Update Request", zap.Error(err))
 		return
 	}
 
-	logger.MmeLog.Info("Tracking Area Update Request",
+	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update Request",
 		zap.String("imsi", ue.IMSI()),
-		zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)),
 		zap.String("update-type", epsUpdateTypeName(req.EPSUpdateType)),
 		zap.Bool("active-flag", req.ActiveFlag))
 
@@ -34,7 +33,7 @@ func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext
 	// bearers it holds but the UE considers inactive, then reflects the resulting
 	// active set in the accept (TS 24.301 §5.5.3.2.4).
 	if req.EPSBearerContextStatus != nil {
-		reconcileBearerContextStatus(m, ue, *req.EPSBearerContextStatus)
+		reconcileBearerContextStatus(m, ctx, ue, *req.EPSBearerContextStatus)
 	}
 
 	accept, err := trackingAreaUpdateAccept(m, ctx, ue, tauAcceptOptions{
@@ -42,27 +41,26 @@ func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext
 		includeBearerStatus: req.EPSBearerContextStatus != nil,
 	})
 	if err != nil {
-		logger.MmeLog.Error("failed to build Tracking Area Update Accept", zap.String("imsi", ue.IMSI()), zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to build Tracking Area Update Accept", zap.String("imsi", ue.IMSI()), zap.Error(err))
 		return
 	}
 
 	// The accept reallocates the GUTI, so it is guarded by T3450 and retransmitted
 	// until TRACKING AREA UPDATE COMPLETE commits the new GUTI (TS 24.301).
-	naspdu, err := m.ProtectDownlinkMessage(ue, accept)
+	naspdu, err := ue.ProtectDownlinkMessage(accept)
 	if err != nil {
-		logger.MmeLog.Error("failed to protect Tracking Area Update Accept", zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to protect Tracking Area Update Accept", zap.Error(err))
 		return
 	}
 
 	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultAccept)
 
 	// A fully connected UE (bearers up) keeps its connection; a UE resuming for this
-	// TAU needs re-establishment or the deferred release below.
-	if ue.S1.BearersUp {
-		logger.MmeLog.Info("Tracking Area Update accepted",
-			zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)), zap.String("imsi", ue.IMSI()))
-		m.SendDownlink(ctx, ue, naspdu)
-		m.ArmNASGuard(ue, "Tracking Area Update Accept", naspdu)
+	// TAU needs re-establishment or a deferred release.
+	if ue.Conn().ICS == mme.ICSCompleted {
+		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted", zap.String("imsi", ue.IMSI()))
+		ue.Conn().SendDownlinkNASTransport(ctx, naspdu)
+		ue.Conn().ArmNASGuard("Tracking Area Update Accept", naspdu)
 
 		return
 	}
@@ -70,14 +68,13 @@ func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext
 	if req.ActiveFlag {
 		qos, err := mme.ResolveQoS(m, ctx, ue.IMSI())
 		if err != nil {
-			logger.MmeLog.Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
+			logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
 			return
 		}
 
-		logger.MmeLog.Info("Tracking Area Update accepted (bearer re-established)",
-			zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)), zap.String("imsi", ue.IMSI()))
+		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted (bearer re-established)", zap.String("imsi", ue.IMSI()))
 		sendInitialContextSetup(m, ctx, ue, qos, naspdu)
-		m.ArmNASGuard(ue, "Tracking Area Update Accept", naspdu)
+		ue.Conn().ArmNASGuard("Tracking Area Update Accept", naspdu)
 
 		return
 	}
@@ -86,26 +83,24 @@ func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext
 	// so the UE stays ECM-CONNECTED to acknowledge the reallocated GUTI; releasing
 	// earlier would reject the TAU Complete as having no active connection
 	// (TS 36.413 §10.6).
-	ue.S1.TauReleaseOnComplete = true
+	ue.Conn().TauReleaseOnComplete = true
 
-	logger.MmeLog.Info("Tracking Area Update accepted (returning to idle)",
-		zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)), zap.String("imsi", ue.IMSI()))
-	m.SendDownlink(ctx, ue, naspdu)
-	m.ArmNASGuard(ue, "Tracking Area Update Accept", naspdu)
+	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted (returning to idle)", zap.String("imsi", ue.IMSI()))
+	ue.Conn().SendDownlinkNASTransport(ctx, naspdu)
+	ue.Conn().ArmNASGuard("Tracking Area Update Accept", naspdu)
 }
 
 // handleTrackingAreaUpdateComplete finalises a GUTI reallocation: it stops the T3450
 // guard, commits the new GUTI (freeing the old M-TMSI), and — for a no-active
 // TAU — releases the UE back to ECM-IDLE (TS 24.301).
 func handleTrackingAreaUpdateComplete(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
-	m.StopNASGuard(ue)
+	ue.Conn().StopNASGuard()
 	m.CommitGUTIRealloc(ue)
 
-	logger.MmeLog.Info("Tracking Area Update Complete",
-		zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)), zap.String("imsi", ue.IMSI()))
+	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update Complete", zap.String("imsi", ue.IMSI()))
 
-	if ue.S1.TauReleaseOnComplete {
-		ue.S1.TauReleaseOnComplete = false
+	if ue.Conn().TauReleaseOnComplete {
+		ue.Conn().TauReleaseOnComplete = false
 		m.ReleaseUEContext(ctx, ue, mme.CauseNASNormalRelease)
 	}
 }
@@ -170,7 +165,7 @@ func trackingAreaUpdateAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext
 		TAIList:         taiList,
 		// Re-advertise IMS voice over PS session so the indication is not lost on a
 		// periodic TAU (TS 24.301), consistent with the Attach Accept.
-		EPSNetworkFeatureSupport: &eps.EPSNetworkFeatureSupport{IMSVoPS: true},
+		EPSNetworkFeatureSupport: m.NetworkFeatureSupport(),
 	}
 
 	if opts.combined {
@@ -189,7 +184,7 @@ func trackingAreaUpdateAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext
 // reconcileBearerContextStatus locally releases the EPS bearer contexts the MME
 // holds but the UE reports inactive in its TRACKING AREA UPDATE REQUEST bearer
 // context status (TS 24.301 §5.5.3.2.4). Bit n of the bitmap is EBI n.
-func reconcileBearerContextStatus(m *mme.MME, ue *mme.UeContext, ueStatus uint16) {
+func reconcileBearerContextStatus(m *mme.MME, ctx context.Context, ue *mme.UeContext, ueStatus uint16) {
 	for _, p := range m.SnapshotPDNs(ue) {
 		if ueStatus&(uint16(1)<<p.Ebi) != 0 {
 			continue
@@ -197,7 +192,7 @@ func reconcileBearerContextStatus(m *mme.MME, ue *mme.UeContext, ueStatus uint16
 
 		logger.MmeLog.Info("releasing EPS bearer reported inactive by the UE",
 			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi))
-		m.ReleasePDN(ue, p)
+		m.ReleasePDN(ctx, ue, p)
 	}
 }
 

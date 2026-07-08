@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
@@ -24,8 +25,8 @@ func idleRegisteredUE(t *testing.T, m *MME) *UeContext {
 	ue, _ := securedUE(t, m)
 	ue.UeNetCap = eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal()
 	testPDN(ue).SgwFTEID = testSGWFTEID
-	m.AssignGUTI(ue, models.PlmnID{Mcc: "001", Mnc: "01"}, 1, 1)
-	m.FreeS1Conn(ue)
+	m.ReallocateGUTI(ue, models.PlmnID{Mcc: "001", Mnc: "01"}, 1, 1)
+	m.FreeUeConn(ue)
 
 	return ue
 }
@@ -80,7 +81,7 @@ func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, _ uin
 }
 
 // hookSessionManager runs onModify on the first ModifyEPSSession, so a test can
-// simulate a concurrent release (freeing ue.s1) during the unlocked user-plane
+// simulate a concurrent release (freeing ue.active) during the unlocked user-plane
 // switch of a Path Switch or Handover Notify.
 func (f *fakeSessionManager) UpdateEPSSessionAMBR(_ context.Context, _ string, _ uint8, ambrUplink, ambrDownlink string) error {
 	if f.ambrErr != nil {
@@ -100,7 +101,7 @@ func (f *fakeSessionManager) DeactivateEPSSession(_ context.Context, _ string, _
 	return nil
 }
 
-func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string, _ uint8) error {
+func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string) error {
 	f.released = true
 
 	return nil
@@ -221,4 +222,10 @@ func testPDN(ue *UeContext) *PdnConnection {
 	ue.DefaultEBI = DefaultERABID
 
 	return ue.EnsurePDN(DefaultERABID)
+}
+
+// mustSUPI builds a SUPI from a bare IMSI for test struct literals.
+func mustSUPI(imsi string) etsi.SUPI {
+	s, _ := etsi.NewSUPIFromIMSI(imsi)
+	return s
 }

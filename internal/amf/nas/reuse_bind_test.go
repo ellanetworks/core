@@ -13,7 +13,7 @@ import (
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
-	"go.uber.org/zap"
+	"github.com/free5gc/nas/security"
 )
 
 func plainRegistrationWithGuti(t *testing.T, guti []byte) []byte {
@@ -48,6 +48,105 @@ func plainRegistrationWithGuti(t *testing.T, guti []byte) []byte {
 	return payload
 }
 
+func plainDeregistrationWithGuti(t *testing.T, guti []byte) []byte {
+	t.Helper()
+
+	m := nas.NewMessage()
+	m.GmmMessage = nas.NewGmmMessage()
+	m.GmmHeader.SetMessageType(nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration)
+
+	dr := nasMessage.NewDeregistrationRequestUEOriginatingDeregistration(0)
+	dr.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
+	dr.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
+	dr.SetSpareHalfOctet(0)
+	dr.SetMessageType(nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration)
+	dr.SetSwitchOff(0)
+	dr.SetReRegistrationRequired(0)
+	dr.SetAccessType(nasMessage.AccessType3GPP)
+	dr.SetNasKeySetIdentifiler(0)
+	dr.MobileIdentity5GS = nasType.MobileIdentity5GS{
+		Iei:    0,
+		Len:    uint16(len(guti)),
+		Buffer: guti,
+	}
+
+	m.DeregistrationRequestUEOriginatingDeregistration = dr
+
+	payload, err := m.PlainNasEncode()
+	if err != nil {
+		t.Fatalf("encode plain DeregistrationRequest: %v", err)
+	}
+
+	return payload
+}
+
+// wrapIntegrityProtected wraps a plain inner NAS message in an
+// integrity-protected header with a MAC computed against the UE's current
+// security context, exactly as decodeProtectedNAS expects (TS 33.501).
+func wrapIntegrityProtected(t *testing.T, ue *amf.UeContext, inner []byte, sqn uint8) []byte {
+	t.Helper()
+
+	cnt := ue.ULCountForTest().ReconcileUplink(sqn)
+
+	seqAndMsg := append([]byte{sqn}, inner...)
+
+	mac, err := security.NASMacCalculate(ue.IntegrityAlgForTest(), ue.KnasIntForTest(), cnt.Value(), security.Bearer3GPP, security.DirectionUplink, seqAndMsg)
+	if err != nil {
+		t.Fatalf("NASMacCalculate: %v", err)
+	}
+
+	pdu := []byte{0x7e, nas.SecurityHeaderTypeIntegrityProtected}
+	pdu = append(pdu, mac...)
+	pdu = append(pdu, seqAndMsg...)
+
+	return pdu
+}
+
+// TestFetchUeContext_DeregistrationResolvesExistingContextByGuti guards the
+// GUTI-shadowing defect: an integrity-verified UE-originating DEREGISTRATION
+// citing a known GUTI must resolve to the existing context. The shadowed local
+// guti previously left the outer guti invalid, forcing a fresh context.
+func TestFetchUeContext_DeregistrationResolvesExistingContextByGuti(t *testing.T) {
+	// type byte 0x02 = 5G-GUTI; PLMN 001/01; amf.AMF id 0xcafe00; 5G-TMSI 1.
+	gutiBytes := []byte{0x02, 0x00, 0xf1, 0x10, 0xca, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x01}
+
+	guti, err := etsi.NewGUTI5GFromBytes(gutiBytes)
+	if err != nil {
+		t.Fatalf("NewGUTIFromBytes: %v", err)
+	}
+
+	supi, err := etsi.NewSUPIFromPrefixed("imsi-001010000000001")
+	if err != nil {
+		t.Fatalf("NewSUPIFromPrefixed: %v", err)
+	}
+
+	amfInstance := amf.New(nil, nil, nil)
+
+	ue := amf.NewUeContext()
+	ue.SetSupiForTest(supi)
+	ue.SetSecuredForTest(true)
+	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA2)
+	ue.SetKnasIntForTest([16]uint8{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+	ue.ForceStateForTest(amf.Registered)
+
+	if err := amfInstance.CommitUEIdentity(context.Background(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
+	amfInstance.AssignGutiForTest(ue, guti)
+
+	pdu := wrapIntegrityProtected(t, ue, plainDeregistrationWithGuti(t, gutiBytes), 0)
+
+	got, err := fetchUeContextWithMobileIdentity(context.Background(), amfInstance, pdu)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got != ue {
+		t.Fatal("an integrity-verified deregistration citing a known GUTI must resolve to the existing context")
+	}
+}
+
 // TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim is the
 // end-to-end regression for the GUTI-spoof DoS: a plain (unauthenticated)
 // initial REGISTRATION REQUEST that resolves by GUTI to a registered UE must be
@@ -57,7 +156,7 @@ func TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim(t *testing
 	// type byte 0x02 = 5G-GUTI; PLMN 001/01; amf.AMF id 0xcafe00; 5G-TMSI 1.
 	gutiBytes := []byte{0x02, 0x00, 0xf1, 0x10, 0xca, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x01}
 
-	guti, err := etsi.NewGUTIFromBytes(gutiBytes)
+	guti, err := etsi.NewGUTI5GFromBytes(gutiBytes)
 	if err != nil {
 		t.Fatalf("NewGUTIFromBytes: %v", err)
 	}
@@ -70,14 +169,13 @@ func TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim(t *testing
 	amfInstance := amf.New(nil, nil, nil)
 
 	victim := amf.NewUeContext()
-	victim.Log = zap.NewNop()
 	victim.SetSupiForTest(supi)
 	victim.SetGutiForTest(guti)
 	victim.SetSecuredForTest(true)
-	victim.ForceState(amf.Registered)
+	victim.ForceStateForTest(amf.Registered)
 
-	if err := amfInstance.AddUeContextToPool(victim); err != nil {
-		t.Fatalf("AddUeContextToPool: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.Background(), victim, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	got, err := fetchUeContextWithMobileIdentity(context.Background(), amfInstance, plainRegistrationWithGuti(t, gutiBytes))

@@ -417,8 +417,14 @@ func notifyRANsUnavailable(ctx context.Context, amfInstance *amf.AMF, timeout ti
 
 	notified := 0
 
-	for _, ran := range amfInstance.ListRadios() {
-		if err := ran.NGAPSender.SendAMFStatusIndication(sendCtx, unavailableGUAMIList); err != nil {
+	pkt, err := send.BuildAMFStatusIndication(unavailableGUAMIList)
+	if err != nil {
+		logger.APILog.Warn("failed to build AMF Status Indication during drain", zap.Error(err))
+		return 0
+	}
+
+	for _, ran := range amfInstance.ConnectedRadios() {
+		if err := ran.SendToRan(sendCtx, send.NGAPProcedureAMFStatusIndication, pkt); err != nil {
 			logger.APILog.Warn("failed to send AMF Status Indication to RAN during drain", zap.Error(err))
 			continue
 		}

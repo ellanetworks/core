@@ -16,18 +16,17 @@ import (
 func startSecurityMode(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 	// TS 33.501 §6.9.5.1 / TS 33.401 §7.2.8: the security mode procedure re-keys the
 	// AS context, so it must not run concurrently with an S1 handover or Path Switch
-	// advancing the {NH, NCC} chain. Claim the chain; if a handover holds it, defer
-	// the procedure — the UE's attach/TAU retry restarts it once the chain is free.
+	// advancing the {NH, NCC} chain. Claim the chain; if a handover holds it, defer.
 	if !m.TryClaimKeyChain(ue) {
-		logger.MmeLog.Warn("not starting Security Mode Command: a key-changing procedure is in progress (TS 33.401 §7.2.8)",
+		logger.From(ctx, logger.MmeLog).Warn("not starting Security Mode Command: a key-changing procedure is in progress (TS 33.401 §7.2.8)",
 			zap.String("imsi", ue.IMSI()))
 
 		return
 	}
 
-	// The claim is held only while the SECURITY MODE COMMAND is in flight; a failure
-	// before it is sent releases it so a later procedure is not blocked. On success
-	// it is released by SECURITY MODE COMPLETE or by the connection being freed.
+	// Release the claim if the SECURITY MODE COMMAND is not sent, so a failure before
+	// send does not block a later key-changing procedure. Once sent, the claim is
+	// released by SECURITY MODE COMPLETE or by the connection being freed.
 	committed := false
 
 	defer func() {
@@ -36,30 +35,16 @@ func startSecurityMode(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 		}
 	}()
 
-	// A security policy the MME cannot read must not yield a default (null)
-	// context; abort and let the UE retry once the policy is available.
-	op, err := m.Bearer.GetOperator(ctx)
+	// A security policy the MME cannot read must not yield a default (null) context.
+	intOrder, encOrder, err := m.SecurityAlgorithms(ctx)
 	if err != nil {
-		logger.MmeLog.Error("failed to resolve operator security policy", zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to resolve operator security policy", zap.Error(err))
 		return
 	}
 
-	ciphering, err := op.GetCiphering()
-	if err != nil {
-		logger.MmeLog.Error("failed to read ciphering policy", zap.Error(err))
-		return
-	}
-
-	integrity, err := op.GetIntegrity()
-	if err != nil {
-		logger.MmeLog.Error("failed to read integrity policy", zap.Error(err))
-		return
-	}
-
-	eea, eia, ok := mme.SelectAlgorithms(ue.UeNetCap, ciphering, integrity)
+	eea, eia, ok := mme.SelectAlgorithms(ue.UeNetCap, intOrder, encOrder)
 	if !ok {
-		logger.MmeLog.Warn("no NAS security algorithm common to UE and operator policy",
-			zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)),
+		logger.From(ctx, logger.MmeLog).Warn("no NAS security algorithm common to UE and operator policy",
 			zap.String("ue-network-capability", fmt.Sprintf("%x", ue.UeNetCap)))
 		rejectAttach(m, ctx, ue, mme.EmmCauseUESecCapsMismatch)
 
@@ -67,7 +52,7 @@ func startSecurityMode(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 	}
 
 	if err := ue.InstallNASSecurityContext(eea, eia, mme.MintAuthProofForSecurityMode()); err != nil {
-		logger.MmeLog.Error("failed to install NAS security context", zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to install NAS security context", zap.Error(err))
 		return
 	}
 
@@ -84,22 +69,23 @@ func startSecurityMode(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 
 	plain, err := smc.Marshal()
 	if err != nil {
-		logger.MmeLog.Error("failed to build Security Mode Command", zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to build Security Mode Command", zap.Error(err))
 		return
 	}
 
 	wire, err := ue.ProtectDownlink(plain, eps.SHTIntegrityProtectedNewContext)
 	if err != nil {
-		logger.MmeLog.Error("failed to protect Security Mode Command", zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to protect Security Mode Command", zap.Error(err))
 		return
 	}
 
-	logger.MmeLog.Info("Security Mode Command", zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)),
+	logger.From(ctx, logger.MmeLog).Info("Security Mode Command",
 		zap.Uint8("eea", eea), zap.Uint8("eia", eia),
 		zap.String("ue-network-capability", fmt.Sprintf("%x", ue.UeNetCap)),
 		zap.String("ms-network-capability", fmt.Sprintf("%x", ue.MsNetCap)),
 		zap.String("replayed-ue-security-capability", fmt.Sprintf("%x", replayed)))
-	m.SendGuardedDownlink(ctx, ue, "Security Mode Command", wire)
+	ue.AdvanceRegStep(mme.RegStepSecurityMode)
+	ue.Conn().SendGuardedDownlink(ctx, "Security Mode Command", wire)
 
 	committed = true
 }

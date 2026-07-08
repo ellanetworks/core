@@ -19,11 +19,12 @@ import (
 // gracefully — no panic, and an ErrorIndication is sent.
 // Regression test.
 func TestHandleHandoverCancel_UnknownRanUeNgapID(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
 
 	msg := decode.HandoverCancel{
-		AMFUENGAPID: 1099511627776,
+		AMFUENGAPID: 1099511627775,
 		RANUENGAPID: 99,
 		Cause: &ngapType.Cause{
 			Present:      ngapType.CausePresentRadioNetwork,
@@ -31,7 +32,7 @@ func TestHandleHandoverCancel_UnknownRanUeNgapID(t *testing.T) {
 		},
 	}
 
-	ngap.HandleHandoverCancel(context.Background(), ran, msg)
+	ngap.HandleHandoverCancel(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
@@ -52,13 +53,14 @@ func TestHandleHandoverCancel_UnknownRanUeNgapID(t *testing.T) {
 // ID (TS 38.413): an Error Indication carrying the received AP IDs is sent,
 // with no acknowledge to the source and no release toward the target.
 func TestHandleHandoverCancel_UnknownAmfUeNgapID(t *testing.T) {
-	sourceRan := newTestRadio()
-	sourceSender := sourceRan.NGAPSender.(*FakeNGAPSender)
+	amfInstance := newTestAMF()
+	sourceRan := newTestRadio(amfInstance)
+	sourceSender := sourceRan.Conn.(*fakeNGAPSender)
 
-	targetRan := newTestRadio()
-	targetSender := targetRan.NGAPSender.(*FakeNGAPSender)
+	targetRan := newTestRadio(amfInstance)
+	targetSender := targetRan.Conn.(*fakeNGAPSender)
 
-	amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
+	amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
 
 	msg := decode.HandoverCancel{
 		AMFUENGAPID: 999, // does not match the source UE's AmfUeNgapID (10)
@@ -69,7 +71,7 @@ func TestHandleHandoverCancel_UnknownAmfUeNgapID(t *testing.T) {
 		},
 	}
 
-	ngap.HandleHandoverCancel(context.Background(), sourceRan, msg)
+	ngap.HandleHandoverCancel(context.Background(), amfInstance, sourceRan, msg)
 
 	errInd := assertSingleErrorIndication(t, sourceSender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
 	assertErrorIndicationEchoesIDs(t, errInd, 999, 1)
@@ -84,21 +86,27 @@ func TestHandleHandoverCancel_UnknownAmfUeNgapID(t *testing.T) {
 }
 
 func TestHandleHandoverCancel_HappyPath(t *testing.T) {
-	sourceRan := newTestRadio()
-	sourceSender := sourceRan.NGAPSender.(*FakeNGAPSender)
+	amfInstance := newTestAMF()
+	sourceRan := newTestRadio(amfInstance)
+	sourceSender := sourceRan.Conn.(*fakeNGAPSender)
 
-	targetRan := newTestRadio()
-	targetSender := targetRan.NGAPSender.(*FakeNGAPSender)
+	targetRan := newTestRadio(amfInstance)
+	targetSender := targetRan.Conn.(*fakeNGAPSender)
 
-	sourceUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
-	targetUe := amf.NewRanUeForTest(targetRan, 2, 20, logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
+	targetUe := amf.NewUeConnForTest(targetRan, 2, 20, logger.AmfLog)
 
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
-	amfUe.AttachRanUe(sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
 	if err := amf.AttachSourceUeTargetUe(sourceUe, targetUe); err != nil {
 		t.Fatalf("AttachSourceUeTargetUe: %v", err)
+	}
+
+	// The target has acknowledged (hoPrepared): its RAN-UE-NGAP-ID is known, so a
+	// cancel releases it with a UE Context Release Command.
+	if !amfInstance.MarkHandoverPrepared(amfUe, nil) {
+		t.Fatal("MarkHandoverPrepared")
 	}
 
 	msg := decode.HandoverCancel{
@@ -110,7 +118,7 @@ func TestHandleHandoverCancel_HappyPath(t *testing.T) {
 		},
 	}
 
-	ngap.HandleHandoverCancel(context.Background(), sourceRan, msg)
+	ngap.HandleHandoverCancel(context.Background(), amfInstance, sourceRan, msg)
 
 	if len(targetSender.SentUEContextReleaseCommands) != 1 {
 		t.Fatalf("expected 1 UEContextReleaseCommand on target, got %d", len(targetSender.SentUEContextReleaseCommands))
@@ -127,5 +135,45 @@ func TestHandleHandoverCancel_HappyPath(t *testing.T) {
 	ack := sourceSender.SentHandoverCancelAcknowledges[0]
 	if ack.AmfUeNgapID != 10 || ack.RanUeNgapID != 1 {
 		t.Errorf("HandoverCancelAcknowledge IDs = (%d, %d), want (10, 1)", ack.AmfUeNgapID, ack.RanUeNgapID)
+	}
+}
+
+// TestHandleHandoverCancel_Preparing_NoTargetReleaseCommand verifies that a cancel
+// during hoPreparing clears the handover and acknowledges the source, but sends no
+// UE Context Release Command — the target's RAN-UE-NGAP-ID is not yet known, so it
+// is released when its crossing acknowledge arrives (mirrors the MME).
+func TestHandleHandoverCancel_Preparing_ReleasesTarget(t *testing.T) {
+	amfInstance := newTestAMF()
+	sourceRan := newTestRadio(amfInstance)
+	sourceSender := sourceRan.Conn.(*fakeNGAPSender)
+
+	targetRan := newTestRadio(amfInstance)
+	targetSender := targetRan.Conn.(*fakeNGAPSender)
+
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
+	targetUe := amf.NewUeConnForTest(targetRan, 2, 20, logger.AmfLog)
+
+	amfUe := amf.NewUeContext()
+	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+
+	if err := amf.AttachSourceUeTargetUe(sourceUe, targetUe); err != nil {
+		t.Fatalf("AttachSourceUeTargetUe: %v", err)
+	}
+
+	// No MarkHandoverPrepared: the handover is still hoPreparing.
+	ngap.HandleHandoverCancel(context.Background(), amfInstance, sourceRan, decode.HandoverCancel{AMFUENGAPID: 10, RANUENGAPID: 1})
+
+	// TS 38.413 §8.4.5: the target's reserved resources must be released even in the
+	// preparation window, so a cancel does not orphan the target context.
+	if len(targetSender.SentUEContextReleaseCommands) != 1 {
+		t.Fatalf("expected 1 UEContextReleaseCommand to the preparing target, got %d", len(targetSender.SentUEContextReleaseCommands))
+	}
+
+	if amfInstance.HandoverInProgress(amfUe) {
+		t.Error("the handover FSM must be cleared after a preparing cancel")
+	}
+
+	if len(sourceSender.SentHandoverCancelAcknowledges) != 1 {
+		t.Fatalf("expected 1 HandoverCancelAcknowledge on source, got %d", len(sourceSender.SentHandoverCancelAcknowledges))
 	}
 }

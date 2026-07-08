@@ -9,37 +9,32 @@ import (
 )
 
 // Verdict is the result of classifying a NAS PDU against the current UE
-// security state. It is the only thing permitted to answer the question
-// "may this NAS PDU be handed to a handler?".
+// security state.
 type Verdict int
 
 const (
-	// VerdictReject means the PDU must be dropped. Handlers must not run.
+	// VerdictReject means the PDU must be dropped.
 	VerdictReject Verdict = iota
-	// VerdictIntegrityVerified means the PDU was integrity-protected and
-	// its MAC verified successfully.
+	// VerdictIntegrityVerified means the PDU was integrity-protected and its MAC verified.
 	VerdictIntegrityVerified
-	// VerdictPlainAllowed means the PDU was plain NAS and its message
-	// type is on the TS 24.501 whitelist. Handlers run with
-	// MacFailed=true.
+	// VerdictPlainAllowed means the PDU was plain NAS with a message type on the TS 24.501 whitelist.
 	VerdictPlainAllowed
-	// VerdictMacFailedAllowed means the PDU was integrity-protected, its
-	// MAC failed, and its message type is on the TS 33.501
-	// whitelist. Handlers run with MacFailed=true.
+	// VerdictMacFailedAllowed means the PDU was integrity-protected, its MAC failed,
+	// and its message type is on the TS 33.501 whitelist.
 	VerdictMacFailedAllowed
 )
 
-// DecodeResult is the output of the pure NAS decoder. Callers inspect
-// Verdict and are the only sites allowed to mutate UE security state.
+// DecodeResult is the output of the pure NAS decoder. A rejected PDU is returned as
+// a decode error (never a result), so a result is always processable; IntegrityVerified
+// reports whether its MAC was verified — false for a plain or MAC-failed message admitted
+// before secure exchange per TS 24.501 §4.4.4.3. Mirrors the MME's DecodeResult.
 type DecodeResult struct {
-	Message *nas.Message
-	Verdict Verdict
+	Message           *nas.Message
+	IntegrityVerified bool
 }
 
-// classifyNasPdu is the single authority on whether a NAS PDU of the
-// given type, security header, and UE security-context state may be
-// processed. plainNasAllowed and macFailedAllowed are reached only from
-// here.
+// classifyNasPdu decides whether a NAS PDU of the given type, security
+// header, and MAC-verification state may be processed.
 //
 // macVerified has meaning only when the PDU is integrity-protected:
 //   - true  → MAC verified OK
@@ -84,8 +79,10 @@ func plainNasAllowed(msgType uint8) bool {
 }
 
 // macFailedAllowed reports whether a NAS message type may be processed
-// after MAC verification failure per TS 33.501. It extends
-// plainNasAllowed with ServiceRequest.
+// after MAC verification failure per TS 24.501 §4.4.4.3. CONTROL PLANE
+// SERVICE REQUEST is on the spec's MAC-failed list but is a CIoT
+// control-plane procedure Ella Core does not implement, so it has no
+// message-type constant to admit here.
 func macFailedAllowed(msgType uint8) bool {
 	if plainNasAllowed(msgType) {
 		return true

@@ -20,11 +20,8 @@ import (
 // }
 
 // DecodeUEContextReleaseRequest validates a UEContextReleaseRequest PDU
-// body (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are
-// mandatory-reject; Cause is mandatory-ignore; PDUSessionResourceList
-// is optional-reject. Duplicate IEs follow a last-wins policy. The
-// procedure is class 2 (no response), so the procedure-level
-// criticality is "ignore".
+// body (3GPP TS 38.413). Class 2 procedure: procedure-level criticality
+// is ignore.
 func DecodeUEContextReleaseRequest(in *ngapType.UEContextReleaseRequest) (UEContextReleaseRequest, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeUEContextReleaseRequest,

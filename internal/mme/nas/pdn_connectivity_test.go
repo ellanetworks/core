@@ -140,7 +140,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 	}
 
 	resp := &s1ap.ERABSetupResponse{
-		MMEUES1APID: ue.S1.MMEUES1APID, ENBUES1APID: ue.S1.ENBUES1APID,
+		MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID,
 		ERABSetup: []s1ap.ERABSetupItemBearerSURes{{
 			ERABID: 6, TransportLayerAddress: s1ap.TransportLayerAddress(tla), GTPTEID: 0x1234,
 		}},
@@ -156,7 +156,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mmes1ap.HandleERABSetupResponse(m, cc, rpdu.(*s1ap.SuccessfulOutcome).Value)
+	mmes1ap.HandleERABSetupResponse(m, context.Background(), mme.NewRadioForTest(cc), rpdu.(*s1ap.SuccessfulOutcome).Value)
 
 	if ue.Pdns[6].EnbFTEID.TEID != 0x1234 {
 		t.Fatalf("eNB F-TEID not recorded on the second PDN: %+v", ue.Pdns[6].EnbFTEID)
@@ -186,6 +186,13 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatalf("deactivation not in flight for the disconnected PDN: %+v", ue.Pdns[6])
 	}
 
+	// TS 23.401 §5.4.4 (symmetric with 5G TS 23.502 §4.3.4.2 step 2): the UPF user plane
+	// is released at the start of the deactivation — before the UE's DEACTIVATE ACCEPT —
+	// so it stops forwarding immediately rather than until the handshake completes.
+	if !m.Session.(*fakeSessionManager).released {
+		t.Fatal("EPS session not released up front on the PDN disconnect request; the UPF would keep forwarding until the accept")
+	}
+
 	// The deactivation of an additional PDN releases the radio bearer via an
 	// E-RAB Release Command carrying the Deactivate NAS, so a real eNB tears the
 	// E-RAB down (TS 23.401 §5.10.3) — not a plain Downlink NAS Transport.
@@ -196,7 +203,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 
 	// The eNB confirms the release; then the UE accepts the deactivation.
 	relResp := &s1ap.ERABReleaseResponse{
-		MMEUES1APID: ue.S1.MMEUES1APID, ENBUES1APID: ue.S1.ENBUES1APID,
+		MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID,
 		ERABReleased: []s1ap.ERABReleaseItemBearerRelComp{{ERABID: 6}},
 	}
 
@@ -210,7 +217,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mmes1ap.HandleERABReleaseResponse(m, cc, rrpdu.(*s1ap.SuccessfulOutcome).Value)
+	mmes1ap.HandleERABReleaseResponse(m, mme.NewRadioForTest(cc), rrpdu.(*s1ap.SuccessfulOutcome).Value)
 
 	da, err := (&eps.DeactivateEPSBearerContextAccept{EPSBearerIdentity: 6, ProcedureTransactionIdentity: 3}).Marshal()
 	if err != nil {
@@ -223,7 +230,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal("second PDN not released after disconnect accept")
 	}
 
-	if _, ok := m.LookupUe(ue.S1.MMEUES1APID); !ok {
+	if _, ok := m.LookupUe(ue.Conn().MMEUES1APID); !ok {
 		t.Fatal("UE removed by a single-PDN disconnect; expected it to stay registered")
 	}
 

@@ -5,27 +5,139 @@ package amf
 
 import (
 	"encoding/hex"
+	"fmt"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
+	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/free5gc/nas/nasType"
-	"github.com/free5gc/nas/security"
 )
 
-// Test-support accessors for the unexported NAS security/identity state. They
-// let external test packages (amf_test, ngap_test) construct and inspect a UE in
-// a given security state without exporting the fields themselves.
+// AddUeContextToPoolForTest indexes a UE in the AMF's SUPI-keyed pool, as a completed
+// registration would (CommitUEIdentity), for external test setup.
+func (amf *AMF) AddUeContextToPoolForTest(ue *UeContext) error {
+	if !ue.supi.IsValid() {
+		return fmt.Errorf("supi is empty")
+	}
 
-// SetHandoverGuardTimeoutForTest overrides the N2 handover supervision timeout so
-// tests can drive the guard quickly.
+	amf.mu.Lock()
+	amf.UEs[ue.supi] = ue
+	amf.mu.Unlock()
+
+	return nil
+}
+
+// Test-support accessors let external test packages (amf_test, ngap_test)
+// construct and inspect a UE's unexported security/identity state without
+// exporting the fields.
+
+// ForceStateForTest sets the UE state unconditionally, bypassing transition
+// validation, for test precondition setup. Production code must use TransitionTo.
+func (ue *UeContext) ForceStateForTest(s StateType) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.setStateLocked(s)
+}
+
+func (ue *UeContext) ForceRegStepForTest(step RegStep) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.state = RegistrationInitiated
+	ue.regStep = step
+}
+
+// BindAMFForTest wires a test-constructed Radio to an AMF. UEs already registered
+// on this radio migrate to a, so binding order does not matter in tests.
+func (r *Radio) BindAMFForTest(a *AMF) {
+	old := r.amf
+	r.amf = a
+
+	// Register the radio under its conn so radioFor(ueConn.conn) resolves it, as a
+	// connected gNB is registered in prod.
+	if r.Conn != nil {
+		a.mu.Lock()
+		a.radios[r.Conn] = r
+		a.mu.Unlock()
+	}
+
+	if old == nil || old == a {
+		return
+	}
+
+	old.mu.Lock()
+	moved := make(map[int64]*UeConn)
+
+	for id, ueConn := range old.conns {
+		if ueConn.conn == r.Conn {
+			moved[id] = ueConn
+			delete(old.conns, id)
+		}
+	}
+
+	old.mu.Unlock()
+
+	a.mu.Lock()
+	for id, ueConn := range moved {
+		ueConn.amf = a
+		a.conns[id] = ueConn
+	}
+	a.mu.Unlock()
+}
+
+func (r *Radio) NumUEsForTest() int {
+	r.amf.mu.RLock()
+	defer r.amf.mu.RUnlock()
+
+	n := 0
+
+	for _, ueConn := range r.amf.conns {
+		if ueConn.conn == r.Conn {
+			n++
+		}
+	}
+
+	return n
+}
+
 func (a *AMF) SetHandoverGuardTimeoutForTest(d time.Duration) { a.handoverGuardTimeout = d }
+
+func (ue *UeContext) ArmPagingForTest(d time.Duration, maxRetransmit int32) {
+	ue.pagingTimer.Arm(d, maxRetransmit, func(int32) {}, func() {})
+}
+
+func (ue *UeContext) PagingActiveForTest() bool {
+	return ue.pagingTimer.Active()
+}
+
+func (ue *UeContext) MobileReachableActiveForTest() bool {
+	return ue.mobileReachableTimer.Active()
+}
+
+func (ue *UeContext) SetTmsiForTest(t etsi.TMSI)    { ue.tmsi = t }
+func (ue *UeContext) SetOldTmsiForTest(t etsi.TMSI) { ue.oldTmsi = t }
 
 func (ue *UeContext) SetSupiForTest(s etsi.SUPI) { ue.supi = s }
 func (ue *UeContext) SupiForTest() etsi.SUPI     { return ue.supi }
 
-func (ue *UeContext) SetGutiForTest(g etsi.GUTI) { ue.guti = g }
-func (ue *UeContext) GutiForTest() etsi.GUTI     { return ue.guti }
+// SetGutiForTest stores the GUTI's 5G-TMSI; the AMF keeps only the TMSI and
+// rebuilds the GUTI from the GUAMI on demand.
+func (ue *UeContext) SetGutiForTest(g etsi.GUTI5G) { ue.tmsi = g.Tmsi }
+func (ue *UeContext) TmsiForTest() etsi.TMSI       { return ue.tmsi }
+
+// AssignGutiForTest stores the GUTI's 5G-TMSI on ue and indexes it for resolution,
+// mirroring ReallocateGUTI in production.
+func (a *AMF) AssignGutiForTest(ue *UeContext, guti etsi.GUTI5G) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	ue.tmsi = guti.Tmsi
+	if guti != etsi.InvalidGUTI5G {
+		a.uesByTmsi[guti.Tmsi] = ue
+	}
+}
 
 func (ue *UeContext) SetSecuredForTest(b bool) { ue.secured = b }
 func (ue *UeContext) SecuredForTest() bool     { return ue.secured }
@@ -68,8 +180,8 @@ func (ue *UeContext) NCCForTest() uint8     { return ue.ncc }
 func (ue *UeContext) SetABBAForTest(a []uint8) { ue.abba = a }
 func (ue *UeContext) ABBAForTest() []uint8     { return ue.abba }
 
-func (ue *UeContext) SetULCountForTest(c security.Count) { ue.ulCount = c }
-func (ue *UeContext) ULCountForTest() *security.Count    { return &ue.ulCount }
+func (ue *UeContext) SetULCountForTest(c nascommon.Count) { ue.ulCount = c }
+func (ue *UeContext) ULCountForTest() *nascommon.Count    { return &ue.ulCount }
 
-func (ue *UeContext) SetDLCountForTest(c security.Count) { ue.dlCount = c }
-func (ue *UeContext) DLCountForTest() *security.Count    { return &ue.dlCount }
+func (ue *UeContext) SetDLCountForTest(c nascommon.Count) { ue.dlCount = c }
+func (ue *UeContext) DLCountForTest() *nascommon.Count    { return &ue.dlCount }

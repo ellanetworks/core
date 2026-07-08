@@ -4,7 +4,10 @@
 package mme
 
 import (
+	"context"
 	"testing"
+
+	"github.com/ellanetworks/core/s1ap"
 )
 
 // TestPlainAttachDoesNotSupersedeRegisteredVictimPreAuth asserts TS 24.301
@@ -17,22 +20,22 @@ func TestPlainAttachDoesNotSupersedeRegisteredVictimPreAuth(t *testing.T) {
 
 	// A fresh, not-yet-authenticated attach context claiming the victim's IMSI.
 	attacker := m.NewUe(&captureConn{}, 8)
-	m.SetIMSI(attacker, victim.imsi)
+	m.SetIMSI(attacker, victim.IMSI())
 
-	got, ok := m.LookupUeByIMSI(victim.imsi)
+	got, ok := m.LookupUeByIMSI(victim.IMSI())
 	if !ok || got != victim {
 		t.Fatal("an unauthenticated attach must not supersede the registered victim before authentication (TS 24.301 §4.4.4.3)")
 	}
 
-	if victim.emmState.load() != EMMRegistered {
+	if victim.EMMState() != EMMRegistered {
 		t.Fatal("victim must remain EMM-REGISTERED")
 	}
 
 	// Once the new attach is authenticated and accepted, it supersedes the prior
 	// context (a re-attach), so the subscriber maps to exactly one context.
-	m.CommitUEIdentity(attacker, MintAuthProofForAttachCommit())
+	m.CommitUEIdentity(context.Background(), attacker, MintAuthProofForAttachCommit())
 
-	if got, _ := m.LookupUeByIMSI(victim.imsi); got != attacker {
+	if got, _ := m.LookupUeByIMSI(victim.IMSI()); got != attacker {
 		t.Fatal("after commit, the authenticated attach must supersede the prior context")
 	}
 }
@@ -44,9 +47,9 @@ func TestEstablishS1ConnectionMarksSecureExchange(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
 
-	m.EstablishS1Connection(ue, &captureConn{}, 9)
+	establishResumeForTest(m, ue, &captureConn{}, 9)
 
-	if !ue.S1.secureExchangeEstablished {
+	if !ue.Conn().secureExchangeEstablished {
 		t.Fatal("a verified resume must establish secure exchange on the new connection (TS 24.301 §4.4.4.3)")
 	}
 }
@@ -54,3 +57,12 @@ func TestEstablishS1ConnectionMarksSecureExchange(t *testing.T) {
 // TestVerifiedMessageMarksSecureExchange asserts a successfully integrity-checked
 // message establishes secure exchange on a connection that did not have it yet
 // (the fresh-attach case, where the flag is set when SMC Complete verifies).
+
+// establishResumeForTest binds a UE returning from ECM-IDLE to a fresh verified
+// S1 connection, the resume primitives HandleServiceRequest uses (NewUeConn +
+// AttachUeConn + mark secure exchange).
+func establishResumeForTest(m *MME, ue *UeContext, conn S1APWriter, enbUEID s1ap.ENBUES1APID) {
+	c := m.NewUeConn(conn, enbUEID)
+	m.AttachUeConn(ue, c)
+	c.MarkSecureExchangeEstablished()
+}

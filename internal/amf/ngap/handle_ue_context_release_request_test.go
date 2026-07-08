@@ -15,9 +15,9 @@ import (
 )
 
 func TestHandleUEContextReleaseRequest_UnknownUENGAPIDs(t *testing.T) {
-	ran := newTestRadio()
 	amfInstance := newTestAMF()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
 
 	msg := decode.UEContextReleaseRequest{
 		AMFUENGAPID: 999999,
@@ -49,16 +49,15 @@ func TestHandleUEContextReleaseRequest_UnknownUENGAPIDs(t *testing.T) {
 }
 
 func TestHandleUEContextReleaseRequest_UEFoundRegistered(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
 	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
 
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
-	amfUe.ForceState(amf.Registered)
+	amfUe.ForceStateForTest(amf.Registered)
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
 	msg := decode.UEContextReleaseRequest{
 		AMFUENGAPID: 10,
@@ -80,7 +79,28 @@ func TestHandleUEContextReleaseRequest_UEFoundRegistered(t *testing.T) {
 		t.Errorf("UEContextReleaseCommand IDs = (%d, %d), want (10, 1)", cmd.AmfUeNgapID, cmd.RanUeNgapID)
 	}
 
-	if ranUe.ReleaseAction != amf.UeContextN2NormalRelease {
-		t.Errorf("expected ReleaseAction = UeContextN2NormalRelease, got %d", ranUe.ReleaseAction)
+	if ueConn.ReleaseAction != amf.UeContextN2NormalRelease {
+		t.Errorf("expected ReleaseAction = UeContextN2NormalRelease, got %d", ueConn.ReleaseAction)
+	}
+}
+
+// TestSendUEContextReleaseCommand_Idempotent verifies a second UE Context Release
+// Command is suppressed for the same RAN UE, so an eNB-initiated release racing a
+// NAS-guard timeout does not send a duplicate (mirrors the MME's claimRelease).
+func TestSendUEContextReleaseCommand_Idempotent(t *testing.T) {
+	ran := newTestRadio(newTestAMF())
+	sender := ran.Conn.(*fakeNGAPSender)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+
+	if err := ueConn.SendUEContextReleaseCommand(context.Background(), ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease); err != nil {
+		t.Fatalf("first release: %v", err)
+	}
+
+	if err := ueConn.SendUEContextReleaseCommand(context.Background(), ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease); err != nil {
+		t.Fatalf("second release: %v", err)
+	}
+
+	if len(sender.SentUEContextReleaseCommands) != 1 {
+		t.Fatalf("expected a single UE Context Release Command, got %d", len(sender.SentUEContextReleaseCommands))
 	}
 }

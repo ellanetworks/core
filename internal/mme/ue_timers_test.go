@@ -47,17 +47,20 @@ func TestMobileReachableEscalatesToImplicitDetach(t *testing.T) {
 
 	m.StartMobileReachable(ue)
 
+	// The implicit detach transitions the EMM state under the registry lock.
 	eventually(t, time.Second, func() bool {
-		_, ok := m.LookupUeByIMSI(ue.imsi)
-		return !ok
+		return ue.EMMState() == EMMDeregistered
 	})
 
-	if ue.emmState.load() != EMMDeregistered {
-		t.Fatalf("emmState = %v, want EMMDeregistered after implicit detach", ue.emmState.load())
+	// The EMM context is retained as a Deregistered husk keeping its native security
+	// context, so a later re-attach with the native GUTI can reuse it (skip auth),
+	// mirroring the AMF; it is not removed.
+	if _, ok := m.LookupUeByIMSI(ue.imsiOrEmpty()); !ok {
+		t.Fatal("implicit detach must retain the UE context (husk) for native-context reuse")
 	}
 
-	if !m.Session.(*fakeSessionManager).released {
-		t.Fatal("EPS session not released on implicit detach")
+	if !ue.Secured() {
+		t.Fatal("retained husk must keep its native security context")
 	}
 }
 
@@ -72,11 +75,11 @@ func TestReconnectStopsIdleTimers(t *testing.T) {
 	testPDN(ue).Apn = "internet"
 
 	m.StartMobileReachable(ue)
-	m.EstablishS1Connection(ue, &captureConn{}, 9)
+	establishResumeForTest(m, ue, &captureConn{}, 9)
 
 	time.Sleep(100 * time.Millisecond)
 
-	if _, ok := m.LookupUeByIMSI(ue.imsi); !ok {
+	if _, ok := m.LookupUeByIMSI(ue.imsiOrEmpty()); !ok {
 		t.Fatal("UE implicitly detached despite reconnecting")
 	}
 

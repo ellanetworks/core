@@ -9,47 +9,78 @@ import (
 	"strings"
 )
 
-// IMEIFromPEI converts a 3GPP PEI string (as produced by the NAS layer) into
-// a standard 15-digit IMEI suitable for device lookups.
+// IMEI is a mobile-equipment identity in IMEI (15-digit) or IMEISV (16-digit)
+// format. It is the identity carried by the 4G IMEISV mobile identity
+// (TS 24.301) and by the 5G PEI — TS 23.501 §5.9.3: "a PEI in the IMEI or
+// IMEISV format" — so the MME's IMEI and the AMF's PEI store the same type. The
+// zero value is unset.
+type IMEI struct {
+	digits string // 15 (IMEI) or 16 (IMEISV) decimal digits, no prefix; "" = unset
+}
+
+// NewIMEIFromPEI parses a 3GPP PEI/IMEISV string as produced by the NAS layer:
 //
-// Accepted input formats:
+//	"imei-353456789012345"    → 15-digit IMEI
+//	"imeisv-3534567890123401" → 16-digit IMEISV
+//	"353456789012345"         → bare 15-digit IMEI
+//	"3534567890123401"        → bare 16-digit IMEISV
 //
-//	"imei-353456789012345"   → already a 15-digit IMEI, returned as-is
-//	"imeisv-3534567890123401" → 16-digit IMEISV, last 2 SV digits stripped,
-//	                            Luhn check digit appended
-//	"353456789012345"        → bare 15-digit IMEI (no prefix)
-//	"3534567890123401"       → bare 16-digit IMEISV
-//
-// Returns an empty string if the input is empty, and an error if the format
-// is unrecognizable.
-func IMEIFromPEI(pei string) (string, error) {
+// An empty input yields the unset zero value with no error; a non-digit or
+// wrong-length payload is an error.
+func NewIMEIFromPEI(pei string) (IMEI, error) {
 	if pei == "" {
-		return "", nil
+		return IMEI{}, nil
 	}
 
 	digits := pei
 
-	if strings.HasPrefix(pei, "imeisv-") {
+	switch {
+	case strings.HasPrefix(pei, "imeisv-"):
 		digits = pei[len("imeisv-"):]
-	} else if strings.HasPrefix(pei, "imei-") {
+	case strings.HasPrefix(pei, "imei-"):
 		digits = pei[len("imei-"):]
 	}
 
 	if !isAllDigits(digits) {
-		return "", fmt.Errorf("PEI contains non-digit characters: %s", pei)
+		return IMEI{}, fmt.Errorf("PEI contains non-digit characters: %s", pei)
 	}
 
-	switch len(digits) {
+	if l := len(digits); l != 15 && l != 16 {
+		return IMEI{}, fmt.Errorf("unexpected PEI digit length %d: %s", l, pei)
+	}
+
+	return IMEI{digits: digits}, nil
+}
+
+// IsSet reports whether an equipment identity is present.
+func (e IMEI) IsSet() bool { return e.digits != "" }
+
+// IMEI returns the normalized 15-digit IMEI (14-digit TAC+serial plus Luhn
+// check digit) suitable for device lookups. An IMEISV's 2-digit software
+// version is dropped and the check digit recomputed. Empty when unset.
+func (e IMEI) IMEI() string {
+	switch len(e.digits) {
 	case 15:
-		// Already a standard IMEI (14 digits + check digit).
-		return digits, nil
+		return e.digits
 	case 16:
-		// IMEISV: first 14 digits are TAC+serial, last 2 are SV.
-		// Drop the SV and compute the Luhn check digit.
-		base := digits[:14]
-		return base + luhnCheckDigit(base), nil
+		base := e.digits[:14]
+		return base + luhnCheckDigit(base)
 	default:
-		return "", fmt.Errorf("unexpected PEI digit length %d: %s", len(digits), pei)
+		return ""
+	}
+}
+
+// String returns the identity in its NAS-prefixed form ("imei-…" / "imeisv-…"),
+// preserving the software version, or "" when unset. Use IMEI() for the
+// normalized 15-digit device identity.
+func (e IMEI) String() string {
+	switch len(e.digits) {
+	case 15:
+		return "imei-" + e.digits
+	case 16:
+		return "imeisv-" + e.digits
+	default:
+		return ""
 	}
 }
 

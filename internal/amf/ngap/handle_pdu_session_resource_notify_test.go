@@ -16,9 +16,9 @@ import (
 )
 
 func TestPDUSessionResourceNotify_UnknownAmfUeNgapID(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
 	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
 
 	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, decode.PDUSessionResourceNotify{
 		RANUENGAPID: 99,
@@ -30,10 +30,9 @@ func TestPDUSessionResourceNotify_UnknownAmfUeNgapID(t *testing.T) {
 }
 
 func TestPDUSessionResourceNotify_NilUeContext(t *testing.T) {
-	ran := newTestRadio()
-	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-
 	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
 	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, decode.PDUSessionResourceNotify{
 		RANUENGAPID: 1,
@@ -42,19 +41,18 @@ func TestPDUSessionResourceNotify_NilUeContext(t *testing.T) {
 }
 
 func TestPDUSessionResourceNotify_ReleasedSessionDeactivated(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
+	ran := newTestRadio(amfInstance)
 
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
 	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
 	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, decode.PDUSessionResourceNotify{
 		RANUENGAPID: 1,
@@ -86,15 +84,14 @@ func TestPDUSessionResourceNotify_ReleasedSessionDeactivated(t *testing.T) {
 }
 
 func TestPDUSessionResourceNotify_ReleasedSessionSmContextNotFound(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
+	ran := newTestRadio(amfInstance)
 
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
 	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, decode.PDUSessionResourceNotify{
 		RANUENGAPID: 1,
@@ -113,15 +110,14 @@ func TestPDUSessionResourceNotify_ReleasedSessionSmContextNotFound(t *testing.T)
 }
 
 func TestPDUSessionResourceNotify_InvalidPDUSessionID(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
+	ran := newTestRadio(amfInstance)
 
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
 	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, decode.PDUSessionResourceNotify{
 		RANUENGAPID: 1,
@@ -140,15 +136,14 @@ func TestPDUSessionResourceNotify_InvalidPDUSessionID(t *testing.T) {
 }
 
 func TestPDUSessionResourceNotify_NotifyListLogsWarning(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
+	ran := newTestRadio(amfInstance)
 
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
 	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, decode.PDUSessionResourceNotify{
 		RANUENGAPID:   1,

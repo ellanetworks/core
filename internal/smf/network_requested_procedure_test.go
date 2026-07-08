@@ -36,6 +36,26 @@ func buildPDUSessionModificationComplete(pduSessionID, pti uint8) []byte {
 	return buf
 }
 
+func buildPDUSessionModificationCommandReject(pduSessionID, pti uint8) []byte {
+	m := nas.NewMessage()
+	m.GsmMessage = nas.NewGsmMessage()
+	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionModificationCommandReject)
+	m.GsmHeader.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
+	m.PDUSessionModificationCommandReject = nasMessage.NewPDUSessionModificationCommandReject(0)
+	m.PDUSessionModificationCommandReject.SetMessageType(nas.MsgTypePDUSessionModificationCommandReject)
+	m.PDUSessionModificationCommandReject.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
+	m.PDUSessionModificationCommandReject.SetPDUSessionID(pduSessionID)
+	m.PDUSessionModificationCommandReject.SetPTI(pti)
+	m.PDUSessionModificationCommandReject.SetCauseValue(nasMessage.Cause5GSMRequestRejectedUnspecified)
+
+	buf, err := m.PlainNasEncode()
+	if err != nil {
+		panic(fmt.Sprintf("build PDU Session Modification Command Reject: %v", err))
+	}
+
+	return buf
+}
+
 func waitFor(t *testing.T, what string, cond func() bool) {
 	t.Helper()
 
@@ -92,6 +112,98 @@ func ptiInUse(t *testing.T, smCtx *smf.SMContext, pti uint8) bool {
 	return smCtx.IsPTIInUse(pti)
 }
 
+// TestReconcileSkipsIdleSession verifies that a reconcile for a CM-IDLE session (the
+// downlink FAR buffering after DeactivateSmContext) touches no enforcement point —
+// no UPF push, no N1N2, no policy commit. The change is applied when the UE
+// reactivates (item 8; mirrors the MME deferring idle UEs to its ICS-Response
+// reconcile).
+func TestReconcileSkipsIdleSession(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	// Move the session to CM-IDLE (downlink FAR → buffering).
+	if err := s.DeactivateSmContext(context.Background(), ref); err != nil {
+		t.Fatalf("DeactivateSmContext: %v", err)
+	}
+
+	// Ignore the PFCP modify from the deactivation itself.
+	upf.mu.Lock()
+	upf.modifyCalls = nil
+	upf.mu.Unlock()
+
+	reconcileAmbrChange(t, s, ref)
+
+	upf.mu.Lock()
+	upfModifies := len(upf.modifyCalls)
+	upf.mu.Unlock()
+
+	if upfModifies != 0 {
+		t.Fatalf("an idle session must not be pushed to the UPF, got %d modify calls", upfModifies)
+	}
+
+	if got := modifyCallCount(amfCb); got != 0 {
+		t.Fatalf("an idle session must not be signalled, got %d N1N2 modify calls", got)
+	}
+
+	smCtx.Mutex.Lock()
+	dl := smCtx.PolicyData.Ambr.Downlink
+	smCtx.Mutex.Unlock()
+
+	if dl != "200 Mbps" {
+		t.Fatalf("an idle session's policy must not be committed, got %q", dl)
+	}
+}
+
+// TestReconcileSkippedWhileProcedureInFlight verifies that a reconcile arriving
+// while a network-requested modification is outstanding (T3591 running) is skipped
+// rather than re-sending the command and resetting the counter (item 8; mirrors the
+// MME guarding on Modifying/Deactivating).
+func TestReconcileSkippedWhileProcedureInFlight(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb) // default (long) T3591: it will not fire during the test
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	reconcileAmbrChange(t, s, ref)
+
+	if got := modifyCallCount(amfCb); got != 1 {
+		t.Fatalf("expected 1 modify call, got %d", got)
+	}
+
+	// A second reconcile while the modification is in flight must be skipped.
+	reconcileAmbrChange(t, s, ref)
+
+	if got := modifyCallCount(amfCb); got != 1 {
+		t.Fatalf("a reconcile during an in-flight modification must be skipped, got %d modify calls", got)
+	}
+}
+
+// TestModificationRejectKeepsPreviousPolicy verifies that a PDU SESSION MODIFICATION
+// COMMAND REJECT discards the uncommitted policy, leaving the previous configuration
+// in place (item 8; TS 24.501 §6.3.2.4, §6.3.2.5).
+func TestModificationRejectKeepsPreviousPolicy(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	reconcileAmbrChange(t, s, ref) // new AMBR 500/600 Mbps, held pending
+
+	if _, err := s.UpdateSmContextN1Msg(context.Background(), ref, buildPDUSessionModificationCommandReject(smCtx.PDUSessionID, 0)); err != nil {
+		t.Fatalf("modification command reject: %v", err)
+	}
+
+	smCtx.Mutex.Lock()
+	dl := smCtx.PolicyData.Ambr.Downlink
+	smCtx.Mutex.Unlock()
+
+	if dl != "200 Mbps" {
+		t.Fatalf("a rejected modification must keep the previous AMBR (200 Mbps), got %q", dl)
+	}
+}
+
 // TestT3592RetransmitsThenReleasesLocally verifies that an unacknowledged release
 // command is retransmitted on each of the first four T3592 expiries and that the
 // session is released locally on the fifth (TS 24.501 §6.3.3 abnormal case a).
@@ -109,6 +221,24 @@ func TestT3592RetransmitsThenReleasesLocally(t *testing.T) {
 
 	if got := releaseCallCount(amfCb); got != 5 {
 		t.Errorf("ReleaseSession calls = %d, want 5 (1 initial + 4 retransmissions)", got)
+	}
+
+	// The user plane, held through the release window, is torn down on the T3592
+	// abort (item 8).
+	store.mu.Lock()
+	releasedIPs := len(store.releasedIPs)
+	store.mu.Unlock()
+
+	if releasedIPs == 0 {
+		t.Error("expected IP released on T3592 abort")
+	}
+
+	upf.mu.Lock()
+	deleteCalls := len(upf.deleteCalls)
+	upf.mu.Unlock()
+
+	if deleteCalls == 0 {
+		t.Error("expected PFCP session deleted on T3592 abort")
 	}
 }
 

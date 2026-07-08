@@ -5,33 +5,32 @@ package nas
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
+	"go.uber.org/zap"
 )
 
 // TS 23.502
-func handleDeregistrationAccept(ctx context.Context, ue *amf.UeContext) error {
-	if conn := ue.NasConn(); conn != nil {
-		conn.T3522.Stop()
+func handleDeregistrationAccept(ctx context.Context, ue *amf.UeContext) {
+	if conn := ue.Conn(); conn != nil {
+		conn.StopNASGuard()
 	}
 
 	defer ue.Deregister(ctx)
 
-	ranUe := ue.RanUe()
-	if ranUe == nil {
-		logger.WithTrace(ctx, logger.AmfLog).Warn("amf.RanUe is nil, cannot send UE Context Release Command", logger.SUPI(ue.Supi().String()))
-		return nil
+	ueConn := ue.Conn()
+	if ueConn == nil {
+		logger.WithTrace(ctx, logger.AmfLog).Warn("amf.UeConn is nil, cannot send UE Context Release Command", logger.SUPI(ue.Supi().String()))
+		return
 	}
 
-	ranUe.ReleaseAction = amf.UeContextReleaseDueToNwInitiatedDeregistraion
+	ueConn.ReleaseAction = amf.UeContextReleaseDueToNwInitiatedDeregistraion
 
-	err := ranUe.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
+	err := ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 	if err != nil {
-		return fmt.Errorf("error sending ue context release command: %v", err)
+		logger.From(ctx, logger.AmfLog).Warn("error sending ue context release command", zap.Error(err))
+		return
 	}
-
-	return nil
 }

@@ -46,10 +46,9 @@ func validateEPSBearerRequest(req models.EPSBearerRequest) error {
 }
 
 // CreateEPSSession programs the user plane for a 4G default EPS bearer with the
-// SMF as converged anchor (SMF+PGW-C, TS 23.401). For IPv6/IPv4v6 the
-// delegated /64 prefix reaches the UE via Router Advertisement only once
-// ModifyEPSSession registers the IPv6 session. The returned S-GW S1-U F-TEID
-// carries uplink; the eNB downlink endpoint arrives later via ModifyEPSSession.
+// SMF as converged anchor (SMF+PGW-C, TS 23.401). For IPv6/IPv4v6 the delegated
+// /64 prefix reaches the UE via Router Advertisement only once ModifyEPSSession
+// registers the IPv6 session. The returned S-GW S1-U F-TEID carries uplink.
 func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest) (bearer models.EPSBearer, err error) {
 	ctx, span := tracer.Start(ctx, "smf/create_eps_session",
 		trace.WithAttributes(
@@ -103,6 +102,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 	}
 
 	bearer = models.EPSBearer{
+		Ref:        sc.Ref,
 		PDNType:    pdnType,
 		DNS:        dns.Unmap(),
 		IPv4:       addrs.IPv4,
@@ -146,7 +146,7 @@ func (s *SMF) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb 
 		return fmt.Errorf("invalid imsi %q: %w", imsi, err)
 	}
 
-	smContext := s.GetSession(CanonicalName(supi, ebi))
+	smContext := s.currentSession(supi, ebi)
 	if smContext == nil {
 		return fmt.Errorf("no EPS session for %s", imsi)
 	}
@@ -162,8 +162,8 @@ func (s *SMF) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb 
 	ul := smContext.Tunnel.DataPath.UpLinkTunnel.PDR
 	dl.FAR.ApplyAction = models.ApplyAction{Forw: true}
 
-	// Session creation defaults the uplink OuterHeaderRemoval to IPv4;
-	// bindAccessTunnel corrects it to the eNB's address family.
+	// bindAccessTunnel aligns the uplink OuterHeaderRemoval, which defaults to IPv4
+	// at session creation, to the eNB's address family.
 	enbIP := net.IP(enb.Addr.AsSlice())
 
 	an := AnchorBinding{TEID: enb.TEID}
@@ -218,7 +218,7 @@ func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, imsi string, ebi uint8, 
 		return fmt.Errorf("invalid imsi %q: %w", imsi, err)
 	}
 
-	smContext := s.GetSession(CanonicalName(supi, ebi))
+	smContext := s.currentSession(supi, ebi)
 	if smContext == nil {
 		return fmt.Errorf("no EPS session for %s", imsi)
 	}
@@ -249,26 +249,28 @@ func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, imsi string, ebi uint8, 
 	return nil
 }
 
-// ReleaseEPSSession tears down the 4G default bearer: it frees the UPF session
-// (PDRs/FARs/QER + TEID) and the UE IP lease.
-func (s *SMF) ReleaseEPSSession(ctx context.Context, imsi string, ebi uint8) error {
-	supi, err := etsi.NewSUPIFromIMSI(imsi)
-	if err != nil {
-		return fmt.Errorf("invalid imsi %q: %w", imsi, err)
-	}
-
-	return s.ReleaseSmContext(ctx, CanonicalName(supi, ebi))
+// ReleaseEPSSession tears down the 4G default bearer identified by its unique
+// session ref: it frees the UPF session (PDRs/FARs/QER + TEID) and the UE IP lease.
+// Releasing by ref (not by (IMSI, EBI)) targets the exact session instance, so
+// superseding an old context cannot tear down a newer session that reused the
+// (IMSI, EBI) slot.
+func (s *SMF) ReleaseEPSSession(ctx context.Context, ref string) error {
+	return s.ReleaseSmContext(ctx, ref)
 }
 
-// DeactivateEPSSession puts the 4G default bearer into buffering mode when the
-// UE goes ECM-IDLE: the downlink FAR switches from forward to buffer, so
-// downlink data raises a paging notification and never reaches the released eNB
-// tunnel. The session is retained; ModifyEPSSession restores forwarding.
+// DeactivateEPSSession puts the retained 4G default bearer into buffering mode when
+// the UE goes ECM-IDLE: the downlink FAR buffers packets, so downlink
+// data raises a paging notification and never reaches the released eNB tunnel.
 func (s *SMF) DeactivateEPSSession(ctx context.Context, imsi string, ebi uint8) error {
 	supi, err := etsi.NewSUPIFromIMSI(imsi)
 	if err != nil {
 		return fmt.Errorf("invalid imsi %q: %w", imsi, err)
 	}
 
-	return s.DeactivateSmContext(ctx, CanonicalName(supi, ebi))
+	smContext := s.currentSession(supi, ebi)
+	if smContext == nil {
+		return fmt.Errorf("no EPS session for %s", imsi)
+	}
+
+	return s.DeactivateSmContext(ctx, smContext.Ref)
 }

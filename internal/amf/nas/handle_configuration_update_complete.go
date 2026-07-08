@@ -4,25 +4,20 @@
 package nas
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
-func handleConfigurationUpdateComplete(amfInstance *amf.AMF, ue *amf.UeContext, integrityVerified bool) error {
+func handleConfigurationUpdateComplete(amfInstance *amf.AMF, ue *amf.UeContext) {
 	if state := ue.State(); state != amf.Registered {
-		return fmt.Errorf("state mismatch: receive Configuration Update Complete message in state %s", state)
+		logger.AmfLog.Warn("state mismatch: receive Configuration Update Complete message", zap.String("state", string(state)))
+		return
 	}
 
-	if !integrityVerified {
-		return fmt.Errorf("NAS message integrity check failed")
+	if conn := ue.Conn(); conn != nil {
+		conn.StopNASGuard()
 	}
 
-	if conn := ue.NasConn(); conn != nil {
-		conn.T3555.Stop()
-	}
-
-	amfInstance.FreeOldGuti(ue)
-
-	return nil
+	amfInstance.CommitGUTIRealloc(ue)
 }

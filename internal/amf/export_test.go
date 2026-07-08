@@ -27,12 +27,11 @@ func addTestUE(t *testing.T, amfInstance *amf.AMF, imsi string, setup func(*amf.
 
 	ue := amf.NewUeContext()
 	ue.SetSupiForTest(supi)
-	ue.Log = zap.NewNop()
 
 	setup(ue)
 
-	if err := amfInstance.AddUeContextToPool(ue); err != nil {
-		t.Fatalf("AddUeContextToPool: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.Background(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	t.Cleanup(func() {
@@ -164,16 +163,18 @@ func TestExportJSON_MinimalUE(t *testing.T) {
 		t.Fatalf("expected pdu_sessions to be empty, got %d entries", len(pduSessions))
 	}
 
+	// The export shows the AMF-configured timer values (amf.New defaults) regardless
+	// of UE state, mirroring the MME's export of T3412PeriodicTAU.
 	timers := jsonMap(t, ueExport, "timers")
-	if t3512, ok := timers["t3512_value_seconds"].(float64); !ok || t3512 != 0 {
-		t.Fatalf("expected timers.t3512_value_seconds to be 0, got %v", timers["t3512_value_seconds"])
+	if t3512, ok := timers["t3512_value_seconds"].(float64); !ok || t3512 != 3600 {
+		t.Fatalf("expected timers.t3512_value_seconds to be 3600, got %v", timers["t3512_value_seconds"])
 	}
 
-	if t3502, ok := timers["t3502_value_seconds"].(float64); !ok || t3502 != 0 {
-		t.Fatalf("expected timers.t3502_value_seconds to be 0, got %v", timers["t3502_value_seconds"])
+	if t3502, ok := timers["t3502_value_seconds"].(float64); !ok || t3502 != 720 {
+		t.Fatalf("expected timers.t3502_value_seconds to be 720, got %v", timers["t3502_value_seconds"])
 	}
 
-	timerNames := []string{"t3513_paging", "t3565_notification", "t3560_auth", "t3550_registration", "t3555_config_update", "t3522_deregistration", "mobile_reachable", "implicit_deregistration"}
+	timerNames := []string{"t3513_paging", "nas_guard", "mobile_reachable", "implicit_deregistration"}
 	for _, timerName := range timerNames {
 		timerObj := jsonMap(t, timers, timerName)
 		if active, ok := timerObj["active"].(bool); !ok || active != false {
@@ -186,10 +187,10 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	now := time.Now()
 	ue := addTestUE(t, amfInstance, "001010000000002", func(ue *amf.UeContext) {
-		ue.Pei = "imei-123456789012345"
+		ue.Imei, _ = etsi.NewIMEIFromPEI("imei-123456789012345")
 		ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 		ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
-		ue.ForceState(amf.Registered)
+		ue.ForceStateForTest(amf.Registered)
 		ue.SetSecuredForTest(true)
 		ue.SetCipheringAlgForTest(security.AlgCiphering128NEA2)
 		ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA2)
@@ -213,22 +214,23 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 			Ref:    "imsi-001010000000002-5",
 			Snssai: &models.Snssai{Sst: 1, Sd: "000001"},
 		}
-		radio := &amf.Radio{Name: "gNB-001", RanUEs: make(map[int64]*amf.RanUe), Log: zap.NewNop()}
-		ranUe := amf.NewRanUeForTest(radio, 42, 100, zap.NewNop())
-		ranUe.Tai = models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}
-		ue.AttachRanUe(ranUe)
-		ue.NasConn().T3513.Arm(1*time.Hour, 3, func(_ int32) {}, func() {})
-		ue.T3512Value = 3600 * time.Second
-		ue.T3502Value = 720 * time.Second
+		radio := &amf.Radio{Log: zap.NewNop()}
+		radioAMF := amf.New(nil, nil, nil)
+		radio.BindAMFForTest(radioAMF)
+		radioAMF.UpdateRadioName(radio, "gNB-001")
+		ueConn := amf.NewUeConnForTest(radio, 42, 100, zap.NewNop())
+		ueConn.Tai = models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}
+		ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+		ue.ArmPagingForTest(1*time.Hour, 3)
 		ue.SetLastSeenForTest(time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC), "gNB-001")
-		ue.NasConn().RegistrationType5GS = 1
-		ue.NasConn().IdentityTypeUsedForRegistration = 1
-		ue.NasConn().RetransmissionOfInitialNASMsg = true
-		ue.NasConn().AuthFailureCauseSynchFailureTimes = 2
+		ue.Conn().RegistrationType5GS = 1
+		ue.Conn().IdentityTypeUsedForRegistration = 1
+		ue.Conn().RetransmissionOfInitialNASMsg = true
+		ue.Conn().SetResyncTried(true)
 	})
 
 	t.Cleanup(func() {
-		ue.NasConn().T3513.Stop()
+		ue.StopPaging()
 	})
 
 	result := exportAndMarshal(t, amfInstance)
@@ -402,8 +404,8 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 		t.Fatalf("expected registration.retransmission to be true, got %v", registration["retransmission"])
 	}
 
-	if authFailureSyncTimes, ok := registration["auth_failure_sync_times"].(float64); !ok || authFailureSyncTimes != 2 {
-		t.Fatalf("expected registration.auth_failure_sync_times to be 2, got %v", registration["auth_failure_sync_times"])
+	if resyncTried, ok := registration["resync_tried"].(bool); !ok || !resyncTried {
+		t.Fatalf("expected registration.resync_tried to be true, got %v", registration["resync_tried"])
 	}
 
 	lastActivity := jsonMap(t, ueExport, "last_activity")
@@ -430,7 +432,7 @@ func TestExportJSON_NilTimers(t *testing.T) {
 
 	timers := jsonMap(t, ueExport, "timers")
 
-	timerNames := []string{"t3513_paging", "t3565_notification", "t3560_auth", "t3550_registration", "t3555_config_update", "t3522_deregistration", "mobile_reachable", "implicit_deregistration"}
+	timerNames := []string{"t3513_paging", "nas_guard", "mobile_reachable", "implicit_deregistration"}
 	for _, timerName := range timerNames {
 		timerObj := jsonMap(t, timers, timerName)
 		if active, ok := timerObj["active"].(bool); !ok || active != false {
@@ -447,10 +449,10 @@ func TestExportJSON_NilTimers(t *testing.T) {
 	}
 }
 
-func TestExportJSON_NilRanUe(t *testing.T) {
+func TestExportJSON_NilUeConn(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	addTestUE(t, amfInstance, "001010000000004", func(ue *amf.UeContext) {
-		// RanUe is nil by default
+		// UeConn is nil by default
 	})
 
 	result := exportAndMarshal(t, amfInstance)
@@ -581,7 +583,7 @@ func TestExportJSON_MultipleAllowedNSSAI(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
 	addTestUE(t, amfInstance, "001010000000099", func(ue *amf.UeContext) {
-		ue.ForceState(amf.Registered)
+		ue.ForceStateForTest(amf.Registered)
 		ue.AllowedNssai = []models.Snssai{
 			{Sst: 1, Sd: "010203"},
 			{Sst: 2, Sd: "aabbcc"},

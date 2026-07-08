@@ -9,11 +9,11 @@ import (
 	"github.com/ellanetworks/core/etsi"
 )
 
-func TestIMEIFromPEI(t *testing.T) {
+func TestNewIMEIFromPEI(t *testing.T) {
 	tests := []struct {
 		name     string
 		pei      string
-		expected string
+		expected string // normalized 15-digit IMEI
 		wantErr  bool
 	}{
 		{
@@ -65,10 +65,10 @@ func TestIMEIFromPEI(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := etsi.IMEIFromPEI(tc.pei)
+			imei, err := etsi.NewIMEIFromPEI(tc.pei)
 			if tc.wantErr {
 				if err == nil {
-					t.Fatalf("expected error, got %q", got)
+					t.Fatalf("expected error, got %q", imei.IMEI())
 				}
 
 				return
@@ -78,13 +78,17 @@ func TestIMEIFromPEI(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			if got != tc.expected {
-				t.Fatalf("expected %q, got %q", tc.expected, got)
+			if got := imei.IMEI(); got != tc.expected {
+				t.Fatalf("IMEI() = %q, want %q", got, tc.expected)
 			}
 
-			// Verify the result passes Luhn validation for non-empty results.
-			if got != "" && !luhnValid(got) {
-				t.Fatalf("result %q does not pass Luhn validation", got)
+			if imei.IsSet() != (tc.expected != "") {
+				t.Fatalf("IsSet() = %v, want %v", imei.IsSet(), tc.expected != "")
+			}
+
+			// Verify the normalized IMEI passes Luhn validation.
+			if got := imei.IMEI(); got != "" && !luhnValid(got) {
+				t.Fatalf("IMEI() %q does not pass Luhn validation", got)
 			}
 		})
 	}

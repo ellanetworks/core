@@ -10,8 +10,10 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/guard"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
+	"go.uber.org/zap"
 )
 
 // UeContextExport is the JSON-serializable export of a single UE's AMF state.
@@ -89,10 +91,10 @@ type TunnelExport struct {
 }
 
 type UERegistrationExport struct {
-	Type                 uint8 `json:"type"`
-	IdentityTypeUsed     uint8 `json:"identity_type_used"`
-	Retransmission       bool  `json:"retransmission"`
-	AuthFailureSyncTimes int   `json:"auth_failure_sync_times"`
+	Type             uint8 `json:"type"`
+	IdentityTypeUsed uint8 `json:"identity_type_used"`
+	Retransmission   bool  `json:"retransmission"`
+	ResyncTried      bool  `json:"resync_tried"`
 }
 
 type TimerStatusExport struct {
@@ -102,16 +104,13 @@ type TimerStatusExport struct {
 }
 
 type UETimersExport struct {
-	T3512ValueSeconds   int64             `json:"t3512_value_seconds"`
-	T3502ValueSeconds   int64             `json:"t3502_value_seconds"`
-	T3513Paging         TimerStatusExport `json:"t3513_paging"`
-	T3565Notification   TimerStatusExport `json:"t3565_notification"`
-	T3560Auth           TimerStatusExport `json:"t3560_auth"`
-	T3550Registration   TimerStatusExport `json:"t3550_registration"`
-	T3555ConfigUpdate   TimerStatusExport `json:"t3555_config_update"`
-	T3522Deregistration TimerStatusExport `json:"t3522_deregistration"`
-	MobileReachable     TimerStatusExport `json:"mobile_reachable"`
-	ImplicitDereg       TimerStatusExport `json:"implicit_deregistration"`
+	T3512ValueSeconds int64             `json:"t3512_value_seconds"`
+	T3502ValueSeconds int64             `json:"t3502_value_seconds"`
+	T3513Paging       TimerStatusExport `json:"t3513_paging"`
+	NASGuard          TimerStatusExport `json:"nas_guard"`
+	NASGuardProcedure string            `json:"nas_guard_procedure"`
+	MobileReachable   TimerStatusExport `json:"mobile_reachable"`
+	ImplicitDereg     TimerStatusExport `json:"implicit_deregistration"`
 }
 
 type UELastActivityExport struct {
@@ -126,7 +125,6 @@ type RANConnectionExport struct {
 	RadioName   string     `json:"radio_name,omitempty"`
 }
 
-// copyPtr returns a shallow copy of the value pointed to by src, or nil if src is nil.
 func copyPtr[T any](src *T) *T {
 	if src == nil {
 		return nil
@@ -201,8 +199,7 @@ func policyDataFromSMF(src *smf.Policy) *PolicyDataExport {
 	}
 }
 
-// timerStatus returns a TimerStatusExport for a NAS retransmission guard. Safe to
-// call with nil.
+// timerStatus reports a guard's status; a nil guard is inactive.
 func timerStatus(g *guard.Guard) TimerStatusExport {
 	if g == nil {
 		return TimerStatusExport{Active: false}
@@ -216,10 +213,8 @@ func timerStatus(g *guard.Guard) TimerStatusExport {
 }
 
 // ExportUEs returns a snapshot of all current UEs in the AMF context.
-// It acquires the AMF lock to get the list of UEs, then acquires
-// locks per-UE and calls into the SMF singleton for PDU session
-// details. Safe to call concurrently with normal AMF operation.
-func (amf *AMF) ExportUEs(_ context.Context) ([]UeContextExport, error) {
+// Safe to call concurrently with normal AMF operation.
+func (amf *AMF) ExportUEs(ctx context.Context) ([]UeContextExport, error) {
 	amf.mu.RLock()
 
 	ues := make([]*UeContext, 0, len(amf.UEs))
@@ -230,34 +225,46 @@ func (amf *AMF) ExportUEs(_ context.Context) ([]UeContextExport, error) {
 	amf.mu.RUnlock()
 
 	exports := make([]UeContextExport, 0, len(ues))
+	if len(ues) == 0 {
+		return exports, nil
+	}
+
+	// The GUAMI rebuilds each UE's GUTI, a cosmetic field; the stored 5G-TMSI is
+	// exported regardless. Fetched once and best-effort: an unreadable operator config
+	// leaves the GUTI empty without failing the snapshot.
+	var guami *models.Guami
+
+	if amf.DBInstance != nil {
+		if operatorInfo, err := amf.OperatorInfo(ctx); err != nil {
+			logger.From(ctx, logger.AmfLog).Warn("export: operator info unavailable, omitting GUTI", zap.Error(err))
+		} else {
+			guami = operatorInfo.Guami
+		}
+	}
+
 	for _, ue := range ues {
-		exports = append(exports, amf.exportUeContext(ue))
+		exports = append(exports, amf.exportUeContext(guami, ue))
 	}
 
 	return exports, nil
 }
 
-func (amf *AMF) CountUEPDUSessions(supi etsi.SUPI) int {
-	ue, ok := amf.FindUeContextBySupi(supi)
+// UEPDUSessions returns the PDU sessions for the UE identified by SUPI, or false
+// if no such UE exists. Safe to call concurrently with normal AMF operation.
+// LookupSubscriber resolves a UE once and returns its detail snapshot together with its
+// PDU sessions, so the two views cannot tear across separate registry lookups (the
+// detail-path analog of ConnectedSubscribers; mirrors the MME's LookupSubscriber). The
+// session detail is built after the UE's session refs are copied under the UE lock,
+// because it reaches the SMF (SMF-delegated sessions, TS 23.501) and must not run under
+// the registry lock — the one architecture-forced difference from the MME, whose PDN
+// data is UE-local.
+func (amf *AMF) LookupSubscriber(supi etsi.SUPI) (UESnapshot, []PDUSessionExport, bool) {
+	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
-		return 0
+		return UESnapshot{}, nil, false
 	}
 
-	ue.mu.Lock()
-	n := len(ue.SmContextList)
-	ue.mu.Unlock()
-
-	return n
-}
-
-// UEPDUSessions returns the PDU sessions for a single UE identified by SUPI.
-// Returns the PDU session exports and true if the UE exists, false otherwise.
-// Safe to call concurrently with normal AMF operation.
-func (amf *AMF) UEPDUSessions(supi etsi.SUPI) ([]PDUSessionExport, bool) {
-	ue, ok := amf.FindUeContextBySupi(supi)
-	if !ok {
-		return nil, false
-	}
+	snap := ue.Snapshot()
 
 	ue.mu.Lock()
 
@@ -279,7 +286,7 @@ func (amf *AMF) UEPDUSessions(supi etsi.SUPI) ([]PDUSessionExport, bool) {
 		result = append(result, s)
 	}
 
-	return result, true
+	return snap, result, true
 }
 
 // smContextCopy is a local copy of AMF SmContext fields used to avoid holding the UE lock while querying SMF.
@@ -289,54 +296,49 @@ type smContextCopy struct {
 	inactive bool
 }
 
-// exportUeContext copies scalar fields under ue.Mutex, then queries SMF outside
-// the lock.
-func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
+func (amf *AMF) exportUeContext(guami *models.Guami, ue *UeContext) UeContextExport {
 	ue.mu.Lock()
 
-	conn := ue.NasConn()
+	conn := ue.Conn()
+
+	// gutiFor is pure, so rebuilding the GUTI strings under ue.mu takes no amf.mu
+	// against the lock order. An unset TMSI yields InvalidGUTI.
+	guti, _ := gutiFor(guami, ue.tmsi)
+	oldGuti, _ := gutiFor(guami, ue.oldTmsi)
 
 	var (
-		ongoing       []string
-		regType       uint8
-		identityType  uint8
-		retransmit    bool
-		authSyncTimes int
-		t3513         *guard.Guard
-		t3565         *guard.Guard
-		t3560         *guard.Guard
-		t3550         *guard.Guard
-		t3555         *guard.Guard
-		t3522         *guard.Guard
+		ongoing      []string
+		regType      uint8
+		identityType uint8
+		retransmit   bool
+		resyncTried  bool
+		nasGuard     *guard.Guard
+		nasGuardName string
 	)
 
 	if conn != nil {
-		ongoing = conn.Procedures.ActiveTypes()
+		ongoing = conn.Parent().Procedures().ActiveTypes()
 		regType = conn.RegistrationType5GS
 		identityType = conn.IdentityTypeUsedForRegistration
 		retransmit = conn.RetransmissionOfInitialNASMsg
-		authSyncTimes = conn.AuthFailureCauseSynchFailureTimes
-		t3513 = &conn.T3513
-		t3565 = &conn.T3565
-		t3560 = &conn.T3560
-		t3550 = &conn.T3550
-		t3555 = &conn.T3555
-		t3522 = &conn.T3522
+		resyncTried = conn.resyncTried
+		nasGuard = &conn.nasGuard
+		nasGuardName = conn.nasGuardProcName()
 	}
 
 	export := UeContextExport{
 		Identity: UEIdentityExport{
 			Supi:    ue.supi.String(),
-			Pei:     ue.Pei,
+			Pei:     ue.Imei.String(),
 			PlmnID:  ue.PlmnID,
-			Guti:    ue.guti.String(),
-			OldGuti: ue.OldGuti.String(),
-			Tmsi:    ue.Tmsi.String(),
-			OldTmsi: ue.OldTmsi.String(),
+			Guti:    guti.String(),
+			OldGuti: oldGuti.String(),
+			Tmsi:    ue.tmsi.String(),
+			OldTmsi: ue.oldTmsi.String(),
 			Suci:    ue.Suci,
 		},
 		State: UEStateExport{
-			GMMState:                 string(ue.state),
+			GMMState:                 ue.state.String(),
 			OngoingProcedures:        ongoing,
 			SecurityContextAvailable: ue.secured,
 		},
@@ -355,22 +357,19 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 			Ambr:         copyPtr(ue.Ambr),
 		},
 		Registration: UERegistrationExport{
-			Type:                 regType,
-			IdentityTypeUsed:     identityType,
-			Retransmission:       retransmit,
-			AuthFailureSyncTimes: authSyncTimes,
+			Type:             regType,
+			IdentityTypeUsed: identityType,
+			Retransmission:   retransmit,
+			ResyncTried:      resyncTried,
 		},
 		Timers: UETimersExport{
-			T3512ValueSeconds:   int64(ue.T3512Value / time.Second),
-			T3502ValueSeconds:   int64(ue.T3502Value / time.Second),
-			T3513Paging:         timerStatus(t3513),
-			T3565Notification:   timerStatus(t3565),
-			T3560Auth:           timerStatus(t3560),
-			T3550Registration:   timerStatus(t3550),
-			T3555ConfigUpdate:   timerStatus(t3555),
-			T3522Deregistration: timerStatus(t3522),
-			MobileReachable:     timerStatus(&ue.mobileReachableTimer),
-			ImplicitDereg:       timerStatus(&ue.implicitDeregistrationTimer),
+			T3512ValueSeconds: int64(amf.T3512Value / time.Second),
+			T3502ValueSeconds: int64(amf.T3502Value / time.Second),
+			T3513Paging:       timerStatus(&ue.pagingTimer),
+			NASGuard:          timerStatus(nasGuard),
+			NASGuardProcedure: nasGuardName,
+			MobileReachable:   timerStatus(&ue.mobileReachableTimer),
+			ImplicitDereg:     timerStatus(&ue.implicitDeregistrationTimer),
 		},
 		LastActivity: UELastActivityExport{
 			Timestamp: ue.lastSeenTime(),
@@ -387,14 +386,12 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 		})
 	}
 
-	if ue.ranUe != nil {
+	if r := ue.active.Load(); r != nil {
 		rc := &RANConnectionExport{
-			RanUeNgapID: ue.ranUe.RanUeNgapID,
-			AmfUeNgapID: ue.ranUe.AmfUeNgapID,
-			RanTai:      ue.ranUe.Tai,
-		}
-		if ue.ranUe.radio != nil {
-			rc.RadioName = ue.ranUe.radio.Name
+			RanUeNgapID: r.RanUeNgapID,
+			AmfUeNgapID: r.AmfUeNgapID,
+			RanTai:      r.Tai,
+			RadioName:   r.radioName,
 		}
 
 		export.RANConnection = rc
@@ -410,7 +407,7 @@ func (amf *AMF) exportUeContext(ue *UeContext) UeContextExport {
 
 func (amf *AMF) buildPDUSessions(copies []smContextCopy) map[string]PDUSessionExport {
 	result := make(map[string]PDUSessionExport, len(copies))
-	smfSessions := amf.Smf
+	smfSessions := amf.Session
 
 	for _, sc := range copies {
 		pdu := PDUSessionExport{

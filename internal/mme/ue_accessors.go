@@ -7,6 +7,7 @@ package mme
 import (
 	"fmt"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
@@ -16,7 +17,15 @@ import (
 // (kasme, knasInt, knasEnc) are never returned; the operations that use them are
 // methods so the keys stay inside the UeContext (TS 33.401).
 
-// IMSI returns the UE's IMSI.
+// Tmsi returns the UE's current M-TMSI (0 = none). The field is registry-lock-guarded
+// and written only by the guti realloc/clear methods; the accessor keeps it from being
+// touched lock-free from outside.
+func (ue *UeContext) Tmsi() etsi.TMSI { return ue.tmsi }
+
+// OldTmsi returns the M-TMSI being replaced during a GUTI reallocation (0 = none).
+func (ue *UeContext) OldTmsi() etsi.TMSI { return ue.oldTmsi }
+
+// IMSI returns the UE's IMSI, or "" when the identity is unset.
 func (ue *UeContext) IMSI() string {
 	if ue == nil {
 		return ""
@@ -25,7 +34,30 @@ func (ue *UeContext) IMSI() string {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return ue.imsi
+	return ue.imsiOrEmpty()
+}
+
+// imsiOrEmpty returns the bare IMSI, or "" when the identity is unset. Unlike
+// etsi.SUPI.IMSI() it does not panic on an unset SUPI. No lock of its own.
+func (ue *UeContext) imsiOrEmpty() string {
+	if !ue.supi.IsIMSI() {
+		return ""
+	}
+
+	return ue.supi.IMSI()
+}
+
+// AmbrStrings returns the UE-AMBR uplink/downlink bit-rate strings, empty when the
+// UE-AMBR has not been set.
+func (ue *UeContext) AmbrStrings() (uplink, downlink string) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if ue.Ambr == nil {
+		return "", ""
+	}
+
+	return ue.Ambr.Uplink, ue.Ambr.Downlink
 }
 
 // HasKASME reports whether K_ASME is present (the UE has authenticated), without
@@ -50,7 +82,7 @@ func (ue *UeContext) EIA() byte {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return ue.eia
+	return ue.integrityAlg
 }
 
 // EEA returns the selected NAS ciphering algorithm.
@@ -58,7 +90,7 @@ func (ue *UeContext) EEA() byte {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return ue.eea
+	return ue.cipheringAlg
 }
 
 // ULCount returns the expected uplink NAS COUNT.
@@ -66,7 +98,7 @@ func (ue *UeContext) ULCount() uint32 {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return ue.ulCount
+	return ue.ulCount.Value()
 }
 
 // Secured reports whether the NAS security context is established.
@@ -83,7 +115,7 @@ func (ue *UeContext) AdvanceULCount() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.ulCount++
+	ue.ulCount = ue.ulCount.Next()
 }
 
 // CommitUplinkCount advances the expected uplink NAS COUNT past the verified
@@ -93,7 +125,7 @@ func (ue *UeContext) CommitUplinkCount(count uint32) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.ulCount = count + 1
+	ue.ulCount = nascommon.Count(count).Next()
 }
 
 // TryUnprotectUplink verifies and deciphers a protected uplink NAS message
@@ -111,15 +143,10 @@ func (ue *UeContext) TryUnprotectUplink(nas []byte) (plain []byte, count uint32,
 
 	recvSeq := nas[5]
 
-	overflow := uint16(ue.ulCount >> 8)
-	if recvSeq < uint8(ue.ulCount) {
-		overflow++
-	}
-
-	count = nascommon.NASCount(overflow, recvSeq)
+	count = ue.ulCount.ReconcileUplink(recvSeq).Value()
 
 	p, err := eps.Unprotect(nas, count, nascommon.DirectionUplink,
-		ue.knasInt, ue.knasEnc, IntegrityAlg(ue.eia), CipherAlg(ue.eea))
+		ue.knasInt, ue.knasEnc, IntegrityAlg(ue.integrityAlg), CipherAlg(ue.cipheringAlg))
 	if err != nil {
 		return nil, 0, err
 	}
@@ -134,11 +161,18 @@ func (ue *UeContext) ProtectDownlink(plain []byte, sht eps.SecurityHeaderType) (
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	count := ue.dlCount
-	ue.dlCount++
+	// Protect with the current NAS COUNT and advance only once the message is
+	// protected, so a protection failure does not consume a downlink COUNT
+	// (TS 24.301 §4.4.3.1).
+	wire, err := eps.Protect(plain, sht, ue.dlCount.Value(),
+		nascommon.DirectionDownlink, ue.knasInt, ue.knasEnc, IntegrityAlg(ue.integrityAlg), CipherAlg(ue.cipheringAlg))
+	if err != nil {
+		return nil, err
+	}
 
-	return eps.Protect(plain, sht, nascommon.NASCount(0, uint8(count)),
-		nascommon.DirectionDownlink, ue.knasInt, ue.knasEnc, IntegrityAlg(ue.eia), CipherAlg(ue.eea))
+	ue.dlCount = ue.dlCount.Next()
+
+	return wire, nil
 }
 
 // InstallNASSecurityContext derives the NAS keys from K_ASME for the negotiated
@@ -158,8 +192,12 @@ func (ue *UeContext) InstallNASSecurityContext(eea, eia byte, _ AuthProof) error
 		return err
 	}
 
-	ue.eea, ue.eia = eea, eia
+	ue.cipheringAlg, ue.integrityAlg = eea, eia
 	ue.knasEnc, ue.knasInt = knasEnc, knasInt
+
+	// A new EPS security context starts both NAS COUNTs at zero, so the initial
+	// SECURITY MODE COMMAND rides downlink COUNT 0 (TS 24.301 §4.4.3.1).
+	ue.ulCount, ue.dlCount = 0, 0
 
 	return nil
 }
@@ -172,10 +210,10 @@ func (ue *UeContext) VerifyServiceRequestShortMAC(head []byte, gotMAC [2]byte, g
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ul = ue.ulCount
-	expSeq = uint8(ue.ulCount) & 0x1f
+	ul = ue.ulCount.Value()
+	expSeq = ue.ulCount.SQN() & 0x1f
 
-	want, err := eps.ServiceRequestShortMAC(head, ue.knasInt, ue.ulCount, nascommon.DirectionUplink, IntegrityAlg(ue.eia))
+	want, err := eps.ServiceRequestShortMAC(head, ue.knasInt, ue.ulCount.Value(), nascommon.DirectionUplink, IntegrityAlg(ue.integrityAlg))
 	if err != nil {
 		return false, [2]byte{}, expSeq, ul
 	}
@@ -196,7 +234,7 @@ func (ue *UeContext) DeriveInitialKeNB() (kenb [32]byte, kenbCount uint32, err e
 	// uplink NAS message (the Security Mode Complete on attach, the Service
 	// Request on reconnect), i.e. one less than the next-expected count
 	// (TS 33.401).
-	kenbCount = ue.ulCount
+	kenbCount = ue.ulCount.Value()
 	if kenbCount > 0 {
 		kenbCount--
 	}
@@ -218,7 +256,7 @@ func (ue *UeContext) DeriveInitialKeNB() (kenb [32]byte, kenbCount uint32, err e
 }
 
 // Conn returns the S1 association's writer (the eNB SCTP connection).
-func (c *S1Conn) Conn() NasWriter { return c.conn }
+func (c *UeConn) Conn() S1APWriter { return c.conn }
 
 // SetPDNEnbFTEID records the eNB S1-U endpoint on a PDN connection under the UE lock.
 func (m *MME) SetPDNEnbFTEID(ue *UeContext, p *PdnConnection, f models.FTEID) {

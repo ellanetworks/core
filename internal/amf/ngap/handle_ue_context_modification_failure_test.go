@@ -16,8 +16,8 @@ import (
 )
 
 func TestHandleUEContextModificationFailure_UnknownRanUeNgapID(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	ran := newTestRadio(newTestAMF())
+	sender := ran.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 	ranUeNgapID := int64(1)
 	msg := decode.UEContextModificationFailure{
@@ -32,11 +32,11 @@ func TestHandleUEContextModificationFailure_UnknownRanUeNgapID(t *testing.T) {
 }
 
 func TestHandleUEContextModificationFailure_UEFound(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
-	amfInstance.Radios[new(sctp.SCTPConn)] = ran
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
 	amfUeNgapID := int64(10)
 	msg := decode.UEContextModificationFailure{
@@ -49,8 +49,8 @@ func TestHandleUEContextModificationFailure_UEFound(t *testing.T) {
 
 	ngap.HandleUEContextModificationFailure(context.Background(), amfInstance, ran, msg)
 
-	// ranUe was already created on 'ran', so Radio() should still be 'ran'.
-	if ranUe.Radio() != ran {
-		t.Error("expected ranUe.Radio to still be ran")
+	// ueConn was already created on 'ran', so Radio() should still be 'ran'.
+	if ueConn.Radio() != ran {
+		t.Error("expected ueConn.Radio to still be ran")
 	}
 }

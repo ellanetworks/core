@@ -21,23 +21,29 @@ import (
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/free5gc/aper"
+	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 )
 
-// releaseSignalSender wraps a FakeNGAPSender and closes released the first time a
+// releaseSignalSender wraps a sender and closes released the first time a
 // UE Context Release Command is sent, giving a test a happens-before edge to the
 // guard's timer goroutine.
 type releaseSignalSender struct {
-	*FakeNGAPSender
+	*fakeNGAPSender
 	released chan struct{}
 }
 
-func (s *releaseSignalSender) SendUEContextReleaseCommand(ctx context.Context, amfUeNgapID, ranUeNgapID int64, causePresent int, cause aper.Enumerated) error {
-	err := s.FakeNGAPSender.SendUEContextReleaseCommand(ctx, amfUeNgapID, ranUeNgapID, causePresent, cause)
-	close(s.released)
+func (s *releaseSignalSender) WriteMsg(b []byte, info *sctp.SndRcvInfo) (int, error) {
+	before := len(s.SentUEContextReleaseCommands)
 
-	return err
+	n, err := s.fakeNGAPSender.WriteMsg(b, info)
+
+	if before == 0 && len(s.SentUEContextReleaseCommands) > 0 {
+		close(s.released)
+	}
+
+	return n, err
 }
 
 // decodeHandoverRequiredOrFatal decodes msg and fails the test only if
@@ -255,30 +261,37 @@ func TestHandoverRequired(t *testing.T) {
 	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
 	amfUe.SetKamfForTest(kamfHex)
 	amfUe.SetNHForTest(make([]byte, 32))
+
+	secCap := &nasType.UESecurityCapability{}
+	secCap.SetLen(2)
+	amfUe.SetUESecurityCapabilityForTest(secCap)
 	amfUe.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
-	amfUe.Log = logger.AmfLog
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    smf.CanonicalName(supi, pduSessionID),
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
 	// Set up source RAN and source UE
-	sourceNGAPSender := &FakeNGAPSender{}
+	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:           logger.AmfLog,
-		NGAPSender:    sourceNGAPSender,
-		RanUEs:        make(map[int64]*amf.RanUe),
-		SupportedTAIs: make([]amf.SupportedTAI, 0),
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
-
-	sourceUe := amf.NewRanUeForTest(sourceRan, 1, 1, logger.AmfLog)
-	amfUe.AttachRanUe(sourceUe)
+	amfInstance := amf.New(&fakeDBInstance{
+		Operator: &db.Operator{
+			Mcc: "001",
+			Mnc: "01",
+		},
+	}, nil, &fakeSmfSbi{SMF: smfInstance})
+	sourceRan.BindAMFForTest(amfInstance)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
+	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
 	// Set up target RAN with matching GNB ID
-	targetNGAPSender := &FakeNGAPSender{}
+	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
 		Log:        logger.AmfLog,
-		NGAPSender: targetNGAPSender,
+		Conn:       targetNGAPSender,
 		RanPresent: amf.RanPresentGNbID,
 		RanID: &models.GlobalRanNodeID{
 			GNbID: &models.GNbID{
@@ -286,17 +299,9 @@ func TestHandoverRequired(t *testing.T) {
 				BitLength: 24,
 			},
 		},
-		RanUEs:        make(map[int64]*amf.RanUe),
-		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	// Set up AMF with target RAN in Radios map
-	amfInstance := amf.New(&FakeDBInstance{
-		Operator: &db.Operator{
-			Mcc: "001",
-			Mnc: "01",
-		},
-	}, nil, &FakeSmfSbi{SMF: smfInstance})
+	// Set up AMF with target RAN in radios map
 	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
 
 	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, decodeHandoverRequiredOrFatal(t, msg.InitiatingMessage.Value.HandoverRequired))
@@ -354,23 +359,22 @@ func TestHandoverRequired_UnknownRanUeNgapID(t *testing.T) {
 		t.Fatalf("failed to build HandoverRequired: %v", err)
 	}
 
-	fakeNGAPSender := &FakeNGAPSender{}
+	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
-		Log:           logger.AmfLog,
-		NGAPSender:    fakeNGAPSender,
-		RanUEs:        make(map[int64]*amf.RanUe), // Empty — no UE with ID 99
-		SupportedTAIs: make([]amf.SupportedTAI, 0),
+		Log:  logger.AmfLog,
+		Conn: sender,
 	}
+	ran.BindAMFForTest(amf.New(nil, nil, nil))
 
 	amfInstance := amf.New(nil, nil, nil)
 
 	ngap.HandleHandoverRequired(context.Background(), amfInstance, ran, decodeHandoverRequiredOrFatal(t, msg.InitiatingMessage.Value.HandoverRequired))
 
-	if len(fakeNGAPSender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication, got %d", len(fakeNGAPSender.SentErrorIndications))
+	if len(sender.SentErrorIndications) != 1 {
+		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}
 
-	errorIndication := fakeNGAPSender.SentErrorIndications[0]
+	errorIndication := sender.SentErrorIndications[0]
 	if errorIndication.Cause == nil {
 		t.Fatal("expected Cause in ErrorIndication, got nil")
 	}
@@ -438,20 +442,17 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 	// Create UeContext with invalid security context
 	amfUe := amf.NewUeContext()
 	amfUe.SetSecuredForTest(false)
-	amfUe.Log = logger.AmfLog
 
-	sourceNGAPSender := &FakeNGAPSender{}
+	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:           logger.AmfLog,
-		NGAPSender:    sourceNGAPSender,
-		RanUEs:        make(map[int64]*amf.RanUe),
-		SupportedTAIs: make([]amf.SupportedTAI, 0),
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
-
-	sourceUe := amf.NewRanUeForTest(sourceRan, 1, 1, logger.AmfLog)
-	amfUe.AttachRanUe(sourceUe)
-
 	amfInstance := amf.New(nil, nil, nil)
+	sourceRan.BindAMFForTest(amfInstance)
+
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
+	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
 	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, decodeHandoverRequiredOrFatal(t, msg.InitiatingMessage.Value.HandoverRequired))
 
@@ -543,28 +544,30 @@ func TestHandoverRequired_UnknownTarget(t *testing.T) {
 	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
 	amfUe.SetKamfForTest(kamfHex)
 	amfUe.SetNHForTest(make([]byte, 32))
-	amfUe.Log = logger.AmfLog
+
+	secCap := &nasType.UESecurityCapability{}
+	secCap.SetLen(2)
+	amfUe.SetUESecurityCapabilityForTest(secCap)
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    smf.CanonicalName(supi, pduSessionID),
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	sourceNGAPSender := &FakeNGAPSender{}
+	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:           logger.AmfLog,
-		NGAPSender:    sourceNGAPSender,
-		RanUEs:        make(map[int64]*amf.RanUe),
-		SupportedTAIs: make([]amf.SupportedTAI, 0),
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
-
-	sourceUe := amf.NewRanUeForTest(sourceRan, 1, 1, logger.AmfLog)
-	amfUe.AttachRanUe(sourceUe)
-
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{Mcc: "001", Mnc: "01"},
-	}, nil, &FakeSmfSbi{SMF: smfInstance})
+	}, nil, &fakeSmfSbi{SMF: smfInstance})
+	sourceRan.BindAMFForTest(amfInstance)
+
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
+	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+
 	// No target gNB registered with this AMF.
-	amfInstance.Radios = map[*sctp.SCTPConn]*amf.Radio{}
+	amfInstance.ClearRadiosForTest()
 
 	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, decodeHandoverRequiredOrFatal(t, msg.InitiatingMessage.Value.HandoverRequired))
 
@@ -668,35 +671,36 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
 	amfUe.SetKamfForTest(kamfHex)
 	amfUe.SetNHForTest(make([]byte, 32))
+
+	secCap := &nasType.UESecurityCapability{}
+	secCap.SetLen(2)
+	amfUe.SetUESecurityCapabilityForTest(secCap)
 	amfUe.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
-	amfUe.Log = logger.AmfLog
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    smf.CanonicalName(supi, pduSessionID),
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
 	sourceRan := &amf.Radio{
-		Log:           logger.AmfLog,
-		NGAPSender:    &FakeNGAPSender{},
-		RanUEs:        make(map[int64]*amf.RanUe),
-		SupportedTAIs: make([]amf.SupportedTAI, 0),
+		Log:  logger.AmfLog,
+		Conn: &fakeNGAPSender{},
 	}
 
-	sourceUe := amf.NewRanUeForTest(sourceRan, 1, 1, logger.AmfLog)
-	amfUe.AttachRanUe(sourceUe)
+	amfInstance := amf.New(&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, &fakeSmfSbi{SMF: smfInstance})
+	sourceRan.BindAMFForTest(amfInstance)
 
-	targetNGAPSender := &FakeNGAPSender{}
-	targetSender := &releaseSignalSender{FakeNGAPSender: targetNGAPSender, released: make(chan struct{})}
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
+	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+
+	targetNGAPSender := &fakeNGAPSender{}
+	targetSender := &releaseSignalSender{fakeNGAPSender: targetNGAPSender, released: make(chan struct{})}
 	targetRan := &amf.Radio{
-		Log:           logger.AmfLog,
-		NGAPSender:    targetSender,
-		RanPresent:    amf.RanPresentGNbID,
-		RanID:         &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: targetGnbID, BitLength: 24}},
-		RanUEs:        make(map[int64]*amf.RanUe),
-		SupportedTAIs: make([]amf.SupportedTAI, 0),
+		Log:        logger.AmfLog,
+		Conn:       targetSender,
+		RanPresent: amf.RanPresentGNbID,
+		RanID:      &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: targetGnbID, BitLength: 24}},
 	}
 
-	amfInstance := amf.New(&FakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, &FakeSmfSbi{SMF: smfInstance})
 	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
 
 	// Drive the guard quickly; the target gNB never answers the HANDOVER REQUEST.
@@ -718,7 +722,7 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 		t.Fatalf("expected 1 UEContextReleaseCommand to target on guard expiry, got %d", got)
 	}
 
-	if amfUe.NasConn().Procedures.Active(procedure.N2Handover) {
+	if amfUe.Procedures().Active(procedure.N2Handover) {
 		t.Fatal("N2Handover procedure still active after guard expiry")
 	}
 }

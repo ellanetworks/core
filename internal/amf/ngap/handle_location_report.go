@@ -12,6 +12,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -23,13 +24,13 @@ func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return
 	}
 
-	ranUe, ok := resolveUE(ctx, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+	ueConn, ok := resolveUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
 	if !ok {
 		return
 	}
 
-	ranUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
-	ranUe.TouchLastSeen()
+	ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
+	ueConn.TouchLastSeen()
 
 	// Extract radio measurements from UserLocationInformation if available.
 	// Note: free5gc's UserLocationInformationNR does not include RSRP/RSRQ/TA;
@@ -41,25 +42,25 @@ func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		}
 	}
 
-	logger.WithTrace(ctx, ranUe.Log).Debug("Handle Location Report", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Any("ReportArea", msg.LocationReportingRequestType.ReportArea))
+	logger.WithTrace(ctx, ueConn.Log).Debug("Handle Location Report", zap.Int64("RanUeNgapID", ueConn.RanUeNgapID), zap.Int64("AmfUeNgapID", ueConn.AmfUeNgapID), zap.Any("ReportArea", msg.LocationReportingRequestType.ReportArea))
 
 	switch msg.LocationReportingRequestType.EventType.Value {
 	case ngapType.EventTypePresentDirect:
-		logger.WithTrace(ctx, ranUe.Log).Debug("To report directly")
+		logger.WithTrace(ctx, ueConn.Log).Debug("To report directly")
 
 	case ngapType.EventTypePresentChangeOfServeCell:
-		logger.WithTrace(ctx, ranUe.Log).Debug("To report upon change of serving cell")
+		logger.WithTrace(ctx, ueConn.Log).Debug("To report upon change of serving cell")
 
 	case ngapType.EventTypePresentUePresenceInAreaOfInterest:
-		logger.WithTrace(ctx, ranUe.Log).Debug("To report UE presence in the area of interest")
+		logger.WithTrace(ctx, ueConn.Log).Debug("To report UE presence in the area of interest")
 
 		if msg.UEPresenceInAreaOfInterestList == nil {
-			logger.WithTrace(ctx, ranUe.Log).Warn("UEPresenceInAreaOfInterestList is nil, skipping area of interest processing")
+			logger.WithTrace(ctx, ueConn.Log).Warn("UEPresenceInAreaOfInterestList is nil, skipping area of interest processing")
 			break
 		}
 
 		if msg.LocationReportingRequestType.AreaOfInterestList == nil {
-			logger.WithTrace(ctx, ranUe.Log).Warn("AreaOfInterestList is nil, skipping area matching")
+			logger.WithTrace(ctx, ueConn.Log).Warn("AreaOfInterestList is nil, skipping area matching")
 			break
 		}
 
@@ -69,25 +70,27 @@ func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 			for _, AOIitem := range msg.LocationReportingRequestType.AreaOfInterestList.List {
 				if referenceID == AOIitem.LocationReportingReferenceID.Value {
-					logger.WithTrace(ctx, ranUe.Log).Debug("To report UE presence in the area of interest", zap.Int("uEPresence", int(uEPresence)), zap.Int("AOI ReferenceID", int(referenceID)))
+					logger.WithTrace(ctx, ueConn.Log).Debug("To report UE presence in the area of interest", zap.Int("uEPresence", int(uEPresence)), zap.Int("AOI ReferenceID", int(referenceID)))
 				}
 			}
 		}
 
 	case ngapType.EventTypePresentStopChangeOfServeCell:
-		err := ranUe.Radio().NGAPSender.SendLocationReportingControl(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, msg.LocationReportingRequestType.EventType)
+		pkt, err := send.BuildLocationReportingControl(ueConn.AmfUeNgapID, ueConn.RanUeNgapID, msg.LocationReportingRequestType.EventType)
 		if err != nil {
-			logger.WithTrace(ctx, ranUe.Log).Error("error sending location reporting control", zap.Error(err))
+			logger.WithTrace(ctx, ueConn.Log).Error("error building location reporting control", zap.Error(err))
+		} else if err := ueConn.SendNGAP(ctx, send.NGAPProcedureLocationReportingControl, pkt); err != nil {
+			logger.WithTrace(ctx, ueConn.Log).Error("error sending location reporting control", zap.Error(err))
 		}
 	case ngapType.EventTypePresentStopUePresenceInAreaOfInterest:
 		if msg.LocationReportingRequestType.LocationReportingReferenceIDToBeCancelled == nil {
-			logger.WithTrace(ctx, ranUe.Log).Warn("LocationReportingReferenceIDToBeCancelled is nil, skipping")
+			logger.WithTrace(ctx, ueConn.Log).Warn("LocationReportingReferenceIDToBeCancelled is nil, skipping")
 			break
 		}
 
-		logger.WithTrace(ctx, ranUe.Log).Debug("To stop reporting UE presence in the area of interest", zap.Int64("ReferenceID", msg.LocationReportingRequestType.LocationReportingReferenceIDToBeCancelled.Value))
+		logger.WithTrace(ctx, ueConn.Log).Debug("To stop reporting UE presence in the area of interest", zap.Int64("ReferenceID", msg.LocationReportingRequestType.LocationReportingReferenceIDToBeCancelled.Value))
 
 	case ngapType.EventTypePresentCancelLocationReportingForTheUe:
-		logger.WithTrace(ctx, ranUe.Log).Debug("To cancel location reporting for the UE")
+		logger.WithTrace(ctx, ueConn.Log).Debug("To cancel location reporting for the UE")
 	}
 }

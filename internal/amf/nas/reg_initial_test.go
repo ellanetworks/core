@@ -14,7 +14,7 @@ import (
 )
 
 type emptyPolicyDB struct {
-	*FakeDBInstance
+	*fakeDBInstance
 }
 
 func (fdb *emptyPolicyDB) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {
@@ -24,7 +24,7 @@ func (fdb *emptyPolicyDB) ListPoliciesByProfile(_ context.Context, _ string) ([]
 func TestHandleInitialRegistration_EmptyAllowedNssai_RejectsRegistration(t *testing.T) {
 	ctx := context.TODO()
 
-	amfInstance := amf.New(&emptyPolicyDB{FakeDBInstance: &FakeDBInstance{
+	amfInstance := amf.New(&emptyPolicyDB{fakeDBInstance: &fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -45,16 +45,13 @@ func TestHandleInitialRegistration_EmptyAllowedNssai_RejectsRegistration(t *test
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	ue.NasConn().RegistrationRequest = m.RegistrationRequest
-	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
+	ue.Conn().RegistrationRequest = m.RegistrationRequest
+	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
 
-	err = HandleInitialRegistration(ctx, amfInstance, ue)
-	if err == nil {
-		t.Fatal("expected registration reject for empty AllowedNssai, got nil")
-	}
+	HandleInitialRegistration(ctx, amfInstance, ue)
 
-	if got, want := err.Error(), "registration Reject [No allowed S-NSSAI in subscription]"; got != want {
-		t.Fatalf("expected error %q, got %q", want, got)
+	if ue.State() != amf.Deregistered {
+		t.Fatalf("UE should be released to Deregistered after the reject, got %v", ue.State())
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {

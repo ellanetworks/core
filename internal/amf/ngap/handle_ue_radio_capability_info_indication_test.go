@@ -16,10 +16,11 @@ import (
 )
 
 func TestUERadioCapabilityInfoIndication_UnknownAmfUeNgapID(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
 
-	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), ran, decode.UERadioCapabilityInfoIndication{
+	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, decode.UERadioCapabilityInfoIndication{
 		RANUENGAPID: 99,
 		AMFUENGAPID: 999,
 	})
@@ -29,43 +30,44 @@ func TestUERadioCapabilityInfoIndication_UnknownAmfUeNgapID(t *testing.T) {
 }
 
 func TestUERadioCapabilityInfoIndication_NilUeContext(t *testing.T) {
-	ran := newTestRadio()
-	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
+	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
-	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), ran, decode.UERadioCapabilityInfoIndication{
+	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, decode.UERadioCapabilityInfoIndication{
 		RANUENGAPID: 1,
 		AMFUENGAPID: 10,
 	})
 }
 
 func TestUERadioCapabilityInfoIndication_SetsRadioCapability(t *testing.T) {
-	ran := newTestRadio()
+	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), ran, decode.UERadioCapabilityInfoIndication{
+	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, decode.UERadioCapabilityInfoIndication{
 		RANUENGAPID:       1,
 		AMFUENGAPID:       10,
 		UERadioCapability: []byte{0xDE, 0xAD, 0xBE, 0xEF},
 	})
 
-	if !bytes.Equal(amfUe.UeRadioCapability, []byte{0xDE, 0xAD, 0xBE, 0xEF}) {
-		t.Errorf("UeRadioCapability = %x, want %x", amfUe.UeRadioCapability, []byte{0xDE, 0xAD, 0xBE, 0xEF})
+	if !bytes.Equal(amfUe.RadioCapability, []byte{0xDE, 0xAD, 0xBE, 0xEF}) {
+		t.Errorf("RadioCapability = %x, want %x", amfUe.RadioCapability, []byte{0xDE, 0xAD, 0xBE, 0xEF})
 	}
 }
 
 func TestUERadioCapabilityInfoIndication_SetsRadioCapabilityForPaging(t *testing.T) {
-	ran := newTestRadio()
+	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), ran, decode.UERadioCapabilityInfoIndication{
+	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, decode.UERadioCapabilityInfoIndication{
 		RANUENGAPID: 1,
 		AMFUENGAPID: 10,
 		UERadioCapabilityForPaging: &ngapType.UERadioCapabilityForPaging{
@@ -78,37 +80,37 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapabilityForPaging(t *testing
 		},
 	})
 
-	if amfUe.UeRadioCapabilityForPaging == nil {
-		t.Fatal("UeRadioCapabilityForPaging is nil")
+	if amfUe.RadioCapabilityForPaging == nil {
+		t.Fatal("RadioCapabilityForPaging is nil")
 	}
 
-	if amfUe.UeRadioCapabilityForPaging.NR != "cafe" {
-		t.Errorf("NR = %q, want %q", amfUe.UeRadioCapabilityForPaging.NR, "cafe")
+	if amfUe.RadioCapabilityForPaging.NR != "cafe" {
+		t.Errorf("NR = %q, want %q", amfUe.RadioCapabilityForPaging.NR, "cafe")
 	}
 
-	if amfUe.UeRadioCapabilityForPaging.EUTRA != "babe" {
-		t.Errorf("EUTRA = %q, want %q", amfUe.UeRadioCapabilityForPaging.EUTRA, "babe")
+	if amfUe.RadioCapabilityForPaging.EUTRA != "babe" {
+		t.Errorf("EUTRA = %q, want %q", amfUe.RadioCapabilityForPaging.EUTRA, "babe")
 	}
 }
 
 func TestUERadioCapabilityInfoIndication_NilCapabilityFieldsNoOp(t *testing.T) {
-	ran := newTestRadio()
+	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), ran, decode.UERadioCapabilityInfoIndication{
+	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, decode.UERadioCapabilityInfoIndication{
 		RANUENGAPID: 1,
 		AMFUENGAPID: 10,
 	})
 
-	if len(amfUe.UeRadioCapability) != 0 {
-		t.Errorf("UeRadioCapability = %x, want empty", amfUe.UeRadioCapability)
+	if len(amfUe.RadioCapability) != 0 {
+		t.Errorf("RadioCapability = %x, want empty", amfUe.RadioCapability)
 	}
 
-	if amfUe.UeRadioCapabilityForPaging != nil {
-		t.Errorf("UeRadioCapabilityForPaging = %+v, want nil", amfUe.UeRadioCapabilityForPaging)
+	if amfUe.RadioCapabilityForPaging != nil {
+		t.Errorf("RadioCapabilityForPaging = %+v, want nil", amfUe.RadioCapabilityForPaging)
 	}
 }

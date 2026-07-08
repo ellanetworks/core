@@ -15,14 +15,14 @@ import (
 )
 
 func TestPDUSessionResourceModifyResponse_BothIDsNil(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
 
 	ngap.HandlePDUSessionResourceModifyResponse(context.Background(), amfInstance, ran, decode.PDUSessionResourceModifyResponse{})
 }
 
 func TestPDUSessionResourceModifyResponse_RanUeNgapIDNotFound(t *testing.T) {
-	ran := newTestRadio()
+	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
 
 	ranID := int64(99)
@@ -33,15 +33,15 @@ func TestPDUSessionResourceModifyResponse_RanUeNgapIDNotFound(t *testing.T) {
 }
 
 func TestPDUSessionResourceModifyResponse_CrossRadioRejected(t *testing.T) {
-	ran := newTestRadio()
-	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
+	ran := newTestRadio(newTestAMF())
+	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
-	amfInstance := newTestAMFWithSmf(&FakeSmfSbi{})
-	amfInstance.Radios[new(sctp.SCTPConn)] = ran
+	amfInstance := newTestAMFWithSmf(&fakeSmfSbi{})
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
 	// A different radio claims the same AMF-UE-NGAP-ID — must be rejected.
-	attackerRan := newTestRadio()
-	attackerSender := attackerRan.NGAPSender.(*FakeNGAPSender)
+	attackerRan := newTestRadio(newTestAMF())
+	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 	amfID := int64(10)
 
 	ngap.HandlePDUSessionResourceModifyResponse(context.Background(), amfInstance, attackerRan, decode.PDUSessionResourceModifyResponse{

@@ -13,26 +13,26 @@ import (
 )
 
 func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.InitialContextSetupResponse) {
-	ranUe, ok := resolveUE(ctx, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+	ueConn, ok := resolveUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
 	if !ok {
 		return
 	}
 
-	ranUe.TouchLastSeen()
+	ueConn.TouchLastSeen()
 
-	amfUe := ranUe.UeContext()
+	amfUe := ueConn.UeContext()
 	if amfUe == nil {
-		logger.WithTrace(ctx, ranUe.Log).Error("amfUe is nil")
+		logger.WithTrace(ctx, ueConn.Log).Error("amfUe is nil")
 		return
 	}
 
 	if len(msg.SetupItems) > 0 {
-		logger.WithTrace(ctx, ranUe.Log).Debug("Send PDUSessionResourceSetupResponseTransfer to SMF")
+		logger.WithTrace(ctx, ueConn.Log).Debug("Send PDUSessionResourceSetupResponseTransfer to SMF")
 
 		for _, item := range msg.SetupItems {
 			pduSessionID, ok := validPDUSessionID(item.PDUSessionID.Value)
 			if !ok {
-				logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+				logger.WithTrace(ctx, ueConn.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
 				continue
 			}
 
@@ -40,24 +40,24 @@ func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF
 
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
-				logger.WithTrace(ctx, ranUe.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+				logger.WithTrace(ctx, ueConn.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 				continue
 			}
 
-			err := amfInstance.Smf.UpdateSmContextN2InfoPduResSetupRsp(ctx, smContext.Ref, transfer)
+			err := amfInstance.Session.UpdateSmContextN2InfoPduResSetupRsp(ctx, smContext.Ref, transfer)
 			if err != nil {
-				logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupResponseTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+				logger.WithTrace(ctx, ueConn.Log).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupResponseTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 			}
 		}
 	}
 
 	if len(msg.FailedToSetupItems) > 0 {
-		logger.WithTrace(ctx, ranUe.Log).Debug("Send PDUSessionResourceSetupUnsuccessfulTransfer to SMF")
+		logger.WithTrace(ctx, ueConn.Log).Debug("Send PDUSessionResourceSetupUnsuccessfulTransfer to SMF")
 
 		for _, item := range msg.FailedToSetupItems {
 			pduSessionID, ok := validPDUSessionID(item.PDUSessionID.Value)
 			if !ok {
-				logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+				logger.WithTrace(ctx, ueConn.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
 				continue
 			}
 
@@ -65,16 +65,23 @@ func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF
 
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
-				logger.WithTrace(ctx, ranUe.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+				logger.WithTrace(ctx, ueConn.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 				continue
 			}
 
-			err := amfInstance.Smf.UpdateSmContextN2InfoPduResSetupFail(ctx, smContext.Ref, transfer)
+			err := amfInstance.Session.UpdateSmContextN2InfoPduResSetupFail(ctx, smContext.Ref, transfer)
 			if err != nil {
-				logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+				logger.WithTrace(ctx, ueConn.Log).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 			}
 		}
 	}
 
-	ranUe.ICS = amf.ICSCompleted
+	ueConn.MarkICSCompleted()
+
+	// A UE returning to CM-CONNECTED applies any policy change deferred while it was
+	// idle. Skipped mid-registration: the session was just established with the
+	// current policy and the UE is not yet Registered.
+	if amfUe.State() == amf.Registered {
+		amfInstance.ReconcileSessionsForUE(ctx, amfUe)
+	}
 }

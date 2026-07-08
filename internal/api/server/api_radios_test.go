@@ -111,8 +111,14 @@ func TestListRadios(t *testing.T) {
 
 	amfInstance := env.AMF
 	ran1 := amf.Radio{}
-	ran1.Name = "gnb-001"
-	ran1.SupportedTAIs = []amf.SupportedTAI{
+	ran1.RanID = &models.GlobalRanNodeID{
+		GNbID: &models.GNbID{
+			GNBValue: "mcc:001:mnc:01:gnb-001",
+		},
+	}
+	ran1.RanPresent = amf.RanPresentGNbID
+	amfInstance.UpdateRadioName(&ran1, "gnb-001")
+	amfInstance.UpdateRadioSupportedTAIs(&ran1, []amf.SupportedTAI{
 		{
 			Tai: models.Tai{
 				PlmnID: &models.PlmnID{
@@ -128,17 +134,18 @@ func TestListRadios(t *testing.T) {
 				},
 			},
 		},
-	}
-	ran1.RanID = &models.GlobalRanNodeID{
+	})
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), &ran1)
+
+	ran2 := amf.Radio{}
+	ran2.RanID = &models.GlobalRanNodeID{
 		GNbID: &models.GNbID{
-			GNBValue: "mcc:001:mnc:01:gnb-001",
+			GNBValue: "mcc:001:mnc:01:gnb-002",
 		},
 	}
-	ran1.RanPresent = amf.RanPresentGNbID
-	amfInstance.Radios[new(sctp.SCTPConn)] = &ran1
-	ran2 := amf.Radio{}
-	ran2.Name = "gnb-002"
-	ran2.SupportedTAIs = []amf.SupportedTAI{
+	ran2.RanPresent = amf.RanPresentGNbID
+	amfInstance.UpdateRadioName(&ran2, "gnb-002")
+	amfInstance.UpdateRadioSupportedTAIs(&ran2, []amf.SupportedTAI{
 		{
 			Tai: models.Tai{
 				PlmnID: &models.PlmnID{
@@ -154,14 +161,8 @@ func TestListRadios(t *testing.T) {
 				},
 			},
 		},
-	}
-	ran2.RanID = &models.GlobalRanNodeID{
-		GNbID: &models.GNbID{
-			GNBValue: "mcc:001:mnc:01:gnb-002",
-		},
-	}
-	ran2.RanPresent = amf.RanPresentGNbID
-	amfInstance.Radios[new(sctp.SCTPConn)] = &ran2
+	})
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), &ran2)
 
 	// Set up the Gin router
 	statusCode, response, err := listRadios(env.Server.URL, client, token, 1, 10)

@@ -22,10 +22,17 @@ func TestClassifyNasPdu(t *testing.T) {
 	}{
 		{"plain whitelisted", eps.MsgAttachRequest, plain, false, verdictPlainAllowed},
 		{"plain whitelisted detach", eps.MsgDetachRequest, plain, false, verdictPlainAllowed},
+		{"plain whitelisted detach accept", eps.MsgDetachAccept, plain, false, verdictPlainAllowed},
 		{"plain non-whitelisted (attach complete)", eps.MsgAttachComplete, plain, false, verdictReject},
 		{"plain non-whitelisted (security mode complete)", eps.MsgSecurityModeComplete, plain, false, verdictReject},
+		// TRACKING AREA UPDATE REQUEST is verified at the S1AP resume layer, so it is
+		// deliberately not admitted unverified on the EMM dispatch path (TS 24.301
+		// §4.4.4.3); its handler assumes a verified message.
+		{"plain TAU request rejected", eps.MsgTrackingAreaUpdateRequest, plain, false, verdictReject},
+		{"protected mac-failed TAU rejected", eps.MsgTrackingAreaUpdateRequest, prot, false, verdictReject},
 		{"protected verified", eps.MsgAttachComplete, prot, true, verdictIntegrityVerified},
 		{"protected mac-failed whitelisted", eps.MsgAttachRequest, prot, false, verdictMacFailedAllowed},
+		{"protected mac-failed detach accept", eps.MsgDetachAccept, prot, false, verdictMacFailedAllowed},
 		{"protected mac-failed non-whitelisted", eps.MsgSecurityModeComplete, prot, false, verdictReject},
 	}
 

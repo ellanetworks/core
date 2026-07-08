@@ -5,80 +5,53 @@ package amf
 
 import (
 	"time"
-
-	"github.com/ellanetworks/core/etsi"
 )
 
-func (amf *AMF) IsSubscriberRegistered(supi etsi.SUPI) bool {
+// ConnectedSubscriber is a consistent snapshot of a Registered 5G subscriber's live
+// status for the status API, taken under a single registry lock so the fields cannot
+// tear across per-field reads. Mirrors the MME's ConnectedSubscriber.
+type ConnectedSubscriber struct {
+	RadioName   string
+	NumSessions int
+	LastSeenAt  time.Time
+}
+
+// ConnectedSubscribers returns a snapshot of every Registered 5G subscriber keyed by
+// IMSI, built under one amf.mu.RLock — one consistent read instead of the per-field
+// accessors that could tear against a concurrent register/idle transition. Mirrors the
+// MME's ConnectedSubscribers.
+func (amf *AMF) ConnectedSubscribers() map[string]ConnectedSubscriber {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	amfUE, ok := amf.UEs[supi]
-	if !ok {
-		return false
-	}
-
-	return amfUE.State() == Registered
-}
-
-// RadioNameForSubscriber returns the radio name for a registered subscriber,
-// or an empty string if the subscriber is not registered or has no radio.
-func (amf *AMF) RadioNameForSubscriber(supi etsi.SUPI) string {
-	amf.mu.RLock()
-	defer amf.mu.RUnlock()
-
-	ue, ok := amf.UEs[supi]
-	if !ok {
-		return ""
-	}
-
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	if ue.state != Registered || ue.ranUe == nil || ue.ranUe.radio == nil {
-		return ""
-	}
-
-	return ue.ranUe.radio.Name
-}
-
-// LastSeenAtForSubscriber returns the last-seen timestamp for a subscriber, or
-// the zero time if not available.
-//
-// The AMF mutex is released before acquiring the UE mutex, so a UE that
-// deregisters between the two locks may yield a stale timestamp. The field is
-// advisory, and the next poll returns zero once the UE is fully removed.
-func (amf *AMF) LastSeenAtForSubscriber(supi etsi.SUPI) time.Time {
-	amf.mu.RLock()
-	ue, ok := amf.UEs[supi]
-	amf.mu.RUnlock()
-
-	if !ok {
-		return time.Time{}
-	}
-
-	return ue.lastSeenTime()
-}
-
-// RegisteredSubscribersForRadio returns the IMSIs of all subscribers that are
-// in the Registered state and whose current RAN UE association points to the
-// named radio.  This is the authoritative way to count subscribers on a radio
-// because it uses the same registration check as IsSubscriberRegistered.
-func (amf *AMF) RegisteredSubscribersForRadio(radioName string) []string {
-	amf.mu.RLock()
-	defer amf.mu.RUnlock()
-
-	var imsis []string
+	out := make(map[string]ConnectedSubscriber)
 
 	for _, ue := range amf.UEs {
+		if !ue.supi.IsValid() || !ue.supi.IsIMSI() {
+			continue
+		}
+
 		ue.mu.Lock()
-		match := ue.state == Registered && ue.ranUe != nil && ue.ranUe.radio != nil && ue.ranUe.radio.Name == radioName
+		registered := ue.state == Registered
+
+		radioName := ""
+		if r := ue.active.Load(); r != nil {
+			radioName = r.radioName
+		}
+
+		numSessions := len(ue.SmContextList)
 		ue.mu.Unlock()
 
-		if match && ue.supi.IsValid() && ue.supi.IsIMSI() {
-			imsis = append(imsis, ue.supi.IMSI())
+		if !registered {
+			continue
+		}
+
+		out[ue.supi.IMSI()] = ConnectedSubscriber{
+			RadioName:   radioName,
+			NumSessions: numSessions,
+			LastSeenAt:  ue.lastSeenTime(),
 		}
 	}
 
-	return imsis
+	return out
 }

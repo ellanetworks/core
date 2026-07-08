@@ -28,13 +28,15 @@ func gnbGlobalRANNodeID(t *testing.T, hexID string) *ngapType.GlobalRANNodeID {
 	return id
 }
 
-func newRadioForTest(conn *sctp.SCTPConn, name string) *amf.Radio {
-	return &amf.Radio{
-		Name:   name,
-		Conn:   conn,
-		RanUEs: make(map[int64]*amf.RanUe),
-		Log:    zap.NewNop(),
+func newRadioForTest(a *amf.AMF, conn *sctp.SCTPConn, name string) *amf.Radio {
+	ran := &amf.Radio{
+		Conn: conn,
+		Log:  zap.NewNop(),
 	}
+	ran.BindAMFForTest(a)
+	a.UpdateRadioName(ran, name)
+
+	return ran
 }
 
 func TestClaimRanID_NoExistingRadio(t *testing.T) {
@@ -42,12 +44,12 @@ func TestClaimRanID_NoExistingRadio(t *testing.T) {
 
 	conn := &sctp.SCTPConn{}
 
-	radio := newRadioForTest(conn, "gNB-A")
-	amfInstance.Radios[conn] = radio
+	radio := newRadioForTest(amfInstance, conn, "gNB-A")
+	amfInstance.SetRadioForTest(conn, radio)
 
 	evicted := amfInstance.ClaimRanID(radio, gnbGlobalRANNodeID(t, "ABCDE1"))
 	if evicted != nil {
-		t.Fatalf("expected no eviction, got radio %q", evicted.Name)
+		t.Fatalf("expected no eviction, got radio %q", amfInstance.RadioNameForTest(evicted))
 	}
 
 	if radio.RanID == nil || radio.RanID.GNbID == nil {
@@ -58,8 +60,8 @@ func TestClaimRanID_NoExistingRadio(t *testing.T) {
 		t.Errorf("expected RanPresent=%d, got %d", amf.RanPresentGNbID, radio.RanPresent)
 	}
 
-	if len(amfInstance.Radios) != 1 {
-		t.Errorf("expected 1 radio in pool, got %d", len(amfInstance.Radios))
+	if amfInstance.CountRadios() != 1 {
+		t.Errorf("expected 1 radio in pool, got %d", amfInstance.CountRadios())
 	}
 }
 
@@ -67,16 +69,16 @@ func TestClaimRanID_EvictsDuplicateGNB(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
 	existingConn := &sctp.SCTPConn{}
-	existing := newRadioForTest(existingConn, "gNB-old")
-	amfInstance.Radios[existingConn] = existing
+	existing := newRadioForTest(amfInstance, existingConn, "gNB-old")
+	amfInstance.SetRadioForTest(existingConn, existing)
 
 	if evicted := amfInstance.ClaimRanID(existing, gnbGlobalRANNodeID(t, "ABCDE1")); evicted != nil {
-		t.Fatalf("setup: unexpected eviction of %q", evicted.Name)
+		t.Fatalf("setup: unexpected eviction of %q", amfInstance.RadioNameForTest(evicted))
 	}
 
 	newConn := &sctp.SCTPConn{}
-	newRadio := newRadioForTest(newConn, "gNB-new")
-	amfInstance.Radios[newConn] = newRadio
+	newRadio := newRadioForTest(amfInstance, newConn, "gNB-new")
+	amfInstance.SetRadioForTest(newConn, newRadio)
 
 	evicted := amfInstance.ClaimRanID(newRadio, gnbGlobalRANNodeID(t, "ABCDE1"))
 	if evicted == nil {
@@ -84,15 +86,15 @@ func TestClaimRanID_EvictsDuplicateGNB(t *testing.T) {
 	}
 
 	if evicted != existing {
-		t.Errorf("expected evicted radio to be the existing one (%q), got %q", existing.Name, evicted.Name)
+		t.Errorf("expected evicted radio to be the existing one (%q), got %q", amfInstance.RadioNameForTest(existing), amfInstance.RadioNameForTest(evicted))
 	}
 
-	if _, still := amfInstance.Radios[existingConn]; still {
-		t.Error("evicted radio should have been removed from Radios map")
+	if _, still := amfInstance.RadioForTest(existingConn); still {
+		t.Error("evicted radio should have been removed from radios map")
 	}
 
-	if got, ok := amfInstance.Radios[newConn]; !ok || got != newRadio {
-		t.Error("new radio should remain in Radios map")
+	if got, ok := amfInstance.RadioForTest(newConn); !ok || got != newRadio {
+		t.Error("new radio should remain in radios map")
 	}
 
 	if newRadio.RanID == nil || newRadio.RanID.GNbID == nil || newRadio.RanID.GNbID.GNBValue == "" {
@@ -104,24 +106,24 @@ func TestClaimRanID_DifferentIDDoesNotEvict(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
 	existingConn := &sctp.SCTPConn{}
-	existing := newRadioForTest(existingConn, "gNB-old")
-	amfInstance.Radios[existingConn] = existing
+	existing := newRadioForTest(amfInstance, existingConn, "gNB-old")
+	amfInstance.SetRadioForTest(existingConn, existing)
 
 	if evicted := amfInstance.ClaimRanID(existing, gnbGlobalRANNodeID(t, "ABCDE1")); evicted != nil {
-		t.Fatalf("setup: unexpected eviction of %q", evicted.Name)
+		t.Fatalf("setup: unexpected eviction of %q", amfInstance.RadioNameForTest(evicted))
 	}
 
 	newConn := &sctp.SCTPConn{}
-	newRadio := newRadioForTest(newConn, "gNB-new")
-	amfInstance.Radios[newConn] = newRadio
+	newRadio := newRadioForTest(amfInstance, newConn, "gNB-new")
+	amfInstance.SetRadioForTest(newConn, newRadio)
 
 	evicted := amfInstance.ClaimRanID(newRadio, gnbGlobalRANNodeID(t, "FEDCBA"))
 	if evicted != nil {
-		t.Fatalf("expected no eviction for a different Global RAN Node ID, got %q", evicted.Name)
+		t.Fatalf("expected no eviction for a different Global RAN Node ID, got %q", amfInstance.RadioNameForTest(evicted))
 	}
 
-	if len(amfInstance.Radios) != 2 {
-		t.Errorf("expected both radios to remain in pool, got %d", len(amfInstance.Radios))
+	if amfInstance.CountRadios() != 2 {
+		t.Errorf("expected both radios to remain in pool, got %d", amfInstance.CountRadios())
 	}
 }
 
@@ -129,19 +131,19 @@ func TestClaimRanID_SelfClaimIsNoOp(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
 	conn := &sctp.SCTPConn{}
-	radio := newRadioForTest(conn, "gNB-A")
-	amfInstance.Radios[conn] = radio
+	radio := newRadioForTest(amfInstance, conn, "gNB-A")
+	amfInstance.SetRadioForTest(conn, radio)
 
 	if evicted := amfInstance.ClaimRanID(radio, gnbGlobalRANNodeID(t, "ABCDE1")); evicted != nil {
-		t.Fatalf("first claim should not evict, got %q", evicted.Name)
+		t.Fatalf("first claim should not evict, got %q", amfInstance.RadioNameForTest(evicted))
 	}
 
 	evicted := amfInstance.ClaimRanID(radio, gnbGlobalRANNodeID(t, "ABCDE1"))
 	if evicted != nil {
-		t.Fatalf("self-claim should be a no-op, got eviction of %q", evicted.Name)
+		t.Fatalf("self-claim should be a no-op, got eviction of %q", amfInstance.RadioNameForTest(evicted))
 	}
 
-	if _, still := amfInstance.Radios[conn]; !still {
-		t.Error("radio should remain in Radios map after self-claim")
+	if _, still := amfInstance.RadioForTest(conn); !still {
+		t.Error("radio should remain in radios map after self-claim")
 	}
 }

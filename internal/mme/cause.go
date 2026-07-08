@@ -10,8 +10,7 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// S1AP causes (TS 36.413) the MME uses when releasing a UE context:
-// "nas: detach" after a detach, and "nas: unspecified" after an attach reject.
+// S1AP NAS-group causes the MME uses when releasing a UE context (TS 36.413).
 var (
 	CauseNASNormalRelease = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASNormalRelease}
 	CauseNASDetach        = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASDetach}
@@ -41,12 +40,15 @@ func S1apCauseName(c *s1ap.Cause) string {
 
 // EMM cause values (TS 24.301).
 const (
-	EmmCauseIMSIUnknownInHSS      uint8 = 2
-	EmmCauseEPSServicesNotAllowed uint8 = 7
-	EmmCauseUEIdentityUnderivable uint8 = 9
-	EmmCauseCSDomainNotAvailable  uint8 = 18
-	EmmCauseESMFailure            uint8 = 19
-	EmmCauseMACFailure            uint8 = 20
-	EmmCauseSynchFailure          uint8 = 21
-	EmmCauseUESecCapsMismatch     uint8 = 23
+	EmmCauseIMSIUnknownInHSS       uint8 = 2
+	EmmCauseEPSServicesNotAllowed  uint8 = 7
+	EmmCauseUEIdentityUnderivable  uint8 = 9
+	EmmCauseCSDomainNotAvailable   uint8 = 18
+	EmmCauseESMFailure             uint8 = 19
+	EmmCauseMACFailure             uint8 = 20
+	EmmCauseSynchFailure           uint8 = 21
+	EmmCauseUESecCapsMismatch      uint8 = 23
+	EmmCauseNonEPSAuthUnacceptable uint8 = 26
+	EmmCauseMessageTypeNonExistent uint8 = 97
+	EmmCauseProtocolErrorUnspec    uint8 = 111
 )

@@ -12,37 +12,30 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 )
 
-// TestHandleGmmMessage_UnknownMessageType_Error verifies the default branch
-// returns an error for an unrecognized message type.
-func TestHandleGmmMessage_UnknownMessageType_Error(t *testing.T) {
+// TestHandleGmmMessage_UnknownMessageType_NoOp verifies the default branch handles
+// an unrecognized message type without panicking (it answers with a 5GMM STATUS,
+// TS 24.501 §7.4) and is a no-op when the UE has no connection to answer on.
+func TestHandleGmmMessage_UnknownMessageType_NoOp(t *testing.T) {
 	ue := amf.NewUeContext()
 	amfInstance := amf.New(nil, nil, nil)
 
 	m := nas.NewGmmMessage()
 	m.SetMessageType(0xFF) // unassigned message type
 
-	err := HandleGmmMessage(context.Background(), amfInstance, ue, m, true)
-	if err == nil {
-		t.Fatal("expected error for unknown message type, got nil")
-	}
-
-	expected := "message type 255 handling not implemented"
-	if err.Error() != expected {
-		t.Fatalf("expected error %q, got %q", expected, err.Error())
-	}
+	HandleGmmMessage(context.Background(), amfInstance, ue, m, true)
 }
 
 // TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete verifies that
 // HandleGmmMessage correctly dispatches a ConfigurationUpdateComplete message
 // to handleConfigurationUpdateComplete. We use a amf.Registered UE so the handler
-// succeeds, confirming proper dispatch.
+// runs its success path, confirming proper dispatch.
 func TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete(t *testing.T) {
 	ue, _, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 
 	amfInstance := amf.New(nil, nil, nil)
 
@@ -55,29 +48,23 @@ func TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete(t *testing.T) 
 	m.ConfigurationUpdateComplete = cuc
 	m.SetMessageType(nas.MsgTypeConfigurationUpdateComplete)
 
-	err = HandleGmmMessage(context.Background(), amfInstance, ue, m, true)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
+	HandleGmmMessage(context.Background(), amfInstance, ue, m, true)
 }
 
 // TestHandleGmmMessage_DispatchesToStatus5GMM verifies that HandleGmmMessage
 // correctly dispatches a Status5GMM message to handleStatus5GMM. We use a
-// amf.Registered UE so the handler succeeds, confirming proper dispatch.
+// amf.Registered UE so the handler runs its success path, confirming proper dispatch.
 func TestHandleGmmMessage_DispatchesToStatus5GMM(t *testing.T) {
 	ue, _, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 
 	amfInstance := amf.New(nil, nil, nil)
 
 	m := buildTestStatus5gmm()
 
-	err = HandleGmmMessage(context.Background(), amfInstance, ue, m, true)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
+	HandleGmmMessage(context.Background(), amfInstance, ue, m, true)
 }

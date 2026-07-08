@@ -7,14 +7,7 @@ package mme
 // AuthProof is an unforgeable witness that the caller is entitled to mutate
 // security-critical state on a UeContext: installing the NAS security context or
 // committing the UE identity. It has no exported constructor and is minted only
-// at two authorized sites in this package:
-//
-//   - MintAuthProofForSecurityMode, after EPS-AKA authentication succeeds, to
-//     install the negotiated NAS keys.
-//   - MintAuthProofForAttachCommit, when the authenticated UE is indexed by IMSI
-//     and supersedes any prior context for the subscriber.
-//
-// TestAuthProofMintSites enforces that these are the only mint sites.
+// by the two functions below.
 type AuthProof struct {
 	_ struct{} // unexported field forbids struct-literal construction outside this package
 }
@@ -32,3 +25,10 @@ func MintAuthProofForSecurityMode() AuthProof {
 func MintAuthProofForAttachCommit() AuthProof {
 	return AuthProof{}
 }
+
+// ResyncTried reports whether SQN re-synchronisation has already been attempted
+// for the in-progress authentication (TS 33.401). Connection-scoped.
+func (c *UeConn) ResyncTried() bool { return c.resyncTried }
+
+// SetResyncTried records whether SQN re-synchronisation has been attempted.
+func (c *UeConn) SetResyncTried(v bool) { c.resyncTried = v }

@@ -24,16 +24,16 @@ func miscCause() ngapType.Cause {
 }
 
 func TestHandleNGReset_ResetNGInterface(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
+	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:           logger.AmfLog,
-		NGAPSender:    fakeNGAPSender,
-		RanUEs:        make(map[int64]*amf.RanUe),
-		SupportedTAIs: make([]amf.SupportedTAI, 0),
+		Log:  logger.AmfLog,
+		Conn: sender,
 	}
-	amf.NewRanUeForTest(ran, 0, 0, logger.AmfLog)
-	amf.NewRanUeForTest(ran, 1, 1, logger.AmfLog)
+	amfInstance := amf.New(nil, nil, nil)
+	ran.BindAMFForTest(amfInstance)
+	amf.NewUeConnForTest(ran, 0, 0, logger.AmfLog)
+	amf.NewUeConnForTest(ran, 1, 1, logger.AmfLog)
 
 	msg := decode.NGReset{
 		Cause: miscCause(),
@@ -43,32 +43,32 @@ func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 		},
 	}
 
-	ngap.HandleNGReset(context.Background(), ran, msg)
+	ngap.HandleNGReset(context.Background(), amfInstance, ran, msg)
 
-	if len(fakeNGAPSender.SentNGResetAcknowledges) != 1 {
-		t.Fatalf("expected 1 NGResetAcknowledge to be sent, but got %d", len(fakeNGAPSender.SentNGResetAcknowledges))
+	if len(sender.SentNGResetAcknowledges) != 1 {
+		t.Fatalf("expected 1 NGResetAcknowledge to be sent, but got %d", len(sender.SentNGResetAcknowledges))
 	}
 
-	if fakeNGAPSender.SentNGResetAcknowledges[0].PartOfNGInterface != nil {
-		t.Fatalf("expected PartOfNGInterface to be nil, but got %v", fakeNGAPSender.SentNGResetAcknowledges[0].PartOfNGInterface)
+	if sender.SentNGResetAcknowledges[0].PartOfNGInterface != nil {
+		t.Fatalf("expected PartOfNGInterface to be nil, but got %v", sender.SentNGResetAcknowledges[0].PartOfNGInterface)
 	}
 
-	if len(ran.RanUEs) != 0 {
-		t.Fatalf("expected all UEs to be removed from the RAN, but got %d", len(ran.RanUEs))
+	if ran.NumUEsForTest() != 0 {
+		t.Fatalf("expected all UEs to be removed from the RAN, but got %d", ran.NumUEsForTest())
 	}
 }
 
 func TestHandleNGReset_PartOfNGInterface(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
+	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:           logger.AmfLog,
-		NGAPSender:    fakeNGAPSender,
-		RanUEs:        make(map[int64]*amf.RanUe),
-		SupportedTAIs: make([]amf.SupportedTAI, 0),
+		Log:  logger.AmfLog,
+		Conn: sender,
 	}
-	amf.NewRanUeForTest(ran, 0, 0, logger.AmfLog)
-	amf.NewRanUeForTest(ran, 1, 1, logger.AmfLog)
+	amfInstance := amf.New(nil, nil, nil)
+	ran.BindAMFForTest(amfInstance)
+	amf.NewUeConnForTest(ran, 0, 0, logger.AmfLog)
+	amf.NewUeConnForTest(ran, 1, 1, logger.AmfLog)
 
 	partOfNG := &ngapType.UEAssociatedLogicalNGConnectionList{
 		List: []ngapType.UEAssociatedLogicalNGConnectionItem{
@@ -87,42 +87,42 @@ func TestHandleNGReset_PartOfNGInterface(t *testing.T) {
 		},
 	}
 
-	ngap.HandleNGReset(context.Background(), ran, msg)
+	ngap.HandleNGReset(context.Background(), amfInstance, ran, msg)
 
-	if len(fakeNGAPSender.SentNGResetAcknowledges) != 1 {
-		t.Fatalf("expected 1 NGResetAcknowledge to be sent, but got %d", len(fakeNGAPSender.SentNGResetAcknowledges))
+	if len(sender.SentNGResetAcknowledges) != 1 {
+		t.Fatalf("expected 1 NGResetAcknowledge to be sent, but got %d", len(sender.SentNGResetAcknowledges))
 	}
 
-	if fakeNGAPSender.SentNGResetAcknowledges[0].PartOfNGInterface == nil {
+	if sender.SentNGResetAcknowledges[0].PartOfNGInterface == nil {
 		t.Fatalf("expected PartOfNGInterface to be not nil")
 	}
 
-	if len(fakeNGAPSender.SentNGResetAcknowledges[0].PartOfNGInterface.List) != 1 {
-		t.Fatalf("expected 1 UE in PartOfNGInterface, but got %d", len(fakeNGAPSender.SentNGResetAcknowledges[0].PartOfNGInterface.List))
+	if len(sender.SentNGResetAcknowledges[0].PartOfNGInterface.List) != 1 {
+		t.Fatalf("expected 1 UE in PartOfNGInterface, but got %d", len(sender.SentNGResetAcknowledges[0].PartOfNGInterface.List))
 	}
 
-	if fakeNGAPSender.SentNGResetAcknowledges[0].PartOfNGInterface.List[0].RANUENGAPID.Value != 0 {
-		t.Fatalf("expected RANUENGAPID to be 0, but got %d", fakeNGAPSender.SentNGResetAcknowledges[0].PartOfNGInterface.List[0].RANUENGAPID.Value)
+	if sender.SentNGResetAcknowledges[0].PartOfNGInterface.List[0].RANUENGAPID.Value != 0 {
+		t.Fatalf("expected RANUENGAPID to be 0, but got %d", sender.SentNGResetAcknowledges[0].PartOfNGInterface.List[0].RANUENGAPID.Value)
 	}
 
-	if len(ran.RanUEs) != 1 {
-		t.Fatalf("expected 1 UE to remain in the RAN, but got %d", len(ran.RanUEs))
+	if ran.NumUEsForTest() != 1 {
+		t.Fatalf("expected 1 UE to remain in the RAN, but got %d", ran.NumUEsForTest())
 	}
 }
 
 // TestHandleNGReset_PartOfNGInterface_UnknownUE verifies that a PartOfNGInterface
 // reset referencing a RANUENGAPID that does not match any UE context does NOT
 // panic or remove the wrong UE. This exercises the missing-continue bug where
-// ranUe is nil after the lookup but Remove() is called anyway.
+// ueConn is nil after the lookup but Remove() is called anyway.
 func TestHandleNGReset_PartOfNGInterface_UnknownUE(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
+	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:           logger.AmfLog,
-		NGAPSender:    fakeNGAPSender,
-		RanUEs:        map[int64]*amf.RanUe{},
-		SupportedTAIs: make([]amf.SupportedTAI, 0),
+		Log:  logger.AmfLog,
+		Conn: sender,
 	}
+	amfInstance := amf.New(nil, nil, nil)
+	ran.BindAMFForTest(amfInstance)
 
 	partOfNG := &ngapType.UEAssociatedLogicalNGConnectionList{
 		List: []ngapType.UEAssociatedLogicalNGConnectionItem{
@@ -141,9 +141,9 @@ func TestHandleNGReset_PartOfNGInterface_UnknownUE(t *testing.T) {
 		},
 	}
 
-	ngap.HandleNGReset(context.Background(), ran, msg)
+	ngap.HandleNGReset(context.Background(), amfInstance, ran, msg)
 
-	if len(fakeNGAPSender.SentNGResetAcknowledges) != 1 {
-		t.Fatalf("expected 1 NGResetAcknowledge, got %d", len(fakeNGAPSender.SentNGResetAcknowledges))
+	if len(sender.SentNGResetAcknowledges) != 1 {
+		t.Fatalf("expected 1 NGResetAcknowledge, got %d", len(sender.SentNGResetAcknowledges))
 	}
 }

@@ -17,11 +17,8 @@ import (
 // }
 
 // DecodeUplinkRANConfigurationTransfer validates an
-// UplinkRANConfigurationTransfer PDU body (3GPP TS 38.413).
-// All IEs are optional-ignore. SONConfigurationTransferUL is surfaced
-// because the handler needs it to forward the embedded SON data.
-// ENDCSONConfigurationTransferUL is consumed for validation only.
-// Duplicate IEs follow a last-wins policy.
+// UplinkRANConfigurationTransfer PDU body (3GPP TS 38.413). Class 2
+// procedure: procedure-level criticality is ignore.
 func DecodeUplinkRANConfigurationTransfer(in *ngapType.UplinkRANConfigurationTransfer) (UplinkRANConfigurationTransfer, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeUplinkRANConfigurationTransfer,

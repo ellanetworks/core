@@ -5,37 +5,32 @@ package nas
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasMessage"
 )
 
-func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.RegistrationRequest) error {
+func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.RegistrationRequest) {
 	ctx, span := gmmTracer.Start(ctx, "nas/context_setup")
 	defer span.End()
 
-	ue.TransitionTo(amf.ContextSetup)
+	ue.AdvanceRegStep(amf.RegStepContextSetup)
 
-	conn := ue.NasConn()
+	conn := ue.Conn()
 	if conn == nil {
-		return fmt.Errorf("no active NAS connection")
+		logger.From(ctx, logger.AmfLog).Warn("no active NAS connection")
+		return
 	}
 
 	conn.RegistrationRequest = msg
 
 	switch conn.RegistrationType5GS {
 	case nasMessage.RegistrationType5GSInitialRegistration:
-		if err := HandleInitialRegistration(ctx, amfInstance, ue); err != nil {
-			return fmt.Errorf("error handling initial registration: %v", err)
-		}
+		HandleInitialRegistration(ctx, amfInstance, ue)
 	case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
 		fallthrough
 	case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
-		if err := HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfInstance, ue); err != nil {
-			return fmt.Errorf("error handling mobility and periodic registration updating: %v", err)
-		}
+		HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfInstance, ue)
 	}
-
-	return nil
 }

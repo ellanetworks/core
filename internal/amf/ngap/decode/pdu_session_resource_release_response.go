@@ -22,11 +22,6 @@ import (
 
 // DecodePDUSessionResourceReleaseResponse validates a
 // PDUSessionResourceReleaseResponse PDU body (3GPP TS 38.413).
-// All IEs are criticality-ignore. AMFUENGAPID, RANUENGAPID and
-// PDUSessionResourceReleasedListRelRes are mandatory-ignore; a missing
-// or malformed value yields a non-fatal report. AMFUENGAPID and
-// RANUENGAPID are surfaced as pointers. UserLocationInformation is
-// optional. Duplicate IEs follow a last-wins policy.
 func DecodePDUSessionResourceReleaseResponse(in *ngapType.PDUSessionResourceReleaseResponse) (PDUSessionResourceReleaseResponse, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodePDUSessionResourceRelease,

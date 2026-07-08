@@ -38,7 +38,7 @@ type PacketFilter struct {
 
 type QosRule struct {
 	PacketFilterList []PacketFilter
-	Identifier       uint8 // 0 0 0 0 0 0 0 1	QRI 1 to 1 1 1 1 1 1 1 1	QRI 255
+	Identifier       uint8 // QRI, range 1..255
 	OperationCode    uint8
 	DQR              uint8
 	Segregation      uint8
@@ -73,14 +73,12 @@ func (pf *PacketFilter) MarshalBinary() ([]byte, error) {
 	packetFilterBuffer := bytes.NewBuffer(nil)
 	header := 0 | pf.Direction<<4 | pf.Identifier
 
-	// write header
 	err := packetFilterBuffer.WriteByte(header)
 	if err != nil {
 		return nil, fmt.Errorf("error writing packet filter header: %v", err)
 	}
 
-	// write length of packet filter
-	err = packetFilterBuffer.WriteByte(pf.ContentLength) // uint8(len(pf.Content)))
+	err = packetFilterBuffer.WriteByte(pf.ContentLength)
 	if err != nil {
 		return nil, fmt.Errorf("error writing packet filter length: %v", err)
 	}
@@ -103,7 +101,6 @@ func (pf *PacketFilter) MarshalBinary() ([]byte, error) {
 func (r *QosRule) MarshalBinary() ([]byte, error) {
 	ruleContentBuffer := bytes.NewBuffer(nil)
 
-	// write rule content Header
 	ruleContentHeader := r.OperationCode<<5 | r.DQR<<4 | uint8(len(r.PacketFilterList))
 	ruleContentBuffer.WriteByte(ruleContentHeader)
 
@@ -125,34 +122,28 @@ func (r *QosRule) MarshalBinary() ([]byte, error) {
 		}
 	}
 
-	// write QoS
 	if _, err := ruleContentBuffer.ReadFrom(packetFilterListBuffer); err != nil {
 		return nil, err
 	}
 
-	// write precedence
 	if err := ruleContentBuffer.WriteByte(r.Precedence); err != nil {
 		return nil, err
 	}
 
-	// write Segregation and QFI
 	segregationAndQFIByte := r.Segregation<<6 | r.QFI
 	if err := ruleContentBuffer.WriteByte(segregationAndQFIByte); err != nil {
 		return nil, err
 	}
 
 	ruleBuffer := bytes.NewBuffer(nil)
-	// write QoS rule identifier
 	if err := ruleBuffer.WriteByte(r.Identifier); err != nil {
 		return nil, err
 	}
 
-	// write QoS rule length
 	if err := binary.Write(ruleBuffer, binary.BigEndian, uint16(ruleContentBuffer.Len())); err != nil {
 		return nil, err
 	}
 
-	// write QoS rule Content
 	if _, err := ruleBuffer.ReadFrom(ruleContentBuffer); err != nil {
 		return nil, err
 	}

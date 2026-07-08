@@ -126,27 +126,36 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		return &UpdateResult{N1Msg: n1SmMsg}, nil
 
 	case nas.MsgTypePDUSessionReleaseComplete:
-		// Release acknowledged; stop T3592 (TS 24.501 §6.3.3.3).
+		// Release acknowledged; stop T3592 and now tear down the user plane, held
+		// active through the release window (TS 24.501 §6.3.3.3).
 		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Complete received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
-		s.removeSessionUnlocked(ctx, smContext.CanonicalName())
+		s.teardownAndRemove(ctx, smContext)
 
 		return nil, nil
 
 	case nas.MsgTypePDUSessionModificationComplete:
-		// The UE accepted the modification; stop T3591 (TS 24.501 §6.3.2.3).
+		// The UE accepted the modification; stop T3591 and commit the new policy — the
+		// session is now considered modified (TS 24.501 §6.3.2.2).
 		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Modification Complete received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
 
+		if smContext.pendingPolicy != nil {
+			smContext.PolicyData = smContext.pendingPolicy
+			smContext.pendingPolicy = nil
+		}
+
 		return nil, nil
 
 	case nas.MsgTypePDUSessionModificationCommandReject:
-		// The UE rejected the modification; stop T3591 (TS 24.501 §6.3.2.4).
+		// The UE rejected the modification; stop T3591 and discard the pending policy,
+		// keeping the previous configuration (TS 24.501 §6.3.2.4, §6.3.2.5).
 		logger.WithTrace(ctx, logger.SmfLog).Warn("N1 Msg PDU Session Modification Command Reject received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
+		smContext.pendingPolicy = nil
 
 		return nil, nil
 
@@ -251,8 +260,6 @@ func handleUpdateN2MsgPDUResourceSetupResp(binaryDataN2SmInformation []byte, smC
 	return pdrList, farList, nil
 }
 
-// anchorFromGTPTunnel reads the AN N3 endpoint (TEID + transport address) from an
-// NGAP GTP tunnel IE.
 func anchorFromGTPTunnel(t *ngapType.GTPTunnel) AnchorBinding {
 	ipv4, ipv6 := ngap.ParseTransportLayerAddress(t.TransportLayerAddress.Value)
 
@@ -361,10 +368,14 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 	smContext.stopProcedureTimer()
 
 	if smContext.PDUSessionReleaseDueToDupPduID {
+		// Duplicate-PDU-ID release: the tunnel was already torn down when the
+		// duplicate was detected (UpdateSmContextCauseDuplicatePDUSessionID).
 		smContext.PDUSessionReleaseDueToDupPduID = false
-		s.RemoveSession(ctx, smContext.CanonicalName())
+		s.RemoveSession(ctx, smContext.Ref)
 	} else {
-		s.removeSessionUnlocked(ctx, smContext.CanonicalName())
+		// Network-requested release: tear down the user plane, held active through
+		// the release window (TS 23.502 §4.3.4).
+		s.teardownAndRemove(ctx, smContext)
 	}
 
 	return nil

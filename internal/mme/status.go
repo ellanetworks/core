@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/etsi"
 )
 
 // ConnectedSubscriber is a runtime view of an EMM-registered UE for the API
@@ -40,11 +40,9 @@ type SubscriberSession struct {
 func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 	radioName := ""
 
-	if ue.S1 != nil {
-		if conn, ok := ue.S1.conn.(*sctp.SCTPConn); ok {
-			if s := m.enbs[conn]; s != nil {
-				radioName = s.name
-			}
+	if ue.Conn() != nil {
+		if s := m.radios[ue.Conn().conn]; s != nil {
+			radioName = s.name
 		}
 	}
 
@@ -58,13 +56,34 @@ func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 		IntegrityAlgorithm: snap.IntegrityAlgorithm,
 	}
 
-	for _, p := range m.SnapshotPDNs(ue) {
+	ambrUL, ambrDL := ue.AmbrStrings()
+
+	for _, s := range m.pdnSessionViews(ue) {
+		s.AMBRUplink = ambrUL
+		s.AMBRDownlink = ambrDL
+		cs.Sessions = append(cs.Sessions, s)
+	}
+
+	sort.Slice(cs.Sessions, func(i, j int) bool { return cs.Sessions[i].BearerID < cs.Sessions[j].BearerID })
+	cs.NumSessions = len(cs.Sessions)
+
+	return cs
+}
+
+// pdnSessionViews returns a value snapshot of each PDN connection's status fields,
+// taken under ue.mu so the status API never reads a live (concurrently mutated)
+// PdnConnection. The AMBR is per-UE and filled in by the caller.
+func (m *MME) pdnSessionViews(ue *UeContext) []SubscriberSession {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	out := make([]SubscriberSession, 0, len(ue.Pdns))
+
+	for _, p := range ue.Pdns {
 		s := SubscriberSession{
-			BearerID:     p.Ebi,
-			APN:          p.Apn,
-			PDNType:      p.PdnType,
-			AMBRUplink:   ue.AmbrUplink,
-			AMBRDownlink: ue.AmbrDownlink,
+			BearerID: p.Ebi,
+			APN:      p.Apn,
+			PDNType:  p.PdnType,
 		}
 
 		if p.UeIP.IsValid() {
@@ -75,13 +94,10 @@ func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 			s.IPv6Prefix = p.UeIPv6Prefix.String()
 		}
 
-		cs.Sessions = append(cs.Sessions, s)
+		out = append(out, s)
 	}
 
-	sort.Slice(cs.Sessions, func(i, j int) bool { return cs.Sessions[i].BearerID < cs.Sessions[j].BearerID })
-	cs.NumSessions = len(cs.Sessions)
-
-	return cs
+	return out
 }
 
 // ConnectedSubscribers returns the status of every EMM-registered UE keyed by
@@ -92,12 +108,12 @@ func (m *MME) ConnectedSubscribers() map[string]ConnectedSubscriber {
 
 	out := make(map[string]ConnectedSubscriber)
 
-	for imsi, ue := range m.ues {
-		if ue.emmState.load() != EMMRegistered || ue.imsi == "" {
+	for supi, ue := range m.UEs {
+		if ue.EMMState() != EMMRegistered || ue.imsiOrEmpty() == "" {
 			continue
 		}
 
-		out[imsi] = m.connectedSubscriber(ue)
+		out[supi.IMSI()] = m.connectedSubscriber(ue)
 	}
 
 	return out
@@ -108,8 +124,13 @@ func (m *MME) LookupSubscriber(imsi string) (ConnectedSubscriber, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	ue, ok := m.ues[imsi]
-	if !ok || ue.emmState.load() != EMMRegistered {
+	supi, err := etsi.NewSUPIFromIMSI(imsi)
+	if err != nil {
+		return ConnectedSubscriber{}, false
+	}
+
+	ue, ok := m.UEs[supi]
+	if !ok || ue.EMMState() != EMMRegistered {
 		return ConnectedSubscriber{}, false
 	}
 
@@ -123,8 +144,8 @@ func (m *MME) CountRegisteredSubscribers() int {
 
 	count := 0
 
-	for _, ue := range m.ues {
-		if ue.emmState.load() == EMMRegistered && ue.imsi != "" {
+	for _, ue := range m.UEs {
+		if ue.EMMState() == EMMRegistered && ue.imsiOrEmpty() != "" {
 			count++
 		}
 	}

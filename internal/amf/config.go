@@ -18,34 +18,6 @@ import (
 
 var tracer = otel.Tracer("ella-core/amf")
 
-func getPaginateIndexes(page int, perPage int, total int) (int, int) {
-	startIndex := (page - 1) * perPage
-
-	endIndex := startIndex + perPage
-
-	if startIndex > total {
-		return 0, 0
-	}
-
-	if endIndex > total {
-		endIndex = total
-	}
-
-	return startIndex, endIndex
-}
-
-func (amf *AMF) ListAmfRan(page int, perPage int) (int, []*Radio) {
-	radios := amf.ListRadios()
-
-	total := len(radios)
-
-	startIndex, endIndex := getPaginateIndexes(page, perPage, total)
-
-	radioListPage := radios[startIndex:endIndex]
-
-	return total, radioListPage
-}
-
 type OperatorInfo struct {
 	Tais  []models.Tai
 	Guami *models.Guami

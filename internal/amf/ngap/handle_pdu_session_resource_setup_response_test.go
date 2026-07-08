@@ -17,9 +17,9 @@ import (
 )
 
 func TestHandlePDUSessionResourceSetupResponse_EmptyMessage(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
 	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
 
 	msg := decode.PDUSessionResourceSetupResponse{}
 
@@ -31,10 +31,10 @@ func TestHandlePDUSessionResourceSetupResponse_EmptyMessage(t *testing.T) {
 }
 
 func TestHandlePDUSessionResourceSetupResponse_UnknownAMFUENGAPID(t *testing.T) {
-	ran := newTestRadio()
 	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
 
-	amfID := int64(1379640380095)
+	amfID := int64(1099511627775)
 	ranID := int64(99)
 	msg := decode.PDUSessionResourceSetupResponse{
 		AMFUENGAPID: &amfID,
@@ -43,15 +43,15 @@ func TestHandlePDUSessionResourceSetupResponse_UnknownAMFUENGAPID(t *testing.T) 
 
 	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
 
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication (TS 38.413), got %d", len(sender.SentErrorIndications))
 	}
 }
 
 func TestHandlePDUSessionResourceSetupResponse_OnlyUnknownRANUENGAPID(t *testing.T) {
-	ran := newTestRadio()
 	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
 
 	ranID := int64(42)
 	msg := decode.PDUSessionResourceSetupResponse{
@@ -60,27 +60,26 @@ func TestHandlePDUSessionResourceSetupResponse_OnlyUnknownRANUENGAPID(t *testing
 
 	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
 
-	sender := ran.NGAPSender.(*FakeNGAPSender)
+	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication (TS 38.413), got %d", len(sender.SentErrorIndications))
 	}
 }
 
 func TestHandlePDUSessionResourceSetupResponse_HappyPath(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
-	amfInstance.Radios[new(sctp.SCTPConn)] = ran
+	ran := newTestRadio(amfInstance)
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
 	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
 	transfer := []byte{0xAA, 0xBB}
 	amfUeNgapID := int64(10)
@@ -109,20 +108,19 @@ func TestHandlePDUSessionResourceSetupResponse_HappyPath(t *testing.T) {
 }
 
 func TestHandlePDUSessionResourceSetupResponse_FailedItemForwardedToSmf(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
-	amfInstance.Radios[new(sctp.SCTPConn)] = ran
+	ran := newTestRadio(amfInstance)
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
 	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
 	transfer := []byte{0xCC, 0xDD}
 	amfUeNgapID := int64(10)

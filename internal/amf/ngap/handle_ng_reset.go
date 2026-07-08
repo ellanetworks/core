@@ -12,12 +12,13 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleNGReset(ctx context.Context, ran *amf.Radio, msg decode.NGReset) {
+func HandleNGReset(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.NGReset) {
 	logger.WithTrace(ctx, ran.Log).Debug("Received NG Reset with Cause", logger.Cause(causeToString(msg.Cause)))
 
 	switch msg.ResetType.Present {
@@ -26,11 +27,16 @@ func HandleNGReset(ctx context.Context, ran *amf.Radio, msg decode.NGReset) {
 		// TS 38.413: NG Reset is initiated when one side has lost its
 		// UE-associated logical NG-connection context. Treat as lower layer
 		// failure so ongoing NAS procedures are aborted per TS 24.501.
-		ran.RemoveAllUeInRan(ctx)
+		amfInstance.RemoveAllUeInRan(ctx, ran)
 		logger.WithTrace(ctx, ran.Log).Debug("All UE Context in RAN have been removed")
 
-		err := ran.NGAPSender.SendNGResetAcknowledge(ctx, nil)
+		pkt, err := send.BuildNGResetAcknowledge(nil)
 		if err != nil {
+			logger.WithTrace(ctx, ran.Log).Error("error building NG Reset Acknowledge", zap.Error(err))
+			return
+		}
+
+		if err := ran.SendToRan(ctx, send.NGAPProcedureNGResetAcknowledge, pkt); err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("error sending NG Reset Acknowledge", zap.Error(err))
 			return
 		}
@@ -43,18 +49,18 @@ func HandleNGReset(ctx context.Context, ran *amf.Radio, msg decode.NGReset) {
 			return
 		}
 
-		var ranUe *amf.RanUe
+		var ueConn *amf.UeConn
 
 		for _, ueAssociatedLogicalNGConnectionItem := range partOfNGInterface.List {
 			if ueAssociatedLogicalNGConnectionItem.AMFUENGAPID != nil {
 				logger.WithTrace(ctx, ran.Log).Debug("NG Reset with AMFUENGAPID", zap.Int64("AmfUeNgapID", ueAssociatedLogicalNGConnectionItem.AMFUENGAPID.Value))
-				ranUe = ran.FindUEByAmfUeNgapID(ueAssociatedLogicalNGConnectionItem.AMFUENGAPID.Value)
+				ueConn = amfInstance.FindUEByAmfUeNgapID(ran, ueAssociatedLogicalNGConnectionItem.AMFUENGAPID.Value)
 			} else if ueAssociatedLogicalNGConnectionItem.RANUENGAPID != nil {
 				logger.WithTrace(ctx, ran.Log).Debug("NG Reset with RANUENGAPID", zap.Int64("RanUeNgapID", ueAssociatedLogicalNGConnectionItem.RANUENGAPID.Value))
-				ranUe = ran.FindUEByRanUeNgapID(ueAssociatedLogicalNGConnectionItem.RANUENGAPID.Value)
+				ueConn = amfInstance.FindUEByRanUeNgapID(ran, ueAssociatedLogicalNGConnectionItem.RANUENGAPID.Value)
 			}
 
-			if ranUe == nil {
+			if ueConn == nil {
 				logger.WithTrace(ctx, ran.Log).Warn("Cannot not find UE Context")
 
 				if ueAssociatedLogicalNGConnectionItem.AMFUENGAPID != nil {
@@ -68,14 +74,19 @@ func HandleNGReset(ctx context.Context, ran *amf.Radio, msg decode.NGReset) {
 				continue
 			}
 
-			err := ranUe.Remove(ctx)
+			err := amfInstance.RemoveUe(ctx, ueConn)
 			if err != nil {
-				logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
+				logger.WithTrace(ctx, ueConn.Log).Error(err.Error())
 			}
 		}
 
-		err := ran.NGAPSender.SendNGResetAcknowledge(ctx, partOfNGInterface)
+		pkt, err := send.BuildNGResetAcknowledge(partOfNGInterface)
 		if err != nil {
+			logger.WithTrace(ctx, ran.Log).Error("error building NG Reset Acknowledge", zap.Error(err))
+			return
+		}
+
+		if err := ran.SendToRan(ctx, send.NGAPProcedureNGResetAcknowledge, pkt); err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("error sending NG Reset Acknowledge", zap.Error(err))
 			return
 		}

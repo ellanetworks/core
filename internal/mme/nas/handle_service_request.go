@@ -1,0 +1,99 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+package nas
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/s1ap"
+	"go.uber.org/zap"
+)
+
+// HandleServiceRequest handles a mobile-originated SERVICE REQUEST (TS 24.301): it
+// resolves the UE by S-TMSI, verifies the short MAC against the stored NAS context,
+// and re-establishes the S1 context (ECM-IDLE → ECM-CONNECTED).
+func HandleServiceRequest(m *mme.MME, ctx context.Context, conn mme.S1APWriter, msg *s1ap.InitialUEMessage) {
+	if msg.STMSI == nil {
+		logger.From(ctx, logger.MmeLog).Warn("Service Request without an S-TMSI")
+		sendServiceReject(m, ctx, conn, msg.ENBUES1APID)
+
+		return
+	}
+
+	ue, ok := m.LookupUeByMTMSI(msg.STMSI.MTMSI)
+	if !ok || ue.EMMState() != mme.EMMRegistered {
+		logger.From(ctx, logger.MmeLog).Info("Service Request for an unknown or deregistered UE",
+			zap.Uint32("m-tmsi", msg.STMSI.MTMSI))
+		sendServiceReject(m, ctx, conn, msg.ENBUES1APID)
+
+		return
+	}
+
+	sr, err := eps.ParseServiceRequest([]byte(msg.NASPDU))
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("failed to decode Service Request", zap.Error(err))
+		sendServiceReject(m, ctx, conn, msg.ENBUES1APID)
+
+		return
+	}
+
+	// An unverified Service Request must not move the UE's S1 connection
+	// (TS 24.301 §5.6.1).
+	ok, want, expSeq, ul := ue.VerifyServiceRequestShortMAC([]byte(msg.NASPDU)[:2], sr.ShortMAC, sr.SeqShort)
+	if !ok {
+		logger.From(ctx, logger.MmeLog).Warn("Service Request short-MAC verification failed",
+			zap.Uint32("m-tmsi", msg.STMSI.MTMSI),
+			zap.String("expected-short-mac", fmt.Sprintf("%x", want)),
+			zap.String("received-short-mac", fmt.Sprintf("%x", sr.ShortMAC)),
+			zap.Uint8("expected-sequence", expSeq),
+			zap.Uint8("received-sequence", sr.SeqShort),
+			zap.Uint32("stored-ul-count", ul))
+
+		sendServiceReject(m, ctx, conn, msg.ENBUES1APID)
+
+		return
+	}
+
+	c := m.NewUeConn(conn, msg.ENBUES1APID)
+	if c == nil {
+		return
+	}
+
+	// A resume reaches here only after its message was integrity-verified against the
+	// held context, so secure exchange is established on the new connection from the
+	// outset (mirrors the AMF, which marks it at decode).
+	m.AttachUeConn(ue, c)
+	c.MarkSecureExchangeEstablished()
+
+	ue.AdvanceULCount()
+
+	logger.From(ctx, logger.MmeLog).Info("Service Request accepted",
+		zap.Uint32("enb-ue-id", uint32(ue.Conn().ENBUES1APID)),
+		zap.String("imsi", ue.IMSI()))
+
+	qos, err := mme.ResolveQoS(m, ctx, ue.IMSI())
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
+		return
+	}
+
+	sendInitialContextSetup(m, ctx, ue, qos, nil)
+}
+
+// sendServiceReject sends a SERVICE REJECT with cause #9 (TS 24.301 §5.6.1.5)
+// over a bare connection, so a rejected request never touches a resolved UE.
+func sendServiceReject(m *mme.MME, ctx context.Context, conn mme.S1APWriter, enbUEID s1ap.ENBUES1APID) {
+	c := m.NewUeConn(conn, enbUEID)
+	if c == nil {
+		return
+	}
+
+	defer m.ReleaseBareConn(c)
+
+	c.SendOverConn(ctx, &eps.ServiceReject{Cause: mme.EmmCauseUEIdentityUnderivable})
+}

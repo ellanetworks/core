@@ -8,9 +8,8 @@ import (
 )
 
 // DecodeInitialUEMessage validates an InitialUEMessage PDU body
-// (3GPP TS 38.413). Mandatory IEs are RANUENGAPID, NASPDU,
-// UserLocationInformation (all reject) and RRCEstablishmentCause
-// (ignore). Duplicate IEs follow a last-wins policy.
+// (3GPP TS 38.413). Class 2 procedure: procedure-level criticality is
+// ignore.
 func DecodeInitialUEMessage(in *ngapType.InitialUEMessage) (InitialUEMessage, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeInitialUEMessage,
@@ -25,9 +24,8 @@ func DecodeInitialUEMessage(in *ngapType.InitialUEMessage) (InitialUEMessage, *R
 		return out, report
 	}
 
-	// "have" flags are set when an IE id is observed regardless of
-	// whether its value was well-formed, so a malformed IE is not also
-	// reported as missing.
+	// A "have" flag is set when the IE id is observed, before its value is
+	// checked, so a malformed IE is not also reported as missing.
 	var (
 		haveRANUENGAPID bool
 		haveNASPDU      bool

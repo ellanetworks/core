@@ -115,9 +115,9 @@ func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRe
 	return n2Rsp, nil
 }
 
-// UpdateSmContextN2HandoverComplete handles the handover completion phase.
-// Per 3GPP TS 23.502, the SMF sends an N4 Session Modification Request to the
-// UPF with the new AN tunnel info at this point.
+// UpdateSmContextN2HandoverComplete handles the handover completion phase, sending
+// the UPF an N4 Session Modification Request with the new AN tunnel info
+// (TS 23.502).
 func (s *SMF) UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRef string) error {
 	ctx, span := tracer.Start(ctx, "smf/update_sm_context_n2_handover_complete",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
@@ -267,8 +267,7 @@ func handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data []byte, smContext *SMContex
 		pdrList = append(pdrList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR)
 		farList = append(farList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR)
 
-		// The UL OuterHeaderRemoval was corrected above; include the PDR in the
-		// update list so the new value reaches the UPF.
+		// Include the UL PDR so its updated OuterHeaderRemoval reaches the UPF.
 		smContext.Tunnel.DataPath.UpLinkTunnel.PDR.State = RuleUpdate
 		pdrList = append(pdrList, smContext.Tunnel.DataPath.UpLinkTunnel.PDR)
 	}

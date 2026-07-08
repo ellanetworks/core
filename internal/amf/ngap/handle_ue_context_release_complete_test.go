@@ -19,26 +19,25 @@ import (
 // after a handover failure, the target UE (which only has SourceUe set, not
 // TargetUe) can be cleanly released without panicking.
 func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) {
-	ran := newTestRadio()
 	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
 
 	amfUe := amf.NewUeContext()
-	amfUe.ForceState(amf.Registered)
-	amfUe.Log = logger.AmfLog
+	amfUe.ForceStateForTest(amf.Registered)
 
-	sourceRanUe := amf.NewRanUeForTest(ran, 1, 100, logger.AmfLog)
-	amfUe.AttachRanUe(sourceRanUe)
+	sourceUeConn := amf.NewUeConnForTest(ran, 1, 100, logger.AmfLog)
+	sourceUeConn.AMFForTest().AttachUeConn(amfUe, sourceUeConn)
 
-	targetRanUe := amf.NewRanUeForTest(ran, 2, 200, logger.AmfLog)
+	targetUeConn := amf.NewUeConnForTest(ran, 2, 200, logger.AmfLog)
 
-	err := amf.AttachSourceUeTargetUe(sourceRanUe, targetRanUe)
+	err := amf.AttachSourceUeTargetUe(sourceUeConn, targetUeConn)
 	if err != nil {
 		t.Fatalf("AttachSourceUeTargetUe: %v", err)
 	}
 
-	targetRanUe.ReleaseAction = amf.UeContextReleaseHandover
+	targetUeConn.ReleaseAction = amf.UeContextReleaseHandover
 
-	amfInstance.Radios = map[*sctp.SCTPConn]*amf.Radio{new(sctp.SCTPConn): ran}
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
 	amfID := int64(200)
 	ranID := int64(2)
@@ -49,8 +48,8 @@ func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) 
 
 	ngap.HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, msg)
 
-	if ran.FindUEByRanUeNgapID(targetRanUe.RanUeNgapID) != nil {
-		t.Fatal("expected target RanUe to be removed after release complete")
+	if amfInstance.FindUEByRanUeNgapID(ran, targetUeConn.RanUeNgapID) != nil {
+		t.Fatal("expected target UeConn to be removed after release complete")
 	}
 }
 
@@ -58,17 +57,16 @@ func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) 
 // UEContextReleaseComplete referencing a PDU session ID that has no SmContext
 // does NOT panic.
 func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
-	ran := newTestRadio()
 	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
 
 	amfUe := amf.NewUeContext()
-	amfUe.ForceState(amf.Registered)
-	amfUe.Log = logger.AmfLog
+	amfUe.ForceStateForTest(amf.Registered)
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 100, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(ran, 1, 100, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	amfInstance.Radios = map[*sctp.SCTPConn]*amf.Radio{new(sctp.SCTPConn): ran}
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
 	amfID := int64(100)
 	ranID := int64(1)
@@ -86,7 +84,7 @@ func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
 
 	ngap.HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, msg)
 
-	if ran.FindUEByRanUeNgapID(ranUe.RanUeNgapID) != nil {
-		t.Fatal("expected RanUe to be removed after release complete")
+	if amfInstance.FindUEByRanUeNgapID(ran, ueConn.RanUeNgapID) != nil {
+		t.Fatal("expected UeConn to be removed after release complete")
 	}
 }

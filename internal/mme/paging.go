@@ -48,7 +48,7 @@ func (m *MME) Page(ctx context.Context, imsi string) error {
 
 	m.broadcastPaging(ctx, b)
 
-	logger.MmeLog.Info("Paging", zap.String("imsi", imsi), zap.Uint32("m-tmsi", ue.mtmsi))
+	logger.From(ctx, logger.MmeLog).Info("Paging", zap.String("imsi", imsi), zap.Uint32("m-tmsi", ue.Tmsi().Uint32()))
 
 	m.armPaging(ue, b)
 
@@ -65,7 +65,7 @@ func (m *MME) armPaging(ue *UeContext, pdu []byte) {
 		return
 	}
 
-	ue.pagingTimer.Arm(m.pagingTimeout, int32(m.pagingMaxRetransmit),
+	ue.pagingTimer.ArmWith(m.pagingCfg,
 		func(attempt int32) { m.retransmitPaging(ue, pdu, attempt) },
 		func() { m.abandonPaging(ue) })
 }
@@ -77,12 +77,12 @@ func (m *MME) stopPagingLocked(ue *UeContext) {
 }
 
 // retransmitPaging resends the Paging on each guard interval (T3413, TS 24.301
-// §5.6.2). If the UE has answered (ECM-CONNECTED) it stops the guard instead.
+// §5.6.2), or stops the guard once the UE has answered (ECM-CONNECTED).
 func (m *MME) retransmitPaging(ue *UeContext, pdu []byte, attempt int32) {
 	m.mu.RLock()
 
 	connected := ue.Connected()
-	imsi := ue.imsi
+	imsi := ue.imsiOrEmpty()
 
 	m.mu.RUnlock()
 
@@ -103,7 +103,7 @@ func (m *MME) retransmitPaging(ue *UeContext, pdu []byte, attempt int32) {
 func (m *MME) abandonPaging(ue *UeContext) {
 	m.mu.RLock()
 
-	imsi := ue.imsi
+	imsi := ue.imsiOrEmpty()
 
 	m.mu.RUnlock()
 
@@ -131,16 +131,19 @@ func (m *MME) buildPaging(ctx context.Context, ue *UeContext) (*s1ap.Paging, err
 
 	// During a GUTI reallocation the UE still answers to the old M-TMSI until it
 	// sends TAU Complete, so page with that one while it is pending.
-	mtmsi := ue.mtmsi
-	if ue.oldMTMSI != 0 {
-		mtmsi = ue.oldMTMSI
+	mtmsi := ue.Tmsi().Uint32()
+	if ue.OldTmsi().Uint32() != 0 {
+		mtmsi = ue.OldTmsi().Uint32()
 	}
 
 	return &s1ap.Paging{
-		UEIdentityIndexValue: ueIdentityIndex(ue.imsi),
+		UEIdentityIndexValue: ueIdentityIndex(ue.imsiOrEmpty()),
 		STMSI:                s1ap.STMSI{MMEC: mmeCode, MTMSI: mtmsi},
 		CNDomain:             s1ap.CNDomainPS,
 		TAIList:              []s1ap.TAI{{PLMNIdentity: plmnID, TAC: s1ap.TAC(tac)}},
+		// Replay the eNB-reported paging capability so it can apply paging
+		// optimisations (TS 36.413 §9.1.6.1); omitted when none was reported.
+		UERadioCapabilityForPaging: ue.RadioCapabilityForPaging,
 	}, nil
 }
 
@@ -157,9 +160,9 @@ func ueIdentityIndex(imsi string) uint16 {
 // without holding it.
 func (m *MME) broadcastPaging(ctx context.Context, b []byte) {
 	m.mu.RLock()
-	conns := make([]*sctp.SCTPConn, 0, len(m.enbs))
+	conns := make([]S1APWriter, 0, len(m.radios))
 
-	for conn := range m.enbs {
+	for conn := range m.radios {
 		conns = append(conns, conn)
 	}
 
@@ -167,7 +170,7 @@ func (m *MME) broadcastPaging(ctx context.Context, b []byte) {
 
 	for _, conn := range conns {
 		if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: S1apStreamNonUE}); err != nil {
-			logger.MmeLog.Warn("failed to send Paging to eNB", zap.Error(err))
+			logger.From(ctx, logger.MmeLog).Warn("failed to send Paging to eNB", zap.Error(err))
 			continue
 		}
 

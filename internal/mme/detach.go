@@ -26,28 +26,43 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 		return
 	}
 
-	ue.emmState.store(EMMDeregistered)
-
 	// An idle UE (ECM-IDLE) holds no S1 connection to carry the DETACH REQUEST, so
-	// release its sessions and context locally. The deleted subscriber is denied at
-	// its next contact, as it can no longer authenticate.
+	// release its sessions and context locally. The deleted subscriber fails
+	// authentication at its next contact.
 	if !m.UeConnected(ue) {
-		logger.MmeLog.Info("releasing idle UE on subscriber deletion", zap.String("imsi", imsi))
-		m.ReleaseAllSessions(ue)
+		ue.TransitionTo(EMMDeregistered)
+		logger.From(ctx, logger.MmeLog).Info("releasing idle UE on subscriber deletion", zap.String("imsi", imsi))
+		m.ReleaseAllSessions(ctx, ue)
 		m.RemoveUe(ue)
 
 		return
 	}
 
-	logger.MmeLog.Info("network-initiated detach (subscriber deleted)",
-		zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)), zap.String("imsi", imsi))
+	// A connected UE with no security context cannot be sent a protected DETACH
+	// REQUEST, so perform a local detach. Local detach is spec-recognised
+	// (TS 24.301 §5.5.2.3.1): the UE is denied with EMM cause #10 "implicitly
+	// detached" at its next contact.
+	if !ue.Secured() {
+		logger.From(ctx, logger.MmeLog).Info("local detach of connected-but-unsecured UE on subscriber deletion",
+			zap.String("imsi", imsi))
+		m.ReleaseUEContextLocally(ue, "subscriber deleted")
 
-	naspdu, err := m.ProtectDownlinkMessage(ue, &eps.DetachRequestNetwork{TypeOfDetach: detachTypeReattachNotRequired})
-	if err != nil {
-		logger.MmeLog.Error("failed to protect Detach Request", zap.Error(err))
 		return
 	}
 
-	m.SendDownlink(ctx, ue, naspdu)
-	m.ArmNASGuard(ue, "Detach Request", naspdu)
+	// The connected UE is asked to detach; T3422 guards the DETACH REQUEST and the
+	// UE stays EMM-DEREGISTERED-INITIATED until it accepts or the guard exhausts.
+	ue.TransitionTo(EMMDeregistrationInitiated)
+
+	logger.From(ctx, ue.Conn().Log).Info("network-initiated detach (subscriber deleted)",
+		zap.String("imsi", imsi))
+
+	naspdu, err := ue.ProtectDownlinkMessage(&eps.DetachRequestNetwork{TypeOfDetach: detachTypeReattachNotRequired})
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to protect Detach Request", zap.Error(err))
+		return
+	}
+
+	ue.Conn().SendDownlinkNASTransport(ctx, naspdu)
+	ue.Conn().ArmNASGuard("Detach Request", naspdu)
 }

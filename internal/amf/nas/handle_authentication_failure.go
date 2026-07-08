@@ -6,78 +6,105 @@ package nas
 import (
 	"context"
 	"encoding/hex"
-	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
 )
 
-func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.AuthenticationFailure) error {
-	if state := ue.State(); state != amf.Authentication {
-		return fmt.Errorf("state mismatch: receive amf.Authentication Failure message in state %s", state)
+func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.AuthenticationFailure) {
+	if step := ue.RegStep(); step != amf.RegStepAuthenticating {
+		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Authentication Failure message outside the authentication exchange", zap.String("state", string(ue.State())))
+		return
 	}
 
-	ranUe := ue.RanUe()
-	if ranUe == nil {
-		return fmt.Errorf("ue is not connected to RAN")
+	ueConn := ue.Conn()
+	if ueConn == nil {
+		logger.From(ctx, logger.AmfLog).Warn("ue is not connected to RAN")
+		return
 	}
 
-	conn := ue.NasConn()
+	conn := ue.Conn()
 	if conn == nil {
-		return fmt.Errorf("no active NAS connection")
+		logger.From(ctx, logger.AmfLog).Warn("no active NAS connection")
+		return
 	}
 
-	conn.T3560.Stop()
+	// An AUTHENTICATION FAILURE is only valid while a challenge is in flight; in the
+	// identity sub-window of RegStepAuthenticating no challenge has been sent, so an
+	// out-of-order one (admissible without integrity, TS 24.501 §4.4.4.3) must not
+	// release the UE.
+	if conn.AuthenticationCtx == nil {
+		logger.From(ctx, logger.AmfLog).Warn("ignoring Authentication Failure with no authentication in progress")
+		return
+	}
+
+	// A cause outside the AUTHENTICATION FAILURE enumeration is a semantically
+	// incorrect message: ignore it and leave the authentication procedure and its
+	// guard (T3560) running so it retransmits or times out (TS 24.501 §7.8). Stop the
+	// guard only for an enumerated cause.
+	switch msg.GetCauseValue() {
+	case nasMessage.Cause5GMMMACFailure,
+		nasMessage.Cause5GMMNon5GAuthenticationUnacceptable,
+		nasMessage.Cause5GMMngKSIAlreadyInUse,
+		nasMessage.Cause5GMMSynchFailure:
+		conn.StopNASGuard()
+	default:
+		logger.From(ctx, logger.AmfLog).Warn("ignoring Authentication Failure with an out-of-enumeration cause",
+			zap.Uint8("cause", msg.GetCauseValue()))
+
+		return
+	}
 
 	switch msg.GetCauseValue() {
 	case nasMessage.Cause5GMMMACFailure:
-		ue.Log.Warn("amf.Authentication Failure Cause: Mac Failure")
+		logger.From(ctx, logger.AmfLog).Warn("amf.Authentication Failure Cause: Mac Failure")
 		ue.Deregister(ctx)
 
-		amf.SendAuthenticationReject(ctx, ranUe)
+		amf.SendAuthenticationReject(ctx, ueConn)
 
-		return nil
+		return
 	case nasMessage.Cause5GMMNon5GAuthenticationUnacceptable:
-		ue.Log.Warn("amf.Authentication Failure Cause: Non-5G amf.Authentication Unacceptable")
+		logger.From(ctx, logger.AmfLog).Warn("amf.Authentication Failure Cause: Non-5G amf.Authentication Unacceptable")
 		ue.Deregister(ctx)
 
-		amf.SendAuthenticationReject(ctx, ranUe)
+		amf.SendAuthenticationReject(ctx, ueConn)
 
-		return nil
+		return
 	case nasMessage.Cause5GMMngKSIAlreadyInUse:
-		ue.Log.Warn("amf.Authentication Failure Cause: NgKSI Already In Use")
+		logger.From(ctx, logger.AmfLog).Warn("amf.Authentication Failure Cause: NgKSI Already In Use")
 
-		conn.AuthFailureCauseSynchFailureTimes = 0
+		conn.SetResyncTried(false)
 
-		ue.Log.Warn("Select new NgKsi")
+		logger.From(ctx, logger.AmfLog).Warn("Select new NgKsi")
 
 		ngKsi := ue.NgKsi()
 		ngKsi.Ksi = amf.NextNgKsi(ngKsi.Ksi)
 		ue.SetNgKsi(ngKsi)
 
-		amf.SendAuthenticationRequest(ctx, amfInstance, ranUe)
+		amf.SendAuthenticationRequest(ctx, amfInstance, ueConn)
 
-		ue.Log.Info("Sent authentication request")
+		logger.From(ctx, logger.AmfLog).Info("Sent authentication request")
 	case nasMessage.Cause5GMMSynchFailure: // TS 24.501
-		ue.Log.Warn("amf.Authentication Failure 5GMM Cause: Synch Failure")
+		logger.From(ctx, logger.AmfLog).Warn("amf.Authentication Failure 5GMM Cause: Synch Failure")
 
-		conn.AuthFailureCauseSynchFailureTimes++
-		if conn.AuthFailureCauseSynchFailureTimes >= 10 {
-			ue.Log.Warn("10 consecutive Synch Failure, terminate authentication procedure")
+		if conn.ResyncTried() {
+			logger.From(ctx, logger.AmfLog).Warn("2 consecutive Synch Failure, terminate authentication procedure")
 			ue.Deregister(ctx)
 
-			amf.SendAuthenticationReject(ctx, ranUe)
+			amf.SendAuthenticationReject(ctx, ueConn)
 
-			return nil
+			return
 		}
-
-		ue.Log.Info("Resynchronizing SQN from AUTS", zap.Int("attempt", conn.AuthFailureCauseSynchFailureTimes))
 
 		if msg.AuthenticationFailureParameter == nil {
-			return fmt.Errorf("missing AuthenticationFailureParameter IE for SynchFailure")
+			logger.From(ctx, logger.AmfLog).Warn("missing AuthenticationFailureParameter IE for SynchFailure")
+			return
 		}
+
+		conn.SetResyncTried(true)
 
 		auts := msg.GetAuthenticationFailureParameter()
 		resynchronizationInfo := &ausf.ResyncInfo{
@@ -86,17 +113,16 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 
 		response, err := sendUEAuthenticationAuthenticateRequest(ctx, amfInstance, ue, resynchronizationInfo)
 		if err != nil {
-			return fmt.Errorf("send UE amf.Authentication Authenticate Request Error: %s", err.Error())
+			logger.From(ctx, logger.AmfLog).Warn("send UE amf.Authentication Authenticate Request Error", zap.Error(err))
+			return
 		}
 
 		conn.AuthenticationCtx = response
 
 		ue.SetAbba([]uint8{0x00, 0x00})
 
-		amf.SendAuthenticationRequest(ctx, amfInstance, ranUe)
+		amf.SendAuthenticationRequest(ctx, amfInstance, ueConn)
 
-		ue.Log.Info("Sent authentication request")
+		logger.From(ctx, logger.AmfLog).Info("Sent authentication request")
 	}
-
-	return nil
 }

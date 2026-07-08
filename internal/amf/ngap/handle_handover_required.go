@@ -19,7 +19,7 @@ import (
 )
 
 func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.HandoverRequired) {
-	sourceUe, ok := resolveUE(ctx, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+	sourceUe, ok := resolveUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
 	if !ok {
 		return
 	}
@@ -37,27 +37,26 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	conn := amfUe.NasConn()
+	conn := amfUe.Conn()
 	if conn == nil {
 		logger.WithTrace(ctx, sourceUe.Log).Error("no active NAS connection")
 		return
 	}
 
-	_, beginErr := conn.Procedures.Begin(conn.Ctx(), procedure.Procedure{Type: procedure.N2Handover})
-	if beginErr != nil {
-		logger.WithTrace(ctx, sourceUe.Log).Info("N2Handover rejected by procedure registry", zap.Error(beginErr))
+	if !conn.Parent().BeginKeyChainProc(conn.Ctx(), procedure.N2Handover) {
+		logger.WithTrace(ctx, sourceUe.Log).Info("N2Handover rejected by procedure registry")
 		return
 	}
 
-	// Supervision is armed only once the target is engaged (see end of function).
-	// Until then — and on every preparation-failure path — the procedure must not
-	// be left active, or it would pin the UE with no deadline to clear it.
+	// Until supervision is armed (once the target is engaged), the procedure must not
+	// be left active on any preparation-failure path, or it pins the UE with no
+	// deadline to clear it.
 	armed := false
 
 	defer func() {
 		if !armed {
-			conn.Procedures.End(procedure.N2Handover)
-			amfUe.ClearHandover()
+			conn.Parent().EndKeyChainProc(procedure.N2Handover)
+			amfInstance.ClearHandover(amfUe)
 		}
 	}()
 
@@ -71,7 +70,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		conn.Procedures.End(procedure.N2Handover)
+		conn.Parent().EndKeyChainProc(procedure.N2Handover)
 
 		err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
 		if err != nil {
@@ -86,9 +85,8 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	targetRan, ok := amfInstance.FindRadioByRanID(targetRanNodeID)
 	if !ok {
-		// The target gNB is not served by this AMF, so preparation cannot
-		// proceed; fail it explicitly so the source is not left waiting
-		// (TS 38.413).
+		// The target gNB is not served by this AMF, so fail preparation explicitly and
+		// leave the source not waiting (TS 38.413).
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Unknown Target ID]", zap.Any("targetRanNodeID", targetRanNodeID))
 
 		failureCause := ngapType.Cause{
@@ -98,7 +96,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		conn.Procedures.End(procedure.N2Handover)
+		conn.Parent().EndKeyChainProc(procedure.N2Handover)
 
 		if err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil); err != nil {
 			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
@@ -119,7 +117,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		}
 
 		if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
-			n2Rsp, err := amfInstance.Smf.UpdateSmContextN2HandoverPreparing(ctx, smContext.Ref, pDUSessionResourceHoItem.HandoverRequiredTransfer)
+			n2Rsp, err := amfInstance.Session.UpdateSmContextN2HandoverPreparing(ctx, smContext.Ref, pDUSessionResourceHoItem.HandoverRequiredTransfer)
 			if err != nil {
 				logger.WithTrace(ctx, sourceUe.Log).Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionIDUint8))
 				continue
@@ -139,7 +137,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		conn.Procedures.End(procedure.N2Handover)
+		conn.Parent().EndKeyChainProc(procedure.N2Handover)
 
 		err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
 		if err != nil {
@@ -147,12 +145,6 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			return
 		}
 
-		return
-	}
-
-	err := amfUe.UpdateNH()
-	if err != nil {
-		logger.WithTrace(ctx, sourceUe.Log).Error("error updating NH", zap.Error(err))
 		return
 	}
 
@@ -168,7 +160,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	targetUe, err := amfInstance.NewRanUe(targetRan, models.RanUeNgapIDUnspecified)
+	targetUe, err := amfInstance.NewUeConn(targetRan, models.RanUeNgapIDUnspecified)
 	if err != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Error("error creating target ue", zap.Error(err))
 		return
@@ -180,7 +172,13 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	nh, ncc := amfUe.NextHopNCC()
+	// The HANDOVER REQUEST carries the AS key chain {NH, NCC} staged at preparation;
+	// it is committed to the UE only when the UE reaches the target (NOTIFY).
+	nh, ncc, ok := amfInstance.StagedHandoverNH(amfUe)
+	if !ok {
+		logger.WithTrace(ctx, sourceUe.Log).Error("no staged handover NH after attach")
+		return
+	}
 
 	err = targetUe.SendHandoverRequest(
 		ctx,
@@ -202,31 +200,29 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	}
 
 	// Bound the handover (HANDOVER REQUIRED → NOTIFY): if the target gNB never
-	// completes it, the guard abandons the handover and releases the target.
-	// Armed here, after the target is engaged, so its cleanup captures the target
-	// directly and the timer goroutine has a happens-before edge to this setup.
-	if supErr := conn.Procedures.Supervise(conn.Ctx(), procedure.N2Handover,
+	// completes it, the guard abandons the handover and releases the target. Armed
+	// after the target is engaged so the timer goroutine has a happens-before edge to
+	// this setup.
+	// Supervise cannot fail here: N2Handover was begun above and is still active, so the
+	// registry always arms the deadline.
+	conn.Parent().SuperviseKeyChainProc(conn.Ctx(), procedure.N2Handover,
 		time.Now().Add(amfInstance.HandoverGuardTimeout()),
-		handoverGuardExpiry(sourceUe, targetUe)); supErr != nil {
-		logger.WithTrace(ctx, sourceUe.Log).Warn("could not arm N2 handover guard", zap.Error(supErr))
-	} else {
-		armed = true
-	}
+		handoverGuardExpiry(amfInstance, sourceUe, targetUe))
+
+	armed = true
 }
 
-// handoverGuardExpiry abandons a stalled N2 handover. The procedure registry runs
-// it when the supervision deadline elapses (or the source NAS connection is
-// cancelled) before HANDOVER NOTIFY arrives — the target gNB never completed the
-// handover. The half-prepared target UE context is released; the source is left in
-// place (its own TNGRELOCprep/Overall timers abort the handover on the radio),
-// mirroring the MME's onHandoverGuardExpiry (TS 38.413). A normal completion
-// (HANDOVER NOTIFY/FAILURE/CANCEL) ends the procedure, which stops this timer
-// before it can fire, so the captured target is touched by at most one goroutine.
-func handoverGuardExpiry(sourceUe, targetUe *amf.RanUe) func(context.Context) error {
+// handoverGuardExpiry abandons a stalled N2 handover when the supervision deadline
+// elapses (or the source NAS connection is cancelled) before HANDOVER NOTIFY arrives.
+// The half-prepared target UE context is released; the source is left in place (its
+// own TNGRELOCprep/Overall timers abort the handover on the radio) (TS 38.413). A
+// normal completion ends the procedure, stopping this timer before it can fire, so
+// the captured target is touched by at most one goroutine.
+func handoverGuardExpiry(amfInstance *amf.AMF, sourceUe, targetUe *amf.UeConn) func(context.Context) error {
 	return func(cctx context.Context) error {
 		logger.WithTrace(cctx, sourceUe.Log).Warn("N2 handover abandoned: target gNB did not complete it in time, releasing target")
 
-		sourceUe.UeContext().ClearHandover()
+		amfInstance.ClearHandover(sourceUe.UeContext())
 
 		targetUe.ReleaseAction = amf.UeContextReleaseHandover
 

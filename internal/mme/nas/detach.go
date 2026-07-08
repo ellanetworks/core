@@ -12,34 +12,56 @@ import (
 	"go.uber.org/zap"
 )
 
-// handleDetachAccept completes a network-initiated detach: the UE has acknowledged,
-// so its context is released and deleted (it is already EMM-DEREGISTERED).
+// releaseDetachSessions releases the UE's EPS sessions up front on detach so the
+// UPF drops any remaining packets and frees the tunnel immediately (TS 23.401
+// §5.3.8.2.1), rather than buffering them for paging as the shared S1 release path
+// does for an idle transition. ReleasePDN removes the PDN, so the DeactivateAllSessions
+// run on UE Context Release Complete then finds nothing to buffer.
+func releaseDetachSessions(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
+	for _, p := range m.SnapshotPDNs(ue) {
+		m.ReleasePDN(ctx, ue, p)
+	}
+}
+
 func handleDetachAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
-	m.StopNASGuard(ue)
-	logger.MmeLog.Info("Detach Accept", zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)))
+	ue.Conn().StopNASGuard()
+	logger.From(ctx, logger.MmeLog).Info("Detach Accept")
+	releaseDetachSessions(m, ctx, ue)
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASDetach)
 }
 
-// handleDetachRequest handles a UE-originating DETACH REQUEST (TS 24.301):
-// for a non-switch-off detach it replies with Detach Accept, then releases the
-// UE's S1 context.
-func handleDetachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
-	req, err := eps.ParseDetachRequestUE(plain)
-	if err != nil {
-		logger.MmeLog.Warn("failed to decode Detach Request", zap.Error(err))
+func handleDetachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte, integrityVerified bool) {
+	// A UE holding keys must integrity-protect its DETACH REQUEST, so a forged plain
+	// detach cannot deregister an authenticated UE (TS 24.301 §4.4.4.3 defence in
+	// depth). A UE that lost its keys can recover via a fresh Attach.
+	if !integrityVerified && ue.Secured() {
+		logger.From(ctx, logger.MmeLog).Warn("rejecting unauthenticated Detach Request from UE with valid security context",
+			zap.String("imsi", ue.IMSI()))
+
 		return
 	}
 
-	logger.MmeLog.Info("Detach Request",
-		zap.Uint32("mme-ue-id", uint32(ue.S1.MMEUES1APID)),
+	req, err := eps.ParseDetachRequestUE(plain)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("failed to decode Detach Request", zap.Error(err))
+		return
+	}
+
+	logger.From(ctx, logger.MmeLog).Info("Detach Request",
 		zap.Bool("switch-off", req.SwitchOff),
 		zap.String("imsi", ue.IMSI()),
 	)
 
-	ue.SetEMMState(mme.EMMDeregistered)
+	ue.TransitionTo(mme.EMMDeregistered)
+
+	// Release the user plane before acknowledging the detach, so the UPF has stopped
+	// forwarding by the time the UE acts on the DETACH ACCEPT (TS 23.401 §5.3.8.2.1);
+	// acknowledging first would leave a window where the released UE can still pass
+	// traffic.
+	releaseDetachSessions(m, ctx, ue)
 
 	if !req.SwitchOff {
-		m.SendDownlinkProtected(ctx, ue, &eps.DetachAccept{})
+		ue.Conn().SendDownlinkProtected(ctx, &eps.DetachAccept{})
 	}
 
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASDetach)

@@ -22,7 +22,7 @@ import (
 
 // setupHandoverAckTestContext creates the AMF, source/target UEs, radios, and
 // SMF context needed for handover request acknowledge tests.
-func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *FakeNGAPSender, *amf.AMF) {
+func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *fakeNGAPSender, *amf.AMF) {
 	t.Helper()
 
 	const (
@@ -55,56 +55,51 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *FakeNGAPSender, *am
 
 	amfUe := amf.NewUeContext()
 	amfUe.SetSupiForTest(supi)
-	amfUe.Log = logger.AmfLog
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    smf.CanonicalName(supi, pduSessionID),
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	sourceNGAPSender := &FakeNGAPSender{}
+	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:           logger.AmfLog,
-		NGAPSender:    sourceNGAPSender,
-		RanUEs:        make(map[int64]*amf.RanUe),
-		SupportedTAIs: make([]amf.SupportedTAI, 0),
+		Log:  logger.AmfLog,
+		Conn: sourceNGAPSender,
 	}
 
-	sourceUe := amf.NewRanUeForTest(sourceRan, 10, 100, logger.AmfLog)
-	amfUe.AttachRanUe(sourceUe)
-
-	targetNGAPSender := &FakeNGAPSender{}
+	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:           logger.AmfLog,
-		NGAPSender:    targetNGAPSender,
-		RanUEs:        make(map[int64]*amf.RanUe),
-		SupportedTAIs: make([]amf.SupportedTAI, 0),
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 	}
 
-	targetUe := amf.NewRanUeForTest(targetRan, 2, 1, logger.AmfLog)
+	amfInstance := amf.New(nil, nil, &fakeSmfSbi{SMF: smfInstance})
+	sourceRan.BindAMFForTest(amfInstance)
+	targetRan.BindAMFForTest(amfInstance)
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), targetRan)
+
+	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
+	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+
+	targetUe := amf.NewUeConnForTest(targetRan, 2, 1, logger.AmfLog)
 
 	err := amf.AttachSourceUeTargetUe(sourceUe, targetUe)
 	if err != nil {
 		t.Fatalf("failed to attach source/target: %v", err)
 	}
 
-	amfInstance := amf.New(nil, nil, &FakeSmfSbi{SMF: smfInstance})
-	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
-	amfInstance.Radios[new(sctp.SCTPConn)] = targetRan
-
 	return targetRan, sourceNGAPSender, amfInstance
 }
 
 func TestHandoverRequestAcknowledge_UeNotFound(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
+	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
-		Log:           logger.AmfLog,
-		NGAPSender:    fakeNGAPSender,
-		RanUEs:        make(map[int64]*amf.RanUe),
-		SupportedTAIs: make([]amf.SupportedTAI, 0),
+		Log:  logger.AmfLog,
+		Conn: sender,
 	}
-
 	amfInstance := newTestAMF()
-	amfInstance.Radios[new(sctp.SCTPConn)] = ran
+	ran.BindAMFForTest(amfInstance)
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
 	amfID := int64(999)
 	ranID := int64(1)
@@ -118,33 +113,30 @@ func TestHandoverRequestAcknowledge_UeNotFound(t *testing.T) {
 
 	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, ran, msg)
 
-	if len(fakeNGAPSender.SentHandoverCommands) != 0 {
-		t.Fatalf("expected no HandoverCommand, got %d", len(fakeNGAPSender.SentHandoverCommands))
+	if len(sender.SentHandoverCommands) != 0 {
+		t.Fatalf("expected no HandoverCommand, got %d", len(sender.SentHandoverCommands))
 	}
 
-	if len(fakeNGAPSender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication (TS 38.413), got %d", len(fakeNGAPSender.SentErrorIndications))
+	if len(sender.SentErrorIndications) != 1 {
+		t.Fatalf("expected 1 ErrorIndication (TS 38.413), got %d", len(sender.SentErrorIndications))
 	}
 }
 
 func TestHandoverRequestAcknowledge_NoSourceUe(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
+	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
-		Log:           logger.AmfLog,
-		NGAPSender:    fakeNGAPSender,
-		RanUEs:        make(map[int64]*amf.RanUe),
-		SupportedTAIs: make([]amf.SupportedTAI, 0),
+		Log:  logger.AmfLog,
+		Conn: sender,
 	}
+	amfInstance := newTestAMF()
+	ran.BindAMFForTest(amfInstance)
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
 
-	targetUe := amf.NewRanUeForTest(ran, 2, 1, logger.AmfLog)
-	amfUe.AttachRanUe(targetUe)
+	targetUe := amf.NewUeConnForTest(ran, 2, 1, logger.AmfLog)
+	targetUe.AMFForTest().AttachUeConn(amfUe, targetUe)
 	// No handover installed, so HandoverSource() is nil.
-
-	amfInstance := newTestAMF()
-	amfInstance.Radios[new(sctp.SCTPConn)] = ran
 
 	amfID := int64(1)
 	ranID := int64(2)
@@ -158,17 +150,18 @@ func TestHandoverRequestAcknowledge_NoSourceUe(t *testing.T) {
 
 	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, ran, msg)
 
-	if len(fakeNGAPSender.SentHandoverCommands) != 0 {
-		t.Fatalf("expected no HandoverCommand, got %d", len(fakeNGAPSender.SentHandoverCommands))
+	if len(sender.SentHandoverCommands) != 0 {
+		t.Fatalf("expected no HandoverCommand, got %d", len(sender.SentHandoverCommands))
 	}
 
-	if len(fakeNGAPSender.SentHandoverPreparationFailures) != 0 {
-		t.Fatalf("expected no HandoverPreparationFailure, got %d", len(fakeNGAPSender.SentHandoverPreparationFailures))
+	if len(sender.SentHandoverPreparationFailures) != 0 {
+		t.Fatalf("expected no HandoverPreparationFailure, got %d", len(sender.SentHandoverPreparationFailures))
 	}
 }
 
 func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SendsPreparationFailure(t *testing.T) {
 	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t)
+	targetSender := targetRan.Conn.(*fakeNGAPSender)
 
 	amfID := int64(1)
 	ranID := int64(2)
@@ -199,6 +192,12 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SendsPreparationFailur
 	if len(sourceNGAPSender.SentHandoverCommands) != 0 {
 		t.Fatalf("expected no HandoverCommand, got %d", len(sourceNGAPSender.SentHandoverCommands))
 	}
+
+	// The target acknowledged and holds a reserved UE context; it must be reclaimed
+	// with a UE Context Release Command (TS 38.413 §8.4.2).
+	if len(targetSender.SentUEContextReleaseCommands) != 1 {
+		t.Fatalf("expected 1 UEContextReleaseCommand to the target, got %d", len(targetSender.SentUEContextReleaseCommands))
+	}
 }
 
 // TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceUeContextDetached
@@ -208,7 +207,7 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SendsPreparationFailur
 func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceUeContextDetached(t *testing.T) {
 	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t)
 
-	targetUe := targetRan.FindUEByAmfUeNgapID(1)
+	targetUe := amfInstance.FindUEByAmfUeNgapID(targetRan, 1)
 	if targetUe == nil {
 		t.Fatal("target UE not found on target radio")
 	}
@@ -218,7 +217,7 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceUeContextDetache
 		t.Fatal("source AMF UE not found")
 	}
 
-	sourceUeContext.ReleaseNasConnection(nil)
+	sourceUeContext.Conn().AMFForTest().ReleaseNasConnection(sourceUeContext, nil)
 
 	amfID := int64(1)
 	ranID := int64(2)
@@ -312,6 +311,61 @@ func TestHandoverRequestAcknowledge_HappyPath(t *testing.T) {
 
 	if len(sourceNGAPSender.SentHandoverPreparationFailures) != 0 {
 		t.Fatalf("expected no HandoverPreparationFailure, got %d", len(sourceNGAPSender.SentHandoverPreparationFailures))
+	}
+}
+
+func admittedAckMsg(t *testing.T) decode.HandoverRequestAcknowledge {
+	t.Helper()
+
+	transferBytes, err := aper.MarshalWithParams(ngapType.HandoverRequestAcknowledgeTransfer{
+		DLNGUUPTNLInformation: ngapType.UPTransportLayerInformation{
+			Present: ngapType.UPTransportLayerInformationPresentGTPTunnel,
+			GTPTunnel: &ngapType.GTPTunnel{
+				TransportLayerAddress: ngapType.TransportLayerAddress{Value: aper.BitString{Bytes: []byte{10, 0, 0, 2}, BitLength: 32}},
+				GTPTEID:               ngapType.GTPTEID{Value: []byte{0x00, 0x00, 0x04, 0xD2}},
+			},
+		},
+		QosFlowSetupResponseList: ngapType.QosFlowListWithDataForwarding{
+			List: []ngapType.QosFlowItemWithDataForwarding{{QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: 1}}},
+		},
+	}, "valueExt")
+	if err != nil {
+		t.Fatalf("failed to marshal HandoverRequestAcknowledgeTransfer: %v", err)
+	}
+
+	amfID := int64(1)
+	ranID := int64(2)
+
+	return decode.HandoverRequestAcknowledge{
+		AMFUENGAPID:                        &amfID,
+		RANUENGAPID:                        &ranID,
+		AdmittedItems:                      []ngapType.PDUSessionResourceAdmittedItem{{PDUSessionID: ngapType.PDUSessionID{Value: 1}, HandoverRequestAcknowledgeTransfer: transferBytes}},
+		TargetToSourceTransparentContainer: ngapType.TargetToSourceTransparentContainer{Value: []byte{0xAA}},
+	}
+}
+
+// TestHandoverRequestAcknowledge_DuplicateWhilePrepared_Dropped verifies that a
+// duplicate/out-of-order acknowledge arriving while the handover has advanced past
+// preparation (hoPrepared) is dropped without disturbing the in-flight handover —
+// local error handling, not a release (TS 38.413 §10.4).
+func TestHandoverRequestAcknowledge_DuplicateWhilePrepared_Dropped(t *testing.T) {
+	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t)
+	targetSender := targetRan.Conn.(*fakeNGAPSender)
+	msg := admittedAckMsg(t)
+
+	// First acknowledge advances hoPreparing→hoPrepared and sends the HANDOVER COMMAND.
+	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, targetRan, msg)
+
+	if len(sourceNGAPSender.SentHandoverCommands) != 1 {
+		t.Fatalf("expected 1 HandoverCommand, got %d", len(sourceNGAPSender.SentHandoverCommands))
+	}
+
+	// Second (duplicate) acknowledge lands while the handover is legitimately in
+	// progress at hoPrepared; it must be dropped, NOT release the in-flight target.
+	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, targetRan, msg)
+
+	if len(targetSender.SentUEContextReleaseCommands) != 0 {
+		t.Fatalf("a duplicate acknowledge during an in-flight handover must not release the target, got %d releases", len(targetSender.SentUEContextReleaseCommands))
 	}
 }
 

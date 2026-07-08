@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
@@ -44,9 +45,9 @@ func buildDeregistrationRequest(ue *UeContext) ([]byte, error) {
 // REQUEST and arms T3522 (TS 24.501): an unanswered request is
 // retransmitted, and on exhaustion the UE context is removed regardless.
 func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeContext) error {
-	ranUe := ue.RanUe()
-	if ranUe == nil {
-		return fmt.Errorf("ranUe is nil")
+	ueConn := ue.Conn()
+	if ueConn == nil {
+		return fmt.Errorf("ueConn is nil")
 	}
 
 	nasMsg, err := buildDeregistrationRequest(ue)
@@ -54,33 +55,35 @@ func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeCo
 		return fmt.Errorf("build deregistration request: %w", err)
 	}
 
-	if err := ranUe.SendDownlinkNasTransport(ctx, nasMsg, nil); err != nil {
+	if err := ueConn.SendDownlinkNASTransport(ctx, nasMsg, nil); err != nil {
 		return fmt.Errorf("send downlink nas transport: %w", err)
 	}
 
-	ue.Log.Info("sent network-initiated Deregistration Request")
+	ue.TransitionTo(DeregistrationInitiated)
 
-	conn := ue.NasConn()
-	if !amf.T3522Cfg.Enable || conn == nil {
+	logger.From(ctx, logger.AmfLog).Info("sent network-initiated Deregistration Request")
+
+	conn := ue.Conn()
+	if !amf.NASGuardCfg.Enable || conn == nil {
 		return nil
 	}
 
-	cfg := amf.T3522Cfg
-	conn.T3522.Arm(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
-		retryRanUe := ue.RanUe()
-		if retryRanUe == nil {
-			ue.Log.Warn("UE context released, abort retransmission of Deregistration Request")
+	cfg := amf.NASGuardCfg
+	conn.armNASGuardWith(cfg, "T3522 (Deregistration Request)", func(expireTimes int32) {
+		retryUeConn := ue.Conn()
+		if retryUeConn == nil {
+			logger.From(ctx, logger.AmfLog).Warn("UE context released, abort retransmission of Deregistration Request")
 
 			return
 		}
 
-		ue.Log.Warn("T3522 expired, retransmit Deregistration Request", zap.Int32("retry", expireTimes))
+		logger.From(ctx, logger.AmfLog).Warn("T3522 expired, retransmit Deregistration Request", zap.Int32("retry", expireTimes))
 
-		if err := retryRanUe.SendDownlinkNasTransport(context.Background(), nasMsg, nil); err != nil {
-			ue.Log.Error("could not retransmit Deregistration Request", zap.Error(err))
+		if err := retryUeConn.SendDownlinkNASTransport(context.Background(), nasMsg, nil); err != nil {
+			logger.From(ctx, logger.AmfLog).Error("could not retransmit Deregistration Request", zap.Error(err))
 		}
 	}, func() {
-		ue.Log.Warn("T3522 expired, abort network-initiated deregistration and remove UE context")
+		logger.From(ctx, logger.AmfLog).Warn("T3522 expired, abort network-initiated deregistration and remove UE context")
 
 		amf.DeregisterAndRemoveUeContext(context.Background(), ue)
 	})

@@ -19,12 +19,7 @@ import (
 // }
 
 // DecodeHandoverNotify validates a HandoverNotify PDU body (3GPP TS
-// 38.413). AMFUENGAPID and RANUENGAPID are mandatory-reject, so
-// missing or malformed values produce a fatal report.
-// UserLocationInformation is mandatory-ignore: a missing or malformed
-// value yields a non-fatal report and a nil pointer. HandoverNotification
-// is a class 2 procedure with procedure-level criticality "ignore".
-// Duplicate IEs follow a last-wins policy.
+// 38.413). Class 2 procedure: procedure-level criticality is ignore.
 func DecodeHandoverNotify(in *ngapType.HandoverNotify) (HandoverNotify, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeHandoverNotification,

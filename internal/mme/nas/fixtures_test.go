@@ -119,7 +119,7 @@ func (f *fakeSessionManager) DeactivateEPSSession(_ context.Context, _ string, _
 	return nil
 }
 
-func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string, _ uint8) error {
+func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string) error {
 	f.released = true
 
 	return nil
@@ -243,16 +243,12 @@ func newTestMME(t *testing.T) *mme.MME {
 // kernel's S1AP layer dispatches NAS in tests.
 type nasHandler struct{ m *mme.MME }
 
-func (h *nasHandler) HandleNAS(ctx context.Context, ue *mme.UeContext, pdu []byte) {
-	HandleNAS(h.m, ctx, ue, pdu)
+func (h *nasHandler) HandleNAS(ctx context.Context, conn *mme.UeConn, pdu []byte) {
+	HandleNAS(h.m, ctx, conn, pdu)
 }
 
-func (h *nasHandler) HandleServiceRequest(ctx context.Context, conn mme.NasWriter, msg *s1ap.InitialUEMessage) {
+func (h *nasHandler) HandleServiceRequest(ctx context.Context, conn mme.S1APWriter, msg *s1ap.InitialUEMessage) {
 	HandleServiceRequest(h.m, ctx, conn, msg)
-}
-
-func (h *nasHandler) DispatchEMM(ctx context.Context, ue *mme.UeContext, plain []byte, integrityVerified bool) {
-	DispatchEMM(h.m, ctx, ue, plain, integrityVerified)
 }
 
 // securedUE returns a registered UE with a valid EPS NAS security context.
@@ -271,8 +267,8 @@ func securedUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) {
 		t.Fatal(err)
 	}
 
-	ue.S1.MarkSecureExchangeEstablished()
-	ue.SetEMMState(mme.EMMRegistered)
+	ue.Conn().MarkSecureExchangeEstablished()
+	ue.ForceStateForTest(mme.EMMRegistered)
 	m.RegisterUEForTest(ue, testSubscriber.IMSI)
 
 	return ue, cc
@@ -304,4 +300,12 @@ func parseUEContextReleaseCommand(t *testing.T, pdu []byte) *s1ap.UEContextRelea
 	}
 
 	return cmd
+}
+
+// establishResumeForTest binds a UE returning from ECM-IDLE to a fresh verified S1
+// connection, the resume primitives HandleServiceRequest uses.
+func establishResumeForTest(m *mme.MME, ue *mme.UeContext, conn mme.S1APWriter, enbUEID s1ap.ENBUES1APID) {
+	c := m.NewUeConn(conn, enbUEID)
+	m.AttachUeConn(ue, c)
+	c.MarkSecureExchangeEstablished()
 }

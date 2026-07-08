@@ -13,10 +13,10 @@ import (
 )
 
 func HandleUEContextModificationFailure(ctx gocontext.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.UEContextModificationFailure) {
-	ranUe, ok := resolveUE(ctx, ran, msg.RANUENGAPID, msg.AMFUENGAPID)
+	ueConn, ok := resolveUE(ctx, amfInstance, ran, msg.RANUENGAPID, msg.AMFUENGAPID)
 	if ok {
-		ranUe.TouchLastSeen()
-		logger.WithTrace(ctx, ranUe.Log).Debug("Handle UE Context Modification Failure", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+		ueConn.TouchLastSeen()
+		logger.WithTrace(ctx, ueConn.Log).Debug("Handle UE Context Modification Failure", zap.Int64("AmfUeNgapID", ueConn.AmfUeNgapID), zap.Int64("RanUeNgapID", ueConn.RanUeNgapID))
 	}
 
 	if msg.Cause != nil {

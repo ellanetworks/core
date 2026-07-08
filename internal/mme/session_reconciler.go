@@ -14,12 +14,12 @@ import (
 // transitioning (mid-attach, idle) when a data-network change applied.
 const sessionReconcileBackstop = 5 * time.Minute
 
-// MMESessionReconciler propagates data-network reconfiguration to active EPS
+// SessionReconciler propagates data-network reconfiguration to active EPS
 // bearers: a session_reconcile changefeed wakeup re-evaluates every connected
 // bearer against the current policy and modifies or reactivates it (TS 24.301
 // §6.4.2 / §6.4.4.2), with a periodic backstop sweep recovering from a dropped
 // wakeup. The diff is MME-owned, since the EPC has no SMF for session management.
-type MMESessionReconciler struct {
+type SessionReconciler struct {
 	mme      *MME
 	wakeup   <-chan struct{}
 	backstop time.Duration
@@ -29,12 +29,12 @@ type MMESessionReconciler struct {
 	done   chan struct{}
 }
 
-// NewMMESessionReconciler creates a reconciler for the given MME. wakeup is
+// NewSessionReconciler creates a reconciler for the given MME. wakeup is
 // signalled when a write that affects bearer data-network parameters has been
 // applied; nil is fine (then only the backstop sweep fires). Start must be called
 // explicitly.
-func NewMMESessionReconciler(m *MME, wakeup <-chan struct{}) *MMESessionReconciler {
-	return &MMESessionReconciler{
+func NewSessionReconciler(m *MME, wakeup <-chan struct{}) *SessionReconciler {
+	return &SessionReconciler{
 		mme:      m,
 		wakeup:   wakeup,
 		backstop: sessionReconcileBackstop,
@@ -44,7 +44,7 @@ func NewMMESessionReconciler(m *MME, wakeup <-chan struct{}) *MMESessionReconcil
 // Start launches the reconciler goroutine. Safe to call while already running;
 // subsequent calls without a paired Stop are no-ops. The first reconcile runs in
 // the goroutine immediately, then the wakeup and periodic ticker take over.
-func (r *MMESessionReconciler) Start() {
+func (r *SessionReconciler) Start() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -61,7 +61,7 @@ func (r *MMESessionReconciler) Start() {
 
 // Stop signals the reconciler to exit and blocks until the goroutine has drained.
 // Safe to call when not started.
-func (r *MMESessionReconciler) Stop() {
+func (r *SessionReconciler) Stop() {
 	r.mu.Lock()
 	cancel := r.cancel
 	done := r.done
@@ -77,7 +77,7 @@ func (r *MMESessionReconciler) Stop() {
 	<-done
 }
 
-func (r *MMESessionReconciler) loop(ctx context.Context, done chan struct{}) {
+func (r *SessionReconciler) loop(ctx context.Context, done chan struct{}) {
 	defer close(done)
 
 	r.mme.ReconcileDataNetwork(ctx)

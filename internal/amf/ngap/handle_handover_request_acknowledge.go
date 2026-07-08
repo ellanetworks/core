@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/aper"
@@ -15,9 +16,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// buildPDUSessionResourceToReleaseItemHOCmd builds the Handover Command
-// to-release item for a non-admitted PDU session, relaying the target's
-// reported failure cause when decodable, otherwise a generic one.
+// buildPDUSessionResourceToReleaseItemHOCmd builds the Handover Command to-release
+// item for a non-admitted PDU session, relaying the target's reported failure cause
+// when decodable, otherwise a generic one.
 func buildPDUSessionResourceToReleaseItemHOCmd(pduSessionID ngapType.PDUSessionID, unsuccessful aper.OctetString) (ngapType.PDUSessionResourceToReleaseItemHOCmd, error) {
 	cause := ngapType.Cause{
 		Present: ngapType.CausePresentRadioNetwork,
@@ -48,7 +49,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	targetUe := ran.FindUEByAmfUeNgapID(*msg.AMFUENGAPID)
+	targetUe := amfInstance.FindUEByAmfUeNgapID(ran, *msg.AMFUENGAPID)
 	if targetUe == nil {
 		logger.WithTrace(ctx, ran.Log).Error("No UE Context on this radio", zap.Int64("AmfUeNgapID", *msg.AMFUENGAPID))
 		sendUnknownLocalUEError(ctx, ran, msg.AMFUENGAPID, msg.RANUENGAPID)
@@ -57,7 +58,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 	}
 
 	if msg.RANUENGAPID != nil {
-		ran.UpdateUERanNgapID(targetUe, *msg.RANUENGAPID)
+		amfInstance.UpdateUERanNgapID(targetUe, *msg.RANUENGAPID)
 	}
 
 	targetUe.TouchLastSeen()
@@ -72,6 +73,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 	var (
 		pduSessionResourceHandoverList  ngapType.PDUSessionResourceHandoverList
 		pduSessionResourceToReleaseList ngapType.PDUSessionResourceToReleaseListHOCmd
+		admittedPDU                     = make(map[uint8]struct{})
 	)
 
 	for _, item := range msg.AdmittedItems {
@@ -83,7 +85,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 
 		transfer := item.HandoverRequestAcknowledgeTransfer
 		if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
-			n2Rsp, err := amfInstance.Smf.UpdateSmContextN2HandoverPrepared(ctx, smContext.Ref, transfer)
+			n2Rsp, err := amfInstance.Session.UpdateSmContextN2HandoverPrepared(ctx, smContext.Ref, transfer)
 			if err != nil {
 				logger.WithTrace(ctx, targetUe.Log).Error("Send HandoverRequestAcknowledgeTransfer error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionIDUint8))
 				continue
@@ -93,6 +95,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 			handoverItem.PDUSessionID = item.PDUSessionID
 			handoverItem.HandoverCommandTransfer = n2Rsp
 			pduSessionResourceHandoverList.List = append(pduSessionResourceHandoverList.List, handoverItem)
+			admittedPDU[pduSessionIDUint8] = struct{}{}
 		}
 	}
 
@@ -113,16 +116,17 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		pduSessionResourceToReleaseList.List = append(pduSessionResourceToReleaseList.List, releaseItem)
 	}
 
-	sourceUe := amfUe.HandoverSource()
+	sourceUe := amfInstance.HandoverSource(amfUe)
 	if sourceUe == nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("handover between different Ue has not been implement yet")
 		return
 	}
 
-	// Advance the FSM hoPreparing→hoPrepared (HANDOVER COMMAND about to be sent);
-	// a duplicate or out-of-order acknowledge does not match and is dropped.
-	if !amfUe.MarkHandoverPrepared() {
-		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge with no handover at the preparing stage; dropping")
+	// A handover is in progress but past the preparing stage: a duplicate or
+	// out-of-order HANDOVER REQUEST ACKNOWLEDGE. Do not disturb the in-flight handover
+	// — local error handling, not a release (TS 38.413 §10.4).
+	if !amfInstance.HandoverPreparing(amfUe) {
+		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge for a handover past the preparing stage; dropping")
 		return
 	}
 
@@ -132,7 +136,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 	if len(pduSessionResourceHandoverList.List) == 0 {
 		logger.WithTrace(ctx, targetUe.Log).Info("handle Handover Preparation Failure [HoFailure In Target5GC NgranNode Or TargetSystem]")
 
-		cause := &ngapType.Cause{
+		cause := ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
 			RadioNetwork: &ngapType.CauseRadioNetwork{
 				Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
@@ -140,25 +144,39 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		}
 
 		if sourceUeContext := sourceUe.UeContext(); sourceUeContext != nil {
-			sourceUeContext.NasConn().Procedures.End(procedure.N2Handover)
-			sourceUeContext.ClearHandover()
+			sourceUeContext.EndKeyChainProc(procedure.N2Handover)
+			amfInstance.ClearHandover(sourceUeContext)
 		}
 
 		if sourceUe.Radio() == nil {
 			logger.WithTrace(ctx, targetUe.Log).Error("source UE radio is nil, cannot send handover preparation failure")
-			return
+		} else if err := sourceUe.SendHandoverPreparationFailure(ctx, cause, nil); err != nil {
+			logger.WithTrace(ctx, targetUe.Log).Error("error sending handover preparation failure", zap.Error(err))
 		}
 
-		err := sourceUe.Radio().NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
-		if err != nil {
-			logger.WithTrace(ctx, targetUe.Log).Error("error sending handover preparation failure", zap.Error(err))
+		// The target acknowledged and so holds a reserved UE context, but no session
+		// survived core-side preparation. Its resources are reclaimed only by a
+		// CN-initiated UE Context Release (TS 38.413 §8.4.2).
+		targetUe.ReleaseAction = amf.UeContextReleaseHandover
+		if err := targetUe.SendUEContextReleaseCommand(ctx, cause.Present, cause.RadioNetwork.Value); err != nil {
+			logger.WithTrace(ctx, targetUe.Log).Error("error sending UE Context Release Command to target UE", zap.Error(err))
 		}
 
 		return
 	}
 
-	err := sourceUe.Radio().NGAPSender.SendHandoverCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, sourceUe.HandOverType, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, msg.TargetToSourceTransparentContainer)
+	if !amfInstance.MarkHandoverPrepared(amfUe, admittedPDU) {
+		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge: handover advanced concurrently; dropping")
+		return
+	}
+
+	pkt, err := send.BuildHandoverCommand(sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, sourceUe.HandOverType, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, msg.TargetToSourceTransparentContainer)
 	if err != nil {
+		logger.WithTrace(ctx, targetUe.Log).Error("error building handover command", zap.Error(err))
+		return
+	}
+
+	if err := sourceUe.SendNGAP(ctx, send.NGAPProcedureHandoverCommand, pkt); err != nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("error sending handover command to source UE", zap.Error(err))
 	}
 }

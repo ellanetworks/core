@@ -13,11 +13,20 @@ import (
 )
 
 func handleIdentityResponse(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) {
-	m.StopNASGuard(ue)
+	// An IDENTITY RESPONSE is valid only during the attach authentication sub-phase
+	// (admissible without integrity, TS 24.301 §4.4.4.3); out of order it must not
+	// re-set the IMSI or restart authentication.
+	if ue.RegStep() != mme.RegStepAuthenticating {
+		logger.From(ctx, logger.MmeLog).Warn("ignoring Identity Response outside the authentication sub-phase")
+
+		return
+	}
+
+	ue.Conn().StopNASGuard()
 
 	resp, err := eps.ParseIdentityResponse(plain)
 	if err != nil {
-		logger.MmeLog.Warn("failed to decode Identity Response", zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Warn("failed to decode Identity Response", zap.Error(err))
 		return
 	}
 

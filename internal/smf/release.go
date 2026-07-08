@@ -27,10 +27,12 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 
 	smContext := s.GetSession(smContextRef)
 	if smContext == nil {
-		span.RecordError(fmt.Errorf("sm context not found"))
-		span.SetStatus(codes.Error, "sm context not found")
+		// Releasing an already-released session is a no-op success: the release is
+		// idempotent, so a caller that tears down the user plane up front and again on
+		// completion (e.g. the 4G deactivation handshake) does not see a spurious error.
+		logger.SmfLog.Debug("release: sm context already released", zap.String("smContextRef", smContextRef))
 
-		return fmt.Errorf("sm context not found: %s", smContextRef)
+		return nil
 	}
 
 	smContext.Mutex.Lock()
@@ -56,10 +58,10 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 		span.SetStatus(codes.Error, "failed to release tunnel")
 	}
 
-	// Remove from pool under lock after all network I/O is complete.
-	s.mu.Lock()
-	delete(s.pool, smContextRef)
-	s.mu.Unlock()
+	// Remove from pool after all network I/O is complete.
+	s.dropFromPool(smContext)
+
+	logger.SmfLog.Info("session-pool DEL via ReleaseSmContext", zap.String("ref", smContext.Ref), zap.String("by", poolTrace()))
 
 	return err
 }
@@ -105,28 +107,15 @@ func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
 }
 
 // removeSessionUnlocked removes a session from the pool without releasing the IP
-// (caller has already released it or does not want to).
+// (caller has already released it or does not want to). ref is the session's unique
+// Ref; a no-op if it is already gone.
 func (s *SMF) removeSessionUnlocked(_ context.Context, ref string) {
-	s.mu.Lock()
-	delete(s.pool, ref)
-	s.mu.Unlock()
-
-	logger.SmfLog.Info("SM Context removed", zap.String("smContextRef", ref))
-}
-
-// removeSessionIfCurrent removes ref from the pool only if it still maps to sc.
-// A rollback uses this so that a concurrent create which already replaced the
-// entry for the same (IMSI,EBI) keeps its live session.
-func (s *SMF) removeSessionIfCurrent(ref string, sc *SMContext) {
-	s.mu.Lock()
-
-	removed := s.pool[ref] == sc
-	if removed {
-		delete(s.pool, ref)
+	sc := s.GetSession(ref)
+	if sc == nil {
+		return
 	}
-	s.mu.Unlock()
 
-	if removed {
-		logger.SmfLog.Info("SM Context removed", zap.String("smContextRef", ref))
-	}
+	s.dropFromPool(sc)
+
+	logger.SmfLog.Info("session-pool DEL via removeSessionUnlocked", zap.String("ref", ref), zap.String("by", poolTrace()))
 }

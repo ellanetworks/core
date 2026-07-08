@@ -4,9 +4,9 @@
 package nas
 
 import (
+	"context"
 	"fmt"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
@@ -16,8 +16,12 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 )
 
-func TestHandleRegeristrationRequest(t *testing.T) {
-	testcases := []amf.StateType{amf.Deregistered, amf.Authentication, amf.SecurityMode, amf.ContextSetup}
+// TestHandleDeregistrationRequest_ProcessedInAnyState verifies a UE-initiated
+// Deregistration Request is processed regardless of the UE's state — TS 24.501
+// §5.5.2.2.2 (like TS 24.301 §5.5.2.2.2) has no state precondition; the integrity
+// guard is the security control. Mirrors the MME's state-unguarded detach handling.
+func TestHandleDeregistrationRequest_ProcessedInAnyState(t *testing.T) {
+	testcases := []amf.StateType{amf.Deregistered, amf.RegistrationInitiated, amf.DeregistrationInitiated, amf.Registered}
 	for _, tc := range testcases {
 		t.Run(fmt.Sprintf("State-%s", tc), func(t *testing.T) {
 			ue, ngapSender, err := buildUeAndRadio()
@@ -25,24 +29,21 @@ func TestHandleRegeristrationRequest(t *testing.T) {
 				t.Fatalf("could not build test ue: %v", err)
 			}
 
-			ue.ForceState(tc)
+			ue.ForceStateForTest(tc)
 
-			expected := fmt.Sprintf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", tc)
+			m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
-			err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, nil, true)
-			if err == nil || err.Error() != expected {
-				t.Fatalf("expected error: %s, got: %v", expected, err)
-			}
+			handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
 
-			if len(ngapSender.SentUEContextReleaseCommand) != 0 {
-				t.Fatalf("should not have sent a UE Context Release Command")
+			if len(ngapSender.SentUEContextReleaseCommand) != 1 {
+				t.Fatalf("expected a UE Context Release Command in state %s, got %d", tc, len(ngapSender.SentUEContextReleaseCommand))
 			}
 		})
 	}
 }
 
 func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
-	smf := FakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
+	smf := fakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
 	ue, _, err := buildUeAndRadio()
@@ -50,7 +51,7 @@ func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
 		t.Fatalf("could not build test ue: %v", err)
 	}
 
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -60,11 +61,11 @@ func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
 
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
-	if err := amfInstance.AddUeContextToPool(ue); err != nil {
+	if err := amfInstance.CommitUEIdentity(context.Background(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
 		t.Fatalf("could not add UE to amf.AMF pool: %v", err)
 	}
 
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 	_ = ue.CreateSmContext(1, "testref1", &snssai)
 	_ = ue.CreateSmContext(2, "testref2", &snssai)
 	_ = ue.CreateSmContext(3, "testref3", &snssai)
@@ -72,10 +73,7 @@ func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
-	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
+	handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
 
 	r := smf.ReleasedSmContext
 
@@ -94,15 +92,12 @@ func TestHandleDeregistrationRequest_NilRanUE(t *testing.T) {
 		t.Fatalf("could not build test ue: %v", err)
 	}
 
-	ue.ForceState(amf.Registered)
-	ue.ReleaseNasConnection(nil)
+	ue.ForceStateForTest(amf.Registered)
+	ue.Conn().AMFForTest().ReleaseNasConnection(ue, nil)
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
-	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
+	handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
 		t.Fatal("should not have sent a downlink NAS transport message")
@@ -119,14 +114,11 @@ func TestHandleDeregistrationRequest_NotSwitchOff_DeregistrationAccept(t *testin
 		t.Fatalf("could not build test ue: %v", err)
 	}
 
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
-	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
+	handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatal("should have sent a downlink NAS transport message")
@@ -160,15 +152,12 @@ func TestHandleDeregistrationRequest_SwitchOff_NoDeregistrationAccept(t *testing
 		t.Fatalf("could not build test ue: %v", err)
 	}
 
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 	m.DeregistrationRequestUEOriginatingDeregistration.SetSwitchOff(1)
 
-	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
+	handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
 		t.Fatal("should have sent a downlink NAS transport message")
@@ -188,19 +177,12 @@ func TestHandleDeregistrationRequest_MacFailed_RejectsForgery(t *testing.T) {
 		t.Fatalf("could not build test ue: %v", err)
 	}
 
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 	ue.SetSecuredForTest(true)
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
-	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, false)
-	if err == nil {
-		t.Fatal("expected handler to reject unauthenticated deregistration, got nil error")
-	}
-
-	if !strings.Contains(err.Error(), "rejecting unauthenticated Deregistration Request") {
-		t.Fatalf("expected rejection error, got: %v", err)
-	}
+	handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, false)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
 		t.Fatal("must not send Deregistration Accept on a forged request")
@@ -225,15 +207,12 @@ func TestHandleDeregistrationRequest_Non3GPP_DeregistrationAccept(t *testing.T) 
 		t.Fatalf("could not build test ue: %v", err)
 	}
 
-	ue.ForceState(amf.Registered)
+	ue.ForceStateForTest(amf.Registered)
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 	m.DeregistrationRequestUEOriginatingDeregistration.SetAccessType(nasMessage.AccessTypeNon3GPP)
 
-	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
+	handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatal("should have sent a downlink NAS transport message")

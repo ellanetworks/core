@@ -15,26 +15,28 @@ import (
 )
 
 // newDecoderTestUE returns a UE in the "registered with valid security
-// context" state, attached to a fresh RanUe.
+// context" state, attached to a fresh UeConn.
 func newDecoderTestUE(t *testing.T) *UeContext {
 	t.Helper()
 
 	ue := NewUeContext()
-	ue.Log = zap.NewNop()
 	ue.secured = true
 
 	radio := &Radio{
-		Name:   "test-gNB",
-		RanUEs: make(map[int64]*RanUe),
-		Log:    zap.NewNop(),
+		name: "test-gNB",
+		Log:  zap.NewNop(),
 	}
-	ranUe := &RanUe{
-		radio:       radio,
+	radio.BindAMFForTest(New(nil, nil, nil))
+
+	ueConn := &UeConn{
+		conn:        radio.Conn,
+		radioName:   radio.name,
+		amf:         radio.amf,
 		RanUeNgapID: 1,
 		AmfUeNgapID: 1,
 		Log:         zap.NewNop(),
 	}
-	ue.AttachRanUe(ranUe)
+	ueConn.amf.AttachUeConn(ue, ueConn)
 
 	return ue
 }
@@ -216,8 +218,8 @@ func TestDecodeNASMessage_PlainRegistrationRequest_Bootstrap(t *testing.T) {
 		t.Fatalf("expected RegistrationRequest, got %+v", result)
 	}
 
-	if result.Verdict != VerdictPlainAllowed {
-		t.Errorf("expected VerdictPlainAllowed, got %d", result.Verdict)
+	if result.IntegrityVerified {
+		t.Errorf("expected a plain NAS message to be not integrity-verified")
 	}
 
 	if ue.secured {
@@ -241,8 +243,8 @@ func TestDecodeNASMessage_PlainRegistrationRequest_WithExistingContext(t *testin
 		t.Fatalf("expected RegistrationRequest, got %d", result.Message.GmmHeader.GetMessageType())
 	}
 
-	if result.Verdict != VerdictPlainAllowed {
-		t.Errorf("expected VerdictPlainAllowed, got %d", result.Verdict)
+	if result.IntegrityVerified {
+		t.Errorf("expected a plain NAS message to be not integrity-verified")
 	}
 
 	if !ue.secured {
@@ -266,8 +268,8 @@ func TestDecodeNASMessage_PlainDeregistrationRequest_PassesDecoder(t *testing.T)
 		t.Fatalf("expected DeregistrationRequest, got %d", result.Message.GmmHeader.GetMessageType())
 	}
 
-	if result.Verdict != VerdictPlainAllowed {
-		t.Errorf("expected VerdictPlainAllowed, got %d", result.Verdict)
+	if result.IntegrityVerified {
+		t.Errorf("expected a plain NAS message to be not integrity-verified")
 	}
 
 	if !ue.secured {

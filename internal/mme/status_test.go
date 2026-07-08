@@ -7,6 +7,8 @@ import (
 	"net/netip"
 	"testing"
 
+	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 )
 
@@ -14,28 +16,27 @@ func TestConnectedSubscribers(t *testing.T) {
 	m := newTestMME(t)
 
 	conn := new(sctp.SCTPConn)
-	m.trackENB(conn, ENBInfo{Name: "enb-a", ID: "00f110-1"})
+	m.trackRadio(conn, RadioInfo{Name: "enb-a", ID: "00f110-1"})
 
 	registered := m.NewUe(conn, 7)
 	registerTestUE(m, registered, "001010000000001")
-	registered.emmState.store(EMMRegistered)
-	registered.eea = 2
-	registered.eia = 2
-	registered.Imei = "353456789012347"
+	registered.ForceStateForTest(EMMRegistered)
+	registered.cipheringAlg = 2
+	registered.integrityAlg = 2
+	registered.Imei, _ = etsi.NewIMEIFromPEI("353456789012347")
 	testPDN(registered).Apn = "internet"
-	registered.AmbrUplink = "1 Gbps"
-	registered.AmbrDownlink = "2 Gbps"
+	registered.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "2 Gbps"}
 	testPDN(registered).UeIP = netip.MustParseAddr("10.45.0.2")
 	registered.TouchLastSeen()
 
 	deregistered := m.NewUe(conn, 8)
 	registerTestUE(m, deregistered, "001010000000002")
-	deregistered.emmState.store(EMMDeregistered)
+	deregistered.ForceStateForTest(EMMDeregistered)
 
 	// A registered context with no IMSI is never indexed by subscriber identity,
 	// so it is excluded from the status surface.
 	noIMSI := m.NewUe(conn, 9)
-	noIMSI.emmState.store(EMMRegistered)
+	noIMSI.ForceStateForTest(EMMRegistered)
 
 	got := m.ConnectedSubscribers()
 
@@ -90,13 +91,13 @@ func TestStatusIncludesIdleSubscriber(t *testing.T) {
 
 	ue, _ := securedUE(t, m)
 	registerTestUE(m, ue, "001010000000001")
-	ue.emmState.store(EMMRegistered)
+	ue.ForceStateForTest(EMMRegistered)
 	testPDN(ue).Apn = "internet"
 
-	m.FreeS1Conn(ue)
+	m.FreeUeConn(ue)
 
 	if ue.Connected() {
-		t.Fatal("UE still connected after FreeS1Conn")
+		t.Fatal("UE still connected after FreeUeConn")
 	}
 
 	if got := m.CountRegisteredSubscribers(); got != 1 {
@@ -134,11 +135,11 @@ func TestLookupSubscriber(t *testing.T) {
 	m := newTestMME(t)
 
 	conn := new(sctp.SCTPConn)
-	m.trackENB(conn, ENBInfo{Name: "enb-a", ID: "00f110-1"})
+	m.trackRadio(conn, RadioInfo{Name: "enb-a", ID: "00f110-1"})
 
 	ue := m.NewUe(conn, 7)
 	registerTestUE(m, ue, "001010000000001")
-	ue.emmState.store(EMMRegistered)
+	ue.ForceStateForTest(EMMRegistered)
 
 	if _, ok := m.LookupSubscriber("001010000000099"); ok {
 		t.Fatal("LookupSubscriber found an unknown IMSI")
@@ -160,11 +161,11 @@ func TestCountRegisteredSubscribers(t *testing.T) {
 
 	a := m.NewUe(conn, 7)
 	registerTestUE(m, a, "001010000000001")
-	a.emmState.store(EMMRegistered)
+	a.ForceStateForTest(EMMRegistered)
 
 	b := m.NewUe(conn, 8)
 	registerTestUE(m, b, "001010000000002")
-	b.emmState.store(EMMDeregistered)
+	b.ForceStateForTest(EMMDeregistered)
 
 	if got := m.CountRegisteredSubscribers(); got != 1 {
 		t.Fatalf("CountRegisteredSubscribers = %d, want 1", got)
@@ -173,18 +174,18 @@ func TestCountRegisteredSubscribers(t *testing.T) {
 
 func TestHasENBAndCount(t *testing.T) {
 	m := newTestMME(t)
-	m.trackENB(new(sctp.SCTPConn), ENBInfo{Name: "enb-a", ID: "00f110-1"})
-	m.trackENB(new(sctp.SCTPConn), ENBInfo{Name: "enb-b", ID: "00f110-2"})
+	m.trackRadio(new(sctp.SCTPConn), RadioInfo{Name: "enb-a", ID: "00f110-1"})
+	m.trackRadio(new(sctp.SCTPConn), RadioInfo{Name: "enb-b", ID: "00f110-2"})
 
-	if !m.HasENB("enb-a") {
-		t.Fatal("HasENB(enb-a) = false, want true")
+	if !m.HasRadio("enb-a") {
+		t.Fatal("HasRadio(enb-a) = false, want true")
 	}
 
-	if m.HasENB("enb-z") {
-		t.Fatal("HasENB(enb-z) = true, want false")
+	if m.HasRadio("enb-z") {
+		t.Fatal("HasRadio(enb-z) = true, want false")
 	}
 
-	if got := m.CountENBs(); got != 2 {
-		t.Fatalf("CountENBs = %d, want 2", got)
+	if got := m.CountRadios(); got != 2 {
+		t.Fatalf("CountRadios = %d, want 2", got)
 	}
 }

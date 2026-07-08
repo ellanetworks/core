@@ -78,10 +78,10 @@ func TestENBSupportedTAIs(t *testing.T) {
 		{TAC: 7, BroadcastPLMNs: s1ap.BPLMNs{plmnA}},
 	}
 
-	want := []ENBTAI{
-		{PlmnID: models.PlmnID{Mcc: "999", Mnc: "01"}, TAC: 1},
-		{PlmnID: models.PlmnID{Mcc: "001", Mnc: "01"}, TAC: 1},
-		{PlmnID: models.PlmnID{Mcc: "999", Mnc: "01"}, TAC: 7},
+	want := []struct{ mcc, mnc, tac string }{
+		{"999", "01", "000001"},
+		{"001", "01", "000001"},
+		{"999", "01", "000007"},
 	}
 
 	got := EnbSupportedTAIs(tas)
@@ -90,8 +90,9 @@ func TestENBSupportedTAIs(t *testing.T) {
 	}
 
 	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("EnbSupportedTAIs[%d]: got %+v, want %+v", i, got[i], want[i])
+		g := got[i].Tai
+		if g.PlmnID == nil || g.PlmnID.Mcc != want[i].mcc || g.PlmnID.Mnc != want[i].mnc || g.Tac != want[i].tac {
+			t.Errorf("EnbSupportedTAIs[%d]: got %+v, want mcc=%s mnc=%s tac=%s", i, got[i], want[i].mcc, want[i].mnc, want[i].tac)
 		}
 	}
 }

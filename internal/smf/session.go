@@ -26,9 +26,9 @@ var (
 	errUPFSession          = errors.New("UPF session establishment failed")
 )
 
-// SessionRequest is the RAT-agnostic input to establishSession. The adapters
-// (5G CreateSmContext, 4G CreateEPSSession) resolve policy and negotiate the
-// PDU/PDN type from their own signaling, then hand the core a common request.
+// SessionRequest is the RAT-agnostic input to establishSession: the 5G and 4G
+// adapters resolve policy and negotiate the PDU/PDN type, then hand the core a
+// common request.
 type SessionRequest struct {
 	Supi    etsi.SUPI
 	Key     uint8 // PDU Session ID (5G) or default-bearer EBI (4G)
@@ -124,7 +124,7 @@ func (s *SMF) abortSession(ctx context.Context, sc *SMContext) {
 		}
 	}
 
-	s.removeSessionIfCurrent(CanonicalName(sc.Supi, sc.PDUSessionID), sc)
+	s.dropFromPool(sc)
 }
 
 // AnchorBinding is the access-network tunnel endpoint learned from the RAN: the

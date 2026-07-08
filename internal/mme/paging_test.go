@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"bytes"
 	"context"
 	"testing"
 	"time"
@@ -32,18 +33,23 @@ func TestUEIdentityIndex(t *testing.T) {
 func TestBuildPaging(t *testing.T) {
 	m := newTestMME(t)
 	ue := idleRegisteredUE(t, m)
+	ue.RadioCapabilityForPaging = []byte{0xaa, 0xbb, 0xcc}
 
 	paging, err := m.buildPaging(context.Background(), ue)
 	if err != nil {
 		t.Fatalf("buildPaging: %v", err)
 	}
 
-	if paging.STMSI.MTMSI != ue.mtmsi {
-		t.Fatalf("S-TMSI M-TMSI = %#x, want %#x", paging.STMSI.MTMSI, ue.mtmsi)
+	if !bytes.Equal(paging.UERadioCapabilityForPaging, ue.RadioCapabilityForPaging) {
+		t.Fatalf("paging UE Radio Capability for Paging = %x, want %x", paging.UERadioCapabilityForPaging, ue.RadioCapabilityForPaging)
 	}
 
-	if paging.UEIdentityIndexValue != ueIdentityIndex(ue.imsi) {
-		t.Fatalf("UE identity index = %d, want %d", paging.UEIdentityIndexValue, ueIdentityIndex(ue.imsi))
+	if paging.STMSI.MTMSI != ue.Tmsi().Uint32() {
+		t.Fatalf("S-TMSI M-TMSI = %#x, want %#x", paging.STMSI.MTMSI, ue.Tmsi().Uint32())
+	}
+
+	if paging.UEIdentityIndexValue != ueIdentityIndex(ue.imsiOrEmpty()) {
+		t.Fatalf("UE identity index = %d, want %d", paging.UEIdentityIndexValue, ueIdentityIndex(ue.imsiOrEmpty()))
 	}
 
 	if paging.CNDomain != s1ap.CNDomainPS {
@@ -75,7 +81,7 @@ func TestPageNoENBs(t *testing.T) {
 	m := newTestMME(t)
 	ue := idleRegisteredUE(t, m)
 
-	if err := m.Page(context.Background(), ue.imsi); err != nil {
+	if err := m.Page(context.Background(), ue.imsiOrEmpty()); err != nil {
 		t.Fatalf("Page: %v", err)
 	}
 }
@@ -94,12 +100,12 @@ func TestPageUnknownIMSI(t *testing.T) {
 // §5.6.2).
 func TestPagingRetransmitsThenAbandons(t *testing.T) {
 	m := newTestMME(t)
-	m.pagingTimeout = 5 * time.Millisecond
-	m.pagingMaxRetransmit = 2
+	m.pagingCfg.ExpireTime = 5 * time.Millisecond
+	m.pagingCfg.MaxRetryTimes = 2
 
 	ue := idleRegisteredUE(t, m)
 
-	if err := m.Page(context.Background(), ue.imsi); err != nil {
+	if err := m.Page(context.Background(), ue.imsiOrEmpty()); err != nil {
 		t.Fatalf("Page: %v", err)
 	}
 
@@ -121,11 +127,11 @@ func TestPagingRetransmitsThenAbandons(t *testing.T) {
 // the UE returns from ECM-IDLE on a new S1 connection (the paging response).
 func TestPagingStoppedOnReconnect(t *testing.T) {
 	m := newTestMME(t)
-	m.pagingTimeout = time.Hour // long enough not to fire during the test
+	m.pagingCfg.ExpireTime = time.Hour // long enough not to fire during the test
 
 	ue := idleRegisteredUE(t, m)
 
-	if err := m.Page(context.Background(), ue.imsi); err != nil {
+	if err := m.Page(context.Background(), ue.imsiOrEmpty()); err != nil {
 		t.Fatalf("Page: %v", err)
 	}
 
@@ -133,7 +139,7 @@ func TestPagingStoppedOnReconnect(t *testing.T) {
 		t.Fatal("paging not supervised after Page")
 	}
 
-	m.EstablishS1Connection(ue, &captureConn{}, 9)
+	establishResumeForTest(m, ue, &captureConn{}, 9)
 
 	if m.pagingActive(ue) {
 		t.Fatal("paging supervision not stopped when the UE reconnected")

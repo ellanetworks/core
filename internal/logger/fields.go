@@ -12,9 +12,10 @@ func GUTI(val string) zap.Field { return zap.String("guti", val) }
 func PEI(val string) zap.Field  { return zap.String("pei", val) }
 func TMSI(val string) zap.Field { return zap.String("tmsi", val) }
 
-// Session & NGAP
+// Session, NGAP & S1AP
 func AmfUeNgapID(val int64) zap.Field  { return zap.Int64("amf_ue_ngap_id", val) }
 func RanUeNgapID(val int64) zap.Field  { return zap.Int64("ran_ue_ngap_id", val) }
+func MMEUeS1apID(val uint32) zap.Field { return zap.Uint32("mme-ue-id", val) }
 func PDUSessionID(val uint8) zap.Field { return zap.Uint8("pdu_session_id", val) }
 func DNN(val string) zap.Field         { return zap.String("dnn", val) }
 func SST(val uint8) zap.Field          { return zap.Uint8("sst", val) }

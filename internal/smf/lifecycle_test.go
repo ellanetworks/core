@@ -175,7 +175,7 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 
 	smCtx.PolicyData = policy
 
-	return smCtx, smf.CanonicalName(supi, 1)
+	return smCtx, smCtx.Ref
 }
 
 func modificationSMPayload(t *testing.T, n1Msg []byte) []byte {
@@ -431,9 +431,10 @@ func TestReleaseSmContext_NotFound(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
-	err := s.ReleaseSmContext(context.Background(), "nonexistent-ref")
-	if err == nil {
-		t.Fatal("expected error for non-existent session")
+	// Releasing an absent session is an idempotent no-op success (the release path may
+	// tear down the user plane up front and again on completion).
+	if err := s.ReleaseSmContext(context.Background(), "nonexistent-ref"); err != nil {
+		t.Fatalf("expected idempotent no-op for a non-existent session, got %v", err)
 	}
 }
 
@@ -443,8 +444,8 @@ func TestReleaseSmContext_NoTunnel(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	s.NewSession(supi, 1, testDNN, testSnssai)
-	ref := smf.CanonicalName(supi, 1)
+	smCtx := s.NewSession(supi, 1, testDNN, testSnssai)
+	ref := smCtx.Ref
 
 	err := s.ReleaseSmContext(ctx, ref)
 	if err != nil {
@@ -727,8 +728,18 @@ func TestCreateSmContext_ReplacesExistingSession(t *testing.T) {
 		t.Fatalf("second CreateSmContext failed: %v", err)
 	}
 
-	if ref1 != ref2 {
-		t.Fatalf("expected same canonical name, got %s and %s", ref1, ref2)
+	// The replacement is a distinct session instance with its own ref; the old one
+	// is removed, so exactly one session (the new one) remains.
+	if ref1 == ref2 {
+		t.Fatalf("replacement must get a distinct ref, got %s twice", ref1)
+	}
+
+	if s.GetSession(ref1) != nil {
+		t.Fatal("the replaced session must be removed from the pool")
+	}
+
+	if s.GetSession(ref2) == nil {
+		t.Fatal("the replacement session must be present")
 	}
 
 	if s.SessionCount() != 1 {
@@ -767,8 +778,8 @@ func TestRemoveSession_NilPDUAddress_SkipsIPRelease(t *testing.T) {
 	supi := testSUPI()
 	bgCtx := context.Background()
 
-	s.NewSession(supi, 1, testDNN, testSnssai) // PDUAddress is nil by default
-	ref := smf.CanonicalName(supi, 1)
+	smCtx := s.NewSession(supi, 1, testDNN, testSnssai) // PDUAddress is nil by default
+	ref := smCtx.Ref
 
 	s.RemoveSession(bgCtx, ref)
 
@@ -811,24 +822,44 @@ func TestUpdateSmContextN1Msg_ReleaseRequest(t *testing.T) {
 	}
 	amfCb.mu.Unlock()
 
+	// TS 23.502 §4.3.4.2 step 2: the user plane is released up front on the release
+	// trigger — the PFCP session is deleted and the UE IP freed — so the UPF stops
+	// forwarding immediately. The SM context is retained for the N1 handshake (PTI +
+	// T3592) until the UE confirms (TS 24.501 §6.3.3.3).
 	upf.mu.Lock()
 	if len(upf.deleteCalls) != 1 {
 		upf.mu.Unlock()
-		t.Fatalf("expected 1 DeleteSession call, got %d", len(upf.deleteCalls))
+		t.Fatalf("expected the PFCP session released up front on the Release Request, got %d DeleteSession calls", len(upf.deleteCalls))
 	}
 	upf.mu.Unlock()
 
 	store.mu.Lock()
 	if len(store.releasedIPs) == 0 {
 		store.mu.Unlock()
-		t.Fatal("expected IP to be released")
+		t.Fatal("expected the IP released up front on the Release Request")
 	}
 	store.mu.Unlock()
 
-	// The session is retained until the UE confirms with Release Complete or
-	// T3592 expires (TS 24.501 §6.3.3.3).
 	if s.GetSession(ref) == nil {
 		t.Fatal("expected session to be retained while T3592 is running")
+	}
+
+	// The UE confirms: the session is removed. The user plane was already released on
+	// the Request, so the completion is an idempotent no-op plus pool removal — no
+	// second DeleteSession.
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionReleaseComplete(smCtx.PDUSessionID, 5)); err != nil {
+		t.Fatalf("release complete: %v", err)
+	}
+
+	upf.mu.Lock()
+	if len(upf.deleteCalls) != 1 {
+		upf.mu.Unlock()
+		t.Fatalf("expected no second DeleteSession after Release Complete, got %d", len(upf.deleteCalls))
+	}
+	upf.mu.Unlock()
+
+	if s.GetSession(ref) != nil {
+		t.Fatal("expected session removed after Release Complete")
 	}
 }
 
@@ -1249,6 +1280,11 @@ func TestReconcileSmContext_UsesNewPolicyForPFCPAndN1N2(t *testing.T) {
 		t.Fatalf("N1 modification command did not use expected new policy")
 	}
 
+	// The policy is committed only when the UE accepts (TS 24.501 §6.3.2.2).
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionModificationComplete(smCtx.PDUSessionID, 0)); err != nil {
+		t.Fatalf("modification complete: %v", err)
+	}
+
 	if smCtx.PolicyData.Ambr.Uplink != "200 Mbps" || smCtx.PolicyData.Ambr.Downlink != "300 Mbps" {
 		t.Fatalf("stored AMBR = %s/%s", smCtx.PolicyData.Ambr.Uplink, smCtx.PolicyData.Ambr.Downlink)
 	}
@@ -1352,24 +1388,6 @@ func TestReconcileSmContext_SliceMismatchFullCleanup(t *testing.T) {
 		t.Fatalf("ReconcileSmContext failed: %v", err)
 	}
 
-	// IP addresses should have been released.
-	store.mu.Lock()
-	releasedIPs := len(store.releasedIPs)
-	store.mu.Unlock()
-
-	if releasedIPs == 0 {
-		t.Fatal("expected IP release during slice-mismatch release, got 0")
-	}
-
-	// PFCP session should have been deleted.
-	upf.mu.Lock()
-	deleteCalls := len(upf.deleteCalls)
-	upf.mu.Unlock()
-
-	if deleteCalls == 0 {
-		t.Fatal("expected PFCP session deletion during slice-mismatch release, got 0")
-	}
-
 	// AMF release signaling should have been sent.
 	amfCb.mu.Lock()
 	releaseCalls := len(amfCb.releaseCalls)
@@ -1379,13 +1397,39 @@ func TestReconcileSmContext_SliceMismatchFullCleanup(t *testing.T) {
 		t.Fatalf("expected 1 release signaling call, got %d", releaseCalls)
 	}
 
-	// The session is retained until the release is confirmed.
+	// TS 23.502 §4.3.4.2 step 2: the user plane is released up front on the release
+	// trigger; only the SM context is retained for the N1 handshake (TS 24.501 §6.3.3.3).
+	store.mu.Lock()
+	releasedUpFront := len(store.releasedIPs)
+	store.mu.Unlock()
+
+	if releasedUpFront == 0 {
+		t.Fatal("expected the user plane (IP) released up front on the reconcile-triggered release")
+	}
+
 	if s.GetSession(ref) == nil {
 		t.Fatal("expected session to be retained while T3592 is running")
 	}
 
 	if err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref); err != nil {
 		t.Fatalf("UpdateSmContextN2InfoPduResRelRsp failed: %v", err)
+	}
+
+	// The release is confirmed: IP released, PFCP session deleted, session removed.
+	store.mu.Lock()
+	releasedIPs := len(store.releasedIPs)
+	store.mu.Unlock()
+
+	if releasedIPs == 0 {
+		t.Fatal("expected IP release after release confirmation, got 0")
+	}
+
+	upf.mu.Lock()
+	deleteCalls := len(upf.deleteCalls)
+	upf.mu.Unlock()
+
+	if deleteCalls == 0 {
+		t.Fatal("expected PFCP session deletion after release confirmation, got 0")
 	}
 
 	if s.GetSession(ref) != nil {
@@ -1548,11 +1592,26 @@ func TestReconcileSmContext_DNSChange(t *testing.T) {
 		t.Fatal("PCO contents is empty")
 	}
 
-	// Verify the session policy was updated with new DNS.
+	// The new policy is not committed on send: it is held pending until the UE
+	// accepts (TS 24.501 §6.3.2.2).
+	smCtx.Mutex.Lock()
+	committedEarly := smCtx.PolicyData.DNS != nil && smCtx.PolicyData.DNS.Equal(net.ParseIP("8.8.4.4"))
+	smCtx.Mutex.Unlock()
+
+	if committedEarly {
+		t.Fatal("DNS policy must not be committed before the UE accepts the modification")
+	}
+
+	// The UE accepts (PTI 0 for a network-requested modification): the new policy is
+	// committed.
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionModificationComplete(smCtx.PDUSessionID, 0)); err != nil {
+		t.Fatalf("modification complete: %v", err)
+	}
+
 	smCtx.Mutex.Lock()
 	if smCtx.PolicyData.DNS == nil || !smCtx.PolicyData.DNS.Equal(net.ParseIP("8.8.4.4")) {
 		smCtx.Mutex.Unlock()
-		t.Fatalf("expected DNS 8.8.4.4, got %v", smCtx.PolicyData.DNS)
+		t.Fatalf("expected DNS 8.8.4.4 after modification complete, got %v", smCtx.PolicyData.DNS)
 	}
 	smCtx.Mutex.Unlock()
 }
@@ -1621,36 +1680,46 @@ func TestReconcileSmContext_MTUChange(t *testing.T) {
 		t.Fatalf("ReconcileSmContext failed: %v", err)
 	}
 
-	// Session is retained until the release is confirmed (TS 24.501 §6.3.3).
-	if s.GetSession(ref) == nil {
-		t.Fatal("expected session to be retained while T3592 is running")
-	}
-
-	// IP addresses should have been released.
-	store.mu.Lock()
-	releasedIPs := len(store.releasedIPs)
-	store.mu.Unlock()
-
-	if releasedIPs == 0 {
-		t.Fatal("expected IP release during MTU-change release, got 0")
-	}
-
-	// PFCP session should have been deleted.
-	upf.mu.Lock()
-	deleteCalls := len(upf.deleteCalls)
-	upf.mu.Unlock()
-
-	if deleteCalls == 0 {
-		t.Fatal("expected PFCP session deletion during MTU-change release, got 0")
-	}
-
-	// AMF release signaling should have been sent.
+	// AMF release signaling should have been sent, the session retained and the user
+	// plane held until the release is confirmed (TS 23.502 §4.3.4, TS 24.501 §6.3.3).
 	amfCb.mu.Lock()
 	releaseCalls := len(amfCb.releaseCalls)
 	amfCb.mu.Unlock()
 
 	if releaseCalls != 1 {
 		t.Fatalf("expected 1 release signaling call, got %d", releaseCalls)
+	}
+
+	if s.GetSession(ref) == nil {
+		t.Fatal("expected session to be retained while T3592 is running")
+	}
+
+	store.mu.Lock()
+	releasedUpFront := len(store.releasedIPs)
+	store.mu.Unlock()
+
+	if releasedUpFront == 0 {
+		t.Fatal("expected the user plane (IP) released up front on the reconcile-triggered release")
+	}
+
+	if err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref); err != nil {
+		t.Fatalf("UpdateSmContextN2InfoPduResRelRsp failed: %v", err)
+	}
+
+	store.mu.Lock()
+	releasedIPs := len(store.releasedIPs)
+	store.mu.Unlock()
+
+	if releasedIPs == 0 {
+		t.Fatal("expected IP release after release confirmation, got 0")
+	}
+
+	upf.mu.Lock()
+	deleteCalls := len(upf.deleteCalls)
+	upf.mu.Unlock()
+
+	if deleteCalls == 0 {
+		t.Fatal("expected PFCP session deletion after release confirmation, got 0")
 	}
 }
 
@@ -1678,36 +1747,46 @@ func TestReconcileSmContext_PoolChange(t *testing.T) {
 		t.Fatalf("ReconcileSmContext failed: %v", err)
 	}
 
-	// Session is retained until the release is confirmed (TS 24.501 §6.3.3).
-	if s.GetSession(ref) == nil {
-		t.Fatal("expected session to be retained while T3592 is running")
-	}
-
-	// IP addresses should have been released.
-	store.mu.Lock()
-	releasedIPs := len(store.releasedIPs)
-	store.mu.Unlock()
-
-	if releasedIPs == 0 {
-		t.Fatal("expected IP release during pool-change release, got 0")
-	}
-
-	// PFCP session should have been deleted.
-	upf.mu.Lock()
-	deleteCalls := len(upf.deleteCalls)
-	upf.mu.Unlock()
-
-	if deleteCalls == 0 {
-		t.Fatal("expected PFCP session deletion during pool-change release, got 0")
-	}
-
-	// AMF release signaling should have been sent.
+	// AMF release signaling should have been sent, the session retained and the user
+	// plane held until the release is confirmed (TS 23.502 §4.3.4, TS 24.501 §6.3.3).
 	amfCb.mu.Lock()
 	releaseCalls := len(amfCb.releaseCalls)
 	amfCb.mu.Unlock()
 
 	if releaseCalls != 1 {
 		t.Fatalf("expected 1 release signaling call, got %d", releaseCalls)
+	}
+
+	if s.GetSession(ref) == nil {
+		t.Fatal("expected session to be retained while T3592 is running")
+	}
+
+	store.mu.Lock()
+	releasedUpFront := len(store.releasedIPs)
+	store.mu.Unlock()
+
+	if releasedUpFront == 0 {
+		t.Fatal("expected the user plane (IP) released up front on the reconcile-triggered release")
+	}
+
+	if err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref); err != nil {
+		t.Fatalf("UpdateSmContextN2InfoPduResRelRsp failed: %v", err)
+	}
+
+	store.mu.Lock()
+	releasedIPs := len(store.releasedIPs)
+	store.mu.Unlock()
+
+	if releasedIPs == 0 {
+		t.Fatal("expected IP release after release confirmation, got 0")
+	}
+
+	upf.mu.Lock()
+	deleteCalls := len(upf.deleteCalls)
+	upf.mu.Unlock()
+
+	if deleteCalls == 0 {
+		t.Fatal("expected PFCP session deletion after release confirmation, got 0")
 	}
 }
 

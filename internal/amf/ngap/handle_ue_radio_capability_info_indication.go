@@ -18,34 +18,34 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleUERadioCapabilityInfoIndication(ctx gocontext.Context, ran *amf.Radio, msg decode.UERadioCapabilityInfoIndication) {
-	ranUe, ok := resolveUE(ctx, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+func HandleUERadioCapabilityInfoIndication(ctx gocontext.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.UERadioCapabilityInfoIndication) {
+	ueConn, ok := resolveUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
 	if !ok {
 		return
 	}
 
-	logger.WithTrace(ctx, ranUe.Log).Debug("Handle UE Radio Capability Info Indication", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
-	ranUe.TouchLastSeen()
+	logger.WithTrace(ctx, ueConn.Log).Debug("Handle UE Radio Capability Info Indication", zap.Int64("RanUeNgapID", ueConn.RanUeNgapID), zap.Int64("AmfUeNgapID", ueConn.AmfUeNgapID))
+	ueConn.TouchLastSeen()
 
-	amfUe := ranUe.UeContext()
+	amfUe := ueConn.UeContext()
 	if amfUe == nil {
-		logger.WithTrace(ctx, ranUe.Log).Error("amfUe is nil")
+		logger.WithTrace(ctx, ueConn.Log).Error("amfUe is nil")
 		return
 	}
 
 	if msg.UERadioCapability != nil {
-		amfUe.UeRadioCapability = msg.UERadioCapability
+		amfUe.RadioCapability = msg.UERadioCapability
 	}
 
 	if msg.UERadioCapabilityForPaging != nil {
-		amfUe.UeRadioCapabilityForPaging = &models.UERadioCapabilityForPaging{}
+		amfUe.RadioCapabilityForPaging = &models.UERadioCapabilityForPaging{}
 		if msg.UERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR != nil {
-			amfUe.UeRadioCapabilityForPaging.NR = hex.EncodeToString(
+			amfUe.RadioCapabilityForPaging.NR = hex.EncodeToString(
 				msg.UERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR.Value)
 		}
 
 		if msg.UERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA != nil {
-			amfUe.UeRadioCapabilityForPaging.EUTRA = hex.EncodeToString(
+			amfUe.RadioCapabilityForPaging.EUTRA = hex.EncodeToString(
 				msg.UERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA.Value)
 		}
 	}

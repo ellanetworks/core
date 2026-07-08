@@ -21,11 +21,6 @@ import (
 
 // DecodePDUSessionResourceModifyIndication validates a
 // PDUSessionResourceModifyIndication PDU body (3GPP TS 38.413).
-// AMFUENGAPID, RANUENGAPID and PDUSessionResourceModifyListModInd are
-// mandatory-reject; missing or malformed values produce a fatal report.
-// PDUSessionResourceModifyListModInd is validated for presence only.
-// UserLocationInformation is optional. Duplicate IEs follow a last-wins
-// policy.
 func DecodePDUSessionResourceModifyIndication(in *ngapType.PDUSessionResourceModifyIndication) (PDUSessionResourceModifyIndication, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodePDUSessionResourceModifyIndication,
@@ -75,6 +70,8 @@ func DecodePDUSessionResourceModifyIndication(in *ngapType.PDUSessionResourceMod
 				report.Malformed(ie.Id.Value, ngapType.CriticalityPresentReject)
 				continue
 			}
+
+			out.PDUSessionResourceItems = ie.Value.PDUSessionResourceModifyListModInd.List
 		}
 	}
 

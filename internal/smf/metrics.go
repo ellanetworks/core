@@ -12,7 +12,7 @@ import (
 // ("4g"|"5g") and result ("accept"|"reject").
 var SessionEstablishmentAttempts *prometheus.CounterVec
 
-// sessionCounter reports active session counts split by RAT. *SMF satisfies it.
+// sessionCounter reports active session counts split by RAT.
 type sessionCounter interface {
 	SessionCountByRAT() (fourG, fiveG int)
 }
@@ -61,9 +61,8 @@ func recordSessionEstablishment(rat string, err error) {
 }
 
 // recordSessionEstablishmentResult counts one session establishment outcome. An
-// empty result is a no-op, so callers can defer it and leave the result unset on
-// paths that are not an establishment attempt. Safe to call before
-// RegisterMetrics (no-op).
+// empty result is a no-op so a deferred call can leave the result unset on
+// non-establishment paths. Safe to call before RegisterMetrics (no-op).
 func recordSessionEstablishmentResult(rat, result string) {
 	if SessionEstablishmentAttempts == nil || result == "" {
 		return

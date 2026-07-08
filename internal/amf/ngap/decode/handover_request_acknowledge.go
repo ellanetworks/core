@@ -22,13 +22,9 @@ import (
 // }
 
 // DecodeHandoverRequestAcknowledge validates a HandoverRequestAcknowledge
-// PDU body (3GPP TS 38.413 / Handover Resource Allocation).
-// AMFUENGAPID, RANUENGAPID and PDUSessionResourceAdmittedList are
-// mandatory-ignore. AMFUENGAPID and RANUENGAPID are surfaced as pointers
-// because 0 is a valid NGAP UE NGAP ID and absent must be
-// distinguishable from present. TargetToSourceTransparentContainer is
-// mandatory-reject. PDUSessionResourceFailedToSetupItems is
-// optional-ignore. Duplicate IEs follow a last-wins policy.
+// PDU body (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are surfaced as
+// pointers because 0 is a valid NGAP UE NGAP ID and absent must be
+// distinguishable from present.
 func DecodeHandoverRequestAcknowledge(in *ngapType.HandoverRequestAcknowledge) (HandoverRequestAcknowledge, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeHandoverResourceAllocation,

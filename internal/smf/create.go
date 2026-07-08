@@ -27,8 +27,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// nasToNgapPDUSessionType maps a NAS PDU session type value to the NGAP
-// equivalent used in PDUSessionResourceSetupRequestTransfer.
 func nasToNgapPDUSessionType(nasType uint8) aper.Enumerated {
 	switch nasType {
 	case nasMessage.PDUSessionTypeIPv6:
@@ -102,7 +100,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	defer func() { recordSessionEstablishmentResult(metrics.RAT5G, establishmentResult) }()
 
-	if existing := s.GetSession(CanonicalName(supi, pduSessionID)); existing != nil {
+	if existing := s.currentSession(supi, pduSessionID); existing != nil {
 		s.handlePduSessionContextReplacement(ctx, existing)
 	}
 
@@ -207,14 +205,14 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return "", nil, fmt.Errorf("failed to send pdu session establishment accept n1 message: %v", err)
 	}
 
-	return sc.CanonicalName(), nil, nil
+	return sc.Ref, nil, nil
 }
 
 func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SMContext) {
 	smCtxt.Mutex.Lock()
 	defer smCtxt.Mutex.Unlock()
 
-	s.RemoveSession(ctx, smCtxt.CanonicalName())
+	s.RemoveSession(ctx, smCtxt.Ref)
 
 	if smCtxt.Tunnel != nil {
 		err := s.releaseTunnel(ctx, smCtxt)

@@ -25,9 +25,9 @@ import (
 )
 
 // ErrUENotReachable is returned when the UE is in CM-IDLE state and the
-// requested signaling cannot be delivered. Per TS 23.502,
-// the AMF may ignore the N2 SM information when the UE is not reachable and
-// the caller should defer delivery until the UE transitions to CM-CONNECTED.
+// requested signaling cannot be delivered. Per TS 23.502 the AMF may ignore
+// the N2 SM information when the UE is not reachable; delivery is deferred
+// until the UE transitions to CM-CONNECTED.
 var ErrUENotReachable = errors.New("UE is in CM-IDLE state")
 
 func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
@@ -40,13 +40,13 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 	)
 	defer span.End()
 
-	ue, ok := amf.FindUeContextBySupi(supi)
+	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
 		return fmt.Errorf("ue context not found")
 	}
 
-	ranUe := ue.RanUe()
-	if ranUe == nil {
+	ueConn := ue.Conn()
+	if ueConn == nil {
 		return amf.storeN1N2AndPage(ctx, ue, req)
 	}
 
@@ -55,25 +55,28 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
 
-	ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
+	logger.From(ctx, logger.AmfLog).Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
 
-	if ranUe.ICS != ICSNotStarted {
+	if !ueConn.ClaimICS() {
+		// Context already set up (or in progress): deliver the PDU session standalone.
 		list := ngapType.PDUSessionResourceSetupListSUReq{}
 
 		send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
 
-		err := ranUe.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
+		err := ueConn.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
 		if err != nil {
 			return fmt.Errorf("send pdu session resource setup request error: %v", err)
 		}
 
-		ue.Log.Info("Sent NGAP pdu session resource setup request to UE")
+		logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request to UE")
 
 		return nil
 	}
 
+	// Claimed the Initial Context Setup: bundle the PDU session into it.
 	operatorInfo, err := amf.OperatorInfo(ctx)
 	if err != nil {
+		ueConn.ResetICS()
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
@@ -81,46 +84,45 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 
 	send.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
 
-	err = ranUe.SendInitialContextSetupRequest(
+	err = ueConn.SendInitialContextSetupRequest(
 		ctx,
 		ue.Ambr.Uplink,
 		ue.Ambr.Downlink,
 		ue.AllowedNssai,
 		ue.kgnb,
 		ue.PlmnID,
-		ue.UeRadioCapability,
-		ue.UeRadioCapabilityForPaging,
+		ue.RadioCapability,
+		ue.RadioCapabilityForPaging,
 		ue.ueSecurityCapability,
 		nil,
 		&list,
 		operatorInfo.Guami,
 	)
 	if err != nil {
+		ueConn.ResetICS()
 		return fmt.Errorf("send initial context setup request error: %v", err)
 	}
 
-	ue.Log.Info("Sent NGAP initial context setup request to UE")
-
-	ranUe.ICS = ICSPending
+	logger.From(ctx, logger.AmfLog).Info("Sent NGAP initial context setup request to UE")
 
 	return nil
 }
 
 func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.N1N2MessageTransferRequest) error {
-	nasConn := ue.NasConn()
+	nasConn := ue.Conn()
 	if nasConn == nil {
 		return fmt.Errorf("ue has no active NAS connection")
 	}
 
-	if nasConn.Procedures.Active(procedure.Paging) {
+	if ue.PagingActive() {
 		return fmt.Errorf("higher priority request ongoing")
 	}
 
-	if nasConn.Procedures.Active(procedure.Registration) {
+	if ue.State() == RegistrationInitiated {
 		return fmt.Errorf("temporary reject registration ongoing")
 	}
 
-	if nasConn.Procedures.Active(procedure.N2Handover) {
+	if nasConn.Parent().Procedures().Active(procedure.N2Handover) {
 		return fmt.Errorf("temporary reject handover ongoing")
 	}
 
@@ -128,17 +130,24 @@ func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.
 		return fmt.Errorf("ue is not in registered state")
 	}
 
-	nasConn.N1N2Message = &req
+	nasConn.SetN1N2Message(&req)
 
-	_, beginErr := nasConn.Procedures.Begin(nasConn.Ctx(), procedure.Procedure{Type: procedure.Paging})
-	if beginErr != nil {
-		return fmt.Errorf("begin paging procedure: %w", beginErr)
+	operatorInfo, err := amf.OperatorInfo(ctx)
+	if err != nil {
+		return fmt.Errorf("get operator info error: %v", err)
 	}
 
+	guti, err := amf.Guti(operatorInfo.Guami, ue)
+	if err != nil {
+		return fmt.Errorf("build 5G-GUTI error: %v", err)
+	}
+
+	// Paging supervision is armed per-UE by SendPaging; there is no per-session
+	// paging to track in the procedure registry.
 	pkg, err := send.BuildPaging(
-		ue.guti,
+		guti,
 		ue.RegistrationArea,
-		ue.UeRadioCapabilityForPaging,
+		ue.RadioCapabilityForPaging,
 		nil,
 	)
 	if err != nil {
@@ -153,18 +162,13 @@ func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.
 }
 
 // ModifyN1N2Message delivers a PDU Session Modification Command (N1) to the
-// UE, optionally accompanied by a PDU Session Resource Modify Request (N2) to
-// the gNB when radio-resource changes are needed.
+// UE, optionally with a PDU Session Resource Modify Request (N2) to the gNB.
 //
-// When n2Msg is nil (e.g. DNS-only change carried in Extended PCO), the NAS
-// message is delivered transparently via Downlink NAS Transport (TS 38.413)
-// — no gNB resource modification is required.
-//
-// When n2Msg is present (AMBR/QoS changes), the AMF sends a
-// PDUSessionResourceModifyRequest (TS 38.413) which carries both the
-// N1 NAS PDU and the mandatory N2 transfer IE for the gNB.
-//
-// This implements TS 23.502.
+// With n2Msg nil (e.g. DNS-only change carried in Extended PCO) the NAS
+// message is delivered transparently via Downlink NAS Transport and no gNB
+// resources change. With n2Msg present (AMBR/QoS change) the
+// PDUSessionResourceModifyRequest carries both the N1 NAS PDU and the
+// mandatory N2 transfer IE (TS 38.413, TS 23.502).
 func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Msg []byte) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -176,18 +180,25 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 	)
 	defer span.End()
 
-	ue, ok := amf.FindUeContextBySupi(supi)
+	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
 		return fmt.Errorf("ue context not found")
 	}
 
-	ranUe := ue.RanUe()
-	if ranUe == nil {
-		// Per TS 23.502: in CM-IDLE the AMF may ignore the N2
-		// SM information. The gNB has released the session's radio resources,
-		// so there is nothing to modify; the updated QoS applies on the next
-		// CM-CONNECTED setup.
+	ueConn := ue.Conn()
+	if ueConn == nil {
+		// Per TS 23.502, in CM-IDLE the AMF may ignore the N2 SM information.
+		// The gNB has released the session's radio resources, so there is
+		// nothing to modify; the updated QoS applies on the next CM-CONNECTED
+		// setup.
 		return ErrUENotReachable
+	}
+
+	// A network-requested modification during an N2 handover races the
+	// handover's own resource signalling on the source gNB (TS 38.413 §8.4).
+	// Defer it; the reconcile backstop re-applies it once the handover completes.
+	if conn := ue.Conn(); conn != nil && conn.Parent().Procedures().Active(procedure.N2Handover) {
+		return fmt.Errorf("temporary reject: PDU session modification during handover")
 	}
 
 	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
@@ -197,18 +208,17 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 
 	if n2Msg == nil {
 		// N1-only delivery (e.g. DNS update via Extended PCO). Per TS 23.502,
-		// when the Modification Command is sent transparently through
-		// NG-RAN the N2 SM information is omitted and no radio resources change.
-		if err := ranUe.SendDownlinkNasTransport(ctx, nasPdu, nil); err != nil {
+		// when the Modification Command is sent transparently through NG-RAN
+		// the N2 SM information is omitted and no radio resources change.
+		if err := ueConn.SendDownlinkNASTransport(ctx, nasPdu, nil); err != nil {
 			return fmt.Errorf("send downlink NAS transport: %w", err)
 		}
 
-		ue.Log.Info("Sent DL NAS Transport (N1-only session modification) to gNB")
+		logger.From(ctx, logger.AmfLog).Info("Sent DL NAS Transport (N1-only session modification) to gNB")
 
 		return nil
 	}
 
-	// N1+N2 delivery: gNB resource modification required (AMBR/QoS change).
 	// The PDUSessionResourceModifyRequestTransfer IE is mandatory per
 	// TS 38.413, so this path must only be taken when n2Msg is set.
 	list := ngapType.PDUSessionResourceModifyListModReq{
@@ -223,11 +233,11 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 		},
 	}
 
-	if err := ranUe.SendPDUSessionResourceModifyRequest(ctx, list); err != nil {
+	if err := ueConn.SendPDUSessionResourceModifyRequest(ctx, list); err != nil {
 		return fmt.Errorf("send pdu session resource modify request error: %v", err)
 	}
 
-	ue.Log.Info("Sent NGAP PDU Session Resource Modify Request to gNB")
+	logger.From(ctx, logger.AmfLog).Info("Sent NGAP PDU Session Resource Modify Request to gNB")
 
 	return nil
 }
@@ -247,13 +257,13 @@ func (amf *AMF) ReleaseSessionMessage(ctx context.Context, supi etsi.SUPI, pduSe
 	)
 	defer span.End()
 
-	ue, ok := amf.FindUeContextBySupi(supi)
+	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
 		return fmt.Errorf("ue context not found")
 	}
 
-	ranUe := ue.RanUe()
-	if ranUe == nil {
+	ueConn := ue.Conn()
+	if ueConn == nil {
 		return ErrUENotReachable
 	}
 
@@ -271,11 +281,11 @@ func (amf *AMF) ReleaseSessionMessage(ctx context.Context, supi etsi.SUPI, pduSe
 		},
 	}
 
-	if err := ranUe.SendPDUSessionResourceReleaseCommand(ctx, nasPdu, list); err != nil {
+	if err := ueConn.SendPDUSessionResourceReleaseCommand(ctx, nasPdu, list); err != nil {
 		return fmt.Errorf("send pdu session resource release command error: %v", err)
 	}
 
-	ue.Log.Info("Sent NGAP PDU Session Resource Release Command to gNB",
+	logger.From(ctx, logger.AmfLog).Info("Sent NGAP PDU Session Resource Release Command to gNB",
 		logger.PDUSessionID(pduSessionID),
 	)
 
@@ -292,80 +302,82 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 	)
 	defer span.End()
 
-	ue, ok := amf.FindUeContextBySupi(supi)
+	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
 		return fmt.Errorf("ue context not found")
 	}
 
-	conn := ue.NasConn()
+	conn := ue.Conn()
 	if conn == nil {
 		return fmt.Errorf("ue has no active NAS connection")
 	}
 
-	if conn.Procedures.Active(procedure.Paging) {
+	if ue.PagingActive() {
 		return fmt.Errorf("higher priority request ongoing")
 	}
 
-	if conn.Procedures.Active(procedure.Registration) {
+	if ue.State() == RegistrationInitiated {
 		return fmt.Errorf("temporary reject registration ongoing")
 	}
 
-	if conn.Procedures.Active(procedure.N2Handover) {
+	if conn.Parent().Procedures().Active(procedure.N2Handover) {
 		return fmt.Errorf("temporary reject handover ongoing")
 	}
 
-	ranUe := ue.RanUe()
-	if ranUe != nil {
-		ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
+	ueConn := ue.Conn()
+	if ueConn != nil {
+		logger.From(ctx, logger.AmfLog).Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
 
-		if ranUe.ICS != ICSNotStarted {
+		if !ueConn.ClaimICS() {
+			// Context already set up (or in progress): deliver the PDU session standalone.
 			list := ngapType.PDUSessionResourceSetupListSUReq{}
 			send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 
-			err := ranUe.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
+			err := ueConn.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
 			if err != nil {
 				return fmt.Errorf("send pdu session resource setup request error: %v", err)
 			}
 
-			ue.Log.Info("Sent NGAP pdu session resource setup request to UE")
+			logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request to UE")
 
 			return nil
 		}
 
+		// Claimed the Initial Context Setup: bundle the PDU session into it.
 		operatorInfo, err := amf.OperatorInfo(ctx)
 		if err != nil {
+			ueConn.ResetICS()
 			return fmt.Errorf("error getting operator info: %v", err)
 		}
 
 		list := ngapType.PDUSessionResourceSetupListCxtReq{}
 		send.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 
-		err = ranUe.SendInitialContextSetupRequest(
+		err = ueConn.SendInitialContextSetupRequest(
 			ctx,
 			ue.Ambr.Uplink,
 			ue.Ambr.Downlink,
 			ue.AllowedNssai,
 			ue.kgnb,
 			ue.PlmnID,
-			ue.UeRadioCapability,
-			ue.UeRadioCapabilityForPaging,
+			ue.RadioCapability,
+			ue.RadioCapabilityForPaging,
 			ue.ueSecurityCapability,
 			nil,
 			&list,
 			operatorInfo.Guami,
 		)
 		if err != nil {
+			ueConn.ResetICS()
 			return fmt.Errorf("send initial context setup request error: %v", err)
 		}
 
-		ue.Log.Info("Sent NGAP initial context setup request to UE")
-
-		ranUe.ICS = ICSPending
+		logger.From(ctx, logger.AmfLog).Info("Sent NGAP initial context setup request to UE")
 
 		return nil
 	}
 
-	// 504: the UE in MICO mode or the UE is only registered over Non-3GPP access and its state is CM-IDLE
+	// UE is CM-IDLE (MICO mode or non-3GPP-only registration): page it.
 	return amf.storeN1N2AndPage(ctx, ue, req)
 }
 
@@ -379,13 +391,13 @@ func (amf *AMF) TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte,
 	)
 	defer span.End()
 
-	ue, ok := amf.FindUeContextBySupi(supi)
+	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
 		return fmt.Errorf("ue context not found")
 	}
 
-	ranUe := ue.RanUe()
-	if ranUe == nil {
+	ueConn := ue.Conn()
+	if ueConn == nil {
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
@@ -394,12 +406,12 @@ func (amf *AMF) TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte,
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
 
-	err = ranUe.SendDownlinkNasTransport(ctx, nasPdu, nil)
+	err = ueConn.SendDownlinkNASTransport(ctx, nasPdu, nil)
 	if err != nil {
 		return fmt.Errorf("send downlink nas transport error: %v", err)
 	}
 
-	ue.Log.Info("sent downlink nas transport to UE", logger.SUPI(supi.String()))
+	logger.From(ctx, logger.AmfLog).Info("sent downlink nas transport to UE", logger.SUPI(supi.String()))
 
 	return nil
 }

@@ -14,7 +14,7 @@ func TestENBDisconnectRetainsRegisteredUE(t *testing.T) {
 
 	m.reclaimUEsOnConnLoss(cc)
 
-	got, ok := m.LookupUeByIMSI(ue.imsi)
+	got, ok := m.LookupUeByIMSI(ue.imsiOrEmpty())
 	if !ok || got != ue {
 		t.Fatal("registered UE deleted on eNB disconnect; expected ECM-IDLE retention")
 	}
@@ -39,12 +39,12 @@ func TestENBDisconnectRetainsRegisteredUE(t *testing.T) {
 func TestENBDisconnectDropsMidAttachUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	ue.emmState.store(EMMDeregistered) // attach not yet completed
+	ue.ForceStateForTest(EMMDeregistered) // attach not yet completed
 	testPDN(ue).Apn = "internet"
 
 	m.reclaimUEsOnConnLoss(cc)
 
-	if _, ok := m.LookupUeByIMSI(ue.imsi); ok {
+	if _, ok := m.LookupUeByIMSI(ue.imsiOrEmpty()); ok {
 		t.Fatal("incomplete-registration UE retained on eNB disconnect; expected drop")
 	}
 
@@ -58,11 +58,11 @@ func TestENBDisconnectDropsMidAttachUE(t *testing.T) {
 func TestENBDisconnectLeavesIdleUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	m.FreeS1Conn(ue) // already idle
+	m.FreeUeConn(ue) // already idle
 
 	m.reclaimUEsOnConnLoss(cc)
 
-	got, ok := m.LookupUeByIMSI(ue.imsi)
+	got, ok := m.LookupUeByIMSI(ue.imsiOrEmpty())
 	if !ok || got != ue || got.Connected() {
 		t.Fatal("idle UE disturbed by an unrelated eNB disconnect")
 	}

@@ -9,7 +9,6 @@ package nas
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
@@ -26,57 +25,80 @@ import (
 
 var nasTracer = otel.Tracer("ella-core/amf/nas")
 
-// HandleNAS processes an uplink NAS PDU.
-func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu []byte) error {
+// HandleNAS processes an uplink NAS PDU on a UE connection. A bare connection's first
+// message binds a fresh persistent context here (mirrors the MME's HandleNAS); a
+// message that establishes none leaves the connection bare for the NGAP layer to
+// release. A SERVICE REQUEST with no resolvable context is answered with a SERVICE
+// REJECT (TS 24.501 §5.6.1.5, §4.4.4.3); other undecodable or unresolved messages are
+// dropped without a STATUS; an unimplemented message type draws a 5GMM STATUS from
+// HandleGmmMessage (§7.4).
+func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu []byte) {
 	if ue == nil {
-		return fmt.Errorf("ue is nil")
+		logger.From(ctx, logger.AmfLog).Error("inbound NAS on a nil UE connection")
+		return
 	}
 
 	if nasPdu == nil {
-		return fmt.Errorf("nas pdu is nil")
+		logger.From(ctx, logger.AmfLog).Error("inbound NAS with a nil PDU")
+		return
 	}
 
-	// First-time UE attach: fetch or create amf.AMF context
 	if ue.UeContext() == nil {
 		amfUe, err := fetchUeContextWithMobileIdentity(ctx, amfInstance, nasPdu)
 		if err != nil {
-			return fmt.Errorf("error fetching UE context with mobile identity: %v", err)
+			logger.From(ctx, logger.AmfLog).Warn("failed to resolve UE context from mobile identity", zap.Error(err))
+			return
 		}
 
 		if amfUe == nil {
+			// A SERVICE REQUEST the AMF has no 5GMM context for cannot be accepted; it is
+			// answered with SERVICE REJECT #9 "UE identity cannot be derived by the network"
+			// rather than silently dropped (TS 24.501 §5.6.1.5, §4.4.4.3), mirroring the
+			// MME's HandleServiceRequest. No context is minted for it.
+			if isServiceRequest(nasPdu) {
+				rejectBareServiceRequest(ctx, ue)
+				return
+			}
+
+			// Otherwise mint a context only for an initial REGISTRATION REQUEST — the only
+			// message warranting a fresh context (any other cites a context that was not
+			// found and cannot proceed) — so an unauthenticated peer cannot leak a context
+			// per message (mirrors the MME's ATTACH-only gate). A connection left bare here
+			// is released by the NGAP layer.
+			if !isRegistrationRequest(nasPdu) {
+				logger.From(ctx, logger.AmfLog).Debug("initial NAS message is not a registration request; leaving the connection bare")
+				return
+			}
+
 			amfUe = amf.NewUeContext()
 		}
 
-		amfUe.AttachRanUe(ue)
+		amfInstance.AttachUeConn(amfUe, ue)
 	}
 
 	result, err := amf.DecodeNASMessage(ue.UeContext(), nasPdu)
 	if err != nil {
-		return fmt.Errorf("error decoding NAS message: %v", err)
+		// DecodeNASMessage logged the reason; the PDU is dropped. On a secured
+		// connection a message that fails integrity or arrives plain is discarded
+		// without answer (TS 24.501 §4.4.4.3).
+		return
 	}
 
 	msg := result.Message
 
 	if msg.GmmMessage == nil {
-		return errors.New("gmm message is nil")
+		logger.From(ctx, logger.AmfLog).Warn("decoded NAS message carries no GMM body")
+		return
 	}
 
 	if msg.GsmMessage != nil {
-		return errors.New("gsm message is not nil")
+		logger.From(ctx, logger.AmfLog).Warn("standalone 5GSM message on N1 discarded")
+		return
 	}
 
-	var integrityVerified bool
+	integrityVerified := result.IntegrityVerified
 
-	switch result.Verdict {
-	case amf.VerdictIntegrityVerified:
-		integrityVerified = true
-	case amf.VerdictPlainAllowed, amf.VerdictMacFailedAllowed:
-		integrityVerified = false
-	case amf.VerdictReject:
-		return fmt.Errorf("nas pdu rejected by classifier")
-	}
-
-	msgTypeName := amf.MessageName(msg.GmmHeader.GetMessageType())
+	msgTypeName := amf.GmmMessageTypeName(msg.GmmHeader.GetMessageType())
 
 	ctx, span := nasTracer.Start(ctx, "nas/receive",
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -87,18 +109,78 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu 
 	)
 	defer span.End()
 
-	logger.WithTrace(ctx, logger.AmfLog).Info(
+	ctx = logger.Into(ctx, ue.Log)
+
+	logger.From(ctx, logger.AmfLog).Info(
 		"Received NAS message",
 		logger.MessageType(msgTypeName),
 		logger.SUPI(ue.UeContext().Supi().String()),
 	)
 
-	err = HandleGmmMessage(ctx, amfInstance, ue.UeContext(), msg.GmmMessage, integrityVerified)
-	if err != nil {
-		return fmt.Errorf("error handling NAS message for supi %s: %v", ue.UeContext().Supi().String(), err)
+	HandleGmmMessage(ctx, amfInstance, ue.UeContext(), msg.GmmMessage, integrityVerified)
+}
+
+// isRegistrationRequest reports whether a fresh connection's first NAS message is a
+// REGISTRATION REQUEST — the only message warranting a new UE context (TS 24.501). A
+// ciphered or non-GMM message cannot be an initial registration the network can act
+// on, so only a plain or integrity-protected (peekable) body matches (mirrors the
+// MME's isInitialAttach).
+func isRegistrationRequest(payload []byte) bool {
+	mt, ok := peekInitialGmmType(payload)
+	return ok && mt == nas.MsgTypeRegistrationRequest
+}
+
+// isServiceRequest reports whether a fresh connection's NAS message is a SERVICE REQUEST.
+// Such a message on a connection with no 5GMM context draws a SERVICE REJECT rather than
+// a fresh context (TS 24.501 §5.6.1.5).
+func isServiceRequest(payload []byte) bool {
+	mt, ok := peekInitialGmmType(payload)
+	return ok && mt == nas.MsgTypeServiceRequest
+}
+
+// peekInitialGmmType returns the GMM message type of a fresh connection's first NAS PDU,
+// peeking the plain or integrity-protected body. ok is false for a ciphered or
+// undecodable message the network cannot classify without a security context.
+func peekInitialGmmType(payload []byte) (uint8, bool) {
+	if len(payload) < 2 {
+		return 0, false
 	}
 
-	return nil
+	body := payload
+
+	switch nas.GetSecurityHeaderType(payload) & 0x0f {
+	case nas.SecurityHeaderTypePlainNas:
+	case nas.SecurityHeaderTypeIntegrityProtected:
+		if len(payload) < 7 {
+			return 0, false
+		}
+
+		body = payload[7:]
+	default:
+		return 0, false
+	}
+
+	msg := new(nas.Message)
+	if err := msg.PlainNasDecode(&body); err != nil {
+		return 0, false
+	}
+
+	return msg.GmmHeader.GetMessageType(), true
+}
+
+// rejectBareServiceRequest answers a SERVICE REQUEST that resolved no 5GMM context with
+// SERVICE REJECT #9, sent on the bare connection (no context is minted). The NGAP layer
+// releases the connection afterwards.
+func rejectBareServiceRequest(ctx context.Context, ue *amf.UeConn) {
+	pdu, err := amf.BuildServiceReject(nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+	if err != nil {
+		logger.From(ctx, logger.AmfLog).Error("failed to build service reject for uncontextualized service request", zap.Error(err))
+		return
+	}
+
+	if err := ue.SendDownlinkNASTransport(ctx, pdu, nil); err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("failed to send service reject for uncontextualized service request", zap.Error(err))
+	}
 }
 
 // fetchUeContextWithMobileIdentity resolves an existing UE context from the GUTI
@@ -128,8 +210,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 			return nil, fmt.Errorf("error decoding plain nas: %+v", err)
 		}
 	case nas.SecurityHeaderTypePlainNas:
-		// Decode a copy so the original payload remains intact for the
-		// integrity check used in the reuse decision below.
+		// Decode a copy so the original payload stays intact for the later integrity check.
 		p := payload
 
 		if err := msg.PlainNasDecode(&p); err != nil {
@@ -139,7 +220,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 		return nil, fmt.Errorf("unsupported security header type: 0x%0x", msg.SecurityHeaderType)
 	}
 
-	guti := etsi.InvalidGUTI
+	guti := etsi.InvalidGUTI5G
 
 	switch msg.GmmHeader.GetMessageType() {
 	case nas.MsgTypeRegistrationRequest:
@@ -149,7 +230,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 		}
 
 		if nasMessage.MobileIdentity5GSType5gGuti == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
-			guti, _ = etsi.NewGUTIFromBytes(mobileIdentity5GSContents)
+			guti, _ = etsi.NewGUTI5GFromBytes(mobileIdentity5GSContents)
 			logger.WithTrace(ctx, logger.AmfLog).Debug("Guti received in Registration Request Message", logger.GUTI(guti.String()))
 		} else if nasMessage.MobileIdentity5GSTypeSuci == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
 			// A SUCI is a one-time concealed identity, not a handle to an existing
@@ -168,7 +249,9 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 		}
 
 		if nasMessage.MobileIdentity5GSType5gSTmsi == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
-			guti, err := amfInstance.StmsiToGuti(ctx, mobileIdentity5GSContents)
+			var err error
+
+			guti, err = amfInstance.StmsiToGuti(ctx, mobileIdentity5GSContents)
 			if err != nil {
 				return nil, fmt.Errorf("error converting 5G-S-TMSI to GUTI: %+v", err)
 			}
@@ -182,7 +265,9 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 		}
 
 		if nasMessage.MobileIdentity5GSType5gGuti == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
-			guti, err := etsi.NewGUTIFromBytes(mobileIdentity5GSContents)
+			var err error
+
+			guti, err = etsi.NewGUTI5GFromBytes(mobileIdentity5GSContents)
 			if err != nil {
 				return nil, nil
 			}
@@ -191,11 +276,11 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 		}
 	}
 
-	if guti == etsi.InvalidGUTI {
+	if guti == etsi.InvalidGUTI5G {
 		return nil, nil
 	}
 
-	ue, _ := amfInstance.FindUeContextByGuti(guti)
+	ue, _ := amfInstance.LookupUeByGuti(guti)
 	if ue == nil {
 		logger.WithTrace(ctx, logger.AmfLog).Warn("UE Context not found", logger.GUTI(guti.String()))
 		return nil, nil
@@ -209,7 +294,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 		return nil, nil
 	}
 
-	ue.Log.Info("UE Context derived from Guti", logger.GUTI(guti.String()))
+	logger.From(ctx, logger.AmfLog).Info("UE Context derived from Guti", logger.GUTI(guti.String()))
 
 	return ue, nil
 }

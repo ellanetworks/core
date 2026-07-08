@@ -20,14 +20,11 @@ import (
 // }
 
 // DecodeUEContextModificationFailure validates a UEContextModificationFailure
-// PDU body (3GPP TS 38.413). All four IEs are mandatory-ignore /
-// optional-ignore, so the decoder records diagnostics in *Report but never
-// raises a fatal error. The procedure is class 1, so the procedure-level
-// criticality is "reject". Duplicate IEs follow a last-wins policy.
-//
-// AMFUENGAPID and RANUENGAPID are exposed as pointers because zero is a
-// valid NGAP UE NGAP ID and the handler distinguishes "absent" from
-// "present" to drive a fallback lookup.
+// PDU body (3GPP TS 38.413). All IEs are criticality-ignore, so decoding
+// never yields a fatal report; the class-1 procedure keeps a reject
+// procedure-level criticality. AMFUENGAPID and RANUENGAPID are pointers
+// because 0 is a valid NGAP UE NGAP ID and absent must be distinguishable
+// from present.
 func DecodeUEContextModificationFailure(in *ngapType.UEContextModificationFailure) (UEContextModificationFailure, *Report) {
 	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeUEContextModification,

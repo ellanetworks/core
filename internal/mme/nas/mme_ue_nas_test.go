@@ -14,7 +14,7 @@ import (
 func TestVerifiedMessageMarksSecureExchange(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
-	ue.S1.SetSecureExchangeEstablishedForTest(false) // fresh connection, not yet established
+	ue.Conn().SetSecureExchangeEstablishedForTest(false) // fresh connection, not yet established
 	ue.SetULCountForTest(0)
 
 	tac, err := (&eps.TrackingAreaUpdateComplete{}).Marshal()
@@ -28,9 +28,9 @@ func TestVerifiedMessageMarksSecureExchange(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	HandleNAS(m, context.Background(), ue, wire)
+	HandleNAS(m, context.Background(), ue.Conn(), wire)
 
-	if !ue.S1.SecureExchangeEstablished() {
+	if !ue.Conn().SecureExchangeEstablished() {
 		t.Fatal("a verified message must establish secure exchange on the connection (TS 24.301 §4.4.4.3)")
 	}
 }

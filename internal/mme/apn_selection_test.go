@@ -13,7 +13,7 @@ import (
 // subscriber's default policy (TS 24.301 §6.5.1.3).
 func TestResolveAttachQoSDefaultWhenNoAPN(t *testing.T) {
 	m := newTestMME(t)
-	ue := &UeContext{imsi: testSubscriber.IMSI}
+	ue := &UeContext{supi: mustSUPI(testSubscriber.IMSI)}
 
 	qos, err := ResolveAttachQoS(m, context.Background(), ue)
 	if err != nil {
@@ -29,7 +29,7 @@ func TestResolveAttachQoSDefaultWhenNoAPN(t *testing.T) {
 // policy bound to that data network.
 func TestResolveAttachQoSSelectsRequestedAPN(t *testing.T) {
 	m := newTestMME(t)
-	ue := &UeContext{imsi: testSubscriber.IMSI, RequestedAPN: "ims"}
+	ue := &UeContext{supi: mustSUPI(testSubscriber.IMSI), RequestedAPN: "ims"}
 
 	qos, err := ResolveAttachQoS(m, context.Background(), ue)
 	if err != nil {
@@ -49,7 +49,7 @@ func TestResolveAttachQoSSelectsRequestedAPN(t *testing.T) {
 // the profile returns ErrUnknownAPN, which the attach path maps to a reject.
 func TestResolveAttachQoSRejectsUnknownAPN(t *testing.T) {
 	m := newTestMME(t)
-	ue := &UeContext{imsi: testSubscriber.IMSI, RequestedAPN: "nonexistent"}
+	ue := &UeContext{supi: mustSUPI(testSubscriber.IMSI), RequestedAPN: "nonexistent"}
 
 	if _, err := ResolveAttachQoS(m, context.Background(), ue); !errors.Is(err, ErrUnknownAPN) {
 		t.Fatalf("ResolveAttachQoS error = %v, want ErrUnknownAPN", err)

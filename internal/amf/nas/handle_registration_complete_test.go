@@ -6,10 +6,8 @@ package nas
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
@@ -19,7 +17,7 @@ import (
 )
 
 func newTestAMF() *amf.AMF {
-	amfInstance := amf.New(&FakeDBInstance{
+	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			SpnFullName:  "Ella Networks",
 			SpnShortName: "Ella",
@@ -29,7 +27,7 @@ func newTestAMF() *amf.AMF {
 	return amfInstance
 }
 
-func setupRegistrationCompleteUE(t *testing.T) (*amf.UeContext, *FakeNGAPSender) {
+func setupRegistrationCompleteUE(t *testing.T) (*amf.UeContext, *fakeNGAPSender) {
 	t.Helper()
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -56,41 +54,44 @@ func setupRegistrationCompleteUE(t *testing.T) (*amf.UeContext, *FakeNGAPSender)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCountForTest().Get())
+	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCountForTest().Value())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	ue.ForceState(amf.ContextSetup)
-	ue.NasConn().T3550.Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.NasConn().RegistrationRequest = m.RegistrationRequest
-	ue.NasConn().RegistrationType5GS = 42
-	ue.NasConn().IdentityTypeUsedForRegistration = 42
-	ue.NasConn().AuthFailureCauseSynchFailureTimes = 42
-	ue.RanUe().UeContextRequest = true
-	ue.RanUe().ICS = amf.ICSCompleted
-	ue.NasConn().RetransmissionOfInitialNASMsg = true
-
-	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
-		t.Fatal(err)
-	}
+	ue.ForceRegStepForTest(amf.RegStepContextSetup)
+	ue.Conn().RegistrationRequest = m.RegistrationRequest
+	ue.Conn().RegistrationType5GS = 42
+	ue.Conn().IdentityTypeUsedForRegistration = 42
+	ue.Conn().SetResyncTried(true)
+	ue.Conn().UeContextRequest = true
+	ue.Conn().MarkICSCompleted()
+	ue.Conn().RetransmissionOfInitialNASMsg = true
 
 	return ue, ngapSender
 }
 
-func TestHandleRegistrationComplete_WrongState_Error(t *testing.T) {
-	testcases := []amf.StateType{amf.Deregistered, amf.Authentication, amf.Registered, amf.SecurityMode}
+func TestHandleRegistrationComplete_WrongState_Ignored(t *testing.T) {
+	testcases := []struct {
+		name  string
+		setup func(*amf.UeContext)
+		state amf.StateType
+	}{
+		{"Deregistered", func(ue *amf.UeContext) { ue.ForceStateForTest(amf.Deregistered) }, amf.Deregistered},
+		{"Registered", func(ue *amf.UeContext) { ue.ForceStateForTest(amf.Registered) }, amf.Registered},
+		{"Authenticating", func(ue *amf.UeContext) { ue.ForceRegStepForTest(amf.RegStepAuthenticating) }, amf.RegistrationInitiated},
+		{"SecurityMode", func(ue *amf.UeContext) { ue.ForceRegStepForTest(amf.RegStepSecurityMode) }, amf.RegistrationInitiated},
+	}
 
 	for _, tc := range testcases {
-		t.Run(string(tc), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			ue := amf.NewUeContext()
-			ue.ForceState(tc)
+			tc.setup(ue)
 
-			expected := fmt.Sprintf("state mismatch: receive Registration Complete message in state %s", tc)
+			handleRegistrationComplete(t.Context(), newTestAMF(), ue)
 
-			err := handleRegistrationComplete(t.Context(), newTestAMF(), ue)
-			if err == nil || err.Error() != expected {
-				t.Fatalf("expected error: %s, got: %v", expected, err)
+			if ue.State() != tc.state {
+				t.Fatalf("expected out-of-context-setup Registration Complete to leave state %s unchanged, got %s", tc.state, ue.State())
 			}
 		})
 	}
@@ -101,20 +102,13 @@ func TestHandleRegistrationComplete_T3550StoppedAndCleared_RegistrationDataClear
 
 	amfInstance := newTestAMF()
 
-	err := handleRegistrationComplete(t.Context(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
+	handleRegistrationComplete(t.Context(), amfInstance, ue)
 
 	if len(ngapSender.SentUEContextReleaseCommand) != 0 {
 		t.Fatalf("should not have sent a UE Context Release Command message")
 	}
 
-	if ue.NasConn().T3550.Active() {
-		t.Fatalf("expected timer T3550 to be stopped and cleared")
-	}
-
-	err = checkUERegistrationDataIsCleared(ue)
+	err := checkUERegistrationDataIsCleared(ue)
 	if err != nil {
 		t.Fatalf("expected ue registration data to be cleared: %v", err)
 	}
@@ -125,10 +119,7 @@ func TestHandleRegistrationComplete_SendsConfigurationUpdateCommand(t *testing.T
 
 	amfInstance := newTestAMF()
 
-	err := handleRegistrationComplete(t.Context(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
+	handleRegistrationComplete(t.Context(), amfInstance, ue)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport (ConfigurationUpdateCommand), got %d", len(ngapSender.SentDownlinkNASTransport))
@@ -144,7 +135,7 @@ func TestHandleRegistrationComplete_SendsConfigurationUpdateCommand(t *testing.T
 	payload := make([]byte, len(nasPdu)-7)
 	copy(payload, nasPdu[7:])
 
-	err = security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), 0, security.Bearer3GPP, security.DirectionDownlink, payload)
+	err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), 0, security.Bearer3GPP, security.DirectionDownlink, payload)
 	if err != nil {
 		t.Fatalf("NAS decrypt failed: %v", err)
 	}
@@ -177,26 +168,19 @@ func TestHandleRegistrationComplete_SendsConfigurationUpdateCommand(t *testing.T
 
 func TestHandleRegistrationComplete_ReleasedWhenNoFORPending_NoUDSPending_and_NoActiveSessions(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
-	ue.NasConn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
-	ue.NasConn().RegistrationRequest.UplinkDataStatus = nil
+	ue.Conn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
+	ue.Conn().RegistrationRequest.UplinkDataStatus = nil
 	ue.SmContextList = make(map[uint8]*amf.SmContext)
 
 	amfInstance := newTestAMF()
 
-	err := handleRegistrationComplete(t.Context(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
+	handleRegistrationComplete(t.Context(), amfInstance, ue)
 
 	if len(ngapSender.SentUEContextReleaseCommand) != 1 {
 		t.Fatalf("should have sent a UE Context Release Command message")
 	}
 
-	if ue.NasConn().T3550.Active() {
-		t.Fatalf("expected timer T3550 to be stopped and cleared")
-	}
-
-	err = checkUERegistrationDataIsCleared(ue)
+	err := checkUERegistrationDataIsCleared(ue)
 	if err != nil {
 		t.Fatalf("expected ue registration data to be cleared: %v", err)
 	}
@@ -204,26 +188,19 @@ func TestHandleRegistrationComplete_ReleasedWhenNoFORPending_NoUDSPending_and_No
 
 func TestHandleRegistrationComplete_NotReleasedWhenFORPending(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
-	ue.NasConn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestPending)
-	ue.NasConn().RegistrationRequest.UplinkDataStatus = nil
+	ue.Conn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestPending)
+	ue.Conn().RegistrationRequest.UplinkDataStatus = nil
 	ue.SmContextList = make(map[uint8]*amf.SmContext)
 
 	amfInstance := newTestAMF()
 
-	err := handleRegistrationComplete(t.Context(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
+	handleRegistrationComplete(t.Context(), amfInstance, ue)
 
 	if len(ngapSender.SentUEContextReleaseCommand) != 0 {
 		t.Fatalf("should not have sent a UE Context Release Command message")
 	}
 
-	if ue.NasConn().T3550.Active() {
-		t.Fatalf("expected timer T3550 to be stopped and cleared")
-	}
-
-	err = checkUERegistrationDataIsCleared(ue)
+	err := checkUERegistrationDataIsCleared(ue)
 	if err != nil {
 		t.Fatalf("expected ue registration data to be cleared: %v", err)
 	}
@@ -231,26 +208,19 @@ func TestHandleRegistrationComplete_NotReleasedWhenFORPending(t *testing.T) {
 
 func TestHandleRegistrationComplete_NotReleasedWhenUDSPending(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
-	ue.NasConn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
-	ue.NasConn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{}
+	ue.Conn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
+	ue.Conn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{}
 	ue.SmContextList = make(map[uint8]*amf.SmContext)
 
 	amfInstance := newTestAMF()
 
-	err := handleRegistrationComplete(t.Context(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
+	handleRegistrationComplete(t.Context(), amfInstance, ue)
 
 	if len(ngapSender.SentUEContextReleaseCommand) != 0 {
 		t.Fatalf("should not have sent a UE Context Release Command message")
 	}
 
-	if ue.NasConn().T3550.Active() {
-		t.Fatalf("expected timer T3550 to be stopped and cleared")
-	}
-
-	err = checkUERegistrationDataIsCleared(ue)
+	err := checkUERegistrationDataIsCleared(ue)
 	if err != nil {
 		t.Fatalf("expected ue registration data to be cleared: %v", err)
 	}
@@ -258,57 +228,50 @@ func TestHandleRegistrationComplete_NotReleasedWhenUDSPending(t *testing.T) {
 
 func TestHandleRegistrationComplete_NotReleasedWhenActiveSession(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
-	ue.NasConn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
-	ue.NasConn().RegistrationRequest.UplinkDataStatus = nil
+	ue.Conn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
+	ue.Conn().RegistrationRequest.UplinkDataStatus = nil
 	_ = ue.CreateSmContext(1, "testref1", &models.Snssai{})
 
 	amfInstance := newTestAMF()
 
-	err := handleRegistrationComplete(t.Context(), amfInstance, ue)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
+	handleRegistrationComplete(t.Context(), amfInstance, ue)
 
 	if len(ngapSender.SentUEContextReleaseCommand) != 0 {
 		t.Fatalf("should not have sent a UE Context Release Command message")
 	}
 
-	if ue.NasConn().T3550.Active() {
-		t.Fatalf("expected timer T3550 to be stopped and cleared")
-	}
-
-	err = checkUERegistrationDataIsCleared(ue)
+	err := checkUERegistrationDataIsCleared(ue)
 	if err != nil {
 		t.Fatalf("expected ue registration data to be cleared: %v", err)
 	}
 }
 
 func checkUERegistrationDataIsCleared(ue *amf.UeContext) error {
-	if ue.NasConn().RegistrationRequest != nil {
+	if ue.Conn().RegistrationRequest != nil {
 		return fmt.Errorf("registration request is not nil")
 	}
 
-	if ue.NasConn().RegistrationType5GS != 0 {
-		return fmt.Errorf("registration type 5gs was not 0: %d", ue.NasConn().RegistrationType5GS)
+	if ue.Conn().RegistrationType5GS != 0 {
+		return fmt.Errorf("registration type 5gs was not 0: %d", ue.Conn().RegistrationType5GS)
 	}
 
-	if ue.NasConn().IdentityTypeUsedForRegistration != 0 {
-		return fmt.Errorf("identity type used for registration was not 0: %d", ue.NasConn().IdentityTypeUsedForRegistration)
+	if ue.Conn().IdentityTypeUsedForRegistration != 0 {
+		return fmt.Errorf("identity type used for registration was not 0: %d", ue.Conn().IdentityTypeUsedForRegistration)
 	}
 
-	if ue.NasConn().AuthFailureCauseSynchFailureTimes != 0 {
-		return fmt.Errorf("auth failure caush synch failure times was not 0: %d", ue.NasConn().AuthFailureCauseSynchFailureTimes)
+	if ue.Conn().ResyncTried() {
+		return fmt.Errorf("resyncTried was not reset on registration complete")
 	}
 
-	if ue.RanUe().UeContextRequest {
+	if ue.Conn().UeContextRequest {
 		return fmt.Errorf("ranue context request should be false")
 	}
 
-	if ue.NasConn().RetransmissionOfInitialNASMsg {
+	if ue.Conn().RetransmissionOfInitialNASMsg {
 		return fmt.Errorf("retransmission of initial NAS msg should be false")
 	}
 
-	if ue.NasConn().Procedures.Active(procedure.Paging) {
+	if ue.PagingActive() {
 		return fmt.Errorf("ongoing should be nothing")
 	}
 

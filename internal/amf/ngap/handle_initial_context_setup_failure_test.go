@@ -17,9 +17,9 @@ import (
 )
 
 func TestHandleInitialContextSetupFailure_MissingCause(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
 	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
 	msg := decode.InitialContextSetupFailure{
 		AMFUENGAPID: 1,
 		RANUENGAPID: 1,
@@ -33,9 +33,9 @@ func TestHandleInitialContextSetupFailure_MissingCause(t *testing.T) {
 }
 
 func TestHandleInitialContextSetupFailure_UnknownAmfUeNgapID(t *testing.T) {
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
 	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
 
 	msg := decode.InitialContextSetupFailure{
 		AMFUENGAPID: 999,
@@ -53,10 +53,10 @@ func TestHandleInitialContextSetupFailure_UnknownAmfUeNgapID(t *testing.T) {
 }
 
 func TestHandleInitialContextSetupFailure_NilUeContext(t *testing.T) {
-	ran := newTestRadio()
 	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
 
-	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
+	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
 	msg := decode.InitialContextSetupFailure{
 		AMFUENGAPID: 10,
@@ -71,18 +71,18 @@ func TestHandleInitialContextSetupFailure_NilUeContext(t *testing.T) {
 }
 
 func TestHandleInitialContextSetupFailure_T3550Running(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
+	ran := newTestRadio(amfInstance)
 
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
-	amfUe.ForceState(amf.ContextSetup)
-	conn := amfUe.NasConn()
-	conn.T3550.Arm(time.Hour, 4, func(int32) {}, func() {})
+	amfUe.ForceRegStepForTest(amf.RegStepContextSetup)
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+
+	conn := amfUe.Conn()
+	conn.NASGuardForTest().Arm(time.Hour, 4, func(int32) {}, func() {})
 
 	msg := decode.InitialContextSetupFailure{
 		AMFUENGAPID: 10,
@@ -95,7 +95,7 @@ func TestHandleInitialContextSetupFailure_T3550Running(t *testing.T) {
 
 	ngap.HandleInitialContextSetupFailure(context.Background(), amfInstance, ran, msg)
 
-	if conn.T3550.Active() {
+	if conn.NASGuardForTest().Active() {
 		t.Error("expected T3550 to be nil after failure")
 	}
 
@@ -105,19 +105,18 @@ func TestHandleInitialContextSetupFailure_T3550Running(t *testing.T) {
 }
 
 func TestHandleInitialContextSetupFailure_PDUSessionFailureForwardedToSmf(t *testing.T) {
-	ran := newTestRadio()
-	fakeSmf := &FakeSmfSbi{}
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
+	ran := newTestRadio(amfInstance)
 
 	amfUe := amf.NewUeContext()
-	amfUe.Log = logger.AmfLog
 	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
 	transfer := []byte{0xEE, 0xFF}
 
