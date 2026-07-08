@@ -35,7 +35,7 @@ func poolTrace() string {
 			b.WriteString(" <- ")
 		}
 
-		b.WriteString(fmt.Sprintf("%s(%s:%d)", fn, filepath.Base(f.File), f.Line))
+		fmt.Fprintf(&b, "%s(%s:%d)", fn, filepath.Base(f.File), f.Line)
 
 		if !more {
 			break
