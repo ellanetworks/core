@@ -666,17 +666,6 @@ func (amf *AMF) StopAllTimers() {
 	}
 }
 
-func (amf *AMF) RemoveUEBySupi(supi etsi.SUPI) {
-	amf.mu.Lock()
-	defer amf.mu.Unlock()
-
-	if ue, ok := amf.UEs[supi]; ok {
-		amf.releaseTmsisLocked(ue)
-	}
-
-	delete(amf.UEs, supi)
-}
-
 // GetUELocation returns the UserLocation for a registered UE, or false if the UE
 // is not found in the AMF's UE pool.
 func (amf *AMF) GetUELocation(supi etsi.SUPI) (models.UserLocation, bool) {

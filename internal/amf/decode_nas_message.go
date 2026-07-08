@@ -48,8 +48,8 @@ func statusDecode(cause uint8, format string, args ...any) error {
 	return &decodeError{disposition: nasreply.StatusMM(cause), detail: fmt.Sprintf(format, args...)}
 }
 
-// DecodeNASMessage parses a 5GS NAS PDU (plain or security-protected) and
-// returns the decoded message together with a policy Verdict. The only UE
+// DecodeNASMessage parses a 5GS NAS PDU (plain or security-protected), rejecting a
+// PDU not admissible in the current security state as a decode error. The only UE
 // mutation performed here is advancing ue.ULCount (TS 24.501, TS 33.501).
 func DecodeNASMessage(ue *UeContext, payload []byte) (*DecodeResult, error) {
 	ue.mu.Lock()
@@ -152,7 +152,7 @@ func decodePlainNAS(msg *nas.Message, payload []byte) (*DecodeResult, error) {
 
 	msgType := msg.GmmHeader.GetMessageType()
 
-	if classifyNasPdu(msgType, nas.SecurityHeaderTypePlainNas, false) == VerdictReject {
+	if !plainNasAllowed(msgType) {
 		return nil, silentDecode(nasreply.ReasonIntegrityFail, "plain NAS message type %d not permitted by TS 24.501 §4.4.4.3", msgType)
 	}
 
@@ -224,7 +224,9 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *U
 
 	msgType := msg.GmmHeader.GetMessageType()
 
-	if classifyNasPdu(msgType, msg.SecurityHeaderType, macVerified) == VerdictReject {
+	// An integrity-protected message with a failed MAC is admitted only for the
+	// whitelisted types processed before secure exchange (TS 24.501 §4.4.4.3).
+	if !macVerified && !plainNasAllowed(msgType) {
 		return nil, silentDecode(nasreply.ReasonIntegrityFail, "mac verification failed for the nas message: %v", msgType)
 	}
 

@@ -238,7 +238,7 @@ func TestDecodeNASMessage_PlainULNasTransportRejected(t *testing.T) {
 }
 
 // TestDecodeNASMessage_PlainRegistrationRequest_Bootstrap verifies the
-// decoder returns VerdictPlainAllowed for a fresh UE and does not
+// decoder admits a plain REGISTRATION REQUEST for a fresh UE and does not
 // mutate security state.
 func TestDecodeNASMessage_PlainRegistrationRequest_Bootstrap(t *testing.T) {
 	ue := newDecoderTestUE(t)
@@ -264,7 +264,7 @@ func TestDecodeNASMessage_PlainRegistrationRequest_Bootstrap(t *testing.T) {
 }
 
 // TestDecodeNASMessage_PlainRegistrationRequest_WithExistingContext
-// verifies the decoder returns VerdictPlainAllowed for a UE that still
+// verifies the decoder admits a plain REGISTRATION REQUEST for a UE that still
 // has a stored security context and leaves all security state untouched.
 func TestDecodeNASMessage_PlainRegistrationRequest_WithExistingContext(t *testing.T) {
 	ue := newDecoderTestUE(t)

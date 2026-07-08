@@ -88,26 +88,6 @@ func TestDeregisterAndRemoveAMFUE(t *testing.T) {
 	}
 }
 
-func TestRemoveUEBySupi(t *testing.T) {
-	amfInstance := amf.New(nil, nil, nil)
-
-	supi := newSUPI(t, "001010000000006")
-
-	ue := amf.NewUeContext()
-	ue.SetSupiForTest(supi)
-
-	if err := amfInstance.CommitUEIdentity(context.Background(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("CommitUEIdentity: %v", err)
-	}
-
-	amfInstance.RemoveUEBySupi(supi)
-
-	_, ok := amfInstance.LookupUeBySupi(supi)
-	if ok {
-		t.Fatal("UE should have been removed")
-	}
-}
-
 func TestCountRegisteredSubscribers(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
@@ -202,7 +182,7 @@ func TestGutiIndexLifecycle(t *testing.T) {
 	}
 
 	// Removal: no GUTI resolves to the removed UE.
-	amfInstance.RemoveUEBySupi(ue.SupiForTest())
+	amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue)
 
 	if _, ok := amfInstance.LookupUeByGuti(guti2); ok {
 		t.Fatal("removed UE must not resolve by GUTI")
@@ -250,7 +230,7 @@ func TestReallocateGUTIReuseAndFree(t *testing.T) {
 	}
 
 	// Teardown mid-reallocation returns both 5G-TMSIs to the allocator.
-	amfInstance.RemoveUEBySupi(ue.SupiForTest())
+	amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue)
 
 	if amfInstance.TmsiInUseForTest(current) || amfInstance.TmsiInUseForTest(old) {
 		t.Fatal("teardown must free both the current and staged 5G-TMSI")
