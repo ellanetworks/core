@@ -56,7 +56,7 @@ func (bpfObjects *BpfObjects) PutPdrUplink(teid uint32, pdrInfo PdrInfo) error {
 }
 
 func (bpfObjects *BpfObjects) PutPdrDownlink(addr netip.Addr, pdrInfo PdrInfo) error {
-	logger.UpfLog.Info("PDR-DIAG put downlink", logger.IPAddress(addr.String()))
+	logger.UpfLog.Debug("Put PDR Downlink", logger.IPAddress(addr.String()))
 
 	pdrToStore := ToN3N6EntrypointPdrInfo(pdrInfo)
 
@@ -76,19 +76,16 @@ func (bpfObjects *BpfObjects) DeletePdrUplink(teid uint32) error {
 }
 
 func (bpfObjects *BpfObjects) DeletePdrDownlink(addr netip.Addr) error {
-	var err error
+	logger.UpfLog.Debug("Delete PDR Downlink", logger.IPAddress(addr.String()))
 
 	if addr.Is4() {
 		key := addr.As4()
-		err = bpfObjects.PdrsDownlinkIp4.Delete(key)
-	} else {
-		key := addr.As16()
-		err = bpfObjects.PdrsDownlinkIp6.Delete(key)
+		return bpfObjects.PdrsDownlinkIp4.Delete(key)
 	}
 
-	logger.UpfLog.Info("PDR-DIAG delete downlink", logger.IPAddress(addr.String()), zap.Bool("miss", err != nil), zap.Error(err))
+	key := addr.As16()
 
-	return err
+	return bpfObjects.PdrsDownlinkIp6.Delete(key)
 }
 
 // FarInfo holds Forwarding Action Rule parameters embedded directly in each PDR.
