@@ -564,7 +564,6 @@ func TestHandleRegistrationRequest_ContextSetup_IdenticalIEs_ResendsAccept(t *te
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	// The request being served, and the accept last sent.
 	conn := ue.Conn()
 	conn.RegistrationRequest = m.RegistrationRequest
 	conn.RegistrationAcceptPdu = []byte{0x7e, 0x00, 0x42}
@@ -933,7 +932,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 // TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer validates that
 // when MAC verification fails (no valid security context), the NASMessageContainer
 // decryption is skipped and the registration proceeds with cleartext IEs only,
-// triggering an authentication request instead of a decode error.
+// triggering an authentication request; the container is never decoded.
 func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testing.T) {
 	ctx := context.TODO()
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")
@@ -962,7 +961,6 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 	// Simulate MAC verification failure (amf.AMF has no valid security context)
 	ue.SetSecuredForTest(false)
 
-	// Build a registration request with a ciphered NASMessageContainer
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
 
@@ -973,7 +971,6 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 
 	handleRegistrationRequest(ctx, amfInstance, ue, m, false)
 
-	// Should have sent an authentication request (not a registration reject)
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -1041,7 +1038,7 @@ func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
 }
 
 // TestHandleRegistrationRequest_NgKsi_WrapAt6 validates that when the UE sends
-// ngKSI=6 (the maximum valid value), the amf.AMF wraps around to 0 rather than
+// ngKSI=6 (the maximum valid value), the amf.AMF wraps around to 0, never
 // using value 7 (which means "no key available").
 func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
 	ctx := context.TODO()
@@ -1334,7 +1331,7 @@ func TestAcceptRegistrationUESecurityCapability_MobilityIdenticalCapsNoop(t *tes
 // TestHandleRegistrationRequest_InitialRegistrationAbortsNetworkDeregistration
 // verifies an initial registration colliding with a network-initiated
 // de-registration aborts the de-registration and progresses the registration
-// (TS 24.501 §5.5.2.3.5 case d) rather than being rejected with a state mismatch.
+// (TS 24.501 §5.5.2.3.5 case d); it is not rejected with a state mismatch.
 func TestHandleRegistrationRequest_InitialRegistrationAbortsNetworkDeregistration(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{

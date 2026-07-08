@@ -172,7 +172,6 @@ func TestReconcileSkippedWhileProcedureInFlight(t *testing.T) {
 		t.Fatalf("expected 1 modify call, got %d", got)
 	}
 
-	// A second reconcile while the modification is in flight must be skipped.
 	reconcileAmbrChange(t, s, ref)
 
 	if got := modifyCallCount(amfCb); got != 1 {

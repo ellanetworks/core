@@ -86,7 +86,6 @@ func TestNewIMEIFromPEI(t *testing.T) {
 				t.Fatalf("IsSet() = %v, want %v", imei.IsSet(), tc.expected != "")
 			}
 
-			// Verify the normalized IMEI passes Luhn validation.
 			if got := imei.IMEI(); got != "" && !luhnValid(got) {
 				t.Fatalf("IMEI() %q does not pass Luhn validation", got)
 			}

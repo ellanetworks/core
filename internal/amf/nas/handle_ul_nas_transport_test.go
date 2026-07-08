@@ -158,7 +158,6 @@ func TestTransport5GSMMessage_NilPduSessionID_Error(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	// No PduSessionID2Value set
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, []byte{0x01}, nil)
 
 	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
@@ -182,7 +181,6 @@ func TestTransport5GSMMessage_SmContextNotExists_Status5GSM_NoError(t *testing.T
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	// Build a valid 5GSM Status message as the payload
 	// Status5GSM: EPD (0x2E) + PDU session ID (0x01) + PTI (0x00) + message type (0xD6) + cause (0x24)
 	status5gsmPayload := []byte{0x2E, 0x01, 0x00, 0xD6, 0x24}
 
@@ -267,10 +265,9 @@ func TestTransport5GSMMessage_ExistingPduSession_NotAllowedNssai_SendsDLNASTrans
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	// Set the UE's allowed NSSAI to SST=1, SD="010203"
 	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
 
-	// Create an SM context with a DIFFERENT NSSAI (SST=2)
+	// SM context carries a different NSSAI (SST=2) than the UE's allowed SST=1.
 	var pduSessionID uint8 = 5
 
 	_ = ue.CreateSmContext(pduSessionID, "testref", &models.Snssai{Sst: 2, Sd: "040506"})
@@ -310,7 +307,6 @@ func TestTransport5GSMMessage_NoSmContext_ModificationRequest_SendsDLNASTranspor
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	// No SM context for this PDU session ID
 	smPayload := []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(1))
@@ -413,7 +409,6 @@ func TestTransport5GSMMessage_NoSmContext_ExistingPduSession_SendsDLNASTransport
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	// No SM context for this PDU session ID
 	smPayload := []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(1))
@@ -471,7 +466,6 @@ func TestTransport5GSMMessage_SmContextExists_InitialRequest_DeletesContextAndCr
 
 	transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 
-	// The old context should have been deleted and a new one created
 	smCtx, exists := ue.SmContextFindByPDUSessionID(pduSessionID)
 	if !exists {
 		t.Fatal("expected SM context to exist for the PDU session ID after re-creation")
@@ -670,7 +664,6 @@ func TestForward5GSMMessageToSMF_N2NotPduResRel_ReturnsNil(t *testing.T) {
 
 	forward5GSMMessageToSMF(t.Context(), amfInstance, ue, 1, "ref-1", []byte{0x01})
 
-	// No NGAP message should have been sent
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
 		t.Fatalf("expected 0 downlink NAS transport, got: %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -733,7 +726,7 @@ func TestForward5GSMMessageToSMF_N1AndN2PduResRel_SendsReleaseCommandWithN1(t *t
 		t.Fatal("expected NAS PDU in release command, got nil")
 	}
 
-	// No DL NAS Transport should have been sent separately (the N1 goes in the release command)
+	// The N1 rides in the release command, not a separate DL NAS Transport.
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
 		t.Fatalf("expected 0 separate downlink NAS transport, got: %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -752,10 +745,9 @@ func TestTransport5GSMMessage_SmContextExists_NoRequestType_ForwardsToSMF(t *tes
 	smPayload := []byte{0x2E, 0x05, 0x00, 0xC1, 0x00}
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
-	// No request type set
 
 	fakeSmf := &fakeSmf{
-		UpdateN1MsgResponse: nil, // nil response
+		UpdateN1MsgResponse: nil,
 	}
 
 	amfInstance := amf.New(nil, nil, fakeSmf)
@@ -785,7 +777,7 @@ func TestTransport5GSMMessage_SmContextExists_DuplicatePDU_Success(t *testing.T)
 	snssai := &models.Snssai{Sst: 1, Sd: "010203"}
 	_ = ue.CreateSmContext(pduSessionID, "dup-ref", snssai)
 
-	// Also create a second SM context that will NOT be deleted (to ensure the first IS deleted)
+	// A second SM context confirms only the duplicate's context is deleted.
 	_ = ue.CreateSmContext(7, "other-ref", snssai)
 
 	smPayload := []byte{0x2E, 0x03, 0x00, 0xC1, 0x00}
@@ -804,22 +796,18 @@ func TestTransport5GSMMessage_SmContextExists_DuplicatePDU_Success(t *testing.T)
 
 	transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 
-	// The duplicate PDU call should NOT have been made (dead code path)
 	if len(fakeSmf.DuplicatePDUCalls) != 0 {
 		t.Fatalf("expected 0 DuplicatePDU calls, got: %d", len(fakeSmf.DuplicatePDUCalls))
 	}
 
-	// CreateSmContext should have been called instead
 	if len(fakeSmf.CreateSmContextCalls) != 1 {
 		t.Fatalf("expected 1 CreateSmContext call, got: %d", len(fakeSmf.CreateSmContextCalls))
 	}
 
-	// No PDU Session Resource Release Command should have been sent
 	if len(ngapSender.SentPDUSessionResourceReleaseCommand) != 0 {
 		t.Fatalf("expected 0 release commands, got: %d", len(ngapSender.SentPDUSessionResourceReleaseCommand))
 	}
 
-	// SM context should exist with the new ref
 	smCtx, exists := ue.SmContextFindByPDUSessionID(pduSessionID)
 	if !exists {
 		t.Fatal("expected SM context to exist after re-creation")
@@ -829,7 +817,6 @@ func TestTransport5GSMMessage_SmContextExists_DuplicatePDU_Success(t *testing.T)
 		t.Fatalf("expected SM context ref 'new-ref-after-dup', got: %s", smCtx.Ref)
 	}
 
-	// The other SM context should still exist
 	_, exists = ue.SmContextFindByPDUSessionID(7)
 	if !exists {
 		t.Fatal("expected SM context for PDU session 7 to still exist")
@@ -884,7 +871,7 @@ func TestTransport5GSMMessage_SmContextExists_DefaultRequestType_ForwardsToSMF(t
 	smPayload := []byte{0x2E, 0x05, 0x00, 0xC1, 0x00}
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
-	// Set an unusual request type value (7 is not one of the defined cases) to trigger the default case
+	// 7 is not a defined request type, exercising the default case.
 	setRequestType(msg, 7)
 
 	fakeSmf := &fakeSmf{
@@ -921,7 +908,6 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_WithSNSSAIAndDNN_Create
 	msg.SetSST(1)
 	msg.SetSD([3]uint8{0x01, 0x02, 0x03})
 
-	// Set DNN on the NAS message
 	msg.DNN = nasType.NewDNN(nasMessage.ULNASTransportDNNType)
 	dnnValue := "internet"
 	msg.DNN.SetLen(uint8(len(dnnValue)))
@@ -948,7 +934,6 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_WithSNSSAIAndDNN_Create
 		t.Fatalf("expected DNN 'internet', got: %s", call.Dnn)
 	}
 
-	// Verify SM context was created on the UE
 	smCtx, exists := ue.SmContextFindByPDUSessionID(pduSessionID)
 	if !exists {
 		t.Fatal("expected SM context to exist")
@@ -1062,7 +1047,6 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorRe
 
 	transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 
-	// Should have sent a DL NAS Transport with the error response
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 downlink NAS transport, got: %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -1084,7 +1068,6 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorRe
 		t.Fatalf("expected DLNASTransport message, got: %v", nm.GmmHeader.GetMessageType())
 	}
 
-	// SM context should NOT have been created on the UE
 	if _, exists := ue.SmContextFindByPDUSessionID(pduSessionID); exists {
 		t.Fatal("expected SM context NOT to exist after rejection")
 	}
@@ -1121,7 +1104,6 @@ func TestTransport5GSMMessage_ExistingPduSession_MultiSliceAllowedNssai_MatchesS
 
 	transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 
-	// Should have forwarded to SMF (not rejected)
 	if len(fakeSmf.UpdateN1MsgCalls) != 1 {
 		t.Fatalf("expected 1 UpdateSmContextN1Msg call, got: %d", len(fakeSmf.UpdateN1MsgCalls))
 	}
@@ -1155,7 +1137,6 @@ func TestTransport5GSMMessage_ExistingPduSession_MultiSliceAllowedNssai_NotInLis
 
 	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
 
-	// Should have been rejected (DL NAS Transport sent)
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 downlink NAS transport, got: %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -1199,7 +1180,6 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_MultiSliceDefaultSNSSAI
 
 	call := fakeSmf.CreateSmContextCalls[0]
 
-	// Should use first allowed slice (index 0)
 	if call.Snssai.Sst != 1 || call.Snssai.Sd != "aabbcc" {
 		t.Fatalf("expected default SNSSAI SST=1 SD=aabbcc, got: SST=%d SD=%s", call.Snssai.Sst, call.Snssai.Sd)
 	}

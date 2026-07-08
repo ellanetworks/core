@@ -60,7 +60,6 @@ func TestUpdateSmContextN2ModifyIndication_HappyPath(t *testing.T) {
 		t.Fatal("expected non-nil N2 response")
 	}
 
-	// The downlink tunnel is rebound to the address the NG-RAN provided.
 	if !smCtx.Tunnel.ANInformation.IPv4Address.Equal(gnbIP) {
 		t.Fatalf("expected AN IP %s, got %s", gnbIP, smCtx.Tunnel.ANInformation.IPv4Address)
 	}
@@ -78,7 +77,6 @@ func TestUpdateSmContextN2ModifyIndication_HappyPath(t *testing.T) {
 		t.Fatalf("expected DL FAR TEID %d, got %d", teid, dlFAR.ForwardingParameters.OuterHeaderCreation.TEID)
 	}
 
-	// The confirm transfer decodes and reports the confirmed QoS flow.
 	confirm := ngapType.PDUSessionResourceModifyConfirmTransfer{}
 	if err := aper.UnmarshalWithParams(n2Rsp, &confirm, "valueExt"); err != nil {
 		t.Fatalf("decode confirm transfer: %v", err)

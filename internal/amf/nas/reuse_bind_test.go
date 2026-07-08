@@ -104,8 +104,8 @@ func wrapIntegrityProtected(t *testing.T, ue *amf.UeContext, inner []byte, sqn u
 
 // TestFetchUeContext_DeregistrationResolvesExistingContextByGuti guards the
 // GUTI-shadowing defect: an integrity-verified UE-originating DEREGISTRATION
-// citing a known GUTI must resolve to the existing context. The shadowed local
-// guti previously left the outer guti invalid, forcing a fresh context.
+// citing a known GUTI must resolve to the existing context. A local guti that
+// shadows the outer guti leaves it invalid and forces a fresh context.
 func TestFetchUeContext_DeregistrationResolvesExistingContextByGuti(t *testing.T) {
 	// type byte 0x02 = 5G-GUTI; PLMN 001/01; amf.AMF id 0xcafe00; 5G-TMSI 1.
 	gutiBytes := []byte{0x02, 0x00, 0xf1, 0x10, 0xca, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x01}

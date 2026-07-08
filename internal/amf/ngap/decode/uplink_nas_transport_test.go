@@ -92,7 +92,6 @@ func TestDecodeUplinkNASTransport_NASPDUIsCopied(t *testing.T) {
 		t.Fatalf("expected nil report, got %+v", report)
 	}
 
-	// Mutate the source bytes; the decoded copy must not change.
 	for i := range msg.ProtocolIEs.List {
 		if msg.ProtocolIEs.List[i].Id.Value == ngapType.ProtocolIEIDNASPDU {
 			msg.ProtocolIEs.List[i].Value.NASPDU.Value[0] = 0xFF

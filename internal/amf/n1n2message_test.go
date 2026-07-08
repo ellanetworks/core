@@ -324,12 +324,10 @@ func TestModifyN1N2Message_IdleRegisteredUE_ReturnsNotReachable(t *testing.T) {
 		t.Fatalf("expected ErrUENotReachable, got: %v", err)
 	}
 
-	// No paging should have been triggered.
 	if sender.pagingCalls != 0 {
 		t.Fatalf("expected 0 paging calls, got %d", sender.pagingCalls)
 	}
 
-	// No N1N2 message stored on UE.
 	if ue.Conn() != nil && ue.Conn().N1N2Message() != nil {
 		t.Fatal("expected no stored N1N2 message")
 	}
@@ -363,7 +361,6 @@ func TestModifyN1N2Message_OngoingN2Handover_Deferred(t *testing.T) {
 		t.Fatalf("expected the handover guard, got the idle path: %v", err)
 	}
 
-	// Nothing sent to the source gNB while deferring.
 	if sender.downlinkNasTransportCalls != 0 || sender.pduSessionSetupCalls != 0 {
 		t.Fatalf("expected no NGAP send while deferring, got dlnas=%d setup=%d",
 			sender.downlinkNasTransportCalls, sender.pduSessionSetupCalls)

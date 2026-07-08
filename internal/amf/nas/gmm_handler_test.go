@@ -25,10 +25,9 @@ func TestHandleGmmMessage_UnknownMessageType_NoOp(t *testing.T) {
 	HandleGmmMessage(context.Background(), amfInstance, ue, m, true)
 }
 
-// TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete verifies that
-// HandleGmmMessage correctly dispatches a ConfigurationUpdateComplete message
-// to handleConfigurationUpdateComplete. We use a amf.Registered UE so the handler
-// runs its success path, confirming proper dispatch.
+// TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete verifies HandleGmmMessage
+// routes a ConfigurationUpdateComplete to handleConfigurationUpdateComplete; a
+// amf.Registered UE lets the handler run its success path.
 func TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete(t *testing.T) {
 	ue, _, err := buildUeAndRadio()
 	if err != nil {
@@ -51,9 +50,8 @@ func TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete(t *testing.T) 
 	HandleGmmMessage(context.Background(), amfInstance, ue, m, true)
 }
 
-// TestHandleGmmMessage_DispatchesToStatus5GMM verifies that HandleGmmMessage
-// correctly dispatches a Status5GMM message to handleStatus5GMM. We use a
-// amf.Registered UE so the handler runs its success path, confirming proper dispatch.
+// TestHandleGmmMessage_DispatchesToStatus5GMM verifies HandleGmmMessage routes a
+// Status5GMM to handleStatus5GMM; a amf.Registered UE lets the handler run its success path.
 func TestHandleGmmMessage_DispatchesToStatus5GMM(t *testing.T) {
 	ue, _, err := buildUeAndRadio()
 	if err != nil {

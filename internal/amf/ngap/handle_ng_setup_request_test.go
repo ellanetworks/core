@@ -105,7 +105,6 @@ func buildNGSetupRequest(opts *NGSetupRequestOpts) (*ngapType.NGAPPDU, error) {
 
 	nGSetupRequestIEs.List = append(nGSetupRequestIEs.List, ie)
 
-	// RANNodeName
 	ie = ngapType.NGSetupRequestIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDRANNodeName
 	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -163,7 +162,6 @@ func buildNGSetupRequest(opts *NGSetupRequestOpts) (*ngapType.NGAPPDU, error) {
 		nGSetupRequestIEs.List = append(nGSetupRequestIEs.List, ie)
 	}
 
-	// PagingDRX
 	ie = ngapType.NGSetupRequestIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDDefaultPagingDRX
 	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -369,7 +367,6 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 		t.Fatal("RanID should be set after successful NG Setup")
 	}
 
-	// Verify ran.SupportedTAIs was populated from the request
 	tais := amfInstance.RadioSupportedTAIsForTest(ran)
 	if len(tais) != 1 {
 		t.Fatalf("expected 1 SupportedTAI, got %d", len(tais))
@@ -439,7 +436,6 @@ func TestHandleNGSetupRequest_MultipleSlicesInRequest(t *testing.T) {
 		t.Fatalf("expected 1 NGSetupResponse, got %d", len(sender.SentNGSetupResponses))
 	}
 
-	// Verify ran.SupportedTAIs has all 3 slices from the request
 	tais := amfInstance.RadioSupportedTAIsForTest(ran)
 	if len(tais) != 1 {
 		t.Fatalf("expected 1 SupportedTAI, got %d", len(tais))
@@ -524,7 +520,6 @@ func TestHandleNGSetupRequest_ResponseContainsAllConfiguredSlices(t *testing.T) 
 
 	response := sender.SentNGSetupResponses[0]
 
-	// Verify the response carries all 3 configured slices from DB
 	if len(response.SnssaiList) != 3 {
 		t.Fatalf("expected 3 slices in response SnssaiList, got %d", len(response.SnssaiList))
 	}

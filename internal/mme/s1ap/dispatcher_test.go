@@ -28,8 +28,7 @@ func TestDispatchGatesUEMessageBeforeS1Setup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// nil conn: no S1 Setup has completed on this association, so the message
-	// must be dropped before any UE context is created.
+	// nil conn: no S1 Setup has completed on this association.
 	Dispatch(context.Background(), m, nil, raw)
 
 	if got := m.ConnCountForTest(); got != 0 {
@@ -39,7 +38,7 @@ func TestDispatchGatesUEMessageBeforeS1Setup(t *testing.T) {
 
 // TestDispatchSurvivesGarbage feeds malformed PDUs to the dispatcher and checks
 // it neither panics nor disrupts the association — the codecs reject malformed
-// input rather than relying on any panic recovery.
+// input without relying on any panic recovery.
 func TestDispatchSurvivesGarbage(t *testing.T) {
 	m := newTestMME(t)
 

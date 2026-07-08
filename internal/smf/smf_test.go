@@ -690,7 +690,5 @@ func TestNewSession_DistinctInstancesCoexist(t *testing.T) {
 	}
 }
 
-// BGP integration tests were removed when the SMF→BGP coupling was
-// deleted. Route announce/withdraw is now driven by the BGP reconciler
-// reading the replicated ip_leases table; see internal/bgp/reconciler.go
-// and its tests.
+// Route announce/withdraw is driven by the BGP reconciler reading the
+// replicated ip_leases table; see internal/bgp/reconciler.go and its tests.

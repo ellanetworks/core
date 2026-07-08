@@ -191,7 +191,6 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 		t.Fatal("new M-TMSI not resolvable")
 	}
 
-	// The accept on the wire carries the reallocated GUTI.
 	dl := decodeDownlinkNAS(t, cc.sent[0])
 
 	plain, err := eps.Unprotect(dl, nascommon.NASCount(0, dl[5]), nascommon.DirectionDownlink,
@@ -209,7 +208,6 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 		t.Fatalf("TAU Accept GUTI = %+v, want M-TMSI %d", parsed.GUTI, ue.TmsiForTest())
 	}
 
-	// TAU Complete commits the new GUTI and frees the old M-TMSI.
 	handleTrackingAreaUpdateComplete(m, context.Background(), ue)
 
 	if ue.OldTmsiForTest() != 0 {
@@ -252,7 +250,6 @@ func TestTrackingAreaUpdateIdleNoActiveFlagReleases(t *testing.T) {
 		t.Fatal("GUTI reallocation not pending after TAU Accept")
 	}
 
-	// UE Completes: the new GUTI commits and the UE is released to ECM-IDLE.
 	handleTrackingAreaUpdateComplete(m, context.Background(), ue)
 
 	if ue.OldTmsiForTest() != 0 {

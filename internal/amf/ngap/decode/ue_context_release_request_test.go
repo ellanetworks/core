@@ -127,7 +127,6 @@ func TestDecodeUEContextReleaseRequest_EmptyIEs(t *testing.T) {
 func TestDecodeUEContextReleaseRequest_OptionalAbsent(t *testing.T) {
 	msg := validUEContextReleaseRequest()
 
-	// drop the PDUSessionResourceListCxtRelReq IE
 	out := msg.ProtocolIEs.List[:0]
 
 	for _, ie := range msg.ProtocolIEs.List {

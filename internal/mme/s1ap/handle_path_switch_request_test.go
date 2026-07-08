@@ -285,7 +285,7 @@ func TestPathSwitchCapabilityMismatchReplaysStored(t *testing.T) {
 
 // TestPathSwitchUEReleasedDuringSwitch checks the commit is guarded against a
 // concurrent release that frees ue.active during the unlocked user-plane switch: the
-// path switch fails gracefully rather than dereferencing a nil connection.
+// path switch fails gracefully without dereferencing a nil connection.
 func TestPathSwitchUEReleasedDuringSwitch(t *testing.T) {
 	m := newTestMME(t)
 	ue := pathSwitchUE(t, m)

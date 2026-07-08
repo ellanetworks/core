@@ -20,7 +20,6 @@ func TestDetachSubscriberNetworkInitiated(t *testing.T) {
 
 	m.DetachSubscriber(context.Background(), testSubscriber.IMSI)
 
-	// A network-originating Detach Request (protected downlink NAS).
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected network Detach Request, got %d", len(cc.sent))
 	}
@@ -43,7 +42,6 @@ func TestDetachSubscriberNetworkInitiated(t *testing.T) {
 		t.Fatalf("not a network-originating Detach Request: %v", err)
 	}
 
-	// UE acknowledges → release + delete.
 	handleDetachAccept(m, context.Background(), ue)
 	parseUEContextReleaseCommand(t, cc.sent[1])
 
@@ -121,10 +119,6 @@ func TestPlainDetachSecuredUEFreshConnectionRejected(t *testing.T) {
 	}
 }
 
-// TestDetachSubscriberUnansweredReleases confirms a network-initiated detach
-// whose Detach Accept never arrives is retransmitted and then releases the UE
-// context, so a silent UE cannot leak it (TS 24.301: T3422).
-
 func TestForgedMessageIgnoredForSecuredUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -151,9 +145,6 @@ func TestForgedMessageIgnoredForSecuredUE(t *testing.T) {
 	}
 }
 
-// securedUE returns a UE context in the post-security-mode state (keys derived,
-// registered), as it would be after a completed attach.
-
 func TestDetachSwitchOff(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -170,7 +161,6 @@ func TestDetachSwitchOff(t *testing.T) {
 		t.Fatalf("unexpected release command IDs: %+v", cmd.UES1APIDs)
 	}
 
-	// eNB confirms release → context deleted.
 	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: 7}
 
 	b, _ := complete.Marshal()
@@ -274,10 +264,6 @@ func TestDetachNotSwitchOff(t *testing.T) {
 
 	parseUEContextReleaseCommand(t, cc.sent[1])
 }
-
-// TestECMIdleBuffersSession checks that when a registered UE goes ECM-IDLE, the
-// MME buffers its EPS session so downlink data triggers paging (TS 23.401
-// §5.3.4.3) rather than being forwarded to the released eNB tunnel.
 
 // detachRequest builds an integrity-protected UE-initiated DETACH REQUEST.
 func detachRequest(t *testing.T, ue *mme.UeContext, switchOff bool) []byte {

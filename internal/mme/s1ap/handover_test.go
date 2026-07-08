@@ -904,7 +904,7 @@ func TestHandoverSourceConnLossReclaims(t *testing.T) {
 }
 
 // TestHandoverTargetResetAborts checks that an S1 Reset on the target eNB
-// mid-handover aborts the handover (the UE stays on its source) rather than
+// mid-handover aborts the handover (the UE stays on its source) without
 // reclaiming the UE active on the source.
 func TestHandoverTargetResetAborts(t *testing.T) {
 	m := newTestMME(t)
@@ -930,7 +930,7 @@ func TestHandoverTargetResetAborts(t *testing.T) {
 
 // TestHandoverSourceConnLossReleasesTarget checks that aborting a prepared handover
 // by source-connection loss explicitly releases the target eNB, like the guard
-// timer, rather than leaving it to its own timeout.
+// timer, without waiting for its own timeout.
 func TestHandoverSourceConnLossReleasesTarget(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)

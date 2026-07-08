@@ -380,11 +380,10 @@ func TestHandleAuthenticationFailure_SynchFailure_NilAuthenticationFailureParame
 	ue.Conn().AuthenticationCtx = &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}
 	ue.Conn().SetResyncTried(false)
 
-	// Build message with SynchFailure cause but nil AuthenticationFailureParameter
 	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMSynchFailure, nil)
 
-	// This must not panic — before the fix it caused a nil pointer dereference. A
-	// SynchFailure with no AUTS is dropped without emitting a downlink.
+	// A SynchFailure with a nil AUTS must not panic; it is dropped without emitting
+	// a downlink.
 	handleAuthenticationFailure(t.Context(), amf.New(nil, nil, nil), ue, msg)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
@@ -394,8 +393,8 @@ func TestHandleAuthenticationFailure_SynchFailure_NilAuthenticationFailureParame
 
 // TestHandleAuthenticationFailure_OutOfEnumerationCauseIgnored verifies an
 // AUTHENTICATION FAILURE carrying a cause outside the enumeration is ignored: the
-// authentication guard (T3560) is left armed and nothing is sent, rather than
-// stranding the UE (semantically incorrect message, TS 24.501 §7.8). Mirrors the MME.
+// authentication guard (T3560) is left armed and nothing is sent, so the UE is
+// not stranded (semantically incorrect message, TS 24.501 §7.8). Mirrors the MME.
 func TestHandleAuthenticationFailure_OutOfEnumerationCauseIgnored(t *testing.T) {
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -424,8 +423,8 @@ func TestHandleAuthenticationFailure_OutOfEnumerationCauseIgnored(t *testing.T) 
 
 // TestHandleAuthenticationFailure_NoChallengeInFlightIgnored verifies a spurious
 // AUTHENTICATION FAILURE in the identity sub-window of RegStepAuthenticating (no
-// challenge sent, so AuthenticationCtx is nil) is ignored rather than releasing
-// the UE (admissible without integrity, TS 24.501 §4.4.4.3). Mirrors the MME.
+// challenge sent, so AuthenticationCtx is nil) is ignored and the UE is not
+// released (admissible without integrity, TS 24.501 §4.4.4.3). Mirrors the MME.
 func TestHandleAuthenticationFailure_NoChallengeInFlightIgnored(t *testing.T) {
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {

@@ -51,8 +51,8 @@ func TestSecurityMode_BlockedByConflict(t *testing.T) {
 
 // TestSecurityMode_NoCommonAlgorithm_RejectsAndDeregisters verifies that when the
 // UE and the operator policy share no NAS algorithm, the AMF rejects the
-// registration (5GMM cause #23) and releases the UE rather than leaving it
-// half-registered with an open RAN connection (mirrors the MME's ATTACH REJECT).
+// registration (5GMM cause #23) and releases the UE, leaving no
+// half-registered UE with an open RAN connection (mirrors the MME's ATTACH REJECT).
 func TestSecurityMode_NoCommonAlgorithm_RejectsAndDeregisters(t *testing.T) {
 	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{

@@ -37,7 +37,7 @@ func emptyValidation(ue *amf.UeContext) error {
 func newTestUe(integrityVerified bool, guti, oldGuti etsi.GUTI5G, tmsi etsi.TMSI) *amf.UeContext {
 	_ = integrityVerified
 	ue := amf.NewUeContext()
-	ue.SetGutiForTest(guti) // ue.SetTmsiForTest(guti.Tmsi (GUTI cases))
+	ue.SetGutiForTest(guti)
 
 	if tmsi != (etsi.TMSI{}) {
 		ue.SetTmsiForTest(tmsi) // explicit 5G-S-TMSI cases

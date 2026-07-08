@@ -31,13 +31,11 @@ func TestReallocateGUTI(t *testing.T) {
 		t.Fatal("UE not indexed by its M-TMSI")
 	}
 
-	// A second UE gets a distinct M-TMSI.
 	ue2 := m.NewUe(&captureConn{}, 8)
 	if guti2 := m.ReallocateGUTI(ue2, plmn, 0x1234, 0x56); guti2.MTMSI == guti.MTMSI {
 		t.Fatalf("M-TMSI not unique: both %d", guti2.MTMSI)
 	}
 
-	// Releasing the UE clears the index.
 	m.RemoveUe(ue)
 
 	if _, ok := m.LookupUeByMTMSI(guti.MTMSI); ok {

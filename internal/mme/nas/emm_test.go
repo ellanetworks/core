@@ -69,7 +69,7 @@ func decodeDownlinkNAS(t *testing.T, pdu []byte) []byte {
 // restarts and loses its in-memory security contexts, the UE returns with an
 // integrity-protected combined ATTACH REQUEST carrying the GUTI it still holds.
 // The MME cannot verify the MAC (no context), but per TS 24.301 §4.4.4.3 it must
-// still process the Attach Request rather than drop it. With a GUTI it cannot
+// still process the Attach Request, not drop it. With a GUTI it cannot
 // resolve, the MME recovers by requesting the UE's identity.
 func TestAttachRecoveryAfterMMERestart(t *testing.T) {
 	m := newTestMME(t)
@@ -115,7 +115,7 @@ func TestAttachRecoveryAfterMMERestart(t *testing.T) {
 // TestIdentityResponseRecoveryAfterMMERestart reproduces the field case where,
 // after the MME loses its security contexts on restart, the UE answers the
 // MME's IDENTITY REQUEST with an IDENTITY RESPONSE integrity-protected against a
-// context the network no longer holds. Per TS 24.301 §4.4.4.3 the MME must still
+// context the network has lost. Per TS 24.301 §4.4.4.3 the MME must still
 // process it (the IMSI is in cleartext) and proceed to authentication, instead
 // of dropping it and looping on IDENTITY REQUEST.
 func TestIdentityResponseRecoveryAfterMMERestart(t *testing.T) {
@@ -225,7 +225,6 @@ func TestAttachReusesContextForNativeGUTI(t *testing.T) {
 		t.Fatal("held context not rebound to the returning UE's connection")
 	}
 
-	// Authentication is skipped on a valid native GUTI.
 	if existing.Conn().AuthVector != nil {
 		t.Fatal("authentication was not skipped on a valid native GUTI")
 	}
@@ -427,7 +426,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 
 	HandleNAS(m, context.Background(), ue.Conn(), authResp)
 
-	// Authentication succeeded: the vector is dropped (its K_ASME is now in the security
+	// Authentication succeeded: the vector is dropped (its K_ASME is held in the security
 	// context) so no key material lingers and AuthVector==nil means "no challenge in
 	// flight"; the per-exchange resync budget is reset.
 	if ue.Conn().AuthVector != nil {
@@ -687,7 +686,7 @@ func TestSecurityModeRejectIgnoredOutsideExchange(t *testing.T) {
 
 // TestSecurityModeCompleteRecoversReplayedAttach verifies the anti-tamper
 // recovery: when SECURITY MODE COMPLETE carries a Replayed NAS message container,
-// the MME re-ingests the genuine ATTACH REQUEST it holds instead of the
+// the MME re-ingests the genuine ATTACH REQUEST it holds, not the
 // (possibly tampered) parameters from the initial plain Attach (TS 24.301
 // §5.4.3.4).
 func TestSecurityModeCompleteRecoversReplayedAttach(t *testing.T) {
@@ -808,9 +807,6 @@ func TestDispatchEMM_EMMStatusHandledNoReply(t *testing.T) {
 	}
 }
 
-// TestAttachIgnoredDuringNetworkInitiatedDetach verifies that an ATTACH REQUEST
-// colliding with a network-initiated ("re-attach not required") detach is ignored,
-// not superseding the detach (TS 24.301 §5.5.2.3.4 case d).
 // TestAttachDuplicateIdenticalIEsResendsAccept verifies a duplicate ATTACH REQUEST
 // with identical IEs while awaiting ATTACH COMPLETE resends the ATTACH ACCEPT without
 // re-authenticating or releasing the UE (TS 24.301 §5.5.1.2.7 case d).
@@ -896,6 +892,9 @@ func TestAttachDuplicateDifferingIEsProgresses(t *testing.T) {
 	}
 }
 
+// TestAttachIgnoredDuringNetworkInitiatedDetach verifies that an ATTACH REQUEST
+// colliding with a network-initiated ("re-attach not required") detach is ignored,
+// not superseding the detach (TS 24.301 §5.5.2.3.4 case d).
 func TestAttachIgnoredDuringNetworkInitiatedDetach(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}

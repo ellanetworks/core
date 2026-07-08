@@ -15,7 +15,7 @@ import (
 )
 
 // A SERVICE REQUEST that resolves no 5GMM context (e.g. the UE deregistered, or an unknown
-// 5G-S-TMSI) must be answered with a SERVICE REJECT #9 rather than silently dropped
+// 5G-S-TMSI) must be answered with a SERVICE REJECT #9, never dropped
 // (TS 24.501 §5.6.1.5, §4.4.4.3). The dedicated pre-context handler never mints a context.
 func TestHandleServiceRequest_NoContext_SendsServiceReject(t *testing.T) {
 	ngapSender := &fakeNGAPSender{}
@@ -52,7 +52,7 @@ func TestHandleServiceRequest_NoContext_SendsServiceReject(t *testing.T) {
 
 // A recognizable but malformed SERVICE REQUEST (truncated — a protocol error) must still be
 // classified by message type and answered with SERVICE REJECT #96 "invalid mandatory
-// information", not silently dropped (TS 24.501 §5.6.1.8 b).
+// information", never dropped (TS 24.501 §5.6.1.8 b).
 func TestHandleServiceRequest_ProtocolError_SendsServiceReject96(t *testing.T) {
 	malformed := []byte{0x7e, 0x00, 0x4c} // plain 5GMM, message type ServiceRequest, no IEs
 
@@ -120,7 +120,7 @@ func encodePlainServiceRequest(t *testing.T) []byte {
 
 // A plain NAS message on a fresh connection that is not a REGISTRATION REQUEST cannot
 // establish a context; HandleNAS must reject it (error) and bind no UE context, so the
-// NGAP layer releases the bare RAN connection instead of leaking a context per message.
+// NGAP layer releases the bare RAN connection and leaks no per-message context.
 func TestHandleNAS_PlainNonRegistration_BindsNoContext(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	ue := &amf.UeConn{}

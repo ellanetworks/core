@@ -269,6 +269,44 @@ func TestServiceRequestBadMACRejected(t *testing.T) {
 	}
 }
 
+// A malformed SERVICE REQUEST (protocol error) from a registered UE must be answered with
+// EMM cause #96 "invalid mandatory information", not #9 (TS 24.301 §5.6.1.7 b).
+func TestServiceRequestProtocolErrorRejected96(t *testing.T) {
+	m := newTestMME(t)
+	ue, guti := idleRegisteredUE(t, m)
+
+	malformed := serviceRequestNAS(t, ue)[:2] // truncated → ParseServiceRequest fails
+
+	cc := &captureConn{}
+	msg := &s1ap.InitialUEMessage{
+		ENBUES1APID: 9,
+		NASPDU:      s1ap.NASPDU(malformed),
+		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
+	}
+
+	HandleServiceRequest(m, context.Background(), cc, msg)
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("expected Service Reject, got %d S1AP messages", len(cc.sent))
+	}
+
+	plain := decodeDownlinkNAS(t, cc.sent[0])
+
+	mt, err := eps.PeekMessageType(plain)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if mt != eps.MsgServiceReject {
+		t.Fatalf("expected Service Reject, got message type %#x", mt)
+	}
+
+	// Plain SERVICE REJECT: header octet, message type, EMM cause.
+	if len(plain) < 3 || plain[2] != mme.EmmCauseInvalidMandatoryInfo {
+		t.Fatalf("EMM cause = %#x, want #96 (invalid mandatory information)", plain)
+	}
+}
+
 // A resume (protected Initial UE Message) with an invalid MAC, carrying a
 // victim's S-TMSI, must not move the victim's S1 binding (TS 24.301 §4.4.4.3).
 func TestResumeBadMACDoesNotRebindVictim(t *testing.T) {

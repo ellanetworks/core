@@ -76,7 +76,7 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 		t.Fatal("UE not marked ECM-IDLE after eNB release")
 	}
 
-	// The released MME-UE-S1AP-ID no longer identifies an active S1 connection.
+	// The released MME-UE-S1AP-ID does not identify an active S1 connection.
 	// A repeat UE Context Release Request on the same association is answered
 	// with an Error Indication, not re-actioned with another release command
 	// (TS 36.413).

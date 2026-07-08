@@ -152,7 +152,6 @@ func TestDecodeRANConfigurationUpdate_NilRANNodeNameIsNonFatal(t *testing.T) {
 		t.Errorf("expected non-fatal report (RANNodeName criticality ignore), got %+v", report)
 	}
 
-	// SupportedTAItems should still come through.
 	if len(out.SupportedTAItems) != 1 {
 		t.Errorf("expected SupportedTAItems still populated, got %+v", out.SupportedTAItems)
 	}

@@ -612,7 +612,6 @@ func TestExportJSON_MultipleAllowedNSSAI(t *testing.T) {
 		t.Fatalf("expected 3 allowed NSSAIs, got %d", len(arr))
 	}
 
-	// Verify each NSSAI entry
 	for i, expected := range []struct {
 		sst int32
 		sd  string

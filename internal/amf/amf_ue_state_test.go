@@ -106,7 +106,6 @@ func TestRegStep_TracksRegistrationSubPhase(t *testing.T) {
 		t.Fatalf("leaving RegistrationInitiated must clear the sub-phase, got %d", got)
 	}
 
-	// AdvanceRegStep is a no-op outside RegistrationInitiated.
 	ue.AdvanceRegStep(RegStepContextSetup)
 
 	if got := ue.RegStep(); got != RegStepNone {
@@ -119,8 +118,7 @@ func TestTransitionTo_ConcurrentSafety(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	// Hammer state transitions from multiple goroutines.
-	// This is a race detector test — it should not panic or race.
+	// Race detector test — must not panic or race.
 	for i := 0; i < 100; i++ {
 		wg.Add(2)
 

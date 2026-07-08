@@ -20,7 +20,7 @@ import (
 func HandleServiceRequest(m *mme.MME, ctx context.Context, conn mme.S1APWriter, msg *s1ap.InitialUEMessage) {
 	if msg.STMSI == nil {
 		logger.From(ctx, logger.MmeLog).Warn("Service Request without an S-TMSI")
-		sendServiceReject(m, ctx, conn, msg.ENBUES1APID)
+		sendServiceReject(m, ctx, conn, msg.ENBUES1APID, mme.EmmCauseUEIdentityUnderivable)
 
 		return
 	}
@@ -29,15 +29,17 @@ func HandleServiceRequest(m *mme.MME, ctx context.Context, conn mme.S1APWriter, 
 	if !ok || ue.EMMState() != mme.EMMRegistered {
 		logger.From(ctx, logger.MmeLog).Info("Service Request for an unknown or deregistered UE",
 			zap.Uint32("m-tmsi", msg.STMSI.MTMSI))
-		sendServiceReject(m, ctx, conn, msg.ENBUES1APID)
+		sendServiceReject(m, ctx, conn, msg.ENBUES1APID, mme.EmmCauseUEIdentityUnderivable)
 
 		return
 	}
 
 	sr, err := eps.ParseServiceRequest([]byte(msg.NASPDU))
 	if err != nil {
+		// Protocol error: a malformed SERVICE REQUEST is answered with EMM cause #96
+		// "invalid mandatory information", not #9 (TS 24.301 §5.6.1.7 b).
 		logger.From(ctx, logger.MmeLog).Warn("failed to decode Service Request", zap.Error(err))
-		sendServiceReject(m, ctx, conn, msg.ENBUES1APID)
+		sendServiceReject(m, ctx, conn, msg.ENBUES1APID, mme.EmmCauseInvalidMandatoryInfo)
 
 		return
 	}
@@ -54,7 +56,7 @@ func HandleServiceRequest(m *mme.MME, ctx context.Context, conn mme.S1APWriter, 
 			zap.Uint8("received-sequence", sr.SeqShort),
 			zap.Uint32("stored-ul-count", ul))
 
-		sendServiceReject(m, ctx, conn, msg.ENBUES1APID)
+		sendServiceReject(m, ctx, conn, msg.ENBUES1APID, mme.EmmCauseUEIdentityUnderivable)
 
 		return
 	}
@@ -85,9 +87,9 @@ func HandleServiceRequest(m *mme.MME, ctx context.Context, conn mme.S1APWriter, 
 	sendInitialContextSetup(m, ctx, ue, qos, nil)
 }
 
-// sendServiceReject sends a SERVICE REJECT with cause #9 (TS 24.301 §5.6.1.5)
-// over a bare connection, so a rejected request never touches a resolved UE.
-func sendServiceReject(m *mme.MME, ctx context.Context, conn mme.S1APWriter, enbUEID s1ap.ENBUES1APID) {
+// sendServiceReject sends a SERVICE REJECT with the given EMM cause over a bare connection,
+// so a rejected request never touches a resolved UE (TS 24.301 §5.6.1.5, §5.6.1.7).
+func sendServiceReject(m *mme.MME, ctx context.Context, conn mme.S1APWriter, enbUEID s1ap.ENBUES1APID, cause uint8) {
 	c := m.NewUeConn(conn, enbUEID)
 	if c == nil {
 		return
@@ -95,5 +97,5 @@ func sendServiceReject(m *mme.MME, ctx context.Context, conn mme.S1APWriter, enb
 
 	defer m.ReleaseBareConn(c)
 
-	c.SendOverConn(ctx, &eps.ServiceReject{Cause: mme.EmmCauseUEIdentityUnderivable})
+	c.SendOverConn(ctx, &eps.ServiceReject{Cause: cause})
 }

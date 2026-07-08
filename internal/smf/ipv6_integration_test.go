@@ -170,12 +170,10 @@ func TestCreateSmContext_IPv6Only_HappyPath(t *testing.T) {
 		t.Fatal("session should be in pool")
 	}
 
-	// Verify IPv6 session type.
 	if smCtx.PDUSessionType != nasMessage.PDUSessionTypeIPv6 {
 		t.Fatalf("expected PDU session type IPv6 (%d), got %d", nasMessage.PDUSessionTypeIPv6, smCtx.PDUSessionType)
 	}
 
-	// Verify IPv6 prefix was allocated.
 	if smCtx.PDUIPV6Prefix == nil {
 		t.Fatal("expected PDUAddressIPv6 to be set")
 	}
@@ -185,18 +183,15 @@ func TestCreateSmContext_IPv6Only_HappyPath(t *testing.T) {
 		t.Fatalf("expected PDUAddressIPv6 %s, got %s", expectedPrefix, smCtx.PDUIPV6Prefix)
 	}
 
-	// Verify IID was generated (non-zero).
 	var zeroIID [8]byte
 	if smCtx.IPv6IID == zeroIID {
 		t.Fatal("expected non-zero IPv6 IID")
 	}
 
-	// Verify no IPv4 address was allocated.
 	if smCtx.PDUIPV4Address != nil {
 		t.Fatalf("expected nil PDUAddress for IPv6-only, got %s", smCtx.PDUIPV4Address)
 	}
 
-	// Verify PFCP establishment was called.
 	upf.mu.Lock()
 	if upf.lastEstablish == nil {
 		upf.mu.Unlock()
@@ -209,7 +204,6 @@ func TestCreateSmContext_IPv6Only_HappyPath(t *testing.T) {
 	}
 	upf.mu.Unlock()
 
-	// Verify N1N2 transfer was called (session accept).
 	amfCb.mu.Lock()
 	if len(amfCb.n1n2Calls) != 1 {
 		amfCb.mu.Unlock()
@@ -268,12 +262,10 @@ func TestCreateSmContext_DualStack_HappyPath(t *testing.T) {
 		t.Fatal("session should be in pool")
 	}
 
-	// Verify dual-stack session type.
 	if smCtx.PDUSessionType != nasMessage.PDUSessionTypeIPv4IPv6 {
 		t.Fatalf("expected PDU session type IPv4v6 (%d), got %d", nasMessage.PDUSessionTypeIPv4IPv6, smCtx.PDUSessionType)
 	}
 
-	// Verify IPv4 address was allocated.
 	if smCtx.PDUIPV4Address == nil {
 		t.Fatal("expected PDUAddress to be set for dual-stack")
 	}
@@ -283,7 +275,6 @@ func TestCreateSmContext_DualStack_HappyPath(t *testing.T) {
 		t.Fatalf("expected PDUAddress %s, got %s", expectedIPv4, smCtx.PDUIPV4Address)
 	}
 
-	// Verify IPv6 prefix was allocated.
 	if smCtx.PDUIPV6Prefix == nil {
 		t.Fatal("expected PDUAddressIPv6 to be set for dual-stack")
 	}
@@ -293,7 +284,6 @@ func TestCreateSmContext_DualStack_HappyPath(t *testing.T) {
 		t.Fatalf("expected PDUAddressIPv6 %s, got %s", expectedIPv6, smCtx.PDUIPV6Prefix)
 	}
 
-	// Verify IID was generated (non-zero).
 	var zeroIID [8]byte
 	if smCtx.IPv6IID == zeroIID {
 		t.Fatal("expected non-zero IPv6 IID")
@@ -456,7 +446,6 @@ func TestCreateSmContext_DualStack_IPv6AllocationFails_RollsBackIPv4(t *testing.
 		t.Fatalf("expected cause %d (InsufficientResources), got %d", nasMessage.Cause5GSMInsufficientResources, got)
 	}
 
-	// Verify IPv4 was rolled back.
 	store.mu.Lock()
 	defer store.mu.Unlock()
 
@@ -581,12 +570,10 @@ func TestReleaseSmContext_IPv6Only(t *testing.T) {
 		t.Fatalf("ReleaseSmContext (IPv6) failed: %v", err)
 	}
 
-	// Session should be removed.
 	if s.GetSession(ref) != nil {
 		t.Fatal("session should be removed after release")
 	}
 
-	// Verify IPv6 was released.
 	store.mu.Lock()
 	if len(store.releasedIPv6s) == 0 {
 		store.mu.Unlock()
@@ -594,7 +581,6 @@ func TestReleaseSmContext_IPv6Only(t *testing.T) {
 	}
 	store.mu.Unlock()
 
-	// Verify no IPv4 release was attempted.
 	store.mu.Lock()
 	if len(store.releasedIPs) != 0 {
 		store.mu.Unlock()
@@ -602,7 +588,6 @@ func TestReleaseSmContext_IPv6Only(t *testing.T) {
 	}
 	store.mu.Unlock()
 
-	// Verify UPF session was deleted.
 	upf.mu.Lock()
 	if len(upf.deleteCalls) != 1 {
 		upf.mu.Unlock()
@@ -623,12 +608,10 @@ func TestReleaseSmContext_DualStack(t *testing.T) {
 		t.Fatalf("ReleaseSmContext (dual-stack) failed: %v", err)
 	}
 
-	// Session should be removed.
 	if s.GetSession(ref) != nil {
 		t.Fatal("session should be removed after release")
 	}
 
-	// Verify both IPv4 and IPv6 were released.
 	store.mu.Lock()
 	if len(store.releasedIPs) == 0 {
 		store.mu.Unlock()
@@ -641,7 +624,6 @@ func TestReleaseSmContext_DualStack(t *testing.T) {
 	}
 	store.mu.Unlock()
 
-	// Verify UPF session was deleted.
 	upf.mu.Lock()
 	if len(upf.deleteCalls) != 1 {
 		upf.mu.Unlock()
@@ -736,7 +718,6 @@ func TestUpdateSmContextN1Msg_IPv6Release(t *testing.T) {
 		t.Fatalf("release complete: %v", err)
 	}
 
-	// Verify IPv6 was released.
 	store.mu.Lock()
 	if len(store.releasedIPv6s) == 0 {
 		store.mu.Unlock()
@@ -744,7 +725,6 @@ func TestUpdateSmContextN1Msg_IPv6Release(t *testing.T) {
 	}
 	store.mu.Unlock()
 
-	// Verify UPF session was deleted.
 	upf.mu.Lock()
 	if len(upf.deleteCalls) != 1 {
 		upf.mu.Unlock()
@@ -784,7 +764,6 @@ func TestUpdateSmContextN1Msg_DualStackRelease(t *testing.T) {
 		t.Fatalf("release complete: %v", err)
 	}
 
-	// Verify both IPv4 and IPv6 were released.
 	store.mu.Lock()
 	if len(store.releasedIPs) == 0 {
 		store.mu.Unlock()
@@ -797,7 +776,6 @@ func TestUpdateSmContextN1Msg_DualStackRelease(t *testing.T) {
 	}
 	store.mu.Unlock()
 
-	// Verify UPF session was deleted.
 	upf.mu.Lock()
 	if len(upf.deleteCalls) != 1 {
 		upf.mu.Unlock()
@@ -862,7 +840,6 @@ func TestIPv6Session_CreateAndRelease_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	// Create IPv6 session.
 	n1Msg := buildPDUSessionEstRequestWithType(nasMessage.PDUSessionTypeIPv6)
 
 	ref, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
@@ -879,7 +856,6 @@ func TestIPv6Session_CreateAndRelease_RoundTrip(t *testing.T) {
 		t.Fatal("session not found after create")
 	}
 
-	// Verify session state.
 	if smCtx.PDUSessionType != nasMessage.PDUSessionTypeIPv6 {
 		t.Fatalf("expected IPv6 session type, got %d", smCtx.PDUSessionType)
 	}
@@ -892,7 +868,6 @@ func TestIPv6Session_CreateAndRelease_RoundTrip(t *testing.T) {
 		t.Fatal("expected no IPv4 address for IPv6-only")
 	}
 
-	// Release session.
 	err = s.ReleaseSmContext(ctx, ref)
 	if err != nil {
 		t.Fatalf("ReleaseSmContext failed: %v", err)
@@ -906,7 +881,6 @@ func TestIPv6Session_CreateAndRelease_RoundTrip(t *testing.T) {
 		t.Fatalf("expected 0 sessions, got %d", s.SessionCount())
 	}
 
-	// Verify store received IPv6 release.
 	store.mu.Lock()
 	defer store.mu.Unlock()
 
@@ -921,7 +895,6 @@ func TestDualStackSession_CreateAndRelease_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	// Create dual-stack session.
 	n1Msg := buildPDUSessionEstRequestWithType(nasMessage.PDUSessionTypeIPv4IPv6)
 
 	ref, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
@@ -938,7 +911,6 @@ func TestDualStackSession_CreateAndRelease_RoundTrip(t *testing.T) {
 		t.Fatal("session not found after create")
 	}
 
-	// Verify session state.
 	if smCtx.PDUSessionType != nasMessage.PDUSessionTypeIPv4IPv6 {
 		t.Fatalf("expected IPv4v6 session type, got %d", smCtx.PDUSessionType)
 	}
@@ -951,7 +923,6 @@ func TestDualStackSession_CreateAndRelease_RoundTrip(t *testing.T) {
 		t.Fatal("expected PDUAddressIPv6 to be set for dual-stack")
 	}
 
-	// Release session.
 	err = s.ReleaseSmContext(ctx, ref)
 	if err != nil {
 		t.Fatalf("ReleaseSmContext failed: %v", err)
@@ -961,7 +932,6 @@ func TestDualStackSession_CreateAndRelease_RoundTrip(t *testing.T) {
 		t.Fatal("session should be removed after release")
 	}
 
-	// Verify both addresses were released.
 	store.mu.Lock()
 	defer store.mu.Unlock()
 

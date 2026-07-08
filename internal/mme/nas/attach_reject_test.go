@@ -39,7 +39,6 @@ func TestAttachUnknownIMSI(t *testing.T) {
 
 	HandleNAS(m, context.Background(), ue.Conn(), b)
 
-	// Expect Attach Reject (downlink NAS) followed by the UE Context Release Command.
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected Attach Reject + Release Command, got %d S1AP messages", len(cc.sent))
 	}

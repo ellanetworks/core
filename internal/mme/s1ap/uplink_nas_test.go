@@ -27,8 +27,8 @@ func TestUplinkNASTransportUnknownUE(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// An unknown MME-UE-S1AP-ID is answered with an Error Indication, not
-	// silently dropped, and no context is created (TS 36.413).
+	// An unknown MME-UE-S1AP-ID is answered with an Error Indication, and no
+	// context is created (TS 36.413).
 	conn := &captureConn{}
 	handleUplinkNASTransport(m, context.Background(), mme.NewRadioForTest(conn), initiatingValue(t, b))
 

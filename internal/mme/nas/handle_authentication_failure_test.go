@@ -38,7 +38,6 @@ func TestAuthenticationFailureIgnoredWithNoAuthInProgress(t *testing.T) {
 	}
 }
 
-// TestAuthenticationFailureDuringSecurityModeIgnored reproduces the injected-teardown
 // TestAuthenticationFailureDuringSecurityModeIgnored proves the RegStep gate drops an
 // out-of-phase AUTHENTICATION FAILURE on its own. A real UE clears its auth vector on
 // authentication success, so this forces a vector set alongside RegStepSecurityMode to
@@ -154,7 +153,6 @@ func TestAuthenticationResponseWrongRESRejects(t *testing.T) {
 
 	HandleNAS(m, context.Background(), ue.Conn(), resp)
 
-	// Authentication Reject (downlink NAS) followed by UE Context Release Command.
 	if cc.count() != 2 {
 		t.Fatalf("expected Auth Reject + Release Command, got %d", cc.count())
 	}
@@ -176,7 +174,6 @@ func TestAuthFailureMACFailureRejects(t *testing.T) {
 
 	HandleNAS(m, context.Background(), ue.Conn(), authFailure(t, mme.EmmCauseMACFailure, nil))
 
-	// Authentication Reject (downlink NAS) followed by UE Context Release Command.
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected Auth Reject + Release Command, got %d", len(cc.sent))
 	}

@@ -373,7 +373,7 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 }
 
 // A registered UE's service request must always be answered — accepted for a serviceable
-// type, rejected for an unsupported one — never silently dropped (TS 24.501 §5.6.1.5).
+// type, rejected for an unsupported one — never dropped (TS 24.501 §5.6.1.5).
 func TestHandleServiceRequest_ServiceTypeReplies(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -1383,9 +1383,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 	}
 
 	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{
-		PduSessionID: 1,
-		SNssai:       &snssai,
-		// BinaryDataN2Information: []byte{},
+		PduSessionID:        1,
+		SNssai:              &snssai,
 		BinaryDataN1Message: n1msg,
 	})
 

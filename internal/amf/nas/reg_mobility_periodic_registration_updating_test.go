@@ -170,7 +170,7 @@ func TestMobilityReg_GetOperatorInfoError(t *testing.T) {
 
 // A mobility registration update with no 5GMM capability IE is valid: the IE
 // is optional and re-sent only on change (TS 24.501), so the
-// amf.AMF accepts rather than rejecting.
+// amf.AMF accepts it.
 func TestMobilityReg_NilCapability5GMM_Mobility_Continues(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
@@ -197,7 +197,6 @@ func TestMobilityReg_NilCapability5GMM_Periodic_Continues(t *testing.T) {
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	// Should send DownlinkNasTransport with RegistrationAccept (happy path, no UeContextRequest)
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -228,7 +227,6 @@ func TestMobilityReg_UpdateType5GS_ClearsRadioCapability(t *testing.T) {
 		t.Fatalf("expected RadioCapabilityForPaging to be nil")
 	}
 
-	// Should send DownlinkNasTransport with RegistrationAccept
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -246,7 +244,6 @@ func TestMobilityReg_MICOIndication(t *testing.T) {
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	// Should send DownlinkNasTransport with RegistrationAccept
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -261,7 +258,7 @@ func TestMobilityReg_RequestedDRXParameters(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	drxParams := nasType.NewRequestedDRXParameters(nasMessage.RegistrationRequestRequestedDRXParametersType)
-	drxParams.SetDRXValue(0x03) // some DRX value
+	drxParams.SetDRXValue(0x03)
 	ue.Conn().RegistrationRequest.RequestedDRXParameters = drxParams
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
@@ -270,7 +267,6 @@ func TestMobilityReg_RequestedDRXParameters(t *testing.T) {
 		t.Fatalf("expected DRXParameter to be 0x03, got 0x%02x", ue.DRXParameter)
 	}
 
-	// Should send DownlinkNasTransport with RegistrationAccept
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -312,7 +308,6 @@ func TestMobilityReg_EmptyPei_SendsIdentityRequest(t *testing.T) {
 func TestMobilityReg_GetSubscriberProfileError(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	// Override DBInstance with one that returns an error for GetSubscriber
 	amfInstance.DBInstance = &failingSubscriberDB{
 		Operator: &db.Operator{
 			Mcc:           "001",
@@ -379,7 +374,6 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_UeContextRequest(t *testin
 	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
 	setTestUESecurityCapability(ue)
 
-	// Set up PDU session 2
 	snssai := &models.Snssai{Sst: 1}
 
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
@@ -499,7 +493,6 @@ func TestMobilityReg_PDUSessionStatus_InactiveSession_ReleaseSmContext(t *testin
 		t.Fatalf("expected ReleasedSmContext to contain 'ref-2', got %v", fakeSmf.ReleasedSmContext)
 	}
 
-	// Should send DownlinkNasTransport with RegistrationAccept
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -528,7 +521,6 @@ func TestMobilityReg_PDUSessionStatus_ActiveSession_NoRelease(t *testing.T) {
 		t.Fatalf("expected 0 ReleaseSmContext calls, got %d", len(fakeSmf.ReleaseSmContextCalls))
 	}
 
-	// Should send DownlinkNasTransport with RegistrationAccept
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -581,7 +573,6 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 	}
 	ue.Conn().UeContextRequest = false
 
-	// AllowedPDUSessionStatus + N1N2Message with nil N2Info
 	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
 		Len:    2,
 		Buffer: []uint8{0x04, 0x00},
@@ -607,19 +598,16 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 		t.Fatalf("expected 1 DownlinkNASTransport (DLNASTransport for N1), got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	// PDUSessionResourceSetupRequest carries RegistrationAccept
 	nmSetup := decryptAndDecodeNasPdu(t, ue, ngapSender.SentPDUSessionResourceSetupRequest[0].NasPdu, 0)
 	if nmSetup.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
 		t.Fatalf("expected RegistrationAccept in PDUSessionResourceSetupRequest, got %v", nmSetup.GmmHeader.GetMessageType())
 	}
 
-	// DLNASTransport carries DLNASTransport (N1 message)
 	nmDL := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 1)
 	if nmDL.GmmHeader.GetMessageType() != nas.MsgTypeDLNASTransport {
 		t.Fatalf("expected DLNASTransport, got %v", nmDL.GmmHeader.GetMessageType())
 	}
 
-	// N1N2Message should be cleared
 	if ue.Conn().N1N2Message() != nil {
 		t.Fatal("expected N1N2Message to be nil after processing")
 	}
@@ -651,13 +639,11 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 		t.Fatalf("expected 2 DownlinkNASTransport (RegistrationAccept + N1 DLNASTransport), got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	// First DLNASTransport is RegistrationAccept
 	nmAccept := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
 	if nmAccept.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
 		t.Fatalf("expected RegistrationAccept in first DLNASTransport, got %v", nmAccept.GmmHeader.GetMessageType())
 	}
 
-	// Second DLNASTransport is DLNASTransport (N1 message)
 	nmN1 := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[1].NasPdu, 1)
 	if nmN1.GmmHeader.GetMessageType() != nas.MsgTypeDLNASTransport {
 		t.Fatalf("expected DLNASTransport in second DLNASTransport, got %v", nmN1.GmmHeader.GetMessageType())
@@ -712,7 +698,6 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	// The N2Info path appends to suList, then falls through to the final block
 	// UeContextRequest=false + non-empty suList → PDUSessionResourceSetupRequest
 	if len(ngapSender.SentPDUSessionResourceSetupRequest) != 1 {
 		t.Fatalf("expected 1 PDUSessionResourceSetupRequest, got %d", len(ngapSender.SentPDUSessionResourceSetupRequest))
@@ -753,7 +738,6 @@ func TestMobilityReg_NoUeContextRequest_NonEmptySuList(t *testing.T) {
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
-	// UplinkDataStatus with PSI 2
 	ue.Conn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
 		Len:    2,
 		Buffer: []uint8{0x04, 0x00},
@@ -800,7 +784,6 @@ func TestMobilityReg_NoUeContextRequest_EmptySuList_DownlinkNasTransport(t *test
 		t.Fatalf("expected 0 InitialContextSetupRequest, got %d", len(ngapSender.SentInitialContextSetupRequest))
 	}
 
-	// Decode the NAS message to verify it's a RegistrationAccept
 	resp := ngapSender.SentDownlinkNASTransport[0]
 	nm := decryptAndDecodeNasPdu(t, ue, resp.NasPdu, 0)
 
@@ -932,7 +915,6 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	// Verify AllowedNssai was populated with both slices
 	if len(ue.AllowedNssai) != 2 {
 		t.Fatalf("expected 2 allowed NSSAIs, got %d", len(ue.AllowedNssai))
 	}
@@ -945,7 +927,6 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 		t.Fatalf("expected second slice SST=2 SD=aabbcc, got SST=%d SD=%s", ue.AllowedNssai[1].Sst, ue.AllowedNssai[1].Sd)
 	}
 
-	// Verify the RegistrationAccept was sent and contains multi-NSSAI
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}

@@ -46,7 +46,7 @@ func TestNASUplinkReplayRejected(t *testing.T) {
 	}
 
 	// Replaying the identical bytes must not advance the expected count: the
-	// message now estimates to a stale NAS COUNT and fails the integrity check.
+	// replay estimates to a stale NAS COUNT and fails the integrity check.
 	HandleNAS(m, context.Background(), ue.Conn(), msg)
 
 	if ue.ULCount() != 1 {

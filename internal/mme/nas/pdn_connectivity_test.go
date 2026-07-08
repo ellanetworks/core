@@ -133,7 +133,6 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatalf("E-RAB Setup Request malformed: %+v", req)
 	}
 
-	// eNB answers with the established radio leg.
 	tla, err := models.EncodeTransportLayerAddress(netip.MustParseAddr("10.31.0.9"), netip.Addr{})
 	if err != nil {
 		t.Fatal(err)
@@ -166,7 +165,6 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal("ModifyEPSSession not called for the second PDN")
 	}
 
-	// UE accepts the default bearer of the second PDN.
 	acc, err := (&eps.ActivateDefaultEPSBearerContextAccept{EPSBearerIdentity: 6, ProcedureTransactionIdentity: 2}).Marshal()
 	if err != nil {
 		t.Fatal(err)
@@ -174,7 +172,6 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 
 	handleActivateDefaultBearerAccept(m, ue, acc)
 
-	// UE disconnects the second PDN.
 	dis, err := (&eps.PDNDisconnectRequest{ProcedureTransactionIdentity: 3, LinkedEPSBearerIdentity: 6}).Marshal()
 	if err != nil {
 		t.Fatal(err)
@@ -201,7 +198,6 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatalf("E-RAB Release Command malformed: %+v", relCmd)
 	}
 
-	// The eNB confirms the release; then the UE accepts the deactivation.
 	relResp := &s1ap.ERABReleaseResponse{
 		MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID,
 		ERABReleased: []s1ap.ERABReleaseItemBearerRelComp{{ERABID: 6}},

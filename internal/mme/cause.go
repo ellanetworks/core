@@ -49,6 +49,7 @@ const (
 	EmmCauseSynchFailure           uint8 = 21
 	EmmCauseUESecCapsMismatch      uint8 = 23
 	EmmCauseNonEPSAuthUnacceptable uint8 = 26
+	EmmCauseInvalidMandatoryInfo   uint8 = 96
 	EmmCauseMessageTypeNonExistent uint8 = 97
 	EmmCauseProtocolErrorUnspec    uint8 = 111
 )

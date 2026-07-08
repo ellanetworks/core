@@ -18,7 +18,6 @@ func TestSessionReconciler_StartStop(t *testing.T) {
 	r.Stop()
 	r.Stop() // safe when already stopped
 
-	// Restartable after Stop.
 	r.Start()
 	r.Stop()
 }

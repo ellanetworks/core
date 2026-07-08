@@ -747,10 +747,6 @@ func TestCreateSmContext_ReplacesExistingSession(t *testing.T) {
 	}
 }
 
-// CreateSmContext/ReleaseSmContext BGP-announcement tests were removed
-// when the SMF→BGP coupling was deleted. Route announce/withdraw is now
-// driven by the BGP reconciler reading the replicated ip_leases table.
-
 func TestReleaseSmContext_NilPDUAddress_SkipsIPRelease(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -1388,7 +1384,6 @@ func TestReconcileSmContext_SliceMismatchFullCleanup(t *testing.T) {
 		t.Fatalf("ReconcileSmContext failed: %v", err)
 	}
 
-	// AMF release signaling should have been sent.
 	amfCb.mu.Lock()
 	releaseCalls := len(amfCb.releaseCalls)
 	amfCb.mu.Unlock()
@@ -1415,7 +1410,6 @@ func TestReconcileSmContext_SliceMismatchFullCleanup(t *testing.T) {
 		t.Fatalf("UpdateSmContextN2InfoPduResRelRsp failed: %v", err)
 	}
 
-	// The release is confirmed: IP released, PFCP session deleted, session removed.
 	store.mu.Lock()
 	releasedIPs := len(store.releasedIPs)
 	store.mu.Unlock()
@@ -1460,7 +1454,6 @@ func TestReconcileSmContext_ModifyIdleUE_CommitsPolicy(t *testing.T) {
 		t.Fatalf("ReconcileSmContext should succeed for idle UE, got: %v", err)
 	}
 
-	// PFCP should still have been updated.
 	upf.mu.Lock()
 	pfcpModifyCalls := len(upf.modifyCalls)
 	upf.mu.Unlock()
@@ -1501,7 +1494,6 @@ func TestReconcileSmContext_ReleaseIdleUE_RemovesSession(t *testing.T) {
 		t.Fatal("expected session to be removed after idle-UE slice-mismatch release")
 	}
 
-	// IP should still have been released.
 	store.mu.Lock()
 	releasedIPs := len(store.releasedIPs)
 	store.mu.Unlock()
@@ -1510,7 +1502,6 @@ func TestReconcileSmContext_ReleaseIdleUE_RemovesSession(t *testing.T) {
 		t.Fatal("expected IP release during idle-UE release")
 	}
 
-	// PFCP session should still have been deleted.
 	upf.mu.Lock()
 	deleteCalls := len(upf.deleteCalls)
 	upf.mu.Unlock()
@@ -1553,7 +1544,6 @@ func TestReconcileSmContext_DNSChange(t *testing.T) {
 	}
 	upf.mu.Unlock()
 
-	// AMF ModifyN1N2 should have been called with DNS in PCO.
 	amfCb.mu.Lock()
 	if len(amfCb.modifyCalls) != 1 {
 		amfCb.mu.Unlock()
@@ -1572,7 +1562,6 @@ func TestReconcileSmContext_DNSChange(t *testing.T) {
 
 	n1Payload := modificationSMPayload(t, call.n1Msg)
 
-	// Decode and verify Extended PCO contains DNS server IE.
 	msg := nas.NewMessage()
 	if err := msg.PlainNasDecode(&n1Payload); err != nil {
 		t.Fatalf("decode N1 modification command: %v", err)
@@ -1617,7 +1606,7 @@ func TestReconcileSmContext_DNSChange(t *testing.T) {
 }
 
 // TestReconcileSmContext_InvalidDNS verifies that an invalid DNS address in the
-// new policy is rejected with an error rather than silently producing a nil IP.
+// new policy is rejected with an error.
 func TestReconcileSmContext_InvalidDNS(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -1640,7 +1629,6 @@ func TestReconcileSmContext_InvalidDNS(t *testing.T) {
 		t.Fatal("expected error for invalid DNS address, got nil")
 	}
 
-	// No PFCP or AMF calls should have been made.
 	upf.mu.Lock()
 	if len(upf.modifyCalls) != 0 {
 		upf.mu.Unlock()
@@ -1814,7 +1802,6 @@ func TestReconcileSmContext_DNSUnchanged(t *testing.T) {
 		t.Fatalf("ReconcileSmContext failed: %v", err)
 	}
 
-	// No session modification should be called when nothing changed.
 	amfCb.mu.Lock()
 	modifyCalls := len(amfCb.modifyCalls)
 	amfCb.mu.Unlock()
@@ -2150,7 +2137,6 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_HappyPath(t *testing.T) {
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
-	// Build N2 payload: gNB reports its DL tunnel endpoint.
 	gnbIP := net.ParseIP("10.0.0.200").To4()
 	gnbTEID := uint32(7000)
 
@@ -2164,7 +2150,6 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_HappyPath(t *testing.T) {
 		t.Fatalf("UpdateSmContextN2InfoPduResSetupRsp: %v", err)
 	}
 
-	// Verify the session's ANInformation was updated.
 	if !smCtx.Tunnel.ANInformation.IPv4Address.Equal(gnbIP) {
 		t.Fatalf("expected AN IP %s, got %s", gnbIP, smCtx.Tunnel.ANInformation.IPv4Address)
 	}
@@ -2173,7 +2158,6 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_HappyPath(t *testing.T) {
 		t.Fatalf("expected AN TEID %d, got %d", gnbTEID, smCtx.Tunnel.ANInformation.TEID)
 	}
 
-	// Verify DL FAR was updated with the gNB's outer header creation.
 	dlFAR := smCtx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR
 	if dlFAR.ForwardingParameters == nil || dlFAR.ForwardingParameters.OuterHeaderCreation == nil {
 		t.Fatal("expected DL FAR outer header creation to be set")
@@ -2187,7 +2171,6 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_HappyPath(t *testing.T) {
 		t.Fatalf("expected DL FAR IP %s, got %s", gnbIP, dlFAR.ForwardingParameters.OuterHeaderCreation.IPv4Address)
 	}
 
-	// Verify a PFCP modification was sent.
 	upf.mu.Lock()
 	defer upf.mu.Unlock()
 
@@ -2207,7 +2190,6 @@ func TestUpdateSmContextXnHandoverPathSwitchReq_HappyPath(t *testing.T) {
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
-	// Build N2 payload: target gNB reports its DL tunnel endpoint.
 	targetGnbIP := net.ParseIP("10.0.0.201").To4()
 	targetTEID := uint32(8000)
 
@@ -2221,12 +2203,10 @@ func TestUpdateSmContextXnHandoverPathSwitchReq_HappyPath(t *testing.T) {
 		t.Fatalf("UpdateSmContextXnHandoverPathSwitchReq: %v", err)
 	}
 
-	// Verify the N2 response (PathSwitchRequestAcknowledgeTransfer) is non-nil.
 	if n2Rsp == nil {
 		t.Fatal("expected non-nil N2 response")
 	}
 
-	// Verify the session's ANInformation was updated to the target gNB.
 	if !smCtx.Tunnel.ANInformation.IPv4Address.Equal(targetGnbIP) {
 		t.Fatalf("expected AN IP %s, got %s", targetGnbIP, smCtx.Tunnel.ANInformation.IPv4Address)
 	}
@@ -2235,7 +2215,6 @@ func TestUpdateSmContextXnHandoverPathSwitchReq_HappyPath(t *testing.T) {
 		t.Fatalf("expected AN TEID %d, got %d", targetTEID, smCtx.Tunnel.ANInformation.TEID)
 	}
 
-	// Verify DL FAR was updated to forward to the target gNB.
 	dlFAR := smCtx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR
 	if dlFAR.ForwardingParameters == nil || dlFAR.ForwardingParameters.OuterHeaderCreation == nil {
 		t.Fatal("expected DL FAR outer header creation to be set")
@@ -2249,7 +2228,6 @@ func TestUpdateSmContextXnHandoverPathSwitchReq_HappyPath(t *testing.T) {
 		t.Fatalf("expected DL FAR IP %s, got %s", targetGnbIP, dlFAR.ForwardingParameters.OuterHeaderCreation.IPv4Address)
 	}
 
-	// Verify a PFCP modification was sent.
 	upf.mu.Lock()
 	defer upf.mu.Unlock()
 
@@ -2315,7 +2293,6 @@ func TestUpdateSmContextN2HandoverPrepared_Complete(t *testing.T) {
 		t.Fatalf("expected AN TEID %d, got %d", targetTEID, smCtx.Tunnel.ANInformation.TEID)
 	}
 
-	// Verify DL FAR was updated in memory.
 	dlFAR := smCtx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR
 	if dlFAR.ForwardingParameters == nil || dlFAR.ForwardingParameters.OuterHeaderCreation == nil {
 		t.Fatal("expected DL FAR outer header creation to be set")
@@ -2343,7 +2320,6 @@ func TestUpdateSmContextN2HandoverPrepared_Complete(t *testing.T) {
 		t.Fatalf("UpdateSmContextN2HandoverComplete: %v", err)
 	}
 
-	// Verify the SMF sent exactly one PFCP modification to the UPF during completion.
 	upf.mu.Lock()
 	defer upf.mu.Unlock()
 

@@ -74,7 +74,6 @@ func TestBuildNGSetupResponse_MultipleSlices(t *testing.T) {
 		t.Fatal("expected NGSetupResponse, got nil")
 	}
 
-	// Find PLMNSupportList IE
 	var plmnSupportList *ngapType.PLMNSupportList
 
 	for _, ie := range resp.ProtocolIEs.List {
@@ -130,7 +129,6 @@ func TestBuildInitialContextSetupRequest_MultipleAllowedNSSAI(t *testing.T) {
 
 	icsr := pdu.InitiatingMessage.Value.InitialContextSetupRequest
 
-	// Find AllowedNSSAI IE
 	var allowedNSSAI *ngapType.AllowedNSSAI
 
 	for _, ie := range icsr.ProtocolIEs.List {

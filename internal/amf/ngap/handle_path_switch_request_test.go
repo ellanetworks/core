@@ -241,7 +241,6 @@ func TestPathSwitchRequest_NilUeContext(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	// Should send failure because UeContext is nil
 	if len(targetNGAPSender.SentPathSwitchRequestFailures) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestFailure, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestFailures))
@@ -294,7 +293,6 @@ func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	// Should send failure because security context is not valid
 	if len(targetNGAPSender.SentPathSwitchRequestFailures) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestFailure, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestFailures))
@@ -347,7 +345,6 @@ func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	// No PDU sessions could be switched; should send failure
 	if len(fakeSmf.PathSwitchCalls) != 0 {
 		t.Fatalf("expected no SMF calls, got %d", len(fakeSmf.PathSwitchCalls))
 	}
@@ -420,7 +417,6 @@ func TestPathSwitchRequest_SmfReturnsError(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	// SMF call should have been made
 	if len(fakeSmf.PathSwitchCalls) != 1 {
 		t.Fatalf("expected 1 SMF PathSwitch call, got %d", len(fakeSmf.PathSwitchCalls))
 	}
@@ -429,7 +425,6 @@ func TestPathSwitchRequest_SmfReturnsError(t *testing.T) {
 		t.Errorf("expected SmContextRef=imsi-001010000000001-1, got %s", fakeSmf.PathSwitchCalls[0].SmContextRef)
 	}
 
-	// All PDU sessions failed -> should send PathSwitchRequestFailure
 	if len(targetNGAPSender.SentPathSwitchRequestFailures) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestFailure, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestFailures))
@@ -502,7 +497,6 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	// Verify SMF was called
 	if len(fakeSmf.PathSwitchCalls) != 1 {
 		t.Fatalf("expected 1 SMF PathSwitch call, got %d", len(fakeSmf.PathSwitchCalls))
 	}
@@ -511,7 +505,6 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 		t.Errorf("expected SmContextRef=imsi-001010000000001-1, got %s", fakeSmf.PathSwitchCalls[0].SmContextRef)
 	}
 
-	// Verify PathSwitchRequestAcknowledge was sent
 	if len(targetNGAPSender.SentPathSwitchRequestAcknowledges) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestAcknowledge, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestAcknowledges))
@@ -531,7 +524,6 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 		t.Error("expected NCC > 0 after advancing the NH chain")
 	}
 
-	// Verify the PDU session switched list contains the session
 	if len(ack.PDUSessionResourceSwitchedList.List) != 1 {
 		t.Fatalf("expected 1 switched PDU session, got %d", len(ack.PDUSessionResourceSwitchedList.List))
 	}
@@ -540,7 +532,6 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 		t.Errorf("expected PDU session ID %d, got %d", pduSessionID, ack.PDUSessionResourceSwitchedList.List[0].PDUSessionID.Value)
 	}
 
-	// Verify the RAN UE was switched to the new RAN
 	if sourceUe.Radio() != targetRan {
 		t.Error("expected UeConn to be switched to targetRan")
 	}
@@ -549,7 +540,6 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 		t.Errorf("expected RanUeNgapID=%d, got %d", targetRanUeNgapID, sourceUe.RanUeNgapID)
 	}
 
-	// No failures should be sent
 	if len(targetNGAPSender.SentPathSwitchRequestFailures) != 0 {
 		t.Fatalf("expected no PathSwitchRequestFailure, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestFailures))
@@ -789,12 +779,11 @@ func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	// Only session 1 should succeed
 	if len(fakeSmf.PathSwitchCalls) != 1 {
 		t.Fatalf("expected 1 SMF PathSwitch call, got %d", len(fakeSmf.PathSwitchCalls))
 	}
 
-	// Should still send acknowledge (at least one session succeeded)
+	// A path switch with at least one switched session is acknowledged, not failed.
 	if len(targetNGAPSender.SentPathSwitchRequestAcknowledges) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestAcknowledge, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestAcknowledges))
@@ -851,7 +840,6 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 		t.Fatalf("failed to build transfer: %v", err)
 	}
 
-	// Build a failed transfer
 	failedTransfer := ngapType.PathSwitchRequestSetupFailedTransfer{
 		Cause: ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
@@ -890,12 +878,10 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	// Path switch succeeded for session 1
 	if len(fakeSmf.PathSwitchCalls) != 1 {
 		t.Fatalf("expected 1 PathSwitch call, got %d", len(fakeSmf.PathSwitchCalls))
 	}
 
-	// Handover failed reported for session 2
 	if len(fakeSmf.HandoverFailedCalls) != 1 {
 		t.Fatalf("expected 1 HandoverFailed call, got %d", len(fakeSmf.HandoverFailedCalls))
 	}
@@ -904,7 +890,6 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 		t.Errorf("expected SmContextRef=imsi-001010000000001-2, got %s", fakeSmf.HandoverFailedCalls[0].SmContextRef)
 	}
 
-	// Should send acknowledge
 	if len(targetNGAPSender.SentPathSwitchRequestAcknowledges) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestAcknowledge, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestAcknowledges))

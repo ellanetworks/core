@@ -88,7 +88,6 @@ func buildHandoverRequired(opts *HandoverRequiredOpts) (ngapType.NGAPPDU, error)
 	handoverRequired := initiatingMessage.Value.HandoverRequired
 	handoverRequiredIEs := &handoverRequired.ProtocolIEs
 
-	// AMF UE NGAP ID
 	ie := ngapType.HandoverRequiredIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
 	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -97,7 +96,6 @@ func buildHandoverRequired(opts *HandoverRequiredOpts) (ngapType.NGAPPDU, error)
 	ie.Value.AMFUENGAPID.Value = opts.AMFUENGAPID.Value
 	handoverRequiredIEs.List = append(handoverRequiredIEs.List, ie)
 
-	// RAN UE NGAP ID
 	ie = ngapType.HandoverRequiredIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
 	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -106,7 +104,6 @@ func buildHandoverRequired(opts *HandoverRequiredOpts) (ngapType.NGAPPDU, error)
 	ie.Value.RANUENGAPID.Value = opts.RANUENGAPID.Value
 	handoverRequiredIEs.List = append(handoverRequiredIEs.List, ie)
 
-	// HandoverType
 	ie = ngapType.HandoverRequiredIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDHandoverType
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -115,7 +112,6 @@ func buildHandoverRequired(opts *HandoverRequiredOpts) (ngapType.NGAPPDU, error)
 	ie.Value.HandoverType.Value = ngapType.HandoverTypePresentIntra5gs
 	handoverRequiredIEs.List = append(handoverRequiredIEs.List, ie)
 
-	// Cause
 	ie = ngapType.HandoverRequiredIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDCause
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -126,7 +122,6 @@ func buildHandoverRequired(opts *HandoverRequiredOpts) (ngapType.NGAPPDU, error)
 	ie.Value.Cause.RadioNetwork.Value = ngapType.CauseRadioNetworkPresentHandoverDesirableForRadioReason
 	handoverRequiredIEs.List = append(handoverRequiredIEs.List, ie)
 
-	// TargetID
 	if opts.TargetID != nil {
 		ie = ngapType.HandoverRequiredIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDTargetID
@@ -136,7 +131,6 @@ func buildHandoverRequired(opts *HandoverRequiredOpts) (ngapType.NGAPPDU, error)
 		handoverRequiredIEs.List = append(handoverRequiredIEs.List, ie)
 	}
 
-	// PDUSessionResourceListHORqd
 	if opts.PDUSessionResourceListHORqd != nil {
 		ie = ngapType.HandoverRequiredIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceListHORqd
@@ -146,7 +140,6 @@ func buildHandoverRequired(opts *HandoverRequiredOpts) (ngapType.NGAPPDU, error)
 		handoverRequiredIEs.List = append(handoverRequiredIEs.List, ie)
 	}
 
-	// SourceToTargetTransparentContainer
 	if opts.SourceToTargetTransparentContainer != nil {
 		ie = ngapType.HandoverRequiredIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDSourceToTargetTransparentContainer
@@ -170,7 +163,7 @@ func TestHandoverRequired(t *testing.T) {
 
 	supi, _ := etsi.NewSUPIFromPrefixed(supiStr)
 
-	// Encode a minimal HandoverRequiredTransfer (all optional fields)
+	// HandoverRequiredTransfer fields are all optional, so an empty value is valid.
 	hoRequiredTransfer := ngapType.HandoverRequiredTransfer{}
 
 	hoRequiredTransferBytes, err := aper.MarshalWithParams(hoRequiredTransfer, "valueExt")
@@ -178,7 +171,6 @@ func TestHandoverRequired(t *testing.T) {
 		t.Fatalf("failed to marshal HandoverRequiredTransfer: %v", err)
 	}
 
-	// Build TargetID pointing to target gNB
 	plmnID, err := getMccAndMncInOctets("001", "01")
 	if err != nil {
 		t.Fatalf("failed to get PLMN ID octets: %v", err)
@@ -205,7 +197,6 @@ func TestHandoverRequired(t *testing.T) {
 		},
 	}
 
-	// Build PDUSessionResourceListHORqd with one session
 	pduSessionList := &ngapType.PDUSessionResourceListHORqd{
 		List: []ngapType.PDUSessionResourceItemHORqd{
 			{
@@ -215,12 +206,11 @@ func TestHandoverRequired(t *testing.T) {
 		},
 	}
 
-	// Build SourceToTargetTransparentContainer (opaque, passed through)
+	// SourceToTargetTransparentContainer is opaque and passed through unchanged.
 	sourceToTargetContainer := &ngapType.SourceToTargetTransparentContainer{
 		Value: []byte{0x01, 0x02, 0x03},
 	}
 
-	// Build the HandoverRequired NGAP message
 	msg, err := buildHandoverRequired(&HandoverRequiredOpts{
 		AMFUENGAPID:                        ngapType.AMFUENGAPID{Value: 1},
 		RANUENGAPID:                        ngapType.RANUENGAPID{Value: 1},
@@ -232,7 +222,6 @@ func TestHandoverRequired(t *testing.T) {
 		t.Fatalf("failed to build HandoverRequired: %v", err)
 	}
 
-	// Initialize SMF context with a matching SM context
 	smfInstance := smf.New(nil, nil, nil, nil)
 
 	smCtx := smfInstance.NewSession(supi, pduSessionID, dnn, &models.Snssai{Sst: 1})
@@ -254,7 +243,6 @@ func TestHandoverRequired(t *testing.T) {
 		},
 	}
 
-	// Set up the UeContext with valid security context
 	amfUe := amf.NewUeContext()
 	amfUe.SetSupiForTest(supi)
 	amfUe.SetSecuredForTest(true)
@@ -271,7 +259,6 @@ func TestHandoverRequired(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	// Set up source RAN and source UE
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
 		Log:  logger.AmfLog,
@@ -287,7 +274,7 @@ func TestHandoverRequired(t *testing.T) {
 	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
 	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
-	// Set up target RAN with matching GNB ID
+	// Target RAN's GNB ID matches the HandoverRequired TargetID, so the AMF routes to it.
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
 		Log:        logger.AmfLog,
@@ -301,12 +288,10 @@ func TestHandoverRequired(t *testing.T) {
 		},
 	}
 
-	// Set up AMF with target RAN in radios map
 	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
 
 	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, decodeHandoverRequiredOrFatal(t, msg.InitiatingMessage.Value.HandoverRequired))
 
-	// Verify a HandoverRequest was sent to the target gNB
 	if len(targetNGAPSender.SentHandoverRequests) != 1 {
 		t.Fatalf("expected 1 HandoverRequest to target gNB, got %d", len(targetNGAPSender.SentHandoverRequests))
 	}
@@ -439,7 +424,6 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 		t.Fatalf("failed to build HandoverRequired: %v", err)
 	}
 
-	// Create UeContext with invalid security context
 	amfUe := amf.NewUeContext()
 	amfUe.SetSecuredForTest(false)
 

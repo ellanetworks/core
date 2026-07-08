@@ -11,14 +11,9 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// TestNonAttachInitialUEMessageCreatesNoContext checks that an Initial UE Message
-// whose NAS is not an Attach Request binds no UE context and leaves no connection
-// behind (its bare connection is released), so an unauthenticated peer cannot
-// exhaust contexts (TS 24.301).
 // TestHandleParseError_EmitsErrorIndication asserts that an undecodable
 // UE-associated S1AP message draws an ERROR INDICATION carrying Criticality
-// Diagnostics that name the procedure (TS 36.413 §10.4) instead of being silently
-// dropped, mirroring the 5G AMF's fatal-decode response.
+// Diagnostics that name the procedure (TS 36.413 §10.4).
 func TestHandleParseError_EmitsErrorIndication(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
@@ -49,6 +44,10 @@ func TestHandleParseError_EmitsErrorIndication(t *testing.T) {
 	}
 }
 
+// TestNonAttachInitialUEMessageCreatesNoContext checks that an Initial UE Message
+// whose NAS is not an Attach Request binds no UE context and leaves no connection
+// behind (its bare connection is released), so an unauthenticated peer cannot
+// exhaust contexts (TS 24.301).
 func TestNonAttachInitialUEMessageCreatesNoContext(t *testing.T) {
 	m := newTestMME(t)
 

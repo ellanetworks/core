@@ -58,7 +58,7 @@ func TestKeyChainMutualExclusion_SecurityModeVsHandover(t *testing.T) {
 	// SECURITY MODE COMPLETE (or connection release) frees the chain.
 	m.ClearKeyChainBusy(ue)
 
-	// A Path Switch now proceeds — and itself claims the chain.
+	// With the chain free, a Path Switch proceeds and itself claims it.
 	if _, _, _, ok := m.BeginPathSwitch(ue); !ok {
 		t.Fatal("Path Switch refused after the key chain was released")
 	}

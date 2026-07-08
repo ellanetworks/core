@@ -15,7 +15,7 @@ import (
 
 // TestInitialUEMessageResumeMacFailedTAURejects verifies that a resume TRACKING
 // AREA UPDATE whose integrity check fails is rejected with EMM cause #9 so the UE
-// re-attaches at once, rather than being silently dropped (TS 24.301 §5.5.3.2.5).
+// re-attaches at once (TS 24.301 §5.5.3.2.5).
 func TestInitialUEMessageResumeMacFailedTAURejects(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
