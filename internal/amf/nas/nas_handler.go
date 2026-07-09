@@ -53,19 +53,22 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 	if ue.UeContext() == nil {
 		amfUe, err := fetchUeContextWithMobileIdentity(ctx, amfInstance, nasPdu)
 		if err != nil {
+			// The first message could not be decoded to a resolvable identity. Classify the
+			// raw PDU so the finalizer answers the STATUS the spec mandates (§7.4 / §7.5.1)
+			// rather than dropping it. No secure exchange exists on a fresh connection, so
+			// §4.4.4.3's silent discard does not apply here.
 			logger.From(ctx, logger.AmfLog).Warn("failed to resolve UE context from mobile identity", zap.Error(err))
-			return amf.DispositionForDecodeError(err)
+			return dispositionForUnresolved(nasPdu)
 		}
 
 		if amfUe == nil {
 			// Mint a context only for an initial REGISTRATION REQUEST — the only message
 			// that establishes a fresh context. This keeps minting reserved to registration
 			// so an unauthenticated peer cannot leak a context per message. Any other message
-			// cites a context that was not found; the network cannot act on it and answers
-			// nothing (§7.4). A connection left bare here is released by the NGAP layer.
+			// resolved no context; it cannot be processed, but a message the network can still
+			// classify draws a STATUS (§7.4 / §7.5.1) rather than a silent drop.
 			if !isRegistrationRequest(nasPdu) {
-				logger.From(ctx, logger.AmfLog).Debug("initial NAS message is not a registration request; leaving the connection bare")
-				return nasreply.Silent(nasreply.ReasonNoContext)
+				return dispositionForUnresolved(nasPdu)
 			}
 
 			amfUe = amf.NewUeContext()
@@ -113,6 +116,45 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 	)
 
 	return HandleGmmMessage(ctx, amfInstance, ue.UeContext(), msg.GmmMessage, integrityVerified)
+}
+
+// dispositionForUnresolved classifies a fresh-connection NAS PDU that established or resolved
+// no 5GMM context, so the finalizer answers the STATUS the spec mandates instead of a bare
+// drop: a decodable 5GMM message whose body is malformed → 5GMM STATUS #96 (§7.5.1); a
+// non-5GMM, ciphered-without-context, or well-formed-but-unactionable message → 5GMM STATUS
+// #97 (§7.4); a PDU too short to carry a message type → an audited silence (§7.2.1). A fresh
+// connection has no secure exchange, so §4.4.4.3's silent discard does not apply — but the
+// message is never *processed*, only answered, so an unauthenticated peer gains nothing.
+func dispositionForUnresolved(nasPdu []byte) nasreply.Disposition {
+	if len(nasPdu) < 3 {
+		return nasreply.Silent(nasreply.ReasonTooShort)
+	}
+
+	if nasPdu[0] != nasMessage.Epd5GSMobilityManagementMessage {
+		return nasreply.StatusMM(nasreply.CauseMessageTypeNotImplemented)
+	}
+
+	body := nasPdu
+
+	switch nas.GetSecurityHeaderType(nasPdu) & 0x0f {
+	case nas.SecurityHeaderTypePlainNas:
+	case nas.SecurityHeaderTypeIntegrityProtected:
+		if len(nasPdu) < 8 {
+			return nasreply.Silent(nasreply.ReasonTooShort)
+		}
+
+		body = nasPdu[7:]
+	default:
+		// Ciphered: with no context the AMF cannot decrypt or classify the body.
+		return nasreply.StatusMM(nasreply.CauseMessageTypeNotImplemented)
+	}
+
+	msg := new(nas.Message)
+	if err := msg.PlainNasDecode(&body); err != nil {
+		return nasreply.StatusMM(nasreply.CauseInvalidMandatoryInfo)
+	}
+
+	return nasreply.StatusMM(nasreply.CauseMessageTypeNotImplemented)
 }
 
 // isRegistrationRequest reports whether a fresh connection's first NAS message is a

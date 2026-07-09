@@ -69,9 +69,17 @@ func DecodeNASMessage(ue *UeContext, payload []byte) (*DecodeResult, error) {
 	conn := ue.Conn()
 
 	if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
-		// TS 24.501: once secure NAS exchange is established for the
-		// connection, a message that is not integrity protected is discarded.
 		if conn.SecureExchangeEstablished() {
+			// TS 24.501 §4.4.4.3: a plain message received after secure exchange is
+			// discarded — but only a real, decodable NAS message (a genuine integrity
+			// violation). A plain PDU that does not decode to a valid message is a protocol
+			// error, answered with a 5GMM STATUS #111 (§7), not silently ignored. Neither
+			// path processes the message, so integrity protection is not weakened.
+			probe := new(nas.Message)
+			if p := payload; probe.PlainNasDecode(&p) != nil {
+				return nil, statusDecode(nasreply.CauseProtocolErrorUnspecified, "undecodable plain NAS after secure exchange")
+			}
+
 			return nil, silentDecode(nasreply.ReasonIntegrityFail, "plain NAS discarded: secure exchange established (TS 24.501 §4.4.4.3)")
 		}
 
@@ -185,7 +193,10 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *U
 
 		cnt = 0
 	default:
-		return nil, silentDecode(nasreply.ReasonUnspecified, "wrong security header type: 0x%0x", msg.SecurityHeaderType)
+		// A reserved/unrecognized security header type is not a valid NAS message: a protocol
+		// error answered with a 5GMM STATUS #111 (§7), not silently ignored. The message is
+		// never processed, so integrity protection is not weakened.
+		return nil, statusDecode(nasreply.CauseProtocolErrorUnspecified, "wrong security header type: 0x%0x", msg.SecurityHeaderType)
 	}
 
 	cnt = cnt.ReconcileUplink(sequenceNumber)

@@ -33,7 +33,10 @@ func dispositionForNAS(m *mme.MME, ctx context.Context, conn *mme.UeConn, nas []
 		// cannot exhaust UE contexts. A connection left bare here is released by the
 		// S1AP layer.
 		if !isInitialAttach(nas) {
-			return nasreply.Silent(nasreply.ReasonNoContext)
+			// A first message that is not an ATTACH REQUEST resolved no context and cannot be
+			// processed, but a message the MME can still classify draws an EMM STATUS
+			// (TS 24.301 §7.4 / §7.5.1) rather than a silent drop.
+			return dispositionForUnresolved(nas)
 		}
 
 		ue = mme.NewUeContext()
@@ -127,6 +130,45 @@ func HandleEmmMessage(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain 
 
 		return nasreply.StatusMM(nasreply.CauseMessageTypeNotImplemented)
 	}
+}
+
+// dispositionForUnresolved classifies a fresh-connection EPS NAS PDU that resolved no EMM
+// context, so the finalizer answers the STATUS the spec mandates (TS 24.301 §7.4 / §7.5.1)
+// instead of a bare drop: a decodable EMM message whose type cannot be read → EMM STATUS #96
+// (§7.5.1); a non-EMM, ciphered-without-context, or unactionable message → EMM STATUS #97
+// (§7.4); a PDU too short to carry a message type → an audited silence (§7.2.1). A fresh
+// connection has no secure exchange, so §4.4.4.3's silent discard does not apply — the
+// message is never processed, only answered, so an unauthenticated peer gains nothing.
+func dispositionForUnresolved(nas []byte) nasreply.Disposition {
+	pd, err := eps.ProtocolDiscriminator(nas)
+	if err != nil {
+		return nasreply.Silent(nasreply.ReasonTooShort)
+	}
+
+	if pd != eps.PDEMM {
+		return nasreply.StatusMM(nasreply.CauseMessageTypeNotImplemented)
+	}
+
+	body := nas
+
+	switch nas[0] >> 4 {
+	case uint8(eps.SHTPlain):
+	case uint8(eps.SHTIntegrityProtected), uint8(eps.SHTIntegrityProtectedNewContext):
+		if len(nas) < 6 {
+			return nasreply.Silent(nasreply.ReasonTooShort)
+		}
+
+		body = nas[6:]
+	default:
+		// Ciphered/reserved: with no context the MME cannot decrypt or classify the body.
+		return nasreply.StatusMM(nasreply.CauseMessageTypeNotImplemented)
+	}
+
+	if _, err := eps.PeekMessageType(body); err != nil {
+		return nasreply.StatusMM(nasreply.CauseInvalidMandatoryInfo)
+	}
+
+	return nasreply.StatusMM(nasreply.CauseMessageTypeNotImplemented)
 }
 
 // isInitialAttach reports whether a fresh connection's first NAS message is an
