@@ -175,8 +175,8 @@ func (ue *UeContext) ForceRegStepForTest(step RegStep) {
 }
 
 // ForceStateForTest sets the EMM state directly, bypassing transition validation,
-// for test precondition setup. It resets the coupled registration sub-phase, like a
-// real transition, so a forced state never leaves a stale regStep.
+// for test precondition setup. It resets the coupled registration sub-phase, as a real
+// transition does, so a forced state leaves no stale regStep.
 func (ue *UeContext) ForceStateForTest(s EMMState) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

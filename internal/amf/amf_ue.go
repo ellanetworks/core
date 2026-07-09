@@ -266,12 +266,9 @@ func (a *AMF) AttachUeConn(ue *UeContext, ueConn *UeConn) {
 	}
 }
 
-// AllocateRegistrationArea assigns the UE's registered tracking area: the network's
-// served TAIs. TS 23.501 §5.3.4 lets the AMF allocate up to the whole served area, and
-// the served set always contains the UE's serving TAI (the RAN advertises only served
-// TAIs at NG Setup). This registers every UE in the served area (single registration
-// area), matching the MME; narrowing to ue.Tai would be a paging-load policy, not a
-// spec requirement, and is a no-op under a single served TAC.
+// AllocateRegistrationArea assigns the UE's registered tracking area: the whole served
+// area as a single registration area, which TS 23.501 §5.3.4 permits (the AMF may allocate
+// up to the served area, which always contains the UE's serving TAI).
 func (ue *UeContext) AllocateRegistrationArea(supportedTais []models.Tai) {
 	ue.RegistrationArea = append([]models.Tai(nil), supportedTais...)
 }
@@ -290,9 +287,8 @@ func (ue *UeContext) SecurityContextIsValid() bool {
 	return ue.secured && ue.ngKsi.Ksi != nasMessage.NasKeySetIdentifierNoKeyIsAvailable
 }
 
-// TouchLastSeen updates the UE's last-seen timestamp lock-free — it is on the uplink
-// hot path (every UE-specific NGAP message). The radio a UE is on is derived from its
-// live connection (an idle UE is not on any radio); it is not tracked historically.
+// TouchLastSeen updates the UE's last-seen timestamp lock-free — it is on the uplink hot
+// path (every UE-specific NGAP message).
 func (ue *UeContext) TouchLastSeen() {
 	ue.lastSeen.Store(time.Now().UnixNano())
 }
@@ -313,10 +309,8 @@ func (ue *UeContext) SetLastSeenForTest(t time.Time) {
 	ue.lastSeen.Store(t.UnixNano())
 }
 
-// UESnapshot is a read-only, point-in-time copy of the UE's identity and NAS
-// security state. It is safe to use from any goroutine without holding AMF or UE
-// locks. The registration state and the live radio are surfaced by LookupSubscriber,
-// not carried here.
+// UESnapshot is a read-only, point-in-time copy of the UE's identity and NAS security
+// state, safe to use from any goroutine without holding AMF or UE locks.
 type UESnapshot struct {
 	Imei               string
 	LastSeenAt         time.Time

@@ -262,8 +262,7 @@ func (amf *AMF) LookupSubscriber(supi etsi.SUPI) (UESnapshot, string, []PDUSessi
 
 	snap := ue.Snapshot()
 
-	// The radio is the UE's live connection (an idle UE reports none), derived here
-	// rather than persisted historically.
+	// The radio is the UE's live connection (an idle UE reports none).
 	radioName := ""
 	if conn := ue.Conn(); conn != nil {
 		radioName = conn.radioName

@@ -39,10 +39,9 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	amfUe := sourceUe.UeContext()
 
-	// A committing handover (HANDOVER NOTIFY already in flight) is too late to cancel:
-	// CancelHandover leaves it for the NOTIFY to finish and reports aborted=false, so
-	// the target the UE is moving onto is not released out from under it. Only a
-	// cancellable handover ends the procedure and releases a prepared target.
+	// A committing handover (HANDOVER NOTIFY in flight) is too late to cancel:
+	// CancelHandover reports aborted=false and leaves the target for the NOTIFY, so it
+	// is not released out from under the UE moving onto it (TS 38.413 §8.4.5).
 	target, aborted := amfInstance.CancelHandover(amfUe)
 	if aborted && target != nil {
 		target.ReleaseAction = amf.UeContextReleaseHandover
@@ -52,8 +51,8 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		}
 	}
 
-	// HANDOVER CANCEL ACKNOWLEDGE is sent unconditionally — the response to a HANDOVER
-	// CANCEL is mandatory and independent of the target-release outcome (TS 38.413 §8.4.5).
+	// The acknowledge is mandatory, so it is sent regardless of the target-release
+	// outcome (TS 38.413 §8.4.5).
 	if err := sourceUe.SendHandoverCancelAcknowledge(ctx); err != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover cancel acknowledge to source UE", zap.Error(err))
 	}

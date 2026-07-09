@@ -22,9 +22,8 @@ func startAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	// failures, so a fresh procedure starts with a full budget (TS 24.301 §5.4.2.7).
 	ue.Conn().SetResyncTried(false)
 
-	// A new authentication carries an eKSI distinct from the one already stored, so the
-	// UE keeps its current context usable until the new one is taken into use
-	// (TS 24.301 §5.4.2.4). A resync stays in this procedure and reuses the value.
+	// A new authentication carries an eKSI distinct from the stored one, so the UE keeps
+	// its current context usable until the new one is taken into use (TS 24.301 §5.4.2.4).
 	ue.SetEksi(mme.NextEksi(ue.Eksi()))
 
 	if err := sendAuthRequest(ctx, m, ue, "", ""); err != nil {

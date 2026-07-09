@@ -711,10 +711,8 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 	}
 }
 
-// TestHandoverRequired_UnsupportedTargetIDFailsToSource checks a HANDOVER REQUIRED with a
-// validly-decoded but unservable TargetID (not a target RAN node) is answered with
-// HANDOVER PREPARATION FAILURE, so the source gNB is not left waiting on its own timer
-// (TS 38.413 §8.4.1.3).
+// TestHandoverRequired_UnsupportedTargetIDFailsToSource verifies an unservable TargetID
+// is answered with HANDOVER PREPARATION FAILURE (TS 38.413 §8.4.1.3).
 func TestHandoverRequired_UnsupportedTargetIDFailsToSource(t *testing.T) {
 	supi, _ := etsi.NewSUPIFromPrefixed("imsi-001010000000001")
 
@@ -733,8 +731,7 @@ func TestHandoverRequired_UnsupportedTargetIDFailsToSource(t *testing.T) {
 	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
 	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
-	// A TargeteNBID target is a validly-decoded choice the AMF cannot serve (it prepares
-	// only toward a target RAN node).
+	// A TargeteNBID target decodes cleanly but the AMF prepares only toward a RAN node.
 	msg := decode.HandoverRequired{
 		AMFUENGAPID: 1,
 		RANUENGAPID: 1,
@@ -757,10 +754,9 @@ func TestHandoverRequired_UnsupportedTargetIDFailsToSource(t *testing.T) {
 	}
 }
 
-// TestHandoverRequired_SourceDropReleasesTarget drives a normal handover to the prepared
-// state, then removes the source association (as a source-gNB SCTP drop would). The
-// prepared target must be released immediately rather than lingering until the
-// supervision guard, and the N2Handover procedure cleared.
+// TestHandoverRequired_SourceDropReleasesTarget verifies that dropping the source
+// association at the prepared stage releases the prepared target and clears the
+// N2Handover procedure at once, without waiting for the supervision guard.
 func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 	const (
 		targetGnbID  = "000102"
@@ -862,8 +858,7 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 		t.Fatal("N2Handover procedure not active after preparation")
 	}
 
-	// The source association is lost (gNB SCTP drop). The prepared target must be released
-	// at once, not left for the 10 s guard.
+	// Drop the source association (gNB SCTP drop); the prepared target must release at once.
 	if err := amfInstance.RemoveUeConn(context.Background(), sourceUe); err != nil {
 		t.Fatalf("RemoveUeConn(source) error: %v", err)
 	}

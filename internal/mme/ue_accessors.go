@@ -199,10 +199,8 @@ func (ue *UeContext) InstallNASSecurityContext(eea, eia byte, _ AuthProof) error
 	return nil
 }
 
-// AllocateRegistrationArea assigns the UE's registered tracking area. Ella Core is
-// a single registration area, so every UE is registered in the network's served
-// TAIs; narrowing to the UE's serving TAI (cf. the AMF) is a multi-registration-area
-// extension, a no-op under a single served area.
+// AllocateRegistrationArea assigns the UE's registered tracking area. Ella Core is a
+// single registration area, so every UE is registered in the network's served TAIs.
 func (ue *UeContext) AllocateRegistrationArea(servedTais []models.Tai) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -236,8 +234,7 @@ func (ue *UeContext) SetEksi(v uint8) {
 }
 
 // SetUESecurityCapability stores the UE and MS network capabilities. The AuthProof
-// keeps every write on one audited path so a downgrade cannot enter via an
-// unauthorized code path (TS 24.301 §5.4.3.2).
+// keeps every write on one audited path so a downgrade cannot enter (TS 24.301 §5.4.3.2).
 func (ue *UeContext) SetUESecurityCapability(ueNetCap, msNetCap []byte, _ AuthProof) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

@@ -446,13 +446,10 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 }
 
 // abortHandoverOnRemoval ends an in-flight N2 handover when this UeConn — being removed —
-// is either its prepared target or its source. ClearHandover stops the supervision guard
-// and clears the FSM at once, so no half-prepared handover lingers. When the source
-// association is removed, the prepared target still holds reserved gNB resources that
-// nothing else would reap — endKeyChainProcs, run next in RemoveUeConn, stops the guard
-// that would have released it — so it is released here with radio-connection-with-UE-lost
-// (TS 38.413). When the target is removed, the source is left in place; its own
-// TNGRELOCprep/Overall timers abort the handover on the radio.
+// is its prepared target or its source. On source removal the prepared target is released
+// explicitly (radio-connection-with-UE-lost): the guard that would reap it is stopped when
+// RemoveUeConn ends the key-chain procedure. On target removal the source is left in place,
+// aborted on the radio by its own TNGRELOCprep/Overall timers (TS 38.413).
 func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 	ue := ueConn.ue
 	if ue == nil {
@@ -484,11 +481,11 @@ func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 	}
 }
 
-// DropStaleUe removes any connection on radio still bound to ranUeNgapID before a new
-// InitialUEMessage reuses that RAN-UE-NGAP-ID. A gNB may reuse the ID before its prior
-// UEContextRelease completes, so a deferred UEContextReleaseComplete carrying the old
-// AMF-UE-NGAP-ID must not remove the freshly created context. Stale conns are found under
-// a.mu, then torn down after the lock — RemoveUeConn re-acquires a.mu and may call the SMF.
+// DropStaleUe removes any connection on radio still bound to ranUeNgapID, clearing the way
+// for a new InitialUEMessage to reuse that RAN-UE-NGAP-ID. A gNB may reuse the ID before its
+// prior UEContextRelease completes; dropping the stale conn keeps a deferred
+// UEContextReleaseComplete from removing the freshly created context. Torn down after
+// releasing a.mu, since RemoveUeConn re-acquires it and may call the SMF.
 func (a *AMF) DropStaleUe(ctx context.Context, radio *Radio, ranUeNgapID models.RanUeNgapID) {
 	a.mu.Lock()
 

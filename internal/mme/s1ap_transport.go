@@ -61,8 +61,7 @@ func s1apStreamForProcedure(p S1APProcedure) uint16 {
 }
 
 // SendS1APConn writes a complete S1AP PDU to a specific eNB association — the single
-// traced+logged send chokepoint. The SCTP stream is derived from the procedure, so both
-// UE-associated and non-UE-associated messages route through here.
+// traced+logged send chokepoint. The SCTP stream is derived from the procedure.
 func (m *MME) SendS1APConn(ctx context.Context, conn S1APWriter, messageType S1APProcedure, b []byte) {
 	ctx, span := Tracer.Start(ctx, "s1ap/send",
 		trace.WithSpanKind(trace.SpanKindClient),

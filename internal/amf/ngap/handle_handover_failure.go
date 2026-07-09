@@ -69,11 +69,9 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 		}
 	}
 
-	// The target sent HANDOVER FAILURE, so it admitted none of the resources and holds
-	// no UE context — the message carries no target RAN UE NGAP ID (TS 38.413 §8.4.2.3).
-	// The HANDOVER PREPARATION FAILURE to the source above is the only wire action; drop
-	// the target association locally rather than send a redundant UE Context Release
-	// Command to a context that does not exist.
+	// HANDOVER FAILURE means the target admitted no resources and holds no UE context
+	// (it carries no target RAN UE NGAP ID), so the target association is dropped
+	// locally with no UE Context Release Command (TS 38.413 §8.4.2.3).
 	if err := amfInstance.RemoveUeConn(ctx, targetUe); err != nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("error removing target UE association", zap.Error(err))
 	}

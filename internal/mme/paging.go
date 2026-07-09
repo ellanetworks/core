@@ -14,14 +14,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// Page sends an S1AP Paging for an EMM-REGISTERED, ECM-IDLE UE so it
-// re-establishes the S1 connection and buffered downlink data is delivered
-// (TS 23.401 §5.3.4: page within the registered tracking area). Paging reaches
-// every eNB serving the network's tracking area — every connected eNB under a
-// single served TAC. The procedure is supervised and retransmitted up to a bound,
-// then abandoned (T3413,
-// TS 24.301 §5.6.2). A nil error covers a deliberate skip (already ECM-CONNECTED,
-// or paging in progress); only a missing context or marshal failure is reported.
+// Page sends an S1AP Paging for an EMM-REGISTERED, ECM-IDLE UE so it re-establishes
+// the S1 connection and buffered downlink data is delivered, within the UE's
+// registered tracking area (TS 23.401 §5.3.4). The procedure is supervised and
+// retransmitted up to a bound, then abandoned (T3413, TS 24.301 §5.6.2). A nil error
+// covers a deliberate skip (already ECM-CONNECTED, or paging in progress); only a
+// missing context or marshal failure is reported.
 func (m *MME) Page(ctx context.Context, imsi string) error {
 	ue, ok := m.LookupUeByIMSI(imsi)
 	if !ok {
@@ -113,7 +111,7 @@ func (m *MME) abandonPaging(ue *UeContext) {
 }
 
 // buildPaging assembles the Paging message for a UE (TS 36.413). The TAI list is the
-// UE's registration area, so the network pages within the area it registered the UE in.
+// UE's registration area.
 func (m *MME) buildPaging(ue *UeContext) (*s1ap.Paging, error) {
 	_, mmeCode := m.MmeIdentity()
 
@@ -149,9 +147,7 @@ func ueIdentityIndex(imsi string) uint16 {
 }
 
 // pageRadios writes a non-UE-associated Paging PDU to every connected eNB whose
-// broadcast TAIs intersect the UE's registration area (TS 23.401 §5.3.4: page within
-// the registered tracking area). An eNB that broadcasts only tracking areas outside
-// that area is skipped; under a single served TAC this reaches every eNB. Connections
+// broadcast TAIs intersect the UE's registration area (TS 23.401 §5.3.4). Connections
 // are snapshotted under the lock so the blocking writes happen without holding it.
 func (m *MME) pageRadios(ctx context.Context, ue *UeContext, b []byte) {
 	area := ue.RegistrationArea()
@@ -173,8 +169,7 @@ func (m *MME) pageRadios(ctx context.Context, ue *UeContext, b []byte) {
 }
 
 // ServedTAIs is the network's served tracking areas: the operator PLMN paired with
-// each served TAC. The MME registers every UE in this area, so it is the UE's
-// registration area (TS 23.401 §5.3.4).
+// each served TAC. Every UE is registered in this area (TS 23.401 §5.3.4).
 func (m *MME) ServedTAIs(ctx context.Context) ([]models.Tai, error) {
 	plmn, err := m.OperatorPLMN(ctx)
 	if err != nil {
@@ -196,8 +191,8 @@ func (m *MME) ServedTAIs(ctx context.Context) ([]models.Tai, error) {
 	return out, nil
 }
 
-// areaToS1APTAIs encodes a registration area as the S1AP TAI list carried in Paging
-// (and rejects an empty area, which would page the UE nowhere).
+// areaToS1APTAIs encodes a registration area as the S1AP TAI list carried in Paging.
+// An empty area is rejected: it would page the UE nowhere.
 func areaToS1APTAIs(area []models.Tai) ([]s1ap.TAI, error) {
 	if len(area) == 0 {
 		return nil, fmt.Errorf("empty registration area")

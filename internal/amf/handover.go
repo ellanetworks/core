@@ -47,14 +47,10 @@ type handoverContext struct {
 	newNCC uint8
 }
 
-// PrepareHandover runs the N2 handover preparation for the source→target pair: it
-// claims the key-chain procedure (exclusive with Security Mode / Path Switch),
-// allocates the target UeConn, stages the next {NH, NCC} of the AS key chain, and
-// installs the handover FSM at hoPreparing (TS 38.413 §8.4, TS 33.501 §6.9). It returns
-// the target UeConn and the staged {NH, NCC} to send in HANDOVER REQUEST, or ok=false
-// with everything rolled back when preparation cannot begin. The caller arms the guard
-// (SuperviseHandover) only after the HANDOVER REQUEST is sent, so the timer can never
-// race the outbound request.
+// PrepareHandover begins N2 handover preparation for the source→target pair: it claims
+// the key-chain procedure (exclusive with Security Mode / Path Switch), allocates the
+// target UeConn, and stages the {NH, NCC} of the AS key chain (TS 38.413 §8.4, TS 33.501
+// §6.9). ok is false with everything rolled back when preparation cannot begin.
 func (a *AMF) PrepareHandover(ctx context.Context, ue *UeContext, source *UeConn, targetRan *Radio) (target *UeConn, nh [32]uint8, ncc uint8, ok bool) {
 	if ue == nil {
 		return nil, [32]uint8{}, 0, false
@@ -87,19 +83,18 @@ func (a *AMF) PrepareHandover(ctx context.Context, ue *UeContext, source *UeConn
 	return target, nh, ncc, true
 }
 
-// SuperviseHandover arms the guard bounding HANDOVER REQUIRED → NOTIFY. Called by the
-// caller of PrepareHandover once the HANDOVER REQUEST has been sent, so the guard timer
-// cannot race the outbound request; on expiry the guard abandons the handover and
-// releases the target (the source's own radio timers abort it).
+// SuperviseHandover arms the guard bounding HANDOVER REQUIRED → NOTIFY. Arm it only after
+// the HANDOVER REQUEST is sent, so the guard timer cannot race the outbound request; on
+// expiry it abandons the handover and releases the target.
 func (a *AMF) SuperviseHandover(ue *UeContext, source, target *UeConn) {
 	ue.SuperviseKeyChainProc(procedure.N2Handover,
 		time.Now().Add(a.handoverGuardTimeout),
 		handoverGuardExpiry(a, source, target))
 }
 
-// stageHandover derives the next {NH, NCC} of the AS key chain (under the per-UE lock,
-// key material) and installs the handover FSM at hoPreparing (under the registry lock),
-// binding the target to the UE. It does not claim the procedure or arm supervision.
+// stageHandover derives the next {NH, NCC} of the AS key chain (per-UE lock, key material)
+// and installs the handover FSM at hoPreparing (registry lock). It neither claims the
+// procedure nor arms supervision.
 func (a *AMF) stageHandover(ue *UeContext, source, target *UeConn) (nh [32]uint8, ncc uint8, ok bool) {
 	ue.mu.Lock()
 	nh, ncc, err := ue.deriveNextNHLocked()
@@ -121,12 +116,9 @@ func (a *AMF) stageHandover(ue *UeContext, source, target *UeConn) (nh [32]uint8
 	return nh, ncc, true
 }
 
-// handoverGuardExpiry abandons a stalled N2 handover when the supervision deadline
-// elapses before HANDOVER NOTIFY arrives. The half-prepared target UE context is
-// released; the source is left in place (its own TNGRELOCprep/Overall timers abort the
-// handover on the radio) (TS 38.413). A normal completion ends the procedure, stopping
-// this timer before it can fire, so the captured target is touched by at most one
-// goroutine.
+// handoverGuardExpiry abandons a stalled N2 handover when the supervision deadline elapses
+// before HANDOVER NOTIFY. It releases the half-prepared target; the source is left in place,
+// aborted on the radio by its own TNGRELOCprep/Overall timers (TS 38.413).
 func handoverGuardExpiry(a *AMF, sourceUe, targetUe *UeConn) func(context.Context) error {
 	return func(cctx context.Context) error {
 		logger.WithTrace(cctx, sourceUe.Log).Warn("N2 handover abandoned: target gNB did not complete it in time, releasing target")
@@ -141,9 +133,8 @@ func handoverGuardExpiry(a *AMF, sourceUe, targetUe *UeConn) func(context.Contex
 	}
 }
 
-// SetHandoverForTest installs a preparing handover FSM binding a source→target pair,
-// staging the {NH, NCC} but without claiming the procedure or arming supervision. For
-// tests exercising downstream handover handlers; production goes through PrepareHandover.
+// SetHandoverForTest installs a preparing handover FSM for a source→target pair without
+// claiming the procedure or arming supervision. For tests only.
 func SetHandoverForTest(sourceUe, targetUe *UeConn) error {
 	if sourceUe == nil || targetUe == nil {
 		return fmt.Errorf("source or target ue is nil")
@@ -161,8 +152,7 @@ func SetHandoverForTest(sourceUe, targetUe *UeConn) error {
 	return nil
 }
 
-// StageHandoverForTest stages the handover FSM on a bare UE (no source/target conns),
-// returning the staged {NH, NCC}. For tests of the key-chain staging/commit lifecycle.
+// StageHandoverForTest stages the handover FSM on a bare UE, returning the {NH, NCC}. For tests only.
 func (a *AMF) StageHandoverForTest(ue *UeContext) (nh [32]uint8, ncc uint8, ok bool) {
 	return a.stageHandover(ue, nil, nil)
 }
@@ -275,9 +265,7 @@ func (a *AMF) CancelHandover(ue *UeContext) (target *UeConn, aborted bool) {
 	return target, aborted
 }
 
-// ClearHandover ends the handover FSM and its key-chain procedure, leaving no in-flight
-// handover. Idempotent; safe on a nil UE. EndKeyChainProc runs outside a.mu (the registry
-// has its own lock) and is a no-op when the procedure is already gone.
+// ClearHandover ends the handover FSM and its key-chain procedure. Idempotent; safe on a nil UE.
 func (a *AMF) ClearHandover(ue *UeContext) {
 	if ue == nil {
 		return

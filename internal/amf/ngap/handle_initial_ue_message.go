@@ -22,8 +22,8 @@ import (
 
 func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.InitialUEMessage) {
 	// A gNB may reuse a RAN-UE-NGAP-ID before its prior UEContextRelease completes; drop
-	// any stale conn first so a deferred UEContextReleaseComplete cannot remove the context
-	// created just below.
+	// any stale conn first so a deferred UEContextReleaseComplete cannot remove the fresh
+	// context (TS 38.413).
 	amfInstance.DropStaleUe(ctx, ran, models.RanUeNgapID(msg.RANUENGAPID))
 
 	ueConn, err := amfInstance.NewUeConn(ran, models.RanUeNgapID(msg.RANUENGAPID))

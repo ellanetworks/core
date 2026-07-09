@@ -76,10 +76,9 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	// A handover past the preparing stage — a duplicate or out-of-order HANDOVER REQUEST
-	// ACKNOWLEDGE — must be dropped before touching the SMF: UpdateSmContextN2HandoverPrepared
-	// rebinds the downlink tunnel, so the staleness check precedes any per-session side
-	// effect (local error handling, not a release — TS 38.413 §10.4).
+	// A duplicate or out-of-order HANDOVER REQUEST ACKNOWLEDGE: the staleness check
+	// precedes any per-session SMF side effect, since UpdateSmContextN2HandoverPrepared
+	// rebinds the downlink tunnel (TS 38.413 §10.4).
 	if !amfInstance.HandoverPreparing(amfUe) {
 		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge for a handover past the preparing stage; dropping")
 		return

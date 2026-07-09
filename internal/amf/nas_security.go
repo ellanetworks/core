@@ -8,7 +8,6 @@ import (
 	"github.com/free5gc/nas/security"
 )
 
-// cipheringAlgName maps a 5G NAS ciphering algorithm identifier to its name (TS 33.501).
 func cipheringAlgName(alg byte) string {
 	switch alg {
 	case security.AlgCiphering128NEA0:
@@ -24,7 +23,6 @@ func cipheringAlgName(alg byte) string {
 	}
 }
 
-// integrityAlgName maps a 5G NAS integrity algorithm identifier to its name (TS 33.501).
 func integrityAlgName(alg byte) string {
 	switch alg {
 	case security.AlgIntegrity128NIA0:

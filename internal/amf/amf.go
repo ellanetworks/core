@@ -600,10 +600,10 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) e
 	return nil
 }
 
-// armPaging starts the paging-supervision guard for a UE just paged: it retransmits
-// the Paging on each interval up to a bound, then abandons (T3513, TS 24.501 §5.4.3).
-// The check-and-arm is atomic under the UE lock so a second downlink trigger racing the
-// first cannot reset an in-flight supervision. A no-op when T3513 supervision is disabled.
+// armPaging starts the paging-supervision guard for a UE just paged: retransmit Paging on
+// each interval up to a bound, then abandon (T3513, TS 24.501 §5.4.3). Check-and-arm under
+// the UE lock so a second downlink trigger cannot reset an in-flight supervision. No-op when
+// T3513 is disabled.
 func (amf *AMF) armPaging(ue *UeContext, ngapBuf []byte) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -617,9 +617,8 @@ func (amf *AMF) armPaging(ue *UeContext, ngapBuf []byte) {
 		func() { amf.abandonPaging(ue) })
 }
 
-// retransmitPaging resends the Paging on each guard interval (T3513, TS 24.501
-// §5.4.3), or stops the guard once the UE has answered by re-establishing its
-// connection.
+// retransmitPaging resends the Paging each guard interval (T3513, TS 24.501 §5.4.3), or
+// stops the guard once the UE has answered by re-establishing its connection.
 func (amf *AMF) retransmitPaging(ue *UeContext, ngapBuf []byte, attempt int32) {
 	if ue.Conn() != nil {
 		ue.pagingTimer.Stop()
@@ -630,9 +629,8 @@ func (amf *AMF) retransmitPaging(ue *UeContext, ngapBuf []byte, attempt int32) {
 	amf.pageRadios(context.Background(), ue, ngapBuf)
 }
 
-// abandonPaging runs once the retransmission budget is exhausted. The buffered N1N2
-// message remains for the UE and mobile-reachable supervision continues (TS 24.501
-// §5.4.3).
+// abandonPaging runs when the retransmission budget is exhausted. The buffered N1N2 message
+// stays and mobile-reachable supervision continues (TS 24.501 §5.4.3).
 func (amf *AMF) abandonPaging(ue *UeContext) {
 	logger.AmfLog.Info("paging unanswered, abandoning procedure", logger.SUPI(ue.Supi().String()))
 }

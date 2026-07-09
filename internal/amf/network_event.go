@@ -13,7 +13,7 @@ import (
 )
 
 // AddrString renders an SCTP address for logging, returning "" for a nil address (a
-// closed/half-established association) rather than dropping the record.
+// closed/half-established association) so the record is still logged.
 func AddrString(a net.Addr) string {
 	if a == nil {
 		return ""
@@ -24,8 +24,7 @@ func AddrString(a net.Addr) string {
 
 // LogNetworkEvent records an NGAP message exchanged with a gNB in the network events
 // log. Addresses come from the radio's concrete SCTP connection; a test writer (or a
-// nil connection) is skipped, but a nil address is rendered as "" so a genuine
-// exchange is never dropped from the log.
+// nil connection) is skipped. A nil address renders as "" so the exchange is still logged.
 func (a *AMF) LogNetworkEvent(ctx context.Context, conn NGAPWriter, messageType send.NGAPProcedure, dir logger.LogDirection, raw []byte) {
 	if conn == nil {
 		return

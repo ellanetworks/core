@@ -83,10 +83,9 @@ func TestHandleHandoverFailure_SourceUeContextDetached(t *testing.T) {
 	}
 }
 
-// TestHandleHandoverFailure_DropsTargetLocally verifies the mainline target-reject
-// path: the AMF replies HANDOVER PREPARATION FAILURE to the source and drops the
-// target association locally, with no UE Context Release Command to the target (which
-// admitted nothing and holds no context, TS 38.413 §8.4.2.3), and clears the handover.
+// TestHandleHandoverFailure_DropsTargetLocally verifies that on HANDOVER FAILURE the AMF
+// fails the source, clears the handover, and drops the target locally with no UE Context
+// Release Command (the target holds no context, TS 38.413 §8.4.2.3).
 func TestHandleHandoverFailure_DropsTargetLocally(t *testing.T) {
 	amfInstance := newTestAMF()
 	sourceRan := newTestRadio(amfInstance)

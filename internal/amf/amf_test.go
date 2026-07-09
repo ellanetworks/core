@@ -238,10 +238,9 @@ func TestReallocateGUTIReuseAndFree(t *testing.T) {
 	}
 }
 
-// TestPagingGuti_PrefersOldDuringRealloc verifies the AMF pages with the in-flight
-// old 5G-GUTI while a reallocation the UE has not acknowledged is pending — the UE
-// still listens on the old 5G-S-TMSI until then (TS 24.501 §5.4.4) — and with the
-// current GUTI otherwise.
+// TestPagingGuti_PrefersOldDuringRealloc verifies the AMF pages with the old 5G-GUTI
+// while an unacknowledged reallocation is pending, and the current GUTI otherwise
+// (TS 24.501 §5.4.4).
 func TestPagingGuti_PrefersOldDuringRealloc(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	guami := &models.Guami{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, AmfID: "cafe00"}

@@ -38,8 +38,8 @@ func (a *AMF) StartMobileReachable(ue *UeContext) {
 	})
 }
 
-// stopIdleTimers ends idle-mode supervision from a caller that does not hold a.mu
-// (attach paths stop the timers inline under the lock via stopIdleTimersLocked).
+// stopIdleTimers ends idle-mode supervision for a caller not holding a.mu (attach paths
+// use stopIdleTimersLocked under the lock).
 func (a *AMF) stopIdleTimers(ue *UeContext) {
 	a.mu.Lock()
 	defer a.mu.Unlock()

@@ -80,10 +80,9 @@ func TestENBSetupCompleteGate(t *testing.T) {
 	}
 }
 
-// TestClaimENBID_EvictsStaleReassociation asserts that when an eNB re-associates
-// and completes S1 Setup under a Global eNB ID still held by an earlier live
-// association, the stale association is evicted so the ID resolves to the current
-// one (mirrors the AMF's ClaimRanID eviction).
+// TestClaimENBID_EvictsStaleReassociation asserts an eNB re-associating and completing
+// S1 Setup under a Global eNB ID still held by a live association evicts the stale one,
+// so the ID resolves to the current association (mirrors the AMF's ClaimRanID eviction).
 func TestClaimENBID_EvictsStaleReassociation(t *testing.T) {
 	m := newTestMME(t)
 

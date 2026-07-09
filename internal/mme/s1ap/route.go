@@ -12,9 +12,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// Route dispatches a decoded S1AP PDU to its procedure handler (TS 36.413) — both
-// UE-associated procedures and the node-level ones past the S1 Setup gate (Reset,
-// Error Indication, eNB Status Transfer, eNB Configuration Update).
+// Route dispatches a decoded S1AP PDU — UE-associated and node-level (past the S1 Setup
+// gate) — to its procedure handler (TS 36.413).
 func Route(m *mme.MME, ctx context.Context, radio *mme.Radio, pdu any) {
 	switch p := pdu.(type) {
 	case *s1ap.InitiatingMessage:

@@ -475,11 +475,10 @@ func TestHandoverGuardSurvivesContextRelease(t *testing.T) {
 	m.FireHandoverGuardForTest(ue)
 }
 
-// TestHandoverSupervisionTimeoutAbandons checks the handler arms the registry
-// supervision once the HANDOVER REQUEST is sent and that it fires at the TS1RELOCoverall
-// deadline (TS 36.413 §8.4) — the end-to-end wiring, not just the abandonment action. The
-// S1Handover procedure is polled via the registry (lock-synchronised against the timer
-// goroutine, unlike the raw ue.handover field).
+// TestHandoverSupervisionTimeoutAbandons checks the handler arms supervision after the
+// HANDOVER REQUEST is sent and that it fires at the TS1RELOCoverall deadline (TS 36.413
+// §8.4). The S1Handover procedure is polled via the registry, lock-synchronised against
+// the timer goroutine.
 func TestHandoverSupervisionTimeoutAbandons(t *testing.T) {
 	m := newTestMME(t)
 	m.SetHandoverGuardTimeoutForTest(5 * time.Millisecond)

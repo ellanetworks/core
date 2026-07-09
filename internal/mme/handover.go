@@ -48,8 +48,7 @@ type handoverContext struct {
 // PrepareHandover allocates a target association, advances the {NH, NCC} chain, and
 // installs the in-flight handover on the UE (TS 36.413 §8.4.1, TS 33.401 §7.2.8).
 // It refuses when the key chain is concurrently busy. reqMMEID is for logging only.
-// The caller arms the guard (SuperviseHandover) only after the HANDOVER REQUEST is
-// sent, so the timer can never race the outbound request.
+// Supervision is armed separately (SuperviseHandover), after the HANDOVER REQUEST is sent.
 func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MMEUES1APID) (targetMMEID s1ap.MMEUES1APID, newNH [32]byte, newNCC uint8, ok bool) {
 	m.mu.Lock()
 
@@ -102,9 +101,9 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 }
 
 // SuperviseHandover arms the guard bounding the S1 handover (HANDOVER REQUIRED →
-// completion). Called by the handler once the HANDOVER REQUEST has been sent, so the
-// guard timer cannot race the outbound request; at TS1RELOCoverall expiry the registry
-// runs abandonHandover while S1Handover is still active (TS 36.413 §8.4).
+// completion). Armed after the HANDOVER REQUEST is sent so the timer cannot race the
+// outbound request; at TS1RELOCoverall expiry the registry runs abandonHandover while
+// S1Handover is still active (TS 36.413 §8.4).
 func (m *MME) SuperviseHandover(ue *UeContext) {
 	ue.SuperviseKeyChainProc(procedure.S1Handover, time.Now().Add(m.handoverGuardTimeout), func(context.Context) error {
 		m.abandonHandover(ue)

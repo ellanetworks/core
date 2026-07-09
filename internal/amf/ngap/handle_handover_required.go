@@ -167,8 +167,6 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	// Claim the key-chain, allocate the target, and stage {NH, NCC} + FSM — the whole
-	// preparation in one call.
 	targetUe, nh, ncc, ok := amfInstance.PrepareHandover(ctx, amfUe, sourceUe, targetRan)
 	if !ok {
 		failureCause := ngapType.Cause{
@@ -202,11 +200,9 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		operatorInfo.Guami,
 	)
 	if err != nil {
-		// Abandon the prepared handover: clear the FSM (which ends the key-chain
-		// procedure) and free the target UeConn (which never received the request, so
-		// holds no context). Supervision is not yet armed, so there is no guard timer to
-		// stop. The source is told with HANDOVER PREPARATION FAILURE so it does not wait
-		// out its own TNGRELOCprep timer (TS 38.413 §8.4.1.3).
+		// The target never received the request, so it holds no context and is freed
+		// locally; the source is failed so it does not wait out its own TNGRELOCprep
+		// timer (TS 38.413 §8.4.1.3).
 		logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover request to target UE", zap.Error(err))
 		amfInstance.ClearHandover(amfUe)
 
