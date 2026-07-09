@@ -53,6 +53,7 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
   const [formValues, setFormValues] = useState<{ supportedTacs: string[] }>({
     supportedTacs: [],
   });
+  const [inputValue, setInputValue] = useState("");
   const [errors, setErrors] = useState<{ supportedTacs?: string }>({});
   const [isValid, setIsValid] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -61,6 +62,7 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
   useEffect(() => {
     if (open) {
       setFormValues(initialData);
+      setInputValue("");
       setErrors({});
       setIsValid(true);
     }
@@ -88,13 +90,19 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
 
   const handleSubmit = async () => {
     if (!accessToken) return;
-    if (!validateTacs(formValues.supportedTacs)) return;
+
+    const pending = inputValue.trim();
+    const tacs = pending
+      ? [...formValues.supportedTacs, pending]
+      : formValues.supportedTacs;
+
+    if (!validateTacs(tacs)) return;
 
     setLoading(true);
     setAlert({ message: "" });
 
     try {
-      await updateOperatorTracking(accessToken, formValues.supportedTacs);
+      await updateOperatorTracking(accessToken, tacs);
       onClose();
       onSuccess();
     } catch (error: unknown) {
@@ -140,6 +148,8 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
           options={[]}
           value={formValues.supportedTacs}
           onChange={handleTacsChange}
+          inputValue={inputValue}
+          onInputChange={(_event, value) => setInputValue(value)}
           renderInput={(params) => (
             <TextField
               {...params}
