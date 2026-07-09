@@ -10,9 +10,8 @@ import (
 )
 
 // ERABToBeModifiedItemBearerModInd ::= SEQUENCE { e-RAB-ID, transportLayerAddress,
-// dL-GTP-TEID, iE-Extensions OPTIONAL } (extensible). For one E-RAB it names the new
-// downlink S1-U endpoint the eNB requests the S-GW relocate the GTP tunnel to
-// (TS 36.413 §9.2.1.31); this is the DC / secondary-node bearer relocation case.
+// dL-GTP-TEID, iE-Extensions OPTIONAL } (extensible). Names the new downlink S1-U
+// endpoint to relocate one E-RAB's GTP tunnel to (TS 36.413 §9.2.1.31).
 type ERABToBeModifiedItemBearerModInd struct {
 	ERABID                ERABID
 	TransportLayerAddress TransportLayerAddress
@@ -62,8 +61,7 @@ func decodeERABToBeModifiedItemBearerModInd(r *aper.Reader) (ERABToBeModifiedIte
 
 // ERABModificationIndication is the E-RAB MODIFICATION INDICATION message
 // (TS 36.413 §9.1.3.8), sent by the eNB to relocate the downlink S1-U endpoint of
-// already-established E-RABs. ToBeModified is mandatory; NotToBeModified lists the
-// unchanged E-RABs the eNB still wants kept, and is optional.
+// already-established E-RABs. ToBeModified is mandatory; NotToBeModified is optional.
 type ERABModificationIndication struct {
 	MMEUES1APID     MMEUES1APID
 	ENBUES1APID     ENBUES1APID

@@ -5,10 +5,9 @@ package eps
 
 import "github.com/ellanetworks/core/nas/common"
 
-// GUTIReallocationCommand is the GUTI REALLOCATION COMMAND message
-// (TS 24.301 §8.2.16). The assigned GUTI is the only mandatory information
-// element (an LV); the optional TAI list and other IEs are not emitted, as a
-// standalone reallocation leaves the registration area unchanged.
+// GUTIReallocationCommand is the GUTI REALLOCATION COMMAND message (TS 24.301 §8.2.16).
+// The assigned GUTI is the only mandatory IE (an LV); the optional TAI list is omitted,
+// as a standalone reallocation leaves the registration area unchanged.
 type GUTIReallocationCommand struct {
 	GUTI EPSMobileIdentity
 }

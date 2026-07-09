@@ -252,12 +252,11 @@ func (h *nasHandler) HandleServiceRequest(ctx context.Context, conn mme.S1APWrit
 }
 
 // servedAttachTAI is a TAI in the test operator's served area (PLMN 001/01, TAC 1),
-// mirroring the serving TAI an INITIAL UE MESSAGE reports for an admitted attach.
+// as an INITIAL UE MESSAGE reports for an admitted attach.
 var servedAttachTAI = s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}
 
-// newAttachUe registers a test UE whose connection reports a served serving TAI, as
-// HandleInitialUEMessage does in production, so the attach clears the serving-area
-// gate (EMM #12, TS 24.301 §5.5.1.2.5).
+// newAttachUe registers a test UE with a served serving TAI (as HandleInitialUEMessage
+// sets in production) so the attach clears the serving-area gate (TS 24.301 §5.5.1.2.5).
 func newAttachUe(m *mme.MME, conn mme.S1APWriter, enbUEID s1ap.ENBUES1APID) *mme.UeContext {
 	ue := m.NewUe(conn, enbUEID)
 	if ue != nil {

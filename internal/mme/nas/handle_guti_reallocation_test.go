@@ -10,9 +10,8 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// TestGUTIReallocationCommitsOnComplete drives the standalone GUTI reallocation
-// procedure: the command stages a new GUTI while keeping the old M-TMSI resolvable,
-// and GUTI REALLOCATION COMPLETE commits it, freeing the old one (TS 24.301 §5.4.1).
+// TestGUTIReallocationCommitsOnComplete verifies the old M-TMSI stays resolvable until
+// GUTI REALLOCATION COMPLETE commits the new GUTI and frees the old one (TS 24.301 §5.4.1).
 func TestGUTIReallocationCommitsOnComplete(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -32,8 +31,6 @@ func TestGUTIReallocationCommitsOnComplete(t *testing.T) {
 
 	m.CommitGUTIRealloc(ue)
 
-	// Standalone reallocation sends a protected GUTI REALLOCATION COMMAND and stages
-	// a new GUTI; the old M-TMSI stays resolvable until the UE acknowledges.
 	before := len(cc.sent)
 
 	m.SendGUTIReallocationCommand(context.Background(), ue)
@@ -46,7 +43,6 @@ func TestGUTIReallocationCommitsOnComplete(t *testing.T) {
 		t.Fatal("old M-TMSI must stay resolvable until the UE acknowledges")
 	}
 
-	// GUTI REALLOCATION COMPLETE commits the reallocation.
 	complete, err := (&eps.GUTIReallocationComplete{}).Marshal()
 	if err != nil {
 		t.Fatal(err)

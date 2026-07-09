@@ -30,9 +30,8 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		zap.String("update-type", epsUpdateTypeName(req.EPSUpdateType)),
 		zap.Bool("active-flag", req.ActiveFlag))
 
-	// The UE's serving cell must be in this MME's served area, as at attach — a TAU
-	// onto an unserved TAC is rejected with EMM #12 (TS 24.301 §5.5.3.2.5). Mirrors
-	// the AMF's serving-TAI check on mobility registration.
+	// The UE's serving cell must be in this MME's served area, as at attach, or TAU
+	// REJECT #12 (TS 24.301 §5.5.3.2.5).
 	if served, err := m.ServesTAI(ctx, ue.Conn().ServingTAI); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to evaluate serving TAI for Tracking Area Update", zap.Error(err))
 		return nasreply.Handled()
@@ -106,8 +105,8 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	return nasreply.Handled()
 }
 
-// rejectTrackingAreaUpdate sends a TRACKING AREA UPDATE REJECT with the given EMM
-// cause and releases the UE's S1 context, mirroring rejectAttach (TS 24.301 §5.5.3.2.5).
+// rejectTrackingAreaUpdate sends a TAU REJECT and releases the UE's S1 context
+// (TS 24.301 §5.5.3.2.5).
 func rejectTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause uint8) {
 	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
 	ue.Conn().StopNASGuard()

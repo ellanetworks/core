@@ -14,10 +14,8 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// TestTrackingAreaUpdateTrackingAreaNotAllowed checks that a TAU from a serving cell
-// outside the operator's served area is rejected with TRACKING AREA UPDATE REJECT #12
-// ("Tracking area not allowed"), matching the AMF's serving-TAI check on mobility
-// registration (TS 24.301 §5.5.3.2.5).
+// TestTrackingAreaUpdateTrackingAreaNotAllowed checks a TAU from a serving cell outside
+// the served area is rejected with TAU REJECT #12 (TS 24.301 §5.5.3.2.5).
 func TestTrackingAreaUpdateTrackingAreaNotAllowed(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)

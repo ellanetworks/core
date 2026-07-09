@@ -148,8 +148,7 @@ func TestAttachNetworkRoundTrips(t *testing.T) {
 		}
 
 		// The ATTACH REJECT T3402 is IEI 0x16 "GPRS timer 2", TLV (TS 24.301
-		// §8.2.3.1) — not the ATTACH ACCEPT's IEI 0x17 TV. Header (2) + cause (1),
-		// then 0x16, length 1, value.
+		// §8.2.3.1) — not the ATTACH ACCEPT's IEI 0x17 TV.
 		want := []byte{b[0], b[1], 11, 0x16, 0x01, t3402}
 		if !bytes.Equal(b, want) {
 			t.Fatalf("ATTACH REJECT T3402 encoding = % x, want % x", b, want)

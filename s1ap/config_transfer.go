@@ -10,10 +10,8 @@ import (
 )
 
 // SONConfigurationTransfer holds the SON Configuration Transfer IE
-// (TS 36.413 §9.2.3.26) as its raw open-type value bytes. The MME does not
-// interpret the SON Information it carries; per §8.15.2/§8.16.2 it relays the IE
-// verbatim from ENB CONFIGURATION TRANSFER into MME CONFIGURATION TRANSFER,
-// decoding only the leading Target eNB-ID to route it.
+// (TS 36.413 §9.2.3.26) as raw open-type bytes: the MME relays it verbatim and
+// decodes only the leading Target eNB-ID to route it.
 type SONConfigurationTransfer []byte
 
 func (c SONConfigurationTransfer) field(id ProtocolIEID) ieField {
@@ -23,10 +21,9 @@ func (c SONConfigurationTransfer) field(id ProtocolIEID) ieField {
 	}}
 }
 
-// TargetENBID decodes the leading Target eNB-ID, which names the eNB the IE is
-// destined for (TS 36.413 §9.2.3.26: SONConfigurationTransfer ::= SEQUENCE {
-// targeteNB-ID, sourceeNB-ID, sONInformation, iE-Extensions OPTIONAL, ... }).
-// Only the first field is decoded; the rest are relayed as opaque bytes.
+// TargetENBID decodes the leading Target eNB-ID, which names the destination eNB
+// (TS 36.413 §9.2.3.26). The remaining fields (source eNB-ID, SON Information) are
+// relayed as opaque bytes.
 func (c SONConfigurationTransfer) TargetENBID() (TargeteNBID, error) {
 	r := aper.NewReader(c)
 
@@ -38,10 +35,9 @@ func (c SONConfigurationTransfer) TargetENBID() (TargeteNBID, error) {
 }
 
 // ENBConfigurationTransfer is the ENB CONFIGURATION TRANSFER message
-// (TS 36.413 §8.15), sent by the eNB to the MME to convey SON configuration for
-// another eNB. The SON Configuration Transfer IE is optional; SONConfigurationTransfer
-// is nil when absent. Only the base variant is modelled — EN-DC and inter-system
-// SON transfers round-trip as unknown IEs.
+// (TS 36.413 §8.15), sent by an eNB to convey SON configuration for another eNB.
+// SONConfigurationTransfer is nil when the optional IE is absent. Only the base
+// variant is modelled; EN-DC and inter-system SON transfers round-trip as unknown IEs.
 type ENBConfigurationTransfer struct {
 	SONConfigurationTransfer SONConfigurationTransfer
 

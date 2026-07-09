@@ -50,9 +50,8 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, pla
 		return nasreply.Handled()
 	}
 
-	// The UE's serving cell must be in this MME's served area. The S1 Setup gate
-	// accepts an eNB broadcasting any served TAI, so a UE camped on an unserved TAC
-	// of an otherwise-served eNB is caught only here (TS 24.301 §5.5.1.2.5, EMM #12).
+	// The UE's serving cell must be in this MME's served area, or ATTACH REJECT #12
+	// (ServesTAI, TS 24.301 §5.5.1.2.5).
 	if served, err := m.ServesTAI(ctx, ue.Conn().ServingTAI); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to evaluate serving TAI for attach", zap.Error(err))
 		return nasreply.Handled()

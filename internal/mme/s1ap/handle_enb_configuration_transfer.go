@@ -12,11 +12,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// handleENBConfigurationTransfer relays a SON Configuration Transfer IE between
-// eNBs (TS 36.413 §8.15/§8.16). Per §8.15.2 the MME "shall transparently transfer
-// the SON Configuration Transfer IE towards the eNB indicated in the Target eNB-ID
-// IE"; the IE is copied verbatim into an MME CONFIGURATION TRANSFER. Non-UE,
-// fire-and-forget: an absent IE or an unconnected target eNB is dropped.
+// handleENBConfigurationTransfer relays a SON Configuration Transfer IE verbatim
+// from ENB CONFIGURATION TRANSFER into an MME CONFIGURATION TRANSFER toward the eNB
+// named in its Target eNB-ID (TS 36.413 §8.15.2/§8.16.2). Non-UE, fire-and-forget:
+// an absent IE or an unconnected target is dropped.
 func handleENBConfigurationTransfer(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseENBConfigurationTransfer(value)
 	if err != nil {

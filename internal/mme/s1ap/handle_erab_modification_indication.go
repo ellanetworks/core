@@ -22,7 +22,7 @@ var causeERABModOmittedERAB = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Val
 // UE's established E-RABs to the addresses the eNB reports (the DC / secondary-node
 // bearer-relocation case) and confirms them (TS 36.413 §8.2.4). Per §8.2.4.4, an
 // indication that repeats an E-RAB ID or omits an E-RAB already in the UE context
-// is abnormal and triggers a UE Context Release rather than a modification.
+// is abnormal and triggers a UE Context Release, not a modification.
 func handleERABModificationIndication(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseERABModificationIndication(value)
 	if err != nil {

@@ -13,11 +13,10 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// ServesTAI reports whether tai — a UE's serving-cell TAI — is one this MME serves:
-// its PLMN is the operator PLMN and its TAC is an operator E-UTRAN TAC. It is the
-// per-UE serving-area gate behind EMM cause #12 (TS 24.301 §5.5.1.2.5), finer than
-// the node-level S1 Setup gate, which accepts an eNB that broadcasts any served TAI
-// even when it also broadcasts an unserved one.
+// ServesTAI reports whether tai — a UE's serving-cell TAI — is served: operator PLMN
+// and an operator E-UTRAN TAC. This per-UE gate (EMM cause #12, TS 24.301 §5.5.1.2.5)
+// is finer than the node-level S1 Setup gate, which admits an eNB broadcasting any
+// served TAI even when it also broadcasts an unserved one.
 func (m *MME) ServesTAI(ctx context.Context, tai s1ap.TAI) (bool, error) {
 	plmn, err := m.OperatorPLMN(ctx)
 	if err != nil {

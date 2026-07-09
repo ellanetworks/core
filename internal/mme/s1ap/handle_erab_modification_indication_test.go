@@ -52,7 +52,6 @@ func TestERABModificationIndication_RelocatesAndConfirms(t *testing.T) {
 
 	handleERABModificationIndication(m, context.Background(), mme.NewRadioForTest(cc), erabModValue(t, req))
 
-	// Downlink relocated to the reported eNB S1-U endpoint.
 	wantFTEID := models.FTEID{TEID: 0x1234, Addr: netip.AddrFrom4([4]byte{10, 5, 0, 2})}
 	if fsm := m.Session.(*fakeSessionManager); fsm.modifiedENB != wantFTEID {
 		t.Fatalf("ModifyEPSSession eNB F-TEID = %+v, want %+v", fsm.modifiedENB, wantFTEID)
@@ -62,7 +61,6 @@ func TestERABModificationIndication_RelocatesAndConfirms(t *testing.T) {
 		t.Fatalf("stored eNB F-TEID = %+v, want %+v", testPDN(ue).EnbFTEID, wantFTEID)
 	}
 
-	// A single E-RAB MODIFICATION CONFIRM was sent.
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected 1 E-RAB Modification Confirm, got %d S1AP messages", len(cc.sent))
 	}
@@ -95,12 +93,10 @@ func TestERABModificationIndication_OmittedERABReleases(t *testing.T) {
 
 	handleERABModificationIndication(m, context.Background(), mme.NewRadioForTest(cc), erabModValue(t, req))
 
-	// No downlink was modified — the abnormal condition took over.
 	if fsm := m.Session.(*fakeSessionManager); fsm.modifiedENB != (models.FTEID{}) {
 		t.Fatalf("expected no E-RAB modification, got F-TEID %+v", fsm.modifiedENB)
 	}
 
-	// The sole message is a UE Context Release Command, not a Confirm.
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected 1 UE Context Release Command, got %d S1AP messages", len(cc.sent))
 	}

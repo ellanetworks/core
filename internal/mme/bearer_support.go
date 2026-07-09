@@ -13,8 +13,7 @@ import (
 )
 
 // ActiveEBIs returns the EPS bearer identities of the UE's established PDN
-// connections, sorted. Used to detect an E-RAB Modification Indication that omits
-// an E-RAB already in the UE context (TS 36.413 §8.2.4.4).
+// connections, sorted.
 func (ue *UeContext) ActiveEBIs() []uint8 {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

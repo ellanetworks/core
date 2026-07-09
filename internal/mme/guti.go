@@ -14,13 +14,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// SendGUTIReallocationCommand reassigns the UE's GUTI with the standalone GUTI
-// reallocation procedure: it stages a new GUTI, sends a protected GUTI REALLOCATION
-// COMMAND, and arms T3450 so the command is retransmitted until the UE acknowledges
-// with GUTI REALLOCATION COMPLETE (TS 24.301 §5.4.1). It mirrors the AMF's
-// post-Service-Request CONFIGURATION UPDATE, giving a fresh temporary identity when
-// the UE returns from idle with no accept message to carry one. The UE keeps using
-// the old GUTI until it acknowledges (§5.4.1.4).
+// SendGUTIReallocationCommand runs the standalone GUTI reallocation procedure, arming
+// T3450 to retransmit the GUTI REALLOCATION COMMAND until the UE acknowledges; the UE
+// keeps the old GUTI until then (TS 24.301 §5.4.1, §5.4.1.4).
 func (m *MME) SendGUTIReallocationCommand(ctx context.Context, ue *UeContext) {
 	plmn, err := m.OperatorPLMN(ctx)
 	if err != nil {
@@ -42,10 +38,9 @@ func (m *MME) SendGUTIReallocationCommand(ctx context.Context, ue *UeContext) {
 		return
 	}
 
-	// On T3450 exhaustion the reallocation is aborted, leaving the UE connected with
-	// both the old and new GUTI valid (TS 24.301 §5.4.1.6 a) — a later Service Request
-	// re-initiates with the staged M-TMSI. Abort-only, not a release: it mirrors the
-	// AMF's CONFIGURATION UPDATE (T3555), which keeps the UE on exhaustion.
+	// On T3450 exhaustion the reallocation is abort-only, not a UE release: the UE stays
+	// connected with both old and new GUTI valid, and a later Service Request re-initiates
+	// with the staged M-TMSI (TS 24.301 §5.4.1.6 a).
 	ue.Conn().ArmNASGuardAbortOnly("GUTI Reallocation Command", wire, func() {
 		logger.From(ctx, logger.MmeLog).Warn("GUTI reallocation aborted: no GUTI Reallocation Complete after T3450 retransmissions",
 			zap.String("imsi", ue.IMSI()))

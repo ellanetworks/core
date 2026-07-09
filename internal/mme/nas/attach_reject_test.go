@@ -12,11 +12,9 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// TestAttachTrackingAreaNotAllowed checks that an Attach from a serving cell outside
-// the operator's served area is rejected with ATTACH REJECT #12 ("Tracking area not
-// allowed") and the S1 context is released, without authenticating. The eNB broadcasts
-// a served TAC (S1 Setup accepted it), but the UE camps on its unserved TAC — the case
-// only the per-UE gate catches (TS 24.301 §5.5.1.2.5).
+// TestAttachTrackingAreaNotAllowed checks an Attach from a serving cell outside the
+// served area is rejected with ATTACH REJECT #12 and the S1 context released, without
+// authenticating (TS 24.301 §5.5.1.2.5).
 func TestAttachTrackingAreaNotAllowed(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}

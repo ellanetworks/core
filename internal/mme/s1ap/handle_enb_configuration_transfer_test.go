@@ -69,7 +69,6 @@ func TestHandleENBConfigurationTransfer_TargetNotConnected(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// No target eNB is registered: the transfer is dropped, nothing is sent.
 	handleENBConfigurationTransfer(m, context.Background(), mme.NewRadioForTest(sourceConn), value)
 
 	if sourceConn.count() != 0 {
