@@ -44,5 +44,5 @@ func handleENBStatusTransfer(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 		return
 	}
 
-	m.SendS1APConn(ctx, targetConn, mme.S1APProcedureMMEStatusTransfer, b)
+	m.SendToRadio(ctx, targetConn, mme.S1APProcedureMMEStatusTransfer, b)
 }

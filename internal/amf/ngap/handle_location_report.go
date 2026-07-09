@@ -77,8 +77,8 @@ func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		pkt, err := send.BuildLocationReportingControl(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID), msg.LocationReportingRequestType.EventType)
 		if err != nil {
 			logger.WithTrace(ctx, ueConn.Log).Error("error building location reporting control", zap.Error(err))
-		} else if err := ueConn.SendNGAP(ctx, send.NGAPProcedureLocationReportingControl, pkt); err != nil {
-			logger.WithTrace(ctx, ueConn.Log).Error("error sending location reporting control", zap.Error(err))
+		} else {
+			ueConn.SendNGAP(ctx, send.NGAPProcedureLocationReportingControl, pkt)
 		}
 	case ngapType.EventTypePresentStopUePresenceInAreaOfInterest:
 		if msg.LocationReportingRequestType.LocationReportingReferenceIDToBeCancelled == nil {

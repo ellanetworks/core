@@ -16,6 +16,10 @@ func TestECMIdleBuffersSession(t *testing.T) {
 	ue, cc := securedUE(t, m)
 	testPDN(ue).Apn = "internet"
 
+	// The release buffers the session and sends the Release Command (TS 23.401 §5.3.5),
+	// then the eNB acknowledges with Release Complete.
+	m.ReleaseUEContext(context.Background(), ue, mme.CauseNASNormalRelease)
+
 	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: 7}
 	b, _ := complete.Marshal()
 	cpdu, _ := s1ap.Unmarshal(b)

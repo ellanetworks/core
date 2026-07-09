@@ -54,6 +54,8 @@ const (
 	idENBStatusTransferTransparentContainer     ProtocolIEID = 90
 	idSourceToTargetTransparentContainer        ProtocolIEID = 104
 	idTargetToSourceTransparentContainer        ProtocolIEID = 123
+	idSONConfigurationTransferECT               ProtocolIEID = 129
+	idSONConfigurationTransferMCT               ProtocolIEID = 130
 	idSecurityKey                               ProtocolIEID = 73
 	idUERadioCapability                         ProtocolIEID = 74
 	idGUMMEI                                    ProtocolIEID = 75
@@ -72,4 +74,10 @@ const (
 	idUERadioCapabilityForPaging                ProtocolIEID = 117
 	idRRCEstablishmentCause                     ProtocolIEID = 134
 	idDefaultPagingDRX                          ProtocolIEID = 137
+	idERABToBeModifiedListBearerModInd          ProtocolIEID = 199
+	idERABToBeModifiedItemBearerModInd          ProtocolIEID = 200
+	idERABNotToBeModifiedListBearerModInd       ProtocolIEID = 201
+	idERABNotToBeModifiedItemBearerModInd       ProtocolIEID = 202
+	idERABModifyListBearerModConf               ProtocolIEID = 203
+	idERABModifyItemBearerModConf               ProtocolIEID = 204
 )

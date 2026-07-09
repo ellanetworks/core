@@ -75,7 +75,7 @@ func decodeDownlinkNAS(t *testing.T, pdu []byte) []byte {
 func TestAttachRecoveryAfterMMERestart(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := newAttachUe(m, cc, 7)
 
 	esm, err := (&eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: 1}).Marshal()
 	if err != nil {
@@ -122,7 +122,7 @@ func TestAttachRecoveryAfterMMERestart(t *testing.T) {
 func TestIdentityResponseRecoveryAfterMMERestart(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 8)
+	ue := newAttachUe(m, cc, 8)
 	ue.TransitionTo(mme.EMMRegistrationInitiated) // attach in progress: authentication sub-phase
 
 	// Mobile identity for testSubscriber.IMSI (TS 24.008 §10.5.1.4): first digit in
@@ -213,7 +213,7 @@ func TestAttachReusesContextForNativeGUTI(t *testing.T) {
 	wire := nativeGUTIAttach(t, m, existing)
 
 	cc := &captureConn{}
-	fresh := m.NewUe(cc, 9)
+	fresh := newAttachUe(m, cc, 9)
 	HandleNAS(context.Background(), m, fresh.Conn(), wire)
 
 	// The held context is reused in place — the connection is rebound onto it and
@@ -272,7 +272,7 @@ func TestAttachReusesContextForNativeGUTI_ReleasesOldBearers(t *testing.T) {
 	wire := nativeGUTIAttach(t, m, existing)
 
 	cc := &captureConn{}
-	fresh := m.NewUe(cc, 9)
+	fresh := newAttachUe(m, cc, 9)
 	HandleNAS(context.Background(), m, fresh.Conn(), wire)
 
 	if !m.Session.(*fakeSessionManager).released {
@@ -293,7 +293,7 @@ func TestAttachKeepsOldGUTIResolvableUntilComplete(t *testing.T) {
 	presented := existing.TmsiForTest()
 
 	cc := &captureConn{}
-	fresh := m.NewUe(cc, 9)
+	fresh := newAttachUe(m, cc, 9)
 	HandleNAS(context.Background(), m, fresh.Conn(), wire)
 
 	// The Attach Accept has been sent but not yet acknowledged. The M-TMSI the UE
@@ -344,7 +344,7 @@ func TestAttachNativeGUTIBadMACFallsBackToAuth(t *testing.T) {
 	wire[1] ^= 0xff // corrupt the MAC
 
 	cc := &captureConn{}
-	fresh := m.NewUe(cc, 9)
+	fresh := newAttachUe(m, cc, 9)
 	HandleNAS(context.Background(), m, fresh.Conn(), wire)
 
 	if _, ok := m.LookupUe(oldID); !ok {
@@ -368,7 +368,7 @@ func TestAttachNativeGUTIReplayDoesNotRemoveContext(t *testing.T) {
 	existing.SetULCountForTest(50)
 
 	cc := &captureConn{}
-	attacker := m.NewUe(cc, 9)
+	attacker := newAttachUe(m, cc, 9)
 	HandleNAS(context.Background(), m, attacker.Conn(), wire)
 
 	if _, ok := m.LookupUe(oldID); !ok {
@@ -379,7 +379,7 @@ func TestAttachNativeGUTIReplayDoesNotRemoveContext(t *testing.T) {
 func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := newAttachUe(m, cc, 7)
 
 	// 1. UE → Attach Request (IMSI), EEA2/EIA2 capable, with a PDN Connectivity
 	// Request in the ESM container.
@@ -623,7 +623,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 func TestSecurityModeRejectReleasesUE(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := newAttachUe(m, cc, 7)
 
 	// A security mode exchange is in flight (the command was sent).
 	if !m.TryClaimKeyChain(ue) {
@@ -658,7 +658,7 @@ func TestSecurityModeRejectReleasesUE(t *testing.T) {
 func TestIdentityResponseIgnoredAfterAuthStarted(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := newAttachUe(m, cc, 7)
 	ue.SetIMSIForTest(testSubscriber.IMSI)
 	ue.Conn().AuthVector = &udm.EPSAV{} // authentication already in progress
 
@@ -682,7 +682,7 @@ func TestIdentityResponseIgnoredAfterAuthStarted(t *testing.T) {
 func TestSecurityModeRejectIgnoredOutsideExchange(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := newAttachUe(m, cc, 7)
 
 	// No security mode exchange is claimed.
 	plain, err := (&eps.SecurityModeReject{Cause: 23}).Marshal()
@@ -782,7 +782,7 @@ func parseInitialContextSetup(t *testing.T, pdu []byte) *s1ap.InitialContextSetu
 func TestDispatchEMM_UnhandledMessageReturnsEMMStatus(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := newAttachUe(m, cc, 7)
 
 	// A plain EMM message (SHT=plain, PD=EMM) carrying a type the MME does not handle.
 	plain := []byte{0x07, 0x55}
@@ -800,7 +800,7 @@ func TestDispatchEMM_UnhandledMessageReturnsEMMStatus(t *testing.T) {
 func TestDispatchESM_UnhandledMessageReturnsESMStatus(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := newAttachUe(m, cc, 7)
 
 	// A plain NAS message with the ESM protocol discriminator and an ESM type the MME does
 	// not handle (bearer 0/PTI in octet 1, unhandled message type in octet 3).
@@ -820,7 +820,7 @@ func TestDispatchESM_UnhandledMessageReturnsESMStatus(t *testing.T) {
 func TestDispatchEMM_EMMStatusHandledNoReply(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := newAttachUe(m, cc, 7)
 
 	plain, err := (&eps.EMMStatus{EMMCause: mme.EmmCauseProtocolErrorUnspec}).Marshal()
 	if err != nil {
@@ -925,7 +925,7 @@ func TestAttachDuplicateDifferingIEsProgresses(t *testing.T) {
 func TestAttachIgnoredDuringNetworkInitiatedDetach(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := newAttachUe(m, cc, 7)
 	ue.ForceStateForTest(mme.EMMDeregistrationInitiated)
 
 	attach := &eps.AttachRequest{

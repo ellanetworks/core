@@ -29,8 +29,8 @@ func handleDecodeReport(ctx context.Context, ran *amf.Radio, report *decode.Repo
 
 			if pkt, err := send.BuildErrorIndication(nil, nil, nil, &cd); err != nil {
 				logger.WithTrace(ctx, ran.Log).Error("error building error indication", zap.Error(err))
-			} else if err := ran.SendToRan(ctx, send.NGAPProcedureErrorIndication, pkt); err != nil {
-				logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
+			} else {
+				ran.SendToRadio(ctx, send.NGAPProcedureErrorIndication, pkt)
 			}
 		}
 

@@ -77,8 +77,8 @@ func TestServiceRequestReestablishes(t *testing.T) {
 		t.Fatalf("UE not bound to the new eNB UE id, got %d", ue.Conn().ENBUES1APID)
 	}
 
-	if len(cc.sent) != 1 {
-		t.Fatalf("expected Initial Context Setup Request, got %d S1AP messages", len(cc.sent))
+	if len(cc.sent) != 2 {
+		t.Fatalf("expected Initial Context Setup Request + GUTI Reallocation Command, got %d S1AP messages", len(cc.sent))
 	}
 
 	ics := parseInitialContextSetup(t, cc.sent[0])
@@ -113,8 +113,8 @@ func TestServiceRequestReactivatesAllBearers(t *testing.T) {
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
 	})
 
-	if len(cc.sent) != 1 {
-		t.Fatalf("expected Initial Context Setup Request, got %d S1AP messages", len(cc.sent))
+	if len(cc.sent) != 2 {
+		t.Fatalf("expected Initial Context Setup Request + GUTI Reallocation Command, got %d S1AP messages", len(cc.sent))
 	}
 
 	ics := parseInitialContextSetup(t, cc.sent[0])
@@ -180,8 +180,8 @@ func TestServiceRequestS1UTransportFamily(t *testing.T) {
 				STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
 			})
 
-			if len(cc.sent) != 1 {
-				t.Fatalf("expected Initial Context Setup Request, got %d S1AP messages", len(cc.sent))
+			if len(cc.sent) != 2 {
+				t.Fatalf("expected Initial Context Setup Request + GUTI Reallocation Command, got %d S1AP messages", len(cc.sent))
 			}
 
 			ics := parseInitialContextSetup(t, cc.sent[0])

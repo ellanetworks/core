@@ -97,7 +97,7 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 		zap.Uint32("mme-ue-id", uint32(sourceMMEID)),
 		zap.Int("admitted", len(admitted)),
 		zap.Int("released", len(releaseEBIs)))
-	m.SendS1APConn(ctx, sourceConn, mme.S1APProcedureHandoverCommand, b)
+	m.SendToRadio(ctx, sourceConn, mme.S1APProcedureHandoverCommand, b)
 }
 
 // failedHandoverEBIs returns the EPS bearer identities the target eNB reported

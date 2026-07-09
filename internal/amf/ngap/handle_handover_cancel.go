@@ -46,14 +46,10 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	if aborted && target != nil {
 		target.ReleaseAction = amf.UeContextReleaseHandover
 
-		if err := target.SendUEContextReleaseCommand(ctx, causePresent, causeValue); err != nil {
-			logger.WithTrace(ctx, sourceUe.Log).Error("error sending UE Context Release Command to target UE", zap.Error(err))
-		}
+		target.SendUEContextReleaseCommand(ctx, causePresent, causeValue)
 	}
 
 	// The acknowledge is mandatory, so it is sent regardless of the target-release
 	// outcome (TS 38.413 §8.4.5).
-	if err := sourceUe.SendHandoverCancelAcknowledge(ctx); err != nil {
-		logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover cancel acknowledge to source UE", zap.Error(err))
-	}
+	sourceUe.SendHandoverCancelAcknowledge(ctx)
 }

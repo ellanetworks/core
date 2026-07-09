@@ -39,11 +39,9 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 	bpfObjects := conn.BpfObjects
 	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 
-	// Delete every PDR best-effort. A PDR whose BPF map entry is already gone —
-	// e.g. a duplicate PDR sharing a downlink UE-IP key that an earlier iteration
-	// removed — is a benign no-op: the session must still be fully removed,
-	// otherwise the engine keeps reporting usage for a torn-down session and its
-	// stale forwarding state leaks into a later session that reuses the UE IP.
+	// An already-removed PDR map key is a benign no-op; the session must still be fully
+	// removed so a torn-down session is not orphaned in the engine (reporting usage and
+	// leaking forwarding state to a later session that reuses the UE IP).
 	var pdrErr error
 
 	for _, pdrInfo := range session.ListPDRs() {

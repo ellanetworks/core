@@ -36,6 +36,7 @@ var causeGroupRootCount = [causeRootGroups]int{
 // Ella Core emits. Each value is its group's enumeration index, so the same
 // number means different things in different groups — the group prefix names it.
 const (
+	CauseRadioNetworkUnspecified             = 0  // unspecified
 	CauseRadioNetworkUnknownMMEUES1APID      = 13 // unknown-mme-ue-s1ap-id
 	CauseRadioNetworkUnknownPairUES1APID     = 15 // unknown-pair-ue-s1ap-id
 	CauseRadioNetworkMultipleERABIDInstances = 31 // multiple-E-RAB-ID-instances

@@ -55,6 +55,13 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 		return
 	}
 
+	// Deactivate before the S1 UE Context Release Command so a concurrent downlink is
+	// buffered for paging (TS 23.401 §5.3.5: Release Access Bearers precedes the release
+	// command). Only a registered UE transitions to ECM-IDLE.
+	if ue.EMMState() == EMMRegistered {
+		m.DeactivateAllSessions(ctx, ue)
+	}
+
 	conn.SendUEContextReleaseCommand(ctx, cause)
 
 	// Supervise the Release Complete: a lost Complete (or a command that could not be

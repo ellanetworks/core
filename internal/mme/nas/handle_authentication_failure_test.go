@@ -19,7 +19,7 @@ import (
 func TestAuthenticationFailureIgnoredWithNoAuthInProgress(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := newAttachUe(m, cc, 7)
 
 	// No AuthVector: no authentication is in progress.
 	plain, err := (&eps.AuthenticationFailure{Cause: mme.EmmCauseMACFailure}).Marshal()
@@ -88,7 +88,7 @@ func authChallengedUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) {
 	t.Helper()
 
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := newAttachUe(m, cc, 7)
 	ue.SetIMSIForTest(testSubscriber.IMSI)
 	ue.ForceRegStepForTest(mme.RegStepAuthenticating)
 

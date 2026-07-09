@@ -424,7 +424,7 @@ func notifyRANsUnavailable(ctx context.Context, amfInstance *amf.AMF, timeout ti
 	}
 
 	for _, ran := range amfInstance.ConnectedRadios() {
-		if err := ran.SendToRan(sendCtx, send.NGAPProcedureAMFStatusIndication, pkt); err != nil {
+		if err := amfInstance.SendToRadio(sendCtx, ran.Conn, send.NGAPProcedureAMFStatusIndication, pkt); err != nil {
 			logger.APILog.Warn("failed to send AMF Status Indication to RAN during drain", zap.Error(err))
 			continue
 		}

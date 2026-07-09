@@ -11,7 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
-	"go.uber.org/zap"
 )
 
 // TS 23.502
@@ -50,11 +49,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 
 	ueConn.ReleaseAction = amf.UeContextReleaseUeContext
 
-	err := ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
-	if err != nil {
-		logger.From(ctx, logger.AmfLog).Warn("error sending ue context release command", zap.Error(err))
-		return nasreply.Handled()
-	}
+	ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 
 	return nasreply.Handled()
 }

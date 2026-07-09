@@ -42,6 +42,12 @@ type UeConn struct {
 	// attached to a context). Guarded by MME.mu.
 	ue *UeContext
 
+	// ServingTAI is the UE's current serving-cell TAI, from the User Location of its
+	// INITIAL UE MESSAGE and refreshed on each UPLINK NAS TRANSPORT (TS 36.413). It
+	// gates attach/TAU against the operator's served area (EMM cause #12).
+	// Dispatch-confined.
+	ServingTAI s1ap.TAI
+
 	m *MME
 
 	// ICS is the S1AP Initial Context Setup progress: it distinguishes a

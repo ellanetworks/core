@@ -85,6 +85,11 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 	}
 
 	sendInitialContextSetup(ctx, m, ue, qos, nil)
+
+	// The SERVICE REQUEST carries no accept message to convey a fresh GUTI, so reassign
+	// one with the standalone reallocation procedure — identity confidentiality on return
+	// from idle (TS 24.301 §5.4.1).
+	m.SendGUTIReallocationCommand(ctx, ue)
 }
 
 // sendServiceReject sends a SERVICE REJECT with the given EMM cause over a bare connection,

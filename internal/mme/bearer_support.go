@@ -5,11 +5,28 @@ package mme
 
 import (
 	"context"
+	"slices"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 )
+
+// ActiveEBIs returns the EPS bearer identities of the UE's established PDN
+// connections, sorted.
+func (ue *UeContext) ActiveEBIs() []uint8 {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	out := make([]uint8, 0, len(ue.Pdns))
+	for ebi := range ue.Pdns {
+		out = append(out, ebi)
+	}
+
+	slices.Sort(out)
+
+	return out
+}
 
 // DefaultERABID is the EPS bearer identity of the default bearer (TS 24.301).
 const DefaultERABID byte = 5

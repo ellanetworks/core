@@ -31,9 +31,7 @@ func sendPathSwitchRequestFailure(ctx context.Context, ran *amf.Radio, msg decod
 		return
 	}
 
-	if err := ran.SendToRan(ctx, send.NGAPProcedurePathSwitchRequestFailure, pkt); err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("error sending path switch request failure", zap.Error(err))
-	}
+	ran.SendToRadio(ctx, send.NGAPProcedurePathSwitchRequestFailure, pkt)
 }
 
 // pathSwitchReleasedList builds the released list with one item per distinct

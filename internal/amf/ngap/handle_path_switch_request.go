@@ -196,10 +196,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			return
 		}
 
-		if err := ueConn.SendNGAP(ctx, send.NGAPProcedurePathSwitchRequestAcknowledge, pkt); err != nil {
-			logger.WithTrace(ctx, ueConn.Log).Error("error sending path switch request acknowledge", zap.Error(err))
-			return
-		}
+		ueConn.SendNGAP(ctx, send.NGAPProcedurePathSwitchRequestAcknowledge, pkt)
 	} else {
 		// TS 38.413: no session switched, so the path switch fails and every requested
 		// session is released.

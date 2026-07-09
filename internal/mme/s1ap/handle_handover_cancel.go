@@ -43,5 +43,5 @@ func handleHandoverCancel(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Handover Cancel", zap.Uint32("mme-ue-id", uint32(cancel.MMEUES1APID)))
-	m.SendS1APConn(ctx, radio.Conn, mme.S1APProcedureHandoverCancelAcknowledge, b)
+	m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureHandoverCancelAcknowledge, b)
 }

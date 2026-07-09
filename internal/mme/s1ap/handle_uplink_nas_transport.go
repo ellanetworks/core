@@ -26,6 +26,10 @@ func handleUplinkNASTransport(m *mme.MME, ctx context.Context, radio *mme.Radio,
 
 	ue.TouchLastSeen()
 
+	// Track the UE's current serving-cell TAI so a later TAU is gated on where the UE
+	// now is (TS 36.413: UPLINK NAS TRANSPORT carries the current TAI).
+	ue.Conn().ServingTAI = msg.TAI
+
 	// resolveUE guarantees the UE is connected on this association, so ue.Conn() is
 	// the connection the message arrived on.
 	m.NAS.HandleNAS(ctx, ue.Conn(), []byte(msg.NASPDU))

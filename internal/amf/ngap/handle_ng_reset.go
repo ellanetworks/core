@@ -37,10 +37,7 @@ func HandleNGReset(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, ms
 			return
 		}
 
-		if err := ran.SendToRan(ctx, send.NGAPProcedureNGResetAcknowledge, pkt); err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending NG Reset Acknowledge", zap.Error(err))
-			return
-		}
+		ran.SendToRadio(ctx, send.NGAPProcedureNGResetAcknowledge, pkt)
 	case ngapType.ResetTypePresentPartOfNGInterface:
 		logger.WithTrace(ctx, ran.Log).Debug("ResetType Present: Part of NG Interface")
 
@@ -87,10 +84,7 @@ func HandleNGReset(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, ms
 			return
 		}
 
-		if err := ran.SendToRan(ctx, send.NGAPProcedureNGResetAcknowledge, pkt); err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending NG Reset Acknowledge", zap.Error(err))
-			return
-		}
+		ran.SendToRadio(ctx, send.NGAPProcedureNGResetAcknowledge, pkt)
 	default:
 		logger.WithTrace(ctx, ran.Log).Warn("Invalid ResetType", zap.Any("ResetType", msg.ResetType.Present))
 	}

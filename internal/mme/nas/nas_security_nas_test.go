@@ -14,7 +14,7 @@ import (
 func TestStartSecurityModeRejectsNoCommonIntegrity(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := newAttachUe(m, cc, 7)
 	ue.SetIMSIForTest(testSubscriber.IMSI)
 	ue.SetKASMEForTest(make([]byte, 32))
 	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xff, EIA: 0x00}.Marshal(), nil, mme.MintAuthProofForAttachRequest())
@@ -42,7 +42,7 @@ func TestStartSecurityModeRejectsNoCommonIntegrity(t *testing.T) {
 func TestStartSecurityModeClaimsKeyChain(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := newAttachUe(m, cc, 7)
 	ue.SetIMSIForTest(testSubscriber.IMSI)
 	ue.SetKASMEForTest(make([]byte, 32))
 	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xff, EIA: 0xff}.Marshal(), nil, mme.MintAuthProofForAttachRequest())

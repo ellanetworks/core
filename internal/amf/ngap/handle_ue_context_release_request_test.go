@@ -92,13 +92,8 @@ func TestSendUEContextReleaseCommand_Idempotent(t *testing.T) {
 	sender := ran.Conn.(*fakeNGAPSender)
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
-	if err := ueConn.SendUEContextReleaseCommand(context.Background(), ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease); err != nil {
-		t.Fatalf("first release: %v", err)
-	}
-
-	if err := ueConn.SendUEContextReleaseCommand(context.Background(), ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease); err != nil {
-		t.Fatalf("second release: %v", err)
-	}
+	ueConn.SendUEContextReleaseCommand(context.Background(), ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+	ueConn.SendUEContextReleaseCommand(context.Background(), ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 
 	if len(sender.SentUEContextReleaseCommands) != 1 {
 		t.Fatalf("expected a single UE Context Release Command, got %d", len(sender.SentUEContextReleaseCommands))

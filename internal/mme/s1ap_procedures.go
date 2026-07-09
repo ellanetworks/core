@@ -51,6 +51,10 @@ const (
 	S1APProcedureHandoverCancelAcknowledge   S1APProcedure = "HandoverCancelAcknowledge"
 	S1APProcedureENBStatusTransfer           S1APProcedure = "ENBStatusTransfer"
 	S1APProcedureMMEStatusTransfer           S1APProcedure = "MMEStatusTransfer"
+	S1APProcedureENBConfigurationTransfer    S1APProcedure = "ENBConfigurationTransfer"
+	S1APProcedureMMEConfigurationTransfer    S1APProcedure = "MMEConfigurationTransfer"
+	S1APProcedureERABModificationIndication  S1APProcedure = "E-RABModificationIndication"
+	S1APProcedureERABModificationConfirm     S1APProcedure = "E-RABModificationConfirm"
 	S1APProcedureUnknown                     S1APProcedure = "UnknownMessage"
 )
 
@@ -116,6 +120,12 @@ func s1apInitiatingMessageType(code s1ap.ProcedureCode) S1APProcedure {
 		return S1APProcedureENBStatusTransfer
 	case s1ap.ProcMMEStatusTransfer:
 		return S1APProcedureMMEStatusTransfer
+	case s1ap.ProcENBConfigurationTransfer:
+		return S1APProcedureENBConfigurationTransfer
+	case s1ap.ProcERABModificationIndication:
+		return S1APProcedureERABModificationIndication
+	case s1ap.ProcMMEConfigurationTransfer:
+		return S1APProcedureMMEConfigurationTransfer
 	default:
 		return S1APProcedureUnknown
 	}
@@ -137,6 +147,8 @@ func s1apSuccessfulOutcomeType(code s1ap.ProcedureCode) S1APProcedure {
 		return S1APProcedureERABSetupResponse
 	case s1ap.ProcERABModify:
 		return S1APProcedureERABModifyResponse
+	case s1ap.ProcERABModificationIndication:
+		return S1APProcedureERABModificationConfirm
 	case s1ap.ProcERABRelease:
 		return S1APProcedureERABReleaseResponse
 	case s1ap.ProcPathSwitchRequest:

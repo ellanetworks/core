@@ -427,7 +427,7 @@ func SendHandoverPreparationFailure(ctx context.Context, m *MME, conn S1APWriter
 		return
 	}
 
-	m.SendS1APConn(ctx, conn, S1APProcedureHandoverPreparationFailure, b)
+	m.SendToRadio(ctx, conn, S1APProcedureHandoverPreparationFailure, b)
 }
 
 // SendUEContextRelease sends a UE Context Release Command over conn. pair selects the
@@ -447,7 +447,7 @@ func SendUEContextRelease(ctx context.Context, m *MME, conn S1APWriter, mmeUEID 
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("UE Context Release Command (handover)", zap.Uint32("mme-ue-id", uint32(mmeUEID)))
-	m.SendS1APConn(ctx, conn, S1APProcedureUEContextReleaseCommand, b)
+	m.SendToRadio(ctx, conn, S1APProcedureUEContextReleaseCommand, b)
 }
 
 // S1AP Cause Radio Network values used when releasing an eNB's UE context during a

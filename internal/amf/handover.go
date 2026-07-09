@@ -127,9 +127,11 @@ func handoverGuardExpiry(a *AMF, sourceUe, targetUe *UeConn) func(context.Contex
 
 		targetUe.ReleaseAction = UeContextReleaseHandover
 
-		return targetUe.SendUEContextReleaseCommand(cctx,
+		targetUe.SendUEContextReleaseCommand(cctx,
 			ngapType.CausePresentRadioNetwork,
 			ngapType.CauseRadioNetworkPresentTngrelocoverallExpiry)
+
+		return nil
 	}
 }
 

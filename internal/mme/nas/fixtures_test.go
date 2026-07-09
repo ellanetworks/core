@@ -251,12 +251,27 @@ func (h *nasHandler) HandleServiceRequest(ctx context.Context, conn mme.S1APWrit
 	HandleServiceRequest(ctx, h.m, conn, msg)
 }
 
+// servedAttachTAI is a TAI in the test operator's served area (PLMN 001/01, TAC 1),
+// as an INITIAL UE MESSAGE reports for an admitted attach.
+var servedAttachTAI = s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}
+
+// newAttachUe registers a test UE with a served serving TAI (as HandleInitialUEMessage
+// sets in production) so the attach clears the serving-area gate (TS 24.301 §5.5.1.2.5).
+func newAttachUe(m *mme.MME, conn mme.S1APWriter, enbUEID s1ap.ENBUES1APID) *mme.UeContext {
+	ue := m.NewUe(conn, enbUEID)
+	if ue != nil {
+		ue.Conn().ServingTAI = servedAttachTAI
+	}
+
+	return ue
+}
+
 // securedUE returns a registered UE with a valid EPS NAS security context.
 func securedUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) {
 	t.Helper()
 
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := newAttachUe(m, cc, 7)
 
 	kasme := make([]byte, 32)
 	for i := range kasme {
@@ -306,6 +321,7 @@ func parseUEContextReleaseCommand(t *testing.T, pdu []byte) *s1ap.UEContextRelea
 // connection, the resume primitives HandleServiceRequest uses.
 func establishResumeForTest(m *mme.MME, ue *mme.UeContext, conn mme.S1APWriter, enbUEID s1ap.ENBUES1APID) {
 	c := m.NewUeConn(conn, enbUEID)
+	c.ServingTAI = servedAttachTAI // set from the resume's INITIAL UE MESSAGE in production
 	m.AttachUeConn(ue, c)
 	c.MarkSecureExchangeEstablished()
 }

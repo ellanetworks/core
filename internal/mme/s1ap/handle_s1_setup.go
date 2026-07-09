@@ -56,7 +56,7 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 	)
 
 	if !accepted {
-		m.SendS1APConn(ctx, conn, mme.S1APProcedureS1SetupFailure, outBytes)
+		m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupFailure, outBytes)
 
 		logger.From(ctx, m.RadioLog(conn)).Warn("S1 Setup rejected",
 			zap.String("enb-name", req.ENBName),
@@ -66,7 +66,7 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 		return
 	}
 
-	m.SendS1APConn(ctx, conn, mme.S1APProcedureS1SetupResponse, outBytes)
+	m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupResponse, outBytes)
 
 	// Claim the eNB's identity and broadcast TAIs only on accept; until then the
 	// dispatcher's setup-first gate drops the association's UE signalling (TS 36.413).

@@ -38,8 +38,5 @@ func HandleUplinkRanConfigurationTransfer(ctx context.Context, amfInstance *amf.
 		return
 	}
 
-	if err := targetRan.SendToRan(ctx, send.NGAPProcedureDownlinkRanConfigurationTransfer, pkt); err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("error sending downlink ran configuration transfer", zap.Error(err))
-		return
-	}
+	targetRan.SendToRadio(ctx, send.NGAPProcedureDownlinkRanConfigurationTransfer, pkt)
 }

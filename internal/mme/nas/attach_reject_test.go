@@ -9,7 +9,55 @@ import (
 
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/s1ap"
 )
+
+// TestAttachTrackingAreaNotAllowed checks an Attach from a serving cell outside the
+// served area is rejected with ATTACH REJECT #12 and the S1 context released, without
+// authenticating (TS 24.301 §5.5.1.2.5).
+func TestAttachTrackingAreaNotAllowed(t *testing.T) {
+	m := newTestMME(t)
+	cc := &captureConn{}
+	ue := newAttachUe(m, cc, 7)
+
+	// Served PLMN 001/01 but TAC 2, which the operator does not serve (it serves TAC 1).
+	ue.Conn().ServingTAI = s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 2}
+
+	esm, err := (&eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: 1}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	attach := &eps.AttachRequest{
+		EPSAttachType:       eps.AttachTypeEPS,
+		NASKeySetIdentifier: 7,
+		EPSMobileIdentity:   eps.EPSMobileIdentity{Type: eps.IdentityIMSI, Digits: testSubscriber.IMSI},
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(),
+		ESMMessageContainer: esm,
+	}
+
+	b, err := attach.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	HandleNAS(context.Background(), m, ue.Conn(), b)
+
+	if len(cc.sent) != 2 {
+		t.Fatalf("expected Attach Reject + Release Command, got %d S1AP messages", len(cc.sent))
+	}
+
+	rej, err := eps.ParseAttachReject(decodeDownlinkNAS(t, cc.sent[0]))
+	if err != nil {
+		t.Fatalf("not an Attach Reject: %v", err)
+	}
+
+	if rej.Cause != mme.EmmCauseTrackingAreaNotAllowed {
+		t.Fatalf("Attach Reject cause = %d, want %d", rej.Cause, mme.EmmCauseTrackingAreaNotAllowed)
+	}
+
+	parseUEContextReleaseCommand(t, cc.sent[1])
+}
 
 // TestAttachUnknownIMSI checks that an Attach Request from an unprovisioned IMSI
 // is rejected with ATTACH REJECT #2 ("IMSI unknown in HSS") and the S1 context
@@ -17,7 +65,7 @@ import (
 func TestAttachUnknownIMSI(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := newAttachUe(m, cc, 7)
 
 	esm, err := (&eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: 1}).Marshal()
 	if err != nil {

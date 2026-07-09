@@ -107,6 +107,8 @@ func HandleEmmMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain 
 		return handleSecurityModeReject(ctx, m, ue, plain)
 	case eps.MsgAttachComplete:
 		return handleAttachComplete(ctx, m, ue, plain)
+	case eps.MsgGUTIReallocationComplete:
+		return handleGUTIReallocationComplete(ctx, m, ue, plain)
 	case eps.MsgDetachRequest:
 		return handleDetachRequest(ctx, m, ue, plain, integrityVerified)
 	case eps.MsgDetachAccept:

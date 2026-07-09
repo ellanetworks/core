@@ -11,7 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
-	"go.uber.org/zap"
 )
 
 func HandleErrorIndication(ctx gocontext.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.ErrorIndication) {
@@ -38,7 +37,5 @@ func HandleErrorIndication(ctx gocontext.Context, amfInstance *amf.AMF, ran *amf
 
 	ueConn.ReleaseAction = amf.UeContextN2NormalRelease
 
-	if err := ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentRadioNetwork, ngapType.CauseRadioNetworkPresentUnspecified); err != nil {
-		logger.WithTrace(ctx, ueConn.Log).Error("failed to release UE on Error Indication", zap.Error(err))
-	}
+	ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentRadioNetwork, ngapType.CauseRadioNetworkPresentUnspecified)
 }

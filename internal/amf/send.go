@@ -296,7 +296,7 @@ func SendRegistrationAccept(
 	if ueConn.UeContextRequest {
 		ueConn.MarkICSPending()
 
-		if err := ueConn.SendInitialContextSetupRequest(
+		if err := ueConn.SendInitialContextSetup(
 			ctx,
 			ue.Ambr.Uplink,
 			ue.Ambr.Downlink,
@@ -330,7 +330,7 @@ func SendRegistrationAccept(
 				logger.From(ctx, logger.AmfLog).Warn("[NAS] UE Context released, abort retransmission of Registration Accept")
 			} else {
 				if retryUeConn.UeContextRequest && retryUeConn.ICS() != ICSCompleted {
-					err = retryUeConn.SendInitialContextSetupRequest(
+					err = retryUeConn.SendInitialContextSetup(
 						context.Background(),
 						ue.Ambr.Uplink,
 						ue.Ambr.Downlink,
@@ -518,13 +518,15 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 }
 
 // SendNGAP writes a complete NGAP PDU to this UE's gNB association (via its conn).
-func (ueConn *UeConn) SendNGAP(ctx context.Context, msgType send.NGAPProcedure, pkt []byte) error {
+func (ueConn *UeConn) SendNGAP(ctx context.Context, msgType send.NGAPProcedure, pkt []byte) {
 	amfInstance, conn, err := ueConn.sendTarget()
 	if err != nil {
-		return err
+		logger.From(ctx, ueConn.Log).Error("failed to resolve NGAP send target", zap.String("procedure", string(msgType)), zap.Error(err))
+		return
 	}
 
-	return amfInstance.SendToRan(ctx, conn, msgType, pkt)
+	// The send failure, if any, is logged at the chokepoint.
+	_ = amfInstance.SendToRadio(ctx, conn, msgType, pkt)
 }
 
 func (ueConn *UeConn) SendDownlinkNASTransport(ctx context.Context, nasPdu []byte) error {
@@ -538,13 +540,14 @@ func (ueConn *UeConn) SendDownlinkNASTransport(ctx context.Context, nasPdu []byt
 		return err
 	}
 
-	return amfInstance.SendToRan(ctx, conn, send.NGAPProcedureDownlinkNasTransport, pkt)
+	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureDownlinkNasTransport, pkt)
 }
 
-func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, causePresent int, cause aper.Enumerated) error {
+func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, causePresent int, cause aper.Enumerated) {
 	amfInstance, conn, err := ueConn.sendTarget()
 	if err != nil {
-		return err
+		logger.From(ctx, ueConn.Log).Error("failed to resolve send target for UE Context Release Command", zap.Error(err))
+		return
 	}
 
 	// Idempotent: a release already in flight for this RAN UE (an eNB-initiated release
@@ -552,20 +555,24 @@ func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, causePres
 	// UE Context Release Command.
 	if !amfInstance.claimRelease(ueConn) {
 		logger.WithTrace(ctx, ueConn.Log).Debug("UE Context Release already in progress; suppressing duplicate")
-		return nil
+		return
 	}
 
 	pkt, err := send.BuildUEContextReleaseCommand(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID), causePresent, cause)
 	if err != nil {
 		// The command cannot be sent, so no Release Complete will arrive; release
 		// locally now to avoid leaking the UeConn and its claim.
+		logger.From(ctx, ueConn.Log).Error("failed to build UE Context Release Command", zap.Error(err))
 		amfInstance.ReleaseUeConn(ctx, ueConn)
-		return err
+
+		return
 	}
 
-	if err := amfInstance.SendToRan(ctx, conn, send.NGAPProcedureUEContextReleaseCommand, pkt); err != nil {
+	if err := amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureUEContextReleaseCommand, pkt); err != nil {
+		// The chokepoint logs the send failure; release locally so the UeConn cannot leak.
 		amfInstance.ReleaseUeConn(ctx, ueConn)
-		return err
+
+		return
 	}
 
 	// Supervise the Release Complete: if it is lost, fire once and run the same
@@ -574,8 +581,6 @@ func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, causePres
 	ueConn.releaseGuard.Arm(releaseGuardTimeout, 0, nil, func() {
 		amfInstance.ReleaseUeConn(context.Background(), ueConn)
 	})
-
-	return nil
 }
 
 func (ueConn *UeConn) SendPDUSessionResourceSetupRequest(ctx context.Context, ambrUp string, ambrDown string, nasPdu []byte, list ngapType.PDUSessionResourceSetupListSUReq) error {
@@ -589,7 +594,7 @@ func (ueConn *UeConn) SendPDUSessionResourceSetupRequest(ctx context.Context, am
 		return err
 	}
 
-	return amfInstance.SendToRan(ctx, conn, send.NGAPProcedurePDUSessionResourceSetupRequest, pkt)
+	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedurePDUSessionResourceSetupRequest, pkt)
 }
 
 func (ueConn *UeConn) SendPDUSessionResourceReleaseCommand(ctx context.Context, nasPdu []byte, list ngapType.PDUSessionResourceToReleaseListRelCmd) error {
@@ -603,10 +608,10 @@ func (ueConn *UeConn) SendPDUSessionResourceReleaseCommand(ctx context.Context, 
 		return err
 	}
 
-	return amfInstance.SendToRan(ctx, conn, send.NGAPProcedurePDUSessionResourceReleaseCommand, pkt)
+	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedurePDUSessionResourceReleaseCommand, pkt)
 }
 
-func (ueConn *UeConn) SendInitialContextSetupRequest(
+func (ueConn *UeConn) SendInitialContextSetup(
 	ctx context.Context,
 	ambrUp string,
 	ambrDown string,
@@ -642,7 +647,7 @@ func (ueConn *UeConn) SendInitialContextSetupRequest(
 		return err
 	}
 
-	return amfInstance.SendToRan(ctx, conn, send.NGAPProcedureInitialContextSetupRequest, pkt)
+	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureInitialContextSetupRequest, pkt)
 }
 
 func (ueConn *UeConn) SendPDUSessionResourceModifyConfirm(
@@ -665,7 +670,7 @@ func (ueConn *UeConn) SendPDUSessionResourceModifyConfirm(
 		return err
 	}
 
-	return amfInstance.SendToRan(ctx, conn, send.NGAPProcedurePDUSessionResourceModifyConfirm, pkt)
+	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedurePDUSessionResourceModifyConfirm, pkt)
 }
 
 func (ueConn *UeConn) SendPDUSessionResourceModifyRequest(
@@ -686,35 +691,27 @@ func (ueConn *UeConn) SendPDUSessionResourceModifyRequest(
 		return err
 	}
 
-	return amfInstance.SendToRan(ctx, conn, send.NGAPProcedurePDUSessionResourceModifyRequest, pkt)
+	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedurePDUSessionResourceModifyRequest, pkt)
 }
 
-func (ueConn *UeConn) SendHandoverPreparationFailure(ctx context.Context, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
-	amfInstance, conn, err := ueConn.sendTarget()
-	if err != nil {
-		return err
-	}
-
+func (ueConn *UeConn) SendHandoverPreparationFailure(ctx context.Context, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) {
 	pkt, err := send.BuildHandoverPreparationFailure(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID), cause, criticalityDiagnostics)
 	if err != nil {
-		return err
+		logger.From(ctx, ueConn.Log).Error("failed to build Handover Preparation Failure", zap.Error(err))
+		return
 	}
 
-	return amfInstance.SendToRan(ctx, conn, send.NGAPProcedureHandoverPreparationFailure, pkt)
+	ueConn.SendNGAP(ctx, send.NGAPProcedureHandoverPreparationFailure, pkt)
 }
 
-func (ueConn *UeConn) SendHandoverCancelAcknowledge(ctx context.Context) error {
-	amfInstance, conn, err := ueConn.sendTarget()
-	if err != nil {
-		return err
-	}
-
+func (ueConn *UeConn) SendHandoverCancelAcknowledge(ctx context.Context) {
 	pkt, err := send.BuildHandoverCancelAcknowledge(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID))
 	if err != nil {
-		return err
+		logger.From(ctx, ueConn.Log).Error("failed to build Handover Cancel Acknowledge", zap.Error(err))
+		return
 	}
 
-	return amfInstance.SendToRan(ctx, conn, send.NGAPProcedureHandoverCancelAcknowledge, pkt)
+	ueConn.SendNGAP(ctx, send.NGAPProcedureHandoverCancelAcknowledge, pkt)
 }
 
 func (ueConn *UeConn) SendHandoverRequest(
@@ -754,5 +751,5 @@ func (ueConn *UeConn) SendHandoverRequest(
 		return err
 	}
 
-	return amfInstance.SendToRan(ctx, conn, send.NGAPProcedureHandoverRequest, pkt)
+	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureHandoverRequest, pkt)
 }

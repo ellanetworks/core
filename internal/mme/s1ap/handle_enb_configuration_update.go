@@ -46,7 +46,7 @@ func handleENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Ra
 		msgType = mme.S1APProcedureENBConfigUpdateFailure
 	}
 
-	m.SendS1APConn(ctx, radio.Conn, msgType, out)
+	m.SendToRadio(ctx, radio.Conn, msgType, out)
 
 	if !accepted {
 		logger.From(ctx, radio.Log).Warn("ENB Configuration Update rejected: eNB broadcasts no TAI (PLMN + TAC) served by this MME")

@@ -8,9 +8,45 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
+	"go.uber.org/zap"
 )
+
+// SendGUTIReallocationCommand runs the standalone GUTI reallocation procedure, arming
+// T3450 to retransmit the GUTI REALLOCATION COMMAND until the UE acknowledges; the UE
+// keeps the old GUTI until then (TS 24.301 §5.4.1, §5.4.1.4).
+func (m *MME) SendGUTIReallocationCommand(ctx context.Context, ue *UeContext) {
+	plmn, err := m.OperatorPLMN(ctx)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("GUTI reallocation: get operator PLMN", zap.Error(err))
+		return
+	}
+
+	mmeGroupID, mmeCode := m.MmeIdentity()
+
+	guti, err := m.ReallocateGUTI(ctx, ue, plmn, mmeGroupID, mmeCode)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("GUTI reallocation: allocate GUTI", zap.Error(err))
+		return
+	}
+
+	wire, err := ue.ProtectDownlinkMessage(&eps.GUTIReallocationCommand{GUTI: guti})
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("GUTI reallocation: protect command", zap.Error(err))
+		return
+	}
+
+	// On T3450 exhaustion the reallocation is abort-only, not a UE release: the UE stays
+	// connected with both old and new GUTI valid, and a later Service Request re-initiates
+	// with the staged M-TMSI (TS 24.301 §5.4.1.6 a).
+	ue.Conn().ArmNASGuardAbortOnly("GUTI Reallocation Command", wire, func() {
+		logger.From(ctx, logger.MmeLog).Warn("GUTI reallocation aborted: no GUTI Reallocation Complete after T3450 retransmissions",
+			zap.String("imsi", ue.IMSI()))
+	})
+	ue.Conn().SendDownlinkNASTransport(ctx, wire)
+}
 
 // releaseMTMSIsLocked unindexes and frees both the UE's current M-TMSI and any
 // pending old one from an in-flight GUTI reallocation. The caller holds m.mu.

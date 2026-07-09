@@ -61,11 +61,7 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 		if sourceUe.Radio() == nil {
 			logger.WithTrace(ctx, targetUe.Log).Error("source UE radio is nil, cannot send handover preparation failure")
 		} else {
-			err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, msg.CriticalityDiagnostics)
-			if err != nil {
-				logger.WithTrace(ctx, targetUe.Log).Error("error sending handover preparation failure", zap.Error(err))
-				return
-			}
+			sourceUe.SendHandoverPreparationFailure(ctx, failureCause, msg.CriticalityDiagnostics)
 		}
 	}
 

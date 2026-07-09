@@ -146,6 +146,13 @@ func TestAttachNetworkRoundTrips(t *testing.T) {
 		if err != nil || out.Cause != 11 || out.T3402 != t3402 {
 			t.Fatalf("T3402 round-trip: got %+v (want cause 11, T3402 %#x), err %v", out, t3402, err)
 		}
+
+		// The ATTACH REJECT T3402 is IEI 0x16 "GPRS timer 2", TLV (TS 24.301
+		// §8.2.3.1) — not the ATTACH ACCEPT's IEI 0x17 TV.
+		want := []byte{b[0], b[1], 11, 0x16, 0x01, t3402}
+		if !bytes.Equal(b, want) {
+			t.Fatalf("ATTACH REJECT T3402 encoding = % x, want % x", b, want)
+		}
 	})
 }
 

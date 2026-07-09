@@ -45,9 +45,7 @@ func HandleRanConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 			return
 		}
 
-		if err := ran.SendToRan(ctx, send.NGAPProcedureRanConfigurationUpdateAcknowledge, pkt); err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending ran configuration update acknowledge", zap.Error(err))
-		}
+		ran.SendToRadio(ctx, send.NGAPProcedureRanConfigurationUpdateAcknowledge, pkt)
 	} else {
 		pkt, err := send.BuildRanConfigurationUpdateFailure(cause, nil)
 		if err != nil {
@@ -55,9 +53,7 @@ func HandleRanConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 			return
 		}
 
-		if err := ran.SendToRan(ctx, send.NGAPProcedureRanConfigurationUpdateFailure, pkt); err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending ran configuration update failure", zap.Error(err))
-		}
+		ran.SendToRadio(ctx, send.NGAPProcedureRanConfigurationUpdateFailure, pkt)
 	}
 }
 

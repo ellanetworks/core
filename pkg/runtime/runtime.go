@@ -757,9 +757,7 @@ func closeAMF(ctx context.Context, amfInstance *amf.AMF, srv *amfsctp.Server) {
 			logger.AmfLog.Error("failed to build AMF Status Indication", zap.Error(buildErr))
 		} else {
 			for _, ran := range amfInstance.ConnectedRadios() {
-				if err := ran.SendToRan(ctx, send.NGAPProcedureAMFStatusIndication, pkt); err != nil {
-					logger.AmfLog.Error("failed to send AMF Status Indication to RAN", zap.Error(err))
-				}
+				ran.SendToRadio(ctx, send.NGAPProcedureAMFStatusIndication, pkt)
 			}
 		}
 	}

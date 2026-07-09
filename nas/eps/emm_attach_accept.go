@@ -192,14 +192,14 @@ func ParseAttachComplete(b []byte) (*AttachComplete, error) {
 // REJECT.
 type AttachReject struct {
 	Cause uint8
-	// T3402 is the encoded one-octet GPRS timer value (§9.9.3.16); 0 omits the IE.
+	// T3402 is the encoded one-octet GPRS timer value (§9.9.3.16A); 0 omits the IE.
 	T3402 uint8
 }
 
 // attachRejectIEs are the optional IEs Ella Core emits in an ATTACH REJECT: the
-// T3402 value, a type-2 (TV) IE with a one-octet value.
+// T3402 value, a type-4 (TLV) "GPRS timer 2" IE with a one-octet value (§8.2.3.4).
 var attachRejectIEs = []common.OptionalIE{
-	{IEI: t3402ValueIEI, Format: common.IETV3, Len: 1},
+	{IEI: t3402ValueIEI, Format: common.IETLV},
 }
 
 // Marshal encodes the plain ATTACH REJECT message.
@@ -211,7 +211,10 @@ func (m *AttachReject) Marshal() ([]byte, error) {
 
 	if m.T3402 != 0 {
 		w.U8(t3402ValueIEI)
-		w.U8(m.T3402)
+
+		if err := w.LV([]byte{m.T3402}); err != nil {
+			return nil, err
+		}
 	}
 
 	return w.Bytes(), nil

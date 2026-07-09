@@ -27,9 +27,7 @@ func sendNGSetupFailure(ctx context.Context, ran *amf.Radio, cause *ngapType.Cau
 		return
 	}
 
-	if err := ran.SendToRan(ctx, send.NGAPProcedureNGSetupFailure, pkt); err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("error sending NG Setup Failure", zap.Error(err))
-	}
+	ran.SendToRadio(ctx, send.NGAPProcedureNGSetupFailure, pkt)
 }
 
 func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.NGSetupRequest) {
@@ -181,10 +179,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return
 	}
 
-	if err := ran.SendToRan(ctx, send.NGAPProcedureNGSetupResponse, pkt); err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("error sending NG Setup Response", zap.Error(err))
-		return
-	}
+	ran.SendToRadio(ctx, send.NGAPProcedureNGSetupResponse, pkt)
 
 	logger.WithTrace(ctx, ran.Log).Info("Radio completed NG Setup", zap.String("name", name))
 }

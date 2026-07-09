@@ -53,11 +53,7 @@ func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 
 		ueConn.ReleaseAction = amf.UeContextN2NormalRelease
 
-		err := ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
-		if err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("error sending ue context release command", zap.Error(err))
-			return nasreply.Handled()
-		}
+		ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 	}
 
 	ue.ClearRegistrationRequestData()

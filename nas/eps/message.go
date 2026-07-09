@@ -14,22 +14,24 @@ import (
 type MessageType uint8
 
 const (
-	MsgAttachRequest          MessageType = 0x41
-	MsgAttachAccept           MessageType = 0x42
-	MsgAttachComplete         MessageType = 0x43
-	MsgAttachReject           MessageType = 0x44
-	MsgDetachRequest          MessageType = 0x45
-	MsgDetachAccept           MessageType = 0x46
-	MsgAuthenticationRequest  MessageType = 0x52
-	MsgAuthenticationResponse MessageType = 0x53
-	MsgAuthenticationReject   MessageType = 0x54
-	MsgIdentityRequest        MessageType = 0x55
-	MsgIdentityResponse       MessageType = 0x56
-	MsgAuthenticationFailure  MessageType = 0x5c
-	MsgSecurityModeCommand    MessageType = 0x5d
-	MsgSecurityModeComplete   MessageType = 0x5e
-	MsgSecurityModeReject     MessageType = 0x5f
-	MsgEMMStatus              MessageType = 0x60
+	MsgAttachRequest            MessageType = 0x41
+	MsgAttachAccept             MessageType = 0x42
+	MsgAttachComplete           MessageType = 0x43
+	MsgAttachReject             MessageType = 0x44
+	MsgDetachRequest            MessageType = 0x45
+	MsgDetachAccept             MessageType = 0x46
+	MsgGUTIReallocationCommand  MessageType = 0x50
+	MsgGUTIReallocationComplete MessageType = 0x51
+	MsgAuthenticationRequest    MessageType = 0x52
+	MsgAuthenticationResponse   MessageType = 0x53
+	MsgAuthenticationReject     MessageType = 0x54
+	MsgIdentityRequest          MessageType = 0x55
+	MsgIdentityResponse         MessageType = 0x56
+	MsgAuthenticationFailure    MessageType = 0x5c
+	MsgSecurityModeCommand      MessageType = 0x5d
+	MsgSecurityModeComplete     MessageType = 0x5e
+	MsgSecurityModeReject       MessageType = 0x5f
+	MsgEMMStatus                MessageType = 0x60
 )
 
 // ErrNotPlain reports a non-zero security-header type where a plain message was

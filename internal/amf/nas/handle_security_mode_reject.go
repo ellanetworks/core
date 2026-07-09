@@ -40,11 +40,7 @@ func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *nasMe
 
 	ueConn.ReleaseAction = amf.UeContextReleaseUeContext
 
-	err := ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
-	if err != nil {
-		logger.From(ctx, logger.AmfLog).Warn("error sending ue context release command", zap.Error(err))
-		return nasreply.Handled()
-	}
+	ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 
 	return nasreply.Handled()
 }

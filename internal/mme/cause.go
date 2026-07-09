@@ -43,6 +43,7 @@ const (
 	EmmCauseIMSIUnknownInHSS       uint8 = 2
 	EmmCauseEPSServicesNotAllowed  uint8 = 7
 	EmmCauseUEIdentityUnderivable  uint8 = 9
+	EmmCauseTrackingAreaNotAllowed uint8 = 12
 	EmmCauseCSDomainNotAvailable   uint8 = 18
 	EmmCauseESMFailure             uint8 = 19
 	EmmCauseMACFailure             uint8 = 20
