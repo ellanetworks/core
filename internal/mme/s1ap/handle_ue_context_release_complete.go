@@ -51,10 +51,6 @@ func HandleUEContextReleaseComplete(m *mme.MME, ctx context.Context, radio *mme.
 
 	m.FreeUeConn(ue)
 
-	// Buffer the downlink bearers so data for the idle UE triggers paging
-	// (TS 23.401).
-	m.DeactivateAllSessions(ctx, ue)
-
 	// Supervise the UE's reachability while idle: the mobile reachable timer is
 	// (re)started when the MME releases the NAS signalling connection (TS 24.301).
 	m.StartMobileReachable(ue)

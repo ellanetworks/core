@@ -51,12 +51,5 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, radio *mme.R
 		logger.From(ctx, ue.Conn().Log).Info("UE Context Release Request", fields...)
 	}
 
-	// Deactivate before the S1 UE Context Release Command so a concurrent downlink is
-	// buffered for paging (TS 23.401 §5.3.5: Release Access Bearers precedes the release
-	// command). Only a registered UE transitions to ECM-IDLE.
-	if ue.EMMState() == mme.EMMRegistered {
-		m.DeactivateAllSessions(ctx, ue)
-	}
-
 	m.ReleaseUEContext(ctx, ue, msg.Cause)
 }
