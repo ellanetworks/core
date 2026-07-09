@@ -73,9 +73,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 		return
 	}
 
-	if err := ran.SendToRan(ctx, send.NGAPProcedurePDUSessionResourceModifyConfirm, pkt); err != nil {
-		logger.WithTrace(ctx, ueConn.Log).Error("error sending pdu session resource modify confirm", zap.Error(err))
-	}
+	_ = ran.SendToRadio(ctx, send.NGAPProcedurePDUSessionResourceModifyConfirm, pkt)
 }
 
 func appendFailedToModify(ctx context.Context, ueConn *amf.UeConn, list *ngapType.PDUSessionResourceFailedToModifyListModCfm, pduSessionID ngapType.PDUSessionID, causeValue aper.Enumerated) {

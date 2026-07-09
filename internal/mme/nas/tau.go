@@ -30,6 +30,19 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		zap.String("update-type", epsUpdateTypeName(req.EPSUpdateType)),
 		zap.Bool("active-flag", req.ActiveFlag))
 
+	// The UE's serving cell must be in this MME's served area, as at attach — a TAU
+	// onto an unserved TAC is rejected with EMM #12 (TS 24.301 §5.5.3.2.5). Mirrors
+	// the AMF's serving-TAI check on mobility registration.
+	if served, err := m.ServesTAI(ctx, ue.Conn().ServingTAI); err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to evaluate serving TAI for Tracking Area Update", zap.Error(err))
+		return nasreply.Handled()
+	} else if !served {
+		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update rejected [Tracking area not allowed]", zap.String("imsi", ue.IMSI()))
+		rejectTrackingAreaUpdate(ctx, m, ue, mme.EmmCauseTrackingAreaNotAllowed)
+
+		return nasreply.Handled()
+	}
+
 	// When the UE reports its EPS bearer context status, the MME deactivates the
 	// bearers it holds but the UE considers inactive, then reflects the resulting
 	// active set in the accept (TS 24.301 §5.5.3.2.4).
@@ -91,6 +104,15 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	ue.Conn().ArmNASGuard("Tracking Area Update Accept", naspdu)
 
 	return nasreply.Handled()
+}
+
+// rejectTrackingAreaUpdate sends a TRACKING AREA UPDATE REJECT with the given EMM
+// cause and releases the UE's S1 context, mirroring rejectAttach (TS 24.301 §5.5.3.2.5).
+func rejectTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause uint8) {
+	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
+	ue.Conn().StopNASGuard()
+	ue.Conn().SendDownlinkMessage(ctx, &eps.TrackingAreaUpdateReject{Cause: cause})
+	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
 }
 
 // handleTrackingAreaUpdateComplete finalises a GUTI reallocation; for a no-active

@@ -75,7 +75,7 @@ func handleERABModificationIndication(m *mme.MME, ctx context.Context, radio *mm
 		zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)),
 		zap.Int("e-rabs-modified", len(modified)))
 
-	m.SendS1APConn(ctx, radio.Conn, mme.S1APProcedureERABModificationConfirm, b)
+	m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureERABModificationConfirm, b)
 }
 
 // modifyBearerDownlinks relocates each listed E-RAB's downlink to the eNB S1-U

@@ -42,7 +42,15 @@ func (m *MME) SendGUTIReallocationCommand(ctx context.Context, ue *UeContext) {
 		return
 	}
 
-	ue.Conn().SendGuardedDownlink(ctx, "GUTI Reallocation Command", wire)
+	// On T3450 exhaustion the reallocation is aborted, leaving the UE connected with
+	// both the old and new GUTI valid (TS 24.301 §5.4.1.6 a) — a later Service Request
+	// re-initiates with the staged M-TMSI. Abort-only, not a release: it mirrors the
+	// AMF's CONFIGURATION UPDATE (T3555), which keeps the UE on exhaustion.
+	ue.Conn().ArmNASGuardAbortOnly("GUTI Reallocation Command", wire, func() {
+		logger.From(ctx, logger.MmeLog).Warn("GUTI reallocation aborted: no GUTI Reallocation Complete after T3450 retransmissions",
+			zap.String("imsi", ue.IMSI()))
+	})
+	ue.Conn().SendDownlinkNASTransport(ctx, wire)
 }
 
 // releaseMTMSIsLocked unindexes and frees both the UE's current M-TMSI and any

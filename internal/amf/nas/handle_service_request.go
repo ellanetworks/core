@@ -65,7 +65,7 @@ func sendServiceAccept(
 
 		ueConn.MarkICSPending()
 
-		err = ueConn.SendInitialContextSetupRequest(
+		err = ueConn.SendInitialContextSetup(
 			ctx,
 			ue.Ambr.Uplink,
 			ue.Ambr.Downlink,

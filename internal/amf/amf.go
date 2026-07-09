@@ -643,8 +643,8 @@ func (amf *AMF) pageRadios(ctx context.Context, ue *UeContext, ngapBuf []byte) {
 	for _, ran := range amf.ConnectedRadios() {
 		for _, item := range ran.SupportedTAIList() {
 			if InTaiList(item.Tai, taiList) {
-				if err := amf.SendToRan(ctx, ran.Conn, send.NGAPProcedurePaging, ngapBuf); err != nil {
-					logger.From(ctx, logger.AmfLog).Error("failed to send paging", zap.Error(err))
+				if err := amf.SendToRadio(ctx, ran.Conn, send.NGAPProcedurePaging, ngapBuf); err != nil {
+					// The send failure is logged at the chokepoint.
 					continue
 				}
 

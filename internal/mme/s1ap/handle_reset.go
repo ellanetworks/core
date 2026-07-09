@@ -55,5 +55,5 @@ func sendResetAcknowledge(m *mme.MME, conn mme.S1APWriter, connectionList []s1ap
 	}
 
 	// Reset handling is not tied to a single UE request span; use a fresh root.
-	m.SendS1APConn(context.Background(), conn, mme.S1APProcedureResetAcknowledge, b)
+	m.SendToRadio(context.Background(), conn, mme.S1APProcedureResetAcknowledge, b)
 }

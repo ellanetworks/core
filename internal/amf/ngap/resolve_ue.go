@@ -94,7 +94,5 @@ func sendErrorIndication(ctx context.Context, ran *amf.Radio, amfID, ranID *int6
 		return
 	}
 
-	if err := ran.SendToRan(ctx, send.NGAPProcedureErrorIndication, pkt); err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
-	}
+	_ = ran.SendToRadio(ctx, send.NGAPProcedureErrorIndication, pkt)
 }

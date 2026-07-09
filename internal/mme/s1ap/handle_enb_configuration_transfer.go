@@ -48,5 +48,5 @@ func handleENBConfigurationTransfer(m *mme.MME, ctx context.Context, radio *mme.
 		return
 	}
 
-	m.SendS1APConn(ctx, targetRadio.Conn, mme.S1APProcedureMMEConfigurationTransfer, b)
+	m.SendToRadio(ctx, targetRadio.Conn, mme.S1APProcedureMMEConfigurationTransfer, b)
 }

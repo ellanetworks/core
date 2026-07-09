@@ -197,7 +197,7 @@ func sendPathSwitchFailure(m *mme.MME, conn mme.S1APWriter, req *s1ap.PathSwitch
 	}
 
 	// A Path Switch Failure can be sent before the UE is resolved; use a fresh root.
-	m.SendS1APConn(context.Background(), conn, mme.S1APProcedurePathSwitchRequestFailure, b)
+	m.SendToRadio(context.Background(), conn, mme.S1APProcedurePathSwitchRequestFailure, b)
 }
 
 // pathSwitchSecurityCapabilities compares the UE security capabilities the target

@@ -99,7 +99,7 @@ func emitErrorIndication(m *mme.MME, conn mme.S1APWriter, ind *s1ap.ErrorIndicat
 
 	// Resolution failures fire from many handlers, some outside a request span;
 	// fresh root.
-	m.SendS1APConn(context.Background(), conn, mme.S1APProcedureErrorIndication, b)
+	m.SendToRadio(context.Background(), conn, mme.S1APProcedureErrorIndication, b)
 }
 
 // handleErrorIndication processes an ERROR INDICATION from the eNB (TS 36.413). A

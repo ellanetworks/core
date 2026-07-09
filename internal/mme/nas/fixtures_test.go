@@ -322,6 +322,7 @@ func parseUEContextReleaseCommand(t *testing.T, pdu []byte) *s1ap.UEContextRelea
 // connection, the resume primitives HandleServiceRequest uses.
 func establishResumeForTest(m *mme.MME, ue *mme.UeContext, conn mme.S1APWriter, enbUEID s1ap.ENBUES1APID) {
 	c := m.NewUeConn(conn, enbUEID)
+	c.ServingTAI = servedAttachTAI // set from the resume's INITIAL UE MESSAGE in production
 	m.AttachUeConn(ue, c)
 	c.MarkSecureExchangeEstablished()
 }

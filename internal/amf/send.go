@@ -296,7 +296,7 @@ func SendRegistrationAccept(
 	if ueConn.UeContextRequest {
 		ueConn.MarkICSPending()
 
-		if err := ueConn.SendInitialContextSetupRequest(
+		if err := ueConn.SendInitialContextSetup(
 			ctx,
 			ue.Ambr.Uplink,
 			ue.Ambr.Downlink,
@@ -330,7 +330,7 @@ func SendRegistrationAccept(
 				logger.From(ctx, logger.AmfLog).Warn("[NAS] UE Context released, abort retransmission of Registration Accept")
 			} else {
 				if retryUeConn.UeContextRequest && retryUeConn.ICS() != ICSCompleted {
-					err = retryUeConn.SendInitialContextSetupRequest(
+					err = retryUeConn.SendInitialContextSetup(
 						context.Background(),
 						ue.Ambr.Uplink,
 						ue.Ambr.Downlink,
@@ -525,9 +525,8 @@ func (ueConn *UeConn) SendNGAP(ctx context.Context, msgType send.NGAPProcedure, 
 		return
 	}
 
-	if err := amfInstance.SendToRan(ctx, conn, msgType, pkt); err != nil {
-		logger.From(ctx, ueConn.Log).Error("failed to send NGAP message", zap.String("procedure", string(msgType)), zap.Error(err))
-	}
+	// The send failure, if any, is logged at the chokepoint.
+	_ = amfInstance.SendToRadio(ctx, conn, msgType, pkt)
 }
 
 func (ueConn *UeConn) SendDownlinkNASTransport(ctx context.Context, nasPdu []byte) error {
@@ -541,7 +540,7 @@ func (ueConn *UeConn) SendDownlinkNASTransport(ctx context.Context, nasPdu []byt
 		return err
 	}
 
-	return amfInstance.SendToRan(ctx, conn, send.NGAPProcedureDownlinkNasTransport, pkt)
+	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureDownlinkNasTransport, pkt)
 }
 
 func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, causePresent int, cause aper.Enumerated) {
@@ -569,8 +568,8 @@ func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, causePres
 		return
 	}
 
-	if err := amfInstance.SendToRan(ctx, conn, send.NGAPProcedureUEContextReleaseCommand, pkt); err != nil {
-		logger.From(ctx, ueConn.Log).Error("failed to send UE Context Release Command", zap.Error(err))
+	if err := amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureUEContextReleaseCommand, pkt); err != nil {
+		// The chokepoint logs the send failure; release locally so the UeConn cannot leak.
 		amfInstance.ReleaseUeConn(ctx, ueConn)
 
 		return
@@ -595,7 +594,7 @@ func (ueConn *UeConn) SendPDUSessionResourceSetupRequest(ctx context.Context, am
 		return err
 	}
 
-	return amfInstance.SendToRan(ctx, conn, send.NGAPProcedurePDUSessionResourceSetupRequest, pkt)
+	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedurePDUSessionResourceSetupRequest, pkt)
 }
 
 func (ueConn *UeConn) SendPDUSessionResourceReleaseCommand(ctx context.Context, nasPdu []byte, list ngapType.PDUSessionResourceToReleaseListRelCmd) error {
@@ -609,10 +608,10 @@ func (ueConn *UeConn) SendPDUSessionResourceReleaseCommand(ctx context.Context, 
 		return err
 	}
 
-	return amfInstance.SendToRan(ctx, conn, send.NGAPProcedurePDUSessionResourceReleaseCommand, pkt)
+	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedurePDUSessionResourceReleaseCommand, pkt)
 }
 
-func (ueConn *UeConn) SendInitialContextSetupRequest(
+func (ueConn *UeConn) SendInitialContextSetup(
 	ctx context.Context,
 	ambrUp string,
 	ambrDown string,
@@ -648,7 +647,7 @@ func (ueConn *UeConn) SendInitialContextSetupRequest(
 		return err
 	}
 
-	return amfInstance.SendToRan(ctx, conn, send.NGAPProcedureInitialContextSetupRequest, pkt)
+	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureInitialContextSetupRequest, pkt)
 }
 
 func (ueConn *UeConn) SendPDUSessionResourceModifyConfirm(
@@ -671,7 +670,7 @@ func (ueConn *UeConn) SendPDUSessionResourceModifyConfirm(
 		return err
 	}
 
-	return amfInstance.SendToRan(ctx, conn, send.NGAPProcedurePDUSessionResourceModifyConfirm, pkt)
+	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedurePDUSessionResourceModifyConfirm, pkt)
 }
 
 func (ueConn *UeConn) SendPDUSessionResourceModifyRequest(
@@ -692,7 +691,7 @@ func (ueConn *UeConn) SendPDUSessionResourceModifyRequest(
 		return err
 	}
 
-	return amfInstance.SendToRan(ctx, conn, send.NGAPProcedurePDUSessionResourceModifyRequest, pkt)
+	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedurePDUSessionResourceModifyRequest, pkt)
 }
 
 func (ueConn *UeConn) SendHandoverPreparationFailure(ctx context.Context, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) {
@@ -752,5 +751,5 @@ func (ueConn *UeConn) SendHandoverRequest(
 		return err
 	}
 
-	return amfInstance.SendToRan(ctx, conn, send.NGAPProcedureHandoverRequest, pkt)
+	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureHandoverRequest, pkt)
 }

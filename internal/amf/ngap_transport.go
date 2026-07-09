@@ -8,10 +8,13 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 var ngapSendTracer = otel.Tracer("ella-core/amf/ngap/send")
@@ -22,13 +25,13 @@ type NGAPWriter interface {
 	WriteMsg(b []byte, info *sctp.SndRcvInfo) (int, error)
 }
 
-// SendToRan writes a complete NGAP PDU to this radio's gNB association.
-func (r *Radio) SendToRan(ctx context.Context, msgType send.NGAPProcedure, packet []byte) error {
+// SendToRadio writes a complete NGAP PDU to this radio's gNB association.
+func (r *Radio) SendToRadio(ctx context.Context, msgType send.NGAPProcedure, packet []byte) error {
 	if r == nil || r.amf == nil {
 		return fmt.Errorf("radio is not bound to an amf")
 	}
 
-	return r.amf.SendToRan(ctx, r.Conn, msgType, packet)
+	return r.amf.SendToRadio(ctx, r.Conn, msgType, packet)
 }
 
 // SendDownlinkNRPPaTransport builds a DOWNLINK UE-ASSOCIATED NRPPa TRANSPORT carrying
@@ -40,13 +43,13 @@ func (r *Radio) SendDownlinkNRPPaTransport(ctx context.Context, amfUeNgapID int6
 		return fmt.Errorf("build downlink NRPPa transport: %w", err)
 	}
 
-	return r.SendToRan(ctx, send.NGAPProcedureDownlinkNRPPaTransport, pkt)
+	return r.SendToRadio(ctx, send.NGAPProcedureDownlinkNRPPaTransport, pkt)
 }
 
-// SendToRan writes a complete NGAP PDU to a gNB association, selecting the SCTP
+// SendToRadio writes a complete NGAP PDU to a gNB association, selecting the SCTP
 // stream from the procedure (TS 38.412). It takes the connection (the send target)
 // directly — a UE sends through ueConn.conn.
-func (a *AMF) SendToRan(ctx context.Context, conn NGAPWriter, msgType send.NGAPProcedure, packet []byte) error {
+func (a *AMF) SendToRadio(ctx context.Context, conn NGAPWriter, msgType send.NGAPProcedure, packet []byte) error {
 	ctx, span := ngapSendTracer.Start(ctx, "ngap/send",
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
@@ -76,6 +79,10 @@ func (a *AMF) SendToRan(ctx context.Context, conn NGAPWriter, msgType send.NGAPP
 		PPID:   sctp.PPIDWireOrder(send.NGAPPPID),
 	}
 	if _, err := conn.WriteMsg(packet, &info); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to send NGAP message")
+		logger.From(ctx, logger.AmfLog).Error("failed to send NGAP message", zap.String("message_type", string(msgType)), zap.Error(err))
+
 		return fmt.Errorf("send write to sctp connection: %w", err)
 	}
 

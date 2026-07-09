@@ -84,7 +84,7 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 
 	send.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
 
-	err = ueConn.SendInitialContextSetupRequest(
+	err = ueConn.SendInitialContextSetup(
 		ctx,
 		ue.Ambr.Uplink,
 		ue.Ambr.Downlink,
@@ -349,7 +349,7 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 	list := ngapType.PDUSessionResourceSetupListCxtReq{}
 	send.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 
-	err = ueConn.SendInitialContextSetupRequest(
+	err = ueConn.SendInitialContextSetup(
 		ctx,
 		ue.Ambr.Uplink,
 		ue.Ambr.Downlink,

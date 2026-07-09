@@ -11,7 +11,35 @@ import (
 	mmes1ap "github.com/ellanetworks/core/internal/mme/s1ap"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/s1ap"
 )
+
+// TestTrackingAreaUpdateTrackingAreaNotAllowed checks that a TAU from a serving cell
+// outside the operator's served area is rejected with TRACKING AREA UPDATE REJECT #12
+// ("Tracking area not allowed"), matching the AMF's serving-TAI check on mobility
+// registration (TS 24.301 §5.5.3.2.5).
+func TestTrackingAreaUpdateTrackingAreaNotAllowed(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+
+	// Served PLMN 001/01 but TAC 2, which the operator does not serve (it serves TAC 1).
+	ue.Conn().ServingTAI = s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 2}
+
+	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, false, nil))
+
+	if len(cc.sent) == 0 {
+		t.Fatal("expected a TAU Reject, got no downlink")
+	}
+
+	rej, err := eps.ParseTrackingAreaUpdateReject(decodeDownlinkNAS(t, cc.sent[0]))
+	if err != nil {
+		t.Fatalf("not a TAU Reject: %v", err)
+	}
+
+	if rej.Cause != mme.EmmCauseTrackingAreaNotAllowed {
+		t.Fatalf("TAU Reject cause = %d, want %d", rej.Cause, mme.EmmCauseTrackingAreaNotAllowed)
+	}
+}
 
 // trackingAreaUpdateNAS builds a protected TRACKING AREA UPDATE REQUEST at the
 // UE's current uplink NAS COUNT, optionally carrying an EPS bearer context status

@@ -98,7 +98,7 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		zap.Uint32("target-mme-ue-id", uint32(targetMMEID)),
 		zap.String("target-enb", mme.ENBID(req.TargetID.TargeteNBID.GlobalENBID)),
 		zap.Int("e-rabs", len(bearers)))
-	m.SendS1APConn(ctx, target.Conn, mme.S1APProcedureHandoverRequest, b)
+	m.SendToRadio(ctx, target.Conn, mme.S1APProcedureHandoverRequest, b)
 
 	// Arm the guard after the HANDOVER REQUEST is sent, so the timer cannot race the
 	// outbound request (TS 36.413 §8.4).

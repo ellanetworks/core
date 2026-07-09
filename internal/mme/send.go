@@ -111,7 +111,7 @@ func downlinkNASTransportBytes(mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID, n
 // association — so no handler re-derives the IDs by hand. Each returns a marshal
 // error; send errors are logged by
 // SendS1AP. Commands targeting a *different* association (in-flight handover) keep
-// using SendS1APConn.
+// using SendToRadio.
 
 // SendInitialContextSetup stamps the UE identities and sends the Initial Context
 // Setup Request on the UE's eNB association (TS 36.413 §8.3).
