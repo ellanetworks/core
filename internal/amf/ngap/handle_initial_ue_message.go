@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapConvert"
 	"go.uber.org/zap"
 )
@@ -23,15 +24,15 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	// A gNB may reuse a RAN-UE-NGAP-ID before its prior UEContextRelease completes; drop
 	// any stale conn first so a deferred UEContextReleaseComplete cannot remove the context
 	// created just below.
-	amfInstance.DropStaleUe(ctx, ran, msg.RANUENGAPID)
+	amfInstance.DropStaleUe(ctx, ran, models.RanUeNgapID(msg.RANUENGAPID))
 
-	ueConn, err := amfInstance.NewUeConn(ran, msg.RANUENGAPID)
+	ueConn, err := amfInstance.NewUeConn(ran, models.RanUeNgapID(msg.RANUENGAPID))
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("Failed to add Ran UE to the pool", zap.Error(err))
 		return
 	}
 
-	logger.WithTrace(ctx, ueConn.Log).Debug("Added Ran UE to the pool", zap.Int64("RanUeNgapID", ueConn.RanUeNgapID))
+	logger.WithTrace(ctx, ueConn.Log).Debug("Added Ran UE to the pool", zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)))
 
 	ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation.Raw())
 
@@ -114,9 +115,9 @@ func resumeExistingContext(ctx context.Context, amfInstance *amf.AMF, ueConn *am
 	}
 
 	if amfUe.Conn() != nil {
-		logger.WithTrace(ctx, ueConn.Log).Debug("Implicit Deregistration", zap.Int64("RanUeNgapID", ueConn.RanUeNgapID))
+		logger.WithTrace(ctx, ueConn.Log).Debug("Implicit Deregistration", zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)))
 	}
 
-	logger.WithTrace(ctx, ueConn.Log).Debug("UeContext Attach UeConn", zap.Int64("RanUeNgapID", ueConn.RanUeNgapID))
+	logger.WithTrace(ctx, ueConn.Log).Debug("UeContext Attach UeConn", zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)))
 	amfInstance.AttachUeConn(amfUe, ueConn)
 }

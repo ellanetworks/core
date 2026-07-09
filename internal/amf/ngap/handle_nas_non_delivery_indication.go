@@ -23,6 +23,6 @@ func HandleNasNonDeliveryIndication(ctx context.Context, amfInstance *amf.AMF, r
 	// into the uplink path would fail the downlink/uplink integrity check, perturb the
 	// uplink NAS count, and pre-security could mint a bogus context. Any retransmission
 	// is the NAS layer's to decide, not an echo of the reported PDU.
-	logger.WithTrace(ctx, ueConn.Log).Debug("Handle NAS Non Delivery Indication", zap.Int64("RanUeNgapID", ueConn.RanUeNgapID), zap.Int64("AmfUeNgapID", ueConn.AmfUeNgapID), logger.Cause(causeToString(msg.Cause)))
+	logger.WithTrace(ctx, ueConn.Log).Debug("Handle NAS Non Delivery Indication", zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)), zap.Int64("AmfUeNgapID", int64(ueConn.AmfUeNgapID)), logger.Cause(causeToString(msg.Cause)))
 	ueConn.TouchLastSeen()
 }

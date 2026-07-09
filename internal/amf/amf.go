@@ -161,13 +161,13 @@ func (a *AMF) allocateTMSI(ctx context.Context) (etsi.TMSI, error) {
 	return val, nil
 }
 
-func (a *AMF) allocateAmfUeNgapID() (int64, error) {
+func (a *AMF) allocateAmfUeNgapID() (models.AmfUeNgapID, error) {
 	val, err := a.connIDs.Allocate()
 	if err != nil {
 		return -1, fmt.Errorf("could not allocate AmfUeNgapID: %v", err)
 	}
 
-	return val, nil
+	return models.AmfUeNgapID(val), nil
 }
 
 // CommitUEIdentity indexes the UE by SUPI and supersedes any prior context for the
@@ -497,11 +497,11 @@ func (amf *AMF) IndexRadioForTest(conn *sctp.SCTPConn, radio *Radio) {
 	}
 }
 
-func (amf *AMF) LookupUeConn(amfUeNgapID int64) *UeConn {
+func (amf *AMF) LookupUeConn(amfUeNgapID models.AmfUeNgapID) *UeConn {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	return amf.conns[amfUeNgapID]
+	return amf.conns[int64(amfUeNgapID)]
 }
 
 // NetworkFeatureSupport returns the 5GS network feature support config.
@@ -561,7 +561,7 @@ var defaultTimerCfg = guard.TimerValue{
 }
 
 // NewUeConn allocates a new RAN UE context on the given radio.
-func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID int64) (*UeConn, error) {
+func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID models.RanUeNgapID) (*UeConn, error) {
 	amfUeNgapID, err := a.allocateAmfUeNgapID()
 	if err != nil {
 		return nil, fmt.Errorf("error allocating amf ue ngap id: %+v", err)
@@ -577,7 +577,7 @@ func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID int64) (*UeConn, error) {
 	}
 
 	a.mu.Lock()
-	a.conns[amfUeNgapID] = ueConn
+	a.conns[int64(amfUeNgapID)] = ueConn
 	a.mu.Unlock()
 
 	return ueConn, nil
@@ -590,6 +590,9 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) e
 	if ue == nil {
 		return fmt.Errorf("amf ue is nil")
 	}
+
+	tmsi := ue.Tmsi()
+	logger.From(ctx, logger.AmfLog).Info("Paging", logger.SUPI(ue.Supi().String()), zap.Uint32("5g-tmsi", tmsi.Uint32()))
 
 	amf.pageRadios(ctx, ue, ngapBuf)
 	amf.armPaging(ue, ngapBuf)
@@ -623,7 +626,7 @@ func (amf *AMF) retransmitPaging(ue *UeContext, ngapBuf []byte, attempt int32) {
 		return
 	}
 
-	logger.AmfLog.Info("T3513 expires, retransmit paging", logger.SUPI(ue.Supi().String()), zap.Int32("retry", attempt))
+	logger.AmfLog.Info("paging unanswered, retransmitting", logger.SUPI(ue.Supi().String()), zap.Int32("attempt", attempt))
 	amf.pageRadios(context.Background(), ue, ngapBuf)
 }
 
@@ -631,7 +634,7 @@ func (amf *AMF) retransmitPaging(ue *UeContext, ngapBuf []byte, attempt int32) {
 // message remains for the UE and mobile-reachable supervision continues (TS 24.501
 // §5.4.3).
 func (amf *AMF) abandonPaging(ue *UeContext) {
-	logger.AmfLog.Info("T3513 expires, abort paging procedure", logger.SUPI(ue.Supi().String()))
+	logger.AmfLog.Info("paging unanswered, abandoning procedure", logger.SUPI(ue.Supi().String()))
 }
 
 // pageRadios sends the paging PDU to every radio whose supported TAIs intersect
@@ -646,8 +649,6 @@ func (amf *AMF) pageRadios(ctx context.Context, ue *UeContext, ngapBuf []byte) {
 					logger.From(ctx, logger.AmfLog).Error("failed to send paging", zap.Error(err))
 					continue
 				}
-
-				logger.From(ctx, logger.AmfLog).Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
 
 				break
 			}

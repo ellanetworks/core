@@ -74,9 +74,7 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 		return
 	}
 
-	if notify.TAI.TAC != 0 {
-		ue.TouchLastSeen()
-	}
+	ue.TouchLastSeen()
 
 	logger.From(ctx, logger.MmeLog).Info("Handover Notify",
 		zap.Uint32("target-mme-ue-id", uint32(targetMMEID)),

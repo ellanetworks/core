@@ -78,7 +78,7 @@ func TestIntegration4GUnknownIMSI(t *testing.T) {
 	}
 
 	logs, err := dockerClient.ComposeLogs(ctx, "compose/srsenb/", "ella-core")
-	if err == nil && strings.Contains(logs, "EMM-REGISTERED") {
+	if err == nil && strings.Contains(logs, "EMM-REGISTERED)") {
 		t.Fatal("unknown IMSI unexpectedly reached EMM-REGISTERED")
 	}
 
@@ -116,7 +116,7 @@ func TestIntegration4GAuthMACFailure(t *testing.T) {
 	}
 
 	logs, err := dockerClient.ComposeLogs(ctx, "compose/srsenb/", "ella-core")
-	if err == nil && strings.Contains(logs, "EMM-REGISTERED") {
+	if err == nil && strings.Contains(logs, "EMM-REGISTERED)") {
 		t.Fatal("wrong-key UE unexpectedly reached EMM-REGISTERED")
 	}
 

@@ -52,8 +52,8 @@ const releaseGuardTimeout = 5 * time.Second
 // capture the returned pointer in a local and reuse it — the pointer may change between
 // calls.
 type UeConn struct {
-	RanUeNgapID  int64
-	AmfUeNgapID  int64
+	RanUeNgapID  models.RanUeNgapID
+	AmfUeNgapID  models.AmfUeNgapID
 	HandOverType ngapType.HandoverType
 	Tai          models.Tai
 	Location     models.UserLocation
@@ -489,7 +489,7 @@ func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 // UEContextRelease completes, so a deferred UEContextReleaseComplete carrying the old
 // AMF-UE-NGAP-ID must not remove the freshly created context. Stale conns are found under
 // a.mu, then torn down after the lock — RemoveUeConn re-acquires a.mu and may call the SMF.
-func (a *AMF) DropStaleUe(ctx context.Context, radio *Radio, ranUeNgapID int64) {
+func (a *AMF) DropStaleUe(ctx context.Context, radio *Radio, ranUeNgapID models.RanUeNgapID) {
 	a.mu.Lock()
 
 	var stale []*UeConn
@@ -504,8 +504,8 @@ func (a *AMF) DropStaleUe(ctx context.Context, radio *Radio, ranUeNgapID int64) 
 
 	for _, ueConn := range stale {
 		logger.WithTrace(ctx, ueConn.Log).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale UeConn",
-			zap.Int64("RanUeNgapID", ueConn.RanUeNgapID),
-			zap.Int64("AmfUeNgapID", ueConn.AmfUeNgapID))
+			zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)),
+			zap.Int64("AmfUeNgapID", int64(ueConn.AmfUeNgapID)))
 
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
 			logger.WithTrace(ctx, ueConn.Log).Error(err.Error())
@@ -525,14 +525,14 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 	}
 
 	a.mu.Lock()
-	delete(a.conns, ueConn.AmfUeNgapID)
+	delete(a.conns, int64(ueConn.AmfUeNgapID))
 	a.mu.Unlock()
 
-	a.connIDs.FreeID(ueConn.AmfUeNgapID)
+	a.connIDs.FreeID(int64(ueConn.AmfUeNgapID))
 
 	logger.AmfLog.Info("ran ue removed",
-		zap.Int64("amfUeNgapID", ueConn.AmfUeNgapID),
-		zap.Int64("ranUeNgapID", ueConn.RanUeNgapID),
+		zap.Int64("amfUeNgapID", int64(ueConn.AmfUeNgapID)),
+		zap.Int64("ranUeNgapID", int64(ueConn.RanUeNgapID)),
 	)
 
 	return nil
@@ -544,10 +544,10 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 // chain unadvanced so the source context stays consistent. The global conns
 // index is keyed by the unchanged AMF UE NGAP ID, so the switch only re-points
 // the UE at its new radio and RAN UE NGAP ID.
-func (a *AMF) CommitPathSwitch(ue *UeContext, ueConn *UeConn, ran *Radio, ranUeNgapID int64, nh [32]uint8, ncc uint8) bool {
+func (a *AMF) CommitPathSwitch(ue *UeContext, ueConn *UeConn, ran *Radio, ranUeNgapID models.RanUeNgapID, nh [32]uint8, ncc uint8) bool {
 	a.mu.Lock()
 
-	if ueConn == nil || ran == nil || a.conns[ueConn.AmfUeNgapID] != ueConn {
+	if ueConn == nil || ran == nil || a.conns[int64(ueConn.AmfUeNgapID)] != ueConn {
 		a.mu.Unlock()
 
 		return false
@@ -565,7 +565,7 @@ func (a *AMF) CommitPathSwitch(ue *UeContext, ueConn *UeConn, ran *Radio, ranUeN
 	a.mu.Unlock()
 
 	ueConn.Log = ran.Log.With(logger.AmfUeNgapID(ueConn.AmfUeNgapID))
-	ueConn.Log.Info("ran ue switched to new Ran", zap.Int64("RanUeNgapID", ueConn.RanUeNgapID))
+	ueConn.Log.Info("ran ue switched to new Ran", zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)))
 
 	return true
 }
@@ -703,7 +703,7 @@ func (ueConn *UeConn) UpdateLocation(ctx context.Context, amf *AMF, userLocation
 // It is intended for use in external test packages only. If the radio is not yet
 // bound to an AMF, a throwaway one is created so a handler invoked with this same
 // radio resolves the UE; tests that share a specific AMF must BindAMFForTest first.
-func NewUeConnForTest(radio *Radio, ranUeNgapID, amfUeNgapID int64, log *zap.Logger) *UeConn {
+func NewUeConnForTest(radio *Radio, ranUeNgapID models.RanUeNgapID, amfUeNgapID models.AmfUeNgapID, log *zap.Logger) *UeConn {
 	if radio.amf == nil {
 		radio.amf = New(nil, nil, nil)
 	}
@@ -719,7 +719,7 @@ func NewUeConnForTest(radio *Radio, ranUeNgapID, amfUeNgapID int64, log *zap.Log
 
 	radio.amf.mu.Lock()
 
-	radio.amf.conns[amfUeNgapID] = ueConn
+	radio.amf.conns[int64(amfUeNgapID)] = ueConn
 	if radio.Conn != nil {
 		radio.amf.radios[radio.Conn] = radio
 	}

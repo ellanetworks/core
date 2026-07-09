@@ -36,7 +36,7 @@ func armNASGuard(conn *UeConn, ueConn *UeConn, cfg guard.TimerValue, name string
 		func(attempt int32) {
 			logger.AmfLog.Warn("retransmitting NAS request", zap.String("timer", name), zap.Int32("attempt", attempt))
 
-			if err := ueConn.SendDownlinkNASTransport(context.Background(), nasMsg, nil); err != nil {
+			if err := ueConn.SendDownlinkNASTransport(context.Background(), nasMsg); err != nil {
 				logger.AmfLog.Error("failed to retransmit NAS request", zap.String("timer", name), zap.Error(err))
 			}
 		},
@@ -72,7 +72,7 @@ func sendGmm(ctx context.Context, ue *UeConn, spanName string, attrs []attribute
 		return
 	}
 
-	if err := ue.SendDownlinkNASTransport(ctx, nasMsg, nil); err != nil {
+	if err := ue.SendDownlinkNASTransport(ctx, nasMsg); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("failed to send downlink NAS transport", zap.String("message", spanName), zap.Error(err))
 	}
 }
@@ -130,7 +130,7 @@ func SendIdentityRequest(ctx context.Context, amfInstance *AMF, ue *UeConn, type
 		amfInstance.DeregisterAndRemoveUeContext(context.Background(), amfUe)
 	})
 
-	if err := ue.SendDownlinkNASTransport(ctx, nasMsg, nil); err != nil {
+	if err := ue.SendDownlinkNASTransport(ctx, nasMsg); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("failed to send downlink NAS transport", zap.String("message", "nas/send_identity_request"), zap.Error(err))
 	}
 }
@@ -167,7 +167,7 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *AMF, ue *UeConn
 		amfInstance.DeregisterAndRemoveUeContext(context.Background(), amfUe)
 	})
 
-	if err := ue.SendDownlinkNASTransport(ctx, nasMsg, nil); err != nil {
+	if err := ue.SendDownlinkNASTransport(ctx, nasMsg); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("failed to send downlink NAS transport", zap.String("message", "nas/send_authentication_request"), zap.Error(err))
 	}
 }
@@ -227,7 +227,7 @@ func SendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn) 
 		return fmt.Errorf("failed to build security mode command: %w", err)
 	}
 
-	if err := ue.SendDownlinkNASTransport(ctx, nasMsg, nil); err != nil {
+	if err := ue.SendDownlinkNASTransport(ctx, nasMsg); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("failed to send downlink NAS transport", zap.String("message", "nas/send_security_mode_command"), zap.Error(err))
 	}
 
@@ -302,7 +302,6 @@ func SendRegistrationAccept(
 			ue.Ambr.Downlink,
 			ue.AllowedNssai,
 			ue.Kgnb(),
-			ue.PlmnID,
 			ue.RadioCapability,
 			ue.RadioCapabilityForPaging,
 			ue.UESecCap(),
@@ -315,7 +314,7 @@ func SendRegistrationAccept(
 			logger.From(ctx, logger.AmfLog).Info("Sent NGAP initial context setup request")
 		}
 	} else {
-		if err := ueConn.SendDownlinkNASTransport(ctx, nasMsg, nil); err != nil {
+		if err := ueConn.SendDownlinkNASTransport(ctx, nasMsg); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("failed to send downlink NAS transport", zap.Error(err))
 		} else {
 			logger.From(ctx, logger.AmfLog).Info("Sent GMM registration accept")
@@ -337,7 +336,6 @@ func SendRegistrationAccept(
 						ue.Ambr.Downlink,
 						ue.AllowedNssai,
 						ue.Kgnb(),
-						ue.PlmnID,
 						ue.RadioCapability,
 						ue.RadioCapabilityForPaging,
 						ue.UESecCap(),
@@ -355,7 +353,7 @@ func SendRegistrationAccept(
 				} else {
 					logger.From(ctx, logger.AmfLog).Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
 
-					err = retryUeConn.SendDownlinkNASTransport(context.Background(), nasMsg, nil)
+					err = retryUeConn.SendDownlinkNASTransport(context.Background(), nasMsg)
 					if err != nil {
 						logger.From(ctx, logger.AmfLog).Error("could not send downlink NAS transport message", zap.Error(err))
 					}
@@ -398,7 +396,7 @@ func ArmRegistrationAcceptGuard(amfInstance *AMF, ue *UeContext, nasMsg []byte) 
 
 		logger.AmfLog.Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
 
-		if err := retryUeConn.SendDownlinkNASTransport(context.Background(), nasMsg, nil); err != nil {
+		if err := retryUeConn.SendDownlinkNASTransport(context.Background(), nasMsg); err != nil {
 			logger.AmfLog.Error("could not retransmit Registration Accept", zap.Error(err))
 		}
 	}, func() {
@@ -425,7 +423,7 @@ func ResendRegistrationAccept(ctx context.Context, amfInstance *AMF, ue *UeConte
 		return
 	}
 
-	if err := ueConn.SendDownlinkNASTransport(ctx, conn.RegistrationAcceptPdu, nil); err != nil {
+	if err := ueConn.SendDownlinkNASTransport(ctx, conn.RegistrationAcceptPdu); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("failed to resend Registration Accept", zap.Error(err))
 	}
 
@@ -477,13 +475,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 
 	logger.From(ctx, logger.AmfLog).Info("nas/send_configuration_update_command")
 
-	mobilityRestrictionList, err := send.BuildIEMobilityRestrictionList(amfUe.PlmnID)
-	if err != nil {
-		logger.From(ctx, logger.AmfLog).Error("could not build Mobility Restriction List IE", zap.Error(err))
-		return
-	}
-
-	err = ueConn.SendDownlinkNASTransport(ctx, nasMsg, mobilityRestrictionList)
+	err = ueConn.SendDownlinkNASTransport(ctx, nasMsg)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Error("could not send configuration update command", zap.Error(err))
 		return
@@ -514,7 +506,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 				return
 			}
 
-			err = retryUeConn.SendDownlinkNASTransport(context.Background(), nasMsg, mobilityRestrictionList)
+			err = retryUeConn.SendDownlinkNASTransport(context.Background(), nasMsg)
 			if err != nil {
 				logger.From(ctx, logger.AmfLog).Error("could not send configuration update command", zap.Error(err))
 			}
@@ -535,13 +527,13 @@ func (ueConn *UeConn) SendNGAP(ctx context.Context, msgType send.NGAPProcedure, 
 	return amfInstance.SendToRan(ctx, conn, msgType, pkt)
 }
 
-func (ueConn *UeConn) SendDownlinkNASTransport(ctx context.Context, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) error {
+func (ueConn *UeConn) SendDownlinkNASTransport(ctx context.Context, nasPdu []byte) error {
 	amfInstance, conn, err := ueConn.sendTarget()
 	if err != nil {
 		return err
 	}
 
-	pkt, err := send.BuildDownlinkNasTransport(ueConn.AmfUeNgapID, ueConn.RanUeNgapID, nasPdu, mobilityRestrictionList)
+	pkt, err := send.BuildDownlinkNasTransport(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID), nasPdu)
 	if err != nil {
 		return err
 	}
@@ -563,7 +555,7 @@ func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, causePres
 		return nil
 	}
 
-	pkt, err := send.BuildUEContextReleaseCommand(ueConn.AmfUeNgapID, ueConn.RanUeNgapID, causePresent, cause)
+	pkt, err := send.BuildUEContextReleaseCommand(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID), causePresent, cause)
 	if err != nil {
 		// The command cannot be sent, so no Release Complete will arrive; release
 		// locally now to avoid leaking the UeConn and its claim.
@@ -592,7 +584,7 @@ func (ueConn *UeConn) SendPDUSessionResourceSetupRequest(ctx context.Context, am
 		return err
 	}
 
-	pkt, err := send.BuildPDUSessionResourceSetupRequest(ueConn.AmfUeNgapID, ueConn.RanUeNgapID, ambrUp, ambrDown, nasPdu, list)
+	pkt, err := send.BuildPDUSessionResourceSetupRequest(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID), ambrUp, ambrDown, nasPdu, list)
 	if err != nil {
 		return err
 	}
@@ -606,7 +598,7 @@ func (ueConn *UeConn) SendPDUSessionResourceReleaseCommand(ctx context.Context, 
 		return err
 	}
 
-	pkt, err := send.BuildPDUSessionResourceReleaseCommand(ueConn.AmfUeNgapID, ueConn.RanUeNgapID, nasPdu, list)
+	pkt, err := send.BuildPDUSessionResourceReleaseCommand(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID), nasPdu, list)
 	if err != nil {
 		return err
 	}
@@ -620,7 +612,6 @@ func (ueConn *UeConn) SendInitialContextSetupRequest(
 	ambrDown string,
 	allowedNssai []models.Snssai,
 	kgnb []byte,
-	plmnID models.PlmnID,
 	ueRadioCapability []byte,
 	ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging,
 	ueSecurityCapability *nasType.UESecurityCapability,
@@ -634,13 +625,12 @@ func (ueConn *UeConn) SendInitialContextSetupRequest(
 	}
 
 	pkt, err := send.BuildInitialContextSetupRequest(
-		ueConn.AmfUeNgapID,
-		ueConn.RanUeNgapID,
+		int64(ueConn.AmfUeNgapID),
+		int64(ueConn.RanUeNgapID),
 		ambrUp,
 		ambrDown,
 		allowedNssai,
 		kgnb,
-		plmnID,
 		ueRadioCapability,
 		ueRadioCapabilityForPaging,
 		ueSecurityCapability,
@@ -666,8 +656,8 @@ func (ueConn *UeConn) SendPDUSessionResourceModifyConfirm(
 	}
 
 	pkt, err := send.BuildPDUSessionResourceModifyConfirm(
-		ueConn.AmfUeNgapID,
-		ueConn.RanUeNgapID,
+		int64(ueConn.AmfUeNgapID),
+		int64(ueConn.RanUeNgapID),
 		pduSessionResourceModifyConfirmList,
 		pduSessionResourceFailedToModifyList,
 	)
@@ -688,8 +678,8 @@ func (ueConn *UeConn) SendPDUSessionResourceModifyRequest(
 	}
 
 	pkt, err := send.BuildPDUSessionResourceModifyRequest(
-		ueConn.AmfUeNgapID,
-		ueConn.RanUeNgapID,
+		int64(ueConn.AmfUeNgapID),
+		int64(ueConn.RanUeNgapID),
 		pduSessionResourceModifyList,
 	)
 	if err != nil {
@@ -705,7 +695,7 @@ func (ueConn *UeConn) SendHandoverPreparationFailure(ctx context.Context, cause 
 		return err
 	}
 
-	pkt, err := send.BuildHandoverPreparationFailure(ueConn.AmfUeNgapID, ueConn.RanUeNgapID, cause, criticalityDiagnostics)
+	pkt, err := send.BuildHandoverPreparationFailure(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID), cause, criticalityDiagnostics)
 	if err != nil {
 		return err
 	}
@@ -719,7 +709,7 @@ func (ueConn *UeConn) SendHandoverCancelAcknowledge(ctx context.Context) error {
 		return err
 	}
 
-	pkt, err := send.BuildHandoverCancelAcknowledge(ueConn.AmfUeNgapID, ueConn.RanUeNgapID)
+	pkt, err := send.BuildHandoverCancelAcknowledge(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID))
 	if err != nil {
 		return err
 	}
@@ -747,7 +737,7 @@ func (ueConn *UeConn) SendHandoverRequest(
 	}
 
 	pkt, err := send.BuildHandoverRequest(
-		ueConn.AmfUeNgapID,
+		int64(ueConn.AmfUeNgapID),
 		handOverType,
 		uplinkAmbr,
 		downlinkAmbr,

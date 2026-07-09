@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/free5gc/ngap"
 	"github.com/free5gc/ngap/ngapType"
@@ -289,7 +290,7 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 						zap.Int64("amfUeNgapID", *amfUeNgapID),
 					)
 
-					ranUe := amfInstance.FindUEByAmfUeNgapID(ran, *amfUeNgapID)
+					ranUe := amfInstance.FindUEByAmfUeNgapID(ran, models.AmfUeNgapID(*amfUeNgapID))
 					if ranUe == nil {
 						ran.Log.Warn("Unknown AMF UE NGAP ID in NRPPa transport",
 							zap.Int64("amfUeNgapID", *amfUeNgapID))
@@ -299,12 +300,12 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 
 					ran.Log.Debug("Found UE by AMF UE NGAP ID",
 						zap.Int64("amfUeNgapID", *amfUeNgapID),
-						zap.Int64("ranUeNgapID", ranUe.RanUeNgapID),
+						zap.Int64("ranUeNgapID", int64(ranUe.RanUeNgapID)),
 					)
 
-					if ranUeNgapID != nil && ranUe.RanUeNgapID != *ranUeNgapID {
+					if ranUeNgapID != nil && ranUe.RanUeNgapID != models.RanUeNgapID(*ranUeNgapID) {
 						ran.Log.Warn("Inconsistent RAN UE NGAP ID in NRPPa transport",
-							zap.Int64("stored", ranUe.RanUeNgapID),
+							zap.Int64("stored", int64(ranUe.RanUeNgapID)),
 							zap.Int64("received", *ranUeNgapID))
 
 						break
@@ -359,13 +360,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 			}
 
 			HandleInitialContextSetupResponse(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodeUEContextModification:
-			decoded, report := decode.DecodeUEContextModificationResponse(pdu.SuccessfulOutcome.Value.UEContextModificationResponse)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleUEContextModificationResponse(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodePDUSessionResourceSetup:
 			decoded, report := decode.DecodePDUSessionResourceSetupResponse(pdu.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse)
 			if !handleDecodeReport(ctx, ran, report) {
@@ -405,13 +399,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 			}
 
 			HandleInitialContextSetupFailure(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodeUEContextModification:
-			decoded, report := decode.DecodeUEContextModificationFailure(pdu.UnsuccessfulOutcome.Value.UEContextModificationFailure)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleUEContextModificationFailure(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeHandoverResourceAllocation:
 			decoded, report := decode.DecodeHandoverFailure(pdu.UnsuccessfulOutcome.Value.HandoverFailure)
 			if !handleDecodeReport(ctx, ran, report) {

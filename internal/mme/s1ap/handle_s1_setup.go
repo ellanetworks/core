@@ -68,9 +68,12 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 
 	m.SendS1APConn(ctx, conn, mme.S1APProcedureS1SetupResponse, outBytes)
 
-	// Allow the eNB's UE-associated signalling through the dispatcher's setup-first
-	// gate (TS 36.413).
-	m.MarkRadioSetupComplete(conn)
+	// Claim the eNB's identity and broadcast TAIs only on accept; until then the
+	// dispatcher's setup-first gate drops the association's UE signalling (TS 36.413).
+	if radio := m.RadioForConn(conn); radio != nil {
+		m.UpdateRadioSupportedTAs(radio, mme.EnbSupportedTAIs(req.SupportedTAs))
+		m.ClaimENBID(radio, req.GlobalENBID)
+	}
 
 	logger.From(ctx, m.RadioLog(conn)).Info("S1 Setup Response sent", zap.String("enb-name", req.ENBName))
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -18,7 +19,7 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 		logger.WithTrace(ctx, ran.Log).Debug("Handover Failure Cause", logger.Cause(causeToString(*msg.Cause)))
 	}
 
-	targetUe := amfInstance.FindUEByAmfUeNgapID(ran, msg.AMFUENGAPID)
+	targetUe := amfInstance.FindUEByAmfUeNgapID(ran, models.AmfUeNgapID(msg.AMFUENGAPID))
 	if targetUe == nil {
 		logger.WithTrace(ctx, ran.Log).Error("No UE Context on this radio", zap.Int64("AmfUeNgapID", msg.AMFUENGAPID))
 		sendUnknownLocalUEError(ctx, ran, &msg.AMFUENGAPID, nil)

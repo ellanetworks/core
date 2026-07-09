@@ -219,7 +219,7 @@ func (a *AMF) FinishHandoverCommit(ue *UeContext, targetUe *UeConn) bool {
 	// The finalize must move the UE onto the prepared target, not whichever UeConn
 	// happened to carry the notify, and only while that target is still present after
 	// the unlocked user-plane switch.
-	if targetUe == nil || ue.handover.target != targetUe || a.conns[targetUe.AmfUeNgapID] != targetUe {
+	if targetUe == nil || ue.handover.target != targetUe || a.conns[int64(targetUe.AmfUeNgapID)] != targetUe {
 		a.mu.Unlock()
 		return false
 	}

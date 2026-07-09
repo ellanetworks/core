@@ -24,7 +24,7 @@ func (e egress) SendMMStatus(ctx context.Context, cause uint8) {
 		return
 	}
 
-	if err := e.ue.SendDownlinkNASTransport(ctx, pdu, nil); err != nil {
+	if err := e.ue.SendDownlinkNASTransport(ctx, pdu); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("failed to send 5GMM STATUS", zap.Error(err))
 	}
 }

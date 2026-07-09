@@ -24,7 +24,7 @@ func HandleUERadioCapabilityInfoIndication(ctx gocontext.Context, amfInstance *a
 		return
 	}
 
-	logger.WithTrace(ctx, ueConn.Log).Debug("Handle UE Radio Capability Info Indication", zap.Int64("RanUeNgapID", ueConn.RanUeNgapID), zap.Int64("AmfUeNgapID", ueConn.AmfUeNgapID))
+	logger.WithTrace(ctx, ueConn.Log).Debug("Handle UE Radio Capability Info Indication", zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)), zap.Int64("AmfUeNgapID", int64(ueConn.AmfUeNgapID)))
 	ueConn.TouchLastSeen()
 
 	amfUe := ueConn.UeContext()

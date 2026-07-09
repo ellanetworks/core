@@ -7,7 +7,16 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/s1ap"
 )
+
+// testENBID builds a Global eNB ID rendering to "00f110-<value>" via ENBID.
+func testENBID(value uint32) s1ap.GlobalENBID {
+	return s1ap.GlobalENBID{
+		PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10},
+		ENBID:        s1ap.ENBID{Value: value},
+	}
+}
 
 func TestENBTable(t *testing.T) {
 	m := newTestMME(t)
@@ -52,16 +61,16 @@ func TestENBSetupCompleteGate(t *testing.T) {
 		t.Fatal("untracked eNB reported setup-complete")
 	}
 
-	m.trackRadio(c, RadioInfo{Name: "enb-a", ID: "00f110-1"})
+	m.trackRadio(c, RadioInfo{Name: "enb-a"})
 
 	if setupComplete(c) {
 		t.Fatal("tracked-but-not-set-up eNB reported setup-complete")
 	}
 
-	m.MarkRadioSetupComplete(c)
+	m.ClaimENBID(m.RadioForConn(c), testENBID(1))
 
 	if !setupComplete(c) {
-		t.Fatal("eNB not setup-complete after marking")
+		t.Fatal("eNB not setup-complete after claiming its Global eNB ID")
 	}
 
 	m.RemoveRadio(c)
@@ -71,27 +80,28 @@ func TestENBSetupCompleteGate(t *testing.T) {
 	}
 }
 
-// TestMarkENBSetupComplete_EvictsStaleReassociation asserts that when an eNB
-// re-associates and completes S1 Setup under a Global eNB ID still held by an
-// earlier live association, the stale association is evicted so the ID resolves
-// to the current one (mirrors the AMF's ClaimRanID eviction).
-func TestMarkENBSetupComplete_EvictsStaleReassociation(t *testing.T) {
+// TestClaimENBID_EvictsStaleReassociation asserts that when an eNB re-associates
+// and completes S1 Setup under a Global eNB ID still held by an earlier live
+// association, the stale association is evicted so the ID resolves to the current
+// one (mirrors the AMF's ClaimRanID eviction).
+func TestClaimENBID_EvictsStaleReassociation(t *testing.T) {
 	m := newTestMME(t)
 
-	const id = "00f110-1"
+	enbID := testENBID(1)
+	id := ENBID(enbID)
 
 	c1 := new(sctp.SCTPConn)
 	c2 := new(sctp.SCTPConn)
 
-	m.trackRadio(c1, RadioInfo{Name: "enb-old", ID: id})
-	m.MarkRadioSetupComplete(c1)
+	m.trackRadio(c1, RadioInfo{Name: "enb-old"})
+	m.ClaimENBID(m.RadioForConn(c1), enbID)
 
 	if got := m.radiosByID[id]; got == nil || got.Conn != S1APWriter(c1) {
 		t.Fatalf("setup: radiosByID[%q] resolved to the wrong association", id)
 	}
 
-	m.trackRadio(c2, RadioInfo{Name: "enb-new", ID: id})
-	m.MarkRadioSetupComplete(c2)
+	m.trackRadio(c2, RadioInfo{Name: "enb-new"})
+	m.ClaimENBID(m.RadioForConn(c2), enbID)
 
 	if got := m.radiosByID[id]; got == nil || got.Conn != S1APWriter(c2) {
 		t.Errorf("radiosByID[%q] did not resolve to the re-associated eNB", id)

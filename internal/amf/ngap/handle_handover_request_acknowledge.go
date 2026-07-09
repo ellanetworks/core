@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -48,7 +49,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	targetUe := amfInstance.FindUEByAmfUeNgapID(ran, *msg.AMFUENGAPID)
+	targetUe := amfInstance.FindUEByAmfUeNgapID(ran, models.AmfUeNgapID(*msg.AMFUENGAPID))
 	if targetUe == nil {
 		logger.WithTrace(ctx, ran.Log).Error("No UE Context on this radio", zap.Int64("AmfUeNgapID", *msg.AMFUENGAPID))
 		sendUnknownLocalUEError(ctx, ran, msg.AMFUENGAPID, msg.RANUENGAPID)
@@ -57,11 +58,11 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 	}
 
 	if msg.RANUENGAPID != nil {
-		amfInstance.UpdateUERanNgapID(targetUe, *msg.RANUENGAPID)
+		amfInstance.UpdateUERanNgapID(targetUe, models.RanUeNgapID(*msg.RANUENGAPID))
 	}
 
 	targetUe.TouchLastSeen()
-	logger.WithTrace(ctx, targetUe.Log).Debug("Handle Handover Request Acknowledge", zap.Any("RanUeNgapID", targetUe.RanUeNgapID), zap.Any("AmfUeNgapID", targetUe.AmfUeNgapID))
+	logger.WithTrace(ctx, targetUe.Log).Debug("Handle Handover Request Acknowledge", zap.Any("RanUeNgapID", int64(targetUe.RanUeNgapID)), zap.Any("AmfUeNgapID", int64(targetUe.AmfUeNgapID)))
 
 	amfUe := targetUe.UeContext()
 	if amfUe == nil {
@@ -130,8 +131,8 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		pduSessionResourceToReleaseList.List = append(pduSessionResourceToReleaseList.List, releaseItem)
 	}
 
-	logger.WithTrace(ctx, targetUe.Log).Debug("handle handover request acknowledge", zap.Int64("sourceRanUeNgapID", sourceUe.RanUeNgapID), zap.Int64("sourceAmfUeNgapID", sourceUe.AmfUeNgapID),
-		zap.Int64("targetRanUeNgapID", targetUe.RanUeNgapID), zap.Int64("targetAmfUeNgapID", targetUe.AmfUeNgapID))
+	logger.WithTrace(ctx, targetUe.Log).Debug("handle handover request acknowledge", zap.Int64("sourceRanUeNgapID", int64(sourceUe.RanUeNgapID)), zap.Int64("sourceAmfUeNgapID", int64(sourceUe.AmfUeNgapID)),
+		zap.Int64("targetRanUeNgapID", int64(targetUe.RanUeNgapID)), zap.Int64("targetAmfUeNgapID", int64(targetUe.AmfUeNgapID)))
 
 	if len(pduSessionResourceHandoverList.List) == 0 {
 		logger.WithTrace(ctx, targetUe.Log).Info("handle Handover Preparation Failure [HoFailure In Target5GC NgranNode Or TargetSystem]")
@@ -169,7 +170,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	pkt, err := send.BuildHandoverCommand(sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, sourceUe.HandOverType, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, msg.TargetToSourceTransparentContainer)
+	pkt, err := send.BuildHandoverCommand(int64(sourceUe.AmfUeNgapID), int64(sourceUe.RanUeNgapID), sourceUe.HandOverType, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, msg.TargetToSourceTransparentContainer)
 	if err != nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("error building handover command", zap.Error(err))
 		return

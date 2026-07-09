@@ -90,7 +90,6 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 		ue.Ambr.Downlink,
 		ue.AllowedNssai,
 		ue.kgnb,
-		ue.PlmnID,
 		ue.RadioCapability,
 		ue.RadioCapabilityForPaging,
 		ue.ueSecurityCapability,
@@ -208,7 +207,7 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 		// N1-only delivery (e.g. DNS update via Extended PCO): the Modification
 		// Command rides Downlink NAS Transport and no radio resources change
 		// (TS 23.502).
-		if err := ueConn.SendDownlinkNASTransport(ctx, nasPdu, nil); err != nil {
+		if err := ueConn.SendDownlinkNASTransport(ctx, nasPdu); err != nil {
 			return fmt.Errorf("send downlink NAS transport: %w", err)
 		}
 
@@ -356,7 +355,6 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 		ue.Ambr.Downlink,
 		ue.AllowedNssai,
 		ue.kgnb,
-		ue.PlmnID,
 		ue.RadioCapability,
 		ue.RadioCapabilityForPaging,
 		ue.ueSecurityCapability,
@@ -399,7 +397,7 @@ func (amf *AMF) TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte,
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
 
-	err = ueConn.SendDownlinkNASTransport(ctx, nasPdu, nil)
+	err = ueConn.SendDownlinkNASTransport(ctx, nasPdu)
 	if err != nil {
 		return fmt.Errorf("send downlink nas transport error: %v", err)
 	}

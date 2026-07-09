@@ -40,7 +40,7 @@ func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		}
 	}
 
-	logger.WithTrace(ctx, ueConn.Log).Debug("Handle Location Report", zap.Int64("RanUeNgapID", ueConn.RanUeNgapID), zap.Int64("AmfUeNgapID", ueConn.AmfUeNgapID), zap.Any("ReportArea", msg.LocationReportingRequestType.ReportArea))
+	logger.WithTrace(ctx, ueConn.Log).Debug("Handle Location Report", zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)), zap.Int64("AmfUeNgapID", int64(ueConn.AmfUeNgapID)), zap.Any("ReportArea", msg.LocationReportingRequestType.ReportArea))
 
 	switch msg.LocationReportingRequestType.EventType.Value {
 	case ngapType.EventTypePresentDirect:
@@ -74,7 +74,7 @@ func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		}
 
 	case ngapType.EventTypePresentStopChangeOfServeCell:
-		pkt, err := send.BuildLocationReportingControl(ueConn.AmfUeNgapID, ueConn.RanUeNgapID, msg.LocationReportingRequestType.EventType)
+		pkt, err := send.BuildLocationReportingControl(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID), msg.LocationReportingRequestType.EventType)
 		if err != nil {
 			logger.WithTrace(ctx, ueConn.Log).Error("error building location reporting control", zap.Error(err))
 		} else if err := ueConn.SendNGAP(ctx, send.NGAPProcedureLocationReportingControl, pkt); err != nil {

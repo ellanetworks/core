@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapType"
@@ -52,7 +53,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 		return
 	}
 
-	ueConn := amfInstance.LookupUeConn(msg.SourceAMFUENGAPID)
+	ueConn := amfInstance.LookupUeConn(models.AmfUeNgapID(msg.SourceAMFUENGAPID))
 	if ueConn == nil {
 		logger.WithTrace(ctx, ran.Log).Error("Cannot find UE from sourceAMfUeNgapID", zap.Int64("sourceAMFUENGAPID", msg.SourceAMFUENGAPID))
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
@@ -61,7 +62,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	}
 
 	ueConn.TouchLastSeen()
-	logger.WithTrace(ctx, ueConn.Log).Debug("Handle Path Switch Request", zap.Int64("AmfUeNgapID", ueConn.AmfUeNgapID), zap.Int64("RanUeNgapID", ueConn.RanUeNgapID))
+	logger.WithTrace(ctx, ueConn.Log).Debug("Handle Path Switch Request", zap.Int64("AmfUeNgapID", int64(ueConn.AmfUeNgapID)), zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)))
 
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {
@@ -80,7 +81,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 	verifyUESecurityCapabilitiesOnPathSwitch(ctx, ueConn, amfUe, msg.UESecurityCapabilities)
 
-	ueConn.RanUeNgapID = msg.RANUENGAPID
+	ueConn.RanUeNgapID = models.RanUeNgapID(msg.RANUENGAPID)
 
 	ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation.Raw())
 
@@ -173,7 +174,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 		// Re-point the UE at the target radio and commit the chain atomically: a UE
 		// released during the user-plane switch fails the path switch with the chain
 		// left unadvanced.
-		if !amfInstance.CommitPathSwitch(amfUe, ueConn, ran, msg.RANUENGAPID, nh, ncc) {
+		if !amfInstance.CommitPathSwitch(amfUe, ueConn, ran, models.RanUeNgapID(msg.RANUENGAPID), nh, ncc) {
 			logger.WithTrace(ctx, ueConn.Log).Warn("Path Switch Request: UE released during the user-plane switch")
 			sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnspecified)
 
@@ -181,8 +182,8 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 		}
 
 		pkt, err := send.BuildPathSwitchRequestAcknowledge(
-			ueConn.AmfUeNgapID,
-			ueConn.RanUeNgapID,
+			int64(ueConn.AmfUeNgapID),
+			int64(ueConn.RanUeNgapID),
 			amfUe.UESecCap(),
 			ncc,
 			nh[:],

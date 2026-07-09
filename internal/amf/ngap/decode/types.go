@@ -239,17 +239,6 @@ type InitialContextSetupFailure struct {
 	PDUSessionResourceFailedToSetupItems []ngapType.PDUSessionResourceFailedToSetupItemCxtFail
 }
 
-// UEContextModificationFailure is a decoded NGAP UEContextModificationFailure
-// (3GPP TS 38.413). AMFUENGAPID, RANUENGAPID and Cause are mandatory-ignore.
-// AMFUENGAPID and RANUENGAPID are pointers (0 is a valid UE NGAP ID, so absent
-// differs from present). Cause is nil when absent. CriticalityDiagnostics is
-// optional-ignore and not surfaced.
-type UEContextModificationFailure struct {
-	AMFUENGAPID *int64
-	RANUENGAPID *int64
-	Cause       *ngapType.Cause
-}
-
 // HandoverFailure is a decoded NGAP HandoverFailure (3GPP TS 38.413).
 // AMFUENGAPID is mandatory-reject. Cause is mandatory-ignore (nil when absent).
 // CriticalityDiagnostics is optional-ignore.
@@ -286,17 +275,6 @@ type PDUSessionResourceReleaseResponse struct {
 	RANUENGAPID                     *int64
 	PDUSessionResourceReleasedItems []ngapType.PDUSessionResourceReleasedItemRelRes
 	UserLocationInformation         *ngapType.UserLocationInformation
-}
-
-// UEContextModificationResponse is a decoded NGAP UEContextModificationResponse
-// (3GPP TS 38.413). All IEs are criticality-ignore. AMFUENGAPID and RANUENGAPID
-// are mandatory-ignore pointers (0 is a valid UE NGAP ID, so absent differs from
-// present). RRCState and UserLocationInformation are optional and may be nil.
-type UEContextModificationResponse struct {
-	AMFUENGAPID             *int64
-	RANUENGAPID             *int64
-	RRCState                *ngapType.RRCState
-	UserLocationInformation *ngapType.UserLocationInformation
 }
 
 // PDUSessionResourceSetupResponse is a decoded NGAP

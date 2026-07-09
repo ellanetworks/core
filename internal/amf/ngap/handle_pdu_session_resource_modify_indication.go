@@ -24,7 +24,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 		return
 	}
 
-	logger.WithTrace(ctx, ueConn.Log).Debug("UE Context", zap.Int64("AmfUeNgapID", ueConn.AmfUeNgapID), zap.Int64("RanUeNgapID", ueConn.RanUeNgapID))
+	logger.WithTrace(ctx, ueConn.Log).Debug("UE Context", zap.Int64("AmfUeNgapID", int64(ueConn.AmfUeNgapID)), zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)))
 	ueConn.TouchLastSeen()
 
 	amfUe := ueConn.UeContext()
@@ -67,7 +67,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 		})
 	}
 
-	pkt, err := send.BuildPDUSessionResourceModifyConfirm(ueConn.AmfUeNgapID, ueConn.RanUeNgapID, modifyList, failedList)
+	pkt, err := send.BuildPDUSessionResourceModifyConfirm(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID), modifyList, failedList)
 	if err != nil {
 		logger.WithTrace(ctx, ueConn.Log).Error("error building pdu session resource modify confirm", zap.Error(err))
 		return

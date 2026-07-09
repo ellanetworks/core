@@ -31,7 +31,7 @@ func HandleUplinkRanStatusTransfer(ctx context.Context, amfInstance *amf.AMF, ra
 		return
 	}
 
-	pkt, err := send.BuildDownlinkRanStatusTransfer(target.AmfUeNgapID, target.RanUeNgapID, msg.Container)
+	pkt, err := send.BuildDownlinkRanStatusTransfer(int64(target.AmfUeNgapID), int64(target.RanUeNgapID), msg.Container)
 	if err != nil {
 		logger.WithTrace(ctx, ueConn.Log).Error("failed to build Downlink RAN Status Transfer", zap.Error(err))
 		return

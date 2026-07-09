@@ -18,23 +18,24 @@ import (
 
 // Radio is the MME's mutable per-eNB record. lastSeen (Unix nanoseconds) is
 // updated on the inbound S1AP hot path and read concurrently, so it is atomic;
-// name may change via an eNB Configuration Update (guarded by MME.mu); the
-// remaining fields are immutable after the eNB associates.
+// name and id change under MME.mu — name via an eNB Configuration Update, id
+// claimed on S1 Setup accept; the remaining fields are immutable after the eNB
+// associates.
 type Radio struct {
 	// Conn is the send target for node-level (non-UE) S1AP.
-	Conn        S1APWriter
-	m           *MME
-	name        string
+	Conn S1APWriter
+	m    *MME
+	name string
+	// id is the Global eNB ID, empty until claimed on S1 Setup accept. It doubles as
+	// the dispatcher's setup-first gate: id=="" ⇒ pre-setup, drop UE signalling
+	// (TS 36.413). Guarded by MME.mu.
 	id          string
 	address     string
 	connectedAt time.Time
 	lastSeen    atomic.Int64
-	// setupComplete is set once S1 Setup succeeds for this association, arming the
-	// dispatcher's setup-first gate (TS 36.413). Guarded by MME.mu.
-	setupComplete bool
 	// supportedTAIs are the TAIs the eNB broadcasts, from the Supported TAs IE of
-	// its S1 Setup Request; replaced wholesale on an eNB Configuration Update
-	// (TS 36.413 §8.7.3.2, §8.7.4). Guarded by MME.mu.
+	// its S1 Setup Request; claimed on accept and replaced wholesale on an eNB
+	// Configuration Update (TS 36.413 §8.7.3.2, §8.7.4). Guarded by MME.mu.
 	supportedTAIs []SupportedTAI
 	// Log carries the eNB's RAN address for node-level correlation. Keyed by the
 	// immutable SCTP address, so it never goes stale.
@@ -105,7 +106,9 @@ func (m *MME) trackRadio(key *sctp.SCTPConn, info RadioInfo) {
 	m.radios[key] = s
 }
 
-// addRadio records a connected eNB from a decoded S1 Setup Request.
+// addRadio records a connected eNB from its S1 Setup Request as a shell carrying only
+// the node-level logging identity (name, address). The Global eNB ID and broadcast
+// TAIs are claimed on accept (setup-first gate: radio.id=="" until then — TS 36.413).
 func (m *MME) addRadio(conn *sctp.SCTPConn, req *s1ap.S1SetupRequest) {
 	address := ""
 	if a := conn.RemoteAddr(); a != nil {
@@ -114,12 +117,10 @@ func (m *MME) addRadio(conn *sctp.SCTPConn, req *s1ap.S1SetupRequest) {
 
 	now := time.Now()
 	m.trackRadio(conn, RadioInfo{
-		Name:          req.ENBName,
-		ID:            ENBID(req.GlobalENBID),
-		Address:       address,
-		ConnectedAt:   now,
-		LastSeenAt:    now,
-		SupportedTAIs: EnbSupportedTAIs(req.SupportedTAs),
+		Name:        req.ENBName,
+		Address:     address,
+		ConnectedAt: now,
+		LastSeenAt:  now,
 	})
 }
 
@@ -167,34 +168,27 @@ func nodeLog(s *Radio, conn *sctp.SCTPConn) *zap.Logger {
 	return logger.MmeLog
 }
 
-// MarkRadioSetupComplete records that the eNB on conn completed S1 Setup, arming
-// the dispatcher's setup-first gate (TS 36.413). No-op if the eNB is
-// not tracked.
-func (m *MME) MarkRadioSetupComplete(conn *sctp.SCTPConn) {
+// ClaimENBID assigns the eNB's Global eNB ID to radio on S1 Setup accept, arming the
+// dispatcher's setup-first gate and indexing the association by ID so an S1 handover
+// can resolve a HANDOVER REQUIRED's target (TS 36.413 §8.4.1). A re-associating eNB
+// that claims an ID still held by a different live association supersedes it: the stale
+// association is evicted and torn down so the ID resolves to the current one and an S1
+// handover cannot target a dead eNB.
+func (m *MME) ClaimENBID(radio *Radio, g s1ap.GlobalENBID) {
+	id := ENBID(g)
+
 	m.mu.Lock()
 
-	s := m.radios[conn]
-	if s == nil {
-		m.mu.Unlock()
-		return
-	}
+	radio.id = id
 
-	s.setupComplete = true
-
-	// Index the association by Global eNB ID so an S1 handover can resolve a
-	// HANDOVER REQUIRED's target to its association (TS 36.413 §8.4.1). A
-	// re-associating eNB that completes S1 Setup under an ID still held by a
-	// different live association supersedes it: the stale association is evicted
-	// and torn down so the ID resolves to the current one and an S1 handover cannot
-	// target a dead eNB.
 	var stale S1APWriter
 
-	if prev, ok := m.radiosByID[s.id]; ok && prev.Conn != S1APWriter(conn) {
+	if prev, ok := m.radiosByID[id]; ok && prev.Conn != radio.Conn {
 		stale = prev.Conn
 		delete(m.radios, prev.Conn)
 	}
 
-	m.radiosByID[s.id] = s
+	m.radiosByID[id] = radio
 	m.mu.Unlock()
 
 	if stale != nil {
@@ -246,13 +240,13 @@ func (m *MME) RadioForConn(conn S1APWriter) *Radio {
 	return m.radios[conn]
 }
 
-// SetupComplete reports whether the eNB has completed S1 Setup (TS 36.413), under the
-// registry lock.
+// SetupComplete reports whether the eNB has completed S1 Setup: its Global eNB ID is
+// claimed once the setup is accepted (TS 36.413). Under the registry lock.
 func (r *Radio) SetupComplete() bool {
 	r.m.mu.RLock()
 	defer r.m.mu.RUnlock()
 
-	return r.setupComplete
+	return r.id != ""
 }
 
 // TouchLastSeen records inbound S1AP activity from the eNB as its last-seen time.
@@ -316,11 +310,13 @@ func (m *MME) ReclaimConns(conns []*UeConn, trigger string) {
 
 		switch {
 		case c == ue.Conn():
-			// The UE's active connection is gone. A handover prepared on a (still
-			// live) target eNB is released explicitly, like the guard-timer abort, so
-			// the target does not hold the context until its own TS1RELOCoverall.
-			if ho := ue.handover; ho != nil && ho.state == hoPrepared {
-				releaseTargets = append(releaseTargets, s1Release{ho.target.conn, ho.target.MMEUES1APID, ho.target.ENBUES1APID})
+			// The UE's active connection is gone. A handover target — prepared or still
+			// preparing on a (live) target eNB — is released explicitly, like the guard-
+			// timer abort (abandonHandover), so it does not hold the HANDOVER REQUEST
+			// resources until its own TS1RELOCoverall. A preparing target is addressed by
+			// its MME-UE-S1AP-ID alone (its eNB-UE-S1AP-ID never arrived).
+			if ho := ue.handover; ho != nil && ho.state != hoCommitting && ho.target != nil {
+				releaseTargets = append(releaseTargets, s1Release{ho.target.conn, ho.target.MMEUES1APID, ho.target.ENBUES1APID, ho.state == hoPrepared})
 			}
 
 			orphaned = append(orphaned, ue)
@@ -335,7 +331,7 @@ func (m *MME) ReclaimConns(conns []*UeConn, trigger string) {
 	m.mu.Unlock()
 
 	for _, r := range releaseTargets {
-		SendUEContextRelease(context.Background(), m, r.conn, r.mmeID, r.enbID, true, causeHandoverEUTRANReason)
+		SendUEContextRelease(context.Background(), m, r.conn, r.mmeID, r.enbID, r.pair, causeHandoverEUTRANReason)
 	}
 
 	for _, ue := range orphaned {
@@ -349,6 +345,9 @@ type s1Release struct {
 	conn  S1APWriter
 	mmeID s1ap.MMEUES1APID
 	enbID s1ap.ENBUES1APID
+	// pair selects the UE-S1AP-ID alternative: the full pair for a prepared target, or
+	// the MME-UE-S1AP-ID alone for a still-preparing target (no eNB-UE-S1AP-ID yet).
+	pair bool
 }
 
 func (m *MME) CountRadios() int {

@@ -55,7 +55,7 @@ func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeCo
 		return fmt.Errorf("build deregistration request: %w", err)
 	}
 
-	if err := ueConn.SendDownlinkNASTransport(ctx, nasMsg, nil); err != nil {
+	if err := ueConn.SendDownlinkNASTransport(ctx, nasMsg); err != nil {
 		return fmt.Errorf("send downlink nas transport: %w", err)
 	}
 
@@ -79,7 +79,7 @@ func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeCo
 
 		logger.From(ctx, logger.AmfLog).Warn("T3522 expired, retransmit Deregistration Request", zap.Int32("retry", expireTimes))
 
-		if err := retryUeConn.SendDownlinkNASTransport(context.Background(), nasMsg, nil); err != nil {
+		if err := retryUeConn.SendDownlinkNASTransport(context.Background(), nasMsg); err != nil {
 			logger.From(ctx, logger.AmfLog).Error("could not retransmit Deregistration Request", zap.Error(err))
 		}
 	}, func() {

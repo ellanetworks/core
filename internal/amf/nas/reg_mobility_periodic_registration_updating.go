@@ -84,16 +84,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		ue.DRXParameter = drx
 	}
 
-	if !ue.Imei.IsSet() {
-		logger.From(ctx, logger.AmfLog).Debug("The UE did not provide PEI")
-
-		amf.SendIdentityRequest(ctx, amfInstance, ueConn, nasMessage.MobileIdentity5GSTypeImei)
-
-		logger.From(ctx, logger.AmfLog).Info("sent identity request to UE")
-
-		return
-	}
-
 	ue.Ambr = subscriberProfile.Ambr
 
 	var (
@@ -278,7 +268,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		} else {
 			metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultAccept)
 
-			err := ueConn.SendDownlinkNASTransport(ctx, nasPdu, nil)
+			err := ueConn.SendDownlinkNASTransport(ctx, nasPdu)
 			if err != nil {
 				abortRegistration(ctx, amfInstance, ue, "send downlink NAS transport", err)
 				return

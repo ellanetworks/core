@@ -71,7 +71,6 @@ func sendServiceAccept(
 			ue.Ambr.Downlink,
 			ue.AllowedNssai,
 			ue.Kgnb(),
-			ue.PlmnID,
 			ue.RadioCapability,
 			ue.RadioCapabilityForPaging,
 			ue.UESecCap(),

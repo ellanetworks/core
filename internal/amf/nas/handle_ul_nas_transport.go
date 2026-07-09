@@ -82,7 +82,7 @@ func forward5GSMMessageToSMF(
 	}
 
 	if n1Msg != nil {
-		err := ueConn.SendDownlinkNASTransport(ctx, n1Msg, nil)
+		err := ueConn.SendDownlinkNASTransport(ctx, n1Msg)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("error sending downlink nas transport", zap.Error(err))
 			return
