@@ -45,7 +45,7 @@ func HandleRanConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 			return
 		}
 
-		_ = ran.SendToRadio(ctx, send.NGAPProcedureRanConfigurationUpdateAcknowledge, pkt)
+		ran.SendToRadio(ctx, send.NGAPProcedureRanConfigurationUpdateAcknowledge, pkt)
 	} else {
 		pkt, err := send.BuildRanConfigurationUpdateFailure(cause, nil)
 		if err != nil {
@@ -53,7 +53,7 @@ func HandleRanConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 			return
 		}
 
-		_ = ran.SendToRadio(ctx, send.NGAPProcedureRanConfigurationUpdateFailure, pkt)
+		ran.SendToRadio(ctx, send.NGAPProcedureRanConfigurationUpdateFailure, pkt)
 	}
 }
 

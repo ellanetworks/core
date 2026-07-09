@@ -31,7 +31,7 @@ func sendPathSwitchRequestFailure(ctx context.Context, ran *amf.Radio, msg decod
 		return
 	}
 
-	_ = ran.SendToRadio(ctx, send.NGAPProcedurePathSwitchRequestFailure, pkt)
+	ran.SendToRadio(ctx, send.NGAPProcedurePathSwitchRequestFailure, pkt)
 }
 
 // pathSwitchReleasedList builds the released list with one item per distinct

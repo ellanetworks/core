@@ -94,5 +94,5 @@ func sendErrorIndication(ctx context.Context, ran *amf.Radio, amfID, ranID *int6
 		return
 	}
 
-	_ = ran.SendToRadio(ctx, send.NGAPProcedureErrorIndication, pkt)
+	ran.SendToRadio(ctx, send.NGAPProcedureErrorIndication, pkt)
 }

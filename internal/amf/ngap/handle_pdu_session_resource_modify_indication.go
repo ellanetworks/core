@@ -73,7 +73,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 		return
 	}
 
-	_ = ran.SendToRadio(ctx, send.NGAPProcedurePDUSessionResourceModifyConfirm, pkt)
+	ran.SendToRadio(ctx, send.NGAPProcedurePDUSessionResourceModifyConfirm, pkt)
 }
 
 func appendFailedToModify(ctx context.Context, ueConn *amf.UeConn, list *ngapType.PDUSessionResourceFailedToModifyListModCfm, pduSessionID ngapType.PDUSessionID, causeValue aper.Enumerated) {

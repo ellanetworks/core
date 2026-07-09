@@ -25,25 +25,34 @@ type NGAPWriter interface {
 	WriteMsg(b []byte, info *sctp.SndRcvInfo) (int, error)
 }
 
-// SendToRadio writes a complete NGAP PDU to this radio's gNB association.
-func (r *Radio) SendToRadio(ctx context.Context, msgType send.NGAPProcedure, packet []byte) error {
+// SendToRadio writes a complete NGAP PDU to this radio's gNB association. This is the
+// node-level, fire-and-forget path: a send failure is logged at the chokepoint and not
+// returned. Callers that must act on the send outcome (session/ICS setup) use
+// (*AMF).SendToRadio directly.
+func (r *Radio) SendToRadio(ctx context.Context, msgType send.NGAPProcedure, packet []byte) {
+	if r == nil || r.amf == nil {
+		logger.From(ctx, logger.AmfLog).Error("cannot send NGAP message: radio is not bound to an amf", zap.String("message_type", string(msgType)))
+		return
+	}
+
+	// The send failure, if any, is logged at the chokepoint.
+	_ = r.amf.SendToRadio(ctx, r.Conn, msgType, packet)
+}
+
+// SendDownlinkNRPPaTransport builds a DOWNLINK UE-ASSOCIATED NRPPa TRANSPORT carrying
+// the LMF's NRPPa PDU and sends it to this radio's gNB (TS 38.413 §8.14.2). It returns
+// the send outcome so the LMF positioning client can report a delivery failure.
+func (r *Radio) SendDownlinkNRPPaTransport(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, routingID int64, nrppaPdu []byte) error {
 	if r == nil || r.amf == nil {
 		return fmt.Errorf("radio is not bound to an amf")
 	}
 
-	return r.amf.SendToRadio(ctx, r.Conn, msgType, packet)
-}
-
-// SendDownlinkNRPPaTransport builds a DOWNLINK UE-ASSOCIATED NRPPa TRANSPORT carrying
-// the LMF's NRPPa PDU and sends it to this radio's gNB (TS 38.413 §8.14.2). The LMF
-// positioning client uses this to reach the RAN through the AMF's NGAP association.
-func (r *Radio) SendDownlinkNRPPaTransport(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, routingID int64, nrppaPdu []byte) error {
 	pkt, err := send.BuildDownlinkUEAssociatedNRPPaTransport(amfUeNgapID, ranUeNgapID, routingID, nrppaPdu)
 	if err != nil {
 		return fmt.Errorf("build downlink NRPPa transport: %w", err)
 	}
 
-	return r.SendToRadio(ctx, send.NGAPProcedureDownlinkNRPPaTransport, pkt)
+	return r.amf.SendToRadio(ctx, r.Conn, send.NGAPProcedureDownlinkNRPPaTransport, pkt)
 }
 
 // SendToRadio writes a complete NGAP PDU to a gNB association, selecting the SCTP
