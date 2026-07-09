@@ -159,6 +159,17 @@ func (m *MME) IndexRadioForTest(conn S1APWriter, supportedTAIs []SupportedTAI) {
 
 func (m *MME) SetHandoverGuardTimeoutForTest(d time.Duration) { m.handoverGuardTimeout = d }
 
+// ESMGuardActiveForTest reports whether the PDN connection's ESM bearer-procedure
+// guard (T3485/T3486/T3495) is currently armed.
+func (m *MME) ESMGuardActiveForTest(p *PdnConnection) bool { return p.guard.Active() }
+
+// SetESMGuardConfigForTest overrides the ESM bearer-procedure guard's interval and
+// retry budget so a test can drive its expiry quickly.
+func (m *MME) SetESMGuardConfigForTest(expire time.Duration, maxRetry int32) {
+	m.esmGuardCfg.ExpireTime = expire
+	m.esmGuardCfg.MaxRetryTimes = maxRetry
+}
+
 func (m *MME) FireHandoverGuardForTest(ue *UeContext) { m.abandonHandover(ue) }
 
 func (m *MME) ReclaimUEsOnConnLossForTest(conn S1APWriter) { m.reclaimUEsOnConnLoss(conn) }

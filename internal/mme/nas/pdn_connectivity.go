@@ -204,6 +204,14 @@ func sendERABSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext, p *mme.Pd
 
 		return
 	}
+
+	// The S1AP send chokepoint swallows write failures, so without T3485 supervision a
+	// failed or unanswered activation would leak the committed PDN and its S-GW session.
+	// The guard retransmits, then releases the PDN once the budget is spent
+	// (TS 24.301 §6.4.1.6).
+	m.ArmESMGuardAbortOnly(ue, p, "Activate Default EPS Bearer Context Request", naspdu, func() {
+		m.ReleasePDN(context.Background(), ue, p)
+	})
 }
 
 // handlePDNDisconnectRequest releases one of a UE's PDN connections at its request
@@ -281,6 +289,8 @@ func handleActivateDefaultBearerAccept(m *mme.MME, ue *mme.UeContext, plain []by
 		return nasreply.Silent(nasreply.ReasonNoContext)
 	}
 
+	m.StopESMGuard(p)
+
 	logger.MmeLog.Info("additional PDN connection active",
 		zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Uint8("ebi", p.Ebi))
 
@@ -299,6 +309,7 @@ func handleActivateDefaultBearerReject(ctx context.Context, m *mme.MME, ue *mme.
 	if p := m.LookupPDN(ue, reject.EPSBearerIdentity); p != nil {
 		logger.MmeLog.Info("UE rejected an additional PDN connection; releasing it",
 			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Uint8("esm-cause", reject.ESMCause))
+		m.StopESMGuard(p)
 		m.ReleasePDN(ctx, ue, p)
 	}
 

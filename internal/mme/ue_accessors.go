@@ -208,8 +208,7 @@ func (ue *UeContext) AllocateRegistrationArea(servedTais []models.Tai) {
 	ue.registrationArea = append(ue.registrationArea[:0:0], servedTais...)
 }
 
-// RegistrationArea returns a copy of the UE's registered tracking area — the TAI
-// list assigned in ATTACH/TAU ACCEPT and the area the UE is paged in.
+// RegistrationArea returns a copy of the UE's registered tracking area.
 func (ue *UeContext) RegistrationArea() []models.Tai {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

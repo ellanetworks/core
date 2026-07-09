@@ -129,9 +129,6 @@ func HandleEmmMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain 
 	}
 }
 
-// isAttachRequest reports whether a NAS message is an ATTACH REQUEST — the only
-// message warranting a new UE context on a fresh connection (TS 24.301). Only a
-// plain or integrity-protected EMM body is peekable; anything else cannot match.
 func isAttachRequest(nas []byte) bool {
 	pd, err := eps.ProtocolDiscriminator(nas)
 	if err != nil || pd != eps.PDEMM {
