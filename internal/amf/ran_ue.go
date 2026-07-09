@@ -73,9 +73,8 @@ type UeConn struct {
 	// ics is the Initial Context Setup progress (an ICSState). It is read and written
 	// from the NGAP dispatch goroutine, the SMF N1N2 path, and the NAS-guard timer
 	// callback, so it is atomic; mutate it only through ICS()/ClaimICS()/MarkICS*/ResetICS.
-	ics        atomic.Int32
-	Log        *zap.Logger
-	freeNgapID func(int64)
+	ics atomic.Int32
+	Log *zap.Logger
 	// releasing gates a UE Context Release Command so a second one is not sent for the
 	// same RAN UE. Guarded by AMF.mu, like the conns registry it lives in.
 	releasing bool
@@ -481,9 +480,7 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 	delete(a.conns, ueConn.AmfUeNgapID)
 	a.mu.Unlock()
 
-	if ueConn.freeNgapID != nil {
-		ueConn.freeNgapID(ueConn.AmfUeNgapID)
-	}
+	a.connIDs.FreeID(ueConn.AmfUeNgapID)
 
 	logger.AmfLog.Info("ran ue removed",
 		zap.Int64("amfUeNgapID", ueConn.AmfUeNgapID),

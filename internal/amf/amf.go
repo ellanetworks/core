@@ -585,7 +585,6 @@ func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID int64) (*UeConn, error) {
 		radioName:   radio.name,
 		amf:         a,
 		Log:         radio.Log.With(logger.AmfUeNgapID(amfUeNgapID)),
-		freeNgapID:  a.connIDs.FreeID,
 	}
 
 	a.mu.Lock()
