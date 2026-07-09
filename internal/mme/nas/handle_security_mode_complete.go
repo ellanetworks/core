@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func handleSecurityModeComplete(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+func handleSecurityModeComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	// A SECURITY MODE COMPLETE is valid only during the security mode sub-phase;
 	// out of order, ignore it. A genuine one is integrity-protected against the
 	// context installed at command send, so this is defence in depth.
@@ -68,7 +68,7 @@ func handleSecurityModeComplete(m *mme.MME, ctx context.Context, ue *mme.UeConte
 		zap.String("imsi", ue.IMSI()),
 	)
 
-	activateDefaultBearer(m, ctx, ue)
+	activateDefaultBearer(ctx, m, ue)
 
 	return nasreply.Handled()
 }

@@ -31,7 +31,7 @@ func TestDeactivateBearerAcceptReleases(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	HandleNAS(m, context.Background(), ue.Conn(), wire)
+	HandleNAS(context.Background(), m, ue.Conn(), wire)
 
 	if !m.Session.(*fakeSessionManager).released {
 		t.Fatal("EPS session not released after Deactivate Accept")
@@ -73,7 +73,7 @@ func TestModifyBearerAcceptCommitsConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	HandleNAS(m, context.Background(), ue.Conn(), wire)
+	HandleNAS(context.Background(), m, ue.Conn(), wire)
 
 	if testPDN(ue).Modifying {
 		t.Fatal("UE still marked modifying after Modify Accept")

@@ -19,7 +19,7 @@ import (
 // (TS 24.301); the UE also requests CS-domain registration.
 const epsAttachTypeCombined uint8 = 2
 
-func handleAttachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte, integrityVerified bool) nasreply.Disposition {
+func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte, integrityVerified bool) nasreply.Disposition {
 	req, err := eps.ParseAttachRequest(plain)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to decode Attach Request", zap.Error(err))
@@ -71,14 +71,14 @@ func handleAttachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, pla
 	// default bearer is activated.
 	if ue.Secured() && integrityVerified {
 		m.ReleaseAllSessions(ctx, ue)
-		activateDefaultBearer(m, ctx, ue)
+		activateDefaultBearer(ctx, m, ue)
 
 		return nasreply.Handled()
 	}
 
 	if req.EPSMobileIdentity.Type == eps.IdentityIMSI {
 		m.SetIMSI(ue, req.EPSMobileIdentity.Digits)
-		authenticateOrReject(m, ctx, ue)
+		authenticateOrReject(ctx, m, ue)
 
 		return nasreply.Handled()
 	}
@@ -93,8 +93,7 @@ func handleAttachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, pla
 // ingestAttachRequest records the attach parameters the rest of the procedure
 // needs.
 func ingestAttachRequest(ue *mme.UeContext, req *eps.AttachRequest) {
-	ue.UeNetCap = req.UENetworkCapability
-	ue.MsNetCap = req.MSNetworkCapability
+	ue.SetUESecurityCapability(req.UENetworkCapability, req.MSNetworkCapability, mme.MintAuthProofForAttachRequest())
 	ue.EsmContainer = req.ESMMessageContainer
 	ue.CombinedAttach = req.EPSAttachType == epsAttachTypeCombined
 	ue.DRXParameter = req.DRXParameter
@@ -122,7 +121,7 @@ func ingestAttachRequest(ue *mme.UeContext, req *eps.AttachRequest) {
 // and GUMMEI), so its M-TMSI can be resolved against the local context index
 // (TS 23.401). A foreign GUTI would require S10, which Ella Core (a
 // single MME) does not implement.
-func isNativeGUTI(m *mme.MME, ctx context.Context, id eps.EPSMobileIdentity) bool {
+func isNativeGUTI(ctx context.Context, m *mme.MME, id eps.EPSMobileIdentity) bool {
 	plmn, err := m.OperatorPLMN(ctx)
 	if err != nil {
 		return false
@@ -140,7 +139,7 @@ func isNativeGUTI(m *mme.MME, ctx context.Context, id eps.EPSMobileIdentity) boo
 // security mode procedure are then skipped, TS 24.301 §4.4.3); any other Attach stays
 // on the fresh context ue. It returns drop=true only for a colliding Attach during a
 // network-initiated detach (TS 24.301 §5.5.2.3.4 case d), which the caller drops.
-func resolveAttachContext(m *mme.MME, ctx context.Context, ue *mme.UeContext, nas []byte) (*mme.UeContext, bool) {
+func resolveAttachContext(ctx context.Context, m *mme.MME, ue *mme.UeContext, nas []byte) (*mme.UeContext, bool) {
 	body := nas
 	if len(nas) > 0 && nas[0]>>4 != uint8(eps.SHTPlain) {
 		if len(nas) < 6 {
@@ -155,7 +154,7 @@ func resolveAttachContext(m *mme.MME, ctx context.Context, ue *mme.UeContext, na
 		return ue, false
 	}
 
-	if !isNativeGUTI(m, ctx, req.EPSMobileIdentity) {
+	if !isNativeGUTI(ctx, m, req.EPSMobileIdentity) {
 		return ue, false
 	}
 
@@ -194,7 +193,7 @@ func resolveAttachContext(m *mme.MME, ctx context.Context, ue *mme.UeContext, na
 
 // rejectAttach sends ATTACH REJECT (TS 24.301) with the given EMM
 // cause, then releases the UE's S1 context.
-func rejectAttach(m *mme.MME, ctx context.Context, ue *mme.UeContext, cause uint8) {
+func rejectAttach(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause uint8) {
 	metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultReject)
 	ue.Conn().StopNASGuard()
 

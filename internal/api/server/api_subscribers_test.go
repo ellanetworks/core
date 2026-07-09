@@ -340,6 +340,10 @@ func mockSessionForSubscriber(amfInstance *amf.AMF, testSmfInstance *smf.SMF, im
 		}
 	}
 
+	// A UE holding a PDU session is Registered (registration precedes session
+	// establishment); the status API surfaces sessions only for Registered UEs.
+	ue.ForceStateForTest(amf.Registered)
+
 	pduSessionID := uint8(1)
 	sc := testSmfInstance.NewSession(supi, pduSessionID, dnn, nil)
 

@@ -792,11 +792,11 @@ type mmeNASAdapter struct {
 }
 
 func (a *mmeNASAdapter) HandleNAS(ctx context.Context, conn *mme.UeConn, pdu []byte) {
-	mmenas.HandleNAS(a.mme, ctx, conn, pdu)
+	mmenas.HandleNAS(ctx, a.mme, conn, pdu)
 }
 
 func (a *mmeNASAdapter) HandleServiceRequest(ctx context.Context, conn mme.S1APWriter, msg *s1ap.InitialUEMessage) {
-	mmenas.HandleServiceRequest(a.mme, ctx, conn, msg)
+	mmenas.HandleServiceRequest(ctx, a.mme, conn, msg)
 }
 
 // ausfDBAdapter adapts *db.Database to the ausf.SubscriberStore interface.

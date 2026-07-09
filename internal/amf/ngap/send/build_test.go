@@ -110,11 +110,9 @@ func TestBuildInitialContextSetupRequest_MultipleAllowedNSSAI(t *testing.T) {
 	ueSecurityCap.SetLen(4)
 	ueSecurityCap.Buffer = []uint8{0xf0, 0xf0, 0xf0, 0xf0}
 
-	servingPlmnID := models.PlmnID{Mcc: "001", Mnc: "01"}
-
 	encoded, err := BuildInitialContextSetupRequest(
 		1, 2, "1000000", "2000000",
-		allowedNssai, kgnodeb, servingPlmnID,
+		allowedNssai, kgnodeb,
 		nil, nil, ueSecurityCap, nil, nil,
 		&models.Guami{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, AmfID: "cafe00"},
 	)
@@ -157,7 +155,7 @@ func TestBuildInitialContextSetupRequest_EmptyAllowedNSSAI_Error(t *testing.T) {
 
 	_, err := BuildInitialContextSetupRequest(
 		1, 2, "1000000", "2000000",
-		[]models.Snssai{}, kgnodeb, models.PlmnID{Mcc: "001", Mnc: "01"},
+		[]models.Snssai{}, kgnodeb,
 		nil, nil, ueSecurityCap, nil, nil,
 		&models.Guami{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, AmfID: "cafe00"},
 	)

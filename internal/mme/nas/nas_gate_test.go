@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-func TestIsInitialAttach(t *testing.T) {
+func TestIsAttachRequest(t *testing.T) {
 	attach := plainAttachNAS(t)
 
 	tests := []struct {
@@ -28,8 +28,8 @@ func TestIsInitialAttach(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isInitialAttach(tt.nas); got != tt.want {
-				t.Fatalf("isInitialAttach = %v, want %v", got, tt.want)
+			if got := isAttachRequest(tt.nas); got != tt.want {
+				t.Fatalf("isAttachRequest = %v, want %v", got, tt.want)
 			}
 		})
 	}

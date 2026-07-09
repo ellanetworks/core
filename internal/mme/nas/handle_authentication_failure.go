@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func handleAuthenticationFailure(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+func handleAuthenticationFailure(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	// An AUTHENTICATION FAILURE is admissible without integrity protection
 	// (TS 24.301 §4.4.4.3) and can be injected. It is valid only during the attach
 	// authentication sub-phase; in any other state its handling is
@@ -62,21 +62,21 @@ func handleAuthenticationFailure(m *mme.MME, ctx context.Context, ue *mme.UeCont
 
 		logger.From(ctx, logger.MmeLog).Info("re-synchronising SQN, re-authenticating")
 
-		if err := sendAuthRequest(m, ctx, ue, hex.EncodeToString(resp.AUTS), hex.EncodeToString(c.AuthVector.RAND[:])); err != nil {
+		if err := sendAuthRequest(ctx, m, ue, hex.EncodeToString(resp.AUTS), hex.EncodeToString(c.AuthVector.RAND[:])); err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("SQN re-synchronisation failed", zap.Error(err))
-			rejectAuthentication(m, ctx, ue)
+			rejectAuthentication(ctx, m, ue)
 		}
 
 		return nasreply.Handled()
 	}
 
 	// The UE attaches with its IMSI, so per TS 24.301 these cases abort with a reject.
-	rejectAuthentication(m, ctx, ue)
+	rejectAuthentication(ctx, m, ue)
 
 	return nasreply.Handled()
 }
 
-func rejectAuthentication(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
+func rejectAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultReject)
 
 	logger.From(ctx, logger.MmeLog).Info("authentication rejected", zap.String("imsi", ue.IMSI()))

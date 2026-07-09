@@ -48,6 +48,7 @@ type handoverContext struct {
 // PrepareHandover allocates a target association, advances the {NH, NCC} chain, and
 // installs the in-flight handover on the UE (TS 36.413 §8.4.1, TS 33.401 §7.2.8).
 // It refuses when the key chain is concurrently busy. reqMMEID is for logging only.
+// Supervision is armed separately (SuperviseHandover), after the HANDOVER REQUEST is sent.
 func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MMEUES1APID) (targetMMEID s1ap.MMEUES1APID, newNH [32]byte, newNCC uint8, ok bool) {
 	m.mu.Lock()
 
@@ -92,18 +93,23 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 		newNCC: newNCC,
 	}
 	ue.handover = ho
-	// Supervise the S1Handover procedure: at TS1RELOCoverall expiry the registry runs
-	// abandonHandover while S1Handover is still active (TS 36.413 §8.4).
-	ue.SuperviseKeyChainProc(procedure.S1Handover, time.Now().Add(m.handoverGuardTimeout), func(context.Context) error {
-		m.abandonHandover(ue)
-
-		return nil
-	})
 
 	targetMMEID = targetConn.MMEUES1APID
 	m.mu.Unlock()
 
 	return targetMMEID, newNH, newNCC, true
+}
+
+// SuperviseHandover arms the guard bounding the S1 handover (HANDOVER REQUIRED →
+// completion). Armed after the HANDOVER REQUEST is sent so the timer cannot race the
+// outbound request; at TS1RELOCoverall expiry the registry runs abandonHandover while
+// S1Handover is still active (TS 36.413 §8.4).
+func (m *MME) SuperviseHandover(ue *UeContext) {
+	ue.SuperviseKeyChainProc(procedure.S1Handover, time.Now().Add(m.handoverGuardTimeout), func(context.Context) error {
+		m.abandonHandover(ue)
+
+		return nil
+	})
 }
 
 // MatchAndSetTargetENB binds the target's ENB-UE-S1AP-ID to the in-flight handover
@@ -357,7 +363,7 @@ func (m *MME) FailHandoverToSource(ctx context.Context, ue *UeContext, cause s1a
 	m.clearHandoverLocked(ue)
 	m.mu.Unlock()
 
-	SendHandoverPreparationFailure(m, ctx, sourceConn, sourceMMEID, sourceENBID, cause)
+	SendHandoverPreparationFailure(ctx, m, sourceConn, sourceMMEID, sourceENBID, cause)
 }
 
 // abandonHandover is the S1Handover supervision-timeout action (TS 36.413 §8.4): the
@@ -390,7 +396,7 @@ func (m *MME) abandonHandover(ue *UeContext) {
 		zap.Uint32("mme-ue-id", uint32(sourceMMEID)))
 
 	if releaseTarget != nil {
-		SendUEContextRelease(m, context.Background(), releaseTarget.conn, releaseTarget.MMEUES1APID, releaseTarget.ENBUES1APID, releasePair, causeHandoverTS1relocExpiry)
+		SendUEContextRelease(context.Background(), m, releaseTarget.conn, releaseTarget.MMEUES1APID, releaseTarget.ENBUES1APID, releasePair, causeHandoverTS1relocExpiry)
 	}
 }
 
@@ -412,7 +418,7 @@ func (m *MME) ReleaseDetachedConn(conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enb
 	return true
 }
 
-func SendHandoverPreparationFailure(m *MME, ctx context.Context, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, cause s1ap.Cause) {
+func SendHandoverPreparationFailure(ctx context.Context, m *MME, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, cause s1ap.Cause) {
 	fail := &s1ap.HandoverPreparationFailure{MMEUES1APID: mmeUEID, ENBUES1APID: enbUEID, Cause: cause}
 
 	b, err := fail.Marshal()
@@ -428,7 +434,7 @@ func SendHandoverPreparationFailure(m *MME, ctx context.Context, conn S1APWriter
 // UE S1AP IDs alternative: the full pair when the eNB-UE-S1AP-ID is known, or the
 // MME-UE-S1AP-ID alone for a still-preparing target whose eNB-UE-S1AP-ID has not yet
 // arrived in a HANDOVER REQUEST ACKNOWLEDGE (TS 36.413 §9.1.4.5).
-func SendUEContextRelease(m *MME, ctx context.Context, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, pair bool, cause s1ap.Cause) {
+func SendUEContextRelease(ctx context.Context, m *MME, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, pair bool, cause s1ap.Cause) {
 	cmd := &s1ap.UEContextReleaseCommand{
 		UES1APIDs: s1ap.UES1APIDs{MMEUES1APID: mmeUEID, ENBUES1APID: enbUEID, Pair: pair},
 		Cause:     cause,

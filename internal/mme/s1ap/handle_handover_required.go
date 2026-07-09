@@ -32,7 +32,7 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 	if req.HandoverType != s1ap.HandoverTypeIntraLTE {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Required for an unsupported handover type",
 			zap.Uint32("mme-ue-id", uint32(req.MMEUES1APID)), zap.Uint8("handover-type", uint8(req.HandoverType)))
-		mme.SendHandoverPreparationFailure(m, ctx, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHOTargetNotAllowed)
+		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHOTargetNotAllowed)
 
 		return
 	}
@@ -40,7 +40,7 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 	if !ue.Secured() || !ue.HasKASME() {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Required for a UE without a security context",
 			zap.Uint32("mme-ue-id", uint32(req.MMEUES1APID)))
-		mme.SendHandoverPreparationFailure(m, ctx, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHandoverNoSecurity)
+		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHandoverNoSecurity)
 
 		return
 	}
@@ -49,7 +49,7 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Required for an unknown target eNB",
 			zap.Uint32("mme-ue-id", uint32(req.MMEUES1APID)), zap.String("target-enb", mme.ENBID(req.TargetID.TargeteNBID.GlobalENBID)))
-		mme.SendHandoverPreparationFailure(m, ctx, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeUnknownTargetID)
+		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeUnknownTargetID)
 
 		return
 	}
@@ -57,20 +57,20 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 	if target.Conn == radio.Conn {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Required targets the source eNB",
 			zap.Uint32("mme-ue-id", uint32(req.MMEUES1APID)))
-		mme.SendHandoverPreparationFailure(m, ctx, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHOTargetNotAllowed)
+		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHOTargetNotAllowed)
 
 		return
 	}
 
 	bearers, ok := mme.HandoverBearers(ue)
 	if !ok {
-		mme.SendHandoverPreparationFailure(m, ctx, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHandoverPrepUnspecific)
+		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHandoverPrepUnspecific)
 		return
 	}
 
 	targetMMEID, newNH, newNCC, ok := m.PrepareHandover(ue, target.Conn, req.MMEUES1APID)
 	if !ok {
-		mme.SendHandoverPreparationFailure(m, ctx, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHandoverPrepUnspecific)
+		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHandoverPrepUnspecific)
 		return
 	}
 
@@ -89,7 +89,7 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to marshal Handover Request", zap.Error(err))
 		m.ClearHandover(ue)
-		mme.SendHandoverPreparationFailure(m, ctx, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHandoverPrepUnspecific)
+		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHandoverPrepUnspecific)
 
 		return
 	}
@@ -99,6 +99,10 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		zap.String("target-enb", mme.ENBID(req.TargetID.TargeteNBID.GlobalENBID)),
 		zap.Int("e-rabs", len(bearers)))
 	m.SendS1APConn(ctx, target.Conn, mme.S1APProcedureHandoverRequest, b)
+
+	// Arm the guard after the HANDOVER REQUEST is sent, so the timer cannot race the
+	// outbound request (TS 36.413 §8.4).
+	m.SuperviseHandover(ue)
 }
 
 func handoverUEAMBR(ue *mme.UeContext) s1ap.UEAggregateMaximumBitRate {
@@ -111,7 +115,7 @@ func handoverUEAMBR(ue *mme.UeContext) s1ap.UEAggregateMaximumBitRate {
 }
 
 func handoverSecurityCapabilities(ue *mme.UeContext) s1ap.UESecurityCapabilities {
-	uecap, err := eps.ParseUENetworkCapability(ue.UeNetCap)
+	uecap, err := eps.ParseUENetworkCapability(ue.UeNetCap())
 	if err != nil {
 		return s1ap.UESecurityCapabilities{}
 	}

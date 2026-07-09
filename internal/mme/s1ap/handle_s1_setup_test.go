@@ -11,7 +11,7 @@ import (
 )
 
 func TestBuildS1SetupResponseMarshals(t *testing.T) {
-	resp, err := buildS1SetupResponse(models.PlmnID{Mcc: "001", Mnc: "01"}, 0x1234, 0x56)
+	resp, err := buildS1SetupResponse(models.PlmnID{Mcc: "001", Mnc: "01"}, 0x1234, 0x56, "ella", 0xff)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestBuildS1SetupResponseMarshals(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.MMEName != mmeName || out.RelativeMMECapacity != relativeMMECapacity {
+	if out.MMEName != "ella" || out.RelativeMMECapacity != 0xff {
 		t.Fatalf("scalar mismatch: %+v", out)
 	}
 

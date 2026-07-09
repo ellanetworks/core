@@ -82,7 +82,7 @@ func pathSwitchUE(t *testing.T, m *mme.MME) *mme.UeContext {
 
 	ue, _ := securedUE(t, m)
 	testPDN(ue).Apn = "internet"
-	ue.UeNetCap = eps.UENetworkCapability{EEA: 0xe0, EIA: 0xe0}.Marshal()
+	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xe0, EIA: 0xe0}.Marshal(), nil, mme.MintAuthProofForAttachRequest())
 	ue.SetNCCForTest(1)
 
 	var nh [32]byte

@@ -9,6 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -30,7 +31,7 @@ func HandleErrorIndication(ctx gocontext.Context, amfInstance *amf.AMF, ran *amf
 		return
 	}
 
-	ueConn := amfInstance.FindUEByAmfUeNgapID(ran, *msg.AMFUENGAPID)
+	ueConn := amfInstance.FindUEByAmfUeNgapID(ran, models.AmfUeNgapID(*msg.AMFUENGAPID))
 	if ueConn == nil {
 		return
 	}

@@ -20,7 +20,7 @@ import (
 func activateFromAccept(t *testing.T, m *mme.MME, ue *mme.UeContext) *eps.ActivateDefaultEPSBearerContextRequest {
 	t.Helper()
 
-	wire, err := buildProtectedAttachAccept(m, context.Background(), ue, &mme.EpsQoS{APN: "internet", QCI: 9, MTU: 1400})
+	wire, err := buildProtectedAttachAccept(context.Background(), m, ue, &mme.EpsQoS{APN: "internet", QCI: 9, MTU: 1400})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestAttachAcceptIMSVoPS(t *testing.T) {
 	testPDN(ue).PdnType = eps.PDNTypeIPv4
 	testPDN(ue).UeIP = testUEIP
 
-	wire, err := buildProtectedAttachAccept(m, context.Background(), ue, &mme.EpsQoS{APN: "internet", QCI: 9, MTU: 1400})
+	wire, err := buildProtectedAttachAccept(context.Background(), m, ue, &mme.EpsQoS{APN: "internet", QCI: 9, MTU: 1400})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestActivateDefaultBearerRejectsWhen4GNotAllowed(t *testing.T) {
 	m := mme.New(udm.New(newFakeCredStore(), noopKeyResolver), barredBearerStore{}, &fakeSessionManager{})
 	ue, cc := securedUE(t, m)
 
-	activateDefaultBearer(m, context.Background(), ue)
+	activateDefaultBearer(context.Background(), m, ue)
 
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected Attach Reject + UE Context Release Command, got %d", len(cc.sent))
@@ -159,7 +159,7 @@ func TestActivateDefaultBearerRejectsOnSessionFailure(t *testing.T) {
 	m := mme.New(udm.New(newFakeCredStore(), noopKeyResolver), fakeBearerStore{}, &erroringSessionManager{})
 	ue, cc := securedUE(t, m)
 
-	activateDefaultBearer(m, context.Background(), ue)
+	activateDefaultBearer(context.Background(), m, ue)
 
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected Attach Reject + UE Context Release Command, got %d", len(cc.sent))
@@ -200,7 +200,7 @@ func TestAttachAcceptPDNAddress(t *testing.T) {
 			testPDN(ue).UeIP = testUEIP
 			testPDN(ue).UeIPv6IID = testUEIPv6IID
 
-			wire, err := buildProtectedAttachAccept(m, context.Background(), ue, &mme.EpsQoS{APN: "internet", QCI: 9})
+			wire, err := buildProtectedAttachAccept(context.Background(), m, ue, &mme.EpsQoS{APN: "internet", QCI: 9})
 			if err != nil {
 				t.Fatal(err)
 			}

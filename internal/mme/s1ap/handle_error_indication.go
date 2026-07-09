@@ -8,7 +8,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -98,14 +97,9 @@ func emitErrorIndication(m *mme.MME, conn mme.S1APWriter, ind *s1ap.ErrorIndicat
 		return
 	}
 
-	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: mme.S1apWirePPID, Stream: mme.S1apStreamNonUE}); err != nil {
-		logger.MmeLog.Error("failed to send Error Indication", zap.Error(err))
-		return
-	}
-
 	// Resolution failures fire from many handlers, some outside a request span;
 	// fresh root.
-	m.LogOutboundS1AP(context.Background(), conn, mme.S1APProcedureErrorIndication, b)
+	m.SendS1APConn(context.Background(), conn, mme.S1APProcedureErrorIndication, b)
 }
 
 // handleErrorIndication processes an ERROR INDICATION from the eNB (TS 36.413). A

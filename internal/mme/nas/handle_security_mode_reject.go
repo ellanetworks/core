@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func handleSecurityModeReject(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+func handleSecurityModeReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	// A SECURITY MODE REJECT is valid only during the security mode sub-phase; an
 	// out-of-order one (admissible without integrity, TS 24.301 §4.4.4.3) must not
 	// release the UE.

@@ -3,7 +3,10 @@
 
 package logger
 
-import "go.uber.org/zap"
+import (
+	"github.com/ellanetworks/core/internal/models"
+	"go.uber.org/zap"
+)
 
 // UE Identity
 func SUPI(val string) zap.Field { return zap.String("supi", val) }
@@ -13,15 +16,15 @@ func PEI(val string) zap.Field  { return zap.String("pei", val) }
 func TMSI(val string) zap.Field { return zap.String("tmsi", val) }
 
 // Session, NGAP & S1AP
-func AmfUeNgapID(val int64) zap.Field  { return zap.Int64("amf_ue_ngap_id", val) }
-func RanUeNgapID(val int64) zap.Field  { return zap.Int64("ran_ue_ngap_id", val) }
-func MMEUeS1apID(val uint32) zap.Field { return zap.Uint32("mme-ue-id", val) }
-func PDUSessionID(val uint8) zap.Field { return zap.Uint8("pdu_session_id", val) }
-func DNN(val string) zap.Field         { return zap.String("dnn", val) }
-func SST(val uint8) zap.Field          { return zap.Uint8("sst", val) }
-func SD(val string) zap.Field          { return zap.String("sd", val) }
-func Cause(val string) zap.Field       { return zap.String("cause", val) }
-func MessageType(val string) zap.Field { return zap.String("message_type", val) }
+func AmfUeNgapID(val models.AmfUeNgapID) zap.Field { return zap.Int64("amf_ue_ngap_id", int64(val)) }
+func RanUeNgapID(val models.RanUeNgapID) zap.Field { return zap.Int64("ran_ue_ngap_id", int64(val)) }
+func MMEUeS1apID(val uint32) zap.Field             { return zap.Uint32("mme-ue-id", val) }
+func PDUSessionID(val uint8) zap.Field             { return zap.Uint8("pdu_session_id", val) }
+func DNN(val string) zap.Field                     { return zap.String("dnn", val) }
+func SST(val uint8) zap.Field                      { return zap.Uint8("sst", val) }
+func SD(val string) zap.Field                      { return zap.String("sd", val) }
+func Cause(val string) zap.Field                   { return zap.String("cause", val) }
+func MessageType(val string) zap.Field             { return zap.String("message_type", val) }
 
 // PFCP Rules
 func SEID(val uint64) zap.Field  { return zap.Uint64("seid", val) }

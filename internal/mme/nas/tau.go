@@ -18,7 +18,7 @@ import (
 // (TS 24.301). A UE already ECM-CONNECTED keeps its bearers; a UE returning from
 // ECM-IDLE re-establishes them when it sets the active flag, else is released back
 // to ECM-IDLE after acknowledging the accept.
-func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	req, err := eps.ParseTrackingAreaUpdateRequest(plain)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to decode Tracking Area Update Request", zap.Error(err))
@@ -34,10 +34,10 @@ func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext
 	// bearers it holds but the UE considers inactive, then reflects the resulting
 	// active set in the accept (TS 24.301 §5.5.3.2.4).
 	if req.EPSBearerContextStatus != nil {
-		reconcileBearerContextStatus(m, ctx, ue, *req.EPSBearerContextStatus)
+		reconcileBearerContextStatus(ctx, m, ue, *req.EPSBearerContextStatus)
 	}
 
-	accept, err := trackingAreaUpdateAccept(m, ctx, ue, tauAcceptOptions{
+	accept, err := trackingAreaUpdateAccept(ctx, m, ue, tauAcceptOptions{
 		combined:            isCombinedUpdate(req.EPSUpdateType),
 		includeBearerStatus: req.EPSBearerContextStatus != nil,
 	})
@@ -67,14 +67,14 @@ func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext
 	}
 
 	if req.ActiveFlag {
-		qos, err := mme.ResolveQoS(m, ctx, ue.IMSI())
+		qos, err := mme.ResolveQoS(ctx, m, ue.IMSI())
 		if err != nil {
 			logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
 			return nasreply.Handled()
 		}
 
 		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted (bearer re-established)", zap.String("imsi", ue.IMSI()))
-		sendInitialContextSetup(m, ctx, ue, qos, naspdu)
+		sendInitialContextSetup(ctx, m, ue, qos, naspdu)
 		ue.Conn().ArmNASGuard("Tracking Area Update Accept", naspdu)
 
 		return nasreply.Handled()
@@ -95,7 +95,7 @@ func handleTrackingAreaUpdate(m *mme.MME, ctx context.Context, ue *mme.UeContext
 
 // handleTrackingAreaUpdateComplete finalises a GUTI reallocation; for a no-active
 // TAU it releases the UE back to ECM-IDLE (TS 24.301).
-func handleTrackingAreaUpdateComplete(m *mme.MME, ctx context.Context, ue *mme.UeContext) nasreply.Disposition {
+func handleTrackingAreaUpdateComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext) nasreply.Disposition {
 	ue.Conn().StopNASGuard()
 	m.CommitGUTIRealloc(ue)
 
@@ -144,18 +144,20 @@ type tauAcceptOptions struct {
 // current TAI list and a reallocated GUTI (TS 24.301). A combined update includes
 // EMM cause #18, since the MME has no SGs interface, to stop the UE attempting CS
 // registration.
-func trackingAreaUpdateAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext, opts tauAcceptOptions) (*eps.TrackingAreaUpdateAccept, error) {
+func trackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, opts tauAcceptOptions) (*eps.TrackingAreaUpdateAccept, error) {
 	plmn, err := m.OperatorPLMN(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	tac, err := m.OperatorTAC(ctx)
+	served, err := m.ServedTAIs(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	taiList, err := eps.TAIList{MCC: plmn.Mcc, MNC: plmn.Mnc, TACs: []uint16{tac}}.Marshal()
+	ue.AllocateRegistrationArea(served)
+
+	taiList, err := registrationAreaTAIList(ue.RegistrationArea())
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +194,7 @@ func trackingAreaUpdateAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext
 // reconcileBearerContextStatus locally releases the EPS bearer contexts the MME
 // holds but the UE reports inactive in its TRACKING AREA UPDATE REQUEST bearer
 // context status (TS 24.301 §5.5.3.2.4). Bit n of the bitmap is EBI n.
-func reconcileBearerContextStatus(m *mme.MME, ctx context.Context, ue *mme.UeContext, ueStatus uint16) {
+func reconcileBearerContextStatus(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueStatus uint16) {
 	for _, p := range m.SnapshotPDNs(ue) {
 		if ueStatus&(uint16(1)<<p.Ebi) != 0 {
 			continue

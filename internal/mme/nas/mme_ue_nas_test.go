@@ -28,7 +28,7 @@ func TestVerifiedMessageMarksSecureExchange(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	HandleNAS(m, context.Background(), ue.Conn(), wire)
+	HandleNAS(context.Background(), m, ue.Conn(), wire)
 
 	if !ue.Conn().SecureExchangeEstablished() {
 		t.Fatal("a verified message must establish secure exchange on the connection (TS 24.301 §4.4.4.3)")

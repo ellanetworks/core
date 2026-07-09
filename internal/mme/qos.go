@@ -35,7 +35,7 @@ type EpsQoS struct {
 // ResolveQoS maps the subscriber's profile → policy → data network to the EPS
 // default-bearer QoS. With no S-NSSAI in 4G, the profile's first policy is the
 // default bearer.
-func ResolveQoS(m *MME, ctx context.Context, imsi string) (*EpsQoS, error) {
+func ResolveQoS(ctx context.Context, m *MME, imsi string) (*EpsQoS, error) {
 	sub, err := m.Bearer.GetSubscriber(ctx, imsi)
 	if err != nil {
 		return nil, fmt.Errorf("get subscriber: %w", err)
@@ -53,7 +53,7 @@ func ResolveQoS(m *MME, ctx context.Context, imsi string) (*EpsQoS, error) {
 		return nil, fmt.Errorf("get default policy: %w", err)
 	}
 
-	return qosForPolicy(m, ctx, profile, pol)
+	return qosForPolicy(ctx, m, profile, pol)
 }
 
 // ErrUnknownAPN reports that the subscriber's profile has no policy bound to a
@@ -65,7 +65,7 @@ var ErrUnknownAPN = fmt.Errorf("mme: requested APN not in subscriber profile")
 // subscriber's profile policy whose data network carries that name. It returns
 // ErrUnknownAPN when no policy matches, so an unauthorised PDN connectivity
 // request is rejected (TS 24.301 §6.5.1.4).
-func ResolveQoSByAPN(m *MME, ctx context.Context, imsi, apn string) (*EpsQoS, error) {
+func ResolveQoSByAPN(ctx context.Context, m *MME, imsi, apn string) (*EpsQoS, error) {
 	sub, err := m.Bearer.GetSubscriber(ctx, imsi)
 	if err != nil {
 		return nil, fmt.Errorf("get subscriber: %w", err)
@@ -95,7 +95,7 @@ func ResolveQoSByAPN(m *MME, ctx context.Context, imsi, apn string) (*EpsQoS, er
 	return nil, ErrUnknownAPN
 }
 
-func qosForPolicy(m *MME, ctx context.Context, profile *db.Profile, pol *db.Policy) (*EpsQoS, error) {
+func qosForPolicy(ctx context.Context, m *MME, profile *db.Profile, pol *db.Policy) (*EpsQoS, error) {
 	dn, err := m.Bearer.GetDataNetworkByID(ctx, pol.DataNetworkID)
 	if err != nil {
 		return nil, fmt.Errorf("get data network: %w", err)
@@ -132,13 +132,13 @@ func (q *EpsQoS) DnFingerprint() string {
 // ResolveAttachQoS resolves the default-bearer QoS for an attaching UE. It honours
 // a UE-requested APN (TS 24.301 §6.5.1.3) by selecting the policy bound to that data
 // network, and falls back to the profile's default policy when no APN is requested.
-func ResolveAttachQoS(m *MME, ctx context.Context, ue *UeContext) (*EpsQoS, error) {
+func ResolveAttachQoS(ctx context.Context, m *MME, ue *UeContext) (*EpsQoS, error) {
 	ctx, span := Tracer.Start(ctx, "mme/resolve_attach_qos")
 	defer span.End()
 
 	if ue.RequestedAPN != "" {
-		return ResolveQoSByAPN(m, ctx, ue.IMSI(), ue.RequestedAPN)
+		return ResolveQoSByAPN(ctx, m, ue.IMSI(), ue.RequestedAPN)
 	}
 
-	return ResolveQoS(m, ctx, ue.IMSI())
+	return ResolveQoS(ctx, m, ue.IMSI())
 }

@@ -256,11 +256,11 @@ func newTestMME(t *testing.T) *mme.MME {
 type nasHandler struct{ m *mme.MME }
 
 func (h *nasHandler) HandleNAS(ctx context.Context, conn *mme.UeConn, pdu []byte) {
-	nas.HandleNAS(h.m, ctx, conn, pdu)
+	nas.HandleNAS(ctx, h.m, conn, pdu)
 }
 
 func (h *nasHandler) HandleServiceRequest(ctx context.Context, conn mme.S1APWriter, msg *s1ap.InitialUEMessage) {
-	nas.HandleServiceRequest(h.m, ctx, conn, msg)
+	nas.HandleServiceRequest(ctx, h.m, conn, msg)
 }
 
 // securedUE returns a registered UE with a valid EPS NAS security context.

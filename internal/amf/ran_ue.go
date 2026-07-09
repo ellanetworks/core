@@ -16,7 +16,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/guard"
@@ -53,8 +52,8 @@ const releaseGuardTimeout = 5 * time.Second
 // capture the returned pointer in a local and reuse it — the pointer may change between
 // calls.
 type UeConn struct {
-	RanUeNgapID  int64
-	AmfUeNgapID  int64
+	RanUeNgapID  models.RanUeNgapID
+	AmfUeNgapID  models.AmfUeNgapID
 	HandOverType ngapType.HandoverType
 	Tai          models.Tai
 	Location     models.UserLocation
@@ -357,7 +356,7 @@ func (ueConn *UeConn) TouchLastSeen() {
 		return
 	}
 
-	ueConn.ue.TouchLastSeen(ueConn.radioName)
+	ueConn.ue.TouchLastSeen()
 }
 
 // sendTarget resolves the AMF and radio this RAN UE sends through.
@@ -446,23 +445,69 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 	}
 }
 
-// abortHandoverIfPreparedTarget ends an in-flight N2 handover when this UeConn is its
-// prepared target and is being removed. Ending it on the source stops the supervision
-// guard and clears the FSM at once, so no stale handover lingers until the guard
-// deadline. The source is left in place; its own handover timers abort it on the radio.
-func (ueConn *UeConn) abortHandoverIfPreparedTarget(ctx context.Context) {
+// abortHandoverOnRemoval ends an in-flight N2 handover when this UeConn — being removed —
+// is its prepared target or its source. On source removal the prepared target is released
+// explicitly (radio-connection-with-UE-lost): the guard that would reap it is stopped when
+// RemoveUeConn ends the key-chain procedure. On target removal the source is left in place,
+// aborted on the radio by its own TNGRELOCprep/Overall timers (TS 38.413).
+func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 	ue := ueConn.ue
-	if ue == nil || ueConn.amf.HandoverTarget(ue) != ueConn {
+	if ue == nil {
 		return
 	}
 
-	if conn := ue.Conn(); conn != nil {
-		conn.Parent().EndKeyChainProc(procedure.N2Handover)
+	a := ueConn.amf
+	source := a.HandoverSource(ue)
+	target := a.HandoverTarget(ue)
+
+	switch ueConn {
+	case target:
+		a.ClearHandover(ue)
+		logger.WithTrace(ctx, ueConn.Log).Info("aborted in-flight N2 handover: target association removed")
+	case source:
+		a.ClearHandover(ue)
+
+		if target != nil {
+			target.ReleaseAction = UeContextReleaseHandover
+
+			if err := target.SendUEContextReleaseCommand(ctx,
+				ngapType.CausePresentRadioNetwork,
+				ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost); err != nil {
+				logger.WithTrace(ctx, ueConn.Log).Error("error releasing prepared handover target after source association loss", zap.Error(err))
+			}
+		}
+
+		logger.WithTrace(ctx, ueConn.Log).Info("released prepared N2 handover target: source association removed")
+	}
+}
+
+// DropStaleUe removes any connection on radio still bound to ranUeNgapID, clearing the way
+// for a new InitialUEMessage to reuse that RAN-UE-NGAP-ID. A gNB may reuse the ID before its
+// prior UEContextRelease completes; dropping the stale conn keeps a deferred
+// UEContextReleaseComplete from removing the freshly created context. Torn down after
+// releasing a.mu, since RemoveUeConn re-acquires it and may call the SMF.
+func (a *AMF) DropStaleUe(ctx context.Context, radio *Radio, ranUeNgapID models.RanUeNgapID) {
+	a.mu.Lock()
+
+	var stale []*UeConn
+
+	for _, ueConn := range a.conns {
+		if ueConn.conn == radio.Conn && ueConn.RanUeNgapID == ranUeNgapID {
+			stale = append(stale, ueConn)
+		}
 	}
 
-	ueConn.amf.ClearHandover(ue)
+	a.mu.Unlock()
 
-	logger.WithTrace(ctx, ueConn.Log).Info("aborted in-flight N2 handover: target association removed")
+	for _, ueConn := range stale {
+		logger.WithTrace(ctx, ueConn.Log).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale UeConn",
+			zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)),
+			zap.Int64("AmfUeNgapID", int64(ueConn.AmfUeNgapID)))
+
+		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
+			logger.WithTrace(ctx, ueConn.Log).Error(err.Error())
+		}
+	}
 }
 
 func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
@@ -470,21 +515,21 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 		return fmt.Errorf("ran ue is nil")
 	}
 
-	ueConn.abortHandoverIfPreparedTarget(ctx)
+	ueConn.abortHandoverOnRemoval(ctx)
 
 	if ueConn.ue != nil {
 		a.ReleaseNasConnection(ueConn.ue, ueConn)
 	}
 
 	a.mu.Lock()
-	delete(a.conns, ueConn.AmfUeNgapID)
+	delete(a.conns, int64(ueConn.AmfUeNgapID))
 	a.mu.Unlock()
 
-	a.connIDs.FreeID(ueConn.AmfUeNgapID)
+	a.connIDs.FreeID(int64(ueConn.AmfUeNgapID))
 
 	logger.AmfLog.Info("ran ue removed",
-		zap.Int64("amfUeNgapID", ueConn.AmfUeNgapID),
-		zap.Int64("ranUeNgapID", ueConn.RanUeNgapID),
+		zap.Int64("amfUeNgapID", int64(ueConn.AmfUeNgapID)),
+		zap.Int64("ranUeNgapID", int64(ueConn.RanUeNgapID)),
 	)
 
 	return nil
@@ -496,10 +541,10 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 // chain unadvanced so the source context stays consistent. The global conns
 // index is keyed by the unchanged AMF UE NGAP ID, so the switch only re-points
 // the UE at its new radio and RAN UE NGAP ID.
-func (a *AMF) CommitPathSwitch(ue *UeContext, ueConn *UeConn, ran *Radio, ranUeNgapID int64, nh [32]uint8, ncc uint8) bool {
+func (a *AMF) CommitPathSwitch(ue *UeContext, ueConn *UeConn, ran *Radio, ranUeNgapID models.RanUeNgapID, nh [32]uint8, ncc uint8) bool {
 	a.mu.Lock()
 
-	if ueConn == nil || ran == nil || a.conns[ueConn.AmfUeNgapID] != ueConn {
+	if ueConn == nil || ran == nil || a.conns[int64(ueConn.AmfUeNgapID)] != ueConn {
 		a.mu.Unlock()
 
 		return false
@@ -517,7 +562,7 @@ func (a *AMF) CommitPathSwitch(ue *UeContext, ueConn *UeConn, ran *Radio, ranUeN
 	a.mu.Unlock()
 
 	ueConn.Log = ran.Log.With(logger.AmfUeNgapID(ueConn.AmfUeNgapID))
-	ueConn.Log.Info("ran ue switched to new Ran", zap.Int64("RanUeNgapID", ueConn.RanUeNgapID))
+	ueConn.Log.Info("ran ue switched to new Ran", zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)))
 
 	return true
 }
@@ -631,7 +676,7 @@ func (ueConn *UeConn) UpdateLocation(ctx context.Context, amf *AMF, userLocation
 			return
 		}
 
-		tmp, err := strconv.ParseUint(operatorInfo.Tais[0].Tac, 10, 32)
+		tmp, err := strconv.ParseUint(operatorInfo.Tais[0].Tac, 16, 32)
 		if err != nil {
 			logger.AmfLog.Error("Error parsing TAC", zap.String("Tac", operatorInfo.Tais[0].Tac), zap.Error(err))
 		}
@@ -655,7 +700,7 @@ func (ueConn *UeConn) UpdateLocation(ctx context.Context, amf *AMF, userLocation
 // It is intended for use in external test packages only. If the radio is not yet
 // bound to an AMF, a throwaway one is created so a handler invoked with this same
 // radio resolves the UE; tests that share a specific AMF must BindAMFForTest first.
-func NewUeConnForTest(radio *Radio, ranUeNgapID, amfUeNgapID int64, log *zap.Logger) *UeConn {
+func NewUeConnForTest(radio *Radio, ranUeNgapID models.RanUeNgapID, amfUeNgapID models.AmfUeNgapID, log *zap.Logger) *UeConn {
 	if radio.amf == nil {
 		radio.amf = New(nil, nil, nil)
 	}
@@ -671,7 +716,7 @@ func NewUeConnForTest(radio *Radio, ranUeNgapID, amfUeNgapID int64, log *zap.Log
 
 	radio.amf.mu.Lock()
 
-	radio.amf.conns[amfUeNgapID] = ueConn
+	radio.amf.conns[int64(amfUeNgapID)] = ueConn
 	if radio.Conn != nil {
 		radio.amf.radios[radio.Conn] = radio
 	}

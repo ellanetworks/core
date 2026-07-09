@@ -45,9 +45,23 @@ func (c *UeConn) SendS1AP(ctx context.Context, messageType S1APProcedure, b []by
 	c.m.SendS1APConn(ctx, c.conn, messageType, b)
 }
 
-// SendS1APConn writes a complete S1AP PDU to a specific eNB association, used
-// when the target is not the UE's current conn (an in-flight S1 handover) or the
-// peer carries no bound UE context.
+// s1apStreamForProcedure returns the SCTP stream for an S1AP procedure: the reserved
+// non-UE stream (0) for non-UE-associated signalling, the UE stream otherwise
+// (TS 36.412 §7).
+func s1apStreamForProcedure(p S1APProcedure) uint16 {
+	switch p {
+	case S1APProcedureS1SetupResponse, S1APProcedureS1SetupFailure,
+		S1APProcedurePaging, S1APProcedureResetAcknowledge,
+		S1APProcedureErrorIndication,
+		S1APProcedureENBConfigUpdateAck, S1APProcedureENBConfigUpdateFailure:
+		return S1apStreamNonUE
+	default:
+		return S1apStreamUE
+	}
+}
+
+// SendS1APConn writes a complete S1AP PDU to a specific eNB association — the single
+// traced+logged send chokepoint. The SCTP stream is derived from the procedure.
 func (m *MME) SendS1APConn(ctx context.Context, conn S1APWriter, messageType S1APProcedure, b []byte) {
 	ctx, span := Tracer.Start(ctx, "s1ap/send",
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -60,7 +74,7 @@ func (m *MME) SendS1APConn(ctx context.Context, conn S1APWriter, messageType S1A
 	)
 	defer span.End()
 
-	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: S1apStreamUE}); err != nil {
+	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: s1apStreamForProcedure(messageType)}); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send S1AP message")
 		logger.From(ctx, logger.MmeLog).Error("failed to send S1AP message", zap.String("message-type", string(messageType)), zap.Error(err))

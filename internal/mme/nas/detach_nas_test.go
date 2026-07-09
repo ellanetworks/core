@@ -42,7 +42,7 @@ func TestDetachSubscriberNetworkInitiated(t *testing.T) {
 		t.Fatalf("not a network-originating Detach Request: %v", err)
 	}
 
-	handleDetachAccept(m, context.Background(), ue)
+	handleDetachAccept(context.Background(), m, ue)
 	parseUEContextReleaseCommand(t, cc.sent[1])
 
 	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: 7}
@@ -75,7 +75,7 @@ func TestPlainDetachOnSecuredUEDiscarded(t *testing.T) {
 		t.Fatalf("marshal detach: %v", err)
 	}
 
-	HandleNAS(m, context.Background(), ue.Conn(), plain)
+	HandleNAS(context.Background(), m, ue.Conn(), plain)
 
 	if ue.EMMState() != mme.EMMRegistered {
 		t.Fatal("a plain detach on a secured UE must be discarded, not deregister it (TS 24.301 §4.4.4.3)")
@@ -104,7 +104,7 @@ func TestPlainDetachSecuredUEFreshConnectionRejected(t *testing.T) {
 		t.Fatalf("marshal detach: %v", err)
 	}
 
-	HandleNAS(m, context.Background(), ue.Conn(), plain)
+	HandleNAS(context.Background(), m, ue.Conn(), plain)
 
 	if ue.EMMState() != mme.EMMRegistered {
 		t.Fatal("an unprotected detach from a secured UE on a fresh connection must be rejected")
@@ -134,7 +134,7 @@ func TestForgedMessageIgnoredForSecuredUE(t *testing.T) {
 	// Integrity-protected envelope (SHT=1) with a MAC the MME cannot reproduce.
 	forged := append([]byte{0x17, 0xde, 0xad, 0xbe, 0xef, byte(ue.ULCount())}, plain...)
 
-	HandleNAS(m, context.Background(), ue.Conn(), forged)
+	HandleNAS(context.Background(), m, ue.Conn(), forged)
 
 	if cc.count() != 0 {
 		t.Fatalf("forged DETACH against a secured UE was acted on: %d downlink(s) sent", cc.count())
@@ -149,7 +149,7 @@ func TestDetachSwitchOff(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
-	HandleNAS(m, context.Background(), ue.Conn(), detachRequest(t, ue, true))
+	HandleNAS(context.Background(), m, ue.Conn(), detachRequest(t, ue, true))
 
 	// Switch-off: no Detach Accept, just the UE Context Release Command.
 	if len(cc.sent) != 1 {
@@ -194,7 +194,7 @@ func TestDetachSwitchOffUnverifiableIgnoredForSecuredUE(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	HandleNAS(m, context.Background(), ue.Conn(), wire)
+	HandleNAS(context.Background(), m, ue.Conn(), wire)
 
 	if len(cc.sent) != 0 {
 		t.Fatalf("S1AP messages sent = %d, want 0", len(cc.sent))
@@ -230,7 +230,7 @@ func TestDetachSwitchOffUnsecuredAccepted(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	HandleNAS(m, context.Background(), ue.Conn(), wire)
+	HandleNAS(context.Background(), m, ue.Conn(), wire)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected UE Context Release Command, got %d S1AP messages", len(cc.sent))
@@ -243,7 +243,7 @@ func TestDetachNotSwitchOff(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
-	HandleNAS(m, context.Background(), ue.Conn(), detachRequest(t, ue, false))
+	HandleNAS(context.Background(), m, ue.Conn(), detachRequest(t, ue, false))
 
 	// Not switch-off: Detach Accept (downlink NAS), then UE Context Release Command.
 	if len(cc.sent) != 2 {

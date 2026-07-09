@@ -153,7 +153,7 @@ func (m *MME) CountRegisteredSubscribers() int {
 	return count
 }
 
-func epsCipheringAlgName(eea byte) string {
+func cipheringAlgName(eea byte) string {
 	switch eea {
 	case 0:
 		return "EEA0"
@@ -168,7 +168,7 @@ func epsCipheringAlgName(eea byte) string {
 	}
 }
 
-func epsIntegrityAlgName(eia byte) string {
+func integrityAlgName(eia byte) string {
 	switch eia {
 	case 0:
 		return "EIA0"

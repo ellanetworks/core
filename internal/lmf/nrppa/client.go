@@ -91,8 +91,8 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 
 	err = ran.SendDownlinkNRPPaTransport(
 		ctx,
-		ranUe.AmfUeNgapID,
-		ranUe.RanUeNgapID,
+		int64(ranUe.AmfUeNgapID),
+		int64(ranUe.RanUeNgapID),
 		0, // RoutingID: 0 for MVP (not used by gNB tester)
 		payload,
 	)
@@ -206,7 +206,7 @@ func (c *Client) terminateMeasurement(ctx context.Context, supi etsi.SUPI, lmfMe
 		return
 	}
 
-	if err := ran.SendDownlinkNRPPaTransport(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, 0, payload); err != nil {
+	if err := ran.SendDownlinkNRPPaTransport(ctx, int64(ranUe.AmfUeNgapID), int64(ranUe.RanUeNgapID), 0, payload); err != nil {
 		logger.LmfLog.Warn("failed to send NRPPa E-CID termination command",
 			zap.String("supi", supi.String()),
 			zap.Error(err),

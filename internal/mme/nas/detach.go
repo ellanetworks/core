@@ -17,22 +17,22 @@ import (
 // UPF drops remaining packets and frees the tunnel immediately (TS 23.401
 // §5.3.8.2.1). ReleasePDN removes the PDN, so the deactivation on UE Context
 // Release Complete has nothing left to buffer for paging.
-func releaseDetachSessions(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
+func releaseDetachSessions(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	for _, p := range m.SnapshotPDNs(ue) {
 		m.ReleasePDN(ctx, ue, p)
 	}
 }
 
-func handleDetachAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext) nasreply.Disposition {
+func handleDetachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext) nasreply.Disposition {
 	ue.Conn().StopNASGuard()
 	logger.From(ctx, logger.MmeLog).Info("Detach Accept")
-	releaseDetachSessions(m, ctx, ue)
+	releaseDetachSessions(ctx, m, ue)
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASDetach)
 
 	return nasreply.Handled()
 }
 
-func handleDetachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte, integrityVerified bool) nasreply.Disposition {
+func handleDetachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte, integrityVerified bool) nasreply.Disposition {
 	// A UE holding keys must integrity-protect its DETACH REQUEST, so a forged plain
 	// detach cannot deregister an authenticated UE (TS 24.301 §4.4.4.3 defence in
 	// depth). A UE that lost its keys can recover via a fresh Attach.
@@ -60,7 +60,7 @@ func handleDetachRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, pla
 	// forwarding by the time the UE acts on the DETACH ACCEPT (TS 23.401 §5.3.8.2.1);
 	// acknowledging first would leave a window where the released UE can still pass
 	// traffic.
-	releaseDetachSessions(m, ctx, ue)
+	releaseDetachSessions(ctx, m, ue)
 
 	if !req.SwitchOff {
 		ue.Conn().SendDownlinkProtected(ctx, &eps.DetachAccept{})

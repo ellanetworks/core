@@ -31,7 +31,7 @@ func handleHandoverCancel(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 	// Relay the source's HANDOVER CANCEL Cause to the target when releasing its
 	// prepared resources (TS 36.413 §8.4.5).
 	if releaseConn, releaseMMEID, releaseENBID, pair, has := m.CancelHandover(ue); has {
-		mme.SendUEContextRelease(m, ctx, releaseConn, releaseMMEID, releaseENBID, pair, cancel.Cause)
+		mme.SendUEContextRelease(ctx, m, releaseConn, releaseMMEID, releaseENBID, pair, cancel.Cause)
 	}
 
 	ack := &s1ap.HandoverCancelAcknowledge{MMEUES1APID: cancel.MMEUES1APID, ENBUES1APID: cancel.ENBUES1APID}

@@ -9,17 +9,17 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
 
-// Page sends an S1AP Paging for an EMM-REGISTERED, ECM-IDLE UE so it
-// re-establishes the S1 connection and buffered downlink data is delivered
-// (TS 23.401). Ella Core is single-TAC, so every connected eNB is paged. The
-// procedure is supervised and retransmitted up to a bound, then abandoned (T3413,
-// TS 24.301 §5.6.2). A nil error covers a deliberate skip (already ECM-CONNECTED,
-// or paging in progress); only a missing context or marshal failure is reported.
+// Page sends an S1AP Paging for an EMM-REGISTERED, ECM-IDLE UE so it re-establishes
+// the S1 connection and buffered downlink data is delivered, within the UE's
+// registered tracking area (TS 23.401 §5.3.4). The procedure is supervised and
+// retransmitted up to a bound, then abandoned (T3413, TS 24.301 §5.6.2). A nil error
+// covers a deliberate skip (already ECM-CONNECTED, or paging in progress); only a
+// missing context or marshal failure is reported.
 func (m *MME) Page(ctx context.Context, imsi string) error {
 	ue, ok := m.LookupUeByIMSI(imsi)
 	if !ok {
@@ -36,7 +36,7 @@ func (m *MME) Page(ctx context.Context, imsi string) error {
 		return nil
 	}
 
-	paging, err := m.buildPaging(ctx, ue)
+	paging, err := m.buildPaging(ue)
 	if err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func (m *MME) Page(ctx context.Context, imsi string) error {
 		return fmt.Errorf("paging: marshal: %w", err)
 	}
 
-	m.broadcastPaging(ctx, b)
+	m.pageRadios(ctx, ue, b)
 
 	logger.From(ctx, logger.MmeLog).Info("Paging", zap.String("imsi", imsi), zap.Uint32("m-tmsi", ue.Tmsi().Uint32()))
 
@@ -93,7 +93,7 @@ func (m *MME) retransmitPaging(ue *UeContext, pdu []byte, attempt int32) {
 
 	logger.MmeLog.Info("paging unanswered, retransmitting",
 		zap.String("imsi", imsi), zap.Int32("attempt", attempt))
-	m.broadcastPaging(context.Background(), pdu)
+	m.pageRadios(context.Background(), ue, pdu)
 }
 
 // abandonPaging runs once the retransmission budget is exhausted (TS 24.301
@@ -110,21 +110,12 @@ func (m *MME) abandonPaging(ue *UeContext) {
 	logger.MmeLog.Info("paging unanswered, abandoning procedure", zap.String("imsi", imsi))
 }
 
-// buildPaging assembles the Paging message for a UE (TS 36.413).
-func (m *MME) buildPaging(ctx context.Context, ue *UeContext) (*s1ap.Paging, error) {
-	plmn, err := m.OperatorPLMN(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("paging: operator PLMN: %w", err)
-	}
-
-	tac, err := m.OperatorTAC(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("paging: operator TAC: %w", err)
-	}
-
+// buildPaging assembles the Paging message for a UE (TS 36.413). The TAI list is the
+// UE's registration area.
+func (m *MME) buildPaging(ue *UeContext) (*s1ap.Paging, error) {
 	_, mmeCode := m.MmeIdentity()
 
-	plmnID, err := EncodePLMN(plmn)
+	taiList, err := areaToS1APTAIs(ue.RegistrationArea())
 	if err != nil {
 		return nil, fmt.Errorf("paging: %w", err)
 	}
@@ -140,7 +131,7 @@ func (m *MME) buildPaging(ctx context.Context, ue *UeContext) (*s1ap.Paging, err
 		UEIdentityIndexValue: ueIdentityIndex(ue.imsiOrEmpty()),
 		STMSI:                s1ap.STMSI{MMEC: mmeCode, MTMSI: mtmsi},
 		CNDomain:             s1ap.CNDomainPS,
-		TAIList:              []s1ap.TAI{{PLMNIdentity: plmnID, TAC: s1ap.TAC(tac)}},
+		TAIList:              taiList,
 		// Replay the eNB-reported paging capability so it can apply paging
 		// optimisations (TS 36.413 §9.1.6.1); omitted when none was reported.
 		UERadioCapabilityForPaging: ue.RadioCapabilityForPaging,
@@ -155,25 +146,91 @@ func ueIdentityIndex(imsi string) uint16 {
 	return uint16(n % 1024)
 }
 
-// broadcastPaging writes a non-UE-associated Paging PDU to every connected eNB.
-// Connections are snapshotted under the lock so the blocking writes happen
-// without holding it.
-func (m *MME) broadcastPaging(ctx context.Context, b []byte) {
+// pageRadios writes a non-UE-associated Paging PDU to every connected eNB whose
+// broadcast TAIs intersect the UE's registration area (TS 23.401 §5.3.4). Connections
+// are snapshotted under the lock so the blocking writes happen without holding it.
+func (m *MME) pageRadios(ctx context.Context, ue *UeContext, b []byte) {
+	area := ue.RegistrationArea()
+
 	m.mu.RLock()
 	conns := make([]S1APWriter, 0, len(m.radios))
 
-	for conn := range m.radios {
-		conns = append(conns, conn)
+	for conn, radio := range m.radios {
+		if radioServesAnyLocked(radio, area) {
+			conns = append(conns, conn)
+		}
 	}
 
 	m.mu.RUnlock()
 
 	for _, conn := range conns {
-		if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: S1apStreamNonUE}); err != nil {
-			logger.From(ctx, logger.MmeLog).Warn("failed to send Paging to eNB", zap.Error(err))
-			continue
+		m.SendS1APConn(ctx, conn, S1APProcedurePaging, b)
+	}
+}
+
+// ServedTAIs is the network's served tracking areas: the operator PLMN paired with
+// each served TAC. Every UE is registered in this area (TS 23.401 §5.3.4).
+func (m *MME) ServedTAIs(ctx context.Context) ([]models.Tai, error) {
+	plmn, err := m.OperatorPLMN(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("operator PLMN: %w", err)
+	}
+
+	tacs, err := m.OperatorTACs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("operator TACs: %w", err)
+	}
+
+	out := make([]models.Tai, 0, len(tacs))
+
+	for _, tac := range tacs {
+		p := plmn
+		out = append(out, models.Tai{PlmnID: &p, Tac: fmt.Sprintf("%06x", tac)})
+	}
+
+	return out, nil
+}
+
+// areaToS1APTAIs encodes a registration area as the S1AP TAI list carried in Paging.
+// An empty area is rejected: it would page the UE nowhere.
+func areaToS1APTAIs(area []models.Tai) ([]s1ap.TAI, error) {
+	if len(area) == 0 {
+		return nil, fmt.Errorf("empty registration area")
+	}
+
+	out := make([]s1ap.TAI, 0, len(area))
+
+	for _, t := range area {
+		if t.PlmnID == nil {
+			return nil, fmt.Errorf("registration-area TAI with no PLMN")
 		}
 
-		m.LogNetworkEvent(ctx, conn, S1APProcedurePaging, logger.DirectionOutbound, b)
+		plmnID, err := EncodePLMN(*t.PlmnID)
+		if err != nil {
+			return nil, fmt.Errorf("encode PLMN: %w", err)
+		}
+
+		tac, err := strconv.ParseUint(t.Tac, 16, 16)
+		if err != nil {
+			return nil, fmt.Errorf("invalid TAC %q: %w", t.Tac, err)
+		}
+
+		out = append(out, s1ap.TAI{PLMNIdentity: plmnID, TAC: s1ap.TAC(tac)})
 	}
+
+	return out, nil
+}
+
+// radioServesAnyLocked reports whether the eNB broadcasts any of the given tracking
+// areas. The caller holds m.mu.
+func radioServesAnyLocked(radio *Radio, area []models.Tai) bool {
+	for _, s := range radio.supportedTAIs {
+		for _, t := range area {
+			if s.Tai.Equal(t) {
+				return true
+			}
+		}
+	}
+
+	return false
 }

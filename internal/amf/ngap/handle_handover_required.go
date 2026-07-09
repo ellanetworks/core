@@ -5,15 +5,12 @@ package ngap
 
 import (
 	"context"
-	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
-	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -33,7 +30,21 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	sourceUe.TouchLastSeen()
 
 	if msg.TargetID.Present != ngapType.TargetIDPresentTargetRANNodeID {
-		logger.WithTrace(ctx, sourceUe.Log).Error("targetID type is not supported", zap.Int("targetID", msg.TargetID.Present))
+		// A validly-decoded but unservable TargetID: fail preparation explicitly so the
+		// source gNB does not wait out its own TNGRELOCprep timer (TS 38.413 §8.4.1.3).
+		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [unsupported TargetID type]", zap.Int("targetID", msg.TargetID.Present))
+
+		failureCause := ngapType.Cause{
+			Present: ngapType.CausePresentRadioNetwork,
+			RadioNetwork: &ngapType.CauseRadioNetwork{
+				Value: ngapType.CauseRadioNetworkPresentHoTargetNotAllowed,
+			},
+		}
+
+		if err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil); err != nil {
+			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
+		}
+
 		return
 	}
 
@@ -42,23 +53,6 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		logger.WithTrace(ctx, sourceUe.Log).Error("no active NAS connection")
 		return
 	}
-
-	if !conn.Parent().BeginKeyChainProc(procedure.N2Handover) {
-		logger.WithTrace(ctx, sourceUe.Log).Info("N2Handover rejected by procedure registry")
-		return
-	}
-
-	// Until supervision is armed (once the target is engaged), the procedure must not
-	// be left active on any preparation-failure path, or it pins the UE with no
-	// deadline to clear it.
-	armed := false
-
-	defer func() {
-		if !armed {
-			conn.Parent().EndKeyChainProc(procedure.N2Handover)
-			amfInstance.ClearHandover(amfUe)
-		}
-	}()
 
 	if !amfUe.SecurityContextIsValid() {
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Authentication Failure]")
@@ -69,8 +63,6 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 				Value: ngapType.CauseNasPresentAuthenticationFailure,
 			},
 		}
-
-		conn.Parent().EndKeyChainProc(procedure.N2Handover)
 
 		err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
 		if err != nil {
@@ -96,7 +88,24 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		conn.Parent().EndKeyChainProc(procedure.N2Handover)
+		if err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil); err != nil {
+			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
+		}
+
+		return
+	}
+
+	if targetRan.Conn == ran.Conn {
+		// A HANDOVER REQUIRED targeting the source gNB itself: intra-node mobility is
+		// handled in the RAN and never reaches the core, so reject it (TS 38.413).
+		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [target gNB is the source]")
+
+		failureCause := ngapType.Cause{
+			Present: ngapType.CausePresentRadioNetwork,
+			RadioNetwork: &ngapType.CauseRadioNetwork{
+				Value: ngapType.CauseRadioNetworkPresentHoTargetNotAllowed,
+			},
+		}
 
 		if err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil); err != nil {
 			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
@@ -137,8 +146,6 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		conn.Parent().EndKeyChainProc(procedure.N2Handover)
-
 		err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
 		if err != nil {
 			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
@@ -160,26 +167,24 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	targetUe, err := amfInstance.NewUeConn(targetRan, models.RanUeNgapIDUnspecified)
-	if err != nil {
-		logger.WithTrace(ctx, sourceUe.Log).Error("error creating target ue", zap.Error(err))
-		return
-	}
-
-	err = amf.AttachSourceUeTargetUe(sourceUe, targetUe)
-	if err != nil {
-		logger.WithTrace(ctx, sourceUe.Log).Error("attach source ue target ue error", zap.Error(err))
-		return
-	}
-
-	// The HANDOVER REQUEST carries the AS key chain {NH, NCC} staged at preparation;
-	// it is committed to the UE only when the UE reaches the target (NOTIFY).
-	nh, ncc, ok := amfInstance.StagedHandoverNH(amfUe)
+	targetUe, nh, ncc, ok := amfInstance.PrepareHandover(ctx, amfUe, sourceUe, targetRan)
 	if !ok {
-		logger.WithTrace(ctx, sourceUe.Log).Error("no staged handover NH after attach")
+		failureCause := ngapType.Cause{
+			Present: ngapType.CausePresentRadioNetwork,
+			RadioNetwork: &ngapType.CauseRadioNetwork{
+				Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
+			},
+		}
+
+		if err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil); err != nil {
+			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
+		}
+
 		return
 	}
 
+	// The HANDOVER REQUEST carries the AS key chain {NH, NCC} staged at preparation; it
+	// is committed to the UE only when the UE reaches the target (NOTIFY).
 	err = targetUe.SendHandoverRequest(
 		ctx,
 		sourceUe.HandOverType,
@@ -195,39 +200,31 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		operatorInfo.Guami,
 	)
 	if err != nil {
+		// The target never received the request, so it holds no context and is freed
+		// locally; the source is failed so it does not wait out its own TNGRELOCprep
+		// timer (TS 38.413 §8.4.1.3).
 		logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover request to target UE", zap.Error(err))
+		amfInstance.ClearHandover(amfUe)
+
+		if rerr := amfInstance.RemoveUeConn(ctx, targetUe); rerr != nil {
+			logger.WithTrace(ctx, sourceUe.Log).Error("error removing target ue after failed handover request", zap.Error(rerr))
+		}
+
+		failureCause := ngapType.Cause{
+			Present: ngapType.CausePresentRadioNetwork,
+			RadioNetwork: &ngapType.CauseRadioNetwork{
+				Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
+			},
+		}
+
+		if ferr := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil); ferr != nil {
+			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(ferr))
+		}
+
 		return
 	}
 
-	// Bound the handover (HANDOVER REQUIRED → NOTIFY): if the target gNB never
-	// completes it, the guard abandons the handover and releases the target. Armed
-	// after the target is engaged so the timer goroutine has a happens-before edge to
-	// this setup.
-	// Supervise cannot fail here: N2Handover was begun above and is still active, so the
-	// registry always arms the deadline.
-	conn.Parent().SuperviseKeyChainProc(procedure.N2Handover,
-		time.Now().Add(amfInstance.HandoverGuardTimeout()),
-		handoverGuardExpiry(amfInstance, sourceUe, targetUe))
-
-	armed = true
-}
-
-// handoverGuardExpiry abandons a stalled N2 handover when the supervision deadline
-// elapses before HANDOVER NOTIFY arrives. The half-prepared target UE context is
-// released; the source is left in place (its own TNGRELOCprep/Overall timers abort the
-// handover on the radio) (TS 38.413). A normal completion ends the procedure, stopping
-// this timer before it can fire, so the captured target is touched by at most one
-// goroutine.
-func handoverGuardExpiry(amfInstance *amf.AMF, sourceUe, targetUe *amf.UeConn) func(context.Context) error {
-	return func(cctx context.Context) error {
-		logger.WithTrace(cctx, sourceUe.Log).Warn("N2 handover abandoned: target gNB did not complete it in time, releasing target")
-
-		amfInstance.ClearHandover(sourceUe.UeContext())
-
-		targetUe.ReleaseAction = amf.UeContextReleaseHandover
-
-		return targetUe.SendUEContextReleaseCommand(cctx,
-			ngapType.CausePresentRadioNetwork,
-			ngapType.CauseRadioNetworkPresentTngrelocoverallExpiry)
-	}
+	// Arm the guard only now the HANDOVER REQUEST is sent, so the timer can never race
+	// the outbound request (TS 38.413 §8.4).
+	amfInstance.SuperviseHandover(amfUe, sourceUe, targetUe)
 }

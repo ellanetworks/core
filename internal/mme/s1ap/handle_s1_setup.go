@@ -16,11 +16,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	relativeMMECapacity uint8 = 255
-	mmeName                   = "ella"
-)
-
 // causeUnknownPLMN is S1AP Cause Misc "unknown-PLMN" (TS 36.413), returned in S1
 // Setup Failure when the eNB broadcasts no PLMN this MME serves.
 var causeUnknownPLMN = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscUnknownPLMN}
@@ -49,7 +44,7 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 
 	mmeGroupID, mmeCode := m.MmeIdentity()
 
-	req, outBytes, accepted, reason, err := s1SetupOutcomeFor(value, plmn, tacs, mmeGroupID, mmeCode)
+	req, outBytes, accepted, reason, err := s1SetupOutcomeFor(value, plmn, tacs, mmeGroupID, mmeCode, m.Name, m.RelativeCapacity)
 	if err != nil {
 		logger.From(ctx, m.RadioLog(conn)).Error("failed to handle S1 Setup Request", zap.Error(err))
 		return
@@ -61,12 +56,7 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 	)
 
 	if !accepted {
-		if _, err := conn.WriteMsg(outBytes, &sctp.SndRcvInfo{PPID: mme.S1apWirePPID, Stream: mme.S1apStreamNonUE}); err != nil {
-			logger.From(ctx, m.RadioLog(conn)).Error("failed to send S1 Setup Failure", zap.Error(err))
-			return
-		}
-
-		m.LogNetworkEvent(ctx, conn, mme.S1APProcedureS1SetupFailure, logger.DirectionOutbound, outBytes)
+		m.SendS1APConn(ctx, conn, mme.S1APProcedureS1SetupFailure, outBytes)
 
 		logger.From(ctx, m.RadioLog(conn)).Warn("S1 Setup rejected",
 			zap.String("enb-name", req.ENBName),
@@ -76,16 +66,14 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 		return
 	}
 
-	if _, err := conn.WriteMsg(outBytes, &sctp.SndRcvInfo{PPID: mme.S1apWirePPID, Stream: mme.S1apStreamNonUE}); err != nil {
-		logger.From(ctx, m.RadioLog(conn)).Error("failed to send S1 Setup Response", zap.Error(err))
-		return
+	m.SendS1APConn(ctx, conn, mme.S1APProcedureS1SetupResponse, outBytes)
+
+	// Claim the eNB's identity and broadcast TAIs only on accept; until then the
+	// dispatcher's setup-first gate drops the association's UE signalling (TS 36.413).
+	if radio := m.RadioForConn(conn); radio != nil {
+		m.UpdateRadioSupportedTAs(radio, mme.EnbSupportedTAIs(req.SupportedTAs))
+		m.ClaimENBID(radio, req.GlobalENBID)
 	}
-
-	m.LogNetworkEvent(ctx, conn, mme.S1APProcedureS1SetupResponse, logger.DirectionOutbound, outBytes)
-
-	// Allow the eNB's UE-associated signalling through the dispatcher's setup-first
-	// gate (TS 36.413).
-	m.MarkRadioSetupComplete(conn)
 
 	logger.From(ctx, m.RadioLog(conn)).Info("S1 Setup Response sent", zap.String("enb-name", req.ENBName))
 }
@@ -93,7 +81,7 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 // s1SetupOutcomeFor returns an S1 Setup Response when the eNB broadcasts a served
 // TAI, otherwise an S1 Setup Failure (TS 36.413). reason is a human-readable
 // rejection summary, empty when accepted.
-func s1SetupOutcomeFor(reqValue []byte, plmn models.PlmnID, tacs []uint16, mmeGroupID uint16, mmeCode uint8) (req *s1ap.S1SetupRequest, out []byte, accepted bool, reason string, err error) {
+func s1SetupOutcomeFor(reqValue []byte, plmn models.PlmnID, tacs []uint16, mmeGroupID uint16, mmeCode uint8, mmeName string, relativeCapacity uint8) (req *s1ap.S1SetupRequest, out []byte, accepted bool, reason string, err error) {
 	req, err = s1ap.ParseS1SetupRequest(reqValue)
 	if err != nil {
 		return nil, nil, false, "", fmt.Errorf("mme: parse S1 Setup Request: %w", err)
@@ -118,7 +106,7 @@ func s1SetupOutcomeFor(reqValue []byte, plmn models.PlmnID, tacs []uint16, mmeGr
 		return req, out, false, reason, nil
 	}
 
-	resp, err := buildS1SetupResponse(plmn, mmeGroupID, mmeCode)
+	resp, err := buildS1SetupResponse(plmn, mmeGroupID, mmeCode, mmeName, relativeCapacity)
 	if err != nil {
 		return req, nil, false, "", err
 	}
@@ -187,7 +175,7 @@ func servedGUMMEIs(plmn models.PlmnID, mmeGroupID uint16, mmeCode uint8) (s1ap.S
 	}}, nil
 }
 
-func buildS1SetupResponse(plmn models.PlmnID, mmeGroupID uint16, mmeCode uint8) (*s1ap.S1SetupResponse, error) {
+func buildS1SetupResponse(plmn models.PlmnID, mmeGroupID uint16, mmeCode uint8, mmeName string, relativeCapacity uint8) (*s1ap.S1SetupResponse, error) {
 	gummeis, err := servedGUMMEIs(plmn, mmeGroupID, mmeCode)
 	if err != nil {
 		return nil, err
@@ -196,6 +184,6 @@ func buildS1SetupResponse(plmn models.PlmnID, mmeGroupID uint16, mmeCode uint8) 
 	return &s1ap.S1SetupResponse{
 		MMEName:             mmeName,
 		ServedGUMMEIs:       gummeis,
-		RelativeMMECapacity: relativeMMECapacity,
+		RelativeMMECapacity: relativeCapacity,
 	}, nil
 }

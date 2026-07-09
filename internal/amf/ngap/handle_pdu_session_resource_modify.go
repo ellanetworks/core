@@ -19,7 +19,7 @@ func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, r
 	}
 
 	ueConn.TouchLastSeen()
-	logger.WithTrace(ctx, ueConn.Log).Debug("Handle PDUSessionResourceNotify", zap.Int64("AmfUeNgapID", ueConn.AmfUeNgapID))
+	logger.WithTrace(ctx, ueConn.Log).Debug("Handle PDUSessionResourceNotify", zap.Int64("AmfUeNgapID", int64(ueConn.AmfUeNgapID)))
 
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {

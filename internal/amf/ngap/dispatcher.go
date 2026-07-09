@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/free5gc/ngap"
 	"github.com/free5gc/ngap/ngapType"
@@ -28,16 +29,7 @@ var tracer = otel.Tracer("ella-core/amf/ngap")
 
 func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, msg []byte) {
 	remoteAddress := conn.RemoteAddr()
-	if remoteAddress == nil {
-		logger.AmfLog.Debug("Remote address is nil")
-		return
-	}
-
 	localAddress := conn.LocalAddr()
-	if localAddress == nil {
-		logger.AmfLog.Debug("Local address is nil")
-		return
-	}
 
 	ran, ok := amfInstance.FindRadioByConn(conn)
 	if !ok {
@@ -49,7 +41,7 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 			return
 		}
 
-		logger.AmfLog.Info("Added a new radio", zap.String("address", remoteAddress.String()))
+		logger.AmfLog.Info("Added a new radio", zap.String("address", amf.AddrString(remoteAddress)))
 	}
 
 	if len(msg) == 0 {
@@ -78,13 +70,13 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 	messageType := getMessageType(pdu)
 
 	span.SetAttributes(
-		attribute.String("ngap.message_type", messageType),
+		attribute.String("ngap.message_type", string(messageType)),
 		attribute.Int("ngap.pdu_category", pdu.Present),
 		attribute.Int("ngap.message_size", len(msg)),
 		attribute.String("network.protocol.name", "ngap"),
 		attribute.String("network.transport", "sctp"),
-		attribute.String("network.peer.address", remoteAddress.String()),
-		attribute.String("network.local.address", localAddress.String()),
+		attribute.String("network.peer.address", amf.AddrString(remoteAddress)),
+		attribute.String("network.local.address", amf.AddrString(localAddress)),
 	)
 
 	// Pre-decode NGSetupRequest so the peer's RANNodeName can be applied to
@@ -122,7 +114,7 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 	// TS 38.413: NG Setup must be the first NGAP procedure after
 	// the TNL association is established. Reject anything else.
 	if ran.RanID == nil {
-		logger.From(ctx, ran.Log).Error("Received NGAP message before NG Setup, dropping", zap.String("messageType", messageType))
+		logger.From(ctx, ran.Log).Error("Received NGAP message before NG Setup, dropping", zap.String("messageType", string(messageType)))
 
 		return
 	}
@@ -298,7 +290,7 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 						zap.Int64("amfUeNgapID", *amfUeNgapID),
 					)
 
-					ranUe := amfInstance.FindUEByAmfUeNgapID(ran, *amfUeNgapID)
+					ranUe := amfInstance.FindUEByAmfUeNgapID(ran, models.AmfUeNgapID(*amfUeNgapID))
 					if ranUe == nil {
 						ran.Log.Warn("Unknown AMF UE NGAP ID in NRPPa transport",
 							zap.Int64("amfUeNgapID", *amfUeNgapID))
@@ -308,12 +300,12 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 
 					ran.Log.Debug("Found UE by AMF UE NGAP ID",
 						zap.Int64("amfUeNgapID", *amfUeNgapID),
-						zap.Int64("ranUeNgapID", ranUe.RanUeNgapID),
+						zap.Int64("ranUeNgapID", int64(ranUe.RanUeNgapID)),
 					)
 
-					if ranUeNgapID != nil && ranUe.RanUeNgapID != *ranUeNgapID {
+					if ranUeNgapID != nil && ranUe.RanUeNgapID != models.RanUeNgapID(*ranUeNgapID) {
 						ran.Log.Warn("Inconsistent RAN UE NGAP ID in NRPPa transport",
-							zap.Int64("stored", ranUe.RanUeNgapID),
+							zap.Int64("stored", int64(ranUe.RanUeNgapID)),
 							zap.Int64("received", *ranUeNgapID))
 
 						break
@@ -337,7 +329,7 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 				}
 			}
 		default:
-			logger.From(ctx, ran.Log).Warn("Not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", initiatingMessage.ProcedureCode.Value))
+			logger.From(ctx, ran.Log).Warn("ignoring unsupported procedure", zap.String("kind", "initiating"), zap.Int64("procedureCode", initiatingMessage.ProcedureCode.Value))
 		}
 	case ngapType.NGAPPDUPresentSuccessfulOutcome:
 		successfulOutcome := pdu.SuccessfulOutcome
@@ -368,13 +360,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 			}
 
 			HandleInitialContextSetupResponse(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodeUEContextModification:
-			decoded, report := decode.DecodeUEContextModificationResponse(pdu.SuccessfulOutcome.Value.UEContextModificationResponse)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleUEContextModificationResponse(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodePDUSessionResourceSetup:
 			decoded, report := decode.DecodePDUSessionResourceSetupResponse(pdu.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse)
 			if !handleDecodeReport(ctx, ran, report) {
@@ -397,7 +382,7 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 
 			HandleHandoverRequestAcknowledge(ctx, amfInstance, ran, decoded)
 		default:
-			logger.From(ctx, ran.Log).Warn("NGAP Message handler not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", successfulOutcome.ProcedureCode.Value))
+			logger.From(ctx, ran.Log).Warn("ignoring unsupported procedure", zap.String("kind", "successful-outcome"), zap.Int64("procedureCode", successfulOutcome.ProcedureCode.Value))
 		}
 	case ngapType.NGAPPDUPresentUnsuccessfulOutcome:
 		unsuccessfulOutcome := pdu.UnsuccessfulOutcome
@@ -414,13 +399,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 			}
 
 			HandleInitialContextSetupFailure(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodeUEContextModification:
-			decoded, report := decode.DecodeUEContextModificationFailure(pdu.UnsuccessfulOutcome.Value.UEContextModificationFailure)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleUEContextModificationFailure(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeHandoverResourceAllocation:
 			decoded, report := decode.DecodeHandoverFailure(pdu.UnsuccessfulOutcome.Value.HandoverFailure)
 			if !handleDecodeReport(ctx, ran, report) {
@@ -429,7 +407,7 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 
 			HandleHandoverFailure(ctx, amfInstance, ran, decoded)
 		default:
-			logger.From(ctx, ran.Log).Warn("Not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", unsuccessfulOutcome.ProcedureCode.Value))
+			logger.From(ctx, ran.Log).Warn("ignoring unsupported procedure", zap.String("kind", "unsuccessful-outcome"), zap.Int64("procedureCode", unsuccessfulOutcome.ProcedureCode.Value))
 		}
 	}
 }

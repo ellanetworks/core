@@ -161,13 +161,13 @@ func (a *AMF) allocateTMSI(ctx context.Context) (etsi.TMSI, error) {
 	return val, nil
 }
 
-func (a *AMF) allocateAmfUeNgapID() (int64, error) {
+func (a *AMF) allocateAmfUeNgapID() (models.AmfUeNgapID, error) {
 	val, err := a.connIDs.Allocate()
 	if err != nil {
 		return -1, fmt.Errorf("could not allocate AmfUeNgapID: %v", err)
 	}
 
-	return val, nil
+	return models.AmfUeNgapID(val), nil
 }
 
 // CommitUEIdentity indexes the UE by SUPI and supersedes any prior context for the
@@ -218,7 +218,7 @@ func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext)
 	// Defuse idle-mode supervision so a mobile-reachable/implicit-dereg callback
 	// cannot fire against a UE being torn down (e.g. network-initiated
 	// deregistration of an idle UE).
-	amf.StopIdleTimers(ue)
+	amf.stopIdleTimers(ue)
 
 	// Capture the connection before Deregister releases it (Release clears ue.active but
 	// leaves conn.ue intact).
@@ -284,17 +284,6 @@ func (amf *AMF) LookupUeBySupi(supi etsi.SUPI) (*UeContext, bool) {
 	}
 
 	return value, true
-}
-
-// UESnapshot returns a point-in-time snapshot of the UE's connection state, or false if
-// the UE is not found.
-func (amf *AMF) UESnapshot(supi etsi.SUPI) (UESnapshot, bool) {
-	ue, ok := amf.LookupUeBySupi(supi)
-	if !ok {
-		return UESnapshot{}, false
-	}
-
-	return ue.Snapshot(), true
 }
 
 func (amf *AMF) NewRadio(conn *sctp.SCTPConn) (*Radio, error) {
@@ -508,11 +497,11 @@ func (amf *AMF) IndexRadioForTest(conn *sctp.SCTPConn, radio *Radio) {
 	}
 }
 
-func (amf *AMF) LookupUeConn(amfUeNgapID int64) *UeConn {
+func (amf *AMF) LookupUeConn(amfUeNgapID models.AmfUeNgapID) *UeConn {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	return amf.conns[amfUeNgapID]
+	return amf.conns[int64(amfUeNgapID)]
 }
 
 // NetworkFeatureSupport returns the 5GS network feature support config.
@@ -572,7 +561,7 @@ var defaultTimerCfg = guard.TimerValue{
 }
 
 // NewUeConn allocates a new RAN UE context on the given radio.
-func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID int64) (*UeConn, error) {
+func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID models.RanUeNgapID) (*UeConn, error) {
 	amfUeNgapID, err := a.allocateAmfUeNgapID()
 	if err != nil {
 		return nil, fmt.Errorf("error allocating amf ue ngap id: %+v", err)
@@ -588,7 +577,7 @@ func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID int64) (*UeConn, error) {
 	}
 
 	a.mu.Lock()
-	a.conns[amfUeNgapID] = ueConn
+	a.conns[int64(amfUeNgapID)] = ueConn
 	a.mu.Unlock()
 
 	return ueConn, nil
@@ -602,27 +591,48 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) e
 		return fmt.Errorf("amf ue is nil")
 	}
 
+	tmsi := ue.Tmsi()
+	logger.From(ctx, logger.AmfLog).Info("Paging", logger.SUPI(ue.Supi().String()), zap.Uint32("5g-tmsi", tmsi.Uint32()))
+
 	amf.pageRadios(ctx, ue, ngapBuf)
-
-	if amf.T3513Cfg.Enable {
-		cfg := amf.T3513Cfg
-		ue.pagingTimer.Arm(cfg.ExpireTime, cfg.MaxRetryTimes,
-			func(attempt int32) {
-				// The UE answered by re-establishing its connection; stop supervising.
-				if ue.Conn() != nil {
-					ue.pagingTimer.Stop()
-					return
-				}
-
-				logger.From(ctx, logger.AmfLog).Info("T3513 expires, retransmit paging", zap.Int32("retry", attempt))
-				amf.pageRadios(context.Background(), ue, ngapBuf)
-			},
-			func() {
-				logger.From(ctx, logger.AmfLog).Warn("T3513 expires, abort paging procedure", zap.Int32("retry", cfg.MaxRetryTimes))
-			})
-	}
+	amf.armPaging(ue, ngapBuf)
 
 	return nil
+}
+
+// armPaging starts the paging-supervision guard for a UE just paged: retransmit Paging on
+// each interval up to a bound, then abandon (T3513, TS 24.501 §5.4.3). Check-and-arm under
+// the UE lock so a second downlink trigger cannot reset an in-flight supervision. No-op when
+// T3513 is disabled.
+func (amf *AMF) armPaging(ue *UeContext, ngapBuf []byte) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if ue.pagingTimer.Active() {
+		return
+	}
+
+	ue.pagingTimer.ArmWith(amf.T3513Cfg,
+		func(attempt int32) { amf.retransmitPaging(ue, ngapBuf, attempt) },
+		func() { amf.abandonPaging(ue) })
+}
+
+// retransmitPaging resends the Paging each guard interval (T3513, TS 24.501 §5.4.3), or
+// stops the guard once the UE has answered by re-establishing its connection.
+func (amf *AMF) retransmitPaging(ue *UeContext, ngapBuf []byte, attempt int32) {
+	if ue.Conn() != nil {
+		ue.pagingTimer.Stop()
+		return
+	}
+
+	logger.AmfLog.Info("paging unanswered, retransmitting", logger.SUPI(ue.Supi().String()), zap.Int32("attempt", attempt))
+	amf.pageRadios(context.Background(), ue, ngapBuf)
+}
+
+// abandonPaging runs when the retransmission budget is exhausted. The buffered N1N2 message
+// stays and mobile-reachable supervision continues (TS 24.501 §5.4.3).
+func (amf *AMF) abandonPaging(ue *UeContext) {
+	logger.AmfLog.Info("paging unanswered, abandoning procedure", logger.SUPI(ue.Supi().String()))
 }
 
 // pageRadios sends the paging PDU to every radio whose supported TAIs intersect
@@ -637,8 +647,6 @@ func (amf *AMF) pageRadios(ctx context.Context, ue *UeContext, ngapBuf []byte) {
 					logger.From(ctx, logger.AmfLog).Error("failed to send paging", zap.Error(err))
 					continue
 				}
-
-				logger.From(ctx, logger.AmfLog).Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
 
 				break
 			}

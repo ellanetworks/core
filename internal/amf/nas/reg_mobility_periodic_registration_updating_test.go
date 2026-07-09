@@ -277,34 +277,6 @@ func TestMobilityReg_RequestedDRXParameters(t *testing.T) {
 	}
 }
 
-func TestMobilityReg_EmptyPei_SendsIdentityRequest(t *testing.T) {
-	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
-
-	ue.Imei = etsi.IMEI{}
-
-	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-
-	if len(ngapSender.SentDownlinkNASTransport) != 1 {
-		t.Fatalf("expected 1 DownlinkNASTransport (IdentityRequest), got %d", len(ngapSender.SentDownlinkNASTransport))
-	}
-
-	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-		t.Fatalf("expected plain NAS, got security header type %d", nm.SecurityHeaderType)
-	}
-
-	if err := nm.PlainNasDecode(&resp.NasPdu); err != nil {
-		t.Fatalf("could not decode NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeIdentityRequest {
-		t.Fatalf("expected IdentityRequest, got %v", nm.GmmHeader.GetMessageType())
-	}
-}
-
 func TestMobilityReg_GetSubscriberProfileError(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 

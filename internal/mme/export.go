@@ -93,18 +93,19 @@ type UETimersExport struct {
 	MobileReachable   TimerStatusExport `json:"mobile_reachable"`
 	ImplicitDetach    TimerStatusExport `json:"implicit_detach"`
 	NASGuard          TimerStatusExport `json:"nas_guard"`
+	NASGuardProcedure string            `json:"nas_guard_procedure"`
 	Paging            TimerStatusExport `json:"paging"`
 }
 
 type UELastActivityExport struct {
 	Timestamp time.Time `json:"timestamp"`
-	ENBNode   string    `json:"enb_node,omitempty"`
+	RadioNode string    `json:"radio_node,omitempty"`
 }
 
 type RANConnectionExport struct {
 	MMEUES1APID uint32 `json:"mme_ue_s1ap_id"`
 	ENBUES1APID uint32 `json:"enb_ue_s1ap_id"`
-	ENBName     string `json:"enb_name,omitempty"`
+	RadioName   string `json:"radio_name,omitempty"`
 }
 
 func timerStatus(g *guard.Guard) TimerStatusExport {
@@ -179,8 +180,8 @@ func (m *MME) exportUeContext(plmn models.PlmnID, ue *UeContext) UeContextExport
 			SecurityContextAvailable: ue.secured,
 		},
 		Security: UESecurityExport{
-			CipheringAlgorithm: epsCipheringAlgName(ue.cipheringAlg),
-			IntegrityAlgorithm: epsIntegrityAlgName(ue.integrityAlg),
+			CipheringAlgorithm: cipheringAlgName(ue.cipheringAlg),
+			IntegrityAlgorithm: integrityAlgName(ue.integrityAlg),
 		},
 		Subscription: UESubscriptionExport{
 			Ambr: copyAmbr(ue.Ambr),
@@ -204,6 +205,7 @@ func (m *MME) exportUeContext(plmn models.PlmnID, ue *UeContext) UeContextExport
 
 	if conn := ue.active.Load(); conn != nil {
 		export.Timers.NASGuard = timerStatus(&conn.nasGuard)
+		export.Timers.NASGuardProcedure = conn.nasGuardName
 
 		rc := &RANConnectionExport{
 			MMEUES1APID: uint32(conn.MMEUES1APID),
@@ -211,8 +213,8 @@ func (m *MME) exportUeContext(plmn models.PlmnID, ue *UeContext) UeContextExport
 		}
 
 		if s := m.radios[conn.conn]; s != nil {
-			rc.ENBName = s.name
-			export.LastActivity.ENBNode = s.name
+			rc.RadioName = s.name
+			export.LastActivity.RadioNode = s.name
 		}
 
 		export.RANConnection = rc

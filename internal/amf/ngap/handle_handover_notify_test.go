@@ -120,7 +120,7 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 
 	targetUe := amf.NewUeConnForTest(targetRan, 2, 1, logger.AmfLog)
 
-	err := amf.AttachSourceUeTargetUe(sourceUe, targetUe)
+	err := amf.SetHandoverForTest(sourceUe, targetUe)
 	if err != nil {
 		t.Fatalf("failed to attach source/target: %v", err)
 	}
@@ -190,7 +190,7 @@ func TestHandoverNotify_ReleasesRejectedSessions(t *testing.T) {
 	targetRan.BindAMFForTest(amfInstance)
 
 	targetUe := amf.NewUeConnForTest(targetRan, 2, 1, logger.AmfLog)
-	if err := amf.AttachSourceUeTargetUe(sourceUe, targetUe); err != nil {
+	if err := amf.SetHandoverForTest(sourceUe, targetUe); err != nil {
 		t.Fatalf("failed to attach source/target: %v", err)
 	}
 
@@ -238,7 +238,7 @@ func TestHandoverNotify_FromNonTarget_Dropped(t *testing.T) {
 	targetRan.BindAMFForTest(amfInstance)
 
 	targetUe := amf.NewUeConnForTest(targetRan, 2, 1, logger.AmfLog)
-	if err := amf.AttachSourceUeTargetUe(sourceUe, targetUe); err != nil {
+	if err := amf.SetHandoverForTest(sourceUe, targetUe); err != nil {
 		t.Fatalf("failed to attach source/target: %v", err)
 	}
 
@@ -290,7 +290,7 @@ func TestHandoverNotify_SmfUpdateFails_StillReleasesSource(t *testing.T) {
 
 	targetUe := amf.NewUeConnForTest(targetRan, 2, 1, logger.AmfLog)
 
-	err := amf.AttachSourceUeTargetUe(sourceUe, targetUe)
+	err := amf.SetHandoverForTest(sourceUe, targetUe)
 	if err != nil {
 		t.Fatalf("failed to attach source/target: %v", err)
 	}

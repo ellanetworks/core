@@ -144,10 +144,7 @@ type RadioInfo struct {
 }
 
 func (r *Radio) info() RadioInfo {
-	addr := ""
-	if a := r.RemoteAddr(); a != nil {
-		addr = a.String()
-	}
+	addr := AddrString(r.RemoteAddr())
 
 	return RadioInfo{
 		Name:          r.name,
@@ -213,7 +210,7 @@ func applyStatefulNasCleanup(ctx context.Context, amf *AMF, ueConn *UeConn) {
 	}
 }
 
-func (a *AMF) FindUEByRanUeNgapID(radio *Radio, ranUeNgapID int64) *UeConn {
+func (a *AMF) FindUEByRanUeNgapID(radio *Radio, ranUeNgapID models.RanUeNgapID) *UeConn {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -228,18 +225,18 @@ func (a *AMF) FindUEByRanUeNgapID(radio *Radio, ranUeNgapID int64) *UeConn {
 
 // UpdateUERanNgapID records the RAN UE NGAP ID the target gNB assigned to a UE in
 // HandoverRequestAcknowledge.
-func (a *AMF) UpdateUERanNgapID(ueConn *UeConn, newRanUeNgapID int64) {
+func (a *AMF) UpdateUERanNgapID(ueConn *UeConn, newRanUeNgapID models.RanUeNgapID) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	ueConn.RanUeNgapID = newRanUeNgapID
 }
 
-func (a *AMF) FindUEByAmfUeNgapID(radio *Radio, amfUeNgapID int64) *UeConn {
+func (a *AMF) FindUEByAmfUeNgapID(radio *Radio, amfUeNgapID models.AmfUeNgapID) *UeConn {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
-	if ueConn := a.conns[amfUeNgapID]; ueConn != nil && ueConn.conn == radio.Conn {
+	if ueConn := a.conns[int64(amfUeNgapID)]; ueConn != nil && ueConn.conn == radio.Conn {
 		return ueConn
 	}
 

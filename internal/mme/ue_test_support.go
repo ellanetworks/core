@@ -149,7 +149,26 @@ func (m *MME) RegisterENBByIDForTest(g s1ap.GlobalENBID, conn S1APWriter) {
 	m.mu.Unlock()
 }
 
+// IndexRadioForTest registers an eNB with the given broadcast TAIs in the paging
+// fan-out map. For tests only.
+func (m *MME) IndexRadioForTest(conn S1APWriter, supportedTAIs []SupportedTAI) {
+	m.mu.Lock()
+	m.radios[conn] = &Radio{Conn: conn, supportedTAIs: supportedTAIs}
+	m.mu.Unlock()
+}
+
 func (m *MME) SetHandoverGuardTimeoutForTest(d time.Duration) { m.handoverGuardTimeout = d }
+
+// ESMGuardActiveForTest reports whether the PDN connection's ESM bearer-procedure
+// guard (T3485/T3486/T3495) is currently armed.
+func (m *MME) ESMGuardActiveForTest(p *PdnConnection) bool { return p.guard.Active() }
+
+// SetESMGuardConfigForTest overrides the ESM bearer-procedure guard's interval and
+// retry budget so a test can drive its expiry quickly.
+func (m *MME) SetESMGuardConfigForTest(expire time.Duration, maxRetry int32) {
+	m.esmGuardCfg.ExpireTime = expire
+	m.esmGuardCfg.MaxRetryTimes = maxRetry
+}
 
 func (m *MME) FireHandoverGuardForTest(ue *UeContext) { m.abandonHandover(ue) }
 
@@ -167,10 +186,11 @@ func (ue *UeContext) ForceRegStepForTest(step RegStep) {
 }
 
 // ForceStateForTest sets the EMM state directly, bypassing transition validation,
-// for test precondition setup.
+// for test precondition setup. It resets the coupled registration sub-phase, as a real
+// transition does, so a forced state leaves no stale regStep.
 func (ue *UeContext) ForceStateForTest(s EMMState) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.emmState = s
+	ue.setEMMStateLocked(s)
 }

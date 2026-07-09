@@ -119,38 +119,6 @@ func TestCrossRadio_PDUSessionResourceModifyResponse(t *testing.T) {
 	}
 }
 
-// TestCrossRadio_UEContextModificationResponse verifies cross-radio
-// rejection for UEContextModificationResponse.
-func TestCrossRadio_UEContextModificationResponse(t *testing.T) {
-	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
-	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
-
-	amfID := int64(10)
-	ngap.HandleUEContextModificationResponse(context.Background(), amfInstance, attackerRan, decode.UEContextModificationResponse{
-		AMFUENGAPID: &amfID,
-	})
-
-	if len(attackerSender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication, got %d", len(attackerSender.SentErrorIndications))
-	}
-}
-
-// TestCrossRadio_UEContextModificationFailure verifies cross-radio
-// rejection for UEContextModificationFailure.
-func TestCrossRadio_UEContextModificationFailure(t *testing.T) {
-	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
-	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
-
-	amfID := int64(10)
-	ngap.HandleUEContextModificationFailure(context.Background(), amfInstance, attackerRan, decode.UEContextModificationFailure{
-		AMFUENGAPID: &amfID,
-	})
-
-	if len(attackerSender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication, got %d", len(attackerSender.SentErrorIndications))
-	}
-}
-
 // TestCrossRadio_UEContextReleaseRequest verifies cross-radio
 // rejection for UEContextReleaseRequest.
 func TestCrossRadio_UEContextReleaseRequest(t *testing.T) {

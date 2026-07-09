@@ -68,6 +68,6 @@ func GmmMessageTypeName(code uint8) string {
 	case nas.MsgTypeDLNASTransport:
 		return "DLNASTransport"
 	default:
-		return fmt.Sprintf("Unknown message type: %d", code)
+		return fmt.Sprintf("Unknown message type: 0x%02x", code)
 	}
 }

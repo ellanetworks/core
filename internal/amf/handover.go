@@ -3,35 +3,17 @@
 
 package amf
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+	"time"
 
-// AttachSourceUeTargetUe binds a fresh target UeConn to the source's UE context and
-// installs the N2 handover FSM (source→target). It rolls back the binding if the
-// handover cannot begin (TS 38.413 §8.4).
-func AttachSourceUeTargetUe(sourceUe, targetUe *UeConn) error {
-	if sourceUe == nil {
-		return fmt.Errorf("source ue is nil")
-	}
-
-	if targetUe == nil {
-		return fmt.Errorf("target ue is nil")
-	}
-
-	amfUe := sourceUe.ue
-	if amfUe == nil {
-		return fmt.Errorf("amf ue is nil")
-	}
-
-	targetUe.ue = amfUe
-
-	if err := sourceUe.amf.PrepareHandover(amfUe, sourceUe, targetUe); err != nil {
-		targetUe.ue = nil
-
-		return fmt.Errorf("begin handover: %w", err)
-	}
-
-	return nil
-}
+	"github.com/ellanetworks/core/internal/amf/procedure"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
+	"github.com/free5gc/ngap/ngapType"
+	"go.uber.org/zap"
+)
 
 // hoState is the stage of an in-flight N2 handover, validated on each transition
 // so an out-of-order NGAP message cannot advance it (TS 38.413).
@@ -65,48 +47,114 @@ type handoverContext struct {
 	newNCC uint8
 }
 
-// PrepareHandover installs the handover FSM at hoPreparing for the source→target
-// pair and stages the next {NH, NCC} of the AS key chain (sent to the target in
-// HANDOVER REQUEST, committed at NOTIFY). The procedure registry is the primary
-// guard against concurrent handovers, so this overwrites any stale context. The NH
-// is derived under the per-UE lock (key material); the FSM is installed under the
-// registry lock.
-func (a *AMF) PrepareHandover(ue *UeContext, source, target *UeConn) error {
+// PrepareHandover begins N2 handover preparation for the source→target pair: it claims
+// the key-chain procedure (exclusive with Security Mode / Path Switch), allocates the
+// target UeConn, and stages the {NH, NCC} of the AS key chain (TS 38.413 §8.4, TS 33.501
+// §6.9). ok is false with everything rolled back when preparation cannot begin.
+func (a *AMF) PrepareHandover(ctx context.Context, ue *UeContext, source *UeConn, targetRan *Radio) (target *UeConn, nh [32]uint8, ncc uint8, ok bool) {
 	if ue == nil {
-		return nil
+		return nil, [32]uint8{}, 0, false
 	}
 
+	if !ue.BeginKeyChainProc(procedure.N2Handover) {
+		logger.From(ctx, logger.AmfLog).Info("N2Handover rejected by procedure registry")
+		return nil, [32]uint8{}, 0, false
+	}
+
+	target, err := a.NewUeConn(targetRan, models.RanUeNgapIDUnspecified)
+	if err != nil {
+		ue.EndKeyChainProc(procedure.N2Handover)
+		logger.From(ctx, logger.AmfLog).Error("error creating target ue", zap.Error(err))
+
+		return nil, [32]uint8{}, 0, false
+	}
+
+	nh, ncc, ok = a.stageHandover(ue, source, target)
+	if !ok {
+		ue.EndKeyChainProc(procedure.N2Handover)
+
+		if rerr := a.RemoveUeConn(ctx, target); rerr != nil {
+			logger.From(ctx, logger.AmfLog).Error("error removing target ue after failed handover preparation", zap.Error(rerr))
+		}
+
+		return nil, [32]uint8{}, 0, false
+	}
+
+	return target, nh, ncc, true
+}
+
+// SuperviseHandover arms the guard bounding HANDOVER REQUIRED → NOTIFY. Arm it only after
+// the HANDOVER REQUEST is sent, so the guard timer cannot race the outbound request; on
+// expiry it abandons the handover and releases the target.
+func (a *AMF) SuperviseHandover(ue *UeContext, source, target *UeConn) {
+	ue.SuperviseKeyChainProc(procedure.N2Handover,
+		time.Now().Add(a.handoverGuardTimeout),
+		handoverGuardExpiry(a, source, target))
+}
+
+// stageHandover derives the next {NH, NCC} of the AS key chain (per-UE lock, key material)
+// and installs the handover FSM at hoPreparing (registry lock). It neither claims the
+// procedure nor arms supervision.
+func (a *AMF) stageHandover(ue *UeContext, source, target *UeConn) (nh [32]uint8, ncc uint8, ok bool) {
 	ue.mu.Lock()
 	nh, ncc, err := ue.deriveNextNHLocked()
 	ue.mu.Unlock()
 
 	if err != nil {
-		return err
+		logger.AmfLog.Error("failed to advance NH for handover", zap.Error(err))
+		return [32]uint8{}, 0, false
 	}
 
 	a.mu.Lock()
+	if target != nil {
+		target.ue = ue
+	}
+
 	ue.handover = &handoverContext{state: hoPreparing, source: source, target: target, newNH: nh, newNCC: ncc}
 	a.mu.Unlock()
+
+	return nh, ncc, true
+}
+
+// handoverGuardExpiry abandons a stalled N2 handover when the supervision deadline elapses
+// before HANDOVER NOTIFY. It releases the half-prepared target; the source is left in place,
+// aborted on the radio by its own TNGRELOCprep/Overall timers (TS 38.413).
+func handoverGuardExpiry(a *AMF, sourceUe, targetUe *UeConn) func(context.Context) error {
+	return func(cctx context.Context) error {
+		logger.WithTrace(cctx, sourceUe.Log).Warn("N2 handover abandoned: target gNB did not complete it in time, releasing target")
+
+		a.ClearHandover(sourceUe.UeContext())
+
+		targetUe.ReleaseAction = UeContextReleaseHandover
+
+		return targetUe.SendUEContextReleaseCommand(cctx,
+			ngapType.CausePresentRadioNetwork,
+			ngapType.CauseRadioNetworkPresentTngrelocoverallExpiry)
+	}
+}
+
+// SetHandoverForTest installs a preparing handover FSM for a source→target pair without
+// claiming the procedure or arming supervision. For tests only.
+func SetHandoverForTest(sourceUe, targetUe *UeConn) error {
+	if sourceUe == nil || targetUe == nil {
+		return fmt.Errorf("source or target ue is nil")
+	}
+
+	amfUe := sourceUe.ue
+	if amfUe == nil {
+		return fmt.Errorf("amf ue is nil")
+	}
+
+	if _, _, ok := sourceUe.amf.stageHandover(amfUe, sourceUe, targetUe); !ok {
+		return fmt.Errorf("stage handover failed")
+	}
 
 	return nil
 }
 
-// StagedHandoverNH returns the {NH, NCC} staged for the in-flight handover — the
-// value sent to the target in HANDOVER REQUEST. ok is false when no handover is in
-// progress.
-func (a *AMF) StagedHandoverNH(ue *UeContext) (nh [32]uint8, ncc uint8, ok bool) {
-	if ue == nil {
-		return [32]uint8{}, 0, false
-	}
-
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-
-	if ue.handover == nil {
-		return [32]uint8{}, 0, false
-	}
-
-	return ue.handover.newNH, ue.handover.newNCC, true
+// StageHandoverForTest stages the handover FSM on a bare UE, returning the {NH, NCC}. For tests only.
+func (a *AMF) StageHandoverForTest(ue *UeContext) (nh [32]uint8, ncc uint8, ok bool) {
+	return a.stageHandover(ue, nil, nil)
 }
 
 // MarkHandoverCommitting advances the FSM from hoPrepared to hoCommitting when the
@@ -152,22 +200,27 @@ func (a *AMF) FinishHandoverCommit(ue *UeContext, targetUe *UeConn) bool {
 	}
 
 	a.mu.Lock()
-	defer a.mu.Unlock()
 
 	if ue.handover == nil || ue.handover.state != hoCommitting {
+		a.mu.Unlock()
 		return false
 	}
 
 	// The finalize must move the UE onto the prepared target, not whichever UeConn
 	// happened to carry the notify, and only while that target is still present after
 	// the unlocked user-plane switch.
-	if targetUe == nil || ue.handover.target != targetUe || a.conns[targetUe.AmfUeNgapID] != targetUe {
+	if targetUe == nil || ue.handover.target != targetUe || a.conns[int64(targetUe.AmfUeNgapID)] != targetUe {
+		a.mu.Unlock()
 		return false
 	}
 
 	ue.handover = nil
 	// The source connection is managed by the handover flow, not released here.
 	_ = a.attachUeConnLocked(ue, targetUe)
+
+	a.mu.Unlock()
+
+	ue.EndKeyChainProc(procedure.N2Handover)
 
 	return true
 }
@@ -190,7 +243,6 @@ func (a *AMF) CancelHandover(ue *UeContext) (target *UeConn, aborted bool) {
 	}
 
 	a.mu.Lock()
-	defer a.mu.Unlock()
 
 	ho := ue.handover
 	switch {
@@ -204,11 +256,16 @@ func (a *AMF) CancelHandover(ue *UeContext) (target *UeConn, aborted bool) {
 		aborted = true
 	}
 
+	a.mu.Unlock()
+
+	if aborted {
+		ue.EndKeyChainProc(procedure.N2Handover)
+	}
+
 	return target, aborted
 }
 
-// ClearHandover ends the handover FSM, leaving no in-flight handover. Idempotent;
-// safe on a nil UE. Kept in lockstep with the procedure registry's End(N2Handover).
+// ClearHandover ends the handover FSM and its key-chain procedure. Idempotent; safe on a nil UE.
 func (a *AMF) ClearHandover(ue *UeContext) {
 	if ue == nil {
 		return
@@ -217,6 +274,8 @@ func (a *AMF) ClearHandover(ue *UeContext) {
 	a.mu.Lock()
 	ue.handover = nil
 	a.mu.Unlock()
+
+	ue.EndKeyChainProc(procedure.N2Handover)
 }
 
 // MarkHandoverPrepared advances the FSM from hoPreparing to hoPrepared when the

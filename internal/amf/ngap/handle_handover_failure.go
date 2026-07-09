@@ -8,29 +8,18 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
-	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
 func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.HandoverFailure) {
-	causePresent := ngapType.CausePresentRadioNetwork
-	causeValue := ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem
-
-	var err error
-
 	if msg.Cause != nil {
 		logger.WithTrace(ctx, ran.Log).Debug("Handover Failure Cause", logger.Cause(causeToString(*msg.Cause)))
-
-		causePresent, causeValue, err = getCause(msg.Cause)
-		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("Get Cause from Handover Failure Error", zap.Error(err))
-			return
-		}
 	}
 
-	targetUe := amfInstance.FindUEByAmfUeNgapID(ran, msg.AMFUENGAPID)
+	targetUe := amfInstance.FindUEByAmfUeNgapID(ran, models.AmfUeNgapID(msg.AMFUENGAPID))
 	if targetUe == nil {
 		logger.WithTrace(ctx, ran.Log).Error("No UE Context on this radio", zap.Int64("AmfUeNgapID", msg.AMFUENGAPID))
 		sendUnknownLocalUEError(ctx, ran, &msg.AMFUENGAPID, nil)
@@ -57,10 +46,6 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 	if sourceUe == nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("N2 Handover between AMF has not been implemented yet")
 	} else {
-		if conn := amfUe.Conn(); conn != nil {
-			conn.Parent().EndKeyChainProc(procedure.N2Handover)
-		}
-
 		amfInstance.ClearHandover(amfUe)
 
 		failureCause := ngapType.Cause{
@@ -84,11 +69,10 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 		}
 	}
 
-	targetUe.ReleaseAction = amf.UeContextReleaseHandover
-
-	err = targetUe.SendUEContextReleaseCommand(ctx, causePresent, causeValue)
-	if err != nil {
-		logger.WithTrace(ctx, targetUe.Log).Error("error sending UE Context Release Command to target UE", zap.Error(err))
-		return
+	// HANDOVER FAILURE means the target admitted no resources and holds no UE context
+	// (it carries no target RAN UE NGAP ID), so the target association is dropped
+	// locally with no UE Context Release Command (TS 38.413 §8.4.2.3).
+	if err := amfInstance.RemoveUeConn(ctx, targetUe); err != nil {
+		logger.WithTrace(ctx, targetUe.Log).Error("error removing target UE association", zap.Error(err))
 	}
 }

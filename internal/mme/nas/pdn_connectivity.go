@@ -48,7 +48,7 @@ func esmRequestHeaderCause(pti, headerEBI uint8) uint8 {
 // handlePDNConnectivityRequest opens an additional PDN connection (a second default
 // bearer to the APN the UE names) for an already EMM-REGISTERED UE, authorised
 // against the subscriber's profile (TS 24.301 §6.5.1; TS 23.401 §5.10.2).
-func handlePDNConnectivityRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	req, err := eps.ParsePDNConnectivityRequest(plain)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to decode PDN Connectivity Request", zap.Error(err))
@@ -94,7 +94,7 @@ func handlePDNConnectivityRequest(m *mme.MME, ctx context.Context, ue *mme.UeCon
 		return nasreply.Handled()
 	}
 
-	qos, err := mme.ResolveQoSByAPN(m, ctx, ue.IMSI(), apn)
+	qos, err := mme.ResolveQoSByAPN(ctx, m, ue.IMSI(), apn)
 	if errors.Is(err, mme.ErrUnknownAPN) {
 		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: APN not in subscriber profile",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", apn))
@@ -161,7 +161,7 @@ func handlePDNConnectivityRequest(m *mme.MME, ctx context.Context, ue *mme.UeCon
 
 	logger.From(ctx, logger.MmeLog).Info("opening additional PDN connection",
 		zap.String("imsi", ue.IMSI()), zap.String("apn", apn), zap.Uint8("ebi", p.Ebi))
-	sendERABSetup(m, ctx, ue, p, qos, naspdu)
+	sendERABSetup(ctx, m, ue, p, qos, naspdu)
 
 	return nasreply.Handled()
 }
@@ -169,7 +169,7 @@ func handlePDNConnectivityRequest(m *mme.MME, ctx context.Context, ue *mme.UeCon
 // sendERABSetup asks the eNB to set up the radio leg of a new PDN connection,
 // carrying the ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST to the UE (TS 36.413
 // §8.2.1).
-func sendERABSetup(m *mme.MME, ctx context.Context, ue *mme.UeContext, p *mme.PdnConnection, qos *mme.EpsQoS, naspdu []byte) {
+func sendERABSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext, p *mme.PdnConnection, qos *mme.EpsQoS, naspdu []byte) {
 	sgwTLA, err := models.EncodeTransportLayerAddress(p.SgwFTEID.Addr, p.SgwN3IPv6)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to encode S-GW transport layer address", zap.Error(err))
@@ -204,13 +204,21 @@ func sendERABSetup(m *mme.MME, ctx context.Context, ue *mme.UeContext, p *mme.Pd
 
 		return
 	}
+
+	// The S1AP send chokepoint swallows write failures, so without T3485 supervision a
+	// failed or unanswered activation would leak the committed PDN and its S-GW session.
+	// The guard retransmits, then releases the PDN once the budget is spent
+	// (TS 24.301 §6.4.1.6).
+	m.ArmESMGuardAbortOnly(ue, p, "Activate Default EPS Bearer Context Request", naspdu, func() {
+		m.ReleasePDN(context.Background(), ue, p)
+	})
 }
 
 // handlePDNDisconnectRequest releases one of a UE's PDN connections at its request
 // (TS 24.301 §6.5.2; TS 23.401 §5.10.3). The UE names the PDN by its default
 // bearer's Linked EPS Bearer Identity. The last PDN connection cannot be
 // disconnected this way — the UE detaches instead (ESM cause #49).
-func handlePDNDisconnectRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+func handlePDNDisconnectRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	req, err := eps.ParsePDNDisconnectRequest(plain)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to decode PDN Disconnect Request", zap.Error(err))
@@ -281,6 +289,8 @@ func handleActivateDefaultBearerAccept(m *mme.MME, ue *mme.UeContext, plain []by
 		return nasreply.Silent(nasreply.ReasonNoContext)
 	}
 
+	m.StopESMGuard(p)
+
 	logger.MmeLog.Info("additional PDN connection active",
 		zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Uint8("ebi", p.Ebi))
 
@@ -289,7 +299,7 @@ func handleActivateDefaultBearerAccept(m *mme.MME, ue *mme.UeContext, plain []by
 
 // handleActivateDefaultBearerReject releases an additional PDN connection the UE
 // refused (TS 24.301 §6.4.1.5).
-func handleActivateDefaultBearerReject(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+func handleActivateDefaultBearerReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	reject, err := eps.ParseActivateDefaultEPSBearerContextReject(plain)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Activate Default EPS Bearer Context Reject", zap.Error(err))
@@ -299,6 +309,7 @@ func handleActivateDefaultBearerReject(m *mme.MME, ctx context.Context, ue *mme.
 	if p := m.LookupPDN(ue, reject.EPSBearerIdentity); p != nil {
 		logger.MmeLog.Info("UE rejected an additional PDN connection; releasing it",
 			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Uint8("esm-cause", reject.ESMCause))
+		m.StopESMGuard(p)
 		m.ReleasePDN(ctx, ue, p)
 	}
 

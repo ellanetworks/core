@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func startSecurityMode(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
+func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	// TS 33.501 §6.9.5.1 / TS 33.401 §7.2.8: the security mode procedure re-keys the
 	// AS context, so it must not run concurrently with an S1 handover or Path Switch
 	// advancing the {NH, NCC} chain. Claim the chain; if a handover holds it, defer.
@@ -42,11 +42,11 @@ func startSecurityMode(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 		return
 	}
 
-	eea, eia, ok := mme.SelectAlgorithms(ue.UeNetCap, intOrder, encOrder)
+	eea, eia, ok := mme.SelectAlgorithms(ue.UeNetCap(), intOrder, encOrder)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("no NAS security algorithm common to UE and operator policy",
-			zap.String("ue-network-capability", fmt.Sprintf("%x", ue.UeNetCap)))
-		rejectAttach(m, ctx, ue, mme.EmmCauseUESecCapsMismatch)
+			zap.String("ue-network-capability", fmt.Sprintf("%x", ue.UeNetCap())))
+		rejectAttach(ctx, m, ue, mme.EmmCauseUESecCapsMismatch)
 
 		return
 	}
@@ -56,12 +56,12 @@ func startSecurityMode(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 		return
 	}
 
-	replayed := mme.ReplayedUESecCap(ue.UeNetCap, ue.MsNetCap)
+	replayed := mme.ReplayedUESecCap(ue.UeNetCap(), ue.MsNetCap())
 
 	smc := &eps.SecurityModeCommand{
 		CipheringAlgorithm:             eea,
 		IntegrityAlgorithm:             eia,
-		NASKeySetIdentifier:            0,
+		NASKeySetIdentifier:            ue.Eksi(),
 		ReplayedUESecurityCapabilities: replayed,
 		IMEISVRequested:                true,
 		HASHMME:                        mme.HashMME(ue.HashmmeInput),
@@ -81,8 +81,8 @@ func startSecurityMode(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 
 	logger.From(ctx, logger.MmeLog).Info("Security Mode Command",
 		zap.Uint8("eea", eea), zap.Uint8("eia", eia),
-		zap.String("ue-network-capability", fmt.Sprintf("%x", ue.UeNetCap)),
-		zap.String("ms-network-capability", fmt.Sprintf("%x", ue.MsNetCap)),
+		zap.String("ue-network-capability", fmt.Sprintf("%x", ue.UeNetCap())),
+		zap.String("ms-network-capability", fmt.Sprintf("%x", ue.MsNetCap())),
 		zap.String("replayed-ue-security-capability", fmt.Sprintf("%x", replayed)))
 	ue.AdvanceRegStep(mme.RegStepSecurityMode)
 	ue.Conn().SendGuardedDownlink(ctx, "Security Mode Command", wire)

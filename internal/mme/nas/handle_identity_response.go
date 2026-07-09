@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func handleIdentityResponse(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+func handleIdentityResponse(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	// An IDENTITY RESPONSE is valid only during the attach authentication sub-phase
 	// (admissible without integrity, TS 24.301 §4.4.4.3); out of order it must not
 	// re-set the IMSI or restart authentication.
@@ -32,7 +32,7 @@ func handleIdentityResponse(m *mme.MME, ctx context.Context, ue *mme.UeContext, 
 	}
 
 	m.SetIMSI(ue, mobileIdentityDigits(resp.MobileIdentity))
-	authenticateOrReject(m, ctx, ue)
+	authenticateOrReject(ctx, m, ue)
 
 	return nasreply.Handled()
 }

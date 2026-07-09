@@ -84,18 +84,27 @@ func (ue *UeContext) transitionEMMLocked(target EMMState) {
 	}
 
 	if slices.Contains(validEMMTransitions[from], target) {
-		ue.emmState = target
-	} else {
-		logger.MmeLog.Error("invalid EMM state transition",
+		logger.MmeLog.Debug("state transition",
 			zap.String("from", from.String()), zap.String("to", target.String()))
 
-		ue.emmState = EMMDeregistered
+		ue.setEMMStateLocked(target)
+
+		return
 	}
 
-	// Reset the registration sub-phase to match the new state: entering
-	// EMM-REGISTERED-INITIATED starts at the authentication exchange; any other
-	// state carries no sub-phase (TS 24.301 §5.4).
-	if ue.emmState == EMMRegistrationInitiated {
+	logger.MmeLog.Error("invalid EMM state transition",
+		zap.String("from", from.String()), zap.String("to", target.String()))
+
+	ue.setEMMStateLocked(EMMDeregistered)
+}
+
+// setEMMStateLocked sets the EMM state and resets the coupled registration sub-phase:
+// entering EMM-REGISTERED-INITIATED starts at the authentication exchange; any other
+// state carries no sub-phase (TS 24.301 §5.4). The caller holds ue.mu.
+func (ue *UeContext) setEMMStateLocked(target EMMState) {
+	ue.emmState = target
+
+	if target == EMMRegistrationInitiated {
 		ue.regStep = RegStepAuthenticating
 	} else {
 		ue.regStep = RegStepNone

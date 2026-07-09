@@ -113,6 +113,11 @@ type MME struct {
 	// §9.9.3.12A); nil falls back to the default.
 	EPSNetworkFeatureSupport *eps.EPSNetworkFeatureSupport
 
+	// Name and RelativeCapacity are advertised in the S1 Setup Response (TS 36.413
+	// §9.1.8.4). Defaulted in New; not yet DB-wired.
+	Name             string
+	RelativeCapacity uint8
+
 	mu         sync.RWMutex
 	radios     map[S1APWriter]*Radio
 	radiosByID map[string]*Radio        // S1-setup-complete eNBs keyed by Global eNB ID, for S1-handover target resolution
@@ -200,6 +205,8 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 		Bearer:                   bearer,
 		Session:                  session,
 		EPSNetworkFeatureSupport: &eps.EPSNetworkFeatureSupport{IMSVoPS: true},
+		Name:                     "ella",
+		RelativeCapacity:         0xff,
 		radios:                   make(map[S1APWriter]*Radio),
 		radiosByID:               make(map[string]*Radio),
 		conns:                    make(map[uint32]*UeConn),

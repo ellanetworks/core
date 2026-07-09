@@ -8,9 +8,8 @@ import (
 	"github.com/free5gc/nas/security"
 )
 
-// cipheringAlgName must be called while holding ue.Mutex.
-func (ue *UeContext) cipheringAlgName() string {
-	switch ue.cipheringAlg {
+func cipheringAlgName(alg byte) string {
+	switch alg {
 	case security.AlgCiphering128NEA0:
 		return "NEA0"
 	case security.AlgCiphering128NEA1:
@@ -24,9 +23,8 @@ func (ue *UeContext) cipheringAlgName() string {
 	}
 }
 
-// integrityAlgName must be called while holding ue.Mutex.
-func (ue *UeContext) integrityAlgName() string {
-	switch ue.integrityAlg {
+func integrityAlgName(alg byte) string {
+	switch alg {
 	case security.AlgIntegrity128NIA0:
 		return "NIA0"
 	case security.AlgIntegrity128NIA1:

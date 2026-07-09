@@ -9,6 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"go.uber.org/zap"
 )
 
@@ -23,7 +24,7 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *a
 		return
 	}
 
-	ueConn := amfInstance.FindUEByRanUeNgapID(ran, *msg.RANUENGAPID)
+	ueConn := amfInstance.FindUEByRanUeNgapID(ran, models.RanUeNgapID(*msg.RANUENGAPID))
 	if ueConn == nil {
 		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("AmfUeNgapID", *msg.AMFUENGAPID), zap.Int64("RanUeNgapID", *msg.RANUENGAPID))
 		return

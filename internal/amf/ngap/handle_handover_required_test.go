@@ -710,3 +710,168 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 		t.Fatal("N2Handover procedure still active after guard expiry")
 	}
 }
+
+// TestHandoverRequired_UnsupportedTargetIDFailsToSource verifies an unservable TargetID
+// is answered with HANDOVER PREPARATION FAILURE (TS 38.413 §8.4.1.3).
+func TestHandoverRequired_UnsupportedTargetIDFailsToSource(t *testing.T) {
+	supi, _ := etsi.NewSUPIFromPrefixed("imsi-001010000000001")
+
+	amfUe := amf.NewUeContext()
+	amfUe.SetSupiForTest(supi)
+	amfUe.SetSecuredForTest(true)
+	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
+	amfUe.SetKamfForTest("0000000000000000000000000000000000000000000000000000000000000000")
+	amfUe.SetNHForTest(make([]byte, 32))
+
+	sourceNGAPSender := &fakeNGAPSender{}
+	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: sourceNGAPSender}
+	amfInstance := amf.New(&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, &fakeSmfSbi{SMF: smf.New(nil, nil, nil, nil)})
+	sourceRan.BindAMFForTest(amfInstance)
+
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
+	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+
+	// A TargeteNBID target decodes cleanly but the AMF prepares only toward a RAN node.
+	msg := decode.HandoverRequired{
+		AMFUENGAPID: 1,
+		RANUENGAPID: 1,
+		TargetID:    &ngapType.TargetID{Present: ngapType.TargetIDPresentTargeteNBID},
+	}
+
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
+
+	if len(sourceNGAPSender.SentHandoverPreparationFailures) != 1 {
+		t.Fatalf("expected 1 HandoverPreparationFailure to source, got %d", len(sourceNGAPSender.SentHandoverPreparationFailures))
+	}
+
+	if got := sourceNGAPSender.SentHandoverPreparationFailures[0].Cause; got.Present != ngapType.CausePresentRadioNetwork ||
+		got.RadioNetwork == nil || got.RadioNetwork.Value != ngapType.CauseRadioNetworkPresentHoTargetNotAllowed {
+		t.Fatalf("expected HoTargetNotAllowed RadioNetwork cause, got %+v", got)
+	}
+
+	if len(sourceNGAPSender.SentHandoverRequests) != 0 {
+		t.Fatalf("expected no HandoverRequest for an unservable target, got %d", len(sourceNGAPSender.SentHandoverRequests))
+	}
+}
+
+// TestHandoverRequired_SourceDropReleasesTarget verifies that dropping the source
+// association at the prepared stage releases the prepared target and clears the
+// N2Handover procedure at once, without waiting for the supervision guard.
+func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
+	const (
+		targetGnbID  = "000102"
+		pduSessionID = uint8(1)
+		supiStr      = "imsi-001010000000001"
+		dnn          = "internet"
+		kamfHex      = "0000000000000000000000000000000000000000000000000000000000000000"
+	)
+
+	supi, _ := etsi.NewSUPIFromPrefixed(supiStr)
+
+	hoRequiredTransferBytes, err := aper.MarshalWithParams(ngapType.HandoverRequiredTransfer{}, "valueExt")
+	if err != nil {
+		t.Fatalf("failed to marshal HandoverRequiredTransfer: %v", err)
+	}
+
+	plmnID, err := getMccAndMncInOctets("001", "01")
+	if err != nil {
+		t.Fatalf("failed to get PLMN ID octets: %v", err)
+	}
+
+	targetGnbBitString := ngapConvert.HexToBitString(targetGnbID, 24)
+	targetID := &ngapType.TargetID{
+		Present: ngapType.TargetIDPresentTargetRANNodeID,
+		TargetRANNodeID: &ngapType.TargetRANNodeID{
+			GlobalRANNodeID: ngapType.GlobalRANNodeID{
+				Present: ngapType.GlobalRANNodeIDPresentGlobalGNBID,
+				GlobalGNBID: &ngapType.GlobalGNBID{
+					PLMNIdentity: ngapType.PLMNIdentity{Value: plmnID},
+					GNBID: ngapType.GNBID{
+						Present: ngapType.GNBIDPresentGNBID,
+						GNBID:   &targetGnbBitString,
+					},
+				},
+			},
+			SelectedTAI: ngapType.TAI{
+				PLMNIdentity: ngapType.PLMNIdentity{Value: plmnID},
+				TAC:          ngapType.TAC{Value: aper.OctetString{0x00, 0x00, 0x01}},
+			},
+		},
+	}
+
+	msg, err := buildHandoverRequired(&HandoverRequiredOpts{
+		AMFUENGAPID:                        ngapType.AMFUENGAPID{Value: 1},
+		RANUENGAPID:                        ngapType.RANUENGAPID{Value: 1},
+		TargetID:                           targetID,
+		PDUSessionResourceListHORqd:        &ngapType.PDUSessionResourceListHORqd{List: []ngapType.PDUSessionResourceItemHORqd{{PDUSessionID: ngapType.PDUSessionID{Value: int64(pduSessionID)}, HandoverRequiredTransfer: hoRequiredTransferBytes}}},
+		SourceToTargetTransparentContainer: &ngapType.SourceToTargetTransparentContainer{Value: []byte{0x01, 0x02, 0x03}},
+	})
+	if err != nil {
+		t.Fatalf("failed to build HandoverRequired: %v", err)
+	}
+
+	smfInstance := smf.New(nil, nil, nil, nil)
+
+	smCtx := smfInstance.NewSession(supi, pduSessionID, dnn, &models.Snssai{Sst: 1})
+	smCtx.PolicyData = &smf.Policy{
+		Ambr:    models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"},
+		QosData: models.QosData{QFI: 1, Var5qi: 9, Arp: &models.Arp{PriorityLevel: 8}},
+	}
+	smCtx.Tunnel = &smf.UPTunnel{DataPath: &smf.DataPath{UpLinkTunnel: &smf.GTPTunnel{TEID: 1234, N3IPv4: netip.MustParseAddr("10.0.0.1")}}}
+
+	amfUe := amf.NewUeContext()
+	amfUe.SetSupiForTest(supi)
+	amfUe.SetSecuredForTest(true)
+	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
+	amfUe.SetKamfForTest(kamfHex)
+	amfUe.SetNHForTest(make([]byte, 32))
+
+	secCap := &nasType.UESecurityCapability{}
+	secCap.SetLen(2)
+	amfUe.SetUESecurityCapabilityForTest(secCap)
+	amfUe.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
+	amfUe.SmContextList[pduSessionID] = &amf.SmContext{Ref: smf.CanonicalName(supi, pduSessionID), Snssai: &models.Snssai{Sst: 1}}
+
+	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: &fakeNGAPSender{}}
+	amfInstance := amf.New(&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, &fakeSmfSbi{SMF: smfInstance})
+	sourceRan.BindAMFForTest(amfInstance)
+
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
+	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+
+	targetNGAPSender := &fakeNGAPSender{}
+	targetRan := &amf.Radio{
+		Log:        logger.AmfLog,
+		Conn:       targetNGAPSender,
+		RanPresent: amf.RanPresentGNbID,
+		RanID:      &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: targetGnbID, BitLength: 24}},
+	}
+	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
+
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, decodeHandoverRequiredOrFatal(t, msg.InitiatingMessage.Value.HandoverRequired))
+
+	if len(targetNGAPSender.SentHandoverRequests) != 1 {
+		t.Fatalf("expected 1 HandoverRequest to target gNB, got %d", len(targetNGAPSender.SentHandoverRequests))
+	}
+
+	if !amfUe.Procedures().Active(procedure.N2Handover) {
+		t.Fatal("N2Handover procedure not active after preparation")
+	}
+
+	// Drop the source association (gNB SCTP drop); the prepared target must release at once.
+	if err := amfInstance.RemoveUeConn(context.Background(), sourceUe); err != nil {
+		t.Fatalf("RemoveUeConn(source) error: %v", err)
+	}
+
+	if got := len(targetNGAPSender.SentUEContextReleaseCommands); got != 1 {
+		t.Fatalf("expected 1 UEContextReleaseCommand to target on source drop, got %d", got)
+	}
+
+	if amfUe.Procedures().Active(procedure.N2Handover) {
+		t.Fatal("N2Handover procedure still active after source association removal")
+	}
+
+	if amfInstance.HandoverInProgress(amfUe) {
+		t.Fatal("handover FSM not cleared after source association removal")
+	}
+}

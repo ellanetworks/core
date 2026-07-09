@@ -99,8 +99,8 @@ func TestHandleHandoverCancel_HappyPath(t *testing.T) {
 	amfUe := amf.NewUeContext()
 	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
-	if err := amf.AttachSourceUeTargetUe(sourceUe, targetUe); err != nil {
-		t.Fatalf("AttachSourceUeTargetUe: %v", err)
+	if err := amf.SetHandoverForTest(sourceUe, targetUe); err != nil {
+		t.Fatalf("SetHandoverForTest: %v", err)
 	}
 
 	// The target has acknowledged (hoPrepared): its RAN-UE-NGAP-ID is known, so a
@@ -156,8 +156,8 @@ func TestHandleHandoverCancel_Preparing_ReleasesTarget(t *testing.T) {
 	amfUe := amf.NewUeContext()
 	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
-	if err := amf.AttachSourceUeTargetUe(sourceUe, targetUe); err != nil {
-		t.Fatalf("AttachSourceUeTargetUe: %v", err)
+	if err := amf.SetHandoverForTest(sourceUe, targetUe); err != nil {
+		t.Fatalf("SetHandoverForTest: %v", err)
 	}
 
 	// No MarkHandoverPrepared: the handover is still hoPreparing.

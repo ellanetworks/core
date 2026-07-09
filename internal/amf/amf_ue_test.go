@@ -4,7 +4,6 @@
 package amf_test
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
@@ -29,49 +28,41 @@ func TestDecodePayloadTooShort(t *testing.T) {
 	}
 }
 
+// TestAllocateRegistrationArea verifies the registration area is the whole served
+// area, independent of the UE's serving TAI (TS 23.501 §5.3.4; a single registration
+// area, matching the MME).
 func TestAllocateRegistrationArea(t *testing.T) {
-	type Testcase struct {
+	tests := []struct {
 		name          string
 		supportedTais []models.Tai
-		ueTai         models.Tai
-		expected      []models.Tai
-	}
-
-	testcases := []Testcase{
-		{
-			"No supported TAIs",
-			[]models.Tai{},
-			models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
-			[]models.Tai{},
-		},
+	}{
+		{"No supported TAIs", nil},
 		{
 			"Single supported TAI",
 			[]models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}},
-			models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
-			[]models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}},
 		},
 		{
-			"Multiple supported TAI",
-			[]models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "CAFE42"}, {PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}},
-			models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
-			[]models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}},
-		},
-		{
-			"Multiple supported TAI, UE registered on hex TAC",
-			[]models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "CAFE42"}, {PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}},
-			models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "CAFE42"},
-			[]models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "CAFE42"}},
+			"Multiple supported TAIs",
+			[]models.Tai{
+				{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "cafe42"},
+				{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
+			},
 		},
 	}
 
-	for _, tc := range testcases {
+	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ue := amf.NewUeContext()
-			ue.Tai = tc.ueTai
 			ue.AllocateRegistrationArea(tc.supportedTais)
 
-			if !reflect.DeepEqual(tc.expected, ue.RegistrationArea) && len(tc.expected) != 0 && len(ue.RegistrationArea) != 0 {
-				t.Fatalf("expected: %v, got: %v", tc.expected, ue.RegistrationArea)
+			if len(ue.RegistrationArea) != len(tc.supportedTais) {
+				t.Fatalf("RegistrationArea len = %d, want %d", len(ue.RegistrationArea), len(tc.supportedTais))
+			}
+
+			for i := range tc.supportedTais {
+				if !ue.RegistrationArea[i].Equal(tc.supportedTais[i]) {
+					t.Fatalf("RegistrationArea[%d] = %v, want %v", i, ue.RegistrationArea[i], tc.supportedTais[i])
+				}
 			}
 		})
 	}

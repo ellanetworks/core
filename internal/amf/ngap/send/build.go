@@ -550,7 +550,7 @@ func BuildUEContextReleaseCommand(amfUENGAPID int64, ranUENGAPID int64, causePre
 
 	ueNGAPIDs := ie.Value.UENGAPIDs
 
-	if ranUENGAPID == models.RanUeNgapIDUnspecified {
+	if ranUENGAPID == int64(models.RanUeNgapIDUnspecified) {
 		ueNGAPIDs.Present = ngapType.UENGAPIDsPresentAMFUENGAPID
 		ueNGAPIDs.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
@@ -602,7 +602,7 @@ func BuildUEContextReleaseCommand(amfUENGAPID int64, ranUENGAPID int64, causePre
 	return ngap.Encoder(pdu)
 }
 
-func BuildDownlinkNasTransport(amfUENGAPID int64, ranUENGAPID int64, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) ([]byte, error) {
+func BuildDownlinkNasTransport(amfUENGAPID int64, ranUENGAPID int64, nasPdu []byte) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
@@ -649,15 +649,6 @@ func BuildDownlinkNasTransport(amfUENGAPID int64, ranUENGAPID int64, nasPdu []by
 	ie.Value.NASPDU.Value = nasPdu
 
 	downlinkNasTransportIEs.List = append(downlinkNasTransportIEs.List, ie)
-
-	if mobilityRestrictionList != nil {
-		ie = ngapType.DownlinkNASTransportIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDMobilityRestrictionList
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.DownlinkNASTransportIEsPresentMobilityRestrictionList
-		ie.Value.MobilityRestrictionList = mobilityRestrictionList
-		downlinkNasTransportIEs.List = append(downlinkNasTransportIEs.List, ie)
-	}
 
 	return ngap.Encoder(pdu)
 }
@@ -1152,7 +1143,6 @@ func BuildInitialContextSetupRequest(
 	bitrateDownlink string,
 	allowedNssai []models.Snssai,
 	kgnodeb []byte,
-	servingPlmnID models.PlmnID,
 	radioCapability []byte,
 	ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging,
 	ueSecurityCapability *nasType.UESecurityCapability,
@@ -1313,21 +1303,6 @@ func BuildInitialContextSetupRequest(
 
 	securityKey := ie.Value.SecurityKey
 	securityKey.Value = ngapConvert.ByteToBitString(kgnodeb, 256)
-
-	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
-
-	ie = ngapType.InitialContextSetupRequestIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDMobilityRestrictionList
-	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-	ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentMobilityRestrictionList
-	ie.Value.MobilityRestrictionList = new(ngapType.MobilityRestrictionList)
-
-	mobilityRestrictionList, err := BuildIEMobilityRestrictionList(servingPlmnID)
-	if err != nil {
-		return nil, fmt.Errorf("error building Mobility Restriction List IE: %s", err)
-	}
-
-	ie.Value.MobilityRestrictionList = mobilityRestrictionList
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 
@@ -1684,17 +1659,6 @@ func BuildHandoverRequest(
 	handoverRequestIEs.List = append(handoverRequestIEs.List, ie)
 
 	return ngap.Encoder(pdu)
-}
-
-func BuildIEMobilityRestrictionList(plmnID models.PlmnID) (*ngapType.MobilityRestrictionList, error) {
-	plmnIDNGAP, err := util.PlmnIDToNgap(plmnID)
-	if err != nil {
-		return nil, fmt.Errorf("could not convert PLMN ID to NGAP: %s", err)
-	}
-
-	return &ngapType.MobilityRestrictionList{
-		ServingPLMN: *plmnIDNGAP,
-	}, nil
 }
 
 // Paging Priority is included only when the N1N2MessageTransfer carries an ARP value

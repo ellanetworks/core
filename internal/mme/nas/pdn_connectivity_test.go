@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/netip"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/mme"
 	mmes1ap "github.com/ellanetworks/core/internal/mme/s1ap"
@@ -117,7 +118,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handlePDNConnectivityRequest(m, context.Background(), ue, connReq)
+	handlePDNConnectivityRequest(context.Background(), m, ue, connReq)
 
 	p := ue.PdnForAPN("ims")
 	if p == nil {
@@ -177,7 +178,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handlePDNDisconnectRequest(m, context.Background(), ue, dis)
+	handlePDNDisconnectRequest(context.Background(), m, ue, dis)
 
 	if !ue.Pdns[6].Deactivating || !ue.Pdns[6].Disconnecting {
 		t.Fatalf("deactivation not in flight for the disconnected PDN: %+v", ue.Pdns[6])
@@ -220,7 +221,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleDeactivateBearerAccept(m, context.Background(), ue, da)
+	handleDeactivateBearerAccept(context.Background(), m, ue, da)
 
 	if _, ok := ue.Pdns[6]; ok {
 		t.Fatal("second PDN not released after disconnect accept")
@@ -236,6 +237,89 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 
 	if p := m.DefaultPDN(ue); p == nil || p.Apn != "internet" {
 		t.Fatal("default PDN disturbed by the second PDN's disconnect")
+	}
+}
+
+// TestAdditionalPDNActivationIsGuarded verifies T3485 guards a standalone additional-PDN
+// activation: armed on send, stopped on accept (TS 24.301 §6.4.1.6).
+func TestAdditionalPDNActivationIsGuarded(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	testPDN(ue).Apn = "internet"
+
+	apnIE, err := eps.MarshalAPN("ims")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	connReq, err := (&eps.PDNConnectivityRequest{
+		ProcedureTransactionIdentity: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: apnIE,
+	}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handlePDNConnectivityRequest(context.Background(), m, ue, connReq)
+
+	p := ue.PdnForAPN("ims")
+	if p == nil {
+		t.Fatal("second PDN connection not created")
+	}
+
+	if !m.ESMGuardActiveForTest(p) {
+		t.Fatal("T3485 guard not armed on additional-PDN activation; a lost ACTIVATE DEFAULT would leak the PDN")
+	}
+
+	acc, err := (&eps.ActivateDefaultEPSBearerContextAccept{EPSBearerIdentity: p.Ebi, ProcedureTransactionIdentity: 2}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handleActivateDefaultBearerAccept(m, ue, acc)
+
+	if m.ESMGuardActiveForTest(p) {
+		t.Fatal("T3485 guard still armed after the UE accepted the default bearer; it would retransmit indefinitely")
+	}
+}
+
+// TestAdditionalPDNActivationTimeoutReleasesPDN verifies that when the UE never answers,
+// T3485 exhaustion releases the half-open PDN. The send chokepoint swallows write
+// failures, so an unanswered activation would otherwise leak the PDN (TS 24.301 §6.4.1.6).
+func TestAdditionalPDNActivationTimeoutReleasesPDN(t *testing.T) {
+	m := newTestMME(t)
+	m.SetESMGuardConfigForTest(5*time.Millisecond, 2)
+
+	ue, _ := securedUE(t, m)
+
+	testPDN(ue).Apn = "internet"
+
+	apnIE, err := eps.MarshalAPN("ims")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	connReq, err := (&eps.PDNConnectivityRequest{
+		ProcedureTransactionIdentity: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: apnIE,
+	}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handlePDNConnectivityRequest(context.Background(), m, ue, connReq)
+
+	if ue.PdnForAPN("ims") == nil {
+		t.Fatal("second PDN connection not created")
+	}
+
+	// PDNCount takes the UE lock, so polling it is safe against the guard timer's release.
+	deadline := time.Now().Add(2 * time.Second)
+	for ue.PDNCount() > 1 && time.Now().Before(deadline) {
+		time.Sleep(2 * time.Millisecond)
+	}
+
+	if got := ue.PDNCount(); got != 1 {
+		t.Fatalf("additional PDN not released after activation timed out: PDNCount = %d, want 1 (it leaked)", got)
 	}
 }
 
@@ -291,7 +375,7 @@ func TestAdditionalPDNRejectedUnknownAPN(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handlePDNConnectivityRequest(m, context.Background(), ue, connReq)
+	handlePDNConnectivityRequest(context.Background(), m, ue, connReq)
 
 	if ue.PdnForAPN("enterprise") != nil {
 		t.Fatal("PDN created for an APN not in the profile")
@@ -337,7 +421,7 @@ func TestPDNConnectivityRejectedInvalidHeader(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			handlePDNConnectivityRequest(m, context.Background(), ue, plain)
+			handlePDNConnectivityRequest(context.Background(), m, ue, plain)
 
 			if ue.PdnForAPN("ims") != nil {
 				t.Fatal("PDN created despite an invalid ESM header")
@@ -378,7 +462,7 @@ func TestPDNDisconnectRejectedInvalidHeader(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			handlePDNDisconnectRequest(m, context.Background(), ue, plain)
+			handlePDNDisconnectRequest(context.Background(), m, ue, plain)
 
 			reject, err := eps.ParsePDNDisconnectReject(lastDownlinkESM(t, ue, cc))
 			if err != nil {
@@ -406,7 +490,7 @@ func TestLastPDNDisconnectRejected(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handlePDNDisconnectRequest(m, context.Background(), ue, dis)
+	handlePDNDisconnectRequest(context.Background(), m, ue, dis)
 
 	if m.DefaultPDN(ue) == nil {
 		t.Fatal("the only PDN was disconnected; expected it to be retained")

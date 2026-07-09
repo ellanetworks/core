@@ -75,19 +75,12 @@ func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) 
 		return
 	}
 
-	if im, ok := pdu.(*s1ap.InitiatingMessage); ok {
-		switch im.ProcedureCode {
-		case s1ap.ProcS1Setup:
-			// The radio-creating handler: radio may still be nil on a parse failure,
-			// so it keeps the raw conn.
-			handleS1Setup(m, ctx, conn, im.Value)
+	// S1 Setup creates the radio, so it takes the raw conn (radio may be nil on a parse
+	// failure); every other procedure is dispatched by Route (TS 36.413).
+	if im, ok := pdu.(*s1ap.InitiatingMessage); ok && im.ProcedureCode == s1ap.ProcS1Setup {
+		handleS1Setup(m, ctx, conn, im.Value)
 
-			return
-		case s1ap.ProcENBConfigurationUpdate:
-			handleENBConfigurationUpdate(m, ctx, radio, im.Value)
-
-			return
-		}
+		return
 	}
 
 	Route(m, ctx, radio, pdu)

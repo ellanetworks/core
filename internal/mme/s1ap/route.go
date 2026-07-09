@@ -12,8 +12,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// Route dispatches a decoded UE-associated S1AP PDU to its procedure handler
-// (TS 36.413).
+// Route dispatches a decoded S1AP PDU — UE-associated and node-level (past the S1 Setup
+// gate) — to its procedure handler (TS 36.413).
 func Route(m *mme.MME, ctx context.Context, radio *mme.Radio, pdu any) {
 	switch p := pdu.(type) {
 	case *s1ap.InitiatingMessage:
@@ -42,8 +42,10 @@ func Route(m *mme.MME, ctx context.Context, radio *mme.Radio, pdu any) {
 			handleErrorIndication(m, ctx, radio, p.Value)
 		case s1ap.ProcReset:
 			handleReset(m, radio, p.Value)
+		case s1ap.ProcENBConfigurationUpdate:
+			handleENBConfigurationUpdate(m, ctx, radio, p.Value)
 		default:
-			logger.From(ctx, logger.MmeLog).Debug("ignoring S1AP initiating message", zap.Int("procedure-code", int(p.ProcedureCode)))
+			logger.From(ctx, radio.Log).Warn("ignoring unsupported procedure", zap.String("kind", "initiating"), zap.Int64("procedureCode", int64(p.ProcedureCode)))
 		}
 	case *s1ap.SuccessfulOutcome:
 		switch p.ProcedureCode {
@@ -60,7 +62,7 @@ func Route(m *mme.MME, ctx context.Context, radio *mme.Radio, pdu any) {
 		case s1ap.ProcHandoverResourceAllocation:
 			handleHandoverRequestAcknowledge(m, ctx, radio, p.Value)
 		default:
-			logger.From(ctx, logger.MmeLog).Debug("ignoring S1AP successful outcome", zap.Int("procedure-code", int(p.ProcedureCode)))
+			logger.From(ctx, radio.Log).Warn("ignoring unsupported procedure", zap.String("kind", "successful-outcome"), zap.Int64("procedureCode", int64(p.ProcedureCode)))
 		}
 	case *s1ap.UnsuccessfulOutcome:
 		switch p.ProcedureCode {
@@ -69,9 +71,9 @@ func Route(m *mme.MME, ctx context.Context, radio *mme.Radio, pdu any) {
 		case s1ap.ProcHandoverResourceAllocation:
 			handleHandoverFailure(m, ctx, radio, p.Value)
 		default:
-			logger.From(ctx, logger.MmeLog).Debug("ignoring S1AP unsuccessful outcome", zap.Int("procedure-code", int(p.ProcedureCode)))
+			logger.From(ctx, radio.Log).Warn("ignoring unsupported procedure", zap.String("kind", "unsuccessful-outcome"), zap.Int64("procedureCode", int64(p.ProcedureCode)))
 		}
 	default:
-		logger.From(ctx, logger.MmeLog).Debug("ignoring S1AP PDU")
+		logger.From(ctx, radio.Log).Warn("ignoring unsupported procedure", zap.String("kind", "unknown-pdu"))
 	}
 }

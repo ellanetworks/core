@@ -200,7 +200,6 @@ func HandleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	}
 
 	amfInstance.AttachUeConn(amfUe, ue)
-	amfInstance.StopIdleTimers(amfUe)
 
 	result, err := amf.DecodeNASMessage(amfUe, nasPdu)
 	if err != nil {
@@ -254,7 +253,7 @@ func rejectBareServiceRequest(ctx context.Context, ue *amf.UeConn, cause uint8) 
 		return
 	}
 
-	if err := ue.SendDownlinkNASTransport(ctx, pdu, nil); err != nil {
+	if err := ue.SendDownlinkNASTransport(ctx, pdu); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("failed to send service reject for uncontextualized service request", zap.Error(err))
 	}
 }

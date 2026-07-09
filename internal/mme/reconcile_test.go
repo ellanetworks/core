@@ -25,7 +25,7 @@ func connectedBearerUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 
 	// Record the QoS a real activation would, so a reconcile against an unchanged
 	// policy is a no-op.
-	if qos, err := ResolveQoSByAPN(m, context.Background(), ue.imsiOrEmpty(), p.Apn); err == nil {
+	if qos, err := ResolveQoSByAPN(context.Background(), m, ue.imsiOrEmpty(), p.Apn); err == nil {
 		p.SessAmbrDLBps = BitRateToBps(qos.SessAmbrDLStr)
 		p.SessAmbrULBps = BitRateToBps(qos.SessAmbrULStr)
 		p.Qci = qos.QCI
@@ -77,7 +77,7 @@ func TestReconcileDataNetworkSkipsUnchanged(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
 
-	qos, err := ResolveQoS(m, context.Background(), ue.imsiOrEmpty())
+	qos, err := ResolveQoS(context.Background(), m, ue.imsiOrEmpty())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestReconcileDataNetworkModifiesDNSOnly(t *testing.T) {
 	ue, cc := connectedBearerUE(t, m)
 	testPDN(ue).PdnType = eps.PDNTypeIPv4
 
-	qos, err := ResolveQoS(m, context.Background(), ue.imsiOrEmpty())
+	qos, err := ResolveQoS(context.Background(), m, ue.imsiOrEmpty())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +169,7 @@ func TestReconcileDataNetworkModifiesSessionAMBR(t *testing.T) {
 	p := testPDN(ue)
 	p.PdnType = eps.PDNTypeIPv4
 
-	qos, err := ResolveQoS(m, context.Background(), ue.imsiOrEmpty())
+	qos, err := ResolveQoS(context.Background(), m, ue.imsiOrEmpty())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +240,7 @@ func TestReconcileDataNetworkDefersAMBROnQERFailure(t *testing.T) {
 	p := testPDN(ue)
 	p.PdnType = eps.PDNTypeIPv4
 
-	qos, err := ResolveQoS(m, context.Background(), ue.imsiOrEmpty())
+	qos, err := ResolveQoS(context.Background(), m, ue.imsiOrEmpty())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +279,7 @@ func TestReconcileDataNetworkModifiesQoSViaERABModify(t *testing.T) {
 	p := testPDN(ue)
 	p.PdnType = eps.PDNTypeIPv4
 
-	qos, err := ResolveQoS(m, context.Background(), ue.imsiOrEmpty())
+	qos, err := ResolveQoS(context.Background(), m, ue.imsiOrEmpty())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +363,7 @@ func TestReconcileDataNetworkModifiesQoSAndAMBRTogether(t *testing.T) {
 	p := testPDN(ue)
 	p.PdnType = eps.PDNTypeIPv4
 
-	qos, err := ResolveQoS(m, context.Background(), ue.imsiOrEmpty())
+	qos, err := ResolveQoS(context.Background(), m, ue.imsiOrEmpty())
 	if err != nil {
 		t.Fatal(err)
 	}

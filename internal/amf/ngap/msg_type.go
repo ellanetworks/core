@@ -3,9 +3,12 @@
 
 package ngap
 
-import "github.com/free5gc/ngap/ngapType"
+import (
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
+	"github.com/free5gc/ngap/ngapType"
+)
 
-func getMessageType(pdu *ngapType.NGAPPDU) string {
+func getMessageType(pdu *ngapType.NGAPPDU) send.NGAPProcedure {
 	switch pdu.Present {
 	case ngapType.NGAPPDUPresentInitiatingMessage:
 		if pdu.InitiatingMessage != nil {
@@ -26,7 +29,7 @@ func getMessageType(pdu *ngapType.NGAPPDU) string {
 	return "UnknownMessage"
 }
 
-func getInitiatingMessageType(present int) string {
+func getInitiatingMessageType(present int) send.NGAPProcedure {
 	switch present {
 	case ngapType.InitiatingMessagePresentNothing:
 		return "Nothing"
@@ -141,7 +144,7 @@ func getInitiatingMessageType(present int) string {
 	}
 }
 
-func getSuccessfulOutcomeMessageType(present int) string {
+func getSuccessfulOutcomeMessageType(present int) send.NGAPProcedure {
 	switch present {
 	case ngapType.SuccessfulOutcomePresentNothing:
 		return "Nothing"
@@ -186,7 +189,7 @@ func getSuccessfulOutcomeMessageType(present int) string {
 	}
 }
 
-func getUnsuccessfulOutcomeMessageType(present int) string {
+func getUnsuccessfulOutcomeMessageType(present int) send.NGAPProcedure {
 	switch present {
 	case ngapType.UnsuccessfulOutcomePresentNothing:
 		return "Nothing"

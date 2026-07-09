@@ -13,24 +13,28 @@ import (
 	"go.uber.org/zap"
 )
 
-func authenticateOrReject(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
-	startAuthentication(m, ctx, ue)
+func authenticateOrReject(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
+	startAuthentication(ctx, m, ue)
 }
 
-func startAuthentication(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
+func startAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	// resyncTried scopes to one authentication exchange's consecutive synch
 	// failures, so a fresh procedure starts with a full budget (TS 24.301 §5.4.2.7).
 	ue.Conn().SetResyncTried(false)
 
-	if err := sendAuthRequest(m, ctx, ue, "", ""); err != nil {
+	// A new authentication carries an eKSI distinct from the stored one, so the UE keeps
+	// its current context usable until the new one is taken into use (TS 24.301 §5.4.2.4).
+	ue.SetEksi(mme.NextEksi(ue.Eksi()))
+
+	if err := sendAuthRequest(ctx, m, ue, "", ""); err != nil {
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: cannot authenticate subscriber", zap.String("imsi", ue.IMSI()), zap.Error(err))
-		rejectAttach(m, ctx, ue, mme.EmmCauseIMSIUnknownInHSS)
+		rejectAttach(ctx, m, ue, mme.EmmCauseIMSIUnknownInHSS)
 	}
 }
 
 // sendAuthRequest sends an AUTHENTICATION REQUEST; a set resync pair drives an
 // AUTS re-synchronisation.
-func sendAuthRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, resyncAuts, resyncRand string) error {
+func sendAuthRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, resyncAuts, resyncRand string) error {
 	op, err := m.OperatorPLMN(ctx)
 	if err != nil {
 		return err
@@ -50,7 +54,7 @@ func sendAuthRequest(m *mme.MME, ctx context.Context, ue *mme.UeContext, resyncA
 	c.AuthVector = vec
 
 	logger.From(ctx, logger.MmeLog).Info("Authentication Request")
-	c.SendGuardedMessage(ctx, "Authentication Request", &eps.AuthenticationRequest{NASKeySetIdentifier: 0, RAND: vec.RAND, AUTN: vec.AUTN[:]})
+	c.SendGuardedMessage(ctx, "Authentication Request", &eps.AuthenticationRequest{NASKeySetIdentifier: ue.Eksi(), RAND: vec.RAND, AUTN: vec.AUTN[:]})
 
 	return nil
 }

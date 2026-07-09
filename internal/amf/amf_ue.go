@@ -58,8 +58,7 @@ type UeContext struct {
 	Location models.UserLocation
 	Tai      models.Tai
 	// Updated lock-free on every UE-specific NGAP message (hot path).
-	lastSeen      atomic.Int64 // Unix nanoseconds; use lastSeenTime()/TouchLastSeen()
-	lastSeenRadio atomic.Pointer[string]
+	lastSeen atomic.Int64 // Unix nanoseconds; use lastSeenTime()/TouchLastSeen()
 
 	// handover is the in-flight N2 handover FSM (nil when none).
 	// Guarded by AMF.mu (the registry lock), not ue.mu.
@@ -238,9 +237,6 @@ func (a *AMF) attachUeConnLocked(ue *UeContext, ueConn *UeConn) *UeConn {
 
 	ue.lastSeen.Store(time.Now().UnixNano())
 
-	name := ueConn.radioName
-	ue.lastSeenRadio.Store(&name)
-
 	ue.active.Store(ueConn)
 
 	// The idle-mode supervision timers live under the registry lock held here
@@ -270,20 +266,11 @@ func (a *AMF) AttachUeConn(ue *UeContext, ueConn *UeConn) {
 	}
 }
 
+// AllocateRegistrationArea assigns the UE's registered tracking area: the whole served
+// area as a single registration area, which TS 23.501 §5.3.4 permits (the AMF may allocate
+// up to the served area, which always contains the UE's serving TAI).
 func (ue *UeContext) AllocateRegistrationArea(supportedTais []models.Tai) {
-	if len(ue.RegistrationArea) > 0 {
-		ue.RegistrationArea = nil
-	}
-
-	taiList := make([]models.Tai, len(supportedTais))
-	copy(taiList, supportedTais)
-
-	for _, supportTai := range taiList {
-		if supportTai.Equal(ue.Tai) {
-			ue.RegistrationArea = append(ue.RegistrationArea, supportTai)
-			break
-		}
-	}
+	ue.RegistrationArea = append([]models.Tai(nil), supportedTais...)
 }
 
 func (ue *UeContext) IsAllowedNssai(targetSNssai *models.Snssai) bool {
@@ -300,14 +287,10 @@ func (ue *UeContext) SecurityContextIsValid() bool {
 	return ue.secured && ue.ngKsi.Ksi != nasMessage.NasKeySetIdentifierNoKeyIsAvailable
 }
 
-// TouchLastSeen updates the UE's last-seen timestamp and radio name lock-free —
-// it is on the uplink hot path (every UE-specific NGAP message).
-func (ue *UeContext) TouchLastSeen(radioName string) {
+// TouchLastSeen updates the UE's last-seen timestamp lock-free — it is on the uplink hot
+// path (every UE-specific NGAP message).
+func (ue *UeContext) TouchLastSeen() {
 	ue.lastSeen.Store(time.Now().UnixNano())
-
-	if radioName != "" {
-		ue.lastSeenRadio.Store(&radioName)
-	}
 }
 
 // lastSeenTime returns the UE's most recent last-seen time, or the zero time
@@ -321,48 +304,30 @@ func (ue *UeContext) lastSeenTime() time.Time {
 	return time.Unix(0, ns)
 }
 
-// LastSeenRadioName returns the name of the radio the UE was last seen on, or ""
-// if it has never been seen. Safe for concurrent use.
-func (ue *UeContext) LastSeenRadioName() string {
-	if p := ue.lastSeenRadio.Load(); p != nil {
-		return *p
-	}
-
-	return ""
-}
-
-// SetLastSeenForTest sets the UE's last-seen time and radio. For tests only.
-func (ue *UeContext) SetLastSeenForTest(t time.Time, radio string) {
+// SetLastSeenForTest sets the UE's last-seen time. For tests only.
+func (ue *UeContext) SetLastSeenForTest(t time.Time) {
 	ue.lastSeen.Store(t.UnixNano())
-
-	if radio != "" {
-		ue.lastSeenRadio.Store(&radio)
-	}
 }
 
-// UESnapshot is a read-only, point-in-time copy of the UE's connection
-// state. It is safe to use from any goroutine without holding AMF or UE locks.
+// UESnapshot is a read-only, point-in-time copy of the UE's identity and NAS security
+// state, safe to use from any goroutine without holding AMF or UE locks.
 type UESnapshot struct {
-	State              StateType
 	Imei               string
+	LastSeenAt         time.Time
 	CipheringAlgorithm string
 	IntegrityAlgorithm string
-	LastSeenAt         time.Time
-	LastSeenRadio      string
 }
 
-// Snapshot returns a point-in-time copy of the UE's connection state.
+// Snapshot returns a point-in-time copy of the UE's identity and NAS security state.
 func (ue *UeContext) Snapshot() UESnapshot {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
 	snap := UESnapshot{
-		State:              ue.state,
 		Imei:               ue.Imei.IMEI(),
-		CipheringAlgorithm: ue.cipheringAlgName(),
-		IntegrityAlgorithm: ue.integrityAlgName(),
 		LastSeenAt:         ue.lastSeenTime(),
-		LastSeenRadio:      ue.LastSeenRadioName(),
+		CipheringAlgorithm: cipheringAlgName(ue.cipheringAlg),
+		IntegrityAlgorithm: integrityAlgName(ue.integrityAlg),
 	}
 
 	return snap

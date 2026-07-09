@@ -457,7 +457,7 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	sourceUe := amf.NewUeConnForTest(sourceRan, 1, sourceAmfUeNgapID, logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, models.AmfUeNgapID(sourceAmfUeNgapID), logger.AmfLog)
 	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
 	targetNGAPSender := &fakeNGAPSender{}
@@ -536,7 +536,7 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 		t.Error("expected UeConn to be switched to targetRan")
 	}
 
-	if sourceUe.RanUeNgapID != targetRanUeNgapID {
+	if sourceUe.RanUeNgapID != models.RanUeNgapID(targetRanUeNgapID) {
 		t.Errorf("expected RanUeNgapID=%d, got %d", targetRanUeNgapID, sourceUe.RanUeNgapID)
 	}
 
@@ -568,7 +568,7 @@ func TestPathSwitchRequest_RejectedWhileKeyChainBusy(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	sourceUe := amf.NewUeConnForTest(sourceRan, 1, sourceAmfUeNgapID, logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, models.AmfUeNgapID(sourceAmfUeNgapID), logger.AmfLog)
 	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
 	targetNGAPSender := &fakeNGAPSender{}
@@ -651,7 +651,7 @@ func TestPathSwitchRequest_DuplicatePDUSessionIDs(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	sourceUe := amf.NewUeConnForTest(sourceRan, 1, sourceAmfUeNgapID, logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, models.AmfUeNgapID(sourceAmfUeNgapID), logger.AmfLog)
 	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
 	targetNGAPSender := &fakeNGAPSender{}
@@ -1236,7 +1236,7 @@ func TestPathSwitchRequest_PartialFailureReleasesUnswitched(t *testing.T) {
 	// SmContext-not-found and must be reported in the released list.
 	amfUe.SmContextList[switchedID] = &amf.SmContext{Ref: "imsi-001010000000001-1", Snssai: &models.Snssai{Sst: 1}}
 
-	sourceUe := amf.NewUeConnForTest(sourceRan, 1, sourceAmfUeNgapID, logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, models.AmfUeNgapID(sourceAmfUeNgapID), logger.AmfLog)
 	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
 	targetNGAPSender := &fakeNGAPSender{}

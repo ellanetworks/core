@@ -20,7 +20,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 	}
 
 	ueConn.TouchLastSeen()
-	logger.WithTrace(ctx, ueConn.Log).Debug("Handle UE Context Release Request", zap.Int64("AmfUeNgapID", ueConn.AmfUeNgapID), zap.Int64("RanUeNgapID", ueConn.RanUeNgapID))
+	logger.WithTrace(ctx, ueConn.Log).Debug("Handle UE Context Release Request", zap.Int64("AmfUeNgapID", int64(ueConn.AmfUeNgapID)), zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)))
 
 	causeGroup := ngapType.CausePresentRadioNetwork
 	causeValue := ngapType.CauseRadioNetworkPresentUnspecified

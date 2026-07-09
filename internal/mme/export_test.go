@@ -89,8 +89,8 @@ func TestExportUEs(t *testing.T) {
 		}
 	}
 
-	if e.RANConnection == nil || e.RANConnection.ENBName != "enb-a" {
-		t.Errorf("RANConnection = %+v, want ENBName enb-a", e.RANConnection)
+	if e.RANConnection == nil || e.RANConnection.RadioName != "enb-a" {
+		t.Errorf("RANConnection = %+v, want RadioName enb-a", e.RANConnection)
 	}
 
 	if want := int64(T3412PeriodicTAU / time.Second); e.Timers.T3412ValueSeconds != want {

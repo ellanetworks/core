@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -54,10 +55,10 @@ func HandleNGReset(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, ms
 		for _, ueAssociatedLogicalNGConnectionItem := range partOfNGInterface.List {
 			if ueAssociatedLogicalNGConnectionItem.AMFUENGAPID != nil {
 				logger.WithTrace(ctx, ran.Log).Debug("NG Reset with AMFUENGAPID", zap.Int64("AmfUeNgapID", ueAssociatedLogicalNGConnectionItem.AMFUENGAPID.Value))
-				ueConn = amfInstance.FindUEByAmfUeNgapID(ran, ueAssociatedLogicalNGConnectionItem.AMFUENGAPID.Value)
+				ueConn = amfInstance.FindUEByAmfUeNgapID(ran, models.AmfUeNgapID(ueAssociatedLogicalNGConnectionItem.AMFUENGAPID.Value))
 			} else if ueAssociatedLogicalNGConnectionItem.RANUENGAPID != nil {
 				logger.WithTrace(ctx, ran.Log).Debug("NG Reset with RANUENGAPID", zap.Int64("RanUeNgapID", ueAssociatedLogicalNGConnectionItem.RANUENGAPID.Value))
-				ueConn = amfInstance.FindUEByRanUeNgapID(ran, ueAssociatedLogicalNGConnectionItem.RANUENGAPID.Value)
+				ueConn = amfInstance.FindUEByRanUeNgapID(ran, models.RanUeNgapID(ueAssociatedLogicalNGConnectionItem.RANUENGAPID.Value))
 			}
 
 			if ueConn == nil {
