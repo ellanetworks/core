@@ -54,6 +54,8 @@ const (
 	idENBStatusTransferTransparentContainer     ProtocolIEID = 90
 	idSourceToTargetTransparentContainer        ProtocolIEID = 104
 	idTargetToSourceTransparentContainer        ProtocolIEID = 123
+	idSONConfigurationTransferECT               ProtocolIEID = 129
+	idSONConfigurationTransferMCT               ProtocolIEID = 130
 	idSecurityKey                               ProtocolIEID = 73
 	idUERadioCapability                         ProtocolIEID = 74
 	idGUMMEI                                    ProtocolIEID = 75

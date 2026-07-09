@@ -50,6 +50,20 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, pla
 		return nasreply.Handled()
 	}
 
+	// The UE's serving cell must be in this MME's served area. The S1 Setup gate
+	// accepts an eNB broadcasting any served TAI, so a UE camped on an unserved TAC
+	// of an otherwise-served eNB is caught only here (TS 24.301 §5.5.1.2.5, EMM #12).
+	if served, err := m.ServesTAI(ctx, ue.Conn().ServingTAI); err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to evaluate serving TAI for attach", zap.Error(err))
+		return nasreply.Handled()
+	} else if !served {
+		logger.From(ctx, logger.MmeLog).Info("Attach rejected [Tracking area not allowed]",
+			zap.Uint32("mme-ue-id", uint32(ue.Conn().MMEUES1APID)))
+		rejectAttach(ctx, m, ue, mme.EmmCauseTrackingAreaNotAllowed)
+
+		return nasreply.Handled()
+	}
+
 	// An Attach without verified integrity is replayed to the UE as a HashMME in
 	// the SECURITY MODE COMMAND, so the UE can detect tampering (TS 24.301 §5.4.3.2).
 	if integrityVerified {

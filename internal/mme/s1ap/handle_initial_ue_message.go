@@ -39,6 +39,8 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		return
 	}
 
+	c.ServingTAI = msg.TAI
+
 	logger.From(ctx, c.Log).Info("Initial UE Message",
 		zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)),
 	)

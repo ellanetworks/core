@@ -42,6 +42,11 @@ type UeConn struct {
 	// attached to a context). Guarded by MME.mu.
 	ue *UeContext
 
+	// ServingTAI is the UE's serving-cell TAI from its INITIAL UE MESSAGE (the eNB's
+	// User Location, TS 36.413), gating attach against the operator's served area
+	// (EMM cause #12). Dispatch-confined, set once when the connection is created.
+	ServingTAI s1ap.TAI
+
 	m *MME
 
 	// ICS is the S1AP Initial Context Setup progress: it distinguishes a

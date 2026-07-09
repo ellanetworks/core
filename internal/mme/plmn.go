@@ -4,12 +4,42 @@
 package mme
 
 import (
+	"context"
 	"fmt"
+	"slices"
 
 	"github.com/ellanetworks/core/internal/models"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/s1ap"
 )
+
+// ServesTAI reports whether tai — a UE's serving-cell TAI — is one this MME serves:
+// its PLMN is the operator PLMN and its TAC is an operator E-UTRAN TAC. It is the
+// per-UE serving-area gate behind EMM cause #12 (TS 24.301 §5.5.1.2.5), finer than
+// the node-level S1 Setup gate, which accepts an eNB that broadcasts any served TAI
+// even when it also broadcasts an unserved one.
+func (m *MME) ServesTAI(ctx context.Context, tai s1ap.TAI) (bool, error) {
+	plmn, err := m.OperatorPLMN(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	served, err := EncodePLMN(plmn)
+	if err != nil {
+		return false, err
+	}
+
+	if tai.PLMNIdentity != served {
+		return false, nil
+	}
+
+	tacs, err := m.OperatorTACs(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	return slices.Contains(tacs, uint16(tai.TAC)), nil
+}
 
 // EncodePLMN encodes an MCC/MNC pair into the 3-octet TBCD PLMN identity
 // (TS 23.003).
