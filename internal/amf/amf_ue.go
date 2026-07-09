@@ -67,10 +67,6 @@ type UeContext struct {
 
 	smf SmfSbi
 
-	// ctx is the per-registration context; the connection's ctx is a child of it.
-	ctx    context.Context
-	cancel context.CancelFunc
-
 	// active is the UE's single connection object (UeConn = NAS N1 + RAN N2), nil in
 	// CM-IDLE. Atomic so the hot-path read is lock-free; swapped on bind/release/handover.
 	active atomic.Pointer[UeConn]
@@ -122,6 +118,13 @@ type UeContext struct {
 	// §5.4.3). It is per-UE and persistent — paging targets a UE with no NAS
 	// connection, and it survives the idle→connected transition.
 	pagingTimer guard.Guard
+
+	// n1n2Message buffers an SMF-pushed N1N2 message awaiting delivery to an idle
+	// UE. Like pagingTimer it lives on the persistent UeContext — the message is
+	// stored precisely while the UE has no connection, and is read/cleared on the
+	// new connection established when the UE answers paging. Atomic: written on the
+	// SMF push path, read/cleared on the reconnect goroutine.
+	n1n2Message atomic.Pointer[models.N1N2MessageTransferRequest]
 }
 
 func NewUeContext() *UeContext {
@@ -133,8 +136,6 @@ func NewUeContext() *UeContext {
 		tmsi:             etsi.InvalidTMSI,
 		oldTmsi:          etsi.InvalidTMSI,
 	}
-
-	ue.ctx, ue.cancel = context.WithCancel(context.Background()) // #nosec G118 -- cancel stored on ue.cancel, called in AMF.DeregisterAndRemoveUeContext
 
 	return ue
 }
@@ -152,14 +153,12 @@ func (ue *UeContext) Procedures() *procedure.Registry {
 
 // BeginKeyChainProc claims a key-changing procedure via the registry, returning false if
 // a conflicting one is active. Nil-safe for bare test contexts.
-func (ue *UeContext) BeginKeyChainProc(ctx context.Context, t procedure.Type) bool {
+func (ue *UeContext) BeginKeyChainProc(t procedure.Type) bool {
 	if ue.procedures == nil {
 		return true
 	}
 
-	_, err := ue.procedures.Begin(ctx, procedure.Procedure{Type: t})
-
-	return err == nil
+	return ue.procedures.Begin(t) == nil
 }
 
 // EndKeyChainProc releases a key-changing procedure claim. A no-op if t is not active,
@@ -170,19 +169,23 @@ func (ue *UeContext) EndKeyChainProc(t procedure.Type) {
 	}
 }
 
-// SuperviseKeyChainProc arms the registry's supervision timeout on an already-begun
-// key-chain procedure; cancel runs once at the deadline while the procedure is still
-// active (registry-id staleness). A no-op on a bare test context.
-func (ue *UeContext) SuperviseKeyChainProc(ctx context.Context, t procedure.Type, deadline time.Time, cancel func(context.Context) error) {
-	if ue.procedures != nil {
-		_ = ue.procedures.Supervise(ctx, t, deadline, cancel)
-	}
+// endKeyChainProcs ends whichever key-changing procedure is active, aborting it on
+// lower-layer failure (TS 24.501 §5.3.1.2: NAS procedures are aborted when the N1 NAS
+// signalling connection is released). They are mutually exclusive, so at most one is
+// ended. For release paths that do not track which procedure holds the chain.
+func (ue *UeContext) endKeyChainProcs() {
+	ue.EndKeyChainProc(procedure.SecurityMode)
+	ue.EndKeyChainProc(procedure.N2Handover)
+	ue.EndKeyChainProc(procedure.PathSwitch)
 }
 
-// Ctx returns the per-registration context. NAS connection contexts derive
-// from it; it is cancelled and replaced when the 5GMM context is rotated.
-func (ue *UeContext) Ctx() context.Context {
-	return ue.ctx
+// SuperviseKeyChainProc arms the registry's supervision timeout on an already-begun
+// key-chain procedure; cancel runs once at the deadline while the procedure is still
+// active. A no-op on a bare test context.
+func (ue *UeContext) SuperviseKeyChainProc(t procedure.Type, deadline time.Time, cancel func(context.Context) error) {
+	if ue.procedures != nil {
+		_ = ue.procedures.Supervise(t, deadline, cancel)
+	}
 }
 
 // Conn returns the UE's currently attached connection (NAS N1 + RAN N2 in one
@@ -197,6 +200,22 @@ func (ue *UeContext) Conn() *UeConn {
 	return ue.active.Load()
 }
 
+// N1N2Message returns the SMF-pushed N1N2 message buffered for an idle UE, or nil.
+// Capture the result in a local and reuse it — it may be cleared concurrently.
+func (ue *UeContext) N1N2Message() *models.N1N2MessageTransferRequest {
+	return ue.n1n2Message.Load()
+}
+
+// SetN1N2Message buffers an SMF-pushed N1N2 message for delivery when the idle UE reconnects.
+func (ue *UeContext) SetN1N2Message(m *models.N1N2MessageTransferRequest) {
+	ue.n1n2Message.Store(m)
+}
+
+// ClearN1N2Message discards the buffered N1N2 message once delivered or no longer deliverable.
+func (ue *UeContext) ClearN1N2Message() {
+	ue.n1n2Message.Store(nil)
+}
+
 // attachUeConnLocked binds ueConn as ue's active connection, defuses idle-mode
 // supervision, and returns the displaced previous connection (nil if none) so the caller
 // can release it outside the registry lock. Caller holds amf.mu: the whole connection
@@ -206,12 +225,6 @@ func (a *AMF) attachUeConnLocked(ue *UeContext, ueConn *UeConn) *UeConn {
 	oldUeConn := ue.active.Load()
 
 	ueConn.ue = ue
-
-	// Child of the per-registration ctx; Release cancels it, unwinding this connection's
-	// supervised procedures/RPCs.
-	if ueConn.ctx == nil {
-		ueConn.ctx, ueConn.cancel = context.WithCancel(ue.ctx) // #nosec G118 -- cancel stored on ueConn.cancel, called in UeConn.Release
-	}
 
 	var displaced *UeConn
 
@@ -675,6 +688,7 @@ func (a *AMF) ReleaseNasConnection(ue *UeContext, target *UeConn) {
 		return
 	}
 
+	ue.endKeyChainProcs()
 	ue.StopProcedureTimers()
 
 	detached.Release()
@@ -704,7 +718,7 @@ func (a *AMF) detachUeConnLocked(ue *UeContext, target *UeConn) *UeConn {
 
 // stopAllTimersLocked stops the paging timer on the 5GMM context. Caller must
 // hold ue.Mutex. Idle-mode timers live under the registry lock (see ue_timers.go);
-// procedure retransmission timers are torn down via NAS-connection ctx cancellation.
+// procedure supervision timers are stopped when the procedure is ended on release.
 func (ue *UeContext) stopAllTimersLocked() {
 	ue.pagingTimer.Stop()
 }

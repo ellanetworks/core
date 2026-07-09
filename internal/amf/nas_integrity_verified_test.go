@@ -195,7 +195,7 @@ func TestDecodeNASMessage_MacFailedDoesNotAdvanceULCount(t *testing.T) {
 	before := ue.ulCount.Value()
 
 	if _, err := DecodeNASMessage(ue, bad); err != nil {
-		t.Fatalf("a mac-failed registration request must be admitted (VerdictMacFailedAllowed): %v", err)
+		t.Fatalf("a mac-failed registration request must be admitted (on the pre-secure-exchange whitelist): %v", err)
 	}
 
 	if ue.ulCount.Value() != before {

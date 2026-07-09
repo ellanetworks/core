@@ -218,7 +218,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		return
 	}
 
-	if requestData := conn.N1N2Message(); requestData != nil {
+	if requestData := ue.N1N2Message(); requestData != nil {
 		if requestData.BinaryDataN2Information != nil {
 			targetPduSessionID = requestData.PduSessionID
 		}
@@ -281,7 +281,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	case nasMessage.ServiceTypeMobileTerminatedServices:
 		// TS 24.501 requires assigning a new GUTI after a successful Service Request
 		// triggered by a paging request.
-		if requestData := conn.N1N2Message(); requestData != nil {
+		if requestData := ue.N1N2Message(); requestData != nil {
 			n1Msg := requestData.BinaryDataN1Message
 			n2Info := requestData.BinaryDataN2Information
 
@@ -296,11 +296,11 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 				logger.From(ctx, logger.AmfLog).Info("sent downlink nas transport message")
 
-				conn.ClearN1N2Message()
+				ue.ClearN1N2Message()
 			} else {
 				_, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
 				if !exist {
-					conn.ClearN1N2Message()
+					ue.ClearN1N2Message()
 					logger.From(ctx, logger.AmfLog).Warn("service Request triggered by Network for pduSessionID that does not exist")
 
 					return
@@ -361,7 +361,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		logger.From(ctx, logger.AmfLog).Info("", zap.Any("errPduSessionID", errPduSessionID), zap.Any("errCause", errCause))
 	}
 
-	conn.ClearN1N2Message()
+	ue.ClearN1N2Message()
 }
 
 // rejectService answers a service request the AMF cannot accept with a SERVICE REJECT

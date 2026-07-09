@@ -746,7 +746,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
-	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1})
+	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1})
 
 	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Value(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
@@ -812,7 +812,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
-	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai})
+	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai})
 
 	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Value(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
@@ -948,7 +948,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
-	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}})
+	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}})
 
 	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Value(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
@@ -1088,7 +1088,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
-	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}})
+	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}})
 
 	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Value(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
@@ -1239,7 +1239,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
-	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}})
+	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}})
 	ue.Conn().UeContextRequest = true
 
 	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCountForTest().Value(), nasMessage.ServiceTypeMobileTerminatedServices)
@@ -1382,7 +1382,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		t.Fatalf("could not build N1 message: %v", err)
 	}
 
-	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{
+	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
 		PduSessionID:        1,
 		SNssai:              &snssai,
 		BinaryDataN1Message: n1msg,

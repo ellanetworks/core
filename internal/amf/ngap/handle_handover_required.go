@@ -43,7 +43,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	if !conn.Parent().BeginKeyChainProc(conn.Ctx(), procedure.N2Handover) {
+	if !conn.Parent().BeginKeyChainProc(procedure.N2Handover) {
 		logger.WithTrace(ctx, sourceUe.Log).Info("N2Handover rejected by procedure registry")
 		return
 	}
@@ -205,7 +205,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	// this setup.
 	// Supervise cannot fail here: N2Handover was begun above and is still active, so the
 	// registry always arms the deadline.
-	conn.Parent().SuperviseKeyChainProc(conn.Ctx(), procedure.N2Handover,
+	conn.Parent().SuperviseKeyChainProc(procedure.N2Handover,
 		time.Now().Add(amfInstance.HandoverGuardTimeout()),
 		handoverGuardExpiry(amfInstance, sourceUe, targetUe))
 
@@ -213,11 +213,11 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 }
 
 // handoverGuardExpiry abandons a stalled N2 handover when the supervision deadline
-// elapses (or the source NAS connection is cancelled) before HANDOVER NOTIFY arrives.
-// The half-prepared target UE context is released; the source is left in place (its
-// own TNGRELOCprep/Overall timers abort the handover on the radio) (TS 38.413). A
-// normal completion ends the procedure, stopping this timer before it can fire, so
-// the captured target is touched by at most one goroutine.
+// elapses before HANDOVER NOTIFY arrives. The half-prepared target UE context is
+// released; the source is left in place (its own TNGRELOCprep/Overall timers abort the
+// handover on the radio) (TS 38.413). A normal completion ends the procedure, stopping
+// this timer before it can fire, so the captured target is touched by at most one
+// goroutine.
 func handoverGuardExpiry(amfInstance *amf.AMF, sourceUe, targetUe *amf.UeConn) func(context.Context) error {
 	return func(cctx context.Context) error {
 		logger.WithTrace(cctx, sourceUe.Log).Warn("N2 handover abandoned: target gNB did not complete it in time, releasing target")

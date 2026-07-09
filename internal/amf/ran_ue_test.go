@@ -63,8 +63,7 @@ func TestReleaseNasConnection_AbortsProcedures(t *testing.T) {
 	radio := newTestRadioForUeConn()
 	ue, ueConn := newBoundUeContext(t, radio)
 
-	conn := ue.Conn()
-	if _, err := ue.Procedures().Begin(conn.Ctx(), procedure.Procedure{Type: procedure.SecurityMode}); err != nil {
+	if err := ue.Procedures().Begin(procedure.SecurityMode); err != nil {
 		t.Fatalf("begin Authentication: %v", err)
 	}
 
@@ -100,8 +99,7 @@ func TestReleaseNasConnection_AbortsSecurityMode(t *testing.T) {
 	radio := newTestRadioForUeConn()
 	ue, ueConn := newBoundUeContext(t, radio)
 
-	conn := ue.Conn()
-	if _, err := ue.Procedures().Begin(conn.Ctx(), procedure.Procedure{Type: procedure.SecurityMode}); err != nil {
+	if err := ue.Procedures().Begin(procedure.SecurityMode); err != nil {
 		t.Fatalf("begin SecurityMode: %v", err)
 	}
 
@@ -121,8 +119,7 @@ func TestReleaseNasConnection_AfterRebind_IsNoop(t *testing.T) {
 
 	targetUeConn := amf.NewUeConnForTest(radio, 2, 20, logger.AmfLog)
 
-	conn := ue.Conn()
-	if _, err := ue.Procedures().Begin(conn.Ctx(), procedure.Procedure{Type: procedure.N2Handover}); err != nil {
+	if err := ue.Procedures().Begin(procedure.N2Handover); err != nil {
 		t.Fatalf("begin N2Handover: %v", err)
 	}
 
@@ -159,8 +156,7 @@ func TestRemoveAllUeInRan_AbortsProcedures(t *testing.T) {
 	radio := newTestRadioForUeConn()
 	ue, _ := newBoundUeContext(t, radio)
 
-	conn := ue.Conn()
-	if _, err := ue.Procedures().Begin(conn.Ctx(), procedure.Procedure{Type: procedure.SecurityMode}); err != nil {
+	if err := ue.Procedures().Begin(procedure.SecurityMode); err != nil {
 		t.Fatalf("begin SecurityMode: %v", err)
 	}
 

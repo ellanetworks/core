@@ -26,7 +26,10 @@ func TestInitialUEMessageResumeMacFailedTAURejects(t *testing.T) {
 	}
 
 	group, code := m.MmeIdentity()
-	m.ReallocateGUTI(ue, plmn, group, code)
+	if _, err := m.ReallocateGUTI(t.Context(), ue, plmn, group, code); err != nil {
+		t.Fatal(err)
+	}
+
 	mtmsi := ue.TmsiForTest()
 
 	tau, err := (&eps.TrackingAreaUpdateRequest{EPSUpdateType: 3}).Marshal() // periodic
@@ -91,7 +94,10 @@ func TestInitialUEMessageResumeVerifiedBindsAndDispatches(t *testing.T) {
 	}
 
 	group, code := m.MmeIdentity()
-	m.ReallocateGUTI(ue, plmn, group, code)
+	if _, err := m.ReallocateGUTI(t.Context(), ue, plmn, group, code); err != nil {
+		t.Fatal(err)
+	}
+
 	mtmsi := ue.TmsiForTest()
 
 	tau, err := (&eps.TrackingAreaUpdateRequest{EPSUpdateType: 3}).Marshal() // periodic

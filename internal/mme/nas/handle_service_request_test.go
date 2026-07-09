@@ -25,7 +25,12 @@ func idleRegisteredUE(t *testing.T, m *mme.MME) (*mme.UeContext, eps.EPSMobileId
 	ue, _ := securedUE(t, m)
 	ue.UeNetCap = eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal()
 	testPDN(ue).SgwFTEID = testSGWFTEID // S-GW S1-U persists across idle, as after a real attach
-	guti := m.ReallocateGUTI(ue, models.PlmnID{Mcc: "001", Mnc: "01"}, 1, 1)
+
+	guti, err := m.ReallocateGUTI(t.Context(), ue, models.PlmnID{Mcc: "001", Mnc: "01"}, 1, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	m.FreeUeConn(ue)
 
 	return ue, guti

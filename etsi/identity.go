@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -17,6 +18,15 @@ import (
 )
 
 var maxMsbValue = big.NewInt(0x003FFFFF)
+
+// ErrTMSIPoolExhausted is returned when Allocate cannot find a free TMSI within
+// maxAllocateAttempts.
+var ErrTMSIPoolExhausted = errors.New("TMSI pool exhausted")
+
+// maxAllocateAttempts bounds the collision-retry loop so a saturated pool fails
+// deterministically instead of spinning. Far above any realistic occupancy of the
+// ~2^32 TMSI space, so it only fires on true exhaustion.
+const maxAllocateAttempts = 1 << 16
 
 // GUTI5G is a 5G Globally Unique Temporary Identity (5G-GUTI).
 type GUTI5G struct {
@@ -133,9 +143,10 @@ func NewTMSIAllocator() *TmsiAllocator {
 	return &ta
 }
 
-// Allocate returns a fresh unique TMSI, or ctx.Err() if the context expires first.
+// Allocate returns a fresh unique TMSI, ctx.Err() if the context expires first, or
+// ErrTMSIPoolExhausted if no free TMSI is found within maxAllocateAttempts.
 func (ta *TmsiAllocator) Allocate(ctx context.Context) (TMSI, error) {
-	for {
+	for attempt := 0; attempt < maxAllocateAttempts; attempt++ {
 		select {
 		case <-ctx.Done():
 			return InvalidTMSI, ctx.Err()
@@ -166,6 +177,8 @@ func (ta *TmsiAllocator) Allocate(ctx context.Context) (TMSI, error) {
 
 		return t, nil
 	}
+
+	return InvalidTMSI, ErrTMSIPoolExhausted
 }
 
 // Free returns the TMSI to the pool.
@@ -174,6 +187,14 @@ func (ta *TmsiAllocator) Free(t TMSI) {
 	defer ta.Unlock()
 
 	delete(ta.allocated, t)
+}
+
+// IsAllocated reports whether t is currently held by the allocator.
+func (ta *TmsiAllocator) IsAllocated(t TMSI) bool {
+	ta.Lock()
+	defer ta.Unlock()
+
+	return ta.allocated[t]
 }
 
 func (ta *TmsiAllocator) tryAllocate(t TMSI) bool {

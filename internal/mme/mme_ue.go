@@ -23,14 +23,12 @@ import (
 // BeginKeyChainProc claims the {NH, NCC} key chain for a key-changing procedure of
 // type t via the procedure registry, returning false if another is already
 // advancing it. Nil-safe for bare test contexts.
-func (ue *UeContext) BeginKeyChainProc(ctx context.Context, t procedure.Type) bool {
+func (ue *UeContext) BeginKeyChainProc(t procedure.Type) bool {
 	if ue.procedures == nil {
 		return true
 	}
 
-	_, err := ue.procedures.Begin(ctx, procedure.Procedure{Type: t})
-
-	return err == nil
+	return ue.procedures.Begin(t) == nil
 }
 
 // EndKeyChainProc releases a key-changing procedure claim. A no-op if t is not
@@ -44,9 +42,9 @@ func (ue *UeContext) EndKeyChainProc(t procedure.Type) {
 // SuperviseKeyChainProc arms the registry's supervision timeout on an already-begun
 // key-chain procedure: cancel runs once at the deadline, and only while the procedure
 // is still active. A no-op on a bare test context with no registry.
-func (ue *UeContext) SuperviseKeyChainProc(ctx context.Context, t procedure.Type, deadline time.Time, cancel func(context.Context) error) {
+func (ue *UeContext) SuperviseKeyChainProc(t procedure.Type, deadline time.Time, cancel func(context.Context) error) {
 	if ue.procedures != nil {
-		_ = ue.procedures.Supervise(ctx, t, deadline, cancel)
+		_ = ue.procedures.Supervise(t, deadline, cancel)
 	}
 }
 

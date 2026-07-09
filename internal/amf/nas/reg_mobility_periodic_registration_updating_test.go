@@ -577,7 +577,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 		Len:    2,
 		Buffer: []uint8{0x04, 0x00},
 	}
-	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{
+	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
 		BinaryDataN1Message:     []byte{0x01, 0x02},
 		BinaryDataN2Information: nil,
@@ -608,7 +608,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 		t.Fatalf("expected DLNASTransport, got %v", nmDL.GmmHeader.GetMessageType())
 	}
 
-	if ue.Conn().N1N2Message() != nil {
+	if ue.N1N2Message() != nil {
 		t.Fatal("expected N1N2Message to be nil after processing")
 	}
 }
@@ -622,7 +622,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 		Len:    2,
 		Buffer: []uint8{0x04, 0x00},
 	}
-	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{
+	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
 		BinaryDataN1Message:     []byte{0x01, 0x02},
 		BinaryDataN2Information: nil,
@@ -649,7 +649,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 		t.Fatalf("expected DLNASTransport in second DLNASTransport, got %v", nmN1.GmmHeader.GetMessageType())
 	}
 
-	if ue.Conn().N1N2Message() != nil {
+	if ue.N1N2Message() != nil {
 		t.Fatal("expected N1N2Message to be nil after processing")
 	}
 }
@@ -663,7 +663,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_MissingSmContext(t 
 	}
 
 	// N1N2 with N2Info, but no amf.SmContext for PduSessionID 3
-	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{
+	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
 		BinaryDataN1Message:     []byte{0x01, 0x02},
 		BinaryDataN2Information: []byte{0x03, 0x04},
@@ -687,7 +687,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 		Buffer: []uint8{0x08, 0x00}, // PSI 3
 	}
 
-	ue.Conn().SetN1N2Message(&models.N1N2MessageTransferRequest{
+	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
 		SNssai:                  snssai,
 		BinaryDataN1Message:     []byte{0x01, 0x02},
