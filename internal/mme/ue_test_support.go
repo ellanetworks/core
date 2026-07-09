@@ -4,7 +4,6 @@
 package mme
 
 import (
-	"context"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
@@ -125,7 +124,7 @@ func (ue *UeContext) ActiveProceduresForTest() []string {
 // chain (v true, as a Path Switch) or releasing it (v false).
 func (ue *UeContext) SetKeyChainBusyForTest(v bool) {
 	if v {
-		ue.BeginKeyChainProc(context.Background(), procedure.PathSwitch)
+		ue.BeginKeyChainProc(procedure.PathSwitch)
 	} else {
 		ue.clearKeyChainProc()
 	}

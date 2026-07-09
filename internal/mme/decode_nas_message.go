@@ -84,7 +84,7 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 			return nil, silentDecode(nasreply.ReasonIntegrityFail, "plain NAS discarded: secure exchange established (TS 24.301 §4.4.4.3)")
 		}
 
-		if classifyNasPdu(mt, securityHeader, false) != verdictPlainAllowed {
+		if !plainNasAllowed(mt) {
 			logger.MmeLog.Warn("discarding plain NAS message not permitted without integrity (TS 24.301 §4.4.4.3)",
 				zap.String("message", EmmMessageTypeName(mt)))
 
@@ -153,7 +153,7 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	// fails, but only before secure exchange is established (no usable security
 	// context, e.g. a fresh context after an MME restart). The subscriber is
 	// authenticated before the procedure is progressed.
-	if classifyNasPdu(mt, securityHeader, false) != verdictMacFailedAllowed {
+	if !plainNasAllowed(mt) {
 		logger.MmeLog.Warn("NAS integrity check failed",
 			zap.Error(err),
 			zap.String("attempted-message", EmmMessageTypeName(mt)),

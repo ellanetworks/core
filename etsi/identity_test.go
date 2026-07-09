@@ -66,6 +66,24 @@ func TestTMSIAllocator_AllocateBalanceLSB(t *testing.T) {
 	}
 }
 
+// TestTMSIAllocator_CanceledContext verifies Allocate returns the context error
+// promptly rather than spinning when its context is already canceled.
+func TestTMSIAllocator_CanceledContext(t *testing.T) {
+	ta := etsi.NewTMSIAllocator()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	tmsi, err := ta.Allocate(ctx)
+	if err == nil {
+		t.Fatal("expected an error from a canceled context")
+	}
+
+	if tmsi != etsi.InvalidTMSI {
+		t.Fatalf("expected InvalidTMSI on failure, got %v", tmsi)
+	}
+}
+
 func BenchmarkTMSIAllocation(b *testing.B) {
 	counts := []int{100, 1000, 10000, 100000, 1000000}
 

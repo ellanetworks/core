@@ -169,7 +169,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	}
 
 	if conn.RegistrationRequest.AllowedPDUSessionStatus != nil {
-		if requestData := conn.N1N2Message(); requestData != nil {
+		if requestData := ue.N1N2Message(); requestData != nil {
 			n1Msg := requestData.BinaryDataN1Message
 			n2Info := requestData.BinaryDataN2Information
 
@@ -208,14 +208,14 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 				amf.SendDLNASTransport(ctx, ueConn, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
 
-				conn.ClearN1N2Message()
+				ue.ClearN1N2Message()
 
 				return
 			}
 
 			_, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
 			if !exist {
-				conn.ClearN1N2Message()
+				ue.ClearN1N2Message()
 				// UE referenced a PDU session id it holds no context for; release the
 				// half-updated registration to avoid leaking it.
 				abortRegistration(ctx, amfInstance, ue, "UE referenced unknown PDU session id", nil)

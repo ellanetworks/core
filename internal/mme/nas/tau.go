@@ -161,7 +161,11 @@ func trackingAreaUpdateAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext
 	}
 
 	mmeGroupID, mmeCode := m.MmeIdentity()
-	guti := m.ReallocateGUTI(ue, plmn, mmeGroupID, mmeCode)
+
+	guti, err := m.ReallocateGUTI(ctx, ue, plmn, mmeGroupID, mmeCode)
+	if err != nil {
+		return nil, err
+	}
 
 	accept := &eps.TrackingAreaUpdateAccept{
 		EPSUpdateResult: eps.EPSUpdateResultTA,

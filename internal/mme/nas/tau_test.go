@@ -174,7 +174,10 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 	}
 
 	group, code := m.MmeIdentity()
-	m.ReallocateGUTI(ue, plmn, group, code)
+	if _, err := m.ReallocateGUTI(t.Context(), ue, plmn, group, code); err != nil {
+		t.Fatal(err)
+	}
+
 	oldMTMSI := ue.TmsiForTest()
 
 	handleTrackingAreaUpdate(m, context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x03}) // periodic

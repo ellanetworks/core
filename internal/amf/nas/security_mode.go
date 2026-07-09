@@ -56,7 +56,7 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 	// Claim the security mode procedure before deriving keys, so a conflicting
 	// key-changing procedure (e.g. an in-flight N2 handover) blocks the re-key
 	// before the security context is mutated (TS 33.501 §6.9.5.1).
-	if !conn.Parent().BeginKeyChainProc(conn.Ctx(), procedure.SecurityMode) {
+	if !conn.Parent().BeginKeyChainProc(procedure.SecurityMode) {
 		logger.From(ctx, logger.AmfLog).Warn("security mode blocked by a conflicting key-changing procedure")
 		return
 	}

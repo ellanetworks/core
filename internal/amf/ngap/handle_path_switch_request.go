@@ -88,7 +88,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	// NAS SMC (possibly on another gNB's dispatch goroutine) must not advance the same
 	// chain in parallel (TS 33.501 §6.9.5). Claimed before the SMF is touched so a rejected
 	// path switch changes nothing. Path switch is synchronous, so hold until return.
-	if !amfUe.BeginKeyChainProc(ctx, procedure.PathSwitch) {
+	if !amfUe.BeginKeyChainProc(procedure.PathSwitch) {
 		logger.WithTrace(ctx, ueConn.Log).Warn("Path Switch rejected: a key-changing procedure is in progress")
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnspecified)
 

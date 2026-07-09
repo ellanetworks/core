@@ -30,7 +30,7 @@ func TestSecurityMode_BlockedByConflict(t *testing.T) {
 	}
 
 	// An in-flight N2 handover holds the key-changing mutual exclusion.
-	if _, err := conn.Parent().Procedures().Begin(conn.Ctx(), procedure.Procedure{Type: procedure.N2Handover}); err != nil {
+	if err := conn.Parent().Procedures().Begin(procedure.N2Handover); err != nil {
 		t.Fatalf("start N2 handover: %v", err)
 	}
 

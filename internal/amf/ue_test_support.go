@@ -123,6 +123,9 @@ func (ue *UeContext) SupiForTest() etsi.SUPI     { return ue.supi }
 func (ue *UeContext) SetGutiForTest(g etsi.GUTI5G) { ue.tmsi = g.Tmsi }
 func (ue *UeContext) TmsiForTest() etsi.TMSI       { return ue.tmsi }
 
+// TmsiInUseForTest reports whether the allocator still holds t.
+func (a *AMF) TmsiInUseForTest(t etsi.TMSI) bool { return a.tmsi.IsAllocated(t) }
+
 // AssignGutiForTest stores the GUTI's 5G-TMSI on ue and indexes it for resolution.
 func (a *AMF) AssignGutiForTest(ue *UeContext, guti etsi.GUTI5G) {
 	a.mu.Lock()
