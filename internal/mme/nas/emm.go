@@ -18,21 +18,21 @@ import (
 
 // HandleNAS is the MME's EMM entry point for an inbound NAS message on a UE
 // connection.
-func HandleNAS(m *mme.MME, ctx context.Context, conn *mme.UeConn, nas []byte) {
-	dispositionForNAS(m, ctx, conn, nas).Finalize(ctx, egress{conn: conn})
+func HandleNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, nas []byte) {
+	dispositionForNAS(ctx, m, conn, nas).Finalize(ctx, egress{conn: conn})
 }
 
 // dispositionForNAS resolves an inbound NAS PDU to the single outcome the finalizer applies:
 // a message the MME cannot process draws the STATUS the spec mandates or an audited silence,
 // never a bare drop.
-func dispositionForNAS(m *mme.MME, ctx context.Context, conn *mme.UeConn, nas []byte) nasreply.Disposition {
+func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, nas []byte) nasreply.Disposition {
 	ue := conn.UeContext()
 	if ue == nil {
 		// A bare connection binds a persistent context only for an ATTACH REQUEST —
 		// the only message warranting one (TS 24.301) — so an unauthenticated peer
 		// cannot exhaust UE contexts. A connection left bare here is released by the
 		// S1AP layer.
-		if !isInitialAttach(nas) {
+		if !isAttachRequest(nas) {
 			return nasreply.Silent(nasreply.ReasonNoContext)
 		}
 
@@ -44,7 +44,7 @@ func dispositionForNAS(m *mme.MME, ctx context.Context, conn *mme.UeConn, nas []
 	// that verifies against a held EPS security context adopts it before decode, so
 	// everything below runs on the right context.
 	if !ue.Secured() {
-		resolved, drop := resolveAttachContext(m, ctx, ue, nas)
+		resolved, drop := resolveAttachContext(ctx, m, ue, nas)
 		if drop {
 			return nasreply.Silent(nasreply.ReasonUnspecified)
 		}
@@ -72,14 +72,14 @@ func dispositionForNAS(m *mme.MME, ctx context.Context, conn *mme.UeConn, nas []
 		return mme.DispositionForDecodeError(err)
 	}
 
-	return HandleEmmMessage(m, ctx, ue, result.Plain, result.IntegrityVerified)
+	return HandleEmmMessage(ctx, m, ue, result.Plain, result.IntegrityVerified)
 }
 
 // HandleEmmMessage routes a plain NAS message to its procedure handler and reports the single
 // outcome the ingress finalizer applies.
-func HandleEmmMessage(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte, integrityVerified bool) nasreply.Disposition {
+func HandleEmmMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte, integrityVerified bool) nasreply.Disposition {
 	if len(plain) > 0 && plain[0]&0x0F == eps.PDESM {
-		return handleESM(m, ctx, ue, plain)
+		return handleESM(ctx, m, ue, plain)
 	}
 
 	mt, err := eps.PeekMessageType(plain)
@@ -94,27 +94,27 @@ func HandleEmmMessage(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain 
 
 	switch mt {
 	case eps.MsgAttachRequest:
-		return handleAttachRequest(m, ctx, ue, plain, integrityVerified)
+		return handleAttachRequest(ctx, m, ue, plain, integrityVerified)
 	case eps.MsgIdentityResponse:
-		return handleIdentityResponse(m, ctx, ue, plain)
+		return handleIdentityResponse(ctx, m, ue, plain)
 	case eps.MsgAuthenticationResponse:
-		return handleAuthenticationResponse(m, ctx, ue, plain)
+		return handleAuthenticationResponse(ctx, m, ue, plain)
 	case eps.MsgAuthenticationFailure:
-		return handleAuthenticationFailure(m, ctx, ue, plain)
+		return handleAuthenticationFailure(ctx, m, ue, plain)
 	case eps.MsgSecurityModeComplete:
-		return handleSecurityModeComplete(m, ctx, ue, plain)
+		return handleSecurityModeComplete(ctx, m, ue, plain)
 	case eps.MsgSecurityModeReject:
-		return handleSecurityModeReject(m, ctx, ue, plain)
+		return handleSecurityModeReject(ctx, m, ue, plain)
 	case eps.MsgAttachComplete:
-		return handleAttachComplete(m, ctx, ue, plain)
+		return handleAttachComplete(ctx, m, ue, plain)
 	case eps.MsgDetachRequest:
-		return handleDetachRequest(m, ctx, ue, plain, integrityVerified)
+		return handleDetachRequest(ctx, m, ue, plain, integrityVerified)
 	case eps.MsgDetachAccept:
-		return handleDetachAccept(m, ctx, ue)
+		return handleDetachAccept(ctx, m, ue)
 	case eps.MsgTrackingAreaUpdateRequest:
-		return handleTrackingAreaUpdate(m, ctx, ue, plain)
+		return handleTrackingAreaUpdate(ctx, m, ue, plain)
 	case eps.MsgTrackingAreaUpdateComplete:
-		return handleTrackingAreaUpdateComplete(m, ctx, ue)
+		return handleTrackingAreaUpdateComplete(ctx, m, ue)
 	case eps.MsgEMMStatus:
 		return handleEMMStatus(plain)
 	default:
@@ -129,11 +129,11 @@ func HandleEmmMessage(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain 
 	}
 }
 
-// isInitialAttach reports whether a fresh connection's first NAS message is an
-// ATTACH REQUEST — the only message warranting a new UE context (TS 24.301). A
-// ciphered or non-EMM message cannot be an initial attach the network can act on,
-// so only a plain or integrity-protected (peekable) body matches.
-func isInitialAttach(nas []byte) bool {
+// isAttachRequest reports whether a NAS message is an ATTACH REQUEST — the only
+// message warranting a new UE context on a fresh connection (TS 24.301). A ciphered
+// or non-EMM message cannot be one the network can act on, so only a plain or
+// integrity-protected (peekable) body matches.
+func isAttachRequest(nas []byte) bool {
 	pd, err := eps.ProtocolDiscriminator(nas)
 	if err != nil || pd != eps.PDEMM {
 		return false

@@ -366,23 +366,18 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			return
 		}
 
-		snap, pduSessions, found := amfInstance.LookupSubscriber(supi)
+		snap, radioName, pduSessions, found := amfInstance.LookupSubscriber(supi)
 
 		subscriberStatus := SubscriberDetailStatus{
 			Registered: false,
 		}
 
 		if found {
-			subscriberStatus.Registered = snap.State == amf.Registered
-
-			if subscriberStatus.Registered {
-				subscriberStatus.RadioAccessType = "5G"
-			}
-
+			subscriberStatus.Registered = true
+			subscriberStatus.RadioAccessType = "5G"
 			subscriberStatus.CipheringAlgorithm = snap.CipheringAlgorithm
 			subscriberStatus.IntegrityAlgorithm = snap.IntegrityAlgorithm
-			subscriberStatus.LastSeenRadio = snap.LastSeenRadio
-
+			subscriberStatus.LastSeenRadio = radioName
 			subscriberStatus.Imei = snap.Imei
 
 			if !snap.LastSeenAt.IsZero() {

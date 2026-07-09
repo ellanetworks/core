@@ -117,7 +117,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handlePDNConnectivityRequest(m, context.Background(), ue, connReq)
+	handlePDNConnectivityRequest(context.Background(), m, ue, connReq)
 
 	p := ue.PdnForAPN("ims")
 	if p == nil {
@@ -177,7 +177,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handlePDNDisconnectRequest(m, context.Background(), ue, dis)
+	handlePDNDisconnectRequest(context.Background(), m, ue, dis)
 
 	if !ue.Pdns[6].Deactivating || !ue.Pdns[6].Disconnecting {
 		t.Fatalf("deactivation not in flight for the disconnected PDN: %+v", ue.Pdns[6])
@@ -220,7 +220,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleDeactivateBearerAccept(m, context.Background(), ue, da)
+	handleDeactivateBearerAccept(context.Background(), m, ue, da)
 
 	if _, ok := ue.Pdns[6]; ok {
 		t.Fatal("second PDN not released after disconnect accept")
@@ -291,7 +291,7 @@ func TestAdditionalPDNRejectedUnknownAPN(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handlePDNConnectivityRequest(m, context.Background(), ue, connReq)
+	handlePDNConnectivityRequest(context.Background(), m, ue, connReq)
 
 	if ue.PdnForAPN("enterprise") != nil {
 		t.Fatal("PDN created for an APN not in the profile")
@@ -337,7 +337,7 @@ func TestPDNConnectivityRejectedInvalidHeader(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			handlePDNConnectivityRequest(m, context.Background(), ue, plain)
+			handlePDNConnectivityRequest(context.Background(), m, ue, plain)
 
 			if ue.PdnForAPN("ims") != nil {
 				t.Fatal("PDN created despite an invalid ESM header")
@@ -378,7 +378,7 @@ func TestPDNDisconnectRejectedInvalidHeader(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			handlePDNDisconnectRequest(m, context.Background(), ue, plain)
+			handlePDNDisconnectRequest(context.Background(), m, ue, plain)
 
 			reject, err := eps.ParsePDNDisconnectReject(lastDownlinkESM(t, ue, cc))
 			if err != nil {
@@ -406,7 +406,7 @@ func TestLastPDNDisconnectRejected(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handlePDNDisconnectRequest(m, context.Background(), ue, dis)
+	handlePDNDisconnectRequest(context.Background(), m, ue, dis)
 
 	if m.DefaultPDN(ue) == nil {
 		t.Fatal("the only PDN was disconnected; expected it to be retained")

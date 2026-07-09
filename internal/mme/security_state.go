@@ -26,6 +26,27 @@ func MintAuthProofForAttachCommit() AuthProof {
 	return AuthProof{}
 }
 
+// MintAuthProofForAttachRequest returns an AuthProof. It must only be called while
+// ingesting an ATTACH REQUEST (the initial parse, or the replayed ATTACH REQUEST
+// recovered from a SECURITY MODE COMPLETE), to store the UE security capabilities.
+// Downgrade protection is the HashMME replay check (TS 24.301 §5.4.3.2), not this
+// mint; gating the write keeps every UE-security-capability store on one audited path.
+func MintAuthProofForAttachRequest() AuthProof {
+	return AuthProof{}
+}
+
+// NextEksi returns an eKSI value distinct from current, so a new authentication
+// carries a different eKSI than the one already stored in the network's EPS security
+// context (TS 24.301 §5.4.2.4). The eKSI is a 3-bit field: 0–6 valid, 7 means "no key
+// available" (§9.9.3.21).
+func NextEksi(current uint8) uint8 {
+	if current < 6 {
+		return current + 1
+	}
+
+	return 0
+}
+
 // ResyncTried reports whether SQN re-synchronisation has already been attempted
 // for the in-progress authentication (TS 33.401). Connection-scoped.
 func (c *UeConn) ResyncTried() bool { return c.resyncTried }

@@ -8,9 +8,9 @@ import (
 	"github.com/free5gc/nas/security"
 )
 
-// cipheringAlgName must be called while holding ue.Mutex.
-func (ue *UeContext) cipheringAlgName() string {
-	switch ue.cipheringAlg {
+// cipheringAlgName maps a 5G NAS ciphering algorithm identifier to its name (TS 33.501).
+func cipheringAlgName(alg byte) string {
+	switch alg {
 	case security.AlgCiphering128NEA0:
 		return "NEA0"
 	case security.AlgCiphering128NEA1:
@@ -24,9 +24,9 @@ func (ue *UeContext) cipheringAlgName() string {
 	}
 }
 
-// integrityAlgName must be called while holding ue.Mutex.
-func (ue *UeContext) integrityAlgName() string {
-	switch ue.integrityAlg {
+// integrityAlgName maps a 5G NAS integrity algorithm identifier to its name (TS 33.501).
+func integrityAlgName(alg byte) string {
+	switch alg {
 	case security.AlgIntegrity128NIA0:
 		return "NIA0"
 	case security.AlgIntegrity128NIA1:

@@ -30,9 +30,9 @@ func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) 
 
 	targetUeConn := amf.NewUeConnForTest(ran, 2, 200, logger.AmfLog)
 
-	err := amf.AttachSourceUeTargetUe(sourceUeConn, targetUeConn)
+	err := amf.SetHandoverForTest(sourceUeConn, targetUeConn)
 	if err != nil {
-		t.Fatalf("AttachSourceUeTargetUe: %v", err)
+		t.Fatalf("SetHandoverForTest: %v", err)
 	}
 
 	targetUeConn.ReleaseAction = amf.UeContextReleaseHandover

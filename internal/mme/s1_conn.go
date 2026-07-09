@@ -85,6 +85,10 @@ type UeConn struct {
 	// procedures are guarded per-bearer on PdnConnection, running on the
 	// independent ESM sublayer concurrently with each other and EMM.
 	nasGuard guard.Guard
+	// nasGuardName is the EMM procedure the guard currently supervises, for the status
+	// export. Set at arm and cleared at stop, all under m.mu (arm/stop are serialized on
+	// it), so a plain string suffices — no atomic needed.
+	nasGuardName string
 	// releaseGuard supervises a sent UE Context Release Command: armed when the command
 	// is sent, stopped on the Release Complete; a lost Complete fires it once and runs
 	// the EMMState-keyed local cleanup so the UeConn + M-TMSI cannot leak.

@@ -17,10 +17,10 @@ import (
 // HandleServiceRequest handles a mobile-originated SERVICE REQUEST, re-establishing
 // the S1 context (ECM-IDLE → ECM-CONNECTED) once the short MAC verifies against the
 // stored NAS context (TS 24.301).
-func HandleServiceRequest(m *mme.MME, ctx context.Context, conn mme.S1APWriter, msg *s1ap.InitialUEMessage) {
+func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, msg *s1ap.InitialUEMessage) {
 	if msg.STMSI == nil {
 		logger.From(ctx, logger.MmeLog).Warn("Service Request without an S-TMSI")
-		sendServiceReject(m, ctx, conn, msg.ENBUES1APID, mme.EmmCauseUEIdentityUnderivable)
+		sendServiceReject(ctx, m, conn, msg.ENBUES1APID, mme.EmmCauseUEIdentityUnderivable)
 
 		return
 	}
@@ -29,7 +29,7 @@ func HandleServiceRequest(m *mme.MME, ctx context.Context, conn mme.S1APWriter, 
 	if !ok || ue.EMMState() != mme.EMMRegistered {
 		logger.From(ctx, logger.MmeLog).Info("Service Request for an unknown or deregistered UE",
 			zap.Uint32("m-tmsi", msg.STMSI.MTMSI))
-		sendServiceReject(m, ctx, conn, msg.ENBUES1APID, mme.EmmCauseUEIdentityUnderivable)
+		sendServiceReject(ctx, m, conn, msg.ENBUES1APID, mme.EmmCauseUEIdentityUnderivable)
 
 		return
 	}
@@ -39,7 +39,7 @@ func HandleServiceRequest(m *mme.MME, ctx context.Context, conn mme.S1APWriter, 
 		// Protocol error: a malformed SERVICE REQUEST is answered with EMM cause #96
 		// "invalid mandatory information", not #9 (TS 24.301 §5.6.1.7 b).
 		logger.From(ctx, logger.MmeLog).Warn("failed to decode Service Request", zap.Error(err))
-		sendServiceReject(m, ctx, conn, msg.ENBUES1APID, mme.EmmCauseInvalidMandatoryInfo)
+		sendServiceReject(ctx, m, conn, msg.ENBUES1APID, mme.EmmCauseInvalidMandatoryInfo)
 
 		return
 	}
@@ -56,7 +56,7 @@ func HandleServiceRequest(m *mme.MME, ctx context.Context, conn mme.S1APWriter, 
 			zap.Uint8("received-sequence", sr.SeqShort),
 			zap.Uint32("stored-ul-count", ul))
 
-		sendServiceReject(m, ctx, conn, msg.ENBUES1APID, mme.EmmCauseUEIdentityUnderivable)
+		sendServiceReject(ctx, m, conn, msg.ENBUES1APID, mme.EmmCauseUEIdentityUnderivable)
 
 		return
 	}
@@ -78,18 +78,18 @@ func HandleServiceRequest(m *mme.MME, ctx context.Context, conn mme.S1APWriter, 
 		zap.Uint32("enb-ue-id", uint32(ue.Conn().ENBUES1APID)),
 		zap.String("imsi", ue.IMSI()))
 
-	qos, err := mme.ResolveQoS(m, ctx, ue.IMSI())
+	qos, err := mme.ResolveQoS(ctx, m, ue.IMSI())
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
 		return
 	}
 
-	sendInitialContextSetup(m, ctx, ue, qos, nil)
+	sendInitialContextSetup(ctx, m, ue, qos, nil)
 }
 
 // sendServiceReject sends a SERVICE REJECT with the given EMM cause over a bare connection,
 // so a rejected request never touches a resolved UE (TS 24.301 §5.6.1.5, §5.6.1.7).
-func sendServiceReject(m *mme.MME, ctx context.Context, conn mme.S1APWriter, enbUEID s1ap.ENBUES1APID, cause uint8) {
+func sendServiceReject(ctx context.Context, m *mme.MME, conn mme.S1APWriter, enbUEID s1ap.ENBUES1APID, cause uint8) {
 	c := m.NewUeConn(conn, enbUEID)
 	if c == nil {
 		return
@@ -97,5 +97,5 @@ func sendServiceReject(m *mme.MME, ctx context.Context, conn mme.S1APWriter, enb
 
 	defer m.ReleaseBareConn(c)
 
-	c.SendOverConn(ctx, &eps.ServiceReject{Cause: cause})
+	c.SendDownlinkMessage(ctx, &eps.ServiceReject{Cause: cause})
 }

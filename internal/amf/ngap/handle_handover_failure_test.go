@@ -45,9 +45,9 @@ func TestHandleHandoverFailure_SourceUeContextDetached(t *testing.T) {
 
 	targetUe := amf.NewUeConnForTest(targetRan, 2, 200, logger.AmfLog)
 
-	err := amf.AttachSourceUeTargetUe(sourceUe, targetUe)
+	err := amf.SetHandoverForTest(sourceUe, targetUe)
 	if err != nil {
-		t.Fatalf("AttachSourceUeTargetUe: %v", err)
+		t.Fatalf("SetHandoverForTest: %v", err)
 	}
 
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
@@ -72,8 +72,66 @@ func TestHandleHandoverFailure_SourceUeContextDetached(t *testing.T) {
 		t.Fatalf("expected 1 HandoverPreparationFailure on source radio, got %d", len(sourceSender.SentHandoverPreparationFailures))
 	}
 
-	if len(targetSender.SentUEContextReleaseCommands) != 1 {
-		t.Fatalf("expected 1 UEContextReleaseCommand on target radio, got %d", len(targetSender.SentUEContextReleaseCommands))
+	// The target rejected preparation, so it holds no context: no UE Context Release
+	// Command is sent; the target association is dropped locally (TS 38.413 §8.4.2.3).
+	if len(targetSender.SentUEContextReleaseCommands) != 0 {
+		t.Fatalf("expected no UEContextReleaseCommand to the target, got %d", len(targetSender.SentUEContextReleaseCommands))
+	}
+
+	if amfInstance.FindUEByAmfUeNgapID(targetRan, 200) != nil {
+		t.Fatal("target UE association must be dropped locally on HANDOVER FAILURE")
+	}
+}
+
+// TestHandleHandoverFailure_DropsTargetLocally verifies the mainline target-reject
+// path: the AMF replies HANDOVER PREPARATION FAILURE to the source and drops the
+// target association locally, with no UE Context Release Command to the target (which
+// admitted nothing and holds no context, TS 38.413 §8.4.2.3), and clears the handover.
+func TestHandleHandoverFailure_DropsTargetLocally(t *testing.T) {
+	amfInstance := newTestAMF()
+	sourceRan := newTestRadio(amfInstance)
+	targetRan := newTestRadio(amfInstance)
+	sourceSender := sourceRan.Conn.(*fakeNGAPSender)
+	targetSender := targetRan.Conn.(*fakeNGAPSender)
+
+	amfUe := amf.NewUeContext()
+
+	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
+	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+
+	targetUe := amf.NewUeConnForTest(targetRan, 2, 200, logger.AmfLog)
+
+	if err := amf.SetHandoverForTest(sourceUe, targetUe); err != nil {
+		t.Fatalf("SetHandoverForTest: %v", err)
+	}
+
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), targetRan)
+
+	msg := decode.HandoverFailure{
+		AMFUENGAPID: 200,
+		Cause: &ngapType.Cause{
+			Present:      ngapType.CausePresentRadioNetwork,
+			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem},
+		},
+	}
+
+	ngap.HandleHandoverFailure(context.Background(), amfInstance, targetRan, msg)
+
+	if len(sourceSender.SentHandoverPreparationFailures) != 1 {
+		t.Fatalf("expected 1 HandoverPreparationFailure on source, got %d", len(sourceSender.SentHandoverPreparationFailures))
+	}
+
+	if len(targetSender.SentUEContextReleaseCommands) != 0 {
+		t.Fatalf("expected no UEContextReleaseCommand to target, got %d", len(targetSender.SentUEContextReleaseCommands))
+	}
+
+	if amfInstance.FindUEByAmfUeNgapID(targetRan, 200) != nil {
+		t.Fatal("target UE association must be dropped locally")
+	}
+
+	if amfInstance.HandoverInProgress(amfUe) {
+		t.Fatal("handover must be cleared after failure")
 	}
 }
 
@@ -94,8 +152,8 @@ func TestHandleHandoverFailure_NotFromPreparedTarget(t *testing.T) {
 
 	targetUe := amf.NewUeConnForTest(targetRan, 2, 200, logger.AmfLog)
 
-	if err := amf.AttachSourceUeTargetUe(sourceUe, targetUe); err != nil {
-		t.Fatalf("AttachSourceUeTargetUe: %v", err)
+	if err := amf.SetHandoverForTest(sourceUe, targetUe); err != nil {
+		t.Fatalf("SetHandoverForTest: %v", err)
 	}
 
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)

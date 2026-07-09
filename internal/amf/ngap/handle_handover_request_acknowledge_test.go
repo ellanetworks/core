@@ -83,7 +83,7 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *fakeNGAPSender, *am
 
 	targetUe := amf.NewUeConnForTest(targetRan, 2, 1, logger.AmfLog)
 
-	err := amf.AttachSourceUeTargetUe(sourceUe, targetUe)
+	err := amf.SetHandoverForTest(sourceUe, targetUe)
 	if err != nil {
 		t.Fatalf("failed to attach source/target: %v", err)
 	}

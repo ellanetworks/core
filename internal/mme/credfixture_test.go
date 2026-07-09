@@ -23,12 +23,20 @@ func idleRegisteredUE(t *testing.T, m *MME) *UeContext {
 	t.Helper()
 
 	ue, _ := securedUE(t, m)
-	ue.UeNetCap = eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal()
+	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(), nil, MintAuthProofForAttachRequest())
 	testPDN(ue).SgwFTEID = testSGWFTEID
 
 	if _, err := m.ReallocateGUTI(t.Context(), ue, models.PlmnID{Mcc: "001", Mnc: "01"}, 1, 1); err != nil {
 		t.Fatal(err)
 	}
+
+	// A registered UE holds a registration area, assigned in ATTACH/TAU ACCEPT.
+	served, err := m.ServedTAIs(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ue.AllocateRegistrationArea(served)
 
 	m.FreeUeConn(ue)
 

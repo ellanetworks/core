@@ -75,7 +75,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnecti
 		return
 	}
 
-	qos, err := ResolveQoSByAPN(m, ctx, ue.IMSI(), p.Apn)
+	qos, err := ResolveQoSByAPN(ctx, m, ue.IMSI(), p.Apn)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("reconcile: failed to resolve QoS for APN",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))

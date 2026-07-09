@@ -169,13 +169,8 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	// ran.RanID != nil guard gates all other NGAP handlers.
 	evicted := amfInstance.ClaimRanID(ran, msg.GlobalRANNodeID.Raw())
 	if evicted != nil {
-		evictedRemote := ""
-		if evicted.RemoteAddr() != nil {
-			evictedRemote = evicted.RemoteAddr().String()
-		}
-
 		logger.WithTrace(ctx, ran.Log).Warn("Evicted existing NG-C association with duplicate Global RAN Node ID",
-			zap.String("evicted_remote", evictedRemote),
+			zap.String("evicted_remote", amf.AddrString(evicted.RemoteAddr())),
 			zap.String("evicted_name", evicted.NodeName()),
 		)
 	}

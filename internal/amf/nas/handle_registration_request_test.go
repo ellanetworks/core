@@ -497,8 +497,10 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Tai.Tac = "CAFE64"
-	ue.Conn().Tai.Tac = "CAFE64"
+	// The RAN reports the TAC as lowercase hex (hex.EncodeToString); the operator
+	// configured it uppercase. Canonicalisation makes them match.
+	ue.Tai.Tac = "cafe64"
+	ue.Conn().Tai.Tac = "cafe64"
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))

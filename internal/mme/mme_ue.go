@@ -120,10 +120,17 @@ type UeContext struct {
 	// handler read is memory-model-safe. Read via Conn().
 	active atomic.Pointer[UeConn]
 
-	supi     etsi.SUPI
-	Imei     etsi.IMEI // IMEI/IMEISV equipment identity (TS 24.301; 5G PEI, TS 23.501 §5.9.3)
-	UeNetCap []byte    // raw UE network capability (algorithm selection + replay)
-	MsNetCap []byte    // raw MS network capability value part; source of the replayed GERAN (GEA) capabilities (TS 24.301)
+	supi etsi.SUPI
+	Imei etsi.IMEI // IMEI/IMEISV equipment identity (TS 24.301; 5G PEI, TS 23.501 §5.9.3)
+	// registrationArea is the UE's registered tracking area (TS 24.301 §5.5.1): the
+	// single source of truth for the TAI list assigned in ATTACH/TAU ACCEPT and the
+	// area the UE is paged in. Assigned at accept, read under ue.mu.
+	registrationArea []models.Tai
+	// ueNetCap/msNetCap are the raw UE/MS network capabilities (algorithm selection +
+	// replay; msNetCap sources the replayed GERAN GEA capabilities, TS 24.301). Written
+	// only through the AuthProof-gated SetUESecurityCapability; read via UeNetCap()/MsNetCap().
+	ueNetCap []byte
+	msNetCap []byte
 	// DRXParameter is the UE's requested DRX parameter from the ATTACH REQUEST (TS
 	// 24.301 §9.9.3.8). Nil when omitted.
 	DRXParameter    []byte
@@ -178,6 +185,11 @@ type UeContext struct {
 	ulCount      nascommon.Count
 	dlCount      nascommon.Count
 	secured      bool
+	// eksi is the eKSI (NAS key set identifier, TS 24.301 §9.9.3.21) the MME assigns
+	// to the current EPS security context and emits in the AUTHENTICATION REQUEST and
+	// SECURITY MODE COMMAND. Cycled to a value distinct from the one already stored on
+	// each new authentication (§5.4.2.4).
+	eksi uint8
 
 	// X2-handover key chain (TS 33.401): nh is the Next Hop the next path
 	// switch hands to the target eNB, ncc its chaining counter. Seeded at initial
@@ -329,8 +341,8 @@ func (ue *UeContext) Snapshot() UESnapshot {
 	return UESnapshot{
 		Imei:               ue.Imei.IMEI(),
 		LastSeenAt:         ue.lastSeenTime(),
-		CipheringAlgorithm: epsCipheringAlgName(ue.cipheringAlg),
-		IntegrityAlgorithm: epsIntegrityAlgName(ue.integrityAlg),
+		CipheringAlgorithm: cipheringAlgName(ue.cipheringAlg),
+		IntegrityAlgorithm: integrityAlgName(ue.integrityAlg),
 	}
 }
 

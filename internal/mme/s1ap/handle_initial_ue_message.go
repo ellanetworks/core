@@ -74,7 +74,7 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
 		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update rejected; UE will re-attach",
 			zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
-		c.SendOverConn(ctx, &eps.TrackingAreaUpdateReject{Cause: mme.EmmCauseUEIdentityUnderivable})
+		c.SendDownlinkMessage(ctx, &eps.TrackingAreaUpdateReject{Cause: mme.EmmCauseUEIdentityUnderivable})
 	} else {
 		logger.From(ctx, logger.MmeLog).Debug("dropping non-Attach Initial UE Message",
 			zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))

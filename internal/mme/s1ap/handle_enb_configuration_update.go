@@ -10,7 +10,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -47,12 +46,7 @@ func handleENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Ra
 		msgType = mme.S1APProcedureENBConfigUpdateFailure
 	}
 
-	if _, err := radio.Conn.WriteMsg(out, &sctp.SndRcvInfo{PPID: mme.S1apWirePPID, Stream: mme.S1apStreamNonUE}); err != nil {
-		logger.From(ctx, radio.Log).Error("failed to send ENB Configuration Update response", zap.Error(err))
-		return
-	}
-
-	m.LogNetworkEvent(ctx, radio.Conn, msgType, logger.DirectionOutbound, out)
+	m.SendS1APConn(ctx, radio.Conn, msgType, out)
 
 	if !accepted {
 		logger.From(ctx, radio.Log).Warn("ENB Configuration Update rejected: eNB broadcasts no TAI (PLMN + TAC) served by this MME")

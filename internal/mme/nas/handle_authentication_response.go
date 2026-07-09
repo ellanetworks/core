@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func handleAuthenticationResponse(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+func handleAuthenticationResponse(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	// An AUTHENTICATION RESPONSE is valid only during the attach authentication
 	// sub-phase; out of order, ignore it to avoid re-verifying a stale challenge.
 	if ue.RegStep() != mme.RegStepAuthenticating {
@@ -34,7 +34,7 @@ func handleAuthenticationResponse(m *mme.MME, ctx context.Context, ue *mme.UeCon
 
 	if c.AuthVector == nil || subtle.ConstantTimeCompare(resp.RES, c.AuthVector.XRES) != 1 {
 		logger.From(ctx, logger.MmeLog).Warn("authentication failed: RES mismatch")
-		rejectAuthentication(m, ctx, ue)
+		rejectAuthentication(ctx, m, ue)
 
 		return nasreply.Handled()
 	}
@@ -48,7 +48,7 @@ func handleAuthenticationResponse(m *mme.MME, ctx context.Context, ue *mme.UeCon
 	c.SetResyncTried(false)
 
 	logger.From(ctx, logger.MmeLog).Info("authentication succeeded")
-	startSecurityMode(m, ctx, ue)
+	startSecurityMode(ctx, m, ue)
 
 	return nasreply.Handled()
 }

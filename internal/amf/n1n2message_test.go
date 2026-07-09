@@ -405,7 +405,7 @@ func TestN2MessageTransferOrPage_UENotFound(t *testing.T) {
 // paging timer instead (T3513, TS 24.501 §5.4.3).
 // TestIdleTimers_ArmedAndStoppedUnderRegistryLock verifies the AMF's idle-mode
 // supervision timers are driven through the registry lock (`(a *AMF)` receivers,
-// matching the MME): StartMobileReachable arms the timer and StopIdleTimers
+// matching the MME): StartMobileReachable arms the timer and UE teardown
 // cancels it (TS 24.501 §5.3.7).
 func TestIdleTimers_ArmedAndStoppedUnderRegistryLock(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
@@ -417,10 +417,10 @@ func TestIdleTimers_ArmedAndStoppedUnderRegistryLock(t *testing.T) {
 		t.Fatal("StartMobileReachable must arm the mobile reachable timer")
 	}
 
-	amfInstance.StopIdleTimers(ue)
+	amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue)
 
 	if ue.MobileReachableActiveForTest() {
-		t.Fatal("StopIdleTimers must cancel the mobile reachable timer")
+		t.Fatal("UE teardown must cancel the mobile reachable timer")
 	}
 }
 

@@ -27,7 +27,7 @@ func TestPlainNonWhitelistedDiscarded(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	HandleNAS(m, context.Background(), ue.Conn(), plain)
+	HandleNAS(context.Background(), m, ue.Conn(), plain)
 
 	if ue.EMMState() != mme.EMMRegistered {
 		t.Fatal("a plain non-whitelisted message must be discarded, not processed (TS 24.301 §4.4.4.3)")

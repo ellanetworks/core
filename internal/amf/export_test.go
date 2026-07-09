@@ -174,7 +174,7 @@ func TestExportJSON_MinimalUE(t *testing.T) {
 		t.Fatalf("expected timers.t3502_value_seconds to be 720, got %v", timers["t3502_value_seconds"])
 	}
 
-	timerNames := []string{"t3513_paging", "nas_guard", "mobile_reachable", "implicit_deregistration"}
+	timerNames := []string{"paging", "nas_guard", "mobile_reachable", "implicit_deregistration"}
 	for _, timerName := range timerNames {
 		timerObj := jsonMap(t, timers, timerName)
 		if active, ok := timerObj["active"].(bool); !ok || active != false {
@@ -222,7 +222,7 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 		ueConn.Tai = models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}
 		ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 		ue.ArmPagingForTest(1*time.Hour, 3)
-		ue.SetLastSeenForTest(time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC), "gNB-001")
+		ue.SetLastSeenForTest(time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC))
 		ue.Conn().RegistrationType5GS = 1
 		ue.Conn().IdentityTypeUsedForRegistration = 1
 		ue.Conn().RetransmissionOfInitialNASMsg = true
@@ -364,13 +364,13 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 		t.Fatalf("expected timers.t3502_value_seconds to be 720, got %v", timers["t3502_value_seconds"])
 	}
 
-	t3513 := jsonMap(t, timers, "t3513_paging")
-	if active, ok := t3513["active"].(bool); !ok || active != true {
-		t.Fatalf("expected timers.t3513_paging.active to be true, got %v", t3513["active"])
+	paging := jsonMap(t, timers, "paging")
+	if active, ok := paging["active"].(bool); !ok || active != true {
+		t.Fatalf("expected timers.paging.active to be true, got %v", paging["active"])
 	}
 
-	if maxRetries, ok := t3513["max_retries"].(float64); !ok || maxRetries != 3 {
-		t.Fatalf("expected timers.t3513_paging.max_retries to be 3, got %v", t3513["max_retries"])
+	if maxRetries, ok := paging["max_retries"].(float64); !ok || maxRetries != 3 {
+		t.Fatalf("expected timers.paging.max_retries to be 3, got %v", paging["max_retries"])
 	}
 
 	pduSessions, ok := ueExport["pdu_sessions"].(map[string]any)
@@ -432,7 +432,7 @@ func TestExportJSON_NilTimers(t *testing.T) {
 
 	timers := jsonMap(t, ueExport, "timers")
 
-	timerNames := []string{"t3513_paging", "nas_guard", "mobile_reachable", "implicit_deregistration"}
+	timerNames := []string{"paging", "nas_guard", "mobile_reachable", "implicit_deregistration"}
 	for _, timerName := range timerNames {
 		timerObj := jsonMap(t, timers, timerName)
 		if active, ok := timerObj["active"].(bool); !ok || active != false {

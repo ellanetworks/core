@@ -9,7 +9,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -197,13 +196,8 @@ func sendPathSwitchFailure(m *mme.MME, conn mme.S1APWriter, req *s1ap.PathSwitch
 		return
 	}
 
-	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: mme.S1apWirePPID, Stream: mme.S1apStreamUE}); err != nil {
-		logger.MmeLog.Error("failed to send Path Switch Request Failure", zap.Error(err))
-		return
-	}
-
 	// A Path Switch Failure can be sent before the UE is resolved; use a fresh root.
-	m.LogOutboundS1AP(context.Background(), conn, mme.S1APProcedurePathSwitchRequestFailure, b)
+	m.SendS1APConn(context.Background(), conn, mme.S1APProcedurePathSwitchRequestFailure, b)
 }
 
 // pathSwitchSecurityCapabilities compares the UE security capabilities the target
@@ -212,7 +206,7 @@ func sendPathSwitchFailure(m *mme.MME, conn mme.S1APWriter, req *s1ap.PathSwitch
 // (IE omitted) otherwise (TS 36.413, TS 33.401). The stored values are never
 // overwritten with the received ones.
 func pathSwitchSecurityCapabilities(ue *mme.UeContext, received s1ap.UESecurityCapabilities) *s1ap.UESecurityCapabilities {
-	uecap, err := eps.ParseUENetworkCapability(ue.UeNetCap)
+	uecap, err := eps.ParseUENetworkCapability(ue.UeNetCap())
 	if err != nil {
 		return nil
 	}

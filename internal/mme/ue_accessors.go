@@ -199,6 +199,69 @@ func (ue *UeContext) InstallNASSecurityContext(eea, eia byte, _ AuthProof) error
 	return nil
 }
 
+// AllocateRegistrationArea assigns the UE's registered tracking area. Ella Core is
+// a single registration area, so every UE is registered in the network's served
+// TAIs; narrowing to the UE's serving TAI (cf. the AMF) is a multi-registration-area
+// extension, a no-op under a single served area.
+func (ue *UeContext) AllocateRegistrationArea(servedTais []models.Tai) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.registrationArea = append(ue.registrationArea[:0:0], servedTais...)
+}
+
+// RegistrationArea returns a copy of the UE's registered tracking area — the TAI
+// list assigned in ATTACH/TAU ACCEPT and the area the UE is paged in.
+func (ue *UeContext) RegistrationArea() []models.Tai {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return append([]models.Tai(nil), ue.registrationArea...)
+}
+
+// Eksi returns the eKSI assigned to the current EPS security context.
+func (ue *UeContext) Eksi() uint8 {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.eksi
+}
+
+// SetEksi records the eKSI assigned to the current EPS security context.
+func (ue *UeContext) SetEksi(v uint8) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.eksi = v
+}
+
+// SetUESecurityCapability stores the UE and MS network capabilities. The AuthProof
+// keeps every write on one audited path so a downgrade cannot enter via an
+// unauthorized code path (TS 24.301 §5.4.3.2).
+func (ue *UeContext) SetUESecurityCapability(ueNetCap, msNetCap []byte, _ AuthProof) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.ueNetCap = ueNetCap
+	ue.msNetCap = msNetCap
+}
+
+// UeNetCap returns the stored raw UE network capability.
+func (ue *UeContext) UeNetCap() []byte {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.ueNetCap
+}
+
+// MsNetCap returns the stored raw MS network capability.
+func (ue *UeContext) MsNetCap() []byte {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.msNetCap
+}
+
 // VerifyServiceRequestShortMAC recomputes the Service Request short-MAC over the
 // supplied NAS header and compares it (and the truncated sequence number)
 // against the values the UE sent (TS 24.301 §5.6.1). It returns the diagnostics

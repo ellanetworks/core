@@ -200,7 +200,6 @@ func HandleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	}
 
 	amfInstance.AttachUeConn(amfUe, ue)
-	amfInstance.StopIdleTimers(amfUe)
 
 	result, err := amf.DecodeNASMessage(amfUe, nasPdu)
 	if err != nil {

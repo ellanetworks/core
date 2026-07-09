@@ -149,6 +149,14 @@ func (m *MME) RegisterENBByIDForTest(g s1ap.GlobalENBID, conn S1APWriter) {
 	m.mu.Unlock()
 }
 
+// IndexRadioForTest registers an eNB with the given broadcast TAIs in the paging
+// fan-out map. For tests only.
+func (m *MME) IndexRadioForTest(conn S1APWriter, supportedTAIs []SupportedTAI) {
+	m.mu.Lock()
+	m.radios[conn] = &Radio{Conn: conn, supportedTAIs: supportedTAIs}
+	m.mu.Unlock()
+}
+
 func (m *MME) SetHandoverGuardTimeoutForTest(d time.Duration) { m.handoverGuardTimeout = d }
 
 func (m *MME) FireHandoverGuardForTest(ue *UeContext) { m.abandonHandover(ue) }
@@ -167,10 +175,11 @@ func (ue *UeContext) ForceRegStepForTest(step RegStep) {
 }
 
 // ForceStateForTest sets the EMM state directly, bypassing transition validation,
-// for test precondition setup.
+// for test precondition setup. It resets the coupled registration sub-phase, like a
+// real transition, so a forced state never leaves a stale regStep.
 func (ue *UeContext) ForceStateForTest(s EMMState) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.emmState = s
+	ue.setEMMStateLocked(s)
 }

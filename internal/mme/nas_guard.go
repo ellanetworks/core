@@ -66,6 +66,7 @@ func (c *UeConn) armNASGuardMode(name string, nas []byte, onAbort func()) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	c.nasGuardName = name
 	c.nasGuard.ArmWith(
 		m.nasGuardCfg,
 		func(attempt int32) { c.retransmitNASGuard(ue, name, nas, attempt) },
@@ -114,17 +115,20 @@ func (c *UeConn) StopNASGuard() {
 	c.m.mu.Lock()
 	defer c.m.mu.Unlock()
 
+	c.nasGuardName = ""
 	c.nasGuard.Stop()
 }
 
 // stopNASGuardLocked cancels the EMM guard and invalidates any in-flight callback.
 // The caller holds m.mu.
 func (m *MME) stopNASGuardLocked(ue *UeContext) {
-	if ue.Conn() == nil {
+	conn := ue.Conn()
+	if conn == nil {
 		return
 	}
 
-	ue.Conn().nasGuard.Stop()
+	conn.nasGuardName = ""
+	conn.nasGuard.Stop()
 }
 
 // StopESMGuard cancels p's ESM bearer-procedure guard. The guard is

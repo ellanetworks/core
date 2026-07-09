@@ -335,7 +335,7 @@ func (m *MME) ReclaimConns(conns []*UeConn, trigger string) {
 	m.mu.Unlock()
 
 	for _, r := range releaseTargets {
-		SendUEContextRelease(m, context.Background(), r.conn, r.mmeID, r.enbID, true, causeHandoverEUTRANReason)
+		SendUEContextRelease(context.Background(), m, r.conn, r.mmeID, r.enbID, true, causeHandoverEUTRANReason)
 	}
 
 	for _, ue := range orphaned {

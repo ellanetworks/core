@@ -114,6 +114,25 @@ func (a *AMF) OldGuti(guami *models.Guami, ue *UeContext) (etsi.GUTI5G, error) {
 	return gutiFor(guami, ue.oldTmsi)
 }
 
+// PagingGuti returns the 5G-GUTI to page the UE with: the in-flight previous GUTI
+// while a reallocation the UE has not yet acknowledged is pending — the UE still
+// listens on the old 5G-S-TMSI until it acknowledges — else the current GUTI
+// (TS 24.501 §5.4.4). Both are read under one lock so the choice is consistent.
+func (a *AMF) PagingGuti(guami *models.Guami, ue *UeContext) (etsi.GUTI5G, error) {
+	if ue == nil {
+		return etsi.InvalidGUTI5G, nil
+	}
+
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	if ue.oldTmsi != etsi.InvalidTMSI {
+		return gutiFor(guami, ue.oldTmsi)
+	}
+
+	return gutiFor(guami, ue.tmsi)
+}
+
 // CommitGUTIRealloc releases the previous 5G-TMSI for the UE and unindexes it.
 func (a *AMF) CommitGUTIRealloc(ue *UeContext) {
 	a.mu.Lock()

@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func handleESM(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+func handleESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	mt, err := eps.PeekESMMessageType(plain)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to read ESM message type", zap.Error(err))
@@ -28,15 +28,15 @@ func handleESM(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte)
 
 	switch mt {
 	case eps.MsgPDNConnectivityRequest:
-		return handlePDNConnectivityRequest(m, ctx, ue, plain)
+		return handlePDNConnectivityRequest(ctx, m, ue, plain)
 	case eps.MsgPDNDisconnectRequest:
-		return handlePDNDisconnectRequest(m, ctx, ue, plain)
+		return handlePDNDisconnectRequest(ctx, m, ue, plain)
 	case eps.MsgActivateDefaultEPSBearerContextAccept:
 		return handleActivateDefaultBearerAccept(m, ue, plain)
 	case eps.MsgActivateDefaultEPSBearerContextReject:
-		return handleActivateDefaultBearerReject(m, ctx, ue, plain)
+		return handleActivateDefaultBearerReject(ctx, m, ue, plain)
 	case eps.MsgDeactivateEPSBearerContextAccept:
-		return handleDeactivateBearerAccept(m, ctx, ue, plain)
+		return handleDeactivateBearerAccept(ctx, m, ue, plain)
 	case eps.MsgModifyEPSBearerContextAccept:
 		return handleModifyBearerAccept(m, ue, plain)
 	case eps.MsgModifyEPSBearerContextReject:
@@ -101,7 +101,7 @@ func handleModifyBearerReject(m *mme.MME, ue *mme.UeContext, plain []byte) nasre
 // the UE connected (TS 24.301 §6.5.2). A deactivation with reactivation requested
 // for the default bearer releases the S1 context so the UE re-attaches
 // and picks up the new data-network configuration (TS 24.301 §6.4.4.2).
-func handleDeactivateBearerAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+func handleDeactivateBearerAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	p := m.DefaultPDN(ue)
 	if accept, err := eps.ParseDeactivateEPSBearerContextAccept(plain); err == nil {
 		if named := m.LookupPDN(ue, accept.EPSBearerIdentity); named != nil {

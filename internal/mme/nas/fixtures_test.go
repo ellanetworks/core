@@ -32,7 +32,7 @@ func connectedBearerUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) 
 	p := testPDN(ue)
 	p.Apn = "internet"
 
-	if qos, err := mme.ResolveQoSByAPN(m, context.Background(), ue.IMSI(), p.Apn); err == nil {
+	if qos, err := mme.ResolveQoSByAPN(context.Background(), m, ue.IMSI(), p.Apn); err == nil {
 		p.SessAmbrDLBps = mme.BitRateToBps(qos.SessAmbrDLStr)
 		p.SessAmbrULBps = mme.BitRateToBps(qos.SessAmbrULStr)
 		p.Qci = qos.QCI
@@ -244,11 +244,11 @@ func newTestMME(t *testing.T) *mme.MME {
 type nasHandler struct{ m *mme.MME }
 
 func (h *nasHandler) HandleNAS(ctx context.Context, conn *mme.UeConn, pdu []byte) {
-	HandleNAS(h.m, ctx, conn, pdu)
+	HandleNAS(ctx, h.m, conn, pdu)
 }
 
 func (h *nasHandler) HandleServiceRequest(ctx context.Context, conn mme.S1APWriter, msg *s1ap.InitialUEMessage) {
-	HandleServiceRequest(h.m, ctx, conn, msg)
+	HandleServiceRequest(ctx, h.m, conn, msg)
 }
 
 // securedUE returns a registered UE with a valid EPS NAS security context.

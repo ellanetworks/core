@@ -357,7 +357,7 @@ func (ueConn *UeConn) TouchLastSeen() {
 		return
 	}
 
-	ueConn.ue.TouchLastSeen(ueConn.radioName)
+	ueConn.ue.TouchLastSeen()
 }
 
 // sendTarget resolves the AMF and radio this RAN UE sends through.
@@ -463,6 +463,35 @@ func (ueConn *UeConn) abortHandoverIfPreparedTarget(ctx context.Context) {
 	ueConn.amf.ClearHandover(ue)
 
 	logger.WithTrace(ctx, ueConn.Log).Info("aborted in-flight N2 handover: target association removed")
+}
+
+// DropStaleUe removes any connection on radio still bound to ranUeNgapID before a new
+// InitialUEMessage reuses that RAN-UE-NGAP-ID. A gNB may reuse the ID before its prior
+// UEContextRelease completes, so a deferred UEContextReleaseComplete carrying the old
+// AMF-UE-NGAP-ID must not remove the freshly created context. Stale conns are found under
+// a.mu, then torn down after the lock — RemoveUeConn re-acquires a.mu and may call the SMF.
+func (a *AMF) DropStaleUe(ctx context.Context, radio *Radio, ranUeNgapID int64) {
+	a.mu.Lock()
+
+	var stale []*UeConn
+
+	for _, ueConn := range a.conns {
+		if ueConn.conn == radio.Conn && ueConn.RanUeNgapID == ranUeNgapID {
+			stale = append(stale, ueConn)
+		}
+	}
+
+	a.mu.Unlock()
+
+	for _, ueConn := range stale {
+		logger.WithTrace(ctx, ueConn.Log).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale UeConn",
+			zap.Int64("RanUeNgapID", ueConn.RanUeNgapID),
+			zap.Int64("AmfUeNgapID", ueConn.AmfUeNgapID))
+
+		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
+			logger.WithTrace(ctx, ueConn.Log).Error(err.Error())
+		}
+	}
 }
 
 func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
@@ -631,7 +660,7 @@ func (ueConn *UeConn) UpdateLocation(ctx context.Context, amf *AMF, userLocation
 			return
 		}
 
-		tmp, err := strconv.ParseUint(operatorInfo.Tais[0].Tac, 10, 32)
+		tmp, err := strconv.ParseUint(operatorInfo.Tais[0].Tac, 16, 32)
 		if err != nil {
 			logger.AmfLog.Error("Error parsing TAC", zap.String("Tac", operatorInfo.Tais[0].Tac), zap.Error(err))
 		}

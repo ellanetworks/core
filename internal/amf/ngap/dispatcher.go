@@ -28,16 +28,7 @@ var tracer = otel.Tracer("ella-core/amf/ngap")
 
 func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, msg []byte) {
 	remoteAddress := conn.RemoteAddr()
-	if remoteAddress == nil {
-		logger.AmfLog.Debug("Remote address is nil")
-		return
-	}
-
 	localAddress := conn.LocalAddr()
-	if localAddress == nil {
-		logger.AmfLog.Debug("Local address is nil")
-		return
-	}
 
 	ran, ok := amfInstance.FindRadioByConn(conn)
 	if !ok {
@@ -49,7 +40,7 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 			return
 		}
 
-		logger.AmfLog.Info("Added a new radio", zap.String("address", remoteAddress.String()))
+		logger.AmfLog.Info("Added a new radio", zap.String("address", amf.AddrString(remoteAddress)))
 	}
 
 	if len(msg) == 0 {
@@ -78,13 +69,13 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 	messageType := getMessageType(pdu)
 
 	span.SetAttributes(
-		attribute.String("ngap.message_type", messageType),
+		attribute.String("ngap.message_type", string(messageType)),
 		attribute.Int("ngap.pdu_category", pdu.Present),
 		attribute.Int("ngap.message_size", len(msg)),
 		attribute.String("network.protocol.name", "ngap"),
 		attribute.String("network.transport", "sctp"),
-		attribute.String("network.peer.address", remoteAddress.String()),
-		attribute.String("network.local.address", localAddress.String()),
+		attribute.String("network.peer.address", amf.AddrString(remoteAddress)),
+		attribute.String("network.local.address", amf.AddrString(localAddress)),
 	)
 
 	// Pre-decode NGSetupRequest so the peer's RANNodeName can be applied to
@@ -122,7 +113,7 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 	// TS 38.413: NG Setup must be the first NGAP procedure after
 	// the TNL association is established. Reject anything else.
 	if ran.RanID == nil {
-		logger.From(ctx, ran.Log).Error("Received NGAP message before NG Setup, dropping", zap.String("messageType", messageType))
+		logger.From(ctx, ran.Log).Error("Received NGAP message before NG Setup, dropping", zap.String("messageType", string(messageType)))
 
 		return
 	}
@@ -337,7 +328,7 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 				}
 			}
 		default:
-			logger.From(ctx, ran.Log).Warn("Not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", initiatingMessage.ProcedureCode.Value))
+			logger.From(ctx, ran.Log).Warn("ignoring unsupported procedure", zap.String("kind", "initiating"), zap.Int64("procedureCode", initiatingMessage.ProcedureCode.Value))
 		}
 	case ngapType.NGAPPDUPresentSuccessfulOutcome:
 		successfulOutcome := pdu.SuccessfulOutcome
@@ -397,7 +388,7 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 
 			HandleHandoverRequestAcknowledge(ctx, amfInstance, ran, decoded)
 		default:
-			logger.From(ctx, ran.Log).Warn("NGAP Message handler not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", successfulOutcome.ProcedureCode.Value))
+			logger.From(ctx, ran.Log).Warn("ignoring unsupported procedure", zap.String("kind", "successful-outcome"), zap.Int64("procedureCode", successfulOutcome.ProcedureCode.Value))
 		}
 	case ngapType.NGAPPDUPresentUnsuccessfulOutcome:
 		unsuccessfulOutcome := pdu.UnsuccessfulOutcome
@@ -429,7 +420,7 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 
 			HandleHandoverFailure(ctx, amfInstance, ran, decoded)
 		default:
-			logger.From(ctx, ran.Log).Warn("Not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", unsuccessfulOutcome.ProcedureCode.Value))
+			logger.From(ctx, ran.Log).Warn("ignoring unsupported procedure", zap.String("kind", "unsuccessful-outcome"), zap.Int64("procedureCode", unsuccessfulOutcome.ProcedureCode.Value))
 		}
 	}
 }

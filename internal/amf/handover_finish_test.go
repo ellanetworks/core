@@ -26,8 +26,8 @@ func newPreparingHandover(t *testing.T) (*amf.AMF, *amf.UeContext, *amf.UeConn, 
 
 	source.AMFForTest().AttachUeConn(ue, source)
 
-	if err := amf.AttachSourceUeTargetUe(source, target); err != nil {
-		t.Fatalf("AttachSourceUeTargetUe: %v", err)
+	if err := amf.SetHandoverForTest(source, target); err != nil {
+		t.Fatalf("SetHandoverForTest: %v", err)
 	}
 
 	return amfInstance, ue, source, target

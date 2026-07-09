@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -35,7 +36,7 @@ func TestBuildPaging(t *testing.T) {
 	ue := idleRegisteredUE(t, m)
 	ue.RadioCapabilityForPaging = []byte{0xaa, 0xbb, 0xcc}
 
-	paging, err := m.buildPaging(context.Background(), ue)
+	paging, err := m.buildPaging(ue)
 	if err != nil {
 		t.Fatalf("buildPaging: %v", err)
 	}
@@ -58,6 +59,11 @@ func TestBuildPaging(t *testing.T) {
 
 	if len(paging.TAIList) != 1 {
 		t.Fatalf("TAI list length = %d, want 1", len(paging.TAIList))
+	}
+
+	// The paging TAI list is the UE's registration area — the served TAC (1).
+	if uint16(paging.TAIList[0].TAC) != 1 {
+		t.Fatalf("paging TAI TAC = %d, want 1 (served)", uint16(paging.TAIList[0].TAC))
 	}
 
 	b, err := paging.Marshal()
@@ -83,6 +89,40 @@ func TestPageNoENBs(t *testing.T) {
 
 	if err := m.Page(context.Background(), ue.imsiOrEmpty()); err != nil {
 		t.Fatalf("Page: %v", err)
+	}
+}
+
+// TestPageFiltersByServedTAI verifies Paging reaches only eNBs whose broadcast TAIs
+// intersect the network's served tracking area, not one broadcasting only a foreign
+// TAC (TS 23.401 §5.3.4: page within the registered tracking area).
+func TestPageFiltersByServedTAI(t *testing.T) {
+	m := newTestMME(t)
+	ue := idleRegisteredUE(t, m)
+
+	plmn, err := m.OperatorPLMN(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	p := plmn
+
+	// The test operator serves TAC 1 ("000001").
+	served := &captureConn{}
+	m.IndexRadioForTest(served, []SupportedTAI{{Tai: models.Tai{PlmnID: &p, Tac: "000001"}}})
+
+	foreign := &captureConn{}
+	m.IndexRadioForTest(foreign, []SupportedTAI{{Tai: models.Tai{PlmnID: &p, Tac: "0000ff"}}})
+
+	if err := m.Page(context.Background(), ue.imsiOrEmpty()); err != nil {
+		t.Fatalf("Page: %v", err)
+	}
+
+	if got := served.count(); got != 1 {
+		t.Fatalf("eNB serving the network TAC received %d pages, want 1", got)
+	}
+
+	if got := foreign.count(); got != 0 {
+		t.Fatalf("eNB serving only a foreign TAC received %d pages, want 0", got)
 	}
 }
 

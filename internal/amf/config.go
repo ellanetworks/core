@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/db"
@@ -85,17 +86,24 @@ func getSupportedTAIs(operator *db.Operator) ([]models.Tai, error) {
 		return nil, fmt.Errorf("failed to get supported TACs: %w", err)
 	}
 
-	tais := make([]models.Tai, 0)
+	tais := make([]models.Tai, 0, len(supportedTacs))
 
 	for _, tac := range supportedTacs {
-		tai := models.Tai{
+		// Canonicalise the TAC to a single lowercase 6-hex form so it compares equal
+		// to the RAN's hex.EncodeToString(TAC) and encodes to NAS; the DB accepts any
+		// even/odd-case hex (TS 23.003).
+		n, err := strconv.ParseUint(tac, 16, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid TAC %q: %w", tac, err)
+		}
+
+		tais = append(tais, models.Tai{
 			PlmnID: &models.PlmnID{
 				Mcc: operator.Mcc,
 				Mnc: operator.Mnc,
 			},
-			Tac: tac,
-		}
-		tais = append(tais, tai)
+			Tac: fmt.Sprintf("%06x", n),
+		})
 	}
 
 	return tais, nil

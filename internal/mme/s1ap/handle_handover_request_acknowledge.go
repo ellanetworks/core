@@ -68,7 +68,7 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 		// No default bearer admitted: the handover is rejected (TS 23.401 §5.5.1.2.3).
 		logger.From(ctx, logger.MmeLog).Warn("Handover Request Acknowledge admitted no E-RAB; rejecting handover",
 			zap.Uint32("target-mme-ue-id", uint32(ack.MMEUES1APID)))
-		mme.SendUEContextRelease(m, ctx, radio.Conn, ack.MMEUES1APID, ack.ENBUES1APID, true, causeHOFailureInTarget)
+		mme.SendUEContextRelease(ctx, m, radio.Conn, ack.MMEUES1APID, ack.ENBUES1APID, true, causeHOFailureInTarget)
 		m.FailHandoverToSource(ctx, ue, causeHOFailureInTarget)
 
 		return

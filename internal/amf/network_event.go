@@ -5,16 +5,28 @@ package amf
 
 import (
 	"context"
+	"net"
 
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
 )
 
+// AddrString renders an SCTP address for logging, returning "" for a nil address (a
+// closed/half-established association) rather than dropping the record.
+func AddrString(a net.Addr) string {
+	if a == nil {
+		return ""
+	}
+
+	return a.String()
+}
+
 // LogNetworkEvent records an NGAP message exchanged with a gNB in the network events
 // log. Addresses come from the radio's concrete SCTP connection; a test writer (or a
-// nil radio/connection) is skipped.
-func (a *AMF) LogNetworkEvent(ctx context.Context, conn NGAPWriter, messageType string, dir logger.LogDirection, raw []byte) {
+// nil connection) is skipped, but a nil address is rendered as "" so a genuine
+// exchange is never dropped from the log.
+func (a *AMF) LogNetworkEvent(ctx context.Context, conn NGAPWriter, messageType send.NGAPProcedure, dir logger.LogDirection, raw []byte) {
 	if conn == nil {
 		return
 	}
@@ -24,20 +36,13 @@ func (a *AMF) LogNetworkEvent(ctx context.Context, conn NGAPWriter, messageType 
 		return
 	}
 
-	localAddr := sctpConn.LocalAddr()
-	remoteAddr := sctpConn.RemoteAddr()
-
-	if localAddr == nil || remoteAddr == nil {
-		return
-	}
-
 	logger.LogNetworkEvent(
 		ctx,
 		logger.NGAPNetworkProtocol,
-		messageType,
+		string(messageType),
 		dir,
-		localAddr.String(),
-		remoteAddr.String(),
+		AddrString(sctpConn.LocalAddr()),
+		AddrString(sctpConn.RemoteAddr()),
 		a.radioNameByConn(conn),
 		raw,
 	)
@@ -45,5 +50,5 @@ func (a *AMF) LogNetworkEvent(ctx context.Context, conn NGAPWriter, messageType 
 
 // logOutboundNGAP records a sent NGAP PDU as a network event.
 func (a *AMF) logOutboundNGAP(ctx context.Context, conn NGAPWriter, msgType send.NGAPProcedure, packet []byte) {
-	a.LogNetworkEvent(ctx, conn, string(msgType), logger.DirectionOutbound, packet)
+	a.LogNetworkEvent(ctx, conn, msgType, logger.DirectionOutbound, packet)
 }

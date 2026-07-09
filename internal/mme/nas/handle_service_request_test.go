@@ -23,7 +23,7 @@ func idleRegisteredUE(t *testing.T, m *mme.MME) (*mme.UeContext, eps.EPSMobileId
 	t.Helper()
 
 	ue, _ := securedUE(t, m)
-	ue.UeNetCap = eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal()
+	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(), nil, mme.MintAuthProofForAttachRequest())
 	testPDN(ue).SgwFTEID = testSGWFTEID // S-GW S1-U persists across idle, as after a real attach
 
 	guti, err := m.ReallocateGUTI(t.Context(), ue, models.PlmnID{Mcc: "001", Mnc: "01"}, 1, 1)
@@ -67,7 +67,7 @@ func TestServiceRequestReestablishes(t *testing.T) {
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
 	}
 
-	HandleServiceRequest(m, context.Background(), cc, msg)
+	HandleServiceRequest(context.Background(), m, cc, msg)
 
 	if !ue.Connected() {
 		t.Fatal("UE not ECM-CONNECTED after Service Request")
@@ -107,7 +107,7 @@ func TestServiceRequestReactivatesAllBearers(t *testing.T) {
 	second.Arp = 10
 
 	cc := &captureConn{}
-	HandleServiceRequest(m, context.Background(), cc, &s1ap.InitialUEMessage{
+	HandleServiceRequest(context.Background(), m, cc, &s1ap.InitialUEMessage{
 		ENBUES1APID: 9,
 		NASPDU:      s1ap.NASPDU(serviceRequestNAS(t, ue)),
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
@@ -174,7 +174,7 @@ func TestServiceRequestS1UTransportFamily(t *testing.T) {
 			testPDN(ue).SgwN3IPv6 = tc.sgwV6
 
 			cc := &captureConn{}
-			HandleServiceRequest(m, context.Background(), cc, &s1ap.InitialUEMessage{
+			HandleServiceRequest(context.Background(), m, cc, &s1ap.InitialUEMessage{
 				ENBUES1APID: 9,
 				NASPDU:      s1ap.NASPDU(serviceRequestNAS(t, ue)),
 				STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
@@ -212,7 +212,7 @@ func TestServiceRequestAllocatesFreshMMEUES1APID(t *testing.T) {
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
 	}
 
-	HandleServiceRequest(m, context.Background(), cc, msg)
+	HandleServiceRequest(context.Background(), m, cc, msg)
 
 	if !ue.Connected() {
 		t.Fatal("UE not bound to a connection after Service Request")
@@ -233,7 +233,7 @@ func TestServiceRequestUnknownSTMSIRejected(t *testing.T) {
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: 0xDEADBEEF},
 	}
 
-	HandleServiceRequest(m, context.Background(), cc, msg)
+	HandleServiceRequest(context.Background(), m, cc, msg)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected Service Reject, got %d S1AP messages", len(cc.sent))
@@ -263,7 +263,7 @@ func TestServiceRequestBadMACRejected(t *testing.T) {
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
 	}
 
-	HandleServiceRequest(m, context.Background(), cc, msg)
+	HandleServiceRequest(context.Background(), m, cc, msg)
 
 	if ue.Connected() {
 		t.Fatal("UE reconnected despite a bad short MAC")
@@ -289,7 +289,7 @@ func TestServiceRequestProtocolErrorRejected96(t *testing.T) {
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
 	}
 
-	HandleServiceRequest(m, context.Background(), cc, msg)
+	HandleServiceRequest(context.Background(), m, cc, msg)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected Service Reject, got %d S1AP messages", len(cc.sent))
@@ -352,7 +352,7 @@ func TestServiceRequestBadMACDoesNotRebindVictim(t *testing.T) {
 	nas[3] ^= 0xff
 
 	attacker := &captureConn{}
-	HandleServiceRequest(m, context.Background(), attacker, &s1ap.InitialUEMessage{
+	HandleServiceRequest(context.Background(), m, attacker, &s1ap.InitialUEMessage{
 		ENBUES1APID: 9,
 		NASPDU:      s1ap.NASPDU(nas),
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},

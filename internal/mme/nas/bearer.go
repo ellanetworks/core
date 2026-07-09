@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
@@ -18,14 +19,35 @@ import (
 	"go.uber.org/zap"
 )
 
-func activateDefaultBearer(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
-	qos, err := mme.ResolveAttachQoS(m, ctx, ue)
+// registrationAreaTAIList marshals a UE's registration area as the TAI list IE for
+// ATTACH/TAU ACCEPT (TS 24.301 §9.9.3.33). The area is single-PLMN in Ella Core.
+func registrationAreaTAIList(area []models.Tai) ([]byte, error) {
+	if len(area) == 0 || area[0].PlmnID == nil {
+		return nil, fmt.Errorf("empty registration area")
+	}
+
+	list := eps.TAIList{MCC: area[0].PlmnID.Mcc, MNC: area[0].PlmnID.Mnc}
+
+	for _, t := range area {
+		tac, err := strconv.ParseUint(t.Tac, 16, 16)
+		if err != nil {
+			return nil, fmt.Errorf("invalid TAC %q: %w", t.Tac, err)
+		}
+
+		list.TACs = append(list.TACs, uint16(tac))
+	}
+
+	return list.Marshal()
+}
+
+func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
+	qos, err := mme.ResolveAttachQoS(ctx, m, ue)
 	if errors.Is(err, mme.ErrUnknownAPN) {
 		// The requested APN is not bound to any policy in the subscriber's profile
 		// (TS 24.301 §6.5.1.4, ESM cause #27).
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: requested APN not in subscriber profile",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", ue.RequestedAPN))
-		rejectAttach(m, ctx, ue, mme.EmmCauseESMFailure)
+		rejectAttach(ctx, m, ue, mme.EmmCauseESMFailure)
 
 		return
 	}
@@ -40,7 +62,7 @@ func activateDefaultBearer(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 	if !qos.Allow4G {
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: 4G not allowed for subscriber",
 			zap.String("imsi", ue.IMSI()))
-		rejectAttach(m, ctx, ue, mme.EmmCauseEPSServicesNotAllowed)
+		rejectAttach(ctx, m, ue, mme.EmmCauseEPSServicesNotAllowed)
 
 		return
 	}
@@ -63,7 +85,7 @@ func activateDefaultBearer(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 		// IPv4-only data network); reject with EMM cause #19 "ESM failure" (TS 24.301).
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: default bearer setup failed",
 			zap.String("imsi", ue.IMSI()), zap.Error(err))
-		rejectAttach(m, ctx, ue, mme.EmmCauseESMFailure)
+		rejectAttach(ctx, m, ue, mme.EmmCauseESMFailure)
 
 		return
 	}
@@ -77,7 +99,7 @@ func activateDefaultBearer(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 		zap.Uint8("esm-cause", esmCause),
 	)
 
-	naspdu, err := buildProtectedAttachAccept(m, ctx, ue, qos)
+	naspdu, err := buildProtectedAttachAccept(ctx, m, ue, qos)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Attach Accept", zap.Error(err))
 		return
@@ -98,7 +120,7 @@ func activateDefaultBearer(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 	// can be answered by resending it (TS 24.301 §5.5.1.2.7 case d).
 	ue.Conn().AttachAcceptPdu = naspdu
 
-	sendInitialContextSetup(m, ctx, ue, qos, naspdu)
+	sendInitialContextSetup(ctx, m, ue, qos, naspdu)
 
 	// T3450 retransmits the Attach Accept, then releases the UE, if no Attach
 	// Complete arrives (TS 24.301).
@@ -108,7 +130,7 @@ func activateDefaultBearer(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
 // sendInitialContextSetup establishes the UE's S1 context and default E-RAB at the
 // eNB (TS 36.413). naspdu carries the Attach Accept on attach; it is nil on a
 // Service Request, where only the radio and S1 bearers are re-established.
-func sendInitialContextSetup(m *mme.MME, ctx context.Context, ue *mme.UeContext, qos *mme.EpsQoS, naspdu []byte) {
+func sendInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext, qos *mme.EpsQoS, naspdu []byte) {
 	// Derive K_eNB and seed the X2-handover key chain (NH for NCC=1). Re-seeded on
 	// every context setup, so a Service Request restarts the chain (TS 33.401).
 	kenb, kenbCount, err := ue.DeriveInitialKeNB()
@@ -117,7 +139,7 @@ func sendInitialContextSetup(m *mme.MME, ctx context.Context, ue *mme.UeContext,
 		return
 	}
 
-	uecap, err := eps.ParseUENetworkCapability(ue.UeNetCap)
+	uecap, err := eps.ParseUENetworkCapability(ue.UeNetCap())
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to parse UE network capability", zap.Error(err))
 		return
@@ -201,7 +223,7 @@ func sendInitialContextSetup(m *mme.MME, ctx context.Context, ue *mme.UeContext,
 	ue.Conn().ICS = mme.ICSPending
 }
 
-func buildProtectedAttachAccept(m *mme.MME, ctx context.Context, ue *mme.UeContext, qos *mme.EpsQoS) ([]byte, error) {
+func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, qos *mme.EpsQoS) ([]byte, error) {
 	p := m.DefaultPDN(ue)
 	if p == nil {
 		return nil, fmt.Errorf("attach accept with no active PDN")
@@ -222,12 +244,14 @@ func buildProtectedAttachAccept(m *mme.MME, ctx context.Context, ue *mme.UeConte
 		return nil, err
 	}
 
-	tac, err := m.OperatorTAC(ctx)
+	served, err := m.ServedTAIs(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	taiList, err := eps.TAIList{MCC: plmn.Mcc, MNC: plmn.Mnc, TACs: []uint16{tac}}.Marshal()
+	ue.AllocateRegistrationArea(served)
+
+	taiList, err := registrationAreaTAIList(ue.RegistrationArea())
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +301,7 @@ func buildProtectedAttachAccept(m *mme.MME, ctx context.Context, ue *mme.UeConte
 	return wire, nil
 }
 
-func handleAttachComplete(m *mme.MME, ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	if ue.RegStep() != mme.RegStepContextSetup {
 		logger.From(ctx, logger.MmeLog).Warn("ignoring Attach Complete outside the context-setup sub-phase")
 
@@ -301,14 +325,14 @@ func handleAttachComplete(m *mme.MME, ctx context.Context, ue *mme.UeContext, pl
 		zap.String("imsi", ue.IMSI()),
 	)
 
-	sendNetworkName(m, ctx, ue)
+	sendNetworkName(ctx, m, ue)
 
 	return nasreply.Handled()
 }
 
 // sendNetworkName provides the operator's network name to the UE in an EMM
 // INFORMATION message (TS 24.301).
-func sendNetworkName(m *mme.MME, ctx context.Context, ue *mme.UeContext) {
+func sendNetworkName(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	op, err := m.Bearer.GetOperator(ctx)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to get operator for network name", zap.String("imsi", ue.IMSI()), zap.Error(err))

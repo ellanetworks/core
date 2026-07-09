@@ -15,19 +15,8 @@ import (
 )
 
 func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.HandoverFailure) {
-	causePresent := ngapType.CausePresentRadioNetwork
-	causeValue := ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem
-
-	var err error
-
 	if msg.Cause != nil {
 		logger.WithTrace(ctx, ran.Log).Debug("Handover Failure Cause", logger.Cause(causeToString(*msg.Cause)))
-
-		causePresent, causeValue, err = getCause(msg.Cause)
-		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("Get Cause from Handover Failure Error", zap.Error(err))
-			return
-		}
 	}
 
 	targetUe := amfInstance.FindUEByAmfUeNgapID(ran, msg.AMFUENGAPID)
@@ -84,11 +73,12 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 		}
 	}
 
-	targetUe.ReleaseAction = amf.UeContextReleaseHandover
-
-	err = targetUe.SendUEContextReleaseCommand(ctx, causePresent, causeValue)
-	if err != nil {
-		logger.WithTrace(ctx, targetUe.Log).Error("error sending UE Context Release Command to target UE", zap.Error(err))
-		return
+	// The target sent HANDOVER FAILURE, so it admitted none of the resources and holds
+	// no UE context — the message carries no target RAN UE NGAP ID (TS 38.413 §8.4.2.3).
+	// The HANDOVER PREPARATION FAILURE to the source above is the only wire action; drop
+	// the target association locally rather than send a redundant UE Context Release
+	// Command to a context that does not exist.
+	if err := amfInstance.RemoveUeConn(ctx, targetUe); err != nil {
+		logger.WithTrace(ctx, targetUe.Log).Error("error removing target UE association", zap.Error(err))
 	}
 }

@@ -218,7 +218,7 @@ func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext)
 	// Defuse idle-mode supervision so a mobile-reachable/implicit-dereg callback
 	// cannot fire against a UE being torn down (e.g. network-initiated
 	// deregistration of an idle UE).
-	amf.StopIdleTimers(ue)
+	amf.stopIdleTimers(ue)
 
 	// Capture the connection before Deregister releases it (Release clears ue.active but
 	// leaves conn.ue intact).
@@ -284,17 +284,6 @@ func (amf *AMF) LookupUeBySupi(supi etsi.SUPI) (*UeContext, bool) {
 	}
 
 	return value, true
-}
-
-// UESnapshot returns a point-in-time snapshot of the UE's connection state, or false if
-// the UE is not found.
-func (amf *AMF) UESnapshot(supi etsi.SUPI) (UESnapshot, bool) {
-	ue, ok := amf.LookupUeBySupi(supi)
-	if !ok {
-		return UESnapshot{}, false
-	}
-
-	return ue.Snapshot(), true
 }
 
 func (amf *AMF) NewRadio(conn *sctp.SCTPConn) (*Radio, error) {
@@ -603,26 +592,43 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) e
 	}
 
 	amf.pageRadios(ctx, ue, ngapBuf)
-
-	if amf.T3513Cfg.Enable {
-		cfg := amf.T3513Cfg
-		ue.pagingTimer.Arm(cfg.ExpireTime, cfg.MaxRetryTimes,
-			func(attempt int32) {
-				// The UE answered by re-establishing its connection; stop supervising.
-				if ue.Conn() != nil {
-					ue.pagingTimer.Stop()
-					return
-				}
-
-				logger.From(ctx, logger.AmfLog).Info("T3513 expires, retransmit paging", zap.Int32("retry", attempt))
-				amf.pageRadios(context.Background(), ue, ngapBuf)
-			},
-			func() {
-				logger.From(ctx, logger.AmfLog).Warn("T3513 expires, abort paging procedure", zap.Int32("retry", cfg.MaxRetryTimes))
-			})
-	}
+	amf.armPaging(ue, ngapBuf)
 
 	return nil
+}
+
+// armPaging starts the paging-supervision guard for a UE just paged: it retransmits
+// the Paging on each interval up to a bound, then abandons (T3513, TS 24.501 §5.4.3).
+// A no-op when T3513 supervision is disabled.
+func (amf *AMF) armPaging(ue *UeContext, ngapBuf []byte) {
+	if !amf.T3513Cfg.Enable {
+		return
+	}
+
+	cfg := amf.T3513Cfg
+	ue.pagingTimer.Arm(cfg.ExpireTime, cfg.MaxRetryTimes,
+		func(attempt int32) { amf.retransmitPaging(ue, ngapBuf, attempt) },
+		func() { amf.abandonPaging() })
+}
+
+// retransmitPaging resends the Paging on each guard interval (T3513, TS 24.501
+// §5.4.3), or stops the guard once the UE has answered by re-establishing its
+// connection.
+func (amf *AMF) retransmitPaging(ue *UeContext, ngapBuf []byte, attempt int32) {
+	if ue.Conn() != nil {
+		ue.pagingTimer.Stop()
+		return
+	}
+
+	logger.AmfLog.Info("T3513 expires, retransmit paging", zap.Int32("retry", attempt))
+	amf.pageRadios(context.Background(), ue, ngapBuf)
+}
+
+// abandonPaging runs once the retransmission budget is exhausted. The buffered N1N2
+// message remains for the UE and mobile-reachable supervision continues (TS 24.501
+// §5.4.3).
+func (amf *AMF) abandonPaging() {
+	logger.AmfLog.Warn("T3513 expires, abort paging procedure")
 }
 
 // pageRadios sends the paging PDU to every radio whose supported TAIs intersect

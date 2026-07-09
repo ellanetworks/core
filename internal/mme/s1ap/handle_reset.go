@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/mme"
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -55,11 +54,6 @@ func sendResetAcknowledge(m *mme.MME, conn mme.S1APWriter, connectionList []s1ap
 		return
 	}
 
-	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: mme.S1apWirePPID, Stream: mme.S1apStreamNonUE}); err != nil {
-		m.RadioLog(conn).Error("failed to send Reset Acknowledge", zap.Error(err))
-		return
-	}
-
 	// Reset handling is not tied to a single UE request span; use a fresh root.
-	m.LogOutboundS1AP(context.Background(), conn, mme.S1APProcedureResetAcknowledge, b)
+	m.SendS1APConn(context.Background(), conn, mme.S1APProcedureResetAcknowledge, b)
 }

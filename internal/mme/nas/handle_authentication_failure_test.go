@@ -27,7 +27,7 @@ func TestAuthenticationFailureIgnoredWithNoAuthInProgress(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleAuthenticationFailure(m, context.Background(), ue, plain)
+	handleAuthenticationFailure(context.Background(), m, ue, plain)
 
 	if ue.Conn() == nil || ue.Conn().ReleasingForTest() {
 		t.Fatal("a spurious Authentication Failure must not release the UE")
@@ -52,7 +52,7 @@ func TestAuthenticationFailureDuringSecurityModeIgnored(t *testing.T) {
 	// auth success) so the RegStep gate is the only thing that can drop the failure.
 	ue.ForceRegStepForTest(mme.RegStepSecurityMode)
 
-	handleAuthenticationFailure(m, context.Background(), ue, authFailure(t, mme.EmmCauseMACFailure, nil))
+	handleAuthenticationFailure(context.Background(), m, ue, authFailure(t, mme.EmmCauseMACFailure, nil))
 
 	if ue.Conn() == nil || ue.Conn().ReleasingForTest() {
 		t.Fatal("an out-of-phase Authentication Failure must not release the UE")
@@ -75,7 +75,7 @@ func TestFreshAuthenticationResetsResyncBudget(t *testing.T) {
 	// A prior authentication exchange already spent its resync.
 	ue.Conn().SetResyncTried(true)
 
-	startAuthentication(m, context.Background(), ue)
+	startAuthentication(context.Background(), m, ue)
 
 	if ue.Conn().ResyncTried() {
 		t.Fatal("startAuthentication must reset resyncTried for a fresh authentication")
@@ -151,7 +151,7 @@ func TestAuthenticationResponseWrongRESRejects(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	HandleNAS(m, context.Background(), ue.Conn(), resp)
+	HandleNAS(context.Background(), m, ue.Conn(), resp)
 
 	if cc.count() != 2 {
 		t.Fatalf("expected Auth Reject + Release Command, got %d", cc.count())
@@ -172,7 +172,7 @@ func TestAuthFailureMACFailureRejects(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := authChallengedUE(t, m)
 
-	HandleNAS(m, context.Background(), ue.Conn(), authFailure(t, mme.EmmCauseMACFailure, nil))
+	HandleNAS(context.Background(), m, ue.Conn(), authFailure(t, mme.EmmCauseMACFailure, nil))
 
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected Auth Reject + Release Command, got %d", len(cc.sent))
@@ -191,7 +191,7 @@ func TestAuthFailureSynchResyncsAndReauthenticates(t *testing.T) {
 
 	auts := autsFor(t, ue, []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x21})
 
-	HandleNAS(m, context.Background(), ue.Conn(), authFailure(t, mme.EmmCauseSynchFailure, auts))
+	HandleNAS(context.Background(), m, ue.Conn(), authFailure(t, mme.EmmCauseSynchFailure, auts))
 
 	// A fresh Authentication Request, not a reject.
 	if len(cc.sent) != 1 {
@@ -207,7 +207,7 @@ func TestAuthFailureSynchResyncsAndReauthenticates(t *testing.T) {
 	}
 
 	// A second synch failure must not resync again — it rejects.
-	HandleNAS(m, context.Background(), ue.Conn(), authFailure(t, mme.EmmCauseSynchFailure, auts))
+	HandleNAS(context.Background(), m, ue.Conn(), authFailure(t, mme.EmmCauseSynchFailure, auts))
 
 	if _, err := eps.ParseAuthenticationReject(decodeDownlinkNAS(t, cc.sent[1])); err != nil {
 		t.Fatalf("second synch failure not rejected: %v", err)
@@ -225,7 +225,7 @@ func TestAuthFailureOutOfEnumerationCauseIgnored(t *testing.T) {
 
 	// #111 "protocol error, unspecified" is a valid EMM cause but not an
 	// AUTHENTICATION FAILURE cause.
-	handleAuthenticationFailure(m, context.Background(), ue, authFailure(t, mme.EmmCauseProtocolErrorUnspec, nil))
+	handleAuthenticationFailure(context.Background(), m, ue, authFailure(t, mme.EmmCauseProtocolErrorUnspec, nil))
 
 	if ue.Conn() == nil || ue.Conn().ReleasingForTest() {
 		t.Fatal("an out-of-enumeration Authentication Failure cause must not release the UE")
@@ -247,7 +247,7 @@ func TestAuthFailureBadAUTSRejects(t *testing.T) {
 	auts := autsFor(t, ue, []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x21})
 	auts[len(auts)-1] ^= 0xff // corrupt MAC-S
 
-	HandleNAS(m, context.Background(), ue.Conn(), authFailure(t, mme.EmmCauseSynchFailure, auts))
+	HandleNAS(context.Background(), m, ue.Conn(), authFailure(t, mme.EmmCauseSynchFailure, auts))
 
 	if _, err := eps.ParseAuthenticationReject(decodeDownlinkNAS(t, cc.sent[0])); err != nil {
 		t.Fatalf("bad AUTS not rejected: %v", err)

@@ -75,19 +75,14 @@ func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) 
 		return
 	}
 
-	if im, ok := pdu.(*s1ap.InitiatingMessage); ok {
-		switch im.ProcedureCode {
-		case s1ap.ProcS1Setup:
-			// The radio-creating handler: radio may still be nil on a parse failure,
-			// so it keeps the raw conn.
-			handleS1Setup(m, ctx, conn, im.Value)
+	// S1 Setup is the only pre-Route special case: it is the radio-creating handler,
+	// so it keeps the raw conn (radio may still be nil on a parse failure) and must run
+	// before the setup-complete gate above. Every other procedure — including the
+	// node-level eNB Configuration Update — goes through Route with the resolved radio.
+	if im, ok := pdu.(*s1ap.InitiatingMessage); ok && im.ProcedureCode == s1ap.ProcS1Setup {
+		handleS1Setup(m, ctx, conn, im.Value)
 
-			return
-		case s1ap.ProcENBConfigurationUpdate:
-			handleENBConfigurationUpdate(m, ctx, radio, im.Value)
-
-			return
-		}
+		return
 	}
 
 	Route(m, ctx, radio, pdu)

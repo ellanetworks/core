@@ -135,7 +135,7 @@ func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.
 		return fmt.Errorf("get operator info error: %v", err)
 	}
 
-	guti, err := amf.Guti(operatorInfo.Guami, ue)
+	guti, err := amf.PagingGuti(operatorInfo.Guami, ue)
 	if err != nil {
 		return fmt.Errorf("build 5G-GUTI error: %v", err)
 	}

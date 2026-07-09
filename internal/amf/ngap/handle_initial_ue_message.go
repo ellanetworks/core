@@ -20,34 +20,18 @@ import (
 )
 
 func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.InitialUEMessage) {
-	ueConn := amfInstance.FindUEByRanUeNgapID(ran, msg.RANUENGAPID)
-	if ueConn != nil {
-		// gNB reused a RAN UE NGAP ID before completing the previous UEContextRelease.
-		// Drop the stale ueConn so a deferred UEContextReleaseComplete carrying the old
-		// AMF UE NGAP ID cannot remove the freshly created context.
-		logger.WithTrace(ctx, ueConn.Log).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale UeConn",
-			zap.Int64("RanUeNgapID", ueConn.RanUeNgapID),
-			zap.Int64("AmfUeNgapID", ueConn.AmfUeNgapID))
+	// A gNB may reuse a RAN-UE-NGAP-ID before its prior UEContextRelease completes; drop
+	// any stale conn first so a deferred UEContextReleaseComplete cannot remove the context
+	// created just below.
+	amfInstance.DropStaleUe(ctx, ran, msg.RANUENGAPID)
 
-		err := amfInstance.RemoveUeConn(ctx, ueConn)
-		if err != nil {
-			logger.WithTrace(ctx, ueConn.Log).Error(err.Error())
-		}
-
-		ueConn = nil
+	ueConn, err := amfInstance.NewUeConn(ran, msg.RANUENGAPID)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("Failed to add Ran UE to the pool", zap.Error(err))
+		return
 	}
 
-	if ueConn == nil {
-		var err error
-
-		ueConn, err = amfInstance.NewUeConn(ran, msg.RANUENGAPID)
-		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("Failed to add Ran UE to the pool", zap.Error(err))
-			return
-		}
-
-		logger.WithTrace(ctx, ueConn.Log).Debug("Added Ran UE to the pool", zap.Int64("RanUeNgapID", ueConn.RanUeNgapID))
-	}
+	logger.WithTrace(ctx, ueConn.Log).Debug("Added Ran UE to the pool", zap.Int64("RanUeNgapID", ueConn.RanUeNgapID))
 
 	ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation.Raw())
 
@@ -65,10 +49,6 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		amfInstance.NAS.HandleServiceRequest(ctx, ueConn, msg.NASPDU)
 	} else {
 		resumeExistingContext(ctx, amfInstance, ueConn, msg)
-
-		if ueConn.UeContext() != nil {
-			amfInstance.StopIdleTimers(ueConn.UeContext())
-		}
 
 		amfInstance.NAS.HandleNAS(ctx, ueConn, msg.NASPDU)
 	}

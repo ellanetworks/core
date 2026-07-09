@@ -33,7 +33,9 @@ func handoverUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn, *captur
 	p.Apn = "internet"
 	p.Qci, p.Arp = 9, 8
 	p.SgwFTEID = models.FTEID{TEID: 0x1111, Addr: netip.AddrFrom4([4]byte{10, 0, 0, 1})}
-	ue.UeNetCap = eps.UENetworkCapability{EEA: 0xe0, EIA: 0xe0}.Marshal()
+
+	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xe0, EIA: 0xe0}.Marshal(), nil, mme.MintAuthProofForAttachRequest())
+
 	ue.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
 	ue.SetNCCForTest(1)
 
@@ -473,11 +475,11 @@ func TestHandoverGuardSurvivesContextRelease(t *testing.T) {
 	m.FireHandoverGuardForTest(ue)
 }
 
-// TestHandoverSupervisionTimeoutAbandons checks the registry supervision is actually
-// armed at PrepareHandover and fires at the TS1RELOCoverall deadline (TS 36.413 §8.4) —
-// the end-to-end wiring, not just the abandonment action. The S1Handover procedure is
-// polled via the registry (lock-synchronised against the timer goroutine, unlike the
-// raw ue.handover field).
+// TestHandoverSupervisionTimeoutAbandons checks the handler arms the registry
+// supervision once the HANDOVER REQUEST is sent and that it fires at the TS1RELOCoverall
+// deadline (TS 36.413 §8.4) — the end-to-end wiring, not just the abandonment action. The
+// S1Handover procedure is polled via the registry (lock-synchronised against the timer
+// goroutine, unlike the raw ue.handover field).
 func TestHandoverSupervisionTimeoutAbandons(t *testing.T) {
 	m := newTestMME(t)
 	m.SetHandoverGuardTimeoutForTest(5 * time.Millisecond)

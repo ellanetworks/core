@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/models"
 	"go.uber.org/zap"
 )
 
@@ -237,6 +238,41 @@ func TestReallocateGUTIReuseAndFree(t *testing.T) {
 	}
 }
 
+// TestPagingGuti_PrefersOldDuringRealloc verifies the AMF pages with the in-flight
+// old 5G-GUTI while a reallocation the UE has not acknowledged is pending — the UE
+// still listens on the old 5G-S-TMSI until then (TS 24.501 §5.4.4) — and with the
+// current GUTI otherwise.
+func TestPagingGuti_PrefersOldDuringRealloc(t *testing.T) {
+	amfInstance := amf.New(nil, nil, nil)
+	guami := &models.Guami{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, AmfID: "cafe00"}
+
+	ue := amf.NewUeContext()
+
+	cur, err := etsi.NewTMSI(0x11111111)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ue.SetTmsiForTest(cur)
+
+	curGuti, _ := etsi.NewGUTI5G("001", "01", "cafe00", cur)
+	if got, err := amfInstance.PagingGuti(guami, ue); err != nil || got != curGuti {
+		t.Fatalf("PagingGuti with no realloc pending = %v (err %v), want current GUTI %v", got, err, curGuti)
+	}
+
+	old, err := etsi.NewTMSI(0x22222222)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ue.SetOldTmsiForTest(old)
+
+	oldGuti, _ := etsi.NewGUTI5G("001", "01", "cafe00", old)
+	if got, err := amfInstance.PagingGuti(guami, ue); err != nil || got != oldGuti {
+		t.Fatalf("PagingGuti during realloc = %v (err %v), want old GUTI %v", got, err, oldGuti)
+	}
+}
+
 func TestFindUeContextByGuti_InvalidGUTI(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
@@ -253,8 +289,7 @@ func TestGetUESnapshot(t *testing.T) {
 
 	supi := newSUPI(t, "001010000000011")
 
-	_, ok := amfInstance.UESnapshot(supi)
-	if ok {
+	if _, _, _, ok := amfInstance.LookupSubscriber(supi); ok {
 		t.Fatal("expected no snapshot for missing UE")
 	}
 
@@ -262,12 +297,12 @@ func TestGetUESnapshot(t *testing.T) {
 
 	addTestUE(t, amfInstance, "001010000000011", func(ue *amf.UeContext) {
 		ue.ForceStateForTest(amf.Registered)
-		ue.SetLastSeenForTest(now, "")
+		ue.SetLastSeenForTest(now)
 	})
 
-	snap, ok := amfInstance.UESnapshot(supi)
+	snap, _, _, ok := amfInstance.LookupSubscriber(supi)
 	if !ok {
-		t.Fatal("expected snapshot for existing UE")
+		t.Fatal("expected snapshot for existing Registered UE")
 	}
 
 	if !snap.LastSeenAt.Equal(now) {

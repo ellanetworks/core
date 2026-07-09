@@ -17,9 +17,9 @@ func TestStartSecurityModeRejectsNoCommonIntegrity(t *testing.T) {
 	ue := m.NewUe(cc, 7)
 	ue.SetIMSIForTest(testSubscriber.IMSI)
 	ue.SetKASMEForTest(make([]byte, 32))
-	ue.UeNetCap = eps.UENetworkCapability{EEA: 0xff, EIA: 0x00}.Marshal()
+	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xff, EIA: 0x00}.Marshal(), nil, mme.MintAuthProofForAttachRequest())
 
-	startSecurityMode(m, context.Background(), ue)
+	startSecurityMode(context.Background(), m, ue)
 
 	if ue.SecuredForTest() {
 		t.Fatal("UE secured despite no common integrity algorithm")
@@ -45,9 +45,9 @@ func TestStartSecurityModeClaimsKeyChain(t *testing.T) {
 	ue := m.NewUe(cc, 7)
 	ue.SetIMSIForTest(testSubscriber.IMSI)
 	ue.SetKASMEForTest(make([]byte, 32))
-	ue.UeNetCap = eps.UENetworkCapability{EEA: 0xff, EIA: 0xff}.Marshal()
+	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xff, EIA: 0xff}.Marshal(), nil, mme.MintAuthProofForAttachRequest())
 
-	startSecurityMode(m, context.Background(), ue)
+	startSecurityMode(context.Background(), m, ue)
 
 	if len(cc.sent) == 0 {
 		t.Fatal("expected a Security Mode Command to be sent")

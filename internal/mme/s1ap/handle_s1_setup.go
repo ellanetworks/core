@@ -61,12 +61,7 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 	)
 
 	if !accepted {
-		if _, err := conn.WriteMsg(outBytes, &sctp.SndRcvInfo{PPID: mme.S1apWirePPID, Stream: mme.S1apStreamNonUE}); err != nil {
-			logger.From(ctx, m.RadioLog(conn)).Error("failed to send S1 Setup Failure", zap.Error(err))
-			return
-		}
-
-		m.LogNetworkEvent(ctx, conn, mme.S1APProcedureS1SetupFailure, logger.DirectionOutbound, outBytes)
+		m.SendS1APConn(ctx, conn, mme.S1APProcedureS1SetupFailure, outBytes)
 
 		logger.From(ctx, m.RadioLog(conn)).Warn("S1 Setup rejected",
 			zap.String("enb-name", req.ENBName),
@@ -76,12 +71,7 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 		return
 	}
 
-	if _, err := conn.WriteMsg(outBytes, &sctp.SndRcvInfo{PPID: mme.S1apWirePPID, Stream: mme.S1apStreamNonUE}); err != nil {
-		logger.From(ctx, m.RadioLog(conn)).Error("failed to send S1 Setup Response", zap.Error(err))
-		return
-	}
-
-	m.LogNetworkEvent(ctx, conn, mme.S1APProcedureS1SetupResponse, logger.DirectionOutbound, outBytes)
+	m.SendS1APConn(ctx, conn, mme.S1APProcedureS1SetupResponse, outBytes)
 
 	// Allow the eNB's UE-associated signalling through the dispatcher's setup-first
 	// gate (TS 36.413).

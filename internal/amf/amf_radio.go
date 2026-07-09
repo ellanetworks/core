@@ -144,10 +144,7 @@ type RadioInfo struct {
 }
 
 func (r *Radio) info() RadioInfo {
-	addr := ""
-	if a := r.RemoteAddr(); a != nil {
-		addr = a.String()
-	}
+	addr := AddrString(r.RemoteAddr())
 
 	return RadioInfo{
 		Name:          r.name,

@@ -67,6 +67,6 @@ func EmmMessageTypeName(mt eps.MessageType) string {
 	case 0x61:
 		return "EMMInformation"
 	default:
-		return fmt.Sprintf("0x%02x", uint8(mt))
+		return fmt.Sprintf("Unknown message type: 0x%02x", uint8(mt))
 	}
 }

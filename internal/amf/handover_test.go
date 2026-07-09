@@ -13,7 +13,7 @@ import (
 )
 
 // TestHandoverFSM_Lifecycle asserts the handover FSM — the single source of truth
-// for the source/target UeConn pair — is installed by AttachSourceUeTargetUe and
+// for the source/target UeConn pair — is installed by SetHandoverForTest and
 // torn down by ClearHandover.
 func TestHandoverFSM_Lifecycle(t *testing.T) {
 	amfUe := amf.NewUeContext()
@@ -26,15 +26,15 @@ func TestHandoverFSM_Lifecycle(t *testing.T) {
 	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
 	if amfInstance.HandoverInProgress(amfUe) {
-		t.Fatal("a handover FSM exists before AttachSourceUeTargetUe")
+		t.Fatal("a handover FSM exists before SetHandoverForTest")
 	}
 
-	if err := amf.AttachSourceUeTargetUe(sourceUe, targetUe); err != nil {
-		t.Fatalf("AttachSourceUeTargetUe: %v", err)
+	if err := amf.SetHandoverForTest(sourceUe, targetUe); err != nil {
+		t.Fatalf("SetHandoverForTest: %v", err)
 	}
 
 	if !amfInstance.HandoverInProgress(amfUe) {
-		t.Fatal("handover FSM not installed by AttachSourceUeTargetUe")
+		t.Fatal("handover FSM not installed by SetHandoverForTest")
 	}
 
 	if amfInstance.HandoverSource(amfUe) != sourceUe {
@@ -65,8 +65,8 @@ func TestHandover_TargetRemovalAbortsHandover(t *testing.T) {
 
 	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
-	if err := amf.AttachSourceUeTargetUe(sourceUe, targetUe); err != nil {
-		t.Fatalf("AttachSourceUeTargetUe: %v", err)
+	if err := amf.SetHandoverForTest(sourceUe, targetUe); err != nil {
+		t.Fatalf("SetHandoverForTest: %v", err)
 	}
 
 	if !amfInstance.HandoverInProgress(amfUe) {
@@ -101,13 +101,9 @@ func TestHandover_NHCommittedOnlyOnCompletion(t *testing.T) {
 		ue := makeUE()
 		nh0, ncc0 := ue.NHForTest(), ue.NCCForTest()
 
-		if err := amfInstance.PrepareHandover(ue, nil, nil); err != nil {
-			t.Fatalf("PrepareHandover: %v", err)
-		}
-
-		staged, stagedNCC, ok := amfInstance.StagedHandoverNH(ue)
+		staged, stagedNCC, ok := amfInstance.StageHandoverForTest(ue)
 		if !ok {
-			t.Fatal("expected a staged NH")
+			t.Fatal("StageHandoverForTest failed")
 		}
 
 		if staged == nh0 {
@@ -128,11 +124,10 @@ func TestHandover_NHCommittedOnlyOnCompletion(t *testing.T) {
 	t.Run("completed handover commits the staged NH chain", func(t *testing.T) {
 		ue := makeUE()
 
-		if err := amfInstance.PrepareHandover(ue, nil, nil); err != nil {
-			t.Fatalf("PrepareHandover: %v", err)
+		staged, stagedNCC, ok := amfInstance.StageHandoverForTest(ue)
+		if !ok {
+			t.Fatal("StageHandoverForTest failed")
 		}
-
-		staged, stagedNCC, _ := amfInstance.StagedHandoverNH(ue)
 
 		if !amfInstance.MarkHandoverPrepared(ue, nil) {
 			t.Fatal("MarkHandoverPrepared returned false")

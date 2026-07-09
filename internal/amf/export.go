@@ -106,7 +106,7 @@ type TimerStatusExport struct {
 type UETimersExport struct {
 	T3512ValueSeconds int64             `json:"t3512_value_seconds"`
 	T3502ValueSeconds int64             `json:"t3502_value_seconds"`
-	T3513Paging       TimerStatusExport `json:"t3513_paging"`
+	Paging            TimerStatusExport `json:"paging"`
 	NASGuard          TimerStatusExport `json:"nas_guard"`
 	NASGuardProcedure string            `json:"nas_guard_procedure"`
 	MobileReachable   TimerStatusExport `json:"mobile_reachable"`
@@ -249,18 +249,25 @@ func (amf *AMF) ExportUEs(ctx context.Context) ([]UeContextExport, error) {
 	return exports, nil
 }
 
-// LookupSubscriber resolves a UE by SUPI and returns its snapshot together with its
-// PDU sessions, so the two views cannot tear across separate registry lookups. Session
-// detail is built after the session refs are copied out from under the UE lock, because
-// it reaches the SMF (SMF-delegated sessions, TS 23.501) and must not run under the
-// registry lock.
-func (amf *AMF) LookupSubscriber(supi etsi.SUPI) (UESnapshot, []PDUSessionExport, bool) {
+// LookupSubscriber returns the snapshot, live radio name, and PDU sessions of a
+// Registered UE by SUPI (ok is false for an unknown or not-yet-Registered UE), so the
+// views cannot tear across separate registry lookups. Session detail is built after the
+// session refs are copied out from under the UE lock, because it reaches the SMF
+// (SMF-delegated sessions, TS 23.501) and must not run under the registry lock.
+func (amf *AMF) LookupSubscriber(supi etsi.SUPI) (UESnapshot, string, []PDUSessionExport, bool) {
 	ue, ok := amf.LookupUeBySupi(supi)
-	if !ok {
-		return UESnapshot{}, nil, false
+	if !ok || ue.State() != Registered {
+		return UESnapshot{}, "", nil, false
 	}
 
 	snap := ue.Snapshot()
+
+	// The radio is the UE's live connection (an idle UE reports none), derived here
+	// rather than persisted historically.
+	radioName := ""
+	if conn := ue.Conn(); conn != nil {
+		radioName = conn.radioName
+	}
 
 	ue.mu.Lock()
 
@@ -282,7 +289,7 @@ func (amf *AMF) LookupSubscriber(supi etsi.SUPI) (UESnapshot, []PDUSessionExport
 		result = append(result, s)
 	}
 
-	return snap, result, true
+	return snap, radioName, result, true
 }
 
 // smContextCopy is a local copy of AMF SmContext fields used to avoid holding the UE lock while querying SMF.
@@ -339,8 +346,8 @@ func (amf *AMF) exportUeContext(guami *models.Guami, ue *UeContext) UeContextExp
 			SecurityContextAvailable: ue.secured,
 		},
 		Security: UESecurityExport{
-			CipheringAlgorithm: ue.cipheringAlgName(),
-			IntegrityAlgorithm: ue.integrityAlgName(),
+			CipheringAlgorithm: cipheringAlgName(ue.cipheringAlg),
+			IntegrityAlgorithm: integrityAlgName(ue.integrityAlg),
 			NgKsi:              ue.ngKsi,
 		},
 		Location: UELocationExport{
@@ -361,7 +368,7 @@ func (amf *AMF) exportUeContext(guami *models.Guami, ue *UeContext) UeContextExp
 		Timers: UETimersExport{
 			T3512ValueSeconds: int64(amf.T3512Value / time.Second),
 			T3502ValueSeconds: int64(amf.T3502Value / time.Second),
-			T3513Paging:       timerStatus(&ue.pagingTimer),
+			Paging:            timerStatus(&ue.pagingTimer),
 			NASGuard:          timerStatus(nasGuard),
 			NASGuardProcedure: nasGuardName,
 			MobileReachable:   timerStatus(&ue.mobileReachableTimer),
@@ -369,7 +376,6 @@ func (amf *AMF) exportUeContext(guami *models.Guami, ue *UeContext) UeContextExp
 		},
 		LastActivity: UELastActivityExport{
 			Timestamp: ue.lastSeenTime(),
-			RadioNode: ue.LastSeenRadioName(),
 		},
 	}
 
@@ -383,6 +389,9 @@ func (amf *AMF) exportUeContext(guami *models.Guami, ue *UeContext) UeContextExp
 	}
 
 	if r := ue.active.Load(); r != nil {
+		// The last-seen radio is the UE's live connection (an idle UE is on none).
+		export.LastActivity.RadioNode = r.radioName
+
 		rc := &RANConnectionExport{
 			RanUeNgapID: r.RanUeNgapID,
 			AmfUeNgapID: r.AmfUeNgapID,

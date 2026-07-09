@@ -8,12 +8,8 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -78,41 +74,19 @@ func (c *UeConn) ResendAttachAccept(ctx context.Context) {
 }
 
 // SendDownlinkNASTransport wraps NAS bytes (plain or security-protected) in a Downlink NAS
-// Transport and sends them to the UE's eNB.
+// Transport and sends them to the UE's eNB through the single send chokepoint.
 func (c *UeConn) SendDownlinkNASTransport(ctx context.Context, nas []byte) {
 	if c == nil {
 		return
 	}
 
-	ctx, span := Tracer.Start(ctx, "s1ap/send",
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			attribute.String("s1ap.message_type", string(S1APProcedureDownlinkNASTransport)),
-			attribute.Int("s1ap.message_size", len(nas)),
-			attribute.String("network.protocol.name", "s1ap"),
-			attribute.String("network.transport", "sctp"),
-		),
-	)
-	defer span.End()
-
 	b, err := downlinkNASTransportBytes(c.MMEUES1APID, c.ENBUES1APID, nas)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to build Downlink NAS Transport")
 		logger.From(ctx, logger.MmeLog).Error("failed to build Downlink NAS Transport", zap.Error(err))
-
 		return
 	}
 
-	if _, err := c.conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: S1apStreamUE}); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to send Downlink NAS Transport")
-		logger.From(ctx, logger.MmeLog).Error("failed to send Downlink NAS Transport", zap.Error(err))
-
-		return
-	}
-
-	c.m.LogOutboundS1AP(ctx, c.conn, S1APProcedureDownlinkNASTransport, b)
+	c.SendS1AP(ctx, S1APProcedureDownlinkNASTransport, b)
 }
 
 // nasMessage is any EPS NAS message that can serialize itself.
@@ -130,34 +104,6 @@ func downlinkNASTransportBytes(mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID, n
 	}
 
 	return msg.Marshal()
-}
-
-// SendOverConn wraps a plain NAS message in a Downlink NAS Transport and sends it
-// over a connection that carries no bound UE context — a reject to an
-// unidentified peer (an Initial UE Message the MME cannot act on).
-func (c *UeConn) SendOverConn(ctx context.Context, msg nasMessage) {
-	if c == nil {
-		return
-	}
-
-	b, err := msg.Marshal()
-	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to marshal NAS message", zap.Error(err))
-		return
-	}
-
-	pdu, err := downlinkNASTransportBytes(c.MMEUES1APID, c.ENBUES1APID, b)
-	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to build Downlink NAS Transport", zap.Error(err))
-		return
-	}
-
-	if _, err := c.conn.WriteMsg(pdu, &sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: S1apStreamUE}); err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to send Downlink NAS Transport", zap.Error(err))
-		return
-	}
-
-	c.m.LogOutboundS1AP(ctx, c.conn, S1APProcedureDownlinkNASTransport, pdu)
 }
 
 // The per-command Send<Proc> methods below stamp the UE's S1AP identities
