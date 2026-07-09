@@ -51,12 +51,9 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, radio *mme.R
 		logger.From(ctx, ue.Conn().Log).Info("UE Context Release Request", fields...)
 	}
 
-	// TS 23.401 §5.3.5: buffer the downlink (Release Access Bearers, step 2) BEFORE the
-	// S1 UE Context Release Command (step 4), so a downlink arriving during the release
-	// is buffered for paging rather than forwarded to the eNB bearer being torn down.
-	// Only a registered UE goes to ECM-IDLE; an aborted attach or detach is fully
-	// released at release-complete. Mirrors the 5G AN-release order (deactivate on the
-	// release request, not on completion).
+	// Deactivate before the S1 UE Context Release Command so a concurrent downlink is
+	// buffered for paging (TS 23.401 §5.3.5: Release Access Bearers precedes the release
+	// command). Only a registered UE transitions to ECM-IDLE.
 	if ue.EMMState() == mme.EMMRegistered {
 		m.DeactivateAllSessions(ctx, ue)
 	}
