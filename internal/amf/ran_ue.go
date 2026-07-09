@@ -470,11 +470,9 @@ func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 		if target != nil {
 			target.ReleaseAction = UeContextReleaseHandover
 
-			if err := target.SendUEContextReleaseCommand(ctx,
+			target.SendUEContextReleaseCommand(ctx,
 				ngapType.CausePresentRadioNetwork,
-				ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost); err != nil {
-				logger.WithTrace(ctx, ueConn.Log).Error("error releasing prepared handover target after source association loss", zap.Error(err))
-			}
+				ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost)
 		}
 
 		logger.WithTrace(ctx, ueConn.Log).Info("released prepared N2 handover target: source association removed")

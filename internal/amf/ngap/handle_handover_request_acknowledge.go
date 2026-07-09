@@ -149,17 +149,15 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 
 		if sourceUe.Radio() == nil {
 			logger.WithTrace(ctx, targetUe.Log).Error("source UE radio is nil, cannot send handover preparation failure")
-		} else if err := sourceUe.SendHandoverPreparationFailure(ctx, cause, nil); err != nil {
-			logger.WithTrace(ctx, targetUe.Log).Error("error sending handover preparation failure", zap.Error(err))
+		} else {
+			sourceUe.SendHandoverPreparationFailure(ctx, cause, nil)
 		}
 
 		// The target acknowledged and so holds a reserved UE context, but no session
 		// survived core-side preparation. Its resources are reclaimed only by a
 		// CN-initiated UE Context Release (TS 38.413 §8.4.2).
 		targetUe.ReleaseAction = amf.UeContextReleaseHandover
-		if err := targetUe.SendUEContextReleaseCommand(ctx, cause.Present, cause.RadioNetwork.Value); err != nil {
-			logger.WithTrace(ctx, targetUe.Log).Error("error sending UE Context Release Command to target UE", zap.Error(err))
-		}
+		targetUe.SendUEContextReleaseCommand(ctx, cause.Present, cause.RadioNetwork.Value)
 
 		return
 	}
@@ -175,7 +173,5 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	if err := sourceUe.SendNGAP(ctx, send.NGAPProcedureHandoverCommand, pkt); err != nil {
-		logger.WithTrace(ctx, targetUe.Log).Error("error sending handover command to source UE", zap.Error(err))
-	}
+	sourceUe.SendNGAP(ctx, send.NGAPProcedureHandoverCommand, pkt)
 }

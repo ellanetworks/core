@@ -74,4 +74,10 @@ const (
 	idUERadioCapabilityForPaging                ProtocolIEID = 117
 	idRRCEstablishmentCause                     ProtocolIEID = 134
 	idDefaultPagingDRX                          ProtocolIEID = 137
+	idERABToBeModifiedListBearerModInd          ProtocolIEID = 199
+	idERABToBeModifiedItemBearerModInd          ProtocolIEID = 200
+	idERABNotToBeModifiedListBearerModInd       ProtocolIEID = 201
+	idERABNotToBeModifiedItemBearerModInd       ProtocolIEID = 202
+	idERABModifyListBearerModConf               ProtocolIEID = 203
+	idERABModifyItemBearerModConf               ProtocolIEID = 204
 )

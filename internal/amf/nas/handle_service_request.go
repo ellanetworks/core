@@ -369,7 +369,5 @@ func rejectService(ctx context.Context, ueConn *amf.UeConn, cause uint8) {
 	amf.SendServiceReject(ctx, ueConn, cause)
 
 	ueConn.ReleaseAction = amf.UeContextN2NormalRelease
-	if err := ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease); err != nil {
-		logger.From(ctx, logger.AmfLog).Warn("error sending ue context release command", zap.Error(err))
-	}
+	ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 }

@@ -37,7 +37,5 @@ func HandleUplinkRanStatusTransfer(ctx context.Context, amfInstance *amf.AMF, ra
 		return
 	}
 
-	if err := target.SendNGAP(ctx, send.NGAPProcedureDownlinkRanStatusTransfer, pkt); err != nil {
-		logger.WithTrace(ctx, ueConn.Log).Error("failed to send Downlink RAN Status Transfer", zap.Error(err))
-	}
+	target.SendNGAP(ctx, send.NGAPProcedureDownlinkRanStatusTransfer, pkt)
 }

@@ -41,9 +41,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		if err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil); err != nil {
-			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
-		}
+		sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
 
 		return
 	}
@@ -64,11 +62,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
-		if err != nil {
-			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
-			return
-		}
+		sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
 
 		return
 	}
@@ -88,9 +82,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		if err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil); err != nil {
-			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
-		}
+		sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
 
 		return
 	}
@@ -107,9 +99,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		if err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil); err != nil {
-			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
-		}
+		sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
 
 		return
 	}
@@ -146,11 +136,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
-		if err != nil {
-			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
-			return
-		}
+		sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
 
 		return
 	}
@@ -176,9 +162,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		if err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil); err != nil {
-			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
-		}
+		sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
 
 		return
 	}
@@ -217,9 +201,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		if ferr := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil); ferr != nil {
-			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(ferr))
-		}
+		sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
 
 		return
 	}

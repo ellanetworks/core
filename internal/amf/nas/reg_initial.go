@@ -37,10 +37,8 @@ func abortRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCont
 func releaseAbortedRegistration(ctx context.Context, ueConn *amf.UeConn) {
 	ueConn.ReleaseAction = amf.UeContextReleaseAbortRegistration
 
-	if err := ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentUnspecified); err != nil {
-		// SendUEContextReleaseCommand already released locally on a send failure; log only.
-		logger.From(ctx, logger.AmfLog).Warn("failed to send UE Context Release Command for aborted registration", zap.Error(err))
-	}
+	// SendUEContextReleaseCommand releases locally on a send failure and logs it.
+	ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentUnspecified)
 }
 
 func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) {

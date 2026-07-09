@@ -8,9 +8,42 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
+	"go.uber.org/zap"
 )
+
+// SendGUTIReallocationCommand reassigns the UE's GUTI with the standalone GUTI
+// reallocation procedure: it stages a new GUTI, sends a protected GUTI REALLOCATION
+// COMMAND, and arms T3450 so the command is retransmitted until the UE acknowledges
+// with GUTI REALLOCATION COMPLETE (TS 24.301 §5.4.1). It mirrors the AMF's
+// post-Service-Request CONFIGURATION UPDATE, giving a fresh temporary identity when
+// the UE returns from idle with no accept message to carry one. The UE keeps using
+// the old GUTI until it acknowledges (§5.4.1.4).
+func (m *MME) SendGUTIReallocationCommand(ctx context.Context, ue *UeContext) {
+	plmn, err := m.OperatorPLMN(ctx)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("GUTI reallocation: get operator PLMN", zap.Error(err))
+		return
+	}
+
+	mmeGroupID, mmeCode := m.MmeIdentity()
+
+	guti, err := m.ReallocateGUTI(ctx, ue, plmn, mmeGroupID, mmeCode)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("GUTI reallocation: allocate GUTI", zap.Error(err))
+		return
+	}
+
+	wire, err := ue.ProtectDownlinkMessage(&eps.GUTIReallocationCommand{GUTI: guti})
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("GUTI reallocation: protect command", zap.Error(err))
+		return
+	}
+
+	ue.Conn().SendGuardedDownlink(ctx, "GUTI Reallocation Command", wire)
+}
 
 // releaseMTMSIsLocked unindexes and frees both the UE's current M-TMSI and any
 // pending old one from an in-flight GUTI reallocation. The caller holds m.mu.
