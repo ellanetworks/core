@@ -8,7 +8,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
-	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -46,18 +45,12 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	// cancellable handover ends the procedure and releases a prepared target; the
 	// acknowledge is always sent (TS 38.413 §8.4.5).
 	target, aborted := amfInstance.CancelHandover(amfUe)
-	if aborted {
-		if conn := amfUe.Conn(); conn != nil {
-			conn.Parent().EndKeyChainProc(procedure.N2Handover)
-		}
+	if aborted && target != nil {
+		target.ReleaseAction = amf.UeContextReleaseHandover
 
-		if target != nil {
-			target.ReleaseAction = amf.UeContextReleaseHandover
-
-			if err := target.SendUEContextReleaseCommand(ctx, causePresent, causeValue); err != nil {
-				logger.WithTrace(ctx, sourceUe.Log).Error("error sending UE Context Release Command to target UE", zap.Error(err))
-				return
-			}
+		if err := target.SendUEContextReleaseCommand(ctx, causePresent, causeValue); err != nil {
+			logger.WithTrace(ctx, sourceUe.Log).Error("error sending UE Context Release Command to target UE", zap.Error(err))
+			return
 		}
 	}
 

@@ -9,7 +9,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
-	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
@@ -70,6 +69,21 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
+	sourceUe := amfInstance.HandoverSource(amfUe)
+	if sourceUe == nil {
+		logger.WithTrace(ctx, targetUe.Log).Error("handover between different Ue has not been implement yet")
+		return
+	}
+
+	// A handover past the preparing stage — a duplicate or out-of-order HANDOVER REQUEST
+	// ACKNOWLEDGE — must be dropped before touching the SMF: UpdateSmContextN2HandoverPrepared
+	// rebinds the downlink tunnel, so the staleness check precedes any per-session side
+	// effect (local error handling, not a release — TS 38.413 §10.4).
+	if !amfInstance.HandoverPreparing(amfUe) {
+		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge for a handover past the preparing stage; dropping")
+		return
+	}
+
 	var (
 		pduSessionResourceHandoverList  ngapType.PDUSessionResourceHandoverList
 		pduSessionResourceToReleaseList ngapType.PDUSessionResourceToReleaseListHOCmd
@@ -116,20 +130,6 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		pduSessionResourceToReleaseList.List = append(pduSessionResourceToReleaseList.List, releaseItem)
 	}
 
-	sourceUe := amfInstance.HandoverSource(amfUe)
-	if sourceUe == nil {
-		logger.WithTrace(ctx, targetUe.Log).Error("handover between different Ue has not been implement yet")
-		return
-	}
-
-	// A handover is in progress but past the preparing stage: a duplicate or
-	// out-of-order HANDOVER REQUEST ACKNOWLEDGE. Do not disturb the in-flight handover
-	// — local error handling, not a release (TS 38.413 §10.4).
-	if !amfInstance.HandoverPreparing(amfUe) {
-		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge for a handover past the preparing stage; dropping")
-		return
-	}
-
 	logger.WithTrace(ctx, targetUe.Log).Debug("handle handover request acknowledge", zap.Int64("sourceRanUeNgapID", sourceUe.RanUeNgapID), zap.Int64("sourceAmfUeNgapID", sourceUe.AmfUeNgapID),
 		zap.Int64("targetRanUeNgapID", targetUe.RanUeNgapID), zap.Int64("targetAmfUeNgapID", targetUe.AmfUeNgapID))
 
@@ -144,7 +144,6 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		}
 
 		if sourceUeContext := sourceUe.UeContext(); sourceUeContext != nil {
-			sourceUeContext.EndKeyChainProc(procedure.N2Handover)
 			amfInstance.ClearHandover(sourceUeContext)
 		}
 

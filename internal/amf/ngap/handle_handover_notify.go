@@ -8,7 +8,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
-	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -80,10 +79,6 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	}
 
 	logger.WithTrace(ctx, targetUe.Log).Info("Handle Handover notification Finished")
-
-	if conn := amfUe.Conn(); conn != nil {
-		conn.Parent().EndKeyChainProc(procedure.N2Handover)
-	}
 
 	sourceUe.ReleaseAction = amf.UeContextReleaseHandover
 

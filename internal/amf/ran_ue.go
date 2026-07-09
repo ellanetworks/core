@@ -16,7 +16,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/guard"
@@ -446,23 +445,43 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 	}
 }
 
-// abortHandoverIfPreparedTarget ends an in-flight N2 handover when this UeConn is its
-// prepared target and is being removed. Ending it on the source stops the supervision
-// guard and clears the FSM at once, so no stale handover lingers until the guard
-// deadline. The source is left in place; its own handover timers abort it on the radio.
-func (ueConn *UeConn) abortHandoverIfPreparedTarget(ctx context.Context) {
+// abortHandoverOnRemoval ends an in-flight N2 handover when this UeConn — being removed —
+// is either its prepared target or its source. ClearHandover stops the supervision guard
+// and clears the FSM at once, so no half-prepared handover lingers. When the source
+// association is removed, the prepared target still holds reserved gNB resources that
+// nothing else would reap — endKeyChainProcs, run next in RemoveUeConn, stops the guard
+// that would have released it — so it is released here with radio-connection-with-UE-lost
+// (TS 38.413). When the target is removed, the source is left in place; its own
+// TNGRELOCprep/Overall timers abort the handover on the radio.
+func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 	ue := ueConn.ue
-	if ue == nil || ueConn.amf.HandoverTarget(ue) != ueConn {
+	if ue == nil {
 		return
 	}
 
-	if conn := ue.Conn(); conn != nil {
-		conn.Parent().EndKeyChainProc(procedure.N2Handover)
+	a := ueConn.amf
+	source := a.HandoverSource(ue)
+	target := a.HandoverTarget(ue)
+
+	switch ueConn {
+	case target:
+		a.ClearHandover(ue)
+		logger.WithTrace(ctx, ueConn.Log).Info("aborted in-flight N2 handover: target association removed")
+	case source:
+		a.ClearHandover(ue)
+
+		if target != nil {
+			target.ReleaseAction = UeContextReleaseHandover
+
+			if err := target.SendUEContextReleaseCommand(ctx,
+				ngapType.CausePresentRadioNetwork,
+				ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost); err != nil {
+				logger.WithTrace(ctx, ueConn.Log).Error("error releasing prepared handover target after source association loss", zap.Error(err))
+			}
+		}
+
+		logger.WithTrace(ctx, ueConn.Log).Info("released prepared N2 handover target: source association removed")
 	}
-
-	ueConn.amf.ClearHandover(ue)
-
-	logger.WithTrace(ctx, ueConn.Log).Info("aborted in-flight N2 handover: target association removed")
 }
 
 // DropStaleUe removes any connection on radio still bound to ranUeNgapID before a new
@@ -499,7 +518,7 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 		return fmt.Errorf("ran ue is nil")
 	}
 
-	ueConn.abortHandoverIfPreparedTarget(ctx)
+	ueConn.abortHandoverOnRemoval(ctx)
 
 	if ueConn.ue != nil {
 		a.ReleaseNasConnection(ueConn.ue, ueConn)

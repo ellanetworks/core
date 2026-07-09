@@ -40,7 +40,7 @@ func goldenS1SetupValue(t *testing.T) []byte {
 // TestS1SetupOutcomeAccepts checks that an eNB broadcasting a PLMN this MME
 // serves (001/01) is answered with an S1 Setup Response carrying our identity.
 func TestS1SetupOutcomeAccepts(t *testing.T) {
-	req, respBytes, accepted, _, err := s1SetupOutcomeFor(goldenS1SetupValue(t), models.PlmnID{Mcc: "001", Mnc: "01"}, []uint16{0x3039}, 1, 1)
+	req, respBytes, accepted, _, err := s1SetupOutcomeFor(goldenS1SetupValue(t), models.PlmnID{Mcc: "001", Mnc: "01"}, []uint16{0x3039}, 1, 1, "ella", 0xff)
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestS1SetupOutcomeAccepts(t *testing.T) {
 		t.Fatalf("parse response: %v", err)
 	}
 
-	if resp.MMEName != mmeName ||
+	if resp.MMEName != "ella" ||
 		len(resp.ServedGUMMEIs) != 1 ||
 		resp.ServedGUMMEIs[0].ServedPLMNs[0] != (s1ap.PLMNIdentity{0x00, 0xf1, 0x10}) {
 		t.Fatalf("response identity mismatch: %+v", resp)
@@ -80,7 +80,7 @@ func TestS1SetupOutcomeAccepts(t *testing.T) {
 // Misc "unknown-PLMN" (TS 36.413 §8.7.3.4). The golden eNB broadcasts 001/01; the
 // MME here serves 999/99.
 func TestS1SetupOutcomeRejectsUnknownPLMN(t *testing.T) {
-	_, outBytes, accepted, _, err := s1SetupOutcomeFor(goldenS1SetupValue(t), models.PlmnID{Mcc: "999", Mnc: "99"}, []uint16{0x3039}, 1, 1)
+	_, outBytes, accepted, _, err := s1SetupOutcomeFor(goldenS1SetupValue(t), models.PlmnID{Mcc: "999", Mnc: "99"}, []uint16{0x3039}, 1, 1, "ella", 0xff)
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestS1SetupOutcomeRejectsUnknownPLMN(t *testing.T) {
 // "unspecified", matching the AMF's NG Setup handling. The golden eNB broadcasts
 // 001/01 with TAC 0x3039; the MME here serves 001/01 but only TAC 0x0007.
 func TestS1SetupOutcomeRejectsUnknownTAC(t *testing.T) {
-	_, outBytes, accepted, reason, err := s1SetupOutcomeFor(goldenS1SetupValue(t), models.PlmnID{Mcc: "001", Mnc: "01"}, []uint16{0x0007}, 1, 1)
+	_, outBytes, accepted, reason, err := s1SetupOutcomeFor(goldenS1SetupValue(t), models.PlmnID{Mcc: "001", Mnc: "01"}, []uint16{0x0007}, 1, 1, "ella", 0xff)
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}

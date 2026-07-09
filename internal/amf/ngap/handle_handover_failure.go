@@ -8,7 +8,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
-	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -46,10 +45,6 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 	if sourceUe == nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("N2 Handover between AMF has not been implemented yet")
 	} else {
-		if conn := amfUe.Conn(); conn != nil {
-			conn.Parent().EndKeyChainProc(procedure.N2Handover)
-		}
-
 		amfInstance.ClearHandover(amfUe)
 
 		failureCause := ngapType.Cause{

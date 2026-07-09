@@ -9,7 +9,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
-	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
@@ -31,7 +30,21 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	sourceUe.TouchLastSeen()
 
 	if msg.TargetID.Present != ngapType.TargetIDPresentTargetRANNodeID {
-		logger.WithTrace(ctx, sourceUe.Log).Error("targetID type is not supported", zap.Int("targetID", msg.TargetID.Present))
+		// A validly-decoded but unservable TargetID: fail preparation explicitly so the
+		// source gNB does not wait out its own TNGRELOCprep timer (TS 38.413 §8.4.1.3).
+		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [unsupported TargetID type]", zap.Int("targetID", msg.TargetID.Present))
+
+		failureCause := ngapType.Cause{
+			Present: ngapType.CausePresentRadioNetwork,
+			RadioNetwork: &ngapType.CauseRadioNetwork{
+				Value: ngapType.CauseRadioNetworkPresentHoTargetNotAllowed,
+			},
+		}
+
+		if err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil); err != nil {
+			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
+		}
+
 		return
 	}
 
@@ -72,6 +85,25 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			Present: ngapType.CausePresentRadioNetwork,
 			RadioNetwork: &ngapType.CauseRadioNetwork{
 				Value: ngapType.CauseRadioNetworkPresentUnknownTargetID,
+			},
+		}
+
+		if err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil); err != nil {
+			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
+		}
+
+		return
+	}
+
+	if targetRan.Conn == ran.Conn {
+		// A HANDOVER REQUIRED targeting the source gNB itself: intra-node mobility is
+		// handled in the RAN and never reaches the core, so reject it (TS 38.413).
+		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [target gNB is the source]")
+
+		failureCause := ngapType.Cause{
+			Present: ngapType.CausePresentRadioNetwork,
+			RadioNetwork: &ngapType.CauseRadioNetwork{
+				Value: ngapType.CauseRadioNetworkPresentHoTargetNotAllowed,
 			},
 		}
 
@@ -170,15 +202,27 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		operatorInfo.Guami,
 	)
 	if err != nil {
-		// Abandon the prepared handover: clear the FSM, end the procedure, and free the
-		// target UeConn (which never received the request, so holds no context).
-		// Supervision is not yet armed, so there is no guard timer to stop.
+		// Abandon the prepared handover: clear the FSM (which ends the key-chain
+		// procedure) and free the target UeConn (which never received the request, so
+		// holds no context). Supervision is not yet armed, so there is no guard timer to
+		// stop. The source is told with HANDOVER PREPARATION FAILURE so it does not wait
+		// out its own TNGRELOCprep timer (TS 38.413 §8.4.1.3).
 		logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover request to target UE", zap.Error(err))
-		amfUe.EndKeyChainProc(procedure.N2Handover)
 		amfInstance.ClearHandover(amfUe)
 
 		if rerr := amfInstance.RemoveUeConn(ctx, targetUe); rerr != nil {
 			logger.WithTrace(ctx, sourceUe.Log).Error("error removing target ue after failed handover request", zap.Error(rerr))
+		}
+
+		failureCause := ngapType.Cause{
+			Present: ngapType.CausePresentRadioNetwork,
+			RadioNetwork: &ngapType.CauseRadioNetwork{
+				Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
+			},
+		}
+
+		if ferr := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil); ferr != nil {
+			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(ferr))
 		}
 
 		return

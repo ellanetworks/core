@@ -210,9 +210,9 @@ func (a *AMF) FinishHandoverCommit(ue *UeContext, targetUe *UeConn) bool {
 	}
 
 	a.mu.Lock()
-	defer a.mu.Unlock()
 
 	if ue.handover == nil || ue.handover.state != hoCommitting {
+		a.mu.Unlock()
 		return false
 	}
 
@@ -220,12 +220,17 @@ func (a *AMF) FinishHandoverCommit(ue *UeContext, targetUe *UeConn) bool {
 	// happened to carry the notify, and only while that target is still present after
 	// the unlocked user-plane switch.
 	if targetUe == nil || ue.handover.target != targetUe || a.conns[targetUe.AmfUeNgapID] != targetUe {
+		a.mu.Unlock()
 		return false
 	}
 
 	ue.handover = nil
 	// The source connection is managed by the handover flow, not released here.
 	_ = a.attachUeConnLocked(ue, targetUe)
+
+	a.mu.Unlock()
+
+	ue.EndKeyChainProc(procedure.N2Handover)
 
 	return true
 }
@@ -248,7 +253,6 @@ func (a *AMF) CancelHandover(ue *UeContext) (target *UeConn, aborted bool) {
 	}
 
 	a.mu.Lock()
-	defer a.mu.Unlock()
 
 	ho := ue.handover
 	switch {
@@ -262,11 +266,18 @@ func (a *AMF) CancelHandover(ue *UeContext) (target *UeConn, aborted bool) {
 		aborted = true
 	}
 
+	a.mu.Unlock()
+
+	if aborted {
+		ue.EndKeyChainProc(procedure.N2Handover)
+	}
+
 	return target, aborted
 }
 
-// ClearHandover ends the handover FSM, leaving no in-flight handover. Idempotent;
-// safe on a nil UE. Kept in lockstep with the procedure registry's End(N2Handover).
+// ClearHandover ends the handover FSM and its key-chain procedure, leaving no in-flight
+// handover. Idempotent; safe on a nil UE. EndKeyChainProc runs outside a.mu (the registry
+// has its own lock) and is a no-op when the procedure is already gone.
 func (a *AMF) ClearHandover(ue *UeContext) {
 	if ue == nil {
 		return
@@ -275,6 +286,8 @@ func (a *AMF) ClearHandover(ue *UeContext) {
 	a.mu.Lock()
 	ue.handover = nil
 	a.mu.Unlock()
+
+	ue.EndKeyChainProc(procedure.N2Handover)
 }
 
 // MarkHandoverPrepared advances the FSM from hoPreparing to hoPrepared when the
