@@ -110,9 +110,16 @@ type ecidMeasurementClient interface {
 }
 
 // measurementClient selects the positioning protocol by the access that owns the
-// UE: LPPa when the MME holds it (4G), else NRPPa (5G). The measurement protocol
-// follows the serving RAN, not the reported cell's RAT.
+// UE: NRPPa when the AMF holds it (5G), else LPPa when the MME holds it (4G). It
+// consults the sources in the same order as getUELocation so the measurement
+// protocol always matches the access the serving cell was resolved from.
 func (l *LMF) measurementClient(supi etsi.SUPI) ecidMeasurementClient {
+	if l.amf != nil {
+		if _, ok := l.amf.GetUELocation(supi); ok {
+			return l.nrppaClient
+		}
+	}
+
 	if l.mme != nil {
 		if _, ok := l.mme.GetUELocation(supi); ok {
 			return l.lppaClient

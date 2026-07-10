@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
@@ -123,7 +124,7 @@ func (m *MME) buildPaging(ue *UeContext) (*s1ap.Paging, error) {
 	// During a GUTI reallocation the UE still answers to the old M-TMSI until it
 	// sends TAU Complete, so page with that one while it is pending.
 	mtmsi := ue.Tmsi().Uint32()
-	if ue.OldTmsi().Uint32() != 0 {
+	if ue.OldTmsi() != etsi.InvalidTMSI {
 		mtmsi = ue.OldTmsi().Uint32()
 	}
 

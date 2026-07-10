@@ -610,8 +610,10 @@ func (ueConn *UeConn) UpdateLocation(ctx context.Context, amf *AMF, userLocation
 		}
 
 		if ueConn.ue != nil {
+			ueConn.ue.mu.Lock()
 			ueConn.ue.Location = ueConn.Location
 			ueConn.ue.Tai = *ueConn.ue.Location.EutraLocation.Tai
+			ueConn.ue.mu.Unlock()
 		}
 	case ngapType.UserLocationInformationPresentUserLocationInformationNR:
 		locationInfoNR := userLocationInformation.UserLocationInformationNR
@@ -649,8 +651,10 @@ func (ueConn *UeConn) UpdateLocation(ctx context.Context, amf *AMF, userLocation
 		}
 
 		if ueConn.ue != nil {
+			ueConn.ue.mu.Lock()
 			ueConn.ue.Location = ueConn.Location
 			ueConn.ue.Tai = *ueConn.ue.Location.NrLocation.Tai
+			ueConn.ue.mu.Unlock()
 		}
 	case ngapType.UserLocationInformationPresentUserLocationInformationN3IWF:
 		locationInfoN3IWF := userLocationInformation.UserLocationInformationN3IWF
@@ -687,8 +691,10 @@ func (ueConn *UeConn) UpdateLocation(ctx context.Context, amf *AMF, userLocation
 		ueConn.Tai = *ueConn.Location.N3gaLocation.N3gppTai
 
 		if ueConn.ue != nil {
+			ueConn.ue.mu.Lock()
 			ueConn.ue.Location = ueConn.Location
 			ueConn.ue.Tai = *ueConn.Location.N3gaLocation.N3gppTai
+			ueConn.ue.mu.Unlock()
 		}
 	case ngapType.UserLocationInformationPresentNothing:
 	}

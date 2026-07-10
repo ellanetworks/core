@@ -46,8 +46,12 @@ func (c *UeConn) UpdateLocation(cgi s1ap.EUTRANCGI, tai s1ap.TAI) {
 
 	c.Location.EutraLocation.UeLocationTimestamp = &curTime
 
+	// The per-connection copy above is dispatch-confined; the mirror to the shared
+	// persistent context is read from the API/LMF goroutine, so it takes ue.mu.
 	if c.ue != nil {
+		c.ue.mu.Lock()
 		c.ue.Location = c.Location
+		c.ue.mu.Unlock()
 	}
 }
 

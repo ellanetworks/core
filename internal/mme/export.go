@@ -9,9 +9,21 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/models"
 )
+
+// tmsiExport renders an M-TMSI for the support bundle, or "" when unallocated (the
+// reserved InvalidTMSI sentinel, TS 23.003 §2.4) so the field is omitted rather than
+// shown as the sentinel value.
+func tmsiExport(t etsi.TMSI) string {
+	if t == etsi.InvalidTMSI {
+		return ""
+	}
+
+	return t.String()
+}
 
 // UeContextExport is a snapshot of one UE's MME context for the support bundle.
 // Facets with no EPS analog are omitted:
@@ -171,8 +183,8 @@ func (m *MME) exportUeContext(plmn models.PlmnID, ue *UeContext) UeContextExport
 			Supi:    ue.supi.String(),
 			Pei:     ue.Imei.IMEI(),
 			PlmnID:  plmn,
-			Tmsi:    ue.Tmsi().String(),
-			OldTmsi: ue.OldTmsi().String(),
+			Tmsi:    tmsiExport(ue.Tmsi()),
+			OldTmsi: tmsiExport(ue.OldTmsi()),
 		},
 		State: UEStateExport{
 			EMMState:                 ue.emmState.String(),

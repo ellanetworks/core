@@ -319,7 +319,7 @@ func TestAttachKeepsOldGUTIResolvableUntilComplete(t *testing.T) {
 
 	handleAttachComplete(context.Background(), m, existing, complete)
 
-	if existing.OldTmsiForTest() != 0 {
+	if !existing.OldTmsiUnsetForTest() {
 		t.Fatal("GUTI reallocation not committed after Attach Complete")
 	}
 

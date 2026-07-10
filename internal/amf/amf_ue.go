@@ -58,7 +58,7 @@ type UeContext struct {
 
 	Location models.UserLocation
 	Tai      models.Tai
-	// Updated lock-free on every UE-specific NGAP message (hot path).
+	// Written on every UE-specific NGAP message; guarded by mu.
 	lastSeen atomic.Int64 // Unix nanoseconds; use lastSeenTime()/TouchLastSeen()
 
 	// handover is the in-flight N2 handover FSM (nil when none).

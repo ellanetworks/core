@@ -78,6 +78,32 @@ func TestUpdateLocationBareConnectionNotMirrored(t *testing.T) {
 	}
 }
 
+// TestUpdateLocationConcurrentReadWrite mirrors the dispatch-goroutine write
+// against the API-goroutine read; run under -race it guards the mirror-write
+// synchronization.
+func TestUpdateLocationConcurrentReadWrite(t *testing.T) {
+	ue := &UeContext{}
+	c := &UeConn{ue: ue}
+	cgi, tai := testCGIAndTAI()
+
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		for i := 0; i < 1000; i++ {
+			c.UpdateLocation(cgi, tai)
+		}
+	}()
+
+	for i := 0; i < 1000; i++ {
+		_ = ue.GetUserLocation()
+		_ = ue.IsUserLocationEmpty()
+	}
+
+	<-done
+}
+
 func TestMMELocationAccessors(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}

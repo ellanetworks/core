@@ -40,6 +40,11 @@ func (ue *UeContext) TmsiForTest() uint32     { return ue.tmsi.Uint32() }
 func (ue *UeContext) SetOldTmsiForTest(m uint32) { ue.oldTmsi, _ = etsi.NewTMSI(m) }
 func (ue *UeContext) OldTmsiForTest() uint32     { return ue.oldTmsi.Uint32() }
 
+// OldTmsiUnsetForTest reports whether the UE's old M-TMSI is the "no valid M-TMSI"
+// sentinel — i.e. no GUTI reallocation is pending. 0 is a legal M-TMSI, so tests
+// must not use it to mean "unset" (TS 23.003 §2.4).
+func (ue *UeContext) OldTmsiUnsetForTest() bool { return ue.oldTmsi == etsi.InvalidTMSI }
+
 func (ue *UeContext) SetSecuredForTest(v bool) { ue.secured = v }
 func (ue *UeContext) SecuredForTest() bool     { return ue.secured }
 

@@ -51,12 +51,12 @@ func (m *MME) SendGUTIReallocationCommand(ctx context.Context, ue *UeContext) {
 // releaseMTMSIsLocked unindexes and frees both the UE's current M-TMSI and any
 // pending old one from an in-flight GUTI reallocation. The caller holds m.mu.
 func (m *MME) releaseMTMSIsLocked(ue *UeContext) {
-	if ue.tmsi.Uint32() != 0 {
+	if ue.tmsi != etsi.InvalidTMSI {
 		delete(m.uesByTmsi, ue.tmsi)
 		m.freeMTMSILocked(ue.tmsi)
 	}
 
-	if ue.oldTmsi.Uint32() != 0 {
+	if ue.oldTmsi != etsi.InvalidTMSI {
 		delete(m.uesByTmsi, ue.oldTmsi)
 		m.freeMTMSILocked(ue.oldTmsi)
 	}
@@ -78,7 +78,7 @@ func (m *MME) ReallocateGUTI(ctx context.Context, ue *UeContext, plmn models.Plm
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if ue.oldTmsi.Uint32() == 0 {
+	if ue.oldTmsi == etsi.InvalidTMSI {
 		tmsi, err := m.tmsi.Allocate(ctx)
 		if err != nil {
 			return eps.EPSMobileIdentity{}, fmt.Errorf("allocate M-TMSI: %w", err)
@@ -105,10 +105,10 @@ func (m *MME) CommitGUTIRealloc(ue *UeContext) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if ue.oldTmsi.Uint32() != 0 && ue.oldTmsi != ue.tmsi {
+	if ue.oldTmsi != etsi.InvalidTMSI && ue.oldTmsi != ue.tmsi {
 		delete(m.uesByTmsi, ue.oldTmsi)
 		m.freeMTMSILocked(ue.oldTmsi)
 	}
 
-	ue.oldTmsi = etsi.TMSI{}
+	ue.oldTmsi = etsi.InvalidTMSI
 }
