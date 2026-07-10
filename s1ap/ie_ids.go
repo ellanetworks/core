@@ -74,6 +74,8 @@ const (
 	idUERadioCapabilityForPaging                ProtocolIEID = 117
 	idRRCEstablishmentCause                     ProtocolIEID = 134
 	idDefaultPagingDRX                          ProtocolIEID = 137
+	idLPPaPDU                                   ProtocolIEID = 147
+	idRoutingID                                 ProtocolIEID = 148
 	idERABToBeModifiedListBearerModInd          ProtocolIEID = 199
 	idERABToBeModifiedItemBearerModInd          ProtocolIEID = 200
 	idERABNotToBeModifiedListBearerModInd       ProtocolIEID = 201
