@@ -72,6 +72,7 @@ const (
 	idUESecurityCapabilities                    ProtocolIEID = 107
 	idCNDomain                                  ProtocolIEID = 109
 	idUERadioCapabilityForPaging                ProtocolIEID = 117
+	idRequestType                               ProtocolIEID = 98
 	idRRCEstablishmentCause                     ProtocolIEID = 134
 	idDefaultPagingDRX                          ProtocolIEID = 137
 	idLPPaPDU                                   ProtocolIEID = 147

@@ -58,6 +58,7 @@ const (
 
 	S1APProcedureDownlinkUEAssociatedLPPaTransport S1APProcedure = "DownlinkUEAssociatedLPPaTransport"
 	S1APProcedureUplinkUEAssociatedLPPaTransport   S1APProcedure = "UplinkUEAssociatedLPPaTransport"
+	S1APProcedureLocationReport                    S1APProcedure = "LocationReport"
 
 	S1APProcedureUnknown S1APProcedure = "UnknownMessage"
 )
@@ -134,6 +135,8 @@ func s1apInitiatingMessageType(code s1ap.ProcedureCode) S1APProcedure {
 		return S1APProcedureDownlinkUEAssociatedLPPaTransport
 	case s1ap.ProcUplinkUEAssociatedLPPaTransport:
 		return S1APProcedureUplinkUEAssociatedLPPaTransport
+	case s1ap.ProcLocationReport:
+		return S1APProcedureLocationReport
 	default:
 		return S1APProcedureUnknown
 	}
