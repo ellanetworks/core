@@ -1808,6 +1808,96 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/v1/networking/data-networks/{name}/static-ips:
+    get:
+      operationId: listDataNetworkStaticIps
+      tags: [Data Networks]
+      summary: List static IP reservations for a data network
+      description: Returns the static IP reservations (both families) for the specified data network.
+      parameters:
+        - $ref: "#/components/parameters/DataNetworkNamePath"
+      responses:
+        "200":
+          description: List of static IP reservations.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaticIPListResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      operationId: createDataNetworkStaticIp
+      tags: [Data Networks]
+      summary: Create a static IP reservation
+      description: Pins an address to a subscriber on the data network. The IP version is inferred from the address family; IPv6 addresses must be /64-aligned.
+      parameters:
+        - $ref: "#/components/parameters/DataNetworkNamePath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStaticIPParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/networking/data-networks/{name}/static-ips/{imsi}/{ip_version}:
+    put:
+      operationId: updateDataNetworkStaticIp
+      tags: [Data Networks]
+      summary: Repin a static IP reservation
+      description: Changes the reserved address. Rejected while the reservation is bound to an active session.
+      parameters:
+        - $ref: "#/components/parameters/DataNetworkNamePath"
+        - $ref: "#/components/parameters/ImsiPath"
+        - $ref: "#/components/parameters/IPVersionPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStaticIPParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteDataNetworkStaticIp
+      tags: [Data Networks]
+      summary: Delete a static IP reservation
+      description: Removes the reservation. Rejected while it is bound to an active session.
+      parameters:
+        - $ref: "#/components/parameters/DataNetworkNamePath"
+        - $ref: "#/components/parameters/ImsiPath"
+        - $ref: "#/components/parameters/IPVersionPath"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
   # -- Routes --------------------------------------------------------------
   /api/v1/networking/routes:
     get:
@@ -3207,6 +3297,14 @@ components:
       schema:
         type: string
       description: Data network name (DNN).
+    IPVersionPath:
+      name: ip_version
+      in: path
+      required: true
+      schema:
+        type: string
+        enum: [ipv4, ipv6]
+      description: IP family of the reservation.
     RouteIdPath:
       name: id
       in: path
@@ -4509,6 +4607,71 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/ListIPAllocationsResponse"
+
+    StaticIP:
+      type: object
+      properties:
+        imsi:
+          type: string
+          description: IMSI of the subscriber holding the reservation.
+        data_network:
+          type: string
+          description: Data network name (DNN).
+        ip_version:
+          type: string
+          enum: [ipv4, ipv6]
+        address:
+          type: string
+          description: "Pinned IPv4 address or IPv6 /64 prefix."
+        status:
+          type: string
+          enum: [reserved, active]
+          description: "\"active\" when bound to a session, otherwise \"reserved\"."
+        session_id:
+          type: integer
+          nullable: true
+          description: PDU session ID when active, or null when reserved.
+      required: [imsi, data_network, ip_version, address, status, session_id]
+
+    StaticIPList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaticIP"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+      required: [items, page, per_page, total_count]
+
+    StaticIPListResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/StaticIPList"
+
+    CreateStaticIPParams:
+      type: object
+      required: [imsi, address]
+      properties:
+        imsi:
+          type: string
+          description: "15-digit IMSI of the subscriber to pin."
+        address:
+          type: string
+          description: "IPv4 address or /64-aligned IPv6 prefix within the data network pool."
+
+    UpdateStaticIPParams:
+      type: object
+      required: [address]
+      properties:
+        address:
+          type: string
+          description: "New IPv4 address or /64-aligned IPv6 prefix within the data network pool."
 
     # -- Routes ----------------------------------------------------------
     Route:

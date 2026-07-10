@@ -207,6 +207,107 @@ This path returns a paginated list of IPv6 address allocations (leases) for a sp
 
 Each item contains the subscriber's assigned IPv6 /64 prefix.
 
+## List Static IPs
+
+This path returns the static IP reservations for a specific data network.
+
+| Method | Path                           |
+| ------ | ------------------------------ |
+| GET    | `/api/v1/networking/data-networks/{name}/static-ips` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "items": [
+            {
+                "imsi": "001010100000001",
+                "data_network": "internet",
+                "ip_version": "ipv4",
+                "address": "172.250.0.10",
+                "status": "reserved",
+                "session_id": null
+            }
+        ],
+        "page": 1,
+        "per_page": 1,
+        "total_count": 1
+    }
+}
+```
+
+## Create a Static IP
+
+This path pins an address to a subscriber on a data network. The IP version is inferred from the address family; IPv6 addresses must be /64-aligned.
+
+| Method | Path                           |
+| ------ | ------------------------------ |
+| POST   | `/api/v1/networking/data-networks/{name}/static-ips` |
+
+### Parameters
+
+- `imsi` (string): The IMSI of the subscriber to pin.
+- `address` (string): An IPv4 address or /64-aligned IPv6 prefix within the data network pool. Example: `172.250.0.10`.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Static IP created successfully"
+    }
+}
+```
+
+## Update a Static IP
+
+This path repins a subscriber's reservation to a new address. It is rejected while the reservation is bound to an active session.
+
+| Method | Path                           |
+| ------ | ------------------------------ |
+| PUT    | `/api/v1/networking/data-networks/{name}/static-ips/{imsi}/{ip_version}` |
+
+### Parameters
+
+- `address` (string): The new IPv4 address or /64-aligned IPv6 prefix within the data network pool. Example: `172.250.0.20`.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Static IP updated successfully"
+    }
+}
+```
+
+## Delete a Static IP
+
+This path removes a subscriber's static IP reservation. It is rejected while the reservation is bound to an active session.
+
+| Method | Path                           |
+| ------ | ------------------------------ |
+| DELETE | `/api/v1/networking/data-networks/{name}/static-ips/{imsi}/{ip_version}` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Static IP deleted successfully"
+    }
+}
+```
+
 ## Delete a Data Network
 
 This path deletes a data network from Ella Core.
