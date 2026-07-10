@@ -133,7 +133,7 @@ six==1.17.0
     # via
     #   markdownify
     #   python-dateutil
-soupsieve==2.8.3
+soupsieve==2.8.4
     # via beautifulsoup4
 tinycss2==1.5.1
     # via
