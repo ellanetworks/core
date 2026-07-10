@@ -8,7 +8,6 @@ import (
 	"errors"
 	"math"
 
-	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/lmf/models"
 	coremodels "github.com/ellanetworks/core/internal/models"
@@ -34,7 +33,7 @@ type cellCoordinate struct {
 // cell, preferring a RAN-supplied NG-RAN Access Point Position (E-CID) and
 // falling back to the provisioned cell-position table. Returns false when no
 // coordinate is available from any source.
-func (l *LMF) resolveCellCoordinate(ctx context.Context, loc coremodels.UserLocation, measurements *amf.RadioMeasurements) (cellCoordinate, bool) {
+func (l *LMF) resolveCellCoordinate(ctx context.Context, loc coremodels.UserLocation, measurements *models.RadioMeasurements) (cellCoordinate, bool) {
 	// 1. RAN-supplied antenna position (only available via E-CID measurements).
 	if measurements != nil && measurements.APPosition != nil {
 		ap := measurements.APPosition

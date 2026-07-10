@@ -55,7 +55,11 @@ const (
 	S1APProcedureMMEConfigurationTransfer    S1APProcedure = "MMEConfigurationTransfer"
 	S1APProcedureERABModificationIndication  S1APProcedure = "E-RABModificationIndication"
 	S1APProcedureERABModificationConfirm     S1APProcedure = "E-RABModificationConfirm"
-	S1APProcedureUnknown                     S1APProcedure = "UnknownMessage"
+
+	S1APProcedureDownlinkUEAssociatedLPPaTransport S1APProcedure = "DownlinkUEAssociatedLPPaTransport"
+	S1APProcedureUplinkUEAssociatedLPPaTransport   S1APProcedure = "UplinkUEAssociatedLPPaTransport"
+
+	S1APProcedureUnknown S1APProcedure = "UnknownMessage"
 )
 
 // S1APMessageType resolves a decoded S1AP PDU to its message name. The S1AP
@@ -126,6 +130,10 @@ func s1apInitiatingMessageType(code s1ap.ProcedureCode) S1APProcedure {
 		return S1APProcedureERABModificationIndication
 	case s1ap.ProcMMEConfigurationTransfer:
 		return S1APProcedureMMEConfigurationTransfer
+	case s1ap.ProcDownlinkUEAssociatedLPPaTransport:
+		return S1APProcedureDownlinkUEAssociatedLPPaTransport
+	case s1ap.ProcUplinkUEAssociatedLPPaTransport:
+		return S1APProcedureUplinkUEAssociatedLPPaTransport
 	default:
 		return S1APProcedureUnknown
 	}

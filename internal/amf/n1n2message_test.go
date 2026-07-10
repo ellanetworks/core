@@ -52,10 +52,6 @@ func (f *fakeNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 	return len(b), nil
 }
 
-func (f *fakeNGAPSender) SendDownlinkNRPPaTransport(context.Context, int64, int64, int64, []byte) error {
-	return nil
-}
-
 type fakeDBInstance struct {
 	operator *db.Operator
 }

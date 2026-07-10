@@ -38,11 +38,11 @@ func (l *LMF) DetermineLocation(ctx context.Context, supi etsi.SUPI, method Posi
 // available for the cell it returns ErrNoLocationEstimate (a Cell-ID estimate
 // without coordinates is not a valid TS 29.572 LocationData).
 func (l *LMF) determineCellIDLocation(ctx context.Context, supi etsi.SUPI) (*models.LocationResult, error) {
-	if !l.amf.IsUERegistered(supi) {
+	if !l.isUERegistered(supi) {
 		return nil, fmt.Errorf("UE not registered: %w", ErrNotFound)
 	}
 
-	loc, ok := l.amf.GetUELocation(supi)
+	loc, ok := l.getUELocation(supi)
 	if !ok {
 		return nil, fmt.Errorf("UE location not available: %w", ErrNotFound)
 	}

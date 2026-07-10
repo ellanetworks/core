@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
@@ -29,7 +28,7 @@ const ecidMeasurementTimeout = 10 * time.Second
 // to a Cell-ID estimate (still requiring the anchor).
 func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI) (*models.LocationResult, error) {
 	// 1. Get serving cell location (same as Cell ID)
-	loc, ok := l.amf.GetUELocation(supi)
+	loc, ok := l.getUELocation(supi)
 	if !ok {
 		return nil, fmt.Errorf("UE location not available: %w", ErrNotFound)
 	}
@@ -103,17 +102,39 @@ func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI) (*model
 	return result, nil
 }
 
-// fetchECIDMeasurements triggers an NRPPa measurement request to the RAN and
-// waits for the matching UEPositioningInformation response. It returns nil
-// (so the caller falls back to Cell ID) whenever the request can't be sent or
-// no response arrives within ecidMeasurementTimeout.
-func (l *LMF) fetchECIDMeasurements(supi etsi.SUPI) *amf.RadioMeasurements {
+// ecidMeasurementClient requests and collects E-CID radio measurements from a
+// RAN over a positioning protocol: NRPPa (5G) or LPPa (4G).
+type ecidMeasurementClient interface {
+	RequestMeasurements(ctx context.Context, supi etsi.SUPI, method string) (int64, error)
+	WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measurementID int64, notBefore time.Time) (*models.RadioMeasurements, error)
+}
+
+// measurementClient selects the positioning protocol by the access that owns the
+// UE: LPPa when the MME holds it (4G), else NRPPa (5G). The measurement protocol
+// follows the serving RAN, not the reported cell's RAT.
+func (l *LMF) measurementClient(supi etsi.SUPI) ecidMeasurementClient {
+	if l.mme != nil {
+		if _, ok := l.mme.GetUELocation(supi); ok {
+			return l.lppaClient
+		}
+	}
+
+	return l.nrppaClient
+}
+
+// fetchECIDMeasurements triggers a measurement request to the RAN and waits for
+// the matching response. It returns nil (so the caller falls back to Cell ID)
+// whenever the request can't be sent or no response arrives within
+// ecidMeasurementTimeout.
+func (l *LMF) fetchECIDMeasurements(supi etsi.SUPI) *models.RadioMeasurements {
 	ctx, cancel := context.WithTimeout(context.Background(), ecidMeasurementTimeout)
 	defer cancel()
 
+	client := l.measurementClient(supi)
+
 	requestedAt := time.Now()
 
-	measID, err := l.nrppaClient.RequestMeasurements(ctx, supi, string(MethodECID))
+	measID, err := client.RequestMeasurements(ctx, supi, string(MethodECID))
 	if err != nil {
 		logger.LmfLog.Warn("E-CID measurement request failed; falling back to Cell ID",
 			zap.String("supi", supi.String()),
@@ -123,7 +144,7 @@ func (l *LMF) fetchECIDMeasurements(supi etsi.SUPI) *amf.RadioMeasurements {
 		return nil
 	}
 
-	measurements, err := l.nrppaClient.WaitForMeasurements(ctx, supi, measID, requestedAt)
+	measurements, err := client.WaitForMeasurements(ctx, supi, measID, requestedAt)
 	if err != nil {
 		logger.LmfLog.Warn("E-CID measurements unavailable; falling back to Cell ID",
 			zap.String("supi", supi.String()),

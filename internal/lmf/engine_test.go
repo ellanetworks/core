@@ -49,7 +49,7 @@ func testDBWithCell(t *testing.T, rat, mcc, mnc, cellID string) *db.Database {
 
 func TestDetermineLocation_NR(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
-	lmfInstance := New(amfInstance, testDBWithCell(t, db.RATNR, "262", "01", "0x00000001"))
+	lmfInstance := New(amfInstance, nil, testDBWithCell(t, db.RATNR, "262", "01", "0x00000001"))
 
 	// Create a test UE with NR location
 	supi, err := etsi.NewSUPIFromIMSI("123456789012345")
@@ -112,7 +112,7 @@ func TestDetermineLocation_NR(t *testing.T) {
 
 func TestDetermineLocation_EUTRA(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
-	lmfInstance := New(amfInstance, testDBWithCell(t, db.RATEUTRA, "262", "01", "0x00000002"))
+	lmfInstance := New(amfInstance, nil, testDBWithCell(t, db.RATEUTRA, "262", "01", "0x00000002"))
 
 	supi, err := etsi.NewSUPIFromIMSI("123456789012346")
 	if err != nil {
@@ -156,7 +156,7 @@ func TestDetermineLocation_EUTRA(t *testing.T) {
 
 func TestDetermineLocation_NotFound(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
-	lmfInstance := New(amfInstance, nil)
+	lmfInstance := New(amfInstance, nil, nil)
 
 	supi, err := etsi.NewSUPIFromIMSI("123456789012399")
 	if err != nil {
@@ -171,7 +171,7 @@ func TestDetermineLocation_NotFound(t *testing.T) {
 
 func TestDetermineLocation_Unregistered(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
-	lmfInstance := New(amfInstance, nil)
+	lmfInstance := New(amfInstance, nil, nil)
 
 	supi, err := etsi.NewSUPIFromIMSI("123456789012398")
 	if err != nil {
@@ -206,7 +206,7 @@ func TestDetermineLocation_Unregistered(t *testing.T) {
 
 func TestDetermineLocation_NoLocation(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
-	lmfInstance := New(amfInstance, nil)
+	lmfInstance := New(amfInstance, nil, nil)
 
 	supi, err := etsi.NewSUPIFromIMSI("123456789012397")
 	if err != nil {

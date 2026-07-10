@@ -12,6 +12,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/guard"
+	lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme/procedure"
 	"github.com/ellanetworks/core/internal/models"
@@ -168,6 +169,11 @@ type UeContext struct {
 	tmsi    etsi.TMSI
 	oldTmsi etsi.TMSI
 
+	// Location is the UE's serving-cell User Location (E-UTRAN CGI + TAI), refreshed
+	// on every UE-associated S1AP message that carries it. Written lock-free on the
+	// dispatch goroutine (hot path); read under mu.
+	Location models.UserLocation
+
 	// mu is the per-UE lock guarding this UE's data state — the EPS NAS security
 	// context below (dlCount, knasEnc, knasInt, eea, eia, imei, secured), the PDN
 	// modification state (the pdns map, defaultEBI, and each PdnConnection's
@@ -235,6 +241,15 @@ type UeContext struct {
 	// (the guard counts them), and cancelled when the UE reconnects. The Paging PDU
 	// is captured by the retransmit closure.
 	pagingTimer guard.Guard
+
+	// LPPa positioning state (TS 36.455), independent of EMM/ESM state and each
+	// guarded by its own lock. lppaMessages buffers the raw LPPa PDUs the eNB
+	// relays uplink for the LMF to correlate and decode; radioMeasurements caches
+	// the E-CID measurement result the LMF last obtained.
+	lppaMu            sync.RWMutex
+	lppaMessages      []LPPaMessage
+	radioMu           sync.RWMutex
+	radioMeasurements *lmfmodels.RadioMeasurements
 }
 
 // TouchLastSeen records the current time as the UE's most recent uplink NAS
@@ -850,6 +865,17 @@ func (m *MME) LookupUeByMTMSI(mtmsi uint32) (*UeContext, bool) {
 	defer m.mu.RUnlock()
 
 	ue, ok := m.uesByTmsi[tmsi]
+
+	return ue, ok
+}
+
+// LookupUeBySupi finds the persistent UE context for supi. It resolves a UE in
+// ECM-IDLE as well as a connected one.
+func (m *MME) LookupUeBySupi(supi etsi.SUPI) (*UeContext, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	ue, ok := m.UEs[supi]
 
 	return ue, ok
 }

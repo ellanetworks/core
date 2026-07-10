@@ -14,6 +14,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
+	lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nrppa"
 	"go.uber.org/zap"
@@ -77,11 +78,6 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 		return 0, fmt.Errorf("UE has no active RAN connection: %s", supi)
 	}
 
-	ran := ranUe.Radio()
-	if ran == nil {
-		return 0, fmt.Errorf("UE has no NGAP sender available: %s", supi)
-	}
-
 	measID := c.nextMeasurementID()
 
 	payload, err := nrppa.BuildECIDMeasurementInitiationRequest(measID, ecidMeasurementQuantities)
@@ -89,14 +85,8 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 		return 0, fmt.Errorf("failed to build NRPPa E-CID request: %w", err)
 	}
 
-	err = ran.SendDownlinkNRPPaTransport(
-		ctx,
-		int64(ranUe.AmfUeNgapID),
-		int64(ranUe.RanUeNgapID),
-		0, // RoutingID: 0 for MVP (not used by gNB tester)
-		payload,
-	)
-	if err != nil {
+	// RoutingID 0 for MVP (not used by gNB tester).
+	if err := ranUe.SendDownlinkNRPPaTransport(ctx, 0, payload); err != nil {
 		return 0, fmt.Errorf("failed to send NRPPa transport: %w", err)
 	}
 
@@ -117,7 +107,7 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 // them in the UE context, and returns them. On RAN rejection it returns nil
 // immediately so the caller can fall back to Cell ID without waiting for a
 // timeout.
-func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measurementID int64, notBefore time.Time) (*amf.RadioMeasurements, error) {
+func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measurementID int64, notBefore time.Time) (*lmfmodels.RadioMeasurements, error) {
 	ue, ok := c.amf.LookupUeBySupi(supi)
 	if !ok {
 		return nil, fmt.Errorf("UE not found: %s", supi)
@@ -191,11 +181,6 @@ func (c *Client) terminateMeasurement(ctx context.Context, supi etsi.SUPI, lmfMe
 		return
 	}
 
-	ran := ranUe.Radio()
-	if ran == nil {
-		return
-	}
-
 	payload, err := nrppa.BuildECIDMeasurementTerminationCommand(lmfMeasID, ranMeasID)
 	if err != nil {
 		logger.LmfLog.Warn("failed to build NRPPa E-CID termination command",
@@ -206,7 +191,7 @@ func (c *Client) terminateMeasurement(ctx context.Context, supi etsi.SUPI, lmfMe
 		return
 	}
 
-	if err := ran.SendDownlinkNRPPaTransport(ctx, int64(ranUe.AmfUeNgapID), int64(ranUe.RanUeNgapID), 0, payload); err != nil {
+	if err := ranUe.SendDownlinkNRPPaTransport(ctx, 0, payload); err != nil {
 		logger.LmfLog.Warn("failed to send NRPPa E-CID termination command",
 			zap.String("supi", supi.String()),
 			zap.Error(err),
@@ -323,8 +308,8 @@ func matchMeasurementResponse(messages []amf.NRPPaMessage, measurementID int64, 
 // measurement shape. Timing advance is taken from valueTimingAdvanceType1 (or
 // type2 as fallback); RSRP/RSRQ are left nil unless reported. The serving cell
 // access point position is carried through when present.
-func mapECIDResult(result *nrppa.ECIDResult) *amf.RadioMeasurements {
-	m := &amf.RadioMeasurements{}
+func mapECIDResult(result *nrppa.ECIDResult) *lmfmodels.RadioMeasurements {
+	m := &lmfmodels.RadioMeasurements{}
 
 	if result == nil {
 		return m
@@ -392,7 +377,7 @@ func mapECIDResult(result *nrppa.ECIDResult) *amf.RadioMeasurements {
 	}
 
 	if result.APPosition != nil {
-		m.APPosition = &amf.APPosition{
+		m.APPosition = &lmfmodels.APPosition{
 			LatitudeDegrees:      result.APPosition.LatitudeDegrees,
 			LongitudeDegrees:     result.APPosition.LongitudeDegrees,
 			Altitude:             result.APPosition.Altitude,

@@ -19,6 +19,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/guard"
+	lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/ueauth"
@@ -108,7 +109,7 @@ type UeContext struct {
 	idleGen                     uint64
 
 	radioMu           sync.RWMutex
-	radioMeasurements *RadioMeasurements
+	radioMeasurements *lmfmodels.RadioMeasurements
 
 	nrppaMu       sync.RWMutex
 	nrppaMessages []NRPPaMessage

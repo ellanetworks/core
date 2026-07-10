@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package amf
+package mme
 
 import (
 	"time"
@@ -36,40 +36,41 @@ func (ue *UeContext) GetRadioMeasurements() *lmfmodels.RadioMeasurements {
 	return &cp
 }
 
-// NRPPaMessage holds a raw NRPPa PDU received from the RAN. The PDU is an
-// opaque octet string carried over NGAP UE-associated transport; it is decoded
-// by the LMF (internal/nrppa). Correlation is by the LMF-UE-Measurement-ID
-// carried inside the decoded PDU, not by any AMF-side field.
-type NRPPaMessage struct {
+// LPPaMessage holds a raw LPPa PDU received from the eNB. The PDU is an opaque
+// octet string carried over S1AP UE-associated transport; it is decoded by the
+// LMF (github.com/ellanetworks/core/lppa). Correlation is by the
+// E-SMLC-UE-Measurement-ID carried inside the decoded PDU, not by any MME-side
+// field.
+type LPPaMessage struct {
 	Payload   []byte
 	Timestamp time.Time
 }
 
-func (ue *UeContext) SetNRPPaMessage(data []byte) {
-	ue.nrppaMu.Lock()
-	defer ue.nrppaMu.Unlock()
+func (ue *UeContext) SetLPPaMessage(data []byte) {
+	ue.lppaMu.Lock()
+	defer ue.lppaMu.Unlock()
 
 	payload := make([]byte, len(data))
 	copy(payload, data)
 
-	msg := NRPPaMessage{
+	msg := LPPaMessage{
 		Payload:   payload,
 		Timestamp: time.Now(),
 	}
 
 	// Ring buffer: keep last 16 messages
-	ue.nrppaMessages = append(ue.nrppaMessages, msg)
-	if len(ue.nrppaMessages) > 16 {
-		ue.nrppaMessages = ue.nrppaMessages[len(ue.nrppaMessages)-16:]
+	ue.lppaMessages = append(ue.lppaMessages, msg)
+	if len(ue.lppaMessages) > 16 {
+		ue.lppaMessages = ue.lppaMessages[len(ue.lppaMessages)-16:]
 	}
 }
 
-func (ue *UeContext) GetNRPPaMessages() []NRPPaMessage {
-	ue.nrppaMu.RLock()
-	defer ue.nrppaMu.RUnlock()
+func (ue *UeContext) GetLPPaMessages() []LPPaMessage {
+	ue.lppaMu.RLock()
+	defer ue.lppaMu.RUnlock()
 
-	result := make([]NRPPaMessage, len(ue.nrppaMessages))
-	copy(result, ue.nrppaMessages)
+	result := make([]LPPaMessage, len(ue.lppaMessages))
+	copy(result, ue.lppaMessages)
 
 	return result
 }
