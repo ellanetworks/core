@@ -51,6 +51,11 @@ func TestIntegration4GUserPlane(t *testing.T) {
 		t.Fatalf("failed to resolve srsue container: %v", err)
 	}
 
+	if !waitForUEAddress(ctx, t, dockerClient, srsue, "inet 10.45.") {
+		dumpLogs(ctx, t, dockerClient, "ella-core", "srsue", "srsenb")
+		t.Fatal("srsUE did not plumb its 10.45.x address onto the TUN")
+	}
+
 	// Route the N6 host's subnet via the UE's TUN (the interface holding the
 	// 10.45.x UE address) so both directions are symmetric — otherwise the kernel
 	// reverse-path filter drops the reply arriving from off-subnet. Then ping the
@@ -143,13 +148,19 @@ func TestIntegration4GUserPlaneIPv6(t *testing.T) {
 		t.Fatalf("failed to resolve srsue container: %v", err)
 	}
 
-	// Wait for SLAAC to configure a global fd45:: address on the UE's TUN (the
-	// kernel sends a Router Solicitation, the UPF answers with the PSC-less RA
-	// carrying the /64), route the N6 host's prefix via the TUN for a symmetric
-	// reverse path, then ping6 the N6 host: replies prove the RA reached the UE
-	// and IPv6 forwarding works both ways over S1-U.
+	// SLAAC configures the global fd45:: address on the UE's TUN asynchronously:
+	// the kernel sends a Router Solicitation and the UPF answers with the PSC-less
+	// RA carrying the /64. Gate on that address before touching the interface.
+	if !waitForUEAddress(ctx, t, dockerClient, srsue, "inet6 fd45:") {
+		dumpLogs(ctx, t, dockerClient, "ella-core", "srsue", "srsenb")
+		t.Fatal("srsUE did not configure a global fd45:: address via SLAAC")
+	}
+
+	// Route the N6 host's prefix via the TUN for a symmetric reverse path, then
+	// ping6 the N6 host: replies prove the RA reached the UE and IPv6 forwarding
+	// works both ways over S1-U.
 	out, _ := dockerClient.Exec(ctx, srsue,
-		[]string{"sh", "-c", `for i in $(seq 1 25); do DEV=$(ip -o -6 addr show scope global | awk '/inet6 fd45:/{print $2; exit}'); [ -n "$DEV" ] && break; sleep 1; done; echo "TUN=$DEV"; ip -6 addr show dev "$DEV"; ip -6 route replace fd00:6::/64 dev "$DEV"; ping6 -c 5 -W 2 ` + N6RouterIPv6Address()},
+		[]string{"sh", "-c", `DEV=$(ip -o -6 addr show scope global | awk '/inet6 fd45:/{print $2; exit}'); echo "TUN=$DEV"; ip -6 addr show dev "$DEV"; ip -6 route replace fd00:6::/64 dev "$DEV"; ping6 -c 5 -W 2 ` + N6RouterIPv6Address()},
 		false, 40*time.Second, logWriter{t})
 
 	if !strings.Contains(out, "inet6 fd45:") {
