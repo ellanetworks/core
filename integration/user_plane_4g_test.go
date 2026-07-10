@@ -148,9 +148,6 @@ func TestIntegration4GUserPlaneIPv6(t *testing.T) {
 		t.Fatalf("failed to resolve srsue container: %v", err)
 	}
 
-	// SLAAC configures the global fd45:: address on the UE's TUN asynchronously:
-	// the kernel sends a Router Solicitation and the UPF answers with the PSC-less
-	// RA carrying the /64. Gate on that address before touching the interface.
 	if !waitForUEAddress(ctx, t, dockerClient, srsue, "inet6 fd45:") {
 		dumpLogs(ctx, t, dockerClient, "ella-core", "srsue", "srsenb")
 		t.Fatal("srsUE did not configure a global fd45:: address via SLAAC")

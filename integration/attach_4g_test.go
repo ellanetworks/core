@@ -102,8 +102,8 @@ func waitForAttach(ctx context.Context, t *testing.T, dc *DockerClient) bool {
 
 // waitForUEAddress polls the srsUE container until an address matching needle
 // (e.g. "inet 10.45." or "inet6 fd45:") appears on its TUN. The UE plumbs its
-// TUN address asynchronously after attach completes, so datapath tests must
-// confirm it on the UE side before reading the interface or sending traffic.
+// TUN address asynchronously after attach completes, so reaching EMM-REGISTERED
+// does not by itself mean the UE datapath is ready.
 func waitForUEAddress(ctx context.Context, t *testing.T, dc *DockerClient, container, needle string) bool {
 	t.Helper()
 
