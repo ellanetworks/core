@@ -46,7 +46,7 @@ The nested `cluster` object is present only when HA is enabled:
 ```json
 {
     "result": {
-        "version": "v1.12.0",
+        "version": "v1.13.0",
         "revision": "388ce92244a0b304e9f6c15e3f896acee6fe7b1a",
         "initialized": true,
         "ready": true,
@@ -60,7 +60,7 @@ When clustering is enabled, the response includes a `cluster` object:
 ```json
 {
     "result": {
-        "version": "v1.12.0",
+        "version": "v1.13.0",
         "revision": "388ce92244a0b304e9f6c15e3f896acee6fe7b1a",
         "initialized": true,
         "ready": true,
