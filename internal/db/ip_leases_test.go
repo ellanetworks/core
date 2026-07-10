@@ -138,7 +138,6 @@ func TestCreateAndGetLease(t *testing.T) {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
-	// Should be retrievable by its session.
 	got, err := database.GetLeaseBySession(ctx, poolID, "ipv4", sessionID, imsi)
 	if err != nil {
 		t.Fatalf("GetLeaseBySession: %s", err)
@@ -995,7 +994,6 @@ func TestUpdateStaticLeaseAddress(t *testing.T) {
 		t.Fatalf("expected repinned address 192.168.1.20, got %s", repinned.Address())
 	}
 
-	// Repin onto an address held by another lease is rejected.
 	imsi2 := "001010123456790"
 	createExtraSubscriber(t, database, imsi2, profileID)
 
@@ -1007,7 +1005,6 @@ func TestUpdateStaticLeaseAddress(t *testing.T) {
 		t.Fatalf("expected ErrAlreadyExists repinning onto taken address, got %v", err)
 	}
 
-	// A bound reservation cannot be repinned.
 	if err := database.UpdateLeaseSession(ctx, got.ID, 5); err != nil {
 		t.Fatalf("UpdateLeaseSession: %s", err)
 	}
@@ -1030,7 +1027,6 @@ func TestDeleteStaticLease(t *testing.T) {
 		t.Fatalf("GetStaticLease: %s", err)
 	}
 
-	// A bound reservation cannot be deleted; the row survives.
 	if err := database.UpdateLeaseSession(ctx, got.ID, 5); err != nil {
 		t.Fatalf("UpdateLeaseSession: %s", err)
 	}
@@ -1043,7 +1039,6 @@ func TestDeleteStaticLease(t *testing.T) {
 		t.Fatalf("expected active reservation to persist, got %v", err)
 	}
 
-	// Once reserved again, delete succeeds.
 	if err := database.ClearStaticLeaseSession(ctx, got.ID); err != nil {
 		t.Fatalf("ClearStaticLeaseSession: %s", err)
 	}
@@ -1113,8 +1108,6 @@ func TestAllocateIPLease_MultipleSessionsSameDNGetDistinctIPs(t *testing.T) {
 		t.Fatalf("AllocateIPLease (session 5): %s", err)
 	}
 
-	// A second concurrent session for the same subscriber on the same pool
-	// must get its own address, not collapse onto the first session's lease.
 	second, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 6, 1)
 	if err != nil {
 		t.Fatalf("AllocateIPLease (session 6): %s", err)
@@ -1124,7 +1117,6 @@ func TestAllocateIPLease_MultipleSessionsSameDNGetDistinctIPs(t *testing.T) {
 		t.Fatalf("expected distinct addresses per session, both got %s", first)
 	}
 
-	// Both leases coexist and each is reachable by its own session.
 	l5, err := database.GetLeaseBySession(ctx, poolID, "ipv4", 5, imsi)
 	if err != nil {
 		t.Fatalf("GetLeaseBySession(5): %s", err)
@@ -1139,7 +1131,6 @@ func TestAllocateIPLease_MultipleSessionsSameDNGetDistinctIPs(t *testing.T) {
 		t.Fatalf("session→lease mismatch: 5=%s (want %s), 6=%s (want %s)", l5.Address(), first, l6.Address(), second)
 	}
 
-	// Re-establishing session 5 (retry) returns its own address, unchanged.
 	again, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 5, 1)
 	if err != nil {
 		t.Fatalf("AllocateIPLease (session 5 retry): %s", err)
@@ -1158,7 +1149,6 @@ func TestAllocateIPLease_StaticHeldByOtherSessionFallsToDynamic(t *testing.T) {
 		t.Fatalf("CreateStaticLease: %s", err)
 	}
 
-	// Session 7 claims the pinned address.
 	pinned, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, 1)
 	if err != nil {
 		t.Fatalf("AllocateIPLease (session 7): %s", err)
@@ -1168,8 +1158,6 @@ func TestAllocateIPLease_StaticHeldByOtherSessionFallsToDynamic(t *testing.T) {
 		t.Fatalf("expected pinned 192.168.1.50, got %s", pinned)
 	}
 
-	// A second concurrent session cannot take the same pinned address; it
-	// gets a dynamic one instead.
 	other, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 8, 1)
 	if err != nil {
 		t.Fatalf("AllocateIPLease (session 8): %s", err)
@@ -1184,7 +1172,7 @@ func TestAllocateIPLease_DynamicSkipsReservedStatic(t *testing.T) {
 	database, poolID, imsi, profileID := setupLeaseTestDBWithProfile(t)
 	ctx := context.Background()
 
-	// Reserve the first usable address (192.168.1.1) for imsi, unbound.
+	// Pin .1 — the first usable address, which a dynamic alloc picks first.
 	if err := database.CreateStaticLease(ctx, imsi, poolID, "ipv4", addr("192.168.1.1")); err != nil {
 		t.Fatalf("CreateStaticLease: %s", err)
 	}
@@ -1192,8 +1180,7 @@ func TestAllocateIPLease_DynamicSkipsReservedStatic(t *testing.T) {
 	imsi2 := "001010123456790"
 	createExtraSubscriber(t, database, imsi2, profileID)
 
-	// A dynamic allocation for another subscriber must skip the reserved
-	// address even though no session holds it yet.
+	// Even unbound, the reservation must be skipped by dynamic allocation.
 	got, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi2, 3, 1)
 	if err != nil {
 		t.Fatalf("AllocateIPLease: %s", err)

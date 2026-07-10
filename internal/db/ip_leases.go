@@ -843,10 +843,9 @@ func (db *Database) CountLeasesByIMSI(ctx context.Context, imsi string) (int, er
 	return result.Count, nil
 }
 
-// CreateStaticLease pins an address to a subscriber for a data network
-// (pool) and family. The reservation is created unbound. Returns
-// ErrAlreadyExists when a static lease already exists for (poolID,
-// poolType, imsi) or when the address is already leased in the pool.
+// CreateStaticLease pins an address to a subscriber for a data network and
+// family. Returns ErrAlreadyExists when a static lease already exists for
+// (poolID, poolType, imsi) or the address is already leased.
 func (db *Database) CreateStaticLease(ctx context.Context, imsi, poolID, poolType string, addr netip.Addr) error {
 	_, span := tracer.Start(
 		ctx,
@@ -1006,10 +1005,9 @@ func (db *Database) ListStaticLeasesByDataNetwork(ctx context.Context, poolID st
 	return leases, nil
 }
 
-// ClearStaticLeaseSession returns a static lease to the reserved state by
-// nulling its sessionID. Called on session release so listActiveLeases
-// and the BGP advertisement (sessionID IS NOT NULL) drop the address
-// while the reservation row persists.
+// ClearStaticLeaseSession returns a static lease to reserved by nulling its
+// sessionID, so listActiveLeases and BGP (sessionID IS NOT NULL) drop the
+// address while the row persists.
 func (db *Database) ClearStaticLeaseSession(ctx context.Context, leaseID string) error {
 	_, span := tracer.Start(
 		ctx,

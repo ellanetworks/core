@@ -147,11 +147,9 @@ func (a *smfDBAdapter) ReleaseIP(ctx context.Context, imsi string, dnn string, p
 	return lease.Address(), nil
 }
 
-// releaseLease ends a lease's hold on the session. A static reservation
-// returns to the reserved state (row kept, sessionID nulled) so the pin
-// survives for the next session; a dynamic lease is deleted. The explicit
-// clear is required so listActiveLeases / BGP advertisement (sessionID IS
-// NOT NULL) drop the address when the session ends.
+// releaseLease clears a static reservation to reserved (row kept) or
+// deletes a dynamic lease. The explicit clear is required so
+// listActiveLeases / BGP (sessionID IS NOT NULL) drop the address.
 func (a *smfDBAdapter) releaseLease(ctx context.Context, lease *db.IPLease) error {
 	if lease.Type == "static" {
 		if err := a.db.ClearStaticLeaseSession(ctx, lease.ID); err != nil {

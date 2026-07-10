@@ -117,7 +117,6 @@ func runStaticIpsMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		t.Fatalf("unexpected IPv4 reservation: %+v", *v4)
 	}
 
-	// A second family for the same subscriber coexists.
 	if err := c.CreateDataNetworkStaticIp(ctx, dnName, &client.CreateStaticIPOptions{IMSI: imsi, Address: "fd98:0:0:1::"}); err != nil {
 		t.Fatalf("create IPv6 static IP: %v", err)
 	}
@@ -126,17 +125,14 @@ func runStaticIpsMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		t.Fatalf("expected 2 static IPs (v4+v6), got %d", n)
 	}
 
-	// A duplicate for the same (imsi, family) is rejected.
 	if err := c.CreateDataNetworkStaticIp(ctx, dnName, &client.CreateStaticIPOptions{IMSI: imsi, Address: "10.252.0.11"}); err == nil {
 		t.Fatal("expected duplicate IPv4 static IP to be rejected")
 	}
 
-	// An address outside the pool is rejected.
 	if err := c.CreateDataNetworkStaticIp(ctx, dnName, &client.CreateStaticIPOptions{IMSI: imsi, Address: "10.99.0.1"}); err == nil {
 		t.Fatal("expected out-of-pool static IP to be rejected")
 	}
 
-	// Repin the IPv4 reservation.
 	if err := c.UpdateDataNetworkStaticIp(ctx, dnName, imsi, "ipv4", "10.252.0.20"); err != nil {
 		t.Fatalf("update IPv4 static IP: %v", err)
 	}
@@ -145,7 +141,6 @@ func runStaticIpsMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		t.Fatalf("repin not reflected: %+v", got)
 	}
 
-	// Delete the IPv4 reservation; the IPv6 one remains.
 	if err := c.DeleteDataNetworkStaticIp(ctx, dnName, imsi, "ipv4"); err != nil {
 		t.Fatalf("delete IPv4 static IP: %v", err)
 	}

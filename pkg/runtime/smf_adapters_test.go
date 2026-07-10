@@ -110,7 +110,6 @@ func TestReleaseIP_StaticKeepsReservation(t *testing.T) {
 		t.Fatalf("expected released address %s, got %s", pinned, released)
 	}
 
-	// Reservation row persists, returned to reserved state.
 	reserved, err := adapter.db.GetStaticLease(ctx, poolID, "ipv4", imsi)
 	if err != nil {
 		t.Fatalf("GetStaticLease after release: %s", err)

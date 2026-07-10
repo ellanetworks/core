@@ -99,9 +99,8 @@ func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage i
 	return subs, count, nil
 }
 
-// ListSubscribersByDataNetworkPage returns a page of subscribers whose profile
-// has a policy binding the given data network. Used to populate the static-IP
-// picker with only the subscribers eligible for that network.
+// ListSubscribersByDataNetworkPage returns a page of subscribers whose
+// profile has a policy binding the given data network.
 func (db *Database) ListSubscribersByDataNetworkPage(ctx context.Context, dataNetworkID string, page, perPage int) ([]Subscriber, int, error) {
 	ctx, span := tracer.Start(
 		ctx,

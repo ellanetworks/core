@@ -435,12 +435,9 @@ func (db *Database) applyUpdateLeaseNode(ctx context.Context, lease *IPLease) (a
 }
 
 // applyCreateStaticLease inserts an admin-pinned reservation. The
-// SELECT-then-INSERT runs under leaderCaptureAndPropose's proposeMu, so
-// the one-per-(imsi, pool, family) check and the write are serialised
-// against every other replicated allocation — a second static for the
-// same tuple can't race in. A duplicate address in the pool is caught by
-// the UNIQUE(poolID, addressBin) constraint. The reservation starts
-// unbound (sessionID NULL, nodeID 0).
+// SELECT-then-INSERT runs under proposeMu, so the one-per-(imsi, pool,
+// family) check is race-free; a duplicate address is caught by
+// UNIQUE(poolID, addressBin).
 func (db *Database) applyCreateStaticLease(ctx context.Context, lease *IPLease) (any, error) {
 	existing := IPLease{PoolID: lease.PoolID, PoolType: lease.PoolType, IMSI: lease.IMSI}
 
@@ -462,10 +459,8 @@ func (db *Database) applyCreateStaticLease(ctx context.Context, lease *IPLease) 
 }
 
 // applyUpdateStaticLeaseAddress repins a reserved static lease. The
-// sessionID IS NULL predicate rejects an active reservation atomically:
-// zero rows affected means the reservation was bound between the
-// handler's pre-check and this write, mapped to ErrLeaseActive. A
-// collision with another lease's address surfaces as ErrAlreadyExists.
+// sessionID IS NULL predicate makes the active-check atomic: zero rows
+// affected maps to ErrLeaseActive, a duplicate address to ErrAlreadyExists.
 func (db *Database) applyUpdateStaticLeaseAddress(ctx context.Context, lease *IPLease) (any, error) {
 	var outcome sqlair.Outcome
 
@@ -490,9 +485,9 @@ func (db *Database) applyUpdateStaticLeaseAddress(ctx context.Context, lease *IP
 	return nil, nil
 }
 
-// applyDeleteStaticLease removes a reserved static lease. Like the repin
-// op, the sessionID IS NULL guard makes the active check atomic: zero
-// rows affected maps to ErrLeaseActive.
+// applyDeleteStaticLease removes a reserved static lease. The sessionID IS
+// NULL guard makes the active-check atomic: zero rows affected maps to
+// ErrLeaseActive.
 func (db *Database) applyDeleteStaticLease(ctx context.Context, p *stringPayload) (any, error) {
 	var outcome sqlair.Outcome
 
@@ -579,11 +574,8 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 	sessionID := p.SessionID
 
 	// Step 0: an admin-pinned static reservation takes precedence over
-	// dynamic allocation. Bind it to this session (and the serving node on
-	// failover, mirroring the dynamic re-registration branch below) and
-	// return its reserved address. The Step 2 merge-scan lists every lease
-	// in the pool, so a reserved static address is never handed out
-	// dynamically even when no session holds it yet.
+	// dynamic allocation. The merge-scan below lists every lease in the
+	// pool, so a reserved static address is never handed out dynamically.
 	static := IPLease{PoolID: p.PoolID, PoolType: p.PoolType, IMSI: p.IMSI}
 
 	err = runner.Query(ctx, db.getStaticLeaseStmt, static).Get(&static)
@@ -614,13 +606,11 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 		return nil, fmt.Errorf("get static lease: %w", err)
 	}
 
-	// Step 1: a dynamic lease already held by *this* session
-	// (re-registration on retry or failover). Keyed on sessionID so a
-	// second, distinct session to the same pool does not collapse onto
-	// the first session's lease but falls through to a fresh address —
-	// a subscriber may hold multiple concurrent sessions on one DN, each
-	// with its own IP (TS 23.501 §5.6.1, TS 23.401 §5.10.1). Update the
-	// owning node and return its address.
+	// Step 1: re-registration of a dynamic lease already held by *this*
+	// session (retry or failover). Keyed on sessionID so a distinct second
+	// session on the same pool gets a fresh address — a subscriber may hold
+	// concurrent sessions on one DN, each with its own IP (TS 23.501
+	// §5.6.1, TS 23.401 §5.10.1).
 	existing := IPLease{PoolID: p.PoolID, PoolType: p.PoolType, IMSI: p.IMSI, SessionID: &sessionID}
 
 	err = runner.Query(ctx, db.getDynamicLeaseBySessionStmt, existing).Get(&existing)
