@@ -331,6 +331,9 @@ func messageName(cat Category, code s1ap.ProcedureCode) string {
 		s1ap.ProcReset:                "Reset",
 		s1ap.ProcERABSetup:            "E-RABSetup",
 		s1ap.ProcERABRelease:          "E-RABRelease",
+
+		s1ap.ProcDownlinkUEAssociatedLPPaTransport: "DownlinkUEAssociatedLPPaTransport",
+		s1ap.ProcUplinkUEAssociatedLPPaTransport:   "UplinkUEAssociatedLPPaTransport",
 	}[code]
 	if name == "" {
 		name = fmt.Sprintf("procedure-%d", code)
