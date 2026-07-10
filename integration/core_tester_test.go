@@ -55,6 +55,8 @@ var scenarioIPFamilyRestrictions = map[string]IPFamily{
 	"s1enb/registration/v4v6":                DualStack,
 	"s1enb/connectivity_dualstack":           DualStack,
 	"s1enb/connectivity_ipv6":                IPv6Only,
+	"gnb/static_ip_ipv6":                     IPv6Only,
+	"s1enb/static_ip_ipv6":                   IPv6Only,
 }
 
 // scenarioIPFamilyExclusions returns a map of scenario name → set of IP
@@ -82,6 +84,14 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 		IPv6Only: true,
 	},
 	"s1enb/connectivity": {
+		IPv6Only:  true,
+		DualStack: true,
+	},
+	"gnb/static_ip": {
+		IPv6Only:  true,
+		DualStack: true,
+	},
+	"s1enb/static_ip": {
 		IPv6Only:  true,
 		DualStack: true,
 	},

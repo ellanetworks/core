@@ -58,6 +58,7 @@ func listStaticIps(url string, client *http.Client, token string) (int, *listSta
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
@@ -86,6 +87,7 @@ func createStaticIp(url string, client *http.Client, token, dn, imsi, address st
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
@@ -114,6 +116,7 @@ func updateStaticIp(url string, client *http.Client, token, dn, imsi, ipVersion,
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
@@ -140,6 +143,7 @@ func deleteStaticIp(url string, client *http.Client, token, dn, imsi, ipVersion 
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)

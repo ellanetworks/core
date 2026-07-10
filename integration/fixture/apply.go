@@ -4,6 +4,8 @@
 package fixture
 
 import (
+	"strings"
+
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 )
@@ -62,6 +64,34 @@ func (f *F) Apply(spec scenarios.FixtureSpec) {
 	for _, s := range spec.Subscribers {
 		f.scopedSubscriber(s)
 	}
+
+	for _, s := range spec.StaticIPs {
+		f.scopedStaticIP(s)
+	}
+}
+
+func (f *F) scopedStaticIP(spec scenarios.StaticIPSpec) {
+	f.t.Helper()
+
+	if err := f.c.CreateDataNetworkStaticIp(f.ctx, spec.DataNetwork, &client.CreateStaticIPOptions{
+		IMSI:    spec.IMSI,
+		Address: spec.Address,
+	}); err != nil {
+		f.fatalf("create static IP %s for %s: %v", spec.Address, spec.IMSI, err)
+	}
+
+	dn, imsi, addr := spec.DataNetwork, spec.IMSI, spec.Address
+
+	ipVersion := "ipv4"
+	if strings.Contains(addr, ":") {
+		ipVersion = "ipv6"
+	}
+
+	f.t.Cleanup(func() {
+		if err := f.c.DeleteDataNetworkStaticIp(f.ctx, dn, imsi, ipVersion); err != nil {
+			f.t.Logf("cleanup: delete static IP %s for %s: %v", addr, imsi, err)
+		}
+	})
 }
 
 func (f *F) scopedProfile(spec scenarios.ProfileSpec) {
