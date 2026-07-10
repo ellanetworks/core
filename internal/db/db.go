@@ -64,7 +64,7 @@ type Database struct {
 
 	// IP Lease statements
 	createLeaseStmt              *sqlair.Statement
-	getDynamicLeaseStmt          *sqlair.Statement
+	getDynamicLeaseBySessionStmt *sqlair.Statement
 	getLeaseBySessionStmt        *sqlair.Statement
 	updateLeaseSessionStmt       *sqlair.Statement
 	updateLeaseNodeStmt          *sqlair.Statement
@@ -84,6 +84,7 @@ type Database struct {
 	listAllLeasesStmt            *sqlair.Statement
 	getStaticLeaseStmt           *sqlair.Statement
 	listStaticLeasesByIMSIStmt   *sqlair.Statement
+	listStaticLeasesByDNStmt     *sqlair.Statement
 	updateStaticLeaseAddressStmt *sqlair.Statement
 	deleteStaticLeaseStmt        *sqlair.Statement
 
@@ -1261,7 +1262,7 @@ func (db *Database) PrepareStatements() error {
 
 		// IP Leases
 		{&db.createLeaseStmt, fmt.Sprintf(createLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.getDynamicLeaseStmt, fmt.Sprintf(getDynamicLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.getDynamicLeaseBySessionStmt, fmt.Sprintf(getDynamicLeaseBySessionStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.getLeaseBySessionStmt, fmt.Sprintf(getLeaseBySessionStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.updateLeaseSessionStmt, fmt.Sprintf(updateLeaseSessionStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.updateLeaseNodeStmt, fmt.Sprintf(updateLeaseNodeStmt, IPLeasesTableName), []any{IPLease{}}},
@@ -1281,6 +1282,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.listAllLeasesStmt, fmt.Sprintf(listAllLeasesStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.getStaticLeaseStmt, fmt.Sprintf(getStaticLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listStaticLeasesByIMSIStmt, fmt.Sprintf(listStaticLeasesByIMSIStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.listStaticLeasesByDNStmt, fmt.Sprintf(listStaticLeasesByDNStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.updateStaticLeaseAddressStmt, fmt.Sprintf(updateStaticLeaseAddressStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.deleteStaticLeaseStmt, fmt.Sprintf(deleteStaticLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
 

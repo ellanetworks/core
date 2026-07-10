@@ -23,7 +23,7 @@ const IPLeasesTableName = "ip_leases"
 
 const (
 	createLeaseStmt              = "INSERT INTO %s (id, poolID, poolType, addressBin, imsi, sessionID, type, createdAt, nodeID) VALUES ($IPLease.id, $IPLease.poolID, $IPLease.poolType, $IPLease.addressBin, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt, $IPLease.nodeID)"
-	getDynamicLeaseStmt          = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND imsi==$IPLease.imsi AND type='dynamic'"
+	getDynamicLeaseBySessionStmt = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND imsi==$IPLease.imsi AND sessionID==$IPLease.sessionID AND type='dynamic'"
 	getLeaseBySessionStmt        = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND sessionID==$IPLease.sessionID AND imsi==$IPLease.imsi"
 	updateLeaseSessionStmt       = "UPDATE %s SET sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
 	updateLeaseNodeStmt          = "UPDATE %s SET nodeID=$IPLease.nodeID, sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
@@ -42,6 +42,7 @@ const (
 	listLeasesByPoolPageStmt     = "SELECT &IPLease.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType ORDER BY addressBin LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	listAllLeasesStmt            = "SELECT &IPLease.* FROM %s"
 	getStaticLeaseStmt           = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND imsi==$IPLease.imsi AND type='static'"
+	listStaticLeasesByDNStmt     = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND type='static' ORDER BY poolType, addressBin"
 	listStaticLeasesByIMSIStmt   = "SELECT &IPLease.* FROM %s WHERE imsi==$IPLease.imsi AND type='static' ORDER BY addressBin"
 	updateStaticLeaseAddressStmt = "UPDATE %s SET addressBin=$IPLease.addressBin WHERE id==$IPLease.id AND type='static' AND sessionID IS NULL"
 	deleteStaticLeaseStmt        = "DELETE FROM %s WHERE id==$IPLease.id AND type='static' AND sessionID IS NULL"
@@ -217,45 +218,6 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address net
 	span.SetStatus(codes.Ok, "")
 
 	return nil
-}
-
-// GetDynamicLease returns the dynamic lease for (poolID, poolType, imsi), or ErrNotFound.
-func (db *Database) GetDynamicLease(ctx context.Context, poolID string, poolType string, imsi string) (*IPLease, error) {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s (dynamic)", "SELECT", IPLeasesTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
-
-	row := IPLease{PoolID: poolID, PoolType: poolType, IMSI: imsi}
-
-	err := db.conn().Query(ctx, db.getDynamicLeaseStmt, row).Get(&row)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-			return nil, ErrNotFound
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return nil, fmt.Errorf("query failed: %w", err)
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return &row, nil
 }
 
 // GetLeaseBySession returns the lease matching (poolID, poolType, sessionID, imsi), or ErrNotFound.
@@ -987,6 +949,46 @@ func (db *Database) ListStaticLeasesByIMSI(ctx context.Context, imsi string) ([]
 	var leases []IPLease
 
 	err := db.conn().Query(ctx, db.listStaticLeasesByIMSIStmt, IPLease{IMSI: imsi}).GetAll(&leases)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetStatus(codes.Ok, "no rows")
+			return nil, nil
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return leases, nil
+}
+
+// ListStaticLeasesByDataNetwork returns every static reservation in a pool
+// (both families), ordered by family then address.
+func (db *Database) ListStaticLeasesByDataNetwork(ctx context.Context, poolID string) ([]IPLease, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (static by data network)", "SELECT", IPLeasesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			attribute.String("db.collection", IPLeasesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
+
+	var leases []IPLease
+
+	err := db.conn().Query(ctx, db.listStaticLeasesByDNStmt, IPLease{PoolID: poolID}).GetAll(&leases)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")

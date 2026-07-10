@@ -319,3 +319,158 @@ func TestListIPv4Allocations_Failure(t *testing.T) {
 		t.Fatalf("expected error, got none")
 	}
 }
+
+func TestListDataNetworkStaticIps_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"items": [{"imsi": "001010000000001", "data_network": "internet", "ip_version": "ipv4", "address": "10.45.0.10", "status": "reserved", "session_id": null}], "page": 1, "per_page": 1, "total_count": 1}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	resp, err := clientObj.ListDataNetworkStaticIps(context.Background(), "internet")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 static IP, got %d", len(resp.Items))
+	}
+
+	it := resp.Items[0]
+	if it.IMSI != "001010000000001" || it.IPVersion != "ipv4" || it.Address != "10.45.0.10" || it.Status != "reserved" {
+		t.Fatalf("unexpected item: %+v", it)
+	}
+
+	if it.SessionID != nil {
+		t.Fatalf("expected nil session_id for reserved, got %v", *it.SessionID)
+	}
+}
+
+func TestListDataNetworkStaticIps_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 404,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "Data Network not found"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	_, err := clientObj.ListDataNetworkStaticIps(context.Background(), "nonexistent")
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}
+
+func TestCreateDataNetworkStaticIp_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 201,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "Static IP created successfully"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	err := clientObj.CreateDataNetworkStaticIp(context.Background(), "internet", &client.CreateStaticIPOptions{
+		IMSI:    "001010000000001",
+		Address: "10.45.0.10",
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+}
+
+func TestCreateDataNetworkStaticIp_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 409,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "address is already in use"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	err := clientObj.CreateDataNetworkStaticIp(context.Background(), "internet", &client.CreateStaticIPOptions{
+		IMSI:    "001010000000001",
+		Address: "10.45.0.10",
+	})
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}
+
+func TestUpdateDataNetworkStaticIp_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "Static IP updated successfully"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	err := clientObj.UpdateDataNetworkStaticIp(context.Background(), "internet", "001010000000001", "ipv4", "10.45.0.20")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+}
+
+func TestUpdateDataNetworkStaticIp_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 409,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "static IP is in use by an active session"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	err := clientObj.UpdateDataNetworkStaticIp(context.Background(), "internet", "001010000000001", "ipv4", "10.45.0.20")
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}
+
+func TestDeleteDataNetworkStaticIp_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "Static IP deleted successfully"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	err := clientObj.DeleteDataNetworkStaticIp(context.Background(), "internet", "001010000000001", "ipv4")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+}
+
+func TestDeleteDataNetworkStaticIp_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 409,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "static IP is in use by an active session"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	err := clientObj.DeleteDataNetworkStaticIp(context.Background(), "internet", "001010000000001", "ipv4")
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}

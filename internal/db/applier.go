@@ -589,41 +589,47 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 	err = runner.Query(ctx, db.getStaticLeaseStmt, static).Get(&static)
 	switch {
 	case err == nil:
-		static.SessionID = &sessionID
-		if static.NodeID != p.NodeID {
-			static.NodeID = p.NodeID
-			if _, applyErr := db.applyUpdateLeaseNode(ctx, &static); applyErr != nil {
-				return nil, fmt.Errorf("bind static lease node: %w", applyErr)
+		// A pinned address binds exactly one session. Claim it when it is
+		// unheld or already held by this same session (retry/failover); a
+		// concurrent second session to the same DN falls through to a
+		// dynamic address, since one address cannot serve two sessions.
+		if static.SessionID == nil || *static.SessionID == sessionID {
+			static.SessionID = &sessionID
+			if static.NodeID != p.NodeID {
+				static.NodeID = p.NodeID
+				if _, applyErr := db.applyUpdateLeaseNode(ctx, &static); applyErr != nil {
+					return nil, fmt.Errorf("bind static lease node: %w", applyErr)
+				}
+			} else {
+				if _, applyErr := db.applyUpdateLeaseSession(ctx, &static); applyErr != nil {
+					return nil, fmt.Errorf("bind static lease session: %w", applyErr)
+				}
 			}
-		} else {
-			if _, applyErr := db.applyUpdateLeaseSession(ctx, &static); applyErr != nil {
-				return nil, fmt.Errorf("bind static lease session: %w", applyErr)
-			}
-		}
 
-		return static.Address().String(), nil
+			return static.Address().String(), nil
+		}
 	case errors.Is(err, sql.ErrNoRows):
 		// no static reservation; fall through to the dynamic path
 	default:
 		return nil, fmt.Errorf("get static lease: %w", err)
 	}
 
-	// Step 1: existing dynamic lease (re-registration). Update the
-	// owning node and session and return its address.
-	existing := IPLease{PoolID: p.PoolID, PoolType: p.PoolType, IMSI: p.IMSI}
+	// Step 1: a dynamic lease already held by *this* session
+	// (re-registration on retry or failover). Keyed on sessionID so a
+	// second, distinct session to the same pool does not collapse onto
+	// the first session's lease but falls through to a fresh address —
+	// a subscriber may hold multiple concurrent sessions on one DN, each
+	// with its own IP (TS 23.501 §5.6.1, TS 23.401 §5.10.1). Update the
+	// owning node and return its address.
+	existing := IPLease{PoolID: p.PoolID, PoolType: p.PoolType, IMSI: p.IMSI, SessionID: &sessionID}
 
-	err = runner.Query(ctx, db.getDynamicLeaseStmt, existing).Get(&existing)
+	err = runner.Query(ctx, db.getDynamicLeaseBySessionStmt, existing).Get(&existing)
 	switch {
 	case err == nil:
-		existing.SessionID = &sessionID
 		if existing.NodeID != p.NodeID {
 			existing.NodeID = p.NodeID
 			if _, applyErr := db.applyUpdateLeaseNode(ctx, &existing); applyErr != nil {
 				return nil, fmt.Errorf("update lease node: %w", applyErr)
-			}
-		} else {
-			if _, applyErr := db.applyUpdateLeaseSession(ctx, &existing); applyErr != nil {
-				return nil, fmt.Errorf("update lease session: %w", applyErr)
 			}
 		}
 

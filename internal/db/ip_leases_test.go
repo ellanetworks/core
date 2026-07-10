@@ -138,10 +138,10 @@ func TestCreateAndGetLease(t *testing.T) {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
-	// Should be retrievable as a dynamic lease.
-	got, err := database.GetDynamicLease(ctx, poolID, "ipv4", imsi)
+	// Should be retrievable by its session.
+	got, err := database.GetLeaseBySession(ctx, poolID, "ipv4", sessionID, imsi)
 	if err != nil {
-		t.Fatalf("GetDynamicLease: %s", err)
+		t.Fatalf("GetLeaseBySession: %s", err)
 	}
 
 	if got.Address() != addr("192.168.1.10") {
@@ -228,9 +228,9 @@ func TestUpdateLeaseSession(t *testing.T) {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
-	got, err := database.GetDynamicLease(ctx, poolID, "ipv4", imsi)
+	got, err := database.GetLeaseBySession(ctx, poolID, "ipv4", sessID, imsi)
 	if err != nil {
-		t.Fatalf("GetDynamicLease: %s", err)
+		t.Fatalf("GetLeaseBySession: %s", err)
 	}
 
 	// Update session.
@@ -238,9 +238,9 @@ func TestUpdateLeaseSession(t *testing.T) {
 		t.Fatalf("UpdateLeaseSession: %s", err)
 	}
 
-	got2, err := database.GetDynamicLease(ctx, poolID, "ipv4", imsi)
+	got2, err := database.GetLeaseBySession(ctx, poolID, "ipv4", 100, imsi)
 	if err != nil {
-		t.Fatalf("GetDynamicLease after update: %s", err)
+		t.Fatalf("GetLeaseBySession after update: %s", err)
 	}
 
 	if got2.SessionID == nil || *got2.SessionID != 100 {
@@ -300,16 +300,16 @@ func TestDeleteDynamicLease(t *testing.T) {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
-	got, err := database.GetDynamicLease(ctx, poolID, "ipv4", imsi)
+	got, err := database.GetLeaseBySession(ctx, poolID, "ipv4", sessionID, imsi)
 	if err != nil {
-		t.Fatalf("GetDynamicLease: %s", err)
+		t.Fatalf("GetLeaseBySession: %s", err)
 	}
 
 	if err := database.DeleteDynamicLease(ctx, got.ID); err != nil {
 		t.Fatalf("DeleteDynamicLease: %s", err)
 	}
 
-	_, err = database.GetDynamicLease(ctx, poolID, "ipv4", imsi)
+	_, err = database.GetLeaseBySession(ctx, poolID, "ipv4", sessionID, imsi)
 	if err != db.ErrNotFound {
 		t.Fatalf("expected ErrNotFound after delete, got %v", err)
 	}
@@ -863,6 +863,38 @@ func TestCreateStaticLease_Uniqueness(t *testing.T) {
 	}
 }
 
+func TestCreateStaticLease_MultiplePerSubscriber(t *testing.T) {
+	database, poolID, imsi, _ := setupLeaseTestDBWithProfile(t)
+	ctx := context.Background()
+
+	// A subscriber may hold one static per family on the same data network.
+	if err := database.CreateStaticLease(ctx, imsi, poolID, "ipv4", addr("192.168.1.10")); err != nil {
+		t.Fatalf("CreateStaticLease ipv4: %s", err)
+	}
+
+	if err := database.CreateStaticLease(ctx, imsi, poolID, "ipv6", addr("2001:db8:abcd:1::")); err != nil {
+		t.Fatalf("CreateStaticLease ipv6: %s", err)
+	}
+
+	byIMSI, err := database.ListStaticLeasesByIMSI(ctx, imsi)
+	if err != nil {
+		t.Fatalf("ListStaticLeasesByIMSI: %s", err)
+	}
+
+	if len(byIMSI) != 2 {
+		t.Fatalf("expected 2 static leases for subscriber, got %d", len(byIMSI))
+	}
+
+	byDN, err := database.ListStaticLeasesByDataNetwork(ctx, poolID)
+	if err != nil {
+		t.Fatalf("ListStaticLeasesByDataNetwork: %s", err)
+	}
+
+	if len(byDN) != 2 {
+		t.Fatalf("expected 2 static leases in the data network, got %d", len(byDN))
+	}
+}
+
 func TestGetAndListStaticLease(t *testing.T) {
 	database, poolID, imsi, _ := setupLeaseTestDBWithProfile(t)
 	ctx := context.Background()
@@ -1051,8 +1083,9 @@ func TestAllocateIPLease_PrefersStatic(t *testing.T) {
 		t.Fatalf("expected static lease bound to node 1, got type=%s node=%d", bound.Type, bound.NodeID)
 	}
 
-	// Failover: re-establishing on another node re-binds the same address.
-	got2, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 8, 2)
+	// Failover: the same session re-establishing on another node keeps the
+	// pinned address and updates the owning node.
+	got2, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, 2)
 	if err != nil {
 		t.Fatalf("AllocateIPLease (failover): %s", err)
 	}
@@ -1061,13 +1094,89 @@ func TestAllocateIPLease_PrefersStatic(t *testing.T) {
 		t.Fatalf("expected same static address on failover, got %s", got2)
 	}
 
-	rebound, err := database.GetLeaseBySession(ctx, poolID, "ipv4", 8, imsi)
+	rebound, err := database.GetLeaseBySession(ctx, poolID, "ipv4", 7, imsi)
 	if err != nil {
 		t.Fatalf("GetLeaseBySession after failover: %s", err)
 	}
 
-	if rebound.NodeID != 2 || rebound.SessionID == nil || *rebound.SessionID != 8 {
-		t.Fatalf("expected re-bind to node 2 session 8, got node=%d session=%v", rebound.NodeID, rebound.SessionID)
+	if rebound.NodeID != 2 || rebound.SessionID == nil || *rebound.SessionID != 7 {
+		t.Fatalf("expected re-bind to node 2 session 7, got node=%d session=%v", rebound.NodeID, rebound.SessionID)
+	}
+}
+
+func TestAllocateIPLease_MultipleSessionsSameDNGetDistinctIPs(t *testing.T) {
+	database, poolID, imsi, _ := setupLeaseTestDBWithProfile(t)
+	ctx := context.Background()
+
+	first, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 5, 1)
+	if err != nil {
+		t.Fatalf("AllocateIPLease (session 5): %s", err)
+	}
+
+	// A second concurrent session for the same subscriber on the same pool
+	// must get its own address, not collapse onto the first session's lease.
+	second, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 6, 1)
+	if err != nil {
+		t.Fatalf("AllocateIPLease (session 6): %s", err)
+	}
+
+	if first == second {
+		t.Fatalf("expected distinct addresses per session, both got %s", first)
+	}
+
+	// Both leases coexist and each is reachable by its own session.
+	l5, err := database.GetLeaseBySession(ctx, poolID, "ipv4", 5, imsi)
+	if err != nil {
+		t.Fatalf("GetLeaseBySession(5): %s", err)
+	}
+
+	l6, err := database.GetLeaseBySession(ctx, poolID, "ipv4", 6, imsi)
+	if err != nil {
+		t.Fatalf("GetLeaseBySession(6): %s", err)
+	}
+
+	if l5.Address() != first || l6.Address() != second {
+		t.Fatalf("session→lease mismatch: 5=%s (want %s), 6=%s (want %s)", l5.Address(), first, l6.Address(), second)
+	}
+
+	// Re-establishing session 5 (retry) returns its own address, unchanged.
+	again, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 5, 1)
+	if err != nil {
+		t.Fatalf("AllocateIPLease (session 5 retry): %s", err)
+	}
+
+	if again != first {
+		t.Fatalf("expected session 5 retry to return %s, got %s", first, again)
+	}
+}
+
+func TestAllocateIPLease_StaticHeldByOtherSessionFallsToDynamic(t *testing.T) {
+	database, poolID, imsi, _ := setupLeaseTestDBWithProfile(t)
+	ctx := context.Background()
+
+	if err := database.CreateStaticLease(ctx, imsi, poolID, "ipv4", addr("192.168.1.50")); err != nil {
+		t.Fatalf("CreateStaticLease: %s", err)
+	}
+
+	// Session 7 claims the pinned address.
+	pinned, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, 1)
+	if err != nil {
+		t.Fatalf("AllocateIPLease (session 7): %s", err)
+	}
+
+	if pinned != addr("192.168.1.50") {
+		t.Fatalf("expected pinned 192.168.1.50, got %s", pinned)
+	}
+
+	// A second concurrent session cannot take the same pinned address; it
+	// gets a dynamic one instead.
+	other, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 8, 1)
+	if err != nil {
+		t.Fatalf("AllocateIPLease (session 8): %s", err)
+	}
+
+	if other == addr("192.168.1.50") {
+		t.Fatalf("second session was handed the pinned static address")
 	}
 }
 
