@@ -41,6 +41,10 @@ const (
 	countLeasesByIMSIStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE imsi==$IPLease.imsi"
 	listLeasesByPoolPageStmt     = "SELECT &IPLease.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType ORDER BY addressBin LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	listAllLeasesStmt            = "SELECT &IPLease.* FROM %s"
+	getStaticLeaseStmt           = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND imsi==$IPLease.imsi AND type='static'"
+	listStaticLeasesByIMSIStmt   = "SELECT &IPLease.* FROM %s WHERE imsi==$IPLease.imsi AND type='static' ORDER BY addressBin"
+	updateStaticLeaseAddressStmt = "UPDATE %s SET addressBin=$IPLease.addressBin WHERE id==$IPLease.id AND type='static' AND sessionID IS NULL"
+	deleteStaticLeaseStmt        = "DELETE FROM %s WHERE id==$IPLease.id AND type='static' AND sessionID IS NULL"
 )
 
 // IPLease represents a row in the ip_leases table.
@@ -875,4 +879,231 @@ func (db *Database) CountLeasesByIMSI(ctx context.Context, imsi string) (int, er
 	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
+}
+
+// CreateStaticLease pins an address to a subscriber for a data network
+// (pool) and family. The reservation is created unbound. Returns
+// ErrAlreadyExists when a static lease already exists for (poolID,
+// poolType, imsi) or when the address is already leased in the pool.
+func (db *Database) CreateStaticLease(ctx context.Context, imsi, poolID, poolType string, addr netip.Addr) error {
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (static)", "INSERT", IPLeasesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("INSERT"),
+			attribute.String("db.collection", IPLeasesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "insert").Inc()
+
+	b := addr.As16()
+	lease := &IPLease{
+		PoolID:     poolID,
+		PoolType:   poolType,
+		AddressBin: b[:],
+		IMSI:       imsi,
+	}
+
+	_, err := opCreateStaticLease.Invoke(db, lease)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+// GetStaticLease returns the static reservation for (poolID, poolType,
+// imsi), or ErrNotFound.
+func (db *Database) GetStaticLease(ctx context.Context, poolID, poolType, imsi string) (*IPLease, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (static)", "SELECT", IPLeasesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			attribute.String("db.collection", IPLeasesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
+
+	row := IPLease{PoolID: poolID, PoolType: poolType, IMSI: imsi}
+
+	err := db.conn().Query(ctx, db.getStaticLeaseStmt, row).Get(&row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetStatus(codes.Ok, "no rows")
+			return nil, ErrNotFound
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return &row, nil
+}
+
+// ListStaticLeasesByIMSI returns every static reservation held by a
+// subscriber across data networks and families.
+func (db *Database) ListStaticLeasesByIMSI(ctx context.Context, imsi string) ([]IPLease, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (static by imsi)", "SELECT", IPLeasesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			attribute.String("db.collection", IPLeasesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
+
+	var leases []IPLease
+
+	err := db.conn().Query(ctx, db.listStaticLeasesByIMSIStmt, IPLease{IMSI: imsi}).GetAll(&leases)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetStatus(codes.Ok, "no rows")
+			return nil, nil
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return leases, nil
+}
+
+// ClearStaticLeaseSession returns a static lease to the reserved state by
+// nulling its sessionID. Called on session release so listActiveLeases
+// and the BGP advertisement (sessionID IS NOT NULL) drop the address
+// while the reservation row persists.
+func (db *Database) ClearStaticLeaseSession(ctx context.Context, leaseID string) error {
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (static clear)", "UPDATE", IPLeasesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPDATE"),
+			attribute.String("db.collection", IPLeasesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "update").Inc()
+
+	_, err := opUpdateLeaseSession.Invoke(db, &IPLease{ID: leaseID})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+// UpdateStaticLeaseAddress repins a reserved static lease to a new
+// address. Returns ErrLeaseActive if the reservation is bound to a
+// session and ErrAlreadyExists if the address is already leased.
+func (db *Database) UpdateStaticLeaseAddress(ctx context.Context, leaseID string, addr netip.Addr) error {
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (static repin)", "UPDATE", IPLeasesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPDATE"),
+			attribute.String("db.collection", IPLeasesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "update").Inc()
+
+	b := addr.As16()
+
+	_, err := opUpdateStaticLeaseAddress.Invoke(db, &IPLease{ID: leaseID, AddressBin: b[:]})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+// DeleteStaticLease removes a reserved static lease. Returns
+// ErrLeaseActive if the reservation is bound to a session.
+func (db *Database) DeleteStaticLease(ctx context.Context, leaseID string) error {
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (static)", "DELETE", IPLeasesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("DELETE"),
+			attribute.String("db.collection", IPLeasesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
+
+	_, err := opDeleteStaticLease.Invoke(db, &stringPayload{Value: leaseID})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
 }

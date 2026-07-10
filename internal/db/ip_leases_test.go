@@ -822,3 +822,279 @@ func TestListLeaseAddressesByPool_NumericOrder(t *testing.T) {
 		}
 	}
 }
+
+func createExtraSubscriber(t *testing.T, database *db.Database, imsi, profileID string) {
+	t.Helper()
+
+	sub := &db.Subscriber{
+		Imsi:           imsi,
+		SequenceNumber: "000000000001",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+		ProfileID:      profileID,
+	}
+
+	if err := database.CreateSubscriber(context.Background(), sub); err != nil {
+		t.Fatalf("CreateSubscriber: %s", err)
+	}
+}
+
+func TestCreateStaticLease_Uniqueness(t *testing.T) {
+	database, poolID, imsi, profileID := setupLeaseTestDBWithProfile(t)
+	ctx := context.Background()
+
+	if err := database.CreateStaticLease(ctx, imsi, poolID, "ipv4", addr("192.168.1.10")); err != nil {
+		t.Fatalf("CreateStaticLease: %s", err)
+	}
+
+	// Second static for the same (imsi, pool, family) is rejected in-code.
+	err := database.CreateStaticLease(ctx, imsi, poolID, "ipv4", addr("192.168.1.11"))
+	if err != db.ErrAlreadyExists {
+		t.Fatalf("expected ErrAlreadyExists for duplicate tuple, got %v", err)
+	}
+
+	// A different subscriber cannot pin an address already leased in the pool.
+	imsi2 := "001010123456790"
+	createExtraSubscriber(t, database, imsi2, profileID)
+
+	err = database.CreateStaticLease(ctx, imsi2, poolID, "ipv4", addr("192.168.1.10"))
+	if err != db.ErrAlreadyExists {
+		t.Fatalf("expected ErrAlreadyExists for duplicate address, got %v", err)
+	}
+}
+
+func TestGetAndListStaticLease(t *testing.T) {
+	database, poolID, imsi, _ := setupLeaseTestDBWithProfile(t)
+	ctx := context.Background()
+
+	if err := database.CreateStaticLease(ctx, imsi, poolID, "ipv4", addr("192.168.1.10")); err != nil {
+		t.Fatalf("CreateStaticLease: %s", err)
+	}
+
+	got, err := database.GetStaticLease(ctx, poolID, "ipv4", imsi)
+	if err != nil {
+		t.Fatalf("GetStaticLease: %s", err)
+	}
+
+	if got.Address() != addr("192.168.1.10") {
+		t.Fatalf("expected address 192.168.1.10, got %s", got.Address())
+	}
+
+	if got.Type != "static" {
+		t.Fatalf("expected type static, got %s", got.Type)
+	}
+
+	if got.SessionID != nil {
+		t.Fatalf("expected reserved lease (nil sessionID), got %v", *got.SessionID)
+	}
+
+	if _, err := database.GetStaticLease(ctx, poolID, "ipv4", "001010999999999"); err != db.ErrNotFound {
+		t.Fatalf("expected ErrNotFound for missing static lease, got %v", err)
+	}
+
+	leases, err := database.ListStaticLeasesByIMSI(ctx, imsi)
+	if err != nil {
+		t.Fatalf("ListStaticLeasesByIMSI: %s", err)
+	}
+
+	if len(leases) != 1 {
+		t.Fatalf("expected 1 static lease, got %d", len(leases))
+	}
+}
+
+func TestClearStaticLeaseSession(t *testing.T) {
+	database, poolID, imsi, _ := setupLeaseTestDBWithProfile(t)
+	ctx := context.Background()
+
+	if err := database.CreateStaticLease(ctx, imsi, poolID, "ipv4", addr("192.168.1.10")); err != nil {
+		t.Fatalf("CreateStaticLease: %s", err)
+	}
+
+	got, err := database.GetStaticLease(ctx, poolID, "ipv4", imsi)
+	if err != nil {
+		t.Fatalf("GetStaticLease: %s", err)
+	}
+
+	if err := database.UpdateLeaseSession(ctx, got.ID, 5); err != nil {
+		t.Fatalf("UpdateLeaseSession: %s", err)
+	}
+
+	if err := database.ClearStaticLeaseSession(ctx, got.ID); err != nil {
+		t.Fatalf("ClearStaticLeaseSession: %s", err)
+	}
+
+	cleared, err := database.GetStaticLease(ctx, poolID, "ipv4", imsi)
+	if err != nil {
+		t.Fatalf("GetStaticLease after clear: %s", err)
+	}
+
+	if cleared.SessionID != nil {
+		t.Fatalf("expected reserved lease after clear, got sessionID %v", *cleared.SessionID)
+	}
+
+	if cleared.Address() != addr("192.168.1.10") {
+		t.Fatalf("expected row to persist at 192.168.1.10, got %s", cleared.Address())
+	}
+}
+
+func TestUpdateStaticLeaseAddress(t *testing.T) {
+	database, poolID, imsi, profileID := setupLeaseTestDBWithProfile(t)
+	ctx := context.Background()
+
+	if err := database.CreateStaticLease(ctx, imsi, poolID, "ipv4", addr("192.168.1.10")); err != nil {
+		t.Fatalf("CreateStaticLease: %s", err)
+	}
+
+	got, err := database.GetStaticLease(ctx, poolID, "ipv4", imsi)
+	if err != nil {
+		t.Fatalf("GetStaticLease: %s", err)
+	}
+
+	if err := database.UpdateStaticLeaseAddress(ctx, got.ID, addr("192.168.1.20")); err != nil {
+		t.Fatalf("UpdateStaticLeaseAddress: %s", err)
+	}
+
+	repinned, err := database.GetStaticLease(ctx, poolID, "ipv4", imsi)
+	if err != nil {
+		t.Fatalf("GetStaticLease after repin: %s", err)
+	}
+
+	if repinned.Address() != addr("192.168.1.20") {
+		t.Fatalf("expected repinned address 192.168.1.20, got %s", repinned.Address())
+	}
+
+	// Repin onto an address held by another lease is rejected.
+	imsi2 := "001010123456790"
+	createExtraSubscriber(t, database, imsi2, profileID)
+
+	if err := database.CreateStaticLease(ctx, imsi2, poolID, "ipv4", addr("192.168.1.30")); err != nil {
+		t.Fatalf("CreateStaticLease imsi2: %s", err)
+	}
+
+	if err := database.UpdateStaticLeaseAddress(ctx, got.ID, addr("192.168.1.30")); err != db.ErrAlreadyExists {
+		t.Fatalf("expected ErrAlreadyExists repinning onto taken address, got %v", err)
+	}
+
+	// A bound reservation cannot be repinned.
+	if err := database.UpdateLeaseSession(ctx, got.ID, 5); err != nil {
+		t.Fatalf("UpdateLeaseSession: %s", err)
+	}
+
+	if err := database.UpdateStaticLeaseAddress(ctx, got.ID, addr("192.168.1.40")); err != db.ErrLeaseActive {
+		t.Fatalf("expected ErrLeaseActive repinning active reservation, got %v", err)
+	}
+}
+
+func TestDeleteStaticLease(t *testing.T) {
+	database, poolID, imsi, _ := setupLeaseTestDBWithProfile(t)
+	ctx := context.Background()
+
+	if err := database.CreateStaticLease(ctx, imsi, poolID, "ipv4", addr("192.168.1.10")); err != nil {
+		t.Fatalf("CreateStaticLease: %s", err)
+	}
+
+	got, err := database.GetStaticLease(ctx, poolID, "ipv4", imsi)
+	if err != nil {
+		t.Fatalf("GetStaticLease: %s", err)
+	}
+
+	// A bound reservation cannot be deleted; the row survives.
+	if err := database.UpdateLeaseSession(ctx, got.ID, 5); err != nil {
+		t.Fatalf("UpdateLeaseSession: %s", err)
+	}
+
+	if err := database.DeleteStaticLease(ctx, got.ID); err != db.ErrLeaseActive {
+		t.Fatalf("expected ErrLeaseActive deleting active reservation, got %v", err)
+	}
+
+	if _, err := database.GetStaticLease(ctx, poolID, "ipv4", imsi); err != nil {
+		t.Fatalf("expected active reservation to persist, got %v", err)
+	}
+
+	// Once reserved again, delete succeeds.
+	if err := database.ClearStaticLeaseSession(ctx, got.ID); err != nil {
+		t.Fatalf("ClearStaticLeaseSession: %s", err)
+	}
+
+	if err := database.DeleteStaticLease(ctx, got.ID); err != nil {
+		t.Fatalf("DeleteStaticLease: %s", err)
+	}
+
+	if _, err := database.GetStaticLease(ctx, poolID, "ipv4", imsi); err != db.ErrNotFound {
+		t.Fatalf("expected ErrNotFound after delete, got %v", err)
+	}
+}
+
+func TestAllocateIPLease_PrefersStatic(t *testing.T) {
+	database, poolID, imsi, _ := setupLeaseTestDBWithProfile(t)
+	ctx := context.Background()
+
+	if err := database.CreateStaticLease(ctx, imsi, poolID, "ipv4", addr("192.168.1.50")); err != nil {
+		t.Fatalf("CreateStaticLease: %s", err)
+	}
+
+	got, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, 1)
+	if err != nil {
+		t.Fatalf("AllocateIPLease: %s", err)
+	}
+
+	if got != addr("192.168.1.50") {
+		t.Fatalf("expected static address 192.168.1.50, got %s", got)
+	}
+
+	bound, err := database.GetLeaseBySession(ctx, poolID, "ipv4", 7, imsi)
+	if err != nil {
+		t.Fatalf("GetLeaseBySession: %s", err)
+	}
+
+	if bound.Type != "static" || bound.NodeID != 1 {
+		t.Fatalf("expected static lease bound to node 1, got type=%s node=%d", bound.Type, bound.NodeID)
+	}
+
+	// Failover: re-establishing on another node re-binds the same address.
+	got2, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 8, 2)
+	if err != nil {
+		t.Fatalf("AllocateIPLease (failover): %s", err)
+	}
+
+	if got2 != addr("192.168.1.50") {
+		t.Fatalf("expected same static address on failover, got %s", got2)
+	}
+
+	rebound, err := database.GetLeaseBySession(ctx, poolID, "ipv4", 8, imsi)
+	if err != nil {
+		t.Fatalf("GetLeaseBySession after failover: %s", err)
+	}
+
+	if rebound.NodeID != 2 || rebound.SessionID == nil || *rebound.SessionID != 8 {
+		t.Fatalf("expected re-bind to node 2 session 8, got node=%d session=%v", rebound.NodeID, rebound.SessionID)
+	}
+}
+
+func TestAllocateIPLease_DynamicSkipsReservedStatic(t *testing.T) {
+	database, poolID, imsi, profileID := setupLeaseTestDBWithProfile(t)
+	ctx := context.Background()
+
+	// Reserve the first usable address (192.168.1.1) for imsi, unbound.
+	if err := database.CreateStaticLease(ctx, imsi, poolID, "ipv4", addr("192.168.1.1")); err != nil {
+		t.Fatalf("CreateStaticLease: %s", err)
+	}
+
+	imsi2 := "001010123456790"
+	createExtraSubscriber(t, database, imsi2, profileID)
+
+	// A dynamic allocation for another subscriber must skip the reserved
+	// address even though no session holds it yet.
+	got, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi2, 3, 1)
+	if err != nil {
+		t.Fatalf("AllocateIPLease: %s", err)
+	}
+
+	if got == addr("192.168.1.1") {
+		t.Fatalf("dynamic allocation handed out the reserved static address 192.168.1.1")
+	}
+
+	if got != addr("192.168.1.2") {
+		t.Fatalf("expected next free address 192.168.1.2, got %s", got)
+	}
+}

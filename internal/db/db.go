@@ -82,6 +82,10 @@ type Database struct {
 	countLeasesByIMSIStmt        *sqlair.Statement
 	listLeasesByPoolPageStmt     *sqlair.Statement
 	listAllLeasesStmt            *sqlair.Statement
+	getStaticLeaseStmt           *sqlair.Statement
+	listStaticLeasesByIMSIStmt   *sqlair.Statement
+	updateStaticLeaseAddressStmt *sqlair.Statement
+	deleteStaticLeaseStmt        *sqlair.Statement
 
 	// API Token statements
 	listAPITokensStmt   *sqlair.Statement
@@ -1275,6 +1279,10 @@ func (db *Database) PrepareStatements() error {
 		{&db.countLeasesByIMSIStmt, fmt.Sprintf(countLeasesByIMSIStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
 		{&db.listLeasesByPoolPageStmt, fmt.Sprintf(listLeasesByPoolPageStmt, IPLeasesTableName), []any{ListArgs{}, IPLease{}, NumItems{}}},
 		{&db.listAllLeasesStmt, fmt.Sprintf(listAllLeasesStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.getStaticLeaseStmt, fmt.Sprintf(getStaticLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.listStaticLeasesByIMSIStmt, fmt.Sprintf(listStaticLeasesByIMSIStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.updateStaticLeaseAddressStmt, fmt.Sprintf(updateStaticLeaseAddressStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.deleteStaticLeaseStmt, fmt.Sprintf(deleteStaticLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
 
 		// API Tokens
 		{&db.listAPITokensStmt, fmt.Sprintf(listAPITokensPagedStmt, APITokensTableName), []any{ListArgs{}, APIToken{}, NumItems{}}},

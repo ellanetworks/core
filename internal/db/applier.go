@@ -434,6 +434,85 @@ func (db *Database) applyUpdateLeaseNode(ctx context.Context, lease *IPLease) (a
 	return nil, nil
 }
 
+// applyCreateStaticLease inserts an admin-pinned reservation. The
+// SELECT-then-INSERT runs under leaderCaptureAndPropose's proposeMu, so
+// the one-per-(imsi, pool, family) check and the write are serialised
+// against every other replicated allocation — a second static for the
+// same tuple can't race in. A duplicate address in the pool is caught by
+// the UNIQUE(poolID, addressBin) constraint. The reservation starts
+// unbound (sessionID NULL, nodeID 0).
+func (db *Database) applyCreateStaticLease(ctx context.Context, lease *IPLease) (any, error) {
+	existing := IPLease{PoolID: lease.PoolID, PoolType: lease.PoolType, IMSI: lease.IMSI}
+
+	err := db.runner(ctx).Query(ctx, db.getStaticLeaseStmt, existing).Get(&existing)
+	switch {
+	case err == nil:
+		return nil, ErrAlreadyExists
+	case errors.Is(err, sql.ErrNoRows):
+	default:
+		return nil, fmt.Errorf("get static lease: %w", err)
+	}
+
+	lease.Type = "static"
+	lease.SessionID = nil
+	lease.NodeID = 0
+	lease.CreatedAt = time.Now().Unix()
+
+	return db.applyCreateLease(ctx, lease)
+}
+
+// applyUpdateStaticLeaseAddress repins a reserved static lease. The
+// sessionID IS NULL predicate rejects an active reservation atomically:
+// zero rows affected means the reservation was bound between the
+// handler's pre-check and this write, mapped to ErrLeaseActive. A
+// collision with another lease's address surfaces as ErrAlreadyExists.
+func (db *Database) applyUpdateStaticLeaseAddress(ctx context.Context, lease *IPLease) (any, error) {
+	var outcome sqlair.Outcome
+
+	err := db.runner(ctx).Query(ctx, db.updateStaticLeaseAddressStmt, lease).Get(&outcome)
+	if err != nil {
+		if isUniqueNameError(err) {
+			return nil, ErrAlreadyExists
+		}
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return nil, ErrLeaseActive
+	}
+
+	return nil, nil
+}
+
+// applyDeleteStaticLease removes a reserved static lease. Like the repin
+// op, the sessionID IS NULL guard makes the active check atomic: zero
+// rows affected maps to ErrLeaseActive.
+func (db *Database) applyDeleteStaticLease(ctx context.Context, p *stringPayload) (any, error) {
+	var outcome sqlair.Outcome
+
+	err := db.runner(ctx).Query(ctx, db.deleteStaticLeaseStmt, IPLease{ID: p.Value}).Get(&outcome)
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return nil, ErrLeaseActive
+	}
+
+	return nil, nil
+}
+
 // allocateIPLeasePayload is the wire payload for AllocateIPLease. The
 // caller does not pre-resolve the address — that is the whole point of
 // this op. The leader's apply function picks the address atomically
@@ -498,6 +577,36 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 	}
 
 	sessionID := p.SessionID
+
+	// Step 0: an admin-pinned static reservation takes precedence over
+	// dynamic allocation. Bind it to this session (and the serving node on
+	// failover, mirroring the dynamic re-registration branch below) and
+	// return its reserved address. The Step 2 merge-scan lists every lease
+	// in the pool, so a reserved static address is never handed out
+	// dynamically even when no session holds it yet.
+	static := IPLease{PoolID: p.PoolID, PoolType: p.PoolType, IMSI: p.IMSI}
+
+	err = runner.Query(ctx, db.getStaticLeaseStmt, static).Get(&static)
+	switch {
+	case err == nil:
+		static.SessionID = &sessionID
+		if static.NodeID != p.NodeID {
+			static.NodeID = p.NodeID
+			if _, applyErr := db.applyUpdateLeaseNode(ctx, &static); applyErr != nil {
+				return nil, fmt.Errorf("bind static lease node: %w", applyErr)
+			}
+		} else {
+			if _, applyErr := db.applyUpdateLeaseSession(ctx, &static); applyErr != nil {
+				return nil, fmt.Errorf("bind static lease session: %w", applyErr)
+			}
+		}
+
+		return static.Address().String(), nil
+	case errors.Is(err, sql.ErrNoRows):
+		// no static reservation; fall through to the dynamic path
+	default:
+		return nil, fmt.Errorf("get static lease: %w", err)
+	}
 
 	// Step 1: existing dynamic lease (re-registration). Update the
 	// owning node and session and return its address.

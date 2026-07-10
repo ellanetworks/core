@@ -10,8 +10,13 @@ import (
 )
 
 var (
-	ErrAlreadyExists       = errors.New("already exists")
-	ErrNotFound            = errors.New("not found")
+	ErrAlreadyExists = errors.New("already exists")
+	ErrNotFound      = errors.New("not found")
+	// ErrLeaseActive is returned when a static lease mutation (repin or
+	// delete) targets a reservation currently bound to a session. The
+	// guard is enforced atomically inside the op (WHERE sessionID IS
+	// NULL); handlers map it to 409.
+	ErrLeaseActive         = errors.New("static IP is in use by an active session")
 	ErrDataNetworkNotFound = errors.New("data network not found")
 	ErrNoMatchingPolicy    = errors.New("no matching policy for slice and DNN")
 	// ErrDNNNotInSlice is returned by GetSessionPolicy when a policy matches the

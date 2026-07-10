@@ -36,6 +36,13 @@ var (
 	opAllocateIPLease = registerChangesetOpReturning[allocateIPLeasePayload, string]("AllocateIPLease", (*Database).applyAllocateIPLease, RequireSchema(12), AffectsTopic(TopicIPLeases))
 	// AllocateIPv6Lease is the same for IPv6 /64 prefix delegation.
 	opAllocateIPv6Lease = registerChangesetOpReturning[allocateIPLeasePayload, string]("AllocateIPv6Lease", (*Database).applyAllocateIPLease, RequireSchema(12), AffectsTopic(TopicIPLeases))
+	// Static leases carry poolType (ip_leases.poolType added in v13).
+	// CreateStaticLease enforces one-per-(imsi,pool,family) atomically
+	// under proposeMu; the repin/delete ops guard sessionID IS NULL so a
+	// bound reservation can't be mutated out from under a live session.
+	opCreateStaticLease        = registerChangesetOp("CreateStaticLease", (*Database).applyCreateStaticLease, RequireSchema(13), AffectsTopic(TopicIPLeases))
+	opUpdateStaticLeaseAddress = registerChangesetOp("UpdateStaticLeaseAddress", (*Database).applyUpdateStaticLeaseAddress, RequireSchema(13), AffectsTopic(TopicIPLeases))
+	opDeleteStaticLease        = registerChangesetOp("DeleteStaticLease", (*Database).applyDeleteStaticLease, RequireSchema(13), AffectsTopic(TopicIPLeases))
 )
 
 // Audit logs
