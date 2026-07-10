@@ -898,6 +898,11 @@ paths:
           schema:
             type: string
           description: Filter subscribers connected to a specific radio by name.
+        - name: data_network
+          in: query
+          schema:
+            type: string
+          description: Filter subscribers whose profile reaches the named data network.
       responses:
         "200":
           description: Paginated list of subscribers.
@@ -907,6 +912,8 @@ paths:
                 $ref: "#/components/schemas/ListSubscribersResponseEnvelope"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
     post:
       operationId: createSubscriber
       tags: [Subscribers]

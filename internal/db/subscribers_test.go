@@ -304,3 +304,38 @@ func TestCountSubscribersInProfile(t *testing.T) {
 		t.Fatalf("Expected 2 subscribers in profile, but got %d", count)
 	}
 }
+
+func TestListSubscribersByDataNetworkPage(t *testing.T) {
+	database, dnID, imsi, _ := setupLeaseTestDBWithProfile(t)
+	ctx := context.Background()
+
+	// The subscriber's profile has a policy binding this data network.
+	subs, count, err := database.ListSubscribersByDataNetworkPage(ctx, dnID, 1, 25)
+	if err != nil {
+		t.Fatalf("ListSubscribersByDataNetworkPage: %s", err)
+	}
+
+	if count != 1 || len(subs) != 1 || subs[0].Imsi != imsi {
+		t.Fatalf("expected 1 entitled subscriber %s, got count=%d subs=%v", imsi, count, subs)
+	}
+
+	// A data network the profile does not reach returns none.
+	other := &db.DataNetwork{Name: "other-dn", IPv4Pool: "10.5.0.0/24", DNS: "8.8.8.8", MTU: 1400}
+	if err := database.CreateDataNetwork(ctx, other); err != nil {
+		t.Fatalf("CreateDataNetwork: %s", err)
+	}
+
+	createdOther, err := database.GetDataNetwork(ctx, other.Name)
+	if err != nil {
+		t.Fatalf("GetDataNetwork: %s", err)
+	}
+
+	subs, count, err = database.ListSubscribersByDataNetworkPage(ctx, createdOther.ID, 1, 25)
+	if err != nil {
+		t.Fatalf("ListSubscribersByDataNetworkPage(other): %s", err)
+	}
+
+	if count != 0 || len(subs) != 0 {
+		t.Fatalf("expected no subscribers for unbound data network, got count=%d subs=%v", count, subs)
+	}
+}

@@ -55,6 +55,7 @@ type Database struct {
 
 	// Subscriber statements
 	listSubscribersStmt         *sqlair.Statement
+	listSubscribersByDNStmt     *sqlair.Statement
 	countSubscribersStmt        *sqlair.Statement
 	getSubscriberStmt           *sqlair.Statement
 	createSubscriberStmt        *sqlair.Statement
@@ -1253,6 +1254,7 @@ func (db *Database) PrepareStatements() error {
 	stmts := []stmtDef{
 		// Subscribers
 		{&db.listSubscribersStmt, fmt.Sprintf(listSubscribersPagedStmt, SubscribersTableName), []any{ListArgs{}, Subscriber{}, NumItems{}}},
+		{&db.listSubscribersByDNStmt, fmt.Sprintf(listSubscribersByDNStmt, SubscribersTableName, PoliciesTableName), []any{ListArgs{}, Subscriber{}, NumItems{}, Policy{}}},
 		{&db.countSubscribersStmt, fmt.Sprintf(countSubscribersStmt, SubscribersTableName), []any{NumItems{}}},
 		{&db.getSubscriberStmt, fmt.Sprintf(getSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.createSubscriberStmt, fmt.Sprintf(createSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
