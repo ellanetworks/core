@@ -93,6 +93,12 @@ tags:
     description: Create and restore full database backups.
   - name: Support Bundle
     description: Generate a diagnostic support bundle for troubleshooting.
+  - name: Location
+    description: "Beta: Look up a subscriber's physical location. Served under `/api/beta`; the path and payloads are experimental and may change."
+  - name: Positioning Sessions
+    description: "Beta: Inspect and cancel deferred (periodic/triggered) positioning sessions."
+  - name: Cell Positions
+    description: "Beta: Provision the geographic positions of cell antennas that Cell ID location lookups resolve a subscriber's serving cell to."
 
 paths:
   # -- Status --------------------------------------------------------------
@@ -2912,6 +2918,226 @@ paths:
         "503":
           description: PKI issuer not yet available (pre-bootstrap).
 
+  # -- Location (beta) -----------------------------------------------------
+  /api/beta/location:
+    post:
+      operationId: getSubscriberLocation
+      tags: [Location]
+      summary: Locate a subscriber
+      description: |
+        Requests the current location of a subscriber identified by SUPI.
+        **Beta**: this endpoint is served under `/api/beta` and its request
+        and response schemas may change.
+
+        The behaviour depends on `request_type`:
+
+        - `immediate` returns a location estimate synchronously. The `cell_id`
+          method resolves the subscriber's serving cell to its provisioned
+          position; the `ecid` method runs an E-CID measurement exchange
+          before responding.
+        - `periodic` and `triggered` create a deferred positioning session and
+          return its identifier; results are retrieved later through the
+          positioning sessions endpoints.
+        - `cancel` terminates the session named by `session_id`.
+
+        Every call is recorded in the audit log.
+      parameters:
+        - name: verbose
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: When true, attach the non-standard `supplementaryMeasurements` block (raw NRPPa measurements) to the response.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocationRequest"
+      responses:
+        "200":
+          description: Location estimate (immediate requests).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocationDataResponseEnvelope"
+        "201":
+          description: Deferred positioning session created (periodic/triggered requests).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PositioningSessionCreatedEnvelope"
+        "204":
+          description: Session cancelled (cancel requests).
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # -- Positioning Sessions (beta) -----------------------------------------
+  /api/beta/positioning/sessions:
+    get:
+      operationId: listPositioningSessions
+      tags: [Positioning Sessions]
+      summary: List positioning sessions
+      description: "Beta: Returns the positioning sessions for a subscriber."
+      parameters:
+        - name: supi
+          in: query
+          required: true
+          schema:
+            type: string
+          description: "SUPI whose sessions to list (e.g. `imsi-001010000000001`)."
+      responses:
+        "200":
+          description: Positioning sessions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListPositioningSessionsResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/beta/positioning/sessions/{id}:
+    get:
+      operationId: getPositioningSession
+      tags: [Positioning Sessions]
+      summary: Get a positioning session
+      description: "Beta: Returns a positioning session including its most recent location result."
+      parameters:
+        - $ref: "#/components/parameters/PositioningSessionIdPath"
+      responses:
+        "200":
+          description: Positioning session details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PositioningSessionDetailResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: cancelPositioningSession
+      tags: [Positioning Sessions]
+      summary: Cancel a positioning session
+      description: "Beta: Cancels an active positioning session."
+      parameters:
+        - $ref: "#/components/parameters/PositioningSessionIdPath"
+      responses:
+        "204":
+          description: Session cancelled.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # -- Cell Positions (beta) -----------------------------------------------
+  /api/beta/cell-positions:
+    get:
+      operationId: listCellPositions
+      tags: [Cell Positions]
+      summary: List cell positions
+      description: "Beta: Returns all provisioned cell antenna positions."
+      responses:
+        "200":
+          description: Cell positions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListCellPositionsResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      operationId: createCellPosition
+      tags: [Cell Positions]
+      summary: Create a cell position
+      description: "Beta: Provisions the geographic position of a cell antenna. Cell ID location lookups resolve a subscriber's serving cell to this position."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CellPositionRequest"
+      responses:
+        "201":
+          description: Cell position created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateCellPositionResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/beta/cell-positions/{id}:
+    get:
+      operationId: getCellPosition
+      tags: [Cell Positions]
+      summary: Get a cell position
+      description: "Beta: Returns a provisioned cell antenna position."
+      parameters:
+        - $ref: "#/components/parameters/CellPositionIdPath"
+      responses:
+        "200":
+          description: Cell position details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CellPositionResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateCellPosition
+      tags: [Cell Positions]
+      summary: Update a cell position
+      description: "Beta: Updates a provisioned cell antenna position."
+      parameters:
+        - $ref: "#/components/parameters/CellPositionIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CellPositionRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteCellPosition
+      tags: [Cell Positions]
+      summary: Delete a cell position
+      description: "Beta: Deletes a provisioned cell antenna position."
+      parameters:
+        - $ref: "#/components/parameters/CellPositionIdPath"
+      responses:
+        "204":
+          description: Cell position deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
 components:
   securitySchemes:
     BearerAuth:
@@ -2989,6 +3215,21 @@ components:
         type: integer
         format: int64
       description: Route ID.
+    PositioningSessionIdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Positioning session ID.
+    CellPositionIdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Cell position ID.
 
   responses:
     Success:
@@ -5265,3 +5506,353 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/MintJoinTokenResponse"
+
+    # -- Location (beta) -------------------------------------------------
+    LocationRequest:
+      type: object
+      required: [request_type]
+      properties:
+        supi:
+          type: string
+          description: "Subscriber identity (e.g. `imsi-001010000000001`). Required unless `request_type` is `cancel`."
+        request_type:
+          type: string
+          enum: [immediate, periodic, triggered, cancel]
+          description: Kind of location request.
+        method:
+          type: string
+          enum: [cell_id, ecid]
+          description: Positioning method. Defaults to `cell_id` when omitted.
+        session_id:
+          type: string
+          description: Session to terminate. Required when `request_type` is `cancel`.
+        qos_response_time_ms:
+          type: integer
+          description: Requested response-time budget, in milliseconds.
+        qos_horizontal_accuracy_m:
+          type: integer
+          description: Requested horizontal accuracy, in metres.
+
+    LocationData:
+      type: object
+      description: Spec-shaped location estimate modelled on the TS 29.572 Nlmf_Location LocationData type.
+      properties:
+        locationEstimate:
+          $ref: "#/components/schemas/GeographicArea"
+        accuracyFulfilmentIndicator:
+          type: string
+        ageOfLocationEstimate:
+          type: integer
+          format: int32
+          description: Age of the estimate, in minutes.
+        timestampOfLocationEstimate:
+          type: string
+          format: date-time
+        positioningDataList:
+          type: array
+          items:
+            $ref: "#/components/schemas/PositioningMethodAndUsage"
+        ncgi:
+          $ref: "#/components/schemas/LocNcgi"
+        ecgi:
+          $ref: "#/components/schemas/LocEcgi"
+        tai:
+          $ref: "#/components/schemas/LocTai"
+        supplementaryMeasurements:
+          $ref: "#/components/schemas/SupplementaryMeasurements"
+
+    GeographicArea:
+      type: object
+      required: [shape]
+      properties:
+        shape:
+          type: string
+          enum: [POINT, POINT_UNCERTAINTY_CIRCLE]
+        point:
+          $ref: "#/components/schemas/GeographicalCoord"
+        uncertainty:
+          type: number
+          description: Radius of the circular uncertainty region, in metres.
+        altitude:
+          type: number
+
+    GeographicalCoord:
+      type: object
+      required: [lat, lon]
+      properties:
+        lat:
+          type: number
+          description: WGS-84 latitude in decimal degrees.
+        lon:
+          type: number
+          description: WGS-84 longitude in decimal degrees.
+
+    PositioningMethodAndUsage:
+      type: object
+      properties:
+        method:
+          type: string
+        mode:
+          type: string
+        usage:
+          type: string
+
+    LocPlmn:
+      type: object
+      properties:
+        mcc:
+          type: string
+        mnc:
+          type: string
+
+    LocNcgi:
+      type: object
+      properties:
+        plmnId:
+          $ref: "#/components/schemas/LocPlmn"
+        nrCellId:
+          type: string
+
+    LocEcgi:
+      type: object
+      properties:
+        plmnId:
+          $ref: "#/components/schemas/LocPlmn"
+        eutraCellId:
+          type: string
+
+    LocTai:
+      type: object
+      properties:
+        plmnId:
+          $ref: "#/components/schemas/LocPlmn"
+        tac:
+          type: string
+
+    SupplementaryMeasurements:
+      type: object
+      description: "Non-standard vendor extension carrying raw NRPPa measurements. Returned only when `verbose=true`."
+      properties:
+        rsrp:
+          type: integer
+          format: int32
+        rsrq:
+          type: integer
+          format: int32
+        timingAdvance:
+          type: integer
+          format: int32
+        ssRsrp:
+          type: integer
+          format: int32
+        ssRsrq:
+          type: integer
+          format: int32
+        csiRsrp:
+          type: integer
+          format: int32
+        csiRsrq:
+          type: integer
+          format: int32
+        nrTimingAdvance:
+          type: integer
+          format: int32
+        ueRxTxTimeDiff:
+          type: integer
+          format: int32
+        aoaAzimuthDegrees:
+          type: number
+        aoaZenithDegrees:
+          type: number
+        distanceMeters:
+          type: number
+
+    LocationDataResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/LocationData"
+
+    PositioningSessionCreated:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Identifier of the created positioning session.
+      required: [id]
+
+    PositioningSessionCreatedEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/PositioningSessionCreated"
+
+    # -- Positioning Sessions (beta) -------------------------------------
+    PositioningSessionListItem:
+      type: object
+      properties:
+        id:
+          type: string
+        supi:
+          type: string
+        session_type:
+          type: integer
+          description: "0 = immediate, 1 = periodic, 2 = triggered."
+        method:
+          type: string
+        status:
+          type: integer
+          description: "0 = active, 1 = completed, 2 = failed, 3 = cancelled."
+        created_at:
+          type: integer
+          format: int64
+          description: Creation time, Unix seconds.
+        updated_at:
+          type: integer
+          format: int64
+          description: Last update time, Unix seconds.
+      required: [id, supi, session_type, method, status, created_at, updated_at]
+
+    PositioningSessionDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        supi:
+          type: string
+        session_type:
+          type: integer
+          description: "0 = immediate, 1 = periodic, 2 = triggered."
+        method:
+          type: string
+        status:
+          type: integer
+          description: "0 = active, 1 = completed, 2 = failed, 3 = cancelled."
+        qos_response_time_ms:
+          type: integer
+        qos_horizontal_accuracy_m:
+          type: integer
+        last_result:
+          $ref: "#/components/schemas/LocationData"
+        created_at:
+          type: integer
+          format: int64
+          description: Creation time, Unix seconds.
+        updated_at:
+          type: integer
+          format: int64
+          description: Last update time, Unix seconds.
+      required: [id, supi, session_type, method, status, created_at, updated_at]
+
+    ListPositioningSessionsResponseEnvelope:
+      type: object
+      properties:
+        result:
+          type: array
+          items:
+            $ref: "#/components/schemas/PositioningSessionListItem"
+
+    PositioningSessionDetailResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/PositioningSessionDetail"
+
+    # -- Cell Positions (beta) -------------------------------------------
+    CellPositionRequest:
+      type: object
+      required: [rat, mcc, mnc, cell_identity, latitude, longitude]
+      properties:
+        rat:
+          type: string
+          enum: [nr, eutra]
+          description: Radio access technology.
+        mcc:
+          type: string
+        mnc:
+          type: string
+        cell_identity:
+          type: string
+          description: Hex cell identity (NCI for NR, ECI for E-UTRA).
+        gnb_id:
+          type: string
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+          description: WGS-84 latitude in decimal degrees.
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+          description: WGS-84 longitude in decimal degrees.
+        altitude:
+          type: number
+        uncertainty_semi_major:
+          type: number
+          description: Semi-major axis of the uncertainty ellipse, in metres.
+        uncertainty_semi_minor:
+          type: number
+          description: Semi-minor axis of the uncertainty ellipse, in metres.
+        orientation_major:
+          type: integer
+          description: Orientation of the semi-major axis, in degrees.
+        confidence:
+          type: integer
+          description: Confidence that the antenna lies within the uncertainty region, in percent.
+
+    CellPosition:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        rat:
+          type: string
+          enum: [nr, eutra]
+        mcc:
+          type: string
+        mnc:
+          type: string
+        cell_identity:
+          type: string
+        gnb_id:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        altitude:
+          type: number
+        uncertainty_semi_major:
+          type: number
+        uncertainty_semi_minor:
+          type: number
+        orientation_major:
+          type: integer
+        confidence:
+          type: integer
+        source:
+          type: string
+          description: Origin of the record (e.g. `provisioned`).
+      required: [id, rat, mcc, mnc, cell_identity, latitude, longitude, source]
+
+    CellPositionResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/CellPosition"
+
+    ListCellPositionsResponseEnvelope:
+      type: object
+      properties:
+        result:
+          type: array
+          items:
+            $ref: "#/components/schemas/CellPosition"
+
+    CreateCellPositionResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/CreateSuccessResponse"
