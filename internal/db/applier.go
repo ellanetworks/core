@@ -529,7 +529,7 @@ type allocateIPLeasePayload struct {
 //
 // Every query and write goes through db.runner(ctx) so they target the
 // pinned SQLite connection set up by applyWithPinnedConn. Calling the
-// public DB methods (GetDataNetworkByID, GetDynamicLease, etc.) here
+// public DB methods (GetDataNetworkByID, GetLeaseBySession, etc.) here
 // would dispatch to db.conn() — the shared pool with MaxOpenConns=1
 // whose only connection is already held by the active capture, and
 // every such SELECT would deadlock until the proposeTimeout context

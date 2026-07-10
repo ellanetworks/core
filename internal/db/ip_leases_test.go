@@ -574,6 +574,26 @@ func TestOnDeleteCascade_Subscriber(t *testing.T) {
 	}
 }
 
+// A static reservation is cleaned up with its subscriber via the
+// ip_leases.imsi ON DELETE CASCADE, so a deleted subscriber leaves no
+// orphaned pin holding an address.
+func TestOnDeleteCascade_Subscriber_Static(t *testing.T) {
+	database, poolID, imsi := setupLeaseTestDB(t)
+	ctx := context.Background()
+
+	if err := database.CreateStaticLease(ctx, imsi, poolID, "ipv4", addr("192.168.1.42")); err != nil {
+		t.Fatalf("CreateStaticLease: %s", err)
+	}
+
+	if err := database.DeleteSubscriber(ctx, imsi); err != nil {
+		t.Fatalf("DeleteSubscriber: %s", err)
+	}
+
+	if _, err := database.GetStaticLease(ctx, poolID, "ipv4", imsi); err != db.ErrNotFound {
+		t.Fatalf("expected static reservation removed with subscriber, got %v", err)
+	}
+}
+
 func TestOnDeleteCascade_DataNetwork(t *testing.T) {
 	database, poolID, imsi := setupLeaseTestDB(t)
 	ctx := context.Background()
