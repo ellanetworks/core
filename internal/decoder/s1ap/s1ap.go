@@ -104,6 +104,10 @@ func decodeInitiatingMessage(m *s1ap.InitiatingMessage) S1APMessage {
 		msg.Value, msg.Summary = buildENBStatusTransfer(m.Value)
 	case s1ap.ProcMMEStatusTransfer:
 		msg.Value, msg.Summary = buildMMEStatusTransfer(m.Value)
+	case s1ap.ProcDownlinkUEAssociatedLPPaTransport:
+		msg.Value, msg.Summary = buildDownlinkUEAssociatedLPPaTransport(m.Value)
+	case s1ap.ProcUplinkUEAssociatedLPPaTransport:
+		msg.Value, msg.Summary = buildUplinkUEAssociatedLPPaTransport(m.Value)
 	default:
 		msg.Value = unsupportedProcedure(m.ProcedureCode)
 	}

@@ -53,6 +53,8 @@ const (
 	idUERadioCapabilityForPaging     int64 = 117
 	idRRCEstablishmentCause          int64 = 134
 	idDefaultPagingDRX               int64 = 137
+	idLPPaPDU                        int64 = 147
+	idRoutingID                      int64 = 148
 	idTAIList                        int64 = 46
 )
 
@@ -97,6 +99,8 @@ var ieNames = map[int64]string{
 	idRRCEstablishmentCause:          "RRC-Establishment-Cause",
 	idDefaultPagingDRX:               "DefaultPagingDRX",
 	idTAIList:                        "TAIList",
+	idLPPaPDU:                        "LPPa-PDU",
+	idRoutingID:                      "Routing-ID",
 }
 
 func ieEnum(id int64) utils.EnumField[int64] {
@@ -106,22 +110,24 @@ func ieEnum(id int64) utils.EnumField[int64] {
 }
 
 var procedureNames = map[s1ap.ProcedureCode]string{
-	s1ap.ProcS1Setup:                    "S1Setup",
-	s1ap.ProcInitialUEMessage:           "InitialUEMessage",
-	s1ap.ProcUplinkNASTransport:         "UplinkNASTransport",
-	s1ap.ProcDownlinkNASTransport:       "DownlinkNASTransport",
-	s1ap.ProcInitialContextSetup:        "InitialContextSetup",
-	s1ap.ProcUEContextReleaseRequest:    "UEContextReleaseRequest",
-	s1ap.ProcUEContextRelease:           "UEContextRelease",
-	s1ap.ProcUECapabilityInfoIndication: "UECapabilityInfoIndication",
-	s1ap.ProcErrorIndication:            "ErrorIndication",
-	s1ap.ProcPaging:                     "Paging",
-	s1ap.ProcHandoverPreparation:        "HandoverPreparation",
-	s1ap.ProcHandoverResourceAllocation: "HandoverResourceAllocation",
-	s1ap.ProcHandoverNotification:       "HandoverNotification",
-	s1ap.ProcHandoverCancel:             "HandoverCancel",
-	s1ap.ProcENBStatusTransfer:          "ENBStatusTransfer",
-	s1ap.ProcMMEStatusTransfer:          "MMEStatusTransfer",
+	s1ap.ProcS1Setup:                           "S1Setup",
+	s1ap.ProcInitialUEMessage:                  "InitialUEMessage",
+	s1ap.ProcUplinkNASTransport:                "UplinkNASTransport",
+	s1ap.ProcDownlinkNASTransport:              "DownlinkNASTransport",
+	s1ap.ProcInitialContextSetup:               "InitialContextSetup",
+	s1ap.ProcUEContextReleaseRequest:           "UEContextReleaseRequest",
+	s1ap.ProcUEContextRelease:                  "UEContextRelease",
+	s1ap.ProcUECapabilityInfoIndication:        "UECapabilityInfoIndication",
+	s1ap.ProcErrorIndication:                   "ErrorIndication",
+	s1ap.ProcPaging:                            "Paging",
+	s1ap.ProcHandoverPreparation:               "HandoverPreparation",
+	s1ap.ProcHandoverResourceAllocation:        "HandoverResourceAllocation",
+	s1ap.ProcHandoverNotification:              "HandoverNotification",
+	s1ap.ProcHandoverCancel:                    "HandoverCancel",
+	s1ap.ProcENBStatusTransfer:                 "ENBStatusTransfer",
+	s1ap.ProcMMEStatusTransfer:                 "MMEStatusTransfer",
+	s1ap.ProcDownlinkUEAssociatedLPPaTransport: "DownlinkUEAssociatedLPPaTransport",
+	s1ap.ProcUplinkUEAssociatedLPPaTransport:   "UplinkUEAssociatedLPPaTransport",
 }
 
 func procedureCodeName(code s1ap.ProcedureCode) string {

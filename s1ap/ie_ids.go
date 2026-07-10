@@ -77,6 +77,7 @@ const (
 	idDefaultPagingDRX                          ProtocolIEID = 137
 	idLPPaPDU                                   ProtocolIEID = 147
 	idRoutingID                                 ProtocolIEID = 148
+	idUserLocationInformation                   ProtocolIEID = 189
 	idERABToBeModifiedListBearerModInd          ProtocolIEID = 199
 	idERABToBeModifiedItemBearerModInd          ProtocolIEID = 200
 	idERABNotToBeModifiedListBearerModInd       ProtocolIEID = 201

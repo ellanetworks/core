@@ -72,6 +72,38 @@ This path requests a subscriber's current location. `immediate` returns an estim
 }
 ```
 
+For a 4G (E-UTRA) subscriber the serving cell is reported as `ecgi` with a 7-hex-digit `eutraCellId`, and E-CID uses the `ECID` positioning method:
+
+```json
+{
+    "result": {
+        "locationEstimate": {
+            "shape": "POINT_UNCERTAINTY_CIRCLE",
+            "point": {
+                "lat": 37.7749,
+                "lon": -122.4194
+            },
+            "uncertainty": 150
+        },
+        "accuracyFulfilmentIndicator": "REQUESTED_ACCURACY_FULFILLED",
+        "positioningDataList": [
+            {
+                "method": "ECID",
+                "mode": "CONVENTIONAL",
+                "usage": "SUCCESS_RESULTS_USED"
+            }
+        ],
+        "ecgi": {
+            "plmnId": {
+                "mcc": "001",
+                "mnc": "01"
+            },
+            "eutraCellId": "0000001"
+        }
+    }
+}
+```
+
 ### Sample Response (`periodic`/`triggered`)
 
 ```json
@@ -268,6 +300,19 @@ This path provisions the geographic position of a cell antenna. Cell ID lookups 
 - `uncertainty_semi_minor` (number, optional): Semi-minor axis of the uncertainty ellipse, in metres.
 - `orientation_major` (integer, optional): Orientation of the semi-major axis, in degrees.
 - `confidence` (integer, optional): Confidence, in percent.
+
+### Sample Request (E-UTRA)
+
+```json
+{
+    "rat": "eutra",
+    "mcc": "001",
+    "mnc": "01",
+    "cell_identity": "0000001",
+    "latitude": 37.7749,
+    "longitude": -122.4194
+}
+```
 
 ### Sample Response
 

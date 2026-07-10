@@ -35,6 +35,32 @@ func TestECMIdleBuffersSession(t *testing.T) {
 	}
 }
 
+func TestUEContextReleaseCompleteCapturesLocation(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+
+	m.ReleaseUEContext(context.Background(), ue, mme.CauseNASNormalRelease)
+
+	plmn := s1ap.PLMNIdentity{0x00, 0xf1, 0x10}
+	complete := &s1ap.UEContextReleaseComplete{
+		MMEUES1APID: ue.Conn().MMEUES1APID,
+		ENBUES1APID: 7,
+		UserLocationInformation: &s1ap.UserLocationInformation{
+			EUTRANCGI: s1ap.EUTRANCGI{PLMNIdentity: plmn, CellID: 0x0abcde1},
+			TAI:       s1ap.TAI{PLMNIdentity: plmn, TAC: 9},
+		},
+	}
+	b, _ := complete.Marshal()
+	cpdu, _ := s1ap.Unmarshal(b)
+
+	HandleUEContextReleaseComplete(m, context.Background(), mme.NewRadioForTest(cc), cpdu.(*s1ap.SuccessfulOutcome).Value)
+
+	loc := ue.GetUserLocation()
+	if loc.EutraLocation == nil || loc.EutraLocation.Ecgi.EutraCellID != "0abcde1" {
+		t.Fatalf("serving cell not captured from Release Complete ULI: %+v", loc.EutraLocation)
+	}
+}
+
 func TestUEContextReleaseRequestFromENB(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
