@@ -15,7 +15,6 @@
 // eNB. The LPPa transaction id is carried in the elementary-procedure envelope.
 package lppa
 
-// MessageKind discriminates a decoded LPPa E-CID PDU.
 type MessageKind int
 
 const (
@@ -40,7 +39,6 @@ const (
 	MeasRSRQ
 )
 
-// CauseGroup identifies which Cause CHOICE alternative was decoded.
 type CauseGroup int
 
 const (
@@ -50,7 +48,6 @@ const (
 	CauseGroupChoiceExtension
 )
 
-// Cause is a decoded LPPa Cause value.
 type Cause struct {
 	Group CauseGroup
 	Value int64 // ENUMERATED ordinal within the group (n/a for choice-Extension)
@@ -75,13 +72,11 @@ type APPosition struct {
 	LongitudeDegrees float64
 }
 
-// ECGI is a decoded E-UTRAN Cell Global Identifier (TS 36.455 §9.2.9).
 type ECGI struct {
 	PLMNIdentity []byte // 3 octets
 	EUTRACellID  uint64 // 28-bit
 }
 
-// RSRPItem is one entry of a ResultRSRP list (TS 36.455 §9.2.36).
 type RSRPItem struct {
 	PCI       int64 // 0..503
 	EARFCN    int64 // 0..65535 (root)
@@ -89,7 +84,6 @@ type RSRPItem struct {
 	ValueRSRP int64 // 0..97, TS 36.133 §9.1.4
 }
 
-// RSRQItem is one entry of a ResultRSRQ list (TS 36.455 §9.2.37).
 type RSRQItem struct {
 	PCI       int64
 	EARFCN    int64
@@ -113,14 +107,12 @@ type ECIDResult struct {
 	RSRQ               []RSRQItem
 }
 
-// ECIDRequest is a decoded E-CIDMeasurementInitiationRequest.
 type ECIDRequest struct {
 	ESMLCUEMeasurementID  int64
 	ReportCharacteristics int // 0 = onDemand, 1 = periodic
 	MeasurementQuantities []MeasurementQuantityValue
 }
 
-// ECIDResponse is a decoded E-CIDMeasurementInitiationResponse.
 type ECIDResponse struct {
 	ESMLCUEMeasurementID int64
 	ENBUEMeasurementID   int64
@@ -128,27 +120,22 @@ type ECIDResponse struct {
 	CellPortionID        *int64
 }
 
-// ECIDFailure is a decoded E-CIDMeasurementInitiationFailure.
 type ECIDFailure struct {
 	ESMLCUEMeasurementID int64
 	Cause                Cause
 }
 
-// ECIDFailureIndication is a decoded E-CIDMeasurementFailureIndication (the eNB
-// can no longer report a previously initiated measurement, TS 36.455 §8.2.3).
 type ECIDFailureIndication struct {
 	ESMLCUEMeasurementID int64
 	ENBUEMeasurementID   int64
 	Cause                Cause
 }
 
-// ECIDTermination is a decoded E-CIDMeasurementTerminationCommand.
 type ECIDTermination struct {
 	ESMLCUEMeasurementID int64
 	ENBUEMeasurementID   int64
 }
 
-// ParsedPDU is the discriminated result of ParsePDU.
 type ParsedPDU struct {
 	Kind              MessageKind
 	Request           *ECIDRequest

@@ -233,8 +233,7 @@ func encMeasurementResult(res *ECIDResult) func(*aper.Writer) error {
 	}
 }
 
-// encECGI encodes ECGI ::= SEQUENCE { pLMN-Identity, eUTRANcellIdentifier
-// BIT STRING (SIZE (28)), ... } (TS 36.455 §9.2.9).
+// TS 36.455 §9.2.9.
 func encECGI(w *aper.Writer, e ECGI) error {
 	w.WriteSequencePreamble(true, false, []bool{false})
 
@@ -374,8 +373,7 @@ func encMeasuredChoiceList(w *aper.Writer, index int, enc func(*aper.Writer) err
 	return enc(w)
 }
 
-// encResultRSRP encodes ResultRSRP ::= SEQUENCE (SIZE (1..maxCellReport)) OF
-// ResultRSRP-Item (TS 36.455 §9.2.36).
+// TS 36.455 §9.2.36.
 func encResultRSRP(w *aper.Writer, items []RSRPItem) error {
 	if len(items) < 1 || len(items) > maxCellReport {
 		return fmt.Errorf("lppa: RSRP items length %d outside [1, %d]", len(items), maxCellReport)
@@ -411,8 +409,7 @@ func encResultRSRP(w *aper.Writer, items []RSRPItem) error {
 	return nil
 }
 
-// encResultRSRQ encodes ResultRSRQ ::= SEQUENCE (SIZE (1..maxCellReport)) OF
-// ResultRSRQ-Item (TS 36.455 §9.2.37).
+// TS 36.455 §9.2.37.
 func encResultRSRQ(w *aper.Writer, items []RSRQItem) error {
 	if len(items) < 1 || len(items) > maxCellReport {
 		return fmt.Errorf("lppa: RSRQ items length %d outside [1, %d]", len(items), maxCellReport)

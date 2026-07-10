@@ -64,8 +64,7 @@ var ecidMeasurementQuantities = []lppa.MeasurementQuantityValue{
 //
 // It returns the E-SMLC-UE-Measurement-ID assigned to the request so the caller
 // can match the asynchronous E-CIDMeasurementInitiationResponse via
-// WaitForMeasurements. The method parameter is accepted for API compatibility;
-// only E-CID is supported in this MVP.
+// WaitForMeasurements.
 func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method string) (int64, error) {
 	ue, ok := c.mme.LookupUeBySupi(supi)
 	if !ok {

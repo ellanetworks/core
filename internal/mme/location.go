@@ -12,11 +12,9 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// UpdateLocation records the UE's serving cell — E-UTRAN CGI and TAI — from an
-// S1AP message's User Location on the connection, mirroring it to the persistent
-// UE context when one is bound (TS 36.413). The 16-bit S1AP TAC renders as the
-// two least-significant octets of the 6-hex-digit TAC, and the 28-bit E-UTRA
-// Cell Identity as 7 hex digits (TS 23.003).
+// UpdateLocation records the UE's serving cell (E-UTRAN CGI + TAI) from an S1AP
+// User Location. The 16-bit S1AP TAC renders as the two least-significant octets
+// of the 6-hex-digit TAC (TS 23.003, matching the gNB TAI rendering).
 func (c *UeConn) UpdateLocation(cgi s1ap.EUTRANCGI, tai s1ap.TAI) {
 	curTime := time.Now().UTC()
 
@@ -55,7 +53,6 @@ func (c *UeConn) UpdateLocation(cgi s1ap.EUTRANCGI, tai s1ap.TAI) {
 	}
 }
 
-// GetUserLocation returns a copy of the UE's user location.
 func (ue *UeContext) GetUserLocation() models.UserLocation {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -63,7 +60,6 @@ func (ue *UeContext) GetUserLocation() models.UserLocation {
 	return ue.Location
 }
 
-// IsUserLocationEmpty returns true if the UE has no location information.
 func (ue *UeContext) IsUserLocationEmpty() bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -75,8 +71,6 @@ func (ue *UeContext) IsUserLocationEmpty() bool {
 		loc.N3gaLocation == nil
 }
 
-// GetUELocation returns the UserLocation for a registered UE, or false if the UE
-// is not found in the MME's UE pool.
 func (m *MME) GetUELocation(supi etsi.SUPI) (models.UserLocation, bool) {
 	ue, ok := m.LookupUeBySupi(supi)
 	if !ok {
