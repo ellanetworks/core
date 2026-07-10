@@ -1,7 +1,7 @@
 ---
 name: ella-core
 description: >
-  Manage and inspect a running Ella Core 5G private mobile network via its REST API.
+  Manage and inspect a running Ella Core private mobile network via its REST API.
   Use when the user asks to provision, update, list, inspect, or delete subscribers,
   profiles, slices, policies, data networks, radios, routes, BGP peers, NAT, operators,
   or users; or asks about live status, data usage, flow reports, audit logs, AMF/SMF/UPF
@@ -14,7 +14,7 @@ metadata:
 
 # Ella Core Skill
 
-Ella Core is a 5G private mobile network packaged as a single Go binary (AMF + SMF + UPF + AUSF). This skill operates a running instance via its REST API.
+Ella Core is a 4G and 5G private mobile network packaged as a single Go binary (AMF + SMF + UPF + AUSF). This skill operates a running instance via its REST API.
 
 ## Connection
 
