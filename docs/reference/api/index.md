@@ -4,7 +4,7 @@ description: RESTful API reference for managing Ella Core.
 
 # API
 
-Ella Core exposes a RESTful API for managing subscribers, radios, data networks, profiles, slices, policies, users, routes, and operator configuration.
+Ella Core exposes a RESTful API for managing subscribers, radios, data networks, profiles, slices, policies, users, routes, operator configuration, and subscriber location (beta).
 
 ## Authentication
 
