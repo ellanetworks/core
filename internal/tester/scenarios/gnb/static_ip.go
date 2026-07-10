@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"time"
 
+	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/spf13/pflag"
@@ -52,8 +53,8 @@ func staticIPFixture(imsi, pin string) scenarios.FixtureSpec {
 }
 
 // runStaticIP registers a UE for a subscriber that has a pinned address and
-// asserts the PDU session establishment assigns exactly that address.
-func runStaticIP(_ context.Context, env scenarios.Env, p *staticIPParams, imsi string, ipv6 bool) error {
+// asserts the established PDU session is assigned exactly that address.
+func runStaticIP(ctx context.Context, env scenarios.Env, p *staticIPParams, imsi string, ipv6 bool) error {
 	if p.ExpectedIP == "" {
 		return fmt.Errorf("--expected-ip is required")
 	}
@@ -89,14 +90,13 @@ func runStaticIP(_ context.Context, env scenarios.Env, p *staticIPParams, imsi s
 		return fmt.Errorf("initial registration: %v", err)
 	}
 
-	session, err := newUE.WaitForPDUSession(scenarios.DefaultPDUSessionID, 5*time.Second)
-	if err != nil {
+	if _, err := newUE.WaitForPDUSession(scenarios.DefaultPDUSessionID, 5*time.Second); err != nil {
 		return fmt.Errorf("wait for PDU session: %v", err)
 	}
 
-	got := session.UEIP
-	if ipv6 {
-		got = session.UEIPV6
+	got, err := assignedSessionAddress(ctx, env, imsi, ipv6)
+	if err != nil {
+		return err
 	}
 
 	if err := assertPinnedAddress(got, p.ExpectedIP); err != nil {
@@ -108,6 +108,43 @@ func runStaticIP(_ context.Context, env scenarios.Env, p *staticIPParams, imsi s
 		AMFUENGAPID: gNodeB.GetAMFUENGAPID(ranUENGAPID),
 		RANUENGAPID: ranUENGAPID,
 	})
+}
+
+// assignedSessionAddress polls the core's subscriber record for the address
+// its active session was assigned. For IPv6 the pinned /64 prefix is delivered
+// via Router Advertisement and is absent from the NAS PDU-address IE, so the
+// core's session record is the authoritative source for both families.
+func assignedSessionAddress(ctx context.Context, env scenarios.Env, imsi string, ipv6 bool) (string, error) {
+	cl, err := client.New(&client.Config{BaseURL: env.APIAddress})
+	if err != nil {
+		return "", fmt.Errorf("create core client: %w", err)
+	}
+
+	cl.SetToken(env.APIToken)
+
+	deadline := time.Now().Add(5 * time.Second)
+
+	for {
+		sub, err := cl.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: imsi})
+		if err == nil {
+			for _, s := range sub.Sessions {
+				addr := s.IPv4Address
+				if ipv6 {
+					addr = s.IPv6Prefix
+				}
+
+				if addr != "" {
+					return addr, nil
+				}
+			}
+		}
+
+		if time.Now().After(deadline) {
+			return "", fmt.Errorf("no active session with an assigned address for %s", imsi)
+		}
+
+		time.Sleep(200 * time.Millisecond)
+	}
 }
 
 // assertPinnedAddress compares the assigned and pinned addresses by value so
