@@ -20,6 +20,7 @@ var apiMatrixResources = map[string]apiMatrixRunner{
 	"profiles":                   runProfilesMatrix,
 	"slices":                     runSlicesMatrix,
 	"data_networks":              runDataNetworksMatrix,
+	"static_ips":                 runStaticIpsMatrix,
 	"policies":                   runPoliciesMatrix,
 	"subscribers":                runSubscribersMatrix,
 	"routes":                     runRoutesMatrix,

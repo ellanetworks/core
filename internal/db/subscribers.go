@@ -23,6 +23,7 @@ const SubscribersTableName = "subscribers"
 
 const (
 	listSubscribersPagedStmt  = "SELECT &Subscriber.*, COUNT(*) OVER() AS &NumItems.count from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	listSubscribersByDNStmt   = "SELECT &Subscriber.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE profileID IN (SELECT profileID FROM %s WHERE dataNetworkID==$Policy.dataNetworkID) ORDER BY imsi LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getSubscriberStmt         = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
 	createSubscriberStmt      = "INSERT INTO %s (id, imsi, sequenceNumber, permanentKey, opc, profileID) VALUES ($Subscriber.id, $Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.profileID)"
 	editSubscriberProfileStmt = "UPDATE %s SET profileID=$Subscriber.profileID WHERE imsi==$Subscriber.imsi"
@@ -80,6 +81,60 @@ func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage i
 			}
 
 			return nil, fallbackCount, nil
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return nil, 0, fmt.Errorf("query failed: %w", err)
+	}
+
+	count := 0
+	if len(counts) > 0 {
+		count = counts[0].Count
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return subs, count, nil
+}
+
+// ListSubscribersByDataNetworkPage returns a page of subscribers whose
+// profile has a policy binding the given data network.
+func (db *Database) ListSubscribersByDataNetworkPage(ctx context.Context, dataNetworkID string, page, perPage int) ([]Subscriber, int, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (paged by data network)", "SELECT", SubscribersTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			attribute.String("db.collection", SubscribersTableName),
+			attribute.Int("page", page),
+			attribute.Int("per_page", perPage),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
+
+	var subs []Subscriber
+
+	var counts []NumItems
+
+	args := ListArgs{
+		Limit:  perPage,
+		Offset: (page - 1) * perPage,
+	}
+
+	err := db.conn().Query(ctx, db.listSubscribersByDNStmt, args, Policy{DataNetworkID: dataNetworkID}).GetAll(&subs, &counts)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetStatus(codes.Ok, "no rows")
+			return nil, 0, nil
 		}
 
 		span.RecordError(err)

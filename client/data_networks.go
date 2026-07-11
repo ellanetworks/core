@@ -212,6 +212,121 @@ func (c *Client) ListDataNetworks(ctx context.Context, p *ListParams) (*ListData
 	return &dataNetworks, nil
 }
 
+type StaticIP struct {
+	IMSI        string `json:"imsi"`
+	DataNetwork string `json:"data_network"`
+	IPVersion   string `json:"ip_version"`
+	Address     string `json:"address"`
+	Status      string `json:"status"`
+	SessionID   *int   `json:"session_id"`
+}
+
+type StaticIPList struct {
+	Items      []StaticIP `json:"items"`
+	Page       int        `json:"page"`
+	PerPage    int        `json:"per_page"`
+	TotalCount int        `json:"total_count"`
+}
+
+type CreateStaticIPOptions struct {
+	IMSI    string `json:"imsi"`
+	Address string `json:"address"`
+}
+
+// ListDataNetworkStaticIps lists the static IP reservations for a data network.
+func (c *Client) ListDataNetworkStaticIps(ctx context.Context, dataNetwork string) (*StaticIPList, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   "api/v1/networking/data-networks/" + dataNetwork + "/static-ips",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var list StaticIPList
+
+	err = resp.DecodeResult(&list)
+	if err != nil {
+		return nil, err
+	}
+
+	return &list, nil
+}
+
+// CreateDataNetworkStaticIp pins an address to a subscriber on a data network.
+// The IP version is inferred from the address family.
+func (c *Client) CreateDataNetworkStaticIp(ctx context.Context, dataNetwork string, opts *CreateStaticIPOptions) error {
+	payload := struct {
+		IMSI    string `json:"imsi"`
+		Address string `json:"address"`
+	}{
+		IMSI:    opts.IMSI,
+		Address: opts.Address,
+	}
+
+	var body bytes.Buffer
+
+	err := json.NewEncoder(&body).Encode(payload)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "POST",
+		Path:   "api/v1/networking/data-networks/" + dataNetwork + "/static-ips",
+		Body:   &body,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UpdateDataNetworkStaticIp repins a subscriber's reservation to a new address.
+func (c *Client) UpdateDataNetworkStaticIp(ctx context.Context, dataNetwork, imsi, ipVersion, address string) error {
+	payload := struct {
+		Address string `json:"address"`
+	}{
+		Address: address,
+	}
+
+	var body bytes.Buffer
+
+	err := json.NewEncoder(&body).Encode(payload)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "PUT",
+		Path:   "api/v1/networking/data-networks/" + dataNetwork + "/static-ips/" + imsi + "/" + ipVersion,
+		Body:   &body,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DeleteDataNetworkStaticIp removes a subscriber's static IP reservation.
+func (c *Client) DeleteDataNetworkStaticIp(ctx context.Context, dataNetwork, imsi, ipVersion string) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "DELETE",
+		Path:   "api/v1/networking/data-networks/" + dataNetwork + "/static-ips/" + imsi + "/" + ipVersion,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // ListIPv4Allocations lists IPv4 allocations for a data network with pagination support.
 func (c *Client) ListIPv4Allocations(ctx context.Context, opts *ListIPAllocationsOptions, p *ListParams) (*ListIPAllocationsResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{

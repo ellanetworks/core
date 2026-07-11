@@ -166,6 +166,7 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 		page := atoiDefault(q.Get("page"), 1)
 		perPage := atoiDefault(q.Get("per_page"), 25)
 		radioFilter := q.Get("radio")
+		dataNetworkFilter := q.Get("data_network")
 
 		if page < 1 {
 			writeError(r.Context(), w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
@@ -231,7 +232,30 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 			dbPerPage = MaxNumSubscribers
 		}
 
-		dbSubscribers, total, err := dbInstance.ListSubscribersPage(ctx, dbPage, dbPerPage)
+		var dataNetworkID string
+
+		if dataNetworkFilter != "" {
+			dn, dnErr := dbInstance.GetDataNetwork(ctx, dataNetworkFilter)
+			if dnErr != nil {
+				writeError(r.Context(), w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
+				return
+			}
+
+			dataNetworkID = dn.ID
+		}
+
+		var (
+			dbSubscribers []db.Subscriber
+			total         int
+			err           error
+		)
+
+		if dataNetworkID != "" {
+			dbSubscribers, total, err = dbInstance.ListSubscribersByDataNetworkPage(ctx, dataNetworkID, dbPage, dbPerPage)
+		} else {
+			dbSubscribers, total, err = dbInstance.ListSubscribersPage(ctx, dbPage, dbPerPage)
+		}
+
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list subscribers", err, logger.APILog)
 			return

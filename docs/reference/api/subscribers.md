@@ -21,6 +21,7 @@ This path returns the list of network subscribers.
 | `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
 | `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
 | `radio`    | query | str  |         |         | Filter by radio name. Returns only subscribers connected to the specified radio. |
+| `data_network` | query | str |     |         | Filter by data network name. Returns only subscribers whose profile reaches it. |
 
 ### Sample Response
 
