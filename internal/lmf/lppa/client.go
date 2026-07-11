@@ -188,10 +188,19 @@ func matchMeasurementResponse(messages []mme.LPPaMessage, measurementID int64, n
 
 		parsed, err := lppa.ParsePDU(msg.Payload)
 		if err != nil {
+			logger.LmfLog.Debug("LPPa ParsePDU failed, retrying with first byte stripped",
+				zap.Error(err),
+				zap.Int("payloadLen", len(msg.Payload)),
+			)
 			// Fallback: some eNBs prepend an extra length octet; retry stripped.
 			if len(msg.Payload) > 1 {
 				parsed, err = lppa.ParsePDU(msg.Payload[1:])
 				if err != nil {
+					logger.LmfLog.Debug("LPPa ParsePDU also failed with first byte stripped",
+						zap.Error(err),
+						zap.Int("payloadLen", len(msg.Payload)-1),
+					)
+
 					continue
 				}
 			} else {

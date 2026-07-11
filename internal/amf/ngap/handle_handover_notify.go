@@ -21,9 +21,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	targetUe.TouchLastSeen()
 
-	if msg.UserLocationInformation != nil {
-		targetUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
-	}
+	targetUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
 
 	amfUe := targetUe.UeContext()
 	if amfUe == nil {

@@ -44,6 +44,7 @@ func (c *UeConn) UpdateLocation(cgi s1ap.EUTRANCGI, tai s1ap.TAI) {
 	}
 }
 
+// GetUserLocation returns a copy of the UE's user location.
 func (ue *UeContext) GetUserLocation() models.UserLocation {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -51,6 +52,7 @@ func (ue *UeContext) GetUserLocation() models.UserLocation {
 	return ue.Location
 }
 
+// IsUserLocationEmpty returns true if the UE has no location information.
 func (ue *UeContext) IsUserLocationEmpty() bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -62,6 +64,7 @@ func (ue *UeContext) IsUserLocationEmpty() bool {
 		loc.N3gaLocation == nil
 }
 
+// GetUELocation returns the user location of the UE identified by supi.
 func (m *MME) GetUELocation(supi etsi.SUPI) (models.UserLocation, bool) {
 	ue, ok := m.LookupUeBySupi(supi)
 	if !ok {

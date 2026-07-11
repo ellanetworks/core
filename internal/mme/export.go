@@ -26,20 +26,27 @@ func tmsiExport(t etsi.TMSI) string {
 }
 
 // UeContextExport is a snapshot of one UE's MME context for the support bundle.
-// Facets with no EPS analog are omitted:
-// SUCI, allowed NSSAI and ng-KSI are 5G-only; per-UE location is dropped because
-// the MME does not retain the decoded ULI; the full GUTI string is omitted (only
-// the M-TMSI is stored per UE), and the NAS-guard procedure name is AMF-only.
+// Facets with no EPS analog are omitted: SUCI, allowed NSSAI and ng-KSI are
+// 5G-only; the full GUTI string is omitted (only the M-TMSI is stored per UE),
+// and the NAS-guard procedure name is AMF-only.
 type UeContextExport struct {
 	Identity       UEIdentityExport               `json:"identity"`
 	State          UEStateExport                  `json:"state"`
 	Security       UESecurityExport               `json:"security"`
+	Location       UELocationExport               `json:"location"`
 	Subscription   UESubscriptionExport           `json:"subscription"`
 	PDNConnections map[string]PDNConnectionExport `json:"pdn_connections"`
 	Registration   UERegistrationExport           `json:"registration"`
 	Timers         UETimersExport                 `json:"timers"`
 	LastActivity   UELastActivityExport           `json:"last_activity"`
 	RANConnection  *RANConnectionExport           `json:"ran_connection,omitempty"`
+}
+
+// UELocationExport is the UE's last known serving cell. The 5G registration area
+// and separately-tracked serving TAI have no EPS analog, so only the current
+// User Location (E-UTRA CGI + TAI) is exported.
+type UELocationExport struct {
+	Current models.UserLocation `json:"current"`
 }
 
 type UEIdentityExport struct {
@@ -194,6 +201,9 @@ func (m *MME) exportUeContext(plmn models.PlmnID, ue *UeContext) UeContextExport
 		Security: UESecurityExport{
 			CipheringAlgorithm: cipheringAlgName(ue.cipheringAlg),
 			IntegrityAlgorithm: integrityAlgName(ue.integrityAlg),
+		},
+		Location: UELocationExport{
+			Current: ue.Location,
 		},
 		Subscription: UESubscriptionExport{
 			Ambr: copyAmbr(ue.Ambr),

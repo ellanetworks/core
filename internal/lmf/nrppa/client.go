@@ -304,10 +304,10 @@ func matchMeasurementResponse(messages []amf.NRPPaMessage, measurementID int64, 
 	return nil, nil
 }
 
-// mapECIDResult converts a decoded E-CID measurement result into the AMF radio
-// measurement shape. Timing advance is taken from valueTimingAdvanceType1 (or
-// type2 as fallback); RSRP/RSRQ are left nil unless reported. The serving cell
-// access point position is carried through when present.
+// mapECIDResult converts a decoded E-CID measurement result into the shared
+// radio-measurement shape. Timing advance is taken from valueTimingAdvanceType1
+// (or type2 as fallback); RSRP/RSRQ are left nil unless reported. The serving
+// cell access point position is carried through when present.
 func mapECIDResult(result *nrppa.ECIDResult) *lmfmodels.RadioMeasurements {
 	m := &lmfmodels.RadioMeasurements{}
 
@@ -346,41 +346,38 @@ func mapECIDResult(result *nrppa.ECIDResult) *lmfmodels.RadioMeasurements {
 		}
 	}
 
-	// Map NR-specific measurements (SSB/CSI-RS based)
-	if result.ResultSSRSRP != nil {
-		if len(result.ResultSSRSRP.Items) > 0 {
-			// Use the first (strongest) SS-RSRP measurement
-			ssrsrp := ssrsrpToDBm(result.ResultSSRSRP.Items[0].Value)
-			m.SSRSRP = &ssrsrp
-		}
+	// NR SSB/CSI-RS measurements. The result list is not spec-ordered by strength,
+	// so the strongest beam is used as the best available proxy for the cell.
+	if result.ResultSSRSRP != nil && len(result.ResultSSRSRP.Items) > 0 {
+		ssrsrp := ssrsrpToDBm(strongestBy(result.ResultSSRSRP.Items, func(it nrppa.SSRSRPItem) int64 { return it.Value }))
+		m.SSRSRP = &ssrsrp
 	}
 
-	if result.ResultSSRSRQ != nil {
-		if len(result.ResultSSRSRQ.Items) > 0 {
-			ssrsrq := ssrsrqToDB(result.ResultSSRSRQ.Items[0].Value)
-			m.SSRSRQ = &ssrsrq
-		}
+	if result.ResultSSRSRQ != nil && len(result.ResultSSRSRQ.Items) > 0 {
+		ssrsrq := ssrsrqToDB(strongestBy(result.ResultSSRSRQ.Items, func(it nrppa.SSRSRQItem) int64 { return it.Value }))
+		m.SSRSRQ = &ssrsrq
 	}
 
-	if result.ResultCSIRSRP != nil {
-		if len(result.ResultCSIRSRP.Items) > 0 {
-			csirsrp := csirsrpToDBm(result.ResultCSIRSRP.Items[0].Value)
-			m.CSIRSRP = &csirsrp
-		}
+	if result.ResultCSIRSRP != nil && len(result.ResultCSIRSRP.Items) > 0 {
+		csirsrp := csirsrpToDBm(strongestBy(result.ResultCSIRSRP.Items, func(it nrppa.CSIRSRPItem) int64 { return it.Value }))
+		m.CSIRSRP = &csirsrp
 	}
 
-	if result.ResultCSIRSRQ != nil {
-		if len(result.ResultCSIRSRQ.Items) > 0 {
-			csirsrq := csirsrqToDB(result.ResultCSIRSRQ.Items[0].Value)
-			m.CSIRSRQ = &csirsrq
-		}
+	if result.ResultCSIRSRQ != nil && len(result.ResultCSIRSRQ.Items) > 0 {
+		csirsrq := csirsrqToDB(strongestBy(result.ResultCSIRSRQ.Items, func(it nrppa.CSIRSRQItem) int64 { return it.Value }))
+		m.CSIRSRQ = &csirsrq
 	}
 
 	if result.APPosition != nil {
+		altitude := result.APPosition.Altitude
+		if result.APPosition.DirectionOfAltitude == 1 { // depth (below the ellipsoid)
+			altitude = -altitude
+		}
+
 		m.APPosition = &lmfmodels.APPosition{
 			LatitudeDegrees:      result.APPosition.LatitudeDegrees,
 			LongitudeDegrees:     result.APPosition.LongitudeDegrees,
-			Altitude:             result.APPosition.Altitude,
+			Altitude:             altitude,
 			UncertaintySemiMajor: result.APPosition.UncertaintySemiMajor,
 			UncertaintySemiMinor: result.APPosition.UncertaintySemiMinor,
 			Confidence:           result.APPosition.Confidence,
@@ -388,6 +385,20 @@ func mapECIDResult(result *nrppa.ECIDResult) *lmfmodels.RadioMeasurements {
 	}
 
 	return m
+}
+
+// strongestBy returns the highest projected value across a measurement item
+// list (higher RSRP/RSRQ report values are stronger).
+func strongestBy[T any](items []T, val func(T) int64) int64 {
+	best := val(items[0])
+
+	for _, it := range items[1:] {
+		if v := val(it); v > best {
+			best = v
+		}
+	}
+
+	return best
 }
 
 // ssrsrpToDBm converts an NR SS-RSRP report value (0..127) to dBm × 100.

@@ -20,6 +20,7 @@ func (ue *UeContext) SetRadioMeasurements(m *lmfmodels.RadioMeasurements) {
 	ue.radioMeasurements = m
 }
 
+// GetRadioMeasurements returns a copy of the UE's current radio measurements.
 func (ue *UeContext) GetRadioMeasurements() *lmfmodels.RadioMeasurements {
 	ue.radioMu.RLock()
 	defer ue.radioMu.RUnlock()
@@ -57,6 +58,7 @@ func (ue *UeContext) SetLPPaMessage(data []byte) {
 		Timestamp: time.Now(),
 	}
 
+	// Ring buffer: keep last 16 messages
 	ue.lppaMessages = append(ue.lppaMessages, msg)
 	if len(ue.lppaMessages) > 16 {
 		ue.lppaMessages = ue.lppaMessages[len(ue.lppaMessages)-16:]
