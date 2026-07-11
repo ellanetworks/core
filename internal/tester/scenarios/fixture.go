@@ -22,6 +22,9 @@ type FixtureSpec struct {
 
 	Subscribers []SubscriberSpec
 
+	// StaticIPs are pinned after subscribers and data networks exist.
+	StaticIPs []StaticIPSpec
+
 	// ExtraArgs are passed verbatim to `core-tester run <scenario>`, for the
 	// scenario-specific flags it declares via BindFlags.
 	ExtraArgs []string
@@ -82,6 +85,14 @@ type SubscriberSpec struct {
 	OPc            string
 	SequenceNumber string
 	ProfileName    string
+}
+
+// StaticIPSpec pins an address to a subscriber for a data network. The IP
+// version is inferred from the address family.
+type StaticIPSpec struct {
+	IMSI        string
+	DataNetwork string
+	Address     string
 }
 
 func DefaultSubscriber() SubscriberSpec {

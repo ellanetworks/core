@@ -55,6 +55,7 @@ type Database struct {
 
 	// Subscriber statements
 	listSubscribersStmt         *sqlair.Statement
+	listSubscribersByDNStmt     *sqlair.Statement
 	countSubscribersStmt        *sqlair.Statement
 	getSubscriberStmt           *sqlair.Statement
 	createSubscriberStmt        *sqlair.Statement
@@ -64,7 +65,7 @@ type Database struct {
 
 	// IP Lease statements
 	createLeaseStmt              *sqlair.Statement
-	getDynamicLeaseStmt          *sqlair.Statement
+	getDynamicLeaseBySessionStmt *sqlair.Statement
 	getLeaseBySessionStmt        *sqlair.Statement
 	updateLeaseSessionStmt       *sqlair.Statement
 	updateLeaseNodeStmt          *sqlair.Statement
@@ -82,6 +83,11 @@ type Database struct {
 	countLeasesByIMSIStmt        *sqlair.Statement
 	listLeasesByPoolPageStmt     *sqlair.Statement
 	listAllLeasesStmt            *sqlair.Statement
+	getStaticLeaseStmt           *sqlair.Statement
+	listStaticLeasesByIMSIStmt   *sqlair.Statement
+	listStaticLeasesByDNStmt     *sqlair.Statement
+	updateStaticLeaseAddressStmt *sqlair.Statement
+	deleteStaticLeaseStmt        *sqlair.Statement
 
 	// API Token statements
 	listAPITokensStmt   *sqlair.Statement
@@ -1248,6 +1254,7 @@ func (db *Database) PrepareStatements() error {
 	stmts := []stmtDef{
 		// Subscribers
 		{&db.listSubscribersStmt, fmt.Sprintf(listSubscribersPagedStmt, SubscribersTableName), []any{ListArgs{}, Subscriber{}, NumItems{}}},
+		{&db.listSubscribersByDNStmt, fmt.Sprintf(listSubscribersByDNStmt, SubscribersTableName, PoliciesTableName), []any{ListArgs{}, Subscriber{}, NumItems{}, Policy{}}},
 		{&db.countSubscribersStmt, fmt.Sprintf(countSubscribersStmt, SubscribersTableName), []any{NumItems{}}},
 		{&db.getSubscriberStmt, fmt.Sprintf(getSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.createSubscriberStmt, fmt.Sprintf(createSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
@@ -1257,7 +1264,7 @@ func (db *Database) PrepareStatements() error {
 
 		// IP Leases
 		{&db.createLeaseStmt, fmt.Sprintf(createLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.getDynamicLeaseStmt, fmt.Sprintf(getDynamicLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.getDynamicLeaseBySessionStmt, fmt.Sprintf(getDynamicLeaseBySessionStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.getLeaseBySessionStmt, fmt.Sprintf(getLeaseBySessionStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.updateLeaseSessionStmt, fmt.Sprintf(updateLeaseSessionStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.updateLeaseNodeStmt, fmt.Sprintf(updateLeaseNodeStmt, IPLeasesTableName), []any{IPLease{}}},
@@ -1275,6 +1282,11 @@ func (db *Database) PrepareStatements() error {
 		{&db.countLeasesByIMSIStmt, fmt.Sprintf(countLeasesByIMSIStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
 		{&db.listLeasesByPoolPageStmt, fmt.Sprintf(listLeasesByPoolPageStmt, IPLeasesTableName), []any{ListArgs{}, IPLease{}, NumItems{}}},
 		{&db.listAllLeasesStmt, fmt.Sprintf(listAllLeasesStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.getStaticLeaseStmt, fmt.Sprintf(getStaticLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.listStaticLeasesByIMSIStmt, fmt.Sprintf(listStaticLeasesByIMSIStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.listStaticLeasesByDNStmt, fmt.Sprintf(listStaticLeasesByDNStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.updateStaticLeaseAddressStmt, fmt.Sprintf(updateStaticLeaseAddressStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.deleteStaticLeaseStmt, fmt.Sprintf(deleteStaticLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
 
 		// API Tokens
 		{&db.listAPITokensStmt, fmt.Sprintf(listAPITokensPagedStmt, APITokensTableName), []any{ListArgs{}, APIToken{}, NumItems{}}},

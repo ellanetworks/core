@@ -26,7 +26,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListMyAPITokens, PermCreateMyAPIToken, PermDeleteMyAPIToken,
 		PermReadOperator,
 		PermListSubscribers, PermReadSubscriber,
-		PermListDataNetworks, PermReadDataNetwork,
+		PermListDataNetworks, PermReadDataNetwork, PermListDataNetworkStaticIPs,
 		PermListPolicies, PermReadPolicy,
 		PermListProfiles, PermReadProfile,
 		PermListSlices, PermReadSlice,
@@ -49,6 +49,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListMyAPITokens, PermCreateMyAPIToken, PermDeleteMyAPIToken,
 		PermReadOperator, PermUpdateOperatorTracking, PermUpdateOperatorNASSecurity, PermUpdateOperatorHomeNetwork, PermReadHomeNetworkPrivateKey, PermUpdateOperatorSPN,
 		PermListDataNetworks, PermCreateDataNetwork, PermUpdateDataNetwork, PermReadDataNetwork, PermDeleteDataNetwork,
+		PermListDataNetworkStaticIPs, PermCreateDataNetworkStaticIP, PermUpdateDataNetworkStaticIP, PermDeleteDataNetworkStaticIP,
 		PermListSubscribers, PermCreateSubscriber, PermUpdateSubscriber, PermReadSubscriber, PermDeleteSubscriber, PermReadSubscriberCredentials,
 		PermListPolicies, PermCreatePolicy, PermUpdatePolicy, PermReadPolicy, PermDeletePolicy,
 		PermListProfiles, PermCreateProfile, PermUpdateProfile, PermReadProfile, PermDeleteProfile,
@@ -94,6 +95,12 @@ const (
 	PermUpdateDataNetwork = "data_network:update"
 	PermReadDataNetwork   = "data_network:read"
 	PermDeleteDataNetwork = "data_network:delete"
+
+	// Static IP permissions (data network sub-resource)
+	PermListDataNetworkStaticIPs  = "data_network:list_static_ips"
+	PermCreateDataNetworkStaticIP = "data_network:create_static_ip"
+	PermUpdateDataNetworkStaticIP = "data_network:update_static_ip"
+	PermDeleteDataNetworkStaticIP = "data_network:delete_static_ip"
 
 	// Operator permissions
 	PermReadOperator              = "operator:read"

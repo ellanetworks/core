@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -18,7 +18,11 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
-import { Edit as EditIcon } from "@mui/icons-material";
+import {
+  Add as AddIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+} from "@mui/icons-material";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import {
@@ -27,18 +31,20 @@ import {
   type GridPaginationModel,
   type GridRenderCellParams,
 } from "@mui/x-data-grid";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getDataNetwork,
   deleteDataNetwork,
   listIPv4Allocations,
   listIPv6Allocations,
+  deleteStaticIp,
   type APIDataNetwork,
   type APIIPAllocation,
 } from "@/queries/data_networks";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import EditDataNetworkModal from "@/components/EditDataNetworkModal";
+import CreateStaticIpModal from "@/components/CreateStaticIpModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
@@ -69,8 +75,19 @@ const DataNetworkDetail: React.FC = () => {
     [theme],
   );
 
+  const queryClient = useQueryClient();
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [staticModal, setStaticModal] = useState<
+    | { mode: "create" }
+    | { mode: "edit"; imsi: string; ipVersion: string; address: string }
+    | null
+  >(null);
+  const [deleteStatic, setDeleteStatic] = useState<{
+    imsi: string;
+    ipVersion: string;
+    address: string;
+  } | null>(null);
 
   useEffect(() => {
     if (authReady && !accessToken) navigate("/login");
@@ -133,8 +150,88 @@ const DataNetworkDetail: React.FC = () => {
     }
   };
 
-  const allocationColumns: GridColDef<APIIPAllocation>[] = useMemo(
-    () => [
+  const invalidateStaticIps = () => {
+    queryClient.invalidateQueries({ queryKey: ["ipv4-allocations", name] });
+    queryClient.invalidateQueries({ queryKey: ["ipv6-allocations", name] });
+    refetch();
+  };
+
+  const handleStaticDeleteConfirm = async () => {
+    if (!deleteStatic || !accessToken || !name) return;
+
+    try {
+      await deleteStaticIp(
+        accessToken,
+        name,
+        deleteStatic.imsi,
+        deleteStatic.ipVersion,
+      );
+      setDeleteStatic(null);
+      invalidateStaticIps();
+      showSnackbar("Static IP deleted successfully.", "success");
+    } catch (err) {
+      setDeleteStatic(null);
+      showSnackbar(
+        `Failed to delete static IP: ${err instanceof Error ? err.message : "Unknown error"}`,
+        "error",
+      );
+    }
+  };
+
+  const staticActionsColumn = useCallback(
+    (ipVersion: string): GridColDef<APIIPAllocation> => ({
+      field: "actions",
+      headerName: "Actions",
+      width: 100,
+      sortable: false,
+      renderCell: (params: GridRenderCellParams<APIIPAllocation>) => {
+        if (params.row.type !== "static") return null;
+
+        const active = params.row.session_id != null;
+
+        return (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            <IconButton
+              size="small"
+              disabled={active}
+              aria-label="Edit static IP"
+              onClick={(e: React.MouseEvent) => {
+                e.stopPropagation();
+                setStaticModal({
+                  mode: "edit",
+                  imsi: params.row.imsi,
+                  ipVersion,
+                  address: params.row.address,
+                });
+              }}
+            >
+              <EditIcon fontSize="small" />
+            </IconButton>
+            <IconButton
+              size="small"
+              color="error"
+              disabled={active}
+              aria-label="Delete static IP"
+              onClick={(e: React.MouseEvent) => {
+                e.stopPropagation();
+                setDeleteStatic({
+                  imsi: params.row.imsi,
+                  ipVersion,
+                  address: params.row.address,
+                });
+              }}
+            >
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        );
+      },
+    }),
+    [],
+  );
+
+  const allocationColumns: GridColDef<APIIPAllocation>[] = useMemo(() => {
+    const cols: GridColDef<APIIPAllocation>[] = [
       {
         field: "address",
         headerName: "Address",
@@ -236,12 +333,17 @@ const DataNetworkDetail: React.FC = () => {
           </Box>
         ),
       },
-    ],
-    [theme],
-  );
+    ];
 
-  const ipv6AllocationColumns: GridColDef<APIIPAllocation>[] = useMemo(
-    () => [
+    if (canEdit) {
+      cols.push(staticActionsColumn("ipv4"));
+    }
+
+    return cols;
+  }, [theme, canEdit, staticActionsColumn]);
+
+  const ipv6AllocationColumns: GridColDef<APIIPAllocation>[] = useMemo(() => {
+    const cols: GridColDef<APIIPAllocation>[] = [
       {
         field: "address",
         headerName: "Prefix",
@@ -345,9 +447,14 @@ const DataNetworkDetail: React.FC = () => {
           </Box>
         ),
       },
-    ],
-    [theme],
-  );
+    ];
+
+    if (canEdit) {
+      cols.push(staticActionsColumn("ipv6"));
+    }
+
+    return cols;
+  }, [theme, canEdit, staticActionsColumn]);
 
   if (!authReady || isLoading) {
     return (
@@ -647,6 +754,26 @@ const DataNetworkDetail: React.FC = () => {
         <Box sx={{ mt: 3 }}>
           <Box
             sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 1.5,
+            }}
+          >
+            <Typography variant="h6">IP Allocations</Typography>
+            {canEdit && (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<AddIcon />}
+                onClick={() => setStaticModal({ mode: "create" })}
+              >
+                Add static IP
+              </Button>
+            )}
+          </Box>
+          <Box
+            sx={{
               display: "grid",
               gridTemplateColumns: {
                 xs: "1fr",
@@ -761,6 +888,42 @@ const DataNetworkDetail: React.FC = () => {
           onConfirm={handleDeleteConfirm}
           title="Confirm Deletion"
           description={`Are you sure you want to delete the data network "${name}"? This action cannot be undone.`}
+        />
+      )}
+      {staticModal && (
+        <CreateStaticIpModal
+          open
+          onClose={() => setStaticModal(null)}
+          onSuccess={() => {
+            invalidateStaticIps();
+            showSnackbar(
+              staticModal.mode === "edit"
+                ? "Static IP updated successfully."
+                : "Static IP created successfully.",
+              "success",
+            );
+          }}
+          dataNetwork={name!}
+          ipv4Pool={dataNetwork.ipv4_pool}
+          ipv6Pool={dataNetwork.ipv6_pool}
+          edit={
+            staticModal.mode === "edit"
+              ? {
+                  imsi: staticModal.imsi,
+                  ipVersion: staticModal.ipVersion,
+                  address: staticModal.address,
+                }
+              : undefined
+          }
+        />
+      )}
+      {deleteStatic && (
+        <DeleteConfirmationModal
+          open
+          onClose={() => setDeleteStatic(null)}
+          onConfirm={handleStaticDeleteConfirm}
+          title="Confirm Deletion"
+          description={`Remove the static IP ${deleteStatic.address} (${deleteStatic.ipVersion}) for subscriber ${deleteStatic.imsi}?`}
         />
       )}
     </Box>

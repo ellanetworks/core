@@ -137,3 +137,59 @@ export async function listIPv6Allocations(
     { authToken },
   );
 }
+
+export type EligibleSubscriber = {
+  imsi: string;
+};
+
+type ListSubscribersResponse = {
+  items: EligibleSubscriber[];
+};
+
+export async function listEligibleSubscribers(
+  authToken: string,
+  dataNetwork: string,
+): Promise<EligibleSubscriber[]> {
+  const resp = await apiFetch<ListSubscribersResponse>(
+    `/api/v1/subscribers?data_network=${encodeURIComponent(dataNetwork)}&per_page=100`,
+    { authToken },
+  );
+  return resp.items ?? [];
+}
+
+export const createStaticIp = async (
+  authToken: string,
+  dataNetwork: string,
+  imsi: string,
+  address: string,
+): Promise<void> => {
+  await apiFetchVoid(
+    `/api/v1/networking/data-networks/${encodeURIComponent(dataNetwork)}/static-ips`,
+    { method: "POST", authToken, body: { imsi, address } },
+  );
+};
+
+export const updateStaticIp = async (
+  authToken: string,
+  dataNetwork: string,
+  imsi: string,
+  ipVersion: string,
+  address: string,
+): Promise<void> => {
+  await apiFetchVoid(
+    `/api/v1/networking/data-networks/${encodeURIComponent(dataNetwork)}/static-ips/${encodeURIComponent(imsi)}/${encodeURIComponent(ipVersion)}`,
+    { method: "PUT", authToken, body: { address } },
+  );
+};
+
+export const deleteStaticIp = async (
+  authToken: string,
+  dataNetwork: string,
+  imsi: string,
+  ipVersion: string,
+): Promise<void> => {
+  await apiFetchVoid(
+    `/api/v1/networking/data-networks/${encodeURIComponent(dataNetwork)}/static-ips/${encodeURIComponent(imsi)}/${encodeURIComponent(ipVersion)}`,
+    { method: "DELETE", authToken },
+  );
+};

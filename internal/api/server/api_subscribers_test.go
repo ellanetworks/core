@@ -1256,3 +1256,111 @@ func TestCreateTooManySubscribers(t *testing.T) {
 		t.Fatalf("expected error %q, got %q", "Maximum number of subscribers reached (1000)", createSubscriberResponse.Error)
 	}
 }
+
+func listSubscribersByDataNetwork(url string, client *http.Client, token, dn string) (int, *ListSubscriberResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/subscribers?data_network="+dn, nil)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	var out ListSubscriberResponse
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		return 0, nil, err
+	}
+
+	return res.StatusCode, &out, nil
+}
+
+func TestListSubscribers_DataNetworkFilter(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+	url := env.Server.URL
+
+	token, err := initializeAndRefresh(url, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	mustOK := func(name string, code int, callErr error) {
+		t.Helper()
+
+		if callErr != nil {
+			t.Fatalf("%s: %s", name, callErr)
+		}
+
+		if code != http.StatusCreated {
+			t.Fatalf("%s: expected 201, got %d", name, code)
+		}
+	}
+
+	sc, _, err := createSlice(url, client, token, &CreateSliceParams{Name: "filter-slice", Sst: 1})
+	mustOK("createSlice", sc, err)
+
+	// Two profile → data network → subscriber chains, each reaching only its own DN.
+	for _, chain := range []struct{ dn, pool, profile, policy, imsi string }{
+		{"filter-dn-1", "10.61.0.0/24", "filter-profile-1", "filter-policy-1", "001010100000061"},
+		{"filter-dn-2", "10.62.0.0/24", "filter-profile-2", "filter-policy-2", "001010100000062"},
+	} {
+		sc, _, err = createDataNetwork(url, client, token, &CreateDataNetworkParams{Name: chain.dn, IPv4Pool: chain.pool, DNS: DNS, MTU: MTU})
+		mustOK("createDataNetwork "+chain.dn, sc, err)
+
+		sc, _, err = createProfile(url, client, token, &CreateProfileParams{Name: chain.profile, UeAmbrUplink: "100 Mbps", UeAmbrDownlink: "100 Mbps"})
+		mustOK("createProfile "+chain.profile, sc, err)
+
+		sc, _, err = createPolicy(url, client, token, &CreatePolicyParams{
+			Name: chain.policy, ProfileName: chain.profile, SliceName: "filter-slice",
+			SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "100 Mbps", Var5qi: 9, Arp: 1, DataNetworkName: chain.dn,
+		})
+		mustOK("createPolicy "+chain.policy, sc, err)
+
+		sc, _, err = createSubscriber(url, client, token, &CreateSubscriberParams{Imsi: chain.imsi, Key: Key, Opc: Opc, SequenceNumber: SequenceNumber, ProfileName: chain.profile})
+		mustOK("createSubscriber "+chain.imsi, sc, err)
+	}
+
+	t.Run("filter returns only entitled subscribers", func(t *testing.T) {
+		code, resp, err := listSubscribersByDataNetwork(url, client, token, "filter-dn-1")
+		if err != nil || code != http.StatusOK {
+			t.Fatalf("expected 200, got %d (%v)", code, err)
+		}
+
+		if len(resp.Result.Items) != 1 || resp.Result.Items[0].Imsi != "001010100000061" {
+			t.Fatalf("expected only 001010100000061, got %+v", resp.Result.Items)
+		}
+
+		code, resp, err = listSubscribersByDataNetwork(url, client, token, "filter-dn-2")
+		if err != nil || code != http.StatusOK {
+			t.Fatalf("expected 200, got %d (%v)", code, err)
+		}
+
+		if len(resp.Result.Items) != 1 || resp.Result.Items[0].Imsi != "001010100000062" {
+			t.Fatalf("expected only 001010100000062, got %+v", resp.Result.Items)
+		}
+	})
+
+	t.Run("unknown data network is 404", func(t *testing.T) {
+		code, _, _ := listSubscribersByDataNetwork(url, client, token, "no-such-dn")
+		if code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d", code)
+		}
+	})
+}

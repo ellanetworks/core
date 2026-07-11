@@ -137,14 +137,33 @@ func (a *smfDBAdapter) ReleaseIP(ctx context.Context, imsi string, dnn string, p
 		return netip.Addr{}, fmt.Errorf("lookup lease: %w", err)
 	}
 
-	if err := a.db.DeleteDynamicLease(ctx, lease.ID); err != nil {
+	if err := a.releaseLease(ctx, lease); err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "delete failed")
+		span.SetStatus(codes.Error, "release failed")
 
-		return netip.Addr{}, fmt.Errorf("delete lease: %w", err)
+		return netip.Addr{}, err
 	}
 
 	return lease.Address(), nil
+}
+
+// releaseLease clears a static reservation to reserved (row kept) or
+// deletes a dynamic lease. The explicit clear is required so
+// listActiveLeases / BGP (sessionID IS NOT NULL) drop the address.
+func (a *smfDBAdapter) releaseLease(ctx context.Context, lease *db.IPLease) error {
+	if lease.Type == "static" {
+		if err := a.db.ClearStaticLeaseSession(ctx, lease.ID); err != nil {
+			return fmt.Errorf("clear static lease session: %w", err)
+		}
+
+		return nil
+	}
+
+	if err := a.db.DeleteDynamicLease(ctx, lease.ID); err != nil {
+		return fmt.Errorf("delete lease: %w", err)
+	}
+
+	return nil
 }
 
 func (a *smfDBAdapter) AllocateIPv6(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error) {
@@ -204,7 +223,7 @@ func (a *smfDBAdapter) ReleaseIPv6(ctx context.Context, imsi string, dnn string,
 		return netip.Addr{}, fmt.Errorf("lookup lease: %w", err)
 	}
 
-	if err := a.db.DeleteDynamicLease(ctx, lease.ID); err != nil {
+	if err := a.releaseLease(ctx, lease); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "release IPv6 failed")
 

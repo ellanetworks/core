@@ -19,6 +19,7 @@ var apiMatrixHAResources = map[string]apiMatrixHARunner{
 	"profiles":                   runProfilesHAMatrix,
 	"slices":                     runSlicesHAMatrix,
 	"data_networks":              runDataNetworksHAMatrix,
+	"static_ips":                 runStaticIpsHAMatrix,
 	"policies":                   runPoliciesHAMatrix,
 	"policy_rules":               runPolicyRulesHAMatrix,
 	"subscribers":                runSubscribersHAMatrix,
