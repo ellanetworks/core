@@ -54,7 +54,7 @@ func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI) (*model
 	//    them it degrades to Cell-ID.
 	result := computeCellIDLocation(supi, loc)
 
-	if measurements != nil {
+	if hasRadioMeasurements(measurements) {
 		result.Shape = models.GADECID
 		result.RSRP = measurements.RSRP
 		result.RSRQ = measurements.RSRQ
@@ -164,10 +164,38 @@ func (l *LMF) fetchECIDMeasurements(supi etsi.SUPI) *models.RadioMeasurements {
 	return measurements
 }
 
-// taToDistance converts Timing Advance slots to distance in meters.
-// Per 3GPP TS 38.133, 1 TA unit ≈ 78 meters (based on 0.52 μs × speed of light / 2).
+// hasRadioMeasurements reports whether the RAN returned any UE-specific radio
+// measurement, as opposed to only the serving cell / access-point position
+// (which is a plain Cell-ID fix). It selects the E-CID vs Cell-ID method label.
+func hasRadioMeasurements(m *models.RadioMeasurements) bool {
+	if m == nil {
+		return false
+	}
+
+	return m.RSRP != nil || m.RSRQ != nil || m.TA != nil || m.RxTxTimeDifference != nil ||
+		m.SSRSRP != nil || m.SSRSRQ != nil || m.CSIRSRP != nil || m.CSIRSRQ != nil ||
+		m.NRTimingAdvance != nil || m.AoAAzimuthDegrees != nil || m.AoAZenithDegrees != nil
+}
+
+// taToDistance converts the E-UTRA Timing Advance report value (LPPa
+// TimingAdvanceType1/2, INTEGER 0..7690) to a one-way distance in metres. Per
+// TS 36.133 §10.3.1 Table 10.3.1-1 the value maps to round-trip TADV in Ts at
+// 2 Ts resolution up to 4096 Ts and 8 Ts above; one-way distance = c·TADV·Ts/2.
 func taToDistance(ta int32) float64 {
-	return float64(ta) * 78.0
+	const oneWayMetersPerTs = 299792458.0 / (15000.0 * 2048.0) / 2.0
+
+	var tadvTs float64
+
+	switch {
+	case ta <= 2047:
+		tadvTs = 2 * float64(ta)
+	case ta <= 7689:
+		tadvTs = 4096 + 8*float64(ta-2048)
+	default:
+		tadvTs = 49232
+	}
+
+	return oneWayMetersPerTs * tadvTs
 }
 
 // NR-TADV report-mapping constants, per TS 38.133 clause 13.5.1 "Report

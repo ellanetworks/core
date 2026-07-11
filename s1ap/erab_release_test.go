@@ -89,3 +89,35 @@ func TestERABReleaseResponseRoundTrips(t *testing.T) {
 		t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
 	}
 }
+
+func TestERABReleaseResponseRoundTripsUserLocation(t *testing.T) {
+	plmn := PLMNIdentity{0x00, 0xf1, 0x10}
+	in := &ERABReleaseResponse{
+		MMEUES1APID: 42,
+		ENBUES1APID: 1,
+		UserLocationInformation: &UserLocationInformation{
+			EUTRANCGI: EUTRANCGI{PLMNIdentity: plmn, CellID: 0x0abcde1},
+			TAI:       TAI{PLMNIdentity: plmn, TAC: 9},
+		},
+	}
+
+	b, err := in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pdu, err := Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := ParseERABReleaseResponse(pdu.(*SuccessfulOutcome).Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	uli := out.UserLocationInformation
+	if uli == nil || uli.EUTRANCGI.CellID != 0x0abcde1 || uli.TAI.TAC != 9 {
+		t.Fatalf("ULI not round-tripped: %+v", uli)
+	}
+}

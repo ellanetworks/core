@@ -63,10 +63,11 @@ func decodeERABToBeModifiedItemBearerModInd(r *aper.Reader) (ERABToBeModifiedIte
 // (TS 36.413 §9.1.3.8), sent by the eNB to relocate the downlink S1-U endpoint of
 // already-established E-RABs. ToBeModified is mandatory; NotToBeModified is optional.
 type ERABModificationIndication struct {
-	MMEUES1APID     MMEUES1APID
-	ENBUES1APID     ENBUES1APID
-	ToBeModified    []ERABToBeModifiedItemBearerModInd
-	NotToBeModified []ERABToBeModifiedItemBearerModInd
+	MMEUES1APID             MMEUES1APID
+	ENBUES1APID             ENBUES1APID
+	ToBeModified            []ERABToBeModifiedItemBearerModInd
+	NotToBeModified         []ERABToBeModifiedItemBearerModInd
+	UserLocationInformation *UserLocationInformation
 
 	unmodeledIEs
 }
@@ -86,6 +87,11 @@ func (m *ERABModificationIndication) encodeBody(w *aper.Writer) error {
 		fields = append(fields, ieField{id: idERABNotToBeModifiedListBearerModInd, crit: CriticalityReject, enc: func(w *aper.Writer) error {
 			return encodeSingleContainerList(w, maxnoofERABs, idERABNotToBeModifiedItemBearerModInd, CriticalityReject, encoderList(m.NotToBeModified))
 		}})
+	}
+
+	if m.UserLocationInformation != nil {
+		u := *m.UserLocationInformation
+		fields = append(fields, ieField{id: idUserLocationInformation, crit: CriticalityIgnore, enc: u.encode})
 	}
 
 	for _, e := range m.unknownIEs {
@@ -151,6 +157,11 @@ func ParseERABModificationIndication(value []byte) (*ERABModificationIndication,
 			seenToBeModified = true
 		case idERABNotToBeModifiedListBearerModInd:
 			m.NotToBeModified, err = decodeItemList(sub, maxnoofERABs, decodeERABToBeModifiedItemBearerModInd)
+		case idUserLocationInformation:
+			var uli UserLocationInformation
+
+			uli, err = decodeUserLocationInformation(sub)
+			m.UserLocationInformation = &uli
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)
 		}

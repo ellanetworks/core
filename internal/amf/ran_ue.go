@@ -576,101 +576,82 @@ func (ueConn *UeConn) UpdateLocation(ctx context.Context, amf *AMF, userLocation
 	case ngapType.UserLocationInformationPresentUserLocationInformationEUTRA:
 		locationInfoEUTRA := userLocationInformation.UserLocationInformationEUTRA
 
-		if ueConn.Location.EutraLocation == nil {
-			ueConn.Location.EutraLocation = new(models.EutraLocation)
-		}
-
 		tAI := locationInfoEUTRA.TAI
 		plmnID := util.PlmnIDToModels(tAI.PLMNIdentity)
-		tac := hex.EncodeToString(tAI.TAC.Value)
-
-		if ueConn.Location.EutraLocation.Tai == nil {
-			ueConn.Location.EutraLocation.Tai = new(models.Tai)
-		}
-
-		ueConn.Location.EutraLocation.Tai.PlmnID = &plmnID
-		ueConn.Location.EutraLocation.Tai.Tac = tac
-		ueConn.Tai = *ueConn.Location.EutraLocation.Tai
 
 		eUTRACGI := locationInfoEUTRA.EUTRACGI
 		ePlmnID := util.PlmnIDToModels(eUTRACGI.PLMNIdentity)
-		eutraCellID := ngapConvert.BitStringToHex(&eUTRACGI.EUTRACellIdentity.Value)
 
-		if ueConn.Location.EutraLocation.Ecgi == nil {
-			ueConn.Location.EutraLocation.Ecgi = new(models.Ecgi)
+		// Rebuilt fresh each call so the snapshot published under ue.mu is never
+		// mutated after concurrent readers alias it.
+		eutra := &models.EutraLocation{
+			Tai: &models.Tai{
+				PlmnID: &plmnID,
+				Tac:    hex.EncodeToString(tAI.TAC.Value),
+			},
+			Ecgi: &models.Ecgi{
+				PlmnID:      &ePlmnID,
+				EutraCellID: ngapConvert.BitStringToHex(&eUTRACGI.EUTRACellIdentity.Value),
+			},
+			UeLocationTimestamp: &curTime,
 		}
 
-		ueConn.Location.EutraLocation.Ecgi.PlmnID = &ePlmnID
-		ueConn.Location.EutraLocation.Ecgi.EutraCellID = eutraCellID
-
-		ueConn.Location.EutraLocation.UeLocationTimestamp = &curTime
 		if locationInfoEUTRA.TimeStamp != nil {
-			ueConn.Location.EutraLocation.AgeOfLocationInformation = ngapConvert.TimeStampToInt32(
-				locationInfoEUTRA.TimeStamp.Value)
+			eutra.AgeOfLocationInformation = ngapConvert.TimeStampToInt32(locationInfoEUTRA.TimeStamp.Value)
 		}
+
+		ueConn.Location.EutraLocation = eutra
+		ueConn.Tai = *eutra.Tai
 
 		if ueConn.ue != nil {
 			ueConn.ue.mu.Lock()
 			ueConn.ue.Location = ueConn.Location
-			ueConn.ue.Tai = *ueConn.ue.Location.EutraLocation.Tai
+			ueConn.ue.Tai = *eutra.Tai
 			ueConn.ue.mu.Unlock()
 		}
 	case ngapType.UserLocationInformationPresentUserLocationInformationNR:
 		locationInfoNR := userLocationInformation.UserLocationInformationNR
 
-		if ueConn.Location.NrLocation == nil {
-			ueConn.Location.NrLocation = new(models.NrLocation)
-		}
-
 		tAI := locationInfoNR.TAI
 		plmnID := util.PlmnIDToModels(tAI.PLMNIdentity)
-		tac := hex.EncodeToString(tAI.TAC.Value)
-
-		if ueConn.Location.NrLocation.Tai == nil {
-			ueConn.Location.NrLocation.Tai = new(models.Tai)
-		}
-
-		ueConn.Location.NrLocation.Tai.PlmnID = &plmnID
-		ueConn.Location.NrLocation.Tai.Tac = tac
-		ueConn.Tai = *ueConn.Location.NrLocation.Tai
 
 		nRCGI := locationInfoNR.NRCGI
 		nRPlmnID := util.PlmnIDToModels(nRCGI.PLMNIdentity)
-		nRCellID := ngapConvert.BitStringToHex(&nRCGI.NRCellIdentity.Value)
 
-		if ueConn.Location.NrLocation.Ncgi == nil {
-			ueConn.Location.NrLocation.Ncgi = new(models.Ncgi)
+		// Rebuilt fresh each call so the snapshot published under ue.mu is never
+		// mutated after concurrent readers alias it.
+		nr := &models.NrLocation{
+			Tai: &models.Tai{
+				PlmnID: &plmnID,
+				Tac:    hex.EncodeToString(tAI.TAC.Value),
+			},
+			Ncgi: &models.Ncgi{
+				PlmnID:   &nRPlmnID,
+				NrCellID: ngapConvert.BitStringToHex(&nRCGI.NRCellIdentity.Value),
+			},
+			UeLocationTimestamp: &curTime,
 		}
 
-		ueConn.Location.NrLocation.Ncgi.PlmnID = &nRPlmnID
-		ueConn.Location.NrLocation.Ncgi.NrCellID = nRCellID
-
-		ueConn.Location.NrLocation.UeLocationTimestamp = &curTime
 		if locationInfoNR.TimeStamp != nil {
-			ueConn.Location.NrLocation.AgeOfLocationInformation = ngapConvert.TimeStampToInt32(locationInfoNR.TimeStamp.Value)
+			nr.AgeOfLocationInformation = ngapConvert.TimeStampToInt32(locationInfoNR.TimeStamp.Value)
 		}
+
+		ueConn.Location.NrLocation = nr
+		ueConn.Tai = *nr.Tai
 
 		if ueConn.ue != nil {
 			ueConn.ue.mu.Lock()
 			ueConn.ue.Location = ueConn.Location
-			ueConn.ue.Tai = *ueConn.ue.Location.NrLocation.Tai
+			ueConn.ue.Tai = *nr.Tai
 			ueConn.ue.mu.Unlock()
 		}
 	case ngapType.UserLocationInformationPresentUserLocationInformationN3IWF:
 		locationInfoN3IWF := userLocationInformation.UserLocationInformationN3IWF
 
-		if ueConn.Location.N3gaLocation == nil {
-			ueConn.Location.N3gaLocation = new(models.N3gaLocation)
-		}
-
 		ip := locationInfoN3IWF.IPAddress
 		port := locationInfoN3IWF.PortNumber
 
 		ipv4Addr, ipv6Addr := ngapConvert.IPAddressToString(ip)
-
-		ueConn.Location.N3gaLocation.UeIpv4Addr = ipv4Addr
-		ueConn.Location.N3gaLocation.UeIpv6Addr = ipv6Addr
-		ueConn.Location.N3gaLocation.PortNumber = ngapConvert.PortNumberToInt(port)
 
 		operatorInfo, err := amf.OperatorInfo(ctx)
 		if err != nil {
@@ -683,17 +664,25 @@ func (ueConn *UeConn) UpdateLocation(ctx context.Context, amf *AMF, userLocation
 			logger.AmfLog.Error("Error parsing TAC", zap.String("Tac", operatorInfo.Tais[0].Tac), zap.Error(err))
 		}
 
-		ueConn.Location.N3gaLocation.N3gppTai = &models.Tai{
-			PlmnID: operatorInfo.Tais[0].PlmnID,
-			Tac:    fmt.Sprintf("%06x", tmp),
+		// Rebuilt fresh each call so the snapshot published under ue.mu is never
+		// mutated after concurrent readers alias it.
+		n3ga := &models.N3gaLocation{
+			UeIpv4Addr: ipv4Addr,
+			UeIpv6Addr: ipv6Addr,
+			PortNumber: ngapConvert.PortNumberToInt(port),
+			N3gppTai: &models.Tai{
+				PlmnID: operatorInfo.Tais[0].PlmnID,
+				Tac:    fmt.Sprintf("%06x", tmp),
+			},
 		}
 
-		ueConn.Tai = *ueConn.Location.N3gaLocation.N3gppTai
+		ueConn.Location.N3gaLocation = n3ga
+		ueConn.Tai = *n3ga.N3gppTai
 
 		if ueConn.ue != nil {
 			ueConn.ue.mu.Lock()
 			ueConn.ue.Location = ueConn.Location
-			ueConn.ue.Tai = *ueConn.Location.N3gaLocation.N3gppTai
+			ueConn.ue.Tai = *n3ga.N3gppTai
 			ueConn.ue.mu.Unlock()
 		}
 	case ngapType.UserLocationInformationPresentNothing:

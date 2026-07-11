@@ -212,11 +212,12 @@ func decodeERABToBeModifiedList(r *aper.Reader) ([]ERABToBeModifiedItemBearerMod
 // sent by the eNB once the radio bearer QoS is reconfigured. ERABModify lists the
 // successfully modified E-RABs; ERABFailedToModify lists those rejected.
 type ERABModifyResponse struct {
-	MMEUES1APID            MMEUES1APID
-	ENBUES1APID            ENBUES1APID
-	ERABModify             []ERABModifyItemBearerModRes
-	ERABFailedToModify     []ERABItem
-	CriticalityDiagnostics *CriticalityDiagnostics
+	MMEUES1APID             MMEUES1APID
+	ENBUES1APID             ENBUES1APID
+	ERABModify              []ERABModifyItemBearerModRes
+	ERABFailedToModify      []ERABItem
+	CriticalityDiagnostics  *CriticalityDiagnostics
+	UserLocationInformation *UserLocationInformation
 
 	unmodeledIEs
 }
@@ -244,6 +245,11 @@ func (m *ERABModifyResponse) encodeBody(w *aper.Writer) error {
 	if m.CriticalityDiagnostics != nil {
 		d := *m.CriticalityDiagnostics
 		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, enc: d.encode})
+	}
+
+	if m.UserLocationInformation != nil {
+		u := *m.UserLocationInformation
+		fields = append(fields, ieField{id: idUserLocationInformation, crit: CriticalityIgnore, enc: u.encode})
 	}
 
 	for _, e := range m.unknownIEs {
@@ -312,6 +318,11 @@ func ParseERABModifyResponse(value []byte) (*ERABModifyResponse, error) {
 
 			cd, err = decodeCriticalityDiagnostics(sub)
 			m.CriticalityDiagnostics = &cd
+		case idUserLocationInformation:
+			var uli UserLocationInformation
+
+			uli, err = decodeUserLocationInformation(sub)
+			m.UserLocationInformation = &uli
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)
 		}

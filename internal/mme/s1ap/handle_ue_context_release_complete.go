@@ -34,9 +34,7 @@ func HandleUEContextReleaseComplete(m *mme.MME, ctx context.Context, radio *mme.
 		return
 	}
 
-	if msg.UserLocationInformation != nil {
-		ue.Conn().UpdateLocation(msg.UserLocationInformation.EUTRANCGI, msg.UserLocationInformation.TAI)
-	}
+	captureUserLocation(ue, msg.UserLocationInformation)
 
 	ue.TouchLastSeen()
 

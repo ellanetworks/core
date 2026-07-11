@@ -12,6 +12,19 @@ import (
 	"go.uber.org/zap"
 )
 
+// captureUserLocation records the serving cell from an optional S1AP User
+// Location Information IE (TS 36.413 §9.2.1.93) that an eNB may attach to E-RAB
+// and release messages. It is a no-op when the IE is absent.
+func captureUserLocation(ue *mme.UeContext, uli *s1ap.UserLocationInformation) {
+	if uli == nil {
+		return
+	}
+
+	if conn := ue.Conn(); conn != nil {
+		conn.UpdateLocation(uli.EUTRANCGI, uli.TAI)
+	}
+}
+
 // handleLocationReport records the UE's serving cell from an eNB LOCATION REPORT
 // (TS 36.413 §8.12).
 func handleLocationReport(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {

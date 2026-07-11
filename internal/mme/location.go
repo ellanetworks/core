@@ -17,35 +17,26 @@ import (
 // of the 6-hex-digit TAC (TS 23.003, matching the gNB TAI rendering).
 func (c *UeConn) UpdateLocation(cgi s1ap.EUTRANCGI, tai s1ap.TAI) {
 	curTime := time.Now().UTC()
-
-	if c.Location.EutraLocation == nil {
-		c.Location.EutraLocation = new(models.EutraLocation)
-	}
-
 	plmnID := decodePLMN(tai.PLMNIdentity)
-	tac := fmt.Sprintf("%06x", uint16(tai.TAC))
-
-	if c.Location.EutraLocation.Tai == nil {
-		c.Location.EutraLocation.Tai = new(models.Tai)
-	}
-
-	c.Location.EutraLocation.Tai.PlmnID = &plmnID
-	c.Location.EutraLocation.Tai.Tac = tac
-
 	ePlmnID := decodePLMN(cgi.PLMNIdentity)
-	eutraCellID := fmt.Sprintf("%07x", cgi.CellID)
 
-	if c.Location.EutraLocation.Ecgi == nil {
-		c.Location.EutraLocation.Ecgi = new(models.Ecgi)
+	// A fresh EutraLocation is built every call rather than mutated in place: the
+	// snapshot published under ue.mu is aliased by concurrent LMF/API readers, so
+	// the object it points at must never change after publication.
+	eutra := &models.EutraLocation{
+		Tai: &models.Tai{
+			PlmnID: &plmnID,
+			Tac:    fmt.Sprintf("%06x", uint16(tai.TAC)),
+		},
+		Ecgi: &models.Ecgi{
+			PlmnID:      &ePlmnID,
+			EutraCellID: fmt.Sprintf("%07x", cgi.CellID),
+		},
+		UeLocationTimestamp: &curTime,
 	}
 
-	c.Location.EutraLocation.Ecgi.PlmnID = &ePlmnID
-	c.Location.EutraLocation.Ecgi.EutraCellID = eutraCellID
+	c.Location.EutraLocation = eutra
 
-	c.Location.EutraLocation.UeLocationTimestamp = &curTime
-
-	// The per-connection copy above is dispatch-confined; the mirror to the shared
-	// persistent context is read from the API/LMF goroutine, so it takes ue.mu.
 	if c.ue != nil {
 		c.ue.mu.Lock()
 		c.ue.Location = c.Location

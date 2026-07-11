@@ -97,7 +97,12 @@ func TestUpdateLocationConcurrentReadWrite(t *testing.T) {
 	}()
 
 	for i := 0; i < 1000; i++ {
-		_ = ue.GetUserLocation()
+		loc := ue.GetUserLocation()
+		if el := loc.EutraLocation; el != nil && el.Ecgi != nil {
+			_ = el.Ecgi.EutraCellID
+			_ = el.Tai.Tac
+		}
+
 		_ = ue.IsUserLocationEmpty()
 	}
 

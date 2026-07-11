@@ -60,7 +60,7 @@ func (m *DownlinkUEAssociatedLPPaTransport) Marshal() ([]byte, error) {
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcDownlinkUEAssociatedLPPaTransport,
-		Criticality:   CriticalityReject,
+		Criticality:   CriticalityIgnore,
 		Value:         w.Bytes(),
 	})
 }
@@ -107,7 +107,7 @@ func (m *UplinkUEAssociatedLPPaTransport) Marshal() ([]byte, error) {
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcUplinkUEAssociatedLPPaTransport,
-		Criticality:   CriticalityReject,
+		Criticality:   CriticalityIgnore,
 		Value:         w.Bytes(),
 	})
 }

@@ -129,13 +129,12 @@ func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measur
 				)
 			}
 
+			// On-demand E-CID: per TS 36.455 §8.2.1.2 the eNB considers the
+			// measurement terminated once it returns the Initiation Response, so no
+			// Termination Command is sent (that procedure is for periodic reporting,
+			// §8.2.4.1).
 			m := mapECIDResult(resp.Result)
 			ue.SetRadioMeasurements(m)
-
-			// Release the measurement association in the eNB so subsequent on-demand
-			// requests are treated as fresh measurements. Best-effort: the E-CID fix
-			// is already complete, so failures here are logged but not propagated.
-			c.terminateMeasurement(ctx, supi, resp.ESMLCUEMeasurementID, resp.ENBUEMeasurementID)
 
 			return m, nil
 		}
@@ -157,48 +156,6 @@ func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measur
 		case <-ticker.C:
 		}
 	}
-}
-
-// terminateMeasurement sends an LPPa E-CIDMeasurementTerminationCommand for the
-// given measurement to the RAN, releasing the measurement association in the eNB.
-// The Termination Command is a Class 2 procedure (no response), so this is
-// fire-and-forget. Errors are logged and swallowed: by the time it is called the
-// E-CID fix has already been obtained.
-func (c *Client) terminateMeasurement(ctx context.Context, supi etsi.SUPI, esmlcMeasID, enbMeasID int64) {
-	ue, ok := c.mme.LookupUeBySupi(supi)
-	if !ok {
-		return
-	}
-
-	conn := ue.Conn()
-	if conn == nil {
-		return
-	}
-
-	payload, err := lppa.BuildECIDMeasurementTerminationCommand(esmlcMeasID, enbMeasID)
-	if err != nil {
-		logger.LmfLog.Warn("failed to build LPPa E-CID termination command",
-			zap.String("supi", supi.String()),
-			zap.Error(err),
-		)
-
-		return
-	}
-
-	if err := conn.SendDownlinkLPPaTransport(ctx, 0, payload); err != nil {
-		logger.LmfLog.Warn("failed to send LPPa E-CID termination command",
-			zap.String("supi", supi.String()),
-			zap.Error(err),
-		)
-
-		return
-	}
-
-	logger.LmfLog.Debug("LPPa E-CID measurement terminated",
-		zap.String("supi", supi.String()),
-		zap.Int64("esmlcMeasurementID", esmlcMeasID),
-		zap.Int64("enbMeasurementID", enbMeasID),
-	)
 }
 
 // measurementPollInterval is how often WaitForMeasurements polls the UE context
@@ -326,20 +283,25 @@ func mapECIDResult(result *lppa.ECIDResult) *lmfmodels.RadioMeasurements {
 	}
 
 	if len(result.RSRP) > 0 {
-		rsrp := valueRSRPToDBm(result.RSRP[0].ValueRSRP)
+		rsrp := valueRSRPToDBm(strongestRSRP(result.RSRP))
 		m.RSRP = &rsrp
 	}
 
 	if len(result.RSRQ) > 0 {
-		rsrq := valueRSRQToDB(result.RSRQ[0].ValueRSRQ)
+		rsrq := valueRSRQToDB(strongestRSRQ(result.RSRQ))
 		m.RSRQ = &rsrq
 	}
 
 	if result.APPosition != nil {
+		altitude := result.APPosition.Altitude
+		if result.APPosition.DirectionOfAltitude == 1 { // depth (below the ellipsoid)
+			altitude = -altitude
+		}
+
 		m.APPosition = &lmfmodels.APPosition{
 			LatitudeDegrees:      result.APPosition.LatitudeDegrees,
 			LongitudeDegrees:     result.APPosition.LongitudeDegrees,
-			Altitude:             result.APPosition.Altitude,
+			Altitude:             altitude,
 			UncertaintySemiMajor: result.APPosition.UncertaintySemiMajor,
 			UncertaintySemiMinor: result.APPosition.UncertaintySemiMinor,
 			Confidence:           result.APPosition.Confidence,
@@ -347,6 +309,33 @@ func mapECIDResult(result *lppa.ECIDResult) *lmfmodels.RadioMeasurements {
 	}
 
 	return m
+}
+
+// strongestRSRP returns the highest ValueRSRP in the E-CID result list. The
+// LPPa ResultRSRP list is not spec-ordered by strength, and the serving cell is
+// not tagged, so the strongest cell is used as the best available proxy.
+func strongestRSRP(items []lppa.RSRPItem) int64 {
+	best := items[0].ValueRSRP
+
+	for _, it := range items[1:] {
+		if it.ValueRSRP > best {
+			best = it.ValueRSRP
+		}
+	}
+
+	return best
+}
+
+func strongestRSRQ(items []lppa.RSRQItem) int64 {
+	best := items[0].ValueRSRQ
+
+	for _, it := range items[1:] {
+		if it.ValueRSRQ > best {
+			best = it.ValueRSRQ
+		}
+	}
+
+	return best
 }
 
 // valueRSRPToDBm converts an E-UTRA ValueRSRP report (0..97) to dBm × 100.
