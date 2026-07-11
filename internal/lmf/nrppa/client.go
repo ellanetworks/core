@@ -134,14 +134,12 @@ func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measur
 				)
 			}
 
+			// On-demand E-CID: per TS 38.455 §8.2.1.2 the NG-RAN node considers the
+			// measurement terminated once it returns the Initiation Response, so no
+			// Termination Command is sent (that procedure is for periodic reporting,
+			// §8.2.4.1).
 			m := mapECIDResult(resp.Result)
 			ue.SetRadioMeasurements(m)
-
-			// Release the measurement association in the gNB so subsequent
-			// on-demand requests are treated as fresh measurements. Best-effort:
-			// the E-CID fix is already complete, so failures here are logged but
-			// not propagated. Use the ids the gNB actually reported.
-			c.terminateMeasurement(ctx, supi, resp.LMFUEMeasurementID, resp.RANUEMeasurementID)
 
 			return m, nil
 		}
@@ -163,48 +161,6 @@ func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measur
 		case <-ticker.C:
 		}
 	}
-}
-
-// terminateMeasurement sends an NRPPa E-CIDMeasurementTerminationCommand for the
-// given measurement to the RAN, releasing the measurement association in the
-// gNB. The Termination Command is a Class 2 procedure (no response), so this is
-// fire-and-forget. Errors are logged and swallowed: by the time it is called the
-// E-CID fix has already been obtained.
-func (c *Client) terminateMeasurement(ctx context.Context, supi etsi.SUPI, lmfMeasID, ranMeasID int64) {
-	amfUe, ok := c.amf.LookupUeBySupi(supi)
-	if !ok {
-		return
-	}
-
-	ranUe := amfUe.Conn()
-	if ranUe == nil {
-		return
-	}
-
-	payload, err := nrppa.BuildECIDMeasurementTerminationCommand(lmfMeasID, ranMeasID)
-	if err != nil {
-		logger.LmfLog.Warn("failed to build NRPPa E-CID termination command",
-			zap.String("supi", supi.String()),
-			zap.Error(err),
-		)
-
-		return
-	}
-
-	if err := ranUe.SendDownlinkNRPPaTransport(ctx, 0, payload); err != nil {
-		logger.LmfLog.Warn("failed to send NRPPa E-CID termination command",
-			zap.String("supi", supi.String()),
-			zap.Error(err),
-		)
-
-		return
-	}
-
-	logger.LmfLog.Debug("NRPPa E-CID measurement terminated",
-		zap.String("supi", supi.String()),
-		zap.Int64("lmfMeasurementID", lmfMeasID),
-		zap.Int64("ranMeasurementID", ranMeasID),
-	)
 }
 
 // measurementPollInterval is how often WaitForMeasurements polls the UE
