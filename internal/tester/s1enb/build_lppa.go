@@ -4,6 +4,7 @@
 package s1enb
 
 import (
+	"encoding/binary"
 	"fmt"
 
 	"github.com/ellanetworks/core/lppa"
@@ -24,9 +25,12 @@ func (e *ENB) sampleECIDResult() *lppa.ECIDResult {
 	ta := sampleLPPaTimingAdvance
 	aoa := sampleLPPaAngleOfArrival
 
+	tac := make([]byte, 2)
+	binary.BigEndian.PutUint16(tac, e.tac)
+
 	return &lppa.ECIDResult{
 		ServingCell:    lppa.ECGI{PLMNIdentity: cgi.PLMNIdentity[:], EUTRACellID: uint64(cgi.CellID)},
-		ServingCellTAC: []byte{byte(e.tac >> 8), byte(e.tac)},
+		ServingCellTAC: tac,
 		APPosition: &lppa.APPosition{
 			LatitudeSign:           0,       // north
 			Latitude:               4194304, // 2^22 → 45.0° via N·90/2^23
