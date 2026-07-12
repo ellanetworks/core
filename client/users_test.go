@@ -713,3 +713,28 @@ func TestUpdateUserPassword_Failure(t *testing.T) {
 		t.Fatalf("expected error, got none")
 	}
 }
+
+func TestGetMyUser_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"email": "admin@ellanetworks.com", "role_id": 1}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	user, err := clientObj.GetMyUser(context.Background())
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if user.Email != "admin@ellanetworks.com" {
+		t.Fatalf("unexpected email: %q", user.Email)
+	}
+
+	if fake.lastOpts.Method != "GET" || fake.lastOpts.Path != "api/v1/users/me" {
+		t.Fatalf("unexpected request: %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
+	}
+}

@@ -352,6 +352,25 @@ func (c *Client) DeleteUserAPIToken(ctx context.Context, email string, tokenID s
 }
 
 // UpdateMyPassword changes the password of the currently authenticated user.
+func (c *Client) GetMyUser(ctx context.Context) (*User, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   "api/v1/users/me",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var user User
+
+	if err := resp.DecodeResult(&user); err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
 func (c *Client) UpdateMyPassword(ctx context.Context, opts *UpdateMyPasswordOptions) error {
 	var body bytes.Buffer
 

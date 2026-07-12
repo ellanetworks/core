@@ -76,6 +76,20 @@ func (c *Client) ListUsage(ctx context.Context, p *ListUsageParams) (*ListUsageR
 	return &usage, nil
 }
 
+// ClearUsage deletes all recorded subscriber usage.
+func (c *Client) ClearUsage(ctx context.Context) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "DELETE",
+		Path:   "api/v1/subscriber-usage",
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // GetUsageRetentionPolicy retrieves the current usage retention policy.
 func (c *Client) GetUsageRetentionPolicy(ctx context.Context) (*GetUsageRetentionPolicy, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{

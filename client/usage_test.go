@@ -215,3 +215,39 @@ func TestUpdateUsageRetentionPolicy_Failure(t *testing.T) {
 		t.Fatalf("expected error, got none")
 	}
 }
+
+func TestClearUsage_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "All subscriber usage cleared successfully"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	if err := clientObj.ClearUsage(context.Background()); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts.Method != "DELETE" || fake.lastOpts.Path != "api/v1/subscriber-usage" {
+		t.Fatalf("unexpected request: %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
+	}
+}
+
+func TestClearUsage_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 500,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "Failed to clear subscriber usage"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	if err := clientObj.ClearUsage(context.Background()); err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}
