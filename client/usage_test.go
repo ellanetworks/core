@@ -96,6 +96,30 @@ func TestListUsage_Failure(t *testing.T) {
 	}
 }
 
+// TestListUsage_InvalidGroupBy verifies the client rejects an unsupported
+// group_by before issuing a request.
+func TestListUsage_InvalidGroupBy(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`[]`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	for _, groupBy := range []string{"", "week"} {
+		params := &client.ListUsageParams{GroupBy: groupBy}
+
+		if _, err := clientObj.ListUsage(context.Background(), params); err == nil {
+			t.Fatalf("group_by %q: expected error, got none", groupBy)
+		}
+	}
+}
+
 func TestGetUsageRetentionPolicy_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{

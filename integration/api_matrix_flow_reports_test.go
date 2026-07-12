@@ -39,4 +39,17 @@ func runFlowReportsMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	if len(stats.TopDestinationsUplink) != 0 {
 		t.Fatalf("flow report stats top destinations: got %d, want 0", len(stats.TopDestinationsUplink))
 	}
+
+	if err := c.ClearFlowReports(ctx); err != nil {
+		t.Fatalf("clear flow reports: %v", err)
+	}
+
+	afterClear, err := c.ListFlowReports(ctx, &client.ListFlowReportsParams{Page: 1, PerPage: 100})
+	if err != nil {
+		t.Fatalf("list flow reports after clear: %v", err)
+	}
+
+	if afterClear.TotalCount != 0 {
+		t.Fatalf("list flow reports after clear: got %d, want 0", afterClear.TotalCount)
+	}
 }

@@ -50,7 +50,8 @@ var apiMatrixResources = map[string]apiMatrixRunner{
 	"subscriber_usage":           runSubscriberUsageMatrix,
 	"flow_reports":               runFlowReportsMatrix,
 	"bgp_routes":                 runBGPRoutesMatrix,
-	"ipv4_allocations":           runIPv4AllocationsMatrix,
+	"ip_allocations":             runIPAllocationsMatrix,
+	"my_api_tokens":              runMyAPITokensMatrix,
 }
 
 func TestAPIMatrix(t *testing.T) {

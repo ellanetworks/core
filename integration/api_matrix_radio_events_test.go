@@ -25,4 +25,17 @@ func runRadioEventsMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	if len(got.Items) != 0 {
 		t.Fatalf("list radio events items: got %d, want 0", len(got.Items))
 	}
+
+	if err := c.ClearRadioEvents(ctx); err != nil {
+		t.Fatalf("clear radio events: %v", err)
+	}
+
+	afterClear, err := c.ListRadioEvents(ctx, &client.ListRadioEventsParams{Page: 1, PerPage: 100})
+	if err != nil {
+		t.Fatalf("list radio events after clear: %v", err)
+	}
+
+	if afterClear.TotalCount != 0 {
+		t.Fatalf("list radio events after clear: got %d, want 0", afterClear.TotalCount)
+	}
 }
