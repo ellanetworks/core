@@ -43,6 +43,14 @@ var apiMatrixResources = map[string]apiMatrixRunner{
 	"flow_reports_retention":     runFlowReportsRetentionMatrix,
 	"audit_log_retention":        runAuditLogRetentionMatrix,
 	"audit_logs":                 runAuditLogsMatrix,
+	"status":                     runStatusMatrix,
+	"metrics":                    runMetricsMatrix,
+	"radios":                     runRadiosMatrix,
+	"radio_events":               runRadioEventsMatrix,
+	"subscriber_usage":           runSubscriberUsageMatrix,
+	"flow_reports":               runFlowReportsMatrix,
+	"bgp_routes":                 runBGPRoutesMatrix,
+	"ipv4_allocations":           runIPv4AllocationsMatrix,
 }
 
 func TestAPIMatrix(t *testing.T) {
