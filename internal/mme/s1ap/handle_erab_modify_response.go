@@ -22,6 +22,7 @@ func handleERABModifyResponse(m *mme.MME, value []byte) {
 
 	if ue, ok := m.LookupUe(resp.MMEUES1APID); ok {
 		ue.TouchLastSeen()
+		captureUserLocation(ue, resp.UserLocationInformation)
 	}
 
 	if len(resp.ERABFailedToModify) > 0 {

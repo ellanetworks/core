@@ -140,7 +140,7 @@ func buildTestEnv(testdb *db.Database) (testEnv, error) {
 	}
 
 	amfInstance := amf.New(testdb, nil, smfInstance)
-	lmfInstance := lmf.New(amfInstance, nil)
+	lmfInstance := lmf.New(amfInstance, nil, nil)
 	ts := httptest.NewTLSServer(server.NewHandler(server.HandlerConfig{
 		DB:           testdb,
 		Config:       cfg,

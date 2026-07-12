@@ -11,7 +11,6 @@ import (
 	"net/http"
 
 	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/lmf"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
@@ -34,7 +33,7 @@ type LocationRequest struct {
 	QOSHAccuracyM     *int   `json:"qos_horizontal_accuracy_m,omitempty"`
 }
 
-func GetSubscriberLocation(amfInstance *amf.AMF, lmfInstance *lmf.LMF) http.Handler {
+func GetSubscriberLocation(lmfInstance *lmf.LMF) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req LocationRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

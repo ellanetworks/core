@@ -72,6 +72,9 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 	m.AttachUeConn(ue, c)
 	c.MarkSecureExchangeEstablished()
 
+	c.ServingTAI = msg.TAI
+	c.UpdateLocation(msg.EUTRANCGI, msg.TAI)
+
 	ue.AdvanceULCount()
 
 	logger.From(ctx, logger.MmeLog).Info("Service Request accepted",

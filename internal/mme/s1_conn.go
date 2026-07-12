@@ -5,6 +5,7 @@ package mme
 
 import (
 	"github.com/ellanetworks/core/internal/guard"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -47,6 +48,11 @@ type UeConn struct {
 	// gates attach/TAU against the operator's served area (EMM cause #12).
 	// Dispatch-confined.
 	ServingTAI s1ap.TAI
+
+	// Location is the UE's serving-cell User Location (E-UTRAN CGI + TAI) from the
+	// same messages as ServingTAI, mirrored to the persistent UeContext when one is
+	// bound (TS 36.413). Dispatch-confined.
+	Location models.UserLocation
 
 	m *MME
 

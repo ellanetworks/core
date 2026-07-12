@@ -108,6 +108,8 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 		return
 	}
 
+	ue.Conn().UpdateLocation(req.EUTRANCGI, req.TAI)
+
 	ack := &s1ap.PathSwitchRequestAcknowledge{
 		SecurityContext:        s1ap.SecurityContext{NextHopChainingCount: ncc, NextHopParameter: s1ap.SecurityKey(newNH)},
 		UESecurityCapabilities: replayCaps,

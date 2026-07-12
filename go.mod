@@ -53,6 +53,7 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/eapache/channels v1.1.0 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
+	github.com/ellanetworks/core/lppa v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/nas v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/s1ap v0.0.0-00010101000000-000000000000
 	github.com/fatih/color v1.13.0 // indirect
@@ -125,6 +126,8 @@ require (
 // build tag. Used by internal/raft to replicate write-set changesets
 // rather than typed commands.
 replace github.com/mattn/go-sqlite3 => github.com/ellanetworks/go-sqlite3 v0.0.0-20260414212710-333ead4fa037
+
+replace github.com/ellanetworks/core/lppa => ./lppa
 
 replace github.com/ellanetworks/core/s1ap => ./s1ap
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
+	lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nrppa"
 	"go.uber.org/zap"
@@ -77,11 +78,6 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 		return 0, fmt.Errorf("UE has no active RAN connection: %s", supi)
 	}
 
-	ran := ranUe.Radio()
-	if ran == nil {
-		return 0, fmt.Errorf("UE has no NGAP sender available: %s", supi)
-	}
-
 	measID := c.nextMeasurementID()
 
 	payload, err := nrppa.BuildECIDMeasurementInitiationRequest(measID, ecidMeasurementQuantities)
@@ -89,14 +85,8 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 		return 0, fmt.Errorf("failed to build NRPPa E-CID request: %w", err)
 	}
 
-	err = ran.SendDownlinkNRPPaTransport(
-		ctx,
-		int64(ranUe.AmfUeNgapID),
-		int64(ranUe.RanUeNgapID),
-		0, // RoutingID: 0 for MVP (not used by gNB tester)
-		payload,
-	)
-	if err != nil {
+	// RoutingID 0 for MVP (not used by gNB tester).
+	if err := ranUe.SendDownlinkNRPPaTransport(ctx, 0, payload); err != nil {
 		return 0, fmt.Errorf("failed to send NRPPa transport: %w", err)
 	}
 
@@ -117,7 +107,7 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 // them in the UE context, and returns them. On RAN rejection it returns nil
 // immediately so the caller can fall back to Cell ID without waiting for a
 // timeout.
-func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measurementID int64, notBefore time.Time) (*amf.RadioMeasurements, error) {
+func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measurementID int64, notBefore time.Time) (*lmfmodels.RadioMeasurements, error) {
 	ue, ok := c.amf.LookupUeBySupi(supi)
 	if !ok {
 		return nil, fmt.Errorf("UE not found: %s", supi)
@@ -144,14 +134,12 @@ func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measur
 				)
 			}
 
+			// On-demand E-CID: per TS 38.455 §8.2.1.2 the NG-RAN node considers the
+			// measurement terminated once it returns the Initiation Response, so no
+			// Termination Command is sent (that procedure is for periodic reporting,
+			// §8.2.4.1).
 			m := mapECIDResult(resp.Result)
 			ue.SetRadioMeasurements(m)
-
-			// Release the measurement association in the gNB so subsequent
-			// on-demand requests are treated as fresh measurements. Best-effort:
-			// the E-CID fix is already complete, so failures here are logged but
-			// not propagated. Use the ids the gNB actually reported.
-			c.terminateMeasurement(ctx, supi, resp.LMFUEMeasurementID, resp.RANUEMeasurementID)
 
 			return m, nil
 		}
@@ -173,53 +161,6 @@ func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measur
 		case <-ticker.C:
 		}
 	}
-}
-
-// terminateMeasurement sends an NRPPa E-CIDMeasurementTerminationCommand for the
-// given measurement to the RAN, releasing the measurement association in the
-// gNB. The Termination Command is a Class 2 procedure (no response), so this is
-// fire-and-forget. Errors are logged and swallowed: by the time it is called the
-// E-CID fix has already been obtained.
-func (c *Client) terminateMeasurement(ctx context.Context, supi etsi.SUPI, lmfMeasID, ranMeasID int64) {
-	amfUe, ok := c.amf.LookupUeBySupi(supi)
-	if !ok {
-		return
-	}
-
-	ranUe := amfUe.Conn()
-	if ranUe == nil {
-		return
-	}
-
-	ran := ranUe.Radio()
-	if ran == nil {
-		return
-	}
-
-	payload, err := nrppa.BuildECIDMeasurementTerminationCommand(lmfMeasID, ranMeasID)
-	if err != nil {
-		logger.LmfLog.Warn("failed to build NRPPa E-CID termination command",
-			zap.String("supi", supi.String()),
-			zap.Error(err),
-		)
-
-		return
-	}
-
-	if err := ran.SendDownlinkNRPPaTransport(ctx, int64(ranUe.AmfUeNgapID), int64(ranUe.RanUeNgapID), 0, payload); err != nil {
-		logger.LmfLog.Warn("failed to send NRPPa E-CID termination command",
-			zap.String("supi", supi.String()),
-			zap.Error(err),
-		)
-
-		return
-	}
-
-	logger.LmfLog.Debug("NRPPa E-CID measurement terminated",
-		zap.String("supi", supi.String()),
-		zap.Int64("lmfMeasurementID", lmfMeasID),
-		zap.Int64("ranMeasurementID", ranMeasID),
-	)
 }
 
 // measurementPollInterval is how often WaitForMeasurements polls the UE
@@ -319,12 +260,12 @@ func matchMeasurementResponse(messages []amf.NRPPaMessage, measurementID int64, 
 	return nil, nil
 }
 
-// mapECIDResult converts a decoded E-CID measurement result into the AMF radio
-// measurement shape. Timing advance is taken from valueTimingAdvanceType1 (or
-// type2 as fallback); RSRP/RSRQ are left nil unless reported. The serving cell
-// access point position is carried through when present.
-func mapECIDResult(result *nrppa.ECIDResult) *amf.RadioMeasurements {
-	m := &amf.RadioMeasurements{}
+// mapECIDResult converts a decoded E-CID measurement result into the shared
+// radio-measurement shape. Timing advance is taken from valueTimingAdvanceType1
+// (or type2 as fallback); RSRP/RSRQ are left nil unless reported. The serving
+// cell access point position is carried through when present.
+func mapECIDResult(result *nrppa.ECIDResult) *lmfmodels.RadioMeasurements {
+	m := &lmfmodels.RadioMeasurements{}
 
 	if result == nil {
 		return m
@@ -361,41 +302,38 @@ func mapECIDResult(result *nrppa.ECIDResult) *amf.RadioMeasurements {
 		}
 	}
 
-	// Map NR-specific measurements (SSB/CSI-RS based)
-	if result.ResultSSRSRP != nil {
-		if len(result.ResultSSRSRP.Items) > 0 {
-			// Use the first (strongest) SS-RSRP measurement
-			ssrsrp := ssrsrpToDBm(result.ResultSSRSRP.Items[0].Value)
-			m.SSRSRP = &ssrsrp
-		}
+	// NR SSB/CSI-RS measurements. The result list is not spec-ordered by strength,
+	// so the strongest beam is used as the best available proxy for the cell.
+	if result.ResultSSRSRP != nil && len(result.ResultSSRSRP.Items) > 0 {
+		ssrsrp := ssrsrpToDBm(strongestBy(result.ResultSSRSRP.Items, func(it nrppa.SSRSRPItem) int64 { return it.Value }))
+		m.SSRSRP = &ssrsrp
 	}
 
-	if result.ResultSSRSRQ != nil {
-		if len(result.ResultSSRSRQ.Items) > 0 {
-			ssrsrq := ssrsrqToDB(result.ResultSSRSRQ.Items[0].Value)
-			m.SSRSRQ = &ssrsrq
-		}
+	if result.ResultSSRSRQ != nil && len(result.ResultSSRSRQ.Items) > 0 {
+		ssrsrq := ssrsrqToDB(strongestBy(result.ResultSSRSRQ.Items, func(it nrppa.SSRSRQItem) int64 { return it.Value }))
+		m.SSRSRQ = &ssrsrq
 	}
 
-	if result.ResultCSIRSRP != nil {
-		if len(result.ResultCSIRSRP.Items) > 0 {
-			csirsrp := csirsrpToDBm(result.ResultCSIRSRP.Items[0].Value)
-			m.CSIRSRP = &csirsrp
-		}
+	if result.ResultCSIRSRP != nil && len(result.ResultCSIRSRP.Items) > 0 {
+		csirsrp := csirsrpToDBm(strongestBy(result.ResultCSIRSRP.Items, func(it nrppa.CSIRSRPItem) int64 { return it.Value }))
+		m.CSIRSRP = &csirsrp
 	}
 
-	if result.ResultCSIRSRQ != nil {
-		if len(result.ResultCSIRSRQ.Items) > 0 {
-			csirsrq := csirsrqToDB(result.ResultCSIRSRQ.Items[0].Value)
-			m.CSIRSRQ = &csirsrq
-		}
+	if result.ResultCSIRSRQ != nil && len(result.ResultCSIRSRQ.Items) > 0 {
+		csirsrq := csirsrqToDB(strongestBy(result.ResultCSIRSRQ.Items, func(it nrppa.CSIRSRQItem) int64 { return it.Value }))
+		m.CSIRSRQ = &csirsrq
 	}
 
 	if result.APPosition != nil {
-		m.APPosition = &amf.APPosition{
+		altitude := result.APPosition.Altitude
+		if result.APPosition.DirectionOfAltitude == 1 { // depth (below the ellipsoid)
+			altitude = -altitude
+		}
+
+		m.APPosition = &lmfmodels.APPosition{
 			LatitudeDegrees:      result.APPosition.LatitudeDegrees,
 			LongitudeDegrees:     result.APPosition.LongitudeDegrees,
-			Altitude:             result.APPosition.Altitude,
+			Altitude:             altitude,
 			UncertaintySemiMajor: result.APPosition.UncertaintySemiMajor,
 			UncertaintySemiMinor: result.APPosition.UncertaintySemiMinor,
 			Confidence:           result.APPosition.Confidence,
@@ -403,6 +341,20 @@ func mapECIDResult(result *nrppa.ECIDResult) *amf.RadioMeasurements {
 	}
 
 	return m
+}
+
+// strongestBy returns the highest projected value across a measurement item
+// list (higher RSRP/RSRQ report values are stronger).
+func strongestBy[T any](items []T, val func(T) int64) int64 {
+	best := val(items[0])
+
+	for _, it := range items[1:] {
+		if v := val(it); v > best {
+			best = v
+		}
+	}
+
+	return best
 }
 
 // ssrsrpToDBm converts an NR SS-RSRP report value (0..127) to dBm × 100.

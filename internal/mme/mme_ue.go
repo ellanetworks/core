@@ -12,6 +12,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/guard"
+	lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme/procedure"
 	"github.com/ellanetworks/core/internal/models"
@@ -158,15 +159,21 @@ type UeContext struct {
 	RequestedPDNType uint8        // UE-requested PDN type (1 IPv4 / 2 IPv6 / 3 IPv4v6)
 	RequestedAPN     string       // UE-requested APN at attach ("" = use the default policy, TS 24.301 §6.5.1.3)
 
-	// tmsi is the M-TMSI of the GUTI assigned at attach (0 = none); it indexes
-	// the UE for S-TMSI-addressed procedures (Service Request, paging).
+	// tmsi is the M-TMSI of the GUTI assigned at attach (InvalidTMSI = none); it
+	// indexes the UE for S-TMSI-addressed procedures (Service Request, paging).
 	// oldTmsi is the M-TMSI being replaced during a GUTI reallocation at TAU
-	// (0 = none): both stay resolvable, and the UE is paged with the old one,
-	// until TRACKING AREA UPDATE COMPLETE commits the new GUTI (TS 24.301).
+	// (InvalidTMSI = none): both stay resolvable, and the UE is paged with the old
+	// one, until TRACKING AREA UPDATE COMPLETE commits the new GUTI (TS 24.301).
+	// 0 is a legal M-TMSI (only all-ones is reserved, TS 23.003 §2.4), so the
+	// reserved InvalidTMSI value is the "none" sentinel, never 0.
 	// Guarded by MME.mu (the registry lock, which also guards the uesByTmsi index):
 	// written only by the guti realloc/clear methods; read via Tmsi()/OldTmsi().
 	tmsi    etsi.TMSI
 	oldTmsi etsi.TMSI
+
+	// Location is the UE's serving-cell User Location (E-UTRAN CGI + TAI), refreshed
+	// on every UE-associated S1AP message that carries it. Guarded by mu.
+	Location models.UserLocation
 
 	// mu is the per-UE lock guarding this UE's data state — the EPS NAS security
 	// context below (dlCount, knasEnc, knasInt, eea, eia, imei, secured), the PDN
@@ -235,6 +242,15 @@ type UeContext struct {
 	// (the guard counts them), and cancelled when the UE reconnects. The Paging PDU
 	// is captured by the retransmit closure.
 	pagingTimer guard.Guard
+
+	// LPPa positioning state (TS 36.455), independent of EMM/ESM state and each
+	// guarded by its own lock. lppaMessages buffers the raw LPPa PDUs the eNB
+	// relays uplink for the LMF to correlate and decode; radioMeasurements caches
+	// the E-CID measurement result the LMF last obtained.
+	lppaMu            sync.RWMutex
+	lppaMessages      []LPPaMessage
+	radioMu           sync.RWMutex
+	radioMeasurements *lmfmodels.RadioMeasurements
 }
 
 // TouchLastSeen records the current time as the UE's most recent uplink NAS
@@ -551,7 +567,13 @@ func (m *MME) releaseConnIDLocked(id uint32) {
 // NewUeContext creates a fresh persistent UE context, unattached to any connection.
 // AttachUeConn binds it to a connection.
 func NewUeContext() *UeContext {
-	return &UeContext{procedures: procedure.NewRegistry(logger.MmeLog)}
+	return &UeContext{
+		// The reserved all-ones value is the "no valid M-TMSI" sentinel (TS 23.003
+		// §2.4); 0 is a legal allocatable M-TMSI, so it must not double as "unset".
+		tmsi:       etsi.InvalidTMSI,
+		oldTmsi:    etsi.InvalidTMSI,
+		procedures: procedure.NewRegistry(logger.MmeLog),
+	}
 }
 
 // ReleaseBareConn drops a connection that never bound a UE context.
@@ -850,6 +872,17 @@ func (m *MME) LookupUeByMTMSI(mtmsi uint32) (*UeContext, bool) {
 	defer m.mu.RUnlock()
 
 	ue, ok := m.uesByTmsi[tmsi]
+
+	return ue, ok
+}
+
+// LookupUeBySupi finds the persistent UE context for supi. It resolves a UE in
+// ECM-IDLE as well as a connected one.
+func (m *MME) LookupUeBySupi(supi etsi.SUPI) (*UeContext, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	ue, ok := m.UEs[supi]
 
 	return ue, ok
 }

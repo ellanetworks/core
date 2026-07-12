@@ -25,6 +25,7 @@ func HandleERABReleaseResponse(m *mme.MME, radio *mme.Radio, value []byte) {
 	}
 
 	ue.TouchLastSeen()
+	captureUserLocation(ue, msg.UserLocationInformation)
 
 	for _, erab := range msg.ERABReleased {
 		ue.Conn().Log.Info("E-RAB released at eNB",

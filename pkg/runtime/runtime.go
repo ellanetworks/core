@@ -502,7 +502,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	metrics.RegisterMetrics()
 	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountRadios, mmeInstance.CountRegisteredSubscribers)
 
-	lmfInstance := lmf.New(amfInstance, dbInstance)
+	lmfInstance := lmf.New(amfInstance, mmeInstance, dbInstance)
 
 	// Session reconciler: watches the session_reconcile changefeed topic
 	// and reconciles every local PDU session against the current DB policy.

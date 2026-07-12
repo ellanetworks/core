@@ -6,6 +6,8 @@ package lmf
 import (
 	"math"
 	"testing"
+
+	"github.com/ellanetworks/core/internal/lmf/models"
 )
 
 // TestNrTAToDistance checks the NR-TADV report-mapping bins against TS 38.133
@@ -70,5 +72,49 @@ func TestNrTAToDistanceMonotonic(t *testing.T) {
 func TestNrTAToDistanceNegative(t *testing.T) {
 	if got := nrTAToDistance(-1); got != 0 {
 		t.Errorf("nrTAToDistance(-1) = %v, want 0", got)
+	}
+}
+
+// TestTAToDistance checks the E-UTRA Timing-Advance report mapping against
+// TS 36.133 §10.3.1 Table 10.3.1-1: reported value → round-trip TADV in Ts
+// (2 Ts/step up to 4096 Ts, 8 Ts/step above), one-way distance = c·TADV·Ts/2.
+func TestTAToDistance(t *testing.T) {
+	const oneWayPerTs = 299792458.0 / (15000.0 * 2048.0) / 2.0
+
+	cases := []struct {
+		value  int32
+		tadvTs float64
+	}{
+		{0, 0},
+		{1, 2},
+		{100, 200},
+		{2047, 4094},
+		{2048, 4096},
+		{7689, 49224},
+		{7690, 49232},
+	}
+
+	for _, c := range cases {
+		want := oneWayPerTs * c.tadvTs
+		if got := taToDistance(c.value); math.Abs(got-want) > 1e-6 {
+			t.Errorf("taToDistance(%d) = %v, want %v", c.value, got, want)
+		}
+	}
+}
+
+func TestHasRadioMeasurements(t *testing.T) {
+	if hasRadioMeasurements(nil) {
+		t.Fatal("nil measurements must not count as E-CID")
+	}
+
+	// Serving cell / AP position only (no UE-specific quantity) is a Cell-ID fix.
+	pos := &models.APPosition{LatitudeDegrees: 45}
+	if hasRadioMeasurements(&models.RadioMeasurements{APPosition: pos}) {
+		t.Fatal("AP position alone must not count as E-CID")
+	}
+
+	rsrp := int32(-8500)
+	if !hasRadioMeasurements(&models.RadioMeasurements{RSRP: &rsrp}) {
+		t.Fatal("a populated RSRP must count as E-CID")
 	}
 }

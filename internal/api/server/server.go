@@ -222,7 +222,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("GET /api/v1/logs/audit", Authenticate(jwtSecret, dbInstance, Authorize(PermListAuditLogs, ListAuditLogs(dbInstance))).ServeHTTP)
 
 	// Location - Unified endpoint (immediate, periodic, triggered, cancel)
-	mux.HandleFunc("POST /api/beta/location", Authenticate(jwtSecret, dbInstance, Authorize(PermReadLocation, GetSubscriberLocation(amfInstance, lmfInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/beta/location", Authenticate(jwtSecret, dbInstance, Authorize(PermReadLocation, GetSubscriberLocation(lmfInstance))).ServeHTTP)
 
 	// Positioning - Session listing and lookup only
 	mux.HandleFunc("GET /api/beta/positioning/sessions", Authenticate(jwtSecret, dbInstance, Authorize(PermReadPositioningSessions, ListSessions(dbInstance))).ServeHTTP)

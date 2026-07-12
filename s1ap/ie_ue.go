@@ -133,6 +133,46 @@ func decodeEUTRANCGI(r *aper.Reader) (EUTRANCGI, error) {
 	return EUTRANCGI{PLMNIdentity: plmn, CellID: uint32(bitsToUint(b, cellIDBits))}, nil
 }
 
+// UserLocationInformation ::= SEQUENCE { eutran-CGI EUTRAN-CGI, tai TAI,
+// iE-Extensions OPTIONAL, ... } (extensible) — TS 36.413 §9.2.1.86.
+type UserLocationInformation struct {
+	EUTRANCGI EUTRANCGI
+	TAI       TAI
+}
+
+func (u UserLocationInformation) encode(w *aper.Writer) error {
+	w.WriteSequencePreamble(true, false, []bool{false})
+
+	if err := u.EUTRANCGI.encode(w); err != nil {
+		return err
+	}
+
+	return u.TAI.encode(w)
+}
+
+func decodeUserLocationInformation(r *aper.Reader) (UserLocationInformation, error) {
+	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
+	if err != nil {
+		return UserLocationInformation{}, err
+	}
+
+	cgi, err := decodeEUTRANCGI(r)
+	if err != nil {
+		return UserLocationInformation{}, err
+	}
+
+	tai, err := decodeTAI(r)
+	if err != nil {
+		return UserLocationInformation{}, err
+	}
+
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
+		return UserLocationInformation{}, err
+	}
+
+	return UserLocationInformation{EUTRANCGI: cgi, TAI: tai}, nil
+}
+
 // RRCEstablishmentCause ::= ENUMERATED { emergency, highPriorityAccess,
 // mt-Access, mo-Signalling, mo-Data, ... } (extensible).
 type RRCEstablishmentCause uint8

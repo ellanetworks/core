@@ -543,6 +543,23 @@ func (ueConn *UeConn) SendDownlinkNASTransport(ctx context.Context, nasPdu []byt
 	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureDownlinkNasTransport, pkt)
 }
 
+// SendDownlinkNRPPaTransport builds a DOWNLINK UE-ASSOCIATED NRPPa TRANSPORT carrying
+// the LMF's NRPPa PDU and sends it to this UE's gNB (TS 38.413 §8.14.2). It returns the
+// send outcome so the LMF positioning client can report a delivery failure.
+func (ueConn *UeConn) SendDownlinkNRPPaTransport(ctx context.Context, routingID int64, nrppaPdu []byte) error {
+	amfInstance, conn, err := ueConn.sendTarget()
+	if err != nil {
+		return err
+	}
+
+	pkt, err := send.BuildDownlinkUEAssociatedNRPPaTransport(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID), routingID, nrppaPdu)
+	if err != nil {
+		return fmt.Errorf("build downlink NRPPa transport: %w", err)
+	}
+
+	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureDownlinkNRPPaTransport, pkt)
+}
+
 func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, causePresent int, cause aper.Enumerated) {
 	amfInstance, conn, err := ueConn.sendTarget()
 	if err != nil {

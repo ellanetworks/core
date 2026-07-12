@@ -239,7 +239,7 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 
 	handleTrackingAreaUpdateComplete(context.Background(), m, ue)
 
-	if ue.OldTmsiForTest() != 0 {
+	if !ue.OldTmsiUnsetForTest() {
 		t.Fatal("reallocation not committed after TAU Complete")
 	}
 
@@ -275,13 +275,13 @@ func TestTrackingAreaUpdateIdleNoActiveFlagReleases(t *testing.T) {
 		t.Fatal("UE not ECM-CONNECTED for the TAU exchange; TAU Complete would be rejected")
 	}
 
-	if ue.OldTmsiForTest() == 0 {
+	if ue.OldTmsiUnsetForTest() {
 		t.Fatal("GUTI reallocation not pending after TAU Accept")
 	}
 
 	handleTrackingAreaUpdateComplete(context.Background(), m, ue)
 
-	if ue.OldTmsiForTest() != 0 {
+	if !ue.OldTmsiUnsetForTest() {
 		t.Fatal("old M-TMSI not freed after TAU Complete")
 	}
 

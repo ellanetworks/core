@@ -40,6 +40,7 @@ func handleERABModificationIndication(m *mme.MME, ctx context.Context, radio *mm
 	}
 
 	ue.TouchLastSeen()
+	captureUserLocation(ue, msg.UserLocationInformation)
 
 	if id, dup := duplicateModifiedERABID(msg); dup {
 		logger.From(ctx, logger.MmeLog).Warn("E-RAB Modification Indication repeats an E-RAB ID; releasing UE context",
