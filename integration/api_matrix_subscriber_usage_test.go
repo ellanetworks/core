@@ -22,4 +22,17 @@ func runSubscriberUsageMatrix(ctx context.Context, t *testing.T, c *client.Clien
 	if len(*got) != 0 {
 		t.Fatalf("list usage: got %d entries, want 0", len(*got))
 	}
+
+	if err := c.ClearUsage(ctx); err != nil {
+		t.Fatalf("clear usage: %v", err)
+	}
+
+	afterClear, err := c.ListUsage(ctx, &client.ListUsageParams{GroupBy: "subscriber"})
+	if err != nil {
+		t.Fatalf("list usage after clear: %v", err)
+	}
+
+	if len(*afterClear) != 0 {
+		t.Fatalf("list usage after clear: got %d entries, want 0", len(*afterClear))
+	}
 }

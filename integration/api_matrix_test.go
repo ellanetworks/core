@@ -55,6 +55,10 @@ var apiMatrixResources = map[string]apiMatrixRunner{
 	"backup_restore":             runBackupRestoreMatrix,
 	"support_bundle":             runSupportBundleMatrix,
 	"cell_positions":             runCellPositionsMatrix,
+	"my_user":                    runMyUserMatrix,
+	"openapi":                    runOpenAPISpecMatrix,
+	"auth":                       runAuthMatrix,
+	"positioning_sessions":       runPositioningSessionsMatrix,
 }
 
 func TestAPIMatrix(t *testing.T) {
