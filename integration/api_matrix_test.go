@@ -52,6 +52,7 @@ var apiMatrixResources = map[string]apiMatrixRunner{
 	"bgp_routes":                 runBGPRoutesMatrix,
 	"ip_allocations":             runIPAllocationsMatrix,
 	"my_api_tokens":              runMyAPITokensMatrix,
+	"backup_restore":             runBackupRestoreMatrix,
 }
 
 func TestAPIMatrix(t *testing.T) {
