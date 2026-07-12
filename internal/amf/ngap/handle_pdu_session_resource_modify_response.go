@@ -21,7 +21,5 @@ func HandlePDUSessionResourceModifyResponse(ctx context.Context, amfInstance *am
 	ueConn.TouchLastSeen()
 	logger.WithTrace(ctx, ueConn.Log).Debug("Handle PDUSessionResourceModifyResponse", zap.Int64("AmfUeNgapID", int64(ueConn.AmfUeNgapID)))
 
-	if msg.UserLocationInformation != nil {
-		ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
-	}
+	ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
 }

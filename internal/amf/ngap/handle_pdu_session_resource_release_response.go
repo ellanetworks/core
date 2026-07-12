@@ -30,9 +30,7 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *a
 		return
 	}
 
-	if msg.UserLocationInformation != nil {
-		ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
-	}
+	ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
 
 	ueConn.TouchLastSeen()
 

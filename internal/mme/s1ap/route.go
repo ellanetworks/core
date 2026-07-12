@@ -48,6 +48,10 @@ func Route(m *mme.MME, ctx context.Context, radio *mme.Radio, pdu any) {
 			handleENBConfigurationTransfer(m, ctx, radio, p.Value)
 		case s1ap.ProcERABModificationIndication:
 			handleERABModificationIndication(m, ctx, radio, p.Value)
+		case s1ap.ProcUplinkUEAssociatedLPPaTransport:
+			handleUplinkLPPaTransport(m, ctx, radio, p.Value)
+		case s1ap.ProcLocationReport:
+			handleLocationReport(m, ctx, radio, p.Value)
 		default:
 			logger.From(ctx, radio.Log).Warn("ignoring unsupported procedure", zap.String("kind", "initiating"), zap.Int64("procedureCode", int64(p.ProcedureCode)))
 		}

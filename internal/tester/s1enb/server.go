@@ -597,6 +597,10 @@ func (e *ENB) runReceiver(idx int, conn *sctp.SCTPConn) {
 		e.receivedFrames[f.Category][f.ProcedureCode] = append(e.receivedFrames[f.Category][f.ProcedureCode], f)
 		e.mu.Unlock()
 		e.cond.Broadcast()
+
+		if f.Category == Initiating && f.ProcedureCode == s1ap.ProcDownlinkUEAssociatedLPPaTransport {
+			go e.handleDownlinkLPPaTransport(f.Value)
+		}
 	}
 }
 

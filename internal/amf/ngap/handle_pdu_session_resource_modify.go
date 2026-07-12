@@ -27,9 +27,7 @@ func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, r
 		return
 	}
 
-	if msg.UserLocationInformation != nil {
-		ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
-	}
+	ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
 
 	if msg.HasNotifyList {
 		logger.WithTrace(ctx, ueConn.Log).Warn("PDUSessionResourceNotifyList received but QoS flow notification forwarding is not implemented")

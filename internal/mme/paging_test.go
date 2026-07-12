@@ -81,6 +81,44 @@ func TestBuildPaging(t *testing.T) {
 	}
 }
 
+// TestBuildPagingOldMTMSISentinel pins the M-TMSI "unset" sentinel handling: 0 is
+// a legal, allocatable M-TMSI — only the all-ones value is reserved as "no valid
+// M-TMSI" (TS 23.003 §2.4). So a GUTI reallocation whose OLD M-TMSI is 0 must still
+// page on that 0 (the identity the UE currently answers to), and a UE with no
+// reallocation in flight (old M-TMSI == InvalidTMSI) must page on its current one.
+// When 0 doubled as "unset" the first case wrongly paged on the new M-TMSI.
+func TestBuildPagingOldMTMSISentinel(t *testing.T) {
+	m := newTestMME(t)
+	ue := idleRegisteredUE(t, m)
+
+	// Mid-reallocation: new M-TMSI staged, UE still answers to the old one, which
+	// happens to be the legal value 0.
+	ue.SetTmsiForTest(0x1234)
+	ue.SetOldTmsiForTest(0)
+
+	paging, err := m.buildPaging(ue)
+	if err != nil {
+		t.Fatalf("buildPaging: %v", err)
+	}
+
+	if paging.STMSI.MTMSI != 0 {
+		t.Fatalf("paged on M-TMSI %#x, want 0 (the old M-TMSI the UE still listens on)", paging.STMSI.MTMSI)
+	}
+
+	// No reallocation in flight: the old M-TMSI is the InvalidTMSI sentinel, so
+	// paging uses the current M-TMSI.
+	ue.SetOldTmsiForTest(0xFFFFFFFF)
+
+	paging, err = m.buildPaging(ue)
+	if err != nil {
+		t.Fatalf("buildPaging: %v", err)
+	}
+
+	if paging.STMSI.MTMSI != 0x1234 {
+		t.Fatalf("paged on M-TMSI %#x, want 0x1234 (the current M-TMSI)", paging.STMSI.MTMSI)
+	}
+}
+
 // TestPageNoENBs checks Page builds and broadcasts without error when a UE is
 // idle (and no eNBs are connected, so the broadcast is a no-op).
 func TestPageNoENBs(t *testing.T) {

@@ -76,6 +76,30 @@ func TestERABModificationIndication_RelocatesAndConfirms(t *testing.T) {
 	}
 }
 
+func TestERABModificationIndication_CapturesUserLocation(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+	testPDN(ue)
+
+	plmn := s1ap.PLMNIdentity{0x00, 0xf1, 0x10}
+	req := &s1ap.ERABModificationIndication{
+		MMEUES1APID:  ue.Conn().MMEUES1APID,
+		ENBUES1APID:  ue.Conn().ENBUES1APID,
+		ToBeModified: []s1ap.ERABToBeModifiedItemBearerModInd{modifiedItem([4]byte{10, 5, 0, 2}, 0x1234)},
+		UserLocationInformation: &s1ap.UserLocationInformation{
+			EUTRANCGI: s1ap.EUTRANCGI{PLMNIdentity: plmn, CellID: 0x0abcde1},
+			TAI:       s1ap.TAI{PLMNIdentity: plmn, TAC: 9},
+		},
+	}
+
+	handleERABModificationIndication(m, context.Background(), mme.NewRadioForTest(cc), erabModValue(t, req))
+
+	loc := ue.GetUserLocation()
+	if loc.EutraLocation == nil || loc.EutraLocation.Ecgi.EutraCellID != "0abcde1" {
+		t.Fatalf("serving cell not captured from E-RAB Modification Indication ULI: %+v", loc.EutraLocation)
+	}
+}
+
 // TestERABModificationIndication_OmittedERABReleases covers TS 36.413 §8.2.4.4:
 // an indication that omits an established E-RAB triggers a UE Context Release, not
 // a modification.

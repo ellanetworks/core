@@ -4,17 +4,15 @@
 package gnb
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
+	"github.com/ellanetworks/core/internal/tester/scenarios/common"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
@@ -136,7 +134,7 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 	// canonical serving NCGI we use to provision the cell-position table.
 	logger.Logger.Info("=== Testing E-CID location ===")
 
-	ecidResult, err := getLocation(ctx, cl, supi, "ecid")
+	ecidResult, err := common.GetLocation(ctx, cl, supi, "ecid")
 	if err != nil {
 		return fmt.Errorf("E-CID location failed: %v", err)
 	}
@@ -149,7 +147,7 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 		return fmt.Errorf("E-CID result missing ncgi")
 	}
 
-	if m := positioningMethod(ecidResult); m != "ECID" && m != "NR_ECID" {
+	if m := common.PositioningMethod(ecidResult); m != "ECID" && m != "NR_ECID" {
 		return fmt.Errorf("expected E-CID positioning method, got %q", m)
 	}
 
@@ -163,7 +161,7 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 	logger.Logger.Info("=== Provisioning cell position ===",
 		zap.String("nrCellId", ecidResult.Ncgi.NrCellID))
 
-	if err := provisionCellPosition(ctx, cl, ecidResult.Ncgi.PlmnID.Mcc, ecidResult.Ncgi.PlmnID.Mnc, ecidResult.Ncgi.NrCellID); err != nil {
+	if err := common.ProvisionCellPosition(ctx, cl, "nr", ecidResult.Ncgi.PlmnID.Mcc, ecidResult.Ncgi.PlmnID.Mnc, ecidResult.Ncgi.NrCellID); err != nil {
 		logger.Logger.Warn("cell position provisioning returned an error (may already exist)", zap.Error(err))
 	}
 
@@ -172,7 +170,7 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 	// the table.
 	logger.Logger.Info("=== Testing Cell ID location ===")
 
-	cellIDResult, err := getLocation(ctx, cl, supi, "cell_id")
+	cellIDResult, err := common.GetLocation(ctx, cl, supi, "cell_id")
 	if err != nil {
 		return fmt.Errorf("cell ID location failed: %v", err)
 	}
@@ -181,7 +179,7 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 		return fmt.Errorf("cell ID result missing locationEstimate point (is the cell provisioned?)")
 	}
 
-	if m := positioningMethod(cellIDResult); m != "CELLID" {
+	if m := common.PositioningMethod(cellIDResult); m != "CELLID" {
 		return fmt.Errorf("expected CELLID positioning method, got %q", m)
 	}
 
@@ -210,120 +208,6 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 	}
 
 	logger.Logger.Info("Location scenario completed successfully")
-
-	return nil
-}
-
-// locationData is a minimal view of the spec-shaped LocationData response
-// (TS 29.572) returned by POST /api/beta/location.
-type locationData struct {
-	LocationEstimate    *locGeoArea      `json:"locationEstimate"`
-	PositioningDataList []locMethodUsage `json:"positioningDataList"`
-	Ncgi                *locNcgi         `json:"ncgi"`
-}
-
-type locGeoArea struct {
-	Shape       string       `json:"shape"`
-	Point       *locGeoPoint `json:"point"`
-	Uncertainty *float64     `json:"uncertainty"`
-}
-
-type locGeoPoint struct {
-	Lat float64 `json:"lat"`
-	Lon float64 `json:"lon"`
-}
-
-type locMethodUsage struct {
-	Method string `json:"method"`
-	Mode   string `json:"mode"`
-	Usage  string `json:"usage"`
-}
-
-type locPlmn struct {
-	Mcc string `json:"mcc"`
-	Mnc string `json:"mnc"`
-}
-
-type locNcgi struct {
-	PlmnID   locPlmn `json:"plmnId"`
-	NrCellID string  `json:"nrCellId"`
-}
-
-// positioningMethod returns the first reported positioning method, or "".
-func positioningMethod(d *locationData) string {
-	if len(d.PositioningDataList) == 0 {
-		return ""
-	}
-
-	return d.PositioningDataList[0].Method
-}
-
-// getLocation calls POST /api/beta/location for the given method and decodes the
-// spec-shaped LocationData response.
-func getLocation(ctx context.Context, cl *client.Client, supi, method string) (*locationData, error) {
-	reqBody := map[string]string{
-		"supi":         supi,
-		"request_type": "immediate",
-		"method":       method,
-	}
-
-	body, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request body: %w", err)
-	}
-
-	resp, err := cl.Requester.Do(ctx, &client.RequestOptions{
-		Type:   client.SyncRequest,
-		Method: http.MethodPost,
-		Path:   "/api/beta/location",
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-		Body: bytes.NewReader(body),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("POST location request failed: %w", err)
-	}
-
-	var result locationData
-	if err := resp.DecodeResult(&result); err != nil {
-		return nil, fmt.Errorf("decode location response: %w", err)
-	}
-
-	return &result, nil
-}
-
-// provisionCellPosition provisions an antenna coordinate for the given NR cell
-// so Cell-ID / E-CID can anchor a location estimate.
-func provisionCellPosition(ctx context.Context, cl *client.Client, mcc, mnc, nrCellID string) error {
-	reqBody := map[string]any{
-		"rat":                    "nr",
-		"mcc":                    mcc,
-		"mnc":                    mnc,
-		"cell_identity":          nrCellID,
-		"latitude":               45.0,
-		"longitude":              21.45,
-		"uncertainty_semi_major": 150.0,
-		"uncertainty_semi_minor": 150.0,
-	}
-
-	body, err := json.Marshal(reqBody)
-	if err != nil {
-		return fmt.Errorf("marshal request body: %w", err)
-	}
-
-	_, err = cl.Requester.Do(ctx, &client.RequestOptions{
-		Type:   client.SyncRequest,
-		Method: http.MethodPost,
-		Path:   "/api/beta/cell-positions",
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-		Body: bytes.NewReader(body),
-	})
-	if err != nil {
-		return fmt.Errorf("POST cell-positions request failed: %w", err)
-	}
 
 	return nil
 }

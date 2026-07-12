@@ -5,44 +5,11 @@ package amf
 
 import (
 	"time"
+
+	lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 )
 
-// RadioMeasurements holds radio measurements extracted from NGAP LocationReport
-// or NRPPa messages. Used by E-CID positioning to estimate UE distance from gNB.
-type RadioMeasurements struct {
-	RSRP               *int32 // dBm × 100 (e.g., -8500 = -85 dBm)
-	RSRQ               *int32 // dB × 100
-	TA                 *int32 // Timing Advance in slots
-	RxTxTimeDifference *int32 // INTEGER (0..61565) per TS 38.455
-
-	// NR-specific measurements (SSB/CSI-RS based, TS 38.305 §8.9)
-	SSRSRP  *int32 // SSB-based RSRP, dBm × 100
-	SSRSRQ  *int32 // SSB-based RSRQ, dB × 100
-	CSIRSRP *int32 // CSI-RS-based RSRP, dBm × 100
-	CSIRSRQ *int32 // CSI-RS-based RSRQ, dB × 100
-
-	// NR-specific timing/angle measurements (TS 38.455 §9.2.5 extension IEs).
-	NRTimingAdvance   *int32   // Value Timing Advance NR (0..7690), TS 38.133 mapping
-	AoAAzimuthDegrees *float64 // UL Angle of Arrival azimuth, decimal degrees
-	AoAZenithDegrees  *float64 // UL Angle of Arrival zenith, decimal degrees (optional)
-
-	// APPosition is the serving cell's NG-RANAccessPointPosition, when the RAN
-	// reports it in an NRPPa E-CID measurement result (optional).
-	APPosition *APPosition
-}
-
-// APPosition is a decoded NG-RANAccessPointPosition (TS 38.455 §9.2.2),
-// converted to WGS-84 decimal degrees plus the reported uncertainty.
-type APPosition struct {
-	LatitudeDegrees      float64
-	LongitudeDegrees     float64
-	Altitude             int64
-	UncertaintySemiMajor int64
-	UncertaintySemiMinor int64
-	Confidence           int64
-}
-
-func (ue *UeContext) SetRadioMeasurements(m *RadioMeasurements) {
+func (ue *UeContext) SetRadioMeasurements(m *lmfmodels.RadioMeasurements) {
 	if m == nil {
 		return
 	}
@@ -54,7 +21,7 @@ func (ue *UeContext) SetRadioMeasurements(m *RadioMeasurements) {
 }
 
 // GetRadioMeasurements returns a copy of the UE's current radio measurements.
-func (ue *UeContext) GetRadioMeasurements() *RadioMeasurements {
+func (ue *UeContext) GetRadioMeasurements() *lmfmodels.RadioMeasurements {
 	ue.radioMu.RLock()
 	defer ue.radioMu.RUnlock()
 

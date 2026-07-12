@@ -163,11 +163,12 @@ func ParseERABReleaseCommand(value []byte) (*ERABReleaseCommand, error) {
 // ERABReleaseResponse is the E-RAB RELEASE RESPONSE message (TS 36.413),
 // sent by the eNB once the E-RAB(s) are released.
 type ERABReleaseResponse struct {
-	MMEUES1APID            MMEUES1APID
-	ENBUES1APID            ENBUES1APID
-	ERABReleased           []ERABReleaseItemBearerRelComp
-	ERABFailedToRelease    []ERABItem
-	CriticalityDiagnostics *CriticalityDiagnostics
+	MMEUES1APID             MMEUES1APID
+	ENBUES1APID             ENBUES1APID
+	ERABReleased            []ERABReleaseItemBearerRelComp
+	ERABFailedToRelease     []ERABItem
+	CriticalityDiagnostics  *CriticalityDiagnostics
+	UserLocationInformation *UserLocationInformation
 
 	unmodeledIEs
 }
@@ -195,6 +196,11 @@ func (m *ERABReleaseResponse) encodeBody(w *aper.Writer) error {
 	if m.CriticalityDiagnostics != nil {
 		d := *m.CriticalityDiagnostics
 		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, enc: d.encode})
+	}
+
+	if m.UserLocationInformation != nil {
+		u := *m.UserLocationInformation
+		fields = append(fields, ieField{id: idUserLocationInformation, crit: CriticalityIgnore, enc: u.encode})
 	}
 
 	for _, e := range m.unknownIEs {
@@ -263,6 +269,11 @@ func ParseERABReleaseResponse(value []byte) (*ERABReleaseResponse, error) {
 
 			cd, err = decodeCriticalityDiagnostics(sub)
 			m.CriticalityDiagnostics = &cd
+		case idUserLocationInformation:
+			var uli UserLocationInformation
+
+			uli, err = decodeUserLocationInformation(sub)
+			m.UserLocationInformation = &uli
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)
 		}

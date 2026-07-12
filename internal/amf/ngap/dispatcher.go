@@ -14,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/free5gc/ngap"
 	"github.com/free5gc/ngap/ngapType"
@@ -252,82 +251,7 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 
 			HandlePDUSessionResourceModifyIndication(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeUplinkUEAssociatedNRPPaTransport:
-			nrppaTransport := pdu.InitiatingMessage.Value.UplinkUEAssociatedNRPPaTransport
-			if nrppaTransport != nil {
-				var (
-					amfUeNgapID, ranUeNgapID *int64
-					nrppaPdu                 []byte
-				)
-
-				for _, ie := range nrppaTransport.ProtocolIEs.List {
-					switch ie.Id.Value {
-					case ngapType.ProtocolIEIDAMFUENGAPID:
-						if ie.Value.AMFUENGAPID != nil {
-							amfUeNgapID = &ie.Value.AMFUENGAPID.Value
-						}
-					case ngapType.ProtocolIEIDRANUENGAPID:
-						if ie.Value.RANUENGAPID != nil {
-							ranUeNgapID = &ie.Value.RANUENGAPID.Value
-						}
-					case ngapType.ProtocolIEIDNRPPaPDU:
-						if ie.Value.NRPPaPDU != nil {
-							nrppaPdu = ie.Value.NRPPaPDU.Value
-						}
-					}
-				}
-
-				if nrppaPdu == nil {
-					ran.Log.Warn("Uplink NRPPa transport received but NRPPaPDU IE is missing")
-					break
-				}
-
-				ran.Log.Debug("Uplink NRPPa transport received",
-					zap.Int("payload_len", len(nrppaPdu)),
-				)
-
-				if amfUeNgapID != nil {
-					ran.Log.Debug("Looking up UE by AMF UE NGAP ID",
-						zap.Int64("amfUeNgapID", *amfUeNgapID),
-					)
-
-					ranUe := amfInstance.FindUEByAmfUeNgapID(ran, models.AmfUeNgapID(*amfUeNgapID))
-					if ranUe == nil {
-						ran.Log.Warn("Unknown AMF UE NGAP ID in NRPPa transport",
-							zap.Int64("amfUeNgapID", *amfUeNgapID))
-
-						break
-					}
-
-					ran.Log.Debug("Found UE by AMF UE NGAP ID",
-						zap.Int64("amfUeNgapID", *amfUeNgapID),
-						zap.Int64("ranUeNgapID", int64(ranUe.RanUeNgapID)),
-					)
-
-					if ranUeNgapID != nil && ranUe.RanUeNgapID != models.RanUeNgapID(*ranUeNgapID) {
-						ran.Log.Warn("Inconsistent RAN UE NGAP ID in NRPPa transport",
-							zap.Int64("stored", int64(ranUe.RanUeNgapID)),
-							zap.Int64("received", *ranUeNgapID))
-
-						break
-					}
-
-					if ue := ranUe.UeContext(); ue != nil {
-						ue.SetNRPPaMessage(nrppaPdu)
-						ran.Log.Debug("Stored NRPPa message in UE context",
-							zap.Int64("amfUeNgapID", *amfUeNgapID),
-							zap.Int("payloadLen", len(nrppaPdu)),
-						)
-					} else {
-						ran.Log.Warn("No AMF UE context found for NRPPa transport",
-							zap.Int64("amfUeNgapID", *amfUeNgapID),
-						)
-					}
-				} else {
-					ran.Log.Warn("NRPPa transport received but AMF UE NGAP ID is missing",
-						zap.Int("payloadLen", len(nrppaPdu)),
-					)
-				}
-			}
+			HandleUplinkUEAssociatedNRPPaTransport(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.UplinkUEAssociatedNRPPaTransport)
 		default:
 			logger.From(ctx, ran.Log).Warn("ignoring unsupported procedure", zap.String("kind", "initiating"), zap.Int64("procedureCode", initiatingMessage.ProcedureCode.Value))
 		}

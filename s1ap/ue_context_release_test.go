@@ -74,6 +74,33 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 		}
 	})
 
+	t.Run("CompleteWithUserLocation", func(t *testing.T) {
+		plmn := PLMNIdentity{0x00, 0xf1, 0x10}
+		in := &UEContextReleaseComplete{
+			MMEUES1APID: 1,
+			ENBUES1APID: 7,
+			UserLocationInformation: &UserLocationInformation{
+				EUTRANCGI: EUTRANCGI{PLMNIdentity: plmn, CellID: 0x0abcde1},
+				TAI:       TAI{PLMNIdentity: plmn, TAC: 9},
+			},
+		}
+
+		b, _ := in.Marshal()
+
+		pdu, _ := Unmarshal(b)
+
+		so := pdu.(*SuccessfulOutcome)
+
+		out, err := ParseUEContextReleaseComplete(so.Value)
+		if err != nil || out.UserLocationInformation == nil {
+			t.Fatalf("got %+v err %v", out, err)
+		}
+
+		if out.UserLocationInformation.EUTRANCGI.CellID != 0x0abcde1 || out.UserLocationInformation.TAI.TAC != 9 {
+			t.Fatalf("ULI mismatch: %+v", out.UserLocationInformation)
+		}
+	})
+
 	t.Run("Request", func(t *testing.T) {
 		in := &UEContextReleaseRequest{MMEUES1APID: 1, ENBUES1APID: 7, Cause: cause}
 

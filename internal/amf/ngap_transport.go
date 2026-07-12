@@ -39,22 +39,6 @@ func (r *Radio) SendToRadio(ctx context.Context, msgType send.NGAPProcedure, pac
 	_ = r.amf.SendToRadio(ctx, r.Conn, msgType, packet)
 }
 
-// SendDownlinkNRPPaTransport builds a DOWNLINK UE-ASSOCIATED NRPPa TRANSPORT carrying
-// the LMF's NRPPa PDU and sends it to this radio's gNB (TS 38.413 §8.14.2). It returns
-// the send outcome so the LMF positioning client can report a delivery failure.
-func (r *Radio) SendDownlinkNRPPaTransport(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, routingID int64, nrppaPdu []byte) error {
-	if r == nil || r.amf == nil {
-		return fmt.Errorf("radio is not bound to an amf")
-	}
-
-	pkt, err := send.BuildDownlinkUEAssociatedNRPPaTransport(amfUeNgapID, ranUeNgapID, routingID, nrppaPdu)
-	if err != nil {
-		return fmt.Errorf("build downlink NRPPa transport: %w", err)
-	}
-
-	return r.amf.SendToRadio(ctx, r.Conn, send.NGAPProcedureDownlinkNRPPaTransport, pkt)
-}
-
 // SendToRadio writes a complete NGAP PDU to a gNB association, selecting the SCTP
 // stream from the procedure (TS 38.412). It takes the connection (the send target)
 // directly — a UE sends through ueConn.conn.

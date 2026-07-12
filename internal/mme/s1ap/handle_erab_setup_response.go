@@ -29,6 +29,7 @@ func HandleERABSetupResponse(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 	}
 
 	ue.TouchLastSeen()
+	captureUserLocation(ue, msg.UserLocationInformation)
 
 	for _, erab := range msg.ERABSetup {
 		p := m.LookupPDN(ue, uint8(erab.ERABID))
