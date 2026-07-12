@@ -53,6 +53,8 @@ var apiMatrixResources = map[string]apiMatrixRunner{
 	"ip_allocations":             runIPAllocationsMatrix,
 	"my_api_tokens":              runMyAPITokensMatrix,
 	"backup_restore":             runBackupRestoreMatrix,
+	"support_bundle":             runSupportBundleMatrix,
+	"cell_positions":             runCellPositionsMatrix,
 }
 
 func TestAPIMatrix(t *testing.T) {
