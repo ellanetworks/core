@@ -23,7 +23,7 @@ func TestListPositioningSessions_Success(t *testing.T) {
 	}
 	clientObj := &client.Client{Requester: fake}
 
-	sessions, err := clientObj.ListPositioningSessions(context.Background())
+	sessions, err := clientObj.ListPositioningSessions(context.Background(), "imsi-001010000000001")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -39,6 +39,18 @@ func TestListPositioningSessions_Success(t *testing.T) {
 	if fake.lastOpts.Path != "api/beta/positioning/sessions" {
 		t.Fatalf("unexpected path: %s", fake.lastOpts.Path)
 	}
+
+	if got := fake.lastOpts.Query.Get("supi"); got != "imsi-001010000000001" {
+		t.Fatalf("unexpected supi query: %q", got)
+	}
+}
+
+func TestListPositioningSessions_EmptySUPI(t *testing.T) {
+	clientObj := &client.Client{Requester: &fakeRequester{}}
+
+	if _, err := clientObj.ListPositioningSessions(context.Background(), ""); err == nil {
+		t.Fatalf("expected error for empty supi, got none")
+	}
 }
 
 func TestListPositioningSessions_Failure(t *testing.T) {
@@ -52,7 +64,7 @@ func TestListPositioningSessions_Failure(t *testing.T) {
 	}
 	clientObj := &client.Client{Requester: fake}
 
-	if _, err := clientObj.ListPositioningSessions(context.Background()); err == nil {
+	if _, err := clientObj.ListPositioningSessions(context.Background(), "imsi-001010000000001"); err == nil {
 		t.Fatalf("expected error, got none")
 	}
 }

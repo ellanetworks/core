@@ -11,10 +11,10 @@ import (
 )
 
 // runPositioningSessionsMatrix exercises the positioning-session listing
-// endpoint. No positioning procedure runs in the matrix environment, so no
-// sessions exist.
+// endpoint, which requires a supi. No positioning procedure runs in the matrix
+// environment, so the subscriber has no sessions.
 func runPositioningSessionsMatrix(ctx context.Context, t *testing.T, c *client.Client) {
-	got, err := c.ListPositioningSessions(ctx)
+	got, err := c.ListPositioningSessions(ctx, "imsi-001010000000001")
 	if err != nil {
 		t.Fatalf("list positioning sessions: %v", err)
 	}

@@ -3,7 +3,11 @@
 
 package client
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"net/url"
+)
 
 type PositioningSession struct {
 	ID          string `json:"id"`
@@ -15,13 +19,18 @@ type PositioningSession struct {
 	UpdatedAt   int64  `json:"updated_at"`
 }
 
-// ListPositioningSessions returns the active positioning sessions. The endpoint
-// responds with a bare array and is not paginated.
-func (c *Client) ListPositioningSessions(ctx context.Context) ([]PositioningSession, error) {
+// ListPositioningSessions returns the positioning sessions for a subscriber.
+// The server requires supi and responds with a bare, non-paginated array.
+func (c *Client) ListPositioningSessions(ctx context.Context, supi string) ([]PositioningSession, error) {
+	if supi == "" {
+		return nil, fmt.Errorf("supi is required")
+	}
+
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/beta/positioning/sessions",
+		Query:  url.Values{"supi": {supi}},
 	})
 	if err != nil {
 		return nil, err
