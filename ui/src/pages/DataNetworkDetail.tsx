@@ -15,6 +15,7 @@ import {
   TableBody,
   TableCell,
   TableContainer,
+  TableHead,
   TableRow,
   Typography,
 } from "@mui/material";
@@ -38,6 +39,8 @@ import {
   listIPv4Allocations,
   listIPv6Allocations,
   deleteStaticIp,
+  listFramedRoutes,
+  deleteFramedRoute,
   type APIDataNetwork,
   type APIIPAllocation,
 } from "@/queries/data_networks";
@@ -45,6 +48,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import EditDataNetworkModal from "@/components/EditDataNetworkModal";
 import CreateStaticIpModal from "@/components/CreateStaticIpModal";
+import CreateFramedRouteModal from "@/components/CreateFramedRouteModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
@@ -88,6 +92,14 @@ const DataNetworkDetail: React.FC = () => {
     ipVersion: string;
     address: string;
   } | null>(null);
+  const [framedModal, setFramedModal] = useState<
+    | { mode: "create" }
+    | { mode: "edit"; imsi: string; ipv4: string[]; ipv6: string[] }
+    | null
+  >(null);
+  const [deleteFramed, setDeleteFramed] = useState<{ imsi: string } | null>(
+    null,
+  );
 
   useEffect(() => {
     if (authReady && !accessToken) navigate("/login");
@@ -149,6 +161,50 @@ const DataNetworkDetail: React.FC = () => {
       );
     }
   };
+
+  const { data: framedRoutesData } = useQuery({
+    queryKey: ["framed-routes", name],
+    queryFn: () => listFramedRoutes(accessToken!, name!),
+    enabled: authReady && !!accessToken && !!name,
+  });
+  const framedRoutes = framedRoutesData ?? [];
+
+  const invalidateFramed = () => {
+    queryClient.invalidateQueries({ queryKey: ["framed-routes", name] });
+  };
+
+  const handleFramedDeleteConfirm = async () => {
+    if (!deleteFramed || !accessToken || !name) return;
+
+    try {
+      await deleteFramedRoute(accessToken, name, deleteFramed.imsi);
+      setDeleteFramed(null);
+      invalidateFramed();
+      showSnackbar("Framed routes deleted successfully.", "success");
+    } catch (err) {
+      setDeleteFramed(null);
+      showSnackbar(
+        `Failed to delete framed routes: ${err instanceof Error ? err.message : "Unknown error"}`,
+        "error",
+      );
+    }
+  };
+
+  const renderPrefixChips = (prefixes?: string[]) =>
+    prefixes && prefixes.length > 0 ? (
+      prefixes.map((p) => (
+        <Chip
+          key={p}
+          label={p}
+          size="small"
+          sx={{ mr: 0.5, mb: 0.5, fontFamily: "monospace" }}
+        />
+      ))
+    ) : (
+      <Typography variant="body2" color="textSecondary" component="span">
+        —
+      </Typography>
+    );
 
   const invalidateStaticIps = () => {
     queryClient.invalidateQueries({ queryKey: ["ipv4-allocations", name] });
@@ -869,6 +925,88 @@ const DataNetworkDetail: React.FC = () => {
         </Box>
       )}
 
+      {/* Framed Routes */}
+      <Box sx={{ mt: 4 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 1.5,
+          }}
+        >
+          <Typography variant="h6">Framed Routes</Typography>
+          {canEdit && (
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => setFramedModal({ mode: "create" })}
+            >
+              Add framed route
+            </Button>
+          )}
+        </Box>
+        {framedRoutes.length === 0 ? (
+          <TableContainer sx={tableContainerSx}>
+            <Box sx={{ p: 3, textAlign: "center" }}>
+              <Typography variant="body2" color="textSecondary">
+                No framed routes are configured for this data network.
+              </Typography>
+            </Box>
+          </TableContainer>
+        ) : (
+          <TableContainer sx={tableContainerSx}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Subscriber (IMSI)</TableCell>
+                  <TableCell>IPv4 prefixes</TableCell>
+                  <TableCell>IPv6 prefixes</TableCell>
+                  {canEdit && <TableCell align="right">Actions</TableCell>}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {framedRoutes.map((fr) => (
+                  <TableRow key={fr.imsi}>
+                    <TableCell sx={{ fontFamily: "monospace" }}>
+                      {fr.imsi}
+                    </TableCell>
+                    <TableCell>{renderPrefixChips(fr.ipv4)}</TableCell>
+                    <TableCell>{renderPrefixChips(fr.ipv6)}</TableCell>
+                    {canEdit && (
+                      <TableCell align="right">
+                        <IconButton
+                          size="small"
+                          aria-label="Edit framed routes"
+                          onClick={() =>
+                            setFramedModal({
+                              mode: "edit",
+                              imsi: fr.imsi,
+                              ipv4: fr.ipv4 ?? [],
+                              ipv6: fr.ipv6 ?? [],
+                            })
+                          }
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          aria-label="Delete framed routes"
+                          onClick={() => setDeleteFramed({ imsi: fr.imsi })}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Box>
+
       {/* Modals */}
       {isEditModalOpen && (
         <EditDataNetworkModal
@@ -924,6 +1062,40 @@ const DataNetworkDetail: React.FC = () => {
           onConfirm={handleStaticDeleteConfirm}
           title="Confirm Deletion"
           description={`Remove the static IP ${deleteStatic.address} (${deleteStatic.ipVersion}) for subscriber ${deleteStatic.imsi}?`}
+        />
+      )}
+      {framedModal && (
+        <CreateFramedRouteModal
+          open
+          onClose={() => setFramedModal(null)}
+          onSuccess={() => {
+            invalidateFramed();
+            showSnackbar(
+              framedModal.mode === "edit"
+                ? "Framed routes updated successfully."
+                : "Framed routes created successfully.",
+              "success",
+            );
+          }}
+          dataNetwork={name!}
+          edit={
+            framedModal.mode === "edit"
+              ? {
+                  imsi: framedModal.imsi,
+                  ipv4: framedModal.ipv4,
+                  ipv6: framedModal.ipv6,
+                }
+              : undefined
+          }
+        />
+      )}
+      {deleteFramed && (
+        <DeleteConfirmationModal
+          open
+          onClose={() => setDeleteFramed(null)}
+          onConfirm={handleFramedDeleteConfirm}
+          title="Confirm Deletion"
+          description={`Remove all framed routes for subscriber ${deleteFramed.imsi}? This releases the subscriber's active session so it re-establishes without them.`}
         />
       )}
     </Box>
