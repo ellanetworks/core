@@ -26,7 +26,36 @@ import (
 
 const (
 	SCTPReadBufferSize = 65535
+
+	n2DialAttempts = 5
+	n2DialBackoff  = 200 * time.Millisecond
 )
+
+// dialN2 establishes the N2 SCTP association, retrying with a fresh socket on
+// transient connect failures (e.g. EISCONN from a lingering association left by
+// a prior gNB process on the same source address). Bounded so a genuinely
+// unreachable core still fails within ~2s.
+func dialN2(local, rem *sctp.SCTPAddr, address string) (*sctp.SCTPConn, error) {
+	var lastErr error
+
+	for attempt := 0; attempt < n2DialAttempts; attempt++ {
+		conn, err := sctp.DialSCTPExt(
+			"sctp", local, rem,
+			sctp.InitMsg{NumOstreams: 2, MaxInstreams: 2},
+		)
+		if err == nil {
+			return conn, nil
+		}
+
+		lastErr = err
+
+		if attempt < n2DialAttempts-1 {
+			time.Sleep(time.Duration(attempt+1) * n2DialBackoff)
+		}
+	}
+
+	return nil, fmt.Errorf("dial %s: %w", address, lastErr)
+}
 
 // ErrNoActivePeer indicates no N2 peer is currently usable. Returned by
 // SendToRan when every configured peer has failed.
@@ -477,13 +506,10 @@ func (g *GnodeB) n2DialAndActivateLocked(idx int) error {
 		return fmt.Errorf("resolve %s: %w", peer.address, err)
 	}
 
-	conn, err := sctp.DialSCTPExt(
-		"sctp", g.n2Local, rem,
-		sctp.InitMsg{NumOstreams: 2, MaxInstreams: 2},
-	)
+	conn, err := dialN2(g.n2Local, rem, peer.address)
 	if err != nil {
 		peer.state = n2StateFailed
-		return fmt.Errorf("dial %s: %w", peer.address, err)
+		return err
 	}
 
 	if err := conn.SubscribeEvents(sctp.SCTP_EVENT_DATA_IO); err != nil {
