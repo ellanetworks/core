@@ -52,4 +52,6 @@ func runFlowReportsMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	if afterClear.TotalCount != 0 {
 		t.Fatalf("list flow reports after clear: got %d, want 0", afterClear.TotalCount)
 	}
+
+	t.Run("retention", func(t *testing.T) { runFlowReportsRetentionMatrix(ctx, t, c) })
 }

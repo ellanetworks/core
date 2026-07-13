@@ -35,4 +35,6 @@ func runSubscriberUsageMatrix(ctx context.Context, t *testing.T, c *client.Clien
 	if len(*afterClear) != 0 {
 		t.Fatalf("list usage after clear: got %d entries, want 0", len(*afterClear))
 	}
+
+	t.Run("retention", func(t *testing.T) { runSubscriberUsageRetentionMatrix(ctx, t, c) })
 }

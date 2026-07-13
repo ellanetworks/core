@@ -76,6 +76,8 @@ func runAuditLogsMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	if _, err := time.Parse(time.RFC3339, found.Timestamp); err != nil {
 		t.Fatalf("Timestamp: not RFC 3339: %q (%v)", found.Timestamp, err)
 	}
+
+	t.Run("retention", func(t *testing.T) { runAuditLogRetentionMatrix(ctx, t, c) })
 }
 
 func findAuditLogByDetails(items []client.AuditLog, marker string) *client.AuditLog {

@@ -111,6 +111,17 @@ func runUsersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		}
 	})
 
+	t.Run("logged_in_user", func(t *testing.T) {
+		me, err := c.GetMyUser(ctx)
+		if err != nil {
+			t.Fatalf("get my user: %v", err)
+		}
+
+		if me.Email != "admin@ellanetworks.com" {
+			t.Fatalf("logged-in user email: got %q, want %q", me.Email, "admin@ellanetworks.com")
+		}
+	})
+
 	if err := c.DeleteUser(ctx, &client.DeleteUserOptions{Email: email}); err != nil {
 		t.Fatalf("delete user %q: %v", email, err)
 	}
