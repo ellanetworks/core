@@ -117,9 +117,14 @@ func TestIntegrationHARemoveLeader(t *testing.T) {
 	HALogf(t, "background writer: success=%d transient=%d attempts=%d",
 		report.success, report.transient, report.attempts)
 
-	const minAttempts = 20
+	// Liveness floor: proves the writer goroutine actually ran across the
+	// removal window, so the availability assertions below aren't vacuous. It is
+	// deliberately low — writes legitimately block for up to ~1s each while the
+	// leader is being drained, so a raw count is latency-sensitive and must not
+	// gate on cluster throughput. The real availability checks follow.
+	const minAttempts = 5
 	if report.attempts < minAttempts {
-		t.Fatalf("writer attempts=%d (< %d); steady-state property not exercised",
+		t.Fatalf("writer attempts=%d (< %d); background writer barely ran",
 			report.attempts, minAttempts)
 	}
 
