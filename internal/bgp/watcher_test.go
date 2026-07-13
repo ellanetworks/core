@@ -345,7 +345,7 @@ func TestSetAdvertisingToggle(t *testing.T) {
 	// Reconciler-style: populate the RIB via Announce.
 	for _, ipStr := range []string{"10.1.1.1", "10.1.1.2"} {
 		ip := netip.MustParseAddr(ipStr)
-		if err := svc.Announce(ip, "imsi"); err != nil {
+		if err := svc.Announce(hostPfx(ip), "imsi"); err != nil {
 			t.Fatalf("Announce(%s) failed: %v", ipStr, err)
 		}
 	}
@@ -385,7 +385,7 @@ func TestSetAdvertisingToggle(t *testing.T) {
 
 	for _, ipStr := range []string{"10.1.1.1", "10.1.1.2"} {
 		ip := netip.MustParseAddr(ipStr)
-		if err := svc.Announce(ip, "imsi"); err != nil {
+		if err := svc.Announce(hostPfx(ip), "imsi"); err != nil {
 			t.Fatalf("Announce(%s) failed: %v", ipStr, err)
 		}
 	}

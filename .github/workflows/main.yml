@@ -71,6 +71,12 @@ jobs:
   integration-tests-bgp-4g:
     needs: [image-build, image-build-tester]
     uses: ./.github/workflows/integration-tests-bgp-4g.yaml
+  integration-tests-framed-5g:
+    needs: [image-build, image-build-tester]
+    uses: ./.github/workflows/integration-tests-framed-5g.yaml
+  integration-tests-framed-4g:
+    needs: [image-build, image-build-tester]
+    uses: ./.github/workflows/integration-tests-framed-4g.yaml
   integration-tests-n2-handover:
     needs: [image-build, image-build-tester]
     uses: ./.github/workflows/integration-tests-n2-handover.yaml

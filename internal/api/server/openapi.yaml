@@ -1905,6 +1905,92 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
+  /api/v1/networking/data-networks/{name}/framed-routes:
+    get:
+      operationId: listDataNetworkFramedRoutes
+      tags: [Data Networks]
+      summary: List framed routes for a data network
+      description: Returns the framed routes on the data network, grouped by subscriber.
+      parameters:
+        - $ref: "#/components/parameters/DataNetworkNamePath"
+      responses:
+        "200":
+          description: Framed routes grouped by subscriber.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FramedRouteListResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      operationId: createDataNetworkFramedRoute
+      tags: [Data Networks]
+      summary: Create a subscriber's framed routes
+      description: Sets the framed-route set (IPv4 and/or IPv6 prefixes routed toward the subscriber's session, TS 23.501 §5.6.14) on the data network. Rejected if the subscriber already has framed routes here (use PUT to replace), if NAT is enabled, if a prefix overlaps a UE pool, a route, or another subscriber's framed route, or if the subscriber's profile does not bind the data network.
+      parameters:
+        - $ref: "#/components/parameters/DataNetworkNamePath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFramedRouteParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/networking/data-networks/{name}/framed-routes/{imsi}:
+    put:
+      operationId: updateDataNetworkFramedRoute
+      tags: [Data Networks]
+      summary: Replace a subscriber's framed routes
+      description: Replaces the subscriber's entire framed-route set on the data network; an empty set clears it. The same overlap and NAT rules as create apply. A change to a live session releases it for re-establishment.
+      parameters:
+        - $ref: "#/components/parameters/DataNetworkNamePath"
+        - $ref: "#/components/parameters/ImsiPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFramedRouteParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteDataNetworkFramedRoute
+      tags: [Data Networks]
+      summary: Delete a subscriber's framed routes
+      description: Removes all framed routes for the subscriber on the data network.
+      parameters:
+        - $ref: "#/components/parameters/DataNetworkNamePath"
+        - $ref: "#/components/parameters/ImsiPath"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   # -- Routes --------------------------------------------------------------
   /api/v1/networking/routes:
     get:
@@ -4679,6 +4765,77 @@ components:
         address:
           type: string
           description: "New IPv4 address or /64-aligned IPv6 prefix within the data network pool."
+
+    FramedRoute:
+      type: object
+      properties:
+        imsi:
+          type: string
+          description: IMSI of the subscriber holding the routes.
+        ipv4:
+          type: array
+          items:
+            type: string
+          description: IPv4 framed-route prefixes (CIDR).
+        ipv6:
+          type: array
+          items:
+            type: string
+          description: IPv6 framed-route prefixes (CIDR).
+      required: [imsi]
+
+    FramedRouteList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FramedRoute"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+      required: [items, page, per_page, total_count]
+
+    FramedRouteListResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/FramedRouteList"
+
+    CreateFramedRouteParams:
+      type: object
+      required: [imsi]
+      properties:
+        imsi:
+          type: string
+          description: "15-digit IMSI of the subscriber."
+        ipv4:
+          type: array
+          items:
+            type: string
+          description: "IPv4 framed-route prefixes (CIDR), at most 8, masked to network form, non-overlapping."
+        ipv6:
+          type: array
+          items:
+            type: string
+          description: "IPv6 framed-route prefixes (CIDR), at most 8, masked to network form, non-overlapping."
+
+    UpdateFramedRouteParams:
+      type: object
+      properties:
+        ipv4:
+          type: array
+          items:
+            type: string
+          description: "Replacement IPv4 framed-route prefixes (CIDR); empty clears the IPv4 set."
+        ipv6:
+          type: array
+          items:
+            type: string
+          description: "Replacement IPv6 framed-route prefixes (CIDR); empty clears the IPv6 set."
 
     # -- Routes ----------------------------------------------------------
     Route:

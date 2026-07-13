@@ -180,6 +180,45 @@ func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, t
 	return nil
 }
 
+// mapsRecreatedOnReload lists maps that must NOT be preserved across a reload:
+// upf_calls holds program FDs and is repopulated by populateTailCalls. Every
+// other datapath map carries session or runtime state and must be preserved.
+var mapsRecreatedOnReload = map[string]bool{
+	"upf_calls": true,
+}
+
+// preservedMaps returns the maps carried across a program reload
+// (LoadWithMapReplacements) so their session and runtime state survives a
+// global-variable change (NAT/flow-accounting toggle).
+func (bpfObjects *BpfObjects) preservedMaps() map[string]*ebpf.Map {
+	m := map[string]*ebpf.Map{
+		"csum_scratch":         bpfObjects.CsumScratch,
+		"downlink_route_stats": bpfObjects.DownlinkRouteStats,
+		"downlink_statistics":  bpfObjects.DownlinkStatistics,
+		"flow_stats":           bpfObjects.FlowStats,
+		"framed_downlink_ip4":  bpfObjects.FramedDownlinkIp4,
+		"framed_downlink_ip6":  bpfObjects.FramedDownlinkIp6,
+		"nat_ct":               bpfObjects.NatCt,
+		"no_neigh_map":         bpfObjects.NoNeighMap,
+		"nocp_map":             bpfObjects.NocpMap,
+		"pdrs_downlink_ip4":    bpfObjects.PdrsDownlinkIp4,
+		"pdrs_downlink_ip6":    bpfObjects.PdrsDownlinkIp6,
+		"pdrs_uplink":          bpfObjects.PdrsUplink,
+		"rs_event_map":         bpfObjects.RsEventMap,
+		"sdf_filters":          bpfObjects.SdfFilters,
+		"uplink_route_stats":   bpfObjects.UplinkRouteStats,
+		"uplink_statistics":    bpfObjects.UplinkStatistics,
+		"urr_map":              bpfObjects.UrrMap,
+	}
+
+	// The profiling map exists only when built with -DENABLE_PROFILING.
+	if bpfObjects.ProfilingMap != nil {
+		m["profiling_map"] = bpfObjects.ProfilingMap
+	}
+
+	return m
+}
+
 // LoadWithMapReplacements reloads the eBPF programs with updated global
 // variable values while preserving all existing maps. This allows changing
 // settings like flow accounting or masquerade without disrupting subscriber
@@ -201,32 +240,8 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 		m.MaxEntries = uint32(runtime.NumCPU())
 	}
 
-	replacements := map[string]*ebpf.Map{
-		"csum_scratch":         bpfObjects.CsumScratch,
-		"downlink_route_stats": bpfObjects.DownlinkRouteStats,
-		"downlink_statistics":  bpfObjects.DownlinkStatistics,
-		"flow_stats":           bpfObjects.FlowStats,
-		"nat_ct":               bpfObjects.NatCt,
-		"no_neigh_map":         bpfObjects.NoNeighMap,
-		"nocp_map":             bpfObjects.NocpMap,
-		"pdrs_downlink_ip4":    bpfObjects.PdrsDownlinkIp4,
-		"pdrs_downlink_ip6":    bpfObjects.PdrsDownlinkIp6,
-		"pdrs_uplink":          bpfObjects.PdrsUplink,
-		"rs_event_map":         bpfObjects.RsEventMap,
-		"sdf_filters":          bpfObjects.SdfFilters,
-		"uplink_route_stats":   bpfObjects.UplinkRouteStats,
-		"uplink_statistics":    bpfObjects.UplinkStatistics,
-		"urr_map":              bpfObjects.UrrMap,
-	}
-
-	// Only preserve the profiling map when it was compiled in; it may be
-	// absent when the BPF code was built without -DENABLE_PROFILING.
-	if bpfObjects.ProfilingMap != nil {
-		replacements["profiling_map"] = bpfObjects.ProfilingMap
-	}
-
 	opts := &ebpf.CollectionOptions{
-		MapReplacements: replacements,
+		MapReplacements: bpfObjects.preservedMaps(),
 	}
 
 	var newObjects N3N6EntrypointObjects

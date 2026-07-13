@@ -10,6 +10,7 @@ package smf
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"sync"
 
 	"github.com/ellanetworks/core/etsi"
@@ -47,6 +48,7 @@ type SMContext struct {
 	PolicyData                     *Policy
 	PFCPContext                    *PFCPSessionContext
 	PDUSessionID                   uint8
+	FramedRoutes                   []netip.Prefix
 	PDUIPV4Address                 net.IP
 	PDUIPV6Prefix                  net.IP  // delegated /64 prefix base address (lower 64 bits = 0)
 	IPv6IID                        [8]byte // random Interface Identifier sent to UE

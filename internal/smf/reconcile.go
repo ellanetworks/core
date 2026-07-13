@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -130,6 +131,30 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 
 			return s.sendSessionRelease(ctx, smContext)
 		}
+	}
+
+	// A framed-route change cannot be applied in place: TS 23.501 §5.6.14 requires
+	// the SMF to release the PDU session (framed routes are provisioned in the
+	// session's downlink PDRs) so the UE re-establishes with the new routes.
+	// Checked before the in-place QoS/AMBR path so a framed-only change releases.
+	framedChanged, err := s.framedRoutesChanged(ctx, smContext)
+	if err != nil {
+		logger.SmfLog.Warn("failed to resolve framed routes during reconciliation; deferring to backstop",
+			logger.SUPI(smContext.Supi.String()),
+			logger.PDUSessionID(smContext.PDUSessionID),
+			zap.Error(err),
+		)
+
+		return nil
+	}
+
+	if framedChanged {
+		logger.SmfLog.Info("framed routes changed, releasing session for re-establishment",
+			logger.SUPI(smContext.Supi.String()),
+			logger.PDUSessionID(smContext.PDUSessionID),
+		)
+
+		return s.sendSessionRelease(ctx, smContext)
 	}
 
 	oldQoS := smContext.PolicyData.QosData
@@ -442,6 +467,40 @@ func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policy
 	}
 
 	return nil
+}
+
+// framedRoutesChanged reports whether the subscriber's currently provisioned
+// framed routes differ from those installed on the session at establishment.
+// Caller holds smContext.Mutex.
+func (s *SMF) framedRoutesChanged(ctx context.Context, smContext *SMContext) (bool, error) {
+	current, err := s.store.ListFramedRoutes(ctx, smContext.Supi.IMSI(), smContext.Dnn)
+	if err != nil {
+		return false, err
+	}
+
+	return !framedRoutesEqual(current, smContext.FramedRoutes), nil
+}
+
+// framedRoutesEqual compares two prefix sets independent of order. Both sides
+// are normalized (masked) at the source, so prefix equality is exact.
+func framedRoutesEqual(a, b []netip.Prefix) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	counts := make(map[netip.Prefix]int, len(a))
+	for _, p := range a {
+		counts[p]++
+	}
+
+	for _, p := range b {
+		counts[p]--
+		if counts[p] < 0 {
+			return false
+		}
+	}
+
+	return true
 }
 
 // sendSessionRelease performs the network-requested PDU session release

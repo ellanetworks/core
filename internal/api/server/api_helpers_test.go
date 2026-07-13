@@ -272,6 +272,10 @@ func (f *fakeSessionStore) InsertFlowReports(_ context.Context, _ []*models.Flow
 	return nil
 }
 
+func (f *fakeSessionStore) ListFramedRoutes(_ context.Context, _ string, _ string) ([]netip.Prefix, error) {
+	return nil, nil
+}
+
 type fakeUPFClient struct{}
 
 func (f *fakeUPFClient) EstablishSession(ctx context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error) {

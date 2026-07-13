@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"strings"
 	"syscall"
 	"time"
 
@@ -43,6 +44,10 @@ type TunnelOpts struct {
 	DLTEID           uint32 // eNB downlink TEID, for demultiplexing inbound G-PDUs
 	TunInterfaceName string
 	MTU              int // 0 selects a default that leaves room for GTP-U overhead
+	// ExtraAddrs are extra CIDRs on the TUN, e.g. a framed-route host behind the UE.
+	ExtraAddrs []string
+	// ExtraRoutes are extra CIDRs routed via the TUN, so an ExtraAddrs source reaches the DN.
+	ExtraRoutes []string
 }
 
 // AddTunnel brings up a TUN interface for the UE's bearer and forwards between it
@@ -95,6 +100,29 @@ func (e *ENB) AddTunnel(opts *TunnelOpts) error {
 	if opts.UEIPv6 != "" {
 		if err := e.assignUEIPv6(link, opts.UEIPv6); err != nil {
 			return err
+		}
+	}
+
+	for _, extra := range opts.ExtraAddrs {
+		addr, err := netlink.ParseAddr(extra)
+		if err != nil {
+			return fmt.Errorf("s1enb: parse extra TUN address %q: %w", extra, err)
+		}
+
+		if err := netlink.AddrAdd(link, addr); err != nil {
+			return fmt.Errorf("s1enb: assign extra address %q: %w", extra, err)
+		}
+	}
+
+	for _, r := range opts.ExtraRoutes {
+		_, dst, err := net.ParseCIDR(r)
+		if err != nil {
+			return fmt.Errorf("s1enb: parse extra TUN route %q: %w", r, err)
+		}
+
+		route := &netlink.Route{LinkIndex: link.Attrs().Index, Scope: netlink.SCOPE_UNIVERSE, Dst: dst}
+		if err := netlink.RouteAdd(route); err != nil && !strings.Contains(err.Error(), "exists") {
+			return fmt.Errorf("s1enb: add extra TUN route %q: %w", r, err)
 		}
 	}
 

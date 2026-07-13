@@ -148,6 +148,10 @@ func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string) erro
 	return nil
 }
 
+func (f *fakeSessionManager) FramedRoutesChanged(_ context.Context, _ string, _ uint8) (bool, error) {
+	return false, nil
+}
+
 // fakeBearerStore resolves a fixed default-bearer QoS for any subscriber.
 type fakeBearerStore struct{}
 

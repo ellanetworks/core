@@ -31,6 +31,8 @@ type fakeStore struct {
 	err             error
 	allocateIPErr   error
 	allocateIPv6Err error
+	framedRoutes    []netip.Prefix
+	framedRoutesErr error
 }
 
 type fakePCF struct {
@@ -83,6 +85,13 @@ func (f *fakeStore) ReleaseIPv6(_ context.Context, imsi string, _ string, _ uint
 	f.releasedIPv6s = append(f.releasedIPv6s, imsi)
 
 	return f.releasedIPv6, f.err
+}
+
+func (f *fakeStore) ListFramedRoutes(_ context.Context, _ string, _ string) ([]netip.Prefix, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.framedRoutes, f.framedRoutesErr
 }
 
 func (f *fakePCF) GetSessionPolicy(_ context.Context, _ string, _ *models.Snssai, _ string) (*smf.Policy, error) {

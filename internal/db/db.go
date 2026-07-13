@@ -234,16 +234,24 @@ type Database struct {
 	deleteNetworkRulesByPolicyStmt *sqlair.Statement
 	listRulesForPolicyStmt         *sqlair.Statement
 
+	// Framed Routes statements
+	createFramedRouteStmt        *sqlair.Statement
+	deleteFramedRoutesByPairStmt *sqlair.Statement
+	listFramedRoutesByPairStmt   *sqlair.Statement
+	listFramedRoutesByDNStmt     *sqlair.Statement
+	listAllFramedRoutesStmt      *sqlair.Statement
+
 	// Retention Policy statements
 	selectRetentionPolicyStmt *sqlair.Statement
 	upsertRetentionPolicyStmt *sqlair.Statement
 
 	// Routes statements
-	listRoutesStmt  *sqlair.Statement
-	getRouteStmt    *sqlair.Statement
-	createRouteStmt *sqlair.Statement
-	deleteRouteStmt *sqlair.Statement
-	countRoutesStmt *sqlair.Statement
+	listRoutesStmt    *sqlair.Statement
+	listAllRoutesStmt *sqlair.Statement
+	getRouteStmt      *sqlair.Statement
+	createRouteStmt   *sqlair.Statement
+	deleteRouteStmt   *sqlair.Statement
+	countRoutesStmt   *sqlair.Statement
 
 	// Audit Log statements
 	insertAuditLogStmt        *sqlair.Statement
@@ -1432,12 +1440,20 @@ func (db *Database) PrepareStatements() error {
 		{&db.deleteNetworkRulesByPolicyStmt, fmt.Sprintf(deleteNetworkRulesByPolicyStmt, NetworkRulesTableName), []any{NetworkRule{}}},
 		{&db.listRulesForPolicyStmt, fmt.Sprintf(listRulesForPolicyStmt, NetworkRulesTableName), []any{NetworkRule{}}},
 
+		// Framed Routes
+		{&db.createFramedRouteStmt, fmt.Sprintf(createFramedRouteStmt, FramedRoutesTableName), []any{SubscriberFramedRoute{}}},
+		{&db.deleteFramedRoutesByPairStmt, fmt.Sprintf(deleteFramedRoutesByPairStmt, FramedRoutesTableName), []any{SubscriberFramedRoute{}}},
+		{&db.listFramedRoutesByPairStmt, fmt.Sprintf(listFramedRoutesByPairStmt, FramedRoutesTableName), []any{SubscriberFramedRoute{}}},
+		{&db.listFramedRoutesByDNStmt, fmt.Sprintf(listFramedRoutesByDNStmt, FramedRoutesTableName), []any{SubscriberFramedRoute{}}},
+		{&db.listAllFramedRoutesStmt, fmt.Sprintf(listAllFramedRoutesStmt, FramedRoutesTableName), []any{SubscriberFramedRoute{}}},
+
 		// Retention Policy
 		{&db.selectRetentionPolicyStmt, fmt.Sprintf(selectRetentionPolicyStmt, RetentionPolicyTableName), []any{RetentionPolicy{}}},
 		{&db.upsertRetentionPolicyStmt, fmt.Sprintf(upsertRetentionPolicyStmt, RetentionPolicyTableName), []any{RetentionPolicy{}}},
 
 		// Routes
 		{&db.listRoutesStmt, fmt.Sprintf(listRoutesPageStmt, RoutesTableName), []any{ListArgs{}, Route{}, NumItems{}}},
+		{&db.listAllRoutesStmt, fmt.Sprintf(listAllRoutesStmt, RoutesTableName), []any{Route{}}},
 		{&db.getRouteStmt, fmt.Sprintf(getRouteStmt, RoutesTableName), []any{Route{}}},
 		{&db.createRouteStmt, fmt.Sprintf(createRouteStmt, RoutesTableName), []any{Route{}}},
 		{&db.deleteRouteStmt, fmt.Sprintf(deleteRouteStmt, RoutesTableName), []any{Route{}}},

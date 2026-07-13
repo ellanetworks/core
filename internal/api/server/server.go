@@ -162,6 +162,11 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("PUT /api/v1/networking/data-networks/{name}/static-ips/{imsi}/{ip_version}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateDataNetworkStaticIP, UpdateDataNetworkStaticIp(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/networking/data-networks/{name}/static-ips/{imsi}/{ip_version}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteDataNetworkStaticIP, DeleteDataNetworkStaticIp(dbInstance))).ServeHTTP)
 
+	mux.HandleFunc("GET /api/v1/networking/data-networks/{name}/framed-routes", Authenticate(jwtSecret, dbInstance, Authorize(PermListDataNetworkFramedRoutes, ListDataNetworkFramedRoutes(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/networking/data-networks/{name}/framed-routes", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateDataNetworkFramedRoute, CreateDataNetworkFramedRoute(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/networking/data-networks/{name}/framed-routes/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateDataNetworkFramedRoute, UpdateDataNetworkFramedRoute(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/networking/data-networks/{name}/framed-routes/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteDataNetworkFramedRoute, DeleteDataNetworkFramedRoute(dbInstance))).ServeHTTP)
+
 	// Routes (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/routes", Authenticate(jwtSecret, dbInstance, Authorize(PermListRoutes, ListRoutes(dbInstance, bgpService))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/networking/routes", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateRoute, CreateRoute(dbInstance, reconcileRoutes))).ServeHTTP)

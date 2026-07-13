@@ -640,6 +640,15 @@ func validateNoOverlap(ctx context.Context, dbInstance *db.Database, cidr string
 		}
 	}
 
+	conflict, err := framedRouteConflict(ctx, dbInstance, newPrefix)
+	if err != nil {
+		return fmt.Errorf("failed to check framed routes: %w", err)
+	}
+
+	if conflict != "" {
+		return fmt.Errorf("pool %s overlaps framed route %s", newPrefix, conflict)
+	}
+
 	return nil
 }
 
@@ -680,6 +689,15 @@ func validateNoIPv6Overlap(ctx context.Context, dbInstance *db.Database, cidr st
 		}
 	}
 
+	conflict, err := framedRouteConflict(ctx, dbInstance, newPrefix)
+	if err != nil {
+		return fmt.Errorf("failed to check framed routes: %w", err)
+	}
+
+	if conflict != "" {
+		return fmt.Errorf("IPv6 pool %s overlaps framed route %s", newPrefix, conflict)
+	}
+
 	return nil
 }
 
@@ -707,4 +725,25 @@ func CollectUEPools(ctx context.Context, dbInstance *db.Database) []netip.Prefix
 	}
 
 	return pools
+}
+
+// CollectFramedRoutes returns every framed-route prefix, for the BGP import
+// reject set: advertised framed prefixes must not be relearned from a peer.
+func CollectFramedRoutes(ctx context.Context, dbInstance *db.Database) []netip.Prefix {
+	rows, err := dbInstance.ListAllFramedRoutes(ctx)
+	if err != nil {
+		logger.APILog.Warn("failed to list framed routes for BGP filter rebuild")
+
+		return nil
+	}
+
+	prefixes := make([]netip.Prefix, 0, len(rows))
+
+	for i := range rows {
+		if prefix, err := netip.ParsePrefix(rows[i].Prefix); err == nil {
+			prefixes = append(prefixes, prefix)
+		}
+	}
+
+	return prefixes
 }

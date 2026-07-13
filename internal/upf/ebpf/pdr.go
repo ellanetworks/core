@@ -4,12 +4,14 @@
 package ebpf
 
 import (
+	"errors"
 	"fmt"
 	"net/netip"
 	"runtime"
 	"strconv"
 	"unsafe"
 
+	"github.com/cilium/ebpf"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
@@ -68,6 +70,88 @@ func (bpfObjects *BpfObjects) PutPdrDownlink(addr netip.Addr, pdrInfo PdrInfo) e
 	prefix := addr.As16()
 
 	return bpfObjects.PdrsDownlinkIp6.Put(prefix, unsafe.Pointer(&pdrToStore))
+}
+
+// framedIP4Key / framedIP6Key mirror the C LPM-trie keys in pdr_maps.h: a
+// prefix length (bits) followed by the network-order address.
+type framedIP4Key struct {
+	PrefixLen uint32
+	Addr      [4]byte
+}
+
+type framedIP6Key struct {
+	PrefixLen uint32
+	Addr      [16]byte
+}
+
+// PutFramedDownlink installs a framed route (TS 29.244 §5.16) as an LPM entry
+// whose value is the owning session's UE address. A downlink packet inside the
+// prefix redirects to that UE's live downlink PDR, so the framed route follows
+// every downlink-PDR change without a separate copy to keep in sync. ueAddr
+// must match the prefix's address family.
+func (bpfObjects *BpfObjects) PutFramedDownlink(prefix netip.Prefix, ueAddr netip.Addr) error {
+	prefix = prefix.Masked()
+
+	logger.UpfLog.Debug("Put framed route", logger.IPAddress(prefix.String()))
+
+	if prefix.Addr().Is4() {
+		key := framedIP4Key{PrefixLen: uint32(prefix.Bits()), Addr: prefix.Addr().As4()}
+		ueIP := ueAddr.As4()
+
+		return bpfObjects.FramedDownlinkIp4.Put(key, unsafe.Pointer(&ueIP))
+	}
+
+	key := framedIP6Key{PrefixLen: uint32(prefix.Bits()), Addr: prefix.Addr().As16()}
+	uePrefix := ueAddr.As16()
+
+	return bpfObjects.FramedDownlinkIp6.Put(key, unsafe.Pointer(&uePrefix))
+}
+
+// DeleteFramedDownlink removes a framed route's LPM entry.
+func (bpfObjects *BpfObjects) DeleteFramedDownlink(prefix netip.Prefix) error {
+	prefix = prefix.Masked()
+
+	logger.UpfLog.Debug("Delete framed route", logger.IPAddress(prefix.String()))
+
+	if prefix.Addr().Is4() {
+		key := framedIP4Key{PrefixLen: uint32(prefix.Bits()), Addr: prefix.Addr().As4()}
+		return bpfObjects.FramedDownlinkIp4.Delete(key)
+	}
+
+	key := framedIP6Key{PrefixLen: uint32(prefix.Bits()), Addr: prefix.Addr().As16()}
+
+	return bpfObjects.FramedDownlinkIp6.Delete(key)
+}
+
+// HasFramedDownlink reports whether a framed route's exact LPM entry is present.
+func (bpfObjects *BpfObjects) HasFramedDownlink(prefix netip.Prefix) (bool, error) {
+	prefix = prefix.Masked()
+
+	var lookupErr error
+
+	if prefix.Addr().Is4() {
+		key := framedIP4Key{PrefixLen: uint32(prefix.Bits()), Addr: prefix.Addr().As4()}
+
+		var val uint32
+
+		lookupErr = bpfObjects.FramedDownlinkIp4.Lookup(key, &val)
+	} else {
+		key := framedIP6Key{PrefixLen: uint32(prefix.Bits()), Addr: prefix.Addr().As16()}
+
+		var val [16]byte
+
+		lookupErr = bpfObjects.FramedDownlinkIp6.Lookup(key, &val)
+	}
+
+	if lookupErr == nil {
+		return true, nil
+	}
+
+	if errors.Is(lookupErr, ebpf.ErrKeyNotExist) {
+		return false, nil
+	}
+
+	return false, lookupErr
 }
 
 func (bpfObjects *BpfObjects) DeletePdrUplink(teid uint32) error {

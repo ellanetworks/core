@@ -308,6 +308,106 @@ None
 }
 ```
 
+## List Framed Routes
+
+This path returns the framed routes for a specific data network, grouped by subscriber. A framed route is an IP prefix routed toward a subscriber's session, so a whole subnet behind the UE is reachable over one session.
+
+| Method | Path                           |
+| ------ | ------------------------------ |
+| GET    | `/api/v1/networking/data-networks/{name}/framed-routes` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "items": [
+            {
+                "imsi": "001010100000001",
+                "ipv4": ["192.168.60.0/24"],
+                "ipv6": ["fd00:60::/64"]
+            }
+        ],
+        "page": 1,
+        "per_page": 1,
+        "total_count": 1
+    }
+}
+```
+
+## Create Framed Routes
+
+This path sets a subscriber's framed-route set on a data network. It is rejected if the subscriber already has framed routes here (use the update path to replace them), if NAT is enabled, if a prefix overlaps a UE pool, a route, or another subscriber's framed route, or if the subscriber's profile does not bind the data network. At most 8 prefixes per family are allowed, and each is masked to its network form.
+
+| Method | Path                           |
+| ------ | ------------------------------ |
+| POST   | `/api/v1/networking/data-networks/{name}/framed-routes` |
+
+### Parameters
+
+- `imsi` (string): The IMSI of the subscriber.
+- `ipv4` (array of strings): IPv4 framed-route prefixes in CIDR form. Example: `["192.168.60.0/24"]`.
+- `ipv6` (array of strings): IPv6 framed-route prefixes in CIDR form. Example: `["fd00:60::/64"]`.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Framed routes created successfully"
+    }
+}
+```
+
+## Update Framed Routes
+
+This path replaces a subscriber's entire framed-route set on a data network; an empty set clears it. The same overlap and NAT rules as create apply. A change to a live session releases it so the UE re-establishes with the new routes.
+
+| Method | Path                           |
+| ------ | ------------------------------ |
+| PUT    | `/api/v1/networking/data-networks/{name}/framed-routes/{imsi}` |
+
+### Parameters
+
+- `ipv4` (array of strings): The replacement IPv4 framed-route prefixes in CIDR form.
+- `ipv6` (array of strings): The replacement IPv6 framed-route prefixes in CIDR form.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Framed routes updated successfully"
+    }
+}
+```
+
+## Delete Framed Routes
+
+This path removes all framed routes for a subscriber on a data network.
+
+| Method | Path                           |
+| ------ | ------------------------------ |
+| DELETE | `/api/v1/networking/data-networks/{name}/framed-routes/{imsi}` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Framed routes deleted successfully"
+    }
+}
+```
+
 ## Delete a Data Network
 
 This path deletes a data network from Ella Core.

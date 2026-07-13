@@ -168,12 +168,12 @@ func TestReconciler_PopulatesEmptyRIB(t *testing.T) {
 		t.Fatalf("expected %d paths in RIB, got %d: %v", want, got, paths)
 	}
 
-	if paths["10.45.0.1"] != "imsi-1" {
-		t.Errorf("10.45.0.1: expected imsi-1, got %q", paths["10.45.0.1"])
+	if paths["10.45.0.1/32"] != "imsi-1" {
+		t.Errorf("10.45.0.1: expected imsi-1, got %q", paths["10.45.0.1/32"])
 	}
 
-	if paths["10.45.0.2"] != "imsi-2" {
-		t.Errorf("10.45.0.2: expected imsi-2, got %q", paths["10.45.0.2"])
+	if paths["10.45.0.2/32"] != "imsi-2" {
+		t.Errorf("10.45.0.2: expected imsi-2, got %q", paths["10.45.0.2/32"])
 	}
 }
 
@@ -201,16 +201,16 @@ func TestReconciler_ConvergesAfterChurn(t *testing.T) {
 	}
 
 	paths := svc.Paths()
-	if _, have := paths["10.45.0.1"]; !have {
+	if _, have := paths["10.45.0.1/32"]; !have {
 		t.Errorf("10.45.0.1 should still be announced")
 	}
 
-	if _, have := paths["10.45.0.2"]; have {
+	if _, have := paths["10.45.0.2/32"]; have {
 		t.Errorf("10.45.0.2 should have been withdrawn: %v", paths)
 	}
 
-	if paths["10.45.0.3"] != "imsi-3" {
-		t.Errorf("10.45.0.3: expected imsi-3, got %q", paths["10.45.0.3"])
+	if paths["10.45.0.3/32"] != "imsi-3" {
+		t.Errorf("10.45.0.3: expected imsi-3, got %q", paths["10.45.0.3/32"])
 	}
 }
 
@@ -252,6 +252,46 @@ func TestReconciler_StoreErrorPropagates(t *testing.T) {
 	}
 }
 
+func TestReconciler_AdvertisesFramedRoutes(t *testing.T) {
+	svc := newTestBGPServiceAdvertising(t)
+
+	store := &fakeLeaseStore{leases: []Lease{
+		{
+			Address: netip.MustParseAddr("10.45.0.1"),
+			IMSI:    "imsi-1",
+			FramedRoutes: []netip.Prefix{
+				netip.MustParsePrefix("192.168.50.0/24"),
+				netip.MustParsePrefix("2001:db8:aa::/48"),
+			},
+		},
+	}}
+	r := NewReconciler(svc, store, 1, nil)
+
+	if err := r.Reconcile(context.Background()); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	paths := svc.Paths()
+
+	// The UE /32 and both framed prefixes advertise from the same lease owner.
+	for _, want := range []string{"10.45.0.1/32", "192.168.50.0/24", "2001:db8:aa::/48"} {
+		if paths[want] != "imsi-1" {
+			t.Errorf("%s: expected owner imsi-1, got %q (paths=%v)", want, paths[want], paths)
+		}
+	}
+
+	// Dropping the lease withdraws the UE route and its framed routes together.
+	store.set(nil)
+
+	if err := r.Reconcile(context.Background()); err != nil {
+		t.Fatalf("second reconcile: %v", err)
+	}
+
+	if got := svc.Paths(); len(got) != 0 {
+		t.Errorf("expected all routes withdrawn after lease drop, got %v", got)
+	}
+}
+
 func TestReconciler_StartStopIsIdempotent(t *testing.T) {
 	svc := newTestBGPServiceAdvertising(t)
 	store := &fakeLeaseStore{}
@@ -273,20 +313,20 @@ func newFakeRIB() *fakeRIB {
 	return &fakeRIB{paths: make(map[string]string)}
 }
 
-func (f *fakeRIB) Announce(ip netip.Addr, owner string) error {
+func (f *fakeRIB) Announce(prefix netip.Prefix, owner string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.paths[ip.String()] = owner
+	f.paths[prefix.Masked().String()] = owner
 
 	return nil
 }
 
-func (f *fakeRIB) Withdraw(ip netip.Addr) error {
+func (f *fakeRIB) Withdraw(prefix netip.Prefix) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	delete(f.paths, ip.String())
+	delete(f.paths, prefix.Masked().String())
 
 	return nil
 }

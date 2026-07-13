@@ -22,6 +22,7 @@ import (
 // cause its access uses.
 var (
 	errUEAddressAllocation = errors.New("UE address allocation failed")
+	errFramedRouteResolve  = errors.New("framed route resolution failed")
 	errDataPathActivation  = errors.New("data path activation failed")
 	errUPFSession          = errors.New("UPF session establishment failed")
 )
@@ -74,6 +75,17 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 		sc.Mutex.Unlock()
 		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errUEAddressAllocation, err)
 	}
+
+	// Framed routes are per-subscriber subscription data (TS 23.501 §5.6.14): they
+	// attach to the session context, not the profile-shared Policy. A resolution
+	// failure rejects establishment, fail-closed.
+	framed, err := s.store.ListFramedRoutes(ctx, req.Supi.IMSI(), req.Dnn)
+	if err != nil {
+		sc.Mutex.Unlock()
+		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errFramedRouteResolve, err)
+	}
+
+	sc.FramedRoutes = framed
 
 	sc.Tunnel = &UPTunnel{DataPath: &DataPath{UpLinkTunnel: &GTPTunnel{}, DownLinkTunnel: &GTPTunnel{}}}
 
@@ -256,6 +268,7 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 			policyID,
 			pdrList, farList, qerList, urrList,
 		)
+		req.FramedRoutes = smContext.FramedRoutes
 
 		resp, err := s.upf.EstablishSession(ctx, req)
 		if err != nil {

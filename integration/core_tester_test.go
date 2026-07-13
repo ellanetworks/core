@@ -39,6 +39,12 @@ var scenariosSkipped = map[string]string{
 	"s1enb/connectivity_expect_blocked":      "test-only harness; driven by TestIntegration4GNetworkRules",
 	"s1enb/connectivity_expect_allowed_ipv6": "test-only harness; driven by TestIntegration4GNetworkRules",
 	"s1enb/connectivity_expect_blocked_ipv6": "test-only harness; driven by TestIntegration4GNetworkRules",
+	"gnb/framed_route":                       "requires NAT disabled; covered by TestIntegration5GFramedRouting",
+	"gnb/framed_route_ipv6":                  "requires NAT disabled; covered by TestIntegration5GFramedRouting",
+	"gnb/framed_route_add_live":              "requires NAT disabled; covered by TestIntegration5GFramedRoutingReconcile",
+	"gnb/framed_route_remove_live":           "requires NAT disabled; covered by TestIntegration5GFramedRoutingReconcile",
+	"s1enb/framed_route":                     "requires NAT disabled; covered by TestIntegration4GFramedRouting",
+	"s1enb/framed_route_ipv6":                "requires NAT disabled; covered by TestIntegration4GFramedRouting",
 }
 
 // scenarioIPFamilyRestrictions returns a map of scenario name → required IP
@@ -88,6 +94,10 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 		DualStack: true,
 	},
 	"gnb/static_ip": {
+		IPv6Only:  true,
+		DualStack: true,
+	},
+	"gnb/framed_route": {
 		IPv6Only:  true,
 		DualStack: true,
 	},

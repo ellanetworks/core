@@ -91,6 +91,17 @@ func TestStopWhenNotRunning(t *testing.T) {
 	}
 }
 
+// hostPfx wraps a UE address as its host route (/32 or /64) for the prefix-based
+// Announce/Withdraw API.
+func hostPfx(addr netip.Addr) netip.Prefix {
+	bits := 32
+	if addr.Is6() {
+		bits = 64
+	}
+
+	return netip.PrefixFrom(addr, bits).Masked()
+}
+
 func TestAnnounceWithdraw(t *testing.T) {
 	svc := newTestService(t)
 	ctx := context.Background()
@@ -109,7 +120,7 @@ func TestAnnounceWithdraw(t *testing.T) {
 
 	ip := netip.MustParseAddr("10.1.1.1")
 
-	err = svc.Announce(ip, "001010000000001")
+	err = svc.Announce(hostPfx(ip), "001010000000001")
 	if err != nil {
 		t.Fatalf("Announce failed: %v", err)
 	}
@@ -135,7 +146,7 @@ func TestAnnounceWithdraw(t *testing.T) {
 		t.Fatalf("expected subscriber 001010000000001, got %s", routes[0].Subscriber)
 	}
 
-	err = svc.Withdraw(ip)
+	err = svc.Withdraw(hostPfx(ip))
 	if err != nil {
 		t.Fatalf("Withdraw failed: %v", err)
 	}
@@ -154,12 +165,12 @@ func TestAnnounceWhenNotRunning(t *testing.T) {
 	svc := newTestService(t)
 
 	// Should be a no-op, not an error
-	err := svc.Announce(netip.MustParseAddr("10.1.1.1"), "001010000000001")
+	err := svc.Announce(hostPfx(netip.MustParseAddr("10.1.1.1")), "001010000000001")
 	if err != nil {
 		t.Fatalf("Announce on non-running service should succeed (no-op), got: %v", err)
 	}
 
-	err = svc.Withdraw(netip.MustParseAddr("10.1.1.1"))
+	err = svc.Withdraw(hostPfx(netip.MustParseAddr("10.1.1.1")))
 	if err != nil {
 		t.Fatalf("Withdraw on non-running service should succeed (no-op), got: %v", err)
 	}
@@ -189,7 +200,7 @@ func TestAnnounceAfterStartPopulatesRIB(t *testing.T) {
 		"10.1.1.3": "imsi-001010000000003",
 	} {
 		ip, _ := netip.ParseAddr(ipStr)
-		if err := svc.Announce(ip, owner); err != nil {
+		if err := svc.Announce(hostPfx(ip), owner); err != nil {
 			t.Fatalf("Announce %s failed: %v", ipStr, err)
 		}
 	}
@@ -373,7 +384,7 @@ func TestReconfigureWithRestart(t *testing.T) {
 	defer func() { _ = svc.Stop() }()
 
 	ip := netip.MustParseAddr("10.1.1.1")
-	if err := svc.Announce(ip, "imsi-001010000000001"); err != nil {
+	if err := svc.Announce(hostPfx(ip), "imsi-001010000000001"); err != nil {
 		t.Fatalf("Announce failed: %v", err)
 	}
 
@@ -437,7 +448,7 @@ func TestAnnounce_IPv6(t *testing.T) {
 
 	ip := netip.MustParseAddr("2001:db8::1")
 
-	err = svc.Announce(ip, "imsi-ipv6")
+	err = svc.Announce(hostPfx(ip), "imsi-ipv6")
 	if err != nil {
 		t.Fatalf("Announce IPv6 failed: %v", err)
 	}
@@ -463,7 +474,7 @@ func TestAnnounce_IPv6(t *testing.T) {
 		t.Fatalf("expected subscriber imsi-ipv6, got %s", routes[0].Subscriber)
 	}
 
-	err = svc.Withdraw(ip)
+	err = svc.Withdraw(hostPfx(ip))
 	if err != nil {
 		t.Fatalf("Withdraw failed: %v", err)
 	}
@@ -505,7 +516,7 @@ func TestAnnounceBothIPv4AndIPv6(t *testing.T) {
 
 	for _, ipStr := range ips {
 		ip, _ := netip.ParseAddr(ipStr.addr)
-		if err := svc.Announce(ip, "test"); err != nil {
+		if err := svc.Announce(hostPfx(ip), "test"); err != nil {
 			t.Fatalf("Announce %s failed: %v", ipStr.addr, err)
 		}
 	}
@@ -550,11 +561,11 @@ func TestWithdraw_IPv6(t *testing.T) {
 	ipv6 := netip.MustParseAddr("2001:db8::1")
 	ipv4 := netip.MustParseAddr("10.1.1.1")
 
-	if err := svc.Announce(ipv6, "imsi-v6"); err != nil {
+	if err := svc.Announce(hostPfx(ipv6), "imsi-v6"); err != nil {
 		t.Fatalf("Announce IPv6 failed: %v", err)
 	}
 
-	if err := svc.Announce(ipv4, "imsi-v4"); err != nil {
+	if err := svc.Announce(hostPfx(ipv4), "imsi-v4"); err != nil {
 		t.Fatalf("Announce IPv4 failed: %v", err)
 	}
 
@@ -563,7 +574,7 @@ func TestWithdraw_IPv6(t *testing.T) {
 		t.Fatalf("expected 2 routes, got %d", len(routes))
 	}
 
-	if err := svc.Withdraw(ipv6); err != nil {
+	if err := svc.Withdraw(hostPfx(ipv6)); err != nil {
 		t.Fatalf("Withdraw IPv6 failed: %v", err)
 	}
 
@@ -683,7 +694,7 @@ func TestMultipleAnnounceWithdraw(t *testing.T) {
 	}
 
 	for _, ip := range ips {
-		if err := svc.Announce(ip, "test-owner"); err != nil {
+		if err := svc.Announce(hostPfx(ip), "test-owner"); err != nil {
 			t.Fatalf("Announce %s failed: %v", ip, err)
 		}
 	}
@@ -698,7 +709,7 @@ func TestMultipleAnnounceWithdraw(t *testing.T) {
 	}
 
 	// Withdraw one
-	if err := svc.Withdraw(ips[1]); err != nil {
+	if err := svc.Withdraw(hostPfx(ips[1])); err != nil {
 		t.Fatalf("Withdraw failed: %v", err)
 	}
 
@@ -782,7 +793,7 @@ func TestAnnounceNoOpWhenNotAdvertising(t *testing.T) {
 	defer func() { _ = svc.Stop() }()
 
 	// Announce should be a no-op
-	err = svc.Announce(netip.MustParseAddr("10.1.1.1"), "test")
+	err = svc.Announce(hostPfx(netip.MustParseAddr("10.1.1.1")), "test")
 	if err != nil {
 		t.Fatalf("Announce should succeed as no-op, got: %v", err)
 	}
@@ -818,7 +829,7 @@ func TestAnnounceNoOpWhenNATEnabled(t *testing.T) {
 
 	for _, ipStr := range []string{"10.1.1.1", "10.1.1.2"} {
 		ip, _ := netip.ParseAddr(ipStr)
-		if err := svc.Announce(ip, "imsi"); err != nil {
+		if err := svc.Announce(hostPfx(ip), "imsi"); err != nil {
 			t.Fatalf("Announce(%s) should be a no-op when !advertising, got %v", ipStr, err)
 		}
 	}
@@ -873,7 +884,7 @@ func TestSetAdvertisingEnableIsFlagFlipOnly(t *testing.T) {
 
 	// Announce is now a working operation; emulate a reconciler tick.
 	ip := netip.MustParseAddr("10.9.9.9")
-	if err := svc.Announce(ip, "imsi-9"); err != nil {
+	if err := svc.Announce(hostPfx(ip), "imsi-9"); err != nil {
 		t.Fatalf("Announce failed: %v", err)
 	}
 
@@ -898,7 +909,7 @@ func TestSetAdvertisingDisableWithdrawsAllImmediately(t *testing.T) {
 
 	for _, ipStr := range []string{"10.1.1.1", "10.1.1.2"} {
 		ip, _ := netip.ParseAddr(ipStr)
-		if err := svc.Announce(ip, "imsi"); err != nil {
+		if err := svc.Announce(hostPfx(ip), "imsi"); err != nil {
 			t.Fatalf("Announce(%s) failed: %v", ipStr, err)
 		}
 	}

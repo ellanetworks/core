@@ -23,6 +23,7 @@ const RoutesTableName = "routes"
 
 const (
 	listRoutesPageStmt = "SELECT &Route.*, COUNT(*) OVER() AS &NumItems.count FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	listAllRoutesStmt  = "SELECT &Route.* FROM %s ORDER BY id ASC"
 	getRouteStmt       = "SELECT &Route.* FROM %s WHERE id==$Route.id"
 	createRouteStmt    = "INSERT INTO %s (destination, gateway, interface, metric) VALUES ($Route.destination, $Route.gateway, $Route.interface, $Route.metric)"
 	deleteRouteStmt    = "DELETE FROM %s WHERE id==$Route.id"
@@ -113,6 +114,47 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 	span.SetStatus(codes.Ok, "")
 
 	return routes, count, nil
+}
+
+// ListAllRoutes returns every route. The framed-route overlap validation reads
+// the full set to enforce non-overlap against the global routing table.
+func (db *Database) ListAllRoutes(ctx context.Context) ([]Route, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", RoutesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			attribute.String("db.collection", RoutesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoutesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(RoutesTableName, "select").Inc()
+
+	var routes []Route
+
+	err := db.conn().Query(ctx, db.listAllRoutesStmt).GetAll(&routes)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetStatus(codes.Ok, "no rows")
+
+			return nil, nil
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return routes, nil
 }
 
 func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {

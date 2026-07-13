@@ -11,13 +11,14 @@ import (
 // EstablishRequest asks the UPF to create a new session with the
 // given packet detection, forwarding, QoS, and usage reporting rules.
 type EstablishRequest struct {
-	LocalSEID uint64
-	IMSI      string
-	PolicyID  string
-	PDRs      []PDR
-	FARs      []FAR
-	QERs      []QER
-	URRs      []URR
+	LocalSEID    uint64
+	IMSI         string
+	PolicyID     string
+	PDRs         []PDR
+	FARs         []FAR
+	QERs         []QER
+	URRs         []URR
+	FramedRoutes []netip.Prefix
 }
 
 // EstablishResponse returns the allocated identifiers from the UPF.

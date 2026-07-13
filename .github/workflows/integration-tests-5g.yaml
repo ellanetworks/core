@@ -53,7 +53,7 @@ jobs:
           IP_VERSION: ${{ matrix.ip_version }}
           HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
         run: |
-          go test ./integration/... -skip 'TestIntegrationHA|TestIntegration5GHAFailover|TestAPIMatrix|TestIntegration5GBGP|TestIntegration4G|TestIntegrationTester/s1enb' -timeout 30m -v
+          go test ./integration/... -skip 'TestIntegrationHA|TestIntegration5GHAFailover|TestAPIMatrix|TestIntegration5GBGP|TestIntegration5GFramedRouting|TestIntegration4G|TestIntegrationTester/s1enb' -timeout 30m -v
 
       - name: Upload cluster logs
         if: always()

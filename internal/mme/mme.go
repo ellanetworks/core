@@ -61,6 +61,11 @@ type epsSessionManager interface {
 	// superseded context releases its own session and never a newer one that reused
 	// the same (IMSI, EBI).
 	ReleaseEPSSession(ctx context.Context, ref string) error
+
+	// FramedRoutesChanged reports whether the subscriber's framed routes for the
+	// default bearer (imsi, ebi) differ from those installed at establishment, so
+	// the reconciler reactivates the bearer on a change (TS 23.501 §5.6.14).
+	FramedRoutesChanged(ctx context.Context, imsi string, ebi uint8) (bool, error)
 }
 
 // credentialProvider is the UDM surface the MME requires for EPS authentication:
