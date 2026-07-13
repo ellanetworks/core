@@ -242,8 +242,10 @@ func (bpfObjects *BpfObjects) NewUrr(seid uint64, id uint32) error {
 }
 
 func (bpfObjects *BpfObjects) DeleteUrr(seid uint64, id uint32) error {
+	// A URR shared by several PDRs (the downlink and second PDR share one) is
+	// deleted with the first PDR, so a later delete of the same key is a no-op.
 	err := bpfObjects.UrrMap.Delete(N3N6EntrypointUrrKey{Seid: seid, UrrId: id})
-	if err != nil {
+	if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
 		return fmt.Errorf("failed to delete URR: %w", err)
 	}
 
