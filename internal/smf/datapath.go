@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 )
 
@@ -28,74 +27,45 @@ type DataPath struct {
 	DownLinkTunnel *GTPTunnel
 	SecondPDR      *PDR
 	Activated      bool
+
+	// allocated* record every id-generator ID allocated for this data path so
+	// teardown frees each exactly once. Freeing by walking the PDR structs
+	// double-frees FAR/QER/URR IDs shared across PDRs (a second session can then
+	// be handed a still-in-use ID) and cannot reach an allocated-but-unattached
+	// ID; a ledger keyed by ID avoids both.
+	allocatedPDRIDs map[int64]struct{}
+	allocatedFARIDs map[int64]struct{}
+	allocatedQERIDs map[int64]struct{}
+	allocatedURRIDs map[int64]struct{}
 }
 
-func (dp *DataPath) DeactivateUpLinkTunnel(smf *SMF) {
-	if dp.UpLinkTunnel.PDR == nil {
-		logger.SmfLog.Debug("PDR is nil in UpLink Tunnel")
-		return
+func (dp *DataPath) ensureLedger() {
+	if dp.allocatedPDRIDs == nil {
+		dp.allocatedPDRIDs = make(map[int64]struct{})
+		dp.allocatedFARIDs = make(map[int64]struct{})
+		dp.allocatedQERIDs = make(map[int64]struct{})
+		dp.allocatedURRIDs = make(map[int64]struct{})
 	}
-
-	smf.RemovePDR(dp.UpLinkTunnel.PDR)
-
-	if dp.UpLinkTunnel.PDR.FAR != nil {
-		smf.RemoveFAR(dp.UpLinkTunnel.PDR.FAR)
-	}
-
-	if dp.UpLinkTunnel.PDR.QER != nil {
-		smf.RemoveQER(dp.UpLinkTunnel.PDR.QER)
-	}
-
-	if dp.UpLinkTunnel.PDR.URR != nil {
-		smf.RemoveURR(dp.UpLinkTunnel.PDR.URR)
-	}
-
-	logger.SmfLog.Info("deactivated UpLinkTunnel PDR")
-
-	dp.UpLinkTunnel = &GTPTunnel{}
 }
 
-func (dp *DataPath) DeactivateDownLinkTunnel(smf *SMF) {
-	if dp.DownLinkTunnel.PDR == nil {
-		logger.SmfLog.Debug("PDR is nil in Downlink Tunnel")
-		return
+// trackPDR records a PDR's ID and its FAR's ID (NewPDR allocates both).
+func (dp *DataPath) trackPDR(pdr *PDR) {
+	dp.ensureLedger()
+	dp.allocatedPDRIDs[int64(pdr.PDRID)] = struct{}{}
+
+	if pdr.FAR != nil {
+		dp.allocatedFARIDs[int64(pdr.FAR.FARID)] = struct{}{}
 	}
+}
 
-	logger.SmfLog.Info("deactivated DownLinkTunnel PDR", logger.PDRID(uint32(dp.DownLinkTunnel.PDR.PDRID)))
+func (dp *DataPath) trackQER(qer *QER) {
+	dp.ensureLedger()
+	dp.allocatedQERIDs[int64(qer.QERID)] = struct{}{}
+}
 
-	smf.RemovePDR(dp.DownLinkTunnel.PDR)
-
-	if dp.DownLinkTunnel.PDR.FAR != nil {
-		smf.RemoveFAR(dp.DownLinkTunnel.PDR.FAR)
-	}
-
-	if dp.DownLinkTunnel.PDR.QER != nil {
-		smf.RemoveQER(dp.DownLinkTunnel.PDR.QER)
-	}
-
-	if dp.DownLinkTunnel.PDR.URR != nil {
-		smf.RemoveURR(dp.DownLinkTunnel.PDR.URR)
-	}
-
-	dp.DownLinkTunnel = &GTPTunnel{}
-
-	if dp.SecondPDR != nil {
-		smf.RemovePDR(dp.SecondPDR)
-
-		if dp.SecondPDR.FAR != nil {
-			smf.RemoveFAR(dp.SecondPDR.FAR)
-		}
-
-		if dp.SecondPDR.QER != nil {
-			smf.RemoveQER(dp.SecondPDR.QER)
-		}
-
-		if dp.SecondPDR.URR != nil {
-			smf.RemoveURR(dp.SecondPDR.URR)
-		}
-
-		dp.SecondPDR = nil
-	}
+func (dp *DataPath) trackURR(urr *URR) {
+	dp.ensureLedger()
+	dp.allocatedURRIDs[int64(urr.URRID)] = struct{}{}
 }
 
 func (dp *DataPath) ActivateUpLinkPdr(ueIP netip.Addr, anIP net.IP, defQER *QER, defURR *URR) {
@@ -154,6 +124,7 @@ func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, policy 
 	}
 
 	dp.UpLinkTunnel.PDR = ulPdr
+	dp.trackPDR(ulPdr)
 
 	dlPdr, err := smf.NewPDR()
 	if err != nil {
@@ -161,21 +132,28 @@ func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, policy 
 	}
 
 	dp.DownLinkTunnel.PDR = dlPdr
+	dp.trackPDR(dlPdr)
 
 	defQER, err := smf.NewQER(policy)
 	if err != nil {
 		return fmt.Errorf("could not create QER: %v", err)
 	}
 
+	dp.trackQER(defQER)
+
 	defULURR, err := smf.NewURR()
 	if err != nil {
 		return fmt.Errorf("could not create uplink URR: %v", err)
 	}
 
+	dp.trackURR(defULURR)
+
 	defDLURR, err := smf.NewURR()
 	if err != nil {
 		return fmt.Errorf("could not create downlink URR: %v", err)
 	}
+
+	dp.trackURR(defDLURR)
 
 	dp.ActivateUpLinkPdr(ueIP, smContext.Tunnel.ANInformation.IPv4Address, defQER, defULURR)
 
@@ -186,6 +164,10 @@ func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, policy 
 		if err != nil {
 			return fmt.Errorf("could not create second downlink PDR: %s", err)
 		}
+
+		// Track before overwriting FAR so the throwaway FAR ID NewPDR allocated
+		// is freed on teardown; the shared FAR/QER/URR IDs are already tracked.
+		dp.trackPDR(secondPdr)
 
 		secondPdr.FAR = dlPdr.FAR
 		secondPdr.QER = defQER
@@ -200,9 +182,33 @@ func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, policy 
 	return nil
 }
 
+// DeactivateTunnelAndPDR frees every id-generator ID allocated by
+// ActivateTunnelAndPDR exactly once. Safe to call more than once: the ledger is
+// cleared after freeing.
 func (dp *DataPath) DeactivateTunnelAndPDR(smf *SMF) {
-	dp.DeactivateUpLinkTunnel(smf)
-	dp.DeactivateDownLinkTunnel(smf)
+	for id := range dp.allocatedPDRIDs {
+		smf.pdrIDs.FreeID(id)
+	}
 
+	for id := range dp.allocatedFARIDs {
+		smf.farIDs.FreeID(id)
+	}
+
+	for id := range dp.allocatedQERIDs {
+		smf.qerIDs.FreeID(id)
+	}
+
+	for id := range dp.allocatedURRIDs {
+		smf.urrIDs.FreeID(id)
+	}
+
+	dp.allocatedPDRIDs = nil
+	dp.allocatedFARIDs = nil
+	dp.allocatedQERIDs = nil
+	dp.allocatedURRIDs = nil
+
+	dp.UpLinkTunnel = &GTPTunnel{}
+	dp.DownLinkTunnel = &GTPTunnel{}
+	dp.SecondPDR = nil
 	dp.Activated = false
 }

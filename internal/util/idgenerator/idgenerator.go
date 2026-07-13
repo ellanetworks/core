@@ -99,6 +99,14 @@ func (idGenerator *IDGenerator) FreeID(id int64) {
 	delete(idGenerator.usedMap, id-idGenerator.minValue)
 }
 
+// InUse returns the number of currently-allocated IDs.
+func (idGenerator *IDGenerator) InUse() int {
+	idGenerator.lock.Lock()
+	defer idGenerator.lock.Unlock()
+
+	return len(idGenerator.usedMap)
+}
+
 func (idGenerator *IDGenerator) updateOffset() {
 	idGenerator.offset++
 	idGenerator.offset = idGenerator.offset % idGenerator.valueRange

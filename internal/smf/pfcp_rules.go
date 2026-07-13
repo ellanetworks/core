@@ -220,6 +220,7 @@ func (s *SMF) NewPDR() (*PDR, error) {
 
 	far, err := s.NewFAR()
 	if err != nil {
+		s.pdrIDs.FreeID(pdrID)
 		return nil, err
 	}
 
@@ -287,4 +288,11 @@ func (s *SMF) RemoveQER(qer *QER) {
 
 func (s *SMF) RemoveURR(urr *URR) {
 	s.urrIDs.FreeID(int64(urr.URRID))
+}
+
+// InUseResourceIDs returns the count of currently-allocated PDR, FAR, QER, and
+// URR IDs. All zero once every session is released; a non-zero value after
+// teardown is an id-generator leak.
+func (s *SMF) InUseResourceIDs() (pdr, far, qer, urr int) {
+	return s.pdrIDs.InUse(), s.farIDs.InUse(), s.qerIDs.InUse(), s.urrIDs.InUse()
 }

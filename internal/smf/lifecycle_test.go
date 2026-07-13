@@ -265,6 +265,58 @@ func TestDeactivateTunnelAndPDR_CleansUp(t *testing.T) {
 	}
 }
 
+// TestActivateDeactivate_NoIDLeak asserts every id-generator returns to baseline
+// after a full activate→deactivate cycle. Dual-stack exercises the shared
+// FAR/QER/URR across the second PDR and the second PDR's throwaway FAR.
+func TestActivateDeactivate_NoIDLeak(t *testing.T) {
+	policy := &smf.Policy{
+		Ambr:    models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
+		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
+	}
+
+	for _, tc := range []struct {
+		name      string
+		dualStack bool
+	}{
+		{"single-stack", false},
+		{"dual-stack", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pcf, store, upf, amfCb := defaultFakes()
+			s := newTestSMF(pcf, store, upf, amfCb)
+
+			smCtx := s.NewSession(testSUPI(), 1, testDNN, testSnssai)
+			smCtx.Tunnel = &smf.UPTunnel{
+				DataPath: &smf.DataPath{
+					UpLinkTunnel:   &smf.GTPTunnel{},
+					DownLinkTunnel: &smf.GTPTunnel{},
+				},
+			}
+
+			if tc.dualStack {
+				smCtx.PDUIPV4Address = net.ParseIP("10.0.0.1")
+				smCtx.PDUIPV6Prefix = net.ParseIP("2001:db8:1::")
+			}
+
+			if err := smCtx.Tunnel.DataPath.ActivateTunnelAndPDR(s, smCtx, policy, netip.MustParseAddr("10.0.0.1")); err != nil {
+				t.Fatalf("activate: %v", err)
+			}
+
+			pdr, far, qer, urr := s.InUseResourceIDs()
+			if pdr == 0 || far == 0 || qer == 0 || urr == 0 {
+				t.Fatalf("expected IDs in use after activate, got pdr=%d far=%d qer=%d urr=%d", pdr, far, qer, urr)
+			}
+
+			smCtx.Tunnel.DataPath.DeactivateTunnelAndPDR(s)
+
+			pdr, far, qer, urr = s.InUseResourceIDs()
+			if pdr != 0 || far != 0 || qer != 0 || urr != 0 {
+				t.Fatalf("id-generator leak after deactivate: pdr=%d far=%d qer=%d urr=%d", pdr, far, qer, urr)
+			}
+		})
+	}
+}
+
 // ===========================
 // ActivateSmContext tests
 // ===========================
