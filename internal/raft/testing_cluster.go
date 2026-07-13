@@ -64,17 +64,23 @@ func SetupTestClusterWithAppliers(t testing.TB, n int, newApplier func() Applier
 	nodes := make([]nodeInfo, 0, n)
 	appliers := make([]Applier, 0, n)
 
+	ports, releasePorts := reservePorts(t, n)
+
 	for i := range n {
 		nodeID := i + 1
 		a := newApplier()
 		appliers = append(appliers, a)
 
-		m, ln := createTestNode(t, nodeID, pki, a)
+		m, ln := createTestNode(t, nodeID, ports[i], pki, a)
 		nodes = append(nodes, nodeInfo{mgr: m, ln: ln})
 	}
 
 	// Start all cluster listeners so nodes can communicate.
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// Free the reserved ports only now, immediately before the real bind, so
+	// the OS cannot hand the same ephemeral port to two nodes of this cluster.
+	releasePorts()
 
 	for _, ni := range nodes {
 		if err := ni.ln.Start(ctx); err != nil {
@@ -208,7 +214,7 @@ func (tc *TestCluster) Close() {
 	})
 }
 
-func createTestNode(t testing.TB, nodeID int, pki *testutil.PKI, applier Applier) (*Manager, *listener.Listener) {
+func createTestNode(t testing.TB, nodeID, port int, pki *testutil.PKI, applier Applier) (*Manager, *listener.Listener) {
 	t.Helper()
 
 	dataDir := t.TempDir()
@@ -220,7 +226,6 @@ func createTestNode(t testing.TB, nodeID int, pki *testutil.PKI, applier Applier
 
 	fsm := NewFSM(applier, dataDir)
 
-	port := freePort(t)
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 
 	ln := listener.New(listener.Config{
@@ -323,4 +328,37 @@ func freePort(t testing.TB) int {
 	_ = l.Close()
 
 	return port
+}
+
+// reservePorts opens n loopback listeners simultaneously so the OS assigns n
+// distinct ephemeral ports, and returns those ports with a release func that
+// closes the probe sockets. Keeping every probe open until release prevents
+// the OS from reusing a just-freed port for another node of the same cluster;
+// callers must release() immediately before binding the real listeners.
+func reservePorts(t testing.TB, n int) ([]int, func()) {
+	t.Helper()
+
+	lc := net.ListenConfig{}
+	probes := make([]net.Listener, 0, n)
+	ports := make([]int, 0, n)
+
+	for range n {
+		l, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
+		if err != nil {
+			for _, p := range probes {
+				_ = p.Close()
+			}
+
+			t.Fatalf("reserve free port: %v", err)
+		}
+
+		probes = append(probes, l)
+		ports = append(ports, l.Addr().(*net.TCPAddr).Port)
+	}
+
+	return ports, func() {
+		for _, p := range probes {
+			_ = p.Close()
+		}
+	}
 }

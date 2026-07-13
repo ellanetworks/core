@@ -73,17 +73,30 @@ func TestIntegration4GDetach(t *testing.T) {
 		t.Fatal("UE did not reach EMM-REGISTERED")
 	}
 
+	srsue, err := dockerClient.ResolveComposeContainer(ctx, "srsenb", "srsue")
+	if err != nil {
+		t.Fatalf("failed to resolve srsue container: %v", err)
+	}
+
+	// EMM-REGISTERED alone does not mean the UE datapath is up; gate on the TUN
+	// address so switch_off runs from a fully-attached UE and reliably emits the
+	// Detach Request instead of racing srsUE's shutdown.
+	if !waitForUEAddress(ctx, t, dockerClient, srsue, "inet 10.45.") {
+		dumpLogs(ctx, t, dockerClient, "ella-core", "srsue", "srsenb")
+		t.Fatal("srsUE did not plumb its 10.45.x address onto the TUN")
+	}
+
 	t.Log("UE attached; signalling srsue to trigger a switch-off detach")
 
 	// `docker stop` sends SIGTERM to the entrypoint shell (PID 1), which does not
 	// forward it; send SIGTERM straight to the srsue process so it runs
 	// switch_off (the UE-initiated detach) before exiting.
-	if _, err := dockerClient.Exec(ctx, "srsenb-srsue-1", []string{"pkill", "-TERM", "srsue"}, false, 30*time.Second, nil); err != nil {
+	if _, err := dockerClient.Exec(ctx, srsue, []string{"pkill", "-TERM", "srsue"}, false, 30*time.Second, nil); err != nil {
 		t.Fatalf("failed to signal srsue: %v", err)
 	}
 
 	if !waitForRelease(ctx, t, dockerClient) {
-		dumpLogs(ctx, t, dockerClient, "ella-core", "srsenb")
+		dumpLogs(ctx, t, dockerClient, "ella-core", "srsenb", "srsue")
 		t.Fatal("MME did not release the UE context after detach")
 	}
 
