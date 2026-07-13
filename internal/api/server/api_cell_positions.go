@@ -237,7 +237,7 @@ func DeleteCellPosition(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		w.WriteHeader(http.StatusNoContent)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "Cell position deleted successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), DeleteCellPositionAction, email, getClientIP(r), "User deleted cell position: "+id)
 	})

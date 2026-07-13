@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/url"
 )
 
@@ -34,17 +35,32 @@ type ListUsageParams struct {
 }
 
 // ListUsage retrieves subscriber usage data based on the provided parameters.
+// The server groups results and rejects any GroupBy other than "day" or
+// "subscriber".
 func (c *Client) ListUsage(ctx context.Context, p *ListUsageParams) (*ListUsageResponse, error) {
+	if p.GroupBy != "day" && p.GroupBy != "subscriber" {
+		return nil, fmt.Errorf("group_by must be \"day\" or \"subscriber\", got %q", p.GroupBy)
+	}
+
+	query := url.Values{"group_by": {p.GroupBy}}
+
+	if p.Start != "" {
+		query.Set("start", p.Start)
+	}
+
+	if p.End != "" {
+		query.Set("end", p.End)
+	}
+
+	if p.Subscriber != "" {
+		query.Set("subscriber", p.Subscriber)
+	}
+
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/subscriber-usage",
-		Query: url.Values{
-			"start":      {p.Start},
-			"end":        {p.End},
-			"group_by":   {p.GroupBy},
-			"subscriber": {p.Subscriber},
-		},
+		Query:  query,
 	})
 	if err != nil {
 		return nil, err
@@ -58,6 +74,20 @@ func (c *Client) ListUsage(ctx context.Context, p *ListUsageParams) (*ListUsageR
 	}
 
 	return &usage, nil
+}
+
+// ClearUsage deletes all recorded subscriber usage.
+func (c *Client) ClearUsage(ctx context.Context) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "DELETE",
+		Path:   "api/v1/subscriber-usage",
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // GetUsageRetentionPolicy retrieves the current usage retention policy.

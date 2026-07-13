@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 )
 
 type LoginOptions struct {
@@ -94,6 +95,69 @@ func (c *Client) Refresh(ctx context.Context) error {
 	}
 
 	c.token = refreshResponse.Token
+
+	return nil
+}
+
+type LookupTokenResult struct {
+	Valid bool `json:"valid"`
+}
+
+// LookupToken reports whether the credentials the client is configured with are
+// accepted by the server.
+func (c *Client) LookupToken(ctx context.Context) (*LookupTokenResult, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "POST",
+		Path:   "api/v1/auth/lookup-token",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var result LookupTokenResult
+
+	if err := resp.DecodeResult(&result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+// RotateSecret rotates the JWT signing secret, invalidating existing login
+// sessions. API-token authentication is unaffected.
+func (c *Client) RotateSecret(ctx context.Context) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "POST",
+		Path:   "api/v1/auth/rotate-secret",
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Logout clears the caller's session cookie. It is a no-op for API-token
+// authentication. The endpoint replies with 204 and an empty body.
+func (c *Client) Logout(ctx context.Context) error {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   RawRequest,
+		Method: "POST",
+		Path:   "api/v1/auth/logout",
+	})
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("logout: unexpected status %d", resp.StatusCode)
+	}
 
 	return nil
 }

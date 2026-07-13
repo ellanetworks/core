@@ -351,3 +351,27 @@ func (c *Client) ListIPv4Allocations(ctx context.Context, opts *ListIPAllocation
 
 	return &allocations, nil
 }
+
+func (c *Client) ListIPv6Allocations(ctx context.Context, opts *ListIPAllocationsOptions, p *ListParams) (*ListIPAllocationsResponse, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   "api/v1/networking/data-networks/" + opts.DataNetworkName + "/ipv6-allocations",
+		Query: url.Values{
+			"page":     {fmt.Sprintf("%d", p.Page)},
+			"per_page": {fmt.Sprintf("%d", p.PerPage)},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var allocations ListIPAllocationsResponse
+
+	err = resp.DecodeResult(&allocations)
+	if err != nil {
+		return nil, err
+	}
+
+	return &allocations, nil
+}

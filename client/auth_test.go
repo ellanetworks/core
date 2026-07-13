@@ -186,3 +186,80 @@ func TestRefresh_RequesterError(t *testing.T) {
 		t.Errorf("expected 'requester error', got: %v", err)
 	}
 }
+
+func TestLookupToken_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"valid": true}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	resp, err := clientObj.LookupToken(context.Background())
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if !resp.Valid {
+		t.Fatalf("expected valid token, got invalid")
+	}
+
+	if fake.lastOpts.Method != "POST" || fake.lastOpts.Path != "api/v1/auth/lookup-token" {
+		t.Fatalf("unexpected request: %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
+	}
+}
+
+func TestRotateSecret_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "Secret rotated successfully. All user sessions have been invalidated."}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	if err := clientObj.RotateSecret(context.Background()); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts.Path != "api/v1/auth/rotate-secret" {
+		t.Fatalf("unexpected path: %s", fake.lastOpts.Path)
+	}
+}
+
+func TestLogout_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 204,
+			Headers:    http.Header{},
+			Body:       io.NopCloser(bytes.NewReader(nil)),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	if err := clientObj.Logout(context.Background()); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+}
+
+func TestLogout_UnexpectedStatus(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 500,
+			Headers:    http.Header{},
+			Body:       io.NopCloser(bytes.NewReader(nil)),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	if err := clientObj.Logout(context.Background()); err == nil {
+		t.Fatalf("expected error on 500 status, got none")
+	}
+}
