@@ -151,10 +151,15 @@ func TestInitialUEMessageResumeVerifiedBindsAndDispatches(t *testing.T) {
 		t.Fatal("secure exchange not established on the resumed connection")
 	}
 
-	// The TAU was processed, not rejected.
+	// The TAU was processed, not rejected. A genuine reject on this path is sent in
+	// plaintext, so only a plaintext downlink can be a reject; the accept is security
+	// protected and must not be mis-read as one (its MAC can start with any byte).
 	if conn.count() > 0 {
-		if _, err := eps.ParseTrackingAreaUpdateReject(decodeDownlinkNAS(t, conn.sent[0])); err == nil {
-			t.Fatal("verified resume was rejected; expected it to be accepted")
+		dl := decodeDownlinkNAS(t, conn.sent[0])
+		if len(dl) > 0 && dl[0]>>4 == uint8(eps.SHTPlain) {
+			if _, err := eps.ParseTrackingAreaUpdateReject(dl); err == nil {
+				t.Fatal("verified resume was rejected; expected it to be accepted")
+			}
 		}
 	}
 }
