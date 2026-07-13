@@ -165,6 +165,13 @@ type VethEntrypointUpfStatistic struct {
 	XdpActions [8]uint64
 }
 
+type VethEntrypointUrrKey struct {
+	_     structs.HostLayout
+	Seid  uint64
+	UrrId uint32
+	Pad   uint32
+}
+
 type VethEntrypointVethTunnelInfo struct {
 	_          structs.HostLayout
 	Teid       uint32

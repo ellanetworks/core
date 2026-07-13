@@ -76,7 +76,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	}
 
 	for _, urr := range req.URRs {
-		if err := bpfObjects.NewUrr(urr.URRID); err != nil {
+		if err := bpfObjects.NewUrr(seid, urr.URRID); err != nil {
 			span.RecordError(err)
 			return nil, fmt.Errorf("can't put URR: %w", err)
 		}

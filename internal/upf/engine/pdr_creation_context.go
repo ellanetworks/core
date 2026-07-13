@@ -44,7 +44,7 @@ func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects *e
 		pdrContext.FteIDResourceManager.ReleaseTEID(pdrContext.Session.SEID)
 	}
 
-	if err := bpfObjects.DeleteUrr(spdrInfo.PdrInfo.UrrID); err != nil {
+	if err := bpfObjects.DeleteUrr(pdrContext.Session.SEID, spdrInfo.PdrInfo.UrrID); err != nil {
 		return fmt.Errorf("could not delete URR %d: %s", spdrInfo.PdrInfo.UrrID, err)
 	}
 

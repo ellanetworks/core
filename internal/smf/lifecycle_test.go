@@ -124,15 +124,8 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 	smCtx.SetPFCPSession(seid)
 	smCtx.PFCPContext.RemoteSEID = 100
 
-	ulPdr, err := s.NewPDR()
-	if err != nil {
-		t.Fatalf("NewPDR (UL): %v", err)
-	}
-
-	dlPdr, err := s.NewPDR()
-	if err != nil {
-		t.Fatalf("NewPDR (DL): %v", err)
-	}
+	ulPdr := smf.NewPDR(1, 1)
+	dlPdr := smf.NewPDR(2, 2)
 
 	dlPdr.FAR.ApplyAction = models.ApplyAction{Forw: true}
 	dlPdr.FAR.ForwardingParameters = &models.ForwardingParameters{
@@ -148,10 +141,7 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
 	}
 
-	qer, err := s.NewQER(policy)
-	if err != nil {
-		t.Fatalf("NewQER: %v", err)
-	}
+	qer := smf.NewQER(policy, 1)
 
 	ulPdr.QER = qer
 	dlPdr.QER = qer
@@ -258,17 +248,18 @@ func TestDeactivateTunnelAndPDR_CleansUp(t *testing.T) {
 	_, ref := setupSessionWithTunnel(t, s)
 	smCtx := s.GetSession(ref)
 
-	smCtx.Tunnel.DataPath.DeactivateTunnelAndPDR(s)
+	smCtx.Tunnel.DataPath.DeactivateTunnelAndPDR()
 
 	if smCtx.Tunnel.DataPath.Activated {
 		t.Fatal("expected DataPath to be deactivated")
 	}
 }
 
-// TestActivateDeactivate_NoIDLeak asserts every id-generator returns to baseline
-// after a full activate→deactivate cycle. Dual-stack exercises the shared
-// FAR/QER/URR across the second PDR and the second PDR's throwaway FAR.
-func TestActivateDeactivate_NoIDLeak(t *testing.T) {
+// TestActivateTunnelAndPDR_FixedRuleIDs pins the per-session rule IDs. They are
+// scoped to the PFCP session (TS 29.244 §5.2), so every session uses the same
+// fixed set and the second PDR shares the downlink FAR. Dual-stack adds the
+// second downlink PDR.
+func TestActivateTunnelAndPDR_FixedRuleIDs(t *testing.T) {
 	policy := &smf.Policy{
 		Ambr:    models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
 		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
@@ -302,16 +293,48 @@ func TestActivateDeactivate_NoIDLeak(t *testing.T) {
 				t.Fatalf("activate: %v", err)
 			}
 
-			pdr, far, qer, urr := s.InUseResourceIDs()
-			if pdr == 0 || far == 0 || qer == 0 || urr == 0 {
-				t.Fatalf("expected IDs in use after activate, got pdr=%d far=%d qer=%d urr=%d", pdr, far, qer, urr)
+			dp := smCtx.Tunnel.DataPath
+
+			if got := dp.UpLinkTunnel.PDR.PDRID; got != 1 {
+				t.Errorf("uplink PDR ID = %d, want 1", got)
 			}
 
-			smCtx.Tunnel.DataPath.DeactivateTunnelAndPDR(s)
+			if got := dp.UpLinkTunnel.PDR.FAR.FARID; got != 1 {
+				t.Errorf("uplink FAR ID = %d, want 1", got)
+			}
 
-			pdr, far, qer, urr = s.InUseResourceIDs()
-			if pdr != 0 || far != 0 || qer != 0 || urr != 0 {
-				t.Fatalf("id-generator leak after deactivate: pdr=%d far=%d qer=%d urr=%d", pdr, far, qer, urr)
+			if got := dp.DownLinkTunnel.PDR.PDRID; got != 2 {
+				t.Errorf("downlink PDR ID = %d, want 2", got)
+			}
+
+			if got := dp.DownLinkTunnel.PDR.FAR.FARID; got != 2 {
+				t.Errorf("downlink FAR ID = %d, want 2", got)
+			}
+
+			if got := dp.UpLinkTunnel.PDR.QER.QERID; got != 1 {
+				t.Errorf("QER ID = %d, want 1", got)
+			}
+
+			if got := dp.UpLinkTunnel.PDR.URR.URRID; got != 1 {
+				t.Errorf("uplink URR ID = %d, want 1", got)
+			}
+
+			if got := dp.DownLinkTunnel.PDR.URR.URRID; got != 2 {
+				t.Errorf("downlink URR ID = %d, want 2", got)
+			}
+
+			if tc.dualStack {
+				if dp.SecondPDR == nil {
+					t.Fatal("expected second PDR for dual-stack session")
+				}
+
+				if got := dp.SecondPDR.PDRID; got != 3 {
+					t.Errorf("second PDR ID = %d, want 3", got)
+				}
+
+				if dp.SecondPDR.FAR != dp.DownLinkTunnel.PDR.FAR {
+					t.Error("second PDR should share the downlink FAR")
+				}
 			}
 		})
 	}

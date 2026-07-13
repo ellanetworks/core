@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"runtime"
 	"sync"
 	"time"
 
@@ -557,32 +556,6 @@ func (u *UPF) monitorUsage(interval time.Duration, stop <-chan struct{}) {
 	}
 }
 
-func (u *UPF) getAndResetUsageForURR(urrID uint32) (uint64, error) {
-	var (
-		perCPU []uint64
-		total  uint64
-	)
-
-	ncpu := runtime.NumCPU()
-	zeroes := make([]uint64, ncpu)
-
-	err := u.se.BpfObjects.UrrMap.Lookup(&urrID, &perCPU)
-	if err != nil {
-		return 0, fmt.Errorf("failed to lookup URR: %w", err)
-	}
-
-	err = u.se.BpfObjects.UrrMap.Update(&urrID, zeroes, bpf.UpdateAny)
-	if err != nil {
-		return 0, fmt.Errorf("failed to reset URR: %w", err)
-	}
-
-	for _, v := range perCPU {
-		total += v
-	}
-
-	return total, nil
-}
-
 func (u *UPF) pollUsageAndResetCounters() error {
 	if u.se == nil {
 		return fmt.Errorf("PFCP connection is nil")
@@ -628,13 +601,13 @@ func (u *UPF) flushUsageForSession(ctx context.Context, localSeid uint64, sessio
 
 		// Downlink PDR
 		if pdr.UEIP.IsValid() {
-			dvol, err = u.getAndResetUsageForURR(urrID)
+			dvol, err = u.se.BpfObjects.GetAndResetUrr(localSeid, urrID)
 			if err != nil {
 				logger.UpfLog.Warn("could not get usage for URR - downlink", logger.URRID(urrID), zap.Error(err), logger.SEID(localSeid), logger.PDRID(pdr.PdrInfo.PdrID))
 				continue
 			}
 		} else { // Uplink PDR
-			uvol, err = u.getAndResetUsageForURR(urrID)
+			uvol, err = u.se.BpfObjects.GetAndResetUrr(localSeid, urrID)
 			if err != nil {
 				logger.UpfLog.Warn("could not get usage for URR - uplink", logger.URRID(urrID), zap.Error(err), logger.SEID(localSeid))
 				continue

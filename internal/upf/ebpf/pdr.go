@@ -230,10 +230,18 @@ type SdfFilterList struct {
 	Rules    [MaxRulesPerFilter]SdfRule
 }
 
-func (bpfObjects *BpfObjects) NewUrr(id uint32) error {
+// urrKey mirrors struct urr_key in xdp/utils/urr.h: URR IDs are scoped to their
+// PFCP session, so the map key is (SEID, URR ID).
+type urrKey struct {
+	SEID  uint64
+	URRID uint32
+	Pad   uint32
+}
+
+func (bpfObjects *BpfObjects) NewUrr(seid uint64, id uint32) error {
 	zeroVals := make([]uint64, runtime.NumCPU())
 
-	err := bpfObjects.UrrMap.Put(id, zeroVals)
+	err := bpfObjects.UrrMap.Put(urrKey{SEID: seid, URRID: id}, zeroVals)
 	if err != nil {
 		return fmt.Errorf("failed to put urr id %d: %w", id, err)
 	}
@@ -241,13 +249,36 @@ func (bpfObjects *BpfObjects) NewUrr(id uint32) error {
 	return nil
 }
 
-func (bpfObjects *BpfObjects) DeleteUrr(id uint32) error {
-	err := bpfObjects.UrrMap.Delete(id)
+func (bpfObjects *BpfObjects) DeleteUrr(seid uint64, id uint32) error {
+	err := bpfObjects.UrrMap.Delete(urrKey{SEID: seid, URRID: id})
 	if err != nil {
 		return fmt.Errorf("failed to delete URR: %w", err)
 	}
 
 	return nil
+}
+
+// GetAndResetUrr returns the (SEID, id) byte counter summed across CPUs and
+// resets it to zero.
+func (bpfObjects *BpfObjects) GetAndResetUrr(seid uint64, id uint32) (uint64, error) {
+	key := urrKey{SEID: seid, URRID: id}
+
+	var perCPU []uint64
+	if err := bpfObjects.UrrMap.Lookup(key, &perCPU); err != nil {
+		return 0, fmt.Errorf("failed to lookup URR: %w", err)
+	}
+
+	zeroes := make([]uint64, runtime.NumCPU())
+	if err := bpfObjects.UrrMap.Update(key, zeroes, ebpf.UpdateAny); err != nil {
+		return 0, fmt.Errorf("failed to reset URR: %w", err)
+	}
+
+	var total uint64
+	for _, v := range perCPU {
+		total += v
+	}
+
+	return total, nil
 }
 
 // ToN3N6EntrypointPdrInfo converts a PdrInfo (with embedded FAR and QER) to

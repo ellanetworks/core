@@ -84,7 +84,7 @@ func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
 		}
 	}
 
-	smContext.Tunnel.DataPath.DeactivateTunnelAndPDR(s)
+	smContext.Tunnel.DataPath.DeactivateTunnelAndPDR()
 
 	if smContext.PFCPContext == nil {
 		smContext.Tunnel = nil

@@ -165,6 +165,13 @@ type N3N6EntrypointUpfStatistic struct {
 	XdpActions [8]uint64
 }
 
+type N3N6EntrypointUrrKey struct {
+	_     structs.HostLayout
+	Seid  uint64
+	UrrId uint32
+	Pad   uint32
+}
+
 // Names of all BPF objects in the ELF.
 //
 // Used for safe lookups in a Collection or CollectionSpec.
