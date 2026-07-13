@@ -157,4 +157,6 @@ func runStaticIpsMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	if n := len(list()); n != 0 {
 		t.Fatalf("expected no static IPs after delete, got %d", n)
 	}
+
+	t.Run("allocations", func(t *testing.T) { runIPAllocationsMatrix(ctx, t, c) })
 }

@@ -320,6 +320,78 @@ func TestListIPv4Allocations_Failure(t *testing.T) {
 	}
 }
 
+func TestListIPv6Allocations_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"items": [{"address": "fd45::1", "imsi": "001010000000001", "type": "dynamic", "session_id": 1}], "page": 1, "per_page": 25, "total_count": 1}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	opts := &client.ListIPAllocationsOptions{
+		DataNetworkName: "internet",
+	}
+
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 25,
+	}
+
+	resp, err := clientObj.ListIPv6Allocations(ctx, opts, params)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 allocation, got %d", len(resp.Items))
+	}
+
+	if resp.Items[0].Address != "fd45::1" {
+		t.Fatalf("expected address fd45::1, got %s", resp.Items[0].Address)
+	}
+
+	if resp.Items[0].SessionID == nil || *resp.Items[0].SessionID != 1 {
+		t.Fatal("expected session_id 1")
+	}
+}
+
+func TestListIPv6Allocations_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 404,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "Data Network not found"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	opts := &client.ListIPAllocationsOptions{
+		DataNetworkName: "nonexistent",
+	}
+
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 25,
+	}
+
+	_, err := clientObj.ListIPv6Allocations(ctx, opts, params)
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}
+
 func TestListDataNetworkStaticIps_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{

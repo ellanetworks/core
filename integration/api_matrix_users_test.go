@@ -12,8 +12,8 @@ import (
 )
 
 // runUsersMatrix uses a scoped email to keep the bootstrap admin user
-// (in use by the test client itself) untouched. Update only covers
-// role_id; password changes go through a separate endpoint.
+// (in use by the test client itself) untouched. Role and password each have
+// their own endpoint, so each is exercised on its own.
 func runUsersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	email := "apimat-user@example.com"
 
@@ -88,6 +88,37 @@ func runUsersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 
 		if updated.RoleID != client.RoleNetworkManager {
 			t.Fatalf("RoleID: got %d, want %d", updated.RoleID, client.RoleNetworkManager)
+		}
+	})
+
+	t.Run("update_password", func(t *testing.T) {
+		const newPassword = "ApiMatrixNewPassw0rd!"
+
+		if err := c.UpdateUserPassword(ctx, email, &client.UpdateUserPasswordOptions{Password: newPassword}); err != nil {
+			t.Fatalf("update user password: %v", err)
+		}
+
+		// Verify with a separate client so the shared session is untouched.
+		// The create password was never newPassword, so a successful login
+		// with it proves the change took effect.
+		verifier, err := client.New(&client.Config{BaseURL: APIAddress()})
+		if err != nil {
+			t.Fatalf("new verifier client: %v", err)
+		}
+
+		if err := verifier.Login(ctx, &client.LoginOptions{Email: email, Password: newPassword}); err != nil {
+			t.Fatalf("login with new password: %v", err)
+		}
+	})
+
+	t.Run("logged_in_user", func(t *testing.T) {
+		me, err := c.GetMyUser(ctx)
+		if err != nil {
+			t.Fatalf("get my user: %v", err)
+		}
+
+		if me.Email != "admin@ellanetworks.com" {
+			t.Fatalf("logged-in user email: got %q, want %q", me.Email, "admin@ellanetworks.com")
 		}
 	})
 
