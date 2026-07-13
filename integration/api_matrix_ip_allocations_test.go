@@ -20,7 +20,7 @@ func runIPAllocationsMatrix(ctx context.Context, t *testing.T, c *client.Client)
 	if err := c.CreateDataNetwork(ctx, &client.CreateDataNetworkOptions{
 		Name:     name,
 		IPv4Pool: "10.251.0.0/16",
-		IPv6Pool: "fd98::/48",
+		IPv6Pool: "fd97::/48",
 		DNS:      "8.8.8.8",
 		Mtu:      1500,
 	}); err != nil {
