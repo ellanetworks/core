@@ -968,8 +968,7 @@ const DataNetworkDetail: React.FC = () => {
         </Box>
         {isNATEnabled && (
           <Alert severity="info" sx={{ mb: 2 }}>
-            Framed routes require NAT to be disabled. Disable NAT to add and
-            forward framed routes.
+            Disable NAT to add and forward framed routes.
           </Alert>
         )}
         {framedRoutes.length === 0 ? (
