@@ -230,18 +230,10 @@ type SdfFilterList struct {
 	Rules    [MaxRulesPerFilter]SdfRule
 }
 
-// urrKey mirrors struct urr_key in xdp/utils/urr.h: URR IDs are scoped to their
-// PFCP session, so the map key is (SEID, URR ID).
-type urrKey struct {
-	SEID  uint64
-	URRID uint32
-	Pad   uint32
-}
-
 func (bpfObjects *BpfObjects) NewUrr(seid uint64, id uint32) error {
 	zeroVals := make([]uint64, runtime.NumCPU())
 
-	err := bpfObjects.UrrMap.Put(urrKey{SEID: seid, URRID: id}, zeroVals)
+	err := bpfObjects.UrrMap.Put(N3N6EntrypointUrrKey{Seid: seid, UrrId: id}, zeroVals)
 	if err != nil {
 		return fmt.Errorf("failed to put urr id %d: %w", id, err)
 	}
@@ -250,7 +242,7 @@ func (bpfObjects *BpfObjects) NewUrr(seid uint64, id uint32) error {
 }
 
 func (bpfObjects *BpfObjects) DeleteUrr(seid uint64, id uint32) error {
-	err := bpfObjects.UrrMap.Delete(urrKey{SEID: seid, URRID: id})
+	err := bpfObjects.UrrMap.Delete(N3N6EntrypointUrrKey{Seid: seid, UrrId: id})
 	if err != nil {
 		return fmt.Errorf("failed to delete URR: %w", err)
 	}
@@ -261,7 +253,7 @@ func (bpfObjects *BpfObjects) DeleteUrr(seid uint64, id uint32) error {
 // GetAndResetUrr returns the (SEID, id) byte counter summed across CPUs and
 // resets it to zero.
 func (bpfObjects *BpfObjects) GetAndResetUrr(seid uint64, id uint32) (uint64, error) {
-	key := urrKey{SEID: seid, URRID: id}
+	key := N3N6EntrypointUrrKey{Seid: seid, UrrId: id}
 
 	var perCPU []uint64
 	if err := bpfObjects.UrrMap.Lookup(key, &perCPU); err != nil {

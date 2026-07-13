@@ -227,7 +227,7 @@ func sumURR(t *testing.T, obj *BpfObjects, seid uint64, urrID uint32) uint64 {
 	t.Helper()
 
 	var perCPU []uint64
-	if err := obj.UrrMap.Lookup(urrKey{SEID: seid, URRID: urrID}, &perCPU); err != nil {
+	if err := obj.UrrMap.Lookup(N3N6EntrypointUrrKey{Seid: seid, UrrId: urrID}, &perCPU); err != nil {
 		t.Fatalf("urr_map lookup: %v", err)
 	}
 
