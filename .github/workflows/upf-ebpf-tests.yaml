@@ -8,7 +8,15 @@ on:
 
 jobs:
   upf-ebpf-tests:
-    runs-on: ubuntu-24.04
+    # Load and run the XDP datapath on each runner's stock kernel so the verifier
+    # (program-too-complex, map/feature support) is exercised per kernel version:
+    # ubuntu-22.04 -> 5.15, ubuntu-24.04 -> 6.x. A container shares the host kernel
+    # and cannot substitute for this. See bpf_datapath_split_plan.md.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v6
@@ -17,6 +25,9 @@ jobs:
 
       - name: Install libpcap headers
         run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+
+      - name: Kernel version
+        run: uname -a
 
       - name: Run UPF eBPF datapath tests
         run: go test -v -exec "sudo --preserve-env=EBPF_REQUIRE_PRIVILEGED" ./internal/upf/ebpf/...

@@ -36,7 +36,7 @@ func TestGTPControlMessages(t *testing.T) {
 	t.Run("echo request gets response", func(t *testing.T) {
 		in := gtpControlFrame(gtpEchoRequest)
 
-		action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, in)
+		action, out := runXDPOut(t, obj.UpfEntryFunc, in)
 
 		if action != XDP_TX {
 			t.Fatalf("got XDP action %d, want XDP_TX (%d)", action, XDP_TX)
@@ -74,7 +74,7 @@ func TestGTPControlMessages(t *testing.T) {
 
 	for _, tc := range passThrough {
 		t.Run(tc.name, func(t *testing.T) {
-			if action := runXDP(t, obj.UpfN3N6EntrypointFunc, gtpControlFrame(tc.msgType)); action != XDP_PASS {
+			if action := runXDP(t, obj.UpfEntryFunc, gtpControlFrame(tc.msgType)); action != XDP_PASS {
 				t.Fatalf("got XDP action %d, want XDP_PASS (%d)", action, XDP_PASS)
 			}
 		})
@@ -101,7 +101,7 @@ func TestGTPEchoRequestWithSequenceNumber(t *testing.T) {
 
 	in := gtpControlFrameSeq(gtpEchoRequest, 0x1234)
 
-	action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, in)
+	action, out := runXDPOut(t, obj.UpfEntryFunc, in)
 
 	if action != XDP_TX {
 		t.Fatalf("Echo Request with a sequence number (S=1, no extension header) got XDP action %d, want XDP_TX (%d) — the UPF must answer it (TS 29.281 §7.2.1)", action, XDP_TX)
@@ -126,7 +126,7 @@ func TestGTPEchoResponseIPv6Checksum(t *testing.T) {
 		gtpEchoResponse = 2
 	)
 
-	action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, gtpControlFrameV6(gtpEchoRequest))
+	action, out := runXDPOut(t, obj.UpfEntryFunc, gtpControlFrameV6(gtpEchoRequest))
 
 	if action != XDP_TX {
 		t.Fatalf("IPv6 echo request got XDP action %d, want XDP_TX (%d)", action, XDP_TX)
@@ -162,7 +162,7 @@ func TestRouterSolicitationIntercept(t *testing.T) {
 
 	defer func() { _ = rd.Close() }()
 
-	action := runXDP(t, obj.UpfN3N6EntrypointFunc, uplinkGPDU(teid, innerIPv6ICMPv6RS(testUEv6)))
+	action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, innerIPv6ICMPv6RS(testUEv6)))
 	if action != XDP_DROP {
 		t.Fatalf("Router Solicitation not intercepted: got XDP action %d, want XDP_DROP (%d)", action, XDP_DROP)
 	}

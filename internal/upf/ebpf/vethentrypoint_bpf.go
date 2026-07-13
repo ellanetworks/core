@@ -163,6 +163,31 @@ type VethEntrypointVethTunnelInfo struct {
 	Pad        [2]uint8
 }
 
+// Names of all BPF objects in the ELF.
+//
+// Used for safe lookups in a Collection or CollectionSpec.
+const (
+	VethEntrypointMapCsumScratch        = "csum_scratch"
+	VethEntrypointMapDownlinkRouteStats = "downlink_route_stats"
+	VethEntrypointMapDownlinkStatistics = "downlink_statistics"
+	VethEntrypointMapFlowStats          = "flow_stats"
+	VethEntrypointMapNatCt              = "nat_ct"
+	VethEntrypointMapNoNeighMap         = "no_neigh_map"
+	VethEntrypointMapNocpMap            = "nocp_map"
+	VethEntrypointMapPdrsDownlinkIp4    = "pdrs_downlink_ip4"
+	VethEntrypointMapPdrsDownlinkIp6    = "pdrs_downlink_ip6"
+	VethEntrypointMapSdfFilters         = "sdf_filters"
+	VethEntrypointMapUrrMap             = "urr_map"
+	VethEntrypointMapVethTunnels        = "veth_tunnels"
+	VethEntrypointProgVethXdpFunc       = "veth_xdp_func"
+	VethEntrypointVarFlowact            = "flowact"
+	VethEntrypointVarMasquerade         = "masquerade"
+	VethEntrypointVarN3Ifindex          = "n3_ifindex"
+	VethEntrypointVarN3Vlan             = "n3_vlan"
+	VethEntrypointVarN6Ifindex          = "n6_ifindex"
+	VethEntrypointVarN6Vlan             = "n6_vlan"
+)
+
 // LoadVethEntrypoint returns the embedded CollectionSpec for VethEntrypoint.
 func LoadVethEntrypoint() (*ebpf.CollectionSpec, error) {
 	reader := bytes.NewReader(_VethEntrypointBytes)
@@ -183,7 +208,7 @@ func LoadVethEntrypoint() (*ebpf.CollectionSpec, error) {
 //	*VethEntrypointMaps
 //
 // See ebpf.CollectionSpec.LoadAndAssign documentation for details.
-func LoadVethEntrypointObjects(obj interface{}, opts *ebpf.CollectionOptions) error {
+func LoadVethEntrypointObjects(obj any, opts *ebpf.CollectionOptions) error {
 	spec, err := LoadVethEntrypoint()
 	if err != nil {
 		return err

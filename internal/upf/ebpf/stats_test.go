@@ -33,7 +33,7 @@ func TestUplinkStatistics(t *testing.T) {
 
 	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
 	for i := 0; i < packets; i++ {
-		runXDP(t, obj.UpfN3N6EntrypointFunc, uplinkGPDU(teid, inner))
+		runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 	}
 
 	bytesSum, actionsSum := sumStats(t, obj.UplinkStatistics)
@@ -67,7 +67,7 @@ func TestUplinkStatisticsIPv6(t *testing.T) {
 
 	inner := innerIPv6UDP(testUEv6, 53)
 	for i := 0; i < packets; i++ {
-		runXDP(t, obj.UpfN3N6EntrypointFunc, uplinkGPDU(teid, inner))
+		runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 	}
 
 	bytesSum, actionsSum := sumStats(t, obj.UplinkStatistics)

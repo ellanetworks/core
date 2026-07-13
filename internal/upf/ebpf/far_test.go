@@ -28,7 +28,7 @@ func TestFARDropUplink(t *testing.T) {
 		t.Fatalf("install drop uplink PDR: %v", err)
 	}
 
-	action := runXDP(t, obj.UpfN3N6EntrypointFunc, uplinkGPDU(teid, innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)))
+	action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)))
 	if action != XDP_DROP {
 		t.Fatalf("uplink packet with FAR DROP got XDP action %d, want XDP_DROP (%d)", action, XDP_DROP)
 	}
@@ -52,7 +52,7 @@ func TestFARDropDownlink(t *testing.T) {
 
 	inner := ipv4Packet([4]byte{8, 8, 8, 8}, dropUE, 17, udpDatagram(4000, 4001, nil))
 
-	action := runXDP(t, obj.UpfN3N6EntrypointFunc, ethFrame(0x0800, inner))
+	action := runXDP(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
 	if action != XDP_DROP {
 		t.Fatalf("downlink packet with FAR DROP got XDP action %d, want XDP_DROP (%d)", action, XDP_DROP)
 	}
@@ -74,7 +74,7 @@ func TestFARDropDownlinkIPv6(t *testing.T) {
 	serverV6 := [16]byte{0x20, 0x01, 0x48, 0x60, 0x48, 0x60, 0, 0, 0, 0, 0, 0, 0, 0, 0x88, 0x88}
 	inner := ipv6Packet(serverV6, testUEv6, 17, udpDatagram(4000, 53, nil))
 
-	action := runXDP(t, obj.UpfN3N6EntrypointFunc, ethFrame(0x86DD, inner))
+	action := runXDP(t, obj.UpfEntryFunc, ethFrame(0x86DD, inner))
 	if action != XDP_DROP {
 		t.Fatalf("downlink IPv6 packet with FAR DROP got XDP action %d, want XDP_DROP (%d)", action, XDP_DROP)
 	}

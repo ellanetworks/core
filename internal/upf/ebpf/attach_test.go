@@ -165,7 +165,7 @@ func attachXDP(t *testing.T, obj *BpfObjects, ifindex int) {
 	t.Helper()
 
 	l, err := link.AttachXDP(link.XDPOptions{
-		Program:   obj.UpfN3N6EntrypointFunc,
+		Program:   obj.UpfEntryFunc,
 		Interface: ifindex,
 		Flags:     link.XDPGenericMode,
 	})

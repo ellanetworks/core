@@ -111,7 +111,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 	}
 
 	n3Link, err := link.AttachXDP(link.XDPOptions{
-		Program:   bpfObjects.UpfN3N6EntrypointFunc,
+		Program:   bpfObjects.UpfEntryFunc,
 		Interface: n3Iface.Index,
 		Flags:     StringToXDPAttachMode(xdpAttachMode),
 	})
@@ -123,7 +123,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 
 	if n6Iface.Index != n3Iface.Index {
 		n6, err := link.AttachXDP(link.XDPOptions{
-			Program:   bpfObjects.UpfN3N6EntrypointFunc,
+			Program:   bpfObjects.UpfEntryFunc,
 			Interface: n6Iface.Index,
 			Flags:     StringToXDPAttachMode(xdpAttachMode),
 		})
@@ -306,12 +306,12 @@ func (u *UPF) ReloadNAT(masquerade bool) error {
 		return fmt.Errorf("couldn't load BPF objects: %w", err)
 	}
 
-	if err := u.n3Link.Update(u.se.BpfObjects.UpfN3N6EntrypointFunc); err != nil {
+	if err := u.n3Link.Update(u.se.BpfObjects.UpfEntryFunc); err != nil {
 		return err
 	}
 
 	if u.n6Link != nil {
-		if err := (*u.n6Link).Update(u.se.BpfObjects.UpfN3N6EntrypointFunc); err != nil {
+		if err := (*u.n6Link).Update(u.se.BpfObjects.UpfEntryFunc); err != nil {
 			return err
 		}
 	}
@@ -333,12 +333,12 @@ func (u *UPF) ReloadFlowAccounting(flowact bool) error {
 		return fmt.Errorf("couldn't load BPF objects: %w", err)
 	}
 
-	if err := u.n3Link.Update(u.se.BpfObjects.UpfN3N6EntrypointFunc); err != nil {
+	if err := u.n3Link.Update(u.se.BpfObjects.UpfEntryFunc); err != nil {
 		return err
 	}
 
 	if u.n6Link != nil {
-		if err := (*u.n6Link).Update(u.se.BpfObjects.UpfN3N6EntrypointFunc); err != nil {
+		if err := (*u.n6Link).Update(u.se.BpfObjects.UpfEntryFunc); err != nil {
 			return err
 		}
 	}
