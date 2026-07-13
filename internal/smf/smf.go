@@ -203,15 +203,15 @@ func WithT3592(d time.Duration) Option { return func(s *SMF) { s.t3592 = d } }
 // New creates a new SMF.
 func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Option) *SMF {
 	s := &SMF{
-		pool:   make(map[string]*SMContext),
-		byKey:  make(map[string]*SMContext),
-		pcf:    pcf,
-		store:  store,
-		upf:    upf,
-		amf:    amf,
-		clock:  time.Now,
-		t3591:  16 * time.Second, // TS 24.501 table 10.3.2
-		t3592:  16 * time.Second, // TS 24.501 table 10.3.2
+		pool:  make(map[string]*SMContext),
+		byKey: make(map[string]*SMContext),
+		pcf:   pcf,
+		store: store,
+		upf:   upf,
+		amf:   amf,
+		clock: time.Now,
+		t3591: 16 * time.Second, // TS 24.501 table 10.3.2
+		t3592: 16 * time.Second, // TS 24.501 table 10.3.2
 	}
 	for _, o := range opts {
 		o(s)
@@ -381,7 +381,8 @@ func (s *SMF) SessionCountByRAT() (fourG, fiveG int) {
 
 // GetSessionPolicy retrieves the PCC rules from the PCF for a subscriber.
 func (s *SMF) GetSessionPolicy(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (*Policy, error) {
-	ctx, span := tracer.Start(ctx, "smf/get_session_policy",
+	ctx, span := tracer.Start(
+		ctx, "smf/get_session_policy",
 		trace.WithAttributes(attribute.String("ue.supi", supi.String())),
 	)
 	defer span.End()
