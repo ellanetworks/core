@@ -1029,9 +1029,7 @@ func TestUpdateStaticLeaseAddress(t *testing.T) {
 		t.Fatalf("UpdateLeaseSession: %s", err)
 	}
 
-	// Repinning is allowed while the reservation is bound to an active session:
-	// the session reconcilers release the session so the UE re-establishes on the
-	// new address.
+	// Repinning a bound reservation is allowed.
 	if err := database.UpdateStaticLeaseAddress(ctx, got.ID, addr("192.168.1.40")); err != nil {
 		t.Fatalf("expected repin of active reservation to succeed, got %v", err)
 	}
@@ -1063,9 +1061,7 @@ func TestDeleteStaticLease(t *testing.T) {
 		t.Fatalf("UpdateLeaseSession: %s", err)
 	}
 
-	// Deleting is allowed while the reservation is bound to an active session:
-	// the session reconcilers release the session so the UE re-establishes on a
-	// dynamic address.
+	// Deleting a bound reservation is allowed.
 	if err := database.DeleteStaticLease(ctx, got.ID); err != nil {
 		t.Fatalf("expected delete of active reservation to succeed, got %v", err)
 	}

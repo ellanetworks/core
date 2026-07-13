@@ -357,13 +357,10 @@ func TestAPIStaticIPsEndToEnd(t *testing.T) {
 			t.Fatalf("UpdateLeaseSession: %s", err)
 		}
 
-		// Repinning while bound is allowed: the change is applied and the session
-		// reconcilers release the session so the UE re-establishes on the new IP.
 		if code, _, _ := updateStaticIp(url, client, token, staticDN, Imsi, "ipv4", "10.99.0.21"); code != http.StatusOK {
 			t.Fatalf("PUT active: expected 200, got %d", code)
 		}
 
-		// Deleting while bound is likewise allowed.
 		if code, _, _ := deleteStaticIp(url, client, token, staticDN, Imsi, "ipv4"); code != http.StatusOK {
 			t.Fatalf("DELETE active: expected 200, got %d", code)
 		}
