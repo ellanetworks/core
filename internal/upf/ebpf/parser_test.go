@@ -26,7 +26,7 @@ func TestMalformedL3FailsClosed(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if action := runXDP(t, obj.UpfN3N6EntrypointFunc, tc.packet); action != XDP_PASS {
+			if action := runXDP(t, obj.UpfEntryFunc, tc.packet); action != XDP_PASS {
 				t.Fatalf("got XDP action %d, want XDP_PASS (fail closed to kernel)", action)
 			}
 		})

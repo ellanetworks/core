@@ -76,6 +76,28 @@ func NewBpfObjects(flowact bool, masquerade bool, n3ifindex int, n6ifindex int, 
 	}
 }
 
+// Tail-call indices in the upf_calls PROG_ARRAY; must match UPF_CALL_* in
+// xdp/n3n6_bpf.c.
+const (
+	upfCallUplink   = 0
+	upfCallDownlink = 1
+)
+
+// populateTailCalls inserts the stage programs into the upf_calls PROG_ARRAY so
+// upf_entry_func can tail-call them. Must run after every load/reload: the array
+// holds program FDs, which are new on each load.
+func populateTailCalls(objs *N3N6EntrypointObjects) error {
+	if err := objs.UpfCalls.Put(uint32(upfCallUplink), objs.UpfUplinkFunc); err != nil {
+		return fmt.Errorf("put uplink stage in upf_calls: %w", err)
+	}
+
+	if err := objs.UpfCalls.Put(uint32(upfCallDownlink), objs.UpfDownlinkFunc); err != nil {
+		return fmt.Errorf("put downlink stage in upf_calls: %w", err)
+	}
+
+	return nil
+}
+
 func (bpfObjects *BpfObjects) Load() error {
 	n3n6Spec, err := LoadN3N6Entrypoint()
 	if err != nil {
@@ -93,6 +115,11 @@ func (bpfObjects *BpfObjects) Load() error {
 
 	if err := bpfObjects.loadAndAssignFromSpec(n3n6Spec, &bpfObjects.N3N6EntrypointObjects, nil); err != nil {
 		logger.UpfLog.Error("failed to load N3/N6 program", zap.Error(err))
+		return err
+	}
+
+	if err := populateTailCalls(&bpfObjects.N3N6EntrypointObjects); err != nil {
+		logger.UpfLog.Error("failed to populate tail-call program array", zap.Error(err))
 		return err
 	}
 
@@ -208,21 +235,40 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 		return err
 	}
 
-	oldProg := bpfObjects.UpfN3N6EntrypointFunc
+	// The prog-array holds program FDs, which are new on this reload, so
+	// re-populate the new upf_calls with the new stage programs before the new
+	// entry is swapped onto the link.
+	if err := populateTailCalls(&newObjects); err != nil {
+		return err
+	}
 
-	bpfObjects.UpfN3N6EntrypointFunc = newObjects.UpfN3N6EntrypointFunc
+	oldEntry := bpfObjects.UpfEntryFunc
+	oldUplink := bpfObjects.UpfUplinkFunc
+	oldDownlink := bpfObjects.UpfDownlinkFunc
+	oldCalls := bpfObjects.UpfCalls
+
+	bpfObjects.UpfEntryFunc = newObjects.UpfEntryFunc
+	bpfObjects.UpfUplinkFunc = newObjects.UpfUplinkFunc
+	bpfObjects.UpfDownlinkFunc = newObjects.UpfDownlinkFunc
+	bpfObjects.UpfCalls = newObjects.UpfCalls
 	bpfObjects.N3N6EntrypointVariables = newObjects.N3N6EntrypointVariables
 
-	// Close the cloned map fds from the new objects to avoid fd leaks.
-	// These are duplicates of our existing map fds pointing to the same
-	// kernel-side maps, so closing them is safe.
+	// Close the cloned map fds from the new objects to avoid fd leaks. These are
+	// duplicates of our existing map fds pointing to the same kernel-side maps,
+	// so closing them is safe. upf_calls is genuinely new (not preserved) and is
+	// now owned by bpfObjects, so swap the old handle in before the wholesale
+	// close: the old upf_calls is released and the new one is retained.
+	newObjects.UpfCalls = oldCalls
 	if err := newObjects.N3N6EntrypointMaps.Close(); err != nil {
 		logger.UpfLog.Warn("failed to close cloned map fds", zap.Error(err))
 	}
 
-	// Close the old program now that it's been replaced.
-	if err := oldProg.Close(); err != nil {
-		logger.UpfLog.Warn("failed to close old program", zap.Error(err))
+	// Close the old programs now that they have been replaced. The stage
+	// programs stay live in the kernel via the (new) prog-array reference.
+	for _, p := range []*ebpf.Program{oldEntry, oldUplink, oldDownlink} {
+		if err := p.Close(); err != nil {
+			logger.UpfLog.Warn("failed to close old program", zap.Error(err))
+		}
 	}
 
 	return nil

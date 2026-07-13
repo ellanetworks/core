@@ -153,6 +153,37 @@ type N3N6EntrypointUpfStatistic struct {
 	XdpActions [8]uint64
 }
 
+// Names of all BPF objects in the ELF.
+//
+// Used for safe lookups in a Collection or CollectionSpec.
+const (
+	N3N6EntrypointMapCsumScratch        = "csum_scratch"
+	N3N6EntrypointMapDownlinkRouteStats = "downlink_route_stats"
+	N3N6EntrypointMapDownlinkStatistics = "downlink_statistics"
+	N3N6EntrypointMapFlowStats          = "flow_stats"
+	N3N6EntrypointMapNatCt              = "nat_ct"
+	N3N6EntrypointMapNoNeighMap         = "no_neigh_map"
+	N3N6EntrypointMapNocpMap            = "nocp_map"
+	N3N6EntrypointMapPdrsDownlinkIp4    = "pdrs_downlink_ip4"
+	N3N6EntrypointMapPdrsDownlinkIp6    = "pdrs_downlink_ip6"
+	N3N6EntrypointMapPdrsUplink         = "pdrs_uplink"
+	N3N6EntrypointMapRsEventMap         = "rs_event_map"
+	N3N6EntrypointMapSdfFilters         = "sdf_filters"
+	N3N6EntrypointMapUpfCalls           = "upf_calls"
+	N3N6EntrypointMapUplinkRouteStats   = "uplink_route_stats"
+	N3N6EntrypointMapUplinkStatistics   = "uplink_statistics"
+	N3N6EntrypointMapUrrMap             = "urr_map"
+	N3N6EntrypointProgUpfDownlinkFunc   = "upf_downlink_func"
+	N3N6EntrypointProgUpfEntryFunc      = "upf_entry_func"
+	N3N6EntrypointProgUpfUplinkFunc     = "upf_uplink_func"
+	N3N6EntrypointVarFlowact            = "flowact"
+	N3N6EntrypointVarMasquerade         = "masquerade"
+	N3N6EntrypointVarN3Ifindex          = "n3_ifindex"
+	N3N6EntrypointVarN3Vlan             = "n3_vlan"
+	N3N6EntrypointVarN6Ifindex          = "n6_ifindex"
+	N3N6EntrypointVarN6Vlan             = "n6_vlan"
+)
+
 // LoadN3N6Entrypoint returns the embedded CollectionSpec for N3N6Entrypoint.
 func LoadN3N6Entrypoint() (*ebpf.CollectionSpec, error) {
 	reader := bytes.NewReader(_N3N6EntrypointBytes)
@@ -173,7 +204,7 @@ func LoadN3N6Entrypoint() (*ebpf.CollectionSpec, error) {
 //	*N3N6EntrypointMaps
 //
 // See ebpf.CollectionSpec.LoadAndAssign documentation for details.
-func LoadN3N6EntrypointObjects(obj interface{}, opts *ebpf.CollectionOptions) error {
+func LoadN3N6EntrypointObjects(obj any, opts *ebpf.CollectionOptions) error {
 	spec, err := LoadN3N6Entrypoint()
 	if err != nil {
 		return err
@@ -195,7 +226,9 @@ type N3N6EntrypointSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type N3N6EntrypointProgramSpecs struct {
-	UpfN3N6EntrypointFunc *ebpf.ProgramSpec `ebpf:"upf_n3_n6_entrypoint_func"`
+	UpfDownlinkFunc *ebpf.ProgramSpec `ebpf:"upf_downlink_func"`
+	UpfEntryFunc    *ebpf.ProgramSpec `ebpf:"upf_entry_func"`
+	UpfUplinkFunc   *ebpf.ProgramSpec `ebpf:"upf_uplink_func"`
 }
 
 // N3N6EntrypointMapSpecs contains maps before they are loaded into the kernel.
@@ -214,6 +247,7 @@ type N3N6EntrypointMapSpecs struct {
 	PdrsUplink         *ebpf.MapSpec `ebpf:"pdrs_uplink"`
 	RsEventMap         *ebpf.MapSpec `ebpf:"rs_event_map"`
 	SdfFilters         *ebpf.MapSpec `ebpf:"sdf_filters"`
+	UpfCalls           *ebpf.MapSpec `ebpf:"upf_calls"`
 	UplinkRouteStats   *ebpf.MapSpec `ebpf:"uplink_route_stats"`
 	UplinkStatistics   *ebpf.MapSpec `ebpf:"uplink_statistics"`
 	UrrMap             *ebpf.MapSpec `ebpf:"urr_map"`
@@ -263,6 +297,7 @@ type N3N6EntrypointMaps struct {
 	PdrsUplink         *ebpf.Map `ebpf:"pdrs_uplink"`
 	RsEventMap         *ebpf.Map `ebpf:"rs_event_map"`
 	SdfFilters         *ebpf.Map `ebpf:"sdf_filters"`
+	UpfCalls           *ebpf.Map `ebpf:"upf_calls"`
 	UplinkRouteStats   *ebpf.Map `ebpf:"uplink_route_stats"`
 	UplinkStatistics   *ebpf.Map `ebpf:"uplink_statistics"`
 	UrrMap             *ebpf.Map `ebpf:"urr_map"`
@@ -282,6 +317,7 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.PdrsUplink,
 		m.RsEventMap,
 		m.SdfFilters,
+		m.UpfCalls,
 		m.UplinkRouteStats,
 		m.UplinkStatistics,
 		m.UrrMap,
@@ -304,12 +340,16 @@ type N3N6EntrypointVariables struct {
 //
 // It can be passed to LoadN3N6EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N3N6EntrypointPrograms struct {
-	UpfN3N6EntrypointFunc *ebpf.Program `ebpf:"upf_n3_n6_entrypoint_func"`
+	UpfDownlinkFunc *ebpf.Program `ebpf:"upf_downlink_func"`
+	UpfEntryFunc    *ebpf.Program `ebpf:"upf_entry_func"`
+	UpfUplinkFunc   *ebpf.Program `ebpf:"upf_uplink_func"`
 }
 
 func (p *N3N6EntrypointPrograms) Close() error {
 	return _N3N6EntrypointClose(
-		p.UpfN3N6EntrypointFunc,
+		p.UpfDownlinkFunc,
+		p.UpfEntryFunc,
+		p.UpfUplinkFunc,
 	)
 }
 

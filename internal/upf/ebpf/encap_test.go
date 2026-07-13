@@ -50,7 +50,7 @@ func TestGTPEncapsulationDownlinkS1U(t *testing.T) {
 
 	inner := ipv4Packet([4]byte{8, 8, 8, 8}, ueIP, 17, udpDatagram(4000, 4001, []byte{0xde, 0xad, 0xbe, 0xef}))
 
-	action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, ethFrame(0x0800, inner))
+	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
 
 	if action == XDP_ABORTED {
 		t.Fatal("S1-U downlink packet got XDP_ABORTED; encapsulation failed")
@@ -115,7 +115,7 @@ func TestGTPEncapsulationDownlinkIPv4(t *testing.T) {
 
 	inner := ipv4Packet([4]byte{8, 8, 8, 8}, ueIP, 17, udpDatagram(4000, 4001, []byte{0xde, 0xad, 0xbe, 0xef}))
 
-	action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, ethFrame(0x0800, inner))
+	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
 
 	if action == XDP_ABORTED {
 		t.Fatal("downlink packet got XDP_ABORTED; encapsulation failed")
@@ -192,7 +192,7 @@ func TestGTPEncapsulationDownlinkInnerIPv6(t *testing.T) {
 
 	inner := ipv6Packet(server, ue, 17, udpDatagram(4000, 4001, []byte{0xde, 0xad}))
 
-	action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, ethFrame(0x86DD, inner))
+	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x86DD, inner))
 
 	if action == XDP_ABORTED {
 		t.Fatal("downlink IPv6 packet got XDP_ABORTED; encapsulation failed")
@@ -247,7 +247,7 @@ func TestGTPEncapsulationDownlinkIPv6Transport(t *testing.T) {
 
 	inner := ipv4Packet([4]byte{8, 8, 8, 8}, ueIP, 17, udpDatagram(4000, 4001, []byte{0x01, 0x02, 0x03, 0x04}))
 
-	action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, ethFrame(0x0800, inner))
+	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
 
 	if action == XDP_ABORTED {
 		t.Fatal("downlink packet got XDP_ABORTED; IPv6-transport encapsulation failed")
@@ -314,7 +314,7 @@ func TestTransportLevelMarking(t *testing.T) {
 
 	inner := ipv4Packet(serverIP, ueIP, 17, udpDatagram(4000, 53, nil))
 
-	action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, ethFrame(0x0800, inner))
+	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
 	if action == XDP_ABORTED {
 		t.Fatal("downlink packet got XDP_ABORTED")
 	}

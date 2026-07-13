@@ -25,7 +25,7 @@ func TestFlowReportUplink(t *testing.T) {
 	srcUE := [4]byte{10, 0, 0, 9} // innerIPv4UDP source
 	dst := [4]byte{8, 8, 8, 8}
 
-	runXDP(t, obj.UpfN3N6EntrypointFunc, uplinkGPDU(teid, innerIPv4UDP(dst, 53)))
+	runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, innerIPv4UDP(dst, 53)))
 
 	var (
 		key N3N6EntrypointFlow
@@ -104,13 +104,13 @@ func TestURRByteAccounting(t *testing.T) {
 	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
 	perPacket := uint64(ethHdrLen + len(inner)) // URR counts the decapsulated frame
 
-	runXDP(t, obj.UpfN3N6EntrypointFunc, uplinkGPDU(teid, inner))
+	runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
 	if got := sumURR(t, obj, urrID); got != perPacket {
 		t.Fatalf("URR after 1 packet = %d, want %d", got, perPacket)
 	}
 
-	runXDP(t, obj.UpfN3N6EntrypointFunc, uplinkGPDU(teid, inner))
+	runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
 	if got := sumURR(t, obj, urrID); got != 2*perPacket {
 		t.Fatalf("URR after 2 packets = %d, want %d", got, 2*perPacket)
@@ -132,7 +132,7 @@ func TestFlowReportDownlink(t *testing.T) {
 	putDownlinkPDR(t, obj, ueIP, teid, testUPFN3IP, testGNBIP, qfi)
 
 	inner := ipv4Packet(serverIP, ueIP, 17, udpDatagram(4000, 53, nil))
-	runXDP(t, obj.UpfN3N6EntrypointFunc, ethFrame(0x0800, inner))
+	runXDP(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
 
 	var (
 		key N3N6EntrypointFlow
@@ -206,13 +206,13 @@ func TestURRByteAccountingDownlink(t *testing.T) {
 	frame := ethFrame(0x0800, inner)
 	perPacket := uint64(len(frame)) // URR counts the pre-encapsulation frame
 
-	runXDP(t, obj.UpfN3N6EntrypointFunc, frame)
+	runXDP(t, obj.UpfEntryFunc, frame)
 
 	if got := sumURR(t, obj, urrID); got != perPacket {
 		t.Fatalf("URR after 1 packet = %d, want %d", got, perPacket)
 	}
 
-	runXDP(t, obj.UpfN3N6EntrypointFunc, frame)
+	runXDP(t, obj.UpfEntryFunc, frame)
 
 	if got := sumURR(t, obj, urrID); got != 2*perPacket {
 		t.Fatalf("URR after 2 packets = %d, want %d", got, 2*perPacket)

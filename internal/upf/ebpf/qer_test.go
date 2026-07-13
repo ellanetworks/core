@@ -31,7 +31,7 @@ func TestQERGateUplinkClosed(t *testing.T) {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
-	action := runXDP(t, obj.UpfN3N6EntrypointFunc, uplinkGPDU(teid, innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)))
+	action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)))
 
 	if action != XDP_DROP {
 		t.Fatalf("closed uplink gate: got XDP action %d, want XDP_DROP (%d)", action, XDP_DROP)
@@ -61,7 +61,7 @@ func TestQERGateDownlinkClosed(t *testing.T) {
 
 	inner := ipv4Packet([4]byte{8, 8, 8, 8}, ueIP, 17, udpDatagram(4000, 4001, nil))
 
-	action := runXDP(t, obj.UpfN3N6EntrypointFunc, ethFrame(0x0800, inner))
+	action := runXDP(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
 
 	if action != XDP_DROP {
 		t.Fatalf("closed downlink gate: got XDP action %d, want XDP_DROP (%d)", action, XDP_DROP)
@@ -90,7 +90,7 @@ func TestQERGateDownlinkClosedIPv6(t *testing.T) {
 	serverV6 := [16]byte{0x20, 0x01, 0x48, 0x60, 0x48, 0x60, 0, 0, 0, 0, 0, 0, 0, 0, 0x88, 0x88}
 	inner := ipv6Packet(serverV6, testUEv6, 17, udpDatagram(4000, 53, nil))
 
-	action := runXDP(t, obj.UpfN3N6EntrypointFunc, ethFrame(0x86DD, inner))
+	action := runXDP(t, obj.UpfEntryFunc, ethFrame(0x86DD, inner))
 
 	if action != XDP_DROP {
 		t.Fatalf("closed downlink gate (IPv6): got XDP action %d, want XDP_DROP (%d)", action, XDP_DROP)

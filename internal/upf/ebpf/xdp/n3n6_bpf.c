@@ -45,139 +45,234 @@
 #include "xdp/utils/parsers.h"
 #include "xdp/utils/nat.h"
 
-static __always_inline enum xdp_action handle_ip4(struct packet_context *ctx)
-{
-	enum xdp_action action;
-	int l4_protocol = parse_ip4(ctx);
-	if (l4_protocol == IPPROTO_UDP) {
-		struct udphdr *udp = detect_udp_header(ctx, 0);
-		if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT) {
-			parse_udp(ctx);
-			upf_printk(
-				"upf: gtp-u received on %s, src=%pI4 dst=%pI4",
-				(ctx->xdp_ctx->ingress_ifindex == n3_ifindex) ?
-					"N3" :
-					"N6",
-				&ctx->ip4->saddr, &ctx->ip4->daddr);
-			action = handle_gtpu(ctx);
-			ctx->statistics->xdp_actions[action &
-						     EUPF_MAX_XDP_ACTION_MASK] +=
-				1;
-			return action;
-		}
-	} else if (l4_protocol != IPPROTO_ICMP && l4_protocol != IPPROTO_TCP) {
-		action = DEFAULT_XDP_ACTION;
-		ctx->statistics
-			->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
-		return DEFAULT_XDP_ACTION;
-	}
-	ctx->statistics->packet_counters.rx++;
-	action = handle_n6_packet_ipv4(ctx);
-	ctx->statistics->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
-	return action;
-}
-
 /*
- * IPv6 handler — mirrors handle_ip4() structure.
- * Checks for GTP-U on UDP port 2152 before falling through to N6 downlink.
+ * The datapath is split so the verifier checks each stage on its own budget. A
+ * thin entry program (upf_entry_func) classifies by packet type and tail-calls
+ * into a stage program: upf_uplink_func (GTP-U decap) or upf_downlink_func
+ * (downlink forwarding). Classifying by packet type (not by interface) keeps a
+ * single entry working whether N3 and N6 are separate interfaces or the same
+ * one. The downlink stage is also the reuse point for UE-to-UE local switching
+ * later. See bpf_datapath_split_plan.md.
  */
-static __always_inline enum xdp_action handle_ip6(struct packet_context *ctx)
+
+/* Tail-call program array populated at load with the stage programs. */
+#define UPF_CALL_UPLINK 0
+#define UPF_CALL_DOWNLINK 1
+
+struct {
+	__uint(type, BPF_MAP_TYPE_PROG_ARRAY);
+	__type(key, __u32);
+	__type(value, __u32);
+	__uint(max_entries, 4);
+} upf_calls SEC(".maps");
+
+/* N3 uplink: GTP-U-encapsulated traffic from the gNB. */
+static __always_inline enum xdp_action handle_uplink_ip4(struct packet_context *ctx)
 {
-	enum xdp_action action;
-	int l4_protocol = parse_ip6(ctx);
-	if (l4_protocol == IPPROTO_UDP) {
+	if (parse_ip4(ctx) == IPPROTO_UDP) {
 		struct udphdr *udp = detect_udp_header(ctx, 0);
 		if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT) {
 			parse_udp(ctx);
-			upf_printk("upf: gtp-u received (IPv6 outer)");
-			action = handle_gtpu(ctx);
+			upf_printk("upf: gtp-u received on N3, src=%pI4 dst=%pI4",
+				   &ctx->ip4->saddr, &ctx->ip4->daddr);
+			enum xdp_action action = handle_gtpu(ctx);
 			ctx->statistics->xdp_actions[action &
 						     EUPF_MAX_XDP_ACTION_MASK] +=
 				1;
 			return action;
 		}
-	} else if (l4_protocol != IPPROTO_ICMPV6 &&
-		   l4_protocol != IPPROTO_TCP) {
-		action = DEFAULT_XDP_ACTION;
-		ctx->statistics
-			->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
-		return action;
 	}
-	ctx->statistics->packet_counters.rx++;
-	action = handle_n6_packet_ipv6(ctx);
-	ctx->statistics->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
-	return action;
+
+	/* Non-GTP traffic on N3 is not uplink user-plane; leave it to the stack. */
+	ctx->statistics->xdp_actions[DEFAULT_XDP_ACTION & EUPF_MAX_XDP_ACTION_MASK] +=
+		1;
+	return DEFAULT_XDP_ACTION;
 }
 
-static __always_inline enum xdp_action
-process_packet(struct packet_context *ctx)
+static __always_inline enum xdp_action handle_uplink_ip6(struct packet_context *ctx)
 {
-	__u16 l3_protocol = parse_ethernet(ctx);
-	switch (l3_protocol) {
+	if (parse_ip6(ctx) == IPPROTO_UDP) {
+		struct udphdr *udp = detect_udp_header(ctx, 0);
+		if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT) {
+			parse_udp(ctx);
+			upf_printk("upf: gtp-u received on N3 (IPv6 outer)");
+			enum xdp_action action = handle_gtpu(ctx);
+			ctx->statistics->xdp_actions[action &
+						     EUPF_MAX_XDP_ACTION_MASK] +=
+				1;
+			return action;
+		}
+	}
+
+	ctx->statistics->xdp_actions[DEFAULT_XDP_ACTION & EUPF_MAX_XDP_ACTION_MASK] +=
+		1;
+	return DEFAULT_XDP_ACTION;
+}
+
+static __always_inline enum xdp_action process_uplink(struct packet_context *ctx)
+{
+	switch (parse_ethernet(ctx)) {
 	case ETH_P_IP:
-		return handle_ip4(ctx);
+		return handle_uplink_ip4(ctx);
 	case ETH_P_IPV6:
-		return handle_ip6(ctx);
+		return handle_uplink_ip6(ctx);
 	case ETH_P_ARP:
-		upf_printk("upf: arp received. passing to kernel");
+		upf_printk("upf: arp received on N3. passing to kernel");
 		return XDP_PASS;
 	}
 	return DEFAULT_XDP_ACTION;
 }
 
-SEC("xdp/upf_n3_n6_entrypoint")
-int upf_n3_n6_entrypoint_func(struct xdp_md *ctx)
+/* N6 downlink: plain IP traffic from the data network toward a UE. */
+static __always_inline enum xdp_action handle_downlink_ip4(struct packet_context *ctx)
+{
+	int l4_protocol = parse_ip4(ctx);
+	if (l4_protocol != IPPROTO_UDP && l4_protocol != IPPROTO_ICMP &&
+	    l4_protocol != IPPROTO_TCP) {
+		ctx->statistics
+			->xdp_actions[DEFAULT_XDP_ACTION & EUPF_MAX_XDP_ACTION_MASK] +=
+			1;
+		return DEFAULT_XDP_ACTION;
+	}
+
+	ctx->statistics->packet_counters.rx++;
+	enum xdp_action action = handle_n6_packet_ipv4(ctx);
+	ctx->statistics->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
+	return action;
+}
+
+static __always_inline enum xdp_action handle_downlink_ip6(struct packet_context *ctx)
+{
+	int l4_protocol = parse_ip6(ctx);
+	if (l4_protocol != IPPROTO_UDP && l4_protocol != IPPROTO_ICMPV6 &&
+	    l4_protocol != IPPROTO_TCP) {
+		ctx->statistics
+			->xdp_actions[DEFAULT_XDP_ACTION & EUPF_MAX_XDP_ACTION_MASK] +=
+			1;
+		return DEFAULT_XDP_ACTION;
+	}
+
+	ctx->statistics->packet_counters.rx++;
+	enum xdp_action action = handle_n6_packet_ipv6(ctx);
+	ctx->statistics->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
+	return action;
+}
+
+static __always_inline enum xdp_action process_downlink(struct packet_context *ctx)
+{
+	switch (parse_ethernet(ctx)) {
+	case ETH_P_IP:
+		return handle_downlink_ip4(ctx);
+	case ETH_P_IPV6:
+		return handle_downlink_ip6(ctx);
+	case ETH_P_ARP:
+		upf_printk("upf: arp received on N6. passing to kernel");
+		return XDP_PASS;
+	}
+	return DEFAULT_XDP_ACTION;
+}
+
+/* get_or_init_stats returns the singleton statistics record for a map, creating
+ * it on first use. */
+static __always_inline struct upf_statistic *get_or_init_stats(void *stats_map)
 {
 	const __u32 key = 0;
-
-	struct upf_statistic *statistics = NULL;
-	if (ctx->ingress_ifindex == n3_ifindex) {
-		statistics = bpf_map_lookup_elem(&uplink_statistics, &key);
-		if (!statistics) {
-			const struct upf_statistic initval = {};
-			bpf_map_update_elem(&uplink_statistics, &key, &initval,
-					    BPF_ANY);
-			statistics =
-				bpf_map_lookup_elem(&uplink_statistics, &key);
-			if (!statistics)
-				return XDP_ABORTED;
-		}
-	} else if (ctx->ingress_ifindex == n6_ifindex) {
-		statistics = bpf_map_lookup_elem(&downlink_statistics, &key);
-		if (!statistics) {
-			const struct upf_statistic initval = {};
-			bpf_map_update_elem(&downlink_statistics, &key,
-					    &initval, BPF_ANY);
-			statistics =
-				bpf_map_lookup_elem(&downlink_statistics, &key);
-			if (!statistics)
-				return XDP_ABORTED;
-		}
-	} else {
-		return XDP_ABORTED;
+	struct upf_statistic *statistics = bpf_map_lookup_elem(stats_map, &key);
+	if (!statistics) {
+		const struct upf_statistic initval = {};
+		bpf_map_update_elem(stats_map, &key, &initval, BPF_ANY);
+		statistics = bpf_map_lookup_elem(stats_map, &key);
 	}
+
+	return statistics;
+}
+
+/* upf_uplink_func: tail-call stage for GTP-U uplink traffic. Re-parses from its
+ * own ctx (the stack does not survive a tail call). */
+SEC("xdp/upf_uplink")
+int upf_uplink_func(struct xdp_md *ctx)
+{
+	struct upf_statistic *statistics = get_or_init_stats(&uplink_statistics);
+	if (!statistics)
+		return XDP_ABORTED;
 
 	struct packet_context context = {
 		.data = (void *)(long)ctx->data,
 		.data_end = (const void *)(long)ctx->data_end,
 		.xdp_ctx = ctx,
 		.statistics = statistics,
-		.interface = (ctx->ingress_ifindex == n6_ifindex) ?
-				     INTERFACE_N6 :
-				     INTERFACE_N3,
+		.interface = INTERFACE_N3,
 	};
 
-	if (ctx->ingress_ifindex == n3_ifindex) {
-		PROFILE_START(PROF_N3_TOTAL);
-		enum xdp_action ret = process_packet(&context);
-		PROFILE_END(PROF_N3_TOTAL);
-		return ret;
-	} else {
-		PROFILE_START(PROF_N6_TOTAL);
-		enum xdp_action ret = process_packet(&context);
-		PROFILE_END(PROF_N6_TOTAL);
-		return ret;
+	PROFILE_START(PROF_N3_TOTAL);
+	enum xdp_action ret = process_uplink(&context);
+	PROFILE_END(PROF_N3_TOTAL);
+	return ret;
+}
+
+/* upf_downlink_func: tail-call stage for plain downlink traffic toward a UE. */
+SEC("xdp/upf_downlink")
+int upf_downlink_func(struct xdp_md *ctx)
+{
+	struct upf_statistic *statistics = get_or_init_stats(&downlink_statistics);
+	if (!statistics)
+		return XDP_ABORTED;
+
+	struct packet_context context = {
+		.data = (void *)(long)ctx->data,
+		.data_end = (const void *)(long)ctx->data_end,
+		.xdp_ctx = ctx,
+		.statistics = statistics,
+		.interface = INTERFACE_N6,
+	};
+
+	PROFILE_START(PROF_N6_TOTAL);
+	enum xdp_action ret = process_downlink(&context);
+	PROFILE_END(PROF_N6_TOTAL);
+	return ret;
+}
+
+/* upf_entry_func: attached to the N3/N6 interface(s). Classifies by packet type
+ * — GTP-U (UDP :2152) is uplink, everything else is downlink — and tail-calls
+ * the matching stage. Packet-type classification (not interface) keeps this
+ * correct when N3 and N6 share one interface. */
+SEC("xdp/upf_entry")
+int upf_entry_func(struct xdp_md *ctx)
+{
+	struct packet_context context = {
+		.data = (void *)(long)ctx->data,
+		.data_end = (const void *)(long)ctx->data_end,
+		.xdp_ctx = ctx,
+	};
+
+	__u16 l3_protocol = parse_ethernet(&context);
+	__u32 index = UPF_CALL_DOWNLINK;
+
+	if (l3_protocol == ETH_P_ARP) {
+		upf_printk("upf: arp received. passing to kernel");
+		return XDP_PASS;
 	}
+
+	if (l3_protocol == ETH_P_IP) {
+		if (parse_ip4(&context) == IPPROTO_UDP) {
+			struct udphdr *udp = detect_udp_header(&context, 0);
+			if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT)
+				index = UPF_CALL_UPLINK;
+		}
+	} else if (l3_protocol == ETH_P_IPV6) {
+		if (parse_ip6(&context) == IPPROTO_UDP) {
+			struct udphdr *udp = detect_udp_header(&context, 0);
+			if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT)
+				index = UPF_CALL_UPLINK;
+		}
+	} else {
+		return DEFAULT_XDP_ACTION;
+	}
+
+	bpf_tail_call(ctx, &upf_calls, index);
+
+	/* Only reached if the stage program is not populated in upf_calls. */
+	return DEFAULT_XDP_ACTION;
 }
 
 char _license[] SEC("license") = "GPL";

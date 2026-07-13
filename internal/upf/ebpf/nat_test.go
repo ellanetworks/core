@@ -188,7 +188,7 @@ func TestNATIPv6PassThrough(t *testing.T) {
 
 	inner := innerIPv6UDP(testUEv6, 53)
 
-	action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, uplinkGPDU(teid, inner))
+	action, out := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 	if action == XDP_DROP || action == XDP_ABORTED {
 		t.Fatalf("IPv6 uplink with NAT enabled got XDP action %d, want a forwarding action", action)
 	}
