@@ -3,6 +3,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Box,
   Button,
   Card,
@@ -17,6 +18,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import {
@@ -44,6 +46,7 @@ import {
   type APIDataNetwork,
   type APIIPAllocation,
 } from "@/queries/data_networks";
+import { getNATInfo, type NatInfo } from "@/queries/nat";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import EditDataNetworkModal from "@/components/EditDataNetworkModal";
@@ -168,6 +171,13 @@ const DataNetworkDetail: React.FC = () => {
     enabled: authReady && !!accessToken && !!name,
   });
   const framedRoutes = framedRoutesData ?? [];
+
+  const { data: natInfo } = useQuery<NatInfo>({
+    queryKey: ["nat"],
+    queryFn: () => getNATInfo(accessToken || ""),
+    enabled: authReady && !!accessToken,
+  });
+  const isNATEnabled = !!natInfo?.enabled;
 
   const invalidateFramed = () => {
     queryClient.invalidateQueries({ queryKey: ["framed-routes", name] });
@@ -937,16 +947,31 @@ const DataNetworkDetail: React.FC = () => {
         >
           <Typography variant="h6">Framed Routes</Typography>
           {canEdit && (
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<AddIcon />}
-              onClick={() => setFramedModal({ mode: "create" })}
+            <Tooltip
+              title={
+                isNATEnabled ? "Framed routes require NAT to be disabled." : ""
+              }
             >
-              Add framed route
-            </Button>
+              <span>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<AddIcon />}
+                  onClick={() => setFramedModal({ mode: "create" })}
+                  disabled={isNATEnabled}
+                >
+                  Add framed route
+                </Button>
+              </span>
+            </Tooltip>
           )}
         </Box>
+        {isNATEnabled && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Framed routes require NAT to be disabled. Disable NAT to add and
+            forward framed routes.
+          </Alert>
+        )}
         {framedRoutes.length === 0 ? (
           <TableContainer sx={tableContainerSx}>
             <Box sx={{ p: 3, textAlign: "center" }}>

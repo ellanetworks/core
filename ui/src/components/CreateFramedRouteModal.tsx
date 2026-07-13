@@ -225,9 +225,13 @@ const CreateFramedRouteModal: React.FC<CreateFramedRouteModalProps> = ({
           ipv6,
           setIpv6,
         )}
-        <Typography variant="caption" color="textSecondary" sx={{ mt: 2, display: "block" }}>
-          Up to {MAX_PER_FAMILY} prefixes per family. NAT must be disabled to use
-          framed routes.
+        <Typography
+          variant="caption"
+          color="textSecondary"
+          sx={{ mt: 2, display: "block" }}
+        >
+          Up to {MAX_PER_FAMILY} prefixes per family. NAT must be disabled to
+          use framed routes.
         </Typography>
       </DialogContent>
       <DialogActions>
