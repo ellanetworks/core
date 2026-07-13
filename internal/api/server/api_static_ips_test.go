@@ -340,7 +340,7 @@ func TestAPIStaticIPsEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("mutation of an active reservation is 409", func(t *testing.T) {
+	t.Run("mutation of an active reservation succeeds (reconcile releases the session)", func(t *testing.T) {
 		ctx := context.Background()
 
 		dn, err := env.DB.GetDataNetwork(ctx, staticDN)
@@ -357,16 +357,20 @@ func TestAPIStaticIPsEndToEnd(t *testing.T) {
 			t.Fatalf("UpdateLeaseSession: %s", err)
 		}
 
-		if code, _, _ := updateStaticIp(url, client, token, staticDN, Imsi, "ipv4", "10.99.0.21"); code != http.StatusConflict {
-			t.Fatalf("PUT active: expected 409, got %d", code)
+		// Repinning while bound is allowed: the change is applied and the session
+		// reconcilers release the session so the UE re-establishes on the new IP.
+		if code, _, _ := updateStaticIp(url, client, token, staticDN, Imsi, "ipv4", "10.99.0.21"); code != http.StatusOK {
+			t.Fatalf("PUT active: expected 200, got %d", code)
 		}
 
-		if code, _, _ := deleteStaticIp(url, client, token, staticDN, Imsi, "ipv4"); code != http.StatusConflict {
-			t.Fatalf("DELETE active: expected 409, got %d", code)
+		// Deleting while bound is likewise allowed.
+		if code, _, _ := deleteStaticIp(url, client, token, staticDN, Imsi, "ipv4"); code != http.StatusOK {
+			t.Fatalf("DELETE active: expected 200, got %d", code)
 		}
 
-		if err := env.DB.ClearStaticLeaseSession(ctx, lease.ID); err != nil {
-			t.Fatalf("ClearStaticLeaseSession: %s", err)
+		// Restore an unbound reservation for the downstream delete subtest.
+		if code, _, _ := createStaticIp(url, client, token, staticDN, Imsi, "10.99.0.20"); code != http.StatusCreated {
+			t.Fatalf("restore reservation: expected 201, got %d", code)
 		}
 	})
 

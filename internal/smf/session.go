@@ -23,6 +23,7 @@ import (
 var (
 	errUEAddressAllocation = errors.New("UE address allocation failed")
 	errFramedRouteResolve  = errors.New("framed route resolution failed")
+	errStaticIPResolve     = errors.New("static IP resolution failed")
 	errDataPathActivation  = errors.New("data path activation failed")
 	errUPFSession          = errors.New("UPF session establishment failed")
 )
@@ -86,6 +87,32 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	}
 
 	sc.FramedRoutes = framed
+
+	// Cache the reserved static address per family so a reconcile can detect a
+	// reservation change; fail-closed on error.
+	if sc.PDUIPV4Address != nil {
+		addr, ok, err := s.store.GetStaticIP(ctx, req.Supi.IMSI(), req.Dnn, false)
+		if err != nil {
+			sc.Mutex.Unlock()
+			return nil, ueAddresses{}, fmt.Errorf("%w: %v", errStaticIPResolve, err)
+		}
+
+		if ok {
+			sc.StaticIPv4 = addr
+		}
+	}
+
+	if sc.PDUIPV6Prefix != nil {
+		addr, ok, err := s.store.GetStaticIP(ctx, req.Supi.IMSI(), req.Dnn, true)
+		if err != nil {
+			sc.Mutex.Unlock()
+			return nil, ueAddresses{}, fmt.Errorf("%w: %v", errStaticIPResolve, err)
+		}
+
+		if ok {
+			sc.StaticIPv6 = addr
+		}
+	}
 
 	sc.Tunnel = &UPTunnel{DataPath: &DataPath{UpLinkTunnel: &GTPTunnel{}, DownLinkTunnel: &GTPTunnel{}}}
 

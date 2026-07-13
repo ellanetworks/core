@@ -278,6 +278,26 @@ func (s *SMF) FramedRoutesChanged(ctx context.Context, imsi string, ebi uint8) (
 	return s.framedRoutesChanged(ctx, smContext)
 }
 
+// StaticIPChanged reports whether the subscriber's reserved static IP for the
+// EPS session (imsi, ebi) changed since establishment; an unknown session
+// reports no change.
+func (s *SMF) StaticIPChanged(ctx context.Context, imsi string, ebi uint8) (bool, error) {
+	supi, err := etsi.NewSUPIFromIMSI(imsi)
+	if err != nil {
+		return false, fmt.Errorf("invalid imsi %q: %w", imsi, err)
+	}
+
+	smContext := s.currentSession(supi, ebi)
+	if smContext == nil {
+		return false, nil
+	}
+
+	smContext.Mutex.Lock()
+	defer smContext.Mutex.Unlock()
+
+	return s.staticIPChanged(ctx, smContext)
+}
+
 // DeactivateEPSSession puts the retained 4G default bearer into buffering mode when
 // the UE goes ECM-IDLE: the downlink FAR buffers packets, so downlink
 // data raises a paging notification and never reaches the released eNB tunnel.

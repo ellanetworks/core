@@ -66,6 +66,11 @@ type epsSessionManager interface {
 	// default bearer (imsi, ebi) differ from those installed at establishment, so
 	// the reconciler reactivates the bearer on a change (TS 23.501 §5.6.14).
 	FramedRoutesChanged(ctx context.Context, imsi string, ebi uint8) (bool, error)
+
+	// StaticIPChanged reports whether the subscriber's reserved static IP for the
+	// default bearer (imsi, ebi) changed since establishment, so the reconciler
+	// reactivates the bearer on a change (TS 24.301 §6.4.4.2).
+	StaticIPChanged(ctx context.Context, imsi string, ebi uint8) (bool, error)
 }
 
 // credentialProvider is the UDM surface the MME requires for EPS authentication:

@@ -1029,8 +1029,20 @@ func TestUpdateStaticLeaseAddress(t *testing.T) {
 		t.Fatalf("UpdateLeaseSession: %s", err)
 	}
 
-	if err := database.UpdateStaticLeaseAddress(ctx, got.ID, addr("192.168.1.40")); err != db.ErrLeaseActive {
-		t.Fatalf("expected ErrLeaseActive repinning active reservation, got %v", err)
+	// Repinning is allowed while the reservation is bound to an active session:
+	// the session reconcilers release the session so the UE re-establishes on the
+	// new address.
+	if err := database.UpdateStaticLeaseAddress(ctx, got.ID, addr("192.168.1.40")); err != nil {
+		t.Fatalf("expected repin of active reservation to succeed, got %v", err)
+	}
+
+	reboundAddr, err := database.GetStaticLease(ctx, poolID, "ipv4", imsi)
+	if err != nil {
+		t.Fatalf("GetStaticLease after active repin: %s", err)
+	}
+
+	if reboundAddr.Address() != addr("192.168.1.40") {
+		t.Fatalf("expected repinned address 192.168.1.40, got %s", reboundAddr.Address())
 	}
 }
 
@@ -1051,24 +1063,20 @@ func TestDeleteStaticLease(t *testing.T) {
 		t.Fatalf("UpdateLeaseSession: %s", err)
 	}
 
-	if err := database.DeleteStaticLease(ctx, got.ID); err != db.ErrLeaseActive {
-		t.Fatalf("expected ErrLeaseActive deleting active reservation, got %v", err)
-	}
-
-	if _, err := database.GetStaticLease(ctx, poolID, "ipv4", imsi); err != nil {
-		t.Fatalf("expected active reservation to persist, got %v", err)
-	}
-
-	if err := database.ClearStaticLeaseSession(ctx, got.ID); err != nil {
-		t.Fatalf("ClearStaticLeaseSession: %s", err)
-	}
-
+	// Deleting is allowed while the reservation is bound to an active session:
+	// the session reconcilers release the session so the UE re-establishes on a
+	// dynamic address.
 	if err := database.DeleteStaticLease(ctx, got.ID); err != nil {
-		t.Fatalf("DeleteStaticLease: %s", err)
+		t.Fatalf("expected delete of active reservation to succeed, got %v", err)
 	}
 
 	if _, err := database.GetStaticLease(ctx, poolID, "ipv4", imsi); err != db.ErrNotFound {
 		t.Fatalf("expected ErrNotFound after delete, got %v", err)
+	}
+
+	// A second delete of a gone reservation reports ErrNotFound.
+	if err := database.DeleteStaticLease(ctx, got.ID); err != db.ErrNotFound {
+		t.Fatalf("expected ErrNotFound deleting gone reservation, got %v", err)
 	}
 }
 
