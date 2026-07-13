@@ -50,6 +50,13 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 		}
 	}
 
+	// Remove the session's framed-route LPM entries alongside its PDRs.
+	for _, fr := range session.FramedRoutes() {
+		if err := bpfObjects.DeleteFramedDownlink(fr); err != nil {
+			pdrErr = errors.Join(pdrErr, err)
+		}
+	}
+
 	policyID := session.PolicyID()
 
 	conn.mu.Lock()

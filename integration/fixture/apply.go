@@ -68,6 +68,30 @@ func (f *F) Apply(spec scenarios.FixtureSpec) {
 	for _, s := range spec.StaticIPs {
 		f.scopedStaticIP(s)
 	}
+
+	for _, fr := range spec.FramedRoutes {
+		f.scopedFramedRoute(fr)
+	}
+}
+
+func (f *F) scopedFramedRoute(spec scenarios.FramedRouteSpec) {
+	f.t.Helper()
+
+	if err := f.c.CreateDataNetworkFramedRoute(f.ctx, spec.DataNetwork, &client.CreateFramedRouteOptions{
+		IMSI: spec.IMSI,
+		IPv4: spec.IPv4,
+		IPv6: spec.IPv6,
+	}); err != nil {
+		f.fatalf("create framed routes for %s on %s: %v", spec.IMSI, spec.DataNetwork, err)
+	}
+
+	dn, imsi := spec.DataNetwork, spec.IMSI
+
+	f.t.Cleanup(func() {
+		if err := f.c.DeleteDataNetworkFramedRoute(f.ctx, dn, imsi); err != nil {
+			f.t.Logf("cleanup: delete framed routes for %s on %s: %v", imsi, dn, err)
+		}
+	})
 }
 
 func (f *F) scopedStaticIP(spec scenarios.StaticIPSpec) {

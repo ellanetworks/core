@@ -327,6 +327,116 @@ func (c *Client) DeleteDataNetworkStaticIp(ctx context.Context, dataNetwork, ims
 	return nil
 }
 
+type FramedRoute struct {
+	IMSI string   `json:"imsi"`
+	IPv4 []string `json:"ipv4,omitempty"`
+	IPv6 []string `json:"ipv6,omitempty"`
+}
+
+type FramedRouteList struct {
+	Items      []FramedRoute `json:"items"`
+	Page       int           `json:"page"`
+	PerPage    int           `json:"per_page"`
+	TotalCount int           `json:"total_count"`
+}
+
+type CreateFramedRouteOptions struct {
+	IMSI string   `json:"imsi"`
+	IPv4 []string `json:"ipv4,omitempty"`
+	IPv6 []string `json:"ipv6,omitempty"`
+}
+
+// ListDataNetworkFramedRoutes lists the framed routes on a data network, grouped
+// by subscriber.
+func (c *Client) ListDataNetworkFramedRoutes(ctx context.Context, dataNetwork string) (*FramedRouteList, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   "api/v1/networking/data-networks/" + dataNetwork + "/framed-routes",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var list FramedRouteList
+
+	err = resp.DecodeResult(&list)
+	if err != nil {
+		return nil, err
+	}
+
+	return &list, nil
+}
+
+// CreateDataNetworkFramedRoute sets a subscriber's framed-route set on a data
+// network.
+func (c *Client) CreateDataNetworkFramedRoute(ctx context.Context, dataNetwork string, opts *CreateFramedRouteOptions) error {
+	var body bytes.Buffer
+
+	err := json.NewEncoder(&body).Encode(opts)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "POST",
+		Path:   "api/v1/networking/data-networks/" + dataNetwork + "/framed-routes",
+		Body:   &body,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UpdateDataNetworkFramedRoute replaces a subscriber's framed-route set on a data
+// network.
+func (c *Client) UpdateDataNetworkFramedRoute(ctx context.Context, dataNetwork, imsi string, ipv4, ipv6 []string) error {
+	payload := struct {
+		IPv4 []string `json:"ipv4,omitempty"`
+		IPv6 []string `json:"ipv6,omitempty"`
+	}{
+		IPv4: ipv4,
+		IPv6: ipv6,
+	}
+
+	var body bytes.Buffer
+
+	err := json.NewEncoder(&body).Encode(payload)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "PUT",
+		Path:   "api/v1/networking/data-networks/" + dataNetwork + "/framed-routes/" + imsi,
+		Body:   &body,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DeleteDataNetworkFramedRoute removes a subscriber's framed routes on a data
+// network.
+func (c *Client) DeleteDataNetworkFramedRoute(ctx context.Context, dataNetwork, imsi string) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "DELETE",
+		Path:   "api/v1/networking/data-networks/" + dataNetwork + "/framed-routes/" + imsi,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // ListIPv4Allocations lists IPv4 allocations for a data network with pagination support.
 func (c *Client) ListIPv4Allocations(ctx context.Context, opts *ListIPAllocationsOptions, p *ListParams) (*ListIPAllocationsResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{

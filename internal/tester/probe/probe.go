@@ -77,6 +77,26 @@ func Run(ctx context.Context, protocol Protocol, tun, dst string, port int, ipv6
 	}
 }
 
+// RunFromAddr issues an ICMP probe sourced from srcAddr (which must be
+// configured on a local interface, e.g. a framed-route address on the UE TUN)
+// to dst. It simulates a host behind the UE reaching the network over the
+// subscriber's session (TS 23.501 §5.6.14).
+func RunFromAddr(ctx context.Context, srcAddr, dst string, ipv6 bool) error {
+	bin := "ping"
+	if ipv6 {
+		bin = "ping6"
+	}
+
+	cmd := exec.CommandContext(ctx, bin, "-I", srcAddr, dst, "-c", strconv.Itoa(AttemptCount), "-W", "1") // #nosec G204
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s from %s to %s: %w\noutput:\n%s", bin, srcAddr, dst, err, string(out))
+	}
+
+	return nil
+}
+
 func bindToDeviceControl(tun string) func(network, address string, c syscall.RawConn) error {
 	return func(_, _ string, c syscall.RawConn) error {
 		var sockErr error

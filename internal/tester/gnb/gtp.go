@@ -42,6 +42,10 @@ type NewTunnelOpts struct {
 	DLteid           uint32
 	MTU              uint16
 	QFI              uint8
+	// ExtraAddrs are extra CIDRs on the TUN, e.g. a framed-route host behind the UE.
+	ExtraAddrs []string
+	// ExtraRoutes are extra CIDRs routed via the TUN, so an ExtraAddrs source reaches the DN.
+	ExtraRoutes []string
 }
 
 func (g *GnodeB) AddTunnel(opts *NewTunnelOpts) (*Tunnel, error) {
@@ -114,6 +118,17 @@ func (g *GnodeB) AddTunnel(opts *NewTunnelOpts) (*Tunnel, error) {
 		}
 	}
 
+	for _, extra := range opts.ExtraAddrs {
+		addr, err := netlink.ParseAddr(extra)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse extra TUN address %q: %v", extra, err)
+		}
+
+		if err := netlink.AddrAdd(eth, addr); err != nil {
+			return nil, fmt.Errorf("could not assign extra address %q to TUN interface: %v", extra, err)
+		}
+	}
+
 	time.Sleep(3 * time.Second)
 
 	t := &Tunnel{
@@ -139,6 +154,18 @@ func (g *GnodeB) AddTunnel(opts *NewTunnelOpts) (*Tunnel, error) {
 	// has no other route to it.
 	if err := addTunRoute(eth); err != nil {
 		return nil, fmt.Errorf("could not add route for N6 network via TUN interface: %v", err)
+	}
+
+	for _, r := range opts.ExtraRoutes {
+		_, dst, err := net.ParseCIDR(r)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse extra TUN route %q: %v", r, err)
+		}
+
+		route := &netlink.Route{LinkIndex: eth.Attrs().Index, Scope: netlink.SCOPE_UNIVERSE, Dst: dst}
+		if err := netlink.RouteAdd(route); err != nil && !strings.Contains(err.Error(), "exists") {
+			return nil, fmt.Errorf("could not add extra TUN route %q: %v", r, err)
+		}
 	}
 
 	return t, nil

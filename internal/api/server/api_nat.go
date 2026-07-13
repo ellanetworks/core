@@ -56,6 +56,21 @@ func UpdateNATInfo(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		// Framed routes have no function under NAT, so the exclusion holds both
+		// ways: enabling NAT is rejected while any framed route exists.
+		if params.Enabled {
+			framed, err := dbInstance.ListAllFramedRoutes(r.Context())
+			if err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check framed routes", err, logger.APILog)
+				return
+			}
+
+			if len(framed) > 0 {
+				writeError(r.Context(), w, http.StatusConflict, "NAT cannot be enabled while framed routes exist", nil, logger.APILog)
+				return
+			}
+		}
+
 		if err := dbInstance.UpdateNATSettings(r.Context(), params.Enabled); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update NAT settings", err, logger.APILog)
 			return

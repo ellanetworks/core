@@ -95,6 +95,57 @@ func TestReconcileDataNetworkSkipsUnchanged(t *testing.T) {
 	}
 }
 
+// TestReconcileDataNetworkDeactivatesOnUnknownAPN checks that a bearer whose APN
+// is unbound from the subscriber's profile is torn down (TS 23.401 §5.4.4.1),
+// symmetric with the 5G release on an unresolvable policy.
+func TestReconcileDataNetworkDeactivatesOnUnknownAPN(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := connectedBearerUE(t, m)
+
+	testPDN(ue).Apn = "removed-apn" // no policy binds this APN → ErrUnknownAPN
+
+	m.ReconcileDataNetwork(context.Background())
+
+	defer ue.Conn().StopNASGuard()
+
+	if !testPDN(ue).Deactivating {
+		t.Fatal("UE not marked deactivating after its APN was unbound")
+	}
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("expected one Deactivate EPS Bearer Context Request, got %d", len(cc.sent))
+	}
+}
+
+// TestReconcileDataNetworkReactivatesOnFramedRouteChange checks that a framed-
+// route change alone (data-network config unchanged) reactivates the bearer with
+// ESM cause #39, per TS 23.501 §5.6.14 / TS 24.301 §6.4.4.2.
+func TestReconcileDataNetworkReactivatesOnFramedRouteChange(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := connectedBearerUE(t, m)
+
+	qos, err := ResolveQoS(context.Background(), m, ue.imsiOrEmpty())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testPDN(ue).DnConfig = qos.DnFingerprint() // data-network config matches; framed routes are the only change
+
+	m.Session.(*fakeSessionManager).framedChanged = true
+
+	m.ReconcileDataNetwork(context.Background())
+
+	defer ue.Conn().StopNASGuard()
+
+	if !testPDN(ue).Deactivating {
+		t.Fatal("UE not marked deactivating after a framed-route change")
+	}
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("expected one Deactivate EPS Bearer Context Request, got %d", len(cc.sent))
+	}
+}
+
 func TestReconcileDataNetworkSkipsIdleUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)

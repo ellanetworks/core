@@ -29,6 +29,7 @@ const (
 	TopicIPLeases               Topic = "ip_leases"
 	TopicClusterNodeCerts       Topic = "cluster_node_certs"
 	TopicSessionReconcile       Topic = "session_reconcile"
+	TopicFramedRoutes           Topic = "subscriber_framed_routes"
 )
 
 // Event is published once per (topic, applied-index) and carries no

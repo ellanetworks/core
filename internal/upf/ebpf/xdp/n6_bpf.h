@@ -131,8 +131,18 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		bpf_map_lookup_elem(&pdrs_downlink_ip4, &ip4->daddr);
 	PROFILE_END(PROF_N6_PDR_LOOKUP);
 	if (!pdr) {
-		upf_printk("upf: no downlink session for ip:%pI4", &ip4->daddr);
-		return DEFAULT_XDP_ACTION;
+		/* Not a UE address: try the framed-route table (TS 29.244 §5.16).
+		 * The entry redirects to the owning UE address so the live downlink
+		 * PDR is the single source of truth. */
+		struct framed_ip4_key fk = { .prefixlen = 32, .addr = ip4->daddr };
+		__u32 *ue_ip = bpf_map_lookup_elem(&framed_downlink_ip4, &fk);
+		if (ue_ip) {
+			pdr = bpf_map_lookup_elem(&pdrs_downlink_ip4, ue_ip);
+		}
+		if (!pdr) {
+			upf_printk("upf: no downlink session for ip:%pI4", &ip4->daddr);
+			return DEFAULT_XDP_ACTION;
+		}
 	}
 
 	struct far_info *far = &pdr->far;
@@ -261,8 +271,20 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	struct pdr_info *pdr = bpf_map_lookup_elem(&pdrs_downlink_ip6, &prefix);
 	PROFILE_END(PROF_N6_PDR_LOOKUP);
 	if (!pdr) {
-		upf_printk("upf: no downlink session for ip:%pI6c", &prefix);
-		return DEFAULT_XDP_ACTION;
+		/* Not a UE /64: try the framed-route table on the full destination
+		 * (TS 29.244 §5.16), longest-prefix matched. The entry redirects to
+		 * the owning UE /64 so the live downlink PDR is the single source of
+		 * truth. */
+		struct framed_ip6_key fk = { .prefixlen = 128, .addr = ip6->daddr };
+		struct in6_addr *ue_prefix =
+			bpf_map_lookup_elem(&framed_downlink_ip6, &fk);
+		if (ue_prefix) {
+			pdr = bpf_map_lookup_elem(&pdrs_downlink_ip6, ue_prefix);
+		}
+		if (!pdr) {
+			upf_printk("upf: no downlink session for ip:%pI6c", &prefix);
+			return DEFAULT_XDP_ACTION;
+		}
 	}
 
 	struct far_info *far = &pdr->far;

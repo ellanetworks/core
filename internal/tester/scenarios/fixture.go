@@ -25,6 +25,9 @@ type FixtureSpec struct {
 	// StaticIPs are pinned after subscribers and data networks exist.
 	StaticIPs []StaticIPSpec
 
+	// FramedRoutes are provisioned after subscribers and data networks exist.
+	FramedRoutes []FramedRouteSpec
+
 	// ExtraArgs are passed verbatim to `core-tester run <scenario>`, for the
 	// scenario-specific flags it declares via BindFlags.
 	ExtraArgs []string
@@ -93,6 +96,15 @@ type StaticIPSpec struct {
 	IMSI        string
 	DataNetwork string
 	Address     string
+}
+
+// FramedRouteSpec provisions a subscriber's framed routes on a data network
+// (TS 23.501 §5.6.14). Families are inferred from each CIDR.
+type FramedRouteSpec struct {
+	IMSI        string
+	DataNetwork string
+	IPv4        []string
+	IPv6        []string
 }
 
 func DefaultSubscriber() SubscriberSpec {

@@ -384,7 +384,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// disabled — the reconciler's calls are no-ops against a stopped
 	// service, and starting here means re-enabling BGP via the API does
 	// not need separate reconciler wiring.
-	bgpWakeup, stopBgpWakeup := dbInstance.Changefeed().Wakeup(db.TopicIPLeases)
+	bgpWakeup, stopBgpWakeup := dbInstance.Changefeed().Wakeup(db.TopicIPLeases, db.TopicFramedRoutes)
 	defer stopBgpWakeup()
 
 	bgpReconciler := bgp.NewReconciler(bgpService, &bgpLeaseStoreAdapter{db: dbInstance}, dbInstance.NodeID(), bgpWakeup)
@@ -862,7 +862,24 @@ func (a *bgpLeaseStoreAdapter) ListActiveLeasesByNode(ctx context.Context, nodeI
 			continue
 		}
 
-		out = append(out, bgp.Lease{Address: addr, IMSI: l.IMSI})
+		// The lease's poolID is the data network ID, so the subscriber's framed
+		// routes on that data network advertise from this anchor node (§6.4).
+		framedRows, err := a.db.ListFramedRoutesBySubscriberDataNetwork(ctx, l.IMSI, l.PoolID)
+		if err != nil {
+			return nil, err
+		}
+
+		// Same family only: the UPF installs a framed route only for a same-family
+		// session, so advertising the other family would blackhole it.
+		framed := make([]netip.Prefix, 0, len(framedRows))
+
+		for i := range framedRows {
+			if p, perr := netip.ParsePrefix(framedRows[i].Prefix); perr == nil && p.Addr().Is4() == addr.Is4() {
+				framed = append(framed, p)
+			}
+		}
+
+		out = append(out, bgp.Lease{Address: addr, IMSI: l.IMSI, FramedRoutes: framed})
 	}
 
 	return out, nil

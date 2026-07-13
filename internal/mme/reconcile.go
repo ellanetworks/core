@@ -5,6 +5,7 @@ package mme
 
 import (
 	"context"
+	"errors"
 	"net/netip"
 	"strings"
 
@@ -75,9 +76,40 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnecti
 		return
 	}
 
+	// A framed-route change cannot be adopted in place: TS 23.501 §5.6.14 requires
+	// re-establishment. Checked before the QoS diff so a framed-only change still
+	// reactivates (framed routes are absent from the data-network fingerprint).
+	framedChanged, err := m.Session.FramedRoutesChanged(ctx, ue.IMSI(), p.Ebi)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("reconcile: failed to check framed routes; deferring to next sweep",
+			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
+
+		return
+	}
+
+	if framedChanged {
+		logger.From(ctx, ue.Conn().Log).Info("framed routes changed; reactivating EPS bearer",
+			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
+		m.reactivateBearer(ctx, ue, p)
+
+		return
+	}
+
 	qos, err := ResolveQoSByAPN(ctx, m, ue.IMSI(), p.Apn)
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("reconcile: failed to resolve QoS for APN",
+		// The subscriber's profile does not bind the APN: the subscription does
+		// not authorize this PDN connection, so deactivate it (TS 23.401
+		// §5.4.4.1), symmetric with the 5G release on an unresolvable policy. Other
+		// errors are transient (DB/infra); skip and let the backstop retry.
+		if errors.Is(err, ErrUnknownAPN) {
+			logger.From(ctx, ue.Conn().Log).Info("APN no longer authorized; reactivating EPS bearer",
+				zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
+			m.reactivateBearer(ctx, ue, p)
+
+			return
+		}
+
+		logger.From(ctx, logger.MmeLog).Warn("reconcile: failed to resolve QoS for APN; deferring to next sweep",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
 
 		return

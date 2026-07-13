@@ -45,6 +45,18 @@ type VethEntrypointFlowStats struct {
 	Packets uint64
 }
 
+type VethEntrypointFramedIp4Key struct {
+	_         structs.HostLayout
+	Prefixlen uint32
+	Addr      uint32
+}
+
+type VethEntrypointFramedIp6Key struct {
+	_         structs.HostLayout
+	Prefixlen uint32
+	Addr      VethEntrypointIn6Addr
+}
+
 type VethEntrypointIn6Addr struct {
 	_    structs.HostLayout
 	In6U struct {
@@ -171,6 +183,8 @@ const (
 	VethEntrypointMapDownlinkRouteStats = "downlink_route_stats"
 	VethEntrypointMapDownlinkStatistics = "downlink_statistics"
 	VethEntrypointMapFlowStats          = "flow_stats"
+	VethEntrypointMapFramedDownlinkIp4  = "framed_downlink_ip4"
+	VethEntrypointMapFramedDownlinkIp6  = "framed_downlink_ip6"
 	VethEntrypointMapNatCt              = "nat_ct"
 	VethEntrypointMapNoNeighMap         = "no_neigh_map"
 	VethEntrypointMapNocpMap            = "nocp_map"
@@ -241,6 +255,8 @@ type VethEntrypointMapSpecs struct {
 	DownlinkRouteStats *ebpf.MapSpec `ebpf:"downlink_route_stats"`
 	DownlinkStatistics *ebpf.MapSpec `ebpf:"downlink_statistics"`
 	FlowStats          *ebpf.MapSpec `ebpf:"flow_stats"`
+	FramedDownlinkIp4  *ebpf.MapSpec `ebpf:"framed_downlink_ip4"`
+	FramedDownlinkIp6  *ebpf.MapSpec `ebpf:"framed_downlink_ip6"`
 	NatCt              *ebpf.MapSpec `ebpf:"nat_ct"`
 	NoNeighMap         *ebpf.MapSpec `ebpf:"no_neigh_map"`
 	NocpMap            *ebpf.MapSpec `ebpf:"nocp_map"`
@@ -287,6 +303,8 @@ type VethEntrypointMaps struct {
 	DownlinkRouteStats *ebpf.Map `ebpf:"downlink_route_stats"`
 	DownlinkStatistics *ebpf.Map `ebpf:"downlink_statistics"`
 	FlowStats          *ebpf.Map `ebpf:"flow_stats"`
+	FramedDownlinkIp4  *ebpf.Map `ebpf:"framed_downlink_ip4"`
+	FramedDownlinkIp6  *ebpf.Map `ebpf:"framed_downlink_ip6"`
 	NatCt              *ebpf.Map `ebpf:"nat_ct"`
 	NoNeighMap         *ebpf.Map `ebpf:"no_neigh_map"`
 	NocpMap            *ebpf.Map `ebpf:"nocp_map"`
@@ -303,6 +321,8 @@ func (m *VethEntrypointMaps) Close() error {
 		m.DownlinkRouteStats,
 		m.DownlinkStatistics,
 		m.FlowStats,
+		m.FramedDownlinkIp4,
+		m.FramedDownlinkIp6,
 		m.NatCt,
 		m.NoNeighMap,
 		m.NocpMap,

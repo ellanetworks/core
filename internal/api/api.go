@@ -288,10 +288,13 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 	if opts.BGP != nil {
 		bgpStore := &bgpSettingsStoreAdapter{db: opts.DB, cfg: s.cfg}
 		filterBuilder := func(fbCtx context.Context) (*bgp.RouteFilter, error) {
-			pools := server.CollectUEPools(fbCtx, opts.DB)
+			// Advertised prefixes (UE pools and framed routes) join the import
+			// reject set so a reflected prefix is not relearned into the kernel FIB.
+			reject := server.CollectUEPools(fbCtx, opts.DB)
+			reject = append(reject, server.CollectFramedRoutes(fbCtx, opts.DB)...)
 			n3Addr, _ := netip.ParseAddr(s.cfg.Interfaces.N3.Address)
 
-			return bgp.BuildRouteFilter(pools, n3Addr, s.cfg.Interfaces.N6.Name), nil
+			return bgp.BuildRouteFilter(reject, n3Addr, s.cfg.Interfaces.N6.Name), nil
 		}
 
 		bgpSettingsWakeup, stopBGPSettingsWakeup := opts.DB.Changefeed().Wakeup(
@@ -299,6 +302,7 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 			db.TopicBGPPeers,
 			db.TopicNATSettings,
 			db.TopicDataNetworks,
+			db.TopicFramedRoutes,
 		)
 
 		bgpReconciler := bgp.NewSettingsReconciler(opts.BGP, bgpStore, filterBuilder, bgpSettingsWakeup)

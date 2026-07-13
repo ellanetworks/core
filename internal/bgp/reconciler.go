@@ -25,8 +25,8 @@ type LeaseStore interface {
 // route-information base. *BGPService satisfies it. A test-only
 // implementation lets us exercise Reconcile without bringing up GoBGP.
 type RIB interface {
-	Announce(ip netip.Addr, owner string) error
-	Withdraw(ip netip.Addr) error
+	Announce(prefix netip.Prefix, owner string) error
+	Withdraw(prefix netip.Prefix) error
 	Paths() map[string]string
 }
 
@@ -34,8 +34,9 @@ type RIB interface {
 // the fields read off *db.IPLease. The db package provides an adapter;
 // see LeaseStoreFromDB below for the expected shape.
 type Lease struct {
-	Address netip.Addr
-	IMSI    string
+	Address      netip.Addr
+	IMSI         string
+	FramedRoutes []netip.Prefix
 }
 
 // reconcileBackstop is the periodic invariant-checking sweep when no
@@ -129,43 +130,59 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 	}
 
 	desired := make(map[string]string, len(leases))
+
 	for _, l := range leases {
-		if !l.Address.IsValid() {
-			continue
+		if l.Address.IsValid() {
+			desired[hostPrefix(l.Address).String()] = l.IMSI
 		}
 
-		desired[l.Address.String()] = l.IMSI
+		// Framed routes ride the same anchor lease: advertised from this node so
+		// downlink for a subnet behind the UE reaches the owning session.
+		for _, fr := range l.FramedRoutes {
+			desired[fr.Masked().String()] = l.IMSI
+		}
 	}
 
 	current := r.rib.Paths()
 
 	toAnnounce, toWithdraw := reconcileDiff(desired, current)
 
-	for ipStr, imsi := range toAnnounce {
-		ip, parseErr := netip.ParseAddr(ipStr)
+	for prefixStr, imsi := range toAnnounce {
+		prefix, parseErr := netip.ParsePrefix(prefixStr)
 		if parseErr != nil {
 			continue
 		}
 
-		if annErr := r.rib.Announce(ip, imsi); annErr != nil {
+		if annErr := r.rib.Announce(prefix, imsi); annErr != nil {
 			r.log.Warn("announce failed during reconcile",
-				zap.String("ip", ipStr), zap.String("imsi", imsi), zap.Error(annErr))
+				zap.String("prefix", prefixStr), zap.String("imsi", imsi), zap.Error(annErr))
 		}
 	}
 
-	for _, ipStr := range toWithdraw {
-		ip, parseErr := netip.ParseAddr(ipStr)
+	for _, prefixStr := range toWithdraw {
+		prefix, parseErr := netip.ParsePrefix(prefixStr)
 		if parseErr != nil {
 			continue
 		}
 
-		if wdErr := r.rib.Withdraw(ip); wdErr != nil {
+		if wdErr := r.rib.Withdraw(prefix); wdErr != nil {
 			r.log.Warn("withdraw failed during reconcile",
-				zap.String("ip", ipStr), zap.Error(wdErr))
+				zap.String("prefix", prefixStr), zap.Error(wdErr))
 		}
 	}
 
 	return nil
+}
+
+// hostPrefix returns the per-UE host route for an address: /32 for IPv4, /64 for
+// the delegated IPv6 prefix.
+func hostPrefix(addr netip.Addr) netip.Prefix {
+	bits := 32
+	if addr.Is6() {
+		bits = 64
+	}
+
+	return netip.PrefixFrom(addr, bits).Masked()
 }
 
 func (r *Reconciler) loop(ctx context.Context, done chan struct{}) {

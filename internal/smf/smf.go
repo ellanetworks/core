@@ -74,6 +74,8 @@ type SessionStore interface {
 
 	ReleaseIPv6(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error)
 
+	ListFramedRoutes(ctx context.Context, imsi string, dnn string) ([]netip.Prefix, error)
+
 	IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error
 
 	// InsertFlowReports persists flow measurement records in one transaction.

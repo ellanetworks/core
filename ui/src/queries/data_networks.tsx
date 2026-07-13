@@ -193,3 +193,61 @@ export const deleteStaticIp = async (
     { method: "DELETE", authToken },
   );
 };
+
+export type FramedRoute = {
+  imsi: string;
+  ipv4?: string[];
+  ipv6?: string[];
+};
+
+type ListFramedRoutesResponse = {
+  items: FramedRoute[];
+};
+
+export async function listFramedRoutes(
+  authToken: string,
+  dataNetwork: string,
+): Promise<FramedRoute[]> {
+  const resp = await apiFetch<ListFramedRoutesResponse>(
+    `/api/v1/networking/data-networks/${encodeURIComponent(dataNetwork)}/framed-routes`,
+    { authToken },
+  );
+  return resp.items ?? [];
+}
+
+export const createFramedRoute = async (
+  authToken: string,
+  dataNetwork: string,
+  imsi: string,
+  ipv4: string[],
+  ipv6: string[],
+): Promise<void> => {
+  await apiFetchVoid(
+    `/api/v1/networking/data-networks/${encodeURIComponent(dataNetwork)}/framed-routes`,
+    { method: "POST", authToken, body: { imsi, ipv4, ipv6 } },
+  );
+};
+
+export const updateFramedRoute = async (
+  authToken: string,
+  dataNetwork: string,
+  imsi: string,
+  ipv4: string[],
+  ipv6: string[],
+): Promise<void> => {
+  await apiFetchVoid(
+    `/api/v1/networking/data-networks/${encodeURIComponent(dataNetwork)}/framed-routes/${encodeURIComponent(imsi)}`,
+    { method: "PUT", authToken, body: { ipv4, ipv6 } },
+  );
+};
+
+export const deleteFramedRoute = async (
+  authToken: string,
+  dataNetwork: string,
+  imsi: string,
+): Promise<void> => {
+  await apiFetchVoid(
+    `/api/v1/networking/data-networks/${encodeURIComponent(dataNetwork)}/framed-routes/${encodeURIComponent(imsi)}`,
+    { method: "DELETE", authToken },
+  );
+};

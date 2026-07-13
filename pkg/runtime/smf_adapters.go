@@ -331,6 +331,34 @@ func (a *smfDBAdapter) InsertFlowReports(ctx context.Context, reports []*models.
 	return a.db.InsertFlowReports(ctx, batch)
 }
 
+// ListFramedRoutes resolves the data network by name, then returns the
+// subscriber's framed-route prefixes on it (TS 23.501 §5.6.14). Prefixes are
+// stored normalized, so parsing is total.
+func (a *smfDBAdapter) ListFramedRoutes(ctx context.Context, imsi string, dnn string) ([]netip.Prefix, error) {
+	dn, err := a.db.GetDataNetwork(ctx, dnn)
+	if err != nil {
+		return nil, fmt.Errorf("get data network: %w", err)
+	}
+
+	rows, err := a.db.ListFramedRoutesBySubscriberDataNetwork(ctx, imsi, dn.ID)
+	if err != nil {
+		return nil, fmt.Errorf("list framed routes: %w", err)
+	}
+
+	prefixes := make([]netip.Prefix, 0, len(rows))
+
+	for i := range rows {
+		p, err := netip.ParsePrefix(rows[i].Prefix)
+		if err != nil {
+			return nil, fmt.Errorf("parse framed route %q: %w", rows[i].Prefix, err)
+		}
+
+		prefixes = append(prefixes, p)
+	}
+
+	return prefixes, nil
+}
+
 // ---------------------------------------------------------------------------
 // smfUPFAdapter adapts the in-process UPF calls to smf.UPFClient.
 // ---------------------------------------------------------------------------

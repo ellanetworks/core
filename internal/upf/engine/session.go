@@ -11,12 +11,13 @@ import (
 )
 
 type Session struct {
-	mu       sync.RWMutex
-	SEID     uint64
-	policyID string
-	pdrs     map[uint32]SPDRInfo
-	fars     map[uint32]ebpf.FarInfo
-	qers     map[uint32]ebpf.QerInfo
+	mu           sync.RWMutex
+	SEID         uint64
+	policyID     string
+	pdrs         map[uint32]SPDRInfo
+	fars         map[uint32]ebpf.FarInfo
+	qers         map[uint32]ebpf.QerInfo
+	framedRoutes []netip.Prefix
 }
 
 func NewSession(seid uint64) *Session {
@@ -156,6 +157,23 @@ func (s *Session) RemoveQer(id uint32) {
 	defer s.mu.Unlock()
 
 	delete(s.qers, id)
+}
+
+// SetFramedRoutes records the session's framed-route prefixes so they can be
+// removed from the datapath when the session is deleted.
+func (s *Session) SetFramedRoutes(prefixes []netip.Prefix) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.framedRoutes = prefixes
+}
+
+// FramedRoutes returns a snapshot copy of the session's framed-route prefixes.
+func (s *Session) FramedRoutes() []netip.Prefix {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return append([]netip.Prefix(nil), s.framedRoutes...)
 }
 
 // ListQERs returns a snapshot copy of the QER map.

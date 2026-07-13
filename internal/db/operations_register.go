@@ -109,6 +109,11 @@ var (
 	opDeleteNetworkRulesByPolicy = registerChangesetOp("DeleteNetworkRulesByPolicy", (*Database).applyDeleteNetworkRulesByPolicy, AffectsTopic(TopicNetworkRules))
 )
 
+// Framed routes
+var (
+	opReplaceFramedRoutes = registerChangesetOp("ReplaceFramedRoutes", (*Database).applyReplaceFramedRoutes, RequireSchema(16), AffectsTopic(TopicSessionReconcile), AffectsTopic(TopicFramedRoutes))
+)
+
 // Home network key
 var (
 	opCreateHomeNetworkKey = registerChangesetOp("CreateHomeNetworkKey", (*Database).applyCreateHomeNetworkKey)

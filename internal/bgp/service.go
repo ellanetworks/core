@@ -389,7 +389,10 @@ func (b *BGPService) Restart(ctx context.Context) error {
 
 // Announce adds a /32 route for the given IP to the BGP RIB.
 // It is a no-op if the service is not running or not advertising (NAT enabled).
-func (b *BGPService) Announce(ip netip.Addr, owner string) error {
+// Announce advertises a route for the given prefix (a per-UE /32 or /64, or an
+// operator-provisioned framed route; TS 23.501 §5.6.14). It is a no-op if the
+// service is not running or not advertising (NAT enabled).
+func (b *BGPService) Announce(prefix netip.Prefix, owner string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -397,24 +400,20 @@ func (b *BGPService) Announce(ip netip.Addr, owner string) error {
 		return nil
 	}
 
-	if err := b.announcePath(b.server, ip); err != nil {
+	prefix = prefix.Masked()
+
+	if err := b.announcePathPrefix(b.server, prefix); err != nil {
 		return err
 	}
 
-	prefixLen := 32
-	if ip.Is6() {
-		prefixLen = 64
-	}
-
-	prefix := netip.PrefixFrom(ip, prefixLen).Masked()
 	b.paths[prefix.String()] = ownedPath{prefix: prefix, owner: owner}
 
 	return nil
 }
 
-// Withdraw removes a /32 route for the given IP from the BGP RIB.
+// Withdraw removes the route for the given prefix from the BGP RIB.
 // It is a no-op if the service is not running or not advertising (NAT enabled).
-func (b *BGPService) Withdraw(ip netip.Addr) error {
+func (b *BGPService) Withdraw(prefix netip.Prefix) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -422,11 +421,13 @@ func (b *BGPService) Withdraw(ip netip.Addr) error {
 		return nil
 	}
 
-	if err := b.withdrawPath(b.server, ip); err != nil {
+	prefix = prefix.Masked()
+
+	if err := b.withdrawPathPrefix(b.server, prefix); err != nil {
 		return err
 	}
 
-	delete(b.paths, ip.String())
+	delete(b.paths, prefix.String())
 
 	return nil
 }
@@ -744,25 +745,6 @@ func (b *BGPService) buildPath(prefix netip.Prefix) (*apiutil.Path, error) {
 	}, nil
 }
 
-// announcePath adds a /32 route to the GoBGP RIB.
-func (b *BGPService) announcePath(s *gobgp.BgpServer, ip netip.Addr) error {
-	prefixLen := 32
-	if ip.Is6() {
-		prefixLen = 64
-	}
-
-	path, err := b.buildPath(netip.PrefixFrom(ip, prefixLen))
-	if err != nil {
-		return err
-	}
-
-	_, err = s.AddPath(apiutil.AddPathRequest{
-		Paths: []*apiutil.Path{path},
-	})
-
-	return err
-}
-
 // announcePathPrefix adds a route with the given prefix to the GoBGP RIB.
 func (b *BGPService) announcePathPrefix(s *gobgp.BgpServer, prefix netip.Prefix) error {
 	path, err := b.buildPath(prefix)
@@ -775,25 +757,6 @@ func (b *BGPService) announcePathPrefix(s *gobgp.BgpServer, prefix netip.Prefix)
 	})
 
 	return err
-}
-
-// withdrawPath removes a /32 route from the GoBGP RIB.
-func (b *BGPService) withdrawPath(s *gobgp.BgpServer, ip netip.Addr) error {
-	prefixLen := 32
-	if ip.Is6() {
-		prefixLen = 64
-	}
-
-	path, err := b.buildPath(netip.PrefixFrom(ip, prefixLen))
-	if err != nil {
-		return err
-	}
-
-	path.Withdrawal = true
-
-	return s.DeletePath(apiutil.DeletePathRequest{
-		Paths: []*apiutil.Path{path},
-	})
 }
 
 // withdrawPathPrefix removes a route with the given prefix from the GoBGP RIB.

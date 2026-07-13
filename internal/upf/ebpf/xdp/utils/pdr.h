@@ -31,6 +31,13 @@
 #define PDR_MAP_DOWNLINK_IPV4_SIZE MAX_PDU_SESSIONS
 #define PDR_MAP_DOWNLINK_IPV6_SIZE MAX_PDU_SESSIONS
 
+/* Framed routing (TS 23.501 §5.6.14, TS 29.244 §5.16): operator-provisioned
+ * prefixes routed toward a session on the downlink, matched by longest-prefix.
+ * Capped per family; NO_PREALLOC means entries allocate lazily. */
+#define MAX_FRAMED_ROUTES_PER_FAMILY 8
+#define FRAMED_MAP_IPV4_SIZE (MAX_PDU_SESSIONS * MAX_FRAMED_ROUTES_PER_FAMILY)
+#define FRAMED_MAP_IPV6_SIZE (MAX_PDU_SESSIONS * MAX_FRAMED_ROUTES_PER_FAMILY)
+
 #define MAX_RULES_PER_FILTER 12 /* max rules per policy-direction entry */
 #define MAX_POLICIES 144 /* max policies per profile (12) * max profiles (12) */
 #define MAX_SDF_FILTERS \

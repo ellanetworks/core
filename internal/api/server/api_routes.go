@@ -198,6 +198,19 @@ func CreateRoute(dbInstance *db.Database, reconcileRoutes func(context.Context) 
 			return
 		}
 
+		if dest, perr := netip.ParsePrefix(createRouteParams.Destination); perr == nil {
+			conflict, ferr := framedRouteConflict(r.Context(), dbInstance, dest.Masked())
+			if ferr != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check framed routes", ferr, logger.APILog)
+				return
+			}
+
+			if conflict != "" {
+				writeError(r.Context(), w, http.StatusConflict, fmt.Sprintf("destination %s overlaps framed route %s", dest.Masked(), conflict), nil, logger.APILog)
+				return
+			}
+		}
+
 		if !isRouteGatewayValid(createRouteParams.Gateway) {
 			writeError(r.Context(), w, http.StatusBadRequest, "invalid gateway format: expecting an IPv4 or IPv6 address", nil, logger.APILog)
 			return

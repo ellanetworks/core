@@ -132,6 +132,43 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	span.AddEvent("pdrs_processed", trace.WithAttributes(attribute.Int("count", len(createdPDRs))))
 	span.AddEvent("ebpf_maps_updated")
 
+	// Framed routes (TS 23.501 §5.6.14, TS 29.244 §5.16) redirect to the
+	// session's downlink PDR, matched by LPM. A failure rolls back the ones
+	// already installed so a rejected establishment leaves no orphan entries.
+	if len(req.FramedRoutes) > 0 {
+		installed := make([]netip.Prefix, 0, len(req.FramedRoutes))
+
+		for _, fr := range req.FramedRoutes {
+			ueAddr, ok := downlinkUEAddr(createdPDRs, fr.Addr().Is4())
+			if !ok {
+				// No same-family downlink PDR (e.g. an IPv6 framed route on an
+				// IPv4-only session): the route cannot apply here, so skip it. A
+				// dormant route must not deny the UE all connectivity.
+				logger.WithTrace(ctx, logger.UpfLog).Warn("Skipping framed route with no same-family downlink PDR",
+					logger.SEID(seid), zap.String("prefix", fr.String()))
+
+				continue
+			}
+
+			if err := bpfObjects.PutFramedDownlink(fr, ueAddr); err != nil {
+				for _, done := range installed {
+					_ = bpfObjects.DeleteFramedDownlink(done)
+				}
+
+				span.RecordError(err)
+
+				return nil, fmt.Errorf("couldn't apply framed route %s: %w", fr, err)
+			}
+
+			installed = append(installed, fr)
+		}
+
+		sess.SetFramedRoutes(installed)
+
+		logger.WithTrace(ctx, logger.UpfLog).Info("Applied framed routes",
+			logger.SEID(seid), zap.Int("count", len(installed)))
+	}
+
 	if req.PolicyID != "" {
 		sess.SetPolicyID(req.PolicyID)
 	}
@@ -147,6 +184,19 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		RemoteSEID:  seid,
 		CreatedPDRs: createdPDRsToResponse(createdPDRs, conn.advertisedN3AddressIPv4, conn.advertisedN3AddressIPv6),
 	}, nil
+}
+
+// downlinkUEAddr returns the UE address of the session's downlink PDR for the
+// requested family — the pdrs_downlink_* key a framed route of that family
+// redirects to.
+func downlinkUEAddr(pdrs []SPDRInfo, wantV4 bool) (netip.Addr, bool) {
+	for i := range pdrs {
+		if pdrs[i].UEIP.IsValid() && pdrs[i].UEIP.Is4() == wantV4 {
+			return pdrs[i].UEIP, true
+		}
+	}
+
+	return netip.Addr{}, false
 }
 
 // farInfoFromModel converts a models.FAR to an ebpf.FarInfo.

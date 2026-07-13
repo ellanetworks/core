@@ -257,6 +257,27 @@ func (s *SMF) ReleaseEPSSession(ctx context.Context, ref string) error {
 	return s.ReleaseSmContext(ctx, ref)
 }
 
+// FramedRoutesChanged reports whether the subscriber's provisioned framed routes
+// for the EPS session (imsi, ebi) differ from those installed at establishment.
+// The MME reconciler reactivates the bearer on a change (TS 23.501 §5.6.14). An
+// unknown session reports no change.
+func (s *SMF) FramedRoutesChanged(ctx context.Context, imsi string, ebi uint8) (bool, error) {
+	supi, err := etsi.NewSUPIFromIMSI(imsi)
+	if err != nil {
+		return false, fmt.Errorf("invalid imsi %q: %w", imsi, err)
+	}
+
+	smContext := s.currentSession(supi, ebi)
+	if smContext == nil {
+		return false, nil
+	}
+
+	smContext.Mutex.Lock()
+	defer smContext.Mutex.Unlock()
+
+	return s.framedRoutesChanged(ctx, smContext)
+}
+
 // DeactivateEPSSession puts the retained 4G default bearer into buffering mode when
 // the UE goes ECM-IDLE: the downlink FAR buffers packets, so downlink
 // data raises a paging notification and never reaches the released eNB tunnel.
