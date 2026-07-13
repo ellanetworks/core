@@ -8,11 +8,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -42,24 +44,13 @@ func TestAgent_Rotate_RollbackOnPOSTFailure(t *testing.T) {
 		return listener.PinResult{Found: ok, NodeID: nid}
 	}
 
-	joinerLn, _ := newListener(t, joiner, pinFn)
-	leaderLn, leaderAddr := newListener(t, leader, pinFn)
+	joinerLn, _ := startListener(ctx, t, joiner, pinFn, nil)
 
 	// Leader rejects every register attempt with 500. Rotate must
 	// roll back rather than commit a cert no peer can verify.
-	leaderLn.Register(listener.ALPNHTTP, alwaysFailRegisterHandler())
-
-	if err := joinerLn.Start(ctx); err != nil {
-		t.Fatalf("start joiner listener: %v", err)
-	}
-
-	defer joinerLn.Stop()
-
-	if err := leaderLn.Start(ctx); err != nil {
-		t.Fatalf("start leader listener: %v", err)
-	}
-
-	defer leaderLn.Stop()
+	_, leaderAddr := startListener(ctx, t, leader, pinFn, func(ln *listener.Listener) {
+		ln.Register(listener.ALPNHTTP, alwaysFailRegisterHandler())
+	})
 
 	tmpDir := joiner.DataDir
 	certPath := filepath.Join(tmpDir, "cluster-tls", "leaf.crt")
@@ -109,28 +100,52 @@ func newAgent(t *testing.T, nodeID int, clusterID string) *pkiagent.Agent {
 	return a
 }
 
-func newListener(t *testing.T, a *pkiagent.Agent, pinFn listener.PinFunc) (*listener.Listener, string) {
+// startListener builds a listener bound to a free ephemeral port, runs setup
+// (e.g. Register, which must precede Start) if given, and starts it, retrying on
+// a fresh port if another test grabbed the chosen one between selection and bind
+// (the probe-then-bind window is inherently racy). Stop is registered as cleanup.
+func startListener(ctx context.Context, t *testing.T, a *pkiagent.Agent, pinFn listener.PinFunc, setup func(*listener.Listener)) (*listener.Listener, string) {
 	t.Helper()
 
-	lc := net.ListenConfig{}
+	for attempt := 0; attempt < 20; attempt++ {
+		lc := net.ListenConfig{}
 
-	probe, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("free port: %v", err)
+		probe, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatalf("free port: %v", err)
+		}
+
+		addr := probe.Addr().String()
+		_ = probe.Close()
+
+		ln := listener.New(listener.Config{
+			BindAddress:      addr,
+			AdvertiseAddress: addr,
+			NodeID:           a.NodeID,
+			Pin:              pinFn,
+			Leaf:             func() *tls.Certificate { return a.Leaf() },
+		})
+
+		if setup != nil {
+			setup(ln)
+		}
+
+		err = ln.Start(ctx)
+		if err == nil {
+			t.Cleanup(ln.Stop)
+			return ln, addr
+		}
+
+		if errors.Is(err, syscall.EADDRINUSE) {
+			continue
+		}
+
+		t.Fatalf("start listener: %v", err)
 	}
 
-	addr := probe.Addr().String()
-	_ = probe.Close()
+	t.Fatal("could not bind a free ephemeral port after 20 attempts")
 
-	ln := listener.New(listener.Config{
-		BindAddress:      addr,
-		AdvertiseAddress: addr,
-		NodeID:           a.NodeID,
-		Pin:              pinFn,
-		Leaf:             func() *tls.Certificate { return a.Leaf() },
-	})
-
-	return ln, addr
+	return nil, ""
 }
 
 // alwaysFailRegisterHandler reads one HTTP request and writes a
