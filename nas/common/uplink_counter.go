@@ -8,10 +8,11 @@ package common
 // been accepted yet.
 //
 // It holds replay protection (TS 24.301 §4.4.3.2, TS 24.501 §4.4.3.2): a given
-// NAS COUNT is accepted at most once. Estimate never returns a count at or below
-// the last accepted one, so a replayed message estimates to a count whose MAC
-// cannot verify. Both specs leave the mechanism to the implementation and
-// require the same result of it, so the 4G and 5G receivers share this type.
+// NAS COUNT is accepted at most once. Except across NAS COUNT wrap-around,
+// Estimate never returns a count at or below the last accepted one, so a
+// replayed message estimates to a count whose MAC cannot verify. Both specs
+// leave the mechanism to the implementation and require the same result of it,
+// so the 4G and 5G receivers share this type.
 type UplinkCounter struct {
 	last     Count
 	accepted bool
