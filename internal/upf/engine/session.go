@@ -11,6 +11,14 @@ import (
 )
 
 type Session struct {
+	// opMu serializes a whole control-plane operation on this session — modify,
+	// delete, and the reconciler's filter propagation — so their compound
+	// read-modify-apply sequences never interleave. It is the outermost lock:
+	// never acquired while holding conn.mu or filterMu, and only one is held at a
+	// time. mu still guards individual field access underneath it.
+	opMu    sync.Mutex
+	deleted bool // guarded by opMu
+
 	mu           sync.RWMutex
 	SEID         uint64
 	policyID     string
@@ -185,4 +193,21 @@ func (s *Session) ListQERs() map[uint32]ebpf.QerInfo {
 	maps.Copy(c, s.qers)
 
 	return c
+}
+
+// snapshot copies the rule maps so a failed modification can restore them.
+func (s *Session) snapshot() (pdrs map[uint32]SPDRInfo, fars map[uint32]ebpf.FarInfo, qers map[uint32]ebpf.QerInfo) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return maps.Clone(s.pdrs), maps.Clone(s.fars), maps.Clone(s.qers)
+}
+
+func (s *Session) restore(pdrs map[uint32]SPDRInfo, fars map[uint32]ebpf.FarInfo, qers map[uint32]ebpf.QerInfo) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.pdrs = pdrs
+	s.fars = fars
+	s.qers = qers
 }

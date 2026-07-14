@@ -36,6 +36,17 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 		return err
 	}
 
+	session.opMu.Lock()
+	defer session.opMu.Unlock()
+
+	if session.deleted {
+		return nil
+	}
+
+	// Mark deleted before teardown so a concurrent filter propagation that wins
+	// the lock afterward skips this session instead of re-installing its rules.
+	session.deleted = true
+
 	bpfObjects := conn.BpfObjects
 	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 

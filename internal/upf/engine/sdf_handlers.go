@@ -157,19 +157,37 @@ func (conn *SessionEngine) propagateFilterIndex(policyID string, direction model
 			continue
 		}
 
-		for pdrID, spdrInfo := range session.ListPDRs() {
-			pdrIsUplink := !spdrInfo.UEIP.IsValid()
-			if pdrIsUplink != isUplink {
-				continue
-			}
+		if err := conn.applyFilterIndexToSession(session, isUplink, idx); err != nil {
+			return err
+		}
+	}
 
-			spdrInfo.PdrInfo.FilterMapIndex = idx
-			session.PutPDR(pdrID, spdrInfo)
+	return nil
+}
 
-			if conn.BpfObjects != nil {
-				if err := applyPDR(spdrInfo, conn.BpfObjects); err != nil {
-					return fmt.Errorf("propagate filter index to PDR %d (SEID %d): %w", pdrID, seid, err)
-				}
+// applyFilterIndexToSession updates FilterMapIndex on one session's matching
+// PDRs under its operation lock, so it cannot interleave with a modify or delete
+// of the same session.
+func (conn *SessionEngine) applyFilterIndexToSession(session *Session, isUplink bool, idx uint32) error {
+	session.opMu.Lock()
+	defer session.opMu.Unlock()
+
+	if session.deleted {
+		return nil
+	}
+
+	for pdrID, spdrInfo := range session.ListPDRs() {
+		pdrIsUplink := !spdrInfo.UEIP.IsValid()
+		if pdrIsUplink != isUplink {
+			continue
+		}
+
+		spdrInfo.PdrInfo.FilterMapIndex = idx
+		session.PutPDR(pdrID, spdrInfo)
+
+		if conn.BpfObjects != nil {
+			if err := applyPDR(spdrInfo, conn.BpfObjects); err != nil {
+				return fmt.Errorf("propagate filter index to PDR %d (SEID %d): %w", pdrID, session.SEID, err)
 			}
 		}
 	}

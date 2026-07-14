@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"net/netip"
@@ -38,11 +39,37 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 		return err
 	}
 
+	session.opMu.Lock()
+	defer session.opMu.Unlock()
+
+	if session.deleted {
+		err := fmt.Errorf("session %d is being deleted", req.SEID)
+		span.RecordError(err)
+
+		return err
+	}
+
 	bpfObjects := conn.BpfObjects
 
 	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 
-	// --- FARs ---
+	// A failed create/update rolls back its eBPF writes and restores the
+	// pre-modification in-memory rules, so the session and the data plane never
+	// diverge. Removals run last (best-effort) so the rollback never has to
+	// re-create a torn-down URR or TEID.
+	snapPDRs, snapFARs, snapQERs := session.snapshot()
+
+	var txn sessionTxn
+
+	fail := func(err error) error {
+		txn.rollback(ctx)
+		session.restore(snapPDRs, snapFARs, snapQERs)
+		span.RecordError(err)
+
+		return err
+	}
+
+	// --- FAR / QER create and update ---
 
 	for _, far := range req.CreateFARs {
 		farInfo := farInfoFromModel(far, conn.n3AddressIPv4, conn.n3AddressIPv6)
@@ -63,48 +90,23 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 		session.PutFar(far.FARID, sFarInfo)
 
-		// Re-apply all PDRs that reference this FAR with the updated embedded FAR.
-		for _, spdrInfo := range session.ListPDRs() {
-			if spdrInfo.PdrInfo.FarID == far.FARID {
-				spdrInfo.PdrInfo.Far = sFarInfo
-				session.PutPDR(spdrInfo.PdrID, spdrInfo)
-
-				if err := applyPDR(spdrInfo, bpfObjects); err != nil {
-					span.RecordError(err)
-					return fmt.Errorf("can't update PDR after FAR update: %w", err)
-				}
-			}
+		if err := conn.reapplyReferencingPDRs(session, &txn, func(p SPDRInfo) bool { return p.PdrInfo.FarID == far.FARID },
+			func(p *SPDRInfo) { p.PdrInfo.Far = sFarInfo }); err != nil {
+			return fail(fmt.Errorf("can't update PDR after FAR update: %w", err))
 		}
 
 		logger.WithTrace(ctx, logger.UpfLog).Info("Updated Forwarding Action Rule",
 			logger.FARID(far.FARID), zap.Any("farInfo", sFarInfo))
 	}
 
-	for _, farID := range req.RemoveFARIDs {
-		session.RemoveFar(farID)
-
-		logger.WithTrace(ctx, logger.UpfLog).Debug("Removed Forwarding Action Rule",
-			logger.FARID(farID))
-	}
-
-	// --- QERs ---
-
 	for _, qer := range req.CreateQERs {
 		qerInfo := qerInfoFromModel(qer)
 
 		session.NewQer(qer.QERID, qerInfo)
 
-		// Re-apply all PDRs that reference this QER with the updated embedded QER.
-		for _, spdrInfo := range session.ListPDRs() {
-			if spdrInfo.PdrInfo.QerID == qer.QERID {
-				spdrInfo.PdrInfo.Qer = qerInfo
-				session.PutPDR(spdrInfo.PdrID, spdrInfo)
-
-				if err := applyPDR(spdrInfo, bpfObjects); err != nil {
-					span.RecordError(err)
-					return fmt.Errorf("can't apply PDR for new QER: %w", err)
-				}
-			}
+		if err := conn.reapplyReferencingPDRs(session, &txn, func(p SPDRInfo) bool { return p.PdrInfo.QerID == qer.QERID },
+			func(p *SPDRInfo) { p.PdrInfo.Qer = qerInfo }); err != nil {
+			return fail(fmt.Errorf("can't apply PDR for new QER: %w", err))
 		}
 
 		logger.WithTrace(ctx, logger.UpfLog).Info("Created QoS Enforcement Rule",
@@ -112,39 +114,21 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 	}
 
 	for _, qer := range req.UpdateQERs {
-		sQerInfo := session.GetQer(qer.QERID)
-
-		qerInfo := qerInfoFromMerge(qer, sQerInfo)
+		qerInfo := qerInfoFromMerge(qer, session.GetQer(qer.QERID))
 
 		session.PutQer(qer.QERID, qerInfo)
 
-		// Re-apply all PDRs that reference this QER with the updated embedded QER.
-		for _, spdrInfo := range session.ListPDRs() {
-			if spdrInfo.PdrInfo.QerID == qer.QERID {
-				spdrInfo.PdrInfo.Qer = qerInfo
-				session.PutPDR(spdrInfo.PdrID, spdrInfo)
-
-				if err := applyPDR(spdrInfo, bpfObjects); err != nil {
-					span.RecordError(err)
-					return fmt.Errorf("can't update PDR after QER update: %w", err)
-				}
-			}
+		if err := conn.reapplyReferencingPDRs(session, &txn, func(p SPDRInfo) bool { return p.PdrInfo.QerID == qer.QERID },
+			func(p *SPDRInfo) { p.PdrInfo.Qer = qerInfo }); err != nil {
+			return fail(fmt.Errorf("can't update PDR after QER update: %w", err))
 		}
 
 		logger.WithTrace(ctx, logger.UpfLog).Info("Updated QoS Enforcement Rule",
 			logger.QERID(qer.QERID), zap.Any("qerInfo", qerInfo))
 	}
 
-	for _, qerID := range req.RemoveQERIDs {
-		session.RemoveQer(qerID)
+	// --- PDR create and update ---
 
-		logger.WithTrace(ctx, logger.UpfLog).Debug("Removed QoS Enforcement Rule",
-			logger.QERID(qerID))
-	}
-
-	// --- PDRs ---
-
-	// Build FAR and QER maps from session for PDR injection.
 	farMap := make(map[uint32]ebpf.FarInfo)
 	maps.Copy(farMap, session.ListFARs())
 
@@ -161,8 +145,14 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 		}
 
 		if err := pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, qerMap); err != nil {
-			span.RecordError(err)
-			return fmt.Errorf("couldn't extract PDR info: %w", err)
+			return fail(fmt.Errorf("couldn't extract PDR info: %w", err))
+		}
+
+		if spdrInfo.Allocated {
+			txn.onRollback(func() error {
+				pdrContext.FteIDResourceManager.ReleaseTEID(session.SEID)
+				return nil
+			})
 		}
 
 		policyID := req.PolicyID
@@ -182,53 +172,60 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 		session.PutPDR(spdrInfo.PdrID, spdrInfo)
 
 		if err := applyPDR(spdrInfo, bpfObjects); err != nil {
-			if spdrInfo.Allocated {
-				pdrContext.FteIDResourceManager.ReleaseTEID(pdrContext.Session.SEID)
-			}
-
-			span.RecordError(err)
-
-			return fmt.Errorf("couldn't apply PDR: %w", err)
+			return fail(fmt.Errorf("couldn't apply PDR: %w", err))
 		}
+
+		txn.onRollback(func() error { return unapplyPDR(spdrInfo, bpfObjects) })
 
 		bpfObjects.ClearNotified(req.SEID, pdr.PDRID, spdrInfo.PdrInfo.Qer.Qfi)
 	}
 
 	for _, pdr := range req.UpdatePDRs {
-		spdrInfo := session.GetPDR(uint32(pdr.PDRID))
+		old := session.GetPDR(uint32(pdr.PDRID))
+		spdrInfo := old
 
 		if err := pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, qerMap); err != nil {
-			span.RecordError(err)
-			return fmt.Errorf("couldn't extract PDR info: %w", err)
+			return fail(fmt.Errorf("couldn't extract PDR info: %w", err))
 		}
 
 		session.PutPDR(uint32(pdr.PDRID), spdrInfo)
 
 		if err := applyPDR(spdrInfo, bpfObjects); err != nil {
-			if spdrInfo.Allocated {
-				pdrContext.FteIDResourceManager.ReleaseTEID(pdrContext.Session.SEID)
-			}
-
-			span.RecordError(err)
-
-			return fmt.Errorf("couldn't apply PDR: %w", err)
+			return fail(fmt.Errorf("couldn't apply PDR: %w", err))
 		}
+
+		txn.onRollback(func() error { return applyPDR(old, bpfObjects) })
 
 		bpfObjects.ClearNotified(req.SEID, pdr.PDRID, spdrInfo.PdrInfo.Qer.Qfi)
 	}
 
-	for _, pdrID := range req.RemovePDRIDs {
-		if session.HasPDR(uint32(pdrID)) {
-			sPDRInfo := session.RemovePDR(uint32(pdrID))
+	// --- Removals (best-effort; the create/update phase above has committed) ---
 
-			if err := pdrContext.deletePDR(sPDRInfo, bpfObjects); err != nil {
-				span.RecordError(err)
-				return fmt.Errorf("couldn't delete PDR: %w", err)
-			}
-		}
+	for _, farID := range req.RemoveFARIDs {
+		session.RemoveFar(farID)
 	}
 
-	logger.WithTrace(ctx, logger.UpfLog).Debug("Session modification successful")
+	for _, qerID := range req.RemoveQERIDs {
+		session.RemoveQer(qerID)
+	}
+
+	var removeErr error
+
+	for _, pdrID := range req.RemovePDRIDs {
+		if !session.HasPDR(uint32(pdrID)) {
+			continue
+		}
+
+		// Delete from the data plane first; keep the in-memory PDR if that fails
+		// so DeleteSession can still reach it.
+		sPDRInfo := session.GetPDR(uint32(pdrID))
+		if err := pdrContext.deletePDR(sPDRInfo, bpfObjects); err != nil {
+			removeErr = errors.Join(removeErr, fmt.Errorf("couldn't delete PDR %d: %w", pdrID, err))
+			continue
+		}
+
+		session.RemovePDR(uint32(pdrID))
+	}
 
 	if req.PolicyID != "" && req.PolicyID != session.PolicyID() {
 		oldPolicyID := session.PolicyID()
@@ -238,6 +235,35 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 		conn.deregisterPolicy(oldPolicyID, session.SEID)
 		conn.registerPolicy(req.PolicyID, session.SEID)
 		conn.mu.Unlock()
+	}
+
+	if removeErr != nil {
+		span.RecordError(removeErr)
+		return removeErr
+	}
+
+	logger.WithTrace(ctx, logger.UpfLog).Debug("Session modification successful")
+
+	return nil
+}
+
+// reapplyReferencingPDRs re-applies every PDR that matches, after mutate updates
+// its embedded FAR/QER, registering an undo that restores the prior entry.
+func (conn *SessionEngine) reapplyReferencingPDRs(session *Session, txn *sessionTxn, matches func(SPDRInfo) bool, mutate func(*SPDRInfo)) error {
+	for _, spdrInfo := range session.ListPDRs() {
+		if !matches(spdrInfo) {
+			continue
+		}
+
+		old := spdrInfo
+		mutate(&spdrInfo)
+		session.PutPDR(spdrInfo.PdrID, spdrInfo)
+
+		if err := applyPDR(spdrInfo, conn.BpfObjects); err != nil {
+			return err
+		}
+
+		txn.onRollback(func() error { return applyPDR(old, conn.BpfObjects) })
 	}
 
 	return nil
