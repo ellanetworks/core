@@ -122,7 +122,7 @@ func (ue *UeContext) NasIntegrityVerified(payload []byte) bool {
 	receivedMac := payload[2:6]
 	sqn := payload[6]
 
-	cnt := ue.ulCount.ReconcileUplink(sqn) // never committed back to the context
+	cnt := ue.ulCount.Estimate(sqn) // never committed back to the context
 
 	mac, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, cnt.Value(), security.Bearer3GPP, security.DirectionUplink, payload[6:])
 	if err != nil {
@@ -179,10 +179,10 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *U
 
 	ciphered := false
 
-	// Work on a copy of the uplink count and commit it to the security context
+	// Work on a copy of the uplink counter and commit to the security context
 	// only once the MAC is verified, so an unauthenticated message cannot
 	// advance (desync) the count of a genuine UE (TS 33.501).
-	cnt := ue.ulCount
+	counter := ue.ulCount
 
 	switch msg.SecurityHeaderType {
 	case nas.SecurityHeaderTypeIntegrityProtected:
@@ -191,7 +191,7 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *U
 	case nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext:
 		ciphered = true
 
-		cnt = 0
+		counter.Reset()
 	default:
 		// A reserved/unrecognized security header type is not a valid NAS message: a protocol
 		// error answered with a 5GMM STATUS #111 (§7), not silently ignored. The message is
@@ -199,7 +199,7 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *U
 		return nil, statusDecode(nasreply.CauseProtocolErrorUnspecified, "wrong security header type: 0x%0x", msg.SecurityHeaderType)
 	}
 
-	cnt = cnt.ReconcileUplink(sequenceNumber)
+	cnt := counter.Estimate(sequenceNumber)
 
 	mac32, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, cnt.Value(), security.Bearer3GPP,
 		security.DirectionUplink, payload)
@@ -248,7 +248,8 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *U
 	}
 
 	if macVerified {
-		ue.ulCount = cnt
+		counter.Commit(cnt)
+		ue.ulCount = counter
 
 		// First verified message establishes secure exchange on the connection (TS 24.501).
 		conn.MarkSecureExchangeEstablished()

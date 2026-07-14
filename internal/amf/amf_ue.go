@@ -85,7 +85,7 @@ type UeContext struct {
 	kgnb                 []uint8
 	nh                   [32]uint8 // AS key-chain Next Hop, 256 bits (TS 33.501)
 	ncc                  uint8
-	ulCount              nascommon.Count
+	ulCount              nascommon.UplinkCounter
 	dlCount              nascommon.Count
 	cipheringAlg         uint8
 	integrityAlg         uint8
@@ -400,8 +400,10 @@ func (ue *UeContext) deriveAlgKeyLocked() error {
 
 // DeriveAnKey derives the access network key per TS 33.501.
 func (ue *UeContext) DeriveAnKey() error {
+	// The AN key is derived from the uplink NAS COUNT of the most recently
+	// accepted uplink NAS message (TS 33.501 §A.9).
 	P0 := make([]byte, 4)
-	binary.BigEndian.PutUint32(P0, ue.ulCount.Value())
+	binary.BigEndian.PutUint32(P0, ue.ulCount.LastAccepted().Value())
 	L0 := ueauth.KDFLen(P0)
 	P1 := []byte{security.AccessType3GPP}
 	L1 := ueauth.KDFLen(P1)
@@ -587,7 +589,8 @@ func (ue *UeContext) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 	case nas.SecurityHeaderTypeIntegrityProtectedAndCiphered:
 		needCiphering = true
 	case nas.SecurityHeaderTypeIntegrityProtectedWithNew5gNasSecurityContext:
-		ue.ulCount = 0
+		ue.ulCount.Reset()
+
 		ue.dlCount = 0
 	default:
 		return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeaderType)

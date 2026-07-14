@@ -32,11 +32,14 @@ func (c Count) Value() uint32 { return uint32(c) & countMask }
 // (TS 24.301 §4.4.3.1).
 func (c Count) Next() Count { return (c + 1) & countMask }
 
-// ReconcileUplink estimates the full NAS COUNT of a received uplink message from
-// its 8-bit sequence number: when the sequence number regresses relative to the
-// stored count, the overflow counter has wrapped and is incremented
-// (TS 24.301 §4.4.3.1).
-func (c Count) ReconcileUplink(recvSeq uint8) Count {
+// reconcileUplink estimates the full NAS COUNT of a received uplink message from
+// its 8-bit sequence number, taking c as the count the message is expected to
+// carry: a sequence number below the expected one places the message after a
+// wrap of the overflow counter (TS 24.301 §4.4.3.1, TS 24.501 §4.4.3.1).
+//
+// The estimate is only replay-safe when c is the expected count rather than the
+// last accepted one, so it is reached through UplinkCounter alone.
+func (c Count) reconcileUplink(recvSeq uint8) Count {
 	overflow := c.Overflow()
 	if recvSeq < c.SQN() {
 		overflow++

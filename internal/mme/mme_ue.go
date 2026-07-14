@@ -188,7 +188,7 @@ type UeContext struct {
 	knasInt      [16]byte
 	cipheringAlg byte
 	integrityAlg byte
-	ulCount      nascommon.Count
+	ulCount      nascommon.UplinkCounter
 	dlCount      nascommon.Count
 	secured      bool
 	// eksi is the eKSI (NAS key set identifier, TS 24.301 §9.9.3.21) of the current EPS
