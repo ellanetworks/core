@@ -143,9 +143,14 @@ func (s *Session) handleCapabilities(capMsg *models.ProvideLocationCapabilities)
 
 	s.capabilities = capMsg
 	s.log.Info("received UE capabilities",
-		zap.Bool("gps", capMsg.GNSSCapability.GPS),
-		zap.Bool("glo", capMsg.GNSSCapability.GLO),
-		zap.Bool("bdt", capMsg.GNSSCapability.BDT),
+		zap.Strings("gnss", func() []string {
+			var ids []string
+			for _, id := range capMsg.GNSSCapability.Supported() {
+				ids = append(ids, id.String())
+			}
+
+			return ids
+		}()),
 	)
 
 	// For AGNSS-assisted, now request actual location
