@@ -23,9 +23,8 @@ func esmStatus(t *testing.T, ebi, pti, cause uint8) []byte {
 	return b
 }
 
-// TestESMStatus_InvalidEPSBearerIdentityOnDefaultBearerDetaches verifies TS 24.301 §6.7:
-// ESM cause #43 deactivates the named bearer locally, and for the default bearer that
-// releases the UE context so the UE re-attaches (§6.4.4).
+// TS 24.301 §6.7: cause #43 deactivates the named bearer; for the default bearer that
+// releases the UE context (§6.4.4).
 func TestESMStatus_InvalidEPSBearerIdentityOnDefaultBearerDetaches(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -34,7 +33,7 @@ func TestESMStatus_InvalidEPSBearerIdentityOnDefaultBearerDetaches(t *testing.T)
 	d := handleESMStatus(context.Background(), m, ue, esmStatus(t, mme.DefaultERABID, 0, esmCauseInvalidEPSBearerIdentity))
 
 	if d.Action != nasreply.ActionHandled {
-		t.Fatalf("disposition = %+v, want handled (an ESM STATUS is never answered with another STATUS)", d)
+		t.Fatalf("disposition = %+v, want handled", d)
 	}
 
 	if got := ue.PDNCount(); got != 0 {
@@ -46,9 +45,7 @@ func TestESMStatus_InvalidEPSBearerIdentityOnDefaultBearerDetaches(t *testing.T)
 	}
 }
 
-// TestESMStatus_InvalidEPSBearerIdentityOnAdditionalPDNReleasesOnlyThatPDN verifies that
-// ESM cause #43 naming an additional PDN's bearer releases only that connection and leaves
-// the UE connected (TS 24.301 §6.4.4.2).
+// TS 24.301 §6.4.4.2.
 func TestESMStatus_InvalidEPSBearerIdentityOnAdditionalPDNReleasesOnlyThatPDN(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -58,11 +55,11 @@ func TestESMStatus_InvalidEPSBearerIdentityOnAdditionalPDNReleasesOnlyThatPDN(t 
 	handleESMStatus(context.Background(), m, ue, esmStatus(t, 6, 0, esmCauseInvalidEPSBearerIdentity))
 
 	if _, ok := ue.Pdns[6]; ok {
-		t.Fatal("additional PDN retained after ESM STATUS #43 named its bearer")
+		t.Fatal("additional PDN retained after ESM STATUS #43 named its bearer, want it released")
 	}
 
 	if _, ok := ue.Pdns[mme.DefaultERABID]; !ok {
-		t.Fatal("default PDN released by an ESM STATUS #43 naming an additional PDN's bearer")
+		t.Fatal("default PDN released by an ESM STATUS #43 naming an additional PDN's bearer, want it retained")
 	}
 
 	if ue.EMMState() != mme.EMMRegistered {
@@ -70,8 +67,7 @@ func TestESMStatus_InvalidEPSBearerIdentityOnAdditionalPDNReleasesOnlyThatPDN(t 
 	}
 }
 
-// TestESMStatus_UnknownEPSBearerIdentityIgnored verifies TS 24.301 §7.3.2 g): an EPS bearer
-// identity matching no bearer context is ignored.
+// TS 24.301 §7.3.2 g).
 func TestESMStatus_UnknownEPSBearerIdentityIgnored(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -88,9 +84,8 @@ func TestESMStatus_UnknownEPSBearerIdentityIgnored(t *testing.T) {
 	}
 }
 
-// TestESMStatus_ReservedPTIIgnored verifies TS 24.301 §7.3.1 f): a reserved PTI names no
-// transaction, so the message is ignored. Clause 7 applies ahead of the §6.7 cause handling,
-// so even #43 takes no action.
+// TS 24.301 §7.3.1 f); clause 7 applies ahead of the §6.7 cause handling, so even #43
+// takes no action.
 func TestESMStatus_ReservedPTIIgnored(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -107,12 +102,9 @@ func TestESMStatus_ReservedPTIIgnored(t *testing.T) {
 	}
 }
 
-// TestESMStatus_AbortingAnInFlightDeactivationReleasesPDN verifies that an ESM STATUS
-// carrying a cause other than #43 still tears the PDN connection down when it aborts an
-// in-flight deactivation (TS 24.301 §6.7: for #97 the MME aborts the procedure, and the
-// local action for any other cause is implementation dependent). The user plane is released
-// when the deactivation starts (TS 23.401 §5.4.4) and no reconcile sweep re-derives a
-// UE-requested disconnect, so the connection is released here or never.
+// The user plane is released when the deactivation starts (TS 23.401 §5.4.4) and no
+// reconcile sweep re-derives a UE-requested disconnect, so a deactivation aborted by an
+// ESM STATUS is completed here or never.
 func TestESMStatus_AbortingAnInFlightDeactivationReleasesPDN(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -132,7 +124,7 @@ func TestESMStatus_AbortingAnInFlightDeactivationReleasesPDN(t *testing.T) {
 	}
 
 	if _, ok := ue.Pdns[6]; ok {
-		t.Fatal("PDN connection retained after an ESM STATUS aborted its deactivation; it holds an EPS bearer identity with no user plane and no radio bearer, and nothing retries the teardown")
+		t.Fatal("PDN connection retained after an ESM STATUS aborted its deactivation, want it released")
 	}
 
 	if ue.EMMState() != mme.EMMRegistered {
@@ -140,9 +132,8 @@ func TestESMStatus_AbortingAnInFlightDeactivationReleasesPDN(t *testing.T) {
 	}
 }
 
-// TestESMStatus_UnrelatedCauseKeepsPDNAndClearsPendingModify verifies that an ESM STATUS
-// with no deactivation in flight leaves the PDN connection up and only abandons the
-// in-flight modification, leaving the stored config stale so the backstop retries.
+// The stored config is left stale so the backstop retries (TS 24.301 §6.7: the local
+// action for a cause the clause does not name is implementation dependent).
 func TestESMStatus_UnrelatedCauseKeepsPDNAndClearsPendingModify(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)

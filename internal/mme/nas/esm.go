@@ -44,9 +44,7 @@ func handleESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte)
 	case eps.MsgESMStatus:
 		return handleESMStatus(ctx, m, ue, plain)
 	default:
-		// TS 24.301 §7.4: an ESM message type not implemented is answered with an ESM STATUS
-		// #97 "message type non-existent or not implemented" — the MME hosts ESM, so unlike
-		// the AMF (which relays 5GSM to the SMF) it emits the STATUS itself.
+		// TS 24.301 §7.4: an unimplemented ESM message type is answered with an ESM STATUS.
 		logger.From(ctx, logger.MmeLog).Warn("unhandled ESM message", zap.Int("message-type-value", int(mt)))
 		return nasreply.StatusSM(nasreply.CauseMessageTypeNotImplemented)
 	}

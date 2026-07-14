@@ -13,11 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// handleDeactivateBearerAccept finalises an EPS bearer deactivation. A deactivation
-// triggered by a UE PDN disconnect releases only that PDN connection and leaves
-// the UE connected (TS 24.301 §6.5.2). A deactivation with reactivation requested
-// for the default bearer releases the S1 context so the UE re-attaches
-// and picks up the new data-network configuration (TS 24.301 §6.4.4.2).
+// handleDeactivateBearerAccept finalises an EPS bearer deactivation (TS 24.301 §6.4.4.3).
 func handleDeactivateBearerAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	p := m.DefaultPDN(ue)
 	if accept, err := eps.ParseDeactivateEPSBearerContextAccept(plain); err == nil {

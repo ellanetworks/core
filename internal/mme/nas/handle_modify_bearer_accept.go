@@ -11,8 +11,7 @@ import (
 )
 
 // handleModifyBearerAccept commits the new bearer configuration once the UE accepts
-// the in-place modification (TS 24.301 §6.4.2.3). The accept's EPS bearer identity
-// selects the PDN connection, so an additional PDN commits to the right bearer.
+// the in-place modification (TS 24.301 §6.4.2.3).
 func handleModifyBearerAccept(m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	p := m.DefaultPDN(ue)
 	if accept, err := eps.ParseModifyEPSBearerContextAccept(plain); err == nil {
