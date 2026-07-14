@@ -43,14 +43,9 @@ struct {
 } uplink_statistics SEC(".maps");
 
 /*
- * Validate the decapped inner source against the session's authorized set (UE
- * address, or a framed prefix owned by the same session); fails closed per
- * family. Unspecified (::) and other non-UE sources fall through to the final
- * reject. The fe80::/10 rejection is load-bearing: only RS is intercepted ahead
- * of this, so any future NS/NA proxy or stateless DHCPv6 (TS 29.061 §11.2.1.3,
- * TS 29.561 §10.2.4 — both link-local sourced) must intercept before this runs.
- * IPv4 and IPv6 stay on separate return paths so the verifier does not merge
- * ip4/ip6 pointer state.
+ * fe80::/10 is rejected, so a future link-local-sourced feature (NS/NA proxy,
+ * stateless DHCPv6) must be intercepted before this, as RS already is. IPv4 and
+ * IPv6 use separate return paths to avoid a verifier ip4/ip6 state merge.
  */
 static __always_inline bool source_allowed(struct packet_context *ctx,
 					   const struct pdr_info *pdr)
@@ -86,8 +81,7 @@ static __always_inline bool source_allowed(struct packet_context *ctx,
 		fk.addr = *src;
 		struct in6_addr *owner =
 			bpf_map_lookup_elem(&framed_downlink_ip6, &fk);
-		/* owner is a downlink-PDR key and therefore a /64 by construction;
-		 * compare at /64 so a full UE address in ue_ipv6 still matches. */
+		/* /64: owner is a /64 downlink key, robust even if ue_ipv6 is a full address */
 		return owner && match_ipv6_prefix(owner, 64, &pdr->ue_ipv6) == 1;
 	}
 
@@ -276,9 +270,7 @@ handle_gtp_packet(struct packet_context *ctx)
 			}
 		}
 
-		/* Placed after RS interception (so RS still reaches Go) and inside
-		 * the decap branch (re-encapsulated GTP-forward traffic exposes no
-		 * inner packet); both are load-bearing. */
+		/* after RS interception, inside the decap branch — both load-bearing */
 		if (!source_allowed(ctx, pdr)) {
 			upf_printk("upf: uplink source spoof drop teid:%d",
 				   teid);

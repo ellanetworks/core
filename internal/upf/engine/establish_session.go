@@ -110,10 +110,8 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		defer conn.filterMu.RUnlock()
 	}
 
-	// Capture the session's UE source addresses from the downlink PDRs before
-	// applying any PDR, so applyPDR can stamp them onto the uplink PDR for
-	// anti-spoofing. A pre-scan (not per-PDR) is required because the IPv6 /64
-	// arrives on a separate downlink PDR that may be ordered after the uplink one.
+	// Pre-scan for UE addresses: the IPv6 /64 arrives on a separate downlink PDR
+	// that may be ordered after the uplink PDR, so per-PDR capture would miss it.
 	var ueV4, ueV6 netip.Addr
 
 	for _, pdr := range req.PDRs {

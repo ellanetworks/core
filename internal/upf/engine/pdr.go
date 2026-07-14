@@ -18,8 +18,7 @@ func applyPDR(spdrInfo SPDRInfo, sess *Session, bpfObjects *ebpf.BpfObjects) err
 		return nil
 	}
 
-	// applyPDR is the sole writer of pdrs_uplink, so stamping the session's
-	// authorized source here covers every apply path (anti-spoofing).
+	// applyPDR is the sole pdrs_uplink writer, so stamping here covers every apply path.
 	v4, v6 := sess.UEAddresses()
 	if !v4.IsValid() && !v6.IsValid() {
 		logger.UpfLog.Warn("uplink PDR has no UE source address; uplink will be dropped (fail closed)",

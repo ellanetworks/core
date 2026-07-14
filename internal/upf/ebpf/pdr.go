@@ -42,8 +42,7 @@ type PdrInfo struct {
 	Far                FarInfo
 	Qer                QerInfo
 	FilterMapIndex     uint32 // 0 = no SDF filter
-	// Authorized uplink source addresses (anti-spoofing); zero = family absent.
-	// UEIPv6Prefix is the /64 base (low 64 bits zero). Only set on uplink PDRs.
+	// Authorized uplink source; zero = family absent; UEIPv6Prefix is the /64 base.
 	UEIPv4       netip.Addr
 	UEIPv6Prefix netip.Addr
 }
