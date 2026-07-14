@@ -78,10 +78,12 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 
 	// Authentication
 	loginLimiter := newIPRateLimiter(LoginRateLimit, LoginRateWindow)
+	lookupTokenLimiter := newIPRateLimiter(LookupTokenRateLimit, LookupTokenRateWindow)
+
 	mux.HandleFunc("POST /api/v1/auth/login", Login(dbInstance, jwtSecret, secureCookie, loginLimiter).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/auth/refresh", Refresh(dbInstance, jwtSecret, secureCookie).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/auth/logout", Logout(dbInstance, secureCookie).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/auth/lookup-token", LookupToken(dbInstance, jwtSecret).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/auth/lookup-token", rateLimit(lookupTokenLimiter, LookupToken(dbInstance, jwtSecret)).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/auth/rotate-secret", Authenticate(jwtSecret, dbInstance, Authorize(PermRotateSecret, RotateSecret(dbInstance, jwtSecret))).ServeHTTP)
 
 	// Initialization (Unauthenticated)
