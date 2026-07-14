@@ -305,6 +305,10 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 	)
 	defer span.End()
 
+	smContext.Mutex.Lock()
+	smContext.establishmentPTI = pti
+	smContext.Mutex.Unlock()
+
 	n1Msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(&policy.Ambr, &policy.QosData, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, policy.DNS, policy.MTU, cause, addrs, alwaysOn)
 	if err != nil {
 		span.RecordError(err)

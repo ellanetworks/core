@@ -47,6 +47,8 @@ func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti, cause
 		return fmt.Errorf("release session signaling: %w", err)
 	}
 
+	smContext.releasing = true
+
 	smContext.MarkPTIInUse(pti)
 	s.armRetransmit(smContext, s.t3592,
 		func() error { return s.amf.ReleaseSession(context.Background(), supi, pduSessionID, n1Msg, n2Transfer) },

@@ -159,6 +159,11 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 
 		return nil, nil
 
+	case nas.MsgTypeStatus5GSM:
+		s.handle5GSMStatus(ctx, smContext, pti, m.Status5GSM.Cause5GSM.GetCauseValue())
+
+		return nil, nil
+
 	default:
 		logger.WithTrace(ctx, logger.SmfLog).Warn("N1 Msg type not supported in SM Context Update", zap.Uint8("MessageType", msgType), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		return nil, nil

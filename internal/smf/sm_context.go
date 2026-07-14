@@ -82,6 +82,18 @@ type SMContext struct {
 	// COMPLETE (TS 24.501 §6.3.2.2); a reject or T3591 abort discards it, keeping the
 	// previous configuration (§6.3.2.5). Guarded by Mutex.
 	pendingPolicy *Policy
+
+	// releasing is set while a PDU session release is in flight (TS 24.501 §6.3.3).
+	// The user plane is freed when the release starts, so a procedure aborted before
+	// the UE's Release Complete still has to reach a local release. Guarded by Mutex.
+	releasing bool
+
+	// establishmentPTI is the PTI carried on this session's PDU SESSION
+	// ESTABLISHMENT ACCEPT, retained after the procedure completes so a 5GSM STATUS
+	// #47 naming it identifies a UE that never took the session (TS 24.501 §6.5.3).
+	// Zero until the accept is sent; an establishment request carries an assigned
+	// PTI (§7.3.1 c), so zero cannot collide with a real one. Guarded by Mutex.
+	establishmentPTI uint8
 }
 
 // stopProcedureTimer stops the retransmission guard; safe to call when none is
