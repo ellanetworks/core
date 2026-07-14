@@ -9,11 +9,20 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"net/netip"
 	"os"
 	"testing"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/rlimit"
+)
+
+// canonicalUEv4 and canonicalUEv6Prefix are the authorized uplink source
+// addresses that match the shared inner-packet builders (innerIPv4UDP sources
+// from 10.0.0.9; innerIPv6UDP from 2001:db8::9, in 2001:db8::/64).
+var (
+	canonicalUEv4       = netip.AddrFrom4([4]byte{10, 0, 0, 9})
+	canonicalUEv6Prefix = netip.MustParseAddr("2001:db8::")
 )
 
 // TestParseGTPTruncatedExtension checks that a malformed GTP-U packet fails
@@ -146,12 +155,22 @@ func loadN3N6Program(t *testing.T) *BpfObjects {
 func putForwardingUplinkPDR(t *testing.T, obj *BpfObjects, teid, filterIndex uint32) {
 	t.Helper()
 
+	putForwardingUplinkPDRUE(t, obj, teid, filterIndex, canonicalUEv4, canonicalUEv6Prefix)
+}
+
+// putForwardingUplinkPDRUE is putForwardingUplinkPDR with explicit authorized UE
+// source addresses (anti-spoofing). A zero ueV4/ueV6 leaves that family unset.
+func putForwardingUplinkPDRUE(t *testing.T, obj *BpfObjects, teid, filterIndex uint32, ueV4, ueV6 netip.Addr) {
+	t.Helper()
+
 	pdr := PdrInfo{
 		OuterHeaderRemoval: 0,                 // OHR_GTP_U_UDP_IPv4
 		IMSI:               "001010000000001", // non-numeric IMSI zeroes the FAR
 		Far:                FarInfo{Action: 0x02 /* FAR_FORW */},
 		Qer:                QerInfo{GateStatusUL: 0 /* GATE_STATUS_OPEN */, MaxBitrateUL: 0 /* unlimited */},
 		FilterMapIndex:     filterIndex,
+		UEIPv4:             ueV4,
+		UEIPv6Prefix:       ueV6,
 	}
 	if err := obj.PutPdrUplink(teid, pdr); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
@@ -526,6 +545,8 @@ func putForwardingUplinkPDRv6Outer(t *testing.T, obj *BpfObjects, teid uint32) {
 		IMSI:               "001010000000001",
 		Far:                FarInfo{Action: 0x02 /* FAR_FORW */},
 		Qer:                QerInfo{GateStatusUL: 0 /* GATE_STATUS_OPEN */, MaxBitrateUL: 0 /* unlimited */},
+		UEIPv4:             canonicalUEv4,
+		UEIPv6Prefix:       canonicalUEv6Prefix,
 	}
 	if err := obj.PutPdrUplink(teid, pdr); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)

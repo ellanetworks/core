@@ -169,7 +169,7 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 		session.PutPDR(spdrInfo.PdrID, spdrInfo)
 
-		if err := applyPDR(spdrInfo, bpfObjects); err != nil {
+		if err := applyPDR(spdrInfo, session, bpfObjects); err != nil {
 			return fail(fmt.Errorf("couldn't apply PDR: %w", err))
 		}
 
@@ -195,7 +195,7 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 		session.PutPDR(uint32(pdr.PDRID), spdrInfo)
 
-		if err := applyPDR(spdrInfo, bpfObjects); err != nil {
+		if err := applyPDR(spdrInfo, session, bpfObjects); err != nil {
 			return fail(fmt.Errorf("couldn't apply PDR: %w", err))
 		}
 
@@ -207,7 +207,7 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 			}
 
 			if hadOld {
-				return applyPDR(old, bpfObjects)
+				return applyPDR(old, session, bpfObjects)
 			}
 
 			return nil
@@ -276,11 +276,11 @@ func (conn *SessionEngine) reapplyReferencingPDRs(session *Session, txn *session
 		mutate(&spdrInfo)
 		session.PutPDR(spdrInfo.PdrID, spdrInfo)
 
-		if err := applyPDR(spdrInfo, conn.BpfObjects); err != nil {
+		if err := applyPDR(spdrInfo, session, conn.BpfObjects); err != nil {
 			return err
 		}
 
-		txn.onRollback(func() error { return applyPDR(old, conn.BpfObjects) })
+		txn.onRollback(func() error { return applyPDR(old, session, conn.BpfObjects) })
 	}
 
 	return nil

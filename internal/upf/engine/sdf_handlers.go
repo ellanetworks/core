@@ -190,7 +190,7 @@ func (conn *SessionEngine) applyFilterIndexToSession(session *Session, isUplink 
 		session.PutPDR(pdrID, spdrInfo)
 
 		if conn.BpfObjects != nil {
-			if err := applyPDR(spdrInfo, conn.BpfObjects); err != nil {
+			if err := applyPDR(spdrInfo, session, conn.BpfObjects); err != nil {
 				return fmt.Errorf("propagate filter index to PDR %d (SEID %d): %w", pdrID, session.SEID, err)
 			}
 		}
