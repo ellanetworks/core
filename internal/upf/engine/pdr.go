@@ -23,3 +23,12 @@ func applyPDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) error {
 
 	return nil
 }
+
+// unapplyPDR removes the eBPF map entry applyPDR installed for spdrInfo.
+func unapplyPDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) error {
+	if spdrInfo.UEIP.IsValid() {
+		return bpfObjects.DeletePdrDownlink(spdrInfo.UEIP)
+	}
+
+	return bpfObjects.DeletePdrUplink(spdrInfo.TeID)
+}
