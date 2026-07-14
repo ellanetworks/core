@@ -177,6 +177,8 @@ func gnssIDEnum(v aper.Enumerated) utils.EnumField[int] {
 		lpptype.GnssIDQzss:    "QZSS",
 		lpptype.GnssIDGalileo: "Galileo",
 		lpptype.GnssIDGlonass: "GLONASS",
+		lpptype.GnssIDBds:     "BeiDou",
+		lpptype.GnssIDNavic:   "NavIC",
 	}
 
 	label, ok := labels[v]
