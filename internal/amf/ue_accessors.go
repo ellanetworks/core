@@ -163,13 +163,22 @@ func (ue *UeContext) MarkSecured() {
 	ue.secured = true
 }
 
+// ULCount returns the NAS COUNT the next uplink message must carry.
+func (ue *UeContext) ULCount() uint32 {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.ulCount.NextExpected().Value()
+}
+
 // DecryptUplinkContents deciphers an uplink NAS container in place against the
-// UE's ciphering key and current uplink count (TS 33.501).
+// UE's ciphering key. The container rides the message it arrived in, so it is
+// ciphered with that message's NAS COUNT (TS 33.501).
 func (ue *UeContext) DecryptUplinkContents(contents []byte) error {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.ulCount.Value(), security.Bearer3GPP, security.DirectionUplink, contents)
+	return security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.ulCount.LastAccepted().Value(), security.Bearer3GPP, security.DirectionUplink, contents)
 }
 
 // SmContextSnapshot returns a locked shallow copy of the UE's PDU session SM

@@ -54,7 +54,7 @@ func setupRegistrationCompleteUE(t *testing.T) (*amf.UeContext, *fakeNGAPSender)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCountForTest().Value())
+	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}

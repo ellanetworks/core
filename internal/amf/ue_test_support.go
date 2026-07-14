@@ -178,8 +178,17 @@ func (ue *UeContext) NCCForTest() uint8     { return ue.ncc }
 func (ue *UeContext) SetABBAForTest(a []uint8) { ue.abba = a }
 func (ue *UeContext) ABBAForTest() []uint8     { return ue.abba }
 
-func (ue *UeContext) SetULCountForTest(c nascommon.Count) { ue.ulCount = c }
-func (ue *UeContext) ULCountForTest() *nascommon.Count    { return &ue.ulCount }
+// SetULCountForTest seeds the uplink counter to expect c as the NAS COUNT of the
+// next uplink message.
+func (ue *UeContext) SetULCountForTest(c uint32) {
+	ue.ulCount.Reset()
+
+	if c > 0 {
+		ue.ulCount.Commit(nascommon.Count(c - 1))
+	}
+}
+
+func (ue *UeContext) ULCountForTest() nascommon.UplinkCounter { return ue.ulCount }
 
 func (ue *UeContext) SetDLCountForTest(c nascommon.Count) { ue.dlCount = c }
 func (ue *UeContext) DLCountForTest() *nascommon.Count    { return &ue.dlCount }

@@ -814,7 +814,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCountForTest().Value())
+	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -837,7 +837,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 		t.Fatalf("expected a protected and ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Value(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCount(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -895,7 +895,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCountForTest().Value())
+	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}

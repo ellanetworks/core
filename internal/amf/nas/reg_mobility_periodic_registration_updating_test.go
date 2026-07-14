@@ -89,7 +89,7 @@ func decryptAndDecodeNasPdu(t *testing.T, ue *amf.UeContext, nasPdu []byte, dlCo
 	copy(payload, nasPdu)
 	payload = payload[7:]
 
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCountForTest().Value()+dlCountOffset, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCount()+dlCountOffset, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -144,7 +144,7 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *fakeNGAPSender, *f
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCountForTest().Value())
+	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -876,7 +876,7 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCountForTest().Value())
+	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}

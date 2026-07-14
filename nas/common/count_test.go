@@ -48,29 +48,28 @@ func TestCountNextWrapsAt24Bits(t *testing.T) {
 }
 
 func TestReconcileUplinkNoWrap(t *testing.T) {
-	// A higher received sequence number keeps the overflow counter.
-	got := MakeCount(7, 10).ReconcileUplink(11)
+	// A sequence number above the expected one keeps the overflow counter.
+	got := MakeCount(7, 10).reconcileUplink(11)
 
 	if got != MakeCount(7, 11) {
-		t.Fatalf("ReconcileUplink(11) from (7,10) = (%d,%d), want (7,11)", got.Overflow(), got.SQN())
+		t.Fatalf("reconcileUplink(11) from (7,10) = (%d,%d), want (7,11)", got.Overflow(), got.SQN())
 	}
 }
 
 func TestReconcileUplinkWrap(t *testing.T) {
-	// A regressed received sequence number estimates an overflow wrap.
-	got := MakeCount(7, 250).ReconcileUplink(2)
+	// A sequence number below the expected one places the message after a wrap.
+	got := MakeCount(7, 250).reconcileUplink(2)
 
 	if got != MakeCount(8, 2) {
-		t.Fatalf("ReconcileUplink(2) from (7,250) = (%d,%d), want (8,2)", got.Overflow(), got.SQN())
+		t.Fatalf("reconcileUplink(2) from (7,250) = (%d,%d), want (8,2)", got.Overflow(), got.SQN())
 	}
 }
 
 func TestReconcileUplinkSameSQN(t *testing.T) {
-	// An equal sequence number is not a wrap (a retransmission estimates the same
-	// count, whose MAC then verifies).
-	got := MakeCount(7, 10).ReconcileUplink(10)
+	// The expected sequence number is the expected count.
+	got := MakeCount(7, 10).reconcileUplink(10)
 
 	if got != MakeCount(7, 10) {
-		t.Fatalf("ReconcileUplink(10) from (7,10) = (%d,%d), want (7,10)", got.Overflow(), got.SQN())
+		t.Fatalf("reconcileUplink(10) from (7,10) = (%d,%d), want (7,10)", got.Overflow(), got.SQN())
 	}
 }

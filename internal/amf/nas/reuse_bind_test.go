@@ -86,7 +86,7 @@ func plainDeregistrationWithGuti(t *testing.T, guti []byte) []byte {
 func wrapIntegrityProtected(t *testing.T, ue *amf.UeContext, inner []byte, sqn uint8) []byte {
 	t.Helper()
 
-	cnt := ue.ULCountForTest().ReconcileUplink(sqn)
+	cnt := ue.ULCountForTest().Estimate(sqn)
 
 	seqAndMsg := append([]byte{sqn}, inner...)
 

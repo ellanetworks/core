@@ -22,7 +22,18 @@ func (ue *UeContext) SetKnasEncForTest(k [16]byte) { ue.knasEnc = k }
 
 func (ue *UeContext) SetKASMEForTest(k []byte) { ue.kasme = k }
 
-func (ue *UeContext) SetULCountForTest(c uint32) { ue.ulCount = nascommon.Count(c) }
+// SetULCountForTest seeds the uplink counter to expect c as the NAS COUNT of the
+// next uplink message.
+func (ue *UeContext) SetULCountForTest(c uint32) {
+	ue.ulCount.Reset()
+
+	if c > 0 {
+		ue.ulCount.Commit(nascommon.Count(c - 1))
+	}
+}
+
+func (ue *UeContext) ULCountForTest() nascommon.UplinkCounter { return ue.ulCount }
+
 func (ue *UeContext) SetDLCountForTest(c uint32) { ue.dlCount = nascommon.Count(c) }
 func (ue *UeContext) DLCountForTest() uint32     { return ue.dlCount.Value() }
 
