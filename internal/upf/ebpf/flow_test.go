@@ -223,6 +223,49 @@ func TestURRByteAccountingDownlink(t *testing.T) {
 	}
 }
 
+func TestURRAddRestore(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		seid  = 0x55525204
+		urrID = 13
+	)
+
+	obj := loadN3N6Program(t)
+	if err := obj.NewUrr(seid, urrID); err != nil {
+		t.Fatalf("NewUrr: %v", err)
+	}
+
+	if err := obj.AddUrr(seid, urrID, 500); err != nil {
+		t.Fatalf("AddUrr: %v", err)
+	}
+
+	if got := sumURR(t, obj, seid, urrID); got != 500 {
+		t.Fatalf("URR after AddUrr(500) = %d, want 500", got)
+	}
+
+	drained, err := obj.GetAndResetUrr(seid, urrID)
+	if err != nil {
+		t.Fatalf("GetAndResetUrr: %v", err)
+	}
+
+	if drained != 500 {
+		t.Fatalf("drained = %d, want 500", drained)
+	}
+
+	if got := sumURR(t, obj, seid, urrID); got != 0 {
+		t.Fatalf("URR after reset = %d, want 0", got)
+	}
+
+	if err := obj.AddUrr(seid, urrID, drained); err != nil {
+		t.Fatalf("AddUrr restore: %v", err)
+	}
+
+	if got := sumURR(t, obj, seid, urrID); got != 500 {
+		t.Fatalf("URR after restore = %d, want 500", got)
+	}
+}
+
 func sumURR(t *testing.T, obj *BpfObjects, seid uint64, urrID uint32) uint64 {
 	t.Helper()
 

@@ -79,14 +79,17 @@ type filterCall struct {
 }
 
 type fakeUpdater struct {
-	mu               sync.Mutex
-	natCalls         []bool
-	flowCalls        []bool
-	n3Calls          []netip.Addr
-	filterCalls      []filterCall
-	natErr           error
-	flowErr          error
-	updateFiltersErr error
+	mu          sync.Mutex
+	natCalls    []bool
+	flowCalls   []bool
+	n3Calls     []netip.Addr
+	filterCalls []filterCall
+	natErr      error
+	flowErr     error
+	// updateFiltersErr fails every UpdateFilters call; updateFiltersFunc, when
+	// set, takes precedence and decides per (policyID, direction, rules).
+	updateFiltersErr  error
+	updateFiltersFunc func(policyID string, direction models.Direction, rules []models.FilterRule) error
 }
 
 func (f *fakeUpdater) ReloadNAT(enabled bool) error {
@@ -126,7 +129,12 @@ func (f *fakeUpdater) UpdateFilters(_ context.Context, policyID string, directio
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if f.updateFiltersErr != nil {
+	switch {
+	case f.updateFiltersFunc != nil:
+		if err := f.updateFiltersFunc(policyID, direction, rules); err != nil {
+			return err
+		}
+	case f.updateFiltersErr != nil:
 		return f.updateFiltersErr
 	}
 
@@ -282,7 +290,7 @@ func TestReconcile_FiltersAddRemoveModify(t *testing.T) {
 		t.Fatalf("reconcile 1: %v", err)
 	}
 
-	uplinkCalls, downlinkCalls := splitFilterCalls(updater.filterCalls, "policy-1")
+	uplinkCalls, downlinkCalls := splitFilterCalls(updater.filterCalls)
 
 	if len(uplinkCalls) != 1 || len(uplinkCalls[0].rules) != 1 {
 		t.Fatalf("expected one uplink call with one rule, got %v", uplinkCalls)
@@ -318,7 +326,7 @@ func TestReconcile_FiltersAddRemoveModify(t *testing.T) {
 		t.Fatalf("reconcile 3: %v", err)
 	}
 
-	uplinkCalls, _ = splitFilterCalls(updater.filterCalls, "policy-1")
+	uplinkCalls, _ = splitFilterCalls(updater.filterCalls)
 	if len(uplinkCalls) != 1 || uplinkCalls[0].rules[0].Protocol != 17 {
 		t.Fatalf("expected uplink reapplied with new rules, got %v", uplinkCalls)
 	}
@@ -336,7 +344,7 @@ func TestReconcile_FiltersAddRemoveModify(t *testing.T) {
 		t.Fatalf("reconcile 4: %v", err)
 	}
 
-	uplinkCalls, downlinkCalls = splitFilterCalls(updater.filterCalls, "policy-1")
+	uplinkCalls, downlinkCalls = splitFilterCalls(updater.filterCalls)
 
 	if len(uplinkCalls) != 1 || len(uplinkCalls[0].rules) != 0 {
 		t.Fatalf("expected uplink cleared (empty rules) on policy delete, got %v", uplinkCalls)
@@ -344,6 +352,148 @@ func TestReconcile_FiltersAddRemoveModify(t *testing.T) {
 
 	if len(downlinkCalls) != 1 || len(downlinkCalls[0].rules) != 0 {
 		t.Fatalf("expected downlink cleared (empty rules) on policy delete, got %v", downlinkCalls)
+	}
+}
+
+func TestReconcile_FilterUpdateFailureRetried(t *testing.T) {
+	store := &fakeStore{
+		policies: []db.Policy{{ID: "policy-1"}},
+		rulesByPolicyID: map[string][]*db.NetworkRule{
+			"policy-1": {
+				{Direction: directionUplinkString, Protocol: 6, PortLow: 80, PortHigh: 80, Action: "allow"},
+			},
+		},
+	}
+	updater := &fakeUpdater{updateFiltersErr: errors.New("map write failed")}
+
+	r := newReconciler(updater, store, netip.MustParseAddr("10.0.0.5"))
+
+	if err := r.Reconcile(context.Background()); err == nil {
+		t.Fatal("expected reconcile to return an error when UpdateFilters fails")
+	}
+
+	updater.mu.Lock()
+	updater.updateFiltersErr = nil
+	updater.filterCalls = nil
+	updater.mu.Unlock()
+
+	if err := r.Reconcile(context.Background()); err != nil {
+		t.Fatalf("reconcile after recovery: %v", err)
+	}
+
+	uplinkCalls, downlinkCalls := splitFilterCalls(updater.filterCalls)
+	if len(uplinkCalls) != 1 || len(downlinkCalls) != 1 {
+		t.Fatalf("expected both directions retried after failure, got uplink=%v downlink=%v", uplinkCalls, downlinkCalls)
+	}
+
+	updater.mu.Lock()
+	updater.filterCalls = nil
+	updater.mu.Unlock()
+
+	if err := r.Reconcile(context.Background()); err != nil {
+		t.Fatalf("reconcile once applied: %v", err)
+	}
+
+	if len(updater.filterCalls) != 0 {
+		t.Fatalf("expected no filter calls once applied, got %v", updater.filterCalls)
+	}
+}
+
+func TestReconcile_FilterUplinkFailureDoesNotSkipDownlink(t *testing.T) {
+	store := &fakeStore{
+		policies: []db.Policy{{ID: "policy-1"}},
+		rulesByPolicyID: map[string][]*db.NetworkRule{
+			"policy-1": {
+				{Direction: directionUplinkString, Protocol: 6, PortLow: 80, PortHigh: 80, Action: "allow"},
+				{Direction: directionDownlinkString, Protocol: 17, PortLow: 53, PortHigh: 53, Action: "allow"},
+			},
+		},
+	}
+
+	var attempted []models.Direction
+
+	updater := &fakeUpdater{
+		updateFiltersFunc: func(_ string, dir models.Direction, _ []models.FilterRule) error {
+			attempted = append(attempted, dir)
+			if dir == models.DirectionUplink {
+				return errors.New("uplink map full")
+			}
+
+			return nil
+		},
+	}
+
+	r := newReconciler(updater, store, netip.MustParseAddr("10.0.0.5"))
+
+	if err := r.Reconcile(context.Background()); err == nil {
+		t.Fatal("expected error when uplink update fails")
+	}
+
+	var sawUplink, sawDownlink bool
+
+	for _, d := range attempted {
+		switch d {
+		case models.DirectionUplink:
+			sawUplink = true
+		case models.DirectionDownlink:
+			sawDownlink = true
+		}
+	}
+
+	if !sawUplink || !sawDownlink {
+		t.Fatalf("expected both directions attempted despite uplink failure, got %v", attempted)
+	}
+}
+
+func TestReconcile_FilterClearFailureRetried(t *testing.T) {
+	store := &fakeStore{
+		policies: []db.Policy{{ID: "policy-1"}},
+		rulesByPolicyID: map[string][]*db.NetworkRule{
+			"policy-1": {
+				{Direction: directionUplinkString, Protocol: 6, PortLow: 80, PortHigh: 80, Action: "allow"},
+			},
+		},
+	}
+	updater := &fakeUpdater{}
+
+	r := newReconciler(updater, store, netip.MustParseAddr("10.0.0.5"))
+
+	if err := r.Reconcile(context.Background()); err != nil {
+		t.Fatalf("initial apply: %v", err)
+	}
+
+	store.mu.Lock()
+	store.policies = nil
+	store.rulesByPolicyID = nil
+	store.mu.Unlock()
+
+	updater.mu.Lock()
+	updater.updateFiltersFunc = func(_ string, _ models.Direction, _ []models.FilterRule) error {
+		return errors.New("clear failed")
+	}
+	updater.filterCalls = nil
+	updater.mu.Unlock()
+
+	if err := r.Reconcile(context.Background()); err == nil {
+		t.Fatal("expected error when clearing a deleted policy's filters fails")
+	}
+
+	updater.mu.Lock()
+	updater.updateFiltersFunc = nil
+	updater.filterCalls = nil
+	updater.mu.Unlock()
+
+	if err := r.Reconcile(context.Background()); err != nil {
+		t.Fatalf("reconcile after clear recovery: %v", err)
+	}
+
+	uplinkCalls, downlinkCalls := splitFilterCalls(updater.filterCalls)
+	if len(uplinkCalls) != 1 || len(uplinkCalls[0].rules) != 0 {
+		t.Fatalf("expected uplink clear retried, got %v", uplinkCalls)
+	}
+
+	if len(downlinkCalls) != 1 || len(downlinkCalls[0].rules) != 0 {
+		t.Fatalf("expected downlink clear retried, got %v", downlinkCalls)
 	}
 }
 
@@ -427,12 +577,8 @@ func TestReconcile_PropagatesNATError(t *testing.T) {
 	}
 }
 
-func splitFilterCalls(calls []filterCall, policyID string) (uplink, downlink []filterCall) {
+func splitFilterCalls(calls []filterCall) (uplink, downlink []filterCall) {
 	for _, c := range calls {
-		if c.policyID != policyID {
-			continue
-		}
-
 		switch c.direction {
 		case models.DirectionUplink:
 			uplink = append(uplink, c)

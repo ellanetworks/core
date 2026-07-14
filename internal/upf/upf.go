@@ -617,6 +617,13 @@ func (u *UPF) flushUsageForSession(ctx context.Context, localSeid uint64, sessio
 		err = u.se.SendUsageReport(ctx, u.smf, localSeid, uvol, dvol)
 		if err != nil {
 			logger.UpfLog.Warn("could not send PFCP session report request for usage", zap.Error(err), logger.SEID(localSeid), logger.URRID(urrID))
+
+			// Restore the drained bytes so the next poll re-reports them.
+			if restoreErr := u.se.BpfObjects.AddUrr(localSeid, urrID, uvol+dvol); restoreErr != nil {
+				logger.UpfLog.Error("usage bytes lost: report failed and URR counter could not be restored",
+					zap.Uint64("bytes", uvol+dvol), zap.Error(restoreErr), logger.SEID(localSeid), logger.URRID(urrID))
+			}
+
 			continue
 		}
 

@@ -275,6 +275,23 @@ func (bpfObjects *BpfObjects) GetAndResetUrr(seid uint64, id uint32) (uint64, er
 	return total, nil
 }
 
+// AddUrr adds bytes to the (SEID, id) counter.
+func (bpfObjects *BpfObjects) AddUrr(seid uint64, id uint32, bytes uint64) error {
+	key := N3N6EntrypointUrrKey{Seid: seid, UrrId: id}
+
+	var perCPU []uint64
+	if err := bpfObjects.UrrMap.Lookup(key, &perCPU); err != nil {
+		return fmt.Errorf("failed to lookup URR: %w", err)
+	}
+
+	perCPU[0] += bytes
+	if err := bpfObjects.UrrMap.Update(key, perCPU, ebpf.UpdateAny); err != nil {
+		return fmt.Errorf("failed to restore URR: %w", err)
+	}
+
+	return nil
+}
+
 // ToN3N6EntrypointPdrInfo converts a PdrInfo (with embedded FAR and QER) to
 // the auto-generated BPF map value type.
 func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) N3N6EntrypointPdrInfo {
