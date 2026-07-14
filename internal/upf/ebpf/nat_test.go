@@ -8,6 +8,7 @@ package ebpf
 import (
 	"bytes"
 	"encoding/binary"
+	"net/netip"
 	"strconv"
 	"testing"
 	"time"
@@ -103,7 +104,7 @@ func TestSourceNATUplink(t *testing.T) {
 	const teid = 0x4E415431
 
 	f := setupT2(t, true)
-	putForwardingUplinkPDR(t, f.obj, teid, 0)
+	putForwardingUplinkPDRUE(t, f.obj, teid, 0, netip.AddrFrom4(ueIP), netip.Addr{})
 
 	for _, proto := range natProtos {
 		for _, size := range payloadSizes {
@@ -141,7 +142,7 @@ func TestNATRoundTrip(t *testing.T) {
 	)
 
 	f := setupT2(t, true)
-	putForwardingUplinkPDR(t, f.obj, ulTEID, 0)
+	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
 	putDownlinkPDR(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, qfi)
 
 	for _, proto := range natProtos {
@@ -214,8 +215,8 @@ func TestNATPortCollision(t *testing.T) {
 	ue2 := [4]byte{10, 45, 0, 2}
 
 	f := setupT2(t, true)
-	putForwardingUplinkPDR(t, f.obj, teid1, 0)
-	putForwardingUplinkPDR(t, f.obj, teid2, 0)
+	putForwardingUplinkPDRUE(t, f.obj, teid1, 0, netip.AddrFrom4(ue1), netip.Addr{})
+	putForwardingUplinkPDRUE(t, f.obj, teid2, 0, netip.AddrFrom4(ue2), netip.Addr{})
 
 	egressPort := func(t *testing.T, ueSrc [4]byte, teid uint32) uint16 {
 		t.Helper()
@@ -282,7 +283,7 @@ func TestNATICMPError(t *testing.T) {
 	)
 
 	f := setupT2(t, true)
-	putForwardingUplinkPDR(t, f.obj, ulTEID, 0)
+	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
 	putDownlinkPDR(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, qfi)
 
 	// Establish the conntrack mapping with an uplink UDP packet.

@@ -110,6 +110,24 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		defer conn.filterMu.RUnlock()
 	}
 
+	// Pre-scan for UE addresses: the IPv6 /64 arrives on a separate downlink PDR
+	// that may be ordered after the uplink PDR, so per-PDR capture would miss it.
+	var ueV4, ueV6 netip.Addr
+
+	for _, pdr := range req.PDRs {
+		if pdr.PDI.LocalFTEID != nil || !pdr.PDI.UEIPAddress.IsValid() {
+			continue
+		}
+
+		if pdr.PDI.UEIPAddress.Is4() {
+			ueV4 = pdr.PDI.UEIPAddress
+		} else {
+			ueV6 = pdr.PDI.UEIPAddress
+		}
+	}
+
+	sess.SetUEAddresses(ueV4, ueV6)
+
 	for _, pdr := range req.PDRs {
 		spdrInfo := SPDRInfo{
 			PdrID: uint32(pdr.PDRID),
@@ -145,7 +163,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 		sess.PutPDR(spdrInfo.PdrID, spdrInfo)
 
-		if err := applyPDR(spdrInfo, bpfObjects); err != nil {
+		if err := applyPDR(spdrInfo, sess, bpfObjects); err != nil {
 			txn.rollback(ctx)
 			span.RecordError(err)
 
@@ -170,8 +188,12 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		installed := make([]netip.Prefix, 0, len(req.FramedRoutes))
 
 		for _, fr := range req.FramedRoutes {
-			ueAddr, ok := downlinkUEAddr(createdPDRs, fr.Addr().Is4())
-			if !ok {
+			ueAddr := ueV6
+			if fr.Addr().Is4() {
+				ueAddr = ueV4
+			}
+
+			if !ueAddr.IsValid() {
 				// No same-family downlink PDR (e.g. an IPv6 framed route on an
 				// IPv4-only session): the route cannot apply here, so skip it. A
 				// dormant route must not deny the UE all connectivity.
@@ -214,19 +236,6 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		RemoteSEID:  seid,
 		CreatedPDRs: createdPDRsToResponse(createdPDRs, conn.GetAdvertisedN3Address(), conn.GetAdvertisedN3AddressIPv6()),
 	}, nil
-}
-
-// downlinkUEAddr returns the UE address of the session's downlink PDR for the
-// requested family — the pdrs_downlink_* key a framed route of that family
-// redirects to.
-func downlinkUEAddr(pdrs []SPDRInfo, wantV4 bool) (netip.Addr, bool) {
-	for i := range pdrs {
-		if pdrs[i].UEIP.IsValid() && pdrs[i].UEIP.Is4() == wantV4 {
-			return pdrs[i].UEIP, true
-		}
-	}
-
-	return netip.Addr{}, false
 }
 
 // farInfoFromModel converts a models.FAR to an ebpf.FarInfo.

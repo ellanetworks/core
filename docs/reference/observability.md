@@ -33,6 +33,7 @@ These metrics are used to monitor the health of the system and the performance o
 | app_xdp_action_total | The total number of packets, with labels for the interface (n3, n6), and action taken. | Counter |
 | app_xdp_fib_lookup_total | FIB lookup outcomes in the XDP data plane, with labels for interface (n3, n6) and result matching kernel return codes (success, no_neigh, blackhole, unreachable, prohibit, no_src_addr, frag_needed, not_fwded, fwd_disabled, unsupp_lwt). | Counter |
 | app_xdp_ifindex_mismatch_total | Packets dropped because the FIB-resolved interface did not match the expected N3/N6 interface, with label for interface (n3, n6). | Counter |
+| app_xdp_source_spoof_drop_total | Uplink packets dropped because the inner source address was not one of the session's authorized UE or framed addresses, with label for address family (ipv4, ipv6). | Counter |
 | app_uplink_bytes | The total number of bytes transmitted in the uplink direction (N3 -> N6). This value includes the Ethernet header. | Counter |
 | app_downlink_bytes | The total number of bytes transmitted in the downlink direction (N6 -> N3). This value includes the Ethernet header. | Counter |
 | app_api_requests_total                | Total number of HTTP requests by method, endpoint, and status code | Counter |

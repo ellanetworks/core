@@ -56,6 +56,14 @@ func RegisterMetrics() {
 		nil,
 	)
 
+	// Source-spoofing drops (uplink/N3 only) with label for address family
+	xdpSourceSpoofDropDesc := prometheus.NewDesc(
+		"app_xdp_source_spoof_drop_total",
+		"Uplink packets dropped because the inner source address was not one of the session's authorized UE or framed addresses.",
+		[]string{"family"},
+		nil,
+	)
+
 	prometheus.MustRegister(upfUplinkBytes, upfDownlinkBytes)
 
 	// Register XDP action collector that produces metrics with labels
@@ -79,6 +87,10 @@ func RegisterMetrics() {
 		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN6Aborted(bpfObjects)), "n6", "XDP_ABORTED")
 
 		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN6Redirect(bpfObjects)), "n6", "XDP_REDIRECT")
+
+		ch <- prometheus.MustNewConstMetric(xdpSourceSpoofDropDesc, prometheus.CounterValue, float64(ebpf.GetN3SourceSpoofDropIPv4(bpfObjects)), "ipv4")
+
+		ch <- prometheus.MustNewConstMetric(xdpSourceSpoofDropDesc, prometheus.CounterValue, float64(ebpf.GetN3SourceSpoofDropIPv6(bpfObjects)), "ipv6")
 	}))
 
 	// Register FIB lookup result and ifindex mismatch collector
