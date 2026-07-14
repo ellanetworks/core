@@ -150,7 +150,7 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 		if spdrInfo.Allocated {
 			txn.onRollback(func() error {
-				pdrContext.FteIDResourceManager.ReleaseTEID(session.SEID)
+				pdrContext.FteIDResourceManager.ReleaseTEID(session.SEID, spdrInfo.TeID)
 				return nil
 			})
 		}

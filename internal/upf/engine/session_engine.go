@@ -280,6 +280,6 @@ func NewSessionEngine(addr string, nodeID string, n3IPv4 string, n3IPv6 string, 
 
 func (connection *SessionEngine) ReleaseResources(seID uint64) {
 	if connection.FteIDResourceManager != nil {
-		connection.FteIDResourceManager.ReleaseTEID(seID)
+		connection.FteIDResourceManager.ReleaseAllTEIDs(seID)
 	}
 }

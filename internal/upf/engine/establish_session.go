@@ -133,7 +133,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 		if spdrInfo.Allocated {
 			txn.onRollback(func() error {
-				pdrContext.FteIDResourceManager.ReleaseTEID(sess.SEID)
+				pdrContext.FteIDResourceManager.ReleaseTEID(sess.SEID, spdrInfo.TeID)
 				return nil
 			})
 		}

@@ -38,9 +38,7 @@ func TestPDRCreationContext_ExtractPDR(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pdrContext := &engine.PDRCreationContext{
-				TEIDCache: make(map[uint8]uint32),
-			}
+			pdrContext := &engine.PDRCreationContext{}
 			spdrInfo := &engine.SPDRInfo{}
 
 			err := pdrContext.ExtractPDR(tt.pdr, spdrInfo, map[uint32]ebpf.FarInfo{}, map[uint32]ebpf.QerInfo{})
