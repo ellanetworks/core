@@ -266,9 +266,7 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *PdnConnection,
 
 	m.ArmESMGuardAbortOnly(ue, p, "Modify EPS Bearer Context Request", naspdu, func() {
 		ue.mu.Lock()
-		if p := ue.defaultPDNLocked(); p != nil {
-			ClearPendingModifyLocked(p)
-		}
+		ClearPendingModifyLocked(p)
 		ue.mu.Unlock()
 	})
 }
