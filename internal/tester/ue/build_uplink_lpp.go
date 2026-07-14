@@ -11,13 +11,12 @@ import (
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
-	"github.com/free5gc/openapi/models"
 )
 
 // BuildUplinkNasTransportLPP builds a UL NAS Transport message with LPP payload
 // container type. Used by the UE tester to send LPP responses (capabilities,
 // location information) back to the core.
-func BuildUplinkNasTransportLPP(lppPayload []byte, amfUENGAPID, ranUENGAPID int64, dnn string, snssai models.Snssai) ([]byte, error) {
+func BuildUplinkNasTransportLPP(lppPayload []byte) ([]byte, error) {
 	if lppPayload == nil {
 		return nil, fmt.Errorf("LPP payload is required")
 	}
