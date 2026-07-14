@@ -16,15 +16,70 @@ type ProvideLocationCapabilities struct {
 	GNSSCapability GNSSCapability
 }
 
+// GnssID represents a GNSS constellation identifier per TS 37.355 §6.4.1.
+type GnssID int
+
+const (
+	GnssIDGps     GnssID = iota // 0
+	GnssIDSbas                  // 1
+	GnssIDQzss                  // 2
+	GnssIDGalileo               // 3
+	GnssIDGlonass               // 4
+	GnssIDBds                   // 5
+	GnssIDNavic                 // 6
+)
+
+func (id GnssID) String() string {
+	switch id {
+	case GnssIDGps:
+		return "GPS"
+	case GnssIDSbas:
+		return "SBAS"
+	case GnssIDQzss:
+		return "QZSS"
+	case GnssIDGalileo:
+		return "Galileo"
+	case GnssIDGlonass:
+		return "GLONASS"
+	case GnssIDBds:
+		return "BDS"
+	case GnssIDNavic:
+		return "NavIC"
+	default:
+		return "unknown"
+	}
+}
+
 // GNSSCapability indicates which GNSS constellations the UE supports.
 type GNSSCapability struct {
-	GPS  bool
-	GLO  bool
-	BDT  bool
-	QZS  bool
-	SBS  bool
-	IRN  bool
-	ESAT bool
+	supported []GnssID
+}
+
+// AddSupported adds a GNSS constellation to the capability list.
+func (c *GNSSCapability) AddSupported(id GnssID) {
+	for _, existing := range c.supported {
+		if existing == id {
+			return
+		}
+	}
+
+	c.supported = append(c.supported, id)
+}
+
+// Supported returns the list of supported GNSS constellations.
+func (c *GNSSCapability) Supported() []GnssID {
+	return c.supported
+}
+
+// Supports returns true if the given GNSS constellation is supported.
+func (c *GNSSCapability) Supports(id GnssID) bool {
+	for _, existing := range c.supported {
+		if existing == id {
+			return true
+		}
+	}
+
+	return false
 }
 
 // ProvideAssistanceData is sent by LMF to UE with assistance data.

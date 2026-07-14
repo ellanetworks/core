@@ -76,10 +76,12 @@ const (
 	GnssIDQzss    aper.Enumerated = 2
 	GnssIDGalileo aper.Enumerated = 3
 	GnssIDGlonass aper.Enumerated = 4
+	GnssIDBds     aper.Enumerated = 5
+	GnssIDNavic   aper.Enumerated = 6
 )
 
 type GNSSID struct {
-	Value aper.Enumerated `aper:"valueLB:0,valueUB:4,valueExt"`
+	Value aper.Enumerated `aper:"valueLB:0,valueUB:6,valueExt"`
 }
 
 // =====================================================================

@@ -95,24 +95,29 @@ func mapCapabilities(caps *lppmodels.ProvideLocationCapabilities) *Capabilities 
 
 	out := &Capabilities{}
 
-	if caps.GNSSCapability.GPS {
-		out.GNSS = append(out.GNSS, gnssIDEnum(lpptype.GnssIDGps))
-	}
+	for _, gnssID := range caps.GNSSCapability.Supported() {
+		var lpptypeID aper.Enumerated
 
-	if caps.GNSSCapability.GLO {
-		out.GNSS = append(out.GNSS, gnssIDEnum(lpptype.GnssIDGlonass))
-	}
+		switch gnssID {
+		case lppmodels.GnssIDGps:
+			lpptypeID = lpptype.GnssIDGps
+		case lppmodels.GnssIDSbas:
+			lpptypeID = lpptype.GnssIDSbas
+		case lppmodels.GnssIDQzss:
+			lpptypeID = lpptype.GnssIDQzss
+		case lppmodels.GnssIDGalileo:
+			lpptypeID = lpptype.GnssIDGalileo
+		case lppmodels.GnssIDGlonass:
+			lpptypeID = lpptype.GnssIDGlonass
+		case lppmodels.GnssIDBds:
+			lpptypeID = lpptype.GnssIDBds
+		case lppmodels.GnssIDNavic:
+			lpptypeID = lpptype.GnssIDNavic
+		default:
+			continue
+		}
 
-	if caps.GNSSCapability.ESAT {
-		out.GNSS = append(out.GNSS, gnssIDEnum(lpptype.GnssIDGalileo))
-	}
-
-	if caps.GNSSCapability.QZS {
-		out.GNSS = append(out.GNSS, gnssIDEnum(lpptype.GnssIDQzss))
-	}
-
-	if caps.GNSSCapability.SBS {
-		out.GNSS = append(out.GNSS, gnssIDEnum(lpptype.GnssIDSbas))
+		out.GNSS = append(out.GNSS, gnssIDEnum(lpptypeID))
 	}
 
 	return out
