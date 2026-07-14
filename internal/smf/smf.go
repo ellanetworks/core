@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"net"
 	"net/netip"
 	"sync"
@@ -17,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -184,11 +182,6 @@ type SMF struct {
 
 	seidCounter uint64 // atomic; local SEID allocation
 
-	pdrIDs *idgenerator.IDGenerator
-	farIDs *idgenerator.IDGenerator
-	qerIDs *idgenerator.IDGenerator
-	urrIDs *idgenerator.IDGenerator
-
 	t3591 time.Duration // network-requested modification command retransmission
 	t3592 time.Duration // network-requested release command retransmission
 }
@@ -214,19 +207,15 @@ func WithT3592(d time.Duration) Option { return func(s *SMF) { s.t3592 = d } }
 // New creates a new SMF.
 func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Option) *SMF {
 	s := &SMF{
-		pool:   make(map[string]*SMContext),
-		byKey:  make(map[string]*SMContext),
-		pcf:    pcf,
-		store:  store,
-		upf:    upf,
-		amf:    amf,
-		clock:  time.Now,
-		t3591:  16 * time.Second, // TS 24.501 table 10.3.2
-		t3592:  16 * time.Second, // TS 24.501 table 10.3.2
-		pdrIDs: idgenerator.NewGenerator(1, math.MaxUint16),
-		farIDs: idgenerator.NewGenerator(1, math.MaxUint32),
-		qerIDs: idgenerator.NewGenerator(1, math.MaxUint32),
-		urrIDs: idgenerator.NewGenerator(1, math.MaxUint32),
+		pool:  make(map[string]*SMContext),
+		byKey: make(map[string]*SMContext),
+		pcf:   pcf,
+		store: store,
+		upf:   upf,
+		amf:   amf,
+		clock: time.Now,
+		t3591: 16 * time.Second, // TS 24.501 table 10.3.2
+		t3592: 16 * time.Second, // TS 24.501 table 10.3.2
 	}
 	for _, o := range opts {
 		o(s)

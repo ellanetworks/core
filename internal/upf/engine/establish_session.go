@@ -39,6 +39,16 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	defer span.End()
 
 	seid := req.LocalSEID
+
+	// Defensive: a re-establish over a live SEID would orphan the old session's
+	// datapath state. Not normally reached (SMF allocates a fresh SEID per session).
+	if conn.GetSession(seid) != nil {
+		if err := conn.DeleteSession(ctx, &models.DeleteRequest{SEID: seid}); err != nil {
+			logger.WithTrace(ctx, logger.UpfLog).Warn("could not tear down existing session before re-establish",
+				logger.SEID(seid), zap.Error(err))
+		}
+	}
+
 	sess := NewSession(seid)
 	span.AddEvent("session_created", trace.WithAttributes(attribute.Int64("models.seid", int64(seid))))
 
@@ -52,6 +62,8 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	qerMap := make(map[uint32]ebpf.QerInfo)
 
 	bpfObjects := conn.BpfObjects
+
+	var txn sessionTxn
 
 	for _, far := range req.FARs {
 		farInfo := farInfoFromModel(far, conn.n3AddressIPv4, conn.n3AddressIPv6)
@@ -76,14 +88,26 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	}
 
 	for _, urr := range req.URRs {
-		if err := bpfObjects.NewUrr(urr.URRID); err != nil {
+		if err := bpfObjects.NewUrr(seid, urr.URRID); err != nil {
+			txn.rollback(ctx)
 			span.RecordError(err)
+
 			return nil, fmt.Errorf("can't put URR: %w", err)
 		}
+
+		txn.onRollback(func() error { return bpfObjects.DeleteUrr(seid, urr.URRID) })
 
 		logger.WithTrace(ctx, logger.UpfLog).Debug("Created Usage Reporting Rule",
 			logger.URRID(urr.URRID),
 		)
+	}
+
+	// Hold filterMu across resolve → apply → register (below) so the filter slot
+	// can't be released and reassigned to another policy before this session is
+	// visible to propagateFilterIndex.
+	if req.PolicyID != "" {
+		conn.filterMu.RLock()
+		defer conn.filterMu.RUnlock()
 	}
 
 	for _, pdr := range req.PDRs {
@@ -97,8 +121,17 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		}
 
 		if err := pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, qerMap); err != nil {
+			txn.rollback(ctx)
 			span.RecordError(err)
+
 			return nil, fmt.Errorf("couldn't extract PDR info: %w", err)
+		}
+
+		if spdrInfo.Allocated {
+			txn.onRollback(func() error {
+				pdrContext.FteIDResourceManager.ReleaseTEID(sess.SEID, spdrInfo.TeID)
+				return nil
+			})
 		}
 
 		if req.PolicyID != "" {
@@ -107,20 +140,19 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 				dir = models.DirectionDownlink
 			}
 
-			spdrInfo.PdrInfo.FilterMapIndex = conn.resolveFilterIndex(req.PolicyID, dir)
+			spdrInfo.PdrInfo.FilterMapIndex = conn.resolveFilterIndexLocked(req.PolicyID, dir)
 		}
 
 		sess.PutPDR(spdrInfo.PdrID, spdrInfo)
 
 		if err := applyPDR(spdrInfo, bpfObjects); err != nil {
-			if spdrInfo.Allocated {
-				pdrContext.FteIDResourceManager.ReleaseTEID(pdrContext.Session.SEID)
-			}
-
+			txn.rollback(ctx)
 			span.RecordError(err)
 
 			return nil, fmt.Errorf("couldn't apply PDR: %w", err)
 		}
+
+		txn.onRollback(func() error { return unapplyPDR(spdrInfo, bpfObjects) })
 
 		logger.WithTrace(ctx, logger.UpfLog).Info("Applied packet detection rule",
 			logger.PDRID(spdrInfo.PdrID))
@@ -133,8 +165,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	span.AddEvent("ebpf_maps_updated")
 
 	// Framed routes (TS 23.501 §5.6.14, TS 29.244 §5.16) redirect to the
-	// session's downlink PDR, matched by LPM. A failure rolls back the ones
-	// already installed so a rejected establishment leaves no orphan entries.
+	// session's downlink PDR, matched by LPM.
 	if len(req.FramedRoutes) > 0 {
 		installed := make([]netip.Prefix, 0, len(req.FramedRoutes))
 
@@ -151,14 +182,13 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 			}
 
 			if err := bpfObjects.PutFramedDownlink(fr, ueAddr); err != nil {
-				for _, done := range installed {
-					_ = bpfObjects.DeleteFramedDownlink(done)
-				}
-
+				txn.rollback(ctx)
 				span.RecordError(err)
 
 				return nil, fmt.Errorf("couldn't apply framed route %s: %w", fr, err)
 			}
+
+			txn.onRollback(func() error { return bpfObjects.DeleteFramedDownlink(fr) })
 
 			installed = append(installed, fr)
 		}
@@ -182,7 +212,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 	return &models.EstablishResponse{
 		RemoteSEID:  seid,
-		CreatedPDRs: createdPDRsToResponse(createdPDRs, conn.advertisedN3AddressIPv4, conn.advertisedN3AddressIPv6),
+		CreatedPDRs: createdPDRsToResponse(createdPDRs, conn.GetAdvertisedN3Address(), conn.GetAdvertisedN3AddressIPv6()),
 	}, nil
 }
 

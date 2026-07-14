@@ -266,7 +266,7 @@ This path pins an address to a subscriber on a data network. The IP version is i
 
 ## Update a Static IP
 
-This path repins a subscriber's reservation to a new address. It is rejected while the reservation is bound to an active session.
+This path repins a subscriber's reservation to a new address. A change to a live session releases it so the UE re-establishes on the new address.
 
 | Method | Path                           |
 | ------ | ------------------------------ |
@@ -288,7 +288,7 @@ This path repins a subscriber's reservation to a new address. It is rejected whi
 
 ## Delete a Static IP
 
-This path removes a subscriber's static IP reservation. It is rejected while the reservation is bound to an active session.
+This path removes a subscriber's static IP reservation. A change to a live session releases it so the UE re-establishes on a dynamic address.
 
 | Method | Path                           |
 | ------ | ------------------------------ |

@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"runtime"
 	"sync"
 	"time"
 
@@ -56,7 +55,10 @@ type UPF struct {
 	noNeighReader      *ringbuf.Reader
 	raResponder        *RAResponder
 
-	ctx      context.Context
+	ctx context.Context
+
+	// gcMu serialises startGC / stopGC (e.g. from ReloadNAT and Close).
+	gcMu     sync.Mutex
 	gcCancel context.CancelFunc
 
 	// fcMu serialises concurrent calls to startFlowCollection / stopFlowCollection
@@ -366,6 +368,9 @@ func StringToXDPAttachMode(Mode string) link.XDPAttachFlags {
 }
 
 func (u *UPF) startGC(ctx context.Context) {
+	u.gcMu.Lock()
+	defer u.gcMu.Unlock()
+
 	if u.gcCancel != nil {
 		return
 	}
@@ -378,6 +383,9 @@ func (u *UPF) startGC(ctx context.Context) {
 }
 
 func (u *UPF) stopGC() {
+	u.gcMu.Lock()
+	defer u.gcMu.Unlock()
+
 	if u.gcCancel != nil {
 		u.gcCancel()
 		u.gcCancel = nil
@@ -557,32 +565,6 @@ func (u *UPF) monitorUsage(interval time.Duration, stop <-chan struct{}) {
 	}
 }
 
-func (u *UPF) getAndResetUsageForURR(urrID uint32) (uint64, error) {
-	var (
-		perCPU []uint64
-		total  uint64
-	)
-
-	ncpu := runtime.NumCPU()
-	zeroes := make([]uint64, ncpu)
-
-	err := u.se.BpfObjects.UrrMap.Lookup(&urrID, &perCPU)
-	if err != nil {
-		return 0, fmt.Errorf("failed to lookup URR: %w", err)
-	}
-
-	err = u.se.BpfObjects.UrrMap.Update(&urrID, zeroes, bpf.UpdateAny)
-	if err != nil {
-		return 0, fmt.Errorf("failed to reset URR: %w", err)
-	}
-
-	for _, v := range perCPU {
-		total += v
-	}
-
-	return total, nil
-}
-
 func (u *UPF) pollUsageAndResetCounters() error {
 	if u.se == nil {
 		return fmt.Errorf("PFCP connection is nil")
@@ -628,13 +610,13 @@ func (u *UPF) flushUsageForSession(ctx context.Context, localSeid uint64, sessio
 
 		// Downlink PDR
 		if pdr.UEIP.IsValid() {
-			dvol, err = u.getAndResetUsageForURR(urrID)
+			dvol, err = u.se.BpfObjects.GetAndResetUrr(localSeid, urrID)
 			if err != nil {
 				logger.UpfLog.Warn("could not get usage for URR - downlink", logger.URRID(urrID), zap.Error(err), logger.SEID(localSeid), logger.PDRID(pdr.PdrInfo.PdrID))
 				continue
 			}
 		} else { // Uplink PDR
-			uvol, err = u.getAndResetUsageForURR(urrID)
+			uvol, err = u.se.BpfObjects.GetAndResetUrr(localSeid, urrID)
 			if err != nil {
 				logger.UpfLog.Warn("could not get usage for URR - uplink", logger.URRID(urrID), zap.Error(err), logger.SEID(localSeid))
 				continue
@@ -644,6 +626,13 @@ func (u *UPF) flushUsageForSession(ctx context.Context, localSeid uint64, sessio
 		err = u.se.SendUsageReport(ctx, u.smf, localSeid, uvol, dvol)
 		if err != nil {
 			logger.UpfLog.Warn("could not send PFCP session report request for usage", zap.Error(err), logger.SEID(localSeid), logger.URRID(urrID))
+
+			// Restore the drained bytes so the next poll re-reports them.
+			if restoreErr := u.se.BpfObjects.AddUrr(localSeid, urrID, uvol+dvol); restoreErr != nil {
+				logger.UpfLog.Error("usage bytes lost: report failed and URR counter could not be restored",
+					zap.Uint64("bytes", uvol+dvol), zap.Error(restoreErr), logger.SEID(localSeid), logger.URRID(urrID))
+			}
+
 			continue
 		}
 

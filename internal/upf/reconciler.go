@@ -317,50 +317,63 @@ func (r *SettingsReconciler) reconcileFilters(ctx context.Context) error {
 	applied := r.appliedFilters
 	r.stateMu.Unlock()
 
+	// Record only what actually reached the data plane, so a failed direction
+	// still differs from desired on the next pass and is retried.
+	nextApplied := make(map[string]filterSnapshot, len(desired))
+
+	var errs []error
+
 	for policyID, desiredSnap := range desired {
 		appliedSnap, hadApplied := applied[policyID]
+		result := appliedSnap
 
 		if !hadApplied || !reflect.DeepEqual(appliedSnap.uplink, desiredSnap.uplink) {
 			if err := r.updater.UpdateFilters(ctx, policyID, models.DirectionUplink, desiredSnap.uplink); err != nil {
-				logger.UpfLog.Warn("failed to update uplink filters",
-					zap.String("policyID", policyID), zap.Error(err))
-
-				continue
+				errs = append(errs, fmt.Errorf("update uplink filters for policy %s: %w", policyID, err))
+			} else {
+				result.uplink = desiredSnap.uplink
 			}
 		}
 
 		if !hadApplied || !reflect.DeepEqual(appliedSnap.downlink, desiredSnap.downlink) {
 			if err := r.updater.UpdateFilters(ctx, policyID, models.DirectionDownlink, desiredSnap.downlink); err != nil {
-				logger.UpfLog.Warn("failed to update downlink filters",
-					zap.String("policyID", policyID), zap.Error(err))
-
-				continue
+				errs = append(errs, fmt.Errorf("update downlink filters for policy %s: %w", policyID, err))
+			} else {
+				result.downlink = desiredSnap.downlink
 			}
 		}
+
+		nextApplied[policyID] = result
 	}
 
-	for policyID := range applied {
+	for policyID, appliedSnap := range applied {
 		if _, ok := desired[policyID]; ok {
 			continue
 		}
 
-		// Policy deleted: clear filters so the eBPF slot is freed.
+		// Policy deleted: clear its filters so the eBPF slot is freed.
+		cleared := true
+
 		if err := r.updater.UpdateFilters(ctx, policyID, models.DirectionUplink, nil); err != nil {
-			logger.UpfLog.Warn("failed to clear uplink filters for deleted policy",
-				zap.String("policyID", policyID), zap.Error(err))
+			errs = append(errs, fmt.Errorf("clear uplink filters for deleted policy %s: %w", policyID, err))
+			cleared = false
 		}
 
 		if err := r.updater.UpdateFilters(ctx, policyID, models.DirectionDownlink, nil); err != nil {
-			logger.UpfLog.Warn("failed to clear downlink filters for deleted policy",
-				zap.String("policyID", policyID), zap.Error(err))
+			errs = append(errs, fmt.Errorf("clear downlink filters for deleted policy %s: %w", policyID, err))
+			cleared = false
+		}
+
+		if !cleared {
+			nextApplied[policyID] = appliedSnap
 		}
 	}
 
 	r.stateMu.Lock()
-	r.appliedFilters = desired
+	r.appliedFilters = nextApplied
 	r.stateMu.Unlock()
 
-	return nil
+	return errors.Join(errs...)
 }
 
 func networkRulesToFilterRules(rules []*db.NetworkRule, direction string) []models.FilterRule {

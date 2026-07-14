@@ -52,9 +52,9 @@ func TestResourceManagerNonEmptyRange(t *testing.T) {
 		t.Fatalf("Expected error, got nil")
 	}
 
-	// Release all resources
+	// Release all resources (seID i holds teid i+1).
 	for i := range teIDRange {
-		resourceManager.ReleaseTEID(uint64(i))
+		resourceManager.ReleaseTEID(uint64(i), i+1)
 	}
 
 	// Allocate all resources again
@@ -68,6 +68,75 @@ func TestResourceManagerNonEmptyRange(t *testing.T) {
 
 		if teID != i+1 {
 			t.Fatalf("Expected %d, got %d", i+1, teID)
+		}
+	}
+}
+
+// TestResourceManagerMultipleTEIDsPerSession verifies a session can hold several
+// TEIDs and that releasing each specific TEID returns the whole pool.
+func TestResourceManagerMultipleTEIDsPerSession(t *testing.T) {
+	m, err := engine.NewFteIDResourceManager(3)
+	if err != nil {
+		t.Fatalf("new manager: %v", err)
+	}
+
+	const seID = uint64(42)
+
+	teids := make([]uint32, 0, 3)
+
+	for range 3 {
+		teid, err := m.AllocateTEID(seID)
+		if err != nil {
+			t.Fatalf("allocate: %v", err)
+		}
+
+		teids = append(teids, teid)
+	}
+
+	if _, err := m.AllocateTEID(seID); err == nil {
+		t.Fatal("expected pool exhausted after 3 allocations")
+	}
+
+	// Release each specific TEID; a double release must be a no-op (not free the
+	// same TEID twice into the pool).
+	for _, teid := range teids {
+		m.ReleaseTEID(seID, teid)
+		m.ReleaseTEID(seID, teid)
+	}
+
+	// The whole pool must be available again — no leak, no double-free.
+	for range 3 {
+		if _, err := m.AllocateTEID(seID); err != nil {
+			t.Fatalf("pool not fully restored: %v", err)
+		}
+	}
+
+	if _, err := m.AllocateTEID(seID); err == nil {
+		t.Fatal("expected exactly 3 TEIDs available after release")
+	}
+}
+
+// TestResourceManagerReleaseAllTEIDs verifies the teardown backstop frees every
+// TEID a session still holds.
+func TestResourceManagerReleaseAllTEIDs(t *testing.T) {
+	m, err := engine.NewFteIDResourceManager(3)
+	if err != nil {
+		t.Fatalf("new manager: %v", err)
+	}
+
+	const seID = uint64(7)
+
+	for range 3 {
+		if _, err := m.AllocateTEID(seID); err != nil {
+			t.Fatalf("allocate: %v", err)
+		}
+	}
+
+	m.ReleaseAllTEIDs(seID)
+
+	for range 3 {
+		if _, err := m.AllocateTEID(seID); err != nil {
+			t.Fatalf("pool not restored after ReleaseAllTEIDs: %v", err)
 		}
 	}
 }

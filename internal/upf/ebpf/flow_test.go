@@ -84,14 +84,16 @@ func TestURRByteAccounting(t *testing.T) {
 	const (
 		teid  = 0x55525202
 		urrID = 9
+		seid  = 0x55525202
 	)
 
 	obj := loadN3N6Program(t)
-	if err := obj.NewUrr(urrID); err != nil {
+	if err := obj.NewUrr(seid, urrID); err != nil {
 		t.Fatalf("NewUrr: %v", err)
 	}
 
 	pdr := PdrInfo{
+		SEID:  seid,
 		IMSI:  "001010000000001",
 		UrrID: urrID,
 		Far:   FarInfo{Action: 0x02 /* FAR_FORW */},
@@ -106,13 +108,13 @@ func TestURRByteAccounting(t *testing.T) {
 
 	runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
-	if got := sumURR(t, obj, urrID); got != perPacket {
+	if got := sumURR(t, obj, seid, urrID); got != perPacket {
 		t.Fatalf("URR after 1 packet = %d, want %d", got, perPacket)
 	}
 
 	runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
-	if got := sumURR(t, obj, urrID); got != 2*perPacket {
+	if got := sumURR(t, obj, seid, urrID); got != 2*perPacket {
 		t.Fatalf("URR after 2 packets = %d, want %d", got, 2*perPacket)
 	}
 }
@@ -188,15 +190,17 @@ func TestURRByteAccountingDownlink(t *testing.T) {
 		teid  = 0x55525203
 		urrID = 11
 		qfi   = 5
+		seid  = 0x55525203
 	)
 
 	obj := loadProgram(t, 1, 0)
-	if err := obj.NewUrr(urrID); err != nil {
+	if err := obj.NewUrr(seid, urrID); err != nil {
 		t.Fatalf("NewUrr: %v", err)
 	}
 
 	pdr := ipv4OuterDownlinkPDR(teid, testUPFN3IP, testGNBIP, qfi)
 	pdr.UrrID = urrID
+	pdr.SEID = seid
 
 	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueIP), pdr); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
@@ -208,22 +212,65 @@ func TestURRByteAccountingDownlink(t *testing.T) {
 
 	runXDP(t, obj.UpfEntryFunc, frame)
 
-	if got := sumURR(t, obj, urrID); got != perPacket {
+	if got := sumURR(t, obj, seid, urrID); got != perPacket {
 		t.Fatalf("URR after 1 packet = %d, want %d", got, perPacket)
 	}
 
 	runXDP(t, obj.UpfEntryFunc, frame)
 
-	if got := sumURR(t, obj, urrID); got != 2*perPacket {
+	if got := sumURR(t, obj, seid, urrID); got != 2*perPacket {
 		t.Fatalf("URR after 2 packets = %d, want %d", got, 2*perPacket)
 	}
 }
 
-func sumURR(t *testing.T, obj *BpfObjects, urrID uint32) uint64 {
+func TestURRAddRestore(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		seid  = 0x55525204
+		urrID = 13
+	)
+
+	obj := loadN3N6Program(t)
+	if err := obj.NewUrr(seid, urrID); err != nil {
+		t.Fatalf("NewUrr: %v", err)
+	}
+
+	if err := obj.AddUrr(seid, urrID, 500); err != nil {
+		t.Fatalf("AddUrr: %v", err)
+	}
+
+	if got := sumURR(t, obj, seid, urrID); got != 500 {
+		t.Fatalf("URR after AddUrr(500) = %d, want 500", got)
+	}
+
+	drained, err := obj.GetAndResetUrr(seid, urrID)
+	if err != nil {
+		t.Fatalf("GetAndResetUrr: %v", err)
+	}
+
+	if drained != 500 {
+		t.Fatalf("drained = %d, want 500", drained)
+	}
+
+	if got := sumURR(t, obj, seid, urrID); got != 0 {
+		t.Fatalf("URR after reset = %d, want 0", got)
+	}
+
+	if err := obj.AddUrr(seid, urrID, drained); err != nil {
+		t.Fatalf("AddUrr restore: %v", err)
+	}
+
+	if got := sumURR(t, obj, seid, urrID); got != 500 {
+		t.Fatalf("URR after restore = %d, want 500", got)
+	}
+}
+
+func sumURR(t *testing.T, obj *BpfObjects, seid uint64, urrID uint32) uint64 {
 	t.Helper()
 
 	var perCPU []uint64
-	if err := obj.UrrMap.Lookup(urrID, &perCPU); err != nil {
+	if err := obj.UrrMap.Lookup(N3N6EntrypointUrrKey{Seid: seid, UrrId: urrID}, &perCPU); err != nil {
 		t.Fatalf("urr_map lookup: %v", err)
 	}
 

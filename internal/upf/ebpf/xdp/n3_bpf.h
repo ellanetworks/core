@@ -249,7 +249,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		ctx->statistics->byte_counter.bytes += packet_size;
 	}
 
-	update_urr_bytes(ctx, urr_id);
+	update_urr_bytes(ctx, pdr->local_seid, urr_id);
 
 	const __u32 key = 0;
 	struct route_stat *route_statistic =

@@ -248,7 +248,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 			packet_size; // Count downlink traffic
 	}
 
-	update_urr_bytes(ctx, urr_id);
+	update_urr_bytes(ctx, pdr->local_seid, urr_id);
 	account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, ALLOW);
 
 	return send_to_gtp_tunnel(ctx, far, tos, qer->qfi);
@@ -378,7 +378,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	}
 
 	__u32 urr_id = pdr->urr_id;
-	update_urr_bytes(ctx, urr_id);
+	update_urr_bytes(ctx, pdr->local_seid, urr_id);
 	account_flow(ctx, n3_ifindex, pdr->imsi, IPV6, ALLOW);
 
 	return send_to_gtp_tunnel(ctx, far, tos, qer->qfi);

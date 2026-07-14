@@ -21,6 +21,8 @@ Ella Core embeds a BGP speaker that automatically advertises a `/32` (IPv4) or `
 
 This means routing state always reflects the set of currently connected subscribers with no manual intervention.
 
+Framed routes are advertised the same way, from the node anchoring the session, and withdrawn on release.
+
 ### Receive routes from BGP peers
 
 Ella Core receives routes from BGP peers and installs them into the kernel routing table. This allows operators to manage routes (e.g., a default route via an upstream router) through BGP instead of static routes.

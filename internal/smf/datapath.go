@@ -8,11 +8,9 @@
 package smf
 
 import (
-	"fmt"
 	"net"
 	"net/netip"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 )
 
@@ -28,74 +26,6 @@ type DataPath struct {
 	DownLinkTunnel *GTPTunnel
 	SecondPDR      *PDR
 	Activated      bool
-}
-
-func (dp *DataPath) DeactivateUpLinkTunnel(smf *SMF) {
-	if dp.UpLinkTunnel.PDR == nil {
-		logger.SmfLog.Debug("PDR is nil in UpLink Tunnel")
-		return
-	}
-
-	smf.RemovePDR(dp.UpLinkTunnel.PDR)
-
-	if dp.UpLinkTunnel.PDR.FAR != nil {
-		smf.RemoveFAR(dp.UpLinkTunnel.PDR.FAR)
-	}
-
-	if dp.UpLinkTunnel.PDR.QER != nil {
-		smf.RemoveQER(dp.UpLinkTunnel.PDR.QER)
-	}
-
-	if dp.UpLinkTunnel.PDR.URR != nil {
-		smf.RemoveURR(dp.UpLinkTunnel.PDR.URR)
-	}
-
-	logger.SmfLog.Info("deactivated UpLinkTunnel PDR")
-
-	dp.UpLinkTunnel = &GTPTunnel{}
-}
-
-func (dp *DataPath) DeactivateDownLinkTunnel(smf *SMF) {
-	if dp.DownLinkTunnel.PDR == nil {
-		logger.SmfLog.Debug("PDR is nil in Downlink Tunnel")
-		return
-	}
-
-	logger.SmfLog.Info("deactivated DownLinkTunnel PDR", logger.PDRID(uint32(dp.DownLinkTunnel.PDR.PDRID)))
-
-	smf.RemovePDR(dp.DownLinkTunnel.PDR)
-
-	if dp.DownLinkTunnel.PDR.FAR != nil {
-		smf.RemoveFAR(dp.DownLinkTunnel.PDR.FAR)
-	}
-
-	if dp.DownLinkTunnel.PDR.QER != nil {
-		smf.RemoveQER(dp.DownLinkTunnel.PDR.QER)
-	}
-
-	if dp.DownLinkTunnel.PDR.URR != nil {
-		smf.RemoveURR(dp.DownLinkTunnel.PDR.URR)
-	}
-
-	dp.DownLinkTunnel = &GTPTunnel{}
-
-	if dp.SecondPDR != nil {
-		smf.RemovePDR(dp.SecondPDR)
-
-		if dp.SecondPDR.FAR != nil {
-			smf.RemoveFAR(dp.SecondPDR.FAR)
-		}
-
-		if dp.SecondPDR.QER != nil {
-			smf.RemoveQER(dp.SecondPDR.QER)
-		}
-
-		if dp.SecondPDR.URR != nil {
-			smf.RemoveURR(dp.SecondPDR.URR)
-		}
-
-		dp.SecondPDR = nil
-	}
 }
 
 func (dp *DataPath) ActivateUpLinkPdr(ueIP netip.Addr, anIP net.IP, defQER *QER, defURR *URR) {
@@ -148,46 +78,20 @@ func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, policy 
 
 	smContext.SetPFCPSession(seid)
 
-	ulPdr, err := smf.NewPDR()
-	if err != nil {
-		return fmt.Errorf("could not create uplink PDR: %s", err)
-	}
+	dp.UpLinkTunnel.PDR = NewPDR(pdrIDUplink, farIDUplink)
+	dp.DownLinkTunnel.PDR = NewPDR(pdrIDDownlink, farIDDownlink)
 
-	dp.UpLinkTunnel.PDR = ulPdr
-
-	dlPdr, err := smf.NewPDR()
-	if err != nil {
-		return fmt.Errorf("could not create downlink PDR: %s", err)
-	}
-
-	dp.DownLinkTunnel.PDR = dlPdr
-
-	defQER, err := smf.NewQER(policy)
-	if err != nil {
-		return fmt.Errorf("could not create QER: %v", err)
-	}
-
-	defULURR, err := smf.NewURR()
-	if err != nil {
-		return fmt.Errorf("could not create uplink URR: %v", err)
-	}
-
-	defDLURR, err := smf.NewURR()
-	if err != nil {
-		return fmt.Errorf("could not create downlink URR: %v", err)
-	}
+	defQER := NewQER(policy, qerIDDefault)
+	defULURR := newURR(urrIDUplink)
+	defDLURR := newURR(urrIDDownlink)
 
 	dp.ActivateUpLinkPdr(ueIP, smContext.Tunnel.ANInformation.IPv4Address, defQER, defULURR)
 
 	dp.ActivateDlLinkPdr(smContext.Tunnel.ANInformation.IPv4Address, smContext.Tunnel.ANInformation.IPv6Address, smContext.Tunnel.ANInformation.TEID, ueIP, defQER, defDLURR)
 
 	if smContext.PDUIPV4Address != nil && smContext.PDUIPV6Prefix != nil {
-		secondPdr, err := smf.NewPDR()
-		if err != nil {
-			return fmt.Errorf("could not create second downlink PDR: %s", err)
-		}
-
-		secondPdr.FAR = dlPdr.FAR
+		secondPdr := &PDR{PDRID: pdrIDSecond}
+		secondPdr.FAR = dp.DownLinkTunnel.PDR.FAR
 		secondPdr.QER = defQER
 		secondPdr.URR = defDLURR
 		secondPdr.PDI.UEIPAddress, _ = netip.AddrFromSlice(smContext.PDUIPV6Prefix.To16())
@@ -200,9 +104,10 @@ func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, policy 
 	return nil
 }
 
-func (dp *DataPath) DeactivateTunnelAndPDR(smf *SMF) {
-	dp.DeactivateUpLinkTunnel(smf)
-	dp.DeactivateDownLinkTunnel(smf)
-
+// DeactivateTunnelAndPDR resets the data path. Safe to call more than once.
+func (dp *DataPath) DeactivateTunnelAndPDR() {
+	dp.UpLinkTunnel = &GTPTunnel{}
+	dp.DownLinkTunnel = &GTPTunnel{}
+	dp.SecondPDR = nil
 	dp.Activated = false
 }

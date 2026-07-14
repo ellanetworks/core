@@ -501,15 +501,8 @@ func setupIPv6SessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, strin
 	smCtx.SetPFCPSession(seid)
 	smCtx.PFCPContext.RemoteSEID = 100
 
-	ulPdr, err := s.NewPDR()
-	if err != nil {
-		t.Fatalf("NewPDR (UL): %v", err)
-	}
-
-	dlPdr, err := s.NewPDR()
-	if err != nil {
-		t.Fatalf("NewPDR (DL): %v", err)
-	}
+	ulPdr := smf.NewPDR(1, 1)
+	dlPdr := smf.NewPDR(2, 2)
 
 	dlPdr.FAR.ApplyAction = models.ApplyAction{Forw: true}
 	dlPdr.FAR.ForwardingParameters = &models.ForwardingParameters{

@@ -124,15 +124,8 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 	smCtx.SetPFCPSession(seid)
 	smCtx.PFCPContext.RemoteSEID = 100
 
-	ulPdr, err := s.NewPDR()
-	if err != nil {
-		t.Fatalf("NewPDR (UL): %v", err)
-	}
-
-	dlPdr, err := s.NewPDR()
-	if err != nil {
-		t.Fatalf("NewPDR (DL): %v", err)
-	}
+	ulPdr := smf.NewPDR(1, 1)
+	dlPdr := smf.NewPDR(2, 2)
 
 	dlPdr.FAR.ApplyAction = models.ApplyAction{Forw: true}
 	dlPdr.FAR.ForwardingParameters = &models.ForwardingParameters{
@@ -148,10 +141,7 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
 	}
 
-	qer, err := s.NewQER(policy)
-	if err != nil {
-		t.Fatalf("NewQER: %v", err)
-	}
+	qer := smf.NewQER(policy, 1)
 
 	ulPdr.QER = qer
 	dlPdr.QER = qer
@@ -258,10 +248,104 @@ func TestDeactivateTunnelAndPDR_CleansUp(t *testing.T) {
 	_, ref := setupSessionWithTunnel(t, s)
 	smCtx := s.GetSession(ref)
 
-	smCtx.Tunnel.DataPath.DeactivateTunnelAndPDR(s)
+	smCtx.Tunnel.DataPath.DeactivateTunnelAndPDR()
 
-	if smCtx.Tunnel.DataPath.Activated {
+	dp := smCtx.Tunnel.DataPath
+	if dp.Activated {
 		t.Fatal("expected DataPath to be deactivated")
+	}
+
+	if dp.UpLinkTunnel.PDR != nil || dp.DownLinkTunnel.PDR != nil {
+		t.Fatal("expected tunnel PDRs to be cleared")
+	}
+
+	if dp.SecondPDR != nil {
+		t.Fatal("expected SecondPDR to be cleared")
+	}
+}
+
+// TestActivateTunnelAndPDR_FixedRuleIDs pins the per-session rule IDs. They are
+// scoped to the PFCP session (TS 29.244 §5.2), so every session uses the same
+// fixed set and the second PDR shares the downlink FAR. Dual-stack adds the
+// second downlink PDR.
+func TestActivateTunnelAndPDR_FixedRuleIDs(t *testing.T) {
+	policy := &smf.Policy{
+		Ambr:    models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
+		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
+	}
+
+	for _, tc := range []struct {
+		name      string
+		dualStack bool
+	}{
+		{"single-stack", false},
+		{"dual-stack", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pcf, store, upf, amfCb := defaultFakes()
+			s := newTestSMF(pcf, store, upf, amfCb)
+
+			smCtx := s.NewSession(testSUPI(), 1, testDNN, testSnssai)
+			smCtx.Tunnel = &smf.UPTunnel{
+				DataPath: &smf.DataPath{
+					UpLinkTunnel:   &smf.GTPTunnel{},
+					DownLinkTunnel: &smf.GTPTunnel{},
+				},
+			}
+
+			if tc.dualStack {
+				smCtx.PDUIPV4Address = net.ParseIP("10.0.0.1")
+				smCtx.PDUIPV6Prefix = net.ParseIP("2001:db8:1::")
+			}
+
+			if err := smCtx.Tunnel.DataPath.ActivateTunnelAndPDR(s, smCtx, policy, netip.MustParseAddr("10.0.0.1")); err != nil {
+				t.Fatalf("activate: %v", err)
+			}
+
+			dp := smCtx.Tunnel.DataPath
+
+			if got := dp.UpLinkTunnel.PDR.PDRID; got != 1 {
+				t.Errorf("uplink PDR ID = %d, want 1", got)
+			}
+
+			if got := dp.UpLinkTunnel.PDR.FAR.FARID; got != 1 {
+				t.Errorf("uplink FAR ID = %d, want 1", got)
+			}
+
+			if got := dp.DownLinkTunnel.PDR.PDRID; got != 2 {
+				t.Errorf("downlink PDR ID = %d, want 2", got)
+			}
+
+			if got := dp.DownLinkTunnel.PDR.FAR.FARID; got != 2 {
+				t.Errorf("downlink FAR ID = %d, want 2", got)
+			}
+
+			if got := dp.UpLinkTunnel.PDR.QER.QERID; got != 1 {
+				t.Errorf("QER ID = %d, want 1", got)
+			}
+
+			if got := dp.UpLinkTunnel.PDR.URR.URRID; got != 1 {
+				t.Errorf("uplink URR ID = %d, want 1", got)
+			}
+
+			if got := dp.DownLinkTunnel.PDR.URR.URRID; got != 2 {
+				t.Errorf("downlink URR ID = %d, want 2", got)
+			}
+
+			if tc.dualStack {
+				if dp.SecondPDR == nil {
+					t.Fatal("expected second PDR for dual-stack session")
+				}
+
+				if got := dp.SecondPDR.PDRID; got != 3 {
+					t.Errorf("second PDR ID = %d, want 3", got)
+				}
+
+				if dp.SecondPDR.FAR != dp.DownLinkTunnel.PDR.FAR {
+					t.Error("second PDR should share the downlink FAR")
+				}
+			}
+		})
 	}
 }
 

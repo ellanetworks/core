@@ -12,14 +12,12 @@ import (
 type PDRCreationContext struct {
 	Session              *Session
 	FteIDResourceManager *FteIDResourceManager
-	TEIDCache            map[uint8]uint32
 }
 
 func NewPDRCreationContext(session *Session, resourceManager *FteIDResourceManager) *PDRCreationContext {
 	return &PDRCreationContext{
 		Session:              session,
 		FteIDResourceManager: resourceManager,
-		TEIDCache:            make(map[uint8]uint32),
 	}
 }
 
@@ -28,23 +26,17 @@ func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects *e
 		if err := bpfObjects.DeletePdrDownlink(spdrInfo.UEIP); err != nil {
 			return fmt.Errorf("can't delete downlink PDR: %s", err.Error())
 		}
-	} else {
-		_, ok := pdrContext.TEIDCache[uint8(spdrInfo.TeID)]
-		if !ok {
-			err := bpfObjects.DeletePdrUplink(spdrInfo.TeID)
-			if err != nil {
-				return fmt.Errorf("can't delete GTP PDR: %s", err.Error())
-			}
-
-			pdrContext.TEIDCache[uint8(spdrInfo.TeID)] = 0
+	} else if spdrInfo.TeID != 0 {
+		if err := bpfObjects.DeletePdrUplink(spdrInfo.TeID); err != nil {
+			return fmt.Errorf("can't delete GTP PDR: %s", err.Error())
 		}
 	}
 
 	if spdrInfo.TeID != 0 {
-		pdrContext.FteIDResourceManager.ReleaseTEID(pdrContext.Session.SEID)
+		pdrContext.FteIDResourceManager.ReleaseTEID(pdrContext.Session.SEID, spdrInfo.TeID)
 	}
 
-	if err := bpfObjects.DeleteUrr(spdrInfo.PdrInfo.UrrID); err != nil {
+	if err := bpfObjects.DeleteUrr(pdrContext.Session.SEID, spdrInfo.PdrInfo.UrrID); err != nil {
 		return fmt.Errorf("could not delete URR %d: %s", spdrInfo.PdrInfo.UrrID, err)
 	}
 

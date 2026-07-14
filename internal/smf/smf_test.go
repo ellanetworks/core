@@ -532,23 +532,17 @@ func TestAllocateLocalSEID_Increments(t *testing.T) {
 	}
 }
 
-// --- PDR/FAR/QER/URR Allocation Tests ---
+// --- PDR/FAR/QER/URR Construction Tests ---
 
-func TestNewPDR_AllocatesIDAndFAR(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
+func TestNewPDR_BuildsPDRWithFAR(t *testing.T) {
+	pdr := smf.NewPDR(1, 1)
 
-	pdr, err := s.NewPDR()
-	if err != nil {
-		t.Fatalf("NewPDR failed: %v", err)
+	if pdr.PDRID != 1 {
+		t.Fatalf("expected PDR ID 1, got %d", pdr.PDRID)
 	}
 
-	if pdr.PDRID == 0 {
-		t.Fatal("expected non-zero PDR ID")
-	}
-
-	if pdr.FAR == nil {
-		t.Fatal("expected non-nil FAR")
+	if pdr.FAR == nil || pdr.FAR.FARID != 1 {
+		t.Fatal("expected FAR with ID 1")
 	}
 
 	if !pdr.FAR.ApplyAction.Drop {
@@ -556,29 +550,7 @@ func TestNewPDR_AllocatesIDAndFAR(t *testing.T) {
 	}
 }
 
-func TestNewPDR_UniqueIDs(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	pdr1, err := s.NewPDR()
-	if err != nil {
-		t.Fatalf("NewPDR 1 failed: %v", err)
-	}
-
-	pdr2, err := s.NewPDR()
-	if err != nil {
-		t.Fatalf("NewPDR 2 failed: %v", err)
-	}
-
-	if pdr1.PDRID == pdr2.PDRID {
-		t.Fatal("PDR IDs should be unique")
-	}
-}
-
 func TestNewQER_SetsPolicy(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
 	policy := &smf.Policy{
 		Ambr: models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
 		QosData: models.QosData{
@@ -588,10 +560,7 @@ func TestNewQER_SetsPolicy(t *testing.T) {
 		},
 	}
 
-	qer, err := s.NewQER(policy)
-	if err != nil {
-		t.Fatalf("NewQER failed: %v", err)
-	}
+	qer := smf.NewQER(policy, 1)
 
 	if qer.QFI != 5 {
 		t.Fatalf("expected QFI 5, got %d", qer.QFI)
@@ -607,39 +576,6 @@ func TestNewQER_SetsPolicy(t *testing.T) {
 
 	if qer.GateStatus.ULGate != models.GateOpen || qer.GateStatus.DLGate != models.GateOpen {
 		t.Fatal("expected gates to be open")
-	}
-}
-
-func TestNewURR_DefaultConfig(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	urr, err := s.NewURR()
-	if err != nil {
-		t.Fatalf("NewURR failed: %v", err)
-	}
-
-	if urr.URRID == 0 {
-		t.Fatal("expected non-zero URR ID")
-	}
-}
-
-func TestRemovePDR_FreesID(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	pdr1, _ := s.NewPDR()
-	s.RemovePDR(pdr1)
-	s.RemoveFAR(pdr1.FAR)
-
-	// After freeing, allocation should still succeed (no error / no exhaustion).
-	pdr2, err := s.NewPDR()
-	if err != nil {
-		t.Fatalf("allocation after free failed: %v", err)
-	}
-
-	if pdr2.PDRID == 0 {
-		t.Fatal("expected non-zero PDR ID")
 	}
 }
 

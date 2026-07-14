@@ -7,8 +7,6 @@
 package smf
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/internal/models"
 )
 
@@ -211,45 +209,43 @@ type URR struct {
 	URRID uint32
 }
 
-// NewPDR allocates a PDR with an associated FAR.
-func (s *SMF) NewPDR() (*PDR, error) {
-	pdrID, err := s.pdrIDs.Allocate()
-	if err != nil {
-		return nil, fmt.Errorf("could not allocate PDR ID: %v", err)
-	}
+// PFCP rule IDs are scoped to their PFCP session (TS 29.244 §5.2), and the UPF
+// datapath keys every rule by SEID, so each session reuses the same fixed set.
+// Fixed IDs need no cross-session allocator, which is why no rule ID can leak or
+// be double-freed.
+const (
+	pdrIDUplink   uint16 = 1
+	pdrIDDownlink uint16 = 2
+	pdrIDSecond   uint16 = 3
 
-	far, err := s.NewFAR()
-	if err != nil {
-		return nil, err
-	}
+	farIDUplink   uint32 = 1
+	farIDDownlink uint32 = 2
 
+	qerIDDefault uint32 = 1
+
+	urrIDUplink   uint32 = 1
+	urrIDDownlink uint32 = 2
+)
+
+// NewPDR builds a PDR with its associated FAR.
+func NewPDR(pdrID uint16, farID uint32) *PDR {
 	return &PDR{
-		PDRID: uint16(pdrID),
-		FAR:   far,
-	}, nil
+		PDRID: pdrID,
+		FAR:   newFAR(farID),
+	}
 }
 
-// NewFAR allocates a FAR defaulting to drop.
-func (s *SMF) NewFAR() (*FAR, error) {
-	farID, err := s.farIDs.Allocate()
-	if err != nil {
-		return nil, fmt.Errorf("could not allocate FAR ID: %v", err)
-	}
-
+// newFAR builds a FAR defaulting to drop.
+func newFAR(farID uint32) *FAR {
 	return &FAR{
-		FARID:       uint32(farID),
+		FARID:       farID,
 		ApplyAction: models.ApplyAction{Drop: true},
-	}, nil
+	}
 }
 
-func (s *SMF) NewQER(policy *Policy) (*QER, error) {
-	qerID, err := s.qerIDs.Allocate()
-	if err != nil {
-		return nil, fmt.Errorf("could not allocate QER ID: %v", err)
-	}
-
+func NewQER(policy *Policy, qerID uint32) *QER {
 	return &QER{
-		QERID: uint32(qerID),
+		QERID: qerID,
 		QFI:   policy.QosData.QFI,
 		GateStatus: &models.GateStatus{
 			ULGate: models.GateOpen,
@@ -259,32 +255,11 @@ func (s *SMF) NewQER(policy *Policy) (*QER, error) {
 			ULMBR: bitRateTokbps(policy.Ambr.Uplink),
 			DLMBR: bitRateTokbps(policy.Ambr.Downlink),
 		},
-	}, nil
-}
-
-func (s *SMF) NewURR() (*URR, error) {
-	urrID, err := s.urrIDs.Allocate()
-	if err != nil {
-		return nil, fmt.Errorf("could not allocate URR ID: %v", err)
 	}
+}
 
+func newURR(urrID uint32) *URR {
 	return &URR{
-		URRID: uint32(urrID),
-	}, nil
-}
-
-func (s *SMF) RemovePDR(pdr *PDR) {
-	s.pdrIDs.FreeID(int64(pdr.PDRID))
-}
-
-func (s *SMF) RemoveFAR(far *FAR) {
-	s.farIDs.FreeID(int64(far.FARID))
-}
-
-func (s *SMF) RemoveQER(qer *QER) {
-	s.qerIDs.FreeID(int64(qer.QERID))
-}
-
-func (s *SMF) RemoveURR(urr *URR) {
-	s.urrIDs.FreeID(int64(urr.URRID))
+		URRID: urrID,
+	}
 }

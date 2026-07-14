@@ -693,6 +693,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			logger.EllaLog.Error("BGP service shutdown error", zap.Error(err))
 		}
 
+		// 4c. Stop the UPF settings reconciler before closing the UPF, so no
+		// ReloadNAT/ReloadFlowAccounting runs against closed BPF objects/links.
+		logger.EllaLog.Info("Shutting down UPF settings reconciler")
+		upfReconciler.Stop()
+
 		// 5. Stop UPF — this flushes remaining flow reports to SMF.
 		logger.EllaLog.Info("Shutting down UPF")
 
