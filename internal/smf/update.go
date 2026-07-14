@@ -160,7 +160,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		return nil, nil
 
 	case nas.MsgTypeStatus5GSM:
-		s.handle5GSMStatus(ctx, smContext, pti, m.Status5GSM.Cause5GSM.GetCauseValue())
+		s.handle5GSMStatus(ctx, smContext, pti, m.Status5GSM.GetCauseValue())
 
 		return nil, nil
 
