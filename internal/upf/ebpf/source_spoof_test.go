@@ -10,13 +10,6 @@ import (
 	"testing"
 )
 
-// spoofUEv4 / spoofUEv6Prefix are the authorized UE source addresses used by the
-// anti-spoofing tests: an IPv4 /32 and an IPv6 /64.
-var (
-	spoofUEv4       = netip.AddrFrom4([4]byte{10, 0, 0, 9})
-	spoofUEv6Prefix = netip.MustParseAddr("2001:db8::")
-)
-
 // putUplinkPDRSourceCheck installs an uplink decap PDR carrying the given
 // authorized UE source addresses. A zero netip.Addr leaves that family unset
 // (fail closed).
@@ -44,9 +37,9 @@ func TestUplinkSourceOwnIPv4Accepted(t *testing.T) {
 	const teid = 0x5A010001
 
 	obj := loadN3N6Program(t)
-	putUplinkPDRSourceCheck(t, obj, teid, spoofUEv4, spoofUEv6Prefix)
+	putUplinkPDRSourceCheck(t, obj, teid, canonicalUEv4, canonicalUEv6Prefix)
 
-	inner := ipv4Packet(spoofUEv4.As4(), [4]byte{8, 8, 8, 8}, 17, udpDatagram(4000, 53, nil))
+	inner := ipv4Packet(canonicalUEv4.As4(), [4]byte{8, 8, 8, 8}, 17, udpDatagram(4000, 53, nil))
 
 	action, _ := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
@@ -67,7 +60,7 @@ func TestUplinkSourceSpoofedIPv4Dropped(t *testing.T) {
 	const teid = 0x5A010002
 
 	obj := loadN3N6Program(t)
-	putUplinkPDRSourceCheck(t, obj, teid, spoofUEv4, spoofUEv6Prefix)
+	putUplinkPDRSourceCheck(t, obj, teid, canonicalUEv4, canonicalUEv6Prefix)
 
 	// Source belongs to another subscriber, not this session's UE.
 	inner := ipv4Packet([4]byte{10, 0, 0, 99}, [4]byte{8, 8, 8, 8}, 17, udpDatagram(4000, 53, nil))
@@ -92,7 +85,7 @@ func TestUplinkSourceOwnIPv6DifferentIIDAccepted(t *testing.T) {
 	const teid = 0x5A010003
 
 	obj := loadN3N6Program(t)
-	putUplinkPDRSourceCheck(t, obj, teid, spoofUEv4, spoofUEv6Prefix)
+	putUplinkPDRSourceCheck(t, obj, teid, canonicalUEv4, canonicalUEv6Prefix)
 
 	src := netip.MustParseAddr("2001:db8::dead:beef").As16() // same /64, different IID
 	inner := ipv6Packet(src, netip.MustParseAddr("2001:4860:4860::8888").As16(), 17, udpDatagram(4000, 53, nil))
@@ -116,7 +109,7 @@ func TestUplinkSourceSpoofedIPv6Dropped(t *testing.T) {
 	const teid = 0x5A010004
 
 	obj := loadN3N6Program(t)
-	putUplinkPDRSourceCheck(t, obj, teid, spoofUEv4, spoofUEv6Prefix)
+	putUplinkPDRSourceCheck(t, obj, teid, canonicalUEv4, canonicalUEv6Prefix)
 
 	src := netip.MustParseAddr("2001:dead::9").As16() // different /64
 	inner := ipv6Packet(src, netip.MustParseAddr("2001:4860:4860::8888").As16(), 17, udpDatagram(4000, 53, nil))
@@ -141,10 +134,10 @@ func TestUplinkSourceFramedAccepted(t *testing.T) {
 	const teid = 0x5A010005
 
 	obj := loadN3N6Program(t)
-	putUplinkPDRSourceCheck(t, obj, teid, spoofUEv4, spoofUEv6Prefix)
+	putUplinkPDRSourceCheck(t, obj, teid, canonicalUEv4, canonicalUEv6Prefix)
 
 	// The framed route is owned by this session's UE (same value as ue_ipv4).
-	if err := obj.PutFramedDownlink(netip.MustParsePrefix("192.168.50.0/24"), spoofUEv4); err != nil {
+	if err := obj.PutFramedDownlink(netip.MustParsePrefix("192.168.50.0/24"), canonicalUEv4); err != nil {
 		t.Fatalf("install framed route: %v", err)
 	}
 
@@ -161,6 +154,65 @@ func TestUplinkSourceFramedAccepted(t *testing.T) {
 	}
 }
 
+// TestUplinkSourceFramedIPv6Accepted checks that an uplink packet sourced from
+// an IPv6 framed prefix owned by this session is accepted via the framed LPM
+// table (TS 29.244 §5.16).
+func TestUplinkSourceFramedIPv6Accepted(t *testing.T) {
+	requireProgTestRun(t)
+
+	const teid = 0x5A01000A
+
+	obj := loadN3N6Program(t)
+	putUplinkPDRSourceCheck(t, obj, teid, canonicalUEv4, canonicalUEv6Prefix)
+
+	if err := obj.PutFramedDownlink(netip.MustParsePrefix("fd00:beef::/48"), canonicalUEv6Prefix); err != nil {
+		t.Fatalf("install framed route: %v", err)
+	}
+
+	src := netip.MustParseAddr("fd00:beef::5").As16()
+	inner := ipv6Packet(src, netip.MustParseAddr("2001:4860:4860::8888").As16(), 17, udpDatagram(4000, 53, nil))
+
+	action, _ := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
+
+	if action == XDP_DROP {
+		t.Fatal("IPv6 framed-subnet source was dropped")
+	}
+
+	if got := GetN3SourceSpoofDropIPv6(obj); got != 0 {
+		t.Errorf("source_spoof_drop_ip6 = %d, want 0", got)
+	}
+}
+
+// TestUplinkSourceFramedRejectedOtherSession checks that a framed prefix owned by
+// a different session's UE is NOT authorized — the ownership compare is what
+// makes the framed lookup a security check rather than a blanket bypass.
+func TestUplinkSourceFramedRejectedOtherSession(t *testing.T) {
+	requireProgTestRun(t)
+
+	const teid = 0x5A01000B
+
+	obj := loadN3N6Program(t)
+	putUplinkPDRSourceCheck(t, obj, teid, canonicalUEv4, canonicalUEv6Prefix)
+
+	// The framed route belongs to a different UE, not this session.
+	otherUE := netip.AddrFrom4([4]byte{10, 0, 0, 200})
+	if err := obj.PutFramedDownlink(netip.MustParsePrefix("192.168.60.0/24"), otherUE); err != nil {
+		t.Fatalf("install framed route: %v", err)
+	}
+
+	inner := ipv4Packet([4]byte{192, 168, 60, 5}, [4]byte{8, 8, 8, 8}, 17, udpDatagram(4000, 53, nil))
+
+	action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
+
+	if action != XDP_DROP {
+		t.Fatalf("framed prefix owned by another session got action %d, want XDP_DROP (%d)", action, XDP_DROP)
+	}
+
+	if got := GetN3SourceSpoofDropIPv4(obj); got != 1 {
+		t.Errorf("source_spoof_drop_ip4 = %d, want 1", got)
+	}
+}
+
 // TestUplinkSourceLinkLocalDropped checks that a non-RS uplink packet with an
 // IPv6 link-local source is dropped (RS is intercepted before this check).
 func TestUplinkSourceLinkLocalDropped(t *testing.T) {
@@ -169,7 +221,7 @@ func TestUplinkSourceLinkLocalDropped(t *testing.T) {
 	const teid = 0x5A010006
 
 	obj := loadN3N6Program(t)
-	putUplinkPDRSourceCheck(t, obj, teid, spoofUEv4, spoofUEv6Prefix)
+	putUplinkPDRSourceCheck(t, obj, teid, canonicalUEv4, canonicalUEv6Prefix)
 
 	src := netip.MustParseAddr("fe80::1").As16()
 	inner := ipv6Packet(src, netip.MustParseAddr("2001:4860:4860::8888").As16(), 17, udpDatagram(4000, 53, nil))
@@ -194,7 +246,7 @@ func TestUplinkSourceFailClosedMissingFamily(t *testing.T) {
 		const teid = 0x5A010007
 
 		obj := loadN3N6Program(t)
-		putUplinkPDRSourceCheck(t, obj, teid, spoofUEv4, netip.Addr{}) // no IPv6
+		putUplinkPDRSourceCheck(t, obj, teid, canonicalUEv4, netip.Addr{}) // no IPv6
 
 		src := netip.MustParseAddr("2001:db8::9").As16()
 		inner := ipv6Packet(src, netip.MustParseAddr("2001:4860:4860::8888").As16(), 17, udpDatagram(4000, 53, nil))
@@ -212,9 +264,9 @@ func TestUplinkSourceFailClosedMissingFamily(t *testing.T) {
 		const teid = 0x5A010008
 
 		obj := loadN3N6Program(t)
-		putUplinkPDRSourceCheck(t, obj, teid, netip.Addr{}, spoofUEv6Prefix) // no IPv4
+		putUplinkPDRSourceCheck(t, obj, teid, netip.Addr{}, canonicalUEv6Prefix) // no IPv4
 
-		inner := ipv4Packet(spoofUEv4.As4(), [4]byte{8, 8, 8, 8}, 17, udpDatagram(4000, 53, nil))
+		inner := ipv4Packet(canonicalUEv4.As4(), [4]byte{8, 8, 8, 8}, 17, udpDatagram(4000, 53, nil))
 
 		if action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner)); action != XDP_DROP {
 			t.Fatalf("IPv4 uplink on IPv6-only session got action %d, want XDP_DROP", action)
@@ -235,7 +287,7 @@ func TestUplinkSpoofDropNoFlowEntry(t *testing.T) {
 	const teid = 0x5A010009
 
 	obj := loadProgramConfig(t, true /* flowAccounting */, false, 0, 1, 0, 0)
-	putUplinkPDRSourceCheck(t, obj, teid, spoofUEv4, spoofUEv6Prefix)
+	putUplinkPDRSourceCheck(t, obj, teid, canonicalUEv4, canonicalUEv6Prefix)
 
 	inner := ipv4Packet([4]byte{10, 0, 0, 99}, [4]byte{8, 8, 8, 8}, 17, udpDatagram(4000, 53, nil))
 

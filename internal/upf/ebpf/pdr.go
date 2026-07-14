@@ -333,11 +333,11 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) N3N6EntrypointPdrInfo {
 
 	pdrToStore.FilterMapIndex = defaultPdr.FilterMapIndex
 
-	if defaultPdr.UEIPv4.IsValid() {
+	if defaultPdr.UEIPv4.Is4() {
 		pdrToStore.UeIpv4.In6U.U6Addr8 = IPToIn6Addr(defaultPdr.UEIPv4)
 	}
 
-	if defaultPdr.UEIPv6Prefix.IsValid() {
+	if defaultPdr.UEIPv6Prefix.Is6() {
 		pdrToStore.UeIpv6.In6U.U6Addr8 = IPToIn6Addr(defaultPdr.UEIPv6Prefix)
 	}
 

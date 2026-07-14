@@ -5,6 +5,7 @@ package engine
 import (
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
@@ -17,10 +18,15 @@ func applyPDR(spdrInfo SPDRInfo, sess *Session, bpfObjects *ebpf.BpfObjects) err
 		return nil
 	}
 
-	// Uplink PDR: stamp the session's authorized source addresses so the
-	// datapath can validate the inner source (anti-spoofing). applyPDR is the
-	// sole writer of pdrs_uplink, so stamping here covers every apply path.
-	spdrInfo.PdrInfo.UEIPv4, spdrInfo.PdrInfo.UEIPv6Prefix = sess.UEAddresses()
+	// applyPDR is the sole writer of pdrs_uplink, so stamping the session's
+	// authorized source here covers every apply path (anti-spoofing).
+	v4, v6 := sess.UEAddresses()
+	if !v4.IsValid() && !v6.IsValid() {
+		logger.UpfLog.Warn("uplink PDR has no UE source address; uplink will be dropped (fail closed)",
+			logger.SEID(sess.SEID), logger.TEID(spdrInfo.TeID))
+	}
+
+	spdrInfo.PdrInfo.UEIPv4, spdrInfo.PdrInfo.UEIPv6Prefix = v4, v6
 
 	if err := bpfObjects.PutPdrUplink(spdrInfo.TeID, spdrInfo.PdrInfo); err != nil {
 		return fmt.Errorf("can't apply GTP PDR: %w", err)

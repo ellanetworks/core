@@ -17,20 +17,9 @@ const (
 )
 
 func getUpfN3XdpStatisticField(bpfObjects *BpfObjects, field uint32) uint64 {
-	var statistics []N3N6EntrypointUpfStatistic
-
-	err := bpfObjects.UplinkStatistics.Lookup(uint32(0), &statistics)
-	if err != nil {
-		logger.UpfLog.Warn("failed to fetch UPF N3 stats", zap.Error(err))
-		return 0
-	}
-
-	var totalValue uint64
-	for _, statistic := range statistics {
-		totalValue += statistic.XdpActions[field]
-	}
-
-	return totalValue
+	return sumUplinkStatField(bpfObjects, func(s N3N6EntrypointUpfStatistic) uint64 {
+		return s.XdpActions[field]
+	})
 }
 
 func getUpfN6XdpStatisticField(bpfObjects *BpfObjects, field uint32) uint64 {

@@ -43,12 +43,14 @@ struct {
 } uplink_statistics SEC(".maps");
 
 /*
- * source_allowed validates the decapped inner source address against the
- * session's authorized set: the UE address (IPv4 /32, IPv6 /64) or a framed
- * prefix owned by the same session. Fail closed: a family with no configured UE
- * address is rejected. IPv6 link-local (fe80::/10) and unspecified (::) sources
- * are rejected here; RS is intercepted before this runs. IPv4 and IPv6 are kept
- * on separate return paths so the verifier does not merge ip4/ip6 pointer state.
+ * Validate the decapped inner source against the session's authorized set (UE
+ * address, or a framed prefix owned by the same session); fails closed per
+ * family. Unspecified (::) and other non-UE sources fall through to the final
+ * reject. The fe80::/10 rejection is load-bearing: only RS is intercepted ahead
+ * of this, so any future NS/NA proxy or stateless DHCPv6 (TS 29.061 §11.2.1.3,
+ * TS 29.561 §10.2.4 — both link-local sourced) must intercept before this runs.
+ * IPv4 and IPv6 stay on separate return paths so the verifier does not merge
+ * ip4/ip6 pointer state.
  */
 static __always_inline bool source_allowed(struct packet_context *ctx,
 					   const struct pdr_info *pdr)
@@ -84,7 +86,9 @@ static __always_inline bool source_allowed(struct packet_context *ctx,
 		fk.addr = *src;
 		struct in6_addr *owner =
 			bpf_map_lookup_elem(&framed_downlink_ip6, &fk);
-		return owner && match_ipv6_prefix(owner, 128, &pdr->ue_ipv6) == 1;
+		/* owner is a downlink-PDR key and therefore a /64 by construction;
+		 * compare at /64 so a full UE address in ue_ipv6 still matches. */
+		return owner && match_ipv6_prefix(owner, 64, &pdr->ue_ipv6) == 1;
 	}
 
 	return false;
@@ -272,17 +276,15 @@ handle_gtp_packet(struct packet_context *ctx)
 			}
 		}
 
-		/* Uplink source validation (anti-spoofing): drop packets whose
-		 * inner source is outside the session's authorized set. Runs after
-		 * RS interception so Router Solicitations still reach Go, and only
-		 * on the decap path so re-encapsulated (GTP-forward) traffic, whose
-		 * inner packet is not exposed, is unaffected. */
+		/* Placed after RS interception (so RS still reaches Go) and inside
+		 * the decap branch (re-encapsulated GTP-forward traffic exposes no
+		 * inner packet); both are load-bearing. */
 		if (!source_allowed(ctx, pdr)) {
 			upf_printk("upf: uplink source spoof drop teid:%d",
 				   teid);
 			if (ctx->ip4)
 				ctx->statistics->source_spoof_drop_ip4 += 1;
-			else
+			else if (ctx->ip6)
 				ctx->statistics->source_spoof_drop_ip6 += 1;
 			PROFILE_END(PROF_N3_GTP_MANIP);
 			return XDP_DROP;
