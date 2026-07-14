@@ -4,14 +4,11 @@
 package ue
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/lmf/lpp"
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 	"github.com/free5gc/aper"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
 )
 
 // LPPCapabilitiesResponseOpts contains the parameters for building the UE's
@@ -74,29 +71,4 @@ func DecodeLPPMessage(data []byte) (transactionID byte, bodyKind int, err error)
 	}
 
 	return decoded.TransactionID, decoded.BodyKind, nil
-}
-
-// BuildDLNASTransportLPP wraps LPP payload bytes in a DL NAS Transport message
-// with payload container type set to LPP.
-func BuildDLNASTransportLPP(lppPayload []byte) ([]byte, error) {
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeDLNASTransport)
-
-	dlNasTransport := nasMessage.NewDLNASTransport(0)
-	dlNasTransport.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	dlNasTransport.SetMessageType(nas.MsgTypeDLNASTransport)
-	dlNasTransport.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	dlNasTransport.SetPayloadContainerType(nasMessage.PayloadContainerTypeLPP)
-	dlNasTransport.PayloadContainer.SetLen(uint16(len(lppPayload)))
-	dlNasTransport.SetPayloadContainerContents(lppPayload)
-
-	m.DLNASTransport = dlNasTransport
-
-	data := new(bytes.Buffer)
-	if err := m.GmmMessageEncode(data); err != nil {
-		return nil, err
-	}
-
-	return data.Bytes(), nil
 }

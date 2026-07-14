@@ -10,7 +10,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/openapi/models"
 	"go.uber.org/zap"
 )
 
@@ -95,7 +94,7 @@ func handleLPPCapabilitiesRequest(ue *UE, transactionID byte, amfUENGAPID int64,
 		return fmt.Errorf("build LPP capabilities response: %w", err)
 	}
 
-	capNasPdu, err := BuildUplinkNasTransportLPP(capPayload, amfUENGAPID, ranUENGAPID, "", models.Snssai{})
+	capNasPdu, err := BuildUplinkNasTransportLPP(capPayload)
 	if err != nil {
 		return fmt.Errorf("build UL NAS Transport for LPP capabilities: %w", err)
 	}
@@ -139,7 +138,7 @@ func handleLPPLocationRequest(ue *UE, transactionID byte, amfUENGAPID int64, ran
 		return fmt.Errorf("build LPP location response: %w", err)
 	}
 
-	locNasPdu, err := BuildUplinkNasTransportLPP(locPayload, amfUENGAPID, ranUENGAPID, "", models.Snssai{})
+	locNasPdu, err := BuildUplinkNasTransportLPP(locPayload)
 	if err != nil {
 		return fmt.Errorf("build UL NAS Transport for LPP location: %w", err)
 	}

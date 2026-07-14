@@ -817,33 +817,3 @@ func (ue *UE) SendPDUSessionEstablishmentRequest(amfUENGAPID int64, ranUENGAPID 
 
 	return nil
 }
-
-// WaitForLPPRequest blocks until an LPP RequestLocationInformation is received,
-// or returns a timeout error. The request is removed from the queue after
-// being returned so it is not returned again.
-func (ue *UE) WaitForLPPRequest(timeout time.Duration) (*LPPRequest, error) {
-	deadline := time.Now().Add(timeout)
-
-	timer := time.AfterFunc(timeout, func() {
-		ue.cond.Broadcast()
-	})
-	defer timer.Stop()
-
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	for {
-		if len(ue.lppRequests) > 0 {
-			req := ue.lppRequests[0]
-			ue.lppRequests = ue.lppRequests[1:]
-
-			return req, nil
-		}
-
-		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("timeout waiting for LPP request")
-		}
-
-		ue.cond.Wait()
-	}
-}
