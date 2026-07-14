@@ -82,6 +82,9 @@ type SMContext struct {
 	// COMPLETE (TS 24.501 §6.3.2.2); a reject or T3591 abort discards it, keeping the
 	// previous configuration (§6.3.2.5). Guarded by Mutex.
 	pendingPolicy *Policy
+
+	releasing        bool  // guarded by Mutex
+	establishmentPTI uint8 // PTI of the Establishment Accept, 0 until sent; guarded by Mutex
 }
 
 // stopProcedureTimer stops the retransmission guard; safe to call when none is

@@ -59,6 +59,21 @@ func (m *MME) ReleasePDN(ctx context.Context, ue *UeContext, p *PdnConnection) {
 	ue.mu.Unlock()
 }
 
+// DeactivatePDN completes p's teardown in the MME: an additional PDN or a
+// disconnect releases only that connection and leaves the UE connected;
+// deactivating the default bearer releases the UE context so the UE re-attaches
+// (TS 24.301 §6.4.4).
+func (m *MME) DeactivatePDN(ctx context.Context, ue *UeContext, p *PdnConnection) {
+	if ue.BearerReleaseOnly(p) {
+		m.ReleasePDN(ctx, ue, p)
+		return
+	}
+
+	ue.TransitionTo(EMMDeregistered)
+	m.ReleaseAllSessions(ctx, ue)
+	m.ReleaseUEContext(ctx, ue, CauseNASNormalRelease)
+}
+
 // ReleaseAllSessions releases every PDN connection's anchor session and clears
 // them from the UE.
 func (m *MME) ReleaseAllSessions(ctx context.Context, ue *UeContext) {

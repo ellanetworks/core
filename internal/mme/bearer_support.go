@@ -105,9 +105,9 @@ func (ue *UeContext) BearerReleaseOnly(p *PdnConnection) bool {
 	return p.Ebi != ue.DefaultEBI || p.Disconnecting
 }
 
-func (ue *UeContext) ClearDeactivating(p *PdnConnection) {
+func (ue *UeContext) BearerDeactivating(p *PdnConnection) bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	p.Deactivating = false
+	return p.Deactivating
 }
