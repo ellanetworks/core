@@ -131,6 +131,11 @@ func (a *smfDBAdapter) ReleaseIP(ctx context.Context, imsi string, dnn string, p
 
 	lease, err := a.db.GetLeaseBySession(ctx, pool.ID, pool.IPVersion, int(pduSessionID), imsi)
 	if err != nil {
+		// Reservation deleted while bound: nothing left to free.
+		if errors.Is(err, db.ErrNotFound) {
+			return netip.Addr{}, nil
+		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "lookup failed")
 
@@ -217,6 +222,11 @@ func (a *smfDBAdapter) ReleaseIPv6(ctx context.Context, imsi string, dnn string,
 
 	lease, err := a.db.GetLeaseBySession(ctx, pool.ID, pool.IPVersion, int(pduSessionID), imsi)
 	if err != nil {
+		// Reservation deleted while bound: nothing left to free.
+		if errors.Is(err, db.ErrNotFound) {
+			return netip.Addr{}, nil
+		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "lookup failed")
 
@@ -357,6 +367,36 @@ func (a *smfDBAdapter) ListFramedRoutes(ctx context.Context, imsi string, dnn st
 	}
 
 	return prefixes, nil
+}
+
+// GetStaticIP returns the reserved static address for the DNN and family, and
+// whether one exists (a missing reservation is not an error).
+func (a *smfDBAdapter) GetStaticIP(ctx context.Context, imsi string, dnn string, ipv6 bool) (netip.Addr, bool, error) {
+	var (
+		pool ipam.Pool
+		err  error
+	)
+
+	if ipv6 {
+		pool, err = a.resolveIPv6PoolByDNN(ctx, dnn)
+	} else {
+		pool, err = a.resolvePoolByDNN(ctx, dnn)
+	}
+
+	if err != nil {
+		return netip.Addr{}, false, fmt.Errorf("resolve pool: %w", err)
+	}
+
+	lease, err := a.db.GetStaticLease(ctx, pool.ID, pool.IPVersion, imsi)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return netip.Addr{}, false, nil
+		}
+
+		return netip.Addr{}, false, fmt.Errorf("get static lease: %w", err)
+	}
+
+	return lease.Address(), true, nil
 }
 
 // ---------------------------------------------------------------------------

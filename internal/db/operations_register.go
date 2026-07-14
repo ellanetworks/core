@@ -37,9 +37,9 @@ var (
 	// AllocateIPv6Lease is the same for IPv6 /64 prefix delegation.
 	opAllocateIPv6Lease = registerChangesetOpReturning[allocateIPLeasePayload, string]("AllocateIPv6Lease", (*Database).applyAllocateIPLease, RequireSchema(12), AffectsTopic(TopicIPLeases))
 	// Static ops read/write ip_leases.poolType, added in v13.
-	opCreateStaticLease        = registerChangesetOp("CreateStaticLease", (*Database).applyCreateStaticLease, RequireSchema(13), AffectsTopic(TopicIPLeases))
-	opUpdateStaticLeaseAddress = registerChangesetOp("UpdateStaticLeaseAddress", (*Database).applyUpdateStaticLeaseAddress, RequireSchema(13), AffectsTopic(TopicIPLeases))
-	opDeleteStaticLease        = registerChangesetOp("DeleteStaticLease", (*Database).applyDeleteStaticLease, RequireSchema(13), AffectsTopic(TopicIPLeases))
+	opCreateStaticLease        = registerChangesetOp("CreateStaticLease", (*Database).applyCreateStaticLease, RequireSchema(13), AffectsTopic(TopicIPLeases), AffectsTopic(TopicSessionReconcile))
+	opUpdateStaticLeaseAddress = registerChangesetOp("UpdateStaticLeaseAddress", (*Database).applyUpdateStaticLeaseAddress, RequireSchema(13), AffectsTopic(TopicIPLeases), AffectsTopic(TopicSessionReconcile))
+	opDeleteStaticLease        = registerChangesetOp("DeleteStaticLease", (*Database).applyDeleteStaticLease, RequireSchema(13), AffectsTopic(TopicIPLeases), AffectsTopic(TopicSessionReconcile))
 )
 
 // Audit logs

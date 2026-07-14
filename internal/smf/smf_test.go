@@ -33,6 +33,9 @@ type fakeStore struct {
 	allocateIPv6Err error
 	framedRoutes    []netip.Prefix
 	framedRoutesErr error
+	staticIPv4      netip.Addr
+	staticIPv6      netip.Addr
+	staticIPErr     error
 }
 
 type fakePCF struct {
@@ -92,6 +95,22 @@ func (f *fakeStore) ListFramedRoutes(_ context.Context, _ string, _ string) ([]n
 	defer f.mu.Unlock()
 
 	return f.framedRoutes, f.framedRoutesErr
+}
+
+func (f *fakeStore) GetStaticIP(_ context.Context, _ string, _ string, ipv6 bool) (netip.Addr, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.staticIPErr != nil {
+		return netip.Addr{}, false, f.staticIPErr
+	}
+
+	addr := f.staticIPv4
+	if ipv6 {
+		addr = f.staticIPv6
+	}
+
+	return addr, addr.IsValid(), nil
 }
 
 func (f *fakePCF) GetSessionPolicy(_ context.Context, _ string, _ *models.Snssai, _ string) (*smf.Policy, error) {

@@ -74,6 +74,10 @@ type SessionStore interface {
 
 	ListFramedRoutes(ctx context.Context, imsi string, dnn string) ([]netip.Prefix, error)
 
+	// GetStaticIP returns the reserved static address for the DNN and family
+	// (ipv6 selects the IPv6 pool), and whether one exists.
+	GetStaticIP(ctx context.Context, imsi string, dnn string, ipv6 bool) (netip.Addr, bool, error)
+
 	IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error
 
 	// InsertFlowReports persists flow measurement records in one transaction.

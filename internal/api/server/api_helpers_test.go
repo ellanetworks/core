@@ -276,6 +276,10 @@ func (f *fakeSessionStore) ListFramedRoutes(_ context.Context, _ string, _ strin
 	return nil, nil
 }
 
+func (f *fakeSessionStore) GetStaticIP(_ context.Context, _ string, _ string, _ bool) (netip.Addr, bool, error) {
+	return netip.Addr{}, false, nil
+}
+
 type fakeUPFClient struct{}
 
 func (f *fakeUPFClient) EstablishSession(ctx context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error) {
