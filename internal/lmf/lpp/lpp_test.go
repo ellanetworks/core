@@ -94,11 +94,11 @@ func TestEncodeDecodeProvideCapabilities(t *testing.T) {
 		t.Fatal("expected ProvideCapabilities to be non-nil")
 	}
 
-	if !decoded.ProvideCapabilities.GNSSCapability.GPS {
+	if !decoded.ProvideCapabilities.GNSSCapability.Supports(models.GnssIDGps) {
 		t.Error("expected GPS capability to be true")
 	}
 
-	if !decoded.ProvideCapabilities.GNSSCapability.GLO {
+	if !decoded.ProvideCapabilities.GNSSCapability.Supports(models.GnssIDGlonass) {
 		t.Error("expected GLO capability to be true")
 	}
 }
@@ -211,7 +211,7 @@ func TestParseLPPMessage(t *testing.T) {
 		t.Fatalf("expected *ProvideLocationCapabilities, got %T", msg)
 	}
 
-	if !capMsg.GNSSCapability.GPS {
+	if !capMsg.GNSSCapability.Supports(models.GnssIDGps) {
 		t.Error("expected GPS capability to be true")
 	}
 
@@ -323,7 +323,7 @@ func TestUERoundTrip(t *testing.T) {
 		t.Errorf("step 2: expected ProvideCapabilities, got %d", lmfDecoded.BodyKind)
 	}
 
-	if !lmfDecoded.ProvideCapabilities.GNSSCapability.GPS {
+	if !lmfDecoded.ProvideCapabilities.GNSSCapability.Supports(models.GnssIDGps) {
 		t.Error("step 2: expected GPS capability")
 	}
 

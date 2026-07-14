@@ -296,7 +296,6 @@ func encodeLatitude(latE7 int32) (aper.Enumerated, int64) {
 		latAbs = -latAbs
 	}
 
-	// N = lat_1e7 * latitudeResolution / maxLatitudeE7
 	encoded := latAbs * latitudeResolution / maxLatitudeE7
 	if encoded > maxDegreesLatitude {
 		encoded = maxDegreesLatitude
@@ -316,7 +315,6 @@ func encodeLatitude(latE7 int32) (aper.Enumerated, int64) {
 // offset (N + longitudeOffset) to work around an aper library bug with signed
 // INTEGERs that have a large negative lower bound.
 func encodeLongitude(lonE7 int32) int64 {
-	// N = lon_1e7 * longitudeResolution / maxLongitudeE7
 	encoded := int64(lonE7) * longitudeResolution / maxLongitudeE7
 	// Shift to unsigned range: offset = N + longitudeOffset
 	offset := encoded + longitudeOffset
@@ -353,7 +351,6 @@ func encodeAltitude(altCm int32) (aper.Enumerated, int64) {
 
 // decodeLatitude converts TS 23.032 encoded latitude back to 1e-7 degrees.
 func decodeLatitude(sign aper.Enumerated, encoded int64) int32 {
-	// lat_1e7 = N * maxLatitudeE7 / latitudeResolution
 	latE7 := encoded * maxLatitudeE7 / latitudeResolution
 	if sign == lpptype.EllipsoidPointLatitudeSignSouth {
 		return -int32(latE7)
@@ -366,7 +363,6 @@ func decodeLatitude(sign aper.Enumerated, encoded int64) int32 {
 func decodeLongitude(encoded int64) int32 {
 	// Convert unsigned offset back to signed value: N = offset - longitudeOffset
 	signed := encoded - longitudeOffset
-	// lon_1e7 = N * maxLongitudeE7 / longitudeResolution
 	return int32(signed * maxLongitudeE7 / longitudeResolution)
 }
 

@@ -107,18 +107,28 @@ func decodeProvideCapabilities(pc *lpptype.ProvideCapabilities) *models.ProvideL
 	}
 
 	for _, elem := range r9.AGNSSProvideCapabilities.GnssSupportList.List {
+		var gnssID models.GnssID
+
 		switch elem.GnssID.Value {
 		case lpptype.GnssIDGps:
-			out.GNSSCapability.GPS = true
-		case lpptype.GnssIDGlonass:
-			out.GNSSCapability.GLO = true
-		case lpptype.GnssIDGalileo:
-			out.GNSSCapability.ESAT = true
-		case lpptype.GnssIDQzss:
-			out.GNSSCapability.QZS = true
+			gnssID = models.GnssIDGps
 		case lpptype.GnssIDSbas:
-			out.GNSSCapability.SBS = true
+			gnssID = models.GnssIDSbas
+		case lpptype.GnssIDQzss:
+			gnssID = models.GnssIDQzss
+		case lpptype.GnssIDGalileo:
+			gnssID = models.GnssIDGalileo
+		case lpptype.GnssIDGlonass:
+			gnssID = models.GnssIDGlonass
+		case lpptype.GnssIDBds:
+			gnssID = models.GnssIDBds
+		case lpptype.GnssIDNavic:
+			gnssID = models.GnssIDNavic
+		default:
+			continue
 		}
+
+		out.GNSSCapability.AddSupported(gnssID)
 	}
 
 	return out

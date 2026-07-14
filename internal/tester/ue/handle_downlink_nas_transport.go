@@ -58,9 +58,22 @@ func handleLPPPayload(ue *UE, lppPayload []byte, amfUENGAPID int64, ranUENGAPID 
 		return handleLPPCapabilitiesRequest(ue, transactionID, amfUENGAPID, ranUENGAPID)
 	case lpptype.LPPMessageBodyC1PresentRequestLocationInformation:
 		return handleLPPLocationRequest(ue, transactionID, amfUENGAPID, ranUENGAPID)
-	default:
-		logger.UeLogger.Warn("Unknown/unhandled LPP message body kind in DL NAS Transport",
+	case lpptype.LPPMessageBodyC1PresentAbort:
+		logger.UeLogger.Error("Received LPP Abort message from LMF",
+			zap.Uint8("transactionID", transactionID),
 			zap.Int("bodyKind", bodyKind))
+
+		return fmt.Errorf("received LPP Abort from LMF")
+	case lpptype.LPPMessageBodyC1PresentError:
+		logger.UeLogger.Error("Received LPP Error message from LMF",
+			zap.Uint8("transactionID", transactionID),
+			zap.Int("bodyKind", bodyKind))
+
+		return fmt.Errorf("received LPP Error from LMF")
+	default:
+		logger.UeLogger.Warn("Unimplemented LPP message body kind (not an error, ignoring)",
+			zap.Int("bodyKind", bodyKind),
+			zap.Uint8("transactionID", transactionID))
 	}
 
 	return nil
