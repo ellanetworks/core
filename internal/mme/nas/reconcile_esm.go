@@ -41,6 +41,8 @@ func handleESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte)
 		return handleModifyBearerAccept(m, ue, plain)
 	case eps.MsgModifyEPSBearerContextReject:
 		return handleModifyBearerReject(m, ue, plain)
+	case eps.MsgESMStatus:
+		return handleESMStatus(ctx, m, ue, plain)
 	default:
 		// TS 24.301 §7.4: an ESM message type not implemented is answered with an ESM STATUS
 		// #97 "message type non-existent or not implemented" — the MME hosts ESM, so unlike
@@ -116,21 +118,46 @@ func handleDeactivateBearerAccept(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	m.StopESMGuard(p)
 
 	releaseOnly := ue.BearerReleaseOnly(p)
+	ue.ClearDeactivating(p)
 
 	if releaseOnly {
 		logger.From(ctx, logger.MmeLog).Info("PDN connection released", zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
-		m.ReleasePDN(ctx, ue, p)
+	} else {
+		logger.From(ctx, logger.MmeLog).Info("EPS bearer deactivated for reactivation; UE will re-attach", zap.String("imsi", ue.IMSI()))
+	}
 
+	m.DeactivatePDNLocally(ctx, ue, p)
+
+	return nasreply.Handled()
+}
+
+// handleESMStatus processes a received ESM STATUS (TS 24.301 §6.7): it aborts the
+// ongoing ESM procedure for the indicated bearer and stops its guard; ESM cause
+// #43 (invalid EPS bearer identity) also deactivates the bearer locally. A valid
+// ESM STATUS is never answered with another STATUS.
+func handleESMStatus(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+	status, err := eps.ParseESMStatus(plain)
+	if err != nil {
+		return nasreply.Silent(nasreply.ReasonTooShort)
+	}
+
+	logger.From(ctx, logger.MmeLog).Warn("received ESM STATUS",
+		zap.String("imsi", ue.IMSI()),
+		zap.Uint8("ebi", status.EPSBearerIdentity),
+		zap.Uint8("esm-cause", status.ESMCause))
+
+	p := m.LookupPDN(ue, status.EPSBearerIdentity)
+	if p == nil {
 		return nasreply.Handled()
 	}
 
+	m.StopESMGuard(p)
+	ue.ClearPendingModify(p)
 	ue.ClearDeactivating(p)
 
-	ue.TransitionTo(mme.EMMDeregistered)
-	m.ReleaseAllSessions(ctx, ue)
-
-	logger.From(ctx, logger.MmeLog).Info("EPS bearer deactivated for reactivation; UE will re-attach", zap.String("imsi", ue.IMSI()))
-	m.ReleaseUEContext(ctx, ue, mme.CauseNASNormalRelease)
+	if status.ESMCause == esmCauseInvalidEPSBearerIdentity {
+		m.DeactivatePDNLocally(ctx, ue, p)
+	}
 
 	return nasreply.Handled()
 }
