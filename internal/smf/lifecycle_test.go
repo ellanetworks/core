@@ -250,8 +250,17 @@ func TestDeactivateTunnelAndPDR_CleansUp(t *testing.T) {
 
 	smCtx.Tunnel.DataPath.DeactivateTunnelAndPDR()
 
-	if smCtx.Tunnel.DataPath.Activated {
+	dp := smCtx.Tunnel.DataPath
+	if dp.Activated {
 		t.Fatal("expected DataPath to be deactivated")
+	}
+
+	if dp.UpLinkTunnel.PDR != nil || dp.DownLinkTunnel.PDR != nil {
+		t.Fatal("expected tunnel PDRs to be cleared")
+	}
+
+	if dp.SecondPDR != nil {
+		t.Fatal("expected SecondPDR to be cleared")
 	}
 }
 

@@ -108,6 +108,7 @@ nav:
     - Performance: reference/performance.md
     - System Requirements: reference/system_reqs.md
     - Supported Mobile Equipment: reference/supported_mobile_equipment.md
+    - 3GPP Compliance: reference/3gpp_compliance.md
   - Explanation:
     - explanation/index.md
     - Architecture: explanation/architecture.md

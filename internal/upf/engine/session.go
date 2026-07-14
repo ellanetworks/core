@@ -103,6 +103,16 @@ func (s *Session) HasPDR(id uint32) bool {
 	return ok
 }
 
+// LookupPDR returns the PDR and whether it exists.
+func (s *Session) LookupPDR(id uint32) (SPDRInfo, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	info, ok := s.pdrs[id]
+
+	return info, ok
+}
+
 func (s *Session) RemovePDR(id uint32) SPDRInfo {
 	s.mu.Lock()
 	defer s.mu.Unlock()

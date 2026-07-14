@@ -82,8 +82,8 @@ func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, policy 
 	dp.DownLinkTunnel.PDR = NewPDR(pdrIDDownlink, farIDDownlink)
 
 	defQER := NewQER(policy, qerIDDefault)
-	defULURR := NewURR(urrIDUplink)
-	defDLURR := NewURR(urrIDDownlink)
+	defULURR := newURR(urrIDUplink)
+	defDLURR := newURR(urrIDDownlink)
 
 	dp.ActivateUpLinkPdr(ueIP, smContext.Tunnel.ANInformation.IPv4Address, defQER, defULURR)
 

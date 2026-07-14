@@ -10,3 +10,4 @@ This section provides detailed reference material for Ella Core, from configurat
 - [Performance](performance.md)
 - [System Requirements](system_reqs.md)
 - [Supported Mobile Equipment](supported_mobile_equipment.md)
+- [3GPP Compliance](3gpp_compliance.md)

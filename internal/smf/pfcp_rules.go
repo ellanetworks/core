@@ -231,12 +231,12 @@ const (
 func NewPDR(pdrID uint16, farID uint32) *PDR {
 	return &PDR{
 		PDRID: pdrID,
-		FAR:   NewFAR(farID),
+		FAR:   newFAR(farID),
 	}
 }
 
-// NewFAR builds a FAR defaulting to drop.
-func NewFAR(farID uint32) *FAR {
+// newFAR builds a FAR defaulting to drop.
+func newFAR(farID uint32) *FAR {
 	return &FAR{
 		FARID:       farID,
 		ApplyAction: models.ApplyAction{Drop: true},
@@ -258,7 +258,7 @@ func NewQER(policy *Policy, qerID uint32) *QER {
 	}
 }
 
-func NewURR(urrID uint32) *URR {
+func newURR(urrID uint32) *URR {
 	return &URR{
 		URRID: urrID,
 	}

@@ -43,8 +43,8 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 		return nil
 	}
 
-	// Mark deleted before teardown so a concurrent filter propagation that wins
-	// the lock afterward skips this session instead of re-installing its rules.
+	// Mark deleted before teardown so a filter propagation that acquires opMu
+	// after this point skips the session (see applyFilterIndexToSession).
 	session.deleted = true
 
 	bpfObjects := conn.BpfObjects

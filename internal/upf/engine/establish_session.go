@@ -40,10 +40,8 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 	seid := req.LocalSEID
 
-	// Defensive: a re-establishment for a SEID that still has a live session
-	// replaces it, so tear the old one down first or its datapath state orphans.
-	// The SMF allocates a fresh monotonic SEID per session, so this is not
-	// normally reached.
+	// Defensive: a re-establish over a live SEID would orphan the old session's
+	// datapath state. Not normally reached (SMF allocates a fresh SEID per session).
 	if conn.GetSession(seid) != nil {
 		if err := conn.DeleteSession(ctx, &models.DeleteRequest{SEID: seid}); err != nil {
 			logger.WithTrace(ctx, logger.UpfLog).Warn("could not tear down existing session before re-establish",
@@ -104,11 +102,9 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		)
 	}
 
-	// Hold filterMu across resolving each PDR's filter index, applying the PDRs,
-	// and registering the session on its policy (below), so the resolved slot
-	// cannot be released and reassigned to another policy before
-	// propagateFilterIndex can see this session — which would otherwise leave the
-	// session pointing at a foreign policy's filter until the next update.
+	// Hold filterMu across resolve → apply → register (below) so the filter slot
+	// can't be released and reassigned to another policy before this session is
+	// visible to propagateFilterIndex.
 	if req.PolicyID != "" {
 		conn.filterMu.RLock()
 		defer conn.filterMu.RUnlock()

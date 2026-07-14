@@ -241,6 +241,30 @@ func TestT3592RetransmitsThenReleasesLocally(t *testing.T) {
 	}
 }
 
+// TestDeactivateDoesNotAbandonRelease verifies that a UE going idle
+// (DeactivateSmContext) while a network-requested release is outstanding does not
+// stop T3592: the release is delivered by paging (the retransmission) and the
+// session is still torn down on abort, not leaked (TS 24.501 §6.3.3.5).
+func TestDeactivateDoesNotAbandonRelease(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := smf.New(pcf, store, upf, amfCb, smf.WithT3592(procedureTimerInterval))
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	if _, err := s.UpdateSmContextN1Msg(context.Background(), ref, buildPDUSessionReleaseRequest(smCtx.PDUSessionID, 5)); err != nil {
+		t.Fatalf("release request: %v", err)
+	}
+
+	// UE goes idle while the release command is outstanding.
+	if err := s.DeactivateSmContext(context.Background(), ref); err != nil {
+		t.Fatalf("DeactivateSmContext: %v", err)
+	}
+
+	waitFor(t, "session released on T3592 abort despite the idle transition", func() bool {
+		return s.GetSession(ref) == nil
+	})
+}
+
 // TestT3592StopsOnReleaseComplete verifies that the PDU Session Release Complete
 // stops T3592 and removes the session with no retransmission (TS 24.501 §6.3.3.3).
 func TestT3592StopsOnReleaseComplete(t *testing.T) {

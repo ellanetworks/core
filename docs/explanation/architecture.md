@@ -24,7 +24,7 @@ The Core is the heart of a mobile network. It is designed to manage all data and
 Key Functions of the mobile Core:
 
 - **Authentication and Security**: Ensures that devices and users are authenticated and data transmission is secure.
-- **Session Management**: Establishes and maintains user sessions to provide stable data and voice communication.
+- **Session Management**: Establishes and maintains user sessions to provide stable data communication.
 - **Policy**: Implements quality of service (QoS) rules.
 - **Data Network Access**: Connects user devices to external data networks like the internet or private networks.
 

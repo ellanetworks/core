@@ -275,7 +275,9 @@ func (bpfObjects *BpfObjects) GetAndResetUrr(seid uint64, id uint32) (uint64, er
 	return total, nil
 }
 
-// AddUrr adds bytes to the (SEID, id) counter.
+// AddUrr adds bytes to the (SEID, id) counter. The read-modify-write can drop
+// datapath increments landing between the lookup and the update, the same bound
+// GetAndResetUrr's reset carries; it runs only on the rare report-failure path.
 func (bpfObjects *BpfObjects) AddUrr(seid uint64, id uint32, bytes uint64) error {
 	key := N3N6EntrypointUrrKey{Seid: seid, UrrId: id}
 

@@ -99,3 +99,78 @@ func TestModifySessionRollsBackOnFailure(t *testing.T) {
 		t.Fatalf("pdrs_downlink_ip4 entry leaked after rollback: want ErrKeyNotExist, got %v", lookupErr)
 	}
 }
+
+// TestModifySessionUpdatePDRKeyChangeRollback asserts that when an UpdatePDRs
+// changes a PDR's key (UE IP) and a later PDR in the same request fails, rollback
+// removes the newly-written entry and restores the original, leaving no orphan.
+func TestModifySessionUpdatePDRKeyChangeRollback(t *testing.T) {
+	if os.Geteuid() != 0 {
+		const msg = "loading eBPF maps requires root/CAP_BPF"
+		if os.Getenv("EBPF_REQUIRE_PRIVILEGED") != "" {
+			t.Fatal(msg)
+		}
+
+		t.Skip(msg + "; skipping")
+	}
+
+	if err := rlimit.RemoveMemlock(); err != nil {
+		t.Fatalf("cannot remove memlock rlimit: %v", err)
+	}
+
+	obj := upfebpf.NewBpfObjects(false, false, 1, 0, 0, 0)
+	if err := obj.Load(); err != nil {
+		t.Fatalf("load eBPF objects: %v", err)
+	}
+
+	t.Cleanup(func() { _ = obj.Close() })
+
+	rm, err := engine.NewFteIDResourceManager(1024)
+	if err != nil {
+		t.Fatalf("new fteid resource manager: %v", err)
+	}
+
+	conn, err := engine.NewSessionEngine("1.2.3.4", "nodeId", "2.3.4.5", "", "2.3.4.5", "", obj, rm)
+	if err != nil {
+		t.Fatalf("new session engine: %v", err)
+	}
+
+	const seid = uint64(21)
+
+	oldIP := netip.MustParseAddr("10.0.0.1")
+	newIP := netip.MustParseAddr("10.0.0.2")
+
+	establish := &models.EstablishRequest{
+		LocalSEID: seid,
+		IMSI:      "001010000000001",
+		URRs:      []models.URR{{URRID: 1}},
+		FARs:      []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}},
+		PDRs:      []models.PDR{{PDRID: 2, FARID: 1, URRID: 1, PDI: models.PDI{UEIPAddress: oldIP}}},
+	}
+
+	if _, err := conn.EstablishSession(context.Background(), establish); err != nil {
+		t.Fatalf("establish: %v", err)
+	}
+
+	// Update PDR 2's UE IP (a key change), then a malformed PDR to force rollback.
+	modify := &models.ModifyRequest{
+		SEID: seid,
+		UpdatePDRs: []models.PDR{
+			{PDRID: 2, FARID: 1, URRID: 1, PDI: models.PDI{UEIPAddress: newIP}},
+			{PDRID: 3, FARID: 1, PDI: models.PDI{}},
+		},
+	}
+
+	if err := conn.ModifySession(context.Background(), modify); err == nil {
+		t.Fatal("expected modify to fail on the malformed PDR")
+	}
+
+	var v upfebpf.N3N6EntrypointPdrInfo
+
+	if lookupErr := obj.PdrsDownlinkIp4.Lookup(newIP.As4(), &v); !errors.Is(lookupErr, ebpf.ErrKeyNotExist) {
+		t.Fatalf("new-key entry leaked after rollback: want ErrKeyNotExist for %s, got %v", newIP, lookupErr)
+	}
+
+	if lookupErr := obj.PdrsDownlinkIp4.Lookup(oldIP.As4(), &v); lookupErr != nil {
+		t.Fatalf("original entry not restored for %s: %v", oldIP, lookupErr)
+	}
+}

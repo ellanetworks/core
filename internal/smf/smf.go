@@ -385,8 +385,7 @@ func (s *SMF) SessionCountByRAT() (fourG, fiveG int) {
 
 // GetSessionPolicy retrieves the PCC rules from the PCF for a subscriber.
 func (s *SMF) GetSessionPolicy(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (*Policy, error) {
-	ctx, span := tracer.Start(
-		ctx, "smf/get_session_policy",
+	ctx, span := tracer.Start(ctx, "smf/get_session_policy",
 		trace.WithAttributes(attribute.String("ue.supi", supi.String())),
 	)
 	defer span.End()

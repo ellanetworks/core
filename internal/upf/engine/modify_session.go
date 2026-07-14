@@ -53,10 +53,8 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 
-	// A failed create/update rolls back its eBPF writes and restores the
-	// pre-modification in-memory rules, so the session and the data plane never
-	// diverge. Removals run last (best-effort) so the rollback never has to
-	// re-create a torn-down URR or TEID.
+	// Removals run last so a rollback never has to re-create a torn-down URR/TEID;
+	// a failed create/update unwinds its eBPF writes and restores the snapshot.
 	snapPDRs, snapFARs, snapQERs := session.snapshot()
 
 	var txn sessionTxn
@@ -181,11 +179,18 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 	}
 
 	for _, pdr := range req.UpdatePDRs {
-		old := session.GetPDR(uint32(pdr.PDRID))
+		old, hadOld := session.LookupPDR(uint32(pdr.PDRID))
 		spdrInfo := old
 
 		if err := pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, qerMap); err != nil {
 			return fail(fmt.Errorf("couldn't extract PDR info: %w", err))
+		}
+
+		if spdrInfo.Allocated {
+			txn.onRollback(func() error {
+				pdrContext.FteIDResourceManager.ReleaseTEID(session.SEID, spdrInfo.TeID)
+				return nil
+			})
 		}
 
 		session.PutPDR(uint32(pdr.PDRID), spdrInfo)
@@ -194,7 +199,19 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 			return fail(fmt.Errorf("couldn't apply PDR: %w", err))
 		}
 
-		txn.onRollback(func() error { return applyPDR(old, bpfObjects) })
+		// Rollback removes the entry just written (which may be under a new key if
+		// the update changed UEIP/TEID) and restores the prior one, if any.
+		txn.onRollback(func() error {
+			if err := unapplyPDR(spdrInfo, bpfObjects); err != nil {
+				return err
+			}
+
+			if hadOld {
+				return applyPDR(old, bpfObjects)
+			}
+
+			return nil
+		})
 
 		bpfObjects.ClearNotified(req.SEID, pdr.PDRID, spdrInfo.PdrInfo.Qer.Qfi)
 	}

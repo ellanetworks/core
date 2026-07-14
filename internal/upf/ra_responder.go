@@ -295,8 +295,7 @@ func (r *RAResponder) handleRSEvent(ulTEID uint32, ueIPv6 netip.Addr) error {
 	}
 
 	// Program the veth tunnel map together with the ueLinkLocal update, all under
-	// r.mu, so it cannot race UnregisterSession tearing the same entry down (which
-	// would otherwise leave an entry for a released session).
+	// r.mu, so it is atomic against UnregisterSession tearing the same entry down.
 	if sess.ueLinkLocal.IsValid() && sess.ueLinkLocal != ueIPv6 && r.vethBpf != nil {
 		_ = r.vethBpf.DeleteTunnel(sess.ueLinkLocal)
 	}

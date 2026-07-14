@@ -317,15 +317,14 @@ func (r *SettingsReconciler) reconcileFilters(ctx context.Context) error {
 	applied := r.appliedFilters
 	r.stateMu.Unlock()
 
-	// Record only what actually reached the data plane, so a failed direction is
-	// retried next pass instead of being stranded by desired == applied.
+	// Record only what actually reached the data plane, so a failed direction
+	// still differs from desired on the next pass and is retried.
 	nextApplied := make(map[string]filterSnapshot, len(desired))
 
 	var errs []error
 
 	for policyID, desiredSnap := range desired {
-		appliedSnap := applied[policyID]
-		_, hadApplied := applied[policyID]
+		appliedSnap, hadApplied := applied[policyID]
 		result := appliedSnap
 
 		if !hadApplied || !reflect.DeepEqual(appliedSnap.uplink, desiredSnap.uplink) {

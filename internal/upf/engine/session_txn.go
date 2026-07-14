@@ -11,9 +11,9 @@ import (
 )
 
 // sessionTxn records the inverse of each datapath change applied during a
-// session operation so a partial failure can be unwound. Without it, a session
-// that fails before it is registered leaves eBPF entries and TEIDs that no later
-// teardown can reach.
+// session operation so a partial failure unwinds every eBPF entry and TEID it
+// installed. A failed establish is never registered, so only this unwind can
+// reclaim what it applied.
 type sessionTxn struct {
 	undo []func() error
 }

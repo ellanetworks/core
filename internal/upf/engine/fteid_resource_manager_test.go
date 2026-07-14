@@ -73,8 +73,7 @@ func TestResourceManagerNonEmptyRange(t *testing.T) {
 }
 
 // TestResourceManagerMultipleTEIDsPerSession verifies a session can hold several
-// TEIDs and that releasing them all returns the whole pool — the model no longer
-// tracks a single TEID per SEID.
+// TEIDs and that releasing each specific TEID returns the whole pool.
 func TestResourceManagerMultipleTEIDsPerSession(t *testing.T) {
 	m, err := engine.NewFteIDResourceManager(3)
 	if err != nil {

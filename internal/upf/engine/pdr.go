@@ -30,5 +30,9 @@ func unapplyPDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) error {
 		return bpfObjects.DeletePdrDownlink(spdrInfo.UEIP)
 	}
 
-	return bpfObjects.DeletePdrUplink(spdrInfo.TeID)
+	if spdrInfo.TeID != 0 {
+		return bpfObjects.DeletePdrUplink(spdrInfo.TeID)
+	}
+
+	return nil
 }
