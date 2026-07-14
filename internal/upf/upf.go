@@ -55,7 +55,10 @@ type UPF struct {
 	noNeighReader      *ringbuf.Reader
 	raResponder        *RAResponder
 
-	ctx      context.Context
+	ctx context.Context
+
+	// gcMu serialises startGC / stopGC (e.g. from ReloadNAT and Close).
+	gcMu     sync.Mutex
 	gcCancel context.CancelFunc
 
 	// fcMu serialises concurrent calls to startFlowCollection / stopFlowCollection
@@ -365,6 +368,9 @@ func StringToXDPAttachMode(Mode string) link.XDPAttachFlags {
 }
 
 func (u *UPF) startGC(ctx context.Context) {
+	u.gcMu.Lock()
+	defer u.gcMu.Unlock()
+
 	if u.gcCancel != nil {
 		return
 	}
@@ -377,6 +383,9 @@ func (u *UPF) startGC(ctx context.Context) {
 }
 
 func (u *UPF) stopGC() {
+	u.gcMu.Lock()
+	defer u.gcMu.Unlock()
+
 	if u.gcCancel != nil {
 		u.gcCancel()
 		u.gcCancel = nil

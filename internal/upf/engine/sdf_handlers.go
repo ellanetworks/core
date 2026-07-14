@@ -43,15 +43,19 @@ func updateFiltersRule(rule models.FilterRule) ebpf.SdfRule {
 // resolveFilterIndex returns the BPF filter map index for a (policyID, direction) pair.
 // Returns ebpf.NoFilterIndex if no filter is allocated.
 func (conn *SessionEngine) resolveFilterIndex(policyID string, direction models.Direction) uint32 {
+	conn.filterMu.RLock()
+	defer conn.filterMu.RUnlock()
+
+	return conn.resolveFilterIndexLocked(policyID, direction)
+}
+
+// resolveFilterIndexLocked is resolveFilterIndex for callers already holding filterMu.
+func (conn *SessionEngine) resolveFilterIndexLocked(policyID string, direction models.Direction) uint32 {
 	if policyID == "" {
 		return ebpf.NoFilterIndex
 	}
 
 	key := fmt.Sprintf("%s:%s", policyID, direction.String())
-
-	conn.filterMu.RLock()
-	defer conn.filterMu.RUnlock()
-
 	if idx, ok := conn.filtersByKey[key]; ok {
 		return idx
 	}

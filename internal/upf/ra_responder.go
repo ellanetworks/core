@@ -202,6 +202,16 @@ func (r *RAResponder) RegisterSession(ulTEID uint32, sessionCtx *IPv6SessionCont
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	// A re-registration (e.g. handover) for the same TEID replaces the context,
+	// and the new one starts without a learned link-local. Delete the old
+	// context's veth tunnel entry now, or it orphans until the next RS.
+	if old, ok := r.sessions[ulTEID]; ok && old.ueLinkLocal.IsValid() && r.vethBpf != nil {
+		if err := r.vethBpf.DeleteTunnel(old.ueLinkLocal); err != nil {
+			logger.UpfLog.Warn("failed to delete stale veth tunnel entry on re-register",
+				logger.TEID(ulTEID), zap.String("ue_link_local", old.ueLinkLocal.String()), zap.Error(err))
+		}
+	}
+
 	r.sessions[ulTEID] = sessionCtx
 
 	logger.UpfLog.Debug("registered IPv6 session for RA",
@@ -216,18 +226,17 @@ func (r *RAResponder) RegisterSession(ulTEID uint32, sessionCtx *IPv6SessionCont
 // entry that was created for RA delivery.
 func (r *RAResponder) UnregisterSession(ulTEID uint32) {
 	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	sess, ok := r.sessions[ulTEID]
-	if ok {
-		delete(r.sessions, ulTEID)
-	}
-	r.mu.Unlock()
-
 	if !ok {
 		return
 	}
 
-	// Clean up the veth tunnel map entry if we programmed one.
+	delete(r.sessions, ulTEID)
+
+	// Delete the veth tunnel entry under the lock, atomically with the map
+	// delete, so it cannot race handleRSEvent re-programming the same entry.
 	if sess.ueLinkLocal.IsValid() && r.vethBpf != nil {
 		if err := r.vethBpf.DeleteTunnel(sess.ueLinkLocal); err != nil {
 			logger.UpfLog.Warn("failed to delete veth tunnel entry on session release",
@@ -285,21 +294,23 @@ func (r *RAResponder) handleRSEvent(ulTEID uint32, ueIPv6 netip.Addr) error {
 		return fmt.Errorf("no IPv6 session for TEID 0x%X", ulTEID)
 	}
 
-	// If the UE changed its link-local address, delete the stale map entry.
-	if sess.ueLinkLocal.IsValid() && sess.ueLinkLocal != ueIPv6 {
+	// Program the veth tunnel map together with the ueLinkLocal update, all under
+	// r.mu, so it cannot race UnregisterSession tearing the same entry down (which
+	// would otherwise leave an entry for a released session).
+	if sess.ueLinkLocal.IsValid() && sess.ueLinkLocal != ueIPv6 && r.vethBpf != nil {
 		_ = r.vethBpf.DeleteTunnel(sess.ueLinkLocal)
+	}
+
+	if err := r.programVethTunnel(sess, ueIPv6); err != nil {
+		r.mu.Unlock()
+		return fmt.Errorf("program veth tunnel: %w", err)
 	}
 
 	sess.ueLinkLocal = ueIPv6
 	r.mu.Unlock()
 
-	// Program the veth tunnel map so the RA packet (with dst=ueIPv6) gets
-	// GTP-U encapsulated and redirected to N3.
-	if err := r.programVethTunnel(sess, ueIPv6); err != nil {
-		return fmt.Errorf("program veth tunnel: %w", err)
-	}
-
-	// Build and inject the RA.
+	// Build and inject the RA. sess fields other than ueLinkLocal are immutable
+	// after registration, so reading them here without the lock is safe.
 	raPkt, err := r.buildRAPacket(sess, ueIPv6)
 	if err != nil {
 		return fmt.Errorf("build RA: %w", err)

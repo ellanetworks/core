@@ -318,6 +318,19 @@ func (bpfObjects *BpfObjects) ClearNotified(seid uint64, pdrid uint16, qfi uint8
 	delete(bpfObjects.pagingList, DataNotification{LocalSEID: seid, PdrID: pdrid, QFI: qfi})
 }
 
+// ClearNotifiedForSEID removes every paging entry for a session so a released
+// SEID leaves none behind.
+func (bpfObjects *BpfObjects) ClearNotifiedForSEID(seid uint64) {
+	bpfObjects.pagingMu.Lock()
+	defer bpfObjects.pagingMu.Unlock()
+
+	for d := range bpfObjects.pagingList {
+		if d.LocalSEID == seid {
+			delete(bpfObjects.pagingList, d)
+		}
+	}
+}
+
 func CloseAllObjects(closers ...io.Closer) error {
 	for _, closer := range closers {
 		if err := closer.Close(); err != nil {

@@ -68,6 +68,10 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 		}
 	}
 
+	if bpfObjects != nil {
+		bpfObjects.ClearNotifiedForSEID(req.SEID)
+	}
+
 	policyID := session.PolicyID()
 
 	conn.mu.Lock()

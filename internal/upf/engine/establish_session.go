@@ -39,6 +39,18 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	defer span.End()
 
 	seid := req.LocalSEID
+
+	// Defensive: a re-establishment for a SEID that still has a live session
+	// replaces it, so tear the old one down first or its datapath state orphans.
+	// The SMF allocates a fresh monotonic SEID per session, so this is not
+	// normally reached.
+	if conn.GetSession(seid) != nil {
+		if err := conn.DeleteSession(ctx, &models.DeleteRequest{SEID: seid}); err != nil {
+			logger.WithTrace(ctx, logger.UpfLog).Warn("could not tear down existing session before re-establish",
+				logger.SEID(seid), zap.Error(err))
+		}
+	}
+
 	sess := NewSession(seid)
 	span.AddEvent("session_created", trace.WithAttributes(attribute.Int64("models.seid", int64(seid))))
 
@@ -92,6 +104,16 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		)
 	}
 
+	// Hold filterMu across resolving each PDR's filter index, applying the PDRs,
+	// and registering the session on its policy (below), so the resolved slot
+	// cannot be released and reassigned to another policy before
+	// propagateFilterIndex can see this session — which would otherwise leave the
+	// session pointing at a foreign policy's filter until the next update.
+	if req.PolicyID != "" {
+		conn.filterMu.RLock()
+		defer conn.filterMu.RUnlock()
+	}
+
 	for _, pdr := range req.PDRs {
 		spdrInfo := SPDRInfo{
 			PdrID: uint32(pdr.PDRID),
@@ -122,7 +144,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 				dir = models.DirectionDownlink
 			}
 
-			spdrInfo.PdrInfo.FilterMapIndex = conn.resolveFilterIndex(req.PolicyID, dir)
+			spdrInfo.PdrInfo.FilterMapIndex = conn.resolveFilterIndexLocked(req.PolicyID, dir)
 		}
 
 		sess.PutPDR(spdrInfo.PdrID, spdrInfo)
@@ -194,7 +216,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 	return &models.EstablishResponse{
 		RemoteSEID:  seid,
-		CreatedPDRs: createdPDRsToResponse(createdPDRs, conn.advertisedN3AddressIPv4, conn.advertisedN3AddressIPv6),
+		CreatedPDRs: createdPDRsToResponse(createdPDRs, conn.GetAdvertisedN3Address(), conn.GetAdvertisedN3AddressIPv6()),
 	}, nil
 }
 

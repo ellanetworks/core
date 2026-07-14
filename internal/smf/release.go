@@ -38,6 +38,10 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
+	// Stop any outstanding network-requested procedure retransmission so it does
+	// not keep firing against a released session.
+	smContext.stopProcedureTimer()
+
 	if smContext.PDUIPV4Address != nil {
 		_, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
 		if releaseErr != nil {

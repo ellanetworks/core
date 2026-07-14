@@ -37,10 +37,11 @@ View the advertised subscriber routes in the **Advertised Routes** table. The ne
 
 ## Configure the upstream router
 
-Ella Core advertises routes but does not receive them. You still need to configure the upstream router to:
+Ella Core advertises routes, and can receive them from peers via each peer's import prefixes. You still need to configure the upstream router to:
 
 1. Peer with Ella Core (matching the AS number and address configured above).
 2. Accept all routes for subscriber data networks (e.g. `192.168.0.0/24` or `2001:db8::/32`)
+3. Accept framed-route prefixes, if any are configured (e.g. `192.168.60.0/24`).
 
 Consult your router's documentation for BGP peering configuration.
 

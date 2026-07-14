@@ -36,6 +36,10 @@ func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) erro
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
+	// The UE is going idle, so stop any outstanding network-requested procedure
+	// retransmission: it would only page an unreachable UE until it self-aborts.
+	smContext.stopProcedureTimer()
+
 	// Session already torn down; nothing to deactivate.
 	if smContext.Tunnel == nil && smContext.PFCPContext == nil {
 		logger.WithTrace(ctx, logger.SmfLog).Debug("session already torn down, skipping deactivation",

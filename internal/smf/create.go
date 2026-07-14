@@ -210,6 +210,9 @@ func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SM
 	smCtxt.Mutex.Lock()
 	defer smCtxt.Mutex.Unlock()
 
+	// Stop the superseded context's outstanding procedure retransmission.
+	smCtxt.stopProcedureTimer()
+
 	s.RemoveSession(ctx, smCtxt.Ref)
 
 	if smCtxt.Tunnel != nil {
