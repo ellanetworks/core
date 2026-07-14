@@ -1838,7 +1838,7 @@ paths:
       operationId: createDataNetworkStaticIp
       tags: [Data Networks]
       summary: Create a static IP reservation
-      description: Pins an address to a subscriber on the data network. The IP version is inferred from the address family; IPv6 addresses must be /64-aligned.
+      description: Pins an address to a subscriber on the data network. The IP version is inferred from the address family; IPv6 addresses must be /64-aligned. If the subscriber has a live session, it is released so the UE re-establishes on the reserved address.
       parameters:
         - $ref: "#/components/parameters/DataNetworkNamePath"
       requestBody:
@@ -1864,7 +1864,7 @@ paths:
       operationId: updateDataNetworkStaticIp
       tags: [Data Networks]
       summary: Repin a static IP reservation
-      description: Changes the reserved address. Rejected while the reservation is bound to an active session.
+      description: Changes the reserved address. A change to a live session releases it so the UE re-establishes on the new address.
       parameters:
         - $ref: "#/components/parameters/DataNetworkNamePath"
         - $ref: "#/components/parameters/ImsiPath"
@@ -1890,7 +1890,7 @@ paths:
       operationId: deleteDataNetworkStaticIp
       tags: [Data Networks]
       summary: Delete a static IP reservation
-      description: Removes the reservation. Rejected while it is bound to an active session.
+      description: Removes the reservation. A change to a live session releases it so the UE re-establishes on a dynamic address.
       parameters:
         - $ref: "#/components/parameters/DataNetworkNamePath"
         - $ref: "#/components/parameters/ImsiPath"

@@ -157,6 +157,28 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 		return s.sendSessionRelease(ctx, smContext)
 	}
 
+	// The UE IP is fixed for the session lifetime (TS 23.501 §5.8.2.2); a
+	// reservation change requires release, not in-place modification.
+	staticChanged, err := s.staticIPChanged(ctx, smContext)
+	if err != nil {
+		logger.SmfLog.Warn("failed to resolve static IP during reconciliation; deferring to backstop",
+			logger.SUPI(smContext.Supi.String()),
+			logger.PDUSessionID(smContext.PDUSessionID),
+			zap.Error(err),
+		)
+
+		return nil
+	}
+
+	if staticChanged {
+		logger.SmfLog.Info("static IP changed, releasing session for re-establishment",
+			logger.SUPI(smContext.Supi.String()),
+			logger.PDUSessionID(smContext.PDUSessionID),
+		)
+
+		return s.sendSessionRelease(ctx, smContext)
+	}
+
 	oldQoS := smContext.PolicyData.QosData
 	oldAmbr := smContext.PolicyData.Ambr
 
@@ -501,6 +523,41 @@ func framedRoutesEqual(a, b []netip.Prefix) bool {
 	}
 
 	return true
+}
+
+// staticIPChanged reports whether the subscriber's reserved static IP changed
+// since it was cached at establishment. Caller holds smContext.Mutex.
+func (s *SMF) staticIPChanged(ctx context.Context, smContext *SMContext) (bool, error) {
+	imsi := smContext.Supi.IMSI()
+
+	if smContext.PDUIPV4Address != nil {
+		changed, err := s.staticReservationChanged(ctx, imsi, smContext.Dnn, false, smContext.StaticIPv4)
+		if err != nil || changed {
+			return changed, err
+		}
+	}
+
+	if smContext.PDUIPV6Prefix != nil {
+		changed, err := s.staticReservationChanged(ctx, imsi, smContext.Dnn, true, smContext.StaticIPv6)
+		if err != nil || changed {
+			return changed, err
+		}
+	}
+
+	return false, nil
+}
+
+func (s *SMF) staticReservationChanged(ctx context.Context, imsi, dnn string, ipv6 bool, cached netip.Addr) (bool, error) {
+	current, has, err := s.store.GetStaticIP(ctx, imsi, dnn, ipv6)
+	if err != nil {
+		return false, err
+	}
+
+	if has != cached.IsValid() {
+		return true, nil
+	}
+
+	return has && current != cached, nil
 }
 
 // sendSessionRelease performs the network-requested PDU session release

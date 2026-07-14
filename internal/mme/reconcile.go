@@ -95,6 +95,24 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnecti
 		return
 	}
 
+	// The UE IP is fixed for the PDN connection lifetime (TS 23.401 §5.3.1.2.1);
+	// a reservation change requires reactivation, not in-place modification.
+	staticChanged, err := m.Session.StaticIPChanged(ctx, ue.IMSI(), p.Ebi)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("reconcile: failed to check static IP; deferring to next sweep",
+			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
+
+		return
+	}
+
+	if staticChanged {
+		logger.From(ctx, ue.Conn().Log).Info("static IP changed; reactivating EPS bearer",
+			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
+		m.reactivateBearer(ctx, ue, p)
+
+		return
+	}
+
 	qos, err := ResolveQoSByAPN(ctx, m, ue.IMSI(), p.Apn)
 	if err != nil {
 		// The subscriber's profile does not bind the APN: the subscription does

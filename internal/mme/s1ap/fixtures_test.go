@@ -152,6 +152,10 @@ func (f *fakeSessionManager) FramedRoutesChanged(_ context.Context, _ string, _ 
 	return false, nil
 }
 
+func (f *fakeSessionManager) StaticIPChanged(_ context.Context, _ string, _ uint8) (bool, error) {
+	return false, nil
+}
+
 // fakeBearerStore resolves a fixed default-bearer QoS for any subscriber.
 type fakeBearerStore struct{}
 

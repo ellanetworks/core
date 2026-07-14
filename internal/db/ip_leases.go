@@ -44,8 +44,8 @@ const (
 	getStaticLeaseStmt           = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND imsi==$IPLease.imsi AND type='static'"
 	listStaticLeasesByDNStmt     = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND type='static' ORDER BY poolType, addressBin"
 	listStaticLeasesByIMSIStmt   = "SELECT &IPLease.* FROM %s WHERE imsi==$IPLease.imsi AND type='static' ORDER BY addressBin"
-	updateStaticLeaseAddressStmt = "UPDATE %s SET addressBin=$IPLease.addressBin WHERE id==$IPLease.id AND type='static' AND sessionID IS NULL"
-	deleteStaticLeaseStmt        = "DELETE FROM %s WHERE id==$IPLease.id AND type='static' AND sessionID IS NULL"
+	updateStaticLeaseAddressStmt = "UPDATE %s SET addressBin=$IPLease.addressBin WHERE id==$IPLease.id AND type='static'"
+	deleteStaticLeaseStmt        = "DELETE FROM %s WHERE id==$IPLease.id AND type='static'"
 )
 
 // IPLease represents a row in the ip_leases table.
@@ -1039,9 +1039,9 @@ func (db *Database) ClearStaticLeaseSession(ctx context.Context, leaseID string)
 	return nil
 }
 
-// UpdateStaticLeaseAddress repins a reserved static lease to a new
-// address. Returns ErrLeaseActive if the reservation is bound to a
-// session and ErrAlreadyExists if the address is already leased.
+// UpdateStaticLeaseAddress repins a reserved static lease to a new address.
+// Returns ErrNotFound if the reservation is gone, ErrAlreadyExists if the
+// address is already leased.
 func (db *Database) UpdateStaticLeaseAddress(ctx context.Context, leaseID string, addr netip.Addr) error {
 	_, span := tracer.Start(
 		ctx,
@@ -1075,8 +1075,8 @@ func (db *Database) UpdateStaticLeaseAddress(ctx context.Context, leaseID string
 	return nil
 }
 
-// DeleteStaticLease removes a reserved static lease. Returns
-// ErrLeaseActive if the reservation is bound to a session.
+// DeleteStaticLease removes a reserved static lease. Returns ErrNotFound if
+// the reservation is gone.
 func (db *Database) DeleteStaticLease(ctx context.Context, leaseID string) error {
 	_, span := tracer.Start(
 		ctx,

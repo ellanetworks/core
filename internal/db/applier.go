@@ -458,9 +458,8 @@ func (db *Database) applyCreateStaticLease(ctx context.Context, lease *IPLease) 
 	return db.applyCreateLease(ctx, lease)
 }
 
-// applyUpdateStaticLeaseAddress repins a reserved static lease. The
-// sessionID IS NULL predicate makes the active-check atomic: zero rows
-// affected maps to ErrLeaseActive, a duplicate address to ErrAlreadyExists.
+// applyUpdateStaticLeaseAddress repins a reserved static lease. Zero rows
+// affected maps to ErrNotFound, a duplicate address to ErrAlreadyExists.
 func (db *Database) applyUpdateStaticLeaseAddress(ctx context.Context, lease *IPLease) (any, error) {
 	var outcome sqlair.Outcome
 
@@ -479,15 +478,14 @@ func (db *Database) applyUpdateStaticLeaseAddress(ctx context.Context, lease *IP
 	}
 
 	if rowsAffected == 0 {
-		return nil, ErrLeaseActive
+		return nil, ErrNotFound
 	}
 
 	return nil, nil
 }
 
-// applyDeleteStaticLease removes a reserved static lease. The sessionID IS
-// NULL guard makes the active-check atomic: zero rows affected maps to
-// ErrLeaseActive.
+// applyDeleteStaticLease removes a reserved static lease. Zero rows affected
+// maps to ErrNotFound.
 func (db *Database) applyDeleteStaticLease(ctx context.Context, p *stringPayload) (any, error) {
 	var outcome sqlair.Outcome
 
@@ -502,7 +500,7 @@ func (db *Database) applyDeleteStaticLease(ctx context.Context, p *stringPayload
 	}
 
 	if rowsAffected == 0 {
-		return nil, ErrLeaseActive
+		return nil, ErrNotFound
 	}
 
 	return nil, nil

@@ -146,6 +146,35 @@ func TestReconcileDataNetworkReactivatesOnFramedRouteChange(t *testing.T) {
 	}
 }
 
+// TestReconcileDataNetworkReactivatesOnStaticIPChange checks that a static-IP
+// reservation change alone (data-network config and framed routes unchanged)
+// reactivates the bearer with ESM cause #39, per TS 24.301 §6.4.4.2.
+func TestReconcileDataNetworkReactivatesOnStaticIPChange(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := connectedBearerUE(t, m)
+
+	qos, err := ResolveQoS(context.Background(), m, ue.imsiOrEmpty())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testPDN(ue).DnConfig = qos.DnFingerprint() // config matches; the static IP is the only change
+
+	m.Session.(*fakeSessionManager).staticIPChanged = true
+
+	m.ReconcileDataNetwork(context.Background())
+
+	defer ue.Conn().StopNASGuard()
+
+	if !testPDN(ue).Deactivating {
+		t.Fatal("UE not marked deactivating after a static IP change")
+	}
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("expected one Deactivate EPS Bearer Context Request, got %d", len(cc.sent))
+	}
+}
+
 func TestReconcileDataNetworkSkipsIdleUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)

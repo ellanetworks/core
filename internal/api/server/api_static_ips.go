@@ -342,8 +342,8 @@ func UpdateDataNetworkStaticIp(dbInstance *db.Database) http.Handler {
 
 		if err := dbInstance.UpdateStaticLeaseAddress(r.Context(), lease.ID, addr); err != nil {
 			switch {
-			case errors.Is(err, db.ErrLeaseActive):
-				writeError(r.Context(), w, http.StatusConflict, "static IP is in use by an active session", nil, logger.APILog)
+			case errors.Is(err, db.ErrNotFound):
+				writeError(r.Context(), w, http.StatusNotFound, "Static IP not found", nil, logger.APILog)
 			case errors.Is(err, db.ErrAlreadyExists):
 				writeError(r.Context(), w, http.StatusConflict, "address is already in use", nil, logger.APILog)
 			default:
@@ -400,8 +400,8 @@ func DeleteDataNetworkStaticIp(dbInstance *db.Database) http.Handler {
 		}
 
 		if err := dbInstance.DeleteStaticLease(r.Context(), lease.ID); err != nil {
-			if errors.Is(err, db.ErrLeaseActive) {
-				writeError(r.Context(), w, http.StatusConflict, "static IP is in use by an active session", nil, logger.APILog)
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "static IP reservation not found", nil, logger.APILog)
 				return
 			}
 

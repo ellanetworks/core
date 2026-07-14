@@ -54,16 +54,18 @@ var (
 // fakeSessionManager stands in for the SMF+PGW-C anchor. CreateEPSSession honors
 // the requested PDN type so tests can drive IPv4/IPv6/IPv4v6.
 type fakeSessionManager struct {
-	lastRequest   models.EPSBearerRequest
-	modifiedENB   models.FTEID // records the eNB F-TEID from the last ModifyEPSSession
-	released      bool
-	deactivated   bool
-	ambrUpdated   bool
-	ambrUplink    string // records the last UpdateEPSSessionAMBR uplink value
-	ambrDownlink  string
-	ambrErr       error // when set, UpdateEPSSessionAMBR fails with it
-	framedChanged bool  // FramedRoutesChanged returns this
-	framedErr     error // when set, FramedRoutesChanged fails with it
+	lastRequest     models.EPSBearerRequest
+	modifiedENB     models.FTEID // records the eNB F-TEID from the last ModifyEPSSession
+	released        bool
+	deactivated     bool
+	ambrUpdated     bool
+	ambrUplink      string // records the last UpdateEPSSessionAMBR uplink value
+	ambrDownlink    string
+	ambrErr         error // when set, UpdateEPSSessionAMBR fails with it
+	framedChanged   bool  // FramedRoutesChanged returns this
+	framedErr       error // when set, FramedRoutesChanged fails with it
+	staticIPChanged bool  // StaticIPChanged returns this
+	staticIPErr     error // when set, StaticIPChanged fails with it
 }
 
 func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSBearerRequest) (models.EPSBearer, error) {
@@ -123,6 +125,10 @@ func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string) erro
 
 func (f *fakeSessionManager) FramedRoutesChanged(_ context.Context, _ string, _ uint8) (bool, error) {
 	return f.framedChanged, f.framedErr
+}
+
+func (f *fakeSessionManager) StaticIPChanged(_ context.Context, _ string, _ uint8) (bool, error) {
+	return f.staticIPChanged, f.staticIPErr
 }
 
 // fakeBearerStore resolves a fixed default-bearer QoS (QCI 9, APN "internet",
