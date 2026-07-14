@@ -37,4 +37,6 @@ struct upf_statistic {
 	struct byte_counter byte_counter;
 	struct packet_counters packet_counters;
 	__u64 xdp_actions[EUPF_MAX_XDP_ACTION];
+	__u64 source_spoof_drop_ip4;
+	__u64 source_spoof_drop_ip6;
 };

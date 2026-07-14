@@ -93,11 +93,13 @@ func TestURRByteAccounting(t *testing.T) {
 	}
 
 	pdr := PdrInfo{
-		SEID:  seid,
-		IMSI:  "001010000000001",
-		UrrID: urrID,
-		Far:   FarInfo{Action: 0x02 /* FAR_FORW */},
-		Qer:   QerInfo{GateStatusUL: 0, MaxBitrateUL: 0},
+		SEID:         seid,
+		IMSI:         "001010000000001",
+		UrrID:        urrID,
+		Far:          FarInfo{Action: 0x02 /* FAR_FORW */},
+		Qer:          QerInfo{GateStatusUL: 0, MaxBitrateUL: 0},
+		UEIPv4:       netip.AddrFrom4([4]byte{10, 0, 0, 9}),
+		UEIPv6Prefix: netip.MustParseAddr("2001:db8::"),
 	}
 	if err := obj.PutPdrUplink(teid, pdr); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)

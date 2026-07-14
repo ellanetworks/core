@@ -102,6 +102,8 @@ type VethEntrypointPdrInfo struct {
 		DlStart          uint64
 	}
 	FilterMapIndex uint32
+	UeIpv4         VethEntrypointIn6Addr
+	UeIpv6         VethEntrypointIn6Addr
 	_              [4]byte
 }
 
@@ -162,7 +164,9 @@ type VethEntrypointUpfStatistic struct {
 		Rx uint64
 		Tx uint64
 	}
-	XdpActions [8]uint64
+	XdpActions         [8]uint64
+	SourceSpoofDropIp4 uint64
+	SourceSpoofDropIp6 uint64
 }
 
 type VethEntrypointUrrKey struct {

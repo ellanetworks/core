@@ -26,6 +26,8 @@ type Session struct {
 	fars         map[uint32]ebpf.FarInfo
 	qers         map[uint32]ebpf.QerInfo
 	framedRoutes []netip.Prefix
+	ueIPv4       netip.Addr
+	ueIPv6       netip.Addr
 }
 
 func NewSession(seid uint64) *Session {
@@ -175,6 +177,25 @@ func (s *Session) RemoveQer(id uint32) {
 	defer s.mu.Unlock()
 
 	delete(s.qers, id)
+}
+
+// SetUEAddresses records the session's authorized UE source addresses (IPv4 /32
+// and IPv6 /64 base), stamped onto uplink PDRs for source validation. The UE IP
+// is fixed for the session lifetime, so this is set once at establishment.
+func (s *Session) SetUEAddresses(v4, v6 netip.Addr) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.ueIPv4 = v4
+	s.ueIPv6 = v6
+}
+
+// UEAddresses returns the session's authorized UE source addresses (IPv4, IPv6).
+func (s *Session) UEAddresses() (netip.Addr, netip.Addr) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.ueIPv4, s.ueIPv6
 }
 
 // SetFramedRoutes records the session's framed-route prefixes so they can be

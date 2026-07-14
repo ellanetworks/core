@@ -8,7 +8,7 @@ import (
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
-func applyPDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) error {
+func applyPDR(spdrInfo SPDRInfo, sess *Session, bpfObjects *ebpf.BpfObjects) error {
 	if spdrInfo.UEIP.IsValid() {
 		if err := bpfObjects.PutPdrDownlink(spdrInfo.UEIP, spdrInfo.PdrInfo); err != nil {
 			return fmt.Errorf("can't apply downlink PDR: %w", err)
@@ -16,6 +16,11 @@ func applyPDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) error {
 
 		return nil
 	}
+
+	// Uplink PDR: stamp the session's authorized source addresses so the
+	// datapath can validate the inner source (anti-spoofing). applyPDR is the
+	// sole writer of pdrs_uplink, so stamping here covers every apply path.
+	spdrInfo.PdrInfo.UEIPv4, spdrInfo.PdrInfo.UEIPv6Prefix = sess.UEAddresses()
 
 	if err := bpfObjects.PutPdrUplink(spdrInfo.TeID, spdrInfo.PdrInfo); err != nil {
 		return fmt.Errorf("can't apply GTP PDR: %w", err)

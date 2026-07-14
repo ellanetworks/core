@@ -110,6 +110,26 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		defer conn.filterMu.RUnlock()
 	}
 
+	// Capture the session's UE source addresses from the downlink PDRs before
+	// applying any PDR, so applyPDR can stamp them onto the uplink PDR for
+	// anti-spoofing. A pre-scan (not per-PDR) is required because the IPv6 /64
+	// arrives on a separate downlink PDR that may be ordered after the uplink one.
+	var ueV4, ueV6 netip.Addr
+
+	for _, pdr := range req.PDRs {
+		if pdr.PDI.LocalFTEID != nil || !pdr.PDI.UEIPAddress.IsValid() {
+			continue
+		}
+
+		if pdr.PDI.UEIPAddress.Is4() {
+			ueV4 = pdr.PDI.UEIPAddress
+		} else {
+			ueV6 = pdr.PDI.UEIPAddress
+		}
+	}
+
+	sess.SetUEAddresses(ueV4, ueV6)
+
 	for _, pdr := range req.PDRs {
 		spdrInfo := SPDRInfo{
 			PdrID: uint32(pdr.PDRID),
@@ -145,7 +165,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 		sess.PutPDR(spdrInfo.PdrID, spdrInfo)
 
-		if err := applyPDR(spdrInfo, bpfObjects); err != nil {
+		if err := applyPDR(spdrInfo, sess, bpfObjects); err != nil {
 			txn.rollback(ctx)
 			span.RecordError(err)
 

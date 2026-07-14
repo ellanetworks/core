@@ -102,6 +102,8 @@ type N3N6EntrypointPdrInfo struct {
 		DlStart          uint64
 	}
 	FilterMapIndex uint32
+	UeIpv4         N3N6EntrypointIn6Addr
+	UeIpv6         N3N6EntrypointIn6Addr
 	_              [4]byte
 }
 
@@ -162,7 +164,9 @@ type N3N6EntrypointUpfStatistic struct {
 		Rx uint64
 		Tx uint64
 	}
-	XdpActions [8]uint64
+	XdpActions         [8]uint64
+	SourceSpoofDropIp4 uint64
+	SourceSpoofDropIp6 uint64
 }
 
 type N3N6EntrypointUrrKey struct {

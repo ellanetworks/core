@@ -42,6 +42,10 @@ type PdrInfo struct {
 	Far                FarInfo
 	Qer                QerInfo
 	FilterMapIndex     uint32 // 0 = no SDF filter
+	// Authorized uplink source addresses (anti-spoofing); zero = family absent.
+	// UEIPv6Prefix is the /64 base (low 64 bits zero). Only set on uplink PDRs.
+	UEIPv4       netip.Addr
+	UEIPv6Prefix netip.Addr
 }
 
 type PortRange struct {
@@ -328,6 +332,14 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) N3N6EntrypointPdrInfo {
 	pdrToStore.Qer.DlStart = defaultPdr.Qer.StartDL
 
 	pdrToStore.FilterMapIndex = defaultPdr.FilterMapIndex
+
+	if defaultPdr.UEIPv4.IsValid() {
+		pdrToStore.UeIpv4.In6U.U6Addr8 = IPToIn6Addr(defaultPdr.UEIPv4)
+	}
+
+	if defaultPdr.UEIPv6Prefix.IsValid() {
+		pdrToStore.UeIpv6.In6U.U6Addr8 = IPToIn6Addr(defaultPdr.UEIPv6Prefix)
+	}
 
 	return pdrToStore
 }

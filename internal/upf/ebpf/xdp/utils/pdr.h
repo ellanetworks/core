@@ -134,4 +134,9 @@ struct pdr_info {
 	struct far_info far;
 	struct qer_info qer;
 	__u32 filter_map_index; /* 0 = no SDF filtering for this PDR */
+	/* Authorized uplink source (anti-spoofing). ue_ipv4 is ::ffff-mapped;
+	 * ue_ipv6 is the /64 prefix (low 64 bits zero). All-zero = family absent,
+	 * which drops that family (fail closed). Consulted only on the uplink PDR. */
+	struct in6_addr ue_ipv4;
+	struct in6_addr ue_ipv6;
 };
