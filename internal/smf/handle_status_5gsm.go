@@ -11,12 +11,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// handle5GSMStatus aborts the 5GSM procedure the STATUS names (TS 24.501 §6.5.3).
-// That clause mandates releasing the session on #43, and on a #47 naming the
-// establishment accept's PTI because the UE never took the session. A cause aborting
-// an in-flight release also releases: the user plane is freed when the release starts
-// (TS 23.502 §4.3.4.2 step 2) and no reconcile sweep re-derives a UE-requested
-// release, so the session is removed here or never.
+// handle5GSMStatus aborts the 5GSM procedure the STATUS names. The #43 and #47
+// releases are mandated by TS 24.501 §6.5.3; aborting an in-flight release also
+// releases, because the user plane is freed when the release starts (TS 23.502
+// §4.3.4.2 step 2) and no sweep re-derives a UE-requested release.
 //
 // Caller must hold smContext.Mutex.
 func (s *SMF) handle5GSMStatus(ctx context.Context, smContext *SMContext, pti, cause uint8) {

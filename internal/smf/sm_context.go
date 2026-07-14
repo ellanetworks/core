@@ -83,17 +83,8 @@ type SMContext struct {
 	// previous configuration (§6.3.2.5). Guarded by Mutex.
 	pendingPolicy *Policy
 
-	// releasing is set while a PDU session release is in flight: the user plane is
-	// freed when the release starts, so an aborted procedure still has to reach a
-	// local release (TS 24.501 §6.3.3). Guarded by Mutex.
-	releasing bool
-
-	// establishmentPTI is the PTI of this session's PDU SESSION ESTABLISHMENT ACCEPT,
-	// retained past the procedure so a 5GSM STATUS #47 naming it identifies a UE that
-	// never took the session (TS 24.501 §6.5.3). Zero until the accept is sent; an
-	// establishment request carries an assigned PTI (§7.3.1 c), so zero cannot
-	// collide. Guarded by Mutex.
-	establishmentPTI uint8
+	releasing        bool  // guarded by Mutex
+	establishmentPTI uint8 // PTI of the Establishment Accept, 0 until sent; guarded by Mutex
 }
 
 // stopProcedureTimer stops the retransmission guard; safe to call when none is

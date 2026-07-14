@@ -10,8 +10,7 @@ import (
 )
 
 // modifyingAdditionalPDN returns a UE whose default PDN matches its policy and whose
-// additional PDN to "ims" differs from its policy by QCI alone, so a reconcile modifies
-// only the additional one.
+// additional PDN to "ims" differs by QCI alone, so a reconcile modifies only the latter.
 func modifyingAdditionalPDN(t *testing.T, m *MME) (*UeContext, *PdnConnection) {
 	t.Helper()
 
@@ -40,8 +39,6 @@ func modifyingAdditionalPDN(t *testing.T, m *MME) (*UeContext, *PdnConnection) {
 	return ue, p
 }
 
-// waitForPendingModifyCleared reports whether p's in-flight modification bookkeeping is
-// cleared before the deadline.
 func waitForPendingModifyCleared(ue *UeContext, p *PdnConnection) bool {
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
@@ -59,11 +56,8 @@ func waitForPendingModifyCleared(ue *UeContext, p *PdnConnection) bool {
 	return false
 }
 
-// TestModifyBearerGuardAbortClearsTheModifiedPDN verifies that the modify guard's abort
-// finalizer clears the in-flight modification of the PDN connection it was armed for
-// (TS 24.301 §6.4.2.5). The guard is per-bearer so a UE with several PDN connections can
-// have a procedure outstanding on each; an additional PDN whose Modifying flag survives
-// the abort is skipped by the busy gate on every later reconcile sweep.
+// TS 24.301 §6.4.2.5. A PDN connection whose Modifying flag survives the abort is
+// skipped by the busy gate on every later reconcile sweep.
 func TestModifyBearerGuardAbortClearsTheModifiedPDN(t *testing.T) {
 	m := newTestMME(t)
 	ue, p := modifyingAdditionalPDN(t, m)
@@ -81,17 +75,15 @@ func TestModifyBearerGuardAbortClearsTheModifiedPDN(t *testing.T) {
 	}
 }
 
-// TestModifyBearerGuardAbortLeavesOtherPDNsIntact verifies that an additional PDN's
-// modify guard abort does not touch another PDN connection's in-flight modification.
-// Clearing the default bearer's bookkeeping from here would strand it: its own guard
-// keeps retransmitting, and CommitBearerModification drops the UE's eventual accept as
-// out of state, so the configuration the UE accepted never commits.
+// Clearing the default bearer's bookkeeping from an additional PDN's abort strands it:
+// its own guard keeps retransmitting, and CommitBearerModification drops the UE's accept
+// as out of state, so the configuration the UE accepted never commits.
 func TestModifyBearerGuardAbortLeavesOtherPDNsIntact(t *testing.T) {
 	m := newTestMME(t)
 	ue, p := modifyingAdditionalPDN(t, m)
 
-	// The default bearer has its own modification outstanding, so the reconcile sweep
-	// skips it as busy and only the additional PDN arms a guard.
+	// Outstanding on the default bearer, so the sweep skips it as busy and only the
+	// additional PDN arms a guard.
 	def := testPDN(ue)
 	def.Modifying = true
 	def.PendingQCI = 9
