@@ -268,7 +268,7 @@ func (s *Session) Fail() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.state == SessionFailed {
+	if s.state == SessionFailed || s.state == LocationReceived {
 		return
 	}
 
