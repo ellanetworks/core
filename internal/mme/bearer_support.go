@@ -105,9 +105,11 @@ func (ue *UeContext) BearerReleaseOnly(p *PdnConnection) bool {
 	return p.Ebi != ue.DefaultEBI || p.Disconnecting
 }
 
-func (ue *UeContext) ClearDeactivating(p *PdnConnection) {
+// BearerDeactivating reports whether an EPS bearer context deactivation is in
+// flight for p (TS 24.301 §6.4.4.2).
+func (ue *UeContext) BearerDeactivating(p *PdnConnection) bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	p.Deactivating = false
+	return p.Deactivating
 }
