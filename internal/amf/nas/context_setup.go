@@ -11,6 +11,22 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 )
 
+// recordLPPCapability latches the UE's LPP-in-N1-mode bit from the 5GMM
+// capability IE (TS 24.501 §9.11.3.1).
+//
+// The IE is not a cleartext IE, so a UE without a security context omits it from
+// its first REGISTRATION REQUEST and re-sends the whole message inside the NAS
+// message container of SECURITY MODE COMPLETE (§4.4.6). Both arrivals land here,
+// and an absent IE never overwrites a bit already learned.
+func recordLPPCapability(ue *amf.UeContext, msg *nasMessage.RegistrationRequest) {
+	if msg == nil || msg.Capability5GMM == nil {
+		return
+	}
+
+	supported := msg.Capability5GMM.GetLPP() == 1
+	ue.LPPN1Supported = &supported
+}
+
 func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.RegistrationRequest) {
 	ctx, span := gmmTracer.Start(ctx, "nas/context_setup")
 	defer span.End()
@@ -24,6 +40,8 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, 
 	}
 
 	conn.RegistrationRequest = msg
+
+	recordLPPCapability(ue, msg)
 
 	switch conn.RegistrationType5GS {
 	case nasMessage.RegistrationType5GSInitialRegistration:

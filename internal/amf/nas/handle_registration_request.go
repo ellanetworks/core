@@ -148,10 +148,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	conn.RegistrationRequest = registrationRequest
 	conn.SetRegistrationType5GS(registrationRequest.GetRegistrationType5GS())
 
-	if cap5GMM := registrationRequest.Capability5GMM; cap5GMM != nil {
-		supported := cap5GMM.GetLPP() == 1
-		conn.Parent().LPPN1Supported = &supported
-	}
+	recordLPPCapability(ue, registrationRequest)
 
 	regName := getRegistrationType5GSName(conn.RegistrationType5GS)
 
