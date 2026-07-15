@@ -63,6 +63,40 @@ export async function listSubscribers(
   );
 }
 
+// The API caps per_page at 100 (internal/api/server/api_subscribers.go), so the
+// roster is assembled here. Fetching it whole is only reasonable because
+// MaxNumSubscribers is 1000; a materially higher cap needs a search parameter
+// instead.
+const ROSTER_PER_PAGE = 100;
+
+/**
+ * Every subscriber's IMSI, for filters that must offer subscribers a filtered
+ * query cannot see — one whose traffic is entirely dropped has flow reports and
+ * no usage row, and one idle in the selected range has neither.
+ */
+export async function listAllSubscriberImsis(
+  authToken: string,
+): Promise<string[]> {
+  const first = await listSubscribers(authToken, 1, ROSTER_PER_PAGE);
+  const items = first.items ?? [];
+  const totalCount = first.total_count ?? items.length;
+
+  const pageCount = Math.ceil(totalCount / ROSTER_PER_PAGE);
+  const rest =
+    pageCount > 1
+      ? await Promise.all(
+          Array.from({ length: pageCount - 1 }, (_, i) =>
+            listSubscribers(authToken, i + 2, ROSTER_PER_PAGE),
+          ),
+        )
+      : [];
+
+  return items
+    .concat(...rest.map((r) => r.items ?? []))
+    .map((s) => s.imsi)
+    .sort((a, b) => a.localeCompare(b));
+}
+
 export async function listSubscribersByRadio(
   authToken: string,
   radioName: string,

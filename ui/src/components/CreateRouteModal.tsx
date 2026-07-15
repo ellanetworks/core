@@ -20,41 +20,7 @@ import { ValidationError } from "yup";
 import { createRoute } from "@/queries/routes";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-
-function isValidCIDR(value: string): boolean {
-  if (value.includes("/")) {
-    const parts = value.split("/");
-    if (parts.length !== 2) return false;
-    const addr = parts[0];
-    const prefix = parseInt(parts[1], 10);
-    if (isNaN(prefix)) return false;
-    try {
-      if (addr.includes(":")) {
-        return prefix >= 0 && prefix <= 128;
-      }
-      return prefix >= 0 && prefix <= 32;
-    } catch {
-      return false;
-    }
-  }
-  return false;
-}
-
-function isValidIP(value: string): boolean {
-  if (value.includes(":")) {
-    const ipv6Regex =
-      /^(?:(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|(?:(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4})?::(?:(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4})?)$/;
-    return ipv6Regex.test(value);
-  }
-  const parts = value.split(".");
-  if (parts.length !== 4) return false;
-  for (const part of parts) {
-    const num = parseInt(part, 10);
-    if (isNaN(num) || num < 0 || num > 255) return false;
-    if (part.length > 1 && part.startsWith("0")) return false;
-  }
-  return true;
-}
+import { ipRegex, isValidCidr } from "@/utils/ip";
 
 const schema = yup.object().shape({
   defaultRoute: yup.boolean(),
@@ -77,7 +43,7 @@ const schema = yup.object().shape({
             "valid-cidr",
             "Destination must be a valid CIDR (IPv4 or IPv6)",
             (value) => {
-              return value != null && isValidCIDR(value);
+              return value != null && value !== "" && isValidCidr(value);
             },
           );
       }
@@ -89,7 +55,7 @@ const schema = yup.object().shape({
       "valid-gateway",
       "Gateway must be a valid IPv4 or IPv6 address",
       (value) => {
-        return value != null && isValidIP(value);
+        return value != null && ipRegex.test(value);
       },
     ),
   interface: yup

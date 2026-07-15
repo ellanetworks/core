@@ -9,6 +9,7 @@ import React, {
   useCallback,
 } from "react";
 import {
+  Autocomplete,
   Box,
   Button,
   Typography,
@@ -62,6 +63,7 @@ import {
   type FlowAccountingInfo,
 } from "@/queries/flow_accounting";
 import { useAuth } from "@/contexts/AuthContext";
+import { listAllSubscriberImsis } from "@/queries/subscribers";
 import { useQuery } from "@tanstack/react-query";
 import {
   Link,
@@ -74,15 +76,16 @@ import EditFlowReportsRetentionPolicyModal from "@/components/EditFlowReportsRet
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import {
-  type DataUnit,
-  UNIT_FACTORS,
-  chooseUnitFromMax,
-  formatBytesAutoUnit,
-  formatProtocol,
-  formatDateTime,
-  UPLINK_COLOR,
   DOWNLINK_COLOR,
   PIE_COLORS,
+  UNIT_FACTORS,
+  UPLINK_COLOR,
+  chooseUnitFromMax,
+  formatBytesAutoUnit,
+  formatCountShare,
+  formatDateTime,
+  formatProtocol,
+  type DataUnit,
 } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
@@ -410,10 +413,15 @@ const Traffic: React.FC = () => {
     return items;
   }, [usagePerSubscriberData]);
 
-  const subscriberOptions = useMemo(
-    () => usageRows.map((r) => r.subscriber),
-    [usageRows],
-  );
+  // Sourced from the roster, not from usageRows: that query is filtered by
+  // selectedSubscriber, so deriving options from it left the chosen subscriber
+  // as the only option and made switching to another impossible.
+  const { data: subscriberOptions = [] } = useQuery<string[]>({
+    queryKey: ["subscriberImsis"],
+    queryFn: () => listAllSubscriberImsis(accessToken || ""),
+    enabled: !!accessToken,
+    placeholderData: (prev) => prev,
+  });
 
   const dailyRows: UsagePerDayRow[] = useMemo(() => {
     if (!usagePerDayData) return [];
@@ -954,21 +962,20 @@ const Traffic: React.FC = () => {
               slotProps={{ inputLabel: { shrink: true } }}
               size="small"
             />
-            <TextField
-              select
-              label="Subscriber"
-              value={selectedSubscriber}
-              onChange={(e) => setSelectedSubscriber(e.target.value)}
+            <Autocomplete
+              options={subscriberOptions}
+              value={selectedSubscriber || null}
+              onChange={(_event, value) => setSelectedSubscriber(value ?? "")}
               size="small"
-              sx={{ minWidth: 200 }}
-            >
-              <MenuItem value="">All subscribers</MenuItem>
-              {subscriberOptions.map((sub) => (
-                <MenuItem key={sub} value={sub}>
-                  {sub}
-                </MenuItem>
-              ))}
-            </TextField>
+              sx={{ minWidth: 240 }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Subscriber"
+                  placeholder="All subscribers"
+                />
+              )}
+            />
           </Box>
 
           {/* Tabs */}
@@ -1158,7 +1165,7 @@ const Traffic: React.FC = () => {
                   {protocolPieData.length > 0 && (
                     <Box>
                       <Typography variant="h6" sx={{ mb: 1 }}>
-                        Protocols
+                        Protocols (by flow count)
                       </Typography>
                       <PieChart
                         series={[
@@ -1168,15 +1175,15 @@ const Traffic: React.FC = () => {
                             outerRadius: 80,
                             paddingAngle: 2,
                             cornerRadius: 5,
-                            valueFormatter: (item) => {
-                              const total = protocolPieData.reduce(
-                                (s, d) => s + d.value,
-                                0,
-                              );
-                              return total > 0
-                                ? `${((item.value / total) * 100).toFixed(1)}%`
-                                : "0%";
-                            },
+                            valueFormatter: (item) =>
+                              formatCountShare(
+                                item.value,
+                                protocolPieData.reduce(
+                                  (s, d) => s + d.value,
+                                  0,
+                                ),
+                                "flow",
+                              ),
                           },
                         ]}
                         height={300}
@@ -1210,7 +1217,7 @@ const Traffic: React.FC = () => {
                   {topDestinationsPieData.length > 0 && (
                     <Box>
                       <Typography variant="h6" sx={{ mb: 1 }}>
-                        Top 10 Destinations (uplink)
+                        Top 10 Destinations (uplink, by flow count)
                       </Typography>
                       <PieChart
                         series={[
@@ -1220,15 +1227,15 @@ const Traffic: React.FC = () => {
                             outerRadius: 80,
                             paddingAngle: 2,
                             cornerRadius: 5,
-                            valueFormatter: (item) => {
-                              const total = topDestinationsPieData.reduce(
-                                (s, d) => s + d.value,
-                                0,
-                              );
-                              return total > 0
-                                ? `${((item.value / total) * 100).toFixed(1)}%`
-                                : "0%";
-                            },
+                            valueFormatter: (item) =>
+                              formatCountShare(
+                                item.value,
+                                topDestinationsPieData.reduce(
+                                  (s, d) => s + d.value,
+                                  0,
+                                ),
+                                "flow",
+                              ),
                           },
                         ]}
                         height={300}

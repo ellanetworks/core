@@ -17,7 +17,12 @@ import { ValidationError } from "yup";
 import { updateDataNetwork, APIDataNetwork } from "@/queries/data_networks";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { ipv4Regex, ipv6Regex, cidrRegex, isValidIpv6Cidr } from "@/utils/ip";
+import {
+  ipv4Regex,
+  ipv6Regex,
+  isValidIpv4Cidr,
+  isValidIpv6PoolCidr,
+} from "@/utils/ip";
 
 interface EditDataNetworkModalProps {
   open: boolean;
@@ -34,10 +39,13 @@ const schema = yup.object().shape({
       "At least one IP pool (IPv4 or IPv6) is required",
       function (value) {
         const { ipv6_pool } = this.parent;
-        if (!value && !ipv6_pool) return false;
-        if (!value) return true;
-        return cidrRegex.test(value);
+        return !!(value || ipv6_pool);
       },
+    )
+    .test(
+      "ipv4-pool-format",
+      "Must be a valid IPv4 CIDR (e.g., 10.45.0.0/16)",
+      (value) => (value ? isValidIpv4Cidr(value) : true),
     ),
   ipv6_pool: yup
     .string()
@@ -46,10 +54,13 @@ const schema = yup.object().shape({
       "At least one IP pool (IPv4 or IPv6) is required",
       function (value) {
         const { ipv4_pool } = this.parent;
-        if (!value && !ipv4_pool) return false;
-        if (!value) return true;
-        return isValidIpv6Cidr(value);
+        return !!(value || ipv4_pool);
       },
+    )
+    .test(
+      "ipv6-pool-format",
+      "Must be a valid IPv6 CIDR with a prefix length between /48 and /60 (e.g., 2001:db8::/56)",
+      (value) => (value ? isValidIpv6PoolCidr(value) : true),
     ),
   dns: yup
     .string()
@@ -218,7 +229,11 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
           onChange={(e) => handleChange("ipv6_pool", e.target.value)}
           onBlur={() => handleBlur("ipv6_pool")}
           error={!!errors.ipv6_pool && touched.ipv6_pool}
-          helperText={touched.ipv6_pool ? errors.ipv6_pool : ""}
+          helperText={
+            touched.ipv6_pool && errors.ipv6_pool
+              ? errors.ipv6_pool
+              : "Prefix length between /48 and /60 — Ella Core delegates /64s from within the pool."
+          }
           margin="normal"
           placeholder="e.g., 2001:db8::/48"
         />

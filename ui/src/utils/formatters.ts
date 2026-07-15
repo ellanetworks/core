@@ -222,6 +222,20 @@ export const formatProtocol = (value: number): string =>
   PROTOCOL_NAMES[value] ?? String(value);
 
 /**
+ * Names the unit a share is measured in, so a slice of a chart on a page about
+ * traffic cannot be read as a share of bytes when it counts flows.
+ */
+export const formatCountShare = (
+  value: number,
+  total: number,
+  noun: string,
+): string => {
+  const pct = total > 0 ? ((value / total) * 100).toFixed(1) : "0.0";
+  const unit = value === 1 ? noun : `${noun}s`;
+  return `${value.toLocaleString()} ${unit} (${pct}%)`;
+};
+
+/**
  * Stable colors for well-known protocols, matching the PIE_COLORS palette
  * used on the Traffic page so chips look consistent across views.
  */

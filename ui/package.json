@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "lint": "oxlint",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -38,6 +40,7 @@
     "oxlint": "^1.74.0",
     "prettier": "^3.9.5",
     "typescript": "^7.0.2",
-    "vite": "^8.1.4"
+    "vite": "^8.1.4",
+    "vitest": "^4.1.10"
   }
 }

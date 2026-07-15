@@ -39,7 +39,12 @@ import {
 } from "@/queries/bgp";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { ipRegex, isValidCidr, getMaxPrefixLength } from "@/utils/ip";
+import {
+  ipRegex,
+  isValidCidr,
+  getMaxPrefixLength,
+  prefixLength,
+} from "@/utils/ip";
 import { detectPreset, type ImportPreset } from "@/utils/bgp";
 
 const schema = yup.object().shape({
@@ -218,8 +223,9 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
   const hasInvalidPrefixes = importPrefixes.some((p) => {
     if (!p.prefix) return false;
     const valid = isValidCidr(p.prefix);
+    const minLen = prefixLength(p.prefix) ?? 0;
     const maxLen = getMaxPrefixLength(p.prefix);
-    return !valid || p.maxLength < 0 || p.maxLength > maxLen;
+    return !valid || p.maxLength < minLen || p.maxLength > maxLen;
   });
 
   const handleSubmit = async () => {
@@ -411,7 +417,7 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
                     !!entry.prefix &&
                     (entry.maxLength < 0 ||
                       entry.maxLength > getMaxPrefixLength(entry.prefix))
-                      ? `0–${getMaxPrefixLength(entry.prefix)}`
+                      ? `${prefixLength(entry.prefix) ?? 0}–${getMaxPrefixLength(entry.prefix)}`
                       : ""
                   }
                   sx={{ flex: 1 }}

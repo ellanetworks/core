@@ -45,11 +45,12 @@ import {
 } from "@/queries/flow_reports";
 import { getUsage, type UsageResult } from "@/queries/usage";
 import {
-  formatDateTime,
+  PIE_COLORS,
   formatBytesAutoUnit,
+  formatCountShare,
+  formatDateTime,
   formatMemory,
   formatProtocol,
-  PIE_COLORS,
 } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
@@ -708,15 +709,12 @@ const Dashboard = () => {
                       outerRadius: 100,
                       paddingAngle: 2,
                       cornerRadius: 5,
-                      valueFormatter: (item) => {
-                        const total = protocolPieData.reduce(
-                          (s, d) => s + d.value,
-                          0,
-                        );
-                        return total > 0
-                          ? `${((item.value / total) * 100).toFixed(1)}%`
-                          : "0%";
-                      },
+                      valueFormatter: (item) =>
+                        formatCountShare(
+                          item.value,
+                          protocolPieData.reduce((s, d) => s + d.value, 0),
+                          "flow",
+                        ),
                     },
                   ]}
                   height={220}
