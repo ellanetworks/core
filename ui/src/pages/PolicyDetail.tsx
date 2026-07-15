@@ -43,12 +43,8 @@ import PolicyRulesModal from "@/components/PolicyRulesModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import QueryState from "@/components/QueryState";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
-import {
-  formatProtocol,
-  PROTOCOL_CHIP_COLORS,
-  UPLINK_COLOR,
-  DOWNLINK_COLOR,
-} from "@/utils/formatters";
+import IPProtocolChip from "@/components/IPProtocolChip";
+import { UPLINK_COLOR, DOWNLINK_COLOR } from "@/utils/formatters";
 
 const labelCellSx = { fontWeight: 600, width: "35%" } as const;
 const valueCellSx = { width: "65%", textAlign: "right" } as const;
@@ -159,21 +155,7 @@ const PolicyDetail: React.FC = () => {
               height: "100%",
             }}
           >
-            <Chip
-              size="small"
-              label={
-                params.row.protocol === 0
-                  ? "any"
-                  : formatProtocol(params.row.protocol)
-              }
-              variant="outlined"
-              sx={{
-                borderColor:
-                  PROTOCOL_CHIP_COLORS[params.row.protocol] || "divider",
-                color:
-                  PROTOCOL_CHIP_COLORS[params.row.protocol] || "text.primary",
-              }}
-            />
+            <IPProtocolChip protocol={params.row.protocol} />
           </Box>
         ),
       },

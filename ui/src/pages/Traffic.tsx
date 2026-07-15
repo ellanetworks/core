@@ -21,7 +21,6 @@ import {
   Tab,
   Tabs,
   Tooltip,
-  Chip,
 } from "@mui/material";
 import { Edit as EditIcon } from "@mui/icons-material";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
@@ -78,6 +77,7 @@ import EmptyState from "@/components/EmptyState";
 import {
   DOWNLINK_COLOR,
   PIE_COLORS,
+  PROTOCOL_CHIP_COLORS,
   UNIT_FACTORS,
   UPLINK_COLOR,
   chooseUnitFromMax,
@@ -87,6 +87,7 @@ import {
   formatProtocol,
   type DataUnit,
 } from "@/utils/formatters";
+import IPProtocolChip from "@/components/IPProtocolChip";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 /** Shared cell renderer for subscriber IMSI links in data grids. */
@@ -523,7 +524,10 @@ const Traffic: React.FC = () => {
     const map = new Map<number, string>();
     if (protocolOptionsData?.protocols?.length) {
       protocolOptionsData.protocols.forEach((p, i) => {
-        map.set(p.protocol, PIE_COLORS[i % PIE_COLORS.length]);
+        map.set(
+          p.protocol,
+          PROTOCOL_CHIP_COLORS[p.protocol] ?? PIE_COLORS[i % PIE_COLORS.length],
+        );
       });
     }
     return map;
@@ -675,9 +679,6 @@ const Traffic: React.FC = () => {
         renderCell: (params) => {
           const value = params.value as number;
           if (value == null) return null;
-          const label = formatProtocol(value);
-          const bg = protocolColorMap.get(value);
-          if (!bg) return label;
           return (
             <Box
               sx={{
@@ -688,16 +689,9 @@ const Traffic: React.FC = () => {
                 justifyContent: "center",
               }}
             >
-              <Chip
-                label={label}
-                size="small"
-                sx={{
-                  backgroundColor: bg,
-                  color: theme.palette.getContrastText(bg),
-                  fontWeight: 600,
-                  fontSize: "0.75rem",
-                  height: 22,
-                }}
+              <IPProtocolChip
+                protocol={value}
+                color={protocolColorMap.get(value)}
               />
             </Box>
           );
@@ -758,7 +752,7 @@ const Traffic: React.FC = () => {
         },
       },
     ],
-    [protocolColorMap, theme.palette],
+    [protocolColorMap],
   );
 
   // ── Protocol distribution (donut chart) ─────────────

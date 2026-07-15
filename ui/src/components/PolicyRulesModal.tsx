@@ -36,11 +36,8 @@ import { useAuth } from "@/contexts/AuthContext";
 
 import * as yup from "yup";
 import { ValidationError } from "yup";
-import {
-  formatProtocol,
-  PROTOCOL_CHIP_COLORS,
-  PROTOCOL_NAMES,
-} from "@/utils/formatters";
+import { PROTOCOL_NAMES } from "@/utils/formatters";
+import IPProtocolChip from "@/components/IPProtocolChip";
 import { isValidCidr } from "@/utils/ip";
 
 const parseProtocol = (value: string): number | undefined => {
@@ -517,21 +514,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
                     />
                   </Box>
                   <Box sx={{ width: 100, flexShrink: 0 }}>
-                    <Chip
-                      label={
-                        rule.protocol === 0
-                          ? "any"
-                          : formatProtocol(rule.protocol)
-                      }
-                      size="small"
-                      variant="outlined"
-                      sx={{
-                        borderColor:
-                          PROTOCOL_CHIP_COLORS[rule.protocol] || "divider",
-                        color:
-                          PROTOCOL_CHIP_COLORS[rule.protocol] || "text.primary",
-                      }}
-                    />
+                    <IPProtocolChip protocol={rule.protocol} />
                   </Box>
                   <Typography
                     variant="body2"
