@@ -53,6 +53,7 @@ type Session struct {
 	method         string
 	state          SessionState
 	transactionID  byte
+	sequenceNumber byte
 	capabilities   *models.ProvideLocationCapabilities
 	locationResult *models.GNSSPositionResult
 	log            *zap.Logger
@@ -94,6 +95,18 @@ func (s *Session) NextTransactionID() byte {
 	return id
 }
 
+// NextSequenceNumber returns the next downlink sequence number for this
+// session. TS 37.355 §4.3.2 requires one on every message and requires it to
+// differ from the last sent in the same direction: a repeat is discarded by the
+// peer as a duplicate. It wraps at 255, which the peer accepts because only
+// equality with the immediately preceding number matters.
+func (s *Session) NextSequenceNumber() byte {
+	n := s.sequenceNumber
+	s.sequenceNumber++
+
+	return n
+}
+
 // StartSession initializes the session and begins the capability exchange.
 // For AGNSS-assisted positioning, this sends a RequestLocationInformation
 // asking the UE to report its capabilities.
@@ -107,7 +120,7 @@ func (s *Session) StartSession() error {
 
 	s.state = CapabilitiesRequested
 
-	msg, err := BuildRequestCapabilities(s.NextTransactionID())
+	msg, err := BuildRequestCapabilities(s.NextTransactionID(), s.NextSequenceNumber())
 	if err != nil {
 		s.state = SessionFailed
 		return fmt.Errorf("build request capabilities: %w", err)
@@ -131,6 +144,10 @@ func (s *Session) HandleResponse(msg any) error {
 		return s.handleCapabilities(response)
 	case *models.ProvideLocationInformation:
 		return s.handleLocation(response)
+	case *models.Abort:
+		s.handleAbort(response)
+
+		return nil
 	default:
 		return fmt.Errorf("unexpected message type for state %s: %T", s.state, msg)
 	}
@@ -158,7 +175,7 @@ func (s *Session) handleCapabilities(capMsg *models.ProvideLocationCapabilities)
 	// For AGNSS-assisted, now request actual location
 	s.state = LocationRequested
 
-	locMsg, err := BuildRequestLocationInfo(s.NextTransactionID(), PosMethodGNSS)
+	locMsg, err := BuildRequestLocationInfo(s.NextTransactionID(), s.NextSequenceNumber(), PosMethodGNSS)
 	if err != nil {
 		s.state = SessionFailed
 		return fmt.Errorf("build request location: %w", err)
@@ -172,6 +189,30 @@ func (s *Session) handleCapabilities(capMsg *models.ProvideLocationCapabilities)
 	}
 
 	return nil
+}
+
+// handleAbort processes an Abort from the UE. The peer has abandoned the
+// procedure and will send nothing further, so the session fails now with the
+// cause it gave (TS 37.355 §5.5.3) rather than waiting out the timeout.
+func (s *Session) handleAbort(msg *models.Abort) {
+	s.log.Warn(
+		"UE aborted the LPP procedure",
+		zap.String("state", s.state.String()),
+		zap.String("abort_cause", msg.Cause),
+		zap.Uint8("transaction_id", msg.TransactionID),
+	)
+
+	s.state = SessionFailed
+
+	if s.failFunc != nil {
+		if err := s.failFunc(); err != nil {
+			s.log.Error("failed to report session failure", zap.Error(err))
+		}
+	}
+
+	if s.deregisterFunc != nil {
+		s.deregisterFunc()
+	}
 }
 
 // handleLocation processes ProvideLocationInformation from the UE.

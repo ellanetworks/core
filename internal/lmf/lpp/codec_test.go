@@ -12,19 +12,45 @@ import (
 )
 
 // TestEncodeRequestCapabilitiesIsUnaligned pins the exact octets the LMF opens
-// an A-GNSS session with. The aligned codec produced a 6-byte encoding of the
-// same message, which a handset rejects with errorCause lppMessageBodyError
+// an A-GNSS session with. Under the aligned variant the same message encodes
+// with padding a handset rejects, returning errorCause lppMessageBodyError
 // (see TestDecodeErrorFromUE).
 func TestEncodeRequestCapabilitiesIsUnaligned(t *testing.T) {
-	got, err := EncodeRequestCapabilities(0)
+	got, err := EncodeRequestCapabilities(0, 0)
 	if err != nil {
 		t.Fatalf("EncodeRequestCapabilities: %v", err)
 	}
 
-	const want = "90000021c0"
+	const want = "d000000021c0"
 
 	if hex.EncodeToString(got) != want {
 		t.Errorf("RequestCapabilities: got %s, want %s", hex.EncodeToString(got), want)
+	}
+}
+
+// TestRequestsCarrySequenceNumber guards TS 37.355 §4.3.2: a sender shall
+// include a sequence number in all LPP messages sent for a location session,
+// and consecutive messages must differ or the peer discards the second as a
+// duplicate.
+func TestRequestsCarrySequenceNumber(t *testing.T) {
+	for seq := byte(0); seq < 3; seq++ {
+		b, err := EncodeRequestCapabilities(0, seq)
+		if err != nil {
+			t.Fatalf("EncodeRequestCapabilities: %v", err)
+		}
+
+		msg, err := DecodeMessage(b)
+		if err != nil {
+			t.Fatalf("DecodeMessage: %v", err)
+		}
+
+		if msg.SequenceNumber == nil {
+			t.Fatalf("seq %d: sequenceNumber absent, want present", seq)
+		}
+
+		if *msg.SequenceNumber != int64(seq) {
+			t.Errorf("sequenceNumber: got %d, want %d", *msg.SequenceNumber, seq)
+		}
 	}
 }
 
@@ -35,13 +61,13 @@ func TestEncodeRequestCapabilitiesIsUnaligned(t *testing.T) {
 func TestRequestsDoNotEndTransaction(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
-		encode func(byte) ([]byte, error)
+		encode func(byte, byte) ([]byte, error)
 	}{
 		{"RequestCapabilities", EncodeRequestCapabilities},
 		{"RequestLocationInformation", EncodeRequestLocationInformation},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			b, err := tc.encode(0)
+			b, err := tc.encode(0, 0)
 			if err != nil {
 				t.Fatalf("encode: %v", err)
 			}
@@ -118,6 +144,18 @@ func TestDecodeErrorFromUE(t *testing.T) {
 		t.Fatalf("DecodeMessage: %v", err)
 	}
 
+	// TS 37.355 §4.2: every message in a transaction carries the transaction's
+	// ID, so this has to be the 0 the LMF opened with. Reading endTransaction
+	// ahead of transactionID also decodes, but yields 1 here.
+	if msg.TransactionID == nil || msg.TransactionID.TransactionNumber != 0 ||
+		msg.TransactionID.Initiator.Value != lpptype.InitiatorLocationServer {
+		t.Errorf("transactionID: got %+v, want {locationServer, 0}", msg.TransactionID)
+	}
+
+	if !msg.EndTransaction {
+		t.Error("endTransaction: got false, want true")
+	}
+
 	if msg.SequenceNumber == nil || *msg.SequenceNumber != 0 {
 		t.Errorf("sequenceNumber: got %v, want 0", msg.SequenceNumber)
 	}
@@ -135,6 +173,45 @@ func TestDecodeErrorFromUE(t *testing.T) {
 	if cause != lpptype.CommonIEsErrorErrorCausePresentLPPMessageBodyError {
 		t.Errorf("errorCause: got %d, want %d (lppMessageBodyError)",
 			cause, lpptype.CommonIEsErrorErrorCausePresentLPPMessageBodyError)
+	}
+}
+
+// TestDecodeAbortFromUE decodes the Abort a commercial handset returned to the
+// capabilities request pinned by TestEncodeRequestCapabilitiesIsUnaligned. The
+// abortCause is the only account the target gives of why it stopped, so the
+// decode has to reach it.
+func TestDecodeAbortFromUE(t *testing.T) {
+	raw, err := hex.DecodeString("d001003040")
+	if err != nil {
+		t.Fatalf("hex: %v", err)
+	}
+
+	msg, err := DecodeMessage(raw)
+	if err != nil {
+		t.Fatalf("DecodeMessage: %v", err)
+	}
+
+	if msg.TransactionID == nil || msg.TransactionID.TransactionNumber != 0 ||
+		msg.TransactionID.Initiator.Value != lpptype.InitiatorLocationServer {
+		t.Errorf("transactionID: got %+v, want {locationServer, 0}", msg.TransactionID)
+	}
+
+	if !msg.EndTransaction {
+		t.Error("endTransaction: got false, want true")
+	}
+
+	if msg.SequenceNumber == nil || *msg.SequenceNumber != 0 {
+		t.Errorf("sequenceNumber: got %v, want 0", msg.SequenceNumber)
+	}
+
+	if msg.LppMessageBody == nil || msg.LppMessageBody.C1 == nil ||
+		msg.LppMessageBody.C1.Present != lpptype.LPPMessageBodyC1PresentAbort {
+		t.Fatalf("body: got %+v, want an Abort", msg.LppMessageBody)
+	}
+
+	cause := msg.LppMessageBody.C1.Abort.CriticalExtensions.C1.AbortR9.CommonIEsAbort.AbortCause.Value
+	if cause != lpptype.CommonIEsAbortCausePresentUndefined {
+		t.Errorf("abortCause: got %s, want undefined", lpptype.AbortCauseString(cause))
 	}
 }
 

@@ -103,3 +103,10 @@ type GNSSPositionResult struct {
 	VerticalAccuracy   uint32 // in meters
 	Timestamp          int64  // Unix timestamp in ms
 }
+
+// Abort is sent by either endpoint to abandon an ongoing procedure
+// (TS 37.355 §5.5). Cause is the target's only account of why it stopped.
+type Abort struct {
+	TransactionID byte
+	Cause         string
+}

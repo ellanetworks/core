@@ -66,13 +66,13 @@ func EncodeMessage(msg *lpptype.LPPMessage) ([]byte, error) {
 		msg.LppMessageBody != nil,
 	})
 
-	w.WriteBool(msg.EndTransaction)
-
 	if msg.TransactionID != nil {
 		if err := writeTransactionID(w, msg.TransactionID); err != nil {
 			return nil, err
 		}
 	}
+
+	w.WriteBool(msg.EndTransaction)
 
 	if msg.SequenceNumber != nil {
 		if err := w.WriteConstrainedInt(*msg.SequenceNumber, sequenceNumberMin, sequenceNumberMax); err != nil {
@@ -106,14 +106,14 @@ func DecodeMessage(data []byte) (*lpptype.LPPMessage, error) {
 
 	msg := &lpptype.LPPMessage{}
 
-	if msg.EndTransaction, err = r.ReadBool(); err != nil {
-		return nil, fmt.Errorf("endTransaction: %w", err)
-	}
-
 	if optionals[0] {
 		if msg.TransactionID, err = readTransactionID(r); err != nil {
 			return nil, err
 		}
+	}
+
+	if msg.EndTransaction, err = r.ReadBool(); err != nil {
+		return nil, fmt.Errorf("endTransaction: %w", err)
 	}
 
 	if optionals[1] {
@@ -300,8 +300,9 @@ func readMessageBody(r *uper.Reader) (*lpptype.LPPMessageBody, error) {
 			return nil, err
 		}
 	case lpptype.LPPMessageBodyC1PresentAbort:
-		// Abort carries only a cause the LMF does not act on; the body kind is
-		// what the session needs, so the contents are left undecoded.
+		if body.C1.Abort, err = readAbort(r); err != nil {
+			return nil, err
+		}
 	default:
 		return nil, fmt.Errorf("lpp-MessageBody: decoding c1 alternative %d is not implemented", c1)
 	}

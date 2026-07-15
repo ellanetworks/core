@@ -1,21 +1,25 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// Package lpptype holds hand-written, aper-tagged Go structs that mirror the
-// 3GPP TS 37.355 (Rel-18) LPP ASN.1 definitions needed for A-GNSS positioning.
+// Package lpptype holds hand-written Go structs that mirror the 3GPP TS 37.355
+// (Rel-18) LPP ASN.1 definitions needed for A-GNSS positioning.
 //
-// The aligned-PER codec is github.com/free5gc/aper. Tag conventions follow the
-// existing internal/nrppa/nrppatype package:
-//   - SEQUENCE: Go struct, optional fields tagged `aper:"optional"`
-//   - CHOICE: Go struct with Present int + pointer fields; referencing field
-//     tagged `aper:"valueLB:0,valueUB:N-1"` (N = number of root alternatives)
-//   - Extensible types: referencing field tagged with `valueExt`
-//   - ENUMERATED: aper.Enumerated with `valueLB:0,valueUB:N-1,valueExt`
-//   - BIT STRING: aper.BitString with `sizeLB:N,sizeUB:N`
-//   - INTEGER: int64 with `valueLB:Lo,valueUB:Hi`
+// LPP is carried in the unaligned variant of PER (TS 37.355 §5), so these
+// structs are read and written by the hand-written codec in the parent package,
+// not by a reflection codec. The `aper` tags are inert: no encoder consults
+// them, and where they disagree with the ASN.1 the codec is what governs. Only
+// the aper.Enumerated and aper.BitString field types are load-bearing.
+//
+// A struct here is not evidence of what the spec says. Several were modelled
+// with fewer root fields than TS 37.355 defines, which under PER shifts every
+// bit that follows, so check the ASN.1 before trusting a shape.
 package lpptype
 
-import "github.com/free5gc/aper"
+import (
+	"fmt"
+
+	"github.com/free5gc/aper"
+)
 
 // =====================================================================
 // LPP-Message (TS 37.355 §6.2)
@@ -181,11 +185,33 @@ type AbortR9IEs struct {
 	CommonIEsAbort *CommonIEsAbort `aper:"optional"`
 }
 
-// CommonIEsAbort ::= SEQUENCE { abortCause ENUMERATED {...}, ... }
+//	CommonIEsAbort ::= SEQUENCE {
+//	    abortCause ENUMERATED { undefined, stopPeriodicReporting, targetDeviceAbort,
+//	        networkAbort, ..., stopPeriodicAssistanceDataDelivery-v1510 } }
 const (
-	CommonIEsAbortCausePresentUndefined        aper.Enumerated = 0
-	CommonIEsAbortCausePresentStopPeriodicEcid aper.Enumerated = 1
+	CommonIEsAbortCausePresentUndefined             aper.Enumerated = 0
+	CommonIEsAbortCausePresentStopPeriodicReporting aper.Enumerated = 1
+	CommonIEsAbortCausePresentTargetDeviceAbort     aper.Enumerated = 2
+	CommonIEsAbortCausePresentNetworkAbort          aper.Enumerated = 3
 )
+
+// AbortCauseString names an abortCause for logging. An abort is the only
+// account a target gives of why it walked away, so the cause is reported
+// verbatim rather than folded into a generic failure.
+func AbortCauseString(c aper.Enumerated) string {
+	switch c {
+	case CommonIEsAbortCausePresentUndefined:
+		return "undefined"
+	case CommonIEsAbortCausePresentStopPeriodicReporting:
+		return "stopPeriodicReporting"
+	case CommonIEsAbortCausePresentTargetDeviceAbort:
+		return "targetDeviceAbort"
+	case CommonIEsAbortCausePresentNetworkAbort:
+		return "networkAbort"
+	default:
+		return fmt.Sprintf("unknown(%d)", c)
+	}
+}
 
 type CommonIEsAbort struct {
 	AbortCause struct {

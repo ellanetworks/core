@@ -5,6 +5,6 @@ package lpp
 
 // BuildRequestCapabilities constructs an LPP RequestCapabilities message
 // asking the UE to provide its A-GNSS capabilities.
-func BuildRequestCapabilities(transactionID byte) ([]byte, error) {
-	return EncodeRequestCapabilities(transactionID)
+func BuildRequestCapabilities(transactionID, sequenceNumber byte) ([]byte, error) {
+	return EncodeRequestCapabilities(transactionID, sequenceNumber)
 }

@@ -11,15 +11,15 @@ import (
 
 // BuildAssistanceData constructs a ProvideAssistanceData message.
 // For the MVP, assistance data is a placeholder; real ephemeris is Phase 3+.
-func BuildAssistanceData(transactionID byte) ([]byte, error) {
-	return EncodeProvideAssistanceData(transactionID, nil)
+func BuildAssistanceData(transactionID, sequenceNumber byte) ([]byte, error) {
+	return EncodeProvideAssistanceData(transactionID, sequenceNumber, nil)
 }
 
 // BuildRequestLocationInfo constructs an LPP RequestLocationInformation message
 // requesting a GNSS location estimate.
-func BuildRequestLocationInfo(transactionID byte, method uint8) ([]byte, error) {
+func BuildRequestLocationInfo(transactionID, sequenceNumber byte, method uint8) ([]byte, error) {
 	_ = method // All methods use GNSS for MVP
-	return EncodeRequestLocationInformation(transactionID)
+	return EncodeRequestLocationInformation(transactionID, sequenceNumber)
 }
 
 // ParseLPPMessage decodes an APER-encoded LPP message and returns the
@@ -45,6 +45,8 @@ func ParseLPPMessage(data []byte) (any, error) {
 		return decoded.RequestLocationInformation, nil
 	case lpptype.LPPMessageBodyC1PresentProvideAssistanceData:
 		return decoded.ProvideAssistanceData, nil
+	case lpptype.LPPMessageBodyC1PresentAbort:
+		return decoded.Abort, nil
 	case 0:
 		return nil, fmt.Errorf("LPP message has no body")
 	default:

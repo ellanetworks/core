@@ -14,10 +14,11 @@ import (
 // LPPCapabilitiesResponseOpts contains the parameters for building the UE's
 // ProvideLocationCapabilities LPP response.
 type LPPCapabilitiesResponseOpts struct {
-	TransactionID byte
-	GNSSGPS       bool
-	GNSSGLO       bool
-	GNSSBDT       bool
+	TransactionID  byte
+	SequenceNumber byte
+	GNSSGPS        bool
+	GNSSGLO        bool
+	GNSSBDT        bool
 }
 
 // BuildLPPCapabilitiesResponse creates an APER-encoded LPP ProvideCapabilities
@@ -37,13 +38,14 @@ func BuildLPPCapabilitiesResponse(opts *LPPCapabilitiesResponseOpts) ([]byte, er
 		gnssIDs = append(gnssIDs, lpptype.GnssIDGlonass)
 	}
 
-	return lpp.EncodeProvideCapabilities(opts.TransactionID, gnssIDs)
+	return lpp.EncodeProvideCapabilities(opts.TransactionID, opts.SequenceNumber, gnssIDs)
 }
 
 // LPPLocationResponseOpts contains the parameters for building the UE's
 // ProvideLocationInformation LPP response (UE-assisted GNSS fix).
 type LPPLocationResponseOpts struct {
 	TransactionID      byte
+	SequenceNumber     byte
 	Latitude           int32  // 1e-7 degrees
 	Longitude          int32  // 1e-7 degrees
 	Altitude           int32  // cm
@@ -59,7 +61,7 @@ func BuildLPPLocationResponse(opts *LPPLocationResponseOpts) ([]byte, error) {
 		return nil, nil
 	}
 
-	return lpp.EncodeProvideLocationInformation(opts.TransactionID, opts.Latitude, opts.Longitude, opts.Altitude, uint32(opts.HorizontalAccuracy), uint32(opts.VerticalAccuracy))
+	return lpp.EncodeProvideLocationInformation(opts.TransactionID, opts.SequenceNumber, opts.Latitude, opts.Longitude, opts.Altitude, uint32(opts.HorizontalAccuracy), uint32(opts.VerticalAccuracy))
 }
 
 // DecodeLPPMessage decodes an APER-encoded LPP message from the LMF.

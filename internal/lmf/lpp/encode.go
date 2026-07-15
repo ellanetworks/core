@@ -23,13 +23,20 @@ func Encoder(msg *lpptype.LPPMessage) ([]byte, error) {
 // (TS 37.355 §4.2). A request is never last: the response that closes the
 // transaction is, so a request that sets it leaves the peer with nothing to
 // send.
-func encodeLPPMessage(transactionID byte, initiator aper.Enumerated, endTransaction bool, body *lpptype.LPPMessageBody) ([]byte, error) {
+//
+// sequenceNumber drives the peer's duplicate detection: §4.3.2 requires one on
+// every message sent for a location session, and it must differ from the
+// previous message sent in the same direction or the peer discards this one.
+func encodeLPPMessage(transactionID byte, initiator aper.Enumerated, endTransaction bool, sequenceNumber byte, body *lpptype.LPPMessageBody) ([]byte, error) {
+	seq := int64(sequenceNumber)
+
 	msg := &lpptype.LPPMessage{
 		TransactionID: &lpptype.LPPTransactionID{
 			Initiator:         lpptype.Initiator{Value: initiator},
 			TransactionNumber: int64(transactionID),
 		},
 		EndTransaction: endTransaction,
+		SequenceNumber: &seq,
 		LppMessageBody: body,
 	}
 
@@ -37,7 +44,7 @@ func encodeLPPMessage(transactionID byte, initiator aper.Enumerated, endTransact
 }
 
 // EncodeRequestCapabilities encodes an LPP RequestCapabilities message.
-func EncodeRequestCapabilities(transactionID byte) ([]byte, error) {
+func EncodeRequestCapabilities(transactionID, sequenceNumber byte) ([]byte, error) {
 	body := &lpptype.LPPMessageBody{
 		Present: 1, // c1
 		C1: &lpptype.LPPMessageBodyC1{
@@ -61,12 +68,12 @@ func EncodeRequestCapabilities(transactionID byte) ([]byte, error) {
 	}
 
 	// §5.1.1: the target's ProvideCapabilities is what ends this transaction.
-	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, false, body)
+	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, false, sequenceNumber, body)
 }
 
 // EncodeRequestLocationInformation encodes an LPP RequestLocationInformation message
 // requesting a GNSS location estimate.
-func EncodeRequestLocationInformation(transactionID byte) ([]byte, error) {
+func EncodeRequestLocationInformation(transactionID, sequenceNumber byte) ([]byte, error) {
 	body := &lpptype.LPPMessageBody{
 		Present: 1, // c1
 		C1: &lpptype.LPPMessageBodyC1{
@@ -105,12 +112,12 @@ func EncodeRequestLocationInformation(transactionID byte) ([]byte, error) {
 	}
 
 	// §5.3.1: the target's ProvideLocationInformation is what ends this transaction.
-	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, false, body)
+	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, false, sequenceNumber, body)
 }
 
 // EncodeProvideCapabilities encodes an LPP ProvideCapabilities message
 // indicating support for the given GNSS constellations.
-func EncodeProvideCapabilities(transactionID byte, gnssIDs []aper.Enumerated) ([]byte, error) {
+func EncodeProvideCapabilities(transactionID, sequenceNumber byte, gnssIDs []aper.Enumerated) ([]byte, error) {
 	supportList := &lpptype.GNSSSupportList{}
 
 	for _, id := range gnssIDs {
@@ -146,12 +153,12 @@ func EncodeProvideCapabilities(transactionID byte, gnssIDs []aper.Enumerated) ([
 	}
 
 	// §5.1.1 step 2: the target's response ends the transaction.
-	return encodeLPPMessage(transactionID, lpptype.InitiatorTargetDevice, true, body)
+	return encodeLPPMessage(transactionID, lpptype.InitiatorTargetDevice, true, sequenceNumber, body)
 }
 
 // EncodeProvideAssistanceData encodes an LPP ProvideAssistanceData message.
 // For the MVP, the assistance data payload is opaque (not fully encoded per ASN.1).
-func EncodeProvideAssistanceData(transactionID byte, assistanceData []byte) ([]byte, error) {
+func EncodeProvideAssistanceData(transactionID, sequenceNumber byte, assistanceData []byte) ([]byte, error) {
 	_ = assistanceData // MVP: assistance data encoding is Phase 3+
 
 	body := &lpptype.LPPMessageBody{
@@ -173,14 +180,14 @@ func EncodeProvideAssistanceData(transactionID byte, assistanceData []byte) ([]b
 	}
 
 	// §5.2.1: a single delivery carries all the assistance data there is.
-	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, true, body)
+	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, true, sequenceNumber, body)
 }
 
 // EncodeProvideLocationInformation encodes an LPP ProvideLocationInformation
 // message carrying a GNSS-derived location estimate as an ellipsoid point with
 // altitude and uncertainty ellipsoid (TS 23.032).
 // hAcc and vAcc are the horizontal and vertical accuracy in meters.
-func EncodeProvideLocationInformation(transactionID byte, lat int32, lon int32, alt int32, hAcc, vAcc uint32) ([]byte, error) {
+func EncodeProvideLocationInformation(transactionID, sequenceNumber byte, lat int32, lon int32, alt int32, hAcc, vAcc uint32) ([]byte, error) {
 	latSign, latAbs := encodeLatitude(lat)
 	altDir, altAbs := encodeAltitude(alt)
 	lonEncoded := encodeLongitude(lon)
@@ -224,7 +231,7 @@ func EncodeProvideLocationInformation(transactionID byte, lat int32, lon int32, 
 	}
 
 	// §5.1.1 step 2: the target's response ends the transaction.
-	return encodeLPPMessage(transactionID, lpptype.InitiatorTargetDevice, true, body)
+	return encodeLPPMessage(transactionID, lpptype.InitiatorTargetDevice, true, sequenceNumber, body)
 }
 
 // =====================================================================

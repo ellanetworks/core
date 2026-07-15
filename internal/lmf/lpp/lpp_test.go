@@ -12,7 +12,7 @@ import (
 )
 
 func TestEncodeDecodeRequestCapabilities(t *testing.T) {
-	encoded, err := EncodeRequestCapabilities(0x01)
+	encoded, err := EncodeRequestCapabilities(0x01, 0)
 	if err != nil {
 		t.Fatalf("EncodeRequestCapabilities: %v", err)
 	}
@@ -40,7 +40,7 @@ func TestEncodeDecodeRequestCapabilities(t *testing.T) {
 }
 
 func TestEncodeDecodeRequestLocationInformation(t *testing.T) {
-	encoded, err := EncodeRequestLocationInformation(0x02)
+	encoded, err := EncodeRequestLocationInformation(0x02, 0)
 	if err != nil {
 		t.Fatalf("EncodeRequestLocationInformation: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestEncodeDecodeRequestLocationInformation(t *testing.T) {
 }
 
 func TestEncodeDecodeProvideCapabilities(t *testing.T) {
-	encoded, err := EncodeProvideCapabilities(0x03, []aper.Enumerated{lpptype.GnssIDGps, lpptype.GnssIDGlonass})
+	encoded, err := EncodeProvideCapabilities(0x03, 0, []aper.Enumerated{lpptype.GnssIDGps, lpptype.GnssIDGlonass})
 	if err != nil {
 		t.Fatalf("EncodeProvideCapabilities: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestEncodeDecodeProvideLocationInformation(t *testing.T) {
 	originalLon := int32(2352200)  // 2.3522 degrees
 	originalAlt := int32(35000)    // 350m in cm
 
-	encoded, err := EncodeProvideLocationInformation(0x04, originalLat, originalLon, originalAlt, 10, 15)
+	encoded, err := EncodeProvideLocationInformation(0x04, 0, originalLat, originalLon, originalAlt, 10, 15)
 	if err != nil {
 		t.Fatalf("EncodeProvideLocationInformation: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestEncodeDecodeProvideLocationInformation(t *testing.T) {
 }
 
 func TestEncodeDecodeProvideAssistanceData(t *testing.T) {
-	encoded, err := EncodeProvideAssistanceData(0x05, nil)
+	encoded, err := EncodeProvideAssistanceData(0x05, 0, nil)
 	if err != nil {
 		t.Fatalf("EncodeProvideAssistanceData: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestEncodeDecodeProvideAssistanceData(t *testing.T) {
 
 func TestParseLPPMessage(t *testing.T) {
 	// Encode a ProvideCapabilities message and parse it with ParseLPPMessage.
-	encoded, err := EncodeProvideCapabilities(0x01, []aper.Enumerated{lpptype.GnssIDGps})
+	encoded, err := EncodeProvideCapabilities(0x01, 0, []aper.Enumerated{lpptype.GnssIDGps})
 	if err != nil {
 		t.Fatalf("EncodeProvideCapabilities: %v", err)
 	}
@@ -223,7 +223,7 @@ func TestParseLPPMessage(t *testing.T) {
 }
 
 func TestBuildRequestCapabilities(t *testing.T) {
-	data, err := BuildRequestCapabilities(0x01)
+	data, err := BuildRequestCapabilities(0x01, 0)
 	if err != nil {
 		t.Fatalf("BuildRequestCapabilities: %v", err)
 	}
@@ -244,7 +244,7 @@ func TestBuildRequestCapabilities(t *testing.T) {
 }
 
 func TestBuildAssistanceData(t *testing.T) {
-	data, err := BuildAssistanceData(0x02)
+	data, err := BuildAssistanceData(0x02, 0)
 	if err != nil {
 		t.Fatalf("BuildAssistanceData: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestBuildAssistanceData(t *testing.T) {
 }
 
 func TestBuildLocationInformation(t *testing.T) {
-	data, err := BuildLocationInformation(0x03, 48856000, 2352200, 35000, 10, 15)
+	data, err := BuildLocationInformation(0x03, 0, 48856000, 2352200, 35000, 10, 15)
 	if err != nil {
 		t.Fatalf("BuildLocationInformation: %v", err)
 	}
@@ -290,7 +290,7 @@ func TestBuildLocationInformation(t *testing.T) {
 // 4. UE encodes ProvideLocationInformation → LMF decodes it
 func TestUERoundTrip(t *testing.T) {
 	// Step 1: LMF → UE: RequestCapabilities
-	lmfReqCaps, err := EncodeRequestCapabilities(0x01)
+	lmfReqCaps, err := EncodeRequestCapabilities(0x01, 0)
 	if err != nil {
 		t.Fatalf("step 1 encode: %v", err)
 	}
@@ -309,7 +309,7 @@ func TestUERoundTrip(t *testing.T) {
 	}
 
 	// Step 2: UE → LMF: ProvideCapabilities
-	ueProvCaps, err := EncodeProvideCapabilities(0x01, []aper.Enumerated{lpptype.GnssIDGps})
+	ueProvCaps, err := EncodeProvideCapabilities(0x01, 0, []aper.Enumerated{lpptype.GnssIDGps})
 	if err != nil {
 		t.Fatalf("step 2 encode: %v", err)
 	}
@@ -328,7 +328,7 @@ func TestUERoundTrip(t *testing.T) {
 	}
 
 	// Step 3: LMF → UE: RequestLocationInformation
-	lmfReqLoc, err := EncodeRequestLocationInformation(0x02)
+	lmfReqLoc, err := EncodeRequestLocationInformation(0x02, 0)
 	if err != nil {
 		t.Fatalf("step 3 encode: %v", err)
 	}
@@ -347,7 +347,7 @@ func TestUERoundTrip(t *testing.T) {
 	}
 
 	// Step 4: UE → LMF: ProvideLocationInformation
-	ueProvLoc, err := EncodeProvideLocationInformation(0x02, 450000000, 214500000, 10000, 10, 15)
+	ueProvLoc, err := EncodeProvideLocationInformation(0x02, 0, 450000000, 214500000, 10000, 10, 15)
 	if err != nil {
 		t.Fatalf("step 4 encode: %v", err)
 	}

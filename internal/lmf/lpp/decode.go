@@ -31,6 +31,7 @@ type DecodedMessage struct {
 	RequestCapabilities        *models.RequestLocationInformation
 	RequestLocationInformation *models.RequestLocationInformation
 	ProvideAssistanceData      *models.ProvideAssistanceData
+	Abort                      *models.Abort
 }
 
 // DecodeLPPMessage decodes APER-encoded LPP bytes and returns a DecodedMessage.
@@ -72,8 +73,11 @@ func DecodeLPPMessage(data []byte) (*DecodedMessage, error) {
 	case lpptype.LPPMessageBodyC1PresentProvideAssistanceData:
 		out.ProvideAssistanceData = decodeProvideAssistanceData(c1.ProvideAssistanceData)
 
+	case lpptype.LPPMessageBodyC1PresentAbort:
+		out.Abort = decodeAbort(c1.Abort, out.TransactionID)
+
 	default:
-		// Abort, Error, spare — not decoded into a model for the MVP.
+		// Error and the spares are reported by body kind alone.
 	}
 
 	return out, nil
@@ -218,6 +222,21 @@ func decodeRequestLocationInformation(_ *lpptype.RequestLocationInformation) *mo
 // decodeProvideAssistanceData extracts assistance data.
 func decodeProvideAssistanceData(pad *lpptype.ProvideAssistanceData) *models.ProvideAssistanceData {
 	return &models.ProvideAssistanceData{}
+}
+
+// decodeAbort extracts the cause a peer gave for abandoning the procedure.
+func decodeAbort(abort *lpptype.Abort, transactionID byte) *models.Abort {
+	out := &models.Abort{TransactionID: transactionID, Cause: "absent"}
+
+	if abort == nil || abort.CriticalExtensions.C1 == nil || abort.CriticalExtensions.C1.AbortR9 == nil {
+		return out
+	}
+
+	if common := abort.CriticalExtensions.C1.AbortR9.CommonIEsAbort; common != nil {
+		out.Cause = lpptype.AbortCauseString(common.AbortCause.Value)
+	}
+
+	return out
 }
 
 // decodeUncertainty converts a TS 23.032 uncertainty code to metres.

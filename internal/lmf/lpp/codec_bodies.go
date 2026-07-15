@@ -23,7 +23,10 @@ const (
 	// GNSS-ID ::= SEQUENCE { gnss-id ENUMERATED{ gps, sbas, qzss, galileo, glonass,
 	//     ..., bds, navic-v1610 }, ... } — the extension marker follows glonass, so
 	// bds and navic are extension additions rather than root values.
-	nRootGNSSID            = 5
+	nRootGNSSID = 5
+	// abortCause ENUMERATED { undefined, stopPeriodicReporting, targetDeviceAbort,
+	//     networkAbort, ..., stopPeriodicAssistanceDataDelivery-v1510 }
+	nRootAbortCause        = 4
 	maxGNSSSupportElements = 16
 
 	degreesLatitudeMax  = 8388607
@@ -767,6 +770,55 @@ func readProvideAssistanceData(r *uper.Reader) (*lpptype.ProvideAssistanceData, 
 
 		out.CriticalExtensions.C1.ProvideAssistanceDataR9.AGNSSProvideAssistanceData = &lpptype.AGNSSProvideAssistanceData{}
 	}
+
+	return out, nil
+}
+
+//	Abort ::= SEQUENCE {
+//	    criticalExtensions CHOICE {
+//	        c1 CHOICE { abort-r9 Abort-r9-IEs, spare3, spare2, spare1 },
+//	        criticalExtensionsFuture SEQUENCE {} } }
+//
+// Abort-r9-IEs ::= SEQUENCE { commonIEsAbort OPTIONAL, ..., epdu-Abort OPTIONAL }
+//
+// CommonIEsAbort ::= SEQUENCE { abortCause ENUMERATED { undefined,
+//
+//	stopPeriodicReporting, targetDeviceAbort, networkAbort, ...,
+//	stopPeriodicAssistanceDataDelivery-v1510 } }
+func readAbort(r *uper.Reader) (*lpptype.Abort, error) {
+	if err := expectCriticalExtensionC1(r, "abort"); err != nil {
+		return nil, err
+	}
+
+	_, optionals, err := r.ReadSequencePreamble(true, 1)
+	if err != nil {
+		return nil, fmt.Errorf("abort-r9-IEs preamble: %w", err)
+	}
+
+	out := &lpptype.Abort{
+		CriticalExtensions: lpptype.AbortCriticalExtensions{
+			Present: 1,
+			C1: &lpptype.AbortCriticalExtensionsC1{
+				Present: 1,
+				AbortR9: &lpptype.AbortR9IEs{},
+			},
+		},
+	}
+
+	if !optionals[0] {
+		return out, nil
+	}
+
+	// CommonIEsAbort holds a single mandatory field and carries no extension
+	// marker, so the abortCause enumeration follows with no preamble.
+	cause, _, err := r.ReadEnum(nRootAbortCause, true)
+	if err != nil {
+		return nil, fmt.Errorf("abortCause: %w", err)
+	}
+
+	common := &lpptype.CommonIEsAbort{}
+	common.AbortCause.Value = enumValue(cause)
+	out.CriticalExtensions.C1.AbortR9.CommonIEsAbort = common
 
 	return out, nil
 }
