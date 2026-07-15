@@ -52,7 +52,7 @@ func forward5GSMMessageToSMF(
 	if response.N1Msg != nil {
 		logger.From(ctx, logger.AmfLog).Debug("Receive N1 SM Message from SMF")
 
-		n1Msg, err = amf.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, response.N1Msg, pduSessionID, nil)
+		n1Msg, err = amf.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, response.N1Msg, pduSessionID, nil, nil)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("error building DL NAS Transport", zap.Error(err))
 			return
