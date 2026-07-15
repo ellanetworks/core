@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
@@ -443,6 +444,15 @@ func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, lppMsg []b
 	// by octet count, so this one is 4 octets.
 	correlationID := amf.nextLCSCorrelationID()
 
+	// TS 24.501 §9.11.3.1: the UE reports whether it speaks LPP in N1 mode at
+	// registration. A UE that reports "not supported" is under no obligation to
+	// answer anything sent here, so the bit is reported alongside the PDU.
+	lppSupported := "unknown"
+
+	if reg := ueConn.RegistrationRequest; reg != nil && reg.Capability5GMM != nil {
+		lppSupported = strconv.Itoa(int(reg.Capability5GMM.GetLPP()))
+	}
+
 	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeLPP, lppMsg, 0, nil, correlationID)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport (LPP) error: %v", err)
@@ -458,6 +468,7 @@ func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, lppMsg []b
 		zap.Int("lpp_len", len(lppMsg)),
 		zap.String("lpp_hex", hex.EncodeToString(lppMsg)),
 		zap.String("lcs_correlation_id", hex.EncodeToString(correlationID)),
+		zap.String("ue_lpp_n1_capability", lppSupported),
 	)
 
 	return nil
