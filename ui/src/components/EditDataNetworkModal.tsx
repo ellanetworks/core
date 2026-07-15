@@ -31,7 +31,7 @@ interface EditDataNetworkModalProps {
   initialData: APIDataNetwork;
 }
 
-const schema = yup.object().shape({
+export const schema = yup.object().shape({
   ipv4_pool: yup
     .string()
     .test(

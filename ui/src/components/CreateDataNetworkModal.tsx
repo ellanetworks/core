@@ -33,7 +33,7 @@ interface CreateDataNetworkModalProps {
 const dataNetworkNameRegex =
   /^(?=.{1,100}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/;
 
-const schema = yup.object().shape({
+export const schema = yup.object().shape({
   name: yup
     .string()
     .matches(
