@@ -8,7 +8,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/aper"
 )
 
 // Golden vectors are the aligned-PER encoding of TS 36.455 IE values produced by

@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/aper"
 )
 
 // ERABToBeSetupItemBearerSUReq ::= SEQUENCE { e-RAB-ID, e-RABlevelQoSParameters,

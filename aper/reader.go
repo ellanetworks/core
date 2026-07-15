@@ -5,17 +5,31 @@ package aper
 
 import "fmt"
 
-// Reader decodes APER primitives from an octet buffer. Every read is
+// Reader decodes PER primitives from an octet buffer. Every read is
 // bounds-checked; a read past the end returns a [DecodeError] and does not
 // panic.
 type Reader struct {
-	buf  []byte
-	bits int // total bits consumed
+	buf       []byte
+	bits      int // total bits consumed
+	unaligned bool
 }
 
-// NewReader returns a Reader over b.
+// NewReader returns a Reader over b decoding the ALIGNED variant of X.691.
 func NewReader(b []byte) *Reader {
 	return &Reader{buf: b}
+}
+
+// NewUnalignedReader returns a Reader over b decoding the UNALIGNED variant of
+// X.691, in which no production is padded to an octet boundary. LPP requires it
+// (TS 37.355 §5: "BASIC-PER, Unaligned Variant"), whereas S1AP/NGAP/NRPPa use
+// the aligned variant.
+func NewUnalignedReader(b []byte) *Reader {
+	return &Reader{buf: b, unaligned: true}
+}
+
+// Unaligned reports whether the Reader decodes the unaligned variant.
+func (r *Reader) Unaligned() bool {
+	return r.unaligned
 }
 
 // BitsLeft returns the number of unread bits.
@@ -62,8 +76,13 @@ func (r *Reader) ReadBool() (bool, error) {
 	return b == 1, err
 }
 
-// Align discards bits up to the next octet boundary (X.691).
+// Align discards bits up to the next octet boundary (X.691). The unaligned
+// variant has no octet-alignment points, so this is a no-op there.
 func (r *Reader) Align() error {
+	if r.unaligned {
+		return nil
+	}
+
 	for r.bits%8 != 0 {
 		if _, err := r.ReadBit(); err != nil {
 			return err

@@ -6,7 +6,7 @@ package s1ap
 import (
 	"encoding/binary"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/aper"
 )
 
 // STMSI is the S-TMSI IE (TS 36.413): the MME Code plus the M-TMSI that

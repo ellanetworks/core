@@ -8,7 +8,7 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/aper"
 )
 
 // Golden vectors are the aligned-PER encoding of the full S1AP-PDU produced by

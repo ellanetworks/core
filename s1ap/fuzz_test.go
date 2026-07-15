@@ -6,7 +6,7 @@ package s1ap
 import (
 	"testing"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/aper"
 )
 
 // FuzzDecodeNoPanic asserts the envelope and container decoders never panic on

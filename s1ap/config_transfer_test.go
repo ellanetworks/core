@@ -7,7 +7,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/aper"
 )
 
 // sonTransfer builds a SON Configuration Transfer value: a valid leading

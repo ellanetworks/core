@@ -50,8 +50,18 @@ func (w *Writer) WriteConstrainedInt(v, lb, ub int64) error {
 	rang := uint64(ub-lb) + 1
 	n := uint64(v - lb)
 
+	if rang == 1 { // single value carries no bits
+		return nil
+	}
+
+	// X.691 §13.2.6: the unaligned variant always uses a bit-field of the
+	// minimum width for the range, with none of the octet forms below.
+	if w.unaligned {
+		w.WriteBits(n, bitsForRange(rang))
+		return nil
+	}
+
 	switch {
-	case rang == 1: // single value carries no bits
 	case rang <= 255: // bit-field
 		w.WriteBits(n, bitsForRange(rang))
 	case rang == 256: // one octet, aligned
@@ -79,9 +89,26 @@ func (r *Reader) ReadConstrainedInt(lb, ub int64) (int64, error) {
 
 	var n uint64
 
-	switch {
-	case rang == 1:
+	if rang == 1 {
 		return lb, nil
+	}
+
+	// X.691 §13.2.6: the unaligned variant always uses a bit-field of the
+	// minimum width for the range, with none of the octet forms below.
+	if r.unaligned {
+		v, err := r.ReadBits(bitsForRange(rang))
+		if err != nil {
+			return 0, err
+		}
+
+		if v >= rang {
+			return 0, &DecodeError{Offset: r.bits, Msg: "constrained int value out of range"}
+		}
+
+		return lb + int64(v), nil
+	}
+
+	switch {
 	case rang <= 255:
 		v, err := r.ReadBits(bitsForRange(rang))
 		if err != nil {

@@ -3,7 +3,7 @@
 
 // Package lppa implements a 3GPP TS 36.455 LPPa (LTE Positioning Protocol A)
 // ASN.1 codec for the E-CID Measurement Initiation procedure, over the
-// aligned-PER library github.com/ellanetworks/core/s1ap/aper.
+// aligned-PER library github.com/ellanetworks/core/aper.
 //
 // LPPa is transported as an octet string inside S1AP UE-associated LPPa
 // transport messages (TS 36.413 §8.14) between the E-SMLC/LMF and the eNB. This

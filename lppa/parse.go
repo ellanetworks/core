@@ -6,7 +6,7 @@ package lppa
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/aper"
 )
 
 const maxProtocolExtensions = 65535

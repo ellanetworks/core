@@ -3,7 +3,7 @@
 
 package s1ap
 
-import "github.com/ellanetworks/core/s1ap/aper"
+import "github.com/ellanetworks/core/aper"
 
 // nameMaxLen bounds ENBname / MMEname (PrintableString (SIZE(1..150,...))).
 const nameMaxLen = 150

@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/aper"
 )
 
 // HandoverCancel is the HANDOVER CANCEL message (TS 36.413), sent by

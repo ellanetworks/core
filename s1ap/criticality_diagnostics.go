@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/aper"
 )
 
 // maxnoofErrors bounds CriticalityDiagnostics-IE-List (TS 36.413).

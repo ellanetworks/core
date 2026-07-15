@@ -6,7 +6,7 @@ package lppa
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/aper"
 )
 
 // LPPA-PDU CHOICE root alternatives (TS 36.455 §9.3.2), in declaration order.

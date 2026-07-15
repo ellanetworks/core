@@ -4,7 +4,6 @@
 package lpp
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
@@ -12,14 +11,11 @@ import (
 	"github.com/free5gc/aper"
 )
 
-// Decoder parses aligned-PER bytes into an LPP-Message.
+// Decoder parses an LPP-Message. LPP is carried in the unaligned variant of
+// PER (TS 37.355 §5), so it is decoded by the hand-written codec rather than
+// the aligned reflection codec the other 3GPP protocols use.
 func Decoder(data []byte) (*lpptype.LPPMessage, error) {
-	msg := &lpptype.LPPMessage{}
-	if err := aper.Unmarshal(data, msg); err != nil {
-		return nil, fmt.Errorf("decode LPP-Message: %w", err)
-	}
-
-	return msg, nil
+	return DecodeMessage(data)
 }
 
 // DecodeLPPMessage decodes an LPP-Message from APER bytes and returns

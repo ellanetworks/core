@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/aper"
 )
 
 // S1AP-PDU CHOICE root alternatives (TS 36.413), in declaration order.

@@ -3,11 +3,26 @@
 
 package aper
 
-// Writer encodes APER primitives into a growing octet buffer. The zero value
-// is ready to use. The final octet is zero-padded, as APER requires.
+// Writer encodes PER primitives into a growing octet buffer. The zero value is
+// ready to use and encodes the ALIGNED variant. The final octet is zero-padded,
+// as PER requires.
 type Writer struct {
-	buf  []byte
-	bits int // total bits written
+	buf       []byte
+	bits      int // total bits written
+	unaligned bool
+}
+
+// NewUnalignedWriter returns a Writer that encodes the UNALIGNED variant of
+// X.691, in which no production is padded to an octet boundary. LPP requires it
+// (TS 37.355 §5: "BASIC-PER, Unaligned Variant"), whereas S1AP/NGAP/NRPPa use
+// the aligned variant the zero value provides.
+func NewUnalignedWriter() *Writer {
+	return &Writer{unaligned: true}
+}
+
+// Unaligned reports whether the Writer encodes the unaligned variant.
+func (w *Writer) Unaligned() bool {
+	return w.unaligned
 }
 
 // WriteBit writes the least significant bit of b.
@@ -40,8 +55,13 @@ func (w *Writer) WriteBool(b bool) {
 	}
 }
 
-// Align pads with zero bits up to the next octet boundary (X.691).
+// Align pads with zero bits up to the next octet boundary (X.691). The
+// unaligned variant has no octet-alignment points, so this is a no-op there.
 func (w *Writer) Align() {
+	if w.unaligned {
+		return
+	}
+
 	for w.bits%8 != 0 {
 		w.WriteBit(0)
 	}

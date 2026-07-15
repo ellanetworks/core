@@ -7,7 +7,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/aper"
 )
 
 func sampleTargetID() TargetID {

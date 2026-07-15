@@ -143,7 +143,8 @@ func (s *Session) handleCapabilities(capMsg *models.ProvideLocationCapabilities)
 	}
 
 	s.capabilities = capMsg
-	s.log.Info("received UE capabilities",
+	s.log.Info(
+		"received UE capabilities",
 		zap.Strings("gnss", func() []string {
 			var ids []string
 			for _, id := range capMsg.GNSSCapability.Supported() {
@@ -182,7 +183,8 @@ func (s *Session) handleLocation(msg *models.ProvideLocationInformation) error {
 	s.locationResult = &msg.GNSSPositionResult
 	s.state = LocationReceived
 
-	s.log.Info("received location fix",
+	s.log.Info(
+		"received location fix",
 		zap.Int32("lat", msg.GNSSPositionResult.Latitude),
 		zap.Int32("lon", msg.GNSSPositionResult.Longitude),
 		zap.Uint32("h_acc", msg.GNSSPositionResult.HorizontalAccuracy),
@@ -220,14 +222,16 @@ func (s *Session) send(lppMsg []byte) error {
 
 	// The LPP PDU is ciphered inside NAS on the wire, so this hex is the only
 	// way to inspect what the UE actually receives (decode against TS 37.355).
-	s.log.Debug("sending LPP PDU to UE",
+	s.log.Debug(
+		"sending LPP PDU to UE",
 		zap.String("state", s.state.String()),
 		zap.Int("len", len(lppMsg)),
 		zap.String("lpp_hex", hex.EncodeToString(lppMsg)),
 	)
 
 	if err := s.transferFunc(lppMsg); err != nil {
-		s.log.Error("failed to send LPP PDU to UE",
+		s.log.Error(
+			"failed to send LPP PDU to UE",
 			zap.String("state", s.state.String()),
 			zap.Error(err),
 		)

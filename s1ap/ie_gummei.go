@@ -3,7 +3,7 @@
 
 package s1ap
 
-import "github.com/ellanetworks/core/s1ap/aper"
+import "github.com/ellanetworks/core/aper"
 
 // maxnoof bounds for ServedGUMMEIs and its lists (TS 36.413).
 const (

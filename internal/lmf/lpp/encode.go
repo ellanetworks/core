@@ -10,10 +10,11 @@ import (
 	"github.com/free5gc/aper"
 )
 
-// Encoder serialises an LPP-Message to aligned-PER bytes.
-// LPP-Message is a non-extensible SEQUENCE with 4 optional fields.
+// Encoder serialises an LPP-Message. LPP is carried in the unaligned variant of
+// PER (TS 37.355 §5), so it is encoded by the hand-written codec rather than the
+// aligned reflection codec the other 3GPP protocols use.
 func Encoder(msg *lpptype.LPPMessage) ([]byte, error) {
-	return aper.Marshal(msg)
+	return EncodeMessage(msg)
 }
 
 // encodeLPPMessage is a convenience wrapper that builds and encodes an LPP-Message.

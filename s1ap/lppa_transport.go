@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/aper"
 )
 
 // RoutingID ::= INTEGER (0..255) (TS 36.413). Identifies the E-SMLC endpoint the
