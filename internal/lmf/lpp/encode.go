@@ -18,13 +18,18 @@ func Encoder(msg *lpptype.LPPMessage) ([]byte, error) {
 }
 
 // encodeLPPMessage is a convenience wrapper that builds and encodes an LPP-Message.
-func encodeLPPMessage(transactionID byte, initiator aper.Enumerated, body *lpptype.LPPMessageBody) ([]byte, error) {
+//
+// endTransaction marks the last message carrying a body in the transaction
+// (TS 37.355 §4.2). A request is never last: the response that closes the
+// transaction is, so a request that sets it leaves the peer with nothing to
+// send.
+func encodeLPPMessage(transactionID byte, initiator aper.Enumerated, endTransaction bool, body *lpptype.LPPMessageBody) ([]byte, error) {
 	msg := &lpptype.LPPMessage{
 		TransactionID: &lpptype.LPPTransactionID{
 			Initiator:         lpptype.Initiator{Value: initiator},
 			TransactionNumber: int64(transactionID),
 		},
-		EndTransaction: true,
+		EndTransaction: endTransaction,
 		LppMessageBody: body,
 	}
 
@@ -55,7 +60,8 @@ func EncodeRequestCapabilities(transactionID byte) ([]byte, error) {
 		},
 	}
 
-	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, body)
+	// §5.1.1: the target's ProvideCapabilities is what ends this transaction.
+	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, false, body)
 }
 
 // EncodeRequestLocationInformation encodes an LPP RequestLocationInformation message
@@ -98,7 +104,8 @@ func EncodeRequestLocationInformation(transactionID byte) ([]byte, error) {
 		},
 	}
 
-	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, body)
+	// §5.3.1: the target's ProvideLocationInformation is what ends this transaction.
+	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, false, body)
 }
 
 // EncodeProvideCapabilities encodes an LPP ProvideCapabilities message
@@ -138,7 +145,8 @@ func EncodeProvideCapabilities(transactionID byte, gnssIDs []aper.Enumerated) ([
 		},
 	}
 
-	return encodeLPPMessage(transactionID, lpptype.InitiatorTargetDevice, body)
+	// §5.1.1 step 2: the target's response ends the transaction.
+	return encodeLPPMessage(transactionID, lpptype.InitiatorTargetDevice, true, body)
 }
 
 // EncodeProvideAssistanceData encodes an LPP ProvideAssistanceData message.
@@ -164,7 +172,8 @@ func EncodeProvideAssistanceData(transactionID byte, assistanceData []byte) ([]b
 		},
 	}
 
-	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, body)
+	// §5.2.1: a single delivery carries all the assistance data there is.
+	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, true, body)
 }
 
 // EncodeProvideLocationInformation encodes an LPP ProvideLocationInformation
@@ -214,7 +223,8 @@ func EncodeProvideLocationInformation(transactionID byte, lat int32, lon int32, 
 		},
 	}
 
-	return encodeLPPMessage(transactionID, lpptype.InitiatorTargetDevice, body)
+	// §5.1.1 step 2: the target's response ends the transaction.
+	return encodeLPPMessage(transactionID, lpptype.InitiatorTargetDevice, true, body)
 }
 
 // =====================================================================

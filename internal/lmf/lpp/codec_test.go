@@ -11,51 +11,50 @@ import (
 	faper "github.com/free5gc/aper"
 )
 
-func requestCapabilitiesMessage() *lpptype.LPPMessage {
-	return &lpptype.LPPMessage{
-		TransactionID: &lpptype.LPPTransactionID{
-			Initiator:         lpptype.Initiator{Value: lpptype.InitiatorLocationServer},
-			TransactionNumber: 0,
-		},
-		EndTransaction: true,
-		LppMessageBody: &lpptype.LPPMessageBody{
-			Present: 1,
-			C1: &lpptype.LPPMessageBodyC1{
-				Present: lpptype.LPPMessageBodyC1PresentRequestCapabilities,
-				RequestCapabilities: &lpptype.RequestCapabilities{
-					CriticalExtensions: lpptype.RequestCapabilitiesCriticalExtensions{
-						Present: 1,
-						C1: &lpptype.RequestCapabilitiesCriticalExtensionsC1{
-							Present: 1,
-							RequestCapabilitiesR9: &lpptype.RequestCapabilitiesR9IEs{
-								AGNSSRequestCapabilities: &lpptype.AGNSSRequestCapabilities{
-									GnssSupportListReq:           true,
-									AssistanceDataSupportListReq: true,
-									LocationVelocityTypesReq:     true,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-// TestEncodeRequestCapabilitiesIsUnaligned pins the unaligned encoding of the
-// capabilities request the LMF opens an A-GNSS session with. The aligned codec
-// produced 90008010e0 for the same message, which a handset rejects with
-// errorCause lppMessageBodyError (see TestDecodeErrorFromUE).
+// TestEncodeRequestCapabilitiesIsUnaligned pins the exact octets the LMF opens
+// an A-GNSS session with. The aligned codec produced a 6-byte encoding of the
+// same message, which a handset rejects with errorCause lppMessageBodyError
+// (see TestDecodeErrorFromUE).
 func TestEncodeRequestCapabilitiesIsUnaligned(t *testing.T) {
-	got, err := EncodeMessage(requestCapabilitiesMessage())
+	got, err := EncodeRequestCapabilities(0)
 	if err != nil {
-		t.Fatalf("EncodeMessage: %v", err)
+		t.Fatalf("EncodeRequestCapabilities: %v", err)
 	}
 
-	const want = "98000021c0"
+	const want = "90000021c0"
 
 	if hex.EncodeToString(got) != want {
 		t.Errorf("RequestCapabilities: got %s, want %s", hex.EncodeToString(got), want)
+	}
+}
+
+// TestRequestsDoNotEndTransaction guards TS 37.355 §4.2: the last message
+// carrying a body in a transaction sets endTransaction, and a request is never
+// last. A request that sets it tells the target the exchange is over, and a
+// conformant target answers nothing.
+func TestRequestsDoNotEndTransaction(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		encode func(byte) ([]byte, error)
+	}{
+		{"RequestCapabilities", EncodeRequestCapabilities},
+		{"RequestLocationInformation", EncodeRequestLocationInformation},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b, err := tc.encode(0)
+			if err != nil {
+				t.Fatalf("encode: %v", err)
+			}
+
+			msg, err := DecodeMessage(b)
+			if err != nil {
+				t.Fatalf("DecodeMessage: %v", err)
+			}
+
+			if msg.EndTransaction {
+				t.Error("endTransaction: got true, want false")
+			}
+		})
 	}
 }
 
