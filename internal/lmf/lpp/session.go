@@ -221,6 +221,36 @@ func (s *Session) handleLocation(msg *models.ProvideLocationInformation) error {
 		return fmt.Errorf("unexpected ProvideLocationInformation in state %s", s.state)
 	}
 
+	// A target that could not compute a position answers with a cause and no
+	// locationEstimate (TS 37.355 §6.5.2). The zero value is the absence of a
+	// fix, so reporting it would place the subscriber at (0, 0).
+	if !msg.HasEstimate {
+		cause := msg.FailureCause
+		if cause == "" {
+			cause = "no locationEstimate and no cause"
+		}
+
+		s.log.Warn(
+			"UE reported no location estimate",
+			zap.String("state", s.state.String()),
+			zap.String("failure_cause", cause),
+		)
+
+		s.state = SessionFailed
+
+		if s.failFunc != nil {
+			if err := s.failFunc(); err != nil {
+				s.log.Error("failed to report session failure", zap.Error(err))
+			}
+		}
+
+		if s.deregisterFunc != nil {
+			s.deregisterFunc()
+		}
+
+		return nil
+	}
+
 	s.locationResult = &msg.GNSSPositionResult
 	s.state = LocationReceived
 

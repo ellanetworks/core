@@ -215,6 +215,63 @@ func TestDecodeAbortFromUE(t *testing.T) {
 	}
 }
 
+// TestDecodeLocationErrorFromUE decodes the ProvideLocationInformation a
+// handset returned when it could not measure. It carries a gnss-Error and no
+// locationEstimate, and reporting the zero value as a fix would place the
+// subscriber at (0, 0) with SUCCESS_RESULTS_USED.
+func TestDecodeLocationErrorFromUE(t *testing.T) {
+	raw, err := hex.DecodeString("f003014a18014180")
+	if err != nil {
+		t.Fatalf("hex: %v", err)
+	}
+
+	decoded, err := DecodeLPPMessage(raw)
+	if err != nil {
+		t.Fatalf("DecodeLPPMessage: %v", err)
+	}
+
+	if decoded.BodyKind != lpptype.LPPMessageBodyC1PresentProvideLocationInformation {
+		t.Fatalf("body kind: got %d, want ProvideLocationInformation", decoded.BodyKind)
+	}
+
+	pli := decoded.ProvideLocationInformation
+	if pli == nil {
+		t.Fatal("provideLocationInformation: got nil, want a payload")
+	}
+
+	if pli.HasEstimate {
+		t.Error("hasEstimate: got true, want false")
+	}
+
+	if pli.FailureCause != "notAllRequestedMeasurementsPossible" {
+		t.Errorf("failureCause: got %q, want %q", pli.FailureCause, "notAllRequestedMeasurementsPossible")
+	}
+}
+
+// TestDecodeEmptyCapabilitiesFromUE decodes the ProvideCapabilities the same
+// handset sent: provideCapabilities-r9 with every root field absent, so it
+// reports support for no positioning method at all.
+func TestDecodeEmptyCapabilitiesFromUE(t *testing.T) {
+	raw, err := hex.DecodeString("f001014200")
+	if err != nil {
+		t.Fatalf("hex: %v", err)
+	}
+
+	msg, err := DecodeMessage(raw)
+	if err != nil {
+		t.Fatalf("DecodeMessage: %v", err)
+	}
+
+	if msg.Acknowledgement == nil || !msg.Acknowledgement.AckRequested {
+		t.Errorf("acknowledgement: got %+v, want ackRequested=true", msg.Acknowledgement)
+	}
+
+	r9 := msg.LppMessageBody.C1.ProvideCapabilities.CriticalExtensions.C1.ProvideCapabilitiesR9
+	if r9.AGNSSProvideCapabilities != nil {
+		t.Errorf("a-gnss-ProvideCapabilities: got %+v, want absent", r9.AGNSSProvideCapabilities)
+	}
+}
+
 func gnssCapabilities(ids ...int) *lpptype.LPPMessage {
 	els := make([]lpptype.GNSSSupportElement, 0, len(ids))
 	for _, id := range ids {

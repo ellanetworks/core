@@ -89,8 +89,15 @@ type ProvideAssistanceData struct {
 }
 
 // ProvideLocationInformation is sent by UE to LMF with the location fix.
+//
+// A target that cannot compute a position still answers, carrying an error
+// cause and no locationEstimate (TS 37.355 §6.4.2, §6.5.2). HasEstimate says
+// whether GNSSPositionResult holds a position the UE actually reported: without
+// it the zero value is not a fix at (0, 0), it is the absence of one.
 type ProvideLocationInformation struct {
 	TransactionID      byte
+	HasEstimate        bool
+	FailureCause       string
 	GNSSPositionResult GNSSPositionResult
 }
 

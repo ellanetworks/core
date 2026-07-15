@@ -3,7 +3,11 @@
 
 package lpptype
 
-import "github.com/free5gc/aper"
+import (
+	"fmt"
+
+	"github.com/free5gc/aper"
+)
 
 // =====================================================================
 // A-GNSS-RequestCapabilities (TS 37.355 §6.5.2.11)
@@ -167,7 +171,54 @@ type GNSSPositioningInstructions struct {
 type AGNSSProvideLocationInformation struct {
 	GnssSignalMeasurementInformation *struct{}                `aper:"optional"`
 	GnssLocationInformation          *GNSSLocationInformation `aper:"optional,valueExt"`
-	GnssError                        *struct{}                `aper:"optional"`
+	GnssError                        *AGNSSError              `aper:"optional"`
+}
+
+//	A-GNSS-Error ::= CHOICE {
+//	    locationServerErrorCauses GNSS-LocationServerErrorCauses,
+//	    targetDeviceErrorCauses   GNSS-TargetDeviceErrorCauses, ... }
+const (
+	AGNSSErrorPresentNothing int = iota
+	AGNSSErrorPresentLocationServerErrorCauses
+	AGNSSErrorPresentTargetDeviceErrorCauses
+)
+
+type AGNSSError struct {
+	Present                 int
+	TargetDeviceErrorCauses *GNSSTargetDeviceErrorCauses
+}
+
+//	GNSS-TargetDeviceErrorCauses ::= SEQUENCE {
+//	    cause ENUMERATED { undefined, thereWereNotEnoughSatellitesReceived,
+//	        assistanceDataMissing, notAllRequestedMeasurementsPossible, ... },
+//	    fineTimeAssistanceMeasurementsNotPossible NULL OPTIONAL,
+//	    adrMeasurementsNotPossible NULL OPTIONAL,
+//	    multiFrequencyMeasurementsNotPossible NULL OPTIONAL, ... }
+const (
+	GNSSTargetDeviceErrorCausePresentUndefined                            aper.Enumerated = 0
+	GNSSTargetDeviceErrorCausePresentThereWereNotEnoughSatellitesReceived aper.Enumerated = 1
+	GNSSTargetDeviceErrorCausePresentAssistanceDataMissing                aper.Enumerated = 2
+	GNSSTargetDeviceErrorCausePresentNotAllRequestedMeasurementsPossible  aper.Enumerated = 3
+)
+
+type GNSSTargetDeviceErrorCauses struct {
+	Cause aper.Enumerated
+}
+
+// GNSSTargetDeviceErrorCauseString names an A-GNSS target device error cause.
+func GNSSTargetDeviceErrorCauseString(c aper.Enumerated) string {
+	switch c {
+	case GNSSTargetDeviceErrorCausePresentUndefined:
+		return "undefined"
+	case GNSSTargetDeviceErrorCausePresentThereWereNotEnoughSatellitesReceived:
+		return "thereWereNotEnoughSatellitesReceived"
+	case GNSSTargetDeviceErrorCausePresentAssistanceDataMissing:
+		return "assistanceDataMissing"
+	case GNSSTargetDeviceErrorCausePresentNotAllRequestedMeasurementsPossible:
+		return "notAllRequestedMeasurementsPossible"
+	default:
+		return fmt.Sprintf("unknown(%d)", c)
+	}
 }
 
 // =====================================================================

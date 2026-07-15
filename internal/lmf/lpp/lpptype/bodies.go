@@ -172,5 +172,5 @@ type ProvideLocationInformationCriticalExtensionsC1 struct {
 // ProvideLocationInformation-r9-IEs: extensible SEQUENCE.
 type ProvideLocationInformationR9IEs struct {
 	CommonIEsProvideLocationInformation *CommonIEsProvideLocationInformation `aper:"optional,valueExt"`
-	AGNSSProvideLocationInformation     *struct{}                            `aper:"optional"`
+	AGNSSProvideLocationInformation     *AGNSSProvideLocationInformation     `aper:"optional"`
 }

@@ -153,14 +153,15 @@ func decodeProvideLocationInformation(pli *lpptype.ProvideLocationInformation) *
 	}
 
 	r9 := c1.ProvideLocationInformationR9
-	if r9.CommonIEsProvideLocationInformation == nil {
+
+	out.FailureCause = locationFailureCause(r9)
+
+	common := r9.CommonIEsProvideLocationInformation
+	if common == nil || common.LocationEstimate == nil {
 		return out
 	}
 
-	common := r9.CommonIEsProvideLocationInformation
-	if common.LocationEstimate == nil {
-		return out
-	}
+	out.HasEstimate = true
 
 	lc := common.LocationEstimate
 	switch lc.Present {
@@ -207,6 +208,24 @@ func decodeProvideLocationInformation(pli *lpptype.ProvideLocationInformation) *
 	}
 
 	return out
+}
+
+// locationFailureCause reports why a target sent no position, preferring the
+// A-GNSS cause: it is the specific one, and the LMF only ever asks for A-GNSS.
+func locationFailureCause(r9 *lpptype.ProvideLocationInformationR9IEs) string {
+	if a := r9.AGNSSProvideLocationInformation; a != nil && a.GnssError != nil {
+		if td := a.GnssError.TargetDeviceErrorCauses; td != nil {
+			return lpptype.GNSSTargetDeviceErrorCauseString(td.Cause)
+		}
+
+		return "gnss-Error from location server"
+	}
+
+	if c := r9.CommonIEsProvideLocationInformation; c != nil && c.LocationError != nil {
+		return lpptype.LocationFailureCauseString(c.LocationError.LocationFailureCause.Value)
+	}
+
+	return ""
 }
 
 // decodeRequestCapabilities extracts capability request info.

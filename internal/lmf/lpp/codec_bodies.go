@@ -26,8 +26,15 @@ const (
 	nRootGNSSID = 5
 	// abortCause ENUMERATED { undefined, stopPeriodicReporting, targetDeviceAbort,
 	//     networkAbort, ..., stopPeriodicAssistanceDataDelivery-v1510 }
-	nRootAbortCause        = 4
-	maxGNSSSupportElements = 16
+	nRootAbortCause = 4
+	// locationfailurecause ENUMERATED { undefined, requestedMethodNotSupported,
+	//     positionMethodFailure, periodicLocationMeasurementsNotAvailable, ... }
+	nRootLocationFailureCause = 4
+	nRootAGNSSError           = 2 // locationServerErrorCauses, targetDeviceErrorCauses
+	// cause ENUMERATED { undefined, thereWereNotEnoughSatellitesReceived,
+	//     assistanceDataMissing, notAllRequestedMeasurementsPossible, ... }
+	nRootGNSSTargetDeviceErrorCause = 4
+	maxGNSSSupportElements          = 16
 
 	degreesLatitudeMax  = 8388607
 	degreesLongitudeMax = 16777215 // signed -8388608..8388607 stored as an unsigned offset
@@ -569,27 +576,116 @@ func readProvideLocationInformation(r *uper.Reader) (*lpptype.ProvideLocationInf
 		},
 	}
 
-	if !optionals[0] {
-		return out, nil // no common IEs, so no location estimate
-	}
+	r9 := out.CriticalExtensions.C1.ProvideLocationInformationR9
 
-	//	CommonIEsProvideLocationInformation ::= SEQUENCE {
-	//	    locationEstimate OPTIONAL, velocityEstimate OPTIONAL, locationError OPTIONAL, ... }
-	_, commonOpt, err := r.ReadSequencePreamble(true, 3)
-	if err != nil {
-		return nil, fmt.Errorf("commonIEsProvideLocationInformation preamble: %w", err)
-	}
+	if optionals[0] {
+		//	CommonIEsProvideLocationInformation ::= SEQUENCE {
+		//	    locationEstimate OPTIONAL, velocityEstimate OPTIONAL, locationError OPTIONAL, ... }
+		_, commonOpt, err := r.ReadSequencePreamble(true, 3)
+		if err != nil {
+			return nil, fmt.Errorf("commonIEsProvideLocationInformation preamble: %w", err)
+		}
 
-	common := &lpptype.CommonIEsProvideLocationInformation{}
-	out.CriticalExtensions.C1.ProvideLocationInformationR9.CommonIEsProvideLocationInformation = common
+		common := &lpptype.CommonIEsProvideLocationInformation{}
+		r9.CommonIEsProvideLocationInformation = common
 
-	if commonOpt[0] {
-		if common.LocationEstimate, err = readLocationCoordinates(r); err != nil {
-			return nil, err
+		if commonOpt[0] {
+			if common.LocationEstimate, err = readLocationCoordinates(r); err != nil {
+				return nil, err
+			}
+		}
+
+		if commonOpt[1] {
+			// velocityEstimate is unmodelled and sits ahead of locationError, so
+			// nothing further in this SEQUENCE can be located once it appears.
+			return out, nil
+		}
+
+		if commonOpt[2] {
+			//	LocationError ::= SEQUENCE { locationfailurecause LocationFailureCause, ... }
+			if _, _, err := r.ReadSequencePreamble(true, 0); err != nil {
+				return nil, fmt.Errorf("locationError preamble: %w", err)
+			}
+
+			cause, _, err := r.ReadEnum(nRootLocationFailureCause, true)
+			if err != nil {
+				return nil, fmt.Errorf("locationfailurecause: %w", err)
+			}
+
+			common.LocationError = &lpptype.LocationError{}
+			common.LocationError.LocationFailureCause.Value = enumValue(cause)
 		}
 	}
 
-	// velocityEstimate, locationError and the extensions are left undecoded.
+	if !optionals[1] {
+		return out, nil
+	}
+
+	agnss, err := readAGNSSProvideLocationInformation(r)
+	if err != nil {
+		return nil, err
+	}
+
+	r9.AGNSSProvideLocationInformation = agnss
+
+	return out, nil
+}
+
+//	A-GNSS-ProvideLocationInformation ::= SEQUENCE {
+//	    gnss-SignalMeasurementInformation OPTIONAL, gnss-LocationInformation OPTIONAL,
+//	    gnss-Error A-GNSS-Error OPTIONAL, ... }
+//
+// Only gnss-Error is decoded: a target that reports one has sent no position,
+// and the cause is the sole account of why.
+func readAGNSSProvideLocationInformation(r *uper.Reader) (*lpptype.AGNSSProvideLocationInformation, error) {
+	_, optionals, err := r.ReadSequencePreamble(true, 3)
+	if err != nil {
+		return nil, fmt.Errorf("a-gnss-ProvideLocationInformation preamble: %w", err)
+	}
+
+	out := &lpptype.AGNSSProvideLocationInformation{}
+
+	if optionals[0] || optionals[1] {
+		// Both are unmodelled and precede gnss-Error, so its offset is unknown
+		// once either is present.
+		return out, nil
+	}
+
+	if !optionals[2] {
+		return out, nil
+	}
+
+	//	A-GNSS-Error ::= CHOICE { locationServerErrorCauses, targetDeviceErrorCauses, ... }
+	choice, isExt, err := r.ReadChoiceIndex(nRootAGNSSError, true)
+	if err != nil {
+		return nil, fmt.Errorf("gnss-Error choice: %w", err)
+	}
+
+	if isExt {
+		return out, nil
+	}
+
+	out.GnssError = &lpptype.AGNSSError{Present: choice + 1}
+
+	if out.GnssError.Present != lpptype.AGNSSErrorPresentTargetDeviceErrorCauses {
+		return out, nil
+	}
+
+	//	GNSS-TargetDeviceErrorCauses ::= SEQUENCE { cause ENUMERATED {...},
+	//	    fineTimeAssistanceMeasurementsNotPossible NULL OPTIONAL,
+	//	    adrMeasurementsNotPossible NULL OPTIONAL,
+	//	    multiFrequencyMeasurementsNotPossible NULL OPTIONAL, ... }
+	if _, _, err := r.ReadSequencePreamble(true, 3); err != nil {
+		return nil, fmt.Errorf("gnss-TargetDeviceErrorCauses preamble: %w", err)
+	}
+
+	cause, _, err := r.ReadEnum(nRootGNSSTargetDeviceErrorCause, true)
+	if err != nil {
+		return nil, fmt.Errorf("gnss-TargetDeviceErrorCauses cause: %w", err)
+	}
+
+	out.GnssError.TargetDeviceErrorCauses = &lpptype.GNSSTargetDeviceErrorCauses{Cause: enumValue(cause)}
+
 	return out, nil
 }
 

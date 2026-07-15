@@ -3,7 +3,11 @@
 
 package lpptype
 
-import "github.com/free5gc/aper"
+import (
+	"fmt"
+
+	"github.com/free5gc/aper"
+)
 
 // =====================================================================
 // CommonIEsRequestLocationInformation (TS 37.355 §6.4.2)
@@ -336,5 +340,21 @@ const (
 type LocationError struct {
 	LocationFailureCause struct {
 		Value aper.Enumerated `aper:"valueLB:0,valueUB:3,valueExt"`
+	}
+}
+
+// LocationFailureCauseString names a locationError cause.
+func LocationFailureCauseString(c aper.Enumerated) string {
+	switch c {
+	case LocationFailureCausePresentUndefined:
+		return "undefined"
+	case LocationFailureCausePresentRequestedMethodNotSupported:
+		return "requestedMethodNotSupported"
+	case LocationFailureCausePresentPositionMethodFailure:
+		return "positionMethodFailure"
+	case LocationFailureCausePresentPeriodicLocationMeasurementsNotAvailable:
+		return "periodicLocationMeasurementsNotAvailable"
+	default:
+		return fmt.Sprintf("unknown(%d)", c)
 	}
 }
