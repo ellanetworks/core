@@ -10,6 +10,8 @@ package amf
 
 import (
 	"context"
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -22,6 +24,7 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 // ErrUENotReachable is returned when the UE is in CM-IDLE state and the
@@ -50,7 +53,7 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 		return amf.storeN1N2AndPage(ctx, ue, req)
 	}
 
-	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, req.BinaryDataN1Message, req.PduSessionID, nil)
+	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, req.BinaryDataN1Message, req.PduSessionID, nil, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
@@ -198,7 +201,7 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 		return fmt.Errorf("temporary reject: PDU session modification during handover")
 	}
 
-	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
+	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
@@ -264,7 +267,7 @@ func (amf *AMF) ReleaseSessionMessage(ctx context.Context, supi etsi.SUPI, pduSe
 		return ErrUENotReachable
 	}
 
-	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
+	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
@@ -392,7 +395,7 @@ func (amf *AMF) TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte,
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
-	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
+	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
@@ -432,7 +435,15 @@ func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, lppMsg []b
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
-	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeLPP, lppMsg, 0, nil)
+	// TS 24.501 §5.4.5.3.2 case c): the Additional information IE carries an LCS
+	// correlation identifier, which the UE hands to its location services
+	// application (§5.4.5.3.3 case c) and echoes back on the uplink
+	// (§5.4.5.2.1 case c). NOTE 2 of §5.4.5.3.2 has the AMF assign it for
+	// on-demand transfers, and distinguishes AMF- from LMF-assigned identifiers
+	// by octet count, so this one is 4 octets.
+	correlationID := amf.nextLCSCorrelationID()
+
+	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeLPP, lppMsg, 0, nil, correlationID)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport (LPP) error: %v", err)
 	}
@@ -441,7 +452,22 @@ func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, lppMsg []b
 		return fmt.Errorf("send downlink nas transport (LPP): %w", err)
 	}
 
-	logger.From(ctx, logger.AmfLog).Info("sent DL NAS Transport (LPP) to UE", logger.SUPI(supi.String()))
+	logger.From(ctx, logger.AmfLog).Info("sent DL NAS Transport (LPP) to UE",
+		logger.SUPI(supi.String()),
+		zap.Uint8("payload_container_type", nasMessage.PayloadContainerTypeLPP),
+		zap.Int("lpp_len", len(lppMsg)),
+		zap.String("lpp_hex", hex.EncodeToString(lppMsg)),
+		zap.String("lcs_correlation_id", hex.EncodeToString(correlationID)),
+	)
 
 	return nil
+}
+
+// nextLCSCorrelationID returns the next AMF-assigned LCS correlation identifier
+// for an LPP transfer, as a 4-octet value (TS 24.501 §5.4.5.3.2 NOTE 2).
+func (amf *AMF) nextLCSCorrelationID() []byte {
+	id := make([]byte, 4)
+	binary.BigEndian.PutUint32(id, amf.lcsCorrelationSeq.Add(1))
+
+	return id
 }

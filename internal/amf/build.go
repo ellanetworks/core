@@ -20,7 +20,11 @@ import (
 	"github.com/free5gc/nas/nasType"
 )
 
-func BuildDLNASTransport(ue *UeContext, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause *uint8) ([]byte, error) {
+// BuildDLNASTransport assembles a DL NAS TRANSPORT message. additionalInfo
+// carries the Additional information IE (TS 24.501 §9.11.2.1); it is required
+// for LPP payloads, where it holds the LCS correlation identifier the UE hands
+// to its location services application (TS 24.501 §5.4.5.3.2 case c).
+func BuildDLNASTransport(ue *UeContext, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause *uint8, additionalInfo []byte) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeDLNASTransport)
@@ -48,6 +52,13 @@ func BuildDLNASTransport(ue *UeContext, payloadContainerType uint8, nasPdu []byt
 		dLNASTransport.Cause5GMM = new(nasType.Cause5GMM)
 		dLNASTransport.Cause5GMM.SetIei(nasMessage.DLNASTransportCause5GMMType)
 		dLNASTransport.SetCauseValue(*cause)
+	}
+
+	if len(additionalInfo) > 0 {
+		dLNASTransport.AdditionalInformation = new(nasType.AdditionalInformation)
+		dLNASTransport.AdditionalInformation.SetIei(nasMessage.DLNASTransportAdditionalInformationType)
+		dLNASTransport.AdditionalInformation.SetLen(uint8(len(additionalInfo)))
+		dLNASTransport.SetAdditionalInformationValue(additionalInfo)
 	}
 
 	m.DLNASTransport = dLNASTransport

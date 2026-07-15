@@ -89,7 +89,7 @@ func SendDLNASTransport(ctx context.Context, ue *UeConn, payloadContainerType ui
 			attribute.Int("cause", int(cause)),
 		},
 		func(amfUe *UeContext) ([]byte, error) {
-			return BuildDLNASTransport(amfUe, payloadContainerType, nasPdu, pduSessionID, causePtr)
+			return BuildDLNASTransport(amfUe, payloadContainerType, nasPdu, pduSessionID, causePtr, nil)
 		})
 }
 
