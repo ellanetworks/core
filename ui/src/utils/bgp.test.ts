@@ -26,14 +26,16 @@ describe("detectPreset", () => {
     expect(detectPreset([prefix])).toBe(expected);
   });
 
-  it.each([
-    [[p("10.0.0.0/8", 24)], "a specific prefix"],
-    [[p("0.0.0.0/0", 24)], "the default route at a partial maxLength"],
-    [[p("0.0.0.0/0", 128)], "an IPv4 default route at the IPv6 width"],
-    [[p("::/0", 32)], "an IPv6 default route at the IPv4 width"],
-    [[p("0.0.0.0/0", 0), p("::/0", 0)], "both families at once"],
-  ] as const)("reads %o as custom (%s)", (prefixes) => {
-    expect(detectPreset([...prefixes])).toBe("custom");
+  const customCases: [string, BGPImportPrefix[]][] = [
+    ["a specific prefix", [p("10.0.0.0/8", 24)]],
+    ["the default route at a partial maxLength", [p("0.0.0.0/0", 24)]],
+    ["an IPv4 default route at the IPv6 width", [p("0.0.0.0/0", 128)]],
+    ["an IPv6 default route at the IPv4 width", [p("::/0", 32)]],
+    ["both families at once", [p("0.0.0.0/0", 0), p("::/0", 0)]],
+  ];
+
+  it.each(customCases)("reads %s as custom", (_label, prefixes) => {
+    expect(detectPreset(prefixes)).toBe("custom");
   });
 });
 
