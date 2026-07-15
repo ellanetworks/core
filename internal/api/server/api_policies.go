@@ -148,8 +148,12 @@ func isValidBitrate(bitrate string) bool {
 
 	value := s[0]
 
+	// Kbps is the smallest unit both radio paths carry: the EPS APN-AMBR is
+	// scaled in kbps (TS 24.008 §10.5.6.5) and the 5G Session-AMBR has a 1 Kbps
+	// multiplier (TS 24.501 §9.11.4.14). "bps" is excluded: the SMF converts it
+	// with an integer division to kbps, which truncates sub-kbps rates to zero.
 	unit := s[1]
-	if unit != "Mbps" && unit != "Gbps" {
+	if unit != "Kbps" && unit != "Mbps" && unit != "Gbps" {
 		return false
 	}
 
@@ -161,6 +165,14 @@ func isValidBitrate(bitrate string) bool {
 	return valueInt > 0 && valueInt <= 1000000
 }
 
+// The radio paths encode a bitrate differently, so what is expressible depends
+// on which RATs the profile permits:
+//
+//   - EPS scales the APN-AMBR in kbps and stops at 10 Gbps: TS 24.008 §10.5.6.5B
+//     states rates above it are "currently not supported", and the encoder clamps
+//     silently rather than failing (nas/eps: encodeAPNAMBRExtended2).
+//   - 5G carries a unit plus a two-octet value (TS 24.501 §9.11.4.14), so the
+//     value — not the resolved rate — is what must fit.
 var valid5Qi = []int32{5, 6, 7, 8, 9, 69, 70, 79, 80} // only non-gbr 5Qi are supported for now
 
 func isValid5Qi(var5qi int32) bool {
@@ -568,6 +580,16 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		for _, ambr := range []struct{ label, value string }{
+			{"session_ambr_uplink", createPolicyParams.SessionAmbrUplink},
+			{"session_ambr_downlink", createPolicyParams.SessionAmbrDownlink},
+		} {
+			if err := checkSessionAmbrEncodable(profile.Allow4G, profile.Allow5G, ambr.label, ambr.value); err != nil {
+				writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+				return
+			}
+		}
+
 		numPolicies, err := dbInstance.CountPoliciesInProfile(r.Context(), profile.ID)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count policies", err, logger.APILog)
@@ -690,6 +712,16 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 				nil, logger.APILog)
 
 			return
+		}
+
+		for _, ambr := range []struct{ label, value string }{
+			{"session_ambr_uplink", updatePolicyParams.SessionAmbrUplink},
+			{"session_ambr_downlink", updatePolicyParams.SessionAmbrDownlink},
+		} {
+			if err := checkSessionAmbrEncodable(profile.Allow4G, profile.Allow5G, ambr.label, ambr.value); err != nil {
+				writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+				return
+			}
 		}
 
 		slice, err := dbInstance.GetNetworkSlice(r.Context(), updatePolicyParams.SliceName)

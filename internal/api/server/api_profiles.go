@@ -191,6 +191,16 @@ func CreateProfile(dbInstance *db.Database) http.Handler {
 			Allow5G:        boolOr(params.Allow5G, true),
 		}
 
+		for _, ambr := range []struct{ label, value string }{
+			{"ue_ambr_uplink", params.UeAmbrUplink},
+			{"ue_ambr_downlink", params.UeAmbrDownlink},
+		} {
+			if err := checkUeAmbrEncodable(profile.Allow4G, profile.Allow5G, ambr.label, ambr.value); err != nil {
+				writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+				return
+			}
+		}
+
 		if err := dbInstance.CreateProfile(r.Context(), profile); err != nil {
 			if errors.Is(err, db.ErrAlreadyExists) {
 				writeError(r.Context(), w, http.StatusConflict, "Profile already exists", nil, logger.APILog)
@@ -259,6 +269,16 @@ func UpdateProfile(dbInstance *db.Database) http.Handler {
 			Allow5G:        boolOr(params.Allow5G, existing.Allow5G),
 		}
 
+		for _, ambr := range []struct{ label, value string }{
+			{"ue_ambr_uplink", params.UeAmbrUplink},
+			{"ue_ambr_downlink", params.UeAmbrDownlink},
+		} {
+			if err := checkUeAmbrEncodable(profile.Allow4G, profile.Allow5G, ambr.label, ambr.value); err != nil {
+				writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+				return
+			}
+		}
+
 		// Enabling 4G requires every binding to use a QCI-compatible 5QI
 		// (TS 23.203 Table 6.1.7), so an existing 5G-only QoS class cannot become
 		// an invalid QCI on S1AP.
@@ -281,6 +301,21 @@ func UpdateProfile(dbInstance *db.Database) http.Handler {
 						nil, logger.APILog)
 
 					return
+				}
+
+				// Only the 4G bound is new: the policy's 5G encodability was
+				// settled when it was written.
+				for _, ambr := range []struct{ label, value string }{
+					{"session_ambr_uplink", p.SessionAmbrUplink},
+					{"session_ambr_downlink", p.SessionAmbrDownlink},
+				} {
+					if err := checkSessionAmbrEncodable(true, false, ambr.label, ambr.value); err != nil {
+						writeError(r.Context(), w, http.StatusBadRequest,
+							fmt.Sprintf("cannot enable 4G: policy %q has a %s EPS cannot carry: %s", p.Name, ambr.label, err),
+							nil, logger.APILog)
+
+						return
+					}
 				}
 
 				if other, dup := seenDataNetwork[p.DataNetworkID]; dup {

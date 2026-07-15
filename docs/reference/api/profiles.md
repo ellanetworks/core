@@ -53,8 +53,8 @@ This path creates a new profile.
 ### Parameters
 
 - `name` (string): The name of the profile.
-- `ue_ambr_uplink` (string): Aggregate uplink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Format: `<number> <unit>` (e.g. `"500 Mbps"`). Allowed units: Mbps, Gbps.
-- `ue_ambr_downlink` (string): Aggregate downlink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Format: `<number> <unit>` (e.g. `"1 Gbps"`). Allowed units: Mbps, Gbps.
+- `ue_ambr_uplink` (string): Aggregate uplink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Format: `<number> <unit>` (e.g. `"500 Mbps"`). Allowed units: Kbps, Mbps, Gbps.
+- `ue_ambr_downlink` (string): Aggregate downlink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Format: `<number> <unit>` (e.g. `"1 Gbps"`). Allowed units: Kbps, Mbps, Gbps.
 - `allow_4g` (boolean, optional): Whether subscribers using this profile may attach over 4G (EPC). Defaults to `true`.
 - `allow_5g` (boolean, optional): Whether subscribers using this profile may register over 5G (5GC). Defaults to `true`.
 
@@ -104,8 +104,8 @@ This path updates an existing profile.
 
 ### Parameters
 
-- `ue_ambr_uplink` (string): Aggregate uplink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Format: `<number> <unit>` (e.g. `"500 Mbps"`). Allowed units: Mbps, Gbps.
-- `ue_ambr_downlink` (string): Aggregate downlink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Format: `<number> <unit>` (e.g. `"1 Gbps"`). Allowed units: Mbps, Gbps.
+- `ue_ambr_uplink` (string): Aggregate uplink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Format: `<number> <unit>` (e.g. `"500 Mbps"`). Allowed units: Kbps, Mbps, Gbps. The ceiling depends on the access the profile permits: 10 Gbps when 4G is allowed (S1AP `BitRate`, TS 36.413), otherwise 4 Tbps (NGAP `BitRate`, TS 38.413).
+- `ue_ambr_downlink` (string): Aggregate downlink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Format: `<number> <unit>` (e.g. `"1 Gbps"`). Allowed units: Kbps, Mbps, Gbps. The ceiling depends on the access the profile permits: 10 Gbps when 4G is allowed (S1AP `BitRate`, TS 36.413), otherwise 4 Tbps (NGAP `BitRate`, TS 38.413).
 - `allow_4g` (boolean, optional): Whether subscribers using this profile may attach over 4G (EPC). Defaults to `true`.
 - `allow_5g` (boolean, optional): Whether subscribers using this profile may register over 5G (5GC). Defaults to `true`.
 

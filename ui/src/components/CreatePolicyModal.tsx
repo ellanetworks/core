@@ -60,16 +60,18 @@ const schema = yup.object().shape({
   sliceName: yup.string().required("Slice is required."),
   ambrUpValue: yup
     .number()
-    .min(1, "Value must be between 1 and 999")
-    .max(999, "Value must be between 1 and 999")
+    .min(1, "Value must be between 1 and 65535")
+    .max(65535, "Value must be between 1 and 65535")
+    .integer("Value must be a whole number")
     .required("Value is required"),
-  ambrUpUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
+  ambrUpUnit: yup.string().oneOf(["Kbps", "Mbps", "Gbps"], "Invalid unit"),
   ambrDownValue: yup
     .number()
-    .min(1, "Value must be between 1 and 999")
-    .max(999, "Value must be between 1 and 999")
+    .min(1, "Value must be between 1 and 65535")
+    .max(65535, "Value must be between 1 and 65535")
+    .integer("Value must be a whole number")
     .required("Value is required"),
-  ambrDownUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
+  ambrDownUnit: yup.string().oneOf(["Kbps", "Mbps", "Gbps"], "Invalid unit"),
   fiveQi: yup
     .number()
     .oneOf(
@@ -349,6 +351,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
             helperText={touched.ambrUpUnit ? errors.ambrUpUnit : ""}
             margin="normal"
           >
+            <MenuItem value="Kbps">Kbps</MenuItem>
             <MenuItem value="Mbps">Mbps</MenuItem>
             <MenuItem value="Gbps">Gbps</MenuItem>
           </TextField>
@@ -377,6 +380,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
             helperText={touched.ambrDownUnit ? errors.ambrDownUnit : ""}
             margin="normal"
           >
+            <MenuItem value="Kbps">Kbps</MenuItem>
             <MenuItem value="Mbps">Mbps</MenuItem>
             <MenuItem value="Gbps">Gbps</MenuItem>
           </TextField>
