@@ -9,6 +9,7 @@ import React, {
   useCallback,
 } from "react";
 import {
+  Autocomplete,
   Box,
   Button,
   Typography,
@@ -29,12 +30,7 @@ import SouthIcon from "@mui/icons-material/South";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CloseIcon from "@mui/icons-material/Close";
 import { useSnackbar } from "@/contexts/SnackbarContext";
-import {
-  useTheme,
-  createTheme,
-  ThemeProvider,
-  alpha,
-} from "@mui/material/styles";
+import { useTheme, alpha } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import {
   DataGrid,
@@ -67,6 +63,7 @@ import {
   type FlowAccountingInfo,
 } from "@/queries/flow_accounting";
 import { useAuth } from "@/contexts/AuthContext";
+import { listAllSubscriberImsis } from "@/queries/subscribers";
 import { useQuery } from "@tanstack/react-query";
 import {
   Link,
@@ -79,17 +76,16 @@ import EditFlowReportsRetentionPolicyModal from "@/components/EditFlowReportsRet
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import {
-  type DataUnit,
-  UNIT_FACTORS,
-  chooseUnitFromMax,
-  formatBytesWithUnit,
-  formatBytesAutoUnit,
-  formatProtocol,
-  formatDateTime,
-  PROTOCOL_NAMES,
-  UPLINK_COLOR,
   DOWNLINK_COLOR,
   PIE_COLORS,
+  UNIT_FACTORS,
+  UPLINK_COLOR,
+  chooseUnitFromMax,
+  formatBytesAutoUnit,
+  formatCountShare,
+  formatDateTime,
+  formatProtocol,
+  type DataUnit,
 } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
@@ -130,7 +126,6 @@ const renderSubscriberLink = (params: any) => {
         <Typography
           variant="body2"
           sx={{
-            fontFamily: "monospace",
             color: (t) => t.palette.link,
             textDecoration: "underline",
             "&:hover": { textDecoration: "underline" },
@@ -216,14 +211,6 @@ const Traffic: React.FC = () => {
       navigate(newValue);
     },
     [navigate],
-  );
-
-  const gridTheme = useMemo(
-    () =>
-      createTheme(theme, {
-        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
-      }),
-    [theme],
   );
 
   // ── Shared state ────────────────────────────────────
@@ -426,10 +413,15 @@ const Traffic: React.FC = () => {
     return items;
   }, [usagePerSubscriberData]);
 
-  const subscriberOptions = useMemo(
-    () => usageRows.map((r) => r.subscriber),
-    [usageRows],
-  );
+  // Sourced from the roster, not from usageRows: that query is filtered by
+  // selectedSubscriber, so deriving options from it left the chosen subscriber
+  // as the only option and made switching to another impossible.
+  const { data: subscriberOptions = [] } = useQuery<string[]>({
+    queryKey: ["subscriberImsis"],
+    queryFn: () => listAllSubscriberImsis(accessToken || ""),
+    enabled: !!accessToken,
+    placeholderData: (prev) => prev,
+  });
 
   const dailyRows: UsagePerDayRow[] = useMemo(() => {
     if (!usagePerDayData) return [];
@@ -493,7 +485,7 @@ const Traffic: React.FC = () => {
       },
       {
         field: "downlink_bytes",
-        headerName: "Downlink (bytes)",
+        headerName: "Downlink",
         flex: 1,
         minWidth: 120,
         type: "number",
@@ -502,7 +494,7 @@ const Traffic: React.FC = () => {
       },
       {
         field: "uplink_bytes",
-        headerName: "Uplink (bytes)",
+        headerName: "Uplink",
         flex: 1,
         minWidth: 120,
         type: "number",
@@ -511,7 +503,7 @@ const Traffic: React.FC = () => {
       },
       {
         field: "total_bytes",
-        headerName: "Total (bytes)",
+        headerName: "Total",
         flex: 1,
         minWidth: 120,
         type: "number",
@@ -701,7 +693,7 @@ const Traffic: React.FC = () => {
                 size="small"
                 sx={{
                   backgroundColor: bg,
-                  color: "#fff",
+                  color: theme.palette.getContrastText(bg),
                   fontWeight: 600,
                   fontSize: "0.75rem",
                   height: 22,
@@ -722,7 +714,7 @@ const Traffic: React.FC = () => {
       },
       {
         field: "bytes",
-        headerName: "Bytes",
+        headerName: "Volume",
         type: "number",
         flex: 0.5,
         minWidth: 80,
@@ -766,7 +758,7 @@ const Traffic: React.FC = () => {
         },
       },
     ],
-    [theme, protocolColorMap],
+    [protocolColorMap, theme.palette],
   );
 
   // ── Protocol distribution (donut chart) ─────────────
@@ -970,21 +962,20 @@ const Traffic: React.FC = () => {
               slotProps={{ inputLabel: { shrink: true } }}
               size="small"
             />
-            <TextField
-              select
-              label="Subscriber"
-              value={selectedSubscriber}
-              onChange={(e) => setSelectedSubscriber(e.target.value)}
+            <Autocomplete
+              options={subscriberOptions}
+              value={selectedSubscriber || null}
+              onChange={(_event, value) => setSelectedSubscriber(value ?? "")}
               size="small"
-              sx={{ minWidth: 200 }}
-            >
-              <MenuItem value="">All subscribers</MenuItem>
-              {subscriberOptions.map((sub) => (
-                <MenuItem key={sub} value={sub}>
-                  {sub}
-                </MenuItem>
-              ))}
-            </TextField>
+              sx={{ minWidth: 240 }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Subscriber"
+                  placeholder="All subscribers"
+                />
+              )}
+            />
           </Box>
 
           {/* Tabs */}
@@ -1084,20 +1075,18 @@ const Traffic: React.FC = () => {
               </Box>
 
               {/* Usage table */}
-              <ThemeProvider theme={gridTheme}>
-                <DataGrid<UsageRow>
-                  rows={usageRows}
-                  columns={usageColumns}
-                  getRowId={(row) => row.id}
-                  paginationModel={usagePaginationModel}
-                  onPaginationModelChange={setUsagePaginationModel}
-                  pageSizeOptions={[10, 25, 50, 100]}
-                  disableColumnMenu
-                  disableRowSelectionOnClick
-                  columnVisibilityModel={{ subscriber: !isSmDown }}
-                  sx={gridSx}
-                />
-              </ThemeProvider>
+              <DataGrid<UsageRow>
+                rows={usageRows}
+                columns={usageColumns}
+                getRowId={(row) => row.id}
+                paginationModel={usagePaginationModel}
+                onPaginationModelChange={setUsagePaginationModel}
+                pageSizeOptions={[10, 25, 50, 100]}
+                disableColumnMenu
+                disableRowSelectionOnClick
+                columnVisibilityModel={{ subscriber: !isSmDown }}
+                sx={gridSx}
+              />
             </Box>
           )}
 
@@ -1176,7 +1165,7 @@ const Traffic: React.FC = () => {
                   {protocolPieData.length > 0 && (
                     <Box>
                       <Typography variant="h6" sx={{ mb: 1 }}>
-                        Protocols
+                        Protocols (by flow count)
                       </Typography>
                       <PieChart
                         series={[
@@ -1186,15 +1175,15 @@ const Traffic: React.FC = () => {
                             outerRadius: 80,
                             paddingAngle: 2,
                             cornerRadius: 5,
-                            valueFormatter: (item) => {
-                              const total = protocolPieData.reduce(
-                                (s, d) => s + d.value,
-                                0,
-                              );
-                              return total > 0
-                                ? `${((item.value / total) * 100).toFixed(1)}%`
-                                : "0%";
-                            },
+                            valueFormatter: (item) =>
+                              formatCountShare(
+                                item.value,
+                                protocolPieData.reduce(
+                                  (s, d) => s + d.value,
+                                  0,
+                                ),
+                                "flow",
+                              ),
                           },
                         ]}
                         height={300}
@@ -1228,7 +1217,7 @@ const Traffic: React.FC = () => {
                   {topDestinationsPieData.length > 0 && (
                     <Box>
                       <Typography variant="h6" sx={{ mb: 1 }}>
-                        Top 10 Destinations (uplink)
+                        Top 10 Destinations (uplink, by flow count)
                       </Typography>
                       <PieChart
                         series={[
@@ -1238,15 +1227,15 @@ const Traffic: React.FC = () => {
                             outerRadius: 80,
                             paddingAngle: 2,
                             cornerRadius: 5,
-                            valueFormatter: (item) => {
-                              const total = topDestinationsPieData.reduce(
-                                (s, d) => s + d.value,
-                                0,
-                              );
-                              return total > 0
-                                ? `${((item.value / total) * 100).toFixed(1)}%`
-                                : "0%";
-                            },
+                            valueFormatter: (item) =>
+                              formatCountShare(
+                                item.value,
+                                topDestinationsPieData.reduce(
+                                  (s, d) => s + d.value,
+                                  0,
+                                ),
+                                "flow",
+                              ),
                           },
                         ]}
                         height={300}
@@ -1370,27 +1359,25 @@ const Traffic: React.FC = () => {
                   button={false}
                 />
               ) : (
-                <ThemeProvider theme={gridTheme}>
-                  <DataGrid<FlowReport>
-                    rows={flowRows}
-                    columns={flowColumns}
-                    getRowId={(row) => row.id}
-                    getRowClassName={(params: GridRowParams<FlowReport>) =>
-                      params.row.action === "drop" ? "flow-row-dropped" : ""
-                    }
-                    paginationMode="server"
-                    rowCount={flowRowCount}
-                    paginationModel={flowPaginationModel}
-                    onPaginationModelChange={setFlowPaginationModel}
-                    disableColumnSorting
-                    disableColumnMenu
-                    disableRowSelectionOnClick
-                    pageSizeOptions={[10, 25, 50, 100]}
-                    density="compact"
-                    columnVisibilityModel={{}}
-                    sx={gridSx}
-                  />
-                </ThemeProvider>
+                <DataGrid<FlowReport>
+                  rows={flowRows}
+                  columns={flowColumns}
+                  getRowId={(row) => row.id}
+                  getRowClassName={(params: GridRowParams<FlowReport>) =>
+                    params.row.action === "drop" ? "flow-row-dropped" : ""
+                  }
+                  paginationMode="server"
+                  rowCount={flowRowCount}
+                  paginationModel={flowPaginationModel}
+                  onPaginationModelChange={setFlowPaginationModel}
+                  disableColumnSorting
+                  disableColumnMenu
+                  disableRowSelectionOnClick
+                  pageSizeOptions={[10, 25, 50, 100]}
+                  density="compact"
+                  columnVisibilityModel={{}}
+                  sx={gridSx}
+                />
               )}
             </Box>
           )}

@@ -23,7 +23,7 @@ import {
   South as SouthIcon,
 } from "@mui/icons-material";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
-import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
+import { useTheme } from "@mui/material/styles";
 import {
   DataGrid,
   type GridColDef,
@@ -41,6 +41,8 @@ import { useSnackbar } from "@/contexts/SnackbarContext";
 import EditProfileModal from "@/components/EditProfileModal";
 import CreatePolicyModal from "@/components/CreatePolicyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
+import EmptyState from "@/components/EmptyState";
+import QueryState from "@/components/QueryState";
 import { UPLINK_COLOR, DOWNLINK_COLOR } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
@@ -64,14 +66,6 @@ const ProfileDetail: React.FC = () => {
   const canEdit = role === "Admin" || role === "Network Manager";
   const queryClient = useQueryClient();
 
-  const gridTheme = useMemo(
-    () =>
-      createTheme(theme, {
-        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
-      }),
-    [theme],
-  );
-
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [isCreatePolicyOpen, setCreatePolicyOpen] = useState(false);
@@ -80,26 +74,23 @@ const ProfileDetail: React.FC = () => {
     if (authReady && !accessToken) navigate("/login");
   }, [authReady, accessToken, navigate]);
 
-  const {
-    data: profile,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery<APIProfile>({
+  const profileQuery = useQuery<APIProfile>({
     queryKey: ["profile", name],
     queryFn: () => getProfile(accessToken!, name!),
     enabled: authReady && !!accessToken && !!name,
     refetchInterval: 5000,
+    retry: false,
   });
 
-  const { data: policiesData } = useQuery<ListPoliciesResponse>({
+  const policiesQuery = useQuery<ListPoliciesResponse>({
     queryKey: ["policies", "profile", name],
     queryFn: () => listPolicies(accessToken!, 1, 100, name!),
     enabled: authReady && !!accessToken && !!name,
     refetchInterval: 5000,
+    retry: false,
   });
 
-  const policies: APIPolicy[] = policiesData?.items ?? [];
+  const policyCount = policiesQuery.data?.items?.length;
 
   const handleDeleteConfirm = async () => {
     if (!name || !accessToken) return;
@@ -197,47 +188,6 @@ const ProfileDetail: React.FC = () => {
     [name, theme],
   );
 
-  if (!authReady || isLoading) {
-    return (
-      <Box
-        sx={{
-          pt: 6,
-          pb: 4,
-          maxWidth: MAX_WIDTH,
-          mx: "auto",
-          px: PAGE_PADDING_X,
-        }}
-      >
-        <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
-        <Skeleton variant="rounded" height={220} />
-        <Skeleton variant="rounded" height={300} sx={{ mt: 3 }} />
-      </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          mt: 6,
-          gap: 2,
-        }}
-      >
-        <Typography color="error">
-          {error instanceof Error ? error.message : "Failed to load profile."}
-        </Typography>
-        <Button variant="outlined" component={RouterLink} to="/profiles">
-          Back to Profiles
-        </Button>
-      </Box>
-    );
-  }
-
-  if (!profile) return null;
-
   return (
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
@@ -277,7 +227,7 @@ const ProfileDetail: React.FC = () => {
               /
             </Typography>
             <Typography component="span" variant="h4">
-              {profile.name}
+              {name}
             </Typography>
           </Typography>
           <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
@@ -299,116 +249,144 @@ const ProfileDetail: React.FC = () => {
       </Box>
 
       {/* Configuration Card */}
-      <Card
-        variant="outlined"
-        sx={{ display: "flex", flexDirection: "column" }}
+      <QueryState
+        query={profileQuery}
+        resource="this profile"
+        loading={<Skeleton variant="rounded" height={220} />}
       >
-        <CardContent sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              mb: 1.5,
-            }}
-          >
-            <Typography variant="h6">Configuration</Typography>
-            {canEdit && (
-              <IconButton
-                size="small"
-                color="primary"
-                onClick={() => setEditModalOpen(true)}
-                aria-label="Edit configuration"
+        {(profile) => (
+          <>
+            <Card
+              variant="outlined"
+              sx={{ display: "flex", flexDirection: "column" }}
+            >
+              <CardContent
+                sx={{ flex: 1, display: "flex", flexDirection: "column" }}
               >
-                <EditIcon fontSize="small" />
-              </IconButton>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    mb: 1.5,
+                  }}
+                >
+                  <Typography variant="h6">Configuration</Typography>
+                  {canEdit && (
+                    <IconButton
+                      size="small"
+                      color="primary"
+                      onClick={() => setEditModalOpen(true)}
+                      aria-label="Edit configuration"
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                </Box>
+                <Table
+                  size="small"
+                  sx={{ "& tr:last-child td": { borderBottom: "none" } }}
+                >
+                  <TableBody>
+                    <TableRow>
+                      <TableCell sx={labelCellSx}>
+                        <Tooltip
+                          title="Aggregate uplink cap across all of this subscriber's sessions (UE-AMBR). Enforced by the radio."
+                          arrow
+                          placement="top"
+                        >
+                          <span>Bitrate Uplink</span>
+                        </Tooltip>
+                      </TableCell>
+                      <TableCell sx={valueCellSx}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "flex-end",
+                            gap: 0.5,
+                          }}
+                        >
+                          <NorthIcon
+                            sx={{ fontSize: 16, color: UPLINK_COLOR }}
+                          />
+                          <Typography variant="body2">
+                            {profile.ue_ambr_uplink}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell sx={labelCellSx}>
+                        <Tooltip
+                          title="Aggregate downlink cap across all of this subscriber's sessions (UE-AMBR). Enforced by the radio."
+                          arrow
+                          placement="top"
+                        >
+                          <span>Bitrate Downlink</span>
+                        </Tooltip>
+                      </TableCell>
+                      <TableCell sx={valueCellSx}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "flex-end",
+                            gap: 0.5,
+                          }}
+                        >
+                          <SouthIcon
+                            sx={{ fontSize: 16, color: DOWNLINK_COLOR }}
+                          />
+                          <Typography variant="body2">
+                            {profile.ue_ambr_downlink}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell sx={labelCellSx}>
+                        <Tooltip
+                          title="Radio access technologies subscribers on this profile may use (TS 23.501 §5.3.4)."
+                          arrow
+                          placement="top"
+                        >
+                          <span>Access</span>
+                        </Tooltip>
+                      </TableCell>
+                      <TableCell sx={valueCellSx}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "flex-end",
+                            gap: 0.5,
+                          }}
+                        >
+                          <AccessChip label="4G" active={profile.allow_4g} />
+                          <AccessChip label="5G" active={profile.allow_5g} />
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            {isEditModalOpen && (
+              <EditProfileModal
+                open
+                onClose={() => setEditModalOpen(false)}
+                onSuccess={() => {
+                  profileQuery.refetch();
+                  showSnackbar("Profile updated successfully.", "success");
+                }}
+                initialData={profile}
+              />
             )}
-          </Box>
-          <Table
-            size="small"
-            sx={{ "& tr:last-child td": { borderBottom: "none" } }}
-          >
-            <TableBody>
-              <TableRow>
-                <TableCell sx={labelCellSx}>
-                  <Tooltip
-                    title="Aggregate uplink cap across all of this subscriber's sessions (UE-AMBR). Enforced by the radio."
-                    arrow
-                    placement="top"
-                  >
-                    <span>Bitrate Uplink</span>
-                  </Tooltip>
-                </TableCell>
-                <TableCell sx={valueCellSx}>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "flex-end",
-                      gap: 0.5,
-                    }}
-                  >
-                    <NorthIcon sx={{ fontSize: 16, color: UPLINK_COLOR }} />
-                    <Typography variant="body2">
-                      {profile.ue_ambr_uplink}
-                    </Typography>
-                  </Box>
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell sx={labelCellSx}>
-                  <Tooltip
-                    title="Aggregate downlink cap across all of this subscriber's sessions (UE-AMBR). Enforced by the radio."
-                    arrow
-                    placement="top"
-                  >
-                    <span>Bitrate Downlink</span>
-                  </Tooltip>
-                </TableCell>
-                <TableCell sx={valueCellSx}>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "flex-end",
-                      gap: 0.5,
-                    }}
-                  >
-                    <SouthIcon sx={{ fontSize: 16, color: DOWNLINK_COLOR }} />
-                    <Typography variant="body2">
-                      {profile.ue_ambr_downlink}
-                    </Typography>
-                  </Box>
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell sx={labelCellSx}>
-                  <Tooltip
-                    title="Radio access technologies subscribers on this profile may use (TS 23.501 §5.3.4)."
-                    arrow
-                    placement="top"
-                  >
-                    <span>Access</span>
-                  </Tooltip>
-                </TableCell>
-                <TableCell sx={valueCellSx}>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "flex-end",
-                      gap: 0.5,
-                    }}
-                  >
-                    <AccessChip label="4G" active={profile.allow_4g} />
-                    <AccessChip label="5G" active={profile.allow_5g} />
-                  </Box>
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+          </>
+        )}
+      </QueryState>
 
       {/* Policies Table */}
       <Box sx={{ mt: 4 }}>
@@ -421,7 +399,11 @@ const ProfileDetail: React.FC = () => {
           }}
         >
           <Box>
-            <Typography variant="h6">Policies ({policies.length})</Typography>
+            <Typography variant="h6">
+              {policyCount === undefined
+                ? "Policies"
+                : `Policies (${policyCount})`}
+            </Typography>
             <Typography variant="body2" color="textSecondary">
               QoS policies applied to subscriber sessions on each data network.
             </Typography>
@@ -437,52 +419,59 @@ const ProfileDetail: React.FC = () => {
             </Button>
           )}
         </Box>
-        <ThemeProvider theme={gridTheme}>
-          <DataGrid<APIPolicy>
-            rows={policies}
-            columns={policyColumns}
-            getRowId={(row) => row.name}
-            disableRowSelectionOnClick
-            disableColumnMenu
-            hideFooter={policies.length <= 25}
-            pageSizeOptions={[25, 50, 100]}
-            sx={{
-              width: "100%",
-              border: 1,
-              borderColor: "divider",
-              "& .MuiDataGrid-cell": {
-                borderBottom: "1px solid",
+        <QueryState
+          query={policiesQuery}
+          resource="policies for this profile"
+          loading={<Skeleton variant="rounded" height={300} />}
+          isEmpty={(data) => (data.items?.length ?? 0) === 0}
+          empty={
+            <EmptyState
+              primaryText="No policies yet"
+              secondaryText={
+                canEdit
+                  ? "Add a policy to get started."
+                  : "Ask an administrator to add a policy."
+              }
+            />
+          }
+        >
+          {(data) => (
+            <DataGrid<APIPolicy>
+              rows={data.items ?? []}
+              columns={policyColumns}
+              getRowId={(row) => row.name}
+              disableRowSelectionOnClick
+              disableColumnMenu
+              hideFooter={(data.items?.length ?? 0) <= 25}
+              pageSizeOptions={[25, 50, 100]}
+              sx={{
+                width: "100%",
+                border: 1,
                 borderColor: "divider",
-              },
-              "& .MuiDataGrid-columnHeaders": {
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-footerContainer": {
-                borderTop: "1px solid",
-                borderColor: "divider",
-              },
-            }}
-          />
-        </ThemeProvider>
+                "& .MuiDataGrid-cell": {
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                },
+                "& .MuiDataGrid-columnHeaders": {
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                },
+                "& .MuiDataGrid-footerContainer": {
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                },
+              }}
+            />
+          )}
+        </QueryState>
       </Box>
 
       {/* Modals */}
-      {isEditModalOpen && (
-        <EditProfileModal
-          open
-          onClose={() => setEditModalOpen(false)}
-          onSuccess={() => {
-            refetch();
-            showSnackbar("Profile updated successfully.", "success");
-          }}
-          initialData={profile}
-        />
-      )}
       {isCreatePolicyOpen && (
         <CreatePolicyModal
           open
           profileName={name!}
+          policyCount={policyCount ?? 0}
           onClose={() => setCreatePolicyOpen(false)}
           onSuccess={() => {
             queryClient.invalidateQueries({

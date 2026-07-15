@@ -592,7 +592,7 @@ func TestGetUsagePerSubscriber_1Sub(t *testing.T) {
 	startDate := time.Now().AddDate(0, 0, -5)
 	endDate := time.Now()
 
-	usagePerSubscriber, err := database.GetUsagePerSubscriber(context.Background(), "", startDate, endDate)
+	usagePerSubscriber, err := database.GetUsagePerSubscriber(context.Background(), "", startDate, endDate, db.NoUsageLimit)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage per subscriber for period: %s", err)
 	}
@@ -709,7 +709,7 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 	startDate := time.Now().AddDate(0, 0, -5)
 	endDate := time.Now()
 
-	usagePerSubscriber, err := database.GetUsagePerSubscriber(context.Background(), "", startDate, endDate)
+	usagePerSubscriber, err := database.GetUsagePerSubscriber(context.Background(), "", startDate, endDate, db.NoUsageLimit)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage per subscriber for period: %s", err)
 	}
@@ -873,5 +873,86 @@ func TestDeleteOldDailyUsage(t *testing.T) {
 
 	if len(dailyUsage) == 0 {
 		t.Fatalf("Expected a new daily usage entry, but got none")
+	}
+}
+
+func TestGetUsagePerSubscriber_Limit(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	imsis := []string{"001010100007501", "001010100007502", "001010100007503"}
+
+	profileID, err := createDataNetworkPolicyAndSubscriber(database, imsis[0])
+	if err != nil {
+		t.Fatalf("Couldn't complete createDataNetworkPolicyAndSubscriber: %s", err)
+	}
+
+	for _, imsi := range imsis[1:] {
+		err = database.CreateSubscriber(context.Background(), &db.Subscriber{
+			Imsi:           imsi,
+			SequenceNumber: "000000000022",
+			PermanentKey:   "1234567890abcdef1234567890abcdef",
+			Opc:            "1234567890abcdef1234567890abcdef",
+			ProfileID:      profileID,
+		})
+		if err != nil {
+			t.Fatalf("Couldn't create subscriber %s: %s", imsi, err)
+		}
+	}
+
+	date := time.Now().Add(-24 * time.Hour)
+
+	// Ascending totals, so the limited result must come back reversed.
+	for i, imsi := range imsis {
+		err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
+			EpochDay:      db.DaysSinceEpoch(date),
+			IMSI:          imsi,
+			BytesUplink:   int64(100 * (i + 1)),
+			BytesDownlink: int64(200 * (i + 1)),
+		})
+		if err != nil {
+			t.Fatalf("couldn't increment daily usage: %s", err)
+		}
+	}
+
+	startDate := time.Now().AddDate(0, 0, -5)
+	endDate := time.Now()
+
+	all, err := database.GetUsagePerSubscriber(context.Background(), "", startDate, endDate, db.NoUsageLimit)
+	if err != nil {
+		t.Fatalf("Couldn't complete GetUsagePerSubscriber: %s", err)
+	}
+
+	if len(all) != 3 {
+		t.Fatalf("expected 3 subscribers with NoUsageLimit, got %d", len(all))
+	}
+
+	if all[0].IMSI != imsis[2] {
+		t.Fatalf("expected highest-usage subscriber %s first, got %s", imsis[2], all[0].IMSI)
+	}
+
+	limited, err := database.GetUsagePerSubscriber(context.Background(), "", startDate, endDate, 2)
+	if err != nil {
+		t.Fatalf("Couldn't complete GetUsagePerSubscriber with limit: %s", err)
+	}
+
+	if len(limited) != 2 {
+		t.Fatalf("expected 2 subscribers with limit 2, got %d", len(limited))
+	}
+
+	// The limit must keep the top of the existing total-bytes ordering, not an
+	// arbitrary two rows.
+	if limited[0].IMSI != imsis[2] || limited[1].IMSI != imsis[1] {
+		t.Fatalf("expected top-2 by total bytes (%s, %s), got (%s, %s)", imsis[2], imsis[1], limited[0].IMSI, limited[1].IMSI)
 	}
 }

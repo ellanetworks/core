@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Box,
@@ -14,7 +14,7 @@ import {
 import EditIcon from "@mui/icons-material/Edit";
 import { Link, useSearchParams } from "react-router-dom";
 import { useSnackbar } from "@/contexts/SnackbarContext";
-import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
+import { useTheme } from "@mui/material/styles";
 import {
   DataGrid,
   type GridColDef,
@@ -30,6 +30,8 @@ import {
 } from "@/queries/audit_logs";
 import { listUsers, type ListUsersResponse } from "@/queries/users";
 import { useAuth } from "@/contexts/AuthContext";
+import QueryState from "@/components/QueryState";
+import EmptyState from "@/components/EmptyState";
 import EditAuditLogRetentionPolicyModal from "@/components/EditAuditLogRetentionPolicyModal";
 import { formatDateTime } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
@@ -47,16 +49,6 @@ const AuditLog: React.FC = () => {
   const canEdit = role === "Admin";
 
   const outerTheme = useTheme();
-  const gridTheme = useMemo(
-    () =>
-      createTheme(outerTheme, {
-        palette: {
-          DataGrid: { headerBg: outerTheme.palette.backgroundSubtle },
-        },
-      }),
-    [outerTheme],
-  );
-
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 25,
@@ -122,11 +114,7 @@ const AuditLog: React.FC = () => {
     return f;
   }, [startDate, endDate, selectedUser, selectedAction]);
 
-  const {
-    data: auditLogsData,
-    isLoading: loading,
-    error: auditLogsError,
-  } = useQuery<ListAuditLogsResponse>({
+  const auditLogsQuery = useQuery<ListAuditLogsResponse>({
     queryKey: ["auditLogs", pageOneBased, paginationModel.pageSize, filters],
     queryFn: () =>
       listAuditLogs(
@@ -139,19 +127,16 @@ const AuditLog: React.FC = () => {
     placeholderData: (prev) => prev,
   });
 
-  useEffect(() => {
-    if (auditLogsError) {
-      showSnackbar("Failed to fetch audit logs. Please try again.", "error");
-    }
-  }, [auditLogsError, showSnackbar]);
+  const hasActiveFilters = Boolean(
+    startDate || endDate || selectedUser || selectedAction,
+  );
 
   const dateError =
     startDate && endDate && startDate > endDate
       ? "End date must be after start date"
       : "";
 
-  const rows: APIAuditLog[] = auditLogsData?.items ?? [];
-  const rowCount = auditLogsData?.total_count ?? 0;
+  const rowCount = auditLogsQuery.data?.total_count ?? 0;
 
   const columns: GridColDef<APIAuditLog>[] = useMemo(
     () => [
@@ -159,9 +144,10 @@ const AuditLog: React.FC = () => {
         field: "timestamp",
         headerName: "Timestamp",
         flex: 0,
-        width: 130,
+        width: 180,
         sortable: false,
-        valueFormatter: (value: string) => formatDateTime(value),
+        valueFormatter: (value: string) =>
+          formatDateTime(value, { seconds: true }),
       },
       {
         field: "user",
@@ -342,38 +328,57 @@ const AuditLog: React.FC = () => {
         </Box>
       </Box>
 
-      <ThemeProvider theme={gridTheme}>
-        <DataGrid<APIAuditLog>
-          rows={rows}
-          columns={columns}
-          getRowId={(row) => row.id}
-          paginationMode="server"
-          rowCount={rowCount}
-          paginationModel={paginationModel}
-          onPaginationModelChange={setPaginationModel}
-          disableColumnMenu
-          disableRowSelectionOnClick
-          pageSizeOptions={[10, 25, 50, 100]}
-          rowHeight={52}
-          sx={{
-            width: "100%",
-            border: 1,
-            borderColor: "divider",
-            "& .MuiDataGrid-cell": {
-              borderBottom: "1px solid",
+      <QueryState
+        query={auditLogsQuery}
+        resource="audit logs"
+        isEmpty={(data) => (data.total_count ?? 0) === 0}
+        filtered={hasActiveFilters}
+        noResults={
+          <EmptyState
+            primaryText="No audit logs match the selected filters"
+            secondaryText="Try widening the date range or clearing the user and action filters."
+          />
+        }
+        empty={
+          <EmptyState
+            primaryText="No audit logs yet"
+            secondaryText="Actions taken in Ella Core will be recorded here."
+          />
+        }
+      >
+        {(data) => (
+          <DataGrid<APIAuditLog>
+            rows={data.items ?? []}
+            columns={columns}
+            getRowId={(row) => row.id}
+            paginationMode="server"
+            rowCount={rowCount}
+            paginationModel={paginationModel}
+            onPaginationModelChange={setPaginationModel}
+            disableColumnMenu
+            disableRowSelectionOnClick
+            pageSizeOptions={[10, 25, 50, 100]}
+            rowHeight={52}
+            sx={{
+              width: "100%",
+              border: 1,
               borderColor: "divider",
-            },
-            "& .MuiDataGrid-columnHeaders": {
-              borderBottom: "1px solid",
-              borderColor: "divider",
-            },
-            "& .MuiDataGrid-footerContainer": {
-              borderTop: "1px solid",
-              borderColor: "divider",
-            },
-          }}
-        />
-      </ThemeProvider>
+              "& .MuiDataGrid-cell": {
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              },
+              "& .MuiDataGrid-columnHeaders": {
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              },
+              "& .MuiDataGrid-footerContainer": {
+                borderTop: "1px solid",
+                borderColor: "divider",
+              },
+            }}
+          />
+        )}
+      </QueryState>
 
       <EditAuditLogRetentionPolicyModal
         open={isEditModalOpen}

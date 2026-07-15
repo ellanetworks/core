@@ -5,7 +5,6 @@ import { useState } from "react";
 import {
   Box,
   Typography,
-  CircularProgress,
   Chip,
   Stack,
   IconButton,
@@ -15,16 +14,12 @@ import { Edit as EditIcon } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import { getInterfaces, type InterfacesInfo } from "@/queries/interfaces";
 import EditInterfaceN3Modal from "@/components/EditInterfaceN3Modal";
-import EmptyState from "@/components/EmptyState";
+import QueryState from "@/components/QueryState";
 import { useNetworkingContext } from "./types";
 
 export default function InterfacesTab() {
   const { accessToken, canEdit, showSnackbar } = useNetworkingContext();
-  const {
-    data: interfacesInfo,
-    isLoading: loading,
-    refetch,
-  } = useQuery<InterfacesInfo>({
+  const interfacesQuery = useQuery<InterfacesInfo>({
     queryKey: ["interfaces"],
     queryFn: () => getInterfaces(accessToken || ""),
     enabled: !!accessToken,
@@ -38,34 +33,17 @@ export default function InterfacesTab() {
 
   return (
     <Box sx={{ width: "100%", mt: 2 }}>
-      {loading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
-          <CircularProgress />
-        </Box>
-      ) : !interfacesInfo ? (
-        <EmptyState
-          primaryText="No interface information available."
-          secondaryText="Ella Core could not retrieve interface information from the API."
-          extraContent={
-            <Typography variant="body1" color="textSecondary">
-              {description}
-            </Typography>
-          }
-          button
-          buttonText="Retry"
-          onCreate={refetch}
-        />
-      ) : (
-        <>
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="h5" sx={{ mb: 0.5 }}>
-              Network Interfaces
-            </Typography>
-            <Typography variant="body2" color="textSecondary">
-              {description}
-            </Typography>
-          </Box>
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="h5" sx={{ mb: 0.5 }}>
+          Network Interfaces
+        </Typography>
+        <Typography variant="body2" color="textSecondary">
+          {description}
+        </Typography>
+      </Box>
 
+      <QueryState query={interfacesQuery} resource="network interfaces">
+        {(interfacesInfo) => (
           <Box
             sx={{
               display: "grid",
@@ -277,8 +255,8 @@ export default function InterfacesTab() {
               </Typography>
             </Box>
           </Box>
-        </>
-      )}
+        )}
+      </QueryState>
 
       {isEditN3Open && (
         <EditInterfaceN3Modal
@@ -289,10 +267,10 @@ export default function InterfacesTab() {
               "N3 external address updated successfully.",
               "success",
             );
-            refetch();
+            void interfacesQuery.refetch();
           }}
           initialData={{
-            externalAddress: interfacesInfo?.n3?.external_address ?? "",
+            externalAddress: interfacesQuery.data?.n3?.external_address ?? "",
           }}
         />
       )}

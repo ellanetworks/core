@@ -958,7 +958,9 @@ func TestCreateTooManyPoliciesPerProfile(t *testing.T) {
 		}
 	}
 
-	// Create a 12th policy using a new slice to get a unique (profile, slice, dn) tuple.
+	// The 12th policy uses the seeded data network. A profile that allows 4G —
+	// the default — may bind each data network only once regardless of slice
+	// (TS 29.272 §7.3.35), so this cannot reuse an earlier DN in a new slice.
 	_, _, sliceErr := createSlice(env.Server.URL, client, token, &CreateSliceParams{
 		Name: "extra-slice",
 		Sst:  1,
@@ -971,12 +973,12 @@ func TestCreateTooManyPoliciesPerProfile(t *testing.T) {
 	createPolicyParams := &CreatePolicyParams{
 		Name:                PolicyName + "11",
 		ProfileName:         "test-profile",
-		SliceName:           "extra-slice",
+		SliceName:           DefaultSliceName,
 		SessionAmbrUplink:   SessionAmbrUplink,
 		SessionAmbrDownlink: SessionAmbrDownlink,
 		Var5qi:              Var5qi,
 		Arp:                 Arp,
-		DataNetworkName:     "test-dn-0",
+		DataNetworkName:     "internet",
 	}
 
 	statusCode, response, err := createPolicy(env.Server.URL, client, token, createPolicyParams)

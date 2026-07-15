@@ -21,11 +21,16 @@ export async function getUsage(
   end: string,
   subscriber: string,
   groupBy: "day" | "subscriber",
+  limit?: number,
 ): Promise<UsageResult> {
   const params = new URLSearchParams({ start, end });
 
   if (subscriber.trim() !== "") {
     params.set("subscriber", subscriber);
+  }
+
+  if (limit !== undefined) {
+    params.set("limit", String(limit));
   }
 
   return apiFetch<UsageResult>(

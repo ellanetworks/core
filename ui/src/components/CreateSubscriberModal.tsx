@@ -250,10 +250,14 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
 
   const sanitizeDigits = (s: string) => s.replace(/\D/g, "");
 
-  const parseIMSIorMSIN = (raw: string, mcc: string, mnc: string) => {
+  const parseIMSIorMSIN = (
+    raw: string,
+    operatorMcc: string,
+    operatorMnc: string,
+  ) => {
     const digits = sanitizeDigits(raw);
-    const prefix = `${mcc}${mnc}`;
-    const msinLen = 15 - (mcc.length + mnc.length); // -> 10 if MNC=2, 9 if MNC=3
+    const prefix = `${operatorMcc}${operatorMnc}`;
+    const msinLen = 15 - (operatorMcc.length + operatorMnc.length); // -> 10 if MNC=2, 9 if MNC=3
     const fullLen = prefix.length + msinLen;
 
     // 1) Plain MSIN entry
@@ -269,7 +273,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
       }
       return {
         msin: null,
-        mismatchMsg: `IMSI prefix does not match MCC ${mcc} / MNC ${mnc}.`,
+        mismatchMsg: `IMSI prefix does not match MCC ${operatorMcc} / MNC ${operatorMnc}.`,
       };
     }
 
@@ -386,8 +390,8 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
             }}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
-              const randomKey = [...Array(32)]
-                .map(() => Math.floor(Math.random() * 16).toString(16))
+              const randomKey = [...crypto.getRandomValues(new Uint8Array(16))]
+                .map((b) => b.toString(16).padStart(2, "0"))
                 .join("");
               handleChange("key", randomKey);
             }}

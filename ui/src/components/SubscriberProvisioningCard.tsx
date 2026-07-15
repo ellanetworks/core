@@ -16,6 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useAuth } from "@/contexts/AuthContext";
 import type { APISubscriber } from "@/queries/subscribers";
+import ErrorAlert from "@/components/ErrorAlert";
 import theme from "@/utils/theme";
 import { getSubscriberCredentials } from "@/queries/subscribers";
 
@@ -120,12 +121,14 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
 
   const [credentialsRequested, setCredentialsRequested] = useState(false);
 
-  const { data: credentials } = useQuery({
+  const credentialsQuery = useQuery({
     queryKey: ["subscriberCredentials", subscriber.imsi],
     queryFn: () => getSubscriberCredentials(accessToken!, subscriber.imsi),
     enabled:
       authReady && !!accessToken && canViewCredentials && credentialsRequested,
   });
+
+  const credentials = credentialsQuery.data;
 
   const handleToggleCredentials = () => {
     if (!credentialsVisible) {
@@ -175,6 +178,14 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
             </Button>
           )}
         </Box>
+        {credentialsVisible && credentialsQuery.isLoadingError && (
+          <ErrorAlert
+            resource="subscriber credentials"
+            error={credentialsQuery.error}
+            onRetry={() => void credentialsQuery.refetch()}
+            retrying={credentialsQuery.isFetching}
+          />
+        )}
         <FieldRow
           label="Key"
           value={credentials?.key ?? ""}

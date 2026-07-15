@@ -19,6 +19,7 @@ import {
   Typography,
   Checkbox,
   FormControlLabel,
+  FormHelperText,
 } from "@mui/material";
 import {
   updatePolicy,
@@ -76,16 +77,18 @@ const policySchema = yup.object().shape({
   sliceName: yup.string().required("Slice is required."),
   ambrUpValue: yup
     .number()
-    .min(1, "Value must be between 1 and 999")
-    .max(999, "Value must be between 1 and 999")
+    .min(1, "Value must be between 1 and 65535")
+    .max(65535, "Value must be between 1 and 65535")
+    .integer("Value must be a whole number")
     .required("Value is required"),
-  ambrUpUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
+  ambrUpUnit: yup.string().oneOf(["Kbps", "Mbps", "Gbps"], "Invalid unit"),
   ambrDownValue: yup
     .number()
-    .min(1, "Value must be between 1 and 999")
-    .max(999, "Value must be between 1 and 999")
+    .min(1, "Value must be between 1 and 65535")
+    .max(65535, "Value must be between 1 and 65535")
+    .integer("Value must be a whole number")
     .required("Value is required"),
-  ambrDownUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
+  ambrDownUnit: yup.string().oneOf(["Kbps", "Mbps", "Gbps"], "Invalid unit"),
   var5qi: yup
     .number()
     .oneOf(
@@ -367,6 +370,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
             onBlur={() => handleBlur("ambrUpUnit")}
             margin="normal"
           >
+            <MenuItem value="Kbps">Kbps</MenuItem>
             <MenuItem value="Mbps">Mbps</MenuItem>
             <MenuItem value="Gbps">Gbps</MenuItem>
           </TextField>
@@ -393,6 +397,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
             onBlur={() => handleBlur("ambrDownUnit")}
             margin="normal"
           >
+            <MenuItem value="Kbps">Kbps</MenuItem>
             <MenuItem value="Mbps">Mbps</MenuItem>
             <MenuItem value="Gbps">Gbps</MenuItem>
           </TextField>
@@ -441,21 +446,25 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           margin="normal"
         />
 
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={formValues.isDefault}
-              onChange={(e) =>
-                setFormValues((prev) => ({
-                  ...prev,
-                  isDefault: e.target.checked,
-                }))
-              }
-            />
-          }
-          label="Default data network for this profile (default APN/DNN)"
-          sx={{ mt: 1 }}
-        />
+        <Box sx={{ mt: 1 }}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={formValues.isDefault}
+                onChange={(e) =>
+                  setFormValues((prev) => ({
+                    ...prev,
+                    isDefault: e.target.checked,
+                  }))
+                }
+              />
+            }
+            label="Use this policy when a 4G subscriber attaches without requesting an APN"
+          />
+          <FormHelperText sx={{ ml: 4, mt: -0.5 }}>
+            Replaces the profile&apos;s current default.
+          </FormHelperText>
+        </Box>
       </DialogContent>
 
       <DialogActions>

@@ -41,7 +41,7 @@ import {
   PROTOCOL_CHIP_COLORS,
   PROTOCOL_NAMES,
 } from "@/utils/formatters";
-import { cidrRegex, ipv6CidrRegex } from "@/utils/ip";
+import { isValidCidr } from "@/utils/ip";
 
 const parseProtocol = (value: string): number | undefined => {
   if (!value || value.trim() === "") return undefined;
@@ -109,7 +109,7 @@ const schema = yup.object().shape({
       "Must be valid CIDR format (e.g., 192.168.0.0/24 or 2001:db8::/32)",
       (val) => {
         if (!val || val.trim() === "") return true; // allow empty (optional field)
-        return cidrRegex.test(val) || ipv6CidrRegex.test(val);
+        return isValidCidr(val);
       },
     ),
   protocol: yup
@@ -536,7 +536,6 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
                   <Typography
                     variant="body2"
                     sx={{
-                      fontFamily: "monospace",
                       minWidth: 220,
                       flex: "0 1 220px",
                       whiteSpace: "normal",

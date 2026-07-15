@@ -17,20 +17,56 @@ export const cidrRegex =
 export const ipv6CidrRegex =
   /^(?:(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,7}:|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}|(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}|(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}|(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:(?::[0-9a-fA-F]{1,4}){1,6}|:(?::[0-9a-fA-F]{1,4}){1,7}|::)(\/\d{1,3})$/;
 
-export function isValidIpv6Cidr(value: string) {
-  if (!value) return true;
-  const match = value.match(ipv6CidrRegex);
-  if (!match) return false;
-  const prefixLen = parseInt(match[1].slice(1), 10);
-  return prefixLen >= 48 && prefixLen <= 60;
+/**
+ * A data network delegates /64s from within its IPv6 pool, so the pool prefix
+ * must leave room for them: `isIPv6PoolValid`, internal/api/server/api_data_networks.go.
+ */
+export const IPV6_POOL_MIN_PREFIX = 48;
+export const IPV6_POOL_MAX_PREFIX = 60;
+
+/** The prefix length of a CIDR, or null when there is no readable one. */
+export function prefixLength(value: string): number | null {
+  const slash = value.lastIndexOf("/");
+  if (slash < 0) return null;
+
+  const digits = value.slice(slash + 1);
+  if (!/^\d{1,3}$/.test(digits)) return null;
+
+  return Number(digits);
+}
+
+/** The widest prefix the address family allows. */
+export function getMaxPrefixLength(value: string): number {
+  return value.includes(":") ? 128 : 32;
+}
+
+export function isValidIpv4Cidr(value: string): boolean {
+  if (!cidrRegex.test(value)) return false;
+
+  const len = prefixLength(value);
+
+  return len !== null && len >= 0 && len <= 32;
+}
+
+export function isValidIpv6Cidr(value: string): boolean {
+  if (!ipv6CidrRegex.test(value)) return false;
+
+  const len = prefixLength(value);
+
+  return len !== null && len >= 0 && len <= 128;
 }
 
 export function isValidCidr(value: string): boolean {
   if (!value) return true;
-  return cidrRegex.test(value) || ipv6CidrRegex.test(value);
+
+  return isValidIpv4Cidr(value) || isValidIpv6Cidr(value);
 }
 
-export function getMaxPrefixLength(value: string): number {
-  if (cidrRegex.test(value)) return 32;
-  return 128;
+export function isValidIpv6PoolCidr(value: string): boolean {
+  if (!value) return true;
+  if (!isValidIpv6Cidr(value)) return false;
+
+  const len = prefixLength(value) as number;
+
+  return len >= IPV6_POOL_MIN_PREFIX && len <= IPV6_POOL_MAX_PREFIX;
 }

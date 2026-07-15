@@ -148,8 +148,12 @@ func isValidBitrate(bitrate string) bool {
 
 	value := s[0]
 
+	// Kbps is the smallest unit both radio paths carry: the EPS APN-AMBR is
+	// scaled in kbps (TS 24.008 §10.5.6.5) and the 5G Session-AMBR has a 1 Kbps
+	// multiplier (TS 24.501 §9.11.4.14). "bps" is excluded: the SMF converts it
+	// with an integer division to kbps, which truncates sub-kbps rates to zero.
 	unit := s[1]
-	if unit != "Mbps" && unit != "Gbps" {
+	if unit != "Kbps" && unit != "Mbps" && unit != "Gbps" {
 		return false
 	}
 
@@ -161,6 +165,14 @@ func isValidBitrate(bitrate string) bool {
 	return valueInt > 0 && valueInt <= 1000000
 }
 
+// The radio paths encode a bitrate differently, so what is expressible depends
+// on which RATs the profile permits:
+//
+//   - EPS scales the APN-AMBR in kbps and stops at 10 Gbps: TS 24.008 §10.5.6.5B
+//     states rates above it are "currently not supported", and the encoder clamps
+//     silently rather than failing (nas/eps: encodeAPNAMBRExtended2).
+//   - 5G carries a unit plus a two-octet value (TS 24.501 §9.11.4.14), so the
+//     value — not the resolved rate — is what must fit.
 var valid5Qi = []int32{5, 6, 7, 8, 9, 69, 70, 79, 80} // only non-gbr 5Qi are supported for now
 
 func isValid5Qi(var5qi int32) bool {
@@ -491,6 +503,48 @@ func DeletePolicy(dbInstance *db.Database) http.Handler {
 	})
 }
 
+// checkPolicyBindingFree reports whether a policy may bind dataNetworkID under
+// profile/slice, excluding excludeName (empty on create).
+//
+// A subscription may configure a given data network once per slice: 5G keys a
+// slice's DNN configurations by DNN (TS 29.503 §6.1.6.2.8). When the profile
+// also permits 4G the rule tightens to once per profile, because EPS has no
+// slice to disambiguate and requires the APN to be unique across a subscriber's
+// configurations (TS 29.272 §7.3.35).
+func checkPolicyBindingFree(ctx context.Context, dbInstance *db.Database, profile *db.Profile, sliceID, dataNetworkID, dataNetworkName, excludeName string) error {
+	if profile.Allow4G {
+		policies, err := dbInstance.ListPoliciesByProfile(ctx, profile.ID)
+		if err != nil {
+			return fmt.Errorf("list policies: %w", err)
+		}
+
+		for i := range policies {
+			if policies[i].Name == excludeName || policies[i].DataNetworkID != dataNetworkID {
+				continue
+			}
+
+			return fmt.Errorf("policy %q already uses data network %q; a profile that allows 4G may use each data network only once", policies[i].Name, dataNetworkName)
+		}
+
+		return nil
+	}
+
+	existing, err := dbInstance.GetPolicyByLookup(ctx, profile.ID, sliceID, dataNetworkID)
+	if errors.Is(err, db.ErrNotFound) {
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("look up policy: %w", err)
+	}
+
+	if existing.Name == excludeName {
+		return nil
+	}
+
+	return fmt.Errorf("policy %q already binds this slice to data network %q", existing.Name, dataNetworkName)
+}
+
 func CreatePolicy(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
@@ -526,6 +580,16 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		for _, ambr := range []struct{ label, value string }{
+			{"session_ambr_uplink", createPolicyParams.SessionAmbrUplink},
+			{"session_ambr_downlink", createPolicyParams.SessionAmbrDownlink},
+		} {
+			if err := checkSessionAmbrEncodable(profile.Allow4G, profile.Allow5G, ambr.label, ambr.value); err != nil {
+				writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+				return
+			}
+		}
+
 		numPolicies, err := dbInstance.CountPoliciesInProfile(r.Context(), profile.ID)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count policies", err, logger.APILog)
@@ -546,6 +610,11 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 		dataNetwork, err := dbInstance.GetDataNetwork(r.Context(), createPolicyParams.DataNetworkName)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
+			return
+		}
+
+		if err := checkPolicyBindingFree(r.Context(), dbInstance, profile, slice.ID, dataNetwork.ID, createPolicyParams.DataNetworkName, ""); err != nil {
+			writeError(r.Context(), w, http.StatusConflict, err.Error(), nil, logger.APILog)
 			return
 		}
 
@@ -645,6 +714,16 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		for _, ambr := range []struct{ label, value string }{
+			{"session_ambr_uplink", updatePolicyParams.SessionAmbrUplink},
+			{"session_ambr_downlink", updatePolicyParams.SessionAmbrDownlink},
+		} {
+			if err := checkSessionAmbrEncodable(profile.Allow4G, profile.Allow5G, ambr.label, ambr.value); err != nil {
+				writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+				return
+			}
+		}
+
 		slice, err := dbInstance.GetNetworkSlice(r.Context(), updatePolicyParams.SliceName)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusNotFound, "Slice not found", nil, logger.APILog)
@@ -654,6 +733,11 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 		dataNetwork, err := dbInstance.GetDataNetwork(r.Context(), updatePolicyParams.DataNetworkName)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
+			return
+		}
+
+		if err := checkPolicyBindingFree(r.Context(), dbInstance, profile, slice.ID, dataNetwork.ID, updatePolicyParams.DataNetworkName, policyName); err != nil {
+			writeError(r.Context(), w, http.StatusConflict, err.Error(), nil, logger.APILog)
 			return
 		}
 

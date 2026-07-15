@@ -15,8 +15,11 @@ declare module "@mui/material/styles" {
   }
 }
 
-const theme = createTheme({
+const base = createTheme({
   palette: {
+    // MUI defaults to 3, which lets getContrastText return white on backgrounds
+    // that only reach 3:1 — below the 4.5:1 WCAG 1.4.3 needs for chip-sized text.
+    contrastThreshold: 4.5,
     primary: {
       main: "#26374a",
     },
@@ -25,6 +28,9 @@ const theme = createTheme({
     },
     error: {
       main: "#c62828",
+    },
+    warning: {
+      main: "#ed6c02",
     },
     link: "#2B3FD4",
     backgroundSubtle: "#F5F5F5",
@@ -61,6 +67,13 @@ const theme = createTheme({
     h3: {
       fontWeight: 500,
     },
+  },
+});
+
+// A second pass so the grid header can reference a token from the first.
+const theme = createTheme(base, {
+  palette: {
+    DataGrid: { headerBg: base.palette.backgroundSubtle },
   },
 });
 

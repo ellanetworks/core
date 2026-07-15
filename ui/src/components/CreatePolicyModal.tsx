@@ -36,6 +36,8 @@ interface CreatePolicyModalProps {
   onClose: () => void;
   onSuccess: () => void;
   profileName: string;
+  /** Policies already in the profile; the first one is always the default. */
+  policyCount: number;
 }
 
 const NON_GBR_5QI_OPTIONS: { value: number; label: string }[] = [
@@ -57,16 +59,18 @@ const schema = yup.object().shape({
   sliceName: yup.string().required("Slice is required."),
   ambrUpValue: yup
     .number()
-    .min(1, "Value must be between 1 and 999")
-    .max(999, "Value must be between 1 and 999")
+    .min(1, "Value must be between 1 and 65535")
+    .max(65535, "Value must be between 1 and 65535")
+    .integer("Value must be a whole number")
     .required("Value is required"),
-  ambrUpUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
+  ambrUpUnit: yup.string().oneOf(["Kbps", "Mbps", "Gbps"], "Invalid unit"),
   ambrDownValue: yup
     .number()
-    .min(1, "Value must be between 1 and 999")
-    .max(999, "Value must be between 1 and 999")
+    .min(1, "Value must be between 1 and 65535")
+    .max(65535, "Value must be between 1 and 65535")
+    .integer("Value must be a whole number")
     .required("Value is required"),
-  ambrDownUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
+  ambrDownUnit: yup.string().oneOf(["Kbps", "Mbps", "Gbps"], "Invalid unit"),
   fiveQi: yup
     .number()
     .oneOf(
@@ -85,8 +89,10 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
   onClose,
   onSuccess,
   profileName,
+  policyCount,
 }) => {
   const navigate = useNavigate();
+  const isFirstPolicy = policyCount === 0;
   const { accessToken, authReady } = useAuth();
 
   useEffect(() => {
@@ -344,6 +350,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
             helperText={touched.ambrUpUnit ? errors.ambrUpUnit : ""}
             margin="normal"
           >
+            <MenuItem value="Kbps">Kbps</MenuItem>
             <MenuItem value="Mbps">Mbps</MenuItem>
             <MenuItem value="Gbps">Gbps</MenuItem>
           </TextField>
@@ -372,6 +379,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
             helperText={touched.ambrDownUnit ? errors.ambrDownUnit : ""}
             margin="normal"
           >
+            <MenuItem value="Kbps">Kbps</MenuItem>
             <MenuItem value="Mbps">Mbps</MenuItem>
             <MenuItem value="Gbps">Gbps</MenuItem>
           </TextField>
@@ -420,21 +428,23 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
           margin="normal"
         />
 
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={formValues.isDefault}
-              onChange={(e) =>
-                setFormValues((prev) => ({
-                  ...prev,
-                  isDefault: e.target.checked,
-                }))
-              }
-            />
-          }
-          label="Default data network for this profile (default APN/DNN)"
-          sx={{ mt: 1 }}
-        />
+        <Box sx={{ mt: 1 }}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={isFirstPolicy || formValues.isDefault}
+                disabled={isFirstPolicy}
+                onChange={(e) =>
+                  setFormValues((prev) => ({
+                    ...prev,
+                    isDefault: e.target.checked,
+                  }))
+                }
+              />
+            }
+            label="Use this policy when a 4G subscriber attaches without requesting an APN"
+          />
+        </Box>
       </DialogContent>
 
       <DialogActions>

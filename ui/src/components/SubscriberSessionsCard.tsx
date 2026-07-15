@@ -3,7 +3,7 @@
 
 import React, { useMemo } from "react";
 import { Box, Chip, CircularProgress, Typography } from "@mui/material";
-import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
+import { useTheme } from "@mui/material/styles";
 import { Link as RouterLink } from "react-router-dom";
 import {
   DataGrid,
@@ -25,14 +25,6 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
   loading = false,
 }) => {
   const theme = useTheme();
-
-  const gridTheme = useMemo(
-    () =>
-      createTheme(theme, {
-        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
-      }),
-    [theme],
-  );
 
   // Network slices (S-NSSAI) are 5G-only; mark them not applicable on 4G.
   const is4G = accessType === "4G";
@@ -78,18 +70,12 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
               }}
             >
               {ipv4Address && (
-                <Typography
-                  variant="body2"
-                  sx={{ fontFamily: "monospace", fontSize: "0.8rem" }}
-                >
+                <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
                   {ipv4Address}
                 </Typography>
               )}
               {ipv6 && (
-                <Typography
-                  variant="body2"
-                  sx={{ fontFamily: "monospace", fontSize: "0.8rem" }}
-                >
+                <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
                   {ipv6}/64
                 </Typography>
               )}
@@ -203,34 +189,32 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
           <CircularProgress size={24} />
         </Box>
       ) : (
-        <ThemeProvider theme={gridTheme}>
-          <DataGrid<SessionInfo>
-            rows={sessions}
-            columns={columns}
-            getRowId={(row) => row.id}
-            disableRowSelectionOnClick
-            disableColumnMenu
-            hideFooter={sessions.length <= 25}
-            pageSizeOptions={[25, 50, 100]}
-            sx={{
-              width: "100%",
-              border: 1,
+        <DataGrid<SessionInfo>
+          rows={sessions}
+          columns={columns}
+          getRowId={(row) => row.id}
+          disableRowSelectionOnClick
+          disableColumnMenu
+          hideFooter={sessions.length <= 25}
+          pageSizeOptions={[25, 50, 100]}
+          sx={{
+            width: "100%",
+            border: 1,
+            borderColor: "divider",
+            "& .MuiDataGrid-cell": {
+              borderBottom: "1px solid",
               borderColor: "divider",
-              "& .MuiDataGrid-cell": {
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-columnHeaders": {
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-footerContainer": {
-                borderTop: "1px solid",
-                borderColor: "divider",
-              },
-            }}
-          />
-        </ThemeProvider>
+            },
+            "& .MuiDataGrid-columnHeaders": {
+              borderBottom: "1px solid",
+              borderColor: "divider",
+            },
+            "& .MuiDataGrid-footerContainer": {
+              borderTop: "1px solid",
+              borderColor: "divider",
+            },
+          }}
+        />
       )}
     </Box>
   );

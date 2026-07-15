@@ -14,6 +14,7 @@ import {
   Collapse,
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
+import ErrorAlert from "@/components/ErrorAlert";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   createStaticIp,
@@ -25,6 +26,8 @@ interface StaticIpEdit {
   imsi: string;
   ipVersion: string;
   address: string;
+  /** The reservation is bound to a live session, which a change will release. */
+  active?: boolean;
 }
 
 interface CreateStaticIpModalProps {
@@ -62,11 +65,13 @@ const CreateStaticIpModal: React.FC<CreateStaticIpModalProps> = ({
     }
   }, [open, edit]);
 
-  const { data: subscribers } = useQuery({
+  const subscribersQuery = useQuery({
     queryKey: ["eligible-subscribers", dataNetwork],
     queryFn: () => listEligibleSubscribers(accessToken!, dataNetwork),
     enabled: open && !isEdit && authReady && !!accessToken,
   });
+
+  const subscribers = subscribersQuery.data;
 
   const poolHelp = isEdit
     ? edit?.ipVersion === "ipv6"
@@ -125,6 +130,12 @@ const CreateStaticIpModal: React.FC<CreateStaticIpModalProps> = ({
             {alert}
           </Alert>
         </Collapse>
+        {isEdit && edit?.active && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            This subscriber has an active session. Saving a new address releases
+            it, and the subscriber reconnects on the new address.
+          </Alert>
+        )}
         {isEdit ? (
           <TextField
             fullWidth
@@ -134,19 +145,29 @@ const CreateStaticIpModal: React.FC<CreateStaticIpModalProps> = ({
             disabled
           />
         ) : (
-          <Autocomplete
-            options={(subscribers ?? []).map((s) => s.imsi)}
-            value={imsi || null}
-            onChange={(_, value) => setImsi(value ?? "")}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Subscriber"
-                margin="normal"
-                autoFocus
+          <>
+            <Autocomplete
+              options={(subscribers ?? []).map((s) => s.imsi)}
+              value={imsi || null}
+              onChange={(_, value) => setImsi(value ?? "")}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Subscriber"
+                  margin="normal"
+                  autoFocus
+                />
+              )}
+            />
+            {subscribersQuery.isLoadingError && (
+              <ErrorAlert
+                resource="eligible subscribers"
+                error={subscribersQuery.error}
+                onRetry={() => void subscribersQuery.refetch()}
+                retrying={subscribersQuery.isFetching}
               />
             )}
-          />
+          </>
         )}
         <TextField
           fullWidth

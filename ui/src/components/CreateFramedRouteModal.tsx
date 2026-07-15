@@ -18,6 +18,7 @@ import {
 } from "@mui/material";
 import { Add as AddIcon, Delete as DeleteIcon } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
+import ErrorAlert from "@/components/ErrorAlert";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   createFramedRoute,
@@ -67,11 +68,13 @@ const CreateFramedRouteModal: React.FC<CreateFramedRouteModalProps> = ({
     }
   }, [open, edit]);
 
-  const { data: subscribers } = useQuery({
+  const subscribersQuery = useQuery({
     queryKey: ["eligible-subscribers", dataNetwork],
     queryFn: () => listEligibleSubscribers(accessToken!, dataNetwork),
     enabled: open && !isEdit && authReady && !!accessToken,
   });
+
+  const subscribers = subscribersQuery.data;
 
   const cleanV4 = ipv4.map((p) => p.trim()).filter((p) => p !== "");
   const cleanV6 = ipv6.map((p) => p.trim()).filter((p) => p !== "");
@@ -197,19 +200,29 @@ const CreateFramedRouteModal: React.FC<CreateFramedRouteModalProps> = ({
             disabled
           />
         ) : (
-          <Autocomplete
-            options={(subscribers ?? []).map((s) => s.imsi)}
-            value={imsi || null}
-            onChange={(_, value) => setImsi(value ?? "")}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Subscriber"
-                margin="normal"
-                autoFocus
+          <>
+            <Autocomplete
+              options={(subscribers ?? []).map((s) => s.imsi)}
+              value={imsi || null}
+              onChange={(_, value) => setImsi(value ?? "")}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Subscriber"
+                  margin="normal"
+                  autoFocus
+                />
+              )}
+            />
+            {subscribersQuery.isLoadingError && (
+              <ErrorAlert
+                resource="eligible subscribers"
+                error={subscribersQuery.error}
+                onRetry={() => void subscribersQuery.refetch()}
+                retrying={subscribersQuery.isFetching}
               />
             )}
-          />
+          </>
         )}
         {renderPrefixRows(
           "IPv4 prefixes",

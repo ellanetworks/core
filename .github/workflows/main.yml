@@ -17,6 +17,8 @@ jobs:
     uses: ./.github/workflows/ui-lint.yaml
   ui-typecheck:
     uses: ./.github/workflows/ui-typecheck.yaml
+  ui-test:
+    uses: ./.github/workflows/ui-test.yaml
   go-unit-test:
     uses: ./.github/workflows/go-unittest.yaml
   upf-ebpf-test:

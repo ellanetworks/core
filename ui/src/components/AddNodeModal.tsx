@@ -20,8 +20,10 @@ import {
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { useQuery } from "@tanstack/react-query";
 import { listClusterMembers, mintClusterJoinToken } from "@/queries/cluster";
+import ErrorAlert from "@/components/ErrorAlert";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
+import { formatDateTime } from "@/utils/formatters";
 
 interface Props {
   open: boolean;
@@ -44,11 +46,13 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
   const { accessToken } = useAuth();
   const { showSnackbar } = useSnackbar();
 
-  const { data: members } = useQuery({
+  const membersQuery = useQuery({
     queryKey: ["cluster", "members"],
     queryFn: () => listClusterMembers(accessToken!),
     enabled: open && !!accessToken,
   });
+
+  const members = membersQuery.data;
 
   const suggestedNodeId = useMemo(() => {
     const used = new Set((members ?? []).map((m) => m.nodeId));
@@ -139,6 +143,15 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
               in {ttlLabel.toLowerCase()}.
             </Typography>
 
+            {membersQuery.isLoadingError && (
+              <ErrorAlert
+                resource="cluster members"
+                error={membersQuery.error}
+                onRetry={() => void membersQuery.refetch()}
+                retrying={membersQuery.isFetching}
+              />
+            )}
+
             <TextField
               fullWidth
               autoFocus
@@ -179,7 +192,7 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
           <>
             <Alert severity="success" sx={{ mb: 2 }}>
               Token minted. Copy it now — it is shown only once and expires at{" "}
-              {new Date(expiresAt * 1000).toLocaleString()}.
+              {formatDateTime(new Date(expiresAt * 1000).toISOString())}.
             </Alert>
 
             <Typography variant="body2" sx={{ mb: 1 }}>
@@ -202,7 +215,6 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
                 component="pre"
                 variant="body2"
                 sx={{
-                  fontFamily: "monospace",
                   whiteSpace: "pre-wrap",
                   wordBreak: "break-all",
                   m: 0,

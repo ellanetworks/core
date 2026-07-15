@@ -42,9 +42,9 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   ipRegex,
-  cidrRegex,
   isValidCidr,
   getMaxPrefixLength,
+  prefixLength,
 } from "@/utils/ip";
 import { detectPreset, type ImportPreset } from "@/utils/bgp";
 
@@ -250,8 +250,9 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
   const hasInvalidPrefixes = importPrefixes.some((p) => {
     if (!p.prefix) return false;
     const valid = isValidCidr(p.prefix);
+    const minLen = prefixLength(p.prefix) ?? 0;
     const maxLen = getMaxPrefixLength(p.prefix);
-    return !valid || p.maxLength < 0 || p.maxLength > maxLen;
+    return !valid || p.maxLength < minLen || p.maxLength > maxLen;
   });
 
   const handleSubmit = async () => {
@@ -476,7 +477,7 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
                     !!entry.prefix &&
                     (entry.maxLength < 0 ||
                       entry.maxLength > getMaxPrefixLength(entry.prefix))
-                      ? `0–${getMaxPrefixLength(entry.prefix)}`
+                      ? `${prefixLength(entry.prefix) ?? 0}–${getMaxPrefixLength(entry.prefix)}`
                       : ""
                   }
                   sx={{ flex: 1 }}
@@ -533,9 +534,7 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
                   <TableBody>
                     {rejectedPrefixes.map((rp) => (
                       <TableRow key={rp.prefix} sx={{ opacity: 0.7 }}>
-                        <TableCell sx={{ fontFamily: "monospace" }}>
-                          {rp.prefix}
-                        </TableCell>
+                        <TableCell>{rp.prefix}</TableCell>
                         <TableCell>{rp.description}</TableCell>
                       </TableRow>
                     ))}

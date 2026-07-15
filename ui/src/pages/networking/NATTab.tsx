@@ -4,7 +4,6 @@
 import {
   Box,
   Typography,
-  CircularProgress,
   Stack,
   FormControlLabel,
   Switch,
@@ -13,15 +12,13 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { getNATInfo, updateNATInfo, type NatInfo } from "@/queries/nat";
 import { getBGPSettings, type BGPSettings } from "@/queries/bgp";
+import QueryState from "@/components/QueryState";
 import { useNetworkingContext } from "./types";
 
 export default function NATTab() {
   const { accessToken, canEdit, showSnackbar } = useNetworkingContext();
-  const {
-    data: natInfo,
-    isLoading: loading,
-    refetch,
-  } = useQuery<NatInfo>({
+
+  const natQuery = useQuery<NatInfo>({
     queryKey: ["nat"],
     queryFn: () => getNATInfo(accessToken || ""),
     enabled: !!accessToken,
@@ -42,10 +39,14 @@ export default function NATTab() {
     mutationFn: (enabled: boolean) => updateNATInfo(accessToken || "", enabled),
     onSuccess: () => {
       showSnackbar("NAT updated successfully.", "success");
-      refetch();
+      void natQuery.refetch();
     },
     onError: (error: unknown) => {
-      showSnackbar(`Failed to update NAT: ${String(error)}`, "error");
+      const message =
+        error instanceof Error
+          ? error.message
+          : "An unexpected error occurred.";
+      showSnackbar(`Failed to update NAT: ${message}`, "error");
     },
   });
 
@@ -54,45 +55,43 @@ export default function NATTab() {
 
   return (
     <Box sx={{ width: "100%", mt: 2 }}>
-      {loading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <>
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="h5" sx={{ mb: 0.5 }}>
-              NAT
-            </Typography>
-            <Typography variant="body2" color="textSecondary">
-              {description}
-            </Typography>
-          </Box>
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="h5" sx={{ mb: 0.5 }}>
+          NAT
+        </Typography>
+        <Typography variant="body2" color="textSecondary">
+          {description}
+        </Typography>
+      </Box>
 
-          {bgpSettings?.enabled && !natInfo?.enabled && (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              Enabling NAT will stop advertising subscriber routes via BGP.
-            </Alert>
-          )}
+      <QueryState query={natQuery} resource="NAT settings">
+        {(natInfo) => (
+          <>
+            {bgpSettings?.enabled && !natInfo.enabled && (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                Enabling NAT will stop advertising subscriber routes via BGP.
+              </Alert>
+            )}
 
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={2}
-            sx={{ alignItems: "center" }}
-          >
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={!!natInfo?.enabled}
-                  onChange={(_, checked) => setNATEnabled(checked)}
-                  disabled={!canEdit || mutating || loading}
-                />
-              }
-              label={natInfo?.enabled ? "NAT is ON" : "NAT is OFF"}
-            />
-          </Stack>
-        </>
-      )}
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={2}
+              sx={{ alignItems: "center" }}
+            >
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={natInfo.enabled}
+                    onChange={(_, checked) => setNATEnabled(checked)}
+                    disabled={!canEdit || mutating}
+                  />
+                }
+                label={natInfo.enabled ? "NAT is ON" : "NAT is OFF"}
+              />
+            </Stack>
+          </>
+        )}
+      </QueryState>
     </Box>
   );
 }

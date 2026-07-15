@@ -7,7 +7,6 @@ import {
   Box,
   Typography,
   Button,
-  CircularProgress,
   Chip,
   Stack,
   FormControlLabel,
@@ -18,7 +17,6 @@ import {
   TableContainer,
   TableRow,
 } from "@mui/material";
-import { ThemeProvider } from "@mui/material/styles";
 import {
   Delete as DeleteIcon,
   Edit as EditIcon,
@@ -55,25 +53,41 @@ import EditBGPPeerModal from "@/components/EditBGPPeerModal";
 import ViewBGPPeerModal from "@/components/ViewBGPPeerModal";
 import EditBGPSettingsModal from "@/components/EditBGPSettingsModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
+import QueryState from "@/components/QueryState";
 import { useNetworkingContext } from "./types";
 
+const NoAdvertisedRoutesOverlay = () => (
+  <Stack
+    sx={{
+      alignItems: "center",
+      justifyContent: "center",
+      height: "100%",
+      p: 2,
+    }}
+  >
+    <Typography variant="body2" color="textSecondary">
+      No advertised routes
+    </Typography>
+  </Stack>
+);
+
+const advertisedGridSlots = { noRowsOverlay: NoAdvertisedRoutesOverlay };
+
 export default function BGPTab() {
-  const { accessToken, canEdit, showSnackbar, gridTheme } =
-    useNetworkingContext();
+  const { accessToken, canEdit, showSnackbar } = useNetworkingContext();
 
   // BGP Settings
-  const {
-    data: bgpSettings,
-    isLoading: settingsLoading,
-    refetch: refetchSettings,
-  } = useQuery<BGPSettings>({
+  const settingsQuery = useQuery<BGPSettings>({
     queryKey: ["bgp-settings"],
     queryFn: () => getBGPSettings(accessToken || ""),
     enabled: !!accessToken,
     refetchInterval: 5000,
-    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
+    retry: false,
   });
+
+  const bgpSettings = settingsQuery.data;
+  const refetchSettings = () => void settingsQuery.refetch();
 
   const [isEditSettingsOpen, setEditSettingsOpen] = useState(false);
 
@@ -113,11 +127,7 @@ export default function BGPTab() {
     pageSize: 25,
   });
 
-  const {
-    data: peersPage,
-    isLoading: peersLoading,
-    refetch: refetchPeers,
-  } = useQuery<ListBGPPeersResponse>({
+  const peersQuery = useQuery<ListBGPPeersResponse>({
     queryKey: ["bgp-peers", peersPagination.page, peersPagination.pageSize],
     queryFn: () =>
       listBGPPeers(
@@ -127,13 +137,13 @@ export default function BGPTab() {
       ),
     enabled: !!accessToken,
     refetchInterval: 5000,
-    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
+    retry: false,
     placeholderData: (prev) => prev,
   });
 
-  const peerRows: APIBGPPeer[] = peersPage?.items ?? [];
-  const peerRowCount = peersPage?.total_count ?? 0;
+  const refetchPeers = () => void peersQuery.refetch();
+  const peerRowCount = peersQuery.data?.total_count;
 
   const [isCreatePeerOpen, setCreatePeerOpen] = useState(false);
   const [isDeletePeerOpen, setDeletePeerOpen] = useState(false);
@@ -258,23 +268,22 @@ export default function BGPTab() {
   }, [canEdit]);
 
   // BGP Advertised Routes
-  const { data: advertisedData, isLoading: advertisedLoading } =
-    useQuery<BGPAdvertisedRoutesResponse>({
-      queryKey: ["bgp-advertised-routes"],
-      queryFn: () => getBGPAdvertisedRoutes(accessToken || ""),
-      enabled: !!accessToken,
-      refetchInterval: 5000,
-      refetchIntervalInBackground: true,
-      refetchOnWindowFocus: true,
-    });
+  const advertisedQuery = useQuery<BGPAdvertisedRoutesResponse>({
+    queryKey: ["bgp-advertised-routes"],
+    queryFn: () => getBGPAdvertisedRoutes(accessToken || ""),
+    enabled: !!accessToken,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+    retry: false,
+  });
 
   const advertisedRows: (BGPAdvertisedRoute & { id: string })[] = useMemo(
     () =>
-      (advertisedData?.routes ?? []).map((r, i) => ({
+      (advertisedQuery.data?.routes ?? []).map((r, i) => ({
         ...r,
         id: `${r.prefix}-${i}`,
       })),
-    [advertisedData],
+    [advertisedQuery.data],
   );
 
   const advertisedColumns: GridColDef<BGPAdvertisedRoute & { id: string }>[] = [
@@ -303,7 +312,6 @@ export default function BGPTab() {
               <Typography
                 variant="body2"
                 sx={{
-                  fontFamily: "monospace",
                   color: (t) => t.palette.link,
                   textDecoration: "underline",
                   "&:hover": { textDecoration: "underline" },
@@ -321,23 +329,22 @@ export default function BGPTab() {
   ];
 
   // BGP Learned Routes
-  const { data: learnedData, isLoading: learnedLoading } =
-    useQuery<BGPLearnedRoutesResponse>({
-      queryKey: ["bgp-learned-routes"],
-      queryFn: () => getBGPLearnedRoutes(accessToken || ""),
-      enabled: !!accessToken,
-      refetchInterval: 5000,
-      refetchIntervalInBackground: true,
-      refetchOnWindowFocus: true,
-    });
+  const learnedQuery = useQuery<BGPLearnedRoutesResponse>({
+    queryKey: ["bgp-learned-routes"],
+    queryFn: () => getBGPLearnedRoutes(accessToken || ""),
+    enabled: !!accessToken,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+    retry: false,
+  });
 
   const learnedRows: (BGPLearnedRoute & { id: string })[] = useMemo(
     () =>
-      (learnedData?.routes ?? []).map((r, i) => ({
+      (learnedQuery.data?.routes ?? []).map((r, i) => ({
         ...r,
         id: `${r.prefix}-${i}`,
       })),
-    [learnedData],
+    [learnedQuery.data],
   );
 
   const learnedColumns: GridColDef<BGPLearnedRoute & { id: string }>[] = [
@@ -351,268 +358,241 @@ export default function BGPTab() {
 
   return (
     <Box sx={{ width: "100%", mt: 2 }}>
-      {settingsLoading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <>
-          {/* --- Settings Card --- */}
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h5" sx={{ mb: 0.5 }}>
-              BGP Settings
-            </Typography>
-            <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-              {description}
-            </Typography>
+      {/* --- Settings Card --- */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" sx={{ mb: 0.5 }}>
+          BGP Settings
+        </Typography>
+        <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+          {description}
+        </Typography>
 
-            <Stack
-              direction={{ xs: "column", sm: "row" }}
-              spacing={2}
-              sx={{
-                alignItems: { xs: "stretch", sm: "center" },
-                justifyContent: "space-between",
-                mb: 2,
-              }}
-            >
-              <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={!!bgpSettings?.enabled}
-                      onChange={(_, checked) => setBGPEnabled(checked)}
-                      disabled={!canEdit || bgpToggling}
-                    />
-                  }
-                  label={bgpSettings?.enabled ? "BGP is ON" : "BGP is OFF"}
-                />
-              </Stack>
-              {canEdit && (
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={() => setEditSettingsOpen(true)}
-                  sx={{ maxWidth: 200 }}
+        <QueryState query={settingsQuery} resource="BGP settings">
+          {(settings) => (
+            <>
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={2}
+                sx={{
+                  alignItems: { xs: "stretch", sm: "center" },
+                  justifyContent: "space-between",
+                  mb: 2,
+                }}
+              >
+                <Stack
+                  direction="row"
+                  spacing={2}
+                  sx={{ alignItems: "center" }}
                 >
-                  Edit
-                </Button>
-              )}
-            </Stack>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={!!settings.enabled}
+                        onChange={(_, checked) => setBGPEnabled(checked)}
+                        disabled={!canEdit || bgpToggling}
+                      />
+                    }
+                    label={settings.enabled ? "BGP is ON" : "BGP is OFF"}
+                  />
+                </Stack>
+                {canEdit && (
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => setEditSettingsOpen(true)}
+                    sx={{ maxWidth: 200 }}
+                  >
+                    Edit
+                  </Button>
+                )}
+              </Stack>
 
-            <TableContainer
+              <TableContainer
+                sx={{
+                  border: 1,
+                  borderColor: "divider",
+                  borderRadius: 1,
+                }}
+              >
+                <Table>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600, width: "35%" }}>
+                        Local AS
+                      </TableCell>
+                      <TableCell>{settings.localAS ?? 64512}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>Router ID</TableCell>
+                      <TableCell>{settings.routerID || "N/A"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>
+                        Listen Address
+                      </TableCell>
+                      <TableCell>{settings.listenAddress || ":179"}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </>
+          )}
+        </QueryState>
+      </Box>
+
+      {/* --- Peers Table --- */}
+      <Box sx={{ mb: 4 }}>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={2}
+          sx={{
+            alignItems: { xs: "stretch", sm: "center" },
+            justifyContent: "space-between",
+            mb: 2,
+          }}
+        >
+          <Box>
+            <Typography variant="h5" sx={{ mb: 0.5 }}>
+              {peerRowCount === undefined ? "Peers" : `Peers (${peerRowCount})`}
+            </Typography>
+            <Typography variant="body2" color="textSecondary">
+              Configured BGP neighbors. Changes are applied immediately.
+            </Typography>
+          </Box>
+          {canEdit && (
+            <Button
+              variant="contained"
+              color="success"
+              onClick={() => setCreatePeerOpen(true)}
+              sx={{ maxWidth: 200 }}
+            >
+              Create
+            </Button>
+          )}
+        </Stack>
+
+        <QueryState query={peersQuery} resource="BGP peers">
+          {(data) => (
+            <DataGrid<APIBGPPeer>
+              rows={data.items ?? []}
+              columns={peerColumns}
+              getRowId={(row) => row.id}
+              paginationMode="server"
+              rowCount={data.total_count ?? 0}
+              paginationModel={peersPagination}
+              onPaginationModelChange={setPeersPagination}
+              pageSizeOptions={[10, 25, 50]}
+              disableColumnMenu
+              disableRowSelectionOnClick
               sx={{
+                width: "100%",
                 border: 1,
                 borderColor: "divider",
-                borderRadius: 1,
+                "& .MuiDataGrid-cell": {
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                },
+                "& .MuiDataGrid-columnHeaders": {
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                },
+                "& .MuiDataGrid-footerContainer": {
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                },
               }}
-            >
-              <Table>
-                <TableBody>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 600, width: "35%" }}>
-                      Local AS
-                    </TableCell>
-                    <TableCell>{bgpSettings?.localAS ?? 64512}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 600 }}>Router ID</TableCell>
-                    <TableCell>{bgpSettings?.routerID || "N/A"}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 600 }}>
-                      Listen Address
-                    </TableCell>
-                    <TableCell>
-                      {bgpSettings?.listenAddress || ":179"}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Box>
+            />
+          )}
+        </QueryState>
+      </Box>
 
-          {/* --- Peers Table --- */}
-          <Box sx={{ mb: 4 }}>
-            <Stack
-              direction={{ xs: "column", sm: "row" }}
-              spacing={2}
+      {/* --- Advertised Routes Table --- */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" sx={{ mb: 0.5 }}>
+          Advertised Routes
+        </Typography>
+        <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+          Routes currently announced to BGP peers. These are derived from active
+          sessions and cannot be edited directly.
+        </Typography>
+
+        {isNATEnabled && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Route advertisement is disabled while NAT is active. Disable NAT to
+            advertise subscriber routes to BGP peers.
+          </Alert>
+        )}
+
+        <QueryState query={advertisedQuery} resource="advertised routes">
+          {() => (
+            <DataGrid
+              rows={advertisedRows}
+              columns={advertisedColumns}
+              disableColumnMenu
+              disableRowSelectionOnClick
+              pageSizeOptions={[10, 25, 50]}
+              slots={advertisedGridSlots}
               sx={{
-                alignItems: { xs: "stretch", sm: "center" },
-                justifyContent: "space-between",
-                mb: 2,
+                width: "100%",
+                border: 1,
+                borderColor: "divider",
+                "& .MuiDataGrid-cell": {
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                },
+                "& .MuiDataGrid-columnHeaders": {
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                },
+                "& .MuiDataGrid-footerContainer": {
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                },
               }}
-            >
-              <Box>
-                <Typography variant="h5" sx={{ mb: 0.5 }}>
-                  Peers ({peerRowCount})
-                </Typography>
-                <Typography variant="body2" color="textSecondary">
-                  Configured BGP neighbors. Changes are applied immediately.
-                </Typography>
-              </Box>
-              {canEdit && (
-                <Button
-                  variant="contained"
-                  color="success"
-                  onClick={() => setCreatePeerOpen(true)}
-                  sx={{ maxWidth: 200 }}
-                >
-                  Create
-                </Button>
-              )}
-            </Stack>
+            />
+          )}
+        </QueryState>
+      </Box>
 
-            {peersLoading && peerRowCount === 0 ? (
-              <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
-                <CircularProgress />
-              </Box>
-            ) : (
-              <ThemeProvider theme={gridTheme}>
-                <DataGrid<APIBGPPeer>
-                  rows={peerRows}
-                  columns={peerColumns}
-                  getRowId={(row) => row.id}
-                  paginationMode="server"
-                  rowCount={peerRowCount}
-                  paginationModel={peersPagination}
-                  onPaginationModelChange={setPeersPagination}
-                  pageSizeOptions={[10, 25, 50]}
-                  disableColumnMenu
-                  disableRowSelectionOnClick
-                  sx={{
-                    width: "100%",
-                    border: 1,
-                    borderColor: "divider",
-                    "& .MuiDataGrid-cell": {
-                      borderBottom: "1px solid",
-                      borderColor: "divider",
-                    },
-                    "& .MuiDataGrid-columnHeaders": {
-                      borderBottom: "1px solid",
-                      borderColor: "divider",
-                    },
-                    "& .MuiDataGrid-footerContainer": {
-                      borderTop: "1px solid",
-                      borderColor: "divider",
-                    },
-                  }}
-                />
-              </ThemeProvider>
-            )}
-          </Box>
+      {/* --- Learned Routes Table --- */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" sx={{ mb: 0.5 }}>
+          Learned Routes
+        </Typography>
+        <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+          Routes received from BGP peers and installed in the kernel routing
+          table. These are controlled by each peer's import policy.
+        </Typography>
 
-          {/* --- Advertised Routes Table --- */}
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h5" sx={{ mb: 0.5 }}>
-              Advertised Routes
-            </Typography>
-            <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-              Routes currently announced to BGP peers. These are derived from
-              active sessions and cannot be edited directly.
-            </Typography>
-
-            {isNATEnabled && (
-              <Alert severity="info" sx={{ mb: 2 }}>
-                Route advertisement is disabled while NAT is active. Disable NAT
-                to advertise subscriber routes to BGP peers.
-              </Alert>
-            )}
-
-            {advertisedLoading ? (
-              <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
-                <CircularProgress />
-              </Box>
-            ) : (
-              <ThemeProvider theme={gridTheme}>
-                <DataGrid
-                  rows={advertisedRows}
-                  columns={advertisedColumns}
-                  disableColumnMenu
-                  disableRowSelectionOnClick
-                  pageSizeOptions={[10, 25, 50]}
-                  slots={{
-                    noRowsOverlay: () => (
-                      <Stack
-                        sx={{
-                          alignItems: "center",
-                          justifyContent: "center",
-                          height: "100%",
-                          p: 2,
-                        }}
-                      >
-                        <Typography variant="body2" color="textSecondary">
-                          No advertised routes
-                        </Typography>
-                      </Stack>
-                    ),
-                  }}
-                  sx={{
-                    width: "100%",
-                    border: 1,
-                    borderColor: "divider",
-                    "& .MuiDataGrid-cell": {
-                      borderBottom: "1px solid",
-                      borderColor: "divider",
-                    },
-                    "& .MuiDataGrid-columnHeaders": {
-                      borderBottom: "1px solid",
-                      borderColor: "divider",
-                    },
-                    "& .MuiDataGrid-footerContainer": {
-                      borderTop: "1px solid",
-                      borderColor: "divider",
-                    },
-                  }}
-                />
-              </ThemeProvider>
-            )}
-          </Box>
-
-          {/* --- Learned Routes Table --- */}
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h5" sx={{ mb: 0.5 }}>
-              Learned Routes
-            </Typography>
-            <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-              Routes received from BGP peers and installed in the kernel routing
-              table. These are controlled by each peer's import policy.
-            </Typography>
-
-            {learnedLoading ? (
-              <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
-                <CircularProgress />
-              </Box>
-            ) : (
-              <ThemeProvider theme={gridTheme}>
-                <DataGrid
-                  rows={learnedRows}
-                  columns={learnedColumns}
-                  disableColumnMenu
-                  disableRowSelectionOnClick
-                  pageSizeOptions={[10, 25, 50]}
-                  sx={{
-                    width: "100%",
-                    border: 1,
-                    borderColor: "divider",
-                    "& .MuiDataGrid-cell": {
-                      borderBottom: "1px solid",
-                      borderColor: "divider",
-                    },
-                    "& .MuiDataGrid-columnHeaders": {
-                      borderBottom: "1px solid",
-                      borderColor: "divider",
-                    },
-                    "& .MuiDataGrid-footerContainer": {
-                      borderTop: "1px solid",
-                      borderColor: "divider",
-                    },
-                  }}
-                />
-              </ThemeProvider>
-            )}
-          </Box>
-        </>
-      )}
+        <QueryState query={learnedQuery} resource="learned routes">
+          {() => (
+            <DataGrid
+              rows={learnedRows}
+              columns={learnedColumns}
+              disableColumnMenu
+              disableRowSelectionOnClick
+              pageSizeOptions={[10, 25, 50]}
+              sx={{
+                width: "100%",
+                border: 1,
+                borderColor: "divider",
+                "& .MuiDataGrid-cell": {
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                },
+                "& .MuiDataGrid-columnHeaders": {
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                },
+                "& .MuiDataGrid-footerContainer": {
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                },
+              }}
+            />
+          )}
+        </QueryState>
+      </Box>
 
       {/* --- Modals --- */}
       {isCreatePeerOpen && (

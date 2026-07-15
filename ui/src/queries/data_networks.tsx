@@ -144,17 +144,43 @@ export type EligibleSubscriber = {
 
 type ListSubscribersResponse = {
   items: EligibleSubscriber[];
+  total_count: number;
 };
+
+// The API caps per_page at 100 (internal/api/server/api_subscribers.go), so the
+// full set is assembled here. Fetching it whole is only reasonable because
+// MaxNumSubscribers is 1000; a materially higher cap needs a search parameter
+// instead.
+const SUBSCRIBERS_PER_PAGE = 100;
+
+const fetchSubscriberPage = (
+  authToken: string,
+  dataNetwork: string,
+  page: number,
+): Promise<ListSubscribersResponse> =>
+  apiFetch<ListSubscribersResponse>(
+    `/api/v1/subscribers?data_network=${encodeURIComponent(dataNetwork)}&page=${page}&per_page=${SUBSCRIBERS_PER_PAGE}`,
+    { authToken },
+  );
 
 export async function listEligibleSubscribers(
   authToken: string,
   dataNetwork: string,
 ): Promise<EligibleSubscriber[]> {
-  const resp = await apiFetch<ListSubscribersResponse>(
-    `/api/v1/subscribers?data_network=${encodeURIComponent(dataNetwork)}&per_page=100`,
-    { authToken },
+  const first = await fetchSubscriberPage(authToken, dataNetwork, 1);
+  const items = first.items ?? [];
+  const totalCount = first.total_count ?? items.length;
+
+  const pageCount = Math.ceil(totalCount / SUBSCRIBERS_PER_PAGE);
+  if (pageCount <= 1) return items;
+
+  const rest = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, i) =>
+      fetchSubscriberPage(authToken, dataNetwork, i + 2),
+    ),
   );
-  return resp.items ?? [];
+
+  return items.concat(...rest.map((r) => r.items ?? []));
 }
 
 export const createStaticIp = async (

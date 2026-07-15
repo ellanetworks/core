@@ -14,6 +14,7 @@ import SouthIcon from "@mui/icons-material/South";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { useQuery } from "@tanstack/react-query";
 import { getUsage, type UsageResult } from "@/queries/usage";
+import QueryState from "@/components/QueryState";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   type DataUnit,
@@ -54,13 +55,16 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
   // the chart won't shift to include the new day until the component remounts.
   const { startDate, endDate } = useMemo(() => getDateRange7Days(), []);
 
-  const { data: usageData, isLoading } = useQuery<UsageResult>({
+  const usageQuery = useQuery<UsageResult>({
     queryKey: ["subscriber-usage-chart", imsi, startDate, endDate],
     queryFn: () => getUsage(accessToken || "", startDate, endDate, imsi, "day"),
     enabled: authReady && !!accessToken && !!imsi,
     refetchInterval: 30000,
+    retry: false,
     placeholderData: (prev) => prev,
   });
+
+  const usageData = usageQuery.data;
 
   const dailyRows: UsagePerDayRow[] = useMemo(() => {
     if (!usageData) return [];
@@ -130,72 +134,80 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
         Usage (last 7 days)
       </Typography>
 
-      {isLoading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-          <CircularProgress size={28} />
-        </Box>
-      ) : !hasData ? (
-        <Typography
-          variant="body2"
-          color="textSecondary"
-          sx={{ py: 4, textAlign: "center" }}
-        >
-          No usage data available for this subscriber.
-        </Typography>
-      ) : (
-        <>
-          <Box
-            sx={{
-              display: "flex",
-              gap: 3,
-              mb: 1,
-              justifyContent: "center",
-            }}
+      <QueryState
+        query={usageQuery}
+        resource="usage data"
+        isEmpty={() => !hasData}
+        empty={
+          <Typography
+            variant="body2"
+            color="textSecondary"
+            sx={{ py: 4, textAlign: "center" }}
           >
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <SouthIcon sx={{ fontSize: 16, color: DOWNLINK_COLOR }} />
-              <Typography variant="body2" color="textSecondary">
-                {formatBytesAutoUnit(totalDownlink)}
-              </Typography>
-            </Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <NorthIcon sx={{ fontSize: 16, color: UPLINK_COLOR }} />
-              <Typography variant="body2" color="textSecondary">
-                {formatBytesAutoUnit(totalUplink)}
-              </Typography>
-            </Box>
+            No usage data available for this subscriber.
+          </Typography>
+        }
+        loading={
+          <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+            <CircularProgress size={28} />
           </Box>
-          <BarChart
-            dataset={chartDataset}
-            xAxis={[{ scaleType: "band", dataKey: "date" }]}
-            yAxis={[{ label: `Usage (${unit})` }]}
-            series={[
-              {
-                dataKey: "downlink",
-                label: `Downlink (${unit})`,
-                stack: "total",
-                color: DOWNLINK_COLOR,
-              },
-              {
-                dataKey: "uplink",
-                label: `Uplink (${unit})`,
-                stack: "total",
-                color: UPLINK_COLOR,
-              },
-            ]}
-            height={250}
-            slotProps={{
-              legend: {
-                direction: "horizontal",
-                position: {
-                  vertical: "bottom",
-                  horizontal: "center",
+        }
+      >
+        {() => (
+          <>
+            <Box
+              sx={{
+                display: "flex",
+                gap: 3,
+                mb: 1,
+                justifyContent: "center",
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                <SouthIcon sx={{ fontSize: 16, color: DOWNLINK_COLOR }} />
+                <Typography variant="body2" color="textSecondary">
+                  {formatBytesAutoUnit(totalDownlink)}
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                <NorthIcon sx={{ fontSize: 16, color: UPLINK_COLOR }} />
+                <Typography variant="body2" color="textSecondary">
+                  {formatBytesAutoUnit(totalUplink)}
+                </Typography>
+              </Box>
+            </Box>
+            <BarChart
+              dataset={chartDataset}
+              xAxis={[{ scaleType: "band", dataKey: "date" }]}
+              yAxis={[{ label: `Usage (${unit})` }]}
+              series={[
+                {
+                  dataKey: "downlink",
+                  label: `Downlink (${unit})`,
+                  stack: "total",
+                  color: DOWNLINK_COLOR,
                 },
-              },
-            }}
-          />
-        </>
-      )}
+                {
+                  dataKey: "uplink",
+                  label: `Uplink (${unit})`,
+                  stack: "total",
+                  color: UPLINK_COLOR,
+                },
+              ]}
+              height={250}
+              slotProps={{
+                legend: {
+                  direction: "horizontal",
+                  position: {
+                    vertical: "bottom",
+                    horizontal: "center",
+                  },
+                },
+              }}
+            />
+          </>
+        )}
+      </QueryState>
     </>
   );
 

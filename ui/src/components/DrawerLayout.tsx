@@ -97,7 +97,6 @@ export default function DrawerLayout({
 
   const [supportOpen, setSupportOpen] = useState(false);
 
-  const openSupport = () => setSupportOpen(true);
   const closeSupport = () => setSupportOpen(false);
 
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -234,7 +233,13 @@ export default function DrawerLayout({
         }}
       >
         <Toolbar />
-        <Box sx={{ flexGrow: 1, overflow: "auto" }}>
+        {/* A landmark, so the links are a region a screen reader can jump to
+            rather than a div reachable only by tabbing (WCAG 1.3.1). */}
+        <Box
+          component="nav"
+          aria-label="Main"
+          sx={{ flexGrow: 1, overflow: "auto" }}
+        >
           <List>
             <ListItem disablePadding>
               <ListItemButton

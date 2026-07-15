@@ -59,7 +59,7 @@ const InitializePage = () => {
     };
 
     checkInitialization();
-  }, [navigate]);
+  }, [navigate, showSnackbar]);
 
   const validateField = async (field: string, value: string) => {
     try {

@@ -125,6 +125,15 @@ const EditOperatorNASSecurityModal: React.FC<
 
   const isValid = enabledCiphering.length > 0 && enabledIntegrity.length > 0;
 
+  const nullCipheringPreferred = isNullAlgorithm(enabledCiphering[0]?.name);
+  const nullIntegrityPreferred = isNullAlgorithm(enabledIntegrity[0]?.name);
+  const nullCipheringOffered = enabledCiphering.some((a) =>
+    isNullAlgorithm(a.name),
+  );
+  const nullIntegrityOffered = enabledIntegrity.some((a) =>
+    isNullAlgorithm(a.name),
+  );
+
   const handleToggle =
     (
       list: AlgorithmEntry[],
@@ -143,11 +152,15 @@ const EditOperatorNASSecurityModal: React.FC<
     setLoading(true);
     setAlert({ message: "" });
 
-    const ciphering = enabledCiphering.map((a) => a.name);
-    const integrity = enabledIntegrity.map((a) => a.name);
+    const cipheringNames = enabledCiphering.map((a) => a.name);
+    const integrityNames = enabledIntegrity.map((a) => a.name);
 
     try {
-      await updateOperatorNASSecurity(accessToken, ciphering, integrity);
+      await updateOperatorNASSecurity(
+        accessToken,
+        cipheringNames,
+        integrityNames,
+      );
       onClose();
       onSuccess();
     } catch (error: unknown) {
@@ -321,6 +334,33 @@ const EditOperatorNASSecurityModal: React.FC<
           between the subscriber and Ella Core. The order determines which
           algorithm Ella Core prefers.
         </DialogContentText>
+
+        {(nullCipheringPreferred || nullIntegrityPreferred) && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            NULL is the preferred{" "}
+            {nullCipheringPreferred && nullIntegrityPreferred
+              ? "ciphering and integrity algorithm"
+              : nullCipheringPreferred
+                ? "ciphering algorithm"
+                : "integrity algorithm"}
+            , so NAS signaling will normally carry no{" "}
+            {nullCipheringPreferred && nullIntegrityPreferred
+              ? "encryption or integrity protection"
+              : nullCipheringPreferred
+                ? "encryption"
+                : "integrity protection"}
+            . Move another algorithm above NULL to prefer it.
+          </Alert>
+        )}
+
+        {!nullCipheringPreferred &&
+          !nullIntegrityPreferred &&
+          (nullCipheringOffered || nullIntegrityOffered) && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              NULL is enabled as a fallback. Subscribers that offer no stronger
+              algorithm will use unprotected NAS signaling.
+            </Alert>
+          )}
 
         {renderAlgorithmList(
           "ciphering",

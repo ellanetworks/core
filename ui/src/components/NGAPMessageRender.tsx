@@ -9,8 +9,6 @@ import {
 } from "@mui/icons-material";
 import type { DecodedNGAPMessage } from "@/queries/radio_events";
 
-const MONO_FONT =
-  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace";
 const INDENT_PX = 16;
 const CHEVRON_W = 24;
 const ROW_H = 22;
@@ -595,7 +593,6 @@ const TopLevelNgapView: React.FC<{ decoded: DecodedNGAPMessage }> = ({
           sx={{
             color: "text.secondary",
             fontSize: 13,
-            fontFamily: MONO_FONT,
             mb: 0.5,
             pb: 0.5,
             borderBottom: (t) => `1px solid ${t.palette.divider}`,
@@ -659,7 +656,6 @@ export const NGAPMessageView: React.FC<{
         p: 1.25,
         border: (t) => `1px solid ${t.palette.divider}`,
         borderRadius: 1,
-        fontFamily: MONO_FONT,
         fontSize: 13,
         lineHeight: 1.5,
       }}

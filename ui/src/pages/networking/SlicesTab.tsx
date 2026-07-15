@@ -2,14 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { useState, useMemo } from "react";
-import {
-  Box,
-  Typography,
-  Button,
-  CircularProgress,
-  Stack,
-} from "@mui/material";
-import { ThemeProvider } from "@mui/material/styles";
+import { Box, Typography, Button } from "@mui/material";
 import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -28,33 +21,28 @@ import CreateSliceModal from "@/components/CreateSliceModal";
 import EditSliceModal from "@/components/EditSliceModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
+import QueryState from "@/components/QueryState";
 import { useNetworkingContext } from "./types";
 
 export default function SlicesTab() {
-  const { accessToken, canEdit, showSnackbar, gridTheme } =
-    useNetworkingContext();
+  const { accessToken, canEdit, showSnackbar } = useNetworkingContext();
   const [pagination, setPagination] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 25,
   });
 
-  const {
-    data: slicePage,
-    isLoading: loading,
-    refetch,
-  } = useQuery<ListSlicesResponse>({
+  const slicesQuery = useQuery<ListSlicesResponse>({
     queryKey: ["slices", pagination.page, pagination.pageSize],
     queryFn: () =>
       listSlices(accessToken || "", pagination.page + 1, pagination.pageSize),
     enabled: !!accessToken,
     refetchInterval: 5000,
-    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
+    retry: false,
     placeholderData: (prev) => prev,
   });
 
-  const rows: APISlice[] = slicePage?.items ?? [];
-  const rowCount = slicePage?.total_count ?? 0;
+  const refetch = () => void slicesQuery.refetch();
 
   const [isCreateOpen, setCreateOpen] = useState(false);
   const [isEditOpen, setEditOpen] = useState(false);
@@ -127,90 +115,78 @@ export default function SlicesTab() {
     ];
   }, [canEdit]);
 
+  const knownCount = slicesQuery.data?.total_count;
+
   return (
     <Box sx={{ width: "100%", mt: 2 }}>
-      {loading && rowCount === 0 ? (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
-          <CircularProgress />
-        </Box>
-      ) : rowCount === 0 ? (
-        <EmptyState
-          primaryText="No network slice found."
-          secondaryText="Create a network slice to get started. Ella Core uses slice information alongside the data network name to determine which policies apply to a subscriber's session."
-          extraContent={
-            <Typography variant="body1" color="textSecondary">
-              {description}
-            </Typography>
-          }
-          button={canEdit}
-          buttonText="Create"
-          onCreate={() => setCreateOpen(true)}
-          readOnlyHint="Ask an administrator to create a network slice."
-        />
-      ) : (
-        <>
-          <Box sx={{ mb: 3 }}>
-            <Stack
-              direction={{ xs: "column", sm: "row" }}
-              spacing={2}
-              sx={{
-                alignItems: { xs: "stretch", sm: "center" },
-                justifyContent: "space-between",
-              }}
-            >
-              <Box>
-                <Typography variant="h5" sx={{ mb: 0.5 }}>
-                  Network Slices ({rowCount})
-                </Typography>
-                <Typography variant="body2" color="textSecondary">
-                  {description}
-                </Typography>
-                {canEdit && (
-                  <Button
-                    variant="contained"
-                    color="success"
-                    onClick={() => setCreateOpen(true)}
-                    sx={{ maxWidth: 200, mt: 2 }}
-                  >
-                    Create
-                  </Button>
-                )}
-              </Box>
-            </Stack>
-          </Box>
-          <ThemeProvider theme={gridTheme}>
-            <DataGrid<APISlice>
-              rows={rows}
-              columns={columns}
-              getRowId={(row) => row.name}
-              paginationMode="server"
-              rowCount={rowCount}
-              paginationModel={pagination}
-              onPaginationModelChange={setPagination}
-              pageSizeOptions={[10, 25, 50, 100]}
-              disableColumnMenu
-              disableRowSelectionOnClick
-              sx={{
-                width: "100%",
-                border: 1,
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h5" sx={{ mb: 0.5 }}>
+          {knownCount === undefined
+            ? "Network Slices"
+            : `Network Slices (${knownCount})`}
+        </Typography>
+        <Typography variant="body2" color="textSecondary">
+          {description}
+        </Typography>
+        {canEdit && (
+          <Button
+            variant="contained"
+            color="success"
+            onClick={() => setCreateOpen(true)}
+            sx={{ maxWidth: 200, mt: 2 }}
+          >
+            Create
+          </Button>
+        )}
+      </Box>
+
+      <QueryState
+        query={slicesQuery}
+        resource="network slices"
+        isEmpty={(data) => (data.total_count ?? 0) === 0}
+        empty={
+          <EmptyState
+            primaryText="No network slices yet"
+            secondaryText={
+              canEdit
+                ? "Create a network slice to get started."
+                : "Ask an administrator to create a network slice."
+            }
+          />
+        }
+      >
+        {(data) => (
+          <DataGrid<APISlice>
+            rows={data.items ?? []}
+            columns={columns}
+            getRowId={(row) => row.name}
+            paginationMode="server"
+            rowCount={data.total_count ?? 0}
+            paginationModel={pagination}
+            onPaginationModelChange={setPagination}
+            pageSizeOptions={[10, 25, 50, 100]}
+            disableColumnMenu
+            disableRowSelectionOnClick
+            sx={{
+              width: "100%",
+              border: 1,
+              borderColor: "divider",
+              "& .MuiDataGrid-cell": {
+                borderBottom: "1px solid",
                 borderColor: "divider",
-                "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-columnHeaders": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-footerContainer": {
-                  borderTop: "1px solid",
-                  borderColor: "divider",
-                },
-              }}
-            />
-          </ThemeProvider>
-        </>
-      )}
+              },
+              "& .MuiDataGrid-columnHeaders": {
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              },
+              "& .MuiDataGrid-footerContainer": {
+                borderTop: "1px solid",
+                borderColor: "divider",
+              },
+            }}
+          />
+        )}
+      </QueryState>
 
       {isCreateOpen && (
         <CreateSliceModal

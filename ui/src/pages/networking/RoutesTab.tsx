@@ -2,15 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { useState, useMemo } from "react";
-import {
-  Box,
-  Typography,
-  Button,
-  CircularProgress,
-  Chip,
-  Stack,
-} from "@mui/material";
-import { ThemeProvider } from "@mui/material/styles";
+import { Box, Typography, Button, Chip } from "@mui/material";
 import { Delete as DeleteIcon } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -29,21 +21,17 @@ import {
 import CreateRouteModal from "@/components/CreateRouteModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
+import QueryState from "@/components/QueryState";
 import { useNetworkingContext } from "./types";
 
 export default function RoutesTab() {
-  const { accessToken, canEdit, showSnackbar, gridTheme } =
-    useNetworkingContext();
+  const { accessToken, canEdit, showSnackbar } = useNetworkingContext();
   const [pagination, setPagination] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 25,
   });
 
-  const {
-    data: rtPage,
-    isLoading: loading,
-    refetch,
-  } = useQuery<ListRoutesResponse>({
+  const routesQuery = useQuery<ListRoutesResponse>({
     queryKey: ["routes", pagination.page, pagination.pageSize],
     queryFn: () =>
       listRoutes(accessToken || "", pagination.page + 1, pagination.pageSize),
@@ -52,8 +40,7 @@ export default function RoutesTab() {
     placeholderData: (prev) => prev,
   });
 
-  const rows: APIRoute[] = rtPage?.items ?? [];
-  const rowCount = rtPage?.total_count ?? 0;
+  const refetch = () => void routesQuery.refetch();
 
   const [isCreateOpen, setCreateOpen] = useState(false);
   const [isDeleteOpen, setDeleteOpen] = useState(false);
@@ -143,95 +130,80 @@ export default function RoutesTab() {
     ];
   }, [canEdit]);
 
+  const knownCount = routesQuery.data?.total_count;
+
   return (
     <Box sx={{ width: "100%", mt: 2 }}>
-      {loading && rowCount === 0 ? (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
-          <CircularProgress />
-        </Box>
-      ) : rowCount === 0 ? (
-        <EmptyState
-          primaryText="No route found."
-          secondaryText="Create a route so UEs can reach external networks."
-          extraContent={
-            <Typography variant="body1" color="textSecondary">
-              {description}
-            </Typography>
-          }
-          button={canEdit}
-          buttonText="Create"
-          onCreate={() => setCreateOpen(true)}
-          readOnlyHint="Ask an administrator to create a route."
-        />
-      ) : (
-        <>
-          <Box sx={{ mb: 3 }}>
-            <Stack
-              direction={{ xs: "column", sm: "row" }}
-              spacing={2}
-              sx={{
-                alignItems: { xs: "stretch", sm: "center" },
-                justifyContent: "space-between",
-              }}
-            >
-              <Box>
-                <Typography variant="h5" sx={{ mb: 0.5 }}>
-                  Routes ({rowCount})
-                </Typography>
-                <Typography variant="body2" color="textSecondary">
-                  {description}
-                </Typography>
-                {canEdit && (
-                  <Button
-                    variant="contained"
-                    color="success"
-                    onClick={() => setCreateOpen(true)}
-                    sx={{ maxWidth: 200, mt: 2 }}
-                  >
-                    Create
-                  </Button>
-                )}
-              </Box>
-            </Stack>
-          </Box>
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h5" sx={{ mb: 0.5 }}>
+          {knownCount === undefined ? "Routes" : `Routes (${knownCount})`}
+        </Typography>
+        <Typography variant="body2" color="textSecondary">
+          {description}
+        </Typography>
+        {canEdit && (
+          <Button
+            variant="contained"
+            color="success"
+            onClick={() => setCreateOpen(true)}
+            sx={{ maxWidth: 200, mt: 2 }}
+          >
+            Create
+          </Button>
+        )}
+      </Box>
 
-          <ThemeProvider theme={gridTheme}>
-            <DataGrid<APIRoute>
-              rows={rows}
-              columns={columns}
-              getRowId={(row) =>
-                row.source === "bgp"
-                  ? `bgp-${row.destination}-${row.gateway}`
-                  : row.id
-              }
-              paginationMode="server"
-              rowCount={rowCount}
-              paginationModel={pagination}
-              onPaginationModelChange={setPagination}
-              pageSizeOptions={[10, 25, 50, 100]}
-              disableColumnMenu
-              disableRowSelectionOnClick
-              sx={{
-                width: "100%",
-                border: 1,
+      <QueryState
+        query={routesQuery}
+        resource="routes"
+        isEmpty={(data) => (data.total_count ?? 0) === 0}
+        empty={
+          <EmptyState
+            primaryText="No routes yet"
+            secondaryText={
+              canEdit
+                ? "Create a route so UEs can reach external networks."
+                : "Ask an administrator to create a route."
+            }
+          />
+        }
+      >
+        {(data) => (
+          <DataGrid<APIRoute>
+            rows={data.items ?? []}
+            columns={columns}
+            getRowId={(row) =>
+              row.source === "bgp"
+                ? `bgp-${row.destination}-${row.gateway}`
+                : row.id
+            }
+            paginationMode="server"
+            rowCount={data.total_count ?? 0}
+            paginationModel={pagination}
+            onPaginationModelChange={setPagination}
+            pageSizeOptions={[10, 25, 50, 100]}
+            disableColumnMenu
+            disableRowSelectionOnClick
+            sx={{
+              width: "100%",
+              border: 1,
+              borderColor: "divider",
+              "& .MuiDataGrid-cell": {
+                borderBottom: "1px solid",
                 borderColor: "divider",
-                "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-columnHeaders": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-footerContainer": {
-                  borderTop: "1px solid",
-                  borderColor: "divider",
-                },
-              }}
-            />
-          </ThemeProvider>
-        </>
-      )}
+              },
+              "& .MuiDataGrid-columnHeaders": {
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              },
+              "& .MuiDataGrid-footerContainer": {
+                borderTop: "1px solid",
+                borderColor: "divider",
+              },
+            }}
+          />
+        )}
+      </QueryState>
 
       {isCreateOpen && (
         <CreateRouteModal

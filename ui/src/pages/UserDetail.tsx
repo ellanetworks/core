@@ -14,7 +14,6 @@ import {
 } from "@/queries/api_tokens";
 import {
   listAuditLogs,
-  type APIAuditLog,
   type ListAuditLogsResponse,
 } from "@/queries/audit_logs";
 import { deleteUser } from "@/queries/users";
@@ -27,6 +26,7 @@ import UserAccountCard from "@/components/UserAccountCard";
 import UserPasswordCard from "@/components/UserPasswordCard";
 import UserAPITokensCard from "@/components/UserAPITokensCard";
 import UserAuditLogsCard from "@/components/UserAuditLogsCard";
+import QueryState from "@/components/QueryState";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const UserDetail: React.FC = () => {
@@ -46,30 +46,28 @@ const UserDetail: React.FC = () => {
     if (authReady && !accessToken) navigate("/login");
   }, [authReady, accessToken, navigate]);
 
-  const {
-    data: user,
-    isLoading,
-    error,
-    refetch: refetchUser,
-  } = useQuery<APIUser>({
+  const userQuery = useQuery<APIUser>({
     queryKey: ["user", email],
     queryFn: () => getUser(accessToken!, email!),
     enabled: authReady && !!accessToken && !!email,
     refetchInterval: 5000,
+    retry: false,
   });
 
-  const { data: tokensData } = useQuery<ListAPITokensResponse>({
+  const tokensQuery = useQuery<ListAPITokensResponse>({
     queryKey: ["userAPITokens", email],
     queryFn: () => listUserAPITokens(accessToken!, email!, 1, 12),
     enabled: authReady && !!accessToken && !!email && isAdmin,
     refetchInterval: 5000,
+    retry: false,
   });
 
-  const { data: auditData } = useQuery<ListAuditLogsResponse>({
+  const auditQuery = useQuery<ListAuditLogsResponse>({
     queryKey: ["userAuditLogs", email],
     queryFn: () => listAuditLogs(accessToken!, 1, 10, { user: email! }),
     enabled: authReady && !!accessToken && !!email,
     refetchInterval: 5000,
+    retry: false,
   });
 
   const handleDeleteConfirm = async () => {
@@ -109,59 +107,18 @@ const UserDetail: React.FC = () => {
     queryClient.invalidateQueries({ queryKey: ["userAPITokens", email] });
   };
 
-  if (!authReady || isLoading) {
-    return (
-      <Box
-        sx={{
-          pt: 6,
-          pb: 4,
-          maxWidth: MAX_WIDTH,
-          mx: "auto",
-          px: PAGE_PADDING_X,
-        }}
-      >
-        <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-            gap: 3,
-          }}
-        >
-          <Skeleton variant="rounded" height={180} />
-          <Skeleton variant="rounded" height={180} />
-        </Box>
-        <Skeleton variant="rounded" height={300} sx={{ mt: 3 }} />
-        <Skeleton variant="rounded" height={300} sx={{ mt: 3 }} />
-      </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          mt: 6,
-          gap: 2,
-        }}
-      >
-        <Typography color="error">
-          {error instanceof Error ? error.message : "Failed to load user."}
-        </Typography>
-        <Button variant="outlined" component={RouterLink} to="/users">
-          Back to Users
-        </Button>
-      </Box>
-    );
-  }
-
-  if (!user) return null;
-
-  const tokens: APIToken[] = tokensData?.items ?? [];
-  const auditLogs: APIAuditLog[] = auditData?.items ?? [];
+  const loadingBody = (
+    <Box
+      sx={{
+        display: "grid",
+        gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+        gap: 3,
+      }}
+    >
+      <Skeleton variant="rounded" height={180} />
+      <Skeleton variant="rounded" height={180} />
+    </Box>
+  );
 
   return (
     <Box
@@ -202,7 +159,7 @@ const UserDetail: React.FC = () => {
               /
             </Typography>
             <Typography component="span" variant="h4">
-              {user.email}
+              {email}
             </Typography>
           </Typography>
         </Box>
@@ -217,69 +174,92 @@ const UserDetail: React.FC = () => {
         )}
       </Box>
 
-      {/* Two-column body */}
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-          gap: 3,
-          alignItems: "stretch",
-        }}
-      >
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          <UserAccountCard
-            user={user}
-            canEdit={isAdmin && !isSelf}
-            onEdit={() => setEditModalOpen(true)}
-          />
-        </Box>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          <UserPasswordCard
-            onChangePassword={() => setEditPasswordModalOpen(true)}
-            disabled={!isAdmin}
-          />
-        </Box>
-      </Box>
+      <QueryState query={userQuery} resource="this user" loading={loadingBody}>
+        {(user) => (
+          <>
+            {/* Two-column body */}
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                gap: 3,
+                alignItems: "stretch",
+              }}
+            >
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <UserAccountCard
+                  user={user}
+                  canEdit={isAdmin && !isSelf}
+                  onEdit={() => setEditModalOpen(true)}
+                />
+              </Box>
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <UserPasswordCard
+                  onChangePassword={() => setEditPasswordModalOpen(true)}
+                  disabled={!isAdmin}
+                />
+              </Box>
+            </Box>
 
-      {/* API Tokens — full width */}
-      {isAdmin && (
-        <Box sx={{ mt: 3 }}>
-          <UserAPITokensCard
-            tokens={tokens}
-            onDeleteToken={handleDeleteToken}
-            onTokenCreated={handleTokenCreated}
-            targetEmail={email}
-          />
-        </Box>
-      )}
+            {/* API Tokens — full width */}
+            {isAdmin && (
+              <Box sx={{ mt: 3 }}>
+                <QueryState
+                  query={tokensQuery}
+                  resource="this user's API tokens"
+                  loading={<Skeleton variant="rounded" height={300} />}
+                >
+                  {(data) => (
+                    <UserAPITokensCard
+                      tokens={data.items ?? []}
+                      onDeleteToken={handleDeleteToken}
+                      onTokenCreated={handleTokenCreated}
+                      targetEmail={email}
+                    />
+                  )}
+                </QueryState>
+              </Box>
+            )}
 
-      {/* Recent Audit Logs — full width */}
-      <Box sx={{ mt: 3 }}>
-        <UserAuditLogsCard logs={auditLogs} email={email!} />
-      </Box>
+            {/* Recent Audit Logs — full width */}
+            <Box sx={{ mt: 3 }}>
+              <QueryState
+                query={auditQuery}
+                resource="this user's audit logs"
+                loading={<Skeleton variant="rounded" height={300} />}
+              >
+                {(data) => (
+                  <UserAuditLogsCard logs={data.items ?? []} email={email!} />
+                )}
+              </QueryState>
+            </Box>
 
-      {/* Modals */}
-      {isEditModalOpen && (
-        <EditUserModal
-          open
-          onClose={() => setEditModalOpen(false)}
-          onSuccess={() => {
-            refetchUser();
-            showSnackbar("User updated successfully.", "success");
-          }}
-          initialData={{ email: user.email, role_id: user.role_id }}
-        />
-      )}
-      {isEditPasswordModalOpen && (
-        <EditUserPasswordModal
-          open
-          onClose={() => setEditPasswordModalOpen(false)}
-          onSuccess={() => {
-            showSnackbar("Password updated successfully.", "success");
-          }}
-          initialData={{ email: user.email }}
-        />
-      )}
+            {/* Modals */}
+            {isEditModalOpen && (
+              <EditUserModal
+                open
+                onClose={() => setEditModalOpen(false)}
+                onSuccess={() => {
+                  userQuery.refetch();
+                  showSnackbar("User updated successfully.", "success");
+                }}
+                initialData={{ email: user.email, role_id: user.role_id }}
+              />
+            )}
+            {isEditPasswordModalOpen && (
+              <EditUserPasswordModal
+                open
+                onClose={() => setEditPasswordModalOpen(false)}
+                onSuccess={() => {
+                  showSnackbar("Password updated successfully.", "success");
+                }}
+                initialData={{ email: user.email }}
+              />
+            )}
+          </>
+        )}
+      </QueryState>
+
       {isDeleteConfirmOpen && (
         <DeleteConfirmationModal
           open

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
@@ -63,6 +64,23 @@ func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 			}
 		}
 
+		limit := db.NoUsageLimit
+
+		if raw := q.Get("limit"); raw != "" {
+			if groupBy != "subscriber" {
+				writeError(r.Context(), w, http.StatusBadRequest, "limit is only supported with group_by=subscriber", nil, logger.APILog)
+				return
+			}
+
+			parsed, err := strconv.ParseInt(raw, 10, 64)
+			if err != nil || parsed < 1 || parsed > MaxNumSubscribers {
+				writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", MaxNumSubscribers), nil, logger.APILog)
+				return
+			}
+
+			limit = parsed
+		}
+
 		ctx := r.Context()
 
 		switch groupBy {
@@ -89,7 +107,7 @@ func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 
 			return
 		case "subscriber":
-			subscriberUsage, err := dbInstance.GetUsagePerSubscriber(ctx, subscriber, startDate, endDate)
+			subscriberUsage, err := dbInstance.GetUsagePerSubscriber(ctx, subscriber, startDate, endDate, limit)
 			if err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve subscriber usage", err, logger.APILog)
 				return

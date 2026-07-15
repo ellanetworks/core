@@ -144,8 +144,6 @@ const RawHexSection: React.FC<{
           <Box
             component="pre"
             sx={{
-              fontFamily:
-                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
               fontSize: 12,
               lineHeight: 1.4,
               color: "text.secondary",

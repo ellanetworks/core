@@ -8,9 +8,11 @@
     "build": "vite build",
     "typecheck": "tsc -b --noEmit",
     "preview": "vite preview",
-    "lint": "eslint .",
+    "lint": "oxlint",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -34,13 +36,11 @@
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.3",
     "autoprefixer": "^10.5.2",
-    "@tailwindcss/postcss": "^4.3.2",
     "eslint": "9.32.0",
+    "oxlint": "^1.74.0",
     "prettier": "^3.9.5",
-    "prettier-plugin-tailwindcss": "^0.8.0",
-    "sass-embedded": "^1.100.0",
-    "tailwindcss": "^4.1.17",
     "typescript": "^7.0.2",
-    "vite": "^8.1.4"
+    "vite": "^8.1.4",
+    "vitest": "^4.1.10"
   }
 }

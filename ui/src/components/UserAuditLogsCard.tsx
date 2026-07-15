@@ -74,7 +74,7 @@ const UserAuditLogsCard: React.FC<UserAuditLogsCardProps> = ({
                 {logs.map((log) => (
                   <TableRow key={log.id}>
                     <TableCell sx={{ whiteSpace: "nowrap" }}>
-                      {formatDateTime(log.timestamp)}
+                      {formatDateTime(log.timestamp, { seconds: true })}
                     </TableCell>
                     <TableCell>{log.action}</TableCell>
                     <TableCell>{log.ip}</TableCell>

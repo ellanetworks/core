@@ -1,10 +1,8 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { useMemo } from "react";
 import type { SyntheticEvent } from "react";
 import { Box, Typography, Tabs, Tab } from "@mui/material";
-import { useTheme, createTheme } from "@mui/material/styles";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -37,17 +35,6 @@ export default function NetworkingPage() {
       ? segment
       : "data-networks";
 
-  const outerTheme = useTheme();
-  const gridTheme = useMemo(
-    () =>
-      createTheme(outerTheme, {
-        palette: {
-          DataGrid: { headerBg: outerTheme.palette.backgroundSubtle },
-        },
-      }),
-    [outerTheme],
-  );
-
   const handleTabChange = (_: SyntheticEvent, newValue: TabKey) => {
     navigate(`/networking/${newValue}`);
   };
@@ -78,7 +65,7 @@ export default function NetworkingPage() {
         <Tab value="flow-accounting" label="Flow Accounting" />
       </Tabs>
 
-      <Outlet context={{ accessToken, canEdit, showSnackbar, gridTheme }} />
+      <Outlet context={{ accessToken, canEdit, showSnackbar }} />
     </Box>
   );
 }

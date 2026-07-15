@@ -26,6 +26,7 @@ import SubscriberConnectionCard from "@/components/SubscriberConnectionCard";
 import SubscriberSessionsCard from "@/components/SubscriberSessionsCard";
 import SubscriberUsageChart from "@/components/SubscriberUsageChart";
 import SubscriberProtocolChart from "@/components/SubscriberProtocolChart";
+import QueryState from "@/components/QueryState";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const SubscriberDetail: React.FC = () => {
@@ -42,16 +43,12 @@ const SubscriberDetail: React.FC = () => {
     if (authReady && !accessToken) navigate("/login");
   }, [authReady, accessToken, navigate]);
 
-  const {
-    data: subscriber,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery<APISubscriber>({
+  const subscriberQuery = useQuery<APISubscriber>({
     queryKey: ["subscriber", imsi],
     queryFn: () => getSubscriber(accessToken!, imsi!),
     enabled: authReady && !!accessToken && !!imsi,
     refetchInterval: 5000,
+    retry: false,
   });
 
   const handleDeleteConfirm = async () => {
@@ -70,62 +67,21 @@ const SubscriberDetail: React.FC = () => {
     }
   };
 
-  if (!authReady || isLoading) {
-    return (
+  const loadingBody = (
+    <>
       <Box
         sx={{
-          pt: 6,
-          pb: 4,
-          maxWidth: MAX_WIDTH,
-          mx: "auto",
-          px: PAGE_PADDING_X,
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+          gap: 3,
         }}
       >
-        {/* Header skeleton */}
-        <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
-
-        {/* Two-column skeleton */}
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-            gap: 3,
-          }}
-        >
-          <Skeleton variant="rounded" height={320} />
-          <Skeleton variant="rounded" height={320} />
-        </Box>
-
-        {/* Traffic card skeleton */}
-        <Skeleton variant="rounded" height={340} sx={{ mt: 3 }} />
+        <Skeleton variant="rounded" height={320} />
+        <Skeleton variant="rounded" height={320} />
       </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          mt: 6,
-          gap: 2,
-        }}
-      >
-        <Typography color="error">
-          {error instanceof Error
-            ? error.message
-            : "Failed to load subscriber."}
-        </Typography>
-        <Button variant="outlined" component={RouterLink} to="/subscribers">
-          Back to Subscribers
-        </Button>
-      </Box>
-    );
-  }
-
-  if (!subscriber) return null;
+      <Skeleton variant="rounded" height={340} sx={{ mt: 3 }} />
+    </>
+  );
 
   return (
     <Box
@@ -167,7 +123,7 @@ const SubscriberDetail: React.FC = () => {
                 /
               </Typography>
               <Typography component="span" variant="h4">
-                {subscriber.imsi}
+                {imsi}
               </Typography>
             </Typography>
           </Box>
@@ -185,102 +141,114 @@ const SubscriberDetail: React.FC = () => {
         )}
       </Box>
 
-      {/* Two-column body */}
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-          gap: 3,
-          alignItems: "stretch",
-        }}
+      <QueryState
+        query={subscriberQuery}
+        resource="this subscriber"
+        loading={loadingBody}
       >
-        {/* Left column */}
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 3,
-          }}
-        >
-          <SubscriberProvisioningCard
-            subscriber={subscriber}
-            onEditProfile={canEdit ? () => setEditModalOpen(true) : undefined}
-          />
-        </Box>
-
-        {/* Right column */}
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 3,
-          }}
-        >
-          <SubscriberConnectionCard status={subscriber.status} />
-        </Box>
-      </Box>
-
-      {/* Sessions */}
-      <SubscriberSessionsCard
-        sessions={subscriber.sessions}
-        accessType={subscriber.status.radio_access_type}
-        loading={isLoading}
-      />
-
-      {/* Traffic card */}
-      <Card variant="outlined" sx={{ mt: 3 }}>
-        <CardContent>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              mb: 2,
-            }}
-          >
-            <Typography variant="h6">Traffic Summary</Typography>
-            <Button
-              component={RouterLink}
-              to={`/traffic/usage?subscriber_id=${subscriber.imsi}`}
-              size="small"
+        {(subscriber) => (
+          <>
+            {/* Two-column body */}
+            <Box
               sx={{
-                color: (theme) => theme.palette.link,
-                textDecoration: "underline",
-                "&:hover": { textDecoration: "underline" },
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                gap: 3,
+                alignItems: "stretch",
               }}
             >
-              View traffic for {subscriber.imsi} →
-            </Button>
-          </Box>
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-              gap: 3,
-              alignItems: "start",
-            }}
-          >
-            <SubscriberUsageChart imsi={subscriber.imsi} embedded />
-            <SubscriberProtocolChart imsi={subscriber.imsi} />
-          </Box>
-        </CardContent>
-      </Card>
+              {/* Left column */}
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 3,
+                }}
+              >
+                <SubscriberProvisioningCard
+                  subscriber={subscriber}
+                  onEditProfile={
+                    canEdit ? () => setEditModalOpen(true) : undefined
+                  }
+                />
+              </Box>
 
-      {/* Modals */}
-      {isEditModalOpen && (
-        <EditSubscriberModal
-          open
-          onClose={() => setEditModalOpen(false)}
-          onSuccess={() => {
-            refetch();
-            showSnackbar("Subscriber updated successfully.", "success");
-          }}
-          initialData={{
-            imsi: subscriber.imsi,
-            profileName: subscriber.profile_name,
-          }}
-        />
-      )}
+              {/* Right column */}
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 3,
+                }}
+              >
+                <SubscriberConnectionCard status={subscriber.status} />
+              </Box>
+            </Box>
+
+            {/* Sessions */}
+            <SubscriberSessionsCard
+              sessions={subscriber.sessions}
+              accessType={subscriber.status.radio_access_type}
+              loading={subscriberQuery.isLoading}
+            />
+
+            {/* Traffic card */}
+            <Card variant="outlined" sx={{ mt: 3 }}>
+              <CardContent>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    mb: 2,
+                  }}
+                >
+                  <Typography variant="h6">Traffic Summary</Typography>
+                  <Button
+                    component={RouterLink}
+                    to={`/traffic/usage?subscriber_id=${subscriber.imsi}`}
+                    size="small"
+                    sx={{
+                      color: (theme) => theme.palette.link,
+                      textDecoration: "underline",
+                      "&:hover": { textDecoration: "underline" },
+                    }}
+                  >
+                    View traffic for {subscriber.imsi} →
+                  </Button>
+                </Box>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                    gap: 3,
+                    alignItems: "start",
+                  }}
+                >
+                  <SubscriberUsageChart imsi={subscriber.imsi} embedded />
+                  <SubscriberProtocolChart imsi={subscriber.imsi} />
+                </Box>
+              </CardContent>
+            </Card>
+
+            {isEditModalOpen && (
+              <EditSubscriberModal
+                open
+                onClose={() => setEditModalOpen(false)}
+                onSuccess={() => {
+                  subscriberQuery.refetch();
+                  showSnackbar("Subscriber updated successfully.", "success");
+                }}
+                initialData={{
+                  imsi: subscriber.imsi,
+                  profileName: subscriber.profile_name,
+                }}
+              />
+            )}
+          </>
+        )}
+      </QueryState>
+
       {isDeleteConfirmOpen && (
         <DeleteConfirmationModal
           open

@@ -18,6 +18,7 @@ import { useSnackbar } from "@/contexts/SnackbarContext";
 import UserAccountCard from "@/components/UserAccountCard";
 import UserPasswordCard from "@/components/UserPasswordCard";
 import UserAPITokensCard from "@/components/UserAPITokensCard";
+import QueryState from "@/components/QueryState";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 export default function Profile() {
@@ -33,22 +34,21 @@ export default function Profile() {
 
   const { showSnackbar } = useSnackbar();
 
-  const { data: loggedInUser, isLoading: loadingUser } = useQuery<APIUser>({
+  const userQuery = useQuery<APIUser>({
     queryKey: ["loggedInUser"],
     queryFn: () => getLoggedInUser(accessToken!),
     enabled: authReady && !!accessToken,
     refetchInterval: 5000,
+    retry: false,
   });
 
-  const { data: tokensData, isLoading: loadingTokens } =
-    useQuery<ListAPITokensResponse>({
-      queryKey: ["myAPITokens"],
-      queryFn: () => listAPITokens(accessToken!, 1, 100),
-      enabled: authReady && !!accessToken,
-      refetchInterval: 5000,
-    });
-
-  const apiTokens: APIToken[] = tokensData?.items ?? [];
+  const tokensQuery = useQuery<ListAPITokensResponse>({
+    queryKey: ["myAPITokens"],
+    queryFn: () => listAPITokens(accessToken!, 1, 100),
+    enabled: authReady && !!accessToken,
+    refetchInterval: 5000,
+    retry: false,
+  });
 
   const handlePasswordSuccess = () => {
     setEditPasswordModalOpen(false);
@@ -99,31 +99,37 @@ export default function Profile() {
         }}
       >
         <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          {loadingUser || !loggedInUser ? (
-            <Skeleton variant="rounded" height={140} />
-          ) : (
-            <UserAccountCard user={loggedInUser} />
-          )}
+          <QueryState
+            query={userQuery}
+            resource="your account"
+            loading={<Skeleton variant="rounded" height={140} />}
+          >
+            {(loggedInUser) => <UserAccountCard user={loggedInUser} />}
+          </QueryState>
         </Box>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
           <UserPasswordCard
             onChangePassword={() => setEditPasswordModalOpen(true)}
-            disabled={loadingUser || !loggedInUser}
+            disabled={userQuery.data === undefined}
           />
         </Box>
       </Box>
 
       {/* API Tokens — full width */}
       <Box sx={{ mt: 3 }}>
-        {loadingTokens && apiTokens.length === 0 ? (
-          <Skeleton variant="rounded" height={300} />
-        ) : (
-          <UserAPITokensCard
-            tokens={apiTokens}
-            onDeleteToken={handleDeleteToken}
-            onTokenCreated={handleTokenCreated}
-          />
-        )}
+        <QueryState
+          query={tokensQuery}
+          resource="your API tokens"
+          loading={<Skeleton variant="rounded" height={300} />}
+        >
+          {(data) => (
+            <UserAPITokensCard
+              tokens={data.items ?? []}
+              onDeleteToken={handleDeleteToken}
+              onTokenCreated={handleTokenCreated}
+            />
+          )}
+        </QueryState>
       </Box>
 
       {isEditPasswordModalOpen && (

@@ -94,14 +94,18 @@ const AlgorithmChip: React.FC<{
   labels: Record<string, string>;
 }> = ({ kind, alg, labels }) => {
   if (!alg) return null;
+
   const display = labels[alg] ?? alg;
   const isInsecure = INSECURE_ALGS.has(alg);
+
   return (
     <Chip
       size="small"
       icon={
         isInsecure ? (
-          <WarningAmberIcon sx={{ fontSize: 14, color: "#fff" }} />
+          <WarningAmberIcon
+            sx={{ fontSize: 14, color: "warning.contrastText" }}
+          />
         ) : undefined
       }
       label={
@@ -117,8 +121,14 @@ const AlgorithmChip: React.FC<{
         fontSize: "0.75rem",
         height: 22,
         ...(isInsecure
-          ? { backgroundColor: "#F9A825", color: "#fff" }
-          : { backgroundColor: "success.main", color: "#fff" }),
+          ? {
+              backgroundColor: "warning.main",
+              color: "warning.contrastText",
+            }
+          : {
+              backgroundColor: "success.main",
+              color: "success.contrastText",
+            }),
       }}
     />
   );

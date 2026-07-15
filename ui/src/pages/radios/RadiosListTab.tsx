@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useMemo, useState } from "react";
-import { Box, Typography, Chip, CircularProgress } from "@mui/material";
-import { ThemeProvider, useTheme } from "@mui/material/styles";
+import { Box, Typography } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import {
   DataGrid,
@@ -18,13 +18,12 @@ import {
   type ListRadiosResponse,
 } from "@/queries/radios";
 import EmptyState from "@/components/EmptyState";
+import QueryState from "@/components/QueryState";
+import RanNodeTypeChip from "@/components/RanNodeTypeChip";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 
-import { useRadiosContext } from "./types";
-
 export default function RadiosListTab() {
-  const { gridTheme } = useRadiosContext();
   const { accessToken } = useAuth();
   const theme = useTheme();
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
@@ -34,7 +33,7 @@ export default function RadiosListTab() {
     pageSize: 25,
   });
 
-  const { data, isLoading } = useQuery<ListRadiosResponse>({
+  const radiosQuery = useQuery<ListRadiosResponse>({
     queryKey: ["radios", paginationModel.page, paginationModel.pageSize],
     queryFn: async () => {
       const pageOneBased = paginationModel.page + 1;
@@ -46,13 +45,12 @@ export default function RadiosListTab() {
     },
     enabled: !!accessToken,
     refetchInterval: 5000,
-    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
+    retry: false,
     placeholderData: (prev) => prev,
   });
 
-  const rows: APIRadio[] = data?.items ?? [];
-  const rowCount: number = data?.total_count ?? 0;
+  const knownCount = radiosQuery.data?.total_count;
 
   const columns: GridColDef<APIRadio>[] = useMemo(
     () => [
@@ -95,21 +93,7 @@ export default function RadiosListTab() {
         headerName: "Type",
         flex: 0.4,
         minWidth: 80,
-        renderCell: (params) => {
-          const t = params.row.type;
-          const color =
-            t === "gNB"
-              ? "primary"
-              : t === "ng-eNB"
-                ? "secondary"
-                : t === "N3IWF"
-                  ? "warning"
-                  : "default";
-          const label = t === "gNB" ? "gNB (5G)" : t === "eNB" ? "eNB (4G)" : t;
-          return (
-            <Chip size="small" label={label} color={color} variant="outlined" />
-          );
-        },
+        renderCell: (params) => <RanNodeTypeChip type={params.row.type} />,
       },
       { field: "address", headerName: "Address", flex: 1, minWidth: 120 },
     ],
@@ -121,76 +105,70 @@ export default function RadiosListTab() {
 
   return (
     <>
-      {isLoading && rowCount === 0 ? (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
-          <CircularProgress />
-        </Box>
-      ) : rowCount === 0 ? (
-        <EmptyState
-          primaryText="No radio found."
-          secondaryText="Connected radios will automatically appear here."
-          extraContent={
-            <Typography variant="body1" color="textSecondary">
-              {descriptionText}
-            </Typography>
-          }
-          button={false}
-        />
-      ) : (
-        <>
-          <Box
-            sx={{
-              width: "100%",
-              mb: 3,
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-              mt: 2,
-            }}
-          >
-            <Typography variant="h4">Radios ({rowCount})</Typography>
+      <Box
+        sx={{
+          width: "100%",
+          mb: 3,
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+          mt: 2,
+        }}
+      >
+        <Typography variant="h4" component="h1">
+          {knownCount === undefined ? "Radios" : `Radios (${knownCount})`}
+        </Typography>
+        <Typography variant="body1" color="textSecondary">
+          {descriptionText}
+        </Typography>
+      </Box>
 
-            <Typography variant="body1" color="textSecondary">
-              {descriptionText}
-            </Typography>
-          </Box>
-
+      <QueryState
+        query={radiosQuery}
+        resource="radios"
+        isEmpty={(data) => (data.total_count ?? 0) === 0}
+        empty={
+          <EmptyState
+            primaryText="No radios yet"
+            secondaryText="Connected radios will automatically appear here."
+          />
+        }
+      >
+        {(data) => (
           <Box sx={{ width: "100%" }}>
-            <ThemeProvider theme={gridTheme}>
-              <DataGrid<APIRadio>
-                rows={rows}
-                columns={columns}
-                getRowId={(row) => row.address}
-                paginationMode="server"
-                rowCount={rowCount}
-                paginationModel={paginationModel}
-                onPaginationModelChange={setPaginationModel}
-                pageSizeOptions={[10, 25, 50, 100]}
-                disableColumnMenu
-                disableRowSelectionOnClick
-                columnVisibilityModel={{ id: !isSmDown }}
-                sx={{
-                  width: "100%",
-                  border: 1,
+            <DataGrid<APIRadio>
+              rows={data.items ?? []}
+              columns={columns}
+              getRowId={(row) => row.address}
+              paginationMode="server"
+              rowCount={data.total_count ?? 0}
+              paginationModel={paginationModel}
+              onPaginationModelChange={setPaginationModel}
+              pageSizeOptions={[10, 25, 50, 100]}
+              disableColumnMenu
+              disableRowSelectionOnClick
+              columnVisibilityModel={{ id: !isSmDown }}
+              sx={{
+                width: "100%",
+                border: 1,
+                borderColor: "divider",
+                "& .MuiDataGrid-cell": {
+                  borderBottom: "1px solid",
                   borderColor: "divider",
-                  "& .MuiDataGrid-cell": {
-                    borderBottom: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-columnHeaders": {
-                    borderBottom: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-footerContainer": {
-                    borderTop: "1px solid",
-                    borderColor: "divider",
-                  },
-                }}
-              />
-            </ThemeProvider>
+                },
+                "& .MuiDataGrid-columnHeaders": {
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                },
+                "& .MuiDataGrid-footerContainer": {
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                },
+              }}
+            />
           </Box>
-        </>
-      )}
+        )}
+      </QueryState>
     </>
   );
 }

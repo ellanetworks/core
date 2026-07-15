@@ -67,9 +67,7 @@ const ViewBGPPeerModal: React.FC<ViewBGPPeerModalProps> = ({
             <Typography variant="body2" color="textSecondary">
               Neighbor Address
             </Typography>
-            <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
-              {peer.address}
-            </Typography>
+            <Typography variant="body2">{peer.address}</Typography>
           </Stack>
 
           <Stack direction="row" sx={{ justifyContent: "space-between" }}>
@@ -153,9 +151,7 @@ const ViewBGPPeerModal: React.FC<ViewBGPPeerModalProps> = ({
                 <TableBody>
                   {peer.importPrefixes.map((p: BGPImportPrefix, i: number) => (
                     <TableRow key={i}>
-                      <TableCell sx={{ fontFamily: "monospace" }}>
-                        {p.prefix}
-                      </TableCell>
+                      <TableCell>{p.prefix}</TableCell>
                       <TableCell>max /{p.maxLength}</TableCell>
                     </TableRow>
                   ))}
@@ -200,9 +196,7 @@ const ViewBGPPeerModal: React.FC<ViewBGPPeerModalProps> = ({
                     <TableBody>
                       {rejectedPrefixes.map((f, i) => (
                         <TableRow key={i} sx={{ opacity: 0.7 }}>
-                          <TableCell sx={{ fontFamily: "monospace" }}>
-                            {f.prefix}
-                          </TableCell>
+                          <TableCell>{f.prefix}</TableCell>
                           <TableCell>{f.description}</TableCell>
                         </TableRow>
                       ))}

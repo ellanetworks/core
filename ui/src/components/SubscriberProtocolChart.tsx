@@ -9,6 +9,7 @@ import {
   getFlowReportStats,
   type FlowReportStatsResponse,
 } from "@/queries/flow_reports";
+import QueryState from "@/components/QueryState";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   formatProtocol,
@@ -25,7 +26,7 @@ const SubscriberProtocolChart: React.FC<SubscriberProtocolChartProps> = ({
 }) => {
   const { accessToken, authReady } = useAuth();
 
-  const { data: statsData, isLoading } = useQuery<FlowReportStatsResponse>({
+  const statsQuery = useQuery<FlowReportStatsResponse>({
     queryKey: ["subscriber-protocol-stats", imsi],
     queryFn: () =>
       // Do not force 'allow' here so the chart shows both allowed and dropped
@@ -36,8 +37,11 @@ const SubscriberProtocolChart: React.FC<SubscriberProtocolChartProps> = ({
       }),
     enabled: authReady && !!accessToken && !!imsi,
     refetchInterval: 10000,
+    retry: false,
     placeholderData: (prev) => prev,
   });
+
+  const statsData = statsQuery.data;
 
   const pieData = useMemo(() => {
     if (!statsData?.protocols?.length) return [];
@@ -50,26 +54,6 @@ const SubscriberProtocolChart: React.FC<SubscriberProtocolChartProps> = ({
     }));
   }, [statsData]);
 
-  if (isLoading) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-        <CircularProgress size={28} />
-      </Box>
-    );
-  }
-
-  if (pieData.length === 0) {
-    return (
-      <Typography
-        variant="body2"
-        color="textSecondary"
-        sx={{ py: 4, textAlign: "center" }}
-      >
-        No protocol data available.
-      </Typography>
-    );
-  }
-
   return (
     <Box>
       <Typography
@@ -78,33 +62,55 @@ const SubscriberProtocolChart: React.FC<SubscriberProtocolChartProps> = ({
       >
         Protocols
       </Typography>
-      <PieChart
-        series={[
-          {
-            data: pieData,
-            innerRadius: 40,
-            outerRadius: 90,
-            paddingAngle: 2,
-            cornerRadius: 3,
-            valueFormatter: (item) => {
-              const total = pieData.reduce((s, d) => s + d.value, 0);
-              return total > 0
-                ? `${((item.value / total) * 100).toFixed(1)}%`
-                : "0%";
-            },
-          },
-        ]}
-        height={220}
-        slotProps={{
-          legend: {
-            direction: "horizontal",
-            position: {
-              vertical: "bottom",
-              horizontal: "center",
-            },
-          },
-        }}
-      />
+      <QueryState
+        query={statsQuery}
+        resource="protocol data"
+        isEmpty={() => pieData.length === 0}
+        empty={
+          <Typography
+            variant="body2"
+            color="textSecondary"
+            sx={{ py: 4, textAlign: "center" }}
+          >
+            No protocol data available.
+          </Typography>
+        }
+        loading={
+          <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+            <CircularProgress size={28} />
+          </Box>
+        }
+      >
+        {() => (
+          <PieChart
+            series={[
+              {
+                data: pieData,
+                innerRadius: 40,
+                outerRadius: 90,
+                paddingAngle: 2,
+                cornerRadius: 3,
+                valueFormatter: (item) => {
+                  const total = pieData.reduce((s, d) => s + d.value, 0);
+                  return total > 0
+                    ? `${((item.value / total) * 100).toFixed(1)}%`
+                    : "0%";
+                },
+              },
+            ]}
+            height={220}
+            slotProps={{
+              legend: {
+                direction: "horizontal",
+                position: {
+                  vertical: "bottom",
+                  horizontal: "center",
+                },
+              },
+            }}
+          />
+        )}
+      </QueryState>
     </Box>
   );
 };
