@@ -447,10 +447,10 @@ func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, lppMsg []b
 	// TS 24.501 §9.11.3.1: the UE reports whether it speaks LPP in N1 mode at
 	// registration. A UE that reports "not supported" is under no obligation to
 	// answer anything sent here, so the bit is reported alongside the PDU.
-	lppSupported := "unknown"
+	lppSupported := "no_5gmm_capability_ie"
 
-	if reg := ueConn.RegistrationRequest; reg != nil && reg.Capability5GMM != nil {
-		lppSupported = strconv.Itoa(int(reg.Capability5GMM.GetLPP()))
+	if ue.LPPN1Supported != nil {
+		lppSupported = strconv.FormatBool(*ue.LPPN1Supported)
 	}
 
 	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeLPP, lppMsg, 0, nil, correlationID)

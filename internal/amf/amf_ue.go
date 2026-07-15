@@ -92,8 +92,14 @@ type UeContext struct {
 	kamf                 []uint8
 	abba                 []uint8
 
-	Ambr                     *models.Ambr
-	AllowedNssai             []models.Snssai
+	Ambr         *models.Ambr
+	AllowedNssai []models.Snssai
+	// LPPN1Supported reports the UE's LPP bit from the 5GMM capability IE of
+	// its REGISTRATION REQUEST (TS 24.501 §9.11.3.1). It is held here because
+	// ClearRegistrationRequestData drops the request itself once registration
+	// completes, long before any positioning session starts. nil means the UE
+	// sent no 5GMM capability IE.
+	LPPN1Supported           *bool
 	RegistrationArea         []models.Tai
 	RadioCapability          []byte
 	RadioCapabilityForPaging *models.UERadioCapabilityForPaging // free5gc NR/EUTRA split; the 4G MME stores the opaque S1AP octets as []byte

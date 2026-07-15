@@ -148,6 +148,11 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	conn.RegistrationRequest = registrationRequest
 	conn.SetRegistrationType5GS(registrationRequest.GetRegistrationType5GS())
 
+	if cap5GMM := registrationRequest.Capability5GMM; cap5GMM != nil {
+		supported := cap5GMM.GetLPP() == 1
+		conn.Parent().LPPN1Supported = &supported
+	}
+
 	regName := getRegistrationType5GSName(conn.RegistrationType5GS)
 
 	logger.From(ctx, logger.AmfLog).Debug("Received Registration Request", zap.String("registrationType", regName))
