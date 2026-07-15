@@ -691,7 +691,6 @@ const Operator = () => {
                           <Typography
                             variant="body2"
                             sx={{
-                              fontFamily: "monospace",
                               overflow: "hidden",
                               textOverflow: "ellipsis",
                               whiteSpace: "nowrap",
@@ -725,7 +724,6 @@ const Operator = () => {
                             <Typography
                               variant="body2"
                               sx={{
-                                fontFamily: "monospace",
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 whiteSpace: "nowrap",
@@ -753,7 +751,6 @@ const Operator = () => {
                           <Typography
                             variant="body2"
                             sx={{
-                              fontFamily: "monospace",
                               overflow: "hidden",
                               textOverflow: "ellipsis",
                               whiteSpace: "nowrap",

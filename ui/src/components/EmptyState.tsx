@@ -32,15 +32,16 @@ const EmptyState: React.FC<EmptyStateProps> = ({
         justifyContent: "flex-start",
         margin: "0 auto",
         padding: 2,
-        width: "50%",
+        width: "100%",
+        maxWidth: 640,
         marginTop: 4,
       }}
     >
-      <Typography variant="h4" gutterBottom align="left">
+      <Typography variant="h6" component="p" gutterBottom align="left">
         {primaryText}
       </Typography>
 
-      <Typography variant="h6" gutterBottom align="left">
+      <Typography variant="body1" gutterBottom align="left">
         {secondaryText}
       </Typography>
 

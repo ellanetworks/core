@@ -2,16 +2,16 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useMemo, useState } from "react";
-import { Box, Typography, Button, CircularProgress, Chip } from "@mui/material";
+import { Box, Typography, Button, Chip } from "@mui/material";
 import { useSnackbar } from "@/contexts/SnackbarContext";
-import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
+import { useTheme } from "@mui/material/styles";
 import {
   DataGrid,
   GridColDef,
   GridRenderCellParams,
   GridPaginationModel,
 } from "@mui/x-data-grid";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   listSubscribers,
   type APISubscriberSummary,
@@ -19,6 +19,7 @@ import {
 } from "@/queries/subscribers";
 import CreateSubscriberModal from "@/components/CreateSubscriberModal";
 import EmptyState from "@/components/EmptyState";
+import QueryState from "@/components/QueryState";
 import AccessChip from "@/components/AccessChip";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
@@ -28,15 +29,6 @@ const SubscriberPage: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
   const theme = useTheme();
   const canEdit = role === "Admin" || role === "Network Manager";
-  const navigate = useNavigate();
-
-  const gridTheme = useMemo(
-    () =>
-      createTheme(theme, {
-        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
-      }),
-    [theme],
-  );
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -49,19 +41,17 @@ const SubscriberPage: React.FC = () => {
   const pageOneBased = paginationModel.page + 1;
   const perPage = paginationModel.pageSize;
 
-  const { data, isLoading, refetch } = useQuery({
+  const subscribersQuery = useQuery({
     queryKey: ["subscribers", pageOneBased, perPage],
     queryFn: (): Promise<ListSubscribersResponse> =>
       listSubscribers(accessToken || "", pageOneBased, perPage),
     enabled: authReady && !!accessToken,
     refetchInterval: 5000,
-    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
+    // The poll is the retry; backoff would only delay the error reaching the UI.
+    retry: false,
     placeholderData: (prev) => prev,
   });
-
-  const rows: APISubscriberSummary[] = data?.items ?? [];
-  const rowCount = data?.total_count ?? 0;
 
   const columns: GridColDef<APISubscriberSummary>[] = useMemo(() => {
     const base: GridColDef<APISubscriberSummary>[] = [
@@ -87,7 +77,6 @@ const SubscriberPage: React.FC = () => {
               <Typography
                 variant="body2"
                 sx={{
-                  fontFamily: "monospace",
                   color: theme.palette.link,
                   textDecoration: "underline",
                   "&:hover": { textDecoration: "underline" },
@@ -216,7 +205,7 @@ const SubscriberPage: React.FC = () => {
     ];
 
     return base;
-  }, []);
+  }, [theme.palette.link]);
 
   const columnGroupingModel = [
     {
@@ -229,103 +218,88 @@ const SubscriberPage: React.FC = () => {
   const descriptionText =
     "Manage subscribers connecting to your private network. After creating a subscriber here, you can emit a SIM card with the corresponding IMSI, Key and OPc.";
 
-  if (!authReady) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  const knownCount = subscribersQuery.data?.total_count;
 
   return (
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      {isLoading && !data ? (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
-          <CircularProgress />
-        </Box>
-      ) : !isLoading && rowCount === 0 ? (
-        <EmptyState
-          primaryText="No subscriber found."
-          secondaryText="Create a new subscriber."
-          extraContent={
-            <Typography variant="body1" color="textSecondary">
-              {descriptionText}
-            </Typography>
-          }
-          button={canEdit}
-          buttonText="Create"
-          onCreate={() => setCreateModalOpen(true)}
-          readOnlyHint="Ask an administrator to create a subscriber."
-        />
-      ) : (
-        <>
-          <Box
-            sx={{
-              mb: 3,
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-            }}
+      <Box sx={{ mb: 3, display: "flex", flexDirection: "column", gap: 2 }}>
+        <Typography variant="h4" component="h1">
+          {knownCount === undefined
+            ? "Subscribers"
+            : `Subscribers (${knownCount})`}
+        </Typography>
+        <Typography variant="body1" color="textSecondary">
+          {descriptionText}
+        </Typography>
+        {canEdit && (
+          <Button
+            variant="contained"
+            color="success"
+            onClick={() => setCreateModalOpen(true)}
+            sx={{ maxWidth: 200 }}
           >
-            <Typography variant="h4">Subscribers ({rowCount})</Typography>
-            <Typography variant="body1" color="textSecondary">
-              {descriptionText}
-            </Typography>
-            {canEdit && (
-              <Button
-                variant="contained"
-                color="success"
-                onClick={() => setCreateModalOpen(true)}
-                sx={{ maxWidth: 200 }}
-              >
-                Create
-              </Button>
-            )}
-          </Box>
+            Create
+          </Button>
+        )}
+      </Box>
 
-          <ThemeProvider theme={gridTheme}>
-            <DataGrid<APISubscriberSummary>
-              rows={rows}
-              columns={columns}
-              getRowId={(row) => row.imsi}
-              columnGroupingModel={columnGroupingModel}
-              disableRowSelectionOnClick
-              paginationMode="server"
-              rowCount={rowCount}
-              paginationModel={paginationModel}
-              onPaginationModelChange={setPaginationModel}
-              pageSizeOptions={[10, 25, 50, 100]}
-              disableColumnMenu
-              sx={{
-                width: "100%",
-                border: 1,
+      <QueryState
+        query={subscribersQuery}
+        resource="subscribers"
+        isEmpty={(data) => (data.total_count ?? 0) === 0}
+        empty={
+          <EmptyState
+            primaryText="No subscribers yet"
+            secondaryText={
+              canEdit
+                ? "Create a subscriber to get started."
+                : "Ask an administrator to create a subscriber."
+            }
+          />
+        }
+      >
+        {(data) => (
+          <DataGrid<APISubscriberSummary>
+            rows={data.items ?? []}
+            columns={columns}
+            getRowId={(row) => row.imsi}
+            columnGroupingModel={columnGroupingModel}
+            disableRowSelectionOnClick
+            paginationMode="server"
+            rowCount={data.total_count ?? 0}
+            paginationModel={paginationModel}
+            onPaginationModelChange={setPaginationModel}
+            pageSizeOptions={[10, 25, 50, 100]}
+            disableColumnMenu
+            sx={{
+              width: "100%",
+              border: 1,
+              borderColor: "divider",
+              "& .MuiDataGrid-cell": {
+                borderBottom: "1px solid",
                 borderColor: "divider",
-                "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-columnHeaders": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-footerContainer": {
-                  borderTop: "1px solid",
-                  borderColor: "divider",
-                },
-              }}
-            />
-          </ThemeProvider>
-        </>
-      )}
+              },
+              "& .MuiDataGrid-columnHeaders": {
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              },
+              "& .MuiDataGrid-footerContainer": {
+                borderTop: "1px solid",
+                borderColor: "divider",
+              },
+            }}
+          />
+        )}
+      </QueryState>
 
       {isCreateModalOpen && (
         <CreateSubscriberModal
           open
           onClose={() => setCreateModalOpen(false)}
           onSuccess={() => {
-            refetch();
+            void subscribersQuery.refetch();
             showSnackbar("Subscriber created successfully.", "success");
           }}
         />

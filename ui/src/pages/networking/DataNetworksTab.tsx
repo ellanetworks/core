@@ -2,15 +2,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useState, useMemo } from "react";
-import {
-  Box,
-  Typography,
-  Button,
-  CircularProgress,
-  Chip,
-  Stack,
-} from "@mui/material";
-import { ThemeProvider, useTheme } from "@mui/material/styles";
+import { Box, Typography, Button, Chip } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
@@ -26,11 +19,11 @@ import {
 } from "@/queries/data_networks";
 import CreateDataNetworkModal from "@/components/CreateDataNetworkModal";
 import EmptyState from "@/components/EmptyState";
+import QueryState from "@/components/QueryState";
 import { useNetworkingContext } from "./types";
 
 export default function DataNetworksTab() {
-  const { accessToken, canEdit, showSnackbar, gridTheme } =
-    useNetworkingContext();
+  const { accessToken, canEdit, showSnackbar } = useNetworkingContext();
   const outerTheme = useTheme();
 
   const [pagination, setPagination] = useState<GridPaginationModel>({
@@ -38,11 +31,7 @@ export default function DataNetworksTab() {
     pageSize: 25,
   });
 
-  const {
-    data: dnPage,
-    isLoading: loading,
-    refetch,
-  } = useQuery<ListDataNetworksResponse>({
+  const dataNetworksQuery = useQuery<ListDataNetworksResponse>({
     queryKey: ["data-networks", pagination.page, pagination.pageSize],
     queryFn: () =>
       listDataNetworks(
@@ -52,13 +41,10 @@ export default function DataNetworksTab() {
       ),
     enabled: !!accessToken,
     refetchInterval: 5000,
-    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
+    retry: false,
     placeholderData: (prev) => prev,
   });
-
-  const rows: APIDataNetwork[] = dnPage?.items ?? [];
-  const rowCount = dnPage?.total_count ?? 0;
 
   const [isCreateOpen, setCreateOpen] = useState(false);
 
@@ -117,11 +103,7 @@ export default function DataNetworksTab() {
           >
             <Typography
               variant="body2"
-              sx={
-                params.row.ipv6_pool
-                  ? { fontFamily: "monospace" }
-                  : { color: "text.secondary" }
-              }
+              sx={params.row.ipv6_pool ? {} : { color: "text.secondary" }}
             >
               {params.row.ipv6_pool || "—"}
             </Typography>
@@ -148,6 +130,8 @@ export default function DataNetworksTab() {
     ];
   }, [outerTheme]);
 
+  const knownCount = dataNetworksQuery.data?.total_count;
+
   return (
     <Box
       sx={{
@@ -155,95 +139,81 @@ export default function DataNetworksTab() {
         mt: 2,
       }}
     >
-      {loading && rowCount === 0 ? (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
-          <CircularProgress />
-        </Box>
-      ) : rowCount === 0 ? (
-        <EmptyState
-          primaryText="No data network found."
-          secondaryText="Create a data network to assign subscribers and control egress."
-          extraContent={
-            <Typography variant="body1" color="textSecondary">
-              {description}
-            </Typography>
-          }
-          button={canEdit}
-          buttonText="Create"
-          onCreate={() => setCreateOpen(true)}
-          readOnlyHint="Ask an administrator to create a data network."
-        />
-      ) : (
-        <>
-          <Box sx={{ mb: 3 }}>
-            <Stack
-              direction={{ xs: "column", sm: "row" }}
-              spacing={2}
-              sx={{
-                alignItems: { xs: "stretch", sm: "center" },
-                justifyContent: "space-between",
-              }}
-            >
-              <Box>
-                <Typography variant="h5" sx={{ mb: 0.5 }}>
-                  Data Networks ({rowCount})
-                </Typography>
-                <Typography variant="body2" color="textSecondary">
-                  {description}
-                </Typography>
-                {canEdit && (
-                  <Button
-                    variant="contained"
-                    color="success"
-                    onClick={() => setCreateOpen(true)}
-                    sx={{ maxWidth: 200, mt: 2 }}
-                  >
-                    Create
-                  </Button>
-                )}
-              </Box>
-            </Stack>
-          </Box>
-          <ThemeProvider theme={gridTheme}>
-            <DataGrid<APIDataNetwork>
-              rows={rows}
-              columns={columns}
-              getRowId={(row) => row.name}
-              paginationMode="server"
-              rowCount={rowCount}
-              paginationModel={pagination}
-              onPaginationModelChange={setPagination}
-              pageSizeOptions={[10, 25, 50, 100]}
-              disableColumnMenu
-              disableRowSelectionOnClick
-              sx={{
-                width: "100%",
-                border: 1,
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h5" sx={{ mb: 0.5 }}>
+          {knownCount === undefined
+            ? "Data Networks"
+            : `Data Networks (${knownCount})`}
+        </Typography>
+        <Typography variant="body2" color="textSecondary">
+          {description}
+        </Typography>
+        {canEdit && (
+          <Button
+            variant="contained"
+            color="success"
+            onClick={() => setCreateOpen(true)}
+            sx={{ maxWidth: 200, mt: 2 }}
+          >
+            Create
+          </Button>
+        )}
+      </Box>
+
+      <QueryState
+        query={dataNetworksQuery}
+        resource="data networks"
+        isEmpty={(data) => (data.total_count ?? 0) === 0}
+        empty={
+          <EmptyState
+            primaryText="No data networks yet"
+            secondaryText={
+              canEdit
+                ? "Create a data network to assign subscribers and control egress."
+                : "Ask an administrator to create a data network."
+            }
+          />
+        }
+      >
+        {(data) => (
+          <DataGrid<APIDataNetwork>
+            rows={data.items ?? []}
+            columns={columns}
+            getRowId={(row) => row.name}
+            paginationMode="server"
+            rowCount={data.total_count ?? 0}
+            paginationModel={pagination}
+            onPaginationModelChange={setPagination}
+            pageSizeOptions={[10, 25, 50, 100]}
+            disableColumnMenu
+            disableRowSelectionOnClick
+            sx={{
+              width: "100%",
+              border: 1,
+              borderColor: "divider",
+              "& .MuiDataGrid-cell": {
+                borderBottom: "1px solid",
                 borderColor: "divider",
-                "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-columnHeaders": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-footerContainer": {
-                  borderTop: "1px solid",
-                  borderColor: "divider",
-                },
-              }}
-            />
-          </ThemeProvider>
-        </>
-      )}
+              },
+              "& .MuiDataGrid-columnHeaders": {
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              },
+              "& .MuiDataGrid-footerContainer": {
+                borderTop: "1px solid",
+                borderColor: "divider",
+              },
+            }}
+          />
+        )}
+      </QueryState>
 
       {isCreateOpen && (
         <CreateDataNetworkModal
           open
           onClose={() => setCreateOpen(false)}
           onSuccess={() => {
-            refetch();
+            void dataNetworksQuery.refetch();
             showSnackbar("Data network created successfully.", "success");
           }}
         />

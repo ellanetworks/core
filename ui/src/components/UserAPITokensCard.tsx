@@ -26,6 +26,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CloseIcon from "@mui/icons-material/Close";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import type { APIToken } from "@/queries/api_tokens";
+import { formatDate } from "@/utils/formatters";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import CreateAPITokenModal from "@/components/CreateAPITokenModal";
 
@@ -164,7 +165,6 @@ const UserAPITokensCard: React.FC<UserAPITokensCardProps> = ({
               <Typography
                 variant="body2"
                 sx={{
-                  fontFamily: "monospace",
                   wordBreak: "break-all",
                   userSelect: "all",
                 }}
@@ -209,8 +209,8 @@ const UserAPITokensCard: React.FC<UserAPITokensCardProps> = ({
                             label="Expired"
                             size="small"
                             sx={{
-                              backgroundColor: "#C69026",
-                              color: "#fff",
+                              backgroundColor: "warning.main",
+                              color: "warning.contrastText",
                             }}
                           />
                         ) : (
@@ -220,7 +220,7 @@ const UserAPITokensCard: React.FC<UserAPITokensCardProps> = ({
                       <TableCell>
                         <Typography variant="body2" color="textSecondary">
                           {token.expires_at
-                            ? new Date(token.expires_at).toDateString()
+                            ? formatDate(token.expires_at)
                             : "Never"}
                         </Typography>
                       </TableCell>

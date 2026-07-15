@@ -56,33 +56,32 @@ function isValidIP(value: string): boolean {
   return true;
 }
 
-const cidrRegex = /^.+\/\d+$/;
-const ipv4OrIpv6Regex = /^[0-9a-fA-F.:]+$/;
-
 const schema = yup.object().shape({
   defaultRoute: yup.boolean(),
-  destination: yup.string().when(["defaultRoute"], (values, schema) => {
-    const defaultRoute = values[0] as boolean;
-    if (defaultRoute) {
-      return schema.test(
-        "default-route",
-        "For a default route, destination must be 0.0.0.0/0 or ::/0",
-        (value) => {
-          return value === "0.0.0.0/0" || value === "::/0";
-        },
-      );
-    } else {
-      return schema
-        .required("Destination is required")
-        .test(
-          "valid-cidr",
-          "Destination must be a valid CIDR (IPv4 or IPv6)",
+  destination: yup
+    .string()
+    .when(["defaultRoute"], (values, destinationSchema) => {
+      const defaultRoute = values[0] as boolean;
+      if (defaultRoute) {
+        return destinationSchema.test(
+          "default-route",
+          "For a default route, destination must be 0.0.0.0/0 or ::/0",
           (value) => {
-            return value != null && isValidCIDR(value);
+            return value === "0.0.0.0/0" || value === "::/0";
           },
         );
-    }
-  }),
+      } else {
+        return destinationSchema
+          .required("Destination is required")
+          .test(
+            "valid-cidr",
+            "Destination must be a valid CIDR (IPv4 or IPv6)",
+            (value) => {
+              return value != null && isValidCIDR(value);
+            },
+          );
+      }
+    }),
   gateway: yup
     .string()
     .required("Gateway is required")

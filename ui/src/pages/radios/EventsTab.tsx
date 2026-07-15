@@ -18,7 +18,6 @@ import {
   MenuItem,
   ListSubheader,
 } from "@mui/material";
-import { ThemeProvider } from "@mui/material/styles";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme } from "@mui/material/styles";
 import {
@@ -46,6 +45,8 @@ import {
 } from "@/queries/radios";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import QueryState from "@/components/QueryState";
+import EmptyState from "@/components/EmptyState";
 
 import {
   listRadioEvents,
@@ -61,7 +62,6 @@ import EventDetails from "@/components/EventDetails";
 import type { LogRow } from "@/components/EventDetails";
 import ProtocolChip from "@/components/ProtocolChip";
 import { formatDateTime } from "@/utils/formatters";
-import { useRadiosContext } from "./types";
 
 // -------- Helpers & small components --------
 
@@ -222,7 +222,6 @@ export default function EventsTab() {
   const { role, accessToken, authReady } = useAuth();
   const canEdit = role === "Admin";
   const theme = useTheme();
-  const { gridTheme } = useRadiosContext();
 
   const { showSnackbar } = useSnackbar();
   const [viewEventDrawerOpen, setViewEventDrawerOpen] = useState(false);
@@ -332,6 +331,8 @@ export default function EventsTab() {
 
   const subRowCount = networkLogsQuery.data?.total_count ?? 0;
 
+  const hasActiveFilters = Object.keys(filterParams).length > 0;
+
   // Deep-link: when event param is present, find and select matching row
   useEffect(() => {
     if (!eventIdParam || !networkLogsQuery.data?.items) return;
@@ -390,11 +391,7 @@ export default function EventsTab() {
           const radioName = p.row.radio;
           const address = p.row.address || "";
           if (!radioName) {
-            return (
-              <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
-                {address || "—"}
-              </Typography>
-            );
+            return <Typography variant="body2">{address || "—"}</Typography>;
           }
           return (
             <Box
@@ -718,59 +715,78 @@ export default function EventsTab() {
           </Typography>
         </Box>
 
-        <ThemeProvider theme={gridTheme}>
-          <DataGrid<APIRadioEvent>
-            rows={networkRows}
-            columns={networkColumns}
-            getRowId={(row) => row.id}
-            loading={
-              networkLogsQuery.isLoading || networkLogsQuery.isPlaceholderData
-            }
-            paginationMode="server"
-            rowCount={subRowCount}
-            paginationModel={paginationModel}
-            onPaginationModelChange={setPaginationModel}
-            disableColumnMenu
-            pageSizeOptions={[10, 25, 50, 100]}
-            onRowClick={handleRowClick}
-            rowSelectionModel={selectionModel}
-            disableRowSelectionOnClick
-            onRowSelectionModelChange={(model) => setSelectionModel(model)}
-            density="compact"
-            autoHeight
-            sx={{
-              width: "100%",
-              border: 1,
-              borderColor: "divider",
-              "& .MuiDataGrid-cell": {
-                borderBottom: "1px solid",
+        <QueryState
+          query={networkLogsQuery}
+          resource="radio events"
+          isEmpty={(data) => (data.total_count ?? 0) === 0}
+          filtered={hasActiveFilters}
+          noResults={
+            <EmptyState
+              primaryText="No radio events match the selected filters"
+              secondaryText="Try clearing the radio, protocol, direction, message type, or time filters."
+            />
+          }
+          empty={
+            <EmptyState
+              primaryText="No radio events yet"
+              secondaryText="Signalling exchanged with connected radios will appear here."
+            />
+          }
+        >
+          {() => (
+            <DataGrid<APIRadioEvent>
+              rows={networkRows}
+              columns={networkColumns}
+              getRowId={(row) => row.id}
+              loading={
+                networkLogsQuery.isLoading || networkLogsQuery.isPlaceholderData
+              }
+              paginationMode="server"
+              rowCount={subRowCount}
+              paginationModel={paginationModel}
+              onPaginationModelChange={setPaginationModel}
+              disableColumnMenu
+              pageSizeOptions={[10, 25, 50, 100]}
+              onRowClick={handleRowClick}
+              rowSelectionModel={selectionModel}
+              disableRowSelectionOnClick
+              onRowSelectionModelChange={(model) => setSelectionModel(model)}
+              density="compact"
+              autoHeight
+              sx={{
+                width: "100%",
+                border: 1,
                 borderColor: "divider",
-              },
-              "& .MuiDataGrid-columnHeaders": {
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-footerContainer": {
-                borderTop: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-row:hover": { cursor: "pointer" },
-              "& .MuiDataGrid-row.Mui-selected": {
-                backgroundColor: (t) => t.palette.action.selected,
-                "&:hover": {
-                  backgroundColor: (t) => t.palette.action.selected,
+                "& .MuiDataGrid-cell": {
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
                 },
-                "& .MuiDataGrid-cell": { fontWeight: 500 },
-                "&::before": { display: "none" },
-              },
-              "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within": {
-                outline: "none",
-              },
-              "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
-                { outline: "none" },
-            }}
-          />
-        </ThemeProvider>
+                "& .MuiDataGrid-columnHeaders": {
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                },
+                "& .MuiDataGrid-footerContainer": {
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                },
+                "& .MuiDataGrid-row:hover": { cursor: "pointer" },
+                "& .MuiDataGrid-row.Mui-selected": {
+                  backgroundColor: (t) => t.palette.action.selected,
+                  "&:hover": {
+                    backgroundColor: (t) => t.palette.action.selected,
+                  },
+                  "& .MuiDataGrid-cell": { fontWeight: 500 },
+                  "&::before": { display: "none" },
+                },
+                "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within": {
+                  outline: "none",
+                },
+                "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
+                  { outline: "none" },
+              }}
+            />
+          )}
+        </QueryState>
       </Box>
 
       {/* Fixed overlay detail panel */}

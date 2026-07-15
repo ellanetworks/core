@@ -536,7 +536,6 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
                   <Typography
                     variant="body2"
                     sx={{
-                      fontFamily: "monospace",
                       minWidth: 220,
                       flex: "0 1 220px",
                       whiteSpace: "normal",

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useEffect, useMemo } from "react";
+import React, { useMemo } from "react";
 import {
   Box,
   Typography,
@@ -28,7 +28,6 @@ import { PieChart } from "@mui/x-charts/PieChart";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSnackbar } from "@/contexts/SnackbarContext";
 import { getStatus, type APIStatus } from "@/queries/status";
 import { getMetrics } from "@/queries/metrics";
 import {
@@ -48,6 +47,7 @@ import { getUsage, type UsageResult } from "@/queries/usage";
 import {
   formatDateTime,
   formatBytesAutoUnit,
+  formatMemory,
   formatProtocol,
   PIE_COLORS,
 } from "@/utils/formatters";
@@ -56,28 +56,6 @@ import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 const nf = new Intl.NumberFormat();
 const formatNumber = (n: number | null | undefined) =>
   n == null ? "N/A" : nf.format(n);
-
-const formatMemory = (value: number | null | undefined): string => {
-  if (value == null || !Number.isFinite(value)) return "N/A";
-
-  const base = 1024;
-  const units = ["B", "KB", "MB", "GB", "TB", "PB"];
-
-  let i = 0;
-  let n = Math.abs(value);
-  while (n >= base && i < units.length - 1) {
-    n /= base;
-    i++;
-  }
-
-  const numFmt = new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  });
-
-  const sign = value < 0 ? "-" : "";
-  return `${sign}${numFmt.format(n)} ${units[i]}`;
-};
 
 // ──────────────────────────────────────────────────────
 // Metrics parsing
@@ -222,6 +200,8 @@ function KpiCard({
 // Date helpers (for usage query — last 7 days)
 // ──────────────────────────────────────────────────────
 
+const TOP_USERS = 10;
+
 const getDefaultDateRange = () => {
   const today = new Date();
   const sevenDaysAgo = new Date();
@@ -303,7 +283,8 @@ const Dashboard = () => {
 
   const usageQuery = useQuery<UsageResult>({
     queryKey: ["dashboardUsage", startDate, endDate],
-    queryFn: () => getUsage(accessToken!, startDate, endDate, "", "subscriber"),
+    queryFn: () =>
+      getUsage(accessToken!, startDate, endDate, "", "subscriber", TOP_USERS),
     enabled: authReady && !!accessToken,
     refetchInterval: 10000,
     refetchOnWindowFocus: true,
@@ -322,25 +303,6 @@ const Dashboard = () => {
   const subscribersLoading = subscribersQuery.isLoading;
   const eventsLoading = radioEventsQuery.isLoading;
   const statusLoading = statusQuery.isLoading;
-
-  const { showSnackbar } = useSnackbar();
-
-  useEffect(() => {
-    if (statusQuery.error || subscribersQuery.error || metricsQuery.error) {
-      showSnackbar("Failed to fetch dashboard data.", "error");
-    }
-  }, [
-    statusQuery.error,
-    subscribersQuery.error,
-    metricsQuery.error,
-    showSnackbar,
-  ]);
-
-  useEffect(() => {
-    if (radioEventsQuery.error) {
-      showSnackbar("Failed to fetch radio events.", "error");
-    }
-  }, [radioEventsQuery.error, showSnackbar]);
 
   const activeSessions = m?.pduSessions ?? null;
   const heapMemory = m?.heapMemoryBytes ?? null;
@@ -396,7 +358,7 @@ const Dashboard = () => {
       });
     }
     items.sort((a, b) => b.total_bytes - a.total_bytes);
-    return items.slice(0, 10);
+    return items.slice(0, TOP_USERS);
   }, [usageQuery.data]);
 
   // ── Render ──────────────────────────────────────────
@@ -827,7 +789,6 @@ const Dashboard = () => {
                             <Typography
                               variant="body2"
                               sx={{
-                                fontFamily: "monospace",
                                 color: theme.palette.link,
                                 textDecoration: "underline",
                                 "&:hover": { textDecoration: "underline" },

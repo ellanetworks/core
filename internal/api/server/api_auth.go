@@ -29,6 +29,8 @@ const (
 	MaxSessionsPerUser     = 10 // Maximum number of concurrent sessions per user
 	LoginRateLimit         = 20 // Maximum login attempts per IP per window
 	LoginRateWindow        = 1 * time.Minute
+	LookupTokenRateLimit   = 60 // Maximum token lookups per IP per window
+	LookupTokenRateWindow  = 1 * time.Minute
 )
 
 type LoginParams struct {
@@ -53,6 +55,12 @@ const (
 	LoginAction  = "auth_login"
 	LogoutAction = "auth_logout"
 )
+
+// dummyLoginHash is verified against the supplied password when the account
+// does not exist, so login spends bcrypt time on both the known- and
+// unknown-email paths and its latency cannot be used to enumerate users. Its
+// cost must track the cost used to hash real passwords (bcrypt.DefaultCost).
+const dummyLoginHash = "$2a$10$jykEIP5jViP21mTuOKjAlegCTonE79QJoB5DKodMZY0gWtYXaOR.C" // #nosec: G101
 
 // Helper function to generate a JWT
 func generateJWT(id string, email string, roleID RoleID, jwtSecret []byte) (string, error) {
@@ -198,6 +206,8 @@ func Login(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool, log
 
 		user, err := dbInstance.GetUser(r.Context(), loginParams.Email)
 		if err != nil {
+			_ = bcrypt.CompareHashAndPassword([]byte(dummyLoginHash), []byte(loginParams.Password))
+
 			logger.LogAuditEvent(
 				r.Context(),
 				LoginAction,

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React from "react";
-import { Box, Button, Card, CardContent, Typography } from "@mui/material";
+import { Button, Card, CardContent, Typography } from "@mui/material";
 
 interface UserPasswordCardProps {
   onChangePassword: () => void;

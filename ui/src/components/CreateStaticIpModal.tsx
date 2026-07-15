@@ -14,6 +14,7 @@ import {
   Collapse,
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
+import ErrorAlert from "@/components/ErrorAlert";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   createStaticIp,
@@ -62,11 +63,13 @@ const CreateStaticIpModal: React.FC<CreateStaticIpModalProps> = ({
     }
   }, [open, edit]);
 
-  const { data: subscribers } = useQuery({
+  const subscribersQuery = useQuery({
     queryKey: ["eligible-subscribers", dataNetwork],
     queryFn: () => listEligibleSubscribers(accessToken!, dataNetwork),
     enabled: open && !isEdit && authReady && !!accessToken,
   });
+
+  const subscribers = subscribersQuery.data;
 
   const poolHelp = isEdit
     ? edit?.ipVersion === "ipv6"
@@ -134,19 +137,29 @@ const CreateStaticIpModal: React.FC<CreateStaticIpModalProps> = ({
             disabled
           />
         ) : (
-          <Autocomplete
-            options={(subscribers ?? []).map((s) => s.imsi)}
-            value={imsi || null}
-            onChange={(_, value) => setImsi(value ?? "")}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Subscriber"
-                margin="normal"
-                autoFocus
+          <>
+            <Autocomplete
+              options={(subscribers ?? []).map((s) => s.imsi)}
+              value={imsi || null}
+              onChange={(_, value) => setImsi(value ?? "")}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Subscriber"
+                  margin="normal"
+                  autoFocus
+                />
+              )}
+            />
+            {subscribersQuery.isLoadingError && (
+              <ErrorAlert
+                resource="eligible subscribers"
+                error={subscribersQuery.error}
+                onRetry={() => void subscribersQuery.refetch()}
+                retrying={subscribersQuery.isFetching}
               />
             )}
-          />
+          </>
         )}
         <TextField
           fullWidth

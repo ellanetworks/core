@@ -21,6 +21,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { backup, restore } from "@/queries/backup";
 import { getStatus, type APIStatus } from "@/queries/status";
+import QueryState from "@/components/QueryState";
 import Grid from "@mui/material/Grid";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
@@ -50,8 +51,6 @@ const BackupRestore = () => {
     queryFn: getStatus,
     enabled: authReady && !!accessToken,
   });
-
-  const clusterEnabled = statusQuery.data?.cluster?.enabled ?? false;
 
   const pageDescription =
     "Create and download a full backup of Ella Core, or restore from a .backup file. Take regular backups to ensure you can recover your data in case of a hardware failure or data loss.";
@@ -158,7 +157,7 @@ const BackupRestore = () => {
       <Backdrop
         open={isRestoring}
         sx={{
-          zIndex: (theme) => theme.zIndex.modal + 1,
+          zIndex: (t) => t.zIndex.modal + 1,
           color: "#fff",
           flexDirection: "column",
           gap: 2,
@@ -262,49 +261,53 @@ const BackupRestore = () => {
                   flexGrow: 1,
                 }}
               >
-                {clusterEnabled ? (
-                  <>
-                    <Alert severity="info">
-                      Online restore is disabled in HA mode. Clustered
-                      deployments recover by seeding a fresh node from the
-                      backup archive via the <code>restore.bundle</code> drop-in
-                      path.
-                    </Alert>
-                    <Typography variant="body2" color="textSecondary">
-                      See the backup and restore documentation for the
-                      step-by-step disaster-recovery procedure.
-                    </Typography>
-                    <Box sx={{ flexGrow: 1 }} />
-                  </>
-                ) : (
-                  <>
-                    <Typography variant="body2" color="textSecondary">
-                      Upload a previously created backup file to restore Ella
-                      Core to a previous state. This will overwrite your current
-                      configuration and data.
-                    </Typography>
+                <QueryState query={statusQuery} resource="system status">
+                  {(status) =>
+                    status.cluster?.enabled ? (
+                      <>
+                        <Alert severity="info">
+                          Online restore is disabled in HA mode. Clustered
+                          deployments recover by seeding a fresh node from the
+                          backup archive via the <code>restore.bundle</code>{" "}
+                          drop-in path.
+                        </Alert>
+                        <Typography variant="body2" color="textSecondary">
+                          See the backup and restore documentation for the
+                          step-by-step disaster-recovery procedure.
+                        </Typography>
+                        <Box sx={{ flexGrow: 1 }} />
+                      </>
+                    ) : (
+                      <>
+                        <Typography variant="body2" color="textSecondary">
+                          Upload a previously created backup file to restore
+                          Ella Core to a previous state. This will overwrite
+                          your current configuration and data.
+                        </Typography>
 
-                    <Box sx={{ flexGrow: 1 }} />
+                        <Box sx={{ flexGrow: 1 }} />
 
-                    <Box sx={{ display: "flex", justifyContent: "center" }}>
-                      <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={actionsDisabled}
-                      >
-                        {isRestoring ? "Restoring…" : "Upload File"}
-                      </Button>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        hidden
-                        accept=".backup"
-                        onChange={handleRestore}
-                      />
-                    </Box>
-                  </>
-                )}
+                        <Box sx={{ display: "flex", justifyContent: "center" }}>
+                          <Button
+                            variant="contained"
+                            color="primary"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={actionsDisabled}
+                          >
+                            {isRestoring ? "Restoring…" : "Upload File"}
+                          </Button>
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            hidden
+                            accept=".backup"
+                            onChange={handleRestore}
+                          />
+                        </Box>
+                      </>
+                    )
+                  }
+                </QueryState>
               </CardContent>
             </Card>
           </Grid>

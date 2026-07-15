@@ -12,7 +12,7 @@ const SnackbarContext = createContext<SnackbarContextValue | undefined>(
   undefined,
 );
 
-export const AUTO_HIDE_MS = 5000;
+export const AUTO_HIDE_MS = 8000;
 
 export function SnackbarProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -41,7 +41,8 @@ export function SnackbarProvider({ children }: { children: React.ReactNode }) {
       <Snackbar
         key={key}
         open={open}
-        autoHideDuration={AUTO_HIDE_MS}
+        // An error outlives the moment it is raised, so it waits to be dismissed.
+        autoHideDuration={severity === "error" ? null : AUTO_HIDE_MS}
         onClose={handleClose}
         anchorOrigin={{ vertical: "top", horizontal: "center" }}
       >

@@ -1,10 +1,8 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { useMemo } from "react";
 import type { SyntheticEvent } from "react";
 import { Box, Tabs, Tab } from "@mui/material";
-import { useTheme, createTheme } from "@mui/material/styles";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { MAX_WIDTH, PAGE_PADDING_X as PAGE_PAD } from "@/utils/layout";
 
@@ -22,15 +20,6 @@ export default function RadiosPage() {
       ? segment
       : "list";
 
-  const theme = useTheme();
-  const gridTheme = useMemo(
-    () =>
-      createTheme(theme, {
-        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
-      }),
-    [theme],
-  );
-
   const handleTabChange = (_: SyntheticEvent, newValue: TabKey) => {
     navigate(newValue === "list" ? "/radios" : `/radios/${newValue}`);
   };
@@ -47,7 +36,7 @@ export default function RadiosPage() {
         <Tab value="events" label="Events" />
       </Tabs>
 
-      <Outlet context={{ gridTheme }} />
+      <Outlet />
     </Box>
   );
 }

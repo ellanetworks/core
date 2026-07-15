@@ -23,7 +23,7 @@ import {
   South as SouthIcon,
 } from "@mui/icons-material";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
-import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
+import { useTheme } from "@mui/material/styles";
 import {
   DataGrid,
   type GridColDef,
@@ -41,6 +41,7 @@ import { useSnackbar } from "@/contexts/SnackbarContext";
 import EditPolicyModal from "@/components/EditPolicyModal";
 import PolicyRulesModal from "@/components/PolicyRulesModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
+import QueryState from "@/components/QueryState";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import {
   formatProtocol,
@@ -69,14 +70,6 @@ const PolicyDetail: React.FC = () => {
   const theme = useTheme();
   const canEdit = role === "Admin" || role === "Network Manager";
 
-  const gridTheme = useMemo(
-    () =>
-      createTheme(theme, {
-        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
-      }),
-    [theme],
-  );
-
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [rulesModalDirection, setRulesModalDirection] = useState<
@@ -87,16 +80,12 @@ const PolicyDetail: React.FC = () => {
     if (authReady && !accessToken) navigate("/login");
   }, [authReady, accessToken, navigate]);
 
-  const {
-    data: policy,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery<APIPolicy>({
+  const policyQuery = useQuery<APIPolicy>({
     queryKey: ["policy", name],
     queryFn: () => getPolicy(accessToken!, name!),
     enabled: authReady && !!accessToken && !!name,
     refetchInterval: 5000,
+    retry: false,
   });
 
   const handleDeleteConfirm = async () => {
@@ -205,7 +194,6 @@ const PolicyDetail: React.FC = () => {
             <Typography
               variant="body2"
               sx={{
-                fontFamily: "monospace",
                 ...(params.row.remote_prefix
                   ? {}
                   : { color: "text.secondary" }),
@@ -267,66 +255,21 @@ const PolicyDetail: React.FC = () => {
     [],
   );
 
-  if (!authReady || isLoading) {
-    return (
+  const policyLoading = (
+    <>
+      <Skeleton variant="rounded" height={220} />
       <Box
         sx={{
-          pt: 6,
-          pb: 4,
-          maxWidth: MAX_WIDTH,
-          mx: "auto",
-          px: PAGE_PADDING_X,
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+          gap: 3,
+          mt: 3,
         }}
       >
-        <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
-        <Skeleton variant="rounded" height={220} />
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-            gap: 3,
-            mt: 3,
-          }}
-        >
-          <Skeleton variant="rounded" height={300} />
-          <Skeleton variant="rounded" height={300} />
-        </Box>
+        <Skeleton variant="rounded" height={300} />
+        <Skeleton variant="rounded" height={300} />
       </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          mt: 6,
-          gap: 2,
-        }}
-      >
-        <Typography color="error">
-          {error instanceof Error ? error.message : "Failed to load policy."}
-        </Typography>
-        <Button
-          variant="outlined"
-          component={RouterLink}
-          to={`/profiles/${profileName}`}
-        >
-          Back to Profile
-        </Button>
-      </Box>
-    );
-  }
-
-  if (!policy) return null;
-
-  const uplinkRules: RuleRow[] = (policy.rules?.uplink ?? []).map(
-    (rule, idx) => ({ ...rule, index: idx + 1 }),
-  );
-  const downlinkRules: RuleRow[] = (policy.rules?.downlink ?? []).map(
-    (rule, idx) => ({ ...rule, index: idx + 1 }),
+    </>
   );
 
   return (
@@ -401,7 +344,7 @@ const PolicyDetail: React.FC = () => {
               /
             </Typography>
             <Typography component="span" variant="h4">
-              {policy.name}
+              {name}
             </Typography>
           </Typography>
           <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
@@ -422,319 +365,350 @@ const PolicyDetail: React.FC = () => {
         )}
       </Box>
 
-      {/* Configuration Card (full width) */}
-      <Card
-        variant="outlined"
-        sx={{ display: "flex", flexDirection: "column" }}
+      <QueryState
+        query={policyQuery}
+        resource="this policy"
+        loading={policyLoading}
       >
-        <CardContent sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              mb: 1.5,
-            }}
-          >
-            <Typography variant="h6">Configuration</Typography>
-            {canEdit && (
-              <IconButton
-                size="small"
-                color="primary"
-                onClick={() => setEditModalOpen(true)}
-                aria-label="Edit configuration"
-              >
-                <EditIcon fontSize="small" />
-              </IconButton>
-            )}
-          </Box>
-          <Table
-            size="small"
-            sx={{
-              "& tr:last-child td": { borderBottom: "none" },
-            }}
-          >
-            <TableBody>
-              <TableRow>
-                <TableCell sx={labelCellSx}>
-                  <Tooltip
-                    title="The data network this policy applies to"
-                    arrow
-                    placement="top"
-                  >
-                    <span>Data Network</span>
-                  </Tooltip>
-                </TableCell>
-                <TableCell sx={valueCellSx}>
-                  <RouterLink
-                    to={`/networking/data-networks/${policy.data_network_name}`}
-                    style={{ textDecoration: "none" }}
-                  >
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: theme.palette.link,
-                        textDecoration: "underline",
-                        "&:hover": { textDecoration: "underline" },
-                      }}
-                    >
-                      {policy.data_network_name}
-                    </Typography>
-                  </RouterLink>
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell sx={labelCellSx}>
-                  <Tooltip
-                    title="The network slice this policy belongs to"
-                    arrow
-                    placement="top"
-                  >
-                    <span>Slice</span>
-                  </Tooltip>
-                </TableCell>
-                <TableCell sx={valueCellSx}>
-                  <RouterLink
-                    to="/networking/slices"
-                    style={{ textDecoration: "none" }}
-                  >
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: theme.palette.link,
-                        textDecoration: "underline",
-                        "&:hover": { textDecoration: "underline" },
-                      }}
-                    >
-                      {policy.slice_name}
-                    </Typography>
-                  </RouterLink>
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell sx={labelCellSx}>
-                  <Tooltip
-                    title="Maximum uplink bitrate for a single session (Session-AMBR / APN-AMBR). Enforced by Ella Core."
-                    arrow
-                    placement="top"
-                  >
-                    <span>Session Bitrate Uplink</span>
-                  </Tooltip>
-                </TableCell>
-                <TableCell sx={valueCellSx}>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "flex-end",
-                      gap: 0.5,
-                    }}
-                  >
-                    <NorthIcon sx={{ fontSize: 16, color: UPLINK_COLOR }} />
-                    <Typography variant="body2">
-                      {policy.session_ambr_uplink}
-                    </Typography>
-                  </Box>
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell sx={labelCellSx}>
-                  <Tooltip
-                    title="Maximum downlink bitrate for a single session (Session-AMBR / APN-AMBR). Enforced by Ella Core."
-                    arrow
-                    placement="top"
-                  >
-                    <span>Session Bitrate Downlink</span>
-                  </Tooltip>
-                </TableCell>
-                <TableCell sx={valueCellSx}>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "flex-end",
-                      gap: 0.5,
-                    }}
-                  >
-                    <SouthIcon sx={{ fontSize: 16, color: DOWNLINK_COLOR }} />
-                    <Typography variant="body2">
-                      {policy.session_ambr_downlink}
-                    </Typography>
-                  </Box>
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell sx={labelCellSx}>
-                  <Tooltip
-                    title="QoS Identifier (5QI in 5G, QCI in 4G). The radio uses this to set scheduling behavior (latency budget, error rate, priority). Only non-GBR classes are supported."
-                    arrow
-                    placement="top"
-                  >
-                    <span>5QI / QCI</span>
-                  </Tooltip>
-                </TableCell>
-                <TableCell sx={valueCellSx}>{policy.var5qi}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell sx={labelCellSx}>
-                  <Tooltip
-                    title="Allocation and Retention Priority. Used by the radio at session setup for admission control and pre-emption decisions. 1 = highest, 15 = lowest. Has no effect on traffic once the session is established."
-                    arrow
-                    placement="top"
-                  >
-                    <span>ARP</span>
-                  </Tooltip>
-                </TableCell>
-                <TableCell sx={valueCellSx}>{policy.arp}</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        {(policy) => {
+          const uplinkRules: RuleRow[] = (policy.rules?.uplink ?? []).map(
+            (rule, idx) => ({ ...rule, index: idx + 1 }),
+          );
+          const downlinkRules: RuleRow[] = (policy.rules?.downlink ?? []).map(
+            (rule, idx) => ({ ...rule, index: idx + 1 }),
+          );
 
-      {/* Network Rules */}
-      <Box sx={{ mt: 3 }}>
-        <Typography variant="h6" sx={{ mb: 0.5 }}>
-          Network Rules
-        </Typography>
-        <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-          Control which traffic is allowed or denied for subscribers using this
-          policy. Rules are evaluated in order — the first match wins.
-        </Typography>
-      </Box>
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-          gap: 3,
+          return (
+            <>
+              {/* Configuration Card (full width) */}
+              <Card
+                variant="outlined"
+                sx={{ display: "flex", flexDirection: "column" }}
+              >
+                <CardContent
+                  sx={{ flex: 1, display: "flex", flexDirection: "column" }}
+                >
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      mb: 1.5,
+                    }}
+                  >
+                    <Typography variant="h6">Configuration</Typography>
+                    {canEdit && (
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => setEditModalOpen(true)}
+                        aria-label="Edit configuration"
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                  </Box>
+                  <Table
+                    size="small"
+                    sx={{
+                      "& tr:last-child td": { borderBottom: "none" },
+                    }}
+                  >
+                    <TableBody>
+                      <TableRow>
+                        <TableCell sx={labelCellSx}>
+                          <Tooltip
+                            title="The data network this policy applies to"
+                            arrow
+                            placement="top"
+                          >
+                            <span>Data Network</span>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell sx={valueCellSx}>
+                          <RouterLink
+                            to={`/networking/data-networks/${policy.data_network_name}`}
+                            style={{ textDecoration: "none" }}
+                          >
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                color: theme.palette.link,
+                                textDecoration: "underline",
+                                "&:hover": { textDecoration: "underline" },
+                              }}
+                            >
+                              {policy.data_network_name}
+                            </Typography>
+                          </RouterLink>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={labelCellSx}>
+                          <Tooltip
+                            title="The network slice this policy belongs to"
+                            arrow
+                            placement="top"
+                          >
+                            <span>Slice</span>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell sx={valueCellSx}>
+                          <RouterLink
+                            to="/networking/slices"
+                            style={{ textDecoration: "none" }}
+                          >
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                color: theme.palette.link,
+                                textDecoration: "underline",
+                                "&:hover": { textDecoration: "underline" },
+                              }}
+                            >
+                              {policy.slice_name}
+                            </Typography>
+                          </RouterLink>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={labelCellSx}>
+                          <Tooltip
+                            title="Maximum uplink bitrate for a single session (Session-AMBR / APN-AMBR). Enforced by Ella Core."
+                            arrow
+                            placement="top"
+                          >
+                            <span>Session Bitrate Uplink</span>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell sx={valueCellSx}>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "flex-end",
+                              gap: 0.5,
+                            }}
+                          >
+                            <NorthIcon
+                              sx={{ fontSize: 16, color: UPLINK_COLOR }}
+                            />
+                            <Typography variant="body2">
+                              {policy.session_ambr_uplink}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={labelCellSx}>
+                          <Tooltip
+                            title="Maximum downlink bitrate for a single session (Session-AMBR / APN-AMBR). Enforced by Ella Core."
+                            arrow
+                            placement="top"
+                          >
+                            <span>Session Bitrate Downlink</span>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell sx={valueCellSx}>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "flex-end",
+                              gap: 0.5,
+                            }}
+                          >
+                            <SouthIcon
+                              sx={{ fontSize: 16, color: DOWNLINK_COLOR }}
+                            />
+                            <Typography variant="body2">
+                              {policy.session_ambr_downlink}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={labelCellSx}>
+                          <Tooltip
+                            title="QoS Identifier (5QI in 5G, QCI in 4G). The radio uses this to set scheduling behavior (latency budget, error rate, priority). Only non-GBR classes are supported."
+                            arrow
+                            placement="top"
+                          >
+                            <span>5QI / QCI</span>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell sx={valueCellSx}>{policy.var5qi}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={labelCellSx}>
+                          <Tooltip
+                            title="Allocation and Retention Priority. Used by the radio at session setup for admission control and pre-emption decisions. 1 = highest, 15 = lowest. Has no effect on traffic once the session is established."
+                            arrow
+                            placement="top"
+                          >
+                            <span>ARP</span>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell sx={valueCellSx}>{policy.arp}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+
+              {/* Network Rules */}
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="h6" sx={{ mb: 0.5 }}>
+                  Network Rules
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="textSecondary"
+                  sx={{ mb: 2 }}
+                >
+                  Control which traffic is allowed or denied for subscribers
+                  using this policy. Rules are evaluated in order — the first
+                  match wins.
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                  gap: 3,
+                }}
+              >
+                {/* Uplink Rules */}
+                <Box>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      mb: 1,
+                    }}
+                  >
+                    <Box
+                      sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                    >
+                      <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                        Uplink
+                      </Typography>
+                      <NorthIcon sx={{ fontSize: 16, color: UPLINK_COLOR }} />
+                    </Box>
+                    {canEdit && (
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => setRulesModalDirection("uplink")}
+                        aria-label="Edit uplink rules"
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                  </Box>
+                  <DataGrid<RuleRow>
+                    rows={uplinkRules}
+                    columns={ruleColumns}
+                    getRowId={(row) => row.index}
+                    disableColumnMenu
+                    disableRowSelectionOnClick
+                    density="compact"
+                    hideFooter
+                    sx={{
+                      height: GRID_HEIGHT,
+                      border: 1,
+                      borderColor: "divider",
+                      "& .MuiDataGrid-cell": {
+                        borderBottom: "1px solid",
+                        borderColor: "divider",
+                      },
+                    }}
+                  />
+                </Box>
+
+                {/* Downlink Rules */}
+                <Box>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      mb: 1,
+                    }}
+                  >
+                    <Box
+                      sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                    >
+                      <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                        Downlink
+                      </Typography>
+                      <SouthIcon sx={{ fontSize: 16, color: DOWNLINK_COLOR }} />
+                    </Box>
+                    {canEdit && (
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => setRulesModalDirection("downlink")}
+                        aria-label="Edit downlink rules"
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                  </Box>
+                  <DataGrid<RuleRow>
+                    rows={downlinkRules}
+                    columns={ruleColumns}
+                    getRowId={(row) => row.index}
+                    disableColumnMenu
+                    disableRowSelectionOnClick
+                    density="compact"
+                    hideFooter
+                    sx={{
+                      height: GRID_HEIGHT,
+                      border: 1,
+                      borderColor: "divider",
+                      "& .MuiDataGrid-cell": {
+                        borderBottom: "1px solid",
+                        borderColor: "divider",
+                      },
+                    }}
+                  />
+                </Box>
+              </Box>
+
+              {isEditModalOpen && (
+                <EditPolicyModal
+                  open
+                  onClose={() => setEditModalOpen(false)}
+                  onSuccess={() => {
+                    policyQuery.refetch();
+                    showSnackbar("Policy updated successfully.", "success");
+                  }}
+                  initialData={policy}
+                />
+              )}
+              {rulesModalDirection && (
+                <PolicyRulesModal
+                  open
+                  onClose={() => setRulesModalDirection(null)}
+                  onSuccess={() => {
+                    policyQuery.refetch();
+                    showSnackbar(
+                      `${rulesModalDirection === "uplink" ? "Uplink" : "Downlink"} rules updated successfully.`,
+                      "success",
+                    );
+                  }}
+                  policy={policy}
+                  direction={rulesModalDirection}
+                />
+              )}
+            </>
+          );
         }}
-      >
-        {/* Uplink Rules */}
-        <Box>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              mb: 1,
-            }}
-          >
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                Uplink
-              </Typography>
-              <NorthIcon sx={{ fontSize: 16, color: UPLINK_COLOR }} />
-            </Box>
-            {canEdit && (
-              <IconButton
-                size="small"
-                color="primary"
-                onClick={() => setRulesModalDirection("uplink")}
-                aria-label="Edit uplink rules"
-              >
-                <EditIcon fontSize="small" />
-              </IconButton>
-            )}
-          </Box>
-          <ThemeProvider theme={gridTheme}>
-            <DataGrid<RuleRow>
-              rows={uplinkRules}
-              columns={ruleColumns}
-              getRowId={(row) => row.index}
-              disableColumnMenu
-              disableRowSelectionOnClick
-              density="compact"
-              hideFooter
-              sx={{
-                height: GRID_HEIGHT,
-                border: 1,
-                borderColor: "divider",
-                "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-              }}
-            />
-          </ThemeProvider>
-        </Box>
-
-        {/* Downlink Rules */}
-        <Box>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              mb: 1,
-            }}
-          >
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                Downlink
-              </Typography>
-              <SouthIcon sx={{ fontSize: 16, color: DOWNLINK_COLOR }} />
-            </Box>
-            {canEdit && (
-              <IconButton
-                size="small"
-                color="primary"
-                onClick={() => setRulesModalDirection("downlink")}
-                aria-label="Edit downlink rules"
-              >
-                <EditIcon fontSize="small" />
-              </IconButton>
-            )}
-          </Box>
-          <ThemeProvider theme={gridTheme}>
-            <DataGrid<RuleRow>
-              rows={downlinkRules}
-              columns={ruleColumns}
-              getRowId={(row) => row.index}
-              disableColumnMenu
-              disableRowSelectionOnClick
-              density="compact"
-              hideFooter
-              sx={{
-                height: GRID_HEIGHT,
-                border: 1,
-                borderColor: "divider",
-                "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-              }}
-            />
-          </ThemeProvider>
-        </Box>
-      </Box>
+      </QueryState>
 
       {/* Modals */}
-      {isEditModalOpen && (
-        <EditPolicyModal
-          open
-          onClose={() => setEditModalOpen(false)}
-          onSuccess={() => {
-            refetch();
-            showSnackbar("Policy updated successfully.", "success");
-          }}
-          initialData={policy}
-        />
-      )}
-      {rulesModalDirection && (
-        <PolicyRulesModal
-          open
-          onClose={() => setRulesModalDirection(null)}
-          onSuccess={() => {
-            refetch();
-            showSnackbar(
-              `${rulesModalDirection === "uplink" ? "Uplink" : "Downlink"} rules updated successfully.`,
-              "success",
-            );
-          }}
-          policy={policy}
-          direction={rulesModalDirection}
-        />
-      )}
       {isDeleteConfirmOpen && (
         <DeleteConfirmationModal
           open

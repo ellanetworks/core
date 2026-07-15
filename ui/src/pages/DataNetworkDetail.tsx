@@ -27,7 +27,7 @@ import {
   Delete as DeleteIcon,
 } from "@mui/icons-material";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
-import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
+import { useTheme } from "@mui/material/styles";
 import {
   DataGrid,
   type GridColDef,
@@ -53,6 +53,8 @@ import EditDataNetworkModal from "@/components/EditDataNetworkModal";
 import CreateStaticIpModal from "@/components/CreateStaticIpModal";
 import CreateFramedRouteModal from "@/components/CreateFramedRouteModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
+import EmptyState from "@/components/EmptyState";
+import QueryState from "@/components/QueryState";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const tableContainerSx = {
@@ -73,14 +75,6 @@ const DataNetworkDetail: React.FC = () => {
   const { showSnackbar } = useSnackbar();
   const theme = useTheme();
   const canEdit = role === "Admin" || role === "Network Manager";
-
-  const gridTheme = useMemo(
-    () =>
-      createTheme(theme, {
-        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
-      }),
-    [theme],
-  );
 
   const queryClient = useQueryClient();
   const [isEditModalOpen, setEditModalOpen] = useState(false);
@@ -108,16 +102,12 @@ const DataNetworkDetail: React.FC = () => {
     if (authReady && !accessToken) navigate("/login");
   }, [authReady, accessToken, navigate]);
 
-  const {
-    data: dataNetwork,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery<APIDataNetwork>({
+  const dataNetworkQuery = useQuery<APIDataNetwork>({
     queryKey: ["data-network", name],
     queryFn: () => getDataNetwork(accessToken!, name!),
     enabled: authReady && !!accessToken && !!name,
     refetchInterval: 5000,
+    retry: false,
   });
 
   const [allocPaginationModel, setAllocPaginationModel] =
@@ -126,12 +116,17 @@ const DataNetworkDetail: React.FC = () => {
   const allocPage = allocPaginationModel.page + 1;
   const allocPerPage = allocPaginationModel.pageSize;
 
-  const { data: allocationsData } = useQuery({
+  const allocationsQuery = useQuery({
     queryKey: ["ipv4-allocations", name, allocPage, allocPerPage],
     queryFn: () =>
       listIPv4Allocations(accessToken!, name!, allocPage, allocPerPage),
-    enabled: authReady && !!accessToken && !!name && !!dataNetwork?.ipv4_pool,
+    enabled:
+      authReady &&
+      !!accessToken &&
+      !!name &&
+      !!dataNetworkQuery.data?.ipv4_pool,
     refetchInterval: 5000,
+    retry: false,
   });
 
   const [ipv6AllocPaginationModel, setIpv6AllocPaginationModel] =
@@ -140,12 +135,17 @@ const DataNetworkDetail: React.FC = () => {
   const ipv6AllocPage = ipv6AllocPaginationModel.page + 1;
   const ipv6AllocPerPage = ipv6AllocPaginationModel.pageSize;
 
-  const { data: ipv6AllocationsData } = useQuery({
+  const ipv6AllocationsQuery = useQuery({
     queryKey: ["ipv6-allocations", name, ipv6AllocPage, ipv6AllocPerPage],
     queryFn: () =>
       listIPv6Allocations(accessToken!, name!, ipv6AllocPage, ipv6AllocPerPage),
-    enabled: authReady && !!accessToken && !!name && !!dataNetwork?.ipv6_pool,
+    enabled:
+      authReady &&
+      !!accessToken &&
+      !!name &&
+      !!dataNetworkQuery.data?.ipv6_pool,
     refetchInterval: 5000,
+    retry: false,
   });
 
   const handleDeleteConfirm = async () => {
@@ -165,12 +165,11 @@ const DataNetworkDetail: React.FC = () => {
     }
   };
 
-  const { data: framedRoutesData } = useQuery({
+  const framedRoutesQuery = useQuery({
     queryKey: ["framed-routes", name],
     queryFn: () => listFramedRoutes(accessToken!, name!),
     enabled: authReady && !!accessToken && !!name,
   });
-  const framedRoutes = framedRoutesData ?? [];
 
   const { data: natInfo } = useQuery<NatInfo>({
     queryKey: ["nat"],
@@ -203,12 +202,7 @@ const DataNetworkDetail: React.FC = () => {
   const renderPrefixChips = (prefixes?: string[]) =>
     prefixes && prefixes.length > 0 ? (
       prefixes.map((p) => (
-        <Chip
-          key={p}
-          label={p}
-          size="small"
-          sx={{ mr: 0.5, mb: 0.5, fontFamily: "monospace" }}
-        />
+        <Chip key={p} label={p} size="small" sx={{ mr: 0.5, mb: 0.5 }} />
       ))
     ) : (
       <Typography variant="body2" color="textSecondary" component="span">
@@ -219,7 +213,7 @@ const DataNetworkDetail: React.FC = () => {
   const invalidateStaticIps = () => {
     queryClient.invalidateQueries({ queryKey: ["ipv4-allocations", name] });
     queryClient.invalidateQueries({ queryKey: ["ipv6-allocations", name] });
-    refetch();
+    dataNetworkQuery.refetch();
   };
 
   const handleStaticDeleteConfirm = async () => {
@@ -312,9 +306,7 @@ const DataNetworkDetail: React.FC = () => {
               height: "100%",
             }}
           >
-            <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
-              {params.row.address}
-            </Typography>
+            <Typography variant="body2">{params.row.address}</Typography>
           </Box>
         ),
       },
@@ -340,7 +332,6 @@ const DataNetworkDetail: React.FC = () => {
               <Typography
                 variant="body2"
                 sx={{
-                  fontFamily: "monospace",
                   color: theme.palette.link,
                   textDecoration: "underline",
                   "&:hover": { textDecoration: "underline" },
@@ -424,7 +415,7 @@ const DataNetworkDetail: React.FC = () => {
               height: "100%",
             }}
           >
-            <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
+            <Typography variant="body2">
               {params.row.address.includes(":")
                 ? `${params.row.address}/64`
                 : params.row.address}
@@ -454,7 +445,6 @@ const DataNetworkDetail: React.FC = () => {
               <Typography
                 variant="body2"
                 sx={{
-                  fontFamily: "monospace",
                   color: theme.palette.link,
                   textDecoration: "underline",
                   "&:hover": { textDecoration: "underline" },
@@ -522,77 +512,24 @@ const DataNetworkDetail: React.FC = () => {
     return cols;
   }, [theme, canEdit, staticActionsColumn]);
 
-  if (!authReady || isLoading) {
-    return (
+  const allocationRowCount = allocationsQuery.data?.total_count;
+  const ipv6AllocationRowCount = ipv6AllocationsQuery.data?.total_count;
+
+  const dataNetworkLoading = (
+    <>
       <Box
         sx={{
-          pt: 6,
-          pb: 4,
-          maxWidth: MAX_WIDTH,
-          mx: "auto",
-          px: PAGE_PADDING_X,
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+          gap: 3,
         }}
       >
-        <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-            gap: 3,
-          }}
-        >
-          <Skeleton variant="rounded" height={220} />
-          <Skeleton variant="rounded" height={220} />
-        </Box>
-        <Skeleton variant="rounded" height={300} sx={{ mt: 3 }} />
+        <Skeleton variant="rounded" height={220} />
+        <Skeleton variant="rounded" height={220} />
       </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          mt: 6,
-          gap: 2,
-        }}
-      >
-        <Typography color="error">
-          {error instanceof Error
-            ? error.message
-            : "Failed to load data network."}
-        </Typography>
-        <Button
-          variant="outlined"
-          component={RouterLink}
-          to="/networking/data-networks"
-        >
-          Back to Networking
-        </Button>
-      </Box>
-    );
-  }
-
-  if (!dataNetwork) return null;
-
-  const allocationRows = allocationsData?.items ?? [];
-  const allocationRowCount = allocationsData?.total_count ?? 0;
-  const ipv6AllocationRows = ipv6AllocationsData?.items ?? [];
-  const ipv6AllocationRowCount = ipv6AllocationsData?.total_count ?? 0;
-  const hasIpv4Pool = !!dataNetwork.ipv4_pool;
-  const hasIpv6Pool = !!dataNetwork.ipv6_pool;
-  const ipAlloc = dataNetwork.ip_allocation;
-  const poolSize = ipAlloc?.pool_size ?? 0;
-  const allocated = ipAlloc?.allocated ?? 0;
-  const utilPercent = poolSize > 0 ? (allocated / poolSize) * 100 : 0;
-  const ipv6Alloc = dataNetwork.ipv6_allocation;
-  const ipv6PoolSize = ipv6Alloc?.pool_size ?? 0;
-  const ipv6Allocated = ipv6Alloc?.allocated ?? 0;
-  const ipv6UtilPercent =
-    ipv6PoolSize > 0 ? (ipv6Allocated / ipv6PoolSize) * 100 : 0;
+      <Skeleton variant="rounded" height={300} sx={{ mt: 3 }} />
+    </>
+  );
 
   return (
     <Box
@@ -633,7 +570,7 @@ const DataNetworkDetail: React.FC = () => {
               /
             </Typography>
             <Typography component="span" variant="h4">
-              {dataNetwork.name}
+              {name}
             </Typography>
           </Typography>
         </Box>
@@ -650,290 +587,388 @@ const DataNetworkDetail: React.FC = () => {
         )}
       </Box>
 
-      {/* Two-column layout: Configuration + Status */}
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-          gap: 3,
-          alignItems: "stretch",
-        }}
+      <QueryState
+        query={dataNetworkQuery}
+        resource="this data network"
+        loading={dataNetworkLoading}
       >
-        {/* Configuration Card */}
-        <Card
-          variant="outlined"
-          sx={{ height: "100%", display: "flex", flexDirection: "column" }}
-        >
-          <CardContent
-            sx={{ flex: 1, display: "flex", flexDirection: "column" }}
-          >
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                mb: 1.5,
-              }}
-            >
-              <Typography variant="h6">Configuration</Typography>
-              {canEdit && (
-                <IconButton
-                  size="small"
-                  color="primary"
-                  onClick={() => setEditModalOpen(true)}
-                  aria-label="Edit configuration"
-                >
-                  <EditIcon fontSize="small" />
-                </IconButton>
-              )}
-            </Box>
-            <Table
-              size="small"
-              sx={{
-                "& tr:last-child td": { borderBottom: "none" },
-              }}
-            >
-              <TableBody>
-                <TableRow>
-                  <TableCell sx={labelCellSx}>IPv4 Pool</TableCell>
-                  <TableCell sx={valueCellSx}>
-                    <Typography
-                      variant="body2"
-                      sx={{ fontFamily: "monospace" }}
-                    >
-                      {dataNetwork.ipv4_pool}
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-                {dataNetwork.ipv6_pool && (
-                  <TableRow>
-                    <TableCell sx={labelCellSx}>IPv6 Pool</TableCell>
-                    <TableCell sx={valueCellSx}>
-                      <Typography
-                        variant="body2"
-                        sx={{ fontFamily: "monospace" }}
-                      >
-                        {dataNetwork.ipv6_pool}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                )}
-                <TableRow>
-                  <TableCell sx={labelCellSx}>DNS</TableCell>
-                  <TableCell sx={valueCellSx}>
-                    <Typography
-                      variant="body2"
-                      sx={{ fontFamily: "monospace" }}
-                    >
-                      {dataNetwork.dns || "—"}
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell sx={labelCellSx}>MTU</TableCell>
-                  <TableCell sx={valueCellSx}>
-                    {dataNetwork.mtu || "—"}
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        {(dataNetwork) => {
+          const hasIpv4Pool = !!dataNetwork.ipv4_pool;
+          const hasIpv6Pool = !!dataNetwork.ipv6_pool;
+          const ipAlloc = dataNetwork.ip_allocation;
+          const poolSize = ipAlloc?.pool_size ?? 0;
+          const allocated = ipAlloc?.allocated ?? 0;
+          const utilPercent = poolSize > 0 ? (allocated / poolSize) * 100 : 0;
+          const ipv6Alloc = dataNetwork.ipv6_allocation;
+          const ipv6PoolSize = ipv6Alloc?.pool_size ?? 0;
+          const ipv6Allocated = ipv6Alloc?.allocated ?? 0;
+          const ipv6UtilPercent =
+            ipv6PoolSize > 0 ? (ipv6Allocated / ipv6PoolSize) * 100 : 0;
 
-        {/* Status Card */}
-        <Card
-          variant="outlined"
-          sx={{ height: "100%", display: "flex", flexDirection: "column" }}
-        >
-          <CardContent
-            sx={{ flex: 1, display: "flex", flexDirection: "column" }}
-          >
-            <Typography variant="h6" sx={{ mb: 1.5 }}>
-              Status
-            </Typography>
-            <Table
-              size="small"
-              sx={{
-                "& tr:last-child td": { borderBottom: "none" },
-              }}
-            >
-              <TableBody>
-                <TableRow>
-                  <TableCell sx={labelCellSx}>Active Sessions</TableCell>
-                  <TableCell sx={valueCellSx}>
-                    <Chip
-                      size="small"
-                      label={dataNetwork.status?.sessions ?? 0}
-                      variant="outlined"
-                    />
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell sx={labelCellSx}>IPv4 Pool Utilization</TableCell>
-                  <TableCell sx={valueCellSx}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <LinearProgress
-                        variant="determinate"
-                        value={Math.min(utilPercent, 100)}
-                        sx={{ flex: 1, height: 8, borderRadius: 4 }}
-                      />
-                      <Typography variant="body2" sx={{ whiteSpace: "nowrap" }}>
-                        {allocated.toLocaleString()} /{" "}
-                        {poolSize.toLocaleString()}
-                      </Typography>
-                    </Box>
-                  </TableCell>
-                </TableRow>
-                {dataNetwork.ipv6_pool && (
-                  <TableRow>
-                    <TableCell sx={labelCellSx}>
-                      IPv6 Pool Utilization
-                    </TableCell>
-                    <TableCell sx={valueCellSx}>
-                      <Box
-                        sx={{ display: "flex", alignItems: "center", gap: 1 }}
-                      >
-                        <LinearProgress
-                          variant="determinate"
-                          value={Math.min(ipv6UtilPercent, 100)}
-                          sx={{ flex: 1, height: 8, borderRadius: 4 }}
-                        />
-                        <Typography
-                          variant="body2"
-                          sx={{ whiteSpace: "nowrap" }}
-                        >
-                          {ipv6Allocated.toLocaleString()} /{" "}
-                          {ipv6PoolSize.toLocaleString()}
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </Box>
-
-      {/* IP Allocations */}
-      {(hasIpv4Pool || hasIpv6Pool) && (
-        <Box sx={{ mt: 3 }}>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              mb: 1.5,
-            }}
-          >
-            <Typography variant="h6">IP Allocations</Typography>
-            {canEdit && (
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<AddIcon />}
-                onClick={() => setStaticModal({ mode: "create" })}
+          return (
+            <>
+              {/* Two-column layout: Configuration + Status */}
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                  gap: 3,
+                  alignItems: "stretch",
+                }}
               >
-                Add static IP
-              </Button>
-            )}
-          </Box>
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "1fr",
-                md: hasIpv4Pool && hasIpv6Pool ? "1fr 1fr" : "1fr",
-              },
-              gap: 2,
-              alignItems: "start",
-            }}
-          >
-            {hasIpv4Pool && (
-              <Box>
-                <Typography variant="subtitle1" sx={{ mb: 1 }}>
-                  IPv4 Allocations ({allocationRowCount.toLocaleString()})
-                </Typography>
-                {allocationRowCount === 0 ? (
-                  <TableContainer sx={tableContainerSx}>
-                    <Box sx={{ p: 3, textAlign: "center" }}>
-                      <Typography variant="body2" color="textSecondary">
-                        No IPv4 addresses are currently allocated in this pool.
-                      </Typography>
-                    </Box>
-                  </TableContainer>
-                ) : (
-                  <ThemeProvider theme={gridTheme}>
-                    <DataGrid<APIIPAllocation>
-                      rows={allocationRows}
-                      columns={allocationColumns}
-                      getRowId={(row) => row.address}
-                      paginationMode="server"
-                      rowCount={allocationRowCount}
-                      paginationModel={allocPaginationModel}
-                      onPaginationModelChange={setAllocPaginationModel}
-                      pageSizeOptions={[10, 25]}
-                      disableColumnMenu
-                      disableRowSelectionOnClick
-                      density="compact"
+                {/* Configuration Card */}
+                <Card
+                  variant="outlined"
+                  sx={{
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
+                >
+                  <CardContent
+                    sx={{ flex: 1, display: "flex", flexDirection: "column" }}
+                  >
+                    <Box
                       sx={{
-                        height: GRID_HEIGHT,
-                        border: 1,
-                        borderColor: "divider",
-                        "& .MuiDataGrid-cell": {
-                          borderBottom: "1px solid",
-                          borderColor: "divider",
-                        },
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        mb: 1.5,
                       }}
-                    />
-                  </ThemeProvider>
-                )}
-              </Box>
-            )}
-            {hasIpv6Pool && (
-              <Box>
-                <Typography variant="subtitle1" sx={{ mb: 1 }}>
-                  IPv6 Allocations ({ipv6AllocationRowCount.toLocaleString()})
-                </Typography>
-                {ipv6AllocationRowCount === 0 ? (
-                  <TableContainer sx={tableContainerSx}>
-                    <Box sx={{ p: 3, textAlign: "center" }}>
-                      <Typography variant="body2" color="textSecondary">
-                        No IPv6 prefixes are currently allocated in this pool.
-                      </Typography>
+                    >
+                      <Typography variant="h6">Configuration</Typography>
+                      {canEdit && (
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => setEditModalOpen(true)}
+                          aria-label="Edit configuration"
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      )}
                     </Box>
-                  </TableContainer>
-                ) : (
-                  <ThemeProvider theme={gridTheme}>
-                    <DataGrid<APIIPAllocation>
-                      rows={ipv6AllocationRows}
-                      columns={ipv6AllocationColumns}
-                      getRowId={(row) => row.address}
-                      paginationMode="server"
-                      rowCount={ipv6AllocationRowCount}
-                      paginationModel={ipv6AllocPaginationModel}
-                      onPaginationModelChange={setIpv6AllocPaginationModel}
-                      pageSizeOptions={[10, 25]}
-                      disableColumnMenu
-                      disableRowSelectionOnClick
-                      density="compact"
+                    <Table
+                      size="small"
                       sx={{
-                        height: GRID_HEIGHT,
-                        border: 1,
-                        borderColor: "divider",
-                        "& .MuiDataGrid-cell": {
-                          borderBottom: "1px solid",
-                          borderColor: "divider",
-                        },
+                        "& tr:last-child td": { borderBottom: "none" },
                       }}
-                    />
-                  </ThemeProvider>
-                )}
+                    >
+                      <TableBody>
+                        <TableRow>
+                          <TableCell sx={labelCellSx}>IPv4 Pool</TableCell>
+                          <TableCell sx={valueCellSx}>
+                            <Typography variant="body2">
+                              {dataNetwork.ipv4_pool}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                        {dataNetwork.ipv6_pool && (
+                          <TableRow>
+                            <TableCell sx={labelCellSx}>IPv6 Pool</TableCell>
+                            <TableCell sx={valueCellSx}>
+                              <Typography variant="body2">
+                                {dataNetwork.ipv6_pool}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        <TableRow>
+                          <TableCell sx={labelCellSx}>DNS</TableCell>
+                          <TableCell sx={valueCellSx}>
+                            <Typography variant="body2">
+                              {dataNetwork.dns || "—"}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell sx={labelCellSx}>MTU</TableCell>
+                          <TableCell sx={valueCellSx}>
+                            {dataNetwork.mtu || "—"}
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+
+                {/* Status Card */}
+                <Card
+                  variant="outlined"
+                  sx={{
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
+                >
+                  <CardContent
+                    sx={{ flex: 1, display: "flex", flexDirection: "column" }}
+                  >
+                    <Typography variant="h6" sx={{ mb: 1.5 }}>
+                      Status
+                    </Typography>
+                    <Table
+                      size="small"
+                      sx={{
+                        "& tr:last-child td": { borderBottom: "none" },
+                      }}
+                    >
+                      <TableBody>
+                        <TableRow>
+                          <TableCell sx={labelCellSx}>
+                            Active Sessions
+                          </TableCell>
+                          <TableCell sx={valueCellSx}>
+                            <Chip
+                              size="small"
+                              label={dataNetwork.status?.sessions ?? 0}
+                              variant="outlined"
+                            />
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell sx={labelCellSx}>
+                            IPv4 Pool Utilization
+                          </TableCell>
+                          <TableCell sx={valueCellSx}>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 1,
+                              }}
+                            >
+                              <LinearProgress
+                                variant="determinate"
+                                value={Math.min(utilPercent, 100)}
+                                sx={{ flex: 1, height: 8, borderRadius: 4 }}
+                              />
+                              <Typography
+                                variant="body2"
+                                sx={{ whiteSpace: "nowrap" }}
+                              >
+                                {allocated.toLocaleString()} /{" "}
+                                {poolSize.toLocaleString()}
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                        {dataNetwork.ipv6_pool && (
+                          <TableRow>
+                            <TableCell sx={labelCellSx}>
+                              IPv6 Pool Utilization
+                            </TableCell>
+                            <TableCell sx={valueCellSx}>
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 1,
+                                }}
+                              >
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={Math.min(ipv6UtilPercent, 100)}
+                                  sx={{ flex: 1, height: 8, borderRadius: 4 }}
+                                />
+                                <Typography
+                                  variant="body2"
+                                  sx={{ whiteSpace: "nowrap" }}
+                                >
+                                  {ipv6Allocated.toLocaleString()} /{" "}
+                                  {ipv6PoolSize.toLocaleString()}
+                                </Typography>
+                              </Box>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
               </Box>
-            )}
-          </Box>
-        </Box>
-      )}
+
+              {/* IP Allocations */}
+              {(hasIpv4Pool || hasIpv6Pool) && (
+                <Box sx={{ mt: 3 }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      mb: 1.5,
+                    }}
+                  >
+                    <Typography variant="h6">IP Allocations</Typography>
+                    {canEdit && (
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<AddIcon />}
+                        onClick={() => setStaticModal({ mode: "create" })}
+                      >
+                        Add static IP
+                      </Button>
+                    )}
+                  </Box>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: {
+                        xs: "1fr",
+                        md: hasIpv4Pool && hasIpv6Pool ? "1fr 1fr" : "1fr",
+                      },
+                      gap: 2,
+                      alignItems: "start",
+                    }}
+                  >
+                    {hasIpv4Pool && (
+                      <Box>
+                        <Typography variant="subtitle1" sx={{ mb: 1 }}>
+                          {allocationRowCount === undefined
+                            ? "IPv4 Allocations"
+                            : `IPv4 Allocations (${allocationRowCount.toLocaleString()})`}
+                        </Typography>
+                        <QueryState
+                          query={allocationsQuery}
+                          resource="IPv4 allocations"
+                          loading={
+                            <Skeleton variant="rounded" height={GRID_HEIGHT} />
+                          }
+                          isEmpty={(data) => (data.total_count ?? 0) === 0}
+                          empty={
+                            <EmptyState
+                              primaryText="No IPv4 addresses yet"
+                              secondaryText="Addresses appear here once subscribers establish sessions on this pool."
+                            />
+                          }
+                        >
+                          {(data) => (
+                            <DataGrid<APIIPAllocation>
+                              rows={data.items ?? []}
+                              columns={allocationColumns}
+                              getRowId={(row) => row.address}
+                              paginationMode="server"
+                              rowCount={data.total_count ?? 0}
+                              paginationModel={allocPaginationModel}
+                              onPaginationModelChange={setAllocPaginationModel}
+                              pageSizeOptions={[10, 25]}
+                              disableColumnMenu
+                              disableRowSelectionOnClick
+                              density="compact"
+                              sx={{
+                                height: GRID_HEIGHT,
+                                border: 1,
+                                borderColor: "divider",
+                                "& .MuiDataGrid-cell": {
+                                  borderBottom: "1px solid",
+                                  borderColor: "divider",
+                                },
+                              }}
+                            />
+                          )}
+                        </QueryState>
+                      </Box>
+                    )}
+                    {hasIpv6Pool && (
+                      <Box>
+                        <Typography variant="subtitle1" sx={{ mb: 1 }}>
+                          {ipv6AllocationRowCount === undefined
+                            ? "IPv6 Allocations"
+                            : `IPv6 Allocations (${ipv6AllocationRowCount.toLocaleString()})`}
+                        </Typography>
+                        <QueryState
+                          query={ipv6AllocationsQuery}
+                          resource="IPv6 allocations"
+                          loading={
+                            <Skeleton variant="rounded" height={GRID_HEIGHT} />
+                          }
+                          isEmpty={(data) => (data.total_count ?? 0) === 0}
+                          empty={
+                            <EmptyState
+                              primaryText="No IPv6 prefixes yet"
+                              secondaryText="Prefixes appear here once subscribers establish sessions on this pool."
+                            />
+                          }
+                        >
+                          {(data) => (
+                            <DataGrid<APIIPAllocation>
+                              rows={data.items ?? []}
+                              columns={ipv6AllocationColumns}
+                              getRowId={(row) => row.address}
+                              paginationMode="server"
+                              rowCount={data.total_count ?? 0}
+                              paginationModel={ipv6AllocPaginationModel}
+                              onPaginationModelChange={
+                                setIpv6AllocPaginationModel
+                              }
+                              pageSizeOptions={[10, 25]}
+                              disableColumnMenu
+                              disableRowSelectionOnClick
+                              density="compact"
+                              sx={{
+                                height: GRID_HEIGHT,
+                                border: 1,
+                                borderColor: "divider",
+                                "& .MuiDataGrid-cell": {
+                                  borderBottom: "1px solid",
+                                  borderColor: "divider",
+                                },
+                              }}
+                            />
+                          )}
+                        </QueryState>
+                      </Box>
+                    )}
+                  </Box>
+                </Box>
+              )}
+
+              {isEditModalOpen && (
+                <EditDataNetworkModal
+                  open
+                  onClose={() => setEditModalOpen(false)}
+                  onSuccess={() => {
+                    dataNetworkQuery.refetch();
+                    showSnackbar(
+                      "Data network updated successfully.",
+                      "success",
+                    );
+                  }}
+                  initialData={dataNetwork}
+                />
+              )}
+              {staticModal && (
+                <CreateStaticIpModal
+                  open
+                  onClose={() => setStaticModal(null)}
+                  onSuccess={() => {
+                    invalidateStaticIps();
+                    showSnackbar(
+                      staticModal.mode === "edit"
+                        ? "Static IP updated successfully."
+                        : "Static IP created successfully.",
+                      "success",
+                    );
+                  }}
+                  dataNetwork={name!}
+                  ipv4Pool={dataNetwork.ipv4_pool}
+                  ipv6Pool={dataNetwork.ipv6_pool}
+                  edit={
+                    staticModal.mode === "edit"
+                      ? {
+                          imsi: staticModal.imsi,
+                          ipVersion: staticModal.ipVersion,
+                          address: staticModal.address,
+                        }
+                      : undefined
+                  }
+                />
+              )}
+            </>
+          );
+        }}
+      </QueryState>
 
       {/* Framed Routes */}
       <Box sx={{ mt: 4 }}>
@@ -971,78 +1006,73 @@ const DataNetworkDetail: React.FC = () => {
             Disable NAT to add and forward framed routes.
           </Alert>
         )}
-        {framedRoutes.length === 0 ? (
-          <TableContainer sx={tableContainerSx}>
-            <Box sx={{ p: 3, textAlign: "center" }}>
-              <Typography variant="body2" color="textSecondary">
-                No framed routes are configured for this data network.
-              </Typography>
-            </Box>
-          </TableContainer>
-        ) : (
-          <TableContainer sx={tableContainerSx}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Subscriber (IMSI)</TableCell>
-                  <TableCell>IPv4 prefixes</TableCell>
-                  <TableCell>IPv6 prefixes</TableCell>
-                  {canEdit && <TableCell align="right">Actions</TableCell>}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {framedRoutes.map((fr) => (
-                  <TableRow key={fr.imsi}>
-                    <TableCell sx={{ fontFamily: "monospace" }}>
-                      {fr.imsi}
-                    </TableCell>
-                    <TableCell>{renderPrefixChips(fr.ipv4)}</TableCell>
-                    <TableCell>{renderPrefixChips(fr.ipv6)}</TableCell>
-                    {canEdit && (
-                      <TableCell align="right">
-                        <IconButton
-                          size="small"
-                          aria-label="Edit framed routes"
-                          onClick={() =>
-                            setFramedModal({
-                              mode: "edit",
-                              imsi: fr.imsi,
-                              ipv4: fr.ipv4 ?? [],
-                              ipv6: fr.ipv6 ?? [],
-                            })
-                          }
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          aria-label="Delete framed routes"
-                          onClick={() => setDeleteFramed({ imsi: fr.imsi })}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </TableCell>
-                    )}
+        <QueryState
+          query={framedRoutesQuery}
+          resource="framed routes"
+          isEmpty={(data) => data.length === 0}
+          empty={
+            <EmptyState
+              primaryText="No framed routes yet"
+              secondaryText={
+                canEdit
+                  ? "Add a framed route to forward subscriber prefixes."
+                  : "Ask an administrator to add a framed route."
+              }
+            />
+          }
+        >
+          {(framedRoutes) => (
+            <TableContainer sx={tableContainerSx}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Subscriber (IMSI)</TableCell>
+                    <TableCell>IPv4 prefixes</TableCell>
+                    <TableCell>IPv6 prefixes</TableCell>
+                    {canEdit && <TableCell align="right">Actions</TableCell>}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
+                </TableHead>
+                <TableBody>
+                  {framedRoutes.map((fr) => (
+                    <TableRow key={fr.imsi}>
+                      <TableCell>{fr.imsi}</TableCell>
+                      <TableCell>{renderPrefixChips(fr.ipv4)}</TableCell>
+                      <TableCell>{renderPrefixChips(fr.ipv6)}</TableCell>
+                      {canEdit && (
+                        <TableCell align="right">
+                          <IconButton
+                            size="small"
+                            aria-label="Edit framed routes"
+                            onClick={() =>
+                              setFramedModal({
+                                mode: "edit",
+                                imsi: fr.imsi,
+                                ipv4: fr.ipv4 ?? [],
+                                ipv6: fr.ipv6 ?? [],
+                              })
+                            }
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            aria-label="Delete framed routes"
+                            onClick={() => setDeleteFramed({ imsi: fr.imsi })}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </QueryState>
       </Box>
 
       {/* Modals */}
-      {isEditModalOpen && (
-        <EditDataNetworkModal
-          open
-          onClose={() => setEditModalOpen(false)}
-          onSuccess={() => {
-            refetch();
-            showSnackbar("Data network updated successfully.", "success");
-          }}
-          initialData={dataNetwork}
-        />
-      )}
       {isDeleteConfirmOpen && (
         <DeleteConfirmationModal
           open
@@ -1050,33 +1080,6 @@ const DataNetworkDetail: React.FC = () => {
           onConfirm={handleDeleteConfirm}
           title="Confirm Deletion"
           description={`Are you sure you want to delete the data network "${name}"? This action cannot be undone.`}
-        />
-      )}
-      {staticModal && (
-        <CreateStaticIpModal
-          open
-          onClose={() => setStaticModal(null)}
-          onSuccess={() => {
-            invalidateStaticIps();
-            showSnackbar(
-              staticModal.mode === "edit"
-                ? "Static IP updated successfully."
-                : "Static IP created successfully.",
-              "success",
-            );
-          }}
-          dataNetwork={name!}
-          ipv4Pool={dataNetwork.ipv4_pool}
-          ipv6Pool={dataNetwork.ipv6_pool}
-          edit={
-            staticModal.mode === "edit"
-              ? {
-                  imsi: staticModal.imsi,
-                  ipVersion: staticModal.ipVersion,
-                  address: staticModal.address,
-                }
-              : undefined
-          }
         />
       )}
       {deleteStatic && (

@@ -4,9 +4,34 @@
 package server
 
 import (
+	"fmt"
+	"net/http"
+	"strconv"
 	"sync"
 	"time"
+
+	"github.com/ellanetworks/core/internal/logger"
 )
+
+// rateLimit wraps next with a per-IP limiter, responding 429 with Retry-After
+// when the caller exceeds the limiter's window. The client IP is taken from the
+// direct connection (getClientIP), which is not attacker-spoofable on a
+// directly-reachable appliance.
+func rateLimit(limiter *ipRateLimiter, next http.Handler) http.Handler {
+	retryAfter := strconv.Itoa(int(limiter.window.Seconds()))
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		clientIP := getClientIP(r)
+		if !limiter.allow(clientIP) {
+			w.Header().Set("Retry-After", retryAfter)
+			writeError(r.Context(), w, http.StatusTooManyRequests, "Too many requests. Please try again later.", fmt.Errorf("rate limit exceeded for IP %s", clientIP), logger.APILog)
+
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
 
 // ipRateLimiter tracks per-IP request counts within a sliding window.
 // It is safe for concurrent use.

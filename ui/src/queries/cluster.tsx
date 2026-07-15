@@ -3,7 +3,7 @@
 
 import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
-export type DrainState = "active" | "draining" | "drained";
+export type DrainState = "active" | "drained";
 
 export type ClusterMember = {
   nodeId: number;
@@ -32,10 +32,6 @@ export type AutopilotState = {
   leaderNodeId: number;
   voters: number[];
   servers: AutopilotServer[];
-};
-
-export type DrainOptions = {
-  deadlineSeconds?: number;
 };
 
 export type DrainResponse = {
@@ -73,12 +69,10 @@ export async function promoteClusterMember(
 export async function drainClusterMember(
   authToken: string,
   nodeId: number,
-  opts: DrainOptions = {},
 ): Promise<DrainResponse> {
   return apiFetch<DrainResponse>(`/api/v1/cluster/members/${nodeId}/drain`, {
     method: "POST",
     authToken,
-    body: opts,
   });
 }
 

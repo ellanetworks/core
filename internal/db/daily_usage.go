@@ -54,7 +54,8 @@ WHERE
 		AND epoch_day <= $UsageFilters.end_date
 		AND ($UsageFilters.imsi IS NULL OR imsi = $UsageFilters.imsi)
 GROUP BY imsi
-ORDER BY COALESCE(SUM(bytes_uplink), 0) + COALESCE(SUM(bytes_downlink), 0) DESC`
+ORDER BY COALESCE(SUM(bytes_uplink), 0) + COALESCE(SUM(bytes_downlink), 0) DESC
+LIMIT $UsageFilters.limit`
 )
 
 type UsagePerDay struct {
@@ -80,7 +81,11 @@ type UsageFilters struct {
 	IMSI      *string `db:"imsi"` // exact match
 	StartDate int64   `db:"start_date"`
 	EndDate   int64   `db:"end_date"`
+	Limit     int64   `db:"limit"` // SQLite treats a negative limit as unbounded
 }
+
+// NoUsageLimit returns every matching row.
+const NoUsageLimit int64 = -1
 
 func DaysSinceEpoch(t time.Time) int64 {
 	t = t.UTC()
@@ -149,6 +154,7 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate t
 	dailyUsageFilters := UsageFilters{
 		StartDate: DaysSinceEpoch(startDate),
 		EndDate:   DaysSinceEpoch(endDate),
+		Limit:     NoUsageLimit,
 	}
 
 	if imsi != "" {
@@ -175,7 +181,7 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate t
 	return dailyUsage, nil
 }
 
-func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, startDate time.Time, endDate time.Time) ([]UsagePerSub, error) {
+func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, startDate time.Time, endDate time.Time, limit int64) ([]UsagePerSub, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "SELECT", DailyUsageTableName),
@@ -196,6 +202,7 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, star
 	dailyUsageFilters := UsageFilters{
 		StartDate: DaysSinceEpoch(startDate),
 		EndDate:   DaysSinceEpoch(endDate),
+		Limit:     limit,
 	}
 
 	if imsi != "" {

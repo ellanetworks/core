@@ -7,6 +7,61 @@ export function setOnUnauthorized(cb: (() => void) | null) {
   onUnauthorized = cb;
 }
 
+export type ApiErrorKind = "network" | "auth" | "forbidden" | "http";
+
+/**
+ * Carries the failure shape the UI needs to choose a state, so callers never
+ * have to parse a message string to tell "unreachable" from "500" from "403".
+ *
+ * `message` is the human-readable primary line; `detail` is the technical line
+ * for progressive disclosure.
+ */
+export class ApiError extends Error {
+  readonly kind: ApiErrorKind;
+  readonly status?: number;
+  readonly detail?: string;
+
+  constructor(
+    kind: ApiErrorKind,
+    message: string,
+    options: { status?: number; detail?: string } = {},
+  ) {
+    super(message);
+    this.name = "ApiError";
+    this.kind = kind;
+    this.status = options.status;
+    this.detail = options.detail;
+    Object.setPrototypeOf(this, ApiError.prototype);
+  }
+
+  get retryable(): boolean {
+    if (this.kind === "network") return true;
+    return this.status !== undefined && this.status >= 500;
+  }
+}
+
+const toApiError = (status: number, backendMessage?: string): ApiError => {
+  const detail = `HTTP ${status} ${HTTPStatus(status)}`;
+  if (status === 401) {
+    return new ApiError(
+      "auth",
+      backendMessage || "Your session has expired. Please log in again.",
+      { status, detail },
+    );
+  }
+  if (status === 403) {
+    return new ApiError(
+      "forbidden",
+      backendMessage || "You do not have permission to perform this action.",
+      { status, detail },
+    );
+  }
+  return new ApiError("http", backendMessage || HTTPStatus(status), {
+    status,
+    detail,
+  });
+};
+
 export const HTTPStatus = (code: number): string => {
   const map: { [key: number]: string } = {
     400: "Bad Request",
@@ -58,11 +113,17 @@ export async function apiFetch<T = unknown>(
     init.credentials = credentials;
   }
 
-  const response = await fetch(url, init);
+  let response: Response;
+  try {
+    response = await fetch(url, init);
+  } catch {
+    throw new ApiError("network", "Cannot reach the server.", {
+      detail: `Network request to ${url} failed`,
+    });
+  }
 
   if (response.status === 401) {
     onUnauthorized?.();
-    throw new Error("Session expired. Please log in again.");
   }
 
   let respData: { result?: T; error?: string } | undefined;
@@ -70,18 +131,14 @@ export async function apiFetch<T = unknown>(
     respData = await response.json();
   } catch {
     if (!response.ok) {
-      throw new Error(
-        `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-      );
+      throw toApiError(response.status, response.statusText || undefined);
     }
     // If response is ok but JSON parsing fails, treat as success with empty result
     return undefined as T;
   }
 
   if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
+    throw toApiError(response.status, respData?.error);
   }
 
   return respData!.result as T;
@@ -112,11 +169,17 @@ export async function apiFetchVoid(
     init.credentials = credentials;
   }
 
-  const response = await fetch(url, init);
+  let response: Response;
+  try {
+    response = await fetch(url, init);
+  } catch {
+    throw new ApiError("network", "Cannot reach the server.", {
+      detail: `Network request to ${url} failed`,
+    });
+  }
 
   if (response.status === 401) {
     onUnauthorized?.();
-    throw new Error("Session expired. Please log in again.");
   }
 
   if (!response.ok) {
@@ -124,13 +187,9 @@ export async function apiFetchVoid(
     try {
       respData = await response.json();
     } catch {
-      throw new Error(
-        `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-      );
+      throw toApiError(response.status, response.statusText || undefined);
     }
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
+    throw toApiError(response.status, respData?.error);
   }
   // Success - response.ok is true, so we don't check the body
 }

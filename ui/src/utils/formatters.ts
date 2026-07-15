@@ -7,12 +7,16 @@
 
 export type DataUnit = "B" | "KB" | "MB" | "GB" | "TB";
 
+/**
+ * Data volumes are decimal, matching the bitrate units the core itself uses:
+ * the SMF encodes "200 Mbps" as 200,000 Kbps (internal/smf/helpers.go).
+ */
 export const UNIT_FACTORS: Record<DataUnit, number> = {
   B: 1,
-  KB: 1024,
-  MB: 1024 ** 2,
-  GB: 1024 ** 3,
-  TB: 1024 ** 4,
+  KB: 1000,
+  MB: 1000 ** 2,
+  GB: 1000 ** 3,
+  TB: 1000 ** 4,
 };
 
 export const chooseUnitFromMax = (maxBytes: number): DataUnit => {
@@ -35,6 +39,35 @@ export const formatBytesAutoUnit = (bytes: number): string => {
   if (!Number.isFinite(bytes)) return "";
   const unit = chooseUnitFromMax(Math.abs(bytes));
   return formatBytesWithUnit(bytes, unit);
+};
+
+const MEMORY_UNITS = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
+
+/**
+ * Memory and on-disk sizes are binary quantities, so they keep the 1024 base
+ * and carry IEC units. Data volumes use `formatBytesAutoUnit` instead.
+ */
+export const formatMemory = (value: number | null | undefined): string => {
+  if (value == null || !Number.isFinite(value)) return "N/A";
+
+  const base = 1024;
+
+  let i = 0;
+  let n = Math.abs(value);
+
+  while (n >= base && i < MEMORY_UNITS.length - 1) {
+    n /= base;
+    i++;
+  }
+
+  const numFmt = new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+
+  const sign = value < 0 ? "-" : "";
+
+  return `${sign}${numFmt.format(n)} ${MEMORY_UNITS[i]}`;
 };
 
 // ──────────────────────────────────────────────────────
@@ -196,7 +229,7 @@ export const PROTOCOL_CHIP_COLORS: Record<number, string> = {
   6: "#2196F3", // TCP  — blue
   17: "#4CAF50", // UDP  — green
   1: "#FF9800", // ICMP — orange
-  58: "#E91E63", // IPv6-ICMP — pink
+  58: "#C2185B", // IPv6-ICMP — pink
   47: "#9C27B0", // GRE  — purple
   132: "#00BCD4", // SCTP — cyan
 };
@@ -204,6 +237,24 @@ export const PROTOCOL_CHIP_COLORS: Record<number, string> = {
 // ──────────────────────────────────────────────────────
 // Date / time formatting
 // ──────────────────────────────────────────────────────
+
+/**
+ * Date without a time, for values that are a day rather than a moment
+ * (e.g. an expiry). Always carries the year, since expiries are read against
+ * dates far from today. Example: "Jul 14, 2026".
+ */
+export const formatDate = (value: string): string => {
+  if (!value) return "";
+
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
 
 /**
  * Human-readable date-time format used across the UI.
@@ -266,12 +317,12 @@ export const PIE_COLORS = [
   "#2196F3",
   "#4CAF50",
   "#FF9800",
-  "#E91E63",
+  "#C2185B",
   "#9C27B0",
   "#00BCD4",
   "#FF5722",
   "#795548",
-  "#607D8B",
+  "#546E7A",
   "#8BC34A",
   "#3F51B5",
   "#CDDC39",

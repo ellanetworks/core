@@ -40,12 +40,7 @@ import {
 } from "@/queries/bgp";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  ipRegex,
-  cidrRegex,
-  isValidCidr,
-  getMaxPrefixLength,
-} from "@/utils/ip";
+import { ipRegex, isValidCidr, getMaxPrefixLength } from "@/utils/ip";
 import { detectPreset, type ImportPreset } from "@/utils/bgp";
 
 const schema = yup.object().shape({
@@ -533,9 +528,7 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
                   <TableBody>
                     {rejectedPrefixes.map((rp) => (
                       <TableRow key={rp.prefix} sx={{ opacity: 0.7 }}>
-                        <TableCell sx={{ fontFamily: "monospace" }}>
-                          {rp.prefix}
-                        </TableCell>
+                        <TableCell>{rp.prefix}</TableCell>
                         <TableCell>{rp.description}</TableCell>
                       </TableRow>
                     ))}

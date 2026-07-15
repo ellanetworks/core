@@ -29,12 +29,7 @@ import SouthIcon from "@mui/icons-material/South";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CloseIcon from "@mui/icons-material/Close";
 import { useSnackbar } from "@/contexts/SnackbarContext";
-import {
-  useTheme,
-  createTheme,
-  ThemeProvider,
-  alpha,
-} from "@mui/material/styles";
+import { useTheme, alpha } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import {
   DataGrid,
@@ -82,11 +77,9 @@ import {
   type DataUnit,
   UNIT_FACTORS,
   chooseUnitFromMax,
-  formatBytesWithUnit,
   formatBytesAutoUnit,
   formatProtocol,
   formatDateTime,
-  PROTOCOL_NAMES,
   UPLINK_COLOR,
   DOWNLINK_COLOR,
   PIE_COLORS,
@@ -130,7 +123,6 @@ const renderSubscriberLink = (params: any) => {
         <Typography
           variant="body2"
           sx={{
-            fontFamily: "monospace",
             color: (t) => t.palette.link,
             textDecoration: "underline",
             "&:hover": { textDecoration: "underline" },
@@ -216,14 +208,6 @@ const Traffic: React.FC = () => {
       navigate(newValue);
     },
     [navigate],
-  );
-
-  const gridTheme = useMemo(
-    () =>
-      createTheme(theme, {
-        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
-      }),
-    [theme],
   );
 
   // ── Shared state ────────────────────────────────────
@@ -493,7 +477,7 @@ const Traffic: React.FC = () => {
       },
       {
         field: "downlink_bytes",
-        headerName: "Downlink (bytes)",
+        headerName: "Downlink",
         flex: 1,
         minWidth: 120,
         type: "number",
@@ -502,7 +486,7 @@ const Traffic: React.FC = () => {
       },
       {
         field: "uplink_bytes",
-        headerName: "Uplink (bytes)",
+        headerName: "Uplink",
         flex: 1,
         minWidth: 120,
         type: "number",
@@ -511,7 +495,7 @@ const Traffic: React.FC = () => {
       },
       {
         field: "total_bytes",
-        headerName: "Total (bytes)",
+        headerName: "Total",
         flex: 1,
         minWidth: 120,
         type: "number",
@@ -701,7 +685,7 @@ const Traffic: React.FC = () => {
                 size="small"
                 sx={{
                   backgroundColor: bg,
-                  color: "#fff",
+                  color: theme.palette.getContrastText(bg),
                   fontWeight: 600,
                   fontSize: "0.75rem",
                   height: 22,
@@ -722,7 +706,7 @@ const Traffic: React.FC = () => {
       },
       {
         field: "bytes",
-        headerName: "Bytes",
+        headerName: "Volume",
         type: "number",
         flex: 0.5,
         minWidth: 80,
@@ -766,7 +750,7 @@ const Traffic: React.FC = () => {
         },
       },
     ],
-    [theme, protocolColorMap],
+    [protocolColorMap, theme.palette],
   );
 
   // ── Protocol distribution (donut chart) ─────────────
@@ -1084,20 +1068,18 @@ const Traffic: React.FC = () => {
               </Box>
 
               {/* Usage table */}
-              <ThemeProvider theme={gridTheme}>
-                <DataGrid<UsageRow>
-                  rows={usageRows}
-                  columns={usageColumns}
-                  getRowId={(row) => row.id}
-                  paginationModel={usagePaginationModel}
-                  onPaginationModelChange={setUsagePaginationModel}
-                  pageSizeOptions={[10, 25, 50, 100]}
-                  disableColumnMenu
-                  disableRowSelectionOnClick
-                  columnVisibilityModel={{ subscriber: !isSmDown }}
-                  sx={gridSx}
-                />
-              </ThemeProvider>
+              <DataGrid<UsageRow>
+                rows={usageRows}
+                columns={usageColumns}
+                getRowId={(row) => row.id}
+                paginationModel={usagePaginationModel}
+                onPaginationModelChange={setUsagePaginationModel}
+                pageSizeOptions={[10, 25, 50, 100]}
+                disableColumnMenu
+                disableRowSelectionOnClick
+                columnVisibilityModel={{ subscriber: !isSmDown }}
+                sx={gridSx}
+              />
             </Box>
           )}
 
@@ -1370,27 +1352,25 @@ const Traffic: React.FC = () => {
                   button={false}
                 />
               ) : (
-                <ThemeProvider theme={gridTheme}>
-                  <DataGrid<FlowReport>
-                    rows={flowRows}
-                    columns={flowColumns}
-                    getRowId={(row) => row.id}
-                    getRowClassName={(params: GridRowParams<FlowReport>) =>
-                      params.row.action === "drop" ? "flow-row-dropped" : ""
-                    }
-                    paginationMode="server"
-                    rowCount={flowRowCount}
-                    paginationModel={flowPaginationModel}
-                    onPaginationModelChange={setFlowPaginationModel}
-                    disableColumnSorting
-                    disableColumnMenu
-                    disableRowSelectionOnClick
-                    pageSizeOptions={[10, 25, 50, 100]}
-                    density="compact"
-                    columnVisibilityModel={{}}
-                    sx={gridSx}
-                  />
-                </ThemeProvider>
+                <DataGrid<FlowReport>
+                  rows={flowRows}
+                  columns={flowColumns}
+                  getRowId={(row) => row.id}
+                  getRowClassName={(params: GridRowParams<FlowReport>) =>
+                    params.row.action === "drop" ? "flow-row-dropped" : ""
+                  }
+                  paginationMode="server"
+                  rowCount={flowRowCount}
+                  paginationModel={flowPaginationModel}
+                  onPaginationModelChange={setFlowPaginationModel}
+                  disableColumnSorting
+                  disableColumnMenu
+                  disableRowSelectionOnClick
+                  pageSizeOptions={[10, 25, 50, 100]}
+                  density="compact"
+                  columnVisibilityModel={{}}
+                  sx={gridSx}
+                />
               )}
             </Box>
           )}

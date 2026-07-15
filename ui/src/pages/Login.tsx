@@ -64,7 +64,7 @@ const LoginPage = () => {
         setCheckingInitialization(false);
       }
     })();
-  }, [navigate]);
+  }, [navigate, showSnackbar]);
 
   const validateField = async (field: string, value: string) => {
     try {
@@ -109,7 +109,7 @@ const LoginPage = () => {
         setCheckingAuth(false);
       }
     })();
-  }, [checkingInitialization, navigate]);
+  }, [checkingInitialization, navigate, redirectTo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

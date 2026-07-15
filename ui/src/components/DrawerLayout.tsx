@@ -97,7 +97,6 @@ export default function DrawerLayout({
 
   const [supportOpen, setSupportOpen] = useState(false);
 
-  const openSupport = () => setSupportOpen(true);
   const closeSupport = () => setSupportOpen(false);
 
   const [mobileOpen, setMobileOpen] = useState(false);

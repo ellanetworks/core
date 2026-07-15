@@ -3,7 +3,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Box, Typography, Button, CircularProgress } from "@mui/material";
+import { Box, Typography, Button } from "@mui/material";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import {
   DataGrid,
@@ -19,7 +19,8 @@ import {
 } from "@/queries/users";
 import CreateUserModal from "@/components/CreateUserModal";
 import EmptyState from "@/components/EmptyState";
-import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
+import QueryState from "@/components/QueryState";
+import { useTheme } from "@mui/material/styles";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
@@ -27,14 +28,6 @@ import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 const UserPage: React.FC = () => {
   const { accessToken, authReady } = useAuth();
   const theme = useTheme();
-
-  const gridTheme = useMemo(
-    () =>
-      createTheme(theme, {
-        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
-      }),
-    [theme],
-  );
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -46,7 +39,7 @@ const UserPage: React.FC = () => {
 
   const queryClient = useQueryClient();
   const pageOneBased = paginationModel.page + 1;
-  const { data: usersData, isLoading: loading } = useQuery<ListUsersResponse>({
+  const usersQuery = useQuery<ListUsersResponse>({
     queryKey: ["users", pageOneBased, paginationModel.pageSize],
     queryFn: () =>
       listUsers(accessToken || "", pageOneBased, paginationModel.pageSize),
@@ -54,8 +47,7 @@ const UserPage: React.FC = () => {
     placeholderData: (prev) => prev,
   });
 
-  const rows: APIUser[] = usersData?.items ?? [];
-  const rowCount = usersData?.total_count ?? 0;
+  const knownCount = usersQuery.data?.total_count;
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
 
@@ -102,95 +94,77 @@ const UserPage: React.FC = () => {
         valueGetter: (_v, row) => roleIDToLabel(row.role_id),
       },
     ],
-    [],
+    [theme.palette.link],
   );
 
   const descriptionText =
     "Manage user accounts. Users can have different roles with varying levels of access to the Ella Core UI and API.";
 
-  const showEmpty = !loading && rowCount === 0 && (rows?.length ?? 0) === 0;
-
   return (
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      {loading && rowCount === 0 ? (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
-          <CircularProgress />
-        </Box>
-      ) : showEmpty ? (
-        <EmptyState
-          primaryText="No user found."
-          secondaryText="Create a new user."
-          extraContent={
-            <Typography variant="body1" color="textSecondary">
-              {descriptionText}
-            </Typography>
-          }
-          button
-          buttonText="Create"
-          onCreate={handleOpenCreateModal}
-        />
-      ) : (
-        <>
-          <Box
+      <Box sx={{ mb: 3, display: "flex", flexDirection: "column", gap: 2 }}>
+        <Typography variant="h4" component="h1">
+          {knownCount === undefined ? "Users" : `Users (${knownCount})`}
+        </Typography>
+        <Typography variant="body1" color="textSecondary">
+          {descriptionText}
+        </Typography>
+        <Button
+          variant="contained"
+          color="success"
+          onClick={handleOpenCreateModal}
+          sx={{ maxWidth: 200 }}
+        >
+          Create
+        </Button>
+      </Box>
+
+      <QueryState
+        query={usersQuery}
+        resource="users"
+        isEmpty={(data) => (data.total_count ?? 0) === 0}
+        empty={
+          <EmptyState
+            primaryText="No users yet"
+            secondaryText="Create a user to get started."
+          />
+        }
+      >
+        {(data) => (
+          <DataGrid<APIUser>
+            rows={data.items ?? []}
+            columns={columns}
+            getRowId={(row) => row.email}
+            paginationMode="server"
+            rowCount={data.total_count ?? 0}
+            paginationModel={paginationModel}
+            onPaginationModelChange={setPaginationModel}
+            pageSizeOptions={[10, 25, 50, 100]}
+            sortingMode="server"
+            disableColumnMenu
+            disableRowSelectionOnClick
             sx={{
-              mb: 3,
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-            }}
-          >
-            <Typography variant="h4">Users ({rowCount})</Typography>
-
-            <Typography variant="body1" color="textSecondary">
-              {descriptionText}
-            </Typography>
-
-            <Button
-              variant="contained"
-              color="success"
-              onClick={handleOpenCreateModal}
-              sx={{ maxWidth: 200 }}
-            >
-              Create
-            </Button>
-          </Box>
-
-          <ThemeProvider theme={gridTheme}>
-            <DataGrid<APIUser>
-              rows={rows}
-              columns={columns}
-              getRowId={(row) => row.email}
-              paginationMode="server"
-              rowCount={rowCount}
-              paginationModel={paginationModel}
-              onPaginationModelChange={setPaginationModel}
-              pageSizeOptions={[10, 25, 50, 100]}
-              sortingMode="server"
-              disableColumnMenu
-              disableRowSelectionOnClick
-              sx={{
-                width: "100%",
-                border: 1,
+              width: "100%",
+              border: 1,
+              borderColor: "divider",
+              "& .MuiDataGrid-cell": {
+                borderBottom: "1px solid",
                 borderColor: "divider",
-                "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-columnHeaders": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-footerContainer": {
-                  borderTop: "1px solid",
-                  borderColor: "divider",
-                },
-              }}
-            />
-          </ThemeProvider>
-        </>
-      )}
+              },
+              "& .MuiDataGrid-columnHeaders": {
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              },
+              "& .MuiDataGrid-footerContainer": {
+                borderTop: "1px solid",
+                borderColor: "divider",
+              },
+            }}
+          />
+        )}
+      </QueryState>
 
       {isCreateModalOpen && (
         <CreateUserModal

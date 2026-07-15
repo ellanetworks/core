@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useMemo, useState } from "react";
-import { Box, Typography, Button, CircularProgress } from "@mui/material";
+import { Box, Typography, Button } from "@mui/material";
 import AccessChip from "@/components/AccessChip";
 import { useSnackbar } from "@/contexts/SnackbarContext";
-import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
+import { useTheme } from "@mui/material/styles";
 import {
   DataGrid,
   type GridColDef,
@@ -20,6 +20,7 @@ import {
 } from "@/queries/profiles";
 import CreateProfileModal from "@/components/CreateProfileModal";
 import EmptyState from "@/components/EmptyState";
+import QueryState from "@/components/QueryState";
 import { useAuth } from "@/contexts/AuthContext";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { Link } from "react-router-dom";
@@ -29,14 +30,6 @@ const ProfilesPage: React.FC = () => {
   const canEdit = role === "Admin" || role === "Network Manager";
 
   const theme = useTheme();
-  const gridTheme = useMemo(
-    () =>
-      createTheme(theme, {
-        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
-      }),
-    [theme],
-  );
-
   const [pagination, setPagination] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 25,
@@ -44,15 +37,13 @@ const ProfilesPage: React.FC = () => {
 
   const queryClient = useQueryClient();
   const pageOneBased = pagination.page + 1;
-  const { data: pageData, isLoading: loading } = useQuery<ListProfilesResponse>(
-    {
-      queryKey: ["profiles", pageOneBased, pagination.pageSize],
-      queryFn: () =>
-        listProfiles(accessToken || "", pageOneBased, pagination.pageSize),
-      enabled: authReady && !!accessToken,
-      placeholderData: (prev) => prev,
-    },
-  );
+  const profilesQuery = useQuery<ListProfilesResponse>({
+    queryKey: ["profiles", pageOneBased, pagination.pageSize],
+    queryFn: () =>
+      listProfiles(accessToken || "", pageOneBased, pagination.pageSize),
+    enabled: authReady && !!accessToken,
+    placeholderData: (prev) => prev,
+  });
 
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const { showSnackbar } = useSnackbar();
@@ -60,8 +51,7 @@ const ProfilesPage: React.FC = () => {
   const descriptionText =
     "Profiles define subscriber-level bitrate limits and group the QoS policies applied to their sessions.";
 
-  const rows: APIProfile[] = pageData?.items ?? [];
-  const rowCount = pageData?.total_count ?? 0;
+  const knownCount = profilesQuery.data?.total_count;
 
   const columns: GridColDef<APIProfile>[] = useMemo(() => {
     return [
@@ -142,85 +132,72 @@ const ProfilesPage: React.FC = () => {
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      {loading && rowCount === 0 ? (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
-          <CircularProgress />
-        </Box>
-      ) : rowCount === 0 ? (
-        <EmptyState
-          primaryText="No profile found."
-          secondaryText="Create a new profile to define subscriber-level bitrate limits and QoS policies."
-          extraContent={
-            <Typography variant="body1" color="textSecondary">
-              {descriptionText}
-            </Typography>
-          }
-          button={canEdit}
-          buttonText="Create"
-          onCreate={() => setCreateModalOpen(true)}
-          readOnlyHint="Ask an administrator to create a profile."
-        />
-      ) : (
-        <>
-          <Box
-            sx={{
-              mb: 3,
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-            }}
+      <Box sx={{ mb: 3, display: "flex", flexDirection: "column", gap: 2 }}>
+        <Typography variant="h4" component="h1">
+          {knownCount === undefined ? "Profiles" : `Profiles (${knownCount})`}
+        </Typography>
+        <Typography variant="body1" color="textSecondary">
+          {descriptionText}
+        </Typography>
+        {canEdit && (
+          <Button
+            variant="contained"
+            color="success"
+            onClick={() => setCreateModalOpen(true)}
+            sx={{ maxWidth: 200 }}
           >
-            <Typography variant="h4">Profiles ({rowCount})</Typography>
+            Create
+          </Button>
+        )}
+      </Box>
 
-            <Typography variant="body1" color="textSecondary">
-              {descriptionText}
-            </Typography>
-
-            {canEdit && (
-              <Button
-                variant="contained"
-                color="success"
-                onClick={() => setCreateModalOpen(true)}
-                sx={{ maxWidth: 200 }}
-              >
-                Create
-              </Button>
-            )}
-          </Box>
-
-          <ThemeProvider theme={gridTheme}>
-            <DataGrid<APIProfile>
-              rows={rows}
-              columns={columns}
-              getRowId={(row) => row.name}
-              paginationMode="server"
-              rowCount={rowCount}
-              paginationModel={pagination}
-              onPaginationModelChange={setPagination}
-              pageSizeOptions={[10, 25, 50, 100]}
-              disableRowSelectionOnClick
-              disableColumnMenu
-              sx={{
-                width: "100%",
-                border: 1,
+      <QueryState
+        query={profilesQuery}
+        resource="profiles"
+        isEmpty={(data) => (data.total_count ?? 0) === 0}
+        empty={
+          <EmptyState
+            primaryText="No profiles yet"
+            secondaryText={
+              canEdit
+                ? "Create a profile to get started."
+                : "Ask an administrator to create a profile."
+            }
+          />
+        }
+      >
+        {(data) => (
+          <DataGrid<APIProfile>
+            rows={data.items ?? []}
+            columns={columns}
+            getRowId={(row) => row.name}
+            paginationMode="server"
+            rowCount={data.total_count ?? 0}
+            paginationModel={pagination}
+            onPaginationModelChange={setPagination}
+            pageSizeOptions={[10, 25, 50, 100]}
+            disableRowSelectionOnClick
+            disableColumnMenu
+            sx={{
+              width: "100%",
+              border: 1,
+              borderColor: "divider",
+              "& .MuiDataGrid-cell": {
+                borderBottom: "1px solid",
                 borderColor: "divider",
-                "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-columnHeaders": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-footerContainer": {
-                  borderTop: "1px solid",
-                  borderColor: "divider",
-                },
-              }}
-            />
-          </ThemeProvider>
-        </>
-      )}
+              },
+              "& .MuiDataGrid-columnHeaders": {
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              },
+              "& .MuiDataGrid-footerContainer": {
+                borderTop: "1px solid",
+                borderColor: "divider",
+              },
+            }}
+          />
+        )}
+      </QueryState>
 
       {isCreateModalOpen && (
         <CreateProfileModal

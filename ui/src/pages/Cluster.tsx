@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -27,7 +27,6 @@ import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import DeleteIcon from "@mui/icons-material/Delete";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { getStatus, type APIStatus } from "@/queries/status";
@@ -47,6 +46,7 @@ import DrainNodeModal from "@/components/DrainNodeModal";
 import ResumeNodeModal from "@/components/ResumeNodeModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
+import { formatDateTime } from "@/utils/formatters";
 
 type JoinedRow = ClusterMember & {
   id: number;
@@ -75,18 +75,11 @@ const CenteredCell: React.FC<{ children: React.ReactNode }> = ({
 function drainStateChip(state: DrainState, updatedAt?: string) {
   if (state === "drained") {
     const title = updatedAt
-      ? `Drained at ${new Date(updatedAt).toLocaleString()}. Safe to remove.`
+      ? `Drained at ${formatDateTime(updatedAt)}. Safe to remove.`
       : "Node is drained; safe to remove.";
     return (
       <Tooltip title={title}>
         <Chip label="Drained" size="small" color="error" variant="outlined" />
-      </Tooltip>
-    );
-  }
-  if (state === "draining") {
-    return (
-      <Tooltip title="Drain in progress — waiting for local sessions to clear.">
-        <Chip label="Draining" size="small" color="warning" />
       </Tooltip>
     );
   }
@@ -135,7 +128,6 @@ const CopyableText: React.FC<{ value: string }> = ({ value }) => {
       <Typography
         variant="body2"
         sx={{
-          fontFamily: "monospace",
           overflow: "hidden",
           textOverflow: "ellipsis",
         }}
@@ -207,15 +199,6 @@ const ClusterPage: React.FC = () => {
   const { accessToken, authReady } = useAuth();
   const { showSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
-  const theme = useTheme();
-
-  const gridTheme = useMemo(
-    () =>
-      createTheme(theme, {
-        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
-      }),
-    [theme],
-  );
 
   const [isMintOpen, setMintOpen] = useState(false);
   const [drainTarget, setDrainTarget] = useState<ClusterMember | null>(null);
@@ -245,7 +228,7 @@ const ClusterPage: React.FC = () => {
     retry: false,
   });
 
-  const members = membersQuery.data ?? [];
+  const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data]);
   const autopilot = autopilotQuery.data;
 
   const rows: JoinedRow[] = useMemo(() => {
@@ -267,20 +250,23 @@ const ClusterPage: React.FC = () => {
     return versions.size > 1;
   }, [members]);
 
-  const handlePromote = async (m: ClusterMember) => {
-    if (!accessToken) return;
-    try {
-      await promoteClusterMember(accessToken, m.nodeId);
-      showSnackbar(`Node ${m.nodeId} promoted to voter.`, "success");
-      queryClient.invalidateQueries({ queryKey: ["cluster-members"] });
-      queryClient.invalidateQueries({ queryKey: ["cluster-autopilot"] });
-    } catch (err) {
-      showSnackbar(
-        `Failed to promote: ${err instanceof Error ? err.message : "unknown error"}`,
-        "error",
-      );
-    }
-  };
+  const handlePromote = useCallback(
+    async (m: ClusterMember) => {
+      if (!accessToken) return;
+      try {
+        await promoteClusterMember(accessToken, m.nodeId);
+        showSnackbar(`Node ${m.nodeId} promoted to voter.`, "success");
+        queryClient.invalidateQueries({ queryKey: ["cluster-members"] });
+        queryClient.invalidateQueries({ queryKey: ["cluster-autopilot"] });
+      } catch (err) {
+        showSnackbar(
+          `Failed to promote: ${err instanceof Error ? err.message : "unknown error"}`,
+          "error",
+        );
+      }
+    },
+    [accessToken, showSnackbar, queryClient],
+  );
 
   const handleRemoveConfirm = async () => {
     if (!accessToken || !removeTarget) return;
@@ -450,9 +436,7 @@ const ClusterPage: React.FC = () => {
 
           const drainTitle = canDrain
             ? "Drain this node: transfer leadership if leader, notify RANs, stop BGP."
-            : state === "draining"
-              ? "Node is already draining; use Resume to reverse."
-              : "Node is drained; use Resume to reverse or Remove to delete.";
+            : "Node is drained; use Resume to reverse or Remove to delete.";
 
           const resumeTitle = canResume
             ? "Resume: clear drain state and restart BGP. Does not reverse AMF Status Indication or reclaim leadership."
@@ -523,7 +507,7 @@ const ClusterPage: React.FC = () => {
         },
       } as GridColDef<JoinedRow>,
     ],
-    [versionsDiffer, selfNodeId, currentLeaderNodeId],
+    [versionsDiffer, selfNodeId, currentLeaderNodeId, handlePromote],
   );
 
   const statusLoaded = !statusQuery.isLoading;
@@ -596,29 +580,27 @@ const ClusterPage: React.FC = () => {
         versionsDiffer={versionsDiffer}
       />
 
-      <ThemeProvider theme={gridTheme}>
-        <DataGrid<JoinedRow>
-          rows={rows}
-          columns={columns}
-          disableColumnMenu
-          disableRowSelectionOnClick
-          autoHeight
-          hideFooter
-          sx={{
-            width: "100%",
-            border: 1,
+      <DataGrid<JoinedRow>
+        rows={rows}
+        columns={columns}
+        disableColumnMenu
+        disableRowSelectionOnClick
+        autoHeight
+        hideFooter
+        sx={{
+          width: "100%",
+          border: 1,
+          borderColor: "divider",
+          "& .MuiDataGrid-cell": {
+            borderBottom: "1px solid",
             borderColor: "divider",
-            "& .MuiDataGrid-cell": {
-              borderBottom: "1px solid",
-              borderColor: "divider",
-            },
-            "& .MuiDataGrid-columnHeaders": {
-              borderBottom: "1px solid",
-              borderColor: "divider",
-            },
-          }}
-        />
-      </ThemeProvider>
+          },
+          "& .MuiDataGrid-columnHeaders": {
+            borderBottom: "1px solid",
+            borderColor: "divider",
+          },
+        }}
+      />
 
       {isMintOpen && <AddNodeModal open onClose={() => setMintOpen(false)} />}
 

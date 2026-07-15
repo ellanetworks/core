@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"net/netip"
+	"slices"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -69,6 +70,42 @@ func TestCreateEPSSessionIPv4(t *testing.T) {
 
 	if upf.lastEstablish == nil || len(upf.lastEstablish.PDRs) < 2 {
 		t.Fatalf("expected an establish with >=2 PDRs, got %+v", upf.lastEstablish)
+	}
+}
+
+// TestCreateEPSSessionSupersedesPriorBearer covers a re-attach on the same (IMSI, EBI).
+// The prior context must be released before the new one allocates: released afterwards,
+// it frees the lease by (imsi, dnn, ebi) — the key both share — leaving a live session on
+// an address the pool believes free, which the next subscriber is then handed.
+func TestCreateEPSSessionSupersedesPriorBearer(t *testing.T) {
+	store, upf := epsTestSMF()
+	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+
+	first, err := s.CreateEPSSession(context.Background(), epsRequest(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	second, err := s.CreateEPSSession(context.Background(), epsRequest(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if first.Ref == second.Ref {
+		t.Fatalf("re-attach must yield a distinct session, got %q twice", first.Ref)
+	}
+
+	if s.GetSession(first.Ref) != nil {
+		t.Fatalf("prior bearer context %q outlived the re-attach", first.Ref)
+	}
+
+	if s.GetSession(second.Ref) == nil {
+		t.Fatalf("re-attached session %q is not live", second.Ref)
+	}
+
+	want := []string{"alloc", "release", "alloc"}
+	if got := store.ops(); !slices.Equal(got, want) {
+		t.Fatalf("store ops = %v, want %v", got, want)
 	}
 }
 
