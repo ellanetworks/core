@@ -98,19 +98,21 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method
 		return nil, "", fmt.Errorf("create LPP session: %w", err)
 	}
 
-	// Wire transport functions
+	// Wire transport functions.
+	// These closures are called from a different goroutine (AMF's UL NAS handler)
+	// and must not use the timeout ctx which may be cancelled when determineAGNSSLocation returns.
 	session.SetTransport(
 		func(lppMsg []byte) error {
-			return l.lppHandler.ForwardLPPToUE(ctx, supi.String(), lppMsg)
+			return l.lppHandler.ForwardLPPToUE(context.Background(), supi.String(), lppMsg)
 		},
 		func(result *models.LocationResult) error {
-			return l.sessionMgr.CompleteSession(ctx, session.SessionID(), result)
+			return l.sessionMgr.CompleteSession(context.Background(), session.SessionID(), result)
 		},
 		func() error {
-			return l.sessionMgr.FailSession(ctx, session.SessionID())
+			return l.sessionMgr.FailSession(context.Background(), session.SessionID())
 		},
 		func() error {
-			return l.sessionMgr.CancelSession(ctx, session.SessionID())
+			return l.sessionMgr.CancelSession(context.Background(), session.SessionID())
 		},
 		func() {
 			l.DeregisterLPPSession(session.SessionID())
