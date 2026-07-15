@@ -8,6 +8,7 @@ package nas
 
 import (
 	"context"
+	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
@@ -277,7 +278,21 @@ func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		logger.From(ctx, logger.AmfLog).Warn("PayloadContainerTypeSMS has not been implemented yet in UL NAS TRANSPORT")
 	case nasMessage.PayloadContainerTypeLPP:
 		lppData := msg.GetPayloadContainerContents()
-		logger.From(ctx, logger.AmfLog).Debug("UL NAS Transport carries LPP payload", zap.Int("length", len(lppData)))
+
+		// The UE echoes its routing context in the Additional information IE
+		// (TS 24.501 §5.4.5.2.1 case c); record whether it is present so an
+		// LPP reply can be correlated back to the LMF that sent the request.
+		additionalInfo := ""
+		if msg.AdditionalInformation != nil {
+			additionalInfo = hex.EncodeToString(msg.GetAdditionalInformationValue())
+		}
+
+		logger.From(ctx, logger.AmfLog).Info("UL NAS Transport carries LPP payload",
+			logger.SUPI(ue.Supi().String()),
+			zap.Int("length", len(lppData)),
+			zap.String("lpp_hex", hex.EncodeToString(lppData)),
+			zap.String("additional_information", additionalInfo),
+		)
 
 		if amfInstance.LPPHandler != nil {
 			if err := amfInstance.LPPHandler.ForwardLPP(ctx, ue.Supi(), lppData); err != nil {

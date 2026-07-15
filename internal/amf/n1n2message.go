@@ -10,6 +10,7 @@ package amf
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 // ErrUENotReachable is returned when the UE is in CM-IDLE state and the
@@ -441,7 +443,17 @@ func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, lppMsg []b
 		return fmt.Errorf("send downlink nas transport (LPP): %w", err)
 	}
 
-	logger.From(ctx, logger.AmfLog).Info("sent DL NAS Transport (LPP) to UE", logger.SUPI(supi.String()))
+	// TS 24.501 §5.4.5.3.2 case c) also requires the Additional information IE
+	// to carry an LCS correlation identifier; BuildDLNASTransport cannot set it,
+	// so the UE receives the LPP payload with no correlation context. Recorded
+	// here to make the gap observable while diagnosing UE non-response.
+	logger.From(ctx, logger.AmfLog).Info("sent DL NAS Transport (LPP) to UE",
+		logger.SUPI(supi.String()),
+		zap.Uint8("payload_container_type", nasMessage.PayloadContainerTypeLPP),
+		zap.Int("lpp_len", len(lppMsg)),
+		zap.String("lpp_hex", hex.EncodeToString(lppMsg)),
+		zap.Bool("additional_information_set", false),
+	)
 
 	return nil
 }

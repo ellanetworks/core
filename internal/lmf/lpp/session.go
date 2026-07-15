@@ -4,6 +4,7 @@
 package lpp
 
 import (
+	"encoding/hex"
 	"fmt"
 	"sync"
 
@@ -217,7 +218,20 @@ func (s *Session) send(lppMsg []byte) error {
 		return fmt.Errorf("no transfer function set")
 	}
 
+	// The LPP PDU is ciphered inside NAS on the wire, so this hex is the only
+	// way to inspect what the UE actually receives (decode against TS 37.355).
+	s.log.Debug("sending LPP PDU to UE",
+		zap.String("state", s.state.String()),
+		zap.Int("len", len(lppMsg)),
+		zap.String("lpp_hex", hex.EncodeToString(lppMsg)),
+	)
+
 	if err := s.transferFunc(lppMsg); err != nil {
+		s.log.Error("failed to send LPP PDU to UE",
+			zap.String("state", s.state.String()),
+			zap.Error(err),
+		)
+
 		return err
 	}
 

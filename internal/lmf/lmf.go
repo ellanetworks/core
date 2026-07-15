@@ -5,6 +5,7 @@ package lmf
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"sync"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
+	"go.uber.org/zap"
 )
 
 // LocationSource exposes the per-UE location a control-plane NF holds. The AMF
@@ -128,8 +130,22 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, lppData []by
 		return nil
 	}
 
+	// A UE reply is the single most informative event for A-GNSS: log it before
+	// parsing so an undecodable PDU is still visible as "the UE did answer".
+	logger.LmfLog.Info("LPP PDU received from UE",
+		zap.String("supi", supi.String()),
+		zap.Int("len", len(lppData)),
+		zap.String("lpp_hex", hex.EncodeToString(lppData)),
+	)
+
 	msg, err := lpp.ParseLPPMessage(lppData)
 	if err != nil {
+		logger.LmfLog.Error("failed to parse LPP PDU from UE",
+			zap.String("supi", supi.String()),
+			zap.String("lpp_hex", hex.EncodeToString(lppData)),
+			zap.Error(err),
+		)
+
 		return fmt.Errorf("parse LPP message: %w", err)
 	}
 
@@ -137,7 +153,12 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, lppData []by
 
 	var activeSession *lpp.Session
 
+	sessionStates := make([]string, 0, len(lmf.lppSessions))
+
 	for _, session := range lmf.lppSessions {
+		sessionStates = append(sessionStates,
+			fmt.Sprintf("%s:%s:%s", session.SessionID(), session.Supi(), session.State()))
+
 		if session.Supi() == supi.String() && session.State() != lpp.SessionFailed {
 			activeSession = session
 			break
@@ -147,8 +168,19 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, lppData []by
 	lmf.lppMu.RUnlock()
 
 	if activeSession == nil {
+		logger.LmfLog.Warn("no active LPP session for UE reply; dropping",
+			zap.String("supi", supi.String()),
+			zap.Strings("registered_sessions", sessionStates),
+		)
+
 		return fmt.Errorf("no active session")
 	}
+
+	logger.LmfLog.Info("routing LPP PDU to session",
+		zap.String("supi", supi.String()),
+		zap.String("session_id", activeSession.SessionID()),
+		zap.String("state", activeSession.State().String()),
+	)
 
 	if err := activeSession.HandleResponse(msg); err != nil {
 		activeSession.Fail()
