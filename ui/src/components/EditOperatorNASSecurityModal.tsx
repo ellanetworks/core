@@ -45,9 +45,8 @@ interface AlgorithmEntry {
 const ALL_CIPHERING = ["NULL", "SNOW3G", "AES"];
 const ALL_INTEGRITY = ["NULL", "SNOW3G", "AES"];
 
-// describeAlgorithm renders an algorithm with its 3GPP identifiers for the given
-// function (ciphering or integrity) across both RATs: 4G EEA/EIA (TS 24.301
-// §9.9.3.23) and 5G NEA/NIA (TS 24.501 §9.11.3.34).
+// 4G EEA/EIA identifiers are TS 24.301 §9.9.3.23; 5G NEA/NIA are TS 24.501
+// §9.11.3.34.
 const describeAlgorithm = (name: string, kind: string): React.ReactNode => {
   const cipher = kind === "ciphering";
   const fourG = { NULL: "EEA0", SNOW3G: "128-EEA1", AES: "128-EEA2" }[name];
@@ -174,7 +173,6 @@ const EditOperatorNASSecurityModal: React.FC<
     }
   };
 
-  // --- Native HTML5 drag-and-drop logic ---
   const dragIndexRef = useRef<number | null>(null);
   const dragListIdRef = useRef<string | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -185,7 +183,6 @@ const EditOperatorNASSecurityModal: React.FC<
       dragIndexRef.current = index;
       dragListIdRef.current = listId;
       e.dataTransfer.effectAllowed = "move";
-      // Transparent drag image — the visual feedback comes from the highlight
       const el = e.currentTarget as HTMLElement;
       e.dataTransfer.setDragImage(el, el.offsetWidth / 2, el.offsetHeight / 2);
     },

@@ -87,11 +87,6 @@ interface ApiFetchOptions {
   credentials?: RequestCredentials;
 }
 
-/**
- * Shared fetch wrapper for JSON API endpoints.
- * Handles auth headers, JSON parsing, and error formatting.
- * Returns `response.result` from the JSON body.
- */
 export async function apiFetch<T = unknown>(
   url: string,
   options: ApiFetchOptions = {},
@@ -133,7 +128,6 @@ export async function apiFetch<T = unknown>(
     if (!response.ok) {
       throw toApiError(response.status, response.statusText || undefined);
     }
-    // If response is ok but JSON parsing fails, treat as success with empty result
     return undefined as T;
   }
 
@@ -144,10 +138,6 @@ export async function apiFetch<T = unknown>(
   return respData!.result as T;
 }
 
-/**
- * Variant of apiFetch for endpoints that return no meaningful body.
- * Throws on error, returns void on success.
- */
 export async function apiFetchVoid(
   url: string,
   options: ApiFetchOptions = {},
@@ -191,5 +181,4 @@ export async function apiFetchVoid(
     }
     throw toApiError(response.status, respData?.error);
   }
-  // Success - response.ok is true, so we don't check the body
 }

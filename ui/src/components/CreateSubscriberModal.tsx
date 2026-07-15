@@ -257,15 +257,13 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
   ) => {
     const digits = sanitizeDigits(raw);
     const prefix = `${operatorMcc}${operatorMnc}`;
-    const msinLen = 15 - (operatorMcc.length + operatorMnc.length); // -> 10 if MNC=2, 9 if MNC=3
+    const msinLen = 15 - (operatorMcc.length + operatorMnc.length);
     const fullLen = prefix.length + msinLen;
 
-    // 1) Plain MSIN entry
     if (digits.length <= msinLen) {
       return { msin: digits, mismatchMsg: null };
     }
 
-    // 2) Full IMSI (or longer)
     if (digits.length >= fullLen) {
       if (digits.startsWith(prefix)) {
         const msin = digits.slice(prefix.length, prefix.length + msinLen);
@@ -277,7 +275,6 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
       };
     }
 
-    // 3) Partial IMSI in progress
     return { msin: digits.slice(-msinLen), mismatchMsg: null };
   };
 
@@ -296,7 +293,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
     Array.from({ length: len }, () => Math.floor(Math.random() * 10)).join("");
 
   const generateRandomMSIN = () => {
-    const len = getMSINLength(mnc); // 9 if MNC is 3 digits, else 10
+    const len = getMSINLength(mnc);
     const randomMSIN = randomDigits(len);
     handleChange("msin", randomMSIN);
   };

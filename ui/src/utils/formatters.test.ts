@@ -18,7 +18,6 @@ import {
 } from "./formatters";
 
 describe("UNIT_FACTORS", () => {
-  // Data volumes are decimal, matching the bitrate units the core encodes.
   it("is decimal, not binary", () => {
     expect(UNIT_FACTORS.KB).toBe(1000);
     expect(UNIT_FACTORS.MB).toBe(1_000_000);
@@ -43,7 +42,6 @@ describe("chooseUnitFromMax", () => {
 });
 
 describe("formatBytesWithUnit", () => {
-  // Decimals narrow as the number widens, so the column stays readable.
   it.each([
     [1_500_000, "MB", "1.50 MB"],
     [15_000_000, "MB", "15.0 MB"],
@@ -81,7 +79,6 @@ describe("formatBytesAutoUnit", () => {
 });
 
 describe("formatMemory", () => {
-  // Memory is binary and carries IEC units, unlike data volumes.
   it.each([
     [0, "0 B"],
     [1024, "1 KiB"],

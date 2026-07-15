@@ -26,7 +26,6 @@ interface StaticIpEdit {
   imsi: string;
   ipVersion: string;
   address: string;
-  /** The reservation is bound to a live session, which a change will release. */
   active?: boolean;
 }
 

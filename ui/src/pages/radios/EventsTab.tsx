@@ -63,8 +63,6 @@ import type { LogRow } from "@/components/EventDetails";
 import ProtocolChip from "@/components/ProtocolChip";
 import { formatDateTime } from "@/utils/formatters";
 
-// -------- Helpers & small components --------
-
 const NGAP_MESSAGE_TYPES = [
   "AMFConfigurationUpdate",
   "AMFConfigurationUpdateAcknowledge",
@@ -166,8 +164,6 @@ const S1AP_MESSAGE_TYPES = [
   "UplinkNASTransport",
 ];
 
-// Message-type options offered for a given protocol filter; when no protocol is
-// selected, both sets are offered (grouped in the dropdown).
 const MESSAGE_TYPES_BY_PROTOCOL: Record<string, string[]> = {
   NGAP: NGAP_MESSAGE_TYPES,
   S1AP: S1AP_MESSAGE_TYPES,
@@ -216,8 +212,6 @@ const PANEL_MIN_WIDTH = 350;
 const PANEL_MAX_VW = 0.8;
 const TOOLBAR_HEIGHT = 64;
 
-// ------------------- Events tab content -------------------
-
 export default function EventsTab() {
   const { role, accessToken, authReady } = useAuth();
   const canEdit = role === "Admin";
@@ -243,12 +237,10 @@ export default function EventsTab() {
   const [isNetworkEditModalOpen, setNetworkEditModalOpen] = useState(false);
   const [isNetworkClearModalOpen, setNetworkClearModalOpen] = useState(false);
 
-  // URL params for deep-linking
   const [searchParams, setSearchParams] = useSearchParams();
   const radioParam = searchParams.get("radio") ?? "";
   const eventIdParam = searchParams.get("event");
 
-  // Explicit filter state (replaces DataGrid built-in filter model)
   const [radioFilter, setRadioFilter] = useState(radioParam);
   const [protocolFilter, setProtocolFilter] = useState("");
   const [directionFilter, setDirectionFilter] = useState("");
@@ -256,8 +248,6 @@ export default function EventsTab() {
   const [timestampFrom, setTimestampFrom] = useState("");
   const [timestampTo, setTimestampTo] = useState("");
 
-  // Message types depend on the selected protocol; offer both sets when no
-  // protocol is chosen.
   const messageTypeOptions = useMemo(
     () =>
       MESSAGE_TYPES_BY_PROTOCOL[protocolFilter] ?? [
@@ -267,20 +257,17 @@ export default function EventsTab() {
     [protocolFilter],
   );
 
-  // Drop a message-type filter that does not belong to the newly selected
-  // protocol, so a stale type can't hide every row.
+  // A message type outside the selected protocol's set matches no rows.
   useEffect(() => {
     if (messageTypeFilter && !messageTypeOptions.includes(messageTypeFilter)) {
       setMessageTypeFilter("");
     }
   }, [messageTypeOptions, messageTypeFilter]);
 
-  // Re-sync radio filter when URL param changes
   useEffect(() => {
     setRadioFilter(radioParam);
   }, [radioParam]);
 
-  // Fetch radios list for filter dropdown
   const radiosQuery = useQuery<ListRadiosResponse>({
     queryKey: ["radios-for-filter"],
     queryFn: () => listRadios(accessToken!, 1, 100),
@@ -298,7 +285,6 @@ export default function EventsTab() {
   const pageOneBased = paginationModel.page + 1;
   const perPage = paginationModel.pageSize;
 
-  // Build query params from explicit filters
   const filterParams = useMemo(() => {
     const params: Record<string, string> = {};
     if (radioFilter) params.radio = radioFilter;
@@ -333,7 +319,6 @@ export default function EventsTab() {
 
   const hasActiveFilters = Object.keys(filterParams).length > 0;
 
-  // Deep-link: when event param is present, find and select matching row
   useEffect(() => {
     if (!eventIdParam || !networkLogsQuery.data?.items) return;
     const eventId = Number(eventIdParam);
@@ -510,7 +495,6 @@ export default function EventsTab() {
     return () => window.removeEventListener("keydown", onKey);
   }, [viewEventDrawerOpen, closePanel]);
 
-  // --- Resize handle state ---
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH);
   const dragging = useRef(false);
 
@@ -549,7 +533,6 @@ export default function EventsTab() {
           </Typography>
         </Box>
 
-        {/* Filters row */}
         <Box
           sx={{
             display: "flex",
@@ -663,7 +646,6 @@ export default function EventsTab() {
           />
         </Box>
 
-        {/* Actions row */}
         <Box
           sx={{
             display: "flex",
@@ -789,7 +771,6 @@ export default function EventsTab() {
         </QueryState>
       </Box>
 
-      {/* Fixed overlay detail panel */}
       <Box
         sx={{
           position: "fixed",
@@ -808,7 +789,6 @@ export default function EventsTab() {
           flexDirection: "row",
         }}
       >
-        {/* Drag handle */}
         <Box
           onMouseDown={onResizeMouseDown}
           sx={{
@@ -832,7 +812,6 @@ export default function EventsTab() {
           />
         </Box>
 
-        {/* Panel content */}
         <Box
           sx={{
             flex: 1,
@@ -877,7 +856,6 @@ export default function EventsTab() {
         </Box>
       </Box>
 
-      {/* Modals */}
       <EditRadioEventRetentionPolicyModal
         open={isNetworkEditModalOpen}
         onClose={() => setNetworkEditModalOpen(false)}

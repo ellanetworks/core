@@ -279,7 +279,6 @@ export default function EventDetails({
         pb: 2,
       }}
     >
-      {/* Metadata — fixed height */}
       <Stack spacing={1.25} sx={{ my: 1.25, flexShrink: 0 }}>
         <MetaRow label="Timestamp" value={log?.timestamp} />
         <Box
@@ -343,7 +342,6 @@ export default function EventDetails({
 
       <Divider sx={{ flexShrink: 0 }} />
 
-      {/* Decoded content — fills remaining space, scrolls internally */}
       <Box
         sx={{
           flexShrink: 0,
@@ -371,7 +369,6 @@ export default function EventDetails({
         {decodedContent}
       </Box>
 
-      {/* Raw — hex dump (collapsible) */}
       <Divider sx={{ flexShrink: 0, mt: 1.5 }} />
       <RawHexSection hexDump={hexDump} onCopy={handleCopy} />
     </Box>

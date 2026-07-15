@@ -258,7 +258,6 @@ const PolicyDetail: React.FC = () => {
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      {/* Header / Breadcrumb */}
       <Box
         sx={{
           display: "flex",
@@ -362,7 +361,6 @@ const PolicyDetail: React.FC = () => {
 
           return (
             <>
-              {/* Configuration Card (full width) */}
               <Card
                 variant="outlined"
                 sx={{ display: "flex", flexDirection: "column" }}
@@ -538,7 +536,6 @@ const PolicyDetail: React.FC = () => {
                 </CardContent>
               </Card>
 
-              {/* Network Rules */}
               <Box sx={{ mt: 3 }}>
                 <Typography variant="h6" sx={{ mb: 0.5 }}>
                   Network Rules
@@ -560,7 +557,6 @@ const PolicyDetail: React.FC = () => {
                   gap: 3,
                 }}
               >
-                {/* Uplink Rules */}
                 <Box>
                   <Box
                     sx={{
@@ -609,7 +605,6 @@ const PolicyDetail: React.FC = () => {
                   />
                 </Box>
 
-                {/* Downlink Rules */}
                 <Box>
                   <Box
                     sx={{
@@ -690,7 +685,6 @@ const PolicyDetail: React.FC = () => {
         }}
       </QueryState>
 
-      {/* Modals */}
       {isDeleteConfirmOpen && (
         <DeleteConfirmationModal
           open

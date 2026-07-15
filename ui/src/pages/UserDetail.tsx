@@ -124,7 +124,6 @@ const UserDetail: React.FC = () => {
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      {/* Header / Breadcrumb */}
       <Box
         sx={{
           display: "flex",
@@ -177,7 +176,6 @@ const UserDetail: React.FC = () => {
       <QueryState query={userQuery} resource="this user" loading={loadingBody}>
         {(user) => (
           <>
-            {/* Two-column body */}
             <Box
               sx={{
                 display: "grid",
@@ -201,7 +199,6 @@ const UserDetail: React.FC = () => {
               </Box>
             </Box>
 
-            {/* API Tokens — full width */}
             {isAdmin && (
               <Box sx={{ mt: 3 }}>
                 <QueryState
@@ -221,7 +218,6 @@ const UserDetail: React.FC = () => {
               </Box>
             )}
 
-            {/* Recent Audit Logs — full width */}
             <Box sx={{ mt: 3 }}>
               <QueryState
                 query={auditQuery}
@@ -234,7 +230,6 @@ const UserDetail: React.FC = () => {
               </QueryState>
             </Box>
 
-            {/* Modals */}
             {isEditModalOpen && (
               <EditUserModal
                 open

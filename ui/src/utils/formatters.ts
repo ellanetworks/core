@@ -1,10 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// ──────────────────────────────────────────────────────
-// Shared byte-formatting helpers
-// ──────────────────────────────────────────────────────
-
 export type DataUnit = "B" | "KB" | "MB" | "GB" | "TB";
 
 /**
@@ -45,7 +41,7 @@ const MEMORY_UNITS = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
 
 /**
  * Memory and on-disk sizes are binary quantities, so they keep the 1024 base
- * and carry IEC units. Data volumes use `formatBytesAutoUnit` instead.
+ * and carry IEC units.
  */
 export const formatMemory = (value: number | null | undefined): string => {
   if (value == null || !Number.isFinite(value)) return "N/A";
@@ -69,10 +65,6 @@ export const formatMemory = (value: number | null | undefined): string => {
 
   return `${sign}${numFmt.format(n)} ${MEMORY_UNITS[i]}`;
 };
-
-// ──────────────────────────────────────────────────────
-// Protocol helpers (for flow reports)
-// ──────────────────────────────────────────────────────
 
 export const PROTOCOL_NAMES: Record<number, string> = {
   0: "HOPOPT",
@@ -222,8 +214,8 @@ export const formatProtocol = (value: number): string =>
   PROTOCOL_NAMES[value] ?? String(value);
 
 /**
- * Names the unit a share is measured in, so a slice of a chart on a page about
- * traffic cannot be read as a share of bytes when it counts flows.
+ * Names the unit a share is measured in, so a share of flows cannot be read as
+ * a share of bytes.
  */
 export const formatCountShare = (
   value: number,
@@ -235,10 +227,6 @@ export const formatCountShare = (
   return `${value.toLocaleString()} ${unit} (${pct}%)`;
 };
 
-/**
- * Stable colors for well-known protocols, matching the PIE_COLORS palette
- * used on the Traffic page so chips look consistent across views.
- */
 export const PROTOCOL_CHIP_COLORS: Record<number, string> = {
   6: "#2196F3", // TCP  — blue
   17: "#4CAF50", // UDP  — green
@@ -248,14 +236,8 @@ export const PROTOCOL_CHIP_COLORS: Record<number, string> = {
   132: "#00BCD4", // SCTP — cyan
 };
 
-// ──────────────────────────────────────────────────────
-// Date / time formatting
-// ──────────────────────────────────────────────────────
-
 /**
- * Date without a time, for values that are a day rather than a moment
- * (e.g. an expiry). Always carries the year, since expiries are read against
- * dates far from today. Example: "Jul 14, 2026".
+ * Always carries the year, since expiries are read against dates far from today.
  */
 export const formatDate = (value: string): string => {
   if (!value) return "";
@@ -270,10 +252,6 @@ export const formatDate = (value: string): string => {
   });
 };
 
-/**
- * Human-readable date-time format used across the UI.
- * Example: "Mar 8, 14:32"   (same day) or "Mar 8, 14:32" (always)
- */
 export const formatDateTime = (
   value: string,
   opts?: { seconds?: boolean },
@@ -281,7 +259,6 @@ export const formatDateTime = (
   if (!value) return "";
   const d = new Date(value);
   if (isNaN(d.getTime())) {
-    // Strip timezone offset suffix if the string doesn't parse
     return value.replace(/\s*[+-]\d{4}$/, "");
   }
   const now = new Date();
@@ -296,10 +273,6 @@ export const formatDateTime = (
     hour12: false,
   });
 };
-
-// ──────────────────────────────────────────────────────
-// Relative time helper
-// ──────────────────────────────────────────────────────
 
 export const formatRelativeTime = (dateString: string): string => {
   const now = Date.now();
@@ -320,10 +293,6 @@ export const formatRelativeTime = (dateString: string): string => {
   return `${days}d ago`;
 };
 
-// ──────────────────────────────────────────────────────
-// Shared chart colors
-// ──────────────────────────────────────────────────────
-
 export const UPLINK_COLOR = "#FF9800";
 export const DOWNLINK_COLOR = "#4254FB";
 
@@ -343,9 +312,8 @@ export const PIE_COLORS = [
 ];
 
 /**
- * Colours one view's set of protocols. A protocol in PROTOCOL_CHIP_COLORS keeps
- * that colour so it reads the same across views; the rest draw from the palette
- * entries no protocol in the set has already claimed, so two protocols shown
+ * A protocol in PROTOCOL_CHIP_COLORS keeps that colour across views; the rest
+ * draw from the palette entries the set has not claimed, so two protocols shown
  * together never share a colour.
  */
 export const buildProtocolColorMap = (

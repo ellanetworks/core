@@ -276,7 +276,6 @@ const RadioDetail: React.FC = () => {
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      {/* Header / Breadcrumb */}
       <Box sx={{ mb: 3 }}>
         <Typography
           variant="h4"
@@ -316,7 +315,6 @@ const RadioDetail: React.FC = () => {
           const tais = radio.supported_tais ?? [];
           return (
             <>
-              {/* Two-column layout: Radio Info (left) + Connected Subscribers (right) */}
               <Box
                 sx={{
                   display: "grid",
@@ -325,7 +323,6 @@ const RadioDetail: React.FC = () => {
                   alignItems: "start",
                 }}
               >
-                {/* Radio Info Table */}
                 <Box>
                   <Typography variant="h6" sx={{ mb: 1 }}>
                     Radio Info
@@ -462,7 +459,6 @@ const RadioDetail: React.FC = () => {
                   </TableContainer>
                 </Box>
 
-                {/* Connected Subscribers */}
                 <Box>
                   <Typography variant="h6" sx={{ mb: 1 }}>
                     Connected Subscribers ({subscriberRowCount})
@@ -512,7 +508,6 @@ const RadioDetail: React.FC = () => {
                 </Box>
               </Box>
 
-              {/* Recent Network Events */}
               <Box sx={{ mt: 3 }}>
                 <Box
                   sx={{

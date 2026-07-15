@@ -50,8 +50,7 @@ const profileDescriptions: Record<string, string> = {
   B: "ECIES with compact P-256 (secp256r1)",
 };
 
-// RAT-neutral NAS security algorithm identities shared by 4G (EEA/EIA) and 5G
-// (NEA/NIA).
+// RAT-neutral NAS security algorithm identities shared by 4G (EEA/EIA) and 5G (NEA/NIA).
 const algTooltips: Record<string, string> = {
   NULL: "Null algorithm (no security)",
   SNOW3G: "NAS security with SNOW 3G",
@@ -229,7 +228,6 @@ const Operator = () => {
         ...prev,
         [keyId]: result.privateKey,
       }));
-      // Auto-clear the private key from state after 30 seconds.
       clearTimeout(privateKeyTimers.current[keyId]);
       privateKeyTimers.current[keyId] = setTimeout(() => {
         clearPrivateKey(keyId);
@@ -265,7 +263,6 @@ const Operator = () => {
         </Alert>
       )}
 
-      {/* ═══════════════ Configuration ═══════════════ */}
       <Box sx={{ mt: 3 }}>
         <TableContainer sx={tableContainerSx}>
           <Table>
@@ -549,7 +546,6 @@ const Operator = () => {
         </TableContainer>
       </Box>
 
-      {/* ═══════════════ Home Network Keys ═══════════════ */}
       <Box sx={{ mt: 4 }}>
         <Typography variant="h6" sx={{ mb: 2 }}>
           Home Network Keys (5G only)
@@ -817,7 +813,6 @@ const Operator = () => {
         )}
       </Box>
 
-      {/* ═══════════════ Modals ═══════════════ */}
       {isEditOperatorIdModalOpen && (
         <EditOperatorIdModal
           open

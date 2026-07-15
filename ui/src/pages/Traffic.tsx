@@ -90,13 +90,11 @@ import {
 import IPProtocolChip from "@/components/IPProtocolChip";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
-/** Shared cell renderer for subscriber IMSI links in data grids. */
 const renderSubscriberLink = (params: any) => {
   const imsi = params.value as string;
   const action = params.row?.action as string | undefined;
   if (!imsi) return null;
 
-  // Visual-hidden style for screen readers.
   const srOnlyStyle: React.CSSProperties = {
     position: "absolute",
     width: 1,
@@ -135,19 +133,10 @@ const renderSubscriberLink = (params: any) => {
           {imsi}
         </Typography>
       </Link>
-      {action === "drop" && (
-        // Provide an accessible label for screen readers indicating the
-        // flow was dropped. This text is visually hidden but will be
-        // announced when a screen reader focuses the cell.
-        <span style={srOnlyStyle}>Dropped flow</span>
-      )}
+      {action === "drop" && <span style={srOnlyStyle}>Dropped flow</span>}
     </Box>
   );
 };
-
-// ──────────────────────────────────────────────────────
-// Date defaults
-// ──────────────────────────────────────────────────────
 
 const getDefaultDateRange = () => {
   const today = new Date();
@@ -156,10 +145,6 @@ const getDefaultDateRange = () => {
   const format = (d: Date) => d.toISOString().slice(0, 10);
   return { startDate: format(sevenDaysAgo), endDate: format(today) };
 };
-
-// ──────────────────────────────────────────────────────
-// Usage row types
-// ──────────────────────────────────────────────────────
 
 type UsageRow = {
   id: string;
@@ -176,19 +161,7 @@ type UsagePerDayRow = {
   total_bytes: number;
 };
 
-// ──────────────────────────────────────────────────────
-// Tab paths
-// ──────────────────────────────────────────────────────
-
 const TAB_PATHS = ["/traffic/usage", "/traffic/flows"] as const;
-
-// ──────────────────────────────────────────────────────
-// Pie chart color palette
-// ──────────────────────────────────────────────────────
-
-// ──────────────────────────────────────────────────────
-// Main component
-// ──────────────────────────────────────────────────────
 
 const Traffic: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
@@ -214,20 +187,17 @@ const Traffic: React.FC = () => {
     [navigate],
   );
 
-  // ── Shared state ────────────────────────────────────
   const [{ startDate, endDate }, setDateRange] = useState(getDefaultDateRange);
   const [selectedSubscriber, setSelectedSubscriber] = useState(
     () => searchParams.get("subscriber_id") || "",
   );
   const { showSnackbar } = useSnackbar();
 
-  // ── Usage state ─────────────────────────────────────
   const [usagePaginationModel, setUsagePaginationModel] =
     useState<GridPaginationModel>({ page: 0, pageSize: 25 });
   const [isEditUsageRetentionOpen, setEditUsageRetentionOpen] = useState(false);
   const [isUsageClearModalOpen, setUsageClearModalOpen] = useState(false);
 
-  // ── Flow Reports state ──────────────────────────────
   const [flowPaginationModel, setFlowPaginationModel] =
     useState<GridPaginationModel>({ page: 0, pageSize: 25 });
   const [sourceFilter, setSourceFilter] = useState("");
@@ -256,8 +226,6 @@ const Traffic: React.FC = () => {
   useEffect(() => {
     setFlowPaginationModel((prev) => ({ ...prev, page: 0 }));
   }, [startDate, endDate]);
-
-  // ── Usage queries ───────────────────────────────────
 
   const { data: usageRetentionPolicy, refetch: refetchUsageRetention } =
     useQuery<UsageRetentionPolicy>({
@@ -302,8 +270,6 @@ const Traffic: React.FC = () => {
     placeholderData: (prev) => prev,
   });
 
-  // ── Flow Reports queries ────────────────────────────
-
   const flowPageOneBased = flowPaginationModel.page + 1;
 
   const activeFlowFilters: FlowReportFilters = useMemo(() => {
@@ -311,8 +277,7 @@ const Traffic: React.FC = () => {
       start: startDate,
       end: endDate,
     };
-    // Only set action when the user has explicitly selected an action.
-    // When omitted, the API returns both allowed and dropped flows.
+    // Omitting action makes the API return both allowed and dropped flows.
     if (actionFilter) f.action = actionFilter;
     if (selectedSubscriber) f.subscriber_id = selectedSubscriber;
     if (appliedProtocol) f.protocol = appliedProtocol;
@@ -369,8 +334,6 @@ const Traffic: React.FC = () => {
     refetchInterval: 5000,
   });
 
-  // Separate query for available protocol options (unfiltered by protocol).
-  // Only fires when a protocol filter is active; otherwise reuses flowStatsData.
   const filtersWithoutProtocol: FlowReportFilters = useMemo(() => {
     const { protocol: _ignored, ...rest } = activeFlowFilters;
     return rest;
@@ -393,8 +356,6 @@ const Traffic: React.FC = () => {
     enabled: authReady && !!accessToken,
   });
 
-  // ── Derived usage data ──────────────────────────────
-
   const usageRows: UsageRow[] = useMemo(() => {
     if (!usagePerSubscriberData) return [];
     const items: UsageRow[] = [];
@@ -414,9 +375,8 @@ const Traffic: React.FC = () => {
     return items;
   }, [usagePerSubscriberData]);
 
-  // Sourced from the roster, not from usageRows: that query is filtered by
-  // selectedSubscriber, so deriving options from it left the chosen subscriber
-  // as the only option and made switching to another impossible.
+  // usageRows is filtered by selectedSubscriber and cannot supply the full
+  // option list.
   const { data: subscriberOptions = [] } = useQuery<string[]>({
     queryKey: ["subscriberImsis"],
     queryFn: () => listAllSubscriberImsis(accessToken || ""),
@@ -514,8 +474,6 @@ const Traffic: React.FC = () => {
     ],
     [],
   );
-
-  // ── Derived flow data ───────────────────────────────
 
   const flowRows: FlowReport[] = flowData?.items ?? [];
   const flowRowCount = flowData?.total_count ?? 0;
@@ -750,8 +708,6 @@ const Traffic: React.FC = () => {
     [protocolColorMap],
   );
 
-  // ── Protocol distribution (donut chart) ─────────────
-
   const protocolPieData = useMemo(() => {
     if (!flowStatsData?.protocols?.length) return [];
     return flowStatsData.protocols.map((p) => ({
@@ -762,11 +718,9 @@ const Traffic: React.FC = () => {
     }));
   }, [flowStatsData, protocolColorMap]);
 
-  // ── Top 10 destinations uplink (donut chart) ───────────────
-
   const destinationColorRef = useRef(new Map<string, string>());
 
-  // Reset color map when the time range changes to avoid unbounded growth
+  // Keeps the map from growing unbounded as destinations change.
   useEffect(() => {
     destinationColorRef.current.clear();
   }, [startDate, endDate]);
@@ -786,8 +740,6 @@ const Traffic: React.FC = () => {
       };
     });
   }, [flowStatsData]);
-
-  // ── Pie chart click handlers ─────────────────────────
 
   const handleProtocolPieClick = useCallback(
     (dataIndex: number) => {
@@ -821,8 +773,6 @@ const Traffic: React.FC = () => {
     },
     [topDestinationsPieData, directionFilter, appliedDestination],
   );
-
-  // ── Handlers ────────────────────────────────────────
 
   const handleStartChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setDateRange((prev) => ({ ...prev, startDate: e.target.value }));
@@ -862,13 +812,9 @@ const Traffic: React.FC = () => {
     }
   };
 
-  // ── Loading ─────────────────────────────────────────
-
   const isInitialLoading =
     (isUsagePerSubLoading && !usagePerSubscriberData) ||
     (isUsagePerDayLoading && !usagePerDayData);
-
-  // ── DataGrid shared styles ──────────────────────────
 
   const gridSx = {
     width: "100%",
@@ -887,9 +833,7 @@ const Traffic: React.FC = () => {
       borderTop: "1px solid",
       borderColor: "divider",
     },
-    // Highlight dropped flows with a light red background and a red
-    // left border on the first cell. We use the theme error color with
-    // low alpha to preserve text contrast for accessibility.
+    // Low alpha preserves text contrast against the error color.
     "& .MuiDataGrid-row.flow-row-dropped .MuiDataGrid-cell": {
       backgroundColor: alpha(theme.palette.error.main, 0.08),
     },
@@ -900,8 +844,6 @@ const Traffic: React.FC = () => {
       borderLeft: `4px solid ${theme.palette.error.main}`,
     },
   };
-
-  // ── Render ──────────────────────────────────────────
 
   return (
     <Box
@@ -919,14 +861,12 @@ const Traffic: React.FC = () => {
             gap: 2,
           }}
         >
-          {/* Header */}
           <Typography variant="h4">Traffic</Typography>
           <Typography variant="body1" color="textSecondary">
             Monitor network traffic — view aggregated data usage and individual
             flow records collected by the user plane.
           </Typography>
 
-          {/* Shared filters */}
           <Box
             sx={{
               display: "flex",
@@ -967,7 +907,6 @@ const Traffic: React.FC = () => {
             />
           </Box>
 
-          {/* Tabs */}
           <Tabs
             value={currentTab}
             onChange={handleTabChange}
@@ -977,7 +916,6 @@ const Traffic: React.FC = () => {
             <Tab label="Flows" value={TAB_PATHS[1]} />
           </Tabs>
 
-          {/* ─── Usage tab ────────────────────────────── */}
           {currentTab === TAB_PATHS[0] && (
             <Box
               sx={{ display: "flex", flexDirection: "column", gap: 3, mt: 1 }}
@@ -1028,7 +966,6 @@ const Traffic: React.FC = () => {
                 </Box>
               </Box>
 
-              {/* Chart */}
               <Box>
                 <Typography variant="h6" sx={{ mb: 2 }}>
                   Daily data usage ({selectedSubscriber || "all subscribers"})
@@ -1063,7 +1000,6 @@ const Traffic: React.FC = () => {
                 />
               </Box>
 
-              {/* Usage table */}
               <DataGrid<UsageRow>
                 rows={usageRows}
                 columns={usageColumns}
@@ -1079,7 +1015,6 @@ const Traffic: React.FC = () => {
             </Box>
           )}
 
-          {/* ─── Flows tab ────────────────────────────── */}
           {currentTab === TAB_PATHS[1] && (
             <Box
               sx={{ display: "flex", flexDirection: "column", gap: 3, mt: 1 }}
@@ -1140,7 +1075,6 @@ const Traffic: React.FC = () => {
                 </Box>
               </Box>
 
-              {/* Donut charts row */}
               {(protocolPieData.length > 0 ||
                 topDestinationsPieData.length > 0) && (
                 <Box
@@ -1258,7 +1192,6 @@ const Traffic: React.FC = () => {
                 </Box>
               )}
 
-              {/* Flow-specific filters */}
               <Box
                 sx={{
                   display: "flex",
@@ -1340,7 +1273,6 @@ const Traffic: React.FC = () => {
                 />
               </Box>
 
-              {/* Flow table */}
               {flowRowCount === 0 && !isFlowLoading ? (
                 <EmptyState
                   primaryText="No flow reports found"
@@ -1373,7 +1305,6 @@ const Traffic: React.FC = () => {
         </Box>
       )}
 
-      {/* ── Modals ───────────────────────────────────── */}
       <EditUsageRetentionPolicyModal
         open={isEditUsageRetentionOpen}
         onClose={() => setEditUsageRetentionOpen(false)}

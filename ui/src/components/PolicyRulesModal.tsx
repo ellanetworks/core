@@ -105,7 +105,7 @@ const schema = yup.object().shape({
       "cidr-or-empty",
       "Must be valid CIDR format (e.g., 192.168.0.0/24 or 2001:db8::/32)",
       (val) => {
-        if (!val || val.trim() === "") return true; // allow empty (optional field)
+        if (!val || val.trim() === "") return true;
         return isValidCidr(val);
       },
     ),
@@ -599,7 +599,6 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
         </DialogActions>
       </Dialog>
 
-      {/* Rule Form Dialog */}
       <Dialog
         open={isFormDialogOpen}
         onClose={() => setFormDialogOpen(false)}

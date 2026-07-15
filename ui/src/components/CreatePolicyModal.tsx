@@ -36,7 +36,7 @@ interface CreatePolicyModalProps {
   onClose: () => void;
   onSuccess: () => void;
   profileName: string;
-  /** Policies already in the profile; the first one is always the default. */
+  /** The first policy in a profile is always the default. */
   policyCount: number;
 }
 
@@ -82,7 +82,7 @@ const schema = yup.object().shape({
   dataNetworkName: yup.string().required("Data Network is required."),
 });
 
-const PER_PAGE = 12; // fetch up to 12 items for dropdowns
+const PER_PAGE = 12;
 
 const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
   open,

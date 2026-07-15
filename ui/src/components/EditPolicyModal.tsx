@@ -136,12 +136,10 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
-  // Store current rules so we can preserve them on submit
   const [currentRules, setCurrentRules] = useState<PolicyRules | undefined>(
     undefined,
   );
 
-  // Fetch full policy data (including rules) when modal opens
   useEffect(() => {
     if (!open || !accessToken) return;
 
@@ -169,7 +167,6 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
         setErrors({});
         setTouched({});
 
-        // Preserve existing rules
         setCurrentRules(fullPolicy.rules);
       } catch (error) {
         console.error("Failed to fetch policy data:", error);
@@ -179,7 +176,6 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
     fetchFullPolicy();
   }, [open, initialData.name, accessToken]);
 
-  // Fetch data networks and slices
   useEffect(() => {
     const fetchDropdownData = async () => {
       if (!open || !accessToken) return;

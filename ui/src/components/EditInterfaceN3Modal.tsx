@@ -36,7 +36,6 @@ const schema = yup.object().shape({
       "empty-or-ipv4-or-ipv6",
       "External address must be a valid IPv4 or IPv6 address",
       (value) => {
-        // Allow empty string / undefined (means "unset → use config value")
         if (!value) return true;
         return ipv4Regex.test(value) || ipv6Regex.test(value);
       },
@@ -77,7 +76,6 @@ const EditInterfaceN3Modal: React.FC<EditInterfaceN3ModalProps> = ({
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     setFormValues({ externalAddress: event.target.value });
-    // Clear error as the user types
     if (errors.externalAddress) {
       setErrors((prev) => ({ ...prev, externalAddress: undefined }));
     }
@@ -89,25 +87,21 @@ const EditInterfaceN3Modal: React.FC<EditInterfaceN3ModalProps> = ({
     setLoading(true);
     setAlert({ message: "" });
 
-    // ---- Validate first ----
     try {
       await schema.validate(formValues, { abortEarly: false });
       setErrors({});
     } catch (err) {
       if (err instanceof yup.ValidationError) {
-        // We only have one field here, so just surface the first message
         setErrors({ externalAddress: err.message });
         setLoading(false);
         return;
       }
 
-      // Unknown validation error
       setAlert({ message: "Validation failed due to an unexpected error." });
       setLoading(false);
       return;
     }
 
-    // ---- Call API ----
     try {
       await updateN3Settings(accessToken, formValues.externalAddress || "");
       onClose();

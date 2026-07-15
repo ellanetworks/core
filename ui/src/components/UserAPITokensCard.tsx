@@ -33,11 +33,8 @@ import CreateAPITokenModal from "@/components/CreateAPITokenModal";
 interface UserAPITokensCardProps {
   tokens: APIToken[];
   maxTokens?: number;
-  /** Called after a token is successfully deleted. */
   onDeleteToken: (token: APIToken) => Promise<void>;
-  /** Called with the raw token string after creation. */
   onTokenCreated: (token: string) => void;
-  /** Target email when creating tokens for another user (admin view). */
   targetEmail?: string;
 }
 

@@ -13,8 +13,6 @@ const INDENT_PX = 16;
 const CHEVRON_W = 24;
 const ROW_H = 22;
 
-// --- Enum helpers ---
-
 type EnumLike = {
   type: "enum";
   value: unknown;
@@ -29,8 +27,6 @@ const isEnumLike = (x: unknown): x is EnumLike =>
   "label" in (x as any);
 
 const formatEnum = (e: EnumLike) => `${e.label} (${String(e.value)})`;
-
-// --- IE helpers ---
 
 type IEFields = {
   idEnum?: EnumLike;
@@ -54,8 +50,6 @@ const isNgapIE = (x: unknown) => {
   return isEnumLike(idEnum) && isEnumLike(criticalityEnum);
 };
 
-// --- Bitrate helpers ---
-
 const formatBps = (bps: number): string => {
   if (bps >= 1_000_000_000)
     return `${(bps / 1_000_000_000).toFixed(bps % 1_000_000_000 === 0 ? 0 : 1)} Gbps`;
@@ -69,12 +63,6 @@ const formatBps = (bps: number): string => {
 const isBpsObject = (obj: Record<string, unknown>): boolean =>
   obj.unit === "bps";
 
-// --- Tree primitives ---
-
-/**
- * Base tree row. Computes its own left padding from depth.
- * Renders either a clickable chevron (expandable) or an inert spacer (leaf).
- */
 const TreeRow: React.FC<{
   depth: number;
   expandable?: boolean;
@@ -111,7 +99,6 @@ const TreeRow: React.FC<{
   </Box>
 );
 
-/** Leaf key-value row. */
 const KVLine: React.FC<{ depth: number; k: string; v: React.ReactNode }> = ({
   depth,
   k,
@@ -126,8 +113,6 @@ const KVLine: React.FC<{ depth: number; k: string; v: React.ReactNode }> = ({
     </Box>
   </TreeRow>
 );
-
-// --- Collapsible sections ---
 
 const ChildSection: React.FC<{
   depth: number;
@@ -153,8 +138,6 @@ const ChildSection: React.FC<{
   );
 };
 
-// --- NAS-PDU helpers ---
-
 const isNasPdu = (v: unknown): boolean =>
   !!v && typeof v === "object" && (v as any).protocol === "NAS";
 
@@ -178,8 +161,6 @@ const getNasHeader = (nasPdu: any): string => {
   return `${messageType} (${secHeader})`;
 };
 
-// --- NRPPa-PDU helpers ---
-
 const isNrppaPdu = (v: unknown): boolean =>
   !!v && typeof v === "object" && (v as any).protocol === "NRPPa";
 
@@ -190,10 +171,6 @@ const getNrppaHeader = (nrppaPdu: any): string => {
   return decoded.kind?.label || "Unknown";
 };
 
-/**
- * Renders an embedded protocol PDU (NAS or NRPPa) with a distinct accent
- * border, a header line ("title — summary"), the raw hex, and the decoded tree.
- */
 const ProtocolPduBlock: React.FC<{
   pdu: any;
   depth: number;
@@ -266,8 +243,6 @@ const NrppaPduBlock: React.FC<{
   />
 );
 
-// --- NGAP IE block ---
-
 const NgapIEBlock: React.FC<{ ie: any; depth: number; label?: string }> = ({
   ie,
   depth,
@@ -278,7 +253,6 @@ const NgapIEBlock: React.FC<{ ie: any; depth: number; label?: string }> = ({
     ? `${idEnum.label} (${String(idEnum.value)})`
     : (label ?? "Information Element");
 
-  // Inline primitive/enum values on the header row (no expand/collapse needed)
   const isInline =
     value == null ||
     typeof value === "string" ||
@@ -305,7 +279,6 @@ const NgapIEBlock: React.FC<{ ie: any; depth: number; label?: string }> = ({
     );
   }
 
-  // NAS-PDU: render with protocol layer distinction
   if (isNasPdu(value)) {
     return (
       <>
@@ -315,7 +288,6 @@ const NgapIEBlock: React.FC<{ ie: any; depth: number; label?: string }> = ({
     );
   }
 
-  // NRPPa-PDU: render with protocol layer distinction
   if (isNrppaPdu(value)) {
     return (
       <>
@@ -374,7 +346,6 @@ const CollapsibleArray: React.FC<{
   const [open, setOpen] = React.useState(true);
   const childDepth = label ? depth + 1 : depth;
 
-  // Single-element arrays: render the item directly without extra nesting
   if (
     items.length === 1 &&
     items[0] != null &&
@@ -496,7 +467,6 @@ const CollapsibleObject: React.FC<{
                       : String(v);
                 return <KVLine key={k} depth={childDepth} k={k} v={display} />;
               }
-              // F11: NAS-PDU detection in nested structs
               if (isNasPdu(v)) {
                 return (
                   <NasPduBlock
@@ -507,7 +477,6 @@ const CollapsibleObject: React.FC<{
                   />
                 );
               }
-              // NRPPa-PDU detection in nested structs
               if (isNrppaPdu(v)) {
                 return (
                   <NrppaPduBlock
@@ -578,8 +547,6 @@ const GenericNode: React.FC<GenericNodeProps> = ({
     </TreeRow>
   );
 };
-
-// --- Top-level views ---
 
 const TopLevelNgapView: React.FC<{ decoded: DecodedNGAPMessage }> = ({
   decoded,

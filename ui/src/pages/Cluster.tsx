@@ -53,10 +53,7 @@ type JoinedRow = ClusterMember & {
   autopilot?: AutopilotServer;
 };
 
-// CenteredCell wraps renderCell content so it vertically centers within
-// the DataGrid row. MUI's default cell rendering centers text, but
-// renderCell output is top-aligned unless the returned element provides
-// its own full-height flex container.
+// MUI top-aligns renderCell output; vertical centering requires a full-height flex container.
 const CenteredCell: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => (

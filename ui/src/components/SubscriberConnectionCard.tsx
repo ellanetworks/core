@@ -85,7 +85,7 @@ const INTEGRITY_LABELS: Record<string, string> = {
   EIA3: "EIA3",
 };
 
-/** NEA0/NIA0 (5G) and EEA0/EIA0 (4G) are null ciphering/integrity — highlight as warning. */
+/** NEA0/NIA0 (5G) and EEA0/EIA0 (4G) are null ciphering/integrity. */
 const INSECURE_ALGS = new Set(["NEA0", "NIA0", "EEA0", "EIA0"]);
 
 const AlgorithmChip: React.FC<{
@@ -146,7 +146,6 @@ const StateChip: React.FC<{ registered?: boolean }> = ({ registered }) => {
   );
 };
 
-/** The generation of the live connection: 4G or 5G. */
 const AccessTypeChip: React.FC<{ accessType?: string }> = ({ accessType }) =>
   accessType ? <AccessChip label={accessType} /> : null;
 
