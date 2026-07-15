@@ -269,6 +269,11 @@ func UpdateProfile(dbInstance *db.Database) http.Handler {
 				return
 			}
 
+			// EPS has no slice to disambiguate two bindings on one data network,
+			// and requires the APN to be unique across a subscriber's
+			// configurations (TS 29.272 §7.3.35).
+			seenDataNetwork := make(map[string]string, len(policies))
+
 			for _, p := range policies {
 				if !is4GCompatible5Qi(p.Var5qi) {
 					writeError(r.Context(), w, http.StatusBadRequest,
@@ -277,6 +282,16 @@ func UpdateProfile(dbInstance *db.Database) http.Handler {
 
 					return
 				}
+
+				if other, dup := seenDataNetwork[p.DataNetworkID]; dup {
+					writeError(r.Context(), w, http.StatusBadRequest,
+						fmt.Sprintf("cannot enable 4G: policies %q and %q use the same data network", other, p.Name),
+						nil, logger.APILog)
+
+					return
+				}
+
+				seenDataNetwork[p.DataNetworkID] = p.Name
 			}
 		}
 

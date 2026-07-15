@@ -19,6 +19,7 @@ import {
   MenuItem,
   Checkbox,
   FormControlLabel,
+  FormHelperText,
 } from "@mui/material";
 import * as yup from "yup";
 import { ValidationError } from "yup";
@@ -36,6 +37,8 @@ interface CreatePolicyModalProps {
   onClose: () => void;
   onSuccess: () => void;
   profileName: string;
+  /** Policies already in the profile; the first one is always the default. */
+  policyCount: number;
 }
 
 const NON_GBR_5QI_OPTIONS: { value: number; label: string }[] = [
@@ -85,8 +88,10 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
   onClose,
   onSuccess,
   profileName,
+  policyCount,
 }) => {
   const navigate = useNavigate();
+  const isFirstPolicy = policyCount === 0;
   const { accessToken, authReady } = useAuth();
 
   useEffect(() => {
@@ -420,21 +425,28 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
           margin="normal"
         />
 
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={formValues.isDefault}
-              onChange={(e) =>
-                setFormValues((prev) => ({
-                  ...prev,
-                  isDefault: e.target.checked,
-                }))
-              }
-            />
-          }
-          label="Default data network for this profile (default APN/DNN)"
-          sx={{ mt: 1 }}
-        />
+        <Box sx={{ mt: 1 }}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={isFirstPolicy || formValues.isDefault}
+                disabled={isFirstPolicy}
+                onChange={(e) =>
+                  setFormValues((prev) => ({
+                    ...prev,
+                    isDefault: e.target.checked,
+                  }))
+                }
+              />
+            }
+            label="Use this policy when a 4G subscriber attaches without requesting an APN"
+          />
+          <FormHelperText sx={{ ml: 4, mt: -0.5 }}>
+            {isFirstPolicy
+              ? "The first policy in a profile is always its default."
+              : "Replaces the profile's current default."}
+          </FormHelperText>
+        </Box>
       </DialogContent>
 
       <DialogActions>

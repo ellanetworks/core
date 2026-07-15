@@ -19,6 +19,7 @@ import {
   Typography,
   Checkbox,
   FormControlLabel,
+  FormHelperText,
 } from "@mui/material";
 import {
   updatePolicy,
@@ -441,21 +442,25 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           margin="normal"
         />
 
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={formValues.isDefault}
-              onChange={(e) =>
-                setFormValues((prev) => ({
-                  ...prev,
-                  isDefault: e.target.checked,
-                }))
-              }
-            />
-          }
-          label="Default data network for this profile (default APN/DNN)"
-          sx={{ mt: 1 }}
-        />
+        <Box sx={{ mt: 1 }}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={formValues.isDefault}
+                onChange={(e) =>
+                  setFormValues((prev) => ({
+                    ...prev,
+                    isDefault: e.target.checked,
+                  }))
+                }
+              />
+            }
+            label="Use this policy when a 4G subscriber attaches without requesting an APN"
+          />
+          <FormHelperText sx={{ ml: 4, mt: -0.5 }}>
+            Replaces the profile&apos;s current default.
+          </FormHelperText>
+        </Box>
       </DialogContent>
 
       <DialogActions>

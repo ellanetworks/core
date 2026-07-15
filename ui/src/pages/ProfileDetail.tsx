@@ -471,6 +471,7 @@ const ProfileDetail: React.FC = () => {
         <CreatePolicyModal
           open
           profileName={name!}
+          policyCount={policyCount ?? 0}
           onClose={() => setCreatePolicyOpen(false)}
           onSuccess={() => {
             queryClient.invalidateQueries({

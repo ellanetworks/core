@@ -336,6 +336,8 @@ type CreateProfileParams struct {
 	Name           string `json:"name"`
 	UeAmbrUplink   string `json:"ue_ambr_uplink"`
 	UeAmbrDownlink string `json:"ue_ambr_downlink"`
+	Allow4G        *bool  `json:"allow_4g,omitempty"`
+	Allow5G        *bool  `json:"allow_5g,omitempty"`
 }
 
 type ProfileResponse struct {
@@ -477,6 +479,8 @@ type DeleteSliceResponse struct {
 type UpdateProfileParams struct {
 	UeAmbrUplink   string `json:"ue_ambr_uplink"`
 	UeAmbrDownlink string `json:"ue_ambr_downlink"`
+	Allow4G        *bool  `json:"allow_4g,omitempty"`
+	Allow5G        *bool  `json:"allow_5g,omitempty"`
 }
 
 type UpdateProfileResponseResult struct {
