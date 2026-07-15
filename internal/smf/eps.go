@@ -84,6 +84,12 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		return models.EPSBearer{}, fmt.Errorf("negotiate PDN type: %w", err)
 	}
 
+	// Must precede establishSession: the superseded context's release frees the address by
+	// (imsi, dnn, ebi), which the new session would already hold (TS 24.301 §5.5.1.2.4 case f).
+	if existing := s.currentSession(supi, req.EPSBearerIdentity); existing != nil {
+		s.handlePduSessionContextReplacement(ctx, existing)
+	}
+
 	sc, addrs, err := s.establishSession(ctx, SessionRequest{
 		Supi:    supi,
 		Key:     req.EPSBearerIdentity,
