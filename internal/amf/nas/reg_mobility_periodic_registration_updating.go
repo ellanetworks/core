@@ -219,7 +219,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 			)
 
 			if n1Msg != nil {
-				nasPdu, err = amf.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil)
+				nasPdu, err = amf.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil, nil)
 				if err != nil {
 					logger.From(ctx, logger.AmfLog).Warn("failed to build DL NAS transport", zap.Error(err))
 					return

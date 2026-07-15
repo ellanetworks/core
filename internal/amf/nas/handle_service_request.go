@@ -307,7 +307,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 				var nasPdu []byte
 				if n1Msg != nil {
-					nasPdu, err = amf.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil)
+					nasPdu, err = amf.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil, nil)
 					if err != nil {
 						logger.From(ctx, logger.AmfLog).Warn("error building DL NAS transport message", zap.Error(err))
 						return

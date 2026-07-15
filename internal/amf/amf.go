@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
@@ -129,6 +130,10 @@ type AMF struct {
 
 	tmsi    *etsi.TmsiAllocator
 	connIDs *idgenerator.IDGenerator
+
+	// lcsCorrelationSeq issues the LCS correlation identifiers the AMF assigns
+	// to LPP transfers (TS 24.501 §5.4.5.3.2 case c, NOTE 2).
+	lcsCorrelationSeq atomic.Uint32
 
 	DBInstance               DBer
 	Ausf                     Authenticator
