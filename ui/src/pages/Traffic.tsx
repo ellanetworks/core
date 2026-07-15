@@ -343,12 +343,16 @@ const Traffic: React.FC = () => {
     queryKey: ["flowReportProtocolOptions", filtersWithoutProtocol],
     queryFn: () =>
       getFlowReportStats(accessToken || "", filtersWithoutProtocol),
-    enabled: authReady && !!accessToken,
+    enabled: authReady && !!accessToken && !!appliedProtocol,
     placeholderData: (prev) => prev,
     refetchInterval: 5000,
   });
 
-  const protocolOptionsData = protocolOptionsRaw ?? flowStatsData;
+  // Without a protocol filter flowStatsData is itself unfiltered, and a
+  // disabled query keeps serving its last, now stale, result.
+  const protocolOptionsData = appliedProtocol
+    ? (protocolOptionsRaw ?? flowStatsData)
+    : flowStatsData;
 
   const { data: flowAccountingInfo } = useQuery<FlowAccountingInfo>({
     queryKey: ["flow-accounting"],
