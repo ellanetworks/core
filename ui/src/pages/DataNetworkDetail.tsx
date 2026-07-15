@@ -81,13 +81,20 @@ const DataNetworkDetail: React.FC = () => {
   const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [staticModal, setStaticModal] = useState<
     | { mode: "create" }
-    | { mode: "edit"; imsi: string; ipVersion: string; address: string }
+    | {
+        mode: "edit";
+        imsi: string;
+        ipVersion: string;
+        address: string;
+        active: boolean;
+      }
     | null
   >(null);
   const [deleteStatic, setDeleteStatic] = useState<{
     imsi: string;
     ipVersion: string;
     address: string;
+    active: boolean;
   } | null>(null);
   const [framedModal, setFramedModal] = useState<
     | { mode: "create" }
@@ -247,13 +254,10 @@ const DataNetworkDetail: React.FC = () => {
       renderCell: (params: GridRenderCellParams<APIIPAllocation>) => {
         if (params.row.type !== "static") return null;
 
-        const active = params.row.session_id != null;
-
         return (
           <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
             <IconButton
               size="small"
-              disabled={active}
               aria-label="Edit static IP"
               onClick={(e: React.MouseEvent) => {
                 e.stopPropagation();
@@ -262,6 +266,7 @@ const DataNetworkDetail: React.FC = () => {
                   imsi: params.row.imsi,
                   ipVersion,
                   address: params.row.address,
+                  active: params.row.session_id != null,
                 });
               }}
             >
@@ -270,7 +275,6 @@ const DataNetworkDetail: React.FC = () => {
             <IconButton
               size="small"
               color="error"
-              disabled={active}
               aria-label="Delete static IP"
               onClick={(e: React.MouseEvent) => {
                 e.stopPropagation();
@@ -278,6 +282,7 @@ const DataNetworkDetail: React.FC = () => {
                   imsi: params.row.imsi,
                   ipVersion,
                   address: params.row.address,
+                  active: params.row.session_id != null,
                 });
               }}
             >
@@ -1088,7 +1093,11 @@ const DataNetworkDetail: React.FC = () => {
           onClose={() => setDeleteStatic(null)}
           onConfirm={handleStaticDeleteConfirm}
           title="Confirm Deletion"
-          description={`Remove the static IP ${deleteStatic.address} (${deleteStatic.ipVersion}) for subscriber ${deleteStatic.imsi}?`}
+          description={
+            deleteStatic.active
+              ? `Remove the static IP ${deleteStatic.address} (${deleteStatic.ipVersion}) for subscriber ${deleteStatic.imsi}? This subscriber has an active session, which will be released; they will reconnect with a dynamic address.`
+              : `Remove the static IP ${deleteStatic.address} (${deleteStatic.ipVersion}) for subscriber ${deleteStatic.imsi}? They will be assigned a dynamic address on their next attach.`
+          }
         />
       )}
       {framedModal && (

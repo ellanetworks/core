@@ -26,6 +26,8 @@ interface StaticIpEdit {
   imsi: string;
   ipVersion: string;
   address: string;
+  /** The reservation is bound to a live session, which a change will release. */
+  active?: boolean;
 }
 
 interface CreateStaticIpModalProps {
@@ -128,6 +130,12 @@ const CreateStaticIpModal: React.FC<CreateStaticIpModalProps> = ({
             {alert}
           </Alert>
         </Collapse>
+        {isEdit && edit?.active && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            This subscriber has an active session. Saving a new address releases
+            it, and the subscriber reconnects on the new address.
+          </Alert>
+        )}
         {isEdit ? (
           <TextField
             fullWidth
