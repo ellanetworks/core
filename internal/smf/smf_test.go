@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 	"sync"
 	"testing"
 
@@ -36,6 +37,15 @@ type fakeStore struct {
 	staticIPv4      netip.Addr
 	staticIPv6      netip.Addr
 	staticIPErr     error
+	opLog           []string
+}
+
+// ops returns the IPv4 allocate/release calls in the order they arrived.
+func (f *fakeStore) ops() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.opLog)
 }
 
 type fakePCF struct {
@@ -54,6 +64,8 @@ func (f *fakeStore) AllocateIP(_ context.Context, _ string, _ string, _ uint8) (
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	f.opLog = append(f.opLog, "alloc")
+
 	if f.allocateIPErr != nil {
 		return f.allocatedIP, f.allocateIPErr
 	}
@@ -65,6 +77,7 @@ func (f *fakeStore) ReleaseIP(_ context.Context, imsi string, _ string, _ uint8)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	f.opLog = append(f.opLog, "release")
 	f.releasedIPs = append(f.releasedIPs, imsi)
 
 	return f.releasedIP, f.err
