@@ -77,9 +77,9 @@ import EmptyState from "@/components/EmptyState";
 import {
   DOWNLINK_COLOR,
   PIE_COLORS,
-  PROTOCOL_CHIP_COLORS,
   UNIT_FACTORS,
   UPLINK_COLOR,
+  buildProtocolColorMap,
   chooseUnitFromMax,
   formatBytesAutoUnit,
   formatCountShare,
@@ -520,18 +520,13 @@ const Traffic: React.FC = () => {
   const flowRows: FlowReport[] = flowData?.items ?? [];
   const flowRowCount = flowData?.total_count ?? 0;
 
-  const protocolColorMap = useMemo(() => {
-    const map = new Map<number, string>();
-    if (protocolOptionsData?.protocols?.length) {
-      protocolOptionsData.protocols.forEach((p, i) => {
-        map.set(
-          p.protocol,
-          PROTOCOL_CHIP_COLORS[p.protocol] ?? PIE_COLORS[i % PIE_COLORS.length],
-        );
-      });
-    }
-    return map;
-  }, [protocolOptionsData]);
+  const protocolColorMap = useMemo(
+    () =>
+      buildProtocolColorMap(
+        (protocolOptionsData?.protocols ?? []).map((p) => p.protocol),
+      ),
+    [protocolOptionsData],
+  );
 
   const flowColumns: GridColDef<FlowReport>[] = useMemo(
     () => [

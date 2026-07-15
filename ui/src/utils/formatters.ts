@@ -341,3 +341,28 @@ export const PIE_COLORS = [
   "#3F51B5",
   "#CDDC39",
 ];
+
+/**
+ * Colours one view's set of protocols. A protocol in PROTOCOL_CHIP_COLORS keeps
+ * that colour so it reads the same across views; the rest draw from the palette
+ * entries no protocol in the set has already claimed, so two protocols shown
+ * together never share a colour.
+ */
+export const buildProtocolColorMap = (
+  protocols: number[],
+): Map<number, string> => {
+  const claimed = new Set(
+    protocols.map((p) => PROTOCOL_CHIP_COLORS[p]).filter(Boolean),
+  );
+  const unclaimed = PIE_COLORS.filter((c) => !claimed.has(c));
+  const pool = unclaimed.length > 0 ? unclaimed : PIE_COLORS;
+
+  const map = new Map<number, string>();
+  let next = 0;
+
+  protocols.forEach((p) => {
+    map.set(p, PROTOCOL_CHIP_COLORS[p] ?? pool[next++ % pool.length]);
+  });
+
+  return map;
+};
