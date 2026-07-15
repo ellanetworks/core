@@ -215,17 +215,6 @@ func GetSubscriberLocation(lmfInstance *lmf.LMF) http.Handler {
 				return
 			}
 
-			if sessionID != "" {
-				// Session was created and completed by the LPP state machine.
-				// Ensure the result is stored for the tester to retrieve.
-				if err := lmfInstance.SessionManager().CompleteSession(r.Context(), sessionID, result); err != nil {
-					logger.LmfLog.Warn("Failed to store A-GNSS result",
-						zap.String("session_id", sessionID),
-						zap.Error(err),
-					)
-				}
-			}
-
 			writeResponse(r.Context(), w, toLocationData(result, verbose), http.StatusOK, logger.APILog)
 
 			return
