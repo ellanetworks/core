@@ -139,8 +139,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, [navigate, scheduleRefresh, clearRefreshTimer]);
 
-  // Apply a token directly (from login response or navigation state).
-  // Returns true if the token was valid and applied.
   const applyToken = useCallback(
     (token: string): boolean => {
       try {
@@ -170,7 +168,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     let cancelled = false;
 
     (async () => {
-      // If the login/initialize page passed a token via navigation state, use it directly.
       const navToken = (location.state as { token?: string } | null)?.token;
       if (navToken && applyToken(navToken)) {
         // Clear the token from navigation state so it isn't reused on back-navigation.
@@ -179,7 +176,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return;
       }
 
-      // Otherwise fall back to refreshing via the session cookie.
       try {
         await silentRefresh();
       } finally {

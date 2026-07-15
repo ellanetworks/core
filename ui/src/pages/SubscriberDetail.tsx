@@ -87,7 +87,6 @@ const SubscriberDetail: React.FC = () => {
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      {/* Header */}
       <Box
         sx={{
           display: "flex",
@@ -148,7 +147,6 @@ const SubscriberDetail: React.FC = () => {
       >
         {(subscriber) => (
           <>
-            {/* Two-column body */}
             <Box
               sx={{
                 display: "grid",
@@ -157,7 +155,6 @@ const SubscriberDetail: React.FC = () => {
                 alignItems: "stretch",
               }}
             >
-              {/* Left column */}
               <Box
                 sx={{
                   display: "flex",
@@ -173,7 +170,6 @@ const SubscriberDetail: React.FC = () => {
                 />
               </Box>
 
-              {/* Right column */}
               <Box
                 sx={{
                   display: "flex",
@@ -185,14 +181,12 @@ const SubscriberDetail: React.FC = () => {
               </Box>
             </Box>
 
-            {/* Sessions */}
             <SubscriberSessionsCard
               sessions={subscriber.sessions}
               accessType={subscriber.status.radio_access_type}
               loading={subscriberQuery.isLoading}
             />
 
-            {/* Traffic card */}
             <Card variant="outlined" sx={{ mt: 3 }}>
               <CardContent>
                 <Box

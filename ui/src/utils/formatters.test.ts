@@ -3,6 +3,7 @@
 
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
+  buildProtocolColorMap,
   chooseUnitFromMax,
   formatBytesAutoUnit,
   formatBytesWithUnit,
@@ -12,11 +13,11 @@ import {
   formatMemory,
   formatProtocol,
   formatRelativeTime,
+  PROTOCOL_CHIP_COLORS,
   UNIT_FACTORS,
 } from "./formatters";
 
 describe("UNIT_FACTORS", () => {
-  // Data volumes are decimal, matching the bitrate units the core encodes.
   it("is decimal, not binary", () => {
     expect(UNIT_FACTORS.KB).toBe(1000);
     expect(UNIT_FACTORS.MB).toBe(1_000_000);
@@ -41,7 +42,6 @@ describe("chooseUnitFromMax", () => {
 });
 
 describe("formatBytesWithUnit", () => {
-  // Decimals narrow as the number widens, so the column stays readable.
   it.each([
     [1_500_000, "MB", "1.50 MB"],
     [15_000_000, "MB", "15.0 MB"],
@@ -79,7 +79,6 @@ describe("formatBytesAutoUnit", () => {
 });
 
 describe("formatMemory", () => {
-  // Memory is binary and carries IEC units, unlike data volumes.
   it.each([
     [0, "0 B"],
     [1024, "1 KiB"],
@@ -113,6 +112,42 @@ describe("formatProtocol", () => {
 
   it("falls back to the number when unknown", () => {
     expect(formatProtocol(253)).toBe("253");
+  });
+});
+
+describe("buildProtocolColorMap", () => {
+  const TCP = 6;
+  const UDP = 17;
+  const ICMP = 1;
+  const OSPF = 89;
+  const IPV6 = 41;
+
+  it("gives a well-known protocol its colour whatever its position", () => {
+    const first = buildProtocolColorMap([TCP, UDP, ICMP]);
+    const second = buildProtocolColorMap([ICMP, UDP, TCP]);
+
+    expect(first.get(TCP)).toBe(PROTOCOL_CHIP_COLORS[TCP]);
+    expect(second.get(TCP)).toBe(PROTOCOL_CHIP_COLORS[TCP]);
+    expect(first.get(ICMP)).toBe(second.get(ICMP));
+  });
+
+  it("does not hand an unlisted protocol a well-known protocol's colour", () => {
+    const map = buildProtocolColorMap([TCP, OSPF, UDP]);
+
+    expect(map.get(OSPF)).not.toBe(map.get(UDP));
+    expect(map.get(OSPF)).not.toBe(map.get(TCP));
+  });
+
+  it("colours every protocol distinctly", () => {
+    const protocols = [ICMP, IPV6, OSPF, TCP, UDP];
+    const colors = [...buildProtocolColorMap(protocols).values()];
+
+    expect(colors).toHaveLength(protocols.length);
+    expect(new Set(colors).size).toBe(protocols.length);
+  });
+
+  it("has no entries for an empty set", () => {
+    expect(buildProtocolColorMap([]).size).toBe(0);
   });
 });
 

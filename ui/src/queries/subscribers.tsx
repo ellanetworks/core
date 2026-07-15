@@ -3,7 +3,6 @@
 
 import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
-/** Lightweight status returned by the list endpoint. */
 export type SubscriberListStatus = {
   registered?: boolean;
   radio_access_type?: string; // "4G" | "5G", per the live connection
@@ -11,7 +10,6 @@ export type SubscriberListStatus = {
   last_seen_at?: string;
 };
 
-/** Summary representation returned by the list endpoint. */
 export type APISubscriberSummary = {
   imsi: string;
   profile_name: string;
@@ -26,7 +24,6 @@ export type ListSubscribersResponse = {
   total_count: number;
 };
 
-/** Rich status returned by the get-single endpoint. */
 export type SubscriberDetailStatus = {
   registered?: boolean;
   radio_access_type?: string; // "4G" | "5G", per the live connection
@@ -37,7 +34,6 @@ export type SubscriberDetailStatus = {
   last_seen_radio?: string;
 };
 
-/** Full representation returned by the get-single endpoint. */
 export type APISubscriber = {
   imsi: string;
   profile_name: string;
@@ -45,7 +41,6 @@ export type APISubscriber = {
   sessions: SessionInfo[];
 };
 
-/** Credentials returned by the dedicated credentials endpoint. */
 export type SubscriberCredentials = {
   key: string;
   opc: string;

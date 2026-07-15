@@ -26,7 +26,7 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
 }) => {
   const theme = useTheme();
 
-  // Network slices (S-NSSAI) are 5G-only; mark them not applicable on 4G.
+  // Network slices (S-NSSAI) are 5G-only.
   const is4G = accessType === "4G";
 
   const columns: GridColDef<SessionInfo>[] = useMemo(

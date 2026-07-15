@@ -3,10 +3,7 @@
 
 import { HTTPStatus } from "@/queries/utils";
 
-/**
- * Downloads a backup as a binary blob.
- * Cannot use apiFetch because the response is a Blob, not JSON.
- */
+// Cannot use apiFetch because the response is a Blob, not JSON.
 export const backup = async (authToken: string): Promise<Blob> => {
   const response = await fetch(`/api/v1/backup`, {
     method: "POST",
@@ -32,10 +29,7 @@ export const backup = async (authToken: string): Promise<Blob> => {
   return await response.blob();
 };
 
-/**
- * Uploads a backup file for restore.
- * Cannot use apiFetch because the request body is FormData, not JSON.
- */
+// Cannot use apiFetch because the request body is FormData, not JSON.
 export const restore = async (
   authToken: string,
   backupFile: Blob,

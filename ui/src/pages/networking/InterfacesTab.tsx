@@ -52,7 +52,6 @@ export default function InterfacesTab() {
               mt: 1,
             }}
           >
-            {/* N2 */}
             <Box
               sx={{
                 border: 1,
@@ -96,7 +95,6 @@ export default function InterfacesTab() {
               </Typography>
             </Box>
 
-            {/* N3 */}
             <Box
               sx={{
                 border: 1,
@@ -167,7 +165,6 @@ export default function InterfacesTab() {
               )}
             </Box>
 
-            {/* N6 */}
             <Box
               sx={{
                 border: 1,
@@ -217,7 +214,6 @@ export default function InterfacesTab() {
               )}
             </Box>
 
-            {/* API */}
             <Box
               sx={{
                 border: 1,

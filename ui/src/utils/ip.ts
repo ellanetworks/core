@@ -24,7 +24,6 @@ export const ipv6CidrRegex =
 export const IPV6_POOL_MIN_PREFIX = 48;
 export const IPV6_POOL_MAX_PREFIX = 60;
 
-/** The prefix length of a CIDR, or null when there is no readable one. */
 export function prefixLength(value: string): number | null {
   const slash = value.lastIndexOf("/");
   if (slash < 0) return null;
@@ -35,7 +34,6 @@ export function prefixLength(value: string): number | null {
   return Number(digits);
 }
 
-/** The widest prefix the address family allows. */
 export function getMaxPrefixLength(value: string): number {
   return value.includes(":") ? 128 : 32;
 }

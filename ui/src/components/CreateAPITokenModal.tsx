@@ -169,7 +169,6 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
     setAlert({ message: "" });
 
     try {
-      // final validation before submit
       await schema.validate(formValues, { abortEarly: false });
 
       const expiryISO =
@@ -191,7 +190,6 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
     } catch (error: unknown) {
       let msg = "Unknown error occurred.";
       if (error instanceof ValidationError) {
-        // collect field errors
         const validationErrors = error.inner.reduce(
           (acc, curr) => {
             if (curr.path) acc[curr.path] = curr.message;

@@ -192,7 +192,6 @@ const ProfileDetail: React.FC = () => {
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      {/* Header / Breadcrumb */}
       <Box
         sx={{
           display: "flex",
@@ -248,7 +247,6 @@ const ProfileDetail: React.FC = () => {
         )}
       </Box>
 
-      {/* Configuration Card */}
       <QueryState
         query={profileQuery}
         resource="this profile"
@@ -388,7 +386,6 @@ const ProfileDetail: React.FC = () => {
         )}
       </QueryState>
 
-      {/* Policies Table */}
       <Box sx={{ mt: 4 }}>
         <Box
           sx={{
@@ -466,7 +463,6 @@ const ProfileDetail: React.FC = () => {
         </QueryState>
       </Box>
 
-      {/* Modals */}
       {isCreatePolicyOpen && (
         <CreatePolicyModal
           open

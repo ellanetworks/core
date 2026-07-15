@@ -18,7 +18,6 @@ const base = {
   mtu: 1500,
 };
 
-/** The messages yup raises for a form, or [] when it validates. */
 const errorsFor = async (form: Record<string, unknown>): Promise<string[]> => {
   try {
     await schema.validate(form, { abortEarly: false });
@@ -51,8 +50,6 @@ describe("data network pool validation", () => {
     expect(errors).toContain(NEED_ONE);
   });
 
-  // The finding this covers: one message for three causes meant a malformed
-  // pool was reported as an absent one, with the pool visibly on screen.
   it("reports a malformed IPv6 pool as a format error, not an absent pool", async () => {
     const errors = await errorsFor({ ...base, ipv6_pool: "2001:db8::/64" });
 
@@ -90,7 +87,6 @@ describe("data network pool validation", () => {
     },
   );
 
-  // The field is labelled "IPv4 Pool" and IPv6 has its own field.
   it("does not accept an IPv6 prefix in the IPv4 pool", async () => {
     expect(await errorsFor({ ...base, ipv4_pool: "2001:db8::/56" })).toContain(
       V4_FORMAT,

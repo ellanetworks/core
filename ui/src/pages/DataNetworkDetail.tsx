@@ -540,7 +540,6 @@ const DataNetworkDetail: React.FC = () => {
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      {/* Header / Breadcrumb */}
       <Box
         sx={{
           display: "flex",
@@ -612,7 +611,6 @@ const DataNetworkDetail: React.FC = () => {
 
           return (
             <>
-              {/* Two-column layout: Configuration + Status */}
               <Box
                 sx={{
                   display: "grid",
@@ -621,7 +619,6 @@ const DataNetworkDetail: React.FC = () => {
                   alignItems: "stretch",
                 }}
               >
-                {/* Configuration Card */}
                 <Card
                   variant="outlined"
                   sx={{
@@ -697,7 +694,6 @@ const DataNetworkDetail: React.FC = () => {
                   </CardContent>
                 </Card>
 
-                {/* Status Card */}
                 <Card
                   variant="outlined"
                   sx={{
@@ -793,7 +789,6 @@ const DataNetworkDetail: React.FC = () => {
                 </Card>
               </Box>
 
-              {/* IP Allocations */}
               {(hasIpv4Pool || hasIpv6Pool) && (
                 <Box sx={{ mt: 3 }}>
                   <Box
@@ -975,7 +970,6 @@ const DataNetworkDetail: React.FC = () => {
         }}
       </QueryState>
 
-      {/* Framed Routes */}
       <Box sx={{ mt: 4 }}>
         <Box
           sx={{
@@ -1077,7 +1071,6 @@ const DataNetworkDetail: React.FC = () => {
         </QueryState>
       </Box>
 
-      {/* Modals */}
       {isDeleteConfirmOpen && (
         <DeleteConfirmationModal
           open

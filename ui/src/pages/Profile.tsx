@@ -89,7 +89,6 @@ export default function Profile() {
         Manage how you authenticate with Ella Core.
       </Typography>
 
-      {/* Two-column body */}
       <Box
         sx={{
           display: "grid",
@@ -115,7 +114,6 @@ export default function Profile() {
         </Box>
       </Box>
 
-      {/* API Tokens — full width */}
       <Box sx={{ mt: 3 }}>
         <QueryState
           query={tokensQuery}

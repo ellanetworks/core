@@ -3,8 +3,6 @@
 
 import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
-// BGP Settings
-
 export type RejectedPrefix = {
   prefix: string;
   source: "builtin" | "data_network" | "interface";
@@ -40,8 +38,6 @@ export async function updateBGPSettings(
     body: params,
   });
 }
-
-// BGP Peers
 
 export type BGPImportPrefix = {
   prefix: string;
@@ -141,8 +137,6 @@ export async function deleteBGPPeer(
   });
 }
 
-// BGP Advertised Routes
-
 export type BGPAdvertisedRoute = {
   subscriber: string;
   prefix: string;
@@ -161,8 +155,6 @@ export async function getBGPAdvertisedRoutes(
     { authToken },
   );
 }
-
-// BGP Learned Routes
 
 export type BGPLearnedRoute = {
   prefix: string;

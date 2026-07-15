@@ -76,7 +76,6 @@ const advertisedGridSlots = { noRowsOverlay: NoAdvertisedRoutesOverlay };
 export default function BGPTab() {
   const { accessToken, canEdit, showSnackbar } = useNetworkingContext();
 
-  // BGP Settings
   const settingsQuery = useQuery<BGPSettings>({
     queryKey: ["bgp-settings"],
     queryFn: () => getBGPSettings(accessToken || ""),
@@ -112,7 +111,6 @@ export default function BGPTab() {
     },
   });
 
-  // NAT info (for the advertised routes warning)
   const { data: natInfo } = useQuery<NatInfo>({
     queryKey: ["nat"],
     queryFn: () => getNATInfo(accessToken || ""),
@@ -121,7 +119,6 @@ export default function BGPTab() {
 
   const isNATEnabled = !!natInfo?.enabled;
 
-  // BGP Peers
   const [peersPagination, setPeersPagination] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 25,
@@ -267,7 +264,6 @@ export default function BGPTab() {
     ];
   }, [canEdit]);
 
-  // BGP Advertised Routes
   const advertisedQuery = useQuery<BGPAdvertisedRoutesResponse>({
     queryKey: ["bgp-advertised-routes"],
     queryFn: () => getBGPAdvertisedRoutes(accessToken || ""),
@@ -328,7 +324,6 @@ export default function BGPTab() {
     { field: "nextHop", headerName: "Next Hop", flex: 1, minWidth: 140 },
   ];
 
-  // BGP Learned Routes
   const learnedQuery = useQuery<BGPLearnedRoutesResponse>({
     queryKey: ["bgp-learned-routes"],
     queryFn: () => getBGPLearnedRoutes(accessToken || ""),
@@ -358,7 +353,6 @@ export default function BGPTab() {
 
   return (
     <Box sx={{ width: "100%", mt: 2 }}>
-      {/* --- Settings Card --- */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h5" sx={{ mb: 0.5 }}>
           BGP Settings
@@ -440,7 +434,6 @@ export default function BGPTab() {
         </QueryState>
       </Box>
 
-      {/* --- Peers Table --- */}
       <Box sx={{ mb: 4 }}>
         <Stack
           direction={{ xs: "column", sm: "row" }}
@@ -506,7 +499,6 @@ export default function BGPTab() {
         </QueryState>
       </Box>
 
-      {/* --- Advertised Routes Table --- */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h5" sx={{ mb: 0.5 }}>
           Advertised Routes
@@ -554,7 +546,6 @@ export default function BGPTab() {
         </QueryState>
       </Box>
 
-      {/* --- Learned Routes Table --- */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h5" sx={{ mb: 0.5 }}>
           Learned Routes
@@ -594,7 +585,6 @@ export default function BGPTab() {
         </QueryState>
       </Box>
 
-      {/* --- Modals --- */}
       {isCreatePeerOpen && (
         <CreateBGPPeerModal
           open

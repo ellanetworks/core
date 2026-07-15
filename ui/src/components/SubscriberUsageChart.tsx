@@ -27,7 +27,6 @@ import {
 
 interface SubscriberUsageChartProps {
   imsi: string;
-  /** When true, renders without Card wrapper (for embedding in a parent card). */
   embedded?: boolean;
 }
 
@@ -51,8 +50,7 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
   embedded = false,
 }) => {
   const { accessToken, authReady } = useAuth();
-  // Date range is computed once on mount. If the page stays open past midnight
-  // the chart won't shift to include the new day until the component remounts.
+  // Computed once on mount: past midnight the range holds until a remount.
   const { startDate, endDate } = useMemo(() => getDateRange7Days(), []);
 
   const usageQuery = useQuery<UsageResult>({

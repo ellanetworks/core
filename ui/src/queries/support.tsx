@@ -1,10 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-/**
- * Downloads a support bundle as a binary blob.
- * Mirrors the backup API behavior but calls the support-bundle endpoint.
- */
 import { HTTPStatus } from "@/queries/utils";
 
 export const generateSupportBundle = async (

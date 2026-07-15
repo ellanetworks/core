@@ -36,11 +36,8 @@ import { useAuth } from "@/contexts/AuthContext";
 
 import * as yup from "yup";
 import { ValidationError } from "yup";
-import {
-  formatProtocol,
-  PROTOCOL_CHIP_COLORS,
-  PROTOCOL_NAMES,
-} from "@/utils/formatters";
+import { PROTOCOL_NAMES } from "@/utils/formatters";
+import IPProtocolChip from "@/components/IPProtocolChip";
 import { isValidCidr } from "@/utils/ip";
 
 const parseProtocol = (value: string): number | undefined => {
@@ -108,7 +105,7 @@ const schema = yup.object().shape({
       "cidr-or-empty",
       "Must be valid CIDR format (e.g., 192.168.0.0/24 or 2001:db8::/32)",
       (val) => {
-        if (!val || val.trim() === "") return true; // allow empty (optional field)
+        if (!val || val.trim() === "") return true;
         return isValidCidr(val);
       },
     ),
@@ -517,21 +514,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
                     />
                   </Box>
                   <Box sx={{ width: 100, flexShrink: 0 }}>
-                    <Chip
-                      label={
-                        rule.protocol === 0
-                          ? "any"
-                          : formatProtocol(rule.protocol)
-                      }
-                      size="small"
-                      variant="outlined"
-                      sx={{
-                        borderColor:
-                          PROTOCOL_CHIP_COLORS[rule.protocol] || "divider",
-                        color:
-                          PROTOCOL_CHIP_COLORS[rule.protocol] || "text.primary",
-                      }}
-                    />
+                    <IPProtocolChip protocol={rule.protocol} />
                   </Box>
                   <Typography
                     variant="body2"
@@ -616,7 +599,6 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
         </DialogActions>
       </Dialog>
 
-      {/* Rule Form Dialog */}
       <Dialog
         open={isFormDialogOpen}
         onClose={() => setFormDialogOpen(false)}

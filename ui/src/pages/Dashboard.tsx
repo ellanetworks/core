@@ -58,10 +58,6 @@ const nf = new Intl.NumberFormat();
 const formatNumber = (n: number | null | undefined) =>
   n == null ? "N/A" : nf.format(n);
 
-// ──────────────────────────────────────────────────────
-// Metrics parsing
-// ──────────────────────────────────────────────────────
-
 type ParsedMetrics = {
   pduSessions: number | null;
   heapMemoryBytes: number | null;
@@ -111,10 +107,6 @@ const parseMetrics = (raw: string): ParsedMetrics => {
     processStart: g("process_start_time_seconds "),
   };
 };
-
-// ──────────────────────────────────────────────────────
-// KpiCard
-// ──────────────────────────────────────────────────────
 
 type KpiCardProps = {
   title: React.ReactNode;
@@ -197,10 +189,6 @@ function KpiCard({
   return CardInner;
 }
 
-// ──────────────────────────────────────────────────────
-// Date helpers (for usage query — last 7 days)
-// ──────────────────────────────────────────────────────
-
 const TOP_USERS = 10;
 
 const getDefaultDateRange = () => {
@@ -211,17 +199,11 @@ const getDefaultDateRange = () => {
   return { startDate: format(sevenDaysAgo), endDate: format(today) };
 };
 
-// ──────────────────────────────────────────────────────
-// Dashboard
-// ──────────────────────────────────────────────────────
-
 const Dashboard = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const { accessToken, authReady } = useAuth();
   const { startDate, endDate } = getDefaultDateRange();
-
-  // ── Queries ─────────────────────────────────────────
 
   const statusQuery = useQuery<APIStatus>({
     queryKey: ["dashboardStatus"],
@@ -270,8 +252,7 @@ const Dashboard = () => {
   const flowStatsQuery = useQuery<FlowReportStatsResponse>({
     queryKey: ["dashboardFlowStats", startDate, endDate],
     queryFn: () =>
-      // Do not force 'allow' so the dashboard shows both allowed and dropped
-      // flows by default. The API returns both when action is omitted.
+      // Omitting action counts both allowed and dropped flows.
       getFlowReportStats(accessToken!, {
         start: startDate,
         end: endDate,
@@ -291,8 +272,6 @@ const Dashboard = () => {
     refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   });
-
-  // ── Derived values ──────────────────────────────────
 
   const version = statusQuery.data?.version ?? null;
   const subscriberCount = subscribersQuery.data?.total_count ?? null;
@@ -321,8 +300,6 @@ const Dashboard = () => {
     return { alloc, available, total };
   }, [allocatedIPs, totalIPs]);
 
-  // ── Protocol donut data ─────────────────────────────
-
   const protocolPieData = useMemo(() => {
     if (!flowStatsQuery.data?.protocols?.length) return [];
     return flowStatsQuery.data.protocols.map((p, i) => ({
@@ -332,8 +309,6 @@ const Dashboard = () => {
       color: PIE_COLORS[i % PIE_COLORS.length],
     }));
   }, [flowStatsQuery.data]);
-
-  // ── Top 10 data users ───────────────────────────────
 
   type TopUser = {
     id: string;
@@ -362,8 +337,6 @@ const Dashboard = () => {
     return items.slice(0, TOP_USERS);
   }, [usageQuery.data]);
 
-  // ── Render ──────────────────────────────────────────
-
   return (
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
@@ -388,7 +361,6 @@ const Dashboard = () => {
         </Typography>
       </Box>
 
-      {/* ─── 1. Network Status ──────────────────────── */}
       <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
         Network Status
       </Typography>
@@ -459,7 +431,6 @@ const Dashboard = () => {
         </Grid>
       </Grid>
 
-      {/* ─── 2. Control Plane ───────────────────────── */}
       <Typography variant="h5" component="h2" sx={{ mt: 4, mb: 2 }}>
         Control Plane
       </Typography>
@@ -664,7 +635,6 @@ const Dashboard = () => {
         </Grid>
       </Grid>
 
-      {/* ─── 3. User Plane ──────────────────────────── */}
       <Typography variant="h5" component="h2" sx={{ mt: 4, mb: 2 }}>
         User Plane
       </Typography>
@@ -815,7 +785,6 @@ const Dashboard = () => {
         </Grid>
       </Grid>
 
-      {/* ─── 4. System ──────────────────────────────── */}
       <Typography variant="h5" component="h2" sx={{ mt: 4, mb: 2 }}>
         System
       </Typography>

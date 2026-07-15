@@ -52,12 +52,10 @@ import { logout } from "@/queries/auth";
 const drawerWidth = 250;
 
 const drawerSelectedSx = {
-  // normalise hover background for all states
   "&:hover": { bgcolor: "transparent" },
   "&.Mui-selected": { bgcolor: "transparent" },
   "&.Mui-selected:hover": { bgcolor: "transparent" },
 
-  // make the label bold + underline when selected
   "&.Mui-selected .MuiListItemText-primary": {
     fontWeight: 700,
     textDecoration: "underline",
@@ -66,7 +64,6 @@ const drawerSelectedSx = {
     textDecorationThickness: "2px",
   },
 
-  // on hover, show the underline even when not selected
   "&:hover .MuiListItemText-primary": {
     textDecoration: "underline",
     textDecorationColor: "primary.main",
@@ -234,7 +231,7 @@ export default function DrawerLayout({
       >
         <Toolbar />
         {/* A landmark, so the links are a region a screen reader can jump to
-            rather than a div reachable only by tabbing (WCAG 1.3.1). */}
+            without tabbing through them (WCAG 1.3.1). */}
         <Box
           component="nav"
           aria-label="Main"

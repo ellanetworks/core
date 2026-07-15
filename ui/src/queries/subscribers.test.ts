@@ -6,10 +6,6 @@ import { listAllSubscriberImsis } from "./subscribers";
 
 const PER_PAGE = 100;
 
-/**
- * Serves `total` IMSIs across pages, recording the requested page numbers so a
- * test can assert how the roster was assembled rather than only what came back.
- */
 const stubRoster = (total: number) => {
   const pagesRequested: number[] = [];
 

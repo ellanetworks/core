@@ -27,9 +27,6 @@ const DefaultLoading: React.FC = () => (
 );
 
 /**
- * Renders a query's outcome as one of: offline, error, loading, no-results,
- * empty, or data.
- *
  * The branch order is load-bearing:
  *
  * - `isLoadingError` is checked before `isLoading` because a failed first fetch
@@ -41,8 +38,8 @@ const DefaultLoading: React.FC = () => (
  * - Zero rows under `filtered` is a no-results state, not an empty one: the
  *   resource may well exist and the filter excluded it, so offering the
  *   empty state's "create one" affordance would be wrong.
- * - `isRefetchError` is passed to `children` as a flag rather than taken as a
- *   branch, so a failed background refresh keeps the last good data on screen.
+ * - `isRefetchError` is passed to `children` as a flag, not taken as a branch,
+ *   so a failed background refresh keeps the last good data on screen.
  */
 function QueryState<T>({
   query,

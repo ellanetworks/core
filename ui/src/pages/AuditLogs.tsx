@@ -58,7 +58,6 @@ const AuditLog: React.FC = () => {
 
   const [isEditModalOpen, setEditModalOpen] = useState(false);
 
-  // ── Filters ─────────────────────────────────────────
   const [{ startDate, endDate }, setDateRange] = useState(getDefaultDateRange);
   const [searchParams] = useSearchParams();
   const [selectedUser, setSelectedUser] = useState(
@@ -92,7 +91,6 @@ const AuditLog: React.FC = () => {
     enabled: authReady && !!accessToken,
   });
 
-  // Fetch users for the actor filter dropdown
   const { data: usersData } = useQuery<ListUsersResponse>({
     queryKey: ["users", 1, 100],
     queryFn: () => listUsers(accessToken || "", 1, 100),
@@ -104,7 +102,6 @@ const AuditLog: React.FC = () => {
     [usersData],
   );
 
-  // Build filters for the query
   const filters: AuditLogFilters = useMemo(() => {
     const f: AuditLogFilters = {};
     if (startDate) f.start = startDate;
@@ -249,7 +246,6 @@ const AuditLog: React.FC = () => {
           {descriptionText}
         </Typography>
 
-        {/* Filters row */}
         <Box
           sx={{
             display: "flex",
