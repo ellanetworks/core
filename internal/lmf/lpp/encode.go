@@ -328,13 +328,15 @@ func encodeLatitude(latE7 int32) (aper.Enumerated, int64) {
 
 // encodeLongitude converts a signed 1e-7-degree longitude to TS 23.032 encoding.
 // Returns the unsigned offset (value + longitudeOffset) in range 0..maxDegreesLongitude.
-// TS 23.032: longitude = N * 360 / 2^24, so N = lon_deg * 2^24 / 360.
-// The spec uses signed N in range -2^23..2^23-1, but we store the unsigned
-// offset (N + longitudeOffset) to work around an aper library bug with signed
-// INTEGERs that have a large negative lower bound.
+//
+// TS 23.032 §6.1 defines N by N ≤ (2^24/360)·X < N+1, i.e. N = floor(X·2^24/360),
+// with N in the signed range -2^23..2^23-1. Truncating toward zero would round a
+// western (negative) longitude the wrong way, a one-LSB (~2.4 m) bias, so the
+// division floors. The signed N is stored biased by longitudeOffset, which is
+// the PER constrained-integer encoding of lower bound -2^23.
 func encodeLongitude(lonE7 int32) int64 {
-	encoded := int64(lonE7) * longitudeResolution / maxLongitudeE7
-	// Shift to unsigned range: offset = N + longitudeOffset
+	encoded := floorDiv(int64(lonE7)*longitudeResolution, maxLongitudeE7)
+
 	offset := encoded + longitudeOffset
 	if offset > maxDegreesLongitude {
 		offset = maxDegreesLongitude
@@ -345,6 +347,17 @@ func encodeLongitude(lonE7 int32) int64 {
 	}
 
 	return offset
+}
+
+// floorDiv divides rounding toward negative infinity, unlike Go's / which
+// truncates toward zero.
+func floorDiv(a, b int64) int64 {
+	q := a / b
+	if (a%b != 0) && ((a < 0) != (b < 0)) {
+		q--
+	}
+
+	return q
 }
 
 // encodeAltitude converts a signed centimetre altitude to TS 23.032 encoding.

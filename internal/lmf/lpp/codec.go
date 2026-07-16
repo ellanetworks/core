@@ -99,36 +99,9 @@ func EncodeMessage(msg *lpptype.LPPMessage) ([]byte, error) {
 func DecodeMessage(data []byte) (*lpptype.LPPMessage, error) {
 	r := uper.NewUnalignedReader(data)
 
-	_, optionals, err := r.ReadSequencePreamble(false, 4)
+	msg, optionals, err := readEnvelopeHeader(r)
 	if err != nil {
-		return nil, fmt.Errorf("LPP-Message preamble: %w", err)
-	}
-
-	msg := &lpptype.LPPMessage{}
-
-	if optionals[0] {
-		if msg.TransactionID, err = readTransactionID(r); err != nil {
-			return nil, err
-		}
-	}
-
-	if msg.EndTransaction, err = r.ReadBool(); err != nil {
-		return nil, fmt.Errorf("endTransaction: %w", err)
-	}
-
-	if optionals[1] {
-		seq, err := r.ReadConstrainedInt(sequenceNumberMin, sequenceNumberMax)
-		if err != nil {
-			return nil, fmt.Errorf("sequenceNumber: %w", err)
-		}
-
-		msg.SequenceNumber = &seq
-	}
-
-	if optionals[2] {
-		if msg.Acknowledgement, err = readAcknowledgement(r); err != nil {
-			return nil, err
-		}
+		return nil, err
 	}
 
 	if optionals[3] {
@@ -138,6 +111,56 @@ func DecodeMessage(data []byte) (*lpptype.LPPMessage, error) {
 	}
 
 	return msg, nil
+}
+
+// DecodeEnvelopeHeader parses only the fields that precede lpp-MessageBody:
+// transactionID, endTransaction, sequenceNumber and acknowledgement. TS 37.355
+// §4.3.4 requires an acknowledgement whenever ackRequested and the sequence
+// number can be read, regardless of whether the body decodes, so those fields
+// are recoverable from a PDU whose body is malformed.
+func DecodeEnvelopeHeader(data []byte) (*lpptype.LPPMessage, error) {
+	msg, _, err := readEnvelopeHeader(uper.NewUnalignedReader(data))
+
+	return msg, err
+}
+
+// readEnvelopeHeader reads the LPP-Message fields up to and including
+// acknowledgement, returning the partially populated message and the SEQUENCE
+// preamble so the caller can decide whether a body follows.
+func readEnvelopeHeader(r *uper.Reader) (*lpptype.LPPMessage, []bool, error) {
+	_, optionals, err := r.ReadSequencePreamble(false, 4)
+	if err != nil {
+		return nil, nil, fmt.Errorf("LPP-Message preamble: %w", err)
+	}
+
+	msg := &lpptype.LPPMessage{}
+
+	if optionals[0] {
+		if msg.TransactionID, err = readTransactionID(r); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	if msg.EndTransaction, err = r.ReadBool(); err != nil {
+		return nil, nil, fmt.Errorf("endTransaction: %w", err)
+	}
+
+	if optionals[1] {
+		seq, err := r.ReadConstrainedInt(sequenceNumberMin, sequenceNumberMax)
+		if err != nil {
+			return nil, nil, fmt.Errorf("sequenceNumber: %w", err)
+		}
+
+		msg.SequenceNumber = &seq
+	}
+
+	if optionals[2] {
+		if msg.Acknowledgement, err = readAcknowledgement(r); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return msg, optionals, nil
 }
 
 // LPP-TransactionID ::= SEQUENCE { initiator Initiator, transactionNumber TransactionNumber, ... }

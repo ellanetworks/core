@@ -32,6 +32,10 @@ type LocationSource interface {
 // LPPHandler is the interface for sending LPP messages to a UE via the AMF.
 type LPPHandler interface {
 	ForwardLPPToUE(ctx context.Context, supi string, lppData []byte) error
+	// LPPN1ModeSupported reports the UE's LPP-in-N1-mode capability. The second
+	// return is false when the capability is unknown (no UE context or no 5GMM
+	// capability IE), so "declined" is distinguishable from "unknown".
+	LPPN1ModeSupported(supi string) (supported, known bool)
 }
 
 // LMF is the Location Management Function. It orchestrates positioning
@@ -138,17 +142,6 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, lppData []by
 		zap.String("lpp_hex", hex.EncodeToString(lppData)),
 	)
 
-	msg, err := lpp.ParseLPPMessage(lppData)
-	if err != nil {
-		logger.LmfLog.Error("failed to parse LPP PDU from UE",
-			zap.String("supi", supi.String()),
-			zap.String("lpp_hex", hex.EncodeToString(lppData)),
-			zap.Error(err),
-		)
-
-		return fmt.Errorf("parse LPP message: %w", err)
-	}
-
 	lmf.lppMu.RLock()
 
 	var activeSession *lpp.Session
@@ -167,6 +160,11 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, lppData []by
 
 	lmf.lppMu.RUnlock()
 
+	// TS 37.355 §4.3.3: acknowledge before touching the body. The ack is owed
+	// for any decodable header regardless of whether the body parses, and
+	// sending it here is what stops the UE's 2 s retransmission loop (§4.3.4).
+	duplicate := lmf.acknowledgeLPP(ctx, supi, lppData, activeSession)
+
 	if activeSession == nil {
 		logger.LmfLog.Warn("no active LPP session for UE reply; dropping",
 			zap.String("supi", supi.String()),
@@ -174,6 +172,28 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, lppData []by
 		)
 
 		return fmt.Errorf("no active session")
+	}
+
+	// TS 37.355 §4.3.2: a repeated sequence number is a retransmission; it is
+	// acknowledged (done above) but its body must not be processed again.
+	if duplicate {
+		logger.LmfLog.Debug("dropping duplicate LPP PDU from UE",
+			zap.String("supi", supi.String()),
+			zap.String("session_id", activeSession.SessionID()),
+		)
+
+		return nil
+	}
+
+	msg, err := lpp.ParseLPPMessage(lppData)
+	if err != nil {
+		logger.LmfLog.Error("failed to parse LPP PDU from UE",
+			zap.String("supi", supi.String()),
+			zap.String("lpp_hex", hex.EncodeToString(lppData)),
+			zap.Error(err),
+		)
+
+		return fmt.Errorf("parse LPP message: %w", err)
 	}
 
 	logger.LmfLog.Info("routing LPP PDU to session",
@@ -189,6 +209,53 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, lppData []by
 	}
 
 	return nil
+}
+
+// acknowledgeLPP returns an acknowledgement to the UE when the received PDU
+// requested one (TS 37.355 §4.3.3), and reports whether the PDU is a duplicate
+// of the last one this session received (§4.3.2). A PDU whose header cannot be
+// read is not acknowledged and is treated as non-duplicate.
+func (lmf *LMF) acknowledgeLPP(ctx context.Context, supi etsi.SUPI, lppData []byte, session *lpp.Session) (duplicate bool) {
+	info, err := lpp.ParseAckInfo(lppData)
+	if err != nil {
+		logger.LmfLog.Warn("could not read LPP acknowledgement header",
+			zap.String("supi", supi.String()),
+			zap.Error(err),
+		)
+
+		return false
+	}
+
+	if !info.AckRequested || !info.HasSequence {
+		return false
+	}
+
+	// Without a session there is no downlink counter; seq 0 still stops the
+	// retransmission loop, which is the point of acknowledging a stray reply.
+	var ackSeq byte
+
+	if session != nil {
+		ackSeq, duplicate = session.AckInbound(lppData)
+	}
+
+	ack, err := lpp.BuildAcknowledgement(ackSeq, info.SequenceNumber)
+	if err != nil {
+		logger.LmfLog.Error("failed to build LPP acknowledgement",
+			zap.String("supi", supi.String()),
+			zap.Error(err),
+		)
+
+		return duplicate
+	}
+
+	if err := lmf.lppHandler.ForwardLPPToUE(ctx, supi.String(), ack); err != nil {
+		logger.LmfLog.Error("failed to send LPP acknowledgement to UE",
+			zap.String("supi", supi.String()),
+			zap.Error(err),
+		)
+	}
+
+	return duplicate
 }
 
 // RegisterLPPSession adds an LPP session to the LMF's session map.

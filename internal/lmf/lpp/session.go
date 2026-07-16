@@ -4,6 +4,7 @@
 package lpp
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"sync"
@@ -54,6 +55,7 @@ type Session struct {
 	state          SessionState
 	transactionID  byte
 	sequenceNumber byte
+	lastInbound    []byte
 	capabilities   *models.ProvideLocationCapabilities
 	locationResult *models.GNSSPositionResult
 	log            *zap.Logger
@@ -93,6 +95,31 @@ func (s *Session) NextTransactionID() byte {
 	s.transactionID = (s.transactionID + 1) & 0xFF
 
 	return id
+}
+
+// AckInbound records an inbound PDU for duplicate detection and reserves the
+// next downlink sequence number for its acknowledgement. It is safe to call
+// from the UL NAS handler goroutine.
+//
+// duplicate is true when the PDU is byte-identical to the immediately preceding
+// one, i.e. a retransmission (TS 37.355 §4.3.4), whose body must not be
+// processed again. Sequence-number equality alone is not used: an observed
+// handset reuses one uplink sequence number across its distinct capabilities
+// and location replies, so that test would drop the second. The acknowledgement
+// is owed even for a duplicate (§4.3.3), so ackSeq is always valid.
+func (s *Session) AckInbound(data []byte) (ackSeq byte, duplicate bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	duplicate = s.lastInbound != nil && bytes.Equal(s.lastInbound, data)
+	if !duplicate {
+		s.lastInbound = append(s.lastInbound[:0], data...)
+	}
+
+	ackSeq = s.sequenceNumber
+	s.sequenceNumber++
+
+	return ackSeq, duplicate
 }
 
 // NextSequenceNumber returns the next downlink sequence number for this
@@ -160,19 +187,24 @@ func (s *Session) handleCapabilities(capMsg *models.ProvideLocationCapabilities)
 	}
 
 	s.capabilities = capMsg
-	s.log.Info(
-		"received UE capabilities",
-		zap.Strings("gnss", func() []string {
-			var ids []string
-			for _, id := range capMsg.GNSSCapability.Supported() {
-				ids = append(ids, id.String())
-			}
 
-			return ids
-		}()),
-	)
+	gnss := make([]string, 0, len(capMsg.GNSSCapability.Supported()))
+	for _, id := range capMsg.GNSSCapability.Supported() {
+		gnss = append(gnss, id.String())
+	}
 
-	// For AGNSS-assisted, now request actual location
+	s.log.Info("received UE capabilities", zap.Strings("gnss", gnss))
+
+	// TS 37.355 §5.2.1: A-GNSS positioning needs the target to support at least
+	// one GNSS. A UE that reports none cannot produce a fix, so asking for one
+	// only draws an error (notAllRequestedMeasurementsPossible) 30 s later.
+	if len(gnss) == 0 {
+		s.log.Warn("UE reports no A-GNSS capability", zap.String("state", s.state.String()))
+		s.failLocked()
+
+		return nil
+	}
+
 	s.state = LocationRequested
 
 	locMsg, err := BuildRequestLocationInfo(s.NextTransactionID(), s.NextSequenceNumber(), PosMethodGNSS)
@@ -202,17 +234,7 @@ func (s *Session) handleAbort(msg *models.Abort) {
 		zap.Uint8("transaction_id", msg.TransactionID),
 	)
 
-	s.state = SessionFailed
-
-	if s.failFunc != nil {
-		if err := s.failFunc(); err != nil {
-			s.log.Error("failed to report session failure", zap.Error(err))
-		}
-	}
-
-	if s.deregisterFunc != nil {
-		s.deregisterFunc()
-	}
+	s.failLocked()
 }
 
 // handleLocation processes ProvideLocationInformation from the UE.
@@ -236,17 +258,7 @@ func (s *Session) handleLocation(msg *models.ProvideLocationInformation) error {
 			zap.String("failure_cause", cause),
 		)
 
-		s.state = SessionFailed
-
-		if s.failFunc != nil {
-			if err := s.failFunc(); err != nil {
-				s.log.Error("failed to report session failure", zap.Error(err))
-			}
-		}
-
-		if s.deregisterFunc != nil {
-			s.deregisterFunc()
-		}
+		s.failLocked()
 
 		return nil
 	}
@@ -361,8 +373,14 @@ func (s *Session) Fail() {
 		return
 	}
 
-	s.state = SessionFailed
 	s.log.Warn("session marked as failed")
+	s.failLocked()
+}
+
+// failLocked transitions the session to failed and reports it upstream. The
+// caller must hold s.mu and should log the specific reason first.
+func (s *Session) failLocked() {
+	s.state = SessionFailed
 
 	if s.failFunc != nil {
 		if err := s.failFunc(); err != nil {

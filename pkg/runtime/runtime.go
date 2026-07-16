@@ -841,6 +841,15 @@ func (b *lmfBridge) ForwardLPPToUE(ctx context.Context, supi string, lppData []b
 	return nil
 }
 
+func (b *lmfBridge) LPPN1ModeSupported(supi string) (supported, known bool) {
+	supiEtsi, err := etsi.NewSUPIFromPrefixed(supi)
+	if err != nil {
+		return false, false
+	}
+
+	return b.amf.LPPN1ModeSupported(supiEtsi)
+}
+
 // ausfDBAdapter adapts *db.Database to the ausf.SubscriberStore interface.
 type ausfDBAdapter struct {
 	db *db.Database

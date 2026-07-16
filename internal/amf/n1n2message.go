@@ -412,6 +412,19 @@ func (amf *AMF) TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte,
 }
 
 // TransferN1LPPMsg wraps an LPP payload in a DL NAS Transport message and
+// LPPN1ModeSupported reports whether the UE advertised LPP in N1 mode in the
+// 5GMM capability IE of its REGISTRATION REQUEST (TS 24.501 §9.11.3.1). The
+// second return is false when no UE context is known or the UE sent no 5GMM
+// capability IE, so a caller can distinguish "declined" from "unknown".
+func (amf *AMF) LPPN1ModeSupported(supi etsi.SUPI) (supported, known bool) {
+	ue, ok := amf.LookupUeBySupi(supi)
+	if !ok || ue.LPPN1Supported == nil {
+		return false, false
+	}
+
+	return *ue.LPPN1Supported, true
+}
+
 // sends it to the UE via the RAN. Per TS 24.501 §5.4.5.3.1 case c), LPP
 // payloads are carried in DL NAS Transport with PayloadContainerTypeLPP.
 //
