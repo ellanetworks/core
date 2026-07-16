@@ -44,11 +44,12 @@ func handleDecodeReport(ctx context.Context, ran *amf.Radio, report *decode.Repo
 	return true
 }
 
-// respondToFatalReport answers a fatal decode of an initiating message,
-// reporting the offending IEs in Criticality Diagnostics. A procedure that
-// defines an unsuccessful-outcome message is rejected with that message, which
-// TS 38.413 §10.3.5 requires in preference to the Error Indication the
-// remaining procedures fall back to (§10.3.4.2).
+// respondToFatalReport answers a fatal decode of an initiating message, reporting
+// the offending IEs in Criticality Diagnostics. NG Setup is rejected with its
+// unsuccessful-outcome message (NG SETUP FAILURE), which TS 38.413 §10.3.5 requires
+// in preference to the Error Indication (§10.3.4.2) that every other procedure here
+// still falls back to; procedures that also define a failure message (e.g. RAN
+// Configuration Update) can be added the same way.
 func respondToFatalReport(ctx context.Context, ran *amf.Radio, report *decode.Report) {
 	cd := report.ToCriticalityDiagnostics()
 

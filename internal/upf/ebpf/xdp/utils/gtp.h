@@ -205,8 +205,11 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	if ((const void *)(eth + 1) > data_end)
 		return XDP_DROP;
 
+	/* parse_ethernet accepts both C-VLAN and S-VLAN tags (parsers.h); match both
+	 * so an 802.1ad-tagged frame is not re-walked 4 octets short. */
 	void *l3 = eth + 1;
-	if (eth->h_proto == bpf_htons(ETH_P_8021Q)) {
+	if (eth->h_proto == bpf_htons(ETH_P_8021Q) ||
+	    eth->h_proto == bpf_htons(ETH_P_8021AD)) {
 		struct vlan_hdr *vlan = l3;
 		if ((const void *)(vlan + 1) > data_end)
 			return XDP_DROP;
@@ -218,6 +221,13 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	if (is_ip4) {
 		struct iphdr *ip = l3;
 		if ((const void *)(ip + 1) > data_end)
+			return XDP_DROP;
+
+		/* The re-walk steps a fixed 20 octets to L4, so an IPv4 header
+		 * carrying options (ihl > 5) — which parse_ip4 accepts — would be
+		 * rewritten inside the options. Drop rather than emit a corrupt
+		 * frame; options on a GTP-U echo do not occur in practice. */
+		if (ip->ihl != 5)
 			return XDP_DROP;
 
 		udp = (struct udphdr *)(ip + 1);
