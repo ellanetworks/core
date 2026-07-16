@@ -223,7 +223,15 @@ func (s *Session) handleCapabilities(capMsg *models.ProvideLocationCapabilities)
 		locInfoType = lpptype.LocationInformationTypeLocationEstimateRequired
 	}
 
-	locMsg, err := EncodeRequestLocationInformation(s.NextTransactionID(), s.NextSequenceNumber(), locInfoType)
+	// Request exactly the constellations the UE reported (§6.4.1): the GNSS-ID
+	// bit positions match the models.GnssID values. Asking for one it did not
+	// report draws notAllRequestedMeasurementsPossible.
+	gnssBits := make([]int, 0, len(capMsg.GNSSCapability.Supported()))
+	for _, id := range capMsg.GNSSCapability.Supported() {
+		gnssBits = append(gnssBits, int(id))
+	}
+
+	locMsg, err := EncodeRequestLocationInformation(s.NextTransactionID(), s.NextSequenceNumber(), locInfoType, gnssBits...)
 	if err != nil {
 		s.state = SessionFailed
 		return fmt.Errorf("build request location: %w", err)

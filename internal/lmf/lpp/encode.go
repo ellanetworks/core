@@ -68,7 +68,11 @@ func EncodeRequestCapabilities(transactionID, sequenceNumber byte) ([]byte, erro
 // message. locInfoType selects the mode (TS 37.355 §5.3.1): locationEstimate*
 // asks the UE to compute and return a fix (UE-based); locationMeasurements*
 // asks for GNSS measurements the network computes from (UE-assisted).
-func EncodeRequestLocationInformation(transactionID, sequenceNumber byte, locInfoType aper.Enumerated) ([]byte, error) {
+//
+// gnssBits are the GNSS-ID bit positions (0=GPS, 3=Galileo, 4=GLONASS, ...) the
+// UE reported supporting; the request asks for exactly those. Requesting a
+// constellation the UE does not support draws notAllRequestedMeasurementsPossible.
+func EncodeRequestLocationInformation(transactionID, sequenceNumber byte, locInfoType aper.Enumerated, gnssBits ...int) ([]byte, error) {
 	body := &lpptype.LPPMessageBody{
 		Present: 1, // c1
 		C1: &lpptype.LPPMessageBodyC1{
@@ -91,7 +95,7 @@ func EncodeRequestLocationInformation(transactionID, sequenceNumber byte, locInf
 							AGNSSRequestLocationInformation: &lpptype.AGNSSRequestLocationInformation{
 								GnssPositioningInstructions: lpptype.GNSSPositioningInstructions{
 									GnssMethods: lpptype.GNSSIDBitmap{
-										GnssIDs: makeGnssIdBitmap(0), // GPS only
+										GnssIDs: makeGnssIdBitmap(gnssBits...),
 									},
 									FineTimeAssistanceMeasReq: false,
 									AdrMeasReq:                false,
