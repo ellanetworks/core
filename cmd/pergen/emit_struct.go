@@ -462,7 +462,7 @@ func (g *generator) write() error {
 		out = g.buf.Bytes()
 	}
 
-	return writeFile(g.cfg.output, out)
+	return writeFile(g.cfg.dir, g.cfg.output, out)
 }
 
 // goFormat is a thin wrapper over go/format.Source.
@@ -474,7 +474,7 @@ var goFormat = func(src []byte) ([]byte, error) {
 var goFormatImpl func([]byte) ([]byte, error)
 
 // writeFile is set in output.go.
-var writeFile func(filename string, data []byte) error
+var writeFile func(dir, filename string, data []byte) error
 
 // strconv import used in some emitters.
 var _ = strconv.Itoa
