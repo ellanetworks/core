@@ -32,13 +32,13 @@ func TestDecodeUncertaintyMatchesSpecTable(t *testing.T) {
 	}{
 		{0, 0, 0},
 		{1, 1, 0},
-		{2, 2, 0},       // spec 2.1 m, decoder rounds to int metres
-		{20, 57, 0},     // spec 57.3 m
-		{40, 443, 0},    // spec 443 m
-		{60, 3000, 0.02},   // spec "3 km"
-		{80, 20000, 0.03},  // spec "20 km"
-		{100, 138000, 0.01}, // spec "138 km"
-		{120, 927000, 0.01}, // spec "927 km"
+		{2, 2, 0},            // spec 2.1 m, decoder rounds to int metres
+		{20, 57, 0},          // spec 57.3 m
+		{40, 443, 0},         // spec 443 m
+		{60, 3000, 0.02},     // spec "3 km"
+		{80, 20000, 0.03},    // spec "20 km"
+		{100, 138000, 0.01},  // spec "138 km"
+		{120, 927000, 0.01},  // spec "927 km"
 		{127, 1800000, 0.01}, // spec "1800 km"
 	} {
 		got := decodeUncertainty(tc.k)

@@ -4,6 +4,7 @@
 package lpp
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
@@ -11,11 +12,36 @@ import (
 	"github.com/free5gc/aper"
 )
 
-// Decoder parses an LPP-Message. LPP is carried in the unaligned variant of
-// PER (TS 37.355 §5), so it is decoded by the hand-written codec rather than
-// the aligned reflection codec the other 3GPP protocols use.
-func Decoder(data []byte) (*lpptype.LPPMessage, error) {
-	return DecodeMessage(data)
+// ParseLPPMessage decodes an LPP message and returns the model struct for its
+// body, discriminated by the body type.
+func ParseLPPMessage(data []byte) (any, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("empty LPP payload")
+	}
+
+	decoded, err := DecodeLPPMessage(data)
+	if err != nil {
+		return nil, fmt.Errorf("decode LPP message: %w", err)
+	}
+
+	switch decoded.BodyKind {
+	case lpptype.LPPMessageBodyC1PresentProvideCapabilities:
+		return decoded.ProvideCapabilities, nil
+	case lpptype.LPPMessageBodyC1PresentProvideLocationInformation:
+		return decoded.ProvideLocationInformation, nil
+	case lpptype.LPPMessageBodyC1PresentRequestCapabilities:
+		return decoded.RequestCapabilities, nil
+	case lpptype.LPPMessageBodyC1PresentRequestLocationInformation:
+		return decoded.RequestLocationInformation, nil
+	case lpptype.LPPMessageBodyC1PresentProvideAssistanceData:
+		return decoded.ProvideAssistanceData, nil
+	case lpptype.LPPMessageBodyC1PresentAbort:
+		return decoded.Abort, nil
+	case 0:
+		return nil, fmt.Errorf("LPP message has no body")
+	default:
+		return nil, fmt.Errorf("unsupported LPP message body kind: %d", decoded.BodyKind)
+	}
 }
 
 // DecodeLPPMessage decodes an LPP-Message from APER bytes and returns
@@ -36,7 +62,7 @@ type DecodedMessage struct {
 
 // DecodeLPPMessage decodes APER-encoded LPP bytes and returns a DecodedMessage.
 func DecodeLPPMessage(data []byte) (*DecodedMessage, error) {
-	msg, err := Decoder(data)
+	msg, err := DecodeMessage(data)
 	if err != nil {
 		return nil, err
 	}

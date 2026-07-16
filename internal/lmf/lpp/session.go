@@ -147,7 +147,7 @@ func (s *Session) StartSession() error {
 
 	s.state = CapabilitiesRequested
 
-	msg, err := BuildRequestCapabilities(s.NextTransactionID(), s.NextSequenceNumber())
+	msg, err := EncodeRequestCapabilities(s.NextTransactionID(), s.NextSequenceNumber())
 	if err != nil {
 		s.state = SessionFailed
 		return fmt.Errorf("build request capabilities: %w", err)
@@ -207,7 +207,7 @@ func (s *Session) handleCapabilities(capMsg *models.ProvideLocationCapabilities)
 
 	s.state = LocationRequested
 
-	locMsg, err := BuildRequestLocationInfo(s.NextTransactionID(), s.NextSequenceNumber(), PosMethodGNSS)
+	locMsg, err := EncodeRequestLocationInformation(s.NextTransactionID(), s.NextSequenceNumber())
 	if err != nil {
 		s.state = SessionFailed
 		return fmt.Errorf("build request location: %w", err)

@@ -36,9 +36,8 @@ const (
 	nRootGNSSTargetDeviceErrorCause = 4
 	maxGNSSSupportElements          = 16
 
-	degreesLatitudeMax  = 8388607
-	degreesLongitudeMax = 16777215 // signed -8388608..8388607 stored as an unsigned offset
-	altitudeMax         = 32767
+	// The GAD field widths (maxDegreesLatitude, maxDegreesLongitude, maxAltitude)
+	// are the PER upper bounds for these fields and live in geographic.go.
 	uncertaintyMax      = 127
 	orientationMax      = 179
 	confidenceMax       = 100
@@ -319,7 +318,7 @@ func writeLocationCoordinates(w *uper.Writer, c *lpptype.LocationCoordinates) er
 			ub   int64
 			name string
 		}{
-			{p.Altitude, altitudeMax, "altitude"},
+			{p.Altitude, maxAltitude, "altitude"},
 			{p.UncertaintySemiMajor, uncertaintyMax, "uncertaintySemiMajor"},
 			{p.UncertaintySemiMinor, uncertaintyMax, "uncertaintySemiMinor"},
 			{p.OrientationMajorAxis, orientationMax, "orientationMajorAxis"},
@@ -343,11 +342,11 @@ func writeLatLon(w *uper.Writer, sign aperEnum, lat, lon int64) error {
 		return fmt.Errorf("latitudeSign: %w", err)
 	}
 
-	if err := w.WriteConstrainedInt(lat, 0, degreesLatitudeMax); err != nil {
+	if err := w.WriteConstrainedInt(lat, 0, maxDegreesLatitude); err != nil {
 		return fmt.Errorf("degreesLatitude: %w", err)
 	}
 
-	if err := w.WriteConstrainedInt(lon, 0, degreesLongitudeMax); err != nil {
+	if err := w.WriteConstrainedInt(lon, 0, maxDegreesLongitude); err != nil {
 		return fmt.Errorf("degreesLongitude: %w", err)
 	}
 
@@ -744,7 +743,7 @@ func readLocationCoordinates(r *uper.Reader) (*lpptype.LocationCoordinates, erro
 			ub   int64
 			name string
 		}{
-			{&p.Altitude, altitudeMax, "altitude"},
+			{&p.Altitude, maxAltitude, "altitude"},
 			{&p.UncertaintySemiMajor, uncertaintyMax, "uncertaintySemiMajor"},
 			{&p.UncertaintySemiMinor, uncertaintyMax, "uncertaintySemiMinor"},
 			{&p.OrientationMajorAxis, orientationMax, "orientationMajorAxis"},
@@ -775,70 +774,22 @@ func readLatLon(r *uper.Reader) (sign aperEnum, lat, lon int64, err error) {
 		return 0, 0, 0, fmt.Errorf("latitudeSign: %w", err)
 	}
 
-	if lat, err = r.ReadConstrainedInt(0, degreesLatitudeMax); err != nil {
+	if lat, err = r.ReadConstrainedInt(0, maxDegreesLatitude); err != nil {
 		return 0, 0, 0, fmt.Errorf("degreesLatitude: %w", err)
 	}
 
-	if lon, err = r.ReadConstrainedInt(0, degreesLongitudeMax); err != nil {
+	if lon, err = r.ReadConstrainedInt(0, maxDegreesLongitude); err != nil {
 		return 0, 0, 0, fmt.Errorf("degreesLongitude: %w", err)
 	}
 
 	return enumValue(s), lat, lon, nil
 }
 
-//	ProvideAssistanceData ::= SEQUENCE {
-//	    criticalExtensions CHOICE {
-//	        c1 CHOICE { provideAssistanceData-r9 ProvideAssistanceData-r9-IEs, spare3, spare2, spare1 },
-//	        criticalExtensionsFuture SEQUENCE {} } }
-//
-// The assistance data itself carries no elements: the LMF holds no ephemeris to
-// send, so an A-GNSS-ProvideAssistanceData with every field absent is the whole
-// payload. Populated assistance data is rejected rather than encoded empty.
-func writeProvideAssistanceData(w *uper.Writer, p *lpptype.ProvideAssistanceData) error {
-	if p == nil || p.CriticalExtensions.Present != 1 || p.CriticalExtensions.C1 == nil {
-		return fmt.Errorf("provideAssistanceData: only the c1 critical extension is supported")
-	}
-
-	if err := writeCriticalExtensionC1(w, "provideAssistanceData"); err != nil {
-		return err
-	}
-
-	ies := p.CriticalExtensions.C1.ProvideAssistanceDataR9
-	if ies == nil {
-		return fmt.Errorf("provideAssistanceData: provideAssistanceData-r9 is required")
-	}
-
-	if ies.CommonIEsProvideAssistanceData != nil {
-		return fmt.Errorf("provideAssistanceData: commonIEsProvideAssistanceData is not implemented")
-	}
-
-	//	ProvideAssistanceData-r9-IEs ::= SEQUENCE {
-	//	    commonIEsProvideAssistanceData OPTIONAL, a-gnss-ProvideAssistanceData OPTIONAL,
-	//	    otdoa-ProvideAssistanceData OPTIONAL, epdu-Provide-Assistance-Data OPTIONAL, ... }
-	w.WriteSequencePreamble(true, false, []bool{
-		false, // commonIEsProvideAssistanceData
-		ies.AGNSSProvideAssistanceData != nil,
-		false, // otdoa-ProvideAssistanceData
-		false, // epdu-Provide-Assistance-Data
-	})
-
-	if a := ies.AGNSSProvideAssistanceData; a != nil {
-		if a.GnssCommonAssistData != nil || a.GnssGenericAssistData != nil || a.GnssError != nil {
-			return fmt.Errorf("provideAssistanceData: a-gnss assistance elements are not implemented")
-		}
-
-		//	A-GNSS-ProvideAssistanceData ::= SEQUENCE {
-		//	    gnss-CommonAssistData OPTIONAL, gnss-GenericAssistData OPTIONAL,
-		//	    gnss-Error OPTIONAL, ... }
-		w.WriteSequencePreamble(true, false, []bool{false, false, false})
-	}
-
-	return nil
-}
-
-// readProvideAssistanceData mirrors writeProvideAssistanceData. It reads the
-// structure and stops: no assistance element is decoded into a model, so the
-// body kind is all the caller learns.
+// readProvideAssistanceData reads the ProvideAssistanceData structure and stops:
+// no assistance element is decoded into a model, so the body kind is all the
+// caller learns. The LMF never sends assistance data (UE-based positioning is
+// not implemented), so this exists only to keep the decoder able to name any
+// body a peer might send.
 func readProvideAssistanceData(r *uper.Reader) (*lpptype.ProvideAssistanceData, error) {
 	if err := expectCriticalExtensionC1(r, "provideAssistanceData"); err != nil {
 		return nil, err

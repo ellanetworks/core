@@ -170,30 +170,6 @@ func TestEncodeDecodeProvideLocationInformation(t *testing.T) {
 	}
 }
 
-func TestEncodeDecodeProvideAssistanceData(t *testing.T) {
-	encoded, err := EncodeProvideAssistanceData(0x05, 0, nil)
-	if err != nil {
-		t.Fatalf("EncodeProvideAssistanceData: %v", err)
-	}
-
-	if len(encoded) == 0 {
-		t.Fatal("expected non-empty encoded data")
-	}
-
-	decoded, err := DecodeLPPMessage(encoded)
-	if err != nil {
-		t.Fatalf("DecodeLPPMessage: %v", err)
-	}
-
-	if decoded.TransactionID != 0x05 {
-		t.Errorf("expected transaction ID 0x05, got 0x%02x", decoded.TransactionID)
-	}
-
-	if decoded.BodyKind != lpptype.LPPMessageBodyC1PresentProvideAssistanceData {
-		t.Errorf("expected body kind ProvideAssistanceData, got %d", decoded.BodyKind)
-	}
-}
-
 func TestParseLPPMessage(t *testing.T) {
 	// Encode a ProvideCapabilities message and parse it with ParseLPPMessage.
 	encoded, err := EncodeProvideCapabilities(0x01, 0, []aper.Enumerated{lpptype.GnssIDGps})
@@ -222,17 +198,16 @@ func TestParseLPPMessage(t *testing.T) {
 	}
 }
 
-func TestBuildRequestCapabilities(t *testing.T) {
-	data, err := BuildRequestCapabilities(0x01, 0)
+func TestEncodeRequestCapabilities(t *testing.T) {
+	data, err := EncodeRequestCapabilities(0x01, 0)
 	if err != nil {
-		t.Fatalf("BuildRequestCapabilities: %v", err)
+		t.Fatalf("EncodeRequestCapabilities: %v", err)
 	}
 
 	if len(data) == 0 {
 		t.Fatal("expected non-empty encoded data")
 	}
 
-	// Verify the message can be decoded.
 	decoded, err := DecodeLPPMessage(data)
 	if err != nil {
 		t.Fatalf("DecodeLPPMessage: %v", err)
@@ -240,46 +215,6 @@ func TestBuildRequestCapabilities(t *testing.T) {
 
 	if decoded.BodyKind != lpptype.LPPMessageBodyC1PresentRequestCapabilities {
 		t.Errorf("expected RequestCapabilities, got %d", decoded.BodyKind)
-	}
-}
-
-func TestBuildAssistanceData(t *testing.T) {
-	data, err := BuildAssistanceData(0x02, 0)
-	if err != nil {
-		t.Fatalf("BuildAssistanceData: %v", err)
-	}
-
-	if len(data) == 0 {
-		t.Fatal("expected non-empty encoded data")
-	}
-
-	decoded, err := DecodeLPPMessage(data)
-	if err != nil {
-		t.Fatalf("DecodeLPPMessage: %v", err)
-	}
-
-	if decoded.BodyKind != lpptype.LPPMessageBodyC1PresentProvideAssistanceData {
-		t.Errorf("expected ProvideAssistanceData, got %d", decoded.BodyKind)
-	}
-}
-
-func TestBuildLocationInformation(t *testing.T) {
-	data, err := BuildLocationInformation(0x03, 0, 48856000, 2352200, 35000, 10, 15)
-	if err != nil {
-		t.Fatalf("BuildLocationInformation: %v", err)
-	}
-
-	if len(data) == 0 {
-		t.Fatal("expected non-empty encoded data")
-	}
-
-	decoded, err := DecodeLPPMessage(data)
-	if err != nil {
-		t.Fatalf("DecodeLPPMessage: %v", err)
-	}
-
-	if decoded.BodyKind != lpptype.LPPMessageBodyC1PresentProvideLocationInformation {
-		t.Errorf("expected ProvideLocationInformation, got %d", decoded.BodyKind)
 	}
 }
 

@@ -10,13 +10,6 @@ import (
 	"github.com/free5gc/aper"
 )
 
-// Encoder serialises an LPP-Message. LPP is carried in the unaligned variant of
-// PER (TS 37.355 §5), so it is encoded by the hand-written codec rather than the
-// aligned reflection codec the other 3GPP protocols use.
-func Encoder(msg *lpptype.LPPMessage) ([]byte, error) {
-	return EncodeMessage(msg)
-}
-
 // encodeLPPMessage is a convenience wrapper that builds and encodes an LPP-Message.
 //
 // endTransaction marks the last message carrying a body in the transaction
@@ -40,7 +33,7 @@ func encodeLPPMessage(transactionID byte, initiator aper.Enumerated, endTransact
 		LppMessageBody: body,
 	}
 
-	return Encoder(msg)
+	return EncodeMessage(msg)
 }
 
 // EncodeRequestCapabilities encodes an LPP RequestCapabilities message.
@@ -154,33 +147,6 @@ func EncodeProvideCapabilities(transactionID, sequenceNumber byte, gnssIDs []ape
 
 	// §5.1.1 step 2: the target's response ends the transaction.
 	return encodeLPPMessage(transactionID, lpptype.InitiatorTargetDevice, true, sequenceNumber, body)
-}
-
-// EncodeProvideAssistanceData encodes an LPP ProvideAssistanceData message.
-// For the MVP, the assistance data payload is opaque (not fully encoded per ASN.1).
-func EncodeProvideAssistanceData(transactionID, sequenceNumber byte, assistanceData []byte) ([]byte, error) {
-	_ = assistanceData // MVP: assistance data encoding is Phase 3+
-
-	body := &lpptype.LPPMessageBody{
-		Present: 1, // c1
-		C1: &lpptype.LPPMessageBodyC1{
-			Present: lpptype.LPPMessageBodyC1PresentProvideAssistanceData,
-			ProvideAssistanceData: &lpptype.ProvideAssistanceData{
-				CriticalExtensions: lpptype.ProvideAssistanceDataCriticalExtensions{
-					Present: 1, // c1
-					C1: &lpptype.ProvideAssistanceDataCriticalExtensionsC1{
-						Present: 1, // provideAssistanceData-r9
-						ProvideAssistanceDataR9: &lpptype.ProvideAssistanceDataR9IEs{
-							AGNSSProvideAssistanceData: &lpptype.AGNSSProvideAssistanceData{},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	// §5.2.1: a single delivery carries all the assistance data there is.
-	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, true, sequenceNumber, body)
 }
 
 // EncodeProvideLocationInformation encodes an LPP ProvideLocationInformation

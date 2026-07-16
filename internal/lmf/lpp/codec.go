@@ -273,8 +273,6 @@ func writeMessageBody(w *uper.Writer, body *lpptype.LPPMessageBody) error {
 		return writeProvideCapabilities(w, body.C1.ProvideCapabilities)
 	case lpptype.LPPMessageBodyC1PresentProvideLocationInformation:
 		return writeProvideLocationInformation(w, body.C1.ProvideLocationInformation)
-	case lpptype.LPPMessageBodyC1PresentProvideAssistanceData:
-		return writeProvideAssistanceData(w, body.C1.ProvideAssistanceData)
 	default:
 		return fmt.Errorf("lpp-MessageBody: encoding c1 alternative %d is not implemented", body.C1.Present-1)
 	}
