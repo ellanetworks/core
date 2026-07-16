@@ -3,7 +3,7 @@
 
 package lpptype
 
-import "github.com/free5gc/aper"
+import "github.com/ellanetworks/core/internal/per"
 
 // =====================================================================
 // A-GNSS-RequestCapabilities (TS 37.355 §6.5.2.11)
@@ -16,6 +16,7 @@ import "github.com/free5gc/aper"
 //	    ...
 //	}
 type AGNSSRequestCapabilities struct {
+	_                            [0]struct{} `per:"extseq"`
 	GnssSupportListReq           bool
 	AssistanceDataSupportListReq bool
 	LocationVelocityTypesReq     bool
@@ -26,10 +27,11 @@ type AGNSSRequestCapabilities struct {
 // =====================================================================
 
 type AGNSSProvideCapabilities struct {
-	GnssSupportList           *GNSSSupportList `aper:"optional,valueExt"`
-	AssistanceDataSupportList *struct{}        `aper:"optional"`
-	LocationCoordinateTypes   *struct{}        `aper:"optional"`
-	VelocityTypes             *struct{}        `aper:"optional"`
+	_                         [0]struct{}      `per:"extseq"`
+	GnssSupportList           *GNSSSupportList `per:",optional"`
+	AssistanceDataSupportList *per.Null        `per:",optional"`
+	LocationCoordinateTypes   *per.Null        `per:",optional"`
+	VelocityTypes             *per.Null        `per:",optional"`
 }
 
 // =====================================================================
@@ -38,7 +40,7 @@ type AGNSSProvideCapabilities struct {
 
 // GNSS-SupportList ::= SEQUENCE (SIZE(1..16)) OF GNSS-SupportElement
 type GNSSSupportList struct {
-	List []GNSSSupportElement `aper:"sizeLB:1,sizeUB:16"`
+	List []GNSSSupportElement `per:"SEQUENCE-OF,size:1..16"`
 }
 
 //	GNSS-SupportElement ::= SEQUENCE {
@@ -53,11 +55,12 @@ type GNSSSupportList struct {
 //	    [[ ... ]]
 //	}
 type GNSSSupportElement struct {
-	GnssID                     GNSSID           `aper:"valueExt"`
-	SbasIDs                    *struct{}        `aper:"optional"`
-	AGNSSModes                 PositioningModes `aper:"valueExt"`
-	GnssSignals                GNSSSignalIDs    `aper:"valueExt"`
-	FtaMeasSupport             *struct{}        `aper:"optional"`
+	_                          [0]struct{} `per:"extseq"`
+	GnssID                     GNSSID
+	SbasIDs                    *per.Null `per:",optional"`
+	AGNSSModes                 PositioningModes
+	GnssSignals                GNSSSignalIDs
+	FtaMeasSupport             *per.Null `per:",optional"`
 	AdrSupport                 bool
 	VelocityMeasurementSupport bool
 }
@@ -71,17 +74,18 @@ type GNSSSupportElement struct {
 //	    ...
 //	}
 const (
-	GnssIDGps     aper.Enumerated = 0
-	GnssIDSbas    aper.Enumerated = 1
-	GnssIDQzss    aper.Enumerated = 2
-	GnssIDGalileo aper.Enumerated = 3
-	GnssIDGlonass aper.Enumerated = 4
-	GnssIDBds     aper.Enumerated = 5
-	GnssIDNavic   aper.Enumerated = 6
+	GnssIDGps     int64 = 0
+	GnssIDSbas    int64 = 1
+	GnssIDQzss    int64 = 2
+	GnssIDGalileo int64 = 3
+	GnssIDGlonass int64 = 4
+	GnssIDBds     int64 = 5
+	GnssIDNavic   int64 = 6
 )
 
 type GNSSID struct {
-	Value aper.Enumerated `aper:"valueLB:0,valueUB:6,valueExt"`
+	_     [0]struct{} `per:"extseq"`
+	Value int64       `per:",range:0..6,..."`
 }
 
 // =====================================================================
@@ -93,7 +97,8 @@ type GNSSID struct {
 //	    ...
 //	}
 type GNSSIDBitmap struct {
-	GnssIDs aper.BitString `aper:"sizeLB:1,sizeUB:16"`
+	_       [0]struct{} `per:"extseq"`
+	GnssIDs []bool      `per:",size:1..16"`
 }
 
 // =====================================================================
@@ -105,7 +110,8 @@ type GNSSIDBitmap struct {
 //	    ...
 //	}
 type PositioningModes struct {
-	PosModes aper.BitString `aper:"sizeLB:1,sizeUB:8"`
+	_        [0]struct{} `per:"extseq"`
+	PosModes []bool      `per:",size:1..8"`
 }
 
 // =====================================================================
@@ -118,7 +124,8 @@ type PositioningModes struct {
 //	    [[ gnss-SignalIDs-Ext-r15 BIT STRING (SIZE(16)) OPTIONAL ]]
 //	}
 type GNSSSignalIDs struct {
-	GnssSignalIDs aper.BitString `aper:"sizeLB:8,sizeUB:8"`
+	_             [0]struct{} `per:"extseq"`
+	GnssSignalIDs []bool      `per:",size:8..8"`
 }
 
 // =====================================================================
@@ -130,7 +137,8 @@ type GNSSSignalIDs struct {
 //	    ...
 //	}
 type AGNSSRequestLocationInformation struct {
-	GnssPositioningInstructions GNSSPositioningInstructions `aper:"valueExt"`
+	_                           [0]struct{} `per:"extseq"`
+	GnssPositioningInstructions GNSSPositioningInstructions
 }
 
 // =====================================================================
@@ -147,7 +155,8 @@ type AGNSSRequestLocationInformation struct {
 //	    [[ ... ]]
 //	}
 type GNSSPositioningInstructions struct {
-	GnssMethods               GNSSIDBitmap `aper:"valueExt"`
+	_                         [0]struct{} `per:"extseq"`
+	GnssMethods               GNSSIDBitmap
 	FineTimeAssistanceMeasReq bool
 	AdrMeasReq                bool
 	MultiFreqMeasReq          bool
@@ -165,9 +174,10 @@ type GNSSPositioningInstructions struct {
 //	    ...
 //	}
 type AGNSSProvideLocationInformation struct {
-	GnssSignalMeasurementInformation *struct{}                `aper:"optional"`
-	GnssLocationInformation          *GNSSLocationInformation `aper:"optional,valueExt"`
-	GnssError                        *struct{}                `aper:"optional"`
+	_                                [0]struct{}              `per:"extseq"`
+	GnssSignalMeasurementInformation *per.Null                `per:",optional"`
+	GnssLocationInformation          *GNSSLocationInformation `per:",optional"`
+	GnssError                        *per.Null                `per:",optional"`
 }
 
 // =====================================================================
@@ -181,8 +191,9 @@ type AGNSSProvideLocationInformation struct {
 //	    [[ ... ]]
 //	}
 type GNSSLocationInformation struct {
-	MeasurementReferenceTime MeasurementReferenceTime `aper:"valueExt"`
-	AgnssList                GNSSIDBitmap             `aper:"valueExt"`
+	_                        [0]struct{} `per:"extseq"`
+	MeasurementReferenceTime MeasurementReferenceTime
+	AgnssList                GNSSIDBitmap
 }
 
 // =====================================================================
@@ -198,11 +209,12 @@ type GNSSLocationInformation struct {
 //	    ...
 //	}
 type MeasurementReferenceTime struct {
-	GnssTODMsec int64     `aper:"valueLB:0,valueUB:3599999"`
-	GnssTODFrac *int64    `aper:"optional,valueLB:0,valueUB:3999"`
-	GnssTODUnc  *int64    `aper:"optional,valueLB:0,valueUB:127"`
-	GnssTimeID  *GNSSID   `aper:"optional"`
-	NetworkTime *struct{} `aper:"optional"`
+	_           [0]struct{} `per:"extseq"`
+	GnssTODMsec int64       `per:",range:0..3599999"`
+	GnssTODFrac *int64      `per:",optional,range:0..3999"`
+	GnssTODUnc  *int64      `per:",optional,range:0..127"`
+	GnssTimeID  *GNSSID     `per:",optional"`
+	NetworkTime *per.Null   `per:",optional"`
 }
 
 // =====================================================================
@@ -216,7 +228,8 @@ type MeasurementReferenceTime struct {
 //	    ...
 //	}
 type AGNSSProvideAssistanceData struct {
-	GnssCommonAssistData  *struct{} `aper:"optional"`
-	GnssGenericAssistData *struct{} `aper:"optional"`
-	GnssError             *struct{} `aper:"optional"`
+	_                     [0]struct{} `per:"extseq"`
+	GnssCommonAssistData  *per.Null   `per:",optional"`
+	GnssGenericAssistData *per.Null   `per:",optional"`
+	GnssError             *per.Null   `per:",optional"`
 }

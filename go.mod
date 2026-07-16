@@ -34,7 +34,12 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 )
 
-require github.com/google/gopacket v1.1.19
+require (
+	github.com/google/gopacket v1.1.19
+	golang.org/x/tools v0.47.0
+)
+
+require golang.org/x/mod v0.37.0 // indirect
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect

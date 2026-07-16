@@ -3,35 +3,36 @@
 
 package lpptype
 
+import "github.com/ellanetworks/core/internal/per"
+
 // =====================================================================
 // RequestCapabilities (TS 37.355 §6.3)
 // =====================================================================
 
 type RequestCapabilities struct {
-	CriticalExtensions RequestCapabilitiesCriticalExtensions `aper:"valueLB:0,valueUB:1"`
+	CriticalExtensions RequestCapabilitiesCriticalExtensions
 }
 
 type RequestCapabilitiesCriticalExtensions struct {
-	Present                  int
-	C1                       *RequestCapabilitiesCriticalExtensionsC1 `aper:"valueLB:0,valueUB:3"`
-	CriticalExtensionsFuture *struct{}
+	C1                       *RequestCapabilitiesCriticalExtensionsC1 `per:",choice:0,optional"`
+	CriticalExtensionsFuture *per.Null                                `per:",choice:1,optional"`
 }
 
 type RequestCapabilitiesCriticalExtensionsC1 struct {
-	Present               int
-	RequestCapabilitiesR9 *RequestCapabilitiesR9IEs `aper:"valueExt"`
-	Spare3                *struct{}
-	Spare2                *struct{}
-	Spare1                *struct{}
+	RequestCapabilitiesR9 *RequestCapabilitiesR9IEs `per:",choice:0,optional"`
+	Spare3                *per.Null                 `per:",choice:1,optional"`
+	Spare2                *per.Null                 `per:",choice:2,optional"`
+	Spare1                *per.Null                 `per:",choice:3,optional"`
 }
 
 // RequestCapabilities-r9-IEs: extensible SEQUENCE with 5 root optional fields.
 type RequestCapabilitiesR9IEs struct {
-	CommonIEsRequestCapabilities *struct{}                 `aper:"optional"`
-	AGNSSRequestCapabilities     *AGNSSRequestCapabilities `aper:"optional,valueExt"`
-	OTDOARequestCapabilities     *struct{}                 `aper:"optional"`
-	ECIDRequestCapabilities      *struct{}                 `aper:"optional"`
-	EPDURequestCapabilities      *struct{}                 `aper:"optional"`
+	_                            [0]struct{}               `per:"extseq"`
+	CommonIEsRequestCapabilities *per.Null                 `per:",optional"`
+	AGNSSRequestCapabilities     *AGNSSRequestCapabilities `per:",optional"`
+	OTDOARequestCapabilities     *per.Null                 `per:",optional"`
+	ECIDRequestCapabilities      *per.Null                 `per:",optional"`
+	EPDURequestCapabilities      *per.Null                 `per:",optional"`
 }
 
 // =====================================================================
@@ -39,30 +40,29 @@ type RequestCapabilitiesR9IEs struct {
 // =====================================================================
 
 type ProvideCapabilities struct {
-	CriticalExtensions ProvideCapabilitiesCriticalExtensions `aper:"valueLB:0,valueUB:1"`
+	CriticalExtensions ProvideCapabilitiesCriticalExtensions
 }
 
 type ProvideCapabilitiesCriticalExtensions struct {
-	Present                  int
-	C1                       *ProvideCapabilitiesCriticalExtensionsC1 `aper:"valueLB:0,valueUB:3"`
-	CriticalExtensionsFuture *struct{}
+	C1                       *ProvideCapabilitiesCriticalExtensionsC1 `per:",choice:0,optional"`
+	CriticalExtensionsFuture *per.Null                                `per:",choice:1,optional"`
 }
 
 type ProvideCapabilitiesCriticalExtensionsC1 struct {
-	Present               int
-	ProvideCapabilitiesR9 *ProvideCapabilitiesR9IEs `aper:"valueExt"`
-	Spare3                *struct{}
-	Spare2                *struct{}
-	Spare1                *struct{}
+	ProvideCapabilitiesR9 *ProvideCapabilitiesR9IEs `per:",choice:0,optional"`
+	Spare3                *per.Null                 `per:",choice:1,optional"`
+	Spare2                *per.Null                 `per:",choice:2,optional"`
+	Spare1                *per.Null                 `per:",choice:3,optional"`
 }
 
 // ProvideCapabilities-r9-IEs: extensible SEQUENCE with 5 root optional fields.
 type ProvideCapabilitiesR9IEs struct {
-	CommonIEsProvideCapabilities *struct{}                 `aper:"optional"`
-	AGNSSProvideCapabilities     *AGNSSProvideCapabilities `aper:"optional,valueExt"`
-	OTDOAProvideCapabilities     *struct{}                 `aper:"optional"`
-	ECIDProvideCapabilities      *struct{}                 `aper:"optional"`
-	EPDUProvideCapabilities      *struct{}                 `aper:"optional"`
+	_                            [0]struct{}               `per:"extseq"`
+	CommonIEsProvideCapabilities *per.Null                 `per:",optional"`
+	AGNSSProvideCapabilities     *AGNSSProvideCapabilities `per:",optional"`
+	OTDOAProvideCapabilities     *per.Null                 `per:",optional"`
+	ECIDProvideCapabilities      *per.Null                 `per:",optional"`
+	EPDUProvideCapabilities      *per.Null                 `per:",optional"`
 }
 
 // =====================================================================
@@ -70,26 +70,24 @@ type ProvideCapabilitiesR9IEs struct {
 // =====================================================================
 
 type RequestAssistanceData struct {
-	CriticalExtensions RequestAssistanceDataCriticalExtensions `aper:"valueLB:0,valueUB:1"`
+	CriticalExtensions RequestAssistanceDataCriticalExtensions
 }
 
 type RequestAssistanceDataCriticalExtensions struct {
-	Present                  int
-	C1                       *RequestAssistanceDataCriticalExtensionsC1 `aper:"valueLB:0,valueUB:3"`
-	CriticalExtensionsFuture *struct{}
+	C1                       *RequestAssistanceDataCriticalExtensionsC1 `per:",choice:0,optional"`
+	CriticalExtensionsFuture *per.Null                                  `per:",choice:1,optional"`
 }
 
 type RequestAssistanceDataCriticalExtensionsC1 struct {
-	Present                 int
-	RequestAssistanceDataR9 *RequestAssistanceDataR9IEs `aper:"valueExt"`
-	Spare3                  *struct{}
-	Spare2                  *struct{}
-	Spare1                  *struct{}
+	RequestAssistanceDataR9 *RequestAssistanceDataR9IEs `per:",choice:0,optional"`
+	Spare3                  *per.Null                   `per:",choice:1,optional"`
+	Spare2                  *per.Null                   `per:",choice:2,optional"`
+	Spare1                  *per.Null                   `per:",choice:3,optional"`
 }
 
 type RequestAssistanceDataR9IEs struct {
-	CommonIEsRequestAssistanceData *struct{} `aper:"optional"`
-	AGNSSRequestAssistanceData     *struct{} `aper:"optional"`
+	CommonIEsRequestAssistanceData *per.Null `per:",optional"`
+	AGNSSRequestAssistanceData     *per.Null `per:",optional"`
 }
 
 // =====================================================================
@@ -97,26 +95,24 @@ type RequestAssistanceDataR9IEs struct {
 // =====================================================================
 
 type ProvideAssistanceData struct {
-	CriticalExtensions ProvideAssistanceDataCriticalExtensions `aper:"valueLB:0,valueUB:1"`
+	CriticalExtensions ProvideAssistanceDataCriticalExtensions
 }
 
 type ProvideAssistanceDataCriticalExtensions struct {
-	Present                  int
-	C1                       *ProvideAssistanceDataCriticalExtensionsC1 `aper:"valueLB:0,valueUB:3"`
-	CriticalExtensionsFuture *struct{}
+	C1                       *ProvideAssistanceDataCriticalExtensionsC1 `per:",choice:0,optional"`
+	CriticalExtensionsFuture *per.Null                                  `per:",choice:1,optional"`
 }
 
 type ProvideAssistanceDataCriticalExtensionsC1 struct {
-	Present                 int
-	ProvideAssistanceDataR9 *ProvideAssistanceDataR9IEs `aper:"valueExt"`
-	Spare3                  *struct{}
-	Spare2                  *struct{}
-	Spare1                  *struct{}
+	ProvideAssistanceDataR9 *ProvideAssistanceDataR9IEs `per:",choice:0,optional"`
+	Spare3                  *per.Null                   `per:",choice:1,optional"`
+	Spare2                  *per.Null                   `per:",choice:2,optional"`
+	Spare1                  *per.Null                   `per:",choice:3,optional"`
 }
 
 type ProvideAssistanceDataR9IEs struct {
-	CommonIEsProvideAssistanceData *struct{}                   `aper:"optional"`
-	AGNSSProvideAssistanceData     *AGNSSProvideAssistanceData `aper:"optional,valueExt"`
+	CommonIEsProvideAssistanceData *per.Null                   `per:",optional"`
+	AGNSSProvideAssistanceData     *AGNSSProvideAssistanceData `per:",optional"`
 }
 
 // =====================================================================
@@ -124,27 +120,26 @@ type ProvideAssistanceDataR9IEs struct {
 // =====================================================================
 
 type RequestLocationInformation struct {
-	CriticalExtensions RequestLocationInformationCriticalExtensions `aper:"valueLB:0,valueUB:1"`
+	CriticalExtensions RequestLocationInformationCriticalExtensions
 }
 
 type RequestLocationInformationCriticalExtensions struct {
-	Present                  int
-	C1                       *RequestLocationInformationCriticalExtensionsC1 `aper:"valueLB:0,valueUB:3"`
-	CriticalExtensionsFuture *struct{}
+	C1                       *RequestLocationInformationCriticalExtensionsC1 `per:",choice:0,optional"`
+	CriticalExtensionsFuture *per.Null                                       `per:",choice:1,optional"`
 }
 
 type RequestLocationInformationCriticalExtensionsC1 struct {
-	Present                      int
-	RequestLocationInformationR9 *RequestLocationInformationR9IEs `aper:"valueExt"`
-	Spare3                       *struct{}
-	Spare2                       *struct{}
-	Spare1                       *struct{}
+	RequestLocationInformationR9 *RequestLocationInformationR9IEs `per:",choice:0,optional"`
+	Spare3                       *per.Null                        `per:",choice:1,optional"`
+	Spare2                       *per.Null                        `per:",choice:2,optional"`
+	Spare1                       *per.Null                        `per:",choice:3,optional"`
 }
 
 // RequestLocationInformation-r9-IEs: extensible SEQUENCE.
 type RequestLocationInformationR9IEs struct {
-	CommonIEsRequestLocationInformation *CommonIEsRequestLocationInformation `aper:"optional,valueExt"`
-	AGNSSRequestLocationInformation     *AGNSSRequestLocationInformation     `aper:"optional,valueExt"`
+	_                                   [0]struct{}                          `per:"extseq"`
+	CommonIEsRequestLocationInformation *CommonIEsRequestLocationInformation `per:",optional"`
+	AGNSSRequestLocationInformation     *AGNSSRequestLocationInformation     `per:",optional"`
 }
 
 // =====================================================================
@@ -152,25 +147,24 @@ type RequestLocationInformationR9IEs struct {
 // =====================================================================
 
 type ProvideLocationInformation struct {
-	CriticalExtensions ProvideLocationInformationCriticalExtensions `aper:"valueLB:0,valueUB:1"`
+	CriticalExtensions ProvideLocationInformationCriticalExtensions
 }
 
 type ProvideLocationInformationCriticalExtensions struct {
-	Present                  int
-	C1                       *ProvideLocationInformationCriticalExtensionsC1 `aper:"valueLB:0,valueUB:3"`
-	CriticalExtensionsFuture *struct{}
+	C1                       *ProvideLocationInformationCriticalExtensionsC1 `per:",choice:0,optional"`
+	CriticalExtensionsFuture *per.Null                                       `per:",choice:1,optional"`
 }
 
 type ProvideLocationInformationCriticalExtensionsC1 struct {
-	Present                      int
-	ProvideLocationInformationR9 *ProvideLocationInformationR9IEs `aper:"valueExt"`
-	Spare3                       *struct{}
-	Spare2                       *struct{}
-	Spare1                       *struct{}
+	ProvideLocationInformationR9 *ProvideLocationInformationR9IEs `per:",choice:0,optional"`
+	Spare3                       *per.Null                        `per:",choice:1,optional"`
+	Spare2                       *per.Null                        `per:",choice:2,optional"`
+	Spare1                       *per.Null                        `per:",choice:3,optional"`
 }
 
 // ProvideLocationInformation-r9-IEs: extensible SEQUENCE.
 type ProvideLocationInformationR9IEs struct {
-	CommonIEsProvideLocationInformation *CommonIEsProvideLocationInformation `aper:"optional,valueExt"`
-	AGNSSProvideLocationInformation     *struct{}                            `aper:"optional"`
+	_                                   [0]struct{}                          `per:"extseq"`
+	CommonIEsProvideLocationInformation *CommonIEsProvideLocationInformation `per:",optional"`
+	AGNSSProvideLocationInformation     *per.Null                            `per:",optional"`
 }

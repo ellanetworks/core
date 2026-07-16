@@ -1,21 +1,22 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// Package lpptype holds hand-written, aper-tagged Go structs that mirror the
+// Package lpptype holds hand-written, per-tagged Go structs that mirror the
 // 3GPP TS 37.355 (Rel-18) LPP ASN.1 definitions needed for A-GNSS positioning.
 //
-// The aligned-PER codec is github.com/free5gc/aper. Tag conventions follow the
-// existing internal/nrppa/nrppatype package:
-//   - SEQUENCE: Go struct, optional fields tagged `aper:"optional"`
-//   - CHOICE: Go struct with Present int + pointer fields; referencing field
-//     tagged `aper:"valueLB:0,valueUB:N-1"` (N = number of root alternatives)
-//   - Extensible types: referencing field tagged with `valueExt`
-//   - ENUMERATED: aper.Enumerated with `valueLB:0,valueUB:N-1,valueExt`
-//   - BIT STRING: aper.BitString with `sizeLB:N,sizeUB:N`
-//   - INTEGER: int64 with `valueLB:Lo,valueUB:Hi`
+// The PER codec is github.com/ellanetworks/core/internal/per using the Unaligned
+// variant (BASIC-PER Unaligned, per TS 37.355 §7). Tag conventions:
+//   - SEQUENCE: Go struct, optional fields tagged `per:",optional"`
+//   - CHOICE: Go struct with pointer fields tagged `per:",choice:N,optional"`
+//   - Extensible types: placeholder field tagged `per:"extseq"`
+//   - ENUMERATED: int64 with `per:",range:0..N"`
+//   - BIT STRING: []bool with `per:",size:lb..ub"`
+//   - INTEGER: int64 with `per:",range:lb..ub"`
 package lpptype
 
-import "github.com/free5gc/aper"
+import "github.com/ellanetworks/core/internal/per"
+
+//go:generate go run github.com/ellanetworks/core/cmd/pergen
 
 // =====================================================================
 // LPP-Message (TS 37.355 §6.2)
@@ -31,11 +32,11 @@ import "github.com/free5gc/aper"
 //
 // Not extensible (no "..." in the spec). 4 optional fields.
 type LPPMessage struct {
-	TransactionID   *LPPTransactionID `aper:"optional,valueExt"`
+	TransactionID   *LPPTransactionID `per:",optional"`
 	EndTransaction  bool
-	SequenceNumber  *int64           `aper:"optional,valueLB:0,valueUB:255"`
-	Acknowledgement *Acknowledgement `aper:"optional"`
-	LppMessageBody  *LPPMessageBody  `aper:"optional,valueLB:0,valueUB:1"`
+	SequenceNumber  *int64           `per:",optional,range:0..255"`
+	Acknowledgement *Acknowledgement `per:",optional"`
+	LppMessageBody  *LPPMessageBody  `per:",optional"`
 }
 
 // =====================================================================
@@ -50,18 +51,19 @@ type LPPMessage struct {
 //
 // Extensible SEQUENCE with 2 mandatory fields.
 type LPPTransactionID struct {
+	_                 [0]struct{} `per:"extseq"`
 	Initiator         Initiator
-	TransactionNumber int64 `aper:"valueLB:0,valueUB:255"`
+	TransactionNumber int64 `per:",range:0..255"`
 }
 
 // Initiator ::= ENUMERATED { locationServer, targetDevice, ... }
 const (
-	InitiatorLocationServer aper.Enumerated = 0
-	InitiatorTargetDevice   aper.Enumerated = 1
+	InitiatorLocationServer int64 = 0
+	InitiatorTargetDevice   int64 = 1
 )
 
 type Initiator struct {
-	Value aper.Enumerated `aper:"valueLB:0,valueUB:1,valueExt"`
+	Value int64 `per:",range:0..1,..."`
 }
 
 // =====================================================================
@@ -74,7 +76,7 @@ type Initiator struct {
 //	}
 type Acknowledgement struct {
 	AckRequested bool
-	AckIndicator *int64 `aper:"optional,valueLB:0,valueUB:255"`
+	AckIndicator *int64 `per:",optional,range:0..255"`
 }
 
 // =====================================================================
@@ -97,11 +99,10 @@ type Acknowledgement struct {
 //	    messageClassExtension SEQUENCE {}
 //	}
 //
-// Outer CHOICE: 2 alternatives, not extensible → valueLB:0, valueUB:1.
+// Outer CHOICE: 2 alternatives, not extensible.
 type LPPMessageBody struct {
-	Present               int
-	C1                    *LPPMessageBodyC1 `aper:"valueLB:0,valueUB:15"`
-	MessageClassExtension *struct{}
+	C1                    *LPPMessageBodyC1 `per:",choice:0,optional"`
+	MessageClassExtension *per.Null         `per:",choice:1,optional"`
 }
 
 // Inner c1 CHOICE: 16 alternatives (8 root + 8 spare NULL), not extensible.
@@ -127,23 +128,22 @@ const (
 )
 
 type LPPMessageBodyC1 struct {
-	Present                    int
-	RequestCapabilities        *RequestCapabilities
-	ProvideCapabilities        *ProvideCapabilities
-	RequestAssistanceData      *RequestAssistanceData
-	ProvideAssistanceData      *ProvideAssistanceData
-	RequestLocationInformation *RequestLocationInformation
-	ProvideLocationInformation *ProvideLocationInformation
-	Abort                      *Abort
-	Error                      *Error
-	Spare7                     *struct{}
-	Spare6                     *struct{}
-	Spare5                     *struct{}
-	Spare4                     *struct{}
-	Spare3                     *struct{}
-	Spare2                     *struct{}
-	Spare1                     *struct{}
-	Spare0                     *struct{}
+	RequestCapabilities        *RequestCapabilities        `per:",choice:0,optional"`
+	ProvideCapabilities        *ProvideCapabilities        `per:",choice:1,optional"`
+	RequestAssistanceData      *RequestAssistanceData      `per:",choice:2,optional"`
+	ProvideAssistanceData      *ProvideAssistanceData      `per:",choice:3,optional"`
+	RequestLocationInformation *RequestLocationInformation `per:",choice:4,optional"`
+	ProvideLocationInformation *ProvideLocationInformation `per:",choice:5,optional"`
+	Abort                      *Abort                      `per:",choice:6,optional"`
+	Error                      *Error                      `per:",choice:7,optional"`
+	Spare7                     *per.Null                   `per:",choice:8,optional"`
+	Spare6                     *per.Null                   `per:",choice:9,optional"`
+	Spare5                     *per.Null                   `per:",choice:10,optional"`
+	Spare4                     *per.Null                   `per:",choice:11,optional"`
+	Spare3                     *per.Null                   `per:",choice:12,optional"`
+	Spare2                     *per.Null                   `per:",choice:13,optional"`
+	Spare1                     *per.Null                   `per:",choice:14,optional"`
+	Spare0                     *per.Null                   `per:",choice:15,optional"`
 }
 
 // =====================================================================
@@ -160,37 +160,34 @@ type LPPMessageBodyC1 struct {
 //	    }
 //	}
 type Abort struct {
-	CriticalExtensions AbortCriticalExtensions `aper:"valueLB:0,valueUB:1"`
+	CriticalExtensions AbortCriticalExtensions
 }
 
 type AbortCriticalExtensions struct {
-	Present                  int
-	C1                       *AbortCriticalExtensionsC1 `aper:"valueLB:0,valueUB:3"`
-	CriticalExtensionsFuture *struct{}
+	C1                       *AbortCriticalExtensionsC1 `per:",choice:0,optional"`
+	CriticalExtensionsFuture *per.Null                  `per:",choice:1,optional"`
 }
 
 type AbortCriticalExtensionsC1 struct {
-	Present int
-	AbortR9 *AbortR9IEs
-	Spare3  *struct{}
-	Spare2  *struct{}
-	Spare1  *struct{}
+	AbortR9 *AbortR9IEs `per:",choice:0,optional"`
+	Spare3  *per.Null   `per:",choice:1,optional"`
+	Spare2  *per.Null   `per:",choice:2,optional"`
+	Spare1  *per.Null   `per:",choice:3,optional"`
 }
 
 type AbortR9IEs struct {
-	CommonIEsAbort *CommonIEsAbort `aper:"optional"`
+	CommonIEsAbort *CommonIEsAbort `per:",optional"`
 }
 
 // CommonIEsAbort ::= SEQUENCE { abortCause ENUMERATED {...}, ... }
 const (
-	CommonIEsAbortCausePresentUndefined        aper.Enumerated = 0
-	CommonIEsAbortCausePresentStopPeriodicEcid aper.Enumerated = 1
+	CommonIEsAbortCausePresentUndefined        int64 = 0
+	CommonIEsAbortCausePresentStopPeriodicEcid int64 = 1
 )
 
 type CommonIEsAbort struct {
-	AbortCause struct {
-		Value aper.Enumerated `aper:"valueLB:0,valueUB:3,valueExt"`
-	}
+	_          [0]struct{} `per:"extseq"`
+	AbortCause int64       `per:",range:0..3,..."`
 }
 
 //	Error ::= CHOICE {
@@ -198,26 +195,24 @@ type CommonIEsAbort struct {
 //	    criticalExtensionsFuture SEQUENCE {}
 //	}
 type Error struct {
-	Present                  int
-	ErrorR9                  *ErrorR9IEs
-	CriticalExtensionsFuture *struct{}
+	ErrorR9                  *ErrorR9IEs `per:",choice:0,optional"`
+	CriticalExtensionsFuture *per.Null   `per:",choice:1,optional"`
 }
 
 type ErrorR9IEs struct {
-	CommonIEsError *CommonIEsError `aper:"optional"`
+	CommonIEsError *CommonIEsError `per:",optional"`
 }
 
 // CommonIEsError ::= SEQUENCE { errorCause ENUMERATED {...}, ... }
 const (
-	CommonIEsErrorErrorCausePresentUndefined             aper.Enumerated = 0
-	CommonIEsErrorErrorCausePresentLPPMessageHeaderError aper.Enumerated = 1
-	CommonIEsErrorErrorCausePresentLPPMessageBodyError   aper.Enumerated = 2
-	CommonIEsErrorErrorCausePresentEPDUError             aper.Enumerated = 3
-	CommonIEsErrorErrorCausePresentIncorrectDataValue    aper.Enumerated = 4
+	CommonIEsErrorErrorCausePresentUndefined             int64 = 0
+	CommonIEsErrorErrorCausePresentLPPMessageHeaderError int64 = 1
+	CommonIEsErrorErrorCausePresentLPPMessageBodyError   int64 = 2
+	CommonIEsErrorErrorCausePresentEPDUError             int64 = 3
+	CommonIEsErrorErrorCausePresentIncorrectDataValue    int64 = 4
 )
 
 type CommonIEsError struct {
-	ErrorCause struct {
-		Value aper.Enumerated `aper:"valueLB:0,valueUB:4,valueExt"`
-	}
+	_          [0]struct{} `per:"extseq"`
+	ErrorCause int64       `per:",range:0..4,..."`
 }

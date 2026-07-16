@@ -14,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/lmf/lpp"
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 	lppmodels "github.com/ellanetworks/core/internal/lmf/lpp/models"
-	"github.com/free5gc/aper"
 )
 
 // PDU is the decoder view of an LPP message carried inside a NAS Transport
@@ -96,7 +95,7 @@ func mapCapabilities(caps *lppmodels.ProvideLocationCapabilities) *Capabilities 
 	out := &Capabilities{}
 
 	for _, gnssID := range caps.GNSSCapability.Supported() {
-		var lpptypeID aper.Enumerated
+		var lpptypeID int64
 
 		switch gnssID {
 		case lppmodels.GnssIDGps:
@@ -139,7 +138,7 @@ func mapLocationInformation(li *lppmodels.ProvideLocationInformation) *LocationI
 
 // --- enum label helpers ---
 
-func initiatorEnum(v aper.Enumerated) utils.EnumField[int] {
+func initiatorEnum(v int64) utils.EnumField[int] {
 	switch v {
 	case lpptype.InitiatorLocationServer:
 		return utils.MakeEnum(int(v), "locationServer", false)
@@ -170,8 +169,8 @@ func bodyKindEnum(present int) utils.EnumField[int] {
 	return utils.MakeEnum(present, label, !ok)
 }
 
-func gnssIDEnum(v aper.Enumerated) utils.EnumField[int] {
-	labels := map[aper.Enumerated]string{
+func gnssIDEnum(v int64) utils.EnumField[int] {
+	labels := map[int64]string{
 		lpptype.GnssIDGps:     "GPS",
 		lpptype.GnssIDSbas:    "SBAS",
 		lpptype.GnssIDQzss:    "QZSS",
