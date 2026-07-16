@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
 package per
 
 // EncodeLength encodes a length determinant per §11.9 and then invokes emit

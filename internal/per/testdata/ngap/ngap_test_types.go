@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
 // Package ngaptest provides simplified NGAP-like message types for conformance
 // testing of aligned PER encoding. These are modelled after 3GPP TS 38.413
 // NGAP message structures but use simplified type definitions without

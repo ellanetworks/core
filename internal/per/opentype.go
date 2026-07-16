@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
 package per
 
 // EncodeOpenType encodes a value as an open type field per §11.2: the value's

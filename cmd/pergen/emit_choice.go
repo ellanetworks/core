@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
 package main
 
 import (
@@ -84,7 +87,9 @@ func (g *generator) emitChoiceMarshal(recv, typeName string, roots, additions []
 		}
 
 		if nRoot > 0 {
-			fmt.Fprintf(r, "\t\tper.EncodeConstrainedWholeNumber(w, enc, 0, %d, %d)\n", nRoot, a.tag.ChoiceIdx)
+			fmt.Fprintf(r, "\t\tif err := per.EncodeConstrainedWholeNumber(w, enc, 0, %d, %d); err != nil {\n", nRoot, a.tag.ChoiceIdx)
+			fmt.Fprintf(r, "\t\t\treturn err\n")
+			fmt.Fprintf(r, "\t\t}\n")
 		}
 
 		g.emitFieldMarshal(r, recv, a.fieldInfo, derefExpr(a, expr), 2)
@@ -94,7 +99,9 @@ func (g *generator) emitChoiceMarshal(recv, typeName string, roots, additions []
 		expr := recv + "." + a.name
 		fmt.Fprintf(r, "\tcase %s != nil:\n", expr)
 		fmt.Fprintf(r, "\t\tw.WriteBit(true)\n")
-		fmt.Fprintf(r, "\t\tper.EncodeNormallySmall(w, enc, %d)\n", a.extIdx)
+		fmt.Fprintf(r, "\t\tif err := per.EncodeNormallySmall(w, enc, %d); err != nil {\n", a.extIdx)
+		fmt.Fprintf(r, "\t\t\treturn err\n")
+		fmt.Fprintf(r, "\t\t}\n")
 		fmt.Fprintf(r, "\t\treturn per.EncodeOpenType(w, enc, %s)\n", expr)
 	}
 

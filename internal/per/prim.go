@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
 package per
 
 // Bounds describes PER-visible constraints on an INTEGER value (Rec. ITU-T

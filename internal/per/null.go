@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
 package per
 
 // Null represents the ASN.1 NULL type and empty SEQUENCE {}. It encodes and
