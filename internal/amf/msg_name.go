@@ -9,65 +9,52 @@ import (
 	"github.com/free5gc/nas"
 )
 
+// gmmMessageTypeNames is the authoritative set of 5GMM message types the AMF
+// defines (TS 24.501 §9.7). It backs both the name lookup and gmmTypeDefined, so
+// the two never drift.
+var gmmMessageTypeNames = map[uint8]string{
+	nas.MsgTypeRegistrationRequest:                              "RegistrationRequest",
+	nas.MsgTypeRegistrationAccept:                               "RegistrationAccept",
+	nas.MsgTypeRegistrationComplete:                             "RegistrationComplete",
+	nas.MsgTypeRegistrationReject:                               "RegistrationReject",
+	nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration: "DeregistrationRequestUEOriginatingDeregistration",
+	nas.MsgTypeDeregistrationAcceptUEOriginatingDeregistration:  "DeregistrationAcceptUEOriginatingDeregistration",
+	nas.MsgTypeDeregistrationRequestUETerminatedDeregistration:  "DeregistrationRequestUETerminatedDeregistration",
+	nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:   "DeregistrationAcceptUETerminatedDeregistration",
+	nas.MsgTypeServiceRequest:                                   "ServiceRequest",
+	nas.MsgTypeServiceReject:                                    "ServiceReject",
+	nas.MsgTypeServiceAccept:                                    "ServiceAccept",
+	nas.MsgTypeConfigurationUpdateCommand:                       "ConfigurationUpdateCommand",
+	nas.MsgTypeConfigurationUpdateComplete:                      "ConfigurationUpdateComplete",
+	nas.MsgTypeAuthenticationRequest:                            "AuthenticationRequest",
+	nas.MsgTypeAuthenticationResponse:                           "AuthenticationResponse",
+	nas.MsgTypeAuthenticationReject:                             "AuthenticationReject",
+	nas.MsgTypeAuthenticationFailure:                            "AuthenticationFailure",
+	nas.MsgTypeAuthenticationResult:                             "AuthenticationResult",
+	nas.MsgTypeIdentityRequest:                                  "IdentityRequest",
+	nas.MsgTypeIdentityResponse:                                 "IdentityResponse",
+	nas.MsgTypeSecurityModeCommand:                              "SecurityModeCommand",
+	nas.MsgTypeSecurityModeComplete:                             "SecurityModeComplete",
+	nas.MsgTypeSecurityModeReject:                               "SecurityModeReject",
+	nas.MsgTypeStatus5GMM:                                       "Status5GMM",
+	nas.MsgTypeNotification:                                     "Notification",
+	nas.MsgTypeNotificationResponse:                             "NotificationResponse",
+	nas.MsgTypeULNASTransport:                                   "ULNASTransport",
+	nas.MsgTypeDLNASTransport:                                   "DLNASTransport",
+}
+
 func GmmMessageTypeName(code uint8) string {
-	switch code {
-	case nas.MsgTypeRegistrationRequest:
-		return "RegistrationRequest"
-	case nas.MsgTypeRegistrationAccept:
-		return "RegistrationAccept"
-	case nas.MsgTypeRegistrationComplete:
-		return "RegistrationComplete"
-	case nas.MsgTypeRegistrationReject:
-		return "RegistrationReject"
-	case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
-		return "DeregistrationRequestUEOriginatingDeregistration"
-	case nas.MsgTypeDeregistrationAcceptUEOriginatingDeregistration:
-		return "DeregistrationAcceptUEOriginatingDeregistration"
-	case nas.MsgTypeDeregistrationRequestUETerminatedDeregistration:
-		return "DeregistrationRequestUETerminatedDeregistration"
-	case nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:
-		return "DeregistrationAcceptUETerminatedDeregistration"
-	case nas.MsgTypeServiceRequest:
-		return "ServiceRequest"
-	case nas.MsgTypeServiceReject:
-		return "ServiceReject"
-	case nas.MsgTypeServiceAccept:
-		return "ServiceAccept"
-	case nas.MsgTypeConfigurationUpdateCommand:
-		return "ConfigurationUpdateCommand"
-	case nas.MsgTypeConfigurationUpdateComplete:
-		return "ConfigurationUpdateComplete"
-	case nas.MsgTypeAuthenticationRequest:
-		return "AuthenticationRequest"
-	case nas.MsgTypeAuthenticationResponse:
-		return "AuthenticationResponse"
-	case nas.MsgTypeAuthenticationReject:
-		return "AuthenticationReject"
-	case nas.MsgTypeAuthenticationFailure:
-		return "AuthenticationFailure"
-	case nas.MsgTypeAuthenticationResult:
-		return "AuthenticationResult"
-	case nas.MsgTypeIdentityRequest:
-		return "IdentityRequest"
-	case nas.MsgTypeIdentityResponse:
-		return "IdentityResponse"
-	case nas.MsgTypeSecurityModeCommand:
-		return "SecurityModeCommand"
-	case nas.MsgTypeSecurityModeComplete:
-		return "SecurityModeComplete"
-	case nas.MsgTypeSecurityModeReject:
-		return "SecurityModeReject"
-	case nas.MsgTypeStatus5GMM:
-		return "Status5GMM"
-	case nas.MsgTypeNotification:
-		return "Notification"
-	case nas.MsgTypeNotificationResponse:
-		return "NotificationResponse"
-	case nas.MsgTypeULNASTransport:
-		return "ULNASTransport"
-	case nas.MsgTypeDLNASTransport:
-		return "DLNASTransport"
-	default:
-		return fmt.Sprintf("Unknown message type: 0x%02x", code)
+	if name, ok := gmmMessageTypeNames[code]; ok {
+		return name
 	}
+
+	return fmt.Sprintf("Unknown message type: 0x%02x", code)
+}
+
+// gmmTypeDefined reports whether code is a 5GMM message type the AMF defines. A
+// type it does not is answered with 5GMM STATUS #97 rather than #96 (TS 24.501
+// §7.4).
+func gmmTypeDefined(code uint8) bool {
+	_, ok := gmmMessageTypeNames[code]
+	return ok
 }

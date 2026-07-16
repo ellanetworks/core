@@ -10,14 +10,15 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
 // handleDecodeReport returns false so the dispatcher skips the handler on a
 // fatal decode error, and true otherwise. On a fatal error it answers an
-// initiating message with an ErrorIndication but leaves a response to local
+// initiating message per respondToFatalReport but leaves a response to local
 // error handling (TS 38.413 §10.3.4.2, §10.3.5). Non-fatal errors
-// (ignore-criticality) are logged without an ErrorIndication.
+// (ignore-criticality) are logged without a response.
 func handleDecodeReport(ctx context.Context, ran *amf.Radio, report *decode.Report) bool {
 	if !report.HasItems() {
 		return true
@@ -25,13 +26,7 @@ func handleDecodeReport(ctx context.Context, ran *amf.Radio, report *decode.Repo
 
 	if report.Fatal() {
 		if report.FromInitiatingMessage() {
-			cd := report.ToCriticalityDiagnostics()
-
-			if pkt, err := send.BuildErrorIndication(nil, nil, nil, &cd); err != nil {
-				logger.WithTrace(ctx, ran.Log).Error("error building error indication", zap.Error(err))
-			} else {
-				ran.SendToRadio(ctx, send.NGAPProcedureErrorIndication, pkt)
-			}
+			respondToFatalReport(ctx, ran, report)
 		}
 
 		logger.WithTrace(ctx, ran.Log).Error("fatal NGAP decode error",
@@ -46,4 +41,32 @@ func handleDecodeReport(ctx context.Context, ran *amf.Radio, report *decode.Repo
 		zap.Int("ieErrors", len(report.Items)))
 
 	return true
+}
+
+// respondToFatalReport answers a fatal decode of an initiating message,
+// reporting the offending IEs in Criticality Diagnostics. A procedure that
+// defines an unsuccessful-outcome message is rejected with that message, which
+// TS 38.413 §10.3.5 requires in preference to the Error Indication the
+// remaining procedures fall back to (§10.3.4.2).
+func respondToFatalReport(ctx context.Context, ran *amf.Radio, report *decode.Report) {
+	cd := report.ToCriticalityDiagnostics()
+
+	if report.ProcedureCode == ngapType.ProcedureCodeNGSetup {
+		sendNGSetupFailure(ctx, ran, &ngapType.Cause{
+			Present: ngapType.CausePresentProtocol,
+			Protocol: &ngapType.CauseProtocol{
+				Value: ngapType.CauseProtocolPresentAbstractSyntaxErrorReject,
+			},
+		}, &cd)
+
+		return
+	}
+
+	pkt, err := send.BuildErrorIndication(nil, nil, nil, &cd)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("error building error indication", zap.Error(err))
+		return
+	}
+
+	ran.SendToRadio(ctx, send.NGAPProcedureErrorIndication, pkt)
 }

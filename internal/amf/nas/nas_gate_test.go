@@ -152,6 +152,29 @@ func TestHandleGmmMessage_UnimplementedType_ReturnsStatus97(t *testing.T) {
 	}
 }
 
+// TS 24.501 §7.4: a fresh-connection 5GMM message with an undefined message type is
+// answered with a 5GMM STATUS #97, whereas a defined type whose body is malformed draws
+// #96 (§7.5.1).
+func TestDispositionForUnresolved_UnknownTypeStatus97(t *testing.T) {
+	tests := []struct {
+		name   string
+		nasPdu []byte
+		want   uint8
+	}{
+		{"unknown type 0xff", []byte{0x7e, 0x00, 0xff}, nasreply.CauseMessageTypeNotImplemented},
+		{"defined type, malformed body", []byte{0x7e, 0x00, nas.MsgTypeRegistrationRequest}, nasreply.CauseInvalidMandatoryInfo},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := dispositionForUnresolved(tt.nasPdu)
+			if d.Action != nasreply.ActionStatus || d.Domain != nasreply.DomainMM || d.Cause != tt.want {
+				t.Errorf("disposition = %+v, want a 5GMM STATUS cause #%d", d, tt.want)
+			}
+		})
+	}
+}
+
 func encodePlainStatus5GMM(t *testing.T) []byte {
 	t.Helper()
 

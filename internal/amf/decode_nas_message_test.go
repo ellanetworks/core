@@ -201,6 +201,47 @@ func TestDecodeNASMessage_MalformedPlain_YieldsStatus96(t *testing.T) {
 	}
 }
 
+// A plain message whose type octet is a 5GMM type the AMF does not define resolves to a
+// 5GMM STATUS #97, not #96 — the decode failed because the type is unknown, not because a
+// mandatory IE is malformed (TS 24.501 §7.4).
+func TestDecodeNASMessage_UnknownType_YieldsStatus97(t *testing.T) {
+	ue := newDecoderTestUE(t)
+	ue.secured = false // fresh UE: the plain path is taken
+
+	// EPD, plain security header, message type 0xff (undefined).
+	_, err := DecodeNASMessage(ue, []byte{0x7e, 0x00, 0xff})
+	if err == nil {
+		t.Fatal("expected a decode error for an unknown message type")
+	}
+
+	d := DispositionForDecodeError(err)
+	if d.Action != nasreply.ActionStatus || d.Domain != nasreply.DomainMM || d.Cause != nasreply.CauseMessageTypeNotImplemented {
+		t.Errorf("disposition = %+v, want a 5GMM STATUS #97 (message type non-existent or not implemented)", d)
+	}
+}
+
+// GmmDecodeFailureCause tells a defined-type-but-malformed body (#96) apart from an
+// undefined message type (#97), and falls back to #96 when the type octet is absent.
+func TestGmmDecodeFailureCause(t *testing.T) {
+	tests := []struct {
+		name string
+		body []byte
+		want uint8
+	}{
+		{"unknown type 0xff", []byte{0x7e, 0x00, 0xff}, nasreply.CauseMessageTypeNotImplemented},
+		{"defined type, malformed body", []byte{0x7e, 0x00, nas.MsgTypeRegistrationRequest}, nasreply.CauseInvalidMandatoryInfo},
+		{"too short to carry a type", []byte{0x7e, 0x00}, nasreply.CauseInvalidMandatoryInfo},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GmmDecodeFailureCause(tt.body); got != tt.want {
+				t.Errorf("GmmDecodeFailureCause(%x) = %d, want %d", tt.body, got, tt.want)
+			}
+		})
+	}
+}
+
 // A message the decoder discards for a security reason resolves to a silent-discard
 // disposition — the network must never answer forged or non-exempt plain NAS
 // (TS 24.501 §4.4.4.3).

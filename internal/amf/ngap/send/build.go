@@ -116,7 +116,10 @@ func BuildNGSetupResponse(guami *models.Guami, snssaiList []models.Snssai, amfNa
 	return ngap.Encoder(pdu)
 }
 
-func BuildNGSetupFailure(cause *ngapType.Cause) ([]byte, error) {
+// BuildNGSetupFailure builds an NG SETUP FAILURE. criticalityDiagnostics is
+// optional; it reports the offending IEs when the failure answers a protocol
+// error in the request (TS 38.413 §9.2.6.3, §10.3.5).
+func BuildNGSetupFailure(cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentUnsuccessfulOutcome
@@ -138,6 +141,16 @@ func BuildNGSetupFailure(cause *ngapType.Cause) ([]byte, error) {
 	ie.Value.Cause = cause
 
 	nGSetupFailureIEs.List = append(nGSetupFailureIEs.List, ie)
+
+	if criticalityDiagnostics != nil {
+		ie := ngapType.NGSetupFailureIEs{}
+		ie.Id.Value = ngapType.ProtocolIEIDCriticalityDiagnostics
+		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+		ie.Value.Present = ngapType.NGSetupFailureIEsPresentCriticalityDiagnostics
+		ie.Value.CriticalityDiagnostics = criticalityDiagnostics
+
+		nGSetupFailureIEs.List = append(nGSetupFailureIEs.List, ie)
+	}
 
 	return ngap.Encoder(pdu)
 }
