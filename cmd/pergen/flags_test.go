@@ -15,10 +15,6 @@ func TestParseFlagsDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if cfg.dir != "." {
-		t.Fatalf("dir = %q", cfg.dir)
-	}
-
 	if cfg.output != "per_gen.go" {
 		t.Fatalf("output = %q", cfg.output)
 	}
@@ -35,13 +31,9 @@ func TestParseFlagsDefaults(t *testing.T) {
 func TestParseFlagsAll(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := parseFlags([]string{"-d", "src", "-o", "gen.go", "-type", "A,B", "-suffix", "X", "./pkg"})
+	cfg, err := parseFlags([]string{"-o", "gen.go", "-type", "A,B", "-suffix", "X", "./pkg"})
 	if err != nil {
 		t.Fatal(err)
-	}
-
-	if cfg.dir != "src" {
-		t.Fatalf("dir = %q", cfg.dir)
 	}
 
 	if cfg.output != "gen.go" {
@@ -98,6 +90,7 @@ func TestReceiverName(t *testing.T) {
 		{"", "v"},
 		{"ABC", "aBC"},
 	}
+
 	for _, c := range cases {
 		if got := receiverName(c.in); got != c.want {
 			t.Errorf("receiverName(%q) = %q, want %q", c.in, got, c.want)
@@ -117,6 +110,7 @@ func TestStructTagGet(t *testing.T) {
 		{``, "per", ""},
 		{`per:""`, "per", ""},
 	}
+
 	for _, c := range cases {
 		if got := structTagGet(c.tag, c.key); got != c.want {
 			t.Errorf("structTagGet(%q, %q) = %q, want %q", c.tag, c.key, got, c.want)

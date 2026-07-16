@@ -7,7 +7,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"go/format"
 	"go/types"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -422,28 +425,18 @@ func (g *generator) emitSequenceOfUnmarshal(r *bytes.Buffer, fi fieldInfo, targe
 	fmt.Fprintf(r, "%s}\n", prefix)
 }
 
-// ---- Output -----------------------------------------------------------------
-
 // formatOutput runs the accumulated source through go/format and returns it.
 func (g *generator) formatOutput() ([]byte, error) {
 	if g.buf.Len() == 0 {
 		return nil, errors.New("no generated code")
 	}
 
-	src := g.buf.Bytes()
-	// go/format requires a valid file; our header includes package + import.
-	formatted, err := formatSource(src)
+	formatted, err := format.Source(g.buf.Bytes())
 	if err != nil {
-		return src, fmt.Errorf("format: %w", err)
+		return g.buf.Bytes(), fmt.Errorf("format: %w", err)
 	}
 
 	return formatted, nil
-}
-
-// formatSource wraps go/format.Source with a fallback that returns the original
-// on error (so the user can inspect the unformatted output for debugging).
-func formatSource(src []byte) ([]byte, error) {
-	return goFormat(src)
 }
 
 // write now actually writes the formatted output to the configured file.
@@ -462,19 +455,30 @@ func (g *generator) write() error {
 		out = g.buf.Bytes()
 	}
 
-	return writeFile(g.cfg.dir, g.cfg.output, out)
+	wd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	absPath, err := filepath.Abs(g.cfg.output)
+	if err != nil {
+		return err
+	}
+
+	rel, err := filepath.Rel(wd, absPath)
+	if err != nil {
+		return err
+	}
+
+	if strings.HasPrefix(rel, "..") {
+		return fmt.Errorf("output path escapes working directory: %s", g.cfg.output)
+	}
+
+	// #nosec G703: gosec raises a false positive here. We previously
+	// validated that the output file is under the current directory,
+	// avoiding path traversal attacks.
+	return os.WriteFile(absPath, out, 0o600)
 }
-
-// goFormat is a thin wrapper over go/format.Source.
-var goFormat = func(src []byte) ([]byte, error) {
-	return goFormatImpl(src)
-}
-
-// goFormatImpl is set in format.go to avoid importing go/format in emit.go.
-var goFormatImpl func([]byte) ([]byte, error)
-
-// writeFile is set in output.go.
-var writeFile func(dir, filename string, data []byte) error
 
 // strconv import used in some emitters.
 var _ = strconv.Itoa
