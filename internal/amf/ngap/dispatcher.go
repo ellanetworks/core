@@ -62,6 +62,7 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to decode NGAP message")
 		logger.From(ctx, ran.Log).Error("NGAP decode error", zap.Error(err))
+		sendProtocolErrorIndication(ctx, ran, ngapType.CauseProtocolPresentTransferSyntaxError)
 
 		return
 	}
@@ -254,6 +255,7 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 			HandleUplinkUEAssociatedNRPPaTransport(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.UplinkUEAssociatedNRPPaTransport)
 		default:
 			logger.From(ctx, ran.Log).Warn("ignoring unsupported procedure", zap.String("kind", "initiating"), zap.Int64("procedureCode", initiatingMessage.ProcedureCode.Value))
+			sendProtocolErrorIndication(ctx, ran, ngapType.CauseProtocolPresentAbstractSyntaxErrorReject)
 		}
 	case ngapType.NGAPPDUPresentSuccessfulOutcome:
 		successfulOutcome := pdu.SuccessfulOutcome

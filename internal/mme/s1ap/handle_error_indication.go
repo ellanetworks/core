@@ -90,6 +90,16 @@ func handleParseError(m *mme.MME, conn mme.S1APWriter, proc s1ap.ProcedureCode, 
 	})
 }
 
+// sendProtocolErrorIndication answers a PDU the MME could not decode, or one carrying
+// an unknown Procedure Code, with a cause-only ERROR INDICATION (TS 36.413 §10.2,
+// §10.3.4.1). It needs nothing from the offending PDU, so it applies where a decode
+// failed outright.
+func sendProtocolErrorIndication(m *mme.MME, conn mme.S1APWriter, cause int) {
+	emitErrorIndication(m, conn, &s1ap.ErrorIndication{
+		Cause: &s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: cause},
+	})
+}
+
 func emitErrorIndication(m *mme.MME, conn mme.S1APWriter, ind *s1ap.ErrorIndication) {
 	b, err := ind.Marshal()
 	if err != nil {

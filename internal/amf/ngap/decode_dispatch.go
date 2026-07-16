@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -63,6 +64,23 @@ func respondToFatalReport(ctx context.Context, ran *amf.Radio, report *decode.Re
 	}
 
 	pkt, err := send.BuildErrorIndication(nil, nil, nil, &cd)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("error building error indication", zap.Error(err))
+		return
+	}
+
+	ran.SendToRadio(ctx, send.NGAPProcedureErrorIndication, pkt)
+}
+
+// sendProtocolErrorIndication answers a PDU the receiver could not decode, or one
+// carrying an unknown Procedure Code, with a cause-only Error Indication (TS 38.413
+// §10.2, §10.3.4.1). It needs nothing from the offending PDU, so it applies where a
+// decode failed outright.
+func sendProtocolErrorIndication(ctx context.Context, ran *amf.Radio, cause aper.Enumerated) {
+	pkt, err := send.BuildErrorIndication(nil, nil, &ngapType.Cause{
+		Present:  ngapType.CausePresentProtocol,
+		Protocol: &ngapType.CauseProtocol{Value: cause},
+	}, nil)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error building error indication", zap.Error(err))
 		return
