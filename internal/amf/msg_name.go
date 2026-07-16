@@ -51,9 +51,6 @@ func GmmMessageTypeName(code uint8) string {
 	return fmt.Sprintf("Unknown message type: 0x%02x", code)
 }
 
-// gmmTypeDefined reports whether code is a 5GMM message type the AMF defines. A
-// type it does not is answered with 5GMM STATUS #97 rather than #96 (TS 24.501
-// §7.4).
 func gmmTypeDefined(code uint8) bool {
 	_, ok := gmmMessageTypeNames[code]
 	return ok

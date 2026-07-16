@@ -175,6 +175,8 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	if (!ctx->ip4 && !ctx->ip6)
 		return XDP_DROP;
 
+	const int is_ip4 = ctx->ip4 != NULL;
+
 	/* The sequence number is only present when the request set the S flag. */
 	__be16 seq = 0;
 	if (gtp->s) {
@@ -185,34 +187,52 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 		__builtin_memcpy(&seq, opt, sizeof(seq));
 	}
 
-	/* Offsets survive the resize below; packet pointers do not, so every
-	 * header is re-derived from xdp_ctx->data afterwards. */
-	const __u8 *base = (const __u8 *)(long)ctx->xdp_ctx->data;
-	const int is_ip4 = ctx->ip4 != NULL;
-	__u32 eth_off = (__u32)((const __u8 *)ctx->eth - base);
-	__u32 ip_off = (__u32)((const __u8 *)(is_ip4 ? (void *)ctx->ip4 :
-						       (void *)ctx->ip6) -
-			       base);
-	__u32 udp_off = (__u32)((const __u8 *)ctx->udp - base);
-	__u32 gtp_off = (__u32)((const __u8 *)gtp - base);
-
-	long delta = (long)(gtp_off + GTPU_ECHO_RESPONSE_LEN) -
-		     ((long)ctx->data_end - (long)base);
+	/* Resize the frame so it ends exactly after the canonical response: a
+	 * short request is grown, a longer one has its tail dropped. */
+	long delta = (long)((const __u8 *)gtp + GTPU_ECHO_RESPONSE_LEN) -
+		     (long)ctx->data_end;
 	if (delta != 0 && bpf_xdp_adjust_tail(ctx->xdp_ctx, (int)delta) < 0)
 		return XDP_DROP;
 
-	__u8 *data = (__u8 *)(long)ctx->xdp_ctx->data;
+	/* bpf_xdp_adjust_tail invalidates every packet pointer, and an offset
+	 * saved across the call is not provably in-bounds to the verifier. Re-walk
+	 * the headers from data instead: each is a bounds-checked constant step
+	 * from the last, which the verifier tracks precisely. */
+	void *data = (void *)(long)ctx->xdp_ctx->data;
 	const void *data_end = (const void *)(long)ctx->xdp_ctx->data_end;
 
-	struct ethhdr *eth = (struct ethhdr *)(data + eth_off);
+	struct ethhdr *eth = data;
 	if ((const void *)(eth + 1) > data_end)
 		return XDP_DROP;
 
-	struct udphdr *udp = (struct udphdr *)(data + udp_off);
+	void *l3 = eth + 1;
+	if (eth->h_proto == bpf_htons(ETH_P_8021Q)) {
+		struct vlan_hdr *vlan = l3;
+		if ((const void *)(vlan + 1) > data_end)
+			return XDP_DROP;
+
+		l3 = vlan + 1;
+	}
+
+	struct udphdr *udp;
+	if (is_ip4) {
+		struct iphdr *ip = l3;
+		if ((const void *)(ip + 1) > data_end)
+			return XDP_DROP;
+
+		udp = (struct udphdr *)(ip + 1);
+	} else {
+		struct ipv6hdr *ip6 = l3;
+		if ((const void *)(ip6 + 1) > data_end)
+			return XDP_DROP;
+
+		udp = (struct udphdr *)(ip6 + 1);
+	}
+
 	if ((const void *)(udp + 1) > data_end)
 		return XDP_DROP;
 
-	__u8 *p = data + gtp_off;
+	__u8 *p = (__u8 *)(udp + 1);
 	if ((const void *)(p + GTPU_ECHO_RESPONSE_LEN) > data_end)
 		return XDP_DROP;
 
@@ -241,7 +261,7 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	udp->len = bpf_htons(udp_len);
 
 	if (is_ip4) {
-		struct iphdr *ip = (struct iphdr *)(data + ip_off);
+		struct iphdr *ip = l3;
 		if ((const void *)(ip + 1) > data_end)
 			return XDP_DROP;
 
@@ -256,7 +276,7 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 		upf_printk("upf: send gtp echo response [ %pI4 -> %pI4 ]",
 			   &ip->saddr, &ip->daddr);
 	} else {
-		struct ipv6hdr *ip6 = (struct ipv6hdr *)(data + ip_off);
+		struct ipv6hdr *ip6 = l3;
 		if ((const void *)(ip6 + 1) > data_end)
 			return XDP_DROP;
 
@@ -266,6 +286,7 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 		/* The UDP checksum is mandatory over IPv6 (a wrong one is dropped
 		 * by the receiver). */
 		udp->check = 0;
+		__u32 udp_off = (__u32)((__u8 *)udp - (__u8 *)data);
 		int cs = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off, udp_len,
 				    ctx->xdp_ctx);
 		if (cs < 0)

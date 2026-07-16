@@ -220,8 +220,6 @@ func TestDecodeNASMessage_UnknownType_YieldsStatus97(t *testing.T) {
 	}
 }
 
-// GmmDecodeFailureCause tells a defined-type-but-malformed body (#96) apart from an
-// undefined message type (#97), and falls back to #96 when the type octet is absent.
 func TestGmmDecodeFailureCause(t *testing.T) {
 	tests := []struct {
 		name string

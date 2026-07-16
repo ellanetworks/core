@@ -77,11 +77,8 @@ func (w *capturingWriter) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 	return len(b), nil
 }
 
-// TestHandleDecodeReport_NGSetupFatalSendsNGSetupFailure asserts a fatal decode of
-// an NG SETUP REQUEST is rejected with an NG SETUP FAILURE reporting the missing
-// IE — the message normally used to report the procedure's unsuccessful outcome —
-// rather than the Error Indication other procedures fall back to (TS 38.413
-// §10.3.5).
+// A fatal NG SETUP REQUEST decode is rejected with NG SETUP FAILURE, not the Error
+// Indication other procedures fall back to (TS 38.413 §10.3.5).
 func TestHandleDecodeReport_NGSetupFatalSendsNGSetupFailure(t *testing.T) {
 	tests := []struct {
 		name string
