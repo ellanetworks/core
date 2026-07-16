@@ -87,12 +87,14 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method
 		zap.String("method", string(method)),
 	)
 
-	// TS 24.501 §9.11.3.1: a UE that did not advertise LPP in N1 mode is under no
-	// obligation to answer an LPP message, and observed handsets stay silent for
-	// the full timeout. Refusing here turns a 30 s hang into an immediate,
-	// explained failure. An unknown capability is allowed to proceed.
+	// DIAGNOSTIC BYPASS: normally a UE that did not advertise LPP in N1 mode
+	// (TS 24.501 §9.11.3.1) is refused here to avoid a 30 s hang. It is temporarily
+	// downgraded to a warning so we can probe whether a UE that under-advertises
+	// still answers LPP. Restore the `return` before shipping.
 	if supported, known := l.lppHandler.LPPN1ModeSupported(supi.String()); known && !supported {
-		return nil, "", fmt.Errorf("UE does not support LPP in N1 mode (TS 24.501 5GMM capability)")
+		logger.LmfLog.Warn("UE advertised no LPP in N1 mode; sending LPP anyway (diagnostic bypass)",
+			zap.String("supi", supi.String()),
+		)
 	}
 
 	// Create LPP session
