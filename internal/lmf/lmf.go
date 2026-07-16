@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
@@ -31,7 +32,12 @@ type LocationSource interface {
 
 // LPPHandler is the interface for sending LPP messages to a UE via the AMF.
 type LPPHandler interface {
-	ForwardLPPToUE(ctx context.Context, supi string, lppData []byte) error
+	// ForwardLPPToUE sends an LPP PDU to the UE. correlationID is the LCS
+	// correlation identifier to carry (TS 24.501 §5.4.5.3.2 case c); nil lets the
+	// AMF assign a fresh one, which is what a new request does. A reply within an
+	// existing session passes the identifier the UE used so it routes to the same
+	// session.
+	ForwardLPPToUE(ctx context.Context, supi string, correlationID, lppData []byte) error
 	// LPPN1ModeSupported reports the UE's LPP-in-N1-mode capability. The second
 	// return is false when the capability is unknown (no UE context or no 5GMM
 	// capability IE), so "declined" is distinguishable from "unknown".
@@ -51,6 +57,10 @@ type LMF struct {
 	lppHandler  LPPHandler
 	lppSessions map[string]*lpp.Session // sessionID -> LPP session
 	lppMu       sync.RWMutex
+	// ackSeq supplies the downlink sequence number for acknowledgements sent
+	// outside an active session (a retransmission arriving after teardown), so
+	// consecutive acks differ as TS 37.355 §4.3.2 requires.
+	ackSeq atomic.Uint32
 }
 
 // New creates an LMF instance that reads UE location from the AMF (5G) and the
@@ -128,7 +138,8 @@ func (l *LMF) SessionManager() *SessionManager {
 
 // ForwardLPPToLMF is a helper that forwards an LPP payload from the AMF to the LMF
 // for processing. Called by AMF when an UL NAS Transport carries LPP.
-func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, lppData []byte) error {
+// correlationID is the LCS correlation identifier the UE echoed (may be nil).
+func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, correlationID, lppData []byte) error {
 	if lmf == nil {
 		logger.LmfLog.Debug("LMF is nil, dropping LPP payload")
 		return nil
@@ -163,7 +174,7 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, lppData []by
 	// TS 37.355 §4.3.3: acknowledge before touching the body. The ack is owed
 	// for any decodable header regardless of whether the body parses, and
 	// sending it here is what stops the UE's 2 s retransmission loop (§4.3.4).
-	duplicate := lmf.acknowledgeLPP(ctx, supi, lppData, activeSession)
+	duplicate := lmf.acknowledgeLPP(ctx, supi, correlationID, lppData, activeSession)
 
 	if activeSession == nil {
 		logger.LmfLog.Warn("no active LPP session for UE reply; dropping",
@@ -215,7 +226,7 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, lppData []by
 // requested one (TS 37.355 §4.3.3), and reports whether the PDU is a duplicate
 // of the last one this session received (§4.3.2). A PDU whose header cannot be
 // read is not acknowledged and is treated as non-duplicate.
-func (lmf *LMF) acknowledgeLPP(ctx context.Context, supi etsi.SUPI, lppData []byte, session *lpp.Session) (duplicate bool) {
+func (lmf *LMF) acknowledgeLPP(ctx context.Context, supi etsi.SUPI, correlationID, lppData []byte, session *lpp.Session) (duplicate bool) {
 	info, err := lpp.ParseAckInfo(lppData)
 	if err != nil {
 		logger.LmfLog.Warn("could not read LPP acknowledgement header",
@@ -230,12 +241,16 @@ func (lmf *LMF) acknowledgeLPP(ctx context.Context, supi etsi.SUPI, lppData []by
 		return false
 	}
 
-	// Without a session there is no downlink counter; seq 0 still stops the
-	// retransmission loop, which is the point of acknowledging a stray reply.
+	// The acknowledgement's own downlink sequence number must be distinct from
+	// the previous one (§4.3.2) or the UE discards it as a duplicate. An active
+	// session tracks its counter; a stray reply from a torn-down session uses the
+	// LMF's fallback counter so repeated acks still differ.
 	var ackSeq byte
 
 	if session != nil {
 		ackSeq, duplicate = session.AckInbound(lppData)
+	} else {
+		ackSeq = byte(lmf.ackSeq.Add(1))
 	}
 
 	ack, err := lpp.BuildAcknowledgement(ackSeq, info.SequenceNumber)
@@ -248,7 +263,9 @@ func (lmf *LMF) acknowledgeLPP(ctx context.Context, supi etsi.SUPI, lppData []by
 		return duplicate
 	}
 
-	if err := lmf.lppHandler.ForwardLPPToUE(ctx, supi.String(), ack); err != nil {
+	// Reply with the identifier the UE used (TS 23.273 NOTE 11) so the ack routes
+	// to the same LPP session on the target; a fresh identifier would not.
+	if err := lmf.lppHandler.ForwardLPPToUE(ctx, supi.String(), correlationID, ack); err != nil {
 		logger.LmfLog.Error("failed to send LPP acknowledgement to UE",
 			zap.String("supi", supi.String()),
 			zap.Error(err),

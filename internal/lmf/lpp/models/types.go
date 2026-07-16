@@ -88,8 +88,12 @@ type ProvideAssistanceData struct {
 // whether GNSSPositionResult holds a position the UE actually reported: without
 // it the zero value is not a fix at (0, 0), it is the absence of one.
 type ProvideLocationInformation struct {
-	TransactionID      byte
-	HasEstimate        bool
+	TransactionID byte
+	HasEstimate   bool
+	// HasMeasurements is true when the UE returned GNSS-SignalMeasurementInformation
+	// (the UE-assisted response): raw measurements the network must solve into a
+	// position, which requires a GNSS computation engine the LMF does not have.
+	HasMeasurements    bool
 	FailureCause       string
 	GNSSPositionResult GNSSPositionResult
 }

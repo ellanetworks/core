@@ -30,13 +30,8 @@ func (l *LMF) DetermineLocation(ctx context.Context, supi etsi.SUPI, method Posi
 	case MethodECID:
 		result, err := l.determineECIDLocation(ctx, supi)
 		return result, "", err
-	case MethodAGNSSAssisted:
-		return l.determineAGNSSLocation(ctx, supi)
-	case MethodAGNSSBased:
-		// UE-based A-GNSS needs the LMF to deliver assistance data and the UE to
-		// compute its own fix (TS 37.355 §5.2). That path is not implemented, so
-		// it is refused rather than silently run as UE-assisted.
-		return nil, "", fmt.Errorf("positioning method %q is not supported: UE-based A-GNSS is not implemented", method)
+	case MethodAGNSSAssisted, MethodAGNSSBased:
+		return l.determineAGNSSLocation(ctx, supi, method)
 	default:
 		return nil, "", fmt.Errorf("unsupported positioning method: %s", method)
 	}
@@ -78,17 +73,18 @@ func (l *LMF) determineCellIDLocation(ctx context.Context, supi etsi.SUPI) (*mod
 	return result, nil
 }
 
-// determineAGNSSLocation computes location using UE-assisted A-GNSS via the LPP
-// state machine: the LMF requests capabilities, then requests location, and
-// extracts the fix from ProvideLocationInformation. Returns the location
-// result, session ID, and any error.
-func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI) (*models.LocationResult, string, error) {
+// determineAGNSSLocation computes location using A-GNSS via the LPP state
+// machine: the LMF requests capabilities, then requests location. The method
+// selects the mode (TS 37.355 §5.2): UE-based asks the UE to compute and return
+// a location estimate; UE-assisted asks for GNSS measurements the network would
+// compute from. Returns the location result, session ID, and any error.
+func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method PositioningMethod) (*models.LocationResult, string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	logger.LmfLog.Info("A-GNSS positioning via LPP",
 		zap.String("supi", supi.String()),
-		zap.String("method", string(MethodAGNSSAssisted)),
+		zap.String("method", string(method)),
 	)
 
 	// TS 24.501 §9.11.3.1: a UE that did not advertise LPP in N1 mode is under no
@@ -102,7 +98,7 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI) (*mode
 	// Create LPP session
 	session, err := l.sessionMgr.CreateLPPSession(ctx, CreateSessionParams{
 		SUPI:              supi.String(),
-		Method:            MethodAGNSSAssisted,
+		Method:            method,
 		QoSResponseTimeMs: nil,
 		QOSHAccuracyM:     nil,
 	})
@@ -115,7 +111,7 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI) (*mode
 	// and must not use the timeout ctx which may be cancelled when determineAGNSSLocation returns.
 	session.SetTransport(
 		func(lppMsg []byte) error {
-			return l.lppHandler.ForwardLPPToUE(context.Background(), supi.String(), lppMsg)
+			return l.lppHandler.ForwardLPPToUE(context.Background(), supi.String(), nil, lppMsg)
 		},
 		func(result *models.LocationResult) error {
 			return l.sessionMgr.CompleteSession(context.Background(), session.SessionID(), result)

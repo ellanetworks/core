@@ -429,7 +429,7 @@ func (amf *AMF) LPPN1ModeSupported(supi etsi.SUPI) (supported, known bool) {
 // payloads are carried in DL NAS Transport with PayloadContainerTypeLPP.
 //
 // pduSessionID must be 0 for LPP messages — LPP is not PDU-session-scoped.
-func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, lppMsg []byte) error {
+func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, correlationID, lppMsg []byte) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"AMF N1 LPP Transfer",
@@ -452,10 +452,14 @@ func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, lppMsg []b
 	// TS 24.501 §5.4.5.3.2 case c): the Additional information IE carries an LCS
 	// correlation identifier, which the UE hands to its location services
 	// application (§5.4.5.3.3 case c) and echoes back on the uplink
-	// (§5.4.5.2.1 case c). NOTE 2 of §5.4.5.3.2 has the AMF assign it for
-	// on-demand transfers, and distinguishes AMF- from LMF-assigned identifiers
-	// by octet count, so this one is 4 octets.
-	correlationID := amf.nextLCSCorrelationID()
+	// (§5.4.5.2.1 case c). A caller that is replying within an existing session
+	// (e.g. an acknowledgement) supplies the identifier the UE used so the reply
+	// reaches the same session; otherwise the AMF assigns a fresh one. NOTE 2 of
+	// §5.4.5.3.2 distinguishes AMF- from LMF-assigned identifiers by octet count,
+	// so an AMF-assigned one is 4 octets.
+	if len(correlationID) == 0 {
+		correlationID = amf.nextLCSCorrelationID()
+	}
 
 	// TS 24.501 §9.11.3.1: the UE reports whether it speaks LPP in N1 mode at
 	// registration. A UE that reports "not supported" is under no obligation to

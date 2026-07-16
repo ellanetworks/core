@@ -100,7 +100,11 @@ type NASHandler interface {
 // LPPHandler is called by the AMF when an UL NAS Transport carries an LPP payload.
 // The AMF looks up the UE by SUPI and forwards the LPP data to the handler (LMF).
 type LPPHandler interface {
-	ForwardLPP(ctx context.Context, supi etsi.SUPI, lppData []byte) error
+	// ForwardLPP hands an uplink LPP PDU to the LMF. correlationID is the LCS
+	// correlation identifier the UE echoed in the Additional information IE
+	// (TS 24.501 §5.4.5.2.1 case c), so a reply can be routed back to the same
+	// session; it is nil when the UE included no such IE.
+	ForwardLPP(ctx context.Context, supi etsi.SUPI, correlationID, lppData []byte) error
 }
 
 // Concurrency model — a registry lock, a per-UE lock, and atomics:

@@ -95,12 +95,7 @@ func GetSubscriberLocation(lmfInstance *lmf.LMF) http.Handler {
 
 		if req.Method != "" {
 			switch lmf.PositioningMethod(req.Method) {
-			case lmf.MethodCellID, lmf.MethodECID, lmf.MethodAGNSSAssisted:
-			case lmf.MethodAGNSSBased:
-				writeError(r.Context(), w, http.StatusBadRequest,
-					"positioning method agnss_ue_based is not supported: UE-based A-GNSS is not implemented", nil, logger.APILog)
-
-				return
+			case lmf.MethodCellID, lmf.MethodECID, lmf.MethodAGNSSAssisted, lmf.MethodAGNSSBased:
 			default:
 				writeError(r.Context(), w, http.StatusBadRequest,
 					fmt.Sprintf("unsupported method: %s", req.Method), nil, logger.APILog)
@@ -205,7 +200,7 @@ func GetSubscriberLocation(lmfInstance *lmf.LMF) http.Handler {
 
 			return
 
-		case lmf.MethodAGNSSAssisted:
+		case lmf.MethodAGNSSAssisted, lmf.MethodAGNSSBased:
 			// A-GNSS creates its own LPP session via DetermineLocation.
 			// The LPP state machine completes the session when done.
 			result, sessionID, err := lmfInstance.DetermineLocation(r.Context(), supi, method)

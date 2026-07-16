@@ -47,6 +47,14 @@ func (s SessionState) String() string {
 	}
 }
 
+// A-GNSS positioning modes, matching the API method strings. UE-based has the
+// UE compute its own fix; UE-assisted has it return measurements the network
+// computes from (TS 37.355 §5.2).
+const (
+	MethodAGNSSAssisted = "agnss_ue_assisted"
+	MethodAGNSSBased    = "agnss_ue_based"
+)
+
 // Session manages the LPP protocol state machine for one UE positioning session.
 type Session struct {
 	mu             sync.Mutex
@@ -208,13 +216,20 @@ func (s *Session) handleCapabilities(capMsg *models.ProvideLocationCapabilities)
 
 	s.state = LocationRequested
 
-	locMsg, err := EncodeRequestLocationInformation(s.NextTransactionID(), s.NextSequenceNumber())
+	// TS 37.355 §5.3.1: UE-based asks the UE to return a computed estimate;
+	// UE-assisted asks for measurements the network computes from.
+	locInfoType := lpptype.LocationInformationTypeLocationMeasurementsRequired
+	if s.ueBased() {
+		locInfoType = lpptype.LocationInformationTypeLocationEstimateRequired
+	}
+
+	locMsg, err := EncodeRequestLocationInformation(s.NextTransactionID(), s.NextSequenceNumber(), locInfoType)
 	if err != nil {
 		s.state = SessionFailed
 		return fmt.Errorf("build request location: %w", err)
 	}
 
-	s.log.Info("sending RequestLocationInformation (location)")
+	s.log.Info("sending RequestLocationInformation (location)", zap.String("method", s.method))
 
 	if err := s.send(locMsg); err != nil {
 		s.state = SessionFailed
@@ -244,10 +259,25 @@ func (s *Session) handleLocation(msg *models.ProvideLocationInformation) error {
 		return fmt.Errorf("unexpected ProvideLocationInformation in state %s", s.state)
 	}
 
-	// A target that could not compute a position answers with a cause and no
-	// locationEstimate (TS 37.355 §6.5.2). The zero value is the absence of a
-	// fix, so reporting it would place the subscriber at (0, 0).
 	if !msg.HasEstimate {
+		// UE-assisted: the UE returns measurements, not a fix. Solving them into a
+		// position needs a GNSS computation engine (satellite ephemeris + a
+		// least-squares solver) the LMF does not have, so the exchange is reported
+		// as reaching the UE but not producing a location.
+		if !s.ueBased() && msg.HasMeasurements {
+			s.log.Warn(
+				"UE returned GNSS measurements; network-side position computation is not implemented",
+				zap.String("state", s.state.String()),
+			)
+
+			s.failLocked()
+
+			return nil
+		}
+
+		// Otherwise the target could not produce what was asked and answers with a
+		// cause and no locationEstimate (TS 37.355 §6.5.2). The zero value is the
+		// absence of a fix, so reporting it would place the subscriber at (0, 0).
 		cause := msg.FailureCause
 		if cause == "" {
 			cause = "no locationEstimate and no cause"
@@ -347,6 +377,13 @@ func (s *Session) SessionID() string {
 // Method returns the positioning method.
 func (s *Session) Method() string {
 	return s.method
+}
+
+// ueBased reports whether this session runs UE-based A-GNSS (the UE computes and
+// returns a location estimate) rather than UE-assisted (the UE returns
+// measurements).
+func (s *Session) ueBased() bool {
+	return s.method == MethodAGNSSBased
 }
 
 // LocationResult returns the extracted location fix, or nil if not yet received.

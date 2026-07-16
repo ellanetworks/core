@@ -64,9 +64,11 @@ func EncodeRequestCapabilities(transactionID, sequenceNumber byte) ([]byte, erro
 	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, false, sequenceNumber, body)
 }
 
-// EncodeRequestLocationInformation encodes an LPP RequestLocationInformation message
-// requesting a GNSS location estimate.
-func EncodeRequestLocationInformation(transactionID, sequenceNumber byte) ([]byte, error) {
+// EncodeRequestLocationInformation encodes an LPP RequestLocationInformation
+// message. locInfoType selects the mode (TS 37.355 §5.3.1): locationEstimate*
+// asks the UE to compute and return a fix (UE-based); locationMeasurements*
+// asks for GNSS measurements the network computes from (UE-assisted).
+func EncodeRequestLocationInformation(transactionID, sequenceNumber byte, locInfoType aper.Enumerated) ([]byte, error) {
 	body := &lpptype.LPPMessageBody{
 		Present: 1, // c1
 		C1: &lpptype.LPPMessageBodyC1{
@@ -79,7 +81,7 @@ func EncodeRequestLocationInformation(transactionID, sequenceNumber byte) ([]byt
 						RequestLocationInformationR9: &lpptype.RequestLocationInformationR9IEs{
 							CommonIEsRequestLocationInformation: &lpptype.CommonIEsRequestLocationInformation{
 								LocationInformationType: lpptype.LocationInformationType{
-									Value: lpptype.LocationInformationTypeLocationEstimateRequired,
+									Value: locInfoType,
 								},
 								QoS: &lpptype.QoS{
 									VerticalCoordinateRequest: false,

@@ -40,7 +40,7 @@ func TestEncodeDecodeRequestCapabilities(t *testing.T) {
 }
 
 func TestEncodeDecodeRequestLocationInformation(t *testing.T) {
-	encoded, err := EncodeRequestLocationInformation(0x02, 0)
+	encoded, err := EncodeRequestLocationInformation(0x02, 0, lpptype.LocationInformationTypeLocationEstimateRequired)
 	if err != nil {
 		t.Fatalf("EncodeRequestLocationInformation: %v", err)
 	}
@@ -260,7 +260,7 @@ func TestUERoundTrip(t *testing.T) {
 	}
 
 	// Step 3: LMF → UE: RequestLocationInformation
-	lmfReqLoc, err := EncodeRequestLocationInformation(0x02, 0)
+	lmfReqLoc, err := EncodeRequestLocationInformation(0x02, 0, lpptype.LocationInformationTypeLocationEstimateRequired)
 	if err != nil {
 		t.Fatalf("step 3 encode: %v", err)
 	}

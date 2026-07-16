@@ -144,6 +144,10 @@ func decodeProvideLocationInformation(pli *lpptype.ProvideLocationInformation) *
 
 	out.FailureCause = locationFailureCause(r9)
 
+	if a := r9.AGNSSProvideLocationInformation; a != nil && a.GnssSignalMeasurementInformation != nil {
+		out.HasMeasurements = true
+	}
+
 	common := r9.CommonIEsProvideLocationInformation
 	if common == nil || common.LocationEstimate == nil {
 		return out

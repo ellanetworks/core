@@ -64,7 +64,9 @@ func TestRequestsDoNotEndTransaction(t *testing.T) {
 		encode func(byte, byte) ([]byte, error)
 	}{
 		{"RequestCapabilities", EncodeRequestCapabilities},
-		{"RequestLocationInformation", EncodeRequestLocationInformation},
+		{"RequestLocationInformation", func(tid, seq byte) ([]byte, error) {
+			return EncodeRequestLocationInformation(tid, seq, lpptype.LocationInformationTypeLocationEstimateRequired)
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			b, err := tc.encode(0, 0)
@@ -381,5 +383,35 @@ func TestProvideLocationInformationRoundTrip(t *testing.T) {
 		EllipsoidPointWithAltitudeAndUncertaintyEllipsoid
 	if *p != *want {
 		t.Errorf("locationEstimate: got %+v, want %+v", *p, *want)
+	}
+}
+
+// TestRequestLocationInformationMode pins that the two A-GNSS modes select
+// different LocationInformationType values on the wire (TS 37.355 §5.3.1):
+// UE-based asks for a computed estimate, UE-assisted for measurements.
+func TestRequestLocationInformationMode(t *testing.T) {
+	based, err := EncodeRequestLocationInformation(1, 1, lpptype.LocationInformationTypeLocationEstimateRequired)
+	if err != nil {
+		t.Fatalf("based: %v", err)
+	}
+
+	assisted, err := EncodeRequestLocationInformation(1, 1, lpptype.LocationInformationTypeLocationMeasurementsRequired)
+	if err != nil {
+		t.Fatalf("assisted: %v", err)
+	}
+
+	if hex.EncodeToString(based) == hex.EncodeToString(assisted) {
+		t.Fatalf("both modes encoded identically (%s): mode is not on the wire", hex.EncodeToString(based))
+	}
+
+	for name, b := range map[string][]byte{"based": based, "assisted": assisted} {
+		msg, err := DecodeMessage(b)
+		if err != nil {
+			t.Fatalf("%s: decode: %v", name, err)
+		}
+
+		if msg.LppMessageBody.C1.Present != lpptype.LPPMessageBodyC1PresentRequestLocationInformation {
+			t.Errorf("%s: body kind %d, want RequestLocationInformation", name, msg.LppMessageBody.C1.Present)
+		}
 	}
 }

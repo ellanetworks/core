@@ -280,22 +280,23 @@ func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		lppData := msg.GetPayloadContainerContents()
 
 		// The UE echoes its routing context in the Additional information IE
-		// (TS 24.501 §5.4.5.2.1 case c); record whether it is present so an
-		// LPP reply can be correlated back to the LMF that sent the request.
-		additionalInfo := ""
+		// (TS 24.501 §5.4.5.2.1 case c); it identifies the LPP session, so it is
+		// forwarded to the LMF to route a reply (e.g. an acknowledgement) back to
+		// the same session.
+		var correlationID []byte
 		if msg.AdditionalInformation != nil {
-			additionalInfo = hex.EncodeToString(msg.GetAdditionalInformationValue())
+			correlationID = msg.GetAdditionalInformationValue()
 		}
 
 		logger.From(ctx, logger.AmfLog).Info("UL NAS Transport carries LPP payload",
 			logger.SUPI(ue.Supi().String()),
 			zap.Int("length", len(lppData)),
 			zap.String("lpp_hex", hex.EncodeToString(lppData)),
-			zap.String("additional_information", additionalInfo),
+			zap.String("additional_information", hex.EncodeToString(correlationID)),
 		)
 
 		if amfInstance.LPPHandler != nil {
-			if err := amfInstance.LPPHandler.ForwardLPP(ctx, ue.Supi(), lppData); err != nil {
+			if err := amfInstance.LPPHandler.ForwardLPP(ctx, ue.Supi(), correlationID, lppData); err != nil {
 				logger.From(ctx, logger.AmfLog).Error("failed to forward LPP to LMF", zap.Error(err))
 			}
 		} else {

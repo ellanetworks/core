@@ -644,9 +644,20 @@ func readAGNSSProvideLocationInformation(r *aper.Reader) (*lpptype.AGNSSProvideL
 
 	out := &lpptype.AGNSSProvideLocationInformation{}
 
-	if optionals[0] || optionals[1] {
-		// Both are unmodelled and precede gnss-Error, so its offset is unknown
-		// once either is present.
+	if optionals[0] {
+		// gnss-SignalMeasurementInformation: the UE-assisted response. Its
+		// contents are not modelled (the network cannot solve them without a GNSS
+		// engine), but its presence is what distinguishes a measurement report
+		// from a failure, so it is recorded. gnss-Error, which follows it, cannot
+		// be located past the unmodelled body.
+		out.GnssSignalMeasurementInformation = &struct{}{}
+
+		return out, nil
+	}
+
+	if optionals[1] {
+		// gnss-LocationInformation precedes gnss-Error and is unmodelled; the
+		// UE-based fix is read from CommonIEs.locationEstimate instead.
 		return out, nil
 	}
 
