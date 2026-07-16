@@ -8,7 +8,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/lmf/lpp"
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
-	"github.com/free5gc/aper"
 )
 
 // LPPCapabilitiesResponseOpts contains the parameters for building the UE's
@@ -27,7 +26,7 @@ func BuildLPPCapabilitiesResponse(opts *LPPCapabilitiesResponseOpts) ([]byte, er
 		return nil, nil
 	}
 
-	var gnssIDs []aper.Enumerated
+	var gnssIDs []int64
 
 	if opts.GNSSGPS {
 		gnssIDs = append(gnssIDs, lpptype.GnssIDGps)

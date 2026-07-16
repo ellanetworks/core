@@ -8,7 +8,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 	"github.com/ellanetworks/core/internal/lmf/lpp/models"
-	"github.com/free5gc/aper"
 )
 
 func TestEncodeDecodeRequestCapabilities(t *testing.T) {
@@ -64,7 +63,7 @@ func TestEncodeDecodeRequestLocationInformation(t *testing.T) {
 }
 
 func TestEncodeDecodeProvideCapabilities(t *testing.T) {
-	encoded, err := EncodeProvideCapabilities(0x03, []aper.Enumerated{lpptype.GnssIDGps, lpptype.GnssIDGlonass})
+	encoded, err := EncodeProvideCapabilities(0x03, []int64{lpptype.GnssIDGps, lpptype.GnssIDGlonass})
 	if err != nil {
 		t.Fatalf("EncodeProvideCapabilities: %v", err)
 	}
@@ -196,7 +195,7 @@ func TestEncodeDecodeProvideAssistanceData(t *testing.T) {
 
 func TestParseLPPMessage(t *testing.T) {
 	// Encode a ProvideCapabilities message and parse it with ParseLPPMessage.
-	encoded, err := EncodeProvideCapabilities(0x01, []aper.Enumerated{lpptype.GnssIDGps})
+	encoded, err := EncodeProvideCapabilities(0x01, []int64{lpptype.GnssIDGps})
 	if err != nil {
 		t.Fatalf("EncodeProvideCapabilities: %v", err)
 	}
@@ -309,7 +308,7 @@ func TestUERoundTrip(t *testing.T) {
 	}
 
 	// Step 2: UE → LMF: ProvideCapabilities
-	ueProvCaps, err := EncodeProvideCapabilities(0x01, []aper.Enumerated{lpptype.GnssIDGps})
+	ueProvCaps, err := EncodeProvideCapabilities(0x01, []int64{lpptype.GnssIDGps})
 	if err != nil {
 		t.Fatalf("step 2 encode: %v", err)
 	}

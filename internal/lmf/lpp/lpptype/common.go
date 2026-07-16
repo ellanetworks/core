@@ -3,7 +3,7 @@
 
 package lpptype
 
-import "github.com/free5gc/aper"
+import "github.com/ellanetworks/core/internal/per"
 
 // =====================================================================
 // CommonIEsRequestLocationInformation (TS 37.355 §6.4.2)
@@ -22,14 +22,15 @@ import "github.com/free5gc/aper"
 //	    [[ ... ]]
 //	}
 type CommonIEsRequestLocationInformation struct {
-	LocationInformationType LocationInformationType `aper:"valueExt"`
-	TriggeredReporting      *struct{}               `aper:"optional"`
-	PeriodicalReporting     *struct{}               `aper:"optional"`
-	AdditionalInformation   *struct{}               `aper:"optional"`
-	QoS                     *QoS                    `aper:"optional,valueExt"`
-	Environment             *struct{}               `aper:"optional"`
-	LocationCoordinateTypes *struct{}               `aper:"optional"`
-	VelocityTypes           *struct{}               `aper:"optional"`
+	_                       [0]struct{} `per:"extseq"`
+	LocationInformationType LocationInformationType
+	TriggeredReporting      *per.Null `per:",optional"`
+	PeriodicalReporting     *per.Null `per:",optional"`
+	AdditionalInformation   *per.Null `per:",optional"`
+	QoS                     *QoS      `per:",optional"`
+	Environment             *per.Null `per:",optional"`
+	LocationCoordinateTypes *per.Null `per:",optional"`
+	VelocityTypes           *per.Null `per:",optional"`
 }
 
 //	LocationInformationType ::= ENUMERATED {
@@ -38,14 +39,14 @@ type CommonIEsRequestLocationInformation struct {
 //	    locationEstimateAndMeasurementsRequired-r18
 //	}
 const (
-	LocationInformationTypeLocationEstimateRequired      aper.Enumerated = 0
-	LocationInformationTypeLocationMeasurementsRequired  aper.Enumerated = 1
-	LocationInformationTypeLocationEstimatePreferred     aper.Enumerated = 2
-	LocationInformationTypeLocationMeasurementsPreferred aper.Enumerated = 3
+	LocationInformationTypeLocationEstimateRequired      int64 = 0
+	LocationInformationTypeLocationMeasurementsRequired  int64 = 1
+	LocationInformationTypeLocationEstimatePreferred     int64 = 2
+	LocationInformationTypeLocationMeasurementsPreferred int64 = 3
 )
 
 type LocationInformationType struct {
-	Value aper.Enumerated `aper:"valueLB:0,valueUB:3,valueExt"`
+	Value int64 `per:",range:0..3,..."`
 }
 
 //	QoS ::= SEQUENCE {
@@ -57,28 +58,32 @@ type LocationInformationType struct {
 //	    ...,
 //	}
 type QoS struct {
-	HorizontalAccuracy        *HorizontalAccuracy `aper:"optional"`
+	_                         [0]struct{}         `per:"extseq"`
+	HorizontalAccuracy        *HorizontalAccuracy `per:",optional"`
 	VerticalCoordinateRequest bool
-	VerticalAccuracy          *VerticalAccuracy `aper:"optional"`
-	ResponseTime              *ResponseTime     `aper:"optional"`
+	VerticalAccuracy          *VerticalAccuracy `per:",optional"`
+	ResponseTime              *ResponseTime     `per:",optional"`
 	VelocityRequest           bool
 }
 
 // HorizontalAccuracy ::= SEQUENCE { accuracy INTEGER(0..127), confidence INTEGER(0..100), ... }
 type HorizontalAccuracy struct {
-	Accuracy   int64 `aper:"valueLB:0,valueUB:127"`
-	Confidence int64 `aper:"valueLB:0,valueUB:100"`
+	_          [0]struct{} `per:"extseq"`
+	Accuracy   int64       `per:",range:0..127"`
+	Confidence int64       `per:",range:0..100"`
 }
 
 // VerticalAccuracy ::= SEQUENCE { accuracy INTEGER(0..127), confidence INTEGER(0..100), ... }
 type VerticalAccuracy struct {
-	Accuracy   int64 `aper:"valueLB:0,valueUB:127"`
-	Confidence int64 `aper:"valueLB:0,valueUB:100"`
+	_          [0]struct{} `per:"extseq"`
+	Accuracy   int64       `per:",range:0..127"`
+	Confidence int64       `per:",range:0..100"`
 }
 
 // ResponseTime ::= SEQUENCE { time INTEGER (1..128), ..., [[ ... ]] }
 type ResponseTime struct {
-	Time int64 `aper:"valueLB:1,valueUB:128"`
+	_    [0]struct{} `per:"extseq"`
+	Time int64       `per:",range:1..128"`
 }
 
 // =====================================================================
@@ -93,9 +98,10 @@ type ResponseTime struct {
 //	    [[ ... ]]
 //	}
 type CommonIEsProvideLocationInformation struct {
-	LocationEstimate *LocationCoordinates `aper:"optional,valueExt,valueLB:0,valueUB:6"`
-	VelocityEstimate *Velocity            `aper:"optional,valueExt,valueLB:0,valueUB:3"`
-	LocationError    *LocationError       `aper:"optional,valueExt"`
+	_                [0]struct{}          `per:"extseq"`
+	LocationEstimate *LocationCoordinates `per:",optional"`
+	VelocityEstimate *Velocity            `per:",optional"`
+	LocationError    *LocationError       `per:",optional"`
 }
 
 // =====================================================================
@@ -114,7 +120,7 @@ type CommonIEsProvideLocationInformation struct {
 //	    [[ ... ]]
 //	}
 //
-// Extensible CHOICE with 7 root alternatives → valueLB:0, valueUB:6, valueExt.
+// Extensible CHOICE with 7 root alternatives.
 const (
 	LocationCoordinatesPresentNothing int = iota
 	LocationCoordinatesPresentEllipsoidPoint
@@ -127,14 +133,14 @@ const (
 )
 
 type LocationCoordinates struct {
-	Present                                           int
-	EllipsoidPoint                                    *EllipsoidPoint
-	EllipsoidPointWithUncertaintyCircle               *EllipsoidPointWithUncertaintyCircle
-	EllipsoidPointWithUncertaintyEllipse              *EllipsoidPointWithUncertaintyEllipse
-	Polygon                                           *Polygon
-	EllipsoidPointWithAltitude                        *EllipsoidPointWithAltitude
-	EllipsoidPointWithAltitudeAndUncertaintyEllipsoid *EllipsoidPointWithAltitudeAndUncertaintyEllipsoid
-	EllipsoidArc                                      *EllipsoidArc
+	_                                                 [0]struct{}                                        `per:"extseq"`
+	EllipsoidPoint                                    *EllipsoidPoint                                    `per:",choice:0,optional"`
+	EllipsoidPointWithUncertaintyCircle               *EllipsoidPointWithUncertaintyCircle               `per:",choice:1,optional"`
+	EllipsoidPointWithUncertaintyEllipse              *EllipsoidPointWithUncertaintyEllipse              `per:",choice:2,optional"`
+	Polygon                                           *Polygon                                           `per:",choice:3,optional"`
+	EllipsoidPointWithAltitude                        *EllipsoidPointWithAltitude                        `per:",choice:4,optional"`
+	EllipsoidPointWithAltitudeAndUncertaintyEllipsoid *EllipsoidPointWithAltitudeAndUncertaintyEllipsoid `per:",choice:5,optional"`
+	EllipsoidArc                                      *EllipsoidArc                                      `per:",choice:6,optional"`
 }
 
 // =====================================================================
@@ -146,23 +152,15 @@ type LocationCoordinates struct {
 //	    degreesLatitude    INTEGER (0..8388607),
 //	    degreesLongitude   INTEGER (-8388608..8388607)
 //	}
-//
-// NOTE: degreesLongitude uses valueLB:0,valueUB:16777215 (unsigned offset)
-// instead of the spec's valueLB:-8388608,valueUB:8388607 (signed). This works
-// around a bug in github.com/free5gc/aper v1.1.1 where the byte-length
-// determinant for constrained INTEGERs with range > 65536 is computed from
-// the original value instead of the offset (value - lowerBound). The APER
-// bits on the wire are identical because the offset is the same; only the
-// Go-side encoding/decode functions adjust by adding/subtracting 8388608.
 const (
-	EllipsoidPointLatitudeSignNorth aper.Enumerated = 0
-	EllipsoidPointLatitudeSignSouth aper.Enumerated = 1
+	EllipsoidPointLatitudeSignNorth int64 = 0
+	EllipsoidPointLatitudeSignSouth int64 = 1
 )
 
 type EllipsoidPoint struct {
-	LatitudeSign     aper.Enumerated `aper:"valueLB:0,valueUB:1"`
-	DegreesLatitude  int64           `aper:"valueLB:0,valueUB:8388607"`
-	DegreesLongitude int64           `aper:"valueLB:0,valueUB:16777215"`
+	LatitudeSign     int64 `per:",range:0..1"`
+	DegreesLatitude  int64 `per:",range:0..8388607"`
+	DegreesLongitude int64 `per:",range:0..16777215"`
 }
 
 //	Ellipsoid-PointWithUncertaintyCircle ::= SEQUENCE {
@@ -172,10 +170,10 @@ type EllipsoidPoint struct {
 //	    uncertainty     INTEGER (0..127)
 //	}
 type EllipsoidPointWithUncertaintyCircle struct {
-	LatitudeSign     aper.Enumerated `aper:"valueLB:0,valueUB:1"`
-	DegreesLatitude  int64           `aper:"valueLB:0,valueUB:8388607"`
-	DegreesLongitude int64           `aper:"valueLB:0,valueUB:16777215"`
-	Uncertainty      int64           `aper:"valueLB:0,valueUB:127"`
+	LatitudeSign     int64 `per:",range:0..1"`
+	DegreesLatitude  int64 `per:",range:0..8388607"`
+	DegreesLongitude int64 `per:",range:0..16777215"`
+	Uncertainty      int64 `per:",range:0..127"`
 }
 
 //	EllipsoidPointWithAltitude ::= SEQUENCE {
@@ -186,35 +184,30 @@ type EllipsoidPointWithUncertaintyCircle struct {
 //	    altitude     INTEGER (0..32767)
 //	}
 const (
-	EllipsoidPointWithAltitudeAltitudeDirectionHeight aper.Enumerated = 0
-	EllipsoidPointWithAltitudeAltitudeDirectionDepth  aper.Enumerated = 1
+	EllipsoidPointWithAltitudeAltitudeDirectionHeight int64 = 0
+	EllipsoidPointWithAltitudeAltitudeDirectionDepth  int64 = 1
 )
 
 type EllipsoidPointWithAltitude struct {
-	LatitudeSign      aper.Enumerated `aper:"valueLB:0,valueUB:1"`
-	DegreesLatitude   int64           `aper:"valueLB:0,valueUB:8388607"`
-	DegreesLongitude  int64           `aper:"valueLB:0,valueUB:16777215"`
-	AltitudeDirection aper.Enumerated `aper:"valueLB:0,valueUB:1"`
-	Altitude          int64           `aper:"valueLB:0,valueUB:32767"`
+	LatitudeSign      int64 `per:",range:0..1"`
+	DegreesLatitude   int64 `per:",range:0..8388607"`
+	DegreesLongitude  int64 `per:",range:0..16777215"`
+	AltitudeDirection int64 `per:",range:0..1"`
+	Altitude          int64 `per:",range:0..32767"`
 }
 
 //	EllipsoidPointWithUncertaintyEllipse ::= SEQUENCE {
-//	    latitudeSign    ENUMERATED {north, south},
-//	    degreesLatitude    INTEGER (0..8388607),
-//	    degreesLongitude   INTEGER (-8388608..8388607),
-//	    uncertaintySemiMajor  INTEGER (0..127),
-//	    uncertaintySemiMinor  INTEGER (0..127),
-//	    orientationMajorAxis  INTEGER (0..179),
-//	    confidence     INTEGER (0..100)
+//	    latitudeSign, degreesLatitude, degreesLongitude,
+//	    uncertaintySemiMajor, uncertaintySemiMinor, orientationMajorAxis, confidence
 //	}
 type EllipsoidPointWithUncertaintyEllipse struct {
-	LatitudeSign         aper.Enumerated `aper:"valueLB:0,valueUB:1"`
-	DegreesLatitude      int64           `aper:"valueLB:0,valueUB:8388607"`
-	DegreesLongitude     int64           `aper:"valueLB:0,valueUB:16777215"`
-	UncertaintySemiMajor int64           `aper:"valueLB:0,valueUB:127"`
-	UncertaintySemiMinor int64           `aper:"valueLB:0,valueUB:127"`
-	OrientationMajorAxis int64           `aper:"valueLB:0,valueUB:179"`
-	Confidence           int64           `aper:"valueLB:0,valueUB:100"`
+	LatitudeSign         int64 `per:",range:0..1"`
+	DegreesLatitude      int64 `per:",range:0..8388607"`
+	DegreesLongitude     int64 `per:",range:0..16777215"`
+	UncertaintySemiMajor int64 `per:",range:0..127"`
+	UncertaintySemiMinor int64 `per:",range:0..127"`
+	OrientationMajorAxis int64 `per:",range:0..179"`
+	Confidence           int64 `per:",range:0..100"`
 }
 
 //	EllipsoidPointWithAltitudeAndUncertaintyEllipsoid ::= SEQUENCE {
@@ -224,16 +217,16 @@ type EllipsoidPointWithUncertaintyEllipse struct {
 //	    uncertaintyAltitude, confidence
 //	}
 type EllipsoidPointWithAltitudeAndUncertaintyEllipsoid struct {
-	LatitudeSign         aper.Enumerated `aper:"valueLB:0,valueUB:1"`
-	DegreesLatitude      int64           `aper:"valueLB:0,valueUB:8388607"`
-	DegreesLongitude     int64           `aper:"valueLB:0,valueUB:16777215"`
-	AltitudeDirection    aper.Enumerated `aper:"valueLB:0,valueUB:1"`
-	Altitude             int64           `aper:"valueLB:0,valueUB:32767"`
-	UncertaintySemiMajor int64           `aper:"valueLB:0,valueUB:127"`
-	UncertaintySemiMinor int64           `aper:"valueLB:0,valueUB:127"`
-	OrientationMajorAxis int64           `aper:"valueLB:0,valueUB:179"`
-	UncertaintyAltitude  int64           `aper:"valueLB:0,valueUB:127"`
-	Confidence           int64           `aper:"valueLB:0,valueUB:100"`
+	LatitudeSign         int64 `per:",range:0..1"`
+	DegreesLatitude      int64 `per:",range:0..8388607"`
+	DegreesLongitude     int64 `per:",range:0..16777215"`
+	AltitudeDirection    int64 `per:",range:0..1"`
+	Altitude             int64 `per:",range:0..32767"`
+	UncertaintySemiMajor int64 `per:",range:0..127"`
+	UncertaintySemiMinor int64 `per:",range:0..127"`
+	OrientationMajorAxis int64 `per:",range:0..179"`
+	UncertaintyAltitude  int64 `per:",range:0..127"`
+	Confidence           int64 `per:",range:0..100"`
 }
 
 //	EllipsoidArc ::= SEQUENCE {
@@ -241,25 +234,25 @@ type EllipsoidPointWithAltitudeAndUncertaintyEllipsoid struct {
 //	    innerRadius, uncertaintyRadius, offsetAngle, includedAngle, confidence
 //	}
 type EllipsoidArc struct {
-	LatitudeSign      aper.Enumerated `aper:"valueLB:0,valueUB:1"`
-	DegreesLatitude   int64           `aper:"valueLB:0,valueUB:8388607"`
-	DegreesLongitude  int64           `aper:"valueLB:0,valueUB:16777215"`
-	InnerRadius       int64           `aper:"valueLB:0,valueUB:65535"`
-	UncertaintyRadius int64           `aper:"valueLB:0,valueUB:127"`
-	OffsetAngle       int64           `aper:"valueLB:0,valueUB:179"`
-	IncludedAngle     int64           `aper:"valueLB:0,valueUB:179"`
-	Confidence        int64           `aper:"valueLB:0,valueUB:100"`
+	LatitudeSign      int64 `per:",range:0..1"`
+	DegreesLatitude   int64 `per:",range:0..8388607"`
+	DegreesLongitude  int64 `per:",range:0..16777215"`
+	InnerRadius       int64 `per:",range:0..65535"`
+	UncertaintyRadius int64 `per:",range:0..127"`
+	OffsetAngle       int64 `per:",range:0..179"`
+	IncludedAngle     int64 `per:",range:0..179"`
+	Confidence        int64 `per:",range:0..100"`
 }
 
 // Polygon ::= SEQUENCE (SIZE (3..15)) OF PolygonPoints
 type Polygon struct {
-	List []PolygonPoint `aper:"sizeLB:3,sizeUB:15"`
+	List []PolygonPoint `per:"SEQUENCE-OF,size:3..15"`
 }
 
 type PolygonPoint struct {
-	LatitudeSign     aper.Enumerated `aper:"valueLB:0,valueUB:1"`
-	DegreesLatitude  int64           `aper:"valueLB:0,valueUB:8388607"`
-	DegreesLongitude int64           `aper:"valueLB:0,valueUB:16777215"`
+	LatitudeSign     int64 `per:",range:0..1"`
+	DegreesLatitude  int64 `per:",range:0..8388607"`
+	DegreesLongitude int64 `per:",range:0..16777215"`
 }
 
 // =====================================================================
@@ -282,38 +275,38 @@ const (
 )
 
 type Velocity struct {
-	Present                                      int
-	HorizontalVelocity                           *HorizontalVelocity
-	HorizontalWithVerticalVelocity               *HorizontalWithVerticalVelocity
-	HorizontalVelocityWithUncertainty            *HorizontalVelocityWithUncertainty
-	HorizontalWithVerticalVelocityAndUncertainty *HorizontalWithVerticalVelocityAndUncertainty
+	_                                            [0]struct{}                                   `per:"extseq"`
+	HorizontalVelocity                           *HorizontalVelocity                           `per:",choice:0,optional"`
+	HorizontalWithVerticalVelocity               *HorizontalWithVerticalVelocity               `per:",choice:1,optional"`
+	HorizontalVelocityWithUncertainty            *HorizontalVelocityWithUncertainty            `per:",choice:2,optional"`
+	HorizontalWithVerticalVelocityAndUncertainty *HorizontalWithVerticalVelocityAndUncertainty `per:",choice:3,optional"`
 }
 
 type HorizontalVelocity struct {
-	Bearing         int64 `aper:"valueLB:0,valueUB:359"`
-	HorizontalSpeed int64 `aper:"valueLB:0,valueUB:2047"`
+	Bearing         int64 `per:",range:0..359"`
+	HorizontalSpeed int64 `per:",range:0..2047"`
 }
 
 type HorizontalWithVerticalVelocity struct {
-	Bearing           int64           `aper:"valueLB:0,valueUB:359"`
-	HorizontalSpeed   int64           `aper:"valueLB:0,valueUB:2047"`
-	VerticalDirection aper.Enumerated `aper:"valueLB:0,valueUB:1"`
-	VerticalSpeed     int64           `aper:"valueLB:0,valueUB:255"`
+	Bearing           int64 `per:",range:0..359"`
+	HorizontalSpeed   int64 `per:",range:0..2047"`
+	VerticalDirection int64 `per:",range:0..1"`
+	VerticalSpeed     int64 `per:",range:0..255"`
 }
 
 type HorizontalVelocityWithUncertainty struct {
-	Bearing          int64 `aper:"valueLB:0,valueUB:359"`
-	HorizontalSpeed  int64 `aper:"valueLB:0,valueUB:2047"`
-	UncertaintySpeed int64 `aper:"valueLB:0,valueUB:255"`
+	Bearing          int64 `per:",range:0..359"`
+	HorizontalSpeed  int64 `per:",range:0..2047"`
+	UncertaintySpeed int64 `per:",range:0..255"`
 }
 
 type HorizontalWithVerticalVelocityAndUncertainty struct {
-	Bearing                    int64           `aper:"valueLB:0,valueUB:359"`
-	HorizontalSpeed            int64           `aper:"valueLB:0,valueUB:2047"`
-	VerticalDirection          aper.Enumerated `aper:"valueLB:0,valueUB:1"`
-	VerticalSpeed              int64           `aper:"valueLB:0,valueUB:255"`
-	HorizontalUncertaintySpeed int64           `aper:"valueLB:0,valueUB:255"`
-	VerticalUncertaintySpeed   int64           `aper:"valueLB:0,valueUB:255"`
+	Bearing                    int64 `per:",range:0..359"`
+	HorizontalSpeed            int64 `per:",range:0..2047"`
+	VerticalDirection          int64 `per:",range:0..1"`
+	VerticalSpeed              int64 `per:",range:0..255"`
+	HorizontalUncertaintySpeed int64 `per:",range:0..255"`
+	VerticalUncertaintySpeed   int64 `per:",range:0..255"`
 }
 
 // =====================================================================
@@ -327,14 +320,13 @@ type HorizontalWithVerticalVelocityAndUncertainty struct {
 //	    periodicLocationMeasurementsNotAvailable, ...
 //	}
 const (
-	LocationFailureCausePresentUndefined                                aper.Enumerated = 0
-	LocationFailureCausePresentRequestedMethodNotSupported              aper.Enumerated = 1
-	LocationFailureCausePresentPositionMethodFailure                    aper.Enumerated = 2
-	LocationFailureCausePresentPeriodicLocationMeasurementsNotAvailable aper.Enumerated = 3
+	LocationFailureCausePresentUndefined                                int64 = 0
+	LocationFailureCausePresentRequestedMethodNotSupported              int64 = 1
+	LocationFailureCausePresentPositionMethodFailure                    int64 = 2
+	LocationFailureCausePresentPeriodicLocationMeasurementsNotAvailable int64 = 3
 )
 
 type LocationError struct {
-	LocationFailureCause struct {
-		Value aper.Enumerated `aper:"valueLB:0,valueUB:3,valueExt"`
-	}
+	_                    [0]struct{} `per:"extseq"`
+	LocationFailureCause int64       `per:",range:0..3,..."`
 }
