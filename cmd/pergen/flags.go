@@ -4,18 +4,15 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"strings"
 )
 
 // Config holds parsed command-line flags for pergen.
 type Config struct {
-	// dir is the directory containing the package to generate for.
-	dir string
 	// patterns are the Go package patterns to load (defaults to ".").
 	patterns []string
-	// output is the generated file name (defaults to "per_gen.go").
+	// output is the path to the generated file (defaults to "per_gen.go").
 	output string
 	// types restricts generation to the named types (comma-separated). Empty = all.
 	types []string
@@ -25,16 +22,14 @@ type Config struct {
 
 // parseFlags parses the pergen command-line. Supported flags:
 //
-//	-d <dir>            directory (default ".")
-//	-o <file>           output file (default "per_gen.go")
+//	-o <file>           output file path (default "per_gen.go")
 //	-type <a,b>         restrict to types
 //	-suffix <s>         method suffix (e.g. "Unaligned")
 //	patterns            package patterns (default ".")
 func parseFlags(args []string) (Config, error) {
 	cfg := Config{output: "per_gen.go"}
 	fs := flag.NewFlagSet("pergen", flag.ContinueOnError)
-	fs.StringVar(&cfg.dir, "d", ".", "directory")
-	fs.StringVar(&cfg.output, "o", "per_gen.go", "output file name")
+	fs.StringVar(&cfg.output, "o", "per_gen.go", "output file path")
 	fs.Var(commaSliceFlag{&cfg.types}, "type", "comma-separated list of types")
 	fs.StringVar(&cfg.suffix, "suffix", "", "method name suffix")
 
@@ -47,10 +42,6 @@ func parseFlags(args []string) (Config, error) {
 		cfg.patterns = []string{"."}
 	} else {
 		cfg.patterns = rest
-	}
-
-	if cfg.dir == "" {
-		return cfg, errors.New("empty -d")
 	}
 
 	return cfg, nil

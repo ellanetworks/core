@@ -22,7 +22,7 @@ func run(args []string) error {
 		return err
 	}
 
-	pkgs, err := loadPackages(cfg.dir, cfg.patterns)
+	pkgs, err := loadPackages(cfg.patterns)
 	if err != nil {
 		return err
 	}

@@ -9,13 +9,12 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-// loadPackages loads Go packages matching patterns from dir. It uses
-// go/packages (which drives the Go type checker), not reflect. We request
-// syntax, types, and types info so we can inspect structs and named types.
-func loadPackages(dir string, patterns []string) ([]*packages.Package, error) {
+// loadPackages loads Go packages matching patterns. It uses go/packages
+// (which drives the Go type checker), not reflect. We request syntax, types,
+// and types info so we can inspect structs and named types.
+func loadPackages(patterns []string) ([]*packages.Package, error) {
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedDeps,
-		Dir:  dir,
 	}
 
 	pkgs, err := packages.Load(cfg, patterns...)
