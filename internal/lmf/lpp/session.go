@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 	"github.com/ellanetworks/core/internal/lmf/lpp/models"
 	lmmodels "github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
@@ -162,21 +163,21 @@ func (s *Session) StartSession() error {
 }
 
 // HandleResponse processes a UE response and advances the state machine.
-func (s *Session) HandleResponse(msg any) error {
+func (s *Session) HandleResponse(d *DecodedMessage) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	switch response := msg.(type) {
-	case *models.ProvideLocationCapabilities:
-		return s.handleCapabilities(response)
-	case *models.ProvideLocationInformation:
-		return s.handleLocation(response)
-	case *models.Abort:
-		s.handleAbort(response)
+	switch d.BodyKind {
+	case lpptype.LPPMessageBodyC1PresentProvideCapabilities:
+		return s.handleCapabilities(d.ProvideCapabilities)
+	case lpptype.LPPMessageBodyC1PresentProvideLocationInformation:
+		return s.handleLocation(d.ProvideLocationInformation)
+	case lpptype.LPPMessageBodyC1PresentAbort:
+		s.handleAbort(d.Abort)
 
 		return nil
 	default:
-		return fmt.Errorf("unexpected message type for state %s: %T", s.state, msg)
+		return fmt.Errorf("unexpected LPP body kind %d for state %s", d.BodyKind, s.state)
 	}
 }
 

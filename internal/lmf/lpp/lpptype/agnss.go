@@ -6,7 +6,7 @@ package lpptype
 import (
 	"fmt"
 
-	"github.com/free5gc/aper"
+	"github.com/ellanetworks/core/aper"
 )
 
 // =====================================================================
@@ -30,10 +30,10 @@ type AGNSSRequestCapabilities struct {
 // =====================================================================
 
 type AGNSSProvideCapabilities struct {
-	GnssSupportList           *GNSSSupportList `aper:"optional,valueExt"`
-	AssistanceDataSupportList *struct{}        `aper:"optional"`
-	LocationCoordinateTypes   *struct{}        `aper:"optional"`
-	VelocityTypes             *struct{}        `aper:"optional"`
+	GnssSupportList           *GNSSSupportList
+	AssistanceDataSupportList *struct{}
+	LocationCoordinateTypes   *struct{}
+	VelocityTypes             *struct{}
 }
 
 // =====================================================================
@@ -42,7 +42,7 @@ type AGNSSProvideCapabilities struct {
 
 // GNSS-SupportList ::= SEQUENCE (SIZE(1..16)) OF GNSS-SupportElement
 type GNSSSupportList struct {
-	List []GNSSSupportElement `aper:"sizeLB:1,sizeUB:16"`
+	List []GNSSSupportElement
 }
 
 //	GNSS-SupportElement ::= SEQUENCE {
@@ -57,11 +57,11 @@ type GNSSSupportList struct {
 //	    [[ ... ]]
 //	}
 type GNSSSupportElement struct {
-	GnssID                     GNSSID           `aper:"valueExt"`
-	SbasIDs                    *struct{}        `aper:"optional"`
-	AGNSSModes                 PositioningModes `aper:"valueExt"`
-	GnssSignals                GNSSSignalIDs    `aper:"valueExt"`
-	FtaMeasSupport             *struct{}        `aper:"optional"`
+	GnssID                     GNSSID
+	SbasIDs                    *struct{}
+	AGNSSModes                 PositioningModes
+	GnssSignals                GNSSSignalIDs
+	FtaMeasSupport             *struct{}
 	AdrSupport                 bool
 	VelocityMeasurementSupport bool
 }
@@ -85,7 +85,7 @@ const (
 )
 
 type GNSSID struct {
-	Value aper.Enumerated `aper:"valueLB:0,valueUB:6,valueExt"`
+	Value aper.Enumerated
 }
 
 // =====================================================================
@@ -97,7 +97,7 @@ type GNSSID struct {
 //	    ...
 //	}
 type GNSSIDBitmap struct {
-	GnssIDs aper.BitString `aper:"sizeLB:1,sizeUB:16"`
+	GnssIDs aper.BitString
 }
 
 // =====================================================================
@@ -109,7 +109,7 @@ type GNSSIDBitmap struct {
 //	    ...
 //	}
 type PositioningModes struct {
-	PosModes aper.BitString `aper:"sizeLB:1,sizeUB:8"`
+	PosModes aper.BitString
 }
 
 // =====================================================================
@@ -122,7 +122,7 @@ type PositioningModes struct {
 //	    [[ gnss-SignalIDs-Ext-r15 BIT STRING (SIZE(16)) OPTIONAL ]]
 //	}
 type GNSSSignalIDs struct {
-	GnssSignalIDs aper.BitString `aper:"sizeLB:8,sizeUB:8"`
+	GnssSignalIDs aper.BitString
 }
 
 // =====================================================================
@@ -134,7 +134,7 @@ type GNSSSignalIDs struct {
 //	    ...
 //	}
 type AGNSSRequestLocationInformation struct {
-	GnssPositioningInstructions GNSSPositioningInstructions `aper:"valueExt"`
+	GnssPositioningInstructions GNSSPositioningInstructions
 }
 
 // =====================================================================
@@ -151,7 +151,7 @@ type AGNSSRequestLocationInformation struct {
 //	    [[ ... ]]
 //	}
 type GNSSPositioningInstructions struct {
-	GnssMethods               GNSSIDBitmap `aper:"valueExt"`
+	GnssMethods               GNSSIDBitmap
 	FineTimeAssistanceMeasReq bool
 	AdrMeasReq                bool
 	MultiFreqMeasReq          bool
@@ -169,9 +169,9 @@ type GNSSPositioningInstructions struct {
 //	    ...
 //	}
 type AGNSSProvideLocationInformation struct {
-	GnssSignalMeasurementInformation *struct{}                `aper:"optional"`
-	GnssLocationInformation          *GNSSLocationInformation `aper:"optional,valueExt"`
-	GnssError                        *AGNSSError              `aper:"optional"`
+	GnssSignalMeasurementInformation *struct{}
+	GnssLocationInformation          *GNSSLocationInformation
+	GnssError                        *AGNSSError
 }
 
 //	A-GNSS-Error ::= CHOICE {
@@ -232,8 +232,8 @@ func GNSSTargetDeviceErrorCauseString(c aper.Enumerated) string {
 //	    [[ ... ]]
 //	}
 type GNSSLocationInformation struct {
-	MeasurementReferenceTime MeasurementReferenceTime `aper:"valueExt"`
-	AgnssList                GNSSIDBitmap             `aper:"valueExt"`
+	MeasurementReferenceTime MeasurementReferenceTime
+	AgnssList                GNSSIDBitmap
 }
 
 // =====================================================================
@@ -249,11 +249,11 @@ type GNSSLocationInformation struct {
 //	    ...
 //	}
 type MeasurementReferenceTime struct {
-	GnssTODMsec int64     `aper:"valueLB:0,valueUB:3599999"`
-	GnssTODFrac *int64    `aper:"optional,valueLB:0,valueUB:3999"`
-	GnssTODUnc  *int64    `aper:"optional,valueLB:0,valueUB:127"`
-	GnssTimeID  *GNSSID   `aper:"optional"`
-	NetworkTime *struct{} `aper:"optional"`
+	GnssTODMsec int64
+	GnssTODFrac *int64
+	GnssTODUnc  *int64
+	GnssTimeID  *GNSSID
+	NetworkTime *struct{}
 }
 
 // =====================================================================
@@ -267,7 +267,7 @@ type MeasurementReferenceTime struct {
 //	    ...
 //	}
 type AGNSSProvideAssistanceData struct {
-	GnssCommonAssistData  *struct{} `aper:"optional"`
-	GnssGenericAssistData *struct{} `aper:"optional"`
-	GnssError             *struct{} `aper:"optional"`
+	GnssCommonAssistData  *struct{}
+	GnssGenericAssistData *struct{}
+	GnssError             *struct{}
 }

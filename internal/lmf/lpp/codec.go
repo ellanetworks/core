@@ -6,9 +6,8 @@ package lpp
 import (
 	"fmt"
 
-	uper "github.com/ellanetworks/core/aper"
+	"github.com/ellanetworks/core/aper"
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
-	"github.com/free5gc/aper"
 )
 
 // enumValue adapts a decoded root index to the aper.Enumerated the lpptype
@@ -23,15 +22,14 @@ type aperEnum = aper.Enumerated
 
 // bitString adapts a decoded bit string to the model's representation.
 func bitString(b []byte, nbits int) aper.BitString {
-	return aper.BitString{Bytes: b, BitLength: uint64(nbits)}
+	return aper.BitString{Bytes: b, BitLength: nbits}
 }
 
 // This file hand-encodes LPP against the UNALIGNED variant of X.691, which
-// TS 37.355 §5 mandates ("BASIC-PER, Unaligned Variant"). The reflection-based
-// codec in github.com/free5gc/aper implements the ALIGNED variant and is
-// correct for S1AP/NGAP/NRPPa, but it pads productions to octet boundaries that
-// an LPP peer does not expect: a handset answers such a message with an LPP
-// Error, and its own reply fails to decode.
+// TS 37.355 §5 mandates ("BASIC-PER, Unaligned Variant"). The ALIGNED variant
+// the other 3GPP protocols in this repo use (S1AP/NGAP/NRPPa) pads productions
+// to octet boundaries that an LPP peer does not expect: a handset answers such a
+// message with an LPP Error, and its own reply fails to decode.
 //
 // Root alternative counts for the CHOICEs encoded here (TS 37.355 §6.2).
 const (
@@ -57,7 +55,7 @@ const (
 //	    acknowledgement Acknowledgement   OPTIONAL,
 //	    lpp-MessageBody LPP-MessageBody   OPTIONAL }
 func EncodeMessage(msg *lpptype.LPPMessage) ([]byte, error) {
-	w := uper.NewUnalignedWriter()
+	w := aper.NewUnalignedWriter()
 
 	w.WriteSequencePreamble(false, false, []bool{
 		msg.TransactionID != nil,
@@ -97,7 +95,7 @@ func EncodeMessage(msg *lpptype.LPPMessage) ([]byte, error) {
 
 // DecodeMessage parses an LPP-Message from unaligned PER.
 func DecodeMessage(data []byte) (*lpptype.LPPMessage, error) {
-	r := uper.NewUnalignedReader(data)
+	r := aper.NewUnalignedReader(data)
 
 	msg, optionals, err := readEnvelopeHeader(r)
 	if err != nil {
@@ -119,7 +117,7 @@ func DecodeMessage(data []byte) (*lpptype.LPPMessage, error) {
 // number can be read, regardless of whether the body decodes, so those fields
 // are recoverable from a PDU whose body is malformed.
 func DecodeEnvelopeHeader(data []byte) (*lpptype.LPPMessage, error) {
-	msg, _, err := readEnvelopeHeader(uper.NewUnalignedReader(data))
+	msg, _, err := readEnvelopeHeader(aper.NewUnalignedReader(data))
 
 	return msg, err
 }
@@ -127,7 +125,7 @@ func DecodeEnvelopeHeader(data []byte) (*lpptype.LPPMessage, error) {
 // readEnvelopeHeader reads the LPP-Message fields up to and including
 // acknowledgement, returning the partially populated message and the SEQUENCE
 // preamble so the caller can decide whether a body follows.
-func readEnvelopeHeader(r *uper.Reader) (*lpptype.LPPMessage, []bool, error) {
+func readEnvelopeHeader(r *aper.Reader) (*lpptype.LPPMessage, []bool, error) {
 	_, optionals, err := r.ReadSequencePreamble(false, 4)
 	if err != nil {
 		return nil, nil, fmt.Errorf("LPP-Message preamble: %w", err)
@@ -164,7 +162,7 @@ func readEnvelopeHeader(r *uper.Reader) (*lpptype.LPPMessage, []bool, error) {
 }
 
 // LPP-TransactionID ::= SEQUENCE { initiator Initiator, transactionNumber TransactionNumber, ... }
-func writeTransactionID(w *uper.Writer, id *lpptype.LPPTransactionID) error {
+func writeTransactionID(w *aper.Writer, id *lpptype.LPPTransactionID) error {
 	w.WriteSequencePreamble(true, false, nil)
 
 	if err := w.WriteEnum(int(id.Initiator.Value), nRootInitiator, true, false); err != nil {
@@ -178,7 +176,7 @@ func writeTransactionID(w *uper.Writer, id *lpptype.LPPTransactionID) error {
 	return nil
 }
 
-func readTransactionID(r *uper.Reader) (*lpptype.LPPTransactionID, error) {
+func readTransactionID(r *aper.Reader) (*lpptype.LPPTransactionID, error) {
 	extPresent, _, err := r.ReadSequencePreamble(true, 0)
 	if err != nil {
 		return nil, fmt.Errorf("LPP-TransactionID preamble: %w", err)
@@ -211,7 +209,7 @@ func readTransactionID(r *uper.Reader) (*lpptype.LPPTransactionID, error) {
 }
 
 // Acknowledgement ::= SEQUENCE { ackRequested BOOLEAN, ackIndicator SequenceNumber OPTIONAL }
-func writeAcknowledgement(w *uper.Writer, ack *lpptype.Acknowledgement) error {
+func writeAcknowledgement(w *aper.Writer, ack *lpptype.Acknowledgement) error {
 	w.WriteSequencePreamble(false, false, []bool{ack.AckIndicator != nil})
 	w.WriteBool(ack.AckRequested)
 
@@ -224,7 +222,7 @@ func writeAcknowledgement(w *uper.Writer, ack *lpptype.Acknowledgement) error {
 	return nil
 }
 
-func readAcknowledgement(r *uper.Reader) (*lpptype.Acknowledgement, error) {
+func readAcknowledgement(r *aper.Reader) (*lpptype.Acknowledgement, error) {
 	_, optionals, err := r.ReadSequencePreamble(false, 1)
 	if err != nil {
 		return nil, fmt.Errorf("acknowledgement preamble: %w", err)
@@ -250,7 +248,7 @@ func readAcknowledgement(r *uper.Reader) (*lpptype.Acknowledgement, error) {
 
 // writeMessageBody encodes LPP-MessageBody. Only the bodies the LMF originates
 // are supported; the rest report an error rather than emit a wrong encoding.
-func writeMessageBody(w *uper.Writer, body *lpptype.LPPMessageBody) error {
+func writeMessageBody(w *aper.Writer, body *lpptype.LPPMessageBody) error {
 	if body.Present != 1 || body.C1 == nil {
 		return fmt.Errorf("lpp-MessageBody: only the c1 alternative is supported")
 	}
@@ -278,7 +276,7 @@ func writeMessageBody(w *uper.Writer, body *lpptype.LPPMessageBody) error {
 	}
 }
 
-func readMessageBody(r *uper.Reader) (*lpptype.LPPMessageBody, error) {
+func readMessageBody(r *aper.Reader) (*lpptype.LPPMessageBody, error) {
 	choice, _, err := r.ReadChoiceIndex(nRootMessageBody, false)
 	if err != nil {
 		return nil, fmt.Errorf("lpp-MessageBody choice: %w", err)
@@ -335,7 +333,7 @@ func readMessageBody(r *uper.Reader) (*lpptype.LPPMessageBody, error) {
 //	    criticalExtensions CHOICE {
 //	        c1 CHOICE { requestCapabilities-r9 RequestCapabilities-r9-IEs, spare3, spare2, spare1 },
 //	        criticalExtensionsFuture SEQUENCE {} } }
-func writeRequestCapabilities(w *uper.Writer, req *lpptype.RequestCapabilities) error {
+func writeRequestCapabilities(w *aper.Writer, req *lpptype.RequestCapabilities) error {
 	if req == nil || req.CriticalExtensions.Present != 1 || req.CriticalExtensions.C1 == nil {
 		return fmt.Errorf("RequestCapabilities: only the c1 critical extension is supported")
 	}
@@ -379,7 +377,7 @@ func writeRequestCapabilities(w *uper.Writer, req *lpptype.RequestCapabilities) 
 }
 
 // Error ::= CHOICE { error-r9 Error-r9-IEs, criticalExtensionsFuture SEQUENCE {} }
-func readError(r *uper.Reader) (*lpptype.Error, error) {
+func readError(r *aper.Reader) (*lpptype.Error, error) {
 	choice, _, err := r.ReadChoiceIndex(nRootErrorChoice, false)
 	if err != nil {
 		return nil, fmt.Errorf("error choice: %w", err)

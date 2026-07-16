@@ -8,18 +8,18 @@ package lpptype
 // =====================================================================
 
 type RequestCapabilities struct {
-	CriticalExtensions RequestCapabilitiesCriticalExtensions `aper:"valueLB:0,valueUB:1"`
+	CriticalExtensions RequestCapabilitiesCriticalExtensions
 }
 
 type RequestCapabilitiesCriticalExtensions struct {
 	Present                  int
-	C1                       *RequestCapabilitiesCriticalExtensionsC1 `aper:"valueLB:0,valueUB:3"`
+	C1                       *RequestCapabilitiesCriticalExtensionsC1
 	CriticalExtensionsFuture *struct{}
 }
 
 type RequestCapabilitiesCriticalExtensionsC1 struct {
 	Present               int
-	RequestCapabilitiesR9 *RequestCapabilitiesR9IEs `aper:"valueExt"`
+	RequestCapabilitiesR9 *RequestCapabilitiesR9IEs
 	Spare3                *struct{}
 	Spare2                *struct{}
 	Spare1                *struct{}
@@ -27,11 +27,11 @@ type RequestCapabilitiesCriticalExtensionsC1 struct {
 
 // RequestCapabilities-r9-IEs: extensible SEQUENCE with 5 root optional fields.
 type RequestCapabilitiesR9IEs struct {
-	CommonIEsRequestCapabilities *struct{}                 `aper:"optional"`
-	AGNSSRequestCapabilities     *AGNSSRequestCapabilities `aper:"optional,valueExt"`
-	OTDOARequestCapabilities     *struct{}                 `aper:"optional"`
-	ECIDRequestCapabilities      *struct{}                 `aper:"optional"`
-	EPDURequestCapabilities      *struct{}                 `aper:"optional"`
+	CommonIEsRequestCapabilities *struct{}
+	AGNSSRequestCapabilities     *AGNSSRequestCapabilities
+	OTDOARequestCapabilities     *struct{}
+	ECIDRequestCapabilities      *struct{}
+	EPDURequestCapabilities      *struct{}
 }
 
 // =====================================================================
@@ -39,18 +39,18 @@ type RequestCapabilitiesR9IEs struct {
 // =====================================================================
 
 type ProvideCapabilities struct {
-	CriticalExtensions ProvideCapabilitiesCriticalExtensions `aper:"valueLB:0,valueUB:1"`
+	CriticalExtensions ProvideCapabilitiesCriticalExtensions
 }
 
 type ProvideCapabilitiesCriticalExtensions struct {
 	Present                  int
-	C1                       *ProvideCapabilitiesCriticalExtensionsC1 `aper:"valueLB:0,valueUB:3"`
+	C1                       *ProvideCapabilitiesCriticalExtensionsC1
 	CriticalExtensionsFuture *struct{}
 }
 
 type ProvideCapabilitiesCriticalExtensionsC1 struct {
 	Present               int
-	ProvideCapabilitiesR9 *ProvideCapabilitiesR9IEs `aper:"valueExt"`
+	ProvideCapabilitiesR9 *ProvideCapabilitiesR9IEs
 	Spare3                *struct{}
 	Spare2                *struct{}
 	Spare1                *struct{}
@@ -58,11 +58,11 @@ type ProvideCapabilitiesCriticalExtensionsC1 struct {
 
 // ProvideCapabilities-r9-IEs: extensible SEQUENCE with 5 root optional fields.
 type ProvideCapabilitiesR9IEs struct {
-	CommonIEsProvideCapabilities *struct{}                 `aper:"optional"`
-	AGNSSProvideCapabilities     *AGNSSProvideCapabilities `aper:"optional,valueExt"`
-	OTDOAProvideCapabilities     *struct{}                 `aper:"optional"`
-	ECIDProvideCapabilities      *struct{}                 `aper:"optional"`
-	EPDUProvideCapabilities      *struct{}                 `aper:"optional"`
+	CommonIEsProvideCapabilities *struct{}
+	AGNSSProvideCapabilities     *AGNSSProvideCapabilities
+	OTDOAProvideCapabilities     *struct{}
+	ECIDProvideCapabilities      *struct{}
+	EPDUProvideCapabilities      *struct{}
 }
 
 // =====================================================================
@@ -70,26 +70,26 @@ type ProvideCapabilitiesR9IEs struct {
 // =====================================================================
 
 type RequestAssistanceData struct {
-	CriticalExtensions RequestAssistanceDataCriticalExtensions `aper:"valueLB:0,valueUB:1"`
+	CriticalExtensions RequestAssistanceDataCriticalExtensions
 }
 
 type RequestAssistanceDataCriticalExtensions struct {
 	Present                  int
-	C1                       *RequestAssistanceDataCriticalExtensionsC1 `aper:"valueLB:0,valueUB:3"`
+	C1                       *RequestAssistanceDataCriticalExtensionsC1
 	CriticalExtensionsFuture *struct{}
 }
 
 type RequestAssistanceDataCriticalExtensionsC1 struct {
 	Present                 int
-	RequestAssistanceDataR9 *RequestAssistanceDataR9IEs `aper:"valueExt"`
+	RequestAssistanceDataR9 *RequestAssistanceDataR9IEs
 	Spare3                  *struct{}
 	Spare2                  *struct{}
 	Spare1                  *struct{}
 }
 
 type RequestAssistanceDataR9IEs struct {
-	CommonIEsRequestAssistanceData *struct{} `aper:"optional"`
-	AGNSSRequestAssistanceData     *struct{} `aper:"optional"`
+	CommonIEsRequestAssistanceData *struct{}
+	AGNSSRequestAssistanceData     *struct{}
 }
 
 // =====================================================================
@@ -97,26 +97,26 @@ type RequestAssistanceDataR9IEs struct {
 // =====================================================================
 
 type ProvideAssistanceData struct {
-	CriticalExtensions ProvideAssistanceDataCriticalExtensions `aper:"valueLB:0,valueUB:1"`
+	CriticalExtensions ProvideAssistanceDataCriticalExtensions
 }
 
 type ProvideAssistanceDataCriticalExtensions struct {
 	Present                  int
-	C1                       *ProvideAssistanceDataCriticalExtensionsC1 `aper:"valueLB:0,valueUB:3"`
+	C1                       *ProvideAssistanceDataCriticalExtensionsC1
 	CriticalExtensionsFuture *struct{}
 }
 
 type ProvideAssistanceDataCriticalExtensionsC1 struct {
 	Present                 int
-	ProvideAssistanceDataR9 *ProvideAssistanceDataR9IEs `aper:"valueExt"`
+	ProvideAssistanceDataR9 *ProvideAssistanceDataR9IEs
 	Spare3                  *struct{}
 	Spare2                  *struct{}
 	Spare1                  *struct{}
 }
 
 type ProvideAssistanceDataR9IEs struct {
-	CommonIEsProvideAssistanceData *struct{}                   `aper:"optional"`
-	AGNSSProvideAssistanceData     *AGNSSProvideAssistanceData `aper:"optional,valueExt"`
+	CommonIEsProvideAssistanceData *struct{}
+	AGNSSProvideAssistanceData     *AGNSSProvideAssistanceData
 }
 
 // =====================================================================
@@ -124,18 +124,18 @@ type ProvideAssistanceDataR9IEs struct {
 // =====================================================================
 
 type RequestLocationInformation struct {
-	CriticalExtensions RequestLocationInformationCriticalExtensions `aper:"valueLB:0,valueUB:1"`
+	CriticalExtensions RequestLocationInformationCriticalExtensions
 }
 
 type RequestLocationInformationCriticalExtensions struct {
 	Present                  int
-	C1                       *RequestLocationInformationCriticalExtensionsC1 `aper:"valueLB:0,valueUB:3"`
+	C1                       *RequestLocationInformationCriticalExtensionsC1
 	CriticalExtensionsFuture *struct{}
 }
 
 type RequestLocationInformationCriticalExtensionsC1 struct {
 	Present                      int
-	RequestLocationInformationR9 *RequestLocationInformationR9IEs `aper:"valueExt"`
+	RequestLocationInformationR9 *RequestLocationInformationR9IEs
 	Spare3                       *struct{}
 	Spare2                       *struct{}
 	Spare1                       *struct{}
@@ -143,8 +143,8 @@ type RequestLocationInformationCriticalExtensionsC1 struct {
 
 // RequestLocationInformation-r9-IEs: extensible SEQUENCE.
 type RequestLocationInformationR9IEs struct {
-	CommonIEsRequestLocationInformation *CommonIEsRequestLocationInformation `aper:"optional,valueExt"`
-	AGNSSRequestLocationInformation     *AGNSSRequestLocationInformation     `aper:"optional,valueExt"`
+	CommonIEsRequestLocationInformation *CommonIEsRequestLocationInformation
+	AGNSSRequestLocationInformation     *AGNSSRequestLocationInformation
 }
 
 // =====================================================================
@@ -152,18 +152,18 @@ type RequestLocationInformationR9IEs struct {
 // =====================================================================
 
 type ProvideLocationInformation struct {
-	CriticalExtensions ProvideLocationInformationCriticalExtensions `aper:"valueLB:0,valueUB:1"`
+	CriticalExtensions ProvideLocationInformationCriticalExtensions
 }
 
 type ProvideLocationInformationCriticalExtensions struct {
 	Present                  int
-	C1                       *ProvideLocationInformationCriticalExtensionsC1 `aper:"valueLB:0,valueUB:3"`
+	C1                       *ProvideLocationInformationCriticalExtensionsC1
 	CriticalExtensionsFuture *struct{}
 }
 
 type ProvideLocationInformationCriticalExtensionsC1 struct {
 	Present                      int
-	ProvideLocationInformationR9 *ProvideLocationInformationR9IEs `aper:"valueExt"`
+	ProvideLocationInformationR9 *ProvideLocationInformationR9IEs
 	Spare3                       *struct{}
 	Spare2                       *struct{}
 	Spare1                       *struct{}
@@ -171,6 +171,6 @@ type ProvideLocationInformationCriticalExtensionsC1 struct {
 
 // ProvideLocationInformation-r9-IEs: extensible SEQUENCE.
 type ProvideLocationInformationR9IEs struct {
-	CommonIEsProvideLocationInformation *CommonIEsProvideLocationInformation `aper:"optional,valueExt"`
-	AGNSSProvideLocationInformation     *AGNSSProvideLocationInformation     `aper:"optional"`
+	CommonIEsProvideLocationInformation *CommonIEsProvideLocationInformation
+	AGNSSProvideLocationInformation     *AGNSSProvideLocationInformation
 }

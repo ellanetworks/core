@@ -4,58 +4,25 @@
 package lpp
 
 import (
-	"fmt"
 	"math"
 
+	"github.com/ellanetworks/core/aper"
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 	"github.com/ellanetworks/core/internal/lmf/lpp/models"
-	"github.com/free5gc/aper"
 )
 
-// ParseLPPMessage decodes an LPP message and returns the model struct for its
-// body, discriminated by the body type.
-func ParseLPPMessage(data []byte) (any, error) {
-	if len(data) == 0 {
-		return nil, fmt.Errorf("empty LPP payload")
-	}
-
-	decoded, err := DecodeLPPMessage(data)
-	if err != nil {
-		return nil, fmt.Errorf("decode LPP message: %w", err)
-	}
-
-	switch decoded.BodyKind {
-	case lpptype.LPPMessageBodyC1PresentProvideCapabilities:
-		return decoded.ProvideCapabilities, nil
-	case lpptype.LPPMessageBodyC1PresentProvideLocationInformation:
-		return decoded.ProvideLocationInformation, nil
-	case lpptype.LPPMessageBodyC1PresentRequestCapabilities:
-		return decoded.RequestCapabilities, nil
-	case lpptype.LPPMessageBodyC1PresentRequestLocationInformation:
-		return decoded.RequestLocationInformation, nil
-	case lpptype.LPPMessageBodyC1PresentProvideAssistanceData:
-		return decoded.ProvideAssistanceData, nil
-	case lpptype.LPPMessageBodyC1PresentAbort:
-		return decoded.Abort, nil
-	case 0:
-		return nil, fmt.Errorf("LPP message has no body")
-	default:
-		return nil, fmt.Errorf("unsupported LPP message body kind: %d", decoded.BodyKind)
-	}
-}
-
-// DecodeLPPMessage decodes an LPP-Message from APER bytes and returns
-// the transaction ID, initiator, and the discriminated message body.
+// DecodedMessage is the discriminated result of decoding an LPP-Message:
+// BodyKind names the body and the matching typed payload is populated. Only the
+// UE-originated bodies the LMF acts on carry a payload; the request bodies the
+// LMF itself sends (and never receives) are named by BodyKind alone.
 type DecodedMessage struct {
 	TransactionID  byte
 	Initiator      aper.Enumerated
 	EndTransaction bool
 	BodyKind       int // LPPMessageBodyC1Present*
-	// Typed payloads (only one is non-nil depending on BodyKind):
+	// Typed payload for BodyKind; only one is non-nil.
 	ProvideCapabilities        *models.ProvideLocationCapabilities
 	ProvideLocationInformation *models.ProvideLocationInformation
-	RequestCapabilities        *models.RequestLocationInformation
-	RequestLocationInformation *models.RequestLocationInformation
 	ProvideAssistanceData      *models.ProvideAssistanceData
 	Abort                      *models.Abort
 }
@@ -90,12 +57,6 @@ func DecodeLPPMessage(data []byte) (*DecodedMessage, error) {
 	case lpptype.LPPMessageBodyC1PresentProvideLocationInformation:
 		out.ProvideLocationInformation = decodeProvideLocationInformation(c1.ProvideLocationInformation)
 
-	case lpptype.LPPMessageBodyC1PresentRequestCapabilities:
-		out.RequestCapabilities = decodeRequestCapabilities(c1.RequestCapabilities)
-
-	case lpptype.LPPMessageBodyC1PresentRequestLocationInformation:
-		out.RequestLocationInformation = decodeRequestLocationInformation(c1.RequestLocationInformation)
-
 	case lpptype.LPPMessageBodyC1PresentProvideAssistanceData:
 		out.ProvideAssistanceData = decodeProvideAssistanceData(c1.ProvideAssistanceData)
 
@@ -103,7 +64,8 @@ func DecodeLPPMessage(data []byte) (*DecodedMessage, error) {
 		out.Abort = decodeAbort(c1.Abort, out.TransactionID)
 
 	default:
-		// Error and the spares are reported by body kind alone.
+		// Request bodies (LMF-originated), Error and the spares are named by
+		// body kind alone; the LMF never acts on them as a UE reply.
 	}
 
 	return out, nil
@@ -252,16 +214,6 @@ func locationFailureCause(r9 *lpptype.ProvideLocationInformationR9IEs) string {
 	}
 
 	return ""
-}
-
-// decodeRequestCapabilities extracts capability request info.
-func decodeRequestCapabilities(_ *lpptype.RequestCapabilities) *models.RequestLocationInformation {
-	return &models.RequestLocationInformation{PositioningMethod: PosMethodGNSS}
-}
-
-// decodeRequestLocationInformation extracts location request info.
-func decodeRequestLocationInformation(_ *lpptype.RequestLocationInformation) *models.RequestLocationInformation {
-	return &models.RequestLocationInformation{PositioningMethod: PosMethodGNSS}
 }
 
 // decodeProvideAssistanceData extracts assistance data.

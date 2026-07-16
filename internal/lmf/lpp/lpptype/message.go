@@ -6,9 +6,10 @@
 //
 // LPP is carried in the unaligned variant of PER (TS 37.355 §5), so these
 // structs are read and written by the hand-written codec in the parent package,
-// not by a reflection codec. The `aper` tags are inert: no encoder consults
-// them, and where they disagree with the ASN.1 the codec is what governs. Only
-// the aper.Enumerated and aper.BitString field types are load-bearing.
+// not by a reflection codec: field order and the codec's explicit preambles are
+// what determine the wire format, not struct tags (there are none). The
+// aper.Enumerated and aper.BitString field types come from the in-repo
+// github.com/ellanetworks/core/aper.
 //
 // A struct here is not evidence of what the spec says. Several were modelled
 // with fewer root fields than TS 37.355 defines, which under PER shifts every
@@ -18,7 +19,7 @@ package lpptype
 import (
 	"fmt"
 
-	"github.com/free5gc/aper"
+	"github.com/ellanetworks/core/aper"
 )
 
 // =====================================================================
@@ -35,11 +36,11 @@ import (
 //
 // Not extensible (no "..." in the spec). 4 optional fields.
 type LPPMessage struct {
-	TransactionID   *LPPTransactionID `aper:"optional,valueExt"`
+	TransactionID   *LPPTransactionID
 	EndTransaction  bool
-	SequenceNumber  *int64           `aper:"optional,valueLB:0,valueUB:255"`
-	Acknowledgement *Acknowledgement `aper:"optional"`
-	LppMessageBody  *LPPMessageBody  `aper:"optional,valueLB:0,valueUB:1"`
+	SequenceNumber  *int64
+	Acknowledgement *Acknowledgement
+	LppMessageBody  *LPPMessageBody
 }
 
 // =====================================================================
@@ -55,7 +56,7 @@ type LPPMessage struct {
 // Extensible SEQUENCE with 2 mandatory fields.
 type LPPTransactionID struct {
 	Initiator         Initiator
-	TransactionNumber int64 `aper:"valueLB:0,valueUB:255"`
+	TransactionNumber int64
 }
 
 // Initiator ::= ENUMERATED { locationServer, targetDevice, ... }
@@ -65,7 +66,7 @@ const (
 )
 
 type Initiator struct {
-	Value aper.Enumerated `aper:"valueLB:0,valueUB:1,valueExt"`
+	Value aper.Enumerated
 }
 
 // =====================================================================
@@ -78,7 +79,7 @@ type Initiator struct {
 //	}
 type Acknowledgement struct {
 	AckRequested bool
-	AckIndicator *int64 `aper:"optional,valueLB:0,valueUB:255"`
+	AckIndicator *int64
 }
 
 // =====================================================================
@@ -104,7 +105,7 @@ type Acknowledgement struct {
 // Outer CHOICE: 2 alternatives, not extensible → valueLB:0, valueUB:1.
 type LPPMessageBody struct {
 	Present               int
-	C1                    *LPPMessageBodyC1 `aper:"valueLB:0,valueUB:15"`
+	C1                    *LPPMessageBodyC1
 	MessageClassExtension *struct{}
 }
 
@@ -164,12 +165,12 @@ type LPPMessageBodyC1 struct {
 //	    }
 //	}
 type Abort struct {
-	CriticalExtensions AbortCriticalExtensions `aper:"valueLB:0,valueUB:1"`
+	CriticalExtensions AbortCriticalExtensions
 }
 
 type AbortCriticalExtensions struct {
 	Present                  int
-	C1                       *AbortCriticalExtensionsC1 `aper:"valueLB:0,valueUB:3"`
+	C1                       *AbortCriticalExtensionsC1
 	CriticalExtensionsFuture *struct{}
 }
 
@@ -182,7 +183,7 @@ type AbortCriticalExtensionsC1 struct {
 }
 
 type AbortR9IEs struct {
-	CommonIEsAbort *CommonIEsAbort `aper:"optional"`
+	CommonIEsAbort *CommonIEsAbort
 }
 
 //	CommonIEsAbort ::= SEQUENCE {
@@ -215,7 +216,7 @@ func AbortCauseString(c aper.Enumerated) string {
 
 type CommonIEsAbort struct {
 	AbortCause struct {
-		Value aper.Enumerated `aper:"valueLB:0,valueUB:3,valueExt"`
+		Value aper.Enumerated
 	}
 }
 
@@ -230,7 +231,7 @@ type Error struct {
 }
 
 type ErrorR9IEs struct {
-	CommonIEsError *CommonIEsError `aper:"optional"`
+	CommonIEsError *CommonIEsError
 }
 
 // CommonIEsError ::= SEQUENCE { errorCause ENUMERATED {...}, ... }
@@ -244,6 +245,6 @@ const (
 
 type CommonIEsError struct {
 	ErrorCause struct {
-		Value aper.Enumerated `aper:"valueLB:0,valueUB:4,valueExt"`
+		Value aper.Enumerated
 	}
 }

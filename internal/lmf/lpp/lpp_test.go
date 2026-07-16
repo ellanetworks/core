@@ -6,9 +6,9 @@ package lpp
 import (
 	"testing"
 
+	"github.com/ellanetworks/core/aper"
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 	"github.com/ellanetworks/core/internal/lmf/lpp/models"
-	"github.com/free5gc/aper"
 )
 
 func TestEncodeDecodeRequestCapabilities(t *testing.T) {
@@ -170,30 +170,27 @@ func TestEncodeDecodeProvideLocationInformation(t *testing.T) {
 	}
 }
 
-func TestParseLPPMessage(t *testing.T) {
-	// Encode a ProvideCapabilities message and parse it with ParseLPPMessage.
+func TestDecodeLPPMessageProvideCapabilities(t *testing.T) {
 	encoded, err := EncodeProvideCapabilities(0x01, 0, []aper.Enumerated{lpptype.GnssIDGps})
 	if err != nil {
 		t.Fatalf("EncodeProvideCapabilities: %v", err)
 	}
 
-	msg, err := ParseLPPMessage(encoded)
+	decoded, err := DecodeLPPMessage(encoded)
 	if err != nil {
-		t.Fatalf("ParseLPPMessage: %v", err)
+		t.Fatalf("DecodeLPPMessage: %v", err)
 	}
 
-	capMsg, ok := msg.(*models.ProvideLocationCapabilities)
-	if !ok {
-		t.Fatalf("expected *ProvideLocationCapabilities, got %T", msg)
+	if decoded.BodyKind != lpptype.LPPMessageBodyC1PresentProvideCapabilities {
+		t.Fatalf("body kind: got %d, want ProvideCapabilities", decoded.BodyKind)
 	}
 
-	if !capMsg.GNSSCapability.Supports(models.GnssIDGps) {
+	if decoded.ProvideCapabilities == nil || !decoded.ProvideCapabilities.GNSSCapability.Supports(models.GnssIDGps) {
 		t.Error("expected GPS capability to be true")
 	}
 
-	// Test empty payload.
-	_, err = ParseLPPMessage([]byte{})
-	if err == nil {
+	// An empty payload must decode-error rather than panic.
+	if _, err := DecodeLPPMessage([]byte{}); err == nil {
 		t.Fatal("expected error for empty payload")
 	}
 }

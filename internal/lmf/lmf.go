@@ -185,7 +185,7 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, lppData []by
 		return nil
 	}
 
-	msg, err := lpp.ParseLPPMessage(lppData)
+	decoded, err := lpp.DecodeLPPMessage(lppData)
 	if err != nil {
 		logger.LmfLog.Error("failed to parse LPP PDU from UE",
 			zap.String("supi", supi.String()),
@@ -202,7 +202,7 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, lppData []by
 		zap.String("state", activeSession.State().String()),
 	)
 
-	if err := activeSession.HandleResponse(msg); err != nil {
+	if err := activeSession.HandleResponse(decoded); err != nil {
 		activeSession.Fail()
 
 		return fmt.Errorf("handle LPP response: %w", err)

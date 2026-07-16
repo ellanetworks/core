@@ -6,9 +6,9 @@ package ue
 import (
 	"fmt"
 
+	"github.com/ellanetworks/core/aper"
 	"github.com/ellanetworks/core/internal/lmf/lpp"
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
-	"github.com/free5gc/aper"
 )
 
 // LPPCapabilitiesResponseOpts contains the parameters for building the UE's

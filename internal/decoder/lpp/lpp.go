@@ -10,11 +10,11 @@ package lpp
 import (
 	"encoding/hex"
 
+	"github.com/ellanetworks/core/aper"
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/internal/lmf/lpp"
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 	lppmodels "github.com/ellanetworks/core/internal/lmf/lpp/models"
-	"github.com/free5gc/aper"
 )
 
 // PDU is the decoder view of an LPP message carried inside a NAS Transport

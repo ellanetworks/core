@@ -7,8 +7,8 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/ellanetworks/core/aper"
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
-	faper "github.com/free5gc/aper"
 )
 
 // TestEncodeRequestCapabilitiesIsUnaligned pins the exact octets the LMF opens
@@ -276,9 +276,9 @@ func gnssCapabilities(ids ...int) *lpptype.LPPMessage {
 	els := make([]lpptype.GNSSSupportElement, 0, len(ids))
 	for _, id := range ids {
 		els = append(els, lpptype.GNSSSupportElement{
-			GnssID:      lpptype.GNSSID{Value: faper.Enumerated(id)},
-			AGNSSModes:  lpptype.PositioningModes{PosModes: faper.BitString{Bytes: []byte{0xA0}, BitLength: 3}},
-			GnssSignals: lpptype.GNSSSignalIDs{GnssSignalIDs: faper.BitString{Bytes: []byte{0x80}, BitLength: 8}},
+			GnssID:      lpptype.GNSSID{Value: aper.Enumerated(id)},
+			AGNSSModes:  lpptype.PositioningModes{PosModes: aper.BitString{Bytes: []byte{0xA0}, BitLength: 3}},
+			GnssSignals: lpptype.GNSSSignalIDs{GnssSignalIDs: aper.BitString{Bytes: []byte{0x80}, BitLength: 8}},
 		})
 	}
 

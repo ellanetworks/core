@@ -3,13 +3,6 @@
 
 package models
 
-// RequestLocationInformation is sent by LMF to UE to request a location fix.
-type RequestLocationInformation struct {
-	TransactionID     byte
-	PositioningMethod uint8
-	NumberOfSVs       uint8
-}
-
 // ProvideLocationCapabilities is sent by UE to LMF in response.
 type ProvideLocationCapabilities struct {
 	TransactionID  byte

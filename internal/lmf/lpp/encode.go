@@ -6,8 +6,8 @@ package lpp
 import (
 	"math"
 
+	"github.com/ellanetworks/core/aper"
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
-	"github.com/free5gc/aper"
 )
 
 // encodeLPPMessage is a convenience wrapper that builds and encodes an LPP-Message.

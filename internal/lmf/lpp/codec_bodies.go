@@ -6,7 +6,7 @@ package lpp
 import (
 	"fmt"
 
-	uper "github.com/ellanetworks/core/aper"
+	"github.com/ellanetworks/core/aper"
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 )
 
@@ -49,7 +49,7 @@ const (
 //	    criticalExtensions CHOICE {
 //	        c1 CHOICE { requestLocationInformation-r9 RequestLocationInformation-r9-IEs, spare3, spare2, spare1 },
 //	        criticalExtensionsFuture SEQUENCE {} } }
-func writeRequestLocationInformation(w *uper.Writer, req *lpptype.RequestLocationInformation) error {
+func writeRequestLocationInformation(w *aper.Writer, req *lpptype.RequestLocationInformation) error {
 	if req == nil || req.CriticalExtensions.Present != 1 || req.CriticalExtensions.C1 == nil {
 		return fmt.Errorf("requestLocationInformation: only the c1 critical extension is supported")
 	}
@@ -101,7 +101,7 @@ func writeRequestLocationInformation(w *uper.Writer, req *lpptype.RequestLocatio
 //	    triggeredReporting OPTIONAL, periodicalReporting OPTIONAL,
 //	    additionalInformation OPTIONAL, qos OPTIONAL, environment OPTIONAL,
 //	    locationCoordinateTypes OPTIONAL, velocityTypes OPTIONAL, ... }
-func writeCommonIEsRequestLocationInformation(w *uper.Writer, c *lpptype.CommonIEsRequestLocationInformation) error {
+func writeCommonIEsRequestLocationInformation(w *aper.Writer, c *lpptype.CommonIEsRequestLocationInformation) error {
 	w.WriteSequencePreamble(true, false, []bool{
 		false,        // triggeredReporting
 		false,        // periodicalReporting
@@ -134,7 +134,7 @@ func writeCommonIEsRequestLocationInformation(w *uper.Writer, c *lpptype.CommonI
 //	GNSS-PositioningInstructions ::= SEQUENCE {
 //	    gnss-Methods GNSS-ID-Bitmap, fineTimeAssistanceMeasReq BOOLEAN,
 //	    adrMeasReq BOOLEAN, multiFreqMeasReq BOOLEAN, assistanceAvailability BOOLEAN, ... }
-func writeAGNSSRequestLocationInformation(w *uper.Writer, a *lpptype.AGNSSRequestLocationInformation) error {
+func writeAGNSSRequestLocationInformation(w *aper.Writer, a *lpptype.AGNSSRequestLocationInformation) error {
 	w.WriteSequencePreamble(true, false, nil)
 	w.WriteSequencePreamble(true, false, nil)
 
@@ -143,7 +143,7 @@ func writeAGNSSRequestLocationInformation(w *uper.Writer, a *lpptype.AGNSSReques
 	//	GNSS-ID-Bitmap ::= SEQUENCE { gnss-ids BIT STRING (SIZE(1..16)), ... }
 	w.WriteSequencePreamble(true, false, nil)
 
-	if err := w.WriteBitString(gnss.GnssMethods.GnssIDs.Bytes, int(gnss.GnssMethods.GnssIDs.BitLength), 1, 16, false); err != nil {
+	if err := w.WriteBitString(gnss.GnssMethods.GnssIDs.Bytes, gnss.GnssMethods.GnssIDs.BitLength, 1, 16, false); err != nil {
 		return fmt.Errorf("gnss-ids: %w", err)
 	}
 
@@ -158,7 +158,7 @@ func writeAGNSSRequestLocationInformation(w *uper.Writer, a *lpptype.AGNSSReques
 // writeProvideCapabilities encodes the capabilities a target device reports.
 // The LMF never originates it; the in-repo tester UE does, and it gives the
 // decoder a peer to round-trip against.
-func writeProvideCapabilities(w *uper.Writer, p *lpptype.ProvideCapabilities) error {
+func writeProvideCapabilities(w *aper.Writer, p *lpptype.ProvideCapabilities) error {
 	if p == nil || p.CriticalExtensions.Present != 1 || p.CriticalExtensions.C1 == nil {
 		return fmt.Errorf("provideCapabilities: only the c1 critical extension is supported")
 	}
@@ -209,7 +209,7 @@ func writeProvideCapabilities(w *uper.Writer, p *lpptype.ProvideCapabilities) er
 	return nil
 }
 
-func writeGNSSSupportElement(w *uper.Writer, e *lpptype.GNSSSupportElement) error {
+func writeGNSSSupportElement(w *aper.Writer, e *lpptype.GNSSSupportElement) error {
 	w.WriteSequencePreamble(true, false, []bool{
 		false, // sbas-IDs
 		false, // fta-MeasSupport
@@ -227,7 +227,7 @@ func writeGNSSSupportElement(w *uper.Writer, e *lpptype.GNSSSupportElement) erro
 
 	w.WriteSequencePreamble(true, false, nil) // PositioningModes
 
-	if err := w.WriteBitString(e.AGNSSModes.PosModes.Bytes, int(e.AGNSSModes.PosModes.BitLength), 1, 8, false); err != nil {
+	if err := w.WriteBitString(e.AGNSSModes.PosModes.Bytes, e.AGNSSModes.PosModes.BitLength, 1, 8, false); err != nil {
 		return fmt.Errorf("agnss-Modes: %w", err)
 	}
 
@@ -245,7 +245,7 @@ func writeGNSSSupportElement(w *uper.Writer, e *lpptype.GNSSSupportElement) erro
 
 // writeProvideLocationInformation encodes the location fix a target device
 // reports. As with writeProvideCapabilities, the peer side is the tester UE.
-func writeProvideLocationInformation(w *uper.Writer, p *lpptype.ProvideLocationInformation) error {
+func writeProvideLocationInformation(w *aper.Writer, p *lpptype.ProvideLocationInformation) error {
 	if p == nil || p.CriticalExtensions.Present != 1 || p.CriticalExtensions.C1 == nil {
 		return fmt.Errorf("provideLocationInformation: only the c1 critical extension is supported")
 	}
@@ -285,7 +285,7 @@ func writeProvideLocationInformation(w *uper.Writer, p *lpptype.ProvideLocationI
 	return writeLocationCoordinates(w, common.LocationEstimate)
 }
 
-func writeLocationCoordinates(w *uper.Writer, c *lpptype.LocationCoordinates) error {
+func writeLocationCoordinates(w *aper.Writer, c *lpptype.LocationCoordinates) error {
 	if err := w.WriteChoiceIndex(c.Present-1, nRootLocationCoordinates, true, false); err != nil {
 		return fmt.Errorf("locationEstimate choice: %w", err)
 	}
@@ -337,7 +337,7 @@ func writeLocationCoordinates(w *uper.Writer, c *lpptype.LocationCoordinates) er
 	}
 }
 
-func writeLatLon(w *uper.Writer, sign aperEnum, lat, lon int64) error {
+func writeLatLon(w *aper.Writer, sign aperEnum, lat, lon int64) error {
 	if err := w.WriteEnum(int(sign), nRootLatitudeSign, false, false); err != nil {
 		return fmt.Errorf("latitudeSign: %w", err)
 	}
@@ -354,7 +354,7 @@ func writeLatLon(w *uper.Writer, sign aperEnum, lat, lon int64) error {
 }
 
 // writeCriticalExtensionC1 mirrors expectCriticalExtensionC1 on the encode side.
-func writeCriticalExtensionC1(w *uper.Writer, what string) error {
+func writeCriticalExtensionC1(w *aper.Writer, what string) error {
 	if err := w.WriteChoiceIndex(0, nRootCriticalExt, false, false); err != nil {
 		return fmt.Errorf("%s criticalExtensions: %w", what, err)
 	}
@@ -371,7 +371,7 @@ func writeCriticalExtensionC1(w *uper.Writer, what string) error {
 //
 // Only gnss-SupportList is read: it is the first field of
 // A-GNSS-ProvideCapabilities and the only one the session acts on.
-func readProvideCapabilities(r *uper.Reader) (*lpptype.ProvideCapabilities, error) {
+func readProvideCapabilities(r *aper.Reader) (*lpptype.ProvideCapabilities, error) {
 	if err := expectCriticalExtensionC1(r, "provideCapabilities"); err != nil {
 		return nil, err
 	}
@@ -427,7 +427,7 @@ func readProvideCapabilities(r *uper.Reader) (*lpptype.ProvideCapabilities, erro
 }
 
 // GNSS-SupportList ::= SEQUENCE (SIZE(1..16)) OF GNSS-SupportElement
-func readGNSSSupportList(r *uper.Reader) (*lpptype.GNSSSupportList, error) {
+func readGNSSSupportList(r *aper.Reader) (*lpptype.GNSSSupportList, error) {
 	n, err := r.ReadConstrainedLength(1, maxGNSSSupportElements)
 	if err != nil {
 		return nil, fmt.Errorf("gnss-SupportList length: %w", err)
@@ -451,7 +451,7 @@ func readGNSSSupportList(r *uper.Reader) (*lpptype.GNSSSupportList, error) {
 //	    gnss-ID GNSS-ID, sbas-IDs SBAS-IDs OPTIONAL, agnss-Modes PositioningModes,
 //	    gnss-Signals GNSS-SignalIDs, fta-MeasSupport SEQUENCE {...} OPTIONAL,
 //	    adr-Support BOOLEAN, velocityMeasurementSupport BOOLEAN, ... }
-func readGNSSSupportElement(r *uper.Reader) (*lpptype.GNSSSupportElement, error) {
+func readGNSSSupportElement(r *aper.Reader) (*lpptype.GNSSSupportElement, error) {
 	// Two root optionals: sbas-IDs and fta-MeasSupport.
 	extPresent, optionals, err := r.ReadSequencePreamble(true, 2)
 	if err != nil {
@@ -552,7 +552,7 @@ func readGNSSSupportElement(r *uper.Reader) (*lpptype.GNSSSupportElement, error)
 //
 // Only commonIEsProvideLocationInformation.locationEstimate is read: both are
 // the first field of their SEQUENCE, and the estimate is the fix the LMF wants.
-func readProvideLocationInformation(r *uper.Reader) (*lpptype.ProvideLocationInformation, error) {
+func readProvideLocationInformation(r *aper.Reader) (*lpptype.ProvideLocationInformation, error) {
 	if err := expectCriticalExtensionC1(r, "provideLocationInformation"); err != nil {
 		return nil, err
 	}
@@ -636,7 +636,7 @@ func readProvideLocationInformation(r *uper.Reader) (*lpptype.ProvideLocationInf
 //
 // Only gnss-Error is decoded: a target that reports one has sent no position,
 // and the cause is the sole account of why.
-func readAGNSSProvideLocationInformation(r *uper.Reader) (*lpptype.AGNSSProvideLocationInformation, error) {
+func readAGNSSProvideLocationInformation(r *aper.Reader) (*lpptype.AGNSSProvideLocationInformation, error) {
 	_, optionals, err := r.ReadSequencePreamble(true, 3)
 	if err != nil {
 		return nil, fmt.Errorf("a-gnss-ProvideLocationInformation preamble: %w", err)
@@ -692,7 +692,7 @@ func readAGNSSProvideLocationInformation(r *uper.Reader) (*lpptype.AGNSSProvideL
 //
 //	ellipsoidPointWithUncertaintyEllipse, polygon, ellipsoidPointWithAltitude,
 //	ellipsoidPointWithAltitudeAndUncertaintyEllipsoid, ellipsoidArc, ... }
-func readLocationCoordinates(r *uper.Reader) (*lpptype.LocationCoordinates, error) {
+func readLocationCoordinates(r *aper.Reader) (*lpptype.LocationCoordinates, error) {
 	choice, isExt, err := r.ReadChoiceIndex(nRootLocationCoordinates, true)
 	if err != nil {
 		return nil, fmt.Errorf("locationEstimate choice: %w", err)
@@ -768,7 +768,7 @@ func readLocationCoordinates(r *uper.Reader) (*lpptype.LocationCoordinates, erro
 // every TS 23.032 shape opens with. degreesLongitude is INTEGER(-8388608..
 // 8388607) on the wire; the model stores the unsigned offset, which PER encodes
 // identically (the value less its lower bound).
-func readLatLon(r *uper.Reader) (sign aperEnum, lat, lon int64, err error) {
+func readLatLon(r *aper.Reader) (sign aperEnum, lat, lon int64, err error) {
 	s, _, err := r.ReadEnum(nRootLatitudeSign, false)
 	if err != nil {
 		return 0, 0, 0, fmt.Errorf("latitudeSign: %w", err)
@@ -790,7 +790,7 @@ func readLatLon(r *uper.Reader) (sign aperEnum, lat, lon int64, err error) {
 // caller learns. The LMF never sends assistance data (UE-based positioning is
 // not implemented), so this exists only to keep the decoder able to name any
 // body a peer might send.
-func readProvideAssistanceData(r *uper.Reader) (*lpptype.ProvideAssistanceData, error) {
+func readProvideAssistanceData(r *aper.Reader) (*lpptype.ProvideAssistanceData, error) {
 	if err := expectCriticalExtensionC1(r, "provideAssistanceData"); err != nil {
 		return nil, err
 	}
@@ -832,7 +832,7 @@ func readProvideAssistanceData(r *uper.Reader) (*lpptype.ProvideAssistanceData, 
 //
 //	stopPeriodicReporting, targetDeviceAbort, networkAbort, ...,
 //	stopPeriodicAssistanceDataDelivery-v1510 } }
-func readAbort(r *uper.Reader) (*lpptype.Abort, error) {
+func readAbort(r *aper.Reader) (*lpptype.Abort, error) {
 	if err := expectCriticalExtensionC1(r, "abort"); err != nil {
 		return nil, err
 	}
@@ -873,7 +873,7 @@ func readAbort(r *uper.Reader) (*lpptype.Abort, error) {
 // readRequestCapabilities mirrors writeRequestCapabilities. The LMF never
 // receives one and the tester UE answers every request the same way, so the
 // structure is read to confirm the shape and nothing is decoded into a model.
-func readRequestCapabilities(r *uper.Reader) (*lpptype.RequestCapabilities, error) {
+func readRequestCapabilities(r *aper.Reader) (*lpptype.RequestCapabilities, error) {
 	if err := expectCriticalExtensionC1(r, "requestCapabilities"); err != nil {
 		return nil, err
 	}
@@ -896,7 +896,7 @@ func readRequestCapabilities(r *uper.Reader) (*lpptype.RequestCapabilities, erro
 // readRequestLocationInformation mirrors writeRequestLocationInformation, with
 // the same reach as readRequestCapabilities: the tester UE acts on the body
 // kind alone.
-func readRequestLocationInformation(r *uper.Reader) (*lpptype.RequestLocationInformation, error) {
+func readRequestLocationInformation(r *aper.Reader) (*lpptype.RequestLocationInformation, error) {
 	if err := expectCriticalExtensionC1(r, "requestLocationInformation"); err != nil {
 		return nil, err
 	}
@@ -919,7 +919,7 @@ func readRequestLocationInformation(r *uper.Reader) (*lpptype.RequestLocationInf
 // expectCriticalExtensionC1 consumes the criticalExtensions/c1 CHOICE pair that
 // every LPP message body opens with, rejecting the alternatives the LMF cannot
 // act on rather than decoding past them.
-func expectCriticalExtensionC1(r *uper.Reader, what string) error {
+func expectCriticalExtensionC1(r *aper.Reader, what string) error {
 	ext, _, err := r.ReadChoiceIndex(nRootCriticalExt, false)
 	if err != nil {
 		return fmt.Errorf("%s criticalExtensions: %w", what, err)
