@@ -113,11 +113,22 @@ type credentialProvider interface {
 // under UeContext.mu (status, reconcile) may then read the UE's other registered
 // data — the mutex is the publication barrier that carries the happens-before from
 // the TransitionTo at registration.
+// LPPHandler forwards an LPP positioning message received from a UE over E-UTRAN
+// (uplink Generic NAS Transport) up to the LMF, which routes it by the LCS
+// correlation identifier. It is the LTE counterpart of the AMF's LPP handler.
+type LPPHandler interface {
+	ForwardLPP(ctx context.Context, supi etsi.SUPI, correlationID, lppData []byte) error
+}
+
 type MME struct {
 	Cred    credentialProvider
 	Bearer  bearerStore
 	Session epsSessionManager
 	NAS     NASHandler
+
+	// LPPHandler routes uplink LPP messages to the LMF; nil disables LPP over
+	// E-UTRAN.
+	LPPHandler LPPHandler
 
 	// EPSNetworkFeatureSupport is advertised in Attach/TAU Accept (TS 24.301
 	// §9.9.3.12A); nil falls back to the default.

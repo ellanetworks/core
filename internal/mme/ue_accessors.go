@@ -17,6 +17,9 @@ import (
 // (kasme, knasInt, knasEnc) are never returned; the operations that use them are
 // methods so the keys stay inside the UeContext (TS 33.401).
 
+// Supi returns the UE's SUPI (IMSI-derived), the key it is stored under.
+func (ue *UeContext) Supi() etsi.SUPI { return ue.supi }
+
 // Tmsi returns the UE's current M-TMSI (0 = none).
 func (ue *UeContext) Tmsi() etsi.TMSI { return ue.tmsi }
 

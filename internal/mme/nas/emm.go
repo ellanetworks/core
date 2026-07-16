@@ -119,6 +119,8 @@ func HandleEmmMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain 
 		return handleTrackingAreaUpdateComplete(ctx, m, ue)
 	case eps.MsgEMMStatus:
 		return handleEMMStatus(plain)
+	case eps.MsgULGenericNASTransport:
+		return handleULGenericNASTransport(ctx, m, ue, plain)
 	default:
 		// TS 24.301 §7.4: a message type not implemented by the receiver is ignored, but an
 		// EMM STATUS with cause #97 "message type non-existent or not implemented" should be

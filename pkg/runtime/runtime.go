@@ -505,10 +505,13 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	lmfInstance := lmf.New(amfInstance, mmeInstance, dbInstance)
 
-	// Wire AMF→LMF LPP transport: AMF forwards UL NAS LPP payloads to LMF.
-	lmfAMF := &lmfBridge{amf: amfInstance, lmf: lmfInstance}
-	lmfInstance.SetLPPHandler(lmfAMF)
-	amfInstance.LPPHandler = lmfAMF
+	// Wire the LMF LPP bridge. The AMF (N1) and MME (Generic NAS Transport) both
+	// forward uplink LPP payloads to the LMF, and the LMF sends downlink LPP to
+	// whichever of them the target UE is registered on.
+	lmfLPP := &lmfBridge{amf: amfInstance, mme: mmeInstance, lmf: lmfInstance}
+	lmfInstance.SetLPPHandler(lmfLPP)
+	amfInstance.LPPHandler = lmfLPP
+	mmeInstance.LPPHandler = lmfLPP
 
 	// Session reconciler: watches the session_reconcile changefeed topic
 	// and reconciles every local PDU session against the current DB policy.
@@ -821,6 +824,7 @@ func (a *mmeNASAdapter) HandleServiceRequest(ctx context.Context, conn mme.S1APW
 // constructors).
 type lmfBridge struct {
 	amf *amf.AMF
+	mme *mme.MME
 	lmf *lmf.LMF
 }
 
@@ -834,11 +838,26 @@ func (b *lmfBridge) ForwardLPPToUE(ctx context.Context, supi string, correlation
 		return fmt.Errorf("invalid SUPI %q: %w", supi, err)
 	}
 
-	if err := b.amf.TransferN1LPPMsg(ctx, supiEtsi, correlationID, lppData); err != nil {
-		return fmt.Errorf("transfer LPP to UE: %w", err)
+	// The same UE cannot be attached over both 5GS and EPS at once, so its
+	// registration decides the transport: N1 DL NAS Transport for a UE the AMF
+	// holds, DL Generic NAS Transport for one the MME holds.
+	if _, ok := b.amf.LookupUeBySupi(supiEtsi); ok {
+		if err := b.amf.TransferN1LPPMsg(ctx, supiEtsi, correlationID, lppData); err != nil {
+			return fmt.Errorf("transfer LPP to UE over N1: %w", err)
+		}
+
+		return nil
 	}
 
-	return nil
+	if _, ok := b.mme.LookupUeBySupi(supiEtsi); ok {
+		if err := b.mme.TransferLPPToUE(ctx, supiEtsi, correlationID, lppData); err != nil {
+			return fmt.Errorf("transfer LPP to UE over E-UTRAN: %w", err)
+		}
+
+		return nil
+	}
+
+	return fmt.Errorf("UE %q is not registered on 5GS or EPS", supi)
 }
 
 func (b *lmfBridge) LPPN1ModeSupported(supi string) (supported, known bool) {
