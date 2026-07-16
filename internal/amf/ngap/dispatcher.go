@@ -254,8 +254,8 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		case ngapType.ProcedureCodeUplinkUEAssociatedNRPPaTransport:
 			HandleUplinkUEAssociatedNRPPaTransport(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.UplinkUEAssociatedNRPPaTransport)
 		default:
-			logger.From(ctx, ran.Log).Warn("ignoring unsupported procedure", zap.String("kind", "initiating"), zap.Int64("procedureCode", initiatingMessage.ProcedureCode.Value))
-			sendProtocolErrorIndication(ctx, ran, ngapType.CauseProtocolPresentAbstractSyntaxErrorReject)
+			logger.From(ctx, ran.Log).Warn("unsupported initiating procedure", zap.Int64("procedureCode", initiatingMessage.ProcedureCode.Value))
+			respondToUnknownProcedure(ctx, ran, initiatingMessage)
 		}
 	case ngapType.NGAPPDUPresentSuccessfulOutcome:
 		successfulOutcome := pdu.SuccessfulOutcome

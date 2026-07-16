@@ -227,7 +227,10 @@ func TestGmmDecodeFailureCause(t *testing.T) {
 		want uint8
 	}{
 		{"unknown type 0xff", []byte{0x7e, 0x00, 0xff}, nasreply.CauseMessageTypeNotImplemented},
-		{"defined type, malformed body", []byte{0x7e, 0x00, nas.MsgTypeRegistrationRequest}, nasreply.CauseInvalidMandatoryInfo},
+		{"defined uplink type, malformed body", []byte{0x7e, 0x00, nas.MsgTypeRegistrationRequest}, nasreply.CauseInvalidMandatoryInfo},
+		// A downlink-only type on the uplink is "not defined for the EPD in the given
+		// direction" (TS 24.501 §7.4 NOTE) → #97, not #96.
+		{"downlink-only type on uplink", []byte{0x7e, 0x00, nas.MsgTypeRegistrationAccept}, nasreply.CauseMessageTypeNotImplemented},
 		{"too short to carry a type", []byte{0x7e, 0x00}, nasreply.CauseInvalidMandatoryInfo},
 	}
 

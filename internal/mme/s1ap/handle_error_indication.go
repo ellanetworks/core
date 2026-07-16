@@ -90,13 +90,44 @@ func handleParseError(m *mme.MME, conn mme.S1APWriter, proc s1ap.ProcedureCode, 
 	})
 }
 
-// sendProtocolErrorIndication answers a PDU the MME could not decode, or one carrying
-// an unknown Procedure Code, with a cause-only ERROR INDICATION (TS 36.413 §10.2,
-// §10.3.4.1). It needs nothing from the offending PDU, so it applies where a decode
-// failed outright.
+// sendProtocolErrorIndication answers a PDU the MME could not decode with a cause-only
+// ERROR INDICATION (TS 36.413 §10.2). It carries no Criticality Diagnostics because a
+// transfer-syntax error decodes nothing to cite; it applies where a decode failed
+// outright.
 func sendProtocolErrorIndication(m *mme.MME, conn mme.S1APWriter, cause int) {
 	emitErrorIndication(m, conn, &s1ap.ErrorIndication{
 		Cause: &s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: cause},
+	})
+}
+
+// respondToUnknownProcedure answers an initiating message whose Procedure Code the MME
+// does not comprehend, keyed on the received criticality (TS 36.413 §10.3.4.1): Reject
+// or Ignore-and-Notify draw an ERROR INDICATION carrying Criticality Diagnostics
+// (Procedure Code, Triggering Message, Procedure Criticality); Ignore is dropped
+// silently, as most procedures an eNB sends that the MME does not handle are.
+func respondToUnknownProcedure(m *mme.MME, conn mme.S1APWriter, im *s1ap.InitiatingMessage) {
+	var cause int
+
+	switch im.Criticality {
+	case s1ap.CriticalityReject:
+		cause = s1ap.CauseProtocolAbstractSyntaxErrorReject
+	case s1ap.CriticalityNotify:
+		cause = s1ap.CauseProtocolAbstractSyntaxErrorIgnoreAndNotify
+	default:
+		return
+	}
+
+	proc := im.ProcedureCode
+	trigger := s1ap.TriggeringInitiatingMessage
+	crit := im.Criticality
+
+	emitErrorIndication(m, conn, &s1ap.ErrorIndication{
+		Cause: &s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: cause},
+		CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{
+			ProcedureCode:        &proc,
+			TriggeringMessage:    &trigger,
+			ProcedureCriticality: &crit,
+		},
 	})
 }
 

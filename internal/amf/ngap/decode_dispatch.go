@@ -75,13 +75,49 @@ func respondToFatalReport(ctx context.Context, ran *amf.Radio, report *decode.Re
 
 // sendProtocolErrorIndication answers a PDU the receiver could not decode, or one
 // carrying an unknown Procedure Code, with a cause-only Error Indication (TS 38.413
-// §10.2, §10.3.4.1). It needs nothing from the offending PDU, so it applies where a
-// decode failed outright.
+// §10.2). It carries no Criticality Diagnostics because a transfer-syntax error
+// decodes nothing to cite; it applies where a decode failed outright.
 func sendProtocolErrorIndication(ctx context.Context, ran *amf.Radio, cause aper.Enumerated) {
 	pkt, err := send.BuildErrorIndication(nil, nil, &ngapType.Cause{
 		Present:  ngapType.CausePresentProtocol,
 		Protocol: &ngapType.CauseProtocol{Value: cause},
 	}, nil)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("error building error indication", zap.Error(err))
+		return
+	}
+
+	ran.SendToRadio(ctx, send.NGAPProcedureErrorIndication, pkt)
+}
+
+// respondToUnknownProcedure answers an initiating message whose Procedure Code the
+// AMF does not comprehend, keyed on the received criticality (TS 38.413 §10.3.4.1):
+// Reject or Ignore-and-Notify draw an Error Indication carrying Criticality
+// Diagnostics (Procedure Code, Triggering Message, Procedure Criticality); Ignore is
+// dropped silently. Most procedures a gNB sends that the AMF does not handle are
+// criticality Ignore, so this must not answer them.
+func respondToUnknownProcedure(ctx context.Context, ran *amf.Radio, im *ngapType.InitiatingMessage) {
+	var cause aper.Enumerated
+
+	switch im.Criticality.Value {
+	case ngapType.CriticalityPresentReject:
+		cause = ngapType.CauseProtocolPresentAbstractSyntaxErrorReject
+	case ngapType.CriticalityPresentNotify:
+		cause = ngapType.CauseProtocolPresentAbstractSyntaxErrorIgnoreAndNotify
+	default:
+		return
+	}
+
+	cd := ngapType.CriticalityDiagnostics{
+		ProcedureCode:        &ngapType.ProcedureCode{Value: im.ProcedureCode.Value},
+		TriggeringMessage:    &ngapType.TriggeringMessage{Value: ngapType.TriggeringMessagePresentInitiatingMessage},
+		ProcedureCriticality: &ngapType.Criticality{Value: im.Criticality.Value},
+	}
+
+	pkt, err := send.BuildErrorIndication(nil, nil, &ngapType.Cause{
+		Present:  ngapType.CausePresentProtocol,
+		Protocol: &ngapType.CauseProtocol{Value: cause},
+	}, &cd)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error building error indication", zap.Error(err))
 		return

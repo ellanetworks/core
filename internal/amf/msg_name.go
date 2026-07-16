@@ -51,7 +51,29 @@ func GmmMessageTypeName(code uint8) string {
 	return fmt.Sprintf("Unknown message type: 0x%02x", code)
 }
 
+// gmmUplinkTypes is the subset of 5GMM message types the AMF can receive from the UE
+// (uplink or, for 5GMM STATUS, bidirectional). A downlink-only type received on the
+// uplink is "not defined for the EPD in the given direction" (TS 24.501 §7.4 NOTE).
+var gmmUplinkTypes = map[uint8]bool{
+	nas.MsgTypeRegistrationRequest:                              true,
+	nas.MsgTypeRegistrationComplete:                             true,
+	nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration: true,
+	nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:   true,
+	nas.MsgTypeServiceRequest:                                   true,
+	nas.MsgTypeConfigurationUpdateComplete:                      true,
+	nas.MsgTypeAuthenticationResponse:                           true,
+	nas.MsgTypeAuthenticationFailure:                            true,
+	nas.MsgTypeIdentityResponse:                                 true,
+	nas.MsgTypeSecurityModeComplete:                             true,
+	nas.MsgTypeSecurityModeReject:                               true,
+	nas.MsgTypeStatus5GMM:                                       true,
+	nas.MsgTypeNotificationResponse:                             true,
+	nas.MsgTypeULNASTransport:                                   true,
+}
+
+// gmmTypeDefined reports whether code is a 5GMM message type the AMF can receive from
+// the UE. A downlink-only or unknown type draws 5GMM STATUS #97, not #96 (TS 24.501
+// §7.4).
 func gmmTypeDefined(code uint8) bool {
-	_, ok := gmmMessageTypeNames[code]
-	return ok
+	return gmmUplinkTypes[code]
 }

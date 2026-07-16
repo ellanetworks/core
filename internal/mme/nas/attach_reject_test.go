@@ -67,7 +67,9 @@ func TestAttachProtocolError(t *testing.T) {
 		nas  []byte
 	}{
 		{name: "header only", nas: []byte{0x07, 0x41}},
-		{name: "trailing garbage", nas: []byte{0x07, 0x41, 0xff, 0xff, 0xff}},
+		// The trailing bytes are consumed as a malformed mandatory IE (an LV length
+		// overrun), not tolerated as optional-tail garbage.
+		{name: "malformed mandatory IE", nas: []byte{0x07, 0x41, 0xff, 0xff, 0xff}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newTestMME(t)
