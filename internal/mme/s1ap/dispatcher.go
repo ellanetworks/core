@@ -43,6 +43,10 @@ func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) 
 		span.SetStatus(codes.Error, "failed to decode S1AP PDU")
 		logger.From(ctx, m.RadioLog(conn)).Warn("failed to decode S1AP PDU", zap.Error(err))
 
+		if conn != nil {
+			sendProtocolErrorIndication(m, conn, s1ap.CauseProtocolTransferSyntaxError)
+		}
+
 		return
 	}
 

@@ -22,7 +22,11 @@ const epsAttachTypeCombined uint8 = 2
 func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte, integrityVerified bool) nasreply.Disposition {
 	req, err := eps.ParseAttachRequest(plain)
 	if err != nil {
+		// Protocol error: an ATTACH REQUEST missing mandatory IEs is answered with EMM
+		// cause #96 "invalid mandatory information" (TS 24.301 §5.5.1.2.7 b).
 		logger.From(ctx, logger.MmeLog).Warn("failed to decode Attach Request", zap.Error(err))
+		rejectAttach(ctx, m, ue, mme.EmmCauseInvalidMandatoryInfo)
+
 		return nasreply.Handled()
 	}
 

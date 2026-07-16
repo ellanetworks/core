@@ -18,6 +18,52 @@ import (
 // PMTU / frag-needed generation needs a small-MTU device and is deferred to the
 // netns harness.
 
+// assertEchoResponse checks gtp is a conformant GTP-U Echo Response: the S flag
+// set (TS 29.281 §5.1), a zero TEID, the request's sequence number echoed, and
+// the mandatory Recovery IE with a zero restart counter (§7.2.2, Table 7.2.2-1).
+func assertEchoResponse(t *testing.T, gtp []byte, wantSeq uint16) {
+	t.Helper()
+
+	const (
+		gtpEchoResponse = 2
+		gtpIERecovery   = 0x0e
+	)
+
+	if len(gtp) != 14 {
+		t.Fatalf("GTP-U message length = %d, want 14 (12-byte header + Recovery IE)", len(gtp))
+	}
+
+	if gtp[0] != 0x32 {
+		t.Errorf("GTP flags = %#x, want 0x32 (version 1, PT 1, S 1)", gtp[0])
+	}
+
+	if gtp[1] != gtpEchoResponse {
+		t.Errorf("GTP message type = %d, want %d (echo response)", gtp[1], gtpEchoResponse)
+	}
+
+	// Length counts everything after the 8-byte mandatory header: the optional
+	// word (4) and the Recovery IE (2).
+	if got := binary.BigEndian.Uint16(gtp[2:4]); got != 6 {
+		t.Errorf("GTP message length = %d, want 6", got)
+	}
+
+	if got := binary.BigEndian.Uint32(gtp[4:8]); got != 0 {
+		t.Errorf("GTP TEID = %d, want 0", got)
+	}
+
+	if got := binary.BigEndian.Uint16(gtp[8:10]); got != wantSeq {
+		t.Errorf("Echo Response sequence number = %#x, want %#x (the request's)", got, wantSeq)
+	}
+
+	if gtp[12] != gtpIERecovery {
+		t.Errorf("IE type = %#x, want %#x (Recovery, mandatory per TS 29.281 Table 7.2.2-1)", gtp[12], gtpIERecovery)
+	}
+
+	if gtp[13] != 0 {
+		t.Errorf("Recovery restart counter = %d, want 0 (TS 29.281 §7.2.2)", gtp[13])
+	}
+}
+
 // TestGTPControlMessages checks GTP-U control-message dispatch: an echo request
 // is answered (XDP_TX, addresses/ports swapped, type set to echo response);
 // other control messages are passed to the kernel.
@@ -42,13 +88,13 @@ func TestGTPControlMessages(t *testing.T) {
 			t.Fatalf("got XDP action %d, want XDP_TX (%d)", action, XDP_TX)
 		}
 
-		if len(out) != len(in) {
-			t.Fatalf("frame length changed: got %d, want %d", len(out), len(in))
+		// The request carries an 8-byte header; the response is the 12-byte
+		// header plus the 2-octet Recovery IE, so the frame grows by 6.
+		if want := len(in) + 6; len(out) != want {
+			t.Fatalf("frame length = %d, want %d", len(out), want)
 		}
 
-		if out[ethHdrLen+20+8+1] != gtpEchoResponse {
-			t.Errorf("GTP message type = %d, want %d (echo response)", out[ethHdrLen+20+8+1], gtpEchoResponse)
-		}
+		assertEchoResponse(t, out[ethHdrLen+20+8:], 0)
 
 		if !bytes.Equal(out[26:30], testUPFN3IP[:]) || !bytes.Equal(out[30:34], testGNBIP[:]) {
 			t.Errorf("outer IPs not swapped: src=%v dst=%v", out[26:30], out[30:34])
@@ -94,10 +140,7 @@ func TestGTPEchoRequestWithSequenceNumber(t *testing.T) {
 
 	obj := loadN3N6Program(t)
 
-	const (
-		gtpEchoRequest  = 1
-		gtpEchoResponse = 2
-	)
+	const gtpEchoRequest = 1
 
 	in := gtpControlFrameSeq(gtpEchoRequest, 0x1234)
 
@@ -107,9 +150,8 @@ func TestGTPEchoRequestWithSequenceNumber(t *testing.T) {
 		t.Fatalf("Echo Request with a sequence number (S=1, no extension header) got XDP action %d, want XDP_TX (%d) — the UPF must answer it (TS 29.281 §7.2.1)", action, XDP_TX)
 	}
 
-	if got := out[ethHdrLen+20+8+1]; got != gtpEchoResponse {
-		t.Errorf("GTP message type = %d, want %d (echo response)", got, gtpEchoResponse)
-	}
+	// The Echo Response repeats the request's sequence number (TS 29.281 §7.2.2).
+	assertEchoResponse(t, out[ethHdrLen+20+8:], 0x1234)
 }
 
 // TestGTPEchoResponseIPv6Checksum checks that the Echo Response to an IPv6 echo
@@ -121,10 +163,7 @@ func TestGTPEchoResponseIPv6Checksum(t *testing.T) {
 
 	obj := loadN3N6Program(t)
 
-	const (
-		gtpEchoRequest  = 1
-		gtpEchoResponse = 2
-	)
+	const gtpEchoRequest = 1
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, gtpControlFrameV6(gtpEchoRequest))
 
@@ -132,8 +171,12 @@ func TestGTPEchoResponseIPv6Checksum(t *testing.T) {
 		t.Fatalf("IPv6 echo request got XDP action %d, want XDP_TX (%d)", action, XDP_TX)
 	}
 
-	if got := out[ethHdrLen+40+8+1]; got != gtpEchoResponse {
-		t.Errorf("GTP message type = %d, want %d (echo response)", got, gtpEchoResponse)
+	assertEchoResponse(t, out[ethHdrLen+40+8:], 0)
+
+	// The Recovery IE grew the datagram, so the IPv6 payload length must have
+	// been refreshed alongside it.
+	if got := binary.BigEndian.Uint16(out[ethHdrLen+4 : ethHdrLen+6]); got != 8+14 {
+		t.Errorf("IPv6 payload length = %d, want %d (UDP header + Echo Response)", got, 8+14)
 	}
 
 	// The reflected response is UPF -> gNB; its UDP checksum must validate.

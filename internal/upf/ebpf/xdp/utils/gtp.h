@@ -152,39 +152,160 @@ static __always_inline void swap_ip6(struct ipv6hdr *ip6)
 	__builtin_memcpy(&ip6->daddr, &tmp, sizeof(struct in6_addr));
 }
 
+/* GTP-U Recovery information element type (TS 29.281 §8.2). */
+#define GTPU_IE_RECOVERY (14)
+
+/* An Echo Response is a 12-octet GTP-U header (mandatory header plus the
+ * optional word; the S flag is set as required for Echo messages, TS 29.281
+ * §5.1) followed by the mandatory Recovery IE (TV format, 2 octets). */
+#define GTPU_ECHO_RESPONSE_LEN (14)
+
+/* Answer a GTP-U Echo Request by rewriting it in place into an Echo Response
+ * carrying the mandatory Recovery IE (TS 29.281 §7.2.2, Table 7.2.2-1). The
+ * response repeats the request's sequence number (§7.2.2) and is emitted at a
+ * fixed length, so a request bearing extension headers or a private extension
+ * is answered with the canonical form rather than having its tail reflected. */
 static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 {
-	struct ethhdr *eth = ctx->eth;
-	struct udphdr *udp = ctx->udp;
 	struct gtpuhdr *gtp = ctx->gtp;
 
-	if (!eth || !udp || !gtp)
+	if (!ctx->eth || !ctx->udp || !gtp)
 		return XDP_DROP;
 
-	gtp->message_type = GTPU_ECHO_RESPONSE;
+	if (!ctx->ip4 && !ctx->ip6)
+		return XDP_DROP;
 
-	if (ctx->ip4) {
-		swap_ip(ctx->ip4);
-		upf_printk("upf: send gtp echo response [ %pI4 -> %pI4 ]",
-			   &ctx->ip4->saddr, &ctx->ip4->daddr);
-	} else if (ctx->ip6) {
-		swap_ip6(ctx->ip6);
+	const int is_ip4 = ctx->ip4 != NULL;
+
+	/* The sequence number is only present when the request set the S flag. */
+	__be16 seq = 0;
+	if (gtp->s) {
+		const __u8 *opt = (const __u8 *)(gtp + 1);
+		if ((const void *)(opt + sizeof(seq)) > ctx->data_end)
+			return XDP_DROP;
+
+		__builtin_memcpy(&seq, opt, sizeof(seq));
 	}
-	swap_port(udp);
-	swap_mac(eth);
 
-	/* The message-type change invalidated the UDP checksum, which is
-	 * mandatory over IPv6 (a wrong one is dropped by the receiver). */
-	if (ctx->ip6) {
+	/* Resize the frame so it ends exactly after the canonical response: a
+	 * short request is grown, a longer one has its tail dropped. */
+	long delta = (long)((const __u8 *)gtp + GTPU_ECHO_RESPONSE_LEN) -
+		     (long)ctx->data_end;
+	if (delta != 0 && bpf_xdp_adjust_tail(ctx->xdp_ctx, (int)delta) < 0)
+		return XDP_DROP;
+
+	/* bpf_xdp_adjust_tail invalidates every packet pointer, and an offset
+	 * saved across the call is not provably in-bounds to the verifier. Re-walk
+	 * the headers from data instead: each is a bounds-checked constant step
+	 * from the last, which the verifier tracks precisely. */
+	void *data = (void *)(long)ctx->xdp_ctx->data;
+	const void *data_end = (const void *)(long)ctx->xdp_ctx->data_end;
+
+	struct ethhdr *eth = data;
+	if ((const void *)(eth + 1) > data_end)
+		return XDP_DROP;
+
+	/* parse_ethernet accepts both C-VLAN and S-VLAN tags (parsers.h); match both
+	 * so an 802.1ad-tagged frame is not re-walked 4 octets short. */
+	void *l3 = eth + 1;
+	if (eth->h_proto == bpf_htons(ETH_P_8021Q) ||
+	    eth->h_proto == bpf_htons(ETH_P_8021AD)) {
+		struct vlan_hdr *vlan = l3;
+		if ((const void *)(vlan + 1) > data_end)
+			return XDP_DROP;
+
+		l3 = vlan + 1;
+	}
+
+	struct udphdr *udp;
+	if (is_ip4) {
+		struct iphdr *ip = l3;
+		if ((const void *)(ip + 1) > data_end)
+			return XDP_DROP;
+
+		/* The re-walk steps a fixed 20 octets to L4, so an IPv4 header
+		 * carrying options (ihl > 5) — which parse_ip4 accepts — would be
+		 * rewritten inside the options. Drop rather than emit a corrupt
+		 * frame; options on a GTP-U echo do not occur in practice. */
+		if (ip->ihl != 5)
+			return XDP_DROP;
+
+		udp = (struct udphdr *)(ip + 1);
+	} else {
+		struct ipv6hdr *ip6 = l3;
+		if ((const void *)(ip6 + 1) > data_end)
+			return XDP_DROP;
+
+		udp = (struct udphdr *)(ip6 + 1);
+	}
+
+	if ((const void *)(udp + 1) > data_end)
+		return XDP_DROP;
+
+	__u8 *p = (__u8 *)(udp + 1);
+	if ((const void *)(p + GTPU_ECHO_RESPONSE_LEN) > data_end)
+		return XDP_DROP;
+
+	gtp = (struct gtpuhdr *)p;
+
+	const __u16 udp_len = sizeof(*udp) + GTPU_ECHO_RESPONSE_LEN;
+
+	*p = GTP_FLAGS; /* version 1, PT 1 */
+	gtp->s = 1;
+	gtp->message_type = GTPU_ECHO_RESPONSE;
+	gtp->message_length =
+		bpf_htons(GTPU_ECHO_RESPONSE_LEN - sizeof(struct gtpuhdr));
+	gtp->teid = 0;
+
+	/* Optional word: sequence number, N-PDU number, next-extension type. */
+	__builtin_memcpy(p + 8, &seq, sizeof(seq));
+	p[10] = 0;
+	p[11] = 0;
+
+	/* Recovery (TS 29.281 §8.2, TV format). The restart counter shall be set
+	 * to zero by the sender and ignored by the receiver (§7.2.2). */
+	p[12] = GTPU_IE_RECOVERY;
+	p[13] = 0;
+
+	swap_port(udp);
+	udp->len = bpf_htons(udp_len);
+
+	if (is_ip4) {
+		struct iphdr *ip = l3;
+		if ((const void *)(ip + 1) > data_end)
+			return XDP_DROP;
+
+		swap_ip(ip);
+		ip->tot_len = bpf_htons(sizeof(*ip) + udp_len);
+		recompute_ipv4_csum(ip);
+
+		/* Rewriting the header invalidated the UDP checksum; zero means
+		 * "not computed" over IPv4 (RFC 768 p.2). */
 		udp->check = 0;
-		__u32 udp_off =
-			(__u32)((__u8 *)udp - (__u8 *)(long)ctx->xdp_ctx->data);
-		int cs = udpv6_csum(&ctx->ip6->saddr, &ctx->ip6->daddr, udp_off,
-				    bpf_ntohs(udp->len), ctx->xdp_ctx);
+
+		upf_printk("upf: send gtp echo response [ %pI4 -> %pI4 ]",
+			   &ip->saddr, &ip->daddr);
+	} else {
+		struct ipv6hdr *ip6 = l3;
+		if ((const void *)(ip6 + 1) > data_end)
+			return XDP_DROP;
+
+		swap_ip6(ip6);
+		ip6->payload_len = bpf_htons(udp_len);
+
+		/* The UDP checksum is mandatory over IPv6 (a wrong one is dropped
+		 * by the receiver). */
+		udp->check = 0;
+		__u32 udp_off = (__u32)((__u8 *)udp - (__u8 *)data);
+		int cs = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off, udp_len,
+				    ctx->xdp_ctx);
 		if (cs < 0)
 			return XDP_DROP;
+
 		udp->check = (__u16)cs;
 	}
+
+	swap_mac(eth);
 
 	return XDP_TX;
 }

@@ -53,7 +53,8 @@ func Route(m *mme.MME, ctx context.Context, radio *mme.Radio, pdu any) {
 		case s1ap.ProcLocationReport:
 			handleLocationReport(m, ctx, radio, p.Value)
 		default:
-			logger.From(ctx, radio.Log).Warn("ignoring unsupported procedure", zap.String("kind", "initiating"), zap.Int64("procedureCode", int64(p.ProcedureCode)))
+			logger.From(ctx, radio.Log).Warn("unsupported initiating procedure", zap.Int64("procedureCode", int64(p.ProcedureCode)))
+			respondToUnknownProcedure(m, radio.Conn, p)
 		}
 	case *s1ap.SuccessfulOutcome:
 		switch p.ProcedureCode {

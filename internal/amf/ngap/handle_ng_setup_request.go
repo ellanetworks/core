@@ -20,8 +20,8 @@ import (
 	"go.uber.org/zap"
 )
 
-func sendNGSetupFailure(ctx context.Context, ran *amf.Radio, cause *ngapType.Cause) {
-	pkt, err := send.BuildNGSetupFailure(cause)
+func sendNGSetupFailure(ctx context.Context, ran *amf.Radio, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) {
+	pkt, err := send.BuildNGSetupFailure(cause, criticalityDiagnostics)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error building NG Setup Failure", zap.Error(err))
 		return
@@ -39,7 +39,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 			Misc: &ngapType.CauseMisc{
 				Value: ngapType.CauseMiscPresentUnspecified,
 			},
-		})
+		}, nil)
 
 		logger.WithTrace(ctx, ran.Log).Warn("NG Setup failure: No supported TA exist in NG Setup request")
 
@@ -78,7 +78,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		sendNGSetupFailure(ctx, ran, &ngapType.Cause{
 			Present: ngapType.CausePresentMisc,
 			Misc:    &ngapType.CauseMisc{Value: ngapType.CauseMiscPresentUnspecified},
-		})
+		}, nil)
 
 		return
 	}
@@ -87,7 +87,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		sendNGSetupFailure(ctx, ran, &ngapType.Cause{
 			Present: ngapType.CausePresentMisc,
 			Misc:    &ngapType.CauseMisc{Value: ngapType.CauseMiscPresentUnknownPLMN},
-		})
+		}, nil)
 
 		logger.WithTrace(ctx, ran.Log).Warn("No broadcast PLMN matches operator", zap.Any("gnb_tai_list", tais), zap.Any("operator_plmn", operatorInfo.Guami.PlmnID))
 
@@ -110,7 +110,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		sendNGSetupFailure(ctx, ran, &ngapType.Cause{
 			Present: ngapType.CausePresentMisc,
 			Misc:    &ngapType.CauseMisc{Value: ngapType.CauseMiscPresentUnspecified},
-		})
+		}, nil)
 
 		logger.WithTrace(ctx, ran.Log).Warn("PLMN matches but no served TAC found", zap.Any("gnb_tai_list", tais), zap.Any("core_tai_list", operatorInfo.Tais))
 
@@ -124,7 +124,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		sendNGSetupFailure(ctx, ran, &ngapType.Cause{
 			Present: ngapType.CausePresentMisc,
 			Misc:    &ngapType.CauseMisc{Value: ngapType.CauseMiscPresentUnspecified},
-		})
+		}, nil)
 
 		return
 	}

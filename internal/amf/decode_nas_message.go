@@ -140,18 +140,32 @@ func (ue *UeContext) ReuseForInboundNAS(payload []byte) bool {
 	return ue.NasIntegrityVerified(payload)
 }
 
+// GmmDecodeFailureCause maps a plain-NAS decode failure to the 5GMM STATUS cause
+// the sender is told: #97 when the message type is one the AMF does not define
+// (TS 24.501 §7.4), otherwise #96 for a defined type whose body is malformed
+// (§7.5.1). body is the inner plain NAS message; its message type is the third
+// octet, absent on a too-short PDU.
+func GmmDecodeFailureCause(body []byte) uint8 {
+	if len(body) >= 3 && !gmmTypeDefined(body[2]) {
+		return nasreply.CauseMessageTypeNotImplemented
+	}
+
+	return nasreply.CauseInvalidMandatoryInfo
+}
+
 func decodePlainNAS(msg *nas.Message, payload []byte) (*DecodeResult, error) {
 	// PlainNasDecode consumes payload; capture whether the message-type octet was present so
 	// a too-short PDU (§7.2.1, silent) is told apart from a decodable type whose body is
 	// malformed (§7.5.1, 5GMM STATUS #96).
 	typeReadable := len(payload) >= 3
 
+	body := payload
 	if err := msg.PlainNasDecode(&payload); err != nil {
 		if !typeReadable {
 			return nil, silentDecode(nasreply.ReasonTooShort, "plain NAS too short to classify: %v", err)
 		}
 
-		return nil, statusDecode(nasreply.CauseInvalidMandatoryInfo, "plain NAS decode failed: %v", err)
+		return nil, statusDecode(GmmDecodeFailureCause(body), "plain NAS decode failed: %v", err)
 	}
 
 	if msg.GmmMessage == nil {
@@ -222,12 +236,15 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *U
 	}
 
 	payload = payload[1:]
+	body := payload
+
 	if err := msg.PlainNasDecode(&payload); err != nil {
 		// A malformed body under a verified MAC is a protocol error the sender can act on
-		// (5GMM STATUS #96); under an unverified MAC it is indistinguishable from garbage,
-		// so it is discarded silently (TS 24.501 §4.4.4.3).
+		// (5GMM STATUS #96, or #97 for an undefined message type); under an unverified MAC
+		// it is indistinguishable from garbage, so it is discarded silently
+		// (TS 24.501 §4.4.4.3).
 		if macVerified {
-			return nil, statusDecode(nasreply.CauseInvalidMandatoryInfo, "protected NAS decode failed: %v", err)
+			return nil, statusDecode(GmmDecodeFailureCause(body), "protected NAS decode failed: %v", err)
 		}
 
 		return nil, silentDecode(nasreply.ReasonIntegrityFail, "protected NAS decode failed under unverified MAC: %v", err)

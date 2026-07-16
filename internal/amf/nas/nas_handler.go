@@ -150,8 +150,10 @@ func dispositionForUnresolved(nasPdu []byte) nasreply.Disposition {
 	}
 
 	msg := new(nas.Message)
-	if err := msg.PlainNasDecode(&body); err != nil {
-		return nasreply.StatusMM(nasreply.CauseInvalidMandatoryInfo)
+	decoded := body
+
+	if err := msg.PlainNasDecode(&decoded); err != nil {
+		return nasreply.StatusMM(amf.GmmDecodeFailureCause(body))
 	}
 
 	return nasreply.StatusMM(nasreply.CauseMessageTypeNotImplemented)

@@ -48,7 +48,9 @@ const (
 	CauseNASDetach                = 2 // detach
 	CauseNASUnspecified           = 3 // unspecified
 
-	CauseProtocolTransferSyntaxError = 0 // transfer-syntax-error
+	CauseProtocolTransferSyntaxError                = 0 // transfer-syntax-error
+	CauseProtocolAbstractSyntaxErrorReject          = 1 // abstract-syntax-error-reject
+	CauseProtocolAbstractSyntaxErrorIgnoreAndNotify = 2 // abstract-syntax-error-ignore-and-notify
 
 	CauseMiscUnspecified = 4 // unspecified
 	CauseMiscUnknownPLMN = 5 // unknown-PLMN
