@@ -463,11 +463,18 @@ func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, correlatio
 
 	// TS 24.501 §9.11.3.1: the UE reports whether it speaks LPP in N1 mode at
 	// registration. A UE that reports "not supported" is under no obligation to
-	// answer anything sent here, so the bit is reported alongside the PDU.
+	// answer anything sent here. The 5G-LCS bit reports whether it supports the
+	// LCS notification a network-initiated request uses before positioning
+	// (TS 23.273 §6.1.2); both are reported alongside the PDU.
 	lppSupported := "no_5gmm_capability_ie"
+	lcsNotification := "no_5gmm_capability_ie"
 
 	if ue.LPPN1Supported != nil {
 		lppSupported = strconv.FormatBool(*ue.LPPN1Supported)
+	}
+
+	if ue.LCSNotificationSupported != nil {
+		lcsNotification = strconv.FormatBool(*ue.LCSNotificationSupported)
 	}
 
 	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeLPP, lppMsg, 0, nil, correlationID)
@@ -486,6 +493,7 @@ func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, correlatio
 		zap.String("lpp_hex", hex.EncodeToString(lppMsg)),
 		zap.String("lcs_correlation_id", hex.EncodeToString(correlationID)),
 		zap.String("ue_lpp_n1_capability", lppSupported),
+		zap.String("ue_5g_lcs_capability", lcsNotification),
 	)
 
 	return nil

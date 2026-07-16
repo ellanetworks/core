@@ -99,7 +99,12 @@ type UeContext struct {
 	// ClearRegistrationRequestData drops the request itself once registration
 	// completes, long before any positioning session starts. nil means the UE
 	// sent no 5GMM capability IE.
-	LPPN1Supported           *bool
+	LPPN1Supported *bool
+	// LCSNotificationSupported reports the UE's 5G-LCS bit (octet 4 bit 6 of the
+	// same IE): whether it supports the LCS notification mechanisms a network-
+	// initiated location request uses before positioning (TS 23.273 §6.1.2). nil
+	// means no 5GMM capability IE was sent.
+	LCSNotificationSupported *bool
 	RegistrationArea         []models.Tai
 	RadioCapability          []byte
 	RadioCapabilityForPaging *models.UERadioCapabilityForPaging // free5gc NR/EUTRA split; the 4G MME stores the opaque S1AP octets as []byte

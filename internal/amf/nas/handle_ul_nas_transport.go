@@ -23,6 +23,11 @@ import (
 	"go.uber.org/zap"
 )
 
+// payloadContainerTypeLocationServices is the "Location services message
+// container" value (TS 24.501 §9.11.3.40, bits 0111). The free5gc nas library
+// does not define it.
+const payloadContainerTypeLocationServices uint8 = 0x07
+
 func forward5GSMMessageToSMF(
 	ctx context.Context,
 	amfInstance *amf.AMF,
@@ -318,6 +323,15 @@ func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		logger.From(ctx, logger.AmfLog).Debug("UpuMac in UPU ACK NAS Msg", zap.String("UpuMac", upuMac))
 	case nasMessage.PayloadContainerTypeMultiplePayload:
 		logger.From(ctx, logger.AmfLog).Warn("PayloadContainerTypeMultiplePayload has not been implemented yet in UL NAS TRANSPORT")
+	case payloadContainerTypeLocationServices:
+		// TS 24.501 §9.11.3.40 value 0111: the SS Location Services container
+		// (TS 24.571) carries LCS notification responses and MO-LR. It is logged
+		// but not yet processed; visibility here shows whether a UE engages the
+		// LCS supplementary-services channel at all.
+		logger.From(ctx, logger.AmfLog).Warn("UL NAS Transport carries a Location services (LCS) message; not yet handled",
+			logger.SUPI(ue.Supi().String()),
+			zap.String("payload_hex", hex.EncodeToString(msg.GetPayloadContainerContents())),
+		)
 	}
 
 	return nasreply.Handled()

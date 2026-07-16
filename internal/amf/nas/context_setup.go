@@ -23,8 +23,13 @@ func recordLPPCapability(ue *amf.UeContext, msg *nasMessage.RegistrationRequest)
 		return
 	}
 
-	supported := msg.Capability5GMM.GetLPP() == 1
-	ue.LPPN1Supported = &supported
+	lpp := msg.Capability5GMM.GetLPP() == 1
+	ue.LPPN1Supported = &lpp
+
+	// 5G-LCS is octet 4 (Octet[1]) bit 6 of the 5GMM capability IE
+	// (TS 24.501 §9.11.3.1): "LCS notification mechanisms supported".
+	lcs := msg.Capability5GMM.Octet[1]&0x20 != 0
+	ue.LCSNotificationSupported = &lcs
 }
 
 func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.RegistrationRequest) {
