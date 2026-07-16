@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
 // Package rrctest provides simplified NR-RRC-like message types for conformance
 // testing of UNALIGNED PER encoding. NR-RRC uses BASIC-PER Unaligned variant
 // per 3GPP TS 38.331 §8.1.

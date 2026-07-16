@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
 package per
 
 // writeOctetAligned writes p as an "octet-aligned bit-field" (§11.1.4): in the

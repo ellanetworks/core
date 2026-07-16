@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
 // Command pergen generates reflection-free PER marshal/unmarshal methods for
 // types declared with `per:` struct tags. It is invoked via go:generate:
 //

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
 // Package per implements the Packed Encoding Rules (PER) for ASN.1.
 //
 // PER encodes ASN.1 abstract values into a concrete octet (and sub-octet)
