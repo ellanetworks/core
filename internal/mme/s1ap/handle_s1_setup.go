@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -46,7 +47,14 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 
 	req, outBytes, accepted, reason, err := s1SetupOutcomeFor(value, plmn, tacs, mmeGroupID, mmeCode, m.Name, m.RelativeCapacity)
 	if err != nil {
+		var missing *s1ap.MissingMandatoryIEsError
+		if errors.As(err, &missing) {
+			sendS1SetupFailureMissingIEs(m, ctx, conn, missing.IEs)
+			return
+		}
+
 		logger.From(ctx, m.RadioLog(conn)).Error("failed to handle S1 Setup Request", zap.Error(err))
+
 		return
 	}
 
@@ -76,6 +84,47 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 	}
 
 	logger.From(ctx, m.RadioLog(conn)).Info("S1 Setup Response sent", zap.String("enb-name", req.ENBName))
+}
+
+// buildS1SetupFailureMissingIEs builds an S1 Setup Failure rejecting a request that
+// omits mandatory reject-criticality IEs, naming them in Criticality Diagnostics
+// (TS 36.413 §10.3.5). Mirrors the AMF's NG Setup handling.
+func buildS1SetupFailureMissingIEs(ies []s1ap.ProtocolIEID) ([]byte, error) {
+	proc := s1ap.ProcS1Setup
+	trigger := s1ap.TriggeringInitiatingMessage
+	crit := s1ap.CriticalityReject
+
+	items := make([]s1ap.CriticalityDiagnosticsIEItem, 0, len(ies))
+	for _, id := range ies {
+		items = append(items, s1ap.CriticalityDiagnosticsIEItem{
+			IECriticality: s1ap.CriticalityReject,
+			IEID:          id,
+			TypeOfError:   s1ap.TypeOfErrorMissing,
+		})
+	}
+
+	fail := &s1ap.S1SetupFailure{
+		Cause: s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolAbstractSyntaxErrorReject},
+		CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{
+			ProcedureCode:             &proc,
+			TriggeringMessage:         &trigger,
+			ProcedureCriticality:      &crit,
+			IEsCriticalityDiagnostics: items,
+		},
+	}
+
+	return fail.Marshal()
+}
+
+func sendS1SetupFailureMissingIEs(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, ies []s1ap.ProtocolIEID) {
+	out, err := buildS1SetupFailureMissingIEs(ies)
+	if err != nil {
+		logger.From(ctx, m.RadioLog(conn)).Error("failed to marshal S1 Setup Failure", zap.Error(err))
+		return
+	}
+
+	m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupFailure, out)
+	logger.From(ctx, m.RadioLog(conn)).Warn("S1 Setup rejected: missing mandatory IE(s)")
 }
 
 // s1SetupOutcomeFor returns an S1 Setup Response when the eNB broadcasts a served

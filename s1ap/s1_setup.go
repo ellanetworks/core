@@ -88,7 +88,7 @@ func ParseS1SetupRequest(value []byte) (*S1SetupRequest, error) {
 
 	m := &S1SetupRequest{}
 
-	var seenGlobalENBID, seenSupportedTAs, seenPagingDRX bool
+	var seenGlobalENBID, seenSupportedTAs bool
 
 	for _, f := range fields {
 		sub := aper.NewReader(f.value)
@@ -104,7 +104,6 @@ func ParseS1SetupRequest(value []byte) (*S1SetupRequest, error) {
 			seenSupportedTAs = true
 		case idDefaultPagingDRX:
 			m.DefaultPagingDRX, err = decodePagingDRX(sub)
-			seenPagingDRX = true
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)
 		}
@@ -114,9 +113,32 @@ func ParseS1SetupRequest(value []byte) (*S1SetupRequest, error) {
 		}
 	}
 
-	if !seenGlobalENBID || !seenSupportedTAs || !seenPagingDRX {
-		return nil, fmt.Errorf("s1ap: S1SetupRequest missing mandatory IE")
+	// Default Paging DRX is ignore-criticality (TS 36.413 §9.1.8.4): a missing one
+	// is ignored rather than rejected (§10.3.5).
+	var missing []ProtocolIEID
+	if !seenGlobalENBID {
+		missing = append(missing, idGlobalENBID)
+	}
+
+	if !seenSupportedTAs {
+		missing = append(missing, idSupportedTAs)
+	}
+
+	if len(missing) > 0 {
+		return nil, &MissingMandatoryIEsError{Procedure: ProcS1Setup, IEs: missing}
 	}
 
 	return m, nil
+}
+
+// MissingMandatoryIEsError reports the reject-criticality mandatory IEs absent from a
+// decoded initiating message, so the receiver can reject the procedure and name them
+// in Criticality Diagnostics (TS 36.413 §10.3.5).
+type MissingMandatoryIEsError struct {
+	Procedure ProcedureCode
+	IEs       []ProtocolIEID
+}
+
+func (e *MissingMandatoryIEsError) Error() string {
+	return fmt.Sprintf("s1ap: procedure %d missing %d mandatory reject-criticality IE(s)", e.Procedure, len(e.IEs))
 }

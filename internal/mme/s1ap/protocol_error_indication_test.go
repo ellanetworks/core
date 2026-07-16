@@ -11,29 +11,34 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// TS 36.413 §10.2: a PDU the MME cannot decode is answered with an ERROR INDICATION
-// carrying cause "transfer-syntax-error", not dropped silently.
-func TestSendProtocolErrorIndication_TransferSyntax(t *testing.T) {
-	m := newTestMME(t)
-	cc := &captureConn{}
+// TS 36.413 §10.2 / §10.3.4.1: a PDU the MME cannot decode draws a transfer-syntax
+// ERROR INDICATION, and an unknown Procedure Code an abstract-syntax-error-reject one.
+func TestSendProtocolErrorIndication(t *testing.T) {
+	for _, cause := range []int{
+		s1ap.CauseProtocolTransferSyntaxError,
+		s1ap.CauseProtocolAbstractSyntaxErrorReject,
+	} {
+		m := newTestMME(t)
+		cc := &captureConn{}
 
-	sendProtocolErrorIndication(m, cc, s1ap.CauseProtocolTransferSyntaxError)
+		sendProtocolErrorIndication(m, cc, cause)
 
-	if cc.count() != 1 {
-		t.Fatalf("sent %d messages, want 1 (Error Indication)", cc.count())
-	}
+		if cc.count() != 1 {
+			t.Fatalf("sent %d messages, want 1 (Error Indication)", cc.count())
+		}
 
-	ind := parseOutboundErrorIndication(t, cc.sent[0])
+		ind := parseOutboundErrorIndication(t, cc.sent[0])
 
-	want := s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolTransferSyntaxError}
-	if ind.Cause == nil || *ind.Cause != want {
-		t.Fatalf("cause = %v, want transfer-syntax-error", ind.Cause)
+		want := s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: cause}
+		if ind.Cause == nil || *ind.Cause != want {
+			t.Fatalf("cause = %v, want protocol cause %d", ind.Cause, cause)
+		}
 	}
 }
 
 // TS 36.413 §10.3.4.1: an initiating message with an unknown Procedure Code is
 // rejected with an ERROR INDICATION carrying cause "abstract-syntax-error-reject".
-func TestRouteUnknownProcedure_SendsErrorIndication(t *testing.T) {
+func TestUnknownProcedure_SendsErrorIndication(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 

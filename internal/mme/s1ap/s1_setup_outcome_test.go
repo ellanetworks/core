@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"encoding/hex"
+	"slices"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -144,5 +145,60 @@ func TestS1SetupOutcomeRejectsUnknownTAC(t *testing.T) {
 
 	if fail.Cause != causeNoServedTAC {
 		t.Fatalf("cause = %+v, want %+v (Misc/unspecified)", fail.Cause, causeNoServedTAC)
+	}
+}
+
+// TestS1SetupFailureNamesMissingIEs checks the S1 Setup Failure sent for a request
+// omitting mandatory reject-criticality IEs carries cause "abstract-syntax-error-
+// reject" and names each missing IE in Criticality Diagnostics (TS 36.413 §10.3.5),
+// mirroring the AMF's NG Setup Failure.
+func TestS1SetupFailureNamesMissingIEs(t *testing.T) {
+	const (
+		ieGlobalENBID  s1ap.ProtocolIEID = 59
+		ieSupportedTAs s1ap.ProtocolIEID = 64
+	)
+
+	out, err := buildS1SetupFailureMissingIEs([]s1ap.ProtocolIEID{ieGlobalENBID, ieSupportedTAs})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	pdu, err := s1ap.Unmarshal(out)
+	if err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	uo, ok := pdu.(*s1ap.UnsuccessfulOutcome)
+	if !ok || uo.ProcedureCode != s1ap.ProcS1Setup {
+		t.Fatalf("outcome is %T, want S1 Setup UnsuccessfulOutcome", pdu)
+	}
+
+	fail, err := s1ap.ParseS1SetupFailure(uo.Value)
+	if err != nil {
+		t.Fatalf("parse failure: %v", err)
+	}
+
+	wantCause := s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolAbstractSyntaxErrorReject}
+	if fail.Cause != wantCause {
+		t.Fatalf("cause = %+v, want abstract-syntax-error-reject", fail.Cause)
+	}
+
+	cd := fail.CriticalityDiagnostics
+	if cd == nil {
+		t.Fatal("failure carries no Criticality Diagnostics")
+	}
+
+	if cd.ProcedureCode == nil || *cd.ProcedureCode != s1ap.ProcS1Setup ||
+		cd.TriggeringMessage == nil || *cd.TriggeringMessage != s1ap.TriggeringInitiatingMessage ||
+		cd.ProcedureCriticality == nil || *cd.ProcedureCriticality != s1ap.CriticalityReject {
+		t.Fatalf("Criticality Diagnostics header mismatch: %+v", cd)
+	}
+
+	want := []s1ap.CriticalityDiagnosticsIEItem{
+		{IECriticality: s1ap.CriticalityReject, IEID: ieGlobalENBID, TypeOfError: s1ap.TypeOfErrorMissing},
+		{IECriticality: s1ap.CriticalityReject, IEID: ieSupportedTAs, TypeOfError: s1ap.TypeOfErrorMissing},
+	}
+	if !slices.Equal(cd.IEsCriticalityDiagnostics, want) {
+		t.Fatalf("reported IEs = %+v, want %+v", cd.IEsCriticalityDiagnostics, want)
 	}
 }
