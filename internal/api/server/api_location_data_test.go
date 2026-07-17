@@ -84,3 +84,56 @@ func TestToLocationData_AGNSS(t *testing.T) {
 		t.Errorf("expected GNSS, got %q", m)
 	}
 }
+
+// TestToLocationData_AltitudeConversion verifies that the internally stored
+// altitude (in centimeters) is rendered on the wire in meters. The 0.01
+// scaling factor is the unit under test; regression would surface as the raw
+// cm value leaking through (e.g. 123.45 m reported as 12345 m).
+func TestToLocationData_AltitudeConversion(t *testing.T) {
+	cases := []struct {
+		name    string
+		altCm   int32
+		want    float64
+		wantSet bool
+	}{
+		{name: "positive", altCm: 12345, want: 123.45, wantSet: true},
+		{name: "below sea level", altCm: -5000, want: -50.0, wantSet: true},
+		{name: "zero is omitted", altCm: 0, wantSet: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &models.LocationResult{
+				Shape:              models.GADEllipsoidalPoint,
+				Latitude:           450000000,
+				Longitude:          214500000,
+				HorizontalAccuracy: 10,
+				Altitude:           tc.altCm,
+			}
+
+			ld := toLocationData(r, false)
+			if ld.LocationEstimate == nil {
+				t.Fatalf("expected non-nil LocationEstimate")
+			}
+
+			if !tc.wantSet {
+				if ld.LocationEstimate.Altitude != nil {
+					t.Errorf("expected no altitude, got %v", *ld.LocationEstimate.Altitude)
+				}
+
+				return
+			}
+
+			if ld.LocationEstimate.Altitude == nil {
+				t.Fatalf("expected non-nil Altitude for %s", tc.name)
+			}
+
+			got := *ld.LocationEstimate.Altitude
+
+			const eps = 1e-9
+			if got < tc.want-eps || got > tc.want+eps {
+				t.Errorf("altitude for %s: got %f m, want %f m", tc.name, got, tc.want)
+			}
+		})
+	}
+}
