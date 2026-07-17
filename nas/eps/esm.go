@@ -26,6 +26,10 @@ const (
 	MsgPDNConnectivityReject                  ESMMessageType = 0xD1
 	MsgPDNDisconnectRequest                   ESMMessageType = 0xD2
 	MsgPDNDisconnectReject                    ESMMessageType = 0xD3
+	MsgBearerResourceAllocationRequest        ESMMessageType = 0xD4
+	MsgBearerResourceAllocationReject         ESMMessageType = 0xD5
+	MsgBearerResourceModificationRequest      ESMMessageType = 0xD6
+	MsgBearerResourceModificationReject       ESMMessageType = 0xD7
 	MsgESMInformationRequest                  ESMMessageType = 0xD9
 	MsgESMInformationResponse                 ESMMessageType = 0xDA
 	MsgESMStatus                              ESMMessageType = 0xE8

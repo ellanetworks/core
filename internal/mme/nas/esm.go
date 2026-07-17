@@ -31,6 +31,10 @@ func handleESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte)
 		return handlePDNConnectivityRequest(ctx, m, ue, plain)
 	case eps.MsgPDNDisconnectRequest:
 		return handlePDNDisconnectRequest(ctx, m, ue, plain)
+	case eps.MsgBearerResourceAllocationRequest:
+		return handleBearerResourceAllocationRequest(ctx, ue, plain)
+	case eps.MsgBearerResourceModificationRequest:
+		return handleBearerResourceModificationRequest(ctx, ue, plain)
 	case eps.MsgActivateDefaultEPSBearerContextAccept:
 		return handleActivateDefaultBearerAccept(m, ue, plain)
 	case eps.MsgActivateDefaultEPSBearerContextReject:
