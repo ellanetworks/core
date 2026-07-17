@@ -108,6 +108,8 @@ const (
 	accuracyFulfilled = "REQUESTED_ACCURACY_FULFILLED"
 )
 
+const meters = 0.01
+
 // toLocationData maps the LMF's internal result onto the spec-shaped response.
 func toLocationData(r *models.LocationResult, verbose bool) *LocationData {
 	if r == nil {
@@ -133,7 +135,7 @@ func toLocationData(r *models.LocationResult, verbose bool) *LocationData {
 	}
 
 	if r.Altitude != 0 {
-		alt := float64(r.Altitude)
+		alt := float64(r.Altitude) * meters
 		area.Altitude = &alt
 	}
 
