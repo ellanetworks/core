@@ -75,9 +75,8 @@ func TestBearerResourceModificationRejected(t *testing.T) {
 	}
 }
 
-// TestBearerResourceModificationInvalidPTI confirms the ESM header is validated
-// before the unconditional refusal: an unassigned PTI draws ESM cause #81
-// (TS 24.301 §7.3), as it does for the other UE-requested ESM procedures.
+// TestBearerResourceModificationInvalidPTI confirms an unassigned PTI draws ESM
+// cause #81 rather than the blanket #31 refusal (TS 24.301 §7.3).
 func TestBearerResourceModificationInvalidPTI(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)

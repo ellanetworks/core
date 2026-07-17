@@ -13,9 +13,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// handleBearerResourceAllocationRequest refuses a UE-requested dedicated-bearer
-// allocation (TS 24.301 §6.5.3): the bearer QoS is network-determined and not
-// modifiable on UE request, so the request is rejected.
+// handleBearerResourceAllocationRequest always rejects: the bearer QoS is
+// network-determined, not UE-modifiable (TS 24.301 §6.5.3).
 func handleBearerResourceAllocationRequest(ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	req, err := eps.ParseBearerResourceAllocationRequest(plain)
 	if err != nil {
@@ -37,9 +36,8 @@ func handleBearerResourceAllocationRequest(ctx context.Context, ue *mme.UeContex
 	return nasreply.Handled()
 }
 
-// handleBearerResourceModificationRequest refuses a UE-requested dedicated-bearer
-// modification (TS 24.301 §6.5.4): the bearer QoS is network-determined and not
-// modifiable on UE request, so the request is rejected.
+// handleBearerResourceModificationRequest always rejects: the bearer QoS is
+// network-determined, not UE-modifiable (TS 24.301 §6.5.4).
 func handleBearerResourceModificationRequest(ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
 	req, err := eps.ParseBearerResourceModificationRequest(plain)
 	if err != nil {
@@ -61,8 +59,6 @@ func handleBearerResourceModificationRequest(ctx context.Context, ue *mme.UeCont
 	return nasreply.Handled()
 }
 
-// rejectBearerResourceAllocation refuses a BEARER RESOURCE ALLOCATION REQUEST with
-// an ESM cause (TS 24.301 §6.5.3.4).
 func rejectBearerResourceAllocation(ctx context.Context, ue *mme.UeContext, pti, cause uint8) {
 	ue.Conn().SendDownlinkProtected(ctx, &eps.BearerResourceAllocationReject{
 		ProcedureTransactionIdentity: pti,
@@ -70,8 +66,6 @@ func rejectBearerResourceAllocation(ctx context.Context, ue *mme.UeContext, pti,
 	})
 }
 
-// rejectBearerResourceModification refuses a BEARER RESOURCE MODIFICATION REQUEST
-// with an ESM cause (TS 24.301 §6.5.4.4).
 func rejectBearerResourceModification(ctx context.Context, ue *mme.UeContext, pti, cause uint8) {
 	ue.Conn().SendDownlinkProtected(ctx, &eps.BearerResourceModificationReject{
 		ProcedureTransactionIdentity: pti,
