@@ -98,12 +98,19 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method
 		return nil, "", fmt.Errorf("create LPP session: %w", err)
 	}
 
+	// TS 23.273 §6.11.1: one AMF-assigned LCS correlation identifier is used for
+	// every message of the positioning session (NOTE 11). Assign it before the
+	// session is registered for uplink routing.
+	if l.amf != nil {
+		session.SetCorrelationID(l.amf.AllocateLCSCorrelationID())
+	}
+
 	// Wire transport functions.
 	// These closures are called from a different goroutine (AMF's UL NAS handler)
 	// and must not use the timeout ctx which may be cancelled when determineAGNSSLocation returns.
 	session.SetTransport(
 		func(lppMsg []byte) error {
-			return l.lppHandler.ForwardLPPToUE(context.Background(), supi.String(), nil, lppMsg)
+			return l.lppHandler.ForwardLPPToUE(context.Background(), supi.String(), session.CorrelationID(), lppMsg)
 		},
 		func(result *models.LocationResult) error {
 			return l.sessionMgr.CompleteSession(context.Background(), session.SessionID(), result)
