@@ -17,7 +17,7 @@ func Encoder(msg *lpptype.LPPMessage) ([]byte, error) {
 
 // encodeLPPMessage is a convenience wrapper that builds and encodes an LPP-Message.
 // Every server message carries a sequenceNumber: a UE that uses the acknowledgement
-// mechanism expects all peer messages to be sequenced (TS 37.355 §6.1).
+// mechanism expects all peer messages to be sequenced (TS 37.355 §4.3.2).
 func encodeLPPMessage(transactionID byte, initiator int64, body *lpptype.LPPMessageBody, endTransaction bool, sequenceNumber byte) ([]byte, error) {
 	seq := int64(sequenceNumber)
 

@@ -8,7 +8,6 @@ package nas
 
 import (
 	"context"
-	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
@@ -288,10 +287,7 @@ func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			correlationID = msg.GetAdditionalInformationValue()
 		}
 
-		logger.From(ctx, logger.AmfLog).Info("UL NAS Transport carries LPP payload",
-			zap.Int("length", len(lppData)),
-			zap.String("lpp_hex", hex.EncodeToString(lppData)),
-			zap.String("additional_information", hex.EncodeToString(correlationID)))
+		logger.From(ctx, logger.AmfLog).Debug("UL NAS Transport carries LPP payload", zap.Int("length", len(lppData)))
 
 		if amfInstance.LPPHandler != nil {
 			if err := amfInstance.LPPHandler.ForwardLPP(ctx, ue.Supi(), correlationID, lppData); err != nil {

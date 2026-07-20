@@ -28,7 +28,7 @@ type DecodedMessage struct {
 	TransactionID  byte
 	Initiator      int64
 	EndTransaction bool
-	SequenceNumber *int64 // nil when absent (TS 37.355 §6.1)
+	SequenceNumber *int64 // nil when absent (TS 37.355 §4.3.2)
 	AckRequested   bool   // the UE asked us to acknowledge this message
 	BodyKind       int    // LPPMessageBodyC1Present*
 	// Typed payloads (only one is non-nil depending on BodyKind):
