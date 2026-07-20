@@ -9,36 +9,6 @@ import (
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 )
 
-// AckInfo carries the fields the acknowledgement procedure acts on.
-type AckInfo struct {
-	AckRequested   bool
-	SequenceNumber byte
-	HasSequence    bool
-}
-
-// ParseAckInfo reads the acknowledgement request and sequence number from an
-// LPP PDU. TS 37.355 §4.3.4: an acknowledgement is owed whenever these can be
-// read.
-func ParseAckInfo(data []byte) (AckInfo, error) {
-	msg, err := Decoder(data)
-	if err != nil {
-		return AckInfo{}, err
-	}
-
-	info := AckInfo{}
-
-	if msg.SequenceNumber != nil {
-		info.SequenceNumber = byte(*msg.SequenceNumber)
-		info.HasSequence = true
-	}
-
-	if msg.Acknowledgement != nil {
-		info.AckRequested = msg.Acknowledgement.AckRequested
-	}
-
-	return info, nil
-}
-
 // BuildAcknowledgement encodes a body-less LPP message acknowledging the message
 // with the given sequence number (TS 37.355 §4.3.3): ackIndicator is set to the
 // acknowledged sequence number, ackRequested is false so the acknowledgement is

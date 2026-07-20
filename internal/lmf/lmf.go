@@ -5,7 +5,6 @@ package lmf
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -52,7 +51,7 @@ type LMF struct {
 	lppSessions map[string]*lpp.Session // sessionID -> LPP session
 	lppMu       sync.RWMutex
 	// ackSeq is the fallback downlink sequence counter for acknowledging a stray
-	// UE reply that no longer has an active session (TS 37.355 §4.3.2).
+	// UE reply that arrives with no active session (TS 37.355 §4.3.2).
 	ackSeq atomic.Uint32
 }
 
@@ -137,11 +136,10 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, correlationI
 		return nil
 	}
 
-	logger.LmfLog.Info("LPP PDU received from UE",
-		zap.String("supi", supi.String()),
-		zap.Int("len", len(lppData)),
-		zap.String("lpp_hex", hex.EncodeToString(lppData)),
-	)
+	decoded, err := lpp.DecodeLPPMessage(lppData)
+	if err != nil {
+		return fmt.Errorf("parse LPP message: %w", err)
+	}
 
 	lmf.lppMu.RLock()
 
@@ -156,29 +154,18 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, correlationI
 
 	lmf.lppMu.RUnlock()
 
-	// TS 37.355 §4.3.3: acknowledge before touching the body — sending the ack is
-	// what stops the UE's retransmission loop (§4.3.4). The ack is owed for any
-	// decodable header regardless of whether the body parses.
-	duplicate := lmf.acknowledgeLPP(ctx, supi, correlationID, lppData, activeSession)
+	// TS 37.355 §4.3.3: acknowledging a UE reply is what stops its retransmission
+	// loop (§4.3.4), so it is owed even for a duplicate whose body is then dropped.
+	duplicate := lmf.acknowledgeLPP(ctx, supi, correlationID, lppData, decoded, activeSession)
 
 	if activeSession == nil {
 		return fmt.Errorf("no active session")
 	}
 
-	// TS 37.355 §4.3.2: a repeated PDU is a retransmission; it is acknowledged
-	// (above) but its body must not be processed again.
+	// TS 37.355 §4.3.2: a repeated PDU is a retransmission — acknowledged, but its
+	// body must not be processed twice.
 	if duplicate {
-		logger.LmfLog.Debug("dropping duplicate LPP PDU from UE",
-			zap.String("supi", supi.String()),
-			zap.String("session_id", activeSession.SessionID()),
-		)
-
 		return nil
-	}
-
-	decoded, err := lpp.DecodeLPPMessage(lppData)
-	if err != nil {
-		return fmt.Errorf("parse LPP message: %w", err)
 	}
 
 	msg, err := decoded.Payload()
@@ -195,20 +182,10 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, correlationI
 	return nil
 }
 
-// acknowledgeLPP sends an LPP Acknowledgement for an inbound PDU whose header
-// requested one (TS 37.355 §4.3.3), and reports whether the PDU is a duplicate.
-// A PDU whose header cannot be read is not acknowledged and is treated as
-// non-duplicate.
-func (lmf *LMF) acknowledgeLPP(ctx context.Context, supi etsi.SUPI, correlationID, lppData []byte, session *lpp.Session) (duplicate bool) {
-	info, err := lpp.ParseAckInfo(lppData)
-	if err != nil {
-		logger.LmfLog.Warn("could not read LPP acknowledgement header",
-			zap.String("supi", supi.String()), zap.Error(err))
-
-		return false
-	}
-
-	if !info.AckRequested || !info.HasSequence {
+// acknowledgeLPP sends an LPP Acknowledgement for a UE reply that requested one
+// (TS 37.355 §4.3.3), and reports whether the reply is a duplicate retransmission.
+func (lmf *LMF) acknowledgeLPP(ctx context.Context, supi etsi.SUPI, correlationID, lppData []byte, decoded *lpp.DecodedMessage, session *lpp.Session) (duplicate bool) {
+	if !decoded.AckRequested || decoded.SequenceNumber == nil {
 		return false
 	}
 
@@ -232,7 +209,7 @@ func (lmf *LMF) acknowledgeLPP(ctx context.Context, supi etsi.SUPI, correlationI
 		ackSeq = byte(lmf.ackSeq.Add(1))
 	}
 
-	ack, err := lpp.BuildAcknowledgement(ackSeq, info.SequenceNumber)
+	ack, err := lpp.BuildAcknowledgement(ackSeq, byte(*decoded.SequenceNumber))
 	if err != nil {
 		logger.LmfLog.Error("failed to build LPP acknowledgement",
 			zap.String("supi", supi.String()), zap.Error(err))
