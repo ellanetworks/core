@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
+	"go.uber.org/zap"
 )
 
 // LocationSource exposes the per-UE location a control-plane NF holds. The AMF
@@ -128,9 +129,9 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, lppData []by
 		return nil
 	}
 
-	msg, err := lpp.ParseLPPMessage(lppData)
+	decoded, err := lpp.DecodeLPPMessage(lppData)
 	if err != nil {
-		return fmt.Errorf("parse LPP message: %w", err)
+		return fmt.Errorf("decode LPP message: %w", err)
 	}
 
 	lmf.lppMu.RLock()
@@ -148,6 +149,20 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, lppData []by
 
 	if activeSession == nil {
 		return fmt.Errorf("no active session")
+	}
+
+	// A UE that sets ackRequested retransmits until it is acknowledged (TS 37.355
+	// §6.1). Acknowledge before handling the body so the UE stops retransmitting
+	// and proceeds with the transaction.
+	if decoded.AckRequested && decoded.SequenceNumber != nil {
+		if err := activeSession.SendAcknowledgement(byte(*decoded.SequenceNumber)); err != nil {
+			logger.LmfLog.Warn("failed to send LPP acknowledgement", zap.Error(err))
+		}
+	}
+
+	msg, err := decoded.Payload()
+	if err != nil {
+		return fmt.Errorf("parse LPP message: %w", err)
 	}
 
 	if err := activeSession.HandleResponse(msg); err != nil {

@@ -28,13 +28,36 @@ type DecodedMessage struct {
 	TransactionID  byte
 	Initiator      int64
 	EndTransaction bool
-	BodyKind       int // LPPMessageBodyC1Present*
+	SequenceNumber *int64 // nil when absent (TS 37.355 §6.1)
+	AckRequested   bool   // the UE asked us to acknowledge this message
+	BodyKind       int    // LPPMessageBodyC1Present*
 	// Typed payloads (only one is non-nil depending on BodyKind):
 	ProvideCapabilities        *models.ProvideLocationCapabilities
 	ProvideLocationInformation *models.ProvideLocationInformation
 	RequestCapabilities        *models.RequestLocationInformation
 	RequestLocationInformation *models.RequestLocationInformation
 	ProvideAssistanceData      *models.ProvideAssistanceData
+}
+
+// Payload returns the typed model for the decoded body, or an error if the body
+// kind is not one the LMF handles.
+func (d *DecodedMessage) Payload() (any, error) {
+	switch d.BodyKind {
+	case lpptype.LPPMessageBodyC1PresentProvideCapabilities:
+		return d.ProvideCapabilities, nil
+	case lpptype.LPPMessageBodyC1PresentProvideLocationInformation:
+		return d.ProvideLocationInformation, nil
+	case lpptype.LPPMessageBodyC1PresentRequestCapabilities:
+		return d.RequestCapabilities, nil
+	case lpptype.LPPMessageBodyC1PresentRequestLocationInformation:
+		return d.RequestLocationInformation, nil
+	case lpptype.LPPMessageBodyC1PresentProvideAssistanceData:
+		return d.ProvideAssistanceData, nil
+	case 0:
+		return nil, fmt.Errorf("LPP message has no body")
+	default:
+		return nil, fmt.Errorf("unsupported LPP message body kind: %d", d.BodyKind)
+	}
 }
 
 // DecodeLPPMessage decodes PER-encoded LPP bytes and returns a DecodedMessage.
@@ -46,6 +69,11 @@ func DecodeLPPMessage(data []byte) (*DecodedMessage, error) {
 
 	out := &DecodedMessage{
 		EndTransaction: msg.EndTransaction,
+		SequenceNumber: msg.SequenceNumber,
+	}
+
+	if msg.Acknowledgement != nil {
+		out.AckRequested = msg.Acknowledgement.AckRequested
 	}
 
 	if msg.TransactionID != nil {
