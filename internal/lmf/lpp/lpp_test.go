@@ -263,7 +263,7 @@ func TestBuildAssistanceData(t *testing.T) {
 }
 
 func TestBuildLocationInformation(t *testing.T) {
-	data, err := BuildLocationInformation(0x03, 48856000, 2352200, 35000, 10, 15)
+	data, err := buildLocationInformation(0x03, 48856000, 2352200, 35000, 10, 15)
 	if err != nil {
 		t.Fatalf("BuildLocationInformation: %v", err)
 	}
@@ -378,4 +378,11 @@ func abs(x int) int {
 	}
 
 	return x
+}
+
+// buildLocationInformation constructs an LPP ProvideLocationInformation message
+// from a GNSS fix result. Latitude/longitude are in 1e-7 degrees, altitude in cm.
+// hAcc and vAcc are horizontal/vertical accuracy in meters.
+func buildLocationInformation(transactionID byte, lat int32, lon int32, alt int32, hAcc, vAcc uint32) ([]byte, error) {
+	return EncodeProvideLocationInformation(transactionID, lat, lon, alt, hAcc, vAcc)
 }
