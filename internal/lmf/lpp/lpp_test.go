@@ -4,6 +4,7 @@
 package lpp
 
 import (
+	"encoding/hex"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
@@ -385,4 +386,17 @@ func abs(x int) int {
 // hAcc and vAcc are horizontal/vertical accuracy in meters.
 func buildLocationInformation(transactionID byte, lat int32, lon int32, alt int32, hAcc, vAcc uint32) ([]byte, error) {
 	return EncodeProvideLocationInformation(transactionID, lat, lon, alt, hAcc, vAcc)
+}
+
+// TS 37.355 §6.1: a UE that sets ackRequested retransmits until acknowledged.
+// The acknowledgement must echo the UE message's sequenceNumber in ackIndicator.
+func TestEncodeAcknowledgement(t *testing.T) {
+	b, err := EncodeAcknowledgement(1, 1)
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+
+	if got := hex.EncodeToString(b); got != "600c02" {
+		t.Errorf("acknowledgement: got %s, want 600c02", got)
+	}
 }

@@ -52,6 +52,7 @@ type Session struct {
 	method         string
 	state          SessionState
 	transactionID  byte
+	sequenceNumber byte
 	capabilities   *models.ProvideLocationCapabilities
 	locationResult *models.GNSSPositionResult
 	log            *zap.Logger
@@ -91,6 +92,30 @@ func (s *Session) NextTransactionID() byte {
 	s.transactionID = (s.transactionID + 1) & 0xFF
 
 	return id
+}
+
+// nextSequenceNumber returns the next downlink LPP sequence number and increments
+// the counter (TS 37.355 §6.1). The caller must hold s.mu.
+func (s *Session) nextSequenceNumber() byte {
+	n := s.sequenceNumber
+	s.sequenceNumber = (s.sequenceNumber + 1) & 0xFF
+
+	return n
+}
+
+// SendAcknowledgement sends a standalone LPP Acknowledgement for a UE message
+// that set ackRequested, so the UE stops retransmitting it and proceeds with the
+// transaction (TS 37.355 §6.1/§6.2). ackIndicator is that message's sequence number.
+func (s *Session) SendAcknowledgement(ackIndicator byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	msg, err := EncodeAcknowledgement(s.nextSequenceNumber(), ackIndicator)
+	if err != nil {
+		return fmt.Errorf("encode acknowledgement: %w", err)
+	}
+
+	return s.send(msg)
 }
 
 // StartSession initializes the session and begins the capability exchange.

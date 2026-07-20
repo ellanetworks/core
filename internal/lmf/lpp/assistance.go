@@ -5,8 +5,6 @@ package lpp
 
 import (
 	"fmt"
-
-	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 )
 
 // BuildAssistanceData constructs a ProvideAssistanceData message.
@@ -34,20 +32,5 @@ func ParseLPPMessage(data []byte) (any, error) {
 		return nil, fmt.Errorf("decode LPP message: %w", err)
 	}
 
-	switch decoded.BodyKind {
-	case lpptype.LPPMessageBodyC1PresentProvideCapabilities:
-		return decoded.ProvideCapabilities, nil
-	case lpptype.LPPMessageBodyC1PresentProvideLocationInformation:
-		return decoded.ProvideLocationInformation, nil
-	case lpptype.LPPMessageBodyC1PresentRequestCapabilities:
-		return decoded.RequestCapabilities, nil
-	case lpptype.LPPMessageBodyC1PresentRequestLocationInformation:
-		return decoded.RequestLocationInformation, nil
-	case lpptype.LPPMessageBodyC1PresentProvideAssistanceData:
-		return decoded.ProvideAssistanceData, nil
-	case 0:
-		return nil, fmt.Errorf("LPP message has no body")
-	default:
-		return nil, fmt.Errorf("unsupported LPP message body kind: %d", decoded.BodyKind)
-	}
+	return decoded.Payload()
 }

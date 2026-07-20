@@ -29,6 +29,26 @@ func encodeLPPMessage(transactionID byte, initiator int64, body *lpptype.LPPMess
 	return Encoder(msg)
 }
 
+// EncodeAcknowledgement encodes a standalone LPP Acknowledgement (TS 37.355
+// §6.1/§6.2): it confirms receipt of the UE message whose sequence number is
+// ackIndicator, so a UE that set ackRequested stops retransmitting it.
+// sequenceNumber is this acknowledgement's own number.
+func EncodeAcknowledgement(sequenceNumber, ackIndicator byte) ([]byte, error) {
+	seq := int64(sequenceNumber)
+	ind := int64(ackIndicator)
+
+	msg := &lpptype.LPPMessage{
+		EndTransaction: false,
+		SequenceNumber: &seq,
+		Acknowledgement: &lpptype.Acknowledgement{
+			AckRequested: false,
+			AckIndicator: &ind,
+		},
+	}
+
+	return Encoder(msg)
+}
+
 // EncodeRequestCapabilities encodes an LPP RequestCapabilities message.
 func EncodeRequestCapabilities(transactionID byte) ([]byte, error) {
 	body := &lpptype.LPPMessageBody{
