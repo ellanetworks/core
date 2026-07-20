@@ -2899,8 +2899,11 @@ func (provideAssistanceDataCriticalExtensionsC1 *ProvideAssistanceDataCriticalEx
 }
 
 func (provideAssistanceDataR9IEs *ProvideAssistanceDataR9IEs) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 	w.WriteBit(provideAssistanceDataR9IEs.CommonIEsProvideAssistanceData != nil)
 	w.WriteBit(provideAssistanceDataR9IEs.AGNSSProvideAssistanceData != nil)
+	w.WriteBit(provideAssistanceDataR9IEs.OTDOAProvideAssistanceData != nil)
+	w.WriteBit(provideAssistanceDataR9IEs.EPDUProvideAssistanceData != nil)
 	if provideAssistanceDataR9IEs.CommonIEsProvideAssistanceData != nil {
 		if err := (*provideAssistanceDataR9IEs.CommonIEsProvideAssistanceData).MarshalPER(w, enc); err != nil {
 			return err
@@ -2911,15 +2914,37 @@ func (provideAssistanceDataR9IEs *ProvideAssistanceDataR9IEs) MarshalPER(w *per.
 			return err
 		}
 	}
+	if provideAssistanceDataR9IEs.OTDOAProvideAssistanceData != nil {
+		if err := (*provideAssistanceDataR9IEs.OTDOAProvideAssistanceData).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if provideAssistanceDataR9IEs.EPDUProvideAssistanceData != nil {
+		if err := (*provideAssistanceDataR9IEs.EPDUProvideAssistanceData).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (provideAssistanceDataR9IEs *ProvideAssistanceDataR9IEs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
 	p_CommonIEsProvideAssistanceData, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
 	p_AGNSSProvideAssistanceData, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_OTDOAProvideAssistanceData, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_EPDUProvideAssistanceData, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -2936,6 +2961,44 @@ func (provideAssistanceDataR9IEs *ProvideAssistanceDataR9IEs) UnmarshalPER(r *pe
 			return err
 		}
 		provideAssistanceDataR9IEs.AGNSSProvideAssistanceData = &v
+	}
+	if p_OTDOAProvideAssistanceData {
+		var v per.Null
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		provideAssistanceDataR9IEs.OTDOAProvideAssistanceData = &v
+	}
+	if p_EPDUProvideAssistanceData {
+		var v per.Null
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		provideAssistanceDataR9IEs.EPDUProvideAssistanceData = &v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -3330,6 +3393,9 @@ func (provideLocationInformationR9IEs *ProvideLocationInformationR9IEs) MarshalP
 	w.WriteBit(false)
 	w.WriteBit(provideLocationInformationR9IEs.CommonIEsProvideLocationInformation != nil)
 	w.WriteBit(provideLocationInformationR9IEs.AGNSSProvideLocationInformation != nil)
+	w.WriteBit(provideLocationInformationR9IEs.OTDOAProvideLocationInformation != nil)
+	w.WriteBit(provideLocationInformationR9IEs.ECIDProvideLocationInformation != nil)
+	w.WriteBit(provideLocationInformationR9IEs.EPDUProvideLocationInformation != nil)
 	if provideLocationInformationR9IEs.CommonIEsProvideLocationInformation != nil {
 		if err := (*provideLocationInformationR9IEs.CommonIEsProvideLocationInformation).MarshalPER(w, enc); err != nil {
 			return err
@@ -3337,6 +3403,21 @@ func (provideLocationInformationR9IEs *ProvideLocationInformationR9IEs) MarshalP
 	}
 	if provideLocationInformationR9IEs.AGNSSProvideLocationInformation != nil {
 		if err := (*provideLocationInformationR9IEs.AGNSSProvideLocationInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if provideLocationInformationR9IEs.OTDOAProvideLocationInformation != nil {
+		if err := (*provideLocationInformationR9IEs.OTDOAProvideLocationInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if provideLocationInformationR9IEs.ECIDProvideLocationInformation != nil {
+		if err := (*provideLocationInformationR9IEs.ECIDProvideLocationInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if provideLocationInformationR9IEs.EPDUProvideLocationInformation != nil {
+		if err := (*provideLocationInformationR9IEs.EPDUProvideLocationInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
@@ -3356,6 +3437,18 @@ func (provideLocationInformationR9IEs *ProvideLocationInformationR9IEs) Unmarsha
 	if err != nil {
 		return err
 	}
+	p_OTDOAProvideLocationInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ECIDProvideLocationInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_EPDUProvideLocationInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
 	if p_CommonIEsProvideLocationInformation {
 		var v CommonIEsProvideLocationInformation
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
@@ -3369,6 +3462,27 @@ func (provideLocationInformationR9IEs *ProvideLocationInformationR9IEs) Unmarsha
 			return err
 		}
 		provideLocationInformationR9IEs.AGNSSProvideLocationInformation = &v
+	}
+	if p_OTDOAProvideLocationInformation {
+		var v per.Null
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		provideLocationInformationR9IEs.OTDOAProvideLocationInformation = &v
+	}
+	if p_ECIDProvideLocationInformation {
+		var v per.Null
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		provideLocationInformationR9IEs.ECIDProvideLocationInformation = &v
+	}
+	if p_EPDUProvideLocationInformation {
+		var v per.Null
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		provideLocationInformationR9IEs.EPDUProvideLocationInformation = &v
 	}
 	if extBit {
 		var extBits []bool
@@ -3630,8 +3744,11 @@ func (requestAssistanceDataCriticalExtensionsC1 *RequestAssistanceDataCriticalEx
 }
 
 func (requestAssistanceDataR9IEs *RequestAssistanceDataR9IEs) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 	w.WriteBit(requestAssistanceDataR9IEs.CommonIEsRequestAssistanceData != nil)
 	w.WriteBit(requestAssistanceDataR9IEs.AGNSSRequestAssistanceData != nil)
+	w.WriteBit(requestAssistanceDataR9IEs.OTDOARequestAssistanceData != nil)
+	w.WriteBit(requestAssistanceDataR9IEs.EPDURequestAssistanceData != nil)
 	if requestAssistanceDataR9IEs.CommonIEsRequestAssistanceData != nil {
 		if err := (*requestAssistanceDataR9IEs.CommonIEsRequestAssistanceData).MarshalPER(w, enc); err != nil {
 			return err
@@ -3642,15 +3759,37 @@ func (requestAssistanceDataR9IEs *RequestAssistanceDataR9IEs) MarshalPER(w *per.
 			return err
 		}
 	}
+	if requestAssistanceDataR9IEs.OTDOARequestAssistanceData != nil {
+		if err := (*requestAssistanceDataR9IEs.OTDOARequestAssistanceData).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if requestAssistanceDataR9IEs.EPDURequestAssistanceData != nil {
+		if err := (*requestAssistanceDataR9IEs.EPDURequestAssistanceData).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (requestAssistanceDataR9IEs *RequestAssistanceDataR9IEs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
 	p_CommonIEsRequestAssistanceData, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
 	p_AGNSSRequestAssistanceData, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_OTDOARequestAssistanceData, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_EPDURequestAssistanceData, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -3667,6 +3806,44 @@ func (requestAssistanceDataR9IEs *RequestAssistanceDataR9IEs) UnmarshalPER(r *pe
 			return err
 		}
 		requestAssistanceDataR9IEs.AGNSSRequestAssistanceData = &v
+	}
+	if p_OTDOARequestAssistanceData {
+		var v per.Null
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		requestAssistanceDataR9IEs.OTDOARequestAssistanceData = &v
+	}
+	if p_EPDURequestAssistanceData {
+		var v per.Null
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		requestAssistanceDataR9IEs.EPDURequestAssistanceData = &v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -4061,6 +4238,9 @@ func (requestLocationInformationR9IEs *RequestLocationInformationR9IEs) MarshalP
 	w.WriteBit(false)
 	w.WriteBit(requestLocationInformationR9IEs.CommonIEsRequestLocationInformation != nil)
 	w.WriteBit(requestLocationInformationR9IEs.AGNSSRequestLocationInformation != nil)
+	w.WriteBit(requestLocationInformationR9IEs.OTDOARequestLocationInformation != nil)
+	w.WriteBit(requestLocationInformationR9IEs.ECIDRequestLocationInformation != nil)
+	w.WriteBit(requestLocationInformationR9IEs.EPDURequestLocationInformation != nil)
 	if requestLocationInformationR9IEs.CommonIEsRequestLocationInformation != nil {
 		if err := (*requestLocationInformationR9IEs.CommonIEsRequestLocationInformation).MarshalPER(w, enc); err != nil {
 			return err
@@ -4068,6 +4248,21 @@ func (requestLocationInformationR9IEs *RequestLocationInformationR9IEs) MarshalP
 	}
 	if requestLocationInformationR9IEs.AGNSSRequestLocationInformation != nil {
 		if err := (*requestLocationInformationR9IEs.AGNSSRequestLocationInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if requestLocationInformationR9IEs.OTDOARequestLocationInformation != nil {
+		if err := (*requestLocationInformationR9IEs.OTDOARequestLocationInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if requestLocationInformationR9IEs.ECIDRequestLocationInformation != nil {
+		if err := (*requestLocationInformationR9IEs.ECIDRequestLocationInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if requestLocationInformationR9IEs.EPDURequestLocationInformation != nil {
+		if err := (*requestLocationInformationR9IEs.EPDURequestLocationInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
@@ -4087,6 +4282,18 @@ func (requestLocationInformationR9IEs *RequestLocationInformationR9IEs) Unmarsha
 	if err != nil {
 		return err
 	}
+	p_OTDOARequestLocationInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ECIDRequestLocationInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_EPDURequestLocationInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
 	if p_CommonIEsRequestLocationInformation {
 		var v CommonIEsRequestLocationInformation
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
@@ -4100,6 +4307,27 @@ func (requestLocationInformationR9IEs *RequestLocationInformationR9IEs) Unmarsha
 			return err
 		}
 		requestLocationInformationR9IEs.AGNSSRequestLocationInformation = &v
+	}
+	if p_OTDOARequestLocationInformation {
+		var v per.Null
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		requestLocationInformationR9IEs.OTDOARequestLocationInformation = &v
+	}
+	if p_ECIDRequestLocationInformation {
+		var v per.Null
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		requestLocationInformationR9IEs.ECIDRequestLocationInformation = &v
+	}
+	if p_EPDURequestLocationInformation {
+		var v per.Null
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		requestLocationInformationR9IEs.EPDURequestLocationInformation = &v
 	}
 	if extBit {
 		var extBits []bool

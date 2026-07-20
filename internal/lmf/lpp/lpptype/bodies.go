@@ -85,9 +85,15 @@ type RequestAssistanceDataCriticalExtensionsC1 struct {
 	Spare1                  *per.Null                   `per:",choice:3,optional"`
 }
 
+// RequestAssistanceData-r9-IEs: extensible SEQUENCE with 4 root optional fields
+// (no ECID). OTDOA/EPDU are unused but must be modelled so the optional-field
+// bitmap has the spec-mandated width (TS 37.355).
 type RequestAssistanceDataR9IEs struct {
-	CommonIEsRequestAssistanceData *per.Null `per:",optional"`
-	AGNSSRequestAssistanceData     *per.Null `per:",optional"`
+	_                              [0]struct{} `per:"extseq"`
+	CommonIEsRequestAssistanceData *per.Null   `per:",optional"`
+	AGNSSRequestAssistanceData     *per.Null   `per:",optional"`
+	OTDOARequestAssistanceData     *per.Null   `per:",optional"`
+	EPDURequestAssistanceData      *per.Null   `per:",optional"`
 }
 
 // =====================================================================
@@ -110,9 +116,15 @@ type ProvideAssistanceDataCriticalExtensionsC1 struct {
 	Spare1                  *per.Null                   `per:",choice:3,optional"`
 }
 
+// ProvideAssistanceData-r9-IEs: extensible SEQUENCE with 4 root optional fields
+// (no ECID). OTDOA/EPDU are unused but must be modelled so the optional-field
+// bitmap has the spec-mandated width (TS 37.355).
 type ProvideAssistanceDataR9IEs struct {
+	_                              [0]struct{}                 `per:"extseq"`
 	CommonIEsProvideAssistanceData *per.Null                   `per:",optional"`
 	AGNSSProvideAssistanceData     *AGNSSProvideAssistanceData `per:",optional"`
+	OTDOAProvideAssistanceData     *per.Null                   `per:",optional"`
+	EPDUProvideAssistanceData      *per.Null                   `per:",optional"`
 }
 
 // =====================================================================
@@ -135,11 +147,16 @@ type RequestLocationInformationCriticalExtensionsC1 struct {
 	Spare1                       *per.Null                        `per:",choice:3,optional"`
 }
 
-// RequestLocationInformation-r9-IEs: extensible SEQUENCE.
+// RequestLocationInformation-r9-IEs: extensible SEQUENCE with 5 root optional
+// fields. OTDOA/ECID/EPDU are unused but must be modelled so the optional-field
+// bitmap has the spec-mandated width (TS 37.355).
 type RequestLocationInformationR9IEs struct {
 	_                                   [0]struct{}                          `per:"extseq"`
 	CommonIEsRequestLocationInformation *CommonIEsRequestLocationInformation `per:",optional"`
 	AGNSSRequestLocationInformation     *AGNSSRequestLocationInformation     `per:",optional"`
+	OTDOARequestLocationInformation     *per.Null                            `per:",optional"`
+	ECIDRequestLocationInformation      *per.Null                            `per:",optional"`
+	EPDURequestLocationInformation      *per.Null                            `per:",optional"`
 }
 
 // =====================================================================
@@ -162,9 +179,14 @@ type ProvideLocationInformationCriticalExtensionsC1 struct {
 	Spare1                       *per.Null                        `per:",choice:3,optional"`
 }
 
-// ProvideLocationInformation-r9-IEs: extensible SEQUENCE.
+// ProvideLocationInformation-r9-IEs: extensible SEQUENCE with 5 root optional
+// fields. OTDOA/ECID/EPDU are unused but must be modelled so the optional-field
+// bitmap has the spec-mandated width (TS 37.355).
 type ProvideLocationInformationR9IEs struct {
 	_                                   [0]struct{}                          `per:"extseq"`
 	CommonIEsProvideLocationInformation *CommonIEsProvideLocationInformation `per:",optional"`
 	AGNSSProvideLocationInformation     *per.Null                            `per:",optional"`
+	OTDOAProvideLocationInformation     *per.Null                            `per:",optional"`
+	ECIDProvideLocationInformation      *per.Null                            `per:",optional"`
+	EPDUProvideLocationInformation      *per.Null                            `per:",optional"`
 }
