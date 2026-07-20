@@ -3,7 +3,21 @@
 
 package eps
 
-import "testing"
+import (
+	"encoding/hex"
+	"testing"
+)
+
+// mustHex decodes a constant hex seed; it panics on a malformed literal since the
+// seeds are compile-time constants.
+func mustHex(s string) []byte {
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		panic(err)
+	}
+
+	return b
+}
 
 // FuzzParseSecurityProtectedNoPanic asserts the security-wrapper parser never
 // panics on arbitrary input.
@@ -22,6 +36,13 @@ func FuzzParseSecurityProtectedNoPanic(f *testing.F) {
 	f.Add([]byte{0x52, 0x01, 0xc1, 0x01, 0x09, 0x00, 0x00, 0x58})
 	f.Add([]byte{0x52, 0x01, 0xc1, 0x01, 0x09, 0x00, 0x00, 0x27, 0xff})
 	f.Add([]byte{0x52, 0x01, 0xc1, 0x01, 0x09, 0x00, 0x00, 0x5e, 0x02, 0x00})
+	// an ATTACH REQUEST carrying a long chain of optional IEs — TV, TLV, type-1
+	// half-octet, and IEs ordered after MS network capability — to drive the
+	// optional-IE walk through every format.
+	f.Add(mustHex("0741310bf600f1100001010000000103f070c000040201d011190102035200f11030395c00083103e5e03491f2d132010038020001"))
+	// same optional chain truncated mid-TLV (N1 UE network capability IEI with no
+	// length octet) to exercise the walk's bounds checks.
+	f.Add(mustHex("0741310bf600f1100001010000000103f070c000040201d0111901020332"))
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		_, _ = ParseSecurityProtectedMessage(data)
