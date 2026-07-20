@@ -13,6 +13,7 @@ func TestHandlePagingFailure_ResetsDownlinkNotification(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 
 	supi := testSUPI()
+
 	const pduSessionID = 1
 
 	smCtx := s.NewSession(supi, pduSessionID, testDNN, testSnssai)
@@ -33,6 +34,7 @@ func TestHandleEPSPagingFailure_ResetsDownlinkNotification(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 
 	supi := testSUPI()
+
 	const ebi = 5
 
 	smCtx := s.NewSession(supi, ebi, testDNN, testSnssai)
