@@ -435,12 +435,12 @@ func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, correlatio
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
-	// TS 24.501 §5.4.5.3.2 case c): the Additional information IE carries an LCS
+	// TS 24.501 §5.4.5.3.1 case c): the Additional information IE carries the LCS
 	// correlation identifier, which the UE hands to its location services
-	// application (§5.4.5.3.3 case c) and echoes back on the uplink
-	// (§5.4.5.2.1 case c). A reply (e.g. an acknowledgement) echoes the identifier
-	// the UE used so it stays on the same LPP session; only a fresh transfer with
-	// no identifier gets a newly assigned 4-octet, AMF-assigned one (NOTE 2).
+	// application and echoes back on the uplink (§5.4.5.2.1 case c). The caller
+	// passes the identifier held for the positioning session so every message
+	// shares it (TS 23.273 §6.11.1 NOTE 11); a transfer with none is assigned a
+	// fresh 4-octet, AMF-assigned identifier (NOTE 2).
 	if len(correlationID) == 0 {
 		correlationID = amf.nextLCSCorrelationID()
 	}
@@ -465,8 +465,16 @@ func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, correlatio
 	return nil
 }
 
+// AllocateLCSCorrelationID assigns the LCS correlation identifier for a
+// positioning session. TS 23.273 §6.11.1: one identifier, assigned by the AMF
+// and passed to the LMF, is used for every downlink and uplink message of the
+// session so responses route to the correct LMF and session (NOTE 11).
+func (amf *AMF) AllocateLCSCorrelationID() []byte {
+	return amf.nextLCSCorrelationID()
+}
+
 // nextLCSCorrelationID returns the next AMF-assigned LCS correlation identifier
-// for an LPP transfer, as a 4-octet value (TS 24.501 §5.4.5.3.2 NOTE 2).
+// for an LPP transfer, as a 4-octet value (TS 24.501 §5.4.5.3.1 NOTE 2).
 func (amf *AMF) nextLCSCorrelationID() []byte {
 	id := make([]byte, 4)
 	binary.BigEndian.PutUint32(id, amf.lcsCorrelationSeq.Add(1))

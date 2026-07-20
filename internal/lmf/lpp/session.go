@@ -54,6 +54,7 @@ type Session struct {
 	state          SessionState
 	transactionID  byte
 	sequenceNumber byte
+	correlationID  []byte
 	lastInbound    []byte
 	capabilities   *models.ProvideLocationCapabilities
 	locationResult *models.GNSSPositionResult
@@ -85,6 +86,16 @@ func (s *Session) SetTransport(transfer func(lppMsg []byte) error, complete func
 	s.failFunc = fail
 	s.cancelFunc = cancel
 	s.deregisterFunc = deregister
+}
+
+// SetCorrelationID sets the session's LCS correlation identifier.
+func (s *Session) SetCorrelationID(id []byte) {
+	s.correlationID = id
+}
+
+// CorrelationID returns the session's LCS correlation identifier.
+func (s *Session) CorrelationID() []byte {
+	return s.correlationID
 }
 
 // NextTransactionID returns the next transaction ID and increments the counter.

@@ -194,8 +194,17 @@ func (lmf *LMF) acknowledgeLPP(ctx context.Context, supi etsi.SUPI, correlationI
 	// tracks its counter; a stray reply uses the LMF fallback counter.
 	var ackSeq byte
 
+	// The ack carries the session's LCS correlation identifier so it routes to the
+	// same session (TS 23.273 §6.11.1). A stray reply with no session echoes the
+	// identifier the UE sent.
+	ackCorrelationID := correlationID
+
 	if session != nil {
 		ackSeq, duplicate = session.AckInbound(lppData)
+
+		if id := session.CorrelationID(); len(id) > 0 {
+			ackCorrelationID = id
+		}
 	} else {
 		ackSeq = byte(lmf.ackSeq.Add(1))
 	}
@@ -208,10 +217,8 @@ func (lmf *LMF) acknowledgeLPP(ctx context.Context, supi etsi.SUPI, correlationI
 		return duplicate
 	}
 
-	// Reply with the identifier the UE used so the ack routes to the same LPP
-	// session on the target (TS 23.273).
 	if lmf.lppHandler != nil {
-		if err := lmf.lppHandler.ForwardLPPToUE(ctx, supi.String(), correlationID, ack); err != nil {
+		if err := lmf.lppHandler.ForwardLPPToUE(ctx, supi.String(), ackCorrelationID, ack); err != nil {
 			logger.LmfLog.Error("failed to send LPP acknowledgement to UE",
 				zap.String("supi", supi.String()), zap.Error(err))
 		}
