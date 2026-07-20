@@ -37,7 +37,7 @@ jobs:
           docker push localhost:5000/ella-core:latest
           docker load -i ellacore_tester_latest-amd64.tar
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: "go.mod"
 
