@@ -167,6 +167,7 @@ type fakeUPF struct {
 	lastEstablish   *models.EstablishRequest
 	modifyCalls     []*models.ModifyRequest
 	deleteCalls     []deletionCall
+	resetDDNCalls   []uint64
 	lastIPv6Reg     *models.IPv6SessionRegistration
 	err             error
 }
@@ -200,6 +201,13 @@ func (f *fakeUPF) DeleteSession(_ context.Context, remoteSEID uint64) error {
 	f.deleteCalls = append(f.deleteCalls, deletionCall{remoteSEID})
 
 	return f.err
+}
+
+func (f *fakeUPF) ResetDownlinkDataNotification(_ context.Context, remoteSEID uint64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.resetDDNCalls = append(f.resetDDNCalls, remoteSEID)
 }
 
 func (f *fakeUPF) FlushUsage(_ context.Context, _ uint64) {}

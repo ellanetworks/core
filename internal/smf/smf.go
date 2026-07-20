@@ -94,6 +94,11 @@ type UPFClient interface {
 	FlushUsage(ctx context.Context, remoteSEID uint64)
 	DeleteSession(ctx context.Context, remoteSEID uint64) error
 
+	// ResetDownlinkDataNotification re-arms downlink-data paging for a session
+	// after paging fails, so the next downlink packet raises a fresh notification
+	// (TS 23.401 §5.3.4.3, TS 23.502 §4.2.3.3).
+	ResetDownlinkDataNotification(ctx context.Context, remoteSEID uint64)
+
 	UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error
 
 	// RegisterIPv6Session tells the UPF's RA responder about a new IPv6
