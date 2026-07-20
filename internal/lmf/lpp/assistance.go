@@ -15,9 +15,9 @@ func BuildAssistanceData(transactionID byte) ([]byte, error) {
 
 // BuildRequestLocationInfo constructs an LPP RequestLocationInformation message
 // requesting a GNSS location estimate.
-func BuildRequestLocationInfo(transactionID byte, method uint8) ([]byte, error) {
+func BuildRequestLocationInfo(transactionID, sequenceNumber byte, method uint8) ([]byte, error) {
 	_ = method // All methods use GNSS for MVP
-	return EncodeRequestLocationInformation(transactionID)
+	return EncodeRequestLocationInformation(transactionID, sequenceNumber)
 }
 
 // ParseLPPMessage decodes an APER-encoded LPP message and returns the

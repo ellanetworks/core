@@ -131,7 +131,7 @@ func (s *Session) StartSession() error {
 
 	s.state = CapabilitiesRequested
 
-	msg, err := BuildRequestCapabilities(s.NextTransactionID())
+	msg, err := BuildRequestCapabilities(s.NextTransactionID(), s.nextSequenceNumber())
 	if err != nil {
 		s.state = SessionFailed
 		return fmt.Errorf("build request capabilities: %w", err)
@@ -181,7 +181,7 @@ func (s *Session) handleCapabilities(capMsg *models.ProvideLocationCapabilities)
 	// For AGNSS-assisted, now request actual location
 	s.state = LocationRequested
 
-	locMsg, err := BuildRequestLocationInfo(s.NextTransactionID(), PosMethodGNSS)
+	locMsg, err := BuildRequestLocationInfo(s.NextTransactionID(), s.nextSequenceNumber(), PosMethodGNSS)
 	if err != nil {
 		s.state = SessionFailed
 		return fmt.Errorf("build request location: %w", err)
