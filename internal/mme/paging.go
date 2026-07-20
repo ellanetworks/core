@@ -110,8 +110,6 @@ func (m *MME) abandonPaging(ue *UeContext) {
 
 	logger.MmeLog.Info("paging unanswered, abandoning procedure", zap.String("imsi", imsi))
 
-	// Notify the anchor so continued downlink data raises a fresh notification and
-	// pages the UE again, rather than staying buffered until the UE re-registers.
 	ctx := context.Background()
 	for _, p := range m.SnapshotPDNs(ue) {
 		if err := m.Session.HandleEPSPagingFailure(ctx, imsi, p.Ebi); err != nil {

@@ -56,9 +56,6 @@ type epsSessionManager interface {
 	// DeactivateEPSSession buffers the downlink bearer when the UE goes ECM-IDLE
 	// so downlink data triggers paging.
 	DeactivateEPSSession(ctx context.Context, imsi string, ebi uint8) error
-	// HandleEPSPagingFailure re-arms downlink-data paging for a PDN connection
-	// after paging is abandoned, so continued downlink data pages the UE again
-	// (TS 23.401 §5.3.4.3).
 	HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8) error
 	// ReleaseEPSSession releases the anchor session identified by its unique ref
 	// (as returned in models.EPSBearer.Ref and stored on the PDN connection), so a

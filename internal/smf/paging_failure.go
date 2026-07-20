@@ -10,9 +10,6 @@ import (
 	"github.com/ellanetworks/core/etsi"
 )
 
-// HandlePagingFailure re-arms downlink-data paging for a 5G PDU session after the
-// AMF abandons paging, so continued downlink data raises a fresh notification and
-// pages the UE again instead of staying buffered (TS 23.502 §4.2.3.3).
 func (s *SMF) HandlePagingFailure(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error {
 	smContext := s.currentSession(supi, pduSessionID)
 	if smContext == nil {
@@ -24,9 +21,6 @@ func (s *SMF) HandlePagingFailure(ctx context.Context, supi etsi.SUPI, pduSessio
 	return nil
 }
 
-// HandleEPSPagingFailure re-arms downlink-data paging for a 4G PDN connection after
-// the MME abandons paging, so continued downlink data pages the UE again instead of
-// staying buffered (TS 23.401 §5.3.4.3).
 func (s *SMF) HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8) error {
 	supi, err := etsi.NewSUPIFromIMSI(imsi)
 	if err != nil {
@@ -43,9 +37,6 @@ func (s *SMF) HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8
 	return nil
 }
 
-// resetDownlinkDataNotification clears the UPF's buffered-data notification state
-// for the session so the next downlink packet raises a fresh Downlink Data
-// Notification. The 3GPP anchor sends this to the user plane on paging failure.
 func (s *SMF) resetDownlinkDataNotification(ctx context.Context, smContext *SMContext) {
 	smContext.Mutex.Lock()
 	pfcp := smContext.PFCPContext

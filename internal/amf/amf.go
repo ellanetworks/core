@@ -60,9 +60,6 @@ type SmfSbi interface {
 	UpdateSmContextHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error
 	ReconcileSmContext(ctx context.Context, req *models.SessionReconcileRequest) error
 	GetSessionPolicy(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (*smf.Policy, error)
-	// HandlePagingFailure re-arms downlink-data paging for a PDU session after
-	// paging is abandoned, so continued downlink data pages the UE again
-	// (TS 23.502 §4.2.3.3).
 	HandlePagingFailure(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error
 }
 
@@ -633,8 +630,8 @@ func (amf *AMF) retransmitPaging(ue *UeContext, ngapBuf []byte, attempt int32) {
 	amf.pageRadios(context.Background(), ue, ngapBuf)
 }
 
-// abandonPaging runs when the retransmission budget is exhausted. The buffered N1N2 message
-// stays and mobile-reachable supervision continues (TS 24.501 §5.4.3).
+// abandonPaging runs when the retransmission budget is exhausted (TS 24.501 §5.4.3).
+// The anchor is notified so later downlink data re-pages the UE (TS 23.502 §4.2.3.3).
 func (amf *AMF) abandonPaging(ue *UeContext) {
 	logger.AmfLog.Info("paging unanswered, abandoning procedure", logger.SUPI(ue.Supi().String()))
 
@@ -643,8 +640,6 @@ func (amf *AMF) abandonPaging(ue *UeContext) {
 		return
 	}
 
-	// Notify the anchor so continued downlink data raises a fresh notification and
-	// pages the UE again, rather than staying buffered until the UE re-registers.
 	if err := amf.Session.HandlePagingFailure(context.Background(), ue.Supi(), msg.PduSessionID); err != nil {
 		logger.AmfLog.Warn("failed to re-arm paging after failure",
 			logger.SUPI(ue.Supi().String()), zap.Error(err))
