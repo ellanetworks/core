@@ -12,7 +12,7 @@ import (
 )
 
 func TestEncodeDecodeRequestCapabilities(t *testing.T) {
-	encoded, err := EncodeRequestCapabilities(0x01)
+	encoded, err := EncodeRequestCapabilities(0x01, 0x00)
 	if err != nil {
 		t.Fatalf("EncodeRequestCapabilities: %v", err)
 	}
@@ -40,7 +40,7 @@ func TestEncodeDecodeRequestCapabilities(t *testing.T) {
 }
 
 func TestEncodeDecodeRequestLocationInformation(t *testing.T) {
-	encoded, err := EncodeRequestLocationInformation(0x02)
+	encoded, err := EncodeRequestLocationInformation(0x02, 0x00)
 	if err != nil {
 		t.Fatalf("EncodeRequestLocationInformation: %v", err)
 	}
@@ -223,7 +223,7 @@ func TestParseLPPMessage(t *testing.T) {
 }
 
 func TestBuildRequestCapabilities(t *testing.T) {
-	data, err := BuildRequestCapabilities(0x01)
+	data, err := BuildRequestCapabilities(0x01, 0x00)
 	if err != nil {
 		t.Fatalf("BuildRequestCapabilities: %v", err)
 	}
@@ -290,7 +290,7 @@ func TestBuildLocationInformation(t *testing.T) {
 // 4. UE encodes ProvideLocationInformation → LMF decodes it
 func TestUERoundTrip(t *testing.T) {
 	// Step 1: LMF → UE: RequestCapabilities
-	lmfReqCaps, err := EncodeRequestCapabilities(0x01)
+	lmfReqCaps, err := EncodeRequestCapabilities(0x01, 0x00)
 	if err != nil {
 		t.Fatalf("step 1 encode: %v", err)
 	}
@@ -328,7 +328,7 @@ func TestUERoundTrip(t *testing.T) {
 	}
 
 	// Step 3: LMF → UE: RequestLocationInformation
-	lmfReqLoc, err := EncodeRequestLocationInformation(0x02)
+	lmfReqLoc, err := EncodeRequestLocationInformation(0x02, 0x00)
 	if err != nil {
 		t.Fatalf("step 3 encode: %v", err)
 	}

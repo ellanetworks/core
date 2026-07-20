@@ -16,13 +16,18 @@ func Encoder(msg *lpptype.LPPMessage) ([]byte, error) {
 }
 
 // encodeLPPMessage is a convenience wrapper that builds and encodes an LPP-Message.
-func encodeLPPMessage(transactionID byte, initiator int64, body *lpptype.LPPMessageBody, endTransaction bool) ([]byte, error) {
+// Every server message carries a sequenceNumber: a UE that uses the acknowledgement
+// mechanism expects all peer messages to be sequenced (TS 37.355 §6.1).
+func encodeLPPMessage(transactionID byte, initiator int64, body *lpptype.LPPMessageBody, endTransaction bool, sequenceNumber byte) ([]byte, error) {
+	seq := int64(sequenceNumber)
+
 	msg := &lpptype.LPPMessage{
 		TransactionID: &lpptype.LPPTransactionID{
 			Initiator:         lpptype.Initiator{Value: initiator},
 			TransactionNumber: int64(transactionID),
 		},
 		EndTransaction: endTransaction,
+		SequenceNumber: &seq,
 		LppMessageBody: body,
 	}
 
@@ -50,7 +55,7 @@ func EncodeAcknowledgement(sequenceNumber, ackIndicator byte) ([]byte, error) {
 }
 
 // EncodeRequestCapabilities encodes an LPP RequestCapabilities message.
-func EncodeRequestCapabilities(transactionID byte) ([]byte, error) {
+func EncodeRequestCapabilities(transactionID, sequenceNumber byte) ([]byte, error) {
 	body := &lpptype.LPPMessageBody{
 		C1: &lpptype.LPPMessageBodyC1{
 			RequestCapabilities: &lpptype.RequestCapabilities{
@@ -69,12 +74,12 @@ func EncodeRequestCapabilities(transactionID byte) ([]byte, error) {
 		},
 	}
 
-	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, body, false)
+	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, body, false, sequenceNumber)
 }
 
 // EncodeRequestLocationInformation encodes an LPP RequestLocationInformation message
 // requesting a GNSS location estimate.
-func EncodeRequestLocationInformation(transactionID byte) ([]byte, error) {
+func EncodeRequestLocationInformation(transactionID, sequenceNumber byte) ([]byte, error) {
 	body := &lpptype.LPPMessageBody{
 		C1: &lpptype.LPPMessageBodyC1{
 			RequestLocationInformation: &lpptype.RequestLocationInformation{
@@ -108,7 +113,7 @@ func EncodeRequestLocationInformation(transactionID byte) ([]byte, error) {
 		},
 	}
 
-	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, body, false)
+	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, body, false, sequenceNumber)
 }
 
 // EncodeProvideCapabilities encodes an LPP ProvideCapabilities message
@@ -144,7 +149,7 @@ func EncodeProvideCapabilities(transactionID byte, gnssIDs []int64) ([]byte, err
 		},
 	}
 
-	return encodeLPPMessage(transactionID, lpptype.InitiatorTargetDevice, body, true)
+	return encodeLPPMessage(transactionID, lpptype.InitiatorTargetDevice, body, true, 0)
 }
 
 // EncodeProvideAssistanceData encodes an LPP ProvideAssistanceData message.
@@ -166,7 +171,7 @@ func EncodeProvideAssistanceData(transactionID byte, assistanceData []byte) ([]b
 		},
 	}
 
-	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, body, true)
+	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, body, true, 0)
 }
 
 // EncodeProvideLocationInformation encodes an LPP ProvideLocationInformation
@@ -211,7 +216,7 @@ func EncodeProvideLocationInformation(transactionID byte, lat int32, lon int32, 
 		},
 	}
 
-	return encodeLPPMessage(transactionID, lpptype.InitiatorTargetDevice, body, true)
+	return encodeLPPMessage(transactionID, lpptype.InitiatorTargetDevice, body, true, 0)
 }
 
 // =====================================================================
