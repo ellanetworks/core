@@ -8,6 +8,7 @@ package nas
 
 import (
 	"context"
+	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
@@ -277,10 +278,23 @@ func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		logger.From(ctx, logger.AmfLog).Warn("PayloadContainerTypeSMS has not been implemented yet in UL NAS TRANSPORT")
 	case nasMessage.PayloadContainerTypeLPP:
 		lppData := msg.GetPayloadContainerContents()
-		logger.From(ctx, logger.AmfLog).Debug("UL NAS Transport carries LPP payload", zap.Int("length", len(lppData)))
+
+		// The UE echoes its LCS correlation identifier in the Additional
+		// information IE (TS 24.501 §5.4.5.2.1); it identifies the LPP session, so
+		// it is forwarded to the LMF to route a reply (e.g. an acknowledgement)
+		// back to the same session.
+		var correlationID []byte
+		if msg.AdditionalInformation != nil {
+			correlationID = msg.GetAdditionalInformationValue()
+		}
+
+		logger.From(ctx, logger.AmfLog).Info("UL NAS Transport carries LPP payload",
+			zap.Int("length", len(lppData)),
+			zap.String("lpp_hex", hex.EncodeToString(lppData)),
+			zap.String("additional_information", hex.EncodeToString(correlationID)))
 
 		if amfInstance.LPPHandler != nil {
-			if err := amfInstance.LPPHandler.ForwardLPP(ctx, ue.Supi(), lppData); err != nil {
+			if err := amfInstance.LPPHandler.ForwardLPP(ctx, ue.Supi(), correlationID, lppData); err != nil {
 				logger.From(ctx, logger.AmfLog).Error("failed to forward LPP to LMF", zap.Error(err))
 			}
 		} else {

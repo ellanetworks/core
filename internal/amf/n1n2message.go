@@ -415,7 +415,7 @@ func (amf *AMF) TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte,
 // payloads are carried in DL NAS Transport with PayloadContainerTypeLPP.
 //
 // pduSessionID must be 0 for LPP messages — LPP is not PDU-session-scoped.
-func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, lppMsg []byte) error {
+func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, correlationID, lppMsg []byte) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"AMF N1 LPP Transfer",
@@ -438,10 +438,12 @@ func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, lppMsg []b
 	// TS 24.501 §5.4.5.3.2 case c): the Additional information IE carries an LCS
 	// correlation identifier, which the UE hands to its location services
 	// application (§5.4.5.3.3 case c) and echoes back on the uplink
-	// (§5.4.5.2.1 case c). NOTE 2 of §5.4.5.3.2 has the AMF assign it for
-	// on-demand transfers, and distinguishes AMF- from LMF-assigned identifiers
-	// by octet count, so this one is 4 octets.
-	correlationID := amf.nextLCSCorrelationID()
+	// (§5.4.5.2.1 case c). A reply (e.g. an acknowledgement) echoes the identifier
+	// the UE used so it stays on the same LPP session; only a fresh transfer with
+	// no identifier gets a newly assigned 4-octet, AMF-assigned one (NOTE 2).
+	if len(correlationID) == 0 {
+		correlationID = amf.nextLCSCorrelationID()
+	}
 
 	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeLPP, lppMsg, 0, nil, correlationID)
 	if err != nil {
