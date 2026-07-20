@@ -4,6 +4,7 @@
 package lpp
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 
@@ -53,6 +54,7 @@ type Session struct {
 	state          SessionState
 	transactionID  byte
 	sequenceNumber byte
+	lastInbound    []byte
 	capabilities   *models.ProvideLocationCapabilities
 	locationResult *models.GNSSPositionResult
 	log            *zap.Logger
@@ -94,28 +96,33 @@ func (s *Session) NextTransactionID() byte {
 	return id
 }
 
-// nextSequenceNumber returns the next downlink LPP sequence number and increments
-// the counter (TS 37.355 §6.1). The caller must hold s.mu.
-func (s *Session) nextSequenceNumber() byte {
+// NextSequenceNumber returns the next downlink LPP sequence number and increments
+// the counter (TS 37.355 §4.3.2). It wraps at 255. The caller must hold s.mu.
+func (s *Session) NextSequenceNumber() byte {
 	n := s.sequenceNumber
-	s.sequenceNumber = (s.sequenceNumber + 1) & 0xFF
+	s.sequenceNumber++
 
 	return n
 }
 
-// SendAcknowledgement sends a standalone LPP Acknowledgement for a UE message
-// that set ackRequested, so the UE stops retransmitting it and proceeds with the
-// transaction (TS 37.355 §6.1/§6.2). ackIndicator is that message's sequence number.
-func (s *Session) SendAcknowledgement(ackIndicator byte) error {
+// AckInbound records an inbound PDU for duplicate detection and reserves the next
+// downlink sequence number for its acknowledgement. duplicate is true when the
+// PDU is byte-identical to the immediately preceding one — a retransmission whose
+// body must not be processed again (TS 37.355 §4.3.2). The acknowledgement is owed
+// even for a duplicate (§4.3.3), so ackSeq is always valid.
+func (s *Session) AckInbound(data []byte) (ackSeq byte, duplicate bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	msg, err := EncodeAcknowledgement(s.nextSequenceNumber(), ackIndicator)
-	if err != nil {
-		return fmt.Errorf("encode acknowledgement: %w", err)
+	duplicate = s.lastInbound != nil && bytes.Equal(s.lastInbound, data)
+	if !duplicate {
+		s.lastInbound = append(s.lastInbound[:0], data...)
 	}
 
-	return s.send(msg)
+	ackSeq = s.sequenceNumber
+	s.sequenceNumber++
+
+	return ackSeq, duplicate
 }
 
 // StartSession initializes the session and begins the capability exchange.
@@ -131,7 +138,7 @@ func (s *Session) StartSession() error {
 
 	s.state = CapabilitiesRequested
 
-	msg, err := BuildRequestCapabilities(s.NextTransactionID(), s.nextSequenceNumber())
+	msg, err := BuildRequestCapabilities(s.NextTransactionID(), s.NextSequenceNumber())
 	if err != nil {
 		s.state = SessionFailed
 		return fmt.Errorf("build request capabilities: %w", err)
@@ -181,7 +188,7 @@ func (s *Session) handleCapabilities(capMsg *models.ProvideLocationCapabilities)
 	// For AGNSS-assisted, now request actual location
 	s.state = LocationRequested
 
-	locMsg, err := BuildRequestLocationInfo(s.NextTransactionID(), s.nextSequenceNumber(), PosMethodGNSS)
+	locMsg, err := BuildRequestLocationInfo(s.NextTransactionID(), s.NextSequenceNumber(), PosMethodGNSS)
 	if err != nil {
 		s.state = SessionFailed
 		return fmt.Errorf("build request location: %w", err)

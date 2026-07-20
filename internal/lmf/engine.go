@@ -103,7 +103,7 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method
 	// and must not use the timeout ctx which may be cancelled when determineAGNSSLocation returns.
 	session.SetTransport(
 		func(lppMsg []byte) error {
-			return l.lppHandler.ForwardLPPToUE(context.Background(), supi.String(), lppMsg)
+			return l.lppHandler.ForwardLPPToUE(context.Background(), supi.String(), nil, lppMsg)
 		},
 		func(result *models.LocationResult) error {
 			return l.sessionMgr.CompleteSession(context.Background(), session.SessionID(), result)

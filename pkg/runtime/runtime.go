@@ -824,17 +824,17 @@ type lmfBridge struct {
 	lmf *lmf.LMF
 }
 
-func (b *lmfBridge) ForwardLPP(ctx context.Context, supi etsi.SUPI, lppData []byte) error {
-	return lmf.ForwardLPPToLMF(b.lmf, ctx, supi, lppData)
+func (b *lmfBridge) ForwardLPP(ctx context.Context, supi etsi.SUPI, correlationID, lppData []byte) error {
+	return lmf.ForwardLPPToLMF(b.lmf, ctx, supi, correlationID, lppData)
 }
 
-func (b *lmfBridge) ForwardLPPToUE(ctx context.Context, supi string, lppData []byte) error {
+func (b *lmfBridge) ForwardLPPToUE(ctx context.Context, supi string, correlationID, lppData []byte) error {
 	supiEtsi, err := etsi.NewSUPIFromPrefixed(supi)
 	if err != nil {
 		return fmt.Errorf("invalid SUPI %q: %w", supi, err)
 	}
 
-	if err := b.amf.TransferN1LPPMsg(ctx, supiEtsi, lppData); err != nil {
+	if err := b.amf.TransferN1LPPMsg(ctx, supiEtsi, correlationID, lppData); err != nil {
 		return fmt.Errorf("transfer LPP to UE: %w", err)
 	}
 

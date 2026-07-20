@@ -388,12 +388,12 @@ func buildLocationInformation(transactionID byte, lat int32, lon int32, alt int3
 	return EncodeProvideLocationInformation(transactionID, lat, lon, alt, hAcc, vAcc)
 }
 
-// TS 37.355 §6.1: a UE that sets ackRequested retransmits until acknowledged.
+// TS 37.355 §4.3.3: a UE that sets ackRequested retransmits until acknowledged.
 // The acknowledgement must echo the UE message's sequenceNumber in ackIndicator.
-func TestEncodeAcknowledgement(t *testing.T) {
-	b, err := EncodeAcknowledgement(1, 1)
+func TestBuildAcknowledgement(t *testing.T) {
+	b, err := BuildAcknowledgement(1, 1)
 	if err != nil {
-		t.Fatalf("encode: %v", err)
+		t.Fatalf("build: %v", err)
 	}
 
 	if got := hex.EncodeToString(b); got != "600c02" {
