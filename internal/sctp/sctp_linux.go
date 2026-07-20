@@ -259,7 +259,7 @@ func (c *SCTPConn) SetReadBuffer(bytes int) error {
 // with the given SCTP options. The listener integrates with Go's runtime
 // poller via os.NewFile, enabling safe concurrent Accept/Close without manual
 // epoll or wakeup pipes.
-func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoInfo *RtoInfo, assocInfo *AssocInfo, control func(network, address string, c syscall.RawConn) error) (*SCTPListener, error) {
+func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoInfo *RtoInfo, assocInfo *AssocInfo, peerAddrParams *PeerAddrParams, control func(network, address string, c syscall.RawConn) error) (*SCTPListener, error) {
 	af, ipv6only := favoriteAddrFamily(network, laddr, nil, "listen")
 
 	sock, err := syscall.Socket(
@@ -303,6 +303,12 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 
 	if assocInfo != nil {
 		if err = setAssocInfo(sock, *assocInfo); err != nil {
+			return nil, err
+		}
+	}
+
+	if peerAddrParams != nil {
+		if err = setPeerAddrParams(sock, *peerAddrParams); err != nil {
 			return nil, err
 		}
 	}

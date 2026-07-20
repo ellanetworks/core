@@ -5,12 +5,43 @@
 package sctp
 
 import (
+	"encoding/binary"
 	"errors"
 	"net"
 	"syscall"
 	"testing"
 	"time"
+	"unsafe"
 )
+
+// Guards the sctp_paddrparams field offsets against kernel drift. Only the
+// interval is checked: the kernel does not echo SPP_HB_ENABLE back on read.
+func TestSetPeerAddrParams_RoundTrip(t *testing.T) {
+	skipIfNoSCTP(t)
+
+	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_SCTP)
+	if err != nil {
+		t.Fatalf("socket: %v", err)
+	}
+
+	defer func() { _ = syscall.Close(fd) }()
+
+	const wantHB = 5000
+	if err := setPeerAddrParams(fd, PeerAddrParams{HBIntervalMs: wantHB}); err != nil {
+		t.Fatalf("setPeerAddrParams: %v", err)
+	}
+
+	buf := make([]byte, 256)
+	optlen := uint32(len(buf))
+
+	if err := getsockopt(fd, SCTPPeerAddrParams, uintptr(unsafe.Pointer(&buf[0])), uintptr(unsafe.Pointer(&optlen))); err != nil {
+		t.Fatalf("getsockopt: %v", err)
+	}
+
+	if got := binary.NativeEndian.Uint32(buf[pppHBIntervalOff:]); got != wantHB {
+		t.Fatalf("heartbeat interval = %d, want %d", got, wantHB)
+	}
+}
 
 // testPPID is an arbitrary SCTP payload protocol identifier used to exercise
 // PPID plumbing; the transport is protocol-agnostic, so it carries no meaning.

@@ -247,6 +247,47 @@ func setAssocInfo(fd int, info AssocInfo) error {
 	return err
 }
 
+const (
+	sppHBEnable  = 1 << 0 // SPP_HB_ENABLE
+	sppHBDisable = 1 << 1 // SPP_HB_DISABLE
+)
+
+// Offsets into struct sctp_paddrparams. Kernels only append fields, so touching
+// only the prefix up to spp_flags keeps a length-preserving rewrite valid.
+const (
+	pppHBIntervalOff = 136
+	pppFlagsOff      = 148
+	pppMinSize       = 152
+)
+
+type PeerAddrParams struct {
+	HBIntervalMs uint32
+}
+
+// setPeerAddrParams sets the socket's default heartbeat interval. It reads the
+// current value back first to preserve the struct size the running kernel
+// expects. spp_hbinterval is ignored unless SPP_HB_ENABLE is set.
+func setPeerAddrParams(fd int, p PeerAddrParams) error {
+	buf := make([]byte, 256)
+	optlen := uint32(len(buf))
+
+	if err := getsockopt(fd, SCTPPeerAddrParams, uintptr(unsafe.Pointer(&buf[0])), uintptr(unsafe.Pointer(&optlen))); err != nil {
+		return err
+	}
+
+	if optlen < pppMinSize {
+		return fmt.Errorf("sctp_paddrparams size %d smaller than expected %d", optlen, pppMinSize)
+	}
+
+	binary.NativeEndian.PutUint32(buf[pppHBIntervalOff:], p.HBIntervalMs)
+
+	flags := binary.NativeEndian.Uint32(buf[pppFlagsOff:])
+	flags = (flags &^ sppHBDisable) | sppHBEnable
+	binary.NativeEndian.PutUint32(buf[pppFlagsOff:], flags)
+
+	return setsockopt(fd, SCTPPeerAddrParams, uintptr(unsafe.Pointer(&buf[0])), uintptr(optlen))
+}
+
 type SCTPAddr struct {
 	IPAddrs []net.IPAddr
 	Port    int
@@ -568,8 +609,11 @@ type SocketConfig struct {
 
 	// AssocInfo (RFC 6458)
 	AssocInfo *AssocInfo
+
+	// PeerAddrParams sets the default per-destination parameters (heartbeat).
+	PeerAddrParams *PeerAddrParams
 }
 
 func (cfg *SocketConfig) Listen(net string, laddr *SCTPAddr) (*SCTPListener, error) {
-	return listenSCTPExtConfig(net, laddr, cfg.InitMsg, cfg.RtoInfo, cfg.AssocInfo, cfg.Control)
+	return listenSCTPExtConfig(net, laddr, cfg.InitMsg, cfg.RtoInfo, cfg.AssocInfo, cfg.PeerAddrParams, cfg.Control)
 }
