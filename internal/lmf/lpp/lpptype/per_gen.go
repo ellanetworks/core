@@ -7098,7 +7098,6 @@ func (measurementReferenceTime *MeasurementReferenceTime) MarshalPER(w *per.Writ
 	w.WriteBit(false)
 	w.WriteBit(measurementReferenceTime.GnssTODFrac != nil)
 	w.WriteBit(measurementReferenceTime.GnssTODUnc != nil)
-	w.WriteBit(measurementReferenceTime.GnssTimeID != nil)
 	w.WriteBit(measurementReferenceTime.NetworkTime != nil)
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 3599999, HasUB: true}, int64(measurementReferenceTime.GnssTODMsec)); err != nil {
 		return err
@@ -7113,10 +7112,8 @@ func (measurementReferenceTime *MeasurementReferenceTime) MarshalPER(w *per.Writ
 			return err
 		}
 	}
-	if measurementReferenceTime.GnssTimeID != nil {
-		if err := (*measurementReferenceTime.GnssTimeID).MarshalPER(w, enc); err != nil {
-			return err
-		}
+	if err := measurementReferenceTime.GnssTimeID.MarshalPER(w, enc); err != nil {
+		return err
 	}
 	if measurementReferenceTime.NetworkTime != nil {
 		if err := (*measurementReferenceTime.NetworkTime).MarshalPER(w, enc); err != nil {
@@ -7136,10 +7133,6 @@ func (measurementReferenceTime *MeasurementReferenceTime) UnmarshalPER(r *per.Re
 		return err
 	}
 	p_GnssTODUnc, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-	p_GnssTimeID, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -7170,12 +7163,8 @@ func (measurementReferenceTime *MeasurementReferenceTime) UnmarshalPER(r *per.Re
 		v = int64(n2)
 		measurementReferenceTime.GnssTODUnc = &v
 	}
-	if p_GnssTimeID {
-		var v GNSSID
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-		measurementReferenceTime.GnssTimeID = &v
+	if err := (&measurementReferenceTime.GnssTimeID).UnmarshalPER(r, enc); err != nil {
+		return err
 	}
 	if p_NetworkTime {
 		var v NetworkTime

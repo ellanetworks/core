@@ -204,16 +204,16 @@ type GNSSLocationInformation struct {
 //	    gnss-TOD-msec   INTEGER (0..3599999),
 //	    gnss-TOD-frac   INTEGER (0..3999) OPTIONAL,
 //	    gnss-TOD-unc   INTEGER (0..127) OPTIONAL,
-//	    gnss-TimeID    GNSS-ID OPTIONAL,
+//	    gnss-TimeID    GNSS-ID,
 //	    networkTime    NetworkTime OPTIONAL,
 //	    ...
 //	}
 type MeasurementReferenceTime struct {
-	_           [0]struct{}  `per:"extseq"`
-	GnssTODMsec int64        `per:",range:0..3599999"`
-	GnssTODFrac *int64       `per:",optional,range:0..3999"`
-	GnssTODUnc  *int64       `per:",optional,range:0..127"`
-	GnssTimeID  *GNSSID      `per:",optional"`
+	_           [0]struct{} `per:"extseq"`
+	GnssTODMsec int64       `per:",range:0..3599999"`
+	GnssTODFrac *int64      `per:",optional,range:0..3999"`
+	GnssTODUnc  *int64      `per:",optional,range:0..127"`
+	GnssTimeID  GNSSID
 	NetworkTime *NetworkTime `per:",optional"`
 }
 
