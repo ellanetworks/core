@@ -23,12 +23,18 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 
 	ue, ok := m.LookupUe(notify.MMEUES1APID)
 	if !ok {
+		sendErrorIndication(m, radio.Conn, &notify.MMEUES1APID, &notify.ENBUES1APID, causeUnknownMMEUES1APID)
+
 		return
 	}
 
 	admitted, releaseEBIs, ok := m.MarkHandoverCommitting(ue, radio.Conn, notify.ENBUES1APID)
 	if !ok {
-		logger.From(ctx, logger.MmeLog).Warn("Handover Notify with no matching prepared handover", zap.Uint32("target-mme-ue-id", uint32(notify.MMEUES1APID)))
+		// A pair that still resolves to the UE's active connection is a stale notify for a
+		// completed handover; an erroneous pair draws an ERROR INDICATION (TS 36.413 §10.6).
+		if _, valid := resolveUE(m, radio.Conn, notify.MMEUES1APID, notify.ENBUES1APID); valid {
+			logger.From(ctx, logger.MmeLog).Warn("Handover Notify with no matching prepared handover", zap.Uint32("target-mme-ue-id", uint32(notify.MMEUES1APID)))
+		}
 
 		return
 	}
