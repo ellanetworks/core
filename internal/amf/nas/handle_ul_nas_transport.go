@@ -52,7 +52,7 @@ func forward5GSMMessageToSMF(
 	if response.N1Msg != nil {
 		logger.From(ctx, logger.AmfLog).Debug("Receive N1 SM Message from SMF")
 
-		n1Msg, err = amf.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, response.N1Msg, pduSessionID, nil)
+		n1Msg, err = amf.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, response.N1Msg, pduSessionID, nil, nil)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("error building DL NAS Transport", zap.Error(err))
 			return
@@ -276,7 +276,26 @@ func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	case nasMessage.PayloadContainerTypeSMS:
 		logger.From(ctx, logger.AmfLog).Warn("PayloadContainerTypeSMS has not been implemented yet in UL NAS TRANSPORT")
 	case nasMessage.PayloadContainerTypeLPP:
-		logger.From(ctx, logger.AmfLog).Warn("PayloadContainerTypeLPP has not been implemented yet in UL NAS TRANSPORT")
+		lppData := msg.GetPayloadContainerContents()
+
+		// The UE echoes its LCS correlation identifier in the Additional
+		// information IE (TS 24.501 §5.4.5.2.1); it identifies the LPP session, so
+		// it is forwarded to the LMF to route a reply (e.g. an acknowledgement)
+		// back to the same session.
+		var correlationID []byte
+		if msg.AdditionalInformation != nil {
+			correlationID = msg.GetAdditionalInformationValue()
+		}
+
+		logger.From(ctx, logger.AmfLog).Debug("UL NAS Transport carries LPP payload", zap.Int("length", len(lppData)))
+
+		if amfInstance.LPPHandler != nil {
+			if err := amfInstance.LPPHandler.ForwardLPP(ctx, ue.Supi(), correlationID, lppData); err != nil {
+				logger.From(ctx, logger.AmfLog).Error("failed to forward LPP to LMF", zap.Error(err))
+			}
+		} else {
+			logger.From(ctx, logger.AmfLog).Error("LPP handler not configured")
+		}
 	case nasMessage.PayloadContainerTypeSOR:
 		logger.From(ctx, logger.AmfLog).Warn("PayloadContainerTypeSOR has not been implemented yet in UL NAS TRANSPORT")
 	case nasMessage.PayloadContainerTypeUEPolicy:

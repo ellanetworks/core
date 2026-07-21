@@ -1,0 +1,36 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+package lpp
+
+import (
+	"fmt"
+)
+
+// BuildAssistanceData constructs a ProvideAssistanceData message.
+// For the MVP, assistance data is a placeholder; real ephemeris is Phase 3+.
+func BuildAssistanceData(transactionID byte) ([]byte, error) {
+	return EncodeProvideAssistanceData(transactionID, nil)
+}
+
+// BuildRequestLocationInfo constructs an LPP RequestLocationInformation message
+// requesting a GNSS location estimate.
+func BuildRequestLocationInfo(transactionID, sequenceNumber byte, method uint8) ([]byte, error) {
+	_ = method // All methods use GNSS for MVP
+	return EncodeRequestLocationInformation(transactionID, sequenceNumber)
+}
+
+// ParseLPPMessage decodes an APER-encoded LPP message and returns the
+// appropriate model struct based on the message body type.
+func ParseLPPMessage(data []byte) (any, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("empty LPP payload")
+	}
+
+	decoded, err := DecodeLPPMessage(data)
+	if err != nil {
+		return nil, fmt.Errorf("decode LPP message: %w", err)
+	}
+
+	return decoded.Payload()
+}
