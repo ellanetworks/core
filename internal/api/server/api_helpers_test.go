@@ -296,6 +296,8 @@ func (f *fakeUPFClient) DeleteSession(ctx context.Context, remoteSEID uint64) er
 
 func (f *fakeUPFClient) FlushUsage(ctx context.Context, remoteSEID uint64) {}
 
+func (f *fakeUPFClient) ResetDownlinkDataNotification(ctx context.Context, remoteSEID uint64) {}
+
 func (f *fakeUPFClient) UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error {
 	return nil
 }

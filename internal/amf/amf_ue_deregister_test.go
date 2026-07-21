@@ -51,6 +51,10 @@ func (s *deregisterTestSmf) DeactivateSmContext(_ context.Context, smContextRef 
 	return nil
 }
 
+func (s *deregisterTestSmf) HandlePagingFailure(_ context.Context, _ etsi.SUPI, _ uint8) error {
+	return nil
+}
+
 func (s *deregisterTestSmf) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	s.releaseCalls = append(s.releaseCalls, smContextRef)
 	if s.onRelease != nil {

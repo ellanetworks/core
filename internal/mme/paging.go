@@ -109,6 +109,14 @@ func (m *MME) abandonPaging(ue *UeContext) {
 	m.mu.RUnlock()
 
 	logger.MmeLog.Info("paging unanswered, abandoning procedure", zap.String("imsi", imsi))
+
+	ctx := context.Background()
+	for _, p := range m.SnapshotPDNs(ue) {
+		if err := m.Session.HandleEPSPagingFailure(ctx, imsi, p.Ebi); err != nil {
+			logger.MmeLog.Warn("failed to re-arm paging after failure",
+				zap.String("imsi", imsi), zap.Uint8("ebi", p.Ebi), zap.Error(err))
+		}
+	}
 }
 
 // buildPaging assembles the Paging message for a UE (TS 36.413). The TAI list is the

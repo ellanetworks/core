@@ -436,6 +436,10 @@ func (s *fakeSmf) DeactivateSmContext(_ context.Context, _ string) error {
 	return s.Error
 }
 
+func (s *fakeSmf) HandlePagingFailure(_ context.Context, _ etsi.SUPI, _ uint8) error {
+	return s.Error
+}
+
 func (s *fakeSmf) UpdateSmContextN2InfoPduResSetupRsp(_ context.Context, _ string, _ []byte) error {
 	return s.Error
 }
