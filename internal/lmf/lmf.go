@@ -53,7 +53,18 @@ type LMF struct {
 	// ackSeq is the fallback downlink sequence counter for acknowledging a stray
 	// UE reply that arrives with no active session (TS 37.355 §4.3.2).
 	ackSeq atomic.Uint32
+	// maxLocationAge bounds how long the AMF's passively-maintained location is
+	// considered valid before the LMF triggers an active refresh via
+	// LocationReportingControl(Direct) (TS 23.273 §6.5.1 step 12).
+	maxLocationAge int32
 }
+
+// defaultMaxLocationAge is the default maximum age (in seconds) for the AMF's
+// passively-maintained location before the LMF triggers an active refresh.
+// TS 23.273 §6.5.1 does not mandate a specific value; 5 minutes balances
+// freshness against signalling load — Cell ID is coarse-grained and the AMF
+// gets location updates on every handover, path switch, and Location Report.
+const defaultMaxLocationAge = 300
 
 // New creates an LMF instance that reads UE location from the AMF (5G) and the
 // MME (4G).
@@ -61,13 +72,14 @@ func New(amfInstance *amf.AMF, mmeInstance *mme.MME, d *db.Database) *LMF {
 	logger.LmfLog.Info("LMF initialized")
 
 	return &LMF{
-		amf:         amfInstance,
-		mme:         mmeInstance,
-		db:          d,
-		sessionMgr:  NewSessionManager(d),
-		nrppaClient: nrppa.New(amfInstance),
-		lppaClient:  lppa.New(mmeInstance),
-		lppSessions: make(map[string]*lpp.Session),
+		amf:            amfInstance,
+		mme:            mmeInstance,
+		db:             d,
+		sessionMgr:     NewSessionManager(d),
+		nrppaClient:    nrppa.New(amfInstance),
+		lppaClient:     lppa.New(mmeInstance),
+		lppSessions:    make(map[string]*lpp.Session),
+		maxLocationAge: defaultMaxLocationAge,
 	}
 }
 

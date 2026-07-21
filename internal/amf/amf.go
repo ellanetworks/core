@@ -715,3 +715,46 @@ func (amf *AMF) IsUERegistered(supi etsi.SUPI) bool {
 
 	return ue.State() == Registered
 }
+
+// RefreshLocation triggers an active location refresh by sending a
+// LocationReportingControl(Direct) NGAP message to the RAN for the given UE
+// (TS 23.273 §6.5.1 "Otherwise" branch — invoke NG-RAN Location Reporting
+// procedure). Returns nil when the UE and its connection exist and the
+// message is sent; returns an error when the UE is not found or has no
+// active RAN connection.
+func (amf *AMF) RefreshLocation(ctx context.Context, supi etsi.SUPI) error {
+	ue, ok := amf.LookupUeBySupi(supi)
+	if !ok {
+		return fmt.Errorf("UE not found")
+	}
+
+	ueConn := ue.Conn()
+	if ueConn == nil {
+		return fmt.Errorf("UE has no active RAN connection")
+	}
+
+	eventType := ngapType.EventType{
+		Value: ngapType.EventTypePresentDirect,
+	}
+
+	pkt, err := send.BuildLocationReportingControl(
+		int64(ueConn.AmfUeNgapID),
+		int64(ueConn.RanUeNgapID),
+		eventType,
+	)
+	if err != nil {
+		return fmt.Errorf("build LocationReportingControl: %w", err)
+	}
+
+	ueConn.SendNGAP(ctx, send.NGAPProcedureLocationReportingControl, pkt)
+
+	ueConn.TouchLastSeen()
+
+	logger.AmfLog.Info("location refresh triggered via LocationReportingControl(Direct)",
+		logger.SUPI(supi.String()),
+		zap.Int64("amfUeNgapID", int64(ueConn.AmfUeNgapID)),
+		zap.Int64("ranUeNgapID", int64(ueConn.RanUeNgapID)),
+	)
+
+	return nil
+}

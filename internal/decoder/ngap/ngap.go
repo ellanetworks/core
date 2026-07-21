@@ -163,6 +163,10 @@ func buildInitiatingMessage(initMsg ngapType.InitiatingMessage) NGAPMessageValue
 		return buildUplinkNonUEAssociatedNRPPaTransport(*initMsg.Value.UplinkNonUEAssociatedNRPPaTransport)
 	case ngapType.InitiatingMessagePresentErrorIndication:
 		return buildErrorIndication(*initMsg.Value.ErrorIndication)
+	case ngapType.InitiatingMessagePresentLocationReport:
+		return buildLocationReport(*initMsg.Value.LocationReport)
+	case ngapType.InitiatingMessagePresentLocationReportingControl:
+		return buildLocationReportingControl(*initMsg.Value.LocationReportingControl)
 	default:
 		return NGAPMessageValue{
 			Error: fmt.Sprintf("Unsupported message %d", initMsg.Value.Present),
