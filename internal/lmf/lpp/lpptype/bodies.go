@@ -27,12 +27,12 @@ type RequestCapabilitiesCriticalExtensionsC1 struct {
 
 // RequestCapabilities-r9-IEs: extensible SEQUENCE with 5 root optional fields.
 type RequestCapabilitiesR9IEs struct {
-	_                            [0]struct{}               `per:"extseq"`
-	CommonIEsRequestCapabilities *per.Null                 `per:",optional"`
-	AGNSSRequestCapabilities     *AGNSSRequestCapabilities `per:",optional"`
-	OTDOARequestCapabilities     *per.Null                 `per:",optional"`
-	ECIDRequestCapabilities      *per.Null                 `per:",optional"`
-	EPDURequestCapabilities      *per.Null                 `per:",optional"`
+	_                            [0]struct{}                   `per:"extseq"`
+	CommonIEsRequestCapabilities *CommonIEsRequestCapabilities `per:",optional"`
+	AGNSSRequestCapabilities     *AGNSSRequestCapabilities     `per:",optional"`
+	OTDOARequestCapabilities     *OTDOARequestCapabilities     `per:",optional"`
+	ECIDRequestCapabilities      *ECIDRequestCapabilities      `per:",optional"`
+	EPDURequestCapabilities      *EPDUSequence                 `per:",optional"`
 }
 
 // =====================================================================
@@ -57,12 +57,12 @@ type ProvideCapabilitiesCriticalExtensionsC1 struct {
 
 // ProvideCapabilities-r9-IEs: extensible SEQUENCE with 5 root optional fields.
 type ProvideCapabilitiesR9IEs struct {
-	_                            [0]struct{}               `per:"extseq"`
-	CommonIEsProvideCapabilities *per.Null                 `per:",optional"`
-	AGNSSProvideCapabilities     *AGNSSProvideCapabilities `per:",optional"`
-	OTDOAProvideCapabilities     *per.Null                 `per:",optional"`
-	ECIDProvideCapabilities      *per.Null                 `per:",optional"`
-	EPDUProvideCapabilities      *per.Null                 `per:",optional"`
+	_                            [0]struct{}                   `per:"extseq"`
+	CommonIEsProvideCapabilities *CommonIEsProvideCapabilities `per:",optional"`
+	AGNSSProvideCapabilities     *AGNSSProvideCapabilities     `per:",optional"`
+	OTDOAProvideCapabilities     *OTDOAProvideCapabilities     `per:",optional"`
+	ECIDProvideCapabilities      *ECIDProvideCapabilities      `per:",optional"`
+	EPDUProvideCapabilities      *EPDUSequence                 `per:",optional"`
 }
 
 // =====================================================================
@@ -85,9 +85,14 @@ type RequestAssistanceDataCriticalExtensionsC1 struct {
 	Spare1                  *per.Null                   `per:",choice:3,optional"`
 }
 
+// RequestAssistanceData-r9-IEs: extensible SEQUENCE.
+// TS 37.355 §6.3 line 1147-1156.
 type RequestAssistanceDataR9IEs struct {
-	CommonIEsRequestAssistanceData *per.Null `per:",optional"`
-	AGNSSRequestAssistanceData     *per.Null `per:",optional"`
+	_                              [0]struct{}                     `per:"extseq"`
+	CommonIEsRequestAssistanceData *CommonIEsRequestAssistanceData `per:",optional"`
+	AGNSSRequestAssistanceData     *AGNSSRequestAssistanceData     `per:",optional"`
+	OTDOARequestAssistanceData     *OTDOARequestAssistanceData     `per:",optional"`
+	EPDURequestAssistanceData      *EPDUSequence                   `per:",optional"`
 }
 
 // =====================================================================
@@ -110,9 +115,14 @@ type ProvideAssistanceDataCriticalExtensionsC1 struct {
 	Spare1                  *per.Null                   `per:",choice:3,optional"`
 }
 
+// ProvideAssistanceData-r9-IEs: extensible SEQUENCE.
+// TS 37.355 §6.3 line 2693-2707.
 type ProvideAssistanceDataR9IEs struct {
-	CommonIEsProvideAssistanceData *per.Null                   `per:",optional"`
-	AGNSSProvideAssistanceData     *AGNSSProvideAssistanceData `per:",optional"`
+	_                              [0]struct{}                     `per:"extseq"`
+	CommonIEsProvideAssistanceData *CommonIEsProvideAssistanceData `per:",optional"`
+	AGNSSProvideAssistanceData     *AGNSSProvideAssistanceData     `per:",optional"`
+	OTDOAProvideAssistanceData     *OTDOAProvideAssistanceData     `per:",optional"`
+	EPDUProvideAssistanceData      *EPDUSequence                   `per:",optional"`
 }
 
 // =====================================================================
@@ -135,11 +145,15 @@ type RequestLocationInformationCriticalExtensionsC1 struct {
 	Spare1                       *per.Null                        `per:",choice:3,optional"`
 }
 
-// RequestLocationInformation-r9-IEs: extensible SEQUENCE.
+// RequestLocationInformation-r9-IEs: extensible SEQUENCE with 5 root optional fields.
+// TS 37.355 §6.3 line 2781-2793.
 type RequestLocationInformationR9IEs struct {
 	_                                   [0]struct{}                          `per:"extseq"`
 	CommonIEsRequestLocationInformation *CommonIEsRequestLocationInformation `per:",optional"`
 	AGNSSRequestLocationInformation     *AGNSSRequestLocationInformation     `per:",optional"`
+	OTDOARequestLocationInformation     *OTDOARequestLocationInformation     `per:",optional"`
+	ECIDRequestLocationInformation      *ECIDRequestLocationInformation      `per:",optional"`
+	EPDURequestLocationInformation      *EPDUSequence                        `per:",optional"`
 }
 
 // =====================================================================
@@ -163,8 +177,12 @@ type ProvideLocationInformationCriticalExtensionsC1 struct {
 }
 
 // ProvideLocationInformation-r9-IEs: extensible SEQUENCE.
+// TS 37.355 §6.3 line 2935-2943.
 type ProvideLocationInformationR9IEs struct {
 	_                                   [0]struct{}                          `per:"extseq"`
 	CommonIEsProvideLocationInformation *CommonIEsProvideLocationInformation `per:",optional"`
-	AGNSSProvideLocationInformation     *per.Null                            `per:",optional"`
+	AGNSSProvideLocationInformation     *AGNSSProvideLocationInformation     `per:",optional"`
+	OTDOAProvideLocationInformation     *OTDOAProvideLocationInformation     `per:",optional"`
+	ECIDProvideLocationInformation      *ECIDProvideLocationInformation      `per:",optional"`
+	EPDUProvideLocationInformation      *EPDUSequence                        `per:",optional"`
 }
