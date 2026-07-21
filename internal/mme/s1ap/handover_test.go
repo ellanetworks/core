@@ -849,6 +849,133 @@ func TestHandoverPartialAdmissionPromotesDefault(t *testing.T) {
 	}
 }
 
+func handoverNotify(targetMME s1ap.MMEUES1APID, targetENB s1ap.ENBUES1APID) *s1ap.HandoverNotify {
+	return &s1ap.HandoverNotify{
+		MMEUES1APID: targetMME,
+		ENBUES1APID: targetENB,
+		EUTRANCGI:   s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1},
+		TAI:         s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
+	}
+}
+
+// TestHandoverNotifyUnknownMMEUES1APIDSendsErrorIndication checks that a HANDOVER
+// NOTIFY carrying an MME-UE-S1AP-ID the MME never allocated draws an ERROR
+// INDICATION with the received AP IDs and cause unknown-mme-ue-s1ap-id, and leaves
+// the in-flight handover intact (TS 36.413 §10.6).
+func TestHandoverNotifyUnknownMMEUES1APIDSendsErrorIndication(t *testing.T) {
+	m := newTestMME(t)
+	ue, source, target := handoverUE(t, m)
+
+	_, targetENB := driveToPrepared(t, m, ue, source, target)
+
+	const unknownMME s1ap.MMEUES1APID = 0xFFFF00
+	if _, ok := m.LookupUe(unknownMME); ok {
+		t.Fatalf("test precondition: MME-UE-S1AP-ID %d must be unallocated", unknownMME)
+	}
+
+	before := target.count()
+
+	handleHandoverNotify(m, context.Background(), mme.NewRadioForTest(target), initiatingValue(t, mustMarshal(t, handoverNotify(unknownMME, targetENB).Marshal)))
+
+	if target.count() != before+1 {
+		t.Fatalf("expected one Error Indication to the target, got %d PDU(s)", target.count()-before)
+	}
+
+	ind := parseOutboundErrorIndication(t, target.sent[before])
+
+	if ind.MMEUES1APID == nil || *ind.MMEUES1APID != unknownMME {
+		t.Fatalf("Error Indication MME-UE-S1AP-ID = %v, want %d", ind.MMEUES1APID, unknownMME)
+	}
+
+	if ind.ENBUES1APID == nil || *ind.ENBUES1APID != targetENB {
+		t.Fatalf("Error Indication eNB-UE-S1AP-ID = %v, want %d", ind.ENBUES1APID, targetENB)
+	}
+
+	if ind.Cause == nil || *ind.Cause != causeUnknownMMEUES1APID {
+		t.Fatalf("Error Indication cause = %v, want unknown-mme-ue-s1ap-id", ind.Cause)
+	}
+
+	if !ue.HasHandoverForTest() {
+		t.Fatal("in-flight handover torn down by a Handover Notify with an unknown MME-UE-S1AP-ID")
+	}
+}
+
+// TestHandoverNotifyInconsistentENBUES1APIDSendsErrorIndication checks that a
+// HANDOVER NOTIFY carrying the prepared target MME-UE-S1AP-ID but an eNB-UE-S1AP-ID
+// that matches no prepared handover draws an ERROR INDICATION carrying the received
+// AP IDs, and does not commit the handover (TS 36.413 §10.6).
+func TestHandoverNotifyInconsistentENBUES1APIDSendsErrorIndication(t *testing.T) {
+	m := newTestMME(t)
+	ue, source, target := handoverUE(t, m)
+
+	targetMME, targetENB := driveToPrepared(t, m, ue, source, target)
+
+	const wrongENB s1ap.ENBUES1APID = 77
+	if wrongENB == targetENB {
+		t.Fatal("test precondition: wrongENB must differ from the prepared target eNB-UE-S1AP-ID")
+	}
+
+	before := target.count()
+
+	handleHandoverNotify(m, context.Background(), mme.NewRadioForTest(target), initiatingValue(t, mustMarshal(t, handoverNotify(targetMME, wrongENB).Marshal)))
+
+	if target.count() != before+1 {
+		t.Fatalf("expected one Error Indication to the target, got %d PDU(s)", target.count()-before)
+	}
+
+	ind := parseOutboundErrorIndication(t, target.sent[before])
+
+	if ind.MMEUES1APID == nil || *ind.MMEUES1APID != targetMME {
+		t.Fatalf("Error Indication MME-UE-S1AP-ID = %v, want %d", ind.MMEUES1APID, targetMME)
+	}
+
+	if ind.ENBUES1APID == nil || *ind.ENBUES1APID != wrongENB {
+		t.Fatalf("Error Indication eNB-UE-S1AP-ID = %v, want %d", ind.ENBUES1APID, wrongENB)
+	}
+
+	if ind.Cause == nil || ind.Cause.Group != s1ap.CauseGroupRadioNetwork {
+		t.Fatalf("Error Indication cause = %v, want a radio-network cause", ind.Cause)
+	}
+
+	if fsm := m.Session.(*fakeSessionManager); fsm.modifiedENB != (models.FTEID{}) {
+		t.Fatalf("user plane switched for an inconsistent Handover Notify: %+v", fsm.modifiedENB)
+	}
+
+	if !ue.HasHandoverForTest() {
+		t.Fatal("in-flight handover committed by a Handover Notify with an inconsistent eNB-UE-S1AP-ID")
+	}
+}
+
+// TestHandoverNotifyStaleDuplicateAfterCompletion checks that a HANDOVER NOTIFY
+// retransmitted after the handover has completed — its AP IDs now identify the UE's
+// active connection — is not answered with an ERROR INDICATION and does not release
+// the live UE (TS 36.413 §10.6).
+func TestHandoverNotifyStaleDuplicateAfterCompletion(t *testing.T) {
+	m := newTestMME(t)
+	ue, source, target := handoverUE(t, m)
+
+	targetMME, targetENB := driveToPrepared(t, m, ue, source, target)
+
+	notify := initiatingValue(t, mustMarshal(t, handoverNotify(targetMME, targetENB).Marshal))
+	handleHandoverNotify(m, context.Background(), mme.NewRadioForTest(target), notify)
+
+	if ue.Conn() == nil || ue.Conn().MMEUES1APID != targetMME || ue.Conn().ENBUES1APID != targetENB {
+		t.Fatal("handover did not complete onto the target")
+	}
+
+	before := target.count()
+
+	handleHandoverNotify(m, context.Background(), mme.NewRadioForTest(target), notify)
+
+	if target.count() != before {
+		t.Fatalf("stale Handover Notify drew %d response PDU(s); expected none", target.count()-before)
+	}
+
+	if ue.Conn() == nil || ue.Conn().MMEUES1APID != targetMME || ue.Conn().ENBUES1APID != targetENB {
+		t.Fatal("live UE torn down by a stale Handover Notify")
+	}
+}
+
 // TestHandoverTargetConnLossAborts checks that losing the target eNB association
 // mid-handover aborts the handover and removes the target connection by its own
 // id, leaving the UE on its source.

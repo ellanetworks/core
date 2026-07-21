@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
@@ -97,6 +98,12 @@ type NASHandler interface {
 	HandleServiceRequest(ctx context.Context, ue *UeConn, nasPdu []byte)
 }
 
+// LPPHandler is called by the AMF when an UL NAS Transport carries an LPP payload.
+// The AMF looks up the UE by SUPI and forwards the LPP data to the handler (LMF).
+type LPPHandler interface {
+	ForwardLPP(ctx context.Context, supi etsi.SUPI, correlationID, lppData []byte) error
+}
+
 // Concurrency model — a registry lock, a per-UE lock, and atomics:
 //
 //   - AMF.mu guards the registry and connection lifecycle: the UEs/uesByTmsi maps,
@@ -125,6 +132,10 @@ type AMF struct {
 	tmsi    *etsi.TmsiAllocator
 	connIDs *idgenerator.IDGenerator
 
+	// lcsCorrelationSeq issues the LCS correlation identifiers the AMF assigns
+	// to LPP transfers (TS 24.501 §5.4.5.3.2 case c, NOTE 2).
+	lcsCorrelationSeq atomic.Uint32
+
 	DBInstance               DBer
 	Ausf                     Authenticator
 	UEs                      map[etsi.SUPI]*UeContext
@@ -147,6 +158,7 @@ type AMF struct {
 	handoverGuardTimeout time.Duration
 	Session              SmfSbi
 	NAS                  NASHandler
+	LPPHandler           LPPHandler
 }
 
 func (a *AMF) HandoverGuardTimeout() time.Duration {

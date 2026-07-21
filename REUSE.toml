@@ -97,3 +97,10 @@ path = ["**/testdata/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "Ella Networks Inc."
 SPDX-License-Identifier = "Apache-2.0"
+
+# pergen generated code, not hand-edited
+[[annotations]]
+path = ["internal/lmf/lpp/lpptype/per_gen.go"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Ella Networks Inc."
+SPDX-License-Identifier = "BUSL-1.1"

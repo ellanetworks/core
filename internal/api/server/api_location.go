@@ -95,7 +95,7 @@ func GetSubscriberLocation(lmfInstance *lmf.LMF) http.Handler {
 
 		if req.Method != "" {
 			switch lmf.PositioningMethod(req.Method) {
-			case lmf.MethodCellID, lmf.MethodECID:
+			case lmf.MethodCellID, lmf.MethodECID, lmf.MethodAGNSSAssisted, lmf.MethodAGNSSBased:
 			default:
 				writeError(r.Context(), w, http.StatusBadRequest,
 					fmt.Sprintf("unsupported method: %s", req.Method), nil, logger.APILog)
@@ -199,9 +199,28 @@ func GetSubscriberLocation(lmfInstance *lmf.LMF) http.Handler {
 			writeResponse(r.Context(), w, toLocationData(result, verbose), http.StatusOK, logger.APILog)
 
 			return
+
+		case lmf.MethodAGNSSAssisted, lmf.MethodAGNSSBased:
+			// A-GNSS creates its own LPP session via DetermineLocation.
+			// The LPP state machine completes the session when done.
+			result, sessionID, err := lmfInstance.DetermineLocation(r.Context(), supi, method)
+			if err != nil {
+				logger.LmfLog.Warn("Positioning procedure failed",
+					zap.String("session_id", sessionID),
+					zap.String("method", string(method)),
+					zap.Error(err),
+				)
+				writeLocationError(r.Context(), w, err)
+
+				return
+			}
+
+			writeResponse(r.Context(), w, toLocationData(result, verbose), http.StatusOK, logger.APILog)
+
+			return
 		}
 
-		// For deferred requests (periodic/triggered) with non-ECID methods,
+		// For deferred requests (periodic/triggered) with non-ECID/A-GNSS methods,
 		// just create the session and return the ID.
 		sessionID, err := lmfInstance.SessionManager().CreateSession(r.Context(), lmf.CreateSessionParams{
 			SUPI:              req.SUPI,

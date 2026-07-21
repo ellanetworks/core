@@ -97,14 +97,18 @@ const (
 	posMethodCellID = "CELLID"
 	posMethodECID   = "ECID"
 	posMethodNRECID = "NR_ECID"
+	posMethodGNSS   = "GNSS"
 
 	posModeUEAssisted = "UE_ASSISTED"
+	posModeUEBased    = "UE_BASED"
 	posModeConvention = "CONVENTIONAL"
 	usageSuccessUsed  = "SUCCESS_RESULTS_USED"
 	gadShapePoint     = "POINT"
 	gadShapeCircle    = "POINT_UNCERTAINTY_CIRCLE"
 	accuracyFulfilled = "REQUESTED_ACCURACY_FULFILLED"
 )
+
+const meters = 0.01
 
 // toLocationData maps the LMF's internal result onto the spec-shaped response.
 func toLocationData(r *models.LocationResult, verbose bool) *LocationData {
@@ -131,7 +135,7 @@ func toLocationData(r *models.LocationResult, verbose bool) *LocationData {
 	}
 
 	if r.Altitude != 0 {
-		alt := float64(r.Altitude)
+		alt := float64(r.Altitude) * meters
 		area.Altitude = &alt
 	}
 
@@ -196,6 +200,8 @@ func methodAndMode(r *models.LocationResult) (method, mode string) {
 		}
 
 		return posMethodECID, posModeUEAssisted
+	case models.GADEllipsoidalPoint:
+		return posMethodGNSS, posModeUEBased
 	default:
 		return posMethodCellID, posModeConvention
 	}

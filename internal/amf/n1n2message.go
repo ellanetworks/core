@@ -10,6 +10,8 @@ package amf
 
 import (
 	"context"
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -22,6 +24,7 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 // ErrUENotReachable is returned when the UE is in CM-IDLE state and the
@@ -50,7 +53,7 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 		return amf.storeN1N2AndPage(ctx, ue, req)
 	}
 
-	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, req.BinaryDataN1Message, req.PduSessionID, nil)
+	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, req.BinaryDataN1Message, req.PduSessionID, nil, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
@@ -198,7 +201,7 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 		return fmt.Errorf("temporary reject: PDU session modification during handover")
 	}
 
-	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
+	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
@@ -264,7 +267,7 @@ func (amf *AMF) ReleaseSessionMessage(ctx context.Context, supi etsi.SUPI, pduSe
 		return ErrUENotReachable
 	}
 
-	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
+	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
@@ -392,7 +395,7 @@ func (amf *AMF) TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte,
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
-	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
+	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
@@ -405,4 +408,76 @@ func (amf *AMF) TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte,
 	logger.From(ctx, logger.AmfLog).Info("sent downlink nas transport to UE", logger.SUPI(supi.String()))
 
 	return nil
+}
+
+// TransferN1LPPMsg wraps an LPP payload in a DL NAS Transport message and
+// sends it to the UE via the RAN. Per TS 24.501 §5.4.5.3.1 case c), LPP
+// payloads are carried in DL NAS Transport with PayloadContainerTypeLPP.
+//
+// pduSessionID must be 0 for LPP messages — LPP is not PDU-session-scoped.
+func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, correlationID, lppMsg []byte) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"AMF N1 LPP Transfer",
+		trace.WithAttributes(
+			attribute.String("supi", supi.String()),
+		),
+	)
+	defer span.End()
+
+	ue, ok := amf.LookupUeBySupi(supi)
+	if !ok {
+		return fmt.Errorf("ue context not found")
+	}
+
+	ueConn := ue.Conn()
+	if ueConn == nil {
+		return fmt.Errorf("ue is not connected to RAN")
+	}
+
+	// TS 24.501 §5.4.5.3.1 case c): the Additional information IE carries the LCS
+	// correlation identifier, which the UE hands to its location services
+	// application and echoes back on the uplink (§5.4.5.2.1 case c). The caller
+	// passes the identifier held for the positioning session so every message
+	// shares it (TS 23.273 §6.11.1 NOTE 11); a transfer with none is assigned a
+	// fresh 4-octet, AMF-assigned identifier (NOTE 2).
+	if len(correlationID) == 0 {
+		correlationID = amf.nextLCSCorrelationID()
+	}
+
+	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeLPP, lppMsg, 0, nil, correlationID)
+	if err != nil {
+		return fmt.Errorf("build DL NAS Transport (LPP) error: %v", err)
+	}
+
+	if err := ueConn.SendDownlinkNASTransport(ctx, nasPdu); err != nil {
+		return fmt.Errorf("send downlink nas transport (LPP): %w", err)
+	}
+
+	logger.From(ctx, logger.AmfLog).Info("sent DL NAS Transport (LPP) to UE",
+		logger.SUPI(supi.String()),
+		zap.Uint8("payload_container_type", nasMessage.PayloadContainerTypeLPP),
+		zap.Int("lpp_len", len(lppMsg)),
+		zap.String("lpp_hex", hex.EncodeToString(lppMsg)),
+		zap.String("lcs_correlation_id", hex.EncodeToString(correlationID)),
+	)
+
+	return nil
+}
+
+// AllocateLCSCorrelationID assigns the LCS correlation identifier for a
+// positioning session. TS 23.273 §6.11.1: one identifier, assigned by the AMF
+// and passed to the LMF, is used for every downlink and uplink message of the
+// session so responses route to the correct LMF and session (NOTE 11).
+func (amf *AMF) AllocateLCSCorrelationID() []byte {
+	return amf.nextLCSCorrelationID()
+}
+
+// nextLCSCorrelationID returns the next AMF-assigned LCS correlation identifier
+// for an LPP transfer, as a 4-octet value (TS 24.501 §5.4.5.3.1 NOTE 2).
+func (amf *AMF) nextLCSCorrelationID() []byte {
+	id := make([]byte, 4)
+	binary.BigEndian.PutUint32(id, amf.lcsCorrelationSeq.Add(1))
+
+	return id
 }
