@@ -15,10 +15,7 @@ import (
 func TestMarshalEstablishmentAcceptGolden(t *testing.T) {
 	sd := [3]byte{0x01, 0x02, 0x03}
 
-	var pco PCO
-
-	pco.AddDNSServerIPv4Address(net.IPv4(8, 8, 8, 8))
-	pco.AddIPv4LinkMTU(1400)
+	pco := BuildProtocolConfigurationOptions([][]byte{net.IPv4(8, 8, 8, 8).To4()}, 1400)
 
 	m := &PDUSessionEstablishmentAccept{
 		PDUSessionID:        5,
@@ -30,7 +27,7 @@ func TestMarshalEstablishmentAcceptGolden(t *testing.T) {
 		PDUAddress:          &PDUAddress{SessionType: PDUSessionTypeIPv4, IPv4: [4]byte{10, 0, 0, 1}},
 		SNSSAI:              &SNSSAI{SST: 1, SD: &sd},
 		QoSFlowDescriptions: MarshalCreateQoSFlow(1, 9),
-		ExtendedPCO:         pco.Marshal(),
+		ExtendedPCO:         pco,
 		DNN:                 "internet",
 	}
 
@@ -62,12 +59,8 @@ func TestQoSAndPCOEncoders(t *testing.T) {
 		t.Errorf("QoS flow (modify) = %s", got)
 	}
 
-	var pco PCO
-
-	pco.AddDNSServerIPv4Address(net.IPv4(8, 8, 8, 8))
-	pco.AddIPv4LinkMTU(1400)
-
-	if got := hex.EncodeToString(pco.Marshal()); got != "80000d04080808080010020578" {
+	pco := BuildProtocolConfigurationOptions([][]byte{net.IPv4(8, 8, 8, 8).To4()}, 1400)
+	if got := hex.EncodeToString(pco); got != "80000d04080808080010020578" {
 		t.Errorf("PCO = %s", got)
 	}
 }
@@ -76,9 +69,7 @@ func TestEstablishmentAcceptRoundTrip(t *testing.T) {
 	sd := [3]byte{0x0A, 0x0B, 0x0C}
 	apsi := uint8(1)
 
-	var pco PCO
-
-	pco.AddDNSServerIPv4Address(net.IPv4(1, 1, 1, 1))
+	pco := BuildProtocolConfigurationOptions([][]byte{net.IPv4(1, 1, 1, 1).To4()}, 0)
 
 	orig := &PDUSessionEstablishmentAccept{
 		PDUSessionID:        7,
@@ -87,12 +78,12 @@ func TestEstablishmentAcceptRoundTrip(t *testing.T) {
 		SSCMode:             1,
 		QoSRules:            MarshalQoSRules([]QoSRule{DefaultQoSRule(1, 5)}),
 		SessionAMBR:         SessionAMBR{DownlinkUnit: SessionAMBRUnit1Gbps, Downlink: 2, UplinkUnit: SessionAMBRUnit1Mbps, Uplink: 500},
-		Cause:               Cause5GSMPDUSessionTypeIPv4OnlyAllowed,
+		Cause:               GSMCausePDUSessionTypeIPv4OnlyAllowed,
 		PDUAddress:          &PDUAddress{SessionType: PDUSessionTypeIPv4IPv6, IPv4: [4]byte{10, 0, 0, 9}, IPv6IID: [8]byte{1, 2, 3, 4, 5, 6, 7, 8}},
 		SNSSAI:              &SNSSAI{SST: 2, SD: &sd},
 		AlwaysOn:            &apsi,
 		QoSFlowDescriptions: MarshalCreateQoSFlow(5, 9),
-		ExtendedPCO:         pco.Marshal(),
+		ExtendedPCO:         pco,
 		DNN:                 "ella.internet",
 	}
 

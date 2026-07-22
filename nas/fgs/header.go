@@ -37,8 +37,8 @@ func (s SecurityHeaderType) ciphered() bool {
 	return s == SHTIntegrityProtectedCiphered || s == SHTIntegrityProtectedCipheredNewContext
 }
 
-// ErrNot5GMM reports an extended protocol discriminator other than 5GMM.
-var ErrNot5GMM = errors.New("nas/fgs: not a 5GMM message")
+// ErrNotGMM reports an extended protocol discriminator other than 5GMM.
+var ErrNotGMM = errors.New("nas/fgs: not a 5GMM message")
 
 // ErrNotProtected reports a security-header type of 0 (plain message) where a
 // security-protected message was expected.
@@ -82,7 +82,7 @@ func ParseSecurityProtectedMessage(b []byte) (*SecurityProtectedMessage, error) 
 	}
 
 	if epd != EPD5GMM {
-		return nil, fmt.Errorf("%w (EPD %#x)", ErrNot5GMM, epd)
+		return nil, fmt.Errorf("%w (EPD %#x)", ErrNotGMM, epd)
 	}
 
 	octet1, err := r.U8()

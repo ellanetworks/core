@@ -28,7 +28,7 @@ type SecurityModeCommand struct {
 func (m *SecurityModeCommand) Marshal() ([]byte, error) {
 	var w common.Writer
 
-	writeMMHeader(&w, MsgSecurityModeCommand)
+	writeGMMHeader(&w, MsgSecurityModeCommand)
 	w.U8((m.CipheringAlgorithm&0x0F)<<4 | (m.IntegrityAlgorithm & 0x0F))
 	w.U8(m.NgKSI & 0x0F) // spare half octet in bits 5-8
 

@@ -17,7 +17,7 @@ type PDUSessionModificationReject struct {
 func (m *PDUSessionModificationReject) Marshal() ([]byte, error) {
 	var w common.Writer
 
-	writeSMHeader(&w, m.PDUSessionID, m.PTI, MsgPDUSessionModificationReject)
+	writeGSMHeader(&w, m.PDUSessionID, m.PTI, MsgPDUSessionModificationReject)
 	w.U8(m.Cause)
 
 	return w.Bytes(), nil
@@ -38,7 +38,7 @@ type PDUSessionModificationCommand struct {
 func (m *PDUSessionModificationCommand) Marshal() ([]byte, error) {
 	var w common.Writer
 
-	writeSMHeader(&w, m.PDUSessionID, m.PTI, MsgPDUSessionModificationCommand)
+	writeGSMHeader(&w, m.PDUSessionID, m.PTI, MsgPDUSessionModificationCommand)
 
 	if m.SessionAMBR != nil {
 		writeTLV(&w, ieiSessionAMBR, m.SessionAMBR.marshalValue())
@@ -59,7 +59,7 @@ func (m *PDUSessionModificationCommand) Marshal() ([]byte, error) {
 func ParsePDUSessionModificationCommand(b []byte) (*PDUSessionModificationCommand, error) {
 	r := common.NewReader(b)
 
-	psi, pti, err := readSMHeader(r, MsgPDUSessionModificationCommand)
+	psi, pti, err := readGSMHeader(r, MsgPDUSessionModificationCommand)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +102,7 @@ type PDUSessionModificationComplete struct {
 func ParsePDUSessionModificationComplete(b []byte) (*PDUSessionModificationComplete, error) {
 	r := common.NewReader(b)
 
-	psi, pti, err := readSMHeader(r, MsgPDUSessionModificationComplete)
+	psi, pti, err := readGSMHeader(r, MsgPDUSessionModificationComplete)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ type PDUSessionModificationCommandReject struct {
 func ParsePDUSessionModificationCommandReject(b []byte) (*PDUSessionModificationCommandReject, error) {
 	r := common.NewReader(b)
 
-	psi, pti, err := readSMHeader(r, MsgPDUSessionModificationCmdReject)
+	psi, pti, err := readGSMHeader(r, MsgPDUSessionModificationCmdReject)
 	if err != nil {
 		return nil, err
 	}

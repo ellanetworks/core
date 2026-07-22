@@ -147,8 +147,8 @@ func TestBuildGSMPDUSessionEstablishmentAccept_Cause(t *testing.T) {
 		t.Errorf("expected no cause, got %d", none.Cause)
 	}
 
-	v4 := buildAccept(t, &models.Snssai{Sst: 1}, &smfNas.ProtocolConfigurationOptions{}, nil, fgs.Cause5GSMPDUSessionTypeIPv4OnlyAllowed, addrs, nil)
-	if v4.Cause != fgs.Cause5GSMPDUSessionTypeIPv4OnlyAllowed {
-		t.Errorf("cause = %d, want %d", v4.Cause, fgs.Cause5GSMPDUSessionTypeIPv4OnlyAllowed)
+	v4 := buildAccept(t, &models.Snssai{Sst: 1}, &smfNas.ProtocolConfigurationOptions{}, nil, fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed, addrs, nil)
+	if v4.Cause != fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed {
+		t.Errorf("cause = %d, want %d", v4.Cause, fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed)
 	}
 }

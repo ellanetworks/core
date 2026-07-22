@@ -81,15 +81,15 @@ func pduSessionTypeRejectCause(requested uint8, policy *Policy) uint8 {
 	switch requested {
 	case fgs.PDUSessionTypeIPv6:
 		if hasIPv4 && !hasIPv6 {
-			return fgs.Cause5GSMPDUSessionTypeIPv4OnlyAllowed
+			return fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed
 		}
 	case fgs.PDUSessionTypeIPv4:
 		if !hasIPv4 && hasIPv6 {
-			return fgs.Cause5GSMPDUSessionTypeIPv6OnlyAllowed
+			return fgs.GSMCausePDUSessionTypeIPv6OnlyAllowed
 		}
 	}
 
-	return fgs.Cause5GSMUnknownPDUSessionType
+	return fgs.GSMCauseUnknownPDUSessionType
 }
 
 type pduTypeNarrowing uint8

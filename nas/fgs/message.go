@@ -36,7 +36,7 @@ const (
 	MsgSecurityModeCommand         MessageType = 0x5D
 	MsgSecurityModeComplete        MessageType = 0x5E
 	MsgSecurityModeReject          MessageType = 0x5F
-	Msg5GMMStatus                  MessageType = 0x64
+	MsgGMMStatus                   MessageType = 0x64
 	MsgNotificationResponse        MessageType = 0x66
 	MsgULNASTransport              MessageType = 0x67
 	MsgDLNASTransport              MessageType = 0x68
@@ -68,7 +68,7 @@ func PeekMessageType(b []byte) (MessageType, error) {
 	}
 
 	if epd != EPD5GMM {
-		return 0, fmt.Errorf("%w (EPD %#x)", ErrNot5GMM, epd)
+		return 0, fmt.Errorf("%w (EPD %#x)", ErrNotGMM, epd)
 	}
 
 	octet1, err := r.U8()
@@ -88,23 +88,23 @@ func PeekMessageType(b []byte) (MessageType, error) {
 	return MessageType(mt), nil
 }
 
-// writeMMHeader emits the 3-octet plain 5GMM header: extended protocol
+// writeGMMHeader emits the 3-octet plain 5GMM header: extended protocol
 // discriminator, security-header-type-and-spare (plain), message type
 // (TS 24.501 §9.1.1).
-func writeMMHeader(w *common.Writer, mt MessageType) {
+func writeGMMHeader(w *common.Writer, mt MessageType) {
 	w.U8(EPD5GMM)
 	w.U8(uint8(SHTPlain))
 	w.U8(uint8(mt))
 }
 
-func readMMHeader(r *common.Reader, want MessageType) error {
+func readGMMHeader(r *common.Reader, want MessageType) error {
 	epd, err := r.U8()
 	if err != nil {
 		return err
 	}
 
 	if epd != EPD5GMM {
-		return fmt.Errorf("%w (EPD %#x)", ErrNot5GMM, epd)
+		return fmt.Errorf("%w (EPD %#x)", ErrNotGMM, epd)
 	}
 
 	octet1, err := r.U8()

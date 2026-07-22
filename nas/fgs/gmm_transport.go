@@ -20,7 +20,7 @@ type DLNASTransport struct {
 func (m *DLNASTransport) Marshal() ([]byte, error) {
 	var w common.Writer
 
-	writeMMHeader(&w, MsgDLNASTransport)
+	writeGMMHeader(&w, MsgDLNASTransport)
 	w.U8(m.PayloadContainerType & 0x0F) // spare half octet in bits 5-8
 
 	if err := w.LVE(m.PayloadContainer); err != nil {

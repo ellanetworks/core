@@ -564,5 +564,5 @@ func (s *SMF) staticReservationChanged(ctx context.Context, imsi, dnn string, ip
 // (TS 23.502, TS 24.501) with cause #39 "reactivation requested" so the UE
 // re-establishes on the correct slice. Caller must hold smContext.Mutex.
 func (s *SMF) sendSessionRelease(ctx context.Context, smContext *SMContext) error {
-	return s.startRelease(ctx, smContext, 0, fgs.Cause5GSMReactivationRequested)
+	return s.startRelease(ctx, smContext, 0, fgs.GSMCauseReactivationRequested)
 }

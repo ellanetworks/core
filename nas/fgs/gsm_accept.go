@@ -29,7 +29,7 @@ type PDUSessionEstablishmentAccept struct {
 func (m *PDUSessionEstablishmentAccept) Marshal() ([]byte, error) {
 	var w common.Writer
 
-	writeSMHeader(&w, m.PDUSessionID, m.PTI, MsgPDUSessionEstablishmentAccept)
+	writeGSMHeader(&w, m.PDUSessionID, m.PTI, MsgPDUSessionEstablishmentAccept)
 
 	// Selected SSC mode (bits 5-7) and selected PDU session type (bits 1-3).
 	w.U8((m.SSCMode&0x07)<<4 | (m.PDUSessionType & 0x07))
@@ -79,7 +79,7 @@ func (m *PDUSessionEstablishmentAccept) Marshal() ([]byte, error) {
 func ParsePDUSessionEstablishmentAccept(b []byte) (*PDUSessionEstablishmentAccept, error) {
 	r := common.NewReader(b)
 
-	psi, pti, err := readSMHeader(r, MsgPDUSessionEstablishmentAccept)
+	psi, pti, err := readGSMHeader(r, MsgPDUSessionEstablishmentAccept)
 	if err != nil {
 		return nil, err
 	}

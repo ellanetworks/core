@@ -4,9 +4,11 @@
 package amf
 
 import (
+	"fmt"
+
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/nas/fgs"
+	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/free5gc/nas/nasType"
 )
 
@@ -178,7 +180,20 @@ func (ue *UeContext) DecryptUplinkContents(contents []byte) error {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return fgs.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.ulCount.LastAccepted().Value(), fgs.Bearer3GPP, fgs.DirectionUplink, contents)
+	switch ue.cipheringAlg {
+	case algCiphering128NEA0, algCiphering128NEA1, algCiphering128NEA2:
+	default:
+		return fmt.Errorf("unsupported NAS ciphering algorithm %#x", ue.cipheringAlg)
+	}
+
+	out, err := CipherAlg(ue.cipheringAlg).Apply(ue.knasEnc, ue.ulCount.LastAccepted().Value(), nasBearer3GPP, nascommon.DirectionUplink, contents)
+	if err != nil {
+		return err
+	}
+
+	copy(contents, out)
+
+	return nil
 }
 
 // SmContextSnapshot returns a locked shallow copy of the UE's PDU session SM

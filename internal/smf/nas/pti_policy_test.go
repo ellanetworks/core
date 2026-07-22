@@ -16,7 +16,7 @@ func TestPolicePTI(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		msgType     fgs.SMMessageType
+		msgType     fgs.GSMMessageType
 		pti         uint8
 		ptiInUse    func(uint8) bool
 		wantVerdict smfNas.PTIVerdict
@@ -42,7 +42,7 @@ func TestPolicePTI(t *testing.T) {
 			pti:         0x00,
 			ptiInUse:    never,
 			wantVerdict: smfNas.PTIRespondStatus,
-			wantCause:   fgs.Cause5GSMInvalidPTIValue,
+			wantCause:   fgs.GSMCauseInvalidPTIValue,
 		},
 		{
 			name:        "modification request with unassigned PTI (§7.3.1 c)",
@@ -50,7 +50,7 @@ func TestPolicePTI(t *testing.T) {
 			pti:         0x00,
 			ptiInUse:    never,
 			wantVerdict: smfNas.PTIRespondStatus,
-			wantCause:   fgs.Cause5GSMInvalidPTIValue,
+			wantCause:   fgs.GSMCauseInvalidPTIValue,
 		},
 		{
 			name:        "release request with unassigned PTI (§7.3.1 c)",
@@ -58,7 +58,7 @@ func TestPolicePTI(t *testing.T) {
 			pti:         0x00,
 			ptiInUse:    never,
 			wantVerdict: smfNas.PTIRespondStatus,
-			wantCause:   fgs.Cause5GSMInvalidPTIValue,
+			wantCause:   fgs.GSMCauseInvalidPTIValue,
 		},
 		{
 			name:        "establishment request with assigned PTI is processed",
@@ -73,7 +73,7 @@ func TestPolicePTI(t *testing.T) {
 			pti:         0x05,
 			ptiInUse:    never,
 			wantVerdict: smfNas.PTIRespondStatus,
-			wantCause:   fgs.Cause5GSMPTIMismatch,
+			wantCause:   fgs.GSMCausePTIMismatch,
 		},
 		{
 			name:        "modification complete with PTI not in use (§7.3.1 a)",
@@ -81,7 +81,7 @@ func TestPolicePTI(t *testing.T) {
 			pti:         0x00,
 			ptiInUse:    never,
 			wantVerdict: smfNas.PTIRespondStatus,
-			wantCause:   fgs.Cause5GSMPTIMismatch,
+			wantCause:   fgs.GSMCausePTIMismatch,
 		},
 		{
 			name:        "modification command reject with PTI not in use (§7.3.1 a)",
@@ -89,7 +89,7 @@ func TestPolicePTI(t *testing.T) {
 			pti:         0x07,
 			ptiInUse:    never,
 			wantVerdict: smfNas.PTIRespondStatus,
-			wantCause:   fgs.Cause5GSMPTIMismatch,
+			wantCause:   fgs.GSMCausePTIMismatch,
 		},
 		{
 			name:        "modification complete with PTI in use is processed (§7.3.1 a)",
@@ -104,7 +104,7 @@ func TestPolicePTI(t *testing.T) {
 			pti:         0x03,
 			ptiInUse:    never,
 			wantVerdict: smfNas.PTIRespondStatus,
-			wantCause:   fgs.Cause5GSMInvalidPTIValue,
+			wantCause:   fgs.GSMCauseInvalidPTIValue,
 		},
 	}
 

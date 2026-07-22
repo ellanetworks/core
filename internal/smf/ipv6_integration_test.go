@@ -219,8 +219,8 @@ func TestCreateSmContext_IPv6Only_AllocationFailure(t *testing.T) {
 		t.Fatal("expected reject N1 message")
 	}
 
-	if got := rejectCauseCode(t, rejectN1); got != fgs.Cause5GSMInsufficientResources {
-		t.Fatalf("expected cause %d (InsufficientResources), got %d", fgs.Cause5GSMInsufficientResources, got)
+	if got := rejectCauseCode(t, rejectN1); got != fgs.GSMCauseInsufficientResources {
+		t.Fatalf("expected cause %d (InsufficientResources), got %d", fgs.GSMCauseInsufficientResources, got)
 	}
 }
 
@@ -430,8 +430,8 @@ func TestCreateSmContext_DualStack_IPv6AllocationFails_RollsBackIPv4(t *testing.
 		t.Fatal("expected reject N1 message")
 	}
 
-	if got := rejectCauseCode(t, rejectN1); got != fgs.Cause5GSMInsufficientResources {
-		t.Fatalf("expected cause %d (InsufficientResources), got %d", fgs.Cause5GSMInsufficientResources, got)
+	if got := rejectCauseCode(t, rejectN1); got != fgs.GSMCauseInsufficientResources {
+		t.Fatalf("expected cause %d (InsufficientResources), got %d", fgs.GSMCauseInsufficientResources, got)
 	}
 
 	store.mu.Lock()
@@ -460,8 +460,8 @@ func TestCreateSmContext_DualStack_IPv4AllocationFails(t *testing.T) {
 		t.Fatal("expected reject N1 message")
 	}
 
-	if got := rejectCauseCode(t, rejectN1); got != fgs.Cause5GSMInsufficientResources {
-		t.Fatalf("expected cause %d (InsufficientResources), got %d", fgs.Cause5GSMInsufficientResources, got)
+	if got := rejectCauseCode(t, rejectN1); got != fgs.GSMCauseInsufficientResources {
+		t.Fatalf("expected cause %d (InsufficientResources), got %d", fgs.GSMCauseInsufficientResources, got)
 	}
 
 	// IPv6 should NOT have been allocated (IPv4 fails first).

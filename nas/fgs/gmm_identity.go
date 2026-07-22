@@ -15,7 +15,7 @@ type IdentityRequest struct {
 func (m *IdentityRequest) Marshal() ([]byte, error) {
 	var w common.Writer
 
-	writeMMHeader(&w, MsgIdentityRequest)
+	writeGMMHeader(&w, MsgIdentityRequest)
 	w.U8(m.IdentityType & 0x07) // spare half octet in bits 5-8, bit 4 spare
 
 	return w.Bytes(), nil
@@ -31,7 +31,7 @@ type IdentityResponse struct {
 func ParseIdentityResponse(b []byte) (*IdentityResponse, error) {
 	r := common.NewReader(b)
 
-	if err := readMMHeader(r, MsgIdentityResponse); err != nil {
+	if err := readGMMHeader(r, MsgIdentityResponse); err != nil {
 		return nil, err
 	}
 

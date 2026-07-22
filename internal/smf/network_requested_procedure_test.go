@@ -20,7 +20,7 @@ func buildPDUSessionModificationComplete(pduSessionID, pti uint8) []byte {
 }
 
 func buildPDUSessionModificationCommandReject(pduSessionID, pti uint8) []byte {
-	return []byte{fgs.EPD5GSM, pduSessionID, pti, uint8(fgs.MsgPDUSessionModificationCmdReject), fgs.Cause5GSMRequestRejectedUnspecified}
+	return []byte{fgs.EPD5GSM, pduSessionID, pti, uint8(fgs.MsgPDUSessionModificationCmdReject), fgs.GSMCauseRequestRejectedUnspecified}
 }
 
 func waitFor(t *testing.T, what string, cond func() bool) {

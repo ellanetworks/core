@@ -19,7 +19,7 @@ type PDUSessionReleaseCommand struct {
 func (m *PDUSessionReleaseCommand) Marshal() ([]byte, error) {
 	var w common.Writer
 
-	writeSMHeader(&w, m.PDUSessionID, m.PTI, MsgPDUSessionReleaseCommand)
+	writeGSMHeader(&w, m.PDUSessionID, m.PTI, MsgPDUSessionReleaseCommand)
 	w.U8(m.Cause)
 
 	return w.Bytes(), nil
@@ -37,7 +37,7 @@ type PDUSessionReleaseRequest struct {
 func ParsePDUSessionReleaseRequest(b []byte) (*PDUSessionReleaseRequest, error) {
 	r := common.NewReader(b)
 
-	psi, pti, err := readSMHeader(r, MsgPDUSessionReleaseRequest)
+	psi, pti, err := readGSMHeader(r, MsgPDUSessionReleaseRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ type PDUSessionReleaseComplete struct {
 func ParsePDUSessionReleaseComplete(b []byte) (*PDUSessionReleaseComplete, error) {
 	r := common.NewReader(b)
 
-	psi, pti, err := readSMHeader(r, MsgPDUSessionReleaseComplete)
+	psi, pti, err := readGSMHeader(r, MsgPDUSessionReleaseComplete)
 	if err != nil {
 		return nil, err
 	}

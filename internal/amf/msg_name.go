@@ -36,7 +36,7 @@ var gmmMessageTypeNames = map[uint8]string{
 	nas.MsgTypeSecurityModeCommand:                              "SecurityModeCommand",
 	nas.MsgTypeSecurityModeComplete:                             "SecurityModeComplete",
 	nas.MsgTypeSecurityModeReject:                               "SecurityModeReject",
-	nas.MsgTypeStatus5GMM:                                       "Status5GMM",
+	nas.MsgTypeStatus5GMM:                                       "GMMStatus",
 	nas.MsgTypeNotification:                                     "Notification",
 	nas.MsgTypeNotificationResponse:                             "NotificationResponse",
 	nas.MsgTypeULNASTransport:                                   "ULNASTransport",

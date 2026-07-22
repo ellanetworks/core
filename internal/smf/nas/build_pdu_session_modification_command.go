@@ -35,15 +35,14 @@ func BuildPDUSessionModificationCommand(pduSessionID uint8, ambr *models.Ambr, q
 	}
 
 	if dns != nil {
-		var opts fgs.PCO
-
-		if dns.To4() != nil {
-			opts.AddDNSServerIPv4Address(dns)
+		var dnsServer []byte
+		if v4 := dns.To4(); v4 != nil {
+			dnsServer = v4
 		} else {
-			opts.AddDNSServerIPv6Address(dns)
+			dnsServer = dns.To16()
 		}
 
-		m.ExtendedPCO = opts.Marshal()
+		m.ExtendedPCO = fgs.BuildProtocolConfigurationOptions([][]byte{dnsServer}, 0)
 	}
 
 	return m.Marshal()

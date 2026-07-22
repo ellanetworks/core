@@ -64,7 +64,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		return nil, nil
 	}
 
-	msgType, err := fgs.PeekSMMessageType(n1Msg)
+	msgType, err := fgs.PeekGSMMessageType(n1Msg)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding N1SmMessage: %v", err)
 	}
@@ -95,7 +95,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		// retransmits the command meanwhile.
 		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Request received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
-		if err := s.startRelease(ctx, smContext, pti, fgs.Cause5GSMRegularDeactivation); err != nil {
+		if err := s.startRelease(ctx, smContext, pti, fgs.GSMCauseRegularDeactivation); err != nil {
 			return nil, fmt.Errorf("start PDU session release: %w", err)
 		}
 
@@ -107,7 +107,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		// The UE cannot set its own QoS; the authorized QoS is network-determined
 		// and not modifiable on UE request, so the request is rejected
 		// (TS 24.501 clause 6.4.2.4).
-		n1SmMsg, err := smfNas.BuildGSMPDUSessionModificationReject(smContext.PDUSessionID, pti, fgs.Cause5GSMRequestRejectedUnspecified)
+		n1SmMsg, err := smfNas.BuildGSMPDUSessionModificationReject(smContext.PDUSessionID, pti, fgs.GSMCauseRequestRejectedUnspecified)
 		if err != nil {
 			return nil, fmt.Errorf("build GSM PDUSessionModificationReject failed: %v", err)
 		}
@@ -148,8 +148,8 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 
 		return nil, nil
 
-	case fgs.Msg5GSMStatus:
-		st, err := fgs.ParseStatus5GSM(n1Msg)
+	case fgs.MsgGSMStatus:
+		st, err := fgs.ParseGSMStatus(n1Msg)
 		if err != nil {
 			return nil, fmt.Errorf("error decoding 5GSM STATUS: %v", err)
 		}

@@ -55,7 +55,7 @@ func buildPDUSessionReleaseComplete(pduSessionID, pti uint8) []byte {
 func status5GSMCause(t *testing.T, raw []byte) uint8 {
 	t.Helper()
 
-	m, err := fgs.ParseStatus5GSM(raw)
+	m, err := fgs.ParseGSMStatus(raw)
 	if err != nil {
 		t.Fatalf("decode 5GSM STATUS: %v", err)
 	}
@@ -83,8 +83,8 @@ func TestUpdateSmContextN1Msg_ReleaseComplete_PTIMismatch(t *testing.T) {
 		t.Fatal("expected a 5GSM STATUS response (TS 24.501 §7.3.1 a), got none")
 	}
 
-	if got := status5GSMCause(t, rsp.N1Msg); got != fgs.Cause5GSMPTIMismatch {
-		t.Errorf("STATUS cause = %d, want %d (#47 PTI mismatch)", got, fgs.Cause5GSMPTIMismatch)
+	if got := status5GSMCause(t, rsp.N1Msg); got != fgs.GSMCausePTIMismatch {
+		t.Errorf("STATUS cause = %d, want %d (#47 PTI mismatch)", got, fgs.GSMCausePTIMismatch)
 	}
 }
 
@@ -131,8 +131,8 @@ func TestUpdateSmContextN1Msg_ReleaseRequest_UnassignedPTI(t *testing.T) {
 		t.Fatal("expected a 5GSM STATUS response (TS 24.501 §7.3.1 c), got none")
 	}
 
-	if got := status5GSMCause(t, rsp.N1Msg); got != fgs.Cause5GSMInvalidPTIValue {
-		t.Errorf("STATUS cause = %d, want %d (#81 invalid PTI value)", got, fgs.Cause5GSMInvalidPTIValue)
+	if got := status5GSMCause(t, rsp.N1Msg); got != fgs.GSMCauseInvalidPTIValue {
+		t.Errorf("STATUS cause = %d, want %d (#81 invalid PTI value)", got, fgs.GSMCauseInvalidPTIValue)
 	}
 
 	upf.mu.Lock()
@@ -224,8 +224,8 @@ func TestCreateSmContext_UnassignedPTI_Status81(t *testing.T) {
 		t.Fatal("expected a 5GSM STATUS response (TS 24.501 §7.3.1 c), got none")
 	}
 
-	if got := status5GSMCause(t, rsp); got != fgs.Cause5GSMInvalidPTIValue {
-		t.Errorf("STATUS cause = %d, want %d (#81 invalid PTI value)", got, fgs.Cause5GSMInvalidPTIValue)
+	if got := status5GSMCause(t, rsp); got != fgs.GSMCauseInvalidPTIValue {
+		t.Errorf("STATUS cause = %d, want %d (#81 invalid PTI value)", got, fgs.GSMCauseInvalidPTIValue)
 	}
 
 	upf.mu.Lock()

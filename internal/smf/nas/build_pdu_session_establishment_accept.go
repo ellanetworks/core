@@ -86,21 +86,22 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	}
 
 	if pco.DNSIPv4Request || pco.DNSIPv6Request || pco.IPv4LinkMTURequest {
-		var opts fgs.PCO
+		var dnsServers [][]byte
 
 		if pco.DNSIPv4Request {
-			opts.AddDNSServerIPv4Address(dns)
+			dnsServers = append(dnsServers, dns.To4())
 		}
 
 		if pco.DNSIPv6Request {
-			opts.AddDNSServerIPv6Address(dns)
+			dnsServers = append(dnsServers, dns.To16())
 		}
 
+		var linkMTU uint16
 		if pco.IPv4LinkMTURequest {
-			opts.AddIPv4LinkMTU(mtu)
+			linkMTU = mtu
 		}
 
-		m.ExtendedPCO = opts.Marshal()
+		m.ExtendedPCO = fgs.BuildProtocolConfigurationOptions(dnsServers, linkMTU)
 	}
 
 	return m.Marshal()

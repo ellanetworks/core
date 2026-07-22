@@ -16,13 +16,13 @@ import (
 	"go.uber.org/zap"
 )
 
-func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, plainBody []byte) nasreply.Disposition {
+func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, plain []byte) nasreply.Disposition {
 	if step := ue.RegStep(); step != amf.RegStepSecurityMode {
 		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Security Mode Reject message outside the security mode exchange", zap.String("state", string(ue.State())))
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	msg, err := fgs.ParseSecurityModeReject(plainBody)
+	msg, err := fgs.ParseSecurityModeReject(plain)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("could not decode Security Mode Reject", zap.Error(err))
 		return nasreply.Silent(nasreply.ReasonUnspecified)

@@ -127,7 +127,7 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 func modificationSMPayload(t *testing.T, n1Msg []byte) []byte {
 	t.Helper()
 
-	if mt, err := fgs.PeekSMMessageType(n1Msg); err == nil && mt == fgs.MsgPDUSessionModificationCommand {
+	if mt, err := fgs.PeekGSMMessageType(n1Msg); err == nil && mt == fgs.MsgPDUSessionModificationCommand {
 		return n1Msg
 	}
 
@@ -591,8 +591,8 @@ func TestCreateSmContext_PolicyNotFound(t *testing.T) {
 		t.Fatal("expected reject N1 message")
 	}
 
-	if got := rejectCauseCode(t, rejectN1); got != fgs.Cause5GSMRequestRejectedUnspecified {
-		t.Fatalf("expected cause %d (RequestRejectedUnspecified), got %d", fgs.Cause5GSMRequestRejectedUnspecified, got)
+	if got := rejectCauseCode(t, rejectN1); got != fgs.GSMCauseRequestRejectedUnspecified {
+		t.Fatalf("expected cause %d (RequestRejectedUnspecified), got %d", fgs.GSMCauseRequestRejectedUnspecified, got)
 	}
 }
 
@@ -615,8 +615,8 @@ func TestCreateSmContext_DNNNotFound(t *testing.T) {
 		t.Fatal("expected reject N1 message")
 	}
 
-	if got := rejectCauseCode(t, rejectN1); got != fgs.Cause5GSMMissingOrUnknownDNN {
-		t.Fatalf("expected 5GSM cause %d (#27 missing or unknown DNN), got %d", fgs.Cause5GSMMissingOrUnknownDNN, got)
+	if got := rejectCauseCode(t, rejectN1); got != fgs.GSMCauseMissingOrUnknownDNN {
+		t.Fatalf("expected 5GSM cause %d (#27 missing or unknown DNN), got %d", fgs.GSMCauseMissingOrUnknownDNN, got)
 	}
 }
 
@@ -640,8 +640,8 @@ func TestCreateSmContext_DNNNotInSlice(t *testing.T) {
 		t.Fatal("expected reject N1 message")
 	}
 
-	if got := rejectCauseCode(t, rejectN1); got != fgs.Cause5GSMMissingOrUnknownDNNInASlice {
-		t.Fatalf("expected 5GSM cause %d (#70 missing or unknown DNN in a slice), got %d", fgs.Cause5GSMMissingOrUnknownDNNInASlice, got)
+	if got := rejectCauseCode(t, rejectN1); got != fgs.GSMCauseMissingOrUnknownDNNInASlice {
+		t.Fatalf("expected 5GSM cause %d (#70 missing or unknown DNN in a slice), got %d", fgs.GSMCauseMissingOrUnknownDNNInASlice, got)
 	}
 }
 
@@ -664,8 +664,8 @@ func TestCreateSmContext_IPExhaustion(t *testing.T) {
 		t.Fatal("expected reject N1 message")
 	}
 
-	if got := rejectCauseCode(t, rejectN1); got != fgs.Cause5GSMInsufficientResources {
-		t.Fatalf("expected cause %d (InsufficientResources), got %d", fgs.Cause5GSMInsufficientResources, got)
+	if got := rejectCauseCode(t, rejectN1); got != fgs.GSMCauseInsufficientResources {
+		t.Fatalf("expected cause %d (InsufficientResources), got %d", fgs.GSMCauseInsufficientResources, got)
 	}
 }
 
@@ -689,8 +689,8 @@ func TestCreateSmContext_PFCPEstablishmentFailure(t *testing.T) {
 		t.Fatal("expected reject N1 message")
 	}
 
-	if got := rejectCauseCode(t, rejectN1); got != fgs.Cause5GSMRequestRejectedUnspecified {
-		t.Fatalf("expected cause %d (RequestRejectedUnspecified), got %d", fgs.Cause5GSMRequestRejectedUnspecified, got)
+	if got := rejectCauseCode(t, rejectN1); got != fgs.GSMCauseRequestRejectedUnspecified {
+		t.Fatalf("expected cause %d (RequestRejectedUnspecified), got %d", fgs.GSMCauseRequestRejectedUnspecified, got)
 	}
 
 	amfCb.mu.Lock()
@@ -716,8 +716,8 @@ func TestCreateSmContext_InvalidNAS(t *testing.T) {
 		t.Fatal("expected SMF to build a PDU Session Establishment Reject for malformed NAS")
 	}
 
-	if cause := rejectCauseCode(t, rejectN1); cause != fgs.Cause5GSMProtocolErrorUnspecified {
-		t.Fatalf("expected cause %d (protocol error unspecified), got %d", fgs.Cause5GSMProtocolErrorUnspecified, cause)
+	if cause := rejectCauseCode(t, rejectN1); cause != fgs.GSMCauseProtocolErrorUnspecified {
+		t.Fatalf("expected cause %d (protocol error unspecified), got %d", fgs.GSMCauseProtocolErrorUnspecified, cause)
 	}
 
 	if s.SessionCount() != 0 {
@@ -743,8 +743,8 @@ func TestCreateSmContext_WrongNASMessageType(t *testing.T) {
 		t.Fatal("expected SMF to build a PDU Session Establishment Reject for wrong NAS type")
 	}
 
-	if cause := rejectCauseCode(t, rejectN1); cause != fgs.Cause5GSMMessageTypeNotCompatibleWithTheProtocolState {
-		t.Fatalf("expected cause %d (message type not compatible with protocol state), got %d", fgs.Cause5GSMMessageTypeNotCompatibleWithTheProtocolState, cause)
+	if cause := rejectCauseCode(t, rejectN1); cause != fgs.GSMCauseMessageTypeNotCompatibleWithTheProtocolState {
+		t.Fatalf("expected cause %d (message type not compatible with protocol state), got %d", fgs.GSMCauseMessageTypeNotCompatibleWithTheProtocolState, cause)
 	}
 
 	if s.SessionCount() != 0 {
@@ -2430,7 +2430,7 @@ func TestUpdateSmContextN1Msg_ModificationRejected(t *testing.T) {
 		t.Errorf("reject PTI = %d, want %d (echoed from request)", got, pti)
 	}
 
-	if got := raw[4]; got != fgs.Cause5GSMRequestRejectedUnspecified {
-		t.Errorf("reject cause = %d, want %d (request rejected, unspecified)", got, fgs.Cause5GSMRequestRejectedUnspecified)
+	if got := raw[4]; got != fgs.GSMCauseRequestRejectedUnspecified {
+		t.Errorf("reject cause = %d, want %d (request rejected, unspecified)", got, fgs.GSMCauseRequestRejectedUnspecified)
 	}
 }

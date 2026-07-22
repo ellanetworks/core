@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"testing"
+	"time"
 )
 
 func wire(t *testing.T, name string, fn func() ([]byte, error), want string) {
@@ -26,7 +27,7 @@ func TestMMBuildersWireBytes(t *testing.T) {
 		"7e005601020000210102030405060708090a0b0c0d0e0f102010100f0e0d0c0b0a090807060504030201")
 	wire(t, "AuthenticationReject", (&AuthenticationReject{}).Marshal, "7e0058")
 	wire(t, "IdentityRequest", (&IdentityRequest{IdentityType: 1}).Marshal, "7e005b01")
-	wire(t, "Status5GMM", (&Status5GMM{Cause: 0x6f}).Marshal, "7e00646f")
+	wire(t, "GMMStatus", (&GMMStatus{Cause: 0x6f}).Marshal, "7e00646f")
 	wire(t, "ServiceReject", (&ServiceReject{Cause: 0x16}).Marshal, "7e004d16")
 	wire(t, "RegistrationReject", (&RegistrationReject{Cause: 0x0b}).Marshal, "7e00440b")
 	wire(t, "RegistrationRejectT3502", (&RegistrationReject{Cause: 0x0b, T3502: &t3502}).Marshal, "7e00440b16011e")
@@ -47,7 +48,7 @@ func TestMMBuildersWireBytes(t *testing.T) {
 	psi[1] = true
 	wire(t, "ServiceAccept", (&ServiceAccept{PDUSessionStatus: PSIToBytes(psi)}).Marshal, "7e004e50020200")
 
-	t3512 := EncodeGPRSTimer3(3240) // 5 * 10 minutes → 0x05
+	t3512 := EncodeGPRSTimer3(3240 * time.Second) // 5 * 10 minutes → 0x05
 	wire(t, "RegistrationAccept",
 		(&RegistrationAccept{RegistrationResult: AccessType3GPP, T3512Value: &t3512}).Marshal, "7e004201015e0105")
 
@@ -77,9 +78,9 @@ func TestMMParsers(t *testing.T) {
 		t.Errorf("IdentityResponse MobileIdentity = %x (err %v)", id.MobileIdentity, err)
 	}
 
-	st, err := ParseStatus5GMM([]byte{EPD5GMM, 0x00, uint8(Msg5GMMStatus), 0x6f})
+	st, err := ParseGMMStatus([]byte{EPD5GMM, 0x00, uint8(MsgGMMStatus), 0x6f})
 	if err != nil || st.Cause != 0x6f {
-		t.Errorf("Status5GMM cause = %#x (err %v)", st.Cause, err)
+		t.Errorf("GMMStatus cause = %#x (err %v)", st.Cause, err)
 	}
 
 	if _, err := ParseSecurityModeReject([]byte{EPD5GMM, 0x00, uint8(MsgSecurityModeReject), 0x18}); err != nil {

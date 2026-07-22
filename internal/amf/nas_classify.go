@@ -15,10 +15,10 @@ import (
 type DecodeResult struct {
 	Message           *nas.Message
 	IntegrityVerified bool
-	// PlainBody is the decoded plain 5GMM message (after any decipher), the input
+	// Plain is the decoded plain 5GMM message (after any decipher), the input
 	// for home-built (nas/fgs) handlers during the incremental migration off
 	// free5gc. It starts with the extended protocol discriminator.
-	PlainBody []byte
+	Plain []byte
 }
 
 // plainNasAllowed reports whether a NAS message type may be processed without a verified

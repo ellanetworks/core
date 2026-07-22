@@ -138,7 +138,7 @@ func BuildRegistrationReject(t3502Value int, cause5GMM uint8) ([]byte, error) {
 	m := &fgs.RegistrationReject{Cause: cause5GMM}
 
 	if t3502Value != 0 {
-		octet, err := fgs.EncodeGPRSTimer2(time.Duration(t3502Value) * time.Second)
+		octet, err := fgs.EncodeGPRSTimer(time.Duration(t3502Value) * time.Second)
 		if err != nil {
 			return nil, err
 		}
@@ -218,7 +218,7 @@ func BuildRegistrationAccept(
 		return nil, fmt.Errorf("failed to convert PLMN ID to NAS: %s", err)
 	}
 
-	t3512 := fgs.EncodeGPRSTimer3(int(amfInstance.T3512Value.Seconds()))
+	t3512 := fgs.EncodeGPRSTimer3(amfInstance.T3512Value)
 
 	m := &fgs.RegistrationAccept{
 		RegistrationResult: fgs.AccessType3GPP,
@@ -359,5 +359,5 @@ func encodeNetworkName(name string) []byte {
 }
 
 func BuildStatus5GMM(cause uint8) ([]byte, error) {
-	return (&fgs.Status5GMM{Cause: cause}).Marshal()
+	return (&fgs.GMMStatus{Cause: cause}).Marshal()
 }

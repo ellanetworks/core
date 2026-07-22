@@ -51,7 +51,7 @@ func TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete(t *testing.T) 
 }
 
 // TestHandleGmmMessage_DispatchesToStatus5GMM verifies HandleGmmMessage routes a
-// Status5GMM to handleStatus5GMM; a amf.Registered UE lets the handler run its success path.
+// GMMStatus to handleStatus5GMM; a amf.Registered UE lets the handler run its success path.
 func TestHandleGmmMessage_DispatchesToStatus5GMM(t *testing.T) {
 	ue, _, err := buildUeAndRadio()
 	if err != nil {

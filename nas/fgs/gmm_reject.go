@@ -5,25 +5,25 @@ package fgs
 
 import "github.com/ellanetworks/core/nas/common"
 
-// Status5GMM is the 5GMM STATUS message (TS 24.501 §8.2.29): a mandatory 5GMM
+// GMMStatus is the 5GMM STATUS message (TS 24.501 §8.2.29): a mandatory 5GMM
 // cause reporting an error detected on received 5GMM signalling.
-type Status5GMM struct {
+type GMMStatus struct {
 	Cause uint8
 }
 
 // Marshal encodes the plain 5GMM STATUS message.
-func (m *Status5GMM) Marshal() ([]byte, error) {
+func (m *GMMStatus) Marshal() ([]byte, error) {
 	var w common.Writer
 
-	writeMMHeader(&w, Msg5GMMStatus)
+	writeGMMHeader(&w, MsgGMMStatus)
 	w.U8(m.Cause)
 
 	return w.Bytes(), nil
 }
 
-// ParseStatus5GMM decodes the message.
-func ParseStatus5GMM(b []byte) (*Status5GMM, error) {
-	return parseMMCause(b, Msg5GMMStatus)
+// ParseGMMStatus decodes the message.
+func ParseGMMStatus(b []byte) (*GMMStatus, error) {
+	return parseGMMCause(b, MsgGMMStatus)
 }
 
 // SecurityModeReject is the SECURITY MODE REJECT message (TS 24.501 §8.2.27): a
@@ -34,7 +34,7 @@ type SecurityModeReject struct {
 
 // ParseSecurityModeReject decodes the message.
 func ParseSecurityModeReject(b []byte) (*SecurityModeReject, error) {
-	s, err := parseMMCause(b, MsgSecurityModeReject)
+	s, err := parseGMMCause(b, MsgSecurityModeReject)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ type ServiceReject struct {
 func (m *ServiceReject) Marshal() ([]byte, error) {
 	var w common.Writer
 
-	writeMMHeader(&w, MsgServiceReject)
+	writeGMMHeader(&w, MsgServiceReject)
 	w.U8(m.Cause)
 
 	return w.Bytes(), nil
@@ -69,7 +69,7 @@ type RegistrationReject struct {
 func (m *RegistrationReject) Marshal() ([]byte, error) {
 	var w common.Writer
 
-	writeMMHeader(&w, MsgRegistrationReject)
+	writeGMMHeader(&w, MsgRegistrationReject)
 	w.U8(m.Cause)
 
 	if m.T3502 != nil {
@@ -79,12 +79,12 @@ func (m *RegistrationReject) Marshal() ([]byte, error) {
 	return w.Bytes(), nil
 }
 
-// parseMMCause decodes a 5GMM message whose body is a single mandatory 5GMM
+// parseGMMCause decodes a 5GMM message whose body is a single mandatory 5GMM
 // cause octet.
-func parseMMCause(b []byte, want MessageType) (*Status5GMM, error) {
+func parseGMMCause(b []byte, want MessageType) (*GMMStatus, error) {
 	r := common.NewReader(b)
 
-	if err := readMMHeader(r, want); err != nil {
+	if err := readGMMHeader(r, want); err != nil {
 		return nil, err
 	}
 
@@ -93,5 +93,5 @@ func parseMMCause(b []byte, want MessageType) (*Status5GMM, error) {
 		return nil, err
 	}
 
-	return &Status5GMM{Cause: cause}, nil
+	return &GMMStatus{Cause: cause}, nil
 }

@@ -27,7 +27,7 @@ type RegistrationAccept struct {
 func (m *RegistrationAccept) Marshal() ([]byte, error) {
 	var w common.Writer
 
-	writeMMHeader(&w, MsgRegistrationAccept)
+	writeGMMHeader(&w, MsgRegistrationAccept)
 
 	// 5GS registration result (mandatory, LV, 1-octet value).
 	if err := w.LV([]byte{m.RegistrationResult & 0x07}); err != nil {

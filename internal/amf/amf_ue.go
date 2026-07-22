@@ -371,7 +371,7 @@ func (ue *UeContext) InstallNASSecurityContext(nea, nia byte, _ AuthProof) error
 
 // deriveAlgKeyLocked derives the NAS algorithm keys per TS 33.501. Caller holds ue.mu.
 func (ue *UeContext) deriveAlgKeyLocked() error {
-	P0 := []byte{fgs.NNASEncAlg}
+	P0 := []byte{nnasEncAlgDistinguisher}
 	L0 := ueauth.KDFLen(P0)
 	P1 := []byte{ue.cipheringAlg}
 	L1 := ueauth.KDFLen(P1)
@@ -383,7 +383,7 @@ func (ue *UeContext) deriveAlgKeyLocked() error {
 
 	copy(ue.knasEnc[:], kenc[16:32])
 
-	P0 = []byte{fgs.NNASIntAlg}
+	P0 = []byte{nnasIntAlgDistinguisher}
 	L0 = ueauth.KDFLen(P0)
 	P1 = []byte{ue.integrityAlg}
 	L1 = ueauth.KDFLen(P1)
@@ -405,7 +405,7 @@ func (ue *UeContext) DeriveAnKey() error {
 	P0 := make([]byte, 4)
 	binary.BigEndian.PutUint32(P0, ue.ulCount.LastAccepted().Value())
 	L0 := ueauth.KDFLen(P0)
-	P1 := []byte{fgs.AccessType3GPP}
+	P1 := []byte{anKeyAccessType3GPP}
 	L1 := ueauth.KDFLen(P1)
 
 	key, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForKgnbKn3iwfDerivation, P0, L0, P1, L1)
@@ -586,7 +586,7 @@ func (ue *UeContext) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 		return nil, fmt.Errorf("error encoding plain nas: %+v", err)
 	}
 
-	return ue.wrapSecuredLocked(payload, msg.ProtocolDiscriminator, msg.SecurityHeaderType)
+	return ue.wrapSecuredLocked(payload, msg.SecurityHeaderType)
 }
 
 // EncodeNASMessagePlain wraps an already-encoded plain 5GMM message with NAS
@@ -604,21 +604,19 @@ func (ue *UeContext) EncodeNASMessagePlain(plain []byte, securityHeaderType uint
 		return plain, nil
 	}
 
-	return ue.wrapSecuredLocked(plain, fgs.EPD5GMM, securityHeaderType)
+	return ue.wrapSecuredLocked(plain, securityHeaderType)
 }
 
 // wrapSecuredLocked ciphers (when the header type requires it), integrity
 // protects, and frames a plain 5GMM message as a security-protected 5GS NAS
 // message (TS 24.501 §4.4.4, §9.1.1). The caller must hold ue.mu and have a
 // security context. It advances the downlink NAS COUNT.
-func (ue *UeContext) wrapSecuredLocked(payload []byte, pd, sht uint8) ([]byte, error) {
-	needCiphering := false
+func (ue *UeContext) wrapSecuredLocked(plain []byte, sht uint8) ([]byte, error) {
+	headerType := fgs.SecurityHeaderType(sht)
 
-	switch sht {
-	case uint8(fgs.SHTIntegrityProtected):
-	case uint8(fgs.SHTIntegrityProtectedCiphered):
-		needCiphering = true
-	case uint8(fgs.SHTIntegrityProtectedNewContext):
+	switch headerType {
+	case fgs.SHTIntegrityProtected, fgs.SHTIntegrityProtectedCiphered:
+	case fgs.SHTIntegrityProtectedNewContext:
 		ue.ulCount.Reset()
 
 		ue.dlCount = 0
@@ -626,25 +624,18 @@ func (ue *UeContext) wrapSecuredLocked(payload []byte, pd, sht uint8) ([]byte, e
 		return nil, fmt.Errorf("wrong security header type: 0x%0x", sht)
 	}
 
-	if needCiphering {
-		if err := fgs.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.dlCount.Value(), fgs.Bearer3GPP, fgs.DirectionDownlink, payload); err != nil {
-			return nil, fmt.Errorf("error encrypting: %+v", err)
-		}
-	}
-
-	payload = append([]byte{ue.dlCount.SQN()}, payload...)
-
-	mac32, err := fgs.NASMacCalculate(ue.integrityAlg, ue.knasInt, ue.dlCount.Value(), fgs.Bearer3GPP, fgs.DirectionDownlink, payload)
+	// Protect with the current NAS COUNT and advance only once the message is
+	// protected, so a protection failure does not consume a downlink COUNT
+	// (TS 24.501 §4.4.3.1).
+	wire, err := fgs.Protect(plain, headerType, ue.dlCount.Value(), nascommon.DirectionDownlink,
+		ue.knasInt, ue.knasEnc, IntegrityAlg(ue.integrityAlg), CipherAlg(ue.cipheringAlg))
 	if err != nil {
-		return nil, fmt.Errorf("MAC calcuate error: %+v", err)
+		return nil, err
 	}
-
-	payload = append(mac32, payload...)
-	payload = append([]byte{pd, sht}, payload...)
 
 	ue.dlCount = ue.dlCount.Next()
 
-	return payload, nil
+	return wire, nil
 }
 
 func (ue *UeContext) StopProcedureTimers() {

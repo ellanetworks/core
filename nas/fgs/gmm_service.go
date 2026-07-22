@@ -32,7 +32,7 @@ type ServiceAccept struct {
 func (m *ServiceAccept) Marshal() ([]byte, error) {
 	var w common.Writer
 
-	writeMMHeader(&w, MsgServiceAccept)
+	writeGMMHeader(&w, MsgServiceAccept)
 
 	if m.PDUSessionStatus != nil {
 		writeTLV(&w, ieiPDUSessionStatus, m.PDUSessionStatus)

@@ -52,12 +52,12 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	// Decode before any state changes so a failure can still build a reject. A
 	// bad discriminator/length peeks as a decode error; a well-formed message of
 	// the wrong type is a protocol-state mismatch.
-	msgType, err := fgs.PeekSMMessageType(n1Msg)
+	msgType, err := fgs.PeekGSMMessageType(n1Msg)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to decode NAS message")
 
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, 0, fgs.Cause5GSMProtocolErrorUnspecified)
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, 0, fgs.GSMCauseProtocolErrorUnspecified)
 		if buildErr != nil {
 			return "", nil, fmt.Errorf("error decoding NAS message: %v (build reject failed: %v)", err, buildErr)
 		}
@@ -66,7 +66,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	}
 
 	if msgType != fgs.MsgPDUSessionEstablishmentRequest {
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, 0, fgs.Cause5GSMMessageTypeNotCompatibleWithTheProtocolState)
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, 0, fgs.GSMCauseMessageTypeNotCompatibleWithTheProtocolState)
 		if buildErr != nil {
 			return "", nil, fmt.Errorf("unexpected NAS message type %d (build reject failed: %v)", msgType, buildErr)
 		}
@@ -79,7 +79,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to decode NAS message")
 
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, 0, fgs.Cause5GSMProtocolErrorUnspecified)
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, 0, fgs.GSMCauseProtocolErrorUnspecified)
 		if buildErr != nil {
 			return "", nil, fmt.Errorf("error decoding NAS message: %v (build reject failed: %v)", err, buildErr)
 		}
@@ -147,7 +147,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	if err != nil {
 		establishmentResult = metrics.ResultReject
 
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, reqPTI, fgs.Cause5GSMRequestRejectedUnspecified)
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, reqPTI, fgs.GSMCauseRequestRejectedUnspecified)
 		if buildErr != nil {
 			return "", nil, fmt.Errorf("parse PDU session request failed: %v (build reject failed: %v)", err, buildErr)
 		}
@@ -170,9 +170,9 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to create SM context")
 
-		cause := fgs.Cause5GSMRequestRejectedUnspecified
+		cause := fgs.GSMCauseRequestRejectedUnspecified
 		if errors.Is(err, errUEAddressAllocation) {
-			cause = fgs.Cause5GSMInsufficientResources
+			cause = fgs.GSMCauseInsufficientResources
 		}
 
 		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, reqPTI, cause)
@@ -189,9 +189,9 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	switch narrowPDUType(requestedType, sc.PDUSessionType) {
 	case narrowIPv4Only:
-		cause = fgs.Cause5GSMPDUSessionTypeIPv4OnlyAllowed
+		cause = fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed
 	case narrowIPv6Only:
-		cause = fgs.Cause5GSMPDUSessionTypeIPv6OnlyAllowed
+		cause = fgs.GSMCausePDUSessionTypeIPv6OnlyAllowed
 	}
 
 	addrs := &smfNas.PDUSessionAddresses{
@@ -242,11 +242,11 @@ func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SM
 func establishmentRejectCause(err error) uint8 {
 	switch {
 	case errors.Is(err, ErrDNNNotInSlice):
-		return fgs.Cause5GSMMissingOrUnknownDNNInASlice
+		return fgs.GSMCauseMissingOrUnknownDNNInASlice
 	case errors.Is(err, ErrDNNNotFound):
-		return fgs.Cause5GSMMissingOrUnknownDNN
+		return fgs.GSMCauseMissingOrUnknownDNN
 	default:
-		return fgs.Cause5GSMRequestRejectedUnspecified
+		return fgs.GSMCauseRequestRejectedUnspecified
 	}
 }
 

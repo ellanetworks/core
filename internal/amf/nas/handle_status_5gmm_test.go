@@ -44,7 +44,7 @@ func TestHandleStatus5GMM_Registered_Ignored(t *testing.T) {
 func buildTestStatus5gmm(t *testing.T) []byte {
 	t.Helper()
 
-	b, err := (&fgs.Status5GMM{Cause: 0x6f}).Marshal()
+	b, err := (&fgs.GMMStatus{Cause: 0x6f}).Marshal()
 	if err != nil {
 		t.Fatalf("build Status 5GMM: %v", err)
 	}

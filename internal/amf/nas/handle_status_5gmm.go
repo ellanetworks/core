@@ -14,13 +14,13 @@ import (
 	"go.uber.org/zap"
 )
 
-func handleStatus5GMM(ctx context.Context, ue *amf.UeContext, plainBody []byte) nasreply.Disposition {
+func handleStatus5GMM(ctx context.Context, ue *amf.UeContext, plain []byte) nasreply.Disposition {
 	if ue.State() == amf.Deregistered {
 		logger.From(ctx, logger.AmfLog).Warn("UE is in amf.Deregistered state, ignore Status 5GMM message")
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	st, err := fgs.ParseStatus5GMM(plainBody)
+	st, err := fgs.ParseGMMStatus(plain)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("could not decode 5GMM STATUS", zap.Error(err))
 		return nasreply.Silent(nasreply.ReasonUnspecified)

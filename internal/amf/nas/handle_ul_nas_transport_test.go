@@ -181,7 +181,7 @@ func TestTransport5GSMMessage_SmContextNotExists_Status5GSM_NoError(t *testing.T
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	// Status5GSM: EPD (0x2E) + PDU session ID (0x01) + PTI (0x00) + message type (0xD6) + cause (0x24)
+	// GSMStatus: EPD (0x2E) + PDU session ID (0x01) + PTI (0x00) + message type (0xD6) + cause (0x24)
 	status5gsmPayload := []byte{0x2E, 0x01, 0x00, 0xD6, 0x24}
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, status5gsmPayload, pduSessionIDPtr(1))

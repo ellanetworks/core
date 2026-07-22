@@ -20,7 +20,7 @@ type ConfigurationUpdateCommand struct {
 func (m *ConfigurationUpdateCommand) Marshal() ([]byte, error) {
 	var w common.Writer
 
-	writeMMHeader(&w, MsgConfigurationUpdateCommand)
+	writeGMMHeader(&w, MsgConfigurationUpdateCommand)
 
 	if m.ConfigurationUpdateIndication != nil {
 		w.U8(ieiConfigUpdateInd | (*m.ConfigurationUpdateIndication & 0x0F))

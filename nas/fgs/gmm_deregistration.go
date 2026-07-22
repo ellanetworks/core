@@ -5,9 +5,13 @@ package fgs
 
 import "github.com/ellanetworks/core/nas/common"
 
-// AccessTypeNon3GPP is the non-3GPP access type in the de-registration type
-// (TS 24.501 §9.11.3.20); AccessType3GPP (0x01) is defined in security_alg.go.
-const AccessTypeNon3GPP uint8 = 0x02
+// Access type values (TS 24.501 §9.11.3.20): the 3GPP/non-3GPP access indicated
+// in the de-registration type and, numerically, the 3GPP-access 5GS registration
+// result (§9.11.3.6).
+const (
+	AccessType3GPP    uint8 = 0x01
+	AccessTypeNon3GPP uint8 = 0x02
+)
 
 // DeregistrationRequestUETerminated is the network-initiated DEREGISTRATION
 // REQUEST (TS 24.501 §8.2.14): a mandatory de-registration type. The optional
@@ -22,7 +26,7 @@ type DeregistrationRequestUETerminated struct {
 func (m *DeregistrationRequestUETerminated) Marshal() ([]byte, error) {
 	var w common.Writer
 
-	writeMMHeader(&w, MsgDeregistrationRequestUETerm)
+	writeGMMHeader(&w, MsgDeregistrationRequestUETerm)
 
 	octet := m.AccessType & 0x03
 	if m.ReRegistrationRequired {
@@ -46,7 +50,7 @@ type DeregistrationAcceptUEOriginating struct{}
 func (m *DeregistrationAcceptUEOriginating) Marshal() ([]byte, error) {
 	var w common.Writer
 
-	writeMMHeader(&w, MsgDeregistrationAcceptUEOrig)
+	writeGMMHeader(&w, MsgDeregistrationAcceptUEOrig)
 
 	return w.Bytes(), nil
 }

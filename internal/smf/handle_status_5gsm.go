@@ -26,10 +26,10 @@ func (s *SMF) handle5GSMStatus(ctx context.Context, smContext *SMContext, pti, c
 	smContext.ClearPTIInUse(pti)
 	smContext.pendingPolicy = nil
 
-	establishmentMismatch := cause == fgs.Cause5GSMPTIMismatch &&
+	establishmentMismatch := cause == fgs.GSMCausePTIMismatch &&
 		smContext.establishmentPTI != 0 && pti == smContext.establishmentPTI
 
-	if cause == fgs.Cause5GSMInvalidPDUSessionIdentity || establishmentMismatch || smContext.releasing {
+	if cause == fgs.GSMCauseInvalidPDUSessionIdentity || establishmentMismatch || smContext.releasing {
 		s.teardownAndRemove(ctx, smContext)
 	}
 }

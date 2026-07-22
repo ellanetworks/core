@@ -18,7 +18,7 @@ type AuthenticationRequest struct {
 func (m *AuthenticationRequest) Marshal() ([]byte, error) {
 	var w common.Writer
 
-	writeMMHeader(&w, MsgAuthenticationRequest)
+	writeGMMHeader(&w, MsgAuthenticationRequest)
 	w.U8(m.NgKSI & 0x0F) // spare half octet in bits 5-8
 
 	if err := w.LV(m.ABBA); err != nil {
@@ -45,7 +45,7 @@ type AuthenticationReject struct{}
 func (m *AuthenticationReject) Marshal() ([]byte, error) {
 	var w common.Writer
 
-	writeMMHeader(&w, MsgAuthenticationReject)
+	writeGMMHeader(&w, MsgAuthenticationReject)
 
 	return w.Bytes(), nil
 }
@@ -60,7 +60,7 @@ type AuthenticationResponse struct {
 func ParseAuthenticationResponse(b []byte) (*AuthenticationResponse, error) {
 	r := common.NewReader(b)
 
-	if err := readMMHeader(r, MsgAuthenticationResponse); err != nil {
+	if err := readGMMHeader(r, MsgAuthenticationResponse); err != nil {
 		return nil, err
 	}
 
@@ -91,7 +91,7 @@ type AuthenticationFailure struct {
 func ParseAuthenticationFailure(b []byte) (*AuthenticationFailure, error) {
 	r := common.NewReader(b)
 
-	if err := readMMHeader(r, MsgAuthenticationFailure); err != nil {
+	if err := readGMMHeader(r, MsgAuthenticationFailure); err != nil {
 		return nil, err
 	}
 

@@ -5,18 +5,63 @@
 package amf
 
 import (
-	"github.com/ellanetworks/core/nas/fgs"
+	nascommon "github.com/ellanetworks/core/nas/common"
 )
+
+// NAS security algorithm identifiers (TS 33.501 §9.4.2.3). NEA3/NIA3 (128-ZUC)
+// are defined for completeness but not implemented — Ella does not offer ZUC.
+const (
+	algCiphering128NEA0 uint8 = 0x00 // NULL
+	algCiphering128NEA1 uint8 = 0x01 // 128-SNOW3G
+	algCiphering128NEA2 uint8 = 0x02 // 128-AES
+	algCiphering128NEA3 uint8 = 0x03 // 128-ZUC
+
+	algIntegrity128NIA0 uint8 = 0x00 // NULL
+	algIntegrity128NIA1 uint8 = 0x01 // 128-SNOW3G
+	algIntegrity128NIA2 uint8 = 0x02 // 128-AES
+	algIntegrity128NIA3 uint8 = 0x03 // 128-ZUC
+)
+
+// nasBearer3GPP is the BEARER input to the 5G NAS algorithms: the NAS connection
+// identifier for 3GPP access (TS 33.501 §6.9.2.1). fgs.Protect/Unprotect apply it
+// internally; it is needed here only to decipher a bare NAS container that carries
+// no security header of its own.
+const nasBearer3GPP uint8 = 0x01
+
+// IntegrityAlg / CipherAlg map a 5G NAS algorithm identity to the nas
+// implementation: null (NIA0/NEA0), SNOW3G (128-NIA1/128-NEA1), or AES
+// (128-NIA2/128-NEA2). An unrecognized value falls back to null.
+func IntegrityAlg(nia byte) nascommon.Integrity {
+	switch nia {
+	case algIntegrity128NIA1:
+		return nascommon.SNOW3GIntegrity{}
+	case algIntegrity128NIA2:
+		return nascommon.AESCMACIntegrity{}
+	default:
+		return nascommon.NullIntegrity{}
+	}
+}
+
+func CipherAlg(nea byte) nascommon.Cipher {
+	switch nea {
+	case algCiphering128NEA1:
+		return nascommon.SNOW3GCipher{}
+	case algCiphering128NEA2:
+		return nascommon.AESCTRCipher{}
+	default:
+		return nascommon.NullCipher{}
+	}
+}
 
 func cipheringAlgName(alg byte) string {
 	switch alg {
-	case fgs.AlgCiphering128NEA0:
+	case algCiphering128NEA0:
 		return "NEA0"
-	case fgs.AlgCiphering128NEA1:
+	case algCiphering128NEA1:
 		return "NEA1"
-	case fgs.AlgCiphering128NEA2:
+	case algCiphering128NEA2:
 		return "NEA2"
-	case fgs.AlgCiphering128NEA3:
+	case algCiphering128NEA3:
 		return "NEA3"
 	default:
 		return ""
@@ -25,13 +70,13 @@ func cipheringAlgName(alg byte) string {
 
 func integrityAlgName(alg byte) string {
 	switch alg {
-	case fgs.AlgIntegrity128NIA0:
+	case algIntegrity128NIA0:
 		return "NIA0"
-	case fgs.AlgIntegrity128NIA1:
+	case algIntegrity128NIA1:
 		return "NIA1"
-	case fgs.AlgIntegrity128NIA2:
+	case algIntegrity128NIA2:
 		return "NIA2"
-	case fgs.AlgIntegrity128NIA3:
+	case algIntegrity128NIA3:
 		return "NIA3"
 	default:
 		return ""
@@ -66,13 +111,13 @@ func (ue *UeContext) SelectSecurityAlg(intOrder, encOrder []uint8) (nea, nia byt
 
 	nia, iok := selectNASAlg(intOrder, func(alg uint8) bool {
 		switch alg {
-		case fgs.AlgIntegrity128NIA0:
+		case algIntegrity128NIA0:
 			return uecap.GetIA0_5G() == 1
-		case fgs.AlgIntegrity128NIA1:
+		case algIntegrity128NIA1:
 			return uecap.GetIA1_128_5G() == 1
-		case fgs.AlgIntegrity128NIA2:
+		case algIntegrity128NIA2:
 			return uecap.GetIA2_128_5G() == 1
-		case fgs.AlgIntegrity128NIA3:
+		case algIntegrity128NIA3:
 			return uecap.GetIA3_128_5G() == 1
 		}
 
@@ -81,13 +126,13 @@ func (ue *UeContext) SelectSecurityAlg(intOrder, encOrder []uint8) (nea, nia byt
 
 	nea, eok := selectNASAlg(encOrder, func(alg uint8) bool {
 		switch alg {
-		case fgs.AlgCiphering128NEA0:
+		case algCiphering128NEA0:
 			return uecap.GetEA0_5G() == 1
-		case fgs.AlgCiphering128NEA1:
+		case algCiphering128NEA1:
 			return uecap.GetEA1_128_5G() == 1
-		case fgs.AlgCiphering128NEA2:
+		case algCiphering128NEA2:
 			return uecap.GetEA2_128_5G() == 1
-		case fgs.AlgCiphering128NEA3:
+		case algCiphering128NEA3:
 			return uecap.GetEA3_128_5G() == 1
 		}
 

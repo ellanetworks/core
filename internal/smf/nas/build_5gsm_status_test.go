@@ -16,14 +16,14 @@ func TestBuildGSM5GSMStatus_RoundTrip(t *testing.T) {
 		pti          uint8 = 9
 	)
 
-	encoded, err := smfNas.BuildGSM5GSMStatus(pduSessionID, pti, fgs.Cause5GSMPTIMismatch)
+	encoded, err := smfNas.BuildGSM5GSMStatus(pduSessionID, pti, fgs.GSMCausePTIMismatch)
 	if err != nil {
 		t.Fatalf("BuildGSM5GSMStatus failed: %v", err)
 	}
 
-	m, err := fgs.ParseStatus5GSM(encoded)
+	m, err := fgs.ParseGSMStatus(encoded)
 	if err != nil {
-		t.Fatalf("ParseStatus5GSM failed: %v", err)
+		t.Fatalf("ParseGSMStatus failed: %v", err)
 	}
 
 	if m.PDUSessionID != pduSessionID {
@@ -34,7 +34,7 @@ func TestBuildGSM5GSMStatus_RoundTrip(t *testing.T) {
 		t.Errorf("PTI = %d, want %d", m.PTI, pti)
 	}
 
-	if m.Cause != fgs.Cause5GSMPTIMismatch {
-		t.Errorf("cause = %d, want %d (#47 PTI mismatch)", m.Cause, fgs.Cause5GSMPTIMismatch)
+	if m.Cause != fgs.GSMCausePTIMismatch {
+		t.Errorf("cause = %d, want %d (#47 PTI mismatch)", m.Cause, fgs.GSMCausePTIMismatch)
 	}
 }

@@ -147,14 +147,14 @@ func TestNegotiatePDUSessionType_CauseForDowngrade(t *testing.T) {
 
 		if requested == fgs.PDUSessionTypeIPv4IPv6 && negotiated != fgs.PDUSessionTypeIPv4IPv6 {
 			if negotiated == fgs.PDUSessionTypeIPv4 {
-				cause = fgs.Cause5GSMPDUSessionTypeIPv4OnlyAllowed
+				cause = fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed
 			} else {
-				cause = fgs.Cause5GSMPDUSessionTypeIPv6OnlyAllowed
+				cause = fgs.GSMCausePDUSessionTypeIPv6OnlyAllowed
 			}
 		}
 
-		if cause != fgs.Cause5GSMPDUSessionTypeIPv4OnlyAllowed {
-			t.Errorf("expected cause %d (IPv4-only), got %d", fgs.Cause5GSMPDUSessionTypeIPv4OnlyAllowed, cause)
+		if cause != fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed {
+			t.Errorf("expected cause %d (IPv4-only), got %d", fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed, cause)
 		}
 	}
 
@@ -176,14 +176,14 @@ func TestNegotiatePDUSessionType_CauseForDowngrade(t *testing.T) {
 
 		if requested == fgs.PDUSessionTypeIPv4IPv6 && negotiated != fgs.PDUSessionTypeIPv4IPv6 {
 			if negotiated == fgs.PDUSessionTypeIPv4 {
-				cause = fgs.Cause5GSMPDUSessionTypeIPv4OnlyAllowed
+				cause = fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed
 			} else {
-				cause = fgs.Cause5GSMPDUSessionTypeIPv6OnlyAllowed
+				cause = fgs.GSMCausePDUSessionTypeIPv6OnlyAllowed
 			}
 		}
 
-		if cause != fgs.Cause5GSMPDUSessionTypeIPv6OnlyAllowed {
-			t.Errorf("expected cause %d (IPv6-only), got %d", fgs.Cause5GSMPDUSessionTypeIPv6OnlyAllowed, cause)
+		if cause != fgs.GSMCausePDUSessionTypeIPv6OnlyAllowed {
+			t.Errorf("expected cause %d (IPv6-only), got %d", fgs.GSMCausePDUSessionTypeIPv6OnlyAllowed, cause)
 		}
 	}
 
@@ -205,9 +205,9 @@ func TestNegotiatePDUSessionType_CauseForDowngrade(t *testing.T) {
 
 		if requested == fgs.PDUSessionTypeIPv4IPv6 && negotiated != fgs.PDUSessionTypeIPv4IPv6 {
 			if negotiated == fgs.PDUSessionTypeIPv4 {
-				cause = fgs.Cause5GSMPDUSessionTypeIPv4OnlyAllowed
+				cause = fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed
 			} else {
-				cause = fgs.Cause5GSMPDUSessionTypeIPv6OnlyAllowed
+				cause = fgs.GSMCausePDUSessionTypeIPv6OnlyAllowed
 			}
 		}
 
@@ -247,15 +247,15 @@ func TestPDUSessionTypeRejectCause(t *testing.T) {
 		ipv6Pool  string
 		want      uint8
 	}{
-		{"IPv6 requested + IPv4-only pool", typeIPv6, "10.0.0.0/24", "", fgs.Cause5GSMPDUSessionTypeIPv4OnlyAllowed},
-		{"IPv4 requested + IPv6-only pool", typeIPv4, "", "2001:db8::/32", fgs.Cause5GSMPDUSessionTypeIPv6OnlyAllowed},
-		{"IPv6 requested + no pools", typeIPv6, "", "", fgs.Cause5GSMUnknownPDUSessionType},
-		{"IPv4 requested + no pools", typeIPv4, "", "", fgs.Cause5GSMUnknownPDUSessionType},
-		{"IPv4v6 requested + no pools", typeIPv4v6, "", "", fgs.Cause5GSMUnknownPDUSessionType},
-		{"Unstructured requested + IPv4-only pool", typeUnstructured, "10.0.0.0/24", "", fgs.Cause5GSMUnknownPDUSessionType},
-		{"Unstructured requested + IPv6-only pool", typeUnstructured, "", "2001:db8::/32", fgs.Cause5GSMUnknownPDUSessionType},
-		{"Ethernet requested + IPv4-only pool", typeEthernet, "10.0.0.0/24", "", fgs.Cause5GSMUnknownPDUSessionType},
-		{"Ethernet requested + no pools", typeEthernet, "", "", fgs.Cause5GSMUnknownPDUSessionType},
+		{"IPv6 requested + IPv4-only pool", typeIPv6, "10.0.0.0/24", "", fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed},
+		{"IPv4 requested + IPv6-only pool", typeIPv4, "", "2001:db8::/32", fgs.GSMCausePDUSessionTypeIPv6OnlyAllowed},
+		{"IPv6 requested + no pools", typeIPv6, "", "", fgs.GSMCauseUnknownPDUSessionType},
+		{"IPv4 requested + no pools", typeIPv4, "", "", fgs.GSMCauseUnknownPDUSessionType},
+		{"IPv4v6 requested + no pools", typeIPv4v6, "", "", fgs.GSMCauseUnknownPDUSessionType},
+		{"Unstructured requested + IPv4-only pool", typeUnstructured, "10.0.0.0/24", "", fgs.GSMCauseUnknownPDUSessionType},
+		{"Unstructured requested + IPv6-only pool", typeUnstructured, "", "2001:db8::/32", fgs.GSMCauseUnknownPDUSessionType},
+		{"Ethernet requested + IPv4-only pool", typeEthernet, "10.0.0.0/24", "", fgs.GSMCauseUnknownPDUSessionType},
+		{"Ethernet requested + no pools", typeEthernet, "", "", fgs.GSMCauseUnknownPDUSessionType},
 	}
 
 	for _, tc := range tests {

@@ -23,7 +23,7 @@ type PDUSessionEstablishmentRequest struct {
 func (m *PDUSessionEstablishmentRequest) Marshal() ([]byte, error) {
 	var w common.Writer
 
-	writeSMHeader(&w, m.PDUSessionID, m.PTI, MsgPDUSessionEstablishmentRequest)
+	writeGSMHeader(&w, m.PDUSessionID, m.PTI, MsgPDUSessionEstablishmentRequest)
 	w.Raw(m.IntegrityProtMaxDataRate[:])
 
 	if m.PDUSessionType != nil {
@@ -45,7 +45,7 @@ func (m *PDUSessionEstablishmentRequest) Marshal() ([]byte, error) {
 func ParsePDUSessionEstablishmentRequest(b []byte) (*PDUSessionEstablishmentRequest, error) {
 	r := common.NewReader(b)
 
-	psi, pti, err := readSMHeader(r, MsgPDUSessionEstablishmentRequest)
+	psi, pti, err := readGSMHeader(r, MsgPDUSessionEstablishmentRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ type PDUSessionEstablishmentReject struct {
 func (m *PDUSessionEstablishmentReject) Marshal() ([]byte, error) {
 	var w common.Writer
 
-	writeSMHeader(&w, m.PDUSessionID, m.PTI, MsgPDUSessionEstablishmentReject)
+	writeGSMHeader(&w, m.PDUSessionID, m.PTI, MsgPDUSessionEstablishmentReject)
 	w.U8(m.Cause)
 
 	return w.Bytes(), nil

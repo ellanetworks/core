@@ -15,24 +15,24 @@ func TestSMBuildersWireBytes(t *testing.T) {
 		want []byte
 	}{
 		{
-			"Status5GSM",
-			mustMarshal(t, (&Status5GSM{PDUSessionID: 5, PTI: 1, Cause: Cause5GSMPTIMismatch}).Marshal),
-			[]byte{EPD5GSM, 5, 1, uint8(Msg5GSMStatus), Cause5GSMPTIMismatch},
+			"GSMStatus",
+			mustMarshal(t, (&GSMStatus{PDUSessionID: 5, PTI: 1, Cause: GSMCausePTIMismatch}).Marshal),
+			[]byte{EPD5GSM, 5, 1, uint8(MsgGSMStatus), GSMCausePTIMismatch},
 		},
 		{
 			"EstablishmentReject",
-			mustMarshal(t, (&PDUSessionEstablishmentReject{PDUSessionID: 5, PTI: 1, Cause: Cause5GSMRequestRejectedUnspecified}).Marshal),
-			[]byte{EPD5GSM, 5, 1, uint8(MsgPDUSessionEstablishmentReject), Cause5GSMRequestRejectedUnspecified},
+			mustMarshal(t, (&PDUSessionEstablishmentReject{PDUSessionID: 5, PTI: 1, Cause: GSMCauseRequestRejectedUnspecified}).Marshal),
+			[]byte{EPD5GSM, 5, 1, uint8(MsgPDUSessionEstablishmentReject), GSMCauseRequestRejectedUnspecified},
 		},
 		{
 			"ModificationReject",
-			mustMarshal(t, (&PDUSessionModificationReject{PDUSessionID: 5, PTI: 1, Cause: Cause5GSMInsufficientResources}).Marshal),
-			[]byte{EPD5GSM, 5, 1, uint8(MsgPDUSessionModificationReject), Cause5GSMInsufficientResources},
+			mustMarshal(t, (&PDUSessionModificationReject{PDUSessionID: 5, PTI: 1, Cause: GSMCauseInsufficientResources}).Marshal),
+			[]byte{EPD5GSM, 5, 1, uint8(MsgPDUSessionModificationReject), GSMCauseInsufficientResources},
 		},
 		{
 			"ReleaseCommand",
-			mustMarshal(t, (&PDUSessionReleaseCommand{PDUSessionID: 5, PTI: 1, Cause: Cause5GSMRegularDeactivation}).Marshal),
-			[]byte{EPD5GSM, 5, 1, uint8(MsgPDUSessionReleaseCommand), Cause5GSMRegularDeactivation},
+			mustMarshal(t, (&PDUSessionReleaseCommand{PDUSessionID: 5, PTI: 1, Cause: GSMCauseRegularDeactivation}).Marshal),
+			[]byte{EPD5GSM, 5, 1, uint8(MsgPDUSessionReleaseCommand), GSMCauseRegularDeactivation},
 		},
 	}
 
@@ -44,13 +44,13 @@ func TestSMBuildersWireBytes(t *testing.T) {
 }
 
 func TestStatus5GSMRoundTrip(t *testing.T) {
-	orig := &Status5GSM{PDUSessionID: 3, PTI: 7, Cause: Cause5GSMProtocolErrorUnspecified}
+	orig := &GSMStatus{PDUSessionID: 3, PTI: 7, Cause: GSMCauseProtocolErrorUnspecified}
 
 	b := mustMarshal(t, orig.Marshal)
 
-	got, err := ParseStatus5GSM(b)
+	got, err := ParseGSMStatus(b)
 	if err != nil {
-		t.Fatalf("ParseStatus5GSM: %v", err)
+		t.Fatalf("ParseGSMStatus: %v", err)
 	}
 
 	if *got != *orig {
@@ -93,14 +93,14 @@ func TestParseEstablishmentRequest(t *testing.T) {
 }
 
 func TestParseReleaseWithOptionalCause(t *testing.T) {
-	reqBytes := []byte{EPD5GSM, 5, 1, uint8(MsgPDUSessionReleaseRequest), iei5GSMCause, Cause5GSMRegularDeactivation}
+	reqBytes := []byte{EPD5GSM, 5, 1, uint8(MsgPDUSessionReleaseRequest), iei5GSMCause, GSMCauseRegularDeactivation}
 
 	req, err := ParsePDUSessionReleaseRequest(reqBytes)
 	if err != nil {
 		t.Fatalf("ParsePDUSessionReleaseRequest: %v", err)
 	}
 
-	if req.Cause == nil || *req.Cause != Cause5GSMRegularDeactivation {
+	if req.Cause == nil || *req.Cause != GSMCauseRegularDeactivation {
 		t.Errorf("release request cause = %v, want RegularDeactivation", req.Cause)
 	}
 
@@ -128,19 +128,19 @@ func TestParseModification(t *testing.T) {
 	}
 
 	rej, err := ParsePDUSessionModificationCommandReject(
-		[]byte{EPD5GSM, 5, 1, uint8(MsgPDUSessionModificationCmdReject), Cause5GSMInvalidPTIValue})
+		[]byte{EPD5GSM, 5, 1, uint8(MsgPDUSessionModificationCmdReject), GSMCauseInvalidPTIValue})
 	if err != nil {
 		t.Fatalf("ParsePDUSessionModificationCommandReject: %v", err)
 	}
 
-	if rej.Cause != Cause5GSMInvalidPTIValue {
-		t.Errorf("command reject cause = %#x, want %#x", rej.Cause, Cause5GSMInvalidPTIValue)
+	if rej.Cause != GSMCauseInvalidPTIValue {
+		t.Errorf("command reject cause = %#x, want %#x", rej.Cause, GSMCauseInvalidPTIValue)
 	}
 }
 
 func TestParseRejectsWrongMessageType(t *testing.T) {
 	// A 5GSM STATUS body parsed as a release request must fail on the type.
-	if _, err := ParsePDUSessionReleaseRequest([]byte{EPD5GSM, 5, 1, uint8(Msg5GSMStatus)}); err == nil {
+	if _, err := ParsePDUSessionReleaseRequest([]byte{EPD5GSM, 5, 1, uint8(MsgGSMStatus)}); err == nil {
 		t.Error("expected wrong-message-type error, got nil")
 	}
 }

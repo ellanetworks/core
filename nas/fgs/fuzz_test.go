@@ -10,13 +10,13 @@ import "testing"
 // common.Reader; a malformed message returns an error.
 func FuzzParse(f *testing.F) {
 	f.Add([]byte{EPD5GSM, 5, 1, uint8(MsgPDUSessionEstablishmentRequest), 0xFF, 0xFF, 0x91, 0xB1})
-	f.Add([]byte{EPD5GSM, 5, 1, uint8(Msg5GSMStatus), 0x2F})
+	f.Add([]byte{EPD5GSM, 5, 1, uint8(MsgGSMStatus), 0x2F})
 	f.Add([]byte{EPD5GSM, 5, 1, uint8(MsgPDUSessionReleaseRequest), iei5GSMCause, 0x24})
 	f.Add([]byte{EPD5GMM, 0x02, 0, 0, 0, 0, 0x2A, 0xDE})
 
 	f.Fuzz(func(_ *testing.T, b []byte) {
 		_, _ = ParsePDUSessionEstablishmentRequest(b)
-		_, _ = ParseStatus5GSM(b)
+		_, _ = ParseGSMStatus(b)
 		_, _ = ParsePDUSessionReleaseRequest(b)
 		_, _ = ParsePDUSessionReleaseComplete(b)
 		_, _ = ParsePDUSessionModificationComplete(b)
@@ -25,7 +25,7 @@ func FuzzParse(f *testing.F) {
 		_, _ = ParseAuthenticationResponse(b)
 		_, _ = ParseAuthenticationFailure(b)
 		_, _ = ParseIdentityResponse(b)
-		_, _ = ParseStatus5GMM(b)
+		_, _ = ParseGMMStatus(b)
 		_, _ = ParseSecurityModeReject(b)
 	})
 }

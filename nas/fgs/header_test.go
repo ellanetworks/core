@@ -47,8 +47,8 @@ func TestParseSecurityProtectedRejects(t *testing.T) {
 
 	// Wrong EPD (5GSM) in the outer wrapper.
 	wrong := []byte{EPD5GSM, 0x01, 0, 0, 0, 0, 0}
-	if _, err := ParseSecurityProtectedMessage(wrong); !errors.Is(err, ErrNot5GMM) {
-		t.Errorf("wrong EPD: got %v, want ErrNot5GMM", err)
+	if _, err := ParseSecurityProtectedMessage(wrong); !errors.Is(err, ErrNotGMM) {
+		t.Errorf("wrong EPD: got %v, want ErrNotGMM", err)
 	}
 
 	// Truncated before the sequence number.
@@ -60,14 +60,14 @@ func TestParseSecurityProtectedRejects(t *testing.T) {
 func TestPlainMMHeader(t *testing.T) {
 	var w common.Writer
 
-	writeMMHeader(&w, MsgIdentityRequest)
+	writeGMMHeader(&w, MsgIdentityRequest)
 	w.U8(0xAB) // one IE octet
 
 	b := w.Bytes()
 
 	want := []byte{EPD5GMM, 0x00, uint8(MsgIdentityRequest), 0xAB}
 	if !bytes.Equal(b, want) {
-		t.Fatalf("writeMMHeader = %#x, want %#x", b, want)
+		t.Fatalf("writeGMMHeader = %#x, want %#x", b, want)
 	}
 
 	mt, err := PeekMessageType(b)
@@ -79,12 +79,12 @@ func TestPlainMMHeader(t *testing.T) {
 		t.Fatalf("PeekMessageType = %#x, want %#x", mt, MsgIdentityRequest)
 	}
 
-	if err := readMMHeader(common.NewReader(b), MsgIdentityRequest); err != nil {
-		t.Fatalf("readMMHeader: %v", err)
+	if err := readGMMHeader(common.NewReader(b), MsgIdentityRequest); err != nil {
+		t.Fatalf("readGMMHeader: %v", err)
 	}
 
-	if err := readMMHeader(common.NewReader(b), MsgRegistrationRequest); !errors.Is(err, ErrWrongMessageType) {
-		t.Errorf("readMMHeader wrong type: got %v, want ErrWrongMessageType", err)
+	if err := readGMMHeader(common.NewReader(b), MsgRegistrationRequest); !errors.Is(err, ErrWrongMessageType) {
+		t.Errorf("readGMMHeader wrong type: got %v, want ErrWrongMessageType", err)
 	}
 }
 
@@ -98,32 +98,32 @@ func TestPeekMessageTypeRejectsProtected(t *testing.T) {
 func TestPlainSMHeader(t *testing.T) {
 	var w common.Writer
 
-	writeSMHeader(&w, 5, 1, MsgPDUSessionEstablishmentRequest)
+	writeGSMHeader(&w, 5, 1, MsgPDUSessionEstablishmentRequest)
 	w.U8(0xCD)
 
 	b := w.Bytes()
 
 	want := []byte{EPD5GSM, 5, 1, uint8(MsgPDUSessionEstablishmentRequest), 0xCD}
 	if !bytes.Equal(b, want) {
-		t.Fatalf("writeSMHeader = %#x, want %#x", b, want)
+		t.Fatalf("writeGSMHeader = %#x, want %#x", b, want)
 	}
 
-	mt, err := PeekSMMessageType(b)
+	mt, err := PeekGSMMessageType(b)
 	if err != nil {
-		t.Fatalf("PeekSMMessageType: %v", err)
+		t.Fatalf("PeekGSMMessageType: %v", err)
 	}
 
 	if mt != MsgPDUSessionEstablishmentRequest {
-		t.Fatalf("PeekSMMessageType = %#x, want %#x", mt, MsgPDUSessionEstablishmentRequest)
+		t.Fatalf("PeekGSMMessageType = %#x, want %#x", mt, MsgPDUSessionEstablishmentRequest)
 	}
 
-	psi, pti, err := readSMHeader(common.NewReader(b), MsgPDUSessionEstablishmentRequest)
+	psi, pti, err := readGSMHeader(common.NewReader(b), MsgPDUSessionEstablishmentRequest)
 	if err != nil {
-		t.Fatalf("readSMHeader: %v", err)
+		t.Fatalf("readGSMHeader: %v", err)
 	}
 
 	if psi != 5 || pti != 1 {
-		t.Fatalf("readSMHeader psi=%d pti=%d, want 5/1", psi, pti)
+		t.Fatalf("readGSMHeader psi=%d pti=%d, want 5/1", psi, pti)
 	}
 }
 
