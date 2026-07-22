@@ -10,7 +10,7 @@ import (
 	"net/netip"
 
 	"github.com/ellanetworks/core/internal/logger"
-	fgs "github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 

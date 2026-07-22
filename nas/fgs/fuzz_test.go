@@ -22,5 +22,10 @@ func FuzzParse(f *testing.F) {
 		_, _ = ParsePDUSessionModificationComplete(b)
 		_, _ = ParsePDUSessionModificationCommandReject(b)
 		_, _ = ParseSecurityProtectedMessage(b)
+		_, _ = ParseAuthenticationResponse(b)
+		_, _ = ParseAuthenticationFailure(b)
+		_, _ = ParseIdentityResponse(b)
+		_, _ = ParseStatus5GMM(b)
+		_, _ = ParseSecurityModeReject(b)
 	})
 }

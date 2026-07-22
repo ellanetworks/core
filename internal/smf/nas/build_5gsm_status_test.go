@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
-	fgs "github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func TestBuildGSM5GSMStatus_RoundTrip(t *testing.T) {

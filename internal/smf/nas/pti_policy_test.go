@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
-	fgs "github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func TestPolicePTI(t *testing.T) {

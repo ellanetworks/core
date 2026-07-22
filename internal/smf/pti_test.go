@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	fgs "github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func buildPDUSessionEstRequestWithPTI(pti uint8) []byte {

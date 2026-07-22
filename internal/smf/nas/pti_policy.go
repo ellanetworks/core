@@ -3,7 +3,7 @@
 
 package nas
 
-import fgs "github.com/ellanetworks/core/nas/fgs"
+import "github.com/ellanetworks/core/nas/fgs"
 
 // PTI values (TS 24.501 §9.6, TS 24.007 §11.2.3.1a).
 const (

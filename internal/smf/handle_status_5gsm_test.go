@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	fgs "github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func build5GSMStatus(pduSessionID, pti, cause uint8) []byte {

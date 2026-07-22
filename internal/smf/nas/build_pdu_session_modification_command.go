@@ -8,7 +8,7 @@ import (
 	"net"
 
 	"github.com/ellanetworks/core/internal/models"
-	fgs "github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 // BuildPDUSessionModificationCommand constructs a NAS PDU SESSION MODIFICATION

@@ -9,7 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/models"
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
-	fgs "github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func buildAccept(t *testing.T, snssai *models.Snssai, pco *smfNas.ProtocolConfigurationOptions, dns net.IP, cause uint8, addrs *smfNas.PDUSessionAddresses, alwaysOn *uint8) *fgs.PDUSessionEstablishmentAccept {

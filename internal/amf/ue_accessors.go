@@ -6,8 +6,8 @@ package amf
 import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
+	fgs "github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas/nasType"
-	"github.com/free5gc/nas/security"
 )
 
 // SmContextRef is a snapshot of one PDU session's SM context reference, taken
@@ -178,7 +178,7 @@ func (ue *UeContext) DecryptUplinkContents(contents []byte) error {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.ulCount.LastAccepted().Value(), security.Bearer3GPP, security.DirectionUplink, contents)
+	return fgs.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.ulCount.LastAccepted().Value(), fgs.Bearer3GPP, fgs.DirectionUplink, contents)
 }
 
 // SmContextSnapshot returns a locked shallow copy of the UE's PDU session SM

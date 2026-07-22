@@ -3,7 +3,7 @@
 
 package nas
 
-import fgs "github.com/ellanetworks/core/nas/fgs"
+import "github.com/ellanetworks/core/nas/fgs"
 
 // BuildGSMPDUSessionModificationReject builds a PDU SESSION MODIFICATION REJECT
 // (TS 24.501 §8.3.8) echoing the PTI of the request it rejects.

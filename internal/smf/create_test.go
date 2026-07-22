@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	fgs "github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func TestNegotiatePDUSessionType(t *testing.T) {

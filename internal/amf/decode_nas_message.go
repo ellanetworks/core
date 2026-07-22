@@ -14,8 +14,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
+	fgs "github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/security"
 	"go.uber.org/zap"
 )
 
@@ -64,11 +64,11 @@ func DecodeNASMessage(ue *UeContext, payload []byte) (*DecodeResult, error) {
 	}
 
 	msg := new(nas.Message)
-	msg.SecurityHeaderType = nas.GetSecurityHeaderType(payload) & 0x0f
+	msg.SecurityHeaderType = payload[1] & 0x0f
 
 	conn := ue.Conn()
 
-	if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
+	if msg.SecurityHeaderType == uint8(fgs.SHTPlain) {
 		if conn.SecureExchangeEstablished() {
 			// TS 24.501 §4.4.4.3: a plain message received after secure exchange is
 			// discarded — but only a real, decodable NAS message (a genuine integrity
@@ -112,9 +112,9 @@ func (ue *UeContext) NasIntegrityVerified(payload []byte) bool {
 		return false
 	}
 
-	switch nas.GetSecurityHeaderType(payload) & 0x0f {
-	case nas.SecurityHeaderTypeIntegrityProtected,
-		nas.SecurityHeaderTypeIntegrityProtectedAndCiphered:
+	switch payload[1] & 0x0f {
+	case uint8(fgs.SHTIntegrityProtected),
+		uint8(fgs.SHTIntegrityProtectedCiphered):
 	default:
 		return false
 	}
@@ -124,7 +124,7 @@ func (ue *UeContext) NasIntegrityVerified(payload []byte) bool {
 
 	cnt := ue.ulCount.Estimate(sqn) // never committed back to the context
 
-	mac, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, cnt.Value(), security.Bearer3GPP, security.DirectionUplink, payload[6:])
+	mac, err := fgs.NASMacCalculate(ue.integrityAlg, ue.knasInt, cnt.Value(), fgs.Bearer3GPP, fgs.DirectionUplink, payload[6:])
 	if err != nil {
 		return false
 	}
@@ -199,10 +199,10 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *U
 	counter := ue.ulCount
 
 	switch msg.SecurityHeaderType {
-	case nas.SecurityHeaderTypeIntegrityProtected:
-	case nas.SecurityHeaderTypeIntegrityProtectedAndCiphered:
+	case uint8(fgs.SHTIntegrityProtected):
+	case uint8(fgs.SHTIntegrityProtectedCiphered):
 		ciphered = true
-	case nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext:
+	case uint8(fgs.SHTIntegrityProtectedCipheredNewContext):
 		ciphered = true
 
 		counter.Reset()
@@ -215,8 +215,8 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *U
 
 	cnt := counter.Estimate(sequenceNumber)
 
-	mac32, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, cnt.Value(), security.Bearer3GPP,
-		security.DirectionUplink, payload)
+	mac32, err := fgs.NASMacCalculate(ue.integrityAlg, ue.knasInt, cnt.Value(), fgs.Bearer3GPP,
+		fgs.DirectionUplink, payload)
 	if err != nil {
 		return nil, silentDecode(nasreply.ReasonUnspecified, "error calculating mac: %+v", err)
 	}
@@ -229,8 +229,8 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *U
 	if ciphered {
 		logger.AmfLog.Debug("Decrypt NAS message", zap.Uint8("algorithm", ue.cipheringAlg), zap.Uint32("ULCount", cnt.Value()))
 
-		if err = security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, cnt.Value(), security.Bearer3GPP,
-			security.DirectionUplink, payload[1:]); err != nil {
+		if err = fgs.NASEncrypt(ue.cipheringAlg, ue.knasEnc, cnt.Value(), fgs.Bearer3GPP,
+			fgs.DirectionUplink, payload[1:]); err != nil {
 			return nil, silentDecode(nasreply.ReasonUnspecified, "error encrypting: %+v", err)
 		}
 	}

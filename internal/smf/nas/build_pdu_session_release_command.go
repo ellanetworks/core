@@ -3,7 +3,7 @@
 
 package nas
 
-import fgs "github.com/ellanetworks/core/nas/fgs"
+import "github.com/ellanetworks/core/nas/fgs"
 
 // BuildGSMPDUSessionReleaseCommand builds a PDU SESSION RELEASE COMMAND
 // (TS 24.501 §8.3.14). pti is the UE-allocated value for a UE-requested release

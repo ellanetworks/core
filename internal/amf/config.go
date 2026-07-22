@@ -11,7 +11,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas/security"
+	fgs "github.com/ellanetworks/core/nas/fgs"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -260,15 +260,15 @@ func (amf *AMF) SubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *model
 // NAS security algorithms are stored as RAT-neutral identities shared by EPS and
 // 5G (TS 24.301 ≡ TS 24.501): NULL(0), SNOW3G(1), AES(2).
 var cipheringNameToAlg = map[string]uint8{
-	"NULL":   security.AlgCiphering128NEA0,
-	"SNOW3G": security.AlgCiphering128NEA1,
-	"AES":    security.AlgCiphering128NEA2,
+	"NULL":   fgs.AlgCiphering128NEA0,
+	"SNOW3G": fgs.AlgCiphering128NEA1,
+	"AES":    fgs.AlgCiphering128NEA2,
 }
 
 var integrityNameToAlg = map[string]uint8{
-	"NULL":   security.AlgIntegrity128NIA0,
-	"SNOW3G": security.AlgIntegrity128NIA1,
-	"AES":    security.AlgIntegrity128NIA2,
+	"NULL":   fgs.AlgIntegrity128NIA0,
+	"SNOW3G": fgs.AlgIntegrity128NIA1,
+	"AES":    fgs.AlgIntegrity128NIA2,
 }
 
 // SecurityAlgorithms loads the configured NAS security algorithm preference

@@ -9,7 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/models"
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
-	fgs "github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func decodeModCmd(t *testing.T, b []byte) *fgs.PDUSessionModificationCommand {

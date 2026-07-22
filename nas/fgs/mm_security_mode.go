@@ -1,0 +1,48 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+package fgs
+
+import "github.com/ellanetworks/core/nas/common"
+
+// IMEISV request values (TS 24.501 §9.11.3.28).
+const (
+	IMEISVNotRequested uint8 = 0x00
+	IMEISVRequested    uint8 = 0x01
+)
+
+// SecurityModeCommand is the SECURITY MODE COMMAND message (TS 24.501 §8.2.25):
+// the selected NAS security algorithms, the ngKSI, and the replayed UE security
+// capabilities, with optional IMEISV request and additional 5G security
+// information.
+type SecurityModeCommand struct {
+	CipheringAlgorithm  uint8 // selected NEA (bits 5-8)
+	IntegrityAlgorithm  uint8 // selected NIA (bits 1-4)
+	NgKSI               uint8 // ngKSI half octet (bits 1-4)
+	ReplayedUESecCap    []byte
+	IMEISVRequest       *uint8 // optional (IEI 0xE)
+	Additional5GSecInfo *uint8 // optional (IEI 0x36): RINMR (bit 2), HDP (bit 1)
+}
+
+// Marshal encodes the plain SECURITY MODE COMMAND message.
+func (m *SecurityModeCommand) Marshal() ([]byte, error) {
+	var w common.Writer
+
+	writeMMHeader(&w, MsgSecurityModeCommand)
+	w.U8((m.CipheringAlgorithm&0x0F)<<4 | (m.IntegrityAlgorithm & 0x0F))
+	w.U8(m.NgKSI & 0x0F) // spare half octet in bits 5-8
+
+	if err := w.LV(m.ReplayedUESecCap); err != nil {
+		return nil, err
+	}
+
+	if m.IMEISVRequest != nil {
+		w.U8(ieiIMEISVRequest | (*m.IMEISVRequest & 0x07))
+	}
+
+	if m.Additional5GSecInfo != nil {
+		writeTLV(&w, ieiAdditional5GSec, []byte{*m.Additional5GSecInfo})
+	}
+
+	return w.Bytes(), nil
+}

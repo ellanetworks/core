@@ -13,7 +13,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
-	fgs "github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 )
