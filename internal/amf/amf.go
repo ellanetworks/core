@@ -717,11 +717,7 @@ func (amf *AMF) IsUERegistered(supi etsi.SUPI) bool {
 }
 
 // RefreshLocation triggers an active location refresh by sending a
-// LocationReportingControl(Direct) NGAP message to the RAN for the given UE
-// (TS 23.273 §6.5.1 "Otherwise" branch — invoke NG-RAN Location Reporting
-// procedure). Returns nil when the UE and its connection exist and the
-// message is sent; returns an error when the UE is not found or has no
-// active RAN connection.
+// LocationReportingControl(Direct) NGAP message to the RAN for the given UE.
 func (amf *AMF) RefreshLocation(ctx context.Context, supi etsi.SUPI) error {
 	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
@@ -747,8 +743,6 @@ func (amf *AMF) RefreshLocation(ctx context.Context, supi etsi.SUPI) error {
 	}
 
 	ueConn.SendNGAP(ctx, send.NGAPProcedureLocationReportingControl, pkt)
-
-	ueConn.TouchLastSeen()
 
 	logger.AmfLog.Info("location refresh triggered via LocationReportingControl(Direct)",
 		logger.SUPI(supi.String()),

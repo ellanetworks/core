@@ -5,14 +5,19 @@ package lmf
 
 import (
 	"context"
+	"encoding/hex"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/db"
 	coremodels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/free5gc/aper"
+	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
@@ -363,8 +368,10 @@ func TestDetermineLocation_N3IWF(t *testing.T) {
 
 // TestIsLocationStale_NR verifies the staleness check for NR locations.
 func TestIsLocationStale_NR(t *testing.T) {
-	fresh := &coremodels.NrLocation{
-		UeLocationTimestamp: func() *time.Time { t := time.Now(); return &t }(),
+	fresh := coremodels.UserLocation{
+		NrLocation: &coremodels.NrLocation{
+			UeLocationTimestamp: func() *time.Time { t := time.Now(); return &t }(),
+		},
 	}
 	if IsLocationStale(fresh, 10) {
 		t.Error("expected fresh NR location to not be stale")
@@ -372,8 +379,10 @@ func TestIsLocationStale_NR(t *testing.T) {
 
 	staleTime := time.Now().Add(-20 * time.Second)
 
-	stale := &coremodels.NrLocation{
-		UeLocationTimestamp: &staleTime,
+	stale := coremodels.UserLocation{
+		NrLocation: &coremodels.NrLocation{
+			UeLocationTimestamp: &staleTime,
+		},
 	}
 	if !IsLocationStale(stale, 10) {
 		t.Error("expected stale NR location to be stale")
@@ -382,8 +391,10 @@ func TestIsLocationStale_NR(t *testing.T) {
 
 // TestIsLocationStale_EUTRA verifies the staleness check for E-UTRA locations.
 func TestIsLocationStale_EUTRA(t *testing.T) {
-	fresh := &coremodels.EutraLocation{
-		UeLocationTimestamp: func() *time.Time { t := time.Now(); return &t }(),
+	fresh := coremodels.UserLocation{
+		EutraLocation: &coremodels.EutraLocation{
+			UeLocationTimestamp: func() *time.Time { t := time.Now(); return &t }(),
+		},
 	}
 	if IsLocationStale(fresh, 10) {
 		t.Error("expected fresh E-UTRA location to not be stale")
@@ -391,8 +402,10 @@ func TestIsLocationStale_EUTRA(t *testing.T) {
 
 	staleTime := time.Now().Add(-20 * time.Second)
 
-	stale := &coremodels.EutraLocation{
-		UeLocationTimestamp: &staleTime,
+	stale := coremodels.UserLocation{
+		EutraLocation: &coremodels.EutraLocation{
+			UeLocationTimestamp: &staleTime,
+		},
 	}
 	if !IsLocationStale(stale, 10) {
 		t.Error("expected stale E-UTRA location to be stale")
@@ -402,10 +415,12 @@ func TestIsLocationStale_EUTRA(t *testing.T) {
 // TestIsLocationStale_N3IWF verifies that N3IWF locations are never considered
 // stale (they have no cell-level refresh mechanism).
 func TestIsLocationStale_N3IWF(t *testing.T) {
-	loc := &coremodels.N3gaLocation{
-		N3gppTai: &coremodels.Tai{
-			PlmnID: &coremodels.PlmnID{Mcc: "262", Mnc: "01"},
-			Tac:    "0x00003c",
+	loc := coremodels.UserLocation{
+		N3gaLocation: &coremodels.N3gaLocation{
+			N3gppTai: &coremodels.Tai{
+				PlmnID: &coremodels.PlmnID{Mcc: "262", Mnc: "01"},
+				Tac:    "0x00003c",
+			},
 		},
 	}
 	if IsLocationStale(loc, 10) {
@@ -415,7 +430,7 @@ func TestIsLocationStale_N3IWF(t *testing.T) {
 
 // TestIsLocationStale_Empty verifies that empty location returns true (always stale).
 func TestIsLocationStale_Empty(t *testing.T) {
-	var loc interface{} = coremodels.UserLocation{}
+	loc := coremodels.UserLocation{}
 	if !IsLocationStale(loc, 10) {
 		t.Error("expected empty location to be stale")
 	}
@@ -423,7 +438,9 @@ func TestIsLocationStale_Empty(t *testing.T) {
 
 // TestIsLocationStale_NR_NoTimestamp verifies that NR location without timestamp is stale.
 func TestIsLocationStale_NR_NoTimestamp(t *testing.T) {
-	loc := &coremodels.NrLocation{}
+	loc := coremodels.UserLocation{
+		NrLocation: &coremodels.NrLocation{},
+	}
 	if !IsLocationStale(loc, 10) {
 		t.Error("expected NR location without timestamp to be stale")
 	}
@@ -431,7 +448,9 @@ func TestIsLocationStale_NR_NoTimestamp(t *testing.T) {
 
 // TestIsLocationStale_EUTRA_NoTimestamp verifies that E-UTRA location without timestamp is stale.
 func TestIsLocationStale_EUTRA_NoTimestamp(t *testing.T) {
-	loc := &coremodels.EutraLocation{}
+	loc := coremodels.UserLocation{
+		EutraLocation: &coremodels.EutraLocation{},
+	}
 	if !IsLocationStale(loc, 10) {
 		t.Error("expected E-UTRA location without timestamp to be stale")
 	}
@@ -522,5 +541,199 @@ func TestDetermineLocation_DefaultMaxAge(t *testing.T) {
 
 	if result.AccessType != "NR" {
 		t.Errorf("expected access_type NR, got %q", result.AccessType)
+	}
+}
+
+// TestRefreshLocation_Success verifies that when the RAN responds with a
+// LocationReport, the LMF receives the fresh location and uses it.
+func TestRefreshLocation_Success(t *testing.T) {
+	// NR Cell Identity is 28 bits: 0x00000004 -> hex "0000000" (7 chars)
+	amfInstance := amf.New(nil, nil, nil)
+	lmfInstance := New(amfInstance, nil, testDBWithCell(t, db.RATNR, "262", "01", "0000000"))
+	lmfInstance.maxLocationAge = 10
+
+	supi, err := etsi.NewSUPIFromIMSI("123456789012348")
+	if err != nil {
+		t.Fatalf("failed to create SUPI: %v", err)
+	}
+
+	staleTime := time.Now().Add(-20 * time.Second)
+	ue := amf.NewUeContext()
+	ue.SetSupiForTest(supi)
+	ue.Location = coremodels.UserLocation{
+		NrLocation: &coremodels.NrLocation{
+			Tai: &coremodels.Tai{
+				PlmnID: &coremodels.PlmnID{Mcc: "262", Mnc: "01"},
+				Tac:    "0x00001a",
+			},
+			Ncgi: &coremodels.Ncgi{
+				PlmnID:   &coremodels.PlmnID{Mcc: "262", Mnc: "01"},
+				NrCellID: "0000000",
+			},
+			UeLocationTimestamp: &staleTime,
+		},
+	}
+	ue.ForceStateForTest(amf.Registered)
+
+	if err := amfInstance.AddUeContextToPoolForTest(ue); err != nil {
+		t.Fatalf("failed to add UE to AMF: %v", err)
+	}
+
+	// Set up a fake gNB association so the AMF can send NGAP.
+	sender := &fakeNGAPSender{}
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+
+	// Send a LocationReport message with EventType=Direct and NR user location.
+	// PLMN 262-01 in NGAP octets: reverse MCC="262"->"262", reverse MNC="01"->"10"
+	// Format for 2-digit MNC: mcc[1] mcc[2] f mcc[0] mnc[0] mnc[1] = "62f210"
+	plmnBytes, err := hex.DecodeString("62f210")
+	if err != nil {
+		t.Fatalf("failed to decode PLMN bytes: %v", err)
+	}
+	// NR Cell Identity is 28 bits: 0x00000004 -> bytes {0x00, 0x00, 0x00, 0x04}
+	// BitStringToHex truncates to 7 chars: "0000000"
+	nrLoc := ngapType.UserLocationInformationNR{
+		TAI: ngapType.TAI{
+			PLMNIdentity: ngapType.PLMNIdentity{
+				Value: plmnBytes,
+			},
+			TAC: ngapType.TAC{
+				Value: []byte{0x00, 0x1a},
+			},
+		},
+		NRCGI: ngapType.NRCGI{
+			PLMNIdentity: ngapType.PLMNIdentity{
+				Value: plmnBytes,
+			},
+			NRCellIdentity: ngapType.NRCellIdentity{
+				Value: aper.BitString{Bytes: []byte{0x00, 0x00, 0x00, 0x04}, BitLength: 28},
+			},
+		},
+	}
+	msg := decode.LocationReport{
+		AMFUENGAPID: 1,
+		RANUENGAPID: 1,
+		UserLocationInformation: &ngapType.UserLocationInformation{
+			Present:                   ngapType.UserLocationInformationPresentUserLocationInformationNR,
+			UserLocationInformationNR: &nrLoc,
+		},
+		LocationReportingRequestType: &ngapType.LocationReportingRequestType{
+			EventType: ngapType.EventType{
+				Value: ngapType.EventTypePresentDirect,
+			},
+			ReportArea: ngapType.ReportArea{
+				Value: ngapType.ReportAreaPresentCell,
+			},
+		},
+	}
+
+	// Simulate the RAN responding with a LocationReport.
+	// First verify the UE connection is registered.
+	foundUeConn := amfInstance.FindUEByAmfUeNgapID(radio, 1)
+	if foundUeConn == nil {
+		t.Fatal("AMF.FindUEByAmfUeNgapID returned nil - UE connection not registered")
+	}
+
+	t.Logf("Found UE connection: amfUeNgapID=%d, ranUeNgapID=%d", foundUeConn.AmfUeNgapID, foundUeConn.RanUeNgapID)
+
+	ngap.HandleLocationReport(context.Background(), amfInstance, radio, msg)
+
+	// Verify the AMF has updated the location.
+	loc := ue.GetUserLocation()
+	if loc.NrLocation == nil || loc.NrLocation.UeLocationTimestamp == nil {
+		t.Fatal("expected AMF to have updated location after LocationReport")
+	}
+
+	t.Logf("AMF location after LocationReport: cellID=%q, nrLocation=%+v, nrLocation.Ncgi=%+v, nrLocation.Ncgi.PlmnID=%+v",
+		loc.NrLocation.Ncgi.NrCellID, loc.NrLocation, loc.NrLocation.Ncgi, loc.NrLocation.Ncgi.PlmnID)
+
+	// Verify the database has the cell position.
+	rat, mcc, mnc, cellID := "nr", "262", "01", "0000000"
+
+	cp, err := lmfInstance.db.GetCellPositionByCell(context.Background(), rat, mcc, mnc, cellID)
+	if err != nil {
+		t.Fatalf("database lookup failed (rat=%s, mcc=%s, mnc=%s, cellID=%s): %v", rat, mcc, mnc, cellID, err)
+	}
+
+	t.Logf("Database cell position: lat=%f, lon=%f", cp.Latitude, cp.Longitude)
+
+	// Verify that resolveCellCoordinate works with the fresh location.
+	coord, ok := lmfInstance.resolveCellCoordinate(context.Background(), loc, nil)
+	if !ok {
+		t.Fatal("expected resolveCellCoordinate to return true for fresh location")
+	}
+
+	t.Logf("Resolved coordinate: lat=%f, lon=%f", coord.latitudeDegrees, coord.longitudeDegrees)
+
+	if coord.latitudeDegrees != cp.Latitude || coord.longitudeDegrees != cp.Longitude {
+		t.Errorf("expected coordinate lat=%f lon=%f, got lat=%f lon=%f", cp.Latitude, cp.Longitude, coord.latitudeDegrees, coord.longitudeDegrees)
+	}
+}
+
+// TestRefreshLocation_Timeout verifies that when the RAN does not respond,
+// the LMF returns the stale location after the timeout period (TS 23.273
+// §6.5.1 step 12 — the AMF may return last known location).
+func TestRefreshLocation_Timeout(t *testing.T) {
+	amfInstance := amf.New(nil, nil, nil)
+	lmfInstance := New(amfInstance, nil, testDBWithCell(t, db.RATNR, "262", "01", "0x00000003"))
+	lmfInstance.maxLocationAge = 10
+
+	supi, err := etsi.NewSUPIFromIMSI("123456789012349")
+	if err != nil {
+		t.Fatalf("failed to create SUPI: %v", err)
+	}
+
+	staleTime := time.Now().Add(-20 * time.Second)
+	ue := amf.NewUeContext()
+	ue.SetSupiForTest(supi)
+	ue.Location = coremodels.UserLocation{
+		NrLocation: &coremodels.NrLocation{
+			Tai: &coremodels.Tai{
+				PlmnID: &coremodels.PlmnID{Mcc: "262", Mnc: "01"},
+				Tac:    "0x00001a",
+			},
+			Ncgi: &coremodels.Ncgi{
+				PlmnID:   &coremodels.PlmnID{Mcc: "262", Mnc: "01"},
+				NrCellID: "0x00000003",
+			},
+			UeLocationTimestamp: &staleTime,
+		},
+	}
+	ue.ForceStateForTest(amf.Registered)
+
+	if err := amfInstance.AddUeContextToPoolForTest(ue); err != nil {
+		t.Fatalf("failed to add UE to AMF: %v", err)
+	}
+
+	// Set up a fake gNB association (no LocationReport will be sent).
+	sender := &fakeNGAPSender{}
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+
+	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, MethodCellID)
+	if err != nil {
+		t.Fatalf("expected no error (stale location returned), got: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+
+	if result.AccessType != "NR" {
+		t.Errorf("expected access_type NR, got %q", result.AccessType)
+	}
+
+	if result.NCGI == nil {
+		t.Error("expected NCGI to be set")
+	}
+
+	// Verify that a LocationReportingControl was sent via NGAP.
+	if sender.locationReportingControlCalls != 1 {
+		t.Errorf("expected 1 LocationReportingControl send, got %d", sender.locationReportingControlCalls)
 	}
 }

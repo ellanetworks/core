@@ -17,7 +17,10 @@ import (
 	"go.uber.org/zap"
 )
 
-var ErrNotFound = errors.New("UE not found or not registered")
+var (
+	ErrNotFound       = errors.New("UE not found or not registered")
+	ErrRefreshTimeout = errors.New("location refresh timed out")
+)
 
 // DetermineLocation computes the current location of the UE identified by
 // supi using the configured positioning method. Returns the location result,
@@ -39,17 +42,7 @@ func (l *LMF) DetermineLocation(ctx context.Context, supi etsi.SUPI, method Posi
 
 // determineCellIDLocation computes location using the Cell ID method. It maps
 // the serving cell to its provisioned geographic position; if no coordinate is
-// available for the cell it returns ErrNoLocationEstimate (a Cell-ID estimate
-// without coordinates is not a valid TS 29.572 LocationData). N3IWF is an
-// exception: it carries no cell identifier, so a coordinate-less result is
-// returned for non-3GPP access.
-//
-// Per TS 23.273 §6.5.1 step 12: if the AMF does not have a valid (fresh)
-// location, it invokes the NG-RAN Location Reporting procedure by sending
-// LocationReportingControl(Direct) to the RAN. The refresh is fire-and-forget:
-// the RAN's LocationReport arrives asynchronously on the dispatch goroutine
-// and updates the AMF's cached location, so the current request returns the
-// existing location and the next request benefits from the refresh.
+// available for the cell it returns ErrNoLocationEstimate.
 func (l *LMF) determineCellIDLocation(ctx context.Context, supi etsi.SUPI) (*models.LocationResult, error) {
 	if !l.isUERegistered(supi) {
 		return nil, fmt.Errorf("UE not registered: %w", ErrNotFound)
@@ -69,29 +62,27 @@ func (l *LMF) determineCellIDLocation(ctx context.Context, supi etsi.SUPI) (*mod
 		maxAge = defaultMaxLocationAge
 	}
 
-	// TS 23.273 §6.5.1 step 12: check if the AMF's known location is fresh.
-	// If stale, actively refresh via LocationReportingControl(Direct). The
-	// refresh is async — the LocationReport arrives on the dispatch goroutine
-	// and updates the AMF's cache, so this request proceeds with the current
-	// (stale) location; the next request will see the refreshed value.
 	if IsLocationStale(loc, maxAge) {
-		logger.LmfLog.Info("location stale, triggering async refresh",
+		logger.LmfLog.Info("location stale, triggering refresh",
 			zap.String("supi", supi.String()),
 			zap.Int32("maxAge", maxAge),
 		)
 
-		if err := l.refreshLocation(ctx, supi); err != nil {
-			logger.LmfLog.Warn("location refresh failed, returning current location",
+		refreshed, err := l.refreshLocation(ctx, supi, loc)
+		if err != nil {
+			logger.LmfLog.Warn("location refresh failed, returning stale location",
 				zap.String("supi", supi.String()),
 				zap.Error(err),
 			)
+		} else {
+			loc = refreshed
 		}
 	}
 
 	result := computeCellIDLocation(supi, loc)
 
 	// N3IWF has no cell coordinate — skip coordinate resolution.
-	if loc.N3gaLocation != nil {
+	if loc.N3gaLocation != nil && loc.EutraLocation == nil && loc.NrLocation == nil {
 		logger.LmfLog.Info("location computed",
 			zap.String("supi", supi.String()),
 			zap.String("method", "cell_id"),
@@ -257,59 +248,90 @@ func computeCellIDLocation(supi etsi.SUPI, loc coremodels.UserLocation) *models.
 }
 
 // IsLocationStale reports whether loc is considered stale relative to
-// maxAgeSeconds. A location is stale when its age (time since the AMF last
-// received a location update via NGAP) exceeds maxAgeSeconds, or when it is
-// an N3IWF location (which has no refresh mechanism and is always considered
-// valid once received).
-func IsLocationStale(loc interface{}, maxAgeSeconds int32) bool {
-	switch v := loc.(type) {
-	case *coremodels.NrLocation:
-		if v == nil {
+// maxAgeSeconds.
+func IsLocationStale(loc coremodels.UserLocation, maxAgeSeconds int32) bool {
+	if loc.NrLocation != nil {
+		if loc.NrLocation.UeLocationTimestamp == nil {
 			return true
 		}
 
-		if v.UeLocationTimestamp == nil {
-			return true
-		}
-
-		return time.Since(*v.UeLocationTimestamp).Seconds() > float64(maxAgeSeconds)
-	case *coremodels.EutraLocation:
-		if v == nil {
-			return true
-		}
-
-		if v.UeLocationTimestamp == nil {
-			return true
-		}
-
-		return time.Since(*v.UeLocationTimestamp).Seconds() > float64(maxAgeSeconds)
-	case *coremodels.N3gaLocation:
-		// N3IWF has no cell-level refresh mechanism; treat as never stale.
-		return false
-	case coremodels.UserLocation:
-		// Check the nested location types directly.
-		if v.NrLocation != nil {
-			return IsLocationStale(v.NrLocation, maxAgeSeconds)
-		}
-
-		if v.EutraLocation != nil {
-			return IsLocationStale(v.EutraLocation, maxAgeSeconds)
-		}
-		// N3IWF or empty — N3IWF is never stale, empty is always stale.
-		return v.N3gaLocation == nil
-	default:
-		// Empty or unknown location is always stale.
-		return true
+		return time.Since(*loc.NrLocation.UeLocationTimestamp).Seconds() > float64(maxAgeSeconds)
 	}
+
+	if loc.EutraLocation != nil {
+		if loc.EutraLocation.UeLocationTimestamp == nil {
+			return true
+		}
+
+		return time.Since(*loc.EutraLocation.UeLocationTimestamp).Seconds() > float64(maxAgeSeconds)
+	}
+
+	// N3IWF or empty — N3IWF is never stale, empty is always stale.
+	return loc.N3gaLocation == nil
 }
 
-// refreshLocation triggers an active location refresh by asking the AMF to
-// send a LocationReportingControl(Direct) to the RAN (TS 23.273 §6.5.1
-// "Otherwise" branch — invoke NG-RAN Location Reporting procedure).
-func (l *LMF) refreshLocation(ctx context.Context, supi etsi.SUPI) error {
+// refreshLocation triggers an active location refresh through the AMF via the
+// NG-RAN location reporting procedure (TS 23.273 §6.5.1 step 12). It waits for
+// the AMF to receive a LocationReport from the RAN, polling the AMF's location
+// cache until the timestamp changes or the timeout expires.
+//
+// Returns the fresh location on success, or the stale location wrapped with
+// ErrRefreshTimeout if the refresh does not complete in time.
+func (l *LMF) refreshLocation(ctx context.Context, supi etsi.SUPI, loc coremodels.UserLocation) (coremodels.UserLocation, error) {
 	if l.amf == nil {
-		return fmt.Errorf("AMF is not available")
+		return coremodels.UserLocation{}, fmt.Errorf("AMF is not available")
 	}
 
-	return l.amf.RefreshLocation(ctx, supi)
+	ue, ok := l.amf.LookupUeBySupi(supi)
+	if !ok {
+		return coremodels.UserLocation{}, fmt.Errorf("UE not found: %w", ErrNotFound)
+	}
+
+	// Record the current timestamp before triggering the refresh.
+	staleTime := time.Time{}
+	if loc.NrLocation != nil && loc.NrLocation.UeLocationTimestamp != nil {
+		staleTime = *loc.NrLocation.UeLocationTimestamp
+	} else if loc.EutraLocation != nil && loc.EutraLocation.UeLocationTimestamp != nil {
+		staleTime = *loc.EutraLocation.UeLocationTimestamp
+	}
+
+	// Trigger the refresh (sends LocationReportingControl(Direct) to RAN).
+	if err := l.amf.RefreshLocation(ctx, supi); err != nil {
+		return coremodels.UserLocation{}, fmt.Errorf("send refresh request: %w", err)
+	}
+
+	// Wait for the RAN to respond with a LocationReport that updates the timestamp.
+	timeout := defaultRefreshTimeout
+	if deadline, ok := ctx.Deadline(); ok {
+		if d := time.Until(deadline); d < timeout {
+			timeout = d
+		}
+	}
+
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	deadline := time.After(timeout)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return coremodels.UserLocation{}, fmt.Errorf("context cancelled: %w", ErrRefreshTimeout)
+		case <-deadline:
+			return coremodels.UserLocation{}, fmt.Errorf("refresh did not complete in %v: %w", timeout, ErrRefreshTimeout)
+		case <-ticker.C:
+			loc := ue.GetUserLocation()
+
+			var freshTime time.Time
+			if loc.NrLocation != nil && loc.NrLocation.UeLocationTimestamp != nil {
+				freshTime = *loc.NrLocation.UeLocationTimestamp
+			} else if loc.EutraLocation != nil && loc.EutraLocation.UeLocationTimestamp != nil {
+				freshTime = *loc.EutraLocation.UeLocationTimestamp
+			}
+
+			if !freshTime.IsZero() && !freshTime.Equal(staleTime) {
+				return loc, nil
+			}
+		}
+	}
 }

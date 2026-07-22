@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
@@ -52,19 +53,16 @@ type LMF struct {
 	lppMu       sync.RWMutex
 	// ackSeq is the fallback downlink sequence counter for acknowledging a stray
 	// UE reply that arrives with no active session (TS 37.355 §4.3.2).
-	ackSeq atomic.Uint32
-	// maxLocationAge bounds how long the AMF's passively-maintained location is
-	// considered valid before the LMF triggers an active refresh via
-	// LocationReportingControl(Direct) (TS 23.273 §6.5.1 step 12).
+	ackSeq         atomic.Uint32
 	maxLocationAge int32
 }
 
 // defaultMaxLocationAge is the default maximum age (in seconds) for the AMF's
 // passively-maintained location before the LMF triggers an active refresh.
-// TS 23.273 §6.5.1 does not mandate a specific value; 5 minutes balances
-// freshness against signalling load — Cell ID is coarse-grained and the AMF
-// gets location updates on every handover, path switch, and Location Report.
 const defaultMaxLocationAge = 300
+
+// defaultRefreshTimeout is the maximum time to wait for a location refresh.
+const defaultRefreshTimeout = 5 * time.Second
 
 // New creates an LMF instance that reads UE location from the AMF (5G) and the
 // MME (4G).
