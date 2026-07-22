@@ -8,8 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
@@ -18,27 +17,12 @@ import (
 // protected and ciphered with the UE's security context. Re-registration is not
 // requested: the subscriber was removed, so the UE stays deregistered.
 func buildDeregistrationRequest(ue *UeContext) ([]byte, error) {
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeDeregistrationRequestUETerminatedDeregistration)
-
-	m.SecurityHeader = nas.SecurityHeader{
-		ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
-		SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
+	plain, err := (&fgs.DeregistrationRequestUETerminated{AccessType: fgs.AccessType3GPP}).Marshal()
+	if err != nil {
+		return nil, err
 	}
 
-	req := nasMessage.NewDeregistrationRequestUETerminatedDeregistration(0)
-	req.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	req.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	req.SetSpareHalfOctet(0)
-	req.SetMessageType(nas.MsgTypeDeregistrationRequestUETerminatedDeregistration)
-	req.SetAccessType(nasMessage.AccessType3GPP)
-	req.SetReRegistrationRequired(0)
-	req.SetSwitchOff(0)
-
-	m.DeregistrationRequestUETerminatedDeregistration = req
-
-	return ue.EncodeNASMessage(m)
+	return ue.EncodeNASMessagePlain(plain, uint8(fgs.SHTIntegrityProtectedCiphered))
 }
 
 // sendNetworkInitiatedDeregistration sends a UE-terminated DEREGISTRATION

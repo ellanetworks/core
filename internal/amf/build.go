@@ -16,10 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
 )
 
 // BuildDLNASTransport assembles a DL NAS TRANSPORT message. additionalInfo
@@ -89,47 +86,42 @@ func BuildAuthenticationRequest(ue *UeContext) ([]byte, error) {
 }
 
 func BuildServiceAccept(ue *UeContext, pDUSessionStatus *[16]bool, reactivationResult *[16]bool, errPduSessionID, errCause []uint8) ([]byte, error) {
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeServiceAccept)
-
-	m.SecurityHeader = nas.SecurityHeader{
-		ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
-		SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
-	}
-
-	serviceAccept := nasMessage.NewServiceAccept(0)
-	serviceAccept.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	serviceAccept.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	serviceAccept.SetMessageType(nas.MsgTypeServiceAccept)
+	m := &fgs.ServiceAccept{}
 
 	if pDUSessionStatus != nil {
-		serviceAccept.PDUSessionStatus = new(nasType.PDUSessionStatus)
-		serviceAccept.PDUSessionStatus.SetIei(nasMessage.ServiceAcceptPDUSessionStatusType)
-		serviceAccept.PDUSessionStatus.SetLen(2)
-		serviceAccept.PDUSessionStatus.Buffer = nasConvert.PSIToBuf(*pDUSessionStatus)
+		m.PDUSessionStatus = fgs.PSIToBytes(*pDUSessionStatus)
 	}
 
 	if reactivationResult != nil {
-		serviceAccept.PDUSessionReactivationResult = new(nasType.PDUSessionReactivationResult)
-		serviceAccept.PDUSessionReactivationResult.SetIei(nasMessage.ServiceAcceptPDUSessionReactivationResultType)
-		serviceAccept.PDUSessionReactivationResult.SetLen(2)
-		serviceAccept.PDUSessionReactivationResult.Buffer = nasConvert.PSIToBuf(*reactivationResult)
+		m.PDUSessionReactivationResult = fgs.PSIToBytes(*reactivationResult)
 	}
 
 	if errPduSessionID != nil {
-		serviceAccept.PDUSessionReactivationResultErrorCause = new(nasType.PDUSessionReactivationResultErrorCause)
-		serviceAccept.PDUSessionReactivationResultErrorCause.SetIei(
-			nasMessage.ServiceAcceptPDUSessionReactivationResultErrorCauseType)
-
-		buf := nasConvert.PDUSessionReactivationResultErrorCauseToBuf(errPduSessionID, errCause)
-		serviceAccept.PDUSessionReactivationResultErrorCause.SetLen(uint16(len(buf)))
-		serviceAccept.PDUSessionReactivationResultErrorCause.Buffer = buf
+		m.ReactivationResultErrorCause = reactivationErrCauseToBytes(errPduSessionID, errCause)
 	}
 
-	m.ServiceAccept = serviceAccept
+	plain, err := m.Marshal()
+	if err != nil {
+		return nil, err
+	}
 
-	return ue.EncodeNASMessage(m)
+	return ue.EncodeNASMessagePlain(plain, uint8(fgs.SHTIntegrityProtectedCiphered))
+}
+
+// reactivationErrCauseToBytes interleaves PDU session identities with their 5GSM
+// cause into the reactivation-result error cause IE value (TS 24.501 §9.11.3.43),
+// returning an empty (non-nil) value on a length mismatch, as the IE is still
+// emitted when the caller supplies error PDU session identities.
+func reactivationErrCauseToBytes(ids, causes []uint8) []byte {
+	buf := []byte{}
+
+	if len(ids) == len(causes) {
+		for i := range ids {
+			buf = append(buf, ids[i], causes[i])
+		}
+	}
+
+	return buf
 }
 
 func BuildAuthenticationReject() ([]byte, error) {
@@ -209,19 +201,7 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 }
 
 func BuildDeregistrationAccept() ([]byte, error) {
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeDeregistrationAcceptUEOriginatingDeregistration)
-
-	deregistrationAccept := nasMessage.NewDeregistrationAcceptUEOriginatingDeregistration(0)
-	deregistrationAccept.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	deregistrationAccept.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	deregistrationAccept.SetSpareHalfOctet(0)
-	deregistrationAccept.SetMessageType(nas.MsgTypeDeregistrationAcceptUEOriginatingDeregistration)
-
-	m.DeregistrationAcceptUEOriginatingDeregistration = deregistrationAccept
-
-	return m.PlainNasEncode()
+	return (&fgs.DeregistrationAcceptUEOriginating{}).Marshal()
 }
 
 func BuildRegistrationAccept(
@@ -233,61 +213,38 @@ func BuildRegistrationAccept(
 	errPduSessionID, errCause []uint8,
 	equivalentPlmnID models.PlmnID,
 ) ([]byte, error) {
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeRegistrationAccept)
-
-	m.SecurityHeader = nas.SecurityHeader{
-		ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
-		SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
-	}
-
-	registrationAccept := nasMessage.NewRegistrationAccept(0)
-	registrationAccept.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	registrationAccept.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	registrationAccept.SetSpareHalfOctet(0)
-	registrationAccept.SetMessageType(nas.MsgTypeRegistrationAccept)
-
-	registrationAccept.RegistrationResult5GS.SetLen(1)
-
-	registrationResult := uint8(0)
-	registrationResult |= nasMessage.AccessType3GPP
-	registrationAccept.SetRegistrationResultValue5GS(registrationResult)
-
-	if guti != etsi.InvalidGUTI5G {
-		gutiNas := nasConvert.GutiToNas(guti.String())
-		registrationAccept.GUTI5G = &gutiNas
-		registrationAccept.GUTI5G.SetIei(nasMessage.RegistrationAcceptGUTI5GType)
-	}
-
-	registrationAccept.EquivalentPlmns = nasType.NewEquivalentPlmns(nasMessage.RegistrationAcceptEquivalentPlmnsType)
-
-	var buf []uint8
-
-	plmnID, err := util.PlmnIDToNas(equivalentPlmnID)
+	equivalentPlmn, err := util.PlmnIDToNas(equivalentPlmnID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert PLMN ID to NAS: %s", err)
 	}
 
-	buf = append(buf, plmnID...)
-	registrationAccept.EquivalentPlmns.SetLen(uint8(len(buf)))
-	copy(registrationAccept.EquivalentPlmns.Octet[:], buf)
+	t3512 := fgs.EncodeGPRSTimer3(int(amfInstance.T3512Value.Seconds()))
+
+	m := &fgs.RegistrationAccept{
+		RegistrationResult: fgs.AccessType3GPP,
+		EquivalentPlmns:    equivalentPlmn,
+		T3512Value:         &t3512,
+	}
+
+	if guti != etsi.InvalidGUTI5G {
+		gutiNas, err := guti.MobileIdentity()
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode GUTI: %s", err)
+		}
+
+		m.GUTI = gutiNas
+	}
 
 	if len(ue.RegistrationArea) > 0 {
-		registrationAccept.TAIList = nasType.NewTAIList(nasMessage.RegistrationAcceptTAIListType)
-
 		taiListNas, err := util.TaiListToNas(ue.RegistrationArea)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert TAI list to NAS: %s", err)
 		}
 
-		registrationAccept.TAIList.SetLen(uint8(len(taiListNas)))
-		registrationAccept.SetPartialTrackingAreaIdentityList(taiListNas)
+		m.TAIList = taiListNas
 	}
 
 	if len(ue.AllowedNssai) > 0 {
-		registrationAccept.AllowedNSSAI = nasType.NewAllowedNSSAI(nasMessage.RegistrationAcceptAllowedNSSAIType)
-
 		var buf []uint8
 
 		for _, s := range ue.AllowedNssai {
@@ -299,121 +256,74 @@ func BuildRegistrationAccept(
 			buf = append(buf, snssai...)
 		}
 
-		registrationAccept.AllowedNSSAI.SetLen(uint8(len(buf)))
-		registrationAccept.AllowedNSSAI.SetSNSSAIValue(buf)
+		m.AllowedNSSAI = buf
 	}
 
-	nfs := amfInstance.NetworkFeatureSupport()
-	if nfs.Enable {
-		registrationAccept.NetworkFeatureSupport5GS = nasType.NewNetworkFeatureSupport5GS(nasMessage.RegistrationAcceptNetworkFeatureSupport5GSType)
-		registrationAccept.NetworkFeatureSupport5GS.SetLen(2)
-		registrationAccept.SetIMSVoPS3GPP(nfs.ImsVoPS)
-		registrationAccept.SetEMC(nfs.Emc)
-		registrationAccept.SetEMF(nfs.Emf)
-		registrationAccept.SetIWKN26(nfs.IwkN26)
-		registrationAccept.SetMPSI(nfs.Mpsi)
-		registrationAccept.SetEMCN(nfs.EmcN3)
-		registrationAccept.SetMCSI(nfs.Mcsi)
+	if nfs := amfInstance.NetworkFeatureSupport(); nfs.Enable {
+		octet0 := (nfs.Mpsi&1)<<7 | (nfs.IwkN26&1)<<6 | (nfs.Emf&3)<<4 | (nfs.Emc&3)<<2 | (nfs.ImsVoPS & 1)
+		octet1 := (nfs.Mcsi&1)<<1 | (nfs.EmcN3 & 1)
+		m.NetworkFeatureSupport = []byte{octet0, octet1}
 	}
 
 	if pDUSessionStatus != nil {
-		registrationAccept.PDUSessionStatus = nasType.NewPDUSessionStatus(nasMessage.RegistrationAcceptPDUSessionStatusType)
-		registrationAccept.PDUSessionStatus.SetLen(2)
-		registrationAccept.PDUSessionStatus.Buffer = nasConvert.PSIToBuf(*pDUSessionStatus)
+		m.PDUSessionStatus = fgs.PSIToBytes(*pDUSessionStatus)
 	}
 
 	if reactivationResult != nil {
-		registrationAccept.PDUSessionReactivationResult = nasType.NewPDUSessionReactivationResult(nasMessage.RegistrationAcceptPDUSessionReactivationResultType)
-		registrationAccept.PDUSessionReactivationResult.SetLen(2)
-		registrationAccept.PDUSessionReactivationResult.Buffer = nasConvert.PSIToBuf(*reactivationResult)
+		m.PDUSessionReactivationResult = fgs.PSIToBytes(*reactivationResult)
 	}
 
 	if errPduSessionID != nil {
-		registrationAccept.PDUSessionReactivationResultErrorCause = nasType.NewPDUSessionReactivationResultErrorCause(
-			nasMessage.RegistrationAcceptPDUSessionReactivationResultErrorCauseType)
-		buf := nasConvert.PDUSessionReactivationResultErrorCauseToBuf(errPduSessionID, errCause)
-		registrationAccept.PDUSessionReactivationResultErrorCause.SetLen(uint16(len(buf)))
-		registrationAccept.PDUSessionReactivationResultErrorCause.Buffer = buf
+		m.ReactivationResultErrorCause = reactivationErrCauseToBytes(errPduSessionID, errCause)
 	}
-
-	registrationAccept.T3512Value = nasType.NewT3512Value(nasMessage.RegistrationAcceptT3512ValueType)
-	registrationAccept.T3512Value.SetLen(1)
-	t3512 := nasConvert.GPRSTimer3ToNas(int(amfInstance.T3512Value.Seconds()))
-	registrationAccept.T3512Value.Octet = t3512
 
 	if ue.DRXParameter != nasMessage.DRXValueNotSpecified {
-		registrationAccept.NegotiatedDRXParameters = nasType.NewNegotiatedDRXParameters(nasMessage.RegistrationAcceptNegotiatedDRXParametersType)
-		registrationAccept.NegotiatedDRXParameters.SetLen(1)
-		registrationAccept.SetDRXValue(ue.DRXParameter)
+		drx := ue.DRXParameter
+		m.NegotiatedDRX = &drx
 	}
 
-	m.RegistrationAccept = registrationAccept
+	plain, err := m.Marshal()
+	if err != nil {
+		return nil, err
+	}
 
-	return ue.EncodeNASMessage(m)
+	return ue.EncodeNASMessagePlain(plain, uint8(fgs.SHTIntegrityProtectedCiphered))
 }
 
 // TS 24.501 Generic UE configuration update procedure.
 // includeGUTI controls whether a new 5G-GUTI is included (e.g. during service request GUTI re-allocation).
 func BuildConfigurationUpdateCommand(amfInstance *AMF, ue *UeContext, guti etsi.GUTI5G, spnFullName, spnShortName string, includeGUTI bool) ([]byte, error) {
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeConfigurationUpdateCommand)
+	ack := uint8(1) // configuration update indication: ACK requested
 
-	configurationUpdateCommand := nasMessage.NewConfigurationUpdateCommand(0)
-	configurationUpdateCommand.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	configurationUpdateCommand.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	configurationUpdateCommand.SetSpareHalfOctet(0)
-	configurationUpdateCommand.SetMessageType(nas.MsgTypeConfigurationUpdateCommand)
+	m := &fgs.ConfigurationUpdateCommand{ConfigurationUpdateIndication: &ack}
 
 	if includeGUTI {
 		if guti == etsi.InvalidGUTI5G {
 			return nil, fmt.Errorf("5G-GUTI is required")
 		}
 
-		gutiNas, err := nasConvert.GutiToNasWithError(guti.String())
+		gutiNas, err := guti.MobileIdentity()
 		if err != nil {
 			return nil, fmt.Errorf("encode GUTI failed: %w", err)
 		}
 
-		configurationUpdateCommand.GUTI5G = &gutiNas
-		configurationUpdateCommand.GUTI5G.SetIei(nasMessage.ConfigurationUpdateCommandGUTI5GType)
+		m.GUTI = gutiNas
 	}
 
 	if spnFullName != "" {
-		fullNameForNetwork := encodeNetworkName(spnFullName)
-		configurationUpdateCommand.FullNameForNetwork = &nasType.FullNameForNetwork{
-			Iei:    nasMessage.ConfigurationUpdateCommandFullNameForNetworkType,
-			Len:    uint8(len(fullNameForNetwork)),
-			Buffer: fullNameForNetwork,
-		}
+		m.FullNameForNetwork = encodeNetworkName(spnFullName)
 	}
 
 	if spnShortName != "" {
-		shortNameForNetwork := encodeNetworkName(spnShortName)
-		configurationUpdateCommand.ShortNameForNetwork = &nasType.ShortNameForNetwork{
-			Iei:    nasMessage.ConfigurationUpdateCommandShortNameForNetworkType,
-			Len:    uint8(len(shortNameForNetwork)),
-			Buffer: shortNameForNetwork,
-		}
+		m.ShortNameForNetwork = encodeNetworkName(spnShortName)
 	}
 
-	configurationUpdateCommand.ConfigurationUpdateIndication = nasType.NewConfigurationUpdateIndication(nasMessage.ConfigurationUpdateCommandConfigurationUpdateIndicationType)
-
-	configurationUpdateCommand.SetACK(uint8(1))
-
-	m.ConfigurationUpdateCommand = configurationUpdateCommand
-
-	m.SecurityHeader = nas.SecurityHeader{
-		ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
-		SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
-	}
-
-	b, err := ue.EncodeNASMessage(m)
+	plain, err := m.Marshal()
 	if err != nil {
-		return nil, fmt.Errorf("could not encode NAS message: %v", err)
+		return nil, err
 	}
 
-	return b, nil
+	return ue.EncodeNASMessagePlain(plain, uint8(fgs.SHTIntegrityProtectedCiphered))
 }
 
 // encodeNetworkName encodes a network name string into the format defined by

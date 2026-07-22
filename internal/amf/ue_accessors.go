@@ -6,7 +6,7 @@ package amf
 import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
-	fgs "github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas/nasType"
 )
 

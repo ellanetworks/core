@@ -145,7 +145,7 @@ func TestHandleGmmMessage_UnimplementedType_ReturnsStatus97(t *testing.T) {
 	msg := nas.NewGmmMessage()
 	msg.SetMessageType(nas.MsgTypeRegistrationReject) // a downlink type never handled inbound
 
-	d := HandleGmmMessage(context.Background(), amf.New(nil, nil, nil), ue, msg, true)
+	d := HandleGmmMessage(context.Background(), amf.New(nil, nil, nil), ue, msg, nil, true)
 
 	if d.Action != nasreply.ActionStatus || d.Domain != nasreply.DomainMM || d.Cause != nasreply.CauseMessageTypeNotImplemented {
 		t.Errorf("disposition = %+v, want a 5GMM STATUS #97 (message type non-existent or not implemented)", d)

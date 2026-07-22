@@ -10,15 +10,22 @@ import (
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *nasMessage.SecurityModeReject) nasreply.Disposition {
+func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, plainBody []byte) nasreply.Disposition {
 	if step := ue.RegStep(); step != amf.RegStepSecurityMode {
 		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Security Mode Reject message outside the security mode exchange", zap.String("state", string(ue.State())))
 		return nasreply.Silent(nasreply.ReasonOutOfState)
+	}
+
+	msg, err := fgs.ParseSecurityModeReject(plainBody)
+	if err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("could not decode Security Mode Reject", zap.Error(err))
+		return nasreply.Silent(nasreply.ReasonUnspecified)
 	}
 
 	defer ue.Deregister(ctx)
@@ -28,7 +35,7 @@ func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *nasMe
 		conn.Parent().EndKeyChainProc(procedure.SecurityMode)
 	}
 
-	logger.From(ctx, logger.AmfLog).Error("UE rejected the security mode command, abort the ongoing procedure", logger.Cause(nasMessage.Cause5GMMToString(msg.GetCauseValue())), logger.SUPI(ue.Supi().String()))
+	logger.From(ctx, logger.AmfLog).Error("UE rejected the security mode command, abort the ongoing procedure", logger.Cause(nasMessage.Cause5GMMToString(msg.Cause)), logger.SUPI(ue.Supi().String()))
 
 	ue.ClearSecured()
 

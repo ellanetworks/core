@@ -8,8 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func TestHandleStatus5GMM_UEDeregistered_Ignored(t *testing.T) {
@@ -20,9 +19,7 @@ func TestHandleStatus5GMM_UEDeregistered_Ignored(t *testing.T) {
 
 	ue.Deregister(context.TODO())
 
-	m := buildTestStatus5gmm()
-
-	handleStatus5GMM(context.Background(), ue, m.Status5GMM)
+	handleStatus5GMM(context.Background(), ue, buildTestStatus5gmm(t))
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
 		t.Fatalf("expected Status 5GMM in Deregistered state to be ignored, but a downlink was sent")
@@ -37,25 +34,20 @@ func TestHandleStatus5GMM_Registered_Ignored(t *testing.T) {
 
 	ue.ForceStateForTest(amf.Registered)
 
-	m := buildTestStatus5gmm()
-
-	handleStatus5GMM(context.Background(), ue, m.Status5GMM)
+	handleStatus5GMM(context.Background(), ue, buildTestStatus5gmm(t))
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
 		t.Fatalf("expected no downlink for Status 5GMM, but a downlink was sent")
 	}
 }
 
-func buildTestStatus5gmm() *nas.GmmMessage {
-	m := nas.NewGmmMessage()
+func buildTestStatus5gmm(t *testing.T) []byte {
+	t.Helper()
 
-	status5gmm := nasMessage.NewStatus5GMM(0)
-	status5gmm.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	status5gmm.SetSpareHalfOctet(0x00)
-	status5gmm.SetMessageType(nas.MsgTypeStatus5GMM)
+	b, err := (&fgs.Status5GMM{Cause: 0x6f}).Marshal()
+	if err != nil {
+		t.Fatalf("build Status 5GMM: %v", err)
+	}
 
-	m.Status5GMM = status5gmm
-	m.SetMessageType(nas.MsgTypeStatus5GMM)
-
-	return m
+	return b
 }

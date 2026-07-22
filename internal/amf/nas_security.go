@@ -5,7 +5,7 @@
 package amf
 
 import (
-	fgs "github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func cipheringAlgName(alg byte) string {

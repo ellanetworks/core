@@ -303,7 +303,9 @@ func restartRegistrationOnFreshContext(ctx context.Context, amfInstance *amf.AMF
 	fresh.SetSupi(supi)
 	amfInstance.AttachUeConn(fresh, ueConn)
 
-	HandleGmmMessage(ctx, amfInstance, fresh, msg, integrityVerified)
+	// The re-dispatch handles only a RegistrationRequest (not yet on nas/fgs), so
+	// no plain body is threaded here.
+	HandleGmmMessage(ctx, amfInstance, fresh, msg, nil, integrityVerified)
 }
 
 func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nas.GmmMessage, integrityVerified bool) nasreply.Disposition {

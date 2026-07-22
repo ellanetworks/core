@@ -42,3 +42,33 @@ func EncodeGPRSTimer2(d time.Duration) (uint8, error) {
 
 	return 0, fmt.Errorf("nas/fgs: cannot encode %v as a GPRS timer 2 (TS 24.008)", d)
 }
+
+// GPRS timer 3 unit codes (TS 24.008 §10.5.7.4a): the high three bits of the octet.
+const (
+	gprsTimer3Unit10Minutes uint8 = 0x00
+	gprsTimer3Unit1Hour     uint8 = 0x01
+	gprsTimer3Unit10Hours   uint8 = 0x02
+	gprsTimer3Unit2Seconds  uint8 = 0x03
+	gprsTimer3Unit30Seconds uint8 = 0x04
+	gprsTimer3Unit1Minute   uint8 = 0x05
+)
+
+// EncodeGPRSTimer3 encodes seconds as a one-octet GPRS timer 3 IE value
+// (TS 24.008 §10.5.7.4a): the high three bits select the unit and the low five
+// the value. It picks the smallest unit whose 5-bit value covers the duration.
+func EncodeGPRSTimer3(seconds int) uint8 {
+	switch {
+	case seconds <= 2*31:
+		return gprsTimer3Unit2Seconds<<5 | uint8(seconds/2)
+	case seconds <= 30*31:
+		return gprsTimer3Unit30Seconds<<5 | uint8(seconds/30)
+	case seconds <= 60*31:
+		return gprsTimer3Unit1Minute<<5 | uint8(seconds/60)
+	case seconds <= 600*31:
+		return gprsTimer3Unit10Minutes<<5 | uint8(seconds/600)
+	case seconds <= 3600*31:
+		return gprsTimer3Unit1Hour<<5 | uint8(seconds/3600)
+	default:
+		return gprsTimer3Unit10Hours<<5 | uint8(seconds/36000)
+	}
+}

@@ -18,7 +18,7 @@ var gmmTracer = otel.Tracer("ella-core/amf/nas/handler")
 // HandleGmmMessage dispatches an inbound GMM message to its handler. integrityVerified
 // is true only when the message carried a verified MAC; it is false when the decoder
 // admitted the message without verified integrity (plain, or MAC-failed but whitelisted).
-func HandleGmmMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nas.GmmMessage, integrityVerified bool) nasreply.Disposition {
+func HandleGmmMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nas.GmmMessage, plainBody []byte, integrityVerified bool) nasreply.Disposition {
 	msgType := msg.GetMessageType()
 
 	switch msgType {
@@ -33,7 +33,7 @@ func HandleGmmMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConte
 	case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
 		return handleDeregistrationRequestUEOriginatingDeregistration(ctx, ue, msg.DeregistrationRequestUEOriginatingDeregistration, integrityVerified)
 	case nas.MsgTypeStatus5GMM:
-		return handleStatus5GMM(ctx, ue, msg.Status5GMM)
+		return handleStatus5GMM(ctx, ue, plainBody)
 	case nas.MsgTypeIdentityResponse:
 		return handleIdentityResponse(ctx, amfInstance, ue, msg.IdentityResponse, integrityVerified)
 	case nas.MsgTypeAuthenticationResponse:
@@ -43,7 +43,7 @@ func HandleGmmMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConte
 	case nas.MsgTypeSecurityModeComplete:
 		return handleSecurityModeComplete(ctx, amfInstance, ue, msg.SecurityModeComplete, integrityVerified)
 	case nas.MsgTypeSecurityModeReject:
-		return handleSecurityModeReject(ctx, ue, msg.SecurityModeReject)
+		return handleSecurityModeReject(ctx, ue, plainBody)
 	case nas.MsgTypeRegistrationComplete:
 		return handleRegistrationComplete(ctx, amfInstance, ue)
 	case nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:

@@ -98,6 +98,37 @@ func (g *GUTI5G) String() string {
 	return fmt.Sprintf("%s%s%s%s", g.mcc, g.mnc, g.Amfid, &g.Tmsi)
 }
 
+// MobileIdentity encodes the GUTI as the 11-octet 5G-GUTI 5GS mobile identity
+// value (TS 24.501 §9.11.3.4): a type octet, the PLMN, the AMF identifier, and
+// the 5G-TMSI. It is the inverse of NewGUTI5GFromBytes.
+func (g GUTI5G) MobileIdentity() ([]byte, error) {
+	if len(g.mcc) != 3 || (len(g.mnc) != 2 && len(g.mnc) != 3) {
+		return nil, fmt.Errorf("invalid PLMN in GUTI: mcc %q mnc %q", g.mcc, g.mnc)
+	}
+
+	amf, err := hex.DecodeString(g.Amfid)
+	if err != nil || len(amf) != 3 {
+		return nil, fmt.Errorf("invalid AMF ID %q in GUTI", g.Amfid)
+	}
+
+	mccDigit3 := g.mcc[2] - '0'
+	mnc3 := byte(0x0f)
+
+	if len(g.mnc) == 3 {
+		mnc3 = g.mnc[2] - '0'
+	}
+
+	buf := make([]byte, 11)
+	buf[0] = 0xF2 // type of identity = 5G-GUTI (010), spare bits set
+	buf[1] = (g.mcc[1]-'0')<<4 | (g.mcc[0] - '0')
+	buf[2] = mnc3<<4 | mccDigit3
+	buf[3] = (g.mnc[1]-'0')<<4 | (g.mnc[0] - '0')
+	copy(buf[4:7], amf)
+	binary.BigEndian.PutUint32(buf[7:11], g.Tmsi.Uint32())
+
+	return buf, nil
+}
+
 // TMSI is a 5G Temporary Mobile Subscriber Identity.
 type TMSI struct {
 	tmsi uint32

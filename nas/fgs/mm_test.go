@@ -38,6 +38,21 @@ func TestMMBuildersWireBytes(t *testing.T) {
 	wire(t, "SecurityModeCommand",
 		(&SecurityModeCommand{CipheringAlgorithm: 2, IntegrityAlgorithm: 1, NgKSI: 1, ReplayedUESecCap: []byte{0xFF, 0xF0}, IMEISVRequest: &imeisv, Additional5GSecInfo: &addInfo}).Marshal,
 		"7e005d210102fff0e1360102")
+
+	wire(t, "DeregistrationRequestUETerminated", (&DeregistrationRequestUETerminated{AccessType: AccessType3GPP}).Marshal, "7e004701")
+	wire(t, "DeregistrationAcceptUEOriginating", (&DeregistrationAcceptUEOriginating{}).Marshal, "7e0046")
+
+	var psi [16]bool
+
+	psi[1] = true
+	wire(t, "ServiceAccept", (&ServiceAccept{PDUSessionStatus: PSIToBytes(psi)}).Marshal, "7e004e50020200")
+
+	t3512 := EncodeGPRSTimer3(3240) // 5 * 10 minutes → 0x05
+	wire(t, "RegistrationAccept",
+		(&RegistrationAccept{RegistrationResult: AccessType3GPP, T3512Value: &t3512}).Marshal, "7e004201015e0105")
+
+	ack := uint8(1)
+	wire(t, "ConfigurationUpdateCommand", (&ConfigurationUpdateCommand{ConfigurationUpdateIndication: &ack}).Marshal, "7e0054d1")
 }
 
 func TestMMParsers(t *testing.T) {
