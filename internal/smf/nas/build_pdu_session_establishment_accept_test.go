@@ -9,282 +9,108 @@ import (
 
 	"github.com/ellanetworks/core/internal/models"
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	fgs "github.com/ellanetworks/core/nas/fgs"
 )
 
-func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
-	ambr := &models.Ambr{
-		Uplink:   "1 Gbps",
-		Downlink: "1 Gbps",
-	}
-	qosData := &models.QosData{
-		QFI:    1,
-		Var5qi: 9,
-	}
+func buildAccept(t *testing.T, snssai *models.Snssai, pco *smfNas.ProtocolConfigurationOptions, dns net.IP, cause uint8, addrs *smfNas.PDUSessionAddresses, alwaysOn *uint8) *fgs.PDUSessionEstablishmentAccept {
+	t.Helper()
 
-	pduSessionID := uint8(10)
-
-	pti := uint8(5)
-
-	snssai := &models.Snssai{
-		Sst: 1,
-		Sd:  "010203",
-	}
-
-	dnn := "internet"
-
-	pco := &smfNas.ProtocolConfigurationOptions{}
-
-	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(ambr, qosData, pduSessionID, pti, snssai, dnn, pco, nil, 0, 0, nil, nil)
-	if err != nil {
-		t.Fatalf("failed to build GSM PDU Session Establishment Accept: %v", err)
-	}
-
-	nasMsg := new(nas.Message)
-
-	err = nasMsg.PlainNasDecode(&msg)
-	if err != nil {
-		t.Fatalf("failed to decode NAS message: %v", err)
-	}
-
-	if nasMsg.PDUSessionEstablishmentAccept.SNSSAI == nil {
-		t.Errorf("SNSSAI IE is missing")
-	}
-
-	if nasMsg.PDUSessionEstablishmentAccept.SNSSAI.GetLen() != 4 {
-		t.Errorf("expected SNSSAI length 1, got %d", nasMsg.PDUSessionEstablishmentAccept.SNSSAI.GetLen())
-	}
-
-	if nasMsg.PDUSessionEstablishmentAccept.GetSST() != 1 {
-		t.Errorf("expected SST 1, got %d", nasMsg.PDUSessionEstablishmentAccept.GetSST())
-	}
-
-	if nasMsg.PDUSessionEstablishmentAccept.GetSD() != [3]uint8{1, 2, 3} {
-		t.Errorf("expected SD [1,2,3], got %v", nasMsg.PDUSessionEstablishmentAccept.GetSD())
-	}
-}
-
-func TestBuildGSMPDUSessionEstablishmentAccept_WithoutSD(t *testing.T) {
-	ambr := &models.Ambr{
-		Uplink:   "1 Gbps",
-		Downlink: "1 Gbps",
-	}
-	qosData := &models.QosData{
-		QFI:    1,
-		Var5qi: 9,
-	}
-
-	pduSessionID := uint8(10)
-
-	pti := uint8(5)
-
-	snssai := &models.Snssai{
-		Sst: 1,
-		Sd:  "",
-	}
-
-	dnn := "internet"
-
-	pco := &smfNas.ProtocolConfigurationOptions{}
-
-	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(ambr, qosData, pduSessionID, pti, snssai, dnn, pco, nil, 0, 0, nil, nil)
-	if err != nil {
-		t.Fatalf("failed to build GSM PDU Session Establishment Accept: %v", err)
-	}
-
-	nasMsg := new(nas.Message)
-
-	err = nasMsg.PlainNasDecode(&msg)
-	if err != nil {
-		t.Fatalf("failed to decode NAS message: %v", err)
-	}
-
-	if nasMsg.PDUSessionEstablishmentAccept.SNSSAI == nil {
-		t.Errorf("SNSSAI IE is missing")
-	}
-
-	if nasMsg.PDUSessionEstablishmentAccept.SNSSAI.GetLen() != 1 {
-		t.Errorf("expected SNSSAI length 1, got %d", nasMsg.PDUSessionEstablishmentAccept.SNSSAI.GetLen())
-	}
-
-	if nasMsg.PDUSessionEstablishmentAccept.GetSST() != 1 {
-		t.Errorf("expected SST 1, got %d", nasMsg.PDUSessionEstablishmentAccept.GetSST())
-	}
-
-	if nasMsg.PDUSessionEstablishmentAccept.GetSD() != [3]uint8{0, 0, 0} {
-		t.Errorf("expected SD [0,0,0], got %v", nasMsg.PDUSessionEstablishmentAccept.GetSD())
-	}
-}
-
-func TestBuildGSMPDUSessionEstablishmentAccept_IPv4Address(t *testing.T) {
 	ambr := &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
-	qosData := &models.QosData{QFI: 1, Var5qi: 9}
-	snssai := &models.Snssai{Sst: 1}
-	pco := &smfNas.ProtocolConfigurationOptions{}
+	qos := &models.QosData{QFI: 1, Var5qi: 9}
 
-	addrs := &smfNas.PDUSessionAddresses{
-		PDUSessionType: nasMessage.PDUSessionTypeIPv4,
-		IPv4Address:    net.IP{10, 45, 0, 1},
-	}
-
-	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(ambr, qosData, 5, 1, snssai, "internet", pco, nil, 0, 0, addrs, nil)
+	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(ambr, qos, 5, 1, snssai, "internet", pco, dns, 0, cause, addrs, alwaysOn)
 	if err != nil {
-		t.Fatalf("Build failed: %v", err)
+		t.Fatalf("build failed: %v", err)
 	}
 
-	nasMsg := new(nas.Message)
-	if err := nasMsg.PlainNasDecode(&msg); err != nil {
-		t.Fatalf("Decode failed: %v", err)
+	acc, err := fgs.ParsePDUSessionEstablishmentAccept(msg)
+	if err != nil {
+		t.Fatalf("decode failed: %v", err)
 	}
 
-	if nasMsg.PDUSessionEstablishmentAccept.GetPDUSessionTypeValue() != nasMessage.PDUSessionTypeIPv4 {
-		t.Errorf("expected PDU session type IPv4, got %d", nasMsg.PDUSessionEstablishmentAccept.GetPDUSessionTypeValue())
+	return acc
+}
+
+func TestBuildGSMPDUSessionEstablishmentAccept_SNSSAI(t *testing.T) {
+	withSD := buildAccept(t, &models.Snssai{Sst: 1, Sd: "010203"}, &smfNas.ProtocolConfigurationOptions{}, nil, 0, nil, nil)
+	if withSD.SNSSAI == nil || withSD.SNSSAI.SST != 1 || withSD.SNSSAI.SD == nil || *withSD.SNSSAI.SD != [3]byte{1, 2, 3} {
+		t.Errorf("with SD: got %+v", withSD.SNSSAI)
 	}
 
-	if nasMsg.PDUAddress == nil {
-		t.Fatal("PDUAddress IE is nil")
-	}
-
-	// PDU address length should be 5 (1 type + 4 addr).
-	if nasMsg.PDUAddress.GetLen() != 5 {
-		t.Errorf("expected PDUAddress len 5, got %d", nasMsg.PDUAddress.GetLen())
-	}
-
-	addrInfo := nasMsg.GetPDUAddressInformation()
-	if addrInfo[0] != 10 || addrInfo[1] != 45 || addrInfo[2] != 0 || addrInfo[3] != 1 {
-		t.Errorf("expected IPv4 10.45.0.1, got %v", addrInfo[:4])
+	noSD := buildAccept(t, &models.Snssai{Sst: 1}, &smfNas.ProtocolConfigurationOptions{}, nil, 0, nil, nil)
+	if noSD.SNSSAI == nil || noSD.SNSSAI.SST != 1 || noSD.SNSSAI.SD != nil {
+		t.Errorf("without SD: got %+v", noSD.SNSSAI)
 	}
 }
 
-func TestBuildGSMPDUSessionEstablishmentAccept_IPv6IID(t *testing.T) {
-	ambr := &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
-	qosData := &models.QosData{QFI: 1, Var5qi: 9}
-	snssai := &models.Snssai{Sst: 1}
-	pco := &smfNas.ProtocolConfigurationOptions{}
-
-	iid := [8]byte{0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE}
-	addrs := &smfNas.PDUSessionAddresses{
-		PDUSessionType: nasMessage.PDUSessionTypeIPv6,
-		IPv6IID:        iid,
-	}
-
-	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(ambr, qosData, 5, 1, snssai, "internet", pco, nil, 0, 0, addrs, nil)
-	if err != nil {
-		t.Fatalf("Build failed: %v", err)
-	}
-
-	nasMsg := new(nas.Message)
-	if err := nasMsg.PlainNasDecode(&msg); err != nil {
-		t.Fatalf("Decode failed: %v", err)
-	}
-
-	if nasMsg.PDUSessionEstablishmentAccept.GetPDUSessionTypeValue() != nasMessage.PDUSessionTypeIPv6 {
-		t.Errorf("expected PDU session type IPv6, got %d", nasMsg.PDUSessionEstablishmentAccept.GetPDUSessionTypeValue())
-	}
-
-	if nasMsg.PDUAddress == nil {
-		t.Fatal("PDUAddress IE is nil")
-	}
-
-	// PDU address length should be 9 (1 type + 8 IID).
-	if nasMsg.PDUAddress.GetLen() != 9 {
-		t.Errorf("expected PDUAddress len 9, got %d", nasMsg.PDUAddress.GetLen())
-	}
-
-	addrInfo := nasMsg.GetPDUAddressInformation()
-	for i := 0; i < 8; i++ {
-		if addrInfo[i] != iid[i] {
-			t.Errorf("IID byte %d: expected 0x%02X, got 0x%02X", i, iid[i], addrInfo[i])
-		}
-	}
-}
-
-func TestBuildGSMPDUSessionEstablishmentAccept_IPv4v6(t *testing.T) {
-	ambr := &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
-	qosData := &models.QosData{QFI: 1, Var5qi: 9}
-	snssai := &models.Snssai{Sst: 1}
-	pco := &smfNas.ProtocolConfigurationOptions{}
-
+func TestBuildGSMPDUSessionEstablishmentAccept_PDUAddress(t *testing.T) {
 	iid := [8]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
-	addrs := &smfNas.PDUSessionAddresses{
-		PDUSessionType: nasMessage.PDUSessionTypeIPv4IPv6,
-		IPv4Address:    net.IP{192, 168, 1, 10},
-		IPv6IID:        iid,
+
+	tests := []struct {
+		name  string
+		addrs *smfNas.PDUSessionAddresses
+		check func(*testing.T, *fgs.PDUAddress)
+	}{
+		{
+			"IPv4",
+			&smfNas.PDUSessionAddresses{PDUSessionType: fgs.PDUSessionTypeIPv4, IPv4Address: net.IP{10, 45, 0, 1}},
+			func(t *testing.T, a *fgs.PDUAddress) {
+				if a.SessionType != fgs.PDUSessionTypeIPv4 || a.IPv4 != [4]byte{10, 45, 0, 1} {
+					t.Errorf("IPv4 = %+v", a)
+				}
+			},
+		},
+		{
+			"IPv6",
+			&smfNas.PDUSessionAddresses{PDUSessionType: fgs.PDUSessionTypeIPv6, IPv6IID: iid},
+			func(t *testing.T, a *fgs.PDUAddress) {
+				if a.SessionType != fgs.PDUSessionTypeIPv6 || a.IPv6IID != iid {
+					t.Errorf("IPv6 = %+v", a)
+				}
+			},
+		},
+		{
+			"IPv4v6",
+			&smfNas.PDUSessionAddresses{PDUSessionType: fgs.PDUSessionTypeIPv4IPv6, IPv4Address: net.IP{192, 168, 1, 10}, IPv6IID: iid},
+			func(t *testing.T, a *fgs.PDUAddress) {
+				if a.SessionType != fgs.PDUSessionTypeIPv4IPv6 || a.IPv6IID != iid || a.IPv4 != [4]byte{192, 168, 1, 10} {
+					t.Errorf("IPv4v6 = %+v", a)
+				}
+			},
+		},
 	}
 
-	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(ambr, qosData, 5, 1, snssai, "internet", pco, nil, 0, 0, addrs, nil)
-	if err != nil {
-		t.Fatalf("Build failed: %v", err)
-	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			acc := buildAccept(t, &models.Snssai{Sst: 1}, &smfNas.ProtocolConfigurationOptions{}, nil, 0, tc.addrs, nil)
+			if acc.PDUSessionType != tc.addrs.PDUSessionType {
+				t.Errorf("PDU session type = %d, want %d", acc.PDUSessionType, tc.addrs.PDUSessionType)
+			}
 
-	nasMsg := new(nas.Message)
-	if err := nasMsg.PlainNasDecode(&msg); err != nil {
-		t.Fatalf("Decode failed: %v", err)
-	}
+			if acc.PDUAddress == nil {
+				t.Fatal("PDU address IE missing")
+			}
 
-	if nasMsg.PDUSessionEstablishmentAccept.GetPDUSessionTypeValue() != nasMessage.PDUSessionTypeIPv4IPv6 {
-		t.Errorf("expected PDU session type IPv4v6, got %d", nasMsg.PDUSessionEstablishmentAccept.GetPDUSessionTypeValue())
-	}
-
-	if nasMsg.PDUAddress == nil {
-		t.Fatal("PDUAddress IE is nil")
-	}
-
-	// PDU address length should be 13 (1 type + 8 IID + 4 IPv4).
-	if nasMsg.PDUAddress.GetLen() != 13 {
-		t.Errorf("expected PDUAddress len 13, got %d", nasMsg.PDUAddress.GetLen())
-	}
-
-	addrInfo := nasMsg.GetPDUAddressInformation()
-	// First 8 bytes: IID
-	for i := 0; i < 8; i++ {
-		if addrInfo[i] != iid[i] {
-			t.Errorf("IID byte %d: expected 0x%02X, got 0x%02X", i, iid[i], addrInfo[i])
-		}
-	}
-
-	// Last 4 bytes: IPv4
-	if addrInfo[8] != 192 || addrInfo[9] != 168 || addrInfo[10] != 1 || addrInfo[11] != 10 {
-		t.Errorf("expected IPv4 192.168.1.10, got %v", addrInfo[8:12])
-	}
-}
-
-func TestBuildGSMPDUSessionEstablishmentAccept_IPv4DNS(t *testing.T) {
-	pco := &smfNas.ProtocolConfigurationOptions{
-		DNSIPv4Request: true,
-	}
-
-	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(
-		&models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"},
-		&models.QosData{QFI: 1, Var5qi: 9},
-		5, 1, &models.Snssai{Sst: 1}, "internet",
-		pco, net.ParseIP("8.8.8.8"), 0, 0, nil, nil,
-	)
-	if err != nil {
-		t.Fatalf("Build failed: %v", err)
-	}
-
-	nasMsg := new(nas.Message)
-	if err := nasMsg.PlainNasDecode(&msg); err != nil {
-		t.Fatalf("Decode failed: %v", err)
-	}
-
-	if nasMsg.PDUSessionEstablishmentAccept.ExtendedProtocolConfigurationOptions == nil {
-		t.Fatal("expected EPCO IE to be present for IPv4 DNS")
+			tc.check(t, acc.PDUAddress)
+		})
 	}
 }
 
-// TestBuildGSMPDUSessionEstablishmentAccept_AlwaysOn covers the Always-on PDU
-// session indication rule of TS 24.501 §6.4.1: omitted when nil, "not allowed"
-// (APSI 0) when the UE requested but the network does not grant, "required"
-// (APSI 1) when granted.
+func TestBuildGSMPDUSessionEstablishmentAccept_DNS(t *testing.T) {
+	v4 := buildAccept(t, &models.Snssai{Sst: 1}, &smfNas.ProtocolConfigurationOptions{DNSIPv4Request: true}, net.ParseIP("8.8.8.8"), 0, nil, nil)
+	if v4.ExtendedPCO == nil {
+		t.Error("expected EPCO for IPv4 DNS")
+	}
+
+	v6 := buildAccept(t, &models.Snssai{Sst: 1}, &smfNas.ProtocolConfigurationOptions{DNSIPv6Request: true}, net.ParseIP("2001:4860:4860::8888"), 0, nil, nil)
+	if v6.ExtendedPCO == nil {
+		t.Error("expected EPCO for IPv6 DNS")
+	}
+}
+
+// TS 24.501 §6.4.1: the Always-on indication is omitted when nil, "not allowed"
+// (APSI 0) or "required" (APSI 1) otherwise.
 func TestBuildGSMPDUSessionEstablishmentAccept_AlwaysOn(t *testing.T) {
-	ambr := &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
-	qosData := &models.QosData{QFI: 1, Var5qi: 9}
-	snssai := &models.Snssai{Sst: 1}
-	pco := &smfNas.ProtocolConfigurationOptions{}
-
 	notAllowed := uint8(0)
 	required := uint8(1)
 
@@ -294,129 +120,35 @@ func TestBuildGSMPDUSessionEstablishmentAccept_AlwaysOn(t *testing.T) {
 		wantIE   bool
 		wantAPSI uint8
 	}{
-		{name: "omitted", alwaysOn: nil, wantIE: false},
-		{name: "not allowed", alwaysOn: &notAllowed, wantIE: true, wantAPSI: 0},
-		{name: "required", alwaysOn: &required, wantIE: true, wantAPSI: 1},
+		{"omitted", nil, false, 0},
+		{"not allowed", &notAllowed, true, 0},
+		{"required", &required, true, 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(ambr, qosData, 1, 1, snssai, "internet", pco, nil, 0, 0, nil, tt.alwaysOn)
-			if err != nil {
-				t.Fatalf("Build failed: %v", err)
-			}
-
-			nasMsg := new(nas.Message)
-			if err := nasMsg.PlainNasDecode(&msg); err != nil {
-				t.Fatalf("Decode failed: %v", err)
-			}
-
-			ind := nasMsg.PDUSessionEstablishmentAccept.AlwaysonPDUSessionIndication
+			acc := buildAccept(t, &models.Snssai{Sst: 1}, &smfNas.ProtocolConfigurationOptions{}, nil, 0, nil, tt.alwaysOn)
 			if tt.wantIE {
-				if ind == nil {
-					t.Fatalf("expected Always-on PDU session indication IE, got none")
+				if acc.AlwaysOn == nil || *acc.AlwaysOn != tt.wantAPSI {
+					t.Errorf("APSI = %v, want %d", acc.AlwaysOn, tt.wantAPSI)
 				}
-
-				if got := nasMsg.PDUSessionEstablishmentAccept.GetAPSI(); got != tt.wantAPSI {
-					t.Errorf("APSI = %d, want %d", got, tt.wantAPSI)
-				}
-			} else if ind != nil {
-				t.Errorf("expected no Always-on PDU session indication IE, got one")
+			} else if acc.AlwaysOn != nil {
+				t.Errorf("expected no always-on IE, got %d", *acc.AlwaysOn)
 			}
 		})
 	}
 }
 
-func TestBuildGSMPDUSessionEstablishmentAccept_IPv6DNS(t *testing.T) {
-	pco := &smfNas.ProtocolConfigurationOptions{
-		DNSIPv6Request: true,
-	}
-
-	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(
-		&models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"},
-		&models.QosData{QFI: 1, Var5qi: 9},
-		5, 1, &models.Snssai{Sst: 1}, "internet",
-		pco, net.ParseIP("2001:4860:4860::8888"), 0, 0, nil, nil,
-	)
-	if err != nil {
-		t.Fatalf("Build failed: %v", err)
-	}
-
-	nasMsg := new(nas.Message)
-	if err := nasMsg.PlainNasDecode(&msg); err != nil {
-		t.Fatalf("Decode failed: %v", err)
-	}
-
-	if nasMsg.PDUSessionEstablishmentAccept.ExtendedProtocolConfigurationOptions == nil {
-		t.Fatal("expected EPCO IE to be present for IPv6 DNS")
-	}
-}
-
 func TestBuildGSMPDUSessionEstablishmentAccept_Cause(t *testing.T) {
-	ambr := &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
-	qosData := &models.QosData{QFI: 1, Var5qi: 9}
-	snssai := &models.Snssai{Sst: 1}
-	pco := &smfNas.ProtocolConfigurationOptions{}
+	addrs := &smfNas.PDUSessionAddresses{PDUSessionType: fgs.PDUSessionTypeIPv4, IPv4Address: net.IP{10, 0, 0, 1}}
 
-	addrs := &smfNas.PDUSessionAddresses{
-		PDUSessionType: nasMessage.PDUSessionTypeIPv4,
-		IPv4Address:    net.IP{10, 0, 0, 1},
+	none := buildAccept(t, &models.Snssai{Sst: 1}, &smfNas.ProtocolConfigurationOptions{}, nil, 0, addrs, nil)
+	if none.Cause != 0 {
+		t.Errorf("expected no cause, got %d", none.Cause)
 	}
 
-	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(ambr, qosData, 1, 1, snssai, "internet", pco, nil, 0, 0, addrs, nil)
-	if err != nil {
-		t.Fatalf("Build failed: %v", err)
-	}
-
-	nasMsg := new(nas.Message)
-	if err := nasMsg.PlainNasDecode(&msg); err != nil {
-		t.Fatalf("Decode failed: %v", err)
-	}
-
-	if nasMsg.PDUSessionEstablishmentAccept.Cause5GSM != nil {
-		t.Errorf("expected no cause IE, got %v", nasMsg.PDUSessionEstablishmentAccept.Cause5GSM)
-	}
-
-	// Test with IPv4-only cause (#50 = 0x32)
-	msg, err = smfNas.BuildGSMPDUSessionEstablishmentAccept(ambr, qosData, 1, 1, snssai, "internet", pco, nil, 0, nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed, addrs, nil)
-	if err != nil {
-		t.Fatalf("Build failed: %v", err)
-	}
-
-	nasMsg = new(nas.Message)
-	if err := nasMsg.PlainNasDecode(&msg); err != nil {
-		t.Fatalf("Decode failed: %v", err)
-	}
-
-	if nasMsg.PDUSessionEstablishmentAccept.Cause5GSM == nil {
-		t.Fatal("expected cause IE to be present")
-	}
-
-	if nasMsg.PDUSessionEstablishmentAccept.GetCauseValue() != nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed {
-		t.Errorf("expected cause %d, got %d", nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed, nasMsg.PDUSessionEstablishmentAccept.GetCauseValue())
-	}
-
-	// Test with IPv6-only cause (#51 = 0x33)
-	addrs.PDUSessionType = nasMessage.PDUSessionTypeIPv6
-	addrs.IPv4Address = nil
-	iid := [8]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
-	addrs.IPv6IID = iid
-
-	msg, err = smfNas.BuildGSMPDUSessionEstablishmentAccept(ambr, qosData, 1, 1, snssai, "internet", pco, nil, 0, nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed, addrs, nil)
-	if err != nil {
-		t.Fatalf("Build failed: %v", err)
-	}
-
-	nasMsg = new(nas.Message)
-	if err := nasMsg.PlainNasDecode(&msg); err != nil {
-		t.Fatalf("Decode failed: %v", err)
-	}
-
-	if nasMsg.PDUSessionEstablishmentAccept.Cause5GSM == nil {
-		t.Fatal("expected cause IE to be present")
-	}
-
-	if nasMsg.PDUSessionEstablishmentAccept.GetCauseValue() != nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed {
-		t.Errorf("expected cause %d, got %d", nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed, nasMsg.PDUSessionEstablishmentAccept.GetCauseValue())
+	v4 := buildAccept(t, &models.Snssai{Sst: 1}, &smfNas.ProtocolConfigurationOptions{}, nil, fgs.Cause5GSMPDUSessionTypeIPv4OnlyAllowed, addrs, nil)
+	if v4.Cause != fgs.Cause5GSMPDUSessionTypeIPv4OnlyAllowed {
+		t.Errorf("cause = %d, want %d", v4.Cause, fgs.Cause5GSMPDUSessionTypeIPv4OnlyAllowed)
 	}
 }

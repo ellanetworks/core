@@ -5,31 +5,13 @@ package smf_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	fgs "github.com/ellanetworks/core/nas/fgs"
 )
 
 func build5GSMStatus(pduSessionID, pti, cause uint8) []byte {
-	m := nas.NewMessage()
-	m.GsmMessage = nas.NewGsmMessage()
-	m.GsmHeader.SetMessageType(nas.MsgTypeStatus5GSM)
-	m.GsmHeader.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.Status5GSM = nasMessage.NewStatus5GSM(0)
-	m.Status5GSM.SetMessageType(nas.MsgTypeStatus5GSM)
-	m.Status5GSM.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.Status5GSM.SetPDUSessionID(pduSessionID)
-	m.Status5GSM.SetPTI(pti)
-	m.Status5GSM.SetCauseValue(cause)
-
-	buf, err := m.PlainNasEncode()
-	if err != nil {
-		panic(fmt.Sprintf("build 5GSM STATUS: %v", err))
-	}
-
-	return buf
+	return []byte{fgs.EPD5GSM, pduSessionID, pti, uint8(fgs.Msg5GSMStatus), cause}
 }
 
 // TS 24.501 §6.5.3.
@@ -39,7 +21,7 @@ func TestStatus5GSM_InvalidPDUSessionIdentityReleasesLocally(t *testing.T) {
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
-	if _, err := s.UpdateSmContextN1Msg(context.Background(), ref, build5GSMStatus(smCtx.PDUSessionID, 0, nasMessage.Cause5GSMInvalidPDUSessionIdentity)); err != nil {
+	if _, err := s.UpdateSmContextN1Msg(context.Background(), ref, build5GSMStatus(smCtx.PDUSessionID, 0, fgs.Cause5GSMInvalidPDUSessionIdentity)); err != nil {
 		t.Fatalf("UpdateSmContextN1Msg failed: %v", err)
 	}
 
@@ -64,7 +46,7 @@ func TestStatus5GSM_PTIMismatchOnEstablishmentAcceptReleasesLocally(t *testing.T
 		t.Fatalf("expected a successful establishment, got ref %q with a %d-byte reject", ref, len(rsp))
 	}
 
-	if _, err := s.UpdateSmContextN1Msg(ctx, ref, build5GSMStatus(1, 10, nasMessage.Cause5GSMPTIMismatch)); err != nil {
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, build5GSMStatus(1, 10, fgs.Cause5GSMPTIMismatch)); err != nil {
 		t.Fatalf("UpdateSmContextN1Msg failed: %v", err)
 	}
 
@@ -84,7 +66,7 @@ func TestStatus5GSM_PTIMismatchOnAnotherPTIKeepsSession(t *testing.T) {
 		t.Fatalf("CreateSmContext failed: %v", err)
 	}
 
-	if _, err := s.UpdateSmContextN1Msg(ctx, ref, build5GSMStatus(1, 9, nasMessage.Cause5GSMPTIMismatch)); err != nil {
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, build5GSMStatus(1, 9, fgs.Cause5GSMPTIMismatch)); err != nil {
 		t.Fatalf("UpdateSmContextN1Msg failed: %v", err)
 	}
 
@@ -111,7 +93,7 @@ func TestStatus5GSM_AbortingAnInFlightReleaseRemovesSession(t *testing.T) {
 		t.Fatal("session removed before the UE answered the release command")
 	}
 
-	if _, err := s.UpdateSmContextN1Msg(ctx, ref, build5GSMStatus(smCtx.PDUSessionID, 5, nasMessage.Cause5GSMMessageTypeNonExistentOrNotImplemented)); err != nil {
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, build5GSMStatus(smCtx.PDUSessionID, 5, fgs.Cause5GSMMessageTypeNonExistentOrNotImplemented)); err != nil {
 		t.Fatalf("UpdateSmContextN1Msg failed: %v", err)
 	}
 
@@ -131,7 +113,7 @@ func TestStatus5GSM_UnrelatedCauseKeepsSessionAndDiscardsPendingPolicy(t *testin
 
 	reconcileAmbrChange(t, s, ref) // new AMBR 500/600 Mbps, held pending
 
-	if _, err := s.UpdateSmContextN1Msg(context.Background(), ref, build5GSMStatus(smCtx.PDUSessionID, 0, nasMessage.Cause5GSMProtocolErrorUnspecified)); err != nil {
+	if _, err := s.UpdateSmContextN1Msg(context.Background(), ref, build5GSMStatus(smCtx.PDUSessionID, 0, fgs.Cause5GSMProtocolErrorUnspecified)); err != nil {
 		t.Fatalf("UpdateSmContextN1Msg failed: %v", err)
 	}
 
@@ -156,7 +138,7 @@ func TestStatus5GSM_ReservedPTIIgnored(t *testing.T) {
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
-	if _, err := s.UpdateSmContextN1Msg(context.Background(), ref, build5GSMStatus(smCtx.PDUSessionID, 0xff, nasMessage.Cause5GSMInvalidPDUSessionIdentity)); err != nil {
+	if _, err := s.UpdateSmContextN1Msg(context.Background(), ref, build5GSMStatus(smCtx.PDUSessionID, 0xff, fgs.Cause5GSMInvalidPDUSessionIdentity)); err != nil {
 		t.Fatalf("UpdateSmContextN1Msg failed: %v", err)
 	}
 

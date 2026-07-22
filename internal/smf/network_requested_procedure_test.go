@@ -5,55 +5,22 @@ package smf_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	fgs "github.com/ellanetworks/core/nas/fgs"
 )
 
 const procedureTimerInterval = 20 * time.Millisecond
 
 func buildPDUSessionModificationComplete(pduSessionID, pti uint8) []byte {
-	m := nas.NewMessage()
-	m.GsmMessage = nas.NewGsmMessage()
-	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionModificationComplete)
-	m.GsmHeader.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionModificationComplete = nasMessage.NewPDUSessionModificationComplete(0)
-	m.PDUSessionModificationComplete.SetMessageType(nas.MsgTypePDUSessionModificationComplete)
-	m.PDUSessionModificationComplete.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionModificationComplete.SetPDUSessionID(pduSessionID)
-	m.PDUSessionModificationComplete.SetPTI(pti)
-
-	buf, err := m.PlainNasEncode()
-	if err != nil {
-		panic(fmt.Sprintf("build PDU Session Modification Complete: %v", err))
-	}
-
-	return buf
+	return []byte{fgs.EPD5GSM, pduSessionID, pti, uint8(fgs.MsgPDUSessionModificationComplete)}
 }
 
 func buildPDUSessionModificationCommandReject(pduSessionID, pti uint8) []byte {
-	m := nas.NewMessage()
-	m.GsmMessage = nas.NewGsmMessage()
-	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionModificationCommandReject)
-	m.GsmHeader.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionModificationCommandReject = nasMessage.NewPDUSessionModificationCommandReject(0)
-	m.PDUSessionModificationCommandReject.SetMessageType(nas.MsgTypePDUSessionModificationCommandReject)
-	m.PDUSessionModificationCommandReject.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionModificationCommandReject.SetPDUSessionID(pduSessionID)
-	m.PDUSessionModificationCommandReject.SetPTI(pti)
-	m.PDUSessionModificationCommandReject.SetCauseValue(nasMessage.Cause5GSMRequestRejectedUnspecified)
-
-	buf, err := m.PlainNasEncode()
-	if err != nil {
-		panic(fmt.Sprintf("build PDU Session Modification Command Reject: %v", err))
-	}
-
-	return buf
+	return []byte{fgs.EPD5GSM, pduSessionID, pti, uint8(fgs.MsgPDUSessionModificationCmdReject), fgs.Cause5GSMRequestRejectedUnspecified}
 }
 
 func waitFor(t *testing.T, what string, cond func() bool) {

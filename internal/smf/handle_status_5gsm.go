@@ -7,7 +7,7 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/nas/nasMessage"
+	fgs "github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
@@ -26,10 +26,10 @@ func (s *SMF) handle5GSMStatus(ctx context.Context, smContext *SMContext, pti, c
 	smContext.ClearPTIInUse(pti)
 	smContext.pendingPolicy = nil
 
-	establishmentMismatch := cause == nasMessage.Cause5GSMPTIMismatch &&
+	establishmentMismatch := cause == fgs.Cause5GSMPTIMismatch &&
 		smContext.establishmentPTI != 0 && pti == smContext.establishmentPTI
 
-	if cause == nasMessage.Cause5GSMInvalidPDUSessionIdentity || establishmentMismatch || smContext.releasing {
+	if cause == fgs.Cause5GSMInvalidPDUSessionIdentity || establishmentMismatch || smContext.releasing {
 		s.teardownAndRemove(ctx, smContext)
 	}
 }

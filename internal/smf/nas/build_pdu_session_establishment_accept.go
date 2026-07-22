@@ -8,24 +8,19 @@
 package nas
 
 import (
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"net"
 	"strconv"
 	"strings"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasConvert"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
-	"go.uber.org/zap"
+	fgs "github.com/ellanetworks/core/nas/fgs"
 )
 
 const (
 	DefaultQosRuleID uint8 = 1
+	defaultSSCMode   uint8 = 1
 )
 
 type ProtocolConfigurationOptions struct {
@@ -38,9 +33,9 @@ type ProtocolConfigurationOptions struct {
 // For IPv4-only, only IPv4Address is set. For IPv6-only, only IPv6IID is set.
 // For IPv4v6, both are set.
 type PDUSessionAddresses struct {
-	PDUSessionType uint8   // nasMessage.PDUSessionTypeIPv4/IPv6/IPv4IPv6
-	IPv4Address    net.IP  // 4-byte IPv4 address
-	IPv6IID        [8]byte // Interface Identifier
+	PDUSessionType uint8
+	IPv4Address    net.IP
+	IPv6IID        [8]byte
 }
 
 func BuildGSMPDUSessionEstablishmentAccept(
@@ -57,198 +52,124 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	addrs *PDUSessionAddresses,
 	alwaysOn *uint8,
 ) ([]byte, error) {
-	pduSessionType := nasMessage.PDUSessionTypeIPv4
+	pduSessionType := fgs.PDUSessionTypeIPv4
 	if addrs != nil {
 		pduSessionType = addrs.PDUSessionType
 	}
 
-	m := nas.NewMessage()
-	m.GsmMessage = nas.NewGsmMessage()
-	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionEstablishmentAccept)
-	m.GsmHeader.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionEstablishmentAccept = nasMessage.NewPDUSessionEstablishmentAccept(0x0)
-	m.PDUSessionEstablishmentAccept.SetPDUSessionID(pduSessionID)
-	m.PDUSessionEstablishmentAccept.SetMessageType(nas.MsgTypePDUSessionEstablishmentAccept)
-	m.PDUSessionEstablishmentAccept.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionEstablishmentAccept.SetPTI(pti)
-	m.SetPDUSessionType(pduSessionType)
-	m.PDUSessionEstablishmentAccept.SetSSCMode(1)
-
-	if cause != 0 {
-		m.PDUSessionEstablishmentAccept.Cause5GSM = nasType.NewCause5GSM(nasMessage.PDUSessionEstablishmentAcceptCause5GSMType)
-		m.PDUSessionEstablishmentAccept.SetCauseValue(cause)
-	}
-
-	sessAmbr, err := ModelsToSessionAMBR(ambr)
+	sessAMBR, err := ModelsToSessionAMBR(ambr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert models to SessionAMBR: %v", err)
 	}
 
-	m.PDUSessionEstablishmentAccept.SessionAMBR = sessAmbr
-	m.PDUSessionEstablishmentAccept.SessionAMBR.SetLen(uint8(len(m.PDUSessionEstablishmentAccept.SessionAMBR.Octet)))
-
-	qosRules := QoSRules{
-		BuildDefaultQosRule(DefaultQosRuleID, qosData.QFI),
-	}
-
-	qosRulesBytes, err := qosRules.MarshalBinary()
+	sd, err := parseSD(snssai.Sd)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal QoS rules: %v", err)
+		return nil, err
 	}
 
-	m.PDUSessionEstablishmentAccept.AuthorizedQosRules.SetLen(uint16(len(qosRulesBytes)))
-	m.PDUSessionEstablishmentAccept.SetQosRule(qosRulesBytes)
+	m := &fgs.PDUSessionEstablishmentAccept{
+		PDUSessionID:        pduSessionID,
+		PTI:                 pti,
+		PDUSessionType:      pduSessionType,
+		SSCMode:             defaultSSCMode,
+		QoSRules:            fgs.MarshalQoSRules([]fgs.QoSRule{fgs.DefaultQoSRule(DefaultQosRuleID, qosData.QFI)}),
+		SessionAMBR:         sessAMBR,
+		Cause:               cause,
+		SNSSAI:              &fgs.SNSSAI{SST: uint8(snssai.Sst), SD: sd},
+		QoSFlowDescriptions: fgs.MarshalCreateQoSFlow(qosData.QFI, uint8(qosData.Var5qi)),
+		AlwaysOn:            alwaysOn,
+		DNN:                 dnn,
+	}
 
 	if addrs != nil {
-		addr, addrLen := pduAddressToNAS(addrs)
-		m.PDUAddress = nasType.NewPDUAddress(nasMessage.PDUSessionEstablishmentAcceptPDUAddressType)
-		m.PDUAddress.SetLen(addrLen)
-		m.PDUSessionEstablishmentAccept.SetPDUSessionTypeValue(pduSessionType)
-		m.SetPDUAddressInformation(addr)
-	}
-
-	authQfd, err := BuildAuthorizedQosFlowDescription(qosData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build Authorized QoS Flow Descriptions: %v", err)
-	}
-
-	m.PDUSessionEstablishmentAccept.AuthorizedQosFlowDescriptions = nasType.NewAuthorizedQosFlowDescriptions(nasMessage.PDUSessionEstablishmentAcceptAuthorizedQosFlowDescriptionsType)
-	m.PDUSessionEstablishmentAccept.AuthorizedQosFlowDescriptions.SetLen(authQfd.IeLen)
-	m.PDUSessionEstablishmentAccept.SetQoSFlowDescriptions(authQfd.Content)
-
-	m.PDUSessionEstablishmentAccept.SNSSAI = nasType.NewSNSSAI(nasMessage.ULNASTransportSNSSAIType)
-	m.PDUSessionEstablishmentAccept.SetSST(uint8(snssai.Sst))
-	m.PDUSessionEstablishmentAccept.SNSSAI.SetLen(1)
-
-	if snssai.Sd != "" {
-		byteArray, err := hex.DecodeString(snssai.Sd)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode sd: %v", err)
-		}
-
-		var sd [3]uint8
-
-		copy(sd[:], byteArray)
-
-		m.PDUSessionEstablishmentAccept.SetSD(sd)
-		m.PDUSessionEstablishmentAccept.SNSSAI.SetLen(4)
-	}
-
-	m.PDUSessionEstablishmentAccept.DNN = nasType.NewDNN(nasMessage.ULNASTransportDNNType)
-	m.PDUSessionEstablishmentAccept.SetDNN(dnn)
-
-	if alwaysOn != nil {
-		m.PDUSessionEstablishmentAccept.AlwaysonPDUSessionIndication = nasType.NewAlwaysonPDUSessionIndication(nasMessage.PDUSessionEstablishmentAcceptAlwaysonPDUSessionIndicationType)
-		m.PDUSessionEstablishmentAccept.SetAPSI(*alwaysOn)
+		m.PDUAddress = pduAddress(addrs)
 	}
 
 	if pco.DNSIPv4Request || pco.DNSIPv6Request || pco.IPv4LinkMTURequest {
-		m.PDUSessionEstablishmentAccept.ExtendedProtocolConfigurationOptions = nasType.NewExtendedProtocolConfigurationOptions(
-			nasMessage.PDUSessionEstablishmentAcceptExtendedProtocolConfigurationOptionsType,
-		)
-		protocolConfigurationOptions := nasConvert.NewProtocolConfigurationOptions()
+		var opts fgs.PCO
 
 		if pco.DNSIPv4Request {
-			err := protocolConfigurationOptions.AddDNSServerIPv4Address(dns)
-			if err != nil {
-				logger.SmfLog.Warn("Error while adding DNS IPv4 Addr", zap.Error(err), logger.PDUSessionID(pduSessionID))
-			}
+			opts.AddDNSServerIPv4Address(dns)
 		}
 
 		if pco.DNSIPv6Request {
-			err := protocolConfigurationOptions.AddDNSServerIPv6Address(dns)
-			if err != nil {
-				logger.SmfLog.Warn("Error while adding DNS IPv6 Addr", zap.Error(err), logger.PDUSessionID(pduSessionID))
-			}
+			opts.AddDNSServerIPv6Address(dns)
 		}
 
 		if pco.IPv4LinkMTURequest {
-			err := protocolConfigurationOptions.AddIPv4LinkMTU(mtu)
-			if err != nil {
-				logger.SmfLog.Warn("Error while adding MTU", zap.Error(err), logger.PDUSessionID(pduSessionID))
-			}
+			opts.AddIPv4LinkMTU(mtu)
 		}
 
-		pcoContents := protocolConfigurationOptions.Marshal()
-		pcoContentsLength := len(pcoContents)
-		m.PDUSessionEstablishmentAccept.ExtendedProtocolConfigurationOptions.SetLen(uint16(pcoContentsLength))
-		m.PDUSessionEstablishmentAccept.SetExtendedProtocolConfigurationOptionsContents(pcoContents)
+		m.ExtendedPCO = opts.Marshal()
 	}
 
-	return m.PlainNasEncode()
+	return m.Marshal()
 }
 
-func ModelsToSessionAMBR(ambr *models.Ambr) (nasType.SessionAMBR, error) {
-	var sessAmbr nasType.SessionAMBR
+// ModelsToSessionAMBR converts a policy AMBR ("<value> <unit>" strings) to the
+// NAS session AMBR representation.
+func ModelsToSessionAMBR(ambr *models.Ambr) (fgs.SessionAMBR, error) {
+	var out fgs.SessionAMBR
 
 	uplink := strings.Split(ambr.Uplink, " ")
 
-	uplinkBitRate, err := strconv.ParseUint(uplink[0], 10, 16)
+	up, err := strconv.ParseUint(uplink[0], 10, 16)
 	if err != nil {
-		return sessAmbr, fmt.Errorf("failed to parse uplink bitrate: %v", err)
+		return out, fmt.Errorf("failed to parse uplink bitrate: %v", err)
 	}
-
-	var uplinkBitRateBytes [2]byte
-	binary.BigEndian.PutUint16(uplinkBitRateBytes[:], uint16(uplinkBitRate))
-	sessAmbr.SetSessionAMBRForUplink(uplinkBitRateBytes)
-	sessAmbr.SetUnitForSessionAMBRForUplink(strToAMBRUnit(uplink[1]))
 
 	downlink := strings.Split(ambr.Downlink, " ")
 
-	downlinkBitRate, err := strconv.ParseUint(downlink[0], 10, 16)
+	down, err := strconv.ParseUint(downlink[0], 10, 16)
 	if err != nil {
-		return sessAmbr, fmt.Errorf("failed to parse downlink bitrate: %v", err)
+		return out, fmt.Errorf("failed to parse downlink bitrate: %v", err)
 	}
 
-	var downlinkBitRateBytes [2]byte
-	binary.BigEndian.PutUint16(downlinkBitRateBytes[:], uint16(downlinkBitRate))
-	sessAmbr.SetSessionAMBRForDownlink(downlinkBitRateBytes)
+	out.Uplink = uint16(up)
+	out.UplinkUnit = strToAMBRUnit(uplink[1])
+	out.Downlink = uint16(down)
+	out.DownlinkUnit = strToAMBRUnit(downlink[1])
 
-	sessAmbr.SetUnitForSessionAMBRForDownlink(strToAMBRUnit(downlink[1]))
-
-	return sessAmbr, nil
+	return out, nil
 }
 
 func strToAMBRUnit(unit string) uint8 {
 	switch unit {
-	case "bps":
-		return nasMessage.SessionAMBRUnitNotUsed
 	case "Kbps":
-		return nasMessage.SessionAMBRUnit1Kbps
+		return fgs.SessionAMBRUnit1Kbps
 	case "Mbps":
-		return nasMessage.SessionAMBRUnit1Mbps
+		return fgs.SessionAMBRUnit1Mbps
 	case "Gbps":
-		return nasMessage.SessionAMBRUnit1Gbps
+		return fgs.SessionAMBRUnit1Gbps
 	case "Tbps":
-		return nasMessage.SessionAMBRUnit1Tbps
+		return fgs.SessionAMBRUnit1Tbps
 	case "Pbps":
-		return nasMessage.SessionAMBRUnit1Pbps
+		return fgs.SessionAMBRUnit1Pbps
 	}
 
-	return nasMessage.SessionAMBRUnitNotUsed
+	return fgs.SessionAMBRUnitNotUsed
 }
 
-// pduAddressToNAS encodes the PDU address for the NAS wire format.
-// Per 3GPP TS 24.501 §9.11.4.10:
-//   - IPv4:   1 byte type + 4 bytes IPv4 address  → len 5
-//   - IPv6:   1 byte type + 8 bytes IID            → len 9
-//   - IPv4v6: 1 byte type + 8 bytes IID + 4 bytes IPv4 → len 13
-func pduAddressToNAS(addrs *PDUSessionAddresses) ([12]byte, uint8) {
-	var addr [12]byte
-
-	switch addrs.PDUSessionType {
-	case nasMessage.PDUSessionTypeIPv4:
-		copy(addr[:], addrs.IPv4Address.To4())
-		return addr, 4 + 1
-	case nasMessage.PDUSessionTypeIPv6:
-		copy(addr[:8], addrs.IPv6IID[:])
-		return addr, 8 + 1
-	case nasMessage.PDUSessionTypeIPv4IPv6:
-		copy(addr[:8], addrs.IPv6IID[:])
-		copy(addr[8:12], addrs.IPv4Address.To4())
-
-		return addr, 12 + 1
-	default:
-		return addr, 0
+func parseSD(sd string) (*[3]byte, error) {
+	if sd == "" {
+		return nil, nil
 	}
+
+	b, err := hex.DecodeString(sd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode sd: %v", err)
+	}
+
+	var out [3]byte
+
+	copy(out[:], b)
+
+	return &out, nil
+}
+
+func pduAddress(addrs *PDUSessionAddresses) *fgs.PDUAddress {
+	a := &fgs.PDUAddress{SessionType: addrs.PDUSessionType, IPv6IID: addrs.IPv6IID}
+	copy(a.IPv4[:], addrs.IPv4Address.To4())
+
+	return a
 }

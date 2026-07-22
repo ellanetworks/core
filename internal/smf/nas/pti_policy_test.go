@@ -7,8 +7,7 @@ import (
 	"testing"
 
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	fgs "github.com/ellanetworks/core/nas/fgs"
 )
 
 func TestPolicePTI(t *testing.T) {
@@ -17,7 +16,7 @@ func TestPolicePTI(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		msgType     uint8
+		msgType     fgs.SMMessageType
 		pti         uint8
 		ptiInUse    func(uint8) bool
 		wantVerdict smfNas.PTIVerdict
@@ -25,87 +24,87 @@ func TestPolicePTI(t *testing.T) {
 	}{
 		{
 			name:        "reserved PTI ignored (§7.3.1 d)",
-			msgType:     nas.MsgTypePDUSessionEstablishmentRequest,
+			msgType:     fgs.MsgPDUSessionEstablishmentRequest,
 			pti:         0xff,
 			ptiInUse:    never,
 			wantVerdict: smfNas.PTIIgnore,
 		},
 		{
 			name:        "reserved PTI on a complete is ignored (§7.3.1 d)",
-			msgType:     nas.MsgTypePDUSessionReleaseComplete,
+			msgType:     fgs.MsgPDUSessionReleaseComplete,
 			pti:         0xff,
 			ptiInUse:    always,
 			wantVerdict: smfNas.PTIIgnore,
 		},
 		{
 			name:        "establishment request with unassigned PTI (§7.3.1 c)",
-			msgType:     nas.MsgTypePDUSessionEstablishmentRequest,
+			msgType:     fgs.MsgPDUSessionEstablishmentRequest,
 			pti:         0x00,
 			ptiInUse:    never,
 			wantVerdict: smfNas.PTIRespondStatus,
-			wantCause:   nasMessage.Cause5GSMInvalidPTIValue,
+			wantCause:   fgs.Cause5GSMInvalidPTIValue,
 		},
 		{
 			name:        "modification request with unassigned PTI (§7.3.1 c)",
-			msgType:     nas.MsgTypePDUSessionModificationRequest,
+			msgType:     fgs.MsgPDUSessionModificationRequest,
 			pti:         0x00,
 			ptiInUse:    never,
 			wantVerdict: smfNas.PTIRespondStatus,
-			wantCause:   nasMessage.Cause5GSMInvalidPTIValue,
+			wantCause:   fgs.Cause5GSMInvalidPTIValue,
 		},
 		{
 			name:        "release request with unassigned PTI (§7.3.1 c)",
-			msgType:     nas.MsgTypePDUSessionReleaseRequest,
+			msgType:     fgs.MsgPDUSessionReleaseRequest,
 			pti:         0x00,
 			ptiInUse:    never,
 			wantVerdict: smfNas.PTIRespondStatus,
-			wantCause:   nasMessage.Cause5GSMInvalidPTIValue,
+			wantCause:   fgs.Cause5GSMInvalidPTIValue,
 		},
 		{
 			name:        "establishment request with assigned PTI is processed",
-			msgType:     nas.MsgTypePDUSessionEstablishmentRequest,
+			msgType:     fgs.MsgPDUSessionEstablishmentRequest,
 			pti:         0x01,
 			ptiInUse:    never,
 			wantVerdict: smfNas.PTIProcess,
 		},
 		{
 			name:        "release complete with PTI not in use (§7.3.1 a)",
-			msgType:     nas.MsgTypePDUSessionReleaseComplete,
+			msgType:     fgs.MsgPDUSessionReleaseComplete,
 			pti:         0x05,
 			ptiInUse:    never,
 			wantVerdict: smfNas.PTIRespondStatus,
-			wantCause:   nasMessage.Cause5GSMPTIMismatch,
+			wantCause:   fgs.Cause5GSMPTIMismatch,
 		},
 		{
 			name:        "modification complete with PTI not in use (§7.3.1 a)",
-			msgType:     nas.MsgTypePDUSessionModificationComplete,
+			msgType:     fgs.MsgPDUSessionModificationComplete,
 			pti:         0x00,
 			ptiInUse:    never,
 			wantVerdict: smfNas.PTIRespondStatus,
-			wantCause:   nasMessage.Cause5GSMPTIMismatch,
+			wantCause:   fgs.Cause5GSMPTIMismatch,
 		},
 		{
 			name:        "modification command reject with PTI not in use (§7.3.1 a)",
-			msgType:     nas.MsgTypePDUSessionModificationCommandReject,
+			msgType:     fgs.MsgPDUSessionModificationCmdReject,
 			pti:         0x07,
 			ptiInUse:    never,
 			wantVerdict: smfNas.PTIRespondStatus,
-			wantCause:   nasMessage.Cause5GSMPTIMismatch,
+			wantCause:   fgs.Cause5GSMPTIMismatch,
 		},
 		{
 			name:        "modification complete with PTI in use is processed (§7.3.1 a)",
-			msgType:     nas.MsgTypePDUSessionModificationComplete,
+			msgType:     fgs.MsgPDUSessionModificationComplete,
 			pti:         0x00,
 			ptiInUse:    always,
 			wantVerdict: smfNas.PTIProcess,
 		},
 		{
 			name:        "authentication complete with assigned PTI (§7.3.1 b)",
-			msgType:     nas.MsgTypePDUSessionAuthenticationComplete,
+			msgType:     fgs.MsgPDUSessionAuthenticationComplete,
 			pti:         0x03,
 			ptiInUse:    never,
 			wantVerdict: smfNas.PTIRespondStatus,
-			wantCause:   nasMessage.Cause5GSMInvalidPTIValue,
+			wantCause:   fgs.Cause5GSMInvalidPTIValue,
 		},
 	}
 
