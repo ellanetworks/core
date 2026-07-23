@@ -6,6 +6,7 @@ package amf
 
 import (
 	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 // NAS security algorithm identifiers (TS 33.501 §9.4.2.3). NEA3/NIA3 (128-ZUC)
@@ -109,35 +110,16 @@ func (ue *UeContext) SelectSecurityAlg(intOrder, encOrder []uint8) (nea, nia byt
 		return 0, 0, false
 	}
 
-	nia, iok := selectNASAlg(intOrder, func(alg uint8) bool {
-		switch alg {
-		case algIntegrity128NIA0:
-			return uecap.GetIA0_5G() == 1
-		case algIntegrity128NIA1:
-			return uecap.GetIA1_128_5G() == 1
-		case algIntegrity128NIA2:
-			return uecap.GetIA2_128_5G() == 1
-		case algIntegrity128NIA3:
-			return uecap.GetIA3_128_5G() == 1
-		}
+	// The NEA/NIA algorithm identity equals the support-bit index in the UE
+	// security capability (NEA0/NIA0 = bit 8, NEA1/NIA1 = bit 7, …), so the operator
+	// preference value indexes SupportsEA/SupportsIA directly (TS 24.501 §9.11.3.54).
+	sc, err := fgs.ParseUESecurityCapability(uecap)
+	if err != nil {
+		return 0, 0, false
+	}
 
-		return false
-	})
-
-	nea, eok := selectNASAlg(encOrder, func(alg uint8) bool {
-		switch alg {
-		case algCiphering128NEA0:
-			return uecap.GetEA0_5G() == 1
-		case algCiphering128NEA1:
-			return uecap.GetEA1_128_5G() == 1
-		case algCiphering128NEA2:
-			return uecap.GetEA2_128_5G() == 1
-		case algCiphering128NEA3:
-			return uecap.GetEA3_128_5G() == 1
-		}
-
-		return false
-	})
+	nia, iok := selectNASAlg(intOrder, sc.SupportsIA)
+	nea, eok := selectNASAlg(encOrder, sc.SupportsEA)
 
 	return nea, nia, iok && eok
 }

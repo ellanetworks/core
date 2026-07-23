@@ -13,7 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
-	"github.com/free5gc/nas/nasConvert"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -41,7 +41,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	}
 
 	if conn.RegistrationRequest.UpdateType5GS != nil {
-		if conn.RegistrationRequest.GetNGRanRcu() == nasMessage.NGRanRadioCapabilityUpdateNeeded {
+		if conn.RegistrationRequest.NGRanRcu() == 1 {
 			ue.RadioCapability = nil
 			ue.RadioCapabilityForPaging = nil
 		}
@@ -71,11 +71,11 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	ue.AllowedNssai = subscriberProfile.AllowedNssai
 
 	if conn.RegistrationRequest.MICOIndication != nil {
-		logger.From(ctx, logger.AmfLog).Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", conn.RegistrationRequest.GetRAAI()))
+		logger.From(ctx, logger.AmfLog).Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", conn.RegistrationRequest.RAAI()))
 	}
 
 	if conn.RegistrationRequest.RequestedDRXParameters != nil {
-		drx := conn.RegistrationRequest.GetDRXValue()
+		drx := conn.RegistrationRequest.DRXValue()
 		if drx > nasMessage.DRXcycleParameterT256 {
 			logger.From(ctx, logger.AmfLog).Warn("UE requested reserved DRX value, treating as not specified", zap.Uint8("drxValue", drx))
 			drx = nasMessage.DRXValueNotSpecified
@@ -95,7 +95,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	suList := ngapType.PDUSessionResourceSetupListSUReq{}
 
 	if conn.RegistrationRequest.UplinkDataStatus != nil {
-		uplinkDataPsi := nasConvert.PSIToBooleanArray(conn.RegistrationRequest.UplinkDataStatus.Buffer)
+		uplinkDataPsi := fgs.PSIFromBytes(conn.RegistrationRequest.UplinkDataStatus)
 		reactivationResult = new([16]bool)
 
 		for idx, hasUplinkData := range uplinkDataPsi {
@@ -126,7 +126,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	var pduSessionStatus *[16]bool
 	if conn.RegistrationRequest.PDUSessionStatus != nil {
 		pduSessionStatus = new([16]bool)
-		psiArray := nasConvert.PSIToBooleanArray(conn.RegistrationRequest.PDUSessionStatus.Buffer)
+		psiArray := fgs.PSIFromBytes(conn.RegistrationRequest.PDUSessionStatus)
 
 		for psi := 1; psi <= 15; psi++ {
 			pduSessionID := uint8(psi)

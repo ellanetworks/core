@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
-	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -266,9 +265,7 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 		u.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
 		u.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 
-		secCap := &nasType.UESecurityCapability{}
-		secCap.SetLen(2)
-		u.SetUESecurityCapabilityForTest(secCap)
+		u.SetUESecurityCapabilityForTest([]byte{0x00, 0x00})
 	})
 
 	radio := &amf.Radio{Conn: sender}

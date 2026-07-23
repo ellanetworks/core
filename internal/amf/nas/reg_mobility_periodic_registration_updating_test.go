@@ -12,9 +12,9 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/nas/security"
 )
 
@@ -144,14 +144,9 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *fakeNGAPSender, *f
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
-	if err != nil {
-		t.Fatalf("could not build registration request message: %v", err)
-	}
-
-	ue.Conn().RegistrationRequest = registrationRequest.RegistrationRequest
+	ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
 	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
-	ue.Conn().RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
+	ue.Conn().RegistrationRequest.Capability5GMM = []byte{0x00}
 
 	return ue, ngapSender, fakeSmf, amfInstance
 }
@@ -213,9 +208,8 @@ func TestMobilityReg_UpdateType5GS_ClearsRadioCapability(t *testing.T) {
 	ue.RadioCapability = []byte("some-capability")
 	ue.RadioCapabilityForPaging = &models.UERadioCapabilityForPaging{}
 
-	updateType := nasType.NewUpdateType5GS(nasMessage.RegistrationRequestUpdateType5GSType)
-	updateType.SetNGRanRcu(nasMessage.NGRanRadioCapabilityUpdateNeeded)
-	ue.Conn().RegistrationRequest.UpdateType5GS = updateType
+	updateType := uint8(1 << 1) // NG-RAN RCU needed (bit 2)
+	ue.Conn().RegistrationRequest.UpdateType5GS = &updateType
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
@@ -240,7 +234,8 @@ func TestMobilityReg_UpdateType5GS_ClearsRadioCapability(t *testing.T) {
 func TestMobilityReg_MICOIndication(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.Conn().RegistrationRequest.MICOIndication = nasType.NewMICOIndication(nasMessage.RegistrationRequestMICOIndicationType)
+	mico := uint8(0)
+	ue.Conn().RegistrationRequest.MICOIndication = &mico
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
@@ -257,9 +252,7 @@ func TestMobilityReg_MICOIndication(t *testing.T) {
 func TestMobilityReg_RequestedDRXParameters(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	drxParams := nasType.NewRequestedDRXParameters(nasMessage.RegistrationRequestRequestedDRXParametersType)
-	drxParams.SetDRXValue(0x03)
-	ue.Conn().RegistrationRequest.RequestedDRXParameters = drxParams
+	ue.Conn().RegistrationRequest.RequestedDRXParameters = []byte{0x03}
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
@@ -351,10 +344,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_UeContextRequest(t *testin
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	// UplinkDataStatus: PSI 2 has uplink data (bit 2 in byte 0 = 0x04)
-	ue.Conn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
-		Len:    2,
-		Buffer: []uint8{0x04, 0x00},
-	}
+	ue.Conn().RegistrationRequest.UplinkDataStatus = []uint8{0x04, 0x00}
 
 	ue.Conn().UeContextRequest = true
 
@@ -385,10 +375,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_NoUeContextRequest(t *test
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
-	ue.Conn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
-		Len:    2,
-		Buffer: []uint8{0x04, 0x00},
-	}
+	ue.Conn().RegistrationRequest.UplinkDataStatus = []uint8{0x04, 0x00}
 
 	ue.Conn().UeContextRequest = false
 
@@ -415,10 +402,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateError(t *testing.T) {
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
-	ue.Conn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
-		Len:    2,
-		Buffer: []uint8{0x04, 0x00},
-	}
+	ue.Conn().RegistrationRequest.UplinkDataStatus = []uint8{0x04, 0x00}
 
 	fakeSmf.ActivateSmContextError = fmt.Errorf("activate error")
 
@@ -446,10 +430,7 @@ func TestMobilityReg_PDUSessionStatus_InactiveSession_ReleaseSmContext(t *testin
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	// PDUSessionStatus: PSI 2 is NOT active (bit 2 unset = 0x00)
-	ue.Conn().RegistrationRequest.PDUSessionStatus = &nasType.PDUSessionStatus{
-		Len:    2,
-		Buffer: []uint8{0x00, 0x00},
-	}
+	ue.Conn().RegistrationRequest.PDUSessionStatus = []uint8{0x00, 0x00}
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
@@ -482,10 +463,7 @@ func TestMobilityReg_PDUSessionStatus_ActiveSession_NoRelease(t *testing.T) {
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	// PDUSessionStatus: PSI 2 IS active (bit 2 set = 0x04)
-	ue.Conn().RegistrationRequest.PDUSessionStatus = &nasType.PDUSessionStatus{
-		Len:    2,
-		Buffer: []uint8{0x04, 0x00},
-	}
+	ue.Conn().RegistrationRequest.PDUSessionStatus = []uint8{0x04, 0x00}
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
@@ -509,10 +487,7 @@ func TestMobilityReg_PDUSessionStatus_ReleaseError(t *testing.T) {
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
-	ue.Conn().RegistrationRequest.PDUSessionStatus = &nasType.PDUSessionStatus{
-		Len:    2,
-		Buffer: []uint8{0x00, 0x00}, // PSI 2 inactive → triggers release
-	}
+	ue.Conn().RegistrationRequest.PDUSessionStatus = []byte{0x00, 0x00} // PSI 2 inactive → triggers release
 
 	fakeSmf.ReleaseSmContextError = fmt.Errorf("release error")
 
@@ -539,16 +514,10 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	// UplinkDataStatus with PSI 2 + no UeContextRequest → populates suList
-	ue.Conn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
-		Len:    2,
-		Buffer: []uint8{0x04, 0x00},
-	}
+	ue.Conn().RegistrationRequest.UplinkDataStatus = []uint8{0x04, 0x00}
 	ue.Conn().UeContextRequest = false
 
-	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
-		Len:    2,
-		Buffer: []uint8{0x04, 0x00},
-	}
+	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = []uint8{0x04, 0x00}
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
 		BinaryDataN1Message:     []byte{0x01, 0x02},
@@ -590,10 +559,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 
 	// No UplinkDataStatus → suList remains empty
 
-	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
-		Len:    2,
-		Buffer: []uint8{0x04, 0x00},
-	}
+	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = []uint8{0x04, 0x00}
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
 		BinaryDataN1Message:     []byte{0x01, 0x02},
@@ -629,10 +595,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_MissingSmContext(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
-		Len:    2,
-		Buffer: []uint8{0x04, 0x00},
-	}
+	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = []uint8{0x04, 0x00}
 
 	// N1N2 with N2Info, but no amf.SmContext for PduSessionID 3
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
@@ -654,10 +617,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(3, "ref-3", snssai)
 
-	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
-		Len:    2,
-		Buffer: []uint8{0x08, 0x00}, // PSI 3
-	}
+	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = []byte{0x08, 0x00} // PSI 3
 
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
@@ -710,10 +670,7 @@ func TestMobilityReg_NoUeContextRequest_NonEmptySuList(t *testing.T) {
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
-	ue.Conn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
-		Len:    2,
-		Buffer: []uint8{0x04, 0x00},
-	}
+	ue.Conn().RegistrationRequest.UplinkDataStatus = []uint8{0x04, 0x00}
 
 	ue.Conn().UeContextRequest = false
 
@@ -876,14 +833,9 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
-	if err != nil {
-		t.Fatalf("could not build registration request message: %v", err)
-	}
-
-	ue.Conn().RegistrationRequest = registrationRequest.RegistrationRequest
+	ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
 	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
-	ue.Conn().RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
+	ue.Conn().RegistrationRequest.Capability5GMM = []byte{0x00}
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 

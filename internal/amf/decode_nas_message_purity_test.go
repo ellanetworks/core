@@ -5,9 +5,8 @@
 package amf
 
 import (
+	"reflect"
 	"testing"
-
-	"github.com/free5gc/nas/nasType"
 )
 
 // TestDecodeNASMessage_PurityOnPlainWhitelist asserts the decoder does
@@ -25,7 +24,7 @@ func TestDecodeNASMessage_PurityOnPlainWhitelist(t *testing.T) {
 	}
 
 	after := snapshotSecurityState(ue)
-	if before != after {
+	if !reflect.DeepEqual(before, after) {
 		t.Errorf("decoder mutated security state: before=%+v after=%+v", before, after)
 	}
 }
@@ -45,7 +44,7 @@ func TestDecodeNASMessage_PurityOnPlainReject(t *testing.T) {
 	}
 
 	after := snapshotSecurityState(ue)
-	if before != after {
+	if !reflect.DeepEqual(before, after) {
 		t.Errorf("decoder mutated security state on rejection: before=%+v after=%+v", before, after)
 	}
 }
@@ -61,7 +60,7 @@ type securityStateSnapshot struct {
 	SecurityContextAvailable bool
 	CipheringAlg             uint8
 	IntegrityAlg             uint8
-	UESecurityCapability     *nasType.UESecurityCapability
+	UESecurityCapability     []byte
 	KnasInt                  [16]uint8
 	KnasEnc                  [16]uint8
 }

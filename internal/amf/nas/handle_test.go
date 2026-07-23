@@ -14,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
-	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap"
 	"github.com/free5gc/ngap/ngapType"
 )
@@ -23,9 +22,7 @@ import (
 // time an Initial Context Setup is built: a 5G security capability (TS 33.501)
 // and a serving PLMN for the mobility restriction list.
 func setTestUESecurityCapability(ue *amf.UeContext) {
-	secCap := &nasType.UESecurityCapability{}
-	secCap.SetLen(2)
-	ue.SetUESecurityCapabilityForTest(secCap)
+	ue.SetUESecurityCapabilityForTest([]byte{0x00, 0x00})
 
 	if ue.PlmnID.Mcc == "" {
 		ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}

@@ -19,7 +19,6 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/nas/security"
 )
 
@@ -421,12 +420,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
-	if err != nil {
-		t.Fatalf("could not build registration request message: %v", err)
-	}
-
-	ue.Conn().RegistrationRequest = registrationRequest.RegistrationRequest
+	ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
 	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
 
 	m := buildTestIdentityResponseMessage()
@@ -513,16 +507,11 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 			ue.SetCipheringAlgForTest(algo)
 			ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-			registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
-			if err != nil {
-				t.Fatalf("could not build registration request message: %v", err)
-			}
-
-			ue.Conn().RegistrationRequest = registrationRequest.RegistrationRequest
+			ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
 
 			ue.Conn().RegistrationType5GS = tc
 			if tc == nasMessage.RegistrationType5GSMobilityRegistrationUpdating {
-				ue.Conn().RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
+				ue.Conn().RegistrationRequest.Capability5GMM = []byte{0x00}
 			}
 
 			m := buildTestIdentityResponseMessage()
@@ -605,16 +594,11 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 			ue.SetCipheringAlgForTest(algo)
 			ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-			registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
-			if err != nil {
-				t.Fatalf("could not build registration request message: %v", err)
-			}
-
-			ue.Conn().RegistrationRequest = registrationRequest.RegistrationRequest
+			ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
 
 			ue.Conn().RegistrationType5GS = tc
 			if tc == nasMessage.RegistrationType5GSMobilityRegistrationUpdating {
-				ue.Conn().RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
+				ue.Conn().RegistrationRequest.Capability5GMM = []byte{0x00}
 			}
 
 			m := buildTestIdentityResponseMessage()

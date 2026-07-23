@@ -4,6 +4,7 @@
 package nas
 
 import (
+	"bytes"
 	"context"
 
 	"github.com/ellanetworks/core/etsi"
@@ -11,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
@@ -71,7 +73,19 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 			return nasreply.Handled()
 		}
 
-		contextSetup(ctx, amfInstance, ue, m.RegistrationRequest)
+		var buf bytes.Buffer
+		if err := m.EncodeRegistrationRequest(&buf); err != nil {
+			abortRegistration(ctx, amfInstance, ue, "re-encode NAS container registration request", err)
+			return nasreply.Handled()
+		}
+
+		fgsRR, err := fgs.ParseRegistrationRequest(buf.Bytes())
+		if err != nil {
+			abortRegistration(ctx, amfInstance, ue, "re-parse NAS container registration request", err)
+			return nasreply.Handled()
+		}
+
+		contextSetup(ctx, amfInstance, ue, fgsRR)
 
 		return nasreply.Handled()
 	}

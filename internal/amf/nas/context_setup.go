@@ -8,10 +8,10 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
-func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.RegistrationRequest) {
+func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *fgs.RegistrationRequest) {
 	ctx, span := gmmTracer.Start(ctx, "nas/context_setup")
 	defer span.End()
 
@@ -26,11 +26,11 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, 
 	conn.RegistrationRequest = msg
 
 	switch conn.RegistrationType5GS {
-	case nasMessage.RegistrationType5GSInitialRegistration:
+	case fgs.RegistrationTypeInitial:
 		HandleInitialRegistration(ctx, amfInstance, ue)
-	case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
+	case fgs.RegistrationTypeMobilityUpdating:
 		fallthrough
-	case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
+	case fgs.RegistrationTypePeriodicUpdating:
 		HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfInstance, ue)
 	}
 }

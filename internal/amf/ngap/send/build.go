@@ -14,13 +14,34 @@ import (
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/aper"
-	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
+
+// nrEA / nrIA report whether the UE security capability value supports 5G-NR
+// encryption / integrity algorithm n, as the 0/1 bit the NGAP UE Security
+// Capabilities IE expects (TS 24.501 §9.11.3.54, TS 38.413).
+func nrEA(ueSecCap []byte, n uint8) byte {
+	sc, err := fgs.ParseUESecurityCapability(ueSecCap)
+	if err != nil || !sc.SupportsEA(n) {
+		return 0
+	}
+
+	return 1
+}
+
+func nrIA(ueSecCap []byte, n uint8) byte {
+	sc, err := fgs.ParseUESecurityCapability(ueSecCap)
+	if err != nil || !sc.SupportsIA(n) {
+		return 0
+	}
+
+	return 1
+}
 
 func BuildNGSetupResponse(guami *models.Guami, snssaiList []models.Snssai, amfName string, amfRelativeCapacity int64) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
@@ -1158,7 +1179,7 @@ func BuildInitialContextSetupRequest(
 	kgnodeb []byte,
 	radioCapability []byte,
 	ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging,
-	ueSecurityCapability *nasType.UESecurityCapability,
+	ueSecurityCapability []byte,
 	nasPdu []byte,
 	pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq,
 	supportedGUAMI *models.Guami,
@@ -1286,16 +1307,16 @@ func BuildInitialContextSetupRequest(
 		return nil, fmt.Errorf("UE Security Capability is nil")
 	}
 
-	nrEncryptionAlgorighm[0] |= ueSecurityCapability.GetEA1_128_5G() << 7
-	nrEncryptionAlgorighm[0] |= ueSecurityCapability.GetEA2_128_5G() << 6
-	nrEncryptionAlgorighm[0] |= ueSecurityCapability.GetEA3_128_5G() << 5
+	nrEncryptionAlgorighm[0] |= nrEA(ueSecurityCapability, 1) << 7
+	nrEncryptionAlgorighm[0] |= nrEA(ueSecurityCapability, 2) << 6
+	nrEncryptionAlgorighm[0] |= nrEA(ueSecurityCapability, 3) << 5
 	ueSecurityCapabilities.NRencryptionAlgorithms.Value = ngapConvert.ByteToBitString(nrEncryptionAlgorighm, 16)
 
 	nrIntegrityAlgorithm := []byte{0x00, 0x00}
 
-	nrIntegrityAlgorithm[0] |= ueSecurityCapability.GetIA1_128_5G() << 7
-	nrIntegrityAlgorithm[0] |= ueSecurityCapability.GetIA2_128_5G() << 6
-	nrIntegrityAlgorithm[0] |= ueSecurityCapability.GetIA3_128_5G() << 5
+	nrIntegrityAlgorithm[0] |= nrIA(ueSecurityCapability, 1) << 7
+	nrIntegrityAlgorithm[0] |= nrIA(ueSecurityCapability, 2) << 6
+	nrIntegrityAlgorithm[0] |= nrIA(ueSecurityCapability, 3) << 5
 
 	ueSecurityCapabilities.NRintegrityProtectionAlgorithms.Value = ngapConvert.ByteToBitString(nrIntegrityAlgorithm, 16)
 
@@ -1378,7 +1399,7 @@ func BuildInitialContextSetupRequest(
 func BuildPathSwitchRequestAcknowledge(
 	amfUeNgapID int64,
 	ranUeNgapID int64,
-	ueSecurityCapability *nasType.UESecurityCapability,
+	ueSecurityCapability []byte,
 	ncc uint8,
 	nh []byte,
 	pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList,
@@ -1430,15 +1451,15 @@ func BuildPathSwitchRequestAcknowledge(
 
 	ueSecurityCapabilities := ie.Value.UESecurityCapabilities
 	nrEncryptionAlgorighm := []byte{0x00, 0x00}
-	nrEncryptionAlgorighm[0] |= ueSecurityCapability.GetEA1_128_5G() << 7
-	nrEncryptionAlgorighm[0] |= ueSecurityCapability.GetEA2_128_5G() << 6
-	nrEncryptionAlgorighm[0] |= ueSecurityCapability.GetEA3_128_5G() << 5
+	nrEncryptionAlgorighm[0] |= nrEA(ueSecurityCapability, 1) << 7
+	nrEncryptionAlgorighm[0] |= nrEA(ueSecurityCapability, 2) << 6
+	nrEncryptionAlgorighm[0] |= nrEA(ueSecurityCapability, 3) << 5
 	ueSecurityCapabilities.NRencryptionAlgorithms.Value = ngapConvert.ByteToBitString(nrEncryptionAlgorighm, 16)
 
 	nrIntegrityAlgorithm := []byte{0x00, 0x00}
-	nrIntegrityAlgorithm[0] |= ueSecurityCapability.GetIA1_128_5G() << 7
-	nrIntegrityAlgorithm[0] |= ueSecurityCapability.GetIA2_128_5G() << 6
-	nrIntegrityAlgorithm[0] |= ueSecurityCapability.GetIA3_128_5G() << 5
+	nrIntegrityAlgorithm[0] |= nrIA(ueSecurityCapability, 1) << 7
+	nrIntegrityAlgorithm[0] |= nrIA(ueSecurityCapability, 2) << 6
+	nrIntegrityAlgorithm[0] |= nrIA(ueSecurityCapability, 3) << 5
 	ueSecurityCapabilities.NRintegrityProtectionAlgorithms.Value = ngapConvert.ByteToBitString(nrIntegrityAlgorithm, 16)
 
 	// only support NR algorithms
@@ -1505,7 +1526,7 @@ func BuildHandoverRequest(
 	targetUEHandoverType ngapType.HandoverType,
 	ambrUplink string,
 	ambrDownlink string,
-	ueSecurityCapability *nasType.UESecurityCapability,
+	ueSecurityCapability []byte,
 	ncc uint8,
 	nh []byte,
 	cause ngapType.Cause,
@@ -1581,15 +1602,15 @@ func BuildHandoverRequest(
 	ueSecurityCapabilities := ie.Value.UESecurityCapabilities
 
 	nrEncryptionAlgorighm := []byte{0x00, 0x00}
-	nrEncryptionAlgorighm[0] |= ueSecurityCapability.GetEA1_128_5G() << 7
-	nrEncryptionAlgorighm[0] |= ueSecurityCapability.GetEA2_128_5G() << 6
-	nrEncryptionAlgorighm[0] |= ueSecurityCapability.GetEA3_128_5G() << 5
+	nrEncryptionAlgorighm[0] |= nrEA(ueSecurityCapability, 1) << 7
+	nrEncryptionAlgorighm[0] |= nrEA(ueSecurityCapability, 2) << 6
+	nrEncryptionAlgorighm[0] |= nrEA(ueSecurityCapability, 3) << 5
 	ueSecurityCapabilities.NRencryptionAlgorithms.Value = ngapConvert.ByteToBitString(nrEncryptionAlgorighm, 16)
 
 	nrIntegrityAlgorithm := []byte{0x00, 0x00}
-	nrIntegrityAlgorithm[0] |= ueSecurityCapability.GetIA1_128_5G() << 7
-	nrIntegrityAlgorithm[0] |= ueSecurityCapability.GetIA2_128_5G() << 6
-	nrIntegrityAlgorithm[0] |= ueSecurityCapability.GetIA3_128_5G() << 5
+	nrIntegrityAlgorithm[0] |= nrIA(ueSecurityCapability, 1) << 7
+	nrIntegrityAlgorithm[0] |= nrIA(ueSecurityCapability, 2) << 6
+	nrIntegrityAlgorithm[0] |= nrIA(ueSecurityCapability, 3) << 5
 	ueSecurityCapabilities.NRintegrityProtectionAlgorithms.Value = ngapConvert.ByteToBitString(nrIntegrityAlgorithm, 16)
 
 	// only support NR algorithms

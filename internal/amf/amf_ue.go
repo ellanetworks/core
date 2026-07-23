@@ -27,7 +27,6 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
 	"go.uber.org/zap"
 )
 
@@ -78,7 +77,7 @@ type UeContext struct {
 
 	// NAS security context per TS 33.501.
 	secured              bool
-	ueSecurityCapability *nasType.UESecurityCapability
+	ueSecurityCapability []byte // UE security capability IE value (TS 24.501 §9.11.3.54)
 	ngKsi                models.NgKsi
 	knasInt              [16]uint8
 	knasEnc              [16]uint8

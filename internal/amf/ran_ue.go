@@ -21,7 +21,7 @@ import (
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -101,7 +101,7 @@ type UeConn struct {
 	// (TS 24.501 §5.4.1.3.7 f)/NOTE 4).
 	resyncTried bool
 
-	RegistrationRequest             *nasMessage.RegistrationRequest
+	RegistrationRequest             *fgs.RegistrationRequest
 	RegistrationType5GS             uint8
 	IdentityTypeUsedForRegistration uint8
 	RetransmissionOfInitialNASMsg   bool

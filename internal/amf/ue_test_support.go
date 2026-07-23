@@ -11,7 +11,6 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
 	nascommon "github.com/ellanetworks/core/nas/common"
-	"github.com/free5gc/nas/nasType"
 )
 
 // AddUeContextToPoolForTest indexes a UE in the AMF's SUPI-keyed pool, as a completed
@@ -161,12 +160,28 @@ func (ue *UeContext) KamfForTest() []uint8    { return ue.kamf }
 func (ue *UeContext) SetNHForTest(nh []uint8) { copy(ue.nh[:], nh) }
 func (ue *UeContext) NHForTest() [32]uint8    { return ue.nh }
 
-func (ue *UeContext) SetUESecurityCapabilityForTest(c *nasType.UESecurityCapability) {
+func (ue *UeContext) SetUESecurityCapabilityForTest(c []byte) {
 	ue.ueSecurityCapability = c
 }
 
-func (ue *UeContext) UESecurityCapabilityForTest() *nasType.UESecurityCapability {
+func (ue *UeContext) UESecurityCapabilityForTest() []byte {
 	return ue.ueSecurityCapability
+}
+
+// UESecCapBytesForTest builds a UE security capability IE value (octet 1 = 5G-EA,
+// octet 2 = 5G-IA) with the given 5G EA and IA algorithm numbers (0..7) enabled.
+func UESecCapBytesForTest(ea, ia []uint8) []byte {
+	var b [2]byte
+
+	for _, n := range ea {
+		b[0] |= 1 << (7 - n)
+	}
+
+	for _, n := range ia {
+		b[1] |= 1 << (7 - n)
+	}
+
+	return b[:]
 }
 
 func (ue *UeContext) SetKgnbForTest(k []uint8) { ue.kgnb = k }

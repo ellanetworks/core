@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 )
@@ -40,12 +41,7 @@ func TestHandleInitialRegistration_EmptyAllowedNssai_RejectsRegistration(t *test
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 	ue.SetKamfForTest("0000000000000000000000000000000000000000000000000000000000000000")
 
-	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
-	if err != nil {
-		t.Fatalf("could not build registration request message: %v", err)
-	}
-
-	ue.Conn().RegistrationRequest = m.RegistrationRequest
+	ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
 	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
 
 	HandleInitialRegistration(ctx, amfInstance, ue)

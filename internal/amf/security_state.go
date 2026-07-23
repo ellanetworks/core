@@ -6,8 +6,6 @@ package amf
 
 import (
 	"bytes"
-
-	"github.com/free5gc/nas/nasType"
 )
 
 // AuthProof is an unforgeable witness that the caller is entitled to
@@ -89,7 +87,7 @@ const (
 // VerifyUESecurityCapability compares a peer-reported UE security
 // capability against the AMF's stored value per TS 33.501. It
 // never mutates ue.
-func (ue *UeContext) VerifyUESecurityCapability(received *nasType.UESecurityCapability) VerifyResult {
+func (ue *UeContext) VerifyUESecurityCapability(received []byte) VerifyResult {
 	ue.mu.Lock()
 	stored := ue.ueSecurityCapability
 	ue.mu.Unlock()
@@ -102,7 +100,7 @@ func (ue *UeContext) VerifyUESecurityCapability(received *nasType.UESecurityCapa
 		return VerifyMismatch
 	}
 
-	if bytes.Equal(stored.Buffer, received.Buffer) {
+	if bytes.Equal(stored, received) {
 		return VerifyMatch
 	}
 
@@ -113,7 +111,7 @@ func (ue *UeContext) VerifyUESecurityCapability(received *nasType.UESecurityCapa
 // It requires an AuthProof, which can only be minted from the two
 // authorized call sites in this package; this makes downgrade via an
 // unauthenticated code path structurally impossible.
-func (ue *UeContext) SetUESecurityCapability(caps *nasType.UESecurityCapability, _ AuthProof) {
+func (ue *UeContext) SetUESecurityCapability(caps []byte, _ AuthProof) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 

@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
 )
 
 // buildAuthResponsePlain builds a plain AUTHENTICATION RESPONSE. A nil res omits
@@ -316,15 +315,7 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 		Rand:      "DEADBEEF",
 		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
 	}
-	ue.SetUESecurityCapabilityForTest(&nasType.UESecurityCapability{
-		Iei:    nasMessage.RegistrationRequestUESecurityCapabilityType,
-		Len:    2,
-		Buffer: []uint8{0x00, 0x00},
-	})
-	ue.UESecurityCapabilityForTest().SetEA0_5G(1)
-	ue.UESecurityCapabilityForTest().SetEA1_128_5G(1)
-	ue.UESecurityCapabilityForTest().SetIA0_5G(1)
-	ue.UESecurityCapabilityForTest().SetIA1_128_5G(1)
+	ue.SetUESecurityCapabilityForTest(amf.UESecCapBytesForTest([]uint8{0, 1}, []uint8{0, 1}))
 
 	handleAuthenticationResponse(t.Context(), amfInstance, ue, buildAuthResponsePlain(make([]byte, 16)))
 

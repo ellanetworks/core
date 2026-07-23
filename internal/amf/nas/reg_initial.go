@@ -109,11 +109,11 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 	ue.Ambr = subscriberProfile.Ambr
 
 	if conn.RegistrationRequest.MICOIndication != nil {
-		logger.From(ctx, logger.AmfLog).Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", conn.RegistrationRequest.GetRAAI()))
+		logger.From(ctx, logger.AmfLog).Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", conn.RegistrationRequest.RAAI()))
 	}
 
 	if conn.RegistrationRequest.RequestedDRXParameters != nil {
-		drx := conn.RegistrationRequest.GetDRXValue()
+		drx := conn.RegistrationRequest.DRXValue()
 		if drx > nasMessage.DRXcycleParameterT256 {
 			logger.From(ctx, logger.AmfLog).Warn("UE requested reserved DRX value, treating as not specified", zap.Uint8("drxValue", drx))
 			drx = nasMessage.DRXValueNotSpecified

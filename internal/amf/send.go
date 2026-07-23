@@ -17,7 +17,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/aper"
-	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -636,7 +635,7 @@ func (ueConn *UeConn) SendInitialContextSetup(
 	kgnb []byte,
 	ueRadioCapability []byte,
 	ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging,
-	ueSecurityCapability *nasType.UESecurityCapability,
+	ueSecurityCapability []byte,
 	nasPdu []byte,
 	pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq,
 	supportedGUAMI *models.Guami,
@@ -736,7 +735,7 @@ func (ueConn *UeConn) SendHandoverRequest(
 	handOverType ngapType.HandoverType,
 	uplinkAmbr string,
 	downlinkAmbr string,
-	ueSecurityCapability *nasType.UESecurityCapability,
+	ueSecurityCapability []byte,
 	ncc uint8,
 	nh []byte,
 	cause ngapType.Cause,

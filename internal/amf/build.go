@@ -180,7 +180,7 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 		CipheringAlgorithm:  ue.NEA(),
 		IntegrityAlgorithm:  ue.NIA(),
 		NgKSI:               ngksiToOctet(ue.NgKsi()),
-		ReplayedUESecCap:    ueSecCap.Buffer[:ueSecCap.GetLen()],
+		ReplayedUESecCap:    ueSecCap,
 		IMEISVRequest:       &imeisv,
 		Additional5GSecInfo: &addInfo,
 	}).Marshal()

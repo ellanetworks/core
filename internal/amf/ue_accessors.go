@@ -9,7 +9,6 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
 	nascommon "github.com/ellanetworks/core/nas/common"
-	"github.com/free5gc/nas/nasType"
 )
 
 // SmContextRef is a snapshot of one PDU session's SM context reference, taken
@@ -61,7 +60,7 @@ func (ue *UeContext) Supi() etsi.SUPI {
 	return ue.supi
 }
 
-func (ue *UeContext) UESecCap() *nasType.UESecurityCapability {
+func (ue *UeContext) UESecCap() []byte {
 	if ue == nil {
 		return nil
 	}

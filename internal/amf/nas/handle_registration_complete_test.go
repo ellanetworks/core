@@ -10,9 +10,8 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/nas/security"
 )
 
@@ -54,13 +53,8 @@ func setupRegistrationCompleteUE(t *testing.T) (*amf.UeContext, *fakeNGAPSender)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
-	if err != nil {
-		t.Fatalf("could not build registration request message: %v", err)
-	}
-
 	ue.ForceRegStepForTest(amf.RegStepContextSetup)
-	ue.Conn().RegistrationRequest = m.RegistrationRequest
+	ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{FOR: 1} // follow-on request pending
 	ue.Conn().RegistrationType5GS = 42
 	ue.Conn().IdentityTypeUsedForRegistration = 42
 	ue.Conn().SetResyncTried(true)
@@ -168,7 +162,7 @@ func TestHandleRegistrationComplete_SendsConfigurationUpdateCommand(t *testing.T
 
 func TestHandleRegistrationComplete_ReleasedWhenNoFORPending_NoUDSPending_and_NoActiveSessions(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
-	ue.Conn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
+	ue.Conn().RegistrationRequest.FOR = 0
 	ue.Conn().RegistrationRequest.UplinkDataStatus = nil
 	ue.SmContextList = make(map[uint8]*amf.SmContext)
 
@@ -188,7 +182,7 @@ func TestHandleRegistrationComplete_ReleasedWhenNoFORPending_NoUDSPending_and_No
 
 func TestHandleRegistrationComplete_NotReleasedWhenFORPending(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
-	ue.Conn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestPending)
+	ue.Conn().RegistrationRequest.FOR = 1
 	ue.Conn().RegistrationRequest.UplinkDataStatus = nil
 	ue.SmContextList = make(map[uint8]*amf.SmContext)
 
@@ -208,8 +202,8 @@ func TestHandleRegistrationComplete_NotReleasedWhenFORPending(t *testing.T) {
 
 func TestHandleRegistrationComplete_NotReleasedWhenUDSPending(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
-	ue.Conn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
-	ue.Conn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{}
+	ue.Conn().RegistrationRequest.FOR = 0
+	ue.Conn().RegistrationRequest.UplinkDataStatus = []byte{0x00, 0x00}
 	ue.SmContextList = make(map[uint8]*amf.SmContext)
 
 	amfInstance := newTestAMF()
@@ -228,7 +222,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenUDSPending(t *testing.T) {
 
 func TestHandleRegistrationComplete_NotReleasedWhenActiveSession(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
-	ue.Conn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
+	ue.Conn().RegistrationRequest.FOR = 0
 	ue.Conn().RegistrationRequest.UplinkDataStatus = nil
 	_ = ue.CreateSmContext(1, "testref1", &models.Snssai{})
 

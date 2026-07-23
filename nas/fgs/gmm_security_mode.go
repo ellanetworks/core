@@ -5,6 +5,47 @@ package fgs
 
 import "github.com/ellanetworks/core/nas/common"
 
+// UESecurityCapability is the UE security capability IE (TS 24.501 §9.11.3.54).
+// EA and IA are the 5G encryption and integrity algorithm bitmaps (octets 1-2);
+// Rest holds the optional EEA/EIA (E-UTRA) octets and any beyond.
+type UESecurityCapability struct {
+	EA   uint8
+	IA   uint8
+	Rest []byte
+}
+
+// ParseUESecurityCapability decodes a UE security capability IE value.
+func ParseUESecurityCapability(b []byte) (UESecurityCapability, error) {
+	r := common.NewReader(b)
+
+	ea, err := r.U8()
+	if err != nil {
+		return UESecurityCapability{}, err
+	}
+
+	ia, err := r.U8()
+	if err != nil {
+		return UESecurityCapability{}, err
+	}
+
+	rest, err := r.Bytes(r.Remaining())
+	if err != nil {
+		return UESecurityCapability{}, err
+	}
+
+	return UESecurityCapability{EA: ea, IA: ia, Rest: rest}, nil
+}
+
+// SupportsEA reports whether the UE supports 128-5G-EAn (n = 0..7).
+func (c UESecurityCapability) SupportsEA(n uint8) bool {
+	return n <= 7 && c.EA&(1<<(7-n)) != 0
+}
+
+// SupportsIA reports whether the UE supports 128-5G-IAn (n = 0..7).
+func (c UESecurityCapability) SupportsIA(n uint8) bool {
+	return n <= 7 && c.IA&(1<<(7-n)) != 0
+}
+
 // IMEISV request values (TS 24.501 §9.11.3.28).
 const (
 	IMEISVNotRequested uint8 = 0x00
