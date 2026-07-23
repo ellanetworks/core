@@ -40,6 +40,71 @@ func PSIFromBytes(b []byte) [16]bool {
 	return psi
 }
 
+// ServiceRequest is the SERVICE REQUEST message (TS 24.501 §8.2.15): the service
+// type and ngKSI, the UE's 5G-S-TMSI, and optional status IEs.
+type ServiceRequest struct {
+	ServiceType             uint8  // bits 5-8 of the service-type/ngKSI octet (TS 24.501 §9.11.3.50)
+	TSC                     uint8  // bit 4
+	NgKSI                   uint8  // bits 1-3
+	MobileIdentity          []byte // mandatory 5G-S-TMSI (type 6, LVE)
+	UplinkDataStatus        []byte // optional (IEI 0x40)
+	PDUSessionStatus        []byte // optional (IEI 0x50)
+	AllowedPDUSessionStatus []byte // optional (IEI 0x25)
+	NASMessageContainer     []byte // optional (IEI 0x71)
+}
+
+var serviceRequestIEs = []common.OptionalIE{
+	{IEI: 0x40, Format: common.IETLV},  // uplink data status
+	{IEI: 0x50, Format: common.IETLV},  // PDU session status
+	{IEI: 0x25, Format: common.IETLV},  // allowed PDU session status
+	{IEI: 0x71, Format: common.IETLVE}, // NAS message container
+}
+
+// ParseServiceRequest decodes a plain SERVICE REQUEST message.
+func ParseServiceRequest(b []byte) (*ServiceRequest, error) {
+	r := common.NewReader(b)
+
+	if err := readGMMHeader(r, MsgServiceRequest); err != nil {
+		return nil, err
+	}
+
+	octet, err := r.U8()
+	if err != nil {
+		return nil, err
+	}
+
+	mi, err := r.LVE()
+	if err != nil {
+		return nil, err
+	}
+
+	out := &ServiceRequest{
+		ServiceType:    octet >> 4,
+		TSC:            octet >> 3 & 0x01,
+		NgKSI:          octet & 0x07,
+		MobileIdentity: mi,
+	}
+
+	if _, err := common.WalkOptionalIEs(r, serviceRequestIEs, func(iei uint8, value []byte) error {
+		switch iei {
+		case 0x40:
+			out.UplinkDataStatus = value
+		case 0x50:
+			out.PDUSessionStatus = value
+		case 0x25:
+			out.AllowedPDUSessionStatus = value
+		case 0x71:
+			out.NASMessageContainer = value
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
 // ServiceAccept is the SERVICE ACCEPT message (TS 24.501 §8.2.17): optional PDU
 // session status, reactivation result, and reactivation-result error cause.
 type ServiceAccept struct {

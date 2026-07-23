@@ -15,8 +15,8 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -272,79 +272,83 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 		return nil, fmt.Errorf("nas payload is too short")
 	}
 
-	msg := new(nas.Message)
+	var body []byte
 
-	msg.SecurityHeaderType = nas.GetSecurityHeaderType(payload) & 0x0f
-	switch msg.SecurityHeaderType {
-	case nas.SecurityHeaderTypeIntegrityProtected:
+	switch fgs.SecurityHeaderType(payload[1] & 0x0F) {
+	case fgs.SHTIntegrityProtected:
 		if len(payload) < 7 {
 			return nil, fmt.Errorf("integrity-protected nas payload is too short")
 		}
 
-		p := payload[7:]
-
-		if err := msg.PlainNasDecode(&p); err != nil {
-			return nil, fmt.Errorf("error decoding plain nas: %+v", err)
-		}
-	case nas.SecurityHeaderTypePlainNas:
-		// Decode a copy so the original payload stays intact for the later integrity check.
-		p := payload
-
-		if err := msg.PlainNasDecode(&p); err != nil {
-			return nil, fmt.Errorf("error decoding plain nas: %+v", err)
-		}
+		body = payload[7:]
+	case fgs.SHTPlain:
+		body = payload
 	default:
-		return nil, fmt.Errorf("unsupported security header type: 0x%0x", msg.SecurityHeaderType)
+		return nil, fmt.Errorf("unsupported security header type: 0x%0x", payload[1]&0x0F)
+	}
+
+	msgType, err := fgs.PeekMessageType(body)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding plain nas: %w", err)
 	}
 
 	guti := etsi.InvalidGUTI5G
 
-	switch msg.GmmHeader.GetMessageType() {
-	case nas.MsgTypeRegistrationRequest:
-		mobileIdentity5GSContents := msg.RegistrationRequest.GetMobileIdentity5GSContents()
-		if len(mobileIdentity5GSContents) == 0 {
+	switch msgType {
+	case fgs.MsgRegistrationRequest:
+		req, err := fgs.ParseRegistrationRequest(body)
+		if err != nil {
+			return nil, fmt.Errorf("error decoding plain nas: %w", err)
+		}
+
+		if len(req.MobileIdentity) == 0 {
 			return nil, fmt.Errorf("mobile identity 5GS is empty")
 		}
 
-		if nasMessage.MobileIdentity5GSType5gGuti == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
-			guti, _ = etsi.NewGUTI5GFromBytes(mobileIdentity5GSContents)
+		switch fgs.TypeOfIdentity(req.MobileIdentity[0]) {
+		case fgs.IdentityGUTI:
+			guti, _ = etsi.NewGUTI5GFromBytes(req.MobileIdentity)
 			logger.WithTrace(ctx, logger.AmfLog).Debug("Guti received in Registration Request Message", logger.GUTI(guti.String()))
-		} else if nasMessage.MobileIdentity5GSTypeSuci == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
+		case fgs.IdentitySUCI:
 			// A SUCI is a one-time concealed identity, not a handle to an existing
 			// context. Always register on a fresh context; any prior context for
 			// the same subscriber is superseded only once this registration is
 			// authenticated (TS 24.501, reconciled by SUPI on accept).
-			suci, _ := nasConvert.SuciToString(mobileIdentity5GSContents)
+			suci, _, _ := fgs.SUCIToString(req.MobileIdentity)
 			logger.WithTrace(ctx, logger.AmfLog).Debug("Suci received in Registration Request Message; using a fresh context", zap.String("suci", suci))
 
 			return nil, nil
 		}
-	case nas.MsgTypeServiceRequest:
-		mobileIdentity5GSContents := msg.TMSI5GS.Octet
-		if len(mobileIdentity5GSContents) == 0 {
+	case fgs.MsgServiceRequest:
+		req, err := fgs.ParseServiceRequest(body)
+		if err != nil {
+			return nil, fmt.Errorf("error decoding plain nas: %w", err)
+		}
+
+		if len(req.MobileIdentity) == 0 {
 			return nil, fmt.Errorf("mobile identity 5GS is empty")
 		}
 
-		if nasMessage.MobileIdentity5GSType5gSTmsi == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
-			var err error
-
-			guti, err = amfInstance.StmsiToGuti(ctx, mobileIdentity5GSContents)
+		if fgs.TypeOfIdentity(req.MobileIdentity[0]) == fgs.IdentitySTMSI {
+			guti, err = amfInstance.StmsiToGuti(ctx, req.MobileIdentity)
 			if err != nil {
-				return nil, fmt.Errorf("error converting 5G-S-TMSI to GUTI: %+v", err)
+				return nil, fmt.Errorf("error converting 5G-S-TMSI to GUTI: %w", err)
 			}
 
 			logger.WithTrace(ctx, logger.AmfLog).Debug("Guti derived from Service Request Message", logger.GUTI(guti.String()))
 		}
-	case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
-		mobileIdentity5GSContents := msg.DeregistrationRequestUEOriginatingDeregistration.GetMobileIdentity5GSContents()
-		if len(mobileIdentity5GSContents) == 0 {
+	case fgs.MsgDeregistrationRequestUEOrig:
+		req, err := fgs.ParseDeregistrationRequestUEOriginating(body)
+		if err != nil {
+			return nil, fmt.Errorf("error decoding plain nas: %w", err)
+		}
+
+		if len(req.MobileIdentity) == 0 {
 			return nil, fmt.Errorf("mobile identity 5GS is empty")
 		}
 
-		if nasMessage.MobileIdentity5GSType5gGuti == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
-			var err error
-
-			guti, err = etsi.NewGUTI5GFromBytes(mobileIdentity5GSContents)
+		if fgs.TypeOfIdentity(req.MobileIdentity[0]) == fgs.IdentityGUTI {
+			guti, err = etsi.NewGUTI5GFromBytes(req.MobileIdentity)
 			if err != nil {
 				return nil, nil
 			}

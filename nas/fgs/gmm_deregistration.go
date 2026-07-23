@@ -44,16 +44,16 @@ func (m *DeregistrationRequestUETerminated) Marshal() ([]byte, error) {
 
 // DeregistrationRequestUEOriginating is the UE-originating DEREGISTRATION REQUEST
 // (TS 24.501 §8.2.12): a de-registration type (with ngKSI) and the UE's 5GS mobile
-// identity. Ella reads only the de-registration type; the ngKSI (bits 5-8) and the
-// mobile identity are not needed.
+// identity. The ngKSI (bits 5-8 of the type octet) is not needed.
 type DeregistrationRequestUEOriginating struct {
-	AccessType             uint8 // bits 1-2
-	ReRegistrationRequired bool  // bit 3
-	SwitchOff              bool  // bit 4
+	AccessType             uint8  // bits 1-2
+	ReRegistrationRequired bool   // bit 3
+	SwitchOff              bool   // bit 4
+	MobileIdentity         []byte // mandatory 5GS mobile identity (type 6, LVE)
 }
 
-// ParseDeregistrationRequestUEOriginating decodes the de-registration type of a
-// UE-originating DEREGISTRATION REQUEST (TS 24.501 §8.2.12, §9.11.3.20).
+// ParseDeregistrationRequestUEOriginating decodes a UE-originating DEREGISTRATION
+// REQUEST (TS 24.501 §8.2.12, §9.11.3.20).
 func ParseDeregistrationRequestUEOriginating(b []byte) (*DeregistrationRequestUEOriginating, error) {
 	r := common.NewReader(b)
 
@@ -66,10 +66,16 @@ func ParseDeregistrationRequestUEOriginating(b []byte) (*DeregistrationRequestUE
 		return nil, err
 	}
 
+	mi, err := r.LVE()
+	if err != nil {
+		return nil, err
+	}
+
 	return &DeregistrationRequestUEOriginating{
 		AccessType:             octet & 0x03,
 		ReRegistrationRequired: octet&(1<<2) != 0,
 		SwitchOff:              octet&(1<<3) != 0,
+		MobileIdentity:         mi,
 	}, nil
 }
 

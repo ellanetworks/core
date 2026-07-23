@@ -250,5 +250,13 @@ func buildDeregRequestUEOrigPlain(accessType uint8, switchOff bool) []byte {
 		octet |= 1 << 3
 	}
 
-	return []byte{fgs.EPD5GMM, 0x00, uint8(fgs.MsgDeregistrationRequestUEOrig), octet}
+	// Mandatory 5GS mobile identity (5G-GUTI, type-of-identity 2), carried as an
+	// LV-E: two length octets then the 11-octet value (TS 24.501 §8.2.12).
+	guti := []byte{0xf2, 0x00, 0xf1, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01}
+
+	msg := []byte{fgs.EPD5GMM, 0x00, uint8(fgs.MsgDeregistrationRequestUEOrig), octet}
+	msg = append(msg, byte(len(guti)>>8), byte(len(guti)))
+	msg = append(msg, guti...)
+
+	return msg
 }

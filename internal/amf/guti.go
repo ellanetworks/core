@@ -146,7 +146,12 @@ func (a *AMF) CommitGUTIRealloc(ue *UeContext) {
 	ue.oldTmsi = etsi.InvalidTMSI
 }
 
-func (amf *AMF) StmsiToGuti(ctx context.Context, buf [7]byte) (etsi.GUTI5G, error) {
+func (amf *AMF) StmsiToGuti(ctx context.Context, buf []byte) (etsi.GUTI5G, error) {
+	// The 5G-S-TMSI mobile identity is a fixed 7-octet value (TS 24.501 §9.11.3.4).
+	if len(buf) != 7 {
+		return etsi.InvalidGUTI5G, fmt.Errorf("invalid 5G-S-TMSI length: %d", len(buf))
+	}
+
 	operatorInfo, err := amf.OperatorInfo(ctx)
 	if err != nil {
 		return etsi.InvalidGUTI5G, fmt.Errorf("could not get operator info: %v", err)
