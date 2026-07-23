@@ -62,8 +62,8 @@ type SmfSbi interface {
 	ReconcileSmContext(ctx context.Context, req *models.SessionReconcileRequest) error
 	GetSessionPolicy(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (*smf.Policy, error)
 	HandlePagingFailure(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error
-	// ClearPagingSuppression re-arms downlink data notification once the UE is
-	// reachable again (CM-CONNECTED), so subsequent downlink data pages it
+	// ClearPagingSuppression releases the suppression once the UE is reachable
+	// again (CM-CONNECTED), so subsequent downlink data pages it
 	// (TS 23.502 §4.2.3.3 step 3c).
 	ClearPagingSuppression(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error
 }
@@ -651,14 +651,17 @@ func (amf *AMF) retransmitPaging(ue *UeContext, ngapBuf []byte, attempt int32) {
 func (amf *AMF) abandonPaging(ue *UeContext) {
 	logger.AmfLog.Info("paging unanswered, abandoning procedure", logger.SUPI(ue.Supi().String()))
 
-	msg := ue.N1N2Message()
-	if msg == nil {
+	if amf.Session == nil {
 		return
 	}
 
-	if err := amf.Session.HandlePagingFailure(context.Background(), ue.Supi(), msg.PduSessionID); err != nil {
-		logger.AmfLog.Warn("failed to suppress downlink notification after paging failure",
-			logger.SUPI(ue.Supi().String()), zap.Error(err))
+	supi := ue.Supi()
+
+	for id := range ue.SmContextSnapshot() {
+		if err := amf.Session.HandlePagingFailure(context.Background(), supi, id); err != nil {
+			logger.AmfLog.Warn("failed to suppress downlink notification after paging failure",
+				logger.SUPI(supi.String()), zap.Error(err))
+		}
 	}
 }
 

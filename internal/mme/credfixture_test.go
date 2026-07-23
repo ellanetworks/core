@@ -67,6 +67,7 @@ type fakeSessionManager struct {
 	staticIPChanged bool  // StaticIPChanged returns this
 	staticIPErr     error // when set, StaticIPChanged fails with it
 
+	suppressCalls         int // counts HandleEPSPagingFailure calls
 	clearSuppressionCalls int // counts ClearEPSPagingSuppression calls
 }
 
@@ -120,6 +121,7 @@ func (f *fakeSessionManager) DeactivateEPSSession(_ context.Context, _ string, _
 }
 
 func (f *fakeSessionManager) HandleEPSPagingFailure(_ context.Context, _ string, _ uint8) error {
+	f.suppressCalls++
 	return nil
 }
 

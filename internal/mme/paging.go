@@ -109,6 +109,10 @@ func (m *MME) abandonPaging(ue *UeContext) {
 
 	logger.MmeLog.Info("paging unanswered, abandoning procedure", zap.String("imsi", imsi))
 
+	if m.Session == nil {
+		return
+	}
+
 	ctx := context.Background()
 	for _, p := range m.SnapshotPDNs(ue) {
 		if err := m.Session.HandleEPSPagingFailure(ctx, imsi, p.Ebi); err != nil {

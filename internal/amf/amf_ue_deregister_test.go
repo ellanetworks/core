@@ -18,6 +18,7 @@ import (
 type deregisterTestSmf struct {
 	releaseCalls          []string
 	deactivateCalls       []string
+	suppressCalls         int
 	clearSuppressionCalls int
 	onRelease             func(context.Context, string) error
 
@@ -53,6 +54,7 @@ func (s *deregisterTestSmf) DeactivateSmContext(_ context.Context, smContextRef 
 }
 
 func (s *deregisterTestSmf) HandlePagingFailure(_ context.Context, _ etsi.SUPI, _ uint8) error {
+	s.suppressCalls++
 	return nil
 }
 
@@ -307,5 +309,21 @@ func TestAttachUeConn_ClearsPagingSuppression(t *testing.T) {
 
 	if fake.clearSuppressionCalls != 2 {
 		t.Fatalf("clear-suppression calls = %d, want 2 (one per SM context)", fake.clearSuppressionCalls)
+	}
+}
+
+func TestAbandonPaging_SuppressesAllSessions(t *testing.T) {
+	fake := &deregisterTestSmf{}
+	a := New(nil, nil, nil)
+	a.Session = fake
+
+	ue := NewUeContext()
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
+	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
+
+	a.abandonPaging(ue)
+
+	if fake.suppressCalls != 2 {
+		t.Fatalf("suppress calls = %d, want 2 (one per SM context)", fake.suppressCalls)
 	}
 }
