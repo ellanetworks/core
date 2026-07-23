@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
@@ -52,8 +53,16 @@ type LMF struct {
 	lppMu       sync.RWMutex
 	// ackSeq is the fallback downlink sequence counter for acknowledging a stray
 	// UE reply that arrives with no active session (TS 37.355 §4.3.2).
-	ackSeq atomic.Uint32
+	ackSeq         atomic.Uint32
+	maxLocationAge int32
 }
+
+// defaultMaxLocationAge is the default maximum age (in seconds) for the AMF's
+// passively-maintained location before the LMF triggers an active refresh.
+const defaultMaxLocationAge = 300
+
+// defaultRefreshTimeout is the maximum time to wait for a location refresh.
+const defaultRefreshTimeout = 5 * time.Second
 
 // New creates an LMF instance that reads UE location from the AMF (5G) and the
 // MME (4G).
@@ -61,13 +70,14 @@ func New(amfInstance *amf.AMF, mmeInstance *mme.MME, d *db.Database) *LMF {
 	logger.LmfLog.Info("LMF initialized")
 
 	return &LMF{
-		amf:         amfInstance,
-		mme:         mmeInstance,
-		db:          d,
-		sessionMgr:  NewSessionManager(d),
-		nrppaClient: nrppa.New(amfInstance),
-		lppaClient:  lppa.New(mmeInstance),
-		lppSessions: make(map[string]*lpp.Session),
+		amf:            amfInstance,
+		mme:            mmeInstance,
+		db:             d,
+		sessionMgr:     NewSessionManager(d),
+		nrppaClient:    nrppa.New(amfInstance),
+		lppaClient:     lppa.New(mmeInstance),
+		lppSessions:    make(map[string]*lpp.Session),
+		maxLocationAge: defaultMaxLocationAge,
 	}
 }
 
