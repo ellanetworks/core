@@ -269,11 +269,8 @@ func (a *AMF) AttachUeConn(ue *UeContext, ueConn *UeConn) {
 	a.clearPagingSuppression(context.Background(), ue)
 }
 
-// clearPagingSuppression re-arms downlink data notification on the UE's sessions now
-// that it has re-established a signalling connection and is reachable again — the
-// integrated-core equivalent of the SMF resuming on a UE-reachability notification
-// (TS 23.502 §4.2.3.3 step 3c). Runs outside the registry lock: the anchor must not
-// be called while amf.mu is held.
+// clearPagingSuppression runs outside the registry lock: the anchor must not be
+// called while amf.mu is held.
 func (a *AMF) clearPagingSuppression(ctx context.Context, ue *UeContext) {
 	if a.Session == nil {
 		return

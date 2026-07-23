@@ -639,11 +639,8 @@ func (m *MME) AttachUeConn(ue *UeContext, c *UeConn) {
 	m.clearPagingSuppression(context.Background(), ue)
 }
 
-// clearPagingSuppression re-arms downlink data notification on the UE's sessions now
-// that it has re-established a signalling connection and is reachable again — the EPS
-// analogue of the mobile-reachable timer stopping on NAS-connection setup (TS 24.301
-// §5.3.5) and of the reachability recovery in TS 23.401 §5.3.4.3. Runs outside the
-// registry lock: the anchor must not be called while m.mu is held.
+// clearPagingSuppression runs outside the registry lock: the anchor must not be
+// called while m.mu is held.
 func (m *MME) clearPagingSuppression(ctx context.Context, ue *UeContext) {
 	if m.Session == nil {
 		return

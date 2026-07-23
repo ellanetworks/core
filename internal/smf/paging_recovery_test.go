@@ -50,8 +50,6 @@ func TestClearPagingSuppression_ClearsDownlinkNotification(t *testing.T) {
 	}
 }
 
-// TestClearPagingSuppression_NoSession pins that clearing is best-effort: a UE that
-// reconnects with no anchor session is a silent no-op, not an error.
 func TestClearPagingSuppression_NoSession(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
