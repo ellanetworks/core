@@ -426,8 +426,8 @@ func (a *smfUPFAdapter) DeleteSession(ctx context.Context, remoteSEID uint64) er
 	return a.engine.DeleteSession(ctx, &models.DeleteRequest{SEID: remoteSEID})
 }
 
-func (a *smfUPFAdapter) ResetDownlinkDataNotification(ctx context.Context, remoteSEID uint64) {
-	a.engine.ClearDownlinkDataNotification(remoteSEID)
+func (a *smfUPFAdapter) SuppressDownlinkDataNotification(ctx context.Context, remoteSEID uint64) {
+	a.engine.SuppressDownlinkDataNotification(remoteSEID)
 }
 
 func (a *smfUPFAdapter) UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error {

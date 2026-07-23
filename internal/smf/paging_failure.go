@@ -10,17 +10,25 @@ import (
 	"github.com/ellanetworks/core/etsi"
 )
 
+// HandlePagingFailure runs when the AMF abandons paging for an unreachable 5GS UE
+// (TS 23.502 §4.2.3.3): the SMF keeps the session's downlink data notification
+// suppressed so subsequent downlink packets do not re-page the UE. Paging resumes
+// only when the UE returns and the user plane is reactivated.
 func (s *SMF) HandlePagingFailure(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error {
 	smContext := s.currentSession(supi, pduSessionID)
 	if smContext == nil {
 		return fmt.Errorf("no session for %s pdu %d", supi.String(), pduSessionID)
 	}
 
-	s.resetDownlinkDataNotification(ctx, smContext)
+	s.suppressDownlinkDataNotification(ctx, smContext)
 
 	return nil
 }
 
+// HandleEPSPagingFailure runs when the MME abandons paging for an unreachable EPS
+// UE (TS 23.401 §5.3.4.3): the anchor keeps the session's downlink data
+// notification suppressed so subsequent downlink packets do not re-page the UE.
+// Paging resumes only when the UE returns and the bearer is reactivated.
 func (s *SMF) HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8) error {
 	supi, err := etsi.NewSUPIFromIMSI(imsi)
 	if err != nil {
@@ -32,12 +40,12 @@ func (s *SMF) HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8
 		return fmt.Errorf("no EPS session for %s", imsi)
 	}
 
-	s.resetDownlinkDataNotification(ctx, smContext)
+	s.suppressDownlinkDataNotification(ctx, smContext)
 
 	return nil
 }
 
-func (s *SMF) resetDownlinkDataNotification(ctx context.Context, smContext *SMContext) {
+func (s *SMF) suppressDownlinkDataNotification(ctx context.Context, smContext *SMContext) {
 	smContext.Mutex.Lock()
 	pfcp := smContext.PFCPContext
 	smContext.Mutex.Unlock()
@@ -46,5 +54,5 @@ func (s *SMF) resetDownlinkDataNotification(ctx context.Context, smContext *SMCo
 		return
 	}
 
-	s.upf.ResetDownlinkDataNotification(ctx, pfcp.RemoteSEID)
+	s.upf.SuppressDownlinkDataNotification(ctx, pfcp.RemoteSEID)
 }

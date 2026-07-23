@@ -643,7 +643,9 @@ func (amf *AMF) retransmitPaging(ue *UeContext, ngapBuf []byte, attempt int32) {
 }
 
 // abandonPaging runs when the retransmission budget is exhausted (TS 24.501 §5.4.3).
-// The anchor is notified so later downlink data re-pages the UE (TS 23.502 §4.2.3.3).
+// It suppresses the anchor's downlink data notification so further downlink packets
+// do not re-page an unreachable UE; paging resumes when the UE returns and the user
+// plane is reactivated (TS 23.502 §4.2.3.3).
 func (amf *AMF) abandonPaging(ue *UeContext) {
 	logger.AmfLog.Info("paging unanswered, abandoning procedure", logger.SUPI(ue.Supi().String()))
 
@@ -653,7 +655,7 @@ func (amf *AMF) abandonPaging(ue *UeContext) {
 	}
 
 	if err := amf.Session.HandlePagingFailure(context.Background(), ue.Supi(), msg.PduSessionID); err != nil {
-		logger.AmfLog.Warn("failed to re-arm paging after failure",
+		logger.AmfLog.Warn("failed to suppress downlink notification after paging failure",
 			logger.SUPI(ue.Supi().String()), zap.Error(err))
 	}
 }

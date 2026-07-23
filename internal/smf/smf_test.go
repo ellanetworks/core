@@ -162,14 +162,14 @@ func (f *fakeStore) InsertFlowReports(_ context.Context, reports []*models.FlowR
 }
 
 type fakeUPF struct {
-	mu              sync.Mutex
-	establishResult *models.EstablishResponse
-	lastEstablish   *models.EstablishRequest
-	modifyCalls     []*models.ModifyRequest
-	deleteCalls     []deletionCall
-	resetDDNCalls   []uint64
-	lastIPv6Reg     *models.IPv6SessionRegistration
-	err             error
+	mu               sync.Mutex
+	establishResult  *models.EstablishResponse
+	lastEstablish    *models.EstablishRequest
+	modifyCalls      []*models.ModifyRequest
+	deleteCalls      []deletionCall
+	suppressDDNCalls []uint64
+	lastIPv6Reg      *models.IPv6SessionRegistration
+	err              error
 }
 
 type deletionCall struct {
@@ -203,11 +203,11 @@ func (f *fakeUPF) DeleteSession(_ context.Context, remoteSEID uint64) error {
 	return f.err
 }
 
-func (f *fakeUPF) ResetDownlinkDataNotification(_ context.Context, remoteSEID uint64) {
+func (f *fakeUPF) SuppressDownlinkDataNotification(_ context.Context, remoteSEID uint64) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.resetDDNCalls = append(f.resetDDNCalls, remoteSEID)
+	f.suppressDDNCalls = append(f.suppressDDNCalls, remoteSEID)
 }
 
 func (f *fakeUPF) FlushUsage(_ context.Context, _ uint64) {}

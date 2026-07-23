@@ -98,9 +98,10 @@ func (m *MME) retransmitPaging(ue *UeContext, pdu []byte, attempt int32) {
 }
 
 // abandonPaging runs once the retransmission budget is exhausted (TS 24.301
-// §5.6.2; TS 23.401 §5.3.4.3). The buffered downlink data remains at the anchor
-// and the UE stays under mobile-reachable supervision until it returns or is
-// implicitly detached.
+// §5.6.2; TS 23.401 §5.3.4.3). It suppresses the anchor's downlink data
+// notification so further downlink packets do not re-page an unreachable UE; the
+// UE stays under mobile-reachable supervision until it returns or is implicitly
+// detached.
 func (m *MME) abandonPaging(ue *UeContext) {
 	m.mu.RLock()
 
@@ -113,7 +114,7 @@ func (m *MME) abandonPaging(ue *UeContext) {
 	ctx := context.Background()
 	for _, p := range m.SnapshotPDNs(ue) {
 		if err := m.Session.HandleEPSPagingFailure(ctx, imsi, p.Ebi); err != nil {
-			logger.MmeLog.Warn("failed to re-arm paging after failure",
+			logger.MmeLog.Warn("failed to suppress downlink notification after paging failure",
 				zap.String("imsi", imsi), zap.Uint8("ebi", p.Ebi), zap.Error(err))
 		}
 	}
