@@ -11,5 +11,6 @@ const (
 	GmmCauseSynchFailure              uint8 = 21
 	GmmCauseNon5GAuthUnacceptable     uint8 = 26
 	GmmCauseNgKSIAlreadyInUse         uint8 = 71
+	GmmCausePayloadWasNotForwarded    uint8 = 90
 	GmmCauseProtocolErrorUnspecified  uint8 = 111
 )

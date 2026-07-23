@@ -87,3 +87,45 @@ func (m *SecurityModeCommand) Marshal() ([]byte, error) {
 
 	return w.Bytes(), nil
 }
+
+// SecurityModeComplete is the SECURITY MODE COMPLETE message (TS 24.501 §8.2.26).
+// It has no mandatory IEs; the UE includes its IMEISV (a 5GS mobile identity,
+// IEI 0x77) when the network requested it, and — when it rejected the replayed
+// UE security capabilities — the complete plain REGISTRATION REQUEST it originally
+// sent, in the NAS message container (IEI 0x71), so the network can recover the
+// genuine triggering message (TS 24.501 §5.4.2.3).
+type SecurityModeComplete struct {
+	IMEISV              []byte // IMEISV mobile-identity value (IEI 0x77), when present
+	NASMessageContainer []byte // complete triggering NAS message (IEI 0x71), when present
+}
+
+var securityModeCompleteIEs = []common.OptionalIE{
+	{IEI: 0x77, Format: common.IETLVE},
+	{IEI: 0x71, Format: common.IETLVE},
+}
+
+// ParseSecurityModeComplete decodes a plain SECURITY MODE COMPLETE message.
+func ParseSecurityModeComplete(b []byte) (*SecurityModeComplete, error) {
+	r := common.NewReader(b)
+
+	if err := readGMMHeader(r, MsgSecurityModeComplete); err != nil {
+		return nil, err
+	}
+
+	m := &SecurityModeComplete{}
+
+	if _, err := common.WalkOptionalIEs(r, securityModeCompleteIEs, func(iei uint8, value []byte) error {
+		switch iei {
+		case 0x77:
+			m.IMEISV = value
+		case 0x71:
+			m.NASMessageContainer = value
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}

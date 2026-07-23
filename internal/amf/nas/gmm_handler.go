@@ -25,7 +25,7 @@ func HandleGmmMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConte
 	case nas.MsgTypeRegistrationRequest:
 		return handleRegistrationRequest(ctx, amfInstance, ue, plain, integrityVerified)
 	case nas.MsgTypeULNASTransport:
-		return handleULNASTransport(ctx, amfInstance, ue, msg.ULNASTransport)
+		return handleULNASTransport(ctx, amfInstance, ue, plain)
 	case nas.MsgTypeConfigurationUpdateComplete:
 		return handleConfigurationUpdateComplete(amfInstance, ue)
 	case nas.MsgTypeNotificationResponse:
@@ -41,7 +41,7 @@ func HandleGmmMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConte
 	case nas.MsgTypeAuthenticationFailure:
 		return handleAuthenticationFailure(ctx, amfInstance, ue, plain)
 	case nas.MsgTypeSecurityModeComplete:
-		return handleSecurityModeComplete(ctx, amfInstance, ue, msg.SecurityModeComplete, integrityVerified)
+		return handleSecurityModeComplete(ctx, amfInstance, ue, plain, integrityVerified)
 	case nas.MsgTypeSecurityModeReject:
 		return handleSecurityModeReject(ctx, ue, plain)
 	case nas.MsgTypeRegistrationComplete:

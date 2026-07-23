@@ -11,19 +11,21 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas/nasType"
 )
 
-func SnssaiToModels(n *nasType.SNSSAI) *models.Snssai {
+// SnssaiToModels decodes an S-NSSAI IE value (TS 24.501 §9.11.2.8): octet 1 is
+// the SST, octets 2-4 (when present) are the SD.
+func SnssaiToModels(v []byte) *models.Snssai {
 	var out models.Snssai
 
-	out.Sst = int32(n.GetSST())
+	if len(v) == 0 {
+		return &out
+	}
 
-	if n.Len >= 4 {
-		sd := n.Octet[1:4] // 3 bytes following SST
-		out.Sd = strings.ToUpper(hex.EncodeToString(sd))
-	} else {
-		out.Sd = ""
+	out.Sst = int32(v[0])
+
+	if len(v) >= 4 {
+		out.Sd = strings.ToUpper(hex.EncodeToString(v[1:4]))
 	}
 
 	return &out

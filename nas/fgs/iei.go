@@ -12,6 +12,7 @@ const (
 	ieiT3502Value        uint8 = 0x16 // T3502 value (GPRS timer 2)
 	ieiEAPMessage        uint8 = 0x78
 	ieiPduSessionID2     uint8 = 0x12 // PDU session identity 2
+	ieiOldPDUSessionID   uint8 = 0x59 // old PDU session identity 2
 	ieiAdditionalInfo    uint8 = 0x24 // additional information
 	ieiCause5GMM         uint8 = 0x58 // 5GMM cause
 	ieiIMEISVRequest     uint8 = 0xE0 // IMEISV request (type 1)
