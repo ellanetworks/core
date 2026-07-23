@@ -252,12 +252,14 @@ const (
 	sppHBDisable = 1 << 1 // SPP_HB_DISABLE
 )
 
-// Offsets into struct sctp_paddrparams. Kernels only append fields, so touching
-// only the prefix up to spp_flags keeps a length-preserving rewrite valid.
+// Offsets into the packed struct sctp_paddrparams (uapi/linux/sctp.h). A Go
+// struct cannot mirror it: the struct is packed and spp_pathmtu is not 4-byte
+// aligned, so the buffer is read back and only spp_hbinterval and spp_flags are
+// rewritten, preserving every other field the running kernel reports.
 const (
-	pppHBIntervalOff = 136
-	pppFlagsOff      = 148
-	pppMinSize       = 152
+	pppHBIntervalOff = 132
+	pppFlagsOff      = 146
+	pppMinSize       = 150
 )
 
 type PeerAddrParams struct {

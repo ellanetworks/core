@@ -14,8 +14,9 @@ import (
 	"unsafe"
 )
 
-// Guards the sctp_paddrparams field offsets against kernel drift. Only the
-// interval is checked: the kernel does not echo SPP_HB_ENABLE back on read.
+// Guards the sctp_paddrparams field offsets against kernel drift: the interval
+// must read back at spp_hbinterval, and spp_pathmaxrxt (the field immediately
+// after it) must be untouched, catching an offset that writes the wrong field.
 func TestSetPeerAddrParams_RoundTrip(t *testing.T) {
 	skipIfNoSCTP(t)
 
@@ -25,6 +26,17 @@ func TestSetPeerAddrParams_RoundTrip(t *testing.T) {
 	}
 
 	defer func() { _ = syscall.Close(fd) }()
+
+	const pathMaxRxtOff = 136 // spp_pathmaxrxt, immediately after spp_hbinterval
+
+	before := make([]byte, 256)
+	beforeLen := uint32(len(before))
+
+	if err := getsockopt(fd, SCTPPeerAddrParams, uintptr(unsafe.Pointer(&before[0])), uintptr(unsafe.Pointer(&beforeLen))); err != nil {
+		t.Fatalf("getsockopt: %v", err)
+	}
+
+	wantPathMaxRxt := binary.NativeEndian.Uint16(before[pathMaxRxtOff:])
 
 	const wantHB = 5000
 	if err := setPeerAddrParams(fd, PeerAddrParams{HBIntervalMs: wantHB}); err != nil {
@@ -39,7 +51,11 @@ func TestSetPeerAddrParams_RoundTrip(t *testing.T) {
 	}
 
 	if got := binary.NativeEndian.Uint32(buf[pppHBIntervalOff:]); got != wantHB {
-		t.Fatalf("heartbeat interval = %d, want %d", got, wantHB)
+		t.Fatalf("spp_hbinterval = %d, want %d", got, wantHB)
+	}
+
+	if got := binary.NativeEndian.Uint16(buf[pathMaxRxtOff:]); got != wantPathMaxRxt {
+		t.Fatalf("spp_pathmaxrxt = %d, want %d (unchanged)", got, wantPathMaxRxt)
 	}
 }
 
