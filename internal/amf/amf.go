@@ -597,7 +597,7 @@ func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID models.RanUeNgapID) (*UeConn, 
 }
 
 // SendPaging pages an idle UE and arms its paging-supervision timer. The timer is
-// per-UE and persistent (T3513, TS 24.501 §5.4.3): paging targets a UE with no NAS
+// per-UE and persistent (T3513, TS 24.501 §5.6.2): paging targets a UE with no NAS
 // connection, so the timer cannot live on the connection object.
 func (amf *AMF) SendPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) error {
 	if ue == nil {
@@ -614,7 +614,7 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) e
 }
 
 // armPaging starts the paging-supervision guard for a UE just paged: retransmit Paging on
-// each interval up to a bound, then abandon (T3513, TS 24.501 §5.4.3). Check-and-arm under
+// each interval up to a bound, then abandon (T3513, TS 24.501 §5.6.2). Check-and-arm under
 // the UE lock so a second downlink trigger cannot reset an in-flight supervision. No-op when
 // T3513 is disabled.
 func (amf *AMF) armPaging(ue *UeContext, ngapBuf []byte) {
@@ -630,7 +630,7 @@ func (amf *AMF) armPaging(ue *UeContext, ngapBuf []byte) {
 		func() { amf.abandonPaging(ue) })
 }
 
-// retransmitPaging resends the Paging each guard interval (T3513, TS 24.501 §5.4.3), or
+// retransmitPaging resends the Paging each guard interval (T3513, TS 24.501 §5.6.2), or
 // stops the guard once the UE has answered by re-establishing its connection.
 func (amf *AMF) retransmitPaging(ue *UeContext, ngapBuf []byte, attempt int32) {
 	if ue.Conn() != nil {
@@ -642,10 +642,8 @@ func (amf *AMF) retransmitPaging(ue *UeContext, ngapBuf []byte, attempt int32) {
 	amf.pageRadios(context.Background(), ue, ngapBuf)
 }
 
-// abandonPaging runs when the retransmission budget is exhausted (TS 24.501 §5.4.3).
-// It suppresses the anchor's downlink data notification so further downlink packets
-// do not re-page an unreachable UE; paging resumes when the UE returns and the user
-// plane is reactivated (TS 23.502 §4.2.3.3).
+// abandonPaging suppresses the anchor's downlink data notification so further
+// downlink packets do not re-page an unreachable UE (TS 23.502 §4.2.3.3).
 func (amf *AMF) abandonPaging(ue *UeContext) {
 	logger.AmfLog.Info("paging unanswered, abandoning procedure", logger.SUPI(ue.Supi().String()))
 

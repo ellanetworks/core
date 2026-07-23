@@ -8,11 +8,6 @@ import (
 	"testing"
 )
 
-// TestHandleEPSPagingFailure_SuppressesDownlinkNotification pins the invariant
-// shared by TS 23.401 §5.3.4.3 (EPS) and TS 23.502 §4.2.3.3 (5GS): a failed page
-// must not be re-armed by the next downlink packet. The handler keeps the session's
-// downlink data-notification dedup set (suppressed), rather than clearing it, so an
-// unreachable UE is not paged again until it returns and the bearer is reactivated.
 func TestHandleEPSPagingFailure_SuppressesDownlinkNotification(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)

@@ -97,11 +97,9 @@ func (m *MME) retransmitPaging(ue *UeContext, pdu []byte, attempt int32) {
 	m.pageRadios(context.Background(), ue, pdu)
 }
 
-// abandonPaging runs once the retransmission budget is exhausted (TS 24.301
-// §5.6.2; TS 23.401 §5.3.4.3). It suppresses the anchor's downlink data
-// notification so further downlink packets do not re-page an unreachable UE; the
-// UE stays under mobile-reachable supervision until it returns or is implicitly
-// detached.
+// abandonPaging suppresses the anchor's downlink data notification so further
+// downlink packets do not re-page an unreachable UE (TS 23.401 §5.3.4.3); the UE
+// stays under mobile-reachable supervision until it returns or is implicitly detached.
 func (m *MME) abandonPaging(ue *UeContext) {
 	m.mu.RLock()
 
