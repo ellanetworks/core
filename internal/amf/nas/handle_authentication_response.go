@@ -15,12 +15,12 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
 // TS 24.501
-func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.AuthenticationResponse) nasreply.Disposition {
+func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, plain []byte) nasreply.Disposition {
 	if step := ue.RegStep(); step != amf.RegStepAuthenticating {
 		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Authentication Response message outside the authentication exchange", zap.String("state", string(ue.State())))
 		return nasreply.Silent(nasreply.ReasonOutOfState)
@@ -45,7 +45,13 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	if msg.AuthenticationResponseParameter == nil {
+	msg, err := fgs.ParseAuthenticationResponse(plain)
+	if err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("could not decode Authentication Response", zap.Error(err))
+		return nasreply.Handled()
+	}
+
+	if msg.RES == nil {
 		// No RES* to verify: unsuccessful authentication (TS 24.501).
 		logger.From(ctx, logger.AmfLog).Error("amf.Authentication Response missing RES* (amf.Authentication response parameter IE)")
 
@@ -54,7 +60,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 		return nasreply.Handled()
 	}
 
-	resStar := msg.GetRES()
+	resStar := msg.RES
 
 	// HRES* derivation (TS 33.501)
 	p0, err := hex.DecodeString(conn.AuthenticationCtx.Rand)
