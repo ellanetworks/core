@@ -49,7 +49,7 @@ ethtool -K n3-upf-veth tx off
 ip netns exec n3ns ethtool -K n3-ran-veth tx off
 ```
 
-Disabling TX checksum offload on both veth endpoints is required in `generic` XDP mode: without it, the data plane silently corrupts uplink traffic. See [Checksum offload on veth pairs](../explanation/user_plane_packet_processing_with_ebpf.md#checksum-offload-on-veth-pairs) for an explanation.
+Disabling TX checksum offload on both veth endpoints is required in `generic` XDP mode — see [Checksum offload on veth pairs](../explanation/user_plane_packet_processing_with_ebpf.md#checksum-offload-on-veth-pairs).
 
 ## 3. Configure Ella Core
 

@@ -63,16 +63,9 @@ The solution is to attach a minimal XDP program that returns `XDP_PASS` to the p
 
 When an application transmits over a veth interface, the kernel defers computing the transport checksum: the packet carries `CHECKSUM_PARTIAL` metadata recording where the egress NIC should write the checksum later. GTP-U traffic sent by a co-hosted radio therefore reaches Ella Core's N3 interface with an incomplete outer UDP checksum.
 
-In **generic XDP mode**, the kernel does not update this metadata when the data plane removes the GTP-U header. The recorded checksum location then points at the wrong offset, and on egress the NIC writes a checksum into the packet body, corrupting the packet. The corruption is invisible to the XDP counters: packets are redirected successfully and lost afterwards. The typical symptom is a PDU session that establishes normally, with working ping and DNS, while TCP and large packets silently fail.
+In **generic XDP mode**, the kernel does not update this metadata when the data plane removes the GTP-U header. The recorded checksum location then points at the wrong offset, and depending on how the egress NIC driver consumes it, packets may be corrupted, dropped, or survive unharmed. The failure is invisible to the XDP counters. The typical symptom is a PDU session that establishes normally, with working ping and DNS, while TCP and large packets silently fail.
 
-The remedy is to disable TX checksum offload on both ends of the veth pair, forcing checksums to be completed in software before packets reach the data plane:
-
-```shell
-ethtool -K <host-side-veth> tx off
-ip netns exec <namespace> ethtool -K <peer-veth> tx off
-```
-
-Native XDP mode is not affected: redirected frames are forwarded as raw packets and carry no checksum-offload metadata.
+The remedy is to disable TX checksum offload on both ends of the veth pair (`ethtool -K <veth> tx off`), forcing checksums to be completed in software before packets reach the data plane. Native XDP mode is not affected: redirected frames are forwarded as raw packets and carry no checksum-offload metadata.
 
 ### IPv6 GTP-U transport
 
