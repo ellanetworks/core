@@ -24,13 +24,12 @@ const readBufSize uint32 = 131072
 
 var errNoInterfaceAddrs = errors.New("no IP addresses found")
 
-// The 5 s heartbeat keeps middlebox flows alive; the RTO and retransmit count
-// tolerate transient loss on idle or lossy links before aborting.
+// RFC 4960 §15 suggested values, set explicitly so failure detection does not
+// depend on host net.sctp.* sysctls.
 var serverSocketConfig = SocketConfig{
-	InitMsg:        InitMsg{NumOstreams: 2, MaxInstreams: 5, MaxAttempts: 2, MaxInitTimeout: 2},
-	RtoInfo:        &RtoInfo{SrtoAssocID: 0, SrtoInitial: 3000, SrtoMax: 5000, SrtoMin: 1000},
-	AssocInfo:      &AssocInfo{AsocMaxRxt: 10},
-	PeerAddrParams: &PeerAddrParams{HBIntervalMs: 5000},
+	InitMsg:   InitMsg{NumOstreams: 2, MaxInstreams: 5, MaxAttempts: 2, MaxInitTimeout: 2},
+	RtoInfo:   &RtoInfo{SrtoAssocID: 0, SrtoInitial: 3000, SrtoMax: 60000, SrtoMin: 1000},
+	AssocInfo: &AssocInfo{AsocMaxRxt: 10},
 }
 
 // Config parameterizes a Server for one RAN-facing signalling interface.

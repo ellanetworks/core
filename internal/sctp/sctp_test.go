@@ -5,58 +5,12 @@
 package sctp
 
 import (
-	"encoding/binary"
 	"errors"
 	"net"
 	"syscall"
 	"testing"
 	"time"
-	"unsafe"
 )
-
-// Guards the sctp_paddrparams offsets: the interval must read back at
-// spp_hbinterval with the adjacent spp_pathmaxrxt left untouched.
-func TestSetPeerAddrParams_RoundTrip(t *testing.T) {
-	skipIfNoSCTP(t)
-
-	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_SCTP)
-	if err != nil {
-		t.Fatalf("socket: %v", err)
-	}
-
-	defer func() { _ = syscall.Close(fd) }()
-
-	const pathMaxRxtOff = 136 // spp_pathmaxrxt, immediately after spp_hbinterval
-
-	before := make([]byte, 256)
-	beforeLen := uint32(len(before))
-
-	if err := getsockopt(fd, SCTPPeerAddrParams, uintptr(unsafe.Pointer(&before[0])), uintptr(unsafe.Pointer(&beforeLen))); err != nil {
-		t.Fatalf("getsockopt: %v", err)
-	}
-
-	wantPathMaxRxt := binary.NativeEndian.Uint16(before[pathMaxRxtOff:])
-
-	const wantHB = 5000
-	if err := setPeerAddrParams(fd, PeerAddrParams{HBIntervalMs: wantHB}); err != nil {
-		t.Fatalf("setPeerAddrParams: %v", err)
-	}
-
-	buf := make([]byte, 256)
-	optlen := uint32(len(buf))
-
-	if err := getsockopt(fd, SCTPPeerAddrParams, uintptr(unsafe.Pointer(&buf[0])), uintptr(unsafe.Pointer(&optlen))); err != nil {
-		t.Fatalf("getsockopt: %v", err)
-	}
-
-	if got := binary.NativeEndian.Uint32(buf[pppHBIntervalOff:]); got != wantHB {
-		t.Fatalf("spp_hbinterval = %d, want %d", got, wantHB)
-	}
-
-	if got := binary.NativeEndian.Uint16(buf[pathMaxRxtOff:]); got != wantPathMaxRxt {
-		t.Fatalf("spp_pathmaxrxt = %d, want %d (unchanged)", got, wantPathMaxRxt)
-	}
-}
 
 // testPPID is an arbitrary SCTP payload protocol identifier used to exercise
 // PPID plumbing; the transport is protocol-agnostic, so it carries no meaning.
