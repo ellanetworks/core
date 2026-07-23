@@ -105,7 +105,9 @@ func (f *fakeSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *mo
 func (f *fakeSmf) ActivateSmContext(context.Context, string) ([]byte, error)   { return nil, nil }
 func (f *fakeSmf) DeactivateSmContext(context.Context, string) error           { return nil }
 func (f *fakeSmf) HandlePagingFailure(context.Context, etsi.SUPI, uint8) error { return nil }
-func (f *fakeSmf) ReleaseSmContext(context.Context, string) error              { return nil }
+
+func (f *fakeSmf) ClearPagingSuppression(context.Context, etsi.SUPI, uint8) error { return nil }
+func (f *fakeSmf) ReleaseSmContext(context.Context, string) error                 { return nil }
 func (f *fakeSmf) UpdateSmContextN1Msg(context.Context, string, []byte) (*smf.UpdateResult, error) {
 	return nil, nil
 }

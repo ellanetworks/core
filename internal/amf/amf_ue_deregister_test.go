@@ -16,9 +16,11 @@ import (
 )
 
 type deregisterTestSmf struct {
-	releaseCalls    []string
-	deactivateCalls []string
-	onRelease       func(context.Context, string) error
+	releaseCalls          []string
+	deactivateCalls       []string
+	suppressCalls         int
+	clearSuppressionCalls int
+	onRelease             func(context.Context, string) error
 
 	// Optional hooks for reconcile tests; nil keeps the default (no-op) behaviour.
 	session       func(ref string) *smf.SMContext
@@ -52,6 +54,12 @@ func (s *deregisterTestSmf) DeactivateSmContext(_ context.Context, smContextRef 
 }
 
 func (s *deregisterTestSmf) HandlePagingFailure(_ context.Context, _ etsi.SUPI, _ uint8) error {
+	s.suppressCalls++
+	return nil
+}
+
+func (s *deregisterTestSmf) ClearPagingSuppression(_ context.Context, _ etsi.SUPI, _ uint8) error {
+	s.clearSuppressionCalls++
 	return nil
 }
 
@@ -280,5 +288,42 @@ func TestReconcileSessionsForUE_AppliesResolvedPolicy(t *testing.T) {
 
 	if req.NewPolicy == nil || req.NewPolicy.SessionAmbrDownlink != "2 Gbps" {
 		t.Fatalf("reconcile did not carry the resolved policy: %+v", req.NewPolicy)
+	}
+}
+
+func TestAttachUeConn_ClearsPagingSuppression(t *testing.T) {
+	fake := &deregisterTestSmf{}
+	a := New(nil, nil, nil)
+	a.Session = fake
+
+	radio := &Radio{Log: logger.AmfLog}
+	radio.BindAMFForTest(a)
+
+	ueConn := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
+
+	ue := NewUeContext()
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
+	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
+
+	a.AttachUeConn(ue, ueConn)
+
+	if fake.clearSuppressionCalls != 2 {
+		t.Fatalf("clear-suppression calls = %d, want 2 (one per SM context)", fake.clearSuppressionCalls)
+	}
+}
+
+func TestAbandonPaging_SuppressesAllSessions(t *testing.T) {
+	fake := &deregisterTestSmf{}
+	a := New(nil, nil, nil)
+	a.Session = fake
+
+	ue := NewUeContext()
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
+	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
+
+	a.abandonPaging(ue)
+
+	if fake.suppressCalls != 2 {
+		t.Fatalf("suppress calls = %d, want 2 (one per SM context)", fake.suppressCalls)
 	}
 }
