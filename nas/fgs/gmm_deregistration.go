@@ -42,6 +42,37 @@ func (m *DeregistrationRequestUETerminated) Marshal() ([]byte, error) {
 	return w.Bytes(), nil
 }
 
+// DeregistrationRequestUEOriginating is the UE-originating DEREGISTRATION REQUEST
+// (TS 24.501 §8.2.12): a de-registration type (with ngKSI) and the UE's 5GS mobile
+// identity. Ella reads only the de-registration type; the ngKSI (bits 5-8) and the
+// mobile identity are not needed.
+type DeregistrationRequestUEOriginating struct {
+	AccessType             uint8 // bits 1-2
+	ReRegistrationRequired bool  // bit 3
+	SwitchOff              bool  // bit 4
+}
+
+// ParseDeregistrationRequestUEOriginating decodes the de-registration type of a
+// UE-originating DEREGISTRATION REQUEST (TS 24.501 §8.2.12, §9.11.3.20).
+func ParseDeregistrationRequestUEOriginating(b []byte) (*DeregistrationRequestUEOriginating, error) {
+	r := common.NewReader(b)
+
+	if err := readGMMHeader(r, MsgDeregistrationRequestUEOrig); err != nil {
+		return nil, err
+	}
+
+	octet, err := r.U8()
+	if err != nil {
+		return nil, err
+	}
+
+	return &DeregistrationRequestUEOriginating{
+		AccessType:             octet & 0x03,
+		ReRegistrationRequired: octet&(1<<2) != 0,
+		SwitchOff:              octet&(1<<3) != 0,
+	}, nil
+}
+
 // DeregistrationAcceptUEOriginating is the network's DEREGISTRATION ACCEPT for a
 // UE-originating de-registration (TS 24.501 §8.2.13): the 5GMM header alone.
 type DeregistrationAcceptUEOriginating struct{}

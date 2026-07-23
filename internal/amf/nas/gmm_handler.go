@@ -31,7 +31,7 @@ func HandleGmmMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConte
 	case nas.MsgTypeNotificationResponse:
 		return handleNotificationResponse(ctx, amfInstance, ue, plain)
 	case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
-		return handleDeregistrationRequestUEOriginatingDeregistration(ctx, ue, msg.DeregistrationRequestUEOriginatingDeregistration, integrityVerified)
+		return handleDeregistrationRequestUEOriginatingDeregistration(ctx, ue, plain, integrityVerified)
 	case nas.MsgTypeStatus5GMM:
 		return handleStatus5GMM(ctx, ue, plain)
 	case nas.MsgTypeIdentityResponse:
