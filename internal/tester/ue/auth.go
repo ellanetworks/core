@@ -6,9 +6,9 @@ package ue
 import (
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/nas/security"
-	"github.com/free5gc/util/ueauth"
 )
 
 // TS 33.501 Annex A.9.
@@ -18,7 +18,7 @@ func AlgorithmKeyDerivation(cipheringAlg uint8, kamf []byte, knasEnc *[16]uint8,
 	P1 := []byte{cipheringAlg}
 	L1 := ueauth.KDFLen(P1)
 
-	kenc, err := ueauth.GetKDFValue(kamf, ueauth.FC_FOR_ALGORITHM_KEY_DERIVATION, P0, L0, P1, L1)
+	kenc, err := ueauth.GetKDFValue(kamf, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
 	if err != nil {
 		return err
 	}
@@ -30,7 +30,7 @@ func AlgorithmKeyDerivation(cipheringAlg uint8, kamf []byte, knasEnc *[16]uint8,
 	P1 = []byte{IntegrityAlg}
 	L1 = ueauth.KDFLen(P1)
 
-	kint, err := ueauth.GetKDFValue(kamf, ueauth.FC_FOR_ALGORITHM_KEY_DERIVATION, P0, L0, P1, L1)
+	kint, err := ueauth.GetKDFValue(kamf, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
 	if err != nil {
 		return err
 	}
