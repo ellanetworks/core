@@ -123,6 +123,10 @@ func (f *fakeSessionManager) HandleEPSPagingFailure(_ context.Context, _ string,
 	return nil
 }
 
+func (f *fakeSessionManager) ClearEPSPagingSuppression(_ context.Context, _ string, _ uint8) error {
+	return nil
+}
+
 func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string) error {
 	f.released = true
 

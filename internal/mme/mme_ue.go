@@ -633,9 +633,30 @@ func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) {
 // releasing any superseded connection.
 func (m *MME) AttachUeConn(ue *UeContext, c *UeConn) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	m.attachUeConnLocked(ue, c)
+	m.mu.Unlock()
+
+	m.clearPagingSuppression(context.Background(), ue)
+}
+
+// clearPagingSuppression runs outside the registry lock: the anchor must not be
+// called while m.mu is held.
+func (m *MME) clearPagingSuppression(ctx context.Context, ue *UeContext) {
+	if m.Session == nil {
+		return
+	}
+
+	imsi := ue.imsiOrEmpty()
+	if imsi == "" {
+		return
+	}
+
+	for _, p := range m.SnapshotPDNs(ue) {
+		if err := m.Session.ClearEPSPagingSuppression(ctx, imsi, p.Ebi); err != nil {
+			logger.MmeLog.Warn("failed to clear paging suppression on reconnect",
+				zap.String("imsi", imsi), zap.Uint8("ebi", p.Ebi), zap.Error(err))
+		}
+	}
 }
 
 // freeUeConnLocked releases the UE's current S1-connection (moving it to

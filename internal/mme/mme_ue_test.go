@@ -66,3 +66,37 @@ func establishResumeForTest(m *MME, ue *UeContext, conn S1APWriter, enbUEID s1ap
 	m.AttachUeConn(ue, c)
 	c.MarkSecureExchangeEstablished()
 }
+
+func TestAttachUeConn_ClearsEPSPagingSuppression(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	ue.Pdns = map[uint8]*PdnConnection{
+		5: {Ebi: 5},
+		6: {Ebi: 6},
+	}
+
+	m.AttachUeConn(ue, m.NewUeConn(&captureConn{}, 9))
+
+	fake := m.Session.(*fakeSessionManager)
+	if fake.clearSuppressionCalls != 2 {
+		t.Fatalf("clear-suppression calls = %d, want 2 (one per PDN)", fake.clearSuppressionCalls)
+	}
+}
+
+func TestAbandonPaging_SuppressesAllPDNs(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	ue.Pdns = map[uint8]*PdnConnection{
+		5: {Ebi: 5},
+		6: {Ebi: 6},
+	}
+
+	m.abandonPaging(ue)
+
+	fake := m.Session.(*fakeSessionManager)
+	if fake.suppressCalls != 2 {
+		t.Fatalf("suppress calls = %d, want 2 (one per PDN)", fake.suppressCalls)
+	}
+}

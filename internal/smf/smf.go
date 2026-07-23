@@ -94,7 +94,8 @@ type UPFClient interface {
 	FlushUsage(ctx context.Context, remoteSEID uint64)
 	DeleteSession(ctx context.Context, remoteSEID uint64) error
 
-	ResetDownlinkDataNotification(ctx context.Context, remoteSEID uint64)
+	SuppressDownlinkDataNotification(ctx context.Context, remoteSEID uint64)
+	ClearDownlinkDataNotification(ctx context.Context, remoteSEID uint64)
 
 	UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error
 
