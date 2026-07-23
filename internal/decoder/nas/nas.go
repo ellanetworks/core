@@ -67,6 +67,12 @@ type NASMessage struct {
 }
 
 func DecodeNASMessage(raw []byte) *NASMessage {
+	// The header read below indexes raw[0] (EPD) and raw[1] (security header type);
+	// this diagnostic decoder runs on untrusted captured bytes, so guard the length.
+	if len(raw) < 2 {
+		return &NASMessage{Error: "NAS message too short"}
+	}
+
 	securityHeaderType := nas.GetSecurityHeaderType(raw) & 0x0f
 
 	epd := nas.GetEPD(raw)
