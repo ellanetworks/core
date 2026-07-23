@@ -9,13 +9,12 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
-	"github.com/free5gc/nas/nasConvert"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
 // TS 24501 5.6.3.2
-func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.NotificationResponse) nasreply.Disposition {
+func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, plain []byte) nasreply.Disposition {
 	if state := ue.State(); state != amf.Registered {
 		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Notification Response message", zap.String("state", string(state)))
 		return nasreply.Silent(nasreply.ReasonOutOfState)
@@ -25,12 +24,18 @@ func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *a
 		conn.StopNASGuard()
 	}
 
+	msg, err := fgs.ParseNotificationResponse(plain)
+	if err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("could not decode Notification Response", zap.Error(err))
+		return nasreply.Silent(nasreply.ReasonUnspecified)
+	}
+
 	if msg.PDUSessionStatus == nil {
 		logger.WithTrace(ctx, logger.AmfLog).Debug("PDUSessionStatus IE is not present in Notification Response message, no PDU session to release", logger.SUPI(ue.Supi().String()))
 		return nasreply.Handled()
 	}
 
-	psiArray := nasConvert.PSIToBooleanArray(msg.Buffer)
+	psiArray := fgs.PSIFromBytes(msg.PDUSessionStatus)
 
 	for psi := 1; psi <= 15; psi++ {
 		pduSessionID := uint8(psi)

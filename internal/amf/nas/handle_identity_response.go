@@ -16,7 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
-	"github.com/free5gc/nas/nasConvert"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
 )
@@ -30,13 +30,15 @@ func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integri
 		return fmt.Errorf("mobile identity is empty")
 	}
 
-	switch nasConvert.GetTypeOfIdentity(mobileIdentityContents[0]) {
-	case nasMessage.MobileIdentity5GSTypeSuci:
-		var plmnID string
+	switch fgs.TypeOfIdentity(mobileIdentityContents[0]) {
+	case fgs.IdentitySUCI:
+		// SUCIToString yields empty strings on a malformed SUCI, matching the prior
+		// lenient behavior; the empty SUPI then fails authentication downstream.
+		suci, plmnID, _ := fgs.SUCIToString(mobileIdentityContents)
 
-		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentityContents)
+		ue.Suci = suci
 		ue.PlmnID = amf.PlmnIDStringToModels(plmnID)
-	case nasMessage.MobileIdentity5GSType5gGuti:
+	case fgs.IdentityGUTI:
 		if !integrityVerified {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
@@ -51,7 +53,7 @@ func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integri
 		if guti.Tmsi != ue.Tmsi() && guti.Tmsi != ue.OldTmsi() {
 			return fmt.Errorf("UE sent unknown GUTI")
 		}
-	case nasMessage.MobileIdentity5GSType5gSTmsi:
+	case fgs.IdentitySTMSI:
 		if !integrityVerified {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
@@ -75,23 +77,33 @@ func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integri
 		if tmsi != ue.Tmsi() && tmsi != ue.OldTmsi() {
 			return fmt.Errorf("UE sent unknown TMSI")
 		}
-	case nasMessage.MobileIdentity5GSTypeImei:
+	case fgs.IdentityIMEI:
 		if !integrityVerified {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 
-		imei, err := etsi.NewIMEIFromPEI(nasConvert.PeiToString(mobileIdentityContents))
+		pei, err := fgs.PEIToString(mobileIdentityContents)
+		if err != nil {
+			return fmt.Errorf("UE sent invalid IMEI: %w", err)
+		}
+
+		imei, err := etsi.NewIMEIFromPEI(pei)
 		if err != nil {
 			return fmt.Errorf("UE sent invalid IMEI: %w", err)
 		}
 
 		ue.Imei = imei
-	case nasMessage.MobileIdentity5GSTypeImeisv:
+	case fgs.IdentityIMEISV:
 		if !integrityVerified {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 
-		imeisv, err := etsi.NewIMEIFromPEI(nasConvert.PeiToString(mobileIdentityContents))
+		pei, err := fgs.PEIToString(mobileIdentityContents)
+		if err != nil {
+			return fmt.Errorf("UE sent invalid IMEISV: %w", err)
+		}
+
+		imeisv, err := etsi.NewIMEIFromPEI(pei)
 		if err != nil {
 			return fmt.Errorf("UE sent invalid IMEISV: %w", err)
 		}

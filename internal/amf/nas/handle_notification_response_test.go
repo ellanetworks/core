@@ -11,9 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func TestHandleNotificationResponse_NotRegisteredIgnored(t *testing.T) {
@@ -56,9 +54,7 @@ func TestHandleNotificationResponse_T3565Stopped_NoPDUSessionStatus_NoSmContextR
 	ue.ForceStateForTest(amf.Registered)
 	ue.Conn().NASGuardForTest().Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 
-	m := buildTestNotifationResponse()
-
-	handleNotificationResponse(t.Context(), amfInstance, ue, m.NotificationResponse)
+	handleNotificationResponse(t.Context(), amfInstance, ue, buildTestNotificationResponse(nil))
 
 	if ue.Conn().NASGuardForTest().Active() {
 		t.Fatal("expected timer T3565 to be stopped and cleared")
@@ -92,18 +88,12 @@ func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextRelea
 	_ = ue.CreateSmContext(11, "11", &models.Snssai{})
 	_ = ue.CreateSmContext(15, "15", &models.Snssai{})
 
-	m := buildTestNotifationResponse()
+	// Only PSI 11 is active, so the inactive sessions 1, 5, 8, 15 are released.
+	var psi [16]bool
 
-	m.NotificationResponse.PDUSessionStatus = &nasType.PDUSessionStatus{}
-	m.NotificationResponse.SetIei(nasMessage.NotificationResponsePDUSessionStatusType)
-	m.NotificationResponse.SetLen(2)
-	m.NotificationResponse.SetPSI1(0)
-	m.NotificationResponse.SetPSI5(0)
-	m.NotificationResponse.SetPSI8(0)
-	m.NotificationResponse.SetPSI11(1)
-	m.NotificationResponse.SetPSI15(0)
+	psi[11] = true
 
-	handleNotificationResponse(t.Context(), amfInstance, ue, m.NotificationResponse)
+	handleNotificationResponse(t.Context(), amfInstance, ue, buildTestNotificationResponse(fgs.PSIToBytes(psi)))
 
 	if ue.Conn().NASGuardForTest().Active() {
 		t.Fatal("expected timer T3565 to be stopped and cleared")
@@ -119,16 +109,15 @@ func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextRelea
 	}
 }
 
-func buildTestNotifationResponse() *nas.GmmMessage {
-	m := nas.NewGmmMessage()
+// buildTestNotificationResponse builds the plain NOTIFICATION RESPONSE wire bytes,
+// optionally carrying a PDU session status IE (IEI 0x50, TS 24.501 §8.2.24).
+func buildTestNotificationResponse(pduSessionStatus []byte) []byte {
+	b := []byte{fgs.EPD5GMM, 0x00, uint8(fgs.MsgNotificationResponse)}
 
-	notificationResponse := nasMessage.NewNotificationResponse(0)
-	notificationResponse.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	notificationResponse.SetSpareHalfOctet(0x00)
-	notificationResponse.SetMessageType(nas.MsgTypeNotificationResponse)
+	if pduSessionStatus != nil {
+		b = append(b, 0x50, uint8(len(pduSessionStatus)))
+		b = append(b, pduSessionStatus...)
+	}
 
-	m.NotificationResponse = notificationResponse
-	m.SetMessageType(nas.MsgTypeNotificationResponse)
-
-	return m
+	return b
 }

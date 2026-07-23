@@ -20,6 +20,26 @@ func PSIToBytes(psi [16]bool) []byte {
 	return buf[:]
 }
 
+// PSIFromBytes decodes the 2-octet PDU session status / reactivation-result
+// bitmap into a per-PDU-session-identity boolean array (the inverse of
+// PSIToBytes): bit (i mod 8) of octet (i div 8) sets PSI i (TS 24.501
+// §9.11.3.44). A buffer shorter than 2 octets yields an all-false array.
+func PSIFromBytes(b []byte) [16]bool {
+	var psi [16]bool
+
+	if len(b) < 2 {
+		return psi
+	}
+
+	for i := 0; i < 16; i++ {
+		if b[i/8]&(1<<(i%8)) != 0 {
+			psi[i] = true
+		}
+	}
+
+	return psi
+}
+
 // ServiceAccept is the SERVICE ACCEPT message (TS 24.501 §8.2.17): optional PDU
 // session status, reactivation result, and reactivation-result error cause.
 type ServiceAccept struct {
