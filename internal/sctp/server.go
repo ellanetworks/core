@@ -24,8 +24,8 @@ const readBufSize uint32 = 131072
 
 var errNoInterfaceAddrs = errors.New("no IP addresses found")
 
-// Values follow RFC 4960 §15 so failure detection is not overly aggressive on
-// idle or lossy links; the 5 s heartbeat also keeps on-path middlebox flows alive.
+// The 5 s heartbeat keeps middlebox flows alive; the RTO and retransmit count
+// tolerate transient loss on idle or lossy links before aborting.
 var serverSocketConfig = SocketConfig{
 	InitMsg:        InitMsg{NumOstreams: 2, MaxInstreams: 5, MaxAttempts: 2, MaxInitTimeout: 2},
 	RtoInfo:        &RtoInfo{SrtoAssocID: 0, SrtoInitial: 3000, SrtoMax: 5000, SrtoMin: 1000},

@@ -14,9 +14,8 @@ import (
 	"unsafe"
 )
 
-// Guards the sctp_paddrparams field offsets against kernel drift: the interval
-// must read back at spp_hbinterval, and spp_pathmaxrxt (the field immediately
-// after it) must be untouched, catching an offset that writes the wrong field.
+// Guards the sctp_paddrparams offsets: the interval must read back at
+// spp_hbinterval with the adjacent spp_pathmaxrxt left untouched.
 func TestSetPeerAddrParams_RoundTrip(t *testing.T) {
 	skipIfNoSCTP(t)
 

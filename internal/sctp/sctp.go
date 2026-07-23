@@ -252,10 +252,8 @@ const (
 	sppHBDisable = 1 << 1 // SPP_HB_DISABLE
 )
 
-// Offsets into the packed struct sctp_paddrparams (uapi/linux/sctp.h). A Go
-// struct cannot mirror it: the struct is packed and spp_pathmtu is not 4-byte
-// aligned, so the buffer is read back and only spp_hbinterval and spp_flags are
-// rewritten, preserving every other field the running kernel reports.
+// Byte offsets into the packed struct sctp_paddrparams (uapi/linux/sctp.h); a
+// Go struct cannot mirror it because spp_pathmtu is not 4-byte aligned.
 const (
 	pppHBIntervalOff = 132
 	pppFlagsOff      = 146
@@ -266,9 +264,8 @@ type PeerAddrParams struct {
 	HBIntervalMs uint32
 }
 
-// setPeerAddrParams sets the socket's default heartbeat interval. It reads the
-// current value back first to preserve the struct size the running kernel
-// expects. spp_hbinterval is ignored unless SPP_HB_ENABLE is set.
+// setPeerAddrParams sets the socket's default heartbeat interval. The kernel
+// honors spp_hbinterval only when SPP_HB_ENABLE is set in spp_flags.
 func setPeerAddrParams(fd int, p PeerAddrParams) error {
 	buf := make([]byte, 256)
 	optlen := uint32(len(buf))
@@ -612,7 +609,7 @@ type SocketConfig struct {
 	// AssocInfo (RFC 6458)
 	AssocInfo *AssocInfo
 
-	// PeerAddrParams sets the default per-destination parameters (heartbeat).
+	// PeerAddrParams (RFC 6458)
 	PeerAddrParams *PeerAddrParams
 }
 
