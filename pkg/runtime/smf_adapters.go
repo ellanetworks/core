@@ -430,6 +430,10 @@ func (a *smfUPFAdapter) SuppressDownlinkDataNotification(ctx context.Context, re
 	a.engine.SuppressDownlinkDataNotification(remoteSEID)
 }
 
+func (a *smfUPFAdapter) ClearDownlinkDataNotification(ctx context.Context, remoteSEID uint64) {
+	a.engine.ClearDownlinkDataNotification(remoteSEID)
+}
+
 func (a *smfUPFAdapter) UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error {
 	return a.engine.UpdateFilters(ctx, policyID, direction, rules)
 }

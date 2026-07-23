@@ -66,6 +66,8 @@ type fakeSessionManager struct {
 	framedErr       error // when set, FramedRoutesChanged fails with it
 	staticIPChanged bool  // StaticIPChanged returns this
 	staticIPErr     error // when set, StaticIPChanged fails with it
+
+	clearSuppressionCalls int // counts ClearEPSPagingSuppression calls
 }
 
 func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSBearerRequest) (models.EPSBearer, error) {
@@ -118,6 +120,11 @@ func (f *fakeSessionManager) DeactivateEPSSession(_ context.Context, _ string, _
 }
 
 func (f *fakeSessionManager) HandleEPSPagingFailure(_ context.Context, _ string, _ uint8) error {
+	return nil
+}
+
+func (f *fakeSessionManager) ClearEPSPagingSuppression(_ context.Context, _ string, _ uint8) error {
+	f.clearSuppressionCalls++
 	return nil
 }
 

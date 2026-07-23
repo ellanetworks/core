@@ -62,6 +62,10 @@ type SmfSbi interface {
 	ReconcileSmContext(ctx context.Context, req *models.SessionReconcileRequest) error
 	GetSessionPolicy(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (*smf.Policy, error)
 	HandlePagingFailure(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error
+	// ClearPagingSuppression re-arms downlink data notification once the UE is
+	// reachable again (CM-CONNECTED), so subsequent downlink data pages it
+	// (TS 23.502 §4.2.3.3 step 3c).
+	ClearPagingSuppression(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error
 }
 
 type NetworkFeatureSupport5GS struct {

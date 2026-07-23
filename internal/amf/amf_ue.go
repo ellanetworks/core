@@ -265,6 +265,28 @@ func (a *AMF) AttachUeConn(ue *UeContext, ueConn *UeConn) {
 			logger.AmfLog.Error("failed to release superseded RAN UE on adopt", zap.Error(err))
 		}
 	}
+
+	a.clearPagingSuppression(context.Background(), ue)
+}
+
+// clearPagingSuppression re-arms downlink data notification on the UE's sessions now
+// that it has re-established a signalling connection and is reachable again — the
+// integrated-core equivalent of the SMF resuming on a UE-reachability notification
+// (TS 23.502 §4.2.3.3 step 3c). Runs outside the registry lock: the anchor must not
+// be called while amf.mu is held.
+func (a *AMF) clearPagingSuppression(ctx context.Context, ue *UeContext) {
+	if a.Session == nil {
+		return
+	}
+
+	supi := ue.Supi()
+
+	for id := range ue.SmContextSnapshot() {
+		if err := a.Session.ClearPagingSuppression(ctx, supi, id); err != nil {
+			logger.AmfLog.Warn("failed to clear paging suppression on reconnect",
+				logger.SUPI(supi.String()), zap.Error(err))
+		}
+	}
 }
 
 // AllocateRegistrationArea assigns the UE's registered tracking area: the whole served
