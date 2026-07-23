@@ -16,14 +16,14 @@ import (
 	"github.com/ellanetworks/core/internal/tester/air"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
+	"github.com/ellanetworks/core/internal/util/milenage"
+	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/nas/security"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/free5gc/openapi/models"
-	"github.com/free5gc/util/milenage"
-	"github.com/free5gc/util/ueauth"
 	"go.uber.org/zap"
 )
 
@@ -389,7 +389,7 @@ func (ue *UE) DeriveRESstarAndSetKey(authSubs models.AuthenticationSubscription,
 	}
 
 	key := append(CK, IK...)
-	FC := ueauth.FC_FOR_RES_STAR_XRES_STAR_DERIVATION
+	FC := ueauth.FCForResStarXresStarDerivation
 	P0 := []byte(snName)
 	P1 := RAND
 	P2 := RES
@@ -408,7 +408,7 @@ func (ue *UE) DeriveRESstarAndSetKey(authSubs models.AuthenticationSubscription,
 }
 
 func (ue *UE) DerivateKamf(key []byte, snName string, SQN, AK []byte) error {
-	FC := ueauth.FC_FOR_KAUSF_DERIVATION
+	FC := ueauth.FCForKausfDerivation
 	P0 := []byte(snName)
 	SQNxorAK := make([]byte, 6)
 
@@ -425,7 +425,7 @@ func (ue *UE) DerivateKamf(key []byte, snName string, SQN, AK []byte) error {
 
 	P0 = []byte(snName)
 
-	Kseaf, err := ueauth.GetKDFValue(Kausf, ueauth.FC_FOR_KSEAF_DERIVATION, P0, ueauth.KDFLen(P0))
+	Kseaf, err := ueauth.GetKDFValue(Kausf, ueauth.FCForKseafDerivation, P0, ueauth.KDFLen(P0))
 	if err != nil {
 		return fmt.Errorf("error while deriving Kseaf: %v", err)
 	}
@@ -438,7 +438,7 @@ func (ue *UE) DerivateKamf(key []byte, snName string, SQN, AK []byte) error {
 	P1 = []byte{0x00, 0x00}
 	L1 := ueauth.KDFLen(P1)
 
-	ue.UeSecurity.Kamf, err = ueauth.GetKDFValue(Kseaf, ueauth.FC_FOR_KAMF_DERIVATION, P0, L0, P1, L1)
+	ue.UeSecurity.Kamf, err = ueauth.GetKDFValue(Kseaf, ueauth.FCForKamfDerivation, P0, L0, P1, L1)
 	if err != nil {
 		return fmt.Errorf("error while deriving Kamf: %v", err)
 	}
