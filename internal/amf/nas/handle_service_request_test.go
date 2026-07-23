@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
@@ -94,7 +95,7 @@ func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T)
 
 	m := buildTestServiceRequest()
 
-	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
+	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m.ServiceRequest), true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -148,7 +149,7 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 
 	m := buildTestServiceRequest()
 
-	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
+	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m.ServiceRequest), false)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -227,7 +228,7 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 
 	ue.SetCipheringAlgForTest(200)
 
-	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
+	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m.ServiceRequest), true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -288,7 +289,7 @@ func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
+	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m.ServiceRequest), true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -344,7 +345,7 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 
 	m := buildTestServiceRequest()
 
-	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
+	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m.ServiceRequest), true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -363,8 +364,8 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 		t.Fatalf("could not decode ciphered NAS message")
 	}
 
-	if decoded.Message.GmmHeader.GetMessageType() != nas.MsgTypeServiceAccept {
-		t.Fatalf("expected a service accept message, got '%v'", decoded.Message.GmmHeader.GetMessageType())
+	if decoded.MessageType != uint8(fgs.MsgServiceAccept) {
+		t.Fatalf("expected a service accept message, got %d", decoded.MessageType)
 	}
 
 	if ue.PagingActiveForTest() {
@@ -409,7 +410,7 @@ func TestHandleServiceRequest_ServiceTypeReplies(t *testing.T) {
 			m := buildTestServiceRequest()
 			m.SetServiceTypeValue(tc.serviceType)
 
-			handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
+			handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m.ServiceRequest), true)
 
 			if len(ngapSender.SentDownlinkNASTransport) != 1 {
 				t.Fatalf("service type %d: want exactly 1 downlink reply (never a silent drop), got %d", tc.serviceType, len(ngapSender.SentDownlinkNASTransport))
@@ -426,7 +427,7 @@ func TestHandleServiceRequest_ServiceTypeReplies(t *testing.T) {
 					t.Fatalf("could not decode ciphered downlink reply: %v", err)
 				}
 
-				gotType = decoded.Message.GmmHeader.GetMessageType()
+				gotType = decoded.MessageType
 			}
 
 			if gotType != tc.wantMsgType {
@@ -484,7 +485,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
+	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m.ServiceRequest), true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -568,7 +569,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
+	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m.ServiceRequest), true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -657,7 +658,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
+	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m.ServiceRequest), true)
 
 	if len(ngapSender.SentDownlinkNASTransport) < 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -753,7 +754,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
+	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m.ServiceRequest), true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
 		t.Fatalf("should not have sent a Downlink NAS Transport message")
@@ -819,7 +820,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
+	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m.ServiceRequest), true)
 
 	if len(ngapSender.SentPDUSessionResourceSetupRequest) < 1 {
 		t.Fatalf("should have sent a PDU Session Resource Setup Request message")
@@ -955,7 +956,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
+	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m.ServiceRequest), true)
 
 	if len(ngapSender.SentPDUSessionResourceSetupRequest) < 1 {
 		t.Fatalf("should have sent a PDU Session Resource Setup Request message")
@@ -1095,7 +1096,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
+	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m.ServiceRequest), true)
 
 	if len(ngapSender.SentPDUSessionResourceSetupRequest) < 1 {
 		t.Fatalf("should have sent a PDU Session Resource Setup Request message")
@@ -1247,7 +1248,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
+	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m.ServiceRequest), true)
 
 	if len(ngapSender.SentInitialContextSetupRequest) < 1 {
 		t.Fatalf("should have sent a PDU Session Resource Setup Request message")
@@ -1393,7 +1394,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
+	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m.ServiceRequest), true)
 
 	if len(ngapSender.SentPDUSessionResourceSetupRequest) < 1 {
 		t.Fatalf("should have sent a PDU Session Resource Setup Request message")
@@ -1562,7 +1563,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
+	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m.ServiceRequest), true)
 }
 
 // TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus verifies that a
@@ -1625,7 +1626,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 	// buildTestServiceRequestCiphered). The panic occurs when iterating SmContextList
 	// and indexing into the [16]bool psiArray with pduSessionID >= 16.
 
-	handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
+	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m.ServiceRequest), true)
 }
 
 func buildTestServiceRequest() *nas.GmmMessage {
@@ -1639,10 +1640,25 @@ func buildTestServiceRequest() *nas.GmmMessage {
 	serviceRequest.SetAMFSetID(0)
 	serviceRequest.SetTMSI5G([4]uint8{0xDE, 0xAD, 0xBE, 0xEF})
 	serviceRequest.SetServiceTypeValue(nasMessage.ServiceTypeSignalling)
+	serviceRequest.TMSI5GS.SetLen(7)
+	serviceRequest.SetTypeOfIdentity(4) // 5G-S-TMSI
 
 	m.ServiceRequest = serviceRequest
 
 	return m
+}
+
+// encSR encodes a free5gc SERVICE REQUEST message to its plain wire bytes,
+// the form the handler receives.
+func encSR(t *testing.T, sr *nasMessage.ServiceRequest) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+	if err := sr.EncodeServiceRequest(&buf); err != nil {
+		t.Fatalf("could not encode Service Request: %v", err)
+	}
+
+	return buf.Bytes()
 }
 
 func buildTestServiceRequestCiphered(cipherAlg uint8, key [16]uint8, ulcount uint32, svc_type uint8) (*nas.GmmMessage, error) {
@@ -1650,7 +1666,7 @@ func buildTestServiceRequestCiphered(cipherAlg uint8, key [16]uint8, ulcount uin
 
 	innerServiceRequest := nasMessage.NewServiceRequest(0)
 	innerServiceRequest.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	innerServiceRequest.SetSecurityHeaderType(nas.SecurityHeaderTypeIntegrityProtectedAndCiphered)
+	innerServiceRequest.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
 	innerServiceRequest.SetSpareHalfOctet(0x00)
 	innerServiceRequest.SetMessageType(nas.MsgTypeServiceRequest)
 	innerServiceRequest.SetAMFPointer(0)
@@ -1692,7 +1708,7 @@ func buildTestServiceRequestCiphered(cipherAlg uint8, key [16]uint8, ulcount uin
 	serviceRequest.SetNASMessageContainerContents(nasPdu)
 	serviceRequest.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
 	serviceRequest.SetSpareHalfOctet(0x00)
-	serviceRequest.SetMessageType(svc_type)
+	serviceRequest.SetMessageType(nas.MsgTypeServiceRequest)
 	serviceRequest.SetAMFPointer(0)
 	serviceRequest.SetAMFSetID(0)
 	serviceRequest.SetTMSI5G([4]uint8{0xDE, 0xAD, 0xBE, 0xEF})

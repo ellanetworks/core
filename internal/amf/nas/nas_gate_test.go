@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 )
@@ -142,10 +143,8 @@ func TestHandleGmmMessage_UnimplementedType_ReturnsStatus97(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg := nas.NewGmmMessage()
-	msg.SetMessageType(nas.MsgTypeRegistrationReject) // a downlink type never handled inbound
-
-	d := HandleGmmMessage(context.Background(), amf.New(nil, nil, nil), ue, msg, nil, true)
+	// a downlink type never handled inbound
+	d := HandleGmmMessage(context.Background(), amf.New(nil, nil, nil), ue, uint8(fgs.MsgRegistrationReject), nil, true)
 
 	if d.Action != nasreply.ActionStatus || d.Domain != nasreply.DomainMM || d.Cause != nasreply.CauseMessageTypeNotImplemented {
 		t.Errorf("disposition = %+v, want a 5GMM STATUS #97 (message type non-existent or not implemented)", d)

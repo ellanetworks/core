@@ -15,7 +15,6 @@ import (
 	"github.com/ellanetworks/core/internal/nasreply"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/nas"
 )
 
 // decodeError couples a decode or classify failure to the nasreply.Disposition the ingress
@@ -29,8 +28,8 @@ type decodeError struct {
 func (e *decodeError) Error() string { return e.detail }
 
 // DispositionForDecodeError returns the disposition the decode layer attached to err. Any
-// other error (e.g. a plain free5gc decode error not yet classified) resolves to an audited
-// silent discard, so an unexpected failure fails safe rather than replying blindly.
+// other error (one not yet classified into a disposition) resolves to an audited silent
+// discard, so an unexpected failure fails safe rather than replying blindly.
 func DispositionForDecodeError(err error) nasreply.Disposition {
 	if de, ok := errors.AsType[*decodeError](err); ok {
 		return de.disposition
@@ -62,30 +61,28 @@ func DecodeNASMessage(ue *UeContext, payload []byte) (*DecodeResult, error) {
 		return nil, silentDecode(nasreply.ReasonTooShort, "nas payload is too short")
 	}
 
-	msg := new(nas.Message)
-	msg.SecurityHeaderType = payload[1] & 0x0f
+	securityHeaderType := fgs.SecurityHeaderType(payload[1] & 0x0f)
 
 	conn := ue.Conn()
 
-	if msg.SecurityHeaderType == uint8(fgs.SHTPlain) {
+	if securityHeaderType == fgs.SHTPlain {
 		if conn.SecureExchangeEstablished() {
 			// TS 24.501 §4.4.4.3: a plain message received after secure exchange is
 			// discarded — but only a real, decodable NAS message (a genuine integrity
 			// violation). A plain PDU that does not decode to a valid message is a protocol
 			// error, answered with a 5GMM STATUS #111 (§7), not silently ignored. Neither
 			// path processes the message, so integrity protection is not weakened.
-			probe := new(nas.Message)
-			if p := payload; probe.PlainNasDecode(&p) != nil {
+			if _, _, err := DecodePlainGmm(payload); err != nil {
 				return nil, statusDecode(nasreply.CauseProtocolErrorUnspecified, "undecodable plain NAS after secure exchange")
 			}
 
 			return nil, silentDecode(nasreply.ReasonIntegrityFail, "plain NAS discarded: secure exchange established (TS 24.501 §4.4.4.3)")
 		}
 
-		return decodePlainNAS(msg, payload)
+		return decodePlainNAS(payload)
 	}
 
-	return decodeProtectedNAS(ue, msg, payload, conn)
+	return decodeProtectedNAS(ue, securityHeaderType, payload, conn)
 }
 
 // NasIntegrityVerified reports whether payload is an integrity-protected NAS
@@ -149,35 +146,102 @@ func GmmDecodeFailureCause(body []byte) uint8 {
 	return nasreply.CauseInvalidMandatoryInfo
 }
 
-func decodePlainNAS(msg *nas.Message, payload []byte) (*DecodeResult, error) {
-	// PlainNasDecode consumes payload; capture whether the message-type octet was present so
-	// a too-short PDU (§7.2.1, silent) is told apart from a decodable type whose body is
-	// malformed (§7.5.1, 5GMM STATUS #96).
+// DecodePlainGmm validates a plain NAS message and reports its 5GMM message type,
+// mirroring the classification of free5gc's PlainNasDecode: it errors on an empty
+// body, a disallowed extended protocol discriminator, an unassigned 5GMM message
+// type, or an Ella-parsed uplink type whose mandatory content is malformed. isGMM
+// is false for a standalone 5GSM message (EPD 0x2E), which the caller discards.
+func DecodePlainGmm(body []byte) (msgType uint8, isGMM bool, err error) {
+	if len(body) == 0 {
+		return 0, false, fmt.Errorf("empty NAS message")
+	}
+
+	epd := body[0]
+	if epd != fgs.EPD5GMM && epd != fgs.EPD5GSM {
+		return 0, false, fmt.Errorf("extended protocol discriminator %#x not allowed in NAS message", epd)
+	}
+
+	if len(body) < 3 {
+		return 0, epd == fgs.EPD5GMM, fmt.Errorf("NAS message too short")
+	}
+
+	msgType = body[2]
+	isGMM = epd == fgs.EPD5GMM
+
+	if !isGMM {
+		// A standalone 5GSM message is not processed on N1; the caller drops it. Its
+		// body is not validated here (free5gc decodes it only to discard it).
+		return msgType, false, nil
+	}
+
+	if _, ok := gmmMessageTypeNames[msgType]; !ok {
+		return msgType, true, fmt.Errorf("unassigned 5GMM message type %#x", msgType)
+	}
+
+	return msgType, true, parseCheckGmm(msgType, body)
+}
+
+// parseCheckGmm validates the mandatory content of the uplink 5GMM messages Ella
+// parses; a defined type without a dedicated parser (downlink types, header-only
+// uplink types) is accepted on its already-validated header, matching free5gc's
+// successful decode of such a message.
+func parseCheckGmm(msgType uint8, body []byte) error {
+	var err error
+
+	switch fgs.MessageType(msgType) {
+	case fgs.MsgRegistrationRequest:
+		_, err = fgs.ParseRegistrationRequest(body)
+	case fgs.MsgServiceRequest:
+		_, err = fgs.ParseServiceRequest(body)
+	case fgs.MsgDeregistrationRequestUEOrig:
+		_, err = fgs.ParseDeregistrationRequestUEOriginating(body)
+	case fgs.MsgIdentityResponse:
+		_, err = fgs.ParseIdentityResponse(body)
+	case fgs.MsgAuthenticationResponse:
+		_, err = fgs.ParseAuthenticationResponse(body)
+	case fgs.MsgAuthenticationFailure:
+		_, err = fgs.ParseAuthenticationFailure(body)
+	case fgs.MsgSecurityModeComplete:
+		_, err = fgs.ParseSecurityModeComplete(body)
+	case fgs.MsgSecurityModeReject:
+		_, err = fgs.ParseSecurityModeReject(body)
+	case fgs.MsgGMMStatus:
+		_, err = fgs.ParseGMMStatus(body)
+	case fgs.MsgNotificationResponse:
+		_, err = fgs.ParseNotificationResponse(body)
+	case fgs.MsgULNASTransport:
+		_, err = fgs.ParseULNASTransport(body)
+	}
+
+	return err
+}
+
+func decodePlainNAS(payload []byte) (*DecodeResult, error) {
+	// Capture whether the message-type octet is present so a too-short PDU (§7.2.1, silent)
+	// is told apart from a decodable type whose body is malformed (§7.5.1, 5GMM STATUS #96).
 	typeReadable := len(payload) >= 3
 
-	body := payload
-	if err := msg.PlainNasDecode(&payload); err != nil {
+	msgType, isGMM, err := DecodePlainGmm(payload)
+	if err != nil {
 		if !typeReadable {
 			return nil, silentDecode(nasreply.ReasonTooShort, "plain NAS too short to classify: %v", err)
 		}
 
-		return nil, statusDecode(GmmDecodeFailureCause(body), "plain NAS decode failed: %v", err)
+		return nil, statusDecode(GmmDecodeFailureCause(payload), "plain NAS decode failed: %v", err)
 	}
 
-	if msg.GmmMessage == nil {
+	if !isGMM {
 		return nil, silentDecode(nasreply.ReasonOutOfState, "plain NAS message has no GMM body")
 	}
-
-	msgType := msg.GmmHeader.GetMessageType()
 
 	if !plainNasAllowed(msgType) {
 		return nil, silentDecode(nasreply.ReasonIntegrityFail, "plain NAS message type %d not permitted by TS 24.501 §4.4.4.3", msgType)
 	}
 
-	return &DecodeResult{Message: msg, IntegrityVerified: false, Plain: body}, nil
+	return &DecodeResult{MessageType: msgType, IsGMM: true, IntegrityVerified: false, Plain: payload}, nil
 }
 
-func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *UeConn) (*DecodeResult, error) {
+func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payload []byte, conn *UeConn) (*DecodeResult, error) {
 	if len(payload) < 7 {
 		return nil, silentDecode(nasreply.ReasonTooShort, "nas payload is too short")
 	}
@@ -189,8 +253,6 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *U
 	// advance (desync) the count of a genuine UE (TS 33.501).
 	counter := ue.ulCount
 
-	headerType := fgs.SecurityHeaderType(msg.SecurityHeaderType)
-
 	switch headerType {
 	case fgs.SHTIntegrityProtected, fgs.SHTIntegrityProtectedCiphered:
 	case fgs.SHTIntegrityProtectedCipheredNewContext:
@@ -199,7 +261,7 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *U
 		// A reserved/unrecognized security header type is not a valid NAS message: a protocol
 		// error answered with a 5GMM STATUS #111 (§7), not silently ignored. The message is
 		// never processed, so integrity protection is not weakened.
-		return nil, statusDecode(nasreply.CauseProtocolErrorUnspecified, "wrong security header type: 0x%0x", msg.SecurityHeaderType)
+		return nil, statusDecode(nasreply.CauseProtocolErrorUnspecified, "wrong security header type: 0x%0x", uint8(headerType))
 	}
 
 	cnt := counter.Estimate(sequenceNumber)
@@ -215,14 +277,14 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *U
 
 		conn.MarkSecureExchangeEstablished()
 
-		body := plain
-		if err := msg.PlainNasDecode(&plain); err != nil {
+		msgType, isGMM, derr := DecodePlainGmm(plain)
+		if derr != nil {
 			// A malformed body under a verified MAC is a protocol error the sender can act on
 			// (5GMM STATUS #96, or #97 for an undefined message type).
-			return nil, statusDecode(GmmDecodeFailureCause(body), "protected NAS decode failed: %v", err)
+			return nil, statusDecode(GmmDecodeFailureCause(plain), "protected NAS decode failed: %v", derr)
 		}
 
-		return &DecodeResult{Message: msg, IntegrityVerified: true, Plain: body}, nil
+		return &DecodeResult{MessageType: msgType, IsGMM: isGMM, IntegrityVerified: true, Plain: plain}, nil
 	}
 
 	if !errors.Is(uerr, fgs.ErrMACMismatch) {
@@ -246,12 +308,10 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *U
 
 	body := payload[7:]
 
-	buf := body
-	if err := msg.PlainNasDecode(&buf); err != nil {
-		return nil, silentDecode(nasreply.ReasonIntegrityFail, "protected NAS decode failed under unverified MAC: %v", err)
+	msgType, isGMM, derr := DecodePlainGmm(body)
+	if derr != nil {
+		return nil, silentDecode(nasreply.ReasonIntegrityFail, "protected NAS decode failed under unverified MAC: %v", derr)
 	}
-
-	msgType := msg.GmmHeader.GetMessageType()
 
 	// An integrity-protected message with a failed MAC is admitted only for the
 	// whitelisted types processed before secure exchange (TS 24.501 §4.4.4.3).
@@ -259,5 +319,5 @@ func decodeProtectedNAS(ue *UeContext, msg *nas.Message, payload []byte, conn *U
 		return nil, silentDecode(nasreply.ReasonIntegrityFail, "mac verification failed for the nas message: %v", msgType)
 	}
 
-	return &DecodeResult{Message: msg, IntegrityVerified: false, Plain: body}, nil
+	return &DecodeResult{MessageType: msgType, IsGMM: isGMM, IntegrityVerified: false, Plain: body}, nil
 }

@@ -40,6 +40,16 @@ func PSIFromBytes(b []byte) [16]bool {
 	return psi
 }
 
+// Service type values (TS 24.501 §9.11.3.50).
+const (
+	ServiceTypeSignalling                uint8 = 0x00
+	ServiceTypeData                      uint8 = 0x01
+	ServiceTypeMobileTerminatedServices  uint8 = 0x02
+	ServiceTypeEmergencyServices         uint8 = 0x03
+	ServiceTypeEmergencyServicesFallback uint8 = 0x04
+	ServiceTypeHighPriorityAccess        uint8 = 0x05
+)
+
 // ServiceRequest is the SERVICE REQUEST message (TS 24.501 §8.2.15): the service
 // type and ngKSI, the UE's 5G-S-TMSI, and optional status IEs.
 type ServiceRequest struct {

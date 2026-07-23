@@ -16,8 +16,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -82,21 +80,14 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 		return amf.DispositionForDecodeError(err)
 	}
 
-	msg := result.Message
-
-	if msg.GmmMessage == nil {
-		logger.From(ctx, logger.AmfLog).Warn("decoded NAS message carries no GMM body")
-		return nasreply.Silent(nasreply.ReasonOutOfState)
-	}
-
-	if msg.GsmMessage != nil {
+	if !result.IsGMM {
 		logger.From(ctx, logger.AmfLog).Warn("standalone 5GSM message on N1 discarded")
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	integrityVerified := result.IntegrityVerified
 
-	msgTypeName := amf.GmmMessageTypeName(msg.GmmHeader.GetMessageType())
+	msgTypeName := amf.GmmMessageTypeName(result.MessageType)
 
 	ctx, span := nasTracer.Start(ctx, "nas/receive",
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -115,7 +106,7 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 		logger.SUPI(ue.UeContext().Supi().String()),
 	)
 
-	return HandleGmmMessage(ctx, amfInstance, ue.UeContext(), msg.GmmMessage, result.Plain, integrityVerified)
+	return HandleGmmMessage(ctx, amfInstance, ue.UeContext(), result.MessageType, result.Plain, integrityVerified)
 }
 
 // dispositionForUnresolved classifies a fresh-connection NAS PDU that established or resolved
@@ -130,15 +121,15 @@ func dispositionForUnresolved(nasPdu []byte) nasreply.Disposition {
 		return nasreply.Silent(nasreply.ReasonTooShort)
 	}
 
-	if nasPdu[0] != nasMessage.Epd5GSMobilityManagementMessage {
+	if nasPdu[0] != fgs.EPD5GMM {
 		return nasreply.StatusMM(nasreply.CauseMessageTypeNotImplemented)
 	}
 
 	body := nasPdu
 
-	switch nas.GetSecurityHeaderType(nasPdu) & 0x0f {
-	case nas.SecurityHeaderTypePlainNas:
-	case nas.SecurityHeaderTypeIntegrityProtected:
+	switch fgs.SecurityHeaderType(nasPdu[1] & 0x0f) {
+	case fgs.SHTPlain:
+	case fgs.SHTIntegrityProtected:
 		if len(nasPdu) < 8 {
 			return nasreply.Silent(nasreply.ReasonTooShort)
 		}
@@ -149,10 +140,7 @@ func dispositionForUnresolved(nasPdu []byte) nasreply.Disposition {
 		return nasreply.StatusMM(nasreply.CauseMessageTypeNotImplemented)
 	}
 
-	msg := new(nas.Message)
-	decoded := body
-
-	if err := msg.PlainNasDecode(&decoded); err != nil {
+	if _, _, err := amf.DecodePlainGmm(body); err != nil {
 		return nasreply.StatusMM(amf.GmmDecodeFailureCause(body))
 	}
 
@@ -165,14 +153,14 @@ func dispositionForUnresolved(nasPdu []byte) nasreply.Disposition {
 // on, so only a plain or integrity-protected (peekable) body matches.
 func isRegistrationRequest(payload []byte) bool {
 	mt, ok := peekInitialGmmType(payload)
-	return ok && mt == nas.MsgTypeRegistrationRequest
+	return ok && mt == uint8(fgs.MsgRegistrationRequest)
 }
 
 // IsServiceRequest reports whether a fresh connection's first NAS message is a SERVICE
 // REQUEST, so the NGAP layer can route it to HandleServiceRequest before the mint gate.
 func IsServiceRequest(payload []byte) bool {
 	mt, ok := peekInitialGmmType(payload)
-	return ok && mt == nas.MsgTypeServiceRequest
+	return ok && mt == uint8(fgs.MsgServiceRequest)
 }
 
 // HandleServiceRequest answers an initial SERVICE REQUEST, routed here from the NGAP layer
@@ -188,7 +176,7 @@ func HandleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		// e.g. a missing mandatory IE). TS 24.501 §5.6.1.8 b): the AMF shall return a
 		// SERVICE REJECT with cause #96 "invalid mandatory information", not a silent drop.
 		logger.From(ctx, logger.AmfLog).Warn("malformed service request; rejecting", zap.Error(err))
-		rejectBareServiceRequest(ctx, ue, nasMessage.Cause5GMMInvalidMandatoryInformation)
+		rejectBareServiceRequest(ctx, ue, amf.GmmCauseInvalidMandatoryInfo)
 
 		return
 	}
@@ -197,7 +185,7 @@ func HandleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		// The request decoded, but no 5GMM context exists for the cited 5G-S-TMSI (or it
 		// failed the integrity check): it cannot be accepted. SERVICE REJECT #9 without
 		// binding or mutating any context; the NGAP layer releases the bare connection.
-		rejectBareServiceRequest(ctx, ue, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+		rejectBareServiceRequest(ctx, ue, amf.GmmCauseUEIdentityCannotBeDerived)
 		return
 	}
 
@@ -209,12 +197,7 @@ func HandleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		return
 	}
 
-	if result.Message.GmmMessage == nil || result.Message.ServiceRequest == nil {
-		logger.From(ctx, logger.AmfLog).Warn("service request routed but decoded body is not a service request")
-		return
-	}
-
-	handleServiceRequest(ctx, amfInstance, amfUe, result.Message.ServiceRequest, result.IntegrityVerified)
+	handleServiceRequest(ctx, amfInstance, amfUe, result.Plain, result.IntegrityVerified)
 }
 
 // peekInitialGmmType returns the GMM message type of a fresh connection's first NAS PDU by
@@ -225,14 +208,14 @@ func HandleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 // not silently drop it. ok is false for a non-5GMM, ciphered, or too-short PDU. Mirrors the
 // MME's raw message-type peek.
 func peekInitialGmmType(payload []byte) (uint8, bool) {
-	if len(payload) < 3 || payload[0] != nasMessage.Epd5GSMobilityManagementMessage {
+	if len(payload) < 3 || payload[0] != fgs.EPD5GMM {
 		return 0, false
 	}
 
-	switch nas.GetSecurityHeaderType(payload) & 0x0f {
-	case nas.SecurityHeaderTypePlainNas:
+	switch fgs.SecurityHeaderType(payload[1] & 0x0f) {
+	case fgs.SHTPlain:
 		return payload[2], true
-	case nas.SecurityHeaderTypeIntegrityProtected:
+	case fgs.SHTIntegrityProtected:
 		// Security header (EPD, SHT, MAC[4], sequence number) then the inner plain message
 		// (EPD, SHT, message type), so the message type is octet 10 (index 9).
 		if len(payload) < 10 {

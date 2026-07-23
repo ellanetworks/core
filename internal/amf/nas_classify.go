@@ -5,7 +5,7 @@
 package amf
 
 import (
-	"github.com/free5gc/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 // DecodeResult is the output of the pure NAS decoder. A rejected PDU is returned as
@@ -13,11 +13,13 @@ import (
 // reports whether its MAC was verified — false for a plain or MAC-failed message admitted
 // before secure exchange per TS 24.501 §4.4.4.3.
 type DecodeResult struct {
-	Message           *nas.Message
+	// MessageType is the 5GMM message type of Plain (TS 24.501 §9.7); meaningful when IsGMM.
+	MessageType uint8
+	// IsGMM reports whether Plain is a 5GMM message; false for a standalone 5GSM message on N1.
+	IsGMM             bool
 	IntegrityVerified bool
-	// Plain is the decoded plain 5GMM message (after any decipher), the input
-	// for home-built (nas/fgs) handlers during the incremental migration off
-	// free5gc. It starts with the extended protocol discriminator.
+	// Plain is the decoded plain 5GMM message (after any decipher), the input for the
+	// home-built (nas/fgs) handlers. It starts with the extended protocol discriminator.
 	Plain []byte
 }
 
@@ -28,13 +30,13 @@ type DecodeResult struct {
 // HandleServiceRequest and rejected with cause #9 on failure, never admitted here.
 func plainNasAllowed(msgType uint8) bool {
 	switch msgType {
-	case nas.MsgTypeRegistrationRequest,
-		nas.MsgTypeIdentityResponse,
-		nas.MsgTypeAuthenticationResponse,
-		nas.MsgTypeAuthenticationFailure,
-		nas.MsgTypeSecurityModeReject,
-		nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration,
-		nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:
+	case uint8(fgs.MsgRegistrationRequest),
+		uint8(fgs.MsgIdentityResponse),
+		uint8(fgs.MsgAuthenticationResponse),
+		uint8(fgs.MsgAuthenticationFailure),
+		uint8(fgs.MsgSecurityModeReject),
+		uint8(fgs.MsgDeregistrationRequestUEOrig),
+		uint8(fgs.MsgDeregistrationAcceptUETerm):
 		return true
 	default:
 		return false

@@ -8,8 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 // TestHandleGmmMessage_UnknownMessageType_NoOp verifies the default branch handles
@@ -19,10 +18,7 @@ func TestHandleGmmMessage_UnknownMessageType_NoOp(t *testing.T) {
 	ue := amf.NewUeContext()
 	amfInstance := amf.New(nil, nil, nil)
 
-	m := nas.NewGmmMessage()
-	m.SetMessageType(0xFF) // unassigned message type
-
-	HandleGmmMessage(context.Background(), amfInstance, ue, m, nil, true)
+	HandleGmmMessage(context.Background(), amfInstance, ue, 0xFF, nil, true) // unassigned message type
 }
 
 // TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete verifies HandleGmmMessage
@@ -38,16 +34,7 @@ func TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete(t *testing.T) 
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	m := nas.NewGmmMessage()
-	cuc := nasMessage.NewConfigurationUpdateComplete(0)
-	cuc.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	cuc.SetSpareHalfOctet(0x00)
-	cuc.SetMessageType(nas.MsgTypeConfigurationUpdateComplete)
-
-	m.ConfigurationUpdateComplete = cuc
-	m.SetMessageType(nas.MsgTypeConfigurationUpdateComplete)
-
-	HandleGmmMessage(context.Background(), amfInstance, ue, m, nil, true)
+	HandleGmmMessage(context.Background(), amfInstance, ue, uint8(fgs.MsgConfigurationUpdateComplete), nil, true)
 }
 
 // TestHandleGmmMessage_DispatchesToStatus5GMM verifies HandleGmmMessage routes a
@@ -62,8 +49,5 @@ func TestHandleGmmMessage_DispatchesToStatus5GMM(t *testing.T) {
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	m := nas.NewGmmMessage()
-	m.SetMessageType(nas.MsgTypeStatus5GMM)
-
-	HandleGmmMessage(context.Background(), amfInstance, ue, m, buildTestStatus5gmm(t), true)
+	HandleGmmMessage(context.Background(), amfInstance, ue, uint8(fgs.MsgGMMStatus), buildTestStatus5gmm(t), true)
 }

@@ -536,8 +536,8 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 		t.Fatalf("could not decode ciphered NAS message")
 	}
 
-	if decoded.Message.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected a registration accept message, got '%v'", decoded.Message.GmmHeader.GetMessageType())
+	if decoded.MessageType != uint8(fgs.MsgRegistrationAccept) {
+		t.Fatalf("expected a registration accept message, got %d", decoded.MessageType)
 	}
 }
 
