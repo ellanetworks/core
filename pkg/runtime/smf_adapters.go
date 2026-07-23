@@ -426,7 +426,11 @@ func (a *smfUPFAdapter) DeleteSession(ctx context.Context, remoteSEID uint64) er
 	return a.engine.DeleteSession(ctx, &models.DeleteRequest{SEID: remoteSEID})
 }
 
-func (a *smfUPFAdapter) ResetDownlinkDataNotification(ctx context.Context, remoteSEID uint64) {
+func (a *smfUPFAdapter) SuppressDownlinkDataNotification(ctx context.Context, remoteSEID uint64) {
+	a.engine.SuppressDownlinkDataNotification(remoteSEID)
+}
+
+func (a *smfUPFAdapter) ClearDownlinkDataNotification(ctx context.Context, remoteSEID uint64) {
 	a.engine.ClearDownlinkDataNotification(remoteSEID)
 }
 

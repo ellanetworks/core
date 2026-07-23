@@ -112,6 +112,10 @@ func (f *fakeSmfSbi) ActivateSmContext(_ context.Context, smContextRef string) (
 	return nil, nil
 }
 
+func (f *fakeSmfSbi) ClearPagingSuppression(_ context.Context, _ etsi.SUPI, _ uint8) error {
+	return nil
+}
+
 func (f *fakeSmfSbi) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	f.ReleaseSmContextCalls = append(f.ReleaseSmContextCalls, smContextRef)
 	return nil

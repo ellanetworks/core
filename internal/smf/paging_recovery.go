@@ -10,18 +10,18 @@ import (
 	"github.com/ellanetworks/core/etsi"
 )
 
-func (s *SMF) HandlePagingFailure(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error {
+func (s *SMF) ClearPagingSuppression(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error {
 	smContext := s.currentSession(supi, pduSessionID)
 	if smContext == nil {
-		return fmt.Errorf("no session for %s pdu %d", supi.String(), pduSessionID)
+		return nil
 	}
 
-	s.suppressDownlinkDataNotification(ctx, smContext)
+	s.clearDownlinkDataNotification(ctx, smContext)
 
 	return nil
 }
 
-func (s *SMF) HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8) error {
+func (s *SMF) ClearEPSPagingSuppression(ctx context.Context, imsi string, ebi uint8) error {
 	supi, err := etsi.NewSUPIFromIMSI(imsi)
 	if err != nil {
 		return fmt.Errorf("invalid imsi %q: %w", imsi, err)
@@ -29,15 +29,15 @@ func (s *SMF) HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8
 
 	smContext := s.currentSession(supi, ebi)
 	if smContext == nil {
-		return fmt.Errorf("no EPS session for %s", imsi)
+		return nil
 	}
 
-	s.suppressDownlinkDataNotification(ctx, smContext)
+	s.clearDownlinkDataNotification(ctx, smContext)
 
 	return nil
 }
 
-func (s *SMF) suppressDownlinkDataNotification(ctx context.Context, smContext *SMContext) {
+func (s *SMF) clearDownlinkDataNotification(ctx context.Context, smContext *SMContext) {
 	smContext.Mutex.Lock()
 	pfcp := smContext.PFCPContext
 	smContext.Mutex.Unlock()
@@ -46,5 +46,5 @@ func (s *SMF) suppressDownlinkDataNotification(ctx context.Context, smContext *S
 		return
 	}
 
-	s.upf.SuppressDownlinkDataNotification(ctx, pfcp.RemoteSEID)
+	s.upf.ClearDownlinkDataNotification(ctx, pfcp.RemoteSEID)
 }
