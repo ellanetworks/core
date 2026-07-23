@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -82,7 +82,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 		logger.From(ctx, logger.AmfLog).Info("registration rejected: 5G not allowed for subscriber")
 
-		amf.SendRegistrationReject(ctx, ueConn, nasMessage.Cause5GMM5GSServicesNotAllowed)
+		amf.SendRegistrationReject(ctx, ueConn, amf.GmmCause5GSServicesNotAllowed)
 
 		releaseAbortedRegistration(ctx, ueConn)
 
@@ -98,7 +98,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 		metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultReject)
 
-		amf.SendRegistrationReject(ctx, ueConn, nasMessage.Cause5GMM5GSServicesNotAllowed)
+		amf.SendRegistrationReject(ctx, ueConn, amf.GmmCause5GSServicesNotAllowed)
 
 		releaseAbortedRegistration(ctx, ueConn)
 
@@ -114,9 +114,9 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 	if conn.RegistrationRequest.RequestedDRXParameters != nil {
 		drx := conn.RegistrationRequest.DRXValue()
-		if drx > nasMessage.DRXcycleParameterT256 {
+		if drx > fgs.DRXCycleParameterT256 {
 			logger.From(ctx, logger.AmfLog).Warn("UE requested reserved DRX value, treating as not specified", zap.Uint8("drxValue", drx))
-			drx = nasMessage.DRXValueNotSpecified
+			drx = fgs.DRXValueNotSpecified
 		}
 
 		ue.DRXParameter = drx

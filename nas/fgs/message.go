@@ -31,12 +31,14 @@ const (
 	MsgAuthenticationResponse      MessageType = 0x57
 	MsgAuthenticationReject        MessageType = 0x58
 	MsgAuthenticationFailure       MessageType = 0x59
+	MsgAuthenticationResult        MessageType = 0x5A
 	MsgIdentityRequest             MessageType = 0x5B
 	MsgIdentityResponse            MessageType = 0x5C
 	MsgSecurityModeCommand         MessageType = 0x5D
 	MsgSecurityModeComplete        MessageType = 0x5E
 	MsgSecurityModeReject          MessageType = 0x5F
 	MsgGMMStatus                   MessageType = 0x64
+	MsgNotification                MessageType = 0x65
 	MsgNotificationResponse        MessageType = 0x66
 	MsgULNASTransport              MessageType = 0x67
 	MsgDLNASTransport              MessageType = 0x68

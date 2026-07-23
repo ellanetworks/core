@@ -10,7 +10,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
 )
 
@@ -26,7 +25,7 @@ func handleStatus5GMM(ctx context.Context, ue *amf.UeContext, plain []byte) nasr
 		return nasreply.Silent(nasreply.ReasonUnspecified)
 	}
 
-	logger.From(ctx, logger.AmfLog).Error("Received Status 5GMM with cause", logger.Cause(nasMessage.Cause5GMMToString(st.Cause)))
+	logger.From(ctx, logger.AmfLog).Error("Received Status 5GMM with cause", logger.Cause(amf.GmmCauseName(st.Cause)))
 
 	return nasreply.Handled()
 }

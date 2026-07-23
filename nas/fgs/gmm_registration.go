@@ -14,6 +14,19 @@ const (
 	RegistrationTypeReserved         uint8 = 0x07
 )
 
+// 5GS DRX parameter values (TS 24.501 §9.11.3.2A, table 9.11.3.2A.1).
+const (
+	DRXValueNotSpecified  uint8 = 0x00
+	DRXCycleParameterT32  uint8 = 0x01
+	DRXCycleParameterT64  uint8 = 0x02
+	DRXCycleParameterT128 uint8 = 0x03
+	DRXCycleParameterT256 uint8 = 0x04
+)
+
+// NgKSINoKeyAvailable is the ngKSI value indicating no 5G NAS security context is
+// available (TS 24.501 §9.11.3.32).
+const NgKSINoKeyAvailable uint8 = 0x07
+
 // RegistrationRequest is the REGISTRATION REQUEST message (TS 24.501 §8.2.6). Ella
 // reads the fields below; the many other optional IEs are still walked (so a later
 // IE Ella reads is reached) but their values are discarded.

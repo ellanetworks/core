@@ -41,7 +41,7 @@ func handleAuthenticationFailure(ctx context.Context, m *mme.MME, ue *mme.UeCont
 		return nasreply.Handled()
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("Authentication Failure", zap.Uint8("emm-cause", resp.Cause))
+	logger.From(ctx, logger.MmeLog).Info("Authentication Failure", logger.Cause(mme.EmmCauseName(resp.Cause)))
 
 	// A cause outside the enumeration (#20, #21, #26) is semantically incorrect:
 	// ignore it and leave the procedure and its guard (T3460) running; the UE is
@@ -50,7 +50,7 @@ func handleAuthenticationFailure(ctx context.Context, m *mme.MME, ue *mme.UeCont
 	case mme.EmmCauseMACFailure, mme.EmmCauseSynchFailure, mme.EmmCauseNonEPSAuthUnacceptable:
 	default:
 		logger.From(ctx, logger.MmeLog).Warn("ignoring Authentication Failure with an out-of-enumeration cause",
-			zap.Uint8("emm-cause", resp.Cause))
+			logger.Cause(mme.EmmCauseName(resp.Cause)))
 
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}

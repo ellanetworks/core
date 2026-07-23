@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/nas/nasMessage"
 )
 
 // BuildDLNASTransport assembles a DL NAS TRANSPORT message. additionalInfo
@@ -171,8 +170,8 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 		addInfo |= 1 << 1 // RINMR (bit 2)
 	}
 
-	if conn.RegistrationType5GS == nasMessage.RegistrationType5GSPeriodicRegistrationUpdating ||
-		conn.RegistrationType5GS == nasMessage.RegistrationType5GSMobilityRegistrationUpdating {
+	if conn.RegistrationType5GS == fgs.RegistrationTypePeriodicUpdating ||
+		conn.RegistrationType5GS == fgs.RegistrationTypeMobilityUpdating {
 		addInfo |= 1 // HDP (bit 1)
 	}
 
@@ -277,7 +276,7 @@ func BuildRegistrationAccept(
 		m.ReactivationResultErrorCause = reactivationErrCauseToBytes(errPduSessionID, errCause)
 	}
 
-	if ue.DRXParameter != nasMessage.DRXValueNotSpecified {
+	if ue.DRXParameter != fgs.DRXValueNotSpecified {
 		drx := ue.DRXParameter
 		m.NegotiatedDRX = &drx
 	}

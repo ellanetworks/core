@@ -20,7 +20,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -53,7 +53,7 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 		return amf.storeN1N2AndPage(ctx, ue, req)
 	}
 
-	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, req.BinaryDataN1Message, req.PduSessionID, nil, nil)
+	nasPdu, err := BuildDLNASTransport(ue, fgs.PayloadContainerTypeN1SMInfo, req.BinaryDataN1Message, req.PduSessionID, nil, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
@@ -201,7 +201,7 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 		return fmt.Errorf("temporary reject: PDU session modification during handover")
 	}
 
-	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil, nil)
+	nasPdu, err := BuildDLNASTransport(ue, fgs.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
@@ -267,7 +267,7 @@ func (amf *AMF) ReleaseSessionMessage(ctx context.Context, supi etsi.SUPI, pduSe
 		return ErrUENotReachable
 	}
 
-	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil, nil)
+	nasPdu, err := BuildDLNASTransport(ue, fgs.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
@@ -395,7 +395,7 @@ func (amf *AMF) TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte,
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
-	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil, nil)
+	nasPdu, err := BuildDLNASTransport(ue, fgs.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
@@ -445,7 +445,7 @@ func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, correlatio
 		correlationID = amf.nextLCSCorrelationID()
 	}
 
-	nasPdu, err := BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeLPP, lppMsg, 0, nil, correlationID)
+	nasPdu, err := BuildDLNASTransport(ue, fgs.PayloadContainerTypeLPP, lppMsg, 0, nil, correlationID)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport (LPP) error: %v", err)
 	}
@@ -456,7 +456,7 @@ func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, correlatio
 
 	logger.From(ctx, logger.AmfLog).Info("sent DL NAS Transport (LPP) to UE",
 		logger.SUPI(supi.String()),
-		zap.Uint8("payload_container_type", nasMessage.PayloadContainerTypeLPP),
+		zap.Uint8("payload_container_type", fgs.PayloadContainerTypeLPP),
 		zap.Int("lpp_len", len(lppMsg)),
 		zap.String("lpp_hex", hex.EncodeToString(lppMsg)),
 		zap.String("lcs_correlation_id", hex.EncodeToString(correlationID)),

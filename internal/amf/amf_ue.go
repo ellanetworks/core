@@ -25,8 +25,6 @@ import (
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
 )
 
@@ -303,7 +301,7 @@ func (ue *UeContext) IsAllowedNssai(targetSNssai *models.Snssai) bool {
 }
 
 func (ue *UeContext) SecurityContextIsValid() bool {
-	return ue.secured && ue.ngKsi.Ksi != nasMessage.NasKeySetIdentifierNoKeyIsAvailable
+	return ue.secured && ue.ngKsi.Ksi != int32(fgs.NgKSINoKeyAvailable)
 }
 
 // TouchLastSeen updates the UE's last-seen timestamp lock-free — it is on the uplink hot
@@ -581,30 +579,6 @@ func (ue *UeContext) HasActivePduSessions() bool {
 	}
 
 	return false
-}
-
-func (ue *UeContext) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
-	if ue == nil {
-		return nil, fmt.Errorf("amf ue is nil")
-	}
-
-	if msg == nil {
-		return nil, fmt.Errorf("nas message is nil")
-	}
-
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	if !ue.secured {
-		return msg.PlainNasEncode()
-	}
-
-	payload, err := msg.PlainNasEncode()
-	if err != nil {
-		return nil, fmt.Errorf("error encoding plain nas: %+v", err)
-	}
-
-	return ue.wrapSecuredLocked(payload, msg.SecurityHeaderType)
 }
 
 // EncodeNASMessagePlain wraps an already-encoded plain 5GMM message with NAS

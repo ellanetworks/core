@@ -11,7 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -35,7 +34,7 @@ func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, plain []by
 		conn.Parent().EndKeyChainProc(procedure.SecurityMode)
 	}
 
-	logger.From(ctx, logger.AmfLog).Error("UE rejected the security mode command, abort the ongoing procedure", logger.Cause(nasMessage.Cause5GMMToString(msg.Cause)), logger.SUPI(ue.Supi().String()))
+	logger.From(ctx, logger.AmfLog).Error("UE rejected the security mode command, abort the ongoing procedure", logger.Cause(amf.GmmCauseName(msg.Cause)), logger.SUPI(ue.Supi().String()))
 
 	ue.ClearSecured()
 
