@@ -35,7 +35,7 @@ func HandleGmmMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConte
 	case nas.MsgTypeStatus5GMM:
 		return handleStatus5GMM(ctx, ue, plain)
 	case nas.MsgTypeIdentityResponse:
-		return handleIdentityResponse(ctx, amfInstance, ue, msg.IdentityResponse, integrityVerified)
+		return handleIdentityResponse(ctx, amfInstance, ue, plain, integrityVerified)
 	case nas.MsgTypeAuthenticationResponse:
 		return handleAuthenticationResponse(ctx, amfInstance, ue, msg.AuthenticationResponse)
 	case nas.MsgTypeAuthenticationFailure:

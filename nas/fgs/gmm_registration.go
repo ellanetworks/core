@@ -5,6 +5,15 @@ package fgs
 
 import "github.com/ellanetworks/core/nas/common"
 
+// 5GS registration type values (TS 24.501 §9.11.3.7, table 9.11.3.7.1).
+const (
+	RegistrationTypeInitial          uint8 = 0x01
+	RegistrationTypeMobilityUpdating uint8 = 0x02
+	RegistrationTypePeriodicUpdating uint8 = 0x03
+	RegistrationTypeEmergency        uint8 = 0x04
+	RegistrationTypeReserved         uint8 = 0x07
+)
+
 // RegistrationAccept is the REGISTRATION ACCEPT message (TS 24.501 §8.2.7). The
 // mandatory 5GS registration result is followed by optional IEs, several of them
 // (GUTI, equivalent PLMNs, TAI list, allowed NSSAI, network feature support)

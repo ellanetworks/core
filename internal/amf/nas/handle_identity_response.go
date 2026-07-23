@@ -17,7 +17,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
 )
 
@@ -114,7 +113,7 @@ func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integri
 	return nil
 }
 
-func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.IdentityResponse, integrityVerified bool) nasreply.Disposition {
+func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, plain []byte, integrityVerified bool) nasreply.Disposition {
 	// The identification procedure is complete on receipt of the response
 	// (TS 24.501 §5.4.3.4).
 	if conn := ue.Conn(); conn != nil {
@@ -123,9 +122,13 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 
 	switch ue.RegStep() {
 	case amf.RegStepAuthenticating:
-		mobileIdentityContents := msg.GetMobileIdentityContents()
+		msg, err := fgs.ParseIdentityResponse(plain)
+		if err != nil {
+			logger.From(ctx, logger.AmfLog).Warn("could not decode Identity Response", zap.Error(err))
+			return nasreply.Handled()
+		}
 
-		if err := updateUEIdentity(ue, mobileIdentityContents, integrityVerified); err != nil {
+		if err := updateUEIdentity(ue, msg.MobileIdentity, integrityVerified); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("error handling identity response", zap.Error(err))
 			return nasreply.Handled()
 		}
@@ -145,9 +148,13 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 		return nasreply.Handled()
 
 	case amf.RegStepContextSetup:
-		mobileIdentityContents := msg.GetMobileIdentityContents()
+		msg, err := fgs.ParseIdentityResponse(plain)
+		if err != nil {
+			logger.From(ctx, logger.AmfLog).Warn("could not decode Identity Response", zap.Error(err))
+			return nasreply.Handled()
+		}
 
-		if err := updateUEIdentity(ue, mobileIdentityContents, integrityVerified); err != nil {
+		if err := updateUEIdentity(ue, msg.MobileIdentity, integrityVerified); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("error handling identity response", zap.Error(err))
 			return nasreply.Handled()
 		}
@@ -159,11 +166,11 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 		}
 
 		switch conn.RegistrationType5GS {
-		case nasMessage.RegistrationType5GSInitialRegistration:
+		case fgs.RegistrationTypeInitial:
 			HandleInitialRegistration(ctx, amfInstance, ue)
-		case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
+		case fgs.RegistrationTypeMobilityUpdating:
 			fallthrough
-		case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
+		case fgs.RegistrationTypePeriodicUpdating:
 			HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfInstance, ue)
 		}
 	default:
