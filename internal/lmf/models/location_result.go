@@ -58,4 +58,13 @@ type LocationResult struct {
 	UERxTxTimeDiff    *int32   `json:"ue_rx_tx_time_diff,omitempty"`  // UE Rx-Tx Time Difference (0..61565)
 	AoAAzimuthDegrees *float64 `json:"aoa_azimuth_degrees,omitempty"` // UL Angle of Arrival azimuth
 	AoAZenithDegrees  *float64 `json:"aoa_zenith_degrees,omitempty"`  // UL Angle of Arrival zenith
+
+	// UserLocation preserves the original UserLocation so callers can inspect
+	// the full NR/E-UTRA/N3IWF detail. Populated only internally.
+	UserLocation models.UserLocation `json:"-"`
+}
+
+// GetUserLocation returns the internal UserLocation that produced this result.
+func (r *LocationResult) GetUserLocation() models.UserLocation {
+	return r.UserLocation
 }
