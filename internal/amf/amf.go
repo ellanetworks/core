@@ -26,10 +26,31 @@ import (
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
-	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
+
+// localTimeZone formats now's UTC offset as the TS 29.571 time-zone string
+// "[+-]HH:MM[+][1-2]" carried in the Local time zone and Universal time IEs.
+func localTimeZone(now time.Time) string {
+	_, offset := now.Zone()
+	if now.IsDST() {
+		offset -= 3600
+	}
+
+	sign := "+"
+	if offset < 0 {
+		sign = "-"
+		offset = -offset
+	}
+
+	tz := fmt.Sprintf("%s%02d:%02d", sign, offset/3600, (offset%3600)/60)
+	if now.IsDST() {
+		tz += "+1"
+	}
+
+	return tz
+}
 
 // Authenticator is the interface the AMF requires from the AUSF.
 type Authenticator interface {
@@ -546,7 +567,7 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 		connIDs:          idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID),
 		Name:             "amf",
 		RelativeCapacity: 0xff,
-		TimeZone:         nasConvert.GetTimeZone(time.Now()),
+		TimeZone:         localTimeZone(time.Now()),
 		T3502Value:       720 * time.Second,
 		// Periodic-registration timer. The spec default of 54 min (TS 24.501 §10.2)
 		// is not representable in the GPRS Timer 3 IE — above 31 min it steps in

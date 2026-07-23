@@ -8,7 +8,6 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap"
 	"github.com/free5gc/ngap/ngapType"
 )
@@ -106,9 +105,7 @@ func TestBuildInitialContextSetupRequest_MultipleAllowedNSSAI(t *testing.T) {
 
 	kgnodeb := make([]byte, 32) // 256-bit key
 
-	ueSecurityCap := &nasType.UESecurityCapability{}
-	ueSecurityCap.SetLen(4)
-	ueSecurityCap.Buffer = []uint8{0xf0, 0xf0, 0xf0, 0xf0}
+	ueSecurityCap := []byte{0xf0, 0xf0, 0xf0, 0xf0}
 
 	encoded, err := BuildInitialContextSetupRequest(
 		1, 2, "1000000", "2000000",
@@ -149,9 +146,7 @@ func TestBuildInitialContextSetupRequest_MultipleAllowedNSSAI(t *testing.T) {
 func TestBuildInitialContextSetupRequest_EmptyAllowedNSSAI_Error(t *testing.T) {
 	kgnodeb := make([]byte, 32)
 
-	ueSecurityCap := &nasType.UESecurityCapability{}
-	ueSecurityCap.SetLen(4)
-	ueSecurityCap.Buffer = []uint8{0xf0, 0xf0, 0xf0, 0xf0}
+	ueSecurityCap := []byte{0xf0, 0xf0, 0xf0, 0xf0}
 
 	_, err := BuildInitialContextSetupRequest(
 		1, 2, "1000000", "2000000",

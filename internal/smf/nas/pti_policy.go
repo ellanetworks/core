@@ -3,10 +3,7 @@
 
 package nas
 
-import (
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-)
+import "github.com/ellanetworks/core/nas/fgs"
 
 // PTI values (TS 24.501 §9.6, TS 24.007 §11.2.3.1a).
 const (
@@ -33,7 +30,7 @@ const (
 // it is consulted only for the messages that complete or reject a procedure.
 // When the verdict is PTIRespondStatus, the returned cause is the 5GSM cause for
 // the STATUS message.
-func PolicePTI(msgType, pti uint8, ptiInUse func(uint8) bool) (PTIVerdict, uint8) {
+func PolicePTI(msgType fgs.GSMMessageType, pti uint8, ptiInUse func(uint8) bool) (PTIVerdict, uint8) {
 	// §7.3.1 d): a reserved PTI value is ignored regardless of message type.
 	if pti == ptiReserved {
 		return PTIIgnore, 0
@@ -41,26 +38,26 @@ func PolicePTI(msgType, pti uint8, ptiInUse func(uint8) bool) (PTIVerdict, uint8
 
 	switch msgType {
 	// §7.3.1 c): a request carrying an unassigned PTI is invalid.
-	case nas.MsgTypePDUSessionEstablishmentRequest,
-		nas.MsgTypePDUSessionModificationRequest,
-		nas.MsgTypePDUSessionReleaseRequest:
+	case fgs.MsgPDUSessionEstablishmentRequest,
+		fgs.MsgPDUSessionModificationRequest,
+		fgs.MsgPDUSessionReleaseRequest:
 		if pti == ptiUnassigned {
-			return PTIRespondStatus, nasMessage.Cause5GSMInvalidPTIValue
+			return PTIRespondStatus, fgs.GSMCauseInvalidPTIValue
 		}
 
 	// §7.3.1 a): a completion or command-reject whose PTI matches no procedure
 	// in use is a mismatch.
-	case nas.MsgTypePDUSessionModificationComplete,
-		nas.MsgTypePDUSessionReleaseComplete,
-		nas.MsgTypePDUSessionModificationCommandReject:
+	case fgs.MsgPDUSessionModificationComplete,
+		fgs.MsgPDUSessionReleaseComplete,
+		fgs.MsgPDUSessionModificationCmdReject:
 		if !ptiInUse(pti) {
-			return PTIRespondStatus, nasMessage.Cause5GSMPTIMismatch
+			return PTIRespondStatus, fgs.GSMCausePTIMismatch
 		}
 
 	// §7.3.1 b): an authentication complete must carry an unassigned PTI.
-	case nas.MsgTypePDUSessionAuthenticationComplete:
+	case fgs.MsgPDUSessionAuthenticationComplete:
 		if pti != ptiUnassigned {
-			return PTIRespondStatus, nasMessage.Cause5GSMInvalidPTIValue
+			return PTIRespondStatus, fgs.GSMCauseInvalidPTIValue
 		}
 	}
 

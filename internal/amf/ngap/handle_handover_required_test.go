@@ -21,7 +21,6 @@ import (
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/free5gc/aper"
-	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 )
@@ -250,9 +249,7 @@ func TestHandoverRequired(t *testing.T) {
 	amfUe.SetKamfForTest(kamfHex)
 	amfUe.SetNHForTest(make([]byte, 32))
 
-	secCap := &nasType.UESecurityCapability{}
-	secCap.SetLen(2)
-	amfUe.SetUESecurityCapabilityForTest(secCap)
+	amfUe.SetUESecurityCapabilityForTest([]byte{0x00, 0x00})
 	amfUe.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    smf.CanonicalName(supi, pduSessionID),
@@ -529,9 +526,7 @@ func TestHandoverRequired_UnknownTarget(t *testing.T) {
 	amfUe.SetKamfForTest(kamfHex)
 	amfUe.SetNHForTest(make([]byte, 32))
 
-	secCap := &nasType.UESecurityCapability{}
-	secCap.SetLen(2)
-	amfUe.SetUESecurityCapabilityForTest(secCap)
+	amfUe.SetUESecurityCapabilityForTest([]byte{0x00, 0x00})
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    smf.CanonicalName(supi, pduSessionID),
 		Snssai: &models.Snssai{Sst: 1},
@@ -656,9 +651,7 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 	amfUe.SetKamfForTest(kamfHex)
 	amfUe.SetNHForTest(make([]byte, 32))
 
-	secCap := &nasType.UESecurityCapability{}
-	secCap.SetLen(2)
-	amfUe.SetUESecurityCapabilityForTest(secCap)
+	amfUe.SetUESecurityCapabilityForTest([]byte{0x00, 0x00})
 	amfUe.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    smf.CanonicalName(supi, pduSessionID),
@@ -826,9 +819,7 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 	amfUe.SetKamfForTest(kamfHex)
 	amfUe.SetNHForTest(make([]byte, 32))
 
-	secCap := &nasType.UESecurityCapability{}
-	secCap.SetLen(2)
-	amfUe.SetUESecurityCapabilityForTest(secCap)
+	amfUe.SetUESecurityCapabilityForTest([]byte{0x00, 0x00})
 	amfUe.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{Ref: smf.CanonicalName(supi, pduSessionID), Snssai: &models.Snssai{Sst: 1}}
 

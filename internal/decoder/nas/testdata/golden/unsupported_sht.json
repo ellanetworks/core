@@ -1,0 +1,18 @@
+{
+  "security_header": {
+    "protocol_discriminator": {
+      "type": "enum",
+      "value": 126,
+      "label": "5GSMobilityManagementMessage",
+      "unknown": false
+    },
+    "security_header_type": {
+      "type": "enum",
+      "value": 10,
+      "label": "",
+      "unknown": true
+    },
+    "sequence_number": 0
+  },
+  "encrypted": true
+}

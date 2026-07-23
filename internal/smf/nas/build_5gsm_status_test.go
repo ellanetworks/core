@@ -7,8 +7,7 @@ import (
 	"testing"
 
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func TestBuildGSM5GSMStatus_RoundTrip(t *testing.T) {
@@ -17,33 +16,25 @@ func TestBuildGSM5GSMStatus_RoundTrip(t *testing.T) {
 		pti          uint8 = 9
 	)
 
-	encoded, err := smfNas.BuildGSM5GSMStatus(pduSessionID, pti, nasMessage.Cause5GSMPTIMismatch)
+	encoded, err := smfNas.BuildGSM5GSMStatus(pduSessionID, pti, fgs.GSMCausePTIMismatch)
 	if err != nil {
 		t.Fatalf("BuildGSM5GSMStatus failed: %v", err)
 	}
 
-	m := new(nas.Message)
-	if err := m.PlainNasDecode(&encoded); err != nil {
-		t.Fatalf("PlainNasDecode failed: %v", err)
+	m, err := fgs.ParseGSMStatus(encoded)
+	if err != nil {
+		t.Fatalf("ParseGSMStatus failed: %v", err)
 	}
 
-	if m.GsmHeader.GetMessageType() != nas.MsgTypeStatus5GSM {
-		t.Fatalf("message type = %d, want %d (5GSM STATUS)", m.GsmHeader.GetMessageType(), nas.MsgTypeStatus5GSM)
+	if m.PDUSessionID != pduSessionID {
+		t.Errorf("PDU session ID = %d, want %d", m.PDUSessionID, pduSessionID)
 	}
 
-	if m.Status5GSM == nil {
-		t.Fatal("decoded message has no Status5GSM payload")
+	if m.PTI != pti {
+		t.Errorf("PTI = %d, want %d", m.PTI, pti)
 	}
 
-	if got := m.Status5GSM.GetPDUSessionID(); got != pduSessionID {
-		t.Errorf("PDU session ID = %d, want %d", got, pduSessionID)
-	}
-
-	if got := m.Status5GSM.GetPTI(); got != pti {
-		t.Errorf("PTI = %d, want %d", got, pti)
-	}
-
-	if got := m.Status5GSM.GetCauseValue(); got != nasMessage.Cause5GSMPTIMismatch {
-		t.Errorf("cause = %d, want %d (#47 PTI mismatch)", got, nasMessage.Cause5GSMPTIMismatch)
+	if m.Cause != fgs.GSMCausePTIMismatch {
+		t.Errorf("cause = %d, want %d (#47 PTI mismatch)", m.Cause, fgs.GSMCausePTIMismatch)
 	}
 }

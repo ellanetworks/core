@@ -43,6 +43,14 @@ func (w *Writer) LVE(b []byte) error {
 	return nil
 }
 
+// Truncate discards all but the first n octets. n is clamped to the current
+// length, so it never grows the buffer.
+func (w *Writer) Truncate(n int) {
+	if n < len(w.buf) {
+		w.buf = w.buf[:n]
+	}
+}
+
 // Len is the number of octets written so far.
 func (w *Writer) Len() int { return len(w.buf) }
 

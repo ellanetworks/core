@@ -1,0 +1,67 @@
+{
+  "security_header": {
+    "protocol_discriminator": {
+      "type": "enum",
+      "value": 126,
+      "label": "5GSMobilityManagementMessage",
+      "unknown": false
+    },
+    "security_header_type": {
+      "type": "enum",
+      "value": 2,
+      "label": "Integrity Protected and Ciphered",
+      "unknown": false
+    },
+    "authentication_code": 3735928559,
+    "sequence_number": 5
+  },
+  "gmm_message": {
+    "gmm_header": {
+      "message_type": {
+        "type": "enum",
+        "value": 65,
+        "label": "RegistrationRequest",
+        "unknown": false
+      }
+    },
+    "registration_request": {
+      "extended_protocol_discriminator": 126,
+      "spare_half_octet_and_security_header_type": 0,
+      "nas_key_set_identifier": 7,
+      "registration_type_5gs": {
+        "type": "enum",
+        "value": 1,
+        "label": "Initial Registration",
+        "unknown": false
+      },
+      "mobile_identity_5gs": {
+        "identity_type": {
+          "type": "enum",
+          "value": 1,
+          "label": "SUCI",
+          "unknown": false
+        },
+        "plmn_id": {
+          "mcc": "001",
+          "mnc": "01"
+        },
+        "suci": "suci-0-001-01-0000-0-0-4447867552"
+      },
+      "ue_security_capability": {
+        "integrity_algorithm": {
+          "nia0": true,
+          "nia1": true,
+          "nia2": true,
+          "nia3": true
+        },
+        "ciphering_algorithm": {
+          "nea0": true,
+          "nea1": true,
+          "nea2": true,
+          "nea3": true
+        }
+      }
+    }
+  },
+  "encrypted": false
+}

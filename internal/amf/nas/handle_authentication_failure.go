@@ -11,11 +11,11 @@ import (
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
-func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.AuthenticationFailure) nasreply.Disposition {
+func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, plain []byte) nasreply.Disposition {
 	if step := ue.RegStep(); step != amf.RegStepAuthenticating {
 		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Authentication Failure message outside the authentication exchange", zap.String("state", string(ue.State())))
 		return nasreply.Silent(nasreply.ReasonOutOfState)
@@ -42,39 +42,45 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
+	msg, err := fgs.ParseAuthenticationFailure(plain)
+	if err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("could not decode Authentication Failure", zap.Error(err))
+		return nasreply.Handled()
+	}
+
 	// A cause outside the AUTHENTICATION FAILURE enumeration is a semantically
 	// incorrect message: ignore it and leave the authentication procedure and its
 	// guard (T3560) running so it retransmits or times out (TS 24.501 §7.8). Stop the
 	// guard only for an enumerated cause.
-	switch msg.GetCauseValue() {
-	case nasMessage.Cause5GMMMACFailure,
-		nasMessage.Cause5GMMNon5GAuthenticationUnacceptable,
-		nasMessage.Cause5GMMngKSIAlreadyInUse,
-		nasMessage.Cause5GMMSynchFailure:
+	switch msg.Cause {
+	case amf.GmmCauseMACFailure,
+		amf.GmmCauseNon5GAuthUnacceptable,
+		amf.GmmCauseNgKSIAlreadyInUse,
+		amf.GmmCauseSynchFailure:
 		conn.StopNASGuard()
 	default:
 		logger.From(ctx, logger.AmfLog).Warn("ignoring Authentication Failure with an out-of-enumeration cause",
-			zap.Uint8("cause", msg.GetCauseValue()))
+			zap.Uint8("cause", msg.Cause))
 
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	switch msg.GetCauseValue() {
-	case nasMessage.Cause5GMMMACFailure:
+	switch msg.Cause {
+	case amf.GmmCauseMACFailure:
 		logger.From(ctx, logger.AmfLog).Warn("amf.Authentication Failure Cause: Mac Failure")
 		ue.Deregister(ctx)
 
 		amf.SendAuthenticationReject(ctx, ueConn)
 
 		return nasreply.Handled()
-	case nasMessage.Cause5GMMNon5GAuthenticationUnacceptable:
+	case amf.GmmCauseNon5GAuthUnacceptable:
 		logger.From(ctx, logger.AmfLog).Warn("amf.Authentication Failure Cause: Non-5G amf.Authentication Unacceptable")
 		ue.Deregister(ctx)
 
 		amf.SendAuthenticationReject(ctx, ueConn)
 
 		return nasreply.Handled()
-	case nasMessage.Cause5GMMngKSIAlreadyInUse:
+	case amf.GmmCauseNgKSIAlreadyInUse:
 		logger.From(ctx, logger.AmfLog).Warn("amf.Authentication Failure Cause: NgKSI Already In Use")
 
 		conn.SetResyncTried(false)
@@ -88,7 +94,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		amf.SendAuthenticationRequest(ctx, amfInstance, ueConn)
 
 		logger.From(ctx, logger.AmfLog).Info("Sent authentication request")
-	case nasMessage.Cause5GMMSynchFailure: // TS 24.501
+	case amf.GmmCauseSynchFailure: // TS 24.501
 		logger.From(ctx, logger.AmfLog).Warn("amf.Authentication Failure 5GMM Cause: Synch Failure")
 
 		if conn.ResyncTried() {
@@ -100,16 +106,15 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 			return nasreply.Handled()
 		}
 
-		if msg.AuthenticationFailureParameter == nil {
+		if msg.AUTS == nil {
 			logger.From(ctx, logger.AmfLog).Warn("missing AuthenticationFailureParameter IE for SynchFailure")
 			return nasreply.Handled()
 		}
 
 		conn.SetResyncTried(true)
 
-		auts := msg.GetAuthenticationFailureParameter()
 		resynchronizationInfo := &ausf.ResyncInfo{
-			Auts: hex.EncodeToString(auts[:]),
+			Auts: hex.EncodeToString(msg.AUTS),
 		}
 
 		response, err := sendUEAuthenticationAuthenticateRequest(ctx, amfInstance, ue, resynchronizationInfo)

@@ -6,41 +6,41 @@ package amf
 import (
 	"fmt"
 
-	"github.com/free5gc/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 // gmmMessageTypeNames is the authoritative set of 5GMM message types the AMF
 // defines (TS 24.501 §9.7). It backs both the name lookup and gmmTypeDefined, so
 // the two never drift.
 var gmmMessageTypeNames = map[uint8]string{
-	nas.MsgTypeRegistrationRequest:                              "RegistrationRequest",
-	nas.MsgTypeRegistrationAccept:                               "RegistrationAccept",
-	nas.MsgTypeRegistrationComplete:                             "RegistrationComplete",
-	nas.MsgTypeRegistrationReject:                               "RegistrationReject",
-	nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration: "DeregistrationRequestUEOriginatingDeregistration",
-	nas.MsgTypeDeregistrationAcceptUEOriginatingDeregistration:  "DeregistrationAcceptUEOriginatingDeregistration",
-	nas.MsgTypeDeregistrationRequestUETerminatedDeregistration:  "DeregistrationRequestUETerminatedDeregistration",
-	nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:   "DeregistrationAcceptUETerminatedDeregistration",
-	nas.MsgTypeServiceRequest:                                   "ServiceRequest",
-	nas.MsgTypeServiceReject:                                    "ServiceReject",
-	nas.MsgTypeServiceAccept:                                    "ServiceAccept",
-	nas.MsgTypeConfigurationUpdateCommand:                       "ConfigurationUpdateCommand",
-	nas.MsgTypeConfigurationUpdateComplete:                      "ConfigurationUpdateComplete",
-	nas.MsgTypeAuthenticationRequest:                            "AuthenticationRequest",
-	nas.MsgTypeAuthenticationResponse:                           "AuthenticationResponse",
-	nas.MsgTypeAuthenticationReject:                             "AuthenticationReject",
-	nas.MsgTypeAuthenticationFailure:                            "AuthenticationFailure",
-	nas.MsgTypeAuthenticationResult:                             "AuthenticationResult",
-	nas.MsgTypeIdentityRequest:                                  "IdentityRequest",
-	nas.MsgTypeIdentityResponse:                                 "IdentityResponse",
-	nas.MsgTypeSecurityModeCommand:                              "SecurityModeCommand",
-	nas.MsgTypeSecurityModeComplete:                             "SecurityModeComplete",
-	nas.MsgTypeSecurityModeReject:                               "SecurityModeReject",
-	nas.MsgTypeStatus5GMM:                                       "Status5GMM",
-	nas.MsgTypeNotification:                                     "Notification",
-	nas.MsgTypeNotificationResponse:                             "NotificationResponse",
-	nas.MsgTypeULNASTransport:                                   "ULNASTransport",
-	nas.MsgTypeDLNASTransport:                                   "DLNASTransport",
+	uint8(fgs.MsgRegistrationRequest):         "RegistrationRequest",
+	uint8(fgs.MsgRegistrationAccept):          "RegistrationAccept",
+	uint8(fgs.MsgRegistrationComplete):        "RegistrationComplete",
+	uint8(fgs.MsgRegistrationReject):          "RegistrationReject",
+	uint8(fgs.MsgDeregistrationRequestUEOrig): "DeregistrationRequestUEOriginatingDeregistration",
+	uint8(fgs.MsgDeregistrationAcceptUEOrig):  "DeregistrationAcceptUEOriginatingDeregistration",
+	uint8(fgs.MsgDeregistrationRequestUETerm): "DeregistrationRequestUETerminatedDeregistration",
+	uint8(fgs.MsgDeregistrationAcceptUETerm):  "DeregistrationAcceptUETerminatedDeregistration",
+	uint8(fgs.MsgServiceRequest):              "ServiceRequest",
+	uint8(fgs.MsgServiceReject):               "ServiceReject",
+	uint8(fgs.MsgServiceAccept):               "ServiceAccept",
+	uint8(fgs.MsgConfigurationUpdateCommand):  "ConfigurationUpdateCommand",
+	uint8(fgs.MsgConfigurationUpdateComplete): "ConfigurationUpdateComplete",
+	uint8(fgs.MsgAuthenticationRequest):       "AuthenticationRequest",
+	uint8(fgs.MsgAuthenticationResponse):      "AuthenticationResponse",
+	uint8(fgs.MsgAuthenticationReject):        "AuthenticationReject",
+	uint8(fgs.MsgAuthenticationFailure):       "AuthenticationFailure",
+	uint8(fgs.MsgAuthenticationResult):        "AuthenticationResult",
+	uint8(fgs.MsgIdentityRequest):             "IdentityRequest",
+	uint8(fgs.MsgIdentityResponse):            "IdentityResponse",
+	uint8(fgs.MsgSecurityModeCommand):         "SecurityModeCommand",
+	uint8(fgs.MsgSecurityModeComplete):        "SecurityModeComplete",
+	uint8(fgs.MsgSecurityModeReject):          "SecurityModeReject",
+	uint8(fgs.MsgGMMStatus):                   "GMMStatus",
+	uint8(fgs.MsgNotification):                "Notification",
+	uint8(fgs.MsgNotificationResponse):        "NotificationResponse",
+	uint8(fgs.MsgULNASTransport):              "ULNASTransport",
+	uint8(fgs.MsgDLNASTransport):              "DLNASTransport",
 }
 
 func GmmMessageTypeName(code uint8) string {
@@ -55,20 +55,20 @@ func GmmMessageTypeName(code uint8) string {
 // (uplink or, for 5GMM STATUS, bidirectional). A downlink-only type received on the
 // uplink is "not defined for the EPD in the given direction" (TS 24.501 §7.4 NOTE).
 var gmmUplinkTypes = map[uint8]bool{
-	nas.MsgTypeRegistrationRequest:                              true,
-	nas.MsgTypeRegistrationComplete:                             true,
-	nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration: true,
-	nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:   true,
-	nas.MsgTypeServiceRequest:                                   true,
-	nas.MsgTypeConfigurationUpdateComplete:                      true,
-	nas.MsgTypeAuthenticationResponse:                           true,
-	nas.MsgTypeAuthenticationFailure:                            true,
-	nas.MsgTypeIdentityResponse:                                 true,
-	nas.MsgTypeSecurityModeComplete:                             true,
-	nas.MsgTypeSecurityModeReject:                               true,
-	nas.MsgTypeStatus5GMM:                                       true,
-	nas.MsgTypeNotificationResponse:                             true,
-	nas.MsgTypeULNASTransport:                                   true,
+	uint8(fgs.MsgRegistrationRequest):         true,
+	uint8(fgs.MsgRegistrationComplete):        true,
+	uint8(fgs.MsgDeregistrationRequestUEOrig): true,
+	uint8(fgs.MsgDeregistrationAcceptUETerm):  true,
+	uint8(fgs.MsgServiceRequest):              true,
+	uint8(fgs.MsgConfigurationUpdateComplete): true,
+	uint8(fgs.MsgAuthenticationResponse):      true,
+	uint8(fgs.MsgAuthenticationFailure):       true,
+	uint8(fgs.MsgIdentityResponse):            true,
+	uint8(fgs.MsgSecurityModeComplete):        true,
+	uint8(fgs.MsgSecurityModeReject):          true,
+	uint8(fgs.MsgGMMStatus):                   true,
+	uint8(fgs.MsgNotificationResponse):        true,
+	uint8(fgs.MsgULNASTransport):              true,
 }
 
 // gmmTypeDefined reports whether code is a 5GMM message type the AMF can receive from

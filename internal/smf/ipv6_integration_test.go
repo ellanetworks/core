@@ -13,34 +13,22 @@ import (
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/aper"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapType"
 )
 
 // buildPDUSessionEstRequestWithType builds a NAS PDU Session Establishment
 // Request with the specified PDU session type (IPv4, IPv6, or IPv4v6).
 func buildPDUSessionEstRequestWithType(pduSessionType uint8) []byte {
-	m := nas.NewMessage()
-	m.GsmMessage = nas.NewGsmMessage()
-	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionEstablishmentRequest)
-	m.GsmHeader.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionEstablishmentRequest = nasMessage.NewPDUSessionEstablishmentRequest(0)
-	m.PDUSessionEstablishmentRequest.SetMessageType(nas.MsgTypePDUSessionEstablishmentRequest)
-	m.PDUSessionEstablishmentRequest.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionEstablishmentRequest.SetPDUSessionID(1)
-	m.PDUSessionEstablishmentRequest.SetPTI(10)
-	m.PDUSessionEstablishmentRequest.IntegrityProtectionMaximumDataRate. //nolint:staticcheck // full path needed to avoid ambiguous selector
-										SetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForUpLink(0xff)
-	m.PDUSessionEstablishmentRequest.IntegrityProtectionMaximumDataRate. //nolint:staticcheck // full path needed to avoid ambiguous selector
-										SetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForDownLink(0xff)
-	m.PDUSessionEstablishmentRequest.PDUSessionType = nasType.NewPDUSessionType( //nolint:staticcheck // full path needed to avoid ambiguous selector
-		nasMessage.PDUSessionEstablishmentRequestPDUSessionTypeType)
-	m.PDUSessionEstablishmentRequest.PDUSessionType.SetPDUSessionTypeValue(pduSessionType) //nolint:staticcheck // full path needed to avoid ambiguous selector
+	req := &fgs.PDUSessionEstablishmentRequest{
+		PDUSessionID:             1,
+		PTI:                      10,
+		IntegrityProtMaxDataRate: [2]byte{0xff, 0xff},
+		PDUSessionType:           &pduSessionType,
+	}
 
-	buf, err := m.PlainNasEncode()
+	buf, err := req.Marshal()
 	if err != nil {
 		panic(fmt.Sprintf("build PDU Session Establishment Request: %v", err))
 	}
@@ -150,7 +138,7 @@ func TestCreateSmContext_IPv6Only_HappyPath(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	n1Msg := buildPDUSessionEstRequestWithType(nasMessage.PDUSessionTypeIPv6)
+	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv6)
 
 	ref, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
 	if err != nil {
@@ -170,8 +158,8 @@ func TestCreateSmContext_IPv6Only_HappyPath(t *testing.T) {
 		t.Fatal("session should be in pool")
 	}
 
-	if smCtx.PDUSessionType != nasMessage.PDUSessionTypeIPv6 {
-		t.Fatalf("expected PDU session type IPv6 (%d), got %d", nasMessage.PDUSessionTypeIPv6, smCtx.PDUSessionType)
+	if smCtx.PDUSessionType != fgs.PDUSessionTypeIPv6 {
+		t.Fatalf("expected PDU session type IPv6 (%d), got %d", fgs.PDUSessionTypeIPv6, smCtx.PDUSessionType)
 	}
 
 	if smCtx.PDUIPV6Prefix == nil {
@@ -220,7 +208,7 @@ func TestCreateSmContext_IPv6Only_AllocationFailure(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	n1Msg := buildPDUSessionEstRequestWithType(nasMessage.PDUSessionTypeIPv6)
+	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv6)
 
 	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
 	if err == nil {
@@ -231,8 +219,8 @@ func TestCreateSmContext_IPv6Only_AllocationFailure(t *testing.T) {
 		t.Fatal("expected reject N1 message")
 	}
 
-	if got := rejectCauseCode(t, rejectN1); got != nasMessage.Cause5GSMInsufficientResources {
-		t.Fatalf("expected cause %d (InsufficientResources), got %d", nasMessage.Cause5GSMInsufficientResources, got)
+	if got := rejectCauseCode(t, rejectN1); got != fgs.GSMCauseInsufficientResources {
+		t.Fatalf("expected cause %d (InsufficientResources), got %d", fgs.GSMCauseInsufficientResources, got)
 	}
 }
 
@@ -246,7 +234,7 @@ func TestCreateSmContext_DualStack_HappyPath(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	n1Msg := buildPDUSessionEstRequestWithType(nasMessage.PDUSessionTypeIPv4IPv6)
+	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv4IPv6)
 
 	ref, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
 	if err != nil {
@@ -262,8 +250,8 @@ func TestCreateSmContext_DualStack_HappyPath(t *testing.T) {
 		t.Fatal("session should be in pool")
 	}
 
-	if smCtx.PDUSessionType != nasMessage.PDUSessionTypeIPv4IPv6 {
-		t.Fatalf("expected PDU session type IPv4v6 (%d), got %d", nasMessage.PDUSessionTypeIPv4IPv6, smCtx.PDUSessionType)
+	if smCtx.PDUSessionType != fgs.PDUSessionTypeIPv4IPv6 {
+		t.Fatalf("expected PDU session type IPv4v6 (%d), got %d", fgs.PDUSessionTypeIPv4IPv6, smCtx.PDUSessionType)
 	}
 
 	if smCtx.PDUIPV4Address == nil {
@@ -296,7 +284,7 @@ func TestCreateSmContext_DualStack_SendsTwoDownlinkPDRs(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	n1Msg := buildPDUSessionEstRequestWithType(nasMessage.PDUSessionTypeIPv4IPv6)
+	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv4IPv6)
 
 	_, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
 	if err != nil {
@@ -360,7 +348,7 @@ func TestCreateSmContext_IPv4Only_SendsOneDownlinkPDR(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	n1Msg := buildPDUSessionEstRequestWithType(nasMessage.PDUSessionTypeIPv4)
+	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv4)
 
 	_, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
 	if err != nil {
@@ -395,7 +383,7 @@ func TestCreateSmContext_IPv6Only_SendsOneDownlinkPDR(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	n1Msg := buildPDUSessionEstRequestWithType(nasMessage.PDUSessionTypeIPv6)
+	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv6)
 
 	_, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
 	if err != nil {
@@ -431,7 +419,7 @@ func TestCreateSmContext_DualStack_IPv6AllocationFails_RollsBackIPv4(t *testing.
 	ctx := context.Background()
 	supi := testSUPI()
 
-	n1Msg := buildPDUSessionEstRequestWithType(nasMessage.PDUSessionTypeIPv4IPv6)
+	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv4IPv6)
 
 	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
 	if err == nil {
@@ -442,8 +430,8 @@ func TestCreateSmContext_DualStack_IPv6AllocationFails_RollsBackIPv4(t *testing.
 		t.Fatal("expected reject N1 message")
 	}
 
-	if got := rejectCauseCode(t, rejectN1); got != nasMessage.Cause5GSMInsufficientResources {
-		t.Fatalf("expected cause %d (InsufficientResources), got %d", nasMessage.Cause5GSMInsufficientResources, got)
+	if got := rejectCauseCode(t, rejectN1); got != fgs.GSMCauseInsufficientResources {
+		t.Fatalf("expected cause %d (InsufficientResources), got %d", fgs.GSMCauseInsufficientResources, got)
 	}
 
 	store.mu.Lock()
@@ -461,7 +449,7 @@ func TestCreateSmContext_DualStack_IPv4AllocationFails(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	n1Msg := buildPDUSessionEstRequestWithType(nasMessage.PDUSessionTypeIPv4IPv6)
+	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv4IPv6)
 
 	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
 	if err == nil {
@@ -472,8 +460,8 @@ func TestCreateSmContext_DualStack_IPv4AllocationFails(t *testing.T) {
 		t.Fatal("expected reject N1 message")
 	}
 
-	if got := rejectCauseCode(t, rejectN1); got != nasMessage.Cause5GSMInsufficientResources {
-		t.Fatalf("expected cause %d (InsufficientResources), got %d", nasMessage.Cause5GSMInsufficientResources, got)
+	if got := rejectCauseCode(t, rejectN1); got != fgs.GSMCauseInsufficientResources {
+		t.Fatalf("expected cause %d (InsufficientResources), got %d", fgs.GSMCauseInsufficientResources, got)
 	}
 
 	// IPv6 should NOT have been allocated (IPv4 fails first).
@@ -529,7 +517,7 @@ func setupIPv6SessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, strin
 	smCtx.Tunnel.ANInformation.IPv4Address = net.ParseIP("10.0.0.100").To4()
 	smCtx.Tunnel.ANInformation.TEID = 6000
 	smCtx.PDUIPV6Prefix = net.ParseIP("2001:db8::").To16()
-	smCtx.PDUSessionType = nasMessage.PDUSessionTypeIPv6
+	smCtx.PDUSessionType = fgs.PDUSessionTypeIPv6
 
 	smCtx.PolicyData = &smf.Policy{
 		Ambr:    models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
@@ -546,7 +534,7 @@ func setupDualStackSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, 
 
 	smCtx, ref := setupIPv6SessionWithTunnel(t, s)
 	smCtx.PDUIPV4Address = net.ParseIP("10.0.0.1").To4()
-	smCtx.PDUSessionType = nasMessage.PDUSessionTypeIPv4IPv6
+	smCtx.PDUSessionType = fgs.PDUSessionTypeIPv4IPv6
 
 	return smCtx, ref
 }
@@ -783,7 +771,7 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_IPv6RegistersIPv6GnbAddress(t *test
 	ctx := context.Background()
 	supi := testSUPI()
 
-	n1 := buildPDUSessionEstRequestWithType(nasMessage.PDUSessionTypeIPv6)
+	n1 := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv6)
 
 	ref, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1)
 	if err != nil {
@@ -833,7 +821,7 @@ func TestIPv6Session_CreateAndRelease_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	n1Msg := buildPDUSessionEstRequestWithType(nasMessage.PDUSessionTypeIPv6)
+	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv6)
 
 	ref, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
 	if err != nil {
@@ -849,7 +837,7 @@ func TestIPv6Session_CreateAndRelease_RoundTrip(t *testing.T) {
 		t.Fatal("session not found after create")
 	}
 
-	if smCtx.PDUSessionType != nasMessage.PDUSessionTypeIPv6 {
+	if smCtx.PDUSessionType != fgs.PDUSessionTypeIPv6 {
 		t.Fatalf("expected IPv6 session type, got %d", smCtx.PDUSessionType)
 	}
 
@@ -888,7 +876,7 @@ func TestDualStackSession_CreateAndRelease_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	n1Msg := buildPDUSessionEstRequestWithType(nasMessage.PDUSessionTypeIPv4IPv6)
+	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv4IPv6)
 
 	ref, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
 	if err != nil {
@@ -904,7 +892,7 @@ func TestDualStackSession_CreateAndRelease_RoundTrip(t *testing.T) {
 		t.Fatal("session not found after create")
 	}
 
-	if smCtx.PDUSessionType != nasMessage.PDUSessionTypeIPv4IPv6 {
+	if smCtx.PDUSessionType != fgs.PDUSessionTypeIPv4IPv6 {
 		t.Fatalf("expected IPv4v6 session type, got %d", smCtx.PDUSessionType)
 	}
 

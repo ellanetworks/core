@@ -8,30 +8,20 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func buildPDUSessionEstRequestWithPTI(pti uint8) []byte {
-	m := nas.NewMessage()
-	m.GsmMessage = nas.NewGsmMessage()
-	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionEstablishmentRequest)
-	m.GsmHeader.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionEstablishmentRequest = nasMessage.NewPDUSessionEstablishmentRequest(0)
-	m.PDUSessionEstablishmentRequest.SetMessageType(nas.MsgTypePDUSessionEstablishmentRequest)
-	m.PDUSessionEstablishmentRequest.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionEstablishmentRequest.SetPDUSessionID(1)
-	m.PDUSessionEstablishmentRequest.SetPTI(pti)
-	m.PDUSessionEstablishmentRequest.IntegrityProtectionMaximumDataRate. //nolint:staticcheck // full path needed to avoid ambiguous selector
-										SetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForUpLink(0xff)
-	m.PDUSessionEstablishmentRequest.IntegrityProtectionMaximumDataRate. //nolint:staticcheck // full path needed to avoid ambiguous selector
-										SetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForDownLink(0xff)
-	m.PDUSessionEstablishmentRequest.PDUSessionType = nasType.NewPDUSessionType( //nolint:staticcheck // full path needed to avoid ambiguous selector
-		nasMessage.PDUSessionEstablishmentRequestPDUSessionTypeType)
-	m.PDUSessionEstablishmentRequest.PDUSessionType.SetPDUSessionTypeValue(nasMessage.PDUSessionTypeIPv4) //nolint:staticcheck // full path needed to avoid ambiguous selector
+	ipv4 := fgs.PDUSessionTypeIPv4
 
-	buf, err := m.PlainNasEncode()
+	req := &fgs.PDUSessionEstablishmentRequest{
+		PDUSessionID:             1,
+		PTI:                      pti,
+		IntegrityProtMaxDataRate: [2]byte{0xff, 0xff},
+		PDUSessionType:           &ipv4,
+	}
+
+	buf, err := req.Marshal()
 	if err != nil {
 		panic(fmt.Sprintf("build PDU Session Establishment Request: %v", err))
 	}
@@ -40,27 +30,17 @@ func buildPDUSessionEstRequestWithPTI(pti uint8) []byte {
 }
 
 func buildPDUSessionEstRequestAlwaysOn() []byte {
-	m := nas.NewMessage()
-	m.GsmMessage = nas.NewGsmMessage()
-	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionEstablishmentRequest)
-	m.GsmHeader.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionEstablishmentRequest = nasMessage.NewPDUSessionEstablishmentRequest(0)
-	m.PDUSessionEstablishmentRequest.SetMessageType(nas.MsgTypePDUSessionEstablishmentRequest)
-	m.PDUSessionEstablishmentRequest.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionEstablishmentRequest.SetPDUSessionID(1)
-	m.PDUSessionEstablishmentRequest.SetPTI(10)
-	m.PDUSessionEstablishmentRequest.IntegrityProtectionMaximumDataRate. //nolint:staticcheck // full path needed to avoid ambiguous selector
-										SetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForUpLink(0xff)
-	m.PDUSessionEstablishmentRequest.IntegrityProtectionMaximumDataRate. //nolint:staticcheck // full path needed to avoid ambiguous selector
-										SetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForDownLink(0xff)
-	m.PDUSessionEstablishmentRequest.PDUSessionType = nasType.NewPDUSessionType( //nolint:staticcheck // full path needed to avoid ambiguous selector
-		nasMessage.PDUSessionEstablishmentRequestPDUSessionTypeType)
-	m.PDUSessionEstablishmentRequest.PDUSessionType.SetPDUSessionTypeValue(nasMessage.PDUSessionTypeIPv4) //nolint:staticcheck // full path needed to avoid ambiguous selector
-	m.PDUSessionEstablishmentRequest.AlwaysonPDUSessionRequested = nasType.NewAlwaysonPDUSessionRequested(
-		nasMessage.PDUSessionEstablishmentRequestAlwaysonPDUSessionRequestedType)
-	m.PDUSessionEstablishmentRequest.SetAPSR(1)
+	ipv4 := fgs.PDUSessionTypeIPv4
 
-	buf, err := m.PlainNasEncode()
+	req := &fgs.PDUSessionEstablishmentRequest{
+		PDUSessionID:             1,
+		PTI:                      10,
+		IntegrityProtMaxDataRate: [2]byte{0xff, 0xff},
+		PDUSessionType:           &ipv4,
+		AlwaysOnRequested:        true,
+	}
+
+	buf, err := req.Marshal()
 	if err != nil {
 		panic(fmt.Sprintf("build PDU Session Establishment Request (always-on): %v", err))
 	}
@@ -69,37 +49,18 @@ func buildPDUSessionEstRequestAlwaysOn() []byte {
 }
 
 func buildPDUSessionReleaseComplete(pduSessionID, pti uint8) []byte {
-	m := nas.NewMessage()
-	m.GsmMessage = nas.NewGsmMessage()
-	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionReleaseComplete)
-	m.GsmHeader.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionReleaseComplete = nasMessage.NewPDUSessionReleaseComplete(0)
-	m.PDUSessionReleaseComplete.SetMessageType(nas.MsgTypePDUSessionReleaseComplete)
-	m.PDUSessionReleaseComplete.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionReleaseComplete.SetPDUSessionID(pduSessionID)
-	m.PDUSessionReleaseComplete.SetPTI(pti)
-
-	buf, err := m.PlainNasEncode()
-	if err != nil {
-		panic(fmt.Sprintf("build PDU Session Release Complete: %v", err))
-	}
-
-	return buf
+	return []byte{fgs.EPD5GSM, pduSessionID, pti, uint8(fgs.MsgPDUSessionReleaseComplete)}
 }
 
 func status5GSMCause(t *testing.T, raw []byte) uint8 {
 	t.Helper()
 
-	m := new(nas.Message)
-	if err := m.PlainNasDecode(&raw); err != nil {
+	m, err := fgs.ParseGSMStatus(raw)
+	if err != nil {
 		t.Fatalf("decode 5GSM STATUS: %v", err)
 	}
 
-	if m.Status5GSM == nil {
-		t.Fatalf("expected 5GSM STATUS, got message type %d", m.GsmHeader.GetMessageType())
-	}
-
-	return m.Status5GSM.GetCauseValue()
+	return m.Cause
 }
 
 // A PDU SESSION RELEASE COMPLETE whose PTI matches no procedure in use is
@@ -122,8 +83,8 @@ func TestUpdateSmContextN1Msg_ReleaseComplete_PTIMismatch(t *testing.T) {
 		t.Fatal("expected a 5GSM STATUS response (TS 24.501 §7.3.1 a), got none")
 	}
 
-	if got := status5GSMCause(t, rsp.N1Msg); got != nasMessage.Cause5GSMPTIMismatch {
-		t.Errorf("STATUS cause = %d, want %d (#47 PTI mismatch)", got, nasMessage.Cause5GSMPTIMismatch)
+	if got := status5GSMCause(t, rsp.N1Msg); got != fgs.GSMCausePTIMismatch {
+		t.Errorf("STATUS cause = %d, want %d (#47 PTI mismatch)", got, fgs.GSMCausePTIMismatch)
 	}
 }
 
@@ -170,8 +131,8 @@ func TestUpdateSmContextN1Msg_ReleaseRequest_UnassignedPTI(t *testing.T) {
 		t.Fatal("expected a 5GSM STATUS response (TS 24.501 §7.3.1 c), got none")
 	}
 
-	if got := status5GSMCause(t, rsp.N1Msg); got != nasMessage.Cause5GSMInvalidPTIValue {
-		t.Errorf("STATUS cause = %d, want %d (#81 invalid PTI value)", got, nasMessage.Cause5GSMInvalidPTIValue)
+	if got := status5GSMCause(t, rsp.N1Msg); got != fgs.GSMCauseInvalidPTIValue {
+		t.Errorf("STATUS cause = %d, want %d (#81 invalid PTI value)", got, fgs.GSMCauseInvalidPTIValue)
 	}
 
 	upf.mu.Lock()
@@ -228,23 +189,17 @@ func TestCreateSmContext_AlwaysOnRequested_IndicationNotAllowed(t *testing.T) {
 		t.Fatalf("expected 1 N1N2 transfer (the Accept), got %d", len(calls))
 	}
 
-	m := new(nas.Message)
-
-	n1 := calls[0].n1Msg
-	if err := m.PlainNasDecode(&n1); err != nil {
+	acc, err := fgs.ParsePDUSessionEstablishmentAccept(calls[0].n1Msg)
+	if err != nil {
 		t.Fatalf("decode Accept: %v", err)
 	}
 
-	if m.PDUSessionEstablishmentAccept == nil {
-		t.Fatalf("expected an Establishment Accept, got message type %d", m.GsmHeader.GetMessageType())
-	}
-
-	if m.PDUSessionEstablishmentAccept.AlwaysonPDUSessionIndication == nil {
+	if acc.AlwaysOn == nil {
 		t.Fatal("UE requested always-on; TS 24.501 §6.4.1 (case b-i) requires an Always-on PDU session indication in the Accept, got none")
 	}
 
-	if got := m.PDUSessionEstablishmentAccept.GetAPSI(); got != 0 {
-		t.Errorf("APSI = %d, want 0 (always-on not allowed)", got)
+	if *acc.AlwaysOn != 0 {
+		t.Errorf("APSI = %d, want 0 (always-on not allowed)", *acc.AlwaysOn)
 	}
 }
 
@@ -269,8 +224,8 @@ func TestCreateSmContext_UnassignedPTI_Status81(t *testing.T) {
 		t.Fatal("expected a 5GSM STATUS response (TS 24.501 §7.3.1 c), got none")
 	}
 
-	if got := status5GSMCause(t, rsp); got != nasMessage.Cause5GSMInvalidPTIValue {
-		t.Errorf("STATUS cause = %d, want %d (#81 invalid PTI value)", got, nasMessage.Cause5GSMInvalidPTIValue)
+	if got := status5GSMCause(t, rsp); got != fgs.GSMCauseInvalidPTIValue {
+		t.Errorf("STATUS cause = %d, want %d (#81 invalid PTI value)", got, fgs.GSMCauseInvalidPTIValue)
 	}
 
 	upf.mu.Lock()

@@ -5,6 +5,7 @@ package nas
 
 import (
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
@@ -19,7 +20,7 @@ func handleEMMStatus(plain []byte) nasreply.Disposition {
 		return nasreply.Handled()
 	}
 
-	logger.MmeLog.Error("received EMM STATUS", zap.Uint8("emm-cause", msg.EMMCause))
+	logger.MmeLog.Error("received EMM STATUS", logger.Cause(mme.EmmCauseName(msg.EMMCause)))
 
 	return nasreply.Handled()
 }

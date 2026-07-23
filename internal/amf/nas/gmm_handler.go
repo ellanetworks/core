@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
-	"github.com/free5gc/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.opentelemetry.io/otel"
 )
 
@@ -18,35 +18,33 @@ var gmmTracer = otel.Tracer("ella-core/amf/nas/handler")
 // HandleGmmMessage dispatches an inbound GMM message to its handler. integrityVerified
 // is true only when the message carried a verified MAC; it is false when the decoder
 // admitted the message without verified integrity (plain, or MAC-failed but whitelisted).
-func HandleGmmMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nas.GmmMessage, integrityVerified bool) nasreply.Disposition {
-	msgType := msg.GetMessageType()
-
-	switch msgType {
-	case nas.MsgTypeRegistrationRequest:
-		return handleRegistrationRequest(ctx, amfInstance, ue, msg, integrityVerified)
-	case nas.MsgTypeULNASTransport:
-		return handleULNASTransport(ctx, amfInstance, ue, msg.ULNASTransport)
-	case nas.MsgTypeConfigurationUpdateComplete:
+func HandleGmmMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msgType uint8, plain []byte, integrityVerified bool) nasreply.Disposition {
+	switch fgs.MessageType(msgType) {
+	case fgs.MsgRegistrationRequest:
+		return handleRegistrationRequest(ctx, amfInstance, ue, plain, integrityVerified)
+	case fgs.MsgULNASTransport:
+		return handleULNASTransport(ctx, amfInstance, ue, plain)
+	case fgs.MsgConfigurationUpdateComplete:
 		return handleConfigurationUpdateComplete(amfInstance, ue)
-	case nas.MsgTypeNotificationResponse:
-		return handleNotificationResponse(ctx, amfInstance, ue, msg.NotificationResponse)
-	case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
-		return handleDeregistrationRequestUEOriginatingDeregistration(ctx, ue, msg.DeregistrationRequestUEOriginatingDeregistration, integrityVerified)
-	case nas.MsgTypeStatus5GMM:
-		return handleStatus5GMM(ctx, ue, msg.Status5GMM)
-	case nas.MsgTypeIdentityResponse:
-		return handleIdentityResponse(ctx, amfInstance, ue, msg.IdentityResponse, integrityVerified)
-	case nas.MsgTypeAuthenticationResponse:
-		return handleAuthenticationResponse(ctx, amfInstance, ue, msg.AuthenticationResponse)
-	case nas.MsgTypeAuthenticationFailure:
-		return handleAuthenticationFailure(ctx, amfInstance, ue, msg.AuthenticationFailure)
-	case nas.MsgTypeSecurityModeComplete:
-		return handleSecurityModeComplete(ctx, amfInstance, ue, msg.SecurityModeComplete, integrityVerified)
-	case nas.MsgTypeSecurityModeReject:
-		return handleSecurityModeReject(ctx, ue, msg.SecurityModeReject)
-	case nas.MsgTypeRegistrationComplete:
+	case fgs.MsgNotificationResponse:
+		return handleNotificationResponse(ctx, amfInstance, ue, plain)
+	case fgs.MsgDeregistrationRequestUEOrig:
+		return handleDeregistrationRequestUEOriginatingDeregistration(ctx, ue, plain, integrityVerified)
+	case fgs.MsgGMMStatus:
+		return handleStatus5GMM(ctx, ue, plain)
+	case fgs.MsgIdentityResponse:
+		return handleIdentityResponse(ctx, amfInstance, ue, plain, integrityVerified)
+	case fgs.MsgAuthenticationResponse:
+		return handleAuthenticationResponse(ctx, amfInstance, ue, plain)
+	case fgs.MsgAuthenticationFailure:
+		return handleAuthenticationFailure(ctx, amfInstance, ue, plain)
+	case fgs.MsgSecurityModeComplete:
+		return handleSecurityModeComplete(ctx, amfInstance, ue, plain, integrityVerified)
+	case fgs.MsgSecurityModeReject:
+		return handleSecurityModeReject(ctx, ue, plain)
+	case fgs.MsgRegistrationComplete:
 		return handleRegistrationComplete(ctx, amfInstance, ue)
-	case nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:
+	case fgs.MsgDeregistrationAcceptUETerm:
 		return handleDeregistrationAccept(ctx, ue)
 	default:
 		// TS 24.501 §7.4: a message type not implemented by the receiver is ignored, but a

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
@@ -292,7 +293,7 @@ func TestDecodeNASMessage_PlainRegistrationRequest_Bootstrap(t *testing.T) {
 		t.Fatalf("plain RegistrationRequest must be accepted during bootstrap: %v", err)
 	}
 
-	if result == nil || result.Message == nil || result.Message.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationRequest {
+	if result == nil || !result.IsGMM || result.MessageType != uint8(fgs.MsgRegistrationRequest) {
 		t.Fatalf("expected RegistrationRequest, got %+v", result)
 	}
 
@@ -317,8 +318,8 @@ func TestDecodeNASMessage_PlainRegistrationRequest_WithExistingContext(t *testin
 		t.Fatalf("plain RegistrationRequest must be accepted: %v", err)
 	}
 
-	if result.Message.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationRequest {
-		t.Fatalf("expected RegistrationRequest, got %d", result.Message.GmmHeader.GetMessageType())
+	if result.MessageType != uint8(fgs.MsgRegistrationRequest) {
+		t.Fatalf("expected RegistrationRequest, got %d", result.MessageType)
 	}
 
 	if result.IntegrityVerified {
@@ -342,8 +343,8 @@ func TestDecodeNASMessage_PlainDeregistrationRequest_PassesDecoder(t *testing.T)
 		t.Fatalf("plain DeregistrationRequest is on the whitelist; decoder must return it: %v", err)
 	}
 
-	if result.Message.GmmHeader.GetMessageType() != nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration {
-		t.Fatalf("expected DeregistrationRequest, got %d", result.Message.GmmHeader.GetMessageType())
+	if result.MessageType != uint8(fgs.MsgDeregistrationRequestUEOrig) {
+		t.Fatalf("expected DeregistrationRequest, got %d", result.MessageType)
 	}
 
 	if result.IntegrityVerified {

@@ -13,10 +13,22 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
 )
+
+// buildAuthResponsePlain builds a plain AUTHENTICATION RESPONSE. A nil res omits
+// the RES* IE; a non-nil res (including empty) includes it (IEI 0x2D, TLV).
+func buildAuthResponsePlain(res []byte) []byte {
+	b := []byte{fgs.EPD5GMM, 0x00, uint8(fgs.MsgAuthenticationResponse)}
+	if res != nil {
+		b = append(b, 0x2D, uint8(len(res)))
+		b = append(b, res...)
+	}
+
+	return b
+}
 
 // A missing RES* (nil authentication response parameter IE) is treated as an
 // unsuccessful authentication per TS 24.501: a GUTI-identified UE is
@@ -45,8 +57,7 @@ func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *test
 			ue.Conn().AuthenticationCtx = &ausf.AuthResult{Rand: "DEADBEEF"}
 			ue.Conn().IdentityTypeUsedForRegistration = tc.idType
 
-			handleAuthenticationResponse(context.TODO(), amf.New(nil, nil, nil), ue,
-				&nasMessage.AuthenticationResponse{AuthenticationResponseParameter: nil})
+			handleAuthenticationResponse(context.TODO(), amf.New(nil, nil, nil), ue, buildAuthResponsePlain(nil))
 
 			if len(ngapSender.SentDownlinkNASTransport) != 1 {
 				t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -104,7 +115,7 @@ func TestHandleAuthenticationResponse_PreconditionErrors(t *testing.T) {
 
 			tc.setup(ue)
 
-			handleAuthenticationResponse(context.TODO(), amf.New(nil, nil, nil), ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+			handleAuthenticationResponse(context.TODO(), amf.New(nil, nil, nil), ue, buildAuthResponsePlain(make([]byte, 16)))
 
 			if len(ngapSender.SentDownlinkNASTransport) != 0 {
 				t.Fatalf("expected precondition failure to emit no downlink, but a Downlink NAS Transport was sent")
@@ -128,7 +139,7 @@ func TestHandleAuthenticationResponse_TimerT3560Stopped(t *testing.T) {
 	conn.IdentityTypeUsedForRegistration = nasMessage.MobileIdentity5GSTypeSuci
 	conn.NASGuardForTest().Arm(10*time.Minute, 5, func(e int32) {}, func() {})
 
-	handleAuthenticationResponse(t.Context(), amf.New(nil, nil, nil), ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+	handleAuthenticationResponse(t.Context(), amf.New(nil, nil, nil), ue, buildAuthResponsePlain(make([]byte, 16)))
 
 	if conn.NASGuardForTest().Active() {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
@@ -169,7 +180,7 @@ func TestHandleAuthenticationResponse_hResStartMismatch(t *testing.T) {
 			}
 			ue.Conn().IdentityTypeUsedForRegistration = tc.id_type
 
-			handleAuthenticationResponse(t.Context(), amf.New(nil, nil, nil), ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+			handleAuthenticationResponse(t.Context(), amf.New(nil, nil, nil), ue, buildAuthResponsePlain(make([]byte, 16)))
 
 			if len(ngapSender.SentDownlinkNASTransport) != 1 {
 				t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -250,7 +261,7 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 			}
 			ue.Conn().IdentityTypeUsedForRegistration = tc.id_type
 
-			handleAuthenticationResponse(t.Context(), amfInstance, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+			handleAuthenticationResponse(t.Context(), amfInstance, ue, buildAuthResponsePlain(make([]byte, 16)))
 
 			if len(ngapSender.SentDownlinkNASTransport) != 1 {
 				t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -304,17 +315,9 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 		Rand:      "DEADBEEF",
 		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
 	}
-	ue.SetUESecurityCapabilityForTest(&nasType.UESecurityCapability{
-		Iei:    nasMessage.RegistrationRequestUESecurityCapabilityType,
-		Len:    2,
-		Buffer: []uint8{0x00, 0x00},
-	})
-	ue.UESecurityCapabilityForTest().SetEA0_5G(1)
-	ue.UESecurityCapabilityForTest().SetEA1_128_5G(1)
-	ue.UESecurityCapabilityForTest().SetIA0_5G(1)
-	ue.UESecurityCapabilityForTest().SetIA1_128_5G(1)
+	ue.SetUESecurityCapabilityForTest(amf.UESecCapBytesForTest([]uint8{0, 1}, []uint8{0, 1}))
 
-	handleAuthenticationResponse(t.Context(), amfInstance, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+	handleAuthenticationResponse(t.Context(), amfInstance, ue, buildAuthResponsePlain(make([]byte, 16)))
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")

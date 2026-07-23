@@ -10,7 +10,6 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/eps"
-	"go.uber.org/zap"
 )
 
 func handleSecurityModeReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
@@ -31,7 +30,7 @@ func handleSecurityModeReject(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	}
 
 	logger.From(ctx, logger.MmeLog).Warn("Security Mode Reject",
-		zap.Uint8("emm-cause", cause))
+		logger.Cause(mme.EmmCauseName(cause)))
 
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
 

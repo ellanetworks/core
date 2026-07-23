@@ -10,7 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func sendUEAuthenticationAuthenticateRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, resyncInfo *ausf.ResyncInfo) (*ausf.AuthResult, error) {
@@ -42,7 +42,7 @@ func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 	if !identityVerification(ue) {
 		logger.From(ctx, logger.AmfLog).Debug("UE has no SUCI / SUPI - send identity request to UE")
 
-		amf.SendIdentityRequest(ctx, amfInstance, ueConn, nasMessage.MobileIdentity5GSTypeSuci)
+		amf.SendIdentityRequest(ctx, amfInstance, ueConn, uint8(fgs.IdentitySUCI))
 
 		logger.From(ctx, logger.AmfLog).Info("sent identity request")
 

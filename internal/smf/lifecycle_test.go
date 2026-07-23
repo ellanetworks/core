@@ -16,10 +16,10 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapType"
 )
 
@@ -31,24 +31,16 @@ func TestMain(m *testing.M) {
 // --- NAS message helpers ---
 
 func buildPDUSessionEstRequest() []byte {
-	m := nas.NewMessage()
-	m.GsmMessage = nas.NewGsmMessage()
-	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionEstablishmentRequest)
-	m.GsmHeader.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionEstablishmentRequest = nasMessage.NewPDUSessionEstablishmentRequest(0)
-	m.PDUSessionEstablishmentRequest.SetMessageType(nas.MsgTypePDUSessionEstablishmentRequest)
-	m.PDUSessionEstablishmentRequest.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionEstablishmentRequest.SetPDUSessionID(1)
-	m.PDUSessionEstablishmentRequest.SetPTI(10)
-	m.PDUSessionEstablishmentRequest.IntegrityProtectionMaximumDataRate. //nolint:staticcheck // full path needed to avoid ambiguous selector
-										SetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForUpLink(0xff)
-	m.PDUSessionEstablishmentRequest.IntegrityProtectionMaximumDataRate. //nolint:staticcheck // full path needed to avoid ambiguous selector
-										SetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForDownLink(0xff)
-	m.PDUSessionEstablishmentRequest.PDUSessionType = nasType.NewPDUSessionType( //nolint:staticcheck // full path needed to avoid ambiguous selector
-		nasMessage.PDUSessionEstablishmentRequestPDUSessionTypeType)
-	m.PDUSessionEstablishmentRequest.PDUSessionType.SetPDUSessionTypeValue(nasMessage.PDUSessionTypeIPv4) //nolint:staticcheck // full path needed to avoid ambiguous selector
+	ipv4 := fgs.PDUSessionTypeIPv4
 
-	buf, err := m.PlainNasEncode()
+	req := &fgs.PDUSessionEstablishmentRequest{
+		PDUSessionID:             1,
+		PTI:                      10,
+		IntegrityProtMaxDataRate: [2]byte{0xff, 0xff},
+		PDUSessionType:           &ipv4,
+	}
+
+	buf, err := req.Marshal()
 	if err != nil {
 		panic(fmt.Sprintf("build PDU Session Establishment Request: %v", err))
 	}
@@ -56,60 +48,24 @@ func buildPDUSessionEstRequest() []byte {
 	return buf
 }
 
-// rejectCauseCode decodes a PDU Session Establishment Reject NAS message and
-// returns the 5GSM cause value.
+// rejectCauseCode decodes a PDU Session Establishment Reject NAS message (header
+// followed by the mandatory 5GSM cause) and returns the cause value.
 func rejectCauseCode(t *testing.T, raw []byte) uint8 {
 	t.Helper()
 
-	m := new(nas.Message)
-
-	if err := m.PlainNasDecode(&raw); err != nil {
-		t.Fatalf("failed to decode reject NAS: %v", err)
+	if len(raw) < 5 || raw[3] != uint8(fgs.MsgPDUSessionEstablishmentReject) {
+		t.Fatalf("expected PDU Session Establishment Reject, got % x", raw)
 	}
 
-	if m.PDUSessionEstablishmentReject == nil {
-		t.Fatal("expected PDUSessionEstablishmentReject, got nil")
-	}
-
-	return m.PDUSessionEstablishmentReject.GetCauseValue()
+	return raw[4]
 }
 
 func buildPDUSessionReleaseRequest(pduSessionID, pti uint8) []byte {
-	m := nas.NewMessage()
-	m.GsmMessage = nas.NewGsmMessage()
-	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionReleaseRequest)
-	m.GsmHeader.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionReleaseRequest = nasMessage.NewPDUSessionReleaseRequest(0)
-	m.PDUSessionReleaseRequest.SetMessageType(nas.MsgTypePDUSessionReleaseRequest)
-	m.PDUSessionReleaseRequest.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionReleaseRequest.SetPDUSessionID(pduSessionID)
-	m.PDUSessionReleaseRequest.SetPTI(pti)
-
-	buf, err := m.PlainNasEncode()
-	if err != nil {
-		panic(fmt.Sprintf("build PDU Session Release Request: %v", err))
-	}
-
-	return buf
+	return []byte{fgs.EPD5GSM, pduSessionID, pti, uint8(fgs.MsgPDUSessionReleaseRequest)}
 }
 
 func buildPDUSessionModificationRequest(pduSessionID, pti uint8) []byte {
-	m := nas.NewMessage()
-	m.GsmMessage = nas.NewGsmMessage()
-	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionModificationRequest)
-	m.GsmHeader.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionModificationRequest = nasMessage.NewPDUSessionModificationRequest(0)
-	m.PDUSessionModificationRequest.SetMessageType(nas.MsgTypePDUSessionModificationRequest)
-	m.PDUSessionModificationRequest.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionModificationRequest.SetPDUSessionID(pduSessionID)
-	m.PDUSessionModificationRequest.SetPTI(pti)
-
-	buf, err := m.PlainNasEncode()
-	if err != nil {
-		panic(fmt.Sprintf("build PDU Session Modification Request: %v", err))
-	}
-
-	return buf
+	return []byte{fgs.EPD5GSM, pduSessionID, pti, uint8(fgs.MsgPDUSessionModificationRequest)}
 }
 
 // setupSessionWithTunnel creates a session with a fully populated tunnel / data path,
@@ -171,12 +127,13 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 func modificationSMPayload(t *testing.T, n1Msg []byte) []byte {
 	t.Helper()
 
-	msg := nas.NewMessage()
-	if err := msg.GsmMessageDecode(&n1Msg); err == nil && msg.PDUSessionModificationCommand != nil {
+	if mt, err := fgs.PeekGSMMessageType(n1Msg); err == nil && mt == fgs.MsgPDUSessionModificationCommand {
 		return n1Msg
 	}
 
-	msg = nas.NewMessage()
+	// Otherwise the SM message is wrapped in a 5GMM DL NAS TRANSPORT, which is
+	// not yet migrated off free5gc/nas.
+	msg := nas.NewMessage()
 	if err := msg.PlainNasDecode(&n1Msg); err != nil {
 		t.Fatalf("decode DL NAS Transport: %v", err)
 	}
@@ -634,8 +591,8 @@ func TestCreateSmContext_PolicyNotFound(t *testing.T) {
 		t.Fatal("expected reject N1 message")
 	}
 
-	if got := rejectCauseCode(t, rejectN1); got != nasMessage.Cause5GSMRequestRejectedUnspecified {
-		t.Fatalf("expected cause %d (RequestRejectedUnspecified), got %d", nasMessage.Cause5GSMRequestRejectedUnspecified, got)
+	if got := rejectCauseCode(t, rejectN1); got != fgs.GSMCauseRequestRejectedUnspecified {
+		t.Fatalf("expected cause %d (RequestRejectedUnspecified), got %d", fgs.GSMCauseRequestRejectedUnspecified, got)
 	}
 }
 
@@ -658,8 +615,8 @@ func TestCreateSmContext_DNNNotFound(t *testing.T) {
 		t.Fatal("expected reject N1 message")
 	}
 
-	if got := rejectCauseCode(t, rejectN1); got != nasMessage.Cause5GSMMissingOrUnknownDNN {
-		t.Fatalf("expected 5GSM cause %d (#27 missing or unknown DNN), got %d", nasMessage.Cause5GSMMissingOrUnknownDNN, got)
+	if got := rejectCauseCode(t, rejectN1); got != fgs.GSMCauseMissingOrUnknownDNN {
+		t.Fatalf("expected 5GSM cause %d (#27 missing or unknown DNN), got %d", fgs.GSMCauseMissingOrUnknownDNN, got)
 	}
 }
 
@@ -683,8 +640,8 @@ func TestCreateSmContext_DNNNotInSlice(t *testing.T) {
 		t.Fatal("expected reject N1 message")
 	}
 
-	if got := rejectCauseCode(t, rejectN1); got != nasMessage.Cause5GSMMissingOrUnknownDNNInASlice {
-		t.Fatalf("expected 5GSM cause %d (#70 missing or unknown DNN in a slice), got %d", nasMessage.Cause5GSMMissingOrUnknownDNNInASlice, got)
+	if got := rejectCauseCode(t, rejectN1); got != fgs.GSMCauseMissingOrUnknownDNNInASlice {
+		t.Fatalf("expected 5GSM cause %d (#70 missing or unknown DNN in a slice), got %d", fgs.GSMCauseMissingOrUnknownDNNInASlice, got)
 	}
 }
 
@@ -707,8 +664,8 @@ func TestCreateSmContext_IPExhaustion(t *testing.T) {
 		t.Fatal("expected reject N1 message")
 	}
 
-	if got := rejectCauseCode(t, rejectN1); got != nasMessage.Cause5GSMInsufficientResources {
-		t.Fatalf("expected cause %d (InsufficientResources), got %d", nasMessage.Cause5GSMInsufficientResources, got)
+	if got := rejectCauseCode(t, rejectN1); got != fgs.GSMCauseInsufficientResources {
+		t.Fatalf("expected cause %d (InsufficientResources), got %d", fgs.GSMCauseInsufficientResources, got)
 	}
 }
 
@@ -732,8 +689,8 @@ func TestCreateSmContext_PFCPEstablishmentFailure(t *testing.T) {
 		t.Fatal("expected reject N1 message")
 	}
 
-	if got := rejectCauseCode(t, rejectN1); got != nasMessage.Cause5GSMRequestRejectedUnspecified {
-		t.Fatalf("expected cause %d (RequestRejectedUnspecified), got %d", nasMessage.Cause5GSMRequestRejectedUnspecified, got)
+	if got := rejectCauseCode(t, rejectN1); got != fgs.GSMCauseRequestRejectedUnspecified {
+		t.Fatalf("expected cause %d (RequestRejectedUnspecified), got %d", fgs.GSMCauseRequestRejectedUnspecified, got)
 	}
 
 	amfCb.mu.Lock()
@@ -759,8 +716,8 @@ func TestCreateSmContext_InvalidNAS(t *testing.T) {
 		t.Fatal("expected SMF to build a PDU Session Establishment Reject for malformed NAS")
 	}
 
-	if cause := rejectCauseCode(t, rejectN1); cause != nasMessage.Cause5GSMProtocolErrorUnspecified {
-		t.Fatalf("expected cause %d (protocol error unspecified), got %d", nasMessage.Cause5GSMProtocolErrorUnspecified, cause)
+	if cause := rejectCauseCode(t, rejectN1); cause != fgs.GSMCauseProtocolErrorUnspecified {
+		t.Fatalf("expected cause %d (protocol error unspecified), got %d", fgs.GSMCauseProtocolErrorUnspecified, cause)
 	}
 
 	if s.SessionCount() != 0 {
@@ -786,8 +743,8 @@ func TestCreateSmContext_WrongNASMessageType(t *testing.T) {
 		t.Fatal("expected SMF to build a PDU Session Establishment Reject for wrong NAS type")
 	}
 
-	if cause := rejectCauseCode(t, rejectN1); cause != nasMessage.Cause5GSMMessageTypeNotCompatibleWithTheProtocolState {
-		t.Fatalf("expected cause %d (message type not compatible with protocol state), got %d", nasMessage.Cause5GSMMessageTypeNotCompatibleWithTheProtocolState, cause)
+	if cause := rejectCauseCode(t, rejectN1); cause != fgs.GSMCauseMessageTypeNotCompatibleWithTheProtocolState {
+		t.Fatalf("expected cause %d (message type not compatible with protocol state), got %d", fgs.GSMCauseMessageTypeNotCompatibleWithTheProtocolState, cause)
 	}
 
 	if s.SessionCount() != 0 {
@@ -1646,23 +1603,13 @@ func TestReconcileSmContext_DNSChange(t *testing.T) {
 
 	n1Payload := modificationSMPayload(t, call.n1Msg)
 
-	msg := nas.NewMessage()
-	if err := msg.PlainNasDecode(&n1Payload); err != nil {
+	cmd, err := fgs.ParsePDUSessionModificationCommand(n1Payload)
+	if err != nil {
 		t.Fatalf("decode N1 modification command: %v", err)
 	}
 
-	if msg.PDUSessionModificationCommand == nil {
-		t.Fatal("PDUSessionModificationCommand is nil")
-	}
-
-	pco := msg.PDUSessionModificationCommand.ExtendedProtocolConfigurationOptions
-	if pco == nil {
+	if len(cmd.ExtendedPCO) == 0 {
 		t.Fatal("ExtendedProtocolConfigurationOptions is nil; DNS should be in PCO")
-	}
-
-	contents := pco.GetExtendedProtocolConfigurationOptionsContents()
-	if len(contents) == 0 {
-		t.Fatal("PCO contents is empty")
 	}
 
 	// The new policy is not committed on send: it is held pending until the UE
@@ -2473,20 +2420,17 @@ func TestUpdateSmContextN1Msg_ModificationRejected(t *testing.T) {
 		t.Error("modification reject must not signal N2 release")
 	}
 
-	m := new(nas.Message)
-	if err := m.PlainNasDecode(&rsp.N1Msg); err != nil {
-		t.Fatalf("decode N1 response: %v", err)
+	// PDU SESSION MODIFICATION REJECT: header (EPD, PSI, PTI, type) + mandatory cause.
+	raw := rsp.N1Msg
+	if len(raw) < 5 || raw[3] != uint8(fgs.MsgPDUSessionModificationReject) {
+		t.Fatalf("expected PDUSessionModificationReject, got % x", raw)
 	}
 
-	if m.PDUSessionModificationReject == nil {
-		t.Fatalf("expected PDUSessionModificationReject, got message type %d", m.GsmHeader.GetMessageType())
-	}
-
-	if got := m.PDUSessionModificationReject.GetPTI(); got != pti {
+	if got := raw[2]; got != pti {
 		t.Errorf("reject PTI = %d, want %d (echoed from request)", got, pti)
 	}
 
-	if got := m.PDUSessionModificationReject.GetCauseValue(); got != nasMessage.Cause5GSMRequestRejectedUnspecified {
-		t.Errorf("reject cause = %d, want %d (request rejected, unspecified)", got, nasMessage.Cause5GSMRequestRejectedUnspecified)
+	if got := raw[4]; got != fgs.GSMCauseRequestRejectedUnspecified {
+		t.Errorf("reject cause = %d, want %d (request rejected, unspecified)", got, fgs.GSMCauseRequestRejectedUnspecified)
 	}
 }

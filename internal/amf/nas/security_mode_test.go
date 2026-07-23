@@ -72,7 +72,7 @@ func TestSecurityMode_NoCommonAlgorithm_RejectsAndDeregisters(t *testing.T) {
 	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
 	// The UE advertises no supported NAS algorithm, so it shares none with the
 	// operator's AES-only policy.
-	ue.SetUESecurityCapabilityForTest(newUESecCaps(0x00, 0x00))
+	ue.SetUESecurityCapabilityForTest([]byte{0x00, 0x00})
 
 	securityMode(context.Background(), amfInstance, ue)
 

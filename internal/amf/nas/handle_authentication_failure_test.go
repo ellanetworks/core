@@ -12,26 +12,22 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
 )
 
-func buildTestAuthenticationFailureMessage(cause uint8, auts *[14]uint8) *nasMessage.AuthenticationFailure {
-	msg := nasMessage.NewAuthenticationFailure(0)
-	msg.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	msg.SetSpareHalfOctet(0x00)
-	msg.SetMessageType(nas.MsgTypeAuthenticationFailure)
-	msg.SetCauseValue(cause)
+// buildTestAuthenticationFailureMessage builds a plain AUTHENTICATION FAILURE with
+// the given 5GMM cause and optional authentication failure parameter (AUTS, IEI 0x30).
+func buildTestAuthenticationFailureMessage(cause uint8, auts *[14]uint8) []byte {
+	b := []byte{fgs.EPD5GMM, 0x00, uint8(fgs.MsgAuthenticationFailure), cause}
 
 	if auts != nil {
-		msg.AuthenticationFailureParameter = nasType.NewAuthenticationFailureParameter(
-			nasMessage.AuthenticationFailureAuthenticationFailureParameterType)
-		msg.SetLen(14)
-		msg.SetAuthenticationFailureParameter(*auts)
+		b = append(b, 0x30, 14)
+		b = append(b, auts[:]...)
 	}
 
-	return msg
+	return b
 }
 
 // An AUTHENTICATION FAILURE received outside the authentication exchange is ignored:

@@ -16,9 +16,9 @@ import (
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/nas/security"
 )
 
@@ -281,7 +281,7 @@ func TestHandleIdentityResponse_InvalidStateError(t *testing.T) {
 
 			tc.setup(ue)
 
-			handleIdentityResponse(context.TODO(), amf.New(nil, nil, nil), ue, &nasMessage.IdentityResponse{}, true)
+			handleIdentityResponse(context.TODO(), amf.New(nil, nil, nil), ue, buildTestIdentityResponseMessage(), true)
 
 			if len(ngapSender.SentDownlinkNASTransport) != 0 {
 				t.Fatalf("expected Identity Response in an invalid state to be ignored, but a downlink was sent")
@@ -317,7 +317,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 
 	m := buildTestIdentityResponseMessage()
 
-	handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, true)
+	handleIdentityResponse(context.TODO(), amfInstance, ue, m, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -368,7 +368,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 
 	m := buildTestIdentityResponseMessage()
 
-	handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, true)
+	handleIdentityResponse(context.TODO(), amfInstance, ue, m, true)
 
 	if ue.State() != amf.Deregistered {
 		t.Fatalf("expected UE to be deregistered after an authentication procedure failure, got %s", ue.State())
@@ -420,17 +420,12 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
-	if err != nil {
-		t.Fatalf("could not build registration request message: %v", err)
-	}
-
-	ue.Conn().RegistrationRequest = registrationRequest.RegistrationRequest
+	ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
 	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
 
 	m := buildTestIdentityResponseMessage()
 
-	handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, true)
+	handleIdentityResponse(context.TODO(), amfInstance, ue, m, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -512,21 +507,16 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 			ue.SetCipheringAlgForTest(algo)
 			ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-			registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
-			if err != nil {
-				t.Fatalf("could not build registration request message: %v", err)
-			}
-
-			ue.Conn().RegistrationRequest = registrationRequest.RegistrationRequest
+			ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
 
 			ue.Conn().RegistrationType5GS = tc
 			if tc == nasMessage.RegistrationType5GSMobilityRegistrationUpdating {
-				ue.Conn().RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
+				ue.Conn().RegistrationRequest.Capability5GMM = []byte{0x00}
 			}
 
 			m := buildTestIdentityResponseMessage()
 
-			handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, true)
+			handleIdentityResponse(context.TODO(), amfInstance, ue, m, true)
 
 			if len(ngapSender.SentDownlinkNASTransport) != 1 {
 				t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -604,21 +594,16 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 			ue.SetCipheringAlgForTest(algo)
 			ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
 
-			registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
-			if err != nil {
-				t.Fatalf("could not build registration request message: %v", err)
-			}
-
-			ue.Conn().RegistrationRequest = registrationRequest.RegistrationRequest
+			ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
 
 			ue.Conn().RegistrationType5GS = tc
 			if tc == nasMessage.RegistrationType5GSMobilityRegistrationUpdating {
-				ue.Conn().RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
+				ue.Conn().RegistrationRequest.Capability5GMM = []byte{0x00}
 			}
 
 			m := buildTestIdentityResponseMessage()
 
-			handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, true)
+			handleIdentityResponse(context.TODO(), amfInstance, ue, m, true)
 
 			if len(ngapSender.SentDownlinkNASTransport) != 0 {
 				t.Fatalf("should not have sent a Downlink NAS Transport message")
@@ -659,11 +644,9 @@ func TestHandleIdentityResponse_IdentityError(t *testing.T) {
 
 			tc.setup(ue)
 
-			m := buildTestIdentityResponseMessage()
-			m.SetMobileIdentityContents([]uint8{})
-			m.IdentityResponse.SetLen(0)
+			m := buildTestIdentityResponseEmptyPlain()
 
-			handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, true)
+			handleIdentityResponse(context.TODO(), amfInstance, ue, m, true)
 
 			if len(ngapSender.SentDownlinkNASTransport) != 0 {
 				t.Fatalf("should not have sent a Downlink NAS Transport message")
@@ -717,25 +700,28 @@ func TestHandleIdentityResponse_T3570Stopped(t *testing.T) {
 	conn := ue.Conn()
 	conn.NASGuardForTest().Arm(10*time.Minute, 5, func(int32) {}, func() {})
 
-	handleIdentityResponse(context.TODO(), amf.New(nil, nil, nil), ue, &nasMessage.IdentityResponse{}, true)
+	handleIdentityResponse(context.TODO(), amf.New(nil, nil, nil), ue, buildTestIdentityResponseMessage(), true)
 
 	if conn.NASGuardForTest().Active() {
 		t.Fatal("expected timer T3570 to be stopped on Identity Response")
 	}
 }
 
-func buildTestIdentityResponseMessage() *nas.GmmMessage {
-	m := nas.NewGmmMessage()
+// buildTestIdentityResponseMessage builds a plain IDENTITY RESPONSE carrying a
+// SUCI mobile identity (type-6 IE, 2-octet LVE length).
+func buildTestIdentityResponseMessage() []byte {
+	return buildIdentityResponsePlain([]byte{0x01, 0x00, 0xf1, 0x10, 0x10, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
+}
 
-	identityResponse := nasMessage.NewIdentityResponse(0)
-	identityResponse.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	identityResponse.SetSpareHalfOctet(0x00)
-	identityResponse.SetMessageType(nas.MsgTypeIdentityResponse)
-	identityResponse.SetLen(18)
-	identityResponse.SetMobileIdentityContents([]uint8{nasMessage.MobileIdentity5GSTypeSuci, 0x00, 0xf1, 0x10, 0x10, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
+// buildTestIdentityResponseEmptyPlain builds a plain IDENTITY RESPONSE whose
+// mobile identity IE is empty (LVE length 0).
+func buildTestIdentityResponseEmptyPlain() []byte {
+	return buildIdentityResponsePlain(nil)
+}
 
-	m.IdentityResponse = identityResponse
-	m.SetMessageType(nas.MsgTypeIdentityResponse)
+func buildIdentityResponsePlain(mobileIdentity []byte) []byte {
+	b := []byte{fgs.EPD5GMM, 0x00, uint8(fgs.MsgIdentityResponse)}
+	b = append(b, byte(len(mobileIdentity)>>8), byte(len(mobileIdentity)))
 
-	return m
+	return append(b, mobileIdentity...)
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
-	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
 )
 
@@ -22,7 +21,7 @@ import (
 func abortSecurityMode(ctx context.Context, ue *amf.UeContext, ueConn *amf.UeConn, reason string, err error) {
 	logger.From(ctx, logger.AmfLog).Error("security mode aborted, releasing UE", zap.String("reason", reason), zap.Error(err))
 	metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(ueConn.RegistrationType5GS), metrics.ResultReject)
-	amf.SendRegistrationReject(ctx, ueConn, nasMessage.Cause5GMMProtocolErrorUnspecified)
+	amf.SendRegistrationReject(ctx, ueConn, amf.GmmCauseProtocolErrorUnspecified)
 	ue.Deregister(ctx)
 }
 
@@ -87,7 +86,7 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 
 		metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultReject)
 
-		amf.SendRegistrationReject(ctx, ueConn, nasMessage.Cause5GMMUESecurityCapabilitiesMismatch)
+		amf.SendRegistrationReject(ctx, ueConn, amf.GmmCauseUESecCapabilitiesMismatch)
 		ue.Deregister(ctx)
 
 		return

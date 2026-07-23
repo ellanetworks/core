@@ -12,8 +12,8 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
 )
 
 // TestHandleDeregistrationRequest_ProcessedInAnyState verifies a UE-initiated
@@ -33,7 +33,7 @@ func TestHandleDeregistrationRequest_ProcessedInAnyState(t *testing.T) {
 
 			m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
-			handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
+			handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m, true)
 
 			if len(ngapSender.SentUEContextReleaseCommand) != 1 {
 				t.Fatalf("expected a UE Context Release Command in state %s, got %d", tc, len(ngapSender.SentUEContextReleaseCommand))
@@ -73,7 +73,7 @@ func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
-	handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
+	handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m, true)
 
 	r := smf.ReleasedSmContext
 
@@ -97,7 +97,7 @@ func TestHandleDeregistrationRequest_NilRanUE(t *testing.T) {
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
-	handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
+	handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
 		t.Fatal("should not have sent a downlink NAS transport message")
@@ -118,7 +118,7 @@ func TestHandleDeregistrationRequest_NotSwitchOff_DeregistrationAccept(t *testin
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
-	handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
+	handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatal("should have sent a downlink NAS transport message")
@@ -154,10 +154,9 @@ func TestHandleDeregistrationRequest_SwitchOff_NoDeregistrationAccept(t *testing
 
 	ue.ForceStateForTest(amf.Registered)
 
-	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
-	m.DeregistrationRequestUEOriginatingDeregistration.SetSwitchOff(1)
+	m := buildDeregRequestUEOrigPlain(fgs.AccessType3GPP, true)
 
-	handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
+	handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
 		t.Fatal("should have sent a downlink NAS transport message")
@@ -182,7 +181,7 @@ func TestHandleDeregistrationRequest_MacFailed_RejectsForgery(t *testing.T) {
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
-	handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, false)
+	handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m, false)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
 		t.Fatal("must not send Deregistration Accept on a forged request")
@@ -209,10 +208,9 @@ func TestHandleDeregistrationRequest_Non3GPP_DeregistrationAccept(t *testing.T) 
 
 	ue.ForceStateForTest(amf.Registered)
 
-	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
-	m.DeregistrationRequestUEOriginatingDeregistration.SetAccessType(nasMessage.AccessTypeNon3GPP)
+	m := buildDeregRequestUEOrigPlain(fgs.AccessTypeNon3GPP, false)
 
-	handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
+	handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatal("should have sent a downlink NAS transport message")
@@ -240,16 +238,25 @@ func TestHandleDeregistrationRequest_Non3GPP_DeregistrationAccept(t *testing.T) 
 	}
 }
 
-func buildTestDeregistrationRequestUEOriginatingDeregistrationMessage() *nas.GmmMessage {
-	m := nas.NewGmmMessage()
+func buildTestDeregistrationRequestUEOriginatingDeregistrationMessage() []byte {
+	return buildDeregRequestUEOrigPlain(fgs.AccessType3GPP, false)
+}
 
-	deregistrationRequest := nasMessage.NewDeregistrationRequestUEOriginatingDeregistration(0)
-	deregistrationRequest.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	deregistrationRequest.SetSpareHalfOctet(0x00)
-	deregistrationRequest.SetMessageType(nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration)
-	deregistrationRequest.SetAccessType(nasMessage.AccessType3GPP)
+// buildDeregRequestUEOrigPlain builds a plain UE-originating DEREGISTRATION REQUEST
+// with the given de-registration type (TS 24.501 §8.2.12, §9.11.3.20).
+func buildDeregRequestUEOrigPlain(accessType uint8, switchOff bool) []byte {
+	octet := accessType & 0x03
+	if switchOff {
+		octet |= 1 << 3
+	}
 
-	m.DeregistrationRequestUEOriginatingDeregistration = deregistrationRequest
+	// Mandatory 5GS mobile identity (5G-GUTI, type-of-identity 2), carried as an
+	// LV-E: two length octets then the 11-octet value (TS 24.501 §8.2.12).
+	guti := []byte{0xf2, 0x00, 0xf1, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01}
 
-	return m
+	msg := []byte{fgs.EPD5GMM, 0x00, uint8(fgs.MsgDeregistrationRequestUEOrig), octet}
+	msg = append(msg, byte(len(guti)>>8), byte(len(guti)))
+	msg = append(msg, guti...)
+
+	return msg
 }

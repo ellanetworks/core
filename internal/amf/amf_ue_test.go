@@ -8,8 +8,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/nas/security"
 )
 
@@ -190,29 +188,19 @@ func TestIsAllowedNssai(t *testing.T) {
 	}
 }
 
-// makeUESecCap creates a UESecurityCapability with the given 5G integrity and ciphering bits set.
-func makeUESecCap(ia0, ia1, ia2, ia3, ea0, ea1, ea2, ea3 uint8) *nasType.UESecurityCapability {
-	ueCap := &nasType.UESecurityCapability{
-		Iei:    nasMessage.RegistrationRequestUESecurityCapabilityType,
-		Len:    2,
-		Buffer: []uint8{0x00, 0x00},
-	}
-	ueCap.SetIA0_5G(ia0)
-	ueCap.SetIA1_128_5G(ia1)
-	ueCap.SetIA2_128_5G(ia2)
-	ueCap.SetIA3_128_5G(ia3)
-	ueCap.SetEA0_5G(ea0)
-	ueCap.SetEA1_128_5G(ea1)
-	ueCap.SetEA2_128_5G(ea2)
-	ueCap.SetEA3_128_5G(ea3)
+// makeUESecCap creates a UE security capability IE value (octet 1 = 5G-EA, octet 2
+// = 5G-IA) with the given 5G integrity and ciphering bits set.
+func makeUESecCap(ia0, ia1, ia2, ia3, ea0, ea1, ea2, ea3 uint8) []byte {
+	ea := ea0<<7 | ea1<<6 | ea2<<5 | ea3<<4
+	ia := ia0<<7 | ia1<<6 | ia2<<5 | ia3<<4
 
-	return ueCap
+	return []byte{ea, ia}
 }
 
 func TestSelectSecurityAlg(t *testing.T) {
 	tests := []struct {
 		name       string
-		cap        *nasType.UESecurityCapability
+		cap        []byte
 		intOrder   []uint8
 		encOrder   []uint8
 		wantFail   bool

@@ -9,12 +9,13 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapType"
+	"go.uber.org/zap"
 )
 
 // TS 23.502
-func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, ue *amf.UeContext, msg *nasMessage.DeregistrationRequestUEOriginatingDeregistration, integrityVerified bool) nasreply.Disposition {
+func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, ue *amf.UeContext, plain []byte, integrityVerified bool) nasreply.Disposition {
 	// No state precondition: TS 24.501 §5.5.2.2.2 has the network process the
 	// UE-initiated de-registration and enter 5GMM-DEREGISTERED regardless of the
 	// current state; the integrity guard below is the security control.
@@ -35,15 +36,20 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 		return nasreply.Handled()
 	}
 
-	if msg.GetSwitchOff() == 0 {
+	msg, err := fgs.ParseDeregistrationRequestUEOriginating(plain)
+	if err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("could not decode Deregistration Request", zap.Error(err))
+		return nasreply.Handled()
+	}
+
+	if !msg.SwitchOff {
 		amf.SendDeregistrationAccept(ctx, ueConn)
 
 		logger.From(ctx, logger.AmfLog).Info("sent deregistration accept")
 	}
 
 	// TS 23.502
-	targetDeregistrationAccessType := msg.GetAccessType()
-	if targetDeregistrationAccessType != nasMessage.AccessType3GPP {
+	if msg.AccessType != fgs.AccessType3GPP {
 		return nasreply.Handled()
 	}
 

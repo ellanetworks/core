@@ -20,6 +20,19 @@ import (
 	"github.com/free5gc/nas/security"
 )
 
+// encSMC encodes a free5gc SECURITY MODE COMPLETE message to its plain wire bytes,
+// the form the handler receives.
+func encSMC(t *testing.T, msg *nasMessage.SecurityModeComplete) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+	if err := msg.EncodeSecurityModeComplete(&buf); err != nil {
+		t.Fatalf("could not encode Security Mode Complete: %v", err)
+	}
+
+	return buf.Bytes()
+}
+
 func TestHandleSecurityMode_WrongUEMode(t *testing.T) {
 	testcases := []struct {
 		name  string
@@ -84,7 +97,7 @@ func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
 
 	msg := buildTestSecurityModeCompleteMessage()
 
-	handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, true)
+	handleSecurityModeComplete(t.Context(), amfInstance, ue, encSMC(t, msg.SecurityModeComplete), true)
 
 	if ue.Conn().NASGuardForTest().Active() {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
@@ -125,11 +138,12 @@ func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
 
 	msg := buildTestSecurityModeCompleteMessage()
 	msg.IMEISV = &nasType.IMEISV{
+		Iei:   nasMessage.SecurityModeCompleteIMEISVType,
 		Octet: [9]uint8{nasMessage.MobileIdentity5GSTypeImeisv + 0x30, 0x25, 0x90, 0x09, 0x10, 0x67, 0x41, 0x28, 0xF3},
 		Len:   9,
 	}
 
-	handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, true)
+	handleSecurityModeComplete(t.Context(), amfInstance, ue, encSMC(t, msg.SecurityModeComplete), true)
 
 	expected := "imeisv-3520990017614823"
 	if ue.Imei.String() != expected {
@@ -176,7 +190,7 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 
 	msg := buildTestSecurityModeCompleteMessage()
 
-	handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, true)
+	handleSecurityModeComplete(t.Context(), amfInstance, ue, encSMC(t, msg.SecurityModeComplete), true)
 
 	if len(ue.KgnbForTest()) == 0 || ue.NHForTest() == [32]uint8{} || ue.NCCForTest() == 0 {
 		t.Fatalf("expected security context to be updated, got: Kgnb: %v, NH: %v, NCC: %v", ue.KgnbForTest(), ue.NHForTest(), ue.NCCForTest())
@@ -229,7 +243,7 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 		t.Fatalf("could not build security mode complete message with registration request: %v", err)
 	}
 
-	handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, true)
+	handleSecurityModeComplete(t.Context(), amfInstance, ue, encSMC(t, msg.SecurityModeComplete), true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -297,7 +311,7 @@ func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 
 	msg.SecurityModeComplete.SetNASMessageContainerContents([]uint8{0xDE, 0xAD, 0xBE, 0xEF})
 
-	handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, true)
+	handleSecurityModeComplete(t.Context(), amfInstance, ue, encSMC(t, msg.SecurityModeComplete), true)
 
 	if len(ngapSender.SentUEContextReleaseCommand) != 1 {
 		t.Fatalf("expected a UE Context Release Command to release the aborted registration, got %d", len(ngapSender.SentUEContextReleaseCommand))

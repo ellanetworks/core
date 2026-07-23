@@ -16,8 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
-	"github.com/free5gc/nas/nasConvert"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
@@ -30,13 +29,15 @@ func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integri
 		return fmt.Errorf("mobile identity is empty")
 	}
 
-	switch nasConvert.GetTypeOfIdentity(mobileIdentityContents[0]) {
-	case nasMessage.MobileIdentity5GSTypeSuci:
-		var plmnID string
+	switch fgs.TypeOfIdentity(mobileIdentityContents[0]) {
+	case fgs.IdentitySUCI:
+		// SUCIToString yields empty strings on a malformed SUCI, matching the prior
+		// lenient behavior; the empty SUPI then fails authentication downstream.
+		suci, plmnID, _ := fgs.SUCIToString(mobileIdentityContents)
 
-		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentityContents)
+		ue.Suci = suci
 		ue.PlmnID = amf.PlmnIDStringToModels(plmnID)
-	case nasMessage.MobileIdentity5GSType5gGuti:
+	case fgs.IdentityGUTI:
 		if !integrityVerified {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
@@ -51,7 +52,7 @@ func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integri
 		if guti.Tmsi != ue.Tmsi() && guti.Tmsi != ue.OldTmsi() {
 			return fmt.Errorf("UE sent unknown GUTI")
 		}
-	case nasMessage.MobileIdentity5GSType5gSTmsi:
+	case fgs.IdentitySTMSI:
 		if !integrityVerified {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
@@ -75,23 +76,33 @@ func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integri
 		if tmsi != ue.Tmsi() && tmsi != ue.OldTmsi() {
 			return fmt.Errorf("UE sent unknown TMSI")
 		}
-	case nasMessage.MobileIdentity5GSTypeImei:
+	case fgs.IdentityIMEI:
 		if !integrityVerified {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 
-		imei, err := etsi.NewIMEIFromPEI(nasConvert.PeiToString(mobileIdentityContents))
+		pei, err := fgs.PEIToString(mobileIdentityContents)
+		if err != nil {
+			return fmt.Errorf("UE sent invalid IMEI: %w", err)
+		}
+
+		imei, err := etsi.NewIMEIFromPEI(pei)
 		if err != nil {
 			return fmt.Errorf("UE sent invalid IMEI: %w", err)
 		}
 
 		ue.Imei = imei
-	case nasMessage.MobileIdentity5GSTypeImeisv:
+	case fgs.IdentityIMEISV:
 		if !integrityVerified {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 
-		imeisv, err := etsi.NewIMEIFromPEI(nasConvert.PeiToString(mobileIdentityContents))
+		pei, err := fgs.PEIToString(mobileIdentityContents)
+		if err != nil {
+			return fmt.Errorf("UE sent invalid IMEISV: %w", err)
+		}
+
+		imeisv, err := etsi.NewIMEIFromPEI(pei)
 		if err != nil {
 			return fmt.Errorf("UE sent invalid IMEISV: %w", err)
 		}
@@ -102,7 +113,7 @@ func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integri
 	return nil
 }
 
-func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.IdentityResponse, integrityVerified bool) nasreply.Disposition {
+func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, plain []byte, integrityVerified bool) nasreply.Disposition {
 	// The identification procedure is complete on receipt of the response
 	// (TS 24.501 §5.4.3.4).
 	if conn := ue.Conn(); conn != nil {
@@ -111,9 +122,13 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 
 	switch ue.RegStep() {
 	case amf.RegStepAuthenticating:
-		mobileIdentityContents := msg.GetMobileIdentityContents()
+		msg, err := fgs.ParseIdentityResponse(plain)
+		if err != nil {
+			logger.From(ctx, logger.AmfLog).Warn("could not decode Identity Response", zap.Error(err))
+			return nasreply.Handled()
+		}
 
-		if err := updateUEIdentity(ue, mobileIdentityContents, integrityVerified); err != nil {
+		if err := updateUEIdentity(ue, msg.MobileIdentity, integrityVerified); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("error handling identity response", zap.Error(err))
 			return nasreply.Handled()
 		}
@@ -133,9 +148,13 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 		return nasreply.Handled()
 
 	case amf.RegStepContextSetup:
-		mobileIdentityContents := msg.GetMobileIdentityContents()
+		msg, err := fgs.ParseIdentityResponse(plain)
+		if err != nil {
+			logger.From(ctx, logger.AmfLog).Warn("could not decode Identity Response", zap.Error(err))
+			return nasreply.Handled()
+		}
 
-		if err := updateUEIdentity(ue, mobileIdentityContents, integrityVerified); err != nil {
+		if err := updateUEIdentity(ue, msg.MobileIdentity, integrityVerified); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("error handling identity response", zap.Error(err))
 			return nasreply.Handled()
 		}
@@ -147,11 +166,11 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 		}
 
 		switch conn.RegistrationType5GS {
-		case nasMessage.RegistrationType5GSInitialRegistration:
+		case fgs.RegistrationTypeInitial:
 			HandleInitialRegistration(ctx, amfInstance, ue)
-		case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
+		case fgs.RegistrationTypeMobilityUpdating:
 			fallthrough
-		case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
+		case fgs.RegistrationTypePeriodicUpdating:
 			HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfInstance, ue)
 		}
 	default:

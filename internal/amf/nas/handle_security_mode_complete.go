@@ -11,14 +11,12 @@ import (
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasConvert"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
 // TS 33.501
-func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.SecurityModeComplete, integrityVerified bool) nasreply.Disposition {
+func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, plain []byte, integrityVerified bool) nasreply.Disposition {
 	if step := ue.RegStep(); step != amf.RegStepSecurityMode {
 		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Security Mode Complete message outside the security mode exchange", zap.String("state", string(ue.State())))
 		return nasreply.Silent(nasreply.ReasonOutOfState)
@@ -34,6 +32,12 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 
 	conn.Parent().EndKeyChainProc(procedure.SecurityMode)
 
+	msg, err := fgs.ParseSecurityModeComplete(plain)
+	if err != nil {
+		abortRegistration(ctx, amfInstance, ue, "decode Security Mode Complete", err)
+		return nasreply.Handled()
+	}
+
 	if ue.SecurityContextIsValid() && integrityVerified {
 		err := ue.UpdateSecurityContext()
 		if err != nil {
@@ -43,11 +47,11 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 	}
 
 	if msg.IMEISV != nil {
-		pei, err := etsi.NewIMEIFromPEI(nasConvert.PeiToString(msg.IMEISV.Octet[:]))
+		pei, err := imeiFromPEI(msg.IMEISV)
 		if err != nil {
 			// A malformed IMEISV yields no trusted equipment identity; reject and release
 			// (the NAS guard has been stopped).
-			amf.SendRegistrationReject(ctx, conn, nasMessage.Cause5GMMProtocolErrorUnspecified)
+			amf.SendRegistrationReject(ctx, conn, amf.GmmCauseProtocolErrorUnspecified)
 			ue.Deregister(ctx)
 
 			return nasreply.Handled()
@@ -57,21 +61,13 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 	}
 
 	if msg.NASMessageContainer != nil {
-		contents := msg.GetNASMessageContainerContents()
-
-		m := nas.NewMessage()
-		if err := m.GmmMessageDecode(&contents); err != nil {
+		fgsRR, err := fgs.ParseRegistrationRequest(msg.NASMessageContainer)
+		if err != nil {
 			abortRegistration(ctx, amfInstance, ue, "decode NAS message container", err)
 			return nasreply.Handled()
 		}
 
-		messageType := m.GmmHeader.GetMessageType()
-		if messageType != nas.MsgTypeRegistrationRequest {
-			abortRegistration(ctx, amfInstance, ue, "unexpected NAS container message type", nil)
-			return nasreply.Handled()
-		}
-
-		contextSetup(ctx, amfInstance, ue, m.RegistrationRequest)
+		contextSetup(ctx, amfInstance, ue, fgsRR)
 
 		return nasreply.Handled()
 	}
@@ -79,4 +75,15 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 	contextSetup(ctx, amfInstance, ue, conn.RegistrationRequest)
 
 	return nasreply.Handled()
+}
+
+// imeiFromPEI decodes an IMEISV mobile-identity value into the shared equipment
+// identity type (TS 24.501 §9.11.3.4).
+func imeiFromPEI(imeisv []byte) (etsi.IMEI, error) {
+	pei, err := fgs.PEIToString(imeisv)
+	if err != nil {
+		return etsi.IMEI{}, err
+	}
+
+	return etsi.NewIMEIFromPEI(pei)
 }

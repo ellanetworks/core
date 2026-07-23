@@ -13,8 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
-	"github.com/free5gc/nas/nasConvert"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -41,7 +40,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	}
 
 	if conn.RegistrationRequest.UpdateType5GS != nil {
-		if conn.RegistrationRequest.GetNGRanRcu() == nasMessage.NGRanRadioCapabilityUpdateNeeded {
+		if conn.RegistrationRequest.NGRanRcu() == 1 {
 			ue.RadioCapability = nil
 			ue.RadioCapabilityForPaging = nil
 		}
@@ -62,7 +61,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	if len(subscriberProfile.AllowedNssai) == 0 {
 		metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultReject)
 
-		amf.SendRegistrationReject(ctx, ueConn, nasMessage.Cause5GMM5GSServicesNotAllowed)
+		amf.SendRegistrationReject(ctx, ueConn, amf.GmmCause5GSServicesNotAllowed)
 		ue.Deregister(ctx)
 
 		return
@@ -71,14 +70,14 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	ue.AllowedNssai = subscriberProfile.AllowedNssai
 
 	if conn.RegistrationRequest.MICOIndication != nil {
-		logger.From(ctx, logger.AmfLog).Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", conn.RegistrationRequest.GetRAAI()))
+		logger.From(ctx, logger.AmfLog).Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", conn.RegistrationRequest.RAAI()))
 	}
 
 	if conn.RegistrationRequest.RequestedDRXParameters != nil {
-		drx := conn.RegistrationRequest.GetDRXValue()
-		if drx > nasMessage.DRXcycleParameterT256 {
+		drx := conn.RegistrationRequest.DRXValue()
+		if drx > fgs.DRXCycleParameterT256 {
 			logger.From(ctx, logger.AmfLog).Warn("UE requested reserved DRX value, treating as not specified", zap.Uint8("drxValue", drx))
-			drx = nasMessage.DRXValueNotSpecified
+			drx = fgs.DRXValueNotSpecified
 		}
 
 		ue.DRXParameter = drx
@@ -95,7 +94,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	suList := ngapType.PDUSessionResourceSetupListSUReq{}
 
 	if conn.RegistrationRequest.UplinkDataStatus != nil {
-		uplinkDataPsi := nasConvert.PSIToBooleanArray(conn.RegistrationRequest.UplinkDataStatus.Buffer)
+		uplinkDataPsi := fgs.PSIFromBytes(conn.RegistrationRequest.UplinkDataStatus)
 		reactivationResult = new([16]bool)
 
 		for idx, hasUplinkData := range uplinkDataPsi {
@@ -107,7 +106,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 						logger.From(ctx, logger.AmfLog).Warn("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 						reactivationResult[pduSessionID] = true
 						errPduSessionID = append(errPduSessionID, pduSessionID)
-						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
+						cause := amf.GmmCauseProtocolErrorUnspecified
 						errCause = append(errCause, cause)
 					} else {
 						if ueConn.UeContextRequest {
@@ -126,7 +125,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	var pduSessionStatus *[16]bool
 	if conn.RegistrationRequest.PDUSessionStatus != nil {
 		pduSessionStatus = new([16]bool)
-		psiArray := nasConvert.PSIToBooleanArray(conn.RegistrationRequest.PDUSessionStatus.Buffer)
+		psiArray := fgs.PSIFromBytes(conn.RegistrationRequest.PDUSessionStatus)
 
 		for psi := 1; psi <= 15; psi++ {
 			pduSessionID := uint8(psi)
@@ -196,7 +195,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 					logger.From(ctx, logger.AmfLog).Info("Sent GMM registration accept")
 				}
 
-				amf.SendDLNASTransport(ctx, ueConn, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
+				amf.SendDLNASTransport(ctx, ueConn, fgs.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
 
 				ue.ClearN1N2Message()
 
@@ -219,7 +218,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 			)
 
 			if n1Msg != nil {
-				nasPdu, err = amf.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil, nil)
+				nasPdu, err = amf.BuildDLNASTransport(ue, fgs.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil, nil)
 				if err != nil {
 					logger.From(ctx, logger.AmfLog).Warn("failed to build DL NAS transport", zap.Error(err))
 					return
