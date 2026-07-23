@@ -59,6 +59,14 @@ Without an XDP program on the receiving peer, the veth driver will not deliver r
 
 The solution is to attach a minimal XDP program that returns `XDP_PASS` to the peer veth. This satisfies the kernel's requirement and keeps packets on the fast native XDP path. See [Use native XDP with veth interfaces](../how_to/native_xdp_veth.md) for setup instructions.
 
+### Checksum offload on veth pairs
+
+When an application transmits over a veth interface, the kernel defers computing the transport checksum: the packet carries `CHECKSUM_PARTIAL` metadata recording where the egress NIC should write the checksum later. GTP-U traffic sent by a co-hosted radio therefore reaches Ella Core's N3 interface with an incomplete outer UDP checksum.
+
+In **generic XDP mode**, the kernel does not update this metadata when the data plane removes the GTP-U header. The recorded checksum location then points at the wrong offset, and depending on how the egress NIC driver consumes it, packets may be corrupted, dropped, or survive unharmed. The failure is invisible to the XDP counters. The typical symptom is a PDU session that establishes normally, with working ping and DNS, while TCP and large packets silently fail.
+
+The remedy is to disable TX checksum offload on both ends of the veth pair (`ethtool -K <veth> tx off`), forcing checksums to be completed in software before packets reach the data plane. Native XDP mode is not affected: redirected frames are forwarded as raw packets and carry no checksum-offload metadata.
+
 ### IPv6 GTP-U transport
 
 Ella Core supports GTP-U encapsulation with either an IPv4 or IPv6 outer header on the N3 / S1-U interface. The inner UE payload can be IPv4 or IPv6, independent of the transport address family. The chosen transport address family depends on how the N3 / S1-U interface is configured, and what the radio advertises. If both sides are dual-stack, Ella Core prefers IPv6.
