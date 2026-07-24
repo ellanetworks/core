@@ -24,10 +24,11 @@ const readBufSize uint32 = 131072
 
 var errNoInterfaceAddrs = errors.New("no IP addresses found")
 
+// RFC 4960 §15 suggested values, set explicitly to not depend on host net.sctp.* sysctls.
 var serverSocketConfig = SocketConfig{
 	InitMsg:   InitMsg{NumOstreams: 2, MaxInstreams: 5, MaxAttempts: 2, MaxInitTimeout: 2},
-	RtoInfo:   &RtoInfo{SrtoAssocID: 0, SrtoInitial: 500, SrtoMax: 1500, SrtoMin: 100},
-	AssocInfo: &AssocInfo{AsocMaxRxt: 4},
+	RtoInfo:   &RtoInfo{SrtoAssocID: 0, SrtoInitial: 3000, SrtoMax: 60000, SrtoMin: 1000},
+	AssocInfo: &AssocInfo{AsocMaxRxt: 10},
 }
 
 // Config parameterizes a Server for one RAN-facing signalling interface.
