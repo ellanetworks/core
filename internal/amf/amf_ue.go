@@ -258,12 +258,12 @@ func (a *AMF) AttachUeConn(ue *UeContext, ueConn *UeConn) {
 	displaced := a.attachUeConnLocked(ue, ueConn)
 	a.mu.Unlock()
 
-	// Release the displaced connection toward the gNB (TS 23.502 §4.2.6). It stays
-	// registered with its AMF-UE-NGAP-ID reserved until the Release Complete reaps it,
-	// so the gNB can reference it until then.
+	// Release the displaced connection toward the gNB (TS 23.502 §4.2.6, TS 38.413
+	// §8.3.3.1). It stays registered with its AMF-UE-NGAP-ID reserved until the Release
+	// Complete reaps it, so the gNB can reference it until then.
 	if displaced != nil {
 		displaced.SendUEContextReleaseCommand(context.Background(),
-			ngapType.CausePresentRadioNetwork, ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost)
+			ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 	}
 
 	a.clearPagingSuppression(context.Background(), ue)

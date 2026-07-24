@@ -612,7 +612,7 @@ func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn) 
 	m.stopPagingLocked(ue)
 
 	// A superseding connection detaches the old one but keeps its MME-UE-S1AP-ID
-	// reserved in m.conns: the eNB can reference it until it is released (TS 23.401 §4.11).
+	// reserved in m.conns: the eNB can reference it until it is released (TS 36.413 §8.3.3.1).
 	if old := ue.Conn(); old != nil {
 		m.clearHandoverLocked(ue)
 		m.stopNASGuardLocked(ue)

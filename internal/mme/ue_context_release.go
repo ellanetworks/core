@@ -17,11 +17,14 @@ import (
 // (S1AP §8.3 has no MME-side supervision timer, so this is a robustness guard).
 const releaseGuardTimeout = 5 * time.Second
 
-var causeSupersededConnection = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioConnectionWithUELost}
+// causeSupersededConnection is the release cause for the old S1 connection when a UE
+// re-establishes on a new one: a normal release of the superseded NAS signalling
+// connection (TS 36.413 §8.3.3.1).
+var causeSupersededConnection = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASNormalRelease}
 
 // releaseSupersededConn releases the detached old connection toward the eNB and guards
 // the Release Complete, so a lost Complete cannot leak the reserved MME-UE-S1AP-ID
-// (TS 23.401 §4.11).
+// (TS 36.413 §8.3.3.1).
 func (m *MME) releaseSupersededConn(ctx context.Context, c *UeConn) {
 	SendUEContextRelease(ctx, m, c.conn, c.MMEUES1APID, c.ENBUES1APID, true, causeSupersededConnection)
 
