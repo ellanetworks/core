@@ -401,21 +401,43 @@ func (m *MME) abandonHandover(ue *UeContext) {
 }
 
 // ReleaseDetachedConn removes a UE-associated connection that holds no UE context —
-// a handover source detached at HANDOVER NOTIFY, or a released target — when its UE
-// Context Release Complete arrives, identified by its own MME-UE-S1AP-ID (TS 36.413
-// §8.4). It reports whether it handled one.
+// a handover source detached at HANDOVER NOTIFY, a released target, or a connection
+// superseded by a UE re-establishing on a new one — when its UE Context Release
+// Complete arrives (or its release guard fires), identified by its own MME-UE-S1AP-ID
+// (TS 36.413 §8.3, §8.4). It reports whether it handled one.
 func (m *MME) ReleaseDetachedConn(conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID) bool {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	c, ok := m.conns[uint32(mmeUEID)]
 	if !ok || c.ue != nil || c.conn != conn || c.ENBUES1APID != enbUEID {
+		m.mu.Unlock()
+
 		return false
 	}
 
 	m.releaseConnIDLocked(uint32(mmeUEID))
 
+	m.mu.Unlock()
+
+	// Cancel any release-supervision guard (a superseded connection arms one) so it
+	// does not fire after the connection is already reaped. Stopped outside m.mu: the
+	// guard's own callback re-acquires it.
+	c.releaseGuard.Stop()
+
 	return true
+}
+
+// DetachedConn reports whether conn holds a UE-less (detached) connection with the
+// given S1AP ID pair — a superseded or handover-source association awaiting its Release
+// Complete. Its MME-UE-S1AP-ID is reserved but resolves to no UE, so a UE-associated
+// message naming it is answered from the detached state rather than as an unknown ID.
+func (m *MME) DetachedConn(conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	c, ok := m.conns[uint32(mmeUEID)]
+
+	return ok && c.ue == nil && c.conn == conn && c.ENBUES1APID == enbUEID
 }
 
 func SendHandoverPreparationFailure(ctx context.Context, m *MME, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, cause s1ap.Cause) {

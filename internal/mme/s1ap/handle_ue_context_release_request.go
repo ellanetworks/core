@@ -23,6 +23,16 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, radio *mme.R
 		return
 	}
 
+	// The eNB may request release of a connection the MME already superseded (a UE that
+	// re-established on a new one) and commanded to release; its request crossed the
+	// command. Re-issue the command so the eNB completes the procedure (TS 36.413
+	// §8.3.2.2), rather than the Error Indication resolveUE would send for an ID that
+	// resolves to no UE.
+	if m.DetachedConn(radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID) {
+		mme.SendUEContextRelease(ctx, m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID, true, msg.Cause)
+		return
+	}
+
 	ue, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return

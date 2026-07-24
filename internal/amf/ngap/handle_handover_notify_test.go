@@ -245,9 +245,13 @@ func TestHandoverNotify_FromNonTarget_Dropped(t *testing.T) {
 	amfInstance.MarkHandoverPrepared(amfUe, map[uint8]struct{}{1: {}})
 
 	// An impostor UeConn on the target radio carrying the same AMF UE context but not
-	// the prepared target sends the notify.
+	// the prepared target sends the notify. Adopting it supersedes the UE's current
+	// connection, which legitimately releases that superseded connection; the notify
+	// itself must not add any further release.
 	impostor := amf.NewUeConnForTest(targetRan, 3, 4, logger.AmfLog)
 	impostor.AMFForTest().AttachUeConn(amfUe, impostor)
+
+	releasesBeforeNotify := len(sourceNGAPSender.SentUEContextReleaseCommands)
 
 	ngap.HandleHandoverNotify(context.Background(), amfInstance, targetRan, decode.HandoverNotify{AMFUENGAPID: 4, RANUENGAPID: 3})
 
@@ -256,8 +260,9 @@ func TestHandoverNotify_FromNonTarget_Dropped(t *testing.T) {
 			fakeSmf.N2HandoverCompleteCalls, fakeSmf.ReleaseSmContextCalls)
 	}
 
-	if len(sourceNGAPSender.SentUEContextReleaseCommands) != 0 {
-		t.Fatalf("a notify from a non-target must not release the source, got %d", len(sourceNGAPSender.SentUEContextReleaseCommands))
+	if len(sourceNGAPSender.SentUEContextReleaseCommands) != releasesBeforeNotify {
+		t.Fatalf("a notify from a non-target must not release the source, got %d new release(s)",
+			len(sourceNGAPSender.SentUEContextReleaseCommands)-releasesBeforeNotify)
 	}
 
 	if !amfInstance.HandoverInProgress(amfUe) {

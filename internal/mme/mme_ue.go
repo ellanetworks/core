@@ -607,13 +607,26 @@ func (m *MME) NewUe(conn S1APWriter, enbUEID s1ap.ENBUES1APID) *UeContext {
 // its idle/paging supervision. The caller holds m.mu. Secure exchange is established
 // by the subsequent decode, not here (the bare connection carries the message that
 // establishes it).
-func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) {
+func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn) {
 	m.stopIdleTimersLocked(ue)
 	m.stopPagingLocked(ue)
-	// Release any connection the held context still had (a re-attach on a new
-	// connection supersedes the old one); the old RAN context is stale, so this is a
-	// local cleanup with no Release Command.
-	m.freeUeConnLocked(ue)
+
+	// A re-attach on a new connection supersedes the old one. Detach the old
+	// connection — keeping its MME-UE-S1AP-ID reserved (it stays in m.conns) — and
+	// return it so the caller releases it toward the eNB with a UE Context Release
+	// Command outside the registry lock (TS 23.401 §4.11, TS 36.413 §8.3.3.1). Dropping
+	// it silently would leave the eNB's context dangling and its later release request
+	// unanswerable.
+	if old := ue.Conn(); old != nil {
+		m.clearHandoverLocked(ue)
+		m.stopNASGuardLocked(ue)
+		ue.clearKeyChainProc()
+
+		old.ue = nil
+		ue.active.Store(nil)
+
+		superseded = old
+	}
 
 	// If c was bound to a transient context — a fresh Attach context superseded by a
 	// native-GUTI reuse — detach it there so that discarded context does not appear
@@ -627,14 +640,20 @@ func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) {
 
 	// Becoming connected is activity; refresh liveness at the bind point.
 	ue.TouchLastSeen()
+
+	return superseded
 }
 
 // AttachUeConn binds a bare connection to a held UE context under the registry lock,
 // releasing any superseded connection.
 func (m *MME) AttachUeConn(ue *UeContext, c *UeConn) {
 	m.mu.Lock()
-	m.attachUeConnLocked(ue, c)
+	superseded := m.attachUeConnLocked(ue, c)
 	m.mu.Unlock()
+
+	if superseded != nil {
+		m.releaseSupersededConn(context.Background(), superseded)
+	}
 
 	m.clearPagingSuppression(context.Background(), ue)
 }
