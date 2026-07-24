@@ -128,8 +128,9 @@ func TestSupersededConnectionIsReleasedTowardENB(t *testing.T) {
 
 // TestSupersededConnectionReleaseRequestGetsCommand checks that an eNB release request
 // for a superseded context is answered with a UE CONTEXT RELEASE COMMAND, not an Error
-// Indication (TS 36.413 §8.3.2.2).
-func TestSupersededConnectionReleaseRequestGetsCommand(t *testing.T) {
+// Indication (TS 36.413 §8.3.2.2). The proactive release is already in flight and
+// guarded, so the crossing request adds no Error Indication and no duplicate command.
+func TestSupersededConnectionReleaseRequestNoErrorIndication(t *testing.T) {
 	m := newTestMME(t)
 	ue, oldConn := securedUE(t, m)
 
@@ -147,17 +148,50 @@ func TestSupersededConnectionReleaseRequestGetsCommand(t *testing.T) {
 	before := oldConn.count()
 	handleUEContextReleaseRequest(m, context.Background(), mme.NewRadioForTest(oldConn), initiatingValue(t, relReq))
 
-	sent := oldConn.sent[before:]
-	if len(sent) != 1 {
-		t.Fatalf("expected exactly one S1AP response to the release request, got %d", len(sent))
+	for _, pdu := range oldConn.sent[before:] {
+		if isErrorIndication(t, pdu) {
+			t.Fatalf("release request for the superseded context (MME-UE-S1AP-ID %d) answered with "+
+				"ERROR INDICATION; want none (TS 36.413 §8.3.2.2)", oldMMEID)
+		}
 	}
 
-	if isErrorIndication(t, sent[0]) {
-		t.Fatalf("release request for the superseded context (MME-UE-S1AP-ID %d) answered with "+
-			"ERROR INDICATION; want UE CONTEXT RELEASE COMMAND (TS 36.413 §8.3.2.2)", oldMMEID)
+	if n := oldConn.count() - before; n != 0 {
+		t.Fatalf("crossing release request produced %d new PDU(s); want 0, a release is already in flight", n)
+	}
+}
+
+// TestDetachedReleaseRequestGuardsAndDedups covers the leak-proofing for a detached
+// connection that has no release in flight (a bare or handover-source association): the
+// first release request draws a command and arms the guard; a crossing second request is
+// suppressed.
+func TestDetachedReleaseRequestGuardsAndDedups(t *testing.T) {
+	m := newTestMME(t)
+	cc := &captureConn{}
+
+	const enbID s1ap.ENBUES1APID = 55
+
+	bare := m.NewUeConn(cc, enbID) // UE-less connection, as an Initial UE Message creates
+	if bare == nil {
+		t.Fatal("failed to allocate a bare connection")
 	}
 
-	if !isReleaseCommandFor(t, sent[0], oldMMEID, oldENBID) {
-		t.Fatalf("expected a UE CONTEXT RELEASE COMMAND for the superseded context")
+	cause := s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASNormalRelease}
+
+	if !m.AnswerDetachedRelease(context.Background(), cc, bare.MMEUES1APID, enbID, cause) {
+		t.Fatal("AnswerDetachedRelease did not match the detached connection")
 	}
+
+	if !isReleaseCommandFor(t, cc.sent[0], bare.MMEUES1APID, enbID) {
+		t.Fatalf("first release request did not draw a UE CONTEXT RELEASE COMMAND")
+	}
+
+	if !m.AnswerDetachedRelease(context.Background(), cc, bare.MMEUES1APID, enbID, cause) {
+		t.Fatal("AnswerDetachedRelease stopped matching the detached connection")
+	}
+
+	if cc.count() != 1 {
+		t.Fatalf("duplicate release command not suppressed while a release is in flight: %d commands", cc.count())
+	}
+
+	m.ReleaseDetachedConn(cc, bare.MMEUES1APID, enbID) // reap + stop the guard
 }

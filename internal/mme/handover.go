@@ -425,17 +425,6 @@ func (m *MME) ReleaseDetachedConn(conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enb
 	return true
 }
 
-// DetachedConn reports whether conn holds a UE-less connection (a superseded or
-// handover-source association) with the given S1AP ID pair.
-func (m *MME) DetachedConn(conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID) bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	c, ok := m.conns[uint32(mmeUEID)]
-
-	return ok && c.ue == nil && c.conn == conn && c.ENBUES1APID == enbUEID
-}
-
 func SendHandoverPreparationFailure(ctx context.Context, m *MME, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, cause s1ap.Cause) {
 	fail := &s1ap.HandoverPreparationFailure{MMEUES1APID: mmeUEID, ENBUES1APID: enbUEID, Cause: cause}
 
@@ -464,7 +453,7 @@ func SendUEContextRelease(ctx context.Context, m *MME, conn S1APWriter, mmeUEID 
 		return
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("UE Context Release Command (handover)", zap.Uint32("mme-ue-id", uint32(mmeUEID)))
+	logger.From(ctx, logger.MmeLog).Info("UE Context Release Command", zap.Uint32("mme-ue-id", uint32(mmeUEID)))
 	m.SendToRadio(ctx, conn, S1APProcedureUEContextReleaseCommand, b)
 }
 
