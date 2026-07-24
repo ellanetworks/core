@@ -141,6 +141,9 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
 
     Edit the file to match your network interfaces and desired configuration.
 
+    !!! note
+        This example uses `generic` XDP mode so it runs on any driver. For production, use `native` mode — see [XDP configuration](../explanation/user_plane_packet_processing_with_ebpf.md#configuration).
+
     Start the Ella Core container:
 
     ```shell
