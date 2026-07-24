@@ -40,7 +40,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
             - `cert` (string): The path to the TLS certificate file (optional).
             - `key` (string): The path to the TLS key file (optional).
 - `xdp` (object): The XDP configuration.
-    - `attach-mode` (string): The XDP attach mode. Options are `native` and `generic`. `native` is the most performant option and only works on supported drivers.
+    - `attach-mode` (string): The XDP attach mode. `native` is the production option (highest performance) and requires a compatible driver; `generic` is a driver-independent fallback for prototyping and test/development.
 - `telemetry` (object): The telemetry configuration.
     - `enabled` (boolean): Whether telemetry is enabled or not. Default is `false`.
     - `otlp-endpoint` (string): The endpoint for the OpenTelemetry Protocol (OTLP) collector.
