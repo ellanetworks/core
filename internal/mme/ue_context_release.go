@@ -17,17 +17,11 @@ import (
 // (S1AP §8.3 has no MME-side supervision timer, so this is a robustness guard).
 const releaseGuardTimeout = 5 * time.Second
 
-// causeSupersededConnection releases the old S1 connection when a UE re-establishes on
-// a new one: the radio connection on the old association is lost (TS 36.413 §9.2.1.3),
-// the same reason the eNB reports for the stale context (TS 23.401 §4.11).
 var causeSupersededConnection = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioConnectionWithUELost}
 
-// releaseSupersededConn commands the eNB to release a connection the UE has left for a
-// new one and supervises the Release Complete, so a lost Complete — or an eNB that has
-// already dropped the context — cannot leak the reserved MME-UE-S1AP-ID (TS 36.413
-// §8.3; TS 23.401 §4.11). The connection stays detached in m.conns until its Release
-// Complete or this guard reaps it, so the identifier is never reused while the eNB may
-// still reference it.
+// releaseSupersededConn releases the detached old connection toward the eNB and guards
+// the Release Complete, so a lost Complete cannot leak the reserved MME-UE-S1AP-ID
+// (TS 23.401 §4.11).
 func (m *MME) releaseSupersededConn(ctx context.Context, c *UeConn) {
 	SendUEContextRelease(ctx, m, c.conn, c.MMEUES1APID, c.ENBUES1APID, true, causeSupersededConnection)
 

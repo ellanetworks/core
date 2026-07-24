@@ -13,10 +13,9 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// resumeOntoNewConnection registers a secured, ECM-CONNECTED UE on oldConn
-// (eNB-UE-S1AP-ID 7) and then has it re-establish on a new S1 connection via a
-// verified TRACKING AREA UPDATE, mirroring the flow from issue #1482. It returns the
-// old connection's MME/eNB S1AP IDs.
+// resumeOntoNewConnection re-establishes ue on a new S1 connection (eNB-UE-S1AP-ID
+// 1001) via a verified TRACKING AREA UPDATE and returns the superseded connection's
+// S1AP ID pair.
 func resumeOntoNewConnection(t *testing.T, m *mme.MME, ue *mme.UeContext) (oldMMEID s1ap.MMEUES1APID, oldENBID s1ap.ENBUES1APID) {
 	t.Helper()
 
@@ -105,11 +104,9 @@ func isErrorIndication(t *testing.T, pdu []byte) bool {
 	return ok && im.ProcedureCode == s1ap.ProcErrorIndication
 }
 
-// TestSupersededConnectionIsReleasedTowardENB verifies the fix for the 4G/S1AP side of
-// issue #1482: when a UE re-establishes on a new S1 connection, the MME must release
-// the old (superseded) connection toward the eNB with a UE CONTEXT RELEASE COMMAND
-// (TS 23.401 §4.11, TS 36.413 §8.3.3.1) — not drop it silently, which leaves the eNB's
-// stale context dangling and its later release request unanswerable.
+// TestSupersededConnectionIsReleasedTowardENB checks that re-establishing a UE on a new
+// S1 connection releases the superseded one toward the eNB with a UE CONTEXT RELEASE
+// COMMAND (TS 23.401 §4.11, TS 36.413 §8.3.3.1).
 func TestSupersededConnectionIsReleasedTowardENB(t *testing.T) {
 	m := newTestMME(t)
 	ue, oldConn := securedUE(t, m) // ECM-CONNECTED on oldConn, eNB-UE-S1AP-ID 7
@@ -125,15 +122,13 @@ func TestSupersededConnectionIsReleasedTowardENB(t *testing.T) {
 	}
 
 	if !released {
-		t.Fatalf("issue #1482: MME did not send a UE CONTEXT RELEASE COMMAND for the superseded "+
-			"context (MME-UE-S1AP-ID %d); it dropped the old S1 connection silently", oldMMEID)
+		t.Fatalf("no UE CONTEXT RELEASE COMMAND sent for the superseded context (MME-UE-S1AP-ID %d)", oldMMEID)
 	}
 }
 
-// TestSupersededConnectionReleaseRequestGetsCommand verifies that an eNB release
-// request for the superseded context — one that crossed the MME's own release command —
-// is answered with a UE CONTEXT RELEASE COMMAND (TS 36.413 §8.3.2.2), never an Error
-// Indication with unknown-mme-ue-s1ap-id.
+// TestSupersededConnectionReleaseRequestGetsCommand checks that an eNB release request
+// for a superseded context is answered with a UE CONTEXT RELEASE COMMAND, not an Error
+// Indication (TS 36.413 §8.3.2.2).
 func TestSupersededConnectionReleaseRequestGetsCommand(t *testing.T) {
 	m := newTestMME(t)
 	ue, oldConn := securedUE(t, m)
@@ -158,9 +153,8 @@ func TestSupersededConnectionReleaseRequestGetsCommand(t *testing.T) {
 	}
 
 	if isErrorIndication(t, sent[0]) {
-		t.Fatalf("issue #1482: MME answered the eNB's release request for the superseded context "+
-			"(MME-UE-S1AP-ID %d) with ERROR INDICATION; TS 36.413 §8.3.2.2 requires a UE CONTEXT "+
-			"RELEASE COMMAND", oldMMEID)
+		t.Fatalf("release request for the superseded context (MME-UE-S1AP-ID %d) answered with "+
+			"ERROR INDICATION; want UE CONTEXT RELEASE COMMAND (TS 36.413 §8.3.2.2)", oldMMEID)
 	}
 
 	if !isReleaseCommandFor(t, sent[0], oldMMEID, oldENBID) {

@@ -245,9 +245,8 @@ func TestHandoverNotify_FromNonTarget_Dropped(t *testing.T) {
 	amfInstance.MarkHandoverPrepared(amfUe, map[uint8]struct{}{1: {}})
 
 	// An impostor UeConn on the target radio carrying the same AMF UE context but not
-	// the prepared target sends the notify. Adopting it supersedes the UE's current
-	// connection, which legitimately releases that superseded connection; the notify
-	// itself must not add any further release.
+	// the prepared target sends the notify. Adopting it releases the superseded
+	// connection; the notify must add no further release.
 	impostor := amf.NewUeConnForTest(targetRan, 3, 4, logger.AmfLog)
 	impostor.AMFForTest().AttachUeConn(amfUe, impostor)
 

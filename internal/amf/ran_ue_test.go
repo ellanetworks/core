@@ -34,9 +34,8 @@ func newBoundUeContext(t *testing.T, radio *amf.Radio) (*amf.UeContext, *amf.UeC
 	return ue, ueConn
 }
 
-// A UE re-attaching on a new connection must release its previous connection toward the
-// gNB and keep it detached (its AMF-UE-NGAP-ID reserved) until the Release Complete
-// reaps it, so the displaced UeConn is neither dropped silently nor leaked.
+// A UE re-attaching on a new connection releases its previous connection toward the gNB
+// and keeps it detached (its AMF-UE-NGAP-ID reserved) until the Release Complete reaps it.
 func TestAttachUeConn_ReleasesDisplacedConn(t *testing.T) {
 	radio := newTestRadioForUeConn()
 
@@ -49,9 +48,8 @@ func TestAttachUeConn_ReleasesDisplacedConn(t *testing.T) {
 	second := amf.NewUeConnForTest(radio, 2, 11, logger.AmfLog)
 	amfInstance.AttachUeConn(ue, second)
 
-	// The displaced connection is detached from the UE (and commanded to release
-	// toward the gNB) but kept in the registry with its AMF-UE-NGAP-ID reserved, so the
-	// identifier cannot be reused while the gNB may still reference it.
+	// The displaced connection stays registered with its AMF-UE-NGAP-ID reserved until
+	// its Release Complete, so the gNB can reference it until then.
 	if first.UeContext() != nil {
 		t.Fatal("displaced UeConn was not detached from the UE after re-attach")
 	}
@@ -64,8 +62,7 @@ func TestAttachUeConn_ReleasesDisplacedConn(t *testing.T) {
 		t.Fatal("new UeConn is not the UE's active connection after re-attach")
 	}
 
-	// The gNB's Release Complete (its supervision guard stopped, as the real handler
-	// does) reaps the detached connection and frees its AMF-UE-NGAP-ID.
+	// A Release Complete reaps the detached connection and frees its AMF-UE-NGAP-ID.
 	first.StopReleaseGuard()
 	amfInstance.ReleaseUeConn(context.Background(), first)
 

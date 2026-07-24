@@ -258,12 +258,9 @@ func (a *AMF) AttachUeConn(ue *UeContext, ueConn *UeConn) {
 	displaced := a.attachUeConnLocked(ue, ueConn)
 	a.mu.Unlock()
 
-	// The UE re-established on a new connection, so the AMF must release the old NG
-	// connection toward the gNB (TS 23.502 §4.2.3.2, §4.2.6): the gNB may still hold
-	// the old RAN context and would otherwise leave it dangling and answer no later
-	// release request. SendUEContextReleaseCommand keeps the displaced UeConn (and its
-	// AMF-UE-NGAP-ID) registered until the Release Complete — or the release guard —
-	// reaps it, so the identifier is never reused while the gNB may still reference it.
+	// Release the displaced connection toward the gNB (TS 23.502 §4.2.6). It stays
+	// registered with its AMF-UE-NGAP-ID reserved until the Release Complete reaps it,
+	// so the gNB can reference it until then.
 	if displaced != nil {
 		displaced.SendUEContextReleaseCommand(context.Background(),
 			ngapType.CausePresentRadioNetwork, ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost)

@@ -603,20 +603,16 @@ func (m *MME) NewUe(conn S1APWriter, enbUEID s1ap.ENBUES1APID) *UeContext {
 
 // attachUeConnLocked binds the bare connection c to a held UE context — a returning
 // UE resuming from ECM-IDLE (S-TMSI) or reusing a native GUTI onto the connection its
-// Initial UE Message created — releasing any connection ue still holds and stopping
-// its idle/paging supervision. The caller holds m.mu. Secure exchange is established
-// by the subsequent decode, not here (the bare connection carries the message that
-// establishes it).
+// Initial UE Message created — detaching any connection ue still holds (returned as
+// superseded) and stopping its idle/paging supervision. The caller holds m.mu. Secure
+// exchange is established by the subsequent decode, not here (the bare connection
+// carries the message that establishes it).
 func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn) {
 	m.stopIdleTimersLocked(ue)
 	m.stopPagingLocked(ue)
 
-	// A re-attach on a new connection supersedes the old one. Detach the old
-	// connection — keeping its MME-UE-S1AP-ID reserved (it stays in m.conns) — and
-	// return it so the caller releases it toward the eNB with a UE Context Release
-	// Command outside the registry lock (TS 23.401 §4.11, TS 36.413 §8.3.3.1). Dropping
-	// it silently would leave the eNB's context dangling and its later release request
-	// unanswerable.
+	// A superseding connection detaches the old one but keeps its MME-UE-S1AP-ID
+	// reserved in m.conns: the eNB can reference it until it is released (TS 23.401 §4.11).
 	if old := ue.Conn(); old != nil {
 		m.clearHandoverLocked(ue)
 		m.stopNASGuardLocked(ue)
