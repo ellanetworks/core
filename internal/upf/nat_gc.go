@@ -43,9 +43,7 @@ const (
 const (
 	natStateEstablished = 1
 
-	natClosedUE     = 0x1
-	natClosedRemote = 0x2
-	natClosedBoth   = natClosedUE | natClosedRemote
+	natClosed = 0x1
 
 	protoICMP = 1
 	protoTCP  = 6
@@ -56,7 +54,7 @@ func natEntryTimeout(proto uint16, state, replied, closed uint8) time.Duration {
 	switch proto {
 	case protoTCP:
 		switch {
-		case closed == natClosedBoth:
+		case closed != 0:
 			return natTCPClosedTimeout
 		case state == natStateEstablished:
 			return natTCPEstablishedTimeout

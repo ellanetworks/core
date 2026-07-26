@@ -27,11 +27,8 @@ type natProto struct {
 
 const natICMPID = 0xbeef
 
-// Mirrors NAT_CT_CLOSED_UE / NAT_CT_CLOSED_REMOTE in nat.h.
-const (
-	natClosedUE     = 0x1
-	natClosedRemote = 0x2
-)
+// Mirrors NAT_CT_CLOSED in nat.h.
+const natClosed = 0x1
 
 var natProtos = []natProto{
 	{
@@ -497,10 +494,13 @@ func TestNATICMPErrorFromRouter(t *testing.T) {
 	}
 }
 
-// TestNATICMPErrorFromUE checks that an ICMP error a UE sends outbound has the
-// packet it quotes reverted to the translated form (RFC 5508 REQ-5), so the
-// remote can match the error to its socket and the UE address stays private.
-func TestNATICMPErrorFromUE(t *testing.T) {
+// TestNATICMPErrorFromUEForwarded pins the accepted position on ICMP errors a
+// UE sends outbound: the outer source is translated and the error is
+// forwarded, but the packet it quotes keeps the UE address, so the remote
+// cannot match the error to its socket. Translating the quote as well was
+// removed because the ownership check it needed broke error signalling for
+// hosts behind a framed route.
+func TestNATICMPErrorFromUEForwarded(t *testing.T) {
 	requireProgTestRun(t)
 
 	const (
@@ -519,8 +519,6 @@ func TestNATICMPErrorFromUE(t *testing.T) {
 
 	capFD := f.captureN6(t)
 
-	// The UE answers a server datagram with port-unreachable, quoting the
-	// packet as it arrived: server -> UE.
 	quotedUDP := udpDatagramChecksummed(serverIP, ueIP, srvDP, ueSP, nil)
 	quoted := ipv4Packet(serverIP, ueIP, 17, quotedUDP)
 
@@ -540,7 +538,6 @@ func TestNATICMPErrorFromUE(t *testing.T) {
 	}
 
 	ip := got[ethHdrLen : ethHdrLen+20]
-	icmp := got[ethHdrLen+20:]
 
 	if !bytes.Equal(ip[12:16], natPublicIP[:]) {
 		t.Errorf("outer src = %v, want %v (source-NAT'd)", ip[12:16], natPublicIP)
@@ -548,65 +545,6 @@ func TestNATICMPErrorFromUE(t *testing.T) {
 
 	if !validIPv4Checksum(ip) {
 		t.Error("outer IPv4 header checksum invalid")
-	}
-
-	if !validICMPChecksum(icmp) {
-		t.Error("ICMP checksum invalid after quoting rewrite")
-	}
-
-	embedded := icmp[8:]
-	if len(embedded) < 28 {
-		t.Fatalf("quote too short: %d bytes", len(embedded))
-	}
-
-	if !bytes.Equal(embedded[16:20], natPublicIP[:]) {
-		t.Errorf("quoted destination = %v, want %v (the address the server sent to)", embedded[16:20], natPublicIP)
-	}
-
-	if !bytes.Equal(embedded[12:16], serverIP[:]) {
-		t.Errorf("quoted source = %v, want %v (preserved)", embedded[12:16], serverIP)
-	}
-
-	if dp := binary.BigEndian.Uint16(embedded[22:24]); dp != ueSP {
-		t.Errorf("quoted destination port = %d, want %d (the mapped port)", dp, ueSP)
-	}
-
-	if !validIPv4Checksum(embedded[:20]) {
-		t.Error("quoted IPv4 header checksum invalid after rewrite")
-	}
-
-	if !validIPv4L4Checksum(serverIP, natPublicIP, 17, embedded[20:28]) {
-		t.Error("quoted UDP checksum invalid after rewrite")
-	}
-}
-
-// TestNATDropsUnmappedICMPErrorFromUE checks that a UE-originated ICMP error
-// quoting a packet with no mapping is dropped rather than forwarded with an
-// untranslated quote (RFC 5508 REQ-5).
-func TestNATDropsUnmappedICMPErrorFromUE(t *testing.T) {
-	requireProgTestRun(t)
-
-	const teid = 0x4E415414
-
-	f := setupT2(t, true)
-	putForwardingUplinkPDRUE(t, f.obj, teid, 0, netip.AddrFrom4(ueIP), netip.Addr{})
-
-	capFD := f.captureN6(t)
-
-	quoted := ipv4Packet(serverIP, ueIP, 17, udpDatagramChecksummed(serverIP, ueIP, 9999, 8888, nil))
-
-	icmpErr := make([]byte, 8+len(quoted))
-	icmpErr[0] = 3
-	icmpErr[1] = 3
-	copy(icmpErr[8:], quoted)
-	binary.BigEndian.PutUint16(icmpErr[2:4], onesComplement16(icmpErr))
-
-	f.injectUplink(t, uplinkGPDU(teid, ipv4Packet(ueIP, serverIP, 1, icmpErr)))
-
-	if got := captureMatching(capFD, 500*time.Millisecond, func(fr []byte) bool {
-		return isInnerIPv4(fr, 1, serverIP)
-	}); got != nil {
-		t.Errorf("ICMP error quoting an unmapped packet egressed on N6: %x", got)
 	}
 }
 
@@ -858,124 +796,32 @@ func TestNATConntrackDirectionAndState(t *testing.T) {
 		t.Errorf("after handshake ACK: state=%d, want 1 (established)", ue.State)
 	}
 
-	// UE FIN: the UE direction closes, the remote one stays open.
+	// The subscriber closes: the connection moves to the closed class.
 	sendUplink(0x11)
 
-	if ue = lookupNatEntry(t, f, ueKey); ue.Closed != natClosedUE {
-		t.Errorf("after UE FIN: closed=%#x, want %#x (UE side only)", ue.Closed, natClosedUE)
+	if ue = lookupNatEntry(t, f, ueKey); ue.Closed != natClosed {
+		t.Errorf("after UE FIN: closed=%#x, want %#x", ue.Closed, natClosed)
 	}
 
-	// The close handshake's final ACK must not clear the closed bits.
+	// The close handshake's final ACK must not clear it.
 	sendUplink(0x10)
 
-	if ue = lookupNatEntry(t, f, ueKey); ue.Closed != natClosedUE {
-		t.Errorf("after post-FIN ACK: closed=%#x, want %#x", ue.Closed, natClosedUE)
-	}
-
-	// Server FIN: both directions closed.
-	capFD = f.captureN3(t)
-	f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(serverIP, natPublicIP, 6, tcpSegmentWithFlags(serverIP, natPublicIP, srvDP, ueSP, 0x11))))
-
-	if captureMatching(capFD, time.Second, func(fr []byte) bool { return gtpInner(fr) != nil }) == nil {
-		t.Fatal("downlink FIN did not egress on N3")
-	}
-
-	if ue = lookupNatEntry(t, f, ueKey); ue.Closed != natClosedUE|natClosedRemote {
-		t.Errorf("after server FIN: closed=%#x, want %#x (both sides)", ue.Closed, natClosedUE|natClosedRemote)
+	if ue = lookupNatEntry(t, f, ueKey); ue.Closed != natClosed {
+		t.Errorf("after post-FIN ACK: closed=%#x, want %#x", ue.Closed, natClosed)
 	}
 }
 
-// TestNATInboundResetPolicy verifies how much an unvalidated inbound RST is
-// trusted: on a flow with no observed handshake it closes both directions,
-// because the connection is evidence-free; on an established one it closes
-// only the remote direction, so a forged segment cannot reap a live session.
-func TestNATInboundResetPolicy(t *testing.T) {
+// TestNATInboundResetDoesNotClose verifies that an inbound FIN or RST leaves
+// the mapping alone: neither carries sequence validation, so honouring one
+// would let anyone who guesses a tuple shorten a subscriber's connection. Only
+// the subscriber's own close, whose source address was checked against the
+// session, moves the connection to the closed class.
+func TestNATInboundResetDoesNotClose(t *testing.T) {
 	requireProgTestRun(t)
 
 	const (
 		ulTEID = 0x4E41540C
 		dlTEID = 0x4E41540D
-		qfi    = 7
-		srvDP  = 80
-	)
-
-	f := setupT2(t, true)
-	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
-	putDownlinkPDR(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, qfi)
-
-	sendUplink := func(t *testing.T, sport uint16, flags byte) {
-		t.Helper()
-
-		capFD := f.captureN6(t)
-		seg := tcpSegmentWithFlags(ueIP, serverIP, sport, srvDP, flags)
-		f.injectUplink(t, uplinkGPDU(ulTEID, ipv4Packet(ueIP, serverIP, 6, seg)))
-
-		if captureMatching(capFD, time.Second, func(fr []byte) bool {
-			return isInnerIPv4(fr, 6, serverIP)
-		}) == nil {
-			t.Fatal("uplink packet did not egress on N6")
-		}
-	}
-
-	sendDownlink := func(t *testing.T, dport uint16, flags byte) {
-		t.Helper()
-
-		capFD := f.captureN3(t)
-		seg := tcpSegmentWithFlags(serverIP, natPublicIP, srvDP, dport, flags)
-		f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(serverIP, natPublicIP, 6, seg)))
-
-		if captureMatching(capFD, time.Second, func(fr []byte) bool {
-			return gtpInner(fr) != nil
-		}) == nil {
-			t.Fatal("downlink packet did not egress on N3")
-		}
-	}
-
-	t.Run("unestablished closes both", func(t *testing.T) {
-		const sport = 1234
-
-		sendUplink(t, sport, 0x02) // SYN
-		sendDownlink(t, sport, 0x04)
-
-		ue := lookupNatEntry(t, f, natFiveTuple(ueIP, serverIP, sport, srvDP, 6))
-		if ue.Closed != natClosedUE|natClosedRemote {
-			t.Errorf("after RST on an unestablished flow: closed=%#x, want %#x",
-				ue.Closed, natClosedUE|natClosedRemote)
-		}
-	})
-
-	t.Run("established closes remote only", func(t *testing.T) {
-		const sport = 1235
-
-		sendUplink(t, sport, 0x02)   // SYN
-		sendDownlink(t, sport, 0x12) // SYN|ACK
-		sendUplink(t, sport, 0x10)   // ACK completes the handshake
-
-		ue := lookupNatEntry(t, f, natFiveTuple(ueIP, serverIP, sport, srvDP, 6))
-		if ue.State != 1 {
-			t.Fatalf("handshake did not establish the flow: state=%d", ue.State)
-		}
-
-		sendDownlink(t, sport, 0x04) // RST
-
-		ue = lookupNatEntry(t, f, natFiveTuple(ueIP, serverIP, sport, srvDP, 6))
-		if ue.Closed != natClosedRemote {
-			t.Errorf("after RST on an established flow: closed=%#x, want %#x",
-				ue.Closed, natClosedRemote)
-		}
-	})
-}
-
-// TestNATSynRetransmitDoesNotRenew verifies that a SYN on a flow the remote
-// has never answered leaves the lifetime where it was: a UE retransmitting to
-// an unresponsive destination must not be able to hold a mapping, and the
-// port it reserves, open indefinitely.
-func TestNATSynRetransmitDoesNotRenew(t *testing.T) {
-	requireProgTestRun(t)
-
-	const (
-		ulTEID = 0x4E415416
-		dlTEID = 0x4E415417
 		qfi    = 7
 		ueSP   = 1234
 		srvDP  = 80
@@ -999,30 +845,32 @@ func TestNATSynRetransmitDoesNotRenew(t *testing.T) {
 		}
 	}
 
-	sendUplink(0x02) // SYN
+	sendDownlink := func(flags byte) {
+		capFD := f.captureN3(t)
+		seg := tcpSegmentWithFlags(serverIP, natPublicIP, srvDP, ueSP, flags)
+		f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(serverIP, natPublicIP, 6, seg)))
 
-	first := lookupNatEntry(t, f, ueKey).RefreshTs
-
-	time.Sleep(50 * time.Millisecond)
-	sendUplink(0x02) // SYN retransmit, still unanswered
-
-	if got := lookupNatEntry(t, f, ueKey).RefreshTs; got != first {
-		t.Errorf("refresh_ts moved on an unanswered SYN retransmit: %d -> %d", first, got)
+		if captureMatching(capFD, time.Second, func(fr []byte) bool {
+			return gtpInner(fr) != nil
+		}) == nil {
+			t.Fatal("downlink packet did not egress on N3")
+		}
 	}
 
-	// Once the remote answers, traffic refreshes normally again.
-	capFD := f.captureN3(t)
-	f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(serverIP, natPublicIP, 6,
-		tcpSegmentWithFlags(serverIP, natPublicIP, srvDP, ueSP, 0x12))))
+	sendUplink(0x02)   // SYN
+	sendDownlink(0x12) // SYN|ACK
+	sendUplink(0x10)   // ACK
 
-	if captureMatching(capFD, time.Second, func(fr []byte) bool { return gtpInner(fr) != nil }) == nil {
-		t.Fatal("downlink SYN-ACK did not egress on N3")
+	sendDownlink(0x04) // an unvalidated inbound RST
+
+	if ue := lookupNatEntry(t, f, ueKey); ue.Closed != 0 {
+		t.Errorf("after inbound RST: closed=%#x, want 0 (an inbound reset must not close a mapping)", ue.Closed)
 	}
 
-	sendUplink(0x10) // ACK
+	sendUplink(0x11) // the subscriber's own FIN
 
-	if got := lookupNatEntry(t, f, ueKey).RefreshTs; got == first {
-		t.Error("refresh_ts did not move once the flow was answered")
+	if ue := lookupNatEntry(t, f, ueKey); ue.Closed != natClosed {
+		t.Errorf("after UE FIN: closed=%#x, want %#x", ue.Closed, natClosed)
 	}
 }
 

@@ -44,5 +44,4 @@ struct upf_statistic {
 	__u64 nat_port_exhausted_drop_ip4;
 	__u64 nat_unsupported_proto_drop_ip4;
 	__u64 nat_malformed_drop_ip4;
-	__u64 nat_icmp_untranslatable_drop_ip4;
 };

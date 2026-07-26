@@ -39,11 +39,7 @@ func TestNatEntryTimeout(t *testing.T) {
 	}{
 		{"tcp new", protoTCP, 0, 0, 0, natTCPTransitoryTimeout},
 		{"tcp established", protoTCP, natStateEstablished, 1, 0, natTCPEstablishedTimeout},
-		// RFC 5382 §5: one FIN leaves the connection in the established
-		// phase, so the peer may still send indefinitely.
-		{"tcp half-closed by ue", protoTCP, natStateEstablished, 1, natClosedUE, natTCPEstablishedTimeout},
-		{"tcp half-closed by remote", protoTCP, natStateEstablished, 1, natClosedRemote, natTCPEstablishedTimeout},
-		{"tcp closed", protoTCP, natStateEstablished, 1, natClosedBoth, natTCPClosedTimeout},
+		{"tcp closed by subscriber", protoTCP, natStateEstablished, 1, natClosed, natTCPClosedTimeout},
 		{"udp unreplied", protoUDP, 0, 0, 0, natUDPUnrepliedTimeout},
 		{"udp replied", protoUDP, 0, 1, 0, natUDPRepliedTimeout},
 		{"icmp", protoICMP, 0, 1, 0, natICMPTimeout},
@@ -72,13 +68,7 @@ func TestNatExpiredKeysPairsAndTimeouts(t *testing.T) {
 
 	closedUEKey := natTuple(3, 3000, protoTCP)
 	closedNATKey := natTuple(100, 3000, protoTCP)
-	closedUE, closedNAT := pair(closedUEKey, closedNATKey, nowNs, 30*time.Second, natStateEstablished, 1, natClosedBoth)
-
-	// Half-closed and idle for an hour: still inside the established
-	// timeout, because the peer may keep sending after one FIN.
-	halfClosedUEKey := natTuple(6, 6000, protoTCP)
-	halfClosedNATKey := natTuple(100, 6000, protoTCP)
-	halfClosedUE, halfClosedNAT := pair(halfClosedUEKey, halfClosedNATKey, nowNs, time.Hour, natStateEstablished, 1, natClosedUE)
+	closedUE, closedNAT := pair(closedUEKey, closedNATKey, nowNs, 30*time.Second, natStateEstablished, 1, natClosed)
 
 	udpProbeUEKey := natTuple(4, 4000, protoUDP)
 	udpProbeNATKey := natTuple(100, 4000, protoUDP)
@@ -95,8 +85,6 @@ func TestNatExpiredKeysPairsAndTimeouts(t *testing.T) {
 		deadNATKey:       deadNAT,
 		closedUEKey:      closedUE,
 		closedNATKey:     closedNAT,
-		halfClosedUEKey:  halfClosedUE,
-		halfClosedNATKey: halfClosedNAT,
 		udpProbeUEKey:    udpProbeUE,
 		udpProbeNATKey:   udpProbeNAT,
 		udpRepliedUEKey:  udpRepliedUE,

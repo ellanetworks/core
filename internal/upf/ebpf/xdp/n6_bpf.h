@@ -120,6 +120,7 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 {
 	bool translated = false;
+	bool counted = false;
 	struct nat_undo undo = {};
 	/* A fragment has no usable L4 header, so it cannot be translated. It
 	 * still reaches the lookups below: traffic addressed to this host is
@@ -127,7 +128,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	const bool fragment = ctx->ip4->frag_off & bpf_htons(IP4_FRAG_MASK);
 	if (masquerade && !fragment) {
 		PROFILE_START(PROF_N6_NAT);
-		translated = destination_nat(ctx, &undo);
+		translated = destination_nat(ctx, &undo, &counted);
 		PROFILE_END(PROF_N6_NAT);
 	}
 	const struct iphdr *ip4 = ctx->ip4;
@@ -147,9 +148,14 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		}
 		if (!pdr) {
 			upf_printk("upf: no downlink session for ip:%pI4", &ip4->daddr);
-			/* The stack must not see a packet carrying a UE
-			 * address this session no longer owns. */
-			nat_undo_apply(ctx, &undo);
+			/* A translated packet belongs to a session that is
+			 * gone: the stack has no use for it, and it carries a
+			 * UE address this session no longer owns. */
+			if (translated) {
+				ctx->statistics->nat_unsolicited_drop_ip4 += 1;
+				return XDP_DROP;
+			}
+
 			return DEFAULT_XDP_ACTION;
 		}
 	}
@@ -158,9 +164,11 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	 * §5.8.2.2.1): untranslated downlink to a UE is unsolicited. */
 	if (masquerade && !translated) {
 		upf_printk("upf: unsolicited downlink for ip:%pI4", &ip4->daddr);
+		/* destination_nat counts the reasons it recognises; anything
+		 * left is a packet nothing solicited. */
 		if (fragment) {
 			ctx->statistics->nat_fragment_drop_ip4 += 1;
-		} else {
+		} else if (!counted) {
 			ctx->statistics->nat_unsolicited_drop_ip4 += 1;
 		}
 		account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, DROP);

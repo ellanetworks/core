@@ -298,7 +298,12 @@ int upf_downlink_func(struct xdp_md *ctx)
 /* upf_entry_func: attached to the N3/N6 interface(s). Classifies by packet type
  * — GTP-U (UDP :2152) is uplink, everything else is downlink — and tail-calls
  * the matching stage. Packet-type classification (not interface) keeps this
- * correct when N3 and N6 share one interface. */
+ * correct when N3 and N6 share one interface.
+ *
+ * Where the two are distinct interfaces the shape alone is not enough: uplink
+ * traffic is attributed to a subscriber and source-NATed on its behalf, so a
+ * GTP-U-shaped packet from the data network must not be able to claim that
+ * treatment. There the ingress interface decides. */
 SEC("xdp/upf_entry")
 int upf_entry_func(struct xdp_md *ctx)
 {
@@ -316,16 +321,23 @@ int upf_entry_func(struct xdp_md *ctx)
 		return XDP_PASS;
 	}
 
+	const bool split_interfaces = n3_ifindex != 0 && n6_ifindex != 0 &&
+				      n3_ifindex != n6_ifindex;
+	const bool gtpu_allowed = !split_interfaces ||
+				  ctx->ingress_ifindex == (__u32)n3_ifindex;
+
 	if (l3_protocol == ETH_P_IP) {
 		if (parse_ip4(&context) == IPPROTO_UDP) {
 			struct udphdr *udp = detect_udp_header(&context, 0);
-			if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT)
+			if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT &&
+			    gtpu_allowed)
 				index = UPF_CALL_UPLINK;
 		}
 	} else if (l3_protocol == ETH_P_IPV6) {
 		if (parse_ip6(&context) == IPPROTO_UDP) {
 			struct udphdr *udp = detect_udp_header(&context, 0);
-			if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT)
+			if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT &&
+			    gtpu_allowed)
 				index = UPF_CALL_UPLINK;
 		}
 	} else {
