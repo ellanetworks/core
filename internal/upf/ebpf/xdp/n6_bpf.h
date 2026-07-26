@@ -121,15 +121,11 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 {
 	bool translated = false;
 	struct nat_undo undo = {};
-	if (masquerade) {
-		/* A fragment has no usable L4 header: translating one would
-		 * rewrite payload bytes, and its siblings could not be
-		 * translated at all. */
-		if (ctx->ip4->frag_off & bpf_htons(IP4_FRAG_MASK)) {
-			ctx->statistics->nat_fragment_drop_ip4 += 1;
-			return XDP_DROP;
-		}
-
+	/* A fragment has no usable L4 header, so it cannot be translated. It
+	 * still reaches the lookups below: traffic addressed to this host is
+	 * not ours to drop. */
+	const bool fragment = ctx->ip4->frag_off & bpf_htons(IP4_FRAG_MASK);
+	if (masquerade && !fragment) {
 		PROFILE_START(PROF_N6_NAT);
 		translated = destination_nat(ctx, &undo);
 		PROFILE_END(PROF_N6_NAT);
@@ -151,6 +147,9 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		}
 		if (!pdr) {
 			upf_printk("upf: no downlink session for ip:%pI4", &ip4->daddr);
+			/* The stack must not see a packet carrying a UE
+			 * address this session no longer owns. */
+			nat_undo_apply(ctx, &undo);
 			return DEFAULT_XDP_ACTION;
 		}
 	}
@@ -159,7 +158,11 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	 * §5.8.2.2.1): untranslated downlink to a UE is unsolicited. */
 	if (masquerade && !translated) {
 		upf_printk("upf: unsolicited downlink for ip:%pI4", &ip4->daddr);
-		ctx->statistics->nat_unsolicited_drop_ip4 += 1;
+		if (fragment) {
+			ctx->statistics->nat_fragment_drop_ip4 += 1;
+		} else {
+			ctx->statistics->nat_unsolicited_drop_ip4 += 1;
+		}
 		account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, DROP);
 		return XDP_DROP;
 	}
@@ -188,7 +191,11 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		upf_printk("upf: n6 packet too large");
 		mtu_len -= encap_size;
 		/* The error quotes this packet, which the sender can only
-		 * match against its own pre-translation tuple. */
+		 * match against its own pre-translation tuple. A translation
+		 * that cannot be fully reverted must not be quoted at all. */
+		if (translated && !undo.valid) {
+			return XDP_DROP;
+		}
 		nat_undo_apply(ctx, &undo);
 		return frag_needed(ctx, mtu_len);
 	}

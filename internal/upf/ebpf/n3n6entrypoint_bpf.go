@@ -138,7 +138,8 @@ type N3N6EntrypointRouteStat struct {
 	FibLookupIp6FwdDisabled uint64
 	FibLookupIp6UnsuppLwt   uint64
 	Ip6IfindexMismatch      uint64
-	FibLookupError          uint64
+	FibLookupIp4Error       uint64
+	FibLookupIp6Error       uint64
 }
 
 type N3N6EntrypointSdfFilterList struct {

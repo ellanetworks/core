@@ -92,7 +92,13 @@ func natExpiredKeys(snapshot map[ebpf.N3N6EntrypointFiveTuple]ebpf.N3N6Entrypoin
 		if entry.UeSide != 0 {
 			if expired(entry.RefreshTs, natEntryTimeout(key.Proto, entry.State, entry.Replied, entry.Closed)) {
 				toDelete[key] = struct{}{}
-				toDelete[entry.Src] = struct{}{}
+
+				// The NAT tuple may have been re-reserved by
+				// another subscriber since; only the partner
+				// still pointing back belongs to this pair.
+				if partner, ok := snapshot[entry.Src]; ok && partner.Src == key {
+					toDelete[entry.Src] = struct{}{}
+				}
 			}
 
 			continue

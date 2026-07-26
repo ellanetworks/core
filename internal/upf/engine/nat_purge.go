@@ -66,23 +66,23 @@ func (conn *SessionEngine) purgeNATConntrack(ueIP netip.Addr) {
 			return
 		}
 
+		if len(matched) > 0 {
+			count, err := conn.BpfObjects.NatCt.BatchDelete(matched, &bpf.BatchOptions{})
+			if err != nil {
+				logger.UpfLog.Warn("NAT conntrack purge delete failed", zap.Error(err))
+			}
+
+			logger.UpfLog.Debug("Purged NAT conntrack entries for released UE address",
+				zap.String("ueIP", ueIP.String()), zap.Int("count", count))
+		}
+
 		if attempt == natPurgeAttempts {
-			logger.UpfLog.Error("NAT conntrack purge incomplete; a reallocation of this address may inherit its flows",
-				zap.String("ueIP", ueIP.String()), zap.Int("remaining", len(matched)), zap.Error(scanErr))
+			if scanErr != nil || len(matched) > 0 {
+				logger.UpfLog.Error("NAT conntrack purge unconfirmed; a reallocation of this address may inherit its flows",
+					zap.String("ueIP", ueIP.String()), zap.Int("lastRound", len(matched)), zap.Error(scanErr))
+			}
 
 			return
 		}
-
-		if len(matched) == 0 {
-			continue
-		}
-
-		count, err := conn.BpfObjects.NatCt.BatchDelete(matched, &bpf.BatchOptions{})
-		if err != nil {
-			logger.UpfLog.Warn("NAT conntrack purge delete failed", zap.Error(err))
-		}
-
-		logger.UpfLog.Debug("Purged NAT conntrack entries for released UE address",
-			zap.String("ueIP", ueIP.String()), zap.Int("count", count))
 	}
 }

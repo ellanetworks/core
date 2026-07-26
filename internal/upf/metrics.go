@@ -151,7 +151,9 @@ func RegisterMetrics() {
 
 			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibUnsuppLwt), entry.iface, "unsupp_lwt")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibError), entry.iface, "error")
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibError4), entry.iface, "error_ipv4")
+
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibError6), entry.iface, "error_ipv6")
 
 			ch <- prometheus.MustNewConstMetric(xdpIfindexMismatchDesc, prometheus.CounterValue, float64(entry.stats.IfindexMismatch), entry.iface)
 		}

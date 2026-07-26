@@ -162,6 +162,18 @@ detect_tcp_ports(struct packet_context *ctx, int offset)
 	return tcp;
 }
 
+/* The TCP checksum ends at byte 18, so a quote can carry it without the full
+ * 20-byte header. */
+static __always_inline struct tcphdr *
+detect_tcp_check(struct packet_context *ctx, int offset)
+{
+	struct tcphdr *tcp = (struct tcphdr *)(ctx->data + offset);
+	if ((const void *)((__u8 *)tcp + 18) > ctx->data_end) {
+		return NULL;
+	}
+	return tcp;
+}
+
 static __always_inline struct icmphdr *
 detect_icmp_header(struct packet_context *ctx, int offset)
 {
