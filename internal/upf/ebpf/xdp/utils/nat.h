@@ -308,9 +308,20 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 
 	__u64 now = bpf_ktime_get_ns();
 
+	struct nat_entry *tracked = bpf_map_lookup_elem(&nat_ct, &orig);
+	if (tracked) {
+		struct five_tuple mapped = tracked->src;
+		struct nat_entry *nat_cur = bpf_map_lookup_elem(&nat_ct, &mapped);
+		if (nat_cur && !are_five_tuple_equal(nat_cur->src, orig)) {
+			// The NAT-side tuple was reserved by another flow after
+			// an eviction: the mapping is dead, allocate afresh.
+			bpf_map_delete_elem(&nat_ct, &orig);
+			tracked = NULL;
+		}
+	}
+
 	// Re-upserting both entries refreshes LRU recency and restores an
 	// evicted NAT-side entry.
-	struct nat_entry *tracked = bpf_map_lookup_elem(&nat_ct, &orig);
 	if (tracked) {
 		natted = tracked->src;
 		if (natted.sport != orig.sport) {
@@ -322,7 +333,9 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 			state = NAT_CT_CLOSING;
 		else if (tcp_new)
 			state = NAT_CT_NEW;
-		else if (tracked->replied)
+		// Only a new SYN leaves CLOSING: the final ACK of a close
+		// handshake must not restore the long established timeout.
+		else if (state != NAT_CT_CLOSING && tracked->replied)
 			state = NAT_CT_ESTABLISHED;
 
 		struct nat_entry ue_val = {};
@@ -416,6 +429,8 @@ static __always_inline void nat_ct_mark_replied(struct nat_entry *origin,
 	struct nat_entry *ue = bpf_map_lookup_elem(&nat_ct, &ue_key);
 	if (!ue)
 		return;
+	// A concurrent uplink update_elem may replace the element and lose
+	// these writes; the next reply re-applies them.
 	ue->replied = 1;
 	ue->refresh_ts = now;
 	if (closing)

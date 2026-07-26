@@ -468,9 +468,9 @@ func (u *UPF) stopFlowCollection() {
 
 func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 	var (
-		key     ebpf.N3N6EntrypointFiveTuple
-		value   ebpf.N3N6EntrypointNatEntry
-		sysInfo unix.Sysinfo_t
+		key   ebpf.N3N6EntrypointFiveTuple
+		value ebpf.N3N6EntrypointNatEntry
+		ts    unix.Timespec
 	)
 
 	ticker := time.NewTicker(1 * time.Minute)
@@ -483,13 +483,15 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 		case <-ticker.C:
 		}
 
-		err := unix.Sysinfo(&sysInfo)
+		// refresh_ts is bpf_ktime_get_ns (CLOCK_MONOTONIC); comparing
+		// against any other clock ages entries by the suspend time.
+		err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts)
 		if err != nil {
-			logger.UpfLog.Warn("Failed to query sysinfo", zap.Error(err))
+			logger.UpfLog.Warn("Failed to query monotonic clock", zap.Error(err))
 			return
 		}
 
-		nsSinceBoot := uint64(sysInfo.Uptime * time.Second.Nanoseconds())
+		nowNs := uint64(ts.Nano())
 
 		snapshot := make(map[ebpf.N3N6EntrypointFiveTuple]ebpf.N3N6EntrypointNatEntry)
 
@@ -502,7 +504,7 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 			logger.UpfLog.Warn("Conntrack iteration failed", zap.Error(err))
 		}
 
-		expiredKeys := natExpiredKeys(snapshot, nsSinceBoot)
+		expiredKeys := natExpiredKeys(snapshot, nowNs)
 		if len(expiredKeys) == 0 {
 			continue
 		}

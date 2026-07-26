@@ -422,7 +422,7 @@ func TestUnsolicitedInboundForwardedWithoutNAT(t *testing.T) {
 
 // natFiveTuple builds a nat_ct key as the datapath stores it: addresses and
 // ports in network byte order, protocol as a plain value.
-func natFiveTuple(saddr, daddr [4]byte, sport, dport uint16, proto uint16) N3N6EntrypointFiveTuple {
+func natFiveTuple(saddr, daddr [4]byte, sport, dport uint16, proto uint16) N3N6EntrypointFiveTuple { //nolint:unparam // general key builder; ports are configurable
 	return N3N6EntrypointFiveTuple{
 		Saddr: binary.NativeEndian.Uint32(saddr[:]),
 		Daddr: binary.NativeEndian.Uint32(daddr[:]),
@@ -511,7 +511,9 @@ func TestNATConntrackDirectionAndState(t *testing.T) {
 		t.Errorf("NAT-side entry ue_side = %d, want 0", natSide.UeSide)
 	}
 
-	// SYN-ACK reply: replied is set on the UE-side entry.
+	synRefreshTs := ue.RefreshTs
+
+	// SYN-ACK reply: replied is set and the lifetime refreshed.
 	capFD := f.captureN3(t)
 	f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(serverIP, natPublicIP, 6, tcpSegmentWithFlags(serverIP, natPublicIP, srvDP, ueSP, 0x12))))
 
@@ -521,6 +523,10 @@ func TestNATConntrackDirectionAndState(t *testing.T) {
 
 	if ue = lookupNatEntry(t, f, ueKey); ue.Replied != 1 {
 		t.Errorf("after SYN-ACK: replied=%d, want 1", ue.Replied)
+	}
+
+	if ue.RefreshTs <= synRefreshTs {
+		t.Errorf("after SYN-ACK: refresh_ts=%d not past %d (downlink hit must refresh)", ue.RefreshTs, synRefreshTs)
 	}
 
 	// ACK completing the handshake: established.
@@ -535,6 +541,65 @@ func TestNATConntrackDirectionAndState(t *testing.T) {
 
 	if ue = lookupNatEntry(t, f, ueKey); ue.State != 2 {
 		t.Errorf("after FIN: state=%d, want 2 (closing)", ue.State)
+	}
+
+	// The close handshake's final ACK keeps the connection closing.
+	sendUplink(0x10)
+
+	if ue = lookupNatEntry(t, f, ueKey); ue.State != 2 {
+		t.Errorf("after post-FIN ACK: state=%d, want 2 (closing)", ue.State)
+	}
+}
+
+// TestNATRemapOnForeignReservation verifies that when a flow's NAT-side tuple
+// is held by another flow (after LRU eviction and reuse), the next uplink
+// packet abandons the stale mapping and allocates a fresh port, leaving the
+// other flow's reservation intact.
+func TestNATRemapOnForeignReservation(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		ulTEID = 0x4E41540B
+		ueSP   = 4321
+		srvDP  = 80
+	)
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+
+	uplink := ipv4Packet(ueIP, serverIP, 6, tcpSegmentChecksummed(ueIP, serverIP, ueSP, srvDP, nil))
+	f.injectUplink(t, uplinkGPDU(ulTEID, uplink))
+	time.Sleep(100 * time.Millisecond)
+
+	ueKey := natFiveTuple(ueIP, serverIP, ueSP, srvDP, 6)
+	natKey := natFiveTuple(natPublicIP, serverIP, ueSP, srvDP, 6)
+	foreignKey := natFiveTuple([4]byte{10, 45, 0, 2}, serverIP, ueSP, srvDP, 6)
+
+	foreign := N3N6EntrypointNatEntry{Src: foreignKey}
+	if err := f.obj.NatCt.Put(&natKey, &foreign); err != nil {
+		t.Fatalf("seed foreign reservation: %v", err)
+	}
+
+	capFD := f.captureN6(t)
+	f.injectUplink(t, uplinkGPDU(ulTEID, uplink))
+
+	got := captureMatching(capFD, time.Second, func(fr []byte) bool {
+		return isInnerIPv4(fr, 6, serverIP)
+	})
+	if got == nil {
+		t.Fatal("uplink packet did not egress on N6")
+	}
+
+	if sp := binary.BigEndian.Uint16(got[ethHdrLen+20 : ethHdrLen+22]); sp == ueSP {
+		t.Errorf("egress source port = %d, want a remapped port", sp)
+	}
+
+	if cur := lookupNatEntry(t, f, natKey); cur.Src != foreignKey {
+		t.Errorf("foreign reservation src = %+v, want %+v (must stay intact)", cur.Src, foreignKey)
+	}
+
+	if ue := lookupNatEntry(t, f, ueKey); ue.Src == natKey {
+		t.Error("UE-side entry still references the foreign-held tuple")
 	}
 }
 
