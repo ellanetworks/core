@@ -20,7 +20,6 @@ func natTuple(saddr uint32, sport uint16, proto uint16) ebpf.N3N6EntrypointFiveT
 	}
 }
 
-// pair returns a UE-side and NAT-side entry pair with the given age.
 func pair(ueKey, natKey ebpf.N3N6EntrypointFiveTuple, nowNs uint64, age time.Duration, state, replied, closed uint8) (ebpf.N3N6EntrypointNatEntry, ebpf.N3N6EntrypointNatEntry) {
 	ts := nowNs - uint64(age.Nanoseconds())
 
@@ -113,24 +112,20 @@ func TestNatExpiredKeysPairsAndTimeouts(t *testing.T) {
 
 	for k := range got {
 		if !want[k] {
-			t.Errorf("key %+v unexpectedly expired", k)
+			t.Errorf("key %+v expired, want retained", k)
 		}
 	}
 }
 
-// TestNatExpiredKeysPartialSnapshot verifies that orphan reaping is skipped
-// when the scan was incomplete: a partial snapshot cannot distinguish an
-// orphan from a live entry the scan missed. Expiry of complete pairs still
-// runs.
+// TestNatExpiredKeysPartialSnapshot verifies that a partial snapshot skips
+// orphan reaping while still expiring complete pairs.
 func TestNatExpiredKeysPartialSnapshot(t *testing.T) {
 	nowNs := uint64(100 * time.Hour.Nanoseconds())
 
-	// A live pair whose UE-side entry is absent from this snapshot.
 	missedUEKey := natTuple(1, 1000, protoTCP)
 	orphanKey := natTuple(100, 1000, protoTCP)
 	orphan := ebpf.N3N6EntrypointNatEntry{Peer: missedUEKey, RefreshTs: nowNs - uint64((2 * natOrphanGrace).Nanoseconds())}
 
-	// A genuinely expired pair, both halves present.
 	deadUEKey := natTuple(2, 2000, protoTCP)
 	deadNATKey := natTuple(100, 2000, protoTCP)
 	deadUE, deadNAT := pair(deadUEKey, deadNATKey, nowNs, 3*time.Hour, natStateEstablished, 1, 0)
@@ -154,7 +149,6 @@ func TestNatExpiredKeysPartialSnapshot(t *testing.T) {
 		t.Error("expired pair not reaped from an incomplete snapshot")
 	}
 
-	// The same snapshot marked complete does reap the orphan.
 	got = make(map[ebpf.N3N6EntrypointFiveTuple]bool)
 	for _, k := range natExpiredKeys(snapshot, nowNs, true) {
 		got[k] = true
@@ -170,17 +164,15 @@ func TestNatExpiredKeysOrphans(t *testing.T) {
 
 	ueKey := natTuple(1, 1000, protoTCP)
 
-	// NAT-side entry with no partner, past the grace period.
 	staleOrphanKey := natTuple(100, 1000, protoTCP)
 	staleOrphan := ebpf.N3N6EntrypointNatEntry{Peer: ueKey, RefreshTs: nowNs - uint64((2 * natOrphanGrace).Nanoseconds())}
 
-	// NAT-side entry with no partner, inside the grace period (a pair whose
-	// second insert is in flight must not be reaped).
+	// Inside the grace period: a pair whose second insert is in flight.
 	newOrphanKey := natTuple(100, 2000, protoTCP)
 	newOrphan := ebpf.N3N6EntrypointNatEntry{Peer: natTuple(2, 2000, protoTCP), RefreshTs: nowNs - uint64(time.Second.Nanoseconds())}
 
-	// NAT-side entry whose partner exists but references a different
-	// NAT-side tuple (stale after a port remap): orphan.
+	// Partner exists but references a different NAT-side tuple after a port
+	// remap.
 	mismatchedKey := natTuple(100, 3000, protoTCP)
 	mismatchedUEKey := natTuple(3, 3000, protoTCP)
 	mismatched := ebpf.N3N6EntrypointNatEntry{Peer: mismatchedUEKey, RefreshTs: nowNs - uint64((2 * natOrphanGrace).Nanoseconds())}

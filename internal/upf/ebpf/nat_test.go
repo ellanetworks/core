@@ -240,7 +240,7 @@ func TestNATPortCollision(t *testing.T) {
 		tcp := got[ethHdrLen+20:]
 
 		if !bytes.Equal(ip[12:16], natPublicIP[:]) {
-			t.Errorf("inner src = %v, want %v (source-NAT'd)", ip[12:16], natPublicIP)
+			t.Errorf("inner src = %v, want %v", ip[12:16], natPublicIP)
 		}
 
 		if !bytes.Equal(ip[16:20], serverIP[:]) {
@@ -354,9 +354,8 @@ func TestNATICMPError(t *testing.T) {
 	}
 }
 
-// TestNATUnsolicitedInboundDrop verifies that with masquerade enabled, a
-// downlink packet addressed directly to the UE address with no conntrack entry
-// is dropped: nothing egresses on N3 and nat_unsolicited_drop_ip4 increments.
+// TestNATUnsolicitedInboundDrop verifies that with masquerade enabled a downlink
+// packet to the UE address with no conntrack entry is dropped.
 func TestNATUnsolicitedInboundDrop(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -391,8 +390,7 @@ func TestNATUnsolicitedInboundDrop(t *testing.T) {
 }
 
 // TestUnsolicitedInboundForwardedWithoutNAT verifies that with masquerade
-// disabled, a downlink packet addressed to the UE address is forwarded to N3:
-// direct routing to UE addresses is the supported non-NAT mode.
+// disabled a downlink packet to the UE address is forwarded to N3.
 func TestUnsolicitedInboundForwardedWithoutNAT(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -423,9 +421,8 @@ func TestUnsolicitedInboundForwardedWithoutNAT(t *testing.T) {
 	}
 }
 
-// TestNATICMPErrorFromRouter checks that an ICMP error from an intermediate
-// hop is translated to the UE: the flow is identified by the packet quoted in
-// the error, not by who reported it, so PMTUD and traceroute work.
+// TestNATICMPErrorFromRouter checks that an ICMP error from an intermediate hop
+// is translated to the UE by the flow quoted in the error.
 func TestNATICMPErrorFromRouter(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -449,7 +446,6 @@ func TestNATICMPErrorFromRouter(t *testing.T) {
 
 	capFD := f.captureN3(t)
 
-	// A hop on the path reports TTL exceeded, quoting the NAT'd packet.
 	embeddedUDP := udpDatagramChecksummed(natPublicIP, serverIP, ueSP, srvDP, nil)
 	embeddedIP := ipv4Packet(natPublicIP, serverIP, 17, embeddedUDP)
 
@@ -477,7 +473,7 @@ func TestNATICMPErrorFromRouter(t *testing.T) {
 	}
 
 	if !bytes.Equal(inner[12:16], routerIP[:]) {
-		t.Errorf("inner src = %v, want %v (the reporting hop, preserved)", inner[12:16], routerIP)
+		t.Errorf("inner src = %v, want %v", inner[12:16], routerIP)
 	}
 
 	if !validIPv4Checksum(inner[:20]) {
@@ -494,12 +490,8 @@ func TestNATICMPErrorFromRouter(t *testing.T) {
 	}
 }
 
-// TestNATICMPErrorFromUEForwarded pins the accepted position on ICMP errors a
-// UE sends outbound: the outer source is translated and the error is
-// forwarded, but the packet it quotes keeps the UE address, so the remote
-// cannot match the error to its socket. Translating the quote as well was
-// removed because the ownership check it needed broke error signalling for
-// hosts behind a framed route.
+// TestNATICMPErrorFromUEForwarded verifies that a UE-originated ICMP error is
+// source-NAT'd and forwarded, with the packet it quotes left untranslated.
 func TestNATICMPErrorFromUEForwarded(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -540,7 +532,7 @@ func TestNATICMPErrorFromUEForwarded(t *testing.T) {
 	ip := got[ethHdrLen : ethHdrLen+20]
 
 	if !bytes.Equal(ip[12:16], natPublicIP[:]) {
-		t.Errorf("outer src = %v, want %v (source-NAT'd)", ip[12:16], natPublicIP)
+		t.Errorf("outer src = %v, want %v", ip[12:16], natPublicIP)
 	}
 
 	if !validIPv4Checksum(ip) {
@@ -558,9 +550,8 @@ func asFragment(pkt []byte) []byte {
 	return pkt
 }
 
-// TestNATDropsFragments verifies that with masquerade on, fragments are
-// dropped in both directions: the bytes at the L4 offset of a non-first
-// fragment are payload, so translating one would rewrite user data.
+// TestNATDropsFragments verifies that a fragment addressed to a UE is dropped:
+// bytes at the L4 offset of a non-first fragment are payload.
 func TestNATDropsFragments(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -595,7 +586,6 @@ func TestNATDropsFragments(t *testing.T) {
 		}
 	})
 
-	// A fragment addressed to a UE cannot be translated and is dropped.
 	t.Run("downlink to ue", func(t *testing.T) {
 		capFD := f.captureN3(t)
 
@@ -615,8 +605,7 @@ func TestNATDropsFragments(t *testing.T) {
 		}
 	})
 
-	// A fragment addressed to this host is not the NAT's to drop: it
-	// belongs to the stack, which can reassemble it.
+	// A fragment addressed to this host belongs to the stack.
 	t.Run("downlink to host", func(t *testing.T) {
 		before := GetNatDrops(f.obj).Fragment
 
@@ -626,14 +615,13 @@ func TestNATDropsFragments(t *testing.T) {
 		time.Sleep(200 * time.Millisecond)
 
 		if after := GetNatDrops(f.obj).Fragment; after != before {
-			t.Errorf("fragment drop counter = %d, want %d (host traffic must not be dropped)", after, before)
+			t.Errorf("fragment drop counter = %d, want %d", after, before)
 		}
 	})
 }
 
 // TestNATPreservesIPOptions verifies that source-NAT leaves a valid header
-// checksum on a packet carrying IP options: the update is incremental, so it
-// does not depend on the header being 20 bytes.
+// checksum on a packet carrying IP options.
 func TestNATPreservesIPOptions(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -668,7 +656,7 @@ func TestNATPreservesIPOptions(t *testing.T) {
 	ip := got[ethHdrLen : ethHdrLen+28]
 
 	if ip[0]&0x0f != 7 {
-		t.Fatalf("ihl = %d, want 7 (options preserved)", ip[0]&0x0f)
+		t.Fatalf("ihl = %d, want 7", ip[0]&0x0f)
 	}
 
 	if !bytes.Equal(ip[12:16], natPublicIP[:]) {
@@ -717,9 +705,8 @@ func lookupNatEntry(t *testing.T, f *t2, key N3N6EntrypointFiveTuple) N3N6Entryp
 	return val
 }
 
-// TestNATConntrackDirectionAndState verifies the conntrack pair layout and
-// state machine: SYN creates both entries (new, unreplied), a downlink hit
-// sets replied, the next uplink packet establishes, FIN closes.
+// TestNATConntrackDirectionAndState verifies the conntrack pair layout and the
+// TCP state transitions across a full connection.
 func TestNATConntrackDirectionAndState(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -750,7 +737,6 @@ func TestNATConntrackDirectionAndState(t *testing.T) {
 		}
 	}
 
-	// SYN: both entries exist, UE-side is new and unreplied.
 	sendUplink(0x02)
 
 	ue := lookupNatEntry(t, f, ueKey)
@@ -759,12 +745,12 @@ func TestNATConntrackDirectionAndState(t *testing.T) {
 	}
 
 	if ue.Peer != natKey {
-		t.Errorf("UE-side entry src = %+v, want the NAT-side tuple %+v", ue.Peer, natKey)
+		t.Errorf("UE-side entry peer = %+v, want %+v", ue.Peer, natKey)
 	}
 
 	natSide := lookupNatEntry(t, f, natKey)
 	if natSide.Peer != ueKey {
-		t.Errorf("NAT-side entry src = %+v, want the UE tuple %+v", natSide.Peer, ueKey)
+		t.Errorf("NAT-side entry peer = %+v, want %+v", natSide.Peer, ueKey)
 	}
 
 	if natSide.UeSide != 0 {
@@ -773,7 +759,6 @@ func TestNATConntrackDirectionAndState(t *testing.T) {
 
 	synRefreshTs := ue.RefreshTs
 
-	// SYN-ACK reply: replied is set and the lifetime refreshed.
 	capFD := f.captureN3(t)
 	f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(serverIP, natPublicIP, 6, tcpSegmentWithFlags(serverIP, natPublicIP, srvDP, ueSP, 0x12))))
 
@@ -786,24 +771,21 @@ func TestNATConntrackDirectionAndState(t *testing.T) {
 	}
 
 	if ue.RefreshTs <= synRefreshTs {
-		t.Errorf("after SYN-ACK: refresh_ts=%d not past %d (downlink hit must refresh)", ue.RefreshTs, synRefreshTs)
+		t.Errorf("after SYN-ACK: refresh_ts = %d, want > %d", ue.RefreshTs, synRefreshTs)
 	}
 
-	// ACK completing the handshake: established.
 	sendUplink(0x10)
 
 	if ue = lookupNatEntry(t, f, ueKey); ue.State != 1 {
 		t.Errorf("after handshake ACK: state=%d, want 1 (established)", ue.State)
 	}
 
-	// The subscriber closes: the connection moves to the closed class.
 	sendUplink(0x11)
 
 	if ue = lookupNatEntry(t, f, ueKey); ue.Closed != natClosed {
 		t.Errorf("after UE FIN: closed=%#x, want %#x", ue.Closed, natClosed)
 	}
 
-	// The close handshake's final ACK must not clear it.
 	sendUplink(0x10)
 
 	if ue = lookupNatEntry(t, f, ueKey); ue.Closed != natClosed {
@@ -811,11 +793,9 @@ func TestNATConntrackDirectionAndState(t *testing.T) {
 	}
 }
 
-// TestNATInboundResetDoesNotClose verifies that an inbound FIN or RST leaves
-// the mapping alone: neither carries sequence validation, so honouring one
-// would let anyone who guesses a tuple shorten a subscriber's connection. Only
-// the subscriber's own close, whose source address was checked against the
-// session, moves the connection to the closed class.
+// TestNATInboundResetDoesNotClose verifies that an inbound FIN or RST leaves the
+// mapping open; neither is sequence-validated, so only the subscriber's own
+// close counts.
 func TestNATInboundResetDoesNotClose(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -864,7 +844,7 @@ func TestNATInboundResetDoesNotClose(t *testing.T) {
 	sendDownlink(0x04) // an unvalidated inbound RST
 
 	if ue := lookupNatEntry(t, f, ueKey); ue.Closed != 0 {
-		t.Errorf("after inbound RST: closed=%#x, want 0 (an inbound reset must not close a mapping)", ue.Closed)
+		t.Errorf("after inbound RST: closed = %#x, want 0", ue.Closed)
 	}
 
 	sendUplink(0x11) // the subscriber's own FIN
@@ -874,10 +854,8 @@ func TestNATInboundResetDoesNotClose(t *testing.T) {
 	}
 }
 
-// TestNATSynOnEstablishedKeepsState verifies that a stray or duplicate SYN on
-// a flow already carrying traffic both ways leaves it established: demoting
-// would let one off-path packet drop a live connection into a class short
-// enough to reap it.
+// TestNATSynOnEstablishedKeepsState verifies that a duplicate SYN on a flow
+// carrying traffic both ways leaves it established.
 func TestNATSynOnEstablishedKeepsState(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -926,14 +904,14 @@ func TestNATSynOnEstablishedKeepsState(t *testing.T) {
 	sendUplink(0x02) // a stray SYN on the live flow
 
 	if ue := lookupNatEntry(t, f, ueKey); ue.State != 1 || ue.Replied != 1 {
-		t.Errorf("after a stray SYN: state=%d replied=%d, want 1/1 (a live flow must not be demoted)",
+		t.Errorf("after a duplicate SYN: state=%d replied=%d, want state=1 replied=1",
 			ue.State, ue.Replied)
 	}
 }
 
 // TestNATRemapsOnChangedEgressAddress verifies that a mapping made against a
-// different egress address is discarded rather than reused: replies to the old
-// address would match nothing, blackholing the flow until the entry aged out.
+// different egress address is discarded; replies to the old address match
+// nothing.
 func TestNATRemapsOnChangedEgressAddress(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -951,8 +929,7 @@ func TestNATRemapsOnChangedEgressAddress(t *testing.T) {
 	ueKey := natFiveTuple(ueIP, serverIP, ueSP, srvDP, 6)
 	staleNAT := natFiveTuple([4]byte{192, 0, 2, 99}, serverIP, ueSP, srvDP, 6)
 
-	// The state an egress-address change leaves behind: a pair keyed on an
-	// address this UPF no longer sends from.
+	// A pair keyed on an address this UPF does not send from.
 	stale := N3N6EntrypointNatEntry{Peer: staleNAT, UeSide: 1, State: 1, Replied: 1}
 	if err := f.obj.NatCt.Put(&ueKey, &stale); err != nil {
 		t.Fatalf("seed stale mapping: %v", err)
@@ -973,23 +950,21 @@ func TestNATRemapsOnChangedEgressAddress(t *testing.T) {
 	}
 
 	if ip := got[ethHdrLen : ethHdrLen+20]; !bytes.Equal(ip[12:16], natPublicIP[:]) {
-		t.Errorf("inner src = %v, want %v (the current egress address)", ip[12:16], natPublicIP)
+		t.Errorf("inner src = %v, want %v", ip[12:16], natPublicIP)
 	}
 
 	if err := f.obj.NatCt.Lookup(&staleNAT, new(N3N6EntrypointNatEntry)); err == nil {
-		t.Error("the stale partner still holds its reservation")
+		t.Error("stale NAT-side entry present, want deleted")
 	}
 
 	want := natFiveTuple(natPublicIP, serverIP, ueSP, srvDP, 6)
 	if ue := lookupNatEntry(t, f, ueKey); ue.Peer.Saddr != want.Saddr {
-		t.Error("the mapping was not re-made against the current egress address")
+		t.Errorf("UE-side entry peer saddr = %d, want %d", ue.Peer.Saddr, want.Saddr)
 	}
 }
 
 // TestNATSynRetransmitDoesNotRenew verifies that a SYN on a flow the remote has
-// never answered leaves the lifetime where it was: a UE retransmitting to an
-// unresponsive destination must not be able to hold a mapping, and the port it
-// reserves, open indefinitely.
+// never answered leaves refresh_ts unchanged.
 func TestNATSynRetransmitDoesNotRenew(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -1024,14 +999,12 @@ func TestNATSynRetransmitDoesNotRenew(t *testing.T) {
 	sendSyn()
 
 	if got := lookupNatEntry(t, f, ueKey).RefreshTs; got != first {
-		t.Errorf("refresh_ts moved on an unanswered SYN retransmit: %d -> %d", first, got)
+		t.Errorf("refresh_ts = %d, want %d", got, first)
 	}
 }
 
-// TestNATRejectsMalformedSegments verifies that a segment whose headers are
-// inconsistent creates no state and is dropped: an invalid flag combination,
-// a TCP data offset past the end of the IP payload, and a UDP length longer
-// than the datagram.
+// TestNATRejectsMalformedSegments verifies that a segment with inconsistent
+// headers is dropped and creates no state.
 func TestNATRejectsMalformedSegments(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -1085,10 +1058,9 @@ func TestNATRejectsMalformedSegments(t *testing.T) {
 	}
 }
 
-// TestNATRemapOnForeignReservation verifies that when a flow's NAT-side tuple
-// is held by another flow (after LRU eviction and reuse), the next uplink
-// packet abandons the stale mapping and allocates a fresh port, leaving the
-// other flow's reservation intact.
+// TestNATRemapOnForeignReservation verifies that a flow whose NAT-side tuple is
+// held by another flow is remapped to a fresh port, leaving that reservation
+// intact.
 func TestNATRemapOnForeignReservation(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -1125,21 +1097,20 @@ func TestNATRemapOnForeignReservation(t *testing.T) {
 	}
 
 	if sp := binary.BigEndian.Uint16(got[ethHdrLen+20 : ethHdrLen+22]); sp == ueSP {
-		t.Errorf("egress source port = %d, want a remapped port", sp)
+		t.Errorf("egress source port = %d, want != %d", sp, ueSP)
 	}
 
 	if cur := lookupNatEntry(t, f, natKey); cur.Peer != foreignKey {
-		t.Errorf("foreign reservation src = %+v, want %+v (must stay intact)", cur.Peer, foreignKey)
+		t.Errorf("foreign reservation peer = %+v, want %+v", cur.Peer, foreignKey)
 	}
 
 	if ue := lookupNatEntry(t, f, ueKey); ue.Peer == natKey {
-		t.Error("UE-side entry still references the foreign-held tuple")
+		t.Errorf("UE-side entry peer = %+v, want != %+v", ue.Peer, natKey)
 	}
 }
 
-// TestNATRepairEvictedNATSideEntry verifies pair repair: with the NAT-side
-// entry removed (as LRU eviction would), a downlink reply is dropped, and
-// the next uplink packet restores the pair so the reply translates again.
+// TestNATRepairEvictedNATSideEntry verifies that an uplink packet restores a
+// NAT-side entry removed by LRU eviction.
 func TestNATRepairEvictedNATSideEntry(t *testing.T) {
 	requireProgTestRun(t)
 
