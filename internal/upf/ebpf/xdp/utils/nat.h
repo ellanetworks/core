@@ -63,7 +63,8 @@ struct nat_entry {
 	__u64 refresh_ts;
 	__u8 state;
 	__u8 replied;
-	__u8 pad[6];
+	__u8 ue_side;
+	__u8 pad[5];
 };
 
 struct {
@@ -330,18 +331,19 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		else if (tracked->replied)
 			state = NAT_CT_ESTABLISHED;
 
-		struct nat_entry ue_side = {};
-		ue_side.src = natted;
-		ue_side.refresh_ts = now;
-		ue_side.state = state;
-		ue_side.replied = tracked->replied;
+		struct nat_entry ue_val = {};
+		ue_val.src = natted;
+		ue_val.refresh_ts = now;
+		ue_val.state = state;
+		ue_val.replied = tracked->replied;
+		ue_val.ue_side = 1;
 
-		struct nat_entry nat_side = {};
-		nat_side.src = orig;
-		nat_side.refresh_ts = now;
+		struct nat_entry nat_val = {};
+		nat_val.src = orig;
+		nat_val.refresh_ts = now;
 
-		bpf_map_update_elem(&nat_ct, &orig, &ue_side, BPF_ANY);
-		bpf_map_update_elem(&nat_ct, &natted, &nat_side, BPF_ANY);
+		bpf_map_update_elem(&nat_ct, &orig, &ue_val, BPF_ANY);
+		bpf_map_update_elem(&nat_ct, &natted, &nat_val, BPF_ANY);
 		return true;
 	}
 
@@ -388,12 +390,13 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		update_port(ctx, natted.sport);
 	}
 
-	struct nat_entry ue_side = {};
-	ue_side.src = natted;
-	ue_side.refresh_ts = now;
-	ue_side.state = tcp_closing ? NAT_CT_CLOSING : NAT_CT_NEW;
+	struct nat_entry ue_val = {};
+	ue_val.src = natted;
+	ue_val.refresh_ts = now;
+	ue_val.state = tcp_closing ? NAT_CT_CLOSING : NAT_CT_NEW;
+	ue_val.ue_side = 1;
 
-	if (0 != bpf_map_update_elem(&nat_ct, &orig, &ue_side, BPF_NOEXIST)) {
+	if (0 != bpf_map_update_elem(&nat_ct, &orig, &ue_val, BPF_NOEXIST)) {
 		// A concurrent packet of the same flow inserted first: adopt
 		// its mapping and release the reservation made above.
 		struct nat_entry *winner = bpf_map_lookup_elem(&nat_ct, &orig);

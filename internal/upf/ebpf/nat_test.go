@@ -498,8 +498,8 @@ func TestNATConntrackDirectionAndState(t *testing.T) {
 	sendUplink(0x02)
 
 	ue := lookupNatEntry(t, f, ueKey)
-	if ue.State != 0 || ue.Replied != 0 {
-		t.Errorf("after SYN: state=%d replied=%d, want state=0 replied=0", ue.State, ue.Replied)
+	if ue.State != 0 || ue.Replied != 0 || ue.UeSide != 1 {
+		t.Errorf("after SYN: state=%d replied=%d ue_side=%d, want state=0 replied=0 ue_side=1", ue.State, ue.Replied, ue.UeSide)
 	}
 
 	if ue.Src != natKey {
@@ -509,6 +509,10 @@ func TestNATConntrackDirectionAndState(t *testing.T) {
 	natSide := lookupNatEntry(t, f, natKey)
 	if natSide.Src != ueKey {
 		t.Errorf("NAT-side entry src = %+v, want the UE tuple %+v", natSide.Src, ueKey)
+	}
+
+	if natSide.UeSide != 0 {
+		t.Errorf("NAT-side entry ue_side = %d, want 0", natSide.UeSide)
 	}
 
 	// SYN-ACK reply: replied is set on the UE-side entry.

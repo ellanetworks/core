@@ -71,7 +71,8 @@ type VethEntrypointNatEntry struct {
 	RefreshTs uint64
 	State     uint8
 	Replied   uint8
-	Pad       [6]uint8
+	UeSide    uint8
+	Pad       [5]uint8
 }
 
 type VethEntrypointPdrInfo struct {

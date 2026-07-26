@@ -473,8 +473,6 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 		sysInfo unix.Sysinfo_t
 	)
 
-	expiredKeys := make([]ebpf.N3N6EntrypointFiveTuple, 0)
-
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
@@ -491,18 +489,22 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 			return
 		}
 
-		nsSinceBoot := sysInfo.Uptime * time.Second.Nanoseconds()
-		expiryThreshold := nsSinceBoot - ConnTrackTimeout.Nanoseconds()
+		nsSinceBoot := uint64(sysInfo.Uptime * time.Second.Nanoseconds())
+
+		snapshot := make(map[ebpf.N3N6EntrypointFiveTuple]ebpf.N3N6EntrypointNatEntry)
 
 		ct_entries := u.se.BpfObjects.NatCt.Iterate()
 		for ct_entries.Next(&key, &value) {
-			if value.RefreshTs < uint64(expiryThreshold) {
-				expiredKeys = append(expiredKeys, key)
-			}
+			snapshot[key] = value
 		}
 
 		if err := ct_entries.Err(); err != nil {
 			logger.UpfLog.Warn("Conntrack iteration failed", zap.Error(err))
+		}
+
+		expiredKeys := natExpiredKeys(snapshot, nsSinceBoot)
+		if len(expiredKeys) == 0 {
+			continue
 		}
 
 		count, err := u.se.BpfObjects.NatCt.BatchDelete(expiredKeys, &bpf.BatchOptions{})
@@ -511,8 +513,6 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 		}
 
 		logger.UpfLog.Debug("Deleted expired conntrack entries", zap.Int("count", count))
-
-		expiredKeys = expiredKeys[:0]
 	}
 }
 
