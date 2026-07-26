@@ -32,10 +32,9 @@ func natTestTuple(saddr netip.Addr, sport uint16) upfebpf.N3N6EntrypointFiveTupl
 	}
 }
 
-// TestDeleteSessionPurgesNATConntrack asserts that tearing down a session
-// removes both directions of the UE's nat_ct entries while other UEs' entries
-// stay intact, so a reallocated UE address starts with no conntrack state.
-// Requires root.
+// TestDeleteSessionPurgesNATConntrack verifies that deleting a session
+// removes the UE's nat_ct entries in both directions while other UEs'
+// entries stay intact. Requires root.
 func TestDeleteSessionPurgesNATConntrack(t *testing.T) {
 	if os.Geteuid() != 0 {
 		const msg = "loading eBPF maps requires root/CAP_BPF"

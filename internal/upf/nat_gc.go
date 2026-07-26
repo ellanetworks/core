@@ -11,9 +11,9 @@ import (
 
 // NAT conntrack timeout classes, evaluated on the UE-side entry.
 // TCP established satisfies RFC 5382 REQ-5 (>= 2 h 4 min); UDP replied
-// satisfies RFC 4787 REQ-5 (>= 2 min, 5 min recommended); unreplied UDP uses
-// netfilter's short unreplied timeout so probe traffic cannot pin entries;
-// ICMP follows RFC 5508 REQ-2.
+// satisfies RFC 4787 REQ-5 (>= 2 min, 5 min recommended); an unreplied UDP
+// flow gets a short timeout so probe traffic cannot pin entries; ICMP
+// follows RFC 5508 REQ-2.
 const (
 	natTCPEstablishedTimeout = 7440 * time.Second
 	natTCPTransitoryTimeout  = 120 * time.Second
@@ -22,9 +22,8 @@ const (
 	natUDPUnrepliedTimeout   = 30 * time.Second
 	natICMPTimeout           = 60 * time.Second
 
-	// A NAT-side entry whose partner is missing is deleted after this grace
-	// period. The grace covers the window between the pair's two inserts and
-	// lets the uplink repair path re-create an evicted partner first.
+	// Covers the window between a pair's two inserts and gives the uplink
+	// repair path time to re-create an evicted partner.
 	natOrphanGrace = 60 * time.Second
 )
 
@@ -61,12 +60,10 @@ func natEntryTimeout(proto uint16, state, replied uint8) time.Duration {
 	}
 }
 
-// natExpiredKeys classifies a nat_ct snapshot and returns the keys to delete.
-// Expiry is decided on the UE-side entry (authoritative for state and
-// replied); an expired connection's two keys are returned together. A
-// NAT-side entry whose partner is missing or points elsewhere is an orphan
-// (e.g. after LRU eviction of one half) and is returned once the grace
-// period has passed.
+// natExpiredKeys returns the nat_ct keys to delete: expired connections
+// (decided on the authoritative UE-side entry, both keys together) and
+// NAT-side orphans whose partner is missing or points elsewhere, once past
+// the grace period.
 func natExpiredKeys(snapshot map[ebpf.N3N6EntrypointFiveTuple]ebpf.N3N6EntrypointNatEntry, nowNs uint64) []ebpf.N3N6EntrypointFiveTuple {
 	toDelete := make(map[ebpf.N3N6EntrypointFiveTuple]struct{})
 

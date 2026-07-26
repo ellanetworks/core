@@ -46,18 +46,15 @@ struct five_tuple {
 	__u16 proto;
 };
 
-/* Projection of the netfilter TCP state table onto the timeout classes the
- * garbage collector distinguishes. */
 enum nat_ct_state {
 	NAT_CT_NEW = 0,
 	NAT_CT_ESTABLISHED = 1,
 	NAT_CT_CLOSING = 2,
 };
 
-/* A connection occupies two entries: the UE-side entry (keyed by the UE
- * tuple, src = the NAT-side tuple) and the NAT-side entry (keyed by the
- * NAT-side tuple, src = the UE tuple). Both are written only by the uplink
- * path; the UE-side entry is authoritative for state and replied. */
+/* Each connection has two entries, written only by the uplink path: one
+ * keyed by the UE tuple, one by the translated tuple, each holding the other
+ * tuple in src. The UE-side entry is authoritative for state and replied. */
 struct nat_entry {
 	struct five_tuple src;
 	__u64 refresh_ts;
@@ -292,9 +289,7 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		if (ctx->icmp->type != ICMP_ECHO &&
 		    ctx->icmp->type != ICMP_TIMESTAMP) {
 			/* ICMP errors are not flows: translate the outer
-			 * source only. Nothing ever looks up an entry for
-			 * them, and the type/code key cannot be renumbered
-			 * on collision. */
+			 * source only, no conntrack entry. */
 			return true;
 		}
 		orig.identifier = ctx->icmp->un.echo.id;
@@ -313,9 +308,8 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 
 	__u64 now = bpf_ktime_get_ns();
 
-	// Tracked flow: adopt the recorded mapping and re-upsert both entries.
-	// The re-upsert refreshes LRU recency and restores a NAT-side entry
-	// the LRU evicted.
+	// Re-upserting both entries refreshes LRU recency and restores an
+	// evicted NAT-side entry.
 	struct nat_entry *tracked = bpf_map_lookup_elem(&nat_ct, &orig);
 	if (tracked) {
 		natted = tracked->src;
@@ -347,11 +341,9 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		return true;
 	}
 
-	// New flow: insert the NAT-side entry with BPF_NOEXIST; insert success
-	// is the atomic port reservation across CPUs. Keep the original port,
-	// then try a random port, then probe linearly. The keep-port attempt
-	// and the same-flow check stay outside the loop so the loop body is
-	// one insert per iteration, keeping the verifier walk cheap.
+	// A successful BPF_NOEXIST insert of the NAT-side entry is the atomic
+	// port reservation across CPUs. The loop body is a single insert so
+	// the verifier walk stays cheap.
 	struct nat_entry nat_side = {};
 	nat_side.src = orig;
 	nat_side.refresh_ts = now;
@@ -406,18 +398,14 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		}
 		if (!are_five_tuple_equal(winner->src, natted)) {
 			bpf_map_delete_elem(&nat_ct, &natted);
-			// update_port derives the checksum delta from the
-			// current header value, so it applies cleanly on top
-			// of the rewrite above.
 			update_port(ctx, winner->src.sport);
 		}
 	}
 	return true;
 }
 
-// Marks the connection replied and refreshes both directions. origin is the
-// NAT-side entry; its src tuple is the UE-side key, which is authoritative
-// for state and replied.
+// origin is the NAT-side entry; its src tuple keys the authoritative
+// UE-side entry.
 static __always_inline void nat_ct_mark_replied(struct nat_entry *origin,
 						bool closing)
 {

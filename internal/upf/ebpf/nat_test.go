@@ -354,8 +354,6 @@ func TestNATICMPError(t *testing.T) {
 // TestNATUnsolicitedInboundDrop verifies that with masquerade enabled, a
 // downlink packet addressed directly to the UE address with no conntrack entry
 // is dropped: nothing egresses on N3 and nat_unsolicited_drop_ip4 increments.
-// Only conntrack-translated downlink may reach a UE under masquerade
-// (TS 23.501 §5.8.2.2.1: the UE address is not visible on N6).
 func TestNATUnsolicitedInboundDrop(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -448,7 +446,6 @@ func tcpSegmentWithFlags(src, dst [4]byte, sport, dport uint16, flags byte) []by
 	return seg
 }
 
-// lookupNatEntry fetches a nat_ct entry, failing the test on lookup error.
 func lookupNatEntry(t *testing.T, f *t2, key N3N6EntrypointFiveTuple) N3N6EntrypointNatEntry {
 	t.Helper()
 
@@ -460,10 +457,9 @@ func lookupNatEntry(t *testing.T, f *t2, key N3N6EntrypointFiveTuple) N3N6Entryp
 	return val
 }
 
-// TestNATConntrackDirectionAndState verifies the conntrack pair layout and the
-// per-flow state machine: both entries are created by the uplink path with the
-// UE-side entry authoritative, a downlink hit sets replied, a subsequent
-// uplink packet moves the state to established, and FIN moves it to closing.
+// TestNATConntrackDirectionAndState verifies the conntrack pair layout and
+// state machine: SYN creates both entries (new, unreplied), a downlink hit
+// sets replied, the next uplink packet establishes, FIN closes.
 func TestNATConntrackDirectionAndState(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -543,9 +539,8 @@ func TestNATConntrackDirectionAndState(t *testing.T) {
 }
 
 // TestNATRepairEvictedNATSideEntry verifies pair repair: with the NAT-side
-// entry removed (as LRU eviction would), a downlink reply is dropped, and the
-// next uplink packet of the flow restores the pair so the reply translates
-// again.
+// entry removed (as LRU eviction would), a downlink reply is dropped, and
+// the next uplink packet restores the pair so the reply translates again.
 func TestNATRepairEvictedNATSideEntry(t *testing.T) {
 	requireProgTestRun(t)
 

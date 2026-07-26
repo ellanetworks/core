@@ -146,9 +146,8 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		}
 	}
 
-	/* Under masquerade only conntrack-translated downlink may reach a UE:
-	 * the UE address is not visible on N6 (TS 23.501 §5.8.2.2.1), so a
-	 * packet addressed to it was not solicited by any UE flow. */
+	/* With NAT the UE address is not visible on N6 (TS 23.501
+	 * §5.8.2.2.1): untranslated downlink to a UE is unsolicited. */
 	if (masquerade && !translated) {
 		upf_printk("upf: unsolicited downlink for ip:%pI4", &ip4->daddr);
 		ctx->statistics->nat_unsolicited_drop_ip4 += 1;

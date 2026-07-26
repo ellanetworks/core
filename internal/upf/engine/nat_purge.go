@@ -16,10 +16,9 @@ import (
 
 const natPurgeBatchSize = 4096
 
-// purgeNATConntrack removes every nat_ct entry belonging to ueIP, in both
-// directions. It runs synchronously in session teardown: the IP allocator
-// hands out the lowest free address, so a released address must leave no
-// conntrack state behind by the time a new session can receive it.
+// purgeNATConntrack removes every nat_ct entry belonging to ueIP. The IP
+// allocator hands out the lowest free address, so a released address must
+// leave no conntrack state behind by the time it can be reallocated.
 func (conn *SessionEngine) purgeNATConntrack(ueIP netip.Addr) {
 	if conn.BpfObjects == nil || conn.BpfObjects.NatCt == nil || !ueIP.Is4() {
 		return
