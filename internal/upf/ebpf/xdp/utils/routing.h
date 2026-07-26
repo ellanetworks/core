@@ -75,6 +75,9 @@ struct route_stat {
 	__u64 fib_lookup_ip6_fwd_disabled;
 	__u64 fib_lookup_ip6_unsupp_lwt;
 	__u64 ip6_ifindex_mismatch;
+	/* Helper rejected the call (e.g. a flag the running kernel does not
+	 * support); the packet is dropped rather than forwarded untranslated. */
+	__u64 fib_lookup_error;
 };
 
 static __always_inline enum xdp_action
@@ -250,7 +253,11 @@ static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 		 * passing would forward the packet untranslated. */
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
-		return rc < 0 ? XDP_DROP : XDP_PASS;
+		if (rc < 0) {
+			statistic->fib_lookup_error += 1;
+			return XDP_DROP;
+		}
+		return XDP_PASS;
 	}
 }
 
@@ -333,6 +340,10 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 	default:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
+		if (rc < 0) {
+			statistic->fib_lookup_error += 1;
+			return XDP_DROP;
+		}
 		return XDP_PASS;
 	}
 }

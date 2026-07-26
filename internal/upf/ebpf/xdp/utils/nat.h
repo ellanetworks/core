@@ -241,6 +241,108 @@ parse_icmp_packet_ref(struct five_tuple *key, struct packet_context *ctx)
 	return nat_entry;
 }
 
+/* RFC 5508 REQ-5: an ICMP error from a UE quotes the packet that triggered
+ * it, addressed to the UE. The remote matches the error against that quoted
+ * header, so it has to carry the translated form. The session is looked up,
+ * never refreshed (REQ-6). */
+static __always_inline bool nat_icmp_error_uplink(struct packet_context *ctx)
+{
+	struct iphdr *ip4 = detect_ip4_header(ctx);
+	if (!ip4 || ip4->ihl < 5) {
+		return false;
+	}
+
+	struct five_tuple key = {};
+	struct nat_entry *entry;
+	struct udphdr *udp;
+	struct tcphdr *tcp;
+
+	key.proto = ip4->protocol;
+	key.saddr = ip4->daddr;
+	key.daddr = ip4->saddr;
+
+	int offset = ip4->ihl * 4;
+	__u16 previous_ip_csum = ip4->check;
+
+	switch (ip4->protocol) {
+	case IPPROTO_UDP:
+		udp = detect_udp_header(ctx, offset);
+		if (!udp) {
+			return false;
+		}
+		key.sport = udp->dest;
+		key.dport = udp->source;
+		entry = bpf_map_lookup_elem(&nat_ct, &key);
+		if (!entry) {
+			return false;
+		}
+		__u16 previous_udp_csum = udp->check;
+		ip4->daddr = entry->src.saddr;
+		ctx->icmp->checksum = ipv4_csum_update_u32(
+			ctx->icmp->checksum, key.saddr, ip4->daddr);
+		udp->dest = entry->src.sport;
+		if (udp->dest != key.sport) {
+			ctx->icmp->checksum = ipv4_csum_update_u16(
+				ctx->icmp->checksum, key.sport, udp->dest);
+		}
+		if (udp->check != 0) {
+			udp->check = ipv4_csum_update_u32(udp->check, key.saddr,
+							  ip4->daddr);
+			if (udp->dest != key.sport) {
+				udp->check = ipv4_csum_update_u16(
+					udp->check, key.sport, udp->dest);
+			}
+			if (udp->check == 0) {
+				udp->check = 0xFFFF;
+			}
+			ctx->icmp->checksum = ipv4_csum_update_u16(
+				ctx->icmp->checksum, previous_udp_csum,
+				udp->check);
+		}
+		break;
+	case IPPROTO_TCP:
+		tcp = detect_tcp_ports(ctx, offset);
+		if (!tcp) {
+			return false;
+		}
+		key.sport = tcp->dest;
+		key.dport = tcp->source;
+		entry = bpf_map_lookup_elem(&nat_ct, &key);
+		if (!entry) {
+			return false;
+		}
+		ip4->daddr = entry->src.saddr;
+		ctx->icmp->checksum = ipv4_csum_update_u32(
+			ctx->icmp->checksum, key.saddr, ip4->daddr);
+		tcp->dest = entry->src.sport;
+		if (tcp->dest != key.sport) {
+			ctx->icmp->checksum = ipv4_csum_update_u16(
+				ctx->icmp->checksum, key.sport, tcp->dest);
+		}
+		struct tcphdr *tcp_full = detect_tcp_header(ctx, offset);
+		if (tcp_full) {
+			__u16 previous_tcp_csum = tcp_full->check;
+			tcp_full->check = ipv4_csum_update_u32(
+				tcp_full->check, key.saddr, ip4->daddr);
+			if (tcp->dest != key.sport) {
+				tcp_full->check = ipv4_csum_update_u16(
+					tcp_full->check, key.sport, tcp->dest);
+			}
+			ctx->icmp->checksum = ipv4_csum_update_u16(
+				ctx->icmp->checksum, previous_tcp_csum,
+				tcp_full->check);
+		}
+		break;
+	default:
+		return false;
+	}
+
+	ip4->check = ipv4_csum_update_u32(ip4->check, key.saddr, ip4->daddr);
+	ctx->icmp->checksum = ipv4_csum_update_u16(ctx->icmp->checksum,
+						   previous_ip_csum, ip4->check);
+	return true;
+}
+
 static __always_inline struct nat_entry *
 find_origin_for_icmp(struct five_tuple *key, struct packet_context *ctx)
 {
@@ -253,6 +355,7 @@ find_origin_for_icmp(struct five_tuple *key, struct packet_context *ctx)
 		return bpf_map_lookup_elem(&nat_ct, key);
 	case ICMP_DEST_UNREACH:
 	case ICMP_TIME_EXCEEDED:
+	case ICMP_PARAMETERPROB:
 		if (!parse_icmp_packet_ref(key, ctx))
 			return NULL;
 		return bpf_map_lookup_elem(&nat_ct, key);
@@ -380,11 +483,19 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 				return false;
 			}
 		}
-		if (ctx->icmp->type != ICMP_ECHO &&
-		    ctx->icmp->type != ICMP_TIMESTAMP) {
-			/* ICMP errors are not flows: translate the outer
-			 * source only, no conntrack entry. */
-			return true;
+		switch (ctx->icmp->type) {
+		case ICMP_ECHO:
+		case ICMP_TIMESTAMP:
+			break;
+		case ICMP_DEST_UNREACH:
+		case ICMP_TIME_EXCEEDED:
+		case ICMP_PARAMETERPROB:
+			/* An error is not a flow of its own: no conntrack
+			 * entry, and it is dropped when the packet it quotes
+			 * has no mapping (RFC 5508 REQ-5). */
+			return nat_icmp_error_uplink(ctx);
+		default:
+			return false;
 		}
 		orig.identifier = ctx->icmp->un.echo.id;
 		orig.type = ctx->icmp->type;
@@ -534,6 +645,8 @@ static __always_inline void nat_ct_mark_replied(const struct five_tuple *nat_key
 						struct nat_entry *origin,
 						bool closing)
 {
+	/* Inbound traffic alone keeps a mapping alive (RFC 4787 REQ-6a): a
+	 * remote can only reach one whose full tuple it already knows. */
 	__u64 now = bpf_ktime_get_ns();
 	origin->refresh_ts = now;
 

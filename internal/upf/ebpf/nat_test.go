@@ -497,6 +497,119 @@ func TestNATICMPErrorFromRouter(t *testing.T) {
 	}
 }
 
+// TestNATICMPErrorFromUE checks that an ICMP error a UE sends outbound has the
+// packet it quotes reverted to the translated form (RFC 5508 REQ-5), so the
+// remote can match the error to its socket and the UE address stays private.
+func TestNATICMPErrorFromUE(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid  = 0x4E415413
+		ueSP  = 1234
+		srvDP = 4000
+	)
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, teid, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+
+	// Establish the mapping the quoted packet belongs to.
+	f.injectUplink(t, uplinkGPDU(teid, ipv4Packet(ueIP, serverIP, 17,
+		udpDatagramChecksummed(ueIP, serverIP, ueSP, srvDP, []byte{1}))))
+	time.Sleep(100 * time.Millisecond)
+
+	capFD := f.captureN6(t)
+
+	// The UE answers a server datagram with port-unreachable, quoting the
+	// packet as it arrived: server -> UE.
+	quotedUDP := udpDatagramChecksummed(serverIP, ueIP, srvDP, ueSP, nil)
+	quoted := ipv4Packet(serverIP, ueIP, 17, quotedUDP)
+
+	icmpErr := make([]byte, 8+len(quoted))
+	icmpErr[0] = 3 // destination unreachable
+	icmpErr[1] = 3 // port unreachable
+	copy(icmpErr[8:], quoted)
+	binary.BigEndian.PutUint16(icmpErr[2:4], onesComplement16(icmpErr))
+
+	f.injectUplink(t, uplinkGPDU(teid, ipv4Packet(ueIP, serverIP, 1, icmpErr)))
+
+	got := captureMatching(capFD, time.Second, func(fr []byte) bool {
+		return isInnerIPv4(fr, 1, serverIP)
+	})
+	if got == nil {
+		t.Fatal("UE-originated ICMP error did not egress on N6")
+	}
+
+	ip := got[ethHdrLen : ethHdrLen+20]
+	icmp := got[ethHdrLen+20:]
+
+	if !bytes.Equal(ip[12:16], natPublicIP[:]) {
+		t.Errorf("outer src = %v, want %v (source-NAT'd)", ip[12:16], natPublicIP)
+	}
+
+	if !validIPv4Checksum(ip) {
+		t.Error("outer IPv4 header checksum invalid")
+	}
+
+	if !validICMPChecksum(icmp) {
+		t.Error("ICMP checksum invalid after quoting rewrite")
+	}
+
+	embedded := icmp[8:]
+	if len(embedded) < 28 {
+		t.Fatalf("quote too short: %d bytes", len(embedded))
+	}
+
+	if !bytes.Equal(embedded[16:20], natPublicIP[:]) {
+		t.Errorf("quoted destination = %v, want %v (the address the server sent to)", embedded[16:20], natPublicIP)
+	}
+
+	if !bytes.Equal(embedded[12:16], serverIP[:]) {
+		t.Errorf("quoted source = %v, want %v (preserved)", embedded[12:16], serverIP)
+	}
+
+	if dp := binary.BigEndian.Uint16(embedded[22:24]); dp != ueSP {
+		t.Errorf("quoted destination port = %d, want %d (the mapped port)", dp, ueSP)
+	}
+
+	if !validIPv4Checksum(embedded[:20]) {
+		t.Error("quoted IPv4 header checksum invalid after rewrite")
+	}
+
+	if !validIPv4L4Checksum(serverIP, natPublicIP, 17, embedded[20:28]) {
+		t.Error("quoted UDP checksum invalid after rewrite")
+	}
+}
+
+// TestNATDropsUnmappedICMPErrorFromUE checks that a UE-originated ICMP error
+// quoting a packet with no mapping is dropped rather than forwarded with an
+// untranslated quote (RFC 5508 REQ-5).
+func TestNATDropsUnmappedICMPErrorFromUE(t *testing.T) {
+	requireProgTestRun(t)
+
+	const teid = 0x4E415414
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, teid, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+
+	capFD := f.captureN6(t)
+
+	quoted := ipv4Packet(serverIP, ueIP, 17, udpDatagramChecksummed(serverIP, ueIP, 9999, 8888, nil))
+
+	icmpErr := make([]byte, 8+len(quoted))
+	icmpErr[0] = 3
+	icmpErr[1] = 3
+	copy(icmpErr[8:], quoted)
+	binary.BigEndian.PutUint16(icmpErr[2:4], onesComplement16(icmpErr))
+
+	f.injectUplink(t, uplinkGPDU(teid, ipv4Packet(ueIP, serverIP, 1, icmpErr)))
+
+	if got := captureMatching(capFD, 500*time.Millisecond, func(fr []byte) bool {
+		return isInnerIPv4(fr, 1, serverIP)
+	}); got != nil {
+		t.Errorf("ICMP error quoting an unmapped packet egressed on N6: %x", got)
+	}
+}
+
 // asFragment marks an IPv4 packet as a non-first fragment (offset 185, more
 // fragments set) and fixes the header checksum.
 func asFragment(pkt []byte) []byte {

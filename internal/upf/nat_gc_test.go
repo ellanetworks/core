@@ -39,8 +39,10 @@ func TestNatEntryTimeout(t *testing.T) {
 	}{
 		{"tcp new", protoTCP, 0, 0, 0, natTCPTransitoryTimeout},
 		{"tcp established", protoTCP, natStateEstablished, 1, 0, natTCPEstablishedTimeout},
-		{"tcp half-closed by ue", protoTCP, natStateEstablished, 1, natClosedUE, natTCPHalfClosedTimeout},
-		{"tcp half-closed by remote", protoTCP, natStateEstablished, 1, natClosedRemote, natTCPHalfClosedTimeout},
+		// RFC 5382 §5: one FIN leaves the connection in the established
+		// phase, so the peer may still send indefinitely.
+		{"tcp half-closed by ue", protoTCP, natStateEstablished, 1, natClosedUE, natTCPEstablishedTimeout},
+		{"tcp half-closed by remote", protoTCP, natStateEstablished, 1, natClosedRemote, natTCPEstablishedTimeout},
 		{"tcp closed", protoTCP, natStateEstablished, 1, natClosedBoth, natTCPClosedTimeout},
 		{"udp unreplied", protoUDP, 0, 0, 0, natUDPUnrepliedTimeout},
 		{"udp replied", protoUDP, 0, 1, 0, natUDPRepliedTimeout},
@@ -72,9 +74,11 @@ func TestNatExpiredKeysPairsAndTimeouts(t *testing.T) {
 	closedNATKey := natTuple(100, 3000, protoTCP)
 	closedUE, closedNAT := pair(closedUEKey, closedNATKey, nowNs, 30*time.Second, natStateEstablished, 1, natClosedBoth)
 
+	// Half-closed and idle for an hour: still inside the established
+	// timeout, because the peer may keep sending after one FIN.
 	halfClosedUEKey := natTuple(6, 6000, protoTCP)
 	halfClosedNATKey := natTuple(100, 6000, protoTCP)
-	halfClosedUE, halfClosedNAT := pair(halfClosedUEKey, halfClosedNATKey, nowNs, 30*time.Second, natStateEstablished, 1, natClosedUE)
+	halfClosedUE, halfClosedNAT := pair(halfClosedUEKey, halfClosedNATKey, nowNs, time.Hour, natStateEstablished, 1, natClosedUE)
 
 	udpProbeUEKey := natTuple(4, 4000, protoUDP)
 	udpProbeNATKey := natTuple(100, 4000, protoUDP)
@@ -104,8 +108,6 @@ func TestNatExpiredKeysPairsAndTimeouts(t *testing.T) {
 		got[k] = true
 	}
 
-	// The half-closed pair is 30s idle: past the 10s closed timeout but
-	// inside the 120s half-closed one, so it must survive.
 	want := map[ebpf.N3N6EntrypointFiveTuple]bool{
 		deadUEKey:      true, // 3h > 7440s established timeout; pair goes together
 		deadNATKey:     true,

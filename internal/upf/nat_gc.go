@@ -12,15 +12,24 @@ import (
 // NAT conntrack timeout classes, evaluated on the UE-side entry. Entries are
 // reaped by a sweep on natGCInterval, so an entry outlives its class by up to
 // one interval.
-// TCP established satisfies RFC 5382 REQ-5 (>= 2 h 4 min); half-closed keeps
-// a connection alive while one side still sends; UDP replied satisfies RFC
-// 4787 REQ-5 (>= 2 min, 5 min recommended); an unreplied UDP flow gets a
-// short timeout so probe traffic cannot pin entries; ICMP follows RFC 5508
-// REQ-2.
+//
+// RFC 5382 §5 places FIN_WAIT_1, FIN_WAIT_2 and CLOSE_WAIT in the established
+// phase — after one FIN the peer may still send indefinitely — so a
+// half-closed connection keeps the established timeout. REQ-5 sets the floors:
+// established >= 2 h 4 min, partially open >= 4 min. ICMP follows RFC 5508
+// REQ-2, UDP with a reply RFC 4787 REQ-5 (>= 2 min, 5 min recommended).
+//
+// Two classes fall below their floor deliberately, matching netfilter:
+//   - Both directions closed: only final-ACK retransmissions can still
+//     arrive, and RFC 5382 §5 contemplates a NAT reaping such a session
+//     early. Holding a mapping for 4 min after every close would multiply
+//     the entries a connection-cycling subscriber occupies.
+//   - UDP with no reply yet: 4787 REQ-5 exempts only well-known destination
+//     ports, but scan and probe traffic would otherwise pin an entry per
+//     destination for the full 5 minutes.
 const (
 	natTCPEstablishedTimeout = 7440 * time.Second
-	natTCPTransitoryTimeout  = 120 * time.Second
-	natTCPHalfClosedTimeout  = 120 * time.Second
+	natTCPTransitoryTimeout  = 240 * time.Second
 	natTCPClosedTimeout      = 10 * time.Second
 	natUDPRepliedTimeout     = 300 * time.Second
 	natUDPUnrepliedTimeout   = 30 * time.Second
@@ -49,8 +58,6 @@ func natEntryTimeout(proto uint16, state, replied, closed uint8) time.Duration {
 		switch {
 		case closed == natClosedBoth:
 			return natTCPClosedTimeout
-		case closed != 0:
-			return natTCPHalfClosedTimeout
 		case state == natStateEstablished:
 			return natTCPEstablishedTimeout
 		default:

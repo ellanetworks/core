@@ -157,6 +157,7 @@ type RouteStats struct {
 	FibFwdDisabled  uint64
 	FibUnsuppLwt    uint64
 	IfindexMismatch uint64
+	FibError        uint64
 }
 
 func aggregateRouteStats(perCPUStats []N3N6EntrypointRouteStat) RouteStats {
@@ -173,6 +174,7 @@ func aggregateRouteStats(perCPUStats []N3N6EntrypointRouteStat) RouteStats {
 		rs.FibFwdDisabled += s.FibLookupIp4FwdDisabled + s.FibLookupIp6FwdDisabled
 		rs.FibUnsuppLwt += s.FibLookupIp4UnsuppLwt + s.FibLookupIp6UnsuppLwt
 		rs.IfindexMismatch += s.Ip4IfindexMismatch + s.Ip6IfindexMismatch
+		rs.FibError += s.FibLookupError
 	}
 
 	return rs
