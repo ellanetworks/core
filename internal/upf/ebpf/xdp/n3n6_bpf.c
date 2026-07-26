@@ -161,10 +161,8 @@ static __always_inline enum xdp_action process_downlink(struct packet_context *c
 	return DEFAULT_XDP_ACTION;
 }
 
-/* Returns the singleton statistics record for a map. The lookup only fails to
- * the verifier: the statistics maps are single-entry per-CPU arrays, so index
- * 0 always exists. Building a zeroed record here to seed the map would cost
- * the caller sizeof(struct upf_statistic) of stack on every packet. */
+/* The lookup fails only to the verifier: the statistics maps are single-entry
+ * per-CPU arrays, so index 0 always exists. */
 static __always_inline struct upf_statistic *get_stats(void *stats_map)
 {
 	const __u32 key = 0;
@@ -172,12 +170,10 @@ static __always_inline struct upf_statistic *get_stats(void *stats_map)
 	return bpf_map_lookup_elem(stats_map, &key);
 }
 
-/* upf_gtpu_control_func: tail-call stage for the GTP-U messages the UPF
- * answers itself rather than forwards — echo requests, and error indications
- * for a TEID with no session (TS 29.281 §7.2, §7.3.1). Both build a reply
- * packet, and keeping them out of the forwarding stage keeps their cost off
- * the fast path's stack and instruction budgets. Re-parses from its own ctx:
- * the stack does not survive a tail call. */
+/* upf_gtpu_control_func: tail-call stage for the GTP-U messages the UPF answers
+ * itself — echo requests (TS 29.281 §7.2) and error indications for an unknown
+ * TEID (§7.3.1). Re-parses from its own ctx (the stack does not survive a tail
+ * call). */
 SEC("xdp/upf_gtpu_control")
 int upf_gtpu_control_func(struct xdp_md *ctx)
 {
@@ -196,12 +192,9 @@ int upf_gtpu_control_func(struct xdp_md *ctx)
 	if (context_reinit(&context, context.data, context.data_end) != 0)
 		return DEFAULT_XDP_ACTION;
 
-	/*
-	 * The IPv4 and IPv6 transports are dispatched in full, separately, each
-	 * ending in its own return. Sharing a tail would let the verifier merge
-	 * a state where context_reinit set ip4 with one where it set ip6, after
-	 * which neither is a pointer it will allow a dereference of.
-	 */
+	/* Each transport is dispatched to its own return: a shared tail lets the
+	 * verifier merge the ip4 and ip6 states, after which it rejects a
+	 * dereference of either. */
 	if (context.ip4) {
 		if (parse_udp(&context) != GTP_UDP_PORT)
 			return DEFAULT_XDP_ACTION;
@@ -216,9 +209,8 @@ int upf_gtpu_control_func(struct xdp_md *ctx)
 		if (pdu_type != GTPU_G_PDU || context.gtp->teid == 0)
 			return DEFAULT_XDP_ACTION;
 
-		/* Only a TEID the forwarding stage found no session for gets
-		 * here, but this program is independently reachable, so the
-		 * absence is confirmed rather than assumed. */
+		/* The stage is independently reachable, so the absent session is
+		 * confirmed here. */
 		__u32 teid4 = bpf_htonl(context.gtp->teid);
 		if (bpf_map_lookup_elem(&pdrs_uplink, &teid4))
 			return DEFAULT_XDP_ACTION;
@@ -300,10 +292,9 @@ int upf_downlink_func(struct xdp_md *ctx)
  * the matching stage. Packet-type classification (not interface) keeps this
  * correct when N3 and N6 share one interface.
  *
- * Where the two are distinct interfaces the shape alone is not enough: uplink
- * traffic is attributed to a subscriber and source-NATed on its behalf, so a
- * GTP-U-shaped packet from the data network must not be able to claim that
- * treatment. There the ingress interface decides. */
+ * With distinct interfaces the shape alone is not enough: uplink traffic is
+ * attributed to a subscriber and source-NATed on its behalf, so a GTP-U-shaped
+ * packet arriving on N6 must not claim that treatment. */
 SEC("xdp/upf_entry")
 int upf_entry_func(struct xdp_md *ctx)
 {

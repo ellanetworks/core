@@ -67,7 +67,7 @@ type VethEntrypointIn6Addr struct {
 
 type VethEntrypointNatEntry struct {
 	_         structs.HostLayout
-	Src       VethEntrypointFiveTuple
+	Peer      VethEntrypointFiveTuple
 	RefreshTs uint64
 	State     uint8
 	Replied   uint8

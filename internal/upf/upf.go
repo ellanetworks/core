@@ -476,9 +476,8 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 		values = make([]ebpf.N3N6EntrypointNatEntry, natGCBatchSize)
 	)
 
-	// Sized from the previous sweep rather than reused: clearing a map keeps
-	// its buckets, so one traffic peak would pin the high-water mark for the
-	// process lifetime.
+	// Sized from the previous sweep: a retained map keeps its buckets,
+	// pinning the high-water mark of one traffic peak.
 	snapshotSize := 0
 
 	ticker := time.NewTicker(natGCInterval)
@@ -754,8 +753,6 @@ func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flow
 }
 
 func (u *UPF) collectExpiredFlows(ctx context.Context, flowch chan flowReport) {
-	// Flow timestamps are bpf_ktime_get_ns (CLOCK_MONOTONIC); comparing
-	// against any other clock ages flows by the suspend time.
 	var ts unix.Timespec
 
 	ticker := time.NewTicker(InactiveFlowTimeout / 2)

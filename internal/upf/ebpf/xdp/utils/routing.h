@@ -75,9 +75,6 @@ struct route_stat {
 	__u64 fib_lookup_ip6_fwd_disabled;
 	__u64 fib_lookup_ip6_unsupp_lwt;
 	__u64 ip6_ifindex_mismatch;
-	/* Helper rejected the call, e.g. a flag the running kernel does not
-	 * support. IPv4 is dropped rather than forwarded untranslated; IPv6
-	 * carries no translation to lose and is passed to the stack. */
 	__u64 fib_lookup_ip4_error;
 	__u64 fib_lookup_ip6_error;
 };
@@ -117,10 +114,8 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 	__builtin_memcpy(ctx->eth->h_source, fib_params->smac, ETH_ALEN);
 	__builtin_memcpy(ctx->eth->h_dest, fib_params->dmac, ETH_ALEN);
 
-	/* A packet still carrying its GTP-U header is tunnel transport, not
-	 * subscriber traffic: those addresses belong to the UPF and its peer
-	 * (TS 29.281 §4.4), and no downlink path reverses a translation of
-	 * them. context_reset clears ctx->gtp on decapsulation. */
+	/* GTP-U transport addresses are the UPF's and its peer's (TS 29.281
+	 * §4.4.3), and no downlink path reverses a translation of them. */
 	if (ctx->interface == INTERFACE_N3 && !ctx->gtp) {
 		if (masquerade) {
 			PROFILE_START(PROF_N3_NAT);
@@ -255,8 +250,8 @@ static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 		statistic->fib_lookup_ip4_unsupp_lwt += 1;
 		return XDP_PASS;
 	default:
-		/* A negative return is helper misuse, not a routing verdict:
-		 * passing would forward the packet untranslated. */
+		/* A negative return is helper misuse, not a routing verdict;
+		 * passing hands the stack an untranslated UE address. */
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
 		if (rc < 0) {

@@ -64,7 +64,6 @@ func RegisterMetrics() {
 		nil,
 	)
 
-	// Unsolicited downlink drops under NAT (downlink/N6 only)
 	xdpNatUnsolicitedDropDesc := prometheus.NewDesc(
 		"app_xdp_nat_unsolicited_drop_total",
 		"Downlink packets dropped because NAT is enabled and the UE destination address had no conntrack translation.",
@@ -72,7 +71,6 @@ func RegisterMetrics() {
 		nil,
 	)
 
-	// NAT drops by reason
 	xdpNatDropDesc := prometheus.NewDesc(
 		"app_xdp_nat_drop_total",
 		"Packets dropped by the NAT engine, by reason (fragment, port_exhausted, unsupported_proto, malformed).",

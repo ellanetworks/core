@@ -91,10 +91,10 @@ func TestDeleteSessionPurgesNATConntrack(t *testing.T) {
 	otherNATKey := natTestTuple(natIP, 2000)
 
 	entries := map[upfebpf.N3N6EntrypointFiveTuple]upfebpf.N3N6EntrypointNatEntry{
-		ueKey:       {Src: natKey, UeSide: 1},
-		natKey:      {Src: ueKey},
-		otherUEKey:  {Src: otherNATKey, UeSide: 1},
-		otherNATKey: {Src: otherUEKey},
+		ueKey:       {Peer: natKey, UeSide: 1},
+		natKey:      {Peer: ueKey},
+		otherUEKey:  {Peer: otherNATKey, UeSide: 1},
+		otherNATKey: {Peer: otherUEKey},
 	}
 
 	for k, v := range entries {

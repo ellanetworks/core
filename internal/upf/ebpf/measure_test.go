@@ -12,17 +12,15 @@ import (
 	"github.com/cilium/ebpf/asm"
 )
 
-// The kernel rejects a program whose BPF-to-BPF call chain needs more than
-// MAX_BPF_STACK. maxChainStack keeps a frame's worth of margin below it, so
-// growth fails here rather than at load time on a user's kernel.
+// MAX_BPF_STACK is the kernel's limit on a BPF-to-BPF call chain; maxChainStack
+// keeps a frame of margin below it so growth fails here, not at load time.
 const (
 	maxBPFStack   = 512
 	maxChainStack = 480
 )
 
-// frameRounding is what the verifier applies to each frame when the JIT is
-// disabled (round_up(max(depth, 1), 32)). A JITed kernel rounds to 16, so
-// budgeting against this value holds on either.
+// frameRounding is the verifier's per-frame rounding with the JIT disabled;
+// a JITed kernel rounds to 16, so this bound holds on either.
 const frameRounding = 32
 
 func roundFrame(depth int) int {
@@ -33,9 +31,8 @@ func roundFrame(depth int) int {
 	return (depth + frameRounding - 1) / frameRounding * frameRounding
 }
 
-// functionFrames returns the stack depth of each function in the instruction
-// stream, keyed by symbol. Depth is the deepest r10-relative access, which is
-// how the verifier derives it.
+// functionFrames returns each function's stack depth, the deepest r10-relative
+// access, as the verifier derives it.
 func functionFrames(insns asm.Instructions) map[string]int {
 	frames := make(map[string]int)
 	current := ""
@@ -62,9 +59,8 @@ func functionFrames(insns asm.Instructions) map[string]int {
 	return frames
 }
 
-// TestStackDepthBudget bounds the combined stack of each program and the
-// subprograms it calls. Summing every function in the stream over-approximates
-// a single chain, which is the safe direction for a budget.
+// TestStackDepthBudget bounds the combined stack of each program and its
+// subprograms; summing every function over-approximates a single chain.
 func TestStackDepthBudget(t *testing.T) {
 	spec, err := LoadN3N6Entrypoint()
 	if err != nil {
@@ -82,7 +78,7 @@ func TestStackDepthBudget(t *testing.T) {
 		t.Logf("MEASURE %-18s combined_stack=%d frames=%v", name, combined, frames)
 
 		if combined > maxChainStack {
-			t.Errorf("%s combined stack %d exceeds the %d budget (kernel rejects above %d): move a stack local to a per-CPU scratch map, or split the pipeline with a tail call",
+			t.Errorf("%s combined stack = %d, want <= %d (kernel limit %d)",
 				name, combined, maxChainStack, maxBPFStack)
 		}
 	}

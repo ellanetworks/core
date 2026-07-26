@@ -122,9 +122,8 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	bool translated = false;
 	bool counted = false;
 	struct nat_xlate xlate = {};
-	/* A fragment has no usable L4 header, so it cannot be translated. It
-	 * still reaches the lookups below: traffic addressed to this host is
-	 * not ours to drop. */
+	/* Only the first fragment carries an L4 header, and translating it
+	 * alone leaves the rest unmatchable. */
 	const bool fragment = ctx->ip4->frag_off & bpf_htons(IP4_FRAG_MASK);
 	if (masquerade && !fragment) {
 		PROFILE_START(PROF_N6_NAT);
@@ -132,8 +131,6 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		PROFILE_END(PROF_N6_NAT);
 	}
 	const struct iphdr *ip4 = ctx->ip4;
-	/* The packet is still addressed as it arrived, so the session is looked
-	 * up by the address the translation resolved. */
 	__u32 ue_addr = translated ? xlate.daddr : ip4->daddr;
 
 	PROFILE_START(PROF_N6_PDR_LOOKUP);
@@ -150,8 +147,8 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		}
 		if (!pdr) {
 			upf_printk("upf: no downlink session for ip:%pI4", &ue_addr);
-			/* A packet whose mapping resolved to a session that is
-			 * gone is not the stack's to reassemble or answer. */
+			/* A conntrack hit makes this the UE's packet; the host
+			 * stack has no session to answer it with. */
 			if (translated) {
 				ctx->statistics->nat_unsolicited_drop_ip4 += 1;
 				return XDP_DROP;
@@ -165,8 +162,6 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	 * §5.8.2.2.1): untranslated downlink to a UE is unsolicited. */
 	if (masquerade && !translated) {
 		upf_printk("upf: unsolicited downlink for ip:%pI4", &ip4->daddr);
-		/* destination_nat counts the reasons it recognises; anything
-		 * left is a packet nothing solicited. */
 		if (fragment) {
 			ctx->statistics->nat_fragment_drop_ip4 += 1;
 		} else if (!counted) {
@@ -199,12 +194,11 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	if (ret > 0) {
 		upf_printk("upf: n6 packet too large");
 		mtu_len -= encap_size;
-		/* Nothing has been rewritten yet, so the error quotes the
-		 * packet as the sender sent it and it can match the flow. */
+		/* The error must quote the packet as the sender sent it for the
+		 * sender to match it to a socket (RFC 792). */
 		return frag_needed(ctx, mtu_len);
 	}
 
-	/* Every verdict is in: the packet becomes the UE's. */
 	PROFILE_START(PROF_N6_NAT);
 	destination_nat_apply(ctx, &xlate);
 	PROFILE_END(PROF_N6_NAT);

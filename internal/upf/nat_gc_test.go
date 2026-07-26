@@ -24,8 +24,8 @@ func natTuple(saddr uint32, sport uint16, proto uint16) ebpf.N3N6EntrypointFiveT
 func pair(ueKey, natKey ebpf.N3N6EntrypointFiveTuple, nowNs uint64, age time.Duration, state, replied, closed uint8) (ebpf.N3N6EntrypointNatEntry, ebpf.N3N6EntrypointNatEntry) {
 	ts := nowNs - uint64(age.Nanoseconds())
 
-	return ebpf.N3N6EntrypointNatEntry{Src: natKey, RefreshTs: ts, State: state, Replied: replied, UeSide: 1, Closed: closed},
-		ebpf.N3N6EntrypointNatEntry{Src: ueKey, RefreshTs: ts}
+	return ebpf.N3N6EntrypointNatEntry{Peer: natKey, RefreshTs: ts, State: state, Replied: replied, UeSide: 1, Closed: closed},
+		ebpf.N3N6EntrypointNatEntry{Peer: ueKey, RefreshTs: ts}
 }
 
 func TestNatEntryTimeout(t *testing.T) {
@@ -128,7 +128,7 @@ func TestNatExpiredKeysPartialSnapshot(t *testing.T) {
 	// A live pair whose UE-side entry is absent from this snapshot.
 	missedUEKey := natTuple(1, 1000, protoTCP)
 	orphanKey := natTuple(100, 1000, protoTCP)
-	orphan := ebpf.N3N6EntrypointNatEntry{Src: missedUEKey, RefreshTs: nowNs - uint64((2 * natOrphanGrace).Nanoseconds())}
+	orphan := ebpf.N3N6EntrypointNatEntry{Peer: missedUEKey, RefreshTs: nowNs - uint64((2 * natOrphanGrace).Nanoseconds())}
 
 	// A genuinely expired pair, both halves present.
 	deadUEKey := natTuple(2, 2000, protoTCP)
@@ -172,21 +172,21 @@ func TestNatExpiredKeysOrphans(t *testing.T) {
 
 	// NAT-side entry with no partner, past the grace period.
 	staleOrphanKey := natTuple(100, 1000, protoTCP)
-	staleOrphan := ebpf.N3N6EntrypointNatEntry{Src: ueKey, RefreshTs: nowNs - uint64((2 * natOrphanGrace).Nanoseconds())}
+	staleOrphan := ebpf.N3N6EntrypointNatEntry{Peer: ueKey, RefreshTs: nowNs - uint64((2 * natOrphanGrace).Nanoseconds())}
 
 	// NAT-side entry with no partner, inside the grace period (a pair whose
 	// second insert is in flight must not be reaped).
 	newOrphanKey := natTuple(100, 2000, protoTCP)
-	newOrphan := ebpf.N3N6EntrypointNatEntry{Src: natTuple(2, 2000, protoTCP), RefreshTs: nowNs - uint64(time.Second.Nanoseconds())}
+	newOrphan := ebpf.N3N6EntrypointNatEntry{Peer: natTuple(2, 2000, protoTCP), RefreshTs: nowNs - uint64(time.Second.Nanoseconds())}
 
 	// NAT-side entry whose partner exists but references a different
 	// NAT-side tuple (stale after a port remap): orphan.
 	mismatchedKey := natTuple(100, 3000, protoTCP)
 	mismatchedUEKey := natTuple(3, 3000, protoTCP)
-	mismatched := ebpf.N3N6EntrypointNatEntry{Src: mismatchedUEKey, RefreshTs: nowNs - uint64((2 * natOrphanGrace).Nanoseconds())}
+	mismatched := ebpf.N3N6EntrypointNatEntry{Peer: mismatchedUEKey, RefreshTs: nowNs - uint64((2 * natOrphanGrace).Nanoseconds())}
 	remappedNATKey := natTuple(100, 3333, protoTCP)
-	mismatchedUE := ebpf.N3N6EntrypointNatEntry{Src: remappedNATKey, RefreshTs: nowNs, UeSide: 1}
-	remappedNAT := ebpf.N3N6EntrypointNatEntry{Src: mismatchedUEKey, RefreshTs: nowNs}
+	mismatchedUE := ebpf.N3N6EntrypointNatEntry{Peer: remappedNATKey, RefreshTs: nowNs, UeSide: 1}
+	remappedNAT := ebpf.N3N6EntrypointNatEntry{Peer: mismatchedUEKey, RefreshTs: nowNs}
 
 	snapshot := map[ebpf.N3N6EntrypointFiveTuple]ebpf.N3N6EntrypointNatEntry{
 		staleOrphanKey:  staleOrphan,

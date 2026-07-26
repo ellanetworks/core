@@ -758,13 +758,13 @@ func TestNATConntrackDirectionAndState(t *testing.T) {
 		t.Errorf("after SYN: state=%d replied=%d ue_side=%d, want state=0 replied=0 ue_side=1", ue.State, ue.Replied, ue.UeSide)
 	}
 
-	if ue.Src != natKey {
-		t.Errorf("UE-side entry src = %+v, want the NAT-side tuple %+v", ue.Src, natKey)
+	if ue.Peer != natKey {
+		t.Errorf("UE-side entry src = %+v, want the NAT-side tuple %+v", ue.Peer, natKey)
 	}
 
 	natSide := lookupNatEntry(t, f, natKey)
-	if natSide.Src != ueKey {
-		t.Errorf("NAT-side entry src = %+v, want the UE tuple %+v", natSide.Src, ueKey)
+	if natSide.Peer != ueKey {
+		t.Errorf("NAT-side entry src = %+v, want the UE tuple %+v", natSide.Peer, ueKey)
 	}
 
 	if natSide.UeSide != 0 {
@@ -953,12 +953,12 @@ func TestNATRemapsOnChangedEgressAddress(t *testing.T) {
 
 	// The state an egress-address change leaves behind: a pair keyed on an
 	// address this UPF no longer sends from.
-	stale := N3N6EntrypointNatEntry{Src: staleNAT, UeSide: 1, State: 1, Replied: 1}
+	stale := N3N6EntrypointNatEntry{Peer: staleNAT, UeSide: 1, State: 1, Replied: 1}
 	if err := f.obj.NatCt.Put(&ueKey, &stale); err != nil {
 		t.Fatalf("seed stale mapping: %v", err)
 	}
 
-	if err := f.obj.NatCt.Put(&staleNAT, &N3N6EntrypointNatEntry{Src: ueKey}); err != nil {
+	if err := f.obj.NatCt.Put(&staleNAT, &N3N6EntrypointNatEntry{Peer: ueKey}); err != nil {
 		t.Fatalf("seed stale partner: %v", err)
 	}
 
@@ -981,7 +981,7 @@ func TestNATRemapsOnChangedEgressAddress(t *testing.T) {
 	}
 
 	want := natFiveTuple(natPublicIP, serverIP, ueSP, srvDP, 6)
-	if ue := lookupNatEntry(t, f, ueKey); ue.Src.Saddr != want.Saddr {
+	if ue := lookupNatEntry(t, f, ueKey); ue.Peer.Saddr != want.Saddr {
 		t.Error("the mapping was not re-made against the current egress address")
 	}
 }
@@ -1109,7 +1109,7 @@ func TestNATRemapOnForeignReservation(t *testing.T) {
 	natKey := natFiveTuple(natPublicIP, serverIP, ueSP, srvDP, 6)
 	foreignKey := natFiveTuple([4]byte{10, 45, 0, 2}, serverIP, ueSP, srvDP, 6)
 
-	foreign := N3N6EntrypointNatEntry{Src: foreignKey}
+	foreign := N3N6EntrypointNatEntry{Peer: foreignKey}
 	if err := f.obj.NatCt.Put(&natKey, &foreign); err != nil {
 		t.Fatalf("seed foreign reservation: %v", err)
 	}
@@ -1128,11 +1128,11 @@ func TestNATRemapOnForeignReservation(t *testing.T) {
 		t.Errorf("egress source port = %d, want a remapped port", sp)
 	}
 
-	if cur := lookupNatEntry(t, f, natKey); cur.Src != foreignKey {
-		t.Errorf("foreign reservation src = %+v, want %+v (must stay intact)", cur.Src, foreignKey)
+	if cur := lookupNatEntry(t, f, natKey); cur.Peer != foreignKey {
+		t.Errorf("foreign reservation src = %+v, want %+v (must stay intact)", cur.Peer, foreignKey)
 	}
 
-	if ue := lookupNatEntry(t, f, ueKey); ue.Src == natKey {
+	if ue := lookupNatEntry(t, f, ueKey); ue.Peer == natKey {
 		t.Error("UE-side entry still references the foreign-held tuple")
 	}
 }

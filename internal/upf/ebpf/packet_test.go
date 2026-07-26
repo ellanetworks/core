@@ -81,8 +81,7 @@ func validIPv4L4Checksum(src, dst [4]byte, proto uint8, l4 []byte) bool {
 
 // tcpSegmentChecksummed builds a 20-byte-header TCP segment with a valid
 // checksum for the given IPv4 endpoints (so incremental NAT updates stay valid).
-// ACK is set because every segment of a connection except the opening SYN
-// carries it, and a segment with no flags at all is rejected as malformed.
+// ACK is set because a segment with no flags is rejected as malformed.
 func tcpSegmentChecksummed(src, dst [4]byte, srcPort, dstPort uint16, payload []byte) []byte {
 	seg := make([]byte, 20+len(payload))
 

@@ -19,9 +19,9 @@ const (
 	natPurgeAttempts  = 3
 )
 
-// purgeNATConntrack removes every nat_ct entry belonging to ueIP. The IP
-// allocator hands out the lowest free address, so a released address must
-// leave no conntrack state behind by the time it can be reallocated.
+// purgeNATConntrack removes every nat_ct entry belonging to ueIP; the IP
+// allocator reissues the lowest free address, so no state may outlive the
+// session.
 func (conn *SessionEngine) purgeNATConntrack(ueIP netip.Addr) {
 	if conn.BpfObjects == nil || conn.BpfObjects.NatCt == nil || !ueIP.Is4() {
 		return
@@ -35,8 +35,7 @@ func (conn *SessionEngine) purgeNATConntrack(ueIP netip.Addr) {
 		values = make([]ebpf.N3N6EntrypointNatEntry, natPurgeBatchSize)
 	)
 
-	// Each round rescans, so a partial scan or delete is retried rather than
-	// leaving state the next holder of this address would inherit.
+	// Each round rescans so a partial scan or delete is retried.
 	for attempt := 1; ; attempt++ {
 		var (
 			cursor  bpf.MapBatchCursor
@@ -48,7 +47,7 @@ func (conn *SessionEngine) purgeNATConntrack(ueIP netip.Addr) {
 			n, err := conn.BpfObjects.NatCt.BatchLookup(&cursor, keys, values, nil)
 
 			for i := 0; i < n; i++ {
-				if keys[i].Saddr == ueAddr || values[i].Src.Saddr == ueAddr {
+				if keys[i].Saddr == ueAddr || values[i].Peer.Saddr == ueAddr {
 					matched = append(matched, keys[i])
 				}
 			}
@@ -75,9 +74,8 @@ func (conn *SessionEngine) purgeNATConntrack(ueIP netip.Addr) {
 			logger.UpfLog.Debug("Purged NAT conntrack entries for released UE address",
 				zap.String("ueIP", ueIP.String()), zap.Int("count", count))
 
-			// A complete scan followed by a delete of everything it
-			// found needs no confirming pass; each pass walks the
-			// whole map while the session lock is held.
+			// A complete scan whose every match was deleted needs
+			// no confirming pass.
 			if scanErr == nil && count == len(matched) {
 				return
 			}

@@ -282,9 +282,8 @@ handle_gtp_packet(struct packet_context *ctx)
 	}
 	PROFILE_END(PROF_N3_GTP_MANIP);
 
-	/* SDF filter enforcement (uplink), on the inner packet. A packet the
-	 * FAR forwards without decapsulating still has the tunnel header in
-	 * context, whose addresses and port 2152 are not the subscriber's. */
+	/* Without decapsulation the context still holds the tunnel headers,
+	 * whose addresses and ports are the UPF's and its peer's. */
 	if (!ctx->gtp) {
 		PROFILE_START(PROF_N3_SDF_FILTER);
 		enum xdp_action sdf_verdict =
