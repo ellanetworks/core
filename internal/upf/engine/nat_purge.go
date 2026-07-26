@@ -74,6 +74,13 @@ func (conn *SessionEngine) purgeNATConntrack(ueIP netip.Addr) {
 
 			logger.UpfLog.Debug("Purged NAT conntrack entries for released UE address",
 				zap.String("ueIP", ueIP.String()), zap.Int("count", count))
+
+			// A complete scan followed by a delete of everything it
+			// found needs no confirming pass; each pass walks the
+			// whole map while the session lock is held.
+			if scanErr == nil && count == len(matched) {
+				return
+			}
 		}
 
 		if attempt == natPurgeAttempts {

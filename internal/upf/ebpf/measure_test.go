@@ -104,6 +104,7 @@ func TestMeasureVerifiedInstructions(t *testing.T) {
 		{"upf_entry", obj.UpfEntryFunc},
 		{"upf_uplink", obj.UpfUplinkFunc},
 		{"upf_downlink", obj.UpfDownlinkFunc},
+		{"upf_gtpu_control", obj.UpfGtpuControlFunc},
 	} {
 		info, err := pr.p.Info()
 		if err != nil {

@@ -117,7 +117,11 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 	__builtin_memcpy(ctx->eth->h_source, fib_params->smac, ETH_ALEN);
 	__builtin_memcpy(ctx->eth->h_dest, fib_params->dmac, ETH_ALEN);
 
-	if (ctx->interface == INTERFACE_N3) {
+	/* A packet still carrying its GTP-U header is tunnel transport, not
+	 * subscriber traffic: those addresses belong to the UPF and its peer
+	 * (TS 29.281 §4.4), and no downlink path reverses a translation of
+	 * them. context_reset clears ctx->gtp on decapsulation. */
+	if (ctx->interface == INTERFACE_N3 && !ctx->gtp) {
 		if (masquerade) {
 			PROFILE_START(PROF_N3_NAT);
 			int nat_ok = source_nat(ctx, fib_params);

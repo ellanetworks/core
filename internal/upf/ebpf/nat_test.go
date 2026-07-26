@@ -657,12 +657,13 @@ func TestNATDropsFragments(t *testing.T) {
 		}
 	})
 
-	t.Run("downlink", func(t *testing.T) {
+	// A fragment addressed to a UE cannot be translated and is dropped.
+	t.Run("downlink to ue", func(t *testing.T) {
 		capFD := f.captureN3(t)
 
 		before := GetNatDrops(f.obj).Fragment
 
-		reply := asFragment(ipv4Packet(serverIP, natPublicIP, 6, tcpSegmentChecksummed(serverIP, natPublicIP, srvDP, ueSP, bytesOf(64))))
+		reply := asFragment(ipv4Packet(serverIP, ueIP, 6, tcpSegmentChecksummed(serverIP, ueIP, srvDP, ueSP, bytesOf(64))))
 		f.injectDownlink(t, ethFrame(0x0800, reply))
 
 		if got := captureMatching(capFD, 500*time.Millisecond, func(fr []byte) bool {
@@ -673,6 +674,21 @@ func TestNATDropsFragments(t *testing.T) {
 
 		if after := GetNatDrops(f.obj).Fragment; after != before+1 {
 			t.Errorf("fragment drop counter = %d, want %d", after, before+1)
+		}
+	})
+
+	// A fragment addressed to this host is not the NAT's to drop: it
+	// belongs to the stack, which can reassemble it.
+	t.Run("downlink to host", func(t *testing.T) {
+		before := GetNatDrops(f.obj).Fragment
+
+		reply := asFragment(ipv4Packet(serverIP, natPublicIP, 6, tcpSegmentChecksummed(serverIP, natPublicIP, srvDP, ueSP, bytesOf(64))))
+		f.injectDownlink(t, ethFrame(0x0800, reply))
+
+		time.Sleep(200 * time.Millisecond)
+
+		if after := GetNatDrops(f.obj).Fragment; after != before {
+			t.Errorf("fragment drop counter = %d, want %d (host traffic must not be dropped)", after, before)
 		}
 	})
 }
@@ -869,17 +885,17 @@ func TestNATConntrackDirectionAndState(t *testing.T) {
 	}
 }
 
-// TestNATInboundResetDoesNotFullyClose verifies that an unsolicited inbound
-// RST closes only the remote direction: without sequence validation it must
-// not drop a subscriber's connection into the short closed timeout.
-func TestNATInboundResetDoesNotFullyClose(t *testing.T) {
+// TestNATInboundResetPolicy verifies how much an unvalidated inbound RST is
+// trusted: on a flow with no observed handshake it closes both directions,
+// because the connection is evidence-free; on an established one it closes
+// only the remote direction, so a forged segment cannot reap a live session.
+func TestNATInboundResetPolicy(t *testing.T) {
 	requireProgTestRun(t)
 
 	const (
 		ulTEID = 0x4E41540C
 		dlTEID = 0x4E41540D
 		qfi    = 7
-		ueSP   = 1234
 		srvDP  = 80
 	)
 
@@ -887,20 +903,123 @@ func TestNATInboundResetDoesNotFullyClose(t *testing.T) {
 	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
 	putDownlinkPDR(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, qfi)
 
-	uplink := ipv4Packet(ueIP, serverIP, 6, tcpSegmentWithFlags(ueIP, serverIP, ueSP, srvDP, 0x02))
-	f.injectUplink(t, uplinkGPDU(ulTEID, uplink))
-	time.Sleep(100 * time.Millisecond)
+	sendUplink := func(t *testing.T, sport uint16, flags byte) {
+		t.Helper()
 
-	capFD := f.captureN3(t)
-	f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(serverIP, natPublicIP, 6, tcpSegmentWithFlags(serverIP, natPublicIP, srvDP, ueSP, 0x04))))
+		capFD := f.captureN6(t)
+		seg := tcpSegmentWithFlags(ueIP, serverIP, sport, srvDP, flags)
+		f.injectUplink(t, uplinkGPDU(ulTEID, ipv4Packet(ueIP, serverIP, 6, seg)))
 
-	if captureMatching(capFD, time.Second, func(fr []byte) bool { return gtpInner(fr) != nil }) == nil {
-		t.Fatal("downlink RST did not egress on N3")
+		if captureMatching(capFD, time.Second, func(fr []byte) bool {
+			return isInnerIPv4(fr, 6, serverIP)
+		}) == nil {
+			t.Fatal("uplink packet did not egress on N6")
+		}
 	}
 
-	ueKey := natFiveTuple(ueIP, serverIP, ueSP, srvDP, 6)
-	if ue := lookupNatEntry(t, f, ueKey); ue.Closed != natClosedRemote {
-		t.Errorf("after inbound RST: closed=%#x, want %#x (remote side only)", ue.Closed, natClosedRemote)
+	sendDownlink := func(t *testing.T, dport uint16, flags byte) {
+		t.Helper()
+
+		capFD := f.captureN3(t)
+		seg := tcpSegmentWithFlags(serverIP, natPublicIP, srvDP, dport, flags)
+		f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(serverIP, natPublicIP, 6, seg)))
+
+		if captureMatching(capFD, time.Second, func(fr []byte) bool {
+			return gtpInner(fr) != nil
+		}) == nil {
+			t.Fatal("downlink packet did not egress on N3")
+		}
+	}
+
+	t.Run("unestablished closes both", func(t *testing.T) {
+		const sport = 1234
+
+		sendUplink(t, sport, 0x02) // SYN
+		sendDownlink(t, sport, 0x04)
+
+		ue := lookupNatEntry(t, f, natFiveTuple(ueIP, serverIP, sport, srvDP, 6))
+		if ue.Closed != natClosedUE|natClosedRemote {
+			t.Errorf("after RST on an unestablished flow: closed=%#x, want %#x",
+				ue.Closed, natClosedUE|natClosedRemote)
+		}
+	})
+
+	t.Run("established closes remote only", func(t *testing.T) {
+		const sport = 1235
+
+		sendUplink(t, sport, 0x02)   // SYN
+		sendDownlink(t, sport, 0x12) // SYN|ACK
+		sendUplink(t, sport, 0x10)   // ACK completes the handshake
+
+		ue := lookupNatEntry(t, f, natFiveTuple(ueIP, serverIP, sport, srvDP, 6))
+		if ue.State != 1 {
+			t.Fatalf("handshake did not establish the flow: state=%d", ue.State)
+		}
+
+		sendDownlink(t, sport, 0x04) // RST
+
+		ue = lookupNatEntry(t, f, natFiveTuple(ueIP, serverIP, sport, srvDP, 6))
+		if ue.Closed != natClosedRemote {
+			t.Errorf("after RST on an established flow: closed=%#x, want %#x",
+				ue.Closed, natClosedRemote)
+		}
+	})
+}
+
+// TestNATRejectsMalformedSegments verifies that a segment whose headers are
+// inconsistent creates no state and is dropped: an invalid flag combination,
+// a TCP data offset past the end of the IP payload, and a UDP length longer
+// than the datagram.
+func TestNATRejectsMalformedSegments(t *testing.T) {
+	requireProgTestRun(t)
+
+	const teid = 0x4E415415
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, teid, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+
+	cases := []struct {
+		name  string
+		build func() []byte
+	}{
+		{"syn+fin", func() []byte {
+			return ipv4Packet(ueIP, serverIP, 6, tcpSegmentWithFlags(ueIP, serverIP, 2001, 80, 0x03))
+		}},
+		{"no flags", func() []byte {
+			return ipv4Packet(ueIP, serverIP, 6, tcpSegmentWithFlags(ueIP, serverIP, 2002, 80, 0x00))
+		}},
+		{"doff past payload", func() []byte {
+			seg := tcpSegmentWithFlags(ueIP, serverIP, 2003, 80, 0x02)
+			seg[12] = 0xF0 // data offset 15 words = 60 bytes, payload holds 20
+
+			return ipv4Packet(ueIP, serverIP, 6, seg)
+		}},
+		{"udp length overruns", func() []byte {
+			d := udpDatagramChecksummed(ueIP, serverIP, 2004, 53, []byte{1, 2, 3, 4})
+			binary.BigEndian.PutUint16(d[4:6], 1000)
+
+			return ipv4Packet(ueIP, serverIP, 17, d)
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			capFD := f.captureN6(t)
+
+			before := GetNatDrops(f.obj).Malformed
+
+			f.injectUplink(t, uplinkGPDU(teid, tc.build()))
+
+			if got := captureMatching(capFD, 500*time.Millisecond, func(fr []byte) bool {
+				return isInnerIPv4(fr, 6, serverIP) || isInnerIPv4(fr, 17, serverIP)
+			}); got != nil {
+				t.Errorf("malformed segment egressed on N6: %x", got)
+			}
+
+			if after := GetNatDrops(f.obj).Malformed; after != before+1 {
+				t.Errorf("malformed drop counter = %d, want %d", after, before+1)
+			}
+		})
 	}
 }
 

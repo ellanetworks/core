@@ -73,7 +73,8 @@ type VethEntrypointNatEntry struct {
 	Replied   uint8
 	UeSide    uint8
 	Closed    uint8
-	Pad       [4]uint8
+	Handshake uint8
+	Pad       [3]uint8
 }
 
 type VethEntrypointPdrInfo struct {
@@ -171,13 +172,15 @@ type VethEntrypointUpfStatistic struct {
 		Rx uint64
 		Tx uint64
 	}
-	XdpActions                 [8]uint64
-	SourceSpoofDropIp4         uint64
-	SourceSpoofDropIp6         uint64
-	NatUnsolicitedDropIp4      uint64
-	NatFragmentDropIp4         uint64
-	NatPortExhaustedDropIp4    uint64
-	NatUnsupportedProtoDropIp4 uint64
+	XdpActions                   [8]uint64
+	SourceSpoofDropIp4           uint64
+	SourceSpoofDropIp6           uint64
+	NatUnsolicitedDropIp4        uint64
+	NatFragmentDropIp4           uint64
+	NatPortExhaustedDropIp4      uint64
+	NatUnsupportedProtoDropIp4   uint64
+	NatMalformedDropIp4          uint64
+	NatIcmpUntranslatableDropIp4 uint64
 }
 
 type VethEntrypointUrrKey struct {

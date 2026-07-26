@@ -13,6 +13,7 @@
 #include "xdp/utils/common.h"
 #include "xdp/utils/frag_needed.h"
 #include "xdp/utils/gtp.h"
+#include "xdp/utils/tailcall.h"
 #include "xdp/utils/pdr.h"
 #include "xdp/utils/pdr_maps.h"
 #include "xdp/utils/qer.h"
@@ -107,10 +108,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		 * TEID, return a GTP-U Error Indication to the sender over the same
 		 * IP transport (TS 29.281 §7.3.1). */
 		if (ctx->gtp->teid != 0) {
-			if (ctx->ip4)
-				return send_error_indication_ipv4(ctx);
-			if (ctx->ip6)
-				return send_error_indication_ipv6(ctx);
+			return gtpu_control_tail_call(ctx);
 		}
 
 		upf_printk("upf: no uplink PDR for teid:%d, discarding", teid);
@@ -284,8 +282,10 @@ handle_gtp_packet(struct packet_context *ctx)
 	}
 	PROFILE_END(PROF_N3_GTP_MANIP);
 
-	/* SDF filter enforcement (uplink) – evaluated on the inner packet */
-	{
+	/* SDF filter enforcement (uplink), on the inner packet. A packet the
+	 * FAR forwards without decapsulating still has the tunnel header in
+	 * context, whose addresses and port 2152 are not the subscriber's. */
+	if (!ctx->gtp) {
 		PROFILE_START(PROF_N3_SDF_FILTER);
 		enum xdp_action sdf_verdict =
 			match_sdf_filters(ctx, pdr->filter_map_index);
@@ -344,7 +344,7 @@ static __always_inline enum xdp_action handle_gtpu(struct packet_context *ctx)
 		if (ctx->ip4)
 			upf_printk("upf: gtp echo request [ %pI4 -> %pI4 ]",
 				   &ctx->ip4->saddr, &ctx->ip4->daddr);
-		return handle_echo_request(ctx);
+		return gtpu_control_tail_call(ctx);
 	case GTPU_ECHO_RESPONSE:
 		return XDP_PASS;
 	case GTPU_ERROR_INDICATION:

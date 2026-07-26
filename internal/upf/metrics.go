@@ -75,7 +75,7 @@ func RegisterMetrics() {
 	// NAT drops by reason
 	xdpNatDropDesc := prometheus.NewDesc(
 		"app_xdp_nat_drop_total",
-		"Packets dropped by the NAT engine, by reason (fragment, port_exhausted, unsupported_proto).",
+		"Packets dropped by the NAT engine, by reason (fragment, port_exhausted, unsupported_proto, malformed, icmp_untranslatable).",
 		[]string{"reason"},
 		nil,
 	)
@@ -117,6 +117,10 @@ func RegisterMetrics() {
 		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.PortExhausted), "port_exhausted")
 
 		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.UnsupportedProto), "unsupported_proto")
+
+		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.Malformed), "malformed")
+
+		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.ICMPUntranslated), "icmp_untranslatable")
 	}))
 
 	// Register FIB lookup result and ifindex mismatch collector

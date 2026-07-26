@@ -91,6 +91,8 @@ type NatDrops struct {
 	Fragment         uint64
 	PortExhausted    uint64
 	UnsupportedProto uint64
+	Malformed        uint64
+	ICMPUntranslated uint64
 }
 
 func GetNatDrops(bpfObjects *BpfObjects) NatDrops {
@@ -102,6 +104,8 @@ func GetNatDrops(bpfObjects *BpfObjects) NatDrops {
 		Fragment:         sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatFragmentDropIp4 }),
 		PortExhausted:    sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatPortExhaustedDropIp4 }),
 		UnsupportedProto: sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatUnsupportedProtoDropIp4 }),
+		Malformed:        sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatMalformedDropIp4 }),
+		ICMPUntranslated: sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatIcmpUntranslatableDropIp4 }),
 	}
 }
 

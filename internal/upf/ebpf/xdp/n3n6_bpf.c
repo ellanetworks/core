@@ -55,17 +55,6 @@
  * later. See bpf_datapath_split_plan.md.
  */
 
-/* Tail-call program array populated at load with the stage programs. */
-#define UPF_CALL_UPLINK 0
-#define UPF_CALL_DOWNLINK 1
-
-struct {
-	__uint(type, BPF_MAP_TYPE_PROG_ARRAY);
-	__type(key, __u32);
-	__type(value, __u32);
-	__uint(max_entries, 4);
-} upf_calls SEC(".maps");
-
 /* N3 uplink: GTP-U-encapsulated traffic from the gNB. */
 static __always_inline enum xdp_action handle_uplink_ip4(struct packet_context *ctx)
 {
@@ -181,6 +170,84 @@ static __always_inline struct upf_statistic *get_stats(void *stats_map)
 	const __u32 key = 0;
 
 	return bpf_map_lookup_elem(stats_map, &key);
+}
+
+/* upf_gtpu_control_func: tail-call stage for the GTP-U messages the UPF
+ * answers itself rather than forwards — echo requests, and error indications
+ * for a TEID with no session (TS 29.281 §7.2, §7.3.1). Both build a reply
+ * packet, and keeping them out of the forwarding stage keeps their cost off
+ * the fast path's stack and instruction budgets. Re-parses from its own ctx:
+ * the stack does not survive a tail call. */
+SEC("xdp/upf_gtpu_control")
+int upf_gtpu_control_func(struct xdp_md *ctx)
+{
+	struct upf_statistic *statistics = get_stats(&uplink_statistics);
+	if (!statistics)
+		return XDP_ABORTED;
+
+	struct packet_context context = {
+		.data = (void *)(long)ctx->data,
+		.data_end = (const void *)(long)ctx->data_end,
+		.xdp_ctx = ctx,
+		.statistics = statistics,
+		.interface = INTERFACE_N3,
+	};
+
+	if (context_reinit(&context, context.data, context.data_end) != 0)
+		return DEFAULT_XDP_ACTION;
+
+	/*
+	 * The IPv4 and IPv6 transports are dispatched in full, separately, each
+	 * ending in its own return. Sharing a tail would let the verifier merge
+	 * a state where context_reinit set ip4 with one where it set ip6, after
+	 * which neither is a pointer it will allow a dereference of.
+	 */
+	if (context.ip4) {
+		if (parse_udp(&context) != GTP_UDP_PORT)
+			return DEFAULT_XDP_ACTION;
+
+		int pdu_type = parse_gtp(&context);
+		if (!context.gtp)
+			return DEFAULT_XDP_ACTION;
+
+		if (pdu_type == GTPU_ECHO_REQUEST)
+			return handle_echo_request(&context);
+
+		if (pdu_type != GTPU_G_PDU || context.gtp->teid == 0)
+			return DEFAULT_XDP_ACTION;
+
+		/* Only a TEID the forwarding stage found no session for gets
+		 * here, but this program is independently reachable, so the
+		 * absence is confirmed rather than assumed. */
+		__u32 teid4 = bpf_htonl(context.gtp->teid);
+		if (bpf_map_lookup_elem(&pdrs_uplink, &teid4))
+			return DEFAULT_XDP_ACTION;
+
+		return send_error_indication_ipv4(&context);
+	}
+
+	if (context.ip6) {
+		if (parse_udp(&context) != GTP_UDP_PORT)
+			return DEFAULT_XDP_ACTION;
+
+		int pdu_type = parse_gtp(&context);
+		if (!context.gtp)
+			return DEFAULT_XDP_ACTION;
+
+		if (pdu_type == GTPU_ECHO_REQUEST)
+			return handle_echo_request(&context);
+
+		if (pdu_type != GTPU_G_PDU || context.gtp->teid == 0)
+			return DEFAULT_XDP_ACTION;
+
+		__u32 teid6 = bpf_htonl(context.gtp->teid);
+		if (bpf_map_lookup_elem(&pdrs_uplink, &teid6))
+			return DEFAULT_XDP_ACTION;
+
+		return send_error_indication_ipv6(&context);
+	}
+
+	return DEFAULT_XDP_ACTION;
 }
 
 /* upf_uplink_func: tail-call stage for GTP-U uplink traffic. Re-parses from its
