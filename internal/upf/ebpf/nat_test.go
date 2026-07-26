@@ -497,6 +497,122 @@ func TestNATICMPErrorFromRouter(t *testing.T) {
 	}
 }
 
+// asFragment marks an IPv4 packet as a non-first fragment (offset 185, more
+// fragments set) and fixes the header checksum.
+func asFragment(pkt []byte) []byte {
+	binary.BigEndian.PutUint16(pkt[6:8], 0x2000|185)
+	binary.BigEndian.PutUint16(pkt[10:12], 0)
+	binary.BigEndian.PutUint16(pkt[10:12], ipv4HeaderChecksum(pkt[:20]))
+
+	return pkt
+}
+
+// TestNATDropsFragments verifies that with masquerade on, fragments are
+// dropped in both directions: the bytes at the L4 offset of a non-first
+// fragment are payload, so translating one would rewrite user data.
+func TestNATDropsFragments(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		ulTEID = 0x4E415410
+		dlTEID = 0x4E415411
+		qfi    = 7
+		ueSP   = 1234
+		srvDP  = 80
+	)
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+	putDownlinkPDR(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, qfi)
+
+	t.Run("uplink", func(t *testing.T) {
+		capFD := f.captureN6(t)
+
+		before := GetNatDrops(f.obj).Fragment
+
+		inner := asFragment(ipv4Packet(ueIP, serverIP, 6, tcpSegmentChecksummed(ueIP, serverIP, ueSP, srvDP, bytesOf(64))))
+		f.injectUplink(t, uplinkGPDU(ulTEID, inner))
+
+		if got := captureMatching(capFD, 500*time.Millisecond, func(fr []byte) bool {
+			return isInnerIPv4(fr, 6, serverIP)
+		}); got != nil {
+			t.Errorf("uplink fragment egressed on N6: %x", got)
+		}
+
+		if after := GetNatDrops(f.obj).Fragment; after != before+1 {
+			t.Errorf("fragment drop counter = %d, want %d", after, before+1)
+		}
+	})
+
+	t.Run("downlink", func(t *testing.T) {
+		capFD := f.captureN3(t)
+
+		before := GetNatDrops(f.obj).Fragment
+
+		reply := asFragment(ipv4Packet(serverIP, natPublicIP, 6, tcpSegmentChecksummed(serverIP, natPublicIP, srvDP, ueSP, bytesOf(64))))
+		f.injectDownlink(t, ethFrame(0x0800, reply))
+
+		if got := captureMatching(capFD, 500*time.Millisecond, func(fr []byte) bool {
+			return gtpInner(fr) != nil
+		}); got != nil {
+			t.Errorf("downlink fragment egressed on N3: %x", got)
+		}
+
+		if after := GetNatDrops(f.obj).Fragment; after != before+1 {
+			t.Errorf("fragment drop counter = %d, want %d", after, before+1)
+		}
+	})
+}
+
+// TestNATPreservesIPOptions verifies that source-NAT leaves a valid header
+// checksum on a packet carrying IP options: the update is incremental, so it
+// does not depend on the header being 20 bytes.
+func TestNATPreservesIPOptions(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid  = 0x4E415412
+		ueSP  = 1234
+		srvDP = 80
+	)
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, teid, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+
+	capFD := f.captureN6(t)
+
+	// Record-route option (type 7), 8 bytes, so ihl becomes 7.
+	l4 := udpDatagramChecksummed(ueIP, serverIP, ueSP, srvDP, []byte{1, 2, 3, 4})
+	opts := []byte{7, 8, 4, 0, 0, 0, 0, 0}
+	inner := ipv4Packet(ueIP, serverIP, 17, append(append([]byte{}, opts...), l4...))
+	inner[0] = 0x40 | 7 // version 4, ihl 7
+	binary.BigEndian.PutUint16(inner[10:12], 0)
+	binary.BigEndian.PutUint16(inner[10:12], ipv4HeaderChecksum(inner[:28]))
+
+	f.injectUplink(t, uplinkGPDU(teid, inner))
+
+	got := captureMatching(capFD, time.Second, func(fr []byte) bool {
+		return isInnerIPv4(fr, 17, serverIP)
+	})
+	if got == nil {
+		t.Fatal("optioned packet did not egress on N6")
+	}
+
+	ip := got[ethHdrLen : ethHdrLen+28]
+
+	if ip[0]&0x0f != 7 {
+		t.Fatalf("ihl = %d, want 7 (options preserved)", ip[0]&0x0f)
+	}
+
+	if !bytes.Equal(ip[12:16], natPublicIP[:]) {
+		t.Errorf("inner src = %v, want %v (source-NAT'd)", ip[12:16], natPublicIP)
+	}
+
+	if !validIPv4Checksum(ip) {
+		t.Error("IPv4 header checksum invalid over the optioned header")
+	}
+}
+
 // natFiveTuple builds a nat_ct key as the datapath stores it: addresses and
 // ports in network byte order, protocol as a plain value.
 func natFiveTuple(saddr, daddr [4]byte, sport, dport uint16, proto uint16) N3N6EntrypointFiveTuple { //nolint:unparam // general key builder; ports are configurable

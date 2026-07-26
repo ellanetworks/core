@@ -128,6 +128,53 @@ func TestNatExpiredKeysPairsAndTimeouts(t *testing.T) {
 	}
 }
 
+// TestNatExpiredKeysPartialSnapshot verifies that orphan reaping is skipped
+// when the scan was incomplete: a partial snapshot cannot distinguish an
+// orphan from a live entry the scan missed. Expiry of complete pairs still
+// runs.
+func TestNatExpiredKeysPartialSnapshot(t *testing.T) {
+	nowNs := uint64(100 * time.Hour.Nanoseconds())
+
+	// A live pair whose UE-side entry is absent from this snapshot.
+	missedUEKey := natTuple(1, 1000, protoTCP)
+	orphanKey := natTuple(100, 1000, protoTCP)
+	orphan := ebpf.N3N6EntrypointNatEntry{Src: missedUEKey, RefreshTs: nowNs - uint64((2 * natOrphanGrace).Nanoseconds())}
+
+	// A genuinely expired pair, both halves present.
+	deadUEKey := natTuple(2, 2000, protoTCP)
+	deadNATKey := natTuple(100, 2000, protoTCP)
+	deadUE, deadNAT := pair(deadUEKey, deadNATKey, nowNs, 3*time.Hour, natStateEstablished, 1, 0)
+
+	snapshot := map[ebpf.N3N6EntrypointFiveTuple]ebpf.N3N6EntrypointNatEntry{
+		orphanKey:  orphan,
+		deadUEKey:  deadUE,
+		deadNATKey: deadNAT,
+	}
+
+	got := make(map[ebpf.N3N6EntrypointFiveTuple]bool)
+	for _, k := range natExpiredKeys(snapshot, nowNs, false) {
+		got[k] = true
+	}
+
+	if got[orphanKey] {
+		t.Error("orphan reaped from an incomplete snapshot")
+	}
+
+	if !got[deadUEKey] || !got[deadNATKey] {
+		t.Error("expired pair not reaped from an incomplete snapshot")
+	}
+
+	// The same snapshot marked complete does reap the orphan.
+	got = make(map[ebpf.N3N6EntrypointFiveTuple]bool)
+	for _, k := range natExpiredKeys(snapshot, nowNs, true) {
+		got[k] = true
+	}
+
+	if !got[orphanKey] {
+		t.Error("orphan not reaped from a complete snapshot")
+	}
+}
+
 func TestNatExpiredKeysOrphans(t *testing.T) {
 	nowNs := uint64(100 * time.Hour.Nanoseconds())
 

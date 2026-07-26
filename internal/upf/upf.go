@@ -749,7 +749,9 @@ func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flow
 }
 
 func (u *UPF) collectExpiredFlows(ctx context.Context, flowch chan flowReport) {
-	var sysInfo unix.Sysinfo_t
+	// Flow timestamps are bpf_ktime_get_ns (CLOCK_MONOTONIC); comparing
+	// against any other clock ages flows by the suspend time.
+	var ts unix.Timespec
 
 	ticker := time.NewTicker(InactiveFlowTimeout / 2)
 	defer ticker.Stop()
@@ -760,27 +762,23 @@ func (u *UPF) collectExpiredFlows(ctx context.Context, flowch chan flowReport) {
 		case <-ctx.Done():
 			// Perform one final scan so flows that expired since the last tick
 			// are not silently lost on a graceful shutdown.
-			if err := unix.Sysinfo(&sysInfo); err != nil {
-				logger.UpfLog.Error("Failed to query sysinfo during final scan", zap.Error(err))
+			if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
+				logger.UpfLog.Error("Failed to query monotonic clock during final scan", zap.Error(err))
 				return
 			}
 
-			nsSinceBoot := sysInfo.Uptime * time.Second.Nanoseconds()
-			u.scanAndEnqueueExpiredFlows(nsSinceBoot-InactiveFlowTimeout.Nanoseconds(), flowch)
+			u.scanAndEnqueueExpiredFlows(ts.Nano()-InactiveFlowTimeout.Nanoseconds(), flowch)
 
 			return
 		case <-ticker.C:
 		}
 
-		if err := unix.Sysinfo(&sysInfo); err != nil {
-			// The only error returned by the sysinfo syscall is EFAULT if
-			// the pointer is invalid. This should never occur here.
-			logger.UpfLog.Error("Failed to query sysinfo", zap.Error(err))
-			return
+		if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
+			logger.UpfLog.Error("Failed to query monotonic clock", zap.Error(err))
+			continue
 		}
 
-		nsSinceBoot := sysInfo.Uptime * time.Second.Nanoseconds()
-		u.scanAndEnqueueExpiredFlows(nsSinceBoot-InactiveFlowTimeout.Nanoseconds(), flowch)
+		u.scanAndEnqueueExpiredFlows(ts.Nano()-InactiveFlowTimeout.Nanoseconds(), flowch)
 	}
 }
 

@@ -283,6 +283,10 @@ static __always_inline void update_port(struct packet_context *ctx,
 		if (ctx->udp->check != 0) {
 			ctx->udp->check = ipv4_csum_update_u16(
 				ctx->udp->check, old_port, new_port);
+			/* Zero means "no checksum" in IPv4 UDP (RFC 768). */
+			if (ctx->udp->check == 0) {
+				ctx->udp->check = 0xFFFF;
+			}
 		}
 		break;
 	case IPPROTO_ICMP:
@@ -364,6 +368,10 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		if (ctx->udp->check != 0) {
 			ctx->udp->check = ipv4_csum_update_u32(
 				ctx->udp->check, orig.saddr, ctx->ip4->saddr);
+			/* Zero means "no checksum" in IPv4 UDP (RFC 768). */
+			if (ctx->udp->check == 0) {
+				ctx->udp->check = 0xFFFF;
+			}
 		}
 		break;
 	case IPPROTO_ICMP:
