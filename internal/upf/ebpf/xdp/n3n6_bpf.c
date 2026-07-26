@@ -172,19 +172,15 @@ static __always_inline enum xdp_action process_downlink(struct packet_context *c
 	return DEFAULT_XDP_ACTION;
 }
 
-/* get_or_init_stats returns the singleton statistics record for a map, creating
- * it on first use. */
-static __always_inline struct upf_statistic *get_or_init_stats(void *stats_map)
+/* Returns the singleton statistics record for a map. The lookup only fails to
+ * the verifier: the statistics maps are single-entry per-CPU arrays, so index
+ * 0 always exists. Building a zeroed record here to seed the map would cost
+ * the caller sizeof(struct upf_statistic) of stack on every packet. */
+static __always_inline struct upf_statistic *get_stats(void *stats_map)
 {
 	const __u32 key = 0;
-	struct upf_statistic *statistics = bpf_map_lookup_elem(stats_map, &key);
-	if (!statistics) {
-		const struct upf_statistic initval = {};
-		bpf_map_update_elem(stats_map, &key, &initval, BPF_ANY);
-		statistics = bpf_map_lookup_elem(stats_map, &key);
-	}
 
-	return statistics;
+	return bpf_map_lookup_elem(stats_map, &key);
 }
 
 /* upf_uplink_func: tail-call stage for GTP-U uplink traffic. Re-parses from its
@@ -192,7 +188,7 @@ static __always_inline struct upf_statistic *get_or_init_stats(void *stats_map)
 SEC("xdp/upf_uplink")
 int upf_uplink_func(struct xdp_md *ctx)
 {
-	struct upf_statistic *statistics = get_or_init_stats(&uplink_statistics);
+	struct upf_statistic *statistics = get_stats(&uplink_statistics);
 	if (!statistics)
 		return XDP_ABORTED;
 
@@ -214,7 +210,7 @@ int upf_uplink_func(struct xdp_md *ctx)
 SEC("xdp/upf_downlink")
 int upf_downlink_func(struct xdp_md *ctx)
 {
-	struct upf_statistic *statistics = get_or_init_stats(&downlink_statistics);
+	struct upf_statistic *statistics = get_stats(&downlink_statistics);
 	if (!statistics)
 		return XDP_ABORTED;
 
