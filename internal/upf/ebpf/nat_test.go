@@ -966,6 +966,66 @@ func TestNATInboundResetPolicy(t *testing.T) {
 	})
 }
 
+// TestNATSynRetransmitDoesNotRenew verifies that a SYN on a flow the remote
+// has never answered leaves the lifetime where it was: a UE retransmitting to
+// an unresponsive destination must not be able to hold a mapping, and the
+// port it reserves, open indefinitely.
+func TestNATSynRetransmitDoesNotRenew(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		ulTEID = 0x4E415416
+		dlTEID = 0x4E415417
+		qfi    = 7
+		ueSP   = 1234
+		srvDP  = 80
+	)
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+	putDownlinkPDR(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, qfi)
+
+	ueKey := natFiveTuple(ueIP, serverIP, ueSP, srvDP, 6)
+
+	sendUplink := func(flags byte) {
+		capFD := f.captureN6(t)
+		seg := tcpSegmentWithFlags(ueIP, serverIP, ueSP, srvDP, flags)
+		f.injectUplink(t, uplinkGPDU(ulTEID, ipv4Packet(ueIP, serverIP, 6, seg)))
+
+		if captureMatching(capFD, time.Second, func(fr []byte) bool {
+			return isInnerIPv4(fr, 6, serverIP)
+		}) == nil {
+			t.Fatal("uplink packet did not egress on N6")
+		}
+	}
+
+	sendUplink(0x02) // SYN
+
+	first := lookupNatEntry(t, f, ueKey).RefreshTs
+
+	time.Sleep(50 * time.Millisecond)
+	sendUplink(0x02) // SYN retransmit, still unanswered
+
+	if got := lookupNatEntry(t, f, ueKey).RefreshTs; got != first {
+		t.Errorf("refresh_ts moved on an unanswered SYN retransmit: %d -> %d", first, got)
+	}
+
+	// Once the remote answers, traffic refreshes normally again.
+	capFD := f.captureN3(t)
+	f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(serverIP, natPublicIP, 6,
+		tcpSegmentWithFlags(serverIP, natPublicIP, srvDP, ueSP, 0x12))))
+
+	if captureMatching(capFD, time.Second, func(fr []byte) bool { return gtpInner(fr) != nil }) == nil {
+		t.Fatal("downlink SYN-ACK did not egress on N3")
+	}
+
+	sendUplink(0x10) // ACK
+
+	if got := lookupNatEntry(t, f, ueKey).RefreshTs; got == first {
+		t.Error("refresh_ts did not move once the flow was answered")
+	}
+}
+
 // TestNATRejectsMalformedSegments verifies that a segment whose headers are
 // inconsistent creates no state and is dropped: an invalid flag combination,
 // a TCP data offset past the end of the IP payload, and a UDP length longer

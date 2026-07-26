@@ -476,7 +476,10 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 		values = make([]ebpf.N3N6EntrypointNatEntry, natGCBatchSize)
 	)
 
-	snapshot := make(map[ebpf.N3N6EntrypointFiveTuple]ebpf.N3N6EntrypointNatEntry)
+	// Sized from the previous sweep rather than reused: clearing a map keeps
+	// its buckets, so one traffic peak would pin the high-water mark for the
+	// process lifetime.
+	snapshotSize := 0
 
 	ticker := time.NewTicker(natGCInterval)
 	defer ticker.Stop()
@@ -497,7 +500,7 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 
 		nowNs := uint64(ts.Nano())
 
-		clear(snapshot)
+		snapshot := make(map[ebpf.N3N6EntrypointFiveTuple]ebpf.N3N6EntrypointNatEntry, snapshotSize)
 
 		cursor = bpf.MapBatchCursor{}
 		complete := false
@@ -517,6 +520,8 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 				break
 			}
 		}
+
+		snapshotSize = len(snapshot)
 
 		expiredKeys := natExpiredKeys(snapshot, nowNs, complete)
 		if len(expiredKeys) == 0 {

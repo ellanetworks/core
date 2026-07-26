@@ -73,8 +73,7 @@ type VethEntrypointNatEntry struct {
 	Replied   uint8
 	UeSide    uint8
 	Closed    uint8
-	Handshake uint8
-	Pad       [3]uint8
+	Pad       [4]uint8
 }
 
 type VethEntrypointPdrInfo struct {

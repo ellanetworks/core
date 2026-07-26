@@ -78,13 +78,6 @@ enum nat_ct_state {
 #define NAT_CT_CLOSED_UE 0x1
 #define NAT_CT_CLOSED_REMOTE 0x2
 
-/* Which half of the handshake has been observed. Without sequence numbers
- * this is the evidence available for deciding whether a flow is real: a
- * connection is only established once the UE's SYN was answered by a SYN|ACK
- * and the UE acknowledged it. */
-#define NAT_CT_HS_SYN 0x1
-#define NAT_CT_HS_SYNACK 0x2
-
 /* The ICMP messages RFC 5508 §3.1 counts as Queries, which REQ-1 requires a
  * NAT to permit from the private side. Each carries an identifier where echo
  * carries one, so all are tracked the same way. */
@@ -122,8 +115,7 @@ struct nat_entry {
 	__u8 replied;
 	__u8 ue_side;
 	__u8 closed;
-	__u8 handshake;
-	__u8 pad[3];
+	__u8 pad[4];
 };
 
 struct {
@@ -684,12 +676,50 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 
 	struct nat_entry *tracked = bpf_map_lookup_elem(&nat_ct, &orig);
 	if (tracked) {
-		/* Copy before any further map access: after one, this pointer
-		 * may address a different flow's entry. */
+		/* Copy before any further map access: one lookup later this
+		 * pointer may address a recycled node holding another flow. */
 		struct five_tuple mapped = tracked->src;
 		__u8 state = NAT_READ_ONCE(tracked->state);
 		__u8 closed = NAT_READ_ONCE(tracked->closed);
 		__u8 replied = NAT_READ_ONCE(tracked->replied);
+
+		/* A SYN on a flow the remote has never answered does not renew
+		 * the timeout: a UE retransmitting to an unresponsive
+		 * destination would otherwise hold the mapping, and the port
+		 * it reserves, for as long as it keeps retrying. */
+		if (!tcp_new || replied) {
+			NAT_WRITE_ONCE(tracked->refresh_ts, now);
+		}
+
+		if (tcp_new && state != NAT_CT_ESTABLISHED) {
+			/* A SYN reuses the tuple for a fresh connection. On an
+			 * established one it is a duplicate or a stray, which
+			 * the peer answers with a challenge ACK rather than
+			 * another SYN|ACK, so demoting would strand the flow. */
+			NAT_WRITE_ONCE(tracked->state, NAT_CT_NEW);
+			NAT_WRITE_ONCE(tracked->closed, 0);
+			NAT_WRITE_ONCE(tracked->replied, 0);
+		} else if (!tcp_new) {
+			__u8 set = 0;
+			if (tcp_fin)
+				set |= NAT_CT_CLOSED_UE;
+			// A UE-sourced RST aborts both directions: the source
+			// address was checked against the session's UE address,
+			// so it is the subscriber closing its own connection.
+			// An inbound one is not trusted to (see
+			// destination_nat).
+			if (tcp_rst)
+				set |= NAT_CT_CLOSED_UE | NAT_CT_CLOSED_REMOTE;
+			if (set & ~closed) {
+				NAT_WRITE_ONCE(tracked->closed, closed | set);
+			}
+			/* A reply came back and the UE kept sending: the flow
+			 * is carrying traffic in both directions. */
+			if (state != NAT_CT_ESTABLISHED && replied) {
+				NAT_WRITE_ONCE(tracked->state,
+					       NAT_CT_ESTABLISHED);
+			}
+		}
 
 		struct nat_entry *nat_cur = bpf_map_lookup_elem(&nat_ct, &mapped);
 		if (nat_cur) {
@@ -714,6 +744,7 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 					bpf_map_delete_elem(&nat_ct, &orig);
 					goto allocate;
 				}
+				NAT_WRITE_ONCE(other->refresh_ts, now);
 			}
 		}
 
@@ -722,44 +753,6 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 			update_port(ctx, natted.sport);
 		}
 
-		NAT_WRITE_ONCE(tracked->refresh_ts, now);
-
-		if (tcp_new) {
-			// A new SYN reuses the tuple for a fresh connection,
-			// which the remote has not answered yet.
-			NAT_WRITE_ONCE(tracked->state, NAT_CT_NEW);
-			NAT_WRITE_ONCE(tracked->closed, 0);
-			NAT_WRITE_ONCE(tracked->replied, 0);
-			NAT_WRITE_ONCE(tracked->handshake, NAT_CT_HS_SYN);
-		} else {
-			__u8 set = 0;
-			if (tcp_fin)
-				set |= NAT_CT_CLOSED_UE;
-			// A UE-sourced RST aborts both directions: the source
-			// address was checked against the session's UE address,
-			// so it is the subscriber closing its own connection.
-			// An inbound one is not trusted to (see
-			// destination_nat).
-			if (tcp_rst)
-				set |= NAT_CT_CLOSED_UE | NAT_CT_CLOSED_REMOTE;
-			if (set & ~closed) {
-				NAT_WRITE_ONCE(tracked->closed, closed | set);
-			}
-			/* The acknowledgement completing the handshake. A
-			 * flow picked up mid-stream has no SYN|ACK to observe
-			 * and stays in the transitory class. */
-			if (state != NAT_CT_ESTABLISHED && replied &&
-			    proto == IPPROTO_TCP && ctx->tcp->ack &&
-			    (NAT_READ_ONCE(tracked->handshake) &
-			     NAT_CT_HS_SYNACK)) {
-				NAT_WRITE_ONCE(tracked->state,
-					       NAT_CT_ESTABLISHED);
-			} else if (state != NAT_CT_ESTABLISHED &&
-				   replied && proto != IPPROTO_TCP) {
-				NAT_WRITE_ONCE(tracked->state,
-					       NAT_CT_ESTABLISHED);
-			}
-		}
 		return true;
 	}
 
@@ -808,8 +801,6 @@ allocate:;
 	ue_val.refresh_ts = now;
 	ue_val.state = NAT_CT_NEW;
 	ue_val.ue_side = 1;
-	if (tcp_new)
-		ue_val.handshake = NAT_CT_HS_SYN;
 	if (tcp_fin)
 		ue_val.closed = NAT_CT_CLOSED_UE;
 	if (tcp_rst)
@@ -823,9 +814,10 @@ allocate:;
 			bpf_map_delete_elem(&nat_ct, &natted);
 			return false;
 		}
-		if (!are_five_tuple_equal(winner->src, natted)) {
+		struct five_tuple winner_src = winner->src;
+		if (!are_five_tuple_equal(winner_src, natted)) {
 			bpf_map_delete_elem(&nat_ct, &natted);
-			update_port(ctx, winner->src.sport);
+			update_port(ctx, winner_src.sport);
 		}
 	}
 	return true;
@@ -837,13 +829,11 @@ allocate:;
 // itself shorten the connection to the closed timeout.
 static __always_inline void nat_ct_mark_replied(const struct five_tuple *nat_key,
 						struct nat_entry *origin,
-						bool closing, bool synack,
-						bool abort_flow)
+						bool closing, bool abort_flow)
 {
 	/* Inbound traffic alone keeps a mapping alive (RFC 4787 REQ-6a): a
 	 * remote can only reach one whose full tuple it already knows. */
 	__u64 now = bpf_ktime_get_ns();
-	NAT_WRITE_ONCE(origin->refresh_ts, now);
 
 	struct five_tuple ue_key = origin->src;
 	struct nat_entry *ue = bpf_map_lookup_elem(&nat_ct, &ue_key);
@@ -856,7 +846,8 @@ static __always_inline void nat_ct_mark_replied(const struct five_tuple *nat_key
 		struct nat_entry restored = {};
 		restored.src = *nat_key;
 		restored.refresh_ts = now;
-		restored.state = NAT_CT_NEW;
+		restored.state = NAT_CT_ESTABLISHED;
+		restored.replied = 1;
 		restored.ue_side = 1;
 		if (closing)
 			restored.closed = NAT_CT_CLOSED_REMOTE;
@@ -866,10 +857,13 @@ static __always_inline void nat_ct_mark_replied(const struct five_tuple *nat_key
 		return;
 	}
 	NAT_WRITE_ONCE(ue->replied, 1);
-	NAT_WRITE_ONCE(ue->refresh_ts, now);
-	if (synack && (NAT_READ_ONCE(ue->handshake) & NAT_CT_HS_SYN)) {
-		NAT_WRITE_ONCE(ue->handshake,
-			       NAT_CT_HS_SYN | NAT_CT_HS_SYNACK);
+
+	/* Once both directions have closed, further traffic on the tuple must
+	 * not extend the mapping: a remote could otherwise hold a dead
+	 * connection's pinhole open indefinitely. */
+	if (NAT_READ_ONCE(ue->closed) != (NAT_CT_CLOSED_UE | NAT_CT_CLOSED_REMOTE)) {
+		NAT_WRITE_ONCE(ue->refresh_ts, now);
+		NAT_WRITE_ONCE(origin->refresh_ts, now);
 	}
 	/* A reset for a flow with no observed handshake is evidence the
 	 * connection never existed, so both directions close; one that did
@@ -968,23 +962,25 @@ static __always_inline bool destination_nat(struct packet_context *ctx,
 			return false;
 		}
 
+		struct five_tuple ue_icmp = origin->src;
+
 		if (nat_icmp_query_for_reply(ctx->icmp->type)) {
-			nat_ct_mark_replied(&key, origin, false, false, false);
+			nat_ct_mark_replied(&key, origin, false, false);
 		}
 
 		/* Only a reply carries an identifier; in an error the same
 		 * field holds the unused word or the next-hop MTU. */
 		if (nat_icmp_query_for_reply(ctx->icmp->type) &&
-		    ctx->icmp->un.echo.id != origin->src.identifier) {
+		    ctx->icmp->un.echo.id != ue_icmp.identifier) {
 			undo->dport = ctx->icmp->un.echo.id;
 			undo->l4_check = ctx->icmp->checksum;
 			undo->has_l4 = true;
 			ctx->icmp->checksum = ipv4_csum_update_u16(
 				ctx->icmp->checksum, ctx->icmp->un.echo.id,
-				origin->src.identifier);
-			ctx->icmp->un.echo.id = origin->src.identifier;
+				ue_icmp.identifier);
+			ctx->icmp->un.echo.id = ue_icmp.identifier;
 		}
-		ctx->ip4->daddr = origin->src.saddr;
+		ctx->ip4->daddr = ue_icmp.saddr;
 		break;
 	case IPPROTO_TCP:
 		if (!ctx->tcp) {
@@ -1004,17 +1000,21 @@ static __always_inline bool destination_nat(struct packet_context *ctx,
 			return false;
 		}
 
-		nat_ct_mark_replied(&key, origin, ctx->tcp->fin,
-				    ctx->tcp->syn && ctx->tcp->ack,
-				    ctx->tcp->rst);
+		/* Copied before mark_replied: that call performs its own map
+		 * accesses, after which this pointer may address a recycled
+		 * node — and translating to another flow's address would
+		 * deliver the packet into the wrong PDU session. */
+		struct five_tuple ue_tcp = origin->src;
+
+		nat_ct_mark_replied(&key, origin, ctx->tcp->fin, ctx->tcp->rst);
 
 		undo->dport = ctx->tcp->dest;
 		undo->l4_check = ctx->tcp->check;
 		undo->has_l4 = true;
-		ctx->ip4->daddr = origin->src.saddr;
+		ctx->ip4->daddr = ue_tcp.saddr;
 		ctx->tcp->check = ipv4_csum_update_u32(
 			ctx->tcp->check, key.saddr, ctx->ip4->daddr);
-		ctx->tcp->dest = origin->src.sport;
+		ctx->tcp->dest = ue_tcp.sport;
 		if (ctx->tcp->dest != key.sport) {
 			ctx->tcp->check = ipv4_csum_update_u16(
 				ctx->tcp->check, key.sport, ctx->tcp->dest);
@@ -1038,15 +1038,17 @@ static __always_inline bool destination_nat(struct packet_context *ctx,
 			return false;
 		}
 
-		nat_ct_mark_replied(&key, origin, false, false, false);
+		struct five_tuple ue_udp = origin->src;
+
+		nat_ct_mark_replied(&key, origin, false, false);
 
 		undo->dport = ctx->udp->dest;
 		undo->l4_check = ctx->udp->check;
 		undo->has_l4 = true;
-		ctx->ip4->daddr = origin->src.saddr;
+		ctx->ip4->daddr = ue_udp.saddr;
 		/* A datagram sent without a checksum keeps none (RFC 768). */
 		bool udp_summed = ctx->udp->check != 0;
-		ctx->udp->dest = origin->src.sport;
+		ctx->udp->dest = ue_udp.sport;
 		if (udp_summed) {
 			ctx->udp->check = ipv4_csum_update_u32(
 				ctx->udp->check, key.saddr, ctx->ip4->daddr);
@@ -1067,9 +1069,11 @@ static __always_inline bool destination_nat(struct packet_context *ctx,
 					       ctx->ip4->daddr);
 	undo->daddr = key.saddr;
 	undo->proto = proto;
-	/* An ICMP error also had its quoted packet rewritten, which the undo
-	 * cannot reverse; such a packet must not itself be quoted. */
-	undo->valid = undo->has_l4 || proto != IPPROTO_ICMP;
+	/* An ICMP error had its quoted packet rewritten, which the undo cannot
+	 * reverse; a query reply only had its address and identifier changed,
+	 * both of which it can. */
+	undo->valid = proto != IPPROTO_ICMP ||
+		      nat_icmp_query_for_reply(ctx->icmp->type) != 0;
 	return true;
 }
 

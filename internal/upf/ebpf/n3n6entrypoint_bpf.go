@@ -73,8 +73,7 @@ type N3N6EntrypointNatEntry struct {
 	Replied   uint8
 	UeSide    uint8
 	Closed    uint8
-	Handshake uint8
-	Pad       [3]uint8
+	Pad       [4]uint8
 }
 
 type N3N6EntrypointPdrInfo struct {
