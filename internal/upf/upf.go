@@ -33,6 +33,8 @@ const (
 	PfcpNodeID          = "0.0.0.0"
 	FTEIDPool           = 65535
 	ConnTrackTimeout    = 10 * time.Minute
+	natGCInterval       = 10 * time.Second
+	natGCBatchSize      = 4096
 	InactiveFlowTimeout = 30 * time.Second
 	ActiveFlowTimeout   = 30 * time.Minute
 	maxInFlightFlows    = 16384
@@ -468,12 +470,15 @@ func (u *UPF) stopFlowCollection() {
 
 func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 	var (
-		key   ebpf.N3N6EntrypointFiveTuple
-		value ebpf.N3N6EntrypointNatEntry
-		ts    unix.Timespec
+		ts     unix.Timespec
+		cursor bpf.MapBatchCursor
+		keys   = make([]ebpf.N3N6EntrypointFiveTuple, natGCBatchSize)
+		values = make([]ebpf.N3N6EntrypointNatEntry, natGCBatchSize)
 	)
 
-	ticker := time.NewTicker(1 * time.Minute)
+	snapshot := make(map[ebpf.N3N6EntrypointFiveTuple]ebpf.N3N6EntrypointNatEntry)
+
+	ticker := time.NewTicker(natGCInterval)
 	defer ticker.Stop()
 
 	for {
@@ -485,26 +490,35 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 
 		// refresh_ts is bpf_ktime_get_ns (CLOCK_MONOTONIC); comparing
 		// against any other clock ages entries by the suspend time.
-		err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts)
-		if err != nil {
+		if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
 			logger.UpfLog.Warn("Failed to query monotonic clock", zap.Error(err))
-			return
+			continue
 		}
 
 		nowNs := uint64(ts.Nano())
 
-		snapshot := make(map[ebpf.N3N6EntrypointFiveTuple]ebpf.N3N6EntrypointNatEntry)
+		clear(snapshot)
 
-		ct_entries := u.se.BpfObjects.NatCt.Iterate()
-		for ct_entries.Next(&key, &value) {
-			snapshot[key] = value
+		cursor = bpf.MapBatchCursor{}
+		complete := false
+
+		for {
+			n, err := u.se.BpfObjects.NatCt.BatchLookup(&cursor, keys, values, nil)
+			for i := 0; i < n; i++ {
+				snapshot[keys[i]] = values[i]
+			}
+
+			if err != nil {
+				complete = errors.Is(err, bpf.ErrKeyNotExist)
+				if !complete {
+					logger.UpfLog.Warn("Conntrack scan failed", zap.Error(err))
+				}
+
+				break
+			}
 		}
 
-		if err := ct_entries.Err(); err != nil {
-			logger.UpfLog.Warn("Conntrack iteration failed", zap.Error(err))
-		}
-
-		expiredKeys := natExpiredKeys(snapshot, nowNs)
+		expiredKeys := natExpiredKeys(snapshot, nowNs, complete)
 		if len(expiredKeys) == 0 {
 			continue
 		}

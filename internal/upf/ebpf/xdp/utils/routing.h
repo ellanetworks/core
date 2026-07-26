@@ -246,9 +246,11 @@ static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 		statistic->fib_lookup_ip4_unsupp_lwt += 1;
 		return XDP_PASS;
 	default:
+		/* A negative return is helper misuse, not a routing verdict:
+		 * passing would forward the packet untranslated. */
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
-		return XDP_PASS;
+		return rc < 0 ? XDP_DROP : XDP_PASS;
 	}
 }
 

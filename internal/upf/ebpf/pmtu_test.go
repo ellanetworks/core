@@ -79,6 +79,80 @@ func TestDownlinkPMTU(t *testing.T) {
 	}
 }
 
+// TestDownlinkPMTUMasquerade checks that with NAT enabled the ICMP
+// fragmentation-needed quotes the packet as the server sent it: the server
+// matches the error against its own socket, and the UE address must not
+// appear on N6.
+func TestDownlinkPMTUMasquerade(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		ulTEID = 0x504D5501
+		dlTEID = 0x504D5502
+		ueSP   = 1234
+		srvDP  = 4000
+	)
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+	putDownlinkPDR(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, 7)
+
+	// Uplink first so the reply has a conntrack mapping to translate.
+	uplink := ipv4Packet(ueIP, serverIP, 17, udpDatagramChecksummed(ueIP, serverIP, ueSP, srvDP, []byte{1}))
+	f.injectUplink(t, uplinkGPDU(ulTEID, uplink))
+	time.Sleep(100 * time.Millisecond)
+
+	if out, err := ipCmd("link", "set", t2N3Dev, "mtu", "1280"); err != nil {
+		t.Fatalf("shrink N3 MTU: %v: %s", err, out)
+	}
+
+	capFD := f.captureN6(t)
+
+	big := withDF(ipv4Packet(serverIP, natPublicIP, 17, udpDatagramChecksummed(serverIP, natPublicIP, srvDP, ueSP, bytesOf(1400))))
+	f.injectDownlink(t, ethFrame(0x0800, big))
+
+	got := captureMatching(capFD, time.Second, func(fr []byte) bool {
+		if !isInnerIPv4(fr, 1 /* ICMP */, serverIP) {
+			return false
+		}
+
+		icmp := fr[ethHdrLen+20:]
+
+		return len(icmp) >= 8 && icmp[0] == 3 && icmp[1] == 4
+	})
+	if got == nil {
+		t.Fatal("did not capture an ICMP fragmentation-needed on the N6 side")
+	}
+
+	ip := got[ethHdrLen : ethHdrLen+20]
+	icmp := got[ethHdrLen+20:]
+
+	if !bytes.Equal(ip[12:16], natPublicIP[:]) {
+		t.Errorf("ICMP source = %v, want %v (the address the sender targeted)", ip[12:16], natPublicIP)
+	}
+
+	if !validIPv4Checksum(ip) {
+		t.Error("ICMP IPv4 header checksum invalid")
+	}
+
+	if !validICMPChecksum(icmp) {
+		t.Error("ICMP checksum invalid")
+	}
+
+	embedded := icmp[8:]
+	if len(embedded) < 28 {
+		t.Fatalf("ICMP quote too short: %d bytes", len(embedded))
+	}
+
+	if !bytes.Equal(embedded[16:20], natPublicIP[:]) {
+		t.Errorf("quoted destination = %v, want %v (pre-translation)", embedded[16:20], natPublicIP)
+	}
+
+	if dp := binary.BigEndian.Uint16(embedded[22:24]); dp != ueSP {
+		t.Errorf("quoted destination port = %d, want %d (pre-translation)", dp, ueSP)
+	}
+}
+
 // TestDownlinkPMTUIPv6 is the IPv6 counterpart: an oversized downlink IPv6
 // packet is answered with an ICMPv6 "packet too big" toward the sender.
 func TestDownlinkPMTUIPv6(t *testing.T) {

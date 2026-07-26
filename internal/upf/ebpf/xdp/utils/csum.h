@@ -75,6 +75,9 @@ static __always_inline __u16 ipv4_csum_update_u32(__u16 csum, __u32 orig,
 	new_sum += ~nbo_orig & 0xFFFF;
 	new_sum += (nbo_new >> 16) & 0xFFFF;
 	new_sum += nbo_new & 0xFFFF;
+	/* Five 16-bit addends can carry twice; RFC 1624 requires folding
+	 * until no carry remains. */
+	new_sum = (new_sum & 0xFFFF) + (new_sum >> 16);
 	new_sum = (new_sum & 0xFFFF) + (new_sum >> 16);
 	new_sum = ~new_sum;
 
@@ -91,6 +94,9 @@ static __always_inline __u16 ipv4_csum_update_u16(__u16 csum, __u16 orig,
 	new_sum = ~new_sum & 0xFFFF;
 	new_sum += ~nbo_orig & 0xFFFF;
 	new_sum += nbo_new & 0xFFFF;
+	/* Three 16-bit addends can carry twice; RFC 1624 requires folding
+	 * until no carry remains. */
+	new_sum = (new_sum & 0xFFFF) + (new_sum >> 16);
 	new_sum = (new_sum & 0xFFFF) + (new_sum >> 16);
 	new_sum = ~new_sum;
 

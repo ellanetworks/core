@@ -85,6 +85,26 @@ func GetN6NatUnsolicitedDropIPv4(bpfObjects *BpfObjects) uint64 {
 	return sumDownlinkStatField(bpfObjects, func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatUnsolicitedDropIp4 })
 }
 
+// NatDrops counts NAT drops by reason, summed over both directions: fragments
+// and unsupported protocols occur on either side, port exhaustion only uplink.
+type NatDrops struct {
+	Fragment         uint64
+	PortExhausted    uint64
+	UnsupportedProto uint64
+}
+
+func GetNatDrops(bpfObjects *BpfObjects) NatDrops {
+	sum := func(sel func(N3N6EntrypointUpfStatistic) uint64) uint64 {
+		return sumUplinkStatField(bpfObjects, sel) + sumDownlinkStatField(bpfObjects, sel)
+	}
+
+	return NatDrops{
+		Fragment:         sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatFragmentDropIp4 }),
+		PortExhausted:    sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatPortExhaustedDropIp4 }),
+		UnsupportedProto: sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatUnsupportedProtoDropIp4 }),
+	}
+}
+
 func GetN3Aborted(bpfObjects *BpfObjects) uint64 {
 	return getUpfN3XdpStatisticField(bpfObjects, XDP_ABORTED)
 }

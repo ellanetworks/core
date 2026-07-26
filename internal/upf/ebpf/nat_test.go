@@ -27,6 +27,12 @@ type natProto struct {
 
 const natICMPID = 0xbeef
 
+// Mirrors NAT_CT_CLOSED_UE / NAT_CT_CLOSED_REMOTE in nat.h.
+const (
+	natClosedUE     = 0x1
+	natClosedRemote = 0x2
+)
+
 var natProtos = []natProto{
 	{
 		name:  "tcp",
@@ -420,6 +426,77 @@ func TestUnsolicitedInboundForwardedWithoutNAT(t *testing.T) {
 	}
 }
 
+// TestNATICMPErrorFromRouter checks that an ICMP error from an intermediate
+// hop is translated to the UE: the flow is identified by the packet quoted in
+// the error, not by who reported it, so PMTUD and traceroute work.
+func TestNATICMPErrorFromRouter(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		ulTEID = 0x4E41540E
+		dlTEID = 0x4E41540F
+		qfi    = 7
+		ueSP   = 1234
+		srvDP  = 53
+	)
+
+	routerIP := [4]byte{198, 51, 100, 9}
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+	putDownlinkPDR(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, qfi)
+
+	uplinkInner := ipv4Packet(ueIP, serverIP, 17, udpDatagramChecksummed(ueIP, serverIP, ueSP, srvDP, []byte{9, 9}))
+	f.injectUplink(t, uplinkGPDU(ulTEID, uplinkInner))
+	time.Sleep(100 * time.Millisecond)
+
+	capFD := f.captureN3(t)
+
+	// A hop on the path reports TTL exceeded, quoting the NAT'd packet.
+	embeddedUDP := udpDatagramChecksummed(natPublicIP, serverIP, ueSP, srvDP, nil)
+	embeddedIP := ipv4Packet(natPublicIP, serverIP, 17, embeddedUDP)
+
+	icmpErr := make([]byte, 8+len(embeddedIP))
+	icmpErr[0] = 11 // time exceeded
+	copy(icmpErr[8:], embeddedIP)
+	binary.BigEndian.PutUint16(icmpErr[2:4], onesComplement16(icmpErr))
+
+	f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(routerIP, natPublicIP, 1, icmpErr)))
+
+	got := captureMatching(capFD, time.Second, func(fr []byte) bool {
+		inner := gtpInner(fr)
+
+		return inner != nil && inner[9] == 1
+	})
+	if got == nil {
+		t.Fatal("ICMP error from an intermediate hop was not delivered to the UE")
+	}
+
+	inner := gtpInner(got)
+	icmp := inner[20:]
+
+	if !bytes.Equal(inner[16:20], ueIP[:]) {
+		t.Errorf("inner dst = %v, want %v (destination-NAT'd)", inner[16:20], ueIP)
+	}
+
+	if !bytes.Equal(inner[12:16], routerIP[:]) {
+		t.Errorf("inner src = %v, want %v (the reporting hop, preserved)", inner[12:16], routerIP)
+	}
+
+	if !validIPv4Checksum(inner[:20]) {
+		t.Error("inner IPv4 header checksum invalid after NAT")
+	}
+
+	if !validICMPChecksum(icmp) {
+		t.Error("ICMP checksum invalid after NAT")
+	}
+
+	embedded := icmp[8:]
+	if len(embedded) < 28 || !bytes.Equal(embedded[12:16], ueIP[:]) {
+		t.Fatalf("embedded packet source not rewritten to the UE: %x", embedded)
+	}
+}
+
 // natFiveTuple builds a nat_ct key as the datapath stores it: addresses and
 // ports in network byte order, protocol as a plain value.
 func natFiveTuple(saddr, daddr [4]byte, sport, dport uint16, proto uint16) N3N6EntrypointFiveTuple { //nolint:unparam // general key builder; ports are configurable
@@ -536,18 +613,65 @@ func TestNATConntrackDirectionAndState(t *testing.T) {
 		t.Errorf("after handshake ACK: state=%d, want 1 (established)", ue.State)
 	}
 
-	// FIN: closing.
+	// UE FIN: the UE direction closes, the remote one stays open.
 	sendUplink(0x11)
 
-	if ue = lookupNatEntry(t, f, ueKey); ue.State != 2 {
-		t.Errorf("after FIN: state=%d, want 2 (closing)", ue.State)
+	if ue = lookupNatEntry(t, f, ueKey); ue.Closed != natClosedUE {
+		t.Errorf("after UE FIN: closed=%#x, want %#x (UE side only)", ue.Closed, natClosedUE)
 	}
 
-	// The close handshake's final ACK keeps the connection closing.
+	// The close handshake's final ACK must not clear the closed bits.
 	sendUplink(0x10)
 
-	if ue = lookupNatEntry(t, f, ueKey); ue.State != 2 {
-		t.Errorf("after post-FIN ACK: state=%d, want 2 (closing)", ue.State)
+	if ue = lookupNatEntry(t, f, ueKey); ue.Closed != natClosedUE {
+		t.Errorf("after post-FIN ACK: closed=%#x, want %#x", ue.Closed, natClosedUE)
+	}
+
+	// Server FIN: both directions closed.
+	capFD = f.captureN3(t)
+	f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(serverIP, natPublicIP, 6, tcpSegmentWithFlags(serverIP, natPublicIP, srvDP, ueSP, 0x11))))
+
+	if captureMatching(capFD, time.Second, func(fr []byte) bool { return gtpInner(fr) != nil }) == nil {
+		t.Fatal("downlink FIN did not egress on N3")
+	}
+
+	if ue = lookupNatEntry(t, f, ueKey); ue.Closed != natClosedUE|natClosedRemote {
+		t.Errorf("after server FIN: closed=%#x, want %#x (both sides)", ue.Closed, natClosedUE|natClosedRemote)
+	}
+}
+
+// TestNATInboundResetDoesNotFullyClose verifies that an unsolicited inbound
+// RST closes only the remote direction: without sequence validation it must
+// not drop a subscriber's connection into the short closed timeout.
+func TestNATInboundResetDoesNotFullyClose(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		ulTEID = 0x4E41540C
+		dlTEID = 0x4E41540D
+		qfi    = 7
+		ueSP   = 1234
+		srvDP  = 80
+	)
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+	putDownlinkPDR(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, qfi)
+
+	uplink := ipv4Packet(ueIP, serverIP, 6, tcpSegmentWithFlags(ueIP, serverIP, ueSP, srvDP, 0x02))
+	f.injectUplink(t, uplinkGPDU(ulTEID, uplink))
+	time.Sleep(100 * time.Millisecond)
+
+	capFD := f.captureN3(t)
+	f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(serverIP, natPublicIP, 6, tcpSegmentWithFlags(serverIP, natPublicIP, srvDP, ueSP, 0x04))))
+
+	if captureMatching(capFD, time.Second, func(fr []byte) bool { return gtpInner(fr) != nil }) == nil {
+		t.Fatal("downlink RST did not egress on N3")
+	}
+
+	ueKey := natFiveTuple(ueIP, serverIP, ueSP, srvDP, 6)
+	if ue := lookupNatEntry(t, f, ueKey); ue.Closed != natClosedRemote {
+		t.Errorf("after inbound RST: closed=%#x, want %#x (remote side only)", ue.Closed, natClosedRemote)
 	}
 }
 

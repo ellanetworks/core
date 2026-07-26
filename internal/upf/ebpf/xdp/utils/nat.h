@@ -20,7 +20,10 @@
 #define NAT_H
 
 #define PEAK_CONNECTION_PER_UE 100
-#define NAT_CT_MAP_SIZE (PEAK_CONNECTION_PER_UE * MAX_PDU_SESSIONS)
+/* Two entries per connection, one per direction. */
+#define NAT_CT_MAP_SIZE (2 * PEAK_CONNECTION_PER_UE * MAX_PDU_SESSIONS)
+/* Fragment offset and more-fragments bits of frag_off, host order. */
+#define IP4_FRAG_MASK 0x3FFF
 /* Bounded so the verifier walk of the retry loop stays within the 1M
  * instruction budget of the uplink program. */
 #define NAT_PORT_RETRIES 16
@@ -29,6 +32,9 @@
 volatile const bool masquerade;
 volatile const bool masquerade = false;
 
+/* pad is named and zero-initialised with the rest: the kernel hashes and
+ * compares the whole key, including bytes the compiler would otherwise be
+ * free to leave undefined. */
 struct five_tuple {
 	__u32 saddr;
 	__u32 daddr;
@@ -44,13 +50,19 @@ struct five_tuple {
 		};
 	};
 	__u16 proto;
+	__u16 pad;
 };
 
 enum nat_ct_state {
 	NAT_CT_NEW = 0,
 	NAT_CT_ESTABLISHED = 1,
-	NAT_CT_CLOSING = 2,
 };
+
+/* Closing is tracked per direction: the short closed timeout applies only
+ * once both sides have closed, so a half-close followed by an idle gap does
+ * not reap a connection the server is still answering. */
+#define NAT_CT_CLOSED_UE 0x1
+#define NAT_CT_CLOSED_REMOTE 0x2
 
 /* Each connection has two entries, written only by the uplink path: one
  * keyed by the UE tuple, one by the translated tuple, each holding the other
@@ -61,7 +73,8 @@ struct nat_entry {
 	__u8 state;
 	__u8 replied;
 	__u8 ue_side;
-	__u8 pad[5];
+	__u8 closed;
+	__u8 pad[4];
 };
 
 struct {
@@ -91,13 +104,21 @@ parse_icmp_packet_ref(struct five_tuple *key, struct packet_context *ctx)
 	struct iphdr *ip4;
 	struct udphdr *udp;
 	struct tcphdr *tcp;
+	struct icmphdr *icmp;
 	struct nat_entry *nat_entry = NULL;
 
 	ip4 = detect_ip4_header(ctx);
 	if (!ip4) {
 		return NULL;
 	}
+	if (ip4->ihl < 5) {
+		return NULL;
+	}
+	/* The quoted packet is the one this UPF sent, so both of its addresses
+	 * key the NAT-side entry. The error's outer source is the reporting
+	 * router, which is any hop on the path. */
 	key->saddr = ip4->saddr;
+	key->daddr = ip4->daddr;
 	__u16 previous_ip_csum = ip4->check;
 
 	int offset = ip4->ihl * 4;
@@ -119,6 +140,11 @@ parse_icmp_packet_ref(struct five_tuple *key, struct packet_context *ctx)
 		ctx->icmp->checksum = ipv4_csum_update_u32(
 			ctx->icmp->checksum, key->saddr, ip4->saddr);
 		udp->source = nat_entry->src.sport;
+		if (udp->source != key->sport) {
+			/* The quoted port is covered by the outer checksum. */
+			ctx->icmp->checksum = ipv4_csum_update_u16(
+				ctx->icmp->checksum, key->sport, udp->source);
+		}
 		if (udp->check != 0) {
 			udp->check = ipv4_csum_update_u32(
 				udp->check, key->saddr, ip4->saddr);
@@ -126,15 +152,18 @@ parse_icmp_packet_ref(struct five_tuple *key, struct packet_context *ctx)
 				udp->check = ipv4_csum_update_u16(
 					udp->check, key->sport, udp->source);
 			}
+			if (udp->check == 0) {
+				udp->check = 0xFFFF;
+			}
 			ctx->icmp->checksum = ipv4_csum_update_u16(
 				ctx->icmp->checksum, previous_udp_csum,
 				udp->check);
 		}
-		ip4->check = 0;
-		ip4->check = ipv4_csum(ip4, sizeof(*ip4));
+		ip4->check = ipv4_csum_update_u32(ip4->check, key->saddr,
+						  ip4->saddr);
 		break;
 	case IPPROTO_TCP:
-		tcp = detect_tcp_header(ctx, offset);
+		tcp = detect_tcp_ports(ctx, offset);
 		if (!tcp) {
 			return NULL;
 		}
@@ -145,21 +174,66 @@ parse_icmp_packet_ref(struct five_tuple *key, struct packet_context *ctx)
 		if (!nat_entry) {
 			return NULL;
 		}
-		__u16 previous_tcp_csum = tcp->check;
 		ip4->saddr = nat_entry->src.saddr;
 		ctx->icmp->checksum = ipv4_csum_update_u32(
 			ctx->icmp->checksum, key->saddr, ip4->saddr);
-		tcp->check = ipv4_csum_update_u32(tcp->check, key->saddr,
-						  ip4->saddr);
 		tcp->source = nat_entry->src.sport;
 		if (tcp->source != key->sport) {
-			tcp->check = ipv4_csum_update_u16(
-				tcp->check, key->sport, tcp->source);
+			ctx->icmp->checksum = ipv4_csum_update_u16(
+				ctx->icmp->checksum, key->sport, tcp->source);
 		}
-		ctx->icmp->checksum = ipv4_csum_update_u16(
-			ctx->icmp->checksum, previous_tcp_csum, tcp->check);
-		ip4->check = 0;
-		ip4->check = ipv4_csum(ip4, sizeof(*ip4));
+		/* The quoted TCP checksum is past the 8 guaranteed octets. */
+		struct tcphdr *tcp_full = detect_tcp_header(ctx, offset);
+		if (tcp_full) {
+			__u16 previous_tcp_csum = tcp_full->check;
+			tcp_full->check = ipv4_csum_update_u32(
+				tcp_full->check, key->saddr, ip4->saddr);
+			if (tcp->source != key->sport) {
+				tcp_full->check = ipv4_csum_update_u16(
+					tcp_full->check, key->sport,
+					tcp->source);
+			}
+			ctx->icmp->checksum = ipv4_csum_update_u16(
+				ctx->icmp->checksum, previous_tcp_csum,
+				tcp_full->check);
+		}
+		ip4->check = ipv4_csum_update_u32(ip4->check, key->saddr,
+						  ip4->saddr);
+		break;
+	case IPPROTO_ICMP:
+		icmp = detect_icmp_header(ctx, offset);
+		if (!icmp) {
+			return NULL;
+		}
+		if (icmp->type != ICMP_ECHO && icmp->type != ICMP_TIMESTAMP) {
+			return NULL;
+		}
+		key->proto = ip4->protocol;
+		key->identifier = icmp->un.echo.id;
+		key->type = icmp->type;
+		key->code = icmp->code;
+		nat_entry = bpf_map_lookup_elem(&nat_ct, key);
+		if (!nat_entry) {
+			return NULL;
+		}
+		ip4->saddr = nat_entry->src.saddr;
+		ctx->icmp->checksum = ipv4_csum_update_u32(
+			ctx->icmp->checksum, key->saddr, ip4->saddr);
+		if (icmp->un.echo.id != nat_entry->src.identifier) {
+			__u16 previous_icmp_csum = icmp->checksum;
+			__u16 previous_id = icmp->un.echo.id;
+			icmp->un.echo.id = nat_entry->src.identifier;
+			icmp->checksum = ipv4_csum_update_u16(
+				icmp->checksum, previous_id, icmp->un.echo.id);
+			ctx->icmp->checksum = ipv4_csum_update_u16(
+				ctx->icmp->checksum, previous_id,
+				icmp->un.echo.id);
+			ctx->icmp->checksum = ipv4_csum_update_u16(
+				ctx->icmp->checksum, previous_icmp_csum,
+				icmp->checksum);
+		}
+		ip4->check = ipv4_csum_update_u32(ip4->check, key->saddr,
+						  ip4->saddr);
 		break;
 	}
 	ctx->icmp->checksum = ipv4_csum_update_u16(
@@ -241,17 +315,28 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 				       struct bpf_fib_lookup *fib_params)
 {
 	__u16 proto = ctx->ip4->protocol;
+
+	/* A fragment has no usable L4 header: the bytes at the L4 offset are
+	 * payload, and rewriting them corrupts the datagram. */
+	if (ctx->ip4->frag_off & bpf_htons(IP4_FRAG_MASK)) {
+		ctx->statistics->nat_fragment_drop_ip4 += 1;
+		return false;
+	}
+
 	struct five_tuple orig = {};
 	orig.saddr = ctx->ip4->saddr;
 	orig.daddr = ctx->ip4->daddr;
 	orig.proto = proto;
 
+	/* Incremental update: a recompute would have to cover the options a
+	 * header with ihl > 5 carries. */
 	ctx->ip4->saddr = fib_params->ipv4_src;
-	ctx->ip4->check = 0;
-	ctx->ip4->check = ipv4_csum(ctx->ip4, sizeof(*ctx->ip4));
+	ctx->ip4->check = ipv4_csum_update_u32(ctx->ip4->check, orig.saddr,
+					       ctx->ip4->saddr);
 
 	bool tcp_new = false;
-	bool tcp_closing = false;
+	bool tcp_fin = false;
+	bool tcp_rst = false;
 
 	switch (proto) {
 	case IPPROTO_TCP:
@@ -265,7 +350,8 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		ctx->tcp->check = ipv4_csum_update_u32(
 			ctx->tcp->check, orig.saddr, ctx->ip4->saddr);
 		tcp_new = ctx->tcp->syn && !ctx->tcp->ack;
-		tcp_closing = ctx->tcp->fin || ctx->tcp->rst;
+		tcp_fin = ctx->tcp->fin;
+		tcp_rst = ctx->tcp->rst;
 		break;
 	case IPPROTO_UDP:
 		if (!ctx->udp) {
@@ -296,6 +382,9 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		orig.type = ctx->icmp->type;
 		break;
 	default:
+		/* Translating a protocol with no port to renumber would
+		 * collapse every UE onto one mapping per remote host. */
+		ctx->statistics->nat_unsupported_proto_drop_ip4 += 1;
 		return false;
 	}
 
@@ -329,14 +418,22 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		}
 
 		__u8 state = tracked->state;
-		if (tcp_closing)
-			state = NAT_CT_CLOSING;
-		else if (tcp_new)
+		__u8 closed = tracked->closed;
+		if (tcp_new) {
+			// A new SYN reuses the tuple for a fresh connection.
 			state = NAT_CT_NEW;
-		// Only a new SYN leaves CLOSING: the final ACK of a close
-		// handshake must not restore the long established timeout.
-		else if (state != NAT_CT_CLOSING && tracked->replied)
-			state = NAT_CT_ESTABLISHED;
+			closed = 0;
+		} else {
+			if (tcp_fin)
+				closed |= NAT_CT_CLOSED_UE;
+			// A UE-sourced RST aborts both directions; an inbound
+			// one is not trusted to (see destination_nat).
+			if (tcp_rst)
+				closed |= NAT_CT_CLOSED_UE |
+					  NAT_CT_CLOSED_REMOTE;
+			if (tracked->replied)
+				state = NAT_CT_ESTABLISHED;
+		}
 
 		struct nat_entry ue_val = {};
 		ue_val.src = natted;
@@ -344,6 +441,7 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		ue_val.state = state;
 		ue_val.replied = tracked->replied;
 		ue_val.ue_side = 1;
+		ue_val.closed = closed;
 
 		struct nat_entry nat_val = {};
 		nat_val.src = orig;
@@ -388,6 +486,7 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		}
 	}
 	if (!reserved) {
+		ctx->statistics->nat_port_exhausted_drop_ip4 += 1;
 		return false;
 	}
 
@@ -398,8 +497,10 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 	struct nat_entry ue_val = {};
 	ue_val.src = natted;
 	ue_val.refresh_ts = now;
-	ue_val.state = tcp_closing ? NAT_CT_CLOSING : NAT_CT_NEW;
+	ue_val.state = NAT_CT_NEW;
 	ue_val.ue_side = 1;
+	if (tcp_fin || tcp_rst)
+		ue_val.closed = NAT_CT_CLOSED_UE;
 
 	if (0 != bpf_map_update_elem(&nat_ct, &orig, &ue_val, BPF_NOEXIST)) {
 		// A concurrent packet of the same flow inserted first: adopt
@@ -417,9 +518,12 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 	return true;
 }
 
-// origin is the NAT-side entry; its src tuple keys the authoritative
-// UE-side entry.
-static __always_inline void nat_ct_mark_replied(struct nat_entry *origin,
+// origin is the NAT-side entry stored under nat_key; its src tuple keys the
+// authoritative UE-side entry. An inbound FIN or RST closes the remote
+// direction only: it carries no sequence validation, so it must not by
+// itself shorten the connection to the closed timeout.
+static __always_inline void nat_ct_mark_replied(const struct five_tuple *nat_key,
+						struct nat_entry *origin,
 						bool closing)
 {
 	__u64 now = bpf_ktime_get_ns();
@@ -427,18 +531,75 @@ static __always_inline void nat_ct_mark_replied(struct nat_entry *origin,
 
 	struct five_tuple ue_key = origin->src;
 	struct nat_entry *ue = bpf_map_lookup_elem(&nat_ct, &ue_key);
-	if (!ue)
+	if (!ue) {
+		// The UE-side entry was evicted: restore the pair so a
+		// download with no uplink traffic keeps its mapping.
+		struct nat_entry restored = {};
+		restored.src = *nat_key;
+		restored.refresh_ts = now;
+		restored.state = NAT_CT_ESTABLISHED;
+		restored.replied = 1;
+		restored.ue_side = 1;
+		if (closing)
+			restored.closed = NAT_CT_CLOSED_REMOTE;
+		bpf_map_update_elem(&nat_ct, &ue_key, &restored, BPF_ANY);
 		return;
+	}
 	// A concurrent uplink update_elem may replace the element and lose
 	// these writes; the next reply re-applies them.
 	ue->replied = 1;
 	ue->refresh_ts = now;
 	if (closing)
-		ue->state = NAT_CT_CLOSING;
+		ue->closed |= NAT_CT_CLOSED_REMOTE;
+}
+
+/* Fields destination_nat rewrote, so an ICMP error generated further down the
+ * downlink path quotes the packet as the sender sent it. */
+struct nat_undo {
+	__u32 daddr;
+	__u16 dport;
+	__u16 l4_check;
+	__u16 proto;
+	bool valid;
+};
+
+// Restores the pre-translation destination and L4 header.
+static __always_inline void nat_undo_apply(struct packet_context *ctx,
+					   const struct nat_undo *undo)
+{
+	if (!undo->valid) {
+		return;
+	}
+
+	ctx->ip4->check = ipv4_csum_update_u32(ctx->ip4->check,
+					       ctx->ip4->daddr, undo->daddr);
+	ctx->ip4->daddr = undo->daddr;
+
+	switch (undo->proto) {
+	case IPPROTO_TCP:
+		if (ctx->tcp) {
+			ctx->tcp->dest = undo->dport;
+			ctx->tcp->check = undo->l4_check;
+		}
+		break;
+	case IPPROTO_UDP:
+		if (ctx->udp) {
+			ctx->udp->dest = undo->dport;
+			ctx->udp->check = undo->l4_check;
+		}
+		break;
+	case IPPROTO_ICMP:
+		if (ctx->icmp && undo->l4_check) {
+			ctx->icmp->un.echo.id = undo->dport;
+			ctx->icmp->checksum = undo->l4_check;
+		}
+		break;
+	}
 }
 
 // Returns true when the packet was translated back to a tracked UE flow.
-static __always_inline bool destination_nat(struct packet_context *ctx)
+static __always_inline bool destination_nat(struct packet_context *ctx,
+					    struct nat_undo *undo)
 {
 	__u16 proto = ctx->ip4->protocol;
 	struct nat_entry *origin;
@@ -463,11 +624,16 @@ static __always_inline bool destination_nat(struct packet_context *ctx)
 
 		if (ctx->icmp->type == ICMP_ECHOREPLY ||
 		    ctx->icmp->type == ICMP_TIMESTAMPREPLY) {
-			nat_ct_mark_replied(origin, false);
+			nat_ct_mark_replied(&key, origin, false);
 		}
 
-		if (origin->src.proto == IPPROTO_ICMP &&
+		/* Only a reply carries an identifier; in an error the same
+		 * field holds the unused word or the next-hop MTU. */
+		if ((ctx->icmp->type == ICMP_ECHOREPLY ||
+		     ctx->icmp->type == ICMP_TIMESTAMPREPLY) &&
 		    ctx->icmp->un.echo.id != origin->src.identifier) {
+			undo->dport = ctx->icmp->un.echo.id;
+			undo->l4_check = ctx->icmp->checksum;
 			ctx->icmp->checksum = ipv4_csum_update_u16(
 				ctx->icmp->checksum, ctx->icmp->un.echo.id,
 				origin->src.identifier);
@@ -488,8 +654,10 @@ static __always_inline bool destination_nat(struct packet_context *ctx)
 			return false;
 		}
 
-		nat_ct_mark_replied(origin, ctx->tcp->fin || ctx->tcp->rst);
+		nat_ct_mark_replied(&key, origin, ctx->tcp->fin || ctx->tcp->rst);
 
+		undo->dport = ctx->tcp->dest;
+		undo->l4_check = ctx->tcp->check;
 		ctx->ip4->daddr = origin->src.saddr;
 		ctx->tcp->check = ipv4_csum_update_u32(
 			ctx->tcp->check, key.saddr, ctx->ip4->daddr);
@@ -512,8 +680,10 @@ static __always_inline bool destination_nat(struct packet_context *ctx)
 			return false;
 		}
 
-		nat_ct_mark_replied(origin, false);
+		nat_ct_mark_replied(&key, origin, false);
 
+		undo->dport = ctx->udp->dest;
+		undo->l4_check = ctx->udp->check;
 		ctx->ip4->daddr = origin->src.saddr;
 		if (ctx->udp->check != 0) {
 			ctx->udp->check = ipv4_csum_update_u32(
@@ -524,12 +694,19 @@ static __always_inline bool destination_nat(struct packet_context *ctx)
 			ctx->udp->check = ipv4_csum_update_u16(
 				ctx->udp->check, key.sport, ctx->udp->dest);
 		}
+		/* Zero means "no checksum" in IPv4 UDP (RFC 768). */
+		if (ctx->udp->check == 0) {
+			ctx->udp->check = 0xFFFF;
+		}
 		break;
 	default:
 		return false;
 	}
-	ctx->ip4->check = 0;
-	ctx->ip4->check = ipv4_csum(ctx->ip4, sizeof(*ctx->ip4));
+	ctx->ip4->check = ipv4_csum_update_u32(ctx->ip4->check, key.saddr,
+					       ctx->ip4->daddr);
+	undo->daddr = key.saddr;
+	undo->proto = proto;
+	undo->valid = true;
 	return true;
 }
 

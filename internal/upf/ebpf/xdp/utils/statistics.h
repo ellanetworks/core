@@ -40,4 +40,7 @@ struct upf_statistic {
 	__u64 source_spoof_drop_ip4;
 	__u64 source_spoof_drop_ip6;
 	__u64 nat_unsolicited_drop_ip4;
+	__u64 nat_fragment_drop_ip4;
+	__u64 nat_port_exhausted_drop_ip4;
+	__u64 nat_unsupported_proto_drop_ip4;
 };

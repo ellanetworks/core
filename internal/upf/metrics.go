@@ -72,6 +72,14 @@ func RegisterMetrics() {
 		nil,
 	)
 
+	// NAT drops by reason
+	xdpNatDropDesc := prometheus.NewDesc(
+		"app_xdp_nat_drop_total",
+		"Packets dropped by the NAT engine, by reason (fragment, port_exhausted, unsupported_proto).",
+		[]string{"reason"},
+		nil,
+	)
+
 	prometheus.MustRegister(upfUplinkBytes, upfDownlinkBytes)
 
 	// Register XDP action collector that produces metrics with labels
@@ -101,6 +109,14 @@ func RegisterMetrics() {
 		ch <- prometheus.MustNewConstMetric(xdpSourceSpoofDropDesc, prometheus.CounterValue, float64(ebpf.GetN3SourceSpoofDropIPv6(bpfObjects)), "ipv6")
 
 		ch <- prometheus.MustNewConstMetric(xdpNatUnsolicitedDropDesc, prometheus.CounterValue, float64(ebpf.GetN6NatUnsolicitedDropIPv4(bpfObjects)), "ipv4")
+
+		natDrops := ebpf.GetNatDrops(bpfObjects)
+
+		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.Fragment), "fragment")
+
+		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.PortExhausted), "port_exhausted")
+
+		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.UnsupportedProto), "unsupported_proto")
 	}))
 
 	// Register FIB lookup result and ifindex mismatch collector

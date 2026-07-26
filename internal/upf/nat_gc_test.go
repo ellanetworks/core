@@ -21,10 +21,10 @@ func natTuple(saddr uint32, sport uint16, proto uint16) ebpf.N3N6EntrypointFiveT
 }
 
 // pair returns a UE-side and NAT-side entry pair with the given age.
-func pair(ueKey, natKey ebpf.N3N6EntrypointFiveTuple, nowNs uint64, age time.Duration, state, replied uint8) (ebpf.N3N6EntrypointNatEntry, ebpf.N3N6EntrypointNatEntry) {
+func pair(ueKey, natKey ebpf.N3N6EntrypointFiveTuple, nowNs uint64, age time.Duration, state, replied, closed uint8) (ebpf.N3N6EntrypointNatEntry, ebpf.N3N6EntrypointNatEntry) {
 	ts := nowNs - uint64(age.Nanoseconds())
 
-	return ebpf.N3N6EntrypointNatEntry{Src: natKey, RefreshTs: ts, State: state, Replied: replied, UeSide: 1},
+	return ebpf.N3N6EntrypointNatEntry{Src: natKey, RefreshTs: ts, State: state, Replied: replied, UeSide: 1, Closed: closed},
 		ebpf.N3N6EntrypointNatEntry{Src: ueKey, RefreshTs: ts}
 }
 
@@ -34,21 +34,24 @@ func TestNatEntryTimeout(t *testing.T) {
 		proto   uint16
 		state   uint8
 		replied uint8
+		closed  uint8
 		want    time.Duration
 	}{
-		{"tcp new", protoTCP, 0, 0, natTCPTransitoryTimeout},
-		{"tcp established", protoTCP, natStateEstablished, 1, natTCPEstablishedTimeout},
-		{"tcp closing", protoTCP, natStateClosing, 1, natTCPClosingTimeout},
-		{"udp unreplied", protoUDP, 0, 0, natUDPUnrepliedTimeout},
-		{"udp replied", protoUDP, 0, 1, natUDPRepliedTimeout},
-		{"icmp", protoICMP, 0, 1, natICMPTimeout},
-		{"unknown proto", 132, 0, 0, ConnTrackTimeout},
+		{"tcp new", protoTCP, 0, 0, 0, natTCPTransitoryTimeout},
+		{"tcp established", protoTCP, natStateEstablished, 1, 0, natTCPEstablishedTimeout},
+		{"tcp half-closed by ue", protoTCP, natStateEstablished, 1, natClosedUE, natTCPHalfClosedTimeout},
+		{"tcp half-closed by remote", protoTCP, natStateEstablished, 1, natClosedRemote, natTCPHalfClosedTimeout},
+		{"tcp closed", protoTCP, natStateEstablished, 1, natClosedBoth, natTCPClosedTimeout},
+		{"udp unreplied", protoUDP, 0, 0, 0, natUDPUnrepliedTimeout},
+		{"udp replied", protoUDP, 0, 1, 0, natUDPRepliedTimeout},
+		{"icmp", protoICMP, 0, 1, 0, natICMPTimeout},
+		{"unknown proto", 132, 0, 0, 0, ConnTrackTimeout},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := natEntryTimeout(tc.proto, tc.state, tc.replied); got != tc.want {
-				t.Errorf("natEntryTimeout(%d, %d, %d) = %v, want %v", tc.proto, tc.state, tc.replied, got, tc.want)
+			if got := natEntryTimeout(tc.proto, tc.state, tc.replied, tc.closed); got != tc.want {
+				t.Errorf("natEntryTimeout(%d, %d, %d, %d) = %v, want %v", tc.proto, tc.state, tc.replied, tc.closed, got, tc.want)
 			}
 		})
 	}
@@ -59,31 +62,37 @@ func TestNatExpiredKeysPairsAndTimeouts(t *testing.T) {
 
 	freshUEKey := natTuple(1, 1000, protoTCP)
 	freshNATKey := natTuple(100, 1000, protoTCP)
-	freshUE, freshNAT := pair(freshUEKey, freshNATKey, nowNs, 2*time.Hour, natStateEstablished, 1)
+	freshUE, freshNAT := pair(freshUEKey, freshNATKey, nowNs, 2*time.Hour, natStateEstablished, 1, 0)
 
 	deadUEKey := natTuple(2, 2000, protoTCP)
 	deadNATKey := natTuple(100, 2000, protoTCP)
-	deadUE, deadNAT := pair(deadUEKey, deadNATKey, nowNs, 3*time.Hour, natStateEstablished, 1)
+	deadUE, deadNAT := pair(deadUEKey, deadNATKey, nowNs, 3*time.Hour, natStateEstablished, 1, 0)
 
-	closingUEKey := natTuple(3, 3000, protoTCP)
-	closingNATKey := natTuple(100, 3000, protoTCP)
-	closingUE, closingNAT := pair(closingUEKey, closingNATKey, nowNs, 30*time.Second, natStateClosing, 1)
+	closedUEKey := natTuple(3, 3000, protoTCP)
+	closedNATKey := natTuple(100, 3000, protoTCP)
+	closedUE, closedNAT := pair(closedUEKey, closedNATKey, nowNs, 30*time.Second, natStateEstablished, 1, natClosedBoth)
+
+	halfClosedUEKey := natTuple(6, 6000, protoTCP)
+	halfClosedNATKey := natTuple(100, 6000, protoTCP)
+	halfClosedUE, halfClosedNAT := pair(halfClosedUEKey, halfClosedNATKey, nowNs, 30*time.Second, natStateEstablished, 1, natClosedUE)
 
 	udpProbeUEKey := natTuple(4, 4000, protoUDP)
 	udpProbeNATKey := natTuple(100, 4000, protoUDP)
-	udpProbeUE, udpProbeNAT := pair(udpProbeUEKey, udpProbeNATKey, nowNs, time.Minute, 0, 0)
+	udpProbeUE, udpProbeNAT := pair(udpProbeUEKey, udpProbeNATKey, nowNs, time.Minute, 0, 0, 0)
 
 	udpRepliedUEKey := natTuple(5, 5000, protoUDP)
 	udpRepliedNATKey := natTuple(100, 5000, protoUDP)
-	udpRepliedUE, udpRepliedNAT := pair(udpRepliedUEKey, udpRepliedNATKey, nowNs, time.Minute, 0, 1)
+	udpRepliedUE, udpRepliedNAT := pair(udpRepliedUEKey, udpRepliedNATKey, nowNs, time.Minute, 0, 1, 0)
 
 	snapshot := map[ebpf.N3N6EntrypointFiveTuple]ebpf.N3N6EntrypointNatEntry{
 		freshUEKey:       freshUE,
 		freshNATKey:      freshNAT,
 		deadUEKey:        deadUE,
 		deadNATKey:       deadNAT,
-		closingUEKey:     closingUE,
-		closingNATKey:    closingNAT,
+		closedUEKey:      closedUE,
+		closedNATKey:     closedNAT,
+		halfClosedUEKey:  halfClosedUE,
+		halfClosedNATKey: halfClosedNAT,
 		udpProbeUEKey:    udpProbeUE,
 		udpProbeNATKey:   udpProbeNAT,
 		udpRepliedUEKey:  udpRepliedUE,
@@ -91,15 +100,17 @@ func TestNatExpiredKeysPairsAndTimeouts(t *testing.T) {
 	}
 
 	got := make(map[ebpf.N3N6EntrypointFiveTuple]bool)
-	for _, k := range natExpiredKeys(snapshot, nowNs) {
+	for _, k := range natExpiredKeys(snapshot, nowNs, true) {
 		got[k] = true
 	}
 
+	// The half-closed pair is 30s idle: past the 10s closed timeout but
+	// inside the 120s half-closed one, so it must survive.
 	want := map[ebpf.N3N6EntrypointFiveTuple]bool{
 		deadUEKey:      true, // 3h > 7440s established timeout; pair goes together
 		deadNATKey:     true,
-		closingUEKey:   true, // 30s > 10s closing timeout
-		closingNATKey:  true,
+		closedUEKey:    true, // 30s > 10s closed timeout
+		closedNATKey:   true,
 		udpProbeUEKey:  true, // 60s > 30s unreplied timeout
 		udpProbeNATKey: true,
 	}
@@ -149,7 +160,7 @@ func TestNatExpiredKeysOrphans(t *testing.T) {
 	}
 
 	got := make(map[ebpf.N3N6EntrypointFiveTuple]bool)
-	for _, k := range natExpiredKeys(snapshot, nowNs) {
+	for _, k := range natExpiredKeys(snapshot, nowNs, true) {
 		got[k] = true
 	}
 

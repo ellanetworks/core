@@ -120,9 +120,18 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 {
 	bool translated = false;
+	struct nat_undo undo = {};
 	if (masquerade) {
+		/* A fragment has no usable L4 header: translating one would
+		 * rewrite payload bytes, and its siblings could not be
+		 * translated at all. */
+		if (ctx->ip4->frag_off & bpf_htons(IP4_FRAG_MASK)) {
+			ctx->statistics->nat_fragment_drop_ip4 += 1;
+			return XDP_DROP;
+		}
+
 		PROFILE_START(PROF_N6_NAT);
-		translated = destination_nat(ctx);
+		translated = destination_nat(ctx, &undo);
 		PROFILE_END(PROF_N6_NAT);
 	}
 	const struct iphdr *ip4 = ctx->ip4;
@@ -178,6 +187,9 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	if (ret > 0) {
 		upf_printk("upf: n6 packet too large");
 		mtu_len -= encap_size;
+		/* The error quotes this packet, which the sender can only
+		 * match against its own pre-translation tuple. */
+		nat_undo_apply(ctx, &undo);
 		return frag_needed(ctx, mtu_len);
 	}
 

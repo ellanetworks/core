@@ -19,7 +19,7 @@ type N3N6EntrypointFiveTuple struct {
 	Sport uint16
 	Dport uint16
 	Proto uint16
-	_     [2]byte
+	Pad   uint16
 }
 
 type N3N6EntrypointFlow struct {
@@ -72,7 +72,8 @@ type N3N6EntrypointNatEntry struct {
 	State     uint8
 	Replied   uint8
 	UeSide    uint8
-	Pad       [5]uint8
+	Closed    uint8
+	Pad       [4]uint8
 }
 
 type N3N6EntrypointPdrInfo struct {
@@ -168,10 +169,13 @@ type N3N6EntrypointUpfStatistic struct {
 		Rx uint64
 		Tx uint64
 	}
-	XdpActions            [8]uint64
-	SourceSpoofDropIp4    uint64
-	SourceSpoofDropIp6    uint64
-	NatUnsolicitedDropIp4 uint64
+	XdpActions                 [8]uint64
+	SourceSpoofDropIp4         uint64
+	SourceSpoofDropIp6         uint64
+	NatUnsolicitedDropIp4      uint64
+	NatFragmentDropIp4         uint64
+	NatPortExhaustedDropIp4    uint64
+	NatUnsupportedProtoDropIp4 uint64
 }
 
 type N3N6EntrypointUrrKey struct {
