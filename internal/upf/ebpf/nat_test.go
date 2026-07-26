@@ -874,6 +874,160 @@ func TestNATInboundResetDoesNotClose(t *testing.T) {
 	}
 }
 
+// TestNATSynOnEstablishedKeepsState verifies that a stray or duplicate SYN on
+// a flow already carrying traffic both ways leaves it established: demoting
+// would let one off-path packet drop a live connection into a class short
+// enough to reap it.
+func TestNATSynOnEstablishedKeepsState(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		ulTEID = 0x4E415418
+		dlTEID = 0x4E415419
+		qfi    = 7
+		ueSP   = 1234
+		srvDP  = 80
+	)
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+	putDownlinkPDR(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, qfi)
+
+	ueKey := natFiveTuple(ueIP, serverIP, ueSP, srvDP, 6)
+
+	sendUplink := func(flags byte) {
+		capFD := f.captureN6(t)
+		seg := tcpSegmentWithFlags(ueIP, serverIP, ueSP, srvDP, flags)
+		f.injectUplink(t, uplinkGPDU(ulTEID, ipv4Packet(ueIP, serverIP, 6, seg)))
+
+		if captureMatching(capFD, time.Second, func(fr []byte) bool {
+			return isInnerIPv4(fr, 6, serverIP)
+		}) == nil {
+			t.Fatal("uplink packet did not egress on N6")
+		}
+	}
+
+	sendUplink(0x02) // SYN
+
+	capFD := f.captureN3(t)
+	f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(serverIP, natPublicIP, 6,
+		tcpSegmentWithFlags(serverIP, natPublicIP, srvDP, ueSP, 0x12))))
+
+	if captureMatching(capFD, time.Second, func(fr []byte) bool { return gtpInner(fr) != nil }) == nil {
+		t.Fatal("downlink SYN-ACK did not egress on N3")
+	}
+
+	sendUplink(0x10) // ACK establishes the flow
+
+	if ue := lookupNatEntry(t, f, ueKey); ue.State != 1 {
+		t.Fatalf("flow did not establish: state=%d", ue.State)
+	}
+
+	sendUplink(0x02) // a stray SYN on the live flow
+
+	if ue := lookupNatEntry(t, f, ueKey); ue.State != 1 || ue.Replied != 1 {
+		t.Errorf("after a stray SYN: state=%d replied=%d, want 1/1 (a live flow must not be demoted)",
+			ue.State, ue.Replied)
+	}
+}
+
+// TestNATRemapsOnChangedEgressAddress verifies that a mapping made against a
+// different egress address is discarded rather than reused: replies to the old
+// address would match nothing, blackholing the flow until the entry aged out.
+func TestNATRemapsOnChangedEgressAddress(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid  = 0x4E41541A
+		ueSP  = 4321
+		srvDP = 80
+	)
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, teid, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+
+	uplink := ipv4Packet(ueIP, serverIP, 6, tcpSegmentChecksummed(ueIP, serverIP, ueSP, srvDP, nil))
+
+	ueKey := natFiveTuple(ueIP, serverIP, ueSP, srvDP, 6)
+	staleNAT := natFiveTuple([4]byte{192, 0, 2, 99}, serverIP, ueSP, srvDP, 6)
+
+	// The state an egress-address change leaves behind: a pair keyed on an
+	// address this UPF no longer sends from.
+	stale := N3N6EntrypointNatEntry{Src: staleNAT, UeSide: 1, State: 1, Replied: 1}
+	if err := f.obj.NatCt.Put(&ueKey, &stale); err != nil {
+		t.Fatalf("seed stale mapping: %v", err)
+	}
+
+	if err := f.obj.NatCt.Put(&staleNAT, &N3N6EntrypointNatEntry{Src: ueKey}); err != nil {
+		t.Fatalf("seed stale partner: %v", err)
+	}
+
+	capFD := f.captureN6(t)
+	f.injectUplink(t, uplinkGPDU(teid, uplink))
+
+	got := captureMatching(capFD, time.Second, func(fr []byte) bool {
+		return isInnerIPv4(fr, 6, serverIP)
+	})
+	if got == nil {
+		t.Fatal("uplink packet did not egress on N6")
+	}
+
+	if ip := got[ethHdrLen : ethHdrLen+20]; !bytes.Equal(ip[12:16], natPublicIP[:]) {
+		t.Errorf("inner src = %v, want %v (the current egress address)", ip[12:16], natPublicIP)
+	}
+
+	if err := f.obj.NatCt.Lookup(&staleNAT, new(N3N6EntrypointNatEntry)); err == nil {
+		t.Error("the stale partner still holds its reservation")
+	}
+
+	want := natFiveTuple(natPublicIP, serverIP, ueSP, srvDP, 6)
+	if ue := lookupNatEntry(t, f, ueKey); ue.Src.Saddr != want.Saddr {
+		t.Error("the mapping was not re-made against the current egress address")
+	}
+}
+
+// TestNATSynRetransmitDoesNotRenew verifies that a SYN on a flow the remote has
+// never answered leaves the lifetime where it was: a UE retransmitting to an
+// unresponsive destination must not be able to hold a mapping, and the port it
+// reserves, open indefinitely.
+func TestNATSynRetransmitDoesNotRenew(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid  = 0x4E41541B
+		ueSP  = 5321
+		srvDP = 80
+	)
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, teid, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+
+	ueKey := natFiveTuple(ueIP, serverIP, ueSP, srvDP, 6)
+
+	sendSyn := func() {
+		capFD := f.captureN6(t)
+		seg := tcpSegmentWithFlags(ueIP, serverIP, ueSP, srvDP, 0x02)
+		f.injectUplink(t, uplinkGPDU(teid, ipv4Packet(ueIP, serverIP, 6, seg)))
+
+		if captureMatching(capFD, time.Second, func(fr []byte) bool {
+			return isInnerIPv4(fr, 6, serverIP)
+		}) == nil {
+			t.Fatal("uplink SYN did not egress on N6")
+		}
+	}
+
+	sendSyn()
+
+	first := lookupNatEntry(t, f, ueKey).RefreshTs
+
+	time.Sleep(50 * time.Millisecond)
+	sendSyn()
+
+	if got := lookupNatEntry(t, f, ueKey).RefreshTs; got != first {
+		t.Errorf("refresh_ts moved on an unanswered SYN retransmit: %d -> %d", first, got)
+	}
+}
+
 // TestNATRejectsMalformedSegments verifies that a segment whose headers are
 // inconsistent creates no state and is dropped: an invalid flag combination,
 // a TCP data offset past the end of the IP payload, and a UDP length longer

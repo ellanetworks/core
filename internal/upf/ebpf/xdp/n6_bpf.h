@@ -121,36 +121,37 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 {
 	bool translated = false;
 	bool counted = false;
-	struct nat_undo undo = {};
+	struct nat_xlate xlate = {};
 	/* A fragment has no usable L4 header, so it cannot be translated. It
 	 * still reaches the lookups below: traffic addressed to this host is
 	 * not ours to drop. */
 	const bool fragment = ctx->ip4->frag_off & bpf_htons(IP4_FRAG_MASK);
 	if (masquerade && !fragment) {
 		PROFILE_START(PROF_N6_NAT);
-		translated = destination_nat(ctx, &undo, &counted);
+		translated = destination_nat_lookup(ctx, &xlate, &counted);
 		PROFILE_END(PROF_N6_NAT);
 	}
 	const struct iphdr *ip4 = ctx->ip4;
+	/* The packet is still addressed as it arrived, so the session is looked
+	 * up by the address the translation resolved. */
+	__u32 ue_addr = translated ? xlate.daddr : ip4->daddr;
 
 	PROFILE_START(PROF_N6_PDR_LOOKUP);
-	struct pdr_info *pdr =
-		bpf_map_lookup_elem(&pdrs_downlink_ip4, &ip4->daddr);
+	struct pdr_info *pdr = bpf_map_lookup_elem(&pdrs_downlink_ip4, &ue_addr);
 	PROFILE_END(PROF_N6_PDR_LOOKUP);
 	if (!pdr) {
 		/* Not a UE address: try the framed-route table (TS 29.244 §5.16).
 		 * The entry redirects to the owning UE address so the live downlink
 		 * PDR is the single source of truth. */
-		struct framed_ip4_key fk = { .prefixlen = 32, .addr = ip4->daddr };
+		struct framed_ip4_key fk = { .prefixlen = 32, .addr = ue_addr };
 		__u32 *ue_ip = bpf_map_lookup_elem(&framed_downlink_ip4, &fk);
 		if (ue_ip) {
 			pdr = bpf_map_lookup_elem(&pdrs_downlink_ip4, ue_ip);
 		}
 		if (!pdr) {
-			upf_printk("upf: no downlink session for ip:%pI4", &ip4->daddr);
-			/* A translated packet belongs to a session that is
-			 * gone: the stack has no use for it, and it carries a
-			 * UE address this session no longer owns. */
+			upf_printk("upf: no downlink session for ip:%pI4", &ue_addr);
+			/* A packet whose mapping resolved to a session that is
+			 * gone is not the stack's to reassemble or answer. */
 			if (translated) {
 				ctx->statistics->nat_unsolicited_drop_ip4 += 1;
 				return XDP_DROP;
@@ -198,15 +199,15 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	if (ret > 0) {
 		upf_printk("upf: n6 packet too large");
 		mtu_len -= encap_size;
-		/* The error quotes this packet, which the sender can only
-		 * match against its own pre-translation tuple. A translation
-		 * that cannot be fully reverted must not be quoted at all. */
-		if (translated && !undo.valid) {
-			return XDP_DROP;
-		}
-		nat_undo_apply(ctx, &undo);
+		/* Nothing has been rewritten yet, so the error quotes the
+		 * packet as the sender sent it and it can match the flow. */
 		return frag_needed(ctx, mtu_len);
 	}
+
+	/* Every verdict is in: the packet becomes the UE's. */
+	PROFILE_START(PROF_N6_NAT);
+	destination_nat_apply(ctx, &xlate);
+	PROFILE_END(PROF_N6_NAT);
 
 	ctx->interface = INTERFACE_N6;
 

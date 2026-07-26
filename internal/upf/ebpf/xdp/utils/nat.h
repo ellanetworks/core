@@ -133,8 +133,11 @@ struct {
 static __always_inline bool nat_ip4_lengths_valid(const struct iphdr *ip4,
 						  const void *data_end)
 {
-	__u16 tot_len = bpf_ntohs(ip4->tot_len);
-	__u16 hdr_len = ip4->ihl * 4;
+	/* Masked, not merely __u16: after the byte swap the verifier tracks an
+	 * unbounded scalar, and adding one of those to a packet pointer is
+	 * rejected. The AND constrains the register the arithmetic uses. */
+	__u32 tot_len = bpf_ntohs(ip4->tot_len) & 0xFFFF;
+	__u32 hdr_len = ((__u32)ip4->ihl * 4) & 0x3C;
 
 	if (tot_len < hdr_len) {
 		return false;
@@ -172,7 +175,9 @@ static __always_inline bool nat_udp_valid(const struct iphdr *ip4,
  * declares. */
 static __always_inline const void *nat_icmp_msg_end(struct packet_context *ctx)
 {
-	return (const void *)ctx->ip4 + bpf_ntohs(ctx->ip4->tot_len);
+	__u32 tot_len = bpf_ntohs(ctx->ip4->tot_len) & 0xFFFF;
+
+	return (const void *)ctx->ip4 + tot_len;
 }
 
 static __always_inline bool are_five_tuple_equal(struct five_tuple a,
@@ -559,6 +564,16 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		__u8 closed = NAT_READ_ONCE(tracked->closed);
 		__u8 replied = NAT_READ_ONCE(tracked->replied);
 
+		if (mapped.saddr != fib_params->ipv4_src) {
+			/* The address this mapping translates to is no longer
+			 * the one this packet will leave with, so replies to
+			 * it would match nothing. Both halves go: the NAT-side
+			 * entry still holds a reservation on the old address. */
+			bpf_map_delete_elem(&nat_ct, &orig);
+			bpf_map_delete_elem(&nat_ct, &mapped);
+			goto allocate;
+		}
+
 		/* A SYN on a flow the remote has never answered does not renew
 		 * the timeout: a UE retransmitting to an unresponsive
 		 * destination would otherwise hold the mapping, and the port
@@ -567,11 +582,17 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 			NAT_WRITE_ONCE(tracked->refresh_ts, now);
 		}
 
-		if (tcp_new) {
-			/* A SYN starts a fresh connection on this tuple: the
-			 * previous incarnation's state says nothing about it.
-			 * A duplicate SYN on a live flow demotes it too, which
-			 * costs only the next reply to undo. */
+		if (tcp_new && state != NAT_CT_ESTABLISHED) {
+			/* A SYN starts a fresh connection on this tuple, so
+			 * the previous incarnation's state says nothing about
+			 * it — except on a flow already carrying traffic both
+			 * ways, where a stray or duplicate SYN cannot be told
+			 * from a new connection reusing the tuple. Demoting
+			 * there would let one off-path packet drop a live
+			 * connection into a class short enough to reap it,
+			 * whereas leaving it alone only costs a reused tuple a
+			 * timeout that is too long. netfilter makes the same
+			 * choice: a SYN in ESTABLISHED is ignored. */
 			NAT_WRITE_ONCE(tracked->state, NAT_CT_NEW);
 			NAT_WRITE_ONCE(tracked->closed, 0);
 			NAT_WRITE_ONCE(tracked->replied, 0);
@@ -729,55 +750,92 @@ static __always_inline void nat_ct_mark_replied(const struct five_tuple *nat_key
 	}
 }
 
-/* Fields destination_nat rewrote, so an ICMP error generated further down the
- * downlink path quotes the packet as the sender sent it. */
-struct nat_undo {
+/* Where a downlink packet is really addressed, resolved from the conntrack
+ * pair. Applying it is the last thing the pipeline does, so every earlier exit
+ * — no session, unsolicited, too large for the tunnel — sees the packet
+ * exactly as the sender sent it, and an ICMP error generated there quotes a
+ * tuple the sender can match. */
+struct nat_xlate {
 	__u32 daddr;
 	__u16 dport;
-	__u16 l4_check;
 	__u16 proto;
 	bool valid;
-	bool has_l4;
+	bool has_port;
 };
 
-// Restores the pre-translation destination and L4 header.
-static __always_inline void nat_undo_apply(struct packet_context *ctx,
-					   const struct nat_undo *undo)
+// Rewrites the destination the lookup resolved, and nothing else.
+static __always_inline void destination_nat_apply(struct packet_context *ctx,
+						  const struct nat_xlate *x)
 {
-	if (!undo->valid) {
+	if (!x->valid) {
 		return;
 	}
 
-	ctx->ip4->check = ipv4_csum_update_u32(ctx->ip4->check,
-					       ctx->ip4->daddr, undo->daddr);
-	ctx->ip4->daddr = undo->daddr;
+	const __u32 old_daddr = ctx->ip4->daddr;
 
-	switch (undo->proto) {
+	ctx->ip4->daddr = x->daddr;
+	ctx->ip4->check = ipv4_csum_update_u32(ctx->ip4->check, old_daddr,
+					       x->daddr);
+
+	switch (x->proto) {
 	case IPPROTO_TCP:
-		if (ctx->tcp && undo->has_l4) {
-			ctx->tcp->dest = undo->dport;
-			ctx->tcp->check = undo->l4_check;
+		if (!ctx->tcp) {
+			return;
+		}
+		ctx->tcp->check = ipv4_csum_update_u32(ctx->tcp->check,
+						       old_daddr, x->daddr);
+		if (x->has_port && ctx->tcp->dest != x->dport) {
+			ctx->tcp->check = ipv4_csum_update_u16(
+				ctx->tcp->check, ctx->tcp->dest, x->dport);
+			ctx->tcp->dest = x->dport;
 		}
 		break;
 	case IPPROTO_UDP:
-		if (ctx->udp && undo->has_l4) {
-			ctx->udp->dest = undo->dport;
-			ctx->udp->check = undo->l4_check;
+		if (!ctx->udp) {
+			return;
+		}
+		/* A datagram sent without a checksum keeps none (RFC 768). */
+		if (ctx->udp->check != 0) {
+			ctx->udp->check = ipv4_csum_update_u32(
+				ctx->udp->check, old_daddr, x->daddr);
+			if (x->has_port && ctx->udp->dest != x->dport) {
+				ctx->udp->check = ipv4_csum_update_u16(
+					ctx->udp->check, ctx->udp->dest,
+					x->dport);
+			}
+			if (ctx->udp->check == 0) {
+				ctx->udp->check = 0xFFFF;
+			}
+		}
+		if (x->has_port) {
+			ctx->udp->dest = x->dport;
 		}
 		break;
 	case IPPROTO_ICMP:
-		if (ctx->icmp && undo->has_l4) {
-			ctx->icmp->un.echo.id = undo->dport;
-			ctx->icmp->checksum = undo->l4_check;
+		if (!ctx->icmp) {
+			return;
+		}
+		if (x->has_port && ctx->icmp->un.echo.id != x->dport) {
+			ctx->icmp->checksum = ipv4_csum_update_u16(
+				ctx->icmp->checksum, ctx->icmp->un.echo.id,
+				x->dport);
+			ctx->icmp->un.echo.id = x->dport;
 		}
 		break;
 	}
 }
 
-// Returns true when the packet was translated back to a tracked UE flow.
-static __always_inline bool destination_nat(struct packet_context *ctx,
-					    struct nat_undo *undo,
-					    bool *counted)
+/* Resolves which UE a downlink packet belongs to, without touching it, and
+ * marks the connection replied. Returns true when a mapping was found; the
+ * rewrite itself is destination_nat_apply's job.
+ *
+ * The one exception is an ICMP error, whose quoted packet is rewritten here:
+ * the quote is both the lookup key and part of what has to be translated, so
+ * the two cannot be separated. Errors are small enough never to reach the MTU
+ * check, and a session that has gone away drops rather than forwards. */
+static __always_inline bool destination_nat_lookup(struct packet_context *ctx,
+						   struct nat_xlate *x,
+						   bool *counted)
 {
 	__u16 proto = ctx->ip4->protocol;
 	struct nat_entry *origin;
@@ -797,6 +855,7 @@ static __always_inline bool destination_nat(struct packet_context *ctx,
 		if (!ctx->icmp) {
 			if (-1 == parse_icmp(ctx)) {
 				ctx->statistics->nat_malformed_drop_ip4 += 1;
+				*counted = true;
 				return false;
 			}
 		}
@@ -808,29 +867,27 @@ static __always_inline bool destination_nat(struct packet_context *ctx,
 			return false;
 		}
 
+		/* Copied before mark_replied: that call performs its own map
+		 * accesses, after which this pointer may address a recycled
+		 * node — and translating to another flow's address would
+		 * deliver the packet into the wrong PDU session. */
 		struct five_tuple ue_icmp = origin->src;
 
 		if (nat_icmp_query_for_reply(ctx->icmp->type)) {
 			nat_ct_mark_replied(&key, origin);
+			/* Only a reply carries an identifier; in an error the
+			 * same field holds the unused word or the next-hop
+			 * MTU. */
+			x->dport = ue_icmp.identifier;
+			x->has_port = true;
 		}
-
-		/* Only a reply carries an identifier; in an error the same
-		 * field holds the unused word or the next-hop MTU. */
-		if (nat_icmp_query_for_reply(ctx->icmp->type) &&
-		    ctx->icmp->un.echo.id != ue_icmp.identifier) {
-			undo->dport = ctx->icmp->un.echo.id;
-			undo->l4_check = ctx->icmp->checksum;
-			undo->has_l4 = true;
-			ctx->icmp->checksum = ipv4_csum_update_u16(
-				ctx->icmp->checksum, ctx->icmp->un.echo.id,
-				ue_icmp.identifier);
-			ctx->icmp->un.echo.id = ue_icmp.identifier;
-		}
-		ctx->ip4->daddr = ue_icmp.saddr;
+		x->daddr = ue_icmp.saddr;
 		break;
 	case IPPROTO_TCP:
 		if (!ctx->tcp) {
 			if (-1 == parse_tcp(ctx)) {
+				ctx->statistics->nat_malformed_drop_ip4 += 1;
+				*counted = true;
 				return false;
 			}
 		}
@@ -843,32 +900,23 @@ static __always_inline bool destination_nat(struct packet_context *ctx,
 
 		if (!nat_tcp_valid(ctx->ip4, ctx->tcp)) {
 			ctx->statistics->nat_malformed_drop_ip4 += 1;
+			*counted = true;
 			return false;
 		}
 
-		/* Copied before mark_replied: that call performs its own map
-		 * accesses, after which this pointer may address a recycled
-		 * node — and translating to another flow's address would
-		 * deliver the packet into the wrong PDU session. */
 		struct five_tuple ue_tcp = origin->src;
 
 		nat_ct_mark_replied(&key, origin);
 
-		undo->dport = ctx->tcp->dest;
-		undo->l4_check = ctx->tcp->check;
-		undo->has_l4 = true;
-		ctx->ip4->daddr = ue_tcp.saddr;
-		ctx->tcp->check = ipv4_csum_update_u32(
-			ctx->tcp->check, key.saddr, ctx->ip4->daddr);
-		ctx->tcp->dest = ue_tcp.sport;
-		if (ctx->tcp->dest != key.sport) {
-			ctx->tcp->check = ipv4_csum_update_u16(
-				ctx->tcp->check, key.sport, ctx->tcp->dest);
-		}
+		x->daddr = ue_tcp.saddr;
+		x->dport = ue_tcp.sport;
+		x->has_port = true;
 		break;
 	case IPPROTO_UDP:
 		if (!ctx->udp) {
 			if (-1 == parse_udp(ctx)) {
+				ctx->statistics->nat_malformed_drop_ip4 += 1;
+				*counted = true;
 				return false;
 			}
 		}
@@ -889,38 +937,16 @@ static __always_inline bool destination_nat(struct packet_context *ctx,
 
 		nat_ct_mark_replied(&key, origin);
 
-		undo->dport = ctx->udp->dest;
-		undo->l4_check = ctx->udp->check;
-		undo->has_l4 = true;
-		ctx->ip4->daddr = ue_udp.saddr;
-		/* A datagram sent without a checksum keeps none (RFC 768). */
-		bool udp_summed = ctx->udp->check != 0;
-		ctx->udp->dest = ue_udp.sport;
-		if (udp_summed) {
-			ctx->udp->check = ipv4_csum_update_u32(
-				ctx->udp->check, key.saddr, ctx->ip4->daddr);
-			if (ctx->udp->dest != key.sport) {
-				ctx->udp->check = ipv4_csum_update_u16(
-					ctx->udp->check, key.sport,
-					ctx->udp->dest);
-			}
-			if (ctx->udp->check == 0) {
-				ctx->udp->check = 0xFFFF;
-			}
-		}
+		x->daddr = ue_udp.saddr;
+		x->dport = ue_udp.sport;
+		x->has_port = true;
 		break;
 	default:
 		return false;
 	}
-	ctx->ip4->check = ipv4_csum_update_u32(ctx->ip4->check, key.saddr,
-					       ctx->ip4->daddr);
-	undo->daddr = key.saddr;
-	undo->proto = proto;
-	/* An ICMP error had its quoted packet rewritten, which the undo cannot
-	 * reverse; a query reply only had its address and identifier changed,
-	 * both of which it can. */
-	undo->valid = proto != IPPROTO_ICMP ||
-		      nat_icmp_query_for_reply(ctx->icmp->type) != 0;
+
+	x->proto = proto;
+	x->valid = true;
 	return true;
 }
 
