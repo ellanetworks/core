@@ -21,11 +21,10 @@ func HandleUEContextReleaseComplete(m *mme.MME, ctx context.Context, radio *mme.
 		return
 	}
 
-	// A Release Complete for a detached handover association (the source after notify,
-	// or a rejected/superseded target) removes only that connection, leaving the UE
-	// active on the other association (TS 36.413 §8.4).
+	// A Release Complete for a detached association removes only that connection; the UE
+	// stays active on its current association (TS 36.413 §8.3, §8.4).
 	if m.ReleaseDetachedConn(radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID) {
-		logger.MmeLog.Info("UE Context Release Complete (handover association)", zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)))
+		logger.MmeLog.Info("UE Context Release Complete (detached association)", zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)))
 		return
 	}
 

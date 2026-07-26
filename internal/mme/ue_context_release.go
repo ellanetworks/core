@@ -17,6 +17,53 @@ import (
 // (S1AP §8.3 has no MME-side supervision timer, so this is a robustness guard).
 const releaseGuardTimeout = 5 * time.Second
 
+// causeSupersededConnection is the release cause for the old S1 connection when a UE
+// re-establishes on a new one: a normal release of the superseded NAS signalling
+// connection (TS 36.413 §8.3.3.1).
+var causeSupersededConnection = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASNormalRelease}
+
+// releaseSupersededConn releases the detached old connection toward the eNB and guards
+// the Release Complete (TS 36.413 §8.3.3.1).
+func (m *MME) releaseSupersededConn(ctx context.Context, c *UeConn) {
+	SendUEContextRelease(ctx, m, c.conn, c.MMEUES1APID, c.ENBUES1APID, true, causeSupersededConnection)
+	m.guardDetachedRelease(c)
+}
+
+// guardDetachedRelease supervises the Release Complete for a detached connection, so a
+// lost Complete cannot leak its reserved MME-UE-S1AP-ID.
+func (m *MME) guardDetachedRelease(c *UeConn) {
+	c.releaseGuard.Arm(releaseGuardTimeout, 0, nil, func() {
+		if m.ReleaseDetachedConn(c.conn, c.MMEUES1APID, c.ENBUES1APID) {
+			logger.MmeLog.Info("reaped detached S1 connection after release timeout",
+				zap.Uint32("mme-ue-id", uint32(c.MMEUES1APID)))
+		}
+	})
+}
+
+// AnswerDetachedRelease answers an eNB UE Context Release Request that names a detached
+// connection the MME still holds — superseded, handover source, or bare — with a UE
+// Context Release Command and guards the Complete, so the reserved MME-UE-S1AP-ID cannot
+// leak (TS 36.413 §8.3.2.2). A release already in flight for the connection keeps its own
+// command and guard. Reports whether conn held a matching detached connection.
+func (m *MME) AnswerDetachedRelease(ctx context.Context, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, cause s1ap.Cause) bool {
+	m.mu.RLock()
+	c, ok := m.conns[uint32(mmeUEID)]
+	matched := ok && c.ue == nil && c.conn == conn && c.ENBUES1APID == enbUEID
+
+	m.mu.RUnlock()
+
+	if !matched {
+		return false
+	}
+
+	if !c.releaseGuard.Active() {
+		SendUEContextRelease(ctx, m, conn, mmeUEID, enbUEID, true, cause)
+		m.guardDetachedRelease(c)
+	}
+
+	return true
+}
+
 // SendUEContextReleaseCommand builds a UE Context Release Command for this
 // connection's S1AP identities and sends it to the eNB (TS 36.413 §8.3.1).
 func (c *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause s1ap.Cause) {

@@ -1,0 +1,85 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+//
+// SPDX-License-Identifier: BUSL-1.1
+
+package ngap_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/sctp"
+)
+
+// supersedeOntoNewConnection registers a UE on a first NG connection, then has it
+// re-establish on a second one, superseding the first. It returns the AMF and the old
+// connection's AMF/RAN NGAP IDs.
+func supersedeOntoNewConnection(t *testing.T) (amfInstance *amf.AMF, ran *amf.Radio, sender *fakeNGAPSender, oldAmfID, oldRanID int64) {
+	t.Helper()
+
+	amfInstance = newTestAMF()
+	ran = newTestRadio(amfInstance)
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
+	sender = ran.Conn.(*fakeNGAPSender)
+
+	amfUe := amf.NewUeContext()
+
+	oldConn, err := amfInstance.NewUeConn(ran, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	amfInstance.AttachUeConn(amfUe, oldConn)
+	oldAmfID = int64(oldConn.AmfUeNgapID)
+	oldRanID = int64(oldConn.RanUeNgapID)
+
+	newConn, err := amfInstance.NewUeConn(ran, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	amfInstance.AttachUeConn(amfUe, newConn) // supersede
+
+	return amfInstance, ran, sender, oldAmfID, oldRanID
+}
+
+// TestSupersededConnectionIsReleasedTowardGNB checks that re-establishing a UE on a new
+// NG connection releases the superseded one toward the gNB with a UE CONTEXT RELEASE
+// COMMAND (TS 23.502 §4.2.3.2, §4.2.6).
+func TestSupersededConnectionIsReleasedTowardGNB(t *testing.T) {
+	_, _, sender, oldAmfID, oldRanID := supersedeOntoNewConnection(t)
+
+	var released bool
+
+	for _, cmd := range sender.SentUEContextReleaseCommands {
+		if cmd.AmfUeNgapID == oldAmfID && cmd.RanUeNgapID == oldRanID {
+			released = true
+		}
+	}
+
+	if !released {
+		t.Fatalf("no UE CONTEXT RELEASE COMMAND sent for the superseded context (AMF-UE-NGAP-ID %d)", oldAmfID)
+	}
+}
+
+// TestSupersededConnectionReleaseRequestNoErrorIndication checks that a gNB release
+// request for a superseded context is not answered with an Error Indication
+// (TS 38.413 §8.3.2.2).
+func TestSupersededConnectionReleaseRequestNoErrorIndication(t *testing.T) {
+	amfInstance, ran, sender, oldAmfID, oldRanID := supersedeOntoNewConnection(t)
+
+	before := len(sender.SentErrorIndications)
+
+	ngap.HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, decode.UEContextReleaseRequest{
+		AMFUENGAPID: oldAmfID,
+		RANUENGAPID: oldRanID,
+	})
+
+	if len(sender.SentErrorIndications) != before {
+		t.Fatalf("release request for the superseded context (AMF-UE-NGAP-ID %d) answered with "+
+			"ERROR INDICATION; want UE CONTEXT RELEASE COMMAND (TS 38.413 §8.3.2.2)", oldAmfID)
+	}
+}

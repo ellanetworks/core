@@ -400,20 +400,27 @@ func (m *MME) abandonHandover(ue *UeContext) {
 	}
 }
 
-// ReleaseDetachedConn removes a UE-associated connection that holds no UE context —
-// a handover source detached at HANDOVER NOTIFY, or a released target — when its UE
-// Context Release Complete arrives, identified by its own MME-UE-S1AP-ID (TS 36.413
-// §8.4). It reports whether it handled one.
+// ReleaseDetachedConn removes a UE-associated connection that holds no UE context — a
+// handover source detached at HANDOVER NOTIFY, a released target, or a superseded
+// connection — when its UE Context Release Complete arrives or its release guard fires,
+// identified by its own MME-UE-S1AP-ID (TS 36.413 §8.3, §8.4). It reports whether it
+// handled one.
 func (m *MME) ReleaseDetachedConn(conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID) bool {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	c, ok := m.conns[uint32(mmeUEID)]
 	if !ok || c.ue != nil || c.conn != conn || c.ENBUES1APID != enbUEID {
+		m.mu.Unlock()
+
 		return false
 	}
 
 	m.releaseConnIDLocked(uint32(mmeUEID))
+
+	m.mu.Unlock()
+
+	// Stop the guard outside m.mu: its callback re-acquires the lock.
+	c.releaseGuard.Stop()
 
 	return true
 }
@@ -446,7 +453,7 @@ func SendUEContextRelease(ctx context.Context, m *MME, conn S1APWriter, mmeUEID 
 		return
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("UE Context Release Command (handover)", zap.Uint32("mme-ue-id", uint32(mmeUEID)))
+	logger.From(ctx, logger.MmeLog).Info("UE Context Release Command", zap.Uint32("mme-ue-id", uint32(mmeUEID)))
 	m.SendToRadio(ctx, conn, S1APProcedureUEContextReleaseCommand, b)
 }
 

@@ -23,6 +23,12 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, radio *mme.R
 		return
 	}
 
+	// A detached connection has no UE but its eNB still holds the context, so answer with
+	// a release command (TS 36.413 §8.3.2.2).
+	if m.AnswerDetachedRelease(ctx, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID, msg.Cause) {
+		return
+	}
+
 	ue, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return

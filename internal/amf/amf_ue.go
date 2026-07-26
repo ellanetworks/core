@@ -28,6 +28,7 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/nas/security"
+	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
@@ -257,13 +258,12 @@ func (a *AMF) AttachUeConn(ue *UeContext, ueConn *UeConn) {
 	displaced := a.attachUeConnLocked(ue, ueConn)
 	a.mu.Unlock()
 
-	// Release the superseded UeConn (registry entry + AMF-UE-NGAP-ID) so it does not
-	// leak. The old RAN context at the gNB is stale, so this is a local cleanup with no
-	// Release Command.
+	// Release the displaced connection toward the gNB (TS 23.502 §4.2.6, TS 38.413
+	// §8.3.3.1). It stays registered with its AMF-UE-NGAP-ID reserved until the Release
+	// Complete reaps it, so the gNB can reference it until then.
 	if displaced != nil {
-		if err := a.RemoveUeConn(context.Background(), displaced); err != nil {
-			logger.AmfLog.Error("failed to release superseded RAN UE on adopt", zap.Error(err))
-		}
+		displaced.SendUEContextReleaseCommand(context.Background(),
+			ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 	}
 
 	a.clearPagingSuppression(context.Background(), ue)

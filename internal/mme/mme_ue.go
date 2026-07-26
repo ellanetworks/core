@@ -603,17 +603,17 @@ func (m *MME) NewUe(conn S1APWriter, enbUEID s1ap.ENBUES1APID) *UeContext {
 
 // attachUeConnLocked binds the bare connection c to a held UE context — a returning
 // UE resuming from ECM-IDLE (S-TMSI) or reusing a native GUTI onto the connection its
-// Initial UE Message created — releasing any connection ue still holds and stopping
-// its idle/paging supervision. The caller holds m.mu. Secure exchange is established
-// by the subsequent decode, not here (the bare connection carries the message that
-// establishes it).
-func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) {
+// Initial UE Message created — detaching any connection ue still holds (returned as
+// superseded) and stopping its idle/paging supervision. The caller holds m.mu. Secure
+// exchange is established by the subsequent decode, not here (the bare connection
+// carries the message that establishes it).
+func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn) {
 	m.stopIdleTimersLocked(ue)
 	m.stopPagingLocked(ue)
-	// Release any connection the held context still had (a re-attach on a new
-	// connection supersedes the old one); the old RAN context is stale, so this is a
-	// local cleanup with no Release Command.
-	m.freeUeConnLocked(ue)
+
+	// A superseding connection detaches the old one but keeps its MME-UE-S1AP-ID
+	// reserved in m.conns: the eNB can reference it until it is released (TS 36.413 §8.3.3.1).
+	superseded = m.detachConnLocked(ue)
 
 	// If c was bound to a transient context — a fresh Attach context superseded by a
 	// native-GUTI reuse — detach it there so that discarded context does not appear
@@ -627,14 +627,20 @@ func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) {
 
 	// Becoming connected is activity; refresh liveness at the bind point.
 	ue.TouchLastSeen()
+
+	return superseded
 }
 
 // AttachUeConn binds a bare connection to a held UE context under the registry lock,
 // releasing any superseded connection.
 func (m *MME) AttachUeConn(ue *UeContext, c *UeConn) {
 	m.mu.Lock()
-	m.attachUeConnLocked(ue, c)
+	superseded := m.attachUeConnLocked(ue, c)
 	m.mu.Unlock()
+
+	if superseded != nil {
+		m.releaseSupersededConn(context.Background(), superseded)
+	}
 
 	m.clearPagingSuppression(context.Background(), ue)
 }
@@ -659,25 +665,38 @@ func (m *MME) clearPagingSuppression(ctx context.Context, ue *UeContext) {
 	}
 }
 
+// detachConnLocked unbinds the UE's current S1-connection and stops its connection-scoped
+// supervision, returning the connection (nil if none). The connection stays in m.conns;
+// the caller frees or reserves its MME-UE-S1AP-ID. The caller holds m.mu.
+func (m *MME) detachConnLocked(ue *UeContext) *UeConn {
+	old := ue.Conn()
+	if old == nil {
+		return nil
+	}
+
+	// Abort any in-flight handover so its supervision does not outlive ue.active and
+	// fire on a detached connection.
+	m.clearHandoverLocked(ue)
+	m.stopNASGuardLocked(ue)
+	// Detaching the connection ends any in-flight key-changing procedure on it
+	// (e.g. a security mode whose Complete never arrived), so the {NH, NCC} chain
+	// claim must not outlive it and block a later procedure (TS 33.401 §7.2.8).
+	ue.clearKeyChainProc()
+
+	old.ue = nil
+	ue.active.Store(nil)
+
+	return old
+}
+
 // freeUeConnLocked releases the UE's current S1-connection (moving it to
 // ECM-IDLE) and stops the connection-scoped NAS-guard supervision. The
 // persistent context, its idle timers, and its registry indexes are left intact.
 // The caller holds m.mu.
 func (m *MME) freeUeConnLocked(ue *UeContext) {
-	if ue.Conn() == nil {
-		return
+	if old := m.detachConnLocked(ue); old != nil {
+		m.releaseConnIDLocked(uint32(old.MMEUES1APID))
 	}
-
-	// Abort any in-flight handover so its supervision does not outlive ue.active and
-	// fire on a freed connection.
-	m.clearHandoverLocked(ue)
-	m.stopNASGuardLocked(ue)
-	// Releasing the connection ends any in-flight key-changing procedure on it
-	// (e.g. a security mode whose Complete never arrived), so the {NH, NCC} chain
-	// claim must not outlive it and block a later procedure (TS 33.401 §7.2.8).
-	ue.clearKeyChainProc()
-	m.releaseConnIDLocked(uint32(ue.Conn().MMEUES1APID))
-	ue.active.Store(nil)
 }
 
 // FreeUeConn releases the UE's S1-connection under m.mu, moving it to ECM-IDLE.
