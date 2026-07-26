@@ -318,7 +318,8 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 	return true;
 }
 
-static __always_inline void destination_nat(struct packet_context *ctx)
+// Returns true when the packet was translated back to a tracked UE flow.
+static __always_inline bool destination_nat(struct packet_context *ctx)
 {
 	__u16 proto = ctx->ip4->protocol;
 	struct nat_entry *origin;
@@ -330,7 +331,7 @@ static __always_inline void destination_nat(struct packet_context *ctx)
 	case IPPROTO_ICMP:
 		if (!ctx->icmp) {
 			if (-1 == parse_icmp(ctx)) {
-				return;
+				return false;
 			}
 		}
 		key.identifier = ctx->icmp->un.echo.id;
@@ -338,7 +339,7 @@ static __always_inline void destination_nat(struct packet_context *ctx)
 		key.code = ctx->icmp->code;
 		origin = find_origin_for_icmp(&key, ctx);
 		if (!origin) {
-			return;
+			return false;
 		}
 
 		if (origin->src.proto == IPPROTO_ICMP) {
@@ -349,14 +350,14 @@ static __always_inline void destination_nat(struct packet_context *ctx)
 	case IPPROTO_TCP:
 		if (!ctx->tcp) {
 			if (-1 == parse_tcp(ctx)) {
-				return;
+				return false;
 			}
 		}
 		key.sport = ctx->tcp->dest;
 		key.dport = ctx->tcp->source;
 		origin = bpf_map_lookup_elem(&nat_ct, &key);
 		if (!origin) {
-			return;
+			return false;
 		}
 
 		ctx->ip4->daddr = origin->src.saddr;
@@ -371,14 +372,14 @@ static __always_inline void destination_nat(struct packet_context *ctx)
 	case IPPROTO_UDP:
 		if (!ctx->udp) {
 			if (-1 == parse_udp(ctx)) {
-				return;
+				return false;
 			}
 		}
 		key.sport = ctx->udp->dest;
 		key.dport = ctx->udp->source;
 		origin = bpf_map_lookup_elem(&nat_ct, &key);
 		if (!origin) {
-			return;
+			return false;
 		}
 
 		ctx->ip4->daddr = origin->src.saddr;
@@ -393,10 +394,11 @@ static __always_inline void destination_nat(struct packet_context *ctx)
 		}
 		break;
 	default:
-		return;
+		return false;
 	}
 	ctx->ip4->check = 0;
 	ctx->ip4->check = ipv4_csum(ctx->ip4, sizeof(*ctx->ip4));
+	return true;
 }
 
 #endif

@@ -119,9 +119,10 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 
 static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 {
+	bool translated = false;
 	if (masquerade) {
 		PROFILE_START(PROF_N6_NAT);
-		destination_nat(ctx);
+		translated = destination_nat(ctx);
 		PROFILE_END(PROF_N6_NAT);
 	}
 	const struct iphdr *ip4 = ctx->ip4;
@@ -143,6 +144,16 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 			upf_printk("upf: no downlink session for ip:%pI4", &ip4->daddr);
 			return DEFAULT_XDP_ACTION;
 		}
+	}
+
+	/* Under masquerade only conntrack-translated downlink may reach a UE:
+	 * the UE address is not visible on N6 (TS 23.501 §5.8.2.2.1), so a
+	 * packet addressed to it was not solicited by any UE flow. */
+	if (masquerade && !translated) {
+		upf_printk("upf: unsolicited downlink for ip:%pI4", &ip4->daddr);
+		ctx->statistics->nat_unsolicited_drop_ip4 += 1;
+		account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, DROP);
+		return XDP_DROP;
 	}
 
 	struct far_info *far = &pdr->far;

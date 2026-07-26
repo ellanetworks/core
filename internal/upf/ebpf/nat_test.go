@@ -351,6 +351,77 @@ func TestNATICMPError(t *testing.T) {
 	}
 }
 
+// TestNATUnsolicitedInboundDrop verifies that with masquerade enabled, a
+// downlink packet addressed directly to the UE address with no conntrack entry
+// is dropped: nothing egresses on N3 and nat_unsolicited_drop_ip4 increments.
+// Only conntrack-translated downlink may reach a UE under masquerade
+// (TS 23.501 §5.8.2.2.1: the UE address is not visible on N6).
+func TestNATUnsolicitedInboundDrop(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		dlTEID = 0x4E415405
+		qfi    = 7
+	)
+
+	f := setupT2(t, true)
+	putDownlinkPDR(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, qfi)
+
+	for _, proto := range natProtos {
+		t.Run(proto.name, func(t *testing.T) {
+			capFD := f.captureN3(t)
+
+			before := GetN6NatUnsolicitedDropIPv4(f.obj)
+
+			l4 := proto.build(serverIP, ueIP, proto.dport, proto.sport, []byte{1, 2})
+			f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(serverIP, ueIP, proto.num, l4)))
+
+			if got := captureMatching(capFD, 500*time.Millisecond, func(fr []byte) bool {
+				return gtpInner(fr) != nil
+			}); got != nil {
+				t.Fatalf("unsolicited %s packet egressed on N3: %x", proto.name, got)
+			}
+
+			if after := GetN6NatUnsolicitedDropIPv4(f.obj); after != before+1 {
+				t.Errorf("nat_unsolicited_drop_ip4 = %d, want %d", after, before+1)
+			}
+		})
+	}
+}
+
+// TestUnsolicitedInboundForwardedWithoutNAT verifies that with masquerade
+// disabled, a downlink packet addressed to the UE address is forwarded to N3:
+// direct routing to UE addresses is the supported non-NAT mode.
+func TestUnsolicitedInboundForwardedWithoutNAT(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		dlTEID = 0x4E415406
+		qfi    = 7
+	)
+
+	f := setupT2(t, false)
+	putDownlinkPDR(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, qfi)
+
+	for _, proto := range natProtos {
+		t.Run(proto.name, func(t *testing.T) {
+			capFD := f.captureN3(t)
+
+			l4 := proto.build(serverIP, ueIP, proto.dport, proto.sport, []byte{1, 2})
+			f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(serverIP, ueIP, proto.num, l4)))
+
+			got := captureMatching(capFD, time.Second, func(fr []byte) bool {
+				inner := gtpInner(fr)
+
+				return inner != nil && inner[9] == proto.num && bytes.Equal(inner[16:20], ueIP[:])
+			})
+			if got == nil {
+				t.Fatalf("downlink %s packet to the UE address did not egress on N3 with NAT disabled", proto.name)
+			}
+		})
+	}
+}
+
 // downlinkReply builds the L4 segment of a server→UE reply: ports are the
 // mirror of the uplink segment so the conntrack reverse lookup matches.
 func downlinkReply(proto natProto, payload []byte) []byte {

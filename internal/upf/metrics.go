@@ -64,6 +64,14 @@ func RegisterMetrics() {
 		nil,
 	)
 
+	// Unsolicited downlink drops under NAT (downlink/N6 only)
+	xdpNatUnsolicitedDropDesc := prometheus.NewDesc(
+		"app_xdp_nat_unsolicited_drop_total",
+		"Downlink packets dropped because NAT is enabled and the UE destination address had no conntrack translation.",
+		[]string{"family"},
+		nil,
+	)
+
 	prometheus.MustRegister(upfUplinkBytes, upfDownlinkBytes)
 
 	// Register XDP action collector that produces metrics with labels
@@ -91,6 +99,8 @@ func RegisterMetrics() {
 		ch <- prometheus.MustNewConstMetric(xdpSourceSpoofDropDesc, prometheus.CounterValue, float64(ebpf.GetN3SourceSpoofDropIPv4(bpfObjects)), "ipv4")
 
 		ch <- prometheus.MustNewConstMetric(xdpSourceSpoofDropDesc, prometheus.CounterValue, float64(ebpf.GetN3SourceSpoofDropIPv6(bpfObjects)), "ipv6")
+
+		ch <- prometheus.MustNewConstMetric(xdpNatUnsolicitedDropDesc, prometheus.CounterValue, float64(ebpf.GetN6NatUnsolicitedDropIPv4(bpfObjects)), "ipv4")
 	}))
 
 	// Register FIB lookup result and ifindex mismatch collector

@@ -39,4 +39,5 @@ struct upf_statistic {
 	__u64 xdp_actions[EUPF_MAX_XDP_ACTION];
 	__u64 source_spoof_drop_ip4;
 	__u64 source_spoof_drop_ip6;
+	__u64 nat_unsolicited_drop_ip4;
 };

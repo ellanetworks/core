@@ -164,9 +164,10 @@ type VethEntrypointUpfStatistic struct {
 		Rx uint64
 		Tx uint64
 	}
-	XdpActions         [8]uint64
-	SourceSpoofDropIp4 uint64
-	SourceSpoofDropIp6 uint64
+	XdpActions            [8]uint64
+	SourceSpoofDropIp4    uint64
+	SourceSpoofDropIp6    uint64
+	NatUnsolicitedDropIp4 uint64
 }
 
 type VethEntrypointUrrKey struct {
