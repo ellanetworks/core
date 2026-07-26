@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <linux/bpf.h>
+#include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
 #include <linux/icmp.h>
 #include <linux/in.h>
@@ -20,7 +21,10 @@
 
 #define PEAK_CONNECTION_PER_UE 100
 #define NAT_CT_MAP_SIZE (PEAK_CONNECTION_PER_UE * MAX_PDU_SESSIONS)
-#define MAX_PORT_ATTEMPT 5
+/* Bounded so the verifier walk of the retry loop stays within the 1M
+ * instruction budget of the uplink program. */
+#define NAT_PORT_RETRIES 16
+#define NAT_PORT_MIN 1024
 
 volatile const bool masquerade;
 volatile const bool masquerade = false;
@@ -42,9 +46,24 @@ struct five_tuple {
 	__u16 proto;
 };
 
+/* Projection of the netfilter TCP state table onto the timeout classes the
+ * garbage collector distinguishes. */
+enum nat_ct_state {
+	NAT_CT_NEW = 0,
+	NAT_CT_ESTABLISHED = 1,
+	NAT_CT_CLOSING = 2,
+};
+
+/* A connection occupies two entries: the UE-side entry (keyed by the UE
+ * tuple, src = the NAT-side tuple) and the NAT-side entry (keyed by the
+ * NAT-side tuple, src = the UE tuple). Both are written only by the uplink
+ * path; the UE-side entry is authoritative for state and replied. */
 struct nat_entry {
 	struct five_tuple src;
 	__u64 refresh_ts;
+	__u8 state;
+	__u8 replied;
+	__u8 pad[6];
 };
 
 struct {
@@ -205,6 +224,21 @@ static __always_inline void update_port(struct packet_context *ctx,
 		break;
 	}
 }
+static __always_inline __u16 nat_random_port(void)
+{
+	return bpf_htons(NAT_PORT_MIN +
+			 (__u16)(bpf_get_prandom_u32() %
+				 (65536 - NAT_PORT_MIN)));
+}
+
+static __always_inline __u16 nat_next_port(__u16 port_be)
+{
+	__u16 port = bpf_ntohs(port_be) + 1;
+	if (port < NAT_PORT_MIN)
+		port = NAT_PORT_MIN;
+	return bpf_htons(port);
+}
+
 static __always_inline bool source_nat(struct packet_context *ctx,
 				       struct bpf_fib_lookup *fib_params)
 {
@@ -218,6 +252,9 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 	ctx->ip4->check = 0;
 	ctx->ip4->check = ipv4_csum(ctx->ip4, sizeof(*ctx->ip4));
 
+	bool tcp_new = false;
+	bool tcp_closing = false;
+
 	switch (proto) {
 	case IPPROTO_TCP:
 		if (!ctx->tcp) {
@@ -229,6 +266,8 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		orig.dport = ctx->tcp->dest;
 		ctx->tcp->check = ipv4_csum_update_u32(
 			ctx->tcp->check, orig.saddr, ctx->ip4->saddr);
+		tcp_new = ctx->tcp->syn && !ctx->tcp->ack;
+		tcp_closing = ctx->tcp->fin || ctx->tcp->rst;
 		break;
 	case IPPROTO_UDP:
 		if (!ctx->udp) {
@@ -249,15 +288,16 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 				return false;
 			}
 		}
-		if (ctx->icmp->type == ICMP_ECHO ||
-		    ctx->icmp->type == ICMP_TIMESTAMP) {
-			orig.identifier = ctx->icmp->un.echo.id;
-			orig.type = ctx->icmp->type;
-		} else {
-			orig.identifier = 0;
-			orig.type = ctx->icmp->type;
-			orig.code = ctx->icmp->code;
+		if (ctx->icmp->type != ICMP_ECHO &&
+		    ctx->icmp->type != ICMP_TIMESTAMP) {
+			/* ICMP errors are not flows: translate the outer
+			 * source only. Nothing ever looks up an entry for
+			 * them, and the type/code key cannot be renumbered
+			 * on collision. */
+			return true;
 		}
+		orig.identifier = ctx->icmp->un.echo.id;
+		orig.type = ctx->icmp->type;
 		break;
 	default:
 		return false;
@@ -270,52 +310,125 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 	natted.dport = orig.dport;
 	natted.proto = proto;
 
-	// Check if we need to also NAT the source port. This should be rare,
-	// only occuring if another UE somehow connects to the same destination
-	// using the same source port.
-	// We first check if we are already tracking this flow, and if the
-	// port needs to be changed.
-	// Otherwise, we check if the new source we plan to use is already tracked
-	// for a different flow. In that case, we try to find a free random
-	// source port.
+	__u64 now = bpf_ktime_get_ns();
+
+	// Tracked flow: adopt the recorded mapping and re-upsert both entries.
+	// The re-upsert refreshes LRU recency and restores a NAT-side entry
+	// the LRU evicted.
 	struct nat_entry *tracked = bpf_map_lookup_elem(&nat_ct, &orig);
-	if (tracked && !are_five_tuple_equal(natted, tracked->src)) {
-		// This flow is known and uses port NAT, we change it here
-		natted.sport = tracked->src.sport;
-		update_port(ctx, tracked->src.sport);
+	if (tracked) {
+		natted = tracked->src;
+		if (natted.sport != orig.sport) {
+			update_port(ctx, natted.sport);
+		}
+
+		__u8 state = tracked->state;
+		if (tcp_closing)
+			state = NAT_CT_CLOSING;
+		else if (tcp_new)
+			state = NAT_CT_NEW;
+		else if (tracked->replied)
+			state = NAT_CT_ESTABLISHED;
+
+		struct nat_entry ue_side = {};
+		ue_side.src = natted;
+		ue_side.refresh_ts = now;
+		ue_side.state = state;
+		ue_side.replied = tracked->replied;
+
+		struct nat_entry nat_side = {};
+		nat_side.src = orig;
+		nat_side.refresh_ts = now;
+
+		bpf_map_update_elem(&nat_ct, &orig, &ue_side, BPF_ANY);
+		bpf_map_update_elem(&nat_ct, &natted, &nat_side, BPF_ANY);
+		return true;
+	}
+
+	// New flow: insert the NAT-side entry with BPF_NOEXIST; insert success
+	// is the atomic port reservation across CPUs. Keep the original port,
+	// then try a random port, then probe linearly. The keep-port attempt
+	// and the same-flow check stay outside the loop so the loop body is
+	// one insert per iteration, keeping the verifier walk cheap.
+	struct nat_entry nat_side = {};
+	nat_side.src = orig;
+	nat_side.refresh_ts = now;
+
+	bool reserved = false;
+	if (0 == bpf_map_update_elem(&nat_ct, &natted, &nat_side,
+				     BPF_NOEXIST)) {
+		reserved = true;
 	} else {
+		// The tuple may already belong to this flow: its UE-side entry
+		// was LRU-evicted and this packet is re-creating the pair.
 		struct nat_entry *existing =
 			bpf_map_lookup_elem(&nat_ct, &natted);
-		if (existing && !are_five_tuple_equal(orig, existing->src)) {
-			// The source port cannot be used as is, find a random
-			// free one.
-			for (int i = 0; i < MAX_PORT_ATTEMPT; i++) {
-				natted.sport = bpf_get_prandom_u32();
-				existing =
-					bpf_map_lookup_elem(&nat_ct, &natted);
-				if (!existing) {
-					update_port(ctx, natted.sport);
+		if (existing && are_five_tuple_equal(orig, existing->src)) {
+			existing->refresh_ts = now;
+			reserved = true;
+		} else {
+			__u16 port = nat_random_port();
+			for (int i = 0; i < NAT_PORT_RETRIES - 1; i++) {
+				natted.sport = port;
+				if (0 == bpf_map_update_elem(&nat_ct, &natted,
+							     &nat_side,
+							     BPF_NOEXIST)) {
+					reserved = true;
 					break;
 				}
-			}
-			if (existing) {
-				return false;
+				port = nat_next_port(port);
 			}
 		}
 	}
+	if (!reserved) {
+		return false;
+	}
 
-	// At this point, the packet is fully modified. We save
-	// the tracking information.
-	struct nat_entry from_nat = {};
-	from_nat.src = orig;
-	struct nat_entry to_nat = {};
-	to_nat.src = natted;
-	to_nat.refresh_ts = bpf_ktime_get_ns();
-	from_nat.refresh_ts = to_nat.refresh_ts;
+	if (natted.sport != orig.sport) {
+		update_port(ctx, natted.sport);
+	}
 
-	bpf_map_update_elem(&nat_ct, &orig, &to_nat, BPF_ANY);
-	bpf_map_update_elem(&nat_ct, &natted, &from_nat, BPF_ANY);
+	struct nat_entry ue_side = {};
+	ue_side.src = natted;
+	ue_side.refresh_ts = now;
+	ue_side.state = tcp_closing ? NAT_CT_CLOSING : NAT_CT_NEW;
+
+	if (0 != bpf_map_update_elem(&nat_ct, &orig, &ue_side, BPF_NOEXIST)) {
+		// A concurrent packet of the same flow inserted first: adopt
+		// its mapping and release the reservation made above.
+		struct nat_entry *winner = bpf_map_lookup_elem(&nat_ct, &orig);
+		if (!winner) {
+			bpf_map_delete_elem(&nat_ct, &natted);
+			return false;
+		}
+		if (!are_five_tuple_equal(winner->src, natted)) {
+			bpf_map_delete_elem(&nat_ct, &natted);
+			// update_port derives the checksum delta from the
+			// current header value, so it applies cleanly on top
+			// of the rewrite above.
+			update_port(ctx, winner->src.sport);
+		}
+	}
 	return true;
+}
+
+// Marks the connection replied and refreshes both directions. origin is the
+// NAT-side entry; its src tuple is the UE-side key, which is authoritative
+// for state and replied.
+static __always_inline void nat_ct_mark_replied(struct nat_entry *origin,
+						bool closing)
+{
+	__u64 now = bpf_ktime_get_ns();
+	origin->refresh_ts = now;
+
+	struct five_tuple ue_key = origin->src;
+	struct nat_entry *ue = bpf_map_lookup_elem(&nat_ct, &ue_key);
+	if (!ue)
+		return;
+	ue->replied = 1;
+	ue->refresh_ts = now;
+	if (closing)
+		ue->state = NAT_CT_CLOSING;
 }
 
 // Returns true when the packet was translated back to a tracked UE flow.
@@ -342,7 +455,16 @@ static __always_inline bool destination_nat(struct packet_context *ctx)
 			return false;
 		}
 
-		if (origin->src.proto == IPPROTO_ICMP) {
+		if (ctx->icmp->type == ICMP_ECHOREPLY ||
+		    ctx->icmp->type == ICMP_TIMESTAMPREPLY) {
+			nat_ct_mark_replied(origin, false);
+		}
+
+		if (origin->src.proto == IPPROTO_ICMP &&
+		    ctx->icmp->un.echo.id != origin->src.identifier) {
+			ctx->icmp->checksum = ipv4_csum_update_u16(
+				ctx->icmp->checksum, ctx->icmp->un.echo.id,
+				origin->src.identifier);
 			ctx->icmp->un.echo.id = origin->src.identifier;
 		}
 		ctx->ip4->daddr = origin->src.saddr;
@@ -359,6 +481,8 @@ static __always_inline bool destination_nat(struct packet_context *ctx)
 		if (!origin) {
 			return false;
 		}
+
+		nat_ct_mark_replied(origin, ctx->tcp->fin || ctx->tcp->rst);
 
 		ctx->ip4->daddr = origin->src.saddr;
 		ctx->tcp->check = ipv4_csum_update_u32(
@@ -381,6 +505,8 @@ static __always_inline bool destination_nat(struct packet_context *ctx)
 		if (!origin) {
 			return false;
 		}
+
+		nat_ct_mark_replied(origin, false);
 
 		ctx->ip4->daddr = origin->src.saddr;
 		if (ctx->udp->check != 0) {

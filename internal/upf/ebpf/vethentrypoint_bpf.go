@@ -69,6 +69,9 @@ type VethEntrypointNatEntry struct {
 	_         structs.HostLayout
 	Src       VethEntrypointFiveTuple
 	RefreshTs uint64
+	State     uint8
+	Replied   uint8
+	Pad       [6]uint8
 }
 
 type VethEntrypointPdrInfo struct {

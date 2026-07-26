@@ -69,6 +69,9 @@ type N3N6EntrypointNatEntry struct {
 	_         structs.HostLayout
 	Src       N3N6EntrypointFiveTuple
 	RefreshTs uint64
+	State     uint8
+	Replied   uint8
+	Pad       [6]uint8
 }
 
 type N3N6EntrypointPdrInfo struct {

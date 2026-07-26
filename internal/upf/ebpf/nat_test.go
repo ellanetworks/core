@@ -422,6 +422,175 @@ func TestUnsolicitedInboundForwardedWithoutNAT(t *testing.T) {
 	}
 }
 
+// natFiveTuple builds a nat_ct key as the datapath stores it: addresses and
+// ports in network byte order, protocol as a plain value.
+func natFiveTuple(saddr, daddr [4]byte, sport, dport uint16, proto uint16) N3N6EntrypointFiveTuple {
+	return N3N6EntrypointFiveTuple{
+		Saddr: binary.NativeEndian.Uint32(saddr[:]),
+		Daddr: binary.NativeEndian.Uint32(daddr[:]),
+		Sport: htons(sport),
+		Dport: htons(dport),
+		Proto: proto,
+	}
+}
+
+// tcpSegmentWithFlags builds a checksummed 20-byte TCP segment with the given
+// flag byte (FIN=0x01, SYN=0x02, RST=0x04, ACK=0x10).
+func tcpSegmentWithFlags(src, dst [4]byte, sport, dport uint16, flags byte) []byte {
+	seg := make([]byte, 20)
+
+	binary.BigEndian.PutUint16(seg[0:2], sport)
+	binary.BigEndian.PutUint16(seg[2:4], dport)
+	seg[12] = 0x50 // data offset = 5
+	seg[13] = flags
+	binary.BigEndian.PutUint16(seg[16:18], ipv4L4Checksum(src, dst, 6, seg))
+
+	return seg
+}
+
+// lookupNatEntry fetches a nat_ct entry, failing the test on lookup error.
+func lookupNatEntry(t *testing.T, f *t2, key N3N6EntrypointFiveTuple) N3N6EntrypointNatEntry {
+	t.Helper()
+
+	var val N3N6EntrypointNatEntry
+	if err := f.obj.NatCt.Lookup(&key, &val); err != nil {
+		t.Fatalf("nat_ct lookup: %v", err)
+	}
+
+	return val
+}
+
+// TestNATConntrackDirectionAndState verifies the conntrack pair layout and the
+// per-flow state machine: both entries are created by the uplink path with the
+// UE-side entry authoritative, a downlink hit sets replied, a subsequent
+// uplink packet moves the state to established, and FIN moves it to closing.
+func TestNATConntrackDirectionAndState(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		ulTEID = 0x4E415407
+		dlTEID = 0x4E415408
+		qfi    = 7
+		ueSP   = 1234
+		srvDP  = 80
+	)
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+	putDownlinkPDR(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, qfi)
+
+	ueKey := natFiveTuple(ueIP, serverIP, ueSP, srvDP, 6)
+	natKey := natFiveTuple(natPublicIP, serverIP, ueSP, srvDP, 6)
+
+	sendUplink := func(flags byte) {
+		capFD := f.captureN6(t)
+		seg := tcpSegmentWithFlags(ueIP, serverIP, ueSP, srvDP, flags)
+		f.injectUplink(t, uplinkGPDU(ulTEID, ipv4Packet(ueIP, serverIP, 6, seg)))
+
+		if captureMatching(capFD, time.Second, func(fr []byte) bool {
+			return isInnerIPv4(fr, 6, serverIP)
+		}) == nil {
+			t.Fatal("uplink packet did not egress on N6")
+		}
+	}
+
+	// SYN: both entries exist, UE-side is new and unreplied.
+	sendUplink(0x02)
+
+	ue := lookupNatEntry(t, f, ueKey)
+	if ue.State != 0 || ue.Replied != 0 {
+		t.Errorf("after SYN: state=%d replied=%d, want state=0 replied=0", ue.State, ue.Replied)
+	}
+
+	if ue.Src != natKey {
+		t.Errorf("UE-side entry src = %+v, want the NAT-side tuple %+v", ue.Src, natKey)
+	}
+
+	natSide := lookupNatEntry(t, f, natKey)
+	if natSide.Src != ueKey {
+		t.Errorf("NAT-side entry src = %+v, want the UE tuple %+v", natSide.Src, ueKey)
+	}
+
+	// SYN-ACK reply: replied is set on the UE-side entry.
+	capFD := f.captureN3(t)
+	f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(serverIP, natPublicIP, 6, tcpSegmentWithFlags(serverIP, natPublicIP, srvDP, ueSP, 0x12))))
+
+	if captureMatching(capFD, time.Second, func(fr []byte) bool { return gtpInner(fr) != nil }) == nil {
+		t.Fatal("downlink SYN-ACK did not egress on N3")
+	}
+
+	if ue = lookupNatEntry(t, f, ueKey); ue.Replied != 1 {
+		t.Errorf("after SYN-ACK: replied=%d, want 1", ue.Replied)
+	}
+
+	// ACK completing the handshake: established.
+	sendUplink(0x10)
+
+	if ue = lookupNatEntry(t, f, ueKey); ue.State != 1 {
+		t.Errorf("after handshake ACK: state=%d, want 1 (established)", ue.State)
+	}
+
+	// FIN: closing.
+	sendUplink(0x11)
+
+	if ue = lookupNatEntry(t, f, ueKey); ue.State != 2 {
+		t.Errorf("after FIN: state=%d, want 2 (closing)", ue.State)
+	}
+}
+
+// TestNATRepairEvictedNATSideEntry verifies pair repair: with the NAT-side
+// entry removed (as LRU eviction would), a downlink reply is dropped, and the
+// next uplink packet of the flow restores the pair so the reply translates
+// again.
+func TestNATRepairEvictedNATSideEntry(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		ulTEID = 0x4E415409
+		dlTEID = 0x4E41540A
+		qfi    = 7
+		ueSP   = 1234
+		srvDP  = 80
+	)
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+	putDownlinkPDR(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, qfi)
+
+	natKey := natFiveTuple(natPublicIP, serverIP, ueSP, srvDP, 6)
+
+	uplink := ipv4Packet(ueIP, serverIP, 6, tcpSegmentChecksummed(ueIP, serverIP, ueSP, srvDP, nil))
+	reply := ethFrame(0x0800, ipv4Packet(serverIP, natPublicIP, 6, tcpSegmentChecksummed(serverIP, natPublicIP, srvDP, ueSP, nil)))
+
+	f.injectUplink(t, uplinkGPDU(ulTEID, uplink))
+	time.Sleep(100 * time.Millisecond)
+
+	if err := f.obj.NatCt.Delete(&natKey); err != nil {
+		t.Fatalf("delete NAT-side entry: %v", err)
+	}
+
+	capFD := f.captureN3(t)
+	f.injectDownlink(t, reply)
+
+	if got := captureMatching(capFD, 500*time.Millisecond, func(fr []byte) bool { return gtpInner(fr) != nil }); got != nil {
+		t.Fatalf("reply with the NAT-side entry removed egressed on N3: %x", got)
+	}
+
+	f.injectUplink(t, uplinkGPDU(ulTEID, uplink))
+	time.Sleep(100 * time.Millisecond)
+
+	if err := f.obj.NatCt.Lookup(&natKey, new(N3N6EntrypointNatEntry)); err != nil {
+		t.Fatalf("NAT-side entry not restored by the uplink packet: %v", err)
+	}
+
+	capFD = f.captureN3(t)
+	f.injectDownlink(t, reply)
+
+	if captureMatching(capFD, time.Second, func(fr []byte) bool { return gtpInner(fr) != nil }) == nil {
+		t.Fatal("reply after pair repair did not egress on N3")
+	}
+}
+
 // downlinkReply builds the L4 segment of a server→UE reply: ports are the
 // mirror of the uplink segment so the conntrack reverse lookup matches.
 func downlinkReply(proto natProto, payload []byte) []byte {
