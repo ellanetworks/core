@@ -195,30 +195,27 @@ var mapsRecreatedOnReload = map[string]bool{
 // preservedMaps returns the maps carried across a program reload
 // (LoadWithMapReplacements) so their session and runtime state survives a
 // global-variable change (NAT/flow-accounting toggle).
+//
+// The set is derived from the loaded collection rather than enumerated, so a
+// map added to the BPF sources is preserved without a second edit here.
 func (bpfObjects *BpfObjects) preservedMaps() map[string]*ebpf.Map {
-	m := map[string]*ebpf.Map{
-		"csum_scratch":         bpfObjects.CsumScratch,
-		"downlink_route_stats": bpfObjects.DownlinkRouteStats,
-		"downlink_statistics":  bpfObjects.DownlinkStatistics,
-		"flow_stats":           bpfObjects.FlowStats,
-		"framed_downlink_ip4":  bpfObjects.FramedDownlinkIp4,
-		"framed_downlink_ip6":  bpfObjects.FramedDownlinkIp6,
-		"nat_ct":               bpfObjects.NatCt,
-		"no_neigh_map":         bpfObjects.NoNeighMap,
-		"nocp_map":             bpfObjects.NocpMap,
-		"pdrs_downlink_ip4":    bpfObjects.PdrsDownlinkIp4,
-		"pdrs_downlink_ip6":    bpfObjects.PdrsDownlinkIp6,
-		"pdrs_uplink":          bpfObjects.PdrsUplink,
-		"rs_event_map":         bpfObjects.RsEventMap,
-		"sdf_filters":          bpfObjects.SdfFilters,
-		"uplink_route_stats":   bpfObjects.UplinkRouteStats,
-		"uplink_statistics":    bpfObjects.UplinkStatistics,
-		"urr_map":              bpfObjects.UrrMap,
-	}
+	m := make(map[string]*ebpf.Map)
 
-	// The profiling map exists only when built with -DENABLE_PROFILING.
-	if bpfObjects.ProfilingMap != nil {
-		m["profiling_map"] = bpfObjects.ProfilingMap
+	v := reflect.ValueOf(bpfObjects.N3N6EntrypointMaps)
+	t := v.Type()
+
+	for i := range t.NumField() {
+		name, ok := t.Field(i).Tag.Lookup("ebpf")
+		if !ok || mapsRecreatedOnReload[name] {
+			continue
+		}
+
+		field, ok := v.Field(i).Interface().(*ebpf.Map)
+		if !ok || field == nil {
+			continue
+		}
+
+		m[name] = field
 	}
 
 	return m
@@ -262,16 +259,10 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 		return err
 	}
 
-	oldEntry := bpfObjects.UpfEntryFunc
-	oldUplink := bpfObjects.UpfUplinkFunc
-	oldDownlink := bpfObjects.UpfDownlinkFunc
-	oldGtpuControl := bpfObjects.UpfGtpuControlFunc
+	oldPrograms := bpfObjects.N3N6EntrypointPrograms
 	oldCalls := bpfObjects.UpfCalls
 
-	bpfObjects.UpfEntryFunc = newObjects.UpfEntryFunc
-	bpfObjects.UpfUplinkFunc = newObjects.UpfUplinkFunc
-	bpfObjects.UpfDownlinkFunc = newObjects.UpfDownlinkFunc
-	bpfObjects.UpfGtpuControlFunc = newObjects.UpfGtpuControlFunc
+	bpfObjects.N3N6EntrypointPrograms = newObjects.N3N6EntrypointPrograms
 	bpfObjects.UpfCalls = newObjects.UpfCalls
 	bpfObjects.N3N6EntrypointVariables = newObjects.N3N6EntrypointVariables
 
@@ -285,12 +276,12 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 		logger.UpfLog.Warn("failed to close cloned map fds", zap.Error(err))
 	}
 
-	// Close the old programs now that they have been replaced. The stage
-	// programs stay live in the kernel via the (new) prog-array reference.
-	for _, p := range []*ebpf.Program{oldEntry, oldUplink, oldDownlink, oldGtpuControl} {
-		if err := p.Close(); err != nil {
-			logger.UpfLog.Warn("failed to close old program", zap.Error(err))
-		}
+	// Close every old program now that the collection has been replaced. The
+	// stage programs stay live in the kernel via the (new) prog-array
+	// reference. Closing the whole struct covers programs added to the BPF
+	// sources without a second edit here.
+	if err := oldPrograms.Close(); err != nil {
+		logger.UpfLog.Warn("failed to close old programs", zap.Error(err))
 	}
 
 	return nil

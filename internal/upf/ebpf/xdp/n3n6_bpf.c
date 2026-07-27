@@ -341,4 +341,115 @@ int upf_entry_func(struct xdp_md *ctx)
 	return DEFAULT_XDP_ACTION;
 }
 
+/* Tunnel metadata for GTP-U encapsulation of packets injected via the veth
+ * pair. Key: inner IPv6 destination address. */
+struct veth_tunnel_info {
+	__u32 teid;
+	struct in6_addr local_addr;
+	struct in6_addr remote_addr;
+	__u8 qfi;
+	/* 4G S1-U carries plain GTP-U with no PDU Session Container (PSC is
+	 * N3/N9 only, TS 38.415); encapsulate PSC-less when set. */
+	__u8 no_psc;
+	__u8 pad[2];
+};
+
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__type(key, struct in6_addr);
+	__type(value, struct veth_tunnel_info);
+	__uint(max_entries, 256);
+} veth_tunnels SEC(".maps");
+
+/* veth_xdp_func: attached to the veth-xdp end of the pair the SMF injects on
+ * (Router Advertisements). An IPv6 packet whose destination matches
+ * veth_tunnels is GTP-U encapsulated toward the gNB and redirected to the
+ * egress the FIB chooses. */
+SEC("xdp/veth_xdp")
+int veth_xdp_func(struct xdp_md *ctx)
+{
+	void *data = (void *)(long)ctx->data;
+	void *data_end = (void *)(long)ctx->data_end;
+
+	struct ethhdr *eth = data;
+	if ((void *)(eth + 1) > data_end)
+		return XDP_DROP;
+
+	if (eth->h_proto != bpf_htons(ETH_P_IPV6)) {
+		return XDP_DROP;
+	}
+
+	struct ipv6hdr *ip6 = (struct ipv6hdr *)(eth + 1);
+	if ((void *)(ip6 + 1) > data_end) {
+		return XDP_DROP;
+	}
+
+	struct veth_tunnel_info *tun =
+		bpf_map_lookup_elem(&veth_tunnels, &ip6->daddr);
+	if (!tun) {
+		upf_printk("upf: veth XDP tunnel miss dst=%pI6c", &ip6->daddr);
+		return XDP_DROP;
+	}
+
+	upf_printk("upf: veth received RA for dest %pI6c", &ip6->daddr);
+
+	struct packet_context pkt_ctx = {
+		.xdp_ctx = ctx,
+		.interface = INTERFACE_N6,
+		.eth = eth,
+		.ip6 = ip6,
+	};
+
+	int ret;
+	if (is_ipv4_mapped_ipv6(&tun->local_addr) &&
+	    is_ipv4_mapped_ipv6(&tun->remote_addr)) {
+		upf_printk("upf: encapsulating over IPv4");
+		__u32 saddr = ipv4_from_mapped(&tun->local_addr);
+		__u32 daddr = ipv4_from_mapped(&tun->remote_addr);
+		if (tun->no_psc) {
+			ret = add_gtp_over_ip4_headers_s1u(&pkt_ctx, saddr,
+							   daddr, 0, tun->teid);
+		} else {
+			ret = add_gtp_over_ip4_headers(&pkt_ctx, saddr, daddr, 0,
+						       tun->qfi, tun->teid);
+		}
+		if (ret != 0) {
+			return XDP_ABORTED;
+		}
+
+		const __u32 key4 = 0;
+		struct route_stat *route_stat4 =
+			bpf_map_lookup_elem(&downlink_route_stats, &key4);
+		if (!route_stat4)
+			return XDP_ABORTED;
+
+		return route_ipv4(&pkt_ctx, route_stat4, true);
+	} else {
+		upf_printk("upf: encapsulating over IPv6");
+		if (tun->no_psc) {
+			ret = add_gtp_over_ip6_headers_s1u(&pkt_ctx,
+							   &tun->local_addr,
+							   &tun->remote_addr, 0,
+							   tun->teid);
+		} else {
+			ret = add_gtp_over_ip6_headers(&pkt_ctx, &tun->local_addr,
+						       &tun->remote_addr, 0, tun->qfi,
+						       tun->teid);
+		}
+		if (ret != 0) {
+			return XDP_ABORTED;
+		}
+
+		const __u32 key6 = 0;
+		struct route_stat *route_stat6 =
+			bpf_map_lookup_elem(&downlink_route_stats, &key6);
+		if (!route_stat6)
+			return XDP_ABORTED;
+
+		return route_ipv6(&pkt_ctx, route_stat6, true);
+	}
+
+	return XDP_ABORTED;
+}
+
 char _license[] SEC("license") = "GPL";

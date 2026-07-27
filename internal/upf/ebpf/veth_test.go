@@ -162,7 +162,7 @@ func TestVethRAEncapsulationIPv6Transport(t *testing.T) {
 
 // setupVethRA builds the injection and N3 veth pairs, enables forwarding, and
 // loads and attaches the veth program.
-func setupVethRA(t *testing.T) (injPeer, n3Peer *net.Interface, vobj *VethBpfObjects) {
+func setupVethRA(t *testing.T) (injPeer, n3Peer *net.Interface, vobj *BpfObjects) {
 	t.Helper()
 
 	_, _ = ipCmd("link", "del", vethInjDev)
@@ -179,12 +179,7 @@ func setupVethRA(t *testing.T) (injPeer, n3Peer *net.Interface, vobj *VethBpfObj
 
 	injDev := ifByName(t, vethInjDev)
 
-	obj, err := LoadVethBpfObjects()
-	if err != nil {
-		t.Fatalf("load veth objects: %v", err)
-	}
-
-	t.Cleanup(func() { _ = obj.Close() })
+	obj := loadProgramConfig(t, false, false, ifByName(t, vethN3Dev).Index, 0, 0, 0)
 
 	l, err := link.AttachXDP(link.XDPOptions{
 		Program:   obj.VethXdpFunc,

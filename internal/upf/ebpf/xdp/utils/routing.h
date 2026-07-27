@@ -187,8 +187,12 @@ static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 	fib_params.ipv4_dst = ctx->ip4->daddr;
 	fib_params.ifindex = ctx->xdp_ctx->ingress_ifindex;
 
+	/* The source address the FIB derives is consumed only by source_nat,
+	 * which do_route_ipv4 skips under trust_fib. Asking for it there would
+	 * add BPF_FIB_LKUP_RET_NO_SRC_ADDR as a drop reason for a packet that
+	 * never needed one. */
 	__u64 flags = BPF_FIB_LOOKUP_DIRECT;
-	if (masquerade) {
+	if (!trust_fib && masquerade) {
 		flags |= BPF_FIB_LOOKUP_SRC;
 	}
 	int rc = bpf_fib_lookup(ctx->xdp_ctx, &fib_params, sizeof(fib_params),

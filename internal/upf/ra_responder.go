@@ -59,9 +59,10 @@ type RAResponder struct {
 	n3IPv6    netip.Addr
 	n3Ifindex int
 
-	// Veth XDP objects.
-	vethBpf  *ebpf.VethBpfObjects
-	vethLink link.Link
+	// Datapath objects, owned by the UPF. The RA responder attaches the veth
+	// program and programs veth_tunnels; it does not own the collection.
+	bpfObjects *ebpf.BpfObjects
+	vethLink   link.Link
 
 	// RS ring buffer reader (from N3 XDP rs_event_map).
 	rsReader *ringbuf.Reader
@@ -76,38 +77,31 @@ type RAResponder struct {
 
 // NewRAResponder creates an RA responder. It does not start the consumer
 // goroutine; call Start() to begin processing.
-func NewRAResponder(rsEventMap *bpf.Map, n3IPv4 netip.Addr, n3IPv6 netip.Addr, n3Ifindex int) (*RAResponder, error) {
-	rsReader, err := ringbuf.NewReader(rsEventMap)
+func NewRAResponder(bpfObjects *ebpf.BpfObjects, n3IPv4 netip.Addr, n3IPv6 netip.Addr, n3Ifindex int) (*RAResponder, error) {
+	rsReader, err := ringbuf.NewReader(bpfObjects.RsEventMap)
 	if err != nil {
 		return nil, fmt.Errorf("open RS event ring buffer: %w", err)
 	}
 
 	return &RAResponder{
-		sessions:  make(map[uint32]*IPv6SessionContext),
-		n3IPv4:    n3IPv4,
-		n3IPv6:    n3IPv6,
-		n3Ifindex: n3Ifindex,
-		rsReader:  rsReader,
-		injectFD:  -1,
+		sessions:   make(map[uint32]*IPv6SessionContext),
+		n3IPv4:     n3IPv4,
+		n3IPv6:     n3IPv6,
+		n3Ifindex:  n3Ifindex,
+		bpfObjects: bpfObjects,
+		rsReader:   rsReader,
+		injectFD:   -1,
 	}, nil
 }
 
-// Start initializes the veth pair, loads the veth XDP program, attaches it
-// to veth-xdp, opens the AF_PACKET injection socket, and starts the RS event
-// consumer goroutine.
+// Start initializes the veth pair, attaches the veth XDP program to veth-xdp,
+// opens the AF_PACKET injection socket, and starts the RS event consumer
+// goroutine.
 func (r *RAResponder) Start() error {
 	// Create the veth pair.
 	if err := CreateVethPair(); err != nil {
 		return fmt.Errorf("create veth pair: %w", err)
 	}
-
-	// Load veth XDP objects.
-	vethBpf, err := ebpf.LoadVethBpfObjects()
-	if err != nil {
-		return fmt.Errorf("load veth XDP program: %w", err)
-	}
-
-	r.vethBpf = vethBpf
 
 	// Attach XDP to veth-xdp.
 	xdpIdx, err := VethXDPIndex()
@@ -116,7 +110,7 @@ func (r *RAResponder) Start() error {
 	}
 
 	xdpLink, err := link.AttachXDP(link.XDPOptions{
-		Program:   vethBpf.VethXdpFunc,
+		Program:   r.bpfObjects.VethXdpFunc,
 		Interface: xdpIdx,
 		Flags:     link.XDPGenericMode,
 	})
@@ -168,6 +162,16 @@ func (r *RAResponder) Start() error {
 	return nil
 }
 
+// UpdateProgram points the veth link at prog. A reload rebuilds every program
+// in the collection, so the attached veth program is stale until this runs.
+func (r *RAResponder) UpdateProgram(prog *bpf.Program) error {
+	if r == nil || r.vethLink == nil {
+		return nil
+	}
+
+	return r.vethLink.Update(prog)
+}
+
 // Close stops the RS consumer and releases all resources.
 func (r *RAResponder) Close() error {
 	// Close ring buffer reader first (unblocks the consumer goroutine).
@@ -177,10 +181,6 @@ func (r *RAResponder) Close() error {
 
 	if r.vethLink != nil {
 		_ = r.vethLink.Close()
-	}
-
-	if r.vethBpf != nil {
-		_ = r.vethBpf.Close()
 	}
 
 	if r.injectFD >= 0 {
@@ -205,8 +205,8 @@ func (r *RAResponder) RegisterSession(ulTEID uint32, sessionCtx *IPv6SessionCont
 	// A re-registration (e.g. handover) for the same TEID replaces the context,
 	// and the new one starts without a learned link-local. Delete the old
 	// context's veth tunnel entry now, or it orphans until the next RS.
-	if old, ok := r.sessions[ulTEID]; ok && old.ueLinkLocal.IsValid() && r.vethBpf != nil {
-		if err := r.vethBpf.DeleteTunnel(old.ueLinkLocal); err != nil {
+	if old, ok := r.sessions[ulTEID]; ok && old.ueLinkLocal.IsValid() && r.bpfObjects != nil {
+		if err := r.bpfObjects.DeleteTunnel(old.ueLinkLocal); err != nil {
 			logger.UpfLog.Warn("failed to delete stale veth tunnel entry on re-register",
 				logger.TEID(ulTEID), zap.String("ue_link_local", old.ueLinkLocal.String()), zap.Error(err))
 		}
@@ -237,8 +237,8 @@ func (r *RAResponder) UnregisterSession(ulTEID uint32) {
 
 	// Delete the veth tunnel entry under the lock, atomically with the map
 	// delete, so it cannot race handleRSEvent re-programming the same entry.
-	if sess.ueLinkLocal.IsValid() && r.vethBpf != nil {
-		if err := r.vethBpf.DeleteTunnel(sess.ueLinkLocal); err != nil {
+	if sess.ueLinkLocal.IsValid() && r.bpfObjects != nil {
+		if err := r.bpfObjects.DeleteTunnel(sess.ueLinkLocal); err != nil {
 			logger.UpfLog.Warn("failed to delete veth tunnel entry on session release",
 				logger.TEID(ulTEID),
 				zap.String("ue_link_local", sess.ueLinkLocal.String()),
@@ -296,8 +296,8 @@ func (r *RAResponder) handleRSEvent(ulTEID uint32, ueIPv6 netip.Addr) error {
 
 	// Program the veth tunnel map together with the ueLinkLocal update, all under
 	// r.mu, so it is atomic against UnregisterSession tearing the same entry down.
-	if sess.ueLinkLocal.IsValid() && sess.ueLinkLocal != ueIPv6 && r.vethBpf != nil {
-		_ = r.vethBpf.DeleteTunnel(sess.ueLinkLocal)
+	if sess.ueLinkLocal.IsValid() && sess.ueLinkLocal != ueIPv6 && r.bpfObjects != nil {
+		_ = r.bpfObjects.DeleteTunnel(sess.ueLinkLocal)
 	}
 
 	if err := r.programVethTunnel(sess, ueIPv6); err != nil {
@@ -349,7 +349,7 @@ func (r *RAResponder) programVethTunnel(sess *IPv6SessionContext, ueIPv6 netip.A
 		S1U:        sess.S1U,
 	}
 
-	return r.vethBpf.PutTunnel(ueIPv6, info)
+	return r.bpfObjects.PutTunnel(ueIPv6, info)
 }
 
 func (r *RAResponder) localN3Addr(remote netip.Addr) (netip.Addr, error) {
