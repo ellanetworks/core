@@ -303,8 +303,7 @@ func (u *UPF) UpdateFilters(ctx context.Context, policyID string, direction mode
 }
 
 // updateAttachedPrograms points every attached link at the newly loaded
-// programs. A reload rebuilds the whole collection, so a link left on an old
-// program keeps running the previous global values.
+// programs. A link left on an old program keeps the previous global values.
 func (u *UPF) updateAttachedPrograms() error {
 	if err := u.n3Link.Update(u.se.BpfObjects.UpfEntryFunc); err != nil {
 		return err
