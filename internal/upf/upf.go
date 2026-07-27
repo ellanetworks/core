@@ -180,7 +180,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 	}
 
 	if n3IPv4Addr.IsValid() || n3IPv6Addr.IsValid() {
-		raResp, err := NewRAResponder(bpfObjects.RsEventMap, n3IPv4Addr, n3IPv6Addr, n3Iface.Index)
+		raResp, err := NewRAResponder(bpfObjects, n3IPv4Addr, n3IPv6Addr, n3Iface.Index)
 		if err != nil {
 			logger.UpfLog.Warn("failed to create RA responder, IPv6 RS/RA will be unavailable", zap.Error(err))
 		} else {
@@ -302,14 +302,10 @@ func (u *UPF) UpdateFilters(ctx context.Context, policyID string, direction mode
 	return u.se.UpdateFilters(ctx, policyID, direction, rules)
 }
 
-func (u *UPF) ReloadNAT(masquerade bool) error {
-	u.se.BpfObjects.Masquerade = masquerade
-
-	err := u.se.BpfObjects.LoadWithMapReplacements()
-	if err != nil {
-		return fmt.Errorf("couldn't load BPF objects: %w", err)
-	}
-
+// updateAttachedPrograms points every attached link at the newly loaded
+// programs. A reload rebuilds the whole collection, so a link left on an old
+// program keeps running the previous global values.
+func (u *UPF) updateAttachedPrograms() error {
 	if err := u.n3Link.Update(u.se.BpfObjects.UpfEntryFunc); err != nil {
 		return err
 	}
@@ -318,6 +314,27 @@ func (u *UPF) ReloadNAT(masquerade bool) error {
 		if err := (*u.n6Link).Update(u.se.BpfObjects.UpfEntryFunc); err != nil {
 			return err
 		}
+	}
+
+	if u.raResponder != nil {
+		if err := u.raResponder.UpdateProgram(u.se.BpfObjects.VethXdpFunc); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (u *UPF) ReloadNAT(masquerade bool) error {
+	u.se.BpfObjects.Masquerade = masquerade
+
+	err := u.se.BpfObjects.LoadWithMapReplacements()
+	if err != nil {
+		return fmt.Errorf("couldn't load BPF objects: %w", err)
+	}
+
+	if err := u.updateAttachedPrograms(); err != nil {
+		return err
 	}
 
 	if masquerade {
@@ -337,14 +354,8 @@ func (u *UPF) ReloadFlowAccounting(flowact bool) error {
 		return fmt.Errorf("couldn't load BPF objects: %w", err)
 	}
 
-	if err := u.n3Link.Update(u.se.BpfObjects.UpfEntryFunc); err != nil {
+	if err := u.updateAttachedPrograms(); err != nil {
 		return err
-	}
-
-	if u.n6Link != nil {
-		if err := (*u.n6Link).Update(u.se.BpfObjects.UpfEntryFunc); err != nil {
-			return err
-		}
 	}
 
 	if flowact {

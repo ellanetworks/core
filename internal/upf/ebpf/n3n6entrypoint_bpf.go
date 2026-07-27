@@ -188,6 +188,16 @@ type N3N6EntrypointUrrKey struct {
 	Pad   uint32
 }
 
+type N3N6EntrypointVethTunnelInfo struct {
+	_          structs.HostLayout
+	Teid       uint32
+	LocalAddr  N3N6EntrypointIn6Addr
+	RemoteAddr N3N6EntrypointIn6Addr
+	Qfi        uint8
+	NoPsc      uint8
+	Pad        [2]uint8
+}
+
 // Names of all BPF objects in the ELF.
 //
 // Used for safe lookups in a Collection or CollectionSpec.
@@ -210,10 +220,12 @@ const (
 	N3N6EntrypointMapUplinkRouteStats    = "uplink_route_stats"
 	N3N6EntrypointMapUplinkStatistics    = "uplink_statistics"
 	N3N6EntrypointMapUrrMap              = "urr_map"
+	N3N6EntrypointMapVethTunnels         = "veth_tunnels"
 	N3N6EntrypointProgUpfDownlinkFunc    = "upf_downlink_func"
 	N3N6EntrypointProgUpfEntryFunc       = "upf_entry_func"
 	N3N6EntrypointProgUpfGtpuControlFunc = "upf_gtpu_control_func"
 	N3N6EntrypointProgUpfUplinkFunc      = "upf_uplink_func"
+	N3N6EntrypointProgVethXdpFunc        = "veth_xdp_func"
 	N3N6EntrypointVarFlowact             = "flowact"
 	N3N6EntrypointVarMasquerade          = "masquerade"
 	N3N6EntrypointVarN3Ifindex           = "n3_ifindex"
@@ -268,6 +280,7 @@ type N3N6EntrypointProgramSpecs struct {
 	UpfEntryFunc       *ebpf.ProgramSpec `ebpf:"upf_entry_func"`
 	UpfGtpuControlFunc *ebpf.ProgramSpec `ebpf:"upf_gtpu_control_func"`
 	UpfUplinkFunc      *ebpf.ProgramSpec `ebpf:"upf_uplink_func"`
+	VethXdpFunc        *ebpf.ProgramSpec `ebpf:"veth_xdp_func"`
 }
 
 // N3N6EntrypointMapSpecs contains maps before they are loaded into the kernel.
@@ -292,6 +305,7 @@ type N3N6EntrypointMapSpecs struct {
 	UplinkRouteStats   *ebpf.MapSpec `ebpf:"uplink_route_stats"`
 	UplinkStatistics   *ebpf.MapSpec `ebpf:"uplink_statistics"`
 	UrrMap             *ebpf.MapSpec `ebpf:"urr_map"`
+	VethTunnels        *ebpf.MapSpec `ebpf:"veth_tunnels"`
 }
 
 // N3N6EntrypointVariableSpecs contains global variables before they are loaded into the kernel.
@@ -344,6 +358,7 @@ type N3N6EntrypointMaps struct {
 	UplinkRouteStats   *ebpf.Map `ebpf:"uplink_route_stats"`
 	UplinkStatistics   *ebpf.Map `ebpf:"uplink_statistics"`
 	UrrMap             *ebpf.Map `ebpf:"urr_map"`
+	VethTunnels        *ebpf.Map `ebpf:"veth_tunnels"`
 }
 
 func (m *N3N6EntrypointMaps) Close() error {
@@ -366,6 +381,7 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.UplinkRouteStats,
 		m.UplinkStatistics,
 		m.UrrMap,
+		m.VethTunnels,
 	)
 }
 
@@ -389,6 +405,7 @@ type N3N6EntrypointPrograms struct {
 	UpfEntryFunc       *ebpf.Program `ebpf:"upf_entry_func"`
 	UpfGtpuControlFunc *ebpf.Program `ebpf:"upf_gtpu_control_func"`
 	UpfUplinkFunc      *ebpf.Program `ebpf:"upf_uplink_func"`
+	VethXdpFunc        *ebpf.Program `ebpf:"veth_xdp_func"`
 }
 
 func (p *N3N6EntrypointPrograms) Close() error {
@@ -397,6 +414,7 @@ func (p *N3N6EntrypointPrograms) Close() error {
 		p.UpfEntryFunc,
 		p.UpfGtpuControlFunc,
 		p.UpfUplinkFunc,
+		p.VethXdpFunc,
 	)
 }
 

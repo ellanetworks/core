@@ -11,7 +11,7 @@ import (
 
 // TestRAResponderConcurrentRegisterUnregister hammers Register/Unregister
 // (including handover-style re-register for the same TEID) from many goroutines.
-// Under -race it guards the r.mu discipline over the sessions map. vethBpf is
+// Under -race it guards the r.mu discipline over the sessions map. bpfObjects is
 // nil, so the tunnel-map writes are guarded out — those need privileged veth to
 // exercise.
 func TestRAResponderConcurrentRegisterUnregister(t *testing.T) {
