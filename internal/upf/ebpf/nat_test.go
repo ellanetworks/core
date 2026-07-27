@@ -963,6 +963,57 @@ func TestNATRemapsOnChangedEgressAddress(t *testing.T) {
 	}
 }
 
+// TestNATChangedEgressKeepsForeignReservation verifies that discarding a mapping
+// made against a different egress address leaves a NAT-side tuple another flow
+// has since taken intact.
+func TestNATChangedEgressKeepsForeignReservation(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid  = 0x4E41541C
+		ueSP  = 4322
+		srvDP = 80
+	)
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, teid, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+
+	uplink := ipv4Packet(ueIP, serverIP, 6, tcpSegmentChecksummed(ueIP, serverIP, ueSP, srvDP, nil))
+
+	ueKey := natFiveTuple(ueIP, serverIP, ueSP, srvDP, 6)
+	staleNAT := natFiveTuple([4]byte{192, 0, 2, 99}, serverIP, ueSP, srvDP, 6)
+	foreignKey := natFiveTuple([4]byte{10, 45, 0, 2}, serverIP, ueSP, srvDP, 6)
+
+	stale := N3N6EntrypointNatEntry{Peer: staleNAT, UeSide: 1, State: 1, Replied: 1}
+	if err := f.obj.NatCt.Put(&ueKey, &stale); err != nil {
+		t.Fatalf("seed stale mapping: %v", err)
+	}
+
+	// The NAT-side half was evicted and another flow took the tuple.
+	if err := f.obj.NatCt.Put(&staleNAT, &N3N6EntrypointNatEntry{Peer: foreignKey}); err != nil {
+		t.Fatalf("seed foreign reservation: %v", err)
+	}
+
+	capFD := f.captureN6(t)
+	f.injectUplink(t, uplinkGPDU(teid, uplink))
+
+	got := captureMatching(capFD, time.Second, func(fr []byte) bool {
+		return isInnerIPv4(fr, 6, serverIP)
+	})
+	if got == nil {
+		t.Fatal("uplink packet did not egress on N6")
+	}
+
+	if cur := lookupNatEntry(t, f, staleNAT); cur.Peer != foreignKey {
+		t.Errorf("foreign reservation peer = %+v, want %+v", cur.Peer, foreignKey)
+	}
+
+	want := natFiveTuple(natPublicIP, serverIP, ueSP, srvDP, 6)
+	if ue := lookupNatEntry(t, f, ueKey); ue.Peer.Saddr != want.Saddr {
+		t.Errorf("UE-side entry peer saddr = %d, want %d", ue.Peer.Saddr, want.Saddr)
+	}
+}
+
 // TestNATSynRetransmitDoesNotRenew verifies that a SYN on a flow the remote has
 // never answered leaves refresh_ts unchanged.
 func TestNATSynRetransmitDoesNotRenew(t *testing.T) {
@@ -1035,6 +1086,16 @@ func TestNATRejectsMalformedSegments(t *testing.T) {
 
 			return ipv4Packet(ueIP, serverIP, 17, d)
 		}},
+		{"icmp header past tot_len", func() []byte {
+			p := ipv4Packet(ueIP, serverIP, 1, icmpEchoRequest(2005, 1, nil))
+			// The datagram ends at the IP header, leaving the ICMP
+			// header as frame padding.
+			binary.BigEndian.PutUint16(p[2:4], 20)
+			binary.BigEndian.PutUint16(p[10:12], 0)
+			binary.BigEndian.PutUint16(p[10:12], ipv4HeaderChecksum(p[:20]))
+
+			return p
+		}},
 	}
 
 	for _, tc := range cases {
@@ -1046,7 +1107,9 @@ func TestNATRejectsMalformedSegments(t *testing.T) {
 			f.injectUplink(t, uplinkGPDU(teid, tc.build()))
 
 			if got := captureMatching(capFD, 500*time.Millisecond, func(fr []byte) bool {
-				return isInnerIPv4(fr, 6, serverIP) || isInnerIPv4(fr, 17, serverIP)
+				return isInnerIPv4(fr, 6, serverIP) ||
+					isInnerIPv4(fr, 17, serverIP) ||
+					isInnerIPv4(fr, 1, serverIP)
 			}); got != nil {
 				t.Errorf("malformed segment egressed on N6: %x", got)
 			}

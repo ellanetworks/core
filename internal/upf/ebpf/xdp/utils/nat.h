@@ -160,6 +160,14 @@ static __always_inline bool nat_udp_valid(const struct iphdr *ip4,
 	       ip4->ihl * 4 + len <= bpf_ntohs(ip4->tot_len);
 }
 
+static __always_inline bool nat_icmp_valid(const struct iphdr *ip4)
+{
+	__u16 tot_len = bpf_ntohs(ip4->tot_len);
+	__u16 hdr_len = ip4->ihl * 4;
+
+	return hdr_len + (__u16)sizeof(struct icmphdr) <= tot_len;
+}
+
 /* Bytes past the ICMP message are frame padding. */
 static __always_inline const void *nat_icmp_msg_end(struct packet_context *ctx)
 {
@@ -491,6 +499,10 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 				return false;
 			}
 		}
+		if (!nat_icmp_valid(ctx->ip4)) {
+			ctx->statistics->nat_malformed_drop_ip4 += 1;
+			return false;
+		}
 		if (nat_icmp_is_query(ctx->icmp->type)) {
 			orig.identifier = ctx->icmp->un.echo.id;
 			orig.type = ctx->icmp->type;
@@ -534,10 +546,15 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		__u8 replied = NAT_READ_ONCE(tracked->replied);
 
 		if (mapped.saddr != fib_params->ipv4_src) {
-			/* Both halves go: the NAT-side entry holds a
-			 * reservation on the old address. */
+			/* The reservation on the old address is only ours to
+			 * release while the entry still names this flow. */
+			struct nat_entry *stale =
+				bpf_map_lookup_elem(&nat_ct, &mapped);
+			if (stale && are_five_tuple_equal(stale->peer, orig)) {
+				bpf_map_delete_elem(&nat_ct, &mapped);
+			}
+
 			bpf_map_delete_elem(&nat_ct, &orig);
-			bpf_map_delete_elem(&nat_ct, &mapped);
 			goto allocate;
 		}
 
@@ -796,6 +813,11 @@ static __always_inline bool destination_nat_lookup(struct packet_context *ctx,
 				*counted = true;
 				return false;
 			}
+		}
+		if (!nat_icmp_valid(ctx->ip4)) {
+			ctx->statistics->nat_malformed_drop_ip4 += 1;
+			*counted = true;
+			return false;
 		}
 		key.identifier = ctx->icmp->un.echo.id;
 		key.type = ctx->icmp->type;
