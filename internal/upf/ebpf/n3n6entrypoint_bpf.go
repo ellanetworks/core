@@ -232,6 +232,8 @@ const (
 	N3N6EntrypointVarN3Vlan              = "n3_vlan"
 	N3N6EntrypointVarN6Ifindex           = "n6_ifindex"
 	N3N6EntrypointVarN6Vlan              = "n6_vlan"
+	N3N6EntrypointVarNatPortMax          = "nat_port_max"
+	N3N6EntrypointVarNatPortMin          = "nat_port_min"
 )
 
 // LoadN3N6Entrypoint returns the embedded CollectionSpec for N3N6Entrypoint.
@@ -318,6 +320,8 @@ type N3N6EntrypointVariableSpecs struct {
 	N3Vlan     *ebpf.VariableSpec `ebpf:"n3_vlan"`
 	N6Ifindex  *ebpf.VariableSpec `ebpf:"n6_ifindex"`
 	N6Vlan     *ebpf.VariableSpec `ebpf:"n6_vlan"`
+	NatPortMax *ebpf.VariableSpec `ebpf:"nat_port_max"`
+	NatPortMin *ebpf.VariableSpec `ebpf:"nat_port_min"`
 }
 
 // N3N6EntrypointObjects contains all objects after they have been loaded into the kernel.
@@ -395,6 +399,8 @@ type N3N6EntrypointVariables struct {
 	N3Vlan     *ebpf.Variable `ebpf:"n3_vlan"`
 	N6Ifindex  *ebpf.Variable `ebpf:"n6_ifindex"`
 	N6Vlan     *ebpf.Variable `ebpf:"n6_vlan"`
+	NatPortMax *ebpf.Variable `ebpf:"nat_port_max"`
+	NatPortMin *ebpf.Variable `ebpf:"nat_port_min"`
 }
 
 // N3N6EntrypointPrograms contains all programs after they have been loaded into the kernel.

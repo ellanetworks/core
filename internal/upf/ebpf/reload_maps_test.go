@@ -11,10 +11,8 @@ import (
 	"testing"
 )
 
-// TestEveryMapIsAssignedAndClassified fails if a map the BPF sources define is
-// absent from N3N6EntrypointMaps, or if mapsRecreatedOnReload names a map that
-// does not exist. preservedMaps derives its set from the struct, so an
-// unassigned map would be silently recreated on reload and lose its state.
+// preservedMaps derives its set from N3N6EntrypointMaps, so a map missing from
+// that struct is recreated on reload and loses its state.
 func TestEveryMapIsAssignedAndClassified(t *testing.T) {
 	spec, err := LoadN3N6Entrypoint()
 	if err != nil {
@@ -31,8 +29,7 @@ func TestEveryMapIsAssignedAndClassified(t *testing.T) {
 	}
 
 	for name := range spec.Maps {
-		// Internal maps (.rodata, .bss) hold the globals a reload exists to
-		// change; they are not assigned and are rebuilt by design.
+		// .rodata and .bss hold the globals a reload exists to change.
 		if strings.HasPrefix(name, ".") {
 			continue
 		}
@@ -50,8 +47,6 @@ func TestEveryMapIsAssignedAndClassified(t *testing.T) {
 	}
 }
 
-// TestPreservedMapsCoversLoadedCollection fails if a loaded map is not carried
-// across a reload, or if a map is both preserved and marked for recreation.
 func TestPreservedMapsCoversLoadedCollection(t *testing.T) {
 	requireProgTestRun(t)
 
