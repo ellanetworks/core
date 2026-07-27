@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include <sys/cdefs.h>
 
+#include "xdp/utils/common.h"
 #include "xdp/utils/csum.h"
 #include "xdp/utils/packet_context.h"
 #include "xdp/utils/parsers.h"
@@ -110,13 +111,22 @@ struct {
 	__uint(max_entries, NAT_CT_MAP_SIZE);
 } nat_ct SEC(".maps");
 
+/* A kernel that does not track a byte swap's bounds rejects packet-pointer
+ * arithmetic on tot_len, so the mask has to reach the verifier. */
+static __always_inline __u32 nat_ip4_tot_len(const struct iphdr *ip4)
+{
+	__u32 tot_len = bpf_ntohs(ip4->tot_len);
+
+	barrier_var(tot_len);
+
+	return tot_len & 0xFFFF;
+}
+
 /* Trailing frame bytes past tot_len are not part of the datagram. */
 static __always_inline bool nat_ip4_lengths_valid(const struct iphdr *ip4,
 						  const void *data_end)
 {
-	/* The AND bounds the scalar: the verifier rejects packet-pointer
-	 * arithmetic on the unbounded result of a byte swap. */
-	__u32 tot_len = bpf_ntohs(ip4->tot_len) & 0xFFFF;
+	__u32 tot_len = nat_ip4_tot_len(ip4);
 	__u32 hdr_len = ((__u32)ip4->ihl * 4) & 0x3C;
 
 	if (tot_len < hdr_len) {
@@ -153,9 +163,7 @@ static __always_inline bool nat_udp_valid(const struct iphdr *ip4,
 /* Bytes past the ICMP message are frame padding. */
 static __always_inline const void *nat_icmp_msg_end(struct packet_context *ctx)
 {
-	__u32 tot_len = bpf_ntohs(ctx->ip4->tot_len) & 0xFFFF;
-
-	return (const void *)ctx->ip4 + tot_len;
+	return (const void *)ctx->ip4 + nat_ip4_tot_len(ctx->ip4);
 }
 
 static __always_inline bool are_five_tuple_equal(struct five_tuple a,
