@@ -36,10 +36,35 @@
 /* Bounded so the verifier walk of the retry loop stays within the 1M
  * instruction budget of the uplink program. */
 #define NAT_PORT_RETRIES 16
-#define NAT_PORT_MIN 1024
+/* Lowest ICMP identifier kept from the UE. */
+#define NAT_ID_MIN 1024
 
 volatile const bool masquerade;
 volatile const bool masquerade = false;
+
+/* Clear of the kernel's ephemeral range: a host socket is invisible to nat_ct,
+ * so a shared port would let the host's reply resolve to a UE. */
+volatile const __u16 nat_port_min;
+volatile const __u16 nat_port_min = 1024;
+volatile const __u16 nat_port_max;
+volatile const __u16 nat_port_max = 32767;
+
+static __always_inline bool nat_port_in_range(__u16 port_be)
+{
+	__u16 port = bpf_ntohs(port_be);
+
+	return port >= nat_port_min && port <= nat_port_max;
+}
+
+/* An ICMP identifier is not drawn from the host's ephemeral range, so the
+ * masquerade range neither constrains nor protects it. */
+static __always_inline bool nat_id_reusable(__u16 proto, __u16 id_be)
+{
+	if (proto == IPPROTO_ICMP)
+		return bpf_ntohs(id_be) >= NAT_ID_MIN;
+
+	return nat_port_in_range(id_be);
+}
 
 /* Explicit padding: the kernel compares the whole key, so no byte may be
  * left undefined. */
@@ -228,6 +253,9 @@ nat_translate_icmp_quote(struct five_tuple *key, struct packet_context *ctx,
 		if (!udp || (const void *)(udp + 1) > msg_end) {
 			return NULL;
 		}
+		if (!nat_port_in_range(udp->source)) {
+			return NULL;
+		}
 		key->proto = ip4->protocol;
 		key->sport = udp->source;
 		key->dport = udp->dest;
@@ -264,6 +292,9 @@ nat_translate_icmp_quote(struct five_tuple *key, struct packet_context *ctx,
 	case IPPROTO_TCP:
 		tcp = detect_tcp_ports(ctx, offset);
 		if (!tcp || (const void *)((__u8 *)tcp + 8) > msg_end) {
+			return NULL;
+		}
+		if (!nat_port_in_range(tcp->source)) {
 			return NULL;
 		}
 		key->proto = ip4->protocol;
@@ -403,16 +434,24 @@ static __always_inline void update_port(struct packet_context *ctx,
 }
 static __always_inline __u16 nat_random_port(void)
 {
-	return bpf_htons(NAT_PORT_MIN +
-			 (__u16)(bpf_get_prandom_u32() %
-				 (65536 - NAT_PORT_MIN)));
+	__u16 min = nat_port_min;
+	__u16 max = nat_port_max;
+
+	if (max < min)
+		return bpf_htons(min);
+
+	__u32 span = (__u32)(max - min) + 1;
+
+	return bpf_htons(min + (__u16)(bpf_get_prandom_u32() % span));
 }
 
 static __always_inline __u16 nat_next_port(__u16 port_be)
 {
 	__u16 port = bpf_ntohs(port_be) + 1;
-	if (port < NAT_PORT_MIN)
-		port = NAT_PORT_MIN;
+
+	if (port < nat_port_min || port > nat_port_max)
+		port = nat_port_min;
+
 	return bpf_htons(port);
 }
 
@@ -519,10 +558,8 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 
 	struct five_tuple natted = {};
 	natted.saddr = fib_params->ipv4_src;
-	/* Keeping a source port below the allocation range would publish a
-	 * mapping on a privileged port of the UPF's own address. */
-	natted.sport = bpf_ntohs(orig.sport) >= NAT_PORT_MIN ? orig.sport :
-							      nat_random_port();
+	natted.sport = nat_id_reusable(proto, orig.sport) ? orig.sport :
+							    nat_random_port();
 	natted.daddr = ctx->ip4->daddr;
 	natted.dport = orig.dport;
 	natted.proto = proto;
@@ -849,6 +886,10 @@ static __always_inline bool destination_nat_lookup(struct packet_context *ctx,
 				return false;
 			}
 		}
+		if (!nat_port_in_range(ctx->tcp->dest)) {
+			return false;
+		}
+
 		key.sport = ctx->tcp->dest;
 		key.dport = ctx->tcp->source;
 		origin = bpf_map_lookup_elem(&nat_ct, &key);
@@ -878,6 +919,10 @@ static __always_inline bool destination_nat_lookup(struct packet_context *ctx,
 				return false;
 			}
 		}
+		if (!nat_port_in_range(ctx->udp->dest)) {
+			return false;
+		}
+
 		key.sport = ctx->udp->dest;
 		key.dport = ctx->udp->source;
 		origin = bpf_map_lookup_elem(&nat_ct, &key);

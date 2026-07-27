@@ -3,8 +3,7 @@
 
 package ebpf
 
-// veth_tunnels programming for the veth-smf <-> veth-xdp injection path. The
-// program and the map live in the N3/N6 collection; see xdp/n3n6_bpf.c.
+// veth_tunnels programming; the map and its program live in xdp/n3n6_bpf.c.
 
 import (
 	"net/netip"
