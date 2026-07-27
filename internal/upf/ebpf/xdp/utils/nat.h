@@ -456,8 +456,8 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		orig.dport = ctx->tcp->dest;
 		ctx->tcp->check = ipv4_csum_update_u32(
 			ctx->tcp->check, orig.saddr, ctx->ip4->saddr);
-		/* One class per segment, in the order netfilter uses: an abort
-		 * outranks a new connection, which outranks a close. */
+		/* One class per segment: an abort outranks a new connection,
+		 * which outranks a close. */
 		tcp_rst = ctx->tcp->rst;
 		tcp_new = !tcp_rst && ctx->tcp->syn && !ctx->tcp->ack;
 		tcp_fin = !tcp_rst && !tcp_new && ctx->tcp->fin;
