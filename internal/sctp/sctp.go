@@ -129,14 +129,6 @@ const (
 	SCTPCMsgNxtInfo
 )
 
-const (
-	SCTPUnordered = 1 << iota
-	SCTPAddrOver
-	SCTPAbort
-	SCTPSackImmediately
-	SCTPEof
-)
-
 type InitMsg struct {
 	NumOstreams    uint16
 	MaxInstreams   uint16
