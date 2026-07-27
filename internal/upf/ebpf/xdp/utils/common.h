@@ -27,3 +27,7 @@
 	__sync_fetch_and_add(&OBJECT->COUNTER, 1);
 
 #define DEFAULT_XDP_ACTION XDP_PASS
+
+/* Opaque to the optimizer, so a mask applied afterwards survives codegen and
+ * the verifier can derive bounds the compiler considers already known. */
+#define barrier_var(var) asm volatile("" : "+r"(var))

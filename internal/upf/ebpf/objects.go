@@ -79,8 +79,9 @@ func NewBpfObjects(flowact bool, masquerade bool, n3ifindex int, n6ifindex int, 
 // Tail-call indices in the upf_calls PROG_ARRAY; must match UPF_CALL_* in
 // xdp/n3n6_bpf.c.
 const (
-	upfCallUplink   = 0
-	upfCallDownlink = 1
+	upfCallUplink      = 0
+	upfCallDownlink    = 1
+	upfCallGtpuControl = 2
 )
 
 // populateTailCalls inserts the stage programs into the upf_calls PROG_ARRAY so
@@ -93,6 +94,10 @@ func populateTailCalls(objs *N3N6EntrypointObjects) error {
 
 	if err := objs.UpfCalls.Put(uint32(upfCallDownlink), objs.UpfDownlinkFunc); err != nil {
 		return fmt.Errorf("put downlink stage in upf_calls: %w", err)
+	}
+
+	if err := objs.UpfCalls.Put(uint32(upfCallGtpuControl), objs.UpfGtpuControlFunc); err != nil {
+		return fmt.Errorf("put gtpu control stage in upf_calls: %w", err)
 	}
 
 	return nil
@@ -260,11 +265,13 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 	oldEntry := bpfObjects.UpfEntryFunc
 	oldUplink := bpfObjects.UpfUplinkFunc
 	oldDownlink := bpfObjects.UpfDownlinkFunc
+	oldGtpuControl := bpfObjects.UpfGtpuControlFunc
 	oldCalls := bpfObjects.UpfCalls
 
 	bpfObjects.UpfEntryFunc = newObjects.UpfEntryFunc
 	bpfObjects.UpfUplinkFunc = newObjects.UpfUplinkFunc
 	bpfObjects.UpfDownlinkFunc = newObjects.UpfDownlinkFunc
+	bpfObjects.UpfGtpuControlFunc = newObjects.UpfGtpuControlFunc
 	bpfObjects.UpfCalls = newObjects.UpfCalls
 	bpfObjects.N3N6EntrypointVariables = newObjects.N3N6EntrypointVariables
 
@@ -280,7 +287,7 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 
 	// Close the old programs now that they have been replaced. The stage
 	// programs stay live in the kernel via the (new) prog-array reference.
-	for _, p := range []*ebpf.Program{oldEntry, oldUplink, oldDownlink} {
+	for _, p := range []*ebpf.Program{oldEntry, oldUplink, oldDownlink, oldGtpuControl} {
 		if err := p.Close(); err != nil {
 			logger.UpfLog.Warn("failed to close old program", zap.Error(err))
 		}

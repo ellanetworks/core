@@ -35,3 +35,6 @@ site
 /*.backup
 .VSCodeCounter/
 /ts_*.pdf
+
+# bpf2go compiler temporaries
+internal/upf/ebpf/*.o.tmp

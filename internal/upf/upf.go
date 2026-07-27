@@ -33,6 +33,8 @@ const (
 	PfcpNodeID          = "0.0.0.0"
 	FTEIDPool           = 65535
 	ConnTrackTimeout    = 10 * time.Minute
+	natGCInterval       = 10 * time.Second
+	natGCBatchSize      = 4096
 	InactiveFlowTimeout = 30 * time.Second
 	ActiveFlowTimeout   = 30 * time.Minute
 	maxInFlightFlows    = 16384
@@ -468,14 +470,17 @@ func (u *UPF) stopFlowCollection() {
 
 func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 	var (
-		key     ebpf.N3N6EntrypointFiveTuple
-		value   ebpf.N3N6EntrypointNatEntry
-		sysInfo unix.Sysinfo_t
+		ts     unix.Timespec
+		cursor bpf.MapBatchCursor
+		keys   = make([]ebpf.N3N6EntrypointFiveTuple, natGCBatchSize)
+		values = make([]ebpf.N3N6EntrypointNatEntry, natGCBatchSize)
 	)
 
-	expiredKeys := make([]ebpf.N3N6EntrypointFiveTuple, 0)
+	// Sized from the previous sweep: a retained map keeps its buckets,
+	// pinning the high-water mark of one traffic peak.
+	snapshotSize := 0
 
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(natGCInterval)
 	defer ticker.Stop()
 
 	for {
@@ -485,24 +490,41 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 		case <-ticker.C:
 		}
 
-		err := unix.Sysinfo(&sysInfo)
-		if err != nil {
-			logger.UpfLog.Warn("Failed to query sysinfo", zap.Error(err))
-			return
+		// refresh_ts is bpf_ktime_get_ns (CLOCK_MONOTONIC); comparing
+		// against any other clock ages entries by the suspend time.
+		if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
+			logger.UpfLog.Warn("Failed to query monotonic clock", zap.Error(err))
+			continue
 		}
 
-		nsSinceBoot := sysInfo.Uptime * time.Second.Nanoseconds()
-		expiryThreshold := nsSinceBoot - ConnTrackTimeout.Nanoseconds()
+		nowNs := uint64(ts.Nano())
 
-		ct_entries := u.se.BpfObjects.NatCt.Iterate()
-		for ct_entries.Next(&key, &value) {
-			if value.RefreshTs < uint64(expiryThreshold) {
-				expiredKeys = append(expiredKeys, key)
+		snapshot := make(map[ebpf.N3N6EntrypointFiveTuple]ebpf.N3N6EntrypointNatEntry, snapshotSize)
+
+		cursor = bpf.MapBatchCursor{}
+		complete := false
+
+		for {
+			n, err := u.se.BpfObjects.NatCt.BatchLookup(&cursor, keys, values, nil)
+			for i := 0; i < n; i++ {
+				snapshot[keys[i]] = values[i]
+			}
+
+			if err != nil {
+				complete = errors.Is(err, bpf.ErrKeyNotExist)
+				if !complete {
+					logger.UpfLog.Warn("Conntrack scan failed", zap.Error(err))
+				}
+
+				break
 			}
 		}
 
-		if err := ct_entries.Err(); err != nil {
-			logger.UpfLog.Warn("Conntrack iteration failed", zap.Error(err))
+		snapshotSize = len(snapshot)
+
+		expiredKeys := natExpiredKeys(snapshot, nowNs, complete)
+		if len(expiredKeys) == 0 {
+			continue
 		}
 
 		count, err := u.se.BpfObjects.NatCt.BatchDelete(expiredKeys, &bpf.BatchOptions{})
@@ -511,8 +533,6 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 		}
 
 		logger.UpfLog.Debug("Deleted expired conntrack entries", zap.Int("count", count))
-
-		expiredKeys = expiredKeys[:0]
 	}
 }
 
@@ -733,7 +753,7 @@ func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flow
 }
 
 func (u *UPF) collectExpiredFlows(ctx context.Context, flowch chan flowReport) {
-	var sysInfo unix.Sysinfo_t
+	var ts unix.Timespec
 
 	ticker := time.NewTicker(InactiveFlowTimeout / 2)
 	defer ticker.Stop()
@@ -744,27 +764,23 @@ func (u *UPF) collectExpiredFlows(ctx context.Context, flowch chan flowReport) {
 		case <-ctx.Done():
 			// Perform one final scan so flows that expired since the last tick
 			// are not silently lost on a graceful shutdown.
-			if err := unix.Sysinfo(&sysInfo); err != nil {
-				logger.UpfLog.Error("Failed to query sysinfo during final scan", zap.Error(err))
+			if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
+				logger.UpfLog.Error("Failed to query monotonic clock during final scan", zap.Error(err))
 				return
 			}
 
-			nsSinceBoot := sysInfo.Uptime * time.Second.Nanoseconds()
-			u.scanAndEnqueueExpiredFlows(nsSinceBoot-InactiveFlowTimeout.Nanoseconds(), flowch)
+			u.scanAndEnqueueExpiredFlows(ts.Nano()-InactiveFlowTimeout.Nanoseconds(), flowch)
 
 			return
 		case <-ticker.C:
 		}
 
-		if err := unix.Sysinfo(&sysInfo); err != nil {
-			// The only error returned by the sysinfo syscall is EFAULT if
-			// the pointer is invalid. This should never occur here.
-			logger.UpfLog.Error("Failed to query sysinfo", zap.Error(err))
-			return
+		if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
+			logger.UpfLog.Error("Failed to query monotonic clock", zap.Error(err))
+			continue
 		}
 
-		nsSinceBoot := sysInfo.Uptime * time.Second.Nanoseconds()
-		u.scanAndEnqueueExpiredFlows(nsSinceBoot-InactiveFlowTimeout.Nanoseconds(), flowch)
+		u.scanAndEnqueueExpiredFlows(ts.Nano()-InactiveFlowTimeout.Nanoseconds(), flowch)
 	}
 }
 

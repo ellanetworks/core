@@ -19,7 +19,7 @@ type N3N6EntrypointFiveTuple struct {
 	Sport uint16
 	Dport uint16
 	Proto uint16
-	_     [2]byte
+	Pad   uint16
 }
 
 type N3N6EntrypointFlow struct {
@@ -67,8 +67,13 @@ type N3N6EntrypointIn6Addr struct {
 
 type N3N6EntrypointNatEntry struct {
 	_         structs.HostLayout
-	Src       N3N6EntrypointFiveTuple
+	Peer      N3N6EntrypointFiveTuple
 	RefreshTs uint64
+	State     uint8
+	Replied   uint8
+	UeSide    uint8
+	Closed    uint8
+	Pad       [4]uint8
 }
 
 type N3N6EntrypointPdrInfo struct {
@@ -133,6 +138,8 @@ type N3N6EntrypointRouteStat struct {
 	FibLookupIp6FwdDisabled uint64
 	FibLookupIp6UnsuppLwt   uint64
 	Ip6IfindexMismatch      uint64
+	FibLookupIp4Error       uint64
+	FibLookupIp6Error       uint64
 }
 
 type N3N6EntrypointSdfFilterList struct {
@@ -164,9 +171,14 @@ type N3N6EntrypointUpfStatistic struct {
 		Rx uint64
 		Tx uint64
 	}
-	XdpActions         [8]uint64
-	SourceSpoofDropIp4 uint64
-	SourceSpoofDropIp6 uint64
+	XdpActions                 [8]uint64
+	SourceSpoofDropIp4         uint64
+	SourceSpoofDropIp6         uint64
+	NatUnsolicitedDropIp4      uint64
+	NatFragmentDropIp4         uint64
+	NatPortExhaustedDropIp4    uint64
+	NatUnsupportedProtoDropIp4 uint64
+	NatMalformedDropIp4        uint64
 }
 
 type N3N6EntrypointUrrKey struct {
@@ -180,33 +192,34 @@ type N3N6EntrypointUrrKey struct {
 //
 // Used for safe lookups in a Collection or CollectionSpec.
 const (
-	N3N6EntrypointMapCsumScratch        = "csum_scratch"
-	N3N6EntrypointMapDownlinkRouteStats = "downlink_route_stats"
-	N3N6EntrypointMapDownlinkStatistics = "downlink_statistics"
-	N3N6EntrypointMapFlowStats          = "flow_stats"
-	N3N6EntrypointMapFramedDownlinkIp4  = "framed_downlink_ip4"
-	N3N6EntrypointMapFramedDownlinkIp6  = "framed_downlink_ip6"
-	N3N6EntrypointMapNatCt              = "nat_ct"
-	N3N6EntrypointMapNoNeighMap         = "no_neigh_map"
-	N3N6EntrypointMapNocpMap            = "nocp_map"
-	N3N6EntrypointMapPdrsDownlinkIp4    = "pdrs_downlink_ip4"
-	N3N6EntrypointMapPdrsDownlinkIp6    = "pdrs_downlink_ip6"
-	N3N6EntrypointMapPdrsUplink         = "pdrs_uplink"
-	N3N6EntrypointMapRsEventMap         = "rs_event_map"
-	N3N6EntrypointMapSdfFilters         = "sdf_filters"
-	N3N6EntrypointMapUpfCalls           = "upf_calls"
-	N3N6EntrypointMapUplinkRouteStats   = "uplink_route_stats"
-	N3N6EntrypointMapUplinkStatistics   = "uplink_statistics"
-	N3N6EntrypointMapUrrMap             = "urr_map"
-	N3N6EntrypointProgUpfDownlinkFunc   = "upf_downlink_func"
-	N3N6EntrypointProgUpfEntryFunc      = "upf_entry_func"
-	N3N6EntrypointProgUpfUplinkFunc     = "upf_uplink_func"
-	N3N6EntrypointVarFlowact            = "flowact"
-	N3N6EntrypointVarMasquerade         = "masquerade"
-	N3N6EntrypointVarN3Ifindex          = "n3_ifindex"
-	N3N6EntrypointVarN3Vlan             = "n3_vlan"
-	N3N6EntrypointVarN6Ifindex          = "n6_ifindex"
-	N3N6EntrypointVarN6Vlan             = "n6_vlan"
+	N3N6EntrypointMapCsumScratch         = "csum_scratch"
+	N3N6EntrypointMapDownlinkRouteStats  = "downlink_route_stats"
+	N3N6EntrypointMapDownlinkStatistics  = "downlink_statistics"
+	N3N6EntrypointMapFlowStats           = "flow_stats"
+	N3N6EntrypointMapFramedDownlinkIp4   = "framed_downlink_ip4"
+	N3N6EntrypointMapFramedDownlinkIp6   = "framed_downlink_ip6"
+	N3N6EntrypointMapNatCt               = "nat_ct"
+	N3N6EntrypointMapNoNeighMap          = "no_neigh_map"
+	N3N6EntrypointMapNocpMap             = "nocp_map"
+	N3N6EntrypointMapPdrsDownlinkIp4     = "pdrs_downlink_ip4"
+	N3N6EntrypointMapPdrsDownlinkIp6     = "pdrs_downlink_ip6"
+	N3N6EntrypointMapPdrsUplink          = "pdrs_uplink"
+	N3N6EntrypointMapRsEventMap          = "rs_event_map"
+	N3N6EntrypointMapSdfFilters          = "sdf_filters"
+	N3N6EntrypointMapUpfCalls            = "upf_calls"
+	N3N6EntrypointMapUplinkRouteStats    = "uplink_route_stats"
+	N3N6EntrypointMapUplinkStatistics    = "uplink_statistics"
+	N3N6EntrypointMapUrrMap              = "urr_map"
+	N3N6EntrypointProgUpfDownlinkFunc    = "upf_downlink_func"
+	N3N6EntrypointProgUpfEntryFunc       = "upf_entry_func"
+	N3N6EntrypointProgUpfGtpuControlFunc = "upf_gtpu_control_func"
+	N3N6EntrypointProgUpfUplinkFunc      = "upf_uplink_func"
+	N3N6EntrypointVarFlowact             = "flowact"
+	N3N6EntrypointVarMasquerade          = "masquerade"
+	N3N6EntrypointVarN3Ifindex           = "n3_ifindex"
+	N3N6EntrypointVarN3Vlan              = "n3_vlan"
+	N3N6EntrypointVarN6Ifindex           = "n6_ifindex"
+	N3N6EntrypointVarN6Vlan              = "n6_vlan"
 )
 
 // LoadN3N6Entrypoint returns the embedded CollectionSpec for N3N6Entrypoint.
@@ -251,9 +264,10 @@ type N3N6EntrypointSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type N3N6EntrypointProgramSpecs struct {
-	UpfDownlinkFunc *ebpf.ProgramSpec `ebpf:"upf_downlink_func"`
-	UpfEntryFunc    *ebpf.ProgramSpec `ebpf:"upf_entry_func"`
-	UpfUplinkFunc   *ebpf.ProgramSpec `ebpf:"upf_uplink_func"`
+	UpfDownlinkFunc    *ebpf.ProgramSpec `ebpf:"upf_downlink_func"`
+	UpfEntryFunc       *ebpf.ProgramSpec `ebpf:"upf_entry_func"`
+	UpfGtpuControlFunc *ebpf.ProgramSpec `ebpf:"upf_gtpu_control_func"`
+	UpfUplinkFunc      *ebpf.ProgramSpec `ebpf:"upf_uplink_func"`
 }
 
 // N3N6EntrypointMapSpecs contains maps before they are loaded into the kernel.
@@ -371,15 +385,17 @@ type N3N6EntrypointVariables struct {
 //
 // It can be passed to LoadN3N6EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N3N6EntrypointPrograms struct {
-	UpfDownlinkFunc *ebpf.Program `ebpf:"upf_downlink_func"`
-	UpfEntryFunc    *ebpf.Program `ebpf:"upf_entry_func"`
-	UpfUplinkFunc   *ebpf.Program `ebpf:"upf_uplink_func"`
+	UpfDownlinkFunc    *ebpf.Program `ebpf:"upf_downlink_func"`
+	UpfEntryFunc       *ebpf.Program `ebpf:"upf_entry_func"`
+	UpfGtpuControlFunc *ebpf.Program `ebpf:"upf_gtpu_control_func"`
+	UpfUplinkFunc      *ebpf.Program `ebpf:"upf_uplink_func"`
 }
 
 func (p *N3N6EntrypointPrograms) Close() error {
 	return _N3N6EntrypointClose(
 		p.UpfDownlinkFunc,
 		p.UpfEntryFunc,
+		p.UpfGtpuControlFunc,
 		p.UpfUplinkFunc,
 	)
 }

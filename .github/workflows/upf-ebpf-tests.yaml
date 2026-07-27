@@ -9,9 +9,10 @@ on:
 jobs:
   upf-ebpf-tests:
     # Load and run the XDP datapath on each runner's stock kernel so the verifier
-    # (program-too-complex, map/feature support) is exercised per kernel version:
-    # ubuntu-22.04 -> 5.15, ubuntu-24.04 -> 6.x. A container shares the host kernel
-    # and cannot substitute for this. See bpf_datapath_split_plan.md.
+    # (program-too-complex, map/feature support) is exercised per runner image.
+    # Both images currently ship a 6.8 HWE kernel; the uname step below records
+    # what each run actually used. A container shares the host kernel and cannot
+    # substitute for this. See bpf_datapath_split_plan.md.
     strategy:
       fail-fast: false
       matrix:

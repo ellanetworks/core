@@ -119,30 +119,56 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 
 static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 {
-	if (masquerade) {
+	bool translated = false;
+	bool counted = false;
+	struct nat_xlate xlate = {};
+	/* Only the first fragment carries an L4 header, and translating it
+	 * alone leaves the rest unmatchable. */
+	const bool fragment = ctx->ip4->frag_off & bpf_htons(IP4_FRAG_MASK);
+	if (masquerade && !fragment) {
 		PROFILE_START(PROF_N6_NAT);
-		destination_nat(ctx);
+		translated = destination_nat_lookup(ctx, &xlate, &counted);
 		PROFILE_END(PROF_N6_NAT);
 	}
 	const struct iphdr *ip4 = ctx->ip4;
+	__u32 ue_addr = translated ? xlate.daddr : ip4->daddr;
 
 	PROFILE_START(PROF_N6_PDR_LOOKUP);
-	struct pdr_info *pdr =
-		bpf_map_lookup_elem(&pdrs_downlink_ip4, &ip4->daddr);
+	struct pdr_info *pdr = bpf_map_lookup_elem(&pdrs_downlink_ip4, &ue_addr);
 	PROFILE_END(PROF_N6_PDR_LOOKUP);
 	if (!pdr) {
 		/* Not a UE address: try the framed-route table (TS 29.244 §5.16).
 		 * The entry redirects to the owning UE address so the live downlink
 		 * PDR is the single source of truth. */
-		struct framed_ip4_key fk = { .prefixlen = 32, .addr = ip4->daddr };
+		struct framed_ip4_key fk = { .prefixlen = 32, .addr = ue_addr };
 		__u32 *ue_ip = bpf_map_lookup_elem(&framed_downlink_ip4, &fk);
 		if (ue_ip) {
 			pdr = bpf_map_lookup_elem(&pdrs_downlink_ip4, ue_ip);
 		}
 		if (!pdr) {
-			upf_printk("upf: no downlink session for ip:%pI4", &ip4->daddr);
+			upf_printk("upf: no downlink session for ip:%pI4", &ue_addr);
+			/* A conntrack hit makes this the UE's packet; the host
+			 * stack has no session to answer it with. */
+			if (translated) {
+				ctx->statistics->nat_unsolicited_drop_ip4 += 1;
+				return XDP_DROP;
+			}
+
 			return DEFAULT_XDP_ACTION;
 		}
+	}
+
+	/* With NAT the UE address is not visible on N6 (TS 23.501
+	 * §5.8.2.2.1): untranslated downlink to a UE is unsolicited. */
+	if (masquerade && !translated) {
+		upf_printk("upf: unsolicited downlink for ip:%pI4", &ip4->daddr);
+		if (fragment) {
+			ctx->statistics->nat_fragment_drop_ip4 += 1;
+		} else if (!counted) {
+			ctx->statistics->nat_unsolicited_drop_ip4 += 1;
+		}
+		account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, DROP);
+		return XDP_DROP;
 	}
 
 	struct far_info *far = &pdr->far;
@@ -168,8 +194,14 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	if (ret > 0) {
 		upf_printk("upf: n6 packet too large");
 		mtu_len -= encap_size;
+		/* The error must quote the packet as the sender sent it for the
+		 * sender to match it to a socket (RFC 792). */
 		return frag_needed(ctx, mtu_len);
 	}
+
+	PROFILE_START(PROF_N6_NAT);
+	destination_nat_apply(ctx, &xlate);
+	PROFILE_END(PROF_N6_NAT);
 
 	ctx->interface = INTERFACE_N6;
 

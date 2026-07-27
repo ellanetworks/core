@@ -56,12 +56,54 @@ func sumUplinkStatField(bpfObjects *BpfObjects, sel func(N3N6EntrypointUpfStatis
 	return total
 }
 
+func sumDownlinkStatField(bpfObjects *BpfObjects, sel func(N3N6EntrypointUpfStatistic) uint64) uint64 {
+	var statistics []N3N6EntrypointUpfStatistic
+
+	err := bpfObjects.DownlinkStatistics.Lookup(uint32(0), &statistics)
+	if err != nil {
+		logger.UpfLog.Warn("failed to fetch UPF N6 stats", zap.Error(err))
+		return 0
+	}
+
+	var total uint64
+	for _, statistic := range statistics {
+		total += sel(statistic)
+	}
+
+	return total
+}
+
 func GetN3SourceSpoofDropIPv4(bpfObjects *BpfObjects) uint64 {
 	return sumUplinkStatField(bpfObjects, func(s N3N6EntrypointUpfStatistic) uint64 { return s.SourceSpoofDropIp4 })
 }
 
 func GetN3SourceSpoofDropIPv6(bpfObjects *BpfObjects) uint64 {
 	return sumUplinkStatField(bpfObjects, func(s N3N6EntrypointUpfStatistic) uint64 { return s.SourceSpoofDropIp6 })
+}
+
+func GetN6NatUnsolicitedDropIPv4(bpfObjects *BpfObjects) uint64 {
+	return sumDownlinkStatField(bpfObjects, func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatUnsolicitedDropIp4 })
+}
+
+// NatDrops counts NAT drops by reason, summed over both directions.
+type NatDrops struct {
+	Fragment         uint64
+	PortExhausted    uint64
+	UnsupportedProto uint64
+	Malformed        uint64
+}
+
+func GetNatDrops(bpfObjects *BpfObjects) NatDrops {
+	sum := func(sel func(N3N6EntrypointUpfStatistic) uint64) uint64 {
+		return sumUplinkStatField(bpfObjects, sel) + sumDownlinkStatField(bpfObjects, sel)
+	}
+
+	return NatDrops{
+		Fragment:         sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatFragmentDropIp4 }),
+		PortExhausted:    sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatPortExhaustedDropIp4 }),
+		UnsupportedProto: sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatUnsupportedProtoDropIp4 }),
+		Malformed:        sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatMalformedDropIp4 }),
+	}
 }
 
 func GetN3Aborted(bpfObjects *BpfObjects) uint64 {
@@ -116,6 +158,8 @@ type RouteStats struct {
 	FibFwdDisabled  uint64
 	FibUnsuppLwt    uint64
 	IfindexMismatch uint64
+	FibError4       uint64
+	FibError6       uint64
 }
 
 func aggregateRouteStats(perCPUStats []N3N6EntrypointRouteStat) RouteStats {
@@ -132,6 +176,8 @@ func aggregateRouteStats(perCPUStats []N3N6EntrypointRouteStat) RouteStats {
 		rs.FibFwdDisabled += s.FibLookupIp4FwdDisabled + s.FibLookupIp6FwdDisabled
 		rs.FibUnsuppLwt += s.FibLookupIp4UnsuppLwt + s.FibLookupIp6UnsuppLwt
 		rs.IfindexMismatch += s.Ip4IfindexMismatch + s.Ip6IfindexMismatch
+		rs.FibError4 += s.FibLookupIp4Error
+		rs.FibError6 += s.FibLookupIp6Error
 	}
 
 	return rs

@@ -55,17 +55,6 @@
  * later. See bpf_datapath_split_plan.md.
  */
 
-/* Tail-call program array populated at load with the stage programs. */
-#define UPF_CALL_UPLINK 0
-#define UPF_CALL_DOWNLINK 1
-
-struct {
-	__uint(type, BPF_MAP_TYPE_PROG_ARRAY);
-	__type(key, __u32);
-	__type(value, __u32);
-	__uint(max_entries, 4);
-} upf_calls SEC(".maps");
-
 /* N3 uplink: GTP-U-encapsulated traffic from the gNB. */
 static __always_inline enum xdp_action handle_uplink_ip4(struct packet_context *ctx)
 {
@@ -172,19 +161,85 @@ static __always_inline enum xdp_action process_downlink(struct packet_context *c
 	return DEFAULT_XDP_ACTION;
 }
 
-/* get_or_init_stats returns the singleton statistics record for a map, creating
- * it on first use. */
-static __always_inline struct upf_statistic *get_or_init_stats(void *stats_map)
+/* The lookup fails only to the verifier: the statistics maps are single-entry
+ * per-CPU arrays, so index 0 always exists. */
+static __always_inline struct upf_statistic *get_stats(void *stats_map)
 {
 	const __u32 key = 0;
-	struct upf_statistic *statistics = bpf_map_lookup_elem(stats_map, &key);
-	if (!statistics) {
-		const struct upf_statistic initval = {};
-		bpf_map_update_elem(stats_map, &key, &initval, BPF_ANY);
-		statistics = bpf_map_lookup_elem(stats_map, &key);
+
+	return bpf_map_lookup_elem(stats_map, &key);
+}
+
+/* upf_gtpu_control_func: tail-call stage for the GTP-U messages the UPF answers
+ * itself — echo requests (TS 29.281 §7.2) and error indications for an unknown
+ * TEID (§7.3.1). Re-parses from its own ctx (the stack does not survive a tail
+ * call). */
+SEC("xdp/upf_gtpu_control")
+int upf_gtpu_control_func(struct xdp_md *ctx)
+{
+	struct upf_statistic *statistics = get_stats(&uplink_statistics);
+	if (!statistics)
+		return XDP_ABORTED;
+
+	struct packet_context context = {
+		.data = (void *)(long)ctx->data,
+		.data_end = (const void *)(long)ctx->data_end,
+		.xdp_ctx = ctx,
+		.statistics = statistics,
+		.interface = INTERFACE_N3,
+	};
+
+	if (context_reinit(&context, context.data, context.data_end) != 0)
+		return DEFAULT_XDP_ACTION;
+
+	/* Each transport is dispatched to its own return: a shared tail lets the
+	 * verifier merge the ip4 and ip6 states, after which it rejects a
+	 * dereference of either. */
+	if (context.ip4) {
+		if (parse_udp(&context) != GTP_UDP_PORT)
+			return DEFAULT_XDP_ACTION;
+
+		int pdu_type = parse_gtp(&context);
+		if (!context.gtp)
+			return DEFAULT_XDP_ACTION;
+
+		if (pdu_type == GTPU_ECHO_REQUEST)
+			return handle_echo_request(&context);
+
+		if (pdu_type != GTPU_G_PDU || context.gtp->teid == 0)
+			return DEFAULT_XDP_ACTION;
+
+		/* The stage is independently reachable, so the absent session is
+		 * confirmed here. */
+		__u32 teid4 = bpf_htonl(context.gtp->teid);
+		if (bpf_map_lookup_elem(&pdrs_uplink, &teid4))
+			return DEFAULT_XDP_ACTION;
+
+		return send_error_indication_ipv4(&context);
 	}
 
-	return statistics;
+	if (context.ip6) {
+		if (parse_udp(&context) != GTP_UDP_PORT)
+			return DEFAULT_XDP_ACTION;
+
+		int pdu_type = parse_gtp(&context);
+		if (!context.gtp)
+			return DEFAULT_XDP_ACTION;
+
+		if (pdu_type == GTPU_ECHO_REQUEST)
+			return handle_echo_request(&context);
+
+		if (pdu_type != GTPU_G_PDU || context.gtp->teid == 0)
+			return DEFAULT_XDP_ACTION;
+
+		__u32 teid6 = bpf_htonl(context.gtp->teid);
+		if (bpf_map_lookup_elem(&pdrs_uplink, &teid6))
+			return DEFAULT_XDP_ACTION;
+
+		return send_error_indication_ipv6(&context);
+	}
+
+	return DEFAULT_XDP_ACTION;
 }
 
 /* upf_uplink_func: tail-call stage for GTP-U uplink traffic. Re-parses from its
@@ -192,7 +247,7 @@ static __always_inline struct upf_statistic *get_or_init_stats(void *stats_map)
 SEC("xdp/upf_uplink")
 int upf_uplink_func(struct xdp_md *ctx)
 {
-	struct upf_statistic *statistics = get_or_init_stats(&uplink_statistics);
+	struct upf_statistic *statistics = get_stats(&uplink_statistics);
 	if (!statistics)
 		return XDP_ABORTED;
 
@@ -214,7 +269,7 @@ int upf_uplink_func(struct xdp_md *ctx)
 SEC("xdp/upf_downlink")
 int upf_downlink_func(struct xdp_md *ctx)
 {
-	struct upf_statistic *statistics = get_or_init_stats(&downlink_statistics);
+	struct upf_statistic *statistics = get_stats(&downlink_statistics);
 	if (!statistics)
 		return XDP_ABORTED;
 
@@ -235,7 +290,11 @@ int upf_downlink_func(struct xdp_md *ctx)
 /* upf_entry_func: attached to the N3/N6 interface(s). Classifies by packet type
  * — GTP-U (UDP :2152) is uplink, everything else is downlink — and tail-calls
  * the matching stage. Packet-type classification (not interface) keeps this
- * correct when N3 and N6 share one interface. */
+ * correct when N3 and N6 share one interface.
+ *
+ * With distinct interfaces the shape alone is not enough: uplink traffic is
+ * attributed to a subscriber and source-NATed on its behalf, so a GTP-U-shaped
+ * packet arriving on N6 must not claim that treatment. */
 SEC("xdp/upf_entry")
 int upf_entry_func(struct xdp_md *ctx)
 {
@@ -253,16 +312,23 @@ int upf_entry_func(struct xdp_md *ctx)
 		return XDP_PASS;
 	}
 
+	const bool split_interfaces = n3_ifindex != 0 && n6_ifindex != 0 &&
+				      n3_ifindex != n6_ifindex;
+	const bool gtpu_allowed = !split_interfaces ||
+				  ctx->ingress_ifindex == (__u32)n3_ifindex;
+
 	if (l3_protocol == ETH_P_IP) {
 		if (parse_ip4(&context) == IPPROTO_UDP) {
 			struct udphdr *udp = detect_udp_header(&context, 0);
-			if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT)
+			if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT &&
+			    gtpu_allowed)
 				index = UPF_CALL_UPLINK;
 		}
 	} else if (l3_protocol == ETH_P_IPV6) {
 		if (parse_ip6(&context) == IPPROTO_UDP) {
 			struct udphdr *udp = detect_udp_header(&context, 0);
-			if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT)
+			if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT &&
+			    gtpu_allowed)
 				index = UPF_CALL_UPLINK;
 		}
 	} else {

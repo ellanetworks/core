@@ -75,6 +75,8 @@ struct route_stat {
 	__u64 fib_lookup_ip6_fwd_disabled;
 	__u64 fib_lookup_ip6_unsupp_lwt;
 	__u64 ip6_ifindex_mismatch;
+	__u64 fib_lookup_ip4_error;
+	__u64 fib_lookup_ip6_error;
 };
 
 static __always_inline enum xdp_action
@@ -112,7 +114,9 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 	__builtin_memcpy(ctx->eth->h_source, fib_params->smac, ETH_ALEN);
 	__builtin_memcpy(ctx->eth->h_dest, fib_params->dmac, ETH_ALEN);
 
-	if (ctx->interface == INTERFACE_N3) {
+	/* GTP-U transport addresses are the UPF's and its peer's (TS 29.281
+	 * §4.4.3), and no downlink path reverses a translation of them. */
+	if (ctx->interface == INTERFACE_N3 && !ctx->gtp) {
 		if (masquerade) {
 			PROFILE_START(PROF_N3_NAT);
 			int nat_ok = source_nat(ctx, fib_params);
@@ -246,8 +250,14 @@ static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 		statistic->fib_lookup_ip4_unsupp_lwt += 1;
 		return XDP_PASS;
 	default:
+		/* A negative return is helper misuse, not a routing verdict;
+		 * passing hands the stack an untranslated UE address. */
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
+		if (rc < 0) {
+			statistic->fib_lookup_ip4_error += 1;
+			return XDP_DROP;
+		}
 		return XDP_PASS;
 	}
 }
@@ -331,6 +341,9 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 	default:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
+		if (rc < 0) {
+			statistic->fib_lookup_ip6_error += 1;
+		}
 		return XDP_PASS;
 	}
 }

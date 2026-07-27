@@ -19,7 +19,7 @@ type VethEntrypointFiveTuple struct {
 	Sport uint16
 	Dport uint16
 	Proto uint16
-	_     [2]byte
+	Pad   uint16
 }
 
 type VethEntrypointFlow struct {
@@ -67,8 +67,13 @@ type VethEntrypointIn6Addr struct {
 
 type VethEntrypointNatEntry struct {
 	_         structs.HostLayout
-	Src       VethEntrypointFiveTuple
+	Peer      VethEntrypointFiveTuple
 	RefreshTs uint64
+	State     uint8
+	Replied   uint8
+	UeSide    uint8
+	Closed    uint8
+	Pad       [4]uint8
 }
 
 type VethEntrypointPdrInfo struct {
@@ -133,6 +138,8 @@ type VethEntrypointRouteStat struct {
 	FibLookupIp6FwdDisabled uint64
 	FibLookupIp6UnsuppLwt   uint64
 	Ip6IfindexMismatch      uint64
+	FibLookupIp4Error       uint64
+	FibLookupIp6Error       uint64
 }
 
 type VethEntrypointSdfFilterList struct {
@@ -164,9 +171,14 @@ type VethEntrypointUpfStatistic struct {
 		Rx uint64
 		Tx uint64
 	}
-	XdpActions         [8]uint64
-	SourceSpoofDropIp4 uint64
-	SourceSpoofDropIp6 uint64
+	XdpActions                 [8]uint64
+	SourceSpoofDropIp4         uint64
+	SourceSpoofDropIp6         uint64
+	NatUnsolicitedDropIp4      uint64
+	NatFragmentDropIp4         uint64
+	NatPortExhaustedDropIp4    uint64
+	NatUnsupportedProtoDropIp4 uint64
+	NatMalformedDropIp4        uint64
 }
 
 type VethEntrypointUrrKey struct {

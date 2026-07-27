@@ -90,6 +90,12 @@ static __always_inline int parse_ip4(struct packet_context *ctx)
 	// if (ip4->frag_off & IP_FRAGMENTED)
 	//	return -1;
 
+	/* An ihl below the 20-byte minimum would place the L4 header inside
+	 * the IP header (RFC 791 section 3.1). */
+	if (ip4->ihl < 5) {
+		return -1;
+	}
+
 	ctx->data += ip4->ihl * 4; /* header + options */
 	ctx->ip4 = ip4;
 	return ip4->protocol;
@@ -142,6 +148,40 @@ detect_tcp_header(struct packet_context *ctx, int offset)
 		return NULL;
 	}
 	return tcp;
+}
+
+/* An ICMP error is only guaranteed to quote 8 octets of the original
+ * datagram (RFC 792), which covers the port pair but not the TCP checksum. */
+static __always_inline struct tcphdr *
+detect_tcp_ports(struct packet_context *ctx, int offset)
+{
+	struct tcphdr *tcp = (struct tcphdr *)(ctx->data + offset);
+	if ((const void *)((__u8 *)tcp + 8) > ctx->data_end) {
+		return NULL;
+	}
+	return tcp;
+}
+
+/* The TCP checksum ends at byte 18, so a quote can carry it without the full
+ * 20-byte header. */
+static __always_inline struct tcphdr *
+detect_tcp_check(struct packet_context *ctx, int offset)
+{
+	struct tcphdr *tcp = (struct tcphdr *)(ctx->data + offset);
+	if ((const void *)((__u8 *)tcp + 18) > ctx->data_end) {
+		return NULL;
+	}
+	return tcp;
+}
+
+static __always_inline struct icmphdr *
+detect_icmp_header(struct packet_context *ctx, int offset)
+{
+	struct icmphdr *icmp = (struct icmphdr *)(ctx->data + offset);
+	if ((const void *)(icmp + 1) > ctx->data_end) {
+		return NULL;
+	}
+	return icmp;
 }
 
 static __always_inline int parse_tcp(struct packet_context *ctx)

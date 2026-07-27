@@ -64,6 +64,20 @@ func RegisterMetrics() {
 		nil,
 	)
 
+	xdpNatUnsolicitedDropDesc := prometheus.NewDesc(
+		"app_xdp_nat_unsolicited_drop_total",
+		"Downlink packets dropped because NAT is enabled and the UE destination address had no conntrack translation.",
+		[]string{"family"},
+		nil,
+	)
+
+	xdpNatDropDesc := prometheus.NewDesc(
+		"app_xdp_nat_drop_total",
+		"Packets dropped by the NAT engine, by reason (fragment, port_exhausted, unsupported_proto, malformed).",
+		[]string{"reason"},
+		nil,
+	)
+
 	prometheus.MustRegister(upfUplinkBytes, upfDownlinkBytes)
 
 	// Register XDP action collector that produces metrics with labels
@@ -91,6 +105,18 @@ func RegisterMetrics() {
 		ch <- prometheus.MustNewConstMetric(xdpSourceSpoofDropDesc, prometheus.CounterValue, float64(ebpf.GetN3SourceSpoofDropIPv4(bpfObjects)), "ipv4")
 
 		ch <- prometheus.MustNewConstMetric(xdpSourceSpoofDropDesc, prometheus.CounterValue, float64(ebpf.GetN3SourceSpoofDropIPv6(bpfObjects)), "ipv6")
+
+		ch <- prometheus.MustNewConstMetric(xdpNatUnsolicitedDropDesc, prometheus.CounterValue, float64(ebpf.GetN6NatUnsolicitedDropIPv4(bpfObjects)), "ipv4")
+
+		natDrops := ebpf.GetNatDrops(bpfObjects)
+
+		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.Fragment), "fragment")
+
+		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.PortExhausted), "port_exhausted")
+
+		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.UnsupportedProto), "unsupported_proto")
+
+		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.Malformed), "malformed")
 	}))
 
 	// Register FIB lookup result and ifindex mismatch collector
@@ -124,6 +150,10 @@ func RegisterMetrics() {
 			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibFwdDisabled), entry.iface, "fwd_disabled")
 
 			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibUnsuppLwt), entry.iface, "unsupp_lwt")
+
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibError4), entry.iface, "error_ipv4")
+
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibError6), entry.iface, "error_ipv6")
 
 			ch <- prometheus.MustNewConstMetric(xdpIfindexMismatchDesc, prometheus.CounterValue, float64(entry.stats.IfindexMismatch), entry.iface)
 		}
