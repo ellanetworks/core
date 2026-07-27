@@ -216,10 +216,10 @@ func (c *SCTPConn) ReadMsg(b []byte) (int, *SndRcvInfo, Notification, error) {
 	return n, info, nil, err
 }
 
-// Close sends a graceful SCTP EOF to the peer and closes the underlying file
-// descriptor. Any goroutine blocked in ReadMsg or WriteMsg is safely unparked
-// by the runtime poller. Close is safe for concurrent use; the second and
-// subsequent calls return syscall.EBADF.
+// Close initiates the graceful SCTP shutdown handshake and closes the
+// underlying file descriptor. Any goroutine blocked in ReadMsg or WriteMsg is
+// safely unparked by the runtime poller. Close is safe for concurrent use; the
+// second and subsequent calls return net.ErrClosed.
 func (c *SCTPConn) Close() error {
 	if c == nil || c.file == nil {
 		return net.ErrClosed
@@ -229,18 +229,9 @@ func (c *SCTPConn) Close() error {
 		return net.ErrClosed
 	}
 
-	// Send SCTP EOF to notify the peer of graceful shutdown. Control() holds
-	// a reference to the fd, preventing the actual close(2) until it returns.
+	// Control() holds a reference to the fd, preventing the actual close(2)
+	// until it returns.
 	_ = c.rc.Control(func(fd uintptr) {
-		info := &SndRcvInfo{Flags: SCTPEof}
-		cmsgBuf := toBuf(info)
-		hdr := &syscall.Cmsghdr{
-			Level: syscall.IPPROTO_SCTP,
-			Type:  SCTPCMsgSndRcv,
-		}
-		hdr.SetLen(syscall.CmsgSpace(len(cmsgBuf)))
-		cbuf := append(toBuf(hdr), cmsgBuf...)
-		_, _ = syscall.SendmsgN(int(fd), nil, cbuf, nil, 0)
 		_ = syscall.Shutdown(int(fd), syscall.SHUT_RDWR)
 	})
 
