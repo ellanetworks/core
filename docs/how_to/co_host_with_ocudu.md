@@ -47,6 +47,7 @@ ip -n n3ns link set dev n3-ran-veth up
 ip link set dev n3-upf-veth up
 ethtool -K n3-upf-veth tx off
 ip netns exec n3ns ethtool -K n3-ran-veth tx off
+ethtool -K eth0 gro off
 ```
 
 Disabling TX checksum offload on both veth endpoints is required in `generic` XDP mode — see [Checksum offload on veth pairs](../explanation/user_plane_packet_processing_with_ebpf.md#checksum-offload-on-veth-pairs).
