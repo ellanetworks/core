@@ -31,6 +31,13 @@ import (
 
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N3N6Entrypoint xdp/n3n6_bpf.c -- -I. -O2 -Wall -Werror -g
 
+// Masquerade source-port range, held below the kernel's default ephemeral
+// floor so an allocation cannot name a port a host socket is using.
+const (
+	NatPortMin uint16 = 1024
+	NatPortMax uint16 = 32767
+)
+
 type DataNotification struct {
 	LocalSEID uint64
 	PdrID     uint16
@@ -167,6 +174,16 @@ func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, t
 		return err
 	}
 
+	if err := spec.Variables["nat_port_min"].Set(NatPortMin); err != nil {
+		logger.UpfLog.Error("failed to set nat port min", zap.Error(err))
+		return err
+	}
+
+	if err := spec.Variables["nat_port_max"].Set(NatPortMax); err != nil {
+		logger.UpfLog.Error("failed to set nat port max", zap.Error(err))
+		return err
+	}
+
 	if opts == nil {
 		opts = &ebpf.CollectionOptions{}
 	}
@@ -196,8 +213,8 @@ var mapsRecreatedOnReload = map[string]bool{
 // (LoadWithMapReplacements) so their session and runtime state survives a
 // global-variable change (NAT/flow-accounting toggle).
 //
-// The set is derived from the loaded collection rather than enumerated, so a
-// map added to the BPF sources is preserved without a second edit here.
+// Derived from the loaded collection, so a map added to the BPF sources is
+// preserved without a second edit here.
 func (bpfObjects *BpfObjects) preservedMaps() map[string]*ebpf.Map {
 	m := make(map[string]*ebpf.Map)
 
@@ -276,10 +293,8 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 		logger.UpfLog.Warn("failed to close cloned map fds", zap.Error(err))
 	}
 
-	// Close every old program now that the collection has been replaced. The
-	// stage programs stay live in the kernel via the (new) prog-array
-	// reference. Closing the whole struct covers programs added to the BPF
-	// sources without a second edit here.
+	// The stage programs stay live in the kernel via the new prog-array
+	// reference.
 	if err := oldPrograms.Close(); err != nil {
 		logger.UpfLog.Warn("failed to close old programs", zap.Error(err))
 	}

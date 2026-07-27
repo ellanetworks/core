@@ -341,8 +341,7 @@ int upf_entry_func(struct xdp_md *ctx)
 	return DEFAULT_XDP_ACTION;
 }
 
-/* Tunnel metadata for GTP-U encapsulation of packets injected via the veth
- * pair. Key: inner IPv6 destination address. */
+/* Keyed by the inner IPv6 destination address. */
 struct veth_tunnel_info {
 	__u32 teid;
 	struct in6_addr local_addr;
@@ -361,10 +360,8 @@ struct {
 	__uint(max_entries, 256);
 } veth_tunnels SEC(".maps");
 
-/* veth_xdp_func: attached to the veth-xdp end of the pair the SMF injects on
- * (Router Advertisements). An IPv6 packet whose destination matches
- * veth_tunnels is GTP-U encapsulated toward the gNB and redirected to the
- * egress the FIB chooses. */
+/* veth_xdp_func: attached to the veth-xdp end of the pair the SMF injects
+ * Router Advertisements on. */
 SEC("xdp/veth_xdp")
 int veth_xdp_func(struct xdp_md *ctx)
 {

@@ -59,8 +59,8 @@ type RAResponder struct {
 	n3IPv6    netip.Addr
 	n3Ifindex int
 
-	// Datapath objects, owned by the UPF. The RA responder attaches the veth
-	// program and programs veth_tunnels; it does not own the collection.
+	// Owned by the UPF; the responder attaches the veth program but does not
+	// close the collection.
 	bpfObjects *ebpf.BpfObjects
 	vethLink   link.Link
 
@@ -162,8 +162,7 @@ func (r *RAResponder) Start() error {
 	return nil
 }
 
-// UpdateProgram points the veth link at prog. A reload rebuilds every program
-// in the collection, so the attached veth program is stale until this runs.
+// UpdateProgram points the veth link at prog, which a reload has replaced.
 func (r *RAResponder) UpdateProgram(prog *bpf.Program) error {
 	if r == nil || r.vethLink == nil {
 		return nil
