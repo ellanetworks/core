@@ -294,6 +294,21 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 	state := ue.State()
 	step := ue.RegStep()
 
+	// TS 24.501 §5.5.1.2.8 case e: a second REGISTRATION REQUEST received while a
+	// registration is in progress and no REGISTRATION ACCEPT/REJECT has been sent
+	// yet. Identical IEs mean a retransmission — continue the in-flight procedure
+	// (its own T3560/T3550 guard drives progress) and ignore the duplicate rather
+	// than restarting, which would abandon the pending authentication and, for a
+	// UE retransmitting faster than one auth round-trip, prevent convergence.
+	// Differing IEs fall through to abort-and-progress the new request.
+	if step == amf.RegStepAuthenticating || step == amf.RegStepSecurityMode {
+		if conn := ue.Conn(); conn != nil && len(plain) > 0 && bytes.Equal(plain, conn.RegistrationRequestPlain) {
+			logger.From(ctx, logger.AmfLog).Info("duplicate Registration Request with identical IEs before Registration Accept; ignoring (TS 24.501 §5.5.1.2.8 case e)")
+
+			return nasreply.Handled()
+		}
+	}
+
 	switch {
 	case state == amf.Deregistered, state == amf.Registered, step == amf.RegStepAuthenticating:
 		if err := handleRegistrationRequestMessage(ctx, amfInstance, ue, msg.RegistrationRequest, plain, integrityVerified); err != nil {

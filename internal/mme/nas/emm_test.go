@@ -873,6 +873,41 @@ func TestAttachDuplicateIdenticalIEsResendsAccept(t *testing.T) {
 	}
 }
 
+// TestAttachDuplicatePreAcceptIdenticalIEsIgnored verifies that an identical ATTACH
+// REQUEST received while authentication is in progress (before ATTACH ACCEPT) is
+// ignored, continuing the in-flight procedure rather than restarting it
+// (TS 24.301 §5.5.1.2.7 case e).
+func TestAttachDuplicatePreAcceptIdenticalIEsIgnored(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+	ue.ForceRegStepForTest(mme.RegStepAuthenticating)
+
+	attach := &eps.AttachRequest{
+		EPSAttachType:       eps.AttachTypeEPS,
+		NASKeySetIdentifier: 7,
+		EPSMobileIdentity:   eps.EPSMobileIdentity{Type: eps.IdentityIMSI, Digits: "001010000000001"},
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(),
+	}
+
+	plain, err := attach.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The attach being served mid-authentication (no accept sent yet).
+	ue.Conn().AttachRequestPlain = plain
+
+	handleAttachRequest(context.Background(), m, ue, plain, false)
+
+	if cc.count() != 0 {
+		t.Fatalf("an identical pre-accept duplicate must be ignored (no downlink), got %d", cc.count())
+	}
+
+	if ue.RegStep() != mme.RegStepAuthenticating {
+		t.Fatalf("an identical pre-accept duplicate must not restart the procedure; RegStep = %s", ue.RegStep())
+	}
+}
+
 // TestAttachDuplicateDifferingIEsProgresses verifies an ATTACH REQUEST with differing
 // IEs while awaiting ATTACH COMPLETE aborts the previous attach and progresses the new
 // one — here re-identifying via authentication (TS 24.301 §5.5.1.2.7 case d).

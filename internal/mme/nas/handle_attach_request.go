@@ -54,6 +54,22 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, pla
 		return nasreply.Handled()
 	}
 
+	// An ATTACH REQUEST received while an attach is in progress and no ATTACH
+	// ACCEPT/REJECT has been sent yet (TS 24.301 §5.5.1.2.7 case e). Identical IEs
+	// mean a retransmission — continue the in-flight procedure (its T3460/T3450
+	// guard drives progress) and ignore the duplicate rather than restarting, which
+	// would abandon the pending authentication and, for a UE retransmitting faster
+	// than one auth round-trip, prevent convergence. Differing IEs fall through to
+	// supersede the earlier attach.
+	if step := ue.RegStep(); step == mme.RegStepAuthenticating || step == mme.RegStepSecurityMode {
+		if len(plain) > 0 && bytes.Equal(plain, ue.Conn().AttachRequestPlain) {
+			logger.From(ctx, logger.MmeLog).Info("duplicate Attach Request with identical IEs before Attach Accept; ignoring (TS 24.301 §5.5.1.2.7 case e)",
+				zap.Uint32("mme-ue-id", uint32(ue.Conn().MMEUES1APID)))
+
+			return nasreply.Handled()
+		}
+	}
+
 	// The UE's serving cell must be in this MME's served area, or ATTACH REJECT #12
 	// (ServesTAI, TS 24.301 §5.5.1.2.5).
 	if served, err := m.ServesTAI(ctx, ue.Conn().ServingTAI); err != nil {

@@ -779,6 +779,62 @@ func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t 
 	}
 }
 
+// TestHandleRegistrationRequest_Authenticating_IdenticalIEs_Ignored validates that
+// an identical REGISTRATION REQUEST received while authentication is in progress
+// (before REGISTRATION ACCEPT) is ignored, continuing the in-flight procedure
+// rather than restarting it (TS 24.501 §5.5.1.2.8 case e).
+func TestHandleRegistrationRequest_Authenticating_IdenticalIEs_Ignored(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&fakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, &fakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: []byte("testkey"),
+	}, nil)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.Suci = "testsuci"
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
+
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	full := new(nas.Message)
+	full.GmmMessage = m
+
+	plain, err := full.PlainNasEncode()
+	if err != nil {
+		t.Fatalf("encode plain RegistrationRequest: %v", err)
+	}
+
+	ue.Conn().RegistrationRequestPlain = plain
+
+	handleRegistrationRequest(ctx, amfInstance, ue, m, plain, true)
+
+	if len(ngapSender.SentDownlinkNASTransport) != 0 {
+		t.Fatalf("an identical pre-accept duplicate must be ignored (no downlink), got %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	if ue.RegStep() != amf.RegStepAuthenticating {
+		t.Fatalf("an identical pre-accept duplicate must not restart; RegStep = %v", ue.RegStep())
+	}
+}
+
 // TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest validates
 // that a registration request coming in while the security mode procedure is
 // on-going resets the state of the UE to deregistered, triggering a new
