@@ -16,6 +16,7 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
     sudo snap connect ella-core:process-control
     sudo snap connect ella-core:system-observe
     sudo snap connect ella-core:firewall-control
+    sudo snap connect ella-core:mount-observe
     ```
 
     Configure Ella Core:
