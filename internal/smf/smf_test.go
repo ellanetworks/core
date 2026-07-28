@@ -21,6 +21,7 @@ import (
 
 type fakeStore struct {
 	mu              sync.Mutex
+	teardownSeq     *teardownRecorder // shared with fakeUPF to assert teardown ordering
 	allocatedIP     netip.Addr
 	allocatedIPv6   netip.Addr
 	releasedIP      netip.Addr
@@ -80,6 +81,8 @@ func (f *fakeStore) AllocateIP(_ context.Context, _ string, _ uint8) (netip.Addr
 }
 
 func (f *fakeStore) ReleaseIP(_ context.Context, imsi string, _ uint8) (netip.Addr, error) {
+	f.teardownSeq.record("release-ip")
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -169,6 +172,7 @@ func (f *fakeStore) InsertFlowReports(_ context.Context, reports []*models.FlowR
 
 type fakeUPF struct {
 	mu               sync.Mutex
+	teardownSeq      *teardownRecorder // shared with fakeStore to assert teardown ordering
 	establishResult  *models.EstablishResponse
 	lastEstablish    *models.EstablishRequest
 	modifyCalls      []*models.ModifyRequest
@@ -202,6 +206,8 @@ func (f *fakeUPF) ModifySession(_ context.Context, req *models.ModifyRequest) er
 }
 
 func (f *fakeUPF) DeleteSession(_ context.Context, remoteSEID uint64) error {
+	f.teardownSeq.record("delete-session")
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

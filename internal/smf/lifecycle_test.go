@@ -10,6 +10,8 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -2488,5 +2490,82 @@ func TestUpdateSmContextN1Msg_ModificationRejected(t *testing.T) {
 
 	if got := m.PDUSessionModificationReject.GetCauseValue(); got != nasMessage.Cause5GSMRequestRejectedUnspecified {
 		t.Errorf("reject cause = %d, want %d (request rejected, unspecified)", got, nasMessage.Cause5GSMRequestRejectedUnspecified)
+	}
+}
+
+// teardownRecorder is a shared, ordered log used by the store and UPF fakes to
+// assert that the NAT-bearing user-plane teardown (DeleteSession) happens before
+// the IP lease release (see releaseUserPlaneThenAddresses).
+type teardownRecorder struct {
+	mu  sync.Mutex
+	seq []string
+}
+
+func (r *teardownRecorder) record(event string) {
+	if r == nil {
+		return
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.seq = append(r.seq, event)
+}
+
+func (r *teardownRecorder) events() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return slices.Clone(r.seq)
+}
+
+// TestReleaseSmContext_PurgesDatapathBeforeReleasingLease guards the fix for the
+// cross-subscriber misdelivery bug: the IP lease must not return to the allocator
+// until the UPF session (and its NAT conntrack) is torn down, or a reallocation
+// could inherit the previous subscriber's live flows.
+func TestReleaseSmContext_PurgesDatapathBeforeReleasingLease(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+
+	rec := &teardownRecorder{}
+	store.teardownSeq = rec
+	upf.teardownSeq = rec
+
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	if err := s.ReleaseSmContext(context.Background(), ref); err != nil {
+		t.Fatalf("ReleaseSmContext failed: %v", err)
+	}
+
+	got := rec.events()
+	if len(got) != 2 || got[0] != "delete-session" || got[1] != "release-ip" {
+		t.Fatalf("teardown order = %v, want [delete-session release-ip]", got)
+	}
+}
+
+// TestReleaseSmContext_KeepsLeaseWhenDatapathTeardownFails guards the fail-safe:
+// if the user-plane teardown fails, the IP lease is kept (the address stays bound
+// to this subscriber) rather than released for reuse with stale conntrack.
+func TestReleaseSmContext_KeepsLeaseWhenDatapathTeardownFails(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	upf.mu.Lock()
+	upf.err = fmt.Errorf("PFCP delete failed")
+	upf.mu.Unlock()
+
+	if err := s.ReleaseSmContext(context.Background(), ref); err == nil {
+		t.Fatal("expected an error when user-plane teardown fails")
+	}
+
+	store.mu.Lock()
+	released := len(store.releasedIPs)
+	store.mu.Unlock()
+
+	if released != 0 {
+		t.Fatalf("IP lease was released (%d) despite datapath teardown failure; it must be kept", released)
 	}
 }

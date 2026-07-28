@@ -329,33 +329,20 @@ func (s *SMF) GetSessionBySEID(seid uint64) *SMContext {
 	return nil
 }
 
-// RemoveSession removes a session from the pool and releases its IP address(es).
+// RemoveSession tears down a session's user plane, releases its IP address(es),
+// and removes it from the pool. Caller holds the session's Mutex.
 func (s *SMF) RemoveSession(ctx context.Context, ref string) {
 	smCtx := s.GetSession(ref)
 	if smCtx == nil {
 		return
 	}
 
+	// Tear down the user plane (and NAT conntrack) before releasing the leases, so
+	// the address is not reallocatable while stale conntrack survives; see
+	// releaseUserPlaneThenAddresses. Callers hold smCtx.Mutex.
+	_ = s.releaseUserPlaneThenAddresses(ctx, smCtx)
+
 	s.dropFromPool(smCtx)
-
-	if smCtx.PDUIPV4Address != nil || smCtx.PDUIPV6Prefix != nil {
-		dn, err := s.store.ResolveDNN(ctx, smCtx.Dnn)
-		if err != nil {
-			logger.SmfLog.Error("resolve data network for UE address release failed", zap.Error(err), zap.String("smContextRef", ref))
-		} else {
-			if smCtx.PDUIPV4Address != nil {
-				if _, err := dn.ReleaseIP(ctx, smCtx.Supi.IMSI(), smCtx.PDUSessionID); err != nil {
-					logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
-				}
-			}
-
-			if smCtx.PDUIPV6Prefix != nil {
-				if _, err := dn.ReleaseIPv6(ctx, smCtx.Supi.IMSI(), smCtx.PDUSessionID); err != nil {
-					logger.SmfLog.Error("release UE IPv6-Address failed", zap.Error(err), zap.String("smContextRef", ref))
-				}
-			}
-		}
-	}
 
 	logger.SmfLog.Info("SM Context removed", zap.String("smContextRef", ref))
 }

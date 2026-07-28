@@ -42,37 +42,50 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	// not keep firing against a released session.
 	smContext.stopProcedureTimer()
 
-	if smContext.PDUIPV4Address != nil || smContext.PDUIPV6Prefix != nil {
-		dn, err := s.store.ResolveDNN(ctx, smContext.Dnn)
-		if err != nil {
-			logger.SmfLog.Warn("resolve data network for UE address release failed", zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID), logger.DNN(smContext.Dnn), zap.String("smContextRef", smContextRef))
-		} else {
-			if smContext.PDUIPV4Address != nil {
-				_, releaseErr := dn.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.PDUSessionID)
-				if releaseErr != nil {
-					logger.SmfLog.Warn("release UE IP address failed", zap.Error(releaseErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID), logger.DNN(smContext.Dnn), zap.String("smContextRef", smContextRef))
-				}
-			}
-
-			if smContext.PDUIPV6Prefix != nil {
-				_, releaseErr := dn.ReleaseIPv6(ctx, smContext.Supi.IMSI(), smContext.PDUSessionID)
-				if releaseErr != nil {
-					logger.SmfLog.Warn("release UE IPv6 address failed", zap.Error(releaseErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID), logger.DNN(smContext.Dnn), zap.String("smContextRef", smContextRef))
-				}
-			}
-		}
-	}
-
-	err := s.releaseTunnel(ctx, smContext)
+	err := s.releaseUserPlaneThenAddresses(ctx, smContext)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to release tunnel")
+		span.SetStatus(codes.Error, "failed to release user plane")
 	}
 
 	// Remove from pool after all network I/O is complete.
 	s.dropFromPool(smContext)
 
 	return err
+}
+
+// releaseUserPlaneThenAddresses tears down the session's user plane (the UPF
+// session and, inside DeleteSession, its NAT conntrack) and only then releases the
+// UE IP leases. The order is load-bearing: an address returned to the allocator
+// before its conntrack entries are purged can be re-leased to another subscriber
+// that then receives the previous subscriber's in-flight downlink flows. If the
+// user-plane teardown fails the leases are kept — the address stays bound to this
+// IMSI, so it cannot be handed to a different subscriber with stale datapath state
+// — until the UE reattaches (which reuses the same (pool, IMSI, PDU-session-ID)
+// lease) or an operator reclaims it. Caller holds sc.Mutex.
+func (s *SMF) releaseUserPlaneThenAddresses(ctx context.Context, sc *SMContext) error {
+	if err := s.releaseTunnel(ctx, sc); err != nil {
+		logger.WithTrace(ctx, logger.SmfLog).Warn("user-plane teardown failed; keeping IP lease to prevent reuse with stale NAT conntrack",
+			zap.Error(err), logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID), logger.DNN(sc.Dnn))
+
+		return err
+	}
+
+	if sc.PDUIPV4Address == nil && sc.PDUIPV6Prefix == nil {
+		return nil
+	}
+
+	dn, err := s.store.ResolveDNN(ctx, sc.Dnn)
+	if err != nil {
+		logger.WithTrace(ctx, logger.SmfLog).Warn("resolve data network for UE address release failed; keeping IP lease",
+			zap.Error(err), logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID), logger.DNN(sc.Dnn))
+
+		return nil
+	}
+
+	s.releaseAllocatedAddresses(ctx, dn, sc)
+
+	return nil
 }
 
 func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
