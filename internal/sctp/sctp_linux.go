@@ -231,9 +231,7 @@ func (c *SCTPConn) Close() error {
 
 	// Wake the writer goroutine if it is parked on an empty queue (a parked
 	// send is unparked by the fd close below).
-	if c.writerDone != nil {
-		close(c.writerDone)
-	}
+	c.stopWriter()
 
 	// Control() holds a reference to the fd, preventing the actual close(2)
 	// until it returns.

@@ -78,6 +78,7 @@ func TestWriter_DeliversInOrder(t *testing.T) {
 	defer func() {
 		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+
 		srv.Shutdown(sctx)
 	}()
 
@@ -119,20 +120,21 @@ func TestWriter_DeliversInOrder(t *testing.T) {
 	}
 }
 
-// TestWriter_WedgedPeerFailsAssociation verifies the F15 fix: a peer that keeps
-// the association up but stops reading does not block a sender — the bounded
-// queue fills, the association is failed, and disconnect cleanup runs.
+// A peer that keeps the association up but stops reading must not block a
+// sender: the bounded queue fills, the association is failed, and disconnect
+// cleanup runs.
 func TestWriter_WedgedPeerFailsAssociation(t *testing.T) {
 	srv, serverConn, disconnected, client := serverWithAcceptedConn(t, 29412)
 
 	defer func() {
 		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+
 		srv.Shutdown(sctx)
 	}()
 
-	// Shrink both buffers so a non-reading client wedges the write side after a
-	// few messages rather than after megabytes.
+	// Shrink both buffers so a non-reading client wedges the write side within a
+	// few messages.
 	_ = client.controlFd(func(fd int) error {
 		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, 2048)
 	})
@@ -169,6 +171,56 @@ func TestWriter_WedgedPeerFailsAssociation(t *testing.T) {
 	}
 
 	if !sawQueueFull {
-		t.Log("association failed via write deadline rather than queue overflow (acceptable)")
+		t.Log("association failed via write deadline, not queue overflow")
+	}
+}
+
+// Closing an association must let its serve goroutine finish: the writer is
+// started before the conn is published, so Close always signals it and
+// awaitWriter cannot wait on an orphaned writer.
+func TestWriter_CloseReleasesServeGoroutine(t *testing.T) {
+	srv, serverConn, disconnected, _ := serverWithAcceptedConn(t, 29413)
+
+	defer func() {
+		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		srv.Shutdown(sctx)
+	}()
+
+	_ = serverConn.Close()
+
+	select {
+	case <-disconnected:
+	case <-time.After(5 * time.Second):
+		t.Fatal("OnDisconnect never ran; the serve goroutine is stuck waiting on the writer")
+	}
+}
+
+// A conn closed before its writer starts must still release awaitWriter, which
+// is the ordering a concurrent Shutdown could otherwise produce.
+func TestWriter_StartAfterCloseDoesNotOrphan(t *testing.T) {
+	skipIfNoSCTP(t)
+
+	const port = 29414
+
+	ln := newTestListener(t, port)
+	conn := acceptOne(t, ln, port)
+
+	_ = conn.Close()
+
+	conn.startWriter(zap.NewNop())
+
+	done := make(chan struct{})
+
+	go func() {
+		conn.awaitWriter()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("awaitWriter blocked on a writer started after Close")
 	}
 }

@@ -184,6 +184,10 @@ func (s *Server) acceptLoop(ctx context.Context) {
 			continue
 		}
 
+		// Start the writer before publishing the conn, so a concurrent Shutdown
+		// can never Close it while its stop signal is still nil.
+		conn.startWriter(s.cfg.Logger)
+
 		s.conns.Store(conn, struct{}{})
 		s.wg.Add(1)
 
@@ -227,8 +231,6 @@ func (s *Server) serveConn(ctx context.Context, conn *SCTPConn) {
 	}
 
 	s.cfg.Logger.Info("New SCTP connection", zap.String("remote_address", remoteAddr.String()))
-
-	conn.startWriter(s.cfg.Logger)
 
 	buf := make([]byte, readBufSize)
 

@@ -27,6 +27,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -354,10 +355,12 @@ type SCTPConn struct {
 	localAddr  atomic.Pointer[SCTPAddr]
 	remoteAddr atomic.Pointer[SCTPAddr]
 
-	// Set by startWriter on accepted associations; nil for dialled/test conns,
-	// which write synchronously. See writer.go.
-	writeCh      chan queuedWrite
+	// writerDone always exists so Close can signal a writer whenever one is
+	// started; the rest is set by startWriter on accepted associations and stays
+	// nil for dialled/test conns, which write synchronously. See writer.go.
 	writerDone   chan struct{}
+	writerStop   sync.Once
+	writeCh      chan queuedWrite
 	writerExited chan struct{}
 	writeLogger  *zap.Logger
 }
@@ -400,7 +403,7 @@ func NewSCTPConn(fd int) *SCTPConn {
 		return nil
 	}
 
-	return &SCTPConn{file: f, rc: rc}
+	return &SCTPConn{file: f, rc: rc, writerDone: make(chan struct{})}
 }
 
 func (c *SCTPConn) SubscribeEvents(flags int) error {

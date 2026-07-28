@@ -15,8 +15,7 @@ import (
 const (
 	// writeQueueDepth bounds the per-association outbound backlog. A healthy peer
 	// drains in microseconds, so a backlog this deep means the peer has stopped
-	// reading; the association is failed rather than growing the backlog or
-	// blocking a sender.
+	// reading and the association is failed.
 	writeQueueDepth = 256
 
 	// writeTimeout bounds one blocking send. Expiry means the peer's receive
@@ -28,25 +27,40 @@ var errWriteQueueFull = errors.New("sctp: outbound queue full")
 
 type queuedWrite struct {
 	b    []byte
-	info SndRcvInfo
+	info *SndRcvInfo
 }
 
 // startWriter runs the dedicated writer goroutine for an accepted association.
 // WriteMsg then enqueues onto a bounded channel drained here in FIFO order, so no
 // application goroutine blocks on a slow peer and per-association ordering holds.
+// A conn already closed exits the loop at once, since Close has signalled
+// writerDone.
 func (c *SCTPConn) startWriter(logger *zap.Logger) {
 	c.writeLogger = logger
 	c.writeCh = make(chan queuedWrite, writeQueueDepth)
-	c.writerDone = make(chan struct{})
 	c.writerExited = make(chan struct{})
 
 	go c.writeLoop()
+}
+
+// stopWriter signals the writer goroutine to exit, once however many times Close
+// is called.
+func (c *SCTPConn) stopWriter() {
+	c.writerStop.Do(func() { close(c.writerDone) })
 }
 
 func (c *SCTPConn) writeLoop() {
 	defer close(c.writerExited)
 
 	for {
+		// Checked first so a close is observed even when a queued write is also
+		// ready, which would otherwise send on a closed fd.
+		select {
+		case <-c.writerDone:
+			return
+		default:
+		}
+
 		select {
 		case <-c.writerDone:
 			return
@@ -56,7 +70,7 @@ func (c *SCTPConn) writeLoop() {
 				return
 			}
 
-			if _, err := c.writeMsgSync(qw.b, &qw.info); err != nil {
+			if _, err := c.writeMsgSync(qw.b, qw.info); err != nil {
 				c.failAssociation("send", err)
 				return
 			}
@@ -74,8 +88,19 @@ func (c *SCTPConn) WriteMsg(b []byte, info *SndRcvInfo) (int, error) {
 	}
 
 	qw := queuedWrite{b: append([]byte(nil), b...)}
+
 	if info != nil {
-		qw.info = *info
+		// Copied so a caller reusing its struct cannot mutate a queued write.
+		cp := *info
+		qw.info = &cp
+	}
+
+	// Checked first so a send on a closed association is not reported as
+	// success when the queue also has space.
+	select {
+	case <-c.writerDone:
+		return 0, net.ErrClosed
+	default:
 	}
 
 	select {
