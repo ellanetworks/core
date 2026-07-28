@@ -184,8 +184,6 @@ func (s *Server) acceptLoop(ctx context.Context) {
 			continue
 		}
 
-		// Start the writer before publishing the conn, so a concurrent Shutdown
-		// can never Close it while its stop signal is still nil.
 		conn.startWriter(s.cfg.Logger)
 
 		s.conns.Store(conn, struct{}{})

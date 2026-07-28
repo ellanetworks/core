@@ -15,9 +15,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// serverWithAcceptedConn starts a Server on port, returns the accepted
-// server-side conn (captured from Dispatch after the client sends one trigger
-// message) and a channel closed when that conn disconnects.
 func serverWithAcceptedConn(t *testing.T, port int) (server *Server, accepted *SCTPConn, disconnected chan struct{}, client *SCTPConn) {
 	t.Helper()
 
@@ -70,8 +67,6 @@ func serverWithAcceptedConn(t *testing.T, port int) (server *Server, accepted *S
 	return srv, accepted, disconnected, client
 }
 
-// TestWriter_DeliversInOrder verifies the per-association writer queue delivers
-// every enqueued PDU to the peer in FIFO order.
 func TestWriter_DeliversInOrder(t *testing.T) {
 	srv, serverConn, _, client := serverWithAcceptedConn(t, 29411)
 
@@ -120,9 +115,7 @@ func TestWriter_DeliversInOrder(t *testing.T) {
 	}
 }
 
-// A peer that keeps the association up but stops reading must not block a
-// sender: the bounded queue fills, the association is failed, and disconnect
-// cleanup runs.
+// A peer that keeps the association up but stops reading must not block a sender.
 func TestWriter_WedgedPeerFailsAssociation(t *testing.T) {
 	srv, serverConn, disconnected, client := serverWithAcceptedConn(t, 29412)
 
@@ -133,8 +126,7 @@ func TestWriter_WedgedPeerFailsAssociation(t *testing.T) {
 		srv.Shutdown(sctx)
 	}()
 
-	// Shrink both buffers so a non-reading client wedges the write side within a
-	// few messages.
+	// Shrink both buffers so the write side wedges within a few messages.
 	_ = client.controlFd(func(fd int) error {
 		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, 2048)
 	})
@@ -142,9 +134,6 @@ func TestWriter_WedgedPeerFailsAssociation(t *testing.T) {
 		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_SNDBUF, 2048)
 	})
 
-	// The client never reads. Enqueue a burst larger than the queue depth; the
-	// caller must never block, and the queue must overflow (or the write deadline
-	// fire) and fail the association.
 	payload := make([]byte, 1024)
 	deadline := time.Now().Add(20 * time.Second)
 	sawQueueFull := false
@@ -175,9 +164,6 @@ func TestWriter_WedgedPeerFailsAssociation(t *testing.T) {
 	}
 }
 
-// Closing an association must let its serve goroutine finish: the writer is
-// started before the conn is published, so Close always signals it and
-// awaitWriter cannot wait on an orphaned writer.
 func TestWriter_CloseReleasesServeGoroutine(t *testing.T) {
 	srv, serverConn, disconnected, _ := serverWithAcceptedConn(t, 29413)
 
@@ -197,8 +183,6 @@ func TestWriter_CloseReleasesServeGoroutine(t *testing.T) {
 	}
 }
 
-// A conn closed before its writer starts must still release awaitWriter, which
-// is the ordering a concurrent Shutdown could otherwise produce.
 func TestWriter_StartAfterCloseDoesNotOrphan(t *testing.T) {
 	skipIfNoSCTP(t)
 

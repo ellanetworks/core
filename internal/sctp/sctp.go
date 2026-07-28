@@ -355,9 +355,8 @@ type SCTPConn struct {
 	localAddr  atomic.Pointer[SCTPAddr]
 	remoteAddr atomic.Pointer[SCTPAddr]
 
-	// writerDone always exists so Close can signal a writer whenever one is
-	// started; the rest is set by startWriter on accepted associations and stays
-	// nil for dialled/test conns, which write synchronously. See writer.go.
+	// writerDone always exists so Close can signal a writer started later; the
+	// rest stays nil on dialled conns, which write synchronously.
 	writerDone   chan struct{}
 	writerStop   sync.Once
 	writeCh      chan queuedWrite
@@ -576,8 +575,8 @@ func (c *SCTPConn) SetDeadline(t time.Time) error {
 	return c.file.SetDeadline(t)
 }
 
-// SetWriteDeadline bounds only the write side, leaving a concurrent ReadMsg on
-// the read loop unaffected.
+// SetWriteDeadline bounds only the write side, leaving a concurrent ReadMsg
+// unaffected.
 func (c *SCTPConn) SetWriteDeadline(t time.Time) error {
 	if c.file == nil {
 		return syscall.EBADF
