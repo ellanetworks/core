@@ -239,12 +239,14 @@ func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeConte
 		return nil, err
 	}
 
-	plmn, err := m.OperatorPLMN(ctx)
+	operator, err := m.Operator(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	served, err := m.ServedTAIs(ctx)
+	plmn := operator.PLMN()
+
+	served, err := operator.ServedTAIs()
 	if err != nil {
 		return nil, err
 	}

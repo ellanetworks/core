@@ -23,13 +23,15 @@ func handleENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Ra
 		return
 	}
 
-	plmn, err := m.OperatorPLMN(ctx)
+	operator, err := m.Operator(ctx)
 	if err != nil {
-		logger.From(ctx, radio.Log).Error("failed to get operator PLMN for ENB Configuration Update", zap.Error(err))
+		logger.From(ctx, radio.Log).Error("failed to get operator for ENB Configuration Update", zap.Error(err))
 		return
 	}
 
-	tacs, err := m.OperatorTACs(ctx)
+	plmn := operator.PLMN()
+
+	tacs, err := operator.TACs()
 	if err != nil {
 		logger.From(ctx, radio.Log).Error("failed to get operator TACs for ENB Configuration Update", zap.Error(err))
 		return

@@ -62,7 +62,13 @@ func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti, cause
 // front on the release trigger and again on completion. Caller must hold
 // smContext.Mutex.
 func (s *SMF) releaseUserPlane(ctx context.Context, smContext *SMContext) {
-	s.releaseAllocatedAddresses(ctx, smContext)
+	dn, err := s.store.ResolveDNN(ctx, smContext.Dnn)
+	if err != nil {
+		logger.WithTrace(ctx, logger.SmfLog).Error("failed to resolve data network to release UE addresses",
+			zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+	} else {
+		s.releaseAllocatedAddresses(ctx, dn, smContext)
+	}
 
 	if err := s.releaseTunnel(ctx, smContext); err != nil {
 		logger.WithTrace(ctx, logger.SmfLog).Warn("release tunnel failed, continuing release",

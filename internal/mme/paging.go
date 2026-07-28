@@ -180,27 +180,15 @@ func (m *MME) pageRadios(ctx context.Context, ue *UeContext, b []byte) {
 	}
 }
 
-// ServedTAIs is the network's served tracking areas: the operator PLMN paired with
-// each served TAC. Every UE is registered in this area (TS 23.401 §5.3.4).
+// ServedTAIs is the network's served tracking areas, per
+// OperatorConfig.ServedTAIs.
 func (m *MME) ServedTAIs(ctx context.Context) ([]models.Tai, error) {
-	plmn, err := m.OperatorPLMN(ctx)
+	o, err := m.Operator(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("operator PLMN: %w", err)
+		return nil, err
 	}
 
-	tacs, err := m.OperatorTACs(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("operator TACs: %w", err)
-	}
-
-	out := make([]models.Tai, 0, len(tacs))
-
-	for _, tac := range tacs {
-		p := plmn
-		out = append(out, models.Tai{PlmnID: &p, Tac: fmt.Sprintf("%06x", tac)})
-	}
-
-	return out, nil
+	return o.ServedTAIs()
 }
 
 // areaToS1APTAIs encodes a registration area as the S1AP TAI list carried in Paging.

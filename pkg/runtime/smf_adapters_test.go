@@ -92,7 +92,12 @@ func TestReleaseIP_StaticKeepsReservation(t *testing.T) {
 		t.Fatalf("CreateStaticLease: %s", err)
 	}
 
-	got, err := adapter.AllocateIP(ctx, imsi, dnn, 7)
+	dn, err := adapter.ResolveDNN(ctx, dnn)
+	if err != nil {
+		t.Fatalf("ResolveDNN: %s", err)
+	}
+
+	got, err := dn.AllocateIP(ctx, imsi, 7)
 	if err != nil {
 		t.Fatalf("AllocateIP: %s", err)
 	}
@@ -101,7 +106,7 @@ func TestReleaseIP_StaticKeepsReservation(t *testing.T) {
 		t.Fatalf("expected pinned address %s, got %s", pinned, got)
 	}
 
-	released, err := adapter.ReleaseIP(ctx, imsi, dnn, 7)
+	released, err := dn.ReleaseIP(ctx, imsi, 7)
 	if err != nil {
 		t.Fatalf("ReleaseIP: %s", err)
 	}
@@ -128,7 +133,12 @@ func TestReleaseIP_DynamicDeletesLease(t *testing.T) {
 	adapter, dnn, poolID, imsi := setupAdapterTestDB(t)
 	ctx := context.Background()
 
-	got, err := adapter.AllocateIP(ctx, imsi, dnn, 9)
+	dn, err := adapter.ResolveDNN(ctx, dnn)
+	if err != nil {
+		t.Fatalf("ResolveDNN: %s", err)
+	}
+
+	got, err := dn.AllocateIP(ctx, imsi, 9)
 	if err != nil {
 		t.Fatalf("AllocateIP: %s", err)
 	}
@@ -137,7 +147,7 @@ func TestReleaseIP_DynamicDeletesLease(t *testing.T) {
 		t.Fatalf("expected dynamic lease for session 9, got %v", err)
 	}
 
-	released, err := adapter.ReleaseIP(ctx, imsi, dnn, 9)
+	released, err := dn.ReleaseIP(ctx, imsi, 9)
 	if err != nil {
 		t.Fatalf("ReleaseIP: %s", err)
 	}

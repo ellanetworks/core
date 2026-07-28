@@ -119,7 +119,7 @@ func narrowPDUType(requested, negotiated uint8) pduTypeNarrowing {
 // them on sc, and returns the downlink-PDR key (the IPv4 address, or the /64
 // prefix base for IPv6-only). On failure it releases whatever it had allocated.
 // The caller holds sc.Mutex.
-func (s *SMF) allocateUEAddresses(ctx context.Context, sc *SMContext) (netip.Addr, ueAddresses, error) {
+func (s *SMF) allocateUEAddresses(ctx context.Context, dn DNNStore, sc *SMContext) (netip.Addr, ueAddresses, error) {
 	imsi := sc.Supi.IMSI()
 
 	var (
@@ -128,7 +128,7 @@ func (s *SMF) allocateUEAddresses(ctx context.Context, sc *SMContext) (netip.Add
 	)
 
 	if sc.PDUSessionType == nasMessage.PDUSessionTypeIPv4 || sc.PDUSessionType == nasMessage.PDUSessionTypeIPv4IPv6 {
-		ipv4, err := s.store.AllocateIP(ctx, imsi, sc.Dnn, sc.PDUSessionID)
+		ipv4, err := dn.AllocateIP(ctx, imsi, sc.PDUSessionID)
 		if err != nil {
 			return netip.Addr{}, ueAddresses{}, fmt.Errorf("allocate UE IPv4: %w", err)
 		}
@@ -139,9 +139,9 @@ func (s *SMF) allocateUEAddresses(ctx context.Context, sc *SMContext) (netip.Add
 	}
 
 	if sc.PDUSessionType == nasMessage.PDUSessionTypeIPv6 || sc.PDUSessionType == nasMessage.PDUSessionTypeIPv4IPv6 {
-		ipv6Prefix, err := s.store.AllocateIPv6(ctx, imsi, sc.Dnn, sc.PDUSessionID)
+		ipv6Prefix, err := dn.AllocateIPv6(ctx, imsi, sc.PDUSessionID)
 		if err != nil {
-			s.releaseAllocatedAddresses(ctx, sc)
+			s.releaseAllocatedAddresses(ctx, dn, sc)
 			return netip.Addr{}, ueAddresses{}, fmt.Errorf("allocate UE IPv6 prefix: %w", err)
 		}
 
@@ -150,7 +150,7 @@ func (s *SMF) allocateUEAddresses(ctx context.Context, sc *SMContext) (netip.Add
 
 		iid, err := s.assignIID(sc.Dnn)
 		if err != nil {
-			s.releaseAllocatedAddresses(ctx, sc)
+			s.releaseAllocatedAddresses(ctx, dn, sc)
 			return netip.Addr{}, ueAddresses{}, fmt.Errorf("assign IPv6 IID: %w", err)
 		}
 
@@ -167,9 +167,9 @@ func (s *SMF) allocateUEAddresses(ctx context.Context, sc *SMContext) (netip.Add
 
 // releaseAllocatedAddresses releases the UE IP leases recorded on smContext and
 // clears them, so a later rollback does not double-release.
-func (s *SMF) releaseAllocatedAddresses(ctx context.Context, smContext *SMContext) {
+func (s *SMF) releaseAllocatedAddresses(ctx context.Context, dn DNNStore, smContext *SMContext) {
 	if smContext.PDUIPV4Address != nil {
-		if _, err := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID); err != nil {
+		if _, err := dn.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.PDUSessionID); err != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv4 address", zap.Error(err))
 		}
 
@@ -177,7 +177,7 @@ func (s *SMF) releaseAllocatedAddresses(ctx context.Context, smContext *SMContex
 	}
 
 	if smContext.PDUIPV6Prefix != nil {
-		if _, err := s.store.ReleaseIPv6(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID); err != nil {
+		if _, err := dn.ReleaseIPv6(ctx, smContext.Supi.IMSI(), smContext.PDUSessionID); err != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv6 address", zap.Error(err))
 		}
 

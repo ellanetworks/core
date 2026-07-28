@@ -54,6 +54,11 @@ type ueAddresses struct {
 // partial session back and wraps a sentinel error for the adapter to map to its
 // NAS cause.
 func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMContext, ueAddresses, error) {
+	dn, err := s.store.ResolveDNN(ctx, req.Dnn)
+	if err != nil {
+		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errUEAddressAllocation, err)
+	}
+
 	sc := s.NewSession(req.Supi, req.Key, req.Dnn, req.Snssai)
 
 	committed := false
@@ -71,7 +76,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	sc.PDUSessionType = req.PDUType
 	sc.PolicyData = req.Policy
 
-	dlPdrIP, addrs, err := s.allocateUEAddresses(ctx, sc)
+	dlPdrIP, addrs, err := s.allocateUEAddresses(ctx, dn, sc)
 	if err != nil {
 		sc.Mutex.Unlock()
 		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errUEAddressAllocation, err)
@@ -80,7 +85,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	// Framed routes are per-subscriber subscription data (TS 23.501 §5.6.14): they
 	// attach to the session context, not the profile-shared Policy. A resolution
 	// failure rejects establishment, fail-closed.
-	framed, err := s.store.ListFramedRoutes(ctx, req.Supi.IMSI(), req.Dnn)
+	framed, err := dn.ListFramedRoutes(ctx, req.Supi.IMSI())
 	if err != nil {
 		sc.Mutex.Unlock()
 		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errFramedRouteResolve, err)
@@ -91,7 +96,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	// Cache the reserved static address per family so a reconcile can detect a
 	// reservation change; fail-closed on error.
 	if sc.PDUIPV4Address != nil {
-		addr, ok, err := s.store.GetStaticIP(ctx, req.Supi.IMSI(), req.Dnn, false)
+		addr, ok, err := dn.GetStaticIP(ctx, req.Supi.IMSI(), false)
 		if err != nil {
 			sc.Mutex.Unlock()
 			return nil, ueAddresses{}, fmt.Errorf("%w: %v", errStaticIPResolve, err)
@@ -103,7 +108,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	}
 
 	if sc.PDUIPV6Prefix != nil {
-		addr, ok, err := s.store.GetStaticIP(ctx, req.Supi.IMSI(), req.Dnn, true)
+		addr, ok, err := dn.GetStaticIP(ctx, req.Supi.IMSI(), true)
 		if err != nil {
 			sc.Mutex.Unlock()
 			return nil, ueAddresses{}, fmt.Errorf("%w: %v", errStaticIPResolve, err)
@@ -150,15 +155,22 @@ func (s *SMF) abortSession(ctx context.Context, sc *SMContext) {
 		}
 	}
 
-	if sc.PDUIPV4Address != nil {
-		if _, err := s.store.ReleaseIP(ctx, imsi, sc.Dnn, sc.PDUSessionID); err != nil {
-			logger.SmfLog.Warn("failed to release UE IPv4 after aborted session", zap.String("imsi", imsi), zap.Error(err))
-		}
-	}
+	if sc.PDUIPV4Address != nil || sc.PDUIPV6Prefix != nil {
+		dn, err := s.store.ResolveDNN(ctx, sc.Dnn)
+		if err != nil {
+			logger.SmfLog.Warn("failed to resolve data network to release UE addresses after aborted session", zap.String("imsi", imsi), zap.Error(err))
+		} else {
+			if sc.PDUIPV4Address != nil {
+				if _, err := dn.ReleaseIP(ctx, imsi, sc.PDUSessionID); err != nil {
+					logger.SmfLog.Warn("failed to release UE IPv4 after aborted session", zap.String("imsi", imsi), zap.Error(err))
+				}
+			}
 
-	if sc.PDUIPV6Prefix != nil {
-		if _, err := s.store.ReleaseIPv6(ctx, imsi, sc.Dnn, sc.PDUSessionID); err != nil {
-			logger.SmfLog.Warn("failed to release UE IPv6 after aborted session", zap.String("imsi", imsi), zap.Error(err))
+			if sc.PDUIPV6Prefix != nil {
+				if _, err := dn.ReleaseIPv6(ctx, imsi, sc.PDUSessionID); err != nil {
+					logger.SmfLog.Warn("failed to release UE IPv6 after aborted session", zap.String("imsi", imsi), zap.Error(err))
+				}
+			}
 		}
 	}
 

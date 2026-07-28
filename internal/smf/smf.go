@@ -57,26 +57,34 @@ type PCF interface {
 	GetSessionPolicy(ctx context.Context, imsi string, snssai *models.Snssai, dnn string) (*Policy, error)
 }
 
-// SessionStore is the minimal DB surface the SMF needs for session-level
-// data operations (IP management, usage accounting, flow reports).
-type SessionStore interface {
-	AllocateIP(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error)
+// DNNStore is the session-data surface bound to one resolved data network.
+// A procedure resolves its DNN once via SessionStore.ResolveDNN and performs
+// every lease and route operation against that single consistent view.
+type DNNStore interface {
+	AllocateIP(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error)
 
 	// ReleaseIP frees the session's lease and returns the freed IPv4 address so
 	// the caller can withdraw the BGP route.
-	ReleaseIP(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error)
+	ReleaseIP(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error)
 
 	// AllocateIPv6 assigns a /64 prefix from the data network's IPv6 pool and
 	// returns its base address (lower 64 bits = 0).
-	AllocateIPv6(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error)
+	AllocateIPv6(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error)
 
-	ReleaseIPv6(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error)
+	ReleaseIPv6(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error)
 
-	ListFramedRoutes(ctx context.Context, imsi string, dnn string) ([]netip.Prefix, error)
+	ListFramedRoutes(ctx context.Context, imsi string) ([]netip.Prefix, error)
 
-	// GetStaticIP returns the reserved static address for the DNN and family
-	// (ipv6 selects the IPv6 pool), and whether one exists.
-	GetStaticIP(ctx context.Context, imsi string, dnn string, ipv6 bool) (netip.Addr, bool, error)
+	// GetStaticIP returns the reserved static address for the family (ipv6
+	// selects the IPv6 pool), and whether one exists.
+	GetStaticIP(ctx context.Context, imsi string, ipv6 bool) (netip.Addr, bool, error)
+}
+
+// SessionStore is the minimal DB surface the SMF needs for session-level
+// data operations (IP management, usage accounting, flow reports).
+type SessionStore interface {
+	// ResolveDNN reads the data network once and returns its bound DNNStore.
+	ResolveDNN(ctx context.Context, dnn string) (DNNStore, error)
 
 	IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error
 
@@ -330,17 +338,22 @@ func (s *SMF) RemoveSession(ctx context.Context, ref string) {
 
 	s.dropFromPool(smCtx)
 
-	if smCtx.PDUIPV4Address != nil {
-		_, err := s.store.ReleaseIP(ctx, smCtx.Supi.IMSI(), smCtx.Dnn, smCtx.PDUSessionID)
+	if smCtx.PDUIPV4Address != nil || smCtx.PDUIPV6Prefix != nil {
+		dn, err := s.store.ResolveDNN(ctx, smCtx.Dnn)
 		if err != nil {
-			logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
-		}
-	}
+			logger.SmfLog.Error("resolve data network for UE address release failed", zap.Error(err), zap.String("smContextRef", ref))
+		} else {
+			if smCtx.PDUIPV4Address != nil {
+				if _, err := dn.ReleaseIP(ctx, smCtx.Supi.IMSI(), smCtx.PDUSessionID); err != nil {
+					logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
+				}
+			}
 
-	if smCtx.PDUIPV6Prefix != nil {
-		_, err := s.store.ReleaseIPv6(ctx, smCtx.Supi.IMSI(), smCtx.Dnn, smCtx.PDUSessionID)
-		if err != nil {
-			logger.SmfLog.Error("release UE IPv6-Address failed", zap.Error(err), zap.String("smContextRef", ref))
+			if smCtx.PDUIPV6Prefix != nil {
+				if _, err := dn.ReleaseIPv6(ctx, smCtx.Supi.IMSI(), smCtx.PDUSessionID); err != nil {
+					logger.SmfLog.Error("release UE IPv6-Address failed", zap.Error(err), zap.String("smContextRef", ref))
+				}
+			}
 		}
 	}
 

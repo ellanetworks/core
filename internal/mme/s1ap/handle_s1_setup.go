@@ -31,13 +31,15 @@ var causeNoServedTAC = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseM
 // the eNB broadcasts a TAI this MME serves, otherwise an S1 Setup Failure
 // (TS 36.413).
 func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value []byte) {
-	plmn, err := m.OperatorPLMN(ctx)
+	operator, err := m.Operator(ctx)
 	if err != nil {
-		logger.From(ctx, m.RadioLog(conn)).Error("failed to get operator PLMN for S1 Setup", zap.Error(err))
+		logger.From(ctx, m.RadioLog(conn)).Error("failed to get operator for S1 Setup", zap.Error(err))
 		return
 	}
 
-	tacs, err := m.OperatorTACs(ctx)
+	plmn := operator.PLMN()
+
+	tacs, err := operator.TACs()
 	if err != nil {
 		logger.From(ctx, m.RadioLog(conn)).Error("failed to get operator TACs for S1 Setup", zap.Error(err))
 		return

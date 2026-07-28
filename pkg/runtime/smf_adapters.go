@@ -51,42 +51,70 @@ type smfDBAdapter struct {
 	db *db.Database
 }
 
-// resolvePoolByDNN looks up the IP pool for a data network by name.
-func (a *smfDBAdapter) resolvePoolByDNN(ctx context.Context, dnn string) (ipam.Pool, error) {
-	dn, err := a.db.GetDataNetwork(ctx, dnn)
-	if err != nil {
-		return ipam.Pool{}, fmt.Errorf("get data network: %w", err)
-	}
+// smfDNNStore is smf.DNNStore bound to one data-network row read at resolve
+// time. Pool derivation errors are held per family and surfaced when that
+// family is used, so an IPv4-only data network still serves IPv4 sessions.
+type smfDNNStore struct {
+	a    *smfDBAdapter
+	dnn  string
+	dnID string
 
-	return ipam.NewPool(dn.ID, dn.IPv4Pool)
+	pool4    ipam.Pool
+	pool4Err error
+	pool6    ipam.Pool
+	pool6Err error
 }
 
-// resolveIPv6PoolByDNN looks up the IPv6 prefix delegation pool for a data
-// network by name. It delegates /64 prefixes from the configured IPv6 CIDR.
-func (a *smfDBAdapter) resolveIPv6PoolByDNN(ctx context.Context, dnn string) (ipam.Pool, error) {
+// ResolveDNN reads the data network once and derives both address pools from
+// that row.
+func (a *smfDBAdapter) ResolveDNN(ctx context.Context, dnn string) (smf.DNNStore, error) {
+	ctx, span := tracer.Start(ctx, "smf/resolve_dnn",
+		trace.WithAttributes(attribute.String("dnn", dnn)),
+	)
+	defer span.End()
+
 	dn, err := a.db.GetDataNetwork(ctx, dnn)
 	if err != nil {
-		return ipam.Pool{}, fmt.Errorf("get data network: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "get data network failed")
+
+		return nil, fmt.Errorf("get data network: %w", err)
 	}
+
+	s := &smfDNNStore{a: a, dnn: dnn, dnID: dn.ID}
+	s.pool4, s.pool4Err = ipam.NewPool(dn.ID, dn.IPv4Pool)
 
 	if dn.IPv6Pool == "" {
-		return ipam.Pool{}, fmt.Errorf("data network %q has no IPv6 pool configured", dnn)
+		s.pool6Err = fmt.Errorf("data network %q has no IPv6 pool configured", dnn)
+	} else {
+		// The IPv6 pool delegates /64 prefixes from the configured CIDR.
+		s.pool6, s.pool6Err = ipam.NewPool6(dn.ID, dn.IPv6Pool, 64)
 	}
 
-	return ipam.NewPool6(dn.ID, dn.IPv6Pool, 64)
+	return s, nil
 }
 
-func (a *smfDBAdapter) AllocateIP(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error) {
+// pool returns the family's address pool, or the error recorded for it at
+// resolve time.
+func (s *smfDNNStore) pool(ipv6 bool) (ipam.Pool, error) {
+	if ipv6 {
+		return s.pool6, s.pool6Err
+	}
+
+	return s.pool4, s.pool4Err
+}
+
+func (s *smfDNNStore) AllocateIP(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error) {
 	ctx, span := tracer.Start(ctx, "smf/allocate_ip",
 		trace.WithAttributes(
 			attribute.String("imsi", imsi),
-			attribute.String("dnn", dnn),
+			attribute.String("dnn", s.dnn),
 			attribute.Int("pdu_session_id", int(pduSessionID)),
 		),
 	)
 	defer span.End()
 
-	pool, err := a.resolvePoolByDNN(ctx, dnn)
+	pool, err := s.pool(false)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "resolve pool failed")
@@ -98,7 +126,7 @@ func (a *smfDBAdapter) AllocateIP(ctx context.Context, imsi string, dnn string, 
 	// leader inside leaderCaptureAndPropose's proposeMu, so concurrent
 	// allocations from any node serialise correctly. The legacy
 	// pre-pick-on-follower path is gone.
-	addr, err := a.db.AllocateIPLease(ctx, pool.ID, pool.IPVersion, imsi, int(pduSessionID), a.db.NodeID())
+	addr, err := s.a.db.AllocateIPLease(ctx, pool.ID, pool.IPVersion, imsi, int(pduSessionID), s.a.db.NodeID())
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "allocate failed")
@@ -111,17 +139,17 @@ func (a *smfDBAdapter) AllocateIP(ctx context.Context, imsi string, dnn string, 
 	return addr, nil
 }
 
-func (a *smfDBAdapter) ReleaseIP(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error) {
+func (s *smfDNNStore) ReleaseIP(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error) {
 	ctx, span := tracer.Start(ctx, "smf/release_ip",
 		trace.WithAttributes(
 			attribute.String("imsi", imsi),
-			attribute.String("dnn", dnn),
+			attribute.String("dnn", s.dnn),
 			attribute.Int("pdu_session_id", int(pduSessionID)),
 		),
 	)
 	defer span.End()
 
-	pool, err := a.resolvePoolByDNN(ctx, dnn)
+	pool, err := s.pool(false)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "resolve pool failed")
@@ -129,7 +157,7 @@ func (a *smfDBAdapter) ReleaseIP(ctx context.Context, imsi string, dnn string, p
 		return netip.Addr{}, fmt.Errorf("resolve pool: %w", err)
 	}
 
-	lease, err := a.db.GetLeaseBySession(ctx, pool.ID, pool.IPVersion, int(pduSessionID), imsi)
+	lease, err := s.a.db.GetLeaseBySession(ctx, pool.ID, pool.IPVersion, int(pduSessionID), imsi)
 	if err != nil {
 		// Reservation deleted while bound: nothing left to free.
 		if errors.Is(err, db.ErrNotFound) {
@@ -142,7 +170,7 @@ func (a *smfDBAdapter) ReleaseIP(ctx context.Context, imsi string, dnn string, p
 		return netip.Addr{}, fmt.Errorf("lookup lease: %w", err)
 	}
 
-	if err := a.releaseLease(ctx, lease); err != nil {
+	if err := s.a.releaseLease(ctx, lease); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "release failed")
 
@@ -171,17 +199,17 @@ func (a *smfDBAdapter) releaseLease(ctx context.Context, lease *db.IPLease) erro
 	return nil
 }
 
-func (a *smfDBAdapter) AllocateIPv6(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error) {
+func (s *smfDNNStore) AllocateIPv6(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error) {
 	ctx, span := tracer.Start(ctx, "smf/allocate_ipv6",
 		trace.WithAttributes(
 			attribute.String("imsi", imsi),
-			attribute.String("dnn", dnn),
+			attribute.String("dnn", s.dnn),
 			attribute.Int("pdu_session_id", int(pduSessionID)),
 		),
 	)
 	defer span.End()
 
-	pool, err := a.resolveIPv6PoolByDNN(ctx, dnn)
+	pool, err := s.pool(true)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "resolve IPv6 pool failed")
@@ -189,7 +217,7 @@ func (a *smfDBAdapter) AllocateIPv6(ctx context.Context, imsi string, dnn string
 		return netip.Addr{}, fmt.Errorf("resolve IPv6 pool: %w", err)
 	}
 
-	addr, err := a.db.AllocateIPv6Lease(ctx, pool.ID, pool.IPVersion, imsi, int(pduSessionID), a.db.NodeID())
+	addr, err := s.a.db.AllocateIPv6Lease(ctx, pool.ID, pool.IPVersion, imsi, int(pduSessionID), s.a.db.NodeID())
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "allocate IPv6 failed")
@@ -202,17 +230,17 @@ func (a *smfDBAdapter) AllocateIPv6(ctx context.Context, imsi string, dnn string
 	return addr, nil
 }
 
-func (a *smfDBAdapter) ReleaseIPv6(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error) {
+func (s *smfDNNStore) ReleaseIPv6(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error) {
 	ctx, span := tracer.Start(ctx, "smf/release_ipv6",
 		trace.WithAttributes(
 			attribute.String("imsi", imsi),
-			attribute.String("dnn", dnn),
+			attribute.String("dnn", s.dnn),
 			attribute.Int("pdu_session_id", int(pduSessionID)),
 		),
 	)
 	defer span.End()
 
-	pool, err := a.resolveIPv6PoolByDNN(ctx, dnn)
+	pool, err := s.pool(true)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "resolve IPv6 pool failed")
@@ -220,7 +248,7 @@ func (a *smfDBAdapter) ReleaseIPv6(ctx context.Context, imsi string, dnn string,
 		return netip.Addr{}, fmt.Errorf("resolve IPv6 pool: %w", err)
 	}
 
-	lease, err := a.db.GetLeaseBySession(ctx, pool.ID, pool.IPVersion, int(pduSessionID), imsi)
+	lease, err := s.a.db.GetLeaseBySession(ctx, pool.ID, pool.IPVersion, int(pduSessionID), imsi)
 	if err != nil {
 		// Reservation deleted while bound: nothing left to free.
 		if errors.Is(err, db.ErrNotFound) {
@@ -233,7 +261,7 @@ func (a *smfDBAdapter) ReleaseIPv6(ctx context.Context, imsi string, dnn string,
 		return netip.Addr{}, fmt.Errorf("lookup lease: %w", err)
 	}
 
-	if err := a.releaseLease(ctx, lease); err != nil {
+	if err := s.a.releaseLease(ctx, lease); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "release IPv6 failed")
 
@@ -341,16 +369,11 @@ func (a *smfDBAdapter) InsertFlowReports(ctx context.Context, reports []*models.
 	return a.db.InsertFlowReports(ctx, batch)
 }
 
-// ListFramedRoutes resolves the data network by name, then returns the
-// subscriber's framed-route prefixes on it (TS 23.501 §5.6.14). Prefixes are
-// stored normalized, so parsing is total.
-func (a *smfDBAdapter) ListFramedRoutes(ctx context.Context, imsi string, dnn string) ([]netip.Prefix, error) {
-	dn, err := a.db.GetDataNetwork(ctx, dnn)
-	if err != nil {
-		return nil, fmt.Errorf("get data network: %w", err)
-	}
-
-	rows, err := a.db.ListFramedRoutesBySubscriberDataNetwork(ctx, imsi, dn.ID)
+// ListFramedRoutes returns the subscriber's framed-route prefixes on the data
+// network (TS 23.501 §5.6.14). Prefixes are stored normalized, so parsing is
+// total.
+func (s *smfDNNStore) ListFramedRoutes(ctx context.Context, imsi string) ([]netip.Prefix, error) {
+	rows, err := s.a.db.ListFramedRoutesBySubscriberDataNetwork(ctx, imsi, s.dnID)
 	if err != nil {
 		return nil, fmt.Errorf("list framed routes: %w", err)
 	}
@@ -369,25 +392,15 @@ func (a *smfDBAdapter) ListFramedRoutes(ctx context.Context, imsi string, dnn st
 	return prefixes, nil
 }
 
-// GetStaticIP returns the reserved static address for the DNN and family, and
+// GetStaticIP returns the reserved static address for the family, and
 // whether one exists (a missing reservation is not an error).
-func (a *smfDBAdapter) GetStaticIP(ctx context.Context, imsi string, dnn string, ipv6 bool) (netip.Addr, bool, error) {
-	var (
-		pool ipam.Pool
-		err  error
-	)
-
-	if ipv6 {
-		pool, err = a.resolveIPv6PoolByDNN(ctx, dnn)
-	} else {
-		pool, err = a.resolvePoolByDNN(ctx, dnn)
-	}
-
+func (s *smfDNNStore) GetStaticIP(ctx context.Context, imsi string, ipv6 bool) (netip.Addr, bool, error) {
+	pool, err := s.pool(ipv6)
 	if err != nil {
 		return netip.Addr{}, false, fmt.Errorf("resolve pool: %w", err)
 	}
 
-	lease, err := a.db.GetStaticLease(ctx, pool.ID, pool.IPVersion, imsi)
+	lease, err := s.a.db.GetStaticLease(ctx, pool.ID, pool.IPVersion, imsi)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			return netip.Addr{}, false, nil

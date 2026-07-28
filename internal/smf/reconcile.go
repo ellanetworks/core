@@ -495,7 +495,12 @@ func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policy
 // framed routes differ from those installed on the session at establishment.
 // Caller holds smContext.Mutex.
 func (s *SMF) framedRoutesChanged(ctx context.Context, smContext *SMContext) (bool, error) {
-	current, err := s.store.ListFramedRoutes(ctx, smContext.Supi.IMSI(), smContext.Dnn)
+	dn, err := s.store.ResolveDNN(ctx, smContext.Dnn)
+	if err != nil {
+		return false, err
+	}
+
+	current, err := dn.ListFramedRoutes(ctx, smContext.Supi.IMSI())
 	if err != nil {
 		return false, err
 	}
@@ -530,15 +535,20 @@ func framedRoutesEqual(a, b []netip.Prefix) bool {
 func (s *SMF) staticIPChanged(ctx context.Context, smContext *SMContext) (bool, error) {
 	imsi := smContext.Supi.IMSI()
 
+	dn, err := s.store.ResolveDNN(ctx, smContext.Dnn)
+	if err != nil {
+		return false, err
+	}
+
 	if smContext.PDUIPV4Address != nil {
-		changed, err := s.staticReservationChanged(ctx, imsi, smContext.Dnn, false, smContext.StaticIPv4)
+		changed, err := staticReservationChanged(ctx, dn, imsi, false, smContext.StaticIPv4)
 		if err != nil || changed {
 			return changed, err
 		}
 	}
 
 	if smContext.PDUIPV6Prefix != nil {
-		changed, err := s.staticReservationChanged(ctx, imsi, smContext.Dnn, true, smContext.StaticIPv6)
+		changed, err := staticReservationChanged(ctx, dn, imsi, true, smContext.StaticIPv6)
 		if err != nil || changed {
 			return changed, err
 		}
@@ -547,8 +557,8 @@ func (s *SMF) staticIPChanged(ctx context.Context, smContext *SMContext) (bool, 
 	return false, nil
 }
 
-func (s *SMF) staticReservationChanged(ctx context.Context, imsi, dnn string, ipv6 bool, cached netip.Addr) (bool, error) {
-	current, has, err := s.store.GetStaticIP(ctx, imsi, dnn, ipv6)
+func staticReservationChanged(ctx context.Context, dn DNNStore, imsi string, ipv6 bool, cached netip.Addr) (bool, error) {
+	current, has, err := dn.GetStaticIP(ctx, imsi, ipv6)
 	if err != nil {
 		return false, err
 	}
