@@ -5,6 +5,7 @@ package nas
 
 import (
 	"context"
+	"slices"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
@@ -58,6 +59,7 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 
 	if msg.NASMessageContainer != nil {
 		contents := msg.GetNASMessageContainerContents()
+		plain := slices.Clone(contents)
 
 		m := nas.NewMessage()
 		if err := m.GmmMessageDecode(&contents); err != nil {
@@ -71,12 +73,12 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 			return nasreply.Handled()
 		}
 
-		contextSetup(ctx, amfInstance, ue, m.RegistrationRequest)
+		contextSetup(ctx, amfInstance, ue, m.RegistrationRequest, plain)
 
 		return nasreply.Handled()
 	}
 
-	contextSetup(ctx, amfInstance, ue, conn.RegistrationRequest)
+	contextSetup(ctx, amfInstance, ue, conn.RegistrationRequest, conn.RegistrationRequestPlain)
 
 	return nasreply.Handled()
 }

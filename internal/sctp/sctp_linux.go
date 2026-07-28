@@ -302,6 +302,11 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 		return nil, err
 	}
 
+	// Inherited by accepted associations, like the options above.
+	if err = setNoDelay(sock); err != nil {
+		return nil, err
+	}
+
 	if laddr != nil {
 		if len(laddr.IPAddrs) == 0 {
 			switch af {

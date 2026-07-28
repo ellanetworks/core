@@ -873,6 +873,70 @@ func TestAttachDuplicateIdenticalIEsResendsAccept(t *testing.T) {
 	}
 }
 
+// An identical retransmission during authentication is ignored, not restarted
+// (TS 24.301 §5.5.1.2.7 case e).
+func TestAttachDuplicatePreAcceptIdenticalIEsIgnored(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+	ue.ForceRegStepForTest(mme.RegStepAuthenticating)
+
+	attach := &eps.AttachRequest{
+		EPSAttachType:       eps.AttachTypeEPS,
+		NASKeySetIdentifier: 7,
+		EPSMobileIdentity:   eps.EPSMobileIdentity{Type: eps.IdentityIMSI, Digits: "001010000000001"},
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(),
+	}
+
+	plain, err := attach.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ue.Conn().AttachRequestPlain = plain
+
+	handleAttachRequest(context.Background(), m, ue, plain, false)
+
+	if cc.count() != 0 {
+		t.Fatalf("an identical pre-accept duplicate must be ignored (no downlink), got %d", cc.count())
+	}
+
+	if ue.RegStep() != mme.RegStepAuthenticating {
+		t.Fatalf("an identical pre-accept duplicate must not restart the procedure; RegStep = %s", ue.RegStep())
+	}
+}
+
+// An identical retransmission during the security mode procedure is ignored, not
+// restarted (TS 24.301 §5.5.1.2.7 case e).
+func TestAttachDuplicatePreAcceptSecurityModeIdenticalIEsIgnored(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+	ue.ForceRegStepForTest(mme.RegStepSecurityMode)
+
+	attach := &eps.AttachRequest{
+		EPSAttachType:       eps.AttachTypeEPS,
+		NASKeySetIdentifier: 7,
+		EPSMobileIdentity:   eps.EPSMobileIdentity{Type: eps.IdentityIMSI, Digits: "001010000000001"},
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(),
+	}
+
+	plain, err := attach.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ue.Conn().AttachRequestPlain = plain
+
+	handleAttachRequest(context.Background(), m, ue, plain, false)
+
+	if cc.count() != 0 {
+		t.Fatalf("an identical pre-accept duplicate must be ignored (no downlink), got %d", cc.count())
+	}
+
+	if ue.RegStep() != mme.RegStepSecurityMode {
+		t.Fatalf("an identical pre-accept duplicate must not restart the procedure; RegStep = %s", ue.RegStep())
+	}
+}
+
 // TestAttachDuplicateDifferingIEsProgresses verifies an ATTACH REQUEST with differing
 // IEs while awaiting ATTACH COMPLETE aborts the previous attach and progresses the new
 // one — here re-identifying via authentication (TS 24.301 §5.5.1.2.7 case d).

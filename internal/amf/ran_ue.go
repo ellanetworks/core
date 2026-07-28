@@ -101,7 +101,10 @@ type UeConn struct {
 	// (TS 24.501 §5.4.1.3.7 f)/NOTE 4).
 	resyncTried bool
 
-	RegistrationRequest             *nasMessage.RegistrationRequest
+	RegistrationRequest *nasMessage.RegistrationRequest
+	// RegistrationRequestPlain is compared byte-for-byte for duplicate detection
+	// (TS 24.501 §5.5.1.2.8), immune to the decoder dropping IEs it does not model.
+	RegistrationRequestPlain        []byte
 	RegistrationType5GS             uint8
 	IdentityTypeUsedForRegistration uint8
 	RetransmissionOfInitialNASMsg   bool

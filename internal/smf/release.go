@@ -42,30 +42,46 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	// not keep firing against a released session.
 	smContext.stopProcedureTimer()
 
-	if smContext.PDUIPV4Address != nil {
-		_, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
-		if releaseErr != nil {
-			logger.SmfLog.Warn("release UE IP address failed", zap.Error(releaseErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID), logger.DNN(smContext.Dnn), zap.String("smContextRef", smContextRef))
-		}
-	}
-
-	if smContext.PDUIPV6Prefix != nil {
-		_, releaseErr := s.store.ReleaseIPv6(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
-		if releaseErr != nil {
-			logger.SmfLog.Warn("release UE IPv6 address failed", zap.Error(releaseErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID), logger.DNN(smContext.Dnn), zap.String("smContextRef", smContextRef))
-		}
-	}
-
-	err := s.releaseTunnel(ctx, smContext)
+	err := s.releaseUserPlaneThenAddresses(ctx, smContext)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to release tunnel")
+		span.SetStatus(codes.Error, "failed to release user plane")
 	}
 
 	// Remove from pool after all network I/O is complete.
 	s.dropFromPool(smContext)
 
 	return err
+}
+
+// releaseUserPlaneThenAddresses purges the UPF session (and its NAT conntrack)
+// before releasing the IP leases: an address freed while its conntrack survives
+// can be re-leased to another subscriber that then receives the previous
+// subscriber's flows. On teardown failure the leases are kept, so the address
+// stays bound to this IMSI. Caller holds sc.Mutex.
+func (s *SMF) releaseUserPlaneThenAddresses(ctx context.Context, sc *SMContext) error {
+	if err := s.releaseTunnel(ctx, sc); err != nil {
+		logger.WithTrace(ctx, logger.SmfLog).Warn("user-plane teardown failed; keeping IP lease to prevent reuse with stale NAT conntrack",
+			zap.Error(err), logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID), logger.DNN(sc.Dnn))
+
+		return err
+	}
+
+	if sc.PDUIPV4Address == nil && sc.PDUIPV6Prefix == nil {
+		return nil
+	}
+
+	dn, err := s.store.ResolveDNN(ctx, sc.Dnn)
+	if err != nil {
+		logger.WithTrace(ctx, logger.SmfLog).Warn("resolve data network for UE address release failed; keeping IP lease",
+			zap.Error(err), logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID), logger.DNN(sc.Dnn))
+
+		return fmt.Errorf("resolve data network for address release: %w", err)
+	}
+
+	s.releaseAllocatedAddresses(ctx, dn, sc)
+
+	return nil
 }
 
 func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {

@@ -239,6 +239,15 @@ func setAssocInfo(fd int, info AssocInfo) error {
 	return err
 }
 
+// setNoDelay disables the Nagle-like transmit delay (RFC 6458 §8.1.4), which
+// otherwise holds the second of two back-to-back small PDUs until the peer's
+// delayed SACK.
+func setNoDelay(fd int) error {
+	on := int32(1)
+
+	return setsockopt(fd, SCTPNoDelay, uintptr(unsafe.Pointer(&on)), unsafe.Sizeof(on))
+}
+
 type SCTPAddr struct {
 	IPAddrs []net.IPAddr
 	Port    int
@@ -339,6 +348,11 @@ type SCTPConn struct {
 	file   *os.File
 	rc     syscall.RawConn
 	closed atomic.Bool
+
+	// Cached: the address sets are fixed after establishment (inbound ASCONF is
+	// discarded under the kernel default net.sctp.addip_enable=0).
+	localAddr  atomic.Pointer[SCTPAddr]
+	remoteAddr atomic.Pointer[SCTPAddr]
 }
 
 // controlFd runs fn with the raw file descriptor held by the runtime poller.
@@ -517,7 +531,13 @@ func (c *SCTPConn) getAddrs(optname int) *SCTPAddr {
 }
 
 func (c *SCTPConn) LocalAddr() net.Addr {
+	if addr := c.localAddr.Load(); addr != nil {
+		return addr
+	}
+
 	if addr := c.getAddrs(SCTPGetLocalAddrs); addr != nil {
+		c.localAddr.Store(addr)
+
 		return addr
 	}
 
@@ -525,7 +545,13 @@ func (c *SCTPConn) LocalAddr() net.Addr {
 }
 
 func (c *SCTPConn) RemoteAddr() net.Addr {
+	if addr := c.remoteAddr.Load(); addr != nil {
+		return addr
+	}
+
 	if addr := c.getAddrs(SCTPGetPeerAddrs); addr != nil {
+		c.remoteAddr.Store(addr)
+
 		return addr
 	}
 

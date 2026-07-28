@@ -10,6 +10,8 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -2488,5 +2490,78 @@ func TestUpdateSmContextN1Msg_ModificationRejected(t *testing.T) {
 
 	if got := m.PDUSessionModificationReject.GetCauseValue(); got != nasMessage.Cause5GSMRequestRejectedUnspecified {
 		t.Errorf("reject cause = %d, want %d (request rejected, unspecified)", got, nasMessage.Cause5GSMRequestRejectedUnspecified)
+	}
+}
+
+// teardownRecorder is an ordered log shared by the store and UPF fakes to assert
+// DeleteSession happens before the IP lease release.
+type teardownRecorder struct {
+	mu  sync.Mutex
+	seq []string
+}
+
+func (r *teardownRecorder) record(event string) {
+	if r == nil {
+		return
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.seq = append(r.seq, event)
+}
+
+func (r *teardownRecorder) events() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return slices.Clone(r.seq)
+}
+
+// The IP lease must not be released until the UPF session (and its NAT conntrack)
+// is torn down, else a reallocation could inherit the previous subscriber's flows.
+func TestReleaseSmContext_PurgesDatapathBeforeReleasingLease(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+
+	rec := &teardownRecorder{}
+	store.teardownSeq = rec
+	upf.teardownSeq = rec
+
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	if err := s.ReleaseSmContext(context.Background(), ref); err != nil {
+		t.Fatalf("ReleaseSmContext failed: %v", err)
+	}
+
+	got := rec.events()
+	if len(got) != 2 || got[0] != "delete-session" || got[1] != "release-ip" {
+		t.Fatalf("teardown order = %v, want [delete-session release-ip]", got)
+	}
+}
+
+// On teardown failure the lease is kept, so the address is not reused with stale
+// conntrack.
+func TestReleaseSmContext_KeepsLeaseWhenDatapathTeardownFails(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	upf.mu.Lock()
+	upf.err = fmt.Errorf("PFCP delete failed")
+	upf.mu.Unlock()
+
+	if err := s.ReleaseSmContext(context.Background(), ref); err == nil {
+		t.Fatal("expected an error when user-plane teardown fails")
+	}
+
+	store.mu.Lock()
+	released := len(store.releasedIPs)
+	store.mu.Unlock()
+
+	if released != 0 {
+		t.Fatalf("IP lease was released (%d) despite datapath teardown failure; it must be kept", released)
 	}
 }

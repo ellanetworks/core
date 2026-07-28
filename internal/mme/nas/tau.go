@@ -4,6 +4,7 @@
 package nas
 
 import (
+	"bytes"
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -29,6 +30,15 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		zap.String("imsi", ue.IMSI()),
 		zap.String("update-type", epsUpdateTypeName(req.EPSUpdateType)),
 		zap.Bool("active-flag", req.ActiveFlag))
+
+	// TS 24.301 §5.5.3.2.7 case d: an identical retransmission gets the stored accept.
+	if len(ue.Conn().TauAcceptPdu) > 0 && bytes.Equal(plain, ue.Conn().TauRequestPlain) {
+		logger.From(ctx, logger.MmeLog).Info("duplicate Tracking Area Update Request with identical IEs; resending Tracking Area Update Accept",
+			zap.String("imsi", ue.IMSI()))
+		ue.Conn().ResendTauAccept(ctx)
+
+		return nasreply.Handled()
+	}
 
 	// The UE's serving cell must be in this MME's served area, as at attach, or TAU
 	// REJECT #12 (TS 24.301 §5.5.3.2.5).
@@ -67,6 +77,9 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	}
 
 	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultAccept)
+
+	ue.Conn().TauRequestPlain = plain
+	ue.Conn().TauAcceptPdu = naspdu
 
 	// A fully connected UE (bearers up) keeps its connection; a UE resuming for this
 	// TAU needs re-establishment or a deferred release.
@@ -120,6 +133,9 @@ func handleTrackingAreaUpdateComplete(ctx context.Context, m *mme.MME, ue *mme.U
 	ue.Conn().StopNASGuard()
 	m.CommitGUTIRealloc(ue)
 
+	ue.Conn().TauRequestPlain = nil
+	ue.Conn().TauAcceptPdu = nil
+
 	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update Complete", zap.String("imsi", ue.IMSI()))
 
 	if ue.Conn().TauReleaseOnComplete {
@@ -166,12 +182,14 @@ type tauAcceptOptions struct {
 // EMM cause #18, since the MME has no SGs interface, to stop the UE attempting CS
 // registration.
 func trackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, opts tauAcceptOptions) (*eps.TrackingAreaUpdateAccept, error) {
-	plmn, err := m.OperatorPLMN(ctx)
+	operator, err := m.Operator(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	served, err := m.ServedTAIs(ctx)
+	plmn := operator.PLMN()
+
+	served, err := operator.ServedTAIs()
 	if err != nil {
 		return nil, err
 	}

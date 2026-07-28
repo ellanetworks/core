@@ -128,7 +128,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "builder",
-          "expr": "app_connected_radios{job=~\"$job\",instance=~\"$instance\"}",
+          "expr": "sum(app_connected_radios{job=~\"$job\",instance=~\"$instance\"})",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -336,7 +336,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "builder",
-          "expr": "app_sessions_total{job=~\"$job\",instance=~\"$instance\"}",
+          "expr": "sum(app_sessions_total{job=~\"$job\",instance=~\"$instance\"})",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -1315,7 +1315,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "builder",
-          "expr": "app_sessions_total{job=~\"$job\",instance=~\"$instance\"}",
+          "expr": "sum(app_sessions_total{job=~\"$job\",instance=~\"$instance\"})",
           "legendFormat": "Active PDU Sessions",
           "range": true,
           "refId": "A"

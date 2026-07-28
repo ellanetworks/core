@@ -22,7 +22,7 @@ func TestHandleGmmMessage_UnknownMessageType_NoOp(t *testing.T) {
 	m := nas.NewGmmMessage()
 	m.SetMessageType(0xFF) // unassigned message type
 
-	HandleGmmMessage(context.Background(), amfInstance, ue, m, true)
+	HandleGmmMessage(context.Background(), amfInstance, ue, m, nil, true)
 }
 
 // TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete verifies HandleGmmMessage
@@ -47,7 +47,7 @@ func TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete(t *testing.T) 
 	m.ConfigurationUpdateComplete = cuc
 	m.SetMessageType(nas.MsgTypeConfigurationUpdateComplete)
 
-	HandleGmmMessage(context.Background(), amfInstance, ue, m, true)
+	HandleGmmMessage(context.Background(), amfInstance, ue, m, nil, true)
 }
 
 // TestHandleGmmMessage_DispatchesToStatus5GMM verifies HandleGmmMessage routes a
@@ -64,5 +64,5 @@ func TestHandleGmmMessage_DispatchesToStatus5GMM(t *testing.T) {
 
 	m := buildTestStatus5gmm()
 
-	HandleGmmMessage(context.Background(), amfInstance, ue, m, true)
+	HandleGmmMessage(context.Background(), amfInstance, ue, m, nil, true)
 }

@@ -15,6 +15,9 @@ import (
 type DecodeResult struct {
 	Message           *nas.Message
 	IntegrityVerified bool
+	// Plain is the deciphered NAS bytes, for byte-for-byte duplicate detection
+	// (TS 24.501 §5.5.1.2.8).
+	Plain []byte
 }
 
 // plainNasAllowed reports whether a NAS message type may be processed without a verified

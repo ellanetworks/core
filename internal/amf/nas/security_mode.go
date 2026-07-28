@@ -42,7 +42,7 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 
 	if ue.SecurityContextIsValid() {
 		logger.From(ctx, logger.AmfLog).Debug("UE has a valid security context - skip security mode control procedure")
-		contextSetup(ctx, amfInstance, ue, conn.RegistrationRequest)
+		contextSetup(ctx, amfInstance, ue, conn.RegistrationRequest, conn.RegistrationRequestPlain)
 
 		return
 	}

@@ -4,6 +4,7 @@
 package nas
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -23,7 +24,7 @@ func TestTrackingAreaUpdateTrackingAreaNotAllowed(t *testing.T) {
 	// Served PLMN 001/01 but TAC 2, which the operator does not serve (it serves TAC 1).
 	ue.Conn().ServingTAI = s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 2}
 
-	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, false, nil))
+	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, nil))
 
 	if len(cc.sent) == 0 {
 		t.Fatal("expected a TAU Reject, got no downlink")
@@ -42,15 +43,10 @@ func TestTrackingAreaUpdateTrackingAreaNotAllowed(t *testing.T) {
 // trackingAreaUpdateNAS builds a protected TRACKING AREA UPDATE REQUEST at the
 // UE's current uplink NAS COUNT, optionally carrying an EPS bearer context status
 // IE (IEI 0x57) when bearerStatus is non-nil.
-func trackingAreaUpdateNAS(t *testing.T, ue *mme.UeContext, activeFlag bool, bearerStatus *uint16) []byte {
+func trackingAreaUpdateNAS(t *testing.T, ue *mme.UeContext, bearerStatus *uint16) []byte {
 	t.Helper()
 
-	updateType := uint8(0)
-	if activeFlag {
-		updateType |= 0x08
-	}
-
-	plain := []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), updateType}
+	plain := []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x00}
 
 	if bearerStatus != nil {
 		plain = append(plain, 0x57, 0x02, byte(*bearerStatus), byte(*bearerStatus>>8))
@@ -70,9 +66,9 @@ func trackingAreaUpdateNAS(t *testing.T, ue *mme.UeContext, activeFlag bool, bea
 // registered and connected (TS 24.301 §5.5.3.2.4).
 func TestTrackingAreaUpdateConnectedAccepted(t *testing.T) {
 	m := newTestMME(t)
-	ue, cc := securedUE(t, m) // ECM-CONNECTED, secured, EMM-REGISTERED
+	ue, cc := securedUE(t, m)
 
-	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, false, nil))
+	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, nil))
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one downlink (TAU Accept), got %d", len(cc.sent))
@@ -108,6 +104,42 @@ func TestTrackingAreaUpdateConnectedAccepted(t *testing.T) {
 	}
 }
 
+// An identical TAU retransmission resends the stored accept byte-for-byte, so no
+// second GUTI is reallocated (TS 24.301 §5.5.3.2.7 case d).
+func TestTrackingAreaUpdateDuplicateResendsAccept(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m) // ECM-CONNECTED, secured, EMM-REGISTERED
+
+	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, nil))
+	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, nil))
+
+	if len(cc.sent) != 2 {
+		t.Fatalf("expected two downlinks (TAU Accept and its resend), got %d", len(cc.sent))
+	}
+
+	var plains [2][]byte
+
+	for i := range plains {
+		dl := decodeDownlinkNAS(t, cc.sent[i])
+
+		plain, err := eps.Unprotect(dl, nascommon.NASCount(0, dl[5]), nascommon.DirectionDownlink,
+			ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+		if err != nil {
+			t.Fatalf("unprotect downlink %d: %v", i, err)
+		}
+
+		if mt, err := eps.PeekMessageType(plain); err != nil || mt != eps.MsgTrackingAreaUpdateAccept {
+			t.Fatalf("downlink %d message = %#x (err %v), want TAU Accept", i, mt, err)
+		}
+
+		plains[i] = plain
+	}
+
+	if !bytes.Equal(plains[0], plains[1]) {
+		t.Fatal("resent TAU Accept differs from the original; a duplicate TAU REQUEST must resend the stored accept")
+	}
+}
+
 // TestTrackingAreaUpdateReconcilesBearerContextStatus checks that when the UE
 // reports its EPS bearer context status, the MME deactivates locally the bearers
 // the UE marks inactive and reflects the resulting active set in the TAU Accept
@@ -121,7 +153,7 @@ func TestTrackingAreaUpdateReconcilesBearerContextStatus(t *testing.T) {
 	ue.EnsurePDN(6)     // an additional PDN connection
 
 	status := uint16(1 << 5) // the UE reports only EBI 5 active
-	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, false, &status))
+	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, &status))
 
 	if _, ok := ue.Pdns[6]; ok {
 		t.Fatal("EBI 6 should be released locally after the UE reports it inactive")

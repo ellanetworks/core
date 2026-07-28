@@ -33,6 +33,10 @@ func (amf *AMF) OperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 		return nil, fmt.Errorf("failed to get operator: %s", err)
 	}
 
+	return amf.operatorInfoFrom(operator)
+}
+
+func (amf *AMF) operatorInfoFrom(operator *db.Operator) (*OperatorInfo, error) {
 	supportedTAIs, err := getSupportedTAIs(operator)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get supported TAIs: %w", err)
@@ -41,7 +45,7 @@ func (amf *AMF) OperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 	// 3GPP TS 23.003: AMF Identifier = <AMF Region ID><AMF Set ID><AMF Pointer>
 	amfID := fmt.Sprintf("%06x", (operator.AmfRegionID<<16)|(operator.AmfSetID<<6)|amf.DBInstance.NodeID())
 
-	operatorInfo := &OperatorInfo{
+	return &OperatorInfo{
 		Tais: supportedTAIs,
 		Guami: &models.Guami{
 			PlmnID: &models.PlmnID{
@@ -50,9 +54,7 @@ func (amf *AMF) OperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 			},
 			AmfID: amfID,
 		},
-	}
-
-	return operatorInfo, nil
+	}, nil
 }
 
 func (amf *AMF) ListOperatorSnssai(ctx context.Context) ([]models.Snssai, error) {

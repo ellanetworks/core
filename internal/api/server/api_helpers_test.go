@@ -248,19 +248,23 @@ func (f *fakePCF) GetSessionPolicy(_ context.Context, _ string, _ *models.Snssai
 
 type fakeSessionStore struct{}
 
-func (f *fakeSessionStore) AllocateIP(_ context.Context, _ string, _ string, _ uint8) (netip.Addr, error) {
+func (f *fakeSessionStore) ResolveDNN(_ context.Context, _ string) (smf.DNNStore, error) {
+	return f, nil
+}
+
+func (f *fakeSessionStore) AllocateIP(_ context.Context, _ string, _ uint8) (netip.Addr, error) {
 	return netip.Addr{}, fmt.Errorf("not implemented in test")
 }
 
-func (f *fakeSessionStore) ReleaseIP(_ context.Context, _ string, _ string, _ uint8) (netip.Addr, error) {
+func (f *fakeSessionStore) ReleaseIP(_ context.Context, _ string, _ uint8) (netip.Addr, error) {
 	return netip.Addr{}, fmt.Errorf("not implemented in test")
 }
 
-func (f *fakeSessionStore) AllocateIPv6(_ context.Context, _ string, _ string, _ uint8) (netip.Addr, error) {
+func (f *fakeSessionStore) AllocateIPv6(_ context.Context, _ string, _ uint8) (netip.Addr, error) {
 	return netip.Addr{}, fmt.Errorf("not implemented in test")
 }
 
-func (f *fakeSessionStore) ReleaseIPv6(_ context.Context, _ string, _ string, _ uint8) (netip.Addr, error) {
+func (f *fakeSessionStore) ReleaseIPv6(_ context.Context, _ string, _ uint8) (netip.Addr, error) {
 	return netip.Addr{}, fmt.Errorf("not implemented in test")
 }
 
@@ -272,11 +276,11 @@ func (f *fakeSessionStore) InsertFlowReports(_ context.Context, _ []*models.Flow
 	return nil
 }
 
-func (f *fakeSessionStore) ListFramedRoutes(_ context.Context, _ string, _ string) ([]netip.Prefix, error) {
+func (f *fakeSessionStore) ListFramedRoutes(_ context.Context, _ string) ([]netip.Prefix, error) {
 	return nil, nil
 }
 
-func (f *fakeSessionStore) GetStaticIP(_ context.Context, _ string, _ string, _ bool) (netip.Addr, bool, error) {
+func (f *fakeSessionStore) GetStaticIP(_ context.Context, _ string, _ bool) (netip.Addr, bool, error) {
 	return netip.Addr{}, false, nil
 }
 

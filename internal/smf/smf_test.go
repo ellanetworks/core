@@ -21,6 +21,7 @@ import (
 
 type fakeStore struct {
 	mu              sync.Mutex
+	teardownSeq     *teardownRecorder
 	allocatedIP     netip.Addr
 	allocatedIPv6   netip.Addr
 	releasedIP      netip.Addr
@@ -38,6 +39,10 @@ type fakeStore struct {
 	staticIPv6      netip.Addr
 	staticIPErr     error
 	opLog           []string
+}
+
+func (f *fakeStore) ResolveDNN(_ context.Context, _ string) (smf.DNNStore, error) {
+	return f, nil
 }
 
 // ops returns the IPv4 allocate/release calls in the order they arrived.
@@ -60,7 +65,7 @@ type usageEntry struct {
 	downlinkBytes uint64
 }
 
-func (f *fakeStore) AllocateIP(_ context.Context, _ string, _ string, _ uint8) (netip.Addr, error) {
+func (f *fakeStore) AllocateIP(_ context.Context, _ string, _ uint8) (netip.Addr, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -73,7 +78,9 @@ func (f *fakeStore) AllocateIP(_ context.Context, _ string, _ string, _ uint8) (
 	return f.allocatedIP, f.err
 }
 
-func (f *fakeStore) ReleaseIP(_ context.Context, imsi string, _ string, _ uint8) (netip.Addr, error) {
+func (f *fakeStore) ReleaseIP(_ context.Context, imsi string, _ uint8) (netip.Addr, error) {
+	f.teardownSeq.record("release-ip")
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -83,7 +90,7 @@ func (f *fakeStore) ReleaseIP(_ context.Context, imsi string, _ string, _ uint8)
 	return f.releasedIP, f.err
 }
 
-func (f *fakeStore) AllocateIPv6(_ context.Context, _ string, _ string, _ uint8) (netip.Addr, error) {
+func (f *fakeStore) AllocateIPv6(_ context.Context, _ string, _ uint8) (netip.Addr, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -94,7 +101,7 @@ func (f *fakeStore) AllocateIPv6(_ context.Context, _ string, _ string, _ uint8)
 	return f.allocatedIPv6, f.err
 }
 
-func (f *fakeStore) ReleaseIPv6(_ context.Context, imsi string, _ string, _ uint8) (netip.Addr, error) {
+func (f *fakeStore) ReleaseIPv6(_ context.Context, imsi string, _ uint8) (netip.Addr, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -103,14 +110,14 @@ func (f *fakeStore) ReleaseIPv6(_ context.Context, imsi string, _ string, _ uint
 	return f.releasedIPv6, f.err
 }
 
-func (f *fakeStore) ListFramedRoutes(_ context.Context, _ string, _ string) ([]netip.Prefix, error) {
+func (f *fakeStore) ListFramedRoutes(_ context.Context, _ string) ([]netip.Prefix, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	return f.framedRoutes, f.framedRoutesErr
 }
 
-func (f *fakeStore) GetStaticIP(_ context.Context, _ string, _ string, ipv6 bool) (netip.Addr, bool, error) {
+func (f *fakeStore) GetStaticIP(_ context.Context, _ string, ipv6 bool) (netip.Addr, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -163,6 +170,7 @@ func (f *fakeStore) InsertFlowReports(_ context.Context, reports []*models.FlowR
 
 type fakeUPF struct {
 	mu               sync.Mutex
+	teardownSeq      *teardownRecorder
 	establishResult  *models.EstablishResponse
 	lastEstablish    *models.EstablishRequest
 	modifyCalls      []*models.ModifyRequest
@@ -196,6 +204,8 @@ func (f *fakeUPF) ModifySession(_ context.Context, req *models.ModifyRequest) er
 }
 
 func (f *fakeUPF) DeleteSession(_ context.Context, remoteSEID uint64) error {
+	f.teardownSeq.record("delete-session")
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

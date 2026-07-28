@@ -24,7 +24,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 func nasToNgapPDUSessionType(nasType uint8) aper.Enumerated {
@@ -212,15 +211,7 @@ func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SM
 
 	// Stop the superseded context's outstanding procedure retransmission.
 	smCtxt.stopProcedureTimer()
-
 	s.RemoveSession(ctx, smCtxt.Ref)
-
-	if smCtxt.Tunnel != nil {
-		err := s.releaseTunnel(ctx, smCtxt)
-		if err != nil {
-			logger.WithTrace(ctx, logger.SmfLog).Error("release tunnel failed", zap.Error(err), logger.SUPI(smCtxt.Supi.String()), logger.PDUSessionID(smCtxt.PDUSessionID))
-		}
-	}
 }
 
 // establishmentRejectCause maps a session-policy lookup failure to the 5GSM

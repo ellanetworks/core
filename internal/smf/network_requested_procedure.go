@@ -62,12 +62,7 @@ func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti, cause
 // front on the release trigger and again on completion. Caller must hold
 // smContext.Mutex.
 func (s *SMF) releaseUserPlane(ctx context.Context, smContext *SMContext) {
-	s.releaseAllocatedAddresses(ctx, smContext)
-
-	if err := s.releaseTunnel(ctx, smContext); err != nil {
-		logger.WithTrace(ctx, logger.SmfLog).Warn("release tunnel failed, continuing release",
-			zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-	}
+	_ = s.releaseUserPlaneThenAddresses(ctx, smContext)
 }
 
 // teardownAndRemove releases the session's user-plane resources (idempotently) and

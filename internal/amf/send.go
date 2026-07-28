@@ -455,7 +455,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 		return
 	}
 
-	operatorInfo, err := amfInstance.OperatorInfo(ctx)
+	operatorInfo, err := amfInstance.operatorInfoFrom(operator)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Error("cannot SendConfigurationUpdateCommand: failed to get operator info", zap.Error(err))
 		return
