@@ -575,8 +575,6 @@ func (c *SCTPConn) SetDeadline(t time.Time) error {
 	return c.file.SetDeadline(t)
 }
 
-// SetWriteDeadline bounds only the write side, leaving a concurrent ReadMsg
-// unaffected.
 func (c *SCTPConn) SetWriteDeadline(t time.Time) error {
 	if c.file == nil {
 		return syscall.EBADF

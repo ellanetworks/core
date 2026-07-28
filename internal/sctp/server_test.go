@@ -83,8 +83,7 @@ func TestServer_DispatchesMatchingPPID(t *testing.T) {
 	srv.Shutdown(shutdownCtx)
 }
 
-// Shutdown must return without waiting out its context: closing the listener has
-// to unblock the accept loop on its own.
+// Closing the listener must unblock the accept loop on its own.
 func TestServer_ShutdownWithoutContextCancel(t *testing.T) {
 	skipIfNoSCTP(t)
 
