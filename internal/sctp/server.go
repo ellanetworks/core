@@ -207,6 +207,8 @@ func (s *Server) serveConn(ctx context.Context, conn *SCTPConn) {
 		}
 	}()
 
+	defer conn.awaitWriter()
+
 	sctpEvents := SCTPEventDataIO | SCTPEventShutdown | SCTPEventAssociation
 	if err := conn.SubscribeEvents(sctpEvents); err != nil {
 		s.cfg.Logger.Error("Failed to subscribe to SCTP events", zap.Error(err))
@@ -225,6 +227,8 @@ func (s *Server) serveConn(ctx context.Context, conn *SCTPConn) {
 	}
 
 	s.cfg.Logger.Info("New SCTP connection", zap.String("remote_address", remoteAddr.String()))
+
+	conn.startWriter(s.cfg.Logger)
 
 	buf := make([]byte, readBufSize)
 

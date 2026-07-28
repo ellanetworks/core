@@ -353,6 +353,13 @@ type SCTPConn struct {
 	// discarded under the kernel default net.sctp.addip_enable=0).
 	localAddr  atomic.Pointer[SCTPAddr]
 	remoteAddr atomic.Pointer[SCTPAddr]
+
+	// Set by startWriter on accepted associations; nil for dialled/test conns,
+	// which write synchronously. See writer.go.
+	writeCh      chan queuedWrite
+	writerDone   chan struct{}
+	writerExited chan struct{}
+	writeLogger  *zap.Logger
 }
 
 // controlFd runs fn with the raw file descriptor held by the runtime poller.
@@ -564,6 +571,16 @@ func (c *SCTPConn) SetDeadline(t time.Time) error {
 	}
 
 	return c.file.SetDeadline(t)
+}
+
+// SetWriteDeadline bounds only the write side, leaving a concurrent ReadMsg on
+// the read loop unaffected.
+func (c *SCTPConn) SetWriteDeadline(t time.Time) error {
+	if c.file == nil {
+		return syscall.EBADF
+	}
+
+	return c.file.SetWriteDeadline(t)
 }
 
 type SCTPListener struct {

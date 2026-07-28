@@ -84,10 +84,10 @@ func (r listenRawConn) Write(func(fd uintptr) (done bool)) error {
 	return fmt.Errorf("sctp: Write not supported on a listener control connection")
 }
 
-// WriteMsg sends data with optional SCTP ancillary info. Uses Go's runtime
-// poller: the goroutine parks efficiently when the socket is not ready for
-// writing, rather than pinning an OS thread.
-func (c *SCTPConn) WriteMsg(b []byte, info *SndRcvInfo) (int, error) {
+// writeMsgSync sends one message via the runtime poller: the goroutine parks
+// efficiently when the socket is not ready for writing. On an accepted
+// association only the writer goroutine calls this; see WriteMsg in writer.go.
+func (c *SCTPConn) writeMsgSync(b []byte, info *SndRcvInfo) (int, error) {
 	if c.rc == nil {
 		return 0, syscall.EBADF
 	}
@@ -227,6 +227,12 @@ func (c *SCTPConn) Close() error {
 
 	if !c.closed.CompareAndSwap(false, true) {
 		return net.ErrClosed
+	}
+
+	// Wake the writer goroutine if it is parked on an empty queue (a parked
+	// send is unparked by the fd close below).
+	if c.writerDone != nil {
+		close(c.writerDone)
 	}
 
 	// Control() holds a reference to the fd, preventing the actual close(2)
