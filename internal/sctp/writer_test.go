@@ -208,3 +208,43 @@ func TestWriter_StartAfterCloseDoesNotOrphan(t *testing.T) {
 		t.Fatal("awaitWriter blocked on a writer started after Close")
 	}
 }
+
+// A send that stays parked past the write deadline must fail the association
+// even when the queue has room.
+func TestWriter_WriteDeadlineFailsAssociation(t *testing.T) {
+	original := writeTimeout
+	writeTimeout = 250 * time.Millisecond
+
+	defer func() { writeTimeout = original }()
+
+	srv, serverConn, disconnected, client := serverWithAcceptedConn(t, 29415)
+
+	defer func() {
+		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		srv.Shutdown(sctx)
+	}()
+
+	_ = client.controlFd(func(fd int) error {
+		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, 2048)
+	})
+	_ = serverConn.controlFd(func(fd int) error {
+		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_SNDBUF, 2048)
+	})
+
+	// Stay well under writeQueueDepth so the deadline, not queue overflow, is
+	// what fails the association.
+	payload := make([]byte, 4096)
+	for i := 0; i < 16; i++ {
+		if _, err := serverConn.WriteMsg(payload, &SndRcvInfo{PPID: PPIDWireOrder(testPPID), Stream: 0}); err != nil {
+			t.Fatalf("enqueue %d: %v", i, err)
+		}
+	}
+
+	select {
+	case <-disconnected:
+	case <-time.After(10 * time.Second):
+		t.Fatal("a send parked past the write deadline did not fail the association")
+	}
+}

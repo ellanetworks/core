@@ -27,6 +27,7 @@ import (
 	"net"
 	"os"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -98,7 +99,9 @@ func (c *SCTPConn) writeMsgSync(b []byte, info *SndRcvInfo) (int, error) {
 			Level: syscall.IPPROTO_SCTP,
 			Type:  SCTPCMsgSndRcv,
 		}
-		hdr.SetLen(syscall.CmsgSpace(len(cmsgBuf)))
+		// The kernel requires exactly CMSG_LEN; CmsgSpace rounds up and would be
+		// rejected for any payload size that is not already alignment-sized.
+		hdr.SetLen(syscall.CmsgLen(len(cmsgBuf)))
 		cbuf = append(toBuf(hdr), cmsgBuf...)
 	}
 
@@ -214,10 +217,12 @@ func (c *SCTPConn) ReadMsg(b []byte) (int, *SndRcvInfo, Notification, error) {
 	return n, info, nil, err
 }
 
-// Close initiates the graceful SCTP shutdown handshake and closes the
-// underlying file descriptor. Any goroutine blocked in ReadMsg or WriteMsg is
-// safely unparked by the runtime poller. Close is safe for concurrent use; the
-// second and subsequent calls return net.ErrClosed.
+// Close ends the association gracefully: queued sends are flushed, the SCTP
+// shutdown handshake is started, and the receive queue is drained before the
+// descriptor closes. The drain is required — the kernel turns the shutdown into
+// an ABORT if any inbound data is still unread (net/sctp/socket.c sctp_close).
+// Close is safe for concurrent use; the second and subsequent calls return
+// net.ErrClosed.
 func (c *SCTPConn) Close() error {
 	if c == nil || c.file == nil {
 		return net.ErrClosed
@@ -227,8 +232,7 @@ func (c *SCTPConn) Close() error {
 		return net.ErrClosed
 	}
 
-	// A writer parked on an empty queue is not waiting on the fd closed below.
-	c.stopWriter()
+	c.flushWriter()
 
 	// Control() holds a reference to the fd, preventing the actual close(2)
 	// until it returns.
@@ -236,9 +240,55 @@ func (c *SCTPConn) Close() error {
 		_ = syscall.Shutdown(int(fd), syscall.SHUT_RDWR)
 	})
 
-	// Close the file. The runtime poller evicts all waiters first, unparking
-	// any goroutines blocked in ReadMsg/WriteMsg, before the fd is closed.
+	// Bounded: the kernel drops newly arriving data once both shutdown bits are
+	// set (net/sctp/ulpqueue.c), so only the pre-shutdown backlog is left.
+	c.drainReceiveQueue()
+
+	c.stopWriter()
+
+	// The runtime poller evicts all waiters first, unparking any goroutines
+	// blocked in ReadMsg/WriteMsg, before the fd is closed.
 	return c.file.Close()
+}
+
+// Abort ends the association immediately with an SCTP ABORT, discarding queued
+// sends. It is the right close for a peer that has stopped functioning, and it
+// never waits for the writer, so the writer goroutine itself may call it.
+func (c *SCTPConn) Abort() error {
+	if c == nil || c.file == nil {
+		return net.ErrClosed
+	}
+
+	if !c.closed.CompareAndSwap(false, true) {
+		return net.ErrClosed
+	}
+
+	c.stopWriter()
+
+	// SO_LINGER with a zero timeout makes close(2) emit an ABORT
+	// (net/sctp/socket.c sctp_close).
+	_ = c.controlFd(func(fd int) error {
+		return syscall.SetsockoptLinger(fd, syscall.SOL_SOCKET, syscall.SO_LINGER, &syscall.Linger{Onoff: 1, Linger: 0})
+	})
+
+	return c.file.Close()
+}
+
+// drainReceiveQueue reads until the queue is empty or the deadline expires, so a
+// peer still sending cannot hold up the close.
+func (c *SCTPConn) drainReceiveQueue() {
+	if err := c.SetReadDeadline(time.Now().Add(drainTimeout)); err != nil {
+		return
+	}
+
+	buf := make([]byte, readBufSize)
+
+	for {
+		n, _, notification, err := c.ReadMsg(buf)
+		if err != nil || (n == 0 && notification == nil) {
+			return
+		}
+	}
 }
 
 func (c *SCTPConn) SetReadBuffer(bytes int) error {

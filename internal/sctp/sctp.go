@@ -161,9 +161,11 @@ type AssocInfo struct {
 }
 
 type SndRcvInfo struct {
-	Stream  uint16
-	SSN     uint16
-	Flags   uint16
+	Stream uint16
+	SSN    uint16
+	Flags  uint16
+	// Matches the alignment padding in the kernel's struct sctp_sndrcvinfo;
+	// binary.Write emits it, so removing it shifts every field below.
 	_       uint16
 	PPID    uint32
 	Context uint32
@@ -359,6 +361,7 @@ type SCTPConn struct {
 	// rest stays nil on dialled conns, which write synchronously.
 	writerDone   chan struct{}
 	writerStop   sync.Once
+	writerFlush  chan struct{}
 	writeCh      chan queuedWrite
 	writerExited chan struct{}
 	writeLogger  *zap.Logger
@@ -402,7 +405,7 @@ func NewSCTPConn(fd int) *SCTPConn {
 		return nil
 	}
 
-	return &SCTPConn{file: f, rc: rc, writerDone: make(chan struct{})}
+	return &SCTPConn{file: f, rc: rc, writerDone: make(chan struct{}), writerFlush: make(chan struct{})}
 }
 
 func (c *SCTPConn) SubscribeEvents(flags int) error {
@@ -581,6 +584,14 @@ func (c *SCTPConn) SetWriteDeadline(t time.Time) error {
 	}
 
 	return c.file.SetWriteDeadline(t)
+}
+
+func (c *SCTPConn) SetReadDeadline(t time.Time) error {
+	if c.file == nil {
+		return syscall.EBADF
+	}
+
+	return c.file.SetReadDeadline(t)
 }
 
 type SCTPListener struct {

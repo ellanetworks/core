@@ -8,6 +8,7 @@ import (
 	"net"
 	"syscall"
 	"testing"
+	"time"
 	"unsafe"
 )
 
@@ -98,5 +99,71 @@ func TestClose_PeerObservesOnlyShutdown(t *testing.T) {
 
 	if oobn != 0 {
 		t.Fatalf("peer read after Close: got %d ancillary bytes, want zero-length end-of-association read", oobn)
+	}
+}
+
+// Unread inbound data must not turn the graceful close into an ABORT: the
+// kernel aborts if anything is left in the receive queue at close.
+func TestClose_UnreadDataStillShutsDownGracefully(t *testing.T) {
+	skipIfNoSCTP(t)
+
+	const port = 29311
+
+	ln := newTestListener(t, port)
+
+	connCh := make(chan *SCTPConn, 1)
+
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			connCh <- nil
+			return
+		}
+
+		connCh <- conn
+	}()
+
+	peerFd, err := connectLoopbackNoPRSCTP(port)
+	if err != nil {
+		t.Fatalf("connect with PR-SCTP disabled: %v", err)
+	}
+
+	t.Cleanup(func() { _ = syscall.Close(peerFd) })
+
+	tv := syscall.Timeval{Sec: 5}
+	if err := syscall.SetsockoptTimeval(peerFd, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &tv); err != nil {
+		t.Fatalf("set receive timeout: %v", err)
+	}
+
+	conn := <-connCh
+	if conn == nil {
+		t.Fatal("Accept failed")
+	}
+
+	if _, err := syscall.Write(peerFd, []byte("unread")); err != nil {
+		t.Fatalf("peer write: %v", err)
+	}
+
+	// Leave it queued: conn never reads it.
+	time.Sleep(200 * time.Millisecond)
+
+	if err := conn.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	buf := make([]byte, 256)
+	oob := make([]byte, 256)
+
+	n, oobn, _, _, err := syscall.Recvmsg(peerFd, buf, oob, 0)
+	if err != nil {
+		t.Fatalf("peer read after Close: %v (an ABORT surfaces as ECONNRESET)", err)
+	}
+
+	if oobn != 0 {
+		t.Fatalf("peer read after Close: got %d ancillary bytes, want a bare end-of-association read", oobn)
+	}
+
+	if n != 0 {
+		t.Fatalf("peer read after Close: got %d data bytes, want a zero-length end-of-association read", n)
 	}
 }

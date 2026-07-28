@@ -24,7 +24,9 @@ const readBufSize uint32 = 131072
 
 var errNoInterfaceAddrs = errors.New("no IP addresses found")
 
-// RFC 4960 §15 suggested values, set explicitly to not depend on host net.sctp.* sysctls.
+// RTO and association limits are the RFC 4960 §15 values, set explicitly to not
+// depend on host net.sctp.* sysctls. MaxAttempts and MaxInitTimeout apply only to
+// an initiating socket, so they are inert here.
 var serverSocketConfig = SocketConfig{
 	InitMsg:   InitMsg{NumOstreams: 2, MaxInstreams: 5, MaxAttempts: 2, MaxInitTimeout: 2},
 	RtoInfo:   &RtoInfo{SrtoAssocID: 0, SrtoInitial: 3000, SrtoMax: 60000, SrtoMin: 1000},
