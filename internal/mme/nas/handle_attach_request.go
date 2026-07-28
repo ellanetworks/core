@@ -54,9 +54,7 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, pla
 		return nasreply.Handled()
 	}
 
-	// TS 24.301 §5.5.1.2.7 case e: an identical retransmission before the accept is
-	// ignored, not restarted — restarting would abandon the in-flight auth and, for
-	// a UE retransmitting faster than one auth round-trip, never converge.
+	// TS 24.301 §5.5.1.2.7 case e: an identical retransmission before the accept is ignored.
 	if step := ue.RegStep(); step == mme.RegStepAuthenticating || step == mme.RegStepSecurityMode {
 		if len(plain) > 0 && bytes.Equal(plain, ue.Conn().AttachRequestPlain) {
 			logger.From(ctx, logger.MmeLog).Info("duplicate Attach Request with identical IEs before Attach Accept; ignoring (TS 24.301 §5.5.1.2.7 case e)",

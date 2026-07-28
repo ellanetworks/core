@@ -31,8 +31,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		zap.String("update-type", epsUpdateTypeName(req.EPSUpdateType)),
 		zap.Bool("active-flag", req.ActiveFlag))
 
-	// TS 24.301 §5.5.3.2.7 case d: resend the stored accept for an identical
-	// retransmission rather than rebuilding it, which would reallocate another GUTI.
+	// TS 24.301 §5.5.3.2.7 case d: an identical retransmission gets the stored accept.
 	if len(ue.Conn().TauAcceptPdu) > 0 && bytes.Equal(plain, ue.Conn().TauRequestPlain) {
 		logger.From(ctx, logger.MmeLog).Info("duplicate Tracking Area Update Request with identical IEs; resending Tracking Area Update Accept",
 			zap.String("imsi", ue.IMSI()))

@@ -76,7 +76,7 @@ func (s *SMF) releaseUserPlaneThenAddresses(ctx context.Context, sc *SMContext) 
 		logger.WithTrace(ctx, logger.SmfLog).Warn("resolve data network for UE address release failed; keeping IP lease",
 			zap.Error(err), logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID), logger.DNN(sc.Dnn))
 
-		return nil
+		return fmt.Errorf("resolve data network for address release: %w", err)
 	}
 
 	s.releaseAllocatedAddresses(ctx, dn, sc)

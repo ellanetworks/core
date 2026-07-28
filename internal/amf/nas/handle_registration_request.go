@@ -102,8 +102,6 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 			return fmt.Errorf("failed to decrypt NAS message - sent registration reject: %v", err)
 		}
 
-		plain = slices.Clone(contents)
-
 		m := nas.NewMessage()
 
 		if err := m.GmmMessageDecode(&contents); err != nil {
@@ -294,9 +292,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 	state := ue.State()
 	step := ue.RegStep()
 
-	// TS 24.501 §5.5.1.2.8 case e: an identical retransmission before the accept is
-	// ignored, not restarted — restarting would abandon the in-flight auth and, for
-	// a UE retransmitting faster than one auth round-trip, never converge.
+	// TS 24.501 §5.5.1.2.8 case e: an identical retransmission before the accept is ignored.
 	if step == amf.RegStepAuthenticating || step == amf.RegStepSecurityMode {
 		if conn := ue.Conn(); conn != nil && len(plain) > 0 && bytes.Equal(plain, conn.RegistrationRequestPlain) {
 			logger.From(ctx, logger.AmfLog).Info("duplicate Registration Request with identical IEs before Registration Accept; ignoring (TS 24.501 §5.5.1.2.8 case e)")
@@ -353,8 +349,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 		return nasreply.Handled()
 	case step == amf.RegStepContextSetup:
-		// TS 24.501 §5.5.1.2.8 case d: resend the ACCEPT for an identical
-		// retransmission, else abort and progress the new request.
+		// TS 24.501 §5.5.1.2.8 case d: an identical retransmission gets the ACCEPT resent.
 		conn := ue.Conn()
 		if conn != nil && len(plain) > 0 && bytes.Equal(plain, conn.RegistrationRequestPlain) {
 			logger.From(ctx, logger.AmfLog).Info("duplicate Registration Request with identical IEs; resending Registration Accept")

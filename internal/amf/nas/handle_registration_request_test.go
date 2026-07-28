@@ -829,6 +829,60 @@ func TestHandleRegistrationRequest_Authenticating_IdenticalIEs_Ignored(t *testin
 	}
 }
 
+// An identical retransmission during the security mode procedure is ignored, not
+// restarted (TS 24.501 §5.5.1.2.8 case e).
+func TestHandleRegistrationRequest_SecurityMode_IdenticalIEs_Ignored(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&fakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, &fakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: []byte("testkey"),
+	}, nil)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.Suci = "testsuci"
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
+
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	full := new(nas.Message)
+	full.GmmMessage = m
+
+	plain, err := full.PlainNasEncode()
+	if err != nil {
+		t.Fatalf("encode plain RegistrationRequest: %v", err)
+	}
+
+	ue.Conn().RegistrationRequestPlain = plain
+
+	handleRegistrationRequest(ctx, amfInstance, ue, m, plain, true)
+
+	if len(ngapSender.SentDownlinkNASTransport) != 0 {
+		t.Fatalf("an identical pre-accept duplicate must be ignored (no downlink), got %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	if ue.RegStep() != amf.RegStepSecurityMode {
+		t.Fatalf("an identical pre-accept duplicate must not restart; RegStep = %v", ue.RegStep())
+	}
+}
+
 // TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest validates
 // that a registration request coming in while the security mode procedure is
 // on-going resets the state of the UE to deregistered, triggering a new
@@ -1327,6 +1381,61 @@ func buildTestRegistrationRequestMessageWithNgKsi(cipherAlg uint8, key *[16]uint
 	registrationRequest.PDUSessionStatus = nil
 
 	return m, nil
+}
+
+// A container-carrying registration stores the outer message bytes for duplicate
+// detection, so a retransmission (which arrives as the same outer message) still
+// compares equal — the container's inner contents would not (TS 24.501 §5.5.1.2.8).
+func TestHandleRegistrationRequestMessage_ContainerStoresOuterBytes(t *testing.T) {
+	ctx := context.TODO()
+	supi := mustSUPIFromPrefixed("imsi-001019756139935")
+	amfInstance := amf.New(&fakeDBInstance{
+		Operator: &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: "[\"000001\"]"},
+	}, &fakeAusf{
+		AvKgAka: &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))},
+		Supi:    supi,
+		Kseaf:   []byte("testkey"),
+	}, nil)
+
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
+	algo := security.AlgCiphering128NEA2
+
+	ue.Suci = "testsuci"
+	ue.SetSupiForTest(supi)
+	ue.SetSecuredForTest(true)
+	ue.SetKnasEncForTest(key)
+	ue.SetCipheringAlgForTest(algo)
+
+	m, err := buildTestRegistrationRequestMessage(algo, &key, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	full := new(nas.Message)
+	full.GmmMessage = m
+
+	outer, err := full.PlainNasEncode()
+	if err != nil {
+		t.Fatalf("encode outer RegistrationRequest: %v", err)
+	}
+
+	inner := append([]byte(nil), m.RegistrationRequest.GetNASMessageContainerContents()...)
+
+	_ = handleRegistrationRequestMessage(ctx, amfInstance, ue, m.RegistrationRequest, outer, true)
+
+	stored := ue.Conn().RegistrationRequestPlain
+	if !bytes.Equal(stored, outer) {
+		t.Fatalf("stored plain must be the outer message bytes for duplicate detection")
+	}
+
+	if bytes.Equal(stored, inner) {
+		t.Fatal("stored plain must not be the inner container contents")
+	}
 }
 
 func buildUeAndRadio() (*amf.UeContext, *fakeNGAPSender, error) {
