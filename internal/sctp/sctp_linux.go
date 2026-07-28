@@ -302,6 +302,12 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 		return nil, err
 	}
 
+	// One-to-one associations inherit the option from the listener, like the
+	// RTO/association options above.
+	if err = setNoDelay(sock); err != nil {
+		return nil, err
+	}
+
 	if laddr != nil {
 		if len(laddr.IPAddrs) == 0 {
 			switch af {

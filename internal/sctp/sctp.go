@@ -239,6 +239,15 @@ func setAssocInfo(fd int, info AssocInfo) error {
 	return err
 }
 
+// setNoDelay disables the Nagle-like transmit delay (RFC 6458 §8.1.4). With
+// the delay active, the second of two back-to-back small PDUs is held until
+// the peer's delayed SACK, stalling signalling by the peer's SACK timeout.
+func setNoDelay(fd int) error {
+	on := int32(1)
+
+	return setsockopt(fd, SCTPNoDelay, uintptr(unsafe.Pointer(&on)), unsafe.Sizeof(on))
+}
+
 type SCTPAddr struct {
 	IPAddrs []net.IPAddr
 	Port    int
