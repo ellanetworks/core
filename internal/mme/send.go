@@ -73,8 +73,7 @@ func (c *UeConn) ResendAttachAccept(ctx context.Context) {
 	c.ArmNASGuard("Attach Accept", c.AttachAcceptPdu)
 }
 
-// ResendTauAccept resends the stored TRACKING AREA UPDATE ACCEPT and restarts its
-// T3450 guard, for a retransmitted TAU REQUEST with identical IEs
+// ResendTauAccept resends the stored TAU ACCEPT and restarts its T3450 guard
 // (TS 24.301 §5.5.3.2.7 case d).
 func (c *UeConn) ResendTauAccept(ctx context.Context) {
 	if c == nil || len(c.TauAcceptPdu) == 0 {

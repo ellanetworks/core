@@ -873,9 +873,7 @@ func TestAttachDuplicateIdenticalIEsResendsAccept(t *testing.T) {
 	}
 }
 
-// TestAttachDuplicatePreAcceptIdenticalIEsIgnored verifies that an identical ATTACH
-// REQUEST received while authentication is in progress (before ATTACH ACCEPT) is
-// ignored, continuing the in-flight procedure rather than restarting it
+// An identical retransmission during authentication is ignored, not restarted
 // (TS 24.301 §5.5.1.2.7 case e).
 func TestAttachDuplicatePreAcceptIdenticalIEsIgnored(t *testing.T) {
 	m := newTestMME(t)
@@ -894,7 +892,6 @@ func TestAttachDuplicatePreAcceptIdenticalIEsIgnored(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The attach being served mid-authentication (no accept sent yet).
 	ue.Conn().AttachRequestPlain = plain
 
 	handleAttachRequest(context.Background(), m, ue, plain, false)

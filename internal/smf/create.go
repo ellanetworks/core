@@ -211,9 +211,6 @@ func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SM
 
 	// Stop the superseded context's outstanding procedure retransmission.
 	smCtxt.stopProcedureTimer()
-
-	// RemoveSession tears down the user plane (ordered before the lease release) and
-	// drops the context from the pool.
 	s.RemoveSession(ctx, smCtxt.Ref)
 }
 

@@ -151,9 +151,8 @@ func (s *SMF) abortSession(ctx context.Context, sc *SMContext) {
 
 	if sc.Tunnel != nil {
 		if err := s.releaseTunnel(ctx, sc); err != nil {
-			// Keep the IP lease: releasing it before the NAT conntrack is purged could
-			// hand the address, with stale flows, to another subscriber
-			// (see releaseUserPlaneThenAddresses).
+			// Keep the lease so the address is not reused before its NAT conntrack is
+			// purged (see releaseUserPlaneThenAddresses).
 			logger.SmfLog.Warn("failed to release tunnel for aborted session; keeping IP lease", zap.String("imsi", imsi), zap.Error(err))
 			s.dropFromPool(sc)
 

@@ -66,7 +66,7 @@ func trackingAreaUpdateNAS(t *testing.T, ue *mme.UeContext, bearerStatus *uint16
 // registered and connected (TS 24.301 §5.5.3.2.4).
 func TestTrackingAreaUpdateConnectedAccepted(t *testing.T) {
 	m := newTestMME(t)
-	ue, cc := securedUE(t, m) // ECM-CONNECTED, secured, EMM-REGISTERED
+	ue, cc := securedUE(t, m)
 
 	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, nil))
 
@@ -104,10 +104,8 @@ func TestTrackingAreaUpdateConnectedAccepted(t *testing.T) {
 	}
 }
 
-// TestTrackingAreaUpdateDuplicateResendsAccept checks that a retransmitted TAU
-// REQUEST with identical IEs, received before TAU COMPLETE, is answered by resending
-// the original TAU Accept (byte-identical inner message, so no second GUTI
-// reallocation) per TS 24.301 §5.5.3.2.7 case d.
+// An identical TAU retransmission resends the stored accept byte-for-byte, so no
+// second GUTI is reallocated (TS 24.301 §5.5.3.2.7 case d).
 func TestTrackingAreaUpdateDuplicateResendsAccept(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m) // ECM-CONNECTED, secured, EMM-REGISTERED

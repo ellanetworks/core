@@ -148,7 +148,7 @@ func (s *SMF) allocateUEAddresses(ctx context.Context, dn DNNStore, sc *SMContex
 		sc.PDUIPV6Prefix = netipToIP(ipv6Prefix)
 		addrs.IPv6Prefix = ipv6Prefix
 
-		iid, err := s.assignIID(sc.Dnn)
+		iid, err := GenerateIID()
 		if err != nil {
 			s.releaseAllocatedAddresses(ctx, dn, sc)
 			return netip.Addr{}, ueAddresses{}, fmt.Errorf("assign IPv6 IID: %w", err)

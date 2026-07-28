@@ -51,9 +51,8 @@ type smfDBAdapter struct {
 	db *db.Database
 }
 
-// smfDNNStore is smf.DNNStore bound to one data-network row read at resolve
-// time. Pool derivation errors are held per family and surfaced when that
-// family is used, so an IPv4-only data network still serves IPv4 sessions.
+// smfDNNStore is smf.DNNStore bound to one data-network row. A pool derivation
+// error is held per family so an IPv4-only data network still serves IPv4.
 type smfDNNStore struct {
 	a    *smfDBAdapter
 	dnn  string
@@ -65,8 +64,6 @@ type smfDNNStore struct {
 	pool6Err error
 }
 
-// ResolveDNN reads the data network once and derives both address pools from
-// that row.
 func (a *smfDBAdapter) ResolveDNN(ctx context.Context, dnn string) (smf.DNNStore, error) {
 	ctx, span := tracer.Start(ctx, "smf/resolve_dnn",
 		trace.WithAttributes(attribute.String("dnn", dnn)),
@@ -87,15 +84,12 @@ func (a *smfDBAdapter) ResolveDNN(ctx context.Context, dnn string) (smf.DNNStore
 	if dn.IPv6Pool == "" {
 		s.pool6Err = fmt.Errorf("data network %q has no IPv6 pool configured", dnn)
 	} else {
-		// The IPv6 pool delegates /64 prefixes from the configured CIDR.
 		s.pool6, s.pool6Err = ipam.NewPool6(dn.ID, dn.IPv6Pool, 64)
 	}
 
 	return s, nil
 }
 
-// pool returns the family's address pool, or the error recorded for it at
-// resolve time.
 func (s *smfDNNStore) pool(ipv6 bool) (ipam.Pool, error) {
 	if ipv6 {
 		return s.pool6, s.pool6Err

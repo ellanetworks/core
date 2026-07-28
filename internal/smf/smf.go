@@ -57,9 +57,8 @@ type PCF interface {
 	GetSessionPolicy(ctx context.Context, imsi string, snssai *models.Snssai, dnn string) (*Policy, error)
 }
 
-// DNNStore is the session-data surface bound to one resolved data network.
-// A procedure resolves its DNN once via SessionStore.ResolveDNN and performs
-// every lease and route operation against that single consistent view.
+// DNNStore is the session-data surface bound to one data network resolved once
+// via SessionStore.ResolveDNN.
 type DNNStore interface {
 	AllocateIP(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error)
 
@@ -83,7 +82,6 @@ type DNNStore interface {
 // SessionStore is the minimal DB surface the SMF needs for session-level
 // data operations (IP management, usage accounting, flow reports).
 type SessionStore interface {
-	// ResolveDNN reads the data network once and returns its bound DNNStore.
 	ResolveDNN(ctx context.Context, dnn string) (DNNStore, error)
 
 	IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error
@@ -329,17 +327,14 @@ func (s *SMF) GetSessionBySEID(seid uint64) *SMContext {
 	return nil
 }
 
-// RemoveSession tears down a session's user plane, releases its IP address(es),
-// and removes it from the pool. Caller holds the session's Mutex.
+// RemoveSession tears down a session's user plane, releases its addresses, and
+// removes it from the pool. Caller holds the session's Mutex.
 func (s *SMF) RemoveSession(ctx context.Context, ref string) {
 	smCtx := s.GetSession(ref)
 	if smCtx == nil {
 		return
 	}
 
-	// Tear down the user plane (and NAT conntrack) before releasing the leases, so
-	// the address is not reallocatable while stale conntrack survives; see
-	// releaseUserPlaneThenAddresses. Callers hold smCtx.Mutex.
 	_ = s.releaseUserPlaneThenAddresses(ctx, smCtx)
 
 	s.dropFromPool(smCtx)

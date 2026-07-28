@@ -85,10 +85,8 @@ type UeConn struct {
 	AttachRequestPlain []byte
 	AttachAcceptPdu    []byte
 
-	// In-flight TAU working-state (TS 24.301 §5.5.3.2.7 case d): TauRequestPlain is
-	// the plaintext TRACKING AREA UPDATE REQUEST being served, TauAcceptPdu the
-	// protected accept awaiting TRACKING AREA UPDATE COMPLETE; both are cleared when
-	// the complete commits the reallocated GUTI.
+	// In-flight TAU working-state (TS 24.301 §5.5.3.2.7 case d), like the attach
+	// state above; cleared when TAU COMPLETE commits the reallocated GUTI.
 	TauRequestPlain []byte
 	TauAcceptPdu    []byte
 

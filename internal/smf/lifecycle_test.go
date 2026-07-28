@@ -2493,9 +2493,8 @@ func TestUpdateSmContextN1Msg_ModificationRejected(t *testing.T) {
 	}
 }
 
-// teardownRecorder is a shared, ordered log used by the store and UPF fakes to
-// assert that the NAT-bearing user-plane teardown (DeleteSession) happens before
-// the IP lease release (see releaseUserPlaneThenAddresses).
+// teardownRecorder is an ordered log shared by the store and UPF fakes to assert
+// DeleteSession happens before the IP lease release.
 type teardownRecorder struct {
 	mu  sync.Mutex
 	seq []string
@@ -2519,10 +2518,8 @@ func (r *teardownRecorder) events() []string {
 	return slices.Clone(r.seq)
 }
 
-// TestReleaseSmContext_PurgesDatapathBeforeReleasingLease guards the fix for the
-// cross-subscriber misdelivery bug: the IP lease must not return to the allocator
-// until the UPF session (and its NAT conntrack) is torn down, or a reallocation
-// could inherit the previous subscriber's live flows.
+// The IP lease must not be released until the UPF session (and its NAT conntrack)
+// is torn down, else a reallocation could inherit the previous subscriber's flows.
 func TestReleaseSmContext_PurgesDatapathBeforeReleasingLease(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 
@@ -2544,9 +2541,8 @@ func TestReleaseSmContext_PurgesDatapathBeforeReleasingLease(t *testing.T) {
 	}
 }
 
-// TestReleaseSmContext_KeepsLeaseWhenDatapathTeardownFails guards the fail-safe:
-// if the user-plane teardown fails, the IP lease is kept (the address stays bound
-// to this subscriber) rather than released for reuse with stale conntrack.
+// On teardown failure the lease is kept, so the address is not reused with stale
+// conntrack.
 func TestReleaseSmContext_KeepsLeaseWhenDatapathTeardownFails(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)

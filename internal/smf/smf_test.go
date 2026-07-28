@@ -21,7 +21,7 @@ import (
 
 type fakeStore struct {
 	mu              sync.Mutex
-	teardownSeq     *teardownRecorder // shared with fakeUPF to assert teardown ordering
+	teardownSeq     *teardownRecorder
 	allocatedIP     netip.Addr
 	allocatedIPv6   netip.Addr
 	releasedIP      netip.Addr
@@ -41,8 +41,6 @@ type fakeStore struct {
 	opLog           []string
 }
 
-// ResolveDNN returns the fake itself: every DNN resolves to the one fake data
-// network the store models.
 func (f *fakeStore) ResolveDNN(_ context.Context, _ string) (smf.DNNStore, error) {
 	return f, nil
 }
@@ -172,7 +170,7 @@ func (f *fakeStore) InsertFlowReports(_ context.Context, reports []*models.FlowR
 
 type fakeUPF struct {
 	mu               sync.Mutex
-	teardownSeq      *teardownRecorder // shared with fakeStore to assert teardown ordering
+	teardownSeq      *teardownRecorder
 	establishResult  *models.EstablishResponse
 	lastEstablish    *models.EstablishRequest
 	modifyCalls      []*models.ModifyRequest

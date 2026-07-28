@@ -54,15 +54,11 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	return err
 }
 
-// releaseUserPlaneThenAddresses tears down the session's user plane (the UPF
-// session and, inside DeleteSession, its NAT conntrack) and only then releases the
-// UE IP leases. The order is load-bearing: an address returned to the allocator
-// before its conntrack entries are purged can be re-leased to another subscriber
-// that then receives the previous subscriber's in-flight downlink flows. If the
-// user-plane teardown fails the leases are kept — the address stays bound to this
-// IMSI, so it cannot be handed to a different subscriber with stale datapath state
-// — until the UE reattaches (which reuses the same (pool, IMSI, PDU-session-ID)
-// lease) or an operator reclaims it. Caller holds sc.Mutex.
+// releaseUserPlaneThenAddresses purges the UPF session (and its NAT conntrack)
+// before releasing the IP leases: an address freed while its conntrack survives
+// can be re-leased to another subscriber that then receives the previous
+// subscriber's flows. On teardown failure the leases are kept, so the address
+// stays bound to this IMSI. Caller holds sc.Mutex.
 func (s *SMF) releaseUserPlaneThenAddresses(ctx context.Context, sc *SMContext) error {
 	if err := s.releaseTunnel(ctx, sc); err != nil {
 		logger.WithTrace(ctx, logger.SmfLog).Warn("user-plane teardown failed; keeping IP lease to prevent reuse with stale NAT conntrack",

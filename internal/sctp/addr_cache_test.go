@@ -13,9 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// TestSCTPConn_AddrAccessorsCached verifies LocalAddr/RemoteAddr resolve the
-// association's loopback addresses and that repeated calls return the cached
-// resolution.
+// Repeated LocalAddr/RemoteAddr calls return the cached resolution.
 func TestSCTPConn_AddrAccessorsCached(t *testing.T) {
 	skipIfNoSCTP(t)
 

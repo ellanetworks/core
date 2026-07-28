@@ -239,9 +239,9 @@ func setAssocInfo(fd int, info AssocInfo) error {
 	return err
 }
 
-// setNoDelay disables the Nagle-like transmit delay (RFC 6458 §8.1.4). With
-// the delay active, the second of two back-to-back small PDUs is held until
-// the peer's delayed SACK, stalling signalling by the peer's SACK timeout.
+// setNoDelay disables the Nagle-like transmit delay (RFC 6458 §8.1.4), which
+// otherwise holds the second of two back-to-back small PDUs until the peer's
+// delayed SACK.
 func setNoDelay(fd int) error {
 	on := int32(1)
 
@@ -349,10 +349,8 @@ type SCTPConn struct {
 	rc     syscall.RawConn
 	closed atomic.Bool
 
-	// The address sets of a one-to-one association are fixed after
-	// establishment (inbound dynamic address reconfiguration is discarded
-	// under the kernel default net.sctp.addip_enable=0), so both accessors
-	// cache their first successful resolution.
+	// Cached: the address sets are fixed after establishment (inbound ASCONF is
+	// discarded under the kernel default net.sctp.addip_enable=0).
 	localAddr  atomic.Pointer[SCTPAddr]
 	remoteAddr atomic.Pointer[SCTPAddr]
 }

@@ -15,15 +15,12 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// OperatorConfig is a point-in-time view of the operator row. Handlers that
-// need several derived values fetch one OperatorConfig and derive from it, so
-// a single procedure step reads the row once and sees one consistent version.
+// OperatorConfig is a point-in-time view of the operator row: a handler needing
+// several derived values reads the row once and derives from this snapshot.
 type OperatorConfig struct {
 	op *db.Operator
 }
 
-// Operator fetches the operator row once for derivation via OperatorConfig
-// accessors.
 func (m *MME) Operator(ctx context.Context) (OperatorConfig, error) {
 	op, err := m.Bearer.GetOperator(ctx)
 	if err != nil {
@@ -109,8 +106,7 @@ func (o OperatorConfig) ServesTAI(tai s1ap.TAI) (bool, error) {
 	return slices.Contains(tacs, uint16(tai.TAC)), nil
 }
 
-// OperatorPLMN returns the operator's serving PLMN. Handlers needing more than
-// one operator-derived value should fetch Operator once and derive.
+// OperatorPLMN returns the operator's serving PLMN (TS 23.003).
 func (m *MME) OperatorPLMN(ctx context.Context) (models.PlmnID, error) {
 	ctx, span := Tracer.Start(ctx, "mme/get_operator_plmn")
 	defer span.End()

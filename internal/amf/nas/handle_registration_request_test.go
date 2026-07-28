@@ -619,7 +619,6 @@ func TestHandleRegistrationRequest_ContextSetup_DifferingIEs_Progresses(t *testi
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 	ue.ForceRegStepForTest(amf.RegStepContextSetup)
-	// No stored prior request bytes, so the incoming one differs and the procedure progresses.
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
@@ -653,11 +652,8 @@ func TestHandleRegistrationRequest_ContextSetup_DifferingIEs_Progresses(t *testi
 	}
 }
 
-// TestHandleRegistrationRequest_ContextSetup_UnmodeledIEDiffers_Progresses validates
-// that a REGISTRATION REQUEST whose bytes differ from the stored request only by an
-// IE the NAS decoder does not model is treated as a differing request and progressed
-// (TS 24.501 §5.5.1.2.8 case d): the comparison is on message bytes, so an IE that is
-// invisible to the decoder still distinguishes the requests.
+// A request differing only by a decoder-invisible IE (0x35) must still be treated
+// as differing, since the comparison is on message bytes (TS 24.501 §5.5.1.2.8 case d).
 func TestHandleRegistrationRequest_ContextSetup_UnmodeledIEDiffers_Progresses(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -702,8 +698,8 @@ func TestHandleRegistrationRequest_ContextSetup_UnmodeledIEDiffers_Progresses(t 
 	conn.RegistrationRequestPlain = stored
 	conn.RegistrationAcceptPdu = []byte{0x7e, 0x00, 0x42}
 
-	// Requested mapped NSSAI (IEI 0x35), absent from the decoder's IE set: the
-	// decoded struct equals the stored one while the bytes differ.
+	// Requested mapped NSSAI (0x35): not modelled by the decoder, so the structs
+	// are equal while the bytes differ.
 	incoming := append(append([]byte{}, stored...), 0x35, 0x02, 0x01, 0x01)
 
 	handleRegistrationRequest(ctx, amfInstance, ue, m, incoming, true)
@@ -779,10 +775,8 @@ func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t 
 	}
 }
 
-// TestHandleRegistrationRequest_Authenticating_IdenticalIEs_Ignored validates that
-// an identical REGISTRATION REQUEST received while authentication is in progress
-// (before REGISTRATION ACCEPT) is ignored, continuing the in-flight procedure
-// rather than restarting it (TS 24.501 §5.5.1.2.8 case e).
+// An identical retransmission during authentication is ignored, not restarted
+// (TS 24.501 §5.5.1.2.8 case e).
 func TestHandleRegistrationRequest_Authenticating_IdenticalIEs_Ignored(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{

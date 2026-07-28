@@ -13,7 +13,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// nodelayValue reads SCTP_NODELAY from the connection's socket.
 func nodelayValue(t *testing.T, conn *SCTPConn) int32 {
 	t.Helper()
 
@@ -31,8 +30,7 @@ func nodelayValue(t *testing.T, conn *SCTPConn) int32 {
 	return v
 }
 
-// TestServer_AcceptedConnHasNoDelay verifies an accepted association carries
-// SCTP_NODELAY inherited from the listener.
+// An accepted association inherits SCTP_NODELAY from the listener.
 func TestServer_AcceptedConnHasNoDelay(t *testing.T) {
 	skipIfNoSCTP(t)
 

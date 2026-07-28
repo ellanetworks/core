@@ -54,13 +54,9 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, pla
 		return nasreply.Handled()
 	}
 
-	// An ATTACH REQUEST received while an attach is in progress and no ATTACH
-	// ACCEPT/REJECT has been sent yet (TS 24.301 §5.5.1.2.7 case e). Identical IEs
-	// mean a retransmission — continue the in-flight procedure (its T3460/T3450
-	// guard drives progress) and ignore the duplicate rather than restarting, which
-	// would abandon the pending authentication and, for a UE retransmitting faster
-	// than one auth round-trip, prevent convergence. Differing IEs fall through to
-	// supersede the earlier attach.
+	// TS 24.301 §5.5.1.2.7 case e: an identical retransmission before the accept is
+	// ignored, not restarted — restarting would abandon the in-flight auth and, for
+	// a UE retransmitting faster than one auth round-trip, never converge.
 	if step := ue.RegStep(); step == mme.RegStepAuthenticating || step == mme.RegStepSecurityMode {
 		if len(plain) > 0 && bytes.Equal(plain, ue.Conn().AttachRequestPlain) {
 			logger.From(ctx, logger.MmeLog).Info("duplicate Attach Request with identical IEs before Attach Accept; ignoring (TS 24.301 §5.5.1.2.7 case e)",
