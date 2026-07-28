@@ -82,3 +82,37 @@ func TestServer_DispatchesMatchingPPID(t *testing.T) {
 
 	srv.Shutdown(shutdownCtx)
 }
+
+// Shutdown must return without waiting out its context: closing the listener has
+// to unblock the accept loop on its own.
+func TestServer_ShutdownWithoutContextCancel(t *testing.T) {
+	skipIfNoSCTP(t)
+
+	const port = 29403
+
+	srv := NewServer(Config{
+		PPID:   testPPID,
+		Name:   "TEST",
+		Logger: zap.NewNop(),
+	}, Callbacks{
+		Dispatch: func(_ context.Context, _ *SCTPConn, _ []byte) {},
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := srv.ListenAndServe(ctx, "127.0.0.1", port, ""); err != nil {
+		t.Fatalf("ListenAndServe: %v", err)
+	}
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+
+	start := time.Now()
+
+	srv.Shutdown(shutdownCtx)
+
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("Shutdown took %v; the accept loop did not exit when the listener closed", elapsed)
+	}
+}

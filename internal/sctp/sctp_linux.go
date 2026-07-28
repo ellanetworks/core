@@ -367,11 +367,11 @@ func (ln *SCTPListener) Accept() (*SCTPConn, error) {
 		return true
 	})
 	if rerr != nil {
-		return nil, rerr
+		return nil, ln.acceptErr(rerr)
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, ln.acceptErr(err)
 	}
 
 	conn := NewSCTPConn(newFd)
@@ -381,6 +381,16 @@ func (ln *SCTPListener) Accept() (*SCTPConn, error) {
 	}
 
 	return conn, nil
+}
+
+// acceptErr reports a closed listener as net.ErrClosed: the poller surfaces the
+// close as a bare "use of closed file" that matches no exported sentinel.
+func (ln *SCTPListener) acceptErr(err error) error {
+	if ln.closed.Load() {
+		return net.ErrClosed
+	}
+
+	return err
 }
 
 // Close closes the listener and unblocks any concurrent Accept call. The
