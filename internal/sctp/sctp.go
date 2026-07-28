@@ -348,6 +348,13 @@ type SCTPConn struct {
 	file   *os.File
 	rc     syscall.RawConn
 	closed atomic.Bool
+
+	// The address sets of a one-to-one association are fixed after
+	// establishment (inbound dynamic address reconfiguration is discarded
+	// under the kernel default net.sctp.addip_enable=0), so both accessors
+	// cache their first successful resolution.
+	localAddr  atomic.Pointer[SCTPAddr]
+	remoteAddr atomic.Pointer[SCTPAddr]
 }
 
 // controlFd runs fn with the raw file descriptor held by the runtime poller.
@@ -526,7 +533,13 @@ func (c *SCTPConn) getAddrs(optname int) *SCTPAddr {
 }
 
 func (c *SCTPConn) LocalAddr() net.Addr {
+	if addr := c.localAddr.Load(); addr != nil {
+		return addr
+	}
+
 	if addr := c.getAddrs(SCTPGetLocalAddrs); addr != nil {
+		c.localAddr.Store(addr)
+
 		return addr
 	}
 
@@ -534,7 +547,13 @@ func (c *SCTPConn) LocalAddr() net.Addr {
 }
 
 func (c *SCTPConn) RemoteAddr() net.Addr {
+	if addr := c.remoteAddr.Load(); addr != nil {
+		return addr
+	}
+
 	if addr := c.getAddrs(SCTPGetPeerAddrs); addr != nil {
+		c.remoteAddr.Store(addr)
+
 		return addr
 	}
 
