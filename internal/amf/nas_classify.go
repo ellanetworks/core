@@ -15,6 +15,10 @@ import (
 type DecodeResult struct {
 	Message           *nas.Message
 	IntegrityVerified bool
+	// Plain is the plain NAS message bytes (deciphered when the message arrived
+	// protected), for handlers that must compare a message against a
+	// retransmission byte-for-byte (TS 24.501 §5.5.1.2.8).
+	Plain []byte
 }
 
 // plainNasAllowed reports whether a NAS message type may be processed without a verified

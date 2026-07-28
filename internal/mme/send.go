@@ -73,6 +73,18 @@ func (c *UeConn) ResendAttachAccept(ctx context.Context) {
 	c.ArmNASGuard("Attach Accept", c.AttachAcceptPdu)
 }
 
+// ResendTauAccept resends the stored TRACKING AREA UPDATE ACCEPT and restarts its
+// T3450 guard, for a retransmitted TAU REQUEST with identical IEs
+// (TS 24.301 §5.5.3.2.7 case d).
+func (c *UeConn) ResendTauAccept(ctx context.Context) {
+	if c == nil || len(c.TauAcceptPdu) == 0 {
+		return
+	}
+
+	c.SendDownlinkNASTransport(ctx, c.TauAcceptPdu)
+	c.ArmNASGuard("Tracking Area Update Accept", c.TauAcceptPdu)
+}
+
 // SendDownlinkNASTransport wraps NAS bytes (plain or security-protected) in a Downlink NAS
 // Transport and sends them to the UE's eNB through the single send chokepoint.
 func (c *UeConn) SendDownlinkNASTransport(ctx context.Context, nas []byte) {

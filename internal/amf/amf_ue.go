@@ -509,6 +509,7 @@ func (ue *UeContext) ClearRegistrationRequestData() {
 	defer ue.mu.Unlock()
 
 	conn.RegistrationRequest = nil
+	conn.RegistrationRequestPlain = nil
 	conn.RegistrationType5GS = 0
 	conn.IdentityTypeUsedForRegistration = 0
 	conn.resyncTried = false

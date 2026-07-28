@@ -11,7 +11,7 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 )
 
-func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.RegistrationRequest) {
+func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.RegistrationRequest, plain []byte) {
 	ctx, span := gmmTracer.Start(ctx, "nas/context_setup")
 	defer span.End()
 
@@ -24,6 +24,7 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, 
 	}
 
 	conn.RegistrationRequest = msg
+	conn.RegistrationRequestPlain = plain
 
 	switch conn.RegistrationType5GS {
 	case nasMessage.RegistrationType5GSInitialRegistration:

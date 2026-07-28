@@ -18,12 +18,12 @@ var gmmTracer = otel.Tracer("ella-core/amf/nas/handler")
 // HandleGmmMessage dispatches an inbound GMM message to its handler. integrityVerified
 // is true only when the message carried a verified MAC; it is false when the decoder
 // admitted the message without verified integrity (plain, or MAC-failed but whitelisted).
-func HandleGmmMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nas.GmmMessage, integrityVerified bool) nasreply.Disposition {
+func HandleGmmMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nas.GmmMessage, plain []byte, integrityVerified bool) nasreply.Disposition {
 	msgType := msg.GetMessageType()
 
 	switch msgType {
 	case nas.MsgTypeRegistrationRequest:
-		return handleRegistrationRequest(ctx, amfInstance, ue, msg, integrityVerified)
+		return handleRegistrationRequest(ctx, amfInstance, ue, msg, plain, integrityVerified)
 	case nas.MsgTypeULNASTransport:
 		return handleULNASTransport(ctx, amfInstance, ue, msg.ULNASTransport)
 	case nas.MsgTypeConfigurationUpdateComplete:

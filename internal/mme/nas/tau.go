@@ -4,6 +4,7 @@
 package nas
 
 import (
+	"bytes"
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -29,6 +30,18 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		zap.String("imsi", ue.IMSI()),
 		zap.String("update-type", epsUpdateTypeName(req.EPSUpdateType)),
 		zap.Bool("active-flag", req.ActiveFlag))
+
+	// A TAU REQUEST received after the accept was sent and before TAU COMPLETE
+	// arrives (TS 24.301 §5.5.3.2.7 case d): identical IEs mean a retransmission —
+	// resend the accept and restart T3450 without reallocating another GUTI.
+	// Differing IEs fall through and supersede the earlier TAU with the new one.
+	if len(ue.Conn().TauAcceptPdu) > 0 && bytes.Equal(plain, ue.Conn().TauRequestPlain) {
+		logger.From(ctx, logger.MmeLog).Info("duplicate Tracking Area Update Request with identical IEs; resending Tracking Area Update Accept",
+			zap.String("imsi", ue.IMSI()))
+		ue.Conn().ResendTauAccept(ctx)
+
+		return nasreply.Handled()
+	}
 
 	// The UE's serving cell must be in this MME's served area, as at attach, or TAU
 	// REJECT #12 (TS 24.301 §5.5.3.2.5).
@@ -67,6 +80,9 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	}
 
 	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultAccept)
+
+	ue.Conn().TauRequestPlain = plain
+	ue.Conn().TauAcceptPdu = naspdu
 
 	// A fully connected UE (bearers up) keeps its connection; a UE resuming for this
 	// TAU needs re-establishment or a deferred release.
@@ -119,6 +135,9 @@ func rejectTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 func handleTrackingAreaUpdateComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext) nasreply.Disposition {
 	ue.Conn().StopNASGuard()
 	m.CommitGUTIRealloc(ue)
+
+	ue.Conn().TauRequestPlain = nil
+	ue.Conn().TauAcceptPdu = nil
 
 	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update Complete", zap.String("imsi", ue.IMSI()))
 
