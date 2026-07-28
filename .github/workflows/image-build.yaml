@@ -18,10 +18,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - uses: canonical/craft-actions/rockcraft-pack@acd2f2e61c7563b38ba89390ca0e910fa7d2784f # main
+      - uses: canonical/craft-actions/rockcraft/pack@adcd47eb054a3dcf0eabbdb81439aae5f3ce715e # main
         id: rockcraft
         with:
-          rockcraft-channel: stable
+          channel: stable
 
       - name: Save container image to file
         run: |

@@ -1,0 +1,83 @@
+name: Snap Strict Confinement Test
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  snap-strict-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build snap
+        uses: snapcore/action-build@3bdaa03e1ba6bf59a65f84a751d943d549a54e79 #v1.3.0
+        id: build
+
+      - name: Install the snap under strict confinement
+        run: |
+          sudo snap install --dangerous "${{ steps.build.outputs.snap }}"
+          snap list ella-core
+
+      - name: Require strict confinement to be enforced
+        # Without this, a runner running the snap unconfined would let the test
+        # pass even if a plug/permission were missing.
+        run: |
+          mode="$(sudo snap debug confinement)"
+          echo "system confinement: ${mode}"
+          if [ "${mode}" != "strict" ]; then
+            echo "::error::runner does not enforce strict confinement (${mode}); cannot validate the snap"
+            exit 1
+          fi
+
+      - name: Connect the snap plugs
+        run: |
+          for plug in network-control process-control system-observe firewall-control mount-observe; do
+            sudo snap connect ella-core:"${plug}"
+          done
+
+      - name: Provision test interfaces and configuration
+        run: |
+          sudo ip link add ella-n2 type dummy
+          sudo ip addr add 10.3.0.2/24 dev ella-n2
+          sudo ip link set ella-n2 up
+          sudo ip link add ella-n3 type veth peer name ella-n3-peer
+          sudo ip link add ella-n6 type veth peer name ella-n6-peer
+          sudo ip addr add 10.5.0.1/24 dev ella-n3
+          sudo ip addr add 10.6.0.1/24 dev ella-n6
+          for dev in ella-n3 ella-n3-peer ella-n6 ella-n6-peer; do
+            sudo ip link set "${dev}" up
+          done
+          cfg=/var/snap/ella-core/common/core.yaml
+          sudo yq -i '
+            .interfaces.n2.address = "10.3.0.2" |
+            .interfaces.n3.name = "ella-n3" |
+            .interfaces.n6.name = "ella-n6" |
+            .xdp."attach-mode" = "generic" |
+            .logging.system.level = "debug"
+          ' "${cfg}"
+
+      - name: Start the datapath daemon
+        run: sudo snap start ella-core.cored
+
+      - name: Assert the service runs properly
+        run: |
+          sleep 15
+          # A failed eBPF load (the class of regression this guards) is fatal and
+          # triggers a systemd restart, so a clean run has zero restarts.
+          restarts="$(systemctl show -p NRestarts --value snap.ella-core.cored)"
+          echo "restarts: ${restarts}"
+          if [ "${restarts}" != "0" ]; then
+            echo "::error::ella-core.cored crashed/restarted under strict confinement"
+            exit 1
+          fi
+          # The datapath is up only if the whole runtime came up: query the API.
+          status="$(curl -sk --max-time 10 https://127.0.0.1:5002/api/v1/status)"
+          echo "status: ${status}"
+          echo "${status}" | grep -q '"ready":true'
+
+      - name: Dump daemon logs
+        if: always()
+        run: sudo snap logs ella-core.cored -n 200 || true

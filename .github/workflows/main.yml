@@ -37,6 +37,8 @@ jobs:
     uses: ./.github/workflows/clang-tidy.yaml
   license-headers:
     uses: ./.github/workflows/license-headers.yaml
+  snap-strict-test:
+    uses: ./.github/workflows/snap-strict-test.yaml
   image-build:
     needs: [go-unit-test, go-vet, go-lint]
     uses: ./.github/workflows/image-build.yaml
