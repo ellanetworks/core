@@ -209,16 +209,16 @@ static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 				flags);
 	switch (rc) {
 	case BPF_FIB_LKUP_RET_NO_NEIGH: {
-		// bpf_fib_lookup leaves smac unset on this branch, so the frame
-		// cannot be completed here. Notify userspace to resolve the
-		// nexthop, which bpf_fib_lookup has written into ipv4_dst.
+		// smac is unset on this branch, so the frame cannot be completed
+		// here. The lookup rewrites family and ipv6_dst for an IPv4
+		// route with an IPv6 nexthop (RFC 5549).
 		struct no_neigh_event ev = {
 			.ifindex = fib_params.ifindex,
-			.family = AF_INET,
+			.family = fib_params.family,
 		};
 
-		__builtin_memcpy(ev.addr, &fib_params.ipv4_dst,
-				 sizeof(fib_params.ipv4_dst));
+		__builtin_memcpy(ev.addr, fib_params.ipv6_dst,
+				 sizeof(fib_params.ipv6_dst));
 		bpf_ringbuf_output(&no_neigh_map, &ev, sizeof(ev), 0);
 		statistic->fib_lookup_ip4_no_neigh += 1;
 
@@ -306,12 +306,12 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 				0 /*BPF_FIB_LOOKUP_OUTPUT*/);
 	switch (rc) {
 	case BPF_FIB_LKUP_RET_NO_NEIGH: {
-		// bpf_fib_lookup leaves smac unset on this branch, so the frame
-		// cannot be completed here. Notify userspace to resolve the
-		// nexthop, which bpf_fib_lookup has written into ipv6_dst.
+		// smac is unset on this branch, so the frame cannot be completed
+		// here. The lookup rewrites family and ipv6_dst for an IPv4
+		// route with an IPv6 nexthop (RFC 5549).
 		struct no_neigh_event ev = {
 			.ifindex = fib_params.ifindex,
-			.family = AF_INET6,
+			.family = fib_params.family,
 		};
 
 		__builtin_memcpy(ev.addr, fib_params.ipv6_dst,
