@@ -4,34 +4,32 @@
 
 package amf
 
-import (
-	"github.com/free5gc/nas/security"
-)
+import "github.com/ellanetworks/core/nas"
 
-func cipheringAlgName(alg byte) string {
+func cipheringAlgName(alg nas.CipheringAlgorithm) string {
 	switch alg {
-	case security.AlgCiphering128NEA0:
+	case nas.CipheringNull:
 		return "NEA0"
-	case security.AlgCiphering128NEA1:
+	case nas.CipheringSNOW3G:
 		return "NEA1"
-	case security.AlgCiphering128NEA2:
+	case nas.CipheringAES:
 		return "NEA2"
-	case security.AlgCiphering128NEA3:
+	case nas.CipheringZUC:
 		return "NEA3"
 	default:
 		return ""
 	}
 }
 
-func integrityAlgName(alg byte) string {
+func integrityAlgName(alg nas.IntegrityAlgorithm) string {
 	switch alg {
-	case security.AlgIntegrity128NIA0:
+	case nas.IntegrityNull:
 		return "NIA0"
-	case security.AlgIntegrity128NIA1:
+	case nas.IntegritySNOW3G:
 		return "NIA1"
-	case security.AlgIntegrity128NIA2:
+	case nas.IntegrityAES:
 		return "NIA2"
-	case security.AlgIntegrity128NIA3:
+	case nas.IntegrityZUC:
 		return "NIA3"
 	default:
 		return ""
@@ -39,10 +37,10 @@ func integrityAlgName(alg byte) string {
 }
 
 // selectNASAlg returns the first network-preferred algorithm the UE supports,
-// reporting false when none is common.
-func selectNASAlg(preference []uint8, supported func(uint8) bool) (byte, bool) {
+// reporting false when none is nas.
+func selectNASAlg[T ~uint8](preference []T, supported func(uint8) bool) (T, bool) {
 	for _, alg := range preference {
-		if supported(alg) {
+		if supported(uint8(alg)) {
 			return alg, true
 		}
 	}
@@ -55,44 +53,20 @@ func selectNASAlg(preference []uint8, supported func(uint8) bool) (byte, bool) {
 // returning ok=false when the UE capability is absent or no common algorithm is
 // found for either. It does not mutate the UE — the caller installs the result via
 // InstallNASSecurityContext.
-func (ue *UeContext) SelectSecurityAlg(intOrder, encOrder []uint8) (nea, nia byte, ok bool) {
+func (ue *UeContext) SelectSecurityAlg(intOrder []nas.IntegrityAlgorithm, encOrder []nas.CipheringAlgorithm) (nea nas.CipheringAlgorithm, nia nas.IntegrityAlgorithm, ok bool) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	uecap := ue.ueSecurityCapability
-	if uecap == nil {
+	sc := ue.ueSecurityCapability
+	if sc == nil {
 		return 0, 0, false
 	}
 
-	nia, iok := selectNASAlg(intOrder, func(alg uint8) bool {
-		switch alg {
-		case security.AlgIntegrity128NIA0:
-			return uecap.GetIA0_5G() == 1
-		case security.AlgIntegrity128NIA1:
-			return uecap.GetIA1_128_5G() == 1
-		case security.AlgIntegrity128NIA2:
-			return uecap.GetIA2_128_5G() == 1
-		case security.AlgIntegrity128NIA3:
-			return uecap.GetIA3_128_5G() == 1
-		}
-
-		return false
-	})
-
-	nea, eok := selectNASAlg(encOrder, func(alg uint8) bool {
-		switch alg {
-		case security.AlgCiphering128NEA0:
-			return uecap.GetEA0_5G() == 1
-		case security.AlgCiphering128NEA1:
-			return uecap.GetEA1_128_5G() == 1
-		case security.AlgCiphering128NEA2:
-			return uecap.GetEA2_128_5G() == 1
-		case security.AlgCiphering128NEA3:
-			return uecap.GetEA3_128_5G() == 1
-		}
-
-		return false
-	})
+	// The NEA/NIA algorithm identity equals the support-bit index in the UE
+	// security capability (NEA0/NIA0 = bit 8, NEA1/NIA1 = bit 7, …), so the operator
+	// preference value indexes SupportsEA/SupportsIA directly (TS 24.501 §9.11.3.54).
+	nia, iok := selectNASAlg(intOrder, sc.SupportsIA)
+	nea, eok := selectNASAlg(encOrder, sc.SupportsEA)
 
 	return nea, nia, iok && eok
 }

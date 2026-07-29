@@ -14,12 +14,10 @@ import (
 )
 
 // handleDeactivateBearerAccept finalises an EPS bearer deactivation (TS 24.301 §6.4.4.3).
-func handleDeactivateBearerAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+func handleDeactivateBearerAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, accept *eps.DeactivateEPSBearerContextAccept) nasreply.Disposition {
 	p := m.DefaultPDN(ue)
-	if accept, err := eps.ParseDeactivateEPSBearerContextAccept(plain); err == nil {
-		if named := m.LookupPDN(ue, accept.EPSBearerIdentity); named != nil {
-			p = named
-		}
+	if named := m.LookupPDN(ue, uint8(accept.EPSBearerIdentity)); named != nil {
+		p = named
 	}
 
 	if p == nil {

@@ -17,11 +17,11 @@ import (
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
-const pduSessionType = nasMessage.PDUSessionTypeIPv4
+const pduSessionType = fgs.PDUSessionTypeIPv4
 
 // RegisterAndPingOpts: Key/OpC/SQN/PDUSessionID default to
 // scenarios.Default* when zero; IMSI and TunInterfaceName are required.

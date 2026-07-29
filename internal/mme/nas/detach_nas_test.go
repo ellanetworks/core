@@ -9,10 +9,17 @@ import (
 
 	"github.com/ellanetworks/core/internal/mme"
 	mmes1ap "github.com/ellanetworks/core/internal/mme/s1ap"
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 )
+
+// attackerKey stands in for key material an attacker would not have: a message
+// protected under it must not verify against the UE's context.
+var attackerKey = [16]byte{
+	0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+	0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+}
 
 func TestDetachSubscriberNetworkInitiated(t *testing.T) {
 	m := newTestMME(t)
@@ -32,8 +39,7 @@ func TestDetachSubscriberNetworkInitiated(t *testing.T) {
 
 	wire := decodeDownlinkNAS(t, cc.sent[0])
 
-	plain, err := eps.Unprotect(wire, nascommon.NASCount(0, wire[5]), nascommon.DirectionDownlink,
-		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
 	if err != nil {
 		t.Fatalf("Detach Request failed integrity check: %v", err)
 	}
@@ -67,10 +73,10 @@ func TestPlainDetachOnSecuredUEDiscarded(t *testing.T) {
 
 	detach := &eps.DetachRequestUE{
 		TypeOfDetach:      1,
-		EPSMobileIdentity: eps.EPSMobileIdentity{Type: eps.IdentityGUTI, MCC: "001", MNC: "01", MMEGroupID: 1, MMECode: 1, MTMSI: 1},
+		EPSMobileIdentity: eps.GUTIIdentity(eps.GUTI{PLMN: nas.PLMN{MCC: "001", MNC: "01"}, MMEGroupID: 1, MMECode: 1, TMSI: [4]byte{0x00, 0x00, 0x00, 0x01}}),
 	}
 
-	plain, err := detach.Marshal()
+	plain, err := detach.MarshalBinary()
 	if err != nil {
 		t.Fatalf("marshal detach: %v", err)
 	}
@@ -98,8 +104,8 @@ func TestPlainDetachSecuredUEFreshConnectionRejected(t *testing.T) {
 
 	plain, err := (&eps.DetachRequestUE{
 		TypeOfDetach:      eps.DetachTypeEPS,
-		EPSMobileIdentity: eps.EPSMobileIdentity{Type: eps.IdentityGUTI, MCC: "001", MNC: "01", MMEGroupID: 1, MMECode: 1, MTMSI: 1},
-	}).Marshal()
+		EPSMobileIdentity: eps.GUTIIdentity(eps.GUTI{PLMN: nas.PLMN{MCC: "001", MNC: "01"}, MMEGroupID: 1, MMECode: 1, TMSI: [4]byte{0x00, 0x00, 0x00, 0x01}}),
+	}).MarshalBinary()
 	if err != nil {
 		t.Fatalf("marshal detach: %v", err)
 	}
@@ -125,8 +131,8 @@ func TestForgedMessageIgnoredForSecuredUE(t *testing.T) {
 
 	plain, err := (&eps.DetachRequestUE{
 		SwitchOff: false, TypeOfDetach: eps.DetachTypeEPS,
-		EPSMobileIdentity: eps.EPSMobileIdentity{Type: eps.IdentityGUTI, MCC: "001", MNC: "01", MMEGroupID: 1, MMECode: 1, MTMSI: 1},
-	}).Marshal()
+		EPSMobileIdentity: eps.GUTIIdentity(eps.GUTI{PLMN: nas.PLMN{MCC: "001", MNC: "01"}, MMEGroupID: 1, MMECode: 1, TMSI: [4]byte{0x00, 0x00, 0x00, 0x01}}),
+	}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,15 +187,14 @@ func TestDetachSwitchOffUnverifiableIgnoredForSecuredUE(t *testing.T) {
 
 	plain, err := (&eps.DetachRequestUE{
 		SwitchOff: true, TypeOfDetach: eps.DetachTypeEPS,
-		EPSMobileIdentity: eps.EPSMobileIdentity{Type: eps.IdentityGUTI, MCC: "001", MNC: "01", MMEGroupID: 1, MMECode: 1, MTMSI: 1},
-	}).Marshal()
+		EPSMobileIdentity: eps.GUTIIdentity(eps.GUTI{PLMN: nas.PLMN{MCC: "001", MNC: "01"}, MMEGroupID: 1, MMECode: 1, TMSI: [4]byte{0x00, 0x00, 0x00, 0x01}}),
+	}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Null algorithms: zero MAC, unciphered payload — unverifiable without the keys.
-	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, 0, nascommon.DirectionUplink,
-		[16]byte{}, [16]byte{}, nascommon.NullIntegrity{}, nascommon.NullCipher{})
+	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, 0, nas.DirectionUplink, mustSecurityContext(t, nas.IntegrityNull, nas.CipheringNull, attackerKey, attackerKey))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,14 +223,13 @@ func TestDetachSwitchOffUnsecuredAccepted(t *testing.T) {
 
 	plain, err := (&eps.DetachRequestUE{
 		SwitchOff: true, TypeOfDetach: eps.DetachTypeEPS,
-		EPSMobileIdentity: eps.EPSMobileIdentity{Type: eps.IdentityGUTI, MCC: "001", MNC: "01", MMEGroupID: 1, MMECode: 1, MTMSI: 1},
-	}).Marshal()
+		EPSMobileIdentity: eps.GUTIIdentity(eps.GUTI{PLMN: nas.PLMN{MCC: "001", MNC: "01"}, MMEGroupID: 1, MMECode: 1, TMSI: [4]byte{0x00, 0x00, 0x00, 0x01}}),
+	}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, 0, nascommon.DirectionUplink,
-		[16]byte{}, [16]byte{}, nascommon.NullIntegrity{}, nascommon.NullCipher{})
+	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, 0, nas.DirectionUplink, mustSecurityContext(t, nas.IntegrityNull, nas.CipheringNull, attackerKey, attackerKey))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,8 +256,7 @@ func TestDetachNotSwitchOff(t *testing.T) {
 
 	acceptWire := decodeDownlinkNAS(t, cc.sent[0])
 
-	plain, err := eps.Unprotect(acceptWire, nascommon.NASCount(0, acceptWire[5]), nascommon.DirectionDownlink,
-		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	plain, err := unprotected(eps.Unprotect(acceptWire, nas.MakeCount(0, acceptWire[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
 	if err != nil {
 		t.Fatalf("Detach Accept failed integrity check: %v", err)
 	}
@@ -271,14 +274,13 @@ func detachRequest(t *testing.T, ue *mme.UeContext, switchOff bool) []byte {
 
 	plain, err := (&eps.DetachRequestUE{
 		SwitchOff: switchOff, TypeOfDetach: eps.DetachTypeEPS,
-		EPSMobileIdentity: eps.EPSMobileIdentity{Type: eps.IdentityGUTI, MCC: "001", MNC: "01", MMEGroupID: 1, MMECode: 1, MTMSI: 1},
-	}).Marshal()
+		EPSMobileIdentity: eps.GUTIIdentity(eps.GUTI{PLMN: nas.PLMN{MCC: "001", MNC: "01"}, MMEGroupID: 1, MMECode: 1, TMSI: [4]byte{0x00, 0x00, 0x00, 0x01}}),
+	}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nascommon.NASCount(0, uint8(ue.ULCount())),
-		nascommon.DirectionUplink, ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nas.MakeCount(0, uint8(ue.ULCount())), nas.DirectionUplink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest()))
 	if err != nil {
 		t.Fatal(err)
 	}

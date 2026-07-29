@@ -7,21 +7,20 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/free5gc/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
-func handleRegistrationReject(ue *UE, msg *nas.Message) error {
-	if msg == nil {
-		return fmt.Errorf("received nil NAS message in Registration Reject handler")
+func handleRegistrationReject(ue *UE, plain []byte) error {
+	rej, err := fgs.ParseRegistrationReject(plain)
+	if err != nil {
+		return fmt.Errorf("could not parse Registration Reject: %v", err)
 	}
-
-	cause := msg.RegistrationReject.GetCauseValue()
 
 	logger.UeLogger.Debug(
 		"Received Registration Reject NAS message",
 		zap.String("IMSI", ue.UeSecurity.Supi),
-		zap.String("Cause", cause5GMMToString(cause)),
+		zap.String("Cause", cause5GMMToString(rej.Cause)),
 	)
 
 	return nil

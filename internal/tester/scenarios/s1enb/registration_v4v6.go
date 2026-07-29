@@ -42,7 +42,7 @@ func runS1ENBRegistrationV4V6(_ context.Context, env scenarios.Env, _ any) error
 	defer func() { _ = e.Close() }()
 
 	ue := e.NewUE(v4v6IMSI, k, opc)
-	ue.RequestPDNType(eps.PDNTypeIPv4v6)
+	ue.RequestPDNType(uint8(eps.PDNTypeIPv4v6))
 
 	res, err := e.Attach(ue, 15*time.Second)
 	if err != nil {
@@ -50,7 +50,7 @@ func runS1ENBRegistrationV4V6(_ context.Context, env scenarios.Env, _ any) error
 	}
 
 	exp := defaultExpectedAttach()
-	exp.PDNType = eps.PDNTypeIPv4v6
+	exp.PDNType = eps.PDNType(uint8(eps.PDNTypeIPv4v6))
 
 	return assertAttach(res, exp)
 }

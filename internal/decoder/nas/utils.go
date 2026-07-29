@@ -12,3 +12,12 @@ func makeUnsupportedIE() *UnsupportedIE {
 		Status: "Unsupported",
 	}
 }
+
+// b2u renders a decoded boolean flag as the 0/1 the observability JSON uses.
+func b2u(b bool) uint8 {
+	if b {
+		return 1
+	}
+
+	return 0
+}

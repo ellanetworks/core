@@ -109,19 +109,19 @@ func ues1apIDs(ids s1ap.UES1APIDs) UES1APIDs {
 // IEs. Absent sub-fields are omitted.
 type CriticalityDiagnostics struct {
 	ProcedureCode        *int64                     `json:"procedure_code,omitempty"`
-	TriggeringMessage    *utils.EnumField[uint64]   `json:"triggering_message,omitempty"`
-	ProcedureCriticality *utils.EnumField[uint64]   `json:"procedure_criticality,omitempty"`
+	TriggeringMessage    *utils.EnumField           `json:"triggering_message,omitempty"`
+	ProcedureCriticality *utils.EnumField           `json:"procedure_criticality,omitempty"`
 	IEs                  []CriticalityDiagnosticsIE `json:"ies,omitempty"`
 }
 
 // CriticalityDiagnosticsIE reports one offending IE (TS 36.413 §9.2.1.4).
 type CriticalityDiagnosticsIE struct {
-	IEID        int64                   `json:"ie_id"`
-	Criticality utils.EnumField[uint64] `json:"criticality"`
-	TypeOfError utils.EnumField[uint64] `json:"type_of_error"`
+	IEID        int64           `json:"ie_id"`
+	Criticality utils.EnumField `json:"criticality"`
+	TypeOfError utils.EnumField `json:"type_of_error"`
 }
 
-func triggeringMessageToEnum(t s1ap.TriggeringMessage) utils.EnumField[uint64] {
+func triggeringMessageToEnum(t s1ap.TriggeringMessage) utils.EnumField {
 	switch t {
 	case s1ap.TriggeringInitiatingMessage:
 		return utils.MakeEnum(uint64(t), "initiating-message", false)
@@ -134,7 +134,7 @@ func triggeringMessageToEnum(t s1ap.TriggeringMessage) utils.EnumField[uint64] {
 	}
 }
 
-func typeOfErrorToEnum(t s1ap.TypeOfError) utils.EnumField[uint64] {
+func typeOfErrorToEnum(t s1ap.TypeOfError) utils.EnumField {
 	switch t {
 	case s1ap.TypeOfErrorNotUnderstood:
 		return utils.MakeEnum(uint64(t), "not-understood", false)
@@ -190,7 +190,7 @@ func gummei(g s1ap.GUMMEI) GUMMEI {
 	}
 }
 
-func cnDomainToEnum(d s1ap.CNDomain) utils.EnumField[uint64] {
+func cnDomainToEnum(d s1ap.CNDomain) utils.EnumField {
 	switch d {
 	case s1ap.CNDomainPS:
 		return utils.MakeEnum(uint64(d), "ps", false)
@@ -201,7 +201,7 @@ func cnDomainToEnum(d s1ap.CNDomain) utils.EnumField[uint64] {
 	}
 }
 
-func rrcCauseToEnum(c s1ap.RRCEstablishmentCause) utils.EnumField[uint64] {
+func rrcCauseToEnum(c s1ap.RRCEstablishmentCause) utils.EnumField {
 	names := map[s1ap.RRCEstablishmentCause]string{
 		s1ap.RRCCauseEmergency:          "emergency",
 		s1ap.RRCCauseHighPriorityAccess: "highPriorityAccess",

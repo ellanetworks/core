@@ -20,10 +20,10 @@ import (
 const ntpToUnixOffset = 2208988800 // seconds between 1900-01-01 and 1970-01-01
 
 type IE struct {
-	ID          utils.EnumField[int64]  `json:"id"`
-	Criticality utils.EnumField[uint64] `json:"criticality"`
-	Value       any                     `json:"value,omitempty"`
-	ValueType   string                  `json:"value_type,omitempty"`
+	ID          utils.EnumField `json:"id"`
+	Criticality utils.EnumField `json:"criticality"`
+	Value       any             `json:"value,omitempty"`
+	ValueType   string          `json:"value_type,omitempty"`
 
 	Error string `json:"error,omitempty"` // Reserved field for decoding errors
 }
@@ -44,7 +44,7 @@ func inferValueType(v any) string {
 		return "nas_pdu"
 	case NRPPaPDU:
 		return "nrppa_pdu"
-	case utils.Enum:
+	case utils.EnumField:
 		return "enum"
 	default:
 		if reflect.TypeOf(v).Kind() == reflect.Slice {
@@ -61,7 +61,7 @@ func setIEValueTypes(ies []IE) {
 	}
 }
 
-func criticalityToEnum(c aper.Enumerated) utils.EnumField[uint64] {
+func criticalityToEnum(c aper.Enumerated) utils.EnumField {
 	switch c {
 	case ngapType.CriticalityPresentReject:
 		return utils.MakeEnum(uint64(c), "Reject", false)
@@ -110,7 +110,7 @@ func plmnIDToModels(ngapPlmnID ngapType.PLMNIdentity) PLMNID {
 	return modelsPlmnid
 }
 
-func protocolIEIDToEnum(id int64) utils.EnumField[int64] {
+func protocolIEIDToEnum(id int64) utils.EnumField {
 	switch id {
 	case ngapType.ProtocolIEIDAllowedNSSAI:
 		return utils.MakeEnum(id, "AllowedNSSAI", false)
@@ -433,7 +433,7 @@ func protocolIEIDToEnum(id int64) utils.EnumField[int64] {
 	}
 }
 
-func causeToEnum(cause ngapType.Cause) utils.EnumField[uint64] {
+func causeToEnum(cause ngapType.Cause) utils.EnumField {
 	switch cause.Present {
 	case ngapType.CausePresentRadioNetwork:
 		return radioNetworkCauseToEnum(*cause.RadioNetwork)
@@ -450,7 +450,7 @@ func causeToEnum(cause ngapType.Cause) utils.EnumField[uint64] {
 	}
 }
 
-func radioNetworkCauseToEnum(cause ngapType.CauseRadioNetwork) utils.EnumField[uint64] {
+func radioNetworkCauseToEnum(cause ngapType.CauseRadioNetwork) utils.EnumField {
 	switch cause.Value {
 	case ngapType.CauseRadioNetworkPresentUnspecified:
 		return utils.MakeEnum(uint64(cause.Value), "Unspecified", false)
@@ -551,7 +551,7 @@ func radioNetworkCauseToEnum(cause ngapType.CauseRadioNetwork) utils.EnumField[u
 	}
 }
 
-func transportCauseToEnum(cause ngapType.CauseTransport) utils.EnumField[uint64] {
+func transportCauseToEnum(cause ngapType.CauseTransport) utils.EnumField {
 	switch cause.Value {
 	case ngapType.CauseTransportPresentTransportResourceUnavailable:
 		return utils.MakeEnum(uint64(cause.Value), "TransportResourceUnavailable", false)
@@ -562,7 +562,7 @@ func transportCauseToEnum(cause ngapType.CauseTransport) utils.EnumField[uint64]
 	}
 }
 
-func nasCauseToEnum(cause ngapType.CauseNas) utils.EnumField[uint64] {
+func nasCauseToEnum(cause ngapType.CauseNas) utils.EnumField {
 	switch cause.Value {
 	case ngapType.CauseNasPresentNormalRelease:
 		return utils.MakeEnum(uint64(cause.Value), "NormalRelease", false)
@@ -577,7 +577,7 @@ func nasCauseToEnum(cause ngapType.CauseNas) utils.EnumField[uint64] {
 	}
 }
 
-func protocolCauseToEnum(cause ngapType.CauseProtocol) utils.EnumField[uint64] {
+func protocolCauseToEnum(cause ngapType.CauseProtocol) utils.EnumField {
 	switch cause.Value {
 	case ngapType.CauseProtocolPresentTransferSyntaxError:
 		return utils.MakeEnum(uint64(cause.Value), "TransferSyntaxError", false)
@@ -598,7 +598,7 @@ func protocolCauseToEnum(cause ngapType.CauseProtocol) utils.EnumField[uint64] {
 	}
 }
 
-func miscCauseToEnum(cause ngapType.CauseMisc) utils.EnumField[uint64] {
+func miscCauseToEnum(cause ngapType.CauseMisc) utils.EnumField {
 	switch cause.Value {
 	case ngapType.CauseMiscPresentControlProcessingOverload:
 		return utils.MakeEnum(uint64(cause.Value), "ControlProcessingOverload", false)
@@ -635,7 +635,7 @@ func transportLayerAddressToString(addr []byte) string {
 	}
 }
 
-func procedureCodeToEnum(code int64) utils.EnumField[int64] {
+func procedureCodeToEnum(code int64) utils.EnumField {
 	switch code {
 	case ngapType.ProcedureCodeAMFConfigurationUpdate:
 		return utils.MakeEnum(code, "AMFConfigurationUpdate", false)

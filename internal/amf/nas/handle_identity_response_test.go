@@ -16,10 +16,8 @@ import (
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
-	"github.com/free5gc/nas/security"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type UpdateInputs struct {
@@ -71,7 +69,7 @@ func TestUpdateUeIdentity(t *testing.T) {
 		{
 			"NIL UE",
 			nil,
-			[]uint8{},
+			[]uint8{uint8(fgs.IdentityNoIdentity)},
 			fmt.Errorf("amf.UeContext is nil"),
 			emptyValidation,
 		},
@@ -79,21 +77,23 @@ func TestUpdateUeIdentity(t *testing.T) {
 			"Empty mobileIdentityContents",
 			&amf.UeContext{},
 			[]uint8{},
-			fmt.Errorf("mobile identity is empty"),
+			fmt.Errorf("nas/fgs: empty 5GS mobile identity"),
 			emptyValidation,
 		},
 		{
-			"Unknown type is ignored",
+			// An identity type this AMF does not model names no subscriber, so the
+			// identification procedure cannot have succeeded (TS 24.501 §5.4.3.4).
+			"Unknown type is refused",
 			&amf.UeContext{},
 			[]uint8{0xFF},
-			nil,
+			fmt.Errorf("UE sent EUI-64"),
 			emptyValidation,
 		},
 		{
 			"Invalid SUCI sets empty SUCI and PLMN",
 			&amf.UeContext{},
-			[]uint8{nasMessage.MobileIdentity5GSTypeSuci},
-			nil,
+			[]uint8{uint8(fgs.IdentitySUCI)},
+			fmt.Errorf("nas: bytes at octet 1: buffer truncated"),
 			func(ue *amf.UeContext) error {
 				if ue.Suci != "" || ue.PlmnID.Mcc != "" || ue.PlmnID.Mnc != "" {
 					return fmt.Errorf("SUCI and PLMN should be empty, got %s, %s%s", ue.Suci, ue.PlmnID.Mcc, ue.PlmnID.Mnc)
@@ -105,7 +105,7 @@ func TestUpdateUeIdentity(t *testing.T) {
 		{
 			"Valid SUCI sets SUCI and PLMN",
 			&amf.UeContext{},
-			[]uint8{nasMessage.MobileIdentity5GSTypeSuci, 0x00, 0xf1, 0x10, 0x10, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+			[]uint8{uint8(fgs.IdentitySUCI), 0x00, 0xf1, 0x10, 0x10, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
 			nil,
 			func(ue *amf.UeContext) error {
 				if ue.Suci != "suci-0-001-01-0110-0-1-00000000000000000010" || ue.PlmnID.Mcc != "001" || ue.PlmnID.Mnc != "01" {
@@ -118,98 +118,98 @@ func TestUpdateUeIdentity(t *testing.T) {
 		{
 			"Invalid GUTI sets empty GUTI",
 			newTestUe(false, mustTestGuti("999", "99", "cafe42", 0x00000001), etsi.GUTI5G{}, etsi.TMSI{}),
-			[]uint8{nasMessage.MobileIdentity5GSType5gGuti, 0},
-			fmt.Errorf("UE sent invalid GUTI: invalid GUTI length"),
+			[]uint8{uint8(fgs.IdentityGUTI), 0},
+			fmt.Errorf("nas/fgs: 5G-GUTI is 2 octets, want 11"),
 			emptyValidation,
 		},
 		{
 			"GUTI with MacFailed returns error",
 			newTestUe(true, etsi.GUTI5G{}, etsi.GUTI5G{}, etsi.TMSI{}),
-			[]uint8{nasMessage.MobileIdentity5GSType5gGuti, 0, 0x10, 0x1f, 0, 0, 1, 0, 0, 0, 1},
+			[]uint8{uint8(fgs.IdentityGUTI), 0, 0xf1, 0x10, 0, 0, 1, 0, 0, 0, 1},
 			fmt.Errorf("NAS message integrity check failed"),
 			emptyValidation,
 		},
 		{
 			"Valid GUTI matches UE GUTI",
 			newTestUe(false, mustTestGuti("001", "01", "cafe01", 0xdeadbeef), etsi.GUTI5G{}, etsi.TMSI{}),
-			[]uint8{nasMessage.MobileIdentity5GSType5gGuti, 0, 0xf1, 0x10, 0xCA, 0xFE, 1, 0xDE, 0xAD, 0xBE, 0xEF},
+			[]uint8{uint8(fgs.IdentityGUTI), 0, 0xf1, 0x10, 0xCA, 0xFE, 1, 0xDE, 0xAD, 0xBE, 0xEF},
 			nil,
 			emptyValidation,
 		},
 		{
 			"Valid GUTI matches UE old GUTI",
 			newTestUe(false, mustTestGuti("001", "01", "cafe02", 0xf00df00d), mustTestGuti("001", "01", "cafe01", 0xdeadbeef), etsi.TMSI{}),
-			[]uint8{nasMessage.MobileIdentity5GSType5gGuti, 0, 0xf1, 0x10, 0xCA, 0xFE, 1, 0xDE, 0xAD, 0xBE, 0xEF},
+			[]uint8{uint8(fgs.IdentityGUTI), 0, 0xf1, 0x10, 0xCA, 0xFE, 1, 0xDE, 0xAD, 0xBE, 0xEF},
 			nil,
 			emptyValidation,
 		},
 		{
 			"Valid GUTI does not match amf.AMF state",
 			newTestUe(false, mustTestGuti("001", "01", "cafe02", 0xf00df00d), mustTestGuti("001", "01", "cafe01", 0x12345678), etsi.TMSI{}),
-			[]uint8{nasMessage.MobileIdentity5GSType5gGuti, 0, 0xf1, 0x10, 0xCA, 0xFE, 1, 0xDE, 0xAD, 0xBE, 0xEF},
+			[]uint8{uint8(fgs.IdentityGUTI), 0, 0xf1, 0x10, 0xCA, 0xFE, 1, 0xDE, 0xAD, 0xBE, 0xEF},
 			fmt.Errorf("UE sent unknown GUTI"),
 			emptyValidation,
 		},
 		{
 			"5G-S-TMSI with MacFailed returns error",
 			newTestUe(true, etsi.GUTI5G{}, etsi.GUTI5G{}, etsi.TMSI{}),
-			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0x00, 0x12, 0x34, 0x56, 0x78, 0x90},
+			[]uint8{uint8(fgs.IdentitySTMSI), 0x00, 0x12, 0x34, 0x56, 0x78, 0x90},
 			fmt.Errorf("NAS message integrity check failed"),
 			emptyValidation,
 		},
 		{
 			"5G-S-TMSI maximum value matches",
 			newTestUe(false, etsi.GUTI5G{}, etsi.GUTI5G{}, mustValidTestTmsi(0xFFFFFFFE)),
-			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE},
+			[]uint8{uint8(fgs.IdentitySTMSI), 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE},
 			nil,
 			emptyValidation,
 		},
 		{
 			"5G-S-TMSI too long returns error",
 			newTestUe(false, etsi.GUTI5G{}, etsi.GUTI5G{}, etsi.TMSI{}),
-			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
-			fmt.Errorf("wrong length for TMSI"),
+			[]uint8{uint8(fgs.IdentitySTMSI), 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+			fmt.Errorf("nas/fgs: 5G-S-TMSI: want 7 octets, got 8"),
 			emptyValidation,
 		},
 		{
 			"5G-S-TMSI too short returns error",
 			newTestUe(false, etsi.GUTI5G{}, etsi.GUTI5G{}, etsi.TMSI{}),
-			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFF, 0xFF, 0x01},
-			fmt.Errorf("wrong length for TMSI"),
+			[]uint8{uint8(fgs.IdentitySTMSI), 0xFF, 0xFF, 0x01},
+			fmt.Errorf("nas/fgs: 5G-S-TMSI: want 7 octets, got 4"),
 			emptyValidation,
 		},
 		{
 			"Valid 5G-S-TMSI matches UE TMSI",
 			newTestUe(false, etsi.GUTI5G{}, etsi.GUTI5G{}, mustValidTestTmsi(0x1A345678)),
-			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFE, 0x01, 0x1A, 0x34, 0x56, 0x78},
+			[]uint8{uint8(fgs.IdentitySTMSI), 0xFE, 0x01, 0x1A, 0x34, 0x56, 0x78},
 			nil,
 			emptyValidation,
 		},
 		{
 			"Valid 5G-S-TMSI matches UE old TMSI",
 			tmsiUe(false, mustValidTestTmsi(0x22234567), mustValidTestTmsi(0x1A345678)),
-			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFE, 0x01, 0x1A, 0x34, 0x56, 0x78},
+			[]uint8{uint8(fgs.IdentitySTMSI), 0xFE, 0x01, 0x1A, 0x34, 0x56, 0x78},
 			nil,
 			emptyValidation,
 		},
 		{
 			"Valid 5G-S-TMSI does not match amf.AMF state",
 			tmsiUe(false, mustValidTestTmsi(0x22234567), mustValidTestTmsi(0x5FFF5555)),
-			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFE, 0x01, 0x1A, 0x34, 0x56, 0x78},
+			[]uint8{uint8(fgs.IdentitySTMSI), 0xFE, 0x01, 0x1A, 0x34, 0x56, 0x78},
 			fmt.Errorf("UE sent unknown TMSI"),
 			emptyValidation,
 		},
 		{
 			"IMEI with MacFailed returns error",
 			newTestUe(true, etsi.GUTI5G{}, etsi.GUTI5G{}, etsi.TMSI{}),
-			[]uint8{nasMessage.MobileIdentity5GSTypeImei + 0x08 + 0x40, 0x09, 0x51, 0x24, 0x30, 0x32, 0x57, 0x81},
+			[]uint8{uint8(fgs.IdentityIMEI) + 0x08 + 0x40, 0x09, 0x51, 0x24, 0x30, 0x32, 0x57, 0x81},
 			fmt.Errorf("NAS message integrity check failed"),
 			emptyValidation,
 		},
 		{
 			"Valid IMEI sets PEI",
 			newTestUe(false, etsi.GUTI5G{}, etsi.GUTI5G{}, etsi.TMSI{}),
-			[]uint8{nasMessage.MobileIdentity5GSTypeImei + 0x08 + 0x40, 0x09, 0x51, 0x24, 0x30, 0x32, 0x57, 0x81},
+			[]uint8{uint8(fgs.IdentityIMEI) + 0x08 + 0x40, 0x09, 0x51, 0x24, 0x30, 0x32, 0x57, 0x81},
 			nil,
 			func(ue *amf.UeContext) error {
 				expected := "imei-490154203237518"
@@ -223,14 +223,14 @@ func TestUpdateUeIdentity(t *testing.T) {
 		{
 			"IMEISV with MacFailed returns error",
 			newTestUe(true, etsi.GUTI5G{}, etsi.GUTI5G{}, etsi.TMSI{}),
-			[]uint8{nasMessage.MobileIdentity5GSTypeImeisv + 0x30, 0x25, 0x90, 0x09, 0x10, 0x67, 0x41, 0x28, 0xF3},
+			[]uint8{uint8(fgs.IdentityIMEISV) + 0x30, 0x25, 0x90, 0x09, 0x10, 0x67, 0x41, 0x28, 0xF3},
 			fmt.Errorf("NAS message integrity check failed"),
 			emptyValidation,
 		},
 		{
 			"Valid IMEISV sets PEI",
 			newTestUe(false, etsi.GUTI5G{}, etsi.GUTI5G{}, etsi.TMSI{}),
-			[]uint8{nasMessage.MobileIdentity5GSTypeImeisv + 0x30, 0x25, 0x90, 0x09, 0x10, 0x67, 0x41, 0x28, 0xF3},
+			[]uint8{uint8(fgs.IdentityIMEISV) + 0x30, 0x25, 0x90, 0x09, 0x10, 0x67, 0x41, 0x28, 0xF3},
 			nil,
 			func(ue *amf.UeContext) error {
 				expected := "imeisv-3520990017614823"
@@ -245,7 +245,13 @@ func TestUpdateUeIdentity(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			integrityVerified := !strings.Contains(tc.name, "MacFailed")
-			err := updateUEIdentity(tc.ue, tc.mi, integrityVerified)
+
+			// A malformed identity is rejected by the decoder, before the handler
+			// ever sees it; the outcome under test is the same either way.
+			id, err := fgs.ParseMobileIdentity(tc.mi)
+			if err == nil {
+				err = updateUEIdentity(tc.ue, id, integrityVerified)
+			}
 
 			if tc.expected_err == nil && err != nil {
 				t.Fatalf("expected error to be nil, got %v", err)
@@ -281,7 +287,7 @@ func TestHandleIdentityResponse_InvalidStateError(t *testing.T) {
 
 			tc.setup(ue)
 
-			handleIdentityResponse(context.TODO(), amf.New(nil, nil, nil), ue, &nasMessage.IdentityResponse{}, true)
+			handleIdentityResponse(context.TODO(), amf.New(nil, nil, nil), ue, buildTestIdentityResponse(t), true)
 
 			if len(ngapSender.SentDownlinkNASTransport) != 0 {
 				t.Fatalf("expected Identity Response in an invalid state to be ignored, but a downlink was sent")
@@ -315,30 +321,16 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	ue.Tai = ue.Conn().Tai
 
-	m := buildTestIdentityResponseMessage()
+	m := buildTestIdentityResponse(t)
 
-	handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, true)
+	handleIdentityResponse(context.TODO(), amfInstance, ue, m, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-		t.Fatalf("expected a plain NAS message")
-	}
-
-	err = nm.PlainNasDecode(&resp.NasPdu)
-	if err != nil {
-		t.Fatalf("could not decode plain NAS message")
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeAuthenticationRequest {
-		t.Fatalf("expected an authentication request message, got '%v'", nm.GmmHeader.GetMessageType())
-	}
+	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgAuthenticationRequest))
 }
 
 func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *testing.T) {
@@ -366,9 +358,9 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	ue.Tai = models.Tai{}
 
-	m := buildTestIdentityResponseMessage()
+	m := buildTestIdentityResponse(t)
 
-	handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, true)
+	handleIdentityResponse(context.TODO(), amfInstance, ue, m, true)
 
 	if ue.State() != amf.Deregistered {
 		t.Fatalf("expected UE to be deregistered after an authentication procedure failure, got %s", ue.State())
@@ -413,60 +405,33 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 	}
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
-	algo := security.AlgCiphering128NEA2
+	algo := nas.CipheringAES
 
 	ue.SetKnasEncForTest(key)
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
-	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
+	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
 
-	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
-	if err != nil {
-		t.Fatalf("could not build registration request message: %v", err)
-	}
+	ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
+	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeInitial
 
-	ue.Conn().RegistrationRequest = registrationRequest.RegistrationRequest
-	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
+	m := buildTestIdentityResponse(t)
 
-	m := buildTestIdentityResponseMessage()
-
-	handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, true)
+	handleIdentityResponse(context.TODO(), amfInstance, ue, m, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-	payload := make([]byte, len(resp.NasPdu))
-	copy(payload, resp.NasPdu)
-	payload = payload[7:]
-
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypeIntegrityProtectedAndCiphered {
-		t.Fatalf("expected a protected and ciphered NAS message")
-	}
-
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCount(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
-		t.Fatalf("could not decrypt NAS message: %v", err)
-	}
-
-	err = nm.PlainNasDecode(&payload)
-	if err != nil {
-		t.Fatalf("could not decode ciphered NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected a registration accept message, got '%v'", nm.GmmHeader.GetMessageType())
-	}
+	decipherGmm(t, ue, resp.NasPdu, uint8(fgs.MsgRegistrationAccept))
 }
 
 func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 	testcases := []uint8{
-		nasMessage.RegistrationType5GSInitialRegistration,
-		nasMessage.RegistrationType5GSMobilityRegistrationUpdating,
-		nasMessage.RegistrationType5GSPeriodicRegistrationUpdating,
+		uint8(fgs.RegistrationTypeInitial),
+		uint8(fgs.RegistrationTypeMobilityUpdating),
+		uint8(fgs.RegistrationTypePeriodicUpdating),
 	}
 
 	for _, tc := range testcases {
@@ -505,66 +470,39 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 			}
 
 			key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
-			algo := security.AlgCiphering128NEA2
+			algo := nas.CipheringAES
 
 			ue.SetKnasEncForTest(key)
 			ue.SetKnasIntForTest(key)
 			ue.SetCipheringAlgForTest(algo)
-			ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
+			ue.SetIntegrityAlgForTest(nas.IntegrityNull)
 
-			registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
-			if err != nil {
-				t.Fatalf("could not build registration request message: %v", err)
+			ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
+
+			ue.Conn().RegistrationType5GS = fgs.RegistrationType(tc)
+			if fgs.RegistrationType(tc) == fgs.RegistrationTypeMobilityUpdating {
+				ue.Conn().RegistrationRequest.GMMCapability = &fgs.GMMCapability{}
 			}
 
-			ue.Conn().RegistrationRequest = registrationRequest.RegistrationRequest
+			m := buildTestIdentityResponse(t)
 
-			ue.Conn().RegistrationType5GS = tc
-			if tc == nasMessage.RegistrationType5GSMobilityRegistrationUpdating {
-				ue.Conn().RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
-			}
-
-			m := buildTestIdentityResponseMessage()
-
-			handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, true)
+			handleIdentityResponse(context.TODO(), amfInstance, ue, m, true)
 
 			if len(ngapSender.SentDownlinkNASTransport) != 1 {
 				t.Fatalf("should have sent a Downlink NAS Transport message")
 			}
 
 			resp := ngapSender.SentDownlinkNASTransport[0]
-			nm := new(nas.Message)
-			nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-			payload := make([]byte, len(resp.NasPdu))
-			copy(payload, resp.NasPdu)
-			payload = payload[7:]
-
-			if nm.SecurityHeaderType != nas.SecurityHeaderTypeIntegrityProtectedAndCiphered {
-				t.Fatalf("expected a protected and ciphered NAS message")
-			}
-
-			if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCount(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
-				t.Fatalf("could not decrypt NAS message: %v", err)
-			}
-
-			err = nm.PlainNasDecode(&payload)
-			if err != nil {
-				t.Fatalf("could not decode ciphered NAS message: %v", err)
-			}
-
-			if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-				t.Fatalf("expected a registration accept message, got '%v'", nm.GmmHeader.GetMessageType())
-			}
+			decipherGmm(t, ue, resp.NasPdu, uint8(fgs.MsgRegistrationAccept))
 		})
 	}
 }
 
 func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 	testcases := []uint8{
-		nasMessage.RegistrationType5GSInitialRegistration,
-		nasMessage.RegistrationType5GSMobilityRegistrationUpdating,
-		nasMessage.RegistrationType5GSPeriodicRegistrationUpdating,
+		uint8(fgs.RegistrationTypeInitial),
+		uint8(fgs.RegistrationTypeMobilityUpdating),
+		uint8(fgs.RegistrationTypePeriodicUpdating),
 	}
 
 	for _, tc := range testcases {
@@ -597,28 +535,23 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 			}
 
 			key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
-			algo := security.AlgCiphering128NEA2
+			algo := nas.CipheringAES
 
 			ue.SetKnasEncForTest(key)
 			ue.SetKnasIntForTest(key)
 			ue.SetCipheringAlgForTest(algo)
-			ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
+			ue.SetIntegrityAlgForTest(nas.IntegrityNull)
 
-			registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
-			if err != nil {
-				t.Fatalf("could not build registration request message: %v", err)
+			ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
+
+			ue.Conn().RegistrationType5GS = fgs.RegistrationType(tc)
+			if fgs.RegistrationType(tc) == fgs.RegistrationTypeMobilityUpdating {
+				ue.Conn().RegistrationRequest.GMMCapability = &fgs.GMMCapability{}
 			}
 
-			ue.Conn().RegistrationRequest = registrationRequest.RegistrationRequest
+			m := buildTestIdentityResponse(t)
 
-			ue.Conn().RegistrationType5GS = tc
-			if tc == nasMessage.RegistrationType5GSMobilityRegistrationUpdating {
-				ue.Conn().RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
-			}
-
-			m := buildTestIdentityResponseMessage()
-
-			handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, true)
+			handleIdentityResponse(context.TODO(), amfInstance, ue, m, true)
 
 			if len(ngapSender.SentDownlinkNASTransport) != 0 {
 				t.Fatalf("should not have sent a Downlink NAS Transport message")
@@ -659,11 +592,9 @@ func TestHandleIdentityResponse_IdentityError(t *testing.T) {
 
 			tc.setup(ue)
 
-			m := buildTestIdentityResponseMessage()
-			m.SetMobileIdentityContents([]uint8{})
-			m.IdentityResponse.SetLen(0)
+			m := buildTestIdentityResponseEmpty()
 
-			handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, true)
+			handleIdentityResponse(context.TODO(), amfInstance, ue, m, true)
 
 			if len(ngapSender.SentDownlinkNASTransport) != 0 {
 				t.Fatalf("should not have sent a Downlink NAS Transport message")
@@ -681,7 +612,7 @@ func TestSendIdentityRequest_ArmsT3570(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	amf.SendIdentityRequest(context.TODO(), amf.New(nil, nil, nil), ue.Conn(), nasMessage.MobileIdentity5GSTypeSuci)
+	amf.SendIdentityRequest(context.TODO(), amf.New(nil, nil, nil), ue.Conn(), fgs.IdentitySUCI)
 
 	if !ue.Conn().NASGuardForTest().Active() {
 		t.Fatal("SendIdentityRequest must arm T3570")
@@ -692,16 +623,7 @@ func TestSendIdentityRequest_ArmsT3570(t *testing.T) {
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-	if err := nm.PlainNasDecode(&resp.NasPdu); err != nil {
-		t.Fatalf("could not decode IDENTITY REQUEST: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeIdentityRequest {
-		t.Fatalf("expected IDENTITY REQUEST, got %v", nm.GmmHeader.GetMessageType())
-	}
+	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgIdentityRequest))
 
 	ue.Conn().NASGuardForTest().Stop()
 }
@@ -717,25 +639,39 @@ func TestHandleIdentityResponse_T3570Stopped(t *testing.T) {
 	conn := ue.Conn()
 	conn.NASGuardForTest().Arm(10*time.Minute, 5, func(int32) {}, func() {})
 
-	handleIdentityResponse(context.TODO(), amf.New(nil, nil, nil), ue, &nasMessage.IdentityResponse{}, true)
+	handleIdentityResponse(context.TODO(), amf.New(nil, nil, nil), ue, buildTestIdentityResponse(t), true)
 
 	if conn.NASGuardForTest().Active() {
 		t.Fatal("expected timer T3570 to be stopped on Identity Response")
 	}
 }
 
-func buildTestIdentityResponseMessage() *nas.GmmMessage {
-	m := nas.NewGmmMessage()
+// buildTestIdentityResponseMessage builds a plain IDENTITY RESPONSE carrying a
+// SUCI mobile identity (type-6 IE, 2-octet LVE length).
+func buildTestIdentityResponseMessage() []byte {
+	return buildIdentityResponsePlain([]byte{0x01, 0x00, 0xf1, 0x10, 0x10, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
+}
 
-	identityResponse := nasMessage.NewIdentityResponse(0)
-	identityResponse.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	identityResponse.SetSpareHalfOctet(0x00)
-	identityResponse.SetMessageType(nas.MsgTypeIdentityResponse)
-	identityResponse.SetLen(18)
-	identityResponse.SetMobileIdentityContents([]uint8{nasMessage.MobileIdentity5GSTypeSuci, 0x00, 0xf1, 0x10, 0x10, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
+// buildTestIdentityResponse is the same message, decoded.
+func buildTestIdentityResponse(t *testing.T) *fgs.IdentityResponse {
+	t.Helper()
 
-	m.IdentityResponse = identityResponse
-	m.SetMessageType(nas.MsgTypeIdentityResponse)
+	resp, err := fgs.ParseIdentityResponse(buildTestIdentityResponseMessage())
+	if err != nil {
+		t.Fatalf("build IDENTITY RESPONSE: %v", err)
+	}
 
-	return m
+	return resp
+}
+
+// buildTestIdentityResponseEmpty is an IDENTITY RESPONSE carrying no identity.
+func buildTestIdentityResponseEmpty() *fgs.IdentityResponse {
+	return &fgs.IdentityResponse{}
+}
+
+func buildIdentityResponsePlain(mobileIdentity []byte) []byte {
+	b := []byte{uint8(fgs.EPD5GMM), 0x00, uint8(fgs.MsgIdentityResponse)}
+	b = append(b, byte(len(mobileIdentity)>>8), byte(len(mobileIdentity)))
+
+	return append(b, mobileIdentity...)
 }

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -185,12 +186,12 @@ func dnsOnlyChange(oldFingerprint, newFingerprint string) bool {
 // Session-AMBR is also pushed to the UPF QER so the data plane enforces it.
 func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *PdnConnection, qos *EpsQoS, includeDNS, includeAMBR, includeQoS bool) {
 	req := &eps.ModifyEPSBearerContextRequest{
-		EPSBearerIdentity:            p.Ebi,
-		ProcedureTransactionIdentity: 0,
+		EPSBearerIdentity: eps.EPSBearerIdentity(p.Ebi),
+		PTI:               0,
 	}
 
 	if includeQoS {
-		req.NewEPSQoS = eps.EPSQoS{QCI: qos.QCI}.Marshal()
+		req.NewEPSQoS = &eps.EPSQoS{QCI: qos.QCI}
 	}
 
 	var (
@@ -218,7 +219,8 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *PdnConnection,
 			ipv4LinkMTU = qos.MTU
 		}
 
-		req.ProtocolConfigurationOptions = eps.BuildProtocolConfigurationOptions(dnsServers, ipv4LinkMTU)
+		pco := nas.NewProtocolConfigurationOptions(dnsServers, ipv4LinkMTU)
+		req.ProtocolConfigurationOptions = &pco
 	}
 
 	if includeAMBR {
@@ -232,12 +234,20 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *PdnConnection,
 			return
 		}
 
-		req.APNAMBR = eps.APNAMBRFromBitsPerSecond(BitRateToBps(qos.SessAmbrDLStr), BitRateToBps(qos.SessAmbrULStr)).Marshal()
+		apnAMBR, err := eps.APNAMBRFromKbps(BitRateToBps(qos.SessAmbrDLStr)/1000, BitRateToBps(qos.SessAmbrULStr)/1000)
+		if err != nil {
+			logger.From(ctx, logger.MmeLog).Error("failed to encode APN-AMBR",
+				zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
+
+			return
+		}
+
+		req.APNAMBR = &apnAMBR
 	}
 
 	naspdu, err := ue.ProtectDownlinkMessage(req)
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to protect Modify EPS Bearer Context Request", zap.Error(err))
+		ReportProtectFailure(ctx, ue.Conn(), "Modify EPS Bearer Context Request", err)
 		return
 	}
 

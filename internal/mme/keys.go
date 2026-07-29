@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/util/ueauth"
+	"github.com/ellanetworks/core/nas"
 )
 
 // EPS key-derivation FC values (TS 33.401), as hex strings for
@@ -43,13 +44,13 @@ func deriveNASKey(kasme []byte, distinguisher, algID byte) ([16]byte, error) {
 }
 
 // DeriveKNASEnc derives the NAS ciphering key for the given EEA algorithm id.
-func DeriveKNASEnc(kasme []byte, algID byte) ([16]byte, error) {
-	return deriveNASKey(kasme, nasEncAlgDistinguisher, algID)
+func DeriveKNASEnc(kasme []byte, alg nas.CipheringAlgorithm) ([16]byte, error) {
+	return deriveNASKey(kasme, nasEncAlgDistinguisher, uint8(alg))
 }
 
 // DeriveKNASInt derives the NAS integrity key for the given EIA algorithm id.
-func DeriveKNASInt(kasme []byte, algID byte) ([16]byte, error) {
-	return deriveNASKey(kasme, nasIntAlgDistinguisher, algID)
+func DeriveKNASInt(kasme []byte, alg nas.IntegrityAlgorithm) ([16]byte, error) {
+	return deriveNASKey(kasme, nasIntAlgDistinguisher, uint8(alg))
 }
 
 // DeriveKeNB derives K_eNB from K_ASME and the uplink NAS COUNT (TS 33.401).

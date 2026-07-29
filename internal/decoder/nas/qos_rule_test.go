@@ -7,37 +7,11 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
-	smfNas "github.com/ellanetworks/core/internal/smf/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func TestUnmarshalQosRules(t *testing.T) {
-	qosRule := &smfNas.QosRule{
-		Identifier:    1,
-		DQR:           0x01,
-		OperationCode: smfNas.OperationCodeCreateNewQoSRule,
-		Precedence:    255,
-		QFI:           1,
-		PacketFilterList: []smfNas.PacketFilter{
-			{
-				Identifier: 1,
-				Direction:  smfNas.PacketFilterDirectionBidirectional,
-				Content: []smfNas.PacketFilterComponent{{
-					ComponentType: smfNas.PFComponentTypeMatchAll,
-				}},
-				ContentLength: 0x01,
-			},
-		},
-	}
-
-	qosRulesBytes, err := qosRule.MarshalBinary()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rules, err := nas.UnmarshalQosRules(qosRulesBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	rules := nas.QosRulesFromNAS(fgs.QoSRules{fgs.DefaultQoSRule(1, 1)})
 
 	if len(rules) != 1 {
 		t.Fatalf("Expected 1 QoS Rule, got %d", len(rules))
@@ -59,12 +33,12 @@ func TestUnmarshalQosRules(t *testing.T) {
 		t.Fatalf("Expected DQR 'default', got %d", rules[0].DQR.Value)
 	}
 
-	if rules[0].Precedence != 255 {
-		t.Fatalf("Expected Precedence 255, got %d", rules[0].Precedence)
+	if rules[0].Precedence == nil || *rules[0].Precedence != 255 {
+		t.Fatalf("Expected Precedence 255, got %v", rules[0].Precedence)
 	}
 
-	if rules[0].QFI != 1 {
-		t.Fatalf("Expected QFI 1, got %d", rules[0].QFI)
+	if rules[0].QFI == nil || *rules[0].QFI != 1 {
+		t.Fatalf("Expected QFI 1, got %v", rules[0].QFI)
 	}
 
 	if len(rules[0].PacketFilterList) != 1 {

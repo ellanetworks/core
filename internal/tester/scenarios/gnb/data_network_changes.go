@@ -13,7 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/testutil/validate"
-	"github.com/free5gc/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
@@ -169,7 +169,7 @@ func runDataNetworkDNSChange(ctx context.Context, env scenarios.Env, p *dataNetw
 
 	logger.Logger.Info("Data network DNS updated, waiting for session modification signalling")
 
-	modCmd, err := newUE.WaitForNASGSMMessage(nas.MsgTypePDUSessionModificationCommand, 15*time.Second)
+	modCmd, err := newUE.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionModificationCommand), 15*time.Second)
 	if err != nil {
 		return fmt.Errorf("UE did not receive PDU Session Modification Command: %v", err)
 	}
@@ -285,18 +285,19 @@ func runDataNetworkMTUChange(ctx context.Context, env scenarios.Env, p *dataNetw
 
 	logger.Logger.Info("Data network MTU updated, waiting for session release")
 
-	releaseCmd, err := newUE.WaitForNASGSMMessage(nas.MsgTypePDUSessionReleaseCommand, 15*time.Second)
+	releaseCmd, err := newUE.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionReleaseCommand), 15*time.Second)
 	if err != nil {
 		return fmt.Errorf("UE did not receive PDU Session Release Command: %v", err)
 	}
 
 	logger.Logger.Info("UE received PDU Session Release Command")
 
-	if releaseCmd.PDUSessionReleaseCommand == nil {
-		return fmt.Errorf("PDUSessionReleaseCommand is nil")
+	relCmd, err := fgs.ParsePDUSessionReleaseCommand(releaseCmd)
+	if err != nil {
+		return fmt.Errorf("could not parse PDU Session Release Command: %v", err)
 	}
 
-	cause := releaseCmd.PDUSessionReleaseCommand.GetCauseValue()
+	cause := relCmd.Cause
 	if cause != 39 {
 		return fmt.Errorf("expected cause #39 (reactivation requested), got %d", cause)
 	}
@@ -402,18 +403,19 @@ func runDataNetworkPoolChange(ctx context.Context, env scenarios.Env, p *dataNet
 
 	logger.Logger.Info("Data network IP pool updated, waiting for session release")
 
-	releaseCmd, err := newUE.WaitForNASGSMMessage(nas.MsgTypePDUSessionReleaseCommand, 15*time.Second)
+	releaseCmd, err := newUE.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionReleaseCommand), 15*time.Second)
 	if err != nil {
 		return fmt.Errorf("UE did not receive PDU Session Release Command: %v", err)
 	}
 
 	logger.Logger.Info("UE received PDU Session Release Command")
 
-	if releaseCmd.PDUSessionReleaseCommand == nil {
-		return fmt.Errorf("PDUSessionReleaseCommand is nil")
+	relCmd, err := fgs.ParsePDUSessionReleaseCommand(releaseCmd)
+	if err != nil {
+		return fmt.Errorf("could not parse PDU Session Release Command: %v", err)
 	}
 
-	cause := releaseCmd.PDUSessionReleaseCommand.GetCauseValue()
+	cause := relCmd.Cause
 	if cause != 39 {
 		return fmt.Errorf("expected cause #39 (reactivation requested), got %d", cause)
 	}

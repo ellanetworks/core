@@ -34,7 +34,7 @@ func handoverUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn, *captur
 	p.Qci, p.Arp = 9, 8
 	p.SgwFTEID = models.FTEID{TEID: 0x1111, Addr: netip.AddrFrom4([4]byte{10, 0, 0, 1})}
 
-	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xe0, EIA: 0xe0}.Marshal(), nil, mme.MintAuthProofForAttachRequest())
+	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xe0, EIA: 0xe0}, nil, mme.MintAuthProofForAttachRequest())
 
 	ue.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
 	ue.SetNCCForTest(1)

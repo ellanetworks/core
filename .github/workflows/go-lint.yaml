@@ -9,6 +9,12 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # golangci-lint does not descend into nested modules, so each is linted
+        # in its own job.
+        module: [".", "lppa", "nas", "s1ap"]
     steps:
       - uses: actions/checkout@v7
 
@@ -24,5 +30,6 @@ jobs:
         with:
           version: v2.11.3
           args: --timeout=10m
+          working-directory: ${{ matrix.module }}
           skip-cache: true
           skip-save-cache: true

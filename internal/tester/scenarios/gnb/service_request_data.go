@@ -11,8 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/ue"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/spf13/pflag"
 )
 
@@ -89,12 +88,12 @@ func runServiceRequestData(_ context.Context, env scenarios.Env, _ any) error {
 }
 
 func runServiceRequestOnUE(ranUENGAPID int64, pduSessionStatus [16]bool, u *ue.UE) error {
-	err := u.SendServiceRequest(ranUENGAPID, pduSessionStatus, nasMessage.ServiceTypeData)
+	err := u.SendServiceRequest(ranUENGAPID, pduSessionStatus, uint8(fgs.ServiceTypeData))
 	if err != nil {
 		return fmt.Errorf("could not send Service Request NAS message: %v", err)
 	}
 
-	_, err = u.WaitForNASGMMMessage(nas.MsgTypeServiceAccept, 500*time.Millisecond)
+	_, err = u.WaitForNASGMMMessage(uint8(fgs.MsgServiceAccept), 500*time.Millisecond)
 	if err != nil {
 		return fmt.Errorf("did not receive Service Accept NAS message: %v", err)
 	}

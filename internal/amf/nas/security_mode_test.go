@@ -10,8 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 // TestSecurityMode_BlockedByConflict verifies the security mode procedure is
@@ -69,10 +68,10 @@ func TestSecurityMode_NoCommonAlgorithm_RejectsAndDeregisters(t *testing.T) {
 		t.Fatalf("build UE and radio: %v", err)
 	}
 
-	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
+	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeInitial
 	// The UE advertises no supported NAS algorithm, so it shares none with the
 	// operator's AES-only policy.
-	ue.SetUESecurityCapabilityForTest(newUESecCaps(0x00, 0x00))
+	ue.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
 
 	securityMode(context.Background(), amfInstance, ue)
 
@@ -81,19 +80,15 @@ func TestSecurityMode_NoCommonAlgorithm_RejectsAndDeregisters(t *testing.T) {
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgRegistrationReject))
 
-	if err := nm.PlainNasDecode(&resp.NasPdu); err != nil {
+	reject, err := fgs.ParseRegistrationReject(resp.NasPdu)
+	if err != nil {
 		t.Fatalf("could not decode REGISTRATION REJECT: %v", err)
 	}
 
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationReject {
-		t.Fatalf("expected REGISTRATION REJECT, got %v", nm.GmmHeader.GetMessageType())
-	}
-
-	if got := nm.RegistrationReject.GetCauseValue(); got != nasMessage.Cause5GMMUESecurityCapabilitiesMismatch {
-		t.Fatalf("cause = %d, want #%d (UE security capabilities mismatch)", got, nasMessage.Cause5GMMUESecurityCapabilitiesMismatch)
+	if got := reject.Cause; got != 0x17 {
+		t.Fatalf("cause = %d, want #%d (UE security capabilities mismatch)", got, 0x17)
 	}
 
 	if ue.State() != amf.Deregistered {

@@ -27,10 +27,10 @@ type PDU struct {
 
 // Message is the decoded view of an LPP-Message.
 type Message struct {
-	TransactionID  byte                 `json:"transaction_id"`
-	Initiator      utils.EnumField[int] `json:"initiator"`
-	EndTransaction bool                 `json:"end_transaction"`
-	BodyKind       utils.EnumField[int] `json:"body_kind"`
+	TransactionID  byte            `json:"transaction_id"`
+	Initiator      utils.EnumField `json:"initiator"`
+	EndTransaction bool            `json:"end_transaction"`
+	BodyKind       utils.EnumField `json:"body_kind"`
 
 	Capabilities        *Capabilities        `json:"capabilities,omitempty"`
 	LocationInformation *LocationInformation `json:"location_information,omitempty"`
@@ -39,7 +39,7 @@ type Message struct {
 
 // Capabilities is the decoded view of a ProvideCapabilities message.
 type Capabilities struct {
-	GNSS []utils.EnumField[int] `json:"gnss,omitempty"`
+	GNSS []utils.EnumField `json:"gnss,omitempty"`
 }
 
 // LocationInformation is the decoded view of a ProvideLocationInformation message.
@@ -138,7 +138,7 @@ func mapLocationInformation(li *lppmodels.ProvideLocationInformation) *LocationI
 
 // --- enum label helpers ---
 
-func initiatorEnum(v int64) utils.EnumField[int] {
+func initiatorEnum(v int64) utils.EnumField {
 	switch v {
 	case lpptype.InitiatorLocationServer:
 		return utils.MakeEnum(int(v), "locationServer", false)
@@ -149,7 +149,7 @@ func initiatorEnum(v int64) utils.EnumField[int] {
 	}
 }
 
-func bodyKindEnum(present int) utils.EnumField[int] {
+func bodyKindEnum(present int) utils.EnumField {
 	labels := map[int]string{
 		lpptype.LPPMessageBodyC1PresentRequestCapabilities:        "RequestCapabilities",
 		lpptype.LPPMessageBodyC1PresentProvideCapabilities:        "ProvideCapabilities",
@@ -169,7 +169,7 @@ func bodyKindEnum(present int) utils.EnumField[int] {
 	return utils.MakeEnum(present, label, !ok)
 }
 
-func gnssIDEnum(v int64) utils.EnumField[int] {
+func gnssIDEnum(v int64) utils.EnumField {
 	labels := map[int64]string{
 		lpptype.GnssIDGps:     "GPS",
 		lpptype.GnssIDSbas:    "SBAS",

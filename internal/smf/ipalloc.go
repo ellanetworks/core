@@ -10,7 +10,7 @@ import (
 	"net/netip"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
@@ -33,31 +33,31 @@ func (s *SMF) negotiatePDUSessionType(_ context.Context, requested uint8, policy
 	hasIPv6 := policy.IPv6Pool != ""
 
 	switch requested {
-	case nasMessage.PDUSessionTypeIPv4:
+	case uint8(fgs.PDUSessionTypeIPv4):
 		if hasIPv4 {
-			return nasMessage.PDUSessionTypeIPv4, nil
+			return uint8(fgs.PDUSessionTypeIPv4), nil
 		}
 
 		return 0, fmt.Errorf("no IPv4 pool available for DNN")
 
-	case nasMessage.PDUSessionTypeIPv6:
+	case uint8(fgs.PDUSessionTypeIPv6):
 		if hasIPv6 {
-			return nasMessage.PDUSessionTypeIPv6, nil
+			return uint8(fgs.PDUSessionTypeIPv6), nil
 		}
 
 		return 0, fmt.Errorf("no IPv6 pool available for DNN")
 
-	case nasMessage.PDUSessionTypeIPv4IPv6:
+	case uint8(fgs.PDUSessionTypeIPv4v6):
 		if hasIPv4 && hasIPv6 {
-			return nasMessage.PDUSessionTypeIPv4IPv6, nil
+			return uint8(fgs.PDUSessionTypeIPv4v6), nil
 		}
 
 		if hasIPv4 {
-			return nasMessage.PDUSessionTypeIPv4, nil
+			return uint8(fgs.PDUSessionTypeIPv4), nil
 		}
 
 		if hasIPv6 {
-			return nasMessage.PDUSessionTypeIPv6, nil
+			return uint8(fgs.PDUSessionTypeIPv6), nil
 		}
 
 		return 0, fmt.Errorf("no IP pool available for DNN")
@@ -74,22 +74,22 @@ func (s *SMF) negotiatePDUSessionType(_ context.Context, requested uint8, policy
 //   - IPv4 requested, only IPv6 supported           → #51 IPv6 only allowed
 //   - IPv4/IPv6/IPv4v6 requested, neither supported → #28 unknown PDU session type
 //   - Unstructured, Ethernet, reserved values       → #28 unknown PDU session type
-func pduSessionTypeRejectCause(requested uint8, policy *Policy) uint8 {
+func pduSessionTypeRejectCause(requested uint8, policy *Policy) fgs.GSMCause {
 	hasIPv4 := policy.IPv4Pool != ""
 	hasIPv6 := policy.IPv6Pool != ""
 
 	switch requested {
-	case nasMessage.PDUSessionTypeIPv6:
+	case uint8(fgs.PDUSessionTypeIPv6):
 		if hasIPv4 && !hasIPv6 {
-			return nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed
+			return fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed
 		}
-	case nasMessage.PDUSessionTypeIPv4:
+	case uint8(fgs.PDUSessionTypeIPv4):
 		if !hasIPv4 && hasIPv6 {
-			return nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed
+			return fgs.GSMCausePDUSessionTypeIPv6OnlyAllowed
 		}
 	}
 
-	return nasMessage.Cause5GSMUnknownPDUSessionType
+	return fgs.GSMCauseUnknownPDUSessionType
 }
 
 type pduTypeNarrowing uint8
@@ -104,11 +104,11 @@ const (
 // request to a single family, so each access can signal the matching single-stack
 // cause: 5GSM #50/#51 (TS 24.501) or ESM #50/#51 (TS 24.301).
 func narrowPDUType(requested, negotiated uint8) pduTypeNarrowing {
-	if requested != nasMessage.PDUSessionTypeIPv4IPv6 || negotiated == nasMessage.PDUSessionTypeIPv4IPv6 {
+	if fgs.PDUSessionType(requested) != fgs.PDUSessionTypeIPv4v6 || fgs.PDUSessionType(negotiated) == fgs.PDUSessionTypeIPv4v6 {
 		return narrowNone
 	}
 
-	if negotiated == nasMessage.PDUSessionTypeIPv4 {
+	if fgs.PDUSessionType(negotiated) == fgs.PDUSessionTypeIPv4 {
 		return narrowIPv4Only
 	}
 
@@ -127,7 +127,7 @@ func (s *SMF) allocateUEAddresses(ctx context.Context, dn DNNStore, sc *SMContex
 		addrs   ueAddresses
 	)
 
-	if sc.PDUSessionType == nasMessage.PDUSessionTypeIPv4 || sc.PDUSessionType == nasMessage.PDUSessionTypeIPv4IPv6 {
+	if fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv4 || fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv4v6 {
 		ipv4, err := dn.AllocateIP(ctx, imsi, sc.keyID())
 		if err != nil {
 			return netip.Addr{}, ueAddresses{}, fmt.Errorf("allocate UE IPv4: %w", err)
@@ -138,7 +138,7 @@ func (s *SMF) allocateUEAddresses(ctx context.Context, dn DNNStore, sc *SMContex
 		dlPdrIP = ipv4
 	}
 
-	if sc.PDUSessionType == nasMessage.PDUSessionTypeIPv6 || sc.PDUSessionType == nasMessage.PDUSessionTypeIPv4IPv6 {
+	if fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv6 || fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv4v6 {
 		ipv6Prefix, err := dn.AllocateIPv6(ctx, imsi, sc.keyID())
 		if err != nil {
 			s.releaseAllocatedAddresses(ctx, dn, sc)
@@ -157,7 +157,7 @@ func (s *SMF) allocateUEAddresses(ctx context.Context, dn DNNStore, sc *SMContex
 		sc.IPv6IID = iid
 		addrs.IPv6IID = iid
 
-		if sc.PDUSessionType == nasMessage.PDUSessionTypeIPv6 {
+		if fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv6 {
 			dlPdrIP = ipv6Prefix
 		}
 	}

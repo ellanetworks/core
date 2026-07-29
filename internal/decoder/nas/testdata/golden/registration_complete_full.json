@@ -1,0 +1,31 @@
+{
+  "security_header": {
+    "protocol_discriminator": {
+      "type": "enum",
+      "value": 126,
+      "label": "5GSMobilityManagementMessage",
+      "unknown": false
+    },
+    "security_header_type": {
+      "type": "enum",
+      "value": 0,
+      "label": "Plain NAS",
+      "unknown": false
+    },
+    "sequence_number": 0
+  },
+  "gmm_message": {
+    "gmm_header": {
+      "message_type": {
+        "type": "enum",
+        "value": 67,
+        "label": "RegistrationComplete",
+        "unknown": false
+      }
+    },
+    "registration_complete": {
+      "sor_transparent_container": "ERERERERERERERERERERERE="
+    }
+  },
+  "encrypted": false
+}

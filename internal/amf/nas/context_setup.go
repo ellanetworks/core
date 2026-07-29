@@ -8,10 +8,14 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
-func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.RegistrationRequest, plain []byte) {
+// plain is the message msg was decoded from: it becomes the oracle a later
+// retransmission is compared against, so once the security mode procedure has
+// replayed the complete message in its NAS message container, that is what the
+// AMF holds (TS 24.501 §4.4.6, §5.5.1.2.8 case d).
+func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *fgs.RegistrationRequest, plain []byte) {
 	ctx, span := gmmTracer.Start(ctx, "nas/context_setup")
 	defer span.End()
 
@@ -27,11 +31,11 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, 
 	conn.RegistrationRequestPlain = plain
 
 	switch conn.RegistrationType5GS {
-	case nasMessage.RegistrationType5GSInitialRegistration:
+	case fgs.RegistrationTypeInitial:
 		HandleInitialRegistration(ctx, amfInstance, ue)
-	case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
+	case fgs.RegistrationTypeMobilityUpdating:
 		fallthrough
-	case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
+	case fgs.RegistrationTypePeriodicUpdating:
 		HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfInstance, ue)
 	}
 }

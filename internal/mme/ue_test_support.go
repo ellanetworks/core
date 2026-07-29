@@ -8,7 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/mme/procedure"
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -17,8 +17,15 @@ import (
 // state without exporting the fields themselves; production code mutates this
 // state only through the chokepoint methods.
 
-func (ue *UeContext) SetKnasIntForTest(k [16]byte) { ue.knasInt = k }
-func (ue *UeContext) SetKnasEncForTest(k [16]byte) { ue.knasEnc = k }
+func (ue *UeContext) SetKnasIntForTest(k [16]byte) {
+	ue.knasInt = k
+	_ = ue.installSecurityContextLocked()
+}
+
+func (ue *UeContext) SetKnasEncForTest(k [16]byte) {
+	ue.knasEnc = k
+	_ = ue.installSecurityContextLocked()
+}
 
 func (ue *UeContext) SetKASMEForTest(k []byte) { ue.kasme = k }
 
@@ -28,17 +35,26 @@ func (ue *UeContext) SetULCountForTest(c uint32) {
 	ue.ulCount.Reset()
 
 	if c > 0 {
-		ue.ulCount.Commit(nascommon.Count(c - 1))
+		_ = ue.ulCount.Commit(nas.Count(c - 1))
 	}
 }
 
-func (ue *UeContext) ULCountForTest() nascommon.UplinkCounter { return ue.ulCount }
+func (ue *UeContext) ULCountForTest() nas.UplinkCounter { return ue.ulCount }
 
-func (ue *UeContext) SetDLCountForTest(c uint32) { ue.dlCount = nascommon.Count(c) }
-func (ue *UeContext) DLCountForTest() uint32     { return ue.dlCount.Value() }
+func (ue *UeContext) SetDLCountForTest(c uint32) {
+	ue.dlCount = nas.NewDownlinkCounter(nas.Count(c))
+}
+func (ue *UeContext) DLCountForTest() uint32 { return ue.dlCount.Next().Value() }
 
-func (ue *UeContext) SetIntegrityAlgForTest(a byte) { ue.integrityAlg = a }
-func (ue *UeContext) SetCipheringAlgForTest(a byte) { ue.cipheringAlg = a }
+func (ue *UeContext) SetIntegrityAlgForTest(a nas.IntegrityAlgorithm) {
+	ue.integrityAlg = a
+	_ = ue.installSecurityContextLocked()
+}
+
+func (ue *UeContext) SetCipheringAlgForTest(a nas.CipheringAlgorithm) {
+	ue.cipheringAlg = a
+	_ = ue.installSecurityContextLocked()
+}
 
 func (ue *UeContext) SetNHForTest(nh [32]byte) { ue.nh = nh }
 func (ue *UeContext) NHForTest() [32]byte      { return ue.nh }
@@ -56,8 +72,22 @@ func (ue *UeContext) OldTmsiForTest() uint32     { return ue.oldTmsi.Uint32() }
 // must not use it to mean "unset" (TS 23.003 §2.4).
 func (ue *UeContext) OldTmsiUnsetForTest() bool { return ue.oldTmsi == etsi.InvalidTMSI }
 
-func (ue *UeContext) SetSecuredForTest(v bool) { ue.secured = v }
-func (ue *UeContext) SecuredForTest() bool     { return ue.secured }
+func (ue *UeContext) SetSecuredForTest(v bool) {
+	ue.secured = v
+
+	// A secured UE has a NAS security context in production, so give one to a
+	// test that marks it secured without running the security mode procedure.
+	if v && ue.sc == nil {
+		// The null algorithms, as a UE that has not run the security mode procedure
+		// would have: the keys only have to be present, not secret.
+		for i := range ue.knasInt {
+			ue.knasInt[i], ue.knasEnc[i] = byte(i+1), byte(i+1)
+		}
+
+		_ = ue.installSecurityContextLocked()
+	}
+}
+func (ue *UeContext) SecuredForTest() bool { return ue.secured }
 
 func (c *UeConn) SetSecureExchangeEstablishedForTest(v bool) { c.secureExchangeEstablished = v }
 
@@ -66,7 +96,7 @@ func (ue *UeContext) KnasEncForTest() [16]byte { return ue.knasEnc }
 
 // SetSecurityContextForTest installs a NAS security context (deriving K_NASint/enc
 // from kasme) and marks the UE secured, for external test setup.
-func (ue *UeContext) SetSecurityContextForTest(kasme []byte, eea, eia byte) error {
+func (ue *UeContext) SetSecurityContextForTest(kasme []byte, eea nas.CipheringAlgorithm, eia nas.IntegrityAlgorithm) error {
 	ke, err := DeriveKNASEnc(kasme, eea)
 	if err != nil {
 		return err
@@ -80,6 +110,11 @@ func (ue *UeContext) SetSecurityContextForTest(kasme []byte, eea, eia byte) erro
 	ue.kasme = kasme
 	ue.cipheringAlg, ue.integrityAlg = eea, eia
 	ue.knasEnc, ue.knasInt = ke, ki
+
+	if err := ue.installSecurityContextLocked(); err != nil {
+		return err
+	}
+
 	ue.secured = true
 
 	return nil

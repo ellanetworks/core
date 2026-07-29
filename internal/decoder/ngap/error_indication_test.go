@@ -99,16 +99,16 @@ func TestDecodeNGAPMessage_ErrorIndication(t *testing.T) {
 		t.Errorf("expected ID value=%d, got %d", ngapType.ProtocolIEIDCause, item2.ID.Value)
 	}
 
-	cause, ok := item2.Value.(utils.EnumField[uint64])
+	cause, ok := item2.Value.(utils.EnumField)
 	if !ok {
-		t.Fatalf("expected Cause value type=utils.EnumField[uint64], got %T", item2.Value)
+		t.Fatalf("expected Cause value type=utils.EnumField, got %T", item2.Value)
 	}
 
 	if cause.Label != "UnknownLocalUENGAPID" {
 		t.Errorf("expected Cause=UnknownLocalUENGAPID, got %s", cause.Label)
 	}
 
-	if cause.Value != uint64(ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID) {
+	if cause.Value != int64(ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID) {
 		t.Errorf("expected Cause value=%d, got %d", ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID, cause.Value)
 	}
 

@@ -9,6 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
@@ -18,7 +19,7 @@ import (
 type egress struct{ ue *amf.UeConn }
 
 func (e egress) SendMMStatus(ctx context.Context, cause uint8) {
-	pdu, err := amf.BuildStatus5GMM(cause)
+	pdu, err := amf.BuildStatus5GMM(fgs.GMMCause(cause))
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Error("failed to build 5GMM STATUS", zap.Error(err))
 		return
@@ -33,7 +34,7 @@ func (e egress) SendMMStatus(ctx context.Context, cause uint8) {
 // 5GSM handlers answer directly (forward, or a DL NAS "payload not forwarded") and never
 // resolve to an SM-domain STATUS disposition.
 func (e egress) SendSMStatus(ctx context.Context, cause uint8) {
-	logger.From(ctx, logger.AmfLog).Error("unexpected 5GSM STATUS egress in the AMF", zap.Uint8("cause", cause))
+	logger.From(ctx, logger.AmfLog).Error("unexpected 5GSM STATUS egress in the AMF", zap.Stringer("cause", fgs.GSMCause(cause)))
 }
 
 func (e egress) Discard(ctx context.Context, reason nasreply.Reason) {

@@ -28,16 +28,13 @@ func TestBuildActivateDefaultESMSignalsAPNAMBR(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if len(act.APNAMBR) == 0 {
+	if act.APNAMBR == nil {
 		t.Fatal("APN-AMBR IE not signaled in the Activate Default EPS Bearer Context Request")
 	}
 
-	ambr, err := eps.ParseAPNAMBR(act.APNAMBR)
-	if err != nil {
-		t.Fatalf("ParseAPNAMBR: %v", err)
-	}
+	ambr := *act.APNAMBR
 
-	if dl, ul := ambr.BitsPerSecond(); dl != 100_000_000 || ul != 50_000_000 {
-		t.Errorf("signaled APN-AMBR = %d/%d bps, want 100/50 Mbps", dl, ul)
+	if dl, ul, ok := ambr.Kbps(); !ok || dl != 100_000 || ul != 50_000 {
+		t.Errorf("signaled APN-AMBR = %d/%d kbit/s, want 100/50 Mbps", dl, ul)
 	}
 }

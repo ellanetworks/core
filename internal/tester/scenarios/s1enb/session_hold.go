@@ -47,7 +47,7 @@ func runS1ENBSessionHold(ctx context.Context, env scenarios.Env, _ any) error {
 
 	ipv6 := env.IPFamily() == scenarios.IPv6Only
 	if ipv6 {
-		ue.RequestPDNType(eps.PDNTypeIPv6)
+		ue.RequestPDNType(uint8(eps.PDNTypeIPv6))
 	}
 
 	res, err := e.Attach(ue, 15*time.Second)

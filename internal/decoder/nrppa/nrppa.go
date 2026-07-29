@@ -17,19 +17,19 @@ import (
 
 // Message is the decoder view of a parsed NRPPa PDU.
 type Message struct {
-	Kind        utils.EnumField[int] `json:"kind"`
-	Request     *Request             `json:"request,omitempty"`
-	Response    *Response            `json:"response,omitempty"`
-	Failure     *Failure             `json:"failure,omitempty"`
-	Termination *Termination         `json:"termination,omitempty"`
-	Error       string               `json:"error,omitempty"`
+	Kind        utils.EnumField `json:"kind"`
+	Request     *Request        `json:"request,omitempty"`
+	Response    *Response       `json:"response,omitempty"`
+	Failure     *Failure        `json:"failure,omitempty"`
+	Termination *Termination    `json:"termination,omitempty"`
+	Error       string          `json:"error,omitempty"`
 }
 
 // Request is a decoded E-CIDMeasurementInitiationRequest.
 type Request struct {
-	LMFUEMeasurementID    int64                  `json:"lmf_ue_measurement_id"`
-	ReportCharacteristics utils.EnumField[int]   `json:"report_characteristics"`
-	MeasurementQuantities []utils.EnumField[int] `json:"measurement_quantities,omitempty"`
+	LMFUEMeasurementID    int64             `json:"lmf_ue_measurement_id"`
+	ReportCharacteristics utils.EnumField   `json:"report_characteristics"`
+	MeasurementQuantities []utils.EnumField `json:"measurement_quantities,omitempty"`
 }
 
 // Response is a decoded E-CIDMeasurementInitiationResponse.
@@ -54,8 +54,8 @@ type Termination struct {
 
 // Cause is a decoded NRPPa Cause.
 type Cause struct {
-	Group utils.EnumField[int] `json:"group"`
-	Value int64                `json:"value"`
+	Group utils.EnumField `json:"group"`
+	Value int64           `json:"value"`
 }
 
 // Result is the gNB-supplied E-CID measurement result.
@@ -249,7 +249,7 @@ func mapServingCell(sc corenrppa.ServingCell) ServingCell {
 
 // --- enum label helpers ---
 
-func kindEnum(k corenrppa.MessageKind) utils.EnumField[int] {
+func kindEnum(k corenrppa.MessageKind) utils.EnumField {
 	label := map[corenrppa.MessageKind]string{
 		corenrppa.KindECIDMeasurementInitiationRequest:  "E-CID Measurement Initiation Request",
 		corenrppa.KindECIDMeasurementInitiationResponse: "E-CID Measurement Initiation Response",
@@ -260,7 +260,7 @@ func kindEnum(k corenrppa.MessageKind) utils.EnumField[int] {
 	return utils.MakeEnum(int(k), label, label == "")
 }
 
-func reportCharacteristicsEnum(v int) utils.EnumField[int] {
+func reportCharacteristicsEnum(v int) utils.EnumField {
 	switch v {
 	case 0:
 		return utils.MakeEnum(v, "onDemand", false)
@@ -271,7 +271,7 @@ func reportCharacteristicsEnum(v int) utils.EnumField[int] {
 	}
 }
 
-func measurementQuantityEnum(q corenrppa.MeasurementQuantityValue) utils.EnumField[int] {
+func measurementQuantityEnum(q corenrppa.MeasurementQuantityValue) utils.EnumField {
 	label := map[corenrppa.MeasurementQuantityValue]string{
 		corenrppa.MeasCellID:             "cell-ID",
 		corenrppa.MeasAngleOfArrival:     "angleOfArrival",
@@ -291,7 +291,7 @@ func measurementQuantityEnum(q corenrppa.MeasurementQuantityValue) utils.EnumFie
 	return utils.MakeEnum(int(q), label, label == "")
 }
 
-func causeGroupEnum(g corenrppa.CauseGroup) utils.EnumField[int] {
+func causeGroupEnum(g corenrppa.CauseGroup) utils.EnumField {
 	switch g {
 	case corenrppa.CauseGroupRadioNetwork:
 		return utils.MakeEnum(int(g), "radioNetwork", false)

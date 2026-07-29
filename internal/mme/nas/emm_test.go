@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"sync"
 	"testing"
 
@@ -14,7 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/udm"
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -77,22 +78,22 @@ func TestAttachRecoveryAfterMMERestart(t *testing.T) {
 	cc := &captureConn{}
 	ue := newAttachUe(m, cc, 7)
 
-	esm, err := (&eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: 1}).Marshal()
+	esm, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: 1}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	attach := &eps.AttachRequest{
-		EPSAttachType:       epsAttachTypeCombined,
-		NASKeySetIdentifier: 7,
-		EPSMobileIdentity: eps.EPSMobileIdentity{
-			Type: eps.IdentityGUTI, MCC: "999", MNC: "01", MMEGroupID: 1, MMECode: 1, MTMSI: 2,
-		},
-		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(),
+		EPSAttachType:       eps.AttachTypeCombined,
+		NASKeySetIdentifier: nas.KeySetIdentifier{Value: 7},
+		EPSMobileIdentity: eps.GUTIIdentity(eps.GUTI{
+			PLMN: nas.PLMN{MCC: "999", MNC: "01"}, MMEGroupID: 1, MMECode: 1, TMSI: [4]byte{0x00, 0x00, 0x00, 0x02},
+		}),
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70},
 		ESMMessageContainer: esm,
 	}
 
-	attachBytes, err := attach.Marshal()
+	attachBytes, err := attach.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,9 +101,9 @@ func TestAttachRecoveryAfterMMERestart(t *testing.T) {
 	// Wrap the plain Attach Request in an integrity-protected envelope (SHT=1) with
 	// a MAC the MME cannot reproduce, as the UE does after the MME lost its
 	// context: SHT|PD, 4-octet MAC, sequence, then the inner Attach Request.
-	nas := append([]byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x04}, attachBytes...)
+	pdu := append([]byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x04}, attachBytes...)
 
-	HandleNAS(context.Background(), m, ue.Conn(), nas)
+	HandleNAS(context.Background(), m, ue.Conn(), pdu)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one downlink (Identity Request), got %d", len(cc.sent))
@@ -125,23 +126,15 @@ func TestIdentityResponseRecoveryAfterMMERestart(t *testing.T) {
 	ue := newAttachUe(m, cc, 8)
 	ue.TransitionTo(mme.EMMRegistrationInitiated) // attach in progress: authentication sub-phase
 
-	// Mobile identity for testSubscriber.IMSI (TS 24.008 §10.5.1.4): first digit in
-	// the high nibble of octet 1, IMSI type + odd flag in the low nibble, then the
-	// remaining digits TBCD-packed.
-	mobileID := []byte{0x09, 0x10, 0x10, 0x00, 0x00, 0x00, 0x00, 0x10}
-	if got := mobileIdentityDigits(mobileID); got != testSubscriber.IMSI {
-		t.Fatalf("test mobile identity decodes to %q, want %q", got, testSubscriber.IMSI)
-	}
-
-	idResp, err := (&eps.IdentityResponse{MobileIdentity: mobileID}).Marshal()
+	idResp, err := (&eps.IdentityResponse{MobileIdentity: eps.MobileIMSI(eps.IMSI(testSubscriber.IMSI))}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Integrity-protected envelope (SHT=1) with a MAC the MME cannot reproduce.
-	nas := append([]byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x21}, idResp...)
+	pdu := append([]byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x21}, idResp...)
 
-	HandleNAS(context.Background(), m, ue.Conn(), nas)
+	HandleNAS(context.Background(), m, ue.Conn(), pdu)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one downlink (Authentication Request), got %d", len(cc.sent))
@@ -174,26 +167,25 @@ func nativeGUTIAttach(t *testing.T, m *mme.MME, ue *mme.UeContext) []byte {
 		t.Fatal(err)
 	}
 
-	esm, err := (&eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: 1}).Marshal()
+	esm, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: 1}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	attach := &eps.AttachRequest{
-		EPSAttachType:       epsAttachTypeCombined,
-		NASKeySetIdentifier: 0,
+		EPSAttachType:       eps.AttachTypeCombined,
+		NASKeySetIdentifier: nas.KeySetIdentifier{Value: 0},
 		EPSMobileIdentity:   guti,
-		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(),
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70},
 		ESMMessageContainer: esm,
 	}
 
-	attachBytes, err := attach.Marshal()
+	attachBytes, err := attach.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	wire, err := eps.Protect(attachBytes, eps.SHTIntegrityProtected, nascommon.NASCount(0, 0),
-		nascommon.DirectionUplink, ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	wire, err := eps.Protect(attachBytes, eps.SHTIntegrityProtected, nas.MakeCount(0, 0), nas.DirectionUplink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -312,12 +304,7 @@ func TestAttachKeepsOldGUTIResolvableUntilComplete(t *testing.T) {
 		t.Fatal("new M-TMSI not resolvable")
 	}
 
-	complete, err := (&eps.AttachComplete{}).Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	handleAttachComplete(context.Background(), m, existing, complete)
+	handleAttachComplete(context.Background(), m, existing)
 
 	if !existing.OldTmsiUnsetForTest() {
 		t.Fatal("GUTI reallocation not committed after Attach Complete")
@@ -383,20 +370,20 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 
 	// 1. UE → Attach Request (IMSI), EEA2/EIA2 capable, with a PDN Connectivity
 	// Request in the ESM container.
-	esm, err := (&eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: 1}).Marshal()
+	esm, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: 1}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	attach := &eps.AttachRequest{
 		EPSAttachType:       eps.AttachTypeEPS,
-		NASKeySetIdentifier: 7,
-		EPSMobileIdentity:   eps.EPSMobileIdentity{Type: eps.IdentityIMSI, Digits: testSubscriber.IMSI},
-		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(),
+		NASKeySetIdentifier: nas.KeySetIdentifier{Value: 7},
+		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI(testSubscriber.IMSI)),
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70},
 		ESMMessageContainer: esm,
 	}
 
-	attachBytes, err := attach.Marshal()
+	attachBytes, err := attach.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -415,8 +402,8 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 
 	// The MME assigns an eKSI distinct from the one already stored (0) and emits it,
 	// not the UE-reported "no key" value 7 (TS 24.301 §5.4.2.4).
-	if authReq.NASKeySetIdentifier != 1 {
-		t.Fatalf("Authentication Request eKSI = %d, want 1 (cycled from stored 0)", authReq.NASKeySetIdentifier)
+	if authReq.NASKeySetIdentifier.Value != 1 {
+		t.Fatalf("Authentication Request eKSI = %d, want 1 (cycled from stored 0)", authReq.NASKeySetIdentifier.Value)
 	}
 
 	// 2. UE side: compute RES from the MME's RAND (RES is independent of SQN) and
@@ -430,7 +417,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 
 	kasme := ue.Conn().AuthVector.KASME
 
-	authResp, err := (&eps.AuthenticationResponse{RES: res}).Marshal()
+	authResp, err := (&eps.AuthenticationResponse{RES: res}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -465,8 +452,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	smcPlain, err := eps.Unprotect(smcWire, nascommon.NASCount(0, smcWire[5]), nascommon.DirectionDownlink,
-		knasInt, knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	smcPlain, err := unprotected(eps.Unprotect(smcWire, nas.MakeCount(0, smcWire[5]), nas.DirectionDownlink, mustSecurityContext(t, nas.IntegrityAES, nas.CipheringAES, knasInt, knasEnc)))
 	if err != nil {
 		t.Fatalf("Security Mode Command failed integrity check: %v", err)
 	}
@@ -483,7 +469,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 	// The SECURITY MODE COMMAND carries the same eKSI as the Authentication Request,
 	// identifying the new EPS security context (TS 24.301 §4.4.2.1).
 	if smc.NASKeySetIdentifier != authReq.NASKeySetIdentifier {
-		t.Fatalf("SMC eKSI = %d, want %d (same as Authentication Request)", smc.NASKeySetIdentifier, authReq.NASKeySetIdentifier)
+		t.Fatalf("SMC eKSI = %v, want %v (same as Authentication Request)", smc.NASKeySetIdentifier, authReq.NASKeySetIdentifier)
 	}
 
 	// The unprotected Attach is hashed into the SMC HashMME (TS 24.301 §5.4.3.2).
@@ -494,15 +480,14 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 
 	// 3. UE → Security Mode Complete (integrity protected + ciphered), returning
 	// the IMEISV the Security Mode Command requested (TS 24.301 §5.4.3.2).
-	smCompletePlain, err := (&eps.SecurityModeComplete{
-		IMEISV: []byte{0x03, 0x53, 0x60, 0x83, 0x12, 0x34, 0x56, 0x78, 0xf0},
-	}).Marshal()
+	imeisv := eps.MobileIMEISV("0350638214365870")
+
+	smCompletePlain, err := (&eps.SecurityModeComplete{IMEISV: &imeisv}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	smCompleteWire, err := eps.Protect(smCompletePlain, eps.SHTIntegrityProtectedCiphered, nascommon.NASCount(0, 0),
-		nascommon.DirectionUplink, knasInt, knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	smCompleteWire, err := eps.Protect(smCompletePlain, eps.SHTIntegrityProtectedCiphered, nas.MakeCount(0, 0), nas.DirectionUplink, mustSecurityContext(t, nas.IntegrityAES, nas.CipheringAES, knasInt, knasEnc))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -555,8 +540,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 	// The Attach Accept (the E-RAB's NAS-PDU) carries the UE's assigned IP.
 	acceptWire := []byte(erab.NASPDU)
 
-	acceptPlain, err := eps.Unprotect(acceptWire, nascommon.NASCount(0, acceptWire[5]), nascommon.DirectionDownlink,
-		knasInt, knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	acceptPlain, err := unprotected(eps.Unprotect(acceptWire, nas.MakeCount(0, acceptWire[5]), nas.DirectionDownlink, mustSecurityContext(t, nas.IntegrityAES, nas.CipheringAES, knasInt, knasEnc)))
 	if err != nil {
 		t.Fatalf("Attach Accept failed integrity check: %v", err)
 	}
@@ -568,17 +552,19 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 
 	// The Attach Accept assigns a GUTI (TS 24.301 §5.5.1.2.4) and the UE is
 	// indexed by its M-TMSI for later S-TMSI-addressed procedures.
-	if accept.GUTI == nil || accept.GUTI.Type != eps.IdentityGUTI {
+	if accept.GUTI == nil || accept.GUTI.GUTI == nil {
 		t.Fatal("Attach Accept did not assign a GUTI")
 	}
 
+	gutiID := *accept.GUTI.GUTI
+
 	// GUMMEI sourced from the operator config (fakeBearerStore returns group/code 1).
-	if accept.GUTI.MCC != "001" || accept.GUTI.MNC != "01" ||
-		accept.GUTI.MMEGroupID != 1 || accept.GUTI.MMECode != 1 {
-		t.Fatalf("unexpected GUTI: %+v", accept.GUTI)
+	if gutiID.PLMN.MCC != "001" || gutiID.PLMN.MNC != "01" ||
+		gutiID.MMEGroupID != 1 || gutiID.MMECode != 1 {
+		t.Fatalf("unexpected GUTI: %+v", gutiID)
 	}
 
-	if _, ok := m.LookupUeByMTMSI(accept.GUTI.MTMSI); !ok {
+	if _, ok := m.LookupUeByMTMSI(binary.BigEndian.Uint32(gutiID.TMSI[:])); !ok {
 		t.Fatal("UE not indexed by its assigned M-TMSI")
 	}
 
@@ -587,23 +573,18 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pdn, err := eps.ParsePDNAddress(activate.PDNAddress)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	pdn := activate.PDNAddress
 	if pdn.IPv4 != testUEIP.As4() {
 		t.Fatalf("assigned UE IP = %v, want %v", pdn.IPv4, testUEIP.As4())
 	}
 
 	// 4. UE → Attach Complete reaches EMM-REGISTERED.
-	complete, err := (&eps.AttachComplete{ESMMessageContainer: []byte{0x02, activate.ProcedureTransactionIdentity, 0xc2}}).Marshal()
+	completePlain, err := (&eps.AttachComplete{ESMMessageContainer: []byte{0x02, uint8(activate.PTI), 0xc2}}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	completeWire, err := eps.Protect(complete, eps.SHTIntegrityProtectedCiphered, nascommon.NASCount(0, uint8(ue.ULCount())),
-		nascommon.DirectionUplink, knasInt, knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	completeWire, err := eps.Protect(completePlain, eps.SHTIntegrityProtectedCiphered, nas.MakeCount(0, uint8(ue.ULCount())), nas.DirectionUplink, mustSecurityContext(t, nas.IntegrityAES, nas.CipheringAES, knasInt, knasEnc))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -633,7 +614,7 @@ func TestSecurityModeRejectReleasesUE(t *testing.T) {
 	ue.TransitionTo(mme.EMMRegistrationInitiated)
 	ue.AdvanceRegStep(mme.RegStepSecurityMode)
 
-	plain, err := (&eps.SecurityModeReject{Cause: 23}).Marshal()
+	plain, err := (&eps.SecurityModeReject{Cause: 23}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -663,12 +644,9 @@ func TestIdentityResponseIgnoredAfterAuthStarted(t *testing.T) {
 	ue.Conn().AuthVector = &udm.EPSAV{} // authentication already in progress
 
 	// An IDENTITY RESPONSE carrying a different identity (type-of-identity = IMSI).
-	plain, err := (&eps.IdentityResponse{MobileIdentity: []byte{0x19, 0x32, 0x54, 0x76, 0x98}}).Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := &eps.IdentityResponse{MobileIdentity: eps.MobileIMSI("123456789")}
 
-	handleIdentityResponse(context.Background(), m, ue, plain)
+	handleIdentityResponse(context.Background(), m, ue, resp)
 
 	if ue.IMSI() != testSubscriber.IMSI {
 		t.Fatalf("out-of-order Identity Response overwrote the IMSI: got %q, want %q", ue.IMSI(), testSubscriber.IMSI)
@@ -685,7 +663,7 @@ func TestSecurityModeRejectIgnoredOutsideExchange(t *testing.T) {
 	ue := newAttachUe(m, cc, 7)
 
 	// No security mode exchange is claimed.
-	plain, err := (&eps.SecurityModeReject{Cause: 23}).Marshal()
+	plain, err := (&eps.SecurityModeReject{Cause: 23}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -723,26 +701,23 @@ func TestSecurityModeCompleteRecoversReplayedAttach(t *testing.T) {
 
 	// The UE's HASHMME check failed, so it replays the genuine plain Attach it sent:
 	// a plain EPS attach with no APN.
-	esm, err := (&eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: 1}).Marshal()
+	esm, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: 1}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	genuine, err := (&eps.AttachRequest{
 		EPSAttachType:       eps.AttachTypeEPS,
-		NASKeySetIdentifier: 7,
-		EPSMobileIdentity:   eps.EPSMobileIdentity{Type: eps.IdentityIMSI, Digits: testSubscriber.IMSI},
-		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(),
+		NASKeySetIdentifier: nas.KeySetIdentifier{Value: 7},
+		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI(testSubscriber.IMSI)),
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70},
 		ESMMessageContainer: esm,
-	}).Marshal()
+	}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	smc, err := (&eps.SecurityModeComplete{ReplayedNASMessage: genuine}).Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
+	smc := &eps.SecurityModeComplete{ReplayedNASMessageContainer: genuine}
 
 	handleSecurityModeComplete(context.Background(), m, ue, smc)
 
@@ -784,8 +759,8 @@ func TestDispatchEMM_UnhandledMessageReturnsEMMStatus(t *testing.T) {
 	cc := &captureConn{}
 	ue := newAttachUe(m, cc, 7)
 
-	// A plain EMM message (SHT=plain, PD=EMM) carrying a type the MME does not handle.
-	plain := []byte{0x07, 0x55}
+	// A plain EMM message (SHT=plain, PD=EMM) carrying an unassigned message type.
+	plain := []byte{0x07, 0x70}
 
 	d := HandleEmmMessage(context.Background(), m, ue, plain, true)
 
@@ -822,7 +797,7 @@ func TestDispatchEMM_EMMStatusHandledNoReply(t *testing.T) {
 	cc := &captureConn{}
 	ue := newAttachUe(m, cc, 7)
 
-	plain, err := (&eps.EMMStatus{EMMCause: mme.EmmCauseProtocolErrorUnspec}).Marshal()
+	plain, err := (&eps.EMMStatus{Cause: eps.EMMCauseProtocolErrorUnspecified}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -844,12 +819,12 @@ func TestAttachDuplicateIdenticalIEsResendsAccept(t *testing.T) {
 
 	attach := &eps.AttachRequest{
 		EPSAttachType:       eps.AttachTypeEPS,
-		NASKeySetIdentifier: 7,
-		EPSMobileIdentity:   eps.EPSMobileIdentity{Type: eps.IdentityIMSI, Digits: "001010000000001"},
-		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(),
+		NASKeySetIdentifier: nas.KeySetIdentifier{Value: 7},
+		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI("001010000000001")),
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70},
 	}
 
-	plain, err := attach.Marshal()
+	plain, err := attach.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -858,7 +833,7 @@ func TestAttachDuplicateIdenticalIEsResendsAccept(t *testing.T) {
 	ue.Conn().AttachRequestPlain = plain
 	ue.Conn().AttachAcceptPdu = []byte{0x07, 0x42, 0x01}
 
-	handleAttachRequest(context.Background(), m, ue, plain, false)
+	handleAttachRequest(context.Background(), m, ue, attach, plain, false)
 
 	if cc.count() != 1 {
 		t.Fatalf("expected the Attach Accept resent (one downlink), got %d", cc.count())
@@ -882,19 +857,19 @@ func TestAttachDuplicatePreAcceptIdenticalIEsIgnored(t *testing.T) {
 
 	attach := &eps.AttachRequest{
 		EPSAttachType:       eps.AttachTypeEPS,
-		NASKeySetIdentifier: 7,
-		EPSMobileIdentity:   eps.EPSMobileIdentity{Type: eps.IdentityIMSI, Digits: "001010000000001"},
-		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(),
+		NASKeySetIdentifier: nas.KeySetIdentifier{Value: 7},
+		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI("001010000000001")),
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70},
 	}
 
-	plain, err := attach.Marshal()
+	plain, err := attach.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	ue.Conn().AttachRequestPlain = plain
 
-	handleAttachRequest(context.Background(), m, ue, plain, false)
+	handleAttachRequest(context.Background(), m, ue, attach, plain, false)
 
 	if cc.count() != 0 {
 		t.Fatalf("an identical pre-accept duplicate must be ignored (no downlink), got %d", cc.count())
@@ -914,19 +889,19 @@ func TestAttachDuplicatePreAcceptSecurityModeIdenticalIEsIgnored(t *testing.T) {
 
 	attach := &eps.AttachRequest{
 		EPSAttachType:       eps.AttachTypeEPS,
-		NASKeySetIdentifier: 7,
-		EPSMobileIdentity:   eps.EPSMobileIdentity{Type: eps.IdentityIMSI, Digits: "001010000000001"},
-		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(),
+		NASKeySetIdentifier: nas.KeySetIdentifier{Value: 7},
+		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI("001010000000001")),
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70},
 	}
 
-	plain, err := attach.Marshal()
+	plain, err := attach.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	ue.Conn().AttachRequestPlain = plain
 
-	handleAttachRequest(context.Background(), m, ue, plain, false)
+	handleAttachRequest(context.Background(), m, ue, attach, plain, false)
 
 	if cc.count() != 0 {
 		t.Fatalf("an identical pre-accept duplicate must be ignored (no downlink), got %d", cc.count())
@@ -947,12 +922,12 @@ func TestAttachDuplicateDifferingIEsProgresses(t *testing.T) {
 
 	attach := &eps.AttachRequest{
 		EPSAttachType:       eps.AttachTypeEPS,
-		NASKeySetIdentifier: 7,
-		EPSMobileIdentity:   eps.EPSMobileIdentity{Type: eps.IdentityIMSI, Digits: "001010000000001"},
-		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(),
+		NASKeySetIdentifier: nas.KeySetIdentifier{Value: 7},
+		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI("001010000000001")),
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70},
 	}
 
-	plain, err := attach.Marshal()
+	plain, err := attach.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -961,7 +936,7 @@ func TestAttachDuplicateDifferingIEsProgresses(t *testing.T) {
 	ue.Conn().AttachRequestPlain = []byte{0x07, 0x41, 0x99}
 	ue.Conn().AttachAcceptPdu = []byte{0x07, 0x42, 0x01}
 
-	handleAttachRequest(context.Background(), m, ue, plain, false)
+	handleAttachRequest(context.Background(), m, ue, attach, plain, false)
 
 	// Progressing an IMSI attach re-authenticates: it enters the authentication
 	// sub-phase and sends an AUTHENTICATION REQUEST, not a resent accept.
@@ -994,17 +969,17 @@ func TestAttachIgnoredDuringNetworkInitiatedDetach(t *testing.T) {
 
 	attach := &eps.AttachRequest{
 		EPSAttachType:       eps.AttachTypeEPS,
-		NASKeySetIdentifier: 7,
-		EPSMobileIdentity:   eps.EPSMobileIdentity{Type: eps.IdentityIMSI, Digits: "001010000000001"},
-		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(),
+		NASKeySetIdentifier: nas.KeySetIdentifier{Value: 7},
+		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI("001010000000001")),
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70},
 	}
 
-	plain, err := attach.Marshal()
+	plain, err := attach.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	handleAttachRequest(context.Background(), m, ue, plain, false)
+	handleAttachRequest(context.Background(), m, ue, attach, plain, false)
 
 	if ue.EMMState() != mme.EMMDeregistrationInitiated {
 		t.Fatalf("attach during network-initiated detach must be ignored; state = %s, want EMM-DEREGISTERED-INITIATED", ue.EMMState())

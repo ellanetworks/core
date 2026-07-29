@@ -50,7 +50,6 @@ import (
 	"github.com/ellanetworks/core/internal/upf/bpfdump"
 	"github.com/ellanetworks/core/s1ap"
 	"github.com/ellanetworks/core/version"
-	nasLogger "github.com/free5gc/nas/logger"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
 )
@@ -559,8 +558,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}); err != nil {
 		return fmt.Errorf("couldn't upgrade API: %w", err)
 	}
-
-	nasLogger.SetLogLevel(0) // Suppress free5gc NAS log output
 
 	sctpServer := amfsctp.NewServer(amfsctp.Config{
 		PPID:   send.NGAPPPID,

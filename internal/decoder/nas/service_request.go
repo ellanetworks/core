@@ -5,43 +5,28 @@ package nas
 
 import (
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/free5gc/nas/nasConvert"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type TMSI5GS struct {
-	TypeOfIdentity utils.EnumField[uint8] `json:"type_of_identity"`
-	AMFSetID       uint16                 `json:"amf_set_id"`
-	AMFPointer     uint8                  `json:"amf_pointer"`
-	TMSI5G         [4]uint8               `json:"tmsi_5g"`
+	TypeOfIdentity utils.EnumField `json:"type_of_identity"`
+	AMFSetID       uint16          `json:"amf_set_id"`
+	AMFPointer     uint8           `json:"amf_pointer"`
+	TMSI5G         [4]uint8        `json:"tmsi_5g"`
 }
 
-func buildTypeOfIdentityEnum(toi uint8) utils.EnumField[uint8] {
-	switch toi {
-	case nasMessage.MobileIdentity5GSTypeNoIdentity:
-		return utils.MakeEnum(toi, "NoIdentity", false)
-	case nasMessage.MobileIdentity5GSTypeSuci:
-		return utils.MakeEnum(toi, "Suci", false)
-	case nasMessage.MobileIdentity5GSType5gGuti:
-		return utils.MakeEnum(toi, "5gGuti", false)
-	case nasMessage.MobileIdentity5GSTypeImei:
-		return utils.MakeEnum(toi, "Imei", false)
-	case nasMessage.MobileIdentity5GSType5gSTmsi:
-		return utils.MakeEnum(toi, "5gSTmsi", false)
-	case nasMessage.MobileIdentity5GSTypeImeisv:
-		return utils.MakeEnum(toi, "Imeisv", false)
-	default:
-		return utils.MakeEnum(toi, "", true)
+// buildTMSI5GS renders a decoded 5G-S-TMSI mobile identity (TS 24.501 §9.11.3.4).
+func buildTMSI5GS(id fgs.MobileIdentity) TMSI5GS {
+	s := id.STMSI
+	if s == nil {
+		return TMSI5GS{}
 	}
-}
 
-func buildTMSI5GS(tmsi5gs nasType.TMSI5GS) TMSI5GS {
 	return TMSI5GS{
-		TypeOfIdentity: buildTypeOfIdentityEnum(tmsi5gs.GetTypeOfIdentity()),
-		AMFSetID:       tmsi5gs.GetAMFSetID(),
-		AMFPointer:     tmsi5gs.GetAMFPointer(),
-		TMSI5G:         tmsi5gs.GetTMSI5G(),
+		TypeOfIdentity: buildTypeOfIdentityEnum(uint8(fgs.IdentitySTMSI)),
+		AMFSetID:       s.AMFSetID,
+		AMFPointer:     s.AMFPointer,
+		TMSI5G:         s.TMSI,
 	}
 }
 
@@ -61,117 +46,84 @@ type AllowedPDUSessionStatus struct {
 }
 
 type ServiceTypeAndNgksi struct {
-	ServiceType          utils.EnumField[uint8] `json:"service_type"`
-	TSC                  utils.EnumField[uint8] `json:"tsc"`
-	NasKeySetIdentifiler uint8                  `json:"nas_key_set_identifier"`
+	ServiceType          utils.EnumField `json:"service_type"`
+	TSC                  utils.EnumField `json:"tsc"`
+	NasKeySetIdentifiler uint8           `json:"nas_key_set_identifier"`
 }
 
 type ServiceRequest struct {
-	ExtendedProtocolDiscriminator       uint8                     `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType uint8                     `json:"spare_half_octet_and_security_header_type"`
-	ServiceTypeAndNgksi                 ServiceTypeAndNgksi       `json:"service_type_and_ngksi"`
-	TMSI5GS                             TMSI5GS                   `json:"tmsi_5gs,omitempty"`
-	UplinkDataStatus                    []UplinkDataStatusPDU     `json:"uplink_data_status,omitempty"`
-	PDUSessionStatus                    []PDUSessionStatusPDU     `json:"pdu_session_status,omitempty"`
-	AllowedPDUSessionStatus             []AllowedPDUSessionStatus `json:"allowed_pdu_session_status,omitempty"`
-	NASMessageContainer                 []byte                    `json:"nas_message_container,omitempty"`
+	ServiceTypeAndNgksi     ServiceTypeAndNgksi       `json:"service_type_and_ngksi"`
+	TMSI5GS                 TMSI5GS                   `json:"tmsi_5gs,omitempty"`
+	UplinkDataStatus        []UplinkDataStatusPDU     `json:"uplink_data_status,omitempty"`
+	PDUSessionStatus        []PDUSessionStatusPDU     `json:"pdu_session_status,omitempty"`
+	AllowedPDUSessionStatus []AllowedPDUSessionStatus `json:"allowed_pdu_session_status,omitempty"`
+	NASMessageContainer     []byte                    `json:"nas_message_container,omitempty"`
 }
 
-func buildServiceRequest(msg *nasMessage.ServiceRequest) *ServiceRequest {
-	if msg == nil {
-		return nil
-	}
-
-	serviceRequest := &ServiceRequest{
-		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
-		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		ServiceTypeAndNgksi:                 buildServiceTypeAndNgksi(msg.ServiceTypeAndNgksi),
-		TMSI5GS:                             buildTMSI5GS(msg.TMSI5GS),
+func buildServiceRequest(msg *fgs.ServiceRequest) *ServiceRequest {
+	out := &ServiceRequest{
+		ServiceTypeAndNgksi: ServiceTypeAndNgksi{
+			ServiceType:          buildServiceTypeEnum(uint8(msg.ServiceType)),
+			TSC:                  buildTSCEnum(msg.NgKSI.Mapped),
+			NasKeySetIdentifiler: msg.NgKSI.Value,
+		},
+		TMSI5GS:             buildTMSI5GS(msg.MobileIdentity),
+		NASMessageContainer: msg.NASMessageContainer,
 	}
 
 	if msg.UplinkDataStatus != nil {
-		uplinkDataStatus := []UplinkDataStatusPDU{}
+		psi := msg.UplinkDataStatus.PSI
+		uds := []UplinkDataStatusPDU{}
 
-		uplinkDataPsi := nasConvert.PSIToBooleanArray(msg.UplinkDataStatus.Buffer)
-		for pduSessionID, hasUplinkData := range uplinkDataPsi {
-			uplinkDataStatus = append(uplinkDataStatus, UplinkDataStatusPDU{
-				PDUSessionID: pduSessionID,
-				Active:       hasUplinkData,
-			})
+		for i := range 16 {
+			uds = append(uds, UplinkDataStatusPDU{PDUSessionID: i, Active: psi[i]})
 		}
 
-		serviceRequest.UplinkDataStatus = uplinkDataStatus
+		out.UplinkDataStatus = uds
 	}
 
 	if msg.PDUSessionStatus != nil {
-		pduSessionStatus := []PDUSessionStatusPDU{}
-
-		psiArray := nasConvert.PSIToBooleanArray(msg.PDUSessionStatus.Buffer)
-		for pduSessionID, isActive := range psiArray {
-			pduSessionStatus = append(pduSessionStatus, PDUSessionStatusPDU{
-				PDUSessionID: pduSessionID,
-				Active:       isActive,
-			})
-		}
-
-		serviceRequest.PDUSessionStatus = pduSessionStatus
+		out.PDUSessionStatus = decodePDUSessionStatus(msg.PDUSessionStatus)
 	}
 
 	if msg.AllowedPDUSessionStatus != nil {
-		allowedPduSessionStatus := []AllowedPDUSessionStatus{}
+		psi := msg.AllowedPDUSessionStatus.PSI
+		aps := []AllowedPDUSessionStatus{}
 
-		allowedPsis := nasConvert.PSIToBooleanArray(msg.AllowedPDUSessionStatus.Buffer)
-		for pduSessionID, isAllowed := range allowedPsis {
-			allowedPduSessionStatus = append(allowedPduSessionStatus, AllowedPDUSessionStatus{
-				PDUSessionID: pduSessionID,
-				Active:       isAllowed,
-			})
+		for i := range 16 {
+			aps = append(aps, AllowedPDUSessionStatus{PDUSessionID: i, Active: psi[i]})
 		}
 
-		serviceRequest.AllowedPDUSessionStatus = allowedPduSessionStatus
+		out.AllowedPDUSessionStatus = aps
 	}
 
-	if msg.NASMessageContainer != nil {
-		serviceRequest.NASMessageContainer = msg.GetNASMessageContainerContents()
-	}
-
-	return serviceRequest
+	return out
 }
 
-func buildServiceTypeAndNgksi(stng nasType.ServiceTypeAndNgksi) ServiceTypeAndNgksi {
-	return ServiceTypeAndNgksi{
-		ServiceType:          buildServiceTypeEnum(stng.GetServiceTypeValue()),
-		TSC:                  buildTSCEnum(stng.GetTSC()),
-		NasKeySetIdentifiler: stng.GetNasKeySetIdentifiler(),
-	}
-}
-
-func buildServiceTypeEnum(serviceType uint8) utils.EnumField[uint8] {
+func buildServiceTypeEnum(serviceType uint8) utils.EnumField {
 	switch serviceType {
-	case nasMessage.ServiceTypeSignalling:
+	case uint8(fgs.ServiceTypeSignalling):
 		return utils.MakeEnum(serviceType, "Signalling", false)
-	case nasMessage.ServiceTypeData:
+	case uint8(fgs.ServiceTypeData):
 		return utils.MakeEnum(serviceType, "Data", false)
-	case nasMessage.ServiceTypeMobileTerminatedServices:
+	case uint8(fgs.ServiceTypeMobileTerminatedServices):
 		return utils.MakeEnum(serviceType, "MobileTerminatedServices", false)
-	case nasMessage.ServiceTypeEmergencyServices:
+	case uint8(fgs.ServiceTypeEmergencyServices):
 		return utils.MakeEnum(serviceType, "EmergencyServices", false)
-	case nasMessage.ServiceTypeEmergencyServicesFallback:
+	case uint8(fgs.ServiceTypeEmergencyServicesFallback):
 		return utils.MakeEnum(serviceType, "EmergencyServicesFallback", false)
-	case nasMessage.ServiceTypeHighPriorityAccess:
+	case uint8(fgs.ServiceTypeHighPriorityAccess):
 		return utils.MakeEnum(serviceType, "HighPriorityAccess", false)
 	default:
 		return utils.MakeEnum(serviceType, "", true)
 	}
 }
 
-func buildTSCEnum(tsc uint8) utils.EnumField[uint8] {
-	switch tsc {
-	case nasMessage.TypeOfSecurityContextFlagNative:
-		return utils.MakeEnum(tsc, "Native", false)
-	case nasMessage.TypeOfSecurityContextFlagMapped:
-		return utils.MakeEnum(tsc, "Mapped", false)
+func buildTSCEnum(mapped bool) utils.EnumField {
+	switch mapped {
+	case false:
+		return utils.MakeEnum(uint8(0), "Native", false)
 	default:
-		return utils.MakeEnum(tsc, "", true)
+		return utils.MakeEnum(uint8(1), "Mapped", false)
 	}
 }

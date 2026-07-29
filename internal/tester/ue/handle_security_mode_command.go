@@ -7,27 +7,27 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/openapi/models"
 	"go.uber.org/zap"
 )
 
-func handleSecurityModeCommand(ue *UE, msg *nas.Message, amfUENGAPID int64, ranUENGAPID int64) error {
+func handleSecurityModeCommand(ue *UE, plain []byte, amfUENGAPID int64, ranUENGAPID int64) error {
 	if ue.Gnb == nil {
 		return fmt.Errorf("GNB is not set for UE")
 	}
 
 	logger.UeLogger.Debug("Received Security Mode Command NAS message")
 
-	ksi := int32(msg.SecurityModeCommand.GetNasKeySetIdentifiler())
+	smc, err := fgs.ParseSecurityModeCommand(plain)
+	if err != nil {
+		return fmt.Errorf("could not parse Security Mode Command: %v", err)
+	}
 
-	var tsc models.ScType
+	ksi := int32(smc.NgKSI.Value)
 
-	switch msg.SecurityModeCommand.GetTSC() {
-	case nasMessage.TypeOfSecurityContextFlagNative:
-		tsc = models.ScType_NATIVE
-	case nasMessage.TypeOfSecurityContextFlagMapped:
+	tsc := models.ScType_NATIVE
+	if smc.NgKSI.Mapped {
 		tsc = models.ScType_MAPPED
 	}
 
@@ -48,7 +48,7 @@ func handleSecurityModeCommand(ue *UE, msg *nas.Message, amfUENGAPID int64, ranU
 		return fmt.Errorf("error sending Security Mode Complete: %w", err)
 	}
 
-	encodedPdu, err := ue.EncodeNasPduWithSecurity(securityModeComplete, nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext)
+	encodedPdu, err := ue.EncodeNasPduWithSecurity(securityModeComplete, uint8(fgs.SHTIntegrityProtectedCipheredNewContext))
 	if err != nil {
 		return fmt.Errorf("error encoding %s IMSI UE  NAS Security Mode Complete message: %v", ue.UeSecurity.Supi, err)
 	}

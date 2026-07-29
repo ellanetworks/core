@@ -8,8 +8,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/ue"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 const timeoutPerMessage = 8 * time.Second
@@ -20,18 +19,20 @@ type InitialRegistrationOpts struct {
 	UE           *ue.UE
 }
 
-func InitialRegistration(opts *InitialRegistrationOpts) (*nas.Message, error) {
-	err := opts.UE.SendRegistrationRequest(opts.RANUENGAPID, nasMessage.RegistrationType5GSInitialRegistration)
+// InitialRegistration drives a full initial registration and returns the
+// plaintext PDU SESSION ESTABLISHMENT ACCEPT the network sent.
+func InitialRegistration(opts *InitialRegistrationOpts) ([]byte, error) {
+	err := opts.UE.SendRegistrationRequest(opts.RANUENGAPID, uint8(fgs.RegistrationTypeInitial))
 	if err != nil {
 		return nil, fmt.Errorf("could not build Registration Request NAS PDU: %v", err)
 	}
 
-	_, err = opts.UE.WaitForNASGMMMessage(nas.MsgTypeRegistrationAccept, timeoutPerMessage)
+	_, err = opts.UE.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), timeoutPerMessage)
 	if err != nil {
 		return nil, fmt.Errorf("did not receive Registration Accept after initial registration: %v", err)
 	}
 
-	msg, err := opts.UE.WaitForNASGSMMessage(nas.MsgTypePDUSessionEstablishmentAccept, timeoutPerMessage)
+	msg, err := opts.UE.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionEstablishmentAccept), timeoutPerMessage)
 	if err != nil {
 		return nil, fmt.Errorf("timeout waiting for PDU session establishment accept: %v", err)
 	}
@@ -44,7 +45,7 @@ func InitialRegistration(opts *InitialRegistrationOpts) (*nas.Message, error) {
 	// Sleep to ensure gNodeB sends the PDU Session Resource Setup Response before proceeding
 	time.Sleep(50 * time.Millisecond)
 
-	_, err = opts.UE.WaitForNASGMMMessage(nas.MsgTypeConfigurationUpdateCommand, timeoutPerMessage)
+	_, err = opts.UE.WaitForNASGMMMessage(uint8(fgs.MsgConfigurationUpdateCommand), timeoutPerMessage)
 	if err != nil {
 		return nil, fmt.Errorf("did not receive Configuration Update Command after registration: %v", err)
 	}

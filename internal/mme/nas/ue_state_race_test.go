@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/nas/eps"
 )
 
 // TestUEStateConcurrentAccess drives the goroutines that touch a connected UE in
@@ -50,14 +51,17 @@ func TestUEStateConcurrentAccess(t *testing.T) {
 	}()
 
 	// Dispatch loop committing/rejecting a bearer modification: writes the PDN
-	// flags. A nil body falls back to the default PDN, exercising the flag writes.
+	// flags. An unknown bearer identity falls back to the default PDN, exercising
+	// the flag writes.
 	wg.Add(1)
 
 	go func() {
 		defer wg.Done()
 
+		rej := &eps.ModifyEPSBearerContextReject{}
+
 		for i := 0; i < iters; i++ {
-			handleModifyBearerReject(m, ue, nil)
+			handleModifyBearerReject(m, ue, rej)
 		}
 	}()
 

@@ -6,7 +6,6 @@ package gnb
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
@@ -14,8 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/testutil"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 )
@@ -65,7 +63,7 @@ func runAuthenticationWrongKey(_ context.Context, env scenarios.Env, _ any) erro
 	}
 
 	newUE, err := ue.NewUE(&ue.UEOpts{
-		PDUSessionType: env.PDUSessionType(),
+		PDUSessionType: fgs.PDUSessionType(env.PDUSessionType()),
 		GnodeB:         gNodeB,
 		Msin:           scenarios.DefaultIMSI[5:],
 		K:              scenarios.DefaultKey,
@@ -111,12 +109,12 @@ func sendAuthenticationResponseWithWrongKey(ranUENGAPID int64, u *ue.UE) error {
 	// A nonsense serving network name forces derivation of wrong keys.
 	u.UeSecurity.Snn = "an unreasonable serving network name"
 
-	err := u.SendRegistrationRequest(ranUENGAPID, nasMessage.RegistrationType5GSInitialRegistration)
+	err := u.SendRegistrationRequest(ranUENGAPID, uint8(fgs.RegistrationTypeInitial))
 	if err != nil {
 		return fmt.Errorf("could not build Registration Request NAS PDU: %v", err)
 	}
 
-	msg, err := u.WaitForNASGMMMessage(nas.MsgTypeAuthenticationReject, 200*time.Millisecond)
+	msg, err := u.WaitForNASGMMMessage(uint8(fgs.MsgAuthenticationReject), 200*time.Millisecond)
 	if err != nil {
 		return fmt.Errorf("did not receive Authentication Reject: %v", err)
 	}
@@ -124,38 +122,8 @@ func sendAuthenticationResponseWithWrongKey(ranUENGAPID int64, u *ue.UE) error {
 	return validateAuthenticationReject(msg)
 }
 
-func validateAuthenticationReject(nasMsg *nas.Message) error {
-	if nasMsg == nil {
-		return fmt.Errorf("NAS PDU is nil")
-	}
+func validateAuthenticationReject(plain []byte) error {
+	_, err := testutil.ExpectNAS[*fgs.AuthenticationReject](plain)
 
-	if nasMsg.GmmMessage == nil {
-		return fmt.Errorf("NAS message is not a GMM message")
-	}
-
-	if nasMsg.GmmMessage.GetMessageType() != nas.MsgTypeAuthenticationReject {
-		return fmt.Errorf("NAS message type is not Authentication Reject (%d), got (%d)", nas.MsgTypeAuthenticationReject, nasMsg.GmmMessage.GetMessageType())
-	}
-
-	if reflect.ValueOf(nasMsg.AuthenticationReject.ExtendedProtocolDiscriminator).IsZero() {
-		return fmt.Errorf("extended protocol is missing")
-	}
-
-	if nasMsg.AuthenticationReject.GetExtendedProtocolDiscriminator() != 126 {
-		return fmt.Errorf("extended protocol not the expected value")
-	}
-
-	if nasMsg.AuthenticationReject.GetSecurityHeaderType() != 0 {
-		return fmt.Errorf("security header type not the expected value")
-	}
-
-	if nasMsg.AuthenticationReject.GetSpareHalfOctet() != 0 {
-		return fmt.Errorf("spare half octet not the expected value")
-	}
-
-	if reflect.ValueOf(nasMsg.AuthenticationReject.AuthenticationRejectMessageIdentity).IsZero() {
-		return fmt.Errorf("message type is missing")
-	}
-
-	return nil
+	return err
 }

@@ -110,8 +110,11 @@ func (ue *UeContext) RegStep() RegStep {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return ue.regStep
+	return ue.regStepLocked()
 }
+
+// regStepLocked is RegStep for a caller already holding ue.mu.
+func (ue *UeContext) regStepLocked() RegStep { return ue.regStep }
 
 // AdvanceRegStep moves the registration sub-phase forward while the UE is
 // registration-initiated; it is a no-op in any other state.

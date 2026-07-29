@@ -10,8 +10,8 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
-	nascommon "github.com/ellanetworks/core/nas/common"
-	"github.com/free5gc/nas/nasType"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 // AddUeContextToPoolForTest indexes a UE in the AMF's SUPI-keyed pool, as a completed
@@ -137,20 +137,46 @@ func (a *AMF) AssignGutiForTest(ue *UeContext, guti etsi.GUTI5G) {
 	}
 }
 
-func (ue *UeContext) SetSecuredForTest(b bool) { ue.secured = b }
-func (ue *UeContext) SecuredForTest() bool     { return ue.secured }
+func (ue *UeContext) SetSecuredForTest(b bool) {
+	ue.secured = b
 
-func (ue *UeContext) SetIntegrityAlgForTest(a uint8) { ue.integrityAlg = a }
-func (ue *UeContext) IntegrityAlgForTest() uint8     { return ue.integrityAlg }
+	// A secured UE has a NAS security context in production, so give one to a
+	// test that marks it secured without running the security mode procedure.
+	if b && ue.sc == nil {
+		// The null algorithms, as a UE that has not run the security mode procedure
+		// would have: the keys only have to be present, not secret.
+		for i := range ue.knasInt {
+			ue.knasInt[i], ue.knasEnc[i] = byte(i+1), byte(i+1)
+		}
 
-func (ue *UeContext) SetCipheringAlgForTest(a uint8) { ue.cipheringAlg = a }
-func (ue *UeContext) CipheringAlgForTest() uint8     { return ue.cipheringAlg }
+		_ = ue.installSecurityContextLocked()
+	}
+}
+func (ue *UeContext) SecuredForTest() bool { return ue.secured }
 
-func (ue *UeContext) SetKnasIntForTest(k [16]uint8) { ue.knasInt = k }
-func (ue *UeContext) KnasIntForTest() [16]uint8     { return ue.knasInt }
+func (ue *UeContext) SetIntegrityAlgForTest(a nas.IntegrityAlgorithm) {
+	ue.integrityAlg = a
+	_ = ue.installSecurityContextLocked()
+}
+func (ue *UeContext) IntegrityAlgForTest() nas.IntegrityAlgorithm { return ue.integrityAlg }
 
-func (ue *UeContext) SetKnasEncForTest(k [16]uint8) { ue.knasEnc = k }
-func (ue *UeContext) KnasEncForTest() [16]uint8     { return ue.knasEnc }
+func (ue *UeContext) SetCipheringAlgForTest(a nas.CipheringAlgorithm) {
+	ue.cipheringAlg = a
+	_ = ue.installSecurityContextLocked()
+}
+func (ue *UeContext) CipheringAlgForTest() nas.CipheringAlgorithm { return ue.cipheringAlg }
+
+func (ue *UeContext) SetKnasIntForTest(k [16]uint8) {
+	ue.knasInt = k
+	_ = ue.installSecurityContextLocked()
+}
+func (ue *UeContext) KnasIntForTest() [16]uint8 { return ue.knasInt }
+
+func (ue *UeContext) SetKnasEncForTest(k [16]uint8) {
+	ue.knasEnc = k
+	_ = ue.installSecurityContextLocked()
+}
+func (ue *UeContext) KnasEncForTest() [16]uint8 { return ue.knasEnc }
 
 func (ue *UeContext) SetNgKsiForTest(n models.NgKsi) { ue.ngKsi = n }
 func (ue *UeContext) NgKsiForTest() models.NgKsi     { return ue.ngKsi }
@@ -161,12 +187,21 @@ func (ue *UeContext) KamfForTest() []uint8    { return ue.kamf }
 func (ue *UeContext) SetNHForTest(nh []uint8) { copy(ue.nh[:], nh) }
 func (ue *UeContext) NHForTest() [32]uint8    { return ue.nh }
 
-func (ue *UeContext) SetUESecurityCapabilityForTest(c *nasType.UESecurityCapability) {
+func (ue *UeContext) SetUESecurityCapabilityForTest(c *fgs.UESecurityCapability) {
 	ue.ueSecurityCapability = c
 }
 
-func (ue *UeContext) UESecurityCapabilityForTest() *nasType.UESecurityCapability {
+func (ue *UeContext) UESecurityCapabilityForTest() *fgs.UESecurityCapability {
 	return ue.ueSecurityCapability
+}
+
+// UESecCapForTest builds a UE security capability with the given 5G EA and IA
+// algorithm numbers (0..7) enabled.
+func UESecCapForTest(ea, ia []uint8) *fgs.UESecurityCapability {
+	return &fgs.UESecurityCapability{
+		EA: nas.Algorithms(ea...),
+		IA: nas.Algorithms(ia...),
+	}
 }
 
 func (ue *UeContext) SetKgnbForTest(k []uint8) { ue.kgnb = k }
@@ -184,11 +219,13 @@ func (ue *UeContext) SetULCountForTest(c uint32) {
 	ue.ulCount.Reset()
 
 	if c > 0 {
-		ue.ulCount.Commit(nascommon.Count(c - 1))
+		_ = ue.ulCount.Commit(nas.Count(c - 1))
 	}
 }
 
-func (ue *UeContext) ULCountForTest() nascommon.UplinkCounter { return ue.ulCount }
+func (ue *UeContext) ULCountForTest() nas.UplinkCounter { return ue.ulCount }
 
-func (ue *UeContext) SetDLCountForTest(c nascommon.Count) { ue.dlCount = c }
-func (ue *UeContext) DLCountForTest() *nascommon.Count    { return &ue.dlCount }
+func (ue *UeContext) SetDLCountForTest(c nas.Count) {
+	ue.dlCount = nas.NewDownlinkCounter(c)
+}
+func (ue *UeContext) DLCountForTest() nas.Count { return ue.dlCount.Next() }

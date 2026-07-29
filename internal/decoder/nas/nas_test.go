@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
-	naslib "github.com/free5gc/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func TestDecodeNASMessage_IntegrityProtectedNotCiphered(t *testing.T) {
@@ -50,7 +50,7 @@ func TestDecodeNASMessage_IntegrityProtectedNotCiphered(t *testing.T) {
 		t.Errorf("unexpected error: %s", nasMsg.Error)
 	}
 
-	if nasMsg.SecurityHeader.SecurityHeaderType.Value != naslib.SecurityHeaderTypeIntegrityProtected {
+	if nasMsg.SecurityHeader.SecurityHeaderType.Value != int64(fgs.SHTIntegrityProtected) {
 		t.Errorf("expected SecurityHeaderType=1, got %d", nasMsg.SecurityHeader.SecurityHeaderType.Value)
 	}
 
@@ -121,7 +121,7 @@ func TestDecodeNASMessage_IntegrityProtectedWithNewContext(t *testing.T) {
 		t.Errorf("unexpected error: %s", nasMsg.Error)
 	}
 
-	if nasMsg.SecurityHeader.SecurityHeaderType.Value != naslib.SecurityHeaderTypeIntegrityProtectedWithNew5gNasSecurityContext {
+	if nasMsg.SecurityHeader.SecurityHeaderType.Value != int64(fgs.SHTIntegrityProtectedNewContext) {
 		t.Errorf("expected SecurityHeaderType=3, got %d", nasMsg.SecurityHeader.SecurityHeaderType.Value)
 	}
 
@@ -162,7 +162,7 @@ func TestDecodeNASMessage_CipheredNotDecoded(t *testing.T) {
 		t.Error("ciphered message should be marked as encrypted")
 	}
 
-	if nasMsg.SecurityHeader.SecurityHeaderType.Value != naslib.SecurityHeaderTypeIntegrityProtectedAndCiphered {
+	if nasMsg.SecurityHeader.SecurityHeaderType.Value != int64(fgs.SHTIntegrityProtectedCiphered) {
 		t.Errorf("expected SecurityHeaderType=2, got %d", nasMsg.SecurityHeader.SecurityHeaderType.Value)
 	}
 
@@ -177,5 +177,18 @@ func TestDecodeNASMessage_CipheredNotDecoded(t *testing.T) {
 
 	if nasMsg.GmmMessage != nil {
 		t.Error("ciphered message should not have decoded GmmMessage")
+	}
+}
+
+// TestDecodeNASMessage_ShortSUCINoPanic guards the observability decoder against
+// a crash on a SUCI whose PLMN comes back empty — a NAI-format SUCI or a
+// truncated one. The PLMN string must never be indexed unchecked (A1 regression).
+func TestDecodeNASMessage_ShortSUCINoPanic(t *testing.T) {
+	// plain REGISTRATION REQUEST with a 1-octet SUCI-typed 5GS mobile identity.
+	raw := []byte{0x7e, 0x00, 0x41, 0x09, 0x00, 0x01, 0x01}
+
+	// Must not panic.
+	if msg := nas.DecodeNASMessage(raw); msg == nil {
+		t.Fatal("DecodeNASMessage returned nil")
 	}
 }

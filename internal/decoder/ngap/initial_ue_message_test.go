@@ -174,7 +174,7 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item3.Criticality.Value)
 	}
 
-	rrcEstabCause, ok := item3.Value.(utils.EnumField[uint64])
+	rrcEstabCause, ok := item3.Value.(utils.EnumField)
 	if !ok {
 		t.Fatalf("expected RRCEstablishmentCause to be of type ngap.EnumField, got %T", item3.Value)
 	}
@@ -183,7 +183,7 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected RRCEstablishmentCause=MoSignalling, got %s", rrcEstabCause.Label)
 	}
 
-	if rrcEstabCause.Value != uint64(ngapType.RRCEstablishmentCausePresentMoSignalling) {
+	if rrcEstabCause.Value != int64(ngapType.RRCEstablishmentCausePresentMoSignalling) {
 		t.Errorf("expected RRCEstablishmentCause value=3, got %d", rrcEstabCause.Value)
 	}
 
@@ -205,7 +205,7 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item4.Criticality.Value)
 	}
 
-	ueContextRequest, ok := item4.Value.(utils.EnumField[uint64])
+	ueContextRequest, ok := item4.Value.(utils.EnumField)
 	if !ok {
 		t.Fatalf("expected UEContextRequest to be of type ngap.EnumField, got %T", item4.Value)
 	}
@@ -214,7 +214,7 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected UEContextRequest=Requested, got %v", ueContextRequest.Label)
 	}
 
-	if ueContextRequest.Value != uint64(ngapType.UEContextRequestPresentRequested) {
+	if ueContextRequest.Value != int64(ngapType.UEContextRequestPresentRequested) {
 		t.Errorf("expected UEContextRequest value=0, got %d", ueContextRequest.Value)
 	}
 }

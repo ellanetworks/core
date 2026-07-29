@@ -9,13 +9,12 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
-	"github.com/free5gc/nas/nasConvert"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
 // TS 24501 5.6.3.2
-func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.NotificationResponse) nasreply.Disposition {
+func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *fgs.NotificationResponse) nasreply.Disposition {
 	if state := ue.State(); state != amf.Registered {
 		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Notification Response message", zap.String("state", string(state)))
 		return nasreply.Silent(nasreply.ReasonOutOfState)
@@ -30,7 +29,7 @@ func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *a
 		return nasreply.Handled()
 	}
 
-	psiArray := nasConvert.PSIToBooleanArray(msg.Buffer)
+	psiArray := msg.PDUSessionStatus.PSI
 
 	for psi := 1; psi <= 15; psi++ {
 		pduSessionID := uint8(psi)

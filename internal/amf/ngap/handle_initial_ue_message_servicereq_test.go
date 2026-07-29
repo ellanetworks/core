@@ -11,8 +11,7 @@ import (
 	amfnas "github.com/ellanetworks/core/internal/amf/nas"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
-	gonas "github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 // realNASAdapter wires the actual NAS layer (not the fake) into the AMF, so a routing test
@@ -50,11 +49,11 @@ func TestHandleInitialUEMessage_MalformedServiceRequest_Rejects96(t *testing.T) 
 	}
 
 	pdu := sender.SentDownlinkNASTransport[0].NasPdu
-	if len(pdu) < 4 || pdu[2] != gonas.MsgTypeServiceReject {
+	if len(pdu) < 4 || pdu[2] != uint8(fgs.MsgServiceReject) {
 		t.Fatalf("downlink is not a plain SERVICE REJECT: % x", pdu)
 	}
 
-	if pdu[3] != nasMessage.Cause5GMMInvalidMandatoryInformation {
+	if pdu[3] != 0x60 { // 5GMM cause #96: invalid mandatory information
 		t.Errorf("5GMM cause = 0x%02x, want #96 (invalid mandatory information)", pdu[3])
 	}
 }

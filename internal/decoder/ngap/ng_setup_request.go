@@ -112,7 +112,7 @@ func buildRanNodeNameIE(rnn ngapType.RANNodeName) string {
 	return rnn.Value
 }
 
-func buildDefaultPagingDRXIE(dpd ngapType.PagingDRX) utils.EnumField[uint64] {
+func buildDefaultPagingDRXIE(dpd ngapType.PagingDRX) utils.EnumField {
 	switch dpd.Value {
 	case ngapType.PagingDRXPresentV32:
 		return utils.MakeEnum(uint64(dpd.Value), "v32", false)
@@ -178,7 +178,7 @@ func buildNGSetupRequest(ngSetupRequest ngapType.NGSetupRequest) NGAPMessageValu
 	}
 }
 
-func buildUERetentionInformationIE(uri ngapType.UERetentionInformation) utils.EnumField[uint64] {
+func buildUERetentionInformationIE(uri ngapType.UERetentionInformation) utils.EnumField {
 	switch uri.Value {
 	case ngapType.UERetentionInformationPresentUesRetained:
 		return utils.MakeEnum(uint64(ngapType.UERetentionInformationPresentUesRetained), "UesRetained", false)

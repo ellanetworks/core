@@ -8,8 +8,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/ue"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type ServiceRequestOpts struct {
@@ -19,12 +18,12 @@ type ServiceRequestOpts struct {
 }
 
 func ServiceRequest(opts *ServiceRequestOpts) error {
-	err := opts.UE.SendServiceRequest(opts.RANUENGAPID, opts.PDUSessionStatus, nasMessage.ServiceTypeData)
+	err := opts.UE.SendServiceRequest(opts.RANUENGAPID, opts.PDUSessionStatus, uint8(fgs.ServiceTypeData))
 	if err != nil {
 		return fmt.Errorf("could not send Service Request NAS message: %v", err)
 	}
 
-	_, err = opts.UE.WaitForNASGMMMessage(nas.MsgTypeServiceAccept, 500*time.Millisecond)
+	_, err = opts.UE.WaitForNASGMMMessage(uint8(fgs.MsgServiceAccept), 500*time.Millisecond)
 	if err != nil {
 		return fmt.Errorf("did not receive Service Accept NAS message: %v", err)
 	}

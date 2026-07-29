@@ -15,9 +15,9 @@ import (
 )
 
 type ExpectedUEActivityBehaviour struct {
-	ExpectedActivityPeriod                 *int64                   `json:"expected_activity_period,omitempty"`
-	ExpectedIdlePeriod                     *int64                   `json:"expected_idle_period,omitempty"`
-	SourceOfUEActivityBehaviourInformation *utils.EnumField[uint64] `json:"source_of_ue_activity_behaviour_information,omitempty"`
+	ExpectedActivityPeriod                 *int64           `json:"expected_activity_period,omitempty"`
+	ExpectedIdlePeriod                     *int64           `json:"expected_idle_period,omitempty"`
+	SourceOfUEActivityBehaviourInformation *utils.EnumField `json:"source_of_ue_activity_behaviour_information,omitempty"`
 }
 
 type NGRANCGI struct {
@@ -34,18 +34,18 @@ type ExpectedUEMovingTrajectoryItem struct {
 
 type ExpectedUEBehaviour struct {
 	ExpectedUEActivityBehaviour *ExpectedUEActivityBehaviour     `json:"expected_ue_activity_behaviour,omitempty"`
-	ExpectedHOInterval          *utils.EnumField[uint64]         `json:"expected_ho_interval,omitempty"`
-	ExpectedUEMobility          *utils.EnumField[uint64]         `json:"expected_ue_mobility,omitempty"`
+	ExpectedHOInterval          *utils.EnumField                 `json:"expected_ho_interval,omitempty"`
+	ExpectedUEMobility          *utils.EnumField                 `json:"expected_ue_mobility,omitempty"`
 	ExpectedUEMovingTrajectory  []ExpectedUEMovingTrajectoryItem `json:"expected_ue_moving_trajectory,omitempty"`
 }
 
 type CoreNetworkAssistanceInformation struct {
-	UEIdentityIndexValue            string                   `json:"ue_identity_index_value"`
-	UESpecificDRX                   *utils.EnumField[uint64] `json:"ue_specific_drx,omitempty"`
-	PeriodicRegistrationUpdateTimer string                   `json:"periodic_registration_update_timer"`
-	MICOModeIndication              *string                  `json:"mico_mode_indication,omitempty"`
-	TAIListForInactive              []TAI                    `json:"tai_list_for_inactive,omitempty"`
-	ExpectedUEBehaviour             *ExpectedUEBehaviour     `json:"expected_ue_behaviour,omitempty"`
+	UEIdentityIndexValue            string               `json:"ue_identity_index_value"`
+	UESpecificDRX                   *utils.EnumField     `json:"ue_specific_drx,omitempty"`
+	PeriodicRegistrationUpdateTimer string               `json:"periodic_registration_update_timer"`
+	MICOModeIndication              *string              `json:"mico_mode_indication,omitempty"`
+	TAIListForInactive              []TAI                `json:"tai_list_for_inactive,omitempty"`
+	ExpectedUEBehaviour             *ExpectedUEBehaviour `json:"expected_ue_behaviour,omitempty"`
 }
 
 type MaximumBitRate struct {
@@ -81,12 +81,12 @@ type QosFlowSetupRequest struct {
 }
 
 type PDUSessionResourceSetupRequestTransfer struct {
-	ULNGUUPTNLInformation   *ULNGUUPTNLInformation  `json:"ul_ng_u_up_tnl_information,omitempty"`
-	QosFlowSetupRequestList []QosFlowSetupRequest   `json:"qos_flow_setup_request_list,omitempty"`
-	PduSType                *utils.EnumField[int64] `json:"pdu_s_type,omitempty"`
-	MaximumBitRate          *MaximumBitRate         `json:"maximum_bit_rate,omitempty"`
-	SecurityIndication      *UnsupportedIE          `json:"security_indication,omitempty"`
-	UnsupportedIEs          []string                `json:"unsupported_ies,omitempty"`
+	ULNGUUPTNLInformation   *ULNGUUPTNLInformation `json:"ul_ng_u_up_tnl_information,omitempty"`
+	QosFlowSetupRequestList []QosFlowSetupRequest  `json:"qos_flow_setup_request_list,omitempty"`
+	PduSType                *utils.EnumField       `json:"pdu_s_type,omitempty"`
+	MaximumBitRate          *MaximumBitRate        `json:"maximum_bit_rate,omitempty"`
+	SecurityIndication      *UnsupportedIE         `json:"security_indication,omitempty"`
+	UnsupportedIEs          []string               `json:"unsupported_ies,omitempty"`
 }
 
 type PDUSessionResourceSetupCxtReq struct {
@@ -562,7 +562,7 @@ func buildPDUSessionInfoFromSetupRequestTransfer(transfer aper.OctetString) (*PD
 	return pduTransfer, nil
 }
 
-func pduSessionTypeToEnum(pduType aper.Enumerated) utils.EnumField[int64] {
+func pduSessionTypeToEnum(pduType aper.Enumerated) utils.EnumField {
 	switch pduType {
 	case ngapType.PDUSessionTypePresentIpv4:
 		return utils.MakeEnum(int64(pduType), "ipv4", false)

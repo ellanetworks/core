@@ -22,7 +22,7 @@ func TestPlainNonWhitelistedDiscarded(t *testing.T) {
 
 	// A plain ATTACH COMPLETE is not on the whitelist; it must be discarded, so the
 	// UE remains EMM-REGISTERED and is not driven by an unauthenticated msg.
-	plain, err := (&eps.AttachComplete{}).Marshal()
+	plain, err := (&eps.AttachComplete{}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}

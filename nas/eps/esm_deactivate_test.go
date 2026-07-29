@@ -12,18 +12,18 @@ import (
 
 func TestDeactivateEPSBearerContextRequestRoundTrip(t *testing.T) {
 	req := &eps.DeactivateEPSBearerContextRequest{
-		EPSBearerIdentity:            5,
-		ProcedureTransactionIdentity: 0,
-		ESMCause:                     eps.ESMCauseReactivationRequested,
+		EPSBearerIdentity: 5,
+		PTI:               0,
+		Cause:             eps.ESMCauseReactivationRequested,
 	}
 
-	b, err := req.Marshal()
+	b, err := req.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// ESM header (EBI|PD, PTI, type) + ESM cause.
-	want := []byte{5<<4 | 0x02, 0x00, byte(eps.MsgDeactivateEPSBearerContextRequest), eps.ESMCauseReactivationRequested}
+	want := []byte{5<<4 | 0x02, 0x00, byte(eps.MsgDeactivateEPSBearerContextRequest), uint8(eps.ESMCauseReactivationRequested)}
 	if !bytes.Equal(b, want) {
 		t.Fatalf("encoded = %x, want %x", b, want)
 	}
@@ -33,15 +33,15 @@ func TestDeactivateEPSBearerContextRequestRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got.EPSBearerIdentity != 5 || got.ESMCause != eps.ESMCauseReactivationRequested {
-		t.Fatalf("decoded = %+v, want EBI 5 cause %d", got, eps.ESMCauseReactivationRequested)
+	if got.EPSBearerIdentity != 5 || got.Cause != eps.ESMCauseReactivationRequested {
+		t.Fatalf("decoded = %+v, want EBI 5 cause %d", got, uint8(eps.ESMCauseReactivationRequested))
 	}
 }
 
 func TestDeactivateEPSBearerContextAcceptRoundTrip(t *testing.T) {
 	acc := &eps.DeactivateEPSBearerContextAccept{EPSBearerIdentity: 5}
 
-	b, err := acc.Marshal()
+	b, err := acc.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}

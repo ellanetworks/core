@@ -9,7 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
@@ -75,7 +75,7 @@ func (ue *UeContext) SetKASME(kasme []byte) {
 }
 
 // EIA returns the selected NAS integrity algorithm.
-func (ue *UeContext) EIA() byte {
+func (ue *UeContext) EIA() nas.IntegrityAlgorithm {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -83,7 +83,7 @@ func (ue *UeContext) EIA() byte {
 }
 
 // EEA returns the selected NAS ciphering algorithm.
-func (ue *UeContext) EEA() byte {
+func (ue *UeContext) EEA() nas.CipheringAlgorithm {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -113,7 +113,7 @@ func (ue *UeContext) AdvanceULCount() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.ulCount.Commit(ue.ulCount.NextExpected())
+	_ = ue.ulCount.Commit(ue.ulCount.NextExpected())
 }
 
 // CommitUplinkCount records count as accepted, so a replay of its message
@@ -122,7 +122,7 @@ func (ue *UeContext) CommitUplinkCount(count uint32) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.ulCount.Commit(nascommon.Count(count))
+	_ = ue.ulCount.Commit(nas.Count(count))
 }
 
 // TryUnprotectUplink verifies and deciphers a protected uplink NAS message
@@ -130,25 +130,36 @@ func (ue *UeContext) CommitUplinkCount(count uint32) {
 // NAS COUNT it estimated. It does not mutate the UE, so a caller resolving a UE
 // by S-TMSI can authenticate the message before binding the context. The keys
 // never leave the kernel (TS 33.401).
-func (ue *UeContext) TryUnprotectUplink(nas []byte) (plain []byte, count uint32, err error) {
-	if len(nas) < 6 {
-		return nil, 0, fmt.Errorf("nas message too short")
+func (ue *UeContext) TryUnprotectUplink(pdu []byte) (plain []byte, count uint32, err error) {
+	spm, err := eps.ParseSecurityProtectedMessage(pdu)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	recvSeq := nas[5]
+	// A UE with no installed security context cannot have sent a protected
+	// message this MME can verify; attempting one would rest on whatever the
+	// algorithm fields happen to hold (TS 33.401 §5.1.4).
+	if ue.sc == nil {
+		return nil, 0, nas.ErrNoSecurityContext
+	}
 
-	count = ue.ulCount.Estimate(recvSeq).Value()
-
-	p, err := eps.Unprotect(nas, count, nascommon.DirectionUplink,
-		ue.knasInt, ue.knasEnc, IntegrityAlg(ue.integrityAlg), CipherAlg(ue.cipheringAlg))
+	// An exhausted uplink count accepts nothing further under this security
+	// context: wrapping would verify a replay of an already-accepted message
+	// (TS 33.401 §6.5). The UE has to re-authenticate.
+	estimated, err := ue.ulCount.Estimate(spm.SequenceNumber)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	return p, count, nil
+	p, _, err := eps.Unprotect(pdu, estimated, nas.DirectionUplink, ue.sc)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return p, estimated.Value(), nil
 }
 
 // ProtectDownlink reserves the next downlink NAS COUNT and integrity-protects
@@ -158,16 +169,18 @@ func (ue *UeContext) ProtectDownlink(plain []byte, sht eps.SecurityHeaderType) (
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	// Protect with the current NAS COUNT and advance only once the message is
-	// protected, so a protection failure does not consume a downlink COUNT
+	// Reserve the COUNT before protecting, so a failure part-way through burns a
+	// downlink COUNT rather than risking a second message under the same one
 	// (TS 24.301 §4.4.3.1).
-	wire, err := eps.Protect(plain, sht, ue.dlCount.Value(),
-		nascommon.DirectionDownlink, ue.knasInt, ue.knasEnc, IntegrityAlg(ue.integrityAlg), CipherAlg(ue.cipheringAlg))
+	count, err := ue.dlCount.Use()
 	if err != nil {
 		return nil, err
 	}
 
-	ue.dlCount = ue.dlCount.Next()
+	wire, err := eps.Protect(plain, sht, count, nas.DirectionDownlink, ue.sc)
+	if err != nil {
+		return nil, err
+	}
 
 	return wire, nil
 }
@@ -175,7 +188,7 @@ func (ue *UeContext) ProtectDownlink(plain []byte, sht eps.SecurityHeaderType) (
 // InstallNASSecurityContext derives the NAS keys from K_ASME for the negotiated
 // algorithms and installs the EPS NAS security context (TS 33.401). The
 // AuthProof witnesses that EPS-AKA authentication has succeeded.
-func (ue *UeContext) InstallNASSecurityContext(eea, eia byte, _ AuthProof) error {
+func (ue *UeContext) InstallNASSecurityContext(eea nas.CipheringAlgorithm, eia nas.IntegrityAlgorithm, _ AuthProof) error {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -192,10 +205,14 @@ func (ue *UeContext) InstallNASSecurityContext(eea, eia byte, _ AuthProof) error
 	ue.cipheringAlg, ue.integrityAlg = eea, eia
 	ue.knasEnc, ue.knasInt = knasEnc, knasInt
 
+	if err := ue.installSecurityContextLocked(); err != nil {
+		return err
+	}
+
 	// A new EPS security context starts both NAS COUNTs at zero, so the initial
 	// SECURITY MODE COMMAND rides downlink COUNT 0 (TS 24.301 §4.4.3.1).
 	ue.ulCount.Reset()
-	ue.dlCount = 0
+	ue.dlCount.Reset()
 
 	return nil
 }
@@ -235,7 +252,7 @@ func (ue *UeContext) SetEksi(v uint8) {
 
 // SetUESecurityCapability stores the UE and MS network capabilities. The AuthProof
 // keeps every write on one audited path so a downgrade cannot enter (TS 24.301 §5.4.3.2).
-func (ue *UeContext) SetUESecurityCapability(ueNetCap, msNetCap []byte, _ AuthProof) {
+func (ue *UeContext) SetUESecurityCapability(ueNetCap eps.UENetworkCapability, msNetCap *eps.MSNetworkCapability, _ AuthProof) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -243,29 +260,36 @@ func (ue *UeContext) SetUESecurityCapability(ueNetCap, msNetCap []byte, _ AuthPr
 	ue.msNetCap = msNetCap
 }
 
-// UeNetCap returns the stored raw UE network capability.
-func (ue *UeContext) UeNetCap() []byte {
+// UeNetCap returns the stored UE network capability.
+func (ue *UeContext) UeNetCap() eps.UENetworkCapability {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
 	return ue.ueNetCap
 }
 
-// MsNetCap returns the stored raw MS network capability.
-func (ue *UeContext) MsNetCap() []byte {
+// MsNetCap returns the stored MS network capability, nil when the UE sent none.
+func (ue *UeContext) MsNetCap() *eps.MSNetworkCapability {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
 	return ue.msNetCap
 }
 
-// VerifyServiceRequestShortMAC recomputes the Service Request short-MAC over the
-// supplied NAS header and compares it (and the truncated sequence number)
-// against the values the UE sent (TS 24.301 §5.6.1). It returns the diagnostics
-// for logging on failure; the keys never leave the kernel.
-func (ue *UeContext) VerifyServiceRequestShortMAC(head []byte, gotMAC [2]byte, gotSeq uint8) (ok bool, want [2]byte, expSeq uint8, ul uint32) {
+// VerifyServiceRequest checks a SERVICE REQUEST against the UE's security
+// context: its short MAC, and that the truncated sequence number it carries is
+// the one the next uplink message must have (TS 24.301 §5.6.1).
+//
+// It returns the expected sequence number and NAS COUNT for logging. The
+// expected short MAC is deliberately not returned: it is key-derived, and an
+// attacker who could read it from a log would not need to guess one.
+func (ue *UeContext) VerifyServiceRequest(sr *eps.ServiceRequest) (expSeq uint8, ul uint32, err error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
+
+	if ue.sc == nil {
+		return 0, 0, nas.ErrNoSecurityContext
+	}
 
 	expected := ue.ulCount.NextExpected()
 
@@ -273,14 +297,18 @@ func (ue *UeContext) VerifyServiceRequestShortMAC(head []byte, gotMAC [2]byte, g
 	// is bound to the expected count rather than to an estimate from the received
 	// sequence number (TS 24.301 §4.4.3.1).
 	ul = expected.Value()
-	expSeq = expected.SQN() & 0x1f
+	expSeq = expected.SQN() & 0x1F
 
-	want, err := eps.ServiceRequestShortMAC(head, ue.knasInt, expected.Value(), nascommon.DirectionUplink, IntegrityAlg(ue.integrityAlg))
-	if err != nil {
-		return false, [2]byte{}, expSeq, ul
+	if err := eps.VerifyServiceRequestShortMAC(sr, expected, ue.sc); err != nil {
+		return expSeq, ul, err
 	}
 
-	return want == gotMAC && expSeq == gotSeq, want, expSeq, ul
+	if sr.SeqShort != expSeq {
+		return expSeq, ul, fmt.Errorf("%w: SERVICE REQUEST carries sequence %#02x, expected %#02x",
+			nas.ErrSequenceNumberMismatch, sr.SeqShort, expSeq)
+	}
+
+	return expSeq, ul, nil
 }
 
 // DeriveInitialKeNB derives K_eNB from K_ASME and the last uplink NAS COUNT and
@@ -321,4 +349,28 @@ func (m *MME) SetPDNEnbFTEID(ue *UeContext, p *PdnConnection, f models.FTEID) {
 	ue.mu.Lock()
 	p.EnbFTEID = f
 	ue.mu.Unlock()
+}
+
+// installSecurityContextLocked builds the NAS security context from the
+// algorithms and keys currently held. Caller holds ue.mu.
+func (ue *UeContext) installSecurityContextLocked() error {
+	sc, err := nas.NewSecurityContext(nas.SecurityContextOptions{
+		Integrity:    ue.integrityAlg,
+		Ciphering:    ue.cipheringAlg,
+		IntegrityKey: ue.knasInt,
+		CipherKey:    ue.knasEnc,
+		// The operator may select EIA0, which the API and UI expose deliberately.
+		AllowNullIntegrity: ue.integrityAlg == nas.IntegrityNull,
+	})
+	if err != nil {
+		// Leave no usable context behind: a security context that cannot be built
+		// must not fall back to the previous one.
+		ue.sc = nil
+
+		return err
+	}
+
+	ue.sc = sc
+
+	return nil
 }

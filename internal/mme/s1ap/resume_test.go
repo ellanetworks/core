@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -32,14 +32,12 @@ func TestInitialUEMessageResumeMacFailedTAURejects(t *testing.T) {
 
 	mtmsi := ue.TmsiForTest()
 
-	tau, err := (&eps.TrackingAreaUpdateRequest{EPSUpdateType: 3}).Marshal() // periodic
+	tau, err := (&eps.TrackingAreaUpdateRequest{EPSUpdateType: 3, OldGUTI: testGUTI()}).MarshalBinary() // periodic
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	wire, err := eps.Protect(tau, eps.SHTIntegrityProtected, nascommon.NASCount(0, 0),
-		nascommon.DirectionUplink, ue.KnasIntForTest(), ue.KnasEncForTest(),
-		nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	wire, err := eps.Protect(tau, eps.SHTIntegrityProtected, nas.MakeCount(0, 0), nas.DirectionUplink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,8 +72,8 @@ func TestInitialUEMessageResumeMacFailedTAURejects(t *testing.T) {
 		t.Fatalf("parse TAU Reject: %v", err)
 	}
 
-	if rej.Cause != mme.EmmCauseUEIdentityUnderivable {
-		t.Fatalf("TAU Reject cause = %d, want #%d", rej.Cause, mme.EmmCauseUEIdentityUnderivable)
+	if rej.Cause != eps.EMMCauseUEIdentityCannotBeDerived {
+		t.Fatalf("TAU Reject cause = %d, want #%d", rej.Cause, eps.EMMCauseUEIdentityCannotBeDerived)
 	}
 }
 
@@ -100,14 +98,12 @@ func TestInitialUEMessageResumeVerifiedBindsAndDispatches(t *testing.T) {
 
 	mtmsi := ue.TmsiForTest()
 
-	tau, err := (&eps.TrackingAreaUpdateRequest{EPSUpdateType: 3}).Marshal() // periodic
+	tau, err := (&eps.TrackingAreaUpdateRequest{EPSUpdateType: 3, OldGUTI: testGUTI()}).MarshalBinary() // periodic
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	wire, err := eps.Protect(tau, eps.SHTIntegrityProtected, nascommon.NASCount(0, 0),
-		nascommon.DirectionUplink, ue.KnasIntForTest(), ue.KnasEncForTest(),
-		nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	wire, err := eps.Protect(tau, eps.SHTIntegrityProtected, nas.MakeCount(0, 0), nas.DirectionUplink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest()))
 	if err != nil {
 		t.Fatal(err)
 	}

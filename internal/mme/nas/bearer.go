@@ -14,30 +14,31 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
 
-// registrationAreaTAIList marshals a UE's registration area as the TAI list IE for
-// ATTACH/TAU ACCEPT (TS 24.301 §9.9.3.33). The area is single-PLMN in Ella Core.
-func registrationAreaTAIList(area []models.Tai) ([]byte, error) {
-	if len(area) == 0 || area[0].PlmnID == nil {
-		return nil, fmt.Errorf("empty registration area")
-	}
-
-	list := eps.TAIList{MCC: area[0].PlmnID.Mcc, MNC: area[0].PlmnID.Mnc}
+// registrationAreaTAIList builds a UE's registration area as the TAI list IE for
+// ATTACH/TAU ACCEPT (TS 24.301 §9.9.3.33).
+func registrationAreaTAIList(area []models.Tai) (eps.TAIList, error) {
+	tais := make([]eps.TAI, 0, len(area))
 
 	for _, t := range area {
+		if t.PlmnID == nil {
+			return nil, fmt.Errorf("tai has no PLMN ID")
+		}
+
 		tac, err := strconv.ParseUint(t.Tac, 16, 16)
 		if err != nil {
 			return nil, fmt.Errorf("invalid TAC %q: %w", t.Tac, err)
 		}
 
-		list.TACs = append(list.TACs, uint16(tac))
+		tais = append(tais, eps.TAI{PLMN: nas.PLMN{MCC: t.PlmnID.Mcc, MNC: t.PlmnID.Mnc}, TAC: uint16(tac)})
 	}
 
-	return list.Marshal()
+	return eps.NewTAIList(tais...)
 }
 
 func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
@@ -47,7 +48,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		// (TS 24.301 §6.5.1.4, ESM cause #27).
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: requested APN not in subscriber profile",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", ue.RequestedAPN))
-		rejectAttach(ctx, m, ue, mme.EmmCauseESMFailure)
+		rejectAttach(ctx, m, ue, eps.EMMCauseESMFailure)
 
 		return
 	}
@@ -62,7 +63,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	if !qos.Allow4G {
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: 4G not allowed for subscriber",
 			zap.String("imsi", ue.IMSI()))
-		rejectAttach(ctx, m, ue, mme.EmmCauseEPSServicesNotAllowed)
+		rejectAttach(ctx, m, ue, eps.EMMCauseEPSServicesNotAllowed)
 
 		return
 	}
@@ -85,7 +86,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		// IPv4-only data network); reject with EMM cause #19 "ESM failure" (TS 24.301).
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: default bearer setup failed",
 			zap.String("imsi", ue.IMSI()), zap.Error(err))
-		rejectAttach(ctx, m, ue, mme.EmmCauseESMFailure)
+		rejectAttach(ctx, m, ue, eps.EMMCauseESMFailure)
 
 		return
 	}
@@ -96,7 +97,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		zap.String("imsi", ue.IMSI()),
 		zap.Uint8("pdn-type", pdnType),
 		zap.String("dns", dns),
-		zap.Uint8("esm-cause", esmCause),
+		zap.Stringer("esm-cause", esmCause),
 	)
 
 	naspdu, err := buildProtectedAttachAccept(ctx, m, ue, qos)
@@ -139,11 +140,7 @@ func sendInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext,
 		return
 	}
 
-	uecap, err := eps.ParseUENetworkCapability(ue.UeNetCap())
-	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to parse UE network capability", zap.Error(err))
-		return
-	}
+	uecap := ue.UeNetCap()
 
 	defaultPDN := m.DefaultPDN(ue)
 	if defaultPDN == nil {
@@ -211,8 +208,8 @@ func sendInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext,
 		zap.String("ue-ip", defaultPDN.UeIP.String()),
 		zap.Int("bearers", len(erabs)),
 		zap.Uint32("kenb-ul-count", kenbCount),
-		zap.Uint8("eea", ue.EEA()),
-		zap.Uint8("eia", ue.EIA()),
+		zap.Stringer("eea", ue.EEA()),
+		zap.Stringer("eia", ue.EIA()),
 	)
 
 	if err := ue.Conn().SendInitialContextSetup(ctx, ics); err != nil {
@@ -229,12 +226,7 @@ func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeConte
 		return nil, fmt.Errorf("attach accept with no active PDN")
 	}
 
-	pti := uint8(0)
-	if pc, err := eps.ParsePDNConnectivityRequest(ue.EsmContainer); err == nil {
-		pti = pc.ProcedureTransactionIdentity
-	}
-
-	esm, err := buildActivateDefaultESM(p, qos, pti)
+	esm, err := buildActivateDefaultESM(p, qos, uint8(ue.RequestedPTI))
 	if err != nil {
 		return nil, err
 	}
@@ -265,10 +257,12 @@ func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeConte
 		return nil, err
 	}
 
-	t3412, err := eps.EncodeGPRSTimer(mme.T3412PeriodicTAU)
+	t3412, err := nas.GPRSTimer2FromDuration(mme.T3412PeriodicTAU)
 	if err != nil {
 		return nil, fmt.Errorf("encode T3412: %w", err)
 	}
+
+	nfs := m.NetworkFeatureSupport()
 
 	accept := &eps.AttachAccept{
 		EPSAttachResult:     eps.AttachResultEPS,
@@ -279,18 +273,18 @@ func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeConte
 		// Advertise IMS voice over PS session (TS 24.301). Without it a
 		// voice-centric UE concludes E-UTRAN cannot serve voice and leaves for
 		// another RAT (TS 23.221).
-		EPSNetworkFeatureSupport: m.NetworkFeatureSupport(),
+		NetworkFeatureSupport: nfs,
 	}
 
 	// The MME has no SGs interface, so a combined EPS/IMSI attach succeeds for
 	// EPS services only. EMM cause #18 makes the UE stop attempting CS
 	// registration on this PLMN (TS 24.301).
 	if ue.CombinedAttach {
-		cause := mme.EmmCauseCSDomainNotAvailable
-		accept.EMMCause = &cause
+		cause := eps.EMMCauseCSDomainNotAvailable
+		accept.Cause = &cause
 	}
 
-	plain, err := accept.Marshal()
+	plain, err := accept.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
@@ -303,7 +297,7 @@ func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeConte
 	return wire, nil
 }
 
-func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext) nasreply.Disposition {
 	if ue.RegStep() != mme.RegStepContextSetup {
 		logger.From(ctx, logger.MmeLog).Warn("ignoring Attach Complete outside the context-setup sub-phase")
 
@@ -311,11 +305,6 @@ func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, pl
 	}
 
 	ue.Conn().StopNASGuard()
-
-	if _, err := eps.ParseAttachComplete(plain); err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("failed to decode Attach Complete", zap.Error(err))
-		return nasreply.Handled()
-	}
 
 	m.CommitGUTIRealloc(ue)
 
@@ -345,19 +334,22 @@ func sendNetworkName(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		return
 	}
 
-	ue.Conn().SendDownlinkProtected(ctx, &eps.EMMInformation{
-		FullNetworkName:  op.SpnFullName,
-		ShortNetworkName: op.SpnShortName,
-	})
+	info := &eps.EMMInformation{}
+	if op.SpnFullName != "" {
+		info.FullNameForNetwork = new(nas.NewNetworkName(op.SpnFullName))
+	}
+
+	if op.SpnShortName != "" {
+		info.ShortNameForNetwork = new(nas.NewNetworkName(op.SpnShortName))
+	}
+
+	ue.Conn().SendDownlinkProtected(ctx, info)
 }
 
 // buildActivateDefaultESM assembles the ACTIVATE DEFAULT EPS BEARER CONTEXT
 // REQUEST for a PDN connection (TS 24.301 §8.3.1).
 func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8) ([]byte, error) {
-	apn, err := eps.MarshalAPN(qos.APN)
-	if err != nil {
-		return nil, err
-	}
+	apn := eps.APN(qos.APN)
 
 	// PDN Address per the negotiated type (TS 24.301): IPv4 carries the
 	// address; IPv6 carries the SLAAC interface identifier (the prefix reaches the
@@ -373,15 +365,20 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8) (
 		pdnAddr = eps.PDNAddress{PDNType: eps.PDNTypeIPv4, IPv4: p.UeIP.As4()}
 	}
 
+	apnAMBR, err := eps.APNAMBRFromKbps(mme.BitRateToBps(qos.SessAmbrDLStr)/1000, mme.BitRateToBps(qos.SessAmbrULStr)/1000)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode APN-AMBR: %w", err)
+	}
+
 	activate := &eps.ActivateDefaultEPSBearerContextRequest{
-		EPSBearerIdentity:            p.Ebi,
-		ProcedureTransactionIdentity: pti,
-		EPSQoS:                       eps.EPSQoS{QCI: qos.QCI}.Marshal(),
-		AccessPointName:              apn,
-		PDNAddress:                   pdnAddr.Marshal(),
+		EPSBearerIdentity: eps.EPSBearerIdentity(p.Ebi),
+		PTI:               nas.ProcedureTransactionIdentity(pti),
+		EPSQoS:            eps.EPSQoS{QCI: qos.QCI},
+		AccessPointName:   apn,
+		PDNAddress:        pdnAddr,
 		// Signal the per-APN Session-AMBR so the UE can enforce its uplink share
 		// (TS 24.301 §8.3.6.7; the P-GW/UPF also enforces both directions).
-		APNAMBR: eps.APNAMBRFromBitsPerSecond(mme.BitRateToBps(qos.SessAmbrDLStr), mme.BitRateToBps(qos.SessAmbrULStr)).Marshal(),
+		APNAMBR: &apnAMBR,
 	}
 
 	// Advertise DNS and, for IPv4-capable bearers, the IPv4 Link MTU in the PCO
@@ -404,14 +401,15 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8) (
 		ipv4LinkMTU = qos.MTU
 	}
 
-	activate.ProtocolConfigurationOptions = eps.BuildProtocolConfigurationOptions(dnsServers, ipv4LinkMTU)
+	pco := nas.NewProtocolConfigurationOptions(dnsServers, ipv4LinkMTU)
+	activate.ProtocolConfigurationOptions = &pco
 
 	// On an IPv4v6→single-stack downgrade, tell the UE which family was allowed
 	// (#50/#51) so it does not retry the other on this APN (TS 24.301).
 	if p.EsmCause != 0 {
 		cause := p.EsmCause
-		activate.ESMCause = &cause
+		activate.Cause = &cause
 	}
 
-	return activate.Marshal()
+	return activate.MarshalBinary()
 }

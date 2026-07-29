@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -23,20 +24,20 @@ func TestAttachTrackingAreaNotAllowed(t *testing.T) {
 	// Served PLMN 001/01 but TAC 2, which the operator does not serve (it serves TAC 1).
 	ue.Conn().ServingTAI = s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 2}
 
-	esm, err := (&eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: 1}).Marshal()
+	esm, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: 1}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	attach := &eps.AttachRequest{
 		EPSAttachType:       eps.AttachTypeEPS,
-		NASKeySetIdentifier: 7,
-		EPSMobileIdentity:   eps.EPSMobileIdentity{Type: eps.IdentityIMSI, Digits: testSubscriber.IMSI},
-		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(),
+		NASKeySetIdentifier: nas.KeySetIdentifier{Value: 7},
+		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI(testSubscriber.IMSI)),
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70},
 		ESMMessageContainer: esm,
 	}
 
-	b, err := attach.Marshal()
+	b, err := attach.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,8 +53,8 @@ func TestAttachTrackingAreaNotAllowed(t *testing.T) {
 		t.Fatalf("not an Attach Reject: %v", err)
 	}
 
-	if rej.Cause != mme.EmmCauseTrackingAreaNotAllowed {
-		t.Fatalf("Attach Reject cause = %d, want %d", rej.Cause, mme.EmmCauseTrackingAreaNotAllowed)
+	if rej.Cause != eps.EMMCauseTrackingAreaNotAllowed {
+		t.Fatalf("Attach Reject cause = %d, want %d", rej.Cause, eps.EMMCauseTrackingAreaNotAllowed)
 	}
 
 	parseUEContextReleaseCommand(t, cc.sent[1])
@@ -87,8 +88,8 @@ func TestAttachProtocolError(t *testing.T) {
 				t.Fatalf("not an Attach Reject: %v", err)
 			}
 
-			if rej.Cause != mme.EmmCauseInvalidMandatoryInfo {
-				t.Fatalf("Attach Reject cause = %d, want %d", rej.Cause, mme.EmmCauseInvalidMandatoryInfo)
+			if rej.Cause != eps.EMMCauseInvalidMandatoryInformation {
+				t.Fatalf("Attach Reject cause = %d, want %d", rej.Cause, eps.EMMCauseInvalidMandatoryInformation)
 			}
 
 			parseUEContextReleaseCommand(t, cc.sent[1])
@@ -104,20 +105,20 @@ func TestAttachUnknownIMSI(t *testing.T) {
 	cc := &captureConn{}
 	ue := newAttachUe(m, cc, 7)
 
-	esm, err := (&eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: 1}).Marshal()
+	esm, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: 1}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	attach := &eps.AttachRequest{
 		EPSAttachType:       eps.AttachTypeEPS,
-		NASKeySetIdentifier: 7,
-		EPSMobileIdentity:   eps.EPSMobileIdentity{Type: eps.IdentityIMSI, Digits: "001010000000999"},
-		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(),
+		NASKeySetIdentifier: nas.KeySetIdentifier{Value: 7},
+		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI("001010000000999")),
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70},
 		ESMMessageContainer: esm,
 	}
 
-	b, err := attach.Marshal()
+	b, err := attach.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,18 +134,18 @@ func TestAttachUnknownIMSI(t *testing.T) {
 		t.Fatalf("not an Attach Reject: %v", err)
 	}
 
-	if rej.Cause != mme.EmmCauseIMSIUnknownInHSS {
-		t.Fatalf("Attach Reject cause = %d, want %d", rej.Cause, mme.EmmCauseIMSIUnknownInHSS)
+	if rej.Cause != eps.EMMCauseIMSIUnknownInHSS {
+		t.Fatalf("Attach Reject cause = %d, want %d", rej.Cause, eps.EMMCauseIMSIUnknownInHSS)
 	}
 
 	// The reject carries the T3402 back-off (12 min), mirroring the AMF's T3502.
-	wantT3402, err := eps.EncodeGPRSTimer(mme.T3402Backoff)
+	wantT3402, err := nas.GPRSTimer2FromDuration(mme.T3402Backoff)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if rej.T3402 != wantT3402 {
-		t.Fatalf("Attach Reject T3402 = %#x, want %#x (12 min)", rej.T3402, wantT3402)
+	if rej.T3402 == nil || *rej.T3402 != wantT3402 {
+		t.Fatalf("Attach Reject T3402 = %v, want %v (12 min)", rej.T3402, wantT3402)
 	}
 
 	parseUEContextReleaseCommand(t, cc.sent[1])

@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("20\xda'\x010(\x010(\x00")

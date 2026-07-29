@@ -9,8 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type emptyPolicyDB struct {
@@ -40,13 +39,8 @@ func TestHandleInitialRegistration_EmptyAllowedNssai_RejectsRegistration(t *test
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 	ue.SetKamfForTest("0000000000000000000000000000000000000000000000000000000000000000")
 
-	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
-	if err != nil {
-		t.Fatalf("could not build registration request message: %v", err)
-	}
-
-	ue.Conn().RegistrationRequest = m.RegistrationRequest
-	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
+	ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
+	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeInitial
 
 	HandleInitialRegistration(ctx, amfInstance, ue)
 
@@ -59,26 +53,14 @@ func TestHandleInitialRegistration_EmptyAllowedNssai_RejectsRegistration(t *test
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgRegistrationReject))
 
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-		t.Fatalf("expected plain NAS, got security header type %d", nm.SecurityHeaderType)
+	reject, err := fgs.ParseRegistrationReject(resp.NasPdu)
+	if err != nil {
+		t.Fatalf("could not parse RegistrationReject: %v", err)
 	}
 
-	if err := nm.PlainNasDecode(&resp.NasPdu); err != nil {
-		t.Fatalf("could not decode plain NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationReject {
-		t.Fatalf("expected RegistrationReject, got %v", nm.GmmHeader.GetMessageType())
-	}
-
-	if nm.RegistrationReject == nil {
-		t.Fatal("expected RegistrationReject payload")
-	}
-
-	if got, want := nm.RegistrationReject.GetCauseValue(), nasMessage.Cause5GMM5GSServicesNotAllowed; got != want {
+	if got, want := int(reject.Cause), 0x07; got != want {
 		t.Fatalf("expected cause %d, got %d", want, got)
 	}
 }

@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func handleSecurityModeComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+func handleSecurityModeComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, smc *eps.SecurityModeComplete) nasreply.Disposition {
 	// A SECURITY MODE COMPLETE is valid only during the security mode sub-phase;
 	// out of order, ignore it. A genuine one is integrity-protected against the
 	// context installed at command send, so this is defence in depth.
@@ -29,18 +29,12 @@ func handleSecurityModeComplete(ctx context.Context, m *mme.MME, ue *mme.UeConte
 	// proceed (TS 33.401 §7.2.8).
 	m.ClearKeyChainBusy(ue)
 
-	smc, err := eps.ParseSecurityModeComplete(plain)
-	if err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("failed to decode Security Mode Complete", zap.Error(err))
-		return nasreply.Handled()
-	}
-
 	// The Security Mode Command requested the IMEISV (TS 24.301); parse it into the
 	// shared equipment-identity type for the status API.
 	var pei etsi.IMEI
 
-	if len(smc.IMEISV) > 0 {
-		if parsed, err := etsi.NewIMEIFromPEI("imeisv-" + mobileIdentityDigits(smc.IMEISV)); err == nil {
+	if smc.IMEISV != nil && smc.IMEISV.IMEISV != nil {
+		if parsed, err := etsi.NewIMEIFromPEI(smc.IMEISV.IMEISV.String()); err == nil {
 			pei = parsed
 		} else {
 			logger.From(ctx, logger.MmeLog).Warn("failed to parse IMEISV", zap.String("imsi", ue.IMSI()), zap.Error(err))
@@ -52,16 +46,16 @@ func handleSecurityModeComplete(ctx context.Context, m *mme.MME, ue *mme.UeConte
 	// Anti-tamper recovery: on a HASHMME mismatch the UE returns the complete plain
 	// ATTACH REQUEST in the Replayed NAS message container. Re-ingest it so a tampered
 	// initial Attach cannot alter the completed attach (TS 24.301 §5.4.3.4).
-	if len(smc.ReplayedNASMessage) > 0 {
-		req, err := eps.ParseAttachRequest(smc.ReplayedNASMessage)
-		if err != nil {
+	if len(smc.ReplayedNASMessageContainer) > 0 {
+		req, err := eps.ParseAttachRequest(smc.ReplayedNASMessageContainer)
+		if !decoded(ctx, "AttachRequest", err) {
 			logger.From(ctx, logger.MmeLog).Warn("failed to decode replayed NAS message container in Security Mode Complete", zap.Error(err))
 			return nasreply.Handled()
 		}
 
 		logger.From(ctx, logger.MmeLog).Info("recovered genuine Attach Request from replayed NAS message container", zap.String("imsi", ue.IMSI()))
 
-		ingestAttachRequest(ue, req)
+		ingestAttachRequest(ctx, ue, req)
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("NAS security context established",

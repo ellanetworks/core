@@ -12,12 +12,10 @@ import (
 
 // handleModifyBearerAccept commits the new bearer configuration once the UE accepts
 // the in-place modification (TS 24.301 §6.4.2.3).
-func handleModifyBearerAccept(m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+func handleModifyBearerAccept(m *mme.MME, ue *mme.UeContext, accept *eps.ModifyEPSBearerContextAccept) nasreply.Disposition {
 	p := m.DefaultPDN(ue)
-	if accept, err := eps.ParseModifyEPSBearerContextAccept(plain); err == nil {
-		if named := m.LookupPDN(ue, accept.EPSBearerIdentity); named != nil {
-			p = named
-		}
+	if named := m.LookupPDN(ue, uint8(accept.EPSBearerIdentity)); named != nil {
+		p = named
 	}
 
 	if p == nil {

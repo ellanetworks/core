@@ -15,10 +15,10 @@ import (
 )
 
 type SecurityHeader struct {
-	ProtocolDiscriminator     utils.EnumField[uint64] `json:"protocol_discriminator"`
-	SecurityHeaderType        utils.EnumField[uint64] `json:"security_header_type"`
-	MessageAuthenticationCode uint32                  `json:"authentication_code,omitempty"`
-	SequenceNumber            uint8                   `json:"sequence_number,omitempty"`
+	ProtocolDiscriminator     utils.EnumField `json:"protocol_discriminator"`
+	SecurityHeaderType        utils.EnumField `json:"security_header_type"`
+	MessageAuthenticationCode uint32          `json:"authentication_code,omitempty"`
+	SequenceNumber            uint8           `json:"sequence_number,omitempty"`
 }
 
 // NASMessage is the decoded EPS NAS message. Its JSON shape matches the 5GS
@@ -36,49 +36,83 @@ type NASMessage struct {
 // DecodeEPSNASMessage decodes a raw EPS NAS PDU. Decode problems are reported in
 // the returned message rather than as a Go error, matching the 5GS decoder.
 func DecodeEPSNASMessage(raw []byte) *NASMessage {
-	if len(raw) < 2 {
+	// The lib accessors hide the header octet placement and guard the length.
+	pd, err := eps.PeekProtocolDiscriminator(raw)
+	if err != nil {
 		return &NASMessage{Error: "NAS message too short"}
 	}
 
-	pd := raw[0] & 0x0f
-	sht := raw[0] >> 4
+	sht, err := eps.PeekSecurityHeaderType(raw)
+	if err != nil {
+		return &NASMessage{Error: "NAS message too short"}
+	}
 
 	msg := &NASMessage{
 		SecurityHeader: SecurityHeader{
 			ProtocolDiscriminator: pdToEnum(pd),
-			SecurityHeaderType:    shtToEnum(sht),
+			SecurityHeaderType:    shtToEnum(uint8(sht)),
 		},
 	}
 
 	// Only EMM messages carry the security wrapper; ESM messages are always
 	// plain (they ride integrity-protected inside an EMM message or container).
-	if pd != eps.PDEMM || sht == uint8(eps.SHTPlain) {
+	if pd != eps.PDEMM || sht == eps.SHTPlain {
 		return decodePlain(msg, raw)
 	}
 
-	if sht == uint8(eps.SHTServiceRequest) {
+	if sht == eps.SHTServiceRequest {
 		return decodeServiceRequest(msg, raw)
 	}
 
-	// Security-protected EMM wrapper (TS 24.301 §9.1.1): SHT|PD octet, 4-octet
-	// MAC, 1-octet sequence number, then the inner NAS message.
-	const wrapper = 6
-
-	if len(raw) < wrapper {
+	spm, err := eps.ParseSecurityProtectedMessage(raw)
+	if err != nil {
 		msg.Error = "security-protected NAS message too short"
 		return msg
 	}
 
-	msg.SecurityHeader.MessageAuthenticationCode = binary.BigEndian.Uint32(raw[1:5])
-	msg.SecurityHeader.SequenceNumber = raw[5]
+	msg.SecurityHeader.MessageAuthenticationCode = binary.BigEndian.Uint32(spm.MAC[:])
+	msg.SecurityHeader.SequenceNumber = spm.SequenceNumber
 
-	// Ciphered (types 2 and 4) cannot be decoded without the NAS keys.
-	if sht == uint8(eps.SHTIntegrityProtectedCiphered) || sht == uint8(eps.SHTIntegrityProtectedCipheredNewContext) {
+	switch sht {
+	case eps.SHTIntegrityProtected, eps.SHTIntegrityProtectedNewContext:
+		// Integrity-protected but NOT ciphered — the inner NAS is plaintext.
+		return decodePlain(msg, spm.UnverifiedPayload)
+	case eps.SHTIntegrityProtectedCiphered, eps.SHTIntegrityProtectedCipheredNewContext:
+		// The security header does not name the cipher, so decode the payload and keep
+		// the result only if it resolves to a recognized message: under null ciphering
+		// (EEA0) the payload is plaintext, whereas a real cipher does not frame as a
+		// known message and the PDU is reported encrypted. Symmetric with the 5G decoder.
+		decoded := decodePlain(msg, spm.UnverifiedPayload)
+		if looksLikePlaintext(decoded) {
+			return decoded
+		}
+
+		msg.EMMMessage = nil
+		msg.ESMMessage = nil
+		msg.Error = ""
+		msg.Encrypted = true
+
+		return msg
+	default:
+		// Reserved security header type — unknown format, cannot decode.
 		msg.Encrypted = true
 		return msg
 	}
+}
 
-	return decodePlain(msg, raw[wrapper:])
+// looksLikePlaintext reports whether a decode attempt resolved to a recognized
+// NAS message, distinguishing a null-ciphered (EEA0) plaintext payload from a
+// real ciphertext that only happens to frame.
+func looksLikePlaintext(m *NASMessage) bool {
+	if m.EMMMessage != nil && !m.EMMMessage.EMMHeader.MessageType.Unknown {
+		return true
+	}
+
+	if m.ESMMessage != nil && !m.ESMMessage.ESMHeader.MessageType.Unknown {
+		return true
+	}
+
+	return false
 }
 
 func decodePlain(msg *NASMessage, b []byte) *NASMessage {
@@ -87,7 +121,7 @@ func decodePlain(msg *NASMessage, b []byte) *NASMessage {
 		return msg
 	}
 
-	switch b[0] & 0x0f {
+	switch eps.ProtocolDiscriminator(b[0] & 0x0f) {
 	case eps.PDEMM:
 		msg.EMMMessage = buildEMMMessage(b)
 	case eps.PDESM:
@@ -99,7 +133,7 @@ func decodePlain(msg *NASMessage, b []byte) *NASMessage {
 	return msg
 }
 
-func pdToEnum(pd uint8) utils.EnumField[uint64] {
+func pdToEnum(pd eps.ProtocolDiscriminator) utils.EnumField {
 	switch pd {
 	case eps.PDEMM:
 		return utils.MakeEnum(uint64(pd), "EPS Mobility Management", false)
@@ -110,7 +144,7 @@ func pdToEnum(pd uint8) utils.EnumField[uint64] {
 	}
 }
 
-func shtToEnum(sht uint8) utils.EnumField[uint64] {
+func shtToEnum(sht uint8) utils.EnumField {
 	names := map[uint8]string{
 		uint8(eps.SHTPlain):                                "Plain NAS",
 		uint8(eps.SHTIntegrityProtected):                   "Integrity protected",

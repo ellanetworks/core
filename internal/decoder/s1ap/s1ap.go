@@ -18,10 +18,10 @@ import (
 // IE is one decoded Information Element. It is structurally identical to the
 // NGAP decoder's IE so the UI renderer treats both protocols uniformly.
 type IE struct {
-	ID          utils.EnumField[int64]  `json:"id"`
-	Criticality utils.EnumField[uint64] `json:"criticality"`
-	Value       any                     `json:"value,omitempty"`
-	ValueType   string                  `json:"value_type,omitempty"`
+	ID          utils.EnumField `json:"id"`
+	Criticality utils.EnumField `json:"criticality"`
+	Value       any             `json:"value,omitempty"`
+	ValueType   string          `json:"value_type,omitempty"`
 
 	Error string `json:"error,omitempty"` // reserved field for decoding errors
 }
@@ -32,11 +32,11 @@ type S1APMessageValue struct {
 }
 
 type S1APMessage struct {
-	Summary       string                  `json:"summary,omitempty"`
-	PDUType       string                  `json:"pdu_type"`
-	ProcedureCode utils.EnumField[int64]  `json:"procedure_code"`
-	Criticality   utils.EnumField[uint64] `json:"criticality"`
-	Value         S1APMessageValue        `json:"value"`
+	Summary       string           `json:"summary,omitempty"`
+	PDUType       string           `json:"pdu_type"`
+	ProcedureCode utils.EnumField  `json:"procedure_code"`
+	Criticality   utils.EnumField  `json:"criticality"`
+	Value         S1APMessageValue `json:"value"`
 }
 
 // DecodeS1APMessage decodes a raw S1AP PDU. A decode error is reported in the
@@ -191,7 +191,7 @@ func inferValueType(v any) string {
 		return "bytes"
 	case NASPDU:
 		return "nas_pdu"
-	case utils.Enum:
+	case utils.EnumField:
 		return "enum"
 	default:
 		if reflect.TypeOf(v).Kind() == reflect.Slice {

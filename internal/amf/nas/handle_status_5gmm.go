@@ -9,16 +9,16 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
-func handleStatus5GMM(ctx context.Context, ue *amf.UeContext, msg *nasMessage.Status5GMM) nasreply.Disposition {
+func handleStatus5GMM(ctx context.Context, ue *amf.UeContext, msg *fgs.GMMStatus) nasreply.Disposition {
 	if ue.State() == amf.Deregistered {
 		logger.From(ctx, logger.AmfLog).Warn("UE is in amf.Deregistered state, ignore Status 5GMM message")
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	logger.From(ctx, logger.AmfLog).Error("Received Status 5GMM with cause", logger.Cause(nasMessage.Cause5GMMToString(msg.GetCauseValue())))
+	logger.From(ctx, logger.AmfLog).Error("Received Status 5GMM with cause", logger.Cause(msg.Cause.String()))
 
 	return nasreply.Handled()
 }

@@ -7,7 +7,7 @@ package amf
 import (
 	"testing"
 
-	"github.com/free5gc/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 // TestPlainNasAllowed pins down the TS 24.501 whitelist used by
@@ -15,44 +15,44 @@ import (
 // security boundary change.
 func TestPlainNasAllowed(t *testing.T) {
 	allowed := map[uint8]bool{
-		nas.MsgTypeRegistrationRequest:                              true,
-		nas.MsgTypeIdentityResponse:                                 true,
-		nas.MsgTypeAuthenticationResponse:                           true,
-		nas.MsgTypeAuthenticationFailure:                            true,
-		nas.MsgTypeSecurityModeReject:                               true,
-		nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration: true,
-		nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:   true,
+		uint8(fgs.MsgRegistrationRequest):         true,
+		uint8(fgs.MsgIdentityResponse):            true,
+		uint8(fgs.MsgAuthenticationResponse):      true,
+		uint8(fgs.MsgAuthenticationFailure):       true,
+		uint8(fgs.MsgSecurityModeReject):          true,
+		uint8(fgs.MsgDeregistrationRequestUEOrig): true,
+		uint8(fgs.MsgDeregistrationAcceptUETerm):  true,
 	}
 
 	allTypes := []uint8{
-		nas.MsgTypeRegistrationRequest,
-		nas.MsgTypeRegistrationAccept,
-		nas.MsgTypeRegistrationComplete,
-		nas.MsgTypeRegistrationReject,
-		nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration,
-		nas.MsgTypeDeregistrationAcceptUEOriginatingDeregistration,
-		nas.MsgTypeDeregistrationRequestUETerminatedDeregistration,
-		nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration,
-		nas.MsgTypeServiceRequest,
-		nas.MsgTypeServiceReject,
-		nas.MsgTypeServiceAccept,
-		nas.MsgTypeConfigurationUpdateCommand,
-		nas.MsgTypeConfigurationUpdateComplete,
-		nas.MsgTypeAuthenticationRequest,
-		nas.MsgTypeAuthenticationResponse,
-		nas.MsgTypeAuthenticationReject,
-		nas.MsgTypeAuthenticationFailure,
-		nas.MsgTypeAuthenticationResult,
-		nas.MsgTypeIdentityRequest,
-		nas.MsgTypeIdentityResponse,
-		nas.MsgTypeSecurityModeCommand,
-		nas.MsgTypeSecurityModeComplete,
-		nas.MsgTypeSecurityModeReject,
-		nas.MsgTypeStatus5GMM,
-		nas.MsgTypeNotification,
-		nas.MsgTypeNotificationResponse,
-		nas.MsgTypeULNASTransport,
-		nas.MsgTypeDLNASTransport,
+		uint8(fgs.MsgRegistrationRequest),
+		uint8(fgs.MsgRegistrationAccept),
+		uint8(fgs.MsgRegistrationComplete),
+		uint8(fgs.MsgRegistrationReject),
+		uint8(fgs.MsgDeregistrationRequestUEOrig),
+		uint8(fgs.MsgDeregistrationAcceptUEOrig),
+		uint8(fgs.MsgDeregistrationRequestUETerm),
+		uint8(fgs.MsgDeregistrationAcceptUETerm),
+		uint8(fgs.MsgServiceRequest),
+		uint8(fgs.MsgServiceReject),
+		uint8(fgs.MsgServiceAccept),
+		uint8(fgs.MsgConfigurationUpdateCommand),
+		uint8(fgs.MsgConfigurationUpdateComplete),
+		uint8(fgs.MsgAuthenticationRequest),
+		uint8(fgs.MsgAuthenticationResponse),
+		uint8(fgs.MsgAuthenticationReject),
+		uint8(fgs.MsgAuthenticationFailure),
+		uint8(fgs.MsgAuthenticationResult),
+		uint8(fgs.MsgIdentityRequest),
+		uint8(fgs.MsgIdentityResponse),
+		uint8(fgs.MsgSecurityModeCommand),
+		uint8(fgs.MsgSecurityModeComplete),
+		uint8(fgs.MsgSecurityModeReject),
+		uint8(fgs.MsgGMMStatus),
+		uint8(fgs.MsgNotification),
+		uint8(fgs.MsgNotificationResponse),
+		uint8(fgs.MsgULNASTransport),
+		uint8(fgs.MsgDLNASTransport),
 	}
 
 	for _, mt := range allTypes {
@@ -66,7 +66,7 @@ func TestPlainNasAllowed(t *testing.T) {
 // TestPlainNasAllowed_RejectsServiceRequest pins ServiceRequest off the
 // plain-NAS whitelist.
 func TestPlainNasAllowed_RejectsServiceRequest(t *testing.T) {
-	if plainNasAllowed(nas.MsgTypeServiceRequest) {
+	if plainNasAllowed(uint8(fgs.MsgServiceRequest)) {
 		t.Fatal("ServiceRequest must NOT be on the plain-NAS whitelist (TS 24.501)")
 	}
 }
@@ -74,7 +74,7 @@ func TestPlainNasAllowed_RejectsServiceRequest(t *testing.T) {
 // TestPlainNasAllowed_RejectsULNasTransport pins ULNasTransport off the
 // plain-NAS whitelist.
 func TestPlainNasAllowed_RejectsULNasTransport(t *testing.T) {
-	if plainNasAllowed(nas.MsgTypeULNASTransport) {
+	if plainNasAllowed(uint8(fgs.MsgULNASTransport)) {
 		t.Fatal("ULNASTransport must NOT be on the plain-NAS whitelist (TS 24.501)")
 	}
 }

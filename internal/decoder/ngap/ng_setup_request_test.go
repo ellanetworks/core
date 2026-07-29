@@ -196,7 +196,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item3.Criticality.Value)
 	}
 
-	defaultPagingDRX, ok := item3.Value.(utils.EnumField[uint64])
+	defaultPagingDRX, ok := item3.Value.(utils.EnumField)
 	if !ok {
 		t.Fatalf("expected EnumField, got %T", item3.Value)
 	}
@@ -205,7 +205,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected DefaultPagingDRX=v128, got %s", defaultPagingDRX.Label)
 	}
 
-	if defaultPagingDRX.Value != uint64(ngapType.PagingDRXPresentV128) {
+	if defaultPagingDRX.Value != int64(ngapType.PagingDRXPresentV128) {
 		t.Errorf("expected DefaultPagingDRX value=2, got %d", defaultPagingDRX.Value)
 	}
 }

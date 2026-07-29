@@ -10,10 +10,8 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
-	"github.com/free5gc/nas/security"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func newTestAMF() *amf.AMF {
@@ -47,20 +45,15 @@ func setupRegistrationCompleteUE(t *testing.T) (*amf.UeContext, *fakeNGAPSender)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
-	algo := security.AlgCiphering128NEA2
+	algo := nas.CipheringAES
 
 	ue.SetKnasEncForTest(key)
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
-	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
-
-	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
-	if err != nil {
-		t.Fatalf("could not build registration request message: %v", err)
-	}
+	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
 
 	ue.ForceRegStepForTest(amf.RegStepContextSetup)
-	ue.Conn().RegistrationRequest = m.RegistrationRequest
+	ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{FOR: true} // follow-on request pending
 	ue.Conn().RegistrationType5GS = 42
 	ue.Conn().IdentityTypeUsedForRegistration = 42
 	ue.Conn().SetResyncTried(true)
@@ -125,35 +118,15 @@ func TestHandleRegistrationComplete_SendsConfigurationUpdateCommand(t *testing.T
 		t.Fatalf("expected 1 DownlinkNASTransport (ConfigurationUpdateCommand), got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	nasPdu := ngapSender.SentDownlinkNASTransport[0].NasPdu
+	plain := decipherGmmCount(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0, uint8(fgs.MsgConfigurationUpdateCommand))
 
-	// Decrypt the NAS message: strip EPD(1) + SecHeader(1) + MAC(4) + SQN(1) = 7 bytes
-	if len(nasPdu) < 7 {
-		t.Fatalf("NAS PDU too short: %d bytes", len(nasPdu))
-	}
-
-	payload := make([]byte, len(nasPdu)-7)
-	copy(payload, nasPdu[7:])
-
-	err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), 0, security.Bearer3GPP, security.DirectionDownlink, payload)
-	if err != nil {
-		t.Fatalf("NAS decrypt failed: %v", err)
-	}
-
-	msg := new(nas.Message)
-
-	err = msg.PlainNasDecode(&payload)
+	cuc, err := fgs.ParseConfigurationUpdateCommand(plain)
 	if err != nil {
 		t.Fatalf("NAS decode failed: %v", err)
 	}
 
-	cuc := msg.ConfigurationUpdateCommand
-	if cuc == nil {
-		t.Fatal("expected ConfigurationUpdateCommand message")
-	}
-
 	// Registration complete sends NITZ only (no GUTI reassignment)
-	if cuc.GUTI5G != nil {
+	if cuc.GUTI != nil {
 		t.Fatal("expected no GUTI in ConfigurationUpdateCommand after registration complete")
 	}
 
@@ -168,7 +141,7 @@ func TestHandleRegistrationComplete_SendsConfigurationUpdateCommand(t *testing.T
 
 func TestHandleRegistrationComplete_ReleasedWhenNoFORPending_NoUDSPending_and_NoActiveSessions(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
-	ue.Conn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
+	ue.Conn().RegistrationRequest.FOR = false
 	ue.Conn().RegistrationRequest.UplinkDataStatus = nil
 	ue.SmContextList = make(map[uint8]*amf.SmContext)
 
@@ -188,7 +161,7 @@ func TestHandleRegistrationComplete_ReleasedWhenNoFORPending_NoUDSPending_and_No
 
 func TestHandleRegistrationComplete_NotReleasedWhenFORPending(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
-	ue.Conn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestPending)
+	ue.Conn().RegistrationRequest.FOR = true
 	ue.Conn().RegistrationRequest.UplinkDataStatus = nil
 	ue.SmContextList = make(map[uint8]*amf.SmContext)
 
@@ -208,8 +181,8 @@ func TestHandleRegistrationComplete_NotReleasedWhenFORPending(t *testing.T) {
 
 func TestHandleRegistrationComplete_NotReleasedWhenUDSPending(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
-	ue.Conn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
-	ue.Conn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{}
+	ue.Conn().RegistrationRequest.FOR = false
+	ue.Conn().RegistrationRequest.UplinkDataStatus = mustBitmap([]byte{0x00, 0x00})
 	ue.SmContextList = make(map[uint8]*amf.SmContext)
 
 	amfInstance := newTestAMF()
@@ -228,7 +201,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenUDSPending(t *testing.T) {
 
 func TestHandleRegistrationComplete_NotReleasedWhenActiveSession(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
-	ue.Conn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
+	ue.Conn().RegistrationRequest.FOR = false
 	ue.Conn().RegistrationRequest.UplinkDataStatus = nil
 	_ = ue.CreateSmContext(1, "testref1", &models.Snssai{})
 
@@ -276,4 +249,14 @@ func checkUERegistrationDataIsCleared(ue *amf.UeContext) error {
 	}
 
 	return nil
+}
+
+// mustBitmap decodes a PDU session identity bitmap that must be well-formed.
+func mustBitmap(b []byte) *fgs.PSIBitmap {
+	m, err := fgs.ParsePSIBitmap(b)
+	if err != nil {
+		panic(err)
+	}
+
+	return &m
 }

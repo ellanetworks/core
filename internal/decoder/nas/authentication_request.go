@@ -3,43 +3,30 @@
 
 package nas
 
-import (
-	"github.com/free5gc/nas/nasMessage"
-)
+import "github.com/ellanetworks/core/nas/fgs"
 
 type AuthenticationRequest struct {
-	ExtendedProtocolDiscriminator       uint8     `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType uint8     `json:"spare_half_octet_and_security_header_type"`
-	SpareHalfOctetAndNgksi              uint8     `json:"spare_half_octet_and_ngksi"`
-	ABBA                                []uint8   `json:"abba"`
-	AuthenticationParameterAUTN         [16]uint8 `json:"authentication_parameter_autn,omitempty"`
-	AuthenticationParameterRAND         [16]uint8 `json:"authentication_parameter_rand,omitempty"`
-	EAPMessage                          []byte    `json:"eap_message,omitempty"`
+	SpareHalfOctetAndNgksi      uint8     `json:"spare_half_octet_and_ngksi"`
+	ABBA                        []uint8   `json:"abba"`
+	AuthenticationParameterAUTN [16]uint8 `json:"authentication_parameter_autn,omitempty"`
+	AuthenticationParameterRAND [16]uint8 `json:"authentication_parameter_rand,omitempty"`
+	EAPMessage                  []byte    `json:"eap_message,omitempty"`
 }
 
-func buildAuthenticationRequest(msg *nasMessage.AuthenticationRequest) *AuthenticationRequest {
-	if msg == nil {
-		return nil
+func buildAuthenticationRequest(msg *fgs.AuthenticationRequest) *AuthenticationRequest {
+	out := &AuthenticationRequest{
+		SpareHalfOctetAndNgksi: msg.NgKSI.HalfOctet(),
+		ABBA:                   msg.ABBA,
+		EAPMessage:             msg.EAP,
 	}
 
-	authenticationRequest := &AuthenticationRequest{
-		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
-		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		SpareHalfOctetAndNgksi:              msg.SpareHalfOctetAndNgksi.Octet,
-		ABBA:                                msg.GetABBAContents(),
+	if msg.RAND != nil {
+		out.AuthenticationParameterRAND = *msg.RAND
 	}
 
-	if msg.AuthenticationParameterRAND != nil {
-		authenticationRequest.AuthenticationParameterRAND = msg.GetRANDValue()
+	if msg.AUTN != nil {
+		out.AuthenticationParameterAUTN = *msg.AUTN
 	}
 
-	if msg.AuthenticationParameterAUTN != nil {
-		authenticationRequest.AuthenticationParameterAUTN = msg.GetAUTN()
-	}
-
-	if msg.EAPMessage != nil {
-		authenticationRequest.EAPMessage = msg.GetEAPMessage()
-	}
-
-	return authenticationRequest
+	return out
 }

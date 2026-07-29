@@ -109,7 +109,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 
 	bearer = models.EPSBearer{
 		Ref:        sc.Ref,
-		PDNType:    pdnType,
+		PDNType:    eps.PDNType(pdnType),
 		DNS:        dns.Unmap(),
 		IPv4:       addrs.IPv4,
 		IPv6Prefix: addrs.IPv6Prefix,

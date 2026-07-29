@@ -5,13 +5,13 @@ package util
 
 import (
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 )
 
 // PlmnIDToNas encodes a PLMN identity into its 3-octet NAS/TBCD representation
 // (TS 24.008).
 func PlmnIDToNas(plmnID models.PlmnID) ([]uint8, error) {
-	b, err := common.EncodePLMN(plmnID.Mcc, plmnID.Mnc)
+	b, err := nas.PLMN{MCC: plmnID.Mcc, MNC: plmnID.Mnc}.Octets()
 	if err != nil {
 		return nil, err
 	}

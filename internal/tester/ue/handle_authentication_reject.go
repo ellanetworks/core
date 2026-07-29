@@ -7,13 +7,13 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/free5gc/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
-func handleAuthenticationReject(ue *UE, msg *nas.Message) error {
-	if msg == nil {
-		return fmt.Errorf("received nil NAS message in Authentication Reject handler")
+func handleAuthenticationReject(ue *UE, plain []byte) error {
+	if _, err := fgs.ParseAuthenticationReject(plain); err != nil {
+		return fmt.Errorf("could not parse Authentication Reject: %v", err)
 	}
 
 	logger.UeLogger.Debug("Received Authentication Reject NAS message", zap.String("IMSI", ue.UeSecurity.Supi))

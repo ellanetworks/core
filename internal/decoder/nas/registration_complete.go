@@ -3,29 +3,14 @@
 
 package nas
 
-import (
-	"github.com/free5gc/nas/nasMessage"
-)
+import "github.com/ellanetworks/core/nas/fgs"
 
 type RegistrationComplete struct {
-	ExtendedProtocolDiscriminator       uint8   `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType uint8   `json:"spare_half_octet_and_security_header_type"`
-	GetSORContent                       []uint8 `json:"sor_transparent_container,omitempty"`
+	GetSORContent []uint8 `json:"sor_transparent_container,omitempty"`
 }
 
-func buildRegistrationComplete(msg *nasMessage.RegistrationComplete) *RegistrationComplete {
-	if msg == nil {
-		return nil
+func buildRegistrationComplete(msg *fgs.RegistrationComplete) *RegistrationComplete {
+	return &RegistrationComplete{
+		GetSORContent: msg.SORTransparentContainer,
 	}
-
-	regComplete := &RegistrationComplete{
-		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
-		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-	}
-
-	if msg.SORTransparentContainer != nil {
-		regComplete.GetSORContent = msg.GetSORContent()
-	}
-
-	return regComplete
 }

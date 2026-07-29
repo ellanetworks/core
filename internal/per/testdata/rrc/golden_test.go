@@ -21,41 +21,45 @@ import (
 //   - extended absent (OPTIONAL preamble bit → 0, comes BEFORE mandatory fields)
 //   - type: 0 (range 0..1, 1 bit → 0)
 //   - time: 1 (range 0..1, 1 bit → 1)
-//   + 1 pad bit
+//   - 1 pad bit
 //
 // UNALIGNED PER packs all bits without padding:
-//   01 0 1 0 0 1 0
-//   = 0101_0010
-//   = 0x52
+//
+//	01 0 1 0 0 1 0
+//	= 0101_0010
+//	= 0x52
 //
 // UNALIGNED PER packs all bits without padding:
-//   bits: 01 0 1 0 1 0
-//   = 0101_0100
-//   = 0x54
-//   then padded to byte boundary: 0x54 (3 pad bits: 000) → actually 0101_0100_000
-//   = 0x54 0x00 (3 remaining pad bits)
+//
+//	bits: 01 0 1 0 1 0
+//	= 0101_0100
+//	= 0x54
+//	then padded to byte boundary: 0x54 (3 pad bits: 000) → actually 0101_0100_000
+//	= 0x54 0x00 (3 remaining pad bits)
 //
 // Wait, let me re-count:
-//   01       rrc-TransactionID = 1 (2 bits)
-//   0        criticalExtensions choice idx = 0 (1 bit, range 2)
-//   1        deprioritisation present (1 bit OPTIONAL preamble)
-//   0        type = 0 (1 bit, range 2)
-//   1        time = 1 (1 bit, range 2)
-//   0        extended absent (1 bit OPTIONAL preamble)
-//   = 01 0 1 0 1 0 = 0101_0100 = 0x54, then pad to byte = 0x54 (2 pad bits 00)
-//   Wait: 7 bits → pad to 8 = 0101_0100_0 → that's 9 bits. No.
-//   01_0_1_0_1_0 = 7 bits. Pad to 8: 0101_0100 + 0 = no, 7 bits → 0101010 + 0 = 01010100 = 0x54? No.
+//
+//	01       rrc-TransactionID = 1 (2 bits)
+//	0        criticalExtensions choice idx = 0 (1 bit, range 2)
+//	1        deprioritisation present (1 bit OPTIONAL preamble)
+//	0        type = 0 (1 bit, range 2)
+//	1        time = 1 (1 bit, range 2)
+//	0        extended absent (1 bit OPTIONAL preamble)
+//	= 01 0 1 0 1 0 = 0101_0100 = 0x54, then pad to byte = 0x54 (2 pad bits 00)
+//	Wait: 7 bits → pad to 8 = 0101_0100_0 → that's 9 bits. No.
+//	01_0_1_0_1_0 = 7 bits. Pad to 8: 0101_0100 + 0 = no, 7 bits → 0101010 + 0 = 01010100 = 0x54? No.
 //
 // Let me be precise: bits are MSB-first in each byte.
-//   Bit 7 (MSB): 0    \
-//   Bit 6:       1    | rrc-TransactionID = 1 (2 bits: 01)
-//   Bit 5:       0    | criticalExtensions choice = 0 (1 bit)
-//   Bit 4:       1    | deprioritisation present = 1 (1 bit)
-//   Bit 3:       0    | type = 0 (1 bit)
-//   Bit 2:       1    | time = 1 (1 bit)
-//   Bit 1:       0    | extended absent = 0 (1 bit)
-//   Bit 0:       0    | pad
-//   = 01010100 = 0x54
+//
+//	Bit 7 (MSB): 0    \
+//	Bit 6:       1    | rrc-TransactionID = 1 (2 bits: 01)
+//	Bit 5:       0    | criticalExtensions choice = 0 (1 bit)
+//	Bit 4:       1    | deprioritisation present = 1 (1 bit)
+//	Bit 3:       0    | type = 0 (1 bit)
+//	Bit 2:       1    | time = 1 (1 bit)
+//	Bit 1:       0    | extended absent = 0 (1 bit)
+//	Bit 0:       0    | pad
+//	= 01010100 = 0x54
 func TestRRCReleaseGoldenVector(t *testing.T) {
 	extended := false
 	msg := &RRCRelease{

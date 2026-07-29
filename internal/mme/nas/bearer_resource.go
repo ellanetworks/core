@@ -9,66 +9,54 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
 
 // handleBearerResourceAllocationRequest always rejects: the bearer QoS is
 // network-determined, not UE-modifiable (TS 24.301 §6.5.3).
-func handleBearerResourceAllocationRequest(ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
-	req, err := eps.ParseBearerResourceAllocationRequest(plain)
-	if err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("failed to decode Bearer Resource Allocation Request", zap.Error(err))
-		return nasreply.Handled()
-	}
+func handleBearerResourceAllocationRequest(ctx context.Context, ue *mme.UeContext, req *eps.BearerResourceAllocationRequest) nasreply.Disposition {
+	pti := req.PTI
 
-	pti := req.ProcedureTransactionIdentity
-
-	cause := esmRequestHeaderCause(pti, req.EPSBearerIdentity)
+	cause := esmRequestHeaderCause(uint8(pti), uint8(req.EPSBearerIdentity))
 	if cause == 0 {
-		cause = esmCauseRequestRejectedUnspecified
+		cause = eps.ESMCauseRequestRejectedUnspecified
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("bearer resource allocation rejected",
-		zap.String("imsi", ue.IMSI()), zap.Uint8("pti", pti), zap.Uint8("esm-cause", cause))
-	rejectBearerResourceAllocation(ctx, ue, pti, cause)
+	logger.From(ctx, logger.MmeLog).Info("bearer resource allocation rejected", zap.String("imsi", ue.IMSI()), zap.Uint8("pti", uint8(pti)), zap.Stringer("esm-cause", cause))
+	rejectBearerResourceAllocation(ctx, ue, uint8(pti), cause)
 
 	return nasreply.Handled()
 }
 
 // handleBearerResourceModificationRequest always rejects: the bearer QoS is
 // network-determined, not UE-modifiable (TS 24.301 §6.5.4).
-func handleBearerResourceModificationRequest(ctx context.Context, ue *mme.UeContext, plain []byte) nasreply.Disposition {
-	req, err := eps.ParseBearerResourceModificationRequest(plain)
-	if err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("failed to decode Bearer Resource Modification Request", zap.Error(err))
-		return nasreply.Handled()
-	}
+func handleBearerResourceModificationRequest(ctx context.Context, ue *mme.UeContext, req *eps.BearerResourceModificationRequest) nasreply.Disposition {
+	pti := req.PTI
 
-	pti := req.ProcedureTransactionIdentity
-
-	cause := esmRequestHeaderCause(pti, req.EPSBearerIdentity)
+	cause := esmRequestHeaderCause(uint8(pti), uint8(req.EPSBearerIdentity))
 	if cause == 0 {
-		cause = esmCauseRequestRejectedUnspecified
+		cause = eps.ESMCauseRequestRejectedUnspecified
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("bearer resource modification rejected",
-		zap.String("imsi", ue.IMSI()), zap.Uint8("pti", pti), zap.Uint8("esm-cause", cause))
-	rejectBearerResourceModification(ctx, ue, pti, cause)
+		zap.String("imsi", ue.IMSI()), zap.Uint8("pti", uint8(pti)), zap.Stringer("esm-cause", cause))
+	rejectBearerResourceModification(ctx, ue, uint8(pti), cause)
 
 	return nasreply.Handled()
 }
 
-func rejectBearerResourceAllocation(ctx context.Context, ue *mme.UeContext, pti, cause uint8) {
+func rejectBearerResourceAllocation(ctx context.Context, ue *mme.UeContext, pti uint8, cause eps.ESMCause) {
 	ue.Conn().SendDownlinkProtected(ctx, &eps.BearerResourceAllocationReject{
-		ProcedureTransactionIdentity: pti,
-		ESMCause:                     cause,
+		PTI:   nas.ProcedureTransactionIdentity(pti),
+		Cause: cause,
 	})
 }
 
-func rejectBearerResourceModification(ctx context.Context, ue *mme.UeContext, pti, cause uint8) {
+func rejectBearerResourceModification(ctx context.Context, ue *mme.UeContext, pti uint8, cause eps.ESMCause) {
 	ue.Conn().SendDownlinkProtected(ctx, &eps.BearerResourceModificationReject{
-		ProcedureTransactionIdentity: pti,
-		ESMCause:                     cause,
+		PTI:   nas.ProcedureTransactionIdentity(pti),
+		Cause: cause,
 	})
 }

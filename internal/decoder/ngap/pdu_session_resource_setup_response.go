@@ -22,8 +22,8 @@ type AssociatedQosFlow struct {
 }
 
 type QosFlowFailedToSetupItem struct {
-	QosFlowIdentifier int64                   `json:"qos_flow_identifier"`
-	Cause             utils.EnumField[uint64] `json:"cause"`
+	QosFlowIdentifier int64           `json:"qos_flow_identifier"`
+	Cause             utils.EnumField `json:"cause"`
 }
 
 type PDUSessionResourceSetupResponseTransferDecoded struct {
@@ -32,7 +32,7 @@ type PDUSessionResourceSetupResponseTransferDecoded struct {
 }
 
 type PDUSessionResourceSetupUnsuccessfulTransferDecoded struct {
-	Cause utils.EnumField[uint64] `json:"cause"`
+	Cause utils.EnumField `json:"cause"`
 }
 
 type PDUSessionResourceSetupSURes struct {

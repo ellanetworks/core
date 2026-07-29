@@ -7,9 +7,8 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/free5gc/nas/nasConvert"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type IntegrityProtectionMaximumDataRate struct {
@@ -61,164 +60,144 @@ type ExtendedProtocolConfigurationOptions struct {
 }
 
 type PDUSessionEstablishmentRequest struct {
-	ExtendedProtocolDiscriminator                 uint8                                 `json:"extended_protocol_discriminator"`
-	PDUSessionID                                  uint8                                 `json:"pdu_session_id"`
-	PTI                                           uint8                                 `json:"pti"`
-	PDUSESSIONESTABLISHMENTREQUESTMessageIdentity uint8                                 `json:"pdu_session_establishment_request_message_identity"`
-	IntegrityProtectionMaximumDataRate            IntegrityProtectionMaximumDataRate    `json:"integrity_protection_maximum_data_rate"`
-	PDUSessionType                                *utils.EnumField[uint8]               `json:"pdu_session_type,omitempty"`
-	SSCMode                                       *uint8                                `json:"ssc_mode,omitempty"`
-	Capability5GSM                                *Capability5GSM                       `json:"capability_5g_s_m,omitempty"`
-	ExtendedProtocolConfigurationOptions          *ExtendedProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
+	IntegrityProtectionMaximumDataRate   IntegrityProtectionMaximumDataRate    `json:"integrity_protection_maximum_data_rate"`
+	PDUSessionType                       *utils.EnumField                      `json:"pdu_session_type,omitempty"`
+	SSCMode                              *uint8                                `json:"ssc_mode,omitempty"`
+	Capability5GSM                       *Capability5GSM                       `json:"capability_5g_s_m,omitempty"`
+	ExtendedProtocolConfigurationOptions *ExtendedProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
 
 	MaximumNumberOfSupportedPacketFilters *UnsupportedIE `json:"maximum_number_of_supported_packet_filters,omitempty"`
 	AlwaysonPDUSessionRequested           *UnsupportedIE `json:"alwayson_pdu_session_requested,omitempty"`
 	SMPDUDNRequestContainer               *UnsupportedIE `json:"smpdu_dn_request_container,omitempty"`
 }
 
-func buildPDUSessionEstablishmentRequest(msg *nasMessage.PDUSessionEstablishmentRequest) *PDUSessionEstablishmentRequest {
-	if msg == nil {
-		return nil
-	}
-
-	estReq := &PDUSessionEstablishmentRequest{
-		ExtendedProtocolDiscriminator: msg.ExtendedProtocolDiscriminator.Octet,
-		PDUSessionID:                  msg.GetPDUSessionID(),
-		PTI:                           msg.GetPTI(),
-		PDUSESSIONESTABLISHMENTREQUESTMessageIdentity: msg.GetMessageType(),
+func buildPDUSessionEstablishmentRequest(msg *fgs.PDUSessionEstablishmentRequest) *PDUSessionEstablishmentRequest {
+	out := &PDUSessionEstablishmentRequest{
 		IntegrityProtectionMaximumDataRate: IntegrityProtectionMaximumDataRate{
-			Uplink:   msg.GetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForUpLink(),
-			Downlink: msg.GetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForDownLink(),
+			Uplink:   msg.IntegrityProtMaxDataRate[0],
+			Downlink: msg.IntegrityProtMaxDataRate[1],
 		},
 	}
 
 	if msg.PDUSessionType != nil {
-		sessionType := buildPDUSessionType(msg.GetPDUSessionTypeValue())
-		estReq.PDUSessionType = &sessionType
+		sessionType := buildPDUSessionType(uint8(*msg.PDUSessionType))
+		out.PDUSessionType = &sessionType
 	}
 
 	if msg.SSCMode != nil {
-		sscMode := msg.GetSSCMode()
-		estReq.SSCMode = &sscMode
+		mode := uint8(*msg.SSCMode)
+		out.SSCMode = &mode
 	}
 
-	if msg.Capability5GSM != nil {
-		estReq.Capability5GSM = buildCapability5GSM(*msg.Capability5GSM)
+	if msg.GSMCapability != nil {
+		out.Capability5GSM = &Capability5GSM{
+			RqoS:   b2u(msg.GSMCapability.RqoS),
+			MH6PDU: b2u(msg.GSMCapability.MH6PDU),
+		}
 	}
 
-	if msg.MaximumNumberOfSupportedPacketFilters != nil {
-		estReq.MaximumNumberOfSupportedPacketFilters = makeUnsupportedIE()
+	if msg.AlwaysOnRequested != nil {
+		out.AlwaysonPDUSessionRequested = makeUnsupportedIE()
 	}
 
-	if msg.AlwaysonPDUSessionRequested != nil {
-		estReq.AlwaysonPDUSessionRequested = makeUnsupportedIE()
+	if msg.ExtendedPCO != nil {
+		out.ExtendedProtocolConfigurationOptions = extendedPCOFromNAS(*msg.ExtendedPCO)
 	}
 
-	if msg.SMPDUDNRequestContainer != nil {
-		estReq.SMPDUDNRequestContainer = makeUnsupportedIE()
+	for _, ie := range msg.Unrecognized {
+		switch ie.IEI {
+		case ieiMaxPacketFilters:
+			out.MaximumNumberOfSupportedPacketFilters = makeUnsupportedIE()
+		case ieiSMPDUDNRequest:
+			out.SMPDUDNRequestContainer = makeUnsupportedIE()
+		case ieiExtendedPCO:
+			// The element reached Unrecognized because its content did not decode.
+			out.ExtendedProtocolConfigurationOptions = &ExtendedProtocolConfigurationOptions{
+				Error: "failed to parse extended protocol configuration options content",
+			}
+		}
 	}
 
-	if msg.ExtendedProtocolConfigurationOptions != nil {
-		estReq.ExtendedProtocolConfigurationOptions = buildExtendedProtocolConfigurationOptions(msg.ExtendedProtocolConfigurationOptions)
-	}
-
-	return estReq
+	return out
 }
 
-func buildCapability5GSM(msg nasType.Capability5GSM) *Capability5GSM {
-	return &Capability5GSM{
-		RqoS:   msg.GetRqoS(),
-		MH6PDU: msg.GetMH6PDU(),
+func buildPDUSessionType(sessType uint8) utils.EnumField {
+	switch sessType {
+	case uint8(fgs.PDUSessionTypeIPv4):
+		return utils.MakeEnum(sessType, "IPv4", false)
+	case uint8(fgs.PDUSessionTypeIPv6):
+		return utils.MakeEnum(sessType, "IPv6", false)
+	case uint8(fgs.PDUSessionTypeIPv4v6):
+		return utils.MakeEnum(sessType, "IPv4v6", false)
+	case uint8(fgs.PDUSessionTypeUnstructured):
+		return utils.MakeEnum(sessType, "Unstructured", false)
+	case uint8(fgs.PDUSessionTypeEthernet):
+		return utils.MakeEnum(sessType, "Ethernet", false)
+	default:
+		return utils.MakeEnum(sessType, "", true)
 	}
 }
 
 func ptr(b bool) *bool { return &b }
 
-func buildExtendedProtocolConfigurationOptions(opts *nasType.ExtendedProtocolConfigurationOptions) *ExtendedProtocolConfigurationOptions {
-	content := opts.GetExtendedProtocolConfigurationOptionsContents()
+// pcoContainerFlags maps a UL protocol/container identifier (TS 24.008 §10.5.6.3) to
+// the setter that records its presence in the rendered extended PCO.
+var pcoContainerFlags = map[uint16]func(*ExtendedProtocolConfigurationOptions){
+	0x0001: func(o *ExtendedProtocolConfigurationOptions) { o.PCSCFIPv6AddressRequestUL = ptr(true) },
+	0x0002: func(o *ExtendedProtocolConfigurationOptions) { o.IMCNSubsystemSignalingFlagUL = ptr(true) },
+	0x0003: func(o *ExtendedProtocolConfigurationOptions) { o.DNSServerIPv6AddressRequestUL = ptr(true) },
+	0x0004: func(o *ExtendedProtocolConfigurationOptions) { o.NotSupportedUL = ptr(true) },
+	0x0005: func(o *ExtendedProtocolConfigurationOptions) {
+		o.MSSupportOfNetworkRequestedBearerControlIndicatorUL = ptr(true)
+	},
+	0x0007: func(o *ExtendedProtocolConfigurationOptions) { o.DSMIPv6HomeAgentAddressRequestUL = ptr(true) },
+	0x0008: func(o *ExtendedProtocolConfigurationOptions) { o.DSMIPv6HomeNetworkPrefixRequestUL = ptr(true) },
+	0x0009: func(o *ExtendedProtocolConfigurationOptions) { o.DSMIPv6IPv4HomeAgentAddressRequestUL = ptr(true) },
+	0x000a: func(o *ExtendedProtocolConfigurationOptions) { o.IPAddressAllocationViaNASSignallingUL = ptr(true) },
+	0x000b: func(o *ExtendedProtocolConfigurationOptions) { o.IPv4AddressAllocationViaDHCPv4UL = ptr(true) },
+	0x000c: func(o *ExtendedProtocolConfigurationOptions) { o.PCSCFIPv4AddressRequestUL = ptr(true) },
+	0x000d: func(o *ExtendedProtocolConfigurationOptions) { o.DNSServerIPv4AddressRequestUL = ptr(true) },
+	0x000e: func(o *ExtendedProtocolConfigurationOptions) { o.MSISDNRequestUL = ptr(true) },
+	0x000f: func(o *ExtendedProtocolConfigurationOptions) { o.IFOMSupportRequestUL = ptr(true) },
+	0x0011: func(o *ExtendedProtocolConfigurationOptions) { o.MSSupportOfLocalAddressInTFTIndicatorUL = ptr(true) },
+	0x0012: func(o *ExtendedProtocolConfigurationOptions) { o.PCSCFReSelectionSupportUL = ptr(true) },
+	0x0013: func(o *ExtendedProtocolConfigurationOptions) { o.NBIFOMRequestIndicatorUL = ptr(true) },
+	0x0014: func(o *ExtendedProtocolConfigurationOptions) { o.NBIFOMModeUL = ptr(true) },
+	0x0015: func(o *ExtendedProtocolConfigurationOptions) { o.NonIPLinkMTURequestUL = ptr(true) },
+	0x0016: func(o *ExtendedProtocolConfigurationOptions) { o.APNRateControlSupportIndicatorUL = ptr(true) },
+	0x0017: func(o *ExtendedProtocolConfigurationOptions) { o.UEStatus3GPPPSDataOffUL = ptr(true) },
+	0x0018: func(o *ExtendedProtocolConfigurationOptions) { o.ReliableDataServiceRequestIndicatorUL = ptr(true) },
+	0x0019: func(o *ExtendedProtocolConfigurationOptions) {
+		o.AdditionalAPNRateControlForExceptionDataSupportIndicatorUL = ptr(true)
+	},
+	0x001a: func(o *ExtendedProtocolConfigurationOptions) { o.PDUSessionIDUL = ptr(true) },
+	0x0020: func(o *ExtendedProtocolConfigurationOptions) { o.EthernetFramePayloadMTURequestUL = ptr(true) },
+	0x0021: func(o *ExtendedProtocolConfigurationOptions) { o.UnstructuredLinkMTURequestUL = ptr(true) },
+	0x0022: func(o *ExtendedProtocolConfigurationOptions) { o.I5GSMCauseValueUL = ptr(true) },
+	0x0023: func(o *ExtendedProtocolConfigurationOptions) {
+		o.QoSRulesWithTheLengthOfTwoOctetsSupportIndicatorUL = ptr(true)
+	},
+	0x0024: func(o *ExtendedProtocolConfigurationOptions) {
+		o.QoSFlowDescriptionsWithTheLengthOfTwoOctetsSupportIndicatorUL = ptr(true)
+	},
+	0x8021: func(o *ExtendedProtocolConfigurationOptions) { o.InternetProtocolControlProtocolUL = ptr(true) },
+	0xc021: func(o *ExtendedProtocolConfigurationOptions) { o.LinkControlProtocolUL = ptr(true) },
+	0xc023: func(o *ExtendedProtocolConfigurationOptions) { o.PushAccessControlProtocolUL = ptr(true) },
+	0xc223: func(o *ExtendedProtocolConfigurationOptions) {
+		o.ChallengeHandshakeAuthenticationProtocolUL = ptr(true)
+	},
+}
 
-	pco := nasConvert.NewProtocolConfigurationOptions()
+func extendedPCOFromNAS(opts nas.ProtocolConfigurationOptions) *ExtendedProtocolConfigurationOptions {
+	out := &ExtendedProtocolConfigurationOptions{}
 
-	extOpts := &ExtendedProtocolConfigurationOptions{}
-
-	err := pco.UnMarshal(content)
-	if err != nil {
-		extOpts.Error = fmt.Sprintf("failed to parse extended protocol configuration options content: %v", err)
-		return extOpts
-	}
-
-	for _, container := range pco.ProtocolOrContainerList {
-		switch container.ProtocolOrContainerID {
-		case nasMessage.PCSCFIPv6AddressRequestUL:
-			extOpts.PCSCFIPv6AddressRequestUL = ptr(true)
-		case nasMessage.IMCNSubsystemSignalingFlagUL:
-			extOpts.IMCNSubsystemSignalingFlagUL = ptr(true)
-		case nasMessage.DNSServerIPv6AddressRequestUL:
-			extOpts.DNSServerIPv6AddressRequestUL = ptr(true)
-		case nasMessage.NotSupportedUL:
-			extOpts.NotSupportedUL = ptr(true)
-		case nasMessage.MSSupportOfNetworkRequestedBearerControlIndicatorUL:
-			extOpts.MSSupportOfNetworkRequestedBearerControlIndicatorUL = ptr(true)
-		case nasMessage.DSMIPv6HomeAgentAddressRequestUL:
-			extOpts.DSMIPv6HomeAgentAddressRequestUL = ptr(true)
-		case nasMessage.DSMIPv6HomeNetworkPrefixRequestUL:
-			extOpts.DSMIPv6HomeNetworkPrefixRequestUL = ptr(true)
-		case nasMessage.DSMIPv6IPv4HomeAgentAddressRequestUL:
-			extOpts.DSMIPv6IPv4HomeAgentAddressRequestUL = ptr(true)
-		case nasMessage.IPAddressAllocationViaNASSignallingUL:
-			extOpts.IPAddressAllocationViaNASSignallingUL = ptr(true)
-		case nasMessage.IPv4AddressAllocationViaDHCPv4UL:
-			extOpts.IPv4AddressAllocationViaDHCPv4UL = ptr(true)
-		case nasMessage.PCSCFIPv4AddressRequestUL:
-			extOpts.PCSCFIPv4AddressRequestUL = ptr(true)
-		case nasMessage.DNSServerIPv4AddressRequestUL:
-			extOpts.DNSServerIPv4AddressRequestUL = ptr(true)
-		case nasMessage.MSISDNRequestUL:
-			extOpts.MSISDNRequestUL = ptr(true)
-		case nasMessage.IFOMSupportRequestUL:
-			extOpts.IFOMSupportRequestUL = ptr(true)
-		case nasMessage.MSSupportOfLocalAddressInTFTIndicatorUL:
-			extOpts.MSSupportOfLocalAddressInTFTIndicatorUL = ptr(true)
-		case nasMessage.PCSCFReSelectionSupportUL:
-			extOpts.PCSCFReSelectionSupportUL = ptr(true)
-		case nasMessage.NBIFOMRequestIndicatorUL:
-			extOpts.NBIFOMRequestIndicatorUL = ptr(true)
-		case nasMessage.NBIFOMModeUL:
-			extOpts.NBIFOMModeUL = ptr(true)
-		case nasMessage.NonIPLinkMTURequestUL:
-			extOpts.NonIPLinkMTURequestUL = ptr(true)
-		case nasMessage.APNRateControlSupportIndicatorUL:
-			extOpts.APNRateControlSupportIndicatorUL = ptr(true)
-		case nasMessage.UEStatus3GPPPSDataOffUL:
-			extOpts.UEStatus3GPPPSDataOffUL = ptr(true)
-		case nasMessage.ReliableDataServiceRequestIndicatorUL:
-			extOpts.ReliableDataServiceRequestIndicatorUL = ptr(true)
-		case nasMessage.AdditionalAPNRateControlForExceptionDataSupportIndicatorUL:
-			extOpts.AdditionalAPNRateControlForExceptionDataSupportIndicatorUL = ptr(true)
-		case nasMessage.PDUSessionIDUL:
-			extOpts.PDUSessionIDUL = ptr(true)
-		case nasMessage.EthernetFramePayloadMTURequestUL:
-			extOpts.EthernetFramePayloadMTURequestUL = ptr(true)
-		case nasMessage.UnstructuredLinkMTURequestUL:
-			extOpts.UnstructuredLinkMTURequestUL = ptr(true)
-		case nasMessage.I5GSMCauseValueUL:
-			extOpts.I5GSMCauseValueUL = ptr(true)
-		case nasMessage.QoSRulesWithTheLengthOfTwoOctetsSupportIndicatorUL:
-			extOpts.QoSRulesWithTheLengthOfTwoOctetsSupportIndicatorUL = ptr(true)
-		case nasMessage.QoSFlowDescriptionsWithTheLengthOfTwoOctetsSupportIndicatorUL:
-			extOpts.QoSFlowDescriptionsWithTheLengthOfTwoOctetsSupportIndicatorUL = ptr(true)
-		case nasMessage.LinkControlProtocolUL:
-			extOpts.LinkControlProtocolUL = ptr(true)
-		case nasMessage.PushAccessControlProtocolUL:
-			extOpts.PushAccessControlProtocolUL = ptr(true)
-		case nasMessage.ChallengeHandshakeAuthenticationProtocolUL:
-			extOpts.ChallengeHandshakeAuthenticationProtocolUL = ptr(true)
-		case nasMessage.InternetProtocolControlProtocolUL:
-			extOpts.InternetProtocolControlProtocolUL = ptr(true)
-		default:
-			extOpts.Error = fmt.Sprintf("unknown container ID %d", container.ProtocolOrContainerID)
+	for _, id := range opts.ContainerIDs() {
+		if set, ok := pcoContainerFlags[id]; ok {
+			set(out)
+		} else {
+			out.Error = fmt.Sprintf("unknown container ID %d", id)
 		}
 	}
 
-	return extOpts
+	return out
 }

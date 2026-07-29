@@ -11,8 +11,8 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 // A SERVICE REQUEST that resolves no 5GMM context (e.g. the UE deregistered, or an unknown
@@ -42,11 +42,11 @@ func TestHandleServiceRequest_NoContext_SendsServiceReject(t *testing.T) {
 	}
 
 	pdu := ngapSender.SentDownlinkNASTransport[0].NasPdu
-	if len(pdu) < 4 || pdu[2] != nas.MsgTypeServiceReject {
+	if len(pdu) < 4 || pdu[2] != uint8(fgs.MsgServiceReject) {
 		t.Fatalf("downlink is not a plain SERVICE REJECT: % x", pdu)
 	}
 
-	if pdu[3] != nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork {
+	if pdu[3] != 0x09 {
 		t.Errorf("5GMM cause = 0x%02x, want #9 (UE identity cannot be derived by the network)", pdu[3])
 	}
 }
@@ -80,11 +80,11 @@ func TestHandleServiceRequest_ProtocolError_SendsServiceReject96(t *testing.T) {
 	}
 
 	pdu := ngapSender.SentDownlinkNASTransport[0].NasPdu
-	if len(pdu) < 4 || pdu[2] != nas.MsgTypeServiceReject {
+	if len(pdu) < 4 || pdu[2] != uint8(fgs.MsgServiceReject) {
 		t.Fatalf("downlink is not a plain SERVICE REJECT: % x", pdu)
 	}
 
-	if pdu[3] != nasMessage.Cause5GMMInvalidMandatoryInformation {
+	if pdu[3] != 0x60 {
 		t.Errorf("5GMM cause = 0x%02x, want #96 (invalid mandatory information)", pdu[3])
 	}
 }
@@ -92,26 +92,13 @@ func TestHandleServiceRequest_ProtocolError_SendsServiceReject96(t *testing.T) {
 func encodePlainServiceRequest(t *testing.T) []byte {
 	t.Helper()
 
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeServiceRequest)
+	sr := &fgs.ServiceRequest{
+		ServiceType:    fgs.ServiceTypeSignalling,
+		NgKSI:          nas.KeySetIdentifier{Value: 1},
+		MobileIdentity: serviceRequest5GSTMSI(),
+	}
 
-	sr := nasMessage.NewServiceRequest(0)
-	sr.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	sr.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	sr.SetSpareHalfOctet(0)
-	sr.SetMessageType(nas.MsgTypeServiceRequest)
-	sr.SetServiceTypeValue(nasMessage.ServiceTypeSignalling)
-	sr.SetNasKeySetIdentifiler(1)
-	sr.TMSI5GS.SetLen(7)
-	sr.SetTypeOfIdentity(4) // 5G-S-TMSI
-	sr.SetAMFPointer(0)
-	sr.SetAMFSetID(0)
-	sr.SetTMSI5G([4]uint8{0xDE, 0xAD, 0xBE, 0xEF})
-
-	m.ServiceRequest = sr
-
-	payload, err := m.PlainNasEncode()
+	payload, err := sr.MarshalBinary()
 	if err != nil {
 		t.Fatalf("encode plain ServiceRequest: %v", err)
 	}
@@ -142,10 +129,13 @@ func TestHandleGmmMessage_UnimplementedType_ReturnsStatus97(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg := nas.NewGmmMessage()
-	msg.SetMessageType(nas.MsgTypeRegistrationReject) // a downlink type never handled inbound
+	// a downlink type never handled inbound
+	reject, err := (&fgs.RegistrationReject{Cause: fgs.GMMCausePLMNNotAllowed}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	d := HandleGmmMessage(context.Background(), amf.New(nil, nil, nil), ue, msg, nil, true)
+	d := HandleGmmMessage(context.Background(), amf.New(nil, nil, nil), ue, uint8(fgs.MsgRegistrationReject), reject, true)
 
 	if d.Action != nasreply.ActionStatus || d.Domain != nasreply.DomainMM || d.Cause != nasreply.CauseMessageTypeNotImplemented {
 		t.Errorf("disposition = %+v, want a 5GMM STATUS #97 (message type non-existent or not implemented)", d)
@@ -162,7 +152,7 @@ func TestDispositionForUnresolved_UnknownTypeStatus97(t *testing.T) {
 		want   uint8
 	}{
 		{"unknown type 0xff", []byte{0x7e, 0x00, 0xff}, nasreply.CauseMessageTypeNotImplemented},
-		{"defined type, malformed body", []byte{0x7e, 0x00, nas.MsgTypeRegistrationRequest}, nasreply.CauseInvalidMandatoryInfo},
+		{"defined type, malformed body", []byte{0x7e, 0x00, uint8(fgs.MsgRegistrationRequest)}, nasreply.CauseInvalidMandatoryInfo},
 	}
 
 	for _, tt := range tests {
@@ -178,19 +168,7 @@ func TestDispositionForUnresolved_UnknownTypeStatus97(t *testing.T) {
 func encodePlainStatus5GMM(t *testing.T) []byte {
 	t.Helper()
 
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeStatus5GMM)
-
-	st := nasMessage.NewStatus5GMM(0)
-	st.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	st.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	st.SetSpareHalfOctet(0)
-	st.SetMessageType(nas.MsgTypeStatus5GMM)
-
-	m.Status5GMM = st
-
-	payload, err := m.PlainNasEncode()
+	payload, err := (&fgs.GMMStatus{}).MarshalBinary()
 	if err != nil {
 		t.Fatalf("encode plain 5GMM STATUS: %v", err)
 	}

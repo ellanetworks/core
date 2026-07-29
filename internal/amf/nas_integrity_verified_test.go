@@ -7,10 +7,8 @@ package amf
 import (
 	"testing"
 
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
-	"github.com/free5gc/nas/security"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 // wrapIntegrityProtected wraps a plain inner NAS message in a security-protected
@@ -21,18 +19,12 @@ import (
 func wrapIntegrityProtected(t *testing.T, ue *UeContext, inner []byte, sqn uint8) []byte {
 	t.Helper()
 
-	cnt := ue.ulCount.Estimate(sqn)
+	cnt, _ := ue.ulCount.Estimate(sqn)
 
-	seqAndMsg := append([]byte{sqn}, inner...)
-
-	mac, err := security.NASMacCalculate(ue.integrityAlg, ue.knasInt, cnt.Value(), security.Bearer3GPP, security.DirectionUplink, seqAndMsg)
+	pdu, err := fgs.Protect(inner, fgs.SHTIntegrityProtected, cnt, nas.DirectionUplink, ue.sc)
 	if err != nil {
-		t.Fatalf("NASMacCalculate: %v", err)
+		t.Fatalf("protect NAS: %v", err)
 	}
-
-	pdu := []byte{0x7e, nas.SecurityHeaderTypeIntegrityProtected}
-	pdu = append(pdu, mac...)
-	pdu = append(pdu, seqAndMsg...)
 
 	return pdu
 }
@@ -41,8 +33,12 @@ func newSecuredUE(t *testing.T) *UeContext {
 	t.Helper()
 
 	ue := newDecoderTestUE(t)
-	ue.integrityAlg = security.AlgIntegrity128NIA2
+	ue.integrityAlg = nas.IntegrityAES
 	ue.knasInt = [16]uint8{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+
+	if err := ue.installSecurityContextLocked(); err != nil {
+		t.Fatalf("install security context: %v", err)
+	}
 
 	return ue
 }
@@ -50,28 +46,14 @@ func newSecuredUE(t *testing.T) *UeContext {
 func encodePlainEmergencyRegistration(t *testing.T) []byte {
 	t.Helper()
 
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeRegistrationRequest)
-
-	rr := nasMessage.NewRegistrationRequest(0)
-	rr.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	rr.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	rr.SetSpareHalfOctet(0)
-	rr.SetMessageType(nas.MsgTypeRegistrationRequest)
-	rr.NgksiAndRegistrationType5GS.SetNasKeySetIdentifiler(0)
-	rr.SetRegistrationType5GS(nasMessage.RegistrationType5GSEmergencyRegistration)
-	rr.SetFOR(1)
-	rr.MobileIdentity5GS = nasType.MobileIdentity5GS{
-		Iei:    nasMessage.MobileIdentity5GSType5gGuti,
-		Len:    11,
-		Buffer: make([]uint8, 11),
+	m := &fgs.RegistrationRequest{
+		RegistrationType:     fgs.RegistrationTypeEmergency,
+		FOR:                  true,
+		MobileIdentity:       testMobileIdentity(),
+		UESecurityCapability: &fgs.UESecurityCapability{EA: 0xe0, IA: 0xe0},
 	}
-	rr.UESecurityCapability = &nasType.UESecurityCapability{}
 
-	m.RegistrationRequest = rr
-
-	payload, err := m.PlainNasEncode()
+	payload, err := m.MarshalBinary()
 	if err != nil {
 		t.Fatalf("encode plain emergency RegistrationRequest: %v", err)
 	}
@@ -258,5 +240,47 @@ func TestDecodeNASMessage_SecureExchangeEstablished_DiscardsMacFailed(t *testing
 
 	if _, err := DecodeNASMessage(ue, bad); err == nil {
 		t.Fatal("a mac-failed message must be discarded once secure exchange is established (TS 24.501)")
+	}
+}
+
+// TestDecodeProtectedNAS_NewContextOutsideSecurityMode pins the window in which
+// the new-context security header type is accepted. TS 24.501 §4.4.4.3 reserves
+// it for the SECURITY MODE COMPLETE answering a command in flight; accepting it
+// at any other time let an attacker replay that captured message under unchanged
+// keys, roll the uplink NAS COUNT back to zero, and replay everything captured
+// after it.
+//
+// It decodes through DecodeNASMessage rather than the unexported handler, so the
+// guard runs under the lock DecodeNASMessage holds, as it does in production.
+func TestDecodeProtectedNAS_NewContextOutsideSecurityMode(t *testing.T) {
+	ue := newSecuredUE(t)
+
+	inner, err := (&fgs.SecurityModeComplete{}).MarshalBinary()
+	if err != nil {
+		t.Fatalf("encode SECURITY MODE COMPLETE: %v", err)
+	}
+
+	cnt, err := ue.ulCount.Estimate(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wire, err := fgs.Protect(inner, fgs.SHTIntegrityProtectedCipheredNewContext, cnt, nas.DirectionUplink, ue.sc)
+	if err != nil {
+		t.Fatalf("protect SECURITY MODE COMPLETE: %v", err)
+	}
+
+	// Registered: the security mode procedure has long finished.
+	ue.ForceRegStepForTest(RegStepContextSetup)
+
+	if _, err := DecodeNASMessage(ue, wire); err == nil {
+		t.Fatal("a new-context message outside the security mode procedure was accepted")
+	}
+
+	// In the security mode procedure it is the expected answer.
+	ue.ForceRegStepForTest(RegStepSecurityMode)
+
+	if _, err := DecodeNASMessage(ue, wire); err != nil {
+		t.Fatalf("the SECURITY MODE COMPLETE answering a command in flight was refused: %v", err)
 	}
 }

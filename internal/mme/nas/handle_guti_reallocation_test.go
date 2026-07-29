@@ -5,9 +5,8 @@ package nas
 
 import (
 	"context"
+	"encoding/binary"
 	"testing"
-
-	"github.com/ellanetworks/core/nas/eps"
 )
 
 // TestGUTIReallocationCommitsOnComplete verifies the old M-TMSI stays resolvable until
@@ -39,18 +38,13 @@ func TestGUTIReallocationCommitsOnComplete(t *testing.T) {
 		t.Fatalf("expected one GUTI Reallocation Command downlink, got %d", len(cc.sent)-before)
 	}
 
-	if _, ok := m.LookupUeByMTMSI(first.MTMSI); !ok {
+	if _, ok := m.LookupUeByMTMSI(binary.BigEndian.Uint32(first.GUTI.TMSI[:])); !ok {
 		t.Fatal("old M-TMSI must stay resolvable until the UE acknowledges")
 	}
 
-	complete, err := (&eps.GUTIReallocationComplete{}).Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
+	handleGUTIReallocationComplete(context.Background(), m, ue)
 
-	handleGUTIReallocationComplete(context.Background(), m, ue, complete)
-
-	if _, ok := m.LookupUeByMTMSI(first.MTMSI); ok {
+	if _, ok := m.LookupUeByMTMSI(binary.BigEndian.Uint32(first.GUTI.TMSI[:])); ok {
 		t.Fatal("old M-TMSI still resolvable after GUTI Reallocation Complete")
 	}
 }

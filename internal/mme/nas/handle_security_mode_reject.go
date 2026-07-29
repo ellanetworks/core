@@ -10,10 +10,9 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/eps"
-	"go.uber.org/zap"
 )
 
-func handleSecurityModeReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+func handleSecurityModeReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, rej *eps.SecurityModeReject) nasreply.Disposition {
 	// A SECURITY MODE REJECT is valid only during the security mode sub-phase; an
 	// out-of-order one (admissible without integrity, TS 24.301 §4.4.4.3) must not
 	// release the UE.
@@ -25,13 +24,10 @@ func handleSecurityModeReject(ctx context.Context, m *mme.MME, ue *mme.UeContext
 
 	ue.Conn().StopNASGuard()
 
-	var cause uint8
-	if rej, err := eps.ParseSecurityModeReject(plain); err == nil {
-		cause = rej.Cause
-	}
+	cause := rej.Cause
 
 	logger.From(ctx, logger.MmeLog).Warn("Security Mode Reject",
-		zap.Uint8("emm-cause", cause))
+		logger.Cause(cause.String()))
 
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
 

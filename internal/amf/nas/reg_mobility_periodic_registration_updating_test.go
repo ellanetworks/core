@@ -6,16 +6,15 @@ package nas
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
-	"github.com/free5gc/nas/security"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 // failingSubscriberDB is a fakeDBInstance variant that returns an error for GetSubscriber.
@@ -70,34 +69,28 @@ func (fdb *failingSubscriberDB) ListPoliciesByProfile(_ context.Context, _ strin
 
 func (fdb *failingSubscriberDB) NodeID() int { return 0 }
 
-// decryptAndDecodeNasPdu decrypts a ciphered NAS PDU using the UE's security context
-// and decodes it, returning the NAS message. It verifies the security header is
-// IntegrityProtectedAndCiphered. The dlCountOffset parameter specifies the offset
-// from ue.ULCount.Get() to use as the DL count (0 for the first message, 1 for
+// decryptAndDecodeNasPdu decrypts a ciphered NAS PDU using the UE's security
+// context and returns the plaintext 5GMM message. It verifies the security header
+// is IntegrityProtectedAndCiphered. The dlCountOffset parameter specifies the
+// offset from ue.ULCount() to use as the DL count (0 for the first message, 1 for
 // the second, etc.).
-func decryptAndDecodeNasPdu(t *testing.T, ue *amf.UeContext, nasPdu []byte, dlCountOffset uint32) *nas.Message {
+func decryptAndDecodeNasPdu(t *testing.T, ue *amf.UeContext, nasPdu []byte, dlCountOffset uint32) []byte {
 	t.Helper()
 
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(nasPdu) & 0x0f
-
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypeIntegrityProtectedAndCiphered {
-		t.Fatalf("expected IntegrityProtectedAndCiphered, got security header type %d", nm.SecurityHeaderType)
+	if len(nasPdu) < 7 || fgs.SecurityHeaderType(nasPdu[1]&0x0f) != fgs.SHTIntegrityProtectedCiphered {
+		t.Fatalf("expected IntegrityProtectedAndCiphered, got security header type %d", nasPdu[1]&0x0f)
 	}
 
-	payload := make([]byte, len(nasPdu))
-	copy(payload, nasPdu)
-	payload = payload[7:]
+	sc := mustSecurityContext(t, ue.IntegrityAlgForTest(),
+		ue.CipheringAlgForTest(), ue.KnasIntForTest(), ue.KnasEncForTest())
 
-	if err := security.NASEncrypt(ue.CipheringAlgForTest(), ue.KnasEncForTest(), ue.ULCount()+dlCountOffset, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	plain, err := sc.Cipher(append([]byte(nil), nasPdu[7:]...), nas.Count(ue.ULCount()+dlCountOffset),
+		nas.Bearer3GPP, nas.DirectionDownlink)
+	if err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
-	if err := nm.PlainNasDecode(&payload); err != nil {
-		t.Fatalf("could not decode NAS message: %v", err)
-	}
-
-	return nm
+	return plain
 }
 
 // buildMobilityRegUeAndAMF creates a UE and amf.AMF configured for mobility/periodic
@@ -137,21 +130,16 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *fakeNGAPSender, *f
 	}
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
-	algo := security.AlgCiphering128NEA2
+	algo := nas.CipheringAES
 
 	ue.SetKnasEncForTest(key)
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
-	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
+	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
 
-	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
-	if err != nil {
-		t.Fatalf("could not build registration request message: %v", err)
-	}
-
-	ue.Conn().RegistrationRequest = registrationRequest.RegistrationRequest
-	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
-	ue.Conn().RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
+	ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
+	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
+	ue.Conn().RegistrationRequest.GMMCapability = &fgs.GMMCapability{}
 
 	return ue, ngapSender, fakeSmf, amfInstance
 }
@@ -171,11 +159,11 @@ func TestMobilityReg_GetOperatorInfoError(t *testing.T) {
 // A mobility registration update with no 5GMM capability IE is valid: the IE
 // is optional and re-sent only on change (TS 24.501), so the
 // amf.AMF accepts it.
-func TestMobilityReg_NilCapability5GMM_Mobility_Continues(t *testing.T) {
+func TestMobilityReg_NilGMMCapability_Mobility_Continues(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.Conn().RegistrationRequest.Capability5GMM = nil
-	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
+	ue.Conn().RegistrationRequest.GMMCapability = nil
+	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
@@ -184,16 +172,16 @@ func TestMobilityReg_NilCapability5GMM_Mobility_Continues(t *testing.T) {
 	}
 
 	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected RegistrationAccept, got %v", nm.GmmHeader.GetMessageType())
+	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
+		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
 }
 
-func TestMobilityReg_NilCapability5GMM_Periodic_Continues(t *testing.T) {
+func TestMobilityReg_NilGMMCapability_Periodic_Continues(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.Conn().RegistrationRequest.Capability5GMM = nil
-	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSPeriodicRegistrationUpdating
+	ue.Conn().RegistrationRequest.GMMCapability = nil
+	ue.Conn().RegistrationType5GS = fgs.RegistrationTypePeriodicUpdating
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
@@ -202,8 +190,8 @@ func TestMobilityReg_NilCapability5GMM_Periodic_Continues(t *testing.T) {
 	}
 
 	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected RegistrationAccept, got %v", nm.GmmHeader.GetMessageType())
+	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
+		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
 }
 
@@ -213,9 +201,7 @@ func TestMobilityReg_UpdateType5GS_ClearsRadioCapability(t *testing.T) {
 	ue.RadioCapability = []byte("some-capability")
 	ue.RadioCapabilityForPaging = &models.UERadioCapabilityForPaging{}
 
-	updateType := nasType.NewUpdateType5GS(nasMessage.RegistrationRequestUpdateType5GSType)
-	updateType.SetNGRanRcu(nasMessage.NGRanRadioCapabilityUpdateNeeded)
-	ue.Conn().RegistrationRequest.UpdateType5GS = updateType
+	ue.Conn().RegistrationRequest.UpdateType5GS = &fgs.UpdateType5GS{NGRANRCU: true}
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
@@ -232,15 +218,15 @@ func TestMobilityReg_UpdateType5GS_ClearsRadioCapability(t *testing.T) {
 	}
 
 	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected RegistrationAccept, got %v", nm.GmmHeader.GetMessageType())
+	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
+		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
 }
 
 func TestMobilityReg_MICOIndication(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.Conn().RegistrationRequest.MICOIndication = nasType.NewMICOIndication(nasMessage.RegistrationRequestMICOIndicationType)
+	ue.Conn().RegistrationRequest.MICOIndication = &fgs.MICOIndication{}
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
@@ -249,17 +235,15 @@ func TestMobilityReg_MICOIndication(t *testing.T) {
 	}
 
 	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected RegistrationAccept, got %v", nm.GmmHeader.GetMessageType())
+	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
+		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
 }
 
 func TestMobilityReg_RequestedDRXParameters(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	drxParams := nasType.NewRequestedDRXParameters(nasMessage.RegistrationRequestRequestedDRXParametersType)
-	drxParams.SetDRXValue(0x03)
-	ue.Conn().RegistrationRequest.RequestedDRXParameters = drxParams
+	ue.Conn().RegistrationRequest.RequestedDRXParameters = &fgs.DRXParameter{Value: fgs.DRXCycleParameterT128}
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
@@ -272,8 +256,8 @@ func TestMobilityReg_RequestedDRXParameters(t *testing.T) {
 	}
 
 	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected RegistrationAccept, got %v", nm.GmmHeader.GetMessageType())
+	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
+		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
 }
 
@@ -317,26 +301,14 @@ func TestMobilityReg_EmptyAllowedNssai_RejectsRegistration(t *testing.T) {
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgRegistrationReject))
 
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-		t.Fatalf("expected plain NAS, got security header type %d", nm.SecurityHeaderType)
+	reject, err := fgs.ParseRegistrationReject(resp.NasPdu)
+	if err != nil {
+		t.Fatalf("could not parse RegistrationReject: %v", err)
 	}
 
-	if err := nm.PlainNasDecode(&resp.NasPdu); err != nil {
-		t.Fatalf("could not decode plain NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationReject {
-		t.Fatalf("expected RegistrationReject, got %v", nm.GmmHeader.GetMessageType())
-	}
-
-	if nm.RegistrationReject == nil {
-		t.Fatal("expected RegistrationReject payload")
-	}
-
-	if got, want := nm.RegistrationReject.GetCauseValue(), nasMessage.Cause5GMM5GSServicesNotAllowed; got != want {
+	if got, want := int(reject.Cause), 0x07; got != want {
 		t.Fatalf("expected cause %d, got %d", want, got)
 	}
 }
@@ -351,10 +323,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_UeContextRequest(t *testin
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	// UplinkDataStatus: PSI 2 has uplink data (bit 2 in byte 0 = 0x04)
-	ue.Conn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
-		Len:    2,
-		Buffer: []uint8{0x04, 0x00},
-	}
+	ue.Conn().RegistrationRequest.UplinkDataStatus = mustBitmap([]uint8{0x04, 0x00})
 
 	ue.Conn().UeContextRequest = true
 
@@ -374,8 +343,8 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_UeContextRequest(t *testin
 	}
 
 	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentInitialContextSetupRequest[0].NasPdu, 0)
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected RegistrationAccept, got %v", nm.GmmHeader.GetMessageType())
+	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
+		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
 }
 
@@ -385,10 +354,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_NoUeContextRequest(t *test
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
-	ue.Conn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
-		Len:    2,
-		Buffer: []uint8{0x04, 0x00},
-	}
+	ue.Conn().RegistrationRequest.UplinkDataStatus = mustBitmap([]uint8{0x04, 0x00})
 
 	ue.Conn().UeContextRequest = false
 
@@ -404,8 +370,8 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_NoUeContextRequest(t *test
 	}
 
 	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentPDUSessionResourceSetupRequest[0].NasPdu, 0)
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected RegistrationAccept, got %v", nm.GmmHeader.GetMessageType())
+	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
+		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
 }
 
@@ -415,10 +381,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateError(t *testing.T) {
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
-	ue.Conn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
-		Len:    2,
-		Buffer: []uint8{0x04, 0x00},
-	}
+	ue.Conn().RegistrationRequest.UplinkDataStatus = mustBitmap([]uint8{0x04, 0x00})
 
 	fakeSmf.ActivateSmContextError = fmt.Errorf("activate error")
 
@@ -434,8 +397,8 @@ func TestMobilityReg_UplinkDataStatus_ActivateError(t *testing.T) {
 	}
 
 	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected RegistrationAccept, got %v", nm.GmmHeader.GetMessageType())
+	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
+		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
 }
 
@@ -446,10 +409,7 @@ func TestMobilityReg_PDUSessionStatus_InactiveSession_ReleaseSmContext(t *testin
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	// PDUSessionStatus: PSI 2 is NOT active (bit 2 unset = 0x00)
-	ue.Conn().RegistrationRequest.PDUSessionStatus = &nasType.PDUSessionStatus{
-		Len:    2,
-		Buffer: []uint8{0x00, 0x00},
-	}
+	ue.Conn().RegistrationRequest.PDUSessionStatus = mustBitmap([]uint8{0x00, 0x00})
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
@@ -470,8 +430,8 @@ func TestMobilityReg_PDUSessionStatus_InactiveSession_ReleaseSmContext(t *testin
 	}
 
 	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected RegistrationAccept, got %v", nm.GmmHeader.GetMessageType())
+	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
+		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
 }
 
@@ -482,10 +442,7 @@ func TestMobilityReg_PDUSessionStatus_ActiveSession_NoRelease(t *testing.T) {
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	// PDUSessionStatus: PSI 2 IS active (bit 2 set = 0x04)
-	ue.Conn().RegistrationRequest.PDUSessionStatus = &nasType.PDUSessionStatus{
-		Len:    2,
-		Buffer: []uint8{0x04, 0x00},
-	}
+	ue.Conn().RegistrationRequest.PDUSessionStatus = mustBitmap([]uint8{0x04, 0x00})
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
@@ -498,8 +455,8 @@ func TestMobilityReg_PDUSessionStatus_ActiveSession_NoRelease(t *testing.T) {
 	}
 
 	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected RegistrationAccept, got %v", nm.GmmHeader.GetMessageType())
+	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
+		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
 }
 
@@ -509,10 +466,7 @@ func TestMobilityReg_PDUSessionStatus_ReleaseError(t *testing.T) {
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
-	ue.Conn().RegistrationRequest.PDUSessionStatus = &nasType.PDUSessionStatus{
-		Len:    2,
-		Buffer: []uint8{0x00, 0x00}, // PSI 2 inactive → triggers release
-	}
+	ue.Conn().RegistrationRequest.PDUSessionStatus = mustBitmap([]byte{0x00, 0x00}) // PSI 2 inactive → triggers release
 
 	fakeSmf.ReleaseSmContextError = fmt.Errorf("release error")
 
@@ -539,16 +493,10 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	// UplinkDataStatus with PSI 2 + no UeContextRequest → populates suList
-	ue.Conn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
-		Len:    2,
-		Buffer: []uint8{0x04, 0x00},
-	}
+	ue.Conn().RegistrationRequest.UplinkDataStatus = mustBitmap([]uint8{0x04, 0x00})
 	ue.Conn().UeContextRequest = false
 
-	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
-		Len:    2,
-		Buffer: []uint8{0x04, 0x00},
-	}
+	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = mustBitmap([]uint8{0x04, 0x00})
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
 		BinaryDataN1Message:     []byte{0x01, 0x02},
@@ -571,13 +519,13 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 	}
 
 	nmSetup := decryptAndDecodeNasPdu(t, ue, ngapSender.SentPDUSessionResourceSetupRequest[0].NasPdu, 0)
-	if nmSetup.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected RegistrationAccept in PDUSessionResourceSetupRequest, got %v", nmSetup.GmmHeader.GetMessageType())
+	if nmSetup[2] != uint8(fgs.MsgRegistrationAccept) {
+		t.Fatalf("expected RegistrationAccept in PDUSessionResourceSetupRequest, got %v", nmSetup[2])
 	}
 
 	nmDL := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 1)
-	if nmDL.GmmHeader.GetMessageType() != nas.MsgTypeDLNASTransport {
-		t.Fatalf("expected DLNASTransport, got %v", nmDL.GmmHeader.GetMessageType())
+	if nmDL[2] != uint8(fgs.MsgDLNASTransport) {
+		t.Fatalf("expected DLNASTransport, got %v", nmDL[2])
 	}
 
 	if ue.N1N2Message() != nil {
@@ -590,10 +538,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 
 	// No UplinkDataStatus → suList remains empty
 
-	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
-		Len:    2,
-		Buffer: []uint8{0x04, 0x00},
-	}
+	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = mustBitmap([]uint8{0x04, 0x00})
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
 		BinaryDataN1Message:     []byte{0x01, 0x02},
@@ -612,13 +557,13 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 	}
 
 	nmAccept := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
-	if nmAccept.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected RegistrationAccept in first DLNASTransport, got %v", nmAccept.GmmHeader.GetMessageType())
+	if nmAccept[2] != uint8(fgs.MsgRegistrationAccept) {
+		t.Fatalf("expected RegistrationAccept in first DLNASTransport, got %v", nmAccept[2])
 	}
 
 	nmN1 := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[1].NasPdu, 1)
-	if nmN1.GmmHeader.GetMessageType() != nas.MsgTypeDLNASTransport {
-		t.Fatalf("expected DLNASTransport in second DLNASTransport, got %v", nmN1.GmmHeader.GetMessageType())
+	if nmN1[2] != uint8(fgs.MsgDLNASTransport) {
+		t.Fatalf("expected DLNASTransport in second DLNASTransport, got %v", nmN1[2])
 	}
 
 	if ue.N1N2Message() != nil {
@@ -629,10 +574,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_MissingSmContext(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
-		Len:    2,
-		Buffer: []uint8{0x04, 0x00},
-	}
+	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = mustBitmap([]uint8{0x04, 0x00})
 
 	// N1N2 with N2Info, but no amf.SmContext for PduSessionID 3
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
@@ -654,10 +596,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(3, "ref-3", snssai)
 
-	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
-		Len:    2,
-		Buffer: []uint8{0x08, 0x00}, // PSI 3
-	}
+	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = mustBitmap([]byte{0x08, 0x00}) // PSI 3
 
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
@@ -676,8 +615,8 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 	}
 
 	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentPDUSessionResourceSetupRequest[0].NasPdu, 1)
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected RegistrationAccept, got %v", nm.GmmHeader.GetMessageType())
+	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
+		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
 }
 
@@ -695,8 +634,8 @@ func TestMobilityReg_UeContextRequest_True_InitialContextSetup(t *testing.T) {
 	}
 
 	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentInitialContextSetupRequest[0].NasPdu, 0)
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected RegistrationAccept, got %v", nm.GmmHeader.GetMessageType())
+	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
+		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
@@ -710,10 +649,7 @@ func TestMobilityReg_NoUeContextRequest_NonEmptySuList(t *testing.T) {
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
-	ue.Conn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
-		Len:    2,
-		Buffer: []uint8{0x04, 0x00},
-	}
+	ue.Conn().RegistrationRequest.UplinkDataStatus = mustBitmap([]uint8{0x04, 0x00})
 
 	ue.Conn().UeContextRequest = false
 
@@ -728,8 +664,8 @@ func TestMobilityReg_NoUeContextRequest_NonEmptySuList(t *testing.T) {
 	}
 
 	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentPDUSessionResourceSetupRequest[0].NasPdu, 0)
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected RegistrationAccept, got %v", nm.GmmHeader.GetMessageType())
+	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
+		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
 
 	if len(ngapSender.SentInitialContextSetupRequest) != 0 {
@@ -759,8 +695,8 @@ func TestMobilityReg_NoUeContextRequest_EmptySuList_DownlinkNasTransport(t *test
 	resp := ngapSender.SentDownlinkNASTransport[0]
 	nm := decryptAndDecodeNasPdu(t, ue, resp.NasPdu, 0)
 
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected RegistrationAccept, got %v", nm.GmmHeader.GetMessageType())
+	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
+		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
 }
 
@@ -869,21 +805,16 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 	}
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
-	algo := security.AlgCiphering128NEA2
+	algo := nas.CipheringAES
 
 	ue.SetKnasEncForTest(key)
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
-	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
+	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
 
-	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount())
-	if err != nil {
-		t.Fatalf("could not build registration request message: %v", err)
-	}
-
-	ue.Conn().RegistrationRequest = registrationRequest.RegistrationRequest
-	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
-	ue.Conn().RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
+	ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
+	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
+	ue.Conn().RegistrationRequest.GMMCapability = &fgs.GMMCapability{}
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
@@ -903,18 +834,18 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected RegistrationAccept, got %v", nm.GmmHeader.GetMessageType())
+	plain := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
+	if plain[2] != uint8(fgs.MsgRegistrationAccept) {
+		t.Fatalf("expected RegistrationAccept, got %v", plain[2])
 	}
 
-	regAccept := nm.RegistrationAccept
-	if regAccept.AllowedNSSAI == nil {
-		t.Fatal("expected AllowedNSSAI in RegistrationAccept, got nil")
+	regAccept, err := fgs.ParseRegistrationAccept(plain)
+	if err != nil {
+		t.Fatalf("could not parse RegistrationAccept: %v", err)
 	}
 
-	// 2 S-NSSAIs with SD: each is 5 bytes (1 len + 1 SST + 3 SD) = 10 bytes total
-	if regAccept.AllowedNSSAI.GetLen() != 10 {
-		t.Fatalf("expected AllowedNSSAI length 10, got %d", regAccept.AllowedNSSAI.GetLen())
+	want := fgs.NSSAI{{SST: 1, SD: &[3]byte{1, 2, 3}}, {SST: 2, SD: &[3]byte{0xaa, 0xbb, 0xcc}}}
+	if !reflect.DeepEqual(regAccept.AllowedNSSAI, want) {
+		t.Fatalf("AllowedNSSAI = %+v, want %+v", regAccept.AllowedNSSAI, want)
 	}
 }

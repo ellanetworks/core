@@ -16,10 +16,9 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/internal/smf/ngap"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/aper"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasConvert"
-	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -28,9 +27,9 @@ import (
 
 func nasToNgapPDUSessionType(nasType uint8) aper.Enumerated {
 	switch nasType {
-	case nasMessage.PDUSessionTypeIPv6:
+	case uint8(fgs.PDUSessionTypeIPv6):
 		return ngapType.PDUSessionTypePresentIpv6
-	case nasMessage.PDUSessionTypeIPv4IPv6:
+	case uint8(fgs.PDUSessionTypeIPv4v6):
 		return ngapType.PDUSessionTypePresentIpv4v6
 	default:
 		return ngapType.PDUSessionTypePresentIpv4
@@ -57,14 +56,15 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return "", nil, fmt.Errorf("PDU session id %d out of range (1..15)", pduSessionID)
 	}
 
-	// Decode before any state changes so a failure can still build a reject.
-	m := nas.NewMessage()
-
-	if err := m.GsmMessageDecode(&n1Msg); err != nil {
+	// Decode before any state changes so a failure can still build a reject. A
+	// message that will not decode draws a protocol error; a well-formed message
+	// of the wrong type is a protocol-state mismatch.
+	msg, err := fgs.ParseMessage(n1Msg)
+	if err != nil && !nas.SoftOnly(err) {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to decode NAS message")
 
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, 0, nasMessage.Cause5GSMProtocolErrorUnspecified)
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), 0, fgs.GSMCauseProtocolErrorUnspecified)
 		if buildErr != nil {
 			return "", nil, fmt.Errorf("error decoding NAS message: %v (build reject failed: %v)", err, buildErr)
 		}
@@ -72,25 +72,41 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return "", rsp, fmt.Errorf("error decoding NAS message: %v", err)
 	}
 
-	if m.GsmHeader.GetMessageType() != nas.MsgTypePDUSessionEstablishmentRequest {
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, 0, nasMessage.Cause5GSMMessageTypeNotCompatibleWithTheProtocolState)
+	// A message type this codec does not model draws a 5GSM STATUS naming that,
+	// not a reject of a procedure the UE never started: TS 24.501 §7.4 has the
+	// network ignore such a message except to return a STATUS with cause #97,
+	// where #98 reports a message the receiver does understand arriving in the
+	// wrong state.
+	if unknown, isUnknown := msg.(*fgs.UnknownGSMMessage); isUnknown {
+		rsp, buildErr := smfNas.BuildGSM5GSMStatus(unknown.PDUSessionID, unknown.PTI,
+			fgs.GSMCauseMessageTypeNonExistentOrNotImplemented)
 		if buildErr != nil {
-			return "", nil, fmt.Errorf("unexpected NAS message type %d (build reject failed: %v)", m.GsmHeader.GetMessageType(), buildErr)
+			return "", nil, fmt.Errorf("unimplemented 5GSM message type %#02x (build 5GSM STATUS failed: %v)", uint8(unknown.Type), buildErr)
 		}
 
-		return "", rsp, fmt.Errorf("unexpected NAS message type: %d", m.GsmHeader.GetMessageType())
+		return "", rsp, fmt.Errorf("unimplemented 5GSM message type %#02x", uint8(unknown.Type))
+	}
+
+	req, ok := msg.(*fgs.PDUSessionEstablishmentRequest)
+	if !ok {
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), 0, fgs.GSMCauseMessageTypeNotCompatibleWithTheProtocolState)
+		if buildErr != nil {
+			return "", nil, fmt.Errorf("unexpected NAS message %T (build reject failed: %v)", msg, buildErr)
+		}
+
+		return "", rsp, fmt.Errorf("unexpected NAS message: %T", msg)
 	}
 
 	// Police the PTI before allocating any state (TS 24.501 §7.3.1): an
 	// unassigned PTI yields a 5GSM STATUS (#81); a reserved PTI is ignored —
 	// no context and no response.
-	reqPTI := m.PDUSessionEstablishmentRequest.GetPTI()
+	reqPTI := req.PTI
 
-	switch verdict, cause := smfNas.PolicePTI(nas.MsgTypePDUSessionEstablishmentRequest, reqPTI, func(uint8) bool { return false }); verdict {
+	switch verdict, cause := smfNas.PolicePTI(fgs.MsgPDUSessionEstablishmentRequest, uint8(reqPTI), func(uint8) bool { return false }); verdict {
 	case smfNas.PTIIgnore:
 		return "", nil, nil
 	case smfNas.PTIRespondStatus:
-		rsp, buildErr := smfNas.BuildGSM5GSMStatus(pduSessionID, reqPTI, cause)
+		rsp, buildErr := smfNas.BuildGSM5GSMStatus(fgs.PDUSessionID(pduSessionID), reqPTI, cause)
 		if buildErr != nil {
 			return "", nil, fmt.Errorf("build 5GSM STATUS failed: %v", buildErr)
 		}
@@ -112,7 +128,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	if err != nil {
 		establishmentResult = metrics.ResultReject
 
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, reqPTI, establishmentRejectCause(err))
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, establishmentRejectCause(err))
 		if buildErr != nil {
 			return "", nil, fmt.Errorf("failed to find subscriber policy: %v (build reject failed: %v)", err, buildErr)
 		}
@@ -120,16 +136,16 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return "", rsp, fmt.Errorf("failed to find subscriber policy: %v", err)
 	}
 
-	requestedType := nasMessage.PDUSessionTypeIPv4
-	if m.PDUSessionType != nil {
-		requestedType = m.PDUSessionEstablishmentRequest.GetPDUSessionTypeValue()
+	requestedType := fgs.PDUSessionTypeIPv4
+	if req.PDUSessionType != nil {
+		requestedType = *req.PDUSessionType
 	}
 
-	negotiatedType, err := s.negotiatePDUSessionType(ctx, requestedType, policy)
+	negotiatedType, err := s.negotiatePDUSessionType(ctx, uint8(requestedType), policy)
 	if err != nil {
 		establishmentResult = metrics.ResultReject
 
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, reqPTI, pduSessionTypeRejectCause(requestedType, policy))
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, pduSessionTypeRejectCause(uint8(requestedType), policy))
 		if buildErr != nil {
 			return "", nil, fmt.Errorf("PDU session type negotiation failed: %v (build reject failed: %v)", err, buildErr)
 		}
@@ -137,11 +153,11 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return "", rsp, fmt.Errorf("PDU session type negotiation failed: %v", err)
 	}
 
-	pco, err := parsePDUSessionRequest(m.PDUSessionEstablishmentRequest)
+	pco, err := parsePDUSessionRequest(req)
 	if err != nil {
 		establishmentResult = metrics.ResultReject
 
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, reqPTI, nasMessage.Cause5GSMRequestRejectedUnspecified)
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, fgs.GSMCauseRequestRejectedUnspecified)
 		if buildErr != nil {
 			return "", nil, fmt.Errorf("parse PDU session request failed: %v (build reject failed: %v)", err, buildErr)
 		}
@@ -164,12 +180,12 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to create SM context")
 
-		cause := nasMessage.Cause5GSMRequestRejectedUnspecified
+		cause := fgs.GSMCauseRequestRejectedUnspecified
 		if errors.Is(err, errUEAddressAllocation) {
-			cause = nasMessage.Cause5GSMInsufficientResources
+			cause = fgs.GSMCauseInsufficientResources
 		}
 
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, reqPTI, cause)
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, cause)
 		if buildErr != nil {
 			return "", nil, fmt.Errorf("failed to create SM Context: %v (build reject failed: %v)", err, buildErr)
 		}
@@ -179,17 +195,17 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	// IPv4v6 narrowed to a single family is signalled in the accept with 5GSM
 	// cause #50/#51 (TS 24.501 §6.4.1.3).
-	var cause uint8
+	var cause *fgs.GSMCause
 
-	switch narrowPDUType(requestedType, sc.PDUSessionType) {
+	switch narrowPDUType(uint8(requestedType), sc.PDUSessionType) {
 	case narrowIPv4Only:
-		cause = nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed
+		cause = new(fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed)
 	case narrowIPv6Only:
-		cause = nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed
+		cause = new(fgs.GSMCausePDUSessionTypeIPv6OnlyAllowed)
 	}
 
 	addrs := &smfNas.PDUSessionAddresses{
-		PDUSessionType: sc.PDUSessionType,
+		PDUSessionType: fgs.PDUSessionType(sc.PDUSessionType),
 		IPv4Address:    sc.PDUIPV4Address,
 		IPv6IID:        sc.IPv6IID,
 	}
@@ -198,9 +214,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	// the N1N2 delivery below fails.
 	establishmentResult = metrics.ResultAccept
 
-	alwaysOnRequested := m.PDUSessionEstablishmentRequest.AlwaysonPDUSessionRequested != nil
-
-	if err := s.sendPduSessionEstablishmentAccept(ctx, sc, policy, pco, addrs, reqPTI, cause, alwaysOnIndication(alwaysOnRequested)); err != nil {
+	if err := s.sendPduSessionEstablishmentAccept(ctx, sc, policy, pco, addrs, uint8(reqPTI), cause, alwaysOnIndication(req.AlwaysOnRequested)); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send PDU session establishment accept")
 
@@ -225,48 +239,36 @@ func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SM
 // cause of the PDU Session Establishment Reject (TS 24.501 §9.11.4.2): #70 when
 // the slice is served but not the DNN, #27 when the DNN is unknown, and the
 // generic #31 otherwise.
-func establishmentRejectCause(err error) uint8 {
+func establishmentRejectCause(err error) fgs.GSMCause {
 	switch {
 	case errors.Is(err, ErrDNNNotInSlice):
-		return nasMessage.Cause5GSMMissingOrUnknownDNNInASlice
+		return fgs.GSMCauseMissingOrUnknownDNNInASlice
 	case errors.Is(err, ErrDNNNotFound):
-		return nasMessage.Cause5GSMMissingOrUnknownDNN
+		return fgs.GSMCauseMissingOrUnknownDNN
 	default:
-		return nasMessage.Cause5GSMRequestRejectedUnspecified
+		return fgs.GSMCauseRequestRejectedUnspecified
 	}
 }
 
-func parsePDUSessionRequest(req *nasMessage.PDUSessionEstablishmentRequest) (*smfNas.ProtocolConfigurationOptions, error) {
+func parsePDUSessionRequest(req *fgs.PDUSessionEstablishmentRequest) (*smfNas.ProtocolConfigurationOptions, error) {
 	if req.PDUSessionType != nil {
-		requestedPDUSessionType := req.GetPDUSessionTypeValue()
-		if requestedPDUSessionType != nasMessage.PDUSessionTypeIPv4 &&
-			requestedPDUSessionType != nasMessage.PDUSessionTypeIPv6 &&
-			requestedPDUSessionType != nasMessage.PDUSessionTypeIPv4IPv6 {
-			return nil, fmt.Errorf("requested PDUSessionType is invalid: %d", requestedPDUSessionType)
+		t := *req.PDUSessionType
+		if t != fgs.PDUSessionTypeIPv4 && t != fgs.PDUSessionTypeIPv6 && t != fgs.PDUSessionTypeIPv4v6 {
+			return nil, fmt.Errorf("requested PDUSessionType is invalid: %d", t)
 		}
 	}
 
 	pco := &smfNas.ProtocolConfigurationOptions{}
 
-	if req.ExtendedProtocolConfigurationOptions != nil {
-		EPCOContents := req.GetExtendedProtocolConfigurationOptionsContents()
-		protocolConfigurationOptions := nasConvert.NewProtocolConfigurationOptions()
-
-		unmarshalErr := protocolConfigurationOptions.UnMarshal(EPCOContents)
-		if unmarshalErr != nil {
-			return nil, fmt.Errorf("parsing PCO failed: %v", unmarshalErr)
-		}
-
+	if req.ExtendedPCO != nil {
 		pco.IPv4LinkMTURequest = true
 
-		for _, container := range protocolConfigurationOptions.ProtocolOrContainerList {
-			switch container.ProtocolOrContainerID {
-			case nasMessage.DNSServerIPv6AddressRequestUL:
+		for _, id := range req.ExtendedPCO.ContainerIDs() {
+			switch id {
+			case nas.PCOContainerDNSServerIPv6Address:
 				pco.DNSIPv6Request = true
-			case nasMessage.DNSServerIPv4AddressRequestUL:
+			case nas.PCOContainerDNSServerIPv4Address:
 				pco.DNSIPv4Request = true
-			default:
-				continue
 			}
 		}
 	}
@@ -279,10 +281,13 @@ func parsePDUSessionRequest(req *nasMessage.PDUSessionEstablishmentRequest) (*sm
 // requested an always-on session, or omitted (nil) otherwise. The "required"
 // value (§6.4.1 a) is not produced because no PDU session is established as
 // always-on.
-func alwaysOnIndication(requested bool) *uint8 {
-	if requested {
-		v := uint8(0) // "Always-on PDU session not allowed"
-		return &v
+// alwaysOnIndication answers a UE that asked for an always-on PDU session. The
+// element is absent unless the UE asked, and TS 24.501 table 9.11.4.3.1 codes the
+// answer as "not allowed" — this core grants none (§6.4.1.3).
+func alwaysOnIndication(requested *bool) *bool {
+	if requested != nil && *requested {
+		notAllowed := false
+		return &notAllowed
 	}
 
 	return nil
@@ -295,8 +300,8 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 	pco *smfNas.ProtocolConfigurationOptions,
 	addrs *smfNas.PDUSessionAddresses,
 	pti uint8,
-	cause uint8,
-	alwaysOn *uint8,
+	cause *fgs.GSMCause,
+	alwaysOn *bool,
 ) error {
 	ctx, span := tracer.Start(ctx, "smf/send_pdu_session_establishment_accept",
 		trace.WithSpanKind(trace.SpanKindInternal),

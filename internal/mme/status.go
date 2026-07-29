@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/eps"
 )
 
 // ConnectedSubscriber is a runtime view of an EMM-registered UE for the API
@@ -29,7 +31,7 @@ type ConnectedSubscriber struct {
 type SubscriberSession struct {
 	BearerID     uint8
 	APN          string
-	PDNType      uint8 // negotiated PDN type: 1 IPv4 / 2 IPv6 / 3 IPv4v6
+	PDNType      eps.PDNType // negotiated PDN type: 1 IPv4 / 2 IPv6 / 3 IPv4v6
 	IPv4Address  string
 	IPv6Prefix   string
 	AMBRUplink   string // session AMBR (profile UE-AMBR), raw "<n> <unit>" form
@@ -83,7 +85,7 @@ func (m *MME) pdnSessionViews(ue *UeContext) []SubscriberSession {
 		s := SubscriberSession{
 			BearerID: p.Ebi,
 			APN:      p.Apn,
-			PDNType:  p.PdnType,
+			PDNType:  eps.PDNType(uint8(p.PdnType)),
 		}
 
 		if p.UeIP.IsValid() {
@@ -153,7 +155,7 @@ func (m *MME) CountRegisteredSubscribers() int {
 	return count
 }
 
-func cipheringAlgName(eea byte) string {
+func cipheringAlgName(eea nas.CipheringAlgorithm) string {
 	switch eea {
 	case 0:
 		return "EEA0"
@@ -168,7 +170,7 @@ func cipheringAlgName(eea byte) string {
 	}
 }
 
-func integrityAlgName(eia byte) string {
+func integrityAlgName(eia nas.IntegrityAlgorithm) string {
 	switch eia {
 	case 0:
 		return "EIA0"

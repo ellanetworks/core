@@ -1,0 +1,32 @@
+{
+  "security_header": {
+    "protocol_discriminator": {
+      "type": "enum",
+      "value": 126,
+      "label": "5GSMobilityManagementMessage",
+      "unknown": false
+    },
+    "security_header_type": {
+      "type": "enum",
+      "value": 0,
+      "label": "Plain NAS",
+      "unknown": false
+    },
+    "sequence_number": 0
+  },
+  "gmm_message": {
+    "gmm_header": {
+      "message_type": {
+        "type": "enum",
+        "value": 94,
+        "label": "SecurityModeComplete",
+        "unknown": false
+      }
+    },
+    "security_mode_complete": {
+      "imeisv": "imeisv-1234567890123456",
+      "nas_message_container": "fgBB"
+    }
+  },
+  "encrypted": false
+}

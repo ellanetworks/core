@@ -32,7 +32,7 @@ func handleDetachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext) nasr
 	return nasreply.Handled()
 }
 
-func handleDetachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte, integrityVerified bool) nasreply.Disposition {
+func handleDetachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, req *eps.DetachRequestUE, integrityVerified bool) nasreply.Disposition {
 	// A UE holding keys must integrity-protect its DETACH REQUEST, so a forged plain
 	// detach cannot deregister an authenticated UE (TS 24.301 §4.4.4.3 defence in
 	// depth). A UE that lost its keys can recover via a fresh Attach.
@@ -41,12 +41,6 @@ func handleDetachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, pla
 			zap.String("imsi", ue.IMSI()))
 
 		return nasreply.Silent(nasreply.ReasonIntegrityFail)
-	}
-
-	req, err := eps.ParseDetachRequestUE(plain)
-	if err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("failed to decode Detach Request", zap.Error(err))
-		return nasreply.Handled()
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Detach Request",

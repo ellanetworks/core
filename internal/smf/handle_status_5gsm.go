@@ -7,7 +7,7 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
@@ -17,19 +17,19 @@ import (
 // §4.3.4.2 step 2) and no sweep re-derives a UE-requested release.
 //
 // Caller must hold smContext.Mutex.
-func (s *SMF) handle5GSMStatus(ctx context.Context, smContext *SMContext, pti, cause uint8) {
+func (s *SMF) handle5GSMStatus(ctx context.Context, smContext *SMContext, pti uint8, cause fgs.GSMCause) {
 	logger.WithTrace(ctx, logger.SmfLog).Warn("N1 Msg 5GSM STATUS received",
-		zap.Uint8("pti", pti), zap.Uint8("cause", cause),
+		zap.Uint8("pti", pti), zap.Stringer("cause", cause),
 		logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	smContext.stopProcedureTimer()
 	smContext.ClearPTIInUse(pti)
 	smContext.pendingPolicy = nil
 
-	establishmentMismatch := cause == nasMessage.Cause5GSMPTIMismatch &&
+	establishmentMismatch := cause == fgs.GSMCausePTIMismatch &&
 		smContext.establishmentPTI != 0 && pti == smContext.establishmentPTI
 
-	if cause == nasMessage.Cause5GSMInvalidPDUSessionIdentity || establishmentMismatch || smContext.releasing {
+	if cause == fgs.GSMCauseInvalidPDUSessionIdentity || establishmentMismatch || smContext.releasing {
 		s.teardownAndRemove(ctx, smContext)
 	}
 }

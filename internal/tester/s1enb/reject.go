@@ -30,13 +30,12 @@ func (e *ENB) AttachExpectReject(ue *UE, timeout time.Duration) (uint8, error) {
 		return 0, fmt.Errorf("await Attach Reject: %w", err)
 	}
 
-	reject, err := eps.ParseAttachReject(downlink)
+	reject, err := expectDownlink[*eps.AttachReject](downlink)
 	if err != nil {
-		mt, _ := eps.PeekMessageType(downlink)
-		return 0, fmt.Errorf("expected Attach Reject, got message type %#x: %w", mt, err)
+		return 0, fmt.Errorf("await Attach Reject: %w", err)
 	}
 
-	return reject.Cause, nil
+	return uint8(reject.Cause), nil
 }
 
 // AttachExpectAuthReject answers the Authentication Request expecting an
@@ -59,8 +58,8 @@ func (e *ENB) AttachExpectAuthReject(ue *UE, timeout time.Duration) error {
 		return fmt.Errorf("await Authentication Request: %w", err)
 	}
 
-	if mt, err := eps.PeekMessageType(authNAS); err != nil || mt != eps.MsgAuthenticationRequest {
-		return fmt.Errorf("expected Authentication Request, got message type %#x (err %v)", mt, err)
+	if _, err := expectDownlink[*eps.AuthenticationRequest](authNAS); err != nil {
+		return fmt.Errorf("await Authentication Request: %w", err)
 	}
 
 	authResp, err := ue.handleAuthenticationRequest(authNAS)
@@ -80,25 +79,10 @@ func (e *ENB) AttachExpectAuthReject(ue *UE, timeout time.Duration) error {
 	return validateAuthenticationReject(downlink)
 }
 
-// validateAuthenticationReject checks the AUTHENTICATION REJECT header: a plain
-// (unprotected) EMM message of type Authentication Reject (TS 24.301 §8.2.5),
-// which carries no IEs beyond the two-octet header.
-func validateAuthenticationReject(nas []byte) error {
-	if len(nas) < 2 {
-		return fmt.Errorf("authentication reject too short: %d bytes", len(nas))
-	}
+// validateAuthenticationReject checks that the PDU is a plain (unprotected)
+// AUTHENTICATION REJECT, which carries no IEs beyond its header (TS 24.301 §8.2.5).
+func validateAuthenticationReject(pdu []byte) error {
+	_, err := expectDownlink[*eps.AuthenticationReject](pdu)
 
-	if pd := nas[0] & 0x0F; pd != eps.PDEMM {
-		return fmt.Errorf("authentication reject protocol discriminator = %#x, want EMM %#x", pd, eps.PDEMM)
-	}
-
-	if sht := eps.SecurityHeaderType(nas[0] >> 4); sht != eps.SHTPlain {
-		return fmt.Errorf("authentication reject security header type = %d, want plain", sht)
-	}
-
-	if mt := eps.MessageType(nas[1]); mt != eps.MsgAuthenticationReject {
-		return fmt.Errorf("expected Authentication Reject, got message type %#x", mt)
-	}
-
-	return nil
+	return err
 }

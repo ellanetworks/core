@@ -16,7 +16,7 @@ import (
 // including the user-plane endpoints for a GTP-U tunnel.
 type PDNResult struct {
 	ERABID              s1ap.ERABID
-	PDNType             uint8
+	PDNType             eps.PDNType
 	QCI                 byte   // default bearer QCI for this PDN (== policy 5QI)
 	ARP                 byte   // E-RAB ARP priority level (1-15, TS 36.413 §9.2.1.60)
 	APN                 string // Access Point Name of this PDN connection
@@ -32,17 +32,12 @@ type PDNResult struct {
 // OpenPDN opens an additional PDN connection to apn for an attached UE (TS 24.301
 // §6.5.1), returning the new bearer's user-plane endpoints.
 func (e *ENB) OpenPDN(ue *UE, mmeUEID, enbUEID int64, apn string, pdnType uint8, timeout time.Duration) (*PDNResult, error) {
-	apnIE, err := eps.MarshalAPN(apn)
-	if err != nil {
-		return nil, fmt.Errorf("encode APN: %w", err)
-	}
-
 	connReq, err := (&eps.PDNConnectivityRequest{
-		ProcedureTransactionIdentity: ue.nextPTI(),
-		RequestType:                  1, // initial request
-		PDNType:                      pdnType,
-		AccessPointName:              apnIE,
-	}).Marshal()
+		PTI:             ue.nextPTI(),
+		RequestType:     1, // initial request
+		PDNType:         eps.PDNType(pdnType),
+		AccessPointName: new(eps.APN(apn)),
+	}).MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("build PDN Connectivity Request: %w", err)
 	}
@@ -93,7 +88,7 @@ func (e *ENB) OpenPDN(ue *UE, mmeUEID, enbUEID int64, apn string, pdnType uint8,
 		return nil, fmt.Errorf("parse Activate Default EPS Bearer Context Request: %w", err)
 	}
 
-	accept, err := ue.protectUplink([]byte{0x02, act.ProcedureTransactionIdentity, uint8(eps.MsgActivateDefaultEPSBearerContextAccept)})
+	accept, err := ue.protectUplink([]byte{0x02, uint8(act.PTI), uint8(eps.MsgActivateDefaultEPSBearerContextAccept)})
 	if err != nil {
 		return nil, err
 	}
@@ -110,32 +105,26 @@ func (e *ENB) OpenPDN(ue *UE, mmeUEID, enbUEID int64, apn string, pdnType uint8,
 		DLTEID:     dlTEID,
 	}
 
-	if len(act.EPSQoS) >= 1 {
-		res.QCI = act.EPSQoS[0]
+	res.QCI = act.EPSQoS.QCI
+
+	res.APN = string(act.AccessPointName)
+
+	if act.APNAMBR != nil {
+		dlKbps, ulKbps, _ := act.APNAMBR.Kbps()
+		res.SessAmbrDownlinkBps, res.SessAmbrUplinkBps = dlKbps*1000, ulKbps*1000
 	}
 
-	if apn, err := eps.ParseAPN(act.AccessPointName); err == nil {
-		res.APN = apn
+	pdn := act.PDNAddress
+	res.PDNType = eps.PDNType(uint8(pdn.PDNType))
+
+	if pdn.IPv4 != ([4]byte{}) {
+		res.UEIPv4 = netip.AddrFrom4(pdn.IPv4).String()
 	}
 
-	if len(act.APNAMBR) > 0 {
-		if ambr, err := eps.ParseAPNAMBR(act.APNAMBR); err == nil {
-			res.SessAmbrDownlinkBps, res.SessAmbrUplinkBps = ambr.BitsPerSecond()
-		}
-	}
-
-	if pdn, err := eps.ParsePDNAddress(act.PDNAddress); err == nil {
-		res.PDNType = pdn.PDNType
-
-		if pdn.IPv4 != ([4]byte{}) {
-			res.UEIPv4 = netip.AddrFrom4(pdn.IPv4).String()
-		}
-
-		if pdn.IPv6IID != ([8]byte{}) {
-			a := [16]byte{0: 0xfe, 1: 0x80}
-			copy(a[8:], pdn.IPv6IID[:])
-			res.UEIPv6 = netip.AddrFrom16(a).String()
-		}
+	if pdn.IPv6IID != ([8]byte{}) {
+		a := [16]byte{0: 0xfe, 1: 0x80}
+		copy(a[8:], pdn.IPv6IID[:])
+		res.UEIPv6 = netip.AddrFrom16(a).String()
 	}
 
 	return res, nil
@@ -145,9 +134,9 @@ func (e *ENB) OpenPDN(ue *UE, mmeUEID, enbUEID int64, apn string, pdnType uint8,
 // 23.401 §5.10.3).
 func (e *ENB) DisconnectPDN(ue *UE, mmeUEID, enbUEID int64, linkedEBI uint8, timeout time.Duration) error {
 	disc, err := (&eps.PDNDisconnectRequest{
-		ProcedureTransactionIdentity: ue.nextPTI(),
-		LinkedEPSBearerIdentity:      linkedEBI,
-	}).Marshal()
+		PTI:                     ue.nextPTI(),
+		LinkedEPSBearerIdentity: eps.EPSBearerIdentity(linkedEBI),
+	}).MarshalBinary()
 	if err != nil {
 		return fmt.Errorf("build PDN Disconnect Request: %w", err)
 	}
@@ -189,7 +178,7 @@ func (e *ENB) DisconnectPDN(ue *UE, mmeUEID, enbUEID int64, linkedEBI uint8, tim
 		return fmt.Errorf("parse Deactivate EPS Bearer Context Request: %w", err)
 	}
 
-	accept, err := ue.buildDeactivateEPSBearerContextAccept(reqMsg.EPSBearerIdentity, reqMsg.ProcedureTransactionIdentity)
+	accept, err := ue.buildDeactivateEPSBearerContextAccept(uint8(reqMsg.EPSBearerIdentity), uint8(reqMsg.PTI))
 	if err != nil {
 		return err
 	}

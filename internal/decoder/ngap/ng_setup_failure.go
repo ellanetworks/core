@@ -49,7 +49,7 @@ func buildNGSetupFailure(ngSetupFailure ngapType.NGSetupFailure) NGAPMessageValu
 	}
 }
 
-func buildTimeToWaitIE(timeToWait ngapType.TimeToWait) utils.EnumField[uint64] {
+func buildTimeToWaitIE(timeToWait ngapType.TimeToWait) utils.EnumField {
 	switch timeToWait.Value {
 	case ngapType.TimeToWaitPresentV1s:
 		return utils.MakeEnum(uint64(ngapType.TimeToWaitPresentV1s), "V1s", false)

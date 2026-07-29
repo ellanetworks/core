@@ -22,10 +22,7 @@ func TestAuthenticationFailureIgnoredWithNoAuthInProgress(t *testing.T) {
 	ue := newAttachUe(m, cc, 7)
 
 	// No AuthVector: no authentication is in progress.
-	plain, err := (&eps.AuthenticationFailure{Cause: mme.EmmCauseMACFailure}).Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
+	plain := &eps.AuthenticationFailure{Cause: eps.EMMCauseMACFailure}
 
 	handleAuthenticationFailure(context.Background(), m, ue, plain)
 
@@ -52,7 +49,7 @@ func TestAuthenticationFailureDuringSecurityModeIgnored(t *testing.T) {
 	// auth success) so the RegStep gate is the only thing that can drop the failure.
 	ue.ForceRegStepForTest(mme.RegStepSecurityMode)
 
-	handleAuthenticationFailure(context.Background(), m, ue, authFailure(t, mme.EmmCauseMACFailure, nil))
+	handleAuthenticationFailure(context.Background(), m, ue, authFailure(t, eps.EMMCauseMACFailure, nil))
 
 	if ue.Conn() == nil || ue.Conn().ReleasingForTest() {
 		t.Fatal("an out-of-phase Authentication Failure must not release the UE")
@@ -127,10 +124,15 @@ func autsFor(t *testing.T, ue *mme.UeContext, sqnMS []byte) []byte {
 	return append(conc, macS...)
 }
 
-func authFailure(t *testing.T, cause uint8, auts []byte) []byte {
+func authFailure(_ *testing.T, cause eps.EMMCause, auts []byte) *eps.AuthenticationFailure {
+	return &eps.AuthenticationFailure{Cause: cause, AUTS: auts}
+}
+
+// authFailureWire is the same message as it arrives on the wire.
+func authFailureWire(t *testing.T, cause eps.EMMCause, auts []byte) []byte {
 	t.Helper()
 
-	b, err := (&eps.AuthenticationFailure{Cause: cause, AUTS: auts}).Marshal()
+	b, err := authFailure(t, cause, auts).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +148,7 @@ func TestAuthenticationResponseWrongRESRejects(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := authChallengedUE(t, m)
 
-	resp, err := (&eps.AuthenticationResponse{RES: []byte{1, 2, 3, 4, 5, 6, 7, 8}}).Marshal()
+	resp, err := (&eps.AuthenticationResponse{RES: []byte{1, 2, 3, 4, 5, 6, 7, 8}}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +174,7 @@ func TestAuthFailureMACFailureRejects(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := authChallengedUE(t, m)
 
-	HandleNAS(context.Background(), m, ue.Conn(), authFailure(t, mme.EmmCauseMACFailure, nil))
+	HandleNAS(context.Background(), m, ue.Conn(), authFailureWire(t, eps.EMMCauseMACFailure, nil))
 
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected Auth Reject + Release Command, got %d", len(cc.sent))
@@ -191,7 +193,7 @@ func TestAuthFailureSynchResyncsAndReauthenticates(t *testing.T) {
 
 	auts := autsFor(t, ue, []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x21})
 
-	HandleNAS(context.Background(), m, ue.Conn(), authFailure(t, mme.EmmCauseSynchFailure, auts))
+	HandleNAS(context.Background(), m, ue.Conn(), authFailureWire(t, eps.EMMCauseSynchFailure, auts))
 
 	// A fresh Authentication Request, not a reject.
 	if len(cc.sent) != 1 {
@@ -207,7 +209,7 @@ func TestAuthFailureSynchResyncsAndReauthenticates(t *testing.T) {
 	}
 
 	// A second synch failure must not resync again — it rejects.
-	HandleNAS(context.Background(), m, ue.Conn(), authFailure(t, mme.EmmCauseSynchFailure, auts))
+	HandleNAS(context.Background(), m, ue.Conn(), authFailureWire(t, eps.EMMCauseSynchFailure, auts))
 
 	if _, err := eps.ParseAuthenticationReject(decodeDownlinkNAS(t, cc.sent[1])); err != nil {
 		t.Fatalf("second synch failure not rejected: %v", err)
@@ -225,7 +227,7 @@ func TestAuthFailureOutOfEnumerationCauseIgnored(t *testing.T) {
 
 	// #111 "protocol error, unspecified" is a valid EMM cause but not an
 	// AUTHENTICATION FAILURE cause.
-	handleAuthenticationFailure(context.Background(), m, ue, authFailure(t, mme.EmmCauseProtocolErrorUnspec, nil))
+	handleAuthenticationFailure(context.Background(), m, ue, authFailure(t, eps.EMMCauseProtocolErrorUnspecified, nil))
 
 	if ue.Conn() == nil || ue.Conn().ReleasingForTest() {
 		t.Fatal("an out-of-enumeration Authentication Failure cause must not release the UE")
@@ -247,7 +249,7 @@ func TestAuthFailureBadAUTSRejects(t *testing.T) {
 	auts := autsFor(t, ue, []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x21})
 	auts[len(auts)-1] ^= 0xff // corrupt MAC-S
 
-	HandleNAS(context.Background(), m, ue.Conn(), authFailure(t, mme.EmmCauseSynchFailure, auts))
+	HandleNAS(context.Background(), m, ue.Conn(), authFailureWire(t, eps.EMMCauseSynchFailure, auts))
 
 	if _, err := eps.ParseAuthenticationReject(decodeDownlinkNAS(t, cc.sent[0])); err != nil {
 		t.Fatalf("bad AUTS not rejected: %v", err)

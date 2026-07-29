@@ -5,14 +5,12 @@ package nas
 
 import (
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
-	"github.com/free5gc/nas/security"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type SelectedNASSecurityAlgorithms struct {
-	Integrity utils.EnumField[uint8] `json:"integrity"`
-	Ciphering utils.EnumField[uint8] `json:"ciphering"`
+	Integrity utils.EnumField `json:"integrity"`
+	Ciphering utils.EnumField `json:"ciphering"`
 }
 
 type IntegrityAlgorithm struct {
@@ -40,148 +38,128 @@ type Additional5GSecurityInformation struct {
 }
 
 type SecurityModeCommand struct {
-	ExtendedProtocolDiscriminator       uint8                            `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType uint8                            `json:"spare_half_octet_and_security_header_type"`
-	SelectedNASSecurityAlgorithms       SelectedNASSecurityAlgorithms    `json:"selected_nas_security_algorithms"`
-	SpareHalfOctetAndNgksi              uint8                            `json:"spare_half_octet_and_ngksi"`
-	ReplayedUESecurityCapabilities      UESecurityCapability             `json:"replayed_ue_security_capabilities"`
-	IMEISVRequest                       *utils.EnumField[uint8]          `json:"imeisv_request,omitempty"`
-	SelectedEPSNASSecurityAlgorithms    *utils.EnumField[uint8]          `json:"selected_eps_nas_security_algorithms,omitempty"`
-	Additional5GSecurityInformation     *Additional5GSecurityInformation `json:"additional_5g_security_information,omitempty"`
-	EAPMessage                          []byte                           `json:"eap_message,omitempty"`
-	ABBA                                []uint8                          `json:"abba,omitempty"`
+	SelectedNASSecurityAlgorithms    SelectedNASSecurityAlgorithms     `json:"selected_nas_security_algorithms"`
+	SpareHalfOctetAndNgksi           uint8                             `json:"spare_half_octet_and_ngksi"`
+	ReplayedUESecurityCapabilities   UESecurityCapability              `json:"replayed_ue_security_capabilities"`
+	IMEISVRequest                    *utils.EnumField                  `json:"imeisv_request,omitempty"`
+	SelectedEPSNASSecurityAlgorithms *SelectedEPSNASSecurityAlgorithms `json:"selected_eps_nas_security_algorithms,omitempty"`
+	Additional5GSecurityInformation  *Additional5GSecurityInformation  `json:"additional_5g_security_information,omitempty"`
+	EAPMessage                       []byte                            `json:"eap_message,omitempty"`
+	ABBA                             []uint8                           `json:"abba,omitempty"`
 
 	ReplayedS1UESecurityCapabilities *UnsupportedIE `json:"replayed_s1_ue_security_capabilities,omitempty"`
 }
 
-func buildSecurityModeCommand(msg *nasMessage.SecurityModeCommand) *SecurityModeCommand {
-	if msg == nil {
-		return nil
+func buildSecurityModeCommand(msg *fgs.SecurityModeCommand) *SecurityModeCommand {
+	out := &SecurityModeCommand{
+		SelectedNASSecurityAlgorithms: SelectedNASSecurityAlgorithms{
+			Integrity: getIntegrity(uint8(msg.IntegrityAlgorithm)),
+			Ciphering: getCiphering(uint8(msg.CipheringAlgorithm)),
+		},
+		SpareHalfOctetAndNgksi:         msg.NgKSI.HalfOctet(),
+		ReplayedUESecurityCapabilities: *buildUESecurityCapability(msg.ReplayedUESecurityCapability),
+		EAPMessage:                     msg.EAP,
+		ABBA:                           msg.ABBA,
 	}
 
-	securityModeCommand := &SecurityModeCommand{
-		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
-		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		SelectedNASSecurityAlgorithms:       buildSelectedNASSecurityAlgorithms(msg.SelectedNASSecurityAlgorithms),
-		SpareHalfOctetAndNgksi:              msg.SpareHalfOctetAndNgksi.Octet,
-		ReplayedUESecurityCapabilities:      *buildReplayedUESecurityCapability(msg.ReplayedUESecurityCapabilities),
+	if msg.IMEISVRequested != nil {
+		v := buildIMEISVRequest(uint8(*msg.IMEISVRequested))
+		out.IMEISVRequest = &v
 	}
 
-	if msg.IMEISVRequest != nil {
-		value := buildIMEISVRequest(*msg.IMEISVRequest)
-		securityModeCommand.IMEISVRequest = &value
-	}
-
-	if msg.SelectedEPSNASSecurityAlgorithms != nil {
-		algo := getIntegrity(msg.SelectedEPSNASSecurityAlgorithms.GetTypeOfIntegrityProtectionAlgorithm())
-		securityModeCommand.SelectedEPSNASSecurityAlgorithms = &algo
-	}
-
-	if msg.Additional5GSecurityInformation != nil {
-		securityModeCommand.Additional5GSecurityInformation = &Additional5GSecurityInformation{
-			RINMR: msg.GetRINMR(),
-			HDP:   msg.GetHDP(),
+	if algs := msg.SelectedEPSNASSecurityAlgorithms; algs != nil {
+		out.SelectedEPSNASSecurityAlgorithms = &SelectedEPSNASSecurityAlgorithms{
+			Ciphering: getEPSCiphering(algs.Ciphering),
+			Integrity: getEPSIntegrity(algs.Integrity),
 		}
 	}
 
-	if msg.EAPMessage != nil {
-		securityModeCommand.EAPMessage = msg.GetEAPMessage()
+	if info := msg.AdditionalSecurityInformation; info != nil {
+		out.Additional5GSecurityInformation = &Additional5GSecurityInformation{
+			RINMR: b2u(info.RINMR),
+			HDP:   b2u(info.HDP),
+		}
 	}
 
-	if msg.ABBA != nil {
-		securityModeCommand.ABBA = msg.GetABBAContents()
+	if msg.ReplayedS1UESecurityCapability != nil {
+		out.ReplayedS1UESecurityCapabilities = makeUnsupportedIE()
 	}
 
-	if msg.ReplayedS1UESecurityCapabilities != nil {
-		securityModeCommand.ReplayedS1UESecurityCapabilities = makeUnsupportedIE()
-	}
-
-	return securityModeCommand
+	return out
 }
 
-func buildReplayedUESecurityCapability(ueSecurityCapability nasType.ReplayedUESecurityCapabilities) *UESecurityCapability {
-	ueSecCap := &UESecurityCapability{
-		IntegrityAlgorithm: IntegrityAlgorithm{},
-		CipheringAlgorithm: CipheringAlgorithm{},
-	}
-
-	if ueSecurityCapability.GetIA0_5G() == 1 {
-		ueSecCap.IntegrityAlgorithm.NIA0 = true
-	}
-
-	if ueSecurityCapability.GetIA1_128_5G() == 1 {
-		ueSecCap.IntegrityAlgorithm.NIA1 = true
-	}
-
-	if ueSecurityCapability.GetIA2_128_5G() == 1 {
-		ueSecCap.IntegrityAlgorithm.NIA2 = true
-	}
-
-	if ueSecurityCapability.GetIA3_128_5G() == 1 {
-		ueSecCap.IntegrityAlgorithm.NIA3 = true
-	}
-
-	if ueSecurityCapability.GetEA0_5G() == 1 {
-		ueSecCap.CipheringAlgorithm.NEA0 = true
-	}
-
-	if ueSecurityCapability.GetEA1_128_5G() == 1 {
-		ueSecCap.CipheringAlgorithm.NEA1 = true
-	}
-
-	if ueSecurityCapability.GetEA2_128_5G() == 1 {
-		ueSecCap.CipheringAlgorithm.NEA2 = true
-	}
-
-	if ueSecurityCapability.GetEA3_128_5G() == 1 {
-		ueSecCap.CipheringAlgorithm.NEA3 = true
-	}
-
-	return ueSecCap
+// SelectedEPSNASSecurityAlgorithms is the decoded Selected EPS NAS security
+// algorithms IE: EPS ciphering (EEA) and EPS integrity (EIA) — TS 24.301 §9.9.3.23.
+type SelectedEPSNASSecurityAlgorithms struct {
+	Ciphering utils.EnumField `json:"ciphering"`
+	Integrity utils.EnumField `json:"integrity"`
 }
 
-func buildIMEISVRequest(msg nasType.IMEISVRequest) utils.EnumField[uint8] {
-	switch msg.GetIMEISVRequestValue() {
-	case nasMessage.IMEISVNotRequested:
-		return utils.MakeEnum(msg.GetIMEISVRequestValue(), "NotRequested", false)
-	case nasMessage.IMEISVRequested:
-		return utils.MakeEnum(msg.GetIMEISVRequestValue(), "Requested", false)
-	default:
-		return utils.MakeEnum(msg.GetIMEISVRequestValue(), "", true)
-	}
-}
-
-func buildSelectedNASSecurityAlgorithms(msg nasType.SelectedNASSecurityAlgorithms) SelectedNASSecurityAlgorithms {
-	return SelectedNASSecurityAlgorithms{
-		Integrity: getIntegrity(msg.GetTypeOfIntegrityProtectionAlgorithm()),
-		Ciphering: getCiphering(msg.GetTypeOfCipheringAlgorithm()),
-	}
-}
-
-func getIntegrity(value uint8) utils.EnumField[uint8] {
+func getEPSCiphering(value uint8) utils.EnumField {
 	switch value {
-	case security.AlgIntegrity128NIA0:
+	case 0:
+		return utils.MakeEnum(value, "EEA0", false)
+	case 1:
+		return utils.MakeEnum(value, "EEA1", false)
+	case 2:
+		return utils.MakeEnum(value, "EEA2", false)
+	case 3:
+		return utils.MakeEnum(value, "EEA3", false)
+	default:
+		return utils.MakeEnum(value, "", true)
+	}
+}
+
+func getEPSIntegrity(value uint8) utils.EnumField {
+	switch value {
+	case 0:
+		return utils.MakeEnum(value, "EIA0", false)
+	case 1:
+		return utils.MakeEnum(value, "EIA1", false)
+	case 2:
+		return utils.MakeEnum(value, "EIA2", false)
+	case 3:
+		return utils.MakeEnum(value, "EIA3", false)
+	default:
+		return utils.MakeEnum(value, "", true)
+	}
+}
+
+func buildIMEISVRequest(v uint8) utils.EnumField {
+	switch v {
+	case 0:
+		return utils.MakeEnum(v, "NotRequested", false)
+	case 1:
+		return utils.MakeEnum(v, "Requested", false)
+	default:
+		return utils.MakeEnum(v, "", true)
+	}
+}
+
+func getIntegrity(value uint8) utils.EnumField {
+	switch value {
+	case 0:
 		return utils.MakeEnum(value, "NIA0", false)
-	case security.AlgIntegrity128NIA1:
+	case 1:
 		return utils.MakeEnum(value, "NIA1", false)
-	case security.AlgIntegrity128NIA2:
+	case 2:
 		return utils.MakeEnum(value, "NIA2", false)
-	case security.AlgIntegrity128NIA3:
+	case 3:
 		return utils.MakeEnum(value, "NIA3", false)
 	default:
 		return utils.MakeEnum(value, "", true)
 	}
 }
 
-func getCiphering(value uint8) utils.EnumField[uint8] {
+func getCiphering(value uint8) utils.EnumField {
 	switch value {
-	case security.AlgCiphering128NEA0:
+	case 0:
 		return utils.MakeEnum(value, "NEA0", false)
-	case security.AlgCiphering128NEA1:
+	case 1:
 		return utils.MakeEnum(value, "NEA1", false)
-	case security.AlgCiphering128NEA2:
+	case 2:
 		return utils.MakeEnum(value, "NEA2", false)
-	case security.AlgCiphering128NEA3:
+	case 3:
 		return utils.MakeEnum(value, "NEA3", false)
 	default:
 		return utils.MakeEnum(value, "", true)

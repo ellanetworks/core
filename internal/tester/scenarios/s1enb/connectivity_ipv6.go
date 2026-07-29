@@ -67,7 +67,7 @@ func runS1ENBConnectivityIPv6(ctx context.Context, env scenarios.Env, _ any) err
 	defer func() { _ = e.Close() }()
 
 	ue := e.NewUE(connIPv6IMSI, k, opc)
-	ue.RequestPDNType(eps.PDNTypeIPv6)
+	ue.RequestPDNType(uint8(eps.PDNTypeIPv6))
 
 	res, err := e.Attach(ue, 15*time.Second)
 	if err != nil {

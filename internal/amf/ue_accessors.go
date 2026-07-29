@@ -6,8 +6,8 @@ package amf
 import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas/nasType"
-	"github.com/free5gc/nas/security"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 // SmContextRef is a snapshot of one PDU session's SM context reference, taken
@@ -59,7 +59,7 @@ func (ue *UeContext) Supi() etsi.SUPI {
 	return ue.supi
 }
 
-func (ue *UeContext) UESecCap() *nasType.UESecurityCapability {
+func (ue *UeContext) UESecCap() *fgs.UESecurityCapability {
 	if ue == nil {
 		return nil
 	}
@@ -93,7 +93,7 @@ func (ue *UeContext) Abba() []uint8 {
 	return ue.abba
 }
 
-func (ue *UeContext) NEA() uint8 {
+func (ue *UeContext) NEA() nas.CipheringAlgorithm {
 	if ue == nil {
 		return 0
 	}
@@ -104,7 +104,7 @@ func (ue *UeContext) NEA() uint8 {
 	return ue.cipheringAlg
 }
 
-func (ue *UeContext) NIA() uint8 {
+func (ue *UeContext) NIA() nas.IntegrityAlgorithm {
 	if ue == nil {
 		return 0
 	}
@@ -178,7 +178,14 @@ func (ue *UeContext) DecryptUplinkContents(contents []byte) error {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return security.NASEncrypt(ue.cipheringAlg, ue.knasEnc, ue.ulCount.LastAccepted().Value(), security.Bearer3GPP, security.DirectionUplink, contents)
+	out, err := ue.sc.Cipher(contents, ue.ulCount.LastAccepted(), nas.Bearer3GPP, nas.DirectionUplink)
+	if err != nil {
+		return err
+	}
+
+	copy(contents, out)
+
+	return nil
 }
 
 // SmContextSnapshot returns a locked shallow copy of the UE's PDU session SM

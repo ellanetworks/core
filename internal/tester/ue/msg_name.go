@@ -3,41 +3,35 @@
 
 package ue
 
-import "github.com/free5gc/nas"
+import "github.com/ellanetworks/core/nas/fgs"
 
 func getGSMMessageName(msgType uint8) string {
-	switch msgType {
-	case nas.MsgTypePDUSessionEstablishmentRequest:
+	switch fgs.GSMMessageType(msgType) {
+	case fgs.MsgPDUSessionEstablishmentRequest:
 		return "PDU Session Establishment Request"
-	case nas.MsgTypePDUSessionEstablishmentAccept:
+	case fgs.MsgPDUSessionEstablishmentAccept:
 		return "PDU Session Establishment Accept"
-	case nas.MsgTypePDUSessionEstablishmentReject:
+	case fgs.MsgPDUSessionEstablishmentReject:
 		return "PDU Session Establishment Reject"
-	case nas.MsgTypePDUSessionAuthenticationCommand:
-		return "PDU Session Authentication Command"
-	case nas.MsgTypePDUSessionAuthenticationComplete:
+	case fgs.MsgPDUSessionAuthenticationComplete:
 		return "PDU Session Authentication Complete"
-	case nas.MsgTypePDUSessionAuthenticationResult:
-		return "PDU Session Authentication Result"
-	case nas.MsgTypePDUSessionModificationRequest:
+	case fgs.MsgPDUSessionModificationRequest:
 		return "PDU Session Modification Request"
-	case nas.MsgTypePDUSessionModificationReject:
+	case fgs.MsgPDUSessionModificationReject:
 		return "PDU Session Modification Reject"
-	case nas.MsgTypePDUSessionModificationCommand:
+	case fgs.MsgPDUSessionModificationCommand:
 		return "PDU Session Modification Command"
-	case nas.MsgTypePDUSessionModificationComplete:
+	case fgs.MsgPDUSessionModificationComplete:
 		return "PDU Session Modification Complete"
-	case nas.MsgTypePDUSessionModificationCommandReject:
+	case fgs.MsgPDUSessionModificationCmdReject:
 		return "PDU Session Modification Command Reject"
-	case nas.MsgTypePDUSessionReleaseRequest:
+	case fgs.MsgPDUSessionReleaseRequest:
 		return "PDU Session Release Request"
-	case nas.MsgTypePDUSessionReleaseReject:
-		return "PDU Session Release Reject"
-	case nas.MsgTypePDUSessionReleaseCommand:
+	case fgs.MsgPDUSessionReleaseCommand:
 		return "PDU Session Release Command"
-	case nas.MsgTypePDUSessionReleaseComplete:
+	case fgs.MsgPDUSessionReleaseComplete:
 		return "PDU Session Release Complete"
-	case nas.MsgTypeStatus5GSM:
+	case fgs.MsgGSMStatus:
 		return "5GSM Status"
 	default:
 		return "Unknown Message Type"
@@ -45,62 +39,62 @@ func getGSMMessageName(msgType uint8) string {
 }
 
 func getGMMMessageName(msgType uint8) string {
-	switch msgType {
-	case nas.MsgTypeRegistrationRequest:
+	switch fgs.MessageType(msgType) {
+	case fgs.MsgRegistrationRequest:
 		return "Registration Request"
-	case nas.MsgTypeRegistrationAccept:
+	case fgs.MsgRegistrationAccept:
 		return "Registration Accept"
-	case nas.MsgTypeRegistrationComplete:
+	case fgs.MsgRegistrationComplete:
 		return "Registration Complete"
-	case nas.MsgTypeRegistrationReject:
+	case fgs.MsgRegistrationReject:
 		return "Registration Reject"
-	case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
+	case fgs.MsgDeregistrationRequestUEOrig:
 		return "Deregistration Request UE Originating Deregistration"
-	case nas.MsgTypeDeregistrationAcceptUEOriginatingDeregistration:
+	case fgs.MsgDeregistrationAcceptUEOrig:
 		return "Deregistration Accept UE Originating Deregistration"
-	case nas.MsgTypeDeregistrationRequestUETerminatedDeregistration:
+	case fgs.MsgDeregistrationRequestUETerm:
 		return "Deregistration Request UE Terminated Deregistration"
-	case nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:
+	case fgs.MsgDeregistrationAcceptUETerm:
 		return "Deregistration Accept UE Terminated Deregistration"
-	case nas.MsgTypeServiceRequest:
+	case fgs.MsgServiceRequest:
 		return "Service Request"
-	case nas.MsgTypeServiceReject:
+	case fgs.MsgServiceReject:
 		return "Service Reject"
-	case nas.MsgTypeServiceAccept:
+	case fgs.MsgServiceAccept:
 		return "Service Accept"
-	case nas.MsgTypeConfigurationUpdateCommand:
+	case fgs.MsgConfigurationUpdateCommand:
 		return "Configuration Update Command"
-	case nas.MsgTypeConfigurationUpdateComplete:
+	case fgs.MsgConfigurationUpdateComplete:
 		return "Configuration Update Complete"
-	case nas.MsgTypeAuthenticationRequest:
+	case fgs.MsgAuthenticationRequest:
 		return "Authentication Request"
-	case nas.MsgTypeAuthenticationResponse:
+	case fgs.MsgAuthenticationResponse:
 		return "Authentication Response"
-	case nas.MsgTypeAuthenticationReject:
+	case fgs.MsgAuthenticationReject:
 		return "Authentication Reject"
-	case nas.MsgTypeAuthenticationFailure:
+	case fgs.MsgAuthenticationFailure:
 		return "Authentication Failure"
-	case nas.MsgTypeAuthenticationResult:
+	case fgs.MsgAuthenticationResult:
 		return "Authentication Result"
-	case nas.MsgTypeIdentityRequest:
+	case fgs.MsgIdentityRequest:
 		return "Identity Request"
-	case nas.MsgTypeIdentityResponse:
+	case fgs.MsgIdentityResponse:
 		return "Identity Response"
-	case nas.MsgTypeSecurityModeCommand:
+	case fgs.MsgSecurityModeCommand:
 		return "Security Mode Command"
-	case nas.MsgTypeSecurityModeComplete:
+	case fgs.MsgSecurityModeComplete:
 		return "Security Mode Complete"
-	case nas.MsgTypeSecurityModeReject:
+	case fgs.MsgSecurityModeReject:
 		return "Security Mode Reject"
-	case nas.MsgTypeStatus5GMM:
+	case fgs.MsgGMMStatus:
 		return "5GMM Status"
-	case nas.MsgTypeNotification:
+	case fgs.MsgNotification:
 		return "Notification"
-	case nas.MsgTypeNotificationResponse:
+	case fgs.MsgNotificationResponse:
 		return "Notification Response"
-	case nas.MsgTypeULNASTransport:
+	case fgs.MsgULNASTransport:
 		return "UL NAS Transport"
-	case nas.MsgTypeDLNASTransport:
+	case fgs.MsgDLNASTransport:
 		return "DL NAS Transport"
 	default:
 		return "Unknown Message Type"

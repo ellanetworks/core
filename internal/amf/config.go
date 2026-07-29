@@ -11,7 +11,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas/security"
+	"github.com/ellanetworks/core/nas"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -261,22 +261,22 @@ func (amf *AMF) SubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *model
 
 // NAS security algorithms are stored as RAT-neutral identities shared by EPS and
 // 5G (TS 24.301 ≡ TS 24.501): NULL(0), SNOW3G(1), AES(2).
-var cipheringNameToAlg = map[string]uint8{
-	"NULL":   security.AlgCiphering128NEA0,
-	"SNOW3G": security.AlgCiphering128NEA1,
-	"AES":    security.AlgCiphering128NEA2,
+var cipheringNameToAlg = map[string]nas.CipheringAlgorithm{
+	"NULL":   nas.CipheringNull,
+	"SNOW3G": nas.CipheringSNOW3G,
+	"AES":    nas.CipheringAES,
 }
 
-var integrityNameToAlg = map[string]uint8{
-	"NULL":   security.AlgIntegrity128NIA0,
-	"SNOW3G": security.AlgIntegrity128NIA1,
-	"AES":    security.AlgIntegrity128NIA2,
+var integrityNameToAlg = map[string]nas.IntegrityAlgorithm{
+	"NULL":   nas.IntegrityNull,
+	"SNOW3G": nas.IntegritySNOW3G,
+	"AES":    nas.IntegrityAES,
 }
 
 // SecurityAlgorithms loads the configured NAS security algorithm preference
 // order from the database and returns them as uint8 slices ready for
 // SelectSecurityAlg.
-func (amf *AMF) SecurityAlgorithms(ctx context.Context) ([]uint8, []uint8, error) {
+func (amf *AMF) SecurityAlgorithms(ctx context.Context) ([]nas.IntegrityAlgorithm, []nas.CipheringAlgorithm, error) {
 	ctx, span := tracer.Start(ctx, "amf/get_security_algorithms")
 	defer span.End()
 
@@ -295,7 +295,7 @@ func (amf *AMF) SecurityAlgorithms(ctx context.Context) ([]uint8, []uint8, error
 		return nil, nil, fmt.Errorf("failed to parse integrity order: %w", err)
 	}
 
-	encOrder := make([]uint8, 0, len(cipherNames))
+	encOrder := make([]nas.CipheringAlgorithm, 0, len(cipherNames))
 	for _, name := range cipherNames {
 		alg, ok := cipheringNameToAlg[name]
 		if !ok {
@@ -305,7 +305,7 @@ func (amf *AMF) SecurityAlgorithms(ctx context.Context) ([]uint8, []uint8, error
 		encOrder = append(encOrder, alg)
 	}
 
-	intOrder := make([]uint8, 0, len(integrityNames))
+	intOrder := make([]nas.IntegrityAlgorithm, 0, len(integrityNames))
 	for _, name := range integrityNames {
 		alg, ok := integrityNameToAlg[name]
 		if !ok {

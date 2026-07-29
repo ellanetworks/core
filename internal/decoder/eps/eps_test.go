@@ -40,7 +40,7 @@ func TestDecodeAttachRequest(t *testing.T) {
 		t.Fatal("attach request not decoded")
 	}
 
-	if ar.AttachType.Label != "combined EPS/IMSI attach" {
+	if ar.AttachType.Label != "Combined EPS/IMSI attach" {
 		t.Fatalf("attach type = %q", ar.AttachType.Label)
 	}
 
@@ -88,8 +88,28 @@ func TestDecodeEncrypted(t *testing.T) {
 
 // TestDecodePlainIdentityRequest decodes a plain (unprotected) message built with
 // the codec, exercising the non-wrapped path.
+// TestDecodeEEA0NullCipher: a ciphered (SHT=2) wrapper around a plaintext body
+// (EEA0 null cipher) decodes to its inner message, symmetric with the 5G decoder.
+func TestDecodeEEA0NullCipher(t *testing.T) {
+	plain, err := (&eps.IdentityRequest{IdentityType: 1}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wire := append([]byte{uint8(eps.SHTIntegrityProtectedCiphered)<<4 | uint8(eps.PDEMM), 0xAA, 0xBB, 0xCC, 0xDD, 0x00}, plain...)
+
+	msg := DecodeEPSNASMessage(wire)
+	if msg.Encrypted {
+		t.Fatal("EEA0 null-cipher payload should decode, not be marked encrypted")
+	}
+
+	if msg.EMMMessage == nil || msg.EMMMessage.IdentityRequest == nil {
+		t.Fatalf("EEA0 inner = %+v", msg.EMMMessage)
+	}
+}
+
 func TestDecodePlainIdentityRequest(t *testing.T) {
-	b, err := (&eps.IdentityRequest{IdentityType: 1}).Marshal()
+	b, err := (&eps.IdentityRequest{IdentityType: 1}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,18 +193,18 @@ func TestDecodePlainAttachRequest(t *testing.T) {
 // Default Bearer of the Attach Accept), so it is exercised with codec-built
 // values rather than a capture.
 func TestPDNAddressIPv4(t *testing.T) {
-	a := pdnAddress((&eps.PDNAddress{PDNType: 1, IPv4: [4]byte{10, 45, 0, 7}}).Marshal())
+	a := pdnAddress(eps.PDNAddress{PDNType: 1, IPv4: [4]byte{10, 45, 0, 7}})
 	if a == nil || a.Type.Label != "IPv4" || a.IPv4 != "10.45.0.7" || a.IPv6InterfaceID != "" {
 		t.Fatalf("pdn address = %+v", a)
 	}
 }
 
 func TestPDNAddressIPv4v6(t *testing.T) {
-	a := pdnAddress((&eps.PDNAddress{
+	a := pdnAddress(eps.PDNAddress{
 		PDNType: 3,
 		IPv4:    [4]byte{10, 45, 0, 7},
 		IPv6IID: [8]byte{0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77},
-	}).Marshal())
+	})
 	if a == nil || a.Type.Label != "IPv4v6" || a.IPv4 != "10.45.0.7" || a.IPv6InterfaceID != "0011:2233:4455:6677" {
 		t.Fatalf("pdn address = %+v", a)
 	}

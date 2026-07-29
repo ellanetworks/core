@@ -10,37 +10,21 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
-	"github.com/free5gc/nas/security"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
-func plainRegistrationWithGuti(t *testing.T, guti []byte) []byte {
+func plainRegistrationWithGuti(t *testing.T, guti fgs.MobileIdentity) []byte {
 	t.Helper()
 
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeRegistrationRequest)
-
-	rr := nasMessage.NewRegistrationRequest(0)
-	rr.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	rr.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	rr.SetSpareHalfOctet(0)
-	rr.SetMessageType(nas.MsgTypeRegistrationRequest)
-	rr.NgksiAndRegistrationType5GS.SetNasKeySetIdentifiler(0)
-	rr.SetRegistrationType5GS(nasMessage.RegistrationType5GSInitialRegistration)
-	rr.SetFOR(1)
-	rr.MobileIdentity5GS = nasType.MobileIdentity5GS{
-		Iei:    nasMessage.MobileIdentity5GSType5gGuti,
-		Len:    uint16(len(guti)),
-		Buffer: guti,
+	rr := &fgs.RegistrationRequest{
+		RegistrationType:     fgs.RegistrationTypeInitial,
+		FOR:                  true,
+		MobileIdentity:       guti,
+		UESecurityCapability: &fgs.UESecurityCapability{},
 	}
-	rr.UESecurityCapability = &nasType.UESecurityCapability{}
 
-	m.RegistrationRequest = rr
-
-	payload, err := m.PlainNasEncode()
+	payload, err := rr.MarshalBinary()
 	if err != nil {
 		t.Fatalf("encode plain RegistrationRequest: %v", err)
 	}
@@ -48,31 +32,15 @@ func plainRegistrationWithGuti(t *testing.T, guti []byte) []byte {
 	return payload
 }
 
-func plainDeregistrationWithGuti(t *testing.T, guti []byte) []byte {
+func plainDeregistrationWithGuti(t *testing.T, guti fgs.MobileIdentity) []byte {
 	t.Helper()
 
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration)
-
-	dr := nasMessage.NewDeregistrationRequestUEOriginatingDeregistration(0)
-	dr.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	dr.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	dr.SetSpareHalfOctet(0)
-	dr.SetMessageType(nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration)
-	dr.SetSwitchOff(0)
-	dr.SetReRegistrationRequired(0)
-	dr.SetAccessType(nasMessage.AccessType3GPP)
-	dr.SetNasKeySetIdentifiler(0)
-	dr.MobileIdentity5GS = nasType.MobileIdentity5GS{
-		Iei:    0,
-		Len:    uint16(len(guti)),
-		Buffer: guti,
+	dr := &fgs.DeregistrationRequestUEOriginating{
+		AccessType:     fgs.AccessType3GPP,
+		MobileIdentity: guti,
 	}
 
-	m.DeregistrationRequestUEOriginatingDeregistration = dr
-
-	payload, err := m.PlainNasEncode()
+	payload, err := dr.MarshalBinary()
 	if err != nil {
 		t.Fatalf("encode plain DeregistrationRequest: %v", err)
 	}
@@ -86,17 +54,20 @@ func plainDeregistrationWithGuti(t *testing.T, guti []byte) []byte {
 func wrapIntegrityProtected(t *testing.T, ue *amf.UeContext, inner []byte, sqn uint8) []byte {
 	t.Helper()
 
-	cnt := ue.ULCountForTest().Estimate(sqn)
+	cnt, _ := ue.ULCountForTest().Estimate(sqn)
 
 	seqAndMsg := append([]byte{sqn}, inner...)
 
-	mac, err := security.NASMacCalculate(ue.IntegrityAlgForTest(), ue.KnasIntForTest(), cnt.Value(), security.Bearer3GPP, security.DirectionUplink, seqAndMsg)
+	sc := mustSecurityContext(t, ue.IntegrityAlgForTest(),
+		ue.CipheringAlgForTest(), ue.KnasIntForTest(), ue.KnasEncForTest())
+
+	mac, err := sc.MAC(seqAndMsg, cnt, nas.Bearer3GPP, nas.DirectionUplink)
 	if err != nil {
-		t.Fatalf("NASMacCalculate: %v", err)
+		t.Fatalf("could not compute NAS MAC: %v", err)
 	}
 
-	pdu := []byte{0x7e, nas.SecurityHeaderTypeIntegrityProtected}
-	pdu = append(pdu, mac...)
+	pdu := []byte{0x7e, byte(fgs.SHTIntegrityProtected)}
+	pdu = append(pdu, mac[:]...)
 	pdu = append(pdu, seqAndMsg...)
 
 	return pdu
@@ -107,12 +78,14 @@ func wrapIntegrityProtected(t *testing.T, ue *amf.UeContext, inner []byte, sqn u
 // citing a known GUTI must resolve to the existing context. A local guti that
 // shadows the outer guti leaves it invalid and forces a fresh context.
 func TestFetchUeContext_DeregistrationResolvesExistingContextByGuti(t *testing.T) {
-	// type byte 0x02 = 5G-GUTI; PLMN 001/01; amf.AMF id 0xcafe00; 5G-TMSI 1.
-	gutiBytes := []byte{0x02, 0x00, 0xf1, 0x10, 0xca, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x01}
+	gutiID := fgs.GUTIIdentity(fgs.GUTI{
+		PLMN: nas.PLMN{MCC: "001", MNC: "01"}, AMFRegionID: 0xca, AMFSetID: 0x3f, AMFPointer: 0x00,
+		TMSI: [4]byte{0x00, 0x00, 0x00, 0x01},
+	})
 
-	guti, err := etsi.NewGUTI5GFromBytes(gutiBytes)
+	guti, err := etsi.NewGUTI5GFromNAS(gutiID)
 	if err != nil {
-		t.Fatalf("NewGUTIFromBytes: %v", err)
+		t.Fatalf("NewGUTI5GFromNAS: %v", err)
 	}
 
 	supi, err := etsi.NewSUPIFromPrefixed("imsi-001010000000001")
@@ -125,7 +98,7 @@ func TestFetchUeContext_DeregistrationResolvesExistingContextByGuti(t *testing.T
 	ue := amf.NewUeContext()
 	ue.SetSupiForTest(supi)
 	ue.SetSecuredForTest(true)
-	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA2)
+	ue.SetIntegrityAlgForTest(nas.IntegrityAES)
 	ue.SetKnasIntForTest([16]uint8{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
 	ue.ForceStateForTest(amf.Registered)
 
@@ -135,7 +108,7 @@ func TestFetchUeContext_DeregistrationResolvesExistingContextByGuti(t *testing.T
 
 	amfInstance.AssignGutiForTest(ue, guti)
 
-	pdu := wrapIntegrityProtected(t, ue, plainDeregistrationWithGuti(t, gutiBytes), 0)
+	pdu := wrapIntegrityProtected(t, ue, plainDeregistrationWithGuti(t, gutiID), 0)
 
 	got, err := fetchUeContextWithMobileIdentity(context.Background(), amfInstance, pdu)
 	if err != nil {
@@ -153,12 +126,14 @@ func TestFetchUeContext_DeregistrationResolvesExistingContextByGuti(t *testing.T
 // routed to a fresh context, leaving the victim's committed context untouched
 // (TS 24.501).
 func TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim(t *testing.T) {
-	// type byte 0x02 = 5G-GUTI; PLMN 001/01; amf.AMF id 0xcafe00; 5G-TMSI 1.
-	gutiBytes := []byte{0x02, 0x00, 0xf1, 0x10, 0xca, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x01}
+	gutiID := fgs.GUTIIdentity(fgs.GUTI{
+		PLMN: nas.PLMN{MCC: "001", MNC: "01"}, AMFRegionID: 0xca, AMFSetID: 0x3f, AMFPointer: 0x00,
+		TMSI: [4]byte{0x00, 0x00, 0x00, 0x01},
+	})
 
-	guti, err := etsi.NewGUTI5GFromBytes(gutiBytes)
+	guti, err := etsi.NewGUTI5GFromNAS(gutiID)
 	if err != nil {
-		t.Fatalf("NewGUTIFromBytes: %v", err)
+		t.Fatalf("NewGUTI5GFromNAS: %v", err)
 	}
 
 	supi, err := etsi.NewSUPIFromPrefixed("imsi-001010000000001")
@@ -178,7 +153,7 @@ func TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim(t *testing
 		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
-	got, err := fetchUeContextWithMobileIdentity(context.Background(), amfInstance, plainRegistrationWithGuti(t, gutiBytes))
+	got, err := fetchUeContextWithMobileIdentity(context.Background(), amfInstance, plainRegistrationWithGuti(t, gutiID))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

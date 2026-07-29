@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
@@ -17,13 +17,12 @@ func TestVerifiedMessageMarksSecureExchange(t *testing.T) {
 	ue.Conn().SetSecureExchangeEstablishedForTest(false) // fresh connection, not yet established
 	ue.SetULCountForTest(0)
 
-	tac, err := (&eps.TrackingAreaUpdateComplete{}).Marshal()
+	tac, err := (&eps.TrackingAreaUpdateComplete{}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	wire, err := eps.Protect(tac, eps.SHTIntegrityProtectedCiphered, 0, nascommon.DirectionUplink,
-		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	wire, err := eps.Protect(tac, eps.SHTIntegrityProtectedCiphered, 0, nas.DirectionUplink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest()))
 	if err != nil {
 		t.Fatal(err)
 	}

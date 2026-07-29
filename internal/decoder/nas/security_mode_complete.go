@@ -3,36 +3,22 @@
 
 package nas
 
-import (
-	"github.com/free5gc/nas/nasConvert"
-	"github.com/free5gc/nas/nasMessage"
-)
+import "github.com/ellanetworks/core/nas/fgs"
 
 type SecurityModeComplete struct {
-	ExtendedProtocolDiscriminator       uint8   `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType uint8   `json:"spare_half_octet_and_security_header_type"`
-	IMEISV                              *string `json:"imeisv,omitempty"`
-	NASMessageContainer                 []byte  `json:"nas_message_container,omitempty"`
+	IMEISV              *string `json:"imeisv,omitempty"`
+	NASMessageContainer []byte  `json:"nas_message_container,omitempty"`
 }
 
-func buildSecurityModeComplete(msg *nasMessage.SecurityModeComplete) *SecurityModeComplete {
-	if msg == nil {
-		return nil
-	}
-
-	securityModeComplete := &SecurityModeComplete{
-		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
-		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
+func buildSecurityModeComplete(msg *fgs.SecurityModeComplete) *SecurityModeComplete {
+	out := &SecurityModeComplete{
+		NASMessageContainer: msg.NASMessageContainer,
 	}
 
 	if msg.IMEISV != nil {
-		pei := nasConvert.PeiToString(msg.IMEISV.Octet[:])
-		securityModeComplete.IMEISV = &pei
+		pei := msg.IMEISV.String()
+		out.IMEISV = &pei
 	}
 
-	if msg.NASMessageContainer != nil {
-		securityModeComplete.NASMessageContainer = msg.GetNASMessageContainerContents()
-	}
-
-	return securityModeComplete
+	return out
 }

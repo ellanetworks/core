@@ -4,7 +4,6 @@
 package s1enb
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net/netip"
@@ -162,17 +161,18 @@ func runDataNetworkDNSChange(ctx context.Context, env scenarios.Env, p *dataNetw
 		return fmt.Errorf("await bearer modification (DNS): %w", err)
 	}
 
-	dnsServers, _, err := eps.ParseProtocolConfigurationOptions(req.ProtocolConfigurationOptions)
-	if err != nil {
-		return fmt.Errorf("parse modification PCO: %w", err)
+	if req.ProtocolConfigurationOptions == nil {
+		return fmt.Errorf("bearer modification carries no PCO")
 	}
 
-	want := netip.MustParseAddr(dnChangeNewDNS).As4()
+	dnsServers := req.ProtocolConfigurationOptions.DNSServers()
+
+	want := netip.MustParseAddr(dnChangeNewDNS)
 
 	found := false
 
 	for _, dns := range dnsServers {
-		if bytes.Equal(dns, want[:]) {
+		if dns == want {
 			found = true
 
 			break
@@ -204,8 +204,8 @@ func runDataNetworkReactivate(ctx context.Context, env scenarios.Env, p *dataNet
 		return fmt.Errorf("await bearer reactivation (%s): %w", label, err)
 	}
 
-	if req.ESMCause != eps.ESMCauseReactivationRequested {
-		return fmt.Errorf("ESM cause = %d, want %d (reactivation requested)", req.ESMCause, eps.ESMCauseReactivationRequested)
+	if req.Cause != eps.ESMCauseReactivationRequested {
+		return fmt.Errorf("ESM cause = %d, want %d (reactivation requested)", req.Cause, eps.ESMCauseReactivationRequested)
 	}
 
 	logger.GnbLogger.Info("bearer deactivated with reactivation requested; re-attaching", zap.String("change", label))

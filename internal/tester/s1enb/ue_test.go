@@ -7,12 +7,12 @@ import (
 	"bytes"
 	"testing"
 
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
 func TestBuildAttachRequest(t *testing.T) {
-	ue := &UE{IMSI: "001010000000001"}
+	ue := &UE{IMSI: "001010000000001", netCapEEA: 0xf0, netCapEIA: 0x70}
 
 	b, err := ue.buildAttachRequest()
 	if err != nil {
@@ -28,11 +28,11 @@ func TestBuildAttachRequest(t *testing.T) {
 		t.Fatalf("attach type = %d, want %d", req.EPSAttachType, eps.AttachTypeEPS)
 	}
 
-	if req.EPSMobileIdentity.Type != eps.IdentityIMSI || req.EPSMobileIdentity.Digits != ue.IMSI {
+	if imsi := req.EPSMobileIdentity.IMSI; imsi == nil || string(*imsi) != ue.IMSI {
 		t.Fatalf("identity = %+v, want IMSI %s", req.EPSMobileIdentity, ue.IMSI)
 	}
 
-	if len(req.UENetworkCapability) == 0 || len(req.ESMMessageContainer) == 0 {
+	if !req.UENetworkCapability.SupportsEEA(0) || len(req.ESMMessageContainer) == 0 {
 		t.Fatalf("missing UE network capability or ESM container")
 	}
 }
@@ -53,14 +53,12 @@ func TestUEKeyDerivationRoundTrip(t *testing.T) {
 
 		plain := []byte{0x07, 0x42, 0x01, 0x02, 0x03}
 
-		wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nascommon.NASCount(0, 0),
-			nascommon.DirectionUplink, ue.knasInt, ue.knasEnc, ue.IntegrityAlg(), ue.CipherAlg())
+		wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nas.MakeCount(0, 0), nas.DirectionUplink, mustSecurityContext(t, nas.IntegrityAES, nas.CipheringAES, ue.knasInt, ue.knasEnc))
 		if err != nil {
 			t.Fatalf("alg %d: protect: %v", alg, err)
 		}
 
-		back, err := eps.Unprotect(wire, nascommon.NASCount(0, wire[5]), nascommon.DirectionUplink,
-			ue.knasInt, ue.knasEnc, ue.IntegrityAlg(), ue.CipherAlg())
+		back, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionUplink, mustSecurityContext(t, nas.IntegrityAES, nas.CipheringAES, ue.knasInt, ue.knasEnc)))
 		if err != nil {
 			t.Fatalf("alg %d: unprotect: %v", alg, err)
 		}
@@ -85,7 +83,7 @@ func TestHandleAuthenticationRequest(t *testing.T) {
 		rand[i] = byte(i + 1)
 	}
 
-	req, err := (&eps.AuthenticationRequest{RAND: rand, AUTN: make([]byte, 16)}).Marshal()
+	req, err := (&eps.AuthenticationRequest{RAND: rand, AUTN: [16]byte{}}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}

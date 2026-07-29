@@ -24,3 +24,13 @@ jobs:
 
       - name: Run Gosec
         run: gosec -exclude=G103,G115,G117 ./...
+
+      - name: Sub-module gosec
+        run: |
+          set -e
+          for modfile in $(find . -name go.mod -not -path './go.mod' -not -path './ui/*'); do
+            dir=$(dirname "$modfile")
+            echo "::group::gosec in $dir"
+            (cd "$dir" && gosec -exclude=G103,G115,G117 ./...)
+            echo "::endgroup::"
+          done

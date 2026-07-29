@@ -73,14 +73,14 @@ func TestNGSetupRequestGoldenVector(t *testing.T) {
 	// 00 00 01    TAC of TAI item 0 (octet-aligned, 3 octets)
 	// 80          DefaultPagingDRX: value 2 (2 bits: 10) + 6 pad → 0x80
 	expected := []byte{
-		0x00,                   // preamble + pad
-		0x00, 0xF1, 0x10,      // PLMN
-		0x00,                   // GNBIDChoice idx 0 + GNBID length 00 + pad
-		0x01,                   // GNBID.Value = 1
-		0x00,                   // SupportedTAList count (n-lb = 0)
-		0x00, 0xF1, 0x10,      // TAI PLMN
-		0x00, 0x00, 0x01,      // TAI TAC
-		0x80,                   // DefaultPagingDRX = 2 (10xxxxxx)
+		0x00,             // preamble + pad
+		0x00, 0xF1, 0x10, // PLMN
+		0x00,             // GNBIDChoice idx 0 + GNBID length 00 + pad
+		0x01,             // GNBID.Value = 1
+		0x00,             // SupportedTAList count (n-lb = 0)
+		0x00, 0xF1, 0x10, // TAI PLMN
+		0x00, 0x00, 0x01, // TAI TAC
+		0x80, // DefaultPagingDRX = 2 (10xxxxxx)
 	}
 
 	if !bytes.Equal(buf, expected) {

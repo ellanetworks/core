@@ -43,7 +43,7 @@ func (e *ENB) ModifyBearerViaERABModify(ue *UE, enbUEID int64, timeout time.Dura
 		return nil, nil, fmt.Errorf("parse Modify EPS Bearer Context Request: %w", err)
 	}
 
-	accept, err := ue.buildModifyEPSBearerContextAccept(nasReq.EPSBearerIdentity, nasReq.ProcedureTransactionIdentity)
+	accept, err := ue.buildModifyEPSBearerContextAccept(uint8(nasReq.EPSBearerIdentity), uint8(nasReq.PTI))
 	if err != nil {
 		return nil, nil, err
 	}

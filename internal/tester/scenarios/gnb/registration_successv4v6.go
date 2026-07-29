@@ -14,7 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 )
@@ -65,7 +65,7 @@ func runRegistrationSuccessV4V6(_ context.Context, env scenarios.Env, _ any) err
 
 	newUE, err := ue.NewUE(&ue.UEOpts{
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
-		PDUSessionType: nasMessage.PDUSessionTypeIPv4IPv6,
+		PDUSessionType: fgs.PDUSessionTypeIPv4v6,
 		GnodeB:         gNodeB,
 		Msin:           scenarios.DefaultIMSI[5:],
 		K:              scenarios.DefaultKey,
@@ -102,7 +102,7 @@ func runRegistrationSuccessV4V6(_ context.Context, env scenarios.Env, _ any) err
 	err = runInitialRegistration(&initialRegistrationOpts{
 		RANUENGAPID:            int64(scenarios.DefaultRANUENGAPID),
 		PDUSessionID:           scenarios.DefaultPDUSessionID,
-		ExpectedPDUSessionType: nasMessage.PDUSessionTypeIPv4IPv6,
+		ExpectedPDUSessionType: uint8(fgs.PDUSessionTypeIPv4v6),
 		UE:                     newUE,
 		GnodeB:                 gNodeB,
 	})

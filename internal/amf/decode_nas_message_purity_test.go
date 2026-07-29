@@ -5,9 +5,11 @@
 package amf
 
 import (
+	"reflect"
 	"testing"
 
-	"github.com/free5gc/nas/nasType"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 // TestDecodeNASMessage_PurityOnPlainWhitelist asserts the decoder does
@@ -25,7 +27,7 @@ func TestDecodeNASMessage_PurityOnPlainWhitelist(t *testing.T) {
 	}
 
 	after := snapshotSecurityState(ue)
-	if before != after {
+	if !reflect.DeepEqual(before, after) {
 		t.Errorf("decoder mutated security state: before=%+v after=%+v", before, after)
 	}
 }
@@ -45,7 +47,7 @@ func TestDecodeNASMessage_PurityOnPlainReject(t *testing.T) {
 	}
 
 	after := snapshotSecurityState(ue)
-	if before != after {
+	if !reflect.DeepEqual(before, after) {
 		t.Errorf("decoder mutated security state on rejection: before=%+v after=%+v", before, after)
 	}
 }
@@ -59,9 +61,9 @@ func TestDecodeNASMessage_PurityOnPlainReject(t *testing.T) {
 // so it is not a security-policy field and is not snapshotted.
 type securityStateSnapshot struct {
 	SecurityContextAvailable bool
-	CipheringAlg             uint8
-	IntegrityAlg             uint8
-	UESecurityCapability     *nasType.UESecurityCapability
+	CipheringAlg             nas.CipheringAlgorithm
+	IntegrityAlg             nas.IntegrityAlgorithm
+	UESecurityCapability     *fgs.UESecurityCapability
 	KnasInt                  [16]uint8
 	KnasEnc                  [16]uint8
 }

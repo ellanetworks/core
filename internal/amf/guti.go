@@ -12,6 +12,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 // releaseTmsisLocked unindexes and frees both the UE's current and in-flight old
@@ -146,16 +147,24 @@ func (a *AMF) CommitGUTIRealloc(ue *UeContext) {
 	ue.oldTmsi = etsi.InvalidTMSI
 }
 
-func (amf *AMF) StmsiToGuti(ctx context.Context, buf [7]byte) (etsi.GUTI5G, error) {
+func (amf *AMF) StmsiToGuti(ctx context.Context, stmsi fgs.STMSI) (etsi.GUTI5G, error) {
 	operatorInfo, err := amf.OperatorInfo(ctx)
 	if err != nil {
 		return etsi.InvalidGUTI5G, fmt.Errorf("could not get operator info: %v", err)
 	}
 
+	// The 5G-S-TMSI omits the AMF Region ID, which the serving AMF supplies from
+	// its own GUAMI (TS 23.003 §2.10.1).
 	tmpReginID := operatorInfo.Guami.AmfID[:2]
-	amfID := hex.EncodeToString(buf[1:3])
 
-	tmsi5G, err := etsi.NewTMSI(binary.BigEndian.Uint32(buf[3:]))
+	setIDPointer, err := fgs.AMFIdentifier{SetID: stmsi.AMFSetID, Pointer: stmsi.AMFPointer}.MarshalBinary()
+	if err != nil {
+		return etsi.InvalidGUTI5G, err
+	}
+
+	amfID := hex.EncodeToString(setIDPointer[1:])
+
+	tmsi5G, err := etsi.NewTMSI(binary.BigEndian.Uint32(stmsi.TMSI[:]))
 	if err != nil {
 		return etsi.InvalidGUTI5G, err
 	}

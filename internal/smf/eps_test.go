@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/eps"
 )
 
 const (
@@ -294,7 +295,7 @@ func TestCreateEPSSessionDowngradeCause(t *testing.T) {
 		name      string
 		dropPool  func(*models.EPSBearerRequest)
 		wantType  uint8
-		wantCause uint8
+		wantCause eps.ESMCause
 	}{
 		{"IPv6-only DN", func(r *models.EPSBearerRequest) { r.IPv4Pool = "" }, 2, 51},
 		{"IPv4-only DN", func(r *models.EPSBearerRequest) { r.IPv6Pool = "" }, 1, 50},
@@ -311,7 +312,7 @@ func TestCreateEPSSessionDowngradeCause(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if bearer.PDNType != tc.wantType || bearer.ESMCause != tc.wantCause {
+			if bearer.PDNType != eps.PDNType(tc.wantType) || bearer.ESMCause != tc.wantCause {
 				t.Fatalf("bearer type=%d cause=%d, want type=%d cause=%d", bearer.PDNType, bearer.ESMCause, tc.wantType, tc.wantCause)
 			}
 		})

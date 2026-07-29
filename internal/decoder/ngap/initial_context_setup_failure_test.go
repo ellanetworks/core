@@ -77,7 +77,7 @@ func TestDecodeNGAPMessage_InitialContextSetupFailure(t *testing.T) {
 		t.Errorf("expected third IE=Cause, got %v", causeIE.ID)
 	}
 
-	cause, ok := causeIE.Value.(utils.EnumField[uint64])
+	cause, ok := causeIE.Value.(utils.EnumField)
 	if !ok {
 		t.Fatalf("expected Cause enum, got %T", causeIE.Value)
 	}
@@ -86,7 +86,7 @@ func TestDecodeNGAPMessage_InitialContextSetupFailure(t *testing.T) {
 		t.Errorf("expected Cause=SliceNotSupported, got %v", cause.Label)
 	}
 
-	if cause.Value != uint64(ngapType.CauseRadioNetworkPresentSliceNotSupported) {
+	if cause.Value != int64(ngapType.CauseRadioNetworkPresentSliceNotSupported) {
 		t.Errorf("expected Cause value=%d, got %d", ngapType.CauseRadioNetworkPresentSliceNotSupported, cause.Value)
 	}
 }

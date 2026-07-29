@@ -21,15 +21,15 @@ import (
 type egress struct{ conn *mme.UeConn }
 
 type nasMarshaler interface {
-	Marshal() ([]byte, error)
+	MarshalBinary() ([]byte, error)
 }
 
 func (e egress) SendMMStatus(ctx context.Context, cause uint8) {
-	e.emit(ctx, &eps.EMMStatus{EMMCause: cause})
+	e.emit(ctx, &eps.EMMStatus{Cause: eps.EMMCause(cause)})
 }
 
 func (e egress) SendSMStatus(ctx context.Context, cause uint8) {
-	e.emit(ctx, &eps.ESMStatus{ESMCause: cause})
+	e.emit(ctx, &eps.ESMStatus{Cause: eps.ESMCause(cause)})
 }
 
 func (e egress) emit(ctx context.Context, msg nasMarshaler) {

@@ -10,45 +10,54 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
+// encULNAS encodes a UL NAS TRANSPORT message to its plain wire bytes, the form
+// the handler receives.
+func encULNAS(t *testing.T, msg *fgs.ULNASTransport) []byte {
+	t.Helper()
+
+	b, err := msg.MarshalBinary()
+	if err != nil {
+		t.Fatalf("could not encode UL NAS Transport: %v", err)
+	}
+
+	return b
+}
+
+// fgsULNAS round-trips a UL NAS TRANSPORT message through the wire so the handler
+// receives it exactly as parsed from bytes.
+func fgsULNAS(t *testing.T, msg *fgs.ULNASTransport) *fgs.ULNASTransport {
+	t.Helper()
+
+	parsed, err := fgs.ParseULNASTransport(encULNAS(t, msg))
+	if err != nil {
+		t.Fatalf("could not parse UL NAS Transport: %v", err)
+	}
+
+	return parsed
+}
+
 // buildTestULNASTransport creates a ULNASTransport message with the given payload container type,
-// payload contents, and optional PDU session ID. If pduSessionID is non-nil, it sets
-// the PduSessionID2Value field.
-func buildTestULNASTransport(payloadContainerType uint8, payload []byte, pduSessionID *uint8) *nasMessage.ULNASTransport {
-	msg := nasMessage.NewULNASTransport(0)
-	msg.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	msg.SetSecurityHeaderType(0)
-	msg.SetMessageType(nas.MsgTypeULNASTransport)
-	msg.SetPayloadContainerType(payloadContainerType)
-
-	if len(payload) > 0 {
-		msg.PayloadContainer.SetLen(uint16(len(payload)))
-		msg.SetPayloadContainerContents(payload)
+// payload contents, and optional PDU session ID.
+func buildTestULNASTransport(payloadContainerType fgs.PayloadContainerType, payload []byte, pduSessionID *fgs.PDUSessionID) *fgs.ULNASTransport {
+	return &fgs.ULNASTransport{
+		PayloadContainerType: payloadContainerType,
+		PayloadContainer:     payload,
+		PDUSessionID:         pduSessionID,
 	}
-
-	if pduSessionID != nil {
-		msg.PduSessionID2Value = nasType.NewPduSessionID2Value(nasMessage.ULNASTransportPduSessionID2ValueType)
-		msg.SetPduSessionID2Value(*pduSessionID)
-	}
-
-	return msg
 }
 
-func setRequestType(msg *nasMessage.ULNASTransport, requestTypeValue uint8) {
-	msg.RequestType = nasType.NewRequestType(nasMessage.ULNASTransportRequestTypeType)
-	msg.SetRequestTypeValue(requestTypeValue)
+func setRequestType(msg *fgs.ULNASTransport, requestTypeValue fgs.RequestType) {
+	msg.RequestType = &requestTypeValue
 }
 
-func setOldPDUSessionID(msg *nasMessage.ULNASTransport, id uint8) {
-	msg.OldPDUSessionID = nasType.NewOldPDUSessionID(nasMessage.ULNASTransportOldPDUSessionIDType)
-	msg.SetOldPDUSessionID(id)
+func setOldPDUSessionID(msg *fgs.ULNASTransport, id fgs.PDUSessionID) {
+	msg.OldPDUSessionID = &id
 }
 
-func pduSessionIDPtr(id uint8) *uint8 {
+func pduSessionIDPtr(id fgs.PDUSessionID) *fgs.PDUSessionID {
 	return &id
 }
 
@@ -63,7 +72,7 @@ func TestHandleULNASTransport_WrongState_Error(t *testing.T) {
 
 			ue.ForceStateForTest(tc)
 
-			msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, []byte{0x01}, pduSessionIDPtr(1))
+			msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, []byte{0x01}, pduSessionIDPtr(1))
 
 			handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
 		})
@@ -78,7 +87,7 @@ func TestHandleULNASTransport_PayloadContainerTypeSMS_Error(t *testing.T) {
 
 	ue.ForceStateForTest(amf.Registered)
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeSMS, []byte{0x01}, nil)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeSMS, []byte{0x01}, nil)
 
 	handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
 }
@@ -91,7 +100,7 @@ func TestHandleULNASTransport_PayloadContainerTypeLPP_Error(t *testing.T) {
 
 	ue.ForceStateForTest(amf.Registered)
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeLPP, []byte{0x01}, nil)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeLPP, []byte{0x01}, nil)
 
 	handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
 }
@@ -104,7 +113,7 @@ func TestHandleULNASTransport_PayloadContainerTypeSOR_Error(t *testing.T) {
 
 	ue.ForceStateForTest(amf.Registered)
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeSOR, []byte{0x01}, nil)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeSOR, []byte{0x01}, nil)
 
 	handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
 }
@@ -117,7 +126,7 @@ func TestHandleULNASTransport_PayloadContainerTypeMultiplePayload_Error(t *testi
 
 	ue.ForceStateForTest(amf.Registered)
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeMultiplePayload, []byte{0x01}, nil)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeMultiplePayload, []byte{0x01}, nil)
 
 	handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
 }
@@ -130,7 +139,7 @@ func TestHandleULNASTransport_PayloadContainerTypeUEPolicy_NoError(t *testing.T)
 
 	ue.ForceStateForTest(amf.Registered)
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeUEPolicy, []byte{0x01}, nil)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeUEPolicy, []byte{0x01}, nil)
 
 	handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
 }
@@ -147,7 +156,7 @@ func TestHandleULNASTransport_PayloadContainerTypeUEParameterUpdate_NoError(t *t
 	upuAck := make([]byte, 17)
 	upuAck[0] = 0x01
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeUEParameterUpdate, upuAck, nil)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeUEParameterUpdate, upuAck, nil)
 
 	handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
 }
@@ -158,9 +167,9 @@ func TestTransport5GSMMessage_NilPduSessionID_Error(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, []byte{0x01}, nil)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, []byte{0x01}, nil)
 
-	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, fgsULNAS(t, msg))
 }
 
 func TestTransport5GSMMessage_OldPDUSessionID_Error(t *testing.T) {
@@ -169,10 +178,10 @@ func TestTransport5GSMMessage_OldPDUSessionID_Error(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, []byte{0x01}, pduSessionIDPtr(1))
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, []byte{0x01}, pduSessionIDPtr(1))
 	setOldPDUSessionID(msg, 2)
 
-	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, fgsULNAS(t, msg))
 }
 
 func TestTransport5GSMMessage_SmContextNotExists_Status5GSM_NoError(t *testing.T) {
@@ -181,12 +190,12 @@ func TestTransport5GSMMessage_SmContextNotExists_Status5GSM_NoError(t *testing.T
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	// Status5GSM: EPD (0x2E) + PDU session ID (0x01) + PTI (0x00) + message type (0xD6) + cause (0x24)
+	// GSMStatus: EPD (0x2E) + PDU session ID (0x01) + PTI (0x00) + message type (0xD6) + cause (0x24)
 	status5gsmPayload := []byte{0x2E, 0x01, 0x00, 0xD6, 0x24}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, status5gsmPayload, pduSessionIDPtr(1))
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, status5gsmPayload, pduSessionIDPtr(1))
 
-	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, fgsULNAS(t, msg))
 }
 
 func TestTransport5GSMMessage_EmergencyRequest_SendsDLNASTransport(t *testing.T) {
@@ -197,31 +206,17 @@ func TestTransport5GSMMessage_EmergencyRequest_SendsDLNASTransport(t *testing.T)
 
 	smPayload := []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(1))
-	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(1))
+	setRequestType(msg, fgs.RequestTypeInitialEmergencyRequest)
 
-	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, fgsULNAS(t, msg))
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 downlink NAS transport, got: %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-		t.Fatalf("expected a plain NAS message")
-	}
-
-	err = nm.PlainNasDecode(&resp.NasPdu)
-	if err != nil {
-		t.Fatalf("could not decode plain NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeDLNASTransport {
-		t.Fatalf("expected DLNASTransport message, got: %v", nm.GmmHeader.GetMessageType())
-	}
+	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgDLNASTransport))
 }
 
 func TestTransport5GSMMessage_ExistingEmergencyPduSession_SendsDLNASTransport(t *testing.T) {
@@ -232,31 +227,17 @@ func TestTransport5GSMMessage_ExistingEmergencyPduSession_SendsDLNASTransport(t 
 
 	smPayload := []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(1))
-	setRequestType(msg, nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(1))
+	setRequestType(msg, fgs.RequestTypeExistingEmergencyPDUSession)
 
-	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, fgsULNAS(t, msg))
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 downlink NAS transport, got: %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-		t.Fatalf("expected a plain NAS message")
-	}
-
-	err = nm.PlainNasDecode(&resp.NasPdu)
-	if err != nil {
-		t.Fatalf("could not decode plain NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeDLNASTransport {
-		t.Fatalf("expected DLNASTransport message, got: %v", nm.GmmHeader.GetMessageType())
-	}
+	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgDLNASTransport))
 }
 
 func TestTransport5GSMMessage_ExistingPduSession_NotAllowedNssai_SendsDLNASTransport(t *testing.T) {
@@ -274,31 +255,17 @@ func TestTransport5GSMMessage_ExistingPduSession_NotAllowedNssai_SendsDLNASTrans
 
 	smPayload := []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
-	setRequestType(msg, nasMessage.ULNASTransportRequestTypeExistingPduSession)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
+	setRequestType(msg, fgs.RequestTypeExistingPDUSession)
 
-	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, fgsULNAS(t, msg))
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 downlink NAS transport, got: %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-		t.Fatalf("expected a plain NAS message")
-	}
-
-	err = nm.PlainNasDecode(&resp.NasPdu)
-	if err != nil {
-		t.Fatalf("could not decode plain NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeDLNASTransport {
-		t.Fatalf("expected DLNASTransport message, got: %v", nm.GmmHeader.GetMessageType())
-	}
+	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgDLNASTransport))
 }
 
 func TestTransport5GSMMessage_NoSmContext_ModificationRequest_SendsDLNASTransport(t *testing.T) {
@@ -309,31 +276,17 @@ func TestTransport5GSMMessage_NoSmContext_ModificationRequest_SendsDLNASTranspor
 
 	smPayload := []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(1))
-	setRequestType(msg, nasMessage.ULNASTransportRequestTypeModificationRequest)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(1))
+	setRequestType(msg, fgs.RequestTypeModificationRequest)
 
-	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, fgsULNAS(t, msg))
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 downlink NAS transport, got: %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-		t.Fatalf("expected a plain NAS message")
-	}
-
-	err = nm.PlainNasDecode(&resp.NasPdu)
-	if err != nil {
-		t.Fatalf("could not decode plain NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeDLNASTransport {
-		t.Fatalf("expected DLNASTransport message, got: %v", nm.GmmHeader.GetMessageType())
-	}
+	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgDLNASTransport))
 }
 
 func TestTransport5GSMMessage_NoSmContext_NoRequestType_SendsDLNASTransport(t *testing.T) {
@@ -345,31 +298,23 @@ func TestTransport5GSMMessage_NoSmContext_NoRequestType_SendsDLNASTransport(t *t
 	// No SM context for this PDU session ID and no Request Type IE (TS 24.501).
 	smPayload := []byte{0x2E, 0x01, 0x00, 0xC9}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(1))
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(1))
 
-	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, fgsULNAS(t, msg))
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 downlink NAS transport, got: %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
+	dl := assertPlainDLTransport(t, resp.NasPdu)
 
-	if err := nm.PlainNasDecode(&resp.NasPdu); err != nil {
-		t.Fatalf("could not decode plain NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeDLNASTransport {
-		t.Fatalf("expected DLNASTransport message, got: %v", nm.GmmHeader.GetMessageType())
-	}
-
-	if nm.DLNASTransport == nil || nm.DLNASTransport.Cause5GMM == nil {
+	if dl.Cause == nil {
 		t.Fatal("expected a DLNASTransport carrying a 5GMM cause")
 	}
 
-	if got := nm.DLNASTransport.GetCauseValue(); got != nasMessage.Cause5GMMPayloadWasNotForwarded {
-		t.Fatalf("5GMM cause = %d, want %d (payload was not forwarded)", got, nasMessage.Cause5GMMPayloadWasNotForwarded)
+	if got := *dl.Cause; got != 0x5a {
+		t.Fatalf("5GMM cause = %d, want %d (payload was not forwarded)", got, 0x5a)
 	}
 }
 
@@ -383,23 +328,19 @@ func TestTransport5GSMMessage_ReservedPduSessionID_SendsDLNASTransport(t *testin
 	// TS 24.501.
 	smPayload := []byte{0x2E, 0x10, 0x00, 0xC9}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(16))
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(16))
 
-	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, fgsULNAS(t, msg))
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 downlink NAS transport, got: %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
+	dl := assertPlainDLTransport(t, resp.NasPdu)
 
-	if err := nm.PlainNasDecode(&resp.NasPdu); err != nil {
-		t.Fatalf("could not decode plain NAS message: %v", err)
-	}
-
-	if nm.DLNASTransport == nil || nm.DLNASTransport.GetCauseValue() != nasMessage.Cause5GMMPayloadWasNotForwarded {
-		t.Fatalf("expected DLNASTransport with 5GMM cause #%d", nasMessage.Cause5GMMPayloadWasNotForwarded)
+	if dl.Cause == nil || *dl.Cause != 0x5a {
+		t.Fatalf("expected DLNASTransport with 5GMM cause #%d", 0x5a)
 	}
 }
 
@@ -411,31 +352,17 @@ func TestTransport5GSMMessage_NoSmContext_ExistingPduSession_SendsDLNASTransport
 
 	smPayload := []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(1))
-	setRequestType(msg, nasMessage.ULNASTransportRequestTypeExistingPduSession)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(1))
+	setRequestType(msg, fgs.RequestTypeExistingPDUSession)
 
-	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, fgsULNAS(t, msg))
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 downlink NAS transport, got: %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-		t.Fatalf("expected a plain NAS message")
-	}
-
-	err = nm.PlainNasDecode(&resp.NasPdu)
-	if err != nil {
-		t.Fatalf("could not decode plain NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeDLNASTransport {
-		t.Fatalf("expected DLNASTransport message, got: %v", nm.GmmHeader.GetMessageType())
-	}
+	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgDLNASTransport))
 }
 
 func TestTransport5GSMMessage_SmContextExists_InitialRequest_DeletesContextAndCreateNewOne(t *testing.T) {
@@ -453,8 +380,8 @@ func TestTransport5GSMMessage_SmContextExists_InitialRequest_DeletesContextAndCr
 
 	smPayload := []byte{0x2E, 0x03, 0x00, 0xC1, 0x00}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
-	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialRequest)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
+	setRequestType(msg, fgs.RequestTypeInitialRequest)
 
 	fakeSmf := &fakeSmf{
 		CreateSmContextRef: "new-ref-123",
@@ -464,7 +391,7 @@ func TestTransport5GSMMessage_SmContextExists_InitialRequest_DeletesContextAndCr
 
 	ue.AllowedNssai = []models.Snssai{*snssai}
 
-	transport5GSMMessage(t.Context(), amfInstance, ue, msg)
+	transport5GSMMessage(t.Context(), amfInstance, ue, fgsULNAS(t, msg))
 
 	smCtx, exists := ue.SmContextFindByPDUSessionID(pduSessionID)
 	if !exists {
@@ -496,8 +423,8 @@ func TestTransport5GSMMessage_InitialRequest_SmfReturnsErrorAndReject_ForwardsRe
 	ue.AllowedNssai = []models.Snssai{*snssai}
 
 	smPayload := []byte{0x2E, 0x03, 0x00, 0xC1, 0x00}
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
-	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialRequest)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
+	setRequestType(msg, fgs.RequestTypeInitialRequest)
 
 	smfReject := []byte{0xDE, 0xAD, 0xBE, 0xEF}
 	fakeSmf := &fakeSmf{
@@ -507,7 +434,7 @@ func TestTransport5GSMMessage_InitialRequest_SmfReturnsErrorAndReject_ForwardsRe
 
 	amfInstance := amf.New(&fakeDBInstance{}, nil, fakeSmf)
 
-	transport5GSMMessage(t.Context(), amfInstance, ue, msg)
+	transport5GSMMessage(t.Context(), amfInstance, ue, fgsULNAS(t, msg))
 
 	if _, exists := ue.SmContextFindByPDUSessionID(pduSessionID); exists {
 		t.Fatal("expected no SM context to be created on SMF reject")
@@ -535,8 +462,8 @@ func TestTransport5GSMMessage_InitialRequest_SmfReturnsErrorOnly_SendsFallbackAn
 	ue.AllowedNssai = []models.Snssai{*snssai}
 
 	smPayload := []byte{0x2E, 0x03, 0x00, 0xC1, 0x00}
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
-	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialRequest)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
+	setRequestType(msg, fgs.RequestTypeInitialRequest)
 
 	fakeSmf := &fakeSmf{
 		CreateSmContextError: fmt.Errorf("smf is unavailable"),
@@ -544,7 +471,7 @@ func TestTransport5GSMMessage_InitialRequest_SmfReturnsErrorOnly_SendsFallbackAn
 
 	amfInstance := amf.New(&fakeDBInstance{}, nil, fakeSmf)
 
-	transport5GSMMessage(t.Context(), amfInstance, ue, msg)
+	transport5GSMMessage(t.Context(), amfInstance, ue, fgsULNAS(t, msg))
 
 	if _, exists := ue.SmContextFindByPDUSessionID(pduSessionID); exists {
 		t.Fatal("expected no SM context to be created on SMF error")
@@ -555,23 +482,14 @@ func TestTransport5GSMMessage_InitialRequest_SmfReturnsErrorOnly_SendsFallbackAn
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+	dl := assertPlainDLTransport(t, resp.NasPdu)
 
-	if err := nm.PlainNasDecode(&resp.NasPdu); err != nil {
-		t.Fatalf("could not decode plain NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeDLNASTransport {
-		t.Fatalf("expected DLNASTransport message, got: %v", nm.GmmHeader.GetMessageType())
-	}
-
-	if nm.DLNASTransport == nil || nm.DLNASTransport.Cause5GMM == nil {
+	if dl.Cause == nil {
 		t.Fatal("expected DLNASTransport with 5GMM cause")
 	}
 
-	if got := nm.DLNASTransport.Cause5GMM.GetCauseValue(); got != nasMessage.Cause5GMMPayloadWasNotForwarded { //nolint:staticcheck // explicit selector to avoid ambiguity with embedded message fields
-		t.Fatalf("expected 5GMM cause %d (payload was not forwarded), got %d", nasMessage.Cause5GMMPayloadWasNotForwarded, got)
+	if got := *dl.Cause; got != 0x5a {
+		t.Fatalf("expected 5GMM cause %d (payload was not forwarded), got %d", 0x5a, got)
 	}
 }
 
@@ -630,21 +548,7 @@ func TestForward5GSMMessageToSMF_N1Only_SendsDLNASTransport(t *testing.T) {
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-		t.Fatalf("expected a plain NAS message")
-	}
-
-	err = nm.PlainNasDecode(&resp.NasPdu)
-	if err != nil {
-		t.Fatalf("could not decode plain NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeDLNASTransport {
-		t.Fatalf("expected DLNASTransport message, got: %v", nm.GmmHeader.GetMessageType())
-	}
+	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgDLNASTransport))
 }
 
 func TestForward5GSMMessageToSMF_N2NotPduResRel_ReturnsNil(t *testing.T) {
@@ -744,7 +648,7 @@ func TestTransport5GSMMessage_SmContextExists_NoRequestType_ForwardsToSMF(t *tes
 
 	smPayload := []byte{0x2E, 0x05, 0x00, 0xC1, 0x00}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
 
 	fakeSmf := &fakeSmf{
 		UpdateN1MsgResponse: nil,
@@ -752,7 +656,7 @@ func TestTransport5GSMMessage_SmContextExists_NoRequestType_ForwardsToSMF(t *tes
 
 	amfInstance := amf.New(nil, nil, fakeSmf)
 
-	transport5GSMMessage(t.Context(), amfInstance, ue, msg)
+	transport5GSMMessage(t.Context(), amfInstance, ue, fgsULNAS(t, msg))
 
 	if len(fakeSmf.UpdateN1MsgCalls) != 1 {
 		t.Fatalf("expected 1 UpdateSmContextN1Msg call, got: %d", len(fakeSmf.UpdateN1MsgCalls))
@@ -782,8 +686,8 @@ func TestTransport5GSMMessage_SmContextExists_DuplicatePDU_Success(t *testing.T)
 
 	smPayload := []byte{0x2E, 0x03, 0x00, 0xC1, 0x00}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
-	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialRequest)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
+	setRequestType(msg, fgs.RequestTypeInitialRequest)
 
 	fakeSmf := &fakeSmf{
 		CreateSmContextRef: "new-ref-after-dup",
@@ -794,7 +698,7 @@ func TestTransport5GSMMessage_SmContextExists_DuplicatePDU_Success(t *testing.T)
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001010000000001"))
 	ue.AllowedNssai = []models.Snssai{*snssai}
 
-	transport5GSMMessage(t.Context(), amfInstance, ue, msg)
+	transport5GSMMessage(t.Context(), amfInstance, ue, fgsULNAS(t, msg))
 
 	if len(fakeSmf.DuplicatePDUCalls) != 0 {
 		t.Fatalf("expected 0 DuplicatePDU calls, got: %d", len(fakeSmf.DuplicatePDUCalls))
@@ -838,8 +742,8 @@ func TestTransport5GSMMessage_SmContextExists_ExistingPduSession_AllowedNssai_Fo
 
 	smPayload := []byte{0x2E, 0x05, 0x00, 0xC1, 0x00}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
-	setRequestType(msg, nasMessage.ULNASTransportRequestTypeExistingPduSession)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
+	setRequestType(msg, fgs.RequestTypeExistingPDUSession)
 
 	fakeSmf := &fakeSmf{
 		UpdateN1MsgResponse: nil,
@@ -847,7 +751,7 @@ func TestTransport5GSMMessage_SmContextExists_ExistingPduSession_AllowedNssai_Fo
 
 	amfInstance := amf.New(nil, nil, fakeSmf)
 
-	transport5GSMMessage(t.Context(), amfInstance, ue, msg)
+	transport5GSMMessage(t.Context(), amfInstance, ue, fgsULNAS(t, msg))
 
 	if len(fakeSmf.UpdateN1MsgCalls) != 1 {
 		t.Fatalf("expected 1 UpdateSmContextN1Msg call, got: %d", len(fakeSmf.UpdateN1MsgCalls))
@@ -870,7 +774,7 @@ func TestTransport5GSMMessage_SmContextExists_DefaultRequestType_ForwardsToSMF(t
 
 	smPayload := []byte{0x2E, 0x05, 0x00, 0xC1, 0x00}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
 	// 7 is not a defined request type, exercising the default case.
 	setRequestType(msg, 7)
 
@@ -880,7 +784,7 @@ func TestTransport5GSMMessage_SmContextExists_DefaultRequestType_ForwardsToSMF(t
 
 	amfInstance := amf.New(nil, nil, fakeSmf)
 
-	transport5GSMMessage(t.Context(), amfInstance, ue, msg)
+	transport5GSMMessage(t.Context(), amfInstance, ue, fgsULNAS(t, msg))
 
 	if len(fakeSmf.UpdateN1MsgCalls) != 1 {
 		t.Fatalf("expected 1 UpdateSmContextN1Msg call, got: %d", len(fakeSmf.UpdateN1MsgCalls))
@@ -899,19 +803,12 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_WithSNSSAIAndDNN_Create
 
 	smPayload := []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
-	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialRequest)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
+	setRequestType(msg, fgs.RequestTypeInitialRequest)
 
-	// Set SNSSAI on the NAS message: IEI=0x22, Len=4, SST=1, SD=0x01,0x02,0x03
-	msg.SNSSAI = nasType.NewSNSSAI(nasMessage.ULNASTransportSNSSAIType)
-	msg.SNSSAI.SetLen(4)
-	msg.SetSST(1)
-	msg.SetSD([3]uint8{0x01, 0x02, 0x03})
+	msg.SNSSAI = &fgs.SNSSAI{SST: 1, SD: &[3]byte{1, 2, 3}}
 
-	msg.DNN = nasType.NewDNN(nasMessage.ULNASTransportDNNType)
-	dnnValue := "internet"
-	msg.DNN.SetLen(uint8(len(dnnValue)))
-	msg.SetDNN(dnnValue)
+	msg.DNN = new(fgs.DNN("internet"))
 
 	fakeSmf := &fakeSmf{
 		CreateSmContextRef: "new-ctx-ref",
@@ -919,7 +816,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_WithSNSSAIAndDNN_Create
 
 	amfInstance := amf.New(&fakeDBInstance{}, nil, fakeSmf)
 
-	transport5GSMMessage(t.Context(), amfInstance, ue, msg)
+	transport5GSMMessage(t.Context(), amfInstance, ue, fgsULNAS(t, msg))
 
 	if len(fakeSmf.CreateSmContextCalls) != 1 {
 		t.Fatalf("expected 1 CreateSmContext call, got: %d", len(fakeSmf.CreateSmContextCalls))
@@ -957,8 +854,8 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_DefaultSNSSAIAndDNN(t *
 
 	smPayload := []byte{0x2E, 0x02, 0x00, 0xC1, 0x00}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
-	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialRequest)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
+	setRequestType(msg, fgs.RequestTypeInitialRequest)
 
 	// No SNSSAI or DNN set on the NAS message
 
@@ -968,7 +865,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_DefaultSNSSAIAndDNN(t *
 
 	amfInstance := amf.New(&fakeDBInstance{}, nil, fakeSmf)
 
-	transport5GSMMessage(t.Context(), amfInstance, ue, msg)
+	transport5GSMMessage(t.Context(), amfInstance, ue, fgsULNAS(t, msg))
 
 	if len(fakeSmf.CreateSmContextCalls) != 1 {
 		t.Fatalf("expected 1 CreateSmContext call, got: %d", len(fakeSmf.CreateSmContextCalls))
@@ -1009,8 +906,8 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_NilAllowedNssai_Error(t
 
 	smPayload := []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
-	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialRequest)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
+	setRequestType(msg, fgs.RequestTypeInitialRequest)
 
 	// No SNSSAI set on the NAS message, and UE.AllowedNssai is nil
 
@@ -1018,7 +915,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_NilAllowedNssai_Error(t
 
 	amfInstance := amf.New(&fakeDBInstance{}, nil, fakeSmf)
 
-	transport5GSMMessage(t.Context(), amfInstance, ue, msg)
+	transport5GSMMessage(t.Context(), amfInstance, ue, fgsULNAS(t, msg))
 }
 
 func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorResponse_SendsDLNAS(t *testing.T) {
@@ -1034,8 +931,8 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorRe
 
 	smPayload := []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
-	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialRequest)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
+	setRequestType(msg, fgs.RequestTypeInitialRequest)
 
 	// CreateSmContext returns an error response (N1 rejection message)
 	fakeSmf := &fakeSmf{
@@ -1045,28 +942,14 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorRe
 
 	amfInstance := amf.New(&fakeDBInstance{}, nil, fakeSmf)
 
-	transport5GSMMessage(t.Context(), amfInstance, ue, msg)
+	transport5GSMMessage(t.Context(), amfInstance, ue, fgsULNAS(t, msg))
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 downlink NAS transport, got: %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-		t.Fatalf("expected a plain NAS message")
-	}
-
-	err = nm.PlainNasDecode(&resp.NasPdu)
-	if err != nil {
-		t.Fatalf("could not decode plain NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeDLNASTransport {
-		t.Fatalf("expected DLNASTransport message, got: %v", nm.GmmHeader.GetMessageType())
-	}
+	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgDLNASTransport))
 
 	if _, exists := ue.SmContextFindByPDUSessionID(pduSessionID); exists {
 		t.Fatal("expected SM context NOT to exist after rejection")
@@ -1093,8 +976,8 @@ func TestTransport5GSMMessage_ExistingPduSession_MultiSliceAllowedNssai_MatchesS
 
 	smPayload := []byte{0x2E, 0x05, 0x00, 0xC1, 0x00}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
-	setRequestType(msg, nasMessage.ULNASTransportRequestTypeExistingPduSession)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
+	setRequestType(msg, fgs.RequestTypeExistingPDUSession)
 
 	fakeSmf := &fakeSmf{
 		UpdateN1MsgResponse: nil,
@@ -1102,7 +985,7 @@ func TestTransport5GSMMessage_ExistingPduSession_MultiSliceAllowedNssai_MatchesS
 
 	amfInstance := amf.New(nil, nil, fakeSmf)
 
-	transport5GSMMessage(t.Context(), amfInstance, ue, msg)
+	transport5GSMMessage(t.Context(), amfInstance, ue, fgsULNAS(t, msg))
 
 	if len(fakeSmf.UpdateN1MsgCalls) != 1 {
 		t.Fatalf("expected 1 UpdateSmContextN1Msg call, got: %d", len(fakeSmf.UpdateN1MsgCalls))
@@ -1132,10 +1015,10 @@ func TestTransport5GSMMessage_ExistingPduSession_MultiSliceAllowedNssai_NotInLis
 
 	smPayload := []byte{0x2E, 0x05, 0x00, 0xC1, 0x00}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
-	setRequestType(msg, nasMessage.ULNASTransportRequestTypeExistingPduSession)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
+	setRequestType(msg, fgs.RequestTypeExistingPDUSession)
 
-	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, fgsULNAS(t, msg))
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 downlink NAS transport, got: %d", len(ngapSender.SentDownlinkNASTransport))
@@ -1161,8 +1044,8 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_MultiSliceDefaultSNSSAI
 
 	smPayload := []byte{0x2E, 0x02, 0x00, 0xC1, 0x00}
 
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
-	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialRequest)
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
+	setRequestType(msg, fgs.RequestTypeInitialRequest)
 
 	// No SNSSAI or DNN set on the NAS message → should use AllowedNssai[0]
 
@@ -1172,7 +1055,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_MultiSliceDefaultSNSSAI
 
 	amfInstance := amf.New(&fakeDBInstance{}, nil, fakeSmf)
 
-	transport5GSMMessage(t.Context(), amfInstance, ue, msg)
+	transport5GSMMessage(t.Context(), amfInstance, ue, fgsULNAS(t, msg))
 
 	if len(fakeSmf.CreateSmContextCalls) != 1 {
 		t.Fatalf("expected 1 CreateSmContext call, got: %d", len(fakeSmf.CreateSmContextCalls))

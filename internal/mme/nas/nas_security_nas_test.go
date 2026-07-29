@@ -17,7 +17,7 @@ func TestStartSecurityModeRejectsNoCommonIntegrity(t *testing.T) {
 	ue := newAttachUe(m, cc, 7)
 	ue.SetIMSIForTest(testSubscriber.IMSI)
 	ue.SetKASMEForTest(make([]byte, 32))
-	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xff, EIA: 0x00}.Marshal(), nil, mme.MintAuthProofForAttachRequest())
+	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xff, EIA: 0x00}, nil, mme.MintAuthProofForAttachRequest())
 
 	startSecurityMode(context.Background(), m, ue)
 
@@ -30,8 +30,8 @@ func TestStartSecurityModeRejectsNoCommonIntegrity(t *testing.T) {
 		t.Fatalf("expected Attach Reject, got: %v", err)
 	}
 
-	if reject.Cause != mme.EmmCauseUESecCapsMismatch {
-		t.Fatalf("Attach Reject cause = %d, want %d", reject.Cause, mme.EmmCauseUESecCapsMismatch)
+	if reject.Cause != eps.EMMCauseUESecurityCapabilitiesMismatch {
+		t.Fatalf("Attach Reject cause = %d, want %d", reject.Cause, eps.EMMCauseUESecurityCapabilitiesMismatch)
 	}
 }
 
@@ -45,7 +45,7 @@ func TestStartSecurityModeClaimsKeyChain(t *testing.T) {
 	ue := newAttachUe(m, cc, 7)
 	ue.SetIMSIForTest(testSubscriber.IMSI)
 	ue.SetKASMEForTest(make([]byte, 32))
-	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xff, EIA: 0xff}.Marshal(), nil, mme.MintAuthProofForAttachRequest())
+	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xff, EIA: 0xff}, nil, mme.MintAuthProofForAttachRequest())
 
 	startSecurityMode(context.Background(), m, ue)
 

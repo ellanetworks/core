@@ -17,9 +17,8 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/aper"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapType"
 )
 
@@ -146,9 +145,7 @@ func newValidUeContext() *amf.UeContext {
 	amfUe.SetKamfForTest("0000000000000000000000000000000000000000000000000000000000000000")
 	amfUe.SetNHForTest(make([]byte, 32))
 
-	secCap := &nasType.UESecurityCapability{}
-	secCap.SetLen(2)
-	amfUe.SetUESecurityCapabilityForTest(secCap)
+	amfUe.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
 
 	return amfUe
 }
@@ -256,7 +253,7 @@ func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 	amfUe.SetSecuredForTest(false)
-	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: nasMessage.NasKeySetIdentifierNoKeyIsAvailable})
+	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 7}) // ngKSI "no key is available" (TS 24.501 §9.11.3.32)
 
 	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
@@ -907,14 +904,7 @@ func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
 	}
 
 	amfUe := newValidUeContext()
-	amfUe.SetUESecurityCapabilityForTest(&nasType.UESecurityCapability{})
-	amfUe.UESecurityCapabilityForTest().SetLen(4)
-	amfUe.UESecurityCapabilityForTest().SetEA1_128_5G(1)
-	amfUe.UESecurityCapabilityForTest().SetEA2_128_5G(1)
-	amfUe.UESecurityCapabilityForTest().SetEA3_128_5G(1)
-	amfUe.UESecurityCapabilityForTest().SetIA1_128_5G(1)
-	amfUe.UESecurityCapabilityForTest().SetIA2_128_5G(1)
-	amfUe.UESecurityCapabilityForTest().SetIA3_128_5G(1)
+	amfUe.SetUESecurityCapabilityForTest(secCapFromBytes(0x70, 0x70, 0x00, 0x00))
 	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
@@ -977,27 +967,27 @@ func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	if got := amfUe.UESecurityCapabilityForTest().GetEA1_128_5G(); got != 1 {
+	if got := eaBit(amfUe.UESecurityCapabilityForTest(), 1); got != 1 {
 		t.Errorf("stored EA1_128_5G was overwritten: got %d, want 1", got)
 	}
 
-	if got := amfUe.UESecurityCapabilityForTest().GetEA2_128_5G(); got != 1 {
+	if got := eaBit(amfUe.UESecurityCapabilityForTest(), 2); got != 1 {
 		t.Errorf("stored EA2_128_5G was overwritten: got %d, want 1", got)
 	}
 
-	if got := amfUe.UESecurityCapabilityForTest().GetEA3_128_5G(); got != 1 {
+	if got := eaBit(amfUe.UESecurityCapabilityForTest(), 3); got != 1 {
 		t.Errorf("stored EA3_128_5G was overwritten: got %d, want 1", got)
 	}
 
-	if got := amfUe.UESecurityCapabilityForTest().GetIA1_128_5G(); got != 1 {
+	if got := iaBit(amfUe.UESecurityCapabilityForTest(), 1); got != 1 {
 		t.Errorf("stored IA1_128_5G was overwritten: got %d, want 1", got)
 	}
 
-	if got := amfUe.UESecurityCapabilityForTest().GetIA2_128_5G(); got != 1 {
+	if got := iaBit(amfUe.UESecurityCapabilityForTest(), 2); got != 1 {
 		t.Errorf("stored IA2_128_5G was overwritten: got %d, want 1", got)
 	}
 
-	if got := amfUe.UESecurityCapabilityForTest().GetIA3_128_5G(); got != 1 {
+	if got := iaBit(amfUe.UESecurityCapabilityForTest(), 3); got != 1 {
 		t.Errorf("stored IA3_128_5G was overwritten: got %d, want 1", got)
 	}
 
@@ -1011,12 +1001,9 @@ func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
 		t.Fatal("PathSwitchRequestAcknowledge has nil UESecurityCapability")
 	}
 
-	if ack.UESecurityCapability.GetEA1_128_5G() != 1 ||
-		ack.UESecurityCapability.GetEA2_128_5G() != 1 ||
-		ack.UESecurityCapability.GetEA3_128_5G() != 1 ||
-		ack.UESecurityCapability.GetIA1_128_5G() != 1 ||
-		ack.UESecurityCapability.GetIA2_128_5G() != 1 ||
-		ack.UESecurityCapability.GetIA3_128_5G() != 1 {
+	parsedCap, err := fgs.ParseUESecurityCapability(ack.UESecurityCapability)
+	if err != nil || !parsedCap.SupportsEA(1) || !parsedCap.SupportsEA(2) || !parsedCap.SupportsEA(3) ||
+		!parsedCap.SupportsIA(1) || !parsedCap.SupportsIA(2) || !parsedCap.SupportsIA(3) {
 		t.Error("PathSwitchRequestAcknowledge does not echo locally stored UE security capabilities")
 	}
 }
@@ -1032,10 +1019,7 @@ func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 	}
 
 	amfUe := newValidUeContext()
-	amfUe.SetUESecurityCapabilityForTest(&nasType.UESecurityCapability{})
-	amfUe.UESecurityCapabilityForTest().SetLen(4)
-	amfUe.UESecurityCapabilityForTest().SetEA1_128_5G(1)
-	amfUe.UESecurityCapabilityForTest().SetIA2_128_5G(1)
+	amfUe.SetUESecurityCapabilityForTest(secCapFromBytes(0x40, 0x20, 0x00, 0x00))
 	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
@@ -1098,15 +1082,15 @@ func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	if got := amfUe.UESecurityCapabilityForTest().GetEA1_128_5G(); got != 1 {
+	if got := eaBit(amfUe.UESecurityCapabilityForTest(), 1); got != 1 {
 		t.Errorf("stored EA1_128_5G changed after matching path switch: got %d, want 1", got)
 	}
 
-	if got := amfUe.UESecurityCapabilityForTest().GetIA2_128_5G(); got != 1 {
+	if got := iaBit(amfUe.UESecurityCapabilityForTest(), 2); got != 1 {
 		t.Errorf("stored IA2_128_5G changed after matching path switch: got %d, want 1", got)
 	}
 
-	if got := amfUe.UESecurityCapabilityForTest().GetEA2_128_5G(); got != 0 {
+	if got := eaBit(amfUe.UESecurityCapabilityForTest(), 2); got != 0 {
 		t.Errorf("stored EA2_128_5G unexpectedly set: got %d, want 0", got)
 	}
 
@@ -1120,7 +1104,8 @@ func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 		t.Fatal("PathSwitchRequestAcknowledge has nil UESecurityCapability")
 	}
 
-	if ack.UESecurityCapability.GetEA1_128_5G() != 1 || ack.UESecurityCapability.GetIA2_128_5G() != 1 {
+	parsedCap, err := fgs.ParseUESecurityCapability(ack.UESecurityCapability)
+	if err != nil || !parsedCap.SupportsEA(1) || !parsedCap.SupportsIA(2) {
 		t.Error("PathSwitchRequestAcknowledge does not echo locally stored UE security capabilities")
 	}
 }
@@ -1137,10 +1122,7 @@ func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
 	}
 
 	amfUe := newValidUeContext()
-	amfUe.SetUESecurityCapabilityForTest(&nasType.UESecurityCapability{})
-	amfUe.UESecurityCapabilityForTest().SetLen(4)
-	amfUe.UESecurityCapabilityForTest().SetEA1_128_5G(1)
-	amfUe.UESecurityCapabilityForTest().SetIA2_128_5G(1)
+	amfUe.SetUESecurityCapabilityForTest(secCapFromBytes(0x40, 0x20, 0x00, 0x00))
 	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
@@ -1200,11 +1182,11 @@ func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
-	if got := amfUe.UESecurityCapabilityForTest().GetEA1_128_5G(); got != 1 {
+	if got := eaBit(amfUe.UESecurityCapabilityForTest(), 1); got != 1 {
 		t.Errorf("stored EA1_128_5G was modified by malformed IE: got %d, want 1", got)
 	}
 
-	if got := amfUe.UESecurityCapabilityForTest().GetIA2_128_5G(); got != 1 {
+	if got := iaBit(amfUe.UESecurityCapabilityForTest(), 2); got != 1 {
 		t.Errorf("stored IA2_128_5G was modified by malformed IE: got %d, want 1", got)
 	}
 
@@ -1284,4 +1266,22 @@ func TestPathSwitchRequest_PartialFailureReleasesUnswitched(t *testing.T) {
 	if got := ack.PDUSessionResourceReleasedListAck.List[0].PDUSessionID.Value; got != int64(unswitchedID) {
 		t.Fatalf("released PDU session = %d, want %d", got, unswitchedID)
 	}
+}
+
+// eaBit / iaBit report the 5G EA/IA algorithm-n support bit of a stored UE
+// security capability IE value (test helpers, mirroring the free5gc accessors).
+func eaBit(sc *fgs.UESecurityCapability, n uint8) uint8 {
+	if !sc.SupportsEA(n) {
+		return 0
+	}
+
+	return 1
+}
+
+func iaBit(sc *fgs.UESecurityCapability, n uint8) uint8 {
+	if !sc.SupportsIA(n) {
+		return 0
+	}
+
+	return 1
 }

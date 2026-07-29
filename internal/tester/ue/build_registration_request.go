@@ -4,20 +4,17 @@
 package ue
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
-	"github.com/free5gc/nas/security"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type RegistrationRequestOpts struct {
 	RegistrationType  uint8
-	RequestedNSSAI    *nasType.RequestedNSSAI
-	UplinkDataStatus  *nasType.UplinkDataStatus
+	RequestedNSSAI    fgs.NSSAI
+	UplinkDataStatus  []byte
 	IncludeCapability bool
 	UESecurity        *UESecurity
 	PDUSessionStatus  *[16]bool
@@ -28,100 +25,75 @@ func BuildRegistrationRequest(opts *RegistrationRequestOpts) ([]byte, error) {
 		return nil, fmt.Errorf("RegistrationRequestOpts is nil")
 	}
 
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeRegistrationRequest)
-
-	registrationRequest := nasMessage.NewRegistrationRequest(0)
-	registrationRequest.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	registrationRequest.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	registrationRequest.SetSpareHalfOctet(0x00)
-	registrationRequest.SetMessageType(nas.MsgTypeRegistrationRequest)
-	registrationRequest.NgksiAndRegistrationType5GS.SetNasKeySetIdentifiler(uint8(opts.UESecurity.NgKsi.Ksi))
-	registrationRequest.SetRegistrationType5GS(opts.RegistrationType)
-
+	mobileIdentity := opts.UESecurity.Suci
 	if opts.UESecurity.Guti != nil {
-		guti := opts.UESecurity.Guti
-		registrationRequest.MobileIdentity5GS = nasType.MobileIdentity5GS{
-			Iei:    guti.Iei,
-			Len:    guti.Len,
-			Buffer: guti.Octet[:],
-		}
-	} else {
-		registrationRequest.MobileIdentity5GS = opts.UESecurity.Suci
+		mobileIdentity = *opts.UESecurity.Guti
+	}
+
+	m := &fgs.RegistrationRequest{
+		RegistrationType: fgs.RegistrationType(opts.RegistrationType),
+		FOR:              true,
+		NgKSI:            nas.KeySetIdentifier{Value: uint8(opts.UESecurity.NgKsi.Ksi)},
+		MobileIdentity:   mobileIdentity,
 	}
 
 	if opts.IncludeCapability {
-		registrationRequest.Capability5GMM = &nasType.Capability5GMM{
-			Iei:   nasMessage.RegistrationRequestCapability5GMMType,
-			Len:   1,
-			Octet: [13]uint8{0x0f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-		}
-	} else {
-		registrationRequest.Capability5GMM = nil
+		m.GMMCapability = &fgs.GMMCapability{RestrictEC: true, LPP: true, HOAttach: true, S1Mode: true}
 	}
 
-	registrationRequest.UESecurityCapability = opts.UESecurity.UeSecurityCapability
-	registrationRequest.RequestedNSSAI = opts.RequestedNSSAI
-	registrationRequest.SetFOR(1)
+	m.UESecurityCapability = &opts.UESecurity.UeSecurityCapability
+
+	if opts.RequestedNSSAI != nil {
+		m.RequestedNSSAI = opts.RequestedNSSAI
+	}
 
 	pduFlag := uint16(0)
 
 	if opts.PDUSessionStatus != nil {
 		for i, pduSession := range opts.PDUSessionStatus {
-			pduFlag = pduFlag + (boolToUint16(pduSession) << (i))
-		}
-
-		if pduFlag != 0 {
-			registrationRequest.UplinkDataStatus = new(nasType.UplinkDataStatus)
-			registrationRequest.UplinkDataStatus.SetIei(nasMessage.RegistrationRequestUplinkDataStatusType)
-			registrationRequest.UplinkDataStatus.SetLen(2)
-
-			registrationRequest.UplinkDataStatus.Buffer = make([]byte, 2)
-			binary.LittleEndian.PutUint16(registrationRequest.UplinkDataStatus.Buffer, pduFlag)
-
-			registrationRequest.PDUSessionStatus = new(nasType.PDUSessionStatus)
-			registrationRequest.PDUSessionStatus.SetIei(nasMessage.RegistrationRequestPDUSessionStatusType)
-			registrationRequest.PDUSessionStatus.SetLen(2)
-			registrationRequest.PDUSessionStatus.Buffer = registrationRequest.UplinkDataStatus.Buffer
+			pduFlag += boolToUint16(pduSession) << i
 		}
 	}
 
-	m.RegistrationRequest = registrationRequest
+	if pduFlag == 0 {
+		return m.MarshalBinary()
+	}
 
-	data := new(bytes.Buffer)
+	// The UE's active PDU sessions ride in a ciphered NAS message container so the
+	// AMF can recover them before the security context is established (TS 24.501
+	// §5.5.1.2.2): the plain REGISTRATION REQUEST carrying the status IEs is
+	// ciphered and wrapped, and the outer message drops the status IEs.
+	statusBuf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(statusBuf, pduFlag)
 
-	err := m.GmmMessageEncode(data)
+	status, err := fgs.ParsePSIBitmap(statusBuf)
 	if err != nil {
-		return nil, fmt.Errorf("error encoding GMM message: %w", err)
+		return nil, fmt.Errorf("encode PDU session status: %w", err)
 	}
 
-	nasPdu := data.Bytes()
+	inner := *m
+	inner.UplinkDataStatus = &status
+	inner.PDUSessionStatus = &status
 
-	if pduFlag != 0 {
-		if err = security.NASEncrypt(opts.UESecurity.CipheringAlg, opts.UESecurity.KnasEnc, opts.UESecurity.ULCount.Get(), security.Bearer3GPP,
-			security.DirectionUplink, nasPdu); err != nil {
-			return nasPdu, fmt.Errorf("error encrypting NAS message: %w", err)
-		}
-
-		registrationRequest.NASMessageContainer = nasType.NewNASMessageContainer(nasMessage.RegistrationRequestNASMessageContainerType)
-		registrationRequest.NASMessageContainer.SetLen(uint16(len(nasPdu)))
-		registrationRequest.NASMessageContainer.Buffer = nasPdu
-
-		registrationRequest.UplinkDataStatus = nil
-		registrationRequest.PDUSessionStatus = nil
-
-		data = new(bytes.Buffer)
-
-		err = m.GmmMessageEncode(data)
-		if err != nil {
-			return nil, fmt.Errorf("error encoding GMM message: %w", err)
-		}
-
-		nasPdu = data.Bytes()
+	innerBytes, err := inner.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("encode inner REGISTRATION REQUEST: %w", err)
 	}
 
-	return nasPdu, nil
+	sc, err := securityContext(opts.UESecurity.IntegrityAlg, opts.UESecurity.CipheringAlg,
+		opts.UESecurity.KnasInt, opts.UESecurity.KnasEnc)
+	if err != nil {
+		return nil, err
+	}
+
+	container, err := sc.Cipher(innerBytes, opts.UESecurity.ULCount, nas.Bearer3GPP, nas.DirectionUplink)
+	if err != nil {
+		return nil, fmt.Errorf("error encrypting NAS message: %w", err)
+	}
+
+	m.NASMessageContainer = container
+
+	return m.MarshalBinary()
 }
 
 func boolToUint16(b bool) uint16 {

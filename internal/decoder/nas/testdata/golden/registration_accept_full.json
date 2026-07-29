@@ -1,0 +1,81 @@
+{
+  "security_header": {
+    "protocol_discriminator": {
+      "type": "enum",
+      "value": 126,
+      "label": "5GSMobilityManagementMessage",
+      "unknown": false
+    },
+    "security_header_type": {
+      "type": "enum",
+      "value": 0,
+      "label": "Plain NAS",
+      "unknown": false
+    },
+    "sequence_number": 0
+  },
+  "gmm_message": {
+    "gmm_header": {
+      "message_type": {
+        "type": "enum",
+        "value": 66,
+        "label": "RegistrationAccept",
+        "unknown": false
+      }
+    },
+    "registration_accept": {
+      "registration_result_5gs": {
+        "type": "enum",
+        "value": 1,
+        "label": "3GPP access",
+        "unknown": false
+      },
+      "guti_5g": {
+        "mcc": "001",
+        "mnc": "01",
+        "amf_region_id": 1,
+        "amf_set_id": 8,
+        "amf_pointer": 3,
+        "tmsi": "04050607"
+      },
+      "tai_list": [
+        {
+          "plmn_id": {
+            "mcc": "001",
+            "mnc": "01"
+          },
+          "tac": "000001"
+        }
+      ],
+      "allowed_nssai": [
+        {
+          "sst": 1
+        }
+      ],
+      "network_feature_support_5gs": {
+        "emc": 0,
+        "emc_n3": 0,
+        "emf": 0,
+        "ims_vops": 0,
+        "iwk_n26": 0,
+        "mcsi": 0,
+        "mpsi": 0,
+        "ims_vops_3gpp": 1,
+        "ims_vops_n3gpp": 0
+      },
+      "pdu_session_status": {
+        "status": "Unsupported"
+      },
+      "mico_indication": {
+        "status": "Unsupported"
+      },
+      "t3512_value": {
+        "status": "Unsupported"
+      },
+      "eap_message": {
+        "status": "Unsupported"
+      }
+    }
+  },
+  "encrypted": false
+}

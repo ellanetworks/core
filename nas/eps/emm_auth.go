@@ -3,45 +3,61 @@
 
 package eps
 
-import "github.com/ellanetworks/core/nas/common"
+import (
+	"fmt"
 
-// authFailureParameterIEI is the IEI of the optional Authentication failure
+	"github.com/ellanetworks/core/nas"
+)
+
+// ieiAuthFailureParameter is the IEI of the optional Authentication failure
 // parameter (AUTS) in AUTHENTICATION FAILURE (TS 24.301). It is a type-4
 // TLV IE (TS 24.301).
-const authFailureParameterIEI uint8 = 0x30
+const ieiAuthFailureParameter uint8 = 0x30
 
 // authenticationFailureIEs are the optional IEs of an AUTHENTICATION FAILURE
 // (TS 24.301): the Authentication failure parameter (AUTS).
-var authenticationFailureIEs = []common.OptionalIE{
-	{IEI: authFailureParameterIEI, Format: common.IETLV},
+var authenticationFailureIEs = []nas.OptionalIE{
+	{IEI: ieiAuthFailureParameter, Format: nas.IETLV, Name: "Authentication failure parameter"},
 }
 
 // AuthenticationRequest is the AUTHENTICATION REQUEST message (TS 24.301),
 // sent by the MME with the EPS-AKA challenge.
 type AuthenticationRequest struct {
-	NASKeySetIdentifier uint8
+	NASKeySetIdentifier nas.KeySetIdentifier
 	RAND                [16]byte
-	AUTN                []byte
+	AUTN                [16]byte
+
+	// Unrecognized carries the optional information elements this message does
+	// not model, so they survive decoding and re-encode unchanged. The spec
+	// defines none for this message, but a later release may.
+	Unrecognized []nas.RawIE
 }
 
-// Marshal encodes the plain AUTHENTICATION REQUEST message.
-func (m *AuthenticationRequest) Marshal() ([]byte, error) {
-	var w common.Writer
+// AppendBinary encodes the plain AUTHENTICATION REQUEST message.
+// The encoding is appended to b.
+func (m *AuthenticationRequest) AppendBinary(b []byte) ([]byte, error) {
+	w := nas.NewWriter(b)
 
-	writeEMMHeader(&w, MsgAuthenticationRequest)
-	w.U8(m.NASKeySetIdentifier & 0x0F) // spare half octet | NAS KSI
+	var o nas.OptionalWriter
+
+	writeEMMHeader(w, MsgAuthenticationRequest)
+	w.U8(m.NASKeySetIdentifier.HalfOctet()) // spare half octet | NAS KSI
 	w.Raw(m.RAND[:])
 
-	if err := w.LV(m.AUTN); err != nil {
-		return nil, err
-	}
+	w.LV(m.AUTN[:])
 
-	return w.Bytes(), nil
+	o.Raw(m.Unrecognized...)
+	o.WriteTo(w)
+
+	return messageResult(w, b)
 }
+
+// MarshalBinary encodes the message.
+func (m *AuthenticationRequest) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
 
 // ParseAuthenticationRequest decodes a plain AUTHENTICATION REQUEST message.
 func ParseAuthenticationRequest(b []byte) (*AuthenticationRequest, error) {
-	r := common.NewReader(b)
+	r := nas.NewReader(b)
 
 	if err := readEMMHeader(r, MsgAuthenticationRequest); err != nil {
 		return nil, err
@@ -52,7 +68,7 @@ func ParseAuthenticationRequest(b []byte) (*AuthenticationRequest, error) {
 		return nil, err
 	}
 
-	m := &AuthenticationRequest{NASKeySetIdentifier: ksi & 0x0F}
+	m := &AuthenticationRequest{NASKeySetIdentifier: nas.ParseKeySetIdentifier(ksi)}
 
 	rand, err := r.Bytes(16)
 	if err != nil {
@@ -61,35 +77,60 @@ func ParseAuthenticationRequest(b []byte) (*AuthenticationRequest, error) {
 
 	copy(m.RAND[:], rand)
 
-	if m.AUTN, err = r.LV(); err != nil {
+	autn, err := r.LV()
+	if err != nil {
 		return nil, err
 	}
 
-	return m, nil
+	if len(autn) != len(m.AUTN) {
+		return nil, fmt.Errorf("nas/eps: AUTN is %d octets, want %d", len(autn), len(m.AUTN))
+	}
+
+	copy(m.AUTN[:], autn)
+
+	_unrec, err := walkOptionalIEs(r, nil, declineAll)
+	if err != nil && !nas.SoftOnly(err) {
+		return nil, err
+	}
+
+	m.Unrecognized = _unrec
+
+	return m, err
 }
 
 // AuthenticationResponse is the AUTHENTICATION RESPONSE message (TS 24.301),
 // carrying the UE's RES.
 type AuthenticationResponse struct {
 	RES []byte
+
+	// Unrecognized carries the optional information elements this message does
+	// not model, so they survive decoding and re-encode unchanged. The spec defines none for this message, but a later release may.
+	Unrecognized []nas.RawIE
 }
 
-// Marshal encodes the plain AUTHENTICATION RESPONSE message.
-func (m *AuthenticationResponse) Marshal() ([]byte, error) {
-	var w common.Writer
+// AppendBinary encodes the plain AUTHENTICATION RESPONSE message.
+// The encoding is appended to b.
+func (m *AuthenticationResponse) AppendBinary(b []byte) ([]byte, error) {
+	w := nas.NewWriter(b)
 
-	writeEMMHeader(&w, MsgAuthenticationResponse)
+	var o nas.OptionalWriter
 
-	if err := w.LV(m.RES); err != nil {
-		return nil, err
-	}
+	writeEMMHeader(w, MsgAuthenticationResponse)
 
-	return w.Bytes(), nil
+	w.LV(m.RES)
+
+	o.Raw(m.Unrecognized...)
+	o.WriteTo(w)
+
+	return messageResult(w, b)
 }
+
+// MarshalBinary encodes the message.
+func (m *AuthenticationResponse) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
 
 // ParseAuthenticationResponse decodes a plain AUTHENTICATION RESPONSE message.
 func ParseAuthenticationResponse(b []byte) (*AuthenticationResponse, error) {
-	r := common.NewReader(b)
+	r := nas.NewReader(b)
 
 	if err := readEMMHeader(r, MsgAuthenticationResponse); err != nil {
 		return nil, err
@@ -100,62 +141,103 @@ func ParseAuthenticationResponse(b []byte) (*AuthenticationResponse, error) {
 		return nil, err
 	}
 
-	return &AuthenticationResponse{RES: res}, nil
+	out := &AuthenticationResponse{RES: res}
+
+	_unrec, err := walkOptionalIEs(r, nil, declineAll)
+	if err != nil && !nas.SoftOnly(err) {
+		return nil, err
+	}
+
+	out.Unrecognized = _unrec
+
+	return out, err
 }
 
 // AuthenticationReject is the AUTHENTICATION REJECT message (TS 24.301).
 // It has no mandatory information elements.
-type AuthenticationReject struct{}
-
-// Marshal encodes the plain AUTHENTICATION REJECT message.
-func (m *AuthenticationReject) Marshal() ([]byte, error) {
-	var w common.Writer
-
-	writeEMMHeader(&w, MsgAuthenticationReject)
-
-	return w.Bytes(), nil
+type AuthenticationReject struct {
+	// Unrecognized carries the optional information elements this message does
+	// not model, so they survive decoding and re-encode unchanged. The spec
+	// defines none for this message, but a later release may.
+	Unrecognized []nas.RawIE
 }
+
+// AppendBinary encodes the plain AUTHENTICATION REJECT message.
+// The encoding is appended to b.
+func (m *AuthenticationReject) AppendBinary(b []byte) ([]byte, error) {
+	w := nas.NewWriter(b)
+
+	var o nas.OptionalWriter
+
+	writeEMMHeader(w, MsgAuthenticationReject)
+
+	o.Raw(m.Unrecognized...)
+	o.WriteTo(w)
+
+	return messageResult(w, b)
+}
+
+// MarshalBinary encodes the message.
+func (m *AuthenticationReject) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
 
 // ParseAuthenticationReject decodes a plain AUTHENTICATION REJECT message.
 func ParseAuthenticationReject(b []byte) (*AuthenticationReject, error) {
-	r := common.NewReader(b)
+	r := nas.NewReader(b)
 
 	if err := readEMMHeader(r, MsgAuthenticationReject); err != nil {
 		return nil, err
 	}
 
-	return &AuthenticationReject{}, nil
+	out := &AuthenticationReject{}
+
+	_unrec, err := walkOptionalIEs(r, nil, declineAll)
+	if err != nil && !nas.SoftOnly(err) {
+		return nil, err
+	}
+
+	out.Unrecognized = _unrec
+
+	return out, err
 }
 
 // AuthenticationFailure is the AUTHENTICATION FAILURE message (TS 24.301).
 // AUTS is the optional Authentication failure parameter (present for a
 // "synch failure"); it is nil when absent.
 type AuthenticationFailure struct {
-	Cause uint8
+	Cause EMMCause
 	AUTS  []byte
+
+	// Unrecognized carries the optional information elements this message does
+	// not model, so they survive decoding and re-encode unchanged.
+	Unrecognized []nas.RawIE
 }
 
-// Marshal encodes the plain AUTHENTICATION FAILURE message.
-func (m *AuthenticationFailure) Marshal() ([]byte, error) {
-	var w common.Writer
+// AppendBinary encodes the plain AUTHENTICATION FAILURE message.
+// The encoding is appended to b.
+func (m *AuthenticationFailure) AppendBinary(b []byte) ([]byte, error) {
+	w := nas.NewWriter(b)
 
-	writeEMMHeader(&w, MsgAuthenticationFailure)
-	w.U8(m.Cause)
+	var o nas.OptionalWriter
+
+	writeEMMHeader(w, MsgAuthenticationFailure)
+	w.U8(uint8(m.Cause))
 
 	if m.AUTS != nil {
-		w.U8(authFailureParameterIEI)
-
-		if err := w.LV(m.AUTS); err != nil {
-			return nil, err
-		}
+		o.TLV(ieiAuthFailureParameter, m.AUTS)
 	}
 
-	return w.Bytes(), nil
+	o.Raw(m.Unrecognized...)
+	o.WriteTo(w)
+
+	return messageResult(w, b)
 }
+
+// MarshalBinary encodes the message.
+func (m *AuthenticationFailure) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
 
 // ParseAuthenticationFailure decodes a plain AUTHENTICATION FAILURE message.
 func ParseAuthenticationFailure(b []byte) (*AuthenticationFailure, error) {
-	r := common.NewReader(b)
+	r := nas.NewReader(b)
 
 	if err := readEMMHeader(r, MsgAuthenticationFailure); err != nil {
 		return nil, err
@@ -166,17 +248,22 @@ func ParseAuthenticationFailure(b []byte) (*AuthenticationFailure, error) {
 		return nil, err
 	}
 
-	m := &AuthenticationFailure{Cause: cause}
+	m := &AuthenticationFailure{Cause: EMMCause(cause)}
 
-	if _, err := common.WalkOptionalIEs(r, authenticationFailureIEs, func(iei uint8, value []byte) error {
-		if iei == authFailureParameterIEI {
-			m.AUTS = value
+	_unrec, err := walkOptionalIEs(r, authenticationFailureIEs, func(iei uint8, value []byte) (bool, error) {
+		if iei != ieiAuthFailureParameter {
+			return false, nil
 		}
 
-		return nil
-	}); err != nil {
+		m.AUTS = value
+
+		return true, nil
+	})
+	if err != nil && !nas.SoftOnly(err) {
 		return nil, err
 	}
 
-	return m, nil
+	m.Unrecognized = _unrec
+
+	return m, err
 }

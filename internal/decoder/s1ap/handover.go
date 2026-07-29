@@ -47,7 +47,7 @@ var handoverTypeNames = map[s1ap.HandoverType]string{
 	s1ap.HandoverTypeGERANtoLTE: "gerantolte",
 }
 
-func handoverType(t s1ap.HandoverType) utils.EnumField[uint64] {
+func handoverType(t s1ap.HandoverType) utils.EnumField {
 	name, ok := handoverTypeNames[t]
 
 	return utils.MakeEnum(uint64(t), name, !ok)

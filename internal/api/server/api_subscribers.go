@@ -719,7 +719,7 @@ func sessionFrom4G(s *mme.SubscriberSession) Session {
 		RadioAccessType: "4G",
 		ID:              s.BearerID,
 		Status:          "active",
-		IPType:          ipTypeName(s.PDNType),
+		IPType:          ipTypeName(uint8(s.PDNType)),
 		IPv4Address:     s.IPv4Address,
 		IPv6Prefix:      s.IPv6Prefix,
 		DataNetwork:     s.APN,

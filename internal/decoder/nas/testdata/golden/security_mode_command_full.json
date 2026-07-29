@@ -1,0 +1,88 @@
+{
+  "security_header": {
+    "protocol_discriminator": {
+      "type": "enum",
+      "value": 126,
+      "label": "5GSMobilityManagementMessage",
+      "unknown": false
+    },
+    "security_header_type": {
+      "type": "enum",
+      "value": 0,
+      "label": "Plain NAS",
+      "unknown": false
+    },
+    "sequence_number": 0
+  },
+  "gmm_message": {
+    "gmm_header": {
+      "message_type": {
+        "type": "enum",
+        "value": 93,
+        "label": "SecurityModeCommand",
+        "unknown": false
+      }
+    },
+    "security_mode_command": {
+      "selected_nas_security_algorithms": {
+        "integrity": {
+          "type": "enum",
+          "value": 1,
+          "label": "NIA1",
+          "unknown": false
+        },
+        "ciphering": {
+          "type": "enum",
+          "value": 2,
+          "label": "NEA2",
+          "unknown": false
+        }
+      },
+      "spare_half_octet_and_ngksi": 7,
+      "replayed_ue_security_capabilities": {
+        "integrity_algorithm": {
+          "nia0": true,
+          "nia1": true,
+          "nia2": true,
+          "nia3": false
+        },
+        "ciphering_algorithm": {
+          "nea0": true,
+          "nea1": true,
+          "nea2": true,
+          "nea3": false
+        }
+      },
+      "imeisv_request": {
+        "type": "enum",
+        "value": 1,
+        "label": "Requested",
+        "unknown": false
+      },
+      "selected_eps_nas_security_algorithms": {
+        "ciphering": {
+          "type": "enum",
+          "value": 0,
+          "label": "EEA0",
+          "unknown": false
+        },
+        "integrity": {
+          "type": "enum",
+          "value": 1,
+          "label": "EIA1",
+          "unknown": false
+        }
+      },
+      "additional_5g_security_information": {
+        "rinmr": 1,
+        "hdp": 1
+      },
+      "eap_message": "AgAABQE=",
+      "abba": "AAA=",
+      "replayed_s1_ue_security_capabilities": {
+        "status": "Unsupported"
+      }
+    }
+  },
+  "encrypted": false
+}

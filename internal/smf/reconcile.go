@@ -14,7 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/internal/smf/ngap"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -574,5 +574,5 @@ func staticReservationChanged(ctx context.Context, dn DNNStore, imsi string, ipv
 // (TS 23.502, TS 24.501) with cause #39 "reactivation requested" so the UE
 // re-establishes on the correct slice. Caller must hold smContext.Mutex.
 func (s *SMF) sendSessionRelease(ctx context.Context, smContext *SMContext) error {
-	return s.startRelease(ctx, smContext, 0, nasMessage.Cause5GSMReactivationRequested)
+	return s.startRelease(ctx, smContext, 0, fgs.GSMCauseReactivationRequested)
 }

@@ -20,3 +20,13 @@ jobs:
 
       - name: Race detection tests
         run: go test -race ./...
+
+      - name: Sub-module race detection tests
+        run: |
+          set -e
+          for modfile in $(find . -name go.mod -not -path './go.mod' -not -path './ui/*'); do
+            dir=$(dirname "$modfile")
+            echo "::group::race detection tests in $dir"
+            (cd "$dir" && go test -race ./...)
+            echo "::endgroup::"
+          done

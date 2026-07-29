@@ -5,10 +5,9 @@ package validate
 
 import (
 	"fmt"
-	"net"
 
-	"github.com/ellanetworks/core/internal/tester/testutil"
-	"github.com/free5gc/nas"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type ExpectedPCODNS struct {
@@ -18,43 +17,43 @@ type ExpectedPCODNS struct {
 	IPv6 string
 }
 
-func PCODNS(msg *nas.Message, expected *ExpectedPCODNS) error {
-	if msg == nil {
-		return fmt.Errorf("NAS message is nil")
+func PCODNS(plain []byte, expected *ExpectedPCODNS) error {
+	if len(plain) < 4 {
+		return fmt.Errorf("NAS message is too short")
 	}
 
-	var pcoContents []byte
+	var pco *nas.ProtocolConfigurationOptions
 
-	switch {
-	case msg.PDUSessionModificationCommand != nil:
-		pco := msg.PDUSessionModificationCommand.ExtendedProtocolConfigurationOptions
-		if pco == nil {
+	switch fgs.GSMMessageType(plain[3]) {
+	case fgs.MsgPDUSessionModificationCommand:
+		cmd, err := fgs.ParsePDUSessionModificationCommand(plain)
+		if err != nil {
+			return fmt.Errorf("could not parse PDU Session Modification Command: %v", err)
+		}
+
+		if cmd.ExtendedPCO == nil {
 			return fmt.Errorf("ExtendedProtocolConfigurationOptions is nil in PDU Session Modification Command")
 		}
 
-		pcoContents = pco.GetExtendedProtocolConfigurationOptionsContents()
+		pco = cmd.ExtendedPCO
 
-	case msg.PDUSessionEstablishmentAccept != nil:
-		pco := msg.PDUSessionEstablishmentAccept.ExtendedProtocolConfigurationOptions
-		if pco == nil {
+	case fgs.MsgPDUSessionEstablishmentAccept:
+		acc, err := fgs.ParsePDUSessionEstablishmentAccept(plain)
+		if err != nil {
+			return fmt.Errorf("could not parse PDU Session Establishment Accept: %v", err)
+		}
+
+		if acc.ExtendedPCO == nil {
 			return fmt.Errorf("ExtendedProtocolConfigurationOptions is nil in PDU Session Establishment Accept")
 		}
 
-		pcoContents = pco.GetExtendedProtocolConfigurationOptionsContents()
+		pco = acc.ExtendedPCO
 
 	default:
 		return fmt.Errorf("message does not contain PCO: expected Modification Command or Establishment Accept")
 	}
 
-	if len(pcoContents) == 0 {
-		return fmt.Errorf("PCO contents is empty")
-	}
-
-	dnsServers, err := testutil.DNSFromExtendProtocolConfigurationOptionsContents(pcoContents)
-	if err != nil {
-		return fmt.Errorf("could not parse DNS from PCO: %v", err)
-	}
-
+	dnsServers := pco.DNSServers()
 	if len(dnsServers) == 0 {
 		return fmt.Errorf("no DNS servers found in PCO")
 	}
@@ -62,13 +61,10 @@ func PCODNS(msg *nas.Message, expected *ExpectedPCODNS) error {
 	foundIPv4 := false
 	foundIPv6 := false
 
-	for _, dns := range dnsServers {
-		ip := net.ParseIP(dns)
-		if ip == nil {
-			continue
-		}
+	for _, ip := range dnsServers {
+		dns := ip.String()
 
-		if ip.To4() != nil {
+		if ip.Is4() {
 			foundIPv4 = true
 
 			if expected.IPv4 != "" && dns != expected.IPv4 {

@@ -15,6 +15,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 var maxMsbValue = big.NewInt(0x003FFFFF)
@@ -74,28 +77,63 @@ func NewGUTI5G(mcc string, mnc string, amfid string, tmsi TMSI) (GUTI5G, error) 
 }
 
 func NewGUTI5GFromBytes(buf []byte) (GUTI5G, error) {
-	if len(buf) != 11 {
-		return InvalidGUTI5G, fmt.Errorf("invalid GUTI length")
-	}
-
-	mcc, mnc, err := plmnIDToMccMncString(buf[1:4])
-	if err != nil {
-		return InvalidGUTI5G, fmt.Errorf("invalid PLMN: %v", err)
-	}
-
-	amfID := hex.EncodeToString(buf[4:7])
-	tmsi5G := binary.BigEndian.Uint32(buf[7:])
-
-	tmsi, err := NewTMSI(tmsi5G)
+	id, err := fgs.ParseMobileIdentity(buf)
 	if err != nil {
 		return InvalidGUTI5G, err
 	}
 
-	return GUTI5G{mcc: mcc, mnc: mnc, Amfid: amfID, Tmsi: tmsi}, nil
+	return NewGUTI5GFromNAS(id)
+}
+
+// NewGUTI5GFromNAS adopts a decoded 5G-GUTI 5GS mobile identity.
+func NewGUTI5GFromNAS(id fgs.MobileIdentity) (GUTI5G, error) {
+	if id.GUTI == nil {
+		return InvalidGUTI5G, fmt.Errorf("mobile identity %s is not a 5G-GUTI", id.Type())
+	}
+
+	amf, err := fgs.AMFIdentifier{
+		RegionID: id.GUTI.AMFRegionID, SetID: id.GUTI.AMFSetID, Pointer: id.GUTI.AMFPointer,
+	}.MarshalBinary()
+	if err != nil {
+		return InvalidGUTI5G, err
+	}
+
+	tmsi, err := NewTMSI(binary.BigEndian.Uint32(id.GUTI.TMSI[:]))
+	if err != nil {
+		return InvalidGUTI5G, err
+	}
+
+	return GUTI5G{mcc: id.GUTI.PLMN.MCC, mnc: id.GUTI.PLMN.MNC, Amfid: hex.EncodeToString(amf), Tmsi: tmsi}, nil
 }
 
 func (g *GUTI5G) String() string {
 	return fmt.Sprintf("%s%s%s%s", g.mcc, g.mnc, g.Amfid, &g.Tmsi)
+}
+
+// MobileIdentity renders the GUTI as a 5G-GUTI 5GS mobile identity
+// (TS 24.501 §9.11.3.4). It is the inverse of NewGUTI5GFromNAS.
+func (g GUTI5G) MobileIdentity() (fgs.MobileIdentity, error) {
+	if len(g.mcc) != 3 || (len(g.mnc) != 2 && len(g.mnc) != 3) {
+		return fgs.MobileIdentity{}, fmt.Errorf("invalid PLMN in GUTI: mcc %q mnc %q", g.mcc, g.mnc)
+	}
+
+	raw, err := hex.DecodeString(g.Amfid)
+	if err != nil || len(raw) != 3 {
+		return fgs.MobileIdentity{}, fmt.Errorf("invalid AMF ID %q in GUTI", g.Amfid)
+	}
+
+	amf, err := fgs.ParseAMFIdentifier(raw)
+	if err != nil {
+		return fgs.MobileIdentity{}, err
+	}
+
+	out := fgs.GUTI{
+		PLMN:        nas.PLMN{MCC: g.mcc, MNC: g.mnc},
+		AMFRegionID: amf.RegionID, AMFSetID: amf.SetID, AMFPointer: amf.Pointer,
+	}
+	binary.BigEndian.PutUint32(out.TMSI[:], g.Tmsi.Uint32())
+
+	return fgs.GUTIIdentity(out), nil
 }
 
 // TMSI is a 5G Temporary Mobile Subscriber Identity.
@@ -206,36 +244,4 @@ func (ta *TmsiAllocator) tryAllocate(t TMSI) bool {
 	ta.nextLsb++
 
 	return true
-}
-
-func plmnIDToMccMncString(buf []byte) (mcc string, mnc string, err error) {
-	mccDigit1 := buf[0] & 0x0f
-	mccDigit2 := (buf[0] & 0xf0) >> 4
-	mccDigit3 := (buf[1] & 0x0f)
-
-	mncDigit1 := (buf[2] & 0x0f)
-	mncDigit2 := (buf[2] & 0xf0) >> 4
-	mncDigit3 := (buf[1] & 0xf0) >> 4
-
-	if mccDigit1 > 9 || mccDigit2 > 9 || mccDigit3 > 9 {
-		return "", "", fmt.Errorf("invalid mcc")
-	}
-
-	// Last digit of MNC is set to `f` if MNC is only 2 digits
-	if mncDigit3 > 9 && mncDigit3 != 15 {
-		return "", "", fmt.Errorf("invalid mnc")
-	}
-
-	if mncDigit1 > 9 || mncDigit2 > 9 {
-		return "", "", fmt.Errorf("invalid mnc")
-	}
-
-	tmpBytes := []byte{(mccDigit1 << 4) | mccDigit2, (mccDigit3 << 4) | mncDigit1, (mncDigit2 << 4) | mncDigit3}
-
-	plmnID := hex.EncodeToString(tmpBytes)
-	if plmnID[5] == 'f' {
-		plmnID = plmnID[:5]
-	}
-
-	return plmnID[:3], plmnID[3:], nil
 }

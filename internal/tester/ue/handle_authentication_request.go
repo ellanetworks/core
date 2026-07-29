@@ -7,17 +7,23 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/free5gc/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
-func handleAuthenticationRequest(ue *UE, msg *nas.Message, amfUENGAPID int64, ranUENGAPID int64) error {
+func handleAuthenticationRequest(ue *UE, plain []byte, amfUENGAPID int64, ranUENGAPID int64) error {
 	logger.UeLogger.Debug("Received Authentication Request NAS message")
 
-	rand := msg.GetRANDValue()
-	autn := msg.GetAUTN()
+	req, err := fgs.ParseAuthenticationRequest(plain)
+	if err != nil {
+		return fmt.Errorf("could not parse Authentication Request: %v", err)
+	}
 
-	paramAutn, err := ue.DeriveRESstarAndSetKey(ue.UeSecurity.AuthenticationSubs, rand[:], ue.UeSecurity.Snn, autn[:])
+	if req.RAND == nil || req.AUTN == nil {
+		return fmt.Errorf("missing RAND or AUTN in Authentication Request")
+	}
+
+	paramAutn, err := ue.DeriveRESstarAndSetKey(ue.UeSecurity.AuthenticationSubs, req.RAND[:], ue.UeSecurity.Snn, req.AUTN[:])
 	if err != nil {
 		return fmt.Errorf("could not derive RES* and set key: %v", err)
 	}

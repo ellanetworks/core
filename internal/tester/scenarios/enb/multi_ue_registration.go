@@ -14,7 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 	"golang.org/x/sync/errgroup"
@@ -104,7 +104,7 @@ func runEnbMultiUERegistrationTest(
 	newUE, err := ue.NewUE(&ue.UEOpts{
 		GnodeB:         ngeNB.GnodeB,
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
-		PDUSessionType: nasMessage.PDUSessionTypeIPv4,
+		PDUSessionType: fgs.PDUSessionTypeIPv4,
 		Msin:           subscriber.IMSI[5:],
 		K:              subscriber.Key,
 		OpC:            subscriber.OPc,

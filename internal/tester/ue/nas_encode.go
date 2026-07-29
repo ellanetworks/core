@@ -12,67 +12,42 @@ package ue
 import (
 	"fmt"
 
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/security"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
+// EncodeNasPduWithSecurity wraps a plaintext NAS PDU in the given security header,
+// ciphering (when the header type indicates), computing the NAS-MAC over the
+// sequence-number octet and payload, and advancing the uplink NAS COUNT — the
+// mechanism the UE previously hand-rolled (TS 24.501 §4.4).
 func (ue *UE) EncodeNasPduWithSecurity(pdu []byte, securityHeaderType uint8) ([]byte, error) {
-	m := nas.NewMessage()
-
-	err := m.PlainNasDecode(&pdu)
-	if err != nil {
-		return nil, fmt.Errorf("could not decode nas message: %v", err)
-	}
-
-	m.SecurityHeader = nas.SecurityHeader{
-		ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
-		SecurityHeaderType:    securityHeaderType,
-	}
-
-	return ue.NASEncode(m, securityHeaderType)
-}
-
-func (ue *UE) NASEncode(msg *nas.Message, securityHeaderType uint8) ([]byte, error) {
 	if ue == nil {
-		return nil, fmt.Errorf("amfUe is nil")
+		return nil, fmt.Errorf("ue is nil")
 	}
 
-	if msg == nil {
+	if pdu == nil {
 		return nil, fmt.Errorf("nas message is nil")
 	}
 
-	if securityHeaderType == nas.SecurityHeaderTypeIntegrityProtectedWithNew5gNasSecurityContext {
-		ue.UeSecurity.ULCount.Set(0, 0)
-		ue.UeSecurity.DLCount.Set(0, 0)
+	// TS 24.501 §4.4.3.1: the uplink NAS COUNT starts at zero with the new 5G NAS
+	// security context, which the UE takes into use on the SECURITY MODE COMPLETE
+	// this header type is reserved for.
+	if securityHeaderType == uint8(fgs.SHTIntegrityProtectedCipheredNewContext) {
+		ue.UeSecurity.ULCount = 0
 	}
 
-	sequenceNumber := ue.UeSecurity.ULCount.SQN()
-
-	payload, err := msg.PlainNasEncode()
+	sc, err := ue.securityContext()
 	if err != nil {
-		return nil, fmt.Errorf("could not encode nas message: %v", err)
+		return nil, err
 	}
 
-	if msg.SecurityHeaderType != nas.SecurityHeaderTypeIntegrityProtected && msg.SecurityHeaderType != nas.SecurityHeaderTypeIntegrityProtectedWithNew5gNasSecurityContext {
-		if err = security.NASEncrypt(ue.UeSecurity.CipheringAlg, ue.UeSecurity.KnasEnc, ue.UeSecurity.ULCount.Get(), security.Bearer3GPP,
-			security.DirectionUplink, payload); err != nil {
-			return nil, fmt.Errorf("error while encrypting NAS Message: %s", err)
-		}
-	}
-
-	payload = append([]byte{sequenceNumber}, payload[:]...)
-
-	mac32, err := security.NASMacCalculate(ue.UeSecurity.IntegrityAlg, ue.UeSecurity.KnasInt, ue.UeSecurity.ULCount.Get(), security.Bearer3GPP, security.DirectionUplink, payload)
+	wire, err := fgs.Protect(pdu, fgs.SecurityHeaderType(securityHeaderType), ue.UeSecurity.ULCount,
+		nas.DirectionUplink, sc)
 	if err != nil {
-		return nil, fmt.Errorf("error while calculating MAC of NAS Message: %s", err)
+		return nil, fmt.Errorf("could not protect NAS message: %w", err)
 	}
 
-	payload = append(mac32, payload[:]...)
-	msgSecurityHeader := []byte{msg.ProtocolDiscriminator, msg.SecurityHeaderType}
-	payload = append(msgSecurityHeader, payload[:]...)
+	ue.UeSecurity.ULCount = ue.UeSecurity.ULCount.Next()
 
-	ue.UeSecurity.ULCount.AddOne()
-
-	return payload, nil
+	return wire, nil
 }

@@ -9,9 +9,8 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/nasreply"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
@@ -45,26 +44,13 @@ func newDecoderTestUE(t *testing.T) *UeContext {
 func encodePlainServiceRequest(t *testing.T) []byte {
 	t.Helper()
 
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeServiceRequest)
+	m := &fgs.ServiceRequest{
+		ServiceType:    fgs.ServiceTypeSignalling,
+		NgKSI:          nas.KeySetIdentifier{Value: 1},
+		MobileIdentity: fgs.STMSIIdentity(fgs.STMSI{TMSI: [4]byte{0xDE, 0xAD, 0xBE, 0xEF}}),
+	}
 
-	sr := nasMessage.NewServiceRequest(0)
-	sr.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	sr.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	sr.SetSpareHalfOctet(0)
-	sr.SetMessageType(nas.MsgTypeServiceRequest)
-	sr.SetServiceTypeValue(nasMessage.ServiceTypeSignalling)
-	sr.SetNasKeySetIdentifiler(1)
-	sr.TMSI5GS.SetLen(7)
-	sr.SetTypeOfIdentity(4) // 5G-S-TMSI
-	sr.SetAMFPointer(0)
-	sr.SetAMFSetID(0)
-	sr.SetTMSI5G([4]uint8{0xDE, 0xAD, 0xBE, 0xEF})
-
-	m.ServiceRequest = sr
-
-	payload, err := m.PlainNasEncode()
+	payload, err := m.MarshalBinary()
 	if err != nil {
 		t.Fatalf("encode plain ServiceRequest: %v", err)
 	}
@@ -75,22 +61,12 @@ func encodePlainServiceRequest(t *testing.T) []byte {
 func encodePlainULNasTransport(t *testing.T) []byte {
 	t.Helper()
 
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeULNASTransport)
+	m := &fgs.ULNASTransport{
+		PayloadContainerType: fgs.PayloadContainerTypeN1SMInfo,
+		PayloadContainer:     []byte{0x00},
+	}
 
-	ul := nasMessage.NewULNASTransport(0)
-	ul.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	ul.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	ul.SetSpareHalfOctet(0)
-	ul.SetMessageType(nas.MsgTypeULNASTransport)
-	ul.SetPayloadContainerType(nasMessage.PayloadContainerTypeN1SMInfo)
-	ul.PayloadContainer.SetLen(1)
-	ul.SetPayloadContainerContents([]byte{0x00})
-
-	m.ULNASTransport = ul
-
-	payload, err := m.PlainNasEncode()
+	payload, err := m.MarshalBinary()
 	if err != nil {
 		t.Fatalf("encode plain ULNasTransport: %v", err)
 	}
@@ -101,28 +77,12 @@ func encodePlainULNasTransport(t *testing.T) []byte {
 func encodePlainDeregistrationRequest(t *testing.T) []byte {
 	t.Helper()
 
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration)
-
-	dr := nasMessage.NewDeregistrationRequestUEOriginatingDeregistration(0)
-	dr.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	dr.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	dr.SetSpareHalfOctet(0)
-	dr.SetMessageType(nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration)
-	dr.SetSwitchOff(0)
-	dr.SetReRegistrationRequired(0)
-	dr.SetAccessType(nasMessage.AccessType3GPP)
-	dr.SetNasKeySetIdentifiler(0)
-	dr.MobileIdentity5GS = nasType.MobileIdentity5GS{
-		Iei:    0,
-		Len:    11,
-		Buffer: make([]uint8, 11),
+	m := &fgs.DeregistrationRequestUEOriginating{
+		AccessType:     1, // 3GPP access
+		MobileIdentity: testMobileIdentity(),
 	}
 
-	m.DeregistrationRequestUEOriginatingDeregistration = dr
-
-	payload, err := m.PlainNasEncode()
+	payload, err := m.MarshalBinary()
 	if err != nil {
 		t.Fatalf("encode plain DeregistrationRequest: %v", err)
 	}
@@ -133,28 +93,14 @@ func encodePlainDeregistrationRequest(t *testing.T) []byte {
 func encodePlainRegistrationRequest(t *testing.T) []byte {
 	t.Helper()
 
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeRegistrationRequest)
-
-	rr := nasMessage.NewRegistrationRequest(0)
-	rr.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	rr.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	rr.SetSpareHalfOctet(0)
-	rr.SetMessageType(nas.MsgTypeRegistrationRequest)
-	rr.NgksiAndRegistrationType5GS.SetNasKeySetIdentifiler(0)
-	rr.SetRegistrationType5GS(nasMessage.RegistrationType5GSInitialRegistration)
-	rr.SetFOR(1)
-	rr.MobileIdentity5GS = nasType.MobileIdentity5GS{
-		Iei:    nasMessage.MobileIdentity5GSType5gGuti,
-		Len:    11,
-		Buffer: make([]uint8, 11),
+	m := &fgs.RegistrationRequest{
+		RegistrationType:     fgs.RegistrationTypeInitial,
+		FOR:                  true,
+		MobileIdentity:       testMobileIdentity(),
+		UESecurityCapability: &fgs.UESecurityCapability{EA: 0xe0, IA: 0xe0},
 	}
-	rr.UESecurityCapability = &nasType.UESecurityCapability{}
 
-	m.RegistrationRequest = rr
-
-	payload, err := m.PlainNasEncode()
+	payload, err := m.MarshalBinary()
 	if err != nil {
 		t.Fatalf("encode plain RegistrationRequest: %v", err)
 	}
@@ -190,7 +136,7 @@ func TestDecodeNASMessage_MalformedPlain_YieldsStatus96(t *testing.T) {
 	ue.secured = false // fresh UE: the plain path is taken
 
 	// EPD, plain security header, REGISTRATION REQUEST type — then truncated (no mandatory IEs).
-	_, err := DecodeNASMessage(ue, []byte{0x7e, 0x00, nas.MsgTypeRegistrationRequest})
+	_, err := DecodeNASMessage(ue, []byte{0x7e, 0x00, uint8(fgs.MsgRegistrationRequest)})
 	if err == nil {
 		t.Fatal("expected a decode error for a truncated registration request")
 	}
@@ -227,10 +173,10 @@ func TestGmmDecodeFailureCause(t *testing.T) {
 		want uint8
 	}{
 		{"unknown type 0xff", []byte{0x7e, 0x00, 0xff}, nasreply.CauseMessageTypeNotImplemented},
-		{"defined uplink type, malformed body", []byte{0x7e, 0x00, nas.MsgTypeRegistrationRequest}, nasreply.CauseInvalidMandatoryInfo},
+		{"defined uplink type, malformed body", []byte{0x7e, 0x00, uint8(fgs.MsgRegistrationRequest)}, nasreply.CauseInvalidMandatoryInfo},
 		// A downlink-only type on the uplink is "not defined for the EPD in the given
 		// direction" (TS 24.501 §7.4 NOTE) → #97, not #96.
-		{"downlink-only type on uplink", []byte{0x7e, 0x00, nas.MsgTypeRegistrationAccept}, nasreply.CauseMessageTypeNotImplemented},
+		{"downlink-only type on uplink", []byte{0x7e, 0x00, uint8(fgs.MsgRegistrationAccept)}, nasreply.CauseMessageTypeNotImplemented},
 		{"too short to carry a type", []byte{0x7e, 0x00}, nasreply.CauseInvalidMandatoryInfo},
 	}
 
@@ -292,7 +238,7 @@ func TestDecodeNASMessage_PlainRegistrationRequest_Bootstrap(t *testing.T) {
 		t.Fatalf("plain RegistrationRequest must be accepted during bootstrap: %v", err)
 	}
 
-	if result == nil || result.Message == nil || result.Message.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationRequest {
+	if result == nil || !result.IsGMM || result.MessageType != uint8(fgs.MsgRegistrationRequest) {
 		t.Fatalf("expected RegistrationRequest, got %+v", result)
 	}
 
@@ -317,8 +263,8 @@ func TestDecodeNASMessage_PlainRegistrationRequest_WithExistingContext(t *testin
 		t.Fatalf("plain RegistrationRequest must be accepted: %v", err)
 	}
 
-	if result.Message.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationRequest {
-		t.Fatalf("expected RegistrationRequest, got %d", result.Message.GmmHeader.GetMessageType())
+	if result.MessageType != uint8(fgs.MsgRegistrationRequest) {
+		t.Fatalf("expected RegistrationRequest, got %d", result.MessageType)
 	}
 
 	if result.IntegrityVerified {
@@ -342,8 +288,8 @@ func TestDecodeNASMessage_PlainDeregistrationRequest_PassesDecoder(t *testing.T)
 		t.Fatalf("plain DeregistrationRequest is on the whitelist; decoder must return it: %v", err)
 	}
 
-	if result.Message.GmmHeader.GetMessageType() != nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration {
-		t.Fatalf("expected DeregistrationRequest, got %d", result.Message.GmmHeader.GetMessageType())
+	if result.MessageType != uint8(fgs.MsgDeregistrationRequestUEOrig) {
+		t.Fatalf("expected DeregistrationRequest, got %d", result.MessageType)
 	}
 
 	if result.IntegrityVerified {

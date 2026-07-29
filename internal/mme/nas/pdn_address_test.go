@@ -4,14 +4,14 @@
 package nas
 
 import (
-	"bytes"
 	"context"
 	"net/netip"
+	"reflect"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/udm"
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
@@ -25,8 +25,7 @@ func activateFromAccept(t *testing.T, m *mme.MME, ue *mme.UeContext) *eps.Activa
 		t.Fatal(err)
 	}
 
-	plain, err := eps.Unprotect(wire, nascommon.NASCount(0, wire[5]), nascommon.DirectionDownlink,
-		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,8 +57,7 @@ func TestAttachAcceptIMSVoPS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	plain, err := eps.Unprotect(wire, nascommon.NASCount(0, wire[5]), nascommon.DirectionDownlink,
-		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,8 +67,8 @@ func TestAttachAcceptIMSVoPS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if accept.EPSNetworkFeatureSupport == nil || !accept.EPSNetworkFeatureSupport.IMSVoPS {
-		t.Fatalf("Attach Accept must advertise IMS VoPS, got %+v", accept.EPSNetworkFeatureSupport)
+	if accept.NetworkFeatureSupport == nil || !accept.NetworkFeatureSupport.IMSVoPS {
+		t.Fatalf("Attach Accept must advertise IMS VoPS, got %+v", accept.NetworkFeatureSupport)
 	}
 }
 
@@ -85,9 +83,9 @@ func TestAttachAcceptDNSPCO(t *testing.T) {
 
 	activate := activateFromAccept(t, m, ue)
 
-	want := eps.BuildProtocolConfigurationOptions([][]byte{{8, 8, 8, 8}}, 1400)
-	if !bytes.Equal(activate.ProtocolConfigurationOptions, want) {
-		t.Fatalf("PCO = %x, want %x", activate.ProtocolConfigurationOptions, want)
+	want := nas.NewProtocolConfigurationOptions([][]byte{{8, 8, 8, 8}}, 1400)
+	if !reflect.DeepEqual(activate.ProtocolConfigurationOptions, &want) {
+		t.Fatalf("PCO = %+v, want %+v", activate.ProtocolConfigurationOptions, want)
 	}
 }
 
@@ -104,10 +102,10 @@ func TestAttachAcceptIPv6NoLinkMTU(t *testing.T) {
 	activate := activateFromAccept(t, m, ue)
 
 	dns := netip.MustParseAddr("2001:4860:4860::8888").As16()
-	want := eps.BuildProtocolConfigurationOptions([][]byte{dns[:]}, 0)
+	want := nas.NewProtocolConfigurationOptions([][]byte{dns[:]}, 0)
 
-	if !bytes.Equal(activate.ProtocolConfigurationOptions, want) {
-		t.Fatalf("PCO = %x, want %x (IPv6 DNS, no IPv4 Link MTU)", activate.ProtocolConfigurationOptions, want)
+	if !reflect.DeepEqual(activate.ProtocolConfigurationOptions, &want) {
+		t.Fatalf("PCO = %+v, want %+v (IPv6 DNS, no IPv4 Link MTU)", activate.ProtocolConfigurationOptions, want)
 	}
 }
 
@@ -122,8 +120,8 @@ func TestAttachAcceptDowngradeCause(t *testing.T) {
 
 	activate := activateFromAccept(t, m, ue)
 
-	if activate.ESMCause == nil || *activate.ESMCause != eps.ESMCausePDNTypeIPv4OnlyAllowed {
-		t.Fatalf("ESM cause = %v, want %d", activate.ESMCause, eps.ESMCausePDNTypeIPv4OnlyAllowed)
+	if activate.Cause == nil || *activate.Cause != eps.ESMCausePDNTypeIPv4OnlyAllowed {
+		t.Fatalf("ESM cause = %v, want %d", activate.Cause, eps.ESMCausePDNTypeIPv4OnlyAllowed)
 	}
 }
 
@@ -145,8 +143,8 @@ func TestActivateDefaultBearerRejectsWhen4GNotAllowed(t *testing.T) {
 		t.Fatalf("not an Attach Reject: %v", err)
 	}
 
-	if rej.Cause != mme.EmmCauseEPSServicesNotAllowed {
-		t.Fatalf("Attach Reject cause = %d, want %d (EPS services not allowed)", rej.Cause, mme.EmmCauseEPSServicesNotAllowed)
+	if rej.Cause != eps.EMMCauseEPSServicesNotAllowed {
+		t.Fatalf("Attach Reject cause = %d, want %d (EPS services not allowed)", rej.Cause, eps.EMMCauseEPSServicesNotAllowed)
 	}
 
 	parseUEContextReleaseCommand(t, cc.sent[1])
@@ -170,8 +168,8 @@ func TestActivateDefaultBearerRejectsOnSessionFailure(t *testing.T) {
 		t.Fatalf("not an Attach Reject: %v", err)
 	}
 
-	if rej.Cause != mme.EmmCauseESMFailure {
-		t.Fatalf("Attach Reject cause = %d, want %d (ESM failure)", rej.Cause, mme.EmmCauseESMFailure)
+	if rej.Cause != eps.EMMCauseESMFailure {
+		t.Fatalf("Attach Reject cause = %d, want %d (ESM failure)", rej.Cause, eps.EMMCauseESMFailure)
 	}
 
 	parseUEContextReleaseCommand(t, cc.sent[1])
@@ -183,7 +181,7 @@ func TestActivateDefaultBearerRejectsOnSessionFailure(t *testing.T) {
 func TestAttachAcceptPDNAddress(t *testing.T) {
 	cases := []struct {
 		name    string
-		pdnType uint8
+		pdnType eps.PDNType
 		wantV4  bool
 		wantV6  bool
 	}{
@@ -205,8 +203,7 @@ func TestAttachAcceptPDNAddress(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			plain, err := eps.Unprotect(wire, nascommon.NASCount(0, wire[5]), nascommon.DirectionDownlink,
-				ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+			plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -221,11 +218,7 @@ func TestAttachAcceptPDNAddress(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			pdn, err := eps.ParsePDNAddress(activate.PDNAddress)
-			if err != nil {
-				t.Fatal(err)
-			}
-
+			pdn := activate.PDNAddress
 			if pdn.PDNType != tc.pdnType {
 				t.Fatalf("PDN type = %d, want %d", pdn.PDNType, tc.pdnType)
 			}

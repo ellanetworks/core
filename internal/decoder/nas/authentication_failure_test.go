@@ -7,8 +7,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
-	naslib "github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func TestDecodeNASMessage_AuthenticationFailure(t *testing.T) {
@@ -29,7 +28,7 @@ func TestDecodeNASMessage_AuthenticationFailure(t *testing.T) {
 		t.Errorf("Unexpected SecurityHeaderType: got %v", nasMsg.SecurityHeader.SecurityHeaderType.Label)
 	}
 
-	if nasMsg.SecurityHeader.SecurityHeaderType.Value != naslib.SecurityHeaderTypePlainNas {
+	if nasMsg.SecurityHeader.SecurityHeaderType.Value != int64(fgs.SHTPlain) {
 		t.Errorf("Unexpected SecurityHeaderType value: got %d", nasMsg.SecurityHeader.SecurityHeaderType.Value)
 	}
 
@@ -45,7 +44,7 @@ func TestDecodeNASMessage_AuthenticationFailure(t *testing.T) {
 		t.Errorf("Unexpected GmmMessage Type: got %v", nasMsg.GmmMessage.GmmHeader.MessageType.Label)
 	}
 
-	if nasMsg.GmmMessage.GmmHeader.MessageType.Value != naslib.MsgTypeAuthenticationFailure {
+	if nasMsg.GmmMessage.GmmHeader.MessageType.Value != int64(fgs.MsgAuthenticationFailure) {
 		t.Errorf("Unexpected GmmMessage Type value: got %d", nasMsg.GmmMessage.GmmHeader.MessageType.Value)
 	}
 
@@ -57,7 +56,7 @@ func TestDecodeNASMessage_AuthenticationFailure(t *testing.T) {
 		t.Errorf("Unexpected Cause5GMM: got %v, want 'MAC failure'", nasMsg.GmmMessage.AuthenticationFailure.Cause5GMM)
 	}
 
-	if nasMsg.GmmMessage.AuthenticationFailure.Cause5GMM.Value != nasMessage.Cause5GMMMACFailure {
-		t.Errorf("Unexpected Cause5GMM value: got %d, want %d", nasMsg.GmmMessage.AuthenticationFailure.Cause5GMM.Value, nasMessage.Cause5GMMMACFailure)
+	if nasMsg.GmmMessage.AuthenticationFailure.Cause5GMM.Value != int64(0x14) {
+		t.Errorf("Unexpected Cause5GMM value: got %d, want %d", nasMsg.GmmMessage.AuthenticationFailure.Cause5GMM.Value, 0x14)
 	}
 }

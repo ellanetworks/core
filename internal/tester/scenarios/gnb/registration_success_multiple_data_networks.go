@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil/validate"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 	"golang.org/x/sync/errgroup"
@@ -117,7 +118,7 @@ func runRegistrationSuccessMultipleDataNetworks(_ context.Context, env scenarios
 
 				exp := &validate.ExpectedPDUSessionEstablishmentAccept{
 					PDUSessionID:               scenarios.DefaultPDUSessionID,
-					PDUSessionType:             env.PDUSessionType(),
+					PDUSessionType:             fgs.PDUSessionType(env.PDUSessionType()),
 					UeIPSubnet:                 network,
 					Dnn:                        dnns[i],
 					Sst:                        scenarios.DefaultSST,

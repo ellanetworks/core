@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/sctp"
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -34,13 +34,14 @@ func (c *captureConn) count() int {
 }
 
 // mobileIdentityDigits extracts the identity digits from a TS 24.008 Mobile
-// Identity IE.
+// Identity IE, reporting a value that does not decode as no digits.
 func mobileIdentityDigits(b []byte) string {
-	if len(b) == 0 {
+	digits, err := nas.DecodeBCDIdentity(b)
+	if err != nil {
 		return ""
 	}
 
-	return string([]byte{'0' + (b[0] >> 4)}) + nascommon.DecodeTBCD(b[1:])
+	return digits
 }
 
 // decodeDownlinkNAS extracts the NAS PDU from an S1AP Downlink NAS Transport.

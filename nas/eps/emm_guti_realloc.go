@@ -3,74 +3,117 @@
 
 package eps
 
-import "github.com/ellanetworks/core/nas/common"
+import "github.com/ellanetworks/core/nas"
 
 // GUTIReallocationCommand is the GUTI REALLOCATION COMMAND message (TS 24.301 §8.2.16).
 // The assigned GUTI is the only mandatory IE (an LV); the optional TAI list is omitted,
 // as a standalone reallocation leaves the registration area unchanged.
 type GUTIReallocationCommand struct {
 	GUTI EPSMobileIdentity
+
+	// Unrecognized carries the optional information elements this message does
+	// not model, so they survive decoding and re-encode unchanged.
+	Unrecognized []nas.RawIE
 }
 
-// Marshal encodes the plain GUTI REALLOCATION COMMAND message.
-func (m *GUTIReallocationCommand) Marshal() ([]byte, error) {
-	var w common.Writer
+// AppendBinary encodes the plain GUTI REALLOCATION COMMAND message.
+// The encoding is appended to b.
+func (m *GUTIReallocationCommand) AppendBinary(b []byte) ([]byte, error) {
+	w := nas.NewWriter(b)
 
-	writeEMMHeader(&w, MsgGUTIReallocationCommand)
+	var o nas.OptionalWriter
 
-	v, err := m.GUTI.encode()
+	writeEMMHeader(w, MsgGUTIReallocationCommand)
+
+	guti, err := m.GUTI.MarshalBinary()
 	if err != nil {
-		return nil, err
+		return b, err
 	}
 
-	if err := w.LV(v); err != nil {
-		return nil, err
-	}
+	w.LV(guti)
 
-	return w.Bytes(), nil
+	o.Raw(m.Unrecognized...)
+	o.WriteTo(w)
+
+	return messageResult(w, b)
 }
+
+// MarshalBinary encodes the message.
+func (m *GUTIReallocationCommand) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
 
 // ParseGUTIReallocationCommand decodes a plain GUTI REALLOCATION COMMAND message.
 func ParseGUTIReallocationCommand(b []byte) (*GUTIReallocationCommand, error) {
-	r := common.NewReader(b)
+	r := nas.NewReader(b)
 
 	if err := readEMMHeader(r, MsgGUTIReallocationCommand); err != nil {
 		return nil, err
 	}
 
-	v, err := r.LV()
+	raw, err := r.LV()
 	if err != nil {
 		return nil, err
 	}
 
-	id, err := decodeEPSMobileIdentity(v)
+	guti, err := ParseEPSMobileIdentity(raw)
 	if err != nil {
 		return nil, err
 	}
 
-	return &GUTIReallocationCommand{GUTI: id}, nil
+	out := &GUTIReallocationCommand{GUTI: guti}
+
+	_unrec, err := walkOptionalIEs(r, nil, declineAll)
+	if err != nil && !nas.SoftOnly(err) {
+		return nil, err
+	}
+
+	out.Unrecognized = _unrec
+
+	return out, err
 }
 
 // GUTIReallocationComplete is the GUTI REALLOCATION COMPLETE message
 // (TS 24.301 §8.2.17), which carries no information elements.
-type GUTIReallocationComplete struct{}
-
-// Marshal encodes the plain GUTI REALLOCATION COMPLETE message.
-func (m *GUTIReallocationComplete) Marshal() ([]byte, error) {
-	var w common.Writer
-
-	writeEMMHeader(&w, MsgGUTIReallocationComplete)
-
-	return w.Bytes(), nil
+type GUTIReallocationComplete struct {
+	// Unrecognized carries the optional information elements this message does
+	// not model, so they survive decoding and re-encode unchanged. The spec
+	// defines none for this message, but a later release may.
+	Unrecognized []nas.RawIE
 }
+
+// AppendBinary encodes the plain GUTI REALLOCATION COMPLETE message.
+// The encoding is appended to b.
+func (m *GUTIReallocationComplete) AppendBinary(b []byte) ([]byte, error) {
+	w := nas.NewWriter(b)
+
+	var o nas.OptionalWriter
+
+	writeEMMHeader(w, MsgGUTIReallocationComplete)
+
+	o.Raw(m.Unrecognized...)
+	o.WriteTo(w)
+
+	return messageResult(w, b)
+}
+
+// MarshalBinary encodes the message.
+func (m *GUTIReallocationComplete) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
 
 // ParseGUTIReallocationComplete decodes a plain GUTI REALLOCATION COMPLETE message.
 func ParseGUTIReallocationComplete(b []byte) (*GUTIReallocationComplete, error) {
-	r := common.NewReader(b)
+	r := nas.NewReader(b)
 
 	if err := readEMMHeader(r, MsgGUTIReallocationComplete); err != nil {
 		return nil, err
 	}
 
-	return &GUTIReallocationComplete{}, nil
+	out := &GUTIReallocationComplete{}
+
+	_unrec, err := walkOptionalIEs(r, nil, declineAll)
+	if err != nil && !nas.SoftOnly(err) {
+		return nil, err
+	}
+
+	out.Unrecognized = _unrec
+
+	return out, err
 }

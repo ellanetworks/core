@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/nasreply"
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -18,21 +18,21 @@ import (
 
 // HandleNAS is the MME's EMM entry point for an inbound NAS message on a UE
 // connection.
-func HandleNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, nas []byte) {
-	dispositionForNAS(ctx, m, conn, nas).Finalize(ctx, egress{conn: conn})
+func HandleNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []byte) {
+	dispositionForNAS(ctx, m, conn, pdu).Finalize(ctx, egress{conn: conn})
 }
 
 // dispositionForNAS resolves an inbound NAS PDU to the single outcome the finalizer applies:
 // a message the MME cannot process draws the STATUS the spec mandates or an audited silence,
 // never a bare drop.
-func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, nas []byte) nasreply.Disposition {
+func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []byte) nasreply.Disposition {
 	ue := conn.UeContext()
 	if ue == nil {
 		// A bare connection binds a persistent context only for an ATTACH REQUEST —
 		// the only message warranting one (TS 24.301) — so an unauthenticated peer
 		// cannot exhaust UE contexts. A connection left bare here is released by the
 		// S1AP layer.
-		if !isAttachRequest(nas) {
+		if !isAttachRequest(pdu) {
 			return nasreply.Silent(nasreply.ReasonNoContext)
 		}
 
@@ -44,7 +44,7 @@ func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, nas []
 	// that verifies against a held EPS security context adopts it before decode, so
 	// everything below runs on the right context.
 	if !ue.Secured() {
-		resolved, drop := resolveAttachContext(ctx, m, ue, nas)
+		resolved, drop := resolveAttachContext(ctx, m, ue, pdu)
 		if drop {
 			return nasreply.Silent(nasreply.ReasonUnspecified)
 		}
@@ -56,7 +56,7 @@ func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, nas []
 		ctx = logger.Into(ctx, conn.Log)
 	}
 
-	pd, err := eps.ProtocolDiscriminator(nas)
+	pd, err := eps.PeekProtocolDiscriminator(pdu)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to read NAS protocol discriminator", zap.Error(err))
 		return nasreply.Silent(nasreply.ReasonTooShort)
@@ -67,7 +67,7 @@ func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, nas []
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	result, err := mme.DecodeNASMessage(ue, nas)
+	result, err := mme.DecodeNASMessage(ue, pdu)
 	if err != nil {
 		return mme.DispositionForDecodeError(err)
 	}
@@ -78,75 +78,110 @@ func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, nas []
 // HandleEmmMessage routes a plain NAS message to its procedure handler and reports the single
 // outcome the ingress finalizer applies.
 func HandleEmmMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte, integrityVerified bool) nasreply.Disposition {
-	if len(plain) > 0 && plain[0]&0x0F == eps.PDESM {
-		return handleESM(ctx, m, ue, plain)
+	msg, err := eps.ParseMessage(plain, nas.DirectionUplink)
+	if err != nil && !nas.SoftOnly(err) {
+		return rejectUndecodable(ctx, m, ue, plain, err)
 	}
 
-	mt, err := eps.PeekMessageType(plain)
-	if err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("failed to read EMM message type", zap.Error(err))
-		return nasreply.StatusMM(nasreply.CauseProtocolErrorUnspecified)
+	if !decoded(ctx, messageName(msg), err) {
+		return rejectUndecodable(ctx, m, ue, plain, err)
 	}
 
-	ctx, span := mme.Tracer.Start(ctx, "nas/receive",
-		trace.WithAttributes(attribute.String("nas.message_type", mme.EmmMessageTypeName(mt))))
+	ctx, span := mme.Tracer.Start(ctx, "pdu/receive",
+		trace.WithAttributes(attribute.String("nas.message_type", messageName(msg))))
 	defer span.End()
 
-	switch mt {
-	case eps.MsgAttachRequest:
-		return handleAttachRequest(ctx, m, ue, plain, integrityVerified)
-	case eps.MsgIdentityResponse:
-		return handleIdentityResponse(ctx, m, ue, plain)
-	case eps.MsgAuthenticationResponse:
-		return handleAuthenticationResponse(ctx, m, ue, plain)
-	case eps.MsgAuthenticationFailure:
-		return handleAuthenticationFailure(ctx, m, ue, plain)
-	case eps.MsgSecurityModeComplete:
-		return handleSecurityModeComplete(ctx, m, ue, plain)
-	case eps.MsgSecurityModeReject:
-		return handleSecurityModeReject(ctx, m, ue, plain)
-	case eps.MsgAttachComplete:
-		return handleAttachComplete(ctx, m, ue, plain)
-	case eps.MsgGUTIReallocationComplete:
-		return handleGUTIReallocationComplete(ctx, m, ue, plain)
-	case eps.MsgDetachRequest:
-		return handleDetachRequest(ctx, m, ue, plain, integrityVerified)
-	case eps.MsgDetachAccept:
+	switch msg := msg.(type) {
+	case *eps.AttachRequest:
+		return handleAttachRequest(ctx, m, ue, msg, plain, integrityVerified)
+	case *eps.IdentityResponse:
+		return handleIdentityResponse(ctx, m, ue, msg)
+	case *eps.AuthenticationResponse:
+		return handleAuthenticationResponse(ctx, m, ue, msg)
+	case *eps.AuthenticationFailure:
+		return handleAuthenticationFailure(ctx, m, ue, msg)
+	case *eps.SecurityModeComplete:
+		return handleSecurityModeComplete(ctx, m, ue, msg)
+	case *eps.SecurityModeReject:
+		return handleSecurityModeReject(ctx, m, ue, msg)
+	case *eps.AttachComplete:
+		return handleAttachComplete(ctx, m, ue)
+	case *eps.GUTIReallocationComplete:
+		return handleGUTIReallocationComplete(ctx, m, ue)
+	case *eps.DetachRequestUE:
+		return handleDetachRequest(ctx, m, ue, msg, integrityVerified)
+	case *eps.DetachAccept:
 		return handleDetachAccept(ctx, m, ue)
-	case eps.MsgTrackingAreaUpdateRequest:
-		return handleTrackingAreaUpdate(ctx, m, ue, plain)
-	case eps.MsgTrackingAreaUpdateComplete:
+	case *eps.TrackingAreaUpdateRequest:
+		return handleTrackingAreaUpdate(ctx, m, ue, msg, plain)
+	case *eps.TrackingAreaUpdateComplete:
 		return handleTrackingAreaUpdateComplete(ctx, m, ue)
-	case eps.MsgEMMStatus:
-		return handleEMMStatus(plain)
-	default:
-		// TS 24.301 §7.4: a message type not implemented by the receiver is ignored, but an
-		// EMM STATUS with cause #97 "message type non-existent or not implemented" should be
-		// returned.
-		logger.From(ctx, logger.MmeLog).Warn("unhandled EMM message",
-			zap.String("message-type", mme.EmmMessageTypeName(mt)),
-			zap.Int("message-type-value", int(mt)))
+	case *eps.EMMStatus:
+		return handleEMMStatus(msg)
+	case *eps.UnknownEMMMessage:
+		// TS 24.301 §7.4: a message type the receiver does not implement draws a
+		// STATUS in its own protocol. The ESM counterpart reaches
+		// handleESMMessage through the default arm below.
+		logger.From(ctx, logger.MmeLog).Warn("unimplemented NAS message type", zap.Stringer("message", msg))
 
 		return nasreply.StatusMM(nasreply.CauseMessageTypeNotImplemented)
+	default:
+		return handleESMMessage(ctx, m, ue, msg)
 	}
 }
 
-func isAttachRequest(nas []byte) bool {
-	pd, err := eps.ProtocolDiscriminator(nas)
+// messageName names a decoded message for logs and traces, falling back to the
+// type octet of one this MME does not model.
+func messageName(msg eps.Message) string {
+	switch msg := msg.(type) {
+	case eps.EMMMessage:
+		return msg.MessageType().String()
+	case eps.ESMMessage:
+		return msg.MessageType().String()
+	case *eps.ServiceRequest:
+		return "SERVICE REQUEST"
+	default:
+		return "unknown message"
+	}
+}
+
+// rejectUndecodable answers a message whose mandatory part did not decode. The
+// answer depends on the message: TS 24.301 §5.5.1.2.7 b) rejects a malformed
+// ATTACH REQUEST with EMM cause #96, and §7.5.1 answers anything else with an
+// EMM STATUS carrying the same cause.
+func rejectUndecodable(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte, err error) nasreply.Disposition {
+	logger.From(ctx, logger.MmeLog).Warn("failed to decode NAS message", zap.Error(err))
+
+	if mt, perr := eps.PeekMessageType(plain); perr == nil && mt == eps.MsgAttachRequest {
+		rejectAttach(ctx, m, ue, eps.EMMCauseInvalidMandatoryInformation)
+
+		return nasreply.Handled()
+	}
+
+	return nasreply.StatusMM(nasreply.CauseInvalidMandatoryInfo)
+}
+
+func isAttachRequest(pdu []byte) bool {
+	pd, err := eps.PeekProtocolDiscriminator(pdu)
 	if err != nil || pd != eps.PDEMM {
 		return false
 	}
 
-	body := nas
+	sht, err := eps.PeekSecurityHeaderType(pdu)
+	if err != nil {
+		return false
+	}
 
-	switch nas[0] >> 4 {
-	case uint8(eps.SHTPlain):
-	case uint8(eps.SHTIntegrityProtected), uint8(eps.SHTIntegrityProtectedNewContext):
-		if len(nas) < 6 {
+	body := pdu
+
+	switch sht {
+	case eps.SHTPlain:
+	case eps.SHTIntegrityProtected, eps.SHTIntegrityProtectedNewContext:
+		if len(pdu) < 6 {
 			return false
 		}
 
-		body = nas[6:]
+		body = pdu[6:]
 	default:
 		return false
 	}
@@ -154,15 +189,4 @@ func isAttachRequest(nas []byte) bool {
 	mt, err := eps.PeekMessageType(body)
 
 	return err == nil && mt == eps.MsgAttachRequest
-}
-
-// mobileIdentityDigits extracts the identity digits from a TS 24.008 Mobile
-// identity value (first digit in the high nibble of octet 0, the rest packed
-// BCD). It serves any BCD identity — IMSI, IMEI, or IMEISV.
-func mobileIdentityDigits(b []byte) string {
-	if len(b) == 0 {
-		return ""
-	}
-
-	return string([]byte{'0' + (b[0] >> 4)}) + nascommon.DecodeTBCD(b[1:])
 }

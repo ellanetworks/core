@@ -103,7 +103,7 @@ var ieNames = map[int64]string{
 	idRoutingID:                      "Routing-ID",
 }
 
-func ieEnum(id int64) utils.EnumField[int64] {
+func ieEnum(id int64) utils.EnumField {
 	name, ok := ieNames[id]
 
 	return utils.MakeEnum(id, name, !ok)
@@ -138,13 +138,13 @@ func procedureCodeName(code s1ap.ProcedureCode) string {
 	return ""
 }
 
-func procedureCodeToEnum(code s1ap.ProcedureCode) utils.EnumField[int64] {
+func procedureCodeToEnum(code s1ap.ProcedureCode) utils.EnumField {
 	name := procedureCodeName(code)
 
 	return utils.MakeEnum(int64(code), name, name == "")
 }
 
-func criticalityToEnum(c s1ap.Criticality) utils.EnumField[uint64] {
+func criticalityToEnum(c s1ap.Criticality) utils.EnumField {
 	switch c {
 	case s1ap.CriticalityReject:
 		return utils.MakeEnum(uint64(c), "Reject", false)

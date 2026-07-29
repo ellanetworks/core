@@ -20,8 +20,8 @@ type PLMNIdentity struct {
 // GNBIDChoice is a simplified version of GlobalgNB-ID-Choice (CHOICE with
 // two alternatives: gNB-ID and explicit gNB-ID). TS 38.413 §9.3.1.6.
 type GNBIDChoice struct {
-	GNBID    *GNBID    `per:",choice:0,optional"`
-	Explicit *GNBID    `per:",choice:1,optional"`
+	GNBID    *GNBID `per:",choice:0,optional"`
+	Explicit *GNBID `per:",choice:1,optional"`
 }
 
 // GNBID is a simplified representation of a gNB ID. In real NGAP this is a
@@ -36,8 +36,8 @@ type GNBID struct {
 // GlobalGNBID is a simplified version of GlobalgNB-ID: a SEQUENCE of PLMN +
 // gNB-ID-Choice. TS 38.413 §9.3.1.6.
 type GlobalGNBID struct {
-	PLMN    PLMNIdentity
-	GNBID   GNBIDChoice
+	PLMN  PLMNIdentity
+	GNBID GNBIDChoice
 }
 
 // PagingDRX is an ENUMERATED with values v32, v64, v128, v256.
@@ -63,8 +63,8 @@ type SupportedTAList struct {
 // (mandatory), DefaultPagingDRX (mandatory). This is a simplified version
 // of the ProtocolIE-Container pattern used in NGAP.
 type NGSetupRequest struct {
-	GlobalRANNodeID GlobalGNBID
-	RANNodeName     *string `per:"UTF8String,optional"`
-	SupportedTAList SupportedTAList
+	GlobalRANNodeID  GlobalGNBID
+	RANNodeName      *string `per:"UTF8String,optional"`
+	SupportedTAList  SupportedTAList
 	DefaultPagingDRX PagingDRX
 }

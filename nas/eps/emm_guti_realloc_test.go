@@ -3,14 +3,19 @@
 
 package eps
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+
+	"github.com/ellanetworks/core/nas"
+)
 
 func TestGUTIReallocationCommandRoundTrip(t *testing.T) {
-	guti := EPSMobileIdentity{Type: IdentityGUTI, MCC: "001", MNC: "01", MMEGroupID: 1, MMECode: 1, MTMSI: 0x01020304}
+	guti := GUTIIdentity(GUTI{PLMN: nas.PLMN{MCC: "001", MNC: "01"}, MMEGroupID: 1, MMECode: 1, TMSI: [4]byte{0x01, 0x02, 0x03, 0x04}})
 
-	b, err := (&GUTIReallocationCommand{GUTI: guti}).Marshal()
+	b, err := (&GUTIReallocationCommand{GUTI: guti}).MarshalBinary()
 	if err != nil {
-		t.Fatalf("Marshal: %v", err)
+		t.Fatalf("MarshalBinary: %v", err)
 	}
 
 	if MessageType(b[1]) != MsgGUTIReallocationCommand {
@@ -22,15 +27,15 @@ func TestGUTIReallocationCommandRoundTrip(t *testing.T) {
 		t.Fatalf("Parse: %v", err)
 	}
 
-	if got.GUTI != guti {
+	if !reflect.DeepEqual(got.GUTI, guti) {
 		t.Fatalf("GUTI = %+v, want %+v", got.GUTI, guti)
 	}
 }
 
 func TestGUTIReallocationCompleteRoundTrip(t *testing.T) {
-	b, err := (&GUTIReallocationComplete{}).Marshal()
+	b, err := (&GUTIReallocationComplete{}).MarshalBinary()
 	if err != nil {
-		t.Fatalf("Marshal: %v", err)
+		t.Fatalf("MarshalBinary: %v", err)
 	}
 
 	if MessageType(b[1]) != MsgGUTIReallocationComplete {

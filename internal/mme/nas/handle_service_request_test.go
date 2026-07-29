@@ -6,13 +6,14 @@ package nas
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"net/netip"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
 	mmes1ap "github.com/ellanetworks/core/internal/mme/s1ap"
 	"github.com/ellanetworks/core/internal/models"
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -23,7 +24,7 @@ func idleRegisteredUE(t *testing.T, m *mme.MME) (*mme.UeContext, eps.EPSMobileId
 	t.Helper()
 
 	ue, _ := securedUE(t, m)
-	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(), nil, mme.MintAuthProofForAttachRequest())
+	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}, nil, mme.MintAuthProofForAttachRequest())
 	testPDN(ue).SgwFTEID = testSGWFTEID // S-GW S1-U persists across idle, as after a real attach
 
 	guti, err := m.ReallocateGUTI(t.Context(), ue, models.PlmnID{Mcc: "001", Mnc: "01"}, 1, 1)
@@ -41,16 +42,20 @@ func idleRegisteredUE(t *testing.T, m *mme.MME) (*mme.UeContext, eps.EPSMobileId
 func serviceRequestNAS(t *testing.T, ue *mme.UeContext) []byte {
 	t.Helper()
 
-	octet0 := uint8(eps.SHTServiceRequest)<<4 | 0x07 // security header type | PD (EMM)
-	octet1 := uint8(ue.ULCount()) & 0x1f             // KSI 0 | 5-bit sequence
+	sc := mustSecurityContext(t, ue.EIA(), nas.CipheringNull,
+		ue.KnasIntForTest(), nas.CipherKey{})
 
-	mac, err := eps.ServiceRequestShortMAC([]byte{octet0, octet1}, ue.KnasIntForTest(), ue.ULCount(),
-		nascommon.DirectionUplink, mme.IntegrityAlg(ue.EIA()))
+	sr, err := eps.NewServiceRequest(0, nas.Count(ue.ULCount()), sc)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	return []byte{octet0, octet1, mac[0], mac[1]}
+	wire, err := sr.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return wire
 }
 
 func TestServiceRequestReestablishes(t *testing.T) {
@@ -64,7 +69,7 @@ func TestServiceRequestReestablishes(t *testing.T) {
 	msg := &s1ap.InitialUEMessage{
 		ENBUES1APID: 9,
 		NASPDU:      s1ap.NASPDU(serviceRequestNAS(t, ue)),
-		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
+		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: binary.BigEndian.Uint32(guti.GUTI.TMSI[:])},
 	}
 
 	HandleServiceRequest(context.Background(), m, cc, msg)
@@ -110,7 +115,7 @@ func TestServiceRequestReactivatesAllBearers(t *testing.T) {
 	HandleServiceRequest(context.Background(), m, cc, &s1ap.InitialUEMessage{
 		ENBUES1APID: 9,
 		NASPDU:      s1ap.NASPDU(serviceRequestNAS(t, ue)),
-		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
+		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: binary.BigEndian.Uint32(guti.GUTI.TMSI[:])},
 	})
 
 	if len(cc.sent) != 2 {
@@ -177,7 +182,7 @@ func TestServiceRequestS1UTransportFamily(t *testing.T) {
 			HandleServiceRequest(context.Background(), m, cc, &s1ap.InitialUEMessage{
 				ENBUES1APID: 9,
 				NASPDU:      s1ap.NASPDU(serviceRequestNAS(t, ue)),
-				STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
+				STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: binary.BigEndian.Uint32(guti.GUTI.TMSI[:])},
 			})
 
 			if len(cc.sent) != 2 {
@@ -209,7 +214,7 @@ func TestServiceRequestAllocatesFreshMMEUES1APID(t *testing.T) {
 	msg := &s1ap.InitialUEMessage{
 		ENBUES1APID: 42,
 		NASPDU:      s1ap.NASPDU(serviceRequestNAS(t, ue)),
-		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
+		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: binary.BigEndian.Uint32(guti.GUTI.TMSI[:])},
 	}
 
 	HandleServiceRequest(context.Background(), m, cc, msg)
@@ -253,14 +258,14 @@ func TestServiceRequestBadMACRejected(t *testing.T) {
 	m := newTestMME(t)
 	ue, guti := idleRegisteredUE(t, m)
 
-	nas := serviceRequestNAS(t, ue)
-	nas[3] ^= 0xff // corrupt the short MAC
+	pdu := serviceRequestNAS(t, ue)
+	pdu[3] ^= 0xff // corrupt the short MAC
 
 	cc := &captureConn{}
 	msg := &s1ap.InitialUEMessage{
 		ENBUES1APID: 9,
-		NASPDU:      s1ap.NASPDU(nas),
-		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
+		NASPDU:      s1ap.NASPDU(pdu),
+		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: binary.BigEndian.Uint32(guti.GUTI.TMSI[:])},
 	}
 
 	HandleServiceRequest(context.Background(), m, cc, msg)
@@ -286,7 +291,7 @@ func TestServiceRequestProtocolErrorRejected96(t *testing.T) {
 	msg := &s1ap.InitialUEMessage{
 		ENBUES1APID: 9,
 		NASPDU:      s1ap.NASPDU(malformed),
-		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
+		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: binary.BigEndian.Uint32(guti.GUTI.TMSI[:])},
 	}
 
 	HandleServiceRequest(context.Background(), m, cc, msg)
@@ -307,7 +312,7 @@ func TestServiceRequestProtocolErrorRejected96(t *testing.T) {
 	}
 
 	// Plain SERVICE REJECT: header octet, message type, EMM cause.
-	if len(plain) < 3 || plain[2] != mme.EmmCauseInvalidMandatoryInfo {
+	if len(plain) < 3 || eps.EMMCause(plain[2]) != eps.EMMCauseInvalidMandatoryInformation {
 		t.Fatalf("EMM cause = %#x, want #96 (invalid mandatory information)", plain)
 	}
 }
@@ -318,15 +323,15 @@ func TestResumeBadMACDoesNotRebindVictim(t *testing.T) {
 	m := newTestMME(t)
 	ue, guti := idleRegisteredUE(t, m)
 
-	nas := protectedUplink(t, ue, nascommon.NASCount(0, 0))
-	nas[2] ^= 0xff // corrupt the MAC
+	pdu := protectedUplink(t, ue, nas.MakeCount(0, 0).Value())
+	pdu[2] ^= 0xff // corrupt the MAC
 
 	plmn := s1ap.PLMNIdentity{0x00, 0xf1, 0x10}
 
 	b, err := (&s1ap.InitialUEMessage{
 		ENBUES1APID:           9,
-		NASPDU:                s1ap.NASPDU(nas),
-		STMSI:                 &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
+		NASPDU:                s1ap.NASPDU(pdu),
+		STMSI:                 &s1ap.STMSI{MMEC: 1, MTMSI: binary.BigEndian.Uint32(guti.GUTI.TMSI[:])},
 		TAI:                   s1ap.TAI{PLMNIdentity: plmn, TAC: 1},
 		EUTRANCGI:             s1ap.EUTRANCGI{PLMNIdentity: plmn, CellID: 1},
 		RRCEstablishmentCause: s1ap.RRCCauseMOSignalling,
@@ -348,14 +353,14 @@ func TestServiceRequestBadMACDoesNotRebindVictim(t *testing.T) {
 	m := newTestMME(t)
 	ue, guti := idleRegisteredUE(t, m)
 
-	nas := serviceRequestNAS(t, ue)
-	nas[3] ^= 0xff
+	pdu := serviceRequestNAS(t, ue)
+	pdu[3] ^= 0xff
 
 	attacker := &captureConn{}
 	HandleServiceRequest(context.Background(), m, attacker, &s1ap.InitialUEMessage{
 		ENBUES1APID: 9,
-		NASPDU:      s1ap.NASPDU(nas),
-		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
+		NASPDU:      s1ap.NASPDU(pdu),
+		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: binary.BigEndian.Uint32(guti.GUTI.TMSI[:])},
 	})
 
 	if ue.Connected() {

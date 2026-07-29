@@ -11,8 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 )
@@ -77,12 +76,12 @@ func runRegistrationPeriodicSignalling(_ context.Context, env scenarios.Env, _ a
 		return fmt.Errorf("UEContextReleaseProcedure failed: %v", err)
 	}
 
-	err = newUE.SendRegistrationRequest(int64(scenarios.DefaultRANUENGAPID), nasMessage.RegistrationType5GSPeriodicRegistrationUpdating)
+	err = newUE.SendRegistrationRequest(int64(scenarios.DefaultRANUENGAPID), uint8(fgs.RegistrationTypePeriodicUpdating))
 	if err != nil {
 		return fmt.Errorf("could not send Registration Request for periodic update: %v", err)
 	}
 
-	_, err = newUE.WaitForNASGMMMessage(nas.MsgTypeRegistrationAccept, 1*time.Second)
+	_, err = newUE.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), 1*time.Second)
 	if err != nil {
 		return fmt.Errorf("did not receive Registration Accept for periodic update: %v", err)
 	}

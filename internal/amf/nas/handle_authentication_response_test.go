@@ -13,10 +13,14 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
+	"github.com/ellanetworks/core/nas/fgs"
 )
+
+// buildAuthResponsePlain builds a plain AUTHENTICATION RESPONSE. A nil res omits
+// the RES* IE; a non-nil res (including empty) includes it (IEI 0x2D, TLV).
+func buildAuthResponse(res []byte) *fgs.AuthenticationResponse {
+	return &fgs.AuthenticationResponse{RES: res}
+}
 
 // A missing RES* (nil authentication response parameter IE) is treated as an
 // unsuccessful authentication per TS 24.501: a GUTI-identified UE is
@@ -30,8 +34,8 @@ func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *test
 		// The AMF authenticates identify-first (on the UE's SUCI), so an
 		// authentication failure is rejected regardless of the identity the UE
 		// registered with — no redundant re-identification (mirrors the MME).
-		{"used GUTI", nasMessage.MobileIdentity5GSType5gGuti, nas.MsgTypeAuthenticationReject},
-		{"used SUCI", nasMessage.MobileIdentity5GSTypeSuci, nas.MsgTypeAuthenticationReject},
+		{"used GUTI", uint8(fgs.IdentityGUTI), uint8(fgs.MsgAuthenticationReject)},
+		{"used SUCI", uint8(fgs.IdentitySUCI), uint8(fgs.MsgAuthenticationReject)},
 	}
 
 	for _, tc := range testcases {
@@ -45,24 +49,14 @@ func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *test
 			ue.Conn().AuthenticationCtx = &ausf.AuthResult{Rand: "DEADBEEF"}
 			ue.Conn().IdentityTypeUsedForRegistration = tc.idType
 
-			handleAuthenticationResponse(context.TODO(), amf.New(nil, nil, nil), ue,
-				&nasMessage.AuthenticationResponse{AuthenticationResponseParameter: nil})
+			handleAuthenticationResponse(context.TODO(), amf.New(nil, nil, nil), ue, buildAuthResponse(nil))
 
 			if len(ngapSender.SentDownlinkNASTransport) != 1 {
 				t.Fatalf("should have sent a Downlink NAS Transport message")
 			}
 
 			resp := ngapSender.SentDownlinkNASTransport[0]
-			nm := new(nas.Message)
-			nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-			if err := nm.PlainNasDecode(&resp.NasPdu); err != nil {
-				t.Fatalf("could not decode plain NAS message: %v", err)
-			}
-
-			if nm.GmmHeader.GetMessageType() != tc.msgType {
-				t.Fatalf("expected message of type %v, got %v", tc.msgType, nm.GmmHeader.GetMessageType())
-			}
+			assertPlainGmm(t, resp.NasPdu, tc.msgType)
 		})
 	}
 }
@@ -104,7 +98,7 @@ func TestHandleAuthenticationResponse_PreconditionErrors(t *testing.T) {
 
 			tc.setup(ue)
 
-			handleAuthenticationResponse(context.TODO(), amf.New(nil, nil, nil), ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+			handleAuthenticationResponse(context.TODO(), amf.New(nil, nil, nil), ue, buildAuthResponse(make([]byte, 16)))
 
 			if len(ngapSender.SentDownlinkNASTransport) != 0 {
 				t.Fatalf("expected precondition failure to emit no downlink, but a Downlink NAS Transport was sent")
@@ -125,10 +119,10 @@ func TestHandleAuthenticationResponse_TimerT3560Stopped(t *testing.T) {
 		Rand:      "DEADBEEF",
 		HxresStar: "not a match",
 	}
-	conn.IdentityTypeUsedForRegistration = nasMessage.MobileIdentity5GSTypeSuci
+	conn.IdentityTypeUsedForRegistration = uint8(fgs.IdentitySUCI)
 	conn.NASGuardForTest().Arm(10*time.Minute, 5, func(e int32) {}, func() {})
 
-	handleAuthenticationResponse(t.Context(), amf.New(nil, nil, nil), ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+	handleAuthenticationResponse(t.Context(), amf.New(nil, nil, nil), ue, buildAuthResponse(make([]byte, 16)))
 
 	if conn.NASGuardForTest().Active() {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
@@ -145,13 +139,13 @@ func TestHandleAuthenticationResponse_hResStartMismatch(t *testing.T) {
 	testcases := []TestCase{
 		{
 			"used GUTI",
-			nasMessage.MobileIdentity5GSType5gGuti,
-			nas.MsgTypeAuthenticationReject,
+			uint8(fgs.IdentityGUTI),
+			uint8(fgs.MsgAuthenticationReject),
 		},
 		{
 			"used SUCI",
-			nasMessage.MobileIdentity5GSTypeSuci,
-			nas.MsgTypeAuthenticationReject,
+			uint8(fgs.IdentitySUCI),
+			uint8(fgs.MsgAuthenticationReject),
 		},
 	}
 
@@ -169,28 +163,14 @@ func TestHandleAuthenticationResponse_hResStartMismatch(t *testing.T) {
 			}
 			ue.Conn().IdentityTypeUsedForRegistration = tc.id_type
 
-			handleAuthenticationResponse(t.Context(), amf.New(nil, nil, nil), ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+			handleAuthenticationResponse(t.Context(), amf.New(nil, nil, nil), ue, buildAuthResponse(make([]byte, 16)))
 
 			if len(ngapSender.SentDownlinkNASTransport) != 1 {
 				t.Fatalf("should have sent a Downlink NAS Transport message")
 			}
 
 			resp := ngapSender.SentDownlinkNASTransport[0]
-			nm := new(nas.Message)
-			nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-			if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-				t.Fatalf("expected a plain NAS message")
-			}
-
-			err = nm.PlainNasDecode(&resp.NasPdu)
-			if err != nil {
-				t.Fatalf("could not decode plain NAS message")
-			}
-
-			if nm.GmmHeader.GetMessageType() != tc.msg_type {
-				t.Fatalf("expected message of type: '%v', got '%v'", tc.msg_type, nm.GmmHeader.GetMessageType())
-			}
+			assertPlainGmm(t, resp.NasPdu, tc.msg_type)
 		})
 	}
 }
@@ -208,14 +188,14 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 		// regardless of the registration identity (mirrors the MME).
 		{
 			"used GUTI",
-			nasMessage.MobileIdentity5GSType5gGuti,
-			nas.MsgTypeAuthenticationReject,
+			uint8(fgs.IdentityGUTI),
+			uint8(fgs.MsgAuthenticationReject),
 			amf.Deregistered,
 		},
 		{
 			"used SUCI",
-			nasMessage.MobileIdentity5GSTypeSuci,
-			nas.MsgTypeAuthenticationReject,
+			uint8(fgs.IdentitySUCI),
+			uint8(fgs.MsgAuthenticationReject),
 			amf.Deregistered,
 		},
 	}
@@ -250,28 +230,14 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 			}
 			ue.Conn().IdentityTypeUsedForRegistration = tc.id_type
 
-			handleAuthenticationResponse(t.Context(), amfInstance, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+			handleAuthenticationResponse(t.Context(), amfInstance, ue, buildAuthResponse(make([]byte, 16)))
 
 			if len(ngapSender.SentDownlinkNASTransport) != 1 {
 				t.Fatalf("should have sent a Downlink NAS Transport message")
 			}
 
 			resp := ngapSender.SentDownlinkNASTransport[0]
-			nm := new(nas.Message)
-			nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-			if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-				t.Fatalf("expected a plain NAS message")
-			}
-
-			err = nm.PlainNasDecode(&resp.NasPdu)
-			if err != nil {
-				t.Fatalf("could not decode plain NAS message")
-			}
-
-			if nm.GmmHeader.GetMessageType() != tc.msg_type {
-				t.Fatalf("expected message of type: '%v', got '%v'", tc.msg_type, nm.GmmHeader.GetMessageType())
-			}
+			assertPlainGmm(t, resp.NasPdu, tc.msg_type)
 		})
 	}
 }
@@ -304,40 +270,22 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 		Rand:      "DEADBEEF",
 		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
 	}
-	ue.SetUESecurityCapabilityForTest(&nasType.UESecurityCapability{
-		Iei:    nasMessage.RegistrationRequestUESecurityCapabilityType,
-		Len:    2,
-		Buffer: []uint8{0x00, 0x00},
-	})
-	ue.UESecurityCapabilityForTest().SetEA0_5G(1)
-	ue.UESecurityCapabilityForTest().SetEA1_128_5G(1)
-	ue.UESecurityCapabilityForTest().SetIA0_5G(1)
-	ue.UESecurityCapabilityForTest().SetIA1_128_5G(1)
+	ue.SetUESecurityCapabilityForTest(amf.UESecCapForTest([]uint8{0, 1}, []uint8{0, 1}))
 
-	handleAuthenticationResponse(t.Context(), amfInstance, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+	handleAuthenticationResponse(t.Context(), amfInstance, ue, buildAuthResponse(make([]byte, 16)))
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
 
-	payload := make([]byte, len(resp.NasPdu))
-	copy(payload, resp.NasPdu)
-	payload = payload[7:]
-
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypeIntegrityProtectedWithNew5gNasSecurityContext {
-		t.Fatalf("expected a protected with new 5g NAS security context NAS message, got: %v", nm.SecurityHeaderType)
+	if fgs.SecurityHeaderType(resp.NasPdu[1]&0x0f) != fgs.SHTIntegrityProtectedNewContext {
+		t.Fatalf("expected a protected with new 5g NAS security context NAS message, got: %v", resp.NasPdu[1]&0x0f)
 	}
 
-	err = nm.PlainNasDecode(&payload)
-	if err != nil {
-		t.Fatalf("could not decode NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeSecurityModeCommand {
-		t.Fatalf("expected a security mode command message, got '%v'", nm.GmmHeader.GetMessageType())
+	inner := resp.NasPdu[7:]
+	if len(inner) < 3 || inner[2] != uint8(fgs.MsgSecurityModeCommand) {
+		t.Fatalf("expected a security mode command message, got '%v'", inner[2])
 	}
 }

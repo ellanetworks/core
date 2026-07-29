@@ -8,9 +8,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
-	"github.com/free5gc/nas/security"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func TestDecodePayloadTooShort(t *testing.T) {
@@ -71,13 +70,13 @@ func TestAllocateRegistrationArea(t *testing.T) {
 func TestSnapshotCipheringAlgorithm(t *testing.T) {
 	tests := []struct {
 		name     string
-		alg      uint8
+		alg      nas.CipheringAlgorithm
 		expected string
 	}{
-		{"NEA0", security.AlgCiphering128NEA0, "NEA0"},
-		{"NEA1", security.AlgCiphering128NEA1, "NEA1"},
-		{"NEA2", security.AlgCiphering128NEA2, "NEA2"},
-		{"NEA3", security.AlgCiphering128NEA3, "NEA3"},
+		{"NEA0", nas.CipheringNull, "NEA0"},
+		{"NEA1", nas.CipheringSNOW3G, "NEA1"},
+		{"NEA2", nas.CipheringAES, "NEA2"},
+		{"NEA3", nas.CipheringZUC, "NEA3"},
 		{"unknown", 0xFF, ""},
 	}
 
@@ -97,13 +96,13 @@ func TestSnapshotCipheringAlgorithm(t *testing.T) {
 func TestSnapshotIntegrityAlgorithm(t *testing.T) {
 	tests := []struct {
 		name     string
-		alg      uint8
+		alg      nas.IntegrityAlgorithm
 		expected string
 	}{
-		{"NIA0", security.AlgIntegrity128NIA0, "NIA0"},
-		{"NIA1", security.AlgIntegrity128NIA1, "NIA1"},
-		{"NIA2", security.AlgIntegrity128NIA2, "NIA2"},
-		{"NIA3", security.AlgIntegrity128NIA3, "NIA3"},
+		{"NIA0", nas.IntegrityNull, "NIA0"},
+		{"NIA1", nas.IntegritySNOW3G, "NIA1"},
+		{"NIA2", nas.IntegrityAES, "NIA2"},
+		{"NIA3", nas.IntegrityZUC, "NIA3"},
 		{"unknown", 0xFF, ""},
 	}
 
@@ -190,34 +189,24 @@ func TestIsAllowedNssai(t *testing.T) {
 	}
 }
 
-// makeUESecCap creates a UESecurityCapability with the given 5G integrity and ciphering bits set.
-func makeUESecCap(ia0, ia1, ia2, ia3, ea0, ea1, ea2, ea3 uint8) *nasType.UESecurityCapability {
-	ueCap := &nasType.UESecurityCapability{
-		Iei:    nasMessage.RegistrationRequestUESecurityCapabilityType,
-		Len:    2,
-		Buffer: []uint8{0x00, 0x00},
+// makeUESecCap creates a UE security capability IE value (octet 1 = 5G-EA, octet 2
+// = 5G-IA) with the given 5G integrity and ciphering bits set.
+func makeUESecCap(ia0, ia1, ia2, ia3, ea0, ea1, ea2, ea3 uint8) *fgs.UESecurityCapability {
+	return &fgs.UESecurityCapability{
+		EA: nas.AlgorithmSet(ea0<<7 | ea1<<6 | ea2<<5 | ea3<<4),
+		IA: nas.AlgorithmSet(ia0<<7 | ia1<<6 | ia2<<5 | ia3<<4),
 	}
-	ueCap.SetIA0_5G(ia0)
-	ueCap.SetIA1_128_5G(ia1)
-	ueCap.SetIA2_128_5G(ia2)
-	ueCap.SetIA3_128_5G(ia3)
-	ueCap.SetEA0_5G(ea0)
-	ueCap.SetEA1_128_5G(ea1)
-	ueCap.SetEA2_128_5G(ea2)
-	ueCap.SetEA3_128_5G(ea3)
-
-	return ueCap
 }
 
 func TestSelectSecurityAlg(t *testing.T) {
 	tests := []struct {
 		name       string
-		cap        *nasType.UESecurityCapability
-		intOrder   []uint8
-		encOrder   []uint8
+		cap        *fgs.UESecurityCapability
+		intOrder   []nas.IntegrityAlgorithm
+		encOrder   []nas.CipheringAlgorithm
 		wantFail   bool
-		wantIntAlg uint8
-		wantEncAlg uint8
+		wantIntAlg nas.IntegrityAlgorithm
+		wantEncAlg nas.CipheringAlgorithm
 	}{
 		{
 			name:     "nil UE security capability",
@@ -227,94 +216,94 @@ func TestSelectSecurityAlg(t *testing.T) {
 		{
 			name:     "no common integrity algorithm",
 			cap:      makeUESecCap(0, 0, 1, 0, 1, 1, 1, 1),
-			intOrder: []uint8{security.AlgIntegrity128NIA1},
-			encOrder: []uint8{security.AlgCiphering128NEA0},
+			intOrder: []nas.IntegrityAlgorithm{nas.IntegritySNOW3G},
+			encOrder: []nas.CipheringAlgorithm{nas.CipheringNull},
 			wantFail: true,
 		},
 		{
 			name:     "no common ciphering algorithm",
 			cap:      makeUESecCap(1, 1, 1, 1, 0, 0, 1, 0),
-			intOrder: []uint8{security.AlgIntegrity128NIA1},
-			encOrder: []uint8{security.AlgCiphering128NEA1},
+			intOrder: []nas.IntegrityAlgorithm{nas.IntegritySNOW3G},
+			encOrder: []nas.CipheringAlgorithm{nas.CipheringSNOW3G},
 			wantFail: true,
 		},
 		{
 			name:       "selects highest priority integrity and ciphering",
 			cap:        makeUESecCap(1, 1, 1, 0, 1, 1, 1, 0),
-			intOrder:   []uint8{security.AlgIntegrity128NIA2, security.AlgIntegrity128NIA1},
-			encOrder:   []uint8{security.AlgCiphering128NEA2, security.AlgCiphering128NEA1},
-			wantIntAlg: security.AlgIntegrity128NIA2,
-			wantEncAlg: security.AlgCiphering128NEA2,
+			intOrder:   []nas.IntegrityAlgorithm{nas.IntegrityAES, nas.IntegritySNOW3G},
+			encOrder:   []nas.CipheringAlgorithm{nas.CipheringAES, nas.CipheringSNOW3G},
+			wantIntAlg: nas.IntegrityAES,
+			wantEncAlg: nas.CipheringAES,
 		},
 		{
 			name:       "falls back to second choice when first not supported",
 			cap:        makeUESecCap(0, 1, 0, 0, 0, 0, 1, 0),
-			intOrder:   []uint8{security.AlgIntegrity128NIA2, security.AlgIntegrity128NIA1},
-			encOrder:   []uint8{security.AlgCiphering128NEA1, security.AlgCiphering128NEA2},
-			wantIntAlg: security.AlgIntegrity128NIA1,
-			wantEncAlg: security.AlgCiphering128NEA2,
+			intOrder:   []nas.IntegrityAlgorithm{nas.IntegrityAES, nas.IntegritySNOW3G},
+			encOrder:   []nas.CipheringAlgorithm{nas.CipheringSNOW3G, nas.CipheringAES},
+			wantIntAlg: nas.IntegritySNOW3G,
+			wantEncAlg: nas.CipheringAES,
 		},
 		{
 			name:       "NIA0 and NEA0 selected when explicitly in preference order",
 			cap:        makeUESecCap(1, 0, 0, 0, 1, 0, 0, 0),
-			intOrder:   []uint8{security.AlgIntegrity128NIA0},
-			encOrder:   []uint8{security.AlgCiphering128NEA0},
-			wantIntAlg: security.AlgIntegrity128NIA0,
-			wantEncAlg: security.AlgCiphering128NEA0,
+			intOrder:   []nas.IntegrityAlgorithm{nas.IntegrityNull},
+			encOrder:   []nas.CipheringAlgorithm{nas.CipheringNull},
+			wantIntAlg: nas.IntegrityNull,
+			wantEncAlg: nas.CipheringNull,
 		},
 		{
 			name:       "NIA0 not selected when not in preference order even if UE supports it",
 			cap:        makeUESecCap(1, 1, 1, 1, 1, 1, 1, 1),
-			intOrder:   []uint8{security.AlgIntegrity128NIA2, security.AlgIntegrity128NIA1},
-			encOrder:   []uint8{security.AlgCiphering128NEA2, security.AlgCiphering128NEA1},
-			wantIntAlg: security.AlgIntegrity128NIA2,
-			wantEncAlg: security.AlgCiphering128NEA2,
+			intOrder:   []nas.IntegrityAlgorithm{nas.IntegrityAES, nas.IntegritySNOW3G},
+			encOrder:   []nas.CipheringAlgorithm{nas.CipheringAES, nas.CipheringSNOW3G},
+			wantIntAlg: nas.IntegrityAES,
+			wantEncAlg: nas.CipheringAES,
 		},
 		{
 			name:       "single algorithm match NIA1 NEA1",
 			cap:        makeUESecCap(0, 1, 0, 0, 0, 1, 0, 0),
-			intOrder:   []uint8{security.AlgIntegrity128NIA1},
-			encOrder:   []uint8{security.AlgCiphering128NEA1},
-			wantIntAlg: security.AlgIntegrity128NIA1,
-			wantEncAlg: security.AlgCiphering128NEA1,
+			intOrder:   []nas.IntegrityAlgorithm{nas.IntegritySNOW3G},
+			encOrder:   []nas.CipheringAlgorithm{nas.CipheringSNOW3G},
+			wantIntAlg: nas.IntegritySNOW3G,
+			wantEncAlg: nas.CipheringSNOW3G,
 		},
 		{
 			name:       "NIA3 NEA3 only",
 			cap:        makeUESecCap(0, 0, 0, 1, 0, 0, 0, 1),
-			intOrder:   []uint8{security.AlgIntegrity128NIA3},
-			encOrder:   []uint8{security.AlgCiphering128NEA3},
-			wantIntAlg: security.AlgIntegrity128NIA3,
-			wantEncAlg: security.AlgCiphering128NEA3,
+			intOrder:   []nas.IntegrityAlgorithm{nas.IntegrityZUC},
+			encOrder:   []nas.CipheringAlgorithm{nas.CipheringZUC},
+			wantIntAlg: nas.IntegrityZUC,
+			wantEncAlg: nas.CipheringZUC,
 		},
 		{
 			name:     "empty preference lists",
 			cap:      makeUESecCap(1, 1, 1, 1, 1, 1, 1, 1),
-			intOrder: []uint8{},
-			encOrder: []uint8{},
+			intOrder: []nas.IntegrityAlgorithm{},
+			encOrder: []nas.CipheringAlgorithm{},
 			wantFail: true,
 		},
 		{
 			name:     "integrity matches but empty ciphering preference",
 			cap:      makeUESecCap(0, 1, 0, 0, 1, 1, 1, 1),
-			intOrder: []uint8{security.AlgIntegrity128NIA1},
-			encOrder: []uint8{},
+			intOrder: []nas.IntegrityAlgorithm{nas.IntegritySNOW3G},
+			encOrder: []nas.CipheringAlgorithm{},
 			wantFail: true,
 		},
 		{
 			name:       "operator preference order is respected: NIA1 before NIA2",
 			cap:        makeUESecCap(0, 1, 1, 0, 0, 1, 1, 0),
-			intOrder:   []uint8{security.AlgIntegrity128NIA1, security.AlgIntegrity128NIA2},
-			encOrder:   []uint8{security.AlgCiphering128NEA1, security.AlgCiphering128NEA2},
-			wantIntAlg: security.AlgIntegrity128NIA1,
-			wantEncAlg: security.AlgCiphering128NEA1,
+			intOrder:   []nas.IntegrityAlgorithm{nas.IntegritySNOW3G, nas.IntegrityAES},
+			encOrder:   []nas.CipheringAlgorithm{nas.CipheringSNOW3G, nas.CipheringAES},
+			wantIntAlg: nas.IntegritySNOW3G,
+			wantEncAlg: nas.CipheringSNOW3G,
 		},
 		{
 			name:       "operator preference order is respected: NIA2 before NIA1",
 			cap:        makeUESecCap(0, 1, 1, 0, 0, 1, 1, 0),
-			intOrder:   []uint8{security.AlgIntegrity128NIA2, security.AlgIntegrity128NIA1},
-			encOrder:   []uint8{security.AlgCiphering128NEA2, security.AlgCiphering128NEA1},
-			wantIntAlg: security.AlgIntegrity128NIA2,
-			wantEncAlg: security.AlgCiphering128NEA2,
+			intOrder:   []nas.IntegrityAlgorithm{nas.IntegrityAES, nas.IntegritySNOW3G},
+			encOrder:   []nas.CipheringAlgorithm{nas.CipheringAES, nas.CipheringSNOW3G},
+			wantIntAlg: nas.IntegrityAES,
+			wantEncAlg: nas.CipheringAES,
 		},
 	}
 
