@@ -11,7 +11,7 @@ import (
 )
 
 func (s *SMF) HandlePagingFailure(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error {
-	smContext := s.currentSession(supi, pduSessionID)
+	smContext := s.currentSession(supi, Access5G, pduSessionID)
 	if smContext == nil {
 		return fmt.Errorf("no session for %s pdu %d", supi.String(), pduSessionID)
 	}
@@ -27,7 +27,7 @@ func (s *SMF) HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8
 		return fmt.Errorf("invalid imsi %q: %w", imsi, err)
 	}
 
-	smContext := s.currentSession(supi, ebi)
+	smContext := s.currentSession(supi, Access4G, ebi)
 	if smContext == nil {
 		return fmt.Errorf("no EPS session for %s", imsi)
 	}

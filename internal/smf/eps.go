@@ -86,7 +86,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 
 	// Must precede establishSession: the superseded context's release frees the address by
 	// (imsi, dnn, ebi), which the new session would already hold (TS 24.301 §5.5.1.2.4 case f).
-	if existing := s.currentSession(supi, req.EPSBearerIdentity); existing != nil {
+	if existing := s.currentSession(supi, Access4G, req.EPSBearerIdentity); existing != nil {
 		s.handlePduSessionContextReplacement(ctx, existing)
 	}
 
@@ -152,7 +152,7 @@ func (s *SMF) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb 
 		return fmt.Errorf("invalid imsi %q: %w", imsi, err)
 	}
 
-	smContext := s.currentSession(supi, ebi)
+	smContext := s.currentSession(supi, Access4G, ebi)
 	if smContext == nil {
 		return fmt.Errorf("no EPS session for %s", imsi)
 	}
@@ -224,7 +224,7 @@ func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, imsi string, ebi uint8, 
 		return fmt.Errorf("invalid imsi %q: %w", imsi, err)
 	}
 
-	smContext := s.currentSession(supi, ebi)
+	smContext := s.currentSession(supi, Access4G, ebi)
 	if smContext == nil {
 		return fmt.Errorf("no EPS session for %s", imsi)
 	}
@@ -273,7 +273,7 @@ func (s *SMF) FramedRoutesChanged(ctx context.Context, imsi string, ebi uint8) (
 		return false, fmt.Errorf("invalid imsi %q: %w", imsi, err)
 	}
 
-	smContext := s.currentSession(supi, ebi)
+	smContext := s.currentSession(supi, Access4G, ebi)
 	if smContext == nil {
 		return false, nil
 	}
@@ -293,7 +293,7 @@ func (s *SMF) StaticIPChanged(ctx context.Context, imsi string, ebi uint8) (bool
 		return false, fmt.Errorf("invalid imsi %q: %w", imsi, err)
 	}
 
-	smContext := s.currentSession(supi, ebi)
+	smContext := s.currentSession(supi, Access4G, ebi)
 	if smContext == nil {
 		return false, nil
 	}
@@ -313,7 +313,7 @@ func (s *SMF) DeactivateEPSSession(ctx context.Context, imsi string, ebi uint8) 
 		return fmt.Errorf("invalid imsi %q: %w", imsi, err)
 	}
 
-	smContext := s.currentSession(supi, ebi)
+	smContext := s.currentSession(supi, Access4G, ebi)
 	if smContext == nil {
 		return fmt.Errorf("no EPS session for %s", imsi)
 	}
