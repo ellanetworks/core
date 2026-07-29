@@ -33,7 +33,7 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 
 	conn.StopNASGuard()
 
-	conn.Parent().EndKeyChainProc(procedure.SecurityMode)
+	ue.EndKeyChainProc(procedure.SecurityMode)
 
 	if ue.SecurityContextIsValid() && integrityVerified {
 		err := ue.UpdateSecurityContext()

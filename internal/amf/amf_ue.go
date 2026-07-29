@@ -734,9 +734,8 @@ func (ue *UeContext) PagingActive() bool {
 }
 
 func (ue *UeContext) Deregister(ctx context.Context) {
-	// Release (which takes the registry lock) runs before ue.mu, preserving the lock
-	// order registry lock → ue.mu. It leaves conn.ue intact: callers still read
-	// conn.Parent() after Deregister.
+	// Release takes the registry lock, so it runs before ue.mu to preserve the lock
+	// order registry lock → ue.mu.
 	if conn := ue.Conn(); conn != nil {
 		conn.Release()
 	}

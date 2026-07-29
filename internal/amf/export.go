@@ -299,7 +299,19 @@ type smContextCopy struct {
 }
 
 func (amf *AMF) exportUeContext(guami *models.Guami, ue *UeContext) UeContextExport {
+	export, smCopies := amf.exportUeContextLocked(guami, ue)
+
+	// Build PDU sessions outside the UE lock to avoid holding two locks at once.
+	export.PDUSessions = amf.buildPDUSessions(smCopies)
+
+	return export
+}
+
+// exportUeContextLocked collects everything that must be read under ue.mu and
+// returns the session refs for the caller to resolve outside it.
+func (amf *AMF) exportUeContextLocked(guami *models.Guami, ue *UeContext) (UeContextExport, []smContextCopy) {
 	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	conn := ue.Conn()
 
@@ -319,7 +331,9 @@ func (amf *AMF) exportUeContext(guami *models.Guami, ue *UeContext) UeContextExp
 	)
 
 	if conn != nil {
-		ongoing = conn.Parent().Procedures().ActiveTypes()
+		// ue, not conn.Parent(): the back-pointer is cleared under amf.mu, which is
+		// not held here, so a detaching connection can already read back nil.
+		ongoing = ue.Procedures().ActiveTypes()
 		regType = conn.RegistrationType5GS
 		identityType = conn.IdentityTypeUsedForRegistration
 		retransmit = conn.RetransmissionOfInitialNASMsg
@@ -401,12 +415,7 @@ func (amf *AMF) exportUeContext(guami *models.Guami, ue *UeContext) UeContextExp
 		export.RANConnection = rc
 	}
 
-	ue.mu.Unlock()
-
-	// Build PDU sessions outside the UE lock to avoid holding two locks at once.
-	export.PDUSessions = amf.buildPDUSessions(smCopies)
-
-	return export
+	return export, smCopies
 }
 
 func (amf *AMF) buildPDUSessions(copies []smContextCopy) map[string]PDUSessionExport {

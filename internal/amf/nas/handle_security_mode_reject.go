@@ -25,7 +25,7 @@ func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *nasMe
 
 	if conn := ue.Conn(); conn != nil {
 		conn.StopNASGuard()
-		conn.Parent().EndKeyChainProc(procedure.SecurityMode)
+		ue.EndKeyChainProc(procedure.SecurityMode)
 	}
 
 	logger.From(ctx, logger.AmfLog).Error("UE rejected the security mode command, abort the ongoing procedure", logger.Cause(nasMessage.Cause5GMMToString(msg.GetCauseValue())), logger.SUPI(ue.Supi().String()))
