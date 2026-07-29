@@ -27,9 +27,9 @@ var (
 	drainTimeout = 500 * time.Millisecond
 )
 
-// ErrWriteQueueFull reports that the peer stopped draining and the association
+// errWriteQueueFull reports that the peer stopped draining and the association
 // has been aborted.
-var ErrWriteQueueFull = errors.New("sctp: outbound queue full")
+var errWriteQueueFull = errors.New("sctp: outbound queue full")
 
 type queuedWrite struct {
 	b    []byte
@@ -99,7 +99,7 @@ func (c *SCTPConn) writeLoop() {
 
 // sendQueued reports whether the writer may continue.
 func (c *SCTPConn) sendQueued(qw queuedWrite) bool {
-	if err := c.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+	if err := c.setWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
 		c.failAssociation("set write deadline", err)
 		return false
 	}
@@ -143,9 +143,9 @@ func (c *SCTPConn) WriteMsg(b []byte, info *SndRcvInfo) (int, error) {
 	case c.writeCh <- qw:
 		return len(b), nil
 	default:
-		c.failAssociation("queue full", ErrWriteQueueFull)
+		c.failAssociation("queue full", errWriteQueueFull)
 
-		return 0, ErrWriteQueueFull
+		return 0, errWriteQueueFull
 	}
 }
 

@@ -62,8 +62,8 @@ func TestReassemble_UnparsedNotificationIsRejected(t *testing.T) {
 
 	buf := make([]byte, 64)
 
-	if _, _, _, err := reassemble(scriptedReader(t, payloads, deliveries), buf); !errors.Is(err, ErrUnrecognizedDelivery) {
-		t.Fatalf("expected ErrUnrecognizedDelivery, got %v", err)
+	if _, _, _, err := reassemble(scriptedReader(t, payloads, deliveries), buf); !errors.Is(err, errUnrecognizedDelivery) {
+		t.Fatalf("expected errUnrecognizedDelivery, got %v", err)
 	}
 }
 
@@ -76,8 +76,8 @@ func TestReassemble_TruncatedNotificationIsRejected(t *testing.T) {
 
 	buf := make([]byte, 64)
 
-	if _, _, _, err := reassemble(scriptedReader(t, payloads, deliveries), buf); !errors.Is(err, ErrUnrecognizedDelivery) {
-		t.Fatalf("expected ErrUnrecognizedDelivery, got %v", err)
+	if _, _, _, err := reassemble(scriptedReader(t, payloads, deliveries), buf); !errors.Is(err, errUnrecognizedDelivery) {
+		t.Fatalf("expected errUnrecognizedDelivery, got %v", err)
 	}
 }
 
@@ -88,8 +88,8 @@ func TestReassemble_StallingDeliveryIsRejected(t *testing.T) {
 
 	buf := make([]byte, 64)
 
-	if _, _, _, err := reassemble(scriptedReader(t, payloads, deliveries), buf); !errors.Is(err, ErrUnrecognizedDelivery) {
-		t.Fatalf("expected ErrUnrecognizedDelivery, got %v", err)
+	if _, _, _, err := reassemble(scriptedReader(t, payloads, deliveries), buf); !errors.Is(err, errUnrecognizedDelivery) {
+		t.Fatalf("expected errUnrecognizedDelivery, got %v", err)
 	}
 }
 
@@ -102,8 +102,8 @@ func TestReassemble_NotificationDuringReassemblyFails(t *testing.T) {
 
 	buf := make([]byte, 64)
 
-	if _, _, _, err := reassemble(scriptedReader(t, payloads, deliveries), buf); !errors.Is(err, ErrUnexpectedNotification) {
-		t.Fatalf("expected ErrUnexpectedNotification, got %v", err)
+	if _, _, _, err := reassemble(scriptedReader(t, payloads, deliveries), buf); !errors.Is(err, errUnexpectedNotification) {
+		t.Fatalf("expected errUnexpectedNotification, got %v", err)
 	}
 }
 
@@ -148,8 +148,8 @@ func TestReassemble_OversizedMessageReportsTooLarge(t *testing.T) {
 	payloads := [][]byte{[]byte("abc"), []byte("def")}
 	deliveries := []delivery{{n: 3}, {n: 3}}
 
-	if _, _, _, err := reassemble(scriptedReader(t, payloads, deliveries), buf); !errors.Is(err, ErrMessageTooLarge) {
-		t.Fatalf("expected ErrMessageTooLarge, got %v", err)
+	if _, _, _, err := reassemble(scriptedReader(t, payloads, deliveries), buf); !errors.Is(err, errMessageTooLarge) {
+		t.Fatalf("expected errMessageTooLarge, got %v", err)
 	}
 }
 

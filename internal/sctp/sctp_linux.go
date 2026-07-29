@@ -37,7 +37,7 @@ import (
 func setsockopt(fd int, optname uintptr, optval unsafe.Pointer, optlen uintptr) error {
 	_, _, errno := syscall.Syscall6(syscall.SYS_SETSOCKOPT,
 		uintptr(fd),
-		SolSCTP,
+		solSCTP,
 		optname,
 		uintptr(optval),
 		optlen,
@@ -52,7 +52,7 @@ func setsockopt(fd int, optname uintptr, optval unsafe.Pointer, optlen uintptr) 
 func getsockopt(fd int, optname uintptr, optval, optlen unsafe.Pointer) error {
 	_, _, errno := syscall.Syscall6(syscall.SYS_GETSOCKOPT,
 		uintptr(fd),
-		SolSCTP,
+		solSCTP,
 		optname,
 		uintptr(optval),
 		uintptr(optlen),
@@ -97,7 +97,7 @@ func (c *SCTPConn) writeMsgSync(b []byte, info *SndRcvInfo) (int, error) {
 		cmsgBuf := toBuf(info)
 		hdr := &syscall.Cmsghdr{
 			Level: syscall.IPPROTO_SCTP,
-			Type:  SCTPCMsgSndRcv,
+			Type:  sctpCMsgSndRcv,
 		}
 		// The kernel requires exactly CMSG_LEN; CmsgSpace rounds up and would be
 		// rejected for any payload size that is not already alignment-sized.
@@ -129,7 +129,7 @@ func parseSndRcvInfo(b []byte) (*SndRcvInfo, error) {
 	for _, m := range msgs {
 		if m.Header.Level == syscall.IPPROTO_SCTP {
 			switch m.Header.Type {
-			case SCTPCMsgSndRcv:
+			case sctpCMsgSndRcv:
 				if len(m.Data) < int(unsafe.Sizeof(SndRcvInfo{})) {
 					return nil, fmt.Errorf("sctp: short SNDRCV cmsg (%d bytes)", len(m.Data))
 				}
@@ -246,7 +246,7 @@ func (c *SCTPConn) readMsgOnce(b []byte) (delivery, error) {
 
 	eor := recvflags&syscall.MSG_EOR > 0
 
-	if recvflags&MsgNotification > 0 {
+	if recvflags&msgNotification > 0 {
 		return delivery{n: n, notification: parseNotification(b[:n]), isNotification: true, eor: eor}, nil
 	}
 
@@ -263,11 +263,11 @@ func (c *SCTPConn) readMsgOnce(b []byte) (delivery, error) {
 	return delivery{n: n, info: info, eor: eor}, err
 }
 
-// ReadMsg receives one complete SCTP message into b, reassembling a message the
+// readMsg receives one complete SCTP message into b, reassembling a message the
 // kernel split across deliveries. A message that does not fit in b returns
-// ErrMessageTooLarge, since silently dispatching a fragment would present it to
+// errMessageTooLarge, since silently dispatching a fragment would present it to
 // the caller as a whole message.
-func (c *SCTPConn) ReadMsg(b []byte) (int, *SndRcvInfo, Notification, error) {
+func (c *SCTPConn) readMsg(b []byte) (int, *SndRcvInfo, Notification, error) {
 	return reassemble(c.readMsgOnce, b)
 }
 
@@ -285,7 +285,7 @@ func reassemble(read func([]byte) (delivery, error), b []byte) (int, *SndRcvInfo
 			// parse — or that the kernel had to split — is not a shape this
 			// association should be producing.
 			if d.notification == nil || !d.eor {
-				return 0, nil, nil, ErrUnrecognizedDelivery
+				return 0, nil, nil, errUnrecognizedDelivery
 			}
 
 			// The kernel abandons a partially delivered message without ever
@@ -300,7 +300,7 @@ func reassemble(read func([]byte) (delivery, error), b []byte) (int, *SndRcvInfo
 			// Any other event during reassembly means the kernel's ordering
 			// guarantee no longer holds and the stream cannot be trusted.
 			if total > 0 {
-				return total, nil, nil, ErrUnexpectedNotification
+				return total, nil, nil, errUnexpectedNotification
 			}
 
 			return 0, nil, d.notification, nil
@@ -309,7 +309,7 @@ func reassemble(read func([]byte) (delivery, error), b []byte) (int, *SndRcvInfo
 		// A delivery that neither carries payload nor completes a message would
 		// leave the loop with no way to make progress.
 		if d.n == 0 && !d.eor {
-			return total, nil, nil, ErrUnrecognizedDelivery
+			return total, nil, nil, errUnrecognizedDelivery
 		}
 
 		total += d.n
@@ -319,7 +319,7 @@ func reassemble(read func([]byte) (delivery, error), b []byte) (int, *SndRcvInfo
 		}
 
 		if total >= len(b) {
-			return total, d.info, nil, ErrMessageTooLarge
+			return total, d.info, nil, errMessageTooLarge
 		}
 	}
 }
@@ -354,7 +354,7 @@ func (c *SCTPConn) Close() error {
 	c.stopWriter()
 
 	// The runtime poller evicts all waiters first, unparking any goroutines
-	// blocked in ReadMsg/WriteMsg, before the fd is closed.
+	// blocked in readMsg/WriteMsg, before the fd is closed.
 	return c.file.Close()
 }
 
@@ -384,7 +384,7 @@ func (c *SCTPConn) Abort() error {
 // drainReceiveQueue reads until the queue is empty or the deadline expires, so a
 // peer still sending cannot hold up the close.
 func (c *SCTPConn) drainReceiveQueue() {
-	if err := c.SetReadDeadline(time.Now().Add(drainTimeout)); err != nil {
+	if err := c.setReadDeadline(time.Now().Add(drainTimeout)); err != nil {
 		return
 	}
 
@@ -398,7 +398,7 @@ func (c *SCTPConn) drainReceiveQueue() {
 	}
 }
 
-func (c *SCTPConn) SetReadBuffer(bytes int) error {
+func (c *SCTPConn) setReadBuffer(bytes int) error {
 	return c.controlFd(func(fd int) error {
 		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, bytes)
 	})
@@ -408,7 +408,7 @@ func (c *SCTPConn) SetReadBuffer(bytes int) error {
 // with the given SCTP options. The listener integrates with Go's runtime
 // poller via os.NewFile, enabling safe concurrent Accept/Close without manual
 // epoll or wakeup pipes.
-func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoInfo *RtoInfo, assocInfo *AssocInfo, control func(network, address string, c syscall.RawConn) error) (*SCTPListener, error) {
+func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoInfo *rtoInfo, assocInfo *assocInfo, control func(network, address string, c syscall.RawConn) error) (*sctpListener, error) {
 	af, ipv6only := favoriteAddrFamily(network, laddr, nil, "listen")
 
 	sock, err := syscall.Socket(
@@ -475,7 +475,7 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 			}
 		}
 
-		if err = SCTPBind(sock, laddr, SCTPBindxAddAddr); err != nil {
+		if err = sctpBind(sock, laddr, sctpBindxAddAddr); err != nil {
 			return nil, err
 		}
 	}
@@ -506,14 +506,14 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 		return nil, fmt.Errorf("SyscallConn: %w", err)
 	}
 
-	return &SCTPListener{file: f, rc: rc}, nil
+	return &sctpListener{file: f, rc: rc}, nil
 }
 
 // Accept waits for an incoming SCTP connection. It uses Go's runtime poller:
 // the goroutine parks efficiently until a connection is ready. When Close is
 // called, the poller wakes Accept which returns an error wrapping
 // net.ErrClosed, mirroring the behaviour of Go's net.Listener.
-func (ln *SCTPListener) Accept() (*SCTPConn, error) {
+func (ln *sctpListener) Accept() (*SCTPConn, error) {
 	var newFd int
 
 	var err error
@@ -534,7 +534,7 @@ func (ln *SCTPListener) Accept() (*SCTPConn, error) {
 		return nil, ln.acceptErr(err)
 	}
 
-	conn := NewSCTPConn(newFd)
+	conn := newSCTPConn(newFd)
 	if conn == nil {
 		_ = syscall.Close(newFd)
 		return nil, fmt.Errorf("failed to wrap accepted fd %d", newFd)
@@ -545,7 +545,7 @@ func (ln *SCTPListener) Accept() (*SCTPConn, error) {
 
 // acceptErr reports a closed listener as net.ErrClosed: the poller surfaces the
 // close as a bare "use of closed file" that matches no exported sentinel.
-func (ln *SCTPListener) acceptErr(err error) error {
+func (ln *sctpListener) acceptErr(err error) error {
 	if ln.closed.Load() {
 		return net.ErrClosed
 	}
@@ -556,7 +556,7 @@ func (ln *SCTPListener) acceptErr(err error) error {
 // Close closes the listener and unblocks any concurrent Accept call. The
 // runtime poller safely wakes all parked goroutines before the file descriptor
 // is closed, avoiding the race that existed with manual epoll.
-func (ln *SCTPListener) Close() error {
+func (ln *sctpListener) Close() error {
 	if !ln.closed.CompareAndSwap(false, true) {
 		return net.ErrClosed
 	}

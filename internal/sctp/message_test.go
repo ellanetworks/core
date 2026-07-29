@@ -23,7 +23,7 @@ func sendOneMessage(t *testing.T, fd int, size int) {
 
 	info := SndRcvInfo{PPID: PPIDWireOrder(testPPID)}
 	cmsgBuf := toBuf(&info)
-	hdr := &syscall.Cmsghdr{Level: syscall.IPPROTO_SCTP, Type: SCTPCMsgSndRcv}
+	hdr := &syscall.Cmsghdr{Level: syscall.IPPROTO_SCTP, Type: sctpCMsgSndRcv}
 	hdr.SetLen(syscall.CmsgLen(len(cmsgBuf)))
 
 	if _, err := syscall.SendmsgN(fd, make([]byte, size), append(toBuf(hdr), cmsgBuf...), nil, 0); err != nil {

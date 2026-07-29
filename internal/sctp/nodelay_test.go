@@ -21,7 +21,7 @@ func nodelayValue(t *testing.T, conn *SCTPConn) int32 {
 	optlen := uint32(unsafe.Sizeof(v))
 
 	err := conn.controlFd(func(fd int) error {
-		return getsockopt(fd, SCTPNoDelay, unsafe.Pointer(&v), unsafe.Pointer(&optlen))
+		return getsockopt(fd, sctpOptNoDelay, unsafe.Pointer(&v), unsafe.Pointer(&optlen))
 	})
 	if err != nil {
 		t.Fatalf("getsockopt SCTP_NODELAY: %v", err)
@@ -63,7 +63,7 @@ func TestServer_AcceptedConnHasNoDelay(t *testing.T) {
 		t.Fatalf("connectLoopback: %v", err)
 	}
 
-	client := NewSCTPConn(fd)
+	client := newSCTPConn(fd)
 
 	defer func() { _ = client.Close() }()
 

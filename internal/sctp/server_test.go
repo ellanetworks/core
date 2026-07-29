@@ -47,7 +47,7 @@ func TestServer_DispatchesMatchingPPID(t *testing.T) {
 		t.Fatalf("connectLoopback: %v", err)
 	}
 
-	client := NewSCTPConn(fd)
+	client := newSCTPConn(fd)
 
 	defer func() { _ = client.Close() }()
 

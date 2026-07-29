@@ -15,7 +15,7 @@ import (
 // newSmallBufferListener shrinks SO_RCVBUF before bind. An association's rwnd is
 // derived from the listening socket when it is created (net/sctp/associola.c
 // sctp_association_init), so shrinking it after accept would be too late.
-func newSmallBufferListener(t *testing.T, port, rcvbuf int) *SCTPListener {
+func newSmallBufferListener(t *testing.T, port, rcvbuf int) *sctpListener {
 	t.Helper()
 
 	netAddr, err := net.ResolveIPAddr("ip", "127.0.0.1")
@@ -23,7 +23,7 @@ func newSmallBufferListener(t *testing.T, port, rcvbuf int) *SCTPListener {
 		t.Fatal(err)
 	}
 
-	cfg := SocketConfig{
+	cfg := socketConfig{
 		InitMsg: InitMsg{NumOstreams: 2, MaxInstreams: 5, MaxAttempts: 2, MaxInitTimeout: 2},
 		Control: func(_, _ string, c syscall.RawConn) error {
 			var serr error
@@ -90,12 +90,12 @@ func splitPair(t *testing.T, port, rcvbuf int) (server *SCTPConn, clientFd int) 
 
 	t.Cleanup(func() { _ = server.Close() })
 
-	if err := server.SubscribeEvents(SCTPEventDataIO); err != nil {
+	if err := server.subscribeEvents(sctpEventDataIO); err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
 
-	if err := server.SetReadDeadline(time.Now().Add(30 * time.Second)); err != nil {
-		t.Fatalf("SetReadDeadline: %v", err)
+	if err := server.setReadDeadline(time.Now().Add(30 * time.Second)); err != nil {
+		t.Fatalf("setReadDeadline: %v", err)
 	}
 
 	return server, fd
@@ -112,7 +112,7 @@ func splitPayload() []byte {
 	return payload
 }
 
-// A message the kernel splits across deliveries must come back from ReadMsg whole
+// A message the kernel splits across deliveries must come back from readMsg whole
 // and byte-exact. This drives the real kernel path rather than a modelled reader.
 func TestReadMsg_KernelSplitMessageIsReassembled(t *testing.T) {
 	server, clientFd := splitPair(t, 29421, 4096)
@@ -131,9 +131,9 @@ func TestReadMsg_KernelSplitMessageIsReassembled(t *testing.T) {
 
 	buf := make([]byte, 256*1024)
 
-	n, _, notification, err := server.ReadMsg(buf)
+	n, _, notification, err := server.readMsg(buf)
 	if err != nil {
-		t.Fatalf("ReadMsg: %v", err)
+		t.Fatalf("readMsg: %v", err)
 	}
 
 	if notification != nil {

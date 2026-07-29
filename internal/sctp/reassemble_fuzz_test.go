@@ -87,7 +87,7 @@ func FuzzReassemble(f *testing.F) {
 		}
 
 		// The bug class this exists for: event bytes surfacing as payload.
-		if err == nil || errors.Is(err, ErrMessageTooLarge) {
+		if err == nil || errors.Is(err, errMessageTooLarge) {
 			if i := bytes.IndexByte(buf[:n], fuzzEventByte); i >= 0 {
 				t.Fatalf("event bytes surfaced as payload at offset %d in %q", i, buf[:n])
 			}

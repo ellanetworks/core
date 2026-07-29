@@ -29,10 +29,10 @@ var errNoInterfaceAddrs = errors.New("no IP addresses found")
 // RTO and association limits are the RFC 4960 §15 values, set explicitly to not
 // depend on host net.sctp.* sysctls. MaxAttempts and MaxInitTimeout apply only to
 // an initiating socket, so they are inert here.
-var serverSocketConfig = SocketConfig{
+var serverSocketConfig = socketConfig{
 	InitMsg:   InitMsg{NumOstreams: 2, MaxInstreams: 5, MaxAttempts: 2, MaxInitTimeout: 2},
-	RtoInfo:   &RtoInfo{SrtoAssocID: 0, SrtoInitial: 3000, SrtoMax: 60000, SrtoMin: 1000},
-	AssocInfo: &AssocInfo{AsocMaxRxt: 10},
+	rtoInfo:   &rtoInfo{SrtoAssocID: 0, SrtoInitial: 3000, SrtoMax: 60000, SrtoMin: 1000},
+	assocInfo: &assocInfo{AsocMaxRxt: 10},
 }
 
 // Config parameterizes a Server for one RAN-facing signalling interface.
@@ -66,7 +66,7 @@ type Callbacks struct {
 type Server struct {
 	cfg        Config
 	cb         Callbacks
-	listener   *SCTPListener
+	listener   *sctpListener
 	conns      sync.Map
 	wg         sync.WaitGroup
 	acceptDone chan struct{}
@@ -139,7 +139,7 @@ func (s *Server) ListenAndServe(ctx context.Context, address string, port int, i
 		return errors.Is(err, errNoInterfaceAddrs) || netutil.IsAddrNotAvailable(err)
 	}
 
-	var listener *SCTPListener
+	var listener *sctpListener
 
 	err := netutil.Retry(ctx, netutil.BindTimeout, netutil.BindInterval, isTransient, func() error {
 		if err := bind(); err != nil {
@@ -234,13 +234,13 @@ func (s *Server) serveConn(ctx context.Context, conn *SCTPConn) {
 	// PartialDelivery is required for correctness, not observability: without the
 	// subscription the kernel abandons a partial message silently and the next
 	// message is read as its continuation.
-	sctpEvents := SCTPEventDataIO | SCTPEventShutdown | SCTPEventAssociation | SCTPEventPartialDelivery
-	if err := conn.SubscribeEvents(sctpEvents); err != nil {
+	sctpEvents := sctpEventDataIO | sctpEventShutdown | sctpEventAssociation | sctpEventPartialDelivery
+	if err := conn.subscribeEvents(sctpEvents); err != nil {
 		s.cfg.Logger.Error("Failed to subscribe to SCTP events", zap.Error(err))
 		return
 	}
 
-	if err := conn.SetReadBuffer(int(readBufSize)); err != nil {
+	if err := conn.setReadBuffer(int(readBufSize)); err != nil {
 		s.cfg.Logger.Error("Set read buffer error", zap.Error(err))
 		return
 	}
@@ -264,13 +264,13 @@ func (s *Server) serveConn(ctx context.Context, conn *SCTPConn) {
 	}()
 
 	for {
-		n, info, notification, err := conn.ReadMsg(buf)
+		n, info, notification, err := conn.readMsg(buf)
 		if err != nil {
 			// Anything the framing layer rejected leaves the association's message
 			// boundaries in doubt, so it cannot be handed back to the peer intact.
-			if errors.Is(err, ErrMessageTooLarge) ||
-				errors.Is(err, ErrUnexpectedNotification) ||
-				errors.Is(err, ErrUnrecognizedDelivery) {
+			if errors.Is(err, errMessageTooLarge) ||
+				errors.Is(err, errUnexpectedNotification) ||
+				errors.Is(err, errUnrecognizedDelivery) {
 				s.cfg.Logger.Warn("aborting association on unusable delivery",
 					zap.Error(err), zap.Int("read_buffer", len(buf)))
 
@@ -280,7 +280,7 @@ func (s *Server) serveConn(ctx context.Context, conn *SCTPConn) {
 			}
 
 			if err != io.EOF && !errors.Is(err, net.ErrClosed) {
-				s.cfg.Logger.Debug("ReadMsg terminated", zap.Error(err))
+				s.cfg.Logger.Debug("readMsg terminated", zap.Error(err))
 			}
 
 			return

@@ -54,7 +54,7 @@ func serverWithAcceptedConn(t *testing.T, port int) (server *Server, accepted *S
 
 	t.Cleanup(func() { _ = syscall.Close(fd) })
 
-	client = NewSCTPConn(fd)
+	client = newSCTPConn(fd)
 	if _, err := client.WriteMsg([]byte("trigger"), &SndRcvInfo{PPID: PPIDWireOrder(testPPID)}); err != nil {
 		t.Fatalf("client trigger write: %v", err)
 	}
@@ -65,7 +65,7 @@ func serverWithAcceptedConn(t *testing.T, port int) (server *Server, accepted *S
 		t.Fatal("no message dispatched; never captured the accepted conn")
 	}
 
-	// NewSCTPConn hands fd to an os.File, whose finalizer closes it once client
+	// newSCTPConn hands fd to an os.File, whose finalizer closes it once client
 	// becomes unreachable. Without this the peer association can end mid-test.
 	t.Cleanup(func() { runtime.KeepAlive(client) })
 
@@ -93,16 +93,16 @@ func TestWriter_DeliversInOrder(t *testing.T) {
 	buf := make([]byte, 128)
 
 	for i := 0; i < n; i++ {
-		if err := client.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
-			t.Fatalf("SetReadDeadline: %v", err)
+		if err := client.setDeadline(time.Now().Add(5 * time.Second)); err != nil {
+			t.Fatalf("setReadDeadline: %v", err)
 		}
 
 		var msg []byte
 
 		for {
-			read, _, notification, err := client.ReadMsg(buf)
+			read, _, notification, err := client.readMsg(buf)
 			if err != nil {
-				t.Fatalf("client ReadMsg %d: %v", i, err)
+				t.Fatalf("client readMsg %d: %v", i, err)
 			}
 
 			if notification != nil {
@@ -152,7 +152,7 @@ func TestWriter_WedgedPeerFailsAssociation(t *testing.T) {
 			t.Fatalf("WriteMsg blocked the caller for %v; the queue must be non-blocking", elapsed)
 		}
 
-		if errors.Is(err, ErrWriteQueueFull) {
+		if errors.Is(err, errWriteQueueFull) {
 			sawQueueFull = true
 			break
 		}

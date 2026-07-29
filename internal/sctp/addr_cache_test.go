@@ -39,7 +39,7 @@ func TestSCTPConn_AddrAccessorsCached(t *testing.T) {
 		t.Fatalf("connectLoopback: %v", err)
 	}
 
-	client := NewSCTPConn(fd)
+	client := newSCTPConn(fd)
 
 	defer func() { _ = client.Close() }()
 
