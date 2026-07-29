@@ -31,7 +31,7 @@ func (m *GSMStatus) AppendBinary(b []byte) ([]byte, error) {
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
 
-	return w.Result(b)
+	return messageResult(w, b)
 }
 
 // MarshalBinary encodes the message.

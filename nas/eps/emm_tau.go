@@ -112,7 +112,7 @@ func (m *TrackingAreaUpdateRequest) AppendBinary(b []byte) ([]byte, error) {
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
 
-	return w.Result(b)
+	return messageResult(w, b)
 }
 
 // MarshalBinary encodes the message.
@@ -267,7 +267,7 @@ func (m *TrackingAreaUpdateAccept) AppendBinary(b []byte) ([]byte, error) {
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
 
-	return w.Result(b)
+	return messageResult(w, b)
 }
 
 // MarshalBinary encodes the message.
@@ -361,7 +361,7 @@ func (m *TrackingAreaUpdateComplete) AppendBinary(b []byte) ([]byte, error) {
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
 
-	return w.Result(b)
+	return messageResult(w, b)
 }
 
 // MarshalBinary encodes the message.
@@ -412,7 +412,7 @@ func (m *TrackingAreaUpdateReject) AppendBinary(b []byte) ([]byte, error) {
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
 
-	return w.Result(b)
+	return messageResult(w, b)
 }
 
 // MarshalBinary encodes the message.

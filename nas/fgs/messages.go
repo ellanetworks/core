@@ -63,6 +63,10 @@ func (m *UnknownMessage) AppendBinary(b []byte) ([]byte, error) {
 		return b, fmt.Errorf("nas/fgs: unknown message has no octets to encode")
 	}
 
+	if err := nas.CheckPDULen(len(m.Raw)); err != nil {
+		return b, err
+	}
+
 	return append(b, m.Raw...), nil
 }
 

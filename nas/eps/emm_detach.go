@@ -69,7 +69,7 @@ func (m *DetachRequestUE) AppendBinary(b []byte) ([]byte, error) {
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
 
-	return w.Result(b)
+	return messageResult(w, b)
 }
 
 // MarshalBinary encodes the message.
@@ -141,7 +141,7 @@ func (m *DetachRequestNetwork) AppendBinary(b []byte) ([]byte, error) {
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
 
-	return w.Result(b)
+	return messageResult(w, b)
 }
 
 // MarshalBinary encodes the message.
@@ -203,7 +203,7 @@ func (m *DetachAccept) AppendBinary(b []byte) ([]byte, error) {
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
 
-	return w.Result(b)
+	return messageResult(w, b)
 }
 
 // MarshalBinary encodes the message.

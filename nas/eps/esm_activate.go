@@ -95,7 +95,7 @@ func (m *ActivateDefaultEPSBearerContextRequest) AppendBinary(b []byte) ([]byte,
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
 
-	return w.Result(b)
+	return messageResult(w, b)
 }
 
 // MarshalBinary encodes the message.
@@ -204,7 +204,7 @@ func (m *ActivateDefaultEPSBearerContextAccept) AppendBinary(b []byte) ([]byte, 
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
 
-	return w.Result(b)
+	return messageResult(w, b)
 }
 
 // MarshalBinary encodes the message.
@@ -258,7 +258,7 @@ func (m *ActivateDefaultEPSBearerContextReject) AppendBinary(b []byte) ([]byte, 
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
 
-	return w.Result(b)
+	return messageResult(w, b)
 }
 
 // MarshalBinary encodes the message.

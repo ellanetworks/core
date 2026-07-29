@@ -49,7 +49,7 @@ func (m *ServiceRequest) AppendBinary(b []byte) ([]byte, error) {
 	w.U8(m.KSI&0x07<<5 | m.SeqShort&0x1F)
 	w.Raw(m.ShortMAC[:])
 
-	return w.Result(b)
+	return messageResult(w, b)
 }
 
 // MarshalBinary encodes the SERVICE REQUEST message.
@@ -185,7 +185,7 @@ func (m *ServiceReject) AppendBinary(b []byte) ([]byte, error) {
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
 
-	return w.Result(b)
+	return messageResult(w, b)
 }
 
 // MarshalBinary encodes the message.
@@ -286,7 +286,7 @@ func (m *ServiceAccept) AppendBinary(b []byte) ([]byte, error) {
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
 
-	return w.Result(b)
+	return messageResult(w, b)
 }
 
 // MarshalBinary encodes the message.

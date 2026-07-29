@@ -107,7 +107,7 @@ func (m *SecurityProtectedMessage) AppendBinary(b []byte) ([]byte, error) {
 	w.U8(m.SequenceNumber)
 	w.Raw(m.UnverifiedPayload)
 
-	return w.Result(b)
+	return messageResult(w, b)
 }
 
 // MarshalBinary encodes the SecurityProtectedMessage information element value.

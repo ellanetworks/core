@@ -73,7 +73,7 @@ func (m *DeregistrationRequestUETerminated) AppendBinary(b []byte) ([]byte, erro
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
 
-	return w.Result(b)
+	return messageResult(w, b)
 }
 
 // MarshalBinary encodes the message.
@@ -177,7 +177,7 @@ func (m *DeregistrationRequestUEOriginating) AppendBinary(b []byte) ([]byte, err
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
 
-	return w.Result(b)
+	return messageResult(w, b)
 }
 
 // MarshalBinary encodes the message.
@@ -248,7 +248,7 @@ func (m *DeregistrationAcceptUEOriginating) AppendBinary(b []byte) ([]byte, erro
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
 
-	return w.Result(b)
+	return messageResult(w, b)
 }
 
 // MarshalBinary encodes the message.
@@ -296,7 +296,7 @@ func (m *DeregistrationAcceptUETerminated) AppendBinary(b []byte) ([]byte, error
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
 
-	return w.Result(b)
+	return messageResult(w, b)
 }
 
 // MarshalBinary encodes the message.
