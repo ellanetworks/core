@@ -5,9 +5,7 @@ package kernel
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
 	"net"
 	"net/netip"
 
@@ -68,14 +66,8 @@ func addNeighbourForLink(neigh net.IP, link netlink.Link) error {
 	nlNeigh := netlink.Neigh{
 		LinkIndex: link.Attrs().Index,
 		IP:        neigh,
-		Flags:     netlink.NTF_EXT_MANAGED,
+		FlagsExt:  netlink.NTF_EXT_MANAGED,
 	}
 
-	if err := netlink.NeighAdd(&nlNeigh); err != nil {
-		if !errors.Is(err, fs.ErrExist) {
-			return err
-		}
-	}
-
-	return nil
+	return netlink.NeighSet(&nlNeigh)
 }
