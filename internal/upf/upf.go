@@ -684,14 +684,16 @@ func (u *UPF) listenForMissingNeighbours() {
 			return
 		}
 
-		ip, ok := netip.AddrFromSlice(record.RawSample)
+		ifindex, ip, ok := parseNoNeighEvent(record.RawSample)
 		if !ok {
-			logger.UpfLog.Debug("could not parse IP from bytes", zap.Binary("bytes", record.RawSample))
+			logger.UpfLog.Debug("could not parse no-neighbour event", zap.Binary("bytes", record.RawSample))
 			continue
 		}
 
-		if err := kernel.AddNeighbour(u.ctx, ip); err != nil {
-			logger.UpfLog.Warn("could not add neighbour", zap.String("destination", ip.String()), zap.Error(err))
+		if err := kernel.AddNeighbourOnLink(u.ctx, ip, ifindex); err != nil {
+			logger.UpfLog.Warn("could not add neighbour", zap.String("destination", ip.String()),
+				zap.Int("ifindex", ifindex), zap.Error(err))
+
 			continue
 		}
 	}
@@ -865,4 +867,35 @@ func (u *UPF) reportFlows(flowch chan flowReport) {
 			flush()
 		}
 	}
+}
+
+// parseNoNeighEvent decodes a struct no_neigh_event emitted by the XDP datapath:
+// a native-endian ifindex and family followed by a 16-byte address field.
+func parseNoNeighEvent(b []byte) (ifindex int, addr netip.Addr, ok bool) {
+	const (
+		afInet  = 2
+		afInet6 = 10
+		size    = 24
+	)
+
+	if len(b) < size {
+		return 0, netip.Addr{}, false
+	}
+
+	ifindex = int(binary.NativeEndian.Uint32(b[0:4]))
+
+	switch binary.NativeEndian.Uint32(b[4:8]) {
+	case afInet:
+		addr, ok = netip.AddrFromSlice(b[8:12])
+	case afInet6:
+		addr, ok = netip.AddrFromSlice(b[8:24])
+	default:
+		return 0, netip.Addr{}, false
+	}
+
+	if !ok || ifindex <= 0 {
+		return 0, netip.Addr{}, false
+	}
+
+	return ifindex, addr, true
 }
