@@ -93,8 +93,12 @@ func PDUSessionEstablishmentAccept(plain []byte, opts *ExpectedPDUSessionEstabli
 		return fmt.Errorf("unexpected number of QoS Rules: %d", len(qosRules))
 	}
 
-	if qosRules[0].QFI != opts.Qfi {
-		return fmt.Errorf("unexpected QoS Rules Identifier: %d, expected: %d", qosRules[0].QFI, opts.Qfi)
+	if qosRules[0].Parameters == nil {
+		return fmt.Errorf("QoS rule carries no precedence and no QFI")
+	}
+
+	if qosRules[0].Parameters.QFI != opts.Qfi {
+		return fmt.Errorf("unexpected QoS Rules Identifier: %d, expected: %d", qosRules[0].Parameters.QFI, opts.Qfi)
 	}
 
 	qosFlowDescs := acc.QoSFlowDescriptions

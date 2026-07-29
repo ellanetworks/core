@@ -26,9 +26,9 @@ type QosRule struct {
 	Identifier       uint8           `json:"identifier"`
 	OperationCode    uint8           `json:"operation_code"`
 	DQR              utils.EnumField `json:"dqr"`
-	Segregation      uint8           `json:"segregation"`
-	Precedence       uint8           `json:"precedence"`
-	QFI              uint8           `json:"qfi"`
+	Segregation      *uint8          `json:"segregation,omitempty"`
+	Precedence       *uint8          `json:"precedence,omitempty"`
+	QFI              *uint8          `json:"qfi,omitempty"`
 }
 
 func dqrToEnum(dqr uint8) utils.EnumField {
@@ -104,9 +104,10 @@ func QosRulesFromNAS(rules fgs.QoSRules) []QosRule {
 			Identifier:    r.Identifier,
 			OperationCode: uint8(r.OperationCode),
 			DQR:           dqrToEnum(r.DQR),
-			Segregation:   r.Segregation,
-			Precedence:    r.Precedence,
-			QFI:           r.QFI,
+		}
+
+		if p := r.Parameters; p != nil {
+			qr.Segregation, qr.Precedence, qr.QFI = &p.Segregation, &p.Precedence, &p.QFI
 		}
 
 		for _, f := range r.Filters {

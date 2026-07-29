@@ -41,13 +41,6 @@ type SecurityModeCommand struct {
 	Unrecognized []nas.RawIE
 }
 
-// IMEISV request values (TS 24.501 §9.11.3.28). They match the EPS ones, which
-// TS 24.301 §9.9.3.18 codes identically.
-const (
-	imeisvNotRequested uint8 = 0x00
-	imeisvRequested    uint8 = 0x01
-)
-
 // IMEISVRequest is the IMEISV request value (TS 24.008 §10.5.5.10, which
 // TS 24.501 §9.11.3.28 adopts): 1 asks the UE for its IMEISV and every other
 // value is read as not asking for it. The value is carried as it arrived rather

@@ -16,8 +16,11 @@ const (
 	ieiProtocolConfigurationOptions uint8 = 0x27
 	ieiAccessPointName              uint8 = 0x28
 	ieiESMCause                     uint8 = 0x58
-	ieiNewEPSQoS                    uint8 = 0x5B
-	ieiAPNAMBR                      uint8 = 0x5E
+	// ieiNewEPSQoS and ieiRequiredTrafficFlowQoS are the same EPS quality of
+	// service element under the two names its messages give it.
+	ieiNewEPSQoS              uint8 = 0x5B
+	ieiRequiredTrafficFlowQoS uint8 = 0x5B
+	ieiAPNAMBR                uint8 = 0x5E
 )
 
 // These IE codecs produce/consume the *value part* of an information element

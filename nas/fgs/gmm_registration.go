@@ -382,10 +382,6 @@ var registrationAcceptIEs = []nas.OptionalIE{
 	{IEI: ieiOperatorAccessCategory, Format: nas.IETLVE, Name: "Operator access category"},
 	{IEI: ieiNegotiatedDRX, Format: nas.IETLV, Name: "Negotiated DRX parameters"},
 	{IEI: ieiEPSBearerContextStatus, Format: nas.IETLV, Name: "EPS bearer context status"},
-	{IEI: ieiExtendedLADNInfo, Format: nas.IETLVE, Name: "Extended LADN information"},
-	{IEI: ieiSNSSAILocationValidity, Format: nas.IETLVE, Name: "S-NSSAI location validity information"},
-	{IEI: ieiPartiallyAllowedNSSAI, Format: nas.IETLVE, Name: "Partially allowed NSSAI"},
-	{IEI: ieiPartiallyRejectedNSSAI, Format: nas.IETLVE, Name: "Partially rejected NSSAI"},
 }
 
 // ParseRegistrationAccept decodes the message.

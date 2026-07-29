@@ -222,28 +222,3 @@ func ParseAttachRequest(b []byte) (*AttachRequest, error) {
 
 	return m, err
 }
-
-// tv1Flag returns bit 1 of the value the walker emits for a single-bit type-1
-// IE, or nil if the walker passed no value octet.
-func tv1Flag(value []byte) *bool {
-	v := tv1Value(value)
-	if v == nil {
-		return nil
-	}
-
-	set := *v&0x01 != 0
-
-	return &set
-}
-
-// tv1Value returns the low-nibble value the walker emits for a type-1 IE, or nil
-// if the walker passed no value octet.
-func tv1Value(value []byte) *uint8 {
-	if len(value) == 0 {
-		return nil
-	}
-
-	v := value[0] & 0x0F
-
-	return &v
-}

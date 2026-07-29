@@ -20,3 +20,30 @@ func walkOptionalIEs(r *nas.Reader, table []nas.OptionalIE, emit func(iei uint8,
 // optional elements walks with this, so every element it delimits is preserved
 // and the message still re-encodes with everything it arrived with.
 func declineAll(uint8, []byte) (bool, error) { return false, nil }
+
+// tv1Value returns the low-nibble value the walker emits for a type-1 IE, or nil
+// if the walker passed no value octet.
+func tv1Value(value []byte) *uint8 {
+	if len(value) == 0 {
+		return nil
+	}
+
+	v := value[0] & 0x0F
+
+	return &v
+}
+
+// tv1Flag returns bit 1 of the value the walker emits for a single-bit type-1
+// IE, or nil if the walker passed no value octet. Both values of such a bit are
+// assigned, so an element that arrived carrying zero is present and false, not
+// absent.
+func tv1Flag(value []byte) *bool {
+	v := tv1Value(value)
+	if v == nil {
+		return nil
+	}
+
+	set := *v&0x01 != 0
+
+	return &set
+}

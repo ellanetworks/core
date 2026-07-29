@@ -34,10 +34,19 @@ func EncodeBCDIdentity(digits string, typeOfIdentity uint8) ([]byte, error) {
 // the inverse of EncodeBCDIdentity: identity digit 1 from octet 1 bits 5-8
 // followed by the TBCD-packed remaining digits (TS 24.008 §10.5.1.4). An empty
 // value yields the empty string.
-func DecodeBCDIdentity(b []byte) string {
+func DecodeBCDIdentity(b []byte) (string, error) {
 	if len(b) == 0 {
-		return ""
+		return "", nil
 	}
 
-	return string([]byte{'0' + (b[0] >> 4)}) + DecodeTBCD(b[1:])
+	if b[0]>>4 > 9 {
+		return "", &Error{Op: "BCD identity digit", Err: ErrDigit}
+	}
+
+	rest, err := DecodeTBCD(b[1:])
+	if err != nil {
+		return "", err
+	}
+
+	return string([]byte{'0' + (b[0] >> 4)}) + rest, nil
 }

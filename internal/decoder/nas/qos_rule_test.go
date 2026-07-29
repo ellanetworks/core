@@ -33,12 +33,12 @@ func TestUnmarshalQosRules(t *testing.T) {
 		t.Fatalf("Expected DQR 'default', got %d", rules[0].DQR.Value)
 	}
 
-	if rules[0].Precedence != 255 {
-		t.Fatalf("Expected Precedence 255, got %d", rules[0].Precedence)
+	if rules[0].Precedence == nil || *rules[0].Precedence != 255 {
+		t.Fatalf("Expected Precedence 255, got %v", rules[0].Precedence)
 	}
 
-	if rules[0].QFI != 1 {
-		t.Fatalf("Expected QFI 1, got %d", rules[0].QFI)
+	if rules[0].QFI == nil || *rules[0].QFI != 1 {
+		t.Fatalf("Expected QFI 1, got %v", rules[0].QFI)
 	}
 
 	if len(rules[0].PacketFilterList) != 1 {

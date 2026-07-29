@@ -123,12 +123,7 @@ func ParsePDUSessionEstablishmentRequest(b []byte) (*PDUSessionEstablishmentRequ
 			// TS 24.501 table 9.11.4.4.1 assigns both values — 0 "not requested",
 			// 1 "requested" — so the element carries its own meaning and the field
 			// records whether it arrived, not just that a bit was set.
-			if len(value) != 1 {
-				return false, fmt.Errorf("nas/fgs: always-on PDU session requested is %d octets, want 1", len(value))
-			}
-
-			requested := value[0]&0x01 != 0
-			out.AlwaysOnRequested = &requested
+			out.AlwaysOnRequested = tv1Flag(value)
 		case ieiExtendedPCO:
 			parsed, err := nas.ParseExtendedProtocolConfigurationOptions(value, nas.PCOMSToNetwork)
 			if err != nil {
@@ -480,8 +475,7 @@ func ParsePDUSessionEstablishmentAccept(b []byte) (*PDUSessionEstablishmentAccep
 
 			out.SNSSAI = &parsed
 		case ieiAlwaysOnIndication:
-			required := value[0]&0x01 != 0
-			out.AlwaysOn = &required
+			out.AlwaysOn = tv1Flag(value)
 		case ieiQoSFlowDescription:
 			parsed, err := ParseQoSFlowDescriptions(value)
 			if err != nil {

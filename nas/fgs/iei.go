@@ -75,10 +75,6 @@ const (
 	ieiEmergencyNumberList    uint8 = 0x34 // emergency number list
 	ieiNon3GppDeregTimer      uint8 = 0x5D // non-3GPP de-registration timer
 	ieiOperatorAccessCategory uint8 = 0x76 // operator-defined access category definitions
-	ieiExtendedLADNInfo       uint8 = 0x01 // REGISTRATION ACCEPT: extended LADN information
-	ieiSNSSAILocationValidity uint8 = 0x02 // REGISTRATION ACCEPT: S-NSSAI location validity
-	ieiPartiallyAllowedNSSAI  uint8 = 0x03 // REGISTRATION ACCEPT: partially allowed NSSAI
-	ieiPartiallyRejectedNSSAI uint8 = 0x04 // REGISTRATION ACCEPT: partially rejected NSSAI
 	ieiLADNInformation        uint8 = 0x79 // LADN information
 	ieiExtEmergencyNumberList uint8 = 0x7A // extended emergency number list
 	ieiNetworkSlicingInd      uint8 = 0x90 // network slicing indication (type 1)

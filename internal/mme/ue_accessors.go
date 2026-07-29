@@ -169,8 +169,8 @@ func (ue *UeContext) ProtectDownlink(plain []byte, sht eps.SecurityHeaderType) (
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	// Protect with the current NAS COUNT and advance only once the message is
-	// protected, so a protection failure does not consume a downlink COUNT
+	// Reserve the COUNT before protecting, so a failure part-way through burns a
+	// downlink COUNT rather than risking a second message under the same one
 	// (TS 24.301 §4.4.3.1).
 	count, err := ue.dlCount.Use()
 	if err != nil {

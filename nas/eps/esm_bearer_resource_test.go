@@ -3,10 +3,20 @@
 
 package eps
 
-import "testing"
+import (
+	"bytes"
+	"reflect"
+	"testing"
+)
 
 func TestBearerResourceAllocationRequestRoundTrip(t *testing.T) {
-	req := &BearerResourceAllocationRequest{EPSBearerIdentity: 0, PTI: 3}
+	req := &BearerResourceAllocationRequest{
+		EPSBearerIdentity:       0,
+		PTI:                     3,
+		LinkedEPSBearerIdentity: 5,
+		TrafficFlowAggregate:    []byte{0x20, 0x01, 0x01, 0x00},
+		RequiredTrafficFlowQoS:  EPSQoS{QCI: 9},
+	}
 
 	wire, err := req.MarshalBinary()
 	if err != nil {
@@ -23,8 +33,16 @@ func TestBearerResourceAllocationRequestRoundTrip(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if got.EPSBearerIdentity != req.EPSBearerIdentity || got.PTI != req.PTI {
-		t.Fatalf("round-trip mismatch: got EBI=%d PTI=%d", got.EPSBearerIdentity, got.PTI)
+	if !reflect.DeepEqual(got, req) {
+		t.Fatalf("round trip:\n got %+v\nwant %+v", got, req)
+	}
+
+	// The mandatory fields follow the header directly (TS 24.301 table 8.3.8.1):
+	// the linked identity and spare half octet, the traffic flow aggregate as an
+	// LV, then the required QoS as an LV.
+	want := []byte{0x05, 0x04, 0x20, 0x01, 0x01, 0x00, 0x01, 0x09}
+	if !bytes.Equal(wire[3:], want) {
+		t.Errorf("mandatory part = % x, want % x", wire[3:], want)
 	}
 }
 
@@ -51,7 +69,16 @@ func TestBearerResourceAllocationRejectRoundTrip(t *testing.T) {
 }
 
 func TestBearerResourceModificationRequestRoundTrip(t *testing.T) {
-	req := &BearerResourceModificationRequest{EPSBearerIdentity: 0, PTI: 7}
+	qos := EPSQoS{QCI: 7}
+	cause := ESMCauseSemanticErrorInTFT
+	req := &BearerResourceModificationRequest{
+		EPSBearerIdentity:                0,
+		PTI:                              7,
+		EPSBearerIdentityForPacketFilter: 6,
+		TrafficFlowAggregate:             []byte{0x41, 0x01, 0x01, 0x00},
+		RequiredTrafficFlowQoS:           &qos,
+		Cause:                            &cause,
+	}
 
 	wire, err := req.MarshalBinary()
 	if err != nil {
@@ -67,8 +94,15 @@ func TestBearerResourceModificationRequestRoundTrip(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if got.EPSBearerIdentity != req.EPSBearerIdentity || got.PTI != req.PTI {
-		t.Fatalf("round-trip mismatch: got EBI=%d PTI=%d", got.EPSBearerIdentity, got.PTI)
+	if !reflect.DeepEqual(got, req) {
+		t.Fatalf("round trip:\n got %+v\nwant %+v", got, req)
+	}
+
+	// TS 24.301 table 8.3.10.1: the identity and spare half octet, the traffic
+	// flow aggregate as an LV, then the optional QoS TLV and ESM cause TV.
+	want := []byte{0x06, 0x04, 0x41, 0x01, 0x01, 0x00, 0x5B, 0x01, 0x07, 0x58, 0x29}
+	if !bytes.Equal(wire[3:], want) {
+		t.Errorf("message body = % x, want % x", wire[3:], want)
 	}
 }
 

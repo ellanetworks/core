@@ -6,11 +6,18 @@ package eps
 import "github.com/ellanetworks/core/nas"
 
 // BearerResourceAllocationRequest is the BEARER RESOURCE ALLOCATION REQUEST
-// (TS 24.301 §8.3.8). Only the ESM header is modeled: the request is rejected
-// unconditionally, so its traffic-flow and QoS body is not decoded.
+// (TS 24.301 §8.3.8).
 type BearerResourceAllocationRequest struct {
-	EPSBearerIdentity EPSBearerIdentity
-	PTI               nas.ProcedureTransactionIdentity
+	EPSBearerIdentity       EPSBearerIdentity
+	PTI                     nas.ProcedureTransactionIdentity
+	LinkedEPSBearerIdentity EPSBearerIdentity
+
+	// TrafficFlowAggregate is the traffic flow aggregate description value
+	// (TS 24.301 §9.9.4.15), which TS 24.008 §10.5.6.12 codes as a traffic flow
+	// template. This codec carries it verbatim.
+	TrafficFlowAggregate []byte
+
+	RequiredTrafficFlowQoS EPSQoS
 
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
@@ -25,6 +32,15 @@ func (m *BearerResourceAllocationRequest) AppendBinary(b []byte) ([]byte, error)
 	var o nas.OptionalWriter
 
 	writeESMHeader(w, m.EPSBearerIdentity, m.PTI, MsgBearerResourceAllocationRequest)
+	w.U8(uint8(m.LinkedEPSBearerIdentity) & 0x0F) // linked EPS bearer identity | spare half octet
+	w.LV(m.TrafficFlowAggregate)
+
+	qos, err := m.RequiredTrafficFlowQoS.MarshalBinary()
+	if err != nil {
+		return b, err
+	}
+
+	w.LV(qos)
 
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
@@ -44,7 +60,33 @@ func ParseBearerResourceAllocationRequest(b []byte) (*BearerResourceAllocationRe
 		return nil, err
 	}
 
-	out := &BearerResourceAllocationRequest{EPSBearerIdentity: ebi, PTI: pti}
+	linked, err := r.U8()
+	if err != nil {
+		return nil, err
+	}
+
+	aggregate, err := r.LV()
+	if err != nil {
+		return nil, err
+	}
+
+	qosValue, err := r.LV()
+	if err != nil {
+		return nil, err
+	}
+
+	qos, err := ParseEPSQoS(qosValue)
+	if err != nil {
+		return nil, err
+	}
+
+	out := &BearerResourceAllocationRequest{
+		EPSBearerIdentity:       ebi,
+		PTI:                     pti,
+		LinkedEPSBearerIdentity: EPSBearerIdentity(linked & 0x0F),
+		TrafficFlowAggregate:    aggregate,
+		RequiredTrafficFlowQoS:  qos,
+	}
 
 	_unrec, err := walkOptionalIEs(r, nil, declineAll)
 	if err != nil && !nas.SoftOnly(err) {
@@ -116,11 +158,22 @@ func ParseBearerResourceAllocationReject(b []byte) (*BearerResourceAllocationRej
 }
 
 // BearerResourceModificationRequest is the BEARER RESOURCE MODIFICATION REQUEST
-// (TS 24.301 §8.3.10). Only the ESM header is modeled: the request is rejected
-// unconditionally, so its traffic-flow and QoS body is not decoded.
+// (TS 24.301 §8.3.10).
 type BearerResourceModificationRequest struct {
 	EPSBearerIdentity EPSBearerIdentity
 	PTI               nas.ProcedureTransactionIdentity
+
+	// EPSBearerIdentityForPacketFilter identifies the bearer the packet filters
+	// of TrafficFlowAggregate belong to (TS 24.301 table 8.3.10.1).
+	EPSBearerIdentityForPacketFilter EPSBearerIdentity
+
+	// TrafficFlowAggregate is the traffic flow aggregate description value
+	// (TS 24.301 §9.9.4.15), which TS 24.008 §10.5.6.12 codes as a traffic flow
+	// template. This codec carries it verbatim.
+	TrafficFlowAggregate []byte
+
+	RequiredTrafficFlowQoS *EPSQoS   // optional (IEI 0x5B)
+	Cause                  *ESMCause // optional (IEI 0x58)
 
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
@@ -135,6 +188,21 @@ func (m *BearerResourceModificationRequest) AppendBinary(b []byte) ([]byte, erro
 	var o nas.OptionalWriter
 
 	writeESMHeader(w, m.EPSBearerIdentity, m.PTI, MsgBearerResourceModificationRequest)
+	w.U8(uint8(m.EPSBearerIdentityForPacketFilter) & 0x0F) // EPS bearer identity for packet filter | spare half octet
+	w.LV(m.TrafficFlowAggregate)
+
+	if m.RequiredTrafficFlowQoS != nil {
+		qos, err := m.RequiredTrafficFlowQoS.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLV(ieiRequiredTrafficFlowQoS, qos)
+	}
+
+	if m.Cause != nil {
+		o.TV3(ieiESMCause, []byte{uint8(*m.Cause)})
+	}
 
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
@@ -145,10 +213,11 @@ func (m *BearerResourceModificationRequest) AppendBinary(b []byte) ([]byte, erro
 // MarshalBinary encodes the message.
 func (m *BearerResourceModificationRequest) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
 
-// bearerResourceModificationRequestIEs declares the framing of the one optional
-// element of the BEARER RESOURCE MODIFICATION REQUEST (TS 24.301 table 8.3.10.1)
-// that the walk cannot delimit on its own: the ESM cause is a full-octet TV.
+// bearerResourceModificationRequestIEs are the optional elements of the BEARER
+// RESOURCE MODIFICATION REQUEST (TS 24.301 table 8.3.10.1), in message order. The
+// ESM cause is a full-octet TV, which the walk cannot delimit on its own.
 var bearerResourceModificationRequestIEs = []nas.OptionalIE{
+	{IEI: ieiRequiredTrafficFlowQoS, Format: nas.IETLV, Name: "Required traffic flow QoS"},
 	{IEI: ieiESMCause, Format: nas.IETV3, Len: 1, Name: "ESM cause"},
 }
 
@@ -161,9 +230,45 @@ func ParseBearerResourceModificationRequest(b []byte) (*BearerResourceModificati
 		return nil, err
 	}
 
-	out := &BearerResourceModificationRequest{EPSBearerIdentity: ebi, PTI: pti}
+	linked, err := r.U8()
+	if err != nil {
+		return nil, err
+	}
 
-	_unrec, err := walkOptionalIEs(r, bearerResourceModificationRequestIEs, declineAll)
+	aggregate, err := r.LV()
+	if err != nil {
+		return nil, err
+	}
+
+	out := &BearerResourceModificationRequest{
+		EPSBearerIdentity:                ebi,
+		PTI:                              pti,
+		EPSBearerIdentityForPacketFilter: EPSBearerIdentity(linked & 0x0F),
+		TrafficFlowAggregate:             aggregate,
+	}
+
+	_unrec, err := walkOptionalIEs(r, bearerResourceModificationRequestIEs, func(iei uint8, value []byte) (bool, error) {
+		switch iei {
+		case ieiRequiredTrafficFlowQoS:
+			parsed, err := ParseEPSQoS(value)
+			if err != nil {
+				return false, err
+			}
+
+			out.RequiredTrafficFlowQoS = &parsed
+		case ieiESMCause:
+			if len(value) == 0 {
+				return false, nil
+			}
+
+			cause := ESMCause(value[0])
+			out.Cause = &cause
+		default:
+			return false, nil
+		}
+
+		return true, nil
+	})
 	if err != nil && !nas.SoftOnly(err) {
 		return nil, err
 	}

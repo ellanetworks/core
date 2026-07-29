@@ -278,7 +278,12 @@ func parsePackedDigits(b []byte, what fmt.Stringer) (string, error) {
 		return "", fmt.Errorf("nas/eps: %s first digit is not decimal", what)
 	}
 
-	digits := string('0'+b[0]>>4) + nas.DecodeTBCD(b[1:])
+	rest, err := nas.DecodeTBCD(b[1:])
+	if err != nil {
+		return "", fmt.Errorf("nas/eps: %s: %w", what, err)
+	}
+
+	digits := string('0'+b[0]>>4) + rest
 
 	// The filler and the odd/even indication both encode the digit count; a value
 	// where they disagree is malformed rather than ambiguous.

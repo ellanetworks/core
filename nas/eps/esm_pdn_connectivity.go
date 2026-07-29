@@ -3,11 +3,7 @@
 
 package eps
 
-import (
-	"fmt"
-
-	"github.com/ellanetworks/core/nas"
-)
+import "github.com/ellanetworks/core/nas"
 
 // PDNConnectivityRequest is the PDN CONNECTIVITY REQUEST message (TS 24.301),
 // sent by the UE — inside the Attach Request's ESM container for the
@@ -113,12 +109,7 @@ func ParsePDNConnectivityRequest(b []byte) (*PDNConnectivityRequest, error) {
 			// TS 24.301 table 9.9.4.5.1 assigns both values — 0 "not required",
 			// 1 "required" — and reserves only bits 2 to 4, so the element carries
 			// its own meaning and the field records whether it arrived.
-			if len(value) != 1 {
-				return false, fmt.Errorf("nas/eps: ESM information transfer flag is %d octets, want 1", len(value))
-			}
-
-			required := value[0]&0x01 != 0
-			m.ESMInformationTransferFlag = &required
+			m.ESMInformationTransferFlag = tv1Flag(value)
 		case ieiAccessPointName:
 			parsed, err := ParseAPN(value)
 			if err != nil {

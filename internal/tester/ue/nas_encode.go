@@ -29,9 +29,11 @@ func (ue *UE) EncodeNasPduWithSecurity(pdu []byte, securityHeaderType uint8) ([]
 		return nil, fmt.Errorf("nas message is nil")
 	}
 
-	if securityHeaderType == uint8(fgs.SHTIntegrityProtectedNewContext) {
+	// TS 24.501 §4.4.3.1: the uplink NAS COUNT starts at zero with the new 5G NAS
+	// security context, which the UE takes into use on the SECURITY MODE COMPLETE
+	// this header type is reserved for.
+	if securityHeaderType == uint8(fgs.SHTIntegrityProtectedCipheredNewContext) {
 		ue.UeSecurity.ULCount = 0
-		ue.UeSecurity.DLCount = 0
 	}
 
 	sc, err := ue.securityContext()

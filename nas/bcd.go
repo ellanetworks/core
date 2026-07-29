@@ -3,27 +3,31 @@
 
 package nas
 
-// DecodeTBCD decodes a telephony-BCD octet string (TS 24.008): two
-// digits per octet, least-significant nibble first. A 0xF nibble is the
-// odd-length filler and is skipped. Only decimal digits are produced (sufficient
-// for EPS identities such as IMSI/IMEI).
-func DecodeTBCD(b []byte) string {
+// DecodeTBCD decodes a telephony-BCD octet string (TS 24.008): two digits per
+// octet, least-significant nibble first, the digits followed by 0xF fillers to
+// the end of the string.
+//
+// It rejects any other nibble outside 0-9, and any digit after a filler: a TBCD
+// digit is decimal, so such an octet string could not have been encoded from any
+// digit string and must not decode to a value that cannot be re-encoded.
+func DecodeTBCD(b []byte) (string, error) {
 	out := make([]byte, 0, len(b)*2)
+	filled := false
 
-	// A TBCD string ends at its first filler, and any nibble that is not a
-	// decimal digit is one: reading past it would invent digits the sender did
-	// not send.
-	for _, o := range b {
-		for _, nib := range [2]byte{o & 0x0F, o >> 4} {
-			if nib > 9 {
-				return string(out)
+	for i, o := range b {
+		for half, nib := range [2]byte{o & 0x0F, o >> 4} {
+			switch {
+			case nib == 0x0F:
+				filled = true
+			case nib > 9 || filled:
+				return "", &Error{Op: "TBCD digit", Offset: i*2 + half, Err: ErrDigit}
+			default:
+				out = append(out, '0'+nib)
 			}
-
-			out = append(out, '0'+nib)
 		}
 	}
 
-	return string(out)
+	return string(out), nil
 }
 
 // EncodeTBCD packs decimal digits two per octet, least-significant nibble first,

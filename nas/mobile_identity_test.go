@@ -25,7 +25,13 @@ func TestBCDIdentityRoundTrip(t *testing.T) {
 			t.Errorf("%q: type-of-identity = %d, want %d", tc.digits, got, tc.typ)
 		}
 
-		if got := DecodeBCDIdentity(enc); got != tc.digits {
+		got, err := DecodeBCDIdentity(enc)
+		if err != nil {
+			t.Errorf("DecodeBCDIdentity(% x): %v", enc, err)
+			continue
+		}
+
+		if got != tc.digits {
 			t.Errorf("round-trip %q = %q", tc.digits, got)
 		}
 	}

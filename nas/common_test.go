@@ -139,13 +139,36 @@ func TestTBCD(t *testing.T) {
 			t.Fatalf("encode %q: %v", digits, err)
 		}
 
-		if got := DecodeTBCD(enc); got != digits {
+		got, err := DecodeTBCD(enc)
+		if err != nil {
+			t.Fatalf("decode % x: %v", enc, err)
+		}
+
+		if got != digits {
 			t.Fatalf("round-trip %q -> % x -> %q", digits, enc, got)
 		}
 	}
 
 	if _, err := EncodeTBCD("12a4"); !errors.Is(err, ErrDigit) {
 		t.Fatalf("EncodeTBCD non-digit err = %v, want ErrDigit", err)
+	}
+
+	// A nibble that is neither a decimal digit nor a filler, and a digit that
+	// follows a filler, are both unencodable and so must not decode.
+	for name, enc := range map[string][]byte{
+		"reserved nibble":               {0x1A, 0x23},
+		"digit after filler":            {0x1F, 0x23},
+		"filler then filler then digit": {0xFF, 0x12},
+	} {
+		if got, err := DecodeTBCD(enc); !errors.Is(err, ErrDigit) {
+			t.Errorf("%s: DecodeTBCD(% x) = %q, %v, want ErrDigit", name, enc, got, err)
+		}
+	}
+
+	// Trailing fillers are how a short routing indicator pads to its four
+	// nibbles (TS 23.003 §2.2B).
+	if got, err := DecodeTBCD([]byte{0x21, 0xFF}); err != nil || got != "12" {
+		t.Errorf("DecodeTBCD(21 ff) = %q, %v, want \"12\"", got, err)
 	}
 }
 

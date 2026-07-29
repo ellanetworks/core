@@ -283,7 +283,12 @@ func (s SUCI) MSIN() (string, bool) {
 		return "", false
 	}
 
-	return nas.DecodeTBCD(s.SchemeOutput), true
+	msin, err := nas.DecodeTBCD(s.SchemeOutput)
+	if err != nil {
+		return "", false
+	}
+
+	return msin, true
 }
 
 // SUPI returns the subscription permanent identifier as "imsi-<digits>" and
@@ -356,7 +361,9 @@ func ParseSUCI(b []byte) (SUCI, error) {
 		return SUCI{}, err
 	}
 
-	out.RoutingIndicator = nas.DecodeTBCD(routing)
+	if out.RoutingIndicator, err = nas.DecodeTBCD(routing); err != nil {
+		return SUCI{}, fmt.Errorf("nas/fgs: SUCI routing indicator: %w", err)
+	}
 
 	// An element whose routing indicator is all fillers carries no digits, which
 	// means the same as the "0" a conformant sender writes; naming it the same way
@@ -480,7 +487,12 @@ func ParsePEI(b []byte) (PEI, error) {
 		return PEI{}, fmt.Errorf("nas/fgs: PEI first digit is not decimal")
 	}
 
-	digits := string('0'+b[0]>>4) + nas.DecodeTBCD(b[1:])
+	rest, err := nas.DecodeTBCD(b[1:])
+	if err != nil {
+		return PEI{}, fmt.Errorf("nas/fgs: PEI: %w", err)
+	}
+
+	digits := string('0'+b[0]>>4) + rest
 
 	// The filler and the odd/even indication both encode the digit count; a value
 	// where they disagree is malformed rather than ambiguous.
