@@ -12,7 +12,8 @@ import (
 
 // Message is a NAS message of the EPS control plane. Only the message types in
 // this package implement it, so a type switch over them is complete: a message
-// type this package does not model arrives as an [UnknownMessage].
+// type this package does not model arrives as an [UnknownEMMMessage] or an
+// [UnknownESMMessage], which are EMM and ESM messages like any other.
 type Message interface {
 	// AppendBinary appends the message's encoding to b.
 	AppendBinary(b []byte) ([]byte, error)
@@ -47,44 +48,83 @@ type ESMMessage interface {
 	TransactionIdentity() nas.ProcedureTransactionIdentity
 }
 
-// UnknownMessage is a message whose type this package does not model. It keeps
-// the header fields a receiver needs to answer with an EMM or ESM STATUS
-// (TS 24.301 §7.6), and re-encodes to the octets it arrived as.
-type UnknownMessage struct {
-	// PD is the protocol discriminator, which says whether Type names an EMM or
-	// an ESM message.
-	PD ProtocolDiscriminator
-	// Type is the message type octet.
-	Type uint8
-	// EPSBearerIdentity and PTI are the ESM header of the message, which an ESM
-	// STATUS answering it carries (TS 24.301 §9.3.2, §9.4). Both are zero for an
-	// EMM message, whose header has neither.
-	EPSBearerIdentity EPSBearerIdentity
-	PTI               nas.ProcedureTransactionIdentity
+// UnknownEMMMessage is an EMM message whose type this package does not model.
+// It is an EMM message like any other — TS 24.301 §7.4 has the receiver answer
+// it with an EMM STATUS, so it carries the header that STATUS needs — and it
+// re-encodes to the octets it arrived as.
+type UnknownEMMMessage struct {
+	// Type is the message type octet, which names no message this package models.
+	Type MessageType
 	// Raw is the whole message, header included.
 	Raw []byte
 }
 
 // AppendBinary appends the message exactly as it arrived.
-func (m *UnknownMessage) AppendBinary(b []byte) ([]byte, error) {
-	if len(m.Raw) == 0 {
-		return b, fmt.Errorf("nas/eps: unknown message has no octets to encode")
-	}
-
-	if err := nas.CheckPDULen(len(m.Raw)); err != nil {
-		return b, err
-	}
-
-	return append(b, m.Raw...), nil
+func (m *UnknownEMMMessage) AppendBinary(b []byte) ([]byte, error) {
+	return appendRawMessage(b, m.Raw)
 }
 
 // MarshalBinary encodes the message.
-func (m *UnknownMessage) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
+func (m *UnknownEMMMessage) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
 
-func (m *UnknownMessage) isMessage() {}
+// MessageType is the type octet the message arrived with.
+func (m *UnknownEMMMessage) MessageType() MessageType { return m.Type }
 
-func (m *UnknownMessage) String() string {
-	return fmt.Sprintf("unknown %s message (type %#02x, %d octets)", m.PD, m.Type, len(m.Raw))
+func (m *UnknownEMMMessage) isMessage() {}
+
+func (m *UnknownEMMMessage) String() string {
+	return fmt.Sprintf("unknown EMM message (type %#02x, %d octets)", uint8(m.Type), len(m.Raw))
+}
+
+// UnknownESMMessage is an ESM message whose type this package does not model.
+// It is an ESM message like any other — TS 24.301 §7.4 has the receiver answer
+// it with an ESM STATUS, and §8.3.15 gives that STATUS the EPS bearer identity
+// and procedure transaction identity read here — and it re-encodes to the octets
+// it arrived as.
+type UnknownESMMessage struct {
+	EPSBearerIdentity EPSBearerIdentity
+	PTI               nas.ProcedureTransactionIdentity
+	// Type is the message type octet, which names no message this package models.
+	Type ESMMessageType
+	// Raw is the whole message, header included.
+	Raw []byte
+}
+
+// AppendBinary appends the message exactly as it arrived.
+func (m *UnknownESMMessage) AppendBinary(b []byte) ([]byte, error) {
+	return appendRawMessage(b, m.Raw)
+}
+
+// MarshalBinary encodes the message.
+func (m *UnknownESMMessage) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
+
+// MessageType is the type octet the message arrived with.
+func (m *UnknownESMMessage) MessageType() ESMMessageType { return m.Type }
+
+// BearerIdentity is the EPS bearer the message concerns.
+func (m *UnknownESMMessage) BearerIdentity() EPSBearerIdentity { return m.EPSBearerIdentity }
+
+// TransactionIdentity is the procedure transaction the message belongs to.
+func (m *UnknownESMMessage) TransactionIdentity() nas.ProcedureTransactionIdentity { return m.PTI }
+
+func (m *UnknownESMMessage) isMessage() {}
+
+func (m *UnknownESMMessage) String() string {
+	return fmt.Sprintf("unknown ESM message (type %#02x, %d octets)", uint8(m.Type), len(m.Raw))
+}
+
+// appendRawMessage re-emits a message this package does not model, exactly as it
+// arrived and under the same length limit as any other message.
+func appendRawMessage(b, raw []byte) ([]byte, error) {
+	if len(raw) == 0 {
+		return b, fmt.Errorf("nas/eps: unknown message has no octets to encode")
+	}
+
+	if err := nas.CheckPDULen(len(raw)); err != nil {
+		return b, err
+	}
+
+	return append(b, raw...), nil
 }
 
 // ParseMessage decodes any plain NAS message of this generation, so a receiver
@@ -110,7 +150,8 @@ func (m *UnknownMessage) String() string {
 // belongs to one direction and decodes the same either way.
 //
 // A message type this package does not model is not a hard failure: it returns
-// an [*UnknownMessage] together with [nas.ErrUnknownMessageType], which
+// an [*UnknownEMMMessage] or [*UnknownESMMessage] together with
+// [nas.ErrUnknownMessageType], which
 // [nas.SoftOnly] reports as soft, so the caller keeps what it needs to answer
 // with a STATUS. A security-protected message is rejected with [ErrNotPlain];
 // unwrap it with [Unprotect] first. A SERVICE REQUEST, which TS 24.301 §8.2.25
@@ -159,7 +200,7 @@ func parseEMMMessage(b []byte, dir nas.Direction) (Message, error) {
 
 	parse, ok := emmParsers[mt]
 	if !ok {
-		return unknownMessage(PDEMM, uint8(mt), b)
+		return unknownEMMMessage(mt, b)
 	}
 
 	return parse(b)
@@ -192,10 +233,10 @@ func parseESMMessage(b []byte) (Message, error) {
 
 // unknownMessage keeps an unmodelled message and reports it as the soft error
 // TS 24.301 §7.6 expects a receiver to answer with a STATUS.
-func unknownMessage(pd ProtocolDiscriminator, mt uint8, b []byte) (Message, error) {
-	m := &UnknownMessage{PD: pd, Type: mt, Raw: bytes.Clone(b)}
+func unknownEMMMessage(mt MessageType, b []byte) (Message, error) {
+	m := &UnknownEMMMessage{Type: mt, Raw: bytes.Clone(b)}
 
-	return m, fmt.Errorf("nas/eps: %w %#02x", nas.ErrUnknownMessageType, mt)
+	return m, fmt.Errorf("nas/eps: %w %#02x", nas.ErrUnknownMessageType, uint8(mt))
 }
 
 // unknownESMMessage keeps an unmodelled ESM message together with the header a
@@ -209,11 +250,10 @@ func unknownESMMessage(mt ESMMessageType, b []byte) (Message, error) {
 		return nil, err
 	}
 
-	m := &UnknownMessage{
-		PD:                PDESM,
-		Type:              uint8(mt),
+	m := &UnknownESMMessage{
 		EPSBearerIdentity: hdr.EPSBearerIdentity,
 		PTI:               hdr.PTI,
+		Type:              mt,
 		Raw:               bytes.Clone(b),
 	}
 

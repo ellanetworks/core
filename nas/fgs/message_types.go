@@ -181,7 +181,8 @@ var (
 	_ GSMMessage = (*PDUSessionReleaseRequest)(nil)
 	_ GSMMessage = (*PDUSessionReleaseComplete)(nil)
 	_ GSMMessage = (*GSMStatus)(nil)
-	_ Message    = (*UnknownMessage)(nil)
+	_ GMMMessage = (*UnknownGMMMessage)(nil)
+	_ GSMMessage = (*UnknownGSMMessage)(nil)
 )
 
 // Every 5GSM message names the PDU session it concerns.

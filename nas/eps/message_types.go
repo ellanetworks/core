@@ -190,7 +190,8 @@ var (
 	_ ESMMessage = (*PDNDisconnectReject)(nil)
 	_ ESMMessage = (*ESMStatus)(nil)
 	_ Message    = (*ServiceRequest)(nil)
-	_ Message    = (*UnknownMessage)(nil)
+	_ EMMMessage = (*UnknownEMMMessage)(nil)
+	_ ESMMessage = (*UnknownESMMessage)(nil)
 )
 
 // Every ESM message names the EPS bearer it concerns.

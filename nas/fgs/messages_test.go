@@ -88,17 +88,20 @@ func TestParseMessageReportsItsType(t *testing.T) {
 }
 
 // TestParseMessageUnknownType checks that a message type this package does not
-// model survives as an UnknownMessage: a soft error, the header fields a STATUS
-// needs, and the octets it arrived as.
+// model survives as a message of its own protocol: a soft error, a value that
+// satisfies the protocol's interface so a receiver can answer it with a STATUS
+// (TS 24.501 §7.4), and the octets it arrived as.
 func TestParseMessageUnknownType(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		raw  []byte
-		pd   ProtocolDiscriminator
 		typ  uint8
+		// gsm reports which protocol the message belongs to, and so which
+		// interface the decoded value has to satisfy.
+		gsm bool
 	}{
-		{"5GMM", []byte{uint8(EPD5GMM), 0x00, 0x50, 0xAA, 0xBB}, EPD5GMM, 0x50},
-		{"5GSM", []byte{uint8(EPD5GSM), 0x05, 0x01, 0xC5, 0xAA}, EPD5GSM, 0xC5},
+		{"5GMM", []byte{uint8(EPD5GMM), 0x00, 0x50, 0xAA, 0xBB}, 0x50, false},
+		{"5GSM", []byte{uint8(EPD5GSM), 0x05, 0x01, 0xC5, 0xAA}, 0xC5, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			msg, err := ParseMessage(tc.raw)
@@ -110,13 +113,38 @@ func TestParseMessageUnknownType(t *testing.T) {
 				t.Error("an unknown message type must be a soft error")
 			}
 
-			unknown, ok := msg.(*UnknownMessage)
-			if !ok {
-				t.Fatalf("ParseMessage returned %T, want *UnknownMessage", msg)
+			var (
+				unknown  Message
+				gotType  uint8
+				inDomain bool
+			)
+
+			if tc.gsm {
+				m, ok := msg.(*UnknownGSMMessage)
+				if !ok {
+					t.Fatalf("ParseMessage returned %T, want *UnknownGSMMessage", msg)
+				}
+
+				// The point of the split: an unmodelled message is a message of
+				// its own protocol, so the domain interface reaches it.
+				_, inDomain = msg.(GSMMessage)
+				unknown, gotType = m, uint8(m.Type)
+			} else {
+				m, ok := msg.(*UnknownGMMMessage)
+				if !ok {
+					t.Fatalf("ParseMessage returned %T, want *UnknownGMMMessage", msg)
+				}
+
+				_, inDomain = msg.(GMMMessage)
+				unknown, gotType = m, uint8(m.Type)
 			}
 
-			if unknown.PD != tc.pd || unknown.Type != tc.typ {
-				t.Errorf("PD %#x type %#x, want %#x / %#x", uint8(unknown.PD), unknown.Type, uint8(tc.pd), tc.typ)
+			if !inDomain {
+				t.Errorf("%T does not satisfy its protocol's interface", msg)
+			}
+
+			if gotType != tc.typ {
+				t.Errorf("type %#x, want %#x", gotType, tc.typ)
 			}
 
 			round, err := unknown.MarshalBinary()
@@ -242,7 +270,7 @@ func TestParseMessageDeregistrationAccept(t *testing.T) {
 }
 
 // TestUnknownGSMMessageKeepsItsHeader checks that an unmodelled 5GSM message
-// carries the header a receiver has to echo: TS 24.501 §7.4 has the network
+// carries the header a receiver has to echo, readable through GSMMessage: TS 24.501 §7.4 has the network
 // answer with a 5GSM STATUS, and §8.3.16 gives that STATUS the PDU session
 // identity and procedure transaction identity of the message it answers.
 func TestUnknownGSMMessageKeepsItsHeader(t *testing.T) {
@@ -258,23 +286,31 @@ func TestUnknownGSMMessageKeepsItsHeader(t *testing.T) {
 		t.Fatalf("err = %v, want ErrUnknownMessageType", err)
 	}
 
-	unknown, ok := msg.(*UnknownMessage)
+	unknown, ok := msg.(*UnknownGSMMessage)
 	if !ok {
-		t.Fatalf("ParseMessage returned %T, want *UnknownMessage", msg)
+		t.Fatalf("ParseMessage returned %T, want *UnknownGSMMessage", msg)
 	}
 
-	if unknown.PD != EPD5GSM || unknown.Type != 0xFF {
-		t.Errorf("PD %#x type %#x, want %#x / 0xff", uint8(unknown.PD), unknown.Type, uint8(EPD5GSM))
+	if unknown.Type != 0xFF {
+		t.Errorf("type %#x, want 0xff", uint8(unknown.Type))
 	}
 
-	if unknown.PDUSessionID != session || unknown.PTI != pti {
-		t.Errorf("header = session %v, PTI %v; want %v / %v", unknown.PDUSessionID, unknown.PTI, session, pti)
+	// The header reads through the protocol interface, exactly as it does for a
+	// message this package models.
+	gsm, ok := msg.(GSMMessage)
+	if !ok {
+		t.Fatalf("%T does not satisfy GSMMessage", msg)
 	}
 
-	// A 5GMM message has neither field, so both stay zero.
+	if gsm.SessionIdentity() != session || gsm.TransactionIdentity() != pti {
+		t.Errorf("header = session %v, PTI %v; want %v / %v",
+			gsm.SessionIdentity(), gsm.TransactionIdentity(), session, pti)
+	}
+
+	// A 5GMM message has no session header, and lands in the other protocol.
 	msg, _ = ParseMessage([]byte{uint8(EPD5GMM), 0x00, 0xFF})
 
-	if gmm, ok := msg.(*UnknownMessage); !ok || gmm.PDUSessionID != 0 || gmm.PTI != 0 {
-		t.Errorf("a 5GMM unknown message reported session %v / PTI %v, want zeroes", gmm.PDUSessionID, gmm.PTI)
+	if _, ok := msg.(*UnknownGMMMessage); !ok {
+		t.Errorf("an unknown 5GMM message decoded as %T, want *UnknownGMMMessage", msg)
 	}
 }

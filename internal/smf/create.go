@@ -77,14 +77,14 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	// network ignore such a message except to return a STATUS with cause #97,
 	// where #98 reports a message the receiver does understand arriving in the
 	// wrong state.
-	if unknown, isUnknown := msg.(*fgs.UnknownMessage); isUnknown {
+	if unknown, isUnknown := msg.(*fgs.UnknownGSMMessage); isUnknown {
 		rsp, buildErr := smfNas.BuildGSM5GSMStatus(unknown.PDUSessionID, unknown.PTI,
 			fgs.GSMCauseMessageTypeNonExistentOrNotImplemented)
 		if buildErr != nil {
-			return "", nil, fmt.Errorf("unimplemented 5GSM message type %#02x (build 5GSM STATUS failed: %v)", unknown.Type, buildErr)
+			return "", nil, fmt.Errorf("unimplemented 5GSM message type %#02x (build 5GSM STATUS failed: %v)", uint8(unknown.Type), buildErr)
 		}
 
-		return "", rsp, fmt.Errorf("unimplemented 5GSM message type %#02x", unknown.Type)
+		return "", rsp, fmt.Errorf("unimplemented 5GSM message type %#02x", uint8(unknown.Type))
 	}
 
 	req, ok := msg.(*fgs.PDUSessionEstablishmentRequest)

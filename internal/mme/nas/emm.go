@@ -118,14 +118,11 @@ func HandleEmmMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain 
 		return handleTrackingAreaUpdateComplete(ctx, m, ue)
 	case *eps.EMMStatus:
 		return handleEMMStatus(msg)
-	case *eps.UnknownMessage:
+	case *eps.UnknownEMMMessage:
 		// TS 24.301 §7.4: a message type the receiver does not implement draws a
-		// STATUS in the domain its protocol discriminator names.
+		// STATUS in its own protocol. The ESM counterpart reaches
+		// handleESMMessage through the default arm below.
 		logger.From(ctx, logger.MmeLog).Warn("unimplemented NAS message type", zap.Stringer("message", msg))
-
-		if msg.PD == eps.PDESM {
-			return nasreply.StatusSM(nasreply.CauseMessageTypeNotImplemented)
-		}
 
 		return nasreply.StatusMM(nasreply.CauseMessageTypeNotImplemented)
 	default:
@@ -143,8 +140,6 @@ func messageName(msg eps.Message) string {
 		return msg.MessageType().String()
 	case *eps.ServiceRequest:
 		return "SERVICE REQUEST"
-	case *eps.UnknownMessage:
-		return msg.String()
 	default:
 		return "unknown message"
 	}

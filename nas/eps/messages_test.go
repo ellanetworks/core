@@ -147,17 +147,20 @@ func TestParseMessageServiceRequest(t *testing.T) {
 }
 
 // TestParseMessageUnknownType checks that a message type this package does not
-// model survives as an UnknownMessage: a soft error, the header fields a STATUS
-// needs, and the octets it arrived as.
+// model survives as a message of its own protocol: a soft error, a value that
+// satisfies the protocol's interface so a receiver can answer it with a STATUS
+// (TS 24.301 §7.4), and the octets it arrived as.
 func TestParseMessageUnknownType(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		raw  []byte
-		pd   ProtocolDiscriminator
 		typ  uint8
+		// esm reports which protocol the message belongs to, and so which
+		// interface the decoded value has to satisfy.
+		esm bool
 	}{
-		{"EMM", []byte{uint8(PDEMM), 0x64, 0xAA, 0xBB}, PDEMM, 0x64},
-		{"ESM", []byte{0x50 | uint8(PDESM), 0x01, 0xDB, 0xAA}, PDESM, 0xDB},
+		{"EMM", []byte{uint8(PDEMM), 0x64, 0xAA, 0xBB}, 0x64, false},
+		{"ESM", []byte{0x50 | uint8(PDESM), 0x01, 0xDB, 0xAA}, 0xDB, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			msg, err := ParseMessage(tc.raw, nas.DirectionDownlink)
@@ -169,13 +172,38 @@ func TestParseMessageUnknownType(t *testing.T) {
 				t.Error("an unknown message type must be a soft error")
 			}
 
-			unknown, ok := msg.(*UnknownMessage)
-			if !ok {
-				t.Fatalf("ParseMessage returned %T, want *UnknownMessage", msg)
+			var (
+				unknown  Message
+				gotType  uint8
+				inDomain bool
+			)
+
+			if tc.esm {
+				m, ok := msg.(*UnknownESMMessage)
+				if !ok {
+					t.Fatalf("ParseMessage returned %T, want *UnknownESMMessage", msg)
+				}
+
+				// The point of the split: an unmodelled message is a message of
+				// its own protocol, so the domain interface reaches it.
+				_, inDomain = msg.(ESMMessage)
+				unknown, gotType = m, uint8(m.Type)
+			} else {
+				m, ok := msg.(*UnknownEMMMessage)
+				if !ok {
+					t.Fatalf("ParseMessage returned %T, want *UnknownEMMMessage", msg)
+				}
+
+				_, inDomain = msg.(EMMMessage)
+				unknown, gotType = m, uint8(m.Type)
 			}
 
-			if unknown.PD != tc.pd || unknown.Type != tc.typ {
-				t.Errorf("PD %#x type %#x, want %#x / %#x", uint8(unknown.PD), unknown.Type, uint8(tc.pd), tc.typ)
+			if !inDomain {
+				t.Errorf("%T does not satisfy its protocol's interface", msg)
+			}
+
+			if gotType != tc.typ {
+				t.Errorf("type %#x, want %#x", gotType, tc.typ)
 			}
 
 			round, err := unknown.MarshalBinary()
@@ -267,7 +295,7 @@ func TestDispatchTablesNameRealMessageTypes(t *testing.T) {
 }
 
 // TestUnknownESMMessageKeepsItsHeader checks that an unmodelled ESM message
-// carries the header a receiver has to echo: TS 24.301 §7.4 has the network
+// carries the header a receiver has to echo, readable through ESMMessage: TS 24.301 §7.4 has the network
 // answer with an ESM STATUS, and §8.3.15 gives that STATUS the EPS bearer
 // identity and procedure transaction identity of the message it answers.
 func TestUnknownESMMessageKeepsItsHeader(t *testing.T) {
@@ -283,19 +311,26 @@ func TestUnknownESMMessageKeepsItsHeader(t *testing.T) {
 		t.Fatalf("err = %v, want ErrUnknownMessageType", err)
 	}
 
-	unknown, ok := msg.(*UnknownMessage)
+	if _, ok := msg.(*UnknownESMMessage); !ok {
+		t.Fatalf("ParseMessage returned %T, want *UnknownESMMessage", msg)
+	}
+
+	// The header reads through the protocol interface, exactly as it does for a
+	// message this package models.
+	esm, ok := msg.(ESMMessage)
 	if !ok {
-		t.Fatalf("ParseMessage returned %T, want *UnknownMessage", msg)
+		t.Fatalf("%T does not satisfy ESMMessage", msg)
 	}
 
-	if unknown.EPSBearerIdentity != bearer || unknown.PTI != pti {
-		t.Errorf("header = bearer %v, PTI %v; want %v / %v", unknown.EPSBearerIdentity, unknown.PTI, bearer, pti)
+	if esm.BearerIdentity() != bearer || esm.TransactionIdentity() != pti {
+		t.Errorf("header = bearer %v, PTI %v; want %v / %v",
+			esm.BearerIdentity(), esm.TransactionIdentity(), bearer, pti)
 	}
 
-	// An EMM message has neither field, so both stay zero.
+	// An EMM message has no bearer header, and lands in the other protocol.
 	msg, _ = ParseMessage([]byte{uint8(PDEMM), 0x64}, nas.DirectionUplink)
 
-	if emm, ok := msg.(*UnknownMessage); !ok || emm.EPSBearerIdentity != 0 || emm.PTI != 0 {
-		t.Errorf("an EMM unknown message reported bearer %v / PTI %v, want zeroes", emm.EPSBearerIdentity, emm.PTI)
+	if _, ok := msg.(*UnknownEMMMessage); !ok {
+		t.Errorf("an unknown EMM message decoded as %T, want *UnknownEMMMessage", msg)
 	}
 }

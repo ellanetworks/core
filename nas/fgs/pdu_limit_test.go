@@ -63,10 +63,10 @@ func TestAppendBinaryEnforcesPDULimit(t *testing.T) {
 		&ULNASTransport{},
 	}
 
-	// UnknownMessage is absent (it re-emits octets a parse already capped) and
-	// every other modelled message is present, so the list tracks the dispatch
-	// tables: a new message has to be added here too.
-	if want := len(gmmParsers) + len(gsmParsers) + 1 - 1; len(msgs) != want {
+	// The two unmodelled-message types are absent — they re-emit octets a parse
+	// already capped — and every modelled message is present, so the list tracks
+	// the dispatch tables: a new message has to be added here too.
+	if want := len(gmmParsers) + len(gsmParsers); len(msgs) != want {
 		t.Fatalf("%d messages listed, %d modelled: a new message needs a case here", len(msgs), want)
 	}
 

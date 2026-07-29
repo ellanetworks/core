@@ -12,7 +12,8 @@ import (
 
 // Message is a NAS message of the 5GS control plane. Only the message types in
 // this package implement it, so a type switch over them is complete: a message
-// type this package does not model arrives as an [UnknownMessage].
+// type this package does not model arrives as an [UnknownGMMMessage] or an
+// [UnknownGSMMessage], which are 5GMM and 5GSM messages like any other.
 type Message interface {
 	// AppendBinary appends the message's encoding to b.
 	AppendBinary(b []byte) ([]byte, error)
@@ -44,44 +45,83 @@ type GSMMessage interface {
 	TransactionIdentity() nas.ProcedureTransactionIdentity
 }
 
-// UnknownMessage is a message whose type this package does not model. It keeps
-// the header fields a receiver needs to answer with a 5GMM or 5GSM STATUS
-// (TS 24.501 §7.6), and re-encodes to the octets it arrived as.
-type UnknownMessage struct {
-	// PD is the extended protocol discriminator, which says whether Type names a
-	// 5GMM or a 5GSM message.
-	PD ProtocolDiscriminator
-	// Type is the message type octet.
-	Type uint8
-	// PDUSessionID and PTI are the 5GSM header of the message, which a 5GSM
-	// STATUS answering it carries (TS 24.501 §9.4, §9.6). Both are zero for a
-	// 5GMM message, whose header has neither.
-	PDUSessionID PDUSessionID
-	PTI          nas.ProcedureTransactionIdentity
+// UnknownGMMMessage is a 5GMM message whose type this package does not model.
+// It is a 5GMM message like any other — TS 24.501 §7.4 has the receiver answer
+// it with a 5GMM STATUS, so it carries the header that STATUS needs — and it
+// re-encodes to the octets it arrived as.
+type UnknownGMMMessage struct {
+	// Type is the message type octet, which names no message this package models.
+	Type MessageType
 	// Raw is the whole message, header included.
 	Raw []byte
 }
 
 // AppendBinary appends the message exactly as it arrived.
-func (m *UnknownMessage) AppendBinary(b []byte) ([]byte, error) {
-	if len(m.Raw) == 0 {
-		return b, fmt.Errorf("nas/fgs: unknown message has no octets to encode")
-	}
-
-	if err := nas.CheckPDULen(len(m.Raw)); err != nil {
-		return b, err
-	}
-
-	return append(b, m.Raw...), nil
+func (m *UnknownGMMMessage) AppendBinary(b []byte) ([]byte, error) {
+	return appendRawMessage(b, m.Raw)
 }
 
 // MarshalBinary encodes the message.
-func (m *UnknownMessage) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
+func (m *UnknownGMMMessage) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
 
-func (m *UnknownMessage) isMessage() {}
+// MessageType is the type octet the message arrived with.
+func (m *UnknownGMMMessage) MessageType() MessageType { return m.Type }
 
-func (m *UnknownMessage) String() string {
-	return fmt.Sprintf("unknown %s message (type %#02x, %d octets)", m.PD, m.Type, len(m.Raw))
+func (m *UnknownGMMMessage) isMessage() {}
+
+func (m *UnknownGMMMessage) String() string {
+	return fmt.Sprintf("unknown 5GMM message (type %#02x, %d octets)", uint8(m.Type), len(m.Raw))
+}
+
+// UnknownGSMMessage is a 5GSM message whose type this package does not model.
+// It is a 5GSM message like any other — TS 24.501 §7.4 has the receiver answer
+// it with a 5GSM STATUS, and §8.3.16 gives that STATUS the PDU session identity
+// and procedure transaction identity read here — and it re-encodes to the octets
+// it arrived as.
+type UnknownGSMMessage struct {
+	PDUSessionID PDUSessionID
+	PTI          nas.ProcedureTransactionIdentity
+	// Type is the message type octet, which names no message this package models.
+	Type GSMMessageType
+	// Raw is the whole message, header included.
+	Raw []byte
+}
+
+// AppendBinary appends the message exactly as it arrived.
+func (m *UnknownGSMMessage) AppendBinary(b []byte) ([]byte, error) {
+	return appendRawMessage(b, m.Raw)
+}
+
+// MarshalBinary encodes the message.
+func (m *UnknownGSMMessage) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
+
+// MessageType is the type octet the message arrived with.
+func (m *UnknownGSMMessage) MessageType() GSMMessageType { return m.Type }
+
+// SessionIdentity is the PDU session the message concerns.
+func (m *UnknownGSMMessage) SessionIdentity() PDUSessionID { return m.PDUSessionID }
+
+// TransactionIdentity is the procedure transaction the message belongs to.
+func (m *UnknownGSMMessage) TransactionIdentity() nas.ProcedureTransactionIdentity { return m.PTI }
+
+func (m *UnknownGSMMessage) isMessage() {}
+
+func (m *UnknownGSMMessage) String() string {
+	return fmt.Sprintf("unknown 5GSM message (type %#02x, %d octets)", uint8(m.Type), len(m.Raw))
+}
+
+// appendRawMessage re-emits a message this package does not model, exactly as it
+// arrived and under the same length limit as any other message.
+func appendRawMessage(b, raw []byte) ([]byte, error) {
+	if len(raw) == 0 {
+		return b, fmt.Errorf("nas/fgs: unknown message has no octets to encode")
+	}
+
+	if err := nas.CheckPDULen(len(raw)); err != nil {
+		return b, err
+	}
+
+	return append(b, raw...), nil
 }
 
 // ParseMessage decodes any plain NAS message of this generation, so a receiver
@@ -101,7 +141,8 @@ func (m *UnknownMessage) String() string {
 //	}
 //
 // A message type this package does not model is not a hard failure: it returns
-// an [*UnknownMessage] together with [nas.ErrUnknownMessageType], which
+// an [*UnknownGMMMessage] or [*UnknownGSMMessage] together with
+// [nas.ErrUnknownMessageType], which
 // [nas.SoftOnly] reports as soft, so the caller keeps what it needs to answer
 // with a STATUS. A security-protected message is rejected with [ErrNotPlain];
 // unwrap it with [Unprotect] first.
@@ -133,7 +174,7 @@ func parseGMMMessage(b []byte) (Message, error) {
 
 	parse, ok := gmmParsers[mt]
 	if !ok {
-		return unknownMessage(EPD5GMM, uint8(mt), b)
+		return unknownGMMMessage(mt, b)
 	}
 
 	return parse(b)
@@ -155,10 +196,10 @@ func parseGSMMessage(b []byte) (Message, error) {
 
 // unknownMessage keeps an unmodelled message and reports it as the soft error
 // TS 24.501 §7.6 expects a receiver to answer with a STATUS.
-func unknownMessage(pd ProtocolDiscriminator, mt uint8, b []byte) (Message, error) {
-	m := &UnknownMessage{PD: pd, Type: mt, Raw: bytes.Clone(b)}
+func unknownGMMMessage(mt MessageType, b []byte) (Message, error) {
+	m := &UnknownGMMMessage{Type: mt, Raw: bytes.Clone(b)}
 
-	return m, fmt.Errorf("nas/fgs: %w %#02x", nas.ErrUnknownMessageType, mt)
+	return m, fmt.Errorf("nas/fgs: %w %#02x", nas.ErrUnknownMessageType, uint8(mt))
 }
 
 // unknownGSMMessage keeps an unmodelled 5GSM message together with the header a
@@ -183,11 +224,10 @@ func unknownGSMMessage(mt GSMMessageType, b []byte) (Message, error) {
 		return nil, err
 	}
 
-	m := &UnknownMessage{
-		PD:           EPD5GSM,
-		Type:         uint8(mt),
+	m := &UnknownGSMMessage{
 		PDUSessionID: PDUSessionID(psi),
 		PTI:          nas.ProcedureTransactionIdentity(pti),
+		Type:         mt,
 		Raw:          bytes.Clone(b),
 	}
 

@@ -13,7 +13,8 @@ import (
 
 // ExampleParseMessage decodes a plain 5GS message and dispatches on its concrete
 // type. The type switch is complete: a message type the package does not model
-// arrives as an [fgs.UnknownMessage].
+// arrives as an [fgs.UnknownGMMMessage] or [fgs.UnknownGSMMessage], which are
+// 5GMM and 5GSM messages like any other.
 func ExampleParseMessage() {
 	pdu := []byte{0x7e, 0x00, 0x44, 0x0b}
 
