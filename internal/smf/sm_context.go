@@ -36,9 +36,9 @@ type SMContext struct {
 	Mutex sync.Mutex
 
 	// Ref is the session's unique pool key, assigned once at creation and never
-	// reused: two sessions for the same (SUPI, PDU session id) get distinct Refs, so a
+	// reused: two sessions for the same (SUPI, access, id) get distinct Refs, so a
 	// release targets the exact instance and cannot tear down a newer session that
-	// reused the (SUPI, id) slot. CanonicalName(SUPI, id) is the secondary index key.
+	// reused the slot. CanonicalName is the secondary index key.
 	Ref string
 
 	Supi           etsi.SUPI
@@ -61,8 +61,9 @@ type SMContext struct {
 	// Access is the radio access the session was established over. Access4G marks
 	// a 4G EPS session (PGW-C role): its PDUSessionID is the default bearer's EPS
 	// bearer identity (5..15), which overlaps the 5G PDU session id range, so the
-	// RAT cannot be inferred from the id. Downlink data for an EPS session is
-	// paged via the MME (TS 23.401 §5.3.4.3), not the 5G N2 path.
+	// RAT cannot be inferred from the wire id; session and lease keys use the
+	// converged id (keyID). Downlink data for an EPS session is paged via the MME
+	// (TS 23.401 §5.3.4.3).
 	Access AccessType
 
 	// outstandingPTIs holds the PTI of each 5GSM procedure awaiting a UE
@@ -130,8 +131,11 @@ func (smContext *SMContext) IsPTIInUse(pti uint8) bool {
 	return ok
 }
 
-func CanonicalName(identifier etsi.SUPI, pduSessID uint8) string {
-	return fmt.Sprintf("%s-%d", identifier.String(), pduSessID)
+// CanonicalName is the secondary index key for a (SUPI, access, id) slot. The
+// id is mapped into the converged id space (AccessType.keyID), so a 4G EBI and
+// a 5G PDU session id with the same numeric value name different slots.
+func CanonicalName(identifier etsi.SUPI, access AccessType, id uint8) string {
+	return fmt.Sprintf("%s-%d", identifier.String(), access.keyID(id))
 }
 
 func (smContext *SMContext) SetPolicyData(policy *Policy) {
@@ -152,5 +156,5 @@ func (smContext *SMContext) SetPFCPSession(seid uint64) {
 }
 
 func (smContext *SMContext) CanonicalName() string {
-	return CanonicalName(smContext.Supi, smContext.PDUSessionID)
+	return CanonicalName(smContext.Supi, smContext.Access, smContext.PDUSessionID)
 }

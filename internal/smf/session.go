@@ -59,7 +59,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errUEAddressAllocation, err)
 	}
 
-	sc := s.NewSession(req.Supi, req.Key, req.Dnn, req.Snssai)
+	sc := s.NewSession(req.Supi, req.Access, req.Key, req.Dnn, req.Snssai)
 
 	committed := false
 
@@ -72,7 +72,6 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	// Build under the session lock so a concurrent reader for the same key never
 	// sees a half-built context.
 	sc.Mutex.Lock()
-	sc.Access = req.Access
 	sc.PDUSessionType = req.PDUType
 	sc.PolicyData = req.Policy
 
@@ -166,13 +165,13 @@ func (s *SMF) abortSession(ctx context.Context, sc *SMContext) {
 			logger.SmfLog.Warn("failed to resolve data network to release UE addresses after aborted session", zap.String("imsi", imsi), zap.Error(err))
 		} else {
 			if sc.PDUIPV4Address != nil {
-				if _, err := dn.ReleaseIP(ctx, imsi, sc.PDUSessionID); err != nil {
+				if _, err := dn.ReleaseIP(ctx, imsi, sc.keyID()); err != nil {
 					logger.SmfLog.Warn("failed to release UE IPv4 after aborted session", zap.String("imsi", imsi), zap.Error(err))
 				}
 			}
 
 			if sc.PDUIPV6Prefix != nil {
-				if _, err := dn.ReleaseIPv6(ctx, imsi, sc.PDUSessionID); err != nil {
+				if _, err := dn.ReleaseIPv6(ctx, imsi, sc.keyID()); err != nil {
 					logger.SmfLog.Warn("failed to release UE IPv6 after aborted session", zap.String("imsi", imsi), zap.Error(err))
 				}
 			}

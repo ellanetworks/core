@@ -6,6 +6,8 @@ package smf_test
 import (
 	"context"
 	"testing"
+
+	"github.com/ellanetworks/core/internal/smf"
 )
 
 func TestHandleEPSPagingFailure_SuppressesDownlinkNotification(t *testing.T) {
@@ -16,7 +18,7 @@ func TestHandleEPSPagingFailure_SuppressesDownlinkNotification(t *testing.T) {
 
 	const ebi = 5
 
-	smCtx := s.NewSession(supi, ebi, testDNN, testSnssai)
+	smCtx := s.NewSession(supi, smf.Access4G, ebi, testDNN, testSnssai)
 	smCtx.SetPFCPSession(s.AllocateLocalSEID())
 	smCtx.PFCPContext.RemoteSEID = 7
 
@@ -37,7 +39,7 @@ func TestHandlePagingFailure_SuppressesDownlinkNotification(t *testing.T) {
 
 	const pduSessionID = 1
 
-	smCtx := s.NewSession(supi, pduSessionID, testDNN, testSnssai)
+	smCtx := s.NewSession(supi, smf.Access5G, pduSessionID, testDNN, testSnssai)
 	smCtx.SetPFCPSession(s.AllocateLocalSEID())
 	smCtx.PFCPContext.RemoteSEID = 4242
 

@@ -50,6 +50,13 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	)
 	defer span.End()
 
+	// UE-assignable PDU session identity values are 1..15 (TS 24.007
+	// §11.2.3.1b); larger values would alias the converged-id range that names
+	// 4G PDN connections (AccessType.keyID).
+	if pduSessionID < 1 || pduSessionID > 15 {
+		return "", nil, fmt.Errorf("PDU session id %d out of range (1..15)", pduSessionID)
+	}
+
 	// Decode before any state changes so a failure can still build a reject.
 	m := nas.NewMessage()
 
@@ -97,7 +104,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	defer func() { recordSessionEstablishmentResult(metrics.RAT5G, establishmentResult) }()
 
-	if existing := s.currentSession(supi, pduSessionID); existing != nil {
+	if existing := s.currentSession(supi, Access5G, pduSessionID); existing != nil {
 		s.handlePduSessionContextReplacement(ctx, existing)
 	}
 

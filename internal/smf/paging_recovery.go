@@ -11,7 +11,7 @@ import (
 )
 
 func (s *SMF) ClearPagingSuppression(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error {
-	smContext := s.currentSession(supi, pduSessionID)
+	smContext := s.currentSession(supi, Access5G, pduSessionID)
 	if smContext == nil {
 		return nil
 	}
@@ -27,7 +27,7 @@ func (s *SMF) ClearEPSPagingSuppression(ctx context.Context, imsi string, ebi ui
 		return fmt.Errorf("invalid imsi %q: %w", imsi, err)
 	}
 
-	smContext := s.currentSession(supi, ebi)
+	smContext := s.currentSession(supi, Access4G, ebi)
 	if smContext == nil {
 		return nil
 	}
