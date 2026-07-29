@@ -196,18 +196,22 @@ static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 	int rc = bpf_fib_lookup(ctx->xdp_ctx, &fib_params, sizeof(fib_params),
 				flags);
 	switch (rc) {
-	case BPF_FIB_LKUP_RET_NO_NEIGH:
-		__builtin_memset(fib_params.dmac, 0xFF, 6);
+	case BPF_FIB_LKUP_RET_NO_NEIGH: {
+		// bpf_fib_lookup leaves smac unset on this branch, so the frame
+		// cannot be completed here. Notify userspace to resolve the
+		// nexthop, which bpf_fib_lookup has written into ipv4_dst.
 		__be32 daddr = fib_params.ipv4_dst;
+
 		bpf_ringbuf_output(&no_neigh_map, &daddr, sizeof(daddr), 0);
 		statistic->fib_lookup_ip4_no_neigh += 1;
-		// The fall-through is voluntary here
+
+		return XDP_DROP;
+	}
 	case BPF_FIB_LKUP_RET_SUCCESS:
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: nexthop: %pI4",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr,
 			   &fib_params.ipv4_dst);
-		if (rc == BPF_FIB_LKUP_RET_SUCCESS)
-			statistic->fib_lookup_ip4_success += 1;
+		statistic->fib_lookup_ip4_success += 1;
 
 		return do_route_ipv4(ctx, &fib_params, statistic, trust_fib);
 
@@ -284,19 +288,23 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 	int rc = bpf_fib_lookup(ctx->xdp_ctx, &fib_params, sizeof(fib_params),
 				0 /*BPF_FIB_LOOKUP_OUTPUT*/);
 	switch (rc) {
-	case BPF_FIB_LKUP_RET_NO_NEIGH:
-		__builtin_memset(fib_params.dmac, 0xFF, 6);
+	case BPF_FIB_LKUP_RET_NO_NEIGH: {
+		// bpf_fib_lookup leaves smac unset on this branch, so the frame
+		// cannot be completed here. Notify userspace to resolve the
+		// nexthop, which bpf_fib_lookup has written into ipv6_dst.
 		struct in6_addr daddr = {};
+
 		__builtin_memcpy(&daddr, &fib_params.ipv6_dst, sizeof(daddr));
 		bpf_ringbuf_output(&no_neigh_map, &daddr, sizeof(daddr), 0);
 		statistic->fib_lookup_ip6_no_neigh += 1;
-		// The fall-through is voluntary here
+
+		return XDP_DROP;
+	}
 	case BPF_FIB_LKUP_RET_SUCCESS:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: nexthop: %pI6c",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr,
 			   fib_params.ipv6_dst);
-		if (rc == BPF_FIB_LKUP_RET_SUCCESS)
-			statistic->fib_lookup_ip6_success += 1;
+		statistic->fib_lookup_ip6_success += 1;
 		//_decr_ttl(ether_proto, l3hdr);
 
 		return do_route_ipv6(ctx, &fib_params, statistic, trust_fib);
