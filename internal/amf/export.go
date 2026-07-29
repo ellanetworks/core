@@ -299,7 +299,7 @@ type smContextCopy struct {
 }
 
 func (amf *AMF) exportUeContext(guami *models.Guami, ue *UeContext) UeContextExport {
-	export, smCopies := amf.exportUeContextLocked(guami, ue)
+	export, smCopies := amf.collectUeExport(guami, ue)
 
 	// Build PDU sessions outside the UE lock to avoid holding two locks at once.
 	export.PDUSessions = amf.buildPDUSessions(smCopies)
@@ -307,9 +307,9 @@ func (amf *AMF) exportUeContext(guami *models.Guami, ue *UeContext) UeContextExp
 	return export
 }
 
-// exportUeContextLocked collects everything that must be read under ue.mu and
-// returns the session refs for the caller to resolve outside it.
-func (amf *AMF) exportUeContextLocked(guami *models.Guami, ue *UeContext) (UeContextExport, []smContextCopy) {
+// collectUeExport takes ue.mu and returns the session refs for the caller to
+// resolve outside it, since that reaches the SMF.
+func (amf *AMF) collectUeExport(guami *models.Guami, ue *UeContext) (UeContextExport, []smContextCopy) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 

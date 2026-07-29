@@ -115,7 +115,7 @@ func splitPayload() []byte {
 // A message the kernel splits across deliveries must come back from readMsg whole
 // and byte-exact. This drives the real kernel path rather than a modelled reader.
 func TestReadMsg_KernelSplitMessageIsReassembled(t *testing.T) {
-	server, clientFd := splitPair(t, 29421, 4096)
+	server, clientFd := splitPair(t, 29431, 4096)
 	payload := splitPayload()
 
 	go func() {
@@ -152,7 +152,7 @@ func TestReadMsg_KernelSplitMessageIsReassembled(t *testing.T) {
 // Guards the test above against passing vacuously: it only proves reassembly if
 // the kernel really delivers the message in pieces on this host.
 func TestReadMsgOnce_KernelSplitsLargeMessage(t *testing.T) {
-	server, clientFd := splitPair(t, 29422, 4096)
+	server, clientFd := splitPair(t, 29432, 4096)
 	payload := splitPayload()
 
 	go func() {
