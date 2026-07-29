@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -15,14 +16,14 @@ import (
 // DeactivateBearer asks the UE to deactivate EPS bearer p with the given ESM
 // cause and PTI. A disconnect or a non-default bearer releases only this PDN
 // connection on timeout; the default bearer instead detaches the UE (TS 24.301 §6.4.4).
-func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnection, esmCause, pti uint8, disconnecting bool) {
+func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnection, esmCause eps.ESMCause, pti uint8, disconnecting bool) {
 	naspdu, err := ue.ProtectDownlinkMessage(&eps.DeactivateEPSBearerContextRequest{
-		EPSBearerIdentity:            p.Ebi,
-		ProcedureTransactionIdentity: pti,
-		ESMCause:                     esmCause,
+		EPSBearerIdentity: eps.EPSBearerIdentity(p.Ebi),
+		PTI:               nas.ProcedureTransactionIdentity(pti),
+		Cause:             esmCause,
 	})
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to protect Deactivate EPS Bearer Context Request", zap.Error(err))
+		ReportProtectFailure(ctx, ue.Conn(), "Deactivate EPS Bearer Context Request", err)
 		return
 	}
 
@@ -60,7 +61,7 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 
 // DisconnectBearer tears down the UE's PDN connection p with a regular
 // deactivation; the UE is not asked to re-establish it.
-func (m *MME) DisconnectBearer(ctx context.Context, ue *UeContext, p *PdnConnection, esmCause, pti uint8) {
+func (m *MME) DisconnectBearer(ctx context.Context, ue *UeContext, p *PdnConnection, esmCause eps.ESMCause, pti uint8) {
 	m.DeactivateBearer(ctx, ue, p, esmCause, pti, true)
 }
 

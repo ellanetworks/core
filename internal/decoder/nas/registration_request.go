@@ -4,32 +4,18 @@
 package nas
 
 import (
-	"encoding/hex"
+	"strings"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/free5gc/nas/nasConvert"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
-type MobileIdentity5GS struct {
-	Identity utils.EnumField[uint8] `json:"identity_type"`
-	PLMNID   *PLMNID                `json:"plmn_id,omitempty"`
-	SUCI     *string                `json:"suci,omitempty"`
-	GUTI     *string                `json:"guti,omitempty"`
-	STMSI    *string                `json:"s_tmsi,omitempty"`
-	IMEI     *string                `json:"imei,omitempty"`
-	IMEISV   *string                `json:"imeisv,omitempty"`
-}
-
 type RegistrationRequest struct {
-	ExtendedProtocolDiscriminator       uint8                  `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType uint8                  `json:"spare_half_octet_and_security_header_type"`
-	NasKeySetIdentifier                 uint8                  `json:"nas_key_set_identifier,omitempty"`
-	RegistrationType5GS                 utils.EnumField[uint8] `json:"registration_type_5gs"`
-	MobileIdentity5GS                   MobileIdentity5GS      `json:"mobile_identity_5gs"`
-	UESecurityCapability                *UESecurityCapability  `json:"ue_security_capability,omitempty"`
-	NASMessageContainer                 []byte                 `json:"nas_message_container,omitempty"`
+	NasKeySetIdentifier  uint8                 `json:"nas_key_set_identifier,omitempty"`
+	RegistrationType5GS  utils.EnumField       `json:"registration_type_5gs"`
+	MobileIdentity5GS    MobileIdentity        `json:"mobile_identity_5gs"`
+	UESecurityCapability *UESecurityCapability `json:"ue_security_capability,omitempty"`
+	NASMessageContainer  []byte                `json:"nas_message_container,omitempty"`
 
 	NoncurrentNativeNASKeySetIdentifier *UnsupportedIE `json:"noncurrent_native_nas_key_set_identifier,omitempty"`
 	Capability5GMM                      *UnsupportedIE `json:"capability_5gmm,omitempty"`
@@ -52,228 +38,105 @@ type RegistrationRequest struct {
 	EPSBearerContextStatus              *UnsupportedIE `json:"eps_bearer_context_status,omitempty"`
 }
 
-func buildRegistrationRequest(msg *nasMessage.RegistrationRequest) *RegistrationRequest {
-	if msg == nil {
-		return nil
-	}
-
-	registrationRequest := &RegistrationRequest{
-		MobileIdentity5GS:             getMobileIdentity5GS(msg.MobileIdentity5GS),
-		ExtendedProtocolDiscriminator: msg.ExtendedProtocolDiscriminator.Octet,
-	}
-
-	ksi, regType := buildNgksiAndRegistrationType5GS(msg.NgksiAndRegistrationType5GS)
-	registrationRequest.NasKeySetIdentifier = ksi
-	registrationRequest.RegistrationType5GS = regType
-
-	if msg.NoncurrentNativeNASKeySetIdentifier != nil {
-		registrationRequest.NoncurrentNativeNASKeySetIdentifier = makeUnsupportedIE()
-	}
-
-	if msg.Capability5GMM != nil {
-		registrationRequest.Capability5GMM = makeUnsupportedIE()
+func buildRegistrationRequest(msg *fgs.RegistrationRequest) *RegistrationRequest {
+	out := &RegistrationRequest{
+		NasKeySetIdentifier: msg.NgKSI.Value,
+		RegistrationType5GS: registrationType5GSEnum(msg.RegistrationType),
+		MobileIdentity5GS:   buildMobileIdentity(msg.MobileIdentity),
+		NASMessageContainer: msg.NASMessageContainer,
 	}
 
 	if msg.UESecurityCapability != nil {
-		registrationRequest.UESecurityCapability = buildUESecurityCapability(*msg.UESecurityCapability)
+		out.UESecurityCapability = buildUESecurityCapability(*msg.UESecurityCapability)
 	}
 
-	if msg.RequestedNSSAI != nil {
-		registrationRequest.RequestedNSSAI = makeUnsupportedIE()
+	if msg.GMMCapability != nil {
+		out.Capability5GMM = makeUnsupportedIE()
 	}
 
-	if msg.LastVisitedRegisteredTAI != nil {
-		registrationRequest.LastVisitedRegisteredTAI = makeUnsupportedIE()
-	}
-
-	if msg.S1UENetworkCapability != nil {
-		registrationRequest.S1UENetworkCapability = makeUnsupportedIE()
+	if len(msg.RequestedNSSAI) > 0 {
+		out.RequestedNSSAI = makeUnsupportedIE()
 	}
 
 	if msg.UplinkDataStatus != nil {
-		registrationRequest.UplinkDataStatus = makeUnsupportedIE()
+		out.UplinkDataStatus = makeUnsupportedIE()
 	}
 
 	if msg.PDUSessionStatus != nil {
-		registrationRequest.PDUSessionStatus = makeUnsupportedIE()
-	}
-
-	if msg.MICOIndication != nil {
-		registrationRequest.MICOIndication = makeUnsupportedIE()
-	}
-
-	if msg.UEStatus != nil {
-		registrationRequest.UEStatus = makeUnsupportedIE()
-	}
-
-	if msg.AdditionalGUTI != nil {
-		registrationRequest.AdditionalGUTI = makeUnsupportedIE()
+		out.PDUSessionStatus = makeUnsupportedIE()
 	}
 
 	if msg.AllowedPDUSessionStatus != nil {
-		registrationRequest.AllowedPDUSessionStatus = makeUnsupportedIE()
-	}
-
-	if msg.UesUsageSetting != nil {
-		registrationRequest.UesUsageSetting = makeUnsupportedIE()
+		out.AllowedPDUSessionStatus = makeUnsupportedIE()
 	}
 
 	if msg.RequestedDRXParameters != nil {
-		registrationRequest.RequestedDRXParameters = makeUnsupportedIE()
+		out.RequestedDRXParameters = makeUnsupportedIE()
 	}
 
-	if msg.EPSNASMessageContainer != nil {
-		registrationRequest.EPSNASMessageContainer = makeUnsupportedIE()
-	}
-
-	if msg.LADNIndication != nil {
-		registrationRequest.LADNIndication = makeUnsupportedIE()
-	}
-
-	if msg.PayloadContainer != nil {
-		registrationRequest.PayloadContainer = makeUnsupportedIE()
-	}
-
-	if msg.NetworkSlicingIndication != nil {
-		registrationRequest.NetworkSlicingIndication = makeUnsupportedIE()
+	if msg.MICOIndication != nil {
+		out.MICOIndication = makeUnsupportedIE()
 	}
 
 	if msg.UpdateType5GS != nil {
-		registrationRequest.UpdateType5GS = makeUnsupportedIE()
+		out.UpdateType5GS = makeUnsupportedIE()
 	}
 
-	if msg.EPSBearerContextStatus != nil {
-		registrationRequest.EPSBearerContextStatus = makeUnsupportedIE()
+	for _, ie := range msg.Unrecognized {
+		switch ie.IEI {
+		case ieiNoncurrentNativeNASKSI:
+			out.NoncurrentNativeNASKeySetIdentifier = makeUnsupportedIE()
+		case ieiS1UENetworkCapability:
+			out.S1UENetworkCapability = makeUnsupportedIE()
+		case ieiUesUsageSetting:
+			out.UesUsageSetting = makeUnsupportedIE()
+		case ieiUEStatus:
+			out.UEStatus = makeUnsupportedIE()
+		case ieiLastVisitedTAI:
+			out.LastVisitedRegisteredTAI = makeUnsupportedIE()
+		case ieiEPSBearerContextStatus:
+			out.EPSBearerContextStatus = makeUnsupportedIE()
+		case ieiEPSNASMessageContainer:
+			out.EPSNASMessageContainer = makeUnsupportedIE()
+		case ieiLADNIndication:
+			out.LADNIndication = makeUnsupportedIE()
+		case ieiAdditionalGUTI:
+			out.AdditionalGUTI = makeUnsupportedIE()
+		case ieiPayloadContainer:
+			out.PayloadContainer = makeUnsupportedIE()
+		case ieiNetworkSlicingIndication:
+			out.NetworkSlicingIndication = makeUnsupportedIE()
+		}
 	}
 
-	if msg.NASMessageContainer != nil {
-		registrationRequest.NASMessageContainer = msg.GetNASMessageContainerContents()
-	}
-
-	return registrationRequest
+	return out
 }
 
-func buildNgksiAndRegistrationType5GS(ngksiAndRegType nasType.NgksiAndRegistrationType5GS) (uint8, utils.EnumField[uint8]) {
-	regTypeUint8 := ngksiAndRegType.GetRegistrationType5GS()
-	ksi := ngksiAndRegType.GetNasKeySetIdentifiler()
+// registrationType5GSEnum renders the registration type for the capture. The
+// codec's own name is the single definition; the table this replaced drifted
+// from it, reporting a disaster roaming initial registration as "Reserved" and
+// every type added since as unknown.
+func registrationType5GSEnum(t fgs.RegistrationType) utils.EnumField {
+	name := t.String()
 
-	return ksi, getRegistrationType5GSName(regTypeUint8)
+	return utils.MakeEnum(uint8(t), name, strings.HasPrefix(name, "unknown"))
 }
 
-func getRegistrationType5GSName(regType5Gs uint8) utils.EnumField[uint8] {
-	switch regType5Gs {
-	case nasMessage.RegistrationType5GSInitialRegistration:
-		return utils.MakeEnum(regType5Gs, "Initial Registration", false)
-	case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
-		return utils.MakeEnum(regType5Gs, "Mobility Registration Updating", false)
-	case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
-		return utils.MakeEnum(regType5Gs, "Periodic Registration Updating", false)
-	case nasMessage.RegistrationType5GSEmergencyRegistration:
-		return utils.MakeEnum(regType5Gs, "Emergency Registration", false)
-	case nasMessage.RegistrationType5GSReserved:
-		return utils.MakeEnum(regType5Gs, "Reserved", false)
-	default:
-		return utils.MakeEnum(regType5Gs, "", true)
-	}
-}
-
-func getMobileIdentity5GS(mobileIdentity5GS nasType.MobileIdentity5GS) MobileIdentity5GS {
-	mobileIdentity5GSContents := mobileIdentity5GS.GetMobileIdentity5GSContents()
-
-	identityTypeUsedForRegistration := nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0])
-	switch identityTypeUsedForRegistration {
-	case nasMessage.MobileIdentity5GSTypeNoIdentity:
-		return MobileIdentity5GS{
-			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "No Identity", false),
-		}
-	case nasMessage.MobileIdentity5GSTypeSuci:
-		suci, plmnID := nasConvert.SuciToString(mobileIdentity5GSContents)
-		plmnIDModel := plmnIDStringToModels(plmnID)
-
-		return MobileIdentity5GS{
-			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "SUCI", false),
-			SUCI:     &suci,
-			PLMNID:   &plmnIDModel,
-		}
-	case nasMessage.MobileIdentity5GSType5gGuti:
-		_, guti := nasConvert.GutiToString(mobileIdentity5GSContents)
-
-		return MobileIdentity5GS{
-			GUTI:     &guti,
-			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "5G-GUTI", false),
-		}
-	case nasMessage.MobileIdentity5GSTypeImei:
-		imei := nasConvert.PeiToString(mobileIdentity5GSContents)
-
-		return MobileIdentity5GS{
-			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "IMEI", false),
-			IMEI:     &imei,
-		}
-	case nasMessage.MobileIdentity5GSType5gSTmsi:
-		sTmsi := hex.EncodeToString(mobileIdentity5GSContents[1:])
-
-		return MobileIdentity5GS{
-			STMSI:    &sTmsi,
-			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "5G-S-TMSI", false),
-		}
-	case nasMessage.MobileIdentity5GSTypeImeisv:
-		imeisv := nasConvert.PeiToString(mobileIdentity5GSContents)
-
-		return MobileIdentity5GS{
-			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "IMEISV", false),
-			IMEISV:   &imeisv,
-		}
-	default:
-		return MobileIdentity5GS{
-			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "", true),
-		}
-	}
-}
-
-func buildUESecurityCapability(ueSecurityCapability nasType.UESecurityCapability) *UESecurityCapability {
-	ueSecCap := &UESecurityCapability{
-		IntegrityAlgorithm: IntegrityAlgorithm{},
-		CipheringAlgorithm: CipheringAlgorithm{},
-	}
-
-	if ueSecurityCapability.GetIA0_5G() == 1 {
-		ueSecCap.IntegrityAlgorithm.NIA0 = true
-	}
-
-	if ueSecurityCapability.GetIA1_128_5G() == 1 {
-		ueSecCap.IntegrityAlgorithm.NIA1 = true
-	}
-
-	if ueSecurityCapability.GetIA2_128_5G() == 1 {
-		ueSecCap.IntegrityAlgorithm.NIA2 = true
-	}
-
-	if ueSecurityCapability.GetIA3_128_5G() == 1 {
-		ueSecCap.IntegrityAlgorithm.NIA3 = true
-	}
-
-	if ueSecurityCapability.GetEA0_5G() == 1 {
-		ueSecCap.CipheringAlgorithm.NEA0 = true
-	}
-
-	if ueSecurityCapability.GetEA1_128_5G() == 1 {
-		ueSecCap.CipheringAlgorithm.NEA1 = true
-	}
-
-	if ueSecurityCapability.GetEA2_128_5G() == 1 {
-		ueSecCap.CipheringAlgorithm.NEA2 = true
-	}
-
-	if ueSecurityCapability.GetEA3_128_5G() == 1 {
-		ueSecCap.CipheringAlgorithm.NEA3 = true
-	}
-
-	return ueSecCap
-}
-
-func plmnIDStringToModels(plmnIDStr string) PLMNID {
-	return PLMNID{
-		Mcc: plmnIDStr[:3],
-		Mnc: plmnIDStr[3:],
+// buildUESecurityCapability renders the 5G integrity and ciphering algorithm bitmaps
+// of the UE security capability IE value (TS 24.501 §9.11.3.54).
+func buildUESecurityCapability(sc fgs.UESecurityCapability) *UESecurityCapability {
+	return &UESecurityCapability{
+		IntegrityAlgorithm: IntegrityAlgorithm{
+			NIA0: sc.SupportsIA(0),
+			NIA1: sc.SupportsIA(1),
+			NIA2: sc.SupportsIA(2),
+			NIA3: sc.SupportsIA(3),
+		},
+		CipheringAlgorithm: CipheringAlgorithm{
+			NEA0: sc.SupportsEA(0),
+			NEA1: sc.SupportsEA(1),
+			NEA2: sc.SupportsEA(2),
+			NEA3: sc.SupportsEA(3),
+		},
 	}
 }

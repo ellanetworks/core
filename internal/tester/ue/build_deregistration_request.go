@@ -4,62 +4,37 @@
 package ue
 
 import (
-	"bytes"
 	"fmt"
 
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type DeregistrationRequestOpts struct {
-	Guti *nasType.GUTI5G
-	Suci *nasType.MobileIdentity5GS
+	Guti *fgs.MobileIdentity
+	Suci *fgs.MobileIdentity
 	Ksi  int32
 }
 
 func BuildDeregistrationRequest(opts *DeregistrationRequestOpts) ([]byte, error) {
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration)
+	var mobileIdentity fgs.MobileIdentity
 
-	deregistrationRequest := nasMessage.NewDeregistrationRequestUEOriginatingDeregistration(0)
-
-	deregistrationRequest.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	deregistrationRequest.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	deregistrationRequest.SetSpareHalfOctet(0x00)
-	deregistrationRequest.SetSwitchOff(1)
-	deregistrationRequest.SetReRegistrationRequired(0)
-	deregistrationRequest.SetAccessType(1)
-	deregistrationRequest.SetMessageType(nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration)
-	deregistrationRequest.SetTSC(nasMessage.TypeOfSecurityContextFlagNative)
-
-	deregistrationRequest.SetNasKeySetIdentifiler(uint8(opts.Ksi))
-
-	if opts.Guti != nil {
-		deregistrationRequest.MobileIdentity5GS = nasType.MobileIdentity5GS{
-			Iei:    opts.Guti.Iei,
-			Len:    opts.Guti.Len,
-			Buffer: opts.Guti.Octet[:],
-		}
-	} else {
-		if opts.Suci == nil {
-			return nil, fmt.Errorf("either Guti or Suci must be provided")
-		}
-
-		deregistrationRequest.MobileIdentity5GS = *opts.Suci
+	switch {
+	case opts.Guti != nil:
+		mobileIdentity = *opts.Guti
+	case opts.Suci != nil:
+		mobileIdentity = *opts.Suci
+	default:
+		return nil, fmt.Errorf("either Guti or Suci must be provided")
 	}
 
-	m.DeregistrationRequestUEOriginatingDeregistration = deregistrationRequest
-
-	data := new(bytes.Buffer)
-
-	err := m.GmmMessageEncode(data)
-	if err != nil {
-		return nil, fmt.Errorf("error encoding gmm message: %v", err)
+	m := &fgs.DeregistrationRequestUEOriginating{
+		AccessType:             1,
+		ReRegistrationRequired: false,
+		SwitchOff:              true,
+		NgKSI:                  nas.KeySetIdentifier{Value: uint8(opts.Ksi)},
+		MobileIdentity:         mobileIdentity,
 	}
 
-	nasPdu := data.Bytes()
-
-	return nasPdu, nil
+	return m.MarshalBinary()
 }

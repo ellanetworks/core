@@ -10,9 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/decoder/lpp"
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type PayloadContainer struct {
@@ -24,95 +22,81 @@ type PayloadContainer struct {
 }
 
 type ULNASTransport struct {
-	ExtendedProtocolDiscriminator         uint8                   `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType   uint8                   `json:"spare_half_octet_and_security_header_type"`
-	SpareHalfOctetAndPayloadContainerType uint8                   `json:"spare_half_octet_and_payload_container_type"`
-	PayloadContainer                      PayloadContainer        `json:"payload_container"`
-	PduSessionID2Value                    *uint8                  `json:"pdu_session_id_2_value,omitempty"`
-	OldPDUSessionID                       *uint8                  `json:"old_pdu_session_id,omitempty"`
-	RequestType                           *utils.EnumField[uint8] `json:"request_type,omitempty"`
-	SNSSAI                                *SNSSAI                 `json:"snssai,omitempty"`
-	DNN                                   *string                 `json:"dnn,omitempty"`
+	SpareHalfOctetAndPayloadContainerType uint8            `json:"spare_half_octet_and_payload_container_type"`
+	PayloadContainer                      PayloadContainer `json:"payload_container"`
+	PduSessionID2Value                    *uint8           `json:"pdu_session_id_2_value,omitempty"`
+	OldPDUSessionID                       *uint8           `json:"old_pdu_session_id,omitempty"`
+	RequestType                           *utils.EnumField `json:"request_type,omitempty"`
+	SNSSAI                                *SNSSAI          `json:"snssai,omitempty"`
+	DNN                                   *string          `json:"dnn,omitempty"`
 
 	AdditionalInformation *UnsupportedIE `json:"additional_information,omitempty"`
 }
 
-func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
-	if msg == nil {
-		return nil
+func buildULNASTransport(msg *fgs.ULNASTransport) *ULNASTransport {
+	out := &ULNASTransport{
+		SpareHalfOctetAndPayloadContainerType: uint8(msg.PayloadContainerType),
+		PayloadContainer:                      buildULPayloadContainer(msg.PayloadContainerType, msg.PayloadContainer),
 	}
 
-	ulNasTransport := &ULNASTransport{
-		ExtendedProtocolDiscriminator:         msg.ExtendedProtocolDiscriminator.Octet,
-		SpareHalfOctetAndSecurityHeaderType:   msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		SpareHalfOctetAndPayloadContainerType: msg.SpareHalfOctetAndPayloadContainerType.Octet,
-	}
-
-	ulNasTransport.PayloadContainer = buildULNASPayloadContainer(msg)
-
-	if msg.PduSessionID2Value != nil {
-		value := msg.GetPduSessionID2Value()
-		ulNasTransport.PduSessionID2Value = &value
+	if msg.PDUSessionID != nil {
+		out.PduSessionID2Value = sessionIDPtr(msg.PDUSessionID)
 	}
 
 	if msg.OldPDUSessionID != nil {
-		value := msg.GetOldPDUSessionID()
-		ulNasTransport.OldPDUSessionID = &value
+		out.OldPDUSessionID = sessionIDPtr(msg.OldPDUSessionID)
 	}
 
 	if msg.RequestType != nil {
-		value := buildRequestTypeEnum(msg.GetRequestTypeValue())
-		ulNasTransport.RequestType = &value
+		value := requestTypeEnum(uint8(*msg.RequestType))
+		out.RequestType = &value
 	}
 
 	if msg.SNSSAI != nil {
-		snssai := buildNSSAI(msg.SNSSAI)
-		ulNasTransport.SNSSAI = &snssai
+		snssai := snssaiFromNAS(*msg.SNSSAI)
+		out.SNSSAI = &snssai
 	}
 
-	if msg.DNN != nil && msg.DNN.GetLen() > 0 {
-		dnn := msg.GetDNN()
-		ulNasTransport.DNN = &dnn
+	if msg.DNN != nil {
+		name := string(*msg.DNN)
+		out.DNN = &name
 	}
 
 	if msg.AdditionalInformation != nil {
-		ulNasTransport.AdditionalInformation = makeUnsupportedIE()
+		out.AdditionalInformation = makeUnsupportedIE()
 	}
 
-	return ulNasTransport
+	return out
 }
 
-func buildRequestTypeEnum(rt uint8) utils.EnumField[uint8] {
+// UL NAS transport request type values (TS 24.501 §9.11.3.47).
+func requestTypeEnum(rt uint8) utils.EnumField {
 	switch rt {
-	case nasMessage.ULNASTransportRequestTypeInitialRequest:
+	case 1:
 		return utils.MakeEnum(rt, "InitialRequest", false)
-	case nasMessage.ULNASTransportRequestTypeExistingPduSession:
+	case 2:
 		return utils.MakeEnum(rt, "ExistingPduSession", false)
-	case nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest:
+	case 3:
 		return utils.MakeEnum(rt, "InitialEmergencyRequest", false)
-	case nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession:
+	case 4:
 		return utils.MakeEnum(rt, "ExistingEmergencyPduSession", false)
-	case nasMessage.ULNASTransportRequestTypeModificationRequest:
+	case 5:
 		return utils.MakeEnum(rt, "ModificationRequest", false)
-	case nasMessage.ULNASTransportRequestTypeReserved:
+	case 6:
 		return utils.MakeEnum(rt, "Reserved", false)
 	default:
 		return utils.MakeEnum(rt, "", true)
 	}
 }
 
-func buildULNASPayloadContainer(msg *nasMessage.ULNASTransport) PayloadContainer {
-	containerType := msg.GetPayloadContainerType()
-
+func buildULPayloadContainer(containerType fgs.PayloadContainerType, contents []byte) PayloadContainer {
 	payloadContainer := PayloadContainer{
-		Raw: msg.GetPayloadContainerContents(),
+		Raw: contents,
 	}
 
 	switch containerType {
-	case nasMessage.PayloadContainerTypeN1SMInfo:
-		rawBytes := msg.GetPayloadContainerContents()
-
-		gsmMessage, err := decodeGSMMessage(rawBytes)
+	case fgs.PayloadContainerTypeN1SMInfo:
+		gsmMessage, err := decodeGSMMessage(contents)
 		if err != nil {
 			payloadContainer.Error = fmt.Sprintf("failed to decode N1 SM message in UL NAS Transport Payload Container: %v", err)
 			return payloadContainer
@@ -120,9 +104,8 @@ func buildULNASPayloadContainer(msg *nasMessage.ULNASTransport) PayloadContainer
 
 		payloadContainer.GsmMessage = gsmMessage
 
-	case nasMessage.PayloadContainerTypeLPP:
-		rawBytes := msg.GetPayloadContainerContents()
-		payloadContainer.LppMessage = lpp.Decode(rawBytes)
+	case fgs.PayloadContainerTypeLPP:
+		payloadContainer.LppMessage = lpp.Decode(contents)
 
 	default:
 		payloadContainer.Error = fmt.Sprintf("payload container type %d not yet implemented", containerType)
@@ -131,29 +114,33 @@ func buildULNASPayloadContainer(msg *nasMessage.ULNASTransport) PayloadContainer
 	return payloadContainer
 }
 
-func buildNSSAI(n *nasType.SNSSAI) SNSSAI {
-	var out SNSSAI
-
-	out.SST = int32(n.GetSST())
-
-	if n.Len >= 4 {
-		sd := n.Octet[1:4] // 3 bytes following SST
-		sdStr := strings.ToUpper(hex.EncodeToString(sd))
-		out.SD = &sdStr
-	} else {
-		out.SD = nil
+func snssaiFromNAS(s fgs.SNSSAI) SNSSAI {
+	out := SNSSAI{SST: int32(s.SST)}
+	if s.SD != nil {
+		sd := strings.ToUpper(hex.EncodeToString(s.SD[:]))
+		out.SD = &sd
 	}
 
 	return out
 }
 
 func decodeGSMMessage(raw []byte) (*GsmMessage, error) {
-	m := nas.NewMessage()
-
-	err := m.GsmMessageDecode(&raw)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode N1 SM message in UL NAS Transport Payload Container: %w", err)
+	gsm := buildGsmMessage(raw)
+	if gsm == nil {
+		return nil, fmt.Errorf("failed to decode N1 SM message in UL NAS Transport Payload Container: message too short")
 	}
 
-	return buildGsmMessage(m.GsmMessage), nil
+	return gsm, nil
+}
+
+// sessionIDPtr narrows an optional PDU session identity to the raw value the
+// decoder's JSON shape carries.
+func sessionIDPtr(id *fgs.PDUSessionID) *uint8 {
+	if id == nil {
+		return nil
+	}
+
+	v := uint8(*id)
+
+	return &v
 }

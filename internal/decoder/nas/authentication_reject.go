@@ -3,29 +3,14 @@
 
 package nas
 
-import (
-	"github.com/free5gc/nas/nasMessage"
-)
+import "github.com/ellanetworks/core/nas/fgs"
 
 type AuthenticationReject struct {
-	ExtendedProtocolDiscriminator       uint8  `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType uint8  `json:"spare_half_octet_and_security_header_type"`
-	EAPMessage                          []byte `json:"eap_message,omitempty"`
+	EAPMessage []byte `json:"eap_message,omitempty"`
 }
 
-func buildAuthenticationReject(msg *nasMessage.AuthenticationReject) *AuthenticationReject {
-	if msg == nil {
-		return nil
+func buildAuthenticationReject(msg *fgs.AuthenticationReject) *AuthenticationReject {
+	return &AuthenticationReject{
+		EAPMessage: msg.EAP,
 	}
-
-	authReject := &AuthenticationReject{
-		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
-		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-	}
-
-	if msg.EAPMessage != nil {
-		authReject.EAPMessage = msg.GetEAPMessage()
-	}
-
-	return authReject
 }

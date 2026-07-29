@@ -6,13 +6,14 @@ package mme
 import (
 	"testing"
 
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
 // plainPDU builds a minimal plain EMM PDU (TS 24.301: octet0 = SHT plain | PD
 // EMM, octet1 = message type); two octets suffice for the decoder's type peek.
 func plainPDU(mt eps.MessageType) []byte {
-	return []byte{eps.PDEMM, byte(mt)}
+	return []byte{uint8(eps.PDEMM), byte(mt)}
 }
 
 // TestDecodeNASMessage_PurityOnPlainWhitelist asserts the decoder does not
@@ -59,8 +60,8 @@ type securityStateSnapshot struct {
 	Kasme   string
 	KnasEnc [16]byte
 	KnasInt [16]byte
-	EEA     byte
-	EIA     byte
+	EEA     nas.CipheringAlgorithm
+	EIA     nas.IntegrityAlgorithm
 	Secured bool
 	NH      [32]byte
 	NCC     uint8

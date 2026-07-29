@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
@@ -19,16 +20,10 @@ import (
 // (TS 24.301). A UE already ECM-CONNECTED keeps its bearers; a UE returning from
 // ECM-IDLE re-establishes them when it sets the active flag, else is released back
 // to ECM-IDLE after acknowledging the accept.
-func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
-	req, err := eps.ParseTrackingAreaUpdateRequest(plain)
-	if err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("failed to decode Tracking Area Update Request", zap.Error(err))
-		return nasreply.Handled()
-	}
-
+func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext, req *eps.TrackingAreaUpdateRequest, plain []byte) nasreply.Disposition {
 	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update Request",
 		zap.String("imsi", ue.IMSI()),
-		zap.String("update-type", epsUpdateTypeName(req.EPSUpdateType)),
+		zap.String("update-type", epsUpdateTypeName(uint8(req.EPSUpdateType))),
 		zap.Bool("active-flag", req.ActiveFlag))
 
 	// TS 24.301 §5.5.3.2.7 case d: an identical retransmission gets the stored accept.
@@ -47,7 +42,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	} else if !served {
 		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update rejected [Tracking area not allowed]", zap.String("imsi", ue.IMSI()))
-		rejectTrackingAreaUpdate(ctx, m, ue, mme.EmmCauseTrackingAreaNotAllowed)
+		rejectTrackingAreaUpdate(ctx, m, ue, eps.EMMCauseTrackingAreaNotAllowed)
 
 		return nasreply.Handled()
 	}
@@ -60,7 +55,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	}
 
 	accept, err := trackingAreaUpdateAccept(ctx, m, ue, tauAcceptOptions{
-		combined:            isCombinedUpdate(req.EPSUpdateType),
+		combined:            isCombinedUpdate(uint8(req.EPSUpdateType)),
 		includeBearerStatus: req.EPSBearerContextStatus != nil,
 	})
 	if err != nil {
@@ -72,7 +67,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	// until TRACKING AREA UPDATE COMPLETE commits the new GUTI (TS 24.301).
 	naspdu, err := ue.ProtectDownlinkMessage(accept)
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to protect Tracking Area Update Accept", zap.Error(err))
+		mme.ReportProtectFailure(ctx, ue.Conn(), "Tracking Area Update Accept", err)
 		return nasreply.Handled()
 	}
 
@@ -120,7 +115,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 
 // rejectTrackingAreaUpdate sends a TAU REJECT and releases the UE's S1 context
 // (TS 24.301 §5.5.3.2.5).
-func rejectTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause uint8) {
+func rejectTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause eps.EMMCause) {
 	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
 	ue.Conn().StopNASGuard()
 	ue.Conn().SendDownlinkMessage(ctx, &eps.TrackingAreaUpdateReject{Cause: cause})
@@ -211,15 +206,15 @@ func trackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	accept := &eps.TrackingAreaUpdateAccept{
 		EPSUpdateResult: eps.EPSUpdateResultTA,
 		GUTI:            &guti,
-		TAIList:         taiList,
+		TAIList:         &taiList,
 		// Re-advertise IMS voice over PS session so the indication is not lost on a
 		// periodic TAU (TS 24.301), consistent with the Attach Accept.
-		EPSNetworkFeatureSupport: m.NetworkFeatureSupport(),
+		NetworkFeatureSupport: m.NetworkFeatureSupport(),
 	}
 
 	if opts.combined {
-		cause := mme.EmmCauseCSDomainNotAvailable
-		accept.EMMCause = &cause
+		cause := eps.EMMCauseCSDomainNotAvailable
+		accept.Cause = &cause
 	}
 
 	if opts.includeBearerStatus {
@@ -233,9 +228,9 @@ func trackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext
 // reconcileBearerContextStatus locally releases the EPS bearer contexts the MME
 // holds but the UE reports inactive in its TRACKING AREA UPDATE REQUEST bearer
 // context status (TS 24.301 §5.5.3.2.4). Bit n of the bitmap is EBI n.
-func reconcileBearerContextStatus(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueStatus uint16) {
+func reconcileBearerContextStatus(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueStatus nas.EPSBearerContextStatus) {
 	for _, p := range m.SnapshotPDNs(ue) {
-		if ueStatus&(uint16(1)<<p.Ebi) != 0 {
+		if p.Ebi < uint8(len(ueStatus.Active)) && ueStatus.Active[p.Ebi] {
 			continue
 		}
 
@@ -247,10 +242,13 @@ func reconcileBearerContextStatus(ctx context.Context, m *mme.MME, ue *mme.UeCon
 
 // bearerContextStatus is the EBI activity bitmap of the UE's active EPS
 // bearer contexts (bit n = EBI n active, TS 24.301 §9.9.2.1).
-func bearerContextStatus(m *mme.MME, ue *mme.UeContext) uint16 {
-	var status uint16
+func bearerContextStatus(m *mme.MME, ue *mme.UeContext) nas.EPSBearerContextStatus {
+	var status nas.EPSBearerContextStatus
+
 	for _, p := range m.SnapshotPDNs(ue) {
-		status |= uint16(1) << p.Ebi
+		if p.Ebi < uint8(len(status.Active)) {
+			status.Active[p.Ebi] = true
+		}
 	}
 
 	return status

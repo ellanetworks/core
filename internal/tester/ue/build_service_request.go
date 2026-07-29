@@ -4,14 +4,11 @@
 package ue
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
-	"github.com/free5gc/nas/security"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type ServiceRequestOpts struct {
@@ -24,65 +21,52 @@ type ServiceRequestOpts struct {
 }
 
 func BuildServiceRequest(opts *ServiceRequestOpts) ([]byte, error) {
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeServiceRequest)
-
-	serviceRequest := nasMessage.NewServiceRequest(0)
-	serviceRequest.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	serviceRequest.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	serviceRequest.SetMessageType(nas.MsgTypeServiceRequest)
-	serviceRequest.SetServiceTypeValue(opts.ServiceType)
-	serviceRequest.SetNasKeySetIdentifiler(uint8(opts.UESecurity.NgKsi.Ksi))
-	serviceRequest.SetAMFSetID(opts.AMFSetID)
-	serviceRequest.SetAMFPointer(opts.AMFPointer)
-	serviceRequest.SetTypeOfIdentity(4) // 5G-S-TMSI
-	serviceRequest.SetTMSI5G(opts.TMSI5G)
-	serviceRequest.TMSI5GS.SetLen(7)
-
 	pduFlag := uint16(0)
 	for i, pduSession := range opts.PDUSessionStatus {
-		pduFlag = pduFlag + (boolToUint16(pduSession) << (i))
+		pduFlag += boolToUint16(pduSession) << i
 	}
 
-	serviceRequest.PDUSessionStatus = nasType.NewPDUSessionStatus(nasMessage.ServiceRequestPDUSessionStatusType)
-	serviceRequest.PDUSessionStatus.SetLen(2)
-	serviceRequest.PDUSessionStatus.Buffer = make([]byte, 2)
-	binary.LittleEndian.PutUint16(serviceRequest.PDUSessionStatus.Buffer, pduFlag)
+	statusBuf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(statusBuf, pduFlag)
 
-	if opts.ServiceType == nasMessage.ServiceTypeData {
-		serviceRequest.UplinkDataStatus = nasType.NewUplinkDataStatus(nasMessage.ServiceRequestUplinkDataStatusType)
-		serviceRequest.UplinkDataStatus.SetLen(2)
-		serviceRequest.UplinkDataStatus.Buffer = serviceRequest.PDUSessionStatus.Buffer
-	}
+	stmsi := fgs.STMSIIdentity(fgs.STMSI{AMFSetID: opts.AMFSetID, AMFPointer: opts.AMFPointer, TMSI: opts.TMSI5G})
 
-	m.ServiceRequest = serviceRequest
-
-	data := new(bytes.Buffer)
-
-	err := m.GmmMessageEncode(data)
+	status, err := fgs.ParsePSIBitmap(statusBuf)
 	if err != nil {
-		return nil, fmt.Errorf("could not encode GMM message: %v", err)
+		return nil, fmt.Errorf("encode PDU session status: %w", err)
 	}
 
-	nasPdu := data.Bytes()
-	if err = security.NASEncrypt(opts.UESecurity.CipheringAlg, opts.UESecurity.KnasEnc, opts.UESecurity.ULCount.Get(), security.Bearer3GPP,
-		security.DirectionUplink, nasPdu); err != nil {
-		return nasPdu, fmt.Errorf("error encrypting NAS message: %w", err)
+	m := &fgs.ServiceRequest{
+		ServiceType:      fgs.ServiceType(opts.ServiceType),
+		NgKSI:            nas.KeySetIdentifier{Value: uint8(opts.UESecurity.NgKsi.Ksi)},
+		MobileIdentity:   stmsi,
+		PDUSessionStatus: &status,
 	}
 
-	serviceRequest.NASMessageContainer = nasType.NewNASMessageContainer(nasMessage.ServiceRequestNASMessageContainerType)
-	serviceRequest.NASMessageContainer.SetLen(uint16(len(nasPdu)))
-	serviceRequest.NASMessageContainer.Buffer = nasPdu
+	if fgs.ServiceType(opts.ServiceType) == fgs.ServiceTypeData {
+		m.UplinkDataStatus = &status
+	}
 
-	data = new(bytes.Buffer)
-
-	err = m.GmmMessageEncode(data)
+	// The SERVICE REQUEST replays its own IEs inside a ciphered NAS message
+	// container so the AMF can recover them before validating the short MAC
+	// (TS 24.501 §5.6.1.2, §4.4.6).
+	innerBytes, err := m.MarshalBinary()
 	if err != nil {
-		return nil, fmt.Errorf("could not encode GMM message: %v", err)
+		return nil, fmt.Errorf("encode inner SERVICE REQUEST: %w", err)
 	}
 
-	nasPdu = data.Bytes()
+	sc, err := securityContext(opts.UESecurity.IntegrityAlg, opts.UESecurity.CipheringAlg,
+		opts.UESecurity.KnasInt, opts.UESecurity.KnasEnc)
+	if err != nil {
+		return nil, err
+	}
 
-	return nasPdu, nil
+	container, err := sc.Cipher(innerBytes, opts.UESecurity.ULCount, nas.Bearer3GPP, nas.DirectionUplink)
+	if err != nil {
+		return nil, fmt.Errorf("error encrypting NAS message: %w", err)
+	}
+
+	m.NASMessageContainer = container
+
+	return m.MarshalBinary()
 }

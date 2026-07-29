@@ -11,7 +11,7 @@ import (
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
-	"github.com/free5gc/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/spf13/pflag"
 )
 
@@ -123,16 +123,17 @@ func runFramedRouteReconcile(ctx context.Context, env scenarios.Env, p *framedRe
 		}
 	}
 
-	releaseCmd, err := newUE.WaitForNASGSMMessage(nas.MsgTypePDUSessionReleaseCommand, 15*time.Second)
+	releaseCmd, err := newUE.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionReleaseCommand), 15*time.Second)
 	if err != nil {
 		return fmt.Errorf("UE did not receive PDU Session Release Command after framed-route change: %w", err)
 	}
 
-	if releaseCmd.PDUSessionReleaseCommand == nil {
-		return fmt.Errorf("PDUSessionReleaseCommand is nil")
+	relCmd, err := fgs.ParsePDUSessionReleaseCommand(releaseCmd)
+	if err != nil {
+		return fmt.Errorf("could not parse PDU Session Release Command: %v", err)
 	}
 
-	if cause := releaseCmd.PDUSessionReleaseCommand.GetCauseValue(); cause != 39 {
+	if cause := relCmd.Cause; cause != 39 {
 		return fmt.Errorf("expected cause #39 (reactivation requested) after framed-route change, got %d", cause)
 	}
 

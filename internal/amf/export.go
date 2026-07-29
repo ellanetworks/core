@@ -334,7 +334,7 @@ func (amf *AMF) collectUeExport(guami *models.Guami, ue *UeContext) (UeContextEx
 		// ue, not conn.Parent(): the back-pointer is cleared under amf.mu, which is
 		// not held here, so a detaching connection can already read back nil.
 		ongoing = ue.Procedures().ActiveTypes()
-		regType = conn.RegistrationType5GS
+		regType = uint8(conn.RegistrationType5GS)
 		identityType = conn.IdentityTypeUsedForRegistration
 		retransmit = conn.RetransmissionOfInitialNASMsg
 		resyncTried = conn.resyncTried

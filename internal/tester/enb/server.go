@@ -11,7 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/free5gc/aper"
-	"github.com/free5gc/nas/nasType"
 	"github.com/ishidawataru/sctp"
 	"go.uber.org/zap"
 )
@@ -135,7 +134,7 @@ func Start(
 	return ngeNB, nil
 }
 
-func (n *NgeNB) SendInitialUEMessage(nasPDU []byte, ranUENGAPID int64, guti5G *nasType.GUTI5G, cause aper.Enumerated) error {
+func (n *NgeNB) SendInitialUEMessage(nasPDU []byte, ranUENGAPID int64, guti5G []byte, cause aper.Enumerated) error {
 	opts := &InitialUEMessageOpts{
 		Mcc:                   n.MCC,
 		Mnc:                   n.MNC,

@@ -4,8 +4,8 @@
 package testutil
 
 import (
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type IntegrityAlgorithms struct {
@@ -27,32 +27,46 @@ type UeSecurityCapability struct {
 	Ciphering CipheringAlgorithms
 }
 
-func GetUESecurityCapability(secCap *UeSecurityCapability) *nasType.UESecurityCapability {
-	UESecurityCapability := &nasType.UESecurityCapability{
-		Iei:    nasMessage.RegistrationRequestUESecurityCapabilityType,
-		Len:    2,
-		Buffer: []uint8{0x00, 0x00},
+// GetUESecurityCapability builds the 5G UE security capability information
+// element: the 5G-EA octet then the 5G-IA octet, each with algorithm n in bit
+// (8-n) (TS 24.501 §9.11.3.54).
+func GetUESecurityCapability(secCap *UeSecurityCapability) fgs.UESecurityCapability {
+	var cipher, integrity []uint8
+
+	if secCap.Ciphering.Nea0 {
+		cipher = append(cipher, 0)
 	}
 
-	// Ciphering algorithms
-	UESecurityCapability.SetEA0_5G(boolToUint8(secCap.Ciphering.Nea0))
-	UESecurityCapability.SetEA1_128_5G(boolToUint8(secCap.Ciphering.Nea1))
-	UESecurityCapability.SetEA2_128_5G(boolToUint8(secCap.Ciphering.Nea2))
-	UESecurityCapability.SetEA3_128_5G(boolToUint8(secCap.Ciphering.Nea3))
+	if secCap.Ciphering.Nea1 {
+		cipher = append(cipher, 1)
+	}
 
-	// Integrity algorithms
-	UESecurityCapability.SetIA0_5G(boolToUint8(secCap.Integrity.Nia0))
-	UESecurityCapability.SetIA1_128_5G(boolToUint8(secCap.Integrity.Nia1))
-	UESecurityCapability.SetIA2_128_5G(boolToUint8(secCap.Integrity.Nia2))
-	UESecurityCapability.SetIA3_128_5G(boolToUint8(secCap.Integrity.Nia3))
+	if secCap.Ciphering.Nea2 {
+		cipher = append(cipher, 2)
+	}
 
-	return UESecurityCapability
-}
+	if secCap.Ciphering.Nea3 {
+		cipher = append(cipher, 3)
+	}
 
-func boolToUint8(boolean bool) uint8 {
-	if boolean {
-		return 1
-	} else {
-		return 0
+	if secCap.Integrity.Nia0 {
+		integrity = append(integrity, 0)
+	}
+
+	if secCap.Integrity.Nia1 {
+		integrity = append(integrity, 1)
+	}
+
+	if secCap.Integrity.Nia2 {
+		integrity = append(integrity, 2)
+	}
+
+	if secCap.Integrity.Nia3 {
+		integrity = append(integrity, 3)
+	}
+
+	return fgs.UESecurityCapability{
+		EA: nas.Algorithms(cipher...),
+		IA: nas.Algorithms(integrity...),
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
-	"reflect"
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
@@ -17,9 +16,8 @@ import (
 	"github.com/ellanetworks/core/internal/tester/testutil/validate"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 )
@@ -49,20 +47,17 @@ func runRegistrationIncorrectGUTI(_ context.Context, env scenarios.Env, _ any) e
 
 	defer gNodeB.Close()
 
-	guti := &nasType.GUTI5G{}
-	guti.SetAMFRegionID(205)
-	guti.SetAMFSetID(1018)
-	guti.SetAMFPointer(1)
-	guti.SetTMSI5G([4]uint8{0x21, 0x43, 0x65, 0x84})
-	guti.SetLen(11)
-	guti.SetTypeOfIdentity(nasMessage.MobileIdentity5GSType5gGuti)
-	guti.SetIei(nasMessage.RegistrationAcceptGUTI5GType)
+	// A 5G-GUTI the core never issued (TS 24.501 §9.11.3.4).
+	guti := fgs.GUTIIdentity(fgs.GUTI{
+		PLMN: nas.PLMN{MCC: "000", MNC: "00"}, AMFRegionID: 205, AMFSetID: 1018, AMFPointer: 1,
+		TMSI: [4]byte{0x21, 0x43, 0x65, 0x84},
+	})
 
 	newUE, err := ue.NewUE(&ue.UEOpts{
 		GnodeB:         gNodeB,
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
-		PDUSessionType: env.PDUSessionType(),
-		Guti:           guti,
+		PDUSessionType: fgs.PDUSessionType(env.PDUSessionType()),
+		Guti:           &guti,
 		Msin:           scenarios.DefaultIMSI[5:],
 		K:              scenarios.DefaultKey,
 		OpC:            scenarios.DefaultOPC,
@@ -147,12 +142,12 @@ type initialRegistrationWithIdentityRequestOpts struct {
 }
 
 func runInitialRegistrationWithIdentityRequest(opts *initialRegistrationWithIdentityRequestOpts) error {
-	err := opts.UE.SendRegistrationRequest(opts.RANUENGAPID, nasMessage.RegistrationType5GSInitialRegistration)
+	err := opts.UE.SendRegistrationRequest(opts.RANUENGAPID, uint8(fgs.RegistrationTypeInitial))
 	if err != nil {
 		return fmt.Errorf("could not send Registration Request NAS PDU: %v", err)
 	}
 
-	nasMsg, err := opts.UE.WaitForNASGMMMessage(nas.MsgTypeIdentityRequest, 1*time.Second)
+	nasMsg, err := opts.UE.WaitForNASGMMMessage(uint8(fgs.MsgIdentityRequest), 1*time.Second)
 	if err != nil {
 		return fmt.Errorf("did not receive Identity Request: %v", err)
 	}
@@ -162,7 +157,7 @@ func runInitialRegistrationWithIdentityRequest(opts *initialRegistrationWithIden
 		return fmt.Errorf("NAS PDU validation failed: %v", err)
 	}
 
-	nasMsg, err = opts.UE.WaitForNASGMMMessage(nas.MsgTypeRegistrationAccept, 1*time.Second)
+	nasMsg, err = opts.UE.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), 1*time.Second)
 	if err != nil {
 		return fmt.Errorf("did not receive Registration Accept: %v", err)
 	}
@@ -184,7 +179,7 @@ func runInitialRegistrationWithIdentityRequest(opts *initialRegistrationWithIden
 		return fmt.Errorf("could not build PDU Session Establishment Request NAS PDU: %v", err)
 	}
 
-	msg, err := opts.UE.WaitForNASGSMMessage(nas.MsgTypePDUSessionEstablishmentAccept, 500*time.Millisecond)
+	msg, err := opts.UE.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionEstablishmentAccept), 500*time.Millisecond)
 	if err != nil {
 		return fmt.Errorf("did not receive PDU Session Establishment Accept: %v", err)
 	}
@@ -195,8 +190,8 @@ func runInitialRegistrationWithIdentityRequest(opts *initialRegistrationWithIden
 	}
 
 	err = validate.PDUSessionEstablishmentAccept(msg, &validate.ExpectedPDUSessionEstablishmentAccept{
-		PDUSessionID:               opts.PDUSessionID,
-		PDUSessionType:             opts.ExpectedPDUSessionType,
+		PDUSessionID:               fgs.PDUSessionID(opts.PDUSessionID),
+		PDUSessionType:             fgs.PDUSessionType(opts.ExpectedPDUSessionType),
 		UeIPSubnet:                 network,
 		Dnn:                        opts.DNN,
 		Sst:                        opts.Sst,
@@ -213,38 +208,8 @@ func runInitialRegistrationWithIdentityRequest(opts *initialRegistrationWithIden
 	return nil
 }
 
-func validateIdentityRequest(nasMsg *nas.Message) error {
-	if nasMsg == nil {
-		return fmt.Errorf("NAS message is nil")
-	}
+func validateIdentityRequest(plain []byte) error {
+	_, err := testutil.ExpectNAS[*fgs.IdentityRequest](plain)
 
-	if reflect.ValueOf(nasMsg.IdentityRequest.ExtendedProtocolDiscriminator).IsZero() {
-		return fmt.Errorf("extended protocol is missing")
-	}
-
-	if nasMsg.IdentityRequest.GetExtendedProtocolDiscriminator() != 126 {
-		return fmt.Errorf("extended protocol not the expected value")
-	}
-
-	if nasMsg.IdentityRequest.GetSpareHalfOctet() != 0 {
-		return fmt.Errorf("spare half octet not the expected value")
-	}
-
-	if nasMsg.IdentityRequest.GetSecurityHeaderType() != 0 {
-		return fmt.Errorf("security header type not the expected value")
-	}
-
-	if reflect.ValueOf(nasMsg.IdentityRequest.IdentityRequestMessageIdentity).IsZero() {
-		return fmt.Errorf("message type is missing")
-	}
-
-	if nasMsg.IdentityRequestMessageIdentity.GetMessageType() != 91 {
-		return fmt.Errorf("message type not the expected value")
-	}
-
-	if reflect.ValueOf(nasMsg.IdentityRequest.SpareHalfOctetAndIdentityType).IsZero() {
-		return fmt.Errorf("spare half octet and identity type is missing")
-	}
-
-	return nil
+	return err
 }

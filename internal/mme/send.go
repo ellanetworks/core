@@ -5,9 +5,11 @@ package mme
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -16,7 +18,7 @@ import (
 // ProtectDownlinkMessage serializes a NAS message and integrity-protects and
 // ciphers it with the UE's security context.
 func (ue *UeContext) ProtectDownlinkMessage(msg nasMessage) ([]byte, error) {
-	plain, err := msg.Marshal()
+	plain, err := msg.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +31,7 @@ func (c *UeConn) SendDownlinkMessage(ctx context.Context, msg nasMessage) {
 		return
 	}
 
-	b, err := msg.Marshal()
+	b, err := msg.MarshalBinary()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to marshal NAS message", zap.Error(err))
 		return
@@ -45,7 +47,7 @@ func (c *UeConn) SendDownlinkProtected(ctx context.Context, msg nasMessage) {
 		return
 	}
 
-	plain, err := msg.Marshal()
+	plain, err := msg.MarshalBinary()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to marshal NAS message", zap.Error(err))
 		return
@@ -53,7 +55,7 @@ func (c *UeConn) SendDownlinkProtected(ctx context.Context, msg nasMessage) {
 
 	wire, err := c.ue.ProtectDownlink(plain, eps.SHTIntegrityProtectedCiphered)
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to protect NAS message", zap.Error(err))
+		c.reportProtectFailure(ctx, err)
 		return
 	}
 
@@ -102,7 +104,7 @@ func (c *UeConn) SendDownlinkNASTransport(ctx context.Context, nas []byte) {
 
 // nasMessage is any EPS NAS message that can serialize itself.
 type nasMessage interface {
-	Marshal() ([]byte, error)
+	MarshalBinary() ([]byte, error)
 }
 
 // downlinkNASTransportBytes builds a Downlink NAS Transport PDU carrying nas for
@@ -215,4 +217,31 @@ func (c *UeConn) SendPathSwitchAcknowledge(ctx context.Context, ack *s1ap.PathSw
 	c.SendS1AP(ctx, S1APProcedurePathSwitchRequestAck, b)
 
 	return nil
+}
+
+// reportProtectFailure logs a downlink protection failure and, when the NAS
+// COUNT is exhausted, releases the connection.
+func (c *UeConn) reportProtectFailure(ctx context.Context, err error) {
+	ReportProtectFailure(ctx, c, "NAS message", err)
+}
+
+// ReportProtectFailure logs a failure to protect a downlink NAS message and, when
+// the downlink NAS COUNT is exhausted, releases the connection.
+//
+// Nothing further can be sent under that security context: reusing a COUNT would
+// repeat the keystream and make MAC forgery trivial (TS 33.401 §6.5). Releasing
+// makes the UE re-attach, which establishes a new context.
+func ReportProtectFailure(ctx context.Context, c *UeConn, what string, err error) {
+	log := logger.From(ctx, logger.MmeLog)
+
+	if !errors.Is(err, nas.ErrCountExhausted) {
+		log.Error("failed to protect "+what, zap.Error(err))
+		return
+	}
+
+	log.Error("downlink NAS COUNT exhausted, releasing the connection", zap.String("message", what), zap.Error(err))
+
+	if c != nil && c.m != nil {
+		SendUEContextRelease(ctx, c.m, c.conn, c.MMEUES1APID, c.ENBUES1APID, true, CauseNASNormalRelease)
+	}
 }

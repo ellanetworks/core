@@ -4,70 +4,60 @@
 package nas
 
 import (
+	"time"
+
 	"github.com/ellanetworks/core/internal/decoder/lpp"
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type DLNASTransport struct {
-	ExtendedProtocolDiscriminator         uint8                   `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType   uint8                   `json:"spare_half_octet_and_security_header_type"`
-	SpareHalfOctetAndPayloadContainerType uint8                   `json:"spare_half_octet_and_payload_container_type"`
-	PayloadContainer                      PayloadContainer        `json:"payload_container"`
-	PduSessionID2Value                    *uint8                  `json:"pdu_session_id_2_value,omitempty"`
-	Cause5GMM                             *utils.EnumField[uint8] `json:"cause_5gmm,omitempty"`
-	BackoffTimerValue                     *uint8                  `json:"backoff_timer_value,omitempty"`
+	SpareHalfOctetAndPayloadContainerType uint8            `json:"spare_half_octet_and_payload_container_type"`
+	PayloadContainer                      PayloadContainer `json:"payload_container"`
+	PduSessionID2Value                    *uint8           `json:"pdu_session_id_2_value,omitempty"`
+	Cause5GMM                             *utils.EnumField `json:"cause_5gmm,omitempty"`
+	BackoffTimerSeconds                   *uint32          `json:"backoff_timer_seconds,omitempty"`
 
 	AdditionalInformation *UnsupportedIE `json:"additional_information,omitempty"`
 }
 
-func buildDLNASTransport(msg *nasMessage.DLNASTransport) *DLNASTransport {
-	if msg == nil {
-		return nil
+func buildDLNASTransport(msg *fgs.DLNASTransport) *DLNASTransport {
+	out := &DLNASTransport{
+		SpareHalfOctetAndPayloadContainerType: uint8(msg.PayloadContainerType),
+		PayloadContainer:                      buildDLPayloadContainer(msg.PayloadContainerType, msg.PayloadContainer),
 	}
 
-	dlNasTransport := &DLNASTransport{
-		ExtendedProtocolDiscriminator:         msg.ExtendedProtocolDiscriminator.Octet,
-		SpareHalfOctetAndSecurityHeaderType:   msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		SpareHalfOctetAndPayloadContainerType: msg.SpareHalfOctetAndPayloadContainerType.Octet,
+	if msg.PDUSessionID != nil {
+		out.PduSessionID2Value = new(uint8(*msg.PDUSessionID))
 	}
 
-	dlNasTransport.PayloadContainer = buildDLNASPayloadContainer(msg)
-
-	if msg.PduSessionID2Value != nil {
-		value := msg.GetPduSessionID2Value()
-		dlNasTransport.PduSessionID2Value = &value
+	if msg.AdditionalInfo != nil {
+		out.AdditionalInformation = makeUnsupportedIE()
 	}
 
-	if msg.AdditionalInformation != nil {
-		dlNasTransport.AdditionalInformation = makeUnsupportedIE()
+	if msg.BackoffTimer != nil {
+		if d, ok := msg.BackoffTimer.Duration(); ok {
+			secs := uint32(d / time.Second)
+			out.BackoffTimerSeconds = &secs
+		}
 	}
 
-	if msg.BackoffTimerValue != nil {
-		backoffTimerValue := msg.GetUnitTimerValue()
-		dlNasTransport.BackoffTimerValue = &backoffTimerValue
+	if msg.Cause != nil {
+		cause := cause5GMMToEnum(*msg.Cause)
+		out.Cause5GMM = &cause
 	}
 
-	if msg.Cause5GMM != nil {
-		cause := cause5GMMToEnum(msg.GetCauseValue())
-		dlNasTransport.Cause5GMM = &cause
-	}
-
-	return dlNasTransport
+	return out
 }
 
-func buildDLNASPayloadContainer(msg *nasMessage.DLNASTransport) PayloadContainer {
-	containerType := msg.GetPayloadContainerType()
-
+func buildDLPayloadContainer(containerType fgs.PayloadContainerType, contents []byte) PayloadContainer {
 	payloadContainer := PayloadContainer{
-		Raw: msg.GetPayloadContainerContents(),
+		Raw: contents,
 	}
 
 	switch containerType {
-	case nasMessage.PayloadContainerTypeN1SMInfo:
-		rawBytes := msg.GetPayloadContainerContents()
-
-		gsmMessage, err := decodeGSMMessage(rawBytes)
+	case fgs.PayloadContainerTypeN1SMInfo:
+		gsmMessage, err := decodeGSMMessage(contents)
 		if err != nil {
 			payloadContainer.Error = "Failed to decode N1 SM message: " + err.Error()
 			return payloadContainer
@@ -75,9 +65,8 @@ func buildDLNASPayloadContainer(msg *nasMessage.DLNASTransport) PayloadContainer
 
 		payloadContainer.GsmMessage = gsmMessage
 
-	case nasMessage.PayloadContainerTypeLPP:
-		rawBytes := msg.GetPayloadContainerContents()
-		payloadContainer.LppMessage = lpp.Decode(rawBytes)
+	case fgs.PayloadContainerTypeLPP:
+		payloadContainer.LppMessage = lpp.Decode(contents)
 
 	default:
 		payloadContainer.Error = "Payload container type not yet implemented"

@@ -16,8 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/testutil/validate"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 )
@@ -154,7 +153,7 @@ func runRegistrationSuccessMultipleSlices(_ context.Context, env scenarios.Env, 
 		newUE, err := ue.NewUE(&ue.UEOpts{
 			GnodeB:         gNodeB,
 			PDUSessionID:   scenarios.DefaultPDUSessionID,
-			PDUSessionType: env.PDUSessionType(),
+			PDUSessionType: fgs.PDUSessionType(env.PDUSessionType()),
 			Msin:           tc.sub.IMSI[5:],
 			K:              tc.sub.Key,
 			OpC:            tc.sub.OPc,
@@ -187,22 +186,22 @@ func runRegistrationSuccessMultipleSlices(_ context.Context, env scenarios.Env, 
 
 		gNodeB.AddUE(ranUENGAPID, newUE)
 
-		err = newUE.SendRegistrationRequest(ranUENGAPID, nasMessage.RegistrationType5GSInitialRegistration)
+		err = newUE.SendRegistrationRequest(ranUENGAPID, uint8(fgs.RegistrationTypeInitial))
 		if err != nil {
 			return fmt.Errorf("could not send Registration Request for UE %d: %v", i, err)
 		}
 
-		_, err = newUE.WaitForNASGMMMessage(nas.MsgTypeAuthenticationRequest, 5*time.Second)
+		_, err = newUE.WaitForNASGMMMessage(uint8(fgs.MsgAuthenticationRequest), 5*time.Second)
 		if err != nil {
 			return fmt.Errorf("did not receive Authentication Request for UE %d: %v", i, err)
 		}
 
-		_, err = newUE.WaitForNASGMMMessage(nas.MsgTypeSecurityModeCommand, 5*time.Second)
+		_, err = newUE.WaitForNASGMMMessage(uint8(fgs.MsgSecurityModeCommand), 5*time.Second)
 		if err != nil {
 			return fmt.Errorf("did not receive Security Mode Command for UE %d: %v", i, err)
 		}
 
-		nasMsg, err := newUE.WaitForNASGMMMessage(nas.MsgTypeRegistrationAccept, 5*time.Second)
+		nasMsg, err := newUE.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), 5*time.Second)
 		if err != nil {
 			return fmt.Errorf("did not receive Registration Accept for UE %d: %v", i, err)
 		}
@@ -222,14 +221,14 @@ func runRegistrationSuccessMultipleSlices(_ context.Context, env scenarios.Env, 
 			return fmt.Errorf("registration accept validation failed for UE %d: %v", i, err)
 		}
 
-		pduMsg, err := newUE.WaitForNASGSMMessage(nas.MsgTypePDUSessionEstablishmentAccept, 5*time.Second)
+		pduMsg, err := newUE.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionEstablishmentAccept), 5*time.Second)
 		if err != nil {
 			return fmt.Errorf("did not receive PDU Session Establishment Accept for UE %d: %v", i, err)
 		}
 
 		err = validate.PDUSessionEstablishmentAccept(pduMsg, &validate.ExpectedPDUSessionEstablishmentAccept{
 			PDUSessionID:               scenarios.DefaultPDUSessionID,
-			PDUSessionType:             env.PDUSessionType(),
+			PDUSessionType:             fgs.PDUSessionType(env.PDUSessionType()),
 			UeIPSubnet:                 network,
 			Dnn:                        scenarios.DefaultDNN,
 			Sst:                        tc.expectedSST,

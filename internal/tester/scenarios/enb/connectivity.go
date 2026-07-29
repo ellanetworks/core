@@ -19,7 +19,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/testutil/validate"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
@@ -175,7 +175,7 @@ func runEnbConnectivityTest(
 	newUE, err := ue.NewUE(&ue.UEOpts{
 		GnodeB:         ngeNB.GnodeB,
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
-		PDUSessionType: nasMessage.PDUSessionTypeIPv4,
+		PDUSessionType: fgs.PDUSessionTypeIPv4,
 		Msin:           subscriber.IMSI[5:],
 		K:              subscriber.Key,
 		OpC:            subscriber.OPc,

@@ -12,8 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
@@ -151,24 +150,25 @@ func runSliceMismatchRelease(ctx context.Context, env scenarios.Env, p *sliceMis
 
 	logger.Logger.Info("gNB received PDUSessionResourceReleaseCommand")
 
-	releaseCmd, err := newUE.WaitForNASGSMMessage(nas.MsgTypePDUSessionReleaseCommand, 15*time.Second)
+	releaseCmd, err := newUE.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionReleaseCommand), 15*time.Second)
 	if err != nil {
 		return fmt.Errorf("UE did not receive PDU Session Release Command: %v", err)
 	}
 
 	logger.Logger.Info("UE received PDU Session Release Command")
 
-	if releaseCmd.PDUSessionReleaseCommand == nil {
-		return fmt.Errorf("PDU Session Release Command message is nil")
+	relCmd, err := fgs.ParsePDUSessionReleaseCommand(releaseCmd)
+	if err != nil {
+		return fmt.Errorf("could not parse PDU Session Release Command: %v", err)
 	}
 
-	cause := releaseCmd.PDUSessionReleaseCommand.GetCauseValue()
-	if cause != nasMessage.Cause5GSMReactivationRequested {
+	cause := relCmd.Cause
+	if cause != 39 { // 5GSM cause #39: reactivation requested (TS 24.501 §9.11.4.2)
 		return fmt.Errorf("expected 5GSM cause #39 (reactivation requested), got %d", cause)
 	}
 
 	logger.Logger.Info("PDU Session Release Command validated: cause = reactivation requested",
-		zap.Uint8("cause", cause),
+		zap.Stringer("cause", cause),
 	)
 
 	_ = cl.UpdateSubscriber(ctx, sub.IMSI, &client.UpdateSubscriberOptions{

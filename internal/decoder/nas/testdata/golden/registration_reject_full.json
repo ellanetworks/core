@@ -1,0 +1,45 @@
+{
+  "security_header": {
+    "protocol_discriminator": {
+      "type": "enum",
+      "value": 126,
+      "label": "5GSMobilityManagementMessage",
+      "unknown": false
+    },
+    "security_header_type": {
+      "type": "enum",
+      "value": 0,
+      "label": "Plain NAS",
+      "unknown": false
+    },
+    "sequence_number": 0
+  },
+  "gmm_message": {
+    "gmm_header": {
+      "message_type": {
+        "type": "enum",
+        "value": 68,
+        "label": "RegistrationReject",
+        "unknown": false
+      }
+    },
+    "registration_reject": {
+      "cause_5gmm": {
+        "type": "enum",
+        "value": 11,
+        "label": "PLMN not allowed",
+        "unknown": false
+      },
+      "t3346_value": {
+        "status": "Unsupported"
+      },
+      "t3502_value": {
+        "status": "Unsupported"
+      },
+      "eap_message": {
+        "status": "Unsupported"
+      }
+    }
+  },
+  "encrypted": false
+}

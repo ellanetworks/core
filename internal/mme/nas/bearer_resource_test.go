@@ -19,7 +19,7 @@ func TestBearerResourceAllocationRejected(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
-	req, err := (&eps.BearerResourceAllocationRequest{ProcedureTransactionIdentity: 3}).Marshal()
+	req, err := (&eps.BearerResourceAllocationRequest{PTI: 3}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,12 +34,12 @@ func TestBearerResourceAllocationRejected(t *testing.T) {
 		t.Fatalf("expected a Bearer Resource Allocation Reject: %v", err)
 	}
 
-	if reject.ProcedureTransactionIdentity != 3 {
-		t.Fatalf("PTI = %d, want 3 (echoed from the request)", reject.ProcedureTransactionIdentity)
+	if reject.PTI != 3 {
+		t.Fatalf("PTI = %d, want 3 (echoed from the request)", reject.PTI)
 	}
 
-	if reject.ESMCause != esmCauseRequestRejectedUnspecified {
-		t.Fatalf("ESM cause = %d, want %d (request rejected, unspecified)", reject.ESMCause, esmCauseRequestRejectedUnspecified)
+	if reject.Cause != eps.ESMCauseRequestRejectedUnspecified {
+		t.Fatalf("ESM cause = %d, want %d (request rejected, unspecified)", reject.Cause, eps.ESMCauseRequestRejectedUnspecified)
 	}
 }
 
@@ -51,7 +51,7 @@ func TestBearerResourceModificationRejected(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
-	req, err := (&eps.BearerResourceModificationRequest{ProcedureTransactionIdentity: 7}).Marshal()
+	req, err := (&eps.BearerResourceModificationRequest{PTI: 7}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,12 +66,12 @@ func TestBearerResourceModificationRejected(t *testing.T) {
 		t.Fatalf("expected a Bearer Resource Modification Reject: %v", err)
 	}
 
-	if reject.ProcedureTransactionIdentity != 7 {
-		t.Fatalf("PTI = %d, want 7 (echoed from the request)", reject.ProcedureTransactionIdentity)
+	if reject.PTI != 7 {
+		t.Fatalf("PTI = %d, want 7 (echoed from the request)", reject.PTI)
 	}
 
-	if reject.ESMCause != esmCauseRequestRejectedUnspecified {
-		t.Fatalf("ESM cause = %d, want %d (request rejected, unspecified)", reject.ESMCause, esmCauseRequestRejectedUnspecified)
+	if reject.Cause != eps.ESMCauseRequestRejectedUnspecified {
+		t.Fatalf("ESM cause = %d, want %d (request rejected, unspecified)", reject.Cause, eps.ESMCauseRequestRejectedUnspecified)
 	}
 }
 
@@ -81,7 +81,7 @@ func TestBearerResourceModificationInvalidPTI(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
-	req, err := (&eps.BearerResourceModificationRequest{ProcedureTransactionIdentity: 0}).Marshal()
+	req, err := (&eps.BearerResourceModificationRequest{PTI: 0}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestBearerResourceModificationInvalidPTI(t *testing.T) {
 		t.Fatalf("expected a Bearer Resource Modification Reject: %v", err)
 	}
 
-	if reject.ESMCause != esmCauseInvalidPTIValue {
-		t.Fatalf("ESM cause = %d, want %d (invalid PTI value)", reject.ESMCause, esmCauseInvalidPTIValue)
+	if reject.Cause != eps.ESMCauseInvalidPTIValue {
+		t.Fatalf("ESM cause = %d, want %d (invalid PTI value)", reject.Cause, eps.ESMCauseInvalidPTIValue)
 	}
 }

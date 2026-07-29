@@ -1,0 +1,38 @@
+version: "2"
+# The parent config plus the rules a published library needs: every exported
+# identifier documented, and every error handled.
+linters:
+  enable:
+    - asciicheck
+    - bodyclose
+    - dogsled
+    - errcheck
+    - godox
+    - gomodguard
+    - misspell
+    - nakedret
+    - noctx
+    - predeclared
+    - revive
+    - staticcheck
+    - unconvert
+    - unparam
+    - whitespace
+    - govet
+    - wsl_v5
+  settings:
+    revive:
+      rules:
+        - name: exported
+          arguments:
+            - disableStutteringCheck
+issues:
+  new-from-rev: ""
+  new: false
+severity:
+  default: error
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt

@@ -21,7 +21,7 @@ import (
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -101,11 +101,11 @@ type UeConn struct {
 	// (TS 24.501 §5.4.1.3.7 f)/NOTE 4).
 	resyncTried bool
 
-	RegistrationRequest *nasMessage.RegistrationRequest
+	RegistrationRequest *fgs.RegistrationRequest
 	// RegistrationRequestPlain is compared byte-for-byte for duplicate detection
 	// (TS 24.501 §5.5.1.2.8), immune to the decoder dropping IEs it does not model.
 	RegistrationRequestPlain        []byte
-	RegistrationType5GS             uint8
+	RegistrationType5GS             fgs.RegistrationType
 	IdentityTypeUsedForRegistration uint8
 	RetransmissionOfInitialNASMsg   bool
 
@@ -283,7 +283,7 @@ func (ueConn *UeConn) SetRegistrationType5GS(v uint8) {
 		defer ueConn.ue.mu.Unlock()
 	}
 
-	ueConn.RegistrationType5GS = v
+	ueConn.RegistrationType5GS = fgs.RegistrationType(v)
 }
 
 func (ueConn *UeConn) SetIdentityTypeUsedForRegistration(v uint8) {

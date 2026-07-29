@@ -1,0 +1,69 @@
+{
+  "security_header": {
+    "protocol_discriminator": {
+      "type": "enum",
+      "value": 126,
+      "label": "5GSMobilityManagementMessage",
+      "unknown": false
+    },
+    "security_header_type": {
+      "type": "enum",
+      "value": 0,
+      "label": "Plain NAS",
+      "unknown": false
+    },
+    "sequence_number": 0
+  },
+  "gmm_message": {
+    "gmm_header": {
+      "message_type": {
+        "type": "enum",
+        "value": 86,
+        "label": "AuthenticationRequest",
+        "unknown": false
+      }
+    },
+    "authentication_request": {
+      "spare_half_octet_and_ngksi": 0,
+      "abba": "AAA=",
+      "authentication_parameter_autn": [
+        205,
+        205,
+        205,
+        205,
+        205,
+        205,
+        205,
+        205,
+        205,
+        205,
+        205,
+        205,
+        205,
+        205,
+        205,
+        205
+      ],
+      "authentication_parameter_rand": [
+        171,
+        171,
+        171,
+        171,
+        171,
+        171,
+        171,
+        171,
+        171,
+        171,
+        171,
+        171,
+        171,
+        171,
+        171,
+        171
+      ],
+      "eap_message": "AgAABQE="
+    }
+  },
+  "encrypted": false
+}

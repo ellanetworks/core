@@ -19,15 +19,15 @@ type Guami struct {
 }
 
 type IEsCriticalityDiagnostics struct {
-	IECriticality utils.EnumField[uint64] `json:"ie_criticality"`
-	IEID          utils.EnumField[int64]  `json:"ie_id"`
-	TypeOfError   utils.EnumField[uint64] `json:"type_of_error"`
+	IECriticality utils.EnumField `json:"ie_criticality"`
+	IEID          utils.EnumField `json:"ie_id"`
+	TypeOfError   utils.EnumField `json:"type_of_error"`
 }
 
 type CriticalityDiagnostics struct {
-	ProcedureCode             *utils.EnumField[int64]     `json:"procedure_code,omitempty"`
-	TriggeringMessage         *utils.EnumField[uint64]    `json:"triggering_message,omitempty"`
-	ProcedureCriticality      *utils.EnumField[uint64]    `json:"procedure_criticality,omitempty"`
+	ProcedureCode             *utils.EnumField            `json:"procedure_code,omitempty"`
+	TriggeringMessage         *utils.EnumField            `json:"triggering_message,omitempty"`
+	ProcedureCriticality      *utils.EnumField            `json:"procedure_criticality,omitempty"`
 	IEsCriticalityDiagnostics []IEsCriticalityDiagnostics `json:"ie_criticality_diagnostics,omitempty"`
 }
 
@@ -151,7 +151,7 @@ func buildCriticalityDiagnosticsIE(cd *ngapType.CriticalityDiagnostics) Critical
 	return critDiag
 }
 
-func triggeringMessageToString(tm aper.Enumerated) utils.EnumField[uint64] {
+func triggeringMessageToString(tm aper.Enumerated) utils.EnumField {
 	switch tm {
 	case ngapType.TriggeringMessagePresentInitiatingMessage:
 		return utils.MakeEnum(uint64(tm), "InitiatingMessage", false)
@@ -182,7 +182,7 @@ func buildIEsCriticalityDiagnisticsList(ieList *ngapType.CriticalityDiagnosticsI
 	return ies
 }
 
-func typeOfErrorToString(toe aper.Enumerated) utils.EnumField[uint64] {
+func typeOfErrorToString(toe aper.Enumerated) utils.EnumField {
 	switch toe {
 	case ngapType.TypeOfErrorPresentNotUnderstood:
 		return utils.MakeEnum(uint64(toe), "NotUnderstood", false)

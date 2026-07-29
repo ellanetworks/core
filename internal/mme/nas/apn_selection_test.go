@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
@@ -19,7 +20,7 @@ func TestIngestAttachRequestStoresDRX(t *testing.T) {
 	ue := &mme.UeContext{}
 	drx := []byte{0x00, 0x08}
 
-	ingestAttachRequest(ue, &eps.AttachRequest{DRXParameter: drx})
+	ingestAttachRequest(ue, &eps.AttachRequest{Unrecognized: []nas.RawIE{{IEI: ieiDRXParameter, Format: nas.IETV3, Value: drx}}})
 
 	if !bytes.Equal(ue.DRXParameter, drx) {
 		t.Fatalf("DRXParameter = %x, want %x", ue.DRXParameter, drx)
@@ -35,14 +36,9 @@ func TestIngestAttachRequestStoresDRX(t *testing.T) {
 }
 
 func TestIngestAttachRequestExtractsAPN(t *testing.T) {
-	apnIE, err := eps.MarshalAPN("ims")
-	if err != nil {
-		t.Fatalf("MarshalAPN: %v", err)
-	}
-
 	esm, err := (&eps.PDNConnectivityRequest{
-		ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: apnIE,
-	}).Marshal()
+		PTI: 1, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: new(eps.APN("ims")),
+	}).MarshalBinary()
 	if err != nil {
 		t.Fatalf("marshal PDN Connectivity Request: %v", err)
 	}
@@ -55,7 +51,7 @@ func TestIngestAttachRequestExtractsAPN(t *testing.T) {
 	}
 
 	// No APN IE → empty (use the default policy).
-	esm2, err := (&eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: eps.PDNTypeIPv4}).Marshal()
+	esm2, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: eps.PDNTypeIPv4}).MarshalBinary()
 	if err != nil {
 		t.Fatalf("marshal PDN Connectivity Request (no APN): %v", err)
 	}

@@ -136,7 +136,7 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 	logger.GnbLogger.Info("default APN connectivity verified; opening second PDN connection",
 		zap.String("apn", multiPDNEnterpriseDNN))
 
-	pdn, err := e.OpenPDN(ue, res.MMEUES1APID, res.ENBUES1APID, multiPDNEnterpriseDNN, eps.PDNTypeIPv4, 15*time.Second)
+	pdn, err := e.OpenPDN(ue, res.MMEUES1APID, res.ENBUES1APID, multiPDNEnterpriseDNN, uint8(eps.PDNTypeIPv4), 15*time.Second)
 	if err != nil {
 		return fmt.Errorf("open second PDN connection: %w", err)
 	}
@@ -144,7 +144,7 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 	if err := assertPDN(pdn, expectedAttach{
 		UEIPv4Subnet:        netip.MustParsePrefix(multiPDNEnterprisePool),
 		APN:                 multiPDNEnterpriseDNN,
-		PDNType:             eps.PDNTypeIPv4,
+		PDNType:             eps.PDNType(uint8(eps.PDNTypeIPv4)),
 		QCI:                 7,
 		ARP:                 15,
 		SessAmbrUplinkBps:   30 * mbpsToBps,

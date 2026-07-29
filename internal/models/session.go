@@ -6,6 +6,8 @@ package models
 import (
 	"net"
 	"net/netip"
+
+	"github.com/ellanetworks/core/nas/eps"
 )
 
 // EstablishRequest asks the UPF to create a new session with the
@@ -89,7 +91,7 @@ type EPSBearer struct {
 	// Ref is the anchor session's unique handle. The MME stores it on the PDN
 	// connection and releases/deactivates that exact session by it.
 	Ref        string
-	PDNType    uint8
+	PDNType    eps.PDNType
 	IPv4       netip.Addr
 	IPv6Prefix netip.Addr
 	IPv6IID    [8]byte
@@ -100,7 +102,7 @@ type EPSBearer struct {
 	SGWN3IPv6 netip.Addr
 	// ESMCause, when non-zero, is the reason the assigned PDN type is narrower
 	// than requested (#50 IPv4-only / #51 IPv6-only allowed, TS 24.301 §6.5.1.3).
-	ESMCause uint8
+	ESMCause eps.ESMCause
 }
 
 // FAR describes a Forwarding Action Rule for the UPF session API.

@@ -3,80 +3,155 @@
 
 package eps
 
-import "github.com/ellanetworks/core/nas/common"
-
-// MsgEMMInformation is the EMM INFORMATION message type (TS 24.301).
-const MsgEMMInformation MessageType = 0x61
-
-// IEIs of the network-name information elements in EMM INFORMATION
-// (TS 24.301).
-const (
-	fullNameForNetworkIEI  uint8 = 0x43
-	shortNameForNetworkIEI uint8 = 0x45
-)
+import "github.com/ellanetworks/core/nas"
 
 // EMMInformation is the EMM INFORMATION message (TS 24.301), sent by the
 // MME to provide the network name to the UE. The procedure is optional in the
 // network; the MME sends it integrity-protected and ciphered after
 // attach. Only the network-name IEs are carried.
 type EMMInformation struct {
-	FullNetworkName  string
-	ShortNetworkName string
+	FullNameForNetwork  *nas.NetworkName        // optional (IEI 0x43)
+	ShortNameForNetwork *nas.NetworkName        // optional (IEI 0x45)
+	LocalTimeZone       *nas.TimeZone           // optional (IEI 0x46)
+	UniversalTime       *nas.TimeZoneAndTime    // optional (IEI 0x47)
+	DaylightSavingTime  *nas.DaylightSavingTime // optional (IEI 0x49)
+
+	// Unrecognized carries the optional information elements this message does
+	// not model, so they survive decoding and re-encode unchanged.
+	Unrecognized []nas.RawIE
 }
 
-// Marshal encodes the plain EMM INFORMATION message.
-func (m *EMMInformation) Marshal() ([]byte, error) {
-	var w common.Writer
-
-	writeEMMHeader(&w, MsgEMMInformation)
-
-	if m.FullNetworkName != "" {
-		w.U8(fullNameForNetworkIEI)
-
-		if err := w.LV(encodeNetworkName(m.FullNetworkName)); err != nil {
-			return nil, err
-		}
-	}
-
-	if m.ShortNetworkName != "" {
-		w.U8(shortNameForNetworkIEI)
-
-		if err := w.LV(encodeNetworkName(m.ShortNetworkName)); err != nil {
-			return nil, err
-		}
-	}
-
-	return w.Bytes(), nil
+// emmInformationIEs is the optional-IE table of the EMM INFORMATION message
+// (TS 24.301 §8.2.13, table 8.2.13.1).
+var emmInformationIEs = []nas.OptionalIE{
+	{IEI: ieiFullNameForNetwork, Format: nas.IETLV, Name: "Full name for network"},
+	{IEI: ieiShortNameForNetwork, Format: nas.IETLV, Name: "Short name for network"},
+	{IEI: ieiLocalTimeZone, Format: nas.IETV3, Len: 1, Name: "Local time zone"},
+	{IEI: ieiUniversalTimeAndLocalTimeZone, Format: nas.IETV3, Len: 7, Name: "Universal time and local time zone"},
+	{IEI: ieiNetworkDaylightSavingTime, Format: nas.IETLV, Name: "Network daylight saving time"},
 }
 
-// encodeNetworkName encodes a network name into the Network name IE value
-// (TS 24.301 ≡ TS 24.008): a coding-scheme octet followed by
-// the name in the GSM 7-bit default alphabet (TS 23.038), packed, with no
-// country initials. Characters are masked to 7 bits, so the input is expected to
-// be ASCII.
-func encodeNetworkName(name string) []byte {
-	chars := len(name)
-	packedLen := (chars*7 + 7) / 8
-	spareBits := uint8(packedLen*8 - chars*7)
+// AppendBinary encodes the plain EMM INFORMATION message.
+// The encoding is appended to b.
+func (m *EMMInformation) AppendBinary(b []byte) ([]byte, error) {
+	w := nas.NewWriter(b)
 
-	out := make([]byte, 1+packedLen)
-	// Octet 1: ext=1, coding scheme=GSM 7-bit (000), add-CI=0, number of spare
-	// bits in the last octet (bits 3-1).
-	out[0] = 0x80 | (spareBits & 0x07)
+	var o nas.OptionalWriter
 
-	bit := 0
+	writeEMMHeader(w, MsgEMMInformation)
 
-	for i := 0; i < chars; i++ {
-		c := name[i] & 0x7f
-		pos, off := bit/8, bit%8
-
-		out[1+pos] |= c << uint(off)
-		if off > 1 {
-			out[1+pos+1] |= c >> uint(8-off)
+	if m.FullNameForNetwork != nil {
+		raw, err := m.FullNameForNetwork.MarshalBinary()
+		if err != nil {
+			return b, err
 		}
 
-		bit += 7
+		o.TLV(ieiFullNameForNetwork, raw)
 	}
 
-	return out
+	if m.ShortNameForNetwork != nil {
+		raw, err := m.ShortNameForNetwork.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLV(ieiShortNameForNetwork, raw)
+	}
+
+	if m.LocalTimeZone != nil {
+		raw, err := m.LocalTimeZone.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TV3(ieiLocalTimeZone, raw)
+	}
+
+	if m.UniversalTime != nil {
+		raw, err := m.UniversalTime.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TV3(ieiUniversalTimeAndLocalTimeZone, raw)
+	}
+
+	if m.DaylightSavingTime != nil {
+		raw, err := m.DaylightSavingTime.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLV(ieiNetworkDaylightSavingTime, raw)
+	}
+
+	o.Raw(m.Unrecognized...)
+	o.WriteTo(w)
+
+	return w.Result(b)
+}
+
+// MarshalBinary encodes the message.
+func (m *EMMInformation) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
+
+// ParseEMMInformation decodes the message.
+func ParseEMMInformation(b []byte) (*EMMInformation, error) {
+	r := nas.NewReader(b)
+
+	if err := readEMMHeader(r, MsgEMMInformation); err != nil {
+		return nil, err
+	}
+
+	out := &EMMInformation{}
+
+	_unrec, err := walkOptionalIEs(r, emmInformationIEs, func(iei uint8, value []byte) (bool, error) {
+		switch iei {
+		case ieiFullNameForNetwork:
+			name, err := nas.ParseNetworkName(value)
+			if err != nil {
+				return false, err
+			}
+
+			out.FullNameForNetwork = &name
+		case ieiShortNameForNetwork:
+			name, err := nas.ParseNetworkName(value)
+			if err != nil {
+				return false, err
+			}
+
+			out.ShortNameForNetwork = &name
+		case ieiLocalTimeZone:
+			parsed, err := nas.ParseTimeZone(value)
+			if err != nil {
+				return false, err
+			}
+
+			out.LocalTimeZone = &parsed
+		case ieiUniversalTimeAndLocalTimeZone:
+			parsed, err := nas.ParseTimeZoneAndTime(value)
+			if err != nil {
+				return false, err
+			}
+
+			out.UniversalTime = &parsed
+		case ieiNetworkDaylightSavingTime:
+			parsed, err := nas.ParseDaylightSavingTime(value)
+			if err != nil {
+				return false, err
+			}
+
+			out.DaylightSavingTime = &parsed
+		default:
+			return false, nil
+		}
+
+		return true, nil
+	})
+	if err != nil && !nas.SoftOnly(err) {
+		return nil, err
+	}
+
+	out.Unrecognized = _unrec
+
+	return out, err
 }

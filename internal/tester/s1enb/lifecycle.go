@@ -4,6 +4,7 @@
 package s1enb
 
 import (
+	"encoding/binary"
 	"fmt"
 	"time"
 
@@ -90,7 +91,7 @@ func (e *ENB) ServiceRequest(ue *UE, guti *eps.EPSMobileIdentity, timeout time.D
 		return nil, err
 	}
 
-	if err := e.SendInitialUEMessageWithSTMSI(enbUEID, guti.MMECode, guti.MTMSI, sr); err != nil {
+	if err := e.SendInitialUEMessageWithSTMSI(enbUEID, guti.GUTI.MMECode, binary.BigEndian.Uint32(guti.GUTI.TMSI[:]), sr); err != nil {
 		return nil, err
 	}
 
@@ -140,12 +141,12 @@ func (e *ENB) PeriodicTrackingAreaUpdate(ue *UE, guti *eps.EPSMobileIdentity, ti
 
 	enbUEID := e.AllocateENBUEID()
 
-	tau, err := ue.buildTrackingAreaUpdateRequest(eps.EPSUpdateTypePeriodic, false)
+	tau, err := ue.buildTrackingAreaUpdateRequest(eps.EPSUpdateTypePeriodic, false, guti)
 	if err != nil {
 		return err
 	}
 
-	if err := e.SendInitialUEMessageWithSTMSI(enbUEID, guti.MMECode, guti.MTMSI, tau); err != nil {
+	if err := e.SendInitialUEMessageWithSTMSI(enbUEID, guti.GUTI.MMECode, binary.BigEndian.Uint32(guti.GUTI.TMSI[:]), tau); err != nil {
 		return err
 	}
 

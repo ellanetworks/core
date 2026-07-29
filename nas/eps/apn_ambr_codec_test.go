@@ -7,12 +7,13 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
 const (
-	kbps = 1_000
-	mbps = 1_000_000
+	kbps = 1
+	mbps = 1_000
 )
 
 // TestEncodeAPNAMBRSpecVectors checks the encoded octets against TS 24.301
@@ -20,11 +21,11 @@ const (
 // policy session-AMBR values fall in.
 func TestEncodeAPNAMBRSpecVectors(t *testing.T) {
 	tests := []struct {
-		name         string
-		dlBps, ulBps uint64
-		wantDLBase   uint8
-		wantULBase   uint8
-		wantExtended []byte // octets 5,6[,7,8]; nil = none
+		name           string
+		dlKbps, ulKbps uint64
+		wantDLBase     uint8
+		wantULBase     uint8
+		wantExtended   []byte // octets 5,6[,7,8]; nil = none
 	}{
 		// Base octet (≤8640 kbps): 576 + (v-128)*64.
 		{"1 Mbps both", 1000 * kbps, 1000 * kbps, 128 + (1000-576)/64, 128 + (1000-576)/64, nil},
@@ -35,14 +36,21 @@ func TestEncodeAPNAMBRSpecVectors(t *testing.T) {
 		{"200 Mbps both", 200 * mbps, 200 * mbps, 0xFE, 0xFE, []byte{186 + (200-128)/2, 186 + (200-128)/2}},
 		// Mixed: DL needs extension, UL fits in the base octet (8 Mbps).
 		{"50 Mbps DL / 8 Mbps UL", 50 * mbps, 8000 * kbps, 0xFE, 128 + (8000-576)/64, []byte{74 + (50 - 16), 0}},
-		// Extended-2 octet (>256 Mbps): ext=0xFA, ext2 = (mbps-256)/4 in the
-		// 260-500 Mbps range. UL 100 Mbps stays in the extended octet (ext2 = 0).
-		{"400 Mbps DL / 100 Mbps UL", 400 * mbps, 100 * mbps, 0xFE, 0xFE, []byte{0xFA, 74 + (100 - 16), (400 - 256) / 4, 0}},
+		// Extended-2 octet (>256 Mbps). It is additive on top of octets 3 and 5:
+		// 400 Mbps is one 256 Mbps step plus a 144 Mbps remainder, which octet 5
+		// carries at 2 Mbps granularity. UL 100 Mbps needs no step (ext2 = 0).
+		{"400 Mbps DL / 100 Mbps UL", 400 * mbps, 100 * mbps, 0xFE, 0xFE, []byte{186 + (144-128)/2, 74 + (100 - 16), 1, 0}},
+		// An exact multiple of the step is one step fewer plus a full 256 Mbps
+		// remainder, which is what keeps the element's maximum reachable.
+		{"512 Mbps both", 512 * mbps, 512 * mbps, 0xFE, 0xFE, []byte{0xFA, 0xFA, 1, 1}},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			a := eps.APNAMBRFromBitsPerSecond(tc.dlBps, tc.ulBps)
+			a, err := eps.APNAMBRFromKbps(tc.dlKbps, tc.ulKbps)
+			if err != nil {
+				t.Fatalf("APNAMBRFromKbps: %v", err)
+			}
 
 			if a.DownlinkOctet != tc.wantDLBase {
 				t.Errorf("DL base octet = %#x, want %#x", a.DownlinkOctet, tc.wantDLBase)
@@ -71,45 +79,62 @@ func TestAPNAMBRRoundTrip(t *testing.T) {
 		for _, ulMbps := range exact {
 			dl, ul := dlMbps*mbps, ulMbps*mbps
 
-			gotDL, gotUL := eps.APNAMBRFromBitsPerSecond(dl, ul).BitsPerSecond()
+			a, err := eps.APNAMBRFromKbps(dl, ul)
+			if err != nil {
+				t.Fatalf("APNAMBRFromKbps(%d, %d): %v", dl, ul, err)
+			}
 
-			if gotDL != dl || gotUL != ul {
-				t.Errorf("round-trip %d/%d Mbps: got %d/%d bps, want %d/%d", dlMbps, ulMbps, gotDL, gotUL, dl, ul)
+			gotDL, gotUL, ok := a.Kbps()
+			if !ok || gotDL != dl || gotUL != ul {
+				t.Errorf("round-trip %d/%d Mbps: got %d/%d kbit/s, want %d/%d", dlMbps, ulMbps, gotDL, gotUL, dl, ul)
 			}
 		}
 	}
 }
 
-// TestAPNAMBRExtended2RoundTrip checks rates above 256 Mbps round-trip through the
-// extended-2 octets (TS 24.008): 4 Mbps granularity to 500 Mbps, 10 Mbps
-// to 1500 Mbps, 100 Mbps to 10 Gbps.
+// TestAPNAMBRExtended2RoundTrip checks rates above 256 Mbps round-trip through
+// the extended-2 octets. That octet adds whole 256 Mbps steps (TS 24.301
+// §9.9.4.2), so a rate is exactly representable when what remains after the
+// steps is itself representable by octets 3 and 5.
 func TestAPNAMBRExtended2RoundTrip(t *testing.T) {
-	exact := []uint64{260, 300, 400, 500, 510, 600, 1000, 1500, 1600, 2000, 5000, 10000}
+	exact := []uint64{384, 400, 456, 512, 640, 768, 1000, 1024, 2048, 5120, 65280}
 
 	for _, dlMbps := range exact {
 		for _, ulMbps := range exact {
 			dl, ul := dlMbps*mbps, ulMbps*mbps
 
-			gotDL, gotUL := eps.APNAMBRFromBitsPerSecond(dl, ul).BitsPerSecond()
+			a, err := eps.APNAMBRFromKbps(dl, ul)
+			if err != nil {
+				t.Fatalf("APNAMBRFromKbps(%d, %d): %v", dl, ul, err)
+			}
 
-			if gotDL != dl || gotUL != ul {
-				t.Errorf("round-trip %d/%d Mbps: got %d/%d bps, want %d/%d", dlMbps, ulMbps, gotDL, gotUL, dl, ul)
+			gotDL, gotUL, ok := a.Kbps()
+			if !ok || gotDL != dl || gotUL != ul {
+				t.Errorf("round-trip %d/%d Mbps: got %d/%d kbit/s, want %d/%d", dlMbps, ulMbps, gotDL, gotUL, dl, ul)
 			}
 		}
 	}
 }
 
-// TestAPNAMBRMarshalParse round-trips the IE value bytes through Marshal/Parse.
+// TestAPNAMBRMarshalParse round-trips the IE value bytes through MarshalBinary/Parse.
 func TestAPNAMBRMarshalParse(t *testing.T) {
-	orig := eps.APNAMBRFromBitsPerSecond(60*mbps, 30*mbps)
+	orig, err := eps.APNAMBRFromKbps(60*mbps, 30*mbps)
+	if err != nil {
+		t.Fatalf("APNAMBRFromKbps: %v", err)
+	}
 
-	got, err := eps.ParseAPNAMBR(orig.Marshal())
+	raw, err := orig.MarshalBinary()
+	if err != nil {
+		t.Fatalf("MarshalBinary: %v", err)
+	}
+
+	got, err := eps.ParseAPNAMBR(raw)
 	if err != nil {
 		t.Fatalf("ParseAPNAMBR: %v", err)
 	}
 
-	dl, ul := got.BitsPerSecond()
-	if dl != 60*mbps || ul != 30*mbps {
+	dl, ul, ok := got.Kbps()
+	if !ok || dl != 60*mbps || ul != 30*mbps {
 		t.Fatalf("after marshal/parse: dl=%d ul=%d, want 60/30 Mbps", dl, ul)
 	}
 }
@@ -118,21 +143,29 @@ func TestAPNAMBRMarshalParse(t *testing.T) {
 // Activate Default EPS Bearer Context Request marshal/parse alongside the other
 // optional IEs (ESM cause, PCO), exercising the optional-IE walker.
 func TestActivateDefaultBearerAPNAMBR(t *testing.T) {
-	cause := uint8(0x32)
-	msg := &eps.ActivateDefaultEPSBearerContextRequest{
-		EPSBearerIdentity:            5,
-		ProcedureTransactionIdentity: 1,
-		EPSQoS:                       []byte{9},
-		AccessPointName:              []byte{0x08, 'i', 'n', 't', 'e', 'r', 'n', 'e', 't'},
-		PDNAddress:                   []byte{0x01, 10, 45, 0, 1},
-		APNAMBR:                      eps.APNAMBRFromBitsPerSecond(100*mbps, 50*mbps).Marshal(),
-		ESMCause:                     &cause,
-		ProtocolConfigurationOptions: []byte{0x80, 0x80, 0x21, 0x02},
+	cause := eps.ESMCause(0x32)
+
+	ambrIE, err := eps.APNAMBRFromKbps(100*mbps, 50*mbps)
+	if err != nil {
+		t.Fatalf("APNAMBRFromKbps: %v", err)
 	}
 
-	wire, err := msg.Marshal()
+	pco := nas.NewProtocolConfigurationOptions([][]byte{{8, 8, 8, 8}}, 1400)
+
+	msg := &eps.ActivateDefaultEPSBearerContextRequest{
+		EPSBearerIdentity:            5,
+		PTI:                          1,
+		EPSQoS:                       eps.EPSQoS{QCI: 9},
+		AccessPointName:              eps.APN("internet"),
+		PDNAddress:                   eps.PDNAddress{PDNType: eps.PDNTypeIPv4, IPv4: [4]byte{10, 45, 0, 1}},
+		APNAMBR:                      &ambrIE,
+		Cause:                        ptr(cause),
+		ProtocolConfigurationOptions: &pco,
+	}
+
+	wire, err := msg.MarshalBinary()
 	if err != nil {
-		t.Fatalf("Marshal: %v", err)
+		t.Fatalf("MarshalBinary: %v", err)
 	}
 
 	got, err := eps.ParseActivateDefaultEPSBearerContextRequest(wire)
@@ -140,24 +173,19 @@ func TestActivateDefaultBearerAPNAMBR(t *testing.T) {
 		t.Fatalf("Parse: %v", err)
 	}
 
-	if len(got.APNAMBR) == 0 {
+	if got.APNAMBR == nil {
 		t.Fatal("APN-AMBR IE missing after round-trip")
 	}
 
-	ambr, err := eps.ParseAPNAMBR(got.APNAMBR)
-	if err != nil {
-		t.Fatalf("ParseAPNAMBR: %v", err)
-	}
-
-	if dl, ul := ambr.BitsPerSecond(); dl != 100*mbps || ul != 50*mbps {
+	if dl, ul, ok := got.APNAMBR.Kbps(); !ok || dl != 100*mbps || ul != 50*mbps {
 		t.Errorf("APN-AMBR = %d/%d bps, want 100/50 Mbps", dl, ul)
 	}
 
-	if got.ESMCause == nil || *got.ESMCause != cause {
-		t.Errorf("ESM cause not preserved: %v", got.ESMCause)
+	if got.Cause == nil || *got.Cause != cause {
+		t.Errorf("ESM cause not preserved: %v", got.Cause)
 	}
 
-	if len(got.ProtocolConfigurationOptions) == 0 {
+	if got.ProtocolConfigurationOptions == nil {
 		t.Error("PCO not preserved")
 	}
 }

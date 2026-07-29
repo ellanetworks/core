@@ -9,7 +9,6 @@ package nas
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 
@@ -20,56 +19,39 @@ import (
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasConvert"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
 // isInitialRegistration reports whether the 5GS registration type is initial or
 // emergency registration (TS 24.501).
-func isInitialRegistration(req *nasMessage.RegistrationRequest) bool {
+func isInitialRegistration(req *fgs.RegistrationRequest) bool {
 	if req == nil {
 		return false
 	}
 
-	switch req.GetRegistrationType5GS() {
-	case nasMessage.RegistrationType5GSInitialRegistration, nasMessage.RegistrationType5GSEmergencyRegistration:
+	switch req.RegistrationType {
+	case fgs.RegistrationTypeInitial, fgs.RegistrationTypeEmergency:
 		return true
 	default:
 		return false
 	}
 }
 
-func getRegistrationType5GSName(regType5Gs uint8) string {
-	switch regType5Gs {
-	case nasMessage.RegistrationType5GSInitialRegistration:
-		return "Initial Registration"
-	case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
-		return "Mobility Registration Updating"
-	case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
-		return "Periodic Registration Updating"
-	case nasMessage.RegistrationType5GSEmergencyRegistration:
-		return "Emergency Registration"
-	case nasMessage.RegistrationType5GSReserved:
-		return "Reserved"
-	default:
-		return "Unknown"
-	}
-}
+// registrationTypeName labels a registration attempt in metrics and logs. The
+// codec's own name for the type is the single definition; a second table here
+// drifted from it, reporting a disaster roaming initial registration as
+// "Reserved" and every type added since as "Unknown".
+func registrationTypeName(t fgs.RegistrationType) string { return t.String() }
 
 // handleRegistrationRequestMessage processes the cleartext IEs of the Registration Request (TS 24.501).
-func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, registrationRequest *nasMessage.RegistrationRequest, plain []byte, integrityVerified bool) error {
-	ueConn := ue.Conn()
-	if ueConn == nil {
-		return fmt.Errorf("amf.UeConn is nil")
-	}
-
+func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, req *fgs.RegistrationRequest, plain []byte, integrityVerified bool) error {
 	conn := ue.Conn()
 	if conn == nil {
 		return fmt.Errorf("no active NAS connection")
 	}
+
+	ueConn := conn
 
 	if !integrityVerified {
 		ue.ClearSecured()
@@ -90,57 +72,75 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	// Registration Request with the non-cleartext IEs. Decrypt it only when
 	// integrity is verified; a MAC failure means no valid keys, so fall back to
 	// the cleartext IEs and let the subsequent authentication re-establish security.
-	if registrationRequest.NASMessageContainer != nil && integrityVerified {
-		contents := registrationRequest.GetNASMessageContainerContents()
+	if req.NASMessageContainer != nil && integrityVerified {
+		contents := append([]byte(nil), req.NASMessageContainer...)
 
-		err := ue.DecryptUplinkContents(contents)
-		if err != nil {
-			metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultReject)
+		if err := ue.DecryptUplinkContents(contents); err != nil {
+			metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
 
-			amf.SendRegistrationReject(ctx, ueConn, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+			amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseUEIdentityCannotBeDerived)
 
 			return fmt.Errorf("failed to decrypt NAS message - sent registration reject: %v", err)
 		}
 
-		m := nas.NewMessage()
+		inner, err := fgs.ParseRegistrationRequest(contents)
+		if !decoded(ctx, "RegistrationRequest", err) {
+			metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
 
-		if err := m.GmmMessageDecode(&contents); err != nil {
-			metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultReject)
-
-			amf.SendRegistrationReject(ctx, ueConn, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+			amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseUEIdentityCannotBeDerived)
 
 			return fmt.Errorf("failed to decode NAS message - sent registration reject: %v", err)
 		}
 
-		messageType := m.GmmHeader.GetMessageType()
-		if messageType != nas.MsgTypeRegistrationRequest {
-			return fmt.Errorf("expected registration request, got %d", messageType)
-		}
-
-		registrationRequest = m.RegistrationRequest
+		req = inner
 
 		conn.SetRetransmissionOfInitialNASMsg(!integrityVerified)
-	} else if registrationRequest.NASMessageContainer != nil && !integrityVerified {
+	} else if req.NASMessageContainer != nil && !integrityVerified {
 		logger.From(ctx, logger.AmfLog).Info("Skipping NASMessageContainer decryption due to MAC verification failure, proceeding with cleartext IEs only")
 
 		conn.SetRetransmissionOfInitialNASMsg(true)
 	}
 
-	conn.RegistrationRequest = registrationRequest
+	conn.RegistrationRequest = req
 	conn.RegistrationRequestPlain = slices.Clone(plain)
-	conn.SetRegistrationType5GS(registrationRequest.GetRegistrationType5GS())
+	conn.SetRegistrationType5GS(uint8(req.RegistrationType))
 
-	regName := getRegistrationType5GSName(conn.RegistrationType5GS)
+	regName := registrationTypeName(conn.RegistrationType5GS)
 
 	logger.From(ctx, logger.AmfLog).Debug("Received Registration Request", zap.String("registrationType", regName))
 
-	if conn.RegistrationType5GS == nasMessage.RegistrationType5GSReserved {
-		conn.SetRegistrationType5GS(nasMessage.RegistrationType5GSInitialRegistration)
+	if conn.RegistrationType5GS == fgs.RegistrationTypeDisasterRoamingInitial {
+		conn.SetRegistrationType5GS(uint8(fgs.RegistrationTypeInitial))
 	}
 
-	mobileIdentity5GSContents := registrationRequest.GetMobileIdentity5GSContents()
-	if len(mobileIdentity5GSContents) == 0 {
-		return errors.New("mobile identity 5GS is empty")
+	mobileIdentity := req.MobileIdentity
+	conn.SetIdentityTypeUsedForRegistration(uint8(mobileIdentity.Type()))
+
+	switch {
+	case mobileIdentity.SUCI != nil:
+		logger.From(ctx, logger.AmfLog).Debug("UE used SUCI identity for registration")
+
+		ue.Suci = mobileIdentity.SUCI.String()
+		if mobileIdentity.SUCI.Format == fgs.SUPIFormatIMSI {
+			ue.PlmnID = amf.PlmnIDStringToModels(mobileIdentity.SUCI.PLMN.MCC + mobileIdentity.SUCI.PLMN.MNC)
+		}
+	case mobileIdentity.GUTI != nil:
+		guti, _ := etsi.NewGUTI5GFromNAS(mobileIdentity)
+		logger.From(ctx, logger.AmfLog).Debug("UE used GUTI identity for registration", logger.GUTI(guti.String()))
+	case mobileIdentity.PEI != nil:
+		pei, err := etsi.NewIMEIFromPEI(mobileIdentity.PEI.String())
+		if err != nil {
+			logger.From(ctx, logger.AmfLog).Warn("ignoring malformed equipment identity in registration",
+				zap.Stringer("type", mobileIdentity.Type()), zap.Error(err))
+		}
+
+		ue.Imei = pei
+		logger.From(ctx, logger.AmfLog).Debug("UE used an equipment identity for registration",
+			zap.Stringer("type", mobileIdentity.Type()), zap.String("pei", pei.String()))
+	default:
+		// TS 24.501 §5.5.1.2.2: a registration must present a SUCI, a 5G-GUTI or,
+		// for emergency registration, a PEI. Nothing else identifies a subscriber.
+		return fmt.Errorf("registration presents no usable identity: %s", mobileIdentity.Type())
 	}
 
 	operatorInfo, err := amfInstance.OperatorInfo(ctx)
@@ -148,49 +148,15 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	conn.SetIdentityTypeUsedForRegistration(nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]))
-
-	switch conn.IdentityTypeUsedForRegistration {
-	case nasMessage.MobileIdentity5GSTypeNoIdentity:
-		logger.From(ctx, logger.AmfLog).Debug("No Identity used for registration")
-	case nasMessage.MobileIdentity5GSTypeSuci:
-		logger.From(ctx, logger.AmfLog).Debug("UE used SUCI identity for registration")
-
-		var plmnID string
-
-		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentity5GSContents)
-		ue.PlmnID = amf.PlmnIDStringToModels(plmnID)
-	case nasMessage.MobileIdentity5GSType5gGuti:
-		guti, _ := etsi.NewGUTI5GFromBytes(mobileIdentity5GSContents)
-		logger.From(ctx, logger.AmfLog).Debug("UE used GUTI identity for registration", logger.GUTI(guti.String()))
-	case nasMessage.MobileIdentity5GSTypeImei:
-		pei, err := etsi.NewIMEIFromPEI(nasConvert.PeiToString(mobileIdentity5GSContents))
-		if err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("ignoring malformed IMEI in registration", zap.Error(err))
-		}
-
-		ue.Imei = pei
-		logger.From(ctx, logger.AmfLog).Debug("UE used IMEI identity for registration", zap.String("imei", pei.String()))
-	case nasMessage.MobileIdentity5GSTypeImeisv:
-		pei, err := etsi.NewIMEIFromPEI(nasConvert.PeiToString(mobileIdentity5GSContents))
-		if err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("ignoring malformed IMEISV in registration", zap.Error(err))
-		}
-
-		ue.Imei = pei
-		logger.From(ctx, logger.AmfLog).Debug("UE used IMEISV identity for registration", zap.String("imeisv", pei.String()))
-	}
-
 	ngKsi := models.NgKsi{}
 
-	switch registrationRequest.GetTSC() {
-	case nasMessage.TypeOfSecurityContextFlagNative:
-		ngKsi.Tsc = models.ScTypeNative
-	case nasMessage.TypeOfSecurityContextFlagMapped:
+	if req.NgKSI.Mapped {
 		ngKsi.Tsc = models.ScTypeMapped
+	} else {
+		ngKsi.Tsc = models.ScTypeNative
 	}
 
-	ngKsi.Ksi = amf.NextNgKsi(int32(registrationRequest.NgksiAndRegistrationType5GS.GetNasKeySetIdentifiler()))
+	ngKsi.Ksi = amf.NextNgKsi(int32(req.NgKSI.Value))
 	if ngKsi.Tsc != models.ScTypeNative || ngKsi.Ksi == 7 {
 		ngKsi.Tsc = models.ScTypeNative
 		ngKsi.Ksi = 0
@@ -202,26 +168,26 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	ue.Tai = ueConn.Tai
 
 	if !amf.InTaiList(ue.Tai, operatorInfo.Tais) {
-		metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultReject)
+		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
 
-		amf.SendRegistrationReject(ctx, ueConn, nasMessage.Cause5GMMTrackingAreaNotAllowed)
+		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseTrackingAreaNotAllowed)
 
 		return fmt.Errorf("registration Reject [Tracking area not allowed]")
 	}
 
 	// TS 24.501: the UE shall include the UE security capability IE,
 	// unless it performs a periodic registration updating procedure.
-	if registrationRequest.UESecurityCapability == nil &&
-		conn.RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
-		metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultReject)
+	if req.UESecurityCapability == nil &&
+		conn.RegistrationType5GS != fgs.RegistrationTypePeriodicUpdating {
+		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
 
-		amf.SendRegistrationReject(ctx, ueConn, nasMessage.Cause5GMMProtocolErrorUnspecified)
+		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseProtocolErrorUnspecified)
 
 		return fmt.Errorf("registration request does not contain UE security capability")
 	}
 
-	if registrationRequest.UESecurityCapability != nil {
-		acceptRegistrationUESecurityCapability(ctx, ue, registrationRequest.UESecurityCapability)
+	if req.UESecurityCapability != nil {
+		acceptRegistrationUESecurityCapability(ctx, ue, req.UESecurityCapability)
 	}
 
 	return nil
@@ -232,15 +198,15 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 // Registration overwrite the stored value; Mobility and Periodic Registration
 // Update keep it on match and log a mismatch. With no stored value, the received
 // caps are adopted through the same audited write path.
-func acceptRegistrationUESecurityCapability(ctx context.Context, ue *amf.UeContext, received *nasType.UESecurityCapability) {
+func acceptRegistrationUESecurityCapability(ctx context.Context, ue *amf.UeContext, received *fgs.UESecurityCapability) {
 	conn := ue.Conn()
 	if conn == nil {
 		return
 	}
 
 	switch conn.RegistrationType5GS {
-	case nasMessage.RegistrationType5GSInitialRegistration,
-		nasMessage.RegistrationType5GSEmergencyRegistration:
+	case fgs.RegistrationTypeInitial,
+		fgs.RegistrationTypeEmergency:
 		ue.SetUESecurityCapability(received, amf.MintAuthProofForRegistrationRequest())
 		return
 	}
@@ -256,9 +222,9 @@ func acceptRegistrationUESecurityCapability(ctx context.Context, ue *amf.UeConte
 	case amf.VerifyMismatch:
 		logger.From(ctx, logger.AmfLog).Warn(
 			"UE security capabilities in Mobility/Periodic Registration differ from stored values; ignoring received values (TS 33.501)",
-			zap.String("registrationType", getRegistrationType5GSName(conn.RegistrationType5GS)),
-			zap.Binary("stored", ue.UESecCap().Buffer),
-			zap.Binary("received", received.Buffer),
+			zap.String("registrationType", registrationTypeName(conn.RegistrationType5GS)),
+			zap.Stringer("stored", ue.UESecCap()),
+			zap.Stringer("received", received),
 		)
 	}
 }
@@ -270,7 +236,7 @@ func acceptRegistrationUESecurityCapability(ctx context.Context, ue *amf.UeConte
 // the new registration re-authenticates and re-derives everything. The shared UeConn
 // transfers to the fresh context; the old context is superseded only once the new
 // registration is accepted (reg_initial).
-func restartRegistrationOnFreshContext(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nas.GmmMessage, plain []byte, integrityVerified bool) {
+func restartRegistrationOnFreshContext(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, req *fgs.RegistrationRequest, plain []byte, integrityVerified bool) {
 	ueConn := ue.Conn()
 	if ueConn == nil {
 		logger.From(ctx, logger.AmfLog).Warn("ue is not connected to RAN")
@@ -285,10 +251,10 @@ func restartRegistrationOnFreshContext(ctx context.Context, amfInstance *amf.AMF
 	fresh.SetSupi(supi)
 	amfInstance.AttachUeConn(fresh, ueConn)
 
-	HandleGmmMessage(ctx, amfInstance, fresh, msg, plain, integrityVerified)
+	handleRegistrationRequest(ctx, amfInstance, fresh, req, plain, integrityVerified)
 }
 
-func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nas.GmmMessage, plain []byte, integrityVerified bool) nasreply.Disposition {
+func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, req *fgs.RegistrationRequest, plain []byte, integrityVerified bool) nasreply.Disposition {
 	state := ue.State()
 	step := ue.RegStep()
 
@@ -303,7 +269,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 	switch {
 	case state == amf.Deregistered, state == amf.Registered, step == amf.RegStepAuthenticating:
-		if err := handleRegistrationRequestMessage(ctx, amfInstance, ue, msg.RegistrationRequest, plain, integrityVerified); err != nil {
+		if err := handleRegistrationRequestMessage(ctx, amfInstance, ue, req, plain, integrityVerified); err != nil {
 			// Release the half-registered UE at the point of failure; a failed
 			// handleRegistrationRequestMessage (which may already have sent a REGISTRATION
 			// REJECT) releases nothing, leaking its open RAN connection under no supervision.
@@ -320,12 +286,12 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 			defer ue.Deregister(ctx)
 
-			regType := uint8(0)
+			var regType fgs.RegistrationType
 			if conn := ue.Conn(); conn != nil {
 				regType = conn.RegistrationType5GS
 			}
 
-			metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(regType), metrics.ResultReject)
+			metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(regType), metrics.ResultReject)
 
 			ueConn := ue.Conn()
 			if ueConn == nil {
@@ -333,7 +299,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 				return nasreply.Handled()
 			}
 
-			amf.SendRegistrationReject(ctx, ueConn, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+			amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseUEIdentityCannotBeDerived)
 
 			return nasreply.Handled()
 		}
@@ -345,7 +311,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return nasreply.Handled()
 
 	case step == amf.RegStepSecurityMode:
-		restartRegistrationOnFreshContext(ctx, amfInstance, ue, msg, plain, integrityVerified)
+		restartRegistrationOnFreshContext(ctx, amfInstance, ue, req, plain, integrityVerified)
 
 		return nasreply.Handled()
 	case step == amf.RegStepContextSetup:
@@ -358,14 +324,14 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 			return nasreply.Handled()
 		}
 
-		restartRegistrationOnFreshContext(ctx, amfInstance, ue, msg, plain, integrityVerified)
+		restartRegistrationOnFreshContext(ctx, amfInstance, ue, req, plain, integrityVerified)
 
 		return nasreply.Handled()
-	case state == amf.DeregistrationInitiated && isInitialRegistration(msg.RegistrationRequest):
+	case state == amf.DeregistrationInitiated && isInitialRegistration(req):
 		// A UE-initiated initial or emergency registration during a network-initiated
 		// de-registration aborts the de-registration and progresses the registration
 		// (TS 24.501 §5.5.2.3.5 case d).
-		restartRegistrationOnFreshContext(ctx, amfInstance, ue, msg, plain, integrityVerified)
+		restartRegistrationOnFreshContext(ctx, amfInstance, ue, req, plain, integrityVerified)
 
 		return nasreply.Handled()
 	default:

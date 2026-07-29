@@ -1,0 +1,77 @@
+{
+  "security_header": {
+    "protocol_discriminator": {
+      "type": "enum",
+      "value": 126,
+      "label": "5GSMobilityManagementMessage",
+      "unknown": false
+    },
+    "security_header_type": {
+      "type": "enum",
+      "value": 0,
+      "label": "Plain NAS",
+      "unknown": false
+    },
+    "sequence_number": 0
+  },
+  "gmm_message": {
+    "gmm_header": {
+      "message_type": {
+        "type": "enum",
+        "value": 103,
+        "label": "ULNASTransport",
+        "unknown": false
+      }
+    },
+    "ul_nas_transport": {
+      "spare_half_octet_and_payload_container_type": 1,
+      "payload_container": {
+        "raw": "LgEAwRH/kaEoAQNVABCxOQEAewAHgAABAAAOAA==",
+        "gsm_message": {
+          "gsm_header": {
+            "message_type": {
+              "type": "enum",
+              "value": 193,
+              "label": "PDUSessionEstablishmentRequest",
+              "unknown": false
+            },
+            "pdu_session_id": 1,
+            "pti": 0
+          },
+          "pdu_session_establishment_request": {
+            "integrity_protection_maximum_data_rate": {
+              "uplink": 17,
+              "downlink": 255
+            },
+            "pdu_session_type": {
+              "type": "enum",
+              "value": 1,
+              "label": "IPv4",
+              "unknown": false
+            },
+            "ssc_mode": 1,
+            "capability_5g_s_m": {
+              "rqo_s": 1,
+              "mh_6_pdu": 1
+            },
+            "extended_protocol_configuration_options": {
+              "pcscf_ipv6_address_request_ul": true,
+              "msisdn_request_ul": true
+            },
+            "maximum_number_of_supported_packet_filters": {
+              "status": "Unsupported"
+            },
+            "alwayson_pdu_session_requested": {
+              "status": "Unsupported"
+            },
+            "smpdu_dn_request_container": {
+              "status": "Unsupported"
+            }
+          }
+        }
+      },
+      "pdu_session_id_2_value": 1
+    }
+  },
+  "encrypted": false
+}

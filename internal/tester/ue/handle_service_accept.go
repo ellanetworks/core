@@ -7,16 +7,16 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/free5gc/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
-func handleServiceAccept(ue *UE, msg *nas.Message) error {
-	logger.UeLogger.Debug("Received Service Accept NAS message", zap.String("IMSI", ue.UeSecurity.Supi))
-
-	if msg == nil {
-		return fmt.Errorf("received nil NAS message in Service Accept handler")
+func handleServiceAccept(ue *UE, plain []byte) error {
+	if _, err := fgs.ParseServiceAccept(plain); err != nil {
+		return fmt.Errorf("could not parse Service Accept: %v", err)
 	}
+
+	logger.UeLogger.Debug("Received Service Accept NAS message", zap.String("IMSI", ue.UeSecurity.Supi))
 
 	return nil
 }

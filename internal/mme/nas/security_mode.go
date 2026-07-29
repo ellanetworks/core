@@ -5,10 +5,10 @@ package nas
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
@@ -45,8 +45,8 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	eea, eia, ok := mme.SelectAlgorithms(ue.UeNetCap(), intOrder, encOrder)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("no NAS security algorithm common to UE and operator policy",
-			zap.String("ue-network-capability", fmt.Sprintf("%x", ue.UeNetCap())))
-		rejectAttach(ctx, m, ue, mme.EmmCauseUESecCapsMismatch)
+			zap.Stringer("ue-network-capability", ue.UeNetCap()))
+		rejectAttach(ctx, m, ue, eps.EMMCauseUESecurityCapabilitiesMismatch)
 
 		return
 	}
@@ -56,18 +56,18 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		return
 	}
 
-	replayed := mme.ReplayedUESecCap(ue.UeNetCap(), ue.MsNetCap())
+	imeisvRequested := true
 
 	smc := &eps.SecurityModeCommand{
-		CipheringAlgorithm:             eea,
-		IntegrityAlgorithm:             eia,
-		NASKeySetIdentifier:            ue.Eksi(),
-		ReplayedUESecurityCapabilities: replayed,
-		IMEISVRequested:                true,
-		HASHMME:                        mme.HashMME(ue.HashmmeInput),
+		CipheringAlgorithm:           eea,
+		IntegrityAlgorithm:           eia,
+		NASKeySetIdentifier:          nas.KeySetIdentifier{Value: ue.Eksi()},
+		ReplayedUESecurityCapability: eps.ReplayedUESecurityCapability(ue.UeNetCap(), ue.MsNetCap()),
+		IMEISVRequested:              &imeisvRequested,
+		HASHMME:                      mme.HashMME(ue.HashmmeInput),
 	}
 
-	plain, err := smc.Marshal()
+	plain, err := smc.MarshalBinary()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Security Mode Command", zap.Error(err))
 		return
@@ -75,15 +75,15 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 
 	wire, err := ue.ProtectDownlink(plain, eps.SHTIntegrityProtectedNewContext)
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to protect Security Mode Command", zap.Error(err))
+		mme.ReportProtectFailure(ctx, ue.Conn(), "Security Mode Command", err)
 		return
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Security Mode Command",
-		zap.Uint8("eea", eea), zap.Uint8("eia", eia),
-		zap.String("ue-network-capability", fmt.Sprintf("%x", ue.UeNetCap())),
-		zap.String("ms-network-capability", fmt.Sprintf("%x", ue.MsNetCap())),
-		zap.String("replayed-ue-security-capability", fmt.Sprintf("%x", replayed)))
+		zap.Stringer("eea", eea), zap.Stringer("eia", eia),
+		zap.Stringer("ue-network-capability", ue.UeNetCap()),
+		zap.Any("ms-network-capability", ue.MsNetCap()),
+		zap.Stringer("replayed-ue-security-capability", smc.ReplayedUESecurityCapability))
 	ue.AdvanceRegStep(mme.RegStepSecurityMode)
 	ue.Conn().SendGuardedDownlink(ctx, "Security Mode Command", wire)
 

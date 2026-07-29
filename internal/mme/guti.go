@@ -5,11 +5,13 @@ package mme
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
@@ -34,7 +36,7 @@ func (m *MME) SendGUTIReallocationCommand(ctx context.Context, ue *UeContext) {
 
 	wire, err := ue.ProtectDownlinkMessage(&eps.GUTIReallocationCommand{GUTI: guti})
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("GUTI reallocation: protect command", zap.Error(err))
+		ReportProtectFailure(ctx, ue.Conn(), "GUTI Reallocation Command", err)
 		return
 	}
 
@@ -89,14 +91,12 @@ func (m *MME) ReallocateGUTI(ctx context.Context, ue *UeContext, plmn models.Plm
 		m.uesByTmsi[ue.tmsi] = ue
 	}
 
-	return eps.EPSMobileIdentity{
-		Type:       eps.IdentityGUTI,
-		MCC:        plmn.Mcc,
-		MNC:        plmn.Mnc,
+	return eps.GUTIIdentity(eps.GUTI{
+		PLMN:       nas.PLMN{MCC: plmn.Mcc, MNC: plmn.Mnc},
 		MMEGroupID: mmeGroupID,
 		MMECode:    mmeCode,
-		MTMSI:      ue.tmsi.Uint32(),
-	}, nil
+		TMSI:       tmsiOctets(ue.tmsi),
+	}), nil
 }
 
 // CommitGUTIRealloc finalises a GUTI reallocation once the UE acknowledges it:
@@ -111,4 +111,13 @@ func (m *MME) CommitGUTIRealloc(ue *UeContext) {
 	}
 
 	ue.oldTmsi = etsi.InvalidTMSI
+}
+
+// tmsiOctets is the allocator's TMSI in the four octets a GUTI carries.
+func tmsiOctets(t etsi.TMSI) [4]byte {
+	var out [4]byte
+
+	binary.BigEndian.PutUint32(out[:], t.Uint32())
+
+	return out
 }

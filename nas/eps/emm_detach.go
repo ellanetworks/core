@@ -3,20 +3,29 @@
 
 package eps
 
-import "github.com/ellanetworks/core/nas/common"
+import "github.com/ellanetworks/core/nas"
 
-// Type of detach values (TS 24.301). For UE-originating detach:
-// 1 = EPS detach, 2 = IMSI detach, 3 = combined EPS/IMSI detach.
+// Type of detach values for a UE-originating DETACH REQUEST
+// (TS 24.301 §9.9.3.7, table 9.9.3.7.1).
 const (
-	DetachTypeEPS      uint8 = 1
-	DetachTypeIMSI     uint8 = 2
-	DetachTypeCombined uint8 = 3
+	DetachTypeEPS      DetachType = 1
+	DetachTypeIMSI     DetachType = 2
+	DetachTypeCombined DetachType = 3
+)
+
+// Type of detach values for a network-originating DETACH REQUEST. The same three
+// bit patterns name different procedures in this direction
+// (TS 24.301 §9.9.3.7, table 9.9.3.7.1).
+const (
+	DetachTypeReattachRequired    DetachTypeNetwork = 1
+	DetachTypeReattachNotRequired DetachTypeNetwork = 2
+	DetachTypeNetworkIMSI         DetachTypeNetwork = 3
 )
 
 // detachRequestNetworkIEs are the optional IEs of a network-originating DETACH
 // REQUEST (TS 24.301): the EMM cause.
-var detachRequestNetworkIEs = []common.OptionalIE{
-	{IEI: emmCauseIEI, Format: common.IETV3, Len: 1},
+var detachRequestNetworkIEs = []nas.OptionalIE{
+	{IEI: ieiEMMCause, Format: nas.IETV3, Len: 1, Name: "EMM cause"},
 }
 
 // DetachRequestUE is the UE-originating DETACH REQUEST message (TS 24.301).
@@ -24,39 +33,51 @@ var detachRequestNetworkIEs = []common.OptionalIE{
 // network does not send a Detach Accept.
 type DetachRequestUE struct {
 	SwitchOff           bool
-	TypeOfDetach        uint8
-	NASKeySetIdentifier uint8
+	TypeOfDetach        DetachType
+	NASKeySetIdentifier nas.KeySetIdentifier
 	EPSMobileIdentity   EPSMobileIdentity
+
+	// Unrecognized carries the optional information elements this message does
+	// not model, so they survive decoding and re-encode unchanged. The spec
+	// defines none for this message, but a later release may.
+	Unrecognized []nas.RawIE
 }
 
-// Marshal encodes the plain UE-originating DETACH REQUEST message.
-func (m *DetachRequestUE) Marshal() ([]byte, error) {
-	var w common.Writer
+// AppendBinary encodes the plain UE-originating DETACH REQUEST message.
+// The encoding is appended to b.
+func (m *DetachRequestUE) AppendBinary(b []byte) ([]byte, error) {
+	w := nas.NewWriter(b)
 
-	writeEMMHeader(&w, MsgDetachRequest)
+	var o nas.OptionalWriter
 
-	octet := m.NASKeySetIdentifier<<4 | m.TypeOfDetach&0x07
+	writeEMMHeader(w, MsgDetachRequest)
+
+	octet := m.NASKeySetIdentifier.HalfOctet()<<4 | uint8(m.TypeOfDetach)&0x07
 	if m.SwitchOff {
 		octet |= 0x08
 	}
 
 	w.U8(octet)
 
-	mobid, err := m.EPSMobileIdentity.encode()
+	mi, err := m.EPSMobileIdentity.MarshalBinary()
 	if err != nil {
-		return nil, err
+		return b, err
 	}
 
-	if err := w.LV(mobid); err != nil {
-		return nil, err
-	}
+	w.LV(mi)
 
-	return w.Bytes(), nil
+	o.Raw(m.Unrecognized...)
+	o.WriteTo(w)
+
+	return w.Result(b)
 }
+
+// MarshalBinary encodes the message.
+func (m *DetachRequestUE) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
 
 // ParseDetachRequestUE decodes a plain UE-originating DETACH REQUEST message.
 func ParseDetachRequestUE(b []byte) (*DetachRequestUE, error) {
-	r := common.NewReader(b)
+	r := nas.NewReader(b)
 
 	if err := readEMMHeader(r, MsgDetachRequest); err != nil {
 		return nil, err
@@ -69,48 +90,67 @@ func ParseDetachRequestUE(b []byte) (*DetachRequestUE, error) {
 
 	m := &DetachRequestUE{
 		SwitchOff:           octet&0x08 != 0,
-		TypeOfDetach:        octet & 0x07,
-		NASKeySetIdentifier: octet >> 4,
+		TypeOfDetach:        DetachType(octet & 0x07),
+		NASKeySetIdentifier: nas.ParseKeySetIdentifier(octet >> 4),
 	}
 
-	mobid, err := r.LV()
+	raw, err := r.LV()
 	if err != nil {
 		return nil, err
 	}
 
-	if m.EPSMobileIdentity, err = decodeEPSMobileIdentity(mobid); err != nil {
+	if m.EPSMobileIdentity, err = ParseEPSMobileIdentity(raw); err != nil {
 		return nil, err
 	}
 
-	return m, nil
+	_unrec, err := walkOptionalIEs(r, nil, declineAll)
+	if err != nil && !nas.SoftOnly(err) {
+		return nil, err
+	}
+
+	m.Unrecognized = _unrec
+
+	return m, err
 }
 
 // DetachRequestNetwork is the network-originating DETACH REQUEST message
 // (TS 24.301). EMMCause is nil when the optional cause is absent.
 type DetachRequestNetwork struct {
-	TypeOfDetach uint8
-	EMMCause     *uint8
+	TypeOfDetach DetachTypeNetwork
+	Cause        *EMMCause
+
+	// Unrecognized carries the optional information elements this message does
+	// not model, so they survive decoding and re-encode unchanged.
+	Unrecognized []nas.RawIE
 }
 
-// Marshal encodes the plain network-originating DETACH REQUEST message.
-func (m *DetachRequestNetwork) Marshal() ([]byte, error) {
-	var w common.Writer
+// AppendBinary encodes the plain network-originating DETACH REQUEST message.
+// The encoding is appended to b.
+func (m *DetachRequestNetwork) AppendBinary(b []byte) ([]byte, error) {
+	w := nas.NewWriter(b)
 
-	writeEMMHeader(&w, MsgDetachRequest)
-	w.U8(m.TypeOfDetach & 0x07) // detach type | spare half octet
+	var o nas.OptionalWriter
 
-	if m.EMMCause != nil {
-		w.U8(emmCauseIEI)
-		w.U8(*m.EMMCause)
+	writeEMMHeader(w, MsgDetachRequest)
+	w.U8(uint8(m.TypeOfDetach & 0x07)) // detach type | spare half octet
+
+	if m.Cause != nil {
+		o.TV3(ieiEMMCause, []byte{uint8(*m.Cause)})
 	}
 
-	return w.Bytes(), nil
+	o.Raw(m.Unrecognized...)
+	o.WriteTo(w)
+
+	return w.Result(b)
 }
+
+// MarshalBinary encodes the message.
+func (m *DetachRequestNetwork) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
 
 // ParseDetachRequestNetwork decodes a plain network-originating DETACH REQUEST
 // message.
 func ParseDetachRequestNetwork(b []byte) (*DetachRequestNetwork, error) {
-	r := common.NewReader(b)
+	r := nas.NewReader(b)
 
 	if err := readEMMHeader(r, MsgDetachRequest); err != nil {
 		return nil, err
@@ -121,42 +161,70 @@ func ParseDetachRequestNetwork(b []byte) (*DetachRequestNetwork, error) {
 		return nil, err
 	}
 
-	m := &DetachRequestNetwork{TypeOfDetach: octet & 0x07}
+	m := &DetachRequestNetwork{TypeOfDetach: DetachTypeNetwork(octet & 0x07)}
 
-	if _, err := common.WalkOptionalIEs(r, detachRequestNetworkIEs, func(iei uint8, value []byte) error {
-		if iei == emmCauseIEI && len(value) == 1 {
-			cause := value[0]
-			m.EMMCause = &cause
+	_unrec, err := walkOptionalIEs(r, detachRequestNetworkIEs, func(iei uint8, value []byte) (bool, error) {
+		if iei != ieiEMMCause || len(value) != 1 {
+			return false, nil
 		}
 
-		return nil
-	}); err != nil {
+		cause := EMMCause(value[0])
+		m.Cause = &cause
+
+		return true, nil
+	})
+	if err != nil && !nas.SoftOnly(err) {
 		return nil, err
 	}
 
-	return m, nil
+	m.Unrecognized = _unrec
+
+	return m, err
 }
 
 // DetachAccept is the DETACH ACCEPT message (TS 24.301), used in both
 // directions; it has no information elements beyond the header.
-type DetachAccept struct{}
-
-// Marshal encodes the plain DETACH ACCEPT message.
-func (m *DetachAccept) Marshal() ([]byte, error) {
-	var w common.Writer
-
-	writeEMMHeader(&w, MsgDetachAccept)
-
-	return w.Bytes(), nil
+type DetachAccept struct {
+	// Unrecognized carries the optional information elements this message does
+	// not model, so they survive decoding and re-encode unchanged. The spec
+	// defines none for this message, but a later release may.
+	Unrecognized []nas.RawIE
 }
+
+// AppendBinary encodes the plain DETACH ACCEPT message.
+// The encoding is appended to b.
+func (m *DetachAccept) AppendBinary(b []byte) ([]byte, error) {
+	w := nas.NewWriter(b)
+
+	var o nas.OptionalWriter
+
+	writeEMMHeader(w, MsgDetachAccept)
+
+	o.Raw(m.Unrecognized...)
+	o.WriteTo(w)
+
+	return w.Result(b)
+}
+
+// MarshalBinary encodes the message.
+func (m *DetachAccept) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
 
 // ParseDetachAccept decodes a plain DETACH ACCEPT message.
 func ParseDetachAccept(b []byte) (*DetachAccept, error) {
-	r := common.NewReader(b)
+	r := nas.NewReader(b)
 
 	if err := readEMMHeader(r, MsgDetachAccept); err != nil {
 		return nil, err
 	}
 
-	return &DetachAccept{}, nil
+	out := &DetachAccept{}
+
+	_unrec, err := walkOptionalIEs(r, nil, declineAll)
+	if err != nil && !nas.SoftOnly(err) {
+		return nil, err
+	}
+
+	out.Unrecognized = _unrec
+
+	return out, err
 }

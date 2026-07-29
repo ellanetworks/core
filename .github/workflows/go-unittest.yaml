@@ -20,3 +20,13 @@ jobs:
 
       - name: Unit tests
         run: go test -cover ./...
+
+      - name: Sub-module unit tests
+        run: |
+          set -e
+          for modfile in $(find . -name go.mod -not -path './go.mod' -not -path './ui/*'); do
+            dir=$(dirname "$modfile")
+            echo "::group::go test ./... in $dir"
+            (cd "$dir" && go test -cover ./...)
+            echo "::endgroup::"
+          done

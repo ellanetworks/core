@@ -5,55 +5,45 @@ package ue
 
 import (
 	"fmt"
-	"net/netip"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/ellanetworks/core/internal/tester/testutil"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
-func handlePDUSessionEstablishmentAccept(ue *UE, msg *nasMessage.PDUSessionEstablishmentAccept) error {
-	pduAddrInfo := msg.GetPDUAddressInformation()
-	pduSessionType := msg.SelectedSSCModeAndSelectedPDUSessionType.Octet & 0x07
-
-	ueIP, err := testutil.UEIPFromNAS(pduSessionType, pduAddrInfo)
+func handlePDUSessionEstablishmentAccept(ue *UE, payload []byte) error {
+	acc, err := fgs.ParsePDUSessionEstablishmentAccept(payload)
 	if err != nil {
-		return fmt.Errorf("could not get UE IP from NAS PDU Address Information: %v", err)
+		return fmt.Errorf("could not parse PDU Session Establishment Accept: %v", err)
 	}
+
+	if acc.PDUAddress == nil {
+		return fmt.Errorf("PDU Session Establishment Accept carries no PDU address")
+	}
+
+	ueIP := acc.PDUAddress.IPv4Addr()
 
 	var ueIPV6 string
-
-	if pduSessionType == nasMessage.PDUSessionTypeIPv6 || pduSessionType == nasMessage.PDUSessionTypeIPv4IPv6 {
-		var ifaceId [8]uint8
-		copy(ifaceId[:], pduAddrInfo[0:8])
-		ueIPV6 = interfaceIdToLinkLocal(ifaceId)
+	if v6 := acc.PDUAddress.IPv6LinkLocal(); v6.IsValid() {
+		ueIPV6 = v6.String()
 	}
 
-	mtu, err := testutil.MTUFromExtendProtocolConfigurationOptionsContents(
-		msg.GetExtendedProtocolConfigurationOptionsContents(),
-	)
-	if err != nil {
-		return fmt.Errorf("could not get MTU from Extended Protocol Configuration Options: %v", err)
+	var mtu uint16
+	if acc.ExtendedPCO != nil {
+		mtu, _ = acc.ExtendedPCO.IPv4LinkMTU()
 	}
 
-	qosFlowDescs, err := testutil.ParseAuthorizedQosFlowDescriptions(
-		msg.GetQoSFlowDescriptions(),
-	)
-	if err != nil {
-		return fmt.Errorf("could not parse AuthorizedQosFlowDescriptions: %v", err)
-	}
-
+	qosFlowDescs := acc.QoSFlowDescriptions
 	if len(qosFlowDescs) < 1 {
-		return fmt.Errorf("not enough AuthorizedQosFlowDescriptions: %v", err)
+		return fmt.Errorf("not enough AuthorizedQosFlowDescriptions")
 	}
 
-	qfi := qosFlowDescs[0].Qfi
+	qfi := qosFlowDescs[0].QFI
 
 	logger.UeLogger.Debug(
 		"Received PDU Session Establishment Accept NAS message",
 		zap.String("IMSI", ue.UeSecurity.Supi),
-		zap.Uint8("PDU Session ID", msg.GetPDUSessionID()),
+		zap.Uint8("PDU Session ID", uint8(acc.PDUSessionID)),
 		zap.String("UE IP", ueIP.String()),
 		zap.String("UE IPv6", ueIPV6),
 		zap.Uint16("MTU", mtu),
@@ -61,7 +51,7 @@ func handlePDUSessionEstablishmentAccept(ue *UE, msg *nasMessage.PDUSessionEstab
 	)
 
 	ue.SetPDUSession(PDUSessionInfo{
-		PDUSessionID: msg.GetPDUSessionID(),
+		PDUSessionID: uint8(acc.PDUSessionID),
 		UEIP:         ueIP.String(),
 		UEIPV6:       ueIPV6,
 		MTU:          mtu,
@@ -69,14 +59,4 @@ func handlePDUSessionEstablishmentAccept(ue *UE, msg *nasMessage.PDUSessionEstab
 	})
 
 	return nil
-}
-
-func interfaceIdToLinkLocal(interfaceId [8]uint8) string {
-	linkLocalPrefix := [8]uint8{0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-
-	var addr [16]byte
-	copy(addr[0:8], linkLocalPrefix[:])
-	copy(addr[8:16], interfaceId[:])
-
-	return netip.AddrFrom16(addr).String()
 }

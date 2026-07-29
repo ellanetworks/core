@@ -16,8 +16,9 @@ import (
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/aper"
-	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -241,31 +242,25 @@ func verifyUESecurityCapabilitiesOnPathSwitch(
 	case amf.VerifyMismatch:
 		logger.WithTrace(ctx, ueConn.Log).Warn(
 			"UE 5G security capabilities reported by target gNB differ from locally stored values; ignoring received values (TS 33.501)",
-			zap.Binary("stored", amfUe.UESecCap().Buffer),
-			zap.Binary("received", reported.Buffer),
+			zap.Stringer("stored", amfUe.UESecCap()),
+			zap.Stringer("received", reported),
 		)
 	}
 }
 
 // ngapToNasUESecurityCapability converts the NGAP UESecurityCapabilities IE to
-// the NAS UESecurityCapability type the AMF stores internally.
+// the NAS UE security capability the AMF stores (5G-EA1/IA1 at bit 7, EA2/IA2 at
+// bit 6, EA3/IA3 at bit 5).
 //
 // E-UTRA (EEA/EIA) bits carried by the NGAP IE are dropped: this AMF does not
 // negotiate E-UTRA algorithms with the UE, so the verify path compares only the
 // 5G NR columns.
-func ngapToNasUESecurityCapability(received *ngapType.UESecurityCapabilities) *nasType.UESecurityCapability {
-	out := &nasType.UESecurityCapability{}
-	out.SetLen(2)
+func ngapToNasUESecurityCapability(received *ngapType.UESecurityCapabilities) *fgs.UESecurityCapability {
+	enc := received.NRencryptionAlgorithms.Value.Bytes[0]
+	integ := received.NRintegrityProtectionAlgorithms.Value.Bytes[0]
 
-	encByte := received.NRencryptionAlgorithms.Value.Bytes[0]
-	intByte := received.NRintegrityProtectionAlgorithms.Value.Bytes[0]
-
-	out.SetEA1_128_5G((encByte & 0x80) >> 7)
-	out.SetEA2_128_5G((encByte & 0x40) >> 6)
-	out.SetEA3_128_5G((encByte & 0x20) >> 5)
-	out.SetIA1_128_5G((intByte & 0x80) >> 7)
-	out.SetIA2_128_5G((intByte & 0x40) >> 6)
-	out.SetIA3_128_5G((intByte & 0x20) >> 5)
-
-	return out
+	return &fgs.UESecurityCapability{
+		EA: nas.AlgorithmSet((enc>>7&1)<<6 | (enc>>6&1)<<5 | (enc>>5&1)<<4),
+		IA: nas.AlgorithmSet((integ>>7&1)<<6 | (integ>>6&1)<<5 | (integ>>5&1)<<4),
+	}
 }

@@ -258,7 +258,7 @@ func pdnConnectionExports(ue *UeContext) map[string]PDNConnectionExport {
 		pc := PDNConnectionExport{
 			Ebi:                    p.Ebi,
 			Apn:                    p.Apn,
-			PdnType:                p.PdnType,
+			PdnType:                uint8(p.PdnType),
 			Qci:                    p.Qci,
 			Arp:                    p.Arp,
 			SessionAMBRUplinkBps:   p.SessAmbrULBps,

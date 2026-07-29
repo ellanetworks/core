@@ -148,16 +148,16 @@ func TestDecodeNGAPMessage_UEContextReleaseRequest(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item3.Criticality.Value)
 	}
 
-	cause, ok := item3.Value.(utils.EnumField[uint64])
+	cause, ok := item3.Value.(utils.EnumField)
 	if !ok {
-		t.Fatalf("expected Cause value type=utils.EnumField[uint64], got %T", item3.Value)
+		t.Fatalf("expected Cause value type=utils.EnumField, got %T", item3.Value)
 	}
 
 	if cause.Label != "RadioConnectionWithUeLost" {
 		t.Errorf("expected Cause=RadioConnectionWithUeLost, got %s", cause.Label)
 	}
 
-	if cause.Value != uint64(ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost) {
+	if cause.Value != int64(ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost) {
 		t.Errorf("expected Cause value=21, got %d", cause.Value)
 	}
 }

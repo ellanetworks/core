@@ -4,11 +4,9 @@
 package ue
 
 import (
-	"bytes"
 	"fmt"
 
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 // BuildUplinkNasTransportLPP builds a UL NAS Transport message with LPP payload
@@ -19,24 +17,10 @@ func BuildUplinkNasTransportLPP(lppPayload []byte) ([]byte, error) {
 		return nil, fmt.Errorf("LPP payload is required")
 	}
 
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeULNASTransport)
-
-	ulNasTransport := nasMessage.NewULNASTransport(0)
-	ulNasTransport.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	ulNasTransport.SetMessageType(nas.MsgTypeULNASTransport)
-	ulNasTransport.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	ulNasTransport.SetPayloadContainerType(nasMessage.PayloadContainerTypeLPP)
-	ulNasTransport.PayloadContainer.SetLen(uint16(len(lppPayload)))
-	ulNasTransport.SetPayloadContainerContents(lppPayload)
-
-	m.ULNASTransport = ulNasTransport
-
-	data := new(bytes.Buffer)
-	if err := m.GmmMessageEncode(data); err != nil {
-		return nil, fmt.Errorf("failed to encode GMM message: %w", err)
+	m := &fgs.ULNASTransport{
+		PayloadContainerType: fgs.PayloadContainerTypeLPP,
+		PayloadContainer:     lppPayload,
 	}
 
-	return data.Bytes(), nil
+	return m.MarshalBinary()
 }

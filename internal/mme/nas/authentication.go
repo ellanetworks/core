@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
@@ -28,7 +29,7 @@ func startAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 
 	if err := sendAuthRequest(ctx, m, ue, "", ""); err != nil {
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: cannot authenticate subscriber", zap.String("imsi", ue.IMSI()), zap.Error(err))
-		rejectAttach(ctx, m, ue, mme.EmmCauseIMSIUnknownInHSS)
+		rejectAttach(ctx, m, ue, eps.EMMCauseIMSIUnknownInHSS)
 	}
 }
 
@@ -54,7 +55,7 @@ func sendAuthRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, resyncA
 	c.AuthVector = vec
 
 	logger.From(ctx, logger.MmeLog).Info("Authentication Request")
-	c.SendGuardedMessage(ctx, "Authentication Request", &eps.AuthenticationRequest{NASKeySetIdentifier: ue.Eksi(), RAND: vec.RAND, AUTN: vec.AUTN[:]})
+	c.SendGuardedMessage(ctx, "Authentication Request", &eps.AuthenticationRequest{NASKeySetIdentifier: nas.KeySetIdentifier{Value: ue.Eksi()}, RAND: vec.RAND, AUTN: vec.AUTN})
 
 	return nil
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/udm"
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
@@ -40,8 +40,7 @@ func TestSendNetworkName(t *testing.T) {
 
 	dl := decodeDownlinkNAS(t, cc.sent[0])
 
-	plain, err := eps.Unprotect(dl, nascommon.NASCount(0, dl[5]), nascommon.DirectionDownlink,
-		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	plain, err := unprotected(eps.Unprotect(dl, nas.MakeCount(0, dl[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
 	if err != nil {
 		t.Fatalf("unprotect EMM INFORMATION: %v", err)
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 )
@@ -90,7 +91,7 @@ func runRegistrationSuccessNoSD(_ context.Context, env scenarios.Env, _ any) err
 
 	newUE, err := ue.NewUE(&ue.UEOpts{
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
-		PDUSessionType: env.PDUSessionType(),
+		PDUSessionType: fgs.PDUSessionType(env.PDUSessionType()),
 		GnodeB:         gNodeB,
 		Msin:           scenarios.DefaultIMSI[5:],
 		K:              scenarios.DefaultKey,

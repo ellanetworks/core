@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func handleAuthenticationFailure(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte) nasreply.Disposition {
+func handleAuthenticationFailure(ctx context.Context, m *mme.MME, ue *mme.UeContext, fail *eps.AuthenticationFailure) nasreply.Disposition {
 	// An AUTHENTICATION FAILURE is admissible without integrity protection
 	// (TS 24.301 §4.4.4.3) and can be injected. It is valid only during the attach
 	// authentication sub-phase; in any other state its handling is
@@ -35,34 +35,28 @@ func handleAuthenticationFailure(ctx context.Context, m *mme.MME, ue *mme.UeCont
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	resp, err := eps.ParseAuthenticationFailure(plain)
-	if err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("failed to decode Authentication Failure", zap.Error(err))
-		return nasreply.Handled()
-	}
-
-	logger.From(ctx, logger.MmeLog).Info("Authentication Failure", zap.Uint8("emm-cause", resp.Cause))
+	logger.From(ctx, logger.MmeLog).Info("Authentication Failure", logger.Cause(fail.Cause.String()))
 
 	// A cause outside the enumeration (#20, #21, #26) is semantically incorrect:
 	// ignore it and leave the procedure and its guard (T3460) running; the UE is
 	// not released (TS 24.301 §7.8). Stop the guard only for an enumerated cause.
-	switch resp.Cause {
-	case mme.EmmCauseMACFailure, mme.EmmCauseSynchFailure, mme.EmmCauseNonEPSAuthUnacceptable:
+	switch fail.Cause {
+	case eps.EMMCauseMACFailure, eps.EMMCauseSynchFailure, eps.EMMCauseNonEPSAuthenticationUnacceptable:
 	default:
 		logger.From(ctx, logger.MmeLog).Warn("ignoring Authentication Failure with an out-of-enumeration cause",
-			zap.Uint8("emm-cause", resp.Cause))
+			logger.Cause(fail.Cause.String()))
 
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	c.StopNASGuard()
 
-	if resp.Cause == mme.EmmCauseSynchFailure && len(resp.AUTS) > 0 && !c.ResyncTried() && c.AuthVector != nil {
+	if fail.Cause == eps.EMMCauseSynchFailure && len(fail.AUTS) > 0 && !c.ResyncTried() && c.AuthVector != nil {
 		c.SetResyncTried(true)
 
 		logger.From(ctx, logger.MmeLog).Info("re-synchronising SQN, re-authenticating")
 
-		if err := sendAuthRequest(ctx, m, ue, hex.EncodeToString(resp.AUTS), hex.EncodeToString(c.AuthVector.RAND[:])); err != nil {
+		if err := sendAuthRequest(ctx, m, ue, hex.EncodeToString(fail.AUTS), hex.EncodeToString(c.AuthVector.RAND[:])); err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("SQN re-synchronisation failed", zap.Error(err))
 			rejectAuthentication(ctx, m, ue)
 		}

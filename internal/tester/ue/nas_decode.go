@@ -4,100 +4,106 @@
 package ue
 
 import (
-	"bytes"
 	"fmt"
 
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/security"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
-func (ue *UE) DecodeNAS(message []byte) (*nas.Message, error) {
+// DecodeNAS unwraps a received downlink NAS PDU to its plaintext, advancing the
+// downlink NAS COUNT (TS 24.501 §4.4.3.1) and, for a SECURITY MODE COMMAND carried
+// with a new 5G NAS security context, deriving the new NAS keys.
+func (ue *UE) DecodeNAS(message []byte) ([]byte, error) {
 	if message == nil {
 		return nil, fmt.Errorf("nas message is nil")
 	}
 
-	m := new(nas.Message)
-	m.SecurityHeaderType = nas.GetSecurityHeaderType(message) & 0x0f
-
-	payload := make([]byte, len(message))
-	copy(payload, message)
-
-	if m.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
-		err := m.PlainNasDecode(&payload)
-		if err != nil {
-			return nil, fmt.Errorf("decode NAS error: %v", err)
-		}
-
-		return m, nil
-	}
-
-	sequenceNumber := message[6]
-
-	macReceived := message[2:6]
-
-	payload = payload[7:]
-
-	cph := false
-
-	newSecurityContext := false
-
-	switch m.SecurityHeaderType {
-	case nas.SecurityHeaderTypeIntegrityProtected:
-	case nas.SecurityHeaderTypeIntegrityProtectedAndCiphered:
-		cph = true
-	case nas.SecurityHeaderTypeIntegrityProtectedWithNew5gNasSecurityContext:
-		newSecurityContext = true
-	case nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext:
-		return nil, fmt.Errorf("received message with security header \"Integrity protected and ciphered with new 5G NAS security context\", this is reserved for a SECURITY MODE COMPLETE and UE should not receive this code")
-	}
-
-	if ue.UeSecurity.DLCount.SQN() > sequenceNumber {
-		ue.UeSecurity.DLCount.SetOverflow(ue.UeSecurity.DLCount.Overflow() + 1)
-	}
-
-	ue.UeSecurity.DLCount.SetSQN(sequenceNumber)
-
-	if cph {
-		if err := security.NASEncrypt(ue.UeSecurity.CipheringAlg, ue.UeSecurity.KnasEnc, ue.UeSecurity.DLCount.Get(), security.Bearer3GPP,
-			security.DirectionDownlink, payload); err != nil {
-			return nil, fmt.Errorf("error in encrypt algorithm %v", err)
-		}
-	}
-
-	err := m.PlainNasDecode(&payload)
+	sht, err := fgs.PeekSecurityHeaderType(message)
 	if err != nil {
 		return nil, fmt.Errorf("decode NAS error: %v", err)
 	}
 
-	if newSecurityContext {
-		if m.GmmHeader.GetMessageType() == nas.MsgTypeSecurityModeCommand {
-			ue.UeSecurity.DLCount.Set(0, 0)
-			ue.UeSecurity.CipheringAlg = m.SelectedNASSecurityAlgorithms.GetTypeOfCipheringAlgorithm()
-			ue.UeSecurity.IntegrityAlg = m.SelectedNASSecurityAlgorithms.GetTypeOfIntegrityProtectionAlgorithm()
-
-			err := ue.DerivateAlgKey()
-			if err != nil {
-				return nil, fmt.Errorf("error in DerivateAlgKey %v", err)
-			}
-		} else {
-			return nil, fmt.Errorf("received message with security header \"Integrity protected with new 5G NAS security context\", but message type is not SECURITY MODE COMMAND")
-		}
+	if sht == fgs.SHTPlain {
+		return message, nil
 	}
 
-	mac32, err := security.NASMacCalculate(ue.UeSecurity.IntegrityAlg,
-		ue.UeSecurity.KnasInt,
-		ue.UeSecurity.DLCount.Get(),
-		security.Bearer3GPP,
-		security.DirectionDownlink, message[6:])
+	if sht == fgs.SHTIntegrityProtectedCipheredNewContext {
+		return nil, fmt.Errorf("received message with security header \"Integrity protected and ciphered with new 5G NAS security context\", this is reserved for a SECURITY MODE COMPLETE and UE should not receive this code")
+	}
+
+	spm, err := fgs.ParseSecurityProtectedMessage(message)
 	if err != nil {
-		return nil, fmt.Errorf("error in MAC algorithm %v", err)
+		return nil, fmt.Errorf("decode NAS error: %v", err)
 	}
 
-	if !bytes.Equal(mac32, macReceived) {
-		return nil, fmt.Errorf("MAC verification failed")
+	// Estimate the downlink NAS COUNT from the received sequence number, carrying
+	// into the overflow counter on wrap-around (TS 24.501 §4.4.3.1).
+	if ue.UeSecurity.DLCount.SQN() > spm.SequenceNumber {
+		ue.UeSecurity.DLCount = nas.MakeCount(ue.UeSecurity.DLCount.Overflow()+1, spm.SequenceNumber)
+	} else {
+		ue.UeSecurity.DLCount = nas.MakeCount(ue.UeSecurity.DLCount.Overflow(), spm.SequenceNumber)
 	}
 
-	return m, nil
+	if sht == fgs.SHTIntegrityProtectedNewContext {
+		return ue.decodeNewSecurityContext(spm)
+	}
+
+	sc, err := ue.securityContext()
+	if err != nil {
+		return nil, err
+	}
+
+	plain, _, err := fgs.Unprotect(message, ue.UeSecurity.DLCount, nas.DirectionDownlink, sc)
+	if err != nil {
+		return nil, fmt.Errorf("decode NAS error: %v", err)
+	}
+
+	return plain, nil
+}
+
+// decodeNewSecurityContext handles a SECURITY MODE COMMAND carried with a new 5G
+// NAS security context (TS 24.501 §4.4.4.3): the message is integrity-protected
+// but not ciphered, so its plaintext names the selected algorithms; the UE derives
+// the new NAS keys from them and verifies the NAS-MAC with the new context.
+func (ue *UE) decodeNewSecurityContext(spm *fgs.SecurityProtectedMessage) ([]byte, error) {
+	plain := spm.UnverifiedPayload
+
+	msg, err := fgs.ParseMessage(plain)
+	if err != nil && !nas.SoftOnly(err) {
+		return nil, fmt.Errorf("decode NAS error: %v", err)
+	}
+
+	smc, ok := msg.(*fgs.SecurityModeCommand)
+	if !ok {
+		return nil, fmt.Errorf("received %T with security header \"Integrity protected with new 5G NAS security context\", which is reserved for a SECURITY MODE COMMAND", msg)
+	}
+
+	ue.UeSecurity.DLCount = 0
+	ue.UeSecurity.CipheringAlg = uint8(smc.CipheringAlgorithm)
+	ue.UeSecurity.IntegrityAlg = uint8(smc.IntegrityAlgorithm)
+
+	if err := ue.DerivateAlgKey(); err != nil {
+		return nil, fmt.Errorf("error in DerivateAlgKey %v", err)
+	}
+
+	sc, err := ue.securityContext()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := sc.VerifyMAC(macInput(spm.SequenceNumber, spm.UnverifiedPayload), spm.MAC,
+		ue.UeSecurity.DLCount, nas.Bearer3GPP, nas.DirectionDownlink); err != nil {
+		return nil, fmt.Errorf("MAC verification failed: %w", err)
+	}
+
+	return plain, nil
+}
+
+// securityContext builds the NAS security context from the UE's current
+// algorithms and keys.
+func (ue *UE) securityContext() (*nas.SecurityContext, error) {
+	return securityContext(ue.UeSecurity.IntegrityAlg, ue.UeSecurity.CipheringAlg,
+		ue.UeSecurity.KnasInt, ue.UeSecurity.KnasEnc)
 }
 
 func (ue *UE) DerivateAlgKey() error {

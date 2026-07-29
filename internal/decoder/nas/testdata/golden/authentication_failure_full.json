@@ -1,0 +1,37 @@
+{
+  "security_header": {
+    "protocol_discriminator": {
+      "type": "enum",
+      "value": 126,
+      "label": "5GSMobilityManagementMessage",
+      "unknown": false
+    },
+    "security_header_type": {
+      "type": "enum",
+      "value": 0,
+      "label": "Plain NAS",
+      "unknown": false
+    },
+    "sequence_number": 0
+  },
+  "gmm_message": {
+    "gmm_header": {
+      "message_type": {
+        "type": "enum",
+        "value": 89,
+        "label": "AuthenticationFailure",
+        "unknown": false
+      }
+    },
+    "authentication_failure": {
+      "cause": {
+        "type": "enum",
+        "value": 21,
+        "label": "Synch failure",
+        "unknown": false
+      },
+      "authentication_failure_parameter": "1212121212121212121212121212"
+    }
+  },
+  "encrypted": false
+}

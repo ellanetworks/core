@@ -10,7 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
@@ -21,8 +21,8 @@ import (
 // dispatcher does not also emit a 5GMM STATUS.
 func abortSecurityMode(ctx context.Context, ue *amf.UeContext, ueConn *amf.UeConn, reason string, err error) {
 	logger.From(ctx, logger.AmfLog).Error("security mode aborted, releasing UE", zap.String("reason", reason), zap.Error(err))
-	metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(ueConn.RegistrationType5GS), metrics.ResultReject)
-	amf.SendRegistrationReject(ctx, ueConn, nasMessage.Cause5GMMProtocolErrorUnspecified)
+	metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(ueConn.RegistrationType5GS), metrics.ResultReject)
+	amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseProtocolErrorUnspecified)
 	ue.Deregister(ctx)
 }
 
@@ -85,9 +85,9 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 		// (5GMM cause #23).
 		logger.From(ctx, logger.AmfLog).Warn("NAS security algorithm negotiation failed, rejecting registration")
 
-		metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultReject)
+		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
 
-		amf.SendRegistrationReject(ctx, ueConn, nasMessage.Cause5GMMUESecurityCapabilitiesMismatch)
+		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseUESecurityCapabilitiesMismatch)
 		ue.Deregister(ctx)
 
 		return

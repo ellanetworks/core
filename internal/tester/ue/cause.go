@@ -6,159 +6,159 @@ package ue
 import (
 	"fmt"
 
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
-func cause5GMMToString(cause uint8) string {
+func cause5GMMToString(cause fgs.GMMCause) string {
 	switch cause {
-	case nasMessage.Cause5GMMIllegalUE:
+	case 0x03:
 		return "Illegal UE"
-	case nasMessage.Cause5GMMPEINotAccepted:
+	case 0x05:
 		return "PEI Not Accepted"
-	case nasMessage.Cause5GMMIllegalME:
+	case 0x06:
 		return "Illegal ME"
-	case nasMessage.Cause5GMM5GSServicesNotAllowed:
+	case 0x07:
 		return "5GS Services Not Allowed"
-	case nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork:
+	case 0x09:
 		return "UE Identity Cannot Be Derived By The Network"
-	case nasMessage.Cause5GMMImplicitlyDeregistered:
+	case 0x0a:
 		return "Implicitly Deregistered"
-	case nasMessage.Cause5GMMPLMNNotAllowed:
+	case 0x0b:
 		return "PLMN Not Allowed"
-	case nasMessage.Cause5GMMTrackingAreaNotAllowed:
+	case 0x0c:
 		return "Tracking Area Not Allowed"
-	case nasMessage.Cause5GMMRoamingNotAllowedInThisTrackingArea:
+	case 0x0d:
 		return "Roaming Not Allowed In This Tracking Area"
-	case nasMessage.Cause5GMMNoSuitableCellsInTrackingArea:
+	case 0x0f:
 		return "No Suitable Cells In Tracking Area"
-	case nasMessage.Cause5GMMMACFailure:
+	case 0x14:
 		return "MAC Failure"
-	case nasMessage.Cause5GMMSynchFailure:
+	case 0x15:
 		return "Synch Failure"
-	case nasMessage.Cause5GMMCongestion:
+	case 0x16:
 		return "Congestion"
-	case nasMessage.Cause5GMMUESecurityCapabilitiesMismatch:
+	case 0x17:
 		return "UE Security Capabilities Mismatch"
-	case nasMessage.Cause5GMMSecurityModeRejectedUnspecified:
+	case 0x18:
 		return "Security Mode Rejected Unspecified"
-	case nasMessage.Cause5GMMNon5GAuthenticationUnacceptable:
+	case 0x1a:
 		return "Non-5G Authentication Unacceptable"
-	case nasMessage.Cause5GMMN1ModeNotAllowed:
+	case 0x1b:
 		return "N1 Mode Not Allowed"
-	case nasMessage.Cause5GMMRestrictedServiceArea:
+	case 0x1c:
 		return "Restricted Service Area"
-	case nasMessage.Cause5GMMLADNNotAvailable:
+	case 0x2b:
 		return "LADN Not Available"
-	case nasMessage.Cause5GMMMaximumNumberOfPDUSessionsReached:
+	case 0x41:
 		return "Maximum Number Of PDU Sessions Reached"
-	case nasMessage.Cause5GMMInsufficientResourcesForSpecificSliceAndDNN:
+	case 0x43:
 		return "Insufficient Resources For Specific Slice And DNN"
-	case nasMessage.Cause5GMMInsufficientResourcesForSpecificSlice:
+	case 0x45:
 		return "Insufficient Resources For Specific Slice"
-	case nasMessage.Cause5GMMngKSIAlreadyInUse:
+	case 0x47:
 		return "ngKSI Already In Use"
-	case nasMessage.Cause5GMMNon3GPPAccessTo5GCNNotAllowed:
+	case 0x48:
 		return "Non-3GPP Access To 5GCN Not Allowed"
-	case nasMessage.Cause5GMMServingNetworkNotAuthorized:
+	case 0x49:
 		return "Serving Network Not Authorized"
-	case nasMessage.Cause5GMMPayloadWasNotForwarded:
+	case 0x5a:
 		return "Payload Was Not Forwarded"
-	case nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice:
+	case 0x5b:
 		return "DNN Not Supported Or Not Subscribed In The Slice"
-	case nasMessage.Cause5GMMInsufficientUserPlaneResourcesForThePDUSession:
+	case 0x5c:
 		return "Insufficient User Plane Resources For The PDU Session"
-	case nasMessage.Cause5GMMSemanticallyIncorrectMessage:
+	case 0x5f:
 		return "Semantically Incorrect Message"
-	case nasMessage.Cause5GMMInvalidMandatoryInformation:
+	case 0x60:
 		return "Invalid Mandatory Information"
-	case nasMessage.Cause5GMMMessageTypeNonExistentOrNotImplemented:
+	case 0x61:
 		return "Message Type Non Existent Or Not Implemented"
-	case nasMessage.Cause5GMMMessageTypeNotCompatibleWithTheProtocolState:
+	case 0x62:
 		return "Message Type Not Compatible With The Protocol State"
-	case nasMessage.Cause5GMMInformationElementNonExistentOrNotImplemented:
+	case 0x63:
 		return "Information Element Non Existent Or Not Implemented"
-	case nasMessage.Cause5GMMConditionalIEError:
+	case 0x64:
 		return "Conditional IE Error"
-	case nasMessage.Cause5GMMMessageNotCompatibleWithTheProtocolState:
+	case 0x65:
 		return "Message Not Compatible With The Protocol State"
-	case nasMessage.Cause5GMMProtocolErrorUnspecified:
+	case 0x6f:
 		return "Protocol Error Unspecified"
 	default:
 		return fmt.Sprintf("Unknown Cause (%d)", cause)
 	}
 }
 
-func cause5GSMToString(cause uint8) string {
+func cause5GSMToString(cause fgs.GSMCause) string {
 	switch cause {
-	case nasMessage.Cause5GSMInsufficientResources:
+	case 0x1a:
 		return "Insufficient Resources"
-	case nasMessage.Cause5GSMMissingOrUnknownDNN:
+	case 0x1b:
 		return "Missing Or Unknown DNN"
-	case nasMessage.Cause5GSMUnknownPDUSessionType:
+	case 0x1c:
 		return "Unknown PDU Session Type"
-	case nasMessage.Cause5GSMUserAuthenticationOrAuthorizationFailed:
+	case 0x1d:
 		return "User Authentication Or Authorization Failed"
-	case nasMessage.Cause5GSMRequestRejectedUnspecified:
+	case 0x1f:
 		return "Request Rejected Unspecified"
-	case nasMessage.Cause5GSMServiceOptionTemporarilyOutOfOrder:
+	case 0x22:
 		return "Service Option Temporarily Out Of Order"
-	case nasMessage.Cause5GSMPTIAlreadyInUse:
+	case 0x23:
 		return "PTI Already In Use"
-	case nasMessage.Cause5GSMRegularDeactivation:
+	case 0x24:
 		return "Regular Deactivation"
-	case nasMessage.Cause5GSMNetworkFailure:
+	case 0x26:
 		return "Network Failure"
-	case nasMessage.Cause5GSMReactivationRequested:
+	case 0x27:
 		return "Reactivation Requested"
-	case nasMessage.Cause5GSMInvalidPDUSessionIdentity:
+	case 0x2b:
 		return "Invalid PDU Session Identity"
-	case nasMessage.Cause5GSMSemanticErrorsInPacketFilter:
+	case 0x2c:
 		return "Semantic Errors In Packet Filter"
-	case nasMessage.Cause5GSMSyntacticalErrorInPacketFilter:
+	case 0x2d:
 		return "Syntactical Error In Packet Filter"
-	case nasMessage.Cause5GSMOutOfLADNServiceArea:
+	case 0x2e:
 		return "Out Of LADN Service Area"
-	case nasMessage.Cause5GSMPTIMismatch:
+	case 0x2f:
 		return "PTI Mismatch"
-	case nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed:
+	case 0x32:
 		return "PDU Session Type IPv4 Only Allowed"
-	case nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed:
+	case 0x33:
 		return "PDU Session Type IPv6 Only Allowed"
-	case nasMessage.Cause5GSMPDUSessionDoesNotExist:
+	case 0x36:
 		return "PDU Session Does Not Exist"
-	case nasMessage.Cause5GSMInsufficientResourcesForSpecificSliceAndDNN:
+	case 0x43:
 		return "Insufficient Resources For Specific Slice And DNN"
-	case nasMessage.Cause5GSMNotSupportedSSCMode:
+	case 0x44:
 		return "Not Supported SSC Mode"
-	case nasMessage.Cause5GSMInsufficientResourcesForSpecificSlice:
+	case 0x45:
 		return "Insufficient Resources For Specific Slice"
-	case nasMessage.Cause5GSMMissingOrUnknownDNNInASlice:
+	case 0x46:
 		return "Missing Or Unknown DNN In A Slice"
-	case nasMessage.Cause5GSMInvalidPTIValue:
+	case 0x51:
 		return "Invalid PTI Value"
-	case nasMessage.Cause5GSMMaximumDataRatePerUEForUserPlaneIntegrityProtectionIsTooLow:
+	case 0x52:
 		return "Maximum Data Rate Per UE For User Plane Integrity Protection Is Too Low"
-	case nasMessage.Cause5GSMSemanticErrorInTheQoSOperation:
+	case 0x53:
 		return "Semantic Error In The QoS Operation"
-	case nasMessage.Cause5GSMSyntacticalErrorInTheQoSOperation:
+	case 0x54:
 		return "Syntactical Error In The QoS Operation"
-	case nasMessage.Cause5GSMInvalidMappedEPSBearerIdentity:
+	case 0x55:
 		return "Invalid Mapped EPS Bearer Identity"
-	case nasMessage.Cause5GSMSemanticallyIncorrectMessage:
+	case 0x5f:
 		return "Semantically Incorrect Message"
-	case nasMessage.Cause5GSMInvalidMandatoryInformation:
+	case 0x60:
 		return "Invalid Mandatory Information"
-	case nasMessage.Cause5GSMMessageTypeNonExistentOrNotImplemented:
+	case 0x61:
 		return "Message Type Non Existent Or Not Implemented"
-	case nasMessage.Cause5GSMMessageTypeNotCompatibleWithTheProtocolState:
+	case 0x62:
 		return "Message Type Not Compatible With The Protocol State"
-	case nasMessage.Cause5GSMInformationElementNonExistentOrNotImplemented:
+	case 0x63:
 		return "Information Element Non Existent Or Not Implemented"
-	case nasMessage.Cause5GSMConditionalIEError:
+	case 0x64:
 		return "Conditional IE Error"
-	case nasMessage.Cause5GSMMessageNotCompatibleWithTheProtocolState:
+	case 0x65:
 		return "Message Not Compatible With The Protocol State"
-	case nasMessage.Cause5GSMProtocolErrorUnspecified:
+	case 0x6f:
 		return "Protocol Error Unspecified"
 	default:
 		return fmt.Sprintf("Unknown Cause (%d)", cause)

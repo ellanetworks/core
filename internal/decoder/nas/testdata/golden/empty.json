@@ -1,0 +1,19 @@
+{
+  "security_header": {
+    "protocol_discriminator": {
+      "type": "",
+      "value": 0,
+      "label": "",
+      "unknown": false
+    },
+    "security_header_type": {
+      "type": "",
+      "value": 0,
+      "label": "",
+      "unknown": false
+    },
+    "sequence_number": 0
+  },
+  "encrypted": false,
+  "error": "NAS message too short"
+}

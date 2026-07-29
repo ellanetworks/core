@@ -14,8 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/testutil"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/spf13/pflag"
 )
 
@@ -57,7 +56,7 @@ func runRegistrationRejectInvalidHomeNetworkPublicKey(_ context.Context, env sce
 
 	newUE, err := ue.NewUE(&ue.UEOpts{
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
-		PDUSessionType: env.PDUSessionType(),
+		PDUSessionType: fgs.PDUSessionType(env.PDUSessionType()),
 		GnodeB:         gNodeB,
 		Msin:           scenarios.DefaultIMSI[5:],
 		K:              scenarios.DefaultKey,
@@ -92,17 +91,17 @@ func runRegistrationRejectInvalidHomeNetworkPublicKey(_ context.Context, env sce
 
 	gNodeB.AddUE(int64(scenarios.DefaultRANUENGAPID), newUE)
 
-	err = newUE.SendRegistrationRequest(int64(scenarios.DefaultRANUENGAPID), nasMessage.RegistrationType5GSInitialRegistration)
+	err = newUE.SendRegistrationRequest(int64(scenarios.DefaultRANUENGAPID), uint8(fgs.RegistrationTypeInitial))
 	if err != nil {
 		return fmt.Errorf("could not send Registration Request: %v", err)
 	}
 
-	msg, err := newUE.WaitForNASGMMMessage(nas.MsgTypeRegistrationReject, 200*time.Millisecond)
+	msg, err := newUE.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationReject), 200*time.Millisecond)
 	if err != nil {
 		return fmt.Errorf("did not receive Registration Reject: %v", err)
 	}
 
-	err = validateRegistrationReject(msg, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+	err = validateRegistrationReject(msg, 9 /* 5GMM cause #9: UE identity cannot be derived by the network */)
 	if err != nil {
 		return fmt.Errorf("NAS PDU validation failed: %v", err)
 	}

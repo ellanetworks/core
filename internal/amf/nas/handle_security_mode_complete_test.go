@@ -4,7 +4,6 @@
 package nas
 
 import (
-	"bytes"
 	"encoding/hex"
 	"fmt"
 	"testing"
@@ -14,10 +13,8 @@ import (
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
-	"github.com/free5gc/nas/security"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func TestHandleSecurityMode_WrongUEMode(t *testing.T) {
@@ -43,7 +40,7 @@ func TestHandleSecurityMode_WrongUEMode(t *testing.T) {
 				t.Context(),
 				amf.New(nil, nil, nil),
 				ue,
-				nil,
+				&fgs.SecurityModeComplete{},
 				true,
 			)
 
@@ -84,7 +81,7 @@ func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
 
 	msg := buildTestSecurityModeCompleteMessage()
 
-	handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, true)
+	handleSecurityModeComplete(t.Context(), amfInstance, ue, msg, true)
 
 	if ue.Conn().NASGuardForTest().Active() {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
@@ -124,12 +121,10 @@ func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
 	ue.Conn().NASGuardForTest().Arm(10*time.Minute, 10, func(e int32) {}, func() {})
 
 	msg := buildTestSecurityModeCompleteMessage()
-	msg.IMEISV = &nasType.IMEISV{
-		Octet: [9]uint8{nasMessage.MobileIdentity5GSTypeImeisv + 0x30, 0x25, 0x90, 0x09, 0x10, 0x67, 0x41, 0x28, 0xF3},
-		Len:   9,
-	}
+	imeisv := fgs.PEIIdentity(fgs.PEI{Type: fgs.IdentityIMEISV, Digits: "3520990017614823"})
+	msg.IMEISV = &imeisv
 
-	handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, true)
+	handleSecurityModeComplete(t.Context(), amfInstance, ue, msg, true)
 
 	expected := "imeisv-3520990017614823"
 	if ue.Imei.String() != expected {
@@ -176,7 +171,7 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 
 	msg := buildTestSecurityModeCompleteMessage()
 
-	handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, true)
+	handleSecurityModeComplete(t.Context(), amfInstance, ue, msg, true)
 
 	if len(ue.KgnbForTest()) == 0 || ue.NHForTest() == [32]uint8{} || ue.NCCForTest() == 0 {
 		t.Fatalf("expected security context to be updated, got: Kgnb: %v, NH: %v, NCC: %v", ue.KgnbForTest(), ue.NHForTest(), ue.NCCForTest())
@@ -216,41 +211,27 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
-	algo := security.AlgCiphering128NEA2
+	algo := nas.CipheringAES
 
 	ue.SetKnasEncForTest(key)
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
-	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
-	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
+	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
+	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeInitial
 
 	msg, err := buildTestSecurityModeCompleteMessageWithRegistrationRequest()
 	if err != nil {
 		t.Fatalf("could not build security mode complete message with registration request: %v", err)
 	}
 
-	handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, true)
+	handleSecurityModeComplete(t.Context(), amfInstance, ue, msg, true)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-		t.Fatalf("expected a plain NAS message")
-	}
-
-	err = nm.PlainNasDecode(&resp.NasPdu)
-	if err != nil {
-		t.Fatalf("could not decode plain NAS message")
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected a registration accept message, got '%v'", nm.GmmHeader.GetMessageType())
-	}
+	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgRegistrationAccept))
 }
 
 func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
@@ -282,22 +263,22 @@ func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
-	algo := security.AlgCiphering128NEA2
+	algo := nas.CipheringAES
 
 	ue.SetKnasEncForTest(key)
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
-	ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA0)
-	ue.Conn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
+	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
+	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeInitial
 
 	msg, err := buildTestSecurityModeCompleteMessageWithRegistrationRequest()
 	if err != nil {
 		t.Fatalf("could not build security mode complete message with registration request: %v", err)
 	}
 
-	msg.SecurityModeComplete.SetNASMessageContainerContents([]uint8{0xDE, 0xAD, 0xBE, 0xEF})
+	msg.NASMessageContainer = []uint8{0xDE, 0xAD, 0xBE, 0xEF}
 
-	handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, true)
+	handleSecurityModeComplete(t.Context(), amfInstance, ue, msg, true)
 
 	if len(ngapSender.SentUEContextReleaseCommand) != 1 {
 		t.Fatalf("expected a UE Context Release Command to release the aborted registration, got %d", len(ngapSender.SentUEContextReleaseCommand))
@@ -308,73 +289,15 @@ func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 	}
 }
 
-func buildTestSecurityModeCompleteMessage() *nas.GmmMessage {
-	m := nas.NewGmmMessage()
-
-	secModeComplete := nasMessage.NewSecurityModeComplete(0)
-	secModeComplete.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	secModeComplete.SetSpareHalfOctet(0x00)
-	secModeComplete.SetMessageType(nas.MsgTypeSecurityModeComplete)
-
-	m.SecurityModeComplete = secModeComplete
-	m.SetMessageType(nas.MsgTypeSecurityModeComplete)
-
-	return m
+func buildTestSecurityModeCompleteMessage() *fgs.SecurityModeComplete {
+	return &fgs.SecurityModeComplete{}
 }
 
-func buildTestSecurityModeCompleteMessageWithRegistrationRequest() (*nas.GmmMessage, error) {
-	m := nas.NewGmmMessage()
-
-	registrationRequest := nasMessage.NewRegistrationRequest(0)
-	registrationRequest.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	registrationRequest.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	registrationRequest.SetSpareHalfOctet(0x00)
-	registrationRequest.SetMessageType(nas.MsgTypeRegistrationRequest)
-	registrationRequest.NgksiAndRegistrationType5GS.SetNasKeySetIdentifiler(uint8(0))
-	registrationRequest.SetRegistrationType5GS(nasMessage.RegistrationType5GSInitialRegistration)
-	registrationRequest.SetFOR(1)
-	registrationRequest.MobileIdentity5GS = nasType.MobileIdentity5GS{
-		Iei:    nasMessage.MobileIdentity5GSType5gGuti,
-		Len:    15,
-		Buffer: make([]uint8, 15),
-	}
-	registrationRequest.UESecurityCapability = &nasType.UESecurityCapability{}
-
-	registrationRequest.UESecurityCapability = &nasType.UESecurityCapability{
-		Iei:    nasMessage.RegistrationRequestUESecurityCapabilityType,
-		Len:    2,
-		Buffer: []uint8{0x00, 0x00},
-	}
-	registrationRequest.SetEA0_5G(1)
-	registrationRequest.SetEA1_128_5G(1)
-	registrationRequest.SetEA2_128_5G(1)
-	registrationRequest.SetEA2_128_5G(0)
-	registrationRequest.SetIA0_5G(1)
-	registrationRequest.SetIA1_128_5G(1)
-	registrationRequest.SetIA2_128_5G(1)
-	registrationRequest.SetIA2_128_5G(0)
-
-	m.RegistrationRequest = registrationRequest
-	m.SetMessageType(nas.MsgTypeSecurityModeComplete)
-
-	data := new(bytes.Buffer)
-
-	err := m.EncodeRegistrationRequest(data)
+func buildTestSecurityModeCompleteMessageWithRegistrationRequest() (*fgs.SecurityModeComplete, error) {
+	regReq, err := buildRegReqBytes(uint8(fgs.RegistrationTypeInitial), testMobileIdentity(), &fgs.UESecurityCapability{EA: 0xc0, IA: 0xc0}, 0, nil, 0, 0)
 	if err != nil {
 		return nil, fmt.Errorf("could not encode registration request: %v", err)
 	}
 
-	nasPdu := data.Bytes()
-
-	secModeComplete := nasMessage.NewSecurityModeComplete(0)
-	secModeComplete.NASMessageContainer = nasType.NewNASMessageContainer(nasMessage.RegistrationRequestNASMessageContainerType)
-	secModeComplete.NASMessageContainer.SetLen(uint16(len(nasPdu)))
-	secModeComplete.SetNASMessageContainerContents(nasPdu)
-	secModeComplete.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	secModeComplete.SetSpareHalfOctet(0x00)
-	secModeComplete.SetMessageType(nas.MsgTypeSecurityModeComplete)
-
-	m.SecurityModeComplete = secModeComplete
-
-	return m, nil
+	return &fgs.SecurityModeComplete{NASMessageContainer: regReq}, nil
 }

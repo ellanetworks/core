@@ -11,10 +11,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// detachTypeReattachNotRequired is the network-originating detach type meaning
-// the UE shall not re-attach (TS 24.301).
-const detachTypeReattachNotRequired uint8 = 2
-
 // DetachSubscriber sends a network-initiated DETACH REQUEST (TS 24.301)
 // to the attached UE for imsi, if any, when a subscriber is deleted. The
 // request is guarded by T3422: if the UE does not reply with Detach Accept it
@@ -57,9 +53,9 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 	logger.From(ctx, ue.Conn().Log).Info("network-initiated detach (subscriber deleted)",
 		zap.String("imsi", imsi))
 
-	naspdu, err := ue.ProtectDownlinkMessage(&eps.DetachRequestNetwork{TypeOfDetach: detachTypeReattachNotRequired})
+	naspdu, err := ue.ProtectDownlinkMessage(&eps.DetachRequestNetwork{TypeOfDetach: eps.DetachTypeReattachNotRequired})
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to protect Detach Request", zap.Error(err))
+		ReportProtectFailure(ctx, ue.Conn(), "Detach Request", err)
 		return
 	}
 

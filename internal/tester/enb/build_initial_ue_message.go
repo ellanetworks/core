@@ -8,14 +8,13 @@ import (
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/free5gc/aper"
-	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapType"
 )
 
 type InitialUEMessageOpts struct {
 	RanUENGAPID           int64
 	NasPDU                []byte
-	Guti5g                *nasType.GUTI5G
+	Guti5g                []byte
 	Mcc                   string
 	Mnc                   string
 	Tac                   string
@@ -131,24 +130,25 @@ func BuildInitialUEMessage(opts *InitialUEMessageOpts) (ngapType.NGAPPDU, error)
 
 	initialUEMessageIEs.List = append(initialUEMessageIEs.List, ie)
 
-	if opts.Guti5g != nil {
+	if len(opts.Guti5g) >= 11 {
 		ie = ngapType.InitialUEMessageIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDFiveGSTMSI
 		ie.Criticality.Value = ngapType.CriticalityPresentReject
 		ie.Value.Present = ngapType.InitialUEMessageIEsPresentFiveGSTMSI
 		ie.Value.FiveGSTMSI = new(ngapType.FiveGSTMSI)
 
+		// The AMF Set ID (10 bits) and AMF Pointer (6 bits) sit in octets 6-7 of the
+		// 5G-GUTI value, and the 5G-TMSI in octets 8-11 (TS 24.501 §9.11.3.4).
 		fiveGSTMSI := ie.Value.FiveGSTMSI
 		fiveGSTMSI.AMFSetID.Value = aper.BitString{
-			Bytes:     []byte{opts.Guti5g.Octet[5], opts.Guti5g.Octet[6]},
+			Bytes:     []byte{opts.Guti5g[5], opts.Guti5g[6]},
 			BitLength: 10,
 		}
 		fiveGSTMSI.AMFPointer.Value = aper.BitString{
-			Bytes:     []byte{opts.Guti5g.GetAMFPointer() << 2},
+			Bytes:     []byte{(opts.Guti5g[6] & 0x3f) << 2},
 			BitLength: 6,
 		}
-		tmsi := opts.Guti5g.GetTMSI5G()
-		fiveGSTMSI.FiveGTMSI.Value = tmsi[:]
+		fiveGSTMSI.FiveGTMSI.Value = append([]byte(nil), opts.Guti5g[7:11]...)
 
 		initialUEMessageIEs.List = append(initialUEMessageIEs.List, ie)
 	}

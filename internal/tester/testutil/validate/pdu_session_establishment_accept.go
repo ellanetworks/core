@@ -6,16 +6,14 @@ package validate
 import (
 	"fmt"
 	"net/netip"
-	"reflect"
 
 	"github.com/ellanetworks/core/internal/tester/testutil"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type ExpectedPDUSessionEstablishmentAccept struct {
-	PDUSessionID               uint8
-	PDUSessionType             uint8
+	PDUSessionID               fgs.PDUSessionID
+	PDUSessionType             fgs.PDUSessionType
 	UeIPSubnet                 netip.Prefix
 	Dnn                        string
 	Sst                        int32
@@ -26,86 +24,63 @@ type ExpectedPDUSessionEstablishmentAccept struct {
 	FiveQI                     uint8
 }
 
-func PDUSessionEstablishmentAccept(nasMsg *nas.Message, opts *ExpectedPDUSessionEstablishmentAccept) error {
-	msg := nasMsg.GsmHeader.GetMessageType()
-	if msg != nas.MsgTypePDUSessionEstablishmentAccept {
-		return fmt.Errorf("PDU Session Establishment Accept message type is not correct, expected: %d, got: %d", nas.MsgTypePDUSessionEstablishmentAccept, msg)
+func PDUSessionEstablishmentAccept(plain []byte, opts *ExpectedPDUSessionEstablishmentAccept) error {
+	if len(plain) < 4 {
+		return fmt.Errorf("NAS message is too short")
 	}
 
-	if reflect.ValueOf(nasMsg.PDUSessionEstablishmentAccept.ExtendedProtocolDiscriminator).IsZero() {
-		return fmt.Errorf("extended protocol discriminator is missing")
-	}
-
-	if nasMsg.PDUSessionEstablishmentAccept.GetExtendedProtocolDiscriminator() != 46 {
+	if plain[0] != 46 {
 		return fmt.Errorf("extended protocol discriminator not expected value")
 	}
 
-	if reflect.ValueOf(nasMsg.PDUSessionEstablishmentAccept.PDUSessionID).IsZero() {
-		return fmt.Errorf("pdu session id is missing or not expected value")
+	if fgs.GSMMessageType(plain[3]) != fgs.MsgPDUSessionEstablishmentAccept {
+		return fmt.Errorf("PDU Session Establishment Accept message type is not correct, expected: %d, got: %d", uint8(fgs.MsgPDUSessionEstablishmentAccept), plain[3])
 	}
 
-	if reflect.ValueOf(nasMsg.PDUSessionEstablishmentAccept.PTI).IsZero() {
-		return fmt.Errorf("pti is missing")
+	acc, err := fgs.ParsePDUSessionEstablishmentAccept(plain)
+	if err != nil {
+		return fmt.Errorf("could not parse PDU Session Establishment Accept: %v", err)
 	}
 
-	if nasMsg.PDUSessionEstablishmentAccept.GetPTI() != 1 {
+	if acc.PTI != 1 {
 		return fmt.Errorf("pti not expected value")
 	}
 
-	if nasMsg.PDUSessionEstablishmentAccept.GetMessageType() != nas.MsgTypePDUSessionEstablishmentAccept {
-		return fmt.Errorf("message type is missing or not expected value, got: %d, expected: %d", nasMsg.PDUSessionEstablishmentAccept.GetMessageType(), nas.MsgTypePDUSessionEstablishmentAccept)
-	}
-
-	if reflect.ValueOf(nasMsg.PDUSessionEstablishmentAccept.SelectedSSCModeAndSelectedPDUSessionType).IsZero() {
-		return fmt.Errorf("ssc mode or pdu session type is missing")
-	}
-
-	if nasMsg.GetPDUSessionType() != opts.PDUSessionType {
+	if acc.PDUSessionType != opts.PDUSessionType {
 		return fmt.Errorf("pdu session type not expected value")
 	}
 
-	if reflect.ValueOf(nasMsg.PDUSessionEstablishmentAccept.AuthorizedQosRules).IsZero() {
+	if len(acc.QoSRules) == 0 {
 		return fmt.Errorf("authorized qos rules is missing")
 	}
 
-	if reflect.ValueOf(nasMsg.PDUSessionEstablishmentAccept.SessionAMBR).IsZero() {
-		return fmt.Errorf("session ambr is missing")
+	ambr := acc.SessionAMBR
+
+	if uint64(ambr.Uplink) != opts.MaximumBitRateUplinkMbps {
+		return fmt.Errorf("uplink ambr value not expected, got: %d, expected: %d", ambr.Uplink, opts.MaximumBitRateUplinkMbps)
 	}
 
-	downlinkValue := nasMsg.PDUSessionEstablishmentAccept.GetSessionAMBRForDownlink()
-	uplinkValue := nasMsg.PDUSessionEstablishmentAccept.GetSessionAMBRForUplink()
-
-	uplinkUint64 := uint64(uplinkValue[0])<<8 | uint64(uplinkValue[1])
-	downlinkUint64 := uint64(downlinkValue[0])<<8 | uint64(downlinkValue[1])
-
-	if uplinkUint64 != opts.MaximumBitRateUplinkMbps {
-		return fmt.Errorf("uplink ambr value not expected, got: %d, expected: %d", uplinkUint64, opts.MaximumBitRateUplinkMbps)
+	if uint64(ambr.Downlink) != opts.MaximumBitRateDownlinkMbps {
+		return fmt.Errorf("downlink ambr value not expected, got: %d, expected: %d", ambr.Downlink, opts.MaximumBitRateDownlinkMbps)
 	}
 
-	if downlinkUint64 != opts.MaximumBitRateDownlinkMbps {
-		return fmt.Errorf("downlink ambr value not expected, got: %d, expected: %d", downlinkUint64, opts.MaximumBitRateDownlinkMbps)
+	if ambr.DownlinkUnit != fgs.SessionAMBRUnit1Mbps {
+		return fmt.Errorf("downlink ambr unit not expected, got: %d, expected: %d", ambr.DownlinkUnit, fgs.SessionAMBRUnit1Mbps)
 	}
 
-	downlinkUnit := nasMsg.PDUSessionEstablishmentAccept.GetUnitForSessionAMBRForDownlink()
-	uplinkUnit := nasMsg.PDUSessionEstablishmentAccept.GetUnitForSessionAMBRForUplink()
-
-	if downlinkUnit != nasMessage.SessionAMBRUnit1Mbps {
-		return fmt.Errorf("downlink ambr unit not expected, got: %d, expected: %d", downlinkUnit, nasMessage.SessionAMBRUnit1Mbps)
+	if ambr.UplinkUnit != fgs.SessionAMBRUnit1Mbps {
+		return fmt.Errorf("uplink ambr unit not expected, got: %d, expected: %d", ambr.UplinkUnit, fgs.SessionAMBRUnit1Mbps)
 	}
 
-	if uplinkUnit != nasMessage.SessionAMBRUnit1Mbps {
-		return fmt.Errorf("uplink ambr unit not expected, got: %d, expected: %d", uplinkUnit, nasMessage.SessionAMBRUnit1Mbps)
+	if acc.PDUSessionID != opts.PDUSessionID {
+		return fmt.Errorf("unexpected PDUSessionID: %d", acc.PDUSessionID)
 	}
 
-	pduSessionId := nasMsg.PDUSessionEstablishmentAccept.GetPDUSessionID()
-	if pduSessionId != opts.PDUSessionID {
-		return fmt.Errorf("unexpected PDUSessionID: %d", pduSessionId)
+	if acc.PDUAddress == nil {
+		return fmt.Errorf("PDU Session Establishment Accept carries no PDU address")
 	}
 
-	ueIP, err := testutil.UEIPFromNAS(opts.PDUSessionType, nasMsg.GetPDUAddressInformation())
-	if err != nil {
-		return fmt.Errorf("could not get UE IP from NAS PDU Address Information: %v", err)
-	}
+	ueIP := acc.PDUAddress.IPv4Addr()
 
 	if !ueIP.IsValid() {
 		// IPv6-only PDU session — no IPv4 address to validate
@@ -113,62 +88,61 @@ func PDUSessionEstablishmentAccept(nasMsg *nas.Message, opts *ExpectedPDUSession
 		return fmt.Errorf("UE IP %s is not contained in expected subnet %s", ueIP.String(), opts.UeIPSubnet.String())
 	}
 
-	qosRulesBytes := nasMsg.PDUSessionEstablishmentAccept.GetQosRule()
-
-	qosRules, err := testutil.UnmarshalQosRules(qosRulesBytes)
-	if err != nil {
-		return fmt.Errorf("could not unmarshal QoS Rules: %v", err)
-	}
-
+	qosRules := acc.QoSRules
 	if len(qosRules) != 1 {
 		return fmt.Errorf("unexpected number of QoS Rules: %d", len(qosRules))
 	}
 
-	qosRule := qosRules[0]
-	if qosRule.QFI != opts.Qfi {
-		return fmt.Errorf("unexpected QoS Rules Identifier: %d, expected: %d", qosRule.QFI, opts.Qfi)
+	if qosRules[0].QFI != opts.Qfi {
+		return fmt.Errorf("unexpected QoS Rules Identifier: %d, expected: %d", qosRules[0].QFI, opts.Qfi)
 	}
 
-	qosFlowDescs, err := testutil.ParseAuthorizedQosFlowDescriptions(nasMsg.PDUSessionEstablishmentAccept.GetQoSFlowDescriptions())
-	if err != nil {
-		return fmt.Errorf("could not parse AuthorizedQosFlowDescriptions: %v", err)
-	}
-
+	qosFlowDescs := acc.QoSFlowDescriptions
 	if len(qosFlowDescs) != 1 {
 		return fmt.Errorf("unexpected number of AuthorizedQosFlowDescriptions: %d", len(qosFlowDescs))
 	}
 
 	qosFlowDesc := qosFlowDescs[0]
 
-	if qosFlowDesc.Qfi != opts.Qfi {
-		return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions QFI: %d", qosFlowDesc.Qfi)
+	if qosFlowDesc.QFI != opts.Qfi {
+		return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions QFI: %d", qosFlowDesc.QFI)
 	}
 
-	if len(qosFlowDesc.ParamList) != 1 {
-		return fmt.Errorf("unexpected number of AuthorizedQosFlowDescriptions Parameters: %d, expected: 1", len(qosFlowDesc.ParamList))
+	if len(qosFlowDesc.Parameters) != 1 {
+		return fmt.Errorf("unexpected number of AuthorizedQosFlowDescriptions Parameters: %d, expected: 1", len(qosFlowDesc.Parameters))
 	}
 
-	if qosFlowDesc.ParamList[0].ParamID != testutil.QFDParamID5QI {
-		return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions Parameter Type: %d, expected: %d", qosFlowDesc.ParamList[0].ParamID, testutil.QFDParamID5QI)
+	param := qosFlowDesc.Parameters[0]
+	if param.ID != fgs.QoSFlowParam5QI {
+		return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions Parameter Type: %d, expected: %d", param.ID, fgs.QoSFlowParam5QI)
 	}
 
-	fiveQI := qosFlowDesc.ParamList[0].FiveQI
-
-	if ptrToVal(fiveQI) != opts.FiveQI {
-		return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions FiveQI: %d, expected: %d", ptrToVal(fiveQI), opts.FiveQI)
+	if len(param.Value) != 1 || param.Value[0] != opts.FiveQI {
+		return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions FiveQI: % x, expected: %d", param.Value, opts.FiveQI)
 	}
 
-	dnn := nasMsg.PDUSessionEstablishmentAccept.GetDNN()
+	dnn := ""
+
+	if acc.DNN != nil {
+		dnn = string(*acc.DNN)
+	}
+
 	if dnn != opts.Dnn {
 		return fmt.Errorf("unexpected DNN: %s", dnn)
 	}
 
-	sst := nasMsg.PDUSessionEstablishmentAccept.GetSST()
+	if acc.SNSSAI == nil {
+		return fmt.Errorf("S-NSSAI is missing")
+	}
 
-	sd := nasMsg.PDUSessionEstablishmentAccept.GetSD()
+	snssai := *acc.SNSSAI
+	if snssai.SST != uint8(opts.Sst) {
+		return fmt.Errorf("unexpected SNSSAI SST: %d", snssai.SST)
+	}
 
-	if sst != uint8(opts.Sst) {
-		return fmt.Errorf("unexpected SNSSAI SST: %d", sst)
+	var sd [3]uint8
+	if snssai.SD != nil {
+		sd = *snssai.SD
 	}
 
 	sdStr := testutil.SDFromNAS(sd)
@@ -177,12 +151,4 @@ func PDUSessionEstablishmentAccept(nasMsg *nas.Message, opts *ExpectedPDUSession
 	}
 
 	return nil
-}
-
-func ptrToVal(p *uint8) uint8 {
-	if p == nil {
-		return 0
-	}
-
-	return *p
 }

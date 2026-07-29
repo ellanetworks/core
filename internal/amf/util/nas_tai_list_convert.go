@@ -6,62 +6,31 @@
 package util
 
 import (
-	"encoding/hex"
 	"fmt"
+	"strconv"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// TS 24.501
-func TaiListToNas(taiList []models.Tai) ([]uint8, error) {
-	var taiListNas []uint8
+// TaiListToNas builds the TAI list IE value for the given TAIs
+// (TS 24.501 §9.11.3.9).
+func TaiListToNas(taiList []models.Tai) (fgs.TAIList, error) {
+	tais := make([]fgs.TAI, 0, len(taiList))
 
-	typeOfList := 0x00
-
-	plmnID := taiList[0].PlmnID
 	for _, tai := range taiList {
-		if tai.PlmnID == nil || !plmnID.Equal(*tai.PlmnID) {
-			typeOfList = 0x02
+		if tai.PlmnID == nil {
+			return nil, fmt.Errorf("tai has no PLMN ID")
 		}
-	}
 
-	numOfElementsNas := uint8(len(taiList)) - 1
-
-	taiListNas = append(taiListNas, uint8(typeOfList<<5)+numOfElementsNas)
-
-	switch typeOfList {
-	case 0x00:
-		plmnNas, err := PlmnIDToNas(*plmnID)
+		tac, err := strconv.ParseUint(tai.Tac, 16, 32)
 		if err != nil {
-			return nil, fmt.Errorf("failed to convert plmnID to nas: %s", err)
+			return nil, fmt.Errorf("failed to decode tac %q: %w", tai.Tac, err)
 		}
 
-		taiListNas = append(taiListNas, plmnNas...)
-
-		for _, tai := range taiList {
-			tacBytes, err := hex.DecodeString(tai.Tac)
-			if err != nil {
-				return nil, fmt.Errorf("failed to decode tac: %s", err)
-			}
-
-			taiListNas = append(taiListNas, tacBytes...)
-		}
-	case 0x02:
-		for _, tai := range taiList {
-			plmnNas, err := PlmnIDToNas(*tai.PlmnID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to convert plmnID to nas: %s", err)
-			}
-
-			tacBytes, err := hex.DecodeString(tai.Tac)
-			if err != nil {
-				return nil, fmt.Errorf("failed to decode tac: %s", err)
-			}
-
-			taiListNas = append(taiListNas, plmnNas...)
-			taiListNas = append(taiListNas, tacBytes...)
-		}
+		tais = append(tais, fgs.TAI{PLMN: nas.PLMN{MCC: tai.PlmnID.Mcc, MNC: tai.PlmnID.Mnc}, TAC: uint32(tac)})
 	}
 
-	return taiListNas, nil
+	return fgs.NewTAIList(tais...)
 }

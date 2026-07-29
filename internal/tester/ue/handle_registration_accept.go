@@ -8,14 +8,21 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/free5gc/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
-func handleRegistrationAccept(ue *UE, msg *nas.Message, amfUENGAPID int64, ranUENGAPID int64) error {
+func handleRegistrationAccept(ue *UE, plain []byte, amfUENGAPID int64, ranUENGAPID int64) error {
 	logger.UeLogger.Debug("Received Registration Accept NAS message", zap.String("IMSI", ue.UeSecurity.Supi))
 
-	ue.Set5gGuti(msg.RegistrationAccept.GUTI5G)
+	regAccept, err := fgs.ParseRegistrationAccept(plain)
+	if err != nil {
+		return fmt.Errorf("could not parse Registration Accept: %v", err)
+	}
+
+	if regAccept.GUTI != nil {
+		ue.Set5gGuti(regAccept.GUTI)
+	}
 
 	regComplete, err := BuildRegistrationComplete(&RegistrationCompleteOpts{
 		SORTransparentContainer: nil,
@@ -24,7 +31,7 @@ func handleRegistrationAccept(ue *UE, msg *nas.Message, amfUENGAPID int64, ranUE
 		return fmt.Errorf("could not build Registration Complete NAS PDU: %v", err)
 	}
 
-	encodedPdu, err := ue.EncodeNasPduWithSecurity(regComplete, nas.SecurityHeaderTypeIntegrityProtectedAndCiphered)
+	encodedPdu, err := ue.EncodeNasPduWithSecurity(regComplete, uint8(fgs.SHTIntegrityProtectedCiphered))
 	if err != nil {
 		return fmt.Errorf("error encoding %s IMSI UE NAS Registration Complete Msg", ue.UeSecurity.Supi)
 	}
@@ -61,7 +68,7 @@ func handleRegistrationAccept(ue *UE, msg *nas.Message, amfUENGAPID int64, ranUE
 		return fmt.Errorf("could not build Uplink NAS Transport for PDU Session: %v", err)
 	}
 
-	encodedPdu, err = ue.EncodeNasPduWithSecurity(pduUplink, nas.SecurityHeaderTypeIntegrityProtectedAndCiphered)
+	encodedPdu, err = ue.EncodeNasPduWithSecurity(pduUplink, uint8(fgs.SHTIntegrityProtectedCiphered))
 	if err != nil {
 		return fmt.Errorf("error encoding %s IMSI UE NAS Uplink NAS Transport for PDU Session Msg", ue.UeSecurity.Supi)
 	}

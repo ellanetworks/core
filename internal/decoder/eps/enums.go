@@ -4,6 +4,8 @@
 package eps
 
 import (
+	"strings"
+
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/nas/eps"
 )
@@ -33,7 +35,7 @@ var emmMessageNames = map[eps.MessageType]string{
 	eps.MsgEMMInformation:             "EMM Information",
 }
 
-func emmTypeToEnum(mt eps.MessageType) utils.EnumField[uint64] {
+func emmTypeToEnum(mt eps.MessageType) utils.EnumField {
 	name, ok := emmMessageNames[mt]
 
 	return utils.MakeEnum(uint64(mt), name, !ok)
@@ -50,59 +52,48 @@ var esmMessageNames = map[eps.ESMMessageType]string{
 	eps.MsgESMStatus:                              "ESM Status",
 }
 
-func esmTypeToEnum(mt eps.ESMMessageType) utils.EnumField[uint64] {
+func esmTypeToEnum(mt eps.ESMMessageType) utils.EnumField {
 	name, ok := esmMessageNames[mt]
 
 	return utils.MakeEnum(uint64(mt), name, !ok)
 }
 
-func attachTypeToEnum(v uint8) utils.EnumField[uint64] {
-	names := map[uint8]string{1: "EPS attach", 2: "combined EPS/IMSI attach", 6: "EPS emergency attach"}
-
-	name, ok := names[v]
-
-	return utils.MakeEnum(uint64(v), name, !ok)
+func attachTypeToEnum(v eps.AttachType) utils.EnumField {
+	return typedEnum(uint8(v), v.String())
 }
 
-func attachResultToEnum(v uint8) utils.EnumField[uint64] {
-	names := map[uint8]string{1: "EPS only", 2: "combined EPS/IMSI"}
-
-	name, ok := names[v]
-
-	return utils.MakeEnum(uint64(v), name, !ok)
+func attachResultToEnum(v eps.AttachResult) utils.EnumField {
+	return typedEnum(uint8(v), v.String())
 }
 
-func updateTypeToEnum(v uint8) utils.EnumField[uint64] {
-	names := map[uint8]string{
-		0: "TA updating",
-		1: "combined TA/LA updating",
-		2: "combined TA/LA updating with IMSI attach",
-		3: "periodic updating",
+func updateTypeToEnum(v eps.EPSUpdateType) utils.EnumField {
+	return typedEnum(uint8(v), v.String())
+}
+
+func updateResultToEnum(v eps.EPSUpdateResult) utils.EnumField {
+	return typedEnum(uint8(v), v.String())
+}
+
+// typedEnum renders a library enumeration, marking a value the library does not
+// name as unknown.
+func typedEnum(v uint8, name string) utils.EnumField {
+	if strings.HasPrefix(name, "unknown") {
+		return utils.MakeEnum(uint64(v), "", true)
 	}
 
-	name, ok := names[v]
-
-	return utils.MakeEnum(uint64(v), name, !ok)
-}
-
-func updateResultToEnum(v uint8) utils.EnumField[uint64] {
-	names := map[uint8]string{0: "TA updated", 1: "combined TA/LA updated"}
-
-	name, ok := names[v]
-
-	return utils.MakeEnum(uint64(v), name, !ok)
+	return utils.MakeEnum(uint64(v), name, false)
 }
 
 // 4G ciphering/integrity algorithms (TS 33.401 §5): EEA/EIA 0-3.
-func cipheringAlgToEnum(v uint8) utils.EnumField[uint64] {
+func cipheringAlgToEnum(v uint8) utils.EnumField {
 	return algToEnum(v, "EEA")
 }
 
-func integrityAlgToEnum(v uint8) utils.EnumField[uint64] {
+func integrityAlgToEnum(v uint8) utils.EnumField {
 	return algToEnum(v, "EIA")
 }
 
-func algToEnum(v uint8, prefix string) utils.EnumField[uint64] {
+func algToEnum(v uint8, prefix string) utils.EnumField {
 	if v <= 7 {
 		return utils.MakeEnum(uint64(v), prefix+string(rune('0'+v)), false)
 	}

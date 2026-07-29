@@ -17,7 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/testutil/validate"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
@@ -58,7 +58,7 @@ func runConnectivityDualStack(ctx context.Context, env scenarios.Env, _ any) err
 	newUE, err := ue.NewUE(&ue.UEOpts{
 		GnodeB:         gNodeB,
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
-		PDUSessionType: nasMessage.PDUSessionTypeIPv4IPv6,
+		PDUSessionType: fgs.PDUSessionTypeIPv4v6,
 		Msin:           sub.IMSI[5:],
 		K:              sub.Key,
 		OpC:            sub.OPc,

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -57,8 +57,7 @@ func TestReconcileDataNetworkReactivatesChangedBearer(t *testing.T) {
 
 	wire := decodeDownlinkNAS(t, cc.sent[0])
 
-	plain, err := eps.Unprotect(wire, nascommon.NASCount(0, wire[5]), nascommon.DirectionDownlink,
-		ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, nas.IntegrityAES, nas.CipheringAES, ue.knasInt, ue.knasEnc)))
 	if err != nil {
 		t.Fatalf("unprotect downlink: %v", err)
 	}
@@ -68,8 +67,8 @@ func TestReconcileDataNetworkReactivatesChangedBearer(t *testing.T) {
 		t.Fatalf("parse Deactivate EPS Bearer Context Request: %v", err)
 	}
 
-	if req.ESMCause != eps.ESMCauseReactivationRequested {
-		t.Fatalf("ESM cause = %d, want %d (reactivation requested)", req.ESMCause, eps.ESMCauseReactivationRequested)
+	if req.Cause != eps.ESMCauseReactivationRequested {
+		t.Fatalf("ESM cause = %d, want %d (reactivation requested)", req.Cause, eps.ESMCauseReactivationRequested)
 	}
 }
 
@@ -223,8 +222,7 @@ func TestReconcileDataNetworkModifiesDNSOnly(t *testing.T) {
 
 	wire := decodeDownlinkNAS(t, cc.sent[0])
 
-	plain, err := eps.Unprotect(wire, nascommon.NASCount(0, wire[5]), nascommon.DirectionDownlink,
-		ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, nas.IntegrityAES, nas.CipheringAES, ue.knasInt, ue.knasEnc)))
 	if err != nil {
 		t.Fatalf("unprotect downlink: %v", err)
 	}
@@ -285,8 +283,7 @@ func TestReconcileDataNetworkModifiesSessionAMBR(t *testing.T) {
 
 	wire := decodeDownlinkNAS(t, cc.sent[0])
 
-	plain, err := eps.Unprotect(wire, nascommon.NASCount(0, wire[5]), nascommon.DirectionDownlink,
-		ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, nas.IntegrityAES, nas.CipheringAES, ue.knasInt, ue.knasEnc)))
 	if err != nil {
 		t.Fatalf("unprotect downlink: %v", err)
 	}
@@ -296,13 +293,14 @@ func TestReconcileDataNetworkModifiesSessionAMBR(t *testing.T) {
 		t.Fatalf("parse Modify request: %v", err)
 	}
 
-	ambr, err := eps.ParseAPNAMBR(req.APNAMBR)
-	if err != nil {
-		t.Fatalf("Modify request missing APN-AMBR: %v", err)
+	if req.APNAMBR == nil {
+		t.Fatal("Modify request missing APN-AMBR")
 	}
 
-	if dl, ul := ambr.BitsPerSecond(); dl != wantDL || ul != wantUL {
-		t.Fatalf("APN-AMBR = %d/%d bps, want %d/%d", dl, ul, wantDL, wantUL)
+	ambr := *req.APNAMBR
+
+	if dl, ul, ok := ambr.Kbps(); !ok || dl*1000 != wantDL || ul*1000 != wantUL {
+		t.Fatalf("APN-AMBR = %d/%d kbit/s, want %d/%d bit/s", dl, ul, wantDL, wantUL)
 	}
 
 	if p.SessAmbrDLBps == wantDL {
@@ -413,8 +411,7 @@ func TestReconcileDataNetworkModifiesQoSViaERABModify(t *testing.T) {
 
 	nasWire := []byte(item.NASPDU)
 
-	plain, err := eps.Unprotect(nasWire, nascommon.NASCount(0, nasWire[5]), nascommon.DirectionDownlink,
-		ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	plain, err := unprotected(eps.Unprotect(nasWire, nas.MakeCount(0, nasWire[5]), nas.DirectionDownlink, mustSecurityContext(t, nas.IntegrityAES, nas.CipheringAES, ue.knasInt, ue.knasEnc)))
 	if err != nil {
 		t.Fatalf("unprotect piggybacked NAS: %v", err)
 	}
@@ -424,8 +421,8 @@ func TestReconcileDataNetworkModifiesQoSViaERABModify(t *testing.T) {
 		t.Fatalf("parse piggybacked Modify request: %v", err)
 	}
 
-	if len(nasReq.NewEPSQoS) == 0 || nasReq.NewEPSQoS[0] != qos.QCI {
-		t.Fatalf("NAS New-EPS-QoS = % x, want QCI %d", nasReq.NewEPSQoS, qos.QCI)
+	if nasReq.NewEPSQoS == nil || nasReq.NewEPSQoS.QCI != qos.QCI {
+		t.Fatalf("NAS New-EPS-QoS = %+v, want QCI %d", nasReq.NewEPSQoS, qos.QCI)
 	}
 
 	if p.Qci == qos.QCI {
@@ -487,8 +484,7 @@ func TestReconcileDataNetworkModifiesQoSAndAMBRTogether(t *testing.T) {
 
 	nasWire := []byte(req.ERABToBeModified[0].NASPDU)
 
-	plain, err := eps.Unprotect(nasWire, nascommon.NASCount(0, nasWire[5]), nascommon.DirectionDownlink,
-		ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	plain, err := unprotected(eps.Unprotect(nasWire, nas.MakeCount(0, nasWire[5]), nas.DirectionDownlink, mustSecurityContext(t, nas.IntegrityAES, nas.CipheringAES, ue.knasInt, ue.knasEnc)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -498,16 +494,17 @@ func TestReconcileDataNetworkModifiesQoSAndAMBRTogether(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(nasReq.NewEPSQoS) == 0 || nasReq.NewEPSQoS[0] != qos.QCI {
-		t.Fatalf("piggybacked NAS missing New-EPS-QoS: % x", nasReq.NewEPSQoS)
+	if nasReq.NewEPSQoS == nil || nasReq.NewEPSQoS.QCI != qos.QCI {
+		t.Fatalf("piggybacked NAS missing New-EPS-QoS: %+v", nasReq.NewEPSQoS)
 	}
 
-	ambr, err := eps.ParseAPNAMBR(nasReq.APNAMBR)
-	if err != nil {
-		t.Fatalf("piggybacked NAS missing APN-AMBR: %v", err)
+	if nasReq.APNAMBR == nil {
+		t.Fatal("piggybacked NAS missing APN-AMBR")
 	}
 
-	if dl, ul := ambr.BitsPerSecond(); dl != wantDL || ul != wantUL {
+	ambr := *nasReq.APNAMBR
+
+	if dl, ul, ok := ambr.Kbps(); !ok || dl*1000 != wantDL || ul*1000 != wantUL {
 		t.Fatalf("piggybacked APN-AMBR = %d/%d, want %d/%d", dl, ul, wantDL, wantUL)
 	}
 }

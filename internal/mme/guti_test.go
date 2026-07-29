@@ -4,10 +4,10 @@
 package mme
 
 import (
+	"encoding/binary"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/nas/eps"
 )
 
 func TestReallocateGUTI(t *testing.T) {
@@ -21,16 +21,16 @@ func TestReallocateGUTI(t *testing.T) {
 		t.Fatalf("ReallocateGUTI: %v", err)
 	}
 
-	if guti.Type != eps.IdentityGUTI || guti.MCC != "001" || guti.MNC != "01" ||
-		guti.MMEGroupID != 0x1234 || guti.MMECode != 0x56 {
+	if guti.GUTI == nil || guti.GUTI.PLMN.MCC != "001" || guti.GUTI.PLMN.MNC != "01" ||
+		guti.GUTI.MMEGroupID != 0x1234 || guti.GUTI.MMECode != 0x56 {
 		t.Fatalf("unexpected GUTI: %+v", guti)
 	}
 
-	if ue.Tmsi().Uint32() != guti.MTMSI {
-		t.Fatalf("UE M-TMSI = %d, GUTI M-TMSI = %d", ue.Tmsi().Uint32(), guti.MTMSI)
+	if ue.Tmsi().Uint32() != binary.BigEndian.Uint32(guti.GUTI.TMSI[:]) {
+		t.Fatalf("UE M-TMSI = %d, GUTI M-TMSI = %x", ue.Tmsi().Uint32(), guti.GUTI.TMSI)
 	}
 
-	got, ok := m.LookupUeByMTMSI(guti.MTMSI)
+	got, ok := m.LookupUeByMTMSI(binary.BigEndian.Uint32(guti.GUTI.TMSI[:]))
 	if !ok || got != ue {
 		t.Fatal("UE not indexed by its M-TMSI")
 	}
@@ -42,13 +42,13 @@ func TestReallocateGUTI(t *testing.T) {
 		t.Fatalf("ReallocateGUTI: %v", err)
 	}
 
-	if guti2.MTMSI == guti.MTMSI {
-		t.Fatalf("M-TMSI not unique: both %d", guti2.MTMSI)
+	if binary.BigEndian.Uint32(guti2.GUTI.TMSI[:]) == binary.BigEndian.Uint32(guti.GUTI.TMSI[:]) {
+		t.Fatalf("M-TMSI not unique: both %d", binary.BigEndian.Uint32(guti2.GUTI.TMSI[:]))
 	}
 
 	m.RemoveUe(ue)
 
-	if _, ok := m.LookupUeByMTMSI(guti.MTMSI); ok {
+	if _, ok := m.LookupUeByMTMSI(binary.BigEndian.Uint32(guti.GUTI.TMSI[:])); ok {
 		t.Fatal("M-TMSI index not cleared on UE removal")
 	}
 }
@@ -68,7 +68,7 @@ func TestReallocateGUTITwoPhase(t *testing.T) {
 		t.Fatalf("ReallocateGUTI: %v", err)
 	}
 
-	first := firstGUTI.MTMSI
+	first := binary.BigEndian.Uint32(firstGUTI.GUTI.TMSI[:])
 
 	m.CommitGUTIRealloc(ue)
 
@@ -77,7 +77,7 @@ func TestReallocateGUTITwoPhase(t *testing.T) {
 		t.Fatalf("ReallocateGUTI: %v", err)
 	}
 
-	second := secondGUTI.MTMSI
+	second := binary.BigEndian.Uint32(secondGUTI.GUTI.TMSI[:])
 
 	if first == second {
 		t.Fatal("reallocation reused the same M-TMSI")

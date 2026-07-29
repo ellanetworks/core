@@ -126,7 +126,7 @@ type MME struct {
 
 	// EPSNetworkFeatureSupport is advertised in Attach/TAU Accept (TS 24.301
 	// §9.9.3.12A); nil falls back to the default.
-	EPSNetworkFeatureSupport *eps.EPSNetworkFeatureSupport
+	EPSNetworkFeatureSupport *eps.NetworkFeatureSupport
 
 	// Name and RelativeCapacity are advertised in the S1 Setup Response (TS 36.413
 	// §9.1.8.4). Defaulted in New; not yet DB-wired.
@@ -219,7 +219,7 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 		Cred:                     cred,
 		Bearer:                   bearer,
 		Session:                  session,
-		EPSNetworkFeatureSupport: &eps.EPSNetworkFeatureSupport{IMSVoPS: true},
+		EPSNetworkFeatureSupport: &eps.NetworkFeatureSupport{IMSVoPS: true},
 		Name:                     "ella",
 		RelativeCapacity:         0xff,
 		radios:                   make(map[S1APWriter]*Radio),
@@ -243,13 +243,13 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 
 // NetworkFeatureSupport returns the EPS network feature support advertised to UEs
 // (TS 24.301 §9.9.3.12A), or the default when unset.
-func (m *MME) NetworkFeatureSupport() *eps.EPSNetworkFeatureSupport {
+func (m *MME) NetworkFeatureSupport() *eps.NetworkFeatureSupport {
 	if m.EPSNetworkFeatureSupport != nil {
 		nfs := *m.EPSNetworkFeatureSupport
 		return &nfs
 	}
 
-	return &eps.EPSNetworkFeatureSupport{IMSVoPS: true}
+	return &eps.NetworkFeatureSupport{IMSVoPS: true}
 }
 
 // Tracer instruments the MME's S1AP/EMM control plane.

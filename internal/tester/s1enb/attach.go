@@ -27,7 +27,7 @@ type AttachResult struct {
 
 	// PDNType is the PDN type negotiated for the default bearer in the Attach
 	// Accept (eps.PDNTypeIPv4 / IPv6 / IPv4v6).
-	PDNType uint8
+	PDNType eps.PDNType
 
 	// QCI is the default bearer's QoS Class Identifier from the Activate Default
 	// EPS Bearer Context Request (TS 24.301 §9.9.4.3, octet 1 of the EPS QoS IE).
@@ -86,7 +86,12 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 
 	identityRequested := false
 
-	if mt, err := eps.PeekMessageType(downlink); err == nil && mt == eps.MsgIdentityRequest {
+	msg, err := parseDownlink(downlink)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, ok := msg.(*eps.IdentityRequest); ok {
 		identityRequested = true
 
 		idResp, err := ue.buildIdentityResponse()
@@ -103,8 +108,8 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 		}
 	}
 
-	if mt, err := eps.PeekMessageType(downlink); err != nil || mt != eps.MsgAuthenticationRequest {
-		return nil, fmt.Errorf("expected Authentication Request, got message type %#x (err %v)", mt, err)
+	if _, err := expectDownlink[*eps.AuthenticationRequest](downlink); err != nil {
+		return nil, fmt.Errorf("await Authentication Request: %w", err)
 	}
 
 	authResp, err := ue.handleAuthenticationRequest(downlink)
@@ -162,9 +167,9 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 		return nil, fmt.Errorf("unprotect Attach Accept: %w", err)
 	}
 
-	accept, err := eps.ParseAttachAccept(acceptPlain)
+	accept, err := expectDownlink[*eps.AttachAccept](acceptPlain)
 	if err != nil {
-		return nil, fmt.Errorf("parse Attach Accept: %w", err)
+		return nil, fmt.Errorf("await Attach Accept: %w", err)
 	}
 
 	attachComplete, err := ue.buildAttachComplete(accept.ESMMessageContainer)
@@ -179,11 +184,13 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 	logger.GnbLogger.Debug("Attach complete",
 		zap.String("imsi", ue.IMSI), zap.Int64("mme-ue-id", mmeUEID), zap.Int64("enb-ue-id", enbUEID))
 
+	guti := accept.GUTI
+
 	res := &AttachResult{
 		MMEUES1APID:       mmeUEID,
 		ENBUES1APID:       enbUEID,
 		ERABID:            erab.ERABID,
-		GUTI:              accept.GUTI,
+		GUTI:              guti,
 		IdentityRequested: identityRequested,
 		ARP:               erab.QoS.ARP.PriorityLevel,
 		UEAmbrDownlinkBps: uint64(ics.UEAggregateMaximumBitRate.DL),
@@ -194,22 +201,18 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 	}
 
 	if act, err := eps.ParseActivateDefaultEPSBearerContextRequest(accept.ESMMessageContainer); err == nil {
-		if len(act.EPSQoS) >= 1 {
-			res.QCI = act.EPSQoS[0]
+		res.QCI = act.EPSQoS.QCI
+
+		res.APN = string(act.AccessPointName)
+
+		if act.APNAMBR != nil {
+			dlKbps, ulKbps, _ := act.APNAMBR.Kbps()
+			res.SessAmbrDownlinkBps, res.SessAmbrUplinkBps = dlKbps*1000, ulKbps*1000
 		}
 
-		if apn, err := eps.ParseAPN(act.AccessPointName); err == nil {
-			res.APN = apn
-		}
-
-		if len(act.APNAMBR) > 0 {
-			if ambr, err := eps.ParseAPNAMBR(act.APNAMBR); err == nil {
-				res.SessAmbrDownlinkBps, res.SessAmbrUplinkBps = ambr.BitsPerSecond()
-			}
-		}
-
-		if pdn, err := eps.ParsePDNAddress(act.PDNAddress); err == nil {
-			res.PDNType = pdn.PDNType
+		{
+			pdn := act.PDNAddress
+			res.PDNType = eps.PDNType(uint8(pdn.PDNType))
 
 			if pdn.IPv4 != ([4]byte{}) {
 				res.UEIPv4 = netip.AddrFrom4(pdn.IPv4).String()
@@ -247,7 +250,7 @@ func (e *ENB) waitForPlainDownlink(enbUEID int64, timeout time.Duration) (nas []
 			return nil, 0, err
 		}
 
-		if len(nas) > 0 && nas[0]>>4 == uint8(eps.SHTPlain) {
+		if sht, err := eps.PeekSecurityHeaderType(nas); err == nil && sht == eps.SHTPlain {
 			return nas, mmeUEID, nil
 		}
 	}

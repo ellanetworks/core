@@ -14,7 +14,7 @@ import (
 )
 
 type PDUSessionResourceReleaseCommandTransferDecoded struct {
-	Cause utils.EnumField[uint64] `json:"cause"`
+	Cause utils.EnumField `json:"cause"`
 }
 
 type PDUSessionResourceToReleaseListRelCmd struct {

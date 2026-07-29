@@ -13,8 +13,8 @@ package rrctest
 //   - rrc-TransactionIdentifier: INTEGER (0..3)
 //   - criticalExtensions: CHOICE { rrcRelease, late }
 type RRCRelease struct {
-	RRCTransactionID   int             `per:",range:0..3"`
-	CriticalExtensions ReleaseChoice   `per:",choice:0,optional"`
+	RRCTransactionID   int           `per:",range:0..3"`
+	CriticalExtensions ReleaseChoice `per:",choice:0,optional"`
 }
 
 // ReleaseChoice models the criticalExtensions CHOICE of RRCRelease.
@@ -30,7 +30,7 @@ type RRCReleaseIEs struct {
 
 // DeprioritisationReq is a simplified deprioritisation request.
 type DeprioritisationReq struct {
-	Type    int  `per:",range:0..1"`     // ENUMERATED { freq, nr }
-	Time    int  `per:",range:0..1"`     // ENUMERATED { s5, s10 }
+	Type     int   `per:",range:0..1"` // ENUMERATED { freq, nr }
+	Time     int   `per:",range:0..1"` // ENUMERATED { s5, s10 }
 	Extended *bool `per:",optional"`
 }

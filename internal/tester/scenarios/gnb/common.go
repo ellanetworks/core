@@ -6,7 +6,6 @@ package gnb
 import (
 	"fmt"
 	"net/netip"
-	"reflect"
 	"strconv"
 	"time"
 
@@ -17,9 +16,8 @@ import (
 	"github.com/ellanetworks/core/internal/tester/testutil/validate"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/security"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type subscriber struct {
@@ -89,12 +87,12 @@ type initialRegistrationOpts struct {
 }
 
 func runInitialRegistration(opts *initialRegistrationOpts) error {
-	err := opts.UE.SendRegistrationRequest(opts.RANUENGAPID, nasMessage.RegistrationType5GSInitialRegistration)
+	err := opts.UE.SendRegistrationRequest(opts.RANUENGAPID, uint8(fgs.RegistrationTypeInitial))
 	if err != nil {
 		return fmt.Errorf("could not build Registration Request NAS PDU: %v", err)
 	}
 
-	nasMsg, err := opts.UE.WaitForNASGMMMessage(nas.MsgTypeAuthenticationRequest, 1*time.Second)
+	nasMsg, err := opts.UE.WaitForNASGMMMessage(uint8(fgs.MsgAuthenticationRequest), 1*time.Second)
 	if err != nil {
 		return fmt.Errorf("did not receive Authentication Request: %v", err)
 	}
@@ -104,7 +102,7 @@ func runInitialRegistration(opts *initialRegistrationOpts) error {
 		return fmt.Errorf("NAS PDU validation failed: %v", err)
 	}
 
-	nasMsg, err = opts.UE.WaitForNASGMMMessage(nas.MsgTypeSecurityModeCommand, 1*time.Second)
+	nasMsg, err = opts.UE.WaitForNASGMMMessage(uint8(fgs.MsgSecurityModeCommand), 1*time.Second)
 	if err != nil {
 		return fmt.Errorf("did not receive Security Mode Command: %v", err)
 	}
@@ -114,7 +112,7 @@ func runInitialRegistration(opts *initialRegistrationOpts) error {
 		return fmt.Errorf("could not validate NAS PDU Security Mode Command: %v", err)
 	}
 
-	nasMsg, err = opts.UE.WaitForNASGMMMessage(nas.MsgTypeRegistrationAccept, 1*time.Second)
+	nasMsg, err = opts.UE.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), 1*time.Second)
 	if err != nil {
 		return fmt.Errorf("did not receive Registration Accept: %v", err)
 	}
@@ -131,7 +129,7 @@ func runInitialRegistration(opts *initialRegistrationOpts) error {
 		return fmt.Errorf("validation failed for registration accept: %v", err)
 	}
 
-	msg, err := opts.UE.WaitForNASGSMMessage(nas.MsgTypePDUSessionEstablishmentAccept, 500*time.Millisecond)
+	msg, err := opts.UE.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionEstablishmentAccept), 500*time.Millisecond)
 	if err != nil {
 		return fmt.Errorf("did not receive PDU Session Establishment Accept: %v", err)
 	}
@@ -142,8 +140,8 @@ func runInitialRegistration(opts *initialRegistrationOpts) error {
 	}
 
 	err = validate.PDUSessionEstablishmentAccept(msg, &validate.ExpectedPDUSessionEstablishmentAccept{
-		PDUSessionID:               opts.PDUSessionID,
-		PDUSessionType:             opts.ExpectedPDUSessionType,
+		PDUSessionID:               fgs.PDUSessionID(opts.PDUSessionID),
+		PDUSessionType:             fgs.PDUSessionType(opts.ExpectedPDUSessionType),
 		UeIPSubnet:                 network,
 		Dnn:                        opts.GnodeB.DNN,
 		Sst:                        opts.GnodeB.SST,
@@ -160,149 +158,64 @@ func runInitialRegistration(opts *initialRegistrationOpts) error {
 	return nil
 }
 
-func validateAuthenticationRequest(nasMsg *nas.Message) error {
-	if nasMsg == nil {
-		return fmt.Errorf("NAS PDU is nil")
+func validateAuthenticationRequest(plain []byte) error {
+	req, err := testutil.ExpectNAS[*fgs.AuthenticationRequest](plain)
+	if err != nil {
+		return err
 	}
 
-	if nasMsg.GmmMessage == nil {
-		return fmt.Errorf("NAS message is not a GMM message")
-	}
-
-	if nasMsg.GmmMessage.GetMessageType() != nas.MsgTypeAuthenticationRequest {
-		return fmt.Errorf("NAS message type is not Authentication Request (%d), got (%d)", nas.MsgTypeAuthenticationRequest, nasMsg.GmmMessage.GetMessageType())
-	}
-
-	if nasMsg.AuthenticationRequest == nil {
-		return fmt.Errorf("NAS Authentication Request message is nil")
-	}
-
-	if nasMsg.AuthenticationParameterRAND == nil {
+	if req.RAND == nil {
 		return fmt.Errorf("NAS Authentication Request RAND is nil")
 	}
 
-	if reflect.ValueOf(nasMsg.AuthenticationRequest.ExtendedProtocolDiscriminator).IsZero() {
-		return fmt.Errorf("extended protocol is missing")
-	}
-
-	if nasMsg.AuthenticationRequest.GetExtendedProtocolDiscriminator() != 126 {
-		return fmt.Errorf("extended protocol not the expected value")
-	}
-
-	if nasMsg.AuthenticationRequest.SpareHalfOctetAndSecurityHeaderType.GetSpareHalfOctet() != 0 {
-		return fmt.Errorf("spare half octet not the expected value")
-	}
-
-	if nasMsg.AuthenticationRequest.GetSecurityHeaderType() != 0 {
-		return fmt.Errorf("security header type not the expected value")
-	}
-
-	if reflect.ValueOf(nasMsg.AuthenticationRequest.AuthenticationRequestMessageIdentity).IsZero() {
-		return fmt.Errorf("message type is missing")
-	}
-
-	if nasMsg.AuthenticationRequest.SpareHalfOctetAndNgksi.GetSpareHalfOctet() != 0 {
-		return fmt.Errorf("spare half octet not the expected value")
-	}
-
-	if nasMsg.AuthenticationRequest.GetNasKeySetIdentifiler() == 7 {
+	if !req.NgKSI.Available() {
 		return fmt.Errorf("ngKSI not the expected value")
 	}
 
-	if reflect.ValueOf(nasMsg.AuthenticationRequest.ABBA).IsZero() {
+	if len(req.ABBA) == 0 {
 		return fmt.Errorf("ABBA is missing")
 	}
 
-	if nasMsg.AuthenticationRequest.GetABBAContents() == nil {
-		return fmt.Errorf("ABBA content is missing")
-	}
-
 	return nil
 }
 
-func validateSecurityModeCommand(nasMsg *nas.Message) error {
-	if nasMsg == nil {
-		return fmt.Errorf("NAS PDU is nil")
+func validateSecurityModeCommand(plain []byte) error {
+	smc, err := testutil.ExpectNAS[*fgs.SecurityModeCommand](plain)
+	if err != nil {
+		return err
 	}
 
-	if nasMsg.GmmMessage == nil {
-		return fmt.Errorf("NAS message is not a GMM message")
-	}
-
-	if nasMsg.GmmMessage.GetMessageType() != nas.MsgTypeSecurityModeCommand {
-		return fmt.Errorf("NAS message type is not Security Mode Command (%d), got (%d)", nas.MsgTypeSecurityModeCommand, nasMsg.GmmMessage.GetMessageType())
-	}
-
-	if reflect.ValueOf(nasMsg.SecurityModeCommand.ExtendedProtocolDiscriminator).IsZero() {
-		return fmt.Errorf("extended protocol is missing")
-	}
-
-	if nasMsg.SecurityModeCommand.GetExtendedProtocolDiscriminator() != 126 {
-		return fmt.Errorf("extended protocol not the expected value")
-	}
-
-	if nasMsg.SecurityModeCommand.GetSecurityHeaderType() != 0 {
-		return fmt.Errorf("security header type not the expected value")
-	}
-
-	if nasMsg.SecurityModeCommand.SpareHalfOctetAndSecurityHeaderType.GetSpareHalfOctet() != 0 {
-		return fmt.Errorf("spare half octet not the expected value")
-	}
-
-	if reflect.ValueOf(nasMsg.SecurityModeCommand.SecurityModeCommandMessageIdentity).IsZero() {
-		return fmt.Errorf("message type is missing")
-	}
-
-	if reflect.ValueOf(nasMsg.SecurityModeCommand.SelectedNASSecurityAlgorithms).IsZero() {
-		return fmt.Errorf("nas security algorithms is missing")
-	}
-
-	if nasMsg.SecurityModeCommand.SpareHalfOctetAndNgksi.GetSpareHalfOctet() != 0 {
-		return fmt.Errorf("spare half octet not the expected value")
-	}
-
-	if nasMsg.SecurityModeCommand.GetNasKeySetIdentifiler() == 7 {
+	if !smc.NgKSI.Available() {
 		return fmt.Errorf("ngKSI not the expected value")
 	}
 
-	if reflect.ValueOf(nasMsg.SecurityModeCommand.ReplayedUESecurityCapabilities).IsZero() {
+	if smc.ReplayedUESecurityCapability.Equal(fgs.UESecurityCapability{}) {
 		return fmt.Errorf("replayed ue security capabilities is missing")
 	}
 
-	if nasMsg.IMEISVRequest == nil {
+	if smc.IMEISVRequested == nil {
 		return fmt.Errorf("imeisv request is missing")
 	}
 
-	if nasMsg.SelectedNASSecurityAlgorithms.GetTypeOfIntegrityProtectionAlgorithm() != security.AlgIntegrity128NIA2 {
-		return fmt.Errorf("integrity protection algorithm not the expected value (got: %d)", nasMsg.SelectedNASSecurityAlgorithms.GetTypeOfIntegrityProtectionAlgorithm())
+	if smc.IntegrityAlgorithm != nas.IntegrityAES {
+		return fmt.Errorf("integrity protection algorithm not the expected value (got: %d)", smc.IntegrityAlgorithm)
 	}
 
-	if nasMsg.SelectedNASSecurityAlgorithms.GetTypeOfCipheringAlgorithm() != security.AlgCiphering128NEA2 {
-		return fmt.Errorf("ciphering algorithm not the expected value (got: %d)", nasMsg.SelectedNASSecurityAlgorithms.GetTypeOfCipheringAlgorithm())
+	if smc.CipheringAlgorithm != nas.CipheringAES {
+		return fmt.Errorf("ciphering algorithm not the expected value (got: %d)", smc.CipheringAlgorithm)
 	}
 
 	return nil
 }
 
-func validateRegistrationReject(msg *nas.Message, cause uint8) error {
-	if msg == nil {
-		return fmt.Errorf("NAS message is nil")
+func validateRegistrationReject(plain []byte, cause uint8) error {
+	rej, err := testutil.ExpectNAS[*fgs.RegistrationReject](plain)
+	if err != nil {
+		return err
 	}
 
-	if msg.GmmMessage == nil {
-		return fmt.Errorf("NAS message is not a GMM message")
-	}
-
-	if msg.GmmMessage.GetMessageType() != nas.MsgTypeRegistrationReject {
-		return fmt.Errorf("NAS message type is not Registration Reject (%d), got (%d)", nas.MsgTypeRegistrationReject, msg.GmmMessage.GetMessageType())
-	}
-
-	if msg.RegistrationReject == nil {
-		return fmt.Errorf("NAS Registration Reject message is nil")
-	}
-
-	if msg.RegistrationReject.GetCauseValue() != cause {
-		return fmt.Errorf("NAS Registration Reject Cause is not Unknown UE (%x), received (%x)", cause, msg.RegistrationReject.GetCauseValue())
+	if rej.Cause != fgs.GMMCause(cause) {
+		return fmt.Errorf("NAS Registration Reject Cause is not Unknown UE (%x), received (%x)", cause, rej.Cause)
 	}
 
 	return nil
@@ -312,7 +225,7 @@ func newUEWithDNN(gNodeB *gnb.GnodeB, sub subscriber, dnn string, pduSessionType
 	return ue.NewUE(&ue.UEOpts{
 		GnodeB:         gNodeB,
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
-		PDUSessionType: pduSessionType,
+		PDUSessionType: fgs.PDUSessionType(pduSessionType),
 		Msin:           sub.IMSI[5:],
 		K:              sub.Key,
 		OpC:            sub.OPc,
@@ -344,7 +257,7 @@ func newUEWithDNN(gNodeB *gnb.GnodeB, sub subscriber, dnn string, pduSessionType
 func newDefaultUE(gNodeB *gnb.GnodeB, msin, k, opc, sqn string, pduSessionType uint8) (*ue.UE, error) {
 	return ue.NewUE(&ue.UEOpts{
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
-		PDUSessionType: pduSessionType,
+		PDUSessionType: fgs.PDUSessionType(pduSessionType),
 		GnodeB:         gNodeB,
 		Msin:           msin,
 		K:              k,
@@ -378,7 +291,7 @@ func ueRegistrationTest(ranUENGAPID int64, gNodeB *gnb.GnodeB, sub subscriber, d
 	newUE, err := ue.NewUE(&ue.UEOpts{
 		GnodeB:         gNodeB,
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
-		PDUSessionType: pduSessionType,
+		PDUSessionType: fgs.PDUSessionType(pduSessionType),
 		Msin:           sub.IMSI[5:],
 		K:              sub.Key,
 		OpC:            sub.OPc,

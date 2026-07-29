@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
@@ -35,17 +35,17 @@ func (e *ENB) ReactivateBearer(ue *UE, enbUEID int64, timeout time.Duration) (*e
 			return nil, fmt.Errorf("unprotect downlink NAS: %w", err)
 		}
 
-		mt, err := eps.PeekESMMessageType(plain)
-		if err != nil || mt != eps.MsgDeactivateEPSBearerContextRequest {
+		msg, err := parseDownlink(plain)
+		if err != nil {
+			return nil, err
+		}
+
+		req, ok := msg.(*eps.DeactivateEPSBearerContextRequest)
+		if !ok {
 			continue
 		}
 
-		req, err := eps.ParseDeactivateEPSBearerContextRequest(plain)
-		if err != nil {
-			return nil, fmt.Errorf("parse Deactivate EPS Bearer Context Request: %w", err)
-		}
-
-		accept, err := ue.buildDeactivateEPSBearerContextAccept(req.EPSBearerIdentity, req.ProcedureTransactionIdentity)
+		accept, err := ue.buildDeactivateEPSBearerContextAccept(uint8(req.EPSBearerIdentity), uint8(req.PTI))
 		if err != nil {
 			return nil, err
 		}
@@ -86,17 +86,17 @@ func (e *ENB) ModifyBearer(ue *UE, enbUEID int64, timeout time.Duration) (*eps.M
 			return nil, fmt.Errorf("unprotect downlink NAS: %w", err)
 		}
 
-		mt, err := eps.PeekESMMessageType(plain)
-		if err != nil || mt != eps.MsgModifyEPSBearerContextRequest {
+		msg, err := parseDownlink(plain)
+		if err != nil {
+			return nil, err
+		}
+
+		req, ok := msg.(*eps.ModifyEPSBearerContextRequest)
+		if !ok {
 			continue
 		}
 
-		req, err := eps.ParseModifyEPSBearerContextRequest(plain)
-		if err != nil {
-			return nil, fmt.Errorf("parse Modify EPS Bearer Context Request: %w", err)
-		}
-
-		accept, err := ue.buildModifyEPSBearerContextAccept(req.EPSBearerIdentity, req.ProcedureTransactionIdentity)
+		accept, err := ue.buildModifyEPSBearerContextAccept(uint8(req.EPSBearerIdentity), uint8(req.PTI))
 		if err != nil {
 			return nil, err
 		}
@@ -111,16 +111,15 @@ func (e *ENB) ModifyBearer(ue *UE, enbUEID int64, timeout time.Duration) (*eps.M
 
 func (ue *UE) buildDeactivateEPSBearerContextAccept(ebi, pti uint8) ([]byte, error) {
 	plain, err := (&eps.DeactivateEPSBearerContextAccept{
-		EPSBearerIdentity:            ebi,
-		ProcedureTransactionIdentity: pti,
-	}).Marshal()
+		EPSBearerIdentity: eps.EPSBearerIdentity(ebi),
+		PTI:               nas.ProcedureTransactionIdentity(pti),
+	}).MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("build Deactivate EPS Bearer Context Accept: %w", err)
 	}
 
 	out, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered,
-		nascommon.NASCount(0, ue.ulCount), nascommon.DirectionUplink,
-		ue.knasInt, ue.knasEnc, ue.IntegrityAlg(), ue.CipherAlg())
+		nas.MakeCount(0, ue.ulCount), nas.DirectionUplink, ue.sc)
 	if err != nil {
 		return nil, fmt.Errorf("protect Deactivate EPS Bearer Context Accept: %w", err)
 	}
@@ -132,16 +131,15 @@ func (ue *UE) buildDeactivateEPSBearerContextAccept(ebi, pti uint8) ([]byte, err
 
 func (ue *UE) buildModifyEPSBearerContextAccept(ebi, pti uint8) ([]byte, error) {
 	plain, err := (&eps.ModifyEPSBearerContextAccept{
-		EPSBearerIdentity:            ebi,
-		ProcedureTransactionIdentity: pti,
-	}).Marshal()
+		EPSBearerIdentity: eps.EPSBearerIdentity(ebi),
+		PTI:               nas.ProcedureTransactionIdentity(pti),
+	}).MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("build Modify EPS Bearer Context Accept: %w", err)
 	}
 
 	out, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered,
-		nascommon.NASCount(0, ue.ulCount), nascommon.DirectionUplink,
-		ue.knasInt, ue.knasEnc, ue.IntegrityAlg(), ue.CipherAlg())
+		nas.MakeCount(0, ue.ulCount), nas.DirectionUplink, ue.sc)
 	if err != nil {
 		return nil, fmt.Errorf("protect Modify EPS Bearer Context Accept: %w", err)
 	}

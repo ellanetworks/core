@@ -6,6 +6,7 @@ package nas
 import (
 	"testing"
 
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
@@ -38,18 +39,18 @@ func TestIsAttachRequest(t *testing.T) {
 func plainAttachNAS(t *testing.T) []byte {
 	t.Helper()
 
-	esm, err := (&eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: eps.PDNTypeIPv4}).Marshal()
+	esm, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: eps.PDNTypeIPv4}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	nas, err := (&eps.AttachRequest{
 		EPSAttachType:       eps.AttachTypeEPS,
-		NASKeySetIdentifier: 7,
-		EPSMobileIdentity:   eps.EPSMobileIdentity{Type: eps.IdentityIMSI, Digits: testSubscriber.IMSI},
-		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(),
+		NASKeySetIdentifier: nas.KeySetIdentifier{Value: 7},
+		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI(testSubscriber.IMSI)),
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70},
 		ESMMessageContainer: esm,
-	}).Marshal()
+	}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}

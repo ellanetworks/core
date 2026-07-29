@@ -38,19 +38,5 @@ func S1apCauseName(c *s1ap.Cause) string {
 	return fmt.Sprintf("%s: %s (%d)", group, name, index)
 }
 
-// EMM cause values (TS 24.301).
-const (
-	EmmCauseIMSIUnknownInHSS       uint8 = 2
-	EmmCauseEPSServicesNotAllowed  uint8 = 7
-	EmmCauseUEIdentityUnderivable  uint8 = 9
-	EmmCauseTrackingAreaNotAllowed uint8 = 12
-	EmmCauseCSDomainNotAvailable   uint8 = 18
-	EmmCauseESMFailure             uint8 = 19
-	EmmCauseMACFailure             uint8 = 20
-	EmmCauseSynchFailure           uint8 = 21
-	EmmCauseUESecCapsMismatch      uint8 = 23
-	EmmCauseNonEPSAuthUnacceptable uint8 = 26
-	EmmCauseInvalidMandatoryInfo   uint8 = 96
-	EmmCauseMessageTypeNonExistent uint8 = 97
-	EmmCauseProtocolErrorUnspec    uint8 = 111
-)
+// emmCauseNames maps an EMM cause value to its human-readable name (TS 24.301
+// §9.9.3.9, table 9.9.3.9.1), for logging.

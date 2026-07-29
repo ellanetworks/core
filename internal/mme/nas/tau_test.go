@@ -6,11 +6,12 @@ package nas
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
 	mmes1ap "github.com/ellanetworks/core/internal/mme/s1ap"
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -35,10 +36,44 @@ func TestTrackingAreaUpdateTrackingAreaNotAllowed(t *testing.T) {
 		t.Fatalf("not a TAU Reject: %v", err)
 	}
 
-	if rej.Cause != mme.EmmCauseTrackingAreaNotAllowed {
-		t.Fatalf("TAU Reject cause = %d, want %d", rej.Cause, mme.EmmCauseTrackingAreaNotAllowed)
+	if rej.Cause != eps.EMMCauseTrackingAreaNotAllowed {
+		t.Fatalf("TAU Reject cause = %d, want %d", rej.Cause, eps.EMMCauseTrackingAreaNotAllowed)
 	}
 }
+
+// tauGUTI is the Old GUTI every TAU request carries.
+var tauGUTI = eps.GUTIIdentity(eps.GUTI{
+	PLMN: nas.PLMN{MCC: "001", MNC: "01"}, MMEGroupID: 1, MMECode: 0, TMSI: [4]byte{0, 0, 0, 1},
+})
+
+// tauRequest is a TRACKING AREA UPDATE REQUEST of the given EPS update type.
+func tauRequest(updateType eps.EPSUpdateType) *eps.TrackingAreaUpdateRequest {
+	return &eps.TrackingAreaUpdateRequest{EPSUpdateType: updateType, OldGUTI: tauGUTI}
+}
+
+// tauRequestActive is a TRACKING AREA UPDATE REQUEST with the active flag set,
+// which asks the network to re-establish the radio bearers (TS 24.301 §9.9.3.14).
+func tauRequestActive(updateType eps.EPSUpdateType) *eps.TrackingAreaUpdateRequest {
+	return &eps.TrackingAreaUpdateRequest{EPSUpdateType: updateType, ActiveFlag: true, OldGUTI: tauGUTI}
+}
+
+// handleTAU dispatches a TRACKING AREA UPDATE REQUEST together with the octets it
+// encodes to, which the handler keeps as the duplicate-detection oracle
+// (TS 24.301 §5.5.3.2.7 case d).
+func handleTAU(t *testing.T, m *mme.MME, ue *mme.UeContext, req *eps.TrackingAreaUpdateRequest) {
+	t.Helper()
+
+	plain, err := req.MarshalBinary()
+	if err != nil {
+		t.Fatalf("encode TAU Request: %v", err)
+	}
+
+	handleTrackingAreaUpdate(context.Background(), m, ue, req, plain)
+}
+
+// tauOldGUTI is the mandatory Old GUTI (EPS mobile identity, LV) every TAU
+// REQUEST carries right after the update-type octet (TS 24.301 table 8.2.29.1).
+var tauOldGUTI = []byte{0x0b, 0xf2, 0x00, 0xf1, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01}
 
 // trackingAreaUpdateNAS builds a protected TRACKING AREA UPDATE REQUEST at the
 // UE's current uplink NAS COUNT, optionally carrying an EPS bearer context status
@@ -47,13 +82,13 @@ func trackingAreaUpdateNAS(t *testing.T, ue *mme.UeContext, bearerStatus *uint16
 	t.Helper()
 
 	plain := []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x00}
+	plain = append(plain, tauOldGUTI...)
 
 	if bearerStatus != nil {
 		plain = append(plain, 0x57, 0x02, byte(*bearerStatus), byte(*bearerStatus>>8))
 	}
 
-	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nascommon.NASCount(0, uint8(ue.ULCount())),
-		nascommon.DirectionUplink, ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nas.MakeCount(0, uint8(ue.ULCount())), nas.DirectionUplink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,8 +111,7 @@ func TestTrackingAreaUpdateConnectedAccepted(t *testing.T) {
 
 	dl := decodeDownlinkNAS(t, cc.sent[0])
 
-	accept, err := eps.Unprotect(dl, nascommon.NASCount(0, dl[5]), nascommon.DirectionDownlink,
-		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	accept, err := unprotected(eps.Unprotect(dl, nas.MakeCount(0, dl[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
 	if err != nil {
 		t.Fatalf("unprotect TAU Accept: %v", err)
 	}
@@ -91,12 +125,12 @@ func TestTrackingAreaUpdateConnectedAccepted(t *testing.T) {
 		t.Fatalf("parse TAU Accept: %v", err)
 	}
 
-	if len(parsed.TAIList) == 0 {
+	if parsed.TAIList == nil {
 		t.Fatal("TAU Accept is missing the TAI list (TS 24.301 §5.5.3.2.4)")
 	}
 
-	if parsed.EMMCause != nil {
-		t.Fatalf("EPS-only TAU Accept carries EMM cause #%d, want none", *parsed.EMMCause)
+	if parsed.Cause != nil {
+		t.Fatalf("EPS-only TAU Accept carries EMM cause #%d, want none", *parsed.Cause)
 	}
 
 	if ue.EMMState() != mme.EMMRegistered || !ue.Connected() {
@@ -122,8 +156,8 @@ func TestTrackingAreaUpdateDuplicateResendsAccept(t *testing.T) {
 	for i := range plains {
 		dl := decodeDownlinkNAS(t, cc.sent[i])
 
-		plain, err := eps.Unprotect(dl, nascommon.NASCount(0, dl[5]), nascommon.DirectionDownlink,
-			ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+		plain, err := unprotected(eps.Unprotect(dl, nas.MakeCount(0, dl[5]), nas.DirectionDownlink,
+			mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
 		if err != nil {
 			t.Fatalf("unprotect downlink %d: %v", i, err)
 		}
@@ -169,8 +203,7 @@ func TestTrackingAreaUpdateReconcilesBearerContextStatus(t *testing.T) {
 
 	dl := decodeDownlinkNAS(t, cc.sent[0])
 
-	accept, err := eps.Unprotect(dl, nascommon.NASCount(0, dl[5]), nascommon.DirectionDownlink,
-		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	accept, err := unprotected(eps.Unprotect(dl, nas.MakeCount(0, dl[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
 	if err != nil {
 		t.Fatalf("unprotect TAU Accept: %v", err)
 	}
@@ -180,8 +213,12 @@ func TestTrackingAreaUpdateReconcilesBearerContextStatus(t *testing.T) {
 		t.Fatalf("parse TAU Accept: %v", err)
 	}
 
-	if parsed.EPSBearerContextStatus == nil || *parsed.EPSBearerContextStatus != uint16(1<<5) {
-		t.Fatalf("TAU Accept bearer status = %v, want only EBI 5 (%#x)", parsed.EPSBearerContextStatus, uint16(1<<5))
+	var wantStatus nas.EPSBearerContextStatus
+
+	wantStatus.Active[5] = true
+
+	if parsed.EPSBearerContextStatus == nil || *parsed.EPSBearerContextStatus != wantStatus {
+		t.Fatalf("TAU Accept bearer status = %v, want only EBI 5", parsed.EPSBearerContextStatus)
 	}
 }
 
@@ -194,7 +231,7 @@ func TestTrackingAreaUpdateCombinedSignalsCSDomainUnavailable(t *testing.T) {
 	ue, cc := securedUE(t, m) // ECM-CONNECTED, secured, EMM-REGISTERED
 
 	// EPS update type 2 = combined TA/LA updating with IMSI attach.
-	handleTrackingAreaUpdate(context.Background(), m, ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x02})
+	handleTAU(t, m, ue, tauRequest(2))
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one downlink (TAU Accept), got %d", len(cc.sent))
@@ -202,8 +239,7 @@ func TestTrackingAreaUpdateCombinedSignalsCSDomainUnavailable(t *testing.T) {
 
 	dl := decodeDownlinkNAS(t, cc.sent[0])
 
-	accept, err := eps.Unprotect(dl, nascommon.NASCount(0, dl[5]), nascommon.DirectionDownlink,
-		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	accept, err := unprotected(eps.Unprotect(dl, nas.MakeCount(0, dl[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
 	if err != nil {
 		t.Fatalf("unprotect TAU Accept: %v", err)
 	}
@@ -213,8 +249,8 @@ func TestTrackingAreaUpdateCombinedSignalsCSDomainUnavailable(t *testing.T) {
 		t.Fatalf("parse TAU Accept: %v", err)
 	}
 
-	if parsed.EMMCause == nil || *parsed.EMMCause != mme.EmmCauseCSDomainNotAvailable {
-		t.Fatalf("EMM cause = %v, want #%d (CS domain not available)", parsed.EMMCause, mme.EmmCauseCSDomainNotAvailable)
+	if parsed.Cause == nil || *parsed.Cause != eps.EMMCauseCSDomainNotAvailable {
+		t.Fatalf("EMM cause = %v, want #%d (CS domain not available)", parsed.Cause, eps.EMMCauseCSDomainNotAvailable)
 	}
 }
 
@@ -238,7 +274,7 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 
 	oldMTMSI := ue.TmsiForTest()
 
-	handleTrackingAreaUpdate(context.Background(), m, ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x03}) // periodic
+	handleTAU(t, m, ue, tauRequest(3)) // periodic
 
 	if ue.OldTmsiForTest() != oldMTMSI || ue.TmsiForTest() == oldMTMSI {
 		t.Fatalf("GUTI not reallocated: mtmsi=%d oldMTMSI=%d (was %d)", ue.TmsiForTest(), ue.OldTmsiForTest(), oldMTMSI)
@@ -254,8 +290,7 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 
 	dl := decodeDownlinkNAS(t, cc.sent[0])
 
-	plain, err := eps.Unprotect(dl, nascommon.NASCount(0, dl[5]), nascommon.DirectionDownlink,
-		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	plain, err := unprotected(eps.Unprotect(dl, nas.MakeCount(0, dl[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
 	if err != nil {
 		t.Fatalf("unprotect TAU Accept: %v", err)
 	}
@@ -265,7 +300,11 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 		t.Fatalf("parse TAU Accept: %v", err)
 	}
 
-	if parsed.GUTI == nil || parsed.GUTI.MTMSI != ue.TmsiForTest() {
+	if parsed.GUTI == nil {
+		t.Fatalf("TAU Accept GUTI absent")
+	}
+
+	if parsed.GUTI.GUTI == nil || binary.BigEndian.Uint32(parsed.GUTI.GUTI.TMSI[:]) != ue.TmsiForTest() {
 		t.Fatalf("TAU Accept GUTI = %+v, want M-TMSI %d", parsed.GUTI, ue.TmsiForTest())
 	}
 
@@ -293,7 +332,7 @@ func TestTrackingAreaUpdateIdleNoActiveFlagReleases(t *testing.T) {
 	ue, cc := securedUE(t, m)
 	ue.SetTmsiForTest(1) // a GUTI to reallocate
 
-	handleTrackingAreaUpdate(context.Background(), m, ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x00})
+	handleTAU(t, m, ue, tauRequest(0))
 
 	// Only the TAU Accept goes out; the release waits for TAU Complete.
 	if len(cc.sent) != 1 {
@@ -337,7 +376,7 @@ func TestTrackingAreaUpdateIdleActiveFlagReestablishes(t *testing.T) {
 	cc := &captureConn{}
 	establishResumeForTest(m, ue, cc, 9) // the resume re-binds the connection
 
-	handleTrackingAreaUpdate(context.Background(), m, ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x08})
+	handleTAU(t, m, ue, tauRequestActive(0))
 
 	if !ue.Connected() {
 		t.Fatal("UE not ECM-CONNECTED after an active-flag TAU")
@@ -361,9 +400,9 @@ func TestTrackingAreaUpdateRecovery(t *testing.T) {
 
 	// Security-protected NAS: SHT=integrity-protected | PD=EMM, a MAC the MME
 	// cannot reproduce (no context), sequence 1, and an inner plain TAU REQUEST.
-	nas := []byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x01, 0x07, byte(eps.MsgTrackingAreaUpdateRequest)}
+	pdu := []byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x01, 0x07, byte(eps.MsgTrackingAreaUpdateRequest)}
 
-	mmes1ap.HandleInitialUEMessage(m, context.Background(), mme.NewRadioForTest(cc), initiatingValue(t, initialUEMessagePDU(t, 7, nas)))
+	mmes1ap.HandleInitialUEMessage(m, context.Background(), mme.NewRadioForTest(cc), initiatingValue(t, initialUEMessagePDU(t, 7, pdu)))
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one downlink (TAU Reject), got %d", len(cc.sent))
@@ -374,8 +413,8 @@ func TestTrackingAreaUpdateRecovery(t *testing.T) {
 		t.Fatalf("not a TAU Reject: %v", err)
 	}
 
-	if rej.Cause != mme.EmmCauseUEIdentityUnderivable {
-		t.Fatalf("TAU Reject cause = %d, want %d", rej.Cause, mme.EmmCauseUEIdentityUnderivable)
+	if rej.Cause != eps.EMMCauseUEIdentityCannotBeDerived {
+		t.Fatalf("TAU Reject cause = %d, want %d", rej.Cause, eps.EMMCauseUEIdentityCannotBeDerived)
 	}
 
 	if m.ConnCountForTest() != 0 {

@@ -23,7 +23,7 @@ func idleRegisteredUE(t *testing.T, m *MME) *UeContext {
 	t.Helper()
 
 	ue, _ := securedUE(t, m)
-	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal(), nil, MintAuthProofForAttachRequest())
+	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}, nil, MintAuthProofForAttachRequest())
 	testPDN(ue).SgwFTEID = testSGWFTEID
 
 	if _, err := m.ReallocateGUTI(t.Context(), ue, models.PlmnID{Mcc: "001", Mnc: "01"}, 1, 1); err != nil {
@@ -79,7 +79,7 @@ func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSB
 		pdnType = 1 // IPv4
 	}
 
-	bearer := models.EPSBearer{PDNType: pdnType, SGW: testSGWFTEID}
+	bearer := models.EPSBearer{PDNType: eps.PDNType(pdnType), SGW: testSGWFTEID}
 
 	if pdnType == 1 || pdnType == 3 { // IPv4 / IPv4v6
 		bearer.IPv4 = testUEIP

@@ -6,7 +6,6 @@ require (
 	github.com/canonical/sqlair v0.0.0-20250120155751-a83645b9a121
 	github.com/cilium/ebpf v0.22.0
 	github.com/free5gc/aper v1.1.1
-	github.com/free5gc/nas v1.2.3
 	github.com/free5gc/ngap v1.1.3
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/gopacket v1.1.19
@@ -37,7 +36,6 @@ require (
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/aead/cmac v0.0.0-20160719120800-7af84192f0b1 // indirect
 	github.com/armon/go-metrics v0.4.1
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/boltdb/bolt v1.3.1 // indirect

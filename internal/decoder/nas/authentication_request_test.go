@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
-	naslib "github.com/free5gc/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func TestDecodeNASMessage_AuthenticationRequest(t *testing.T) {
@@ -28,7 +28,7 @@ func TestDecodeNASMessage_AuthenticationRequest(t *testing.T) {
 		t.Errorf("Unexpected SecurityHeaderType: got %v", nas.SecurityHeader.SecurityHeaderType.Label)
 	}
 
-	if nas.SecurityHeader.SecurityHeaderType.Value != naslib.SecurityHeaderTypePlainNas {
+	if nas.SecurityHeader.SecurityHeaderType.Value != int64(fgs.SHTPlain) {
 		t.Errorf("Unexpected SecurityHeaderType value: got %d", nas.SecurityHeader.SecurityHeaderType.Value)
 	}
 
@@ -44,7 +44,7 @@ func TestDecodeNASMessage_AuthenticationRequest(t *testing.T) {
 		t.Errorf("Unexpected GmmMessage Type: got %v", nas.GmmMessage.GmmHeader.MessageType.Label)
 	}
 
-	if nas.GmmMessage.GmmHeader.MessageType.Value != naslib.MsgTypeAuthenticationRequest {
+	if nas.GmmMessage.GmmHeader.MessageType.Value != int64(fgs.MsgAuthenticationRequest) {
 		t.Errorf("Unexpected GmmMessage Type value: got %d", nas.GmmMessage.GmmHeader.MessageType.Value)
 	}
 

@@ -4,23 +4,25 @@
 package eps
 
 import (
-	"bytes"
+	"reflect"
 	"testing"
+
+	"github.com/ellanetworks/core/nas"
 )
 
 func TestPDNDisconnectRequestRoundTrip(t *testing.T) {
 	in := &PDNDisconnectRequest{
-		ProcedureTransactionIdentity: 3,
-		LinkedEPSBearerIdentity:      5,
+		PTI:                     3,
+		LinkedEPSBearerIdentity: 5,
 	}
 
-	wire, err := in.Marshal()
+	wire, err := in.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Header (EBI=0, PD=ESM, PTI, message type) then the spare+linked-EBI octet.
-	if wire[0] != PDESM || wire[2] != uint8(MsgPDNDisconnectRequest) {
+	if wire[0] != uint8(PDESM) || wire[2] != uint8(MsgPDNDisconnectRequest) {
 		t.Fatalf("header = %x", wire[:3])
 	}
 
@@ -33,7 +35,7 @@ func TestPDNDisconnectRequestRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.ProcedureTransactionIdentity != 3 || out.LinkedEPSBearerIdentity != 5 {
+	if out.PTI != 3 || out.LinkedEPSBearerIdentity != 5 {
 		t.Fatalf("out = %+v", out)
 	}
 }
@@ -41,7 +43,7 @@ func TestPDNDisconnectRequestRoundTrip(t *testing.T) {
 func TestPDNDisconnectRequestSpareHalfOctetIgnored(t *testing.T) {
 	// A sender that fills the spare high half-octet must not corrupt the linked
 	// EPS bearer identity (TS 24.301).
-	wire := []byte{PDESM, 0x02, uint8(MsgPDNDisconnectRequest), 0xF5}
+	wire := []byte{uint8(PDESM), 0x02, uint8(MsgPDNDisconnectRequest), 0xF5}
 
 	out, err := ParsePDNDisconnectRequest(wire)
 	if err != nil {
@@ -55,12 +57,12 @@ func TestPDNDisconnectRequestSpareHalfOctetIgnored(t *testing.T) {
 
 func TestPDNDisconnectRejectRoundTrip(t *testing.T) {
 	in := &PDNDisconnectReject{
-		EPSBearerIdentity:            5,
-		ProcedureTransactionIdentity: 3,
-		ESMCause:                     49, // last PDN disconnection not allowed
+		EPSBearerIdentity: 5,
+		PTI:               3,
+		Cause:             49, // last PDN disconnection not allowed
 	}
 
-	wire, err := in.Marshal()
+	wire, err := in.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,19 +72,19 @@ func TestPDNDisconnectRejectRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.EPSBearerIdentity != 5 || out.ProcedureTransactionIdentity != 3 || out.ESMCause != 49 {
+	if out.EPSBearerIdentity != 5 || out.PTI != 3 || out.Cause != 49 {
 		t.Fatalf("out = %+v", out)
 	}
 }
 
 func TestModifyEPSBearerContextRejectRoundTrip(t *testing.T) {
 	in := &ModifyEPSBearerContextReject{
-		EPSBearerIdentity:            5,
-		ProcedureTransactionIdentity: 1,
-		ESMCause:                     43, // invalid EPS bearer identity
+		EPSBearerIdentity: 5,
+		PTI:               1,
+		Cause:             43, // invalid EPS bearer identity
 	}
 
-	wire, err := in.Marshal()
+	wire, err := in.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,28 +94,25 @@ func TestModifyEPSBearerContextRejectRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.EPSBearerIdentity != 5 || out.ProcedureTransactionIdentity != 1 || out.ESMCause != 43 {
+	if out.EPSBearerIdentity != 5 || out.PTI != 1 || out.Cause != 43 {
 		t.Fatalf("out = %+v", out)
 	}
 }
 
 func TestPDNConnectivityRequestWithAPNAndPCO(t *testing.T) {
-	apn, err := MarshalAPN("internet")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	pco := BuildProtocolConfigurationOptions([][]byte{{8, 8, 8, 8}}, 1400)
+	pco := nas.NewProtocolConfigurationOptions([][]byte{{8, 8, 8, 8}}, 1400)
+	pco.Direction = nas.PCOMSToNetwork
+	pcoPtr := &pco
 
 	in := &PDNConnectivityRequest{
-		ProcedureTransactionIdentity: 2,
+		PTI:                          2,
 		RequestType:                  1, // initial request
 		PDNType:                      1, // IPv4
-		AccessPointName:              apn,
-		ProtocolConfigurationOptions: pco,
+		AccessPointName:              ptr(APN("internet")),
+		ProtocolConfigurationOptions: pcoPtr,
 	}
 
-	wire, err := in.Marshal()
+	wire, err := in.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,15 +126,11 @@ func TestPDNConnectivityRequestWithAPNAndPCO(t *testing.T) {
 		t.Fatalf("request/pdn type = %d/%d", out.RequestType, out.PDNType)
 	}
 
-	if !bytes.Equal(out.AccessPointName, apn) {
-		t.Fatalf("APN = %x, want %x", out.AccessPointName, apn)
+	if out.AccessPointName == nil || *out.AccessPointName != "internet" {
+		t.Fatalf("APN = %q", *out.AccessPointName)
 	}
 
-	if name, err := ParseAPN(out.AccessPointName); err != nil || name != "internet" {
-		t.Fatalf("ParseAPN = %q, err %v", name, err)
-	}
-
-	if !bytes.Equal(out.ProtocolConfigurationOptions, pco) {
+	if !reflect.DeepEqual(out.ProtocolConfigurationOptions, pcoPtr) {
 		t.Fatalf("PCO = %x, want %x", out.ProtocolConfigurationOptions, pco)
 	}
 }
@@ -144,9 +139,9 @@ func TestPDNConnectivityRequestWithAPNAndPCO(t *testing.T) {
 // sends inside the Attach Request (no optional IEs) still round-trips, leaving
 // the APN and PCO absent.
 func TestPDNConnectivityRequestNoOptionalIEs(t *testing.T) {
-	in := &PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: 1}
+	in := &PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: 1}
 
-	wire, err := in.Marshal()
+	wire, err := in.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}

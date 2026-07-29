@@ -63,7 +63,7 @@ func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item0.Criticality.Value)
 	}
 
-	cause, ok := item0.Value.(utils.EnumField[uint64])
+	cause, ok := item0.Value.(utils.EnumField)
 	if !ok {
 		t.Fatalf("expected Cause, got %T", item0.Value)
 	}
@@ -72,7 +72,7 @@ func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 		t.Errorf("expected Cause=UnknownPLMN, got %v", cause.Label)
 	}
 
-	if cause.Value != uint64(ngapType.CauseMiscPresentUnknownPLMN) {
+	if cause.Value != int64(ngapType.CauseMiscPresentUnknownPLMN) {
 		t.Errorf("expected Cause value=%d, got %d", ngapType.CauseMiscPresentUnknownPLMN, cause.Value)
 	}
 }

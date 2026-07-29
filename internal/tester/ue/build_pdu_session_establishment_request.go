@@ -4,18 +4,15 @@
 package ue
 
 import (
-	"bytes"
 	"fmt"
 
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasConvert"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type PduSessionEstablishmentRequestOpts struct {
 	PDUSessionID   uint8
-	PDUSessionType uint8
+	PDUSessionType fgs.PDUSessionType
 }
 
 func BuildPduSessionEstablishmentRequest(opts *PduSessionEstablishmentRequestOpts) ([]byte, error) {
@@ -23,39 +20,28 @@ func BuildPduSessionEstablishmentRequest(opts *PduSessionEstablishmentRequestOpt
 		return nil, fmt.Errorf("PduSessionEstablishmentRequestOpts is nil")
 	}
 
-	m := nas.NewMessage()
-	m.GsmMessage = nas.NewGsmMessage()
-	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionEstablishmentRequest)
+	pduSessionType := opts.PDUSessionType
 
-	pduSessionEstablishmentRequest := nasMessage.NewPDUSessionEstablishmentRequest(0)
-	pduSessionEstablishmentRequest.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	pduSessionEstablishmentRequest.SetMessageType(nas.MsgTypePDUSessionEstablishmentRequest)
-	pduSessionEstablishmentRequest.SetPDUSessionID(opts.PDUSessionID)
-	pduSessionEstablishmentRequest.SetPTI(0x01)
-	pduSessionEstablishmentRequest.SetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForDownLink(0xff)
-	pduSessionEstablishmentRequest.SetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForUpLink(0xff)
+	extendedPCO := uePDUEstablishmentPCO()
 
-	pduSessionEstablishmentRequest.PDUSessionType = nasType.NewPDUSessionType(nasMessage.PDUSessionEstablishmentRequestPDUSessionTypeType)
-	pduSessionEstablishmentRequest.SetPDUSessionTypeValue(opts.PDUSessionType)
-
-	pduSessionEstablishmentRequest.ExtendedProtocolConfigurationOptions = nasType.NewExtendedProtocolConfigurationOptions(nasMessage.PDUSessionEstablishmentRequestExtendedProtocolConfigurationOptionsType)
-	protocolConfigurationOptions := nasConvert.NewProtocolConfigurationOptions()
-	protocolConfigurationOptions.AddIPAddressAllocationViaNASSignallingUL()
-	protocolConfigurationOptions.AddDNSServerIPv4AddressRequest()
-	protocolConfigurationOptions.AddDNSServerIPv6AddressRequest()
-	pcoContents := protocolConfigurationOptions.Marshal()
-	pcoContentsLength := len(pcoContents)
-	pduSessionEstablishmentRequest.ExtendedProtocolConfigurationOptions.SetLen(uint16(pcoContentsLength))
-	pduSessionEstablishmentRequest.SetExtendedProtocolConfigurationOptionsContents(pcoContents)
-
-	m.PDUSessionEstablishmentRequest = pduSessionEstablishmentRequest
-
-	data := new(bytes.Buffer)
-
-	err := m.GsmMessageEncode(data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode GSM message: %v", err)
+	m := &fgs.PDUSessionEstablishmentRequest{
+		PDUSessionID:             fgs.PDUSessionID(opts.PDUSessionID),
+		PTI:                      0x01,
+		IntegrityProtMaxDataRate: [2]byte{0xff, 0xff},
+		PDUSessionType:           &pduSessionType,
+		ExtendedPCO:              &extendedPCO,
 	}
 
-	return data.Bytes(), nil
+	return m.MarshalBinary()
+}
+
+// uePDUEstablishmentPCO builds the PCO the UE requests at PDU session
+// establishment (TS 24.008 §10.5.6.3): IP address allocation via NAS signalling,
+// plus DNS server IPv4 and IPv6 address requests, each an empty-content container.
+func uePDUEstablishmentPCO() nas.ProtocolConfigurationOptions {
+	return nas.NewRequestedProtocolConfigurationOptions(
+		nas.PCOContainerIPAddressAllocationViaNAS,
+		nas.PCOContainerDNSServerIPv4Address,
+		nas.PCOContainerDNSServerIPv6Address,
+	)
 }

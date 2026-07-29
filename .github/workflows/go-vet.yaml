@@ -21,3 +21,13 @@ jobs:
 
       - name: Go vet
         run: go vet ./...
+
+      - name: Sub-module go vet
+        run: |
+          set -e
+          for modfile in $(find . -name go.mod -not -path './go.mod' -not -path './ui/*'); do
+            dir=$(dirname "$modfile")
+            echo "::group::go vet in $dir"
+            (cd "$dir" && go vet ./...)
+            echo "::endgroup::"
+          done

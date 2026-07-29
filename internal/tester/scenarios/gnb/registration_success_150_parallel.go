@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil/validate"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/spf13/pflag"
 	"golang.org/x/sync/errgroup"
 )
@@ -66,7 +67,7 @@ func runRegistrationSuccess150Parallel(_ context.Context, env scenarios.Env, _ a
 
 				exp := &validate.ExpectedPDUSessionEstablishmentAccept{
 					PDUSessionID:               scenarios.DefaultPDUSessionID,
-					PDUSessionType:             env.PDUSessionType(),
+					PDUSessionType:             fgs.PDUSessionType(env.PDUSessionType()),
 					UeIPSubnet:                 network,
 					Dnn:                        scenarios.DefaultDNN,
 					Sst:                        scenarios.DefaultSST,

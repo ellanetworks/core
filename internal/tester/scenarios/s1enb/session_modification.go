@@ -175,8 +175,8 @@ func assertQoSModification(e *s1enb.ENB, ue *s1enb.UE, enbUEID int64, cfg sessio
 		return fmt.Errorf("E-RAB QoS = QCI %d ARP %d, want %d/%d", item.QoS.QCI, item.QoS.ARP.PriorityLevel, cfg.qci, cfg.arp)
 	}
 
-	if len(nasReq.NewEPSQoS) == 0 || nasReq.NewEPSQoS[0] != cfg.qci {
-		return fmt.Errorf("NAS New-EPS-QoS = % x, want QCI %d", nasReq.NewEPSQoS, cfg.qci)
+	if nasReq.NewEPSQoS == nil || nasReq.NewEPSQoS.QCI != cfg.qci {
+		return fmt.Errorf("NAS New-EPS-QoS = %+v, want QCI %d", nasReq.NewEPSQoS, cfg.qci)
 	}
 
 	if ambrChanged {
@@ -198,16 +198,17 @@ func assertAMBROnlyModification(e *s1enb.ENB, ue *s1enb.UE, enbUEID int64, cfg s
 }
 
 func assertModifyAPNAMBR(nasReq *eps.ModifyEPSBearerContextRequest, cfg sessionModConfig) error {
-	ambr, err := eps.ParseAPNAMBR(nasReq.APNAMBR)
-	if err != nil {
-		return fmt.Errorf("modification missing APN-AMBR: %w", err)
+	if nasReq.APNAMBR == nil {
+		return fmt.Errorf("modification missing APN-AMBR")
 	}
+
+	ambr := *nasReq.APNAMBR
 
 	wantDL := cfg.ambrDownlinkMbps * mbpsToBps
 	wantUL := cfg.ambrUplinkMbps * mbpsToBps
 
-	if dl, ul := ambr.BitsPerSecond(); dl != wantDL || ul != wantUL {
-		return fmt.Errorf("APN-AMBR = %d/%d bps, want %d/%d", dl, ul, wantDL, wantUL)
+	if dl, ul, ok := ambr.Kbps(); !ok || dl*1000 != wantDL || ul*1000 != wantUL {
+		return fmt.Errorf("APN-AMBR = %d/%d kbit/s, want %d/%d bit/s", dl, ul, wantDL, wantUL)
 	}
 
 	return nil

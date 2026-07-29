@@ -18,7 +18,7 @@ func (c *UeConn) SendGuardedMessage(ctx context.Context, name string, msg nasMes
 		return
 	}
 
-	b, err := msg.Marshal()
+	b, err := msg.MarshalBinary()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to marshal NAS message", zap.Error(err))
 		return

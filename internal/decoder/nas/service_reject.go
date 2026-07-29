@@ -5,52 +5,42 @@ package nas
 
 import (
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/free5gc/nas/nasConvert"
-	"github.com/free5gc/nas/nasMessage"
+	naslib "github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type ServiceReject struct {
-	ExtendedProtocolDiscriminator       uint8                  `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType uint8                  `json:"spare_half_octet_and_security_header_type"`
-	Cause5GMM                           utils.EnumField[uint8] `json:"cause"`
-	PDUSessionStatus                    []PDUSessionStatusPDU  `json:"pdu_session_status,omitempty"`
-	T3346Value                          *uint8                 `json:"t3346_value,omitempty"`
-	EAPMessage                          []byte                 `json:"eap_message,omitempty"`
+	Cause5GMM        utils.EnumField       `json:"cause"`
+	PDUSessionStatus []PDUSessionStatusPDU `json:"pdu_session_status,omitempty"`
+	T3346Value       *uint8                `json:"t3346_value,omitempty"`
+	EAPMessage       []byte                `json:"eap_message,omitempty"`
 }
 
-func buildServiceReject(msg *nasMessage.ServiceReject) *ServiceReject {
-	if msg == nil {
-		return nil
-	}
-
-	serviceReject := &ServiceReject{
-		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
-		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		Cause5GMM:                           cause5GMMToEnum(msg.GetCauseValue()),
+func buildServiceReject(msg *fgs.ServiceReject) *ServiceReject {
+	out := &ServiceReject{
+		Cause5GMM:  cause5GMMToEnum(msg.Cause),
+		T3346Value: timerOctetPtr(msg.T3346),
+		EAPMessage: msg.EAP,
 	}
 
 	if msg.PDUSessionStatus != nil {
-		pduSessionStatus := []PDUSessionStatusPDU{}
-
-		psiArray := nasConvert.PSIToBooleanArray(msg.PDUSessionStatus.Buffer)
-		for pduSessionID, isActive := range psiArray {
-			pduSessionStatus = append(pduSessionStatus, PDUSessionStatusPDU{
-				PDUSessionID: pduSessionID,
-				Active:       isActive,
-			})
-		}
-
-		serviceReject.PDUSessionStatus = pduSessionStatus
+		out.PDUSessionStatus = decodePDUSessionStatus(msg.PDUSessionStatus)
 	}
 
-	if msg.T3346Value != nil {
-		t3346Value := msg.GetGPRSTimer2Value()
-		serviceReject.T3346Value = &t3346Value
+	return out
+}
+
+// timerOctetPtr narrows an optional GPRS timer to the raw octet the decoder's
+// JSON shape carries.
+func timerOctetPtr(t *naslib.GPRSTimer2) *uint8 {
+	if t == nil {
+		return nil
 	}
 
-	if msg.EAPMessage != nil {
-		serviceReject.EAPMessage = msg.GetEAPMessage()
+	raw, err := t.MarshalBinary()
+	if err != nil || len(raw) == 0 {
+		return nil
 	}
 
-	return serviceReject
+	return &raw[0]
 }

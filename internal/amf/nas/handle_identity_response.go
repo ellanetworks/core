@@ -8,40 +8,36 @@ package nas
 
 import (
 	"context"
-	"encoding/hex"
+	"encoding/binary"
 	"fmt"
-	"strconv"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
-	"github.com/free5gc/nas/nasConvert"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
-func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integrityVerified bool) error {
+func updateUEIdentity(ue *amf.UeContext, id fgs.MobileIdentity, integrityVerified bool) error {
 	if ue == nil {
 		return fmt.Errorf("amf.UeContext is nil")
 	}
 
-	if len(mobileIdentityContents) == 0 {
-		return fmt.Errorf("mobile identity is empty")
+	// Every identity but the SUCI names an existing context, so accepting one on an
+	// unverified message would let an attacker rebind it (TS 24.501 §4.4.4.3).
+	if id.Type() != fgs.IdentitySUCI && !integrityVerified {
+		return fmt.Errorf("NAS message integrity check failed")
 	}
 
-	switch nasConvert.GetTypeOfIdentity(mobileIdentityContents[0]) {
-	case nasMessage.MobileIdentity5GSTypeSuci:
-		var plmnID string
-
-		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentityContents)
-		ue.PlmnID = amf.PlmnIDStringToModels(plmnID)
-	case nasMessage.MobileIdentity5GSType5gGuti:
-		if !integrityVerified {
-			return fmt.Errorf("NAS message integrity check failed")
+	switch {
+	case id.SUCI != nil:
+		ue.Suci = id.SUCI.String()
+		if id.SUCI.Format == fgs.SUPIFormatIMSI {
+			ue.PlmnID = amf.PlmnIDStringToModels(id.SUCI.PLMN.MCC + id.SUCI.PLMN.MNC)
 		}
-
-		guti, err := etsi.NewGUTI5GFromBytes(mobileIdentityContents)
+	case id.GUTI != nil:
+		guti, err := etsi.NewGUTI5GFromNAS(id)
 		if err != nil {
 			return fmt.Errorf("UE sent invalid GUTI: %v", err)
 		}
@@ -51,23 +47,8 @@ func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integri
 		if guti.Tmsi != ue.Tmsi() && guti.Tmsi != ue.OldTmsi() {
 			return fmt.Errorf("UE sent unknown GUTI")
 		}
-	case nasMessage.MobileIdentity5GSType5gSTmsi:
-		if !integrityVerified {
-			return fmt.Errorf("NAS message integrity check failed")
-		}
-
-		if len(mobileIdentityContents) != 7 {
-			return fmt.Errorf("wrong length for TMSI")
-		}
-
-		sTmsi := hex.EncodeToString(mobileIdentityContents[1:])
-
-		tmp, err := strconv.ParseUint(sTmsi[4:], 16, 32)
-		if err != nil {
-			return fmt.Errorf("could not parse 5G-S-TMSI: %v", err)
-		}
-
-		tmsi, err := etsi.NewTMSI(uint32(tmp))
+	case id.STMSI != nil:
+		tmsi, err := etsi.NewTMSI(binary.BigEndian.Uint32(id.STMSI.TMSI[:]))
 		if err != nil {
 			return fmt.Errorf("invalid TMSI: %v", err)
 		}
@@ -75,34 +56,28 @@ func updateUEIdentity(ue *amf.UeContext, mobileIdentityContents []uint8, integri
 		if tmsi != ue.Tmsi() && tmsi != ue.OldTmsi() {
 			return fmt.Errorf("UE sent unknown TMSI")
 		}
-	case nasMessage.MobileIdentity5GSTypeImei:
-		if !integrityVerified {
-			return fmt.Errorf("NAS message integrity check failed")
+	case id.PEI != nil:
+		if !id.PEI.Valid() {
+			return fmt.Errorf("UE sent invalid %s", id.Type())
 		}
 
-		imei, err := etsi.NewIMEIFromPEI(nasConvert.PeiToString(mobileIdentityContents))
+		imei, err := etsi.NewIMEIFromPEI(id.PEI.String())
 		if err != nil {
-			return fmt.Errorf("UE sent invalid IMEI: %w", err)
+			return fmt.Errorf("UE sent invalid %s: %w", id.Type(), err)
 		}
 
 		ue.Imei = imei
-	case nasMessage.MobileIdentity5GSTypeImeisv:
-		if !integrityVerified {
-			return fmt.Errorf("NAS message integrity check failed")
-		}
-
-		imeisv, err := etsi.NewIMEIFromPEI(nasConvert.PeiToString(mobileIdentityContents))
-		if err != nil {
-			return fmt.Errorf("UE sent invalid IMEISV: %w", err)
-		}
-
-		ue.Imei = imeisv
+	default:
+		// An IDENTITY RESPONSE that names no identity — or one this AMF does not
+		// model — identifies nobody, so the identification procedure cannot have
+		// succeeded (TS 24.501 §5.4.3.4).
+		return fmt.Errorf("UE sent %s", id.Type())
 	}
 
 	return nil
 }
 
-func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *nasMessage.IdentityResponse, integrityVerified bool) nasreply.Disposition {
+func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *fgs.IdentityResponse, integrityVerified bool) nasreply.Disposition {
 	// The identification procedure is complete on receipt of the response
 	// (TS 24.501 §5.4.3.4).
 	if conn := ue.Conn(); conn != nil {
@@ -111,9 +86,7 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 
 	switch ue.RegStep() {
 	case amf.RegStepAuthenticating:
-		mobileIdentityContents := msg.GetMobileIdentityContents()
-
-		if err := updateUEIdentity(ue, mobileIdentityContents, integrityVerified); err != nil {
+		if err := updateUEIdentity(ue, msg.MobileIdentity, integrityVerified); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("error handling identity response", zap.Error(err))
 			return nasreply.Handled()
 		}
@@ -133,9 +106,7 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 		return nasreply.Handled()
 
 	case amf.RegStepContextSetup:
-		mobileIdentityContents := msg.GetMobileIdentityContents()
-
-		if err := updateUEIdentity(ue, mobileIdentityContents, integrityVerified); err != nil {
+		if err := updateUEIdentity(ue, msg.MobileIdentity, integrityVerified); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("error handling identity response", zap.Error(err))
 			return nasreply.Handled()
 		}
@@ -147,11 +118,11 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 		}
 
 		switch conn.RegistrationType5GS {
-		case nasMessage.RegistrationType5GSInitialRegistration:
+		case fgs.RegistrationTypeInitial:
 			HandleInitialRegistration(ctx, amfInstance, ue)
-		case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
+		case fgs.RegistrationTypeMobilityUpdating:
 			fallthrough
-		case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
+		case fgs.RegistrationTypePeriodicUpdating:
 			HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfInstance, ue)
 		}
 	default:

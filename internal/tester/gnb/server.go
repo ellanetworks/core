@@ -17,7 +17,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/air"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/free5gc/aper"
-	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap"
 	"github.com/ishidawataru/sctp"
 	"github.com/vishvananda/netlink"
@@ -879,7 +878,7 @@ func (g *GnodeB) SendUplinkNAS(nasPDU []byte, amfUENGAPID int64, ranUENGAPID int
 	return nil
 }
 
-func (g *GnodeB) SendInitialUEMessage(nasPDU []byte, ranUENGAPID int64, guti5G *nasType.GUTI5G, cause aper.Enumerated) error {
+func (g *GnodeB) SendInitialUEMessage(nasPDU []byte, ranUENGAPID int64, guti5G []byte, cause aper.Enumerated) error {
 	opts := &InitialUEMessageOpts{
 		Mcc:                   g.MCC,
 		Mnc:                   g.MNC,

@@ -4,16 +4,13 @@
 package ue
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/internal/util/ueauth"
-	"github.com/free5gc/nas/nasType"
-	"github.com/free5gc/nas/security"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 // TS 33.501 Annex A.9.
 func AlgorithmKeyDerivation(cipheringAlg uint8, kamf []byte, knasEnc *[16]uint8, IntegrityAlg uint8, knasInt *[16]uint8) error {
-	P0 := []byte{security.NNASEncAlg}
+	P0 := []byte{nnasEncAlg}
 	L0 := ueauth.KDFLen(P0)
 	P1 := []byte{cipheringAlg}
 	L1 := ueauth.KDFLen(P1)
@@ -25,7 +22,7 @@ func AlgorithmKeyDerivation(cipheringAlg uint8, kamf []byte, knasEnc *[16]uint8,
 
 	copy(knasEnc[:], kenc[16:32])
 
-	P0 = []byte{security.NNASIntAlg}
+	P0 = []byte{nnasIntAlg}
 	L0 = ueauth.KDFLen(P0)
 	P1 = []byte{IntegrityAlg}
 	L1 = ueauth.KDFLen(P1)
@@ -40,35 +37,33 @@ func AlgorithmKeyDerivation(cipheringAlg uint8, kamf []byte, knasEnc *[16]uint8,
 	return nil
 }
 
-func SelectAlgorithms(securityCapability *nasType.UESecurityCapability) (uint8, uint8, error) {
+func SelectAlgorithms(c fgs.UESecurityCapability) (uint8, uint8) {
 	var (
 		integrityAlgorithm uint8
 		cipheringAlgorithm uint8
 	)
 
-	if securityCapability == nil {
-		return 0, 0, fmt.Errorf("securityCapability is nil")
+	switch {
+	case c.SupportsIA(0):
+		integrityAlgorithm = AlgIntegrity128NIA0
+	case c.SupportsIA(1):
+		integrityAlgorithm = AlgIntegrity128NIA1
+	case c.SupportsIA(2):
+		integrityAlgorithm = AlgIntegrity128NIA2
+	case c.SupportsIA(3):
+		integrityAlgorithm = AlgIntegrity128NIA3
 	}
 
-	if securityCapability.GetIA0_5G() == 1 {
-		integrityAlgorithm = security.AlgIntegrity128NIA0
-	} else if securityCapability.GetIA1_128_5G() == 1 {
-		integrityAlgorithm = security.AlgIntegrity128NIA1
-	} else if securityCapability.GetIA2_128_5G() == 1 {
-		integrityAlgorithm = security.AlgIntegrity128NIA2
-	} else if securityCapability.GetIA3_128_5G() == 1 {
-		integrityAlgorithm = security.AlgIntegrity128NIA3
+	switch {
+	case c.SupportsEA(0):
+		cipheringAlgorithm = AlgCiphering128NEA0
+	case c.SupportsEA(1):
+		cipheringAlgorithm = AlgCiphering128NEA1
+	case c.SupportsEA(2):
+		cipheringAlgorithm = AlgCiphering128NEA2
+	case c.SupportsEA(3):
+		cipheringAlgorithm = AlgCiphering128NEA3
 	}
 
-	if securityCapability.GetEA0_5G() == 1 {
-		cipheringAlgorithm = security.AlgCiphering128NEA0
-	} else if securityCapability.GetEA1_128_5G() == 1 {
-		cipheringAlgorithm = security.AlgCiphering128NEA1
-	} else if securityCapability.GetEA2_128_5G() == 1 {
-		cipheringAlgorithm = security.AlgCiphering128NEA2
-	} else if securityCapability.GetEA3_128_5G() == 1 {
-		cipheringAlgorithm = security.AlgCiphering128NEA3
-	}
-
-	return integrityAlgorithm, cipheringAlgorithm, nil
+	return integrityAlgorithm, cipheringAlgorithm
 }

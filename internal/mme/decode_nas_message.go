@@ -65,9 +65,12 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	conn := ue.Conn()
 	connSecured := conn != nil && conn.SecureExchangeEstablished()
 
-	securityHeader := nas[0] >> 4
+	securityHeader, err := eps.PeekSecurityHeaderType(nas)
+	if err != nil {
+		return nil, silentDecode(nasreply.ReasonTooShort, "read EMM security header: %v", err)
+	}
 
-	if securityHeader == uint8(eps.SHTPlain) {
+	if securityHeader == eps.SHTPlain {
 		mt, err := eps.PeekMessageType(nas)
 		if err != nil {
 			logger.MmeLog.Warn("failed to read EMM message type", zap.Error(err))
@@ -94,7 +97,8 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 		return &DecodeResult{Plain: nas}, nil
 	}
 
-	if len(nas) < 6 {
+	spm, err := eps.ParseSecurityProtectedMessage(nas)
+	if err != nil {
 		logger.MmeLog.Warn("security-protected NAS message too short")
 		return nil, silentDecode(nasreply.ReasonTooShort, "protected NAS message too short")
 	}
@@ -114,7 +118,7 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 		return &DecodeResult{Plain: p, IntegrityVerified: true}, nil
 	}
 
-	body := nas[6:]
+	body := spm.UnverifiedPayload
 
 	// A switch-off DETACH REQUEST is honoured without integrity protection only
 	// before secure exchange is established (TS 24.301 §4.4.4.3). Its body is
@@ -134,10 +138,10 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	// The plaintext type is readable only for an integrity-only (unciphered)
 	// security header (types 1 and 3); a ciphered body peeks to a meaningless type,
 	// so such a message is dropped.
-	if securityHeader != uint8(eps.SHTIntegrityProtected) && securityHeader != uint8(eps.SHTIntegrityProtectedNewContext) {
+	if securityHeader != eps.SHTIntegrityProtected && securityHeader != eps.SHTIntegrityProtectedNewContext {
 		logger.MmeLog.Warn("NAS integrity check failed",
 			zap.Error(err),
-			zap.Uint8("security-header-type", securityHeader),
+			zap.Uint8("security-header-type", uint8(securityHeader)),
 			zap.Bool("has-security-context", ue.HasKASME()))
 
 		return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS integrity check failed (ciphered, unreadable): %v", err)
@@ -157,9 +161,9 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 		logger.MmeLog.Warn("NAS integrity check failed",
 			zap.Error(err),
 			zap.String("attempted-message", EmmMessageTypeName(mt)),
-			zap.Uint8("security-header-type", securityHeader),
+			zap.Uint8("security-header-type", uint8(securityHeader)),
 			zap.Uint32("expected-ul-count", ue.ULCount()),
-			zap.Uint8("integrity-alg", ue.EIA()),
+			zap.Stringer("integrity-alg", ue.EIA()),
 			zap.Bool("has-security-context", ue.HasKASME()))
 
 		return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS integrity check failed: %s not whitelisted", EmmMessageTypeName(mt))

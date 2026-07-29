@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -95,7 +96,7 @@ func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSB
 		pdnType = 1
 	}
 
-	bearer := models.EPSBearer{PDNType: pdnType, SGW: testSGWFTEID}
+	bearer := models.EPSBearer{PDNType: eps.PDNType(pdnType), SGW: testSGWFTEID}
 	if pdnType == 1 || pdnType == 3 {
 		bearer.IPv4 = testUEIP
 	}

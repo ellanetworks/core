@@ -8,7 +8,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
@@ -30,12 +30,7 @@ func HashMME(input []byte) []byte {
 // preference (EPS algorithm codes as returned by SecurityAlgorithms). It reports
 // false when the UE and operator share no algorithm, so the caller rejects the
 // attach without falling back to the null algorithm.
-func SelectAlgorithms(ueNetCap []byte, integrity, ciphering []uint8) (eea, eia byte, ok bool) {
-	uecap, err := eps.ParseUENetworkCapability(ueNetCap)
-	if err != nil {
-		return 0, 0, false
-	}
-
+func SelectAlgorithms(uecap eps.UENetworkCapability, integrity []nas.IntegrityAlgorithm, ciphering []nas.CipheringAlgorithm) (eea nas.CipheringAlgorithm, eia nas.IntegrityAlgorithm, ok bool) {
 	eea, eok := selectEPSAlgorithm(ciphering, uecap.SupportsEEA)
 	eia, iok := selectEPSAlgorithm(integrity, uecap.SupportsEIA)
 
@@ -43,8 +38,9 @@ func SelectAlgorithms(ueNetCap []byte, integrity, ciphering []uint8) (eea, eia b
 }
 
 // epsAlgorithmValue maps an operator algorithm identity to its EPS algorithm
-// number (TS 33.401): NULL=0, SNOW3G=1, AES=2.
-func epsAlgorithmValue(name string) (byte, bool) {
+// number (TS 33.401): NULL=0, SNOW3G=1, AES=2. The two generations number them
+// alike, so one mapping serves both.
+func epsAlgorithmValue[T ~uint8](name string) (T, bool) {
 	switch name {
 	case "NULL":
 		return 0, true
@@ -60,7 +56,7 @@ func epsAlgorithmValue(name string) (byte, bool) {
 // SecurityAlgorithms returns the operator's configured NAS integrity and ciphering
 // algorithm orders as EPS algorithm codes (TS 33.401), mapping the operator's
 // RAT-neutral names (NULL/SNOW3G/AES) and dropping any it does not recognise.
-func (m *MME) SecurityAlgorithms(ctx context.Context) ([]uint8, []uint8, error) {
+func (m *MME) SecurityAlgorithms(ctx context.Context) ([]nas.IntegrityAlgorithm, []nas.CipheringAlgorithm, error) {
 	ctx, span := Tracer.Start(ctx, "mme/get_security_algorithms")
 	defer span.End()
 
@@ -79,9 +75,9 @@ func (m *MME) SecurityAlgorithms(ctx context.Context) ([]uint8, []uint8, error) 
 		return nil, nil, fmt.Errorf("failed to read integrity policy: %w", err)
 	}
 
-	encOrder := make([]uint8, 0, len(cipherNames))
+	encOrder := make([]nas.CipheringAlgorithm, 0, len(cipherNames))
 	for _, name := range cipherNames {
-		alg, ok := epsAlgorithmValue(name)
+		alg, ok := epsAlgorithmValue[nas.CipheringAlgorithm](name)
 		if !ok {
 			return nil, nil, fmt.Errorf("unknown ciphering algorithm: %s", name)
 		}
@@ -89,9 +85,9 @@ func (m *MME) SecurityAlgorithms(ctx context.Context) ([]uint8, []uint8, error) 
 		encOrder = append(encOrder, alg)
 	}
 
-	intOrder := make([]uint8, 0, len(integrityNames))
+	intOrder := make([]nas.IntegrityAlgorithm, 0, len(integrityNames))
 	for _, name := range integrityNames {
-		alg, ok := epsAlgorithmValue(name)
+		alg, ok := epsAlgorithmValue[nas.IntegrityAlgorithm](name)
 		if !ok {
 			return nil, nil, fmt.Errorf("unknown integrity algorithm: %s", name)
 		}
@@ -103,94 +99,15 @@ func (m *MME) SecurityAlgorithms(ctx context.Context) ([]uint8, []uint8, error) 
 }
 
 // selectEPSAlgorithm returns the first operator-preferred algorithm the UE
-// advertises support for, reporting false when none is common. The null
+// advertises support for, reporting false when none is nas. The null
 // algorithm is selected only when the operator lists it and the UE advertises it
 // (TS 33.401 §5: EIA0 is not an implicit fallback for a non-emergency UE).
-func selectEPSAlgorithm(preference []uint8, supported func(uint8) bool) (byte, bool) {
+func selectEPSAlgorithm[T ~uint8](preference []T, supported func(uint8) bool) (T, bool) {
 	for _, v := range preference {
-		if supported(v) {
+		if supported(uint8(v)) {
 			return v, true
 		}
 	}
 
 	return 0, false
-}
-
-// geaOctet maps the GERAN ciphering algorithms from the UE's MS network
-// capability (TS 24.008: GEA1 at octet 1 bit 8, GEA2-7 at octet 2 bits 7-2) onto
-// UE security capability octet 7 (TS 24.301: GEA1 at bit 7 down to GEA7 at bit 1,
-// bit 8 spare). It returns 0 when the UE advertised no GERAN ciphering.
-func geaOctet(msNetCap []byte) byte {
-	if len(msNetCap) == 0 {
-		return 0
-	}
-
-	gea1 := msNetCap[0] >> 7 & 0x01
-
-	var extended byte
-	if len(msNetCap) >= 2 {
-		extended = msNetCap[1] >> 1 & 0x3f
-	}
-
-	return gea1<<6 | extended
-}
-
-// ReplayedUESecCap builds the Replayed UE security capabilities IE that the
-// SECURITY MODE COMMAND echoes back so the UE can detect bidding-down (TS 24.301).
-// The UE rejects the command with cause #23 if the replay differs from the
-// capabilities it sent: EPS algorithms from the UE network capability, UMTS
-// algorithms from its octets 5-6, and GERAN algorithms from the MS network
-// capability.
-func ReplayedUESecCap(ueNetCap, msNetCap []byte) []byte {
-	uecap, err := eps.ParseUENetworkCapability(ueNetCap)
-	if err != nil {
-		return nil
-	}
-
-	out := []byte{uecap.EEA, uecap.EIA}
-
-	var uea, uia byte
-	if len(uecap.Rest) >= 2 {
-		// Octets 5-6 carry the UMTS algorithms (UEA, UIA). Octet 6 bit 8 is UCS2
-		// support in the UE network capability but spare in the UE
-		// security capability, so it is cleared here.
-		uea, uia = uecap.Rest[0], uecap.Rest[1]&0x7f
-	}
-
-	// Octet 7 (GERAN) is included only when the UE indicated a Gb-mode algorithm,
-	// and then octets 5-6 must also be present, zero-filled if the UE indicated no
-	// Iu-mode algorithm.
-	switch gea := geaOctet(msNetCap); {
-	case gea != 0:
-		out = append(out, uea, uia, gea)
-	case len(uecap.Rest) >= 2:
-		out = append(out, uea, uia)
-	}
-
-	return out
-}
-
-// IntegrityAlg / CipherAlg map an EPS algorithm identity to the nas
-// implementation: null (EIA0/EEA0), SNOW3G (128-EIA1/128-EEA1), or AES
-// (128-EIA2/128-EEA2). An unrecognized value falls back to null.
-func IntegrityAlg(eia byte) nascommon.Integrity {
-	switch eia {
-	case 1:
-		return nascommon.SNOW3GIntegrity{}
-	case 2:
-		return nascommon.AESCMACIntegrity{}
-	default:
-		return nascommon.NullIntegrity{}
-	}
-}
-
-func CipherAlg(eea byte) nascommon.Cipher {
-	switch eea {
-	case 1:
-		return nascommon.SNOW3GCipher{}
-	case 2:
-		return nascommon.AESCTRCipher{}
-	default:
-		return nascommon.NullCipher{}
-	}
 }

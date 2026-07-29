@@ -3,7 +3,7 @@
 
 package eps
 
-import "github.com/ellanetworks/core/nas/common"
+import "github.com/ellanetworks/core/nas"
 
 // DeactivateEPSBearerContextRequest is the DEACTIVATE EPS BEARER CONTEXT REQUEST
 // (TS 24.301): the ESM header followed by a mandatory ESM cause. Cause
@@ -11,24 +11,37 @@ import "github.com/ellanetworks/core/nas/common"
 // re-establish the PDN connection with the network's updated configuration
 // (TS 24.301).
 type DeactivateEPSBearerContextRequest struct {
-	EPSBearerIdentity            uint8
-	ProcedureTransactionIdentity uint8
-	ESMCause                     uint8
+	EPSBearerIdentity EPSBearerIdentity
+	PTI               nas.ProcedureTransactionIdentity
+	Cause             ESMCause
+
+	// Unrecognized carries the optional information elements this message does
+	// not model, so they survive decoding and re-encode unchanged.
+	Unrecognized []nas.RawIE
 }
 
-// Marshal encodes the DEACTIVATE EPS BEARER CONTEXT REQUEST.
-func (m *DeactivateEPSBearerContextRequest) Marshal() ([]byte, error) {
-	var w common.Writer
+// AppendBinary encodes the DEACTIVATE EPS BEARER CONTEXT REQUEST.
+// The encoding is appended to b.
+func (m *DeactivateEPSBearerContextRequest) AppendBinary(b []byte) ([]byte, error) {
+	w := nas.NewWriter(b)
 
-	writeESMHeader(&w, m.EPSBearerIdentity, m.ProcedureTransactionIdentity, MsgDeactivateEPSBearerContextRequest)
-	w.U8(m.ESMCause)
+	var o nas.OptionalWriter
 
-	return w.Bytes(), nil
+	writeESMHeader(w, m.EPSBearerIdentity, m.PTI, MsgDeactivateEPSBearerContextRequest)
+	w.U8(uint8(m.Cause))
+
+	o.Raw(m.Unrecognized...)
+	o.WriteTo(w)
+
+	return w.Result(b)
 }
+
+// MarshalBinary encodes the message.
+func (m *DeactivateEPSBearerContextRequest) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
 
 // ParseDeactivateEPSBearerContextRequest decodes the message.
 func ParseDeactivateEPSBearerContextRequest(b []byte) (*DeactivateEPSBearerContextRequest, error) {
-	r := common.NewReader(b)
+	r := nas.NewReader(b)
 
 	ebi, pti, err := readESMHeader(r, MsgDeactivateEPSBearerContextRequest)
 	if err != nil {
@@ -40,41 +53,72 @@ func ParseDeactivateEPSBearerContextRequest(b []byte) (*DeactivateEPSBearerConte
 		return nil, err
 	}
 
-	return &DeactivateEPSBearerContextRequest{
-		EPSBearerIdentity:            ebi,
-		ProcedureTransactionIdentity: pti,
-		ESMCause:                     cause,
-	}, nil
+	out := &DeactivateEPSBearerContextRequest{
+		EPSBearerIdentity: ebi,
+		PTI:               pti,
+		Cause:             ESMCause(cause),
+	}
+
+	_unrec, err := walkOptionalIEs(r, nil, declineAll)
+	if err != nil && !nas.SoftOnly(err) {
+		return nil, err
+	}
+
+	out.Unrecognized = _unrec
+
+	return out, err
 }
 
 // DeactivateEPSBearerContextAccept is the DEACTIVATE EPS BEARER CONTEXT ACCEPT
 // (TS 24.301): the UE's acknowledgement of the deactivation, carrying no
 // mandatory information beyond the ESM header.
 type DeactivateEPSBearerContextAccept struct {
-	EPSBearerIdentity            uint8
-	ProcedureTransactionIdentity uint8
+	EPSBearerIdentity EPSBearerIdentity
+	PTI               nas.ProcedureTransactionIdentity
+
+	// Unrecognized carries the optional information elements this message does
+	// not model, so they survive decoding and re-encode unchanged.
+	Unrecognized []nas.RawIE
 }
 
-// Marshal encodes the DEACTIVATE EPS BEARER CONTEXT ACCEPT.
-func (m *DeactivateEPSBearerContextAccept) Marshal() ([]byte, error) {
-	var w common.Writer
+// AppendBinary encodes the DEACTIVATE EPS BEARER CONTEXT ACCEPT.
+// The encoding is appended to b.
+func (m *DeactivateEPSBearerContextAccept) AppendBinary(b []byte) ([]byte, error) {
+	w := nas.NewWriter(b)
 
-	writeESMHeader(&w, m.EPSBearerIdentity, m.ProcedureTransactionIdentity, MsgDeactivateEPSBearerContextAccept)
+	var o nas.OptionalWriter
 
-	return w.Bytes(), nil
+	writeESMHeader(w, m.EPSBearerIdentity, m.PTI, MsgDeactivateEPSBearerContextAccept)
+
+	o.Raw(m.Unrecognized...)
+	o.WriteTo(w)
+
+	return w.Result(b)
 }
+
+// MarshalBinary encodes the message.
+func (m *DeactivateEPSBearerContextAccept) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
 
 // ParseDeactivateEPSBearerContextAccept decodes the message.
 func ParseDeactivateEPSBearerContextAccept(b []byte) (*DeactivateEPSBearerContextAccept, error) {
-	r := common.NewReader(b)
+	r := nas.NewReader(b)
 
 	ebi, pti, err := readESMHeader(r, MsgDeactivateEPSBearerContextAccept)
 	if err != nil {
 		return nil, err
 	}
 
-	return &DeactivateEPSBearerContextAccept{
-		EPSBearerIdentity:            ebi,
-		ProcedureTransactionIdentity: pti,
-	}, nil
+	out := &DeactivateEPSBearerContextAccept{
+		EPSBearerIdentity: ebi,
+		PTI:               pti,
+	}
+
+	_unrec, err := walkOptionalIEs(r, nil, declineAll)
+	if err != nil && !nas.SoftOnly(err) {
+		return nil, err
+	}
+
+	out.Unrecognized = _unrec
+
+	return out, err
 }

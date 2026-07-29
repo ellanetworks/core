@@ -16,7 +16,8 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme/procedure"
 	"github.com/ellanetworks/core/internal/models"
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -69,7 +70,7 @@ type PdnConnection struct {
 	SessionRef   string
 	Ebi          uint8
 	Apn          string
-	PdnType      uint8
+	PdnType      eps.PDNType
 	UeIP         netip.Addr // IPv4 address (for IPv4 / IPv4v6)
 	UeIPv6Prefix netip.Addr // /64 prefix base (for IPv6 / IPv4v6)
 	UeIPv6IID    [8]byte    // SLAAC interface identifier sent to the UE
@@ -82,7 +83,7 @@ type PdnConnection struct {
 	SessAmbrULBps uint64
 	Qci           uint8
 	Arp           uint8
-	EsmCause      uint8        // PDN-type downgrade cause (#50/#51), 0 when none
+	EsmCause      eps.ESMCause // PDN-type downgrade cause (#50/#51), 0 when none
 	SgwFTEID      models.FTEID // S-GW S1-U endpoint (anchor-assigned), sent to the eNB; Addr is the IPv4 N3
 	SgwN3IPv6     netip.Addr   // S-GW S1-U IPv6 N3 endpoint, when the N3 has one
 	EnbFTEID      models.FTEID // eNB S1-U endpoint, learned from the ICS Response
@@ -126,11 +127,11 @@ type UeContext struct {
 	// registrationArea is the UE's registered tracking area (TS 24.301 §5.5.1): the TAI
 	// list assigned in ATTACH/TAU ACCEPT and the area the UE is paged in. Under ue.mu.
 	registrationArea []models.Tai
-	// ueNetCap/msNetCap are the raw UE/MS network capabilities (algorithm selection +
+	// ueNetCap/msNetCap are the UE/MS network capabilities (algorithm selection +
 	// replay; msNetCap sources the replayed GERAN GEA capabilities, TS 24.301). Written
 	// only through the AuthProof-gated SetUESecurityCapability.
-	ueNetCap []byte
-	msNetCap []byte
+	ueNetCap eps.UENetworkCapability
+	msNetCap *eps.MSNetworkCapability
 	// DRXParameter is the UE's requested DRX parameter from the ATTACH REQUEST (TS
 	// 24.301 §9.9.3.8). Nil when omitted.
 	DRXParameter    []byte
@@ -138,8 +139,11 @@ type UeContext struct {
 	// RadioCapabilityForPaging is the eNB-reported paging-specific capability, included
 	// in PAGING so the eNB can apply paging optimisations (TS 36.413 §9.1.6.1).
 	RadioCapabilityForPaging []byte
-	EsmContainer             []byte // PDN Connectivity Request, kept for default-bearer activation
-	CombinedAttach           bool   // UE requested combined EPS/IMSI attach (TS 24.301)
+	// RequestedPTI is the procedure transaction identity of the PDN Connectivity
+	// Request the ATTACH REQUEST carried, replayed in the default bearer's
+	// ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST (TS 24.301 §6.4.1).
+	RequestedPTI   nas.ProcedureTransactionIdentity
+	CombinedAttach bool // UE requested combined EPS/IMSI attach (TS 24.301)
 	// HashmmeInput is the plain Attach Request to hash into the SECURITY MODE
 	// COMMAND HashMME IE, set when the Attach arrived without integrity protection;
 	// nil when the Attach verified (TS 24.301 §5.4.3.2).
@@ -186,10 +190,11 @@ type UeContext struct {
 	kasme        []byte
 	knasEnc      [16]byte
 	knasInt      [16]byte
-	cipheringAlg byte
-	integrityAlg byte
-	ulCount      nascommon.UplinkCounter
-	dlCount      nascommon.Count
+	cipheringAlg nas.CipheringAlgorithm
+	integrityAlg nas.IntegrityAlgorithm
+	ulCount      nas.UplinkCounter
+	dlCount      nas.DownlinkCounter
+	sc           *nas.SecurityContext
 	secured      bool
 	// eksi is the eKSI (NAS key set identifier, TS 24.301 §9.9.3.21) of the current EPS
 	// security context. Cycled to a value distinct from the stored one on each new
@@ -455,7 +460,7 @@ func fillBearerLocked(p *PdnConnection, qos *EpsQoS, bearer models.EPSBearer) {
 // addressing/QoS atomically under ue.mu, so a status read or reconcile never sees a
 // half-populated bearer. It returns the negotiated PDN type, DNS, and ESM cause
 // (captured under the lock) for the caller to log.
-func (m *MME) InstallDefaultBearer(ue *UeContext, qos *EpsQoS, bearer models.EPSBearer) (pdnType uint8, dns string, esmCause uint8) {
+func (m *MME) InstallDefaultBearer(ue *UeContext, qos *EpsQoS, bearer models.EPSBearer) (pdnType uint8, dns string, esmCause eps.ESMCause) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -466,7 +471,7 @@ func (m *MME) InstallDefaultBearer(ue *UeContext, qos *EpsQoS, bearer models.EPS
 
 	fillBearerLocked(p, qos, bearer)
 
-	return p.PdnType, p.Dns.String(), p.EsmCause
+	return uint8(p.PdnType), p.Dns.String(), p.EsmCause
 }
 
 // FillBearer populates an already-created PDN connection's addressing/QoS under ue.mu.

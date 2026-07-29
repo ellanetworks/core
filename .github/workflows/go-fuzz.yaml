@@ -1,0 +1,52 @@
+name: Go Fuzz
+
+# Checked-in seed corpora are replayed by the ordinary unit-test run. This job
+# searches for new inputs, which needs wall-clock time rather than a PR gate.
+
+permissions:
+  contents: read
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dir: nas
+            pkg: ./fgs
+            target: FuzzParse
+          - dir: nas
+            pkg: ./fgs
+            target: FuzzIdentityCodecs
+          - dir: nas
+            pkg: ./eps
+            target: FuzzParseSecurityProtectedNoPanic
+          - dir: nas
+            pkg: .
+            target: FuzzReaderNoPanic
+          - dir: nas
+            pkg: .
+            target: FuzzWalkOptionalIEs
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: "go.mod"
+
+      - name: Fuzz ${{ matrix.target }}
+        working-directory: ${{ matrix.dir }}
+        run: go test ${{ matrix.pkg }} -run=xxx -fuzz=${{ matrix.target }} -fuzztime=5m
+
+      - name: Upload crashers
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-${{ matrix.target }}-corpus
+          path: ${{ matrix.dir }}/**/testdata/fuzz/

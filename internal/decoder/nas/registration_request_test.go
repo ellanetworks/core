@@ -7,8 +7,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
-	naslib "github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func TestDecodeNASMessage_RegistrationRequest(t *testing.T) {
@@ -29,7 +28,7 @@ func TestDecodeNASMessage_RegistrationRequest(t *testing.T) {
 		t.Errorf("Unexpected SecurityHeaderType: got %v", nas.SecurityHeader.SecurityHeaderType.Label)
 	}
 
-	if nas.SecurityHeader.SecurityHeaderType.Value != naslib.SecurityHeaderTypePlainNas {
+	if nas.SecurityHeader.SecurityHeaderType.Value != int64(fgs.SHTPlain) {
 		t.Errorf("Unexpected SecurityHeaderType value: got %d", nas.SecurityHeader.SecurityHeaderType.Value)
 	}
 
@@ -45,7 +44,7 @@ func TestDecodeNASMessage_RegistrationRequest(t *testing.T) {
 		t.Errorf("Unexpected GmmMessage Type: got %v", nas.GmmMessage.GmmHeader.MessageType.Label)
 	}
 
-	if nas.GmmMessage.GmmHeader.MessageType.Value != naslib.MsgTypeRegistrationRequest {
+	if nas.GmmMessage.GmmHeader.MessageType.Value != int64(fgs.MsgRegistrationRequest) {
 		t.Errorf("Unexpected GmmMessage Type value: got %d", nas.GmmMessage.GmmHeader.MessageType.Value)
 	}
 
@@ -57,7 +56,7 @@ func TestDecodeNASMessage_RegistrationRequest(t *testing.T) {
 		t.Errorf("Unexpected MobileIdentity5GS Identity: got %v", nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.Identity)
 	}
 
-	if nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.Identity.Value != nasMessage.MobileIdentity5GSTypeSuci {
+	if nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.Identity.Value != int64(uint8(fgs.IdentitySUCI)) {
 		t.Errorf("Unexpected MobileIdentity5GS Identity value: got %d", nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.Identity.Value)
 	}
 

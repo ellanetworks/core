@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
@@ -20,8 +20,7 @@ func protectedUplink(t *testing.T, ue *mme.UeContext, count uint32) []byte {
 
 	plain := []byte{0x07, 0x60, 0x00} // EMM PD, EMM STATUS, cause
 
-	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, count, nascommon.DirectionUplink,
-		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nas.Count(count), nas.DirectionUplink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +36,7 @@ func TestNASUplinkReplayRejected(t *testing.T) {
 	ue, _ := securedUE(t, m)
 	ue.SetULCountForTest(0)
 
-	msg := protectedUplink(t, ue, nascommon.NASCount(0, 0))
+	msg := protectedUplink(t, ue, nas.MakeCount(0, 0).Value())
 
 	HandleNAS(context.Background(), m, ue.Conn(), msg)
 
@@ -62,14 +61,14 @@ func TestNASUplinkCountWrap(t *testing.T) {
 	ue, _ := securedUE(t, m)
 	ue.SetULCountForTest(255)
 
-	HandleNAS(context.Background(), m, ue.Conn(), protectedUplink(t, ue, nascommon.NASCount(0, 255)))
+	HandleNAS(context.Background(), m, ue.Conn(), protectedUplink(t, ue, nas.MakeCount(0, 255).Value()))
 
 	if ue.ULCount() != 256 {
 		t.Fatalf("sequence 255 not accepted: ulCount = %d, want 256", ue.ULCount())
 	}
 
 	// The UE's sequence wraps 255->0 and its overflow becomes 1.
-	HandleNAS(context.Background(), m, ue.Conn(), protectedUplink(t, ue, nascommon.NASCount(1, 0)))
+	HandleNAS(context.Background(), m, ue.Conn(), protectedUplink(t, ue, nas.MakeCount(1, 0).Value()))
 
 	if ue.ULCount() != 257 {
 		t.Fatalf("wrapped message not accepted: ulCount = %d, want 257", ue.ULCount())

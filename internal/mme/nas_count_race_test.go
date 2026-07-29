@@ -28,8 +28,18 @@ func TestDownlinkNASCountConcurrent(t *testing.T) {
 	ue := m.NewUe(conn, 7)
 	ue.supi, _ = etsi.NewSUPIFromIMSI("001010000000001")
 	ue.ForceStateForTest(EMMRegistered)
-	ue.cipheringAlg = 0 // EEA0/EIA0 (null algorithms): Protect needs no real key material.
-	ue.integrityAlg = 0
+	// EEA0/EIA0 (null algorithms): the counters, not the cipher, are what this
+	// test exercises. The keys are still installed, since a security context
+	// without them is not one.
+	ue.cipheringAlg, ue.integrityAlg = 0, 0
+	for i := range ue.knasInt {
+		ue.knasInt[i], ue.knasEnc[i] = byte(i+1), byte(i+1)
+	}
+
+	if err := ue.installSecurityContextLocked(); err != nil {
+		t.Fatal(err)
+	}
+
 	ue.Imei, _ = etsi.NewIMEIFromPEI("353456789012347")
 
 	const (
@@ -57,8 +67,8 @@ func TestDownlinkNASCountConcurrent(t *testing.T) {
 
 	wg.Wait()
 
-	if ue.dlCount != totalCount {
+	if got := ue.dlCount.Next(); got != totalCount {
 		t.Fatalf("downlink NAS COUNT = %d after %d protected messages, want %d (%d counts reused)",
-			ue.dlCount, totalCount, totalCount, totalCount-ue.dlCount)
+			got, totalCount, totalCount, totalCount-uint32(got))
 	}
 }

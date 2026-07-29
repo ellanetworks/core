@@ -65,6 +65,10 @@ func securedUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 		t.Fatal(err)
 	}
 
+	if err := ue.installSecurityContextLocked(); err != nil {
+		t.Fatal(err)
+	}
+
 	ue.secured = true
 	ue.Conn().secureExchangeEstablished = true
 	ue.ForceStateForTest(EMMRegistered)

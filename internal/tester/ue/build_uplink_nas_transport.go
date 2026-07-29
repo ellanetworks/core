@@ -4,13 +4,10 @@
 package ue
 
 import (
-	"bytes"
 	"encoding/hex"
 	"fmt"
 
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/openapi/models"
 )
 
@@ -34,62 +31,34 @@ func BuildUplinkNasTransport(opts *UplinkNasTransportOpts) ([]byte, error) {
 		return nil, fmt.Errorf("PayloadContainer is required to build UplinkNasTransport for PDU Session")
 	}
 
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeULNASTransport)
+	pduSessionID := fgs.PDUSessionID(opts.PDUSessionID)
+	requestType := fgs.RequestType(1) // initial request
 
-	ulNasTransport := nasMessage.NewULNASTransport(0)
-	ulNasTransport.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	ulNasTransport.SetMessageType(nas.MsgTypeULNASTransport)
-	ulNasTransport.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	ulNasTransport.PduSessionID2Value = new(nasType.PduSessionID2Value)
-	ulNasTransport.PduSessionID2Value.SetIei(nasMessage.ULNASTransportPduSessionID2ValueType)
-	ulNasTransport.SetPduSessionID2Value(opts.PDUSessionID)
-	ulNasTransport.RequestType = new(nasType.RequestType)
-	ulNasTransport.RequestType.SetIei(nasMessage.ULNASTransportRequestTypeType)
-	ulNasTransport.SetRequestTypeValue(nasMessage.ULNASTransportRequestTypeInitialRequest)
+	snssai := fgs.SNSSAI{SST: uint8(opts.SNSSAI.Sst)}
 
-	if opts.DNN != "" {
-		ulNasTransport.DNN = new(nasType.DNN)
-		ulNasTransport.DNN.SetIei(nasMessage.ULNASTransportDNNType)
-		ulNasTransport.DNN.SetLen(uint8(len(opts.DNN)))
-		ulNasTransport.SetDNN(opts.DNN)
-	}
-
-	ulNasTransport.SNSSAI = nasType.NewSNSSAI(nasMessage.ULNASTransportSNSSAIType)
-	if opts.SNSSAI.Sd == "" {
-		ulNasTransport.SNSSAI.SetLen(1)
-	} else {
-		ulNasTransport.SNSSAI.SetLen(4)
-
-		var sdTemp [3]uint8
-
+	if opts.SNSSAI.Sd != "" {
 		sd, err := hex.DecodeString(opts.SNSSAI.Sd)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode SD string: %v", err)
 		}
 
-		copy(sdTemp[:], sd)
+		var sd3 [3]byte
 
-		ulNasTransport.SetSD(sdTemp)
+		copy(sd3[:], sd)
+		snssai.SD = &sd3
 	}
 
-	ulNasTransport.SetSST(uint8(opts.SNSSAI.Sst))
-
-	ulNasTransport.SetPayloadContainerType(nasMessage.PayloadContainerTypeN1SMInfo)
-	ulNasTransport.PayloadContainer.SetLen(uint16(len(opts.PayloadContainer)))
-	ulNasTransport.SetPayloadContainerContents(opts.PayloadContainer)
-
-	m.ULNASTransport = ulNasTransport
-
-	data := new(bytes.Buffer)
-
-	err := m.GmmMessageEncode(data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode GMM message: %v", err)
+	m := &fgs.ULNASTransport{
+		PayloadContainerType: fgs.PayloadContainerTypeN1SMInfo,
+		PayloadContainer:     opts.PayloadContainer,
+		PDUSessionID:         &pduSessionID,
+		RequestType:          &requestType,
+		SNSSAI:               &snssai,
 	}
 
-	nasPdu := data.Bytes()
+	if opts.DNN != "" {
+		m.DNN = new(fgs.DNN(opts.DNN))
+	}
 
-	return nasPdu, nil
+	return m.MarshalBinary()
 }

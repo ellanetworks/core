@@ -18,10 +18,8 @@ import (
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
 	"github.com/ellanetworks/core/internal/util/milenage"
 	"github.com/ellanetworks/core/internal/util/ueauth"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
-	"github.com/free5gc/nas/security"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/free5gc/openapi/models"
 	"go.uber.org/zap"
@@ -46,9 +44,9 @@ type UESecurity struct {
 	Msin                 string
 	mcc                  string
 	mnc                  string
-	ULCount              security.Count
-	DLCount              security.Count
-	UeSecurityCapability *nasType.UESecurityCapability
+	ULCount              nas.Count
+	DLCount              nas.Count
+	UeSecurityCapability fgs.UESecurityCapability
 	IntegrityAlg         uint8
 	CipheringAlg         uint8
 	NgKsi                models.NgKsi
@@ -57,10 +55,10 @@ type UESecurity struct {
 	KnasInt              [16]uint8
 	Kamf                 []uint8
 	AuthenticationSubs   models.AuthenticationSubscription
-	Suci                 nasType.MobileIdentity5GS
+	Suci                 fgs.MobileIdentity // the UE's SUCI
 	suciPublicKey        sidf.HomeNetworkPublicKey
 	RoutingIndicator     string
-	Guti                 *nasType.GUTI5G
+	Guti                 *fgs.MobileIdentity // the assigned 5G-GUTI, nil until the network allocates one
 }
 
 type Amf struct {
@@ -85,7 +83,7 @@ type UE struct {
 	StateMM                int
 	DNN                    string
 	PDUSessionID           uint8
-	PDUSessionType         uint8
+	PDUSessionType         fgs.PDUSessionType
 	Snssai                 models.Snssai
 	amfInfo                Amf
 	IMEISV                 string
@@ -93,8 +91,8 @@ type UE struct {
 	mu                     sync.Mutex
 	cond                   *sync.Cond
 	PDUSessions            map[uint8]PDUSessionInfo
-	receivedNASGMMMessages map[uint8][]*nas.Message // msgType -> gmm messages
-	receivedNASGSMMessages map[uint8][]*nas.Message // msgType -> gsm messages
+	receivedNASGMMMessages map[uint8][][]byte // msgType -> plaintext GMM messages
+	receivedNASGSMMessages map[uint8][][]byte // msgType -> plaintext GSM messages
 	receivedRRCRelease     bool
 	lppRequests            []*LPPRequest // queue of received LPP requests
 	lppCapsSent            bool          // true after first ProvideLocationCapabilities
@@ -141,9 +139,9 @@ func (ue *UE) WaitForPDUSession(pduSessionID uint8, timeout time.Duration) (PDUS
 
 type UEOpts struct {
 	PDUSessionID         uint8
-	PDUSessionType       uint8
+	PDUSessionType       fgs.PDUSessionType
 	Msin                 string
-	UeSecurityCapability *nasType.UESecurityCapability
+	UeSecurityCapability fgs.UESecurityCapability
 	K                    string
 	OpC                  string
 	Amf                  string
@@ -156,7 +154,7 @@ type UEOpts struct {
 	Sst                  int32
 	Sd                   string
 	IMEISV               string
-	Guti                 *nasType.GUTI5G
+	Guti                 *fgs.MobileIdentity
 	GnodeB               air.UplinkSender
 }
 
@@ -164,15 +162,13 @@ func NewUE(opts *UEOpts) (*UE, error) {
 	ue := UE{}
 	ue.UeSecurity = &UESecurity{}
 	ue.UeSecurity.Msin = opts.Msin
-	ue.UeSecurity.UeSecurityCapability = opts.UeSecurityCapability
 	ue.Gnb = opts.GnodeB
 	ue.PDUSessionID = opts.PDUSessionID
 	ue.PDUSessionType = opts.PDUSessionType
 
-	integAlg, CipherAlg, err := SelectAlgorithms(ue.UeSecurity.UeSecurityCapability)
-	if err != nil {
-		return nil, fmt.Errorf("could not select security algorithms: %v", err)
-	}
+	ue.UeSecurity.UeSecurityCapability = opts.UeSecurityCapability
+
+	integAlg, CipherAlg := SelectAlgorithms(ue.UeSecurity.UeSecurityCapability)
 
 	ue.UeSecurity.IntegrityAlg = integAlg
 	ue.UeSecurity.CipheringAlg = CipherAlg
@@ -197,8 +193,8 @@ func NewUE(opts *UEOpts) (*UE, error) {
 	ue.IMEISV = opts.IMEISV
 
 	ue.PDUSessions = make(map[uint8]PDUSessionInfo)
-	ue.receivedNASGMMMessages = make(map[uint8][]*nas.Message)
-	ue.receivedNASGSMMessages = make(map[uint8][]*nas.Message)
+	ue.receivedNASGMMMessages = make(map[uint8][][]byte)
+	ue.receivedNASGSMMessages = make(map[uint8][][]byte)
 	ue.lppRequests = make([]*LPPRequest, 0)
 
 	suci, err := ue.EncodeSuci()
@@ -232,67 +228,45 @@ func (ue *UE) SetAuthSubscription(k, opc, amf, sqn string) {
 	ue.UeSecurity.AuthenticationSubs.AuthenticationMethod = models.AuthMethod__5_G_AKA
 }
 
-func (ue *UE) EncodeSuci() (nasType.MobileIdentity5GS, error) {
+// EncodeSuci returns the UE's SUCI as a 5GS mobile identity (TS 24.501
+// §9.11.3.4).
+func (ue *UE) EncodeSuci() (fgs.MobileIdentity, error) {
 	protScheme, err := strconv.ParseUint(ue.UeSecurity.suciPublicKey.ProtectionScheme, 10, 8)
 	if err != nil {
-		return nasType.MobileIdentity5GS{}, fmt.Errorf("unable to parse protection scheme: %v", err)
+		return fgs.MobileIdentity{}, fmt.Errorf("unable to parse protection scheme: %v", err)
 	}
 
-	buf6 := byte(protScheme)
-
-	hnPubKeyId, err := strconv.ParseUint(ue.UeSecurity.suciPublicKey.PublicKeyID, 10, 8)
+	hnPubKeyID, err := strconv.ParseUint(ue.UeSecurity.suciPublicKey.PublicKeyID, 10, 8)
 	if err != nil {
-		return nasType.MobileIdentity5GS{}, fmt.Errorf("unable to parse home network public key ID: %v", err)
+		return fgs.MobileIdentity{}, fmt.Errorf("unable to parse home network public key ID: %v", err)
 	}
-
-	buf7 := byte(hnPubKeyId)
 
 	var schemeOutput []byte
 
 	if protScheme == 0 {
 		schemeOutput, err = hex.DecodeString(sidf.Tbcd(ue.UeSecurity.Msin))
 		if err != nil {
-			return nasType.MobileIdentity5GS{}, fmt.Errorf("unable to decode msin to tbcd: %v", err)
+			return fgs.MobileIdentity{}, fmt.Errorf("unable to decode msin to tbcd: %v", err)
 		}
 	} else {
 		suci, err := sidf.CipherSuci(ue.UeSecurity.Msin, ue.UeSecurity.mcc, ue.UeSecurity.mnc, ue.UeSecurity.RoutingIndicator, ue.UeSecurity.suciPublicKey)
 		if err != nil {
-			return nasType.MobileIdentity5GS{}, fmt.Errorf("unable to cipher SUCI: %v", err)
+			return fgs.MobileIdentity{}, fmt.Errorf("unable to cipher SUCI: %v", err)
 		}
 
 		schemeOutput, err = hex.DecodeString(suci.SchemeOutput)
 		if err != nil {
-			return nasType.MobileIdentity5GS{}, fmt.Errorf("unable to decode scheme output to bytes: %v", err)
+			return fgs.MobileIdentity{}, fmt.Errorf("unable to decode scheme output to bytes: %v", err)
 		}
 	}
 
-	buffer := make([]byte, 8+len(schemeOutput))
-
-	buffer[0] = 1
-
-	plmnID, err := ue.GetMccAndMncInOctets()
-	if err != nil {
-		return nasType.MobileIdentity5GS{}, fmt.Errorf("unable to get mcc and mnc in octets: %v", err)
-	}
-
-	copy(buffer[1:], plmnID)
-
-	routingInd, err := ue.GetRoutingIndicatorInOctets()
-	if err != nil {
-		return nasType.MobileIdentity5GS{}, fmt.Errorf("unable to get routing indicator: %v", err)
-	}
-
-	copy(buffer[4:], routingInd)
-	buffer[6] = buf6
-	buffer[7] = buf7
-	copy(buffer[8:], schemeOutput)
-
-	suci := nasType.MobileIdentity5GS{
-		Buffer: buffer,
-		Len:    uint16(len(buffer)),
-	}
-
-	return suci, nil
+	return fgs.SUCIIdentity(fgs.SUCI{
+		PLMN:             nas.PLMN{MCC: ue.UeSecurity.mcc, MNC: ue.UeSecurity.mnc},
+		RoutingIndicator: ue.UeSecurity.RoutingIndicator,
+		ProtectionScheme: fgs.ProtectionScheme(protScheme),
+		HomeNetworkPKID:  uint8(hnPubKeyID),
+		SchemeOutput:     schemeOutput,
+	}), nil
 }
 
 func (ue *UE) GetMccAndMncInOctets() ([]byte, error) {
@@ -463,90 +437,110 @@ func (ue *UE) deriveSNN() string {
 	return resu
 }
 
-func (ue *UE) Set5gGuti(guti *nasType.GUTI5G) {
+func (ue *UE) Set5gGuti(guti *fgs.MobileIdentity) {
 	ue.UeSecurity.Guti = guti
 }
 
-func (ue *UE) Get5gGuti() *nasType.GUTI5G {
+func (ue *UE) Get5gGuti() *fgs.MobileIdentity {
 	return ue.UeSecurity.Guti
 }
 
+func (ue *UE) guti() *fgs.GUTI {
+	if ue.UeSecurity.Guti == nil {
+		return nil
+	}
+
+	return ue.UeSecurity.Guti.GUTI
+}
+
 func (ue *UE) GetAmfSetId() uint16 {
-	return ue.UeSecurity.Guti.GetAMFSetID()
+	if g := ue.guti(); g != nil {
+		return g.AMFSetID
+	}
+
+	return 0
 }
 
 func (ue *UE) GetAmfPointer() uint8 {
-	return ue.UeSecurity.Guti.GetAMFPointer()
+	if g := ue.guti(); g != nil {
+		return g.AMFPointer
+	}
+
+	return 0
 }
 
 func (ue *UE) GetTMSI5G() [4]uint8 {
-	if ue.UeSecurity.Guti != nil {
-		return ue.UeSecurity.Guti.GetTMSI5G()
+	if g := ue.guti(); g != nil {
+		return g.TMSI
 	}
 
 	return [4]uint8{}
 }
 
-func (ue *UE) GetSuci() nasType.MobileIdentity5GS {
+func (ue *UE) GetSuci() fgs.MobileIdentity {
 	return ue.UeSecurity.Suci
 }
 
 func (ue *UE) SendDownlinkNAS(msg []byte, amfUENGAPID int64, ranUENGAPID int64) error {
-	decodedMsg, err := ue.DecodeNAS(msg)
+	plain, err := ue.DecodeNAS(msg)
 	if err != nil {
 		return fmt.Errorf("could not decode NAS message: %v", err)
 	}
 
-	msgType := decodedMsg.GmmMessage.GetMessageType()
+	if len(plain) < 3 {
+		return fmt.Errorf("decoded NAS message too short: %d bytes", len(plain))
+	}
 
-	switch msgType {
-	case nas.MsgTypeAuthenticationReject:
-		err := handleAuthenticationReject(ue, decodedMsg)
+	msgType := plain[2]
+
+	switch fgs.MessageType(msgType) {
+	case fgs.MsgAuthenticationReject:
+		err := handleAuthenticationReject(ue, plain)
 		if err != nil {
 			return fmt.Errorf("could not handle Authentication Reject: %v", err)
 		}
-	case nas.MsgTypeAuthenticationRequest:
-		err := handleAuthenticationRequest(ue, decodedMsg, amfUENGAPID, ranUENGAPID)
+	case fgs.MsgAuthenticationRequest:
+		err := handleAuthenticationRequest(ue, plain, amfUENGAPID, ranUENGAPID)
 		if err != nil {
 			return fmt.Errorf("could not handle Authentication Request: %v", err)
 		}
-	case nas.MsgTypeSecurityModeCommand:
-		err := handleSecurityModeCommand(ue, decodedMsg, amfUENGAPID, ranUENGAPID)
+	case fgs.MsgSecurityModeCommand:
+		err := handleSecurityModeCommand(ue, plain, amfUENGAPID, ranUENGAPID)
 		if err != nil {
 			return fmt.Errorf("could not handle Security Mode Command: %v", err)
 		}
-	case nas.MsgTypeRegistrationAccept:
-		err := handleRegistrationAccept(ue, decodedMsg, amfUENGAPID, ranUENGAPID)
+	case fgs.MsgRegistrationAccept:
+		err := handleRegistrationAccept(ue, plain, amfUENGAPID, ranUENGAPID)
 		if err != nil {
 			return fmt.Errorf("could not handle Registration Accept: %v", err)
 		}
-	case nas.MsgTypeRegistrationReject:
-		err := handleRegistrationReject(ue, decodedMsg)
+	case fgs.MsgRegistrationReject:
+		err := handleRegistrationReject(ue, plain)
 		if err != nil {
 			return fmt.Errorf("could not handle Registration Reject: %v", err)
 		}
-	case nas.MsgTypeDeregistrationRequestUETerminatedDeregistration:
-		err := handleDeregistrationRequestUETerminated(ue, decodedMsg, amfUENGAPID, ranUENGAPID)
+	case fgs.MsgDeregistrationRequestUETerm:
+		err := handleDeregistrationRequestUETerminated(ue, plain, amfUENGAPID, ranUENGAPID)
 		if err != nil {
 			return fmt.Errorf("could not handle Deregistration Request UE Terminated: %v", err)
 		}
-	case nas.MsgTypeIdentityRequest:
+	case fgs.MsgIdentityRequest:
 		err := handleIdentityRequest(ue, amfUENGAPID, ranUENGAPID)
 		if err != nil {
 			return fmt.Errorf("could not handle Identity Request: %v", err)
 		}
-	case nas.MsgTypeServiceAccept:
-		err := handleServiceAccept(ue, decodedMsg)
+	case fgs.MsgServiceAccept:
+		err := handleServiceAccept(ue, plain)
 		if err != nil {
 			return fmt.Errorf("could not handle Service Accept: %v", err)
 		}
-	case nas.MsgTypeDLNASTransport:
-		err := handleDLNASTransport(ue, decodedMsg, amfUENGAPID, ranUENGAPID)
+	case fgs.MsgDLNASTransport:
+		err := handleDLNASTransport(ue, plain, amfUENGAPID, ranUENGAPID)
 		if err != nil {
 			return fmt.Errorf("could not handle DL NAS Transport: %v", err)
 		}
-	case nas.MsgTypeConfigurationUpdateCommand:
-		err := handleConfigurationUpdateCommand(ue, decodedMsg.ConfigurationUpdateCommand, amfUENGAPID, ranUENGAPID)
+	case fgs.MsgConfigurationUpdateCommand:
+		err := handleConfigurationUpdateCommand(ue, plain, amfUENGAPID, ranUENGAPID)
 		if err != nil {
 			return fmt.Errorf("could not handle Configuration Update Command: %v", err)
 		}
@@ -554,7 +548,7 @@ func (ue *UE) SendDownlinkNAS(msg []byte, amfUENGAPID int64, ranUENGAPID int64) 
 		logger.UeLogger.Warn("NAS message type not implemented", zap.Uint8("msgType", msgType))
 	}
 
-	updateReceivedGMMMessages(ue, decodedMsg)
+	updateReceivedGMMMessages(ue, plain)
 
 	return nil
 }
@@ -567,29 +561,33 @@ func (ue *UE) RRCRelease() {
 	ue.cond.Broadcast()
 }
 
-func updateReceivedGMMMessages(ue *UE, msg *nas.Message) {
+// updateReceivedGMMMessages archives a plaintext 5GMM message keyed by its type
+// (octet 3 of a plain 5GMM message: EPD, security header, message type).
+func updateReceivedGMMMessages(ue *UE, plain []byte) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	msgType := msg.GmmMessage.GetMessageType()
-	ue.receivedNASGMMMessages[msgType] = append(ue.receivedNASGMMMessages[msgType], msg)
+	msgType := plain[2]
+	ue.receivedNASGMMMessages[msgType] = append(ue.receivedNASGMMMessages[msgType], plain)
 
 	logger.UeLogger.Debug("Stored received NAS GMM Message", zap.String("msgType", getGMMMessageName(msgType)), zap.Int("totalFrames", len(ue.receivedNASGMMMessages[msgType])))
 	ue.cond.Broadcast()
 }
 
-func updateReceivedGSMMessages(ue *UE, msg *nas.Message) {
+// updateReceivedGSMMessages archives a plaintext 5GSM message keyed by its type
+// (octet 4 of a 5GSM message: EPD, PDU session ID, PTI, message type).
+func updateReceivedGSMMessages(ue *UE, plain []byte) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	msgType := msg.GsmMessage.GetMessageType()
-	ue.receivedNASGSMMessages[msgType] = append(ue.receivedNASGSMMessages[msgType], msg)
+	msgType := plain[3]
+	ue.receivedNASGSMMessages[msgType] = append(ue.receivedNASGSMMessages[msgType], plain)
 
 	logger.UeLogger.Debug("Stored received NAS GSM Message", zap.String("msgType", getGSMMessageName(msgType)), zap.Int("totalFrames", len(ue.receivedNASGSMMessages[msgType])))
 	ue.cond.Broadcast()
 }
 
-func (ue *UE) WaitForNASGMMMessage(msgType uint8, timeout time.Duration) (*nas.Message, error) {
+func (ue *UE) WaitForNASGMMMessage(msgType uint8, timeout time.Duration) ([]byte, error) {
 	deadline := time.Now().Add(timeout)
 
 	timer := time.AfterFunc(timeout, func() {
@@ -620,7 +618,7 @@ func (ue *UE) WaitForNASGMMMessage(msgType uint8, timeout time.Duration) (*nas.M
 	}
 }
 
-func (ue *UE) WaitForNASGSMMessage(msgType uint8, timeout time.Duration) (*nas.Message, error) {
+func (ue *UE) WaitForNASGSMMessage(msgType uint8, timeout time.Duration) ([]byte, error) {
 	deadline := time.Now().Add(timeout)
 
 	timer := time.AfterFunc(timeout, func() {
@@ -698,13 +696,20 @@ func (ue *UE) SendRegistrationRequest(ranUENGAPID int64, regType uint8) error {
 	// protects the initial NAS message of a new connection, so the AMF can
 	// verify it and reuse the context; without one the message stays plain.
 	if ue.UeSecurity.NgKsi.Ksi != ngKSINoKey {
-		nasPDU, err = ue.EncodeNasPduWithSecurity(nasPDU, nas.SecurityHeaderTypeIntegrityProtected)
+		nasPDU, err = ue.EncodeNasPduWithSecurity(nasPDU, uint8(fgs.SHTIntegrityProtected))
 		if err != nil {
 			return fmt.Errorf("could not integrity-protect Registration Request NAS PDU: %v", err)
 		}
 	}
 
-	err = ue.Gnb.SendInitialUEMessage(nasPDU, ranUENGAPID, ue.UeSecurity.Guti, ngapType.RRCEstablishmentCausePresentMoSignalling)
+	var gutiIE []byte
+	if ue.UeSecurity.Guti != nil {
+		if gutiIE, err = ue.UeSecurity.Guti.MarshalBinary(); err != nil {
+			return fmt.Errorf("could not encode 5G-GUTI: %v", err)
+		}
+	}
+
+	err = ue.Gnb.SendInitialUEMessage(nasPDU, ranUENGAPID, gutiIE, ngapType.RRCEstablishmentCausePresentMoSignalling)
 	if err != nil {
 		return fmt.Errorf("could not send UplinkNASTransport: %v", err)
 	}
@@ -730,17 +735,24 @@ func (ue *UE) SendServiceRequest(ranUENGAPID int64, pduSessionStatus [16]bool, s
 		return fmt.Errorf("could not build Service Request NAS PDU: %v", err)
 	}
 
-	encodedPdu, err := ue.EncodeNasPduWithSecurity(serviceRequest, nas.SecurityHeaderTypeIntegrityProtected)
+	encodedPdu, err := ue.EncodeNasPduWithSecurity(serviceRequest, uint8(fgs.SHTIntegrityProtected))
 	if err != nil {
 		return fmt.Errorf("error encoding %s IMSI UE  NAS Security Mode Complete message: %v", ue.UeSecurity.Supi, err)
 	}
 
 	establishmentCause := ngapType.RRCEstablishmentCausePresentMoData
-	if serviceType == nasMessage.ServiceTypeMobileTerminatedServices {
+	if fgs.ServiceType(serviceType) == fgs.ServiceTypeMobileTerminatedServices {
 		establishmentCause = ngapType.RRCEstablishmentCausePresentMtAccess
 	}
 
-	err = ue.Gnb.SendInitialUEMessage(encodedPdu, ranUENGAPID, ue.UeSecurity.Guti, establishmentCause)
+	var gutiIE []byte
+	if ue.UeSecurity.Guti != nil {
+		if gutiIE, err = ue.UeSecurity.Guti.MarshalBinary(); err != nil {
+			return fmt.Errorf("could not encode 5G-GUTI: %v", err)
+		}
+	}
+
+	err = ue.Gnb.SendInitialUEMessage(encodedPdu, ranUENGAPID, gutiIE, establishmentCause)
 	if err != nil {
 		return fmt.Errorf("could not send UplinkNASTransport: %v", err)
 	}
@@ -763,7 +775,7 @@ func (ue *UE) SendDeregistrationRequest(amfUENGAPID int64, ranUENGAPID int64) er
 		return fmt.Errorf("could not build Deregistration Request NAS PDU: %v", err)
 	}
 
-	encodedPdu, err := ue.EncodeNasPduWithSecurity(deregBytes, nas.SecurityHeaderTypeIntegrityProtectedAndCiphered)
+	encodedPdu, err := ue.EncodeNasPduWithSecurity(deregBytes, uint8(fgs.SHTIntegrityProtectedCiphered))
 	if err != nil {
 		return fmt.Errorf("error encoding %s IMSI UE NAS Deregistration Msg", ue.UeSecurity.Supi)
 	}
@@ -800,7 +812,7 @@ func (ue *UE) SendPDUSessionEstablishmentRequest(amfUENGAPID int64, ranUENGAPID 
 		return fmt.Errorf("could not build Uplink NAS Transport for PDU Session: %v", err)
 	}
 
-	encodedPdu, err := ue.EncodeNasPduWithSecurity(pduUplink, nas.SecurityHeaderTypeIntegrityProtectedAndCiphered)
+	encodedPdu, err := ue.EncodeNasPduWithSecurity(pduUplink, uint8(fgs.SHTIntegrityProtectedCiphered))
 	if err != nil {
 		return fmt.Errorf("error encoding %s IMSI UE NAS Uplink NAS Transport for PDU Session Msg", ue.UeSecurity.Supi)
 	}

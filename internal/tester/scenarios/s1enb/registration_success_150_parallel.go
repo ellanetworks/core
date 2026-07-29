@@ -52,7 +52,7 @@ func runS1ENBScaleParallel(ctx context.Context, env scenarios.Env, _ any) error 
 
 	var (
 		mu   sync.Mutex
-		seen = make(map[uint32]string, scaleParallelCount)
+		seen = make(map[[4]byte]string, scaleParallelCount)
 	)
 
 	eg, _ := errgroup.WithContext(ctx)
@@ -76,11 +76,11 @@ func runS1ENBScaleParallel(ctx context.Context, env scenarios.Env, _ any) error 
 			mu.Lock()
 			defer mu.Unlock()
 
-			if prev, dup := seen[res.GUTI.MTMSI]; dup {
-				return fmt.Errorf("MME reused M-TMSI %#x for %s and %s", res.GUTI.MTMSI, prev, imsi)
+			if prev, dup := seen[res.GUTI.GUTI.TMSI]; dup {
+				return fmt.Errorf("MME reused M-TMSI %x for %s and %s", res.GUTI.GUTI.TMSI, prev, imsi)
 			}
 
-			seen[res.GUTI.MTMSI] = imsi
+			seen[res.GUTI.GUTI.TMSI] = imsi
 
 			return nil
 		})

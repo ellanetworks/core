@@ -4,18 +4,18 @@
 package eps
 
 import (
-	"encoding/hex"
 	"fmt"
 	"net"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
 type ESMHeader struct {
-	MessageType                  utils.EnumField[uint64] `json:"message_type"`
-	EPSBearerIdentity            uint8                   `json:"eps_bearer_identity"`
-	ProcedureTransactionIdentity uint8                   `json:"procedure_transaction_identity"`
+	MessageType                  utils.EnumField `json:"message_type"`
+	EPSBearerIdentity            uint8           `json:"eps_bearer_identity"`
+	ProcedureTransactionIdentity uint8           `json:"procedure_transaction_identity"`
 }
 
 // ESMMessage is a decoded ESM message: its header, plus the salient fields of
@@ -30,8 +30,8 @@ type ESMMessage struct {
 }
 
 type PDNConnectivityRequest struct {
-	RequestType utils.EnumField[uint64] `json:"request_type"`
-	PDNType     utils.EnumField[uint64] `json:"pdn_type"`
+	RequestType utils.EnumField `json:"request_type"`
+	PDNType     utils.EnumField `json:"pdn_type"`
 }
 
 type ActivateDefaultBearer struct {
@@ -43,41 +43,40 @@ type ActivateDefaultBearer struct {
 // address. For IPv6 the network assigns only the 64-bit interface identifier
 // (the prefix arrives via Router Advertisement / PCO).
 type PDNAddress struct {
-	Type            utils.EnumField[uint64] `json:"type"`
-	IPv4            string                  `json:"ipv4,omitempty"`
-	IPv6InterfaceID string                  `json:"ipv6_interface_id,omitempty"`
+	Type            utils.EnumField `json:"type"`
+	IPv4            string          `json:"ipv4,omitempty"`
+	IPv6InterfaceID string          `json:"ipv6_interface_id,omitempty"`
 }
 
 func buildESMMessage(b []byte) *ESMMessage {
-	if len(b) < 3 {
-		return &ESMMessage{Error: "ESM message too short"}
+	hdr, err := eps.ParseESMHeader(b)
+	if err != nil {
+		return &ESMMessage{Error: err.Error()}
 	}
 
-	mt := eps.ESMMessageType(b[2])
 	m := &ESMMessage{ESMHeader: ESMHeader{
-		MessageType:                  esmTypeToEnum(mt),
-		EPSBearerIdentity:            b[0] >> 4,
-		ProcedureTransactionIdentity: b[1],
+		MessageType:                  esmTypeToEnum(hdr.MessageType),
+		EPSBearerIdentity:            uint8(hdr.EPSBearerIdentity),
+		ProcedureTransactionIdentity: uint8(hdr.PTI),
 	}}
 
-	switch mt {
-	case eps.MsgPDNConnectivityRequest:
-		if req, err := eps.ParsePDNConnectivityRequest(b); err != nil {
-			m.Error = err.Error()
-		} else {
-			m.PDNConnectivityRequest = &PDNConnectivityRequest{
-				RequestType: requestTypeToEnum(req.RequestType),
-				PDNType:     pdnTypeToEnum(req.PDNType),
-			}
+	msg, err := eps.ParseMessage(b, nas.DirectionUplink)
+	if err != nil && !nas.SoftOnly(err) {
+		m.Error = err.Error()
+
+		return m
+	}
+
+	switch msg := msg.(type) {
+	case *eps.PDNConnectivityRequest:
+		m.PDNConnectivityRequest = &PDNConnectivityRequest{
+			RequestType: requestTypeToEnum(uint8(msg.RequestType)),
+			PDNType:     pdnTypeToEnum(msg.PDNType),
 		}
-	case eps.MsgActivateDefaultEPSBearerContextRequest:
-		if req, err := eps.ParseActivateDefaultEPSBearerContextRequest(b); err != nil {
-			m.Error = err.Error()
-		} else {
-			m.ActivateDefaultBearer = &ActivateDefaultBearer{
-				AccessPointName: decodeAPN(req.AccessPointName),
-				PDNAddress:      pdnAddress(req.PDNAddress),
-			}
+	case *eps.ActivateDefaultEPSBearerContextRequest:
+		m.ActivateDefaultBearer = &ActivateDefaultBearer{
+			AccessPointName: string(msg.AccessPointName),
+			PDNAddress:      pdnAddress(msg.PDNAddress),
 		}
 	}
 
@@ -94,7 +93,7 @@ func decodeESMContainer(b []byte) *ESMMessage {
 	return buildESMMessage(b)
 }
 
-func requestTypeToEnum(v uint8) utils.EnumField[uint64] {
+func requestTypeToEnum(v uint8) utils.EnumField {
 	names := map[uint8]string{1: "initial request", 2: "handover", 3: "unused", 4: "emergency"}
 
 	name, ok := names[v]
@@ -102,26 +101,13 @@ func requestTypeToEnum(v uint8) utils.EnumField[uint64] {
 	return utils.MakeEnum(uint64(v), name, !ok)
 }
 
-func pdnTypeToEnum(v uint8) utils.EnumField[uint64] {
-	names := map[uint8]string{1: "IPv4", 2: "IPv6", 3: "IPv4v6"}
-
-	name, ok := names[v]
-
-	return utils.MakeEnum(uint64(v), name, !ok)
+func pdnTypeToEnum(v eps.PDNType) utils.EnumField {
+	return typedEnum(uint8(v), v.String())
 }
 
 // pdnAddress decodes the PDN address IE into the assigned UE address (TS 24.301
 // §9.9.4.9). An undecodable value yields nil.
-func pdnAddress(b []byte) *PDNAddress {
-	if len(b) == 0 {
-		return nil
-	}
-
-	addr, err := eps.ParsePDNAddress(b)
-	if err != nil {
-		return &PDNAddress{Type: utils.MakeEnum(uint64(0), hex.EncodeToString(b), true)}
-	}
-
+func pdnAddress(addr eps.PDNAddress) *PDNAddress {
 	out := &PDNAddress{Type: pdnTypeToEnum(addr.PDNType)}
 
 	switch addr.PDNType {
@@ -141,28 +127,4 @@ func pdnAddress(b []byte) *PDNAddress {
 func interfaceID(iid [8]byte) string {
 	return fmt.Sprintf("%02x%02x:%02x%02x:%02x%02x:%02x%02x",
 		iid[0], iid[1], iid[2], iid[3], iid[4], iid[5], iid[6], iid[7])
-}
-
-// decodeAPN renders an APN, whose value is a sequence of length-prefixed labels
-// (TS 23.003 §9.1). A non-printable value falls back to hex.
-func decodeAPN(b []byte) string {
-	var labels []byte
-
-	for i := 0; i < len(b); {
-		n := int(b[i])
-		i++
-
-		if n == 0 || i+n > len(b) {
-			return hex.EncodeToString(b)
-		}
-
-		if len(labels) > 0 {
-			labels = append(labels, '.')
-		}
-
-		labels = append(labels, b[i:i+n]...)
-		i += n
-	}
-
-	return string(labels)
 }

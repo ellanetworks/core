@@ -12,7 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	mmes1ap "github.com/ellanetworks/core/internal/mme/s1ap"
 	"github.com/ellanetworks/core/internal/models"
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -86,8 +86,7 @@ func lastDownlinkESM(t *testing.T, ue *mme.UeContext, cc *captureConn) []byte {
 
 	wire := decodeDownlinkNAS(t, cc.sent[len(cc.sent)-1])
 
-	plain, err := eps.Unprotect(wire, nascommon.NASCount(0, wire[5]), nascommon.DirectionDownlink,
-		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
 	if err != nil {
 		t.Fatalf("unprotect downlink: %v", err)
 	}
@@ -106,16 +105,8 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 	p0 := testPDN(ue)
 	p0.Apn = "internet"
 
-	apnIE, err := eps.MarshalAPN("ims")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	connReq, err := (&eps.PDNConnectivityRequest{
-		ProcedureTransactionIdentity: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: apnIE,
-	}).Marshal()
-	if err != nil {
-		t.Fatal(err)
+	connReq := &eps.PDNConnectivityRequest{
+		PTI: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: new(eps.APN("ims")),
 	}
 
 	handlePDNConnectivityRequest(context.Background(), m, ue, connReq)
@@ -166,17 +157,11 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal("ModifyEPSSession not called for the second PDN")
 	}
 
-	acc, err := (&eps.ActivateDefaultEPSBearerContextAccept{EPSBearerIdentity: 6, ProcedureTransactionIdentity: 2}).Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
+	acc := &eps.ActivateDefaultEPSBearerContextAccept{EPSBearerIdentity: 6, PTI: 2}
 
 	handleActivateDefaultBearerAccept(m, ue, acc)
 
-	dis, err := (&eps.PDNDisconnectRequest{ProcedureTransactionIdentity: 3, LinkedEPSBearerIdentity: 6}).Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
+	dis := &eps.PDNDisconnectRequest{PTI: 3, LinkedEPSBearerIdentity: 6}
 
 	handlePDNDisconnectRequest(context.Background(), m, ue, dis)
 
@@ -216,10 +201,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 
 	mmes1ap.HandleERABReleaseResponse(m, mme.NewRadioForTest(cc), rrpdu.(*s1ap.SuccessfulOutcome).Value)
 
-	da, err := (&eps.DeactivateEPSBearerContextAccept{EPSBearerIdentity: 6, ProcedureTransactionIdentity: 3}).Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
+	da := &eps.DeactivateEPSBearerContextAccept{EPSBearerIdentity: 6, PTI: 3}
 
 	handleDeactivateBearerAccept(context.Background(), m, ue, da)
 
@@ -248,16 +230,8 @@ func TestAdditionalPDNActivationIsGuarded(t *testing.T) {
 
 	testPDN(ue).Apn = "internet"
 
-	apnIE, err := eps.MarshalAPN("ims")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	connReq, err := (&eps.PDNConnectivityRequest{
-		ProcedureTransactionIdentity: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: apnIE,
-	}).Marshal()
-	if err != nil {
-		t.Fatal(err)
+	connReq := &eps.PDNConnectivityRequest{
+		PTI: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: new(eps.APN("ims")),
 	}
 
 	handlePDNConnectivityRequest(context.Background(), m, ue, connReq)
@@ -271,10 +245,7 @@ func TestAdditionalPDNActivationIsGuarded(t *testing.T) {
 		t.Fatal("T3485 guard not armed on additional-PDN activation; a lost ACTIVATE DEFAULT would leak the PDN")
 	}
 
-	acc, err := (&eps.ActivateDefaultEPSBearerContextAccept{EPSBearerIdentity: p.Ebi, ProcedureTransactionIdentity: 2}).Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
+	acc := &eps.ActivateDefaultEPSBearerContextAccept{EPSBearerIdentity: eps.EPSBearerIdentity(p.Ebi), PTI: 2}
 
 	handleActivateDefaultBearerAccept(m, ue, acc)
 
@@ -294,16 +265,8 @@ func TestAdditionalPDNActivationTimeoutReleasesPDN(t *testing.T) {
 
 	testPDN(ue).Apn = "internet"
 
-	apnIE, err := eps.MarshalAPN("ims")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	connReq, err := (&eps.PDNConnectivityRequest{
-		ProcedureTransactionIdentity: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: apnIE,
-	}).Marshal()
-	if err != nil {
-		t.Fatal(err)
+	connReq := &eps.PDNConnectivityRequest{
+		PTI: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: new(eps.APN("ims")),
 	}
 
 	handlePDNConnectivityRequest(context.Background(), m, ue, connReq)
@@ -363,16 +326,8 @@ func TestAdditionalPDNRejectedUnknownAPN(t *testing.T) {
 	p0 := testPDN(ue)
 	p0.Apn = "internet"
 
-	apnIE, err := eps.MarshalAPN("enterprise")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	connReq, err := (&eps.PDNConnectivityRequest{
-		ProcedureTransactionIdentity: 4, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: apnIE,
-	}).Marshal()
-	if err != nil {
-		t.Fatal(err)
+	connReq := &eps.PDNConnectivityRequest{
+		PTI: 4, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: new(eps.APN("enterprise")),
 	}
 
 	handlePDNConnectivityRequest(context.Background(), m, ue, connReq)
@@ -386,8 +341,8 @@ func TestAdditionalPDNRejectedUnknownAPN(t *testing.T) {
 		t.Fatalf("expected a PDN Connectivity Reject: %v", err)
 	}
 
-	if reject.ESMCause != esmCauseUnknownAPN {
-		t.Fatalf("ESM cause = %d, want %d (unknown APN)", reject.ESMCause, esmCauseUnknownAPN)
+	if reject.Cause != eps.ESMCauseMissingOrUnknownAPN {
+		t.Fatalf("ESM cause = %d, want %d (unknown APN)", reject.Cause, eps.ESMCauseMissingOrUnknownAPN)
 	}
 }
 
@@ -395,19 +350,14 @@ func TestAdditionalPDNRejectedUnknownAPN(t *testing.T) {
 // header of a PDN Connectivity Request (TS 24.301 §7.3): an unassigned/reserved
 // PTI is rejected with ESM cause #81, a non-zero header EBI with #43.
 func TestPDNConnectivityRejectedInvalidHeader(t *testing.T) {
-	apnIE, err := eps.MarshalAPN("ims")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	cases := []struct {
 		name      string
 		req       *eps.PDNConnectivityRequest
-		wantCause uint8
+		wantCause eps.ESMCause
 	}{
-		{"unassigned PTI", &eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 0, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: apnIE}, esmCauseInvalidPTIValue},
-		{"reserved PTI", &eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 255, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: apnIE}, esmCauseInvalidPTIValue},
-		{"assigned header EBI", &eps.PDNConnectivityRequest{EPSBearerIdentity: 5, ProcedureTransactionIdentity: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: apnIE}, esmCauseInvalidEPSBearerIdentity},
+		{"unassigned PTI", &eps.PDNConnectivityRequest{PTI: 0, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: new(eps.APN("ims"))}, eps.ESMCauseInvalidPTIValue},
+		{"reserved PTI", &eps.PDNConnectivityRequest{PTI: 255, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: new(eps.APN("ims"))}, eps.ESMCauseInvalidPTIValue},
+		{"assigned header EBI", &eps.PDNConnectivityRequest{EPSBearerIdentity: 5, PTI: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: new(eps.APN("ims"))}, eps.ESMCauseInvalidEPSBearerIdentity},
 	}
 
 	for _, tc := range cases {
@@ -416,12 +366,7 @@ func TestPDNConnectivityRejectedInvalidHeader(t *testing.T) {
 			ue, cc := securedUE(t, m)
 			testPDN(ue).Apn = "internet"
 
-			plain, err := tc.req.Marshal()
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			handlePDNConnectivityRequest(context.Background(), m, ue, plain)
+			handlePDNConnectivityRequest(context.Background(), m, ue, tc.req)
 
 			if ue.PdnForAPN("ims") != nil {
 				t.Fatal("PDN created despite an invalid ESM header")
@@ -432,8 +377,8 @@ func TestPDNConnectivityRejectedInvalidHeader(t *testing.T) {
 				t.Fatalf("expected a PDN Connectivity Reject: %v", err)
 			}
 
-			if reject.ESMCause != tc.wantCause {
-				t.Fatalf("ESM cause = %d, want %d", reject.ESMCause, tc.wantCause)
+			if reject.Cause != tc.wantCause {
+				t.Fatalf("ESM cause = %d, want %d", reject.Cause, tc.wantCause)
 			}
 		})
 	}
@@ -445,10 +390,10 @@ func TestPDNDisconnectRejectedInvalidHeader(t *testing.T) {
 	cases := []struct {
 		name      string
 		req       *eps.PDNDisconnectRequest
-		wantCause uint8
+		wantCause eps.ESMCause
 	}{
-		{"unassigned PTI", &eps.PDNDisconnectRequest{ProcedureTransactionIdentity: 0, LinkedEPSBearerIdentity: 5}, esmCauseInvalidPTIValue},
-		{"assigned header EBI", &eps.PDNDisconnectRequest{EPSBearerIdentity: 5, ProcedureTransactionIdentity: 3, LinkedEPSBearerIdentity: 5}, esmCauseInvalidEPSBearerIdentity},
+		{"unassigned PTI", &eps.PDNDisconnectRequest{PTI: 0, LinkedEPSBearerIdentity: 5}, eps.ESMCauseInvalidPTIValue},
+		{"assigned header EBI", &eps.PDNDisconnectRequest{EPSBearerIdentity: 5, PTI: 3, LinkedEPSBearerIdentity: 5}, eps.ESMCauseInvalidEPSBearerIdentity},
 	}
 
 	for _, tc := range cases {
@@ -457,20 +402,15 @@ func TestPDNDisconnectRejectedInvalidHeader(t *testing.T) {
 			ue, cc := securedUE(t, m)
 			testPDN(ue).Apn = "internet"
 
-			plain, err := tc.req.Marshal()
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			handlePDNDisconnectRequest(context.Background(), m, ue, plain)
+			handlePDNDisconnectRequest(context.Background(), m, ue, tc.req)
 
 			reject, err := eps.ParsePDNDisconnectReject(lastDownlinkESM(t, ue, cc))
 			if err != nil {
 				t.Fatalf("expected a PDN Disconnect Reject: %v", err)
 			}
 
-			if reject.ESMCause != tc.wantCause {
-				t.Fatalf("ESM cause = %d, want %d", reject.ESMCause, tc.wantCause)
+			if reject.Cause != tc.wantCause {
+				t.Fatalf("ESM cause = %d, want %d", reject.Cause, tc.wantCause)
 			}
 		})
 	}
@@ -485,10 +425,7 @@ func TestLastPDNDisconnectRejected(t *testing.T) {
 	p0 := testPDN(ue)
 	p0.Apn = "internet"
 
-	dis, err := (&eps.PDNDisconnectRequest{ProcedureTransactionIdentity: 5, LinkedEPSBearerIdentity: mme.DefaultERABID}).Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
+	dis := &eps.PDNDisconnectRequest{PTI: 5, LinkedEPSBearerIdentity: eps.EPSBearerIdentity(mme.DefaultERABID)}
 
 	handlePDNDisconnectRequest(context.Background(), m, ue, dis)
 
@@ -501,7 +438,7 @@ func TestLastPDNDisconnectRejected(t *testing.T) {
 		t.Fatalf("expected a PDN Disconnect Reject: %v", err)
 	}
 
-	if reject.ESMCause != esmCauseLastPDNDisconnectNotAllowed {
-		t.Fatalf("ESM cause = %d, want %d (last PDN disconnect not allowed)", reject.ESMCause, esmCauseLastPDNDisconnectNotAllowed)
+	if reject.Cause != eps.ESMCauseLastPDNDisconnectionNotAllow {
+		t.Fatalf("ESM cause = %d, want %d (last PDN disconnect not allowed)", reject.Cause, eps.ESMCauseLastPDNDisconnectionNotAllow)
 	}
 }

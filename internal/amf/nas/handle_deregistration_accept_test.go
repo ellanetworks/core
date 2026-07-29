@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func TestHandleDeregistrationAccept_T3522Stopped_UEContextReleaseCommand(t *testing.T) {
@@ -47,5 +48,39 @@ func TestHandleDeregistrationAccept_NilRanUE_NoMessage(t *testing.T) {
 
 	if len(ngapSender.SentUEContextReleaseCommand) != 0 {
 		t.Fatal("should not have sent a UE Context Release Command message")
+	}
+}
+
+// TestHandleGmmMessage_DeregistrationAcceptDispatch checks the dispatch, not just
+// the handler: the UE answers a network-initiated de-registration with message
+// type 0x48 (TS 24.501 §8.2.15), and dispatching on the accept the AMF itself
+// sends (0x46, §8.2.13) leaves the procedure hanging on its guard timer.
+func TestHandleGmmMessage_DeregistrationAcceptDispatch(t *testing.T) {
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build test UE and radio: %v", err)
+	}
+
+	ue.ForceStateForTest(amf.Registered)
+	conn := ue.Conn()
+	conn.NASGuardForTest().Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+
+	plain, err := (&fgs.DeregistrationAcceptUETerminated{}).MarshalBinary()
+	if err != nil {
+		t.Fatalf("could not build a DEREGISTRATION ACCEPT: %v", err)
+	}
+
+	HandleGmmMessage(t.Context(), conn.AMFForTest(), ue, uint8(fgs.MsgDeregistrationAcceptUETerm), plain, true)
+
+	if ue.State() != amf.Deregistered {
+		t.Fatalf("expected UE to be deregistered, but was: %s", ue.State())
+	}
+
+	if conn.NASGuardForTest().Active() {
+		t.Fatal("expected timer T3522 to be stopped and cleared")
+	}
+
+	if len(ngapSender.SentUEContextReleaseCommand) != 1 {
+		t.Fatal("should have sent a UE Context Release Command message")
 	}
 }

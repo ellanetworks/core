@@ -9,6 +9,7 @@ package amf
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
@@ -16,8 +17,9 @@ import (
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/aper"
-	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -68,7 +70,7 @@ func sendGmm(ctx context.Context, ue *UeConn, spanName string, attrs []attribute
 
 	nasMsg, err := build(amfUe)
 	if err != nil {
-		logger.From(ctx, logger.AmfLog).Error("failed to build NAS message", zap.String("message", spanName), zap.Error(err))
+		ReportProtectFailure(ctx, amfUe, spanName, err)
 		return
 	}
 
@@ -77,8 +79,8 @@ func sendGmm(ctx context.Context, ue *UeConn, spanName string, attrs []attribute
 	}
 }
 
-func SendDLNASTransport(ctx context.Context, ue *UeConn, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause uint8) {
-	var causePtr *uint8
+func SendDLNASTransport(ctx context.Context, ue *UeConn, payloadContainerType fgs.PayloadContainerType, nasPdu []byte, pduSessionID fgs.PDUSessionID, cause fgs.GMMCause) {
+	var causePtr *fgs.GMMCause
 	if cause != 0 {
 		causePtr = &cause
 	}
@@ -89,7 +91,7 @@ func SendDLNASTransport(ctx context.Context, ue *UeConn, payloadContainerType ui
 			attribute.Int("cause", int(cause)),
 		},
 		func(amfUe *UeContext) ([]byte, error) {
-			return BuildDLNASTransport(amfUe, payloadContainerType, nasPdu, pduSessionID, causePtr, nil)
+			return BuildDLNASTransport(amfUe, payloadContainerType, nasPdu, &pduSessionID, causePtr, nil)
 		})
 }
 
@@ -97,7 +99,7 @@ func SendDLNASTransport(ctx context.Context, ue *UeConn, payloadContainerType ui
 // retransmission timer. On each expiry the request is retransmitted; on
 // exhaustion the identification procedure and any ongoing 5GMM procedure are
 // aborted and the UE is released (TS 24.501 §5.4.3.2).
-func SendIdentityRequest(ctx context.Context, amfInstance *AMF, ue *UeConn, typeOfIdentity uint8) {
+func SendIdentityRequest(ctx context.Context, amfInstance *AMF, ue *UeConn, typeOfIdentity fgs.MobileIdentityType) {
 	if ue == nil || ue.UeContext() == nil {
 		logger.AmfLog.Error("cannot send Identity Request: ue or amf ue is nil")
 		return
@@ -122,7 +124,7 @@ func SendIdentityRequest(ctx context.Context, amfInstance *AMF, ue *UeConn, type
 
 	nasMsg, err := BuildIdentityRequest(typeOfIdentity)
 	if err != nil {
-		logger.From(ctx, logger.AmfLog).Error("failed to build identity request", zap.Error(err))
+		ReportProtectFailure(ctx, amfUe, "identity request", err)
 		return
 	}
 
@@ -159,7 +161,7 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *AMF, ue *UeConn
 
 	nasMsg, err := BuildAuthenticationRequest(amfUe)
 	if err != nil {
-		logger.From(ctx, logger.AmfLog).Error("failed to build authentication request", zap.Error(err))
+		ReportProtectFailure(ctx, amfUe, "authentication request", err)
 		return
 	}
 
@@ -188,14 +190,14 @@ func SendAuthenticationReject(ctx context.Context, ue *UeConn) {
 		func(_ *UeContext) ([]byte, error) { return BuildAuthenticationReject() })
 }
 
-func SendServiceReject(ctx context.Context, ue *UeConn, cause uint8) {
+func SendServiceReject(ctx context.Context, ue *UeConn, cause fgs.GMMCause) {
 	sendGmm(ctx, ue, "nas/send_service_reject",
 		[]attribute.KeyValue{attribute.Int("cause", int(cause))},
 		func(_ *UeContext) ([]byte, error) { return BuildServiceReject(cause) })
 }
 
 // T3502: This IE may be included to indicate a value for timer T3502 during the initial registration
-func SendRegistrationReject(ctx context.Context, ue *UeConn, cause5GMM uint8) {
+func SendRegistrationReject(ctx context.Context, ue *UeConn, cause5GMM fgs.GMMCause) {
 	sendGmm(ctx, ue, "nas/send_registration_reject",
 		[]attribute.KeyValue{attribute.Int("cause", int(cause5GMM))},
 		func(amfUe *UeContext) ([]byte, error) {
@@ -271,13 +273,13 @@ func SendRegistrationAccept(
 
 	guti, err := amfInstance.Guti(supportedGUAMI, ue)
 	if err != nil {
-		logger.From(ctx, logger.AmfLog).Error("failed to build 5G-GUTI for registration accept", zap.Error(err))
+		ReportProtectFailure(ctx, ue, "5G-GUTI for registration accept", err)
 		return
 	}
 
 	nasMsg, err := BuildRegistrationAccept(amfInstance, ue, guti, pDUSessionStatus, reactivationResult, errPduSessionID, errCause, equivalentPlmnID)
 	if err != nil {
-		logger.From(ctx, logger.AmfLog).Error("failed to build registration accept", zap.Error(err))
+		ReportProtectFailure(ctx, ue, "registration accept", err)
 		return
 	}
 
@@ -636,7 +638,7 @@ func (ueConn *UeConn) SendInitialContextSetup(
 	kgnb []byte,
 	ueRadioCapability []byte,
 	ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging,
-	ueSecurityCapability *nasType.UESecurityCapability,
+	ueSecurityCapability *fgs.UESecurityCapability,
 	nasPdu []byte,
 	pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq,
 	supportedGUAMI *models.Guami,
@@ -736,7 +738,7 @@ func (ueConn *UeConn) SendHandoverRequest(
 	handOverType ngapType.HandoverType,
 	uplinkAmbr string,
 	downlinkAmbr string,
-	ueSecurityCapability *nasType.UESecurityCapability,
+	ueSecurityCapability *fgs.UESecurityCapability,
 	ncc uint8,
 	nh []byte,
 	cause ngapType.Cause,
@@ -769,4 +771,26 @@ func (ueConn *UeConn) SendHandoverRequest(
 	}
 
 	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureHandoverRequest, pkt)
+}
+
+// ReportProtectFailure logs a failure to build or protect a downlink NAS message
+// and, when the downlink NAS COUNT is exhausted, releases the connection.
+//
+// Nothing further can be sent under that security context: reusing a COUNT would
+// repeat the keystream and make MAC forgery trivial (TS 33.501 §6.4.3.1).
+// Releasing makes the UE register again, which establishes a new context.
+func ReportProtectFailure(ctx context.Context, ue *UeContext, what string, err error) {
+	log := logger.From(ctx, logger.AmfLog)
+
+	if !errors.Is(err, nas.ErrCountExhausted) {
+		log.Error("failed to build "+what, zap.Error(err))
+		return
+	}
+
+	log.Error("downlink NAS COUNT exhausted, releasing the connection",
+		zap.String("message", what), zap.Error(err))
+
+	if conn := ue.Conn(); conn != nil {
+		conn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+	}
 }

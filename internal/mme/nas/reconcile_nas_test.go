@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
@@ -19,14 +19,12 @@ func TestDeactivateBearerAcceptReleases(t *testing.T) {
 	ue, cc := connectedBearerUE(t, m)
 	testPDN(ue).Deactivating = true
 
-	plain, err := (&eps.DeactivateEPSBearerContextAccept{EPSBearerIdentity: mme.DefaultERABID}).Marshal()
+	plain, err := (&eps.DeactivateEPSBearerContextAccept{EPSBearerIdentity: eps.EPSBearerIdentity(mme.DefaultERABID)}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered,
-		nascommon.NASCount(0, uint8(ue.ULCount())), nascommon.DirectionUplink,
-		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nas.MakeCount(0, uint8(ue.ULCount())), nas.DirectionUplink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,14 +59,12 @@ func TestModifyBearerAcceptCommitsConfig(t *testing.T) {
 	testPDN(ue).Modifying = true
 	testPDN(ue).PendingDNConfig = "10.45.0.0/16|fd45::/48|9.9.9.9|1500"
 
-	plain, err := (&eps.ModifyEPSBearerContextAccept{EPSBearerIdentity: mme.DefaultERABID}).Marshal()
+	plain, err := (&eps.ModifyEPSBearerContextAccept{EPSBearerIdentity: eps.EPSBearerIdentity(mme.DefaultERABID)}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered,
-		nascommon.NASCount(0, uint8(ue.ULCount())), nascommon.DirectionUplink,
-		ue.KnasIntForTest(), ue.KnasEncForTest(), nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nas.MakeCount(0, uint8(ue.ULCount())), nas.DirectionUplink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest()))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -12,26 +12,18 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/nas/nasType"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
-func buildTestAuthenticationFailureMessage(cause uint8, auts *[14]uint8) *nasMessage.AuthenticationFailure {
-	msg := nasMessage.NewAuthenticationFailure(0)
-	msg.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	msg.SetSpareHalfOctet(0x00)
-	msg.SetMessageType(nas.MsgTypeAuthenticationFailure)
-	msg.SetCauseValue(cause)
-
+// buildTestAuthenticationFailure builds an AUTHENTICATION FAILURE with the given
+// 5GMM cause and optional authentication failure parameter (AUTS).
+func buildTestAuthenticationFailure(cause uint8, auts *[14]uint8) *fgs.AuthenticationFailure {
+	m := &fgs.AuthenticationFailure{Cause: fgs.GMMCause(cause)}
 	if auts != nil {
-		msg.AuthenticationFailureParameter = nasType.NewAuthenticationFailureParameter(
-			nasMessage.AuthenticationFailureAuthenticationFailureParameterType)
-		msg.SetLen(14)
-		msg.SetAuthenticationFailureParameter(*auts)
+		m.AUTS = auts[:]
 	}
 
-	return msg
+	return m
 }
 
 // An AUTHENTICATION FAILURE received outside the authentication exchange is ignored:
@@ -55,7 +47,7 @@ func TestHandleAuthenticationFailure_WrongState_Error(t *testing.T) {
 
 			tc.setup(ue)
 
-			msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMMACFailure, nil)
+			msg := buildTestAuthenticationFailure(0x14, nil)
 
 			handleAuthenticationFailure(t.Context(), amf.New(nil, nil, nil), ue, msg)
 
@@ -77,7 +69,7 @@ func TestHandleAuthenticationFailure_T3560Stopped(t *testing.T) {
 	conn.AuthenticationCtx = &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}
 	conn.NASGuardForTest().Arm(10*time.Minute, 5, func(e int32) {}, func() {})
 
-	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMMACFailure, nil)
+	msg := buildTestAuthenticationFailure(0x14, nil)
 
 	handleAuthenticationFailure(t.Context(), amf.New(nil, nil, nil), ue, msg)
 
@@ -95,7 +87,7 @@ func TestHandleAuthenticationFailure_MACFailure_DeregistersAndSendsReject(t *tes
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	ue.Conn().AuthenticationCtx = &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}
 
-	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMMACFailure, nil)
+	msg := buildTestAuthenticationFailure(0x14, nil)
 
 	handleAuthenticationFailure(t.Context(), amf.New(nil, nil, nil), ue, msg)
 
@@ -108,21 +100,7 @@ func TestHandleAuthenticationFailure_MACFailure_DeregistersAndSendsReject(t *tes
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-		t.Fatalf("expected a plain NAS message")
-	}
-
-	err = nm.PlainNasDecode(&resp.NasPdu)
-	if err != nil {
-		t.Fatalf("could not decode plain NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeAuthenticationReject {
-		t.Fatalf("expected AuthenticationReject message, got: %v", nm.GmmHeader.GetMessageType())
-	}
+	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgAuthenticationReject))
 }
 
 func TestHandleAuthenticationFailure_Non5GAuthUnacceptable_DeregistersAndSendsReject(t *testing.T) {
@@ -134,7 +112,7 @@ func TestHandleAuthenticationFailure_Non5GAuthUnacceptable_DeregistersAndSendsRe
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	ue.Conn().AuthenticationCtx = &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}
 
-	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMNon5GAuthenticationUnacceptable, nil)
+	msg := buildTestAuthenticationFailure(0x1a, nil)
 
 	handleAuthenticationFailure(t.Context(), amf.New(nil, nil, nil), ue, msg)
 
@@ -147,21 +125,7 @@ func TestHandleAuthenticationFailure_Non5GAuthUnacceptable_DeregistersAndSendsRe
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-		t.Fatalf("expected a plain NAS message")
-	}
-
-	err = nm.PlainNasDecode(&resp.NasPdu)
-	if err != nil {
-		t.Fatalf("could not decode plain NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeAuthenticationReject {
-		t.Fatalf("expected AuthenticationReject message, got: %v", nm.GmmHeader.GetMessageType())
-	}
+	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgAuthenticationReject))
 }
 
 func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiIncremented_SendsAuthRequest(t *testing.T) {
@@ -181,7 +145,7 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiIncremented_SendsAuthR
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMngKSIAlreadyInUse, nil)
+	msg := buildTestAuthenticationFailure(0x47, nil)
 
 	handleAuthenticationFailure(t.Context(), amfInstance, ue, msg)
 
@@ -198,21 +162,7 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiIncremented_SendsAuthR
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-		t.Fatalf("expected a plain NAS message")
-	}
-
-	err = nm.PlainNasDecode(&resp.NasPdu)
-	if err != nil {
-		t.Fatalf("could not decode plain NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeAuthenticationRequest {
-		t.Fatalf("expected AuthenticationRequest message, got: %v", nm.GmmHeader.GetMessageType())
-	}
+	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgAuthenticationRequest))
 }
 
 func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiWrapsToZero(t *testing.T) {
@@ -231,7 +181,7 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiWrapsToZero(t *testing
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMngKSIAlreadyInUse, nil)
+	msg := buildTestAuthenticationFailure(0x47, nil)
 
 	handleAuthenticationFailure(t.Context(), amfInstance, ue, msg)
 
@@ -266,7 +216,7 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_Success(t *testing.T
 	}, nil)
 
 	auts := [14]uint8{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e}
-	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMSynchFailure, &auts)
+	msg := buildTestAuthenticationFailure(0x15, &auts)
 
 	handleAuthenticationFailure(t.Context(), amfInstance, ue, msg)
 
@@ -287,21 +237,7 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_Success(t *testing.T
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-		t.Fatalf("expected a plain NAS message")
-	}
-
-	err = nm.PlainNasDecode(&resp.NasPdu)
-	if err != nil {
-		t.Fatalf("could not decode plain NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeAuthenticationRequest {
-		t.Fatalf("expected AuthenticationRequest message, got: %v", nm.GmmHeader.GetMessageType())
-	}
+	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgAuthenticationRequest))
 }
 
 func TestHandleAuthenticationFailure_SynchFailure_FirstTime_AusfError(t *testing.T) {
@@ -321,7 +257,7 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_AusfError(t *testing
 	}, nil)
 
 	auts := [14]uint8{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e}
-	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMSynchFailure, &auts)
+	msg := buildTestAuthenticationFailure(0x15, &auts)
 
 	handleAuthenticationFailure(t.Context(), amfInstance, ue, msg)
 
@@ -340,7 +276,7 @@ func TestHandleAuthenticationFailure_SynchFailure_SecondTime_DeregistersAndSends
 	ue.Conn().AuthenticationCtx = &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}
 	ue.Conn().SetResyncTried(true)
 
-	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMSynchFailure, nil)
+	msg := buildTestAuthenticationFailure(0x15, nil)
 
 	handleAuthenticationFailure(t.Context(), amf.New(nil, nil, nil), ue, msg)
 
@@ -353,21 +289,7 @@ func TestHandleAuthenticationFailure_SynchFailure_SecondTime_DeregistersAndSends
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-		t.Fatalf("expected a plain NAS message")
-	}
-
-	err = nm.PlainNasDecode(&resp.NasPdu)
-	if err != nil {
-		t.Fatalf("could not decode plain NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeAuthenticationReject {
-		t.Fatalf("expected AuthenticationReject message, got: %v", nm.GmmHeader.GetMessageType())
-	}
+	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgAuthenticationReject))
 }
 
 func TestHandleAuthenticationFailure_SynchFailure_NilAuthenticationFailureParameter(t *testing.T) {
@@ -380,7 +302,7 @@ func TestHandleAuthenticationFailure_SynchFailure_NilAuthenticationFailureParame
 	ue.Conn().AuthenticationCtx = &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}
 	ue.Conn().SetResyncTried(false)
 
-	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMSynchFailure, nil)
+	msg := buildTestAuthenticationFailure(0x15, nil)
 
 	// A SynchFailure with a nil AUTS must not panic; it is dropped without emitting
 	// a downlink.
@@ -408,7 +330,7 @@ func TestHandleAuthenticationFailure_OutOfEnumerationCauseIgnored(t *testing.T) 
 
 	// #111 "protocol error, unspecified" is a valid 5GMM cause but not an
 	// AUTHENTICATION FAILURE cause.
-	msg := buildTestAuthenticationFailureMessage(0x6f, nil)
+	msg := buildTestAuthenticationFailure(0x6f, nil)
 
 	handleAuthenticationFailure(t.Context(), amf.New(nil, nil, nil), ue, msg)
 
@@ -434,7 +356,7 @@ func TestHandleAuthenticationFailure_NoChallengeInFlightIgnored(t *testing.T) {
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	// No AuthenticationCtx: the identity sub-window, no challenge in flight.
 
-	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMMACFailure, nil)
+	msg := buildTestAuthenticationFailure(0x14, nil)
 
 	handleAuthenticationFailure(t.Context(), amf.New(nil, nil, nil), ue, msg)
 

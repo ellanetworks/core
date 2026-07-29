@@ -13,8 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
-	"github.com/free5gc/nas/nasConvert"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -41,7 +40,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	}
 
 	if conn.RegistrationRequest.UpdateType5GS != nil {
-		if conn.RegistrationRequest.GetNGRanRcu() == nasMessage.NGRanRadioCapabilityUpdateNeeded {
+		if conn.RegistrationRequest.UpdateType5GS.NGRANRCU {
 			ue.RadioCapability = nil
 			ue.RadioCapabilityForPaging = nil
 		}
@@ -60,9 +59,9 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	}
 
 	if len(subscriberProfile.AllowedNssai) == 0 {
-		metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultReject)
+		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
 
-		amf.SendRegistrationReject(ctx, ueConn, nasMessage.Cause5GMM5GSServicesNotAllowed)
+		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseServicesNotAllowed)
 		ue.Deregister(ctx)
 
 		return
@@ -71,14 +70,14 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	ue.AllowedNssai = subscriberProfile.AllowedNssai
 
 	if conn.RegistrationRequest.MICOIndication != nil {
-		logger.From(ctx, logger.AmfLog).Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", conn.RegistrationRequest.GetRAAI()))
+		logger.From(ctx, logger.AmfLog).Warn("Receive MICO Indication Not Supported", zap.Bool("RAAI", conn.RegistrationRequest.MICOIndication.RAAI))
 	}
 
 	if conn.RegistrationRequest.RequestedDRXParameters != nil {
-		drx := conn.RegistrationRequest.GetDRXValue()
-		if drx > nasMessage.DRXcycleParameterT256 {
-			logger.From(ctx, logger.AmfLog).Warn("UE requested reserved DRX value, treating as not specified", zap.Uint8("drxValue", drx))
-			drx = nasMessage.DRXValueNotSpecified
+		drx := conn.RegistrationRequest.RequestedDRXParameters.Value
+		if drx > fgs.DRXCycleParameterT256 {
+			logger.From(ctx, logger.AmfLog).Warn("UE requested reserved DRX value, treating as not specified", zap.Stringer("drxValue", drx))
+			drx = fgs.DRXValueNotSpecified
 		}
 
 		ue.DRXParameter = drx
@@ -95,7 +94,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	suList := ngapType.PDUSessionResourceSetupListSUReq{}
 
 	if conn.RegistrationRequest.UplinkDataStatus != nil {
-		uplinkDataPsi := nasConvert.PSIToBooleanArray(conn.RegistrationRequest.UplinkDataStatus.Buffer)
+		uplinkDataPsi := conn.RegistrationRequest.UplinkDataStatus.PSI
 		reactivationResult = new([16]bool)
 
 		for idx, hasUplinkData := range uplinkDataPsi {
@@ -107,8 +106,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 						logger.From(ctx, logger.AmfLog).Warn("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 						reactivationResult[pduSessionID] = true
 						errPduSessionID = append(errPduSessionID, pduSessionID)
-						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
-						errCause = append(errCause, cause)
+						cause := fgs.GMMCauseProtocolErrorUnspecified
+						errCause = append(errCause, uint8(cause))
 					} else {
 						if ueConn.UeContextRequest {
 							send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID,
@@ -126,7 +125,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	var pduSessionStatus *[16]bool
 	if conn.RegistrationRequest.PDUSessionStatus != nil {
 		pduSessionStatus = new([16]bool)
-		psiArray := nasConvert.PSIToBooleanArray(conn.RegistrationRequest.PDUSessionStatus.Buffer)
+
+		psiArray := conn.RegistrationRequest.PDUSessionStatus.PSI
 
 		for psi := 1; psi <= 15; psi++ {
 			pduSessionID := uint8(psi)
@@ -171,7 +171,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 						return
 					}
 
-					metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultAccept)
+					metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
 					err = ueConn.SendPDUSessionResourceSetupRequest(
 						ctx,
@@ -189,14 +189,14 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 					logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request")
 				} else {
-					metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultAccept)
+					metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
 					amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
 
 					logger.From(ctx, logger.AmfLog).Info("Sent GMM registration accept")
 				}
 
-				amf.SendDLNASTransport(ctx, ueConn, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
+				amf.SendDLNASTransport(ctx, ueConn, fgs.PayloadContainerTypeN1SMInfo, n1Msg, fgs.PDUSessionID(requestData.PduSessionID), 0)
 
 				ue.ClearN1N2Message()
 
@@ -219,7 +219,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 			)
 
 			if n1Msg != nil {
-				nasPdu, err = amf.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil, nil)
+				nasPdu, err = amf.BuildDLNASTransport(ue, fgs.PayloadContainerTypeN1SMInfo, n1Msg, new(fgs.PDUSessionID(requestData.PduSessionID)), nil, nil)
 				if err != nil {
 					logger.From(ctx, logger.AmfLog).Warn("failed to build DL NAS transport", zap.Error(err))
 					return
@@ -233,7 +233,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	ue.AllocateRegistrationArea(operatorInfo.Tais)
 
 	if ueConn.UeContextRequest {
-		metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultAccept)
+		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
 		amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
 
@@ -248,7 +248,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		}
 
 		if len(suList.List) != 0 {
-			metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultAccept)
+			metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
 			err := ueConn.SendPDUSessionResourceSetupRequest(
 				ctx,
@@ -266,7 +266,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 			logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request")
 		} else {
-			metrics.RegistrationAttempt(metrics.RAT5G, getRegistrationType5GSName(conn.RegistrationType5GS), metrics.ResultAccept)
+			metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
 			err := ueConn.SendDownlinkNASTransport(ctx, nasPdu)
 			if err != nil {

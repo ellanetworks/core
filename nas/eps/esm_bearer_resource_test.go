@@ -6,9 +6,9 @@ package eps
 import "testing"
 
 func TestBearerResourceAllocationRequestRoundTrip(t *testing.T) {
-	req := &BearerResourceAllocationRequest{EPSBearerIdentity: 0, ProcedureTransactionIdentity: 3}
+	req := &BearerResourceAllocationRequest{EPSBearerIdentity: 0, PTI: 3}
 
-	wire, err := req.Marshal()
+	wire, err := req.MarshalBinary()
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
@@ -23,15 +23,15 @@ func TestBearerResourceAllocationRequestRoundTrip(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if got.EPSBearerIdentity != req.EPSBearerIdentity || got.ProcedureTransactionIdentity != req.ProcedureTransactionIdentity {
-		t.Fatalf("round-trip mismatch: got EBI=%d PTI=%d", got.EPSBearerIdentity, got.ProcedureTransactionIdentity)
+	if got.EPSBearerIdentity != req.EPSBearerIdentity || got.PTI != req.PTI {
+		t.Fatalf("round-trip mismatch: got EBI=%d PTI=%d", got.EPSBearerIdentity, got.PTI)
 	}
 }
 
 func TestBearerResourceAllocationRejectRoundTrip(t *testing.T) {
-	rej := &BearerResourceAllocationReject{ProcedureTransactionIdentity: 3, ESMCause: 31}
+	rej := &BearerResourceAllocationReject{PTI: 3, Cause: 31}
 
-	wire, err := rej.Marshal()
+	wire, err := rej.MarshalBinary()
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
@@ -45,15 +45,15 @@ func TestBearerResourceAllocationRejectRoundTrip(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if got.ProcedureTransactionIdentity != rej.ProcedureTransactionIdentity || got.ESMCause != rej.ESMCause {
-		t.Fatalf("round-trip mismatch: got PTI=%d cause=%d", got.ProcedureTransactionIdentity, got.ESMCause)
+	if got.PTI != rej.PTI || got.Cause != rej.Cause {
+		t.Fatalf("round-trip mismatch: got PTI=%d cause=%d", got.PTI, got.Cause)
 	}
 }
 
 func TestBearerResourceModificationRequestRoundTrip(t *testing.T) {
-	req := &BearerResourceModificationRequest{EPSBearerIdentity: 0, ProcedureTransactionIdentity: 7}
+	req := &BearerResourceModificationRequest{EPSBearerIdentity: 0, PTI: 7}
 
-	wire, err := req.Marshal()
+	wire, err := req.MarshalBinary()
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
@@ -67,15 +67,15 @@ func TestBearerResourceModificationRequestRoundTrip(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if got.EPSBearerIdentity != req.EPSBearerIdentity || got.ProcedureTransactionIdentity != req.ProcedureTransactionIdentity {
-		t.Fatalf("round-trip mismatch: got EBI=%d PTI=%d", got.EPSBearerIdentity, got.ProcedureTransactionIdentity)
+	if got.EPSBearerIdentity != req.EPSBearerIdentity || got.PTI != req.PTI {
+		t.Fatalf("round-trip mismatch: got EBI=%d PTI=%d", got.EPSBearerIdentity, got.PTI)
 	}
 }
 
 func TestBearerResourceModificationRejectRoundTrip(t *testing.T) {
-	rej := &BearerResourceModificationReject{ProcedureTransactionIdentity: 7, ESMCause: 31}
+	rej := &BearerResourceModificationReject{PTI: 7, Cause: 31}
 
-	wire, err := rej.Marshal()
+	wire, err := rej.MarshalBinary()
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestBearerResourceModificationRejectRoundTrip(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if got.ProcedureTransactionIdentity != rej.ProcedureTransactionIdentity || got.ESMCause != rej.ESMCause {
-		t.Fatalf("round-trip mismatch: got PTI=%d cause=%d", got.ProcedureTransactionIdentity, got.ESMCause)
+	if got.PTI != rej.PTI || got.Cause != rej.Cause {
+		t.Fatalf("round-trip mismatch: got PTI=%d cause=%d", got.PTI, got.Cause)
 	}
 }

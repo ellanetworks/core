@@ -12,6 +12,8 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/internal/smf/ngap"
+	naslib "github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
@@ -20,10 +22,10 @@ import (
 // forwarding immediately (TS 23.502 §4.3.4.2 step 2); T3592 then retransmits the
 // Release Command until the UE replies or the retransmission limit aborts, at which
 // point the SM context is removed from the pool. Caller must hold smContext.Mutex.
-func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti, cause uint8) error {
+func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti uint8, cause fgs.GSMCause) error {
 	s.releaseUserPlane(ctx, smContext)
 
-	n1Msg, err := nas.BuildGSMPDUSessionReleaseCommand(smContext.PDUSessionID, pti, cause)
+	n1Msg, err := nas.BuildGSMPDUSessionReleaseCommand(fgs.PDUSessionID(smContext.PDUSessionID), naslib.ProcedureTransactionIdentity(pti), cause)
 	if err != nil {
 		return fmt.Errorf("build PDU Session Release Command (N1): %w", err)
 	}

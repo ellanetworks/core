@@ -4,11 +4,9 @@
 package validate
 
 import (
-	"encoding/binary"
 	"fmt"
 
-	"github.com/free5gc/nas"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type ExpectedPDUSessionModificationCommand struct {
@@ -18,19 +16,18 @@ type ExpectedPDUSessionModificationCommand struct {
 	AmbrDownlinkKbps uint64
 }
 
-func PDUSessionModificationCommand(msg *nas.Message, expected *ExpectedPDUSessionModificationCommand) error {
-	if msg == nil {
-		return fmt.Errorf("NAS message is nil")
+func PDUSessionModificationCommand(plain []byte, expected *ExpectedPDUSessionModificationCommand) error {
+	if len(plain) < 4 {
+		return fmt.Errorf("NAS message is too short")
 	}
 
-	msgType := msg.GsmHeader.GetMessageType()
-	if msgType != nas.MsgTypePDUSessionModificationCommand {
-		return fmt.Errorf("expected PDU Session Modification Command (0x%02x), got 0x%02x", nas.MsgTypePDUSessionModificationCommand, msgType)
+	if fgs.GSMMessageType(plain[3]) != fgs.MsgPDUSessionModificationCommand {
+		return fmt.Errorf("expected PDU Session Modification Command (0x%02x), got 0x%02x", uint8(fgs.MsgPDUSessionModificationCommand), plain[3])
 	}
 
-	modCmd := msg.PDUSessionModificationCommand
-	if modCmd == nil {
-		return fmt.Errorf("PDUSessionModificationCommand is nil in NAS message")
+	modCmd, err := fgs.ParsePDUSessionModificationCommand(plain)
+	if err != nil {
+		return fmt.Errorf("could not parse PDU Session Modification Command: %v", err)
 	}
 
 	if expected.AmbrUplinkKbps > 0 || expected.AmbrDownlinkKbps > 0 {
@@ -38,13 +35,10 @@ func PDUSessionModificationCommand(msg *nas.Message, expected *ExpectedPDUSessio
 			return fmt.Errorf("expected Session-AMBR in Modification Command but it was absent")
 		}
 
-		ulUnit := modCmd.GetUnitForSessionAMBRForUplink()
-		ulValue := modCmd.GetSessionAMBRForUplink()
-		ulKbps := ambrToKbps(ulUnit, ulValue)
+		ambr := *modCmd.SessionAMBR
 
-		dlUnit := modCmd.GetUnitForSessionAMBRForDownlink()
-		dlValue := modCmd.GetSessionAMBRForDownlink()
-		dlKbps := ambrToKbps(dlUnit, dlValue)
+		ulKbps := ambrToKbps(uint8(ambr.UplinkUnit), ambr.Uplink)
+		dlKbps := ambrToKbps(uint8(ambr.DownlinkUnit), ambr.Downlink)
 
 		if expected.AmbrUplinkKbps > 0 && ulKbps != expected.AmbrUplinkKbps {
 			return fmt.Errorf("Session-AMBR uplink mismatch: got %d Kbps, expected %d Kbps", ulKbps, expected.AmbrUplinkKbps)
@@ -58,38 +52,39 @@ func PDUSessionModificationCommand(msg *nas.Message, expected *ExpectedPDUSessio
 	return nil
 }
 
-func ambrToKbps(unit uint8, value [2]uint8) uint64 {
-	raw := uint64(binary.BigEndian.Uint16(value[:]))
+// ambrToKbps converts a Session-AMBR value and unit to Kbps (TS 24.501 §9.11.4.14).
+func ambrToKbps(unit uint8, raw uint16) uint64 {
+	v := uint64(raw)
 
 	switch unit {
-	case nasMessage.SessionAMBRUnit1Kbps:
-		return raw
-	case nasMessage.SessionAMBRUnit4Kbps:
-		return raw * 4
-	case nasMessage.SessionAMBRUnit16Kbps:
-		return raw * 16
-	case nasMessage.SessionAMBRUnit64Kbps:
-		return raw * 64
-	case nasMessage.SessionAMBRUnit256Kbps:
-		return raw * 256
-	case nasMessage.SessionAMBRUnit1Mbps:
-		return raw * 1000
-	case nasMessage.SessionAMBRUnit4Mbps:
-		return raw * 4000
-	case nasMessage.SessionAMBRUnit16Mbps:
-		return raw * 16000
-	case nasMessage.SessionAMBRUnit64Mbps:
-		return raw * 64000
-	case nasMessage.SessionAMBRUnit256Mbps:
-		return raw * 256000
-	case nasMessage.SessionAMBRUnit1Gbps:
-		return raw * 1000000
-	case nasMessage.SessionAMBRUnit4Gbps:
-		return raw * 4000000
-	case nasMessage.SessionAMBRUnit16Gbps:
-		return raw * 16000000
-	case nasMessage.SessionAMBRUnit64Gbps:
-		return raw * 64000000
+	case 0x01: // 1 Kbps
+		return v
+	case 0x02: // 4 Kbps
+		return v * 4
+	case 0x03: // 16 Kbps
+		return v * 16
+	case 0x04: // 64 Kbps
+		return v * 64
+	case 0x05: // 256 Kbps
+		return v * 256
+	case 0x06: // 1 Mbps
+		return v * 1000
+	case 0x07: // 4 Mbps
+		return v * 4000
+	case 0x08: // 16 Mbps
+		return v * 16000
+	case 0x09: // 64 Mbps
+		return v * 64000
+	case 0x0A: // 256 Mbps
+		return v * 256000
+	case 0x0B: // 1 Gbps
+		return v * 1000000
+	case 0x0C: // 4 Gbps
+		return v * 4000000
+	case 0x0D: // 16 Gbps
+		return v * 16000000
+	case 0x0E: // 64 Gbps
+		return v * 64000000
 	default:
 		return 0
 	}

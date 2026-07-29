@@ -101,7 +101,7 @@ func runS1ENBFramedRoute(ctx context.Context, env scenarios.Env, imsi, subnet, h
 
 	ue := e.NewUE(imsi, k, opc)
 	if ipv6 {
-		ue.RequestPDNType(eps.PDNTypeIPv6)
+		ue.RequestPDNType(uint8(eps.PDNTypeIPv6))
 	}
 
 	res, err := e.Attach(ue, 15*time.Second)

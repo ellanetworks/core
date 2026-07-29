@@ -5,20 +5,23 @@ package eps
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 	"time"
+
+	"github.com/ellanetworks/core/nas"
 )
 
 func TestSecurityModeRoundTrips(t *testing.T) {
 	t.Run("Command", func(t *testing.T) {
 		in := &SecurityModeCommand{
-			CipheringAlgorithm: 2, IntegrityAlgorithm: 2, NASKeySetIdentifier: 0x07,
-			ReplayedUESecurityCapabilities: []byte{0xf0, 0xf0, 0xc0, 0xc0},
-			IMEISVRequested:                true,
-			HASHMME:                        []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
+			CipheringAlgorithm: 2, IntegrityAlgorithm: 2, NASKeySetIdentifier: nas.NoKeySet,
+			ReplayedUESecurityCapability: UESecurityCapability{EEA: 0xf0, EIA: 0xf0, HasUMTS: true, UEA: 0xc0, UIA: 0xc0},
+			IMEISVRequested:              ptr(true),
+			HASHMME:                      []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
 		}
 
-		b, err := in.Marshal()
+		b, err := in.MarshalBinary()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -28,33 +31,41 @@ func TestSecurityModeRoundTrips(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if out.CipheringAlgorithm != 2 || out.IntegrityAlgorithm != 2 || out.NASKeySetIdentifier != 7 ||
-			!bytes.Equal(out.ReplayedUESecurityCapabilities, in.ReplayedUESecurityCapabilities) ||
-			!out.IMEISVRequested || !bytes.Equal(out.HASHMME, in.HASHMME) {
+		if out.CipheringAlgorithm != 2 || out.IntegrityAlgorithm != 2 || out.NASKeySetIdentifier != nas.NoKeySet ||
+			!out.ReplayedUESecurityCapability.Equal(in.ReplayedUESecurityCapability) ||
+			out.IMEISVRequested == nil || !*out.IMEISVRequested ||
+			!bytes.Equal(out.HASHMME, in.HASHMME) {
 			t.Fatalf("mismatch:\n in  %+v\n out %+v", in, out)
 		}
 	})
 
 	t.Run("Complete", func(t *testing.T) {
-		imeisv := []byte{0x03, 0x53, 0x60, 0x83, 0x12, 0x34, 0x56, 0x78, 0xf0} // IMEISV mobile identity
-		in := &SecurityModeComplete{IMEISV: imeisv}
+		imeisv := MobileIMEISV("3536083123456780")
+		in := &SecurityModeComplete{IMEISV: &imeisv}
 
-		b, _ := in.Marshal()
+		b, _ := in.MarshalBinary()
 
 		out, err := ParseSecurityModeComplete(b)
-		if err != nil || !bytes.Equal(out.IMEISV, imeisv) {
+		if err != nil || out.IMEISV == nil || !reflect.DeepEqual(*out.IMEISV, imeisv) {
 			t.Fatalf("got %+v err %v", out, err)
 		}
 	})
 
 	t.Run("Complete with replayed NAS message container", func(t *testing.T) {
-		imeisv := []byte{0x03, 0x53, 0x60, 0x83, 0x12, 0x34, 0x56, 0x78, 0xf0}
+		imeisv := MobileIMEISV("3536083123456780")
 		replayed := bytes.Repeat([]byte{0xAB}, 300) // exercises the two-octet TLV-E length
-		in := &SecurityModeComplete{IMEISV: imeisv, ReplayedNASMessage: replayed}
+		in := &SecurityModeComplete{IMEISV: &imeisv, ReplayedNASMessageContainer: replayed}
 
-		b, err := in.Marshal()
+		b, err := in.MarshalBinary()
 		if err != nil {
 			t.Fatal(err)
+		}
+
+		// The Replayed NAS message container IE is IEI 0x79 (TS 24.301
+		// table 8.2.21.1), carried as a TLV-E; pin it on the wire so the round-trip
+		// below cannot hide a spec-wrong IEI (both sides would share it otherwise).
+		if !bytes.Contains(b, []byte{0x79, 0x01, 0x2C}) {
+			t.Fatalf("replayed NAS container not encoded under IEI 0x79 with length 300: % x", b)
 		}
 
 		out, err := ParseSecurityModeComplete(b)
@@ -62,13 +73,13 @@ func TestSecurityModeRoundTrips(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if !bytes.Equal(out.IMEISV, imeisv) || !bytes.Equal(out.ReplayedNASMessage, replayed) {
+		if out.IMEISV == nil || !reflect.DeepEqual(*out.IMEISV, imeisv) || !bytes.Equal(out.ReplayedNASMessageContainer, replayed) {
 			t.Fatalf("mismatch:\n in  %+v\n out %+v", in, out)
 		}
 	})
 
 	t.Run("Reject", func(t *testing.T) {
-		b, _ := (&SecurityModeReject{Cause: 24}).Marshal()
+		b, _ := (&SecurityModeReject{Cause: 24}).MarshalBinary()
 
 		out, err := ParseSecurityModeReject(b)
 		if err != nil || out.Cause != 24 {
@@ -80,16 +91,17 @@ func TestSecurityModeRoundTrips(t *testing.T) {
 func TestAttachNetworkRoundTrips(t *testing.T) {
 	t.Run("Accept", func(t *testing.T) {
 		cause := uint8(18) // CS domain not available
+		guti := GUTIIdentity(GUTI{PLMN: nas.PLMN{MCC: "001", MNC: "01"}, MMEGroupID: 2, MMECode: 1, TMSI: [4]byte{0x03, 0x00, 0x03, 0xe6}})
 		in := &AttachAccept{
 			EPSAttachResult:     AttachResultEPS,
-			T3412:               0x23,
-			TAIList:             []byte{0x00, 0x02, 0xf1, 0x10, 0x00, 0x01},
+			T3412:               nas.GPRSTimer2{Unit: nas.GPRSTimer2Unit1Minute, Value: 3},
+			TAIList:             testTAIList(),
 			ESMMessageContainer: []byte{0x02, 0x01, 0xc2},
-			GUTI:                &EPSMobileIdentity{Type: IdentityGUTI, MCC: "001", MNC: "01", MMEGroupID: 2, MMECode: 1, MTMSI: 0x030003e6},
-			EMMCause:            &cause,
+			GUTI:                &guti,
+			Cause:               ptr(EMMCause(cause)),
 		}
 
-		b, err := in.Marshal()
+		b, err := in.MarshalBinary()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -99,10 +111,14 @@ func TestAttachNetworkRoundTrips(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		if out.GUTI == nil {
+			t.Fatal("GUTI absent")
+		}
+
 		if out.EPSAttachResult != in.EPSAttachResult || out.T3412 != in.T3412 ||
-			!bytes.Equal(out.TAIList, in.TAIList) || !bytes.Equal(out.ESMMessageContainer, in.ESMMessageContainer) ||
-			out.GUTI == nil || *out.GUTI != *in.GUTI ||
-			out.EMMCause == nil || *out.EMMCause != *in.EMMCause {
+			!reflect.DeepEqual(out.TAIList, in.TAIList) || !bytes.Equal(out.ESMMessageContainer, in.ESMMessageContainer) ||
+			!reflect.DeepEqual(*out.GUTI, guti) ||
+			out.Cause == nil || *out.Cause != *in.Cause {
 			t.Fatalf("mismatch:\n in  %+v\n out %+v", in, out)
 		}
 	})
@@ -110,7 +126,7 @@ func TestAttachNetworkRoundTrips(t *testing.T) {
 	t.Run("Complete", func(t *testing.T) {
 		in := &AttachComplete{ESMMessageContainer: []byte{0x02, 0x01, 0xc3, 0x00}}
 
-		b, _ := in.Marshal()
+		b, _ := in.MarshalBinary()
 
 		out, err := ParseAttachComplete(b)
 		if err != nil || !bytes.Equal(out.ESMMessageContainer, in.ESMMessageContainer) {
@@ -121,7 +137,7 @@ func TestAttachNetworkRoundTrips(t *testing.T) {
 	t.Run("Reject", func(t *testing.T) {
 		in := &AttachReject{Cause: 11}
 
-		b, _ := in.Marshal()
+		b, _ := in.MarshalBinary()
 
 		out, err := ParseAttachReject(b)
 		if err != nil || out.Cause != 11 {
@@ -130,49 +146,54 @@ func TestAttachNetworkRoundTrips(t *testing.T) {
 	})
 
 	t.Run("RejectWithT3402", func(t *testing.T) {
-		t3402, err := EncodeGPRSTimer(12 * time.Minute)
+		t3402, err := nas.GPRSTimer2FromDuration(12 * time.Minute)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		in := &AttachReject{Cause: 11, T3402: t3402}
+		in := &AttachReject{Cause: 11, T3402: &t3402}
 
-		b, err := in.Marshal()
+		b, err := in.MarshalBinary()
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		out, err := ParseAttachReject(b)
-		if err != nil || out.Cause != 11 || out.T3402 != t3402 {
-			t.Fatalf("T3402 round-trip: got %+v (want cause 11, T3402 %#x), err %v", out, t3402, err)
+		if err != nil || out.Cause != 11 || out.T3402 == nil || *out.T3402 != t3402 {
+			t.Fatalf("T3402 round-trip: got %+v (want cause 11, T3402 %v), err %v", out, t3402, err)
 		}
 
 		// The ATTACH REJECT T3402 is IEI 0x16 "GPRS timer 2", TLV (TS 24.301
 		// §8.2.3.1) — not the ATTACH ACCEPT's IEI 0x17 TV.
-		want := []byte{b[0], b[1], 11, 0x16, 0x01, t3402}
+		octet, err := t3402.MarshalBinary()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		want := []byte{b[0], b[1], 11, 0x16, 0x01, octet[0]}
 		if !bytes.Equal(b, want) {
 			t.Fatalf("ATTACH REJECT T3402 encoding = % x, want % x", b, want)
 		}
 	})
 }
 
-// TestEPSNetworkFeatureSupportRoundTrips checks the EPS network feature support
+// TestNetworkFeatureSupportRoundTrips checks the EPS network feature support
 // IE (TS 24.301) encodes as IEI 0x64, length 1, octet 3 bit 1 for the
 // IMS VoPS indicator and survives a round trip in ATTACH ACCEPT and TRACKING
 // AREA UPDATE ACCEPT.
-func TestEPSNetworkFeatureSupportRoundTrips(t *testing.T) {
+func TestNetworkFeatureSupportRoundTrips(t *testing.T) {
 	wantIE := []byte{0x64, 0x01, 0x01} // IEI, length, IMS VoPS = supported
 
 	t.Run("AttachAccept", func(t *testing.T) {
 		in := &AttachAccept{
-			EPSAttachResult:          AttachResultEPS,
-			T3412:                    0x23,
-			TAIList:                  []byte{0x00, 0x02, 0xf1, 0x10, 0x00, 0x01},
-			ESMMessageContainer:      []byte{0x02, 0x01, 0xc2},
-			EPSNetworkFeatureSupport: &EPSNetworkFeatureSupport{IMSVoPS: true},
+			EPSAttachResult:       AttachResultEPS,
+			T3412:                 nas.GPRSTimer2{Unit: nas.GPRSTimer2Unit1Minute, Value: 3},
+			TAIList:               testTAIList(),
+			ESMMessageContainer:   []byte{0x02, 0x01, 0xc2},
+			NetworkFeatureSupport: &NetworkFeatureSupport{IMSVoPS: true},
 		}
 
-		b, err := in.Marshal()
+		b, err := in.MarshalBinary()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -186,18 +207,18 @@ func TestEPSNetworkFeatureSupportRoundTrips(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if out.EPSNetworkFeatureSupport == nil || !out.EPSNetworkFeatureSupport.IMSVoPS {
-			t.Fatalf("IMS VoPS not decoded: %+v", out.EPSNetworkFeatureSupport)
+		if out.NetworkFeatureSupport == nil || !out.NetworkFeatureSupport.IMSVoPS {
+			t.Fatalf("IMS VoPS not decoded: %+v", out.NetworkFeatureSupport)
 		}
 	})
 
 	t.Run("TrackingAreaUpdateAccept", func(t *testing.T) {
 		in := &TrackingAreaUpdateAccept{
-			EPSUpdateResult:          EPSUpdateResultTA,
-			EPSNetworkFeatureSupport: &EPSNetworkFeatureSupport{IMSVoPS: true},
+			EPSUpdateResult:       EPSUpdateResultTA,
+			NetworkFeatureSupport: &NetworkFeatureSupport{IMSVoPS: true},
 		}
 
-		b, err := in.Marshal()
+		b, err := in.MarshalBinary()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -211,13 +232,13 @@ func TestEPSNetworkFeatureSupportRoundTrips(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if out.EPSNetworkFeatureSupport == nil || !out.EPSNetworkFeatureSupport.IMSVoPS {
-			t.Fatalf("IMS VoPS not decoded: %+v", out.EPSNetworkFeatureSupport)
+		if out.NetworkFeatureSupport == nil || !out.NetworkFeatureSupport.IMSVoPS {
+			t.Fatalf("IMS VoPS not decoded: %+v", out.NetworkFeatureSupport)
 		}
 	})
 
 	t.Run("Absent", func(t *testing.T) {
-		b, err := (&AttachAccept{EPSAttachResult: AttachResultEPS}).Marshal()
+		b, err := (&AttachAccept{EPSAttachResult: AttachResultEPS, TAIList: testTAIList()}).MarshalBinary()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -227,8 +248,8 @@ func TestEPSNetworkFeatureSupportRoundTrips(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if out.EPSNetworkFeatureSupport != nil {
-			t.Fatalf("EPS network feature support should be absent, got %+v", out.EPSNetworkFeatureSupport)
+		if out.NetworkFeatureSupport != nil {
+			t.Fatalf("EPS network feature support should be absent, got %+v", out.NetworkFeatureSupport)
 		}
 	})
 }

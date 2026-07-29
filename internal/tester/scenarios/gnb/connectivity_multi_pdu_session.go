@@ -18,7 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/testutil/validate"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
-	"github.com/free5gc/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/free5gc/openapi/models"
 	"github.com/spf13/pflag"
@@ -155,7 +155,7 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 	newUE, err := ue.NewUE(&ue.UEOpts{
 		GnodeB:         gNodeB,
 		PDUSessionID:   pduSessionID1,
-		PDUSessionType: pduSessionType,
+		PDUSessionType: fgs.PDUSessionType(pduSessionType),
 		Msin:           sub.IMSI[5:],
 		K:              sub.Key,
 		OpC:            sub.OPc,
@@ -208,8 +208,8 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 	}
 
 	err = validate.PDUSessionEstablishmentAccept(pduAccept1, &validate.ExpectedPDUSessionEstablishmentAccept{
-		PDUSessionID:               pduSessionID1,
-		PDUSessionType:             pduSessionType,
+		PDUSessionID:               fgs.PDUSessionID(pduSessionID1),
+		PDUSessionType:             fgs.PDUSessionType(pduSessionType),
 		UeIPSubnet:                 network1,
 		Dnn:                        dnn1,
 		Sst:                        scenarios.DefaultSST,
@@ -249,14 +249,14 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 		return fmt.Errorf("could not send PDU Session Establishment Request for session 2: %v", err)
 	}
 
-	pduAccept2, err := newUE.WaitForNASGSMMessage(nas.MsgTypePDUSessionEstablishmentAccept, 5*time.Second)
+	pduAccept2, err := newUE.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionEstablishmentAccept), 5*time.Second)
 	if err != nil {
 		return fmt.Errorf("did not receive PDU Session Establishment Accept for session 2: %v", err)
 	}
 
 	err = validate.PDUSessionEstablishmentAccept(pduAccept2, &validate.ExpectedPDUSessionEstablishmentAccept{
-		PDUSessionID:               pduSessionID2,
-		PDUSessionType:             pduSessionType,
+		PDUSessionID:               fgs.PDUSessionID(pduSessionID2),
+		PDUSessionType:             fgs.PDUSessionType(pduSessionType),
 		UeIPSubnet:                 network2,
 		Dnn:                        dnn2,
 		Sst:                        slice2SST,

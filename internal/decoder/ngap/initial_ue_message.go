@@ -149,7 +149,7 @@ func buildFiveGSTMSIIE(fivegStmsi ngapType.FiveGSTMSI) FiveGSTMSI {
 	return fiveg
 }
 
-func buildRRCEstablishmentCauseIE(rrc ngapType.RRCEstablishmentCause) utils.EnumField[uint64] {
+func buildRRCEstablishmentCauseIE(rrc ngapType.RRCEstablishmentCause) utils.EnumField {
 	switch rrc.Value {
 	case ngapType.RRCEstablishmentCausePresentEmergency:
 		return utils.MakeEnum(uint64(rrc.Value), "Emergency", false)
@@ -178,7 +178,7 @@ func buildRRCEstablishmentCauseIE(rrc ngapType.RRCEstablishmentCause) utils.Enum
 	}
 }
 
-func buildUEContextRequestIE(ueCtxReq ngapType.UEContextRequest) utils.EnumField[uint64] {
+func buildUEContextRequestIE(ueCtxReq ngapType.UEContextRequest) utils.EnumField {
 	switch ueCtxReq.Value {
 	case ngapType.UEContextRequestPresentRequested:
 		return utils.MakeEnum(uint64(ueCtxReq.Value), "Requested", false)

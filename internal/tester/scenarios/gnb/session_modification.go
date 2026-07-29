@@ -15,7 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/testutil/validate"
-	"github.com/free5gc/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
@@ -234,7 +234,7 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 
 	logger.Logger.Info("gNB received PDUSessionResourceModifyRequest")
 
-	modCmd, err := newUE.WaitForNASGSMMessage(nas.MsgTypePDUSessionModificationCommand, 15*time.Second)
+	modCmd, err := newUE.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionModificationCommand), 15*time.Second)
 	if err != nil {
 		return fmt.Errorf("UE did not receive PDU Session Modification Command: %v", err)
 	}

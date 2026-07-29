@@ -17,7 +17,6 @@ import (
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/free5gc/aper"
-	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap"
 	"github.com/free5gc/ngap/ngapType"
 )
@@ -319,7 +318,7 @@ type PathSwitchRequestFailure struct {
 type PathSwitchRequestAcknowledge struct {
 	AmfUeNgapID                       int64
 	RanUeNgapID                       int64
-	UESecurityCapability              *nasType.UESecurityCapability
+	UESecurityCapability              []byte
 	NCC                               uint8
 	NH                                []byte
 	PDUSessionResourceSwitchedList    ngapType.PDUSessionResourceSwitchedList
@@ -688,25 +687,17 @@ func decodePathSwitchAck(m *ngapType.PathSwitchRequestAcknowledge) *PathSwitchRe
 // ngapUESecCapToNas rebuilds the NAS UE security capability from the NGAP IE the
 // AMF sends in Path Switch Request Acknowledge (TS 33.501, mirrors the AMF's own
 // ngapToNasUESecurityCapability).
-func ngapUESecCapToNas(received *ngapType.UESecurityCapabilities) *nasType.UESecurityCapability {
+func ngapUESecCapToNas(received *ngapType.UESecurityCapabilities) []byte {
 	if received == nil {
 		return nil
 	}
 
-	out := &nasType.UESecurityCapability{}
-	out.SetLen(2)
-
 	encByte := received.NRencryptionAlgorithms.Value.Bytes[0]
 	intByte := received.NRintegrityProtectionAlgorithms.Value.Bytes[0]
 
-	out.SetEA1_128_5G((encByte & 0x80) >> 7)
-	out.SetEA2_128_5G((encByte & 0x40) >> 6)
-	out.SetEA3_128_5G((encByte & 0x20) >> 5)
-	out.SetIA1_128_5G((intByte & 0x80) >> 7)
-	out.SetIA2_128_5G((intByte & 0x40) >> 6)
-	out.SetIA3_128_5G((intByte & 0x20) >> 5)
-
-	return out
+	// The NGAP NR algorithms octet carries 128-NEA1/2/3 in bits 8-6; the NAS 5G-EA
+	// octet carries them in bits 7-5 (bit 8 is EA0), so shift right by one.
+	return []byte{(encByte & 0xe0) >> 1, (intByte & 0xe0) >> 1}
 }
 
 // newTestRadio creates a minimal Radio with a sender, bound to a, so its UEs live

@@ -17,7 +17,7 @@ import (
 type expectedAttach struct {
 	UEIPv4Subnet        netip.Prefix // UE IPv4 must fall inside this subnet (zero value => skip)
 	APN                 string       // Access Point Name in the Activate Default EPS Bearer Context Request (empty => skip)
-	PDNType             uint8        // eps.PDNTypeIPv4 / IPv6 / IPv4v6 (0 => skip)
+	PDNType             eps.PDNType  // eps.PDNTypeIPv4 / IPv6 / IPv4v6 (0 => skip)
 	QCI                 byte         // default bearer QCI, equals the policy 5QI (0 => skip)
 	ARP                 byte         // default bearer ARP priority level, 1-15 (0 => skip)
 	SessAmbrDownlinkBps uint64       // per-APN Session-AMBR downlink, bits/s (0 => skip)
@@ -35,7 +35,7 @@ type expectedAttach struct {
 func familyExpect(env scenarios.Env, apn, ipv4Pool string) expectedAttach {
 	exp := expectedAttach{
 		APN:                 apn,
-		PDNType:             env.PDUSessionType(),
+		PDNType:             eps.PDNType(env.PDUSessionType()),
 		QCI:                 9,
 		SessAmbrDownlinkBps: 100 * mbpsToBps,
 		SessAmbrUplinkBps:   100 * mbpsToBps,
@@ -59,7 +59,7 @@ func defaultExpectedAttach() expectedAttach {
 	return expectedAttach{
 		UEIPv4Subnet:        netip.MustParsePrefix(scenarios.DefaultUEIPv4Pool),
 		APN:                 scenarios.DefaultDNN,
-		PDNType:             eps.PDNTypeIPv4,
+		PDNType:             eps.PDNType(uint8(eps.PDNTypeIPv4)),
 		QCI:                 9,
 		SessAmbrDownlinkBps: 100 * mbpsToBps,
 		SessAmbrUplinkBps:   100 * mbpsToBps,
@@ -83,7 +83,7 @@ func assertAttach(res *s1enb.AttachResult, exp expectedAttach) error {
 	}
 
 	return assertBearer(bearerFields{
-		pdnType: res.PDNType, qci: res.QCI, arp: res.ARP, apn: res.APN, ueIPv4: res.UEIPv4, ueIPv6: res.UEIPv6,
+		pdnType: uint8(res.PDNType), qci: res.QCI, arp: res.ARP, apn: res.APN, ueIPv4: res.UEIPv4, ueIPv6: res.UEIPv6,
 		sessAmbrDLBps: res.SessAmbrDownlinkBps, sessAmbrULBps: res.SessAmbrUplinkBps,
 	}, exp)
 }
@@ -91,7 +91,7 @@ func assertAttach(res *s1enb.AttachResult, exp expectedAttach) error {
 // A secondary PDN carries no GUTI, so exp.RequireGUTI is ignored here.
 func assertPDN(pdn *s1enb.PDNResult, exp expectedAttach) error {
 	return assertBearer(bearerFields{
-		pdnType: pdn.PDNType, qci: pdn.QCI, arp: pdn.ARP, apn: pdn.APN, ueIPv4: pdn.UEIPv4,
+		pdnType: uint8(pdn.PDNType), qci: pdn.QCI, arp: pdn.ARP, apn: pdn.APN, ueIPv4: pdn.UEIPv4,
 		sessAmbrDLBps: pdn.SessAmbrDownlinkBps, sessAmbrULBps: pdn.SessAmbrUplinkBps,
 	}, exp)
 }
@@ -107,7 +107,7 @@ type bearerFields struct {
 }
 
 func assertBearer(b bearerFields, exp expectedAttach) error {
-	if exp.PDNType != 0 && b.pdnType != exp.PDNType {
+	if exp.PDNType != 0 && eps.PDNType(b.pdnType) != exp.PDNType {
 		return fmt.Errorf("bearer: PDN type = %d, want %d", b.pdnType, exp.PDNType)
 	}
 

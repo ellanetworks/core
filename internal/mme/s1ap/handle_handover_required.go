@@ -8,7 +8,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
-	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -115,10 +114,7 @@ func handoverUEAMBR(ue *mme.UeContext) s1ap.UEAggregateMaximumBitRate {
 }
 
 func handoverSecurityCapabilities(ue *mme.UeContext) s1ap.UESecurityCapabilities {
-	uecap, err := eps.ParseUENetworkCapability(ue.UeNetCap())
-	if err != nil {
-		return s1ap.UESecurityCapabilities{}
-	}
+	uecap := ue.UeNetCap()
 
 	return mme.S1apSecurityCapabilities(uecap)
 }

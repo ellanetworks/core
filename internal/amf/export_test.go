@@ -13,7 +13,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas/security"
+	"github.com/ellanetworks/core/nas"
 	"go.uber.org/zap"
 )
 
@@ -192,8 +192,8 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 		ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
 		ue.ForceStateForTest(amf.Registered)
 		ue.SetSecuredForTest(true)
-		ue.SetCipheringAlgForTest(security.AlgCiphering128NEA2)
-		ue.SetIntegrityAlgForTest(security.AlgIntegrity128NIA2)
+		ue.SetCipheringAlgForTest(nas.CipheringAES)
+		ue.SetIntegrityAlgForTest(nas.IntegrityAES)
 		ue.SetNgKsiForTest(models.NgKsi{Ksi: 1})
 		ue.Location = models.UserLocation{
 			NrLocation: &models.NrLocation{

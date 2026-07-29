@@ -6,13 +6,12 @@ package nas
 import (
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/nas/nasConvert"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type PDUSessionCause struct {
-	PDUSessionID uint8                  `json:"pdu_session_id"`
-	Cause        utils.EnumField[uint8] `json:"cause"`
+	PDUSessionID uint8           `json:"pdu_session_id"`
+	Cause        utils.EnumField `json:"cause"`
 }
 
 type PDUSessionReactivateResultPDU struct {
@@ -21,91 +20,61 @@ type PDUSessionReactivateResultPDU struct {
 }
 
 type ServiceAccept struct {
-	ExtendedProtocolDiscriminator          uint8                           `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType    uint8                           `json:"spare_half_octet_and_security_header_type"`
 	PDUSessionStatus                       []PDUSessionStatusPDU           `json:"pdu_session_status,omitempty"`
 	PDUSessionReactivationResult           []PDUSessionReactivateResultPDU `json:"pdu_session_reactivation_result,omitempty"`
 	PDUSessionReactivationResultErrorCause []PDUSessionCause               `json:"pdu_session_reactivation_result_error_cause,omitempty"`
 	EAPMessage                             []byte                          `json:"eap_message,omitempty"`
 }
 
-func buildServiceAccept(msg *nasMessage.ServiceAccept) *ServiceAccept {
-	if msg == nil {
-		return nil
-	}
-
-	serviceAccept := &ServiceAccept{
-		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
-		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
+func buildServiceAccept(msg *fgs.ServiceAccept) *ServiceAccept {
+	out := &ServiceAccept{
+		EAPMessage: msg.EAP,
 	}
 
 	if msg.PDUSessionStatus != nil {
-		pduSessionStatus := []PDUSessionStatusPDU{}
-
-		psiArray := nasConvert.PSIToBooleanArray(msg.PDUSessionStatus.Buffer)
-		for pduSessionID, isActive := range psiArray {
-			pduSessionStatus = append(pduSessionStatus, PDUSessionStatusPDU{
-				PDUSessionID: pduSessionID,
-				Active:       isActive,
-			})
-		}
-
-		serviceAccept.PDUSessionStatus = pduSessionStatus
+		out.PDUSessionStatus = decodePDUSessionStatus(msg.PDUSessionStatus)
 	}
 
 	if msg.PDUSessionReactivationResult != nil {
-		pduSessionReactivationResult := []PDUSessionReactivateResultPDU{}
+		psi := msg.PDUSessionReactivationResult.PSI
+		rr := []PDUSessionReactivateResultPDU{}
 
-		psiArray := nasConvert.PSIToBooleanArray(msg.PDUSessionReactivationResult.Buffer)
-		for pduSessionID, isActive := range psiArray {
-			pduSessionReactivationResult = append(pduSessionReactivationResult, PDUSessionReactivateResultPDU{
-				PDUSessionID: pduSessionID,
-				Active:       isActive,
-			})
+		for i := range 16 {
+			rr = append(rr, PDUSessionReactivateResultPDU{PDUSessionID: i, Active: psi[i]})
 		}
 
-		serviceAccept.PDUSessionReactivationResult = pduSessionReactivationResult
+		out.PDUSessionReactivationResult = rr
 	}
 
-	if msg.PDUSessionReactivationResultErrorCause != nil {
-		pduSessionIDAndCause := msg.GetPDUSessionIDAndCauseValue()
-
-		pduSessionIDs, causes := bufToPDUSessionReactivationResultErrorCause(pduSessionIDAndCause)
+	if msg.ReactivationResultErrorCause != nil {
+		pduSessionIDs, causes := bufToPDUSessionReactivationResultErrorCause(msg.ReactivationResultErrorCause)
 		if len(pduSessionIDs) != len(causes) {
 			logger.EllaLog.Warn("PDUSessionReactivationResultErrorCause: invalid length")
 		} else {
 			var pduSessionCauses []PDUSessionCause
+
 			for i := range pduSessionIDs {
 				pduSessionCauses = append(pduSessionCauses, PDUSessionCause{
 					PDUSessionID: pduSessionIDs[i],
-					Cause:        cause5GMMToEnum(causes[i]),
+					Cause:        cause5GMMToEnum(fgs.GMMCause(causes[i])),
 				})
 			}
 
-			serviceAccept.PDUSessionReactivationResultErrorCause = pduSessionCauses
+			out.PDUSessionReactivationResultErrorCause = pduSessionCauses
 		}
 	}
 
-	if msg.EAPMessage != nil {
-		serviceAccept.EAPMessage = msg.GetEAPMessage()
-	}
-
-	return serviceAccept
+	return out
 }
 
-func bufToPDUSessionReactivationResultErrorCause(buf []uint8) (errPduSessionId, errCause []uint8) {
-	if len(buf)%2 != 0 {
-		return nil, nil
+func bufToPDUSessionReactivationResultErrorCause(errs fgs.ReactivationResultErrorCause) (errPduSessionID, errCause []uint8) {
+	errPduSessionID = make([]uint8, 0, len(errs))
+	errCause = make([]uint8, 0, len(errs))
+
+	for _, e := range errs {
+		errPduSessionID = append(errPduSessionID, uint8(e.PDUSessionID))
+		errCause = append(errCause, uint8(e.Cause))
 	}
 
-	n := len(buf) / 2
-	errPduSessionId = make([]uint8, 0, n)
-	errCause = make([]uint8, 0, n)
-
-	for i := 0; i < len(buf); i += 2 {
-		errPduSessionId = append(errPduSessionId, buf[i])
-		errCause = append(errCause, buf[i+1])
-	}
-
-	return
+	return errPduSessionID, errCause
 }

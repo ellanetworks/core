@@ -18,11 +18,11 @@ type NGAPMessageValue struct {
 }
 
 type NGAPMessage struct {
-	Summary       string                  `json:"summary,omitempty"`
-	PDUType       string                  `json:"pdu_type"`
-	ProcedureCode utils.EnumField[int64]  `json:"procedure_code"`
-	Criticality   utils.EnumField[uint64] `json:"criticality"`
-	Value         NGAPMessageValue        `json:"value"`
+	Summary       string           `json:"summary,omitempty"`
+	PDUType       string           `json:"pdu_type"`
+	ProcedureCode utils.EnumField  `json:"procedure_code"`
+	Criticality   utils.EnumField  `json:"criticality"`
+	Value         NGAPMessageValue `json:"value"`
 }
 
 func DecodeNGAPMessage(raw []byte) NGAPMessage {
@@ -102,7 +102,7 @@ func buildNGAPSummary(msg NGAPMessage) string {
 				summary += ", NRPPa=" + nrppaPdu.Decoded.Kind.Label
 			}
 		case "Cause":
-			if causeEnum, ok := ie.Value.(utils.EnumField[uint64]); ok {
+			if causeEnum, ok := ie.Value.(utils.EnumField); ok {
 				summary += ", Cause=" + causeEnum.Label
 			}
 		}

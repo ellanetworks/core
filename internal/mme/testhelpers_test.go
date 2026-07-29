@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/sctp"
-	nascommon "github.com/ellanetworks/core/nas/common"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -40,7 +40,7 @@ func mobileIdentityDigits(b []byte) string {
 		return ""
 	}
 
-	return string([]byte{'0' + (b[0] >> 4)}) + nascommon.DecodeTBCD(b[1:])
+	return string([]byte{'0' + (b[0] >> 4)}) + nas.DecodeTBCD(b[1:])
 }
 
 // decodeDownlinkNAS extracts the NAS PDU from an S1AP Downlink NAS Transport.

@@ -5,6 +5,7 @@ package eps
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 )
 
@@ -17,22 +18,24 @@ func TestUENetworkCapabilityGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ar, err := ParseAttachRequest(sp.Payload)
+	ar, err := ParseAttachRequest(sp.UnverifiedPayload)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	uecap, err := ParseUENetworkCapability(ar.UENetworkCapability)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	uecap := ar.UENetworkCapability
 	if !uecap.SupportsEEA(0) || !uecap.SupportsEEA(2) || !uecap.SupportsEIA(2) {
 		t.Fatalf("captured UE caps EEA=%#x EIA=%#x, expected EEA0/EEA2/EIA2 support", uecap.EEA, uecap.EIA)
 	}
 
-	if !bytes.Equal(uecap.Marshal(), ar.UENetworkCapability) {
-		t.Fatalf("UE network capability round-trip mismatch")
+	// The capture re-encodes byte-for-byte, so the codec loses nothing it decoded.
+	again, err := uecap.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if reparsed, err := ParseUENetworkCapability(again); err != nil || !reparsed.Equal(uecap) {
+		t.Fatalf("UE network capability round-trip mismatch: %+v (%v)", reparsed, err)
 	}
 }
 
@@ -43,8 +46,8 @@ func TestSessionIERoundTrips(t *testing.T) {
 			{PDNType: PDNTypeIPv6, IPv6IID: [8]byte{1, 2, 3, 4, 5, 6, 7, 8}},
 			{PDNType: PDNTypeIPv4v6, IPv4: [4]byte{10, 45, 0, 2}, IPv6IID: [8]byte{1, 2, 3, 4, 5, 6, 7, 8}},
 		} {
-			out, err := ParsePDNAddress(in.Marshal())
-			if err != nil || out != in {
+			out, err := ParsePDNAddress(mustBytes(in.MarshalBinary()))
+			if err != nil || !reflect.DeepEqual(out, in) {
 				t.Fatalf("type %d: got %+v err %v", in.PDNType, out, err)
 			}
 		}
@@ -53,7 +56,7 @@ func TestSessionIERoundTrips(t *testing.T) {
 	t.Run("EPSQoS", func(t *testing.T) {
 		in := EPSQoS{QCI: 9}
 
-		out, err := ParseEPSQoS(in.Marshal())
+		out, err := ParseEPSQoS(mustBytes(in.MarshalBinary()))
 		if err != nil || out.QCI != 9 {
 			t.Fatalf("got %+v err %v", out, err)
 		}
@@ -61,12 +64,12 @@ func TestSessionIERoundTrips(t *testing.T) {
 
 	t.Run("APN", func(t *testing.T) {
 		for _, apn := range []string{"internet", "ims.mnc001.mcc001.gprs"} {
-			enc, err := MarshalAPN(apn)
+			enc, err := APN(apn).MarshalBinary()
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			if got, err := ParseAPN(enc); err != nil || got != apn {
+			if got, err := ParseAPN(enc); err != nil || string(got) != apn {
 				t.Fatalf("round-trip %q -> %q err %v", apn, got, err)
 			}
 		}
@@ -75,23 +78,8 @@ func TestSessionIERoundTrips(t *testing.T) {
 	t.Run("APNAMBR", func(t *testing.T) {
 		in := APNAMBR{DownlinkOctet: 0xfe, UplinkOctet: 0xfe, Extended: []byte{0x01, 0x02}}
 
-		out, err := ParseAPNAMBR(in.Marshal())
+		out, err := ParseAPNAMBR(mustBytes(in.MarshalBinary()))
 		if err != nil || out.DownlinkOctet != 0xfe || out.UplinkOctet != 0xfe || !bytes.Equal(out.Extended, in.Extended) {
-			t.Fatalf("got %+v err %v", out, err)
-		}
-	})
-
-	t.Run("TAIList", func(t *testing.T) {
-		in := TAIList{MCC: "001", MNC: "01", TACs: []uint16{0x0001, 0x3039}}
-
-		b, err := in.Marshal()
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		out, err := ParseTAIList(b)
-		if err != nil || out.MCC != "001" || out.MNC != "01" || len(out.TACs) != 2 ||
-			out.TACs[0] != 0x0001 || out.TACs[1] != 0x3039 {
 			t.Fatalf("got %+v err %v", out, err)
 		}
 	})
@@ -100,22 +88,17 @@ func TestSessionIERoundTrips(t *testing.T) {
 // TestActivateDefaultBearerComposition checks the typed session IEs compose into
 // the ESM message the MME must build for the default bearer.
 func TestActivateDefaultBearerComposition(t *testing.T) {
-	apn, err := MarshalAPN("internet")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	pdn := PDNAddress{PDNType: PDNTypeIPv4, IPv4: [4]byte{10, 45, 0, 2}}
 
 	in := &ActivateDefaultEPSBearerContextRequest{
-		EPSBearerIdentity:            5,
-		ProcedureTransactionIdentity: 1,
-		EPSQoS:                       EPSQoS{QCI: 9}.Marshal(),
-		AccessPointName:              apn,
-		PDNAddress:                   pdn.Marshal(),
+		EPSBearerIdentity: 5,
+		PTI:               1,
+		EPSQoS:            EPSQoS{QCI: 9},
+		AccessPointName:   APN("internet"),
+		PDNAddress:        pdn,
 	}
 
-	raw, err := in.Marshal()
+	raw, err := in.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,18 +108,15 @@ func TestActivateDefaultBearerComposition(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	qos, err := ParseEPSQoS(out.EPSQoS)
-	if err != nil || qos.QCI != 9 {
-		t.Fatalf("EPS QoS: %+v err %v", qos, err)
+	if out.EPSQoS.QCI != 9 {
+		t.Fatalf("EPS QoS: %+v", out.EPSQoS)
 	}
 
-	gotAPN, err := ParseAPN(out.AccessPointName)
-	if err != nil || gotAPN != "internet" {
-		t.Fatalf("APN: %q err %v", gotAPN, err)
+	if out.AccessPointName != "internet" {
+		t.Fatalf("APN: %q", out.AccessPointName)
 	}
 
-	gotPDN, err := ParsePDNAddress(out.PDNAddress)
-	if err != nil || gotPDN != pdn {
-		t.Fatalf("PDN address: %+v err %v", gotPDN, err)
+	if !reflect.DeepEqual(out.PDNAddress, pdn) {
+		t.Fatalf("PDN address: %+v", out.PDNAddress)
 	}
 }

@@ -9,18 +9,12 @@ import (
 
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-func esmStatus(t *testing.T, ebi, pti, cause uint8) []byte {
-	t.Helper()
-
-	b, err := (&eps.ESMStatus{EPSBearerIdentity: ebi, ProcedureTransactionIdentity: pti, ESMCause: cause}).Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	return b
+func esmStatus(_ *testing.T, ebi eps.EPSBearerIdentity, pti nas.ProcedureTransactionIdentity, cause eps.ESMCause) *eps.ESMStatus {
+	return &eps.ESMStatus{EPSBearerIdentity: ebi, PTI: pti, Cause: cause}
 }
 
 // TS 24.301 §6.7: cause #43 deactivates the named bearer; for the default bearer that
@@ -30,7 +24,7 @@ func TestESMStatus_InvalidEPSBearerIdentityOnDefaultBearerDetaches(t *testing.T)
 	ue, _ := securedUE(t, m)
 	testPDN(ue)
 
-	d := handleESMStatus(context.Background(), m, ue, esmStatus(t, mme.DefaultERABID, 0, esmCauseInvalidEPSBearerIdentity))
+	d := handleESMStatus(context.Background(), m, ue, esmStatus(t, eps.EPSBearerIdentity(mme.DefaultERABID), 0, eps.ESMCauseInvalidEPSBearerIdentity))
 
 	if d.Action != nasreply.ActionHandled {
 		t.Fatalf("disposition = %+v, want handled", d)
@@ -52,7 +46,7 @@ func TestESMStatus_InvalidEPSBearerIdentityOnAdditionalPDNReleasesOnlyThatPDN(t 
 	testPDN(ue)
 	ue.EnsurePDN(6)
 
-	handleESMStatus(context.Background(), m, ue, esmStatus(t, 6, 0, esmCauseInvalidEPSBearerIdentity))
+	handleESMStatus(context.Background(), m, ue, esmStatus(t, 6, 0, eps.ESMCauseInvalidEPSBearerIdentity))
 
 	if _, ok := ue.Pdns[6]; ok {
 		t.Fatal("additional PDN retained after ESM STATUS #43 named its bearer, want it released")
@@ -73,7 +67,7 @@ func TestESMStatus_UnknownEPSBearerIdentityIgnored(t *testing.T) {
 	ue, _ := securedUE(t, m)
 	testPDN(ue)
 
-	d := handleESMStatus(context.Background(), m, ue, esmStatus(t, 9, 1, esmCauseInvalidEPSBearerIdentity))
+	d := handleESMStatus(context.Background(), m, ue, esmStatus(t, 9, 1, eps.ESMCauseInvalidEPSBearerIdentity))
 
 	if d.Action != nasreply.ActionSilent || d.Reason != nasreply.ReasonNoContext {
 		t.Fatalf("disposition = %+v, want a silent discard for an EPS bearer identity with no context", d)
@@ -91,7 +85,7 @@ func TestESMStatus_ReservedPTIIgnored(t *testing.T) {
 	ue, _ := securedUE(t, m)
 	testPDN(ue)
 
-	d := handleESMStatus(context.Background(), m, ue, esmStatus(t, mme.DefaultERABID, esmPTIReserved, esmCauseInvalidEPSBearerIdentity))
+	d := handleESMStatus(context.Background(), m, ue, esmStatus(t, eps.EPSBearerIdentity(mme.DefaultERABID), nas.PTIReserved, eps.ESMCauseInvalidEPSBearerIdentity))
 
 	if d.Action != nasreply.ActionSilent || d.Reason != nasreply.ReasonOutOfState {
 		t.Fatalf("disposition = %+v, want a silent discard for a reserved PTI", d)
@@ -111,13 +105,13 @@ func TestESMStatus_AbortingAnInFlightDeactivationReleasesPDN(t *testing.T) {
 	testPDN(ue)
 	p := ue.EnsurePDN(6)
 
-	m.DisconnectBearer(context.Background(), ue, p, esmCauseRegularDeactivation, 3)
+	m.DisconnectBearer(context.Background(), ue, p, eps.ESMCauseRegularDeactivation, 3)
 
 	if !ue.BearerDeactivating(p) {
 		t.Fatal("deactivation not in flight after DisconnectBearer")
 	}
 
-	d := handleESMStatus(context.Background(), m, ue, esmStatus(t, 6, 3, nasreply.CauseMessageTypeNotImplemented))
+	d := handleESMStatus(context.Background(), m, ue, esmStatus(t, 6, 3, eps.ESMCause(nasreply.CauseMessageTypeNotImplemented)))
 
 	if d.Action != nasreply.ActionHandled {
 		t.Fatalf("disposition = %+v, want handled", d)
@@ -141,7 +135,7 @@ func TestESMStatus_UnrelatedCauseKeepsPDNAndClearsPendingModify(t *testing.T) {
 	p.Modifying = true
 	p.PendingQCI = 7
 
-	handleESMStatus(context.Background(), m, ue, esmStatus(t, mme.DefaultERABID, 0, nasreply.CauseProtocolErrorUnspecified))
+	handleESMStatus(context.Background(), m, ue, esmStatus(t, eps.EPSBearerIdentity(mme.DefaultERABID), 0, eps.ESMCause(nasreply.CauseProtocolErrorUnspecified)))
 
 	if got := ue.PDNCount(); got != 1 {
 		t.Fatalf("PDNCount = %d after ESM STATUS #111 with no procedure in flight, want 1", got)

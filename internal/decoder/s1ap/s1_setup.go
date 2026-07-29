@@ -14,8 +14,8 @@ import (
 // ENBID is the decoded eNB identity (TS 36.413 §9.2.1.37): the choice kind and
 // its numeric value.
 type ENBID struct {
-	Kind  utils.EnumField[uint64] `json:"kind"`
-	Value uint32                  `json:"value"`
+	Kind  utils.EnumField `json:"kind"`
+	Value uint32          `json:"value"`
 }
 
 type GlobalENBID struct {
@@ -37,11 +37,11 @@ type ServedGUMMEI struct {
 // Cause is the decoded S1AP cause (TS 36.413 §9.2.1.3): the CHOICE group and the
 // named value within that group.
 type Cause struct {
-	Group utils.EnumField[uint64] `json:"group"`
-	Value utils.EnumField[int64]  `json:"value"`
+	Group utils.EnumField `json:"group"`
+	Value utils.EnumField `json:"value"`
 }
 
-func enbIDKind(kind s1ap.ENBIDKind) utils.EnumField[uint64] {
+func enbIDKind(kind s1ap.ENBIDKind) utils.EnumField {
 	switch kind {
 	case s1ap.ENBIDMacro:
 		return utils.MakeEnum(uint64(kind), "macro", false)
@@ -78,7 +78,7 @@ func supportedTAs(tas s1ap.SupportedTAs) []SupportedTA {
 	return out
 }
 
-func pagingDRXToEnum(d s1ap.PagingDRX) utils.EnumField[uint64] {
+func pagingDRXToEnum(d s1ap.PagingDRX) utils.EnumField {
 	switch d {
 	case s1ap.PagingDRXv32:
 		return utils.MakeEnum(uint64(d), "v32", false)
@@ -93,7 +93,7 @@ func pagingDRXToEnum(d s1ap.PagingDRX) utils.EnumField[uint64] {
 	}
 }
 
-func timeToWaitToEnum(t s1ap.TimeToWait) utils.EnumField[uint64] {
+func timeToWaitToEnum(t s1ap.TimeToWait) utils.EnumField {
 	names := map[s1ap.TimeToWait]string{
 		s1ap.TimeToWaitV1s:  "v1s",
 		s1ap.TimeToWaitV2s:  "v2s",
@@ -108,7 +108,7 @@ func timeToWaitToEnum(t s1ap.TimeToWait) utils.EnumField[uint64] {
 	return utils.MakeEnum(uint64(t), name, !ok)
 }
 
-func causeGroupToEnum(g s1ap.CauseGroup) utils.EnumField[uint64] {
+func causeGroupToEnum(g s1ap.CauseGroup) utils.EnumField {
 	switch g {
 	case s1ap.CauseGroupRadioNetwork:
 		return utils.MakeEnum(uint64(g), "radioNetwork", false)
