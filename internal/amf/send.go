@@ -233,7 +233,7 @@ func SendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn) 
 
 	conn := amfUe.Conn()
 	armNASGuard(conn, ue, amfInstance.NASGuardCfg, "T3560 (Security Mode Command)", nasMsg, func() {
-		conn.Parent().EndKeyChainProc(procedure.SecurityMode)
+		amfUe.EndKeyChainProc(procedure.SecurityMode)
 		amfInstance.DeregisterAndRemoveUeContext(context.Background(), amfUe)
 	})
 

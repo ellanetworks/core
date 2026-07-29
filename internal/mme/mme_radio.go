@@ -171,6 +171,12 @@ func nodeLog(s *Radio, conn *sctp.SCTPConn) *zap.Logger {
 // (TS 36.413 §8.4.1). When a re-associating eNB claims an ID still held by a different
 // live association, the stale one is evicted and torn down so the ID resolves to the
 // current association and a handover cannot target a dead eNB.
+//
+// UE contexts are released on both the stale association and radio itself: S1
+// Setup re-initialises the S1AP UE-related contexts unless the two nodes agree to
+// retain them (TS 36.413 §8.7.3.1), and Ella Core never offers UE retention. An
+// eNB repeating S1 Setup on its existing association — what an SCTP restart
+// produces — would otherwise keep UEs the eNB has already forgotten.
 func (m *MME) ClaimENBID(radio *Radio, g s1ap.GlobalENBID) {
 	id := ENBID(g)
 
@@ -188,11 +194,15 @@ func (m *MME) ClaimENBID(radio *Radio, g s1ap.GlobalENBID) {
 	m.radiosByID[id] = radio
 	m.mu.Unlock()
 
+	m.ReclaimConns(m.ConnsOnConn(radio.Conn), "S1 Setup")
+
 	if stale != nil {
 		m.reclaimUEsOnConnLoss(stale)
 
 		if sc, ok := stale.(*sctp.SCTPConn); ok {
-			_ = sc.Close()
+			// Aborted, not shut down: the incumbent has been superseded and a
+			// graceful close would stall this S1 Setup until it times out.
+			_ = sc.Abort()
 		}
 	}
 }

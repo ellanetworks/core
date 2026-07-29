@@ -78,8 +78,8 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	// A UE-initiated registration aborts an in-flight security mode or N2 handover
 	// (TS 24.501); the registration is tracked by the 5GMM state, not a procedure entry.
 	for _, t := range []procedure.Type{procedure.SecurityMode, procedure.N2Handover} {
-		if conn.Parent().Procedures().Active(t) {
-			_ = conn.Parent().Procedures().Cancel(ctx, t)
+		if ue.Procedures().Active(t) {
+			_ = ue.Procedures().Cancel(ctx, t)
 		}
 	}
 

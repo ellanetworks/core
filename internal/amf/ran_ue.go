@@ -200,6 +200,14 @@ func (amf *AMF) SetRadioForTest(conn NGAPWriter, r *Radio) {
 	amf.radios[conn] = r
 }
 
+// CountUeConnsForTest reports the number of UE-associated NGAP connections.
+func (amf *AMF) CountUeConnsForTest() int {
+	amf.mu.RLock()
+	defer amf.mu.RUnlock()
+
+	return len(amf.conns)
+}
+
 // ClearRadiosForTest empties the radio index, for tests that assert on no radios.
 func (amf *AMF) ClearRadiosForTest() {
 	amf.mu.Lock()

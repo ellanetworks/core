@@ -281,6 +281,16 @@ func (r *Radio) Close() error {
 	return nil
 }
 
+// Abort tears the association down without the shutdown handshake; a no-op for a
+// non-SCTP writer.
+func (r *Radio) Abort() error {
+	if conn, ok := r.Conn.(*sctp.SCTPConn); ok {
+		return conn.Abort()
+	}
+
+	return nil
+}
+
 // NodeID returns the RAN node identifier string regardless of radio type.
 func (r *Radio) NodeID() string {
 	if r.RanID == nil {

@@ -31,7 +31,7 @@ func skipIfNoSCTP(t *testing.T) {
 }
 
 // newTestListener starts an SCTP listener on 127.0.0.1:port and registers cleanup.
-func newTestListener(t *testing.T, port int) *SCTPListener {
+func newTestListener(t *testing.T, port int) *sctpListener {
 	t.Helper()
 
 	netAddr, err := net.ResolveIPAddr("ip", "127.0.0.1")
@@ -39,7 +39,7 @@ func newTestListener(t *testing.T, port int) *SCTPListener {
 		t.Fatal(err)
 	}
 
-	cfg := SocketConfig{
+	cfg := socketConfig{
 		InitMsg: InitMsg{NumOstreams: 2, MaxInstreams: 5, MaxAttempts: 2, MaxInitTimeout: 2},
 	}
 
@@ -81,7 +81,7 @@ func connectLoopback(port int) (int, error) {
 
 // acceptOne connects a raw SCTP client to ln and returns the accepted
 // server-side connection. The client fd is closed via t.Cleanup.
-func acceptOne(t *testing.T, ln *SCTPListener, port int) *SCTPConn {
+func acceptOne(t *testing.T, ln *sctpListener, port int) *SCTPConn {
 	t.Helper()
 
 	connCh := make(chan *SCTPConn, 1)
@@ -177,7 +177,7 @@ func TestSendReceive(t *testing.T) {
 			return
 		}
 
-		client := NewSCTPConn(fd)
+		client := newSCTPConn(fd)
 
 		defer func() { _ = client.Close() }()
 
@@ -198,9 +198,9 @@ func TestSendReceive(t *testing.T) {
 
 	buf := make([]byte, 256)
 
-	nr, _, _, err := serverConn.ReadMsg(buf)
+	nr, _, _, err := serverConn.readMsg(buf)
 	if err != nil {
-		t.Fatalf("ReadMsg: %v", err)
+		t.Fatalf("readMsg: %v", err)
 	}
 
 	if got := string(buf[:nr]); got != string(want) {
@@ -355,7 +355,7 @@ func TestListenerClose_UnblocksAccept(t *testing.T) {
 	}
 }
 
-// TestReadMsg_ClosedConn verifies that ReadMsg on an already-closed connection
+// TestReadMsg_ClosedConn verifies that readMsg on an already-closed connection
 // returns an error. The serveConn loop relies on this to exit cleanly when
 // Shutdown closes connections.
 func TestReadMsg_ClosedConn(t *testing.T) {
@@ -373,9 +373,9 @@ func TestReadMsg_ClosedConn(t *testing.T) {
 	buf := make([]byte, 128)
 
 	//nolint:dogsled // we only care about the error
-	_, _, _, err := conn.ReadMsg(buf)
+	_, _, _, err := conn.readMsg(buf)
 	if err == nil {
-		t.Fatal("ReadMsg on closed conn returned nil error, want error")
+		t.Fatal("readMsg on closed conn returned nil error, want error")
 	}
 }
 
@@ -401,7 +401,7 @@ func TestWriteMsg_ClosedConn(t *testing.T) {
 }
 
 // TestConcurrentReadAndClose verifies that Close unblocks a goroutine blocked
-// in ReadMsg. This is the critical shutdown path: serveConn blocks in ReadMsg
+// in readMsg. This is the critical shutdown path: serveConn blocks in readMsg
 // while Shutdown calls Close on the connection.
 func TestConcurrentReadAndClose(t *testing.T) {
 	skipIfNoSCTP(t)
@@ -411,17 +411,17 @@ func TestConcurrentReadAndClose(t *testing.T) {
 	ln := newTestListener(t, port)
 	conn := acceptOne(t, ln, port)
 
-	// Block in ReadMsg — the peer is idle so this will park.
+	// Block in readMsg — the peer is idle so this will park.
 	readDone := make(chan error, 1)
 
 	go func() {
 		buf := make([]byte, 128)
 
-		_, _, _, err := conn.ReadMsg(buf)
+		_, _, _, err := conn.readMsg(buf)
 		readDone <- err
 	}()
 
-	// Give the goroutine time to enter ReadMsg and park.
+	// Give the goroutine time to enter readMsg and park.
 	time.Sleep(50 * time.Millisecond)
 
 	if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
@@ -431,10 +431,10 @@ func TestConcurrentReadAndClose(t *testing.T) {
 	select {
 	case err := <-readDone:
 		if err == nil {
-			t.Error("ReadMsg returned nil error after Close, want error")
+			t.Error("readMsg returned nil error after Close, want error")
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("ReadMsg did not unblock within 5s after Close (shutdown hang)")
+		t.Fatal("readMsg did not unblock within 5s after Close (shutdown hang)")
 	}
 }
 

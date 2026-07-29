@@ -27,18 +27,19 @@ import (
 	"net"
 	"os"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
 
-func setsockopt(fd int, optname, optval, optlen uintptr) error {
+func setsockopt(fd int, optname uintptr, optval unsafe.Pointer, optlen uintptr) error {
 	_, _, errno := syscall.Syscall6(syscall.SYS_SETSOCKOPT,
 		uintptr(fd),
-		SolSCTP,
+		solSCTP,
 		optname,
-		optval,
+		uintptr(optval),
 		optlen,
 		0)
 	if errno != 0 {
@@ -48,13 +49,13 @@ func setsockopt(fd int, optname, optval, optlen uintptr) error {
 	return nil
 }
 
-func getsockopt(fd int, optname, optval, optlen uintptr) error {
+func getsockopt(fd int, optname uintptr, optval, optlen unsafe.Pointer) error {
 	_, _, errno := syscall.Syscall6(syscall.SYS_GETSOCKOPT,
 		uintptr(fd),
-		SolSCTP,
+		solSCTP,
 		optname,
-		optval,
-		optlen,
+		uintptr(optval),
+		uintptr(optlen),
 		0)
 	if errno != 0 {
 		return errno
@@ -84,10 +85,8 @@ func (r listenRawConn) Write(func(fd uintptr) (done bool)) error {
 	return fmt.Errorf("sctp: Write not supported on a listener control connection")
 }
 
-// WriteMsg sends data with optional SCTP ancillary info. Uses Go's runtime
-// poller: the goroutine parks efficiently when the socket is not ready for
-// writing, rather than pinning an OS thread.
-func (c *SCTPConn) WriteMsg(b []byte, info *SndRcvInfo) (int, error) {
+// On an accepted association only the writer goroutine calls writeMsgSync.
+func (c *SCTPConn) writeMsgSync(b []byte, info *SndRcvInfo) (int, error) {
 	if c.rc == nil {
 		return 0, syscall.EBADF
 	}
@@ -98,9 +97,11 @@ func (c *SCTPConn) WriteMsg(b []byte, info *SndRcvInfo) (int, error) {
 		cmsgBuf := toBuf(info)
 		hdr := &syscall.Cmsghdr{
 			Level: syscall.IPPROTO_SCTP,
-			Type:  SCTPCMsgSndRcv,
+			Type:  sctpCMsgSndRcv,
 		}
-		hdr.SetLen(syscall.CmsgSpace(len(cmsgBuf)))
+		// The kernel requires exactly CMSG_LEN; CmsgSpace rounds up and would be
+		// rejected for any payload size that is not already alignment-sized.
+		hdr.SetLen(syscall.CmsgLen(len(cmsgBuf)))
 		cbuf = append(toBuf(hdr), cmsgBuf...)
 	}
 
@@ -128,10 +129,15 @@ func parseSndRcvInfo(b []byte) (*SndRcvInfo, error) {
 	for _, m := range msgs {
 		if m.Header.Level == syscall.IPPROTO_SCTP {
 			switch m.Header.Type {
-			case SCTPCMsgSndRcv:
+			case sctpCMsgSndRcv:
+				if len(m.Data) < int(unsafe.Sizeof(SndRcvInfo{})) {
+					return nil, fmt.Errorf("sctp: short SNDRCV cmsg (%d bytes)", len(m.Data))
+				}
+
 				// Copy the struct out of the syscall control buffer so the
 				// returned pointer does not alias storage the caller reuses.
 				info := *(*SndRcvInfo)(unsafe.Pointer(&m.Data[0]))
+
 				return &info, nil
 			}
 		}
@@ -141,10 +147,18 @@ func parseSndRcvInfo(b []byte) (*SndRcvInfo, error) {
 }
 
 func parseNotification(b []byte) Notification {
+	if len(b) < 2 {
+		return nil
+	}
+
 	snType := SCTPNotificationType(binary.NativeEndian.Uint16(b[:2]))
 
 	switch snType {
 	case SCTPShutdownEvent:
+		if len(b) < 12 {
+			return nil
+		}
+
 		notification := SCTPShutdownEventNotification{
 			sseType:    binary.NativeEndian.Uint16(b[:2]),
 			sseFlags:   binary.NativeEndian.Uint16(b[2:4]),
@@ -154,6 +168,10 @@ func parseNotification(b []byte) Notification {
 
 		return &notification
 	case SCTPAssocChange:
+		if len(b) < 20 {
+			return nil
+		}
+
 		notification := SCTPAssocChangeEvent{
 			sacType:            binary.NativeEndian.Uint16(b[:2]),
 			sacFlags:           binary.NativeEndian.Uint16(b[2:4]),
@@ -163,7 +181,20 @@ func parseNotification(b []byte) Notification {
 			sacOutboundStreams: binary.NativeEndian.Uint16(b[12:14]),
 			sacInboundStreams:  binary.NativeEndian.Uint16(b[14:16]),
 			sacAssocID:         SCTPAssocID(binary.NativeEndian.Uint32(b[16:20])),
-			sacInfo:            b[20:],
+			sacInfo:            append([]uint8(nil), b[20:]...),
+		}
+
+		return &notification
+	case SCTPPartialDeliveryEvent:
+		if len(b) < 12 {
+			return nil
+		}
+
+		notification := SCTPPartialDeliveryEventNotification{
+			pdapiType:       binary.NativeEndian.Uint16(b[:2]),
+			pdapiFlags:      binary.NativeEndian.Uint16(b[2:4]),
+			pdapiLength:     binary.NativeEndian.Uint32(b[4:8]),
+			pdapiIndication: binary.NativeEndian.Uint32(b[8:12]),
 		}
 
 		return &notification
@@ -172,12 +203,23 @@ func parseNotification(b []byte) Notification {
 	}
 }
 
-// ReadMsg receives an SCTP message and returns the data, optional SndRcvInfo,
-// and any notification. Uses Go's runtime poller: the goroutine parks
-// efficiently when the socket has no data, rather than blocking an OS thread.
-func (c *SCTPConn) ReadMsg(b []byte) (int, *SndRcvInfo, Notification, error) {
+// delivery is one datagram handed up by recvmsg.
+type delivery struct {
+	n            int
+	info         *SndRcvInfo
+	notification Notification
+	// isNotification distinguishes an event the caller must not treat as
+	// payload from one parseNotification did not recognise.
+	isNotification bool
+	eor            bool
+}
+
+// readMsgOnce receives one delivery. eor reports whether it completes a message;
+// the kernel clears MSG_EOR and requeues the remainder when a message does not
+// fit the supplied buffer (net/sctp/socket.c sctp_recvmsg).
+func (c *SCTPConn) readMsgOnce(b []byte) (delivery, error) {
 	if c.rc == nil {
-		return 0, nil, nil, syscall.EBADF
+		return delivery{}, syscall.EBADF
 	}
 
 	var oob [254]byte
@@ -191,20 +233,25 @@ func (c *SCTPConn) ReadMsg(b []byte) (int, *SndRcvInfo, Notification, error) {
 		return err != syscall.EAGAIN
 	})
 	if rerr != nil {
-		return 0, nil, nil, rerr
+		return delivery{}, rerr
 	}
 
 	if err != nil {
-		return n, nil, nil, err
+		return delivery{n: n}, err
 	}
 
 	if n == 0 && oobn == 0 {
-		return 0, nil, nil, io.EOF
+		return delivery{}, io.EOF
 	}
 
-	if recvflags&MsgNotification > 0 {
-		notification := parseNotification(b[:n])
-		return n, nil, notification, nil
+	eor := recvflags&syscall.MSG_EOR > 0
+
+	if recvflags&msgNotification > 0 {
+		return delivery{n: n, notification: parseNotification(b[:n]), isNotification: true, eor: eor}, nil
+	}
+
+	if recvflags&syscall.MSG_CTRUNC > 0 {
+		return delivery{n: n}, fmt.Errorf("sctp: ancillary data truncated")
 	}
 
 	var info *SndRcvInfo
@@ -213,13 +260,76 @@ func (c *SCTPConn) ReadMsg(b []byte) (int, *SndRcvInfo, Notification, error) {
 		info, err = parseSndRcvInfo(oob[:oobn])
 	}
 
-	return n, info, nil, err
+	return delivery{n: n, info: info, eor: eor}, err
 }
 
-// Close initiates the graceful SCTP shutdown handshake and closes the
-// underlying file descriptor. Any goroutine blocked in ReadMsg or WriteMsg is
-// safely unparked by the runtime poller. Close is safe for concurrent use; the
-// second and subsequent calls return net.ErrClosed.
+// readMsg receives one complete SCTP message into b, reassembling a message the
+// kernel split across deliveries. A message that does not fit in b returns
+// errMessageTooLarge, since silently dispatching a fragment would present it to
+// the caller as a whole message.
+func (c *SCTPConn) readMsg(b []byte) (int, *SndRcvInfo, Notification, error) {
+	return reassemble(c.readMsgOnce, b)
+}
+
+func reassemble(read func([]byte) (delivery, error), b []byte) (int, *SndRcvInfo, Notification, error) {
+	total := 0
+
+	for {
+		d, err := read(b[total:])
+		if err != nil {
+			return total + d.n, nil, nil, err
+		}
+
+		if d.isNotification {
+			// Every subscribed event type is decoded, so an event that did not
+			// parse — or that the kernel had to split — is not a shape this
+			// association should be producing.
+			if d.notification == nil || !d.eor {
+				return 0, nil, nil, errUnrecognizedDelivery
+			}
+
+			// The kernel abandons a partially delivered message without ever
+			// setting MSG_EOR and then splices the messages that arrived
+			// meanwhile onto the queue (net/sctp/ulpqueue.c sctp_ulpq_abort_pd),
+			// so the prefix read so far has to go.
+			if pd, ok := d.notification.(*SCTPPartialDeliveryEventNotification); ok && pd.Aborted() {
+				total = 0
+				continue
+			}
+
+			// Any other event during reassembly means the kernel's ordering
+			// guarantee no longer holds and the stream cannot be trusted.
+			if total > 0 {
+				return total, nil, nil, errUnexpectedNotification
+			}
+
+			return 0, nil, d.notification, nil
+		}
+
+		// A delivery that neither carries payload nor completes a message would
+		// leave the loop with no way to make progress.
+		if d.n == 0 && !d.eor {
+			return total, nil, nil, errUnrecognizedDelivery
+		}
+
+		total += d.n
+
+		if d.eor {
+			return total, d.info, nil, nil
+		}
+
+		if total >= len(b) {
+			return total, d.info, nil, errMessageTooLarge
+		}
+	}
+}
+
+// Close ends the association gracefully: queued sends are flushed, the SCTP
+// shutdown handshake is started, and the receive queue is drained before the
+// descriptor closes. The drain is required — the kernel turns the shutdown into
+// an ABORT if any inbound data is still unread (net/sctp/socket.c sctp_close).
+// Close is safe for concurrent use; the second and subsequent calls return
+// net.ErrClosed.
 func (c *SCTPConn) Close() error {
 	if c == nil || c.file == nil {
 		return net.ErrClosed
@@ -229,18 +339,66 @@ func (c *SCTPConn) Close() error {
 		return net.ErrClosed
 	}
 
+	c.flushWriter()
+
 	// Control() holds a reference to the fd, preventing the actual close(2)
 	// until it returns.
 	_ = c.rc.Control(func(fd uintptr) {
 		_ = syscall.Shutdown(int(fd), syscall.SHUT_RDWR)
 	})
 
-	// Close the file. The runtime poller evicts all waiters first, unparking
-	// any goroutines blocked in ReadMsg/WriteMsg, before the fd is closed.
+	// Bounded: the kernel drops newly arriving data once both shutdown bits are
+	// set (net/sctp/ulpqueue.c), so only the pre-shutdown backlog is left.
+	c.drainReceiveQueue()
+
+	c.stopWriter()
+
+	// The runtime poller evicts all waiters first, unparking any goroutines
+	// blocked in readMsg/WriteMsg, before the fd is closed.
 	return c.file.Close()
 }
 
-func (c *SCTPConn) SetReadBuffer(bytes int) error {
+// Abort ends the association immediately with an SCTP ABORT, discarding queued
+// sends. It is the right close for a peer that has stopped functioning, and it
+// never waits for the writer, so the writer goroutine itself may call it.
+func (c *SCTPConn) Abort() error {
+	if c == nil || c.file == nil {
+		return net.ErrClosed
+	}
+
+	if !c.closed.CompareAndSwap(false, true) {
+		return net.ErrClosed
+	}
+
+	c.stopWriter()
+
+	// SO_LINGER with a zero timeout makes close(2) emit an ABORT
+	// (net/sctp/socket.c sctp_close).
+	_ = c.controlFd(func(fd int) error {
+		return syscall.SetsockoptLinger(fd, syscall.SOL_SOCKET, syscall.SO_LINGER, &syscall.Linger{Onoff: 1, Linger: 0})
+	})
+
+	return c.file.Close()
+}
+
+// drainReceiveQueue reads until the queue is empty or the deadline expires, so a
+// peer still sending cannot hold up the close.
+func (c *SCTPConn) drainReceiveQueue() {
+	if err := c.setReadDeadline(time.Now().Add(drainTimeout)); err != nil {
+		return
+	}
+
+	buf := make([]byte, drainBufSize)
+
+	for {
+		d, err := c.readMsgOnce(buf)
+		if err != nil || d.n == 0 {
+			return
+		}
+	}
+}
+
+func (c *SCTPConn) setReadBuffer(bytes int) error {
 	return c.controlFd(func(fd int) error {
 		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, bytes)
 	})
@@ -250,7 +408,7 @@ func (c *SCTPConn) SetReadBuffer(bytes int) error {
 // with the given SCTP options. The listener integrates with Go's runtime
 // poller via os.NewFile, enabling safe concurrent Accept/Close without manual
 // epoll or wakeup pipes.
-func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoInfo *RtoInfo, assocInfo *AssocInfo, control func(network, address string, c syscall.RawConn) error) (*SCTPListener, error) {
+func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoInfo *rtoInfo, assocInfo *assocInfo, control func(network, address string, c syscall.RawConn) error) (*sctpListener, error) {
 	af, ipv6only := favoriteAddrFamily(network, laddr, nil, "listen")
 
 	sock, err := syscall.Socket(
@@ -317,7 +475,7 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 			}
 		}
 
-		if err = SCTPBind(sock, laddr, SCTPBindxAddAddr); err != nil {
+		if err = sctpBind(sock, laddr, sctpBindxAddAddr); err != nil {
 			return nil, err
 		}
 	}
@@ -332,8 +490,14 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 	// efficiently and Close to safely wake it up.
 	f := os.NewFile(uintptr(sock), "sctp-listener")
 	if f == nil {
-		return nil, fmt.Errorf("os.NewFile returned nil for fd %d", sock)
+		err = fmt.Errorf("os.NewFile returned nil for fd %d", sock)
+
+		return nil, err
 	}
+
+	// f owns the fd from here: clear sock so the deferred cleanup cannot close
+	// the same descriptor a second time.
+	sock = -1
 
 	rc, err := f.SyscallConn()
 	if err != nil {
@@ -342,17 +506,14 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 		return nil, fmt.Errorf("SyscallConn: %w", err)
 	}
 
-	// The fd is now owned by f; prevent the deferred cleanup from closing it.
-	sock = -1
-
-	return &SCTPListener{file: f, rc: rc}, nil
+	return &sctpListener{file: f, rc: rc}, nil
 }
 
 // Accept waits for an incoming SCTP connection. It uses Go's runtime poller:
 // the goroutine parks efficiently until a connection is ready. When Close is
 // called, the poller wakes Accept which returns an error wrapping
 // net.ErrClosed, mirroring the behaviour of Go's net.Listener.
-func (ln *SCTPListener) Accept() (*SCTPConn, error) {
+func (ln *sctpListener) Accept() (*SCTPConn, error) {
 	var newFd int
 
 	var err error
@@ -366,14 +527,14 @@ func (ln *SCTPListener) Accept() (*SCTPConn, error) {
 		return true
 	})
 	if rerr != nil {
-		return nil, rerr
+		return nil, ln.acceptErr(rerr)
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, ln.acceptErr(err)
 	}
 
-	conn := NewSCTPConn(newFd)
+	conn := newSCTPConn(newFd)
 	if conn == nil {
 		_ = syscall.Close(newFd)
 		return nil, fmt.Errorf("failed to wrap accepted fd %d", newFd)
@@ -382,10 +543,20 @@ func (ln *SCTPListener) Accept() (*SCTPConn, error) {
 	return conn, nil
 }
 
+// acceptErr reports a closed listener as net.ErrClosed: the poller surfaces the
+// close as a bare "use of closed file" that matches no exported sentinel.
+func (ln *sctpListener) acceptErr(err error) error {
+	if ln.closed.Load() {
+		return net.ErrClosed
+	}
+
+	return err
+}
+
 // Close closes the listener and unblocks any concurrent Accept call. The
 // runtime poller safely wakes all parked goroutines before the file descriptor
 // is closed, avoiding the race that existed with manual epoll.
-func (ln *SCTPListener) Close() error {
+func (ln *sctpListener) Close() error {
 	if !ln.closed.CompareAndSwap(false, true) {
 		return net.ErrClosed
 	}

@@ -147,3 +147,31 @@ func TestClaimRanID_SelfClaimIsNoOp(t *testing.T) {
 		t.Error("radio should remain in radios map after self-claim")
 	}
 }
+
+// TS 38.413 §8.7.1.1: NG Setup re-initialises the NGAP UE-related contexts unless
+// both nodes agree to retain them. Ella Core never offers UE retention, so a gNB
+// repeating NG Setup on its existing association — what an SCTP restart produces —
+// must not leave its previous UEs behind.
+func TestClaimRanID_RepeatOnSameAssociationReleasesUEs(t *testing.T) {
+	amfInstance := amf.New(nil, nil, nil)
+
+	conn := &sctp.SCTPConn{}
+	radio := newRadioForTest(amfInstance, conn, "gNB-A")
+	amfInstance.SetRadioForTest(conn, radio)
+
+	if evicted := amfInstance.ClaimRanID(radio, gnbGlobalRANNodeID(t, "ABCDE1")); evicted != nil {
+		t.Fatalf("setup: unexpected eviction of %q", amfInstance.RadioNameForTest(evicted))
+	}
+
+	ueConn := amf.NewUeConnForTest(radio, 1, 10, zap.NewNop())
+	ue := amf.NewUeContext()
+	amfInstance.AttachUeConn(ue, ueConn)
+
+	if evicted := amfInstance.ClaimRanID(radio, gnbGlobalRANNodeID(t, "ABCDE1")); evicted != nil {
+		t.Fatalf("a repeat NG Setup must not evict its own association, got %q", amfInstance.RadioNameForTest(evicted))
+	}
+
+	if got := amfInstance.CountUeConnsForTest(); got != 0 {
+		t.Fatalf("expected the radio's UE contexts to be released, %d remain", got)
+	}
+}

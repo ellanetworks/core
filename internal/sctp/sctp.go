@@ -23,10 +23,12 @@ package sctp
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -36,58 +38,56 @@ import (
 	"go.uber.org/zap"
 )
 
+// drainBufSize is the scratch size for discarding queued data on close.
+const drainBufSize = 2048
+
 const (
-	SolSCTP = 132
+	solSCTP = 132
 
-	SCTPBindxAddAddr = 0x01
-	SCTPBindxRemAddr = 0x02
+	sctpBindxAddAddr = 0x01
+	sctpBindxRemAddr = 0x02
 
-	MsgNotification = 0x8000
+	msgNotification = 0x8000
+
+	sctpPartialDeliveryAborted = 0
 )
 
 const (
-	SCTPRtoInfo = iota
-	SCTPAssocInfo
-	SCTPInitMsg
-	SCTPNoDelay
-	SCTPAutoClose
-	SCTPSetPeerPrimaryAddr
-	SCTPPrimaryAddr
-	SCTPAdaptationLayer
-	SCTPDisableFragments
-	SCTPPeerAddrParams
-	SCTPDefaultSentParam
-	SCTPEvents
-	SCTPIWantMappedV4Addr
-	SCTPMaxSeg
-	SCTPStatus
-	SCTPGetPeerAddrInfo
-	SCTPDelayedAckTime
-	SCTPDelayedAck  = SCTPDelayedAckTime
-	SCTPDelayedSack = SCTPDelayedAckTime
+	sctpOptRtoInfo = iota
+	sctpOptAssocInfo
+	sctpOptInitMsg
+	sctpOptNoDelay
+	sctpOptAutoClose
+	sctpOptSetPeerPrimaryAddr
+	sctpOptPrimaryAddr
+	sctpOptAdaptationLayer
+	sctpOptDisableFragments
+	sctpOptPeerAddrParams
+	sctpOptDefaultSentParam
+	sctpOptEvents
+	sctpOptIWantMappedV4Addr
+	sctpOptMaxSeg
+	sctpOptStatus
+	sctpOptGetPeerAddrInfo
+	sctpOptDelayedAckTime
 
-	SCTPSockOptBindxAdd  = 100
-	SCTPSockOptBindxRem  = 101
-	SCTPSockOptPeelOff   = 102
-	SCTPGetPeerAddrs     = 108
-	SCTPGetLocalAddrs    = 109
-	SCTPSockOptConnectx  = 110
-	SCTPSockOptConnectx3 = 111
+	sctpOptBindxAdd      = 100
+	sctpOptBindxRem      = 101
+	sctpOptGetPeerAddrs  = 108
+	sctpOptGetLocalAddrs = 109
 )
 
 const (
-	SCTPEventDataIO = 1 << iota
-	SCTPEventAssociation
-	SCTPEventAddress
-	SCTPEventSendFailure
-	SCTPEventSendPeerError
-	SCTPEventShutdown
-	SCTPEventPartialDelivery
-	SCTPEventAdaptationLayer
-	SCTPEventAuthentication
-	SCTPEventSenderDry
-
-	SCTPEventAll = SCTPEventDataIO | SCTPEventAssociation | SCTPEventAddress | SCTPEventSendFailure | SCTPEventSendPeerError | SCTPEventShutdown | SCTPEventPartialDelivery | SCTPEventAdaptationLayer | SCTPEventAuthentication | SCTPEventSenderDry
+	sctpEventDataIO = 1 << iota
+	sctpEventAssociation
+	sctpEventAddress
+	sctpEventSendFailure
+	sctpEventSendPeerError
+	sctpEventShutdown
+	sctpEventPartialDelivery
+	sctpEventAdaptationLayer
+	sctpEventAuthentication
+	sctpEventSenderDry
 )
 
 type (
@@ -108,7 +108,7 @@ const (
 	SCTPSenderDryEvent
 )
 
-type EventSubscribe struct {
+type eventSubscribe struct {
 	DataIO          uint8
 	Association     uint8
 	Address         uint8
@@ -122,11 +122,8 @@ type EventSubscribe struct {
 }
 
 const (
-	SCTPCMsgInit = iota
-	SCTPCMsgSndRcv
-	SCTPCMsgSndInfo
-	SCTPCMsgRcvInfo
-	SCTPCMsgNxtInfo
+	sctpCMsgInit = iota
+	sctpCMsgSndRcv
 )
 
 type InitMsg struct {
@@ -137,7 +134,7 @@ type InitMsg struct {
 }
 
 // Retransmission Timeout Parameters defined in RFC 6458 8.1
-type RtoInfo struct {
+type rtoInfo struct {
 	SrtoAssocID int32
 	SrtoInitial uint32
 	SrtoMax     uint32
@@ -145,7 +142,7 @@ type RtoInfo struct {
 }
 
 // Association Parameters defined in RFC 6458 8.1
-type AssocInfo struct {
+type assocInfo struct {
 	AssocID SCTPAssocID
 	// maximum retransmission attempts to make for the association
 	AsocMaxRxt uint16
@@ -160,23 +157,17 @@ type AssocInfo struct {
 }
 
 type SndRcvInfo struct {
-	Stream  uint16
-	SSN     uint16
-	Flags   uint16
+	Stream uint16
+	SSN    uint16
+	Flags  uint16
+	// Matches the alignment padding in the kernel's struct sctp_sndrcvinfo;
+	// binary.Write emits it, so removing it shifts every field below.
 	_       uint16
 	PPID    uint32
 	Context uint32
 	TTL     uint32
 	TSN     uint32
 	CumTSN  uint32
-	AssocID int32
-}
-
-type SndInfo struct {
-	SID     uint16
-	Flags   uint16
-	PPID    uint32
-	Context uint32
 	AssocID int32
 }
 
@@ -220,21 +211,21 @@ var ntohs = htons
 // see https://tools.ietf.org/html/rfc4960#page-25
 func setInitOpts(fd int, options InitMsg) error {
 	optlen := unsafe.Sizeof(options)
-	err := setsockopt(fd, SCTPInitMsg, uintptr(unsafe.Pointer(&options)), optlen)
+	err := setsockopt(fd, sctpOptInitMsg, unsafe.Pointer(&options), optlen)
 
 	return err
 }
 
-func setRtoInfo(fd int, rtoInfo RtoInfo) error {
-	rtolen := unsafe.Sizeof(rtoInfo)
-	err := setsockopt(fd, SCTPRtoInfo, uintptr(unsafe.Pointer(&rtoInfo)), rtolen)
-
-	return err
-}
-
-func setAssocInfo(fd int, info AssocInfo) error {
+func setRtoInfo(fd int, info rtoInfo) error {
 	optlen := unsafe.Sizeof(info)
-	err := setsockopt(fd, SCTPAssocInfo, uintptr(unsafe.Pointer(&info)), optlen)
+	err := setsockopt(fd, sctpOptRtoInfo, unsafe.Pointer(&info), optlen)
+
+	return err
+}
+
+func setAssocInfo(fd int, info assocInfo) error {
+	optlen := unsafe.Sizeof(info)
+	err := setsockopt(fd, sctpOptAssocInfo, unsafe.Pointer(&info), optlen)
 
 	return err
 }
@@ -245,15 +236,26 @@ func setAssocInfo(fd int, info AssocInfo) error {
 func setNoDelay(fd int) error {
 	on := int32(1)
 
-	return setsockopt(fd, SCTPNoDelay, uintptr(unsafe.Pointer(&on)), unsafe.Sizeof(on))
+	return setsockopt(fd, sctpOptNoDelay, unsafe.Pointer(&on), unsafe.Sizeof(on))
 }
+
+// errMessageTooLarge reports a message larger than the supplied buffer.
+var errMessageTooLarge = errors.New("sctp: message larger than read buffer")
+
+// errUnexpectedNotification reports an event delivered between the fragments of
+// a message, which the kernel does not do for a well-behaved association.
+var errUnexpectedNotification = errors.New("sctp: notification during message reassembly")
+
+// errUnrecognizedDelivery reports a delivery whose shape does not match anything
+// the subscribed event set can produce.
+var errUnrecognizedDelivery = errors.New("sctp: unrecognized delivery")
 
 type SCTPAddr struct {
 	IPAddrs []net.IPAddr
 	Port    int
 }
 
-func (a *SCTPAddr) ToRawSockAddrBuf() []byte {
+func (a *SCTPAddr) toRawSockAddrBuf() []byte {
 	p := htons(uint16(a.Port))
 	if len(a.IPAddrs) == 0 { // if a.IPAddrs list is empty - fall back to IPv4 zero addr
 		s := syscall.RawSockaddrInet4{
@@ -326,20 +328,20 @@ func (a *SCTPAddr) String() string {
 
 func (a *SCTPAddr) Network() string { return "sctp" }
 
-func SCTPBind(fd int, addr *SCTPAddr, flags int) error {
+func sctpBind(fd int, addr *SCTPAddr, flags int) error {
 	var option uintptr
 
 	switch flags {
-	case SCTPBindxAddAddr:
-		option = SCTPSockOptBindxAdd
-	case SCTPBindxRemAddr:
-		option = SCTPSockOptBindxRem
+	case sctpBindxAddAddr:
+		option = sctpOptBindxAdd
+	case sctpBindxRemAddr:
+		option = sctpOptBindxRem
 	default:
 		return syscall.EINVAL
 	}
 
-	buf := addr.ToRawSockAddrBuf()
-	err := setsockopt(fd, option, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+	buf := addr.toRawSockAddrBuf()
+	err := setsockopt(fd, option, unsafe.Pointer(&buf[0]), uintptr(len(buf)))
 
 	return err
 }
@@ -353,6 +355,15 @@ type SCTPConn struct {
 	// discarded under the kernel default net.sctp.addip_enable=0).
 	localAddr  atomic.Pointer[SCTPAddr]
 	remoteAddr atomic.Pointer[SCTPAddr]
+
+	// writerDone always exists so Close can signal a writer started later; the
+	// rest stays nil on dialled conns, which write synchronously.
+	writerDone   chan struct{}
+	writerStop   sync.Once
+	writerFlush  chan struct{}
+	writeCh      chan queuedWrite
+	writerExited chan struct{}
+	writeLogger  *zap.Logger
 }
 
 // controlFd runs fn with the raw file descriptor held by the runtime poller.
@@ -374,11 +385,11 @@ func (c *SCTPConn) controlFd(fn func(fd int) error) error {
 	return err
 }
 
-// NewSCTPConn wraps an existing SCTP socket file descriptor. The fd is set
+// newSCTPConn wraps an existing SCTP socket file descriptor. The fd is set
 // to non-blocking mode and registered with Go's runtime poller, enabling
-// deadline support and safe concurrent Close. NewSCTPConn takes ownership
+// deadline support and safe concurrent Close. newSCTPConn takes ownership
 // of fd; callers must not close it separately.
-func NewSCTPConn(fd int) *SCTPConn {
+func newSCTPConn(fd int) *SCTPConn {
 	// Set non-blocking before os.NewFile so the runtime poller manages the fd.
 	_ = syscall.SetNonblock(fd, true)
 
@@ -393,52 +404,52 @@ func NewSCTPConn(fd int) *SCTPConn {
 		return nil
 	}
 
-	return &SCTPConn{file: f, rc: rc}
+	return &SCTPConn{file: f, rc: rc, writerDone: make(chan struct{}), writerFlush: make(chan struct{})}
 }
 
-func (c *SCTPConn) SubscribeEvents(flags int) error {
+func (c *SCTPConn) subscribeEvents(flags int) error {
 	var d, a, ad, sf, p, sh, pa, ada, au, se uint8
-	if flags&SCTPEventDataIO > 0 {
+	if flags&sctpEventDataIO > 0 {
 		d = 1
 	}
 
-	if flags&SCTPEventAssociation > 0 {
+	if flags&sctpEventAssociation > 0 {
 		a = 1
 	}
 
-	if flags&SCTPEventAddress > 0 {
+	if flags&sctpEventAddress > 0 {
 		ad = 1
 	}
 
-	if flags&SCTPEventSendFailure > 0 {
+	if flags&sctpEventSendFailure > 0 {
 		sf = 1
 	}
 
-	if flags&SCTPEventSendPeerError > 0 {
+	if flags&sctpEventSendPeerError > 0 {
 		p = 1
 	}
 
-	if flags&SCTPEventShutdown > 0 {
+	if flags&sctpEventShutdown > 0 {
 		sh = 1
 	}
 
-	if flags&SCTPEventPartialDelivery > 0 {
+	if flags&sctpEventPartialDelivery > 0 {
 		pa = 1
 	}
 
-	if flags&SCTPEventAdaptationLayer > 0 {
+	if flags&sctpEventAdaptationLayer > 0 {
 		ada = 1
 	}
 
-	if flags&SCTPEventAuthentication > 0 {
+	if flags&sctpEventAuthentication > 0 {
 		au = 1
 	}
 
-	if flags&SCTPEventSenderDry > 0 {
+	if flags&sctpEventSenderDry > 0 {
 		se = 1
 	}
 
-	param := EventSubscribe{
+	param := eventSubscribe{
 		DataIO:          d,
 		Association:     a,
 		Address:         ad,
@@ -453,7 +464,7 @@ func (c *SCTPConn) SubscribeEvents(flags int) error {
 	optlen := unsafe.Sizeof(param)
 
 	return c.controlFd(func(fd int) error {
-		return setsockopt(fd, SCTPEvents, uintptr(unsafe.Pointer(&param)), optlen)
+		return setsockopt(fd, sctpOptEvents, unsafe.Pointer(&param), optlen)
 	})
 }
 
@@ -508,7 +519,7 @@ func sctpGetAddrs(fd, id, optname int) (*SCTPAddr, error) {
 	}
 	optlen := unsafe.Sizeof(param)
 
-	err := getsockopt(fd, uintptr(optname), uintptr(unsafe.Pointer(&param)), uintptr(unsafe.Pointer(&optlen)))
+	err := getsockopt(fd, uintptr(optname), unsafe.Pointer(&param), unsafe.Pointer(&optlen))
 	if err != nil {
 		return nil, err
 	}
@@ -535,7 +546,7 @@ func (c *SCTPConn) LocalAddr() net.Addr {
 		return addr
 	}
 
-	if addr := c.getAddrs(SCTPGetLocalAddrs); addr != nil {
+	if addr := c.getAddrs(sctpOptGetLocalAddrs); addr != nil {
 		c.localAddr.Store(addr)
 
 		return addr
@@ -549,7 +560,7 @@ func (c *SCTPConn) RemoteAddr() net.Addr {
 		return addr
 	}
 
-	if addr := c.getAddrs(SCTPGetPeerAddrs); addr != nil {
+	if addr := c.getAddrs(sctpOptGetPeerAddrs); addr != nil {
 		c.remoteAddr.Store(addr)
 
 		return addr
@@ -558,7 +569,7 @@ func (c *SCTPConn) RemoteAddr() net.Addr {
 	return nil
 }
 
-func (c *SCTPConn) SetDeadline(t time.Time) error {
+func (c *SCTPConn) setDeadline(t time.Time) error {
 	if c.file == nil {
 		return syscall.EBADF
 	}
@@ -566,14 +577,30 @@ func (c *SCTPConn) SetDeadline(t time.Time) error {
 	return c.file.SetDeadline(t)
 }
 
-type SCTPListener struct {
+func (c *SCTPConn) setWriteDeadline(t time.Time) error {
+	if c.file == nil {
+		return syscall.EBADF
+	}
+
+	return c.file.SetWriteDeadline(t)
+}
+
+func (c *SCTPConn) setReadDeadline(t time.Time) error {
+	if c.file == nil {
+		return syscall.EBADF
+	}
+
+	return c.file.SetReadDeadline(t)
+}
+
+type sctpListener struct {
 	file   *os.File
 	rc     syscall.RawConn
 	closed atomic.Bool
 }
 
-// SocketConfig contains options for the SCTP socket.
-type SocketConfig struct {
+// socketConfig contains options for the SCTP socket.
+type socketConfig struct {
 	// If Control is not nil it is called after the socket is created but before
 	// it is bound or connected.
 	Control func(network, address string, c syscall.RawConn) error
@@ -581,13 +608,13 @@ type SocketConfig struct {
 	// InitMsg is the options to send in the initial SCTP message
 	InitMsg InitMsg
 
-	// RtoInfo
-	RtoInfo *RtoInfo
+	// rtoInfo
+	rtoInfo *rtoInfo
 
-	// AssocInfo (RFC 6458)
-	AssocInfo *AssocInfo
+	// assocInfo (RFC 6458)
+	assocInfo *assocInfo
 }
 
-func (cfg *SocketConfig) Listen(net string, laddr *SCTPAddr) (*SCTPListener, error) {
-	return listenSCTPExtConfig(net, laddr, cfg.InitMsg, cfg.RtoInfo, cfg.AssocInfo, cfg.Control)
+func (cfg *socketConfig) Listen(net string, laddr *SCTPAddr) (*sctpListener, error) {
+	return listenSCTPExtConfig(net, laddr, cfg.InitMsg, cfg.rtoInfo, cfg.assocInfo, cfg.Control)
 }

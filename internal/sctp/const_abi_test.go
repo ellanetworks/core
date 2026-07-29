@@ -1,0 +1,41 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+package sctp
+
+import "testing"
+
+// These constants are kernel ABI (include/uapi/linux/sctp.h). Most are declared
+// positionally with iota, so adding or removing a member silently renumbers the
+// rest; the resulting setsockopt calls would target the wrong option.
+func TestConstantsMatchKernelABI(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		got  int
+		want int
+	}{
+		{"SCTP_RTOINFO", sctpOptRtoInfo, 0},
+		{"SCTP_ASSOCINFO", sctpOptAssocInfo, 1},
+		{"SCTP_INITMSG", sctpOptInitMsg, 2},
+		{"SCTP_NODELAY", sctpOptNoDelay, 3},
+		{"SCTP_EVENTS", sctpOptEvents, 11},
+		{"SCTP_DELAYED_ACK_TIME", sctpOptDelayedAckTime, 16},
+		{"SCTP_SOCKOPT_BINDX_ADD", sctpOptBindxAdd, 100},
+		{"SCTP_GET_PEER_ADDRS", sctpOptGetPeerAddrs, 108},
+		{"SCTP_GET_LOCAL_ADDRS", sctpOptGetLocalAddrs, 109},
+		{"SCTP_CMSG_INIT", sctpCMsgInit, 0},
+		{"SCTP_CMSG_SNDRCV", sctpCMsgSndRcv, 1},
+		{"SCTP_DATA_IO_EVENT", sctpEventDataIO, 1},
+		{"SCTP_ASSOCIATION_EVENT", sctpEventAssociation, 2},
+		{"SCTP_SHUTDOWN_EVENT", sctpEventShutdown, 32},
+		{"SCTP_PARTIAL_DELIVERY_EVENT", sctpEventPartialDelivery, 64},
+		{"SCTP_SN_TYPE_BASE", int(SCTPSnTypeBase), 0x8000},
+		{"SCTP_ASSOC_CHANGE", int(SCTPAssocChange), 0x8001},
+		{"SCTP_SHUTDOWN_EVENT notification", int(SCTPShutdownEvent), 0x8005},
+		{"SCTP_PARTIAL_DELIVERY_EVENT notification", int(SCTPPartialDeliveryEvent), 0x8006},
+	} {
+		if c.got != c.want {
+			t.Errorf("%s = %d, want %d", c.name, c.got, c.want)
+		}
+	}
+}

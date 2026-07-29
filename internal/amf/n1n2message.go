@@ -197,7 +197,7 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 	// A network-requested modification during an N2 handover races the
 	// handover's own resource signalling on the source gNB (TS 38.413 §8.4).
 	// Defer it; the reconcile backstop re-applies it once the handover completes.
-	if conn := ue.Conn(); conn != nil && conn.Parent().Procedures().Active(procedure.N2Handover) {
+	if conn := ue.Conn(); conn != nil && ue.Procedures().Active(procedure.N2Handover) {
 		return fmt.Errorf("temporary reject: PDU session modification during handover")
 	}
 
@@ -321,7 +321,7 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 		return fmt.Errorf("temporary reject registration ongoing")
 	}
 
-	if ueConn.Parent().Procedures().Active(procedure.N2Handover) {
+	if ue.Procedures().Active(procedure.N2Handover) {
 		return fmt.Errorf("temporary reject handover ongoing")
 	}
 
