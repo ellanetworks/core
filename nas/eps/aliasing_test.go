@@ -39,7 +39,7 @@ func TestParsedValuesOwnTheirMemory(t *testing.T) {
 		},
 		{
 			"NetworkFeatureSupport",
-			[]byte{0x01, 0x02, 0xaa, 0xbb},
+			[]byte{0x01, 0x02, 0xaa},
 			func(b []byte) (encoder, error) { return ParseNetworkFeatureSupport(b) },
 		},
 		{

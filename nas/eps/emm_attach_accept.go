@@ -69,10 +69,20 @@ type NetworkFeatureSupport struct {
 	Rest      []byte
 }
 
+// maxNetworkFeatureSupportLen is the element's longest value: TS 24.301
+// §9.9.3.12A caps the element at 5 octets, two of which are its IEI and length.
+// The 5GS counterpart holds one octet more (TS 24.501 §9.11.3.5).
+const maxNetworkFeatureSupportLen = 3
+
 // ParseNetworkFeatureSupport decodes an EPS network feature support IE value.
 func ParseNetworkFeatureSupport(b []byte) (NetworkFeatureSupport, error) {
 	if len(b) < 1 {
 		return NetworkFeatureSupport{}, fmt.Errorf("nas/eps: empty EPS network feature support")
+	}
+
+	if len(b) > maxNetworkFeatureSupportLen {
+		return NetworkFeatureSupport{}, fmt.Errorf(
+			"nas/eps: EPS network feature support is %d octets, want at most %d", len(b), maxNetworkFeatureSupportLen)
 	}
 
 	out := NetworkFeatureSupport{

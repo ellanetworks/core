@@ -21,6 +21,7 @@ func TestIEMaxima(t *testing.T) {
 		{"UE security capability", func(b []byte) error { _, err := ParseUESecurityCapability(b); return err }, 5},
 		{"mobile identity", func(b []byte) error { _, err := ParseMobileIdentity(b); return err }, maxMobileIdentityLen},
 		{"EPS mobile identity", func(b []byte) error { _, err := ParseEPSMobileIdentity(b); return err }, maxEPSMobileIdentityLen},
+		{"EPS network feature support", func(b []byte) error { _, err := ParseNetworkFeatureSupport(b); return err }, maxNetworkFeatureSupportLen},
 	}
 
 	for _, tc := range tests {
@@ -63,6 +64,31 @@ func TestAPNAMBRValueLengths(t *testing.T) {
 		a := APNAMBR{Extended: make([]byte, max(n-2, 0))}
 		if _, err := a.MarshalBinary(); n >= 2 && (err == nil) != want {
 			t.Errorf("encode %d octets: err = %v, want ok = %t", n, err, want)
+		}
+	}
+}
+
+// TestTMSIMobileIdentityLength pins the TMSI form of the mobile identity to the
+// five octets TS 24.008 §10.5.1.4 gives it, so a longer value is rejected rather
+// than silently truncated to something that re-encodes shorter than it arrived.
+func TestTMSIMobileIdentityLength(t *testing.T) {
+	valid := []byte{uint8(MobileIdentityTMSI), 0xDE, 0xAD, 0xBE, 0xEF}
+
+	got, err := ParseMobileIdentity(valid)
+	if err != nil {
+		t.Fatalf("ParseMobileIdentity(% x): %v", valid, err)
+	}
+
+	if got.TMSI == nil || *got.TMSI != [4]byte{0xDE, 0xAD, 0xBE, 0xEF} {
+		t.Fatalf("TMSI = %v, want deadbeef", got.TMSI)
+	}
+
+	for _, n := range []int{4, 6, 7} {
+		b := make([]byte, n)
+		b[0] = uint8(MobileIdentityTMSI)
+
+		if _, err := ParseMobileIdentity(b); err == nil {
+			t.Errorf("%d octets: want an error, got none", n)
 		}
 	}
 }

@@ -150,7 +150,9 @@ func ParseMobileIdentity(b []byte) (MobileIdentity, error) {
 			return MobileIMEISV(IMEISV(digits)), nil
 		}
 	case MobileIdentityTMSI:
-		if len(b) < 5 {
+		// TS 24.008 §10.5.1.4: the TMSI/P-TMSI/M-TMSI is four octets, after the
+		// octet carrying the type, so the value is exactly five.
+		if len(b) != 5 {
 			return MobileIdentity{}, fmt.Errorf("nas/eps: TMSI mobile identity is %d octets, want 5", len(b))
 		}
 
