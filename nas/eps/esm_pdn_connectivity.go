@@ -22,10 +22,11 @@ type PDNConnectivityRequest struct {
 	PDNType                      PDNType
 	AccessPointName              *APN                              // APN value part (IEI 0x28), nil if absent
 	ProtocolConfigurationOptions *nas.ProtocolConfigurationOptions // optional (IEI 0x27)
-	// ESMInformationTransferFlag is the EIT bit (IEI 0xD, TS 24.301): the
-	// UE will supply the APN and PCO in an ESM INFORMATION RESPONSE, not in this
-	// message.
-	ESMInformationTransferFlag bool
+	// ESMInformationTransferFlag is the EIT bit (IEI 0xD, TS 24.301 §9.9.4.5).
+	// Set, the UE will supply the APN and PCO in an ESM INFORMATION RESPONSE
+	// rather than in this message; clear, it will not. Both values are assigned,
+	// so nil records that the element was absent.
+	ESMInformationTransferFlag *bool
 
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
@@ -52,8 +53,8 @@ func (m *PDNConnectivityRequest) AppendBinary(b []byte) ([]byte, error) {
 	writeESMHeader(w, m.EPSBearerIdentity, m.PTI, MsgPDNConnectivityRequest)
 	w.U8((uint8(m.PDNType)&0x07)<<4 | uint8(m.RequestType)&0x07)
 
-	if m.ESMInformationTransferFlag {
-		o.TV1(ieiESMInformationTransferFlag, 0x01)
+	if m.ESMInformationTransferFlag != nil {
+		o.TV1(ieiESMInformationTransferFlag, boolBit(*m.ESMInformationTransferFlag, 0))
 	}
 
 	if m.AccessPointName != nil {
@@ -109,14 +110,15 @@ func ParsePDNConnectivityRequest(b []byte) (*PDNConnectivityRequest, error) {
 	_unrec, err := walkOptionalIEs(r, pdnConnectivityRequestIEs, func(iei uint8, value []byte) (bool, error) {
 		switch iei {
 		case ieiESMInformationTransferFlag:
-			// Only the "transfer required" value is modelled; TS 24.301 §9.9.4.5
-			// reserves the other, which makes it a syntactically incorrect
-			// optional element: absent, but preserved (§7.7.1).
-			if len(value) != 1 || value[0]&0x0F != 0x01 {
-				return false, fmt.Errorf("nas/eps: ESM information transfer flag value %#x is reserved", value)
+			// TS 24.301 table 9.9.4.5.1 assigns both values — 0 "not required",
+			// 1 "required" — and reserves only bits 2 to 4, so the element carries
+			// its own meaning and the field records whether it arrived.
+			if len(value) != 1 {
+				return false, fmt.Errorf("nas/eps: ESM information transfer flag is %d octets, want 1", len(value))
 			}
 
-			m.ESMInformationTransferFlag = true
+			required := value[0]&0x01 != 0
+			m.ESMInformationTransferFlag = &required
 		case ieiAccessPointName:
 			parsed, err := ParseAPN(value)
 			if err != nil {

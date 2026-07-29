@@ -176,3 +176,27 @@ func TestIEErrorNamesTheElement(t *testing.T) {
 		}
 	}
 }
+
+// TestQoSRuleOperationWireValues pins the operation codes to TS 24.501
+// table 9.11.4.13.1, which assigns 011 "modify and add packet filters" and 100
+// "modify and replace all packet filters". The two were swapped, so a caller
+// asking to replace a rule's filters emitted the code a UE executes as "add",
+// duplicating them. Byte round-trips cannot catch this: both values encode and
+// decode cleanly, only the meaning differs.
+func TestQoSRuleOperationWireValues(t *testing.T) {
+	for _, tc := range []struct {
+		op   QoSRuleOperation
+		want uint8
+	}{
+		{QoSRuleOpCreate, 0b001},
+		{QoSRuleOpDelete, 0b010},
+		{QoSRuleOpModifyAddFilters, 0b011},
+		{QoSRuleOpModifyReplaceFilters, 0b100},
+		{QoSRuleOpModifyDeleteFilters, 0b101},
+		{QoSRuleOpModifyWithoutFilters, 0b110},
+	} {
+		if uint8(tc.op) != tc.want {
+			t.Errorf("%s = %03b, want %03b", tc.op, uint8(tc.op), tc.want)
+		}
+	}
+}

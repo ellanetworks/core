@@ -21,7 +21,7 @@ type PDUSessionEstablishmentRequest struct {
 	PDUSessionType           *PDUSessionType                   // optional (IEI 0x9), value bits 1-3
 	SSCMode                  *SSCMode                          // optional (IEI 0xA), value bits 1-3
 	GSMCapability            *GSMCapability                    // optional (IEI 0x28)
-	AlwaysOnRequested        bool                              // optional (IEI 0xB) present
+	AlwaysOnRequested        *bool                             // optional (IEI 0xB), value bit 1
 	ExtendedPCO              *nas.ProtocolConfigurationOptions // optional (IEI 0x7B)
 
 	// Unrecognized carries the optional information elements this message does
@@ -57,8 +57,8 @@ func (m *PDUSessionEstablishmentRequest) AppendBinary(b []byte) ([]byte, error) 
 		o.TLV(iei5GSMCapability, raw)
 	}
 
-	if m.AlwaysOnRequested {
-		o.TV1(ieiAlwaysOnRequested, 0x01)
+	if m.AlwaysOnRequested != nil {
+		o.TV1(ieiAlwaysOnRequested, boolBit(*m.AlwaysOnRequested, 0))
 	}
 
 	if m.ExtendedPCO != nil {
@@ -120,14 +120,15 @@ func ParsePDUSessionEstablishmentRequest(b []byte) (*PDUSessionEstablishmentRequ
 
 			out.GSMCapability = &parsed
 		case ieiAlwaysOnRequested:
-			// Only the "always-on requested" value is modelled; TS 24.501
-			// §9.11.4.4 reserves the other, which makes it a syntactically
-			// incorrect optional element: absent, but preserved (§7.7.1).
-			if len(value) != 1 || value[0]&0x0F != 0x01 {
-				return false, fmt.Errorf("nas/fgs: always-on PDU session requested value %#x is reserved", value)
+			// TS 24.501 table 9.11.4.4.1 assigns both values — 0 "not requested",
+			// 1 "requested" — so the element carries its own meaning and the field
+			// records whether it arrived, not just that a bit was set.
+			if len(value) != 1 {
+				return false, fmt.Errorf("nas/fgs: always-on PDU session requested is %d octets, want 1", len(value))
 			}
 
-			out.AlwaysOnRequested = true
+			requested := value[0]&0x01 != 0
+			out.AlwaysOnRequested = &requested
 		case ieiExtendedPCO:
 			parsed, err := nas.ParseProtocolConfigurationOptions(value, nas.PCOMSToNetwork)
 			if err != nil {

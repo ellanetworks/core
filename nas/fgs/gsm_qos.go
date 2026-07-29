@@ -18,8 +18,8 @@ type QoSRuleOperation uint8
 const (
 	QoSRuleOpCreate               QoSRuleOperation = 1 // create new QoS rule
 	QoSRuleOpDelete               QoSRuleOperation = 2 // delete existing QoS rule
-	QoSRuleOpModifyReplaceFilters QoSRuleOperation = 3 // modify and replace all packet filters
-	QoSRuleOpModifyAddFilters     QoSRuleOperation = 4 // modify and add packet filters
+	QoSRuleOpModifyAddFilters     QoSRuleOperation = 3 // modify and add packet filters
+	QoSRuleOpModifyReplaceFilters QoSRuleOperation = 4 // modify and replace all packet filters
 	QoSRuleOpModifyDeleteFilters  QoSRuleOperation = 5 // modify and delete packet filters
 	QoSRuleOpModifyWithoutFilters QoSRuleOperation = 6 // modify without modifying packet filters
 )

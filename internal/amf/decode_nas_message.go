@@ -183,8 +183,13 @@ func DecodePlainGmm(body []byte) (msgType uint8, isGMM bool, err error) {
 
 // parseCheckGmm validates the mandatory content of the uplink 5GMM messages Ella
 // parses; a defined type without a dedicated parser (downlink types, header-only
-// uplink types) is accepted on its already-validated header, matching free5gc's
-// successful decode of such a message.
+// uplink types) is accepted on its already-validated header.
+//
+// A syntactically incorrect optional element is not a decode failure: TS 24.501
+// §7.7.1 has the receiver treat it as absent and process the message, and the
+// codec marks the elements a security decision reads Critical so those still
+// fail hard. Rejecting the message here would keep a UE from registering
+// because of an element the parser merely disliked.
 func parseCheckGmm(msgType uint8, body []byte) error {
 	var err error
 
@@ -211,6 +216,10 @@ func parseCheckGmm(msgType uint8, body []byte) error {
 		_, err = fgs.ParseNotificationResponse(body)
 	case fgs.MsgULNASTransport:
 		_, err = fgs.ParseULNASTransport(body)
+	}
+
+	if err != nil && nas.SoftOnly(err) {
+		return nil
 	}
 
 	return err

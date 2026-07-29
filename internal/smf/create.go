@@ -214,9 +214,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	// the N1N2 delivery below fails.
 	establishmentResult = metrics.ResultAccept
 
-	alwaysOnRequested := req.AlwaysOnRequested
-
-	if err := s.sendPduSessionEstablishmentAccept(ctx, sc, policy, pco, addrs, uint8(reqPTI), cause, alwaysOnIndication(alwaysOnRequested)); err != nil {
+	if err := s.sendPduSessionEstablishmentAccept(ctx, sc, policy, pco, addrs, uint8(reqPTI), cause, alwaysOnIndication(req.AlwaysOnRequested)); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send PDU session establishment accept")
 
@@ -283,8 +281,11 @@ func parsePDUSessionRequest(req *fgs.PDUSessionEstablishmentRequest) (*smfNas.Pr
 // requested an always-on session, or omitted (nil) otherwise. The "required"
 // value (§6.4.1 a) is not produced because no PDU session is established as
 // always-on.
-func alwaysOnIndication(requested bool) *bool {
-	if requested {
+// alwaysOnIndication answers a UE that asked for an always-on PDU session. The
+// element is absent unless the UE asked, and TS 24.501 table 9.11.4.3.1 codes the
+// answer as "not allowed" — this core grants none (§6.4.1.3).
+func alwaysOnIndication(requested *bool) *bool {
+	if requested != nil && *requested {
 		notAllowed := false
 		return &notAllowed
 	}

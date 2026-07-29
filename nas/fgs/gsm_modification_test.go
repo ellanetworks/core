@@ -21,7 +21,7 @@ func TestPDUSessionModificationRequestRoundTrip(t *testing.T) {
 		PTI:               3,
 		GSMCapability:     &GSMCapability{RqoS: true},
 		Cause:             &cause,
-		AlwaysOnRequested: true,
+		AlwaysOnRequested: ptr(true),
 		RequestedQoSFlows: QoSFlowDescriptions{FiveQIQoSFlow(1, 9, QoSFlowOpCreate)},
 		Unrecognized: []nas.RawIE{
 			// Maximum number of supported packet filters, a TV the table frames.
@@ -52,7 +52,7 @@ func TestPDUSessionModificationRequestRoundTrip(t *testing.T) {
 		t.Errorf("cause = %v, want %s", out.Cause, cause)
 	}
 
-	if !out.AlwaysOnRequested {
+	if out.AlwaysOnRequested == nil || !*out.AlwaysOnRequested {
 		t.Error("always-on requested was dropped")
 	}
 

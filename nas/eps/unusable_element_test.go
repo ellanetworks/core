@@ -10,32 +10,33 @@ import (
 	"github.com/ellanetworks/core/nas"
 )
 
-// TestReservedType1ValueIsAbsentButPreserved pins how a value the spec reserves
-// is handled: the element is recognised, so it claims its IEI and reports a soft
+// TestUnusableElementIsAbsentButPreserved pins how an element the receiver
+// recognises but cannot use is handled: it claims its IEI and reports a soft
 // error, the field stays absent (TS 24.301 §7.7.1), and the octets survive.
 //
 // Claiming matters beyond bookkeeping. A recognised-but-unusable element that
 // declined silently would leave a later element with the same IEI free to take
 // the field, and which of the two won would then flip once encoding put the
 // message in its canonical order.
-func TestReservedType1ValueIsAbsentButPreserved(t *testing.T) {
-	// A PDN CONNECTIVITY REQUEST carrying the ESM information transfer flag twice:
-	// first with the reserved value 0, then with the assigned value 1.
+func TestUnusableElementIsAbsentButPreserved(t *testing.T) {
+	// A PDN CONNECTIVITY REQUEST carrying the access point name twice: first with
+	// a value no receiver accepts — a single empty label, which the dotted form
+	// cannot represent (TS 24.008 §10.5.6.1) — then with a well-formed one.
 	b := []byte{
 		0x32, 0x30, 0xd0, 0x30,
-		ieiESMInformationTransferFlag,        // low nibble 0: the reserved value
-		ieiESMInformationTransferFlag | 0x01, // assigned, but a repetition
+		ieiAccessPointName, 0x01, 0x00, // one empty label: unusable
+		ieiAccessPointName, 0x04, 0x03, 'a', 'b', 'c', // well-formed, but a repetition
 	}
 
 	msg, err := ParsePDNConnectivityRequest(b)
 	if err == nil || !nas.SoftOnly(err) {
-		t.Fatalf("want a soft error for the reserved value, got %v", err)
+		t.Fatalf("want a soft error for the unusable value, got %v", err)
 	}
 
 	// The first occurrence claimed the IEI, so the second cannot take the field
 	// (TS 24.301 §7.6.3).
-	if msg.ESMInformationTransferFlag {
-		t.Error("a reserved first occurrence must not leave the field to a repetition")
+	if msg.AccessPointName != nil {
+		t.Errorf("an unusable first occurrence left the field to a repetition: %v", *msg.AccessPointName)
 	}
 
 	raw, err := msg.MarshalBinary()

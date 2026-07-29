@@ -55,7 +55,7 @@ func handleSecurityModeComplete(ctx context.Context, m *mme.MME, ue *mme.UeConte
 
 		logger.From(ctx, logger.MmeLog).Info("recovered genuine Attach Request from replayed NAS message container", zap.String("imsi", ue.IMSI()))
 
-		ingestAttachRequest(ue, req)
+		ingestAttachRequest(ctx, ue, req)
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("NAS security context established",

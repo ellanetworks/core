@@ -89,7 +89,7 @@ func TestParseEstablishmentRequest(t *testing.T) {
 	}
 
 	// always-on must be reached even though a full-octet IE (0x28) precedes it.
-	if !req.AlwaysOnRequested {
+	if req.AlwaysOnRequested == nil || !*req.AlwaysOnRequested {
 		t.Error("AlwaysOnRequested = false, want true")
 	}
 

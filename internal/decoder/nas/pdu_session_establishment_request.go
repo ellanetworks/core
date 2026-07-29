@@ -96,7 +96,7 @@ func buildPDUSessionEstablishmentRequest(msg *fgs.PDUSessionEstablishmentRequest
 		}
 	}
 
-	if msg.AlwaysOnRequested {
+	if msg.AlwaysOnRequested != nil {
 		out.AlwaysonPDUSessionRequested = makeUnsupportedIE()
 	}
 

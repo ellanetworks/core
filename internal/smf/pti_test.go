@@ -38,7 +38,7 @@ func buildPDUSessionEstRequestAlwaysOn() []byte {
 		PTI:                      10,
 		IntegrityProtMaxDataRate: [2]byte{0xff, 0xff},
 		PDUSessionType:           &ipv4,
-		AlwaysOnRequested:        true,
+		AlwaysOnRequested:        ptrTo(true),
 	}
 
 	buf, err := req.MarshalBinary()
@@ -255,3 +255,5 @@ func TestCreateSmContext_ReservedPTI_Ignored(t *testing.T) {
 		t.Errorf("a reserved-PTI establishment request must be ignored; got ref %q, %d-byte response", ref, len(rsp))
 	}
 }
+
+func ptrTo[T any](v T) *T { return &v }

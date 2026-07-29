@@ -75,7 +75,7 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, req
 		ue.HashmmeInput = plain
 	}
 
-	ingestAttachRequest(ue, req)
+	ingestAttachRequest(ctx, ue, req)
 	ue.Conn().AttachRequestPlain = plain
 
 	// The attach procedure is under way until ATTACH COMPLETE (TS 24.301 §5.1.3.2):
@@ -109,7 +109,7 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, req
 
 // ingestAttachRequest records the attach parameters the rest of the procedure
 // needs.
-func ingestAttachRequest(ue *mme.UeContext, req *eps.AttachRequest) {
+func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.AttachRequest) {
 	ue.SetUESecurityCapability(req.UENetworkCapability, req.MSNetworkCapability, mme.MintAuthProofForAttachRequest())
 	ue.CombinedAttach = req.EPSAttachType == eps.AttachTypeCombined
 	// The DRX parameter is not modelled by the codec, so it arrives among the
@@ -123,7 +123,10 @@ func ingestAttachRequest(ue *mme.UeContext, req *eps.AttachRequest) {
 	ue.RequestedAPN = ""
 	ue.RequestedPTI = 0
 
-	if pc, err := eps.ParsePDNConnectivityRequest(req.ESMMessageContainer); err == nil {
+	// A syntactically incorrect optional element leaves the rest of the message
+	// usable (TS 24.301 §7.7.1), so only a hard failure falls back to the
+	// defaults above.
+	if pc, err := eps.ParsePDNConnectivityRequest(req.ESMMessageContainer); decoded(ctx, "PDNConnectivityRequest", err) && pc != nil {
 		ue.RequestedPTI = pc.PTI
 
 		if pc.PDNType != 0 {

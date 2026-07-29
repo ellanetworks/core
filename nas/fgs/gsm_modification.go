@@ -18,7 +18,7 @@ type PDUSessionModificationRequest struct {
 
 	GSMCapability     *GSMCapability                    // optional (IEI 0x28)
 	Cause             *GSMCause                         // optional (IEI 0x59)
-	AlwaysOnRequested bool                              // optional (IEI 0xB-) present
+	AlwaysOnRequested *bool                             // optional (IEI 0xB), value bit 1
 	RequestedQoSRules QoSRules                          // optional (IEI 0x7A)
 	RequestedQoSFlows QoSFlowDescriptions               // optional (IEI 0x79)
 	ExtendedPCO       *nas.ProtocolConfigurationOptions // optional (IEI 0x7B)
@@ -71,8 +71,8 @@ func (m *PDUSessionModificationRequest) AppendBinary(b []byte) ([]byte, error) {
 		o.TV3(iei5GSMCause, []byte{uint8(*m.Cause)})
 	}
 
-	if m.AlwaysOnRequested {
-		o.TV1(ieiAlwaysOnRequested, 0x01)
+	if m.AlwaysOnRequested != nil {
+		o.TV1(ieiAlwaysOnRequested, boolBit(*m.AlwaysOnRequested, 0))
 	}
 
 	if m.RequestedQoSRules != nil {
@@ -139,14 +139,15 @@ func ParsePDUSessionModificationRequest(b []byte) (*PDUSessionModificationReques
 			cause := GSMCause(value[0])
 			out.Cause = &cause
 		case ieiAlwaysOnRequested:
-			// Only the "always-on requested" value is modelled; TS 24.501
-			// §9.11.4.4 reserves the other, which makes it a syntactically
-			// incorrect optional element: absent, but preserved (§7.7.1).
-			if len(value) != 1 || value[0]&0x0F != 0x01 {
-				return false, fmt.Errorf("nas/fgs: always-on PDU session requested value %#x is reserved", value)
+			// TS 24.501 table 9.11.4.4.1 assigns both values — 0 "not requested",
+			// 1 "requested" — so the element carries its own meaning and the field
+			// records whether it arrived, not just that a bit was set.
+			if len(value) != 1 {
+				return false, fmt.Errorf("nas/fgs: always-on PDU session requested is %d octets, want 1", len(value))
 			}
 
-			out.AlwaysOnRequested = true
+			requested := value[0]&0x01 != 0
+			out.AlwaysOnRequested = &requested
 		case ieiAuthorizedQoSRules:
 			parsed, err := ParseQoSRules(value)
 			if err != nil {
