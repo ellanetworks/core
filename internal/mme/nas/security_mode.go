@@ -56,7 +56,7 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		return
 	}
 
-	imeisvRequested := true
+	imeisvRequested := eps.IMEISVRequested
 
 	smc := &eps.SecurityModeCommand{
 		CipheringAlgorithm:           eea,

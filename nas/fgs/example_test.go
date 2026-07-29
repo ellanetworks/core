@@ -150,7 +150,11 @@ func Example_receiveProtected() {
 		return
 	}
 
-	count := counter.Estimate(spm.SequenceNumber)
+	count, err := counter.Estimate(spm.SequenceNumber)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	body, sht, err := fgs.Unprotect(wrapped, count, nas.DirectionUplink, sc,
 		fgs.SHTIntegrityProtectedCiphered)
@@ -174,7 +178,7 @@ func Example_receiveProtected() {
 
 	// A replay of the same octets estimates to the next expected count, not the
 	// one it was sent under, so its MAC cannot verify.
-	replayed := counter.Estimate(spm.SequenceNumber)
+	replayed, _ := counter.Estimate(spm.SequenceNumber)
 
 	if _, _, err := fgs.Unprotect(wrapped, replayed, nas.DirectionUplink, sc); errors.Is(err, nas.ErrMACMismatch) {
 		fmt.Println("replay refused")

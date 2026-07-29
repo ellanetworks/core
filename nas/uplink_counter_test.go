@@ -3,7 +3,10 @@
 
 package nas
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestUplinkCounterFirstMessageIsZero(t *testing.T) {
 	var u UplinkCounter
@@ -12,7 +15,7 @@ func TestUplinkCounterFirstMessageIsZero(t *testing.T) {
 		t.Fatalf("NextExpected() = %d, want 0", got)
 	}
 
-	if got := u.Estimate(0); got != 0 {
+	if got := mustEstimate(t, u, 0); got != 0 {
 		t.Fatalf("Estimate(0) = %d, want 0", got)
 	}
 }
@@ -20,9 +23,9 @@ func TestUplinkCounterFirstMessageIsZero(t *testing.T) {
 func TestUplinkCounterEstimateAdvances(t *testing.T) {
 	var u UplinkCounter
 
-	mustCommit(t, &u, u.Estimate(0))
+	mustCommit(t, &u, mustEstimate(t, u, 0))
 
-	if got := u.Estimate(1); got != MakeCount(0, 1) {
+	if got := mustEstimate(t, u, 1); got != MakeCount(0, 1) {
 		t.Fatalf("Estimate(1) = (%d,%d), want (0,1)", got.Overflow(), got.SQN())
 	}
 }
@@ -33,7 +36,7 @@ func TestUplinkCounterEstimateAdvances(t *testing.T) {
 func TestUplinkCounterEstimateRejectsReplay(t *testing.T) {
 	u := NewUplinkCounter(MakeCount(7, 10))
 
-	if got := u.Estimate(10); got == MakeCount(7, 10) {
+	if got := mustEstimate(t, u, 10); got == MakeCount(7, 10) {
 		t.Fatalf("Estimate(10) = (%d,%d), want any count other than the accepted (7,10)", got.Overflow(), got.SQN())
 	}
 }
@@ -41,7 +44,7 @@ func TestUplinkCounterEstimateRejectsReplay(t *testing.T) {
 func TestUplinkCounterEstimateWraps(t *testing.T) {
 	u := NewUplinkCounter(MakeCount(7, 255))
 
-	if got := u.Estimate(0); got != MakeCount(8, 0) {
+	if got := mustEstimate(t, u, 0); got != MakeCount(8, 0) {
 		t.Fatalf("Estimate(0) = (%d,%d), want (8,0)", got.Overflow(), got.SQN())
 	}
 }
@@ -76,7 +79,7 @@ func TestUplinkCounterResetExpectsZero(t *testing.T) {
 		t.Fatalf("NextExpected() after Reset() = %d, want 0", got)
 	}
 
-	if got := u.Estimate(0); got != 0 {
+	if got := mustEstimate(t, u, 0); got != 0 {
 		t.Fatalf("Estimate(0) after Reset() = %d, want 0", got)
 	}
 }
@@ -119,5 +122,45 @@ func TestUplinkCounterCommitRejectsUnexpected(t *testing.T) {
 
 	if u.LastAccepted() != MakeCount(4, 12) {
 		t.Errorf("LastAccepted() = %#06x after refusals, want the last good commit", uint32(u.LastAccepted()))
+	}
+}
+
+// mustEstimate is Estimate for a counter the test knows is not exhausted.
+func mustEstimate(t *testing.T, u UplinkCounter, recvSeq uint8) Count {
+	t.Helper()
+
+	count, err := u.Estimate(recvSeq)
+	if err != nil {
+		t.Fatalf("Estimate(%#02x): %v", recvSeq, err)
+	}
+
+	return count
+}
+
+// TestUplinkCounterFailsClosedAtMax pins the receive side to the same rule the
+// sender keeps: a NAS COUNT is used once under a key. Wrapping to zero would
+// verify a replay of the first message and reuse its keystream (TS 33.401 §6.5,
+// TS 33.501 §6.4.3.1), so the counter refuses to estimate past the maximum and
+// says so, leaving the caller to release the connection or rekey.
+func TestUplinkCounterFailsClosedAtMax(t *testing.T) {
+	u := NewUplinkCounter(MakeCount(0xFFFF, 0xFE))
+
+	last := mustEstimate(t, u, 0xFF)
+	if last != MakeCount(0xFFFF, 0xFF) {
+		t.Fatalf("estimate before the maximum = %#06x", uint32(last))
+	}
+
+	mustCommit(t, &u, last)
+
+	if !u.Exhausted() {
+		t.Fatal("committing the maximum count left the counter usable")
+	}
+
+	if _, err := u.Estimate(0x00); !errors.Is(err, ErrCountExhausted) {
+		t.Errorf("Estimate past the maximum = %v, want ErrCountExhausted", err)
+	}
+
+	if err := u.Commit(MakeCount(0, 0)); !errors.Is(err, ErrCountExhausted) {
+		t.Errorf("Commit past the maximum = %v, want ErrCountExhausted", err)
 	}
 }

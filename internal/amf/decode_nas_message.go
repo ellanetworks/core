@@ -117,7 +117,12 @@ func (ue *UeContext) NasIntegrityVerified(payload []byte) bool {
 		return false
 	}
 
-	cnt := ue.ulCount.Estimate(spm.SequenceNumber) // never committed back to the context
+	// Never committed back to the context: this only asks whether the message
+	// would verify. An exhausted count can verify nothing.
+	cnt, err := ue.ulCount.Estimate(spm.SequenceNumber)
+	if err != nil {
+		return false
+	}
 
 	_, _, err = fgs.Unprotect(payload, cnt, nas.DirectionUplink, ue.sc,
 		fgs.SHTIntegrityProtected, fgs.SHTIntegrityProtectedCiphered)
@@ -273,7 +278,19 @@ func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payloa
 	switch headerType {
 	case fgs.SHTIntegrityProtected, fgs.SHTIntegrityProtectedCiphered:
 	case fgs.SHTIntegrityProtectedCipheredNewContext:
-		counter.Reset()
+		// TS 24.501 §4.4.4.3 reserves this header type for the SECURITY MODE
+		// COMPLETE answering a command in flight, so it is refused anywhere else:
+		// accepting it later would let a replay of that captured message roll the
+		// uplink count back to zero under unchanged keys, and every message
+		// captured after it would replay in turn.
+		//
+		// No reset accompanies it. Sending the command already reset both counts
+		// (wrapSecuredLocked), so the genuine answer verifies at count zero, and
+		// resetting on receipt is what made the rollback reachable.
+		if ue.RegStep() != RegStepSecurityMode {
+			return nil, silentDecode(nasreply.ReasonOutOfState,
+				"new-context security header type outside the security mode procedure")
+		}
 	default:
 		// A reserved/unrecognized security header type is not a valid NAS message: a protocol
 		// error answered with a 5GMM STATUS #111 (§7), not silently ignored. The message is
@@ -281,7 +298,13 @@ func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payloa
 		return nil, statusDecode(nasreply.CauseProtocolErrorUnspecified, "wrong security header type: 0x%0x", uint8(headerType))
 	}
 
-	cnt := counter.Estimate(sequenceNumber)
+	// An exhausted uplink count accepts nothing further under this security
+	// context: wrapping would verify a replay of an already-accepted message
+	// (TS 33.501 §6.4.3.1). The UE has to re-authenticate.
+	cnt, cerr := counter.Estimate(sequenceNumber)
+	if cerr != nil {
+		return nil, silentDecode(nasreply.ReasonIntegrityFail, "uplink NAS COUNT exhausted: %v", cerr)
+	}
 
 	// The types accepted here are the ones the switch above admitted; passing them
 	// again makes the wrapper enforce it rather than the caller.

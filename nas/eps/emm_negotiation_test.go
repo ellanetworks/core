@@ -17,7 +17,7 @@ func TestSecurityModeRoundTrips(t *testing.T) {
 		in := &SecurityModeCommand{
 			CipheringAlgorithm: 2, IntegrityAlgorithm: 2, NASKeySetIdentifier: nas.NoKeySet,
 			ReplayedUESecurityCapability: UESecurityCapability{EEA: 0xf0, EIA: 0xf0, HasUMTS: true, UEA: 0xc0, UIA: 0xc0},
-			IMEISVRequested:              ptr(true),
+			IMEISVRequested:              ptr(IMEISVRequested),
 			HASHMME:                      []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
 		}
 
@@ -33,7 +33,7 @@ func TestSecurityModeRoundTrips(t *testing.T) {
 
 		if out.CipheringAlgorithm != 2 || out.IntegrityAlgorithm != 2 || out.NASKeySetIdentifier != nas.NoKeySet ||
 			!out.ReplayedUESecurityCapability.Equal(in.ReplayedUESecurityCapability) ||
-			out.IMEISVRequested == nil || !*out.IMEISVRequested ||
+			out.IMEISVRequested == nil || !out.IMEISVRequested.Requested() ||
 			!bytes.Equal(out.HASHMME, in.HASHMME) {
 			t.Fatalf("mismatch:\n in  %+v\n out %+v", in, out)
 		}

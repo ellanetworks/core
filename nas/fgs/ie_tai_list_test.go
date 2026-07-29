@@ -89,6 +89,9 @@ func TestTAIListRejectsInconsistentPartialList(t *testing.T) {
 		"consecutive type with a gap": {
 			{Type: PartialTAIListConsecutive, TAIs: []TAI{{PLMN: nas.PLMN{MCC: "001", MNC: "01"}, TAC: 1}, {PLMN: nas.PLMN{MCC: "001", MNC: "01"}, TAC: 3}}},
 		},
+		"consecutive run past the TAC width": {
+			{Type: PartialTAIListConsecutive, TAIs: []TAI{{PLMN: nas.PLMN{MCC: "001", MNC: "01"}, TAC: 0xFF_FFFF}, {PLMN: nas.PLMN{MCC: "001", MNC: "01"}, TAC: 0}}},
+		},
 		"empty partial list": {
 			{Type: PartialTAIListNonConsecutive},
 		},
@@ -103,5 +106,37 @@ func TestTAIListRejectsInconsistentPartialList(t *testing.T) {
 				t.Fatalf("MarshalBinary succeeded (% x), want an error", b)
 			}
 		})
+	}
+}
+
+// TestTAIListMaximum checks the largest list TS 24.501 §9.11.3.9 allows encodes
+// within the element's 114-octet limit: 16 partial lists of one identity each,
+// every one carrying its own PLMN.
+func TestTAIListMaximum(t *testing.T) {
+	var list TAIList
+
+	for i := range maxTAIsTotal {
+		list = append(list, PartialTAIList{
+			Type: PartialTAIListPerPLMN,
+			TAIs: []TAI{{PLMN: nas.PLMN{MCC: "001", MNC: "01"}, TAC: uint32(i)}},
+		})
+	}
+
+	b, err := list.MarshalBinary()
+	if err != nil {
+		t.Fatalf("MarshalBinary: %v", err)
+	}
+
+	if len(b) != maxTAIListOctets {
+		t.Errorf("encoded %d octets, want the element maximum of %d", len(b), maxTAIListOctets)
+	}
+
+	back, err := ParseTAIList(b)
+	if err != nil {
+		t.Fatalf("ParseTAIList(% x): %v", b, err)
+	}
+
+	if !reflect.DeepEqual(back, list) {
+		t.Errorf("round trip changed the list:\n got %v\nwant %v", back, list)
 	}
 }

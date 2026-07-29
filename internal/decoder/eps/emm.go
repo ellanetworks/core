@@ -161,7 +161,7 @@ func buildEMMMessage(b []byte) *EMMMessage {
 		m.SecurityModeCommand = &SecurityModeCommand{
 			CipheringAlgorithm: cipheringAlgToEnum(uint8(msg.CipheringAlgorithm)),
 			IntegrityAlgorithm: integrityAlgToEnum(uint8(msg.IntegrityAlgorithm)),
-			IMEISVRequested:    msg.IMEISVRequested != nil && *msg.IMEISVRequested,
+			IMEISVRequested:    msg.IMEISVRequested != nil && msg.IMEISVRequested.Requested(),
 		}
 	case *eps.TrackingAreaUpdateRequest:
 		m.TrackingAreaUpdateRequest = &TrackingAreaUpdateRequest{

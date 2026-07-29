@@ -80,7 +80,7 @@ func ParsePDUSessionAuthenticationComplete(b []byte) (*PDUSessionAuthenticationC
 			return false, nil
 		}
 
-		parsed, err := nas.ParseProtocolConfigurationOptions(value, nas.PCOMSToNetwork)
+		parsed, err := nas.ParseExtendedProtocolConfigurationOptions(value, nas.PCOMSToNetwork)
 		if err != nil {
 			return false, err
 		}

@@ -19,7 +19,7 @@ import (
 func wrapIntegrityProtected(t *testing.T, ue *UeContext, inner []byte, sqn uint8) []byte {
 	t.Helper()
 
-	cnt := ue.ulCount.Estimate(sqn)
+	cnt, _ := ue.ulCount.Estimate(sqn)
 
 	pdu, err := fgs.Protect(inner, fgs.SHTIntegrityProtected, cnt, nas.DirectionUplink, ue.sc)
 	if err != nil {
@@ -240,5 +240,44 @@ func TestDecodeNASMessage_SecureExchangeEstablished_DiscardsMacFailed(t *testing
 
 	if _, err := DecodeNASMessage(ue, bad); err == nil {
 		t.Fatal("a mac-failed message must be discarded once secure exchange is established (TS 24.501)")
+	}
+}
+
+// TestDecodeProtectedNAS_NewContextOutsideSecurityMode pins the window in which
+// the new-context security header type is accepted. TS 24.501 §4.4.4.3 reserves
+// it for the SECURITY MODE COMPLETE answering a command in flight; accepting it
+// at any other time let an attacker replay that captured message under unchanged
+// keys, roll the uplink NAS COUNT back to zero, and replay everything captured
+// after it.
+func TestDecodeProtectedNAS_NewContextOutsideSecurityMode(t *testing.T) {
+	ue := newSecuredUE(t)
+
+	inner, err := (&fgs.SecurityModeComplete{}).MarshalBinary()
+	if err != nil {
+		t.Fatalf("encode SECURITY MODE COMPLETE: %v", err)
+	}
+
+	cnt, err := ue.ulCount.Estimate(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wire, err := fgs.Protect(inner, fgs.SHTIntegrityProtectedCipheredNewContext, cnt, nas.DirectionUplink, ue.sc)
+	if err != nil {
+		t.Fatalf("protect SECURITY MODE COMPLETE: %v", err)
+	}
+
+	// Registered: the security mode procedure has long finished.
+	ue.ForceRegStepForTest(RegStepContextSetup)
+
+	if _, err := decodeProtectedNAS(ue, fgs.SHTIntegrityProtectedCipheredNewContext, wire, ue.Conn()); err == nil {
+		t.Fatal("a new-context message outside the security mode procedure was accepted")
+	}
+
+	// In the security mode procedure it is the expected answer.
+	ue.ForceRegStepForTest(RegStepSecurityMode)
+
+	if _, err := decodeProtectedNAS(ue, fgs.SHTIntegrityProtectedCipheredNewContext, wire, ue.Conn()); err != nil {
+		t.Fatalf("the SECURITY MODE COMPLETE answering a command in flight was refused: %v", err)
 	}
 }

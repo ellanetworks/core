@@ -130,7 +130,7 @@ func ParsePDUSessionEstablishmentRequest(b []byte) (*PDUSessionEstablishmentRequ
 			requested := value[0]&0x01 != 0
 			out.AlwaysOnRequested = &requested
 		case ieiExtendedPCO:
-			parsed, err := nas.ParseProtocolConfigurationOptions(value, nas.PCOMSToNetwork)
+			parsed, err := nas.ParseExtendedProtocolConfigurationOptions(value, nas.PCOMSToNetwork)
 			if err != nil {
 				return false, err
 			}
@@ -490,7 +490,7 @@ func ParsePDUSessionEstablishmentAccept(b []byte) (*PDUSessionEstablishmentAccep
 
 			out.QoSFlowDescriptions = parsed
 		case ieiExtendedPCO:
-			parsed, err := nas.ParseProtocolConfigurationOptions(value, nas.PCONetworkToMS)
+			parsed, err := nas.ParseExtendedProtocolConfigurationOptions(value, nas.PCONetworkToMS)
 			if err != nil {
 				return false, err
 			}

@@ -441,6 +441,15 @@ func (ue *UeContext) installSecurityContextLocked() error {
 
 // DeriveAnKey derives the access network key per TS 33.501.
 func (ue *UeContext) DeriveAnKey() error {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.deriveAnKeyLocked()
+}
+
+// deriveAnKeyLocked derives the access network key. Caller holds ue.mu, which
+// the uplink NAS COUNT and K_AMF read here are written under.
+func (ue *UeContext) deriveAnKeyLocked() error {
 	// The AN key is derived from the uplink NAS COUNT of the most recently
 	// accepted uplink NAS message (TS 33.501 §A.9).
 	P0 := make([]byte, 4)
@@ -461,6 +470,14 @@ func (ue *UeContext) DeriveAnKey() error {
 
 // DeriveNH derives the AS key-chain Next Hop per TS 33.501.
 func (ue *UeContext) DeriveNH(syncInput []byte) error {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.deriveNHLocked(syncInput)
+}
+
+// deriveNHLocked derives the AS key-chain Next Hop. Caller holds ue.mu.
+func (ue *UeContext) deriveNHLocked(syncInput []byte) error {
 	P0 := syncInput
 	L0 := ueauth.KDFLen(P0)
 
@@ -479,13 +496,17 @@ func (ue *UeContext) DeriveNH(syncInput []byte) error {
 }
 
 func (ue *UeContext) UpdateSecurityContext() error {
-	err := ue.DeriveAnKey()
-	if err != nil {
+	// One critical section for the whole derivation: it reads the uplink NAS
+	// COUNT and K_AMF, which the receive path writes under this lock, and the
+	// AS keys it derives have to come from one consistent view of them.
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if err := ue.deriveAnKeyLocked(); err != nil {
 		return fmt.Errorf("error deriving AnKey: %v", err)
 	}
 
-	err = ue.DeriveNH(ue.kgnb)
-	if err != nil {
+	if err := ue.deriveNHLocked(ue.kgnb); err != nil {
 		return fmt.Errorf("error deriving NH: %v", err)
 	}
 

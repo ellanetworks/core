@@ -9,31 +9,40 @@ import (
 	"github.com/ellanetworks/core/nas"
 )
 
-// IMEISV request values (TS 24.301 §9.9.3.18). They match the 5GS ones, which
-// TS 24.501 §9.11.3.28 codes identically.
+// IMEISVRequest is the IMEISV request value (TS 24.008 §10.5.5.10, which
+// TS 24.301 §9.9.3.18 adopts): 1 asks the UE for its IMEISV and every other
+// value is read as not asking for it. The value is carried as it arrived rather
+// than collapsed to a bool, since the reading is many-to-one and the element has
+// to re-encode to the octet it came from.
+type IMEISVRequest uint8
+
 const (
-	imeisvNotRequested uint8 = 0x00
-	imeisvRequested    uint8 = 0x01
+	// IMEISVNotRequested is the assigned "not requested" value; values 2 to 7 are
+	// read the same way.
+	IMEISVNotRequested IMEISVRequest = 0
+	// IMEISVRequested asks the UE to include its IMEISV in the SECURITY MODE
+	// COMPLETE.
+	IMEISVRequested IMEISVRequest = 1
 )
 
-// parseIMEISVRequest decodes the IMEISV request half-octet. TS 24.301 §9.9.3.18
-// leaves every value but the two above unassigned, which makes them
-// syntactically incorrect optional elements: absent, but preserved (§7.7.1).
-func parseIMEISVRequest(v []byte) (bool, error) {
-	if len(v) != 1 || v[0]&0x0F > imeisvRequested {
-		return false, fmt.Errorf("nas/eps: IMEISV request value %#x is not assigned", v)
+// Requested reports whether the value asks for the IMEISV.
+func (r IMEISVRequest) Requested() bool { return r == IMEISVRequested }
+
+func (r IMEISVRequest) String() string {
+	if r.Requested() {
+		return "IMEISV requested"
 	}
 
-	return v[0]&0x0F == imeisvRequested, nil
+	return "IMEISV not requested"
 }
 
-// imeisvRequestOctet is the half-octet a request encodes to.
-func imeisvRequestOctet(requested bool) uint8 {
-	if requested {
-		return imeisvRequested
+// parseIMEISVRequest decodes the IMEISV request half-octet.
+func parseIMEISVRequest(v []byte) (IMEISVRequest, error) {
+	if len(v) != 1 {
+		return 0, fmt.Errorf("nas/eps: IMEISV request is %d octets, want 1", len(v))
 	}
 
-	return imeisvNotRequested
+	return IMEISVRequest(v[0] & 0x0F), nil
 }
 
 // SecurityModeCommand is the SECURITY MODE COMMAND message (TS 24.301),
@@ -48,7 +57,7 @@ type SecurityModeCommand struct {
 	// IMEISVRequested asks the UE for its IMEISV in SECURITY MODE COMPLETE
 	// (IEI 0xC). Nil means the element is absent, which the UE reads the same way
 	// as a false it carries.
-	IMEISVRequested *bool
+	IMEISVRequested *IMEISVRequest
 
 	HASHMME []byte // 8-octet hash of the triggering plain Attach/TAU (TS 24.301), nil when absent
 
@@ -76,7 +85,7 @@ func (m *SecurityModeCommand) AppendBinary(b []byte) ([]byte, error) {
 	w.LV(replayed)
 
 	if m.IMEISVRequested != nil {
-		o.TV1(ieiIMEISVRequest, imeisvRequestOctet(*m.IMEISVRequested))
+		o.TV1(ieiIMEISVRequest, uint8(*m.IMEISVRequested))
 	}
 
 	if m.HASHMME != nil {

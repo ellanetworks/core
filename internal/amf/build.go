@@ -160,7 +160,10 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 		return nil, fmt.Errorf("UE security capability not available, cannot build SecurityModeCommand")
 	}
 
-	imeisv := !ue.Imei.IsSet()
+	imeisv := fgs.IMEISVNotRequested
+	if !ue.Imei.IsSet() {
+		imeisv = fgs.IMEISVRequested
+	}
 
 	addInfo := fgs.AdditionalSecurityInformation{
 		RINMR: conn.RetransmissionOfInitialNASMsg,

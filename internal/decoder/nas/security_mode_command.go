@@ -63,7 +63,7 @@ func buildSecurityModeCommand(msg *fgs.SecurityModeCommand) *SecurityModeCommand
 	}
 
 	if msg.IMEISVRequested != nil {
-		v := buildIMEISVRequest(b2u(*msg.IMEISVRequested))
+		v := buildIMEISVRequest(uint8(*msg.IMEISVRequested))
 		out.IMEISVRequest = &v
 	}
 

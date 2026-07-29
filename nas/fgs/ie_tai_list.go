@@ -66,12 +66,13 @@ type TAIList []PartialTAIList
 // partial list can express.
 const maxTAIsPerPartialList = 16
 
-// maxTAIsTotal and maxTAIListOctets are the whole element's limits: TS 24.501 §9.11.3.9
-// caps the list at 16 identities and the IE at 98 octets, two of which are the
-// IEI and length.
+// maxTAIsTotal and maxTAIListOctets are the whole element's limits: TS 24.501
+// §9.11.3.9 caps the list at 16 identities and the element at 114 octets, two of
+// which are the IEI and length. The maximum is reached by 16 partial lists of one
+// identity each, every one carrying its own PLMN: 16 × (1 + 3 + 3) = 112.
 const (
 	maxTAIsTotal     = 16
-	maxTAIListOctets = 96
+	maxTAIListOctets = 112
 )
 
 // maxTAC is the largest value the 3-octet 5GS TAC can hold.
@@ -346,6 +347,11 @@ func requireSharedPLMN(tais []TAI) error {
 }
 
 func requireConsecutiveTACs(tais []TAI) error {
+	if tais[0].TAC+uint32(len(tais))-1 > maxTAC {
+		return fmt.Errorf("nas/fgs: consecutive TAC run from %#x for %d identities exceeds 24 bits",
+			tais[0].TAC, len(tais))
+	}
+
 	for i, t := range tais[1:] {
 		if t.TAC != tais[0].TAC+uint32(i)+1 {
 			return fmt.Errorf("nas/fgs: partial TAI list type %d needs consecutive TACs, got %s after %s",

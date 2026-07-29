@@ -37,7 +37,7 @@ func TestMMBuildersWireBytes(t *testing.T) {
 	wire(t, "DLNASTransport", (&DLNASTransport{PayloadContainerType: 1, PayloadContainer: []byte{0xAA, 0xBB, 0xCC}, PDUSessionID: ptr(PDUSessionID(5))}).MarshalBinary,
 		"7e0068010003aabbcc1205")
 
-	imeisv := true
+	imeisv := IMEISVRequested
 	addInfo := AdditionalSecurityInformation{RINMR: true}
 	wire(t, "SecurityModeCommand",
 		(&SecurityModeCommand{CipheringAlgorithm: 2, IntegrityAlgorithm: 1, NgKSI: nas.KeySetIdentifier{Value: 1}, ReplayedUESecurityCapability: UESecurityCapability{EA: 0xFF, IA: 0xF0}, IMEISVRequested: &imeisv, AdditionalSecurityInformation: &addInfo}).MarshalBinary,
@@ -234,7 +234,7 @@ func TestMMDownlinkParsersRoundTrip(t *testing.T) {
 	}
 
 	// SECURITY MODE COMMAND round-trip plus the decode-only optional IEs.
-	imeisv := true
+	imeisv := IMEISVRequested
 	addInfo := AdditionalSecurityInformation{RINMR: true, HDP: true}
 	smc := &SecurityModeCommand{CipheringAlgorithm: 2, IntegrityAlgorithm: 1, NgKSI: nas.KeySetIdentifier{Value: 1}, ReplayedUESecurityCapability: UESecurityCapability{EA: 0xFF, IA: 0xF0}, IMEISVRequested: &imeisv, AdditionalSecurityInformation: &addInfo}
 
@@ -243,7 +243,7 @@ func TestMMDownlinkParsersRoundTrip(t *testing.T) {
 		t.Fatalf("marshal SecurityModeCommand: %v", err)
 	}
 
-	if got, err := ParseSecurityModeCommand(wire); err != nil || got.CipheringAlgorithm != 2 || got.IntegrityAlgorithm != 1 || got.NgKSI.Value != 1 || !got.ReplayedUESecurityCapability.Equal(UESecurityCapability{EA: 0xFF, IA: 0xF0}) || got.IMEISVRequested == nil || !*got.IMEISVRequested || got.AdditionalSecurityInformation == nil || *got.AdditionalSecurityInformation != (AdditionalSecurityInformation{RINMR: true, HDP: true}) {
+	if got, err := ParseSecurityModeCommand(wire); err != nil || got.CipheringAlgorithm != 2 || got.IntegrityAlgorithm != 1 || got.NgKSI.Value != 1 || !got.ReplayedUESecurityCapability.Equal(UESecurityCapability{EA: 0xFF, IA: 0xF0}) || got.IMEISVRequested == nil || !got.IMEISVRequested.Requested() || got.AdditionalSecurityInformation == nil || *got.AdditionalSecurityInformation != (AdditionalSecurityInformation{RINMR: true, HDP: true}) {
 		t.Errorf("SecurityModeCommand round-trip = %+v (err %v)", got, err)
 	}
 

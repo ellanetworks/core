@@ -70,11 +70,13 @@ const (
 	maxPacketFilterDir   = 3
 )
 
-// carriesRuleBody reports whether an operation code includes the QoS rule
-// precedence and the segregation/QFI octets. The "delete existing QoS rule"
-// operation omits both: TS 24.501 §9.11.4.13 sets its rule length to one, so the
-// content is the operation octet alone.
-func carriesRuleBody(op QoSRuleOperation) bool { return op != QoSRuleOpDelete }
+// ruleParametersRequired and ruleParametersForbidden report what TS 24.501
+// §9.11.4.13 says about the QoS rule precedence and segregation/QFI octets for an
+// operation code: "create new QoS rule" shall include them, "delete existing QoS
+// rule" shall not, and the four modify operations may do either, which is why
+// figure 9.11.4.13.2 marks octets m+1 and m+2 conditional.
+func ruleParametersRequired(op QoSRuleOperation) bool  { return op == QoSRuleOpCreate }
+func ruleParametersForbidden(op QoSRuleOperation) bool { return op == QoSRuleOpDelete }
 
 // filtersAreIdentifiersOnly reports whether a rule's packet filter list is a
 // sequence of bare one-octet packet filter identifiers rather than full filters.
@@ -97,14 +99,23 @@ type PacketFilter struct {
 	Components []PacketFilterComponent
 }
 
-// QoSRule is a single authorized QoS rule (TS 24.501 §9.11.4.13).
+// QoSRuleParameters are the QoS rule precedence and segregation/QFI octets,
+// which TS 24.501 figure 9.11.4.13.2 shows as octets m+1 and m+2. They are
+// present or absent as a pair.
+type QoSRuleParameters struct {
+	Precedence  uint8
+	QFI         uint8
+	Segregation uint8
+}
+
+// QoSRule is a single authorized QoS rule (TS 24.501 §9.11.4.13). Parameters is
+// nil when the rule carries neither the precedence nor the segregation/QFI octet,
+// which every operation but "create new QoS rule" is allowed to do.
 type QoSRule struct {
 	Identifier    uint8 // QRI, 1-255
 	OperationCode QoSRuleOperation
 	DQR           uint8
-	Precedence    uint8
-	QFI           uint8
-	Segregation   uint8
+	Parameters    *QoSRuleParameters
 	Filters       []PacketFilter
 }
 
@@ -114,8 +125,7 @@ func DefaultQoSRule(id, qfi uint8) QoSRule {
 		Identifier:    id,
 		DQR:           0x01,
 		OperationCode: QoSRuleOpCreate,
-		Precedence:    255,
-		QFI:           qfi,
+		Parameters:    &QoSRuleParameters{Precedence: 255, QFI: qfi},
 		Filters: []PacketFilter{
 			{Identifier: 1, Direction: PacketFilterBidirectional, Components: []PacketFilterComponent{{Type: pfComponentTypeMatchAll}}},
 		},
@@ -141,8 +151,16 @@ func (r QoSRule) marshal(w *nas.Writer) error {
 			r.Identifier, len(r.Filters), maxPacketFiltersPerRule)
 	}
 
-	if !carriesRuleBody(r.OperationCode) && len(r.Filters) > 0 {
+	if ruleParametersForbidden(r.OperationCode) && len(r.Filters) > 0 {
 		return fmt.Errorf("nas/fgs: QoS rule %d deletes the rule, so its packet filter list must be empty", r.Identifier)
+	}
+
+	if ruleParametersForbidden(r.OperationCode) && r.Parameters != nil {
+		return fmt.Errorf("nas/fgs: QoS rule %d deletes the rule, so it carries no precedence and no QFI", r.Identifier)
+	}
+
+	if ruleParametersRequired(r.OperationCode) && r.Parameters == nil {
+		return fmt.Errorf("nas/fgs: QoS rule %d creates a rule, so it needs a precedence and a QFI", r.Identifier)
 	}
 
 	w.U8(r.Identifier)
@@ -158,12 +176,12 @@ func (r QoSRule) marshal(w *nas.Writer) error {
 			f.marshal(c)
 		}
 
-		if !carriesRuleBody(r.OperationCode) {
+		if r.Parameters == nil {
 			return
 		}
 
-		c.U8(r.Precedence)
-		c.U8(r.Segregation&0x01<<6 | r.QFI&0x3F)
+		c.U8(r.Parameters.Precedence)
+		c.U8(r.Parameters.Segregation&0x01<<6 | r.Parameters.QFI&0x3F)
 	})
 
 	return nil
@@ -314,7 +332,7 @@ func parseQoSRule(r *nas.Reader) (QoSRule, error) {
 
 	// TS 24.501 §9.11.4.13: the "delete existing QoS rule" operation sets the rule
 	// length to one, so it can carry no packet filters.
-	if !carriesRuleBody(rule.OperationCode) && hdr&0x0F != 0 {
+	if ruleParametersForbidden(rule.OperationCode) && hdr&0x0F != 0 {
 		return QoSRule{}, fmt.Errorf("nas/fgs: QoS rule %d deletes the rule but lists %d packet filters", id, hdr&0x0F)
 	}
 
@@ -339,24 +357,33 @@ func parseQoSRule(r *nas.Reader) (QoSRule, error) {
 		rule.Filters = append(rule.Filters, pf)
 	}
 
-	// A rule that only deletes carries no precedence and no segregation/QFI.
-	if !carriesRuleBody(rule.OperationCode) {
+	if ruleParametersForbidden(rule.OperationCode) {
+		if cr.Remaining() != 0 {
+			return QoSRule{}, fmt.Errorf("nas/fgs: QoS rule %d deletes the rule but carries %d further octets", id, cr.Remaining())
+		}
+
+		return rule, nil
+	}
+
+	if cr.Remaining() == 0 && !ruleParametersRequired(rule.OperationCode) {
 		return rule, nil
 	}
 
 	prec, err := cr.U8()
 	if err != nil {
-		return QoSRule{}, err
+		return QoSRule{}, fmt.Errorf("nas/fgs: QoS rule %d precedence: %w", id, err)
 	}
 
 	segQFI, err := cr.U8()
 	if err != nil {
-		return QoSRule{}, err
+		return QoSRule{}, fmt.Errorf("nas/fgs: QoS rule %d segregation and QFI: %w", id, err)
 	}
 
-	rule.Precedence = prec
-	rule.Segregation = segQFI >> 6 & 0x01
-	rule.QFI = segQFI & 0x3F
+	rule.Parameters = &QoSRuleParameters{
+		Precedence:  prec,
+		QFI:         segQFI & 0x3F,
+		Segregation: segQFI >> 6 & 0x01,
+	}
 
 	return rule, nil
 }

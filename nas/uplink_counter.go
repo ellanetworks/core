@@ -16,8 +16,9 @@ import "fmt"
 // leave the mechanism to the implementation and require the same result of it,
 // so the 4G and 5G receivers share this type.
 type UplinkCounter struct {
-	last     Count
-	accepted bool
+	last      Count
+	accepted  bool
+	exhausted bool
 }
 
 // NewUplinkCounter returns a counter for a security context whose uplink NAS
@@ -42,9 +43,23 @@ func (u UplinkCounter) NextExpected() Count {
 // Estimate returns the NAS COUNT to verify a received uplink message against,
 // formed from its sequence number and an estimate of the overflow counter
 // (TS 24.301 §4.4.3.1, TS 24.501 §4.4.3.1).
-func (u UplinkCounter) Estimate(recvSeq uint8) Count {
-	return u.NextExpected().reconcileUplink(recvSeq)
+//
+// Once the count is exhausted it returns [ErrCountExhausted] and no count: the
+// next value would wrap to one already accepted under this key, which would
+// verify a replay and reuse a keystream (TS 33.401 §6.5, TS 33.501 §6.4.3.1).
+// The receiver fails closed there, as [DownlinkCounter.Use] does for the sender,
+// and the connection has to be released or a new security context established.
+func (u UplinkCounter) Estimate(recvSeq uint8) (Count, error) {
+	if u.exhausted {
+		return 0, ErrCountExhausted
+	}
+
+	return u.NextExpected().reconcileUplink(recvSeq), nil
 }
+
+// Exhausted reports whether the count has reached its maximum, so no further
+// uplink message can be accepted under this security context.
+func (u UplinkCounter) Exhausted() bool { return u.exhausted }
 
 // LastAccepted returns the NAS COUNT of the most recently accepted message, zero
 // if none has been. It is the K_eNB/K_gNB derivation input (TS 33.401 §A.3,
@@ -66,13 +81,19 @@ func (u UplinkCounter) Accepted() bool { return u.accepted }
 // never sanctioned, and would let a caller that mixed up two connections' counts
 // accept a replay.
 func (u *UplinkCounter) Commit(count Count) error {
-	if want := u.Estimate(count.SQN()); count != want {
+	want, err := u.Estimate(count.SQN())
+	if err != nil {
+		return err
+	}
+
+	if count != want {
 		return fmt.Errorf("nas: NAS COUNT %#06x is not the %#06x expected for sequence number %#02x",
 			uint32(count), uint32(want), count.SQN())
 	}
 
 	u.last = count
 	u.accepted = true
+	u.exhausted = count == countMask
 
 	return nil
 }

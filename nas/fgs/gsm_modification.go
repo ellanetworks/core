@@ -163,7 +163,7 @@ func ParsePDUSessionModificationRequest(b []byte) (*PDUSessionModificationReques
 
 			out.RequestedQoSFlows = parsed
 		case ieiExtendedPCO:
-			parsed, err := nas.ParseProtocolConfigurationOptions(value, nas.PCOMSToNetwork)
+			parsed, err := nas.ParseExtendedProtocolConfigurationOptions(value, nas.PCOMSToNetwork)
 			if err != nil {
 				return false, err
 			}
@@ -272,7 +272,7 @@ func ParsePDUSessionModificationReject(b []byte) (*PDUSessionModificationReject,
 
 			out.BackoffTimer = &timer
 		case ieiExtendedPCO:
-			parsed, err := nas.ParseProtocolConfigurationOptions(value, nas.PCONetworkToMS)
+			parsed, err := nas.ParseExtendedProtocolConfigurationOptions(value, nas.PCONetworkToMS)
 			if err != nil {
 				return false, err
 			}
@@ -381,7 +381,7 @@ func ParsePDUSessionModificationCommand(b []byte) (*PDUSessionModificationComman
 
 			out.QoSFlowDescriptions = parsed
 		case ieiExtendedPCO:
-			parsed, err := nas.ParseProtocolConfigurationOptions(value, nas.PCONetworkToMS)
+			parsed, err := nas.ParseExtendedProtocolConfigurationOptions(value, nas.PCONetworkToMS)
 			if err != nil {
 				return false, err
 			}

@@ -84,7 +84,7 @@ func rep(b byte, n int) []byte {
 func canonicalCases(t *testing.T) []canonicalCase {
 	t.Helper()
 
-	qosRules, err := QoSRules{{Identifier: 1, OperationCode: QoSRuleOpCreate, DQR: 1, Precedence: 1}}.MarshalBinary()
+	qosRules, err := QoSRules{{Identifier: 1, OperationCode: QoSRuleOpCreate, DQR: 1, Parameters: &QoSRuleParameters{Precedence: 1}}}.MarshalBinary()
 	if err != nil {
 		t.Fatalf("encode QoS rules: %v", err)
 	}

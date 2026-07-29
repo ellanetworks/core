@@ -122,21 +122,43 @@ func NewRequestedProtocolConfigurationOptions(containerIDs ...uint16) ProtocolCo
 	return p
 }
 
-// maxPCOLen is the element's longest value: TS 24.008 §10.5.6.3 caps the whole
-// element at 253 octets, two of which are its IEI and length.
-const maxPCOLen = 251
+// The two elements that carry this value differ in how much they can hold: the
+// protocol configuration options is a type 4 element of at most 253 octets, two
+// of which are its IEI and length (TS 24.008 §10.5.6.3), and the extended
+// protocol configuration options a type 6 element of at most 65538, three of
+// which are its IEI and two-octet length (§10.5.6.3A). 5GS carries only the
+// extended form (TS 24.501 §9.11.4.6).
+const (
+	maxPCOLen         = 251
+	maxExtendedPCOLen = 65535
+)
 
 // ParseProtocolConfigurationOptions decodes a Protocol Configuration Options
 // value: the configuration-protocol octet followed by identifier / length /
 // content containers (TS 24.008 §10.5.6.3).
+//
+// Use [ParseExtendedProtocolConfigurationOptions] for the extended element,
+// which holds far more: the containers that carry ATSSS, UE policy and
+// service-level-AA data do not fit the classic one.
 func ParseProtocolConfigurationOptions(b []byte, dir PCODirection) (ProtocolConfigurationOptions, error) {
+	return parsePCO(b, dir, maxPCOLen)
+}
+
+// ParseExtendedProtocolConfigurationOptions decodes an Extended Protocol
+// Configuration Options value (TS 24.008 §10.5.6.3A). It is the same content as
+// the classic element under a two-octet length, so only the maximum differs.
+func ParseExtendedProtocolConfigurationOptions(b []byte, dir PCODirection) (ProtocolConfigurationOptions, error) {
+	return parsePCO(b, dir, maxExtendedPCOLen)
+}
+
+func parsePCO(b []byte, dir PCODirection, maxLen int) (ProtocolConfigurationOptions, error) {
 	if dir == PCODirectionUnset {
 		return ProtocolConfigurationOptions{}, fmt.Errorf("nas: protocol configuration options: no direction given")
 	}
 
-	if len(b) > maxPCOLen {
+	if len(b) > maxLen {
 		return ProtocolConfigurationOptions{}, fmt.Errorf(
-			"nas: protocol configuration options is %d octets, want at most %d", len(b), maxPCOLen)
+			"nas: protocol configuration options is %d octets, want at most %d", len(b), maxLen)
 	}
 
 	r := NewReader(b)
@@ -196,9 +218,12 @@ func (p ProtocolConfigurationOptions) AppendBinary(b []byte) ([]byte, error) {
 		return b, err
 	}
 
-	if len(out)-len(b) > maxPCOLen {
+	// The encoder caps at the extended element's maximum; a value bound for the
+	// classic one is bounded further by its own one-octet length, which the
+	// writer enforces when the element is framed.
+	if len(out)-len(b) > maxExtendedPCOLen {
 		return b, fmt.Errorf(
-			"nas: protocol configuration options is %d octets, want at most %d", len(out)-len(b), maxPCOLen)
+			"nas: protocol configuration options is %d octets, want at most %d", len(out)-len(b), maxExtendedPCOLen)
 	}
 
 	return out, nil

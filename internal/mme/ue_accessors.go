@@ -146,7 +146,13 @@ func (ue *UeContext) TryUnprotectUplink(pdu []byte) (plain []byte, count uint32,
 		return nil, 0, nas.ErrNoSecurityContext
 	}
 
-	estimated := ue.ulCount.Estimate(spm.SequenceNumber)
+	// An exhausted uplink count accepts nothing further under this security
+	// context: wrapping would verify a replay of an already-accepted message
+	// (TS 33.401 §6.5). The UE has to re-authenticate.
+	estimated, err := ue.ulCount.Estimate(spm.SequenceNumber)
+	if err != nil {
+		return nil, 0, err
+	}
 
 	p, _, err := eps.Unprotect(pdu, estimated, nas.DirectionUplink, ue.sc)
 	if err != nil {

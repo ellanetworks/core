@@ -89,6 +89,9 @@ func TestTAIListRejectsInconsistentPartialList(t *testing.T) {
 		"consecutive type with a gap": {
 			{Type: PartialTAIListConsecutive, TAIs: []TAI{{PLMN: nas.PLMN{MCC: "001", MNC: "01"}, TAC: 1}, {PLMN: nas.PLMN{MCC: "001", MNC: "01"}, TAC: 3}}},
 		},
+		"consecutive run past the TAC width": {
+			{Type: PartialTAIListConsecutive, TAIs: []TAI{{PLMN: nas.PLMN{MCC: "001", MNC: "01"}, TAC: 0xFFFF}, {PLMN: nas.PLMN{MCC: "001", MNC: "01"}, TAC: 0}}},
+		},
 		"empty partial list": {
 			{Type: PartialTAIListNonConsecutive},
 		},

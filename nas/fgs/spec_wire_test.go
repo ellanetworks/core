@@ -200,3 +200,26 @@ func TestQoSRuleOperationWireValues(t *testing.T) {
 		}
 	}
 }
+
+// TestIMEISVRequestUnassignedValues pins TS 24.008 §10.5.5.10, which TS 24.501
+// §9.11.3.28 adopts: only 1 asks for the identity and "all other values are
+// interpreted as IMEISV not requested". They were rejected as malformed, which
+// made a spec-valid SECURITY MODE COMMAND lose the element.
+func TestIMEISVRequestUnassignedValues(t *testing.T) {
+	for v := range uint8(8) {
+		got, err := parseIMEISVRequest([]byte{v})
+		if err != nil {
+			t.Fatalf("value %d: %v", v, err)
+		}
+
+		if want := v == 1; got.Requested() != want {
+			t.Errorf("value %d requested = %v, want %v", v, got.Requested(), want)
+		}
+
+		// The value re-encodes as it arrived, so an unassigned one is not
+		// rewritten to zero.
+		if uint8(got) != v {
+			t.Errorf("value %d decoded to %d", v, uint8(got))
+		}
+	}
+}

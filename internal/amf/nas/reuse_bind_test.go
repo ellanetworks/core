@@ -54,7 +54,7 @@ func plainDeregistrationWithGuti(t *testing.T, guti fgs.MobileIdentity) []byte {
 func wrapIntegrityProtected(t *testing.T, ue *amf.UeContext, inner []byte, sqn uint8) []byte {
 	t.Helper()
 
-	cnt := ue.ULCountForTest().Estimate(sqn)
+	cnt, _ := ue.ULCountForTest().Estimate(sqn)
 
 	seqAndMsg := append([]byte{sqn}, inner...)
 
