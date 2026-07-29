@@ -118,3 +118,29 @@ func TestClaimENBID_EvictsStaleReassociation(t *testing.T) {
 		t.Errorf("ListRadios = %+v, want only enb-new", got)
 	}
 }
+
+// TS 36.413 §8.7.3.1: S1 Setup re-initialises the S1AP UE-related contexts unless
+// both nodes agree to retain them. Ella Core never offers UE retention, so an eNB
+// repeating S1 Setup on its existing association — what an SCTP restart produces —
+// must not leave its previous UEs behind.
+func TestClaimENBID_RepeatOnSameAssociationReleasesUEs(t *testing.T) {
+	m := newTestMME(t)
+
+	enbID := testENBID(1)
+	c := new(sctp.SCTPConn)
+
+	m.trackRadio(c, RadioInfo{Name: "enb-a"})
+	m.ClaimENBID(m.RadioForConn(c), enbID)
+
+	m.NewUeConn(c, 10)
+
+	if got := len(m.ConnsOnConn(c)); got != 1 {
+		t.Fatalf("setup: expected 1 UE connection, got %d", got)
+	}
+
+	m.ClaimENBID(m.RadioForConn(c), enbID)
+
+	if got := len(m.ConnsOnConn(c)); got != 0 {
+		t.Fatalf("expected the eNB's UE contexts to be released, %d remain", got)
+	}
+}

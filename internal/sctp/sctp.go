@@ -264,6 +264,10 @@ var ErrMessageTooLarge = errors.New("sctp: message larger than read buffer")
 // a message, which the kernel does not do for a well-behaved association.
 var ErrUnexpectedNotification = errors.New("sctp: notification during message reassembly")
 
+// ErrUnrecognizedDelivery reports a delivery whose shape does not match anything
+// the subscribed event set can produce.
+var ErrUnrecognizedDelivery = errors.New("sctp: unrecognized delivery")
+
 type SCTPAddr struct {
 	IPAddrs []net.IPAddr
 	Port    int

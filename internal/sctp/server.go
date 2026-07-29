@@ -266,11 +266,13 @@ func (s *Server) serveConn(ctx context.Context, conn *SCTPConn) {
 	for {
 		n, info, notification, err := conn.ReadMsg(buf)
 		if err != nil {
-			if errors.Is(err, ErrMessageTooLarge) {
-				// Dispatching a fragment would present it as a whole message, so
-				// the peer is treated as faulty.
-				s.cfg.Logger.Warn("message exceeds read buffer; aborting association",
-					zap.Int("read_buffer", len(buf)))
+			// Anything the framing layer rejected leaves the association's message
+			// boundaries in doubt, so it cannot be handed back to the peer intact.
+			if errors.Is(err, ErrMessageTooLarge) ||
+				errors.Is(err, ErrUnexpectedNotification) ||
+				errors.Is(err, ErrUnrecognizedDelivery) {
+				s.cfg.Logger.Warn("aborting association on unusable delivery",
+					zap.Error(err), zap.Int("read_buffer", len(buf)))
 
 				_ = conn.Abort()
 

@@ -54,28 +54,42 @@ func TestReassemble_JoinsFragments(t *testing.T) {
 	}
 }
 
-// An event parseNotification does not recognise must not reach the caller as
-// payload.
-func TestReassemble_UnparsedNotificationIsNotData(t *testing.T) {
-	payloads := [][]byte{[]byte("\xff\xff\xff\xff"), []byte("ngap")}
+// An event parseNotification does not recognise must never reach the caller as
+// payload; the association is faulted instead.
+func TestReassemble_UnparsedNotificationIsRejected(t *testing.T) {
+	payloads := [][]byte{[]byte("\xff\xff\xff\xff")}
+	deliveries := []delivery{{n: 4, isNotification: true, notification: nil, eor: true}}
+
+	buf := make([]byte, 64)
+
+	if _, _, _, err := reassemble(scriptedReader(t, payloads, deliveries), buf); !errors.Is(err, ErrUnrecognizedDelivery) {
+		t.Fatalf("expected ErrUnrecognizedDelivery, got %v", err)
+	}
+}
+
+// A split event would return its tail as a second, garbage event.
+func TestReassemble_TruncatedNotificationIsRejected(t *testing.T) {
+	payloads := [][]byte{[]byte("\x01\x80")}
 	deliveries := []delivery{
-		{n: 4, isNotification: true, notification: nil, eor: true},
-		{n: 4, eor: true},
+		{n: 2, isNotification: true, notification: &SCTPShutdownEventNotification{}, eor: false},
 	}
 
 	buf := make([]byte, 64)
 
-	n, _, notification, err := reassemble(scriptedReader(t, payloads, deliveries), buf)
-	if err != nil {
-		t.Fatalf("reassemble: %v", err)
+	if _, _, _, err := reassemble(scriptedReader(t, payloads, deliveries), buf); !errors.Is(err, ErrUnrecognizedDelivery) {
+		t.Fatalf("expected ErrUnrecognizedDelivery, got %v", err)
 	}
+}
 
-	if notification != nil {
-		t.Fatalf("expected the unparsed event to be skipped, got %T", notification)
-	}
+// A delivery carrying neither payload nor EOR gives the loop no way forward.
+func TestReassemble_StallingDeliveryIsRejected(t *testing.T) {
+	payloads := [][]byte{{}}
+	deliveries := []delivery{{n: 0, eor: false}}
 
-	if !bytes.Equal(buf[:n], []byte("ngap")) {
-		t.Fatalf("expected %q, got %q", "ngap", buf[:n])
+	buf := make([]byte, 64)
+
+	if _, _, _, err := reassemble(scriptedReader(t, payloads, deliveries), buf); !errors.Is(err, ErrUnrecognizedDelivery) {
+		t.Fatalf("expected ErrUnrecognizedDelivery, got %v", err)
 	}
 }
 

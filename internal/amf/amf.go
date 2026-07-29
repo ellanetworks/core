@@ -379,6 +379,12 @@ func (amf *AMF) FindRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool
 
 // ClaimRanID assigns ranNodeID to radio, evicting any other radio holding the
 // same Global RAN Node ID. Returns the evicted radio, or nil.
+//
+// UE contexts are released on both the evicted radio and radio itself: NG Setup
+// re-initialises the NGAP UE-related contexts unless the two nodes agree to
+// retain them (TS 38.413 §8.7.1.1), and Ella Core never offers UE retention. A
+// gNB repeating NG Setup on its existing association — what an SCTP restart
+// produces — would otherwise keep UEs the gNB has already forgotten.
 func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID *ngapType.GlobalRANNodeID) *Radio {
 	newID := util.RanIDToModels(*ranNodeID)
 	present := ranNodeID.Present
@@ -404,6 +410,8 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID *ngapType.GlobalRANNodeID) *R
 	radio.RanID = &newID
 	amf.radiosByID[key] = radio
 	amf.mu.Unlock()
+
+	amf.RemoveAllUeInRan(context.Background(), radio)
 
 	if evicted != nil {
 		amf.RemoveAllUeInRan(context.Background(), evicted)

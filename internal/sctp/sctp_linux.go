@@ -281,6 +281,13 @@ func reassemble(read func([]byte) (delivery, error), b []byte) (int, *SndRcvInfo
 		}
 
 		if d.isNotification {
+			// Every subscribed event type is decoded, so an event that did not
+			// parse — or that the kernel had to split — is not a shape this
+			// association should be producing.
+			if d.notification == nil || !d.eor {
+				return 0, nil, nil, ErrUnrecognizedDelivery
+			}
+
 			// The kernel abandons a partially delivered message without ever
 			// setting MSG_EOR and then splices the messages that arrived
 			// meanwhile onto the queue (net/sctp/ulpqueue.c sctp_ulpq_abort_pd),
@@ -296,11 +303,13 @@ func reassemble(read func([]byte) (delivery, error), b []byte) (int, *SndRcvInfo
 				return total, nil, nil, ErrUnexpectedNotification
 			}
 
-			if d.notification == nil {
-				continue
-			}
-
 			return 0, nil, d.notification, nil
+		}
+
+		// A delivery that neither carries payload nor completes a message would
+		// leave the loop with no way to make progress.
+		if d.n == 0 && !d.eor {
+			return total, nil, nil, ErrUnrecognizedDelivery
 		}
 
 		total += d.n

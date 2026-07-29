@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"runtime"
 	"syscall"
 	"testing"
 	"time"
@@ -63,6 +64,10 @@ func serverWithAcceptedConn(t *testing.T, port int) (server *Server, accepted *S
 	case <-time.After(8 * time.Second):
 		t.Fatal("no message dispatched; never captured the accepted conn")
 	}
+
+	// NewSCTPConn hands fd to an os.File, whose finalizer closes it once client
+	// becomes unreachable. Without this the peer association can end mid-test.
+	t.Cleanup(func() { runtime.KeepAlive(client) })
 
 	return srv, accepted, disconnected, client
 }
