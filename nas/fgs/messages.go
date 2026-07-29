@@ -53,6 +53,11 @@ type UnknownMessage struct {
 	PD ProtocolDiscriminator
 	// Type is the message type octet.
 	Type uint8
+	// PDUSessionID and PTI are the 5GSM header of the message, which a 5GSM
+	// STATUS answering it carries (TS 24.501 §9.4, §9.6). Both are zero for a
+	// 5GMM message, whose header has neither.
+	PDUSessionID PDUSessionID
+	PTI          nas.ProcedureTransactionIdentity
 	// Raw is the whole message, header included.
 	Raw []byte
 }
@@ -142,7 +147,7 @@ func parseGSMMessage(b []byte) (Message, error) {
 
 	parse, ok := gsmParsers[mt]
 	if !ok {
-		return unknownMessage(EPD5GSM, uint8(mt), b)
+		return unknownGSMMessage(mt, b)
 	}
 
 	return parse(b)
@@ -154,6 +159,39 @@ func unknownMessage(pd ProtocolDiscriminator, mt uint8, b []byte) (Message, erro
 	m := &UnknownMessage{PD: pd, Type: mt, Raw: bytes.Clone(b)}
 
 	return m, fmt.Errorf("nas/fgs: %w %#02x", nas.ErrUnknownMessageType, mt)
+}
+
+// unknownGSMMessage keeps an unmodelled 5GSM message together with the header a
+// receiver needs to answer it: TS 24.501 §7.4 has the network return a 5GSM
+// STATUS, and §8.3.16 gives that STATUS the PDU session identity and procedure
+// transaction identity of the message it answers.
+func unknownGSMMessage(mt GSMMessageType, b []byte) (Message, error) {
+	r := nas.NewReader(b)
+
+	// The header is present: PeekGSMMessageType read past it to reach mt.
+	if _, err := r.U8(); err != nil {
+		return nil, err
+	}
+
+	psi, err := r.U8()
+	if err != nil {
+		return nil, err
+	}
+
+	pti, err := r.U8()
+	if err != nil {
+		return nil, err
+	}
+
+	m := &UnknownMessage{
+		PD:           EPD5GSM,
+		Type:         uint8(mt),
+		PDUSessionID: PDUSessionID(psi),
+		PTI:          nas.ProcedureTransactionIdentity(pti),
+		Raw:          bytes.Clone(b),
+	}
+
+	return m, fmt.Errorf("nas/fgs: %w %#02x", nas.ErrUnknownMessageType, uint8(mt))
 }
 
 // messageOrNil maps a nil message to a nil interface, so a hard failure never

@@ -72,6 +72,21 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return "", rsp, fmt.Errorf("error decoding NAS message: %v", err)
 	}
 
+	// A message type this codec does not model draws a 5GSM STATUS naming that,
+	// not a reject of a procedure the UE never started: TS 24.501 §7.4 has the
+	// network ignore such a message except to return a STATUS with cause #97,
+	// where #98 reports a message the receiver does understand arriving in the
+	// wrong state.
+	if unknown, isUnknown := msg.(*fgs.UnknownMessage); isUnknown {
+		rsp, buildErr := smfNas.BuildGSM5GSMStatus(unknown.PDUSessionID, unknown.PTI,
+			fgs.GSMCauseMessageTypeNonExistentOrNotImplemented)
+		if buildErr != nil {
+			return "", nil, fmt.Errorf("unimplemented 5GSM message type %#02x (build 5GSM STATUS failed: %v)", unknown.Type, buildErr)
+		}
+
+		return "", rsp, fmt.Errorf("unimplemented 5GSM message type %#02x", unknown.Type)
+	}
+
 	req, ok := msg.(*fgs.PDUSessionEstablishmentRequest)
 	if !ok {
 		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), 0, fgs.GSMCauseMessageTypeNotCompatibleWithTheProtocolState)

@@ -70,6 +70,23 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		return nil, fmt.Errorf("error decoding N1SmMessage: %v", err)
 	}
 
+	// TS 24.501 §7.4: a 5GSM message type the receiver does not implement is
+	// ignored except that it draws a 5GSM STATUS with cause #97, which names the
+	// PDU session and transaction the offending message carried.
+	if unknown, isUnknown := msg.(*fgs.UnknownMessage); isUnknown && unknown.PD == fgs.EPD5GSM {
+		logger.WithTrace(ctx, logger.SmfLog).Warn("unimplemented 5GSM message type",
+			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID),
+			zap.Uint8("message_type", unknown.Type))
+
+		n1SmMsg, err := smfNas.BuildGSM5GSMStatus(unknown.PDUSessionID, unknown.PTI,
+			fgs.GSMCauseMessageTypeNonExistentOrNotImplemented)
+		if err != nil {
+			return nil, fmt.Errorf("build GSM 5GSM STATUS failed: %v", err)
+		}
+
+		return &UpdateResult{N1Msg: n1SmMsg}, nil
+	}
+
 	gsm, ok := msg.(fgs.GSMMessage)
 	if !ok {
 		logger.WithTrace(ctx, logger.SmfLog).Warn("N1 Msg is not a 5GSM message",

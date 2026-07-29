@@ -2542,3 +2542,85 @@ func TestReleaseSmContext_KeepsLeaseWhenDatapathTeardownFails(t *testing.T) {
 		t.Fatalf("IP lease was released (%d) despite datapath teardown failure; it must be kept", released)
 	}
 }
+
+// TestCreateSmContext_UnknownMessageTypeAnswers5GSMStatus pins the answer to a
+// 5GSM message whose type is not defined: TS 24.501 §7.4 has the network ignore
+// it except to return a 5GSM STATUS with cause #97, where #98 reports a message
+// the receiver understands arriving in a state that does not expect it. A PDU
+// SESSION ESTABLISHMENT REJECT is doubly wrong — it rejects a procedure the UE
+// never started, under a cause that names a different fault.
+func TestCreateSmContext_UnknownMessageTypeAnswers5GSMStatus(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	const (
+		session = uint8(1)
+		pti     = uint8(7)
+	)
+
+	// A well-formed 5GSM header naming a message type 3GPP does not define.
+	n1Msg := []byte{uint8(fgs.EPD5GSM), session, pti, 0xFF}
+
+	ref, rsp, err := s.CreateSmContext(context.Background(), testSUPI(), session, testDNN, testSnssai, n1Msg)
+	if err == nil {
+		t.Fatal("expected an error reporting the unimplemented message type")
+	}
+
+	if ref != "" {
+		t.Errorf("an unimplemented message type created SM context %q", ref)
+	}
+
+	status, parseErr := fgs.ParseGSMStatus(rsp)
+	if parseErr != nil {
+		t.Fatalf("the answer is not a 5GSM STATUS: %v (% x)", parseErr, rsp)
+	}
+
+	if status.Cause != fgs.GSMCauseMessageTypeNonExistentOrNotImplemented {
+		t.Errorf("cause = %v, want %v", status.Cause, fgs.GSMCauseMessageTypeNonExistentOrNotImplemented)
+	}
+
+	// The STATUS names the session and transaction the offending message carried
+	// (TS 24.501 §8.3.16).
+	if uint8(status.PDUSessionID) != session || uint8(status.PTI) != pti {
+		t.Errorf("STATUS header = session %v, PTI %v; want %d / %d", status.PDUSessionID, status.PTI, session, pti)
+	}
+}
+
+// TestUpdateSmContextN1Msg_UnknownMessageTypeAnswers5GSMStatus is the same rule
+// on an established session, where the message was silently dropped.
+func TestUpdateSmContextN1Msg_UnknownMessageTypeAnswers5GSMStatus(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	const pti = uint8(9)
+
+	n1Msg := []byte{uint8(fgs.EPD5GSM), smCtx.PDUSessionID, pti, 0xFF}
+
+	rsp, err := s.UpdateSmContextN1Msg(context.Background(), ref, n1Msg)
+	if err != nil {
+		t.Fatalf("UpdateSmContextN1Msg failed: %v", err)
+	}
+
+	if rsp == nil || len(rsp.N1Msg) == 0 {
+		t.Fatal("an unimplemented message type drew no answer, want a 5GSM STATUS")
+	}
+
+	status, parseErr := fgs.ParseGSMStatus(rsp.N1Msg)
+	if parseErr != nil {
+		t.Fatalf("the answer is not a 5GSM STATUS: %v (% x)", parseErr, rsp.N1Msg)
+	}
+
+	if status.Cause != fgs.GSMCauseMessageTypeNonExistentOrNotImplemented {
+		t.Errorf("cause = %v, want %v", status.Cause, fgs.GSMCauseMessageTypeNonExistentOrNotImplemented)
+	}
+
+	if uint8(status.PTI) != pti {
+		t.Errorf("STATUS PTI = %v, want %d", status.PTI, pti)
+	}
+
+	if s.GetSession(ref) == nil {
+		t.Error("an unimplemented message type released the session; it must be ignored")
+	}
+}

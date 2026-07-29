@@ -265,3 +265,37 @@ func TestDispatchTablesNameRealMessageTypes(t *testing.T) {
 		}
 	}
 }
+
+// TestUnknownESMMessageKeepsItsHeader checks that an unmodelled ESM message
+// carries the header a receiver has to echo: TS 24.301 §7.4 has the network
+// answer with an ESM STATUS, and §8.3.15 gives that STATUS the EPS bearer
+// identity and procedure transaction identity of the message it answers.
+func TestUnknownESMMessageKeepsItsHeader(t *testing.T) {
+	const (
+		bearer = EPSBearerIdentity(5)
+		pti    = nas.ProcedureTransactionIdentity(9)
+	)
+
+	raw := []byte{uint8(bearer)<<4 | uint8(PDESM), uint8(pti), 0xDB, 0xAA}
+
+	msg, err := ParseMessage(raw, nas.DirectionUplink)
+	if !errors.Is(err, nas.ErrUnknownMessageType) {
+		t.Fatalf("err = %v, want ErrUnknownMessageType", err)
+	}
+
+	unknown, ok := msg.(*UnknownMessage)
+	if !ok {
+		t.Fatalf("ParseMessage returned %T, want *UnknownMessage", msg)
+	}
+
+	if unknown.EPSBearerIdentity != bearer || unknown.PTI != pti {
+		t.Errorf("header = bearer %v, PTI %v; want %v / %v", unknown.EPSBearerIdentity, unknown.PTI, bearer, pti)
+	}
+
+	// An EMM message has neither field, so both stay zero.
+	msg, _ = ParseMessage([]byte{uint8(PDEMM), 0x64}, nas.DirectionUplink)
+
+	if emm, ok := msg.(*UnknownMessage); !ok || emm.EPSBearerIdentity != 0 || emm.PTI != 0 {
+		t.Errorf("an EMM unknown message reported bearer %v / PTI %v, want zeroes", emm.EPSBearerIdentity, emm.PTI)
+	}
+}

@@ -56,6 +56,11 @@ type UnknownMessage struct {
 	PD ProtocolDiscriminator
 	// Type is the message type octet.
 	Type uint8
+	// EPSBearerIdentity and PTI are the ESM header of the message, which an ESM
+	// STATUS answering it carries (TS 24.301 §9.3.2, §9.4). Both are zero for an
+	// EMM message, whose header has neither.
+	EPSBearerIdentity EPSBearerIdentity
+	PTI               nas.ProcedureTransactionIdentity
 	// Raw is the whole message, header included.
 	Raw []byte
 }
@@ -179,7 +184,7 @@ func parseESMMessage(b []byte) (Message, error) {
 
 	parse, ok := esmParsers[mt]
 	if !ok {
-		return unknownMessage(PDESM, uint8(mt), b)
+		return unknownESMMessage(mt, b)
 	}
 
 	return parse(b)
@@ -191,6 +196,28 @@ func unknownMessage(pd ProtocolDiscriminator, mt uint8, b []byte) (Message, erro
 	m := &UnknownMessage{PD: pd, Type: mt, Raw: bytes.Clone(b)}
 
 	return m, fmt.Errorf("nas/eps: %w %#02x", nas.ErrUnknownMessageType, mt)
+}
+
+// unknownESMMessage keeps an unmodelled ESM message together with the header a
+// receiver needs to answer it: TS 24.301 §7.4 has the network return an ESM
+// STATUS, and §8.3.15 gives that STATUS the EPS bearer identity and procedure
+// transaction identity of the message it answers.
+func unknownESMMessage(mt ESMMessageType, b []byte) (Message, error) {
+	// The header is present: PeekESMMessageType read past it to reach mt.
+	hdr, err := ParseESMHeader(b)
+	if err != nil {
+		return nil, err
+	}
+
+	m := &UnknownMessage{
+		PD:                PDESM,
+		Type:              uint8(mt),
+		EPSBearerIdentity: hdr.EPSBearerIdentity,
+		PTI:               hdr.PTI,
+		Raw:               bytes.Clone(b),
+	}
+
+	return m, fmt.Errorf("nas/eps: %w %#02x", nas.ErrUnknownMessageType, uint8(mt))
 }
 
 // messageOrNil maps a nil message to a nil interface, so a hard failure never

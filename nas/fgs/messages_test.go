@@ -240,3 +240,41 @@ func TestParseMessageDeregistrationAccept(t *testing.T) {
 		}
 	}
 }
+
+// TestUnknownGSMMessageKeepsItsHeader checks that an unmodelled 5GSM message
+// carries the header a receiver has to echo: TS 24.501 §7.4 has the network
+// answer with a 5GSM STATUS, and §8.3.16 gives that STATUS the PDU session
+// identity and procedure transaction identity of the message it answers.
+func TestUnknownGSMMessageKeepsItsHeader(t *testing.T) {
+	const (
+		session = PDUSessionID(5)
+		pti     = nas.ProcedureTransactionIdentity(9)
+	)
+
+	raw := []byte{uint8(EPD5GSM), uint8(session), uint8(pti), 0xFF, 0xAA}
+
+	msg, err := ParseMessage(raw)
+	if !errors.Is(err, nas.ErrUnknownMessageType) {
+		t.Fatalf("err = %v, want ErrUnknownMessageType", err)
+	}
+
+	unknown, ok := msg.(*UnknownMessage)
+	if !ok {
+		t.Fatalf("ParseMessage returned %T, want *UnknownMessage", msg)
+	}
+
+	if unknown.PD != EPD5GSM || unknown.Type != 0xFF {
+		t.Errorf("PD %#x type %#x, want %#x / 0xff", uint8(unknown.PD), unknown.Type, uint8(EPD5GSM))
+	}
+
+	if unknown.PDUSessionID != session || unknown.PTI != pti {
+		t.Errorf("header = session %v, PTI %v; want %v / %v", unknown.PDUSessionID, unknown.PTI, session, pti)
+	}
+
+	// A 5GMM message has neither field, so both stay zero.
+	msg, _ = ParseMessage([]byte{uint8(EPD5GMM), 0x00, 0xFF})
+
+	if gmm, ok := msg.(*UnknownMessage); !ok || gmm.PDUSessionID != 0 || gmm.PTI != 0 {
+		t.Errorf("a 5GMM unknown message reported session %v / PTI %v, want zeroes", gmm.PDUSessionID, gmm.PTI)
+	}
+}
