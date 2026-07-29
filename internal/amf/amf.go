@@ -409,7 +409,9 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID *ngapType.GlobalRANNodeID) *R
 		amf.RemoveAllUeInRan(context.Background(), evicted)
 
 		if evicted.Conn != nil {
-			_ = evicted.Close()
+			// Aborted, not shut down: the incumbent has been superseded and a
+			// graceful close would stall this NG Setup until it times out.
+			_ = evicted.Abort()
 		}
 	}
 

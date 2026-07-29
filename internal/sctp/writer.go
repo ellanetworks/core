@@ -27,7 +27,9 @@ var (
 	drainTimeout = 500 * time.Millisecond
 )
 
-var errWriteQueueFull = errors.New("sctp: outbound queue full")
+// ErrWriteQueueFull reports that the peer stopped draining and the association
+// has been aborted.
+var ErrWriteQueueFull = errors.New("sctp: outbound queue full")
 
 type queuedWrite struct {
 	b    []byte
@@ -129,7 +131,8 @@ func (c *SCTPConn) WriteMsg(b []byte, info *SndRcvInfo) (int, error) {
 		qw.info = &cp
 	}
 
-	// Without this, a send on a closed association could report success.
+	// Checked before the enqueue, not alongside it: a select with both cases
+	// ready picks at random and would report success on a closed association.
 	select {
 	case <-c.writerDone:
 		return 0, net.ErrClosed
@@ -139,12 +142,10 @@ func (c *SCTPConn) WriteMsg(b []byte, info *SndRcvInfo) (int, error) {
 	select {
 	case c.writeCh <- qw:
 		return len(b), nil
-	case <-c.writerDone:
-		return 0, net.ErrClosed
 	default:
-		c.failAssociation("queue full", errWriteQueueFull)
+		c.failAssociation("queue full", ErrWriteQueueFull)
 
-		return 0, errWriteQueueFull
+		return 0, ErrWriteQueueFull
 	}
 }
 

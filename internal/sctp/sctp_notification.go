@@ -89,3 +89,30 @@ func (s *SCTPShutdownEventNotification) Length() uint32 {
 func (s *SCTPShutdownEventNotification) AssocID() SCTPAssocID {
 	return s.sseAssocID
 }
+
+// SCTPPartialDeliveryEventNotification reports that the kernel abandoned a
+// partially delivered message, so its already-read prefix must be discarded.
+type SCTPPartialDeliveryEventNotification struct {
+	pdapiType       uint16
+	pdapiFlags      uint16
+	pdapiLength     uint32
+	pdapiIndication uint32
+}
+
+func (p *SCTPPartialDeliveryEventNotification) Type() SCTPNotificationType {
+	return SCTPNotificationType(p.pdapiType)
+}
+
+func (p *SCTPPartialDeliveryEventNotification) Flags() uint16 {
+	return p.pdapiFlags
+}
+
+func (p *SCTPPartialDeliveryEventNotification) Length() uint32 {
+	return p.pdapiLength
+}
+
+// Aborted reports SCTP_PARTIAL_DELIVERY_ABORTED, the only indication the kernel
+// defines (include/uapi/linux/sctp.h).
+func (p *SCTPPartialDeliveryEventNotification) Aborted() bool {
+	return p.pdapiIndication == sctpPartialDeliveryAborted
+}

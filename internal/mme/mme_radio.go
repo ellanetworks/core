@@ -192,7 +192,9 @@ func (m *MME) ClaimENBID(radio *Radio, g s1ap.GlobalENBID) {
 		m.reclaimUEsOnConnLoss(stale)
 
 		if sc, ok := stale.(*sctp.SCTPConn); ok {
-			_ = sc.Close()
+			// Aborted, not shut down: the incumbent has been superseded and a
+			// graceful close would stall this S1 Setup until it times out.
+			_ = sc.Abort()
 		}
 	}
 }

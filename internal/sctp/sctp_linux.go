@@ -34,12 +34,12 @@ import (
 	"go.uber.org/zap"
 )
 
-func setsockopt(fd int, optname, optval, optlen uintptr) error {
+func setsockopt(fd int, optname uintptr, optval unsafe.Pointer, optlen uintptr) error {
 	_, _, errno := syscall.Syscall6(syscall.SYS_SETSOCKOPT,
 		uintptr(fd),
 		SolSCTP,
 		optname,
-		optval,
+		uintptr(optval),
 		optlen,
 		0)
 	if errno != 0 {
@@ -49,13 +49,13 @@ func setsockopt(fd int, optname, optval, optlen uintptr) error {
 	return nil
 }
 
-func getsockopt(fd int, optname, optval, optlen uintptr) error {
+func getsockopt(fd int, optname uintptr, optval, optlen unsafe.Pointer) error {
 	_, _, errno := syscall.Syscall6(syscall.SYS_GETSOCKOPT,
 		uintptr(fd),
 		SolSCTP,
 		optname,
-		optval,
-		optlen,
+		uintptr(optval),
+		uintptr(optlen),
 		0)
 	if errno != 0 {
 		return errno
@@ -130,9 +130,14 @@ func parseSndRcvInfo(b []byte) (*SndRcvInfo, error) {
 		if m.Header.Level == syscall.IPPROTO_SCTP {
 			switch m.Header.Type {
 			case SCTPCMsgSndRcv:
+				if len(m.Data) < int(unsafe.Sizeof(SndRcvInfo{})) {
+					return nil, fmt.Errorf("sctp: short SNDRCV cmsg (%d bytes)", len(m.Data))
+				}
+
 				// Copy the struct out of the syscall control buffer so the
 				// returned pointer does not alias storage the caller reuses.
 				info := *(*SndRcvInfo)(unsafe.Pointer(&m.Data[0]))
+
 				return &info, nil
 			}
 		}
@@ -142,10 +147,18 @@ func parseSndRcvInfo(b []byte) (*SndRcvInfo, error) {
 }
 
 func parseNotification(b []byte) Notification {
+	if len(b) < 2 {
+		return nil
+	}
+
 	snType := SCTPNotificationType(binary.NativeEndian.Uint16(b[:2]))
 
 	switch snType {
 	case SCTPShutdownEvent:
+		if len(b) < 12 {
+			return nil
+		}
+
 		notification := SCTPShutdownEventNotification{
 			sseType:    binary.NativeEndian.Uint16(b[:2]),
 			sseFlags:   binary.NativeEndian.Uint16(b[2:4]),
@@ -155,6 +168,10 @@ func parseNotification(b []byte) Notification {
 
 		return &notification
 	case SCTPAssocChange:
+		if len(b) < 20 {
+			return nil
+		}
+
 		notification := SCTPAssocChangeEvent{
 			sacType:            binary.NativeEndian.Uint16(b[:2]),
 			sacFlags:           binary.NativeEndian.Uint16(b[2:4]),
@@ -164,7 +181,20 @@ func parseNotification(b []byte) Notification {
 			sacOutboundStreams: binary.NativeEndian.Uint16(b[12:14]),
 			sacInboundStreams:  binary.NativeEndian.Uint16(b[14:16]),
 			sacAssocID:         SCTPAssocID(binary.NativeEndian.Uint32(b[16:20])),
-			sacInfo:            b[20:],
+			sacInfo:            append([]uint8(nil), b[20:]...),
+		}
+
+		return &notification
+	case SCTPPartialDeliveryEvent:
+		if len(b) < 12 {
+			return nil
+		}
+
+		notification := SCTPPartialDeliveryEventNotification{
+			pdapiType:       binary.NativeEndian.Uint16(b[:2]),
+			pdapiFlags:      binary.NativeEndian.Uint16(b[2:4]),
+			pdapiLength:     binary.NativeEndian.Uint32(b[4:8]),
+			pdapiIndication: binary.NativeEndian.Uint32(b[8:12]),
 		}
 
 		return &notification
@@ -173,12 +203,23 @@ func parseNotification(b []byte) Notification {
 	}
 }
 
-// ReadMsg receives an SCTP message and returns the data, optional SndRcvInfo,
-// and any notification. Uses Go's runtime poller: the goroutine parks
-// efficiently when the socket has no data, rather than blocking an OS thread.
-func (c *SCTPConn) ReadMsg(b []byte) (int, *SndRcvInfo, Notification, error) {
+// delivery is one datagram handed up by recvmsg.
+type delivery struct {
+	n            int
+	info         *SndRcvInfo
+	notification Notification
+	// isNotification distinguishes an event the caller must not treat as
+	// payload from one parseNotification did not recognise.
+	isNotification bool
+	eor            bool
+}
+
+// readMsgOnce receives one delivery. eor reports whether it completes a message;
+// the kernel clears MSG_EOR and requeues the remainder when a message does not
+// fit the supplied buffer (net/sctp/socket.c sctp_recvmsg).
+func (c *SCTPConn) readMsgOnce(b []byte) (delivery, error) {
 	if c.rc == nil {
-		return 0, nil, nil, syscall.EBADF
+		return delivery{}, syscall.EBADF
 	}
 
 	var oob [254]byte
@@ -192,20 +233,25 @@ func (c *SCTPConn) ReadMsg(b []byte) (int, *SndRcvInfo, Notification, error) {
 		return err != syscall.EAGAIN
 	})
 	if rerr != nil {
-		return 0, nil, nil, rerr
+		return delivery{}, rerr
 	}
 
 	if err != nil {
-		return n, nil, nil, err
+		return delivery{n: n}, err
 	}
 
 	if n == 0 && oobn == 0 {
-		return 0, nil, nil, io.EOF
+		return delivery{}, io.EOF
 	}
 
+	eor := recvflags&syscall.MSG_EOR > 0
+
 	if recvflags&MsgNotification > 0 {
-		notification := parseNotification(b[:n])
-		return n, nil, notification, nil
+		return delivery{n: n, notification: parseNotification(b[:n]), isNotification: true, eor: eor}, nil
+	}
+
+	if recvflags&syscall.MSG_CTRUNC > 0 {
+		return delivery{n: n}, fmt.Errorf("sctp: ancillary data truncated")
 	}
 
 	var info *SndRcvInfo
@@ -214,7 +260,59 @@ func (c *SCTPConn) ReadMsg(b []byte) (int, *SndRcvInfo, Notification, error) {
 		info, err = parseSndRcvInfo(oob[:oobn])
 	}
 
-	return n, info, nil, err
+	return delivery{n: n, info: info, eor: eor}, err
+}
+
+// ReadMsg receives one complete SCTP message into b, reassembling a message the
+// kernel split across deliveries. A message that does not fit in b returns
+// ErrMessageTooLarge, since silently dispatching a fragment would present it to
+// the caller as a whole message.
+func (c *SCTPConn) ReadMsg(b []byte) (int, *SndRcvInfo, Notification, error) {
+	return reassemble(c.readMsgOnce, b)
+}
+
+func reassemble(read func([]byte) (delivery, error), b []byte) (int, *SndRcvInfo, Notification, error) {
+	total := 0
+
+	for {
+		d, err := read(b[total:])
+		if err != nil {
+			return total + d.n, nil, nil, err
+		}
+
+		if d.isNotification {
+			// The kernel abandons a partially delivered message without ever
+			// setting MSG_EOR and then splices the messages that arrived
+			// meanwhile onto the queue (net/sctp/ulpqueue.c sctp_ulpq_abort_pd),
+			// so the prefix read so far has to go.
+			if pd, ok := d.notification.(*SCTPPartialDeliveryEventNotification); ok && pd.Aborted() {
+				total = 0
+				continue
+			}
+
+			// Any other event during reassembly means the kernel's ordering
+			// guarantee no longer holds and the stream cannot be trusted.
+			if total > 0 {
+				return total, nil, nil, ErrUnexpectedNotification
+			}
+
+			if d.notification == nil {
+				continue
+			}
+
+			return 0, nil, d.notification, nil
+		}
+
+		total += d.n
+
+		if d.eor {
+			return total, d.info, nil, nil
+		}
+
+		if total >= len(b) {
+			return total, d.info, nil, ErrMessageTooLarge
+		}
+	}
 }
 
 // Close ends the association gracefully: queued sends are flushed, the SCTP
@@ -281,11 +379,11 @@ func (c *SCTPConn) drainReceiveQueue() {
 		return
 	}
 
-	buf := make([]byte, readBufSize)
+	buf := make([]byte, drainBufSize)
 
 	for {
-		n, _, notification, err := c.ReadMsg(buf)
-		if err != nil || (n == 0 && notification == nil) {
+		d, err := c.readMsgOnce(buf)
+		if err != nil || d.n == 0 {
 			return
 		}
 	}
@@ -383,8 +481,14 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 	// efficiently and Close to safely wake it up.
 	f := os.NewFile(uintptr(sock), "sctp-listener")
 	if f == nil {
-		return nil, fmt.Errorf("os.NewFile returned nil for fd %d", sock)
+		err = fmt.Errorf("os.NewFile returned nil for fd %d", sock)
+
+		return nil, err
 	}
+
+	// f owns the fd from here: clear sock so the deferred cleanup cannot close
+	// the same descriptor a second time.
+	sock = -1
 
 	rc, err := f.SyscallConn()
 	if err != nil {
@@ -392,9 +496,6 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 
 		return nil, fmt.Errorf("SyscallConn: %w", err)
 	}
-
-	// The fd is now owned by f; prevent the deferred cleanup from closing it.
-	sock = -1
 
 	return &SCTPListener{file: f, rc: rc}, nil
 }

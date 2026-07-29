@@ -23,6 +23,7 @@ package sctp
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -37,6 +38,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// drainBufSize is the scratch size for discarding queued data on close.
+const drainBufSize = 2048
+
 const (
 	SolSCTP = 132
 
@@ -44,6 +48,8 @@ const (
 	SCTPBindxRemAddr = 0x02
 
 	MsgNotification = 0x8000
+
+	sctpPartialDeliveryAborted = 0
 )
 
 const (
@@ -223,21 +229,21 @@ var ntohs = htons
 // see https://tools.ietf.org/html/rfc4960#page-25
 func setInitOpts(fd int, options InitMsg) error {
 	optlen := unsafe.Sizeof(options)
-	err := setsockopt(fd, SCTPInitMsg, uintptr(unsafe.Pointer(&options)), optlen)
+	err := setsockopt(fd, SCTPInitMsg, unsafe.Pointer(&options), optlen)
 
 	return err
 }
 
 func setRtoInfo(fd int, rtoInfo RtoInfo) error {
 	rtolen := unsafe.Sizeof(rtoInfo)
-	err := setsockopt(fd, SCTPRtoInfo, uintptr(unsafe.Pointer(&rtoInfo)), rtolen)
+	err := setsockopt(fd, SCTPRtoInfo, unsafe.Pointer(&rtoInfo), rtolen)
 
 	return err
 }
 
 func setAssocInfo(fd int, info AssocInfo) error {
 	optlen := unsafe.Sizeof(info)
-	err := setsockopt(fd, SCTPAssocInfo, uintptr(unsafe.Pointer(&info)), optlen)
+	err := setsockopt(fd, SCTPAssocInfo, unsafe.Pointer(&info), optlen)
 
 	return err
 }
@@ -248,8 +254,15 @@ func setAssocInfo(fd int, info AssocInfo) error {
 func setNoDelay(fd int) error {
 	on := int32(1)
 
-	return setsockopt(fd, SCTPNoDelay, uintptr(unsafe.Pointer(&on)), unsafe.Sizeof(on))
+	return setsockopt(fd, SCTPNoDelay, unsafe.Pointer(&on), unsafe.Sizeof(on))
 }
+
+// ErrMessageTooLarge reports a message larger than the supplied buffer.
+var ErrMessageTooLarge = errors.New("sctp: message larger than read buffer")
+
+// ErrUnexpectedNotification reports an event delivered between the fragments of
+// a message, which the kernel does not do for a well-behaved association.
+var ErrUnexpectedNotification = errors.New("sctp: notification during message reassembly")
 
 type SCTPAddr struct {
 	IPAddrs []net.IPAddr
@@ -342,7 +355,7 @@ func SCTPBind(fd int, addr *SCTPAddr, flags int) error {
 	}
 
 	buf := addr.ToRawSockAddrBuf()
-	err := setsockopt(fd, option, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+	err := setsockopt(fd, option, unsafe.Pointer(&buf[0]), uintptr(len(buf)))
 
 	return err
 }
@@ -465,7 +478,7 @@ func (c *SCTPConn) SubscribeEvents(flags int) error {
 	optlen := unsafe.Sizeof(param)
 
 	return c.controlFd(func(fd int) error {
-		return setsockopt(fd, SCTPEvents, uintptr(unsafe.Pointer(&param)), optlen)
+		return setsockopt(fd, SCTPEvents, unsafe.Pointer(&param), optlen)
 	})
 }
 
@@ -520,7 +533,7 @@ func sctpGetAddrs(fd, id, optname int) (*SCTPAddr, error) {
 	}
 	optlen := unsafe.Sizeof(param)
 
-	err := getsockopt(fd, uintptr(optname), uintptr(unsafe.Pointer(&param)), uintptr(unsafe.Pointer(&optlen)))
+	err := getsockopt(fd, uintptr(optname), unsafe.Pointer(&param), unsafe.Pointer(&optlen))
 	if err != nil {
 		return nil, err
 	}

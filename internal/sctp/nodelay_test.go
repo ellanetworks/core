@@ -21,7 +21,7 @@ func nodelayValue(t *testing.T, conn *SCTPConn) int32 {
 	optlen := uint32(unsafe.Sizeof(v))
 
 	err := conn.controlFd(func(fd int) error {
-		return getsockopt(fd, SCTPNoDelay, uintptr(unsafe.Pointer(&v)), uintptr(unsafe.Pointer(&optlen)))
+		return getsockopt(fd, SCTPNoDelay, unsafe.Pointer(&v), unsafe.Pointer(&optlen))
 	})
 	if err != nil {
 		t.Fatalf("getsockopt SCTP_NODELAY: %v", err)

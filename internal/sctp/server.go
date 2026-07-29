@@ -14,7 +14,9 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime/debug"
 	"sync"
+	"time"
 
 	"github.com/ellanetworks/core/internal/netutil"
 	"go.uber.org/zap"
@@ -46,13 +48,15 @@ type Config struct {
 }
 
 // Callbacks groups the functions the SCTP server calls into the upper layer.
-// None of the callbacks should block for extended periods.
+// Dispatch runs on the association's read goroutine: serial within an
+// association, concurrent across associations, and blocking it stalls that
+// association's reads.
 type Callbacks struct {
 	// Dispatch is invoked for every complete message read from a connection.
 	Dispatch func(ctx context.Context, conn *SCTPConn, msg []byte)
 	// Notify is invoked for SCTP association/shutdown events.
 	Notify func(conn *SCTPConn, notification Notification)
-	// OnDisconnect is invoked when a connection is closing, before the socket is closed.
+	// OnDisconnect is invoked once per connection, after its socket is closed.
 	OnDisconnect func(conn *SCTPConn)
 }
 
@@ -173,6 +177,8 @@ func (s *Server) ListenAndServe(ctx context.Context, address string, port int, i
 func (s *Server) acceptLoop(ctx context.Context) {
 	defer close(s.acceptDone)
 
+	backoff := time.Duration(0)
+
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
@@ -181,10 +187,22 @@ func (s *Server) acceptLoop(ctx context.Context) {
 				return
 			}
 
-			s.cfg.Logger.Error("Failed to accept", zap.Error(err))
+			// A persistent failure (typically fd exhaustion) leaves the pending
+			// association queued, so retrying immediately spins on the same error.
+			backoff = nextAcceptBackoff(backoff)
+
+			s.cfg.Logger.Error("Failed to accept", zap.Error(err), zap.Duration("retry_in", backoff))
+
+			select {
+			case <-time.After(backoff):
+			case <-ctx.Done():
+				return
+			}
 
 			continue
 		}
+
+		backoff = 0
 
 		conn.startWriter(s.cfg.Logger)
 
@@ -213,7 +231,10 @@ func (s *Server) serveConn(ctx context.Context, conn *SCTPConn) {
 
 	defer conn.awaitWriter()
 
-	sctpEvents := SCTPEventDataIO | SCTPEventShutdown | SCTPEventAssociation
+	// PartialDelivery is required for correctness, not observability: without the
+	// subscription the kernel abandons a partial message silently and the next
+	// message is read as its continuation.
+	sctpEvents := SCTPEventDataIO | SCTPEventShutdown | SCTPEventAssociation | SCTPEventPartialDelivery
 	if err := conn.SubscribeEvents(sctpEvents); err != nil {
 		s.cfg.Logger.Error("Failed to subscribe to SCTP events", zap.Error(err))
 		return
@@ -233,10 +254,29 @@ func (s *Server) serveConn(ctx context.Context, conn *SCTPConn) {
 	s.cfg.Logger.Info("New SCTP connection", zap.String("remote_address", remoteAddr.String()))
 
 	buf := make([]byte, readBufSize)
+	discarded := 0
+
+	defer func() {
+		if discarded > 0 {
+			s.cfg.Logger.Warn("discarded messages with an unexpected PPID",
+				zap.Uint32("expected", s.cfg.PPID), zap.Int("count", discarded))
+		}
+	}()
 
 	for {
 		n, info, notification, err := conn.ReadMsg(buf)
 		if err != nil {
+			if errors.Is(err, ErrMessageTooLarge) {
+				// Dispatching a fragment would present it as a whole message, so
+				// the peer is treated as faulty.
+				s.cfg.Logger.Warn("message exceeds read buffer; aborting association",
+					zap.Int("read_buffer", len(buf)))
+
+				_ = conn.Abort()
+
+				return
+			}
+
 			if err != io.EOF && !errors.Is(err, net.ErrClosed) {
 				s.cfg.Logger.Debug("ReadMsg terminated", zap.Error(err))
 			}
@@ -252,9 +292,9 @@ func (s *Server) serveConn(ctx context.Context, conn *SCTPConn) {
 			continue
 		}
 
+		// Counted rather than logged per message: the peer controls the rate.
 		if info == nil || PPIDWireOrder(info.PPID) != s.cfg.PPID {
-			s.cfg.Logger.Warn("Received SCTP message with unexpected PPID, discarding",
-				zap.Uint32("expected", s.cfg.PPID))
+			discarded++
 
 			continue
 		}
@@ -262,8 +302,41 @@ func (s *Server) serveConn(ctx context.Context, conn *SCTPConn) {
 		msg := make([]byte, n)
 		copy(msg, buf[:n])
 
-		s.cb.Dispatch(ctx, conn, msg)
+		s.dispatch(ctx, conn, msg)
 	}
+}
+
+// nextAcceptBackoff grows the accept retry delay up to a ceiling.
+func nextAcceptBackoff(current time.Duration) time.Duration {
+	const (
+		initial = 5 * time.Millisecond
+		ceiling = time.Second
+	)
+
+	if current == 0 {
+		return initial
+	}
+
+	if next := current * 2; next < ceiling {
+		return next
+	}
+
+	return ceiling
+}
+
+// dispatch isolates a panic in message handling to the association that caused
+// it, so one malformed PDU cannot take down every other radio.
+func (s *Server) dispatch(ctx context.Context, conn *SCTPConn, msg []byte) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.cfg.Logger.Error("panic handling message; aborting association",
+				zap.Any("panic", r), zap.ByteString("stack", debug.Stack()))
+
+			_ = conn.Abort()
+		}
+	}()
+
+	s.cb.Dispatch(ctx, conn, msg)
 }
 
 func (s *Server) Shutdown(ctx context.Context) {
@@ -281,11 +354,22 @@ func (s *Server) Shutdown(ctx context.Context) {
 		s.cfg.Logger.Warn("Timed out waiting for accept loop to exit")
 	}
 
+	// Closed concurrently: each graceful close can take seconds against a peer
+	// that has stopped draining, and they would otherwise serialise.
+	var closing sync.WaitGroup
+
 	s.conns.Range(func(key, _ any) bool {
 		conn := key.(*SCTPConn)
-		if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			s.cfg.Logger.Warn("close connection error", zap.Error(err))
-		}
+
+		closing.Add(1)
+
+		go func() {
+			defer closing.Done()
+
+			if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+				s.cfg.Logger.Warn("close connection error", zap.Error(err))
+			}
+		}()
 
 		return true
 	})
@@ -293,6 +377,7 @@ func (s *Server) Shutdown(ctx context.Context) {
 	done := make(chan struct{})
 
 	go func() {
+		closing.Wait()
 		s.wg.Wait()
 		close(done)
 	}()

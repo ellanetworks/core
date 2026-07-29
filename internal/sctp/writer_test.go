@@ -147,7 +147,7 @@ func TestWriter_WedgedPeerFailsAssociation(t *testing.T) {
 			t.Fatalf("WriteMsg blocked the caller for %v; the queue must be non-blocking", elapsed)
 		}
 
-		if errors.Is(err, errWriteQueueFull) {
+		if errors.Is(err, ErrWriteQueueFull) {
 			sawQueueFull = true
 			break
 		}

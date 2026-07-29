@@ -27,7 +27,7 @@ func connectLoopbackNoPRSCTP(port int) (int, error) {
 
 	// struct sctp_assoc_value{assoc_id, assoc_value}, zeroed: value 0 disables.
 	var assocValue [2]uint32
-	if err := setsockopt(fd, sctpPRSupported, uintptr(unsafe.Pointer(&assocValue[0])), unsafe.Sizeof(assocValue)); err != nil {
+	if err := setsockopt(fd, sctpPRSupported, unsafe.Pointer(&assocValue[0]), unsafe.Sizeof(assocValue)); err != nil {
 		_ = syscall.Close(fd)
 		return -1, err
 	}
