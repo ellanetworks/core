@@ -50,6 +50,18 @@ struct {
 	__uint(max_entries, 16384);
 } no_neigh_map SEC(".maps");
 
+// The egress ifindex is carried alongside the nexthop because an IPv6
+// link-local nexthop is ambiguous: every interface has an fe80::/64.
+struct no_neigh_event {
+	__u32 ifindex;
+	__u32 family;
+	__u8 addr[16];
+};
+
+// Decoded by hand in parseNoNeighEvent (internal/upf/upf.go).
+_Static_assert(sizeof(struct no_neigh_event) == 24,
+	       "no_neigh_event layout must match parseNoNeighEvent");
+
 struct route_stat {
 	__u64 fib_lookup_ip4_cache;
 	__u64 fib_lookup_ip4_success;
@@ -200,9 +212,14 @@ static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 		// bpf_fib_lookup leaves smac unset on this branch, so the frame
 		// cannot be completed here. Notify userspace to resolve the
 		// nexthop, which bpf_fib_lookup has written into ipv4_dst.
-		__be32 daddr = fib_params.ipv4_dst;
+		struct no_neigh_event ev = {
+			.ifindex = fib_params.ifindex,
+			.family = AF_INET,
+		};
 
-		bpf_ringbuf_output(&no_neigh_map, &daddr, sizeof(daddr), 0);
+		__builtin_memcpy(ev.addr, &fib_params.ipv4_dst,
+				 sizeof(fib_params.ipv4_dst));
+		bpf_ringbuf_output(&no_neigh_map, &ev, sizeof(ev), 0);
 		statistic->fib_lookup_ip4_no_neigh += 1;
 
 		return XDP_DROP;
@@ -292,10 +309,14 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 		// bpf_fib_lookup leaves smac unset on this branch, so the frame
 		// cannot be completed here. Notify userspace to resolve the
 		// nexthop, which bpf_fib_lookup has written into ipv6_dst.
-		struct in6_addr daddr = {};
+		struct no_neigh_event ev = {
+			.ifindex = fib_params.ifindex,
+			.family = AF_INET6,
+		};
 
-		__builtin_memcpy(&daddr, &fib_params.ipv6_dst, sizeof(daddr));
-		bpf_ringbuf_output(&no_neigh_map, &daddr, sizeof(daddr), 0);
+		__builtin_memcpy(ev.addr, fib_params.ipv6_dst,
+				 sizeof(fib_params.ipv6_dst));
+		bpf_ringbuf_output(&no_neigh_map, &ev, sizeof(ev), 0);
 		statistic->fib_lookup_ip6_no_neigh += 1;
 
 		return XDP_DROP;

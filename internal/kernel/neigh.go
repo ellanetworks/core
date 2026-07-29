@@ -17,6 +17,26 @@ import (
 
 var tracer = otel.Tracer("ella-core/kernel")
 
+// AddNeighbourOnLink adds the provided IP as a neighbour on one specific link.
+func AddNeighbourOnLink(ctx context.Context, neigh netip.Addr, ifindex int) error {
+	_, span := tracer.Start(
+		ctx,
+		"kernel/add_neighbour_on_link",
+		trace.WithAttributes(
+			attribute.String("IP", neigh.String()),
+			attribute.Int("ifindex", ifindex),
+		))
+	defer span.End()
+
+	nlNeigh := netlink.Neigh{
+		LinkIndex: ifindex,
+		IP:        neigh.AsSlice(),
+		FlagsExt:  netlink.NTF_EXT_MANAGED,
+	}
+
+	return netlink.NeighSet(&nlNeigh)
+}
+
 // AddNeighbour adds the provided IP as a neighbour
 // on all links that have an address in the same subnet.
 func AddNeighbour(ctx context.Context, neigh netip.Addr) error {
