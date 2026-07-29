@@ -287,7 +287,7 @@ func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payloa
 		// No reset accompanies it. Sending the command already reset both counts
 		// (wrapSecuredLocked), so the genuine answer verifies at count zero, and
 		// resetting on receipt is what made the rollback reachable.
-		if ue.RegStep() != RegStepSecurityMode {
+		if ue.regStepLocked() != RegStepSecurityMode {
 			return nil, silentDecode(nasreply.ReasonOutOfState,
 				"new-context security header type outside the security mode procedure")
 		}

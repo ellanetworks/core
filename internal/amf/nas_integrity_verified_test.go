@@ -249,6 +249,9 @@ func TestDecodeNASMessage_SecureExchangeEstablished_DiscardsMacFailed(t *testing
 // at any other time let an attacker replay that captured message under unchanged
 // keys, roll the uplink NAS COUNT back to zero, and replay everything captured
 // after it.
+//
+// It decodes through DecodeNASMessage rather than the unexported handler, so the
+// guard runs under the lock DecodeNASMessage holds, as it does in production.
 func TestDecodeProtectedNAS_NewContextOutsideSecurityMode(t *testing.T) {
 	ue := newSecuredUE(t)
 
@@ -270,14 +273,14 @@ func TestDecodeProtectedNAS_NewContextOutsideSecurityMode(t *testing.T) {
 	// Registered: the security mode procedure has long finished.
 	ue.ForceRegStepForTest(RegStepContextSetup)
 
-	if _, err := decodeProtectedNAS(ue, fgs.SHTIntegrityProtectedCipheredNewContext, wire, ue.Conn()); err == nil {
+	if _, err := DecodeNASMessage(ue, wire); err == nil {
 		t.Fatal("a new-context message outside the security mode procedure was accepted")
 	}
 
 	// In the security mode procedure it is the expected answer.
 	ue.ForceRegStepForTest(RegStepSecurityMode)
 
-	if _, err := decodeProtectedNAS(ue, fgs.SHTIntegrityProtectedCipheredNewContext, wire, ue.Conn()); err != nil {
+	if _, err := DecodeNASMessage(ue, wire); err != nil {
 		t.Fatalf("the SECURITY MODE COMPLETE answering a command in flight was refused: %v", err)
 	}
 }
