@@ -123,6 +123,8 @@ type InterfacesYaml struct {
 	API APIInterfaceYaml `yaml:"api"`
 }
 
+// XDPYaml is the deprecated attach-mode block, still parsed so existing
+// configs keep working; resolveAttachMode maps it onto DatapathYaml.
 type XDPYaml struct {
 	AttachMode string `yaml:"attach-mode"`
 }
@@ -209,10 +211,6 @@ type Interfaces struct {
 	API APIInterface
 }
 
-type XDP struct {
-	AttachMode string
-}
-
 type Datapath struct {
 	// AttachMode is one of the Datapath* mechanisms, or DatapathChain when
 	// the operator did not pin one.
@@ -261,7 +259,6 @@ type Config struct {
 	Logging    Logging
 	DB         DB
 	Interfaces Interfaces
-	XDP        XDP
 	Datapath   Datapath
 	Telemetry  Telemetry
 	Cluster    Cluster
@@ -481,7 +478,6 @@ func Validate(filePath string) (Config, error) {
 	}
 
 	config.Interfaces.API.Port = c.Interfaces.API.Port
-	config.XDP.AttachMode = c.XDP.AttachMode
 	config.Telemetry.OTLPEndpoint = c.Telemetry.OTLPEndpoint
 	config.Telemetry.Enabled = c.Telemetry.Enabled
 

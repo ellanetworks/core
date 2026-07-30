@@ -72,7 +72,7 @@ func adoptOrAttach(pinName string, prog *cebpf.Program, attach func() (link.Link
 		return nil, err
 	}
 
-	if err := os.MkdirAll(bpfPinDir, 0o755); err != nil {
+	if err := os.MkdirAll(bpfPinDir, 0o750); err != nil {
 		logger.UpfLog.Warn("datapath link not pinned; it detaches with the process",
 			zap.String("dir", bpfPinDir), zap.Error(err))
 
@@ -232,6 +232,7 @@ func interfaceGROEnabled(ifname string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	defer func() { _ = unix.Close(fd) }()
 
 	value := struct {
