@@ -12,8 +12,6 @@ import (
 	"net/netip"
 	"testing"
 	"time"
-
-	"github.com/cilium/ebpf/link"
 )
 
 const (
@@ -179,18 +177,9 @@ func setupVethRA(t *testing.T) (injPeer, n3Peer *net.Interface, vobj *BpfObjects
 
 	injDev := ifByName(t, vethInjDev)
 
-	obj := loadProgramConfig(t, false, false, ifByName(t, vethN3Dev).Index, 0, 0, 0)
+	obj := loadAttachedProgramConfig(t, false, false, ifByName(t, vethN3Dev).Index, 0, 0, 0)
 
-	l, err := link.AttachXDP(link.XDPOptions{
-		Program:   obj.VethXdpFunc,
-		Interface: injDev.Index,
-		Flags:     link.XDPGenericMode,
-	})
-	if err != nil {
-		t.Fatalf("attach XDP to veth: %v", err)
-	}
-
-	t.Cleanup(func() { _ = l.Close() })
+	attachDatapath(t, obj, obj.VethXdpFunc, injDev.Index)
 
 	return ifByName(t, vethInjPeer), ifByName(t, vethN3Peer), obj
 }

@@ -84,12 +84,37 @@ func putTCPdrDownlink(t *testing.T, objs *N3N6EntrypointTcObjects, ueAddr [4]byt
 	}
 }
 
+// skbRunContext is the UAPI __sk_buff layout accepted as ctx_in by
+// BPF_PROG_TEST_RUN for SCHED_CLS; only the kernel-settable fields may be
+// non-zero (net/bpf/test_run.c convert___skb_to_skb).
+type skbRunContext struct {
+	Len, PktType, Mark, QueueMapping, Protocol, VlanPresent uint32
+	VlanTci, VlanProto, Priority, IngressIfindex, Ifindex   uint32
+	TcIndex                                                 uint32
+	Cb                                                      [5]uint32
+	Hash, TcClassid, Data, DataEnd, NapiID, Family          uint32
+	RemoteIP4, LocalIP4                                     uint32
+	RemoteIP6, LocalIP6                                     [4]uint32
+	RemotePort, LocalPort, DataMeta                         uint32
+	FlowKeys                                                uint64
+	Tstamp                                                  uint64
+	WireLen, GsoSegs                                        uint32
+	Sk                                                      uint64
+	GsoSize                                                 uint32
+	TstampType                                              uint8
+	_                                                       [3]byte
+	Hwtstamp                                                uint64
+}
+
 func runTC(t *testing.T, prog *ebpf.Program, packet []byte) (uint32, []byte) {
 	t.Helper()
 
+	// ingress_ifindex 1 (loopback) mirrors what XDP BPF_PROG_TEST_RUN
+	// provides, so bpf_fib_lookup resolves identically in both builds.
 	opts := &ebpf.RunOptions{
 		Data:    packet,
 		DataOut: make([]byte, len(packet)+256),
+		Context: skbRunContext{IngressIfindex: 1},
 	}
 
 	action, err := prog.Run(opts)

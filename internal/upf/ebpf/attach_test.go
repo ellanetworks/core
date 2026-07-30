@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"golang.org/x/sys/unix"
 )
@@ -96,7 +97,7 @@ func setupT2(t *testing.T, masquerade bool) *t2 {
 	addNeigh(t, t2N6Dev, serverIP, "02:00:00:00:00:bb")
 
 	f := &t2{
-		obj:    loadProgramConfig(t, false, masquerade, ifByName(t, t2N3Dev).Index, ifByName(t, t2N6Dev).Index, 0, 0),
+		obj:    loadAttachedProgramConfig(t, false, masquerade, ifByName(t, t2N3Dev).Index, ifByName(t, t2N6Dev).Index, 0, 0),
 		n3Dev:  ifByName(t, t2N3Dev),
 		n3Peer: ifByName(t, t2N3Peer),
 		n6Dev:  ifByName(t, t2N6Dev),
@@ -164,13 +165,35 @@ func addNeigh(t *testing.T, dev string, addr [4]byte, lladdr string) {
 func attachXDP(t *testing.T, obj *BpfObjects, ifindex int) {
 	t.Helper()
 
-	l, err := link.AttachXDP(link.XDPOptions{
-		Program:   obj.UpfEntryFunc,
-		Interface: ifindex,
-		Flags:     link.XDPGenericMode,
-	})
+	attachDatapath(t, obj, obj.UpfEntryFunc, ifindex)
+}
+
+// attachDatapath attaches prog on the interface at the fixture's attach mode:
+// TCX ingress for the SCHED_CLS build, generic XDP for the XDP build.
+func attachDatapath(t *testing.T, obj *BpfObjects, prog *ebpf.Program, ifindex int) {
+	t.Helper()
+
+	var (
+		l   link.Link
+		err error
+	)
+
+	if obj.UseTCX {
+		l, err = link.AttachTCX(link.TCXOptions{
+			Program:   prog,
+			Attach:    ebpf.AttachTCXIngress,
+			Interface: ifindex,
+		})
+	} else {
+		l, err = link.AttachXDP(link.XDPOptions{
+			Program:   prog,
+			Interface: ifindex,
+			Flags:     link.XDPGenericMode,
+		})
+	}
+
 	if err != nil {
-		t.Fatalf("attach XDP to ifindex %d: %v", ifindex, err)
+		t.Fatalf("attach datapath to ifindex %d: %v", ifindex, err)
 	}
 
 	t.Cleanup(func() { _ = l.Close() })

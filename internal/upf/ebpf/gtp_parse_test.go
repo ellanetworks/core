@@ -120,6 +120,34 @@ func loadProgramFlow(t *testing.T, n3Ifindex, n6Ifindex int) *BpfObjects {
 	return loadProgramConfig(t, true, false, n3Ifindex, n6Ifindex, 0, 0)
 }
 
+// testAttachModeTCX selects the SCHED_CLS build and TCX attach for the
+// real-attach fixtures (BPF_PROG_TEST_RUN suites always exercise the XDP
+// build; the TC build's test_run coverage is tc_test.go), so the same
+// attached suites run per mode: ELLA_TEST_ATTACH_MODE=tcx via
+// go test -exec "sudo env ...".
+func testAttachModeTCX() bool { return os.Getenv("ELLA_TEST_ATTACH_MODE") == "tcx" }
+
+// loadAttachedProgramConfig is loadProgramConfig at the fixture attach mode.
+func loadAttachedProgramConfig(t *testing.T, flowAccounting, masquerade bool, n3Ifindex, n6Ifindex int, n3Vlan, n6Vlan uint32) *BpfObjects {
+	t.Helper()
+
+	obj := NewBpfObjects(flowAccounting, masquerade, n3Ifindex, n6Ifindex, n3Vlan, n6Vlan)
+	obj.UseTCX = testAttachModeTCX()
+
+	if err := obj.Load(); err != nil {
+		var ve *ebpf.VerifierError
+		if errors.As(err, &ve) {
+			t.Fatalf("load N3/N6 objects: verifier error: %+v", ve)
+		}
+
+		t.Fatalf("load N3/N6 objects: %v", err)
+	}
+
+	t.Cleanup(func() { _ = obj.Close() })
+
+	return obj
+}
+
 func loadProgramConfig(t *testing.T, flowAccounting, masquerade bool, n3Ifindex, n6Ifindex int, n3Vlan, n6Vlan uint32) *BpfObjects {
 	t.Helper()
 

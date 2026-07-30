@@ -22,5 +22,5 @@ interfaces:
     tls:
       cert: "/etc/ella/cert.pem"
       key: "/etc/ella/key.pem"
-xdp:
-  attach-mode: "native"
+datapath:
+  attach-mode: "xdp-native"

@@ -837,6 +837,14 @@ destination_nat_apply_csum_helpers(struct packet_context *ctx,
 		ctx_l4_csum_replace(ctx->ctx_buff, csum_off, old_id, x->l4_id,
 				    2 | flags);
 	}
+
+	/* Re-derive the context in the same flow as the helper calls — every
+	 * packet pointer is invalid past this point, and keying the re-parse
+	 * on anything the verifier must correlate across branches leaves it a
+	 * poisoned-pointer path. A failed re-parse surfaces to the caller as
+	 * ctx->ip4 == NULL. */
+	context_reinit(ctx, ctx_data(ctx->ctx_buff),
+		       ctx_data_end(ctx->ctx_buff));
 }
 
 // Rewrites the destination the lookup resolved, and nothing else.

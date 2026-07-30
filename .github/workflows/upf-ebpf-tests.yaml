@@ -30,7 +30,15 @@ jobs:
       - name: Kernel version
         run: uname -a
 
-      - name: Run UPF eBPF datapath and engine tests
-        run: go test -v -exec "sudo --preserve-env=EBPF_REQUIRE_PRIVILEGED" ./internal/upf/ebpf/... ./internal/upf/engine/...
+      # scripts/netns-exec.sh runs each test binary in a fresh network
+      # namespace: the fixtures create veth pairs and flip forwarding
+      # sysctls, which stay contained there.
+      - name: Run UPF eBPF datapath and engine tests (generic XDP fixtures)
+        run: go test -v -exec "sudo --preserve-env=EBPF_REQUIRE_PRIVILEGED $PWD/scripts/netns-exec.sh" ./internal/upf/ebpf/... ./internal/upf/... ./internal/upf/engine/...
+        env:
+          EBPF_REQUIRE_PRIVILEGED: "1"
+
+      - name: Run UPF eBPF datapath tests (TCX fixtures)
+        run: go test -v -exec "sudo --preserve-env=EBPF_REQUIRE_PRIVILEGED $PWD/scripts/netns-exec.sh env ELLA_TEST_ATTACH_MODE=tcx" ./internal/upf/ebpf/...
         env:
           EBPF_REQUIRE_PRIVILEGED: "1"

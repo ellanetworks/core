@@ -300,6 +300,7 @@ static __always_inline void context_reset(struct packet_context *ctx,
 	ctx->ip4 = NULL;
 	ctx->ip6 = NULL;
 	ctx->udp = NULL;
+	ctx->tcp = NULL;
 	ctx->gtp = NULL;
 	ctx->icmp = NULL;
 }

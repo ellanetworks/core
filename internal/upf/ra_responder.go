@@ -103,22 +103,27 @@ func (r *RAResponder) Start() error {
 		return fmt.Errorf("create veth pair: %w", err)
 	}
 
-	// Attach XDP to veth-xdp.
+	// Attach the injection program to veth-xdp, at the hook matching the
+	// loaded object: TCX for the SCHED_CLS build, generic XDP for the XDP
+	// build (native veth XDP redirect would need an XDP_PASS stub on the
+	// peer).
 	xdpIdx, err := VethXDPIndex()
 	if err != nil {
 		return fmt.Errorf("veth-xdp interface not found: %w", err)
 	}
 
-	xdpLink, err := link.AttachXDP(link.XDPOptions{
-		Program:   r.bpfObjects.VethXdpFunc,
-		Interface: xdpIdx,
-		Flags:     link.XDPGenericMode,
-	})
-	if err != nil {
-		return fmt.Errorf("attach XDP to veth-xdp: %w", err)
+	var vethLink link.Link
+	if r.bpfObjects.UseTCX {
+		vethLink, err = attachTCX(r.bpfObjects.VethXdpFunc, xdpIdx, VethXDPName)
+	} else {
+		vethLink, err = attachXDP(r.bpfObjects.VethXdpFunc, xdpIdx, VethXDPName, link.XDPGenericMode)
 	}
 
-	r.vethLink = xdpLink
+	if err != nil {
+		return fmt.Errorf("attach injection program to veth-xdp: %w", err)
+	}
+
+	r.vethLink = vethLink
 
 	// Resolve veth MACs for Ethernet framing of injected packets.
 	smfIface, err := net.InterfaceByName(VethSMFName)

@@ -71,7 +71,7 @@ type UPF struct {
 	fcDone     chan struct{} // closed when reportFlows exits (all flows reported)
 }
 
-func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface config.N3Interface, n3IPv4 string, n3IPv6 string, advertisedN3IPv4 string, advertisedN3IPv6 string, n6Interface config.N6Interface, xdpAttachMode string, masquerade bool, flowact bool) (*UPF, error) {
+func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface config.N3Interface, n3IPv4 string, n3IPv6 string, advertisedN3IPv4 string, advertisedN3IPv6 string, n6Interface config.N6Interface, attachMode string, masquerade bool, flowact bool) (*UPF, error) {
 	var (
 		n3Vlan uint32
 		n6Vlan uint32
@@ -114,28 +114,18 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		return nil, err
 	}
 
-	n3Link, err := link.AttachXDP(link.XDPOptions{
-		Program:   bpfObjects.UpfEntryFunc,
-		Interface: n3Iface.Index,
-		Flags:     StringToXDPAttachMode(xdpAttachMode),
-	})
+	attachedMode, n3Link, n6Link, err := attachDatapath(bpfObjects, attachMode,
+		datapathIface{index: n3Iface.Index, name: n3AttachmentInterface},
+		datapathIface{index: n6Iface.Index, name: n6AttachmentInterface})
 	if err != nil {
-		return nil, fmt.Errorf("failed to attach eBPF program on n3 interface %q: %s", n3AttachmentInterface, err)
+		return nil, err
 	}
 
-	var n6Link *link.Link
+	logger.UpfLog.Info("datapath attached", zap.String("attach-mode", attachedMode),
+		zap.String("n3", n3AttachmentInterface), zap.String("n6", n6AttachmentInterface))
 
-	if n6Iface.Index != n3Iface.Index {
-		n6, err := link.AttachXDP(link.XDPOptions{
-			Program:   bpfObjects.UpfEntryFunc,
-			Interface: n6Iface.Index,
-			Flags:     StringToXDPAttachMode(xdpAttachMode),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to attach eBPF program on n6 interface %q: %s", n6AttachmentInterface, err)
-		}
-
-		n6Link = &n6
+	if attachedMode == config.DatapathTCX {
+		warnGROOnTCX(n6AttachmentInterface)
 	}
 
 	resourceManager, err := engine.NewFteIDResourceManager(FTEIDPool)
@@ -364,19 +354,6 @@ func (u *UPF) ReloadFlowAccounting(flowact bool) error {
 	}
 
 	return nil
-}
-
-func StringToXDPAttachMode(Mode string) link.XDPAttachFlags {
-	switch Mode {
-	case "generic":
-		return link.XDPGenericMode
-	case "native":
-		return link.XDPDriverMode
-	case "offload":
-		return link.XDPOffloadMode
-	default:
-		return link.XDPGenericMode
-	}
 }
 
 func (u *UPF) startGC(ctx context.Context) {

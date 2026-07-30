@@ -210,13 +210,13 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	destination_nat_apply(ctx, &xlate);
 	PROFILE_END(PROF_N6_NAT);
 
-	if (CTX_L4_CSUM_VIA_HELPERS && translated) {
-		/* The csum helpers in destination_nat_apply invalidated every
-		 * packet pointer. */
-		if (context_reinit(ctx, ctx_data(ctx->ctx_buff),
-				   ctx_data_end(ctx->ctx_buff)) != 0)
-			return CTX_ACT_ABORTED;
+	if (CTX_L4_CSUM_VIA_HELPERS) {
+		/* destination_nat_apply re-parses after its csum helpers; the
+		 * frame was parsed as IPv4 above, so a missing IPv4 header
+		 * here is a failed re-parse. */
 		ip4 = ctx->ip4;
+		if (!ip4)
+			return CTX_ACT_ABORTED;
 	}
 
 	ctx->interface = INTERFACE_N6;

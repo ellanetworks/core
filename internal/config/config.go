@@ -16,9 +16,24 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// Deprecated xdp.attach-mode values, mapped onto datapath.attach-mode.
 const (
 	AttachModeNative  = "native"
 	AttachModeGeneric = "generic"
+)
+
+// datapath.attach-mode values. Each names one concrete mechanism: native and
+// generic are flavors of the XDP hook, TCX is a different hook. The automatic
+// native-then-TCX chain is what an absent setting yields, so no value spells
+// it.
+const (
+	DatapathXDPNative  = "xdp-native"
+	DatapathTCX        = "tcx"
+	DatapathXDPGeneric = "xdp-generic"
+
+	// DatapathChain attaches driver-level XDP where the NIC supports it and
+	// TCX otherwise. Generic XDP is never reached from here.
+	DatapathChain = ""
 )
 
 const (
@@ -112,6 +127,10 @@ type XDPYaml struct {
 	AttachMode string `yaml:"attach-mode"`
 }
 
+type DatapathYaml struct {
+	AttachMode string `yaml:"attach-mode"`
+}
+
 type SystemLoggingYaml struct {
 	Level  string `yaml:"level"`
 	Output string `yaml:"output"`
@@ -153,6 +172,7 @@ type ConfigYAML struct {
 	DB         DBYaml         `yaml:"db"`
 	Interfaces InterfacesYaml `yaml:"interfaces"`
 	XDP        XDPYaml        `yaml:"xdp"`
+	Datapath   DatapathYaml   `yaml:"datapath"`
 	Telemetry  TelemetryYaml  `yaml:"telemetry"`
 	Cluster    ClusterYaml    `yaml:"cluster"`
 }
@@ -190,6 +210,12 @@ type Interfaces struct {
 }
 
 type XDP struct {
+	AttachMode string
+}
+
+type Datapath struct {
+	// AttachMode is one of the Datapath* mechanisms, or DatapathChain when
+	// the operator did not pin one.
 	AttachMode string
 }
 
@@ -236,6 +262,7 @@ type Config struct {
 	DB         DB
 	Interfaces Interfaces
 	XDP        XDP
+	Datapath   Datapath
 	Telemetry  Telemetry
 	Cluster    Cluster
 }
@@ -373,15 +400,19 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, errors.New("both interfaces.api.tls.cert and interfaces.api.tls.key must be provided together")
 	}
 
-	if c.XDP == (XDPYaml{}) {
-		return Config{}, errors.New("xdp is empty")
+	attachMode, err := resolveAttachMode(c.XDP, c.Datapath)
+	if err != nil {
+		return Config{}, err
 	}
 
-	if c.XDP.AttachMode != AttachModeNative && c.XDP.AttachMode != AttachModeGeneric {
-		return Config{}, errors.New("xdp.attach-mode is invalid. Allowed values are: native, generic")
-	}
+	config.Datapath.AttachMode = attachMode
 
-	if c.XDP.AttachMode == AttachModeNative {
+	// Generic XDP attaches to the configured interface and lets the kernel
+	// tag; every other mechanism attaches to the VLAN master and tags in the
+	// datapath. Native XDP cannot attach to a VLAN netdev at all (no
+	// ndo_bpf), and this runs before the chain knows whether native or TCX
+	// wins, so the whole chain has to resolve the same way.
+	if attachMode != DatapathXDPGeneric {
 		config.Interfaces.N3.VlanConfig, err = GetVLANConfigForInterfaceFunc(n3InterfaceName)
 		if err != nil {
 			return Config{}, fmt.Errorf("cannot get vlan config for interface %s: %w", n3InterfaceName, err)
@@ -585,6 +616,39 @@ var GetInterfaceNameFunc = func(address string) (string, error) {
 	}
 
 	return "", nil
+}
+
+// resolveAttachMode reduces the datapath.attach-mode setting and the
+// deprecated xdp.attach-mode block to a single mechanism. An unset value is
+// DatapathChain, not an error: the automatic chain is the default, not a
+// value an operator spells out.
+func resolveAttachMode(x XDPYaml, d DatapathYaml) (string, error) {
+	if x.AttachMode != "" && d.AttachMode != "" {
+		return "", errors.New("xdp.attach-mode and datapath.attach-mode are both set. xdp.attach-mode is deprecated: keep only datapath.attach-mode")
+	}
+
+	if d.AttachMode != "" {
+		switch d.AttachMode {
+		case DatapathXDPNative, DatapathTCX, DatapathXDPGeneric:
+			return d.AttachMode, nil
+		}
+
+		return "", fmt.Errorf("datapath.attach-mode is invalid. Allowed values are: %s, %s, %s",
+			DatapathXDPNative, DatapathTCX, DatapathXDPGeneric)
+	}
+
+	switch x.AttachMode {
+	case "":
+		return DatapathChain, nil
+	case AttachModeNative:
+		logger.EllaLog.Warn("xdp.attach-mode is deprecated, use datapath.attach-mode: " + DatapathXDPNative)
+		return DatapathXDPNative, nil
+	case AttachModeGeneric:
+		logger.EllaLog.Warn("xdp.attach-mode is deprecated, use datapath.attach-mode: " + DatapathXDPGeneric)
+		return DatapathXDPGeneric, nil
+	}
+
+	return "", errors.New("xdp.attach-mode is invalid. Allowed values are: native, generic")
 }
 
 var GetVLANConfigForInterfaceFunc = func(name string) (*VlanConfig, error) {

@@ -4,7 +4,9 @@
 package config_test
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -351,6 +353,92 @@ func TestBadConfigFail(t *testing.T) {
 
 			if !strings.Contains(err.Error(), tc.ExpectedError) {
 				t.Errorf("Expected error: %s, got: %s", tc.ExpectedError, err)
+			}
+		})
+	}
+}
+
+func TestAttachModeResolution(t *testing.T) {
+	config.CheckInterfaceExistsFunc = func(name string) (bool, error) { return true, nil }
+	config.GetInterfaceNameFunc = func(name string) (string, error) { return InterfaceName, nil }
+
+	const tmpl = `logging:
+  system:
+    level: "info"
+    output: "stdout"
+  audit:
+    output: "stdout"
+db:
+  path: "test"
+interfaces:
+  n2:
+    address: "0.0.0.0"
+  n3:
+    address: "33.33.33.3"
+  n6:
+    name: "enp6s0"
+  api:
+    address: "0.0.0.0"
+    port: 5002
+%s`
+
+	cases := []struct {
+		name         string
+		attach       string
+		wantMode     string
+		wantVLANRead bool
+		wantErrParts string
+	}{
+		{"absent block is the automatic chain", "", config.DatapathChain, true, ""},
+		{"explicit xdp-native", "datapath:\n  attach-mode: \"xdp-native\"\n", config.DatapathXDPNative, true, ""},
+		{"explicit tcx", "datapath:\n  attach-mode: \"tcx\"\n", config.DatapathTCX, true, ""},
+		{"explicit xdp-generic keeps the subinterface", "datapath:\n  attach-mode: \"xdp-generic\"\n", config.DatapathXDPGeneric, false, ""},
+		{"deprecated native maps to xdp-native", "xdp:\n  attach-mode: \"native\"\n", config.DatapathXDPNative, true, ""},
+		{"deprecated generic maps to xdp-generic", "xdp:\n  attach-mode: \"generic\"\n", config.DatapathXDPGeneric, false, ""},
+		{"both blocks set", "xdp:\n  attach-mode: \"native\"\ndatapath:\n  attach-mode: \"tcx\"\n", "", false, "both set"},
+		{"unknown datapath value", "datapath:\n  attach-mode: \"native\"\n", "", false, "datapath.attach-mode is invalid"},
+		{"unknown deprecated value", "xdp:\n  attach-mode: \"offload\"\n", "", false, "xdp.attach-mode is invalid"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			vlanRead := false
+			config.GetVLANConfigForInterfaceFunc = func(name string) (*config.VlanConfig, error) {
+				vlanRead = true
+				return nil, nil
+			}
+
+			path := filepath.Join(t.TempDir(), "core.yaml")
+			if err := os.WriteFile(path, []byte(fmt.Sprintf(tmpl, tc.attach)), 0o600); err != nil {
+				t.Fatalf("write config: %s", err)
+			}
+
+			cfg, err := config.Validate(path)
+
+			if tc.wantErrParts != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got none", tc.wantErrParts)
+				}
+
+				if !strings.Contains(err.Error(), tc.wantErrParts) {
+					t.Fatalf("error = %q, want it to contain %q", err.Error(), tc.wantErrParts)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+
+			if cfg.Datapath.AttachMode != tc.wantMode {
+				t.Errorf("attach mode = %q, want %q", cfg.Datapath.AttachMode, tc.wantMode)
+			}
+
+			// Every mechanism but generic attaches to the VLAN master, so it
+			// has to resolve the subinterface at config time.
+			if vlanRead != tc.wantVLANRead {
+				t.Errorf("VLAN resolution ran = %v, want %v", vlanRead, tc.wantVLANRead)
 			}
 		})
 	}

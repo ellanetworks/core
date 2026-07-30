@@ -62,8 +62,13 @@ type BpfObjects struct {
 	// without a compile error when profiling is absent.
 	ProfilingMap *ebpf.Map
 
-	FlowAccounting   bool
-	Masquerade       bool
+	FlowAccounting bool
+	Masquerade     bool
+	// UseTCX selects the SCHED_CLS build of the datapath. Its spec carries
+	// the same map, program, and variable names as the XDP build (one C
+	// source), so it loads into N3N6EntrypointObjects through the ebpf
+	// struct tags.
+	UseTCX           bool
 	N3InterfaceIndex uint32
 	N6InterfaceIndex uint32
 	N3Vlan           uint32
@@ -111,8 +116,16 @@ func populateTailCalls(objs *N3N6EntrypointObjects) error {
 	return nil
 }
 
+func (bpfObjects *BpfObjects) loadSpec() (*ebpf.CollectionSpec, error) {
+	if bpfObjects.UseTCX {
+		return LoadN3N6EntrypointTc()
+	}
+
+	return LoadN3N6Entrypoint()
+}
+
 func (bpfObjects *BpfObjects) Load() error {
-	n3n6Spec, err := LoadN3N6Entrypoint()
+	n3n6Spec, err := bpfObjects.loadSpec()
 	if err != nil {
 		logger.UpfLog.Error("failed to load N3/N6 spec", zap.Error(err))
 		return err
@@ -247,7 +260,7 @@ func (bpfObjects *BpfObjects) preservedMaps() map[string]*ebpf.Map {
 // The caller must call link.Update() with the new program to atomically
 // swap the XDP program on the interface.
 func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
-	spec, err := LoadN3N6Entrypoint()
+	spec, err := bpfObjects.loadSpec()
 	if err != nil {
 		logger.UpfLog.Error("failed to load N3/N6 spec", zap.Error(err))
 		return err
