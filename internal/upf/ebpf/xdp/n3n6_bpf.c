@@ -56,7 +56,7 @@
  */
 
 /* N3 uplink: GTP-U-encapsulated traffic from the gNB. */
-static __always_inline enum xdp_action handle_uplink_ip4(struct packet_context *ctx)
+static __always_inline enum ctx_action handle_uplink_ip4(struct packet_context *ctx)
 {
 	if (parse_ip4(ctx) == IPPROTO_UDP) {
 		struct udphdr *udp = detect_udp_header(ctx, 0);
@@ -64,7 +64,7 @@ static __always_inline enum xdp_action handle_uplink_ip4(struct packet_context *
 			parse_udp(ctx);
 			upf_printk("upf: gtp-u received on N3, src=%pI4 dst=%pI4",
 				   &ctx->ip4->saddr, &ctx->ip4->daddr);
-			enum xdp_action action = handle_gtpu(ctx);
+			enum ctx_action action = handle_gtpu(ctx);
 			ctx->statistics->xdp_actions[action &
 						     EUPF_MAX_XDP_ACTION_MASK] +=
 				1;
@@ -73,19 +73,19 @@ static __always_inline enum xdp_action handle_uplink_ip4(struct packet_context *
 	}
 
 	/* Non-GTP traffic on N3 is not uplink user-plane; leave it to the stack. */
-	ctx->statistics->xdp_actions[DEFAULT_XDP_ACTION & EUPF_MAX_XDP_ACTION_MASK] +=
+	ctx->statistics->xdp_actions[DEFAULT_CTX_ACTION & EUPF_MAX_XDP_ACTION_MASK] +=
 		1;
-	return DEFAULT_XDP_ACTION;
+	return DEFAULT_CTX_ACTION;
 }
 
-static __always_inline enum xdp_action handle_uplink_ip6(struct packet_context *ctx)
+static __always_inline enum ctx_action handle_uplink_ip6(struct packet_context *ctx)
 {
 	if (parse_ip6(ctx) == IPPROTO_UDP) {
 		struct udphdr *udp = detect_udp_header(ctx, 0);
 		if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT) {
 			parse_udp(ctx);
 			upf_printk("upf: gtp-u received on N3 (IPv6 outer)");
-			enum xdp_action action = handle_gtpu(ctx);
+			enum ctx_action action = handle_gtpu(ctx);
 			ctx->statistics->xdp_actions[action &
 						     EUPF_MAX_XDP_ACTION_MASK] +=
 				1;
@@ -93,12 +93,12 @@ static __always_inline enum xdp_action handle_uplink_ip6(struct packet_context *
 		}
 	}
 
-	ctx->statistics->xdp_actions[DEFAULT_XDP_ACTION & EUPF_MAX_XDP_ACTION_MASK] +=
+	ctx->statistics->xdp_actions[DEFAULT_CTX_ACTION & EUPF_MAX_XDP_ACTION_MASK] +=
 		1;
-	return DEFAULT_XDP_ACTION;
+	return DEFAULT_CTX_ACTION;
 }
 
-static __always_inline enum xdp_action process_uplink(struct packet_context *ctx)
+static __always_inline enum ctx_action process_uplink(struct packet_context *ctx)
 {
 	switch (parse_ethernet(ctx)) {
 	case ETH_P_IP:
@@ -107,47 +107,47 @@ static __always_inline enum xdp_action process_uplink(struct packet_context *ctx
 		return handle_uplink_ip6(ctx);
 	case ETH_P_ARP:
 		upf_printk("upf: arp received on N3. passing to kernel");
-		return XDP_PASS;
+		return CTX_ACT_OK;
 	}
-	return DEFAULT_XDP_ACTION;
+	return DEFAULT_CTX_ACTION;
 }
 
 /* N6 downlink: plain IP traffic from the data network toward a UE. */
-static __always_inline enum xdp_action handle_downlink_ip4(struct packet_context *ctx)
+static __always_inline enum ctx_action handle_downlink_ip4(struct packet_context *ctx)
 {
 	int l4_protocol = parse_ip4(ctx);
 	if (l4_protocol != IPPROTO_UDP && l4_protocol != IPPROTO_ICMP &&
 	    l4_protocol != IPPROTO_TCP) {
 		ctx->statistics
-			->xdp_actions[DEFAULT_XDP_ACTION & EUPF_MAX_XDP_ACTION_MASK] +=
+			->xdp_actions[DEFAULT_CTX_ACTION & EUPF_MAX_XDP_ACTION_MASK] +=
 			1;
-		return DEFAULT_XDP_ACTION;
+		return DEFAULT_CTX_ACTION;
 	}
 
 	ctx->statistics->packet_counters.rx++;
-	enum xdp_action action = handle_n6_packet_ipv4(ctx);
+	enum ctx_action action = handle_n6_packet_ipv4(ctx);
 	ctx->statistics->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
 	return action;
 }
 
-static __always_inline enum xdp_action handle_downlink_ip6(struct packet_context *ctx)
+static __always_inline enum ctx_action handle_downlink_ip6(struct packet_context *ctx)
 {
 	int l4_protocol = parse_ip6(ctx);
 	if (l4_protocol != IPPROTO_UDP && l4_protocol != IPPROTO_ICMPV6 &&
 	    l4_protocol != IPPROTO_TCP) {
 		ctx->statistics
-			->xdp_actions[DEFAULT_XDP_ACTION & EUPF_MAX_XDP_ACTION_MASK] +=
+			->xdp_actions[DEFAULT_CTX_ACTION & EUPF_MAX_XDP_ACTION_MASK] +=
 			1;
-		return DEFAULT_XDP_ACTION;
+		return DEFAULT_CTX_ACTION;
 	}
 
 	ctx->statistics->packet_counters.rx++;
-	enum xdp_action action = handle_n6_packet_ipv6(ctx);
+	enum ctx_action action = handle_n6_packet_ipv6(ctx);
 	ctx->statistics->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
 	return action;
 }
 
-static __always_inline enum xdp_action process_downlink(struct packet_context *ctx)
+static __always_inline enum ctx_action process_downlink(struct packet_context *ctx)
 {
 	switch (parse_ethernet(ctx)) {
 	case ETH_P_IP:
@@ -156,9 +156,9 @@ static __always_inline enum xdp_action process_downlink(struct packet_context *c
 		return handle_downlink_ip6(ctx);
 	case ETH_P_ARP:
 		upf_printk("upf: arp received on N6. passing to kernel");
-		return XDP_PASS;
+		return CTX_ACT_OK;
 	}
-	return DEFAULT_XDP_ACTION;
+	return DEFAULT_CTX_ACTION;
 }
 
 /* The lookup fails only to the verifier: the statistics maps are single-entry
@@ -175,114 +175,123 @@ static __always_inline struct upf_statistic *get_stats(void *stats_map)
  * TEID (§7.3.1). Re-parses from its own ctx (the stack does not survive a tail
  * call). */
 SEC("xdp/upf_gtpu_control")
-int upf_gtpu_control_func(struct xdp_md *ctx)
+int upf_gtpu_control_func(struct __ctx_buff *ctx)
 {
+	if (ctx_pull(ctx, CTX_PULL_LEN) < 0)
+		return CTX_ACT_ABORTED;
+
 	struct upf_statistic *statistics = get_stats(&uplink_statistics);
 	if (!statistics)
-		return XDP_ABORTED;
+		return CTX_ACT_ABORTED;
 
 	struct packet_context context = {
-		.data = (void *)(long)ctx->data,
-		.data_end = (const void *)(long)ctx->data_end,
-		.xdp_ctx = ctx,
+		.data = ctx_data(ctx),
+		.data_end = ctx_data_end(ctx),
+		.ctx_buff = ctx,
 		.statistics = statistics,
 		.interface = INTERFACE_N3,
 	};
 
 	if (context_reinit(&context, context.data, context.data_end) != 0)
-		return DEFAULT_XDP_ACTION;
+		return DEFAULT_CTX_ACTION;
 
 	/* Each transport is dispatched to its own return: a shared tail lets the
 	 * verifier merge the ip4 and ip6 states, after which it rejects a
 	 * dereference of either. */
 	if (context.ip4) {
 		if (parse_udp(&context) != GTP_UDP_PORT)
-			return DEFAULT_XDP_ACTION;
+			return DEFAULT_CTX_ACTION;
 
 		int pdu_type = parse_gtp(&context);
 		if (!context.gtp)
-			return DEFAULT_XDP_ACTION;
+			return DEFAULT_CTX_ACTION;
 
 		if (pdu_type == GTPU_ECHO_REQUEST)
 			return handle_echo_request(&context);
 
 		if (pdu_type != GTPU_G_PDU || context.gtp->teid == 0)
-			return DEFAULT_XDP_ACTION;
+			return DEFAULT_CTX_ACTION;
 
 		/* The stage is independently reachable, so the absent session is
 		 * confirmed here. */
 		__u32 teid4 = bpf_htonl(context.gtp->teid);
 		if (bpf_map_lookup_elem(&pdrs_uplink, &teid4))
-			return DEFAULT_XDP_ACTION;
+			return DEFAULT_CTX_ACTION;
 
 		return send_error_indication_ipv4(&context);
 	}
 
 	if (context.ip6) {
 		if (parse_udp(&context) != GTP_UDP_PORT)
-			return DEFAULT_XDP_ACTION;
+			return DEFAULT_CTX_ACTION;
 
 		int pdu_type = parse_gtp(&context);
 		if (!context.gtp)
-			return DEFAULT_XDP_ACTION;
+			return DEFAULT_CTX_ACTION;
 
 		if (pdu_type == GTPU_ECHO_REQUEST)
 			return handle_echo_request(&context);
 
 		if (pdu_type != GTPU_G_PDU || context.gtp->teid == 0)
-			return DEFAULT_XDP_ACTION;
+			return DEFAULT_CTX_ACTION;
 
 		__u32 teid6 = bpf_htonl(context.gtp->teid);
 		if (bpf_map_lookup_elem(&pdrs_uplink, &teid6))
-			return DEFAULT_XDP_ACTION;
+			return DEFAULT_CTX_ACTION;
 
 		return send_error_indication_ipv6(&context);
 	}
 
-	return DEFAULT_XDP_ACTION;
+	return DEFAULT_CTX_ACTION;
 }
 
 /* upf_uplink_func: tail-call stage for GTP-U uplink traffic. Re-parses from its
  * own ctx (the stack does not survive a tail call). */
 SEC("xdp/upf_uplink")
-int upf_uplink_func(struct xdp_md *ctx)
+int upf_uplink_func(struct __ctx_buff *ctx)
 {
+	if (ctx_pull(ctx, CTX_PULL_LEN) < 0)
+		return CTX_ACT_ABORTED;
+
 	struct upf_statistic *statistics = get_stats(&uplink_statistics);
 	if (!statistics)
-		return XDP_ABORTED;
+		return CTX_ACT_ABORTED;
 
 	struct packet_context context = {
-		.data = (void *)(long)ctx->data,
-		.data_end = (const void *)(long)ctx->data_end,
-		.xdp_ctx = ctx,
+		.data = ctx_data(ctx),
+		.data_end = ctx_data_end(ctx),
+		.ctx_buff = ctx,
 		.statistics = statistics,
 		.interface = INTERFACE_N3,
 	};
 
 	PROFILE_START(PROF_N3_TOTAL);
-	enum xdp_action ret = process_uplink(&context);
+	enum ctx_action ret = process_uplink(&context);
 	PROFILE_END(PROF_N3_TOTAL);
 	return ret;
 }
 
 /* upf_downlink_func: tail-call stage for plain downlink traffic toward a UE. */
 SEC("xdp/upf_downlink")
-int upf_downlink_func(struct xdp_md *ctx)
+int upf_downlink_func(struct __ctx_buff *ctx)
 {
+	if (ctx_pull(ctx, CTX_PULL_LEN) < 0)
+		return CTX_ACT_ABORTED;
+
 	struct upf_statistic *statistics = get_stats(&downlink_statistics);
 	if (!statistics)
-		return XDP_ABORTED;
+		return CTX_ACT_ABORTED;
 
 	struct packet_context context = {
-		.data = (void *)(long)ctx->data,
-		.data_end = (const void *)(long)ctx->data_end,
-		.xdp_ctx = ctx,
+		.data = ctx_data(ctx),
+		.data_end = ctx_data_end(ctx),
+		.ctx_buff = ctx,
 		.statistics = statistics,
 		.interface = INTERFACE_N6,
 	};
 
 	PROFILE_START(PROF_N6_TOTAL);
-	enum xdp_action ret = process_downlink(&context);
+	enum ctx_action ret = process_downlink(&context);
 	PROFILE_END(PROF_N6_TOTAL);
 	return ret;
 }
@@ -296,12 +305,15 @@ int upf_downlink_func(struct xdp_md *ctx)
  * attributed to a subscriber and source-NATed on its behalf, so a GTP-U-shaped
  * packet arriving on N6 must not claim that treatment. */
 SEC("xdp/upf_entry")
-int upf_entry_func(struct xdp_md *ctx)
+int upf_entry_func(struct __ctx_buff *ctx)
 {
+	if (ctx_pull(ctx, CTX_PULL_LEN) < 0)
+		return CTX_ACT_ABORTED;
+
 	struct packet_context context = {
-		.data = (void *)(long)ctx->data,
-		.data_end = (const void *)(long)ctx->data_end,
-		.xdp_ctx = ctx,
+		.data = ctx_data(ctx),
+		.data_end = ctx_data_end(ctx),
+		.ctx_buff = ctx,
 	};
 
 	__u16 l3_protocol = parse_ethernet(&context);
@@ -309,13 +321,13 @@ int upf_entry_func(struct xdp_md *ctx)
 
 	if (l3_protocol == ETH_P_ARP) {
 		upf_printk("upf: arp received. passing to kernel");
-		return XDP_PASS;
+		return CTX_ACT_OK;
 	}
 
 	const bool split_interfaces = n3_ifindex != 0 && n6_ifindex != 0 &&
 				      n3_ifindex != n6_ifindex;
 	const bool gtpu_allowed = !split_interfaces ||
-				  ctx->ingress_ifindex == (__u32)n3_ifindex;
+				  ctx_ingress_ifindex(ctx) == (__u32)n3_ifindex;
 
 	if (l3_protocol == ETH_P_IP) {
 		if (parse_ip4(&context) == IPPROTO_UDP) {
@@ -332,13 +344,13 @@ int upf_entry_func(struct xdp_md *ctx)
 				index = UPF_CALL_UPLINK;
 		}
 	} else {
-		return DEFAULT_XDP_ACTION;
+		return DEFAULT_CTX_ACTION;
 	}
 
 	bpf_tail_call(ctx, &upf_calls, index);
 
 	/* Only reached if the stage program is not populated in upf_calls. */
-	return DEFAULT_XDP_ACTION;
+	return DEFAULT_CTX_ACTION;
 }
 
 /* Keyed by the inner IPv6 destination address. */
@@ -363,35 +375,38 @@ struct {
 /* veth_xdp_func: attached to the veth-xdp end of the pair the SMF injects
  * Router Advertisements on. */
 SEC("xdp/veth_xdp")
-int veth_xdp_func(struct xdp_md *ctx)
+int veth_xdp_func(struct __ctx_buff *ctx)
 {
-	void *data = (void *)(long)ctx->data;
-	void *data_end = (void *)(long)ctx->data_end;
+	if (ctx_pull(ctx, CTX_PULL_LEN) < 0)
+		return CTX_ACT_ABORTED;
+
+	void *data = ctx_data(ctx);
+	const void *data_end = ctx_data_end(ctx);
 
 	struct ethhdr *eth = data;
 	if ((void *)(eth + 1) > data_end)
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 
 	if (eth->h_proto != bpf_htons(ETH_P_IPV6)) {
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 	}
 
 	struct ipv6hdr *ip6 = (struct ipv6hdr *)(eth + 1);
 	if ((void *)(ip6 + 1) > data_end) {
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 	}
 
 	struct veth_tunnel_info *tun =
 		bpf_map_lookup_elem(&veth_tunnels, &ip6->daddr);
 	if (!tun) {
 		upf_printk("upf: veth XDP tunnel miss dst=%pI6c", &ip6->daddr);
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 	}
 
 	upf_printk("upf: veth received RA for dest %pI6c", &ip6->daddr);
 
 	struct packet_context pkt_ctx = {
-		.xdp_ctx = ctx,
+		.ctx_buff = ctx,
 		.interface = INTERFACE_N6,
 		.eth = eth,
 		.ip6 = ip6,
@@ -411,14 +426,14 @@ int veth_xdp_func(struct xdp_md *ctx)
 						       tun->qfi, tun->teid);
 		}
 		if (ret != 0) {
-			return XDP_ABORTED;
+			return CTX_ACT_ABORTED;
 		}
 
 		const __u32 key4 = 0;
 		struct route_stat *route_stat4 =
 			bpf_map_lookup_elem(&downlink_route_stats, &key4);
 		if (!route_stat4)
-			return XDP_ABORTED;
+			return CTX_ACT_ABORTED;
 
 		return route_ipv4(&pkt_ctx, route_stat4, true);
 	} else {
@@ -434,19 +449,19 @@ int veth_xdp_func(struct xdp_md *ctx)
 						       tun->teid);
 		}
 		if (ret != 0) {
-			return XDP_ABORTED;
+			return CTX_ACT_ABORTED;
 		}
 
 		const __u32 key6 = 0;
 		struct route_stat *route_stat6 =
 			bpf_map_lookup_elem(&downlink_route_stats, &key6);
 		if (!route_stat6)
-			return XDP_ABORTED;
+			return CTX_ACT_ABORTED;
 
 		return route_ipv6(&pkt_ctx, route_stat6, true);
 	}
 
-	return XDP_ABORTED;
+	return CTX_ACT_ABORTED;
 }
 
 char _license[] SEC("license") = "GPL";

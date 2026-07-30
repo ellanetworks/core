@@ -25,7 +25,7 @@
 #include <bpf/bpf_helpers.h>
 #include "xdp/utils/pdr.h"
 
-static __always_inline enum xdp_action
+static __always_inline enum ctx_action
 limit_rate_sliding_window(const __u64 packet_size,
 			  volatile __u64 *windows_start, const __u64 rate)
 {
@@ -34,21 +34,21 @@ limit_rate_sliding_window(const __u64 packet_size,
 
 	/* Currently 0 rate means that traffic rate is not limited */
 	if (rate == 0)
-		return XDP_PASS;
+		return CTX_ACT_OK;
 
 	__u64 tx_time = packet_size * 8 * NSEC_PER_SEC / rate;
 	__u64 now = bpf_ktime_get_ns();
 
 	__u64 start = *(volatile __u64 *)windows_start;
 	if (start + tx_time > now)
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 
 	if (start + window_size < now) {
 		*(volatile __u64 *)windows_start = now - window_size + tx_time;
-		return XDP_PASS;
+		return CTX_ACT_OK;
 	}
 
 	*(volatile __u64 *)windows_start = start + tx_time;
 	//__sync_fetch_and_add(&window->start, tx_time);
-	return XDP_PASS;
+	return CTX_ACT_OK;
 }

@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include "xdp/utils/ctx.h"
 #include "xdp/utils/statistics.h"
 #include <linux/if_ether.h>
 #include <linux/ip.h>
@@ -45,7 +46,7 @@ struct packet_context {
 	const void *data_end;
 	struct upf_statistic *statistics;
 	struct counters *counter;
-	struct xdp_md *xdp_ctx;
+	struct __ctx_buff *ctx_buff;
 	struct ethhdr *eth;
 	struct iphdr *ip4;
 	struct ipv6hdr *ip6;

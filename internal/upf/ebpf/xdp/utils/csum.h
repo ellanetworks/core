@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include "xdp/utils/ctx.h"
 #include "xdp/utils/trace.h"
 #include <features.h>
 #include <linux/bpf.h>
@@ -128,7 +129,7 @@ static __always_inline void recompute_icmp_csum(struct icmphdr *icmp, int len)
  *
  * bpf_csum_diff() cannot operate on packet memory with a variable length
  * (the BPF verifier rejects the access).  We work around this by first
- * copying the UDP datagram into this per-CPU map with bpf_xdp_load_bytes(),
+ * copying the UDP datagram into this per-CPU map with ctx_load_bytes(),
  * then running bpf_csum_diff() on the map value.  Both helpers are O(1)
  * in verified instructions, so this approach keeps the verifier cost
  * minimal regardless of packet size.
@@ -250,7 +251,7 @@ static __always_inline int l4_csum_finalize(void *scratch, __u32 aligned_len,
 // computed fresh over the payload during GTP-over-IPv6 encapsulation (gtp.h).
 __attribute__((noinline, used)) static int
 udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
-	   __u32 udp_off, __u32 udp_len, struct xdp_md *xdp_ctx)
+	   __u32 udp_off, __u32 udp_len, struct __ctx_buff *ctx_buff)
 {
 	struct {
 		struct in6_addr src;
@@ -279,7 +280,7 @@ udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
 
 	// Two-sided conditional-assignment clamp: an early return leaves
 	// the verifier without a tracked bound on the value used later by
-	// bpf_xdp_load_bytes. A malformed-short length is clamped to the
+	// ctx_load_bytes. A malformed-short length is clamped to the
 	// header size rather than rejected — produces a wrong checksum
 	// that the receiver drops, no worse than the malformed packet.
 	if (udp_len > MAX_L4_DATAGRAM)
@@ -289,7 +290,7 @@ udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
 
 	*(__u32 *)(scratch + udp_len) = 0;
 
-	if (bpf_xdp_load_bytes(xdp_ctx, udp_off, scratch, udp_len) < 0) {
+	if (ctx_load_bytes(ctx_buff, udp_off, scratch, udp_len) < 0) {
 		upf_printk("upf: couldn't load packet into scratch buffer");
 		return -1;
 	}

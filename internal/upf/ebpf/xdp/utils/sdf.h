@@ -24,8 +24,8 @@ struct {
  * match_sdf_filters – evaluate a packet against the filter list for the PDR.
  *
  * Returns:
- *   XDP_PASS  – packet is allowed (default-allow or explicit allow match)
- *   XDP_DROP  – packet is denied by an explicit deny rule
+ *   CTX_ACT_OK  – packet is allowed (default-allow or explicit allow match)
+ *   CTX_ACT_DROP  – packet is denied by an explicit deny rule
  *
  * Matching semantics (first-match wins):
  *   1. If filter_map_index == 0, no filtering → allow.
@@ -37,7 +37,7 @@ struct {
  * PDRs carry the downlink filter index.
  * N3 interface: daddr is the remote; N6 interface: saddr is the remote.
  */
-static __always_inline enum xdp_action
+static __always_inline enum ctx_action
 match_sdf_rules(struct sdf_filter_list *flist, __u8 num, __u8 pkt_proto,
 		__u16 pkt_dport, __u8 pkt_is_ipv4,
 		const struct in6_addr pkt_remote);
@@ -77,7 +77,7 @@ static __always_inline int match_ipv6_prefix(const struct in6_addr *rule_ip,
 	return 1;
 }
 
-static __always_inline enum xdp_action
+static __always_inline enum ctx_action
 match_sdf_filters(struct packet_context *ctx, __u32 filter_map_index)
 {
 	__u8 pkt_proto;
@@ -86,12 +86,12 @@ match_sdf_filters(struct packet_context *ctx, __u32 filter_map_index)
 	struct in6_addr pkt_remote = {};
 
 	if (filter_map_index == 0)
-		return XDP_PASS;
+		return CTX_ACT_OK;
 
 	struct sdf_filter_list *flist =
 		bpf_map_lookup_elem(&sdf_filters, &filter_map_index);
 	if (!flist)
-		return XDP_PASS; /* fail-open */
+		return CTX_ACT_OK; /* fail-open */
 
 	__u8 num = flist->num_rules;
 	if (num > MAX_RULES_PER_FILTER)
@@ -110,7 +110,7 @@ match_sdf_filters(struct packet_context *ctx, __u32 filter_map_index)
 				     ctx->ip6->daddr :
 				     ctx->ip6->saddr;
 	} else {
-		return XDP_PASS;
+		return CTX_ACT_OK;
 	}
 
 	if (ctx->tcp)
@@ -130,7 +130,7 @@ match_sdf_filters(struct packet_context *ctx, __u32 filter_map_index)
 			       pkt_remote);
 }
 
-static __always_inline enum xdp_action
+static __always_inline enum ctx_action
 match_sdf_rules(struct sdf_filter_list *flist, __u8 num, __u8 pkt_proto,
 		__u16 pkt_dport, __u8 pkt_is_ipv4,
 		const struct in6_addr pkt_remote)
@@ -181,10 +181,10 @@ match_sdf_rules(struct sdf_filter_list *flist, __u8 num, __u8 pkt_proto,
 		}
 
 		if (r->action == 1)
-			return XDP_DROP;
+			return CTX_ACT_DROP;
 
-		return XDP_PASS;
+		return CTX_ACT_OK;
 	}
 
-	return XDP_PASS;
+	return CTX_ACT_OK;
 }

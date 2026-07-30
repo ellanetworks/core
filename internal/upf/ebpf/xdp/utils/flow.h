@@ -66,7 +66,7 @@ static __always_inline void account_flow(struct packet_context *ctx,
 		return;
 
 	struct flow f = {};
-	f.ingress_ifindex = ctx->xdp_ctx->ingress_ifindex;
+	f.ingress_ifindex = ctx_ingress_ifindex(ctx->ctx_buff);
 	f.egress_ifindex = egress_ifindex;
 	f.imsi = imsi;
 	f.action = action;
@@ -136,7 +136,7 @@ static __always_inline void account_flow(struct packet_context *ctx,
 	}
 
 	__u64 ts = bpf_ktime_get_ns();
-	__u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+	__u64 packet_size = ctx_full_len(ctx->ctx_buff);
 
 	struct flow_stats *flow_entry = bpf_map_lookup_elem(&flow_stats, &f);
 	if (flow_entry) {

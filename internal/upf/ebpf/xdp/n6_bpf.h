@@ -48,7 +48,7 @@ struct {
  * versa.  Merging those states would make ctx->ip4 / ctx->ip6 appear as
  * plain scalars to the verifier and cause invalid-mem-access rejections.
  */
-static __always_inline enum xdp_action
+static __always_inline enum ctx_action
 send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 		   __u8 tos, __u8 qfi)
 {
@@ -64,7 +64,7 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 							 qfi, far->teid);
 		if (encap_result != 0) {
 			PROFILE_END(PROF_N6_GTP_MANIP);
-			return XDP_ABORTED;
+			return CTX_ACT_ABORTED;
 		}
 		PROFILE_END(PROF_N6_GTP_MANIP);
 
@@ -74,12 +74,12 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 		struct route_stat *route_stat6 =
 			bpf_map_lookup_elem(&downlink_route_stats, &key6);
 		if (!route_stat6)
-			return XDP_ABORTED;
+			return CTX_ACT_ABORTED;
 
 		PROFILE_START(PROF_N6_FIB_ROUTING);
 		upf_printk("upf: send gtp pdu %pI6c -> %pI6c", &ctx->ip6->saddr,
 			   &ctx->ip6->daddr);
-		enum xdp_action fib_ret6 = route_ipv6(ctx, route_stat6, false);
+		enum ctx_action fib_ret6 = route_ipv6(ctx, route_stat6, false);
 		PROFILE_END(PROF_N6_FIB_ROUTING);
 		return fib_ret6;
 	} else {
@@ -96,7 +96,7 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 					qfi, far->teid);
 		if (encap_result != 0) {
 			PROFILE_END(PROF_N6_GTP_MANIP);
-			return XDP_ABORTED;
+			return CTX_ACT_ABORTED;
 		}
 		PROFILE_END(PROF_N6_GTP_MANIP);
 
@@ -106,12 +106,12 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 		struct route_stat *route_stat4 =
 			bpf_map_lookup_elem(&downlink_route_stats, &key4);
 		if (!route_stat4)
-			return XDP_ABORTED;
+			return CTX_ACT_ABORTED;
 
 		PROFILE_START(PROF_N6_FIB_ROUTING);
 		upf_printk("upf: send gtp pdu %pI4 -> %pI4", &ctx->ip4->saddr,
 			   &ctx->ip4->daddr);
-		enum xdp_action fib_ret4 = route_ipv4(ctx, route_stat4, false);
+		enum ctx_action fib_ret4 = route_ipv4(ctx, route_stat4, false);
 		PROFILE_END(PROF_N6_FIB_ROUTING);
 		return fib_ret4;
 	}
@@ -151,10 +151,10 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 			 * stack has no session to answer it with. */
 			if (translated) {
 				ctx->statistics->nat_unsolicited_drop_ip4 += 1;
-				return XDP_DROP;
+				return CTX_ACT_DROP;
 			}
 
-			return DEFAULT_XDP_ACTION;
+			return DEFAULT_CTX_ACTION;
 		}
 	}
 
@@ -168,7 +168,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 			ctx->statistics->nat_unsolicited_drop_ip4 += 1;
 		}
 		account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, DROP);
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 	}
 
 	struct far_info *far = &pdr->far;
@@ -183,13 +183,13 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	if (far->outer_header_creation & OHC_NO_PSC) {
 		encap_size -= GTP_PSC_EXT_SIZE; /* S1-U: no PDU session container */
 	}
-	ret = bpf_check_mtu(ctx->xdp_ctx, n3_ifindex, &mtu_len, encap_size, 0);
+	ret = bpf_check_mtu(ctx->ctx_buff, n3_ifindex, &mtu_len, encap_size, 0);
 	PROFILE_END(PROF_N6_MTU_CHECK);
 	if (ret < 0) {
 		ctx->statistics
-			->xdp_actions[XDP_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
+			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
 			1;
-		return XDP_ABORTED;
+		return CTX_ACT_ABORTED;
 	}
 	if (ret > 0) {
 		upf_printk("upf: n6 packet too large");
@@ -221,17 +221,17 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 
 		/* Technically, we need to buffer the packet here, but this is not
 		 * implemented yet. */
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 	}
 	if (!(far->action & FAR_FORW)) {
 		upf_printk("upf: far not set to forward, dropping packet");
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 	}
 	if (!(far->outer_header_creation &
 	      (OHC_GTP_U_UDP_IPv4 | OHC_GTP_U_UDP_IPv6))) {
 		upf_printk(
 			"upf: far not set to encapsulate in gtp, dropping packet");
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 	}
 
 	PROFILE_START(PROF_N6_QER_RATELIMIT);
@@ -239,14 +239,15 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		   qer->dl_maximum_bitrate);
 	if (qer->dl_gate_status != GATE_STATUS_OPEN) {
 		PROFILE_END(PROF_N6_QER_RATELIMIT);
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 	}
 
-	const __u64 packet_size = ctx->data_end - (void *)ctx->ip4;
-	if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start,
+	const __u64 packet_size =
+		ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->ip4);
+	if (CTX_ACT_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start,
 						  qer->dl_maximum_bitrate)) {
 		PROFILE_END(PROF_N6_QER_RATELIMIT);
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 	}
 	PROFILE_END(PROF_N6_QER_RATELIMIT);
 
@@ -256,17 +257,17 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	/* SDF filter enforcement (downlink) */
 	{
 		PROFILE_START(PROF_N6_SDF_FILTER);
-		enum xdp_action sdf_verdict =
+		enum ctx_action sdf_verdict =
 			match_sdf_filters(ctx, pdr->filter_map_index);
 		PROFILE_END(PROF_N6_SDF_FILTER);
-		if (sdf_verdict == XDP_DROP) {
+		if (sdf_verdict == CTX_ACT_DROP) {
 			upf_printk("upf: downlink SDF drop ip:%pI4",
 				   &ip4->daddr);
-			ctx->statistics->xdp_actions[XDP_DROP &
+			ctx->statistics->xdp_actions[CTX_ACT_DROP &
 						     EUPF_MAX_XDP_ACTION_MASK] +=
 				1;
 			account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, DROP);
-			return XDP_DROP;
+			return CTX_ACT_DROP;
 		}
 	}
 
@@ -275,7 +276,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 
 	/* Update downlink traffic counter */
 	{
-		__u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+		__u64 packet_size = ctx_full_len(ctx->ctx_buff);
 		ctx->statistics->byte_counter.bytes +=
 			packet_size; // Count downlink traffic
 	}
@@ -286,7 +287,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	return send_to_gtp_tunnel(ctx, far, tos, qer->qfi);
 }
 
-static __always_inline enum xdp_action
+static __always_inline enum ctx_action
 handle_n6_packet_ipv6(struct packet_context *ctx)
 {
 	const struct ipv6hdr *ip6 = ctx->ip6;
@@ -315,7 +316,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		}
 		if (!pdr) {
 			upf_printk("upf: no downlink session for ip:%pI6c", &prefix);
-			return DEFAULT_XDP_ACTION;
+			return DEFAULT_CTX_ACTION;
 		}
 	}
 
@@ -329,13 +330,13 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		encap_size -= GTP_PSC_EXT_SIZE; /* S1-U: no PDU session container */
 	}
 	__u32 mtu_len = 0;
-	long ret = bpf_check_mtu(ctx->xdp_ctx, n3_ifindex, &mtu_len, encap_size,
+	long ret = bpf_check_mtu(ctx->ctx_buff, n3_ifindex, &mtu_len, encap_size,
 				 0);
 	if (ret < 0) {
 		ctx->statistics
-			->xdp_actions[XDP_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
+			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
 			1;
-		return XDP_ABORTED;
+		return CTX_ACT_ABORTED;
 	}
 	if (ret > 0) {
 		upf_printk("upf: n6 ipv6 packet too large");
@@ -355,17 +356,17 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	/* SDF filter enforcement (downlink) */
 	{
 		PROFILE_START(PROF_N6_SDF_FILTER);
-		enum xdp_action sdf_verdict =
+		enum ctx_action sdf_verdict =
 			match_sdf_filters(ctx, pdr->filter_map_index);
 		PROFILE_END(PROF_N6_SDF_FILTER);
-		if (sdf_verdict == XDP_DROP) {
+		if (sdf_verdict == CTX_ACT_DROP) {
 			upf_printk("upf: downlink SDF drop ip:%pI6c",
 				   &ip6->daddr);
-			ctx->statistics->xdp_actions[XDP_DROP &
+			ctx->statistics->xdp_actions[CTX_ACT_DROP &
 						     EUPF_MAX_XDP_ACTION_MASK] +=
 				1;
 			account_flow(ctx, n3_ifindex, pdr->imsi, IPV6, DROP);
-			return XDP_DROP;
+			return CTX_ACT_DROP;
 		}
 	}
 
@@ -383,29 +384,30 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 
 		/* Technically, we need to buffer the packet here, but this is not
 		 * implemented yet. */
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 	}
 	if (!(far->action & FAR_FORW))
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 	if (!(far->outer_header_creation &
 	      (OHC_GTP_U_UDP_IPv4 | OHC_GTP_U_UDP_IPv6)))
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 
 	upf_printk("upf: qer gate_status:%d mbr:%d", qer->dl_gate_status,
 		   qer->dl_maximum_bitrate);
 	if (qer->dl_gate_status != GATE_STATUS_OPEN)
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 
-	const __u64 packet_size = ctx->data_end - (void *)ctx->ip6;
-	if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start,
+	const __u64 packet_size =
+		ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->ip6);
+	if (CTX_ACT_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start,
 						  qer->dl_maximum_bitrate))
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 
 	__u8 tos = far->transport_level_marking >> 8;
 
 	/* Update downlink traffic counter */
 	{
-		__u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+		__u64 packet_size = ctx_full_len(ctx->ctx_buff);
 		ctx->statistics->byte_counter.bytes += packet_size;
 	}
 

@@ -42,6 +42,6 @@ static __always_inline void update_urr_bytes(struct packet_context *ctx,
 		upf_printk("upf: no URR found for urr_id:%d", urr_id);
 		return;
 	}
-	__u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+	__u64 packet_size = ctx_full_len(ctx->ctx_buff);
 	__sync_fetch_and_add(byte_count, packet_size);
 }

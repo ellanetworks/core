@@ -170,10 +170,10 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	struct gtpuhdr *gtp = ctx->gtp;
 
 	if (!ctx->eth || !ctx->udp || !gtp)
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 
 	if (!ctx->ip4 && !ctx->ip6)
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 
 	const int is_ip4 = ctx->ip4 != NULL;
 
@@ -182,7 +182,7 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	if (gtp->s) {
 		const __u8 *opt = (const __u8 *)(gtp + 1);
 		if ((const void *)(opt + sizeof(seq)) > ctx->data_end)
-			return XDP_DROP;
+			return CTX_ACT_DROP;
 
 		__builtin_memcpy(&seq, opt, sizeof(seq));
 	}
@@ -191,19 +191,19 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	 * short request is grown, a longer one has its tail dropped. */
 	long delta = (long)((const __u8 *)gtp + GTPU_ECHO_RESPONSE_LEN) -
 		     (long)ctx->data_end;
-	if (delta != 0 && bpf_xdp_adjust_tail(ctx->xdp_ctx, (int)delta) < 0)
-		return XDP_DROP;
+	if (delta != 0 && ctx_adjust_tail(ctx->ctx_buff, (int)delta) < 0)
+		return CTX_ACT_DROP;
 
-	/* bpf_xdp_adjust_tail invalidates every packet pointer, and an offset
+	/* ctx_adjust_tail invalidates every packet pointer, and an offset
 	 * saved across the call is not provably in-bounds to the verifier. Re-walk
 	 * the headers from data instead: each is a bounds-checked constant step
 	 * from the last, which the verifier tracks precisely. */
-	void *data = (void *)(long)ctx->xdp_ctx->data;
-	const void *data_end = (const void *)(long)ctx->xdp_ctx->data_end;
+	void *data = ctx_data(ctx->ctx_buff);
+	const void *data_end = ctx_data_end(ctx->ctx_buff);
 
 	struct ethhdr *eth = data;
 	if ((const void *)(eth + 1) > data_end)
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 
 	/* parse_ethernet accepts both C-VLAN and S-VLAN tags (parsers.h); match both
 	 * so an 802.1ad-tagged frame is not re-walked 4 octets short. */
@@ -212,7 +212,7 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	    eth->h_proto == bpf_htons(ETH_P_8021AD)) {
 		struct vlan_hdr *vlan = l3;
 		if ((const void *)(vlan + 1) > data_end)
-			return XDP_DROP;
+			return CTX_ACT_DROP;
 
 		l3 = vlan + 1;
 	}
@@ -221,30 +221,30 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	if (is_ip4) {
 		struct iphdr *ip = l3;
 		if ((const void *)(ip + 1) > data_end)
-			return XDP_DROP;
+			return CTX_ACT_DROP;
 
 		/* The re-walk steps a fixed 20 octets to L4, so an IPv4 header
 		 * carrying options (ihl > 5) — which parse_ip4 accepts — would be
 		 * rewritten inside the options. Drop rather than emit a corrupt
 		 * frame; options on a GTP-U echo do not occur in practice. */
 		if (ip->ihl != 5)
-			return XDP_DROP;
+			return CTX_ACT_DROP;
 
 		udp = (struct udphdr *)(ip + 1);
 	} else {
 		struct ipv6hdr *ip6 = l3;
 		if ((const void *)(ip6 + 1) > data_end)
-			return XDP_DROP;
+			return CTX_ACT_DROP;
 
 		udp = (struct udphdr *)(ip6 + 1);
 	}
 
 	if ((const void *)(udp + 1) > data_end)
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 
 	__u8 *p = (__u8 *)(udp + 1);
 	if ((const void *)(p + GTPU_ECHO_RESPONSE_LEN) > data_end)
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 
 	gtp = (struct gtpuhdr *)p;
 
@@ -273,7 +273,7 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	if (is_ip4) {
 		struct iphdr *ip = l3;
 		if ((const void *)(ip + 1) > data_end)
-			return XDP_DROP;
+			return CTX_ACT_DROP;
 
 		swap_ip(ip);
 		ip->tot_len = bpf_htons(sizeof(*ip) + udp_len);
@@ -288,7 +288,7 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	} else {
 		struct ipv6hdr *ip6 = l3;
 		if ((const void *)(ip6 + 1) > data_end)
-			return XDP_DROP;
+			return CTX_ACT_DROP;
 
 		swap_ip6(ip6);
 		ip6->payload_len = bpf_htons(udp_len);
@@ -298,16 +298,16 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 		udp->check = 0;
 		__u32 udp_off = (__u32)((__u8 *)udp - (__u8 *)data);
 		int cs = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off, udp_len,
-				    ctx->xdp_ctx);
+				    ctx->ctx_buff);
 		if (cs < 0)
-			return XDP_DROP;
+			return CTX_ACT_DROP;
 
 		udp->check = (__u16)cs;
 	}
 
 	swap_mac(eth);
 
-	return XDP_TX;
+	return ctx_tx_back(ctx->ctx_buff);
 }
 
 /* GTP-U Error Indication information element types (TS 29.281 §8.1). */
@@ -319,7 +319,7 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
  * carries the triggering TEID (Tunnel Endpoint Identifier Data I, §8.3) and this
  * UPF's address (GTP-U Peer Address, §8.4); the S flag is set as required for
  * Error Indication messages (§5.1). */
-static __always_inline enum xdp_action
+static __always_inline enum ctx_action
 send_error_indication_ipv4(struct packet_context *ctx)
 {
 	struct ethhdr *eth = ctx->eth;
@@ -328,13 +328,13 @@ send_error_indication_ipv4(struct packet_context *ctx)
 	struct gtpuhdr *gtp = ctx->gtp;
 
 	if (!eth || !ip || !udp || !gtp)
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 
 	/* 12-octet GTP-U header (mandatory + optional word) followed by the two
 	 * mandatory IEs: TEID Data I (5) and GTP-U Peer Address (7) = 24 octets. */
 	__u8 *p = (__u8 *)gtp;
 	if ((const void *)(p + 24) > ctx->data_end)
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 
 	__be32 trigger_teid = gtp->teid;
 	__be32 peer_addr = ip->daddr; /* destination of the triggering packet */
@@ -376,15 +376,15 @@ send_error_indication_ipv4(struct packet_context *ctx)
 	/* Drop the trailing T-PDU so the frame ends after the IEs. */
 	long trim = (long)ctx->data_end - (long)(p + 24);
 	if (trim > 0)
-		bpf_xdp_adjust_tail(ctx->xdp_ctx, (int)-trim);
+		ctx_adjust_tail(ctx->ctx_buff, (int)-trim);
 
-	return XDP_TX;
+	return ctx_tx_back(ctx->ctx_buff);
 }
 
 /* IPv6-transport counterpart of send_error_indication_ipv4 (TS 29.281 §7.3.1).
  * The GTP-U Peer Address IE carries the 16-octet IPv6 address (§8.4), and the
  * UDP checksum is mandatory over IPv6. */
-static __always_inline enum xdp_action
+static __always_inline enum ctx_action
 send_error_indication_ipv6(struct packet_context *ctx)
 {
 	struct ethhdr *eth = ctx->eth;
@@ -393,14 +393,14 @@ send_error_indication_ipv6(struct packet_context *ctx)
 	struct gtpuhdr *gtp = ctx->gtp;
 
 	if (!eth || !ip6 || !udp || !gtp)
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 
 	/* 12-octet GTP-U header (mandatory + optional word) followed by the two
 	 * mandatory IEs: TEID Data I (5) and GTP-U Peer Address (1+2+16 = 19) = 36
 	 * octets. */
 	__u8 *p = (__u8 *)gtp;
 	if ((const void *)(p + 36) > ctx->data_end)
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 
 	__be32 trigger_teid = gtp->teid;
 	struct in6_addr peer_addr =
@@ -442,19 +442,19 @@ send_error_indication_ipv6(struct packet_context *ctx)
 	__builtin_memcpy(p + 20, &peer_addr, sizeof(peer_addr));
 
 	/* UDP checksum is mandatory over IPv6. */
-	__u32 udp_off = (__u32)((__u8 *)udp - (__u8 *)(long)ctx->xdp_ctx->data);
+	__u32 udp_off = (__u32)((__u8 *)udp - (__u8 *)ctx_data(ctx->ctx_buff));
 	int csum = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off, udp_len,
-			      ctx->xdp_ctx);
+			      ctx->ctx_buff);
 	if (csum < 0)
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 	udp->check = (__u16)csum;
 
 	/* Drop the trailing T-PDU so the frame ends after the IEs. */
 	long trim = (long)ctx->data_end - (long)(p + 36);
 	if (trim > 0)
-		bpf_xdp_adjust_tail(ctx->xdp_ctx, (int)-trim);
+		ctx_adjust_tail(ctx->ctx_buff, (int)-trim);
 
-	return XDP_TX;
+	return ctx_tx_back(ctx->ctx_buff);
 }
 
 static __always_inline int guess_eth_protocol(const void *data)
@@ -489,8 +489,8 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx,
 		return -1;
 	}
 
-	void *data = (void *)(long)ctx->xdp_ctx->data;
-	const void *data_end = (const void *)(long)ctx->xdp_ctx->data_end;
+	void *data = ctx_data(ctx->ctx_buff);
+	const void *data_end = ctx_data_end(ctx->ctx_buff);
 	struct ethhdr *eth = (struct ethhdr *)data;
 	if ((const void *)(eth + 1) > data_end) {
 		upf_printk("upf: remove_gtp_header: can't parse eth");
@@ -514,14 +514,14 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx,
 	 * tag. Resizing first lets every rewrite below use a fixed offset from
 	 * the new packet start, which the verifier can bound even though the
 	 * stripped GTP header length varies. */
-	long result = bpf_xdp_adjust_head(
-		ctx->xdp_ctx,
+	long result = ctx_decap(
+		ctx->ctx_buff,
 		(__s32)(in_vlan_size + gtp_encap_size_no_vlan - out_vlan_size));
 	if (result)
 		return result;
 
-	data = (void *)(long)ctx->xdp_ctx->data;
-	data_end = (const void *)(long)ctx->xdp_ctx->data_end;
+	data = ctx_data(ctx->ctx_buff);
+	data_end = ctx_data_end(ctx->ctx_buff);
 
 	struct ethhdr *new_eth = (struct ethhdr *)data;
 	if ((const void *)(new_eth + 1) > data_end) {
@@ -665,7 +665,6 @@ add_gtp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr,
 	const size_t gtp_encap_size =
 		n3_vlan_hdr_size - n6_vlan_hdr_size + gtp_encap_size_no_vlan;
 
-	// int ip_packet_len = (ctx->xdp_ctx->data_end - ctx->xdp_ctx->data) - sizeof(*eth);
 	int ip_packet_len = 0;
 	if (ctx->ip4) {
 		ip_packet_len = bpf_ntohs(ctx->ip4->tot_len);
@@ -676,15 +675,16 @@ add_gtp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr,
 		return -1;
 	}
 
-	int result = bpf_xdp_adjust_head(ctx->xdp_ctx, (__s32)-gtp_encap_size);
+	int result = ctx_encap(ctx->ctx_buff, gtp_encap_size,
+			       CTX_ENCAP_FLAGS_IPV4(gtp_full_hdr_size));
 	if (result) {
 		return -1;
 	}
 
-	void *data = (void *)(long)ctx->xdp_ctx->data;
-	const void *data_end = (const void *)(long)ctx->xdp_ctx->data_end;
+	void *data = ctx_data(ctx->ctx_buff);
+	const void *data_end = ctx_data_end(ctx->ctx_buff);
 
-	struct ethhdr *orig_eth = (struct ethhdr *)(data + gtp_encap_size);
+	struct ethhdr *orig_eth = ctx_encap_saved_eth(data, gtp_encap_size);
 	if ((const void *)(orig_eth + 1) > data_end) {
 		return -1;
 	}
@@ -753,8 +753,8 @@ add_gtp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr,
 	udp->check = 0;
 
 	/* Update packet pointers */
-	context_set_ip4(ctx, (void *)(long)ctx->xdp_ctx->data,
-			(const void *)(long)ctx->xdp_ctx->data_end, eth, vlan,
+	context_set_ip4(ctx, ctx_data(ctx->ctx_buff),
+			ctx_data_end(ctx->ctx_buff), eth, vlan,
 			ip, udp, gtp);
 	return 0;
 }
@@ -791,15 +791,16 @@ add_gtp_over_ip4_headers_s1u(struct packet_context *ctx, int saddr, int daddr,
 		return -1;
 	}
 
-	int result = bpf_xdp_adjust_head(ctx->xdp_ctx, (__s32)-gtp_encap_size);
+	int result = ctx_encap(ctx->ctx_buff, gtp_encap_size,
+			       CTX_ENCAP_FLAGS_IPV4(gtp_full_hdr_size));
 	if (result) {
 		return -1;
 	}
 
-	void *data = (void *)(long)ctx->xdp_ctx->data;
-	const void *data_end = (const void *)(long)ctx->xdp_ctx->data_end;
+	void *data = ctx_data(ctx->ctx_buff);
+	const void *data_end = ctx_data_end(ctx->ctx_buff);
 
-	struct ethhdr *orig_eth = (struct ethhdr *)(data + gtp_encap_size);
+	struct ethhdr *orig_eth = ctx_encap_saved_eth(data, gtp_encap_size);
 	if ((const void *)(orig_eth + 1) > data_end) {
 		return -1;
 	}
@@ -844,8 +845,8 @@ add_gtp_over_ip4_headers_s1u(struct packet_context *ctx, int saddr, int daddr,
 	ip->check = ipv4_csum(ip, sizeof(*ip));
 	udp->check = 0;
 
-	context_set_ip4(ctx, (void *)(long)ctx->xdp_ctx->data,
-			(const void *)(long)ctx->xdp_ctx->data_end, eth, vlan,
+	context_set_ip4(ctx, ctx_data(ctx->ctx_buff),
+			ctx_data_end(ctx->ctx_buff), eth, vlan,
 			ip, udp, gtp);
 	return 0;
 }
@@ -907,18 +908,19 @@ static __always_inline __u32 add_gtp_over_ip6_headers(
 		return -1;
 	}
 
-	int result = bpf_xdp_adjust_head(ctx->xdp_ctx, (__s32)-gtp_encap_size);
+	int result = ctx_encap(ctx->ctx_buff, gtp_encap_size,
+			       CTX_ENCAP_FLAGS_IPV6(gtp_full_hdr_size));
 	if (result) {
 		upf_printk("upf: could not adjust head");
 		return -1;
 	}
 
-	void *data = (void *)(long)ctx->xdp_ctx->data;
-	const void *data_end = (const void *)(long)ctx->xdp_ctx->data_end;
+	void *data = ctx_data(ctx->ctx_buff);
+	const void *data_end = ctx_data_end(ctx->ctx_buff);
 
-	struct ethhdr *orig_eth = (struct ethhdr *)(data + gtp_encap_size);
+	struct ethhdr *orig_eth = ctx_encap_saved_eth(data, gtp_encap_size);
 	if ((const void *)(orig_eth + 1) > data_end) {
-		upf_printk("upf: orig_eth overflows data_end");
+		upf_printk("upf: eth overflows data_end");
 		return -1;
 	}
 
@@ -993,9 +995,9 @@ static __always_inline __u32 add_gtp_over_ip6_headers(
 	/* GTP-U over IPv6 requires UDP checksum (RFC 6936) */
 	if (ip6) {
 		__u32 udp_off =
-			(__u32)((__u8 *)udp - (__u8 *)(long)ctx->xdp_ctx->data);
+			(__u32)((__u8 *)udp - (__u8 *)ctx_data(ctx->ctx_buff));
 		int csum_ret = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off,
-					  bpf_ntohs(udp->len), ctx->xdp_ctx);
+					  bpf_ntohs(udp->len), ctx->ctx_buff);
 		if (csum_ret < 0) {
 			upf_printk("upf: udpv6_csum failed");
 			return -1;
@@ -1004,8 +1006,8 @@ static __always_inline __u32 add_gtp_over_ip6_headers(
 	}
 
 	/* Update packet pointers */
-	context_set_ip6(ctx, (void *)(long)ctx->xdp_ctx->data,
-			(const void *)(long)ctx->xdp_ctx->data_end, eth, vlan,
+	context_set_ip6(ctx, ctx_data(ctx->ctx_buff),
+			ctx_data_end(ctx->ctx_buff), eth, vlan,
 			ip6, udp, gtp);
 	return 0;
 }
@@ -1042,15 +1044,16 @@ static __always_inline __u32 add_gtp_over_ip6_headers_s1u(
 		return -1;
 	}
 
-	int result = bpf_xdp_adjust_head(ctx->xdp_ctx, (__s32)-gtp_encap_size);
+	int result = ctx_encap(ctx->ctx_buff, gtp_encap_size,
+			       CTX_ENCAP_FLAGS_IPV6(gtp_full_hdr_size));
 	if (result) {
 		return -1;
 	}
 
-	void *data = (void *)(long)ctx->xdp_ctx->data;
-	const void *data_end = (const void *)(long)ctx->xdp_ctx->data_end;
+	void *data = ctx_data(ctx->ctx_buff);
+	const void *data_end = ctx_data_end(ctx->ctx_buff);
 
-	struct ethhdr *orig_eth = (struct ethhdr *)(data + gtp_encap_size);
+	struct ethhdr *orig_eth = ctx_encap_saved_eth(data, gtp_encap_size);
 	if ((const void *)(orig_eth + 1) > data_end) {
 		return -1;
 	}
@@ -1098,17 +1101,17 @@ static __always_inline __u32 add_gtp_over_ip6_headers_s1u(
 	/* GTP-U over IPv6 requires UDP checksum (RFC 6936) */
 	if (ip6) {
 		__u32 udp_off =
-			(__u32)((__u8 *)udp - (__u8 *)(long)ctx->xdp_ctx->data);
+			(__u32)((__u8 *)udp - (__u8 *)ctx_data(ctx->ctx_buff));
 		int csum_ret = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off,
-					  bpf_ntohs(udp->len), ctx->xdp_ctx);
+					  bpf_ntohs(udp->len), ctx->ctx_buff);
 		if (csum_ret < 0) {
 			return -1;
 		}
 		udp->check = (__u16)csum_ret;
 	}
 
-	context_set_ip6(ctx, (void *)(long)ctx->xdp_ctx->data,
-			(const void *)(long)ctx->xdp_ctx->data_end, eth, vlan,
+	context_set_ip6(ctx, ctx_data(ctx->ctx_buff),
+			ctx_data_end(ctx->ctx_buff), eth, vlan,
 			ip6, udp, gtp);
 	return 0;
 }

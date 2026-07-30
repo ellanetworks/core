@@ -89,12 +89,12 @@ static __always_inline bool source_allowed(struct packet_context *ctx,
 	return false;
 }
 
-static __always_inline enum xdp_action
+static __always_inline enum ctx_action
 handle_gtp_packet(struct packet_context *ctx)
 {
 	if (!ctx->gtp) {
 		upf_printk("upf: unexpected packet context. no gtp header");
-		return DEFAULT_XDP_ACTION;
+		return DEFAULT_CTX_ACTION;
 	}
 
 	__u32 teid = bpf_htonl(ctx->gtp->teid);
@@ -112,7 +112,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		}
 
 		upf_printk("upf: no uplink PDR for teid:%d, discarding", teid);
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 	}
 
 	__u32 urr_id = pdr->urr_id;
@@ -126,17 +126,17 @@ handle_gtp_packet(struct packet_context *ctx)
 	__u32 decap_no_vlan = gtp_decap_size_no_vlan(ctx, outer_header_removal);
 	if (decap_no_vlan == 0) {
 		PROFILE_END(PROF_N3_MTU_CHECK);
-		return XDP_ABORTED;
+		return CTX_ACT_ABORTED;
 	}
 	int decap_size = decap_no_vlan;
-	long ret = bpf_check_mtu(ctx->xdp_ctx, n6_ifindex, &mtu_len,
+	long ret = bpf_check_mtu(ctx->ctx_buff, n6_ifindex, &mtu_len,
 				 -decap_size, 0);
 	PROFILE_END(PROF_N3_MTU_CHECK);
 	if (ret < 0) {
 		ctx->statistics
-			->xdp_actions[XDP_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
+			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
 			1;
-		return XDP_ABORTED;
+		return CTX_ACT_ABORTED;
 	}
 	if (ret > 0) {
 		upf_printk("upf: n3 packet too large");
@@ -148,7 +148,7 @@ handle_gtp_packet(struct packet_context *ctx)
 	upf_printk("upf: far action:%d outer_header_creation:%d", far->action,
 		   far->outer_header_creation);
 	if (!(far->action & FAR_FORW)) {
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 	}
 
 	PROFILE_START(PROF_N3_QER_RATELIMIT);
@@ -156,14 +156,15 @@ handle_gtp_packet(struct packet_context *ctx)
 		   qer->ul_maximum_bitrate);
 	if (qer->ul_gate_status != GATE_STATUS_OPEN) {
 		PROFILE_END(PROF_N3_QER_RATELIMIT);
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 	}
 
-	const __u64 packet_size = ctx->data_end - ctx->data;
-	if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->ul_start,
+	const __u64 packet_size =
+		ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->data);
+	if (CTX_ACT_DROP == limit_rate_sliding_window(packet_size, &qer->ul_start,
 						  qer->ul_maximum_bitrate)) {
 		PROFILE_END(PROF_N3_QER_RATELIMIT);
-		return XDP_DROP;
+		return CTX_ACT_DROP;
 	}
 	PROFILE_END(PROF_N3_QER_RATELIMIT);
 
@@ -171,9 +172,8 @@ handle_gtp_packet(struct packet_context *ctx)
 		   outer_header_removal);
 	PROFILE_START(PROF_N3_GTP_MANIP);
 	if (far->outer_header_creation & OHC_GTP_U_UDP_IPv4) {
-		void *pkt_data4 = (void *)(long)ctx->xdp_ctx->data;
-		const void *pkt_end4 =
-			(const void *)(long)ctx->xdp_ctx->data_end;
+		void *pkt_data4 = ctx_data(ctx->ctx_buff);
+		const void *pkt_end4 = ctx_data_end(ctx->ctx_buff);
 		size_t ip4_offset = sizeof(struct ethhdr);
 		if (ctx->vlan)
 			ip4_offset += sizeof(struct vlan_hdr);
@@ -181,7 +181,7 @@ handle_gtp_packet(struct packet_context *ctx)
 			(struct iphdr *)(pkt_data4 + ip4_offset);
 		if ((const void *)(outer_ip4 + 1) > pkt_end4) {
 			PROFILE_END(PROF_N3_GTP_MANIP);
-			return XDP_ABORTED;
+			return CTX_ACT_ABORTED;
 		}
 		__u32 remoteip_v4 = ipv4_from_mapped(&far->remoteip);
 		upf_printk("upf: session for teid:%d -> %d remote:%pI4", teid,
@@ -190,9 +190,8 @@ handle_gtp_packet(struct packet_context *ctx)
 				  ipv4_from_mapped(&far->localip), remoteip_v4,
 				  0, far->teid);
 	} else if (far->outer_header_creation & OHC_GTP_U_UDP_IPv6) {
-		void *pkt_data = (void *)(long)ctx->xdp_ctx->data;
-		const void *pkt_end =
-			(const void *)(long)ctx->xdp_ctx->data_end;
+		void *pkt_data = ctx_data(ctx->ctx_buff);
+		const void *pkt_end = ctx_data_end(ctx->ctx_buff);
 		size_t ip6_offset = sizeof(struct ethhdr);
 		if (ctx->vlan)
 			ip6_offset += sizeof(struct vlan_hdr);
@@ -200,7 +199,7 @@ handle_gtp_packet(struct packet_context *ctx)
 			(struct ipv6hdr *)(pkt_data + ip6_offset);
 		if ((const void *)(outer_ip6 + 1) > pkt_end) {
 			PROFILE_END(PROF_N3_GTP_MANIP);
-			return XDP_ABORTED;
+			return CTX_ACT_ABORTED;
 		}
 		upf_printk("upf: session for teid:%d -> %d remote:IPv6", teid,
 			   far->teid);
@@ -214,7 +213,7 @@ handle_gtp_packet(struct packet_context *ctx)
 			upf_printk(
 				"upf: handle_gtp_packet: can't remove gtp header: %d",
 				result);
-			return XDP_ABORTED;
+			return CTX_ACT_ABORTED;
 		}
 
 		/* Parse inner L4 so match_sdf_filters can inspect protocol/ports */
@@ -240,9 +239,8 @@ handle_gtp_packet(struct packet_context *ctx)
 			 * remove_gtp_header, so re-derive pointers from
 			 * the xdp_md to be safe.
 			 */
-			void *pkt_data = (void *)(long)ctx->xdp_ctx->data;
-			const void *pkt_end =
-				(const void *)(long)ctx->xdp_ctx->data_end;
+			void *pkt_data = ctx_data(ctx->ctx_buff);
+			const void *pkt_end = ctx_data_end(ctx->ctx_buff);
 			struct ipv6hdr *ip6_inner =
 				(struct ipv6hdr *)(pkt_data +
 						   sizeof(struct ethhdr));
@@ -263,7 +261,7 @@ handle_gtp_packet(struct packet_context *ctx)
 					bpf_ringbuf_output(&rs_event_map, &ev,
 							   sizeof(ev), 0);
 					PROFILE_END(PROF_N3_GTP_MANIP);
-					return XDP_DROP;
+					return CTX_ACT_DROP;
 				}
 			}
 		}
@@ -277,7 +275,7 @@ handle_gtp_packet(struct packet_context *ctx)
 			else if (ctx->ip6)
 				ctx->statistics->source_spoof_drop_ip6 += 1;
 			PROFILE_END(PROF_N3_GTP_MANIP);
-			return XDP_DROP;
+			return CTX_ACT_DROP;
 		}
 	}
 	PROFILE_END(PROF_N3_GTP_MANIP);
@@ -286,23 +284,23 @@ handle_gtp_packet(struct packet_context *ctx)
 	 * whose addresses and ports are the UPF's and its peer's. */
 	if (!ctx->gtp) {
 		PROFILE_START(PROF_N3_SDF_FILTER);
-		enum xdp_action sdf_verdict =
+		enum ctx_action sdf_verdict =
 			match_sdf_filters(ctx, pdr->filter_map_index);
 		PROFILE_END(PROF_N3_SDF_FILTER);
-		if (sdf_verdict == XDP_DROP) {
+		if (sdf_verdict == CTX_ACT_DROP) {
 			upf_printk("upf: uplink SDF drop teid:%d", teid);
-			ctx->statistics->xdp_actions[XDP_DROP &
+			ctx->statistics->xdp_actions[CTX_ACT_DROP &
 						     EUPF_MAX_XDP_ACTION_MASK] +=
 				1;
 			account_flow(ctx, n6_ifindex, pdr->imsi,
 				     ctx->ip4 ? IPV4 : IPV6, DROP);
-			return XDP_DROP;
+			return CTX_ACT_DROP;
 		}
 	}
 
 	/* Account uplink traffic */
 	{
-		__u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+		__u64 packet_size = ctx_full_len(ctx->ctx_buff);
 		ctx->statistics->byte_counter.bytes += packet_size;
 	}
 
@@ -312,28 +310,28 @@ handle_gtp_packet(struct packet_context *ctx)
 	struct route_stat *route_statistic =
 		bpf_map_lookup_elem(&uplink_route_stats, &key);
 	if (!route_statistic)
-		return XDP_ABORTED;
+		return CTX_ACT_ABORTED;
 
 	if (ctx->ip4) {
 		account_flow(ctx, n6_ifindex, pdr->imsi, IPV4, ALLOW);
 		PROFILE_START(PROF_N3_FIB_ROUTING);
-		enum xdp_action fib_ret =
+		enum ctx_action fib_ret =
 			route_ipv4(ctx, route_statistic, false);
 		PROFILE_END(PROF_N3_FIB_ROUTING);
 		return fib_ret;
 	} else if (ctx->ip6) {
 		account_flow(ctx, n6_ifindex, pdr->imsi, IPV6, ALLOW);
 		PROFILE_START(PROF_N3_FIB_ROUTING);
-		enum xdp_action fib_ret =
+		enum ctx_action fib_ret =
 			route_ipv6(ctx, route_statistic, false);
 		PROFILE_END(PROF_N3_FIB_ROUTING);
 		return fib_ret;
 	} else {
-		return XDP_ABORTED;
+		return CTX_ACT_ABORTED;
 	}
 }
 
-static __always_inline enum xdp_action handle_gtpu(struct packet_context *ctx)
+static __always_inline enum ctx_action handle_gtpu(struct packet_context *ctx)
 {
 	int pdu_type = parse_gtp(ctx);
 	switch (pdu_type) {
@@ -345,13 +343,13 @@ static __always_inline enum xdp_action handle_gtpu(struct packet_context *ctx)
 				   &ctx->ip4->saddr, &ctx->ip4->daddr);
 		return gtpu_control_tail_call(ctx);
 	case GTPU_ECHO_RESPONSE:
-		return XDP_PASS;
+		return CTX_ACT_OK;
 	case GTPU_ERROR_INDICATION:
 	case GTPU_SUPPORTED_EXTENSION_HEADERS_NOTIFICATION:
 	case GTPU_END_MARKER:
-		return DEFAULT_XDP_ACTION;
+		return DEFAULT_CTX_ACTION;
 	default:
 		upf_printk("upf: unexpected gtp message: type=%d", pdu_type);
-		return DEFAULT_XDP_ACTION;
+		return DEFAULT_CTX_ACTION;
 	}
 }
