@@ -27,8 +27,8 @@ interfaces:
     tls:
       cert: "/var/snap/ella-core/common/cert.pem"
       key: "/var/snap/ella-core/common/key.pem"
-xdp:
-  attach-mode: "native"
+datapath:
+  attach-mode: "xdp-native"
 telemetry:
   enabled: false
 ```

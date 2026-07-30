@@ -67,11 +67,11 @@ You should see `prog/xdp` in the output.
 
 ## 6. Configure Ella Core for native XDP
 
-Set the XDP attach mode to `native` in the Ella Core configuration file:
+Set the attach mode to `xdp-native` in the Ella Core configuration file:
 
 ```yaml
-xdp:
-  attach-mode: "native"
+datapath:
+  attach-mode: "xdp-native"
 ```
 
 Restart Ella Core for the change to take effect.
