@@ -63,7 +63,14 @@ static __always_inline __u64 ctx_len_from(struct __ctx_buff *ctx,
 					  const void *data_end,
 					  const void *from)
 {
-	return ctx->len - (__u64)(from - (const void *)(long)ctx->data);
+	__u64 off = (__u64)(from - (const void *)(long)ctx->data);
+
+	/* Opaque to the optimizer: the pointer difference must reach the
+	 * verifier as one scalar — re-associated to (len - from) + data it is
+	 * a pointer subtracted from a scalar, which the verifier rejects. */
+	asm volatile("" : "+r"(off));
+
+	return ctx->len - off;
 }
 
 static __always_inline __u32 ctx_ingress_ifindex(struct __ctx_buff *ctx)
