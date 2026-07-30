@@ -10,14 +10,13 @@ import (
 )
 
 // S1SetupRequest is the S1 SETUP REQUEST message (TS 36.413 §9.1.8.4). A nil
-// ENBName means the optional eNBname IE is absent; a nil DefaultPagingDRX means
-// the mandatory-but-ignore-criticality IE was absent (§10.3.5). IEs that are
-// not modeled are preserved in unknownIEs so the message round-trips.
+// ENBName means the optional eNBname IE is absent. IEs that are not modeled are
+// preserved in unknownIEs so the message round-trips.
 type S1SetupRequest struct {
 	GlobalENBID      GlobalENBID
 	ENBName          *string
 	SupportedTAs     SupportedTAs
-	DefaultPagingDRX *PagingDRX
+	DefaultPagingDRX PagingDRX
 
 	unmodeledIEs
 }
@@ -33,11 +32,10 @@ func (m *S1SetupRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
 		fields = append(fields, ieField{id: idENBname, crit: CriticalityIgnore, val: Name(*m.ENBName)})
 	}
 
-	fields = append(fields, ieField{id: idSupportedTAs, crit: CriticalityReject, val: m.SupportedTAs})
-
-	if m.DefaultPagingDRX != nil {
-		fields = append(fields, ieField{id: idDefaultPagingDRX, crit: CriticalityIgnore, val: *m.DefaultPagingDRX})
-	}
+	fields = append(fields,
+		ieField{id: idSupportedTAs, crit: CriticalityReject, val: m.SupportedTAs},
+		ieField{id: idDefaultPagingDRX, crit: CriticalityIgnore, val: m.DefaultPagingDRX},
+	)
 
 	for _, e := range m.unknownIEs {
 		fields = append(fields, e.field())
@@ -105,12 +103,7 @@ func ParseS1SetupRequest(value []byte) (*S1SetupRequest, error) {
 			err = perIEDecode(f.value, &m.SupportedTAs)
 			seenSupportedTAs = true
 		case idDefaultPagingDRX:
-			var drx PagingDRX
-
-			if err = perIEDecode(f.value, &drx); err == nil {
-				m.DefaultPagingDRX = &drx
-			}
-
+			err = perIEDecode(f.value, &m.DefaultPagingDRX)
 			seenPagingDRX = true
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)
@@ -121,8 +114,6 @@ func ParseS1SetupRequest(value []byte) (*S1SetupRequest, error) {
 		}
 	}
 
-	// §9.1.8.4: Default Paging DRX is mandatory but ignore-criticality, so its
-	// absence is reported without rejecting the procedure (§10.3.5).
 	if err := requireIEs(ProcS1Setup,
 		ieCheck{idGlobalENBID, CriticalityReject, seenGlobalENBID},
 		ieCheck{idSupportedTAs, CriticalityReject, seenSupportedTAs},

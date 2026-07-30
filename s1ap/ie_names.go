@@ -5,9 +5,8 @@ package s1ap
 
 import "fmt"
 
-// protocolIENames maps each ProtocolIE-ID to its TS 36.413 name. IE ids are
-// message-scoped, so a few numbers are reused across messages; the first
-// declaration wins for display purposes.
+// protocolIENames maps each ProtocolIE-ID to its TS 36.413 name
+// (S1AP-Constants, §9.3.5). IDs are globally unique across the protocol.
 var protocolIENames = map[ProtocolIEID]string{
 	idMMEUES1APID:                               "MMEUES1APID",
 	idHandoverType:                              "HandoverType",
@@ -25,6 +24,7 @@ var protocolIENames = map[ProtocolIEID]string{
 	idERABToBeSwitchedDLList:                    "ERABToBeSwitchedDLList",
 	idERABToBeSwitchedDLItem:                    "ERABToBeSwitchedDLItem",
 	idERABToBeSetupListCtxtSUReq:                "ERABToBeSetupListCtxtSUReq",
+	idNASPDU:                                    "NASPDU",
 	idERABSetupListBearerSURes:                  "ERABSetupListBearerSURes",
 	idERABFailedToSetupListBearerSURes:          "ERABFailedToSetupListBearerSURes",
 	idERABToBeModifiedListBearerModReq:          "ERABToBeModifiedListBearerModReq",

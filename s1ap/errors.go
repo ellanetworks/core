@@ -20,12 +20,23 @@ type MissingIE struct {
 // which is what a receiver needs to build Criticality Diagnostics
 // (TS 36.413 §10.3.5).
 //
-// A parser returns this error only when the procedure must be rejected, i.e.
-// when at least one absent IE has reject criticality. Absences that are
-// exclusively ignore-criticality are not errors: §10.3.5 requires the receiver
-// to carry on, and the affected fields are simply left at their zero value or
-// nil. When the error is returned it lists every missing mandatory IE, ignore
-// ones included, so the diagnostics can be complete.
+// A parser returns this error whenever a mandatory IE is absent, whatever its
+// criticality, together with the partially-decoded message. Callers that treat
+// any error as fatal therefore never read an unpopulated mandatory field. A
+// caller that wants §10.3.5's "ignore" behaviour — carry on using the IEs that
+// are present — opts in explicitly by checking that nothing reject-criticality
+// is missing:
+//
+//	msg, err := s1ap.ParseUplinkNASTransport(value)
+//
+//	var missing *s1ap.MissingMandatoryIEsError
+//	switch {
+//	case errors.As(err, &missing) && len(missing.RejectedIEs()) == 0:
+//		// §10.3.5 "Ignore IE": continue from the IEs that are present,
+//		// remembering that the ones in missing.IEs are not.
+//	case err != nil:
+//		return err
+//	}
 type MissingMandatoryIEsError struct {
 	Procedure ProcedureCode
 	IEs       []MissingIE
@@ -62,33 +73,25 @@ type ieCheck struct {
 	seen bool
 }
 
-// requireIEs applies TS 36.413 §10.3.5 to a decoded message: it returns a
-// [MissingMandatoryIEsError] when a reject-criticality IE is absent, and nil
-// when every absence is ignore-criticality (the receiver must then carry on).
-// The returned error lists all missing mandatory IEs, not just the rejecting
-// ones, so the caller can report complete diagnostics.
+// requireIEs reports any mandatory IE the message did not carry. Absence is
+// always an error, whatever the IE's criticality: a decoded message must have
+// every mandatory field populated, so the codec never hands back a struct in
+// which a mandatory IE is silently the zero value. Deciding what to do about
+// the absence — §10.3.5's reject-versus-continue — is the receiving node's
+// call, made from the returned error.
 //
 // Callers list one check per mandatory IE of the message, in the order the
 // §9.1 table gives them, with the criticality that table assigns.
 func requireIEs(procedure ProcedureCode, checks ...ieCheck) error {
-	var (
-		missing []MissingIE
-		reject  bool
-	)
+	var missing []MissingIE
 
 	for _, c := range checks {
-		if c.seen {
-			continue
-		}
-
-		missing = append(missing, MissingIE{ID: c.id, Criticality: c.crit})
-
-		if c.crit == CriticalityReject {
-			reject = true
+		if !c.seen {
+			missing = append(missing, MissingIE{ID: c.id, Criticality: c.crit})
 		}
 	}
 
-	if !reject {
+	if len(missing) == 0 {
 		return nil
 	}
 

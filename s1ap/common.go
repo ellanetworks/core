@@ -5,26 +5,45 @@
 // (3GPP TS 36.413) using Aligned PER. It is a pure codec: no transport, no
 // state, no procedure logic.
 //
-// # Optional IEs
+// # What a decoded message guarantees
 //
-// An IE that TS 36.413 marks OPTIONAL, or marks mandatory with ignore
-// criticality (which may legitimately be absent, see §10.3.5), is represented
-// so that absence is always distinguishable from a zero value:
+// If ParseXxx returns a nil error, every mandatory IE of that message holds
+// what the peer sent. Mandatory IEs are therefore plain value types, and no
+// field ever uses a zero value to mean "absent":
 //
-//   - a field of a non-nilable type is a pointer, and nil means absent;
-//   - a field whose type is already nilable — []byte, a named byte-slice such
-//     as NASPDU, or a list type — uses a nil slice to mean absent.
-//
-// No IE uses a zero value to mean absent, so an empty name or a zero-valued
-// enumeration always round-trips as a present IE.
+//   - an IE that TS 36.413 marks OPTIONAL or CONDITIONAL is nil-able — a
+//     pointer, or a nil slice where the type is already a slice — and nil
+//     means the IE was not present;
+//   - an IE that is mandatory is a value type, meaningful whenever the parse
+//     succeeded.
 //
 // # Decoding errors
 //
-// ParseXxx returns [MissingMandatoryIEsError] when a mandatory IE with reject
-// criticality is absent. Absences that are exclusively ignore-criticality are
-// not errors: §10.3.5 requires the receiver to carry on, and the corresponding
-// field is left nil. Unmodeled IEs are preserved verbatim and re-emitted on
-// encode; see UnknownIEs.
+// Any failure to decode a message is reported as an error and no message is
+// returned: a structural break, an IE whose value is malformed, or a missing
+// mandatory IE. TS 36.413 §10.3.6 requires a falsely constructed message to be
+// rejected, and returning a half-populated struct would make the guarantee
+// above conditional.
+//
+// A missing mandatory IE yields [MissingMandatoryIEsError], which names the
+// procedure and each absent IE together with the criticality its §9.1 table
+// assigns. That is what a receiver needs to build Criticality Diagnostics and
+// to choose between rejecting the procedure and reporting an Error Indication
+// (§10.3.5). The codec reports; deciding is the receiving node's job, since
+// only it knows the procedure and transaction state.
+//
+// Absence of a mandatory ignore-criticality IE is treated as an error here
+// even though §10.3.5 would let a receiver carry on from the IEs that are
+// present. Continuing would mean handing back a message whose mandatory fields
+// are not all meaningful, and the IEs in question — UE identities, TAI, CGI,
+// Cause — are the ones a receiver would have to act on.
+//
+// Unmodeled IEs are preserved verbatim and re-emitted on encode; see
+// UnknownIEs. An unmodeled IE that arrived marked with reject criticality is
+// additionally reported by UnhandledCriticalIEs: TS 36.413 §10.3.4.2 requires
+// a receiver that does not comprehend it to reject the procedure, but only the
+// receiving node knows the procedure and whether it can report an unsuccessful
+// outcome, so the codec records the fact and leaves the decision to it.
 package s1ap
 
 import "fmt"

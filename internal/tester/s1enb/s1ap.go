@@ -96,7 +96,7 @@ func (e *ENB) buildS1SetupRequest() ([]byte, error) {
 		SupportedTAs: s1ap.SupportedTAs{
 			{TAC: s1ap.TAC(e.tac), BroadcastPLMNs: s1ap.BPLMNs{e.plmn}},
 		},
-		DefaultPagingDRX: new(s1ap.PagingDRXv32),
+		DefaultPagingDRX: s1ap.PagingDRXv32,
 	}
 
 	b, err := req.Marshal()

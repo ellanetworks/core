@@ -52,9 +52,10 @@ func TestLocationReportRoundTrip(t *testing.T) {
 	}
 }
 
-// TestLocationReportMissingMandatoryIE checks the §10.3.5 split: the two UE
-// IDs are mandatory-reject, while E-UTRAN CGI, TAI and Request Type are
-// mandatory-ignore (§9.1.12.3), so omitting only the latter must not reject.
+// TestLocationReportMissingMandatoryIE checks that every absent mandatory IE
+// is reported with the criticality §9.1.12.3 assigns it: the two UE IDs are
+// reject, E-UTRAN CGI, TAI and Request Type are ignore. A decoded message must
+// have all of them, so any absence fails the parse.
 func TestLocationReportMissingMandatoryIE(t *testing.T) {
 	encode := func(t *testing.T, fields []ieField) []byte {
 		t.Helper()
@@ -69,18 +70,28 @@ func TestLocationReportMissingMandatoryIE(t *testing.T) {
 		return perBytes(w)
 	}
 
-	t.Run("only ignore-criticality IEs missing is tolerated", func(t *testing.T) {
+	t.Run("ignore-criticality IEs missing are reported", func(t *testing.T) {
 		value := encode(t, []ieField{
 			{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
 			{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(1)},
 		})
 
-		if _, err := ParseLocationReport(value); err != nil {
-			t.Fatalf("parse: unexpected error %v", err)
+		var missing *MissingMandatoryIEsError
+		if _, err := ParseLocationReport(value); !errors.As(err, &missing) {
+			t.Fatalf("error = %v, want *MissingMandatoryIEsError", err)
+		}
+		// Nothing reject-criticality is absent, so a receiver implementing
+		// §10.3.5 answers with an Error Indication rather than a failure.
+		if got := missing.RejectedIEs(); len(got) != 0 {
+			t.Fatalf("rejected IEs = %v, want none", got)
+		}
+
+		if len(missing.IEs) != 3 {
+			t.Fatalf("missing IEs = %v, want 3 entries", missing.IEs)
 		}
 	})
 
-	t.Run("missing reject-criticality IE rejects and reports all", func(t *testing.T) {
+	t.Run("missing reject-criticality IE is listed among all absences", func(t *testing.T) {
 		value := encode(t, []ieField{
 			{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
 		})

@@ -158,15 +158,11 @@ func buildS1SetupRequest(value []byte) (S1APMessageValue, string) {
 		Criticality: criticalityToEnum(s1ap.CriticalityReject),
 		Value:       supportedTAs(req.SupportedTAs),
 	})
-	// Only render the IE when the eNB actually sent it; it is mandatory but
-	// ignore-criticality, so absence is legal (TS 36.413 §9.1.8.4).
-	if req.DefaultPagingDRX != nil {
-		ies = append(ies, IE{
-			ID:          ieEnum(idDefaultPagingDRX),
-			Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
-			Value:       pagingDRXToEnum(*req.DefaultPagingDRX),
-		})
-	}
+	ies = append(ies, IE{
+		ID:          ieEnum(idDefaultPagingDRX),
+		Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
+		Value:       pagingDRXToEnum(req.DefaultPagingDRX),
+	})
 
 	summary := "S1 Setup Request"
 	if req.ENBName != nil {

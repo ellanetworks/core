@@ -138,8 +138,10 @@ func ParseS1SetupFailure(value []byte) (*S1SetupFailure, error) {
 		}
 	}
 
-	if !seenCause {
-		return nil, fmt.Errorf("s1ap: S1SetupFailure missing mandatory Cause IE")
+	if err := requireIEs(ProcS1Setup,
+		ieCheck{idCause, CriticalityIgnore, seenCause},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

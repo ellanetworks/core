@@ -133,3 +133,61 @@ func TestErrorIndicationCriticalityDiagnostics(t *testing.T) {
 		t.Fatalf("IE list mismatch: %+v", cd.IEsCriticalityDiagnostics)
 	}
 }
+
+// TestUnhandledCriticalIEs checks that an unmodeled IE marked reject is
+// surfaced for the receiver to act on (TS 36.413 §10.3.4.2), while ignore and
+// notify ones are not, and that the parse itself still succeeds — deciding is
+// the receiving node's job.
+func TestUnhandledCriticalIEs(t *testing.T) {
+	const (
+		rejectID ProtocolIEID = 301
+		ignoreID ProtocolIEID = 302
+		notifyID ProtocolIEID = 303
+	)
+
+	m := &S1SetupRequest{
+		GlobalENBID:  GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 1}},
+		SupportedTAs: SupportedTAs{{TAC: 1, BroadcastPLMNs: BPLMNs{{0x00, 0xf1, 0x10}}}},
+		unmodeledIEs: unmodeledIEs{unknownIEs: []rawIE{
+			{id: ignoreID, crit: CriticalityIgnore, value: []byte{0x01}},
+			{id: rejectID, crit: CriticalityReject, value: []byte{0x02}},
+			{id: notifyID, crit: CriticalityNotify, value: []byte{0x03}},
+		}},
+	}
+
+	raw, err := m.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pdu, err := Unmarshal(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := ParseS1SetupRequest(pdu.(*InitiatingMessage).Value)
+	if err != nil {
+		t.Fatalf("parse must succeed; the receiver decides: %v", err)
+	}
+
+	got := out.UnhandledCriticalIEs()
+	if len(got) != 1 || got[0] != rejectID {
+		t.Fatalf("UnhandledCriticalIEs() = %v, want [%v]", got, rejectID)
+	}
+	// All three survive for re-encode regardless of criticality.
+	if len(out.UnknownIEs()) != 3 {
+		t.Fatalf("UnknownIEs() = %d entries, want 3", len(out.UnknownIEs()))
+	}
+}
+
+func TestUnhandledCriticalIEsNilWhenNone(t *testing.T) {
+	m := &S1SetupRequest{
+		unmodeledIEs: unmodeledIEs{unknownIEs: []rawIE{
+			{id: 400, crit: CriticalityIgnore, value: []byte{0x01}},
+		}},
+	}
+
+	if got := m.UnhandledCriticalIEs(); got != nil {
+		t.Fatalf("UnhandledCriticalIEs() = %v, want nil", got)
+	}
+}

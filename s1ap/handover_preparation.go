@@ -261,8 +261,8 @@ func (m *HandoverPreparationFailure) encodeBody(w *per.Writer, enc per.Encoding)
 	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
-		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
+		{id: idMMEUES1APID, crit: CriticalityIgnore, val: &m.MMEUES1APID},
+		{id: idENBUES1APID, crit: CriticalityIgnore, val: &m.ENBUES1APID},
 		{id: idCause, crit: CriticalityIgnore, val: &m.Cause},
 	}
 

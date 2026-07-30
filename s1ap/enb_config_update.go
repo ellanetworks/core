@@ -301,8 +301,10 @@ func ParseENBConfigurationUpdateFailure(value []byte) (*ENBConfigurationUpdateFa
 		}
 	}
 
-	if !seenCause {
-		return nil, fmt.Errorf("s1ap: ENBConfigurationUpdateFailure missing mandatory Cause IE")
+	if err := requireIEs(ProcENBConfigurationUpdate,
+		ieCheck{idCause, CriticalityIgnore, seenCause},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

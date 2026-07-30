@@ -78,7 +78,7 @@ func (m *DownlinkUEAssociatedLPPaTransport) Marshal() ([]byte, error) {
 // ParseDownlinkUEAssociatedLPPaTransport decodes the message from the open-type
 // payload of an initiatingMessage.
 func ParseDownlinkUEAssociatedLPPaTransport(value []byte) (*DownlinkUEAssociatedLPPaTransport, error) {
-	f, err := decodeLPPaTransportBody(value)
+	f, err := decodeLPPaTransportBody(ProcDownlinkUEAssociatedLPPaTransport, value)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (m *UplinkUEAssociatedLPPaTransport) Marshal() ([]byte, error) {
 // ParseUplinkUEAssociatedLPPaTransport decodes the message from the open-type
 // payload of an initiatingMessage.
 func ParseUplinkUEAssociatedLPPaTransport(value []byte) (*UplinkUEAssociatedLPPaTransport, error) {
-	f, err := decodeLPPaTransportBody(value)
+	f, err := decodeLPPaTransportBody(ProcUplinkUEAssociatedLPPaTransport, value)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +174,7 @@ type lppaTransportFields struct {
 	unknown []rawIE
 }
 
-func decodeLPPaTransportBody(value []byte) (lppaTransportFields, error) {
+func decodeLPPaTransportBody(procedure ProcedureCode, value []byte) (lppaTransportFields, error) {
 	var f lppaTransportFields
 
 	r := per.NewReader(value)
@@ -221,7 +221,7 @@ func decodeLPPaTransportBody(value []byte) (lppaTransportFields, error) {
 		}
 	}
 
-	if err := requireIEs(ProcDownlinkUEAssociatedLPPaTransport,
+	if err := requireIEs(procedure,
 		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
 		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
 		ieCheck{idRoutingID, CriticalityReject, seenRouting},

@@ -174,8 +174,8 @@ func (m *PathSwitchRequestAcknowledge) encodeBody(w *per.Writer, enc per.Encodin
 	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
-		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
+		{id: idMMEUES1APID, crit: CriticalityIgnore, val: &m.MMEUES1APID},
+		{id: idENBUES1APID, crit: CriticalityIgnore, val: &m.ENBUES1APID},
 	}
 
 	if m.UEAggregateMaximumBitRate != nil {
@@ -304,8 +304,8 @@ func (m *PathSwitchRequestFailure) encodeBody(w *per.Writer, enc per.Encoding) e
 	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
-		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
+		{id: idMMEUES1APID, crit: CriticalityIgnore, val: &m.MMEUES1APID},
+		{id: idENBUES1APID, crit: CriticalityIgnore, val: &m.ENBUES1APID},
 		{id: idCause, crit: CriticalityIgnore, val: &m.Cause},
 	}
 

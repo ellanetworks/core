@@ -58,6 +58,29 @@ type unmodeledIEs struct {
 	unknownIEs []rawIE
 }
 
+// UnhandledCriticalIEs returns, in wire order, the ids of the ProtocolIEs this
+// message type does not model that arrived marked with reject criticality.
+//
+// TS 36.413 §10.3.4.2 requires a receiver that does not comprehend such an IE
+// to reject the procedure and report it. The codec records them instead of
+// deciding: only the receiving node knows the procedure and whether it has a
+// message with which to report the unsuccessful outcome. A caller that does
+// understand one of these ids may disregard it and carry on.
+//
+// The IEs themselves remain available from UnknownIEs and are re-emitted on
+// encode, so a message still round-trips with everything that arrived.
+func (u unmodeledIEs) UnhandledCriticalIEs() []ProtocolIEID {
+	var out []ProtocolIEID
+
+	for _, e := range u.unknownIEs {
+		if e.crit == CriticalityReject {
+			out = append(out, e.id)
+		}
+	}
+
+	return out
+}
+
 // UnknownIEs returns, in wire order, the ProtocolIEs present on the wire that
 // this message type does not model, as raw {id, criticality, value} triples.
 func (u unmodeledIEs) UnknownIEs() []RawIE {
