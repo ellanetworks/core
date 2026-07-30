@@ -15,8 +15,8 @@ import (
 
 	cebpf "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
-	"github.com/ellanetworks/core/internal/config"
 	"github.com/cilium/ebpf/rlimit"
+	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
