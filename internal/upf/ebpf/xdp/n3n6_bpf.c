@@ -194,6 +194,12 @@ int upf_gtpu_control_func(struct __ctx_buff *ctx)
 	if (!statistics)
 		return CTX_ACT_ABORTED;
 
+	/* This stage answers echo requests and error indications by rewriting
+	 * the frame in place, so the headers must be writable first. The pull
+	 * precedes the context so the parse below starts from fresh pointers. */
+	if (CTX_NEEDS_PULL && ctx_pull(ctx, CTX_PULL_LEN) < 0)
+		return DEFAULT_CTX_ACTION;
+
 	struct packet_context context = {
 		.data = ctx_data(ctx),
 		.data_end = ctx_data_end(ctx),
