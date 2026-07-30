@@ -196,7 +196,7 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 	new_icmp->code = ICMP_FRAG_NEEDED;
 	new_icmp->un.frag.mtu = mtu;
 
-	int pkt_size = data_end - data;
+	int pkt_size = (int)ctx_len_from(ctx->ctx_buff, data_end, data);
 	int icmp_pkt_size = sizeof(struct ethhdr) + sizeof(struct iphdr) +
 			    sizeof(struct icmphdr) + sizeof(struct iphdr) + 8;
 	if (incoming_vlan) {
@@ -219,7 +219,6 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 				   adj_size);
 			upf_printk("upf: pkt_size: %d", pkt_size);
 			upf_printk("upf: icmp_pkt_size: %X", icmp_pkt_size);
-			upf_printk("upf: data_end: %X", data_end);
 			ctx->statistics->xdp_actions[CTX_ACT_ABORTED &
 						     EUPF_MAX_XDP_ACTION_MASK] +=
 				1;
@@ -390,10 +389,9 @@ send_packet_too_big(struct packet_context *ctx, __be16 mtu)
 		eth_hdr_len += (int)sizeof(struct vlan_hdr);
 	int icmp_pkt_size =
 		eth_hdr_len + (int)sizeof(struct ipv6hdr) + icmp6_msg_len;
-	int pkt_size = (int)(data_end - data);
+	int pkt_size = (int)ctx_len_from(ctx->ctx_buff, data_end, data);
 	if (pkt_size != icmp_pkt_size) {
-		int adj_tail = icmp_pkt_size - pkt_size;
-		if (ctx_adjust_tail(ctx->ctx_buff, adj_tail) < 0) {
+		if (ctx_adjust_tail(ctx->ctx_buff, icmp_pkt_size - pkt_size) < 0) {
 			upf_printk("upf: could not adjust tail for PTB");
 			ctx->statistics->xdp_actions[CTX_ACT_ABORTED &
 						     EUPF_MAX_XDP_ACTION_MASK] +=

@@ -25,8 +25,8 @@
 
 /* TC encap needs BPF_F_ADJ_ROOM_ENCAP_* on bpf_skb_adjust_room; XDP moves raw
  * bytes and carries no offload state to describe. */
-#define CTX_ENCAP_FLAGS_IPV4(inner_l2_len) 0
-#define CTX_ENCAP_FLAGS_IPV6(inner_l2_len) 0
+#define CTX_ENCAP_FLAGS_IPV4 0
+#define CTX_ENCAP_FLAGS_IPV6 0
 
 #define ctx_data(ctx) ((void *)(long)(ctx)->data)
 
@@ -42,6 +42,19 @@
  * already-derived bound. */
 #define ctx_len_from(ctx, data_end, from) \
 	((__u64)((const void *)(data_end) - (const void *)(from)))
+
+/* True when the frame holds `len` bytes starting at `from` — frags included
+ * on TC, so unlike a data_end bound this validates datagram lengths on
+ * non-linear frames. Not a substitute for a data_end check before direct
+ * access. */
+#define ctx_frame_holds(ctx, data_end, from, len) \
+	((const void *)(from) + (len) <= (const void *)(data_end))
+
+/* Signed count of frame bytes past the first `keep` bytes starting at `from`
+ * (negative when the frame ends short of that), counting frags on TC. `from`
+ * must lie in the linear head. */
+#define ctx_tail_excess(ctx, data_end, from, keep) \
+	((long)(data_end) - (long)((const __u8 *)(from) + (keep)))
 
 #define ctx_ingress_ifindex(ctx) ((ctx)->ingress_ifindex)
 

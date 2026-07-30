@@ -189,8 +189,8 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 
 	/* Resize the frame so it ends exactly after the canonical response: a
 	 * short request is grown, a longer one has its tail dropped. */
-	long delta = (long)((const __u8 *)gtp + GTPU_ECHO_RESPONSE_LEN) -
-		     (long)ctx->data_end;
+	long delta = -ctx_tail_excess(ctx->ctx_buff, ctx->data_end, gtp,
+				      GTPU_ECHO_RESPONSE_LEN);
 	if (delta != 0 && ctx_adjust_tail(ctx->ctx_buff, (int)delta) < 0)
 		return CTX_ACT_DROP;
 
@@ -374,7 +374,7 @@ send_error_indication_ipv4(struct packet_context *ctx)
 	__builtin_memcpy(p + 20, &peer_addr, sizeof(peer_addr));
 
 	/* Drop the trailing T-PDU so the frame ends after the IEs. */
-	long trim = (long)ctx->data_end - (long)(p + 24);
+	long trim = ctx_tail_excess(ctx->ctx_buff, ctx->data_end, p, 24);
 	if (trim > 0)
 		ctx_adjust_tail(ctx->ctx_buff, (int)-trim);
 
@@ -450,7 +450,7 @@ send_error_indication_ipv6(struct packet_context *ctx)
 	udp->check = (__u16)csum;
 
 	/* Drop the trailing T-PDU so the frame ends after the IEs. */
-	long trim = (long)ctx->data_end - (long)(p + 36);
+	long trim = ctx_tail_excess(ctx->ctx_buff, ctx->data_end, p, 36);
 	if (trim > 0)
 		ctx_adjust_tail(ctx->ctx_buff, (int)-trim);
 
@@ -676,7 +676,7 @@ add_gtp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr,
 	}
 
 	int result = ctx_encap(ctx->ctx_buff, gtp_encap_size,
-			       CTX_ENCAP_FLAGS_IPV4(gtp_full_hdr_size));
+			       CTX_ENCAP_FLAGS_IPV4);
 	if (result) {
 		return -1;
 	}
@@ -792,7 +792,7 @@ add_gtp_over_ip4_headers_s1u(struct packet_context *ctx, int saddr, int daddr,
 	}
 
 	int result = ctx_encap(ctx->ctx_buff, gtp_encap_size,
-			       CTX_ENCAP_FLAGS_IPV4(gtp_full_hdr_size));
+			       CTX_ENCAP_FLAGS_IPV4);
 	if (result) {
 		return -1;
 	}
@@ -909,7 +909,7 @@ static __always_inline __u32 add_gtp_over_ip6_headers(
 	}
 
 	int result = ctx_encap(ctx->ctx_buff, gtp_encap_size,
-			       CTX_ENCAP_FLAGS_IPV6(gtp_full_hdr_size));
+			       CTX_ENCAP_FLAGS_IPV6);
 	if (result) {
 		upf_printk("upf: could not adjust head");
 		return -1;
@@ -1045,7 +1045,7 @@ static __always_inline __u32 add_gtp_over_ip6_headers_s1u(
 	}
 
 	int result = ctx_encap(ctx->ctx_buff, gtp_encap_size,
-			       CTX_ENCAP_FLAGS_IPV6(gtp_full_hdr_size));
+			       CTX_ENCAP_FLAGS_IPV6);
 	if (result) {
 		return -1;
 	}

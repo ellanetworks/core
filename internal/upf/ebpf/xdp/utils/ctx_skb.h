@@ -23,17 +23,15 @@ enum ctx_action {
 	CTX_ACT_ABORTED = TC_ACT_SHOT,
 };
 
-/* GTP-U encap: the tunnel headers grown by ctx_encap are outer L3 + UDP, and
- * the GTP-U header takes the inner-L2 slot of BPF_F_ADJ_ROOM_ENCAP_L2 so
- * segmentation replays it per segment. */
-#define CTX_ENCAP_FLAGS_IPV4(inner_l2_len)          \
-	(BPF_F_ADJ_ROOM_ENCAP_L3_IPV4 |             \
-	 BPF_F_ADJ_ROOM_ENCAP_L4_UDP |              \
-	 BPF_F_ADJ_ROOM_ENCAP_L2(inner_l2_len))
-#define CTX_ENCAP_FLAGS_IPV6(inner_l2_len)          \
-	(BPF_F_ADJ_ROOM_ENCAP_L3_IPV6 |             \
-	 BPF_F_ADJ_ROOM_ENCAP_L4_UDP |              \
-	 BPF_F_ADJ_ROOM_ENCAP_L2(inner_l2_len))
+/* GTP-U carries bare IP, so inner_mac stays equal to inner_net (the ipip
+ * model) and the GTP-U header lives inside the opaque tunnel span that UDP
+ * tunnel segmentation replays verbatim per segment (tnl_hlen in
+ * net/ipv4/udp_offload.c runs from the outer transport header to
+ * inner_mac). BPF_F_ADJ_ROOM_ENCAP_L2 is for Ethernet-inner tunnels. */
+#define CTX_ENCAP_FLAGS_IPV4 \
+	(BPF_F_ADJ_ROOM_ENCAP_L3_IPV4 | BPF_F_ADJ_ROOM_ENCAP_L4_UDP)
+#define CTX_ENCAP_FLAGS_IPV6 \
+	(BPF_F_ADJ_ROOM_ENCAP_L3_IPV6 | BPF_F_ADJ_ROOM_ENCAP_L4_UDP)
 
 static __always_inline void *ctx_data(struct __ctx_buff *ctx)
 {
@@ -66,6 +64,26 @@ static __always_inline __u32 ctx_ingress_ifindex(struct __ctx_buff *ctx)
 	return ctx->ingress_ifindex;
 }
 
+/* True when the frame holds `len` bytes starting at `from` — frags included,
+ * so this validates datagram lengths on non-linear frames. Not a substitute
+ * for a data_end check before direct access. */
+static __always_inline int ctx_frame_holds(struct __ctx_buff *ctx,
+					   const void *data_end,
+					   const void *from, __u64 len)
+{
+	return len <= ctx_len_from(ctx, data_end, from);
+}
+
+/* Signed count of frame bytes past the first `keep` bytes starting at `from`
+ * (negative when the frame ends short of that), counting frags. `from` must
+ * lie in the linear head. */
+static __always_inline long ctx_tail_excess(struct __ctx_buff *ctx,
+					    const void *data_end,
+					    const void *from, __u32 keep)
+{
+	return (long)ctx_len_from(ctx, data_end, from) - (long)keep;
+}
+
 /* Guarantee `len` bytes are linear and writable: pulls frags into the head and
  * unclones (a cloned skb rejects direct writes). Clamped because
  * bpf_skb_pull_data fails outright when len exceeds skb->len. */
@@ -81,11 +99,12 @@ static __always_inline long ctx_pull(struct __ctx_buff *ctx, __u32 len)
  * L2 save/rewrite around the call finds the header already in place and
  * rewrites it with identical bytes.
  *
- * BPF_F_ADJ_ROOM_NO_CSUM_RESET must not be added: the shrink path runs
- * skb_postpull_rcsum, which downgrades CHECKSUM_PARTIAL to CHECKSUM_NONE when
- * the removed span crosses csum_start — GTP-U decap (≥36 bytes, outer-UDP
- * csum_start at 34) relies on that downgrade for correct checksums on veth
- * traffic. */
+ * The skb_postpull_rcsum in the shrink path — whose CHECKSUM_PARTIAL →
+ * CHECKSUM_NONE downgrade GTP-U decap needs for correct checksums on veth
+ * traffic — runs unconditionally (net/core/filter.c, bpf_skb_generic_pop).
+ * BPF_F_ADJ_ROOM_NO_CSUM_RESET would only preserve CHECKSUM_UNNECESSARY
+ * validation state, which nothing after decap consumes: the packet leaves via
+ * redirect, where only CHECKSUM_PARTIAL matters at transmit. */
 static __always_inline long ctx_decap(struct __ctx_buff *ctx, __s32 bytes)
 {
 	long ret = bpf_skb_adjust_room(ctx, -bytes, BPF_ADJ_ROOM_MAC,
@@ -98,7 +117,11 @@ static __always_inline long ctx_decap(struct __ctx_buff *ctx, __s32 bytes)
 
 /* Open `bytes` of room for encapsulation headers between the L2 and L3
  * headers. BPF_F_ADJ_ROOM_FIXED_GSO keeps gso_size/gso_segs consistent on
- * GSO super-frames across every resize. */
+ * GSO super-frames across every resize.
+ *
+ * This sets skb->encapsulation, after which the kernel rejects a further
+ * ENCAP grow (-EALREADY) and bpf_skb_change_tail (-ENOTSUPP): encap must be
+ * the last resize before the redirect. */
 static __always_inline long ctx_encap(struct __ctx_buff *ctx, __s32 bytes,
 				      __u64 encap_flags)
 {
@@ -131,14 +154,12 @@ static __always_inline long ctx_prepend(struct __ctx_buff *ctx, __s32 bytes)
 	return ctx_pull(ctx, CTX_PULL_LEN);
 }
 
-/* Move the frame end by `delta` (negative trims, positive grows). */
+/* Move the frame end by `delta` (negative trims, positive grows). No pull
+ * needed after: bpf_skb_change_tail makes the whole skb linear and writable
+ * (__bpf_try_make_writable over skb->len). */
 static __always_inline long ctx_adjust_tail(struct __ctx_buff *ctx, __s32 delta)
 {
-	long ret = bpf_skb_change_tail(ctx, ctx->len + delta, 0);
-	if (ret)
-		return ret;
-
-	return ctx_pull(ctx, CTX_PULL_LEN);
+	return bpf_skb_change_tail(ctx, ctx->len + delta, 0);
 }
 
 /* Copy `len` bytes at frame offset `off` into `to`; reads past the linear

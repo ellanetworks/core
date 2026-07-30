@@ -148,7 +148,8 @@ static __always_inline __u32 nat_ip4_tot_len(const struct iphdr *ip4)
 }
 
 /* Trailing frame bytes past tot_len are not part of the datagram. */
-static __always_inline bool nat_ip4_lengths_valid(const struct iphdr *ip4,
+static __always_inline bool nat_ip4_lengths_valid(struct __ctx_buff *ctx_buff,
+						  const struct iphdr *ip4,
 						  const void *data_end)
 {
 	__u32 tot_len = nat_ip4_tot_len(ip4);
@@ -158,7 +159,7 @@ static __always_inline bool nat_ip4_lengths_valid(const struct iphdr *ip4,
 		return false;
 	}
 
-	return (const void *)ip4 + tot_len <= data_end;
+	return ctx_frame_holds(ctx_buff, data_end, ip4, tot_len);
 }
 
 static __always_inline bool nat_tcp_valid(const struct iphdr *ip4,
@@ -467,7 +468,7 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		return false;
 	}
 
-	if (!nat_ip4_lengths_valid(ctx->ip4, ctx->data_end)) {
+	if (!nat_ip4_lengths_valid(ctx->ctx_buff, ctx->ip4, ctx->data_end)) {
 		ctx->statistics->nat_malformed_drop_ip4 += 1;
 		return false;
 	}
@@ -832,7 +833,7 @@ static __always_inline bool destination_nat_lookup(struct packet_context *ctx,
 	__u16 proto = ctx->ip4->protocol;
 	struct nat_entry *origin;
 	struct five_tuple key = {};
-	if (!nat_ip4_lengths_valid(ctx->ip4, ctx->data_end)) {
+	if (!nat_ip4_lengths_valid(ctx->ctx_buff, ctx->ip4, ctx->data_end)) {
 		ctx->statistics->nat_malformed_drop_ip4 += 1;
 		*counted = true;
 		return false;
