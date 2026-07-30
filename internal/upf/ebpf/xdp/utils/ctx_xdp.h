@@ -15,6 +15,10 @@
 #define __ctx_buff xdp_md
 #define ctx_action xdp_action
 
+/* ctx_pull discards its length here — XDP frames are linear and writable —
+ * but call sites name it, so the knob stays defined in both variants. */
+#define CTX_PULL_LEN 192
+
 #define CTX_ACT_OK XDP_PASS
 #define CTX_ACT_DROP XDP_DROP
 #define CTX_ACT_ABORTED XDP_ABORTED

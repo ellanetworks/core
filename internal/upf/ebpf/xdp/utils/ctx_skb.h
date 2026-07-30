@@ -11,6 +11,12 @@
 
 #define __ctx_buff __sk_buff
 
+/* Bytes made linear and writable ahead of parsing and direct header writes.
+ * Covers the deepest write: Ethernet (14) + VLAN (4) + IPv4 with options (60)
+ * + TCP with options (60). Reads and writes past this bound need
+ * ctx_load_bytes or another ctx_pull. */
+#define CTX_PULL_LEN 192
+
 enum ctx_action {
 	CTX_ACT_OK = TC_ACT_OK,
 	CTX_ACT_DROP = TC_ACT_SHOT,

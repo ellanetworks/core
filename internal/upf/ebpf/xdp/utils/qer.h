@@ -23,6 +23,7 @@
 
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
+#include "xdp/utils/ctx.h"
 #include "xdp/utils/pdr.h"
 
 static __always_inline enum ctx_action
