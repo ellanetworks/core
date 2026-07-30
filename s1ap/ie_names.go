@@ -7,6 +7,10 @@ import "fmt"
 
 // protocolIENames maps each ProtocolIE-ID to its TS 36.413 name
 // (S1AP-Constants, §9.3.5). IDs are globally unique across the protocol.
+//
+// #nosec G101 -- these are 3GPP IE names, not credentials. G101 matches its
+// "bearer" pattern against the E-RAB list names, where a bearer is an EPS
+// radio bearer (TS 36.413 §9.1.3).
 var protocolIENames = map[ProtocolIEID]string{
 	idMMEUES1APID:                               "MMEUES1APID",
 	idHandoverType:                              "HandoverType",

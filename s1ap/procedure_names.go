@@ -7,6 +7,10 @@ import "fmt"
 
 // procedureNames maps each elementary procedure code to its TS 36.413
 // name, for diagnostics and logging.
+//
+// #nosec G101 -- these are 3GPP procedure names, not credentials. G101 matches
+// its "pw" pattern against PWSRestartIndication, where PWS is the Public
+// Warning System (TS 36.413 §9.1.13).
 var procedureNames = map[ProcedureCode]string{
 	ProcHandoverPreparation:                "HandoverPreparation",
 	ProcHandoverResourceAllocation:         "HandoverResourceAllocation",
