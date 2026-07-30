@@ -109,7 +109,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 
 	engine.SetN3InterfaceIndex(n3Iface.Index)
 
-	if err := bpfObjects.Load(); err != nil {
+	if err := loadDatapathObjects(bpfObjects, attachMode); err != nil {
 		logger.UpfLog.Fatal("Loading bpf objects failed", zap.Error(err))
 		return nil, err
 	}

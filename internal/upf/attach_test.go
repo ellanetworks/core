@@ -15,6 +15,7 @@ import (
 
 	cebpf "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
+	"github.com/ellanetworks/core/internal/config"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
@@ -50,6 +51,44 @@ func tcxProgramCount(t *testing.T, ifindex int) int {
 	}
 
 	return len(res.Programs)
+}
+
+// TestDatapathObjectMatchesAttachMode pins the invariant an explicit
+// attach-mode broke: the loaded object has to carry the program type the hook
+// accepts, or the attach fails with EINVAL at startup.
+func TestDatapathObjectMatchesAttachMode(t *testing.T) {
+	requireRoot(t)
+
+	cases := []struct {
+		mode string
+		want cebpf.ProgramType
+	}{
+		{config.DatapathTCX, cebpf.SchedCLS},
+		{config.DatapathXDPNative, cebpf.XDP},
+		{config.DatapathXDPGeneric, cebpf.XDP},
+		// The chain starts at native XDP and reloads only if it falls back.
+		{config.DatapathChain, cebpf.XDP},
+	}
+
+	for _, tc := range cases {
+		name := tc.mode
+		if name == config.DatapathChain {
+			name = "default-chain"
+		}
+
+		t.Run(name, func(t *testing.T) {
+			objs := ebpf.NewBpfObjects(false, false, 1, 1, 0, 0)
+			if err := loadDatapathObjects(objs, tc.mode); err != nil {
+				t.Fatalf("load datapath objects: %v", err)
+			}
+
+			t.Cleanup(func() { _ = objs.Close() })
+
+			if got := objs.UpfEntryFunc.Type(); got != tc.want {
+				t.Errorf("program type = %v, want %v", got, tc.want)
+			}
+		})
+	}
 }
 
 // TestTCXAttachPinAdopt covers the TCX attach lifecycle: attach pins the

@@ -7,7 +7,7 @@ on:
   workflow_call:
 
 jobs:
-  snap-strict-test:
+  snap-build:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -16,9 +16,32 @@ jobs:
         uses: snapcore/action-build@3bdaa03e1ba6bf59a65f84a751d943d549a54e79 #v1.3.0
         id: build
 
+      - name: Upload the snap
+        uses: actions/upload-artifact@v7
+        with:
+          name: ella-core-snap
+          path: ${{ steps.build.outputs.snap }}
+
+  # One install per attach mechanism, from the same build. Strict confinement is
+  # the one place the two attach paths can diverge on permissions: generic XDP
+  # attaches over netlink (the same path native XDP uses, which no runner can
+  # exercise), while TCX goes through bpf() BPF_LINK_CREATE and pins to bpffs.
+  snap-install:
+    needs: snap-build
+    strategy:
+      fail-fast: false
+      matrix:
+        attach_mode: [xdp-generic, tcx]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download the snap
+        uses: actions/download-artifact@v8
+        with:
+          name: ella-core-snap
+
       - name: Install the snap under strict confinement
         run: |
-          sudo snap install --dangerous "${{ steps.build.outputs.snap }}"
+          sudo snap install --dangerous ./*.snap
           snap list ella-core
 
       - name: Require strict confinement to be enforced
@@ -50,12 +73,14 @@ jobs:
           for dev in ella-n3 ella-n3-peer ella-n6 ella-n6-peer; do
             sudo ip link set "${dev}" up
           done
+          # The snap ships xdp-native, which cannot attach to a veth, so the
+          # mode is overridden here.
           cfg=/var/snap/ella-core/common/core.yaml
           sudo yq -i '
             .interfaces.n2.address = "10.3.0.2" |
             .interfaces.n3.name = "ella-n3" |
             .interfaces.n6.name = "ella-n6" |
-            .datapath."attach-mode" = "tcx" |
+            .datapath."attach-mode" = "${{ matrix.attach_mode }}" |
             .logging.system.level = "debug"
           ' "${cfg}"
 
@@ -77,6 +102,17 @@ jobs:
           status="$(curl -sk --max-time 10 https://127.0.0.1:5002/api/v1/status)"
           echo "status: ${status}"
           echo "${status}" | grep -q '"ready":true'
+
+      - name: Assert the datapath attached at the requested hook
+        run: |
+          sudo snap logs ella-core.cored -n 500 > logs.txt
+          # JSON log line; match the message and the field independently rather
+          # than assuming key order.
+          if ! grep "datapath attached" logs.txt | grep -q "${{ matrix.attach_mode }}"; then
+            echo "::error::datapath did not report attaching at ${{ matrix.attach_mode }}"
+            grep -i "datapath attached" logs.txt || true
+            exit 1
+          fi
 
       - name: Dump daemon logs
         if: always()

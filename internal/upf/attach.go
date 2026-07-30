@@ -114,6 +114,16 @@ func attachTCX(prog *cebpf.Program, ifindex int, ifname string) (link.Link, erro
 	})
 }
 
+// loadDatapathObjects loads the object the requested mechanism can actually
+// attach: a TCX hook takes SCHED_CLS programs, every XDP mode takes XDP
+// programs. The default chain starts at native XDP and reloads in
+// attachDatapath if it falls back to TCX.
+func loadDatapathObjects(objs *ebpf.BpfObjects, mode string) error {
+	objs.UseTCX = mode == config.DatapathTCX
+
+	return objs.Load()
+}
+
 // datapathIface is one side of the datapath: the netdev the program attaches
 // to, already resolved through any VLAN master.
 type datapathIface struct {
@@ -217,10 +227,11 @@ func attachBothTCX(objs *ebpf.BpfObjects, n3, n6 datapathIface) (link.Link, *lin
 	return n3Link, &n6Link, nil
 }
 
-// tcxUnavailable reports the kernel lacking TCX entirely (< 6.6); a per-NIC
-// native-XDP refusal is unix.EOPNOTSUPP from the attach instead.
+// tcxUnavailable reports the kernel lacking TCX support. EINVAL is not a
+// signal here: the kernel also returns it for an attach the program cannot
+// serve, such as an XDP program offered to a TCX hook.
 func tcxUnavailable(err error) bool {
-	return errors.Is(err, cebpf.ErrNotSupported) || errors.Is(err, unix.EINVAL)
+	return errors.Is(err, cebpf.ErrNotSupported)
 }
 
 const ethtoolGGRO = 0x2b
