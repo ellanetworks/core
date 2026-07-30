@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // HandoverRequired is the HANDOVER REQUIRED message (TS 36.413), sent by
@@ -23,32 +23,34 @@ type HandoverRequired struct {
 	unmodeledIEs
 }
 
-func (m *HandoverRequired) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+func (m *HandoverRequired) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-		{id: idHandoverType, crit: CriticalityReject, enc: m.HandoverType.encode},
-		{id: idCause, crit: CriticalityIgnore, enc: m.Cause.encode},
-		{id: idTargetID, crit: CriticalityReject, enc: m.TargetID.encode},
-		{id: idSourceToTargetTransparentContainer, crit: CriticalityReject, enc: m.SourceToTarget.encode},
+		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
+		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
+		{id: idHandoverType, crit: CriticalityReject, val: &m.HandoverType},
+		{id: idCause, crit: CriticalityIgnore, val: &m.Cause},
+		{id: idTargetID, crit: CriticalityReject, val: &m.TargetID},
+		{id: idSourceToTargetTransparentContainer, crit: CriticalityReject, val: &m.SourceToTarget},
 	}
 
 	for _, e := range m.unknownIEs {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
 func (m *HandoverRequired) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcHandoverPreparation,
@@ -60,20 +62,21 @@ func (m *HandoverRequired) Marshal() ([]byte, error) {
 // ParseHandoverRequired decodes the message from an initiatingMessage open-type
 // payload.
 func ParseHandoverRequired(value []byte) (*HandoverRequired, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: HandoverRequired preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -83,26 +86,24 @@ func ParseHandoverRequired(value []byte) (*HandoverRequired, error) {
 	var seenMME, seenENB, seenType, seenCause, seenTarget, seenContainer bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
 		switch f.id {
 		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
+			err = perIEDecode(f.value, &m.MMEUES1APID)
 			seenMME = true
 		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
+			err = perIEDecode(f.value, &m.ENBUES1APID)
 			seenENB = true
 		case idHandoverType:
-			m.HandoverType, err = decodeHandoverType(sub)
+			err = perIEDecode(f.value, &m.HandoverType)
 			seenType = true
 		case idCause:
-			m.Cause, err = decodeCause(sub)
+			err = perIEDecode(f.value, &m.Cause)
 			seenCause = true
 		case idTargetID:
-			m.TargetID, err = decodeTargetID(sub)
+			err = perIEDecode(f.value, &m.TargetID)
 			seenTarget = true
 		case idSourceToTargetTransparentContainer:
-			m.SourceToTarget, err = decodeTransparentContainer(sub)
+			err = perIEDecode(f.value, &m.SourceToTarget)
 			seenContainer = true
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)
@@ -134,37 +135,39 @@ type HandoverCommand struct {
 	unmodeledIEs
 }
 
-func (m *HandoverCommand) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+func (m *HandoverCommand) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-		{id: idHandoverType, crit: CriticalityReject, enc: m.HandoverType.encode},
+		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
+		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
+		{id: idHandoverType, crit: CriticalityReject, val: &m.HandoverType},
 	}
 
 	if len(m.ERABToRelease) > 0 {
-		fields = append(fields, ieField{id: idERABtoReleaseListHOCmd, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABItem, CriticalityIgnore, encoderList(m.ERABToRelease))
-		}})
+		fields = append(fields, ieField{id: idERABtoReleaseListHOCmd, crit: CriticalityIgnore, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+			return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABToRelease)
+		})})
 	}
 
-	fields = append(fields, ieField{id: idTargetToSourceTransparentContainer, crit: CriticalityReject, enc: m.TargetToSource.encode})
+	fields = append(fields, ieField{id: idTargetToSourceTransparentContainer, crit: CriticalityReject, val: &m.TargetToSource})
 
 	for _, e := range m.unknownIEs {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
 func (m *HandoverCommand) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&SuccessfulOutcome{
 		ProcedureCode: ProcHandoverPreparation,
@@ -176,20 +179,21 @@ func (m *HandoverCommand) Marshal() ([]byte, error) {
 // ParseHandoverCommand decodes the message from a successfulOutcome open-type
 // payload.
 func ParseHandoverCommand(value []byte) (*HandoverCommand, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: HandoverCommand preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -199,22 +203,20 @@ func ParseHandoverCommand(value []byte) (*HandoverCommand, error) {
 	var seenMME, seenENB, seenType, seenContainer bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
 		switch f.id {
 		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
+			err = perIEDecode(f.value, &m.MMEUES1APID)
 			seenMME = true
 		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
+			err = perIEDecode(f.value, &m.ENBUES1APID)
 			seenENB = true
 		case idHandoverType:
-			m.HandoverType, err = decodeHandoverType(sub)
+			err = perIEDecode(f.value, &m.HandoverType)
 			seenType = true
 		case idERABtoReleaseListHOCmd:
-			m.ERABToRelease, err = decodeERABItemList(sub)
+			m.ERABToRelease, err = decodeItemList[ERABItem](per.NewReader(f.value), enc, maxnoofERABs)
 		case idTargetToSourceTransparentContainer:
-			m.TargetToSource, err = decodeTransparentContainer(sub)
+			err = perIEDecode(f.value, &m.TargetToSource)
 			seenContainer = true
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)
@@ -243,29 +245,31 @@ type HandoverPreparationFailure struct {
 	unmodeledIEs
 }
 
-func (m *HandoverPreparationFailure) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+func (m *HandoverPreparationFailure) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-		{id: idCause, crit: CriticalityIgnore, enc: m.Cause.encode},
+		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
+		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
+		{id: idCause, crit: CriticalityIgnore, val: &m.Cause},
 	}
 
 	for _, e := range m.unknownIEs {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
 func (m *HandoverPreparationFailure) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&UnsuccessfulOutcome{
 		ProcedureCode: ProcHandoverPreparation,
@@ -277,20 +281,21 @@ func (m *HandoverPreparationFailure) Marshal() ([]byte, error) {
 // ParseHandoverPreparationFailure decodes the message from an unsuccessfulOutcome
 // open-type payload.
 func ParseHandoverPreparationFailure(value []byte) (*HandoverPreparationFailure, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: HandoverPreparationFailure preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -300,17 +305,15 @@ func ParseHandoverPreparationFailure(value []byte) (*HandoverPreparationFailure,
 	var seenMME, seenENB, seenCause bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
 		switch f.id {
 		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
+			err = perIEDecode(f.value, &m.MMEUES1APID)
 			seenMME = true
 		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
+			err = perIEDecode(f.value, &m.ENBUES1APID)
 			seenENB = true
 		case idCause:
-			m.Cause, err = decodeCause(sub)
+			err = perIEDecode(f.value, &m.Cause)
 			seenCause = true
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)

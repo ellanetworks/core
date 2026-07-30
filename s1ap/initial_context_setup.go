@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // InitialContextSetupRequest is the INITIAL CONTEXT SETUP REQUEST message
@@ -27,40 +27,42 @@ type InitialContextSetupRequest struct {
 	unmodeledIEs
 }
 
-func (m *InitialContextSetupRequest) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+func (m *InitialContextSetupRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-		{id: idUEAggregateMaximumBitrate, crit: CriticalityReject, enc: m.UEAggregateMaximumBitRate.encode},
-		{id: idERABToBeSetupListCtxtSUReq, crit: CriticalityReject, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABToBeSetupItemCtxtSUReq, CriticalityReject, encoderList(m.ERABToBeSetup))
-		}},
-		{id: idUESecurityCapabilities, crit: CriticalityReject, enc: m.UESecurityCapabilities.encode},
-		{id: idSecurityKey, crit: CriticalityReject, enc: m.SecurityKey.encode},
+		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
+		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
+		{id: idUEAggregateMaximumBitrate, crit: CriticalityReject, val: &m.UEAggregateMaximumBitRate},
+		{id: idERABToBeSetupListCtxtSUReq, crit: CriticalityReject, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+			return encodeSingleContainerList(w, enc, maxnoofERABs, idERABToBeSetupItemCtxtSUReq, CriticalityReject, m.ERABToBeSetup)
+		})},
+		{id: idUESecurityCapabilities, crit: CriticalityReject, val: &m.UESecurityCapabilities},
+		{id: idSecurityKey, crit: CriticalityReject, val: &m.SecurityKey},
 	}
 
 	if len(m.UERadioCapability) > 0 {
-		fields = append(fields, ieField{id: idUERadioCapability, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return w.WriteOctetString(m.UERadioCapability, 0, aper.Unbounded, false)
-		}})
+		fields = append(fields, ieField{id: idUERadioCapability, crit: CriticalityIgnore, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+			return per.EncodeOctetString(w, enc, 0, 0, true, false, false, m.UERadioCapability)
+		})})
 	}
 
 	for _, e := range m.unknownIEs {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
 func (m *InitialContextSetupRequest) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcInitialContextSetup,
@@ -72,20 +74,21 @@ func (m *InitialContextSetupRequest) Marshal() ([]byte, error) {
 // ParseInitialContextSetupRequest decodes the message from an initiatingMessage
 // open-type payload.
 func ParseInitialContextSetupRequest(value []byte) (*InitialContextSetupRequest, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: InitialContextSetupRequest preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -95,29 +98,27 @@ func ParseInitialContextSetupRequest(value []byte) (*InitialContextSetupRequest,
 	var seenMME, seenENB, seenAMBR, seenERAB, seenSec, seenKey bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
 		switch f.id {
 		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
+			err = perIEDecode(f.value, &m.MMEUES1APID)
 			seenMME = true
 		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
+			err = perIEDecode(f.value, &m.ENBUES1APID)
 			seenENB = true
 		case idUEAggregateMaximumBitrate:
-			m.UEAggregateMaximumBitRate, err = decodeUEAggregateMaximumBitRate(sub)
+			err = perIEDecode(f.value, &m.UEAggregateMaximumBitRate)
 			seenAMBR = true
 		case idERABToBeSetupListCtxtSUReq:
-			m.ERABToBeSetup, err = decodeERABToBeSetupList(sub)
+			m.ERABToBeSetup, err = decodeItemList[ERABToBeSetupItemCtxtSUReq](per.NewReader(f.value), enc, maxnoofERABs)
 			seenERAB = true
 		case idUESecurityCapabilities:
-			m.UESecurityCapabilities, err = decodeUESecurityCapabilities(sub)
+			err = perIEDecode(f.value, &m.UESecurityCapabilities)
 			seenSec = true
 		case idSecurityKey:
-			m.SecurityKey, err = decodeSecurityKey(sub)
+			err = perIEDecode(f.value, &m.SecurityKey)
 			seenKey = true
 		case idUERadioCapability:
-			m.UERadioCapability, err = sub.ReadOctetString(0, aper.Unbounded, false)
+			m.UERadioCapability, err = per.DecodeOctetString(per.NewReader(f.value), enc, 0, 0, true, false, false)
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)
 		}
@@ -134,10 +135,6 @@ func ParseInitialContextSetupRequest(value []byte) (*InitialContextSetupRequest,
 	return m, nil
 }
 
-func decodeERABToBeSetupList(r *aper.Reader) ([]ERABToBeSetupItemCtxtSUReq, error) {
-	return decodeItemList(r, maxnoofERABs, decodeERABToBeSetupItemCtxtSUReq)
-}
-
 // InitialContextSetupResponse is the INITIAL CONTEXT SETUP RESPONSE message
 // (TS 36.413), sent by the eNB once the E-RAB(s) are set up.
 type InitialContextSetupResponse struct {
@@ -150,42 +147,44 @@ type InitialContextSetupResponse struct {
 	unmodeledIEs
 }
 
-func (m *InitialContextSetupResponse) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+func (m *InitialContextSetupResponse) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityIgnore, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityIgnore, enc: m.ENBUES1APID.encode},
-		{id: idERABSetupListCtxtSURes, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABSetupItemCtxtSURes, CriticalityIgnore, encoderList(m.ERABSetup))
-		}},
+		{id: idMMEUES1APID, crit: CriticalityIgnore, val: &m.MMEUES1APID},
+		{id: idENBUES1APID, crit: CriticalityIgnore, val: &m.ENBUES1APID},
+		{id: idERABSetupListCtxtSURes, crit: CriticalityIgnore, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+			return encodeSingleContainerList(w, enc, maxnoofERABs, idERABSetupItemCtxtSURes, CriticalityIgnore, m.ERABSetup)
+		})},
 	}
 
 	if len(m.ERABFailedToSetup) > 0 {
-		fields = append(fields, ieField{id: idERABFailedToSetupListCtxtSU, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABItem, CriticalityIgnore, encoderList(m.ERABFailedToSetup))
-		}})
+		fields = append(fields, ieField{id: idERABFailedToSetupListCtxtSU, crit: CriticalityIgnore, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+			return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABFailedToSetup)
+		})})
 	}
 
 	if m.CriticalityDiagnostics != nil {
 		d := *m.CriticalityDiagnostics
-		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, enc: d.encode})
+		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, val: &d})
 	}
 
 	for _, e := range m.unknownIEs {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
 func (m *InitialContextSetupResponse) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&SuccessfulOutcome{
 		ProcedureCode: ProcInitialContextSetup,
@@ -197,20 +196,21 @@ func (m *InitialContextSetupResponse) Marshal() ([]byte, error) {
 // ParseInitialContextSetupResponse decodes the message from a successfulOutcome
 // open-type payload.
 func ParseInitialContextSetupResponse(value []byte) (*InitialContextSetupResponse, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: InitialContextSetupResponse preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -220,24 +220,22 @@ func ParseInitialContextSetupResponse(value []byte) (*InitialContextSetupRespons
 	var seenMME, seenENB, seenSetup bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
 		switch f.id {
 		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
+			err = perIEDecode(f.value, &m.MMEUES1APID)
 			seenMME = true
 		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
+			err = perIEDecode(f.value, &m.ENBUES1APID)
 			seenENB = true
 		case idERABSetupListCtxtSURes:
-			m.ERABSetup, err = decodeERABSetupList(sub)
+			m.ERABSetup, err = decodeItemList[ERABSetupItemCtxtSURes](per.NewReader(f.value), enc, maxnoofERABs)
 			seenSetup = true
 		case idERABFailedToSetupListCtxtSU:
-			m.ERABFailedToSetup, err = decodeERABItemList(sub)
+			m.ERABFailedToSetup, err = decodeItemList[ERABItem](per.NewReader(f.value), enc, maxnoofERABs)
 		case idCriticalityDiagnostics:
 			var cd CriticalityDiagnostics
 
-			cd, err = decodeCriticalityDiagnostics(sub)
+			err = perIEDecode(f.value, &cd)
 			m.CriticalityDiagnostics = &cd
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)
@@ -255,14 +253,6 @@ func ParseInitialContextSetupResponse(value []byte) (*InitialContextSetupRespons
 	return m, nil
 }
 
-func decodeERABSetupList(r *aper.Reader) ([]ERABSetupItemCtxtSURes, error) {
-	return decodeItemList(r, maxnoofERABs, decodeERABSetupItemCtxtSURes)
-}
-
-func decodeERABItemList(r *aper.Reader) ([]ERABItem, error) {
-	return decodeItemList(r, maxnoofERABs, decodeERABItem)
-}
-
 // InitialContextSetupFailure is the INITIAL CONTEXT SETUP FAILURE message
 // (TS 36.413).
 type InitialContextSetupFailure struct {
@@ -274,34 +264,36 @@ type InitialContextSetupFailure struct {
 	unmodeledIEs
 }
 
-func (m *InitialContextSetupFailure) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+func (m *InitialContextSetupFailure) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityIgnore, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityIgnore, enc: m.ENBUES1APID.encode},
-		{id: idCause, crit: CriticalityIgnore, enc: m.Cause.encode},
+		{id: idMMEUES1APID, crit: CriticalityIgnore, val: &m.MMEUES1APID},
+		{id: idENBUES1APID, crit: CriticalityIgnore, val: &m.ENBUES1APID},
+		{id: idCause, crit: CriticalityIgnore, val: &m.Cause},
 	}
 
 	if m.CriticalityDiagnostics != nil {
 		d := *m.CriticalityDiagnostics
-		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, enc: d.encode})
+		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, val: &d})
 	}
 
 	for _, e := range m.unknownIEs {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
 func (m *InitialContextSetupFailure) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&UnsuccessfulOutcome{
 		ProcedureCode: ProcInitialContextSetup,
@@ -313,20 +305,21 @@ func (m *InitialContextSetupFailure) Marshal() ([]byte, error) {
 // ParseInitialContextSetupFailure decodes the message from an
 // unsuccessfulOutcome open-type payload.
 func ParseInitialContextSetupFailure(value []byte) (*InitialContextSetupFailure, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: InitialContextSetupFailure preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -336,22 +329,20 @@ func ParseInitialContextSetupFailure(value []byte) (*InitialContextSetupFailure,
 	var seenMME, seenENB, seenCause bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
 		switch f.id {
 		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
+			err = perIEDecode(f.value, &m.MMEUES1APID)
 			seenMME = true
 		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
+			err = perIEDecode(f.value, &m.ENBUES1APID)
 			seenENB = true
 		case idCause:
-			m.Cause, err = decodeCause(sub)
+			err = perIEDecode(f.value, &m.Cause)
 			seenCause = true
 		case idCriticalityDiagnostics:
 			var cd CriticalityDiagnostics
 
-			cd, err = decodeCriticalityDiagnostics(sub)
+			err = perIEDecode(f.value, &cd)
 			m.CriticalityDiagnostics = &cd
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)

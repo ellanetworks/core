@@ -7,19 +7,16 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 func TestEncodeIEContainerKnownVector(t *testing.T) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	err := encodeIEContainer(&w, []ieField{{
+	err := encodeIEContainer(w, per.Aligned, []ieField{{
 		id:   59,
 		crit: CriticalityIgnore,
-		enc: func(vw *aper.Writer) error {
-			vw.WriteOctets([]byte{0xab, 0xcd})
-			return nil
-		},
+		raw:  []byte{0xab, 0xcd},
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -28,23 +25,23 @@ func TestEncodeIEContainerKnownVector(t *testing.T) {
 	// count=1 (00 01), id=59 (00 3b), criticality ignore=01 then open-type
 	// length (40 02) + content (ab cd).
 	want := []byte{0x00, 0x01, 0x00, 0x3b, 0x40, 0x02, 0xab, 0xcd}
-	if !bytes.Equal(w.Bytes(), want) {
-		t.Fatalf("encoded % x, want % x", w.Bytes(), want)
+	if !bytes.Equal(perBytes(w), want) {
+		t.Fatalf("encoded % x, want % x", perBytes(w), want)
 	}
 }
 
 func TestEmptyIEContainer(t *testing.T) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := encodeIEContainer(&w, nil); err != nil {
+	if err := encodeIEContainer(w, per.Aligned, nil); err != nil {
 		t.Fatal(err)
 	}
 
-	if want := []byte{0x00, 0x00}; !bytes.Equal(w.Bytes(), want) {
-		t.Fatalf("empty container = % x, want % x", w.Bytes(), want)
+	if want := []byte{0x00, 0x00}; !bytes.Equal(perBytes(w), want) {
+		t.Fatalf("empty container = % x, want % x", perBytes(w), want)
 	}
 
-	got, err := decodeIEContainer(aper.NewReader(w.Bytes()))
+	got, err := decodeIEContainer(per.NewReader(perBytes(w)), per.Aligned)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,17 +53,17 @@ func TestEmptyIEContainer(t *testing.T) {
 
 func TestIEContainerRoundTrip(t *testing.T) {
 	in := []ieField{
-		{id: 59, crit: CriticalityReject, enc: octetsEnc([]byte{0x01, 0x02, 0x03})},
-		{id: 1, crit: CriticalityIgnore, enc: octetsEnc([]byte{0xff})},
-		{id: 65535, crit: CriticalityNotify, enc: octetsEnc(nil)},
+		{id: 59, crit: CriticalityReject, raw: []byte{0x01, 0x02, 0x03}},
+		{id: 1, crit: CriticalityIgnore, raw: []byte{0xff}},
+		{id: 65535, crit: CriticalityNotify, val: per.MarshalerFunc(func(*per.Writer, per.Encoding) error { return nil })},
 	}
 
-	var w aper.Writer
-	if err := encodeIEContainer(&w, in); err != nil {
+	w := per.NewWriter()
+	if err := encodeIEContainer(w, per.Aligned, in); err != nil {
 		t.Fatal(err)
 	}
 
-	got, err := decodeIEContainer(aper.NewReader(w.Bytes()))
+	got, err := decodeIEContainer(per.NewReader(perBytes(w)), per.Aligned)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,16 +88,16 @@ func TestIEContainerRoundTrip(t *testing.T) {
 func TestRawIEReencodePreserves(t *testing.T) {
 	// A container decoded and re-encoded from preserved raw IEs is byte-identical.
 	original := []ieField{
-		{id: 10, crit: CriticalityReject, enc: octetsEnc([]byte{0xde, 0xad})},
-		{id: 20, crit: CriticalityIgnore, enc: octetsEnc([]byte{0xbe, 0xef, 0x00})},
+		{id: 10, crit: CriticalityReject, raw: []byte{0xde, 0xad}},
+		{id: 20, crit: CriticalityIgnore, raw: []byte{0xbe, 0xef, 0x00}},
 	}
 
-	var w1 aper.Writer
-	if err := encodeIEContainer(&w1, original); err != nil {
+	w1 := per.NewWriter()
+	if err := encodeIEContainer(w1, per.Aligned, original); err != nil {
 		t.Fatal(err)
 	}
 
-	raw, err := decodeIEContainer(aper.NewReader(w1.Bytes()))
+	raw, err := decodeIEContainer(per.NewReader(perBytes(w1)), per.Aligned)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,31 +107,24 @@ func TestRawIEReencodePreserves(t *testing.T) {
 		fields[i] = e.field()
 	}
 
-	var w2 aper.Writer
-	if err := encodeIEContainer(&w2, fields); err != nil {
+	w2 := per.NewWriter()
+	if err := encodeIEContainer(w2, per.Aligned, fields); err != nil {
 		t.Fatal(err)
 	}
 
-	if !bytes.Equal(w1.Bytes(), w2.Bytes()) {
-		t.Fatalf("re-encode differs:\n  first  % x\n  second % x", w1.Bytes(), w2.Bytes())
+	if !bytes.Equal(perBytes(w1), perBytes(w2)) {
+		t.Fatalf("re-encode differs:\n  first  % x\n  second % x", perBytes(w1), perBytes(w2))
 	}
 }
 
 func TestDecodeIEContainerTruncated(t *testing.T) {
 	// Claims one IE but provides no field body.
-	if _, err := decodeIEContainer(aper.NewReader([]byte{0x00, 0x01})); err == nil {
+	if _, err := decodeIEContainer(per.NewReader([]byte{0x00, 0x01}), per.Aligned); err == nil {
 		t.Fatal("expected truncation error")
 	}
 
 	// Claims 65535 IEs in a 2-byte packet: must fail fast, not over-allocate.
-	if _, err := decodeIEContainer(aper.NewReader([]byte{0xff, 0xff})); err == nil {
+	if _, err := decodeIEContainer(per.NewReader([]byte{0xff, 0xff}), per.Aligned); err == nil {
 		t.Fatal("expected truncation error for oversized count")
-	}
-}
-
-func octetsEnc(b []byte) func(*aper.Writer) error {
-	return func(w *aper.Writer) error {
-		w.WriteOctets(b)
-		return nil
 	}
 }

@@ -7,7 +7,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // sonTransfer builds a SON Configuration Transfer value: a valid leading
@@ -16,15 +16,16 @@ import (
 func sonTransfer(t *testing.T, target TargeteNBID, opaque []byte) SONConfigurationTransfer {
 	t.Helper()
 
-	var w aper.Writer
+	w := per.NewWriter()
 
-	w.WriteSequencePreamble(true, false, []bool{false})
+	w.WriteBit(false)
+	w.WriteBit(false)
 
-	if err := target.encode(&w); err != nil {
+	if err := target.MarshalPER(w, per.Aligned); err != nil {
 		t.Fatalf("encode Target eNB-ID: %v", err)
 	}
 
-	return SONConfigurationTransfer(append(w.Bytes(), opaque...))
+	return SONConfigurationTransfer(append(perBytes(w), opaque...))
 }
 
 // enbConfigTransferWire builds an ENB CONFIGURATION TRANSFER initiatingMessage
@@ -33,15 +34,15 @@ func sonTransfer(t *testing.T, target TargeteNBID, opaque []byte) SONConfigurati
 func enbConfigTransferWire(t *testing.T, son SONConfigurationTransfer) []byte {
 	t.Helper()
 
-	var w aper.Writer
+	w := per.NewWriter()
 
-	w.WriteSequencePreamble(true, false, nil)
+	w.WriteBit(false)
 
-	if err := encodeIEContainer(&w, []ieField{son.field(idSONConfigurationTransferECT)}); err != nil {
+	if err := encodeIEContainer(w, per.Aligned, []ieField{son.field(idSONConfigurationTransferECT)}); err != nil {
 		t.Fatalf("encode IE container: %v", err)
 	}
 
-	return w.Bytes()
+	return perBytes(w)
 }
 
 func TestENBConfigurationTransfer_RelayRoundTrip(t *testing.T) {
@@ -104,13 +105,13 @@ func TestENBConfigurationTransfer_RelayRoundTrip(t *testing.T) {
 func relayedSON(t *testing.T, value []byte) []byte {
 	t.Helper()
 
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
 
-	if _, _, err := r.ReadSequencePreamble(true, 0); err != nil {
+	if _, err := r.ReadBit(); err != nil {
 		t.Fatalf("body preamble: %v", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, per.Aligned)
 	if err != nil {
 		t.Fatalf("decode container: %v", err)
 	}
@@ -127,15 +128,15 @@ func relayedSON(t *testing.T, value []byte) []byte {
 }
 
 func TestENBConfigurationTransfer_NoSONIE(t *testing.T) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	w.WriteSequencePreamble(true, false, nil)
+	w.WriteBit(false)
 
-	if err := encodeIEContainer(&w, nil); err != nil {
+	if err := encodeIEContainer(w, per.Aligned, nil); err != nil {
 		t.Fatalf("encode empty container: %v", err)
 	}
 
-	msg, err := ParseENBConfigurationTransfer(w.Bytes())
+	msg, err := ParseENBConfigurationTransfer(perBytes(w))
 	if err != nil {
 		t.Fatalf("ParseENBConfigurationTransfer: %v", err)
 	}

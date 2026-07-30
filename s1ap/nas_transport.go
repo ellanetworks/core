@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // InitialUEMessage is the INITIAL UE MESSAGE (TS 36.413), sent by the
@@ -23,39 +23,41 @@ type InitialUEMessage struct {
 	unmodeledIEs
 }
 
-func (m *InitialUEMessage) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+func (m *InitialUEMessage) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-		{id: idNASPDU, crit: CriticalityReject, enc: m.NASPDU.encode},
-		{id: idTAI, crit: CriticalityReject, enc: m.TAI.encode},
-		{id: idEUTRANCGI, crit: CriticalityIgnore, enc: m.EUTRANCGI.encode},
-		{id: idRRCEstablishmentCause, crit: CriticalityIgnore, enc: m.RRCEstablishmentCause.encode},
+		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
+		{id: idNASPDU, crit: CriticalityReject, val: &m.NASPDU},
+		{id: idTAI, crit: CriticalityReject, val: &m.TAI},
+		{id: idEUTRANCGI, crit: CriticalityIgnore, val: &m.EUTRANCGI},
+		{id: idRRCEstablishmentCause, crit: CriticalityIgnore, val: &m.RRCEstablishmentCause},
 	}
 
 	if m.STMSI != nil {
-		fields = append(fields, ieField{id: idSTMSI, crit: CriticalityReject, enc: m.STMSI.encode})
+		fields = append(fields, ieField{id: idSTMSI, crit: CriticalityReject, val: m.STMSI})
 	}
 
 	if m.GUMMEI != nil {
-		fields = append(fields, ieField{id: idGUMMEI, crit: CriticalityReject, enc: m.GUMMEI.encode})
+		fields = append(fields, ieField{id: idGUMMEI, crit: CriticalityReject, val: m.GUMMEI})
 	}
 
 	for _, e := range m.unknownIEs {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
 func (m *InitialUEMessage) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcInitialUEMessage,
@@ -67,20 +69,21 @@ func (m *InitialUEMessage) Marshal() ([]byte, error) {
 // ParseInitialUEMessage decodes an InitialUEMessage from the open-type payload
 // of an initiatingMessage.
 func ParseInitialUEMessage(value []byte) (*InitialUEMessage, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: InitialUEMessage preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -90,33 +93,31 @@ func ParseInitialUEMessage(value []byte) (*InitialUEMessage, error) {
 	var seenENB, seenNAS, seenTAI, seenCGI, seenRRC bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
 		switch f.id {
 		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
+			err = perIEDecode(f.value, &m.ENBUES1APID)
 			seenENB = true
 		case idNASPDU:
-			m.NASPDU, err = decodeNASPDU(sub)
+			err = perIEDecode(f.value, &m.NASPDU)
 			seenNAS = true
 		case idTAI:
-			m.TAI, err = decodeTAI(sub)
+			err = perIEDecode(f.value, &m.TAI)
 			seenTAI = true
 		case idEUTRANCGI:
-			m.EUTRANCGI, err = decodeEUTRANCGI(sub)
+			err = perIEDecode(f.value, &m.EUTRANCGI)
 			seenCGI = true
 		case idRRCEstablishmentCause:
-			m.RRCEstablishmentCause, err = decodeRRCEstablishmentCause(sub)
+			err = perIEDecode(f.value, &m.RRCEstablishmentCause)
 			seenRRC = true
 		case idSTMSI:
 			var stmsi STMSI
 
-			stmsi, err = decodeSTMSI(sub)
+			err = perIEDecode(f.value, &stmsi)
 			m.STMSI = &stmsi
 		case idGUMMEI:
 			var gummei GUMMEI
 
-			gummei, err = decodeGUMMEI(sub)
+			err = perIEDecode(f.value, &gummei)
 			m.GUMMEI = &gummei
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)
@@ -146,31 +147,33 @@ type UplinkNASTransport struct {
 	unmodeledIEs
 }
 
-func (m *UplinkNASTransport) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+func (m *UplinkNASTransport) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-		{id: idNASPDU, crit: CriticalityReject, enc: m.NASPDU.encode},
-		{id: idEUTRANCGI, crit: CriticalityIgnore, enc: m.EUTRANCGI.encode},
-		{id: idTAI, crit: CriticalityIgnore, enc: m.TAI.encode},
+		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
+		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
+		{id: idNASPDU, crit: CriticalityReject, val: &m.NASPDU},
+		{id: idEUTRANCGI, crit: CriticalityIgnore, val: &m.EUTRANCGI},
+		{id: idTAI, crit: CriticalityIgnore, val: &m.TAI},
 	}
 
 	for _, e := range m.unknownIEs {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
 func (m *UplinkNASTransport) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcUplinkNASTransport,
@@ -182,20 +185,21 @@ func (m *UplinkNASTransport) Marshal() ([]byte, error) {
 // ParseUplinkNASTransport decodes an UplinkNASTransport from the open-type
 // payload of an initiatingMessage.
 func ParseUplinkNASTransport(value []byte) (*UplinkNASTransport, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: UplinkNASTransport preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -205,23 +209,21 @@ func ParseUplinkNASTransport(value []byte) (*UplinkNASTransport, error) {
 	var seenMME, seenENB, seenNAS, seenCGI, seenTAI bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
 		switch f.id {
 		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
+			err = perIEDecode(f.value, &m.MMEUES1APID)
 			seenMME = true
 		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
+			err = perIEDecode(f.value, &m.ENBUES1APID)
 			seenENB = true
 		case idNASPDU:
-			m.NASPDU, err = decodeNASPDU(sub)
+			err = perIEDecode(f.value, &m.NASPDU)
 			seenNAS = true
 		case idEUTRANCGI:
-			m.EUTRANCGI, err = decodeEUTRANCGI(sub)
+			err = perIEDecode(f.value, &m.EUTRANCGI)
 			seenCGI = true
 		case idTAI:
-			m.TAI, err = decodeTAI(sub)
+			err = perIEDecode(f.value, &m.TAI)
 			seenTAI = true
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)
@@ -249,29 +251,31 @@ type DownlinkNASTransport struct {
 	unmodeledIEs
 }
 
-func (m *DownlinkNASTransport) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+func (m *DownlinkNASTransport) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-		{id: idNASPDU, crit: CriticalityReject, enc: m.NASPDU.encode},
+		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
+		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
+		{id: idNASPDU, crit: CriticalityReject, val: &m.NASPDU},
 	}
 
 	for _, e := range m.unknownIEs {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
 func (m *DownlinkNASTransport) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcDownlinkNASTransport,
@@ -283,20 +287,21 @@ func (m *DownlinkNASTransport) Marshal() ([]byte, error) {
 // ParseDownlinkNASTransport decodes a DownlinkNASTransport from the open-type
 // payload of an initiatingMessage.
 func ParseDownlinkNASTransport(value []byte) (*DownlinkNASTransport, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: DownlinkNASTransport preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -306,17 +311,15 @@ func ParseDownlinkNASTransport(value []byte) (*DownlinkNASTransport, error) {
 	var seenMME, seenENB, seenNAS bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
 		switch f.id {
 		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
+			err = perIEDecode(f.value, &m.MMEUES1APID)
 			seenMME = true
 		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
+			err = perIEDecode(f.value, &m.ENBUES1APID)
 			seenENB = true
 		case idNASPDU:
-			m.NASPDU, err = decodeNASPDU(sub)
+			err = perIEDecode(f.value, &m.NASPDU)
 			seenNAS = true
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)

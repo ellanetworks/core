@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // HandoverNotify is the HANDOVER NOTIFY message (TS 36.413 in the
@@ -23,30 +23,32 @@ type HandoverNotify struct {
 	unmodeledIEs
 }
 
-func (m *HandoverNotify) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+func (m *HandoverNotify) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-		{id: idEUTRANCGI, crit: CriticalityIgnore, enc: m.EUTRANCGI.encode},
-		{id: idTAI, crit: CriticalityIgnore, enc: m.TAI.encode},
+		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
+		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
+		{id: idEUTRANCGI, crit: CriticalityIgnore, val: &m.EUTRANCGI},
+		{id: idTAI, crit: CriticalityIgnore, val: &m.TAI},
 	}
 
 	for _, e := range m.unknownIEs {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
 func (m *HandoverNotify) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcHandoverNotification,
@@ -58,20 +60,21 @@ func (m *HandoverNotify) Marshal() ([]byte, error) {
 // ParseHandoverNotify decodes the message from an initiatingMessage open-type
 // payload.
 func ParseHandoverNotify(value []byte) (*HandoverNotify, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: HandoverNotify preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -81,20 +84,18 @@ func ParseHandoverNotify(value []byte) (*HandoverNotify, error) {
 	var seenMME, seenENB, seenCGI, seenTAI bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
 		switch f.id {
 		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
+			err = perIEDecode(f.value, &m.MMEUES1APID)
 			seenMME = true
 		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
+			err = perIEDecode(f.value, &m.ENBUES1APID)
 			seenENB = true
 		case idEUTRANCGI:
-			m.EUTRANCGI, err = decodeEUTRANCGI(sub)
+			err = perIEDecode(f.value, &m.EUTRANCGI)
 			seenCGI = true
 		case idTAI:
-			m.TAI, err = decodeTAI(sub)
+			err = perIEDecode(f.value, &m.TAI)
 			seenTAI = true
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)

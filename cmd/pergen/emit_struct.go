@@ -100,8 +100,13 @@ func (g *generator) emitMarshalExt(recv, typeName string, rootFields, extFields 
 		if fi.isSkip {
 			continue
 		} else if fi.isOptional {
+			valExpr := "(*" + expr + ")"
+			if fi.noDeref {
+				valExpr = expr
+			}
+
 			fmt.Fprintf(r, "\tif %s != nil {\n", expr)
-			g.emitFieldMarshal(r, recv, fi, "(*"+expr+")", 1)
+			g.emitFieldMarshal(r, recv, fi, valExpr, 1)
 			fmt.Fprintf(r, "\t}\n")
 		} else if fi.hasDefault {
 			fmt.Fprintf(r, "\tif %s != %s {\n", expr, fi.tag.DefaultExpr)
@@ -255,11 +260,12 @@ func (g *generator) emitSequenceOfMarshal(r *bytes.Buffer, fi fieldInfo, expr st
 	lb := fi.sizeLB
 	hasLB := fi.hasSizeLB
 
-	fmt.Fprintf(r, "%soff := 0\n", prefix)
+	off := fmt.Sprintf("off%d", fi.fieldIdx)
+	fmt.Fprintf(r, "%s%s := 0\n", prefix, off)
 	fmt.Fprintf(r, "%sif err := per.EncodeLength(w, enc, %d, %d, %t, int64(len(%s)), func(count int64) error {\n",
 		prefix, lb, ub, hasUB, expr)
-	fmt.Fprintf(r, "%s\tend := off + int(count)\n", prefix)
-	fmt.Fprintf(r, "%s\tfor i := off; i < end; i++ {\n", prefix)
+	fmt.Fprintf(r, "%s\tend := %s + int(count)\n", prefix, off)
+	fmt.Fprintf(r, "%s\tfor i := %s; i < end; i++ {\n", prefix, off)
 
 	if g.implementsMarshalPER(asNamed(fi.elemType)) {
 		fmt.Fprintf(r, "%s\t\tif err := %s[i].MarshalPER(w, enc); err != nil {\n", prefix, expr)
@@ -270,7 +276,7 @@ func (g *generator) emitSequenceOfMarshal(r *bytes.Buffer, fi fieldInfo, expr st
 	fmt.Fprintf(r, "%s\t\t\treturn err\n", prefix)
 	fmt.Fprintf(r, "%s\t\t}\n", prefix)
 	fmt.Fprintf(r, "%s\t}\n", prefix)
-	fmt.Fprintf(r, "%s\toff = end\n", prefix)
+	fmt.Fprintf(r, "%s\t%s = end\n", prefix, off)
 	fmt.Fprintf(r, "%s\treturn nil\n", prefix)
 	fmt.Fprintf(r, "%s}); err != nil {\n", prefix)
 	fmt.Fprintf(r, "%s\treturn err\n", prefix)
@@ -317,9 +323,15 @@ func (g *generator) emitUnmarshalExt(recv, typeName string, rootFields, extField
 			fmt.Fprintf(r, "\t}\n")
 		} else if fi.isOptional {
 			fmt.Fprintf(r, "\tif %s {\n", preambleVar(fi))
-			fmt.Fprintf(r, "\t\tvar v %s\n", fi.typeStr)
-			g.emitFieldUnmarshal(r, "v", fi, 1)
-			fmt.Fprintf(r, "\t\t%s = &v\n", expr)
+
+			if fi.noDeref {
+				g.emitFieldUnmarshal(r, expr, fi, 1)
+			} else {
+				fmt.Fprintf(r, "\t\tvar v %s\n", fi.typeStr)
+				g.emitFieldUnmarshal(r, "v", fi, 1)
+				fmt.Fprintf(r, "\t\t%s = &v\n", expr)
+			}
+
 			fmt.Fprintf(r, "\t}\n")
 		} else if fi.hasDefault {
 			fmt.Fprintf(r, "\tif %s {\n", preambleVar(fi))

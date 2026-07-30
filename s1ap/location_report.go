@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // EventType ::= ENUMERATED { direct, change-of-serve-cell, stop-change-of-serve-cell,
@@ -17,8 +17,6 @@ const (
 	EventTypeDirect EventType = iota
 	EventTypeChangeOfServeCell
 	EventTypeStopChangeOfServeCell
-
-	eventTypeRootCount = 3
 )
 
 // ReportArea ::= ENUMERATED { ecgi, ... } (TS 36.413).
@@ -26,48 +24,15 @@ type ReportArea uint8
 
 const (
 	ReportAreaECGI ReportArea = iota
-
-	reportAreaRootCount = 1
 )
 
 // RequestType ::= SEQUENCE { eventType, reportArea, iE-Extensions OPTIONAL, ... }
 // (TS 36.413 §9.2.1.35).
 type RequestType struct {
-	EventType  EventType
-	ReportArea ReportArea
-}
-
-func (rt RequestType) encode(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, []bool{false})
-
-	if err := w.WriteEnum(int(rt.EventType), eventTypeRootCount, true, false); err != nil {
-		return err
-	}
-
-	return w.WriteEnum(int(rt.ReportArea), reportAreaRootCount, true, false)
-}
-
-func decodeRequestType(r *aper.Reader) (RequestType, error) {
-	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
-	if err != nil {
-		return RequestType{}, err
-	}
-
-	et, _, err := r.ReadEnum(eventTypeRootCount, true)
-	if err != nil {
-		return RequestType{}, err
-	}
-
-	ra, _, err := r.ReadEnum(reportAreaRootCount, true)
-	if err != nil {
-		return RequestType{}, err
-	}
-
-	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
-		return RequestType{}, err
-	}
-
-	return RequestType{EventType: EventType(et), ReportArea: ReportArea(ra)}, nil
+	_          [0]struct{}  `per:"extseq"`
+	EventType  EventType    `per:"ENUMERATED,range:0..2,..."`
+	ReportArea ReportArea   `per:"ENUMERATED,range:0..0,..."`
+	_          ieExtensions `per:",skip"`
 }
 
 // LocationReport is the LOCATION REPORT message (TS 36.413), sent by the eNB to
@@ -82,31 +47,33 @@ type LocationReport struct {
 	unmodeledIEs
 }
 
-func (m *LocationReport) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+func (m *LocationReport) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-		{id: idEUTRANCGI, crit: CriticalityIgnore, enc: m.EUTRANCGI.encode},
-		{id: idTAI, crit: CriticalityIgnore, enc: m.TAI.encode},
-		{id: idRequestType, crit: CriticalityIgnore, enc: m.RequestType.encode},
+		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
+		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
+		{id: idEUTRANCGI, crit: CriticalityIgnore, val: &m.EUTRANCGI},
+		{id: idTAI, crit: CriticalityIgnore, val: &m.TAI},
+		{id: idRequestType, crit: CriticalityIgnore, val: &m.RequestType},
 	}
 
 	for _, e := range m.unknownIEs {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
 func (m *LocationReport) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcLocationReport,
@@ -118,20 +85,21 @@ func (m *LocationReport) Marshal() ([]byte, error) {
 // ParseLocationReport decodes a LocationReport from the open-type payload of an
 // initiatingMessage.
 func ParseLocationReport(value []byte) (*LocationReport, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: LocationReport preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -141,23 +109,21 @@ func ParseLocationReport(value []byte) (*LocationReport, error) {
 	var seenMME, seenENB, seenCGI, seenTAI, seenReq bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
 		switch f.id {
 		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
+			err = perIEDecode(f.value, &m.MMEUES1APID)
 			seenMME = true
 		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
+			err = perIEDecode(f.value, &m.ENBUES1APID)
 			seenENB = true
 		case idEUTRANCGI:
-			m.EUTRANCGI, err = decodeEUTRANCGI(sub)
+			err = perIEDecode(f.value, &m.EUTRANCGI)
 			seenCGI = true
 		case idTAI:
-			m.TAI, err = decodeTAI(sub)
+			err = perIEDecode(f.value, &m.TAI)
 			seenTAI = true
 		case idRequestType:
-			m.RequestType, err = decodeRequestType(sub)
+			err = perIEDecode(f.value, &m.RequestType)
 			seenReq = true
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)

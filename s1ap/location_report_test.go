@@ -6,7 +6,7 @@ package s1ap
 import (
 	"testing"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 func TestLocationReportRoundTrip(t *testing.T) {
@@ -52,20 +52,20 @@ func TestLocationReportRoundTrip(t *testing.T) {
 }
 
 func TestLocationReportMissingMandatoryIE(t *testing.T) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	w.WriteSequencePreamble(true, false, nil)
+	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: MMEUES1APID(1).encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: ENBUES1APID(1).encode},
+		{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
+		{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(1)},
 	}
 
-	if err := encodeIEContainer(&w, fields); err != nil {
+	if err := encodeIEContainer(w, per.Aligned, fields); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := ParseLocationReport(w.Bytes()); err == nil {
+	if _, err := ParseLocationReport(perBytes(w)); err == nil {
 		t.Fatal("expected missing-mandatory-IE error")
 	}
 }

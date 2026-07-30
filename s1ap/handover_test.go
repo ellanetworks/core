@@ -7,7 +7,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 func sampleTargetID() TargetID {
@@ -105,14 +105,17 @@ func TestHandoverTypeRootValuesRoundTrip(t *testing.T) {
 // TestTargetIDNonENBAlternativeRejected checks the parser rejects a TargetID
 // CHOICE arm other than targeteNB-ID, which is out of scope (TS 36.413).
 func TestTargetIDNonENBAlternativeRejected(t *testing.T) {
-	var w aper.Writer
+	w := per.NewWriter()
 
 	// Encode TargetID with root choice index 1 (targetRNC-ID), unmodeled.
-	if err := w.WriteChoiceIndex(1, targetIDRootCount, true, false); err != nil {
+	if err := func() error {
+		w.WriteBit(false)
+		return per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, targetIDRootCount-1, 1)
+	}(); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := decodeTargetID(aper.NewReader(w.Bytes())); err == nil {
+	if _, err := unmarshalPERValue[TargetID](perBytes(w)); err == nil {
 		t.Fatal("expected decodeTargetID to reject a non-targeteNB-ID alternative")
 	}
 }

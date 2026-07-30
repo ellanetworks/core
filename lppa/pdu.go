@@ -6,7 +6,7 @@ package lppa
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // LPPA-PDU CHOICE root alternatives (TS 36.455 §9.3.2), in declaration order.
@@ -86,37 +86,45 @@ type message struct {
 // Termination procedure has criticality reject (TS 36.455 §9.4.2). The E-SMLC
 // uses transaction id 0; request/response correlation is by Measurement-ID.
 func marshalPDU(choiceIndex int, pc ProcedureCode, body []byte) ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := w.WriteChoiceIndex(choiceIndex, pduRootCount, true, false); err != nil {
+	if err := func() error {
+		w.WriteBit(false)
+		return per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, pduRootCount-1, int64(choiceIndex))
+	}(); err != nil {
 		return nil, err
 	}
 
-	if err := w.WriteConstrainedInt(int64(pc), 0, 255); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, 255, int64(pc)); err != nil {
 		return nil, err
 	}
 
-	if err := w.WriteEnum(int(CriticalityReject), criticalityRootCount, false, false); err != nil {
+	if err := per.EncodeEnumerated(w, per.Aligned, criticalityRootCount, false, int64(int(CriticalityReject))); err != nil {
 		return nil, err
 	}
 
-	if err := w.WriteConstrainedInt(0, 0, lppaTransactionIDMax); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, lppaTransactionIDMax, 0); err != nil {
 		return nil, err
 	}
 
-	if err := w.WriteOpenType(body); err != nil {
+	if err := per.EncodeOpenTypeBytes(w, per.Aligned, body); err != nil {
 		return nil, err
 	}
 
-	return w.Bytes(), nil
+	return perAlignedBytes(w), nil
 }
 
 // unmarshalPDU decodes an LPPA-PDU envelope, returning the concrete alternative
 // with its open-type payload for the message layer to decode.
 func unmarshalPDU(b []byte) (*message, error) {
-	r := aper.NewReader(b)
+	r := per.NewReader(b)
 
-	idx, isExt, err := r.ReadChoiceIndex(pduRootCount, true)
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return nil, fmt.Errorf("lppa: PDU choice: %w", err)
+	}
+
+	idx, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 0, pduRootCount-1)
 	if err != nil {
 		return nil, fmt.Errorf("lppa: PDU choice: %w", err)
 	}
@@ -125,28 +133,28 @@ func unmarshalPDU(b []byte) (*message, error) {
 		return nil, fmt.Errorf("lppa: unsupported LPPA-PDU extension alternative")
 	}
 
-	pc, err := r.ReadConstrainedInt(0, 255)
+	pc, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 0, 255)
 	if err != nil {
 		return nil, fmt.Errorf("lppa: procedureCode: %w", err)
 	}
 
-	crit, _, err := r.ReadEnum(criticalityRootCount, false)
+	crit, err := decodeEnumInt(r, criticalityRootCount, false)
 	if err != nil {
 		return nil, fmt.Errorf("lppa: criticality: %w", err)
 	}
 
-	txn, err := r.ReadConstrainedInt(0, lppaTransactionIDMax)
+	txn, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 0, lppaTransactionIDMax)
 	if err != nil {
 		return nil, fmt.Errorf("lppa: lppatransactionID: %w", err)
 	}
 
-	val, err := r.ReadOpenType()
+	val, err := per.DecodeOpenTypeBytes(r, per.Aligned)
 	if err != nil {
 		return nil, fmt.Errorf("lppa: value: %w", err)
 	}
 
 	return &message{
-		choiceIndex:   idx,
+		choiceIndex:   int(idx),
 		procedureCode: ProcedureCode(pc),
 		criticality:   Criticality(crit),
 		transactionID: txn,
@@ -159,7 +167,7 @@ func unmarshalPDU(b []byte) (*message, error) {
 type ieField struct {
 	id   ProtocolIEID
 	crit Criticality
-	enc  func(*aper.Writer) error
+	enc  func(*per.Writer) error
 }
 
 // rawIE is a decoded ProtocolIE-Field: id, criticality, and the raw open-type
@@ -173,33 +181,33 @@ type rawIE struct {
 // encodeIEContainer writes a ProtocolIE-Container (TS 36.455 §9.3.4): the field
 // count as a constrained length, then each ProtocolIE-Field as
 // { id, criticality, value-as-open-type } in order.
-func encodeIEContainer(w *aper.Writer, fields []ieField) error {
+func encodeIEContainer(w *per.Writer, fields []ieField) error {
 	if len(fields) > maxProtocolIEs {
 		return fmt.Errorf("lppa: %d IEs exceed maxProtocolIEs", len(fields))
 	}
 
-	if err := w.WriteConstrainedLength(len(fields), 0, maxProtocolIEs); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, maxProtocolIEs, int64(len(fields))); err != nil {
 		return err
 	}
 
 	for _, f := range fields {
-		if err := w.WriteConstrainedInt(int64(f.id), 0, maxProtocolIEs); err != nil {
+		if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, maxProtocolIEs, int64(f.id)); err != nil {
 			return err
 		}
 
-		if err := w.WriteEnum(int(f.crit), criticalityRootCount, false, false); err != nil {
+		if err := per.EncodeEnumerated(w, per.Aligned, criticalityRootCount, false, int64(int(f.crit))); err != nil {
 			return err
 		}
 
-		var vw aper.Writer
+		vw := per.NewWriter()
 
 		if f.enc != nil {
-			if err := f.enc(&vw); err != nil {
+			if err := f.enc(vw); err != nil {
 				return fmt.Errorf("lppa: encode IE %d: %w", f.id, err)
 			}
 		}
 
-		if err := w.WriteOpenType(vw.Bytes()); err != nil {
+		if err := per.EncodeOpenTypeBytes(w, per.Aligned, perAlignedBytes(vw)); err != nil {
 			return err
 		}
 	}
@@ -209,26 +217,26 @@ func encodeIEContainer(w *aper.Writer, fields []ieField) error {
 
 // decodeIEContainer reads a ProtocolIE-Container into its fields in wire order,
 // preserving every field for dispatch by id.
-func decodeIEContainer(r *aper.Reader) ([]rawIE, error) {
-	n, err := r.ReadConstrainedLength(0, maxProtocolIEs)
+func decodeIEContainer(r *per.Reader) ([]rawIE, error) {
+	n, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 0, maxProtocolIEs)
 	if err != nil {
 		return nil, fmt.Errorf("lppa: IE container length: %w", err)
 	}
 
 	var fields []rawIE
 
-	for i := 0; i < n; i++ {
-		id, err := r.ReadConstrainedInt(0, maxProtocolIEs)
+	for i := int64(0); i < n; i++ {
+		id, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 0, maxProtocolIEs)
 		if err != nil {
 			return nil, fmt.Errorf("lppa: IE %d id: %w", i, err)
 		}
 
-		crit, _, err := r.ReadEnum(criticalityRootCount, false)
+		crit, err := decodeEnumInt(r, criticalityRootCount, false)
 		if err != nil {
 			return nil, fmt.Errorf("lppa: IE %d criticality: %w", i, err)
 		}
 
-		val, err := r.ReadOpenType()
+		val, err := per.DecodeOpenTypeBytes(r, per.Aligned)
 		if err != nil {
 			return nil, fmt.Errorf("lppa: IE %d value: %w", i, err)
 		}
@@ -239,26 +247,103 @@ func decodeIEContainer(r *aper.Reader) ([]rawIE, error) {
 	return fields, nil
 }
 
+// writeSeqPreamble writes a SEQUENCE preamble: the extension bit followed by
+// one presence bit per OPTIONAL root field.
+//
+//nolint:unparam
+func writeSeqPreamble(w *per.Writer, extPresent bool, optionals []bool) {
+	w.WriteBit(extPresent)
+
+	for _, present := range optionals {
+		w.WriteBit(present)
+	}
+}
+
+// readSeqPreamble reads a SEQUENCE preamble with nOptional presence bits.
+func readSeqPreamble(r *per.Reader, nOptional int) (bool, []bool, error) {
+	extPresent, err := r.ReadBit()
+	if err != nil {
+		return false, nil, err
+	}
+
+	optionals := make([]bool, nOptional)
+	for i := range optionals {
+		optionals[i], err = r.ReadBit()
+		if err != nil {
+			return false, nil, err
+		}
+	}
+
+	return extPresent, optionals, nil
+}
+
+// skipExtensionAdditions consumes an extension-addition block: the
+// normally-small-length bitmap followed by that many open-type fields.
+func skipExtensionAdditions(r *per.Reader) error {
+	var present []bool
+
+	err := per.DecodeNormallySmallLength(r, per.Aligned, func(count int64) error {
+		present = make([]bool, count)
+		for i := range present {
+			b, err := r.ReadBit()
+			if err != nil {
+				return err
+			}
+
+			present[i] = b
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, p := range present {
+		if p {
+			if err := per.SkipOpenType(r, per.Aligned); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// perAlignedBytes pads w to an octet boundary and returns its bytes.
+func perAlignedBytes(w *per.Writer) []byte {
+	w.AlignToByte()
+
+	return w.Bytes()
+}
+
+// decodeEnumInt decodes an ENUMERATED value as an int index.
+func decodeEnumInt(r *per.Reader, nRoot int, extensible bool) (int, error) {
+	v, err := per.DecodeEnumerated(r, per.Aligned, int64(nRoot), extensible)
+
+	return int(v), err
+}
+
 // writeExtConstrainedInt encodes an extensible constrained INTEGER's root value:
 // the extension marker (0) followed by the constrained value (X.691 §12.2.6). It
 // never emits an extension value.
-func writeExtConstrainedInt(w *aper.Writer, v, lb, ub int64) error {
-	w.WriteBit(0)
-	return w.WriteConstrainedInt(v, lb, ub)
+func writeExtConstrainedInt(w *per.Writer, v, lb, ub int64) error {
+	w.WriteBit(false)
+	return per.EncodeConstrainedWholeNumber(w, per.Aligned, lb, ub, v)
 }
 
 // readExtConstrainedInt decodes an extensible constrained INTEGER. A root value
 // (marker 0) reads over [lb, ub]; an extension value (marker 1) reads as an
 // unconstrained integer (X.691 §12.2.6).
-func readExtConstrainedInt(r *aper.Reader, lb, ub int64) (int64, error) {
+func readExtConstrainedInt(r *per.Reader, lb, ub int64) (int64, error) {
 	b, err := r.ReadBit()
 	if err != nil {
 		return 0, err
 	}
 
-	if b == 1 {
-		return r.ReadUnconstrainedInt()
+	if b {
+		return per.DecodeInteger(r, per.Aligned, per.Bounds{})
 	}
 
-	return r.ReadConstrainedInt(lb, ub)
+	return per.DecodeConstrainedWholeNumber(r, per.Aligned, lb, ub)
 }

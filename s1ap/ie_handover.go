@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // HandoverType ::= ENUMERATED { intralte, ltetoutran, ltetogeran, utrantolte,
@@ -24,21 +24,23 @@ const (
 	handoverTypeRootCount = 5
 )
 
-func (t HandoverType) encode(w *aper.Writer) error {
-	return w.WriteEnum(int(t), handoverTypeRootCount, true, false)
+func (t HandoverType) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeEnumerated(w, enc, handoverTypeRootCount, true, int64(t))
 }
 
-func decodeHandoverType(r *aper.Reader) (HandoverType, error) {
-	idx, ext, err := r.ReadEnum(handoverTypeRootCount, true)
+func (t *HandoverType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := per.DecodeEnumerated(r, enc, handoverTypeRootCount, true)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
-	if ext {
-		return 0, fmt.Errorf("s1ap: unsupported HandoverType extension value")
+	if idx >= handoverTypeRootCount {
+		return fmt.Errorf("s1ap: unsupported HandoverType extension value")
 	}
 
-	return HandoverType(idx), nil
+	*t = HandoverType(idx)
+
+	return nil
 }
 
 // TransparentContainer ::= OCTET STRING. The Source-to-Target and
@@ -46,54 +48,29 @@ func decodeHandoverType(r *aper.Reader) (HandoverType, error) {
 // (TS 36.413); the MME relays them opaquely (TS 36.300).
 type TransparentContainer []byte
 
-func (c TransparentContainer) encode(w *aper.Writer) error {
-	return w.WriteOctetString(c, 0, aper.Unbounded, false)
+func (c TransparentContainer) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 0, 0, true, false, false, c)
 }
 
-func decodeTransparentContainer(r *aper.Reader) (TransparentContainer, error) {
-	b, err := r.ReadOctetString(0, aper.Unbounded, false)
-	return TransparentContainer(b), err
+func (c *TransparentContainer) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 0, 0, true, false, false)
+	if err != nil {
+		return err
+	}
+
+	*c = TransparentContainer(b)
+
+	return nil
 }
 
 // TargeteNB-ID ::= SEQUENCE { global-ENB-ID, selected-TAI, iE-Extensions
 // OPTIONAL } (extensible). It names the target eNB and the TAI of the target
 // cell (TS 36.413).
 type TargeteNBID struct {
+	_           [0]struct{} `per:"extseq"`
 	GlobalENBID GlobalENBID
 	SelectedTAI TAI
-}
-
-func (t TargeteNBID) encode(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, []bool{false})
-
-	if err := t.GlobalENBID.encode(w); err != nil {
-		return err
-	}
-
-	return t.SelectedTAI.encode(w)
-}
-
-func decodeTargeteNBID(r *aper.Reader) (TargeteNBID, error) {
-	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
-	if err != nil {
-		return TargeteNBID{}, err
-	}
-
-	enb, err := decodeGlobalENBID(r)
-	if err != nil {
-		return TargeteNBID{}, err
-	}
-
-	tai, err := decodeTAI(r)
-	if err != nil {
-		return TargeteNBID{}, err
-	}
-
-	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
-		return TargeteNBID{}, err
-	}
-
-	return TargeteNBID{GlobalENBID: enb, SelectedTAI: tai}, nil
+	_           ieExtensions `per:",skip"`
 }
 
 // TargetID ::= CHOICE { targeteNB-ID, targetRNC-ID, cGI, ..., targetgNgRanNode-ID }.
@@ -105,30 +82,36 @@ type TargetID struct {
 
 const targetIDRootCount = 3 // targeteNB-ID, targetRNC-ID, cGI
 
-func (t TargetID) encode(w *aper.Writer) error {
-	if err := w.WriteChoiceIndex(0, targetIDRootCount, true, false); err != nil {
+func (t TargetID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, targetIDRootCount-1, 0); err != nil {
 		return err
 	}
 
-	return t.TargeteNBID.encode(w)
+	return t.TargeteNBID.MarshalPER(w, enc)
 }
 
-func decodeTargetID(r *aper.Reader) (TargetID, error) {
-	idx, isExt, err := r.ReadChoiceIndex(targetIDRootCount, true)
+func (t *TargetID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	isExt, err := r.ReadBit()
 	if err != nil {
-		return TargetID{}, err
+		return err
 	}
 
-	if isExt || idx != 0 {
-		return TargetID{}, fmt.Errorf("s1ap: unsupported TargetID alternative %d (only targeteNB-ID)", idx)
+	if isExt {
+		return fmt.Errorf("s1ap: unsupported TargetID extension alternative")
 	}
 
-	enb, err := decodeTargeteNBID(r)
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, targetIDRootCount-1)
 	if err != nil {
-		return TargetID{}, err
+		return err
 	}
 
-	return TargetID{TargeteNBID: enb}, nil
+	if idx != 0 {
+		return fmt.Errorf("s1ap: unsupported TargetID alternative %d (only targeteNB-ID)", idx)
+	}
+
+	return t.TargeteNBID.UnmarshalPER(r, enc)
 }
 
 // ERABToBeSetupItemHOReq ::= SEQUENCE { e-RAB-ID, transportLayerAddress,
@@ -138,63 +121,12 @@ func decodeTargetID(r *aper.Reader) (TargetID, error) {
 // Data-Forwarding-Not-Possible extension is not modeled; data forwarding is not
 // requested.
 type ERABToBeSetupItemHOReq struct {
+	_                     [0]struct{} `per:"extseq"`
 	ERABID                ERABID
 	TransportLayerAddress TransportLayerAddress
 	GTPTEID               GTPTEID
 	QoS                   ERABLevelQoSParameters
-}
-
-func (it ERABToBeSetupItemHOReq) encode(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, []bool{false})
-
-	if err := it.ERABID.encode(w); err != nil {
-		return err
-	}
-
-	if err := it.TransportLayerAddress.encode(w); err != nil {
-		return err
-	}
-
-	if err := it.GTPTEID.encode(w); err != nil {
-		return err
-	}
-
-	return it.QoS.encode(w)
-}
-
-func decodeERABToBeSetupItemHOReq(r *aper.Reader) (ERABToBeSetupItemHOReq, error) {
-	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
-	if err != nil {
-		return ERABToBeSetupItemHOReq{}, err
-	}
-
-	var it ERABToBeSetupItemHOReq
-
-	if it.ERABID, err = decodeERABID(r); err != nil {
-		return it, err
-	}
-
-	if it.TransportLayerAddress, err = decodeTransportLayerAddress(r); err != nil {
-		return it, err
-	}
-
-	if it.GTPTEID, err = decodeGTPTEID(r); err != nil {
-		return it, err
-	}
-
-	if it.QoS, err = decodeERABLevelQoSParameters(r); err != nil {
-		return it, err
-	}
-
-	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
-		return it, err
-	}
-
-	return it, nil
-}
-
-func decodeERABToBeSetupListHOReq(r *aper.Reader) ([]ERABToBeSetupItemHOReq, error) {
-	return decodeItemList(r, maxnoofERABs, decodeERABToBeSetupItemHOReq)
+	_                     ieExtensions `per:",skip"`
 }
 
 // ERABAdmittedItem ::= SEQUENCE { e-RAB-ID, transportLayerAddress, gTP-TEID,
@@ -204,120 +136,13 @@ func decodeERABToBeSetupListHOReq(r *aper.Reader) ([]ERABToBeSetupItemHOReq, err
 // endpoint; the optional DL/UL pairs are data-forwarding tunnels the MME does not
 // use (TS 36.413).
 type ERABAdmittedItem struct {
+	_                     [0]struct{} `per:"extseq"`
 	ERABID                ERABID
 	TransportLayerAddress TransportLayerAddress
 	GTPTEID               GTPTEID
-	DLTransportLayerAddr  TransportLayerAddress
-	DLGTPTEID             *GTPTEID
-	ULTransportLayerAddr  TransportLayerAddress
-	ULGTPTEID             *GTPTEID
-}
-
-func (it ERABAdmittedItem) encode(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, []bool{
-		it.DLTransportLayerAddr != nil,
-		it.DLGTPTEID != nil,
-		it.ULTransportLayerAddr != nil,
-		it.ULGTPTEID != nil,
-		false,
-	})
-
-	if err := it.ERABID.encode(w); err != nil {
-		return err
-	}
-
-	if err := it.TransportLayerAddress.encode(w); err != nil {
-		return err
-	}
-
-	if err := it.GTPTEID.encode(w); err != nil {
-		return err
-	}
-
-	if it.DLTransportLayerAddr != nil {
-		if err := it.DLTransportLayerAddr.encode(w); err != nil {
-			return err
-		}
-	}
-
-	if it.DLGTPTEID != nil {
-		if err := it.DLGTPTEID.encode(w); err != nil {
-			return err
-		}
-	}
-
-	if it.ULTransportLayerAddr != nil {
-		if err := it.ULTransportLayerAddr.encode(w); err != nil {
-			return err
-		}
-	}
-
-	if it.ULGTPTEID != nil {
-		if err := it.ULGTPTEID.encode(w); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func decodeERABAdmittedItem(r *aper.Reader) (ERABAdmittedItem, error) {
-	extPresent, opt, err := r.ReadSequencePreamble(true, 5)
-	if err != nil {
-		return ERABAdmittedItem{}, err
-	}
-
-	var it ERABAdmittedItem
-
-	if it.ERABID, err = decodeERABID(r); err != nil {
-		return it, err
-	}
-
-	if it.TransportLayerAddress, err = decodeTransportLayerAddress(r); err != nil {
-		return it, err
-	}
-
-	if it.GTPTEID, err = decodeGTPTEID(r); err != nil {
-		return it, err
-	}
-
-	if opt[0] {
-		if it.DLTransportLayerAddr, err = decodeTransportLayerAddress(r); err != nil {
-			return it, err
-		}
-	}
-
-	if opt[1] {
-		teid, err := decodeGTPTEID(r)
-		if err != nil {
-			return it, err
-		}
-
-		it.DLGTPTEID = &teid
-	}
-
-	if opt[2] {
-		if it.ULTransportLayerAddr, err = decodeTransportLayerAddress(r); err != nil {
-			return it, err
-		}
-	}
-
-	if opt[3] {
-		teid, err := decodeGTPTEID(r)
-		if err != nil {
-			return it, err
-		}
-
-		it.ULGTPTEID = &teid
-	}
-
-	if err := skipSequenceExtensions(r, opt[4], extPresent); err != nil {
-		return it, err
-	}
-
-	return it, nil
-}
-
-func decodeERABAdmittedList(r *aper.Reader) ([]ERABAdmittedItem, error) {
-	return decodeItemList(r, maxnoofERABs, decodeERABAdmittedItem)
+	DLTransportLayerAddr  TransportLayerAddress `per:",optional"`
+	DLGTPTEID             *GTPTEID              `per:",optional"`
+	ULTransportLayerAddr  TransportLayerAddress `per:",optional"`
+	ULGTPTEID             *GTPTEID              `per:",optional"`
+	_                     ieExtensions          `per:",skip"`
 }

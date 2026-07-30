@@ -8,7 +8,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // Golden vectors are the aligned-PER encoding of TS 36.455 IE values produced by
@@ -55,27 +55,27 @@ func sampleResult() *ECIDResult {
 	}
 }
 
-func encodeHex(t *testing.T, enc func(*aper.Writer) error) string {
+func encodeHex(t *testing.T, enc func(*per.Writer) error) string {
 	t.Helper()
 
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := enc(&w); err != nil {
+	if err := enc(w); err != nil {
 		t.Fatalf("encode: %v", err)
 	}
 
-	return hex.EncodeToString(w.Bytes())
+	return hex.EncodeToString(perAlignedBytes(w))
 }
 
 func TestGoldenAPPosition(t *testing.T) {
-	got := encodeHex(t, func(w *aper.Writer) error { return encAPPosition(w, sampleAPPosition()) })
+	got := encodeHex(t, func(w *per.Writer) error { return encAPPosition(w, sampleAPPosition()) })
 	if got != goldenAPPosition {
 		t.Fatalf("E-UTRANAccessPointPosition\n got=%s\nwant=%s", got, goldenAPPosition)
 	}
 }
 
 func TestGoldenECGI(t *testing.T) {
-	got := encodeHex(t, func(w *aper.Writer) error { return encECGI(w, sampleECGI()) })
+	got := encodeHex(t, func(w *per.Writer) error { return encECGI(w, sampleECGI()) })
 	if got != goldenECGI {
 		t.Fatalf("ECGI\n got=%s\nwant=%s", got, goldenECGI)
 	}
@@ -96,7 +96,7 @@ func TestDecodeGoldenMeasurementResult(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err := decodeMeasurementResult(aper.NewReader(raw))
+	res, err := decodeMeasurementResult(per.NewReader(raw))
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestAPPositionDegrees(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ap, err := decodeAPPosition(aper.NewReader(raw))
+	ap, err := decodeAPPosition(per.NewReader(raw))
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -202,7 +202,7 @@ func TestForwardCompatUnknownIE(t *testing.T) {
 	fields := []ieField{
 		{id: idESMLCUEMeasurementID, crit: CriticalityReject, enc: encMeasurementID(7)},
 		{id: idENBUEMeasurementID, crit: CriticalityReject, enc: encMeasurementID(5)},
-		{id: 999, crit: CriticalityIgnore, enc: func(w *aper.Writer) error { w.WriteOctets([]byte{0xde, 0xad}); return nil }},
+		{id: 999, crit: CriticalityIgnore, enc: func(w *per.Writer) error { _ = w.WriteOctets([]byte{0xde, 0xad}); return nil }},
 	}
 
 	body, err := encodeMessageBody(fields)

@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // maxnoofIndividualS1ConnectionsToReset bounds the UE-associated logical
@@ -25,59 +25,10 @@ const resetAllRootCount = 1
 // S1-connection by its MME-UE-S1AP-ID and/or eNB-UE-S1AP-ID (TS 36.413).
 // Both identities are optional; an item may carry either or both.
 type UEAssociatedLogicalS1ConnectionItem struct {
-	MMEUES1APID *MMEUES1APID
-	ENBUES1APID *ENBUES1APID
-}
-
-func (it UEAssociatedLogicalS1ConnectionItem) encode(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, []bool{it.MMEUES1APID != nil, it.ENBUES1APID != nil, false})
-
-	if it.MMEUES1APID != nil {
-		if err := it.MMEUES1APID.encode(w); err != nil {
-			return err
-		}
-	}
-
-	if it.ENBUES1APID != nil {
-		if err := it.ENBUES1APID.encode(w); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func decodeUEAssociatedLogicalS1ConnectionItem(r *aper.Reader) (UEAssociatedLogicalS1ConnectionItem, error) {
-	extPresent, opt, err := r.ReadSequencePreamble(true, 3)
-	if err != nil {
-		return UEAssociatedLogicalS1ConnectionItem{}, fmt.Errorf("s1ap: UE-associatedLogicalS1-ConnectionItem preamble: %w", err)
-	}
-
-	var it UEAssociatedLogicalS1ConnectionItem
-
-	if opt[0] {
-		v, err := decodeMMEUES1APID(r)
-		if err != nil {
-			return UEAssociatedLogicalS1ConnectionItem{}, err
-		}
-
-		it.MMEUES1APID = &v
-	}
-
-	if opt[1] {
-		v, err := decodeENBUES1APID(r)
-		if err != nil {
-			return UEAssociatedLogicalS1ConnectionItem{}, err
-		}
-
-		it.ENBUES1APID = &v
-	}
-
-	if err := skipSequenceExtensions(r, opt[2], extPresent); err != nil {
-		return UEAssociatedLogicalS1ConnectionItem{}, err
-	}
-
-	return it, nil
+	_           [0]struct{}  `per:"extseq"`
+	MMEUES1APID *MMEUES1APID `per:",optional"`
+	ENBUES1APID *ENBUES1APID `per:",optional"`
+	_           ieExtensions `per:",skip"`
 }
 
 // ResetType is the ResetType CHOICE (TS 36.413): All selects
@@ -89,48 +40,57 @@ type ResetType struct {
 	Part []UEAssociatedLogicalS1ConnectionItem
 }
 
-func (t ResetType) encode(w *aper.Writer) error {
+func (t ResetType) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+
 	if t.All {
-		if err := w.WriteChoiceIndex(0, resetTypeChoiceRootCount, true, false); err != nil {
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, resetTypeChoiceRootCount-1, 0); err != nil {
 			return err
 		}
 
-		return w.WriteEnum(0, resetAllRootCount, true, false)
+		return per.EncodeEnumerated(w, enc, resetAllRootCount, true, 0)
 	}
 
-	if err := w.WriteChoiceIndex(1, resetTypeChoiceRootCount, true, false); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, resetTypeChoiceRootCount-1, 1); err != nil {
 		return err
 	}
 
-	return encodeSingleContainerList(w, maxnoofIndividualS1ConnectionsToReset, idUEAssociatedLogicalS1ConnectionItem, CriticalityReject, encoderList(t.Part))
+	return encodeSingleContainerList(w, enc, maxnoofIndividualS1ConnectionsToReset, idUEAssociatedLogicalS1ConnectionItem, CriticalityReject, t.Part)
 }
 
-func decodeResetType(r *aper.Reader) (ResetType, error) {
-	idx, isExt, err := r.ReadChoiceIndex(resetTypeChoiceRootCount, true)
+func (t *ResetType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	isExt, err := r.ReadBit()
 	if err != nil {
-		return ResetType{}, fmt.Errorf("s1ap: ResetType choice: %w", err)
+		return fmt.Errorf("s1ap: ResetType choice: %w", err)
 	}
 
 	if isExt {
-		return ResetType{}, fmt.Errorf("s1ap: ResetType extension alternative unsupported")
+		return fmt.Errorf("s1ap: ResetType extension alternative unsupported")
+	}
+
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, resetTypeChoiceRootCount-1)
+	if err != nil {
+		return fmt.Errorf("s1ap: ResetType choice: %w", err)
 	}
 
 	switch idx {
 	case 0:
-		if _, _, err := r.ReadEnum(resetAllRootCount, true); err != nil {
-			return ResetType{}, fmt.Errorf("s1ap: ResetAll: %w", err)
+		if _, err := per.DecodeEnumerated(r, enc, resetAllRootCount, true); err != nil {
+			return fmt.Errorf("s1ap: ResetAll: %w", err)
 		}
 
-		return ResetType{All: true}, nil
-	case 1:
-		items, err := decodeItemList(r, maxnoofIndividualS1ConnectionsToReset, decodeUEAssociatedLogicalS1ConnectionItem)
-		if err != nil {
-			return ResetType{}, err
-		}
+		*t = ResetType{All: true}
 
-		return ResetType{Part: items}, nil
+		return nil
 	default:
-		return ResetType{}, fmt.Errorf("s1ap: unexpected ResetType choice index %d", idx)
+		items, err := decodeItemList[UEAssociatedLogicalS1ConnectionItem](r, enc, maxnoofIndividualS1ConnectionsToReset)
+		if err != nil {
+			return err
+		}
+
+		*t = ResetType{Part: items}
+
+		return nil
 	}
 }
 
@@ -144,28 +104,30 @@ type Reset struct {
 	unmodeledIEs
 }
 
-func (m *Reset) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+func (m *Reset) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idCause, crit: CriticalityIgnore, enc: m.Cause.encode},
-		{id: idResetType, crit: CriticalityReject, enc: m.ResetType.encode},
+		{id: idCause, crit: CriticalityIgnore, val: &m.Cause},
+		{id: idResetType, crit: CriticalityReject, val: &m.ResetType},
 	}
 
 	for _, e := range m.unknownIEs {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
 func (m *Reset) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcReset,
@@ -176,20 +138,21 @@ func (m *Reset) Marshal() ([]byte, error) {
 
 // ParseReset decodes the message from an initiatingMessage open-type payload.
 func ParseReset(value []byte) (*Reset, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: Reset preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -199,14 +162,12 @@ func ParseReset(value []byte) (*Reset, error) {
 	var seenCause, seenResetType bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
 		switch f.id {
 		case idCause:
-			m.Cause, err = decodeCause(sub)
+			err = perIEDecode(f.value, &m.Cause)
 			seenCause = true
 		case idResetType:
-			m.ResetType, err = decodeResetType(sub)
+			err = perIEDecode(f.value, &m.ResetType)
 			seenResetType = true
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)
@@ -234,36 +195,38 @@ type ResetAcknowledge struct {
 	unmodeledIEs
 }
 
-func (m *ResetAcknowledge) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+func (m *ResetAcknowledge) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	var fields []ieField
 
 	if len(m.ConnectionList) > 0 {
-		fields = append(fields, ieField{id: idUEAssociatedLogicalS1ConnectionListResAck, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofIndividualS1ConnectionsToReset, idUEAssociatedLogicalS1ConnectionItem, CriticalityIgnore, encoderList(m.ConnectionList))
-		}})
+		fields = append(fields, ieField{id: idUEAssociatedLogicalS1ConnectionListResAck, crit: CriticalityIgnore, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+			return encodeSingleContainerList(w, enc, maxnoofIndividualS1ConnectionsToReset, idUEAssociatedLogicalS1ConnectionItem, CriticalityIgnore, m.ConnectionList)
+		})})
 	}
 
 	if m.CriticalityDiagnostics != nil {
 		d := *m.CriticalityDiagnostics
-		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, enc: d.encode})
+		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, val: &d})
 	}
 
 	for _, e := range m.unknownIEs {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
 func (m *ResetAcknowledge) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&SuccessfulOutcome{
 		ProcedureCode: ProcReset,
@@ -275,20 +238,21 @@ func (m *ResetAcknowledge) Marshal() ([]byte, error) {
 // ParseResetAcknowledge decodes the message from a successfulOutcome open-type
 // payload.
 func ParseResetAcknowledge(value []byte) (*ResetAcknowledge, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: ResetAcknowledge preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -296,19 +260,18 @@ func ParseResetAcknowledge(value []byte) (*ResetAcknowledge, error) {
 	m := &ResetAcknowledge{}
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
 		switch f.id {
 		case idUEAssociatedLogicalS1ConnectionListResAck:
-			items, err := decodeItemList(sub, maxnoofIndividualS1ConnectionsToReset, decodeUEAssociatedLogicalS1ConnectionItem)
+			items, err := decodeItemList[UEAssociatedLogicalS1ConnectionItem](per.NewReader(f.value), enc, maxnoofIndividualS1ConnectionsToReset)
 			if err != nil {
 				return nil, fmt.Errorf("s1ap: ResetAcknowledge connection list: %w", err)
 			}
 
 			m.ConnectionList = append(m.ConnectionList, items...)
 		case idCriticalityDiagnostics:
-			cd, err := decodeCriticalityDiagnostics(sub)
-			if err != nil {
+			var cd CriticalityDiagnostics
+
+			if err := perIEDecode(f.value, &cd); err != nil {
 				return nil, fmt.Errorf("s1ap: ResetAcknowledge CriticalityDiagnostics: %w", err)
 			}
 

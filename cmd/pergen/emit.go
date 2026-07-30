@@ -119,6 +119,9 @@ type fieldInfo struct {
 	// Whether this OPTIONAL field is unmodeled: encoded absent, decoded and
 	// discarded.
 	isSkip bool
+	// Whether this OPTIONAL field is a nilable non-pointer (slice) used
+	// without dereferencing.
+	noDeref bool
 
 	// Go type spelling (for local variables in decode).
 	typeStr string
@@ -142,6 +145,13 @@ func (g *generator) classifyField(f *types.Var, rawTag string) (fieldInfo, error
 	// field itself is a value type and is never read or written.
 	if fi.has && fi.tag.Skip {
 		fi.isSkip = true
+	}
+
+	// OPTIONAL on a non-pointer field: the Go type must be nilable (a slice);
+	// presence is nil-ness and the value is used without dereferencing.
+	if fi.has && fi.tag.Optional && !fi.isOptional {
+		fi.isOptional = true
+		fi.noDeref = true
 	}
 
 	// DEFAULT.

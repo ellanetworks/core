@@ -36,7 +36,8 @@ func loadPackages(patterns []string) ([]*packages.Package, error) {
 		kept := p.Errors[:0]
 
 		for _, e := range p.Errors {
-			if strings.Contains(e.Msg, "MarshalPER undefined") || strings.Contains(e.Msg, "UnmarshalPER undefined") {
+			if strings.Contains(e.Msg, "MarshalPER undefined") || strings.Contains(e.Msg, "UnmarshalPER undefined") ||
+				strings.Contains(e.Msg, "missing method MarshalPER") || strings.Contains(e.Msg, "missing method UnmarshalPER") {
 				continue
 			}
 

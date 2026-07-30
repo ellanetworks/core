@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // S1SetupRequest is the S1 SETUP REQUEST message (TS 36.413). An empty
@@ -21,42 +21,40 @@ type S1SetupRequest struct {
 	unmodeledIEs
 }
 
-func (m *S1SetupRequest) encodeBody(w *aper.Writer) error {
-	// S1SetupRequest ::= SEQUENCE { protocolIEs, ... }: extensible, no optional
-	// root fields, no extension additions emitted.
-	w.WriteSequencePreamble(true, false, nil)
+func (m *S1SetupRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idGlobalENBID, crit: CriticalityReject, enc: perIE(&m.GlobalENBID)},
+		{id: idGlobalENBID, crit: CriticalityReject, val: &m.GlobalENBID},
 	}
 
 	if m.ENBName != "" {
 		name := m.ENBName
 
-		fields = append(fields, ieField{id: idENBname, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeName(w, name)
-		}})
+		fields = append(fields, ieField{id: idENBname, crit: CriticalityIgnore, val: Name(name)})
 	}
 
 	fields = append(fields,
-		ieField{id: idSupportedTAs, crit: CriticalityReject, enc: perIE(m.SupportedTAs)},
-		ieField{id: idDefaultPagingDRX, crit: CriticalityIgnore, enc: perIE(m.DefaultPagingDRX)},
+		ieField{id: idSupportedTAs, crit: CriticalityReject, val: m.SupportedTAs},
+		ieField{id: idDefaultPagingDRX, crit: CriticalityIgnore, val: m.DefaultPagingDRX},
 	)
 
 	for _, e := range m.unknownIEs {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
 func (m *S1SetupRequest) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcS1Setup,
@@ -68,20 +66,21 @@ func (m *S1SetupRequest) Marshal() ([]byte, error) {
 // ParseS1SetupRequest decodes an S1SetupRequest from the open-type payload of an
 // initiatingMessage (the InitiatingMessage.Value).
 func ParseS1SetupRequest(value []byte) (*S1SetupRequest, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: S1SetupRequest preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -96,7 +95,10 @@ func ParseS1SetupRequest(value []byte) (*S1SetupRequest, error) {
 			err = perIEDecode(f.value, &m.GlobalENBID)
 			seenGlobalENBID = true
 		case idENBname:
-			m.ENBName, err = decodeName(aper.NewReader(f.value))
+			var n Name
+
+			err = perIEDecode(f.value, &n)
+			m.ENBName = string(n)
 		case idSupportedTAs:
 			err = perIEDecode(f.value, &m.SupportedTAs)
 			seenSupportedTAs = true

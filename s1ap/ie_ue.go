@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // UE S1AP ID ranges (TS 36.413).
@@ -18,77 +18,64 @@ const (
 // ENBUES1APID ::= INTEGER (0..16777215).
 type ENBUES1APID uint32
 
-func (id ENBUES1APID) encode(w *aper.Writer) error {
-	return w.WriteConstrainedInt(int64(id), 0, enbUES1APIDMax)
+func (id ENBUES1APID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: enbUES1APIDMax, HasUB: true}, int64(id))
 }
 
-func decodeENBUES1APID(r *aper.Reader) (ENBUES1APID, error) {
-	v, err := r.ReadConstrainedInt(0, enbUES1APIDMax)
-	return ENBUES1APID(v), err
+func (id *ENBUES1APID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: enbUES1APIDMax, HasUB: true})
+	if err != nil {
+		return err
+	}
+
+	*id = ENBUES1APID(v)
+
+	return nil
 }
 
 // MMEUES1APID ::= INTEGER (0..4294967295).
 type MMEUES1APID uint32
 
-func (id MMEUES1APID) encode(w *aper.Writer) error {
-	return w.WriteConstrainedInt(int64(id), 0, mmeUES1APIDMax)
+func (id MMEUES1APID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: mmeUES1APIDMax, HasUB: true}, int64(id))
 }
 
-func decodeMMEUES1APID(r *aper.Reader) (MMEUES1APID, error) {
-	v, err := r.ReadConstrainedInt(0, mmeUES1APIDMax)
-	return MMEUES1APID(v), err
+func (id *MMEUES1APID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: mmeUES1APIDMax, HasUB: true})
+	if err != nil {
+		return err
+	}
+
+	*id = MMEUES1APID(v)
+
+	return nil
 }
 
 // NASPDU ::= OCTET STRING (unbounded). The S1AP layer carries NAS opaquely; the
 // bytes are decoded by the EPS NAS codec (TS 24.301), not here.
 type NASPDU []byte
 
-func (n NASPDU) encode(w *aper.Writer) error {
-	return w.WriteOctetString(n, 0, aper.Unbounded, false)
+func (n NASPDU) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 0, 0, true, false, false, n)
 }
 
-func decodeNASPDU(r *aper.Reader) (NASPDU, error) {
-	b, err := r.ReadOctetString(0, aper.Unbounded, false)
-	return NASPDU(b), err
+func (n *NASPDU) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 0, 0, true, false, false)
+	if err != nil {
+		return err
+	}
+
+	*n = NASPDU(b)
+
+	return nil
 }
 
 // TAI ::= SEQUENCE { pLMNidentity, tAC, iE-Extensions OPTIONAL } (extensible).
 type TAI struct {
+	_            [0]struct{} `per:"extseq"`
 	PLMNIdentity PLMNIdentity
 	TAC          TAC
-}
-
-func (t TAI) encode(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, []bool{false})
-
-	if err := t.PLMNIdentity.encode(w); err != nil {
-		return err
-	}
-
-	return t.TAC.encode(w)
-}
-
-func decodeTAI(r *aper.Reader) (TAI, error) {
-	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
-	if err != nil {
-		return TAI{}, err
-	}
-
-	plmn, err := decodePLMNIdentity(r)
-	if err != nil {
-		return TAI{}, err
-	}
-
-	tac, err := decodeTAC(r)
-	if err != nil {
-		return TAI{}, err
-	}
-
-	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
-		return TAI{}, err
-	}
-
-	return TAI{PLMNIdentity: plmn, TAC: tac}, nil
+	_            ieExtensions `per:",skip"`
 }
 
 // EUTRANCGI ::= SEQUENCE { pLMNidentity, cell-ID CellIdentity, iE-Extensions
@@ -100,77 +87,54 @@ type EUTRANCGI struct {
 
 const cellIDBits = 28
 
-func (c EUTRANCGI) encode(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, []bool{false})
+func (c EUTRANCGI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
 
-	if err := c.PLMNIdentity.encode(w); err != nil {
+	if err := c.PLMNIdentity.MarshalPER(w, enc); err != nil {
 		return err
 	}
 
-	return w.WriteBitString(uintToBits(uint64(c.CellID), cellIDBits), cellIDBits, cellIDBits, cellIDBits, false)
+	return per.EncodeBitString(w, enc, cellIDBits, cellIDBits, true, true, false, uintToBits(uint64(c.CellID), cellIDBits), cellIDBits)
 }
 
-func decodeEUTRANCGI(r *aper.Reader) (EUTRANCGI, error) {
-	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
+func (c *EUTRANCGI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
 	if err != nil {
-		return EUTRANCGI{}, err
+		return err
 	}
 
-	plmn, err := decodePLMNIdentity(r)
+	extContainer, err := r.ReadBit()
 	if err != nil {
-		return EUTRANCGI{}, err
+		return err
 	}
 
-	b, _, err := r.ReadBitString(cellIDBits, cellIDBits, false)
+	var plmn PLMNIdentity
+	if err := plmn.UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+
+	b, _, err := per.DecodeBitString(r, enc, cellIDBits, cellIDBits, true, true, false)
 	if err != nil {
-		return EUTRANCGI{}, err
+		return err
 	}
 
-	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
-		return EUTRANCGI{}, err
+	if err := skipSequenceExtensionsPER(r, enc, extContainer, extBit); err != nil {
+		return err
 	}
 
-	return EUTRANCGI{PLMNIdentity: plmn, CellID: uint32(bitsToUint(b, cellIDBits))}, nil
+	*c = EUTRANCGI{PLMNIdentity: plmn, CellID: uint32(bitsToUint(b, cellIDBits))}
+
+	return nil
 }
 
 // UserLocationInformation ::= SEQUENCE { eutran-CGI EUTRAN-CGI, tai TAI,
 // iE-Extensions OPTIONAL, ... } (extensible) — TS 36.413 §9.2.1.86.
 type UserLocationInformation struct {
+	_         [0]struct{} `per:"extseq"`
 	EUTRANCGI EUTRANCGI
 	TAI       TAI
-}
-
-func (u UserLocationInformation) encode(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, []bool{false})
-
-	if err := u.EUTRANCGI.encode(w); err != nil {
-		return err
-	}
-
-	return u.TAI.encode(w)
-}
-
-func decodeUserLocationInformation(r *aper.Reader) (UserLocationInformation, error) {
-	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
-	if err != nil {
-		return UserLocationInformation{}, err
-	}
-
-	cgi, err := decodeEUTRANCGI(r)
-	if err != nil {
-		return UserLocationInformation{}, err
-	}
-
-	tai, err := decodeTAI(r)
-	if err != nil {
-		return UserLocationInformation{}, err
-	}
-
-	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
-		return UserLocationInformation{}, err
-	}
-
-	return UserLocationInformation{EUTRANCGI: cgi, TAI: tai}, nil
+	_         ieExtensions `per:",skip"`
 }
 
 // RRCEstablishmentCause ::= ENUMERATED { emergency, highPriorityAccess,
@@ -187,15 +151,17 @@ const (
 	rrcEstablishmentCauseRootCount = 5
 )
 
-func (c RRCEstablishmentCause) encode(w *aper.Writer) error {
-	return w.WriteEnum(int(c), rrcEstablishmentCauseRootCount, true, false)
+func (c RRCEstablishmentCause) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeEnumerated(w, enc, rrcEstablishmentCauseRootCount, true, int64(c))
 }
 
-func decodeRRCEstablishmentCause(r *aper.Reader) (RRCEstablishmentCause, error) {
-	idx, _, err := r.ReadEnum(rrcEstablishmentCauseRootCount, true)
+func (c *RRCEstablishmentCause) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := per.DecodeEnumerated(r, enc, rrcEstablishmentCauseRootCount, true)
 	if err != nil {
-		return 0, fmt.Errorf("s1ap: rrc establishment cause: %w", err)
+		return fmt.Errorf("s1ap: rrc establishment cause: %w", err)
 	}
 
-	return RRCEstablishmentCause(idx), nil
+	*c = RRCEstablishmentCause(idx)
+
+	return nil
 }

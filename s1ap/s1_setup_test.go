@@ -10,7 +10,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 const goldenS1SetupRequest = "0011002d000004003b00090000f1104054f64010003c400903004a4c542d36323100400007000c0e4000f1100089400100"
@@ -126,31 +126,31 @@ func TestS1SetupRequestRoundTrip(t *testing.T) {
 func encodePartialS1Setup(t *testing.T, globalENBID, supportedTAs, pagingDRX bool) []byte {
 	t.Helper()
 
-	var w aper.Writer
-	w.WriteSequencePreamble(true, false, nil)
+	w := per.NewWriter()
+	w.WriteBit(false)
 
 	var fields []ieField
 
 	if globalENBID {
 		g := GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 0x0abcd}}
-		fields = append(fields, ieField{id: idGlobalENBID, crit: CriticalityReject, enc: g.encode})
+		fields = append(fields, ieField{id: idGlobalENBID, crit: CriticalityReject, val: &g})
 	}
 
 	if supportedTAs {
 		s := SupportedTAs{{TAC: 0x0001, BroadcastPLMNs: BPLMNs{{0x00, 0xf1, 0x10}}}}
-		fields = append(fields, ieField{id: idSupportedTAs, crit: CriticalityReject, enc: s.encode})
+		fields = append(fields, ieField{id: idSupportedTAs, crit: CriticalityReject, val: s})
 	}
 
 	if pagingDRX {
 		d := PagingDRXv128
-		fields = append(fields, ieField{id: idDefaultPagingDRX, crit: CriticalityIgnore, enc: d.encode})
+		fields = append(fields, ieField{id: idDefaultPagingDRX, crit: CriticalityIgnore, val: d})
 	}
 
-	if err := encodeIEContainer(&w, fields); err != nil {
+	if err := encodeIEContainer(w, per.Aligned, fields); err != nil {
 		t.Fatalf("encode: %v", err)
 	}
 
-	return w.Bytes()
+	return perBytes(w)
 }
 
 // TS 36.413 §10.3.5: an S1 Setup Request missing a reject-criticality mandatory IE

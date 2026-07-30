@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // SONConfigurationTransfer holds the SON Configuration Transfer IE
@@ -15,23 +15,27 @@ import (
 type SONConfigurationTransfer []byte
 
 func (c SONConfigurationTransfer) field(id ProtocolIEID) ieField {
-	return ieField{id: id, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-		w.WriteOctets(c)
-		return nil
-	}}
+	return ieField{id: id, crit: CriticalityIgnore, raw: c}
 }
 
 // TargetENBID decodes the leading Target eNB-ID, which names the destination eNB
 // (TS 36.413 §9.2.3.26). The remaining fields (source eNB-ID, SON Information) are
 // relayed as opaque bytes.
 func (c SONConfigurationTransfer) TargetENBID() (TargeteNBID, error) {
-	r := aper.NewReader(c)
+	r := per.NewReader(c)
 
-	if _, _, err := r.ReadSequencePreamble(true, 1); err != nil {
-		return TargeteNBID{}, fmt.Errorf("s1ap: SONConfigurationTransfer preamble: %w", err)
+	for range 2 { // extension bit + iE-Extensions presence bit
+		if _, err := r.ReadBit(); err != nil {
+			return TargeteNBID{}, fmt.Errorf("s1ap: SONConfigurationTransfer preamble: %w", err)
+		}
 	}
 
-	return decodeTargeteNBID(r)
+	var t TargeteNBID
+	if err := t.UnmarshalPER(r, per.Aligned); err != nil {
+		return TargeteNBID{}, err
+	}
+
+	return t, nil
 }
 
 // ENBConfigurationTransfer is the ENB CONFIGURATION TRANSFER message
@@ -47,20 +51,21 @@ type ENBConfigurationTransfer struct {
 // ParseENBConfigurationTransfer decodes the message from an initiatingMessage
 // open-type payload.
 func ParseENBConfigurationTransfer(value []byte) (*ENBConfigurationTransfer, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: ENBConfigurationTransfer preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -88,8 +93,8 @@ type MMEConfigurationTransfer struct {
 	unmodeledIEs
 }
 
-func (m *MMEConfigurationTransfer) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+func (m *MMEConfigurationTransfer) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	var fields []ieField
 
@@ -101,16 +106,18 @@ func (m *MMEConfigurationTransfer) encodeBody(w *aper.Writer) error {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
 func (m *MMEConfigurationTransfer) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcMMEConfigurationTransfer,

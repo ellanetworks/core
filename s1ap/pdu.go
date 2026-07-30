@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // S1AP-PDU CHOICE root alternatives (TS 36.413), in declaration order.
@@ -70,23 +70,28 @@ func Marshal(pdu PDU) ([]byte, error) {
 		return nil, fmt.Errorf("s1ap: nil PDU")
 	}
 
-	var w aper.Writer
+	w := per.NewWriter()
+	enc := per.Aligned
 
-	if err := w.WriteChoiceIndex(pdu.choiceIndex(), pduRootCount, true, false); err != nil {
+	w.WriteBit(false)
+
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, pduRootCount-1, int64(pdu.choiceIndex())); err != nil {
 		return nil, err
 	}
 
-	if err := w.WriteConstrainedInt(int64(pdu.procedureCode()), 0, 255); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 255, int64(pdu.procedureCode())); err != nil {
 		return nil, err
 	}
 
-	if err := w.WriteEnum(int(pdu.criticality()), criticalityRootCount, false, false); err != nil {
+	if err := per.EncodeEnumerated(w, enc, criticalityRootCount, false, int64(pdu.criticality())); err != nil {
 		return nil, err
 	}
 
-	if err := w.WriteOpenType(pdu.value()); err != nil {
+	if err := per.EncodeOpenTypeBytes(w, enc, pdu.value()); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return w.Bytes(), nil
 }
@@ -94,15 +99,20 @@ func Marshal(pdu PDU) ([]byte, error) {
 // Unmarshal decodes an S1AP-PDU envelope, returning the concrete message type
 // with its open-type payload in Value (decoded by the message layer).
 func Unmarshal(b []byte) (PDU, error) {
-	r := aper.NewReader(b)
+	r := per.NewReader(b)
 
-	idx, isExt, err := r.ReadChoiceIndex(pduRootCount, true)
+	isExt, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: PDU choice: %w", err)
 	}
 
 	if isExt {
 		return nil, fmt.Errorf("s1ap: unsupported S1AP-PDU extension alternative")
+	}
+
+	idx, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 0, pduRootCount-1)
+	if err != nil {
+		return nil, fmt.Errorf("s1ap: PDU choice: %w", err)
 	}
 
 	pc, crit, val, err := decodeMessageFields(r)
@@ -122,18 +132,20 @@ func Unmarshal(b []byte) (PDU, error) {
 	}
 }
 
-func decodeMessageFields(r *aper.Reader) (ProcedureCode, Criticality, []byte, error) {
-	pc, err := r.ReadConstrainedInt(0, 255)
+func decodeMessageFields(r *per.Reader) (ProcedureCode, Criticality, []byte, error) {
+	enc := per.Aligned
+
+	pc, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 255)
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("s1ap: procedureCode: %w", err)
 	}
 
-	crit, _, err := r.ReadEnum(criticalityRootCount, false)
+	crit, err := per.DecodeEnumerated(r, enc, criticalityRootCount, false)
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("s1ap: criticality: %w", err)
 	}
 
-	val, err := r.ReadOpenType()
+	val, err := per.DecodeOpenTypeBytes(r, enc)
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("s1ap: value: %w", err)
 	}

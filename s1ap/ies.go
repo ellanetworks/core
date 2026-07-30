@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // Container size bounds (TS 36.413, S1AP-Constants).
@@ -15,13 +15,15 @@ const (
 	maxProtocolExtensions = 65535
 )
 
-// ieField is one ProtocolIE-Field to encode: its id, criticality, and a
-// function that writes the value body. The engine wraps the body as an open
-// type.
+// ieField is one ProtocolIE-Field to encode: its id, criticality, and the
+// value. The engine wraps the value as an open type. Exactly one of val and
+// raw is set; raw carries the pre-encoded open-type content of an IE decoded
+// from the wire but not modeled, so it round-trips verbatim.
 type ieField struct {
 	id   ProtocolIEID
 	crit Criticality
-	enc  func(*aper.Writer) error
+	val  per.Marshaler
+	raw  []byte
 }
 
 // rawIE is a decoded ProtocolIE-Field: id, criticality, and the raw open-type
@@ -36,14 +38,7 @@ type rawIE struct {
 // field returns an ieField that re-emits this decoded IE verbatim, so unknown
 // IEs round-trip.
 func (e rawIE) field() ieField {
-	return ieField{
-		id:   e.id,
-		crit: e.crit,
-		enc: func(w *aper.Writer) error {
-			w.WriteOctets(e.value)
-			return nil
-		},
-	}
+	return ieField{id: e.id, crit: e.crit, raw: e.value}
 }
 
 // RawIE is an exported view of a ProtocolIE-Field the message layer does not
@@ -81,35 +76,43 @@ func (u unmodeledIEs) UnknownIEs() []RawIE {
 // encodeIEContainer writes a ProtocolIE-Container (TS 36.413): the field
 // count as a constrained length, then each ProtocolIE-Field as
 // { id, criticality, value-as-open-type } in order.
-func encodeIEContainer(w *aper.Writer, fields []ieField) error {
+func encodeIEContainer(w *per.Writer, enc per.Encoding, fields []ieField) error {
 	if len(fields) > maxProtocolIEs {
 		return fmt.Errorf("s1ap: %d IEs exceed maxProtocolIEs", len(fields))
 	}
 
-	if err := w.WriteConstrainedLength(len(fields), 0, maxProtocolIEs); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, maxProtocolIEs, int64(len(fields))); err != nil {
 		return err
 	}
 
 	for _, f := range fields {
-		if err := w.WriteConstrainedInt(int64(f.id), 0, maxProtocolIEs); err != nil {
+		if err := encodeContainerField(w, enc, f); err != nil {
 			return err
 		}
+	}
 
-		if err := w.WriteEnum(int(f.crit), criticalityRootCount, false, false); err != nil {
-			return err
-		}
+	return nil
+}
 
-		var vw aper.Writer
+func encodeContainerField(w *per.Writer, enc per.Encoding, f ieField) error {
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, maxProtocolIEs, int64(f.id)); err != nil {
+		return err
+	}
 
-		if f.enc != nil {
-			if err := f.enc(&vw); err != nil {
-				return fmt.Errorf("s1ap: encode IE %d: %w", f.id, err)
-			}
-		}
+	if err := per.EncodeEnumerated(w, enc, criticalityRootCount, false, int64(f.crit)); err != nil {
+		return err
+	}
 
-		if err := w.WriteOpenType(vw.Bytes()); err != nil {
-			return err
-		}
+	if f.raw != nil {
+		return per.EncodeOpenTypeBytes(w, enc, f.raw)
+	}
+
+	if f.val == nil {
+		return fmt.Errorf("s1ap: IE %d has no value", f.id)
+	}
+
+	if err := per.EncodeOpenType(w, enc, f.val); err != nil {
+		return fmt.Errorf("s1ap: encode IE %d: %w", f.id, err)
 	}
 
 	return nil
@@ -125,169 +128,104 @@ const maxnoofERABs = 256
 // list's ASN.1 SIZE bound; it is coincidental that the current lists share 256.
 //
 //nolint:unparam
-func encodeSingleContainerList(w *aper.Writer, ub int, id ProtocolIEID, crit Criticality, items []func(*aper.Writer) error) error {
-	if len(items) < 1 || len(items) > ub {
+func encodeSingleContainerList[T any](w *per.Writer, enc per.Encoding, ub int64, id ProtocolIEID, crit Criticality, items []T) error {
+	if len(items) < 1 || int64(len(items)) > ub {
 		return fmt.Errorf("s1ap: single-container list length %d outside [1, %d]", len(items), ub)
 	}
 
-	if err := w.WriteConstrainedLength(len(items), 1, ub); err != nil {
-		return err
-	}
+	off := 0
 
-	for _, enc := range items {
-		if err := w.WriteConstrainedInt(int64(id), 0, maxProtocolIEs); err != nil {
-			return err
+	return per.EncodeLength(w, enc, 1, ub, true, int64(len(items)), func(count int64) error {
+		end := off + int(count)
+		for i := off; i < end; i++ {
+			m, ok := any(&items[i]).(per.Marshaler)
+			if !ok {
+				return fmt.Errorf("s1ap: %T does not implement per.Marshaler", items[i])
+			}
+
+			if err := encodeContainerField(w, enc, ieField{id: id, crit: crit, val: m}); err != nil {
+				return err
+			}
 		}
 
-		if err := w.WriteEnum(int(crit), criticalityRootCount, false, false); err != nil {
-			return err
-		}
+		off = end
 
-		var vw aper.Writer
-
-		if err := enc(&vw); err != nil {
-			return err
-		}
-
-		if err := w.WriteOpenType(vw.Bytes()); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// decodeSingleContainerList reads a SEQUENCE (SIZE(1..ub)) OF
-// ProtocolIE-SingleContainer, returning the open-type value bytes of each item
-// for the caller to decode. ub is each list's ASN.1 SIZE bound; it is
-// coincidental that the current lists share 256.
-//
-//nolint:unparam
-func decodeSingleContainerList(r *aper.Reader, ub int) ([][]byte, error) {
-	n, err := r.ReadConstrainedLength(1, ub)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([][]byte, 0, min(n, 16))
-
-	for i := 0; i < n; i++ {
-		if _, err := r.ReadConstrainedInt(0, maxProtocolIEs); err != nil {
-			return nil, err
-		}
-
-		if _, _, err := r.ReadEnum(criticalityRootCount, false); err != nil {
-			return nil, err
-		}
-
-		val, err := r.ReadOpenType()
-		if err != nil {
-			return nil, err
-		}
-
-		out = append(out, val)
-	}
-
-	return out, nil
+		return nil
+	})
 }
 
 // decodeItemList reads a SEQUENCE (SIZE(1..ub)) OF ProtocolIE-SingleContainer
-// (TS 36.413). Each item is its own APER open type, so dec receives a
-// fresh reader over that item's octets and the open-type boundary stays here,
-// not at each call site.
-func decodeItemList[T any](r *aper.Reader, ub int, dec func(*aper.Reader) (T, error)) ([]T, error) {
-	raw, err := decodeSingleContainerList(r, ub)
+// (TS 36.413). Each item is its own APER open type, decoded with a fresh
+// reader over that item's octets, so the open-type boundary stays here, not at
+// each call site.
+//
+//nolint:unparam
+func decodeItemList[T any](r *per.Reader, enc per.Encoding, ub int64) ([]T, error) {
+	var items []T
+
+	err := per.DecodeLength(r, enc, 1, ub, true, func(count int64) error {
+		for i := int64(0); i < count; i++ {
+			if _, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs); err != nil {
+				return err
+			}
+
+			if _, err := per.DecodeEnumerated(r, enc, criticalityRootCount, false); err != nil {
+				return err
+			}
+
+			val, err := per.DecodeOpenTypeBytes(r, enc)
+			if err != nil {
+				return err
+			}
+
+			var item T
+
+			u, ok := any(&item).(per.Unmarshaler)
+			if !ok {
+				return fmt.Errorf("s1ap: %T does not implement per.Unmarshaler", item)
+			}
+
+			if err := u.UnmarshalPER(per.NewReader(val), enc); err != nil {
+				return err
+			}
+
+			items = append(items, item)
+		}
+
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	out := make([]T, 0, len(raw))
-
-	for _, b := range raw {
-		it, err := dec(aper.NewReader(b))
-		if err != nil {
-			return nil, err
-		}
-
-		out = append(out, it)
-	}
-
-	return out, nil
-}
-
-// encoderList adapts a slice of encodable items to the []func(*aper.Writer) error
-// that encodeSingleContainerList consumes.
-func encoderList[T interface{ encode(*aper.Writer) error }](items []T) []func(*aper.Writer) error {
-	out := make([]func(*aper.Writer) error, len(items))
-	for i := range items {
-		out[i] = items[i].encode
-	}
-
-	return out
-}
-
-// skipSequenceExtensions steps over a SEQUENCE's optional iE-Extensions
-// (ProtocolExtensionContainer) and extension additions when they are present but
-// not modeled (TS 36.413).
-func skipSequenceExtensions(r *aper.Reader, extContainer, extAdditions bool) error {
-	if extContainer {
-		if err := skipExtensionContainer(r); err != nil {
-			return err
-		}
-	}
-
-	if extAdditions {
-		return r.SkipExtensionAdditions()
-	}
-
-	return nil
+	return items, nil
 }
 
 // decodeIEContainer reads a ProtocolIE-Container into the fields in wire order,
 // preserving every field (including ids the caller does not model) for dispatch
 // by id.
-func decodeIEContainer(r *aper.Reader) ([]rawIE, error) {
-	n, err := r.ReadConstrainedLength(0, maxProtocolIEs)
+//
+//nolint:unparam
+func decodeIEContainer(r *per.Reader, enc per.Encoding) ([]rawIE, error) {
+	n, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs)
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: IE container length: %w", err)
 	}
 
-	return readContainerFields(r, n)
-}
-
-// skipExtensionContainer consumes a ProtocolExtensionContainer (TS 36.413)
-// and discards it. The container differs from a ProtocolIE-Container only in its
-// SIZE(1..maxProtocolExtensions) bound; its fields decode identically. Used to
-// step over the optional iE-Extensions of IEs whose extensions are not modeled.
-func skipExtensionContainer(r *aper.Reader) error {
-	n, err := r.ReadConstrainedLength(1, maxProtocolExtensions)
-	if err != nil {
-		return fmt.Errorf("s1ap: extension container length: %w", err)
-	}
-
-	_, err = readContainerFields(r, n)
-
-	return err
-}
-
-// readContainerFields reads n protocol-IE/extension fields in wire order. The
-// slice grows by append, so a corrupt count cannot force a large allocation:
-// the loop fails as soon as the input is exhausted.
-func readContainerFields(r *aper.Reader, n int) ([]rawIE, error) {
 	var fields []rawIE
 
-	for i := 0; i < n; i++ {
-		id, err := r.ReadConstrainedInt(0, maxProtocolIEs)
+	for i := int64(0); i < n; i++ {
+		id, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs)
 		if err != nil {
 			return nil, fmt.Errorf("s1ap: IE %d id: %w", i, err)
 		}
 
-		crit, _, err := r.ReadEnum(criticalityRootCount, false)
+		crit, err := per.DecodeEnumerated(r, enc, criticalityRootCount, false)
 		if err != nil {
 			return nil, fmt.Errorf("s1ap: IE %d criticality: %w", i, err)
 		}
 
-		val, err := r.ReadOpenType()
+		val, err := per.DecodeOpenTypeBytes(r, enc)
 		if err != nil {
 			return nil, fmt.Errorf("s1ap: IE %d value: %w", i, err)
 		}

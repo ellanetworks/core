@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // StatusTransferContainer holds the eNB Status Transfer Transparent Container
@@ -16,10 +16,7 @@ import (
 type StatusTransferContainer []byte
 
 func (c StatusTransferContainer) field(id ProtocolIEID) ieField {
-	return ieField{id: id, crit: CriticalityReject, enc: func(w *aper.Writer) error {
-		w.WriteOctets(c)
-		return nil
-	}}
+	return ieField{id: id, crit: CriticalityReject, raw: c}
 }
 
 // ENBStatusTransfer is the ENB STATUS TRANSFER message (TS 36.413 in
@@ -33,12 +30,12 @@ type ENBStatusTransfer struct {
 	unmodeledIEs
 }
 
-func (m *ENBStatusTransfer) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+func (m *ENBStatusTransfer) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
+		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
+		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
 		m.Container.field(idENBStatusTransferTransparentContainer),
 	}
 
@@ -46,16 +43,18 @@ func (m *ENBStatusTransfer) encodeBody(w *aper.Writer) error {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
 func (m *ENBStatusTransfer) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcENBStatusTransfer,
@@ -67,20 +66,21 @@ func (m *ENBStatusTransfer) Marshal() ([]byte, error) {
 // ParseENBStatusTransfer decodes the message from an initiatingMessage open-type
 // payload.
 func ParseENBStatusTransfer(value []byte) (*ENBStatusTransfer, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: ENBStatusTransfer preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -90,14 +90,12 @@ func ParseENBStatusTransfer(value []byte) (*ENBStatusTransfer, error) {
 	var seenMME, seenENB, seenContainer bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
 		switch f.id {
 		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
+			err = perIEDecode(f.value, &m.MMEUES1APID)
 			seenMME = true
 		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
+			err = perIEDecode(f.value, &m.ENBUES1APID)
 			seenENB = true
 		case idENBStatusTransferTransparentContainer:
 			m.Container = StatusTransferContainer(f.value)
@@ -129,12 +127,12 @@ type MMEStatusTransfer struct {
 	unmodeledIEs
 }
 
-func (m *MMEStatusTransfer) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+func (m *MMEStatusTransfer) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
+		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
+		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
 		m.Container.field(idENBStatusTransferTransparentContainer),
 	}
 
@@ -142,16 +140,18 @@ func (m *MMEStatusTransfer) encodeBody(w *aper.Writer) error {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
 func (m *MMEStatusTransfer) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcMMEStatusTransfer,
@@ -163,20 +163,21 @@ func (m *MMEStatusTransfer) Marshal() ([]byte, error) {
 // ParseMMEStatusTransfer decodes the message from an initiatingMessage open-type
 // payload.
 func ParseMMEStatusTransfer(value []byte) (*MMEStatusTransfer, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: MMEStatusTransfer preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -186,14 +187,12 @@ func ParseMMEStatusTransfer(value []byte) (*MMEStatusTransfer, error) {
 	var seenMME, seenENB, seenContainer bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
 		switch f.id {
 		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
+			err = perIEDecode(f.value, &m.MMEUES1APID)
 			seenMME = true
 		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
+			err = perIEDecode(f.value, &m.ENBUES1APID)
 			seenENB = true
 		case idENBStatusTransferTransparentContainer:
 			m.Container = StatusTransferContainer(f.value)

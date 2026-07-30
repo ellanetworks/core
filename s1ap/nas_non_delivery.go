@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // NASNonDeliveryIndication reports a downlink NAS-PDU the eNB could not deliver to
@@ -24,11 +24,13 @@ type NASNonDeliveryIndication struct {
 
 // Marshal encodes the NAS NON DELIVERY INDICATION as an initiating message (TS 36.413).
 func (m *NASNonDeliveryIndication) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcNASNonDeliveryIndication,
@@ -37,41 +39,42 @@ func (m *NASNonDeliveryIndication) Marshal() ([]byte, error) {
 	})
 }
 
-func (m *NASNonDeliveryIndication) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+func (m *NASNonDeliveryIndication) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	fields := []ieField{
 		// Assigned criticalities per TS 36.413 §9.1.7.4: MME/eNB-UE-S1AP-ID reject,
 		// NAS-PDU and Cause ignore.
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-		{id: idNASPDU, crit: CriticalityIgnore, enc: m.NASPDU.encode},
-		{id: idCause, crit: CriticalityIgnore, enc: m.Cause.encode},
+		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
+		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
+		{id: idNASPDU, crit: CriticalityIgnore, val: &m.NASPDU},
+		{id: idCause, crit: CriticalityIgnore, val: &m.Cause},
 	}
 
 	for _, e := range m.unknownIEs {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // ParseNASNonDeliveryIndication decodes a NAS NON DELIVERY INDICATION (TS 36.413).
 func ParseNASNonDeliveryIndication(value []byte) (*NASNonDeliveryIndication, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: NASNonDeliveryIndication preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -81,20 +84,18 @@ func ParseNASNonDeliveryIndication(value []byte) (*NASNonDeliveryIndication, err
 	var seenMME, seenENB, seenNAS, seenCause bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
 		switch f.id {
 		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
+			err = perIEDecode(f.value, &m.MMEUES1APID)
 			seenMME = true
 		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
+			err = perIEDecode(f.value, &m.ENBUES1APID)
 			seenENB = true
 		case idNASPDU:
-			m.NASPDU, err = decodeNASPDU(sub)
+			err = perIEDecode(f.value, &m.NASPDU)
 			seenNAS = true
 		case idCause:
-			m.Cause, err = decodeCause(sub)
+			err = perIEDecode(f.value, &m.Cause)
 			seenCause = true
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)

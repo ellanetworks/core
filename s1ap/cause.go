@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // CauseGroup selects a Cause CHOICE alternative (TS 36.413).
@@ -66,32 +66,54 @@ type Cause struct {
 	Extended bool
 }
 
-func (c Cause) encode(w *aper.Writer) error {
+func (c Cause) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	if int(c.Group) >= causeRootGroups {
 		return fmt.Errorf("s1ap: invalid cause group %d", c.Group)
 	}
 
-	if err := w.WriteChoiceIndex(int(c.Group), causeRootGroups, true, false); err != nil {
+	w.WriteBit(false)
+
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, causeRootGroups-1, int64(c.Group)); err != nil {
 		return err
 	}
 
-	return w.WriteEnum(c.Value, causeGroupRootCount[c.Group], true, c.Extended)
+	n := int64(causeGroupRootCount[c.Group])
+
+	idx := int64(c.Value)
+	if c.Extended {
+		idx += n
+	}
+
+	return per.EncodeEnumerated(w, enc, n, true, idx)
 }
 
-func decodeCause(r *aper.Reader) (Cause, error) {
-	gi, gExt, err := r.ReadChoiceIndex(causeRootGroups, true)
+func (c *Cause) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	gExt, err := r.ReadBit()
 	if err != nil {
-		return Cause{}, fmt.Errorf("s1ap: cause group: %w", err)
+		return err
 	}
 
 	if gExt {
-		return Cause{}, fmt.Errorf("s1ap: unsupported cause extension group")
+		return fmt.Errorf("s1ap: unsupported cause extension group")
 	}
 
-	vi, vExt, err := r.ReadEnum(causeGroupRootCount[gi], true)
+	gi, err := per.DecodeConstrainedWholeNumber(r, enc, 0, causeRootGroups-1)
 	if err != nil {
-		return Cause{}, fmt.Errorf("s1ap: cause value: %w", err)
+		return fmt.Errorf("s1ap: cause group: %w", err)
 	}
 
-	return Cause{Group: CauseGroup(gi), Value: vi, Extended: vExt}, nil
+	n := int64(causeGroupRootCount[gi])
+
+	idx, err := per.DecodeEnumerated(r, enc, n, true)
+	if err != nil {
+		return fmt.Errorf("s1ap: cause value: %w", err)
+	}
+
+	if idx >= n {
+		*c = Cause{Group: CauseGroup(gi), Value: int(idx - n), Extended: true}
+	} else {
+		*c = Cause{Group: CauseGroup(gi), Value: int(idx)}
+	}
+
+	return nil
 }

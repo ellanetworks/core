@@ -204,15 +204,15 @@ func (supportedTAIItem *SupportedTAIItem) UnmarshalPER(r *per.Reader, enc per.En
 }
 
 func (supportedTAList *SupportedTAList) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	off := 0
+	off0 := 0
 	if err := per.EncodeLength(w, enc, 1, 256, true, int64(len(supportedTAList.Items)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
+		end := off0 + int(count)
+		for i := off0; i < end; i++ {
 			if err := supportedTAList.Items[i].MarshalPER(w, enc); err != nil {
 				return err
 			}
 		}
-		off = end
+		off0 = end
 		return nil
 	}); err != nil {
 		return err

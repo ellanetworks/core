@@ -6,7 +6,7 @@ package s1ap
 import (
 	"testing"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // FuzzDecodeNoPanic asserts the envelope and container decoders never panic on
@@ -18,15 +18,15 @@ func FuzzDecodeNoPanic(f *testing.F) {
 	f.Add([]byte{0x20, 0x0a, 0x00, 0x00})
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		_, _ = decodeCause(aper.NewReader(data))
-		_, _ = decodeCriticalityDiagnostics(aper.NewReader(data))
+		_, _ = unmarshalPERValue[Cause](data)
+		_, _ = unmarshalPERValue[CriticalityDiagnostics](data)
 
 		pdu, err := Unmarshal(data)
 		if err != nil {
 			return
 		}
 
-		_, _ = decodeIEContainer(aper.NewReader(pdu.value()))
+		_, _ = decodeIEContainer(per.NewReader(pdu.value()), per.Aligned)
 		_, _ = ParseS1SetupRequest(pdu.value())
 		_, _ = ParseS1SetupResponse(pdu.value())
 		_, _ = ParseS1SetupFailure(pdu.value())

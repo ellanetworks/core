@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // S1SetupResponse is the S1 SETUP RESPONSE message (TS 36.413). An
@@ -21,44 +21,44 @@ type S1SetupResponse struct {
 	unmodeledIEs
 }
 
-func (m *S1SetupResponse) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+func (m *S1SetupResponse) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	var fields []ieField
 
 	if m.MMEName != "" {
 		name := m.MMEName
 
-		fields = append(fields, ieField{id: idMMEname, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeName(w, name)
-		}})
+		fields = append(fields, ieField{id: idMMEname, crit: CriticalityIgnore, val: Name(name)})
 	}
 
 	fields = append(fields,
-		ieField{id: idServedGUMMEIs, crit: CriticalityReject, enc: m.ServedGUMMEIs.encode},
-		ieField{id: idRelativeMMECapacity, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return w.WriteConstrainedInt(int64(m.RelativeMMECapacity), 0, 255)
-		}},
+		ieField{id: idServedGUMMEIs, crit: CriticalityReject, val: &m.ServedGUMMEIs},
+		ieField{id: idRelativeMMECapacity, crit: CriticalityIgnore, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+			return per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true}, int64(m.RelativeMMECapacity))
+		})},
 	)
 
 	if m.CriticalityDiagnostics != nil {
-		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, enc: m.CriticalityDiagnostics.encode})
+		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, val: m.CriticalityDiagnostics})
 	}
 
 	for _, e := range m.unknownIEs {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
 func (m *S1SetupResponse) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&SuccessfulOutcome{
 		ProcedureCode: ProcS1Setup,
@@ -70,20 +70,21 @@ func (m *S1SetupResponse) Marshal() ([]byte, error) {
 // ParseS1SetupResponse decodes an S1SetupResponse from the open-type payload of
 // a successfulOutcome.
 func ParseS1SetupResponse(value []byte) (*S1SetupResponse, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: S1SetupResponse preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -93,24 +94,25 @@ func ParseS1SetupResponse(value []byte) (*S1SetupResponse, error) {
 	var seenGUMMEIs, seenCapacity bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
 		switch f.id {
 		case idMMEname:
-			m.MMEName, err = decodeName(sub)
+			var n Name
+
+			err = perIEDecode(f.value, &n)
+			m.MMEName = string(n)
 		case idServedGUMMEIs:
-			m.ServedGUMMEIs, err = decodeServedGUMMEIs(sub)
+			err = perIEDecode(f.value, &m.ServedGUMMEIs)
 			seenGUMMEIs = true
 		case idRelativeMMECapacity:
 			var v int64
 
-			v, err = sub.ReadConstrainedInt(0, 255)
+			v, err = per.DecodeInteger(per.NewReader(f.value), enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true})
 			m.RelativeMMECapacity = uint8(v)
 			seenCapacity = true
 		case idCriticalityDiagnostics:
 			var cd CriticalityDiagnostics
 
-			cd, err = decodeCriticalityDiagnostics(sub)
+			err = perIEDecode(f.value, &cd)
 			m.CriticalityDiagnostics = &cd
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)

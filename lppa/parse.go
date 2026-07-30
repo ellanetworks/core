@@ -6,7 +6,7 @@ package lppa
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 const maxProtocolExtensions = 65535
@@ -71,9 +71,9 @@ func ParsePDU(b []byte) (*ParsedPDU, error) {
 // decodeMessageIEs reads an E-CID message SEQUENCE preamble and its
 // ProtocolIE-Container, returning the fields for id dispatch.
 func decodeMessageIEs(value []byte) ([]rawIE, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, _, err := readSeqPreamble(r, 0)
 	if err != nil {
 		return nil, fmt.Errorf("lppa: message preamble: %w", err)
 	}
@@ -84,7 +84,7 @@ func decodeMessageIEs(value []byte) ([]rawIE, error) {
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipExtensionAdditions(r); err != nil {
 			return nil, err
 		}
 	}
@@ -103,7 +103,7 @@ func parseRequest(value []byte) (*ECIDRequest, error) {
 	var seenID, seenReport, seenQuantities bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
+		sub := per.NewReader(f.value)
 
 		switch f.id {
 		case idESMLCUEMeasurementID:
@@ -112,7 +112,7 @@ func parseRequest(value []byte) (*ECIDRequest, error) {
 		case idReportCharacteristics:
 			var idx int
 
-			idx, _, err = sub.ReadEnum(reportCharacteristicsRootCount, true)
+			idx, err = decodeEnumInt(sub, reportCharacteristicsRootCount, true)
 			req.ReportCharacteristics = idx
 			seenReport = true
 		case idMeasurementQuantities:
@@ -132,36 +132,36 @@ func parseRequest(value []byte) (*ECIDRequest, error) {
 	return req, nil
 }
 
-func decodeMeasurementQuantities(r *aper.Reader) ([]MeasurementQuantityValue, error) {
-	n, err := r.ReadConstrainedLength(1, maxNoMeas)
+func decodeMeasurementQuantities(r *per.Reader) ([]MeasurementQuantityValue, error) {
+	n, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 1, maxNoMeas)
 	if err != nil {
 		return nil, err
 	}
 
 	out := make([]MeasurementQuantityValue, 0, n)
 
-	for i := 0; i < n; i++ {
-		if _, err := r.ReadConstrainedInt(0, maxProtocolIEs); err != nil {
+	for i := int64(0); i < n; i++ {
+		if _, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 0, maxProtocolIEs); err != nil {
 			return nil, err
 		}
 
-		if _, _, err := r.ReadEnum(criticalityRootCount, false); err != nil {
+		if _, err := per.DecodeEnumerated(r, per.Aligned, int64(criticalityRootCount), false); err != nil {
 			return nil, err
 		}
 
-		item, err := r.ReadOpenType()
+		item, err := per.DecodeOpenTypeBytes(r, per.Aligned)
 		if err != nil {
 			return nil, err
 		}
 
-		ir := aper.NewReader(item)
+		ir := per.NewReader(item)
 
-		extPresent, opt, err := ir.ReadSequencePreamble(true, 1)
+		extPresent, opt, err := readSeqPreamble(ir, 1)
 		if err != nil {
 			return nil, err
 		}
 
-		idx, _, err := ir.ReadEnum(measurementQuantityRootCount, true)
+		idx, err := decodeEnumInt(ir, measurementQuantityRootCount, true)
 		if err != nil {
 			return nil, err
 		}
@@ -187,7 +187,7 @@ func parseResponse(value []byte) (*ECIDResponse, error) {
 	var seenESMLC, seenENB bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
+		sub := per.NewReader(f.value)
 
 		switch f.id {
 		case idESMLCUEMeasurementID:
@@ -217,8 +217,8 @@ func parseResponse(value []byte) (*ECIDResponse, error) {
 	return resp, nil
 }
 
-func decodeMeasurementResult(r *aper.Reader) (*ECIDResult, error) {
-	extPresent, opt, err := r.ReadSequencePreamble(true, 2)
+func decodeMeasurementResult(r *per.Reader) (*ECIDResult, error) {
+	extPresent, opt, err := readSeqPreamble(r, 2)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +230,7 @@ func decodeMeasurementResult(r *aper.Reader) (*ECIDResult, error) {
 		return nil, err
 	}
 
-	res.ServingCellTAC, err = r.ReadOctetString(2, 2, false)
+	res.ServingCellTAC, err = per.DecodeOctetString(r, per.Aligned, 2, 2, true, true, false)
 	if err != nil {
 		return nil, err
 	}
@@ -255,18 +255,18 @@ func decodeMeasurementResult(r *aper.Reader) (*ECIDResult, error) {
 	return res, nil
 }
 
-func decodeECGI(r *aper.Reader) (ECGI, error) {
-	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
+func decodeECGI(r *per.Reader) (ECGI, error) {
+	extPresent, opt, err := readSeqPreamble(r, 1)
 	if err != nil {
 		return ECGI{}, err
 	}
 
-	plmn, err := r.ReadOctetString(3, 3, false)
+	plmn, err := per.DecodeOctetString(r, per.Aligned, 3, 3, true, true, false)
 	if err != nil {
 		return ECGI{}, err
 	}
 
-	bits, _, err := r.ReadBitString(28, 28, false)
+	bits, _, err := per.DecodeBitString(r, per.Aligned, 28, 28, true, true, false)
 	if err != nil {
 		return ECGI{}, err
 	}
@@ -278,30 +278,30 @@ func decodeECGI(r *aper.Reader) (ECGI, error) {
 	return ECGI{PLMNIdentity: plmn, EUTRACellID: bitsToUint(bits, 28)}, nil
 }
 
-func decodeAPPosition(r *aper.Reader) (*APPosition, error) {
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+func decodeAPPosition(r *per.Reader) (*APPosition, error) {
+	extPresent, _, err := readSeqPreamble(r, 0)
 	if err != nil {
 		return nil, err
 	}
 
 	p := &APPosition{}
 
-	latSign, _, err := r.ReadEnum(2, false)
+	latSign, err := decodeEnumInt(r, 2, false)
 	if err != nil {
 		return nil, err
 	}
 
 	p.LatitudeSign = latSign
 
-	if p.Latitude, err = r.ReadConstrainedInt(0, 8388607); err != nil {
+	if p.Latitude, err = per.DecodeInteger(r, per.Aligned, per.Bounds{LB: 0, HasLB: true, UB: 8388607, HasUB: true}); err != nil {
 		return nil, err
 	}
 
-	if p.Longitude, err = r.ReadConstrainedInt(-8388608, 8388607); err != nil {
+	if p.Longitude, err = per.DecodeInteger(r, per.Aligned, per.Bounds{LB: -8388608, HasLB: true, UB: 8388607, HasUB: true}); err != nil {
 		return nil, err
 	}
 
-	dirAlt, _, err := r.ReadEnum(2, false)
+	dirAlt, err := decodeEnumInt(r, 2, false)
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +319,7 @@ func decodeAPPosition(r *aper.Reader) (*APPosition, error) {
 		{&p.UncertaintyAltitude, 0, 127},
 		{&p.Confidence, 0, 100},
 	} {
-		if *dst.p, err = r.ReadConstrainedInt(dst.lb, dst.ub); err != nil {
+		if *dst.p, err = per.DecodeConstrainedWholeNumber(r, per.Aligned, dst.lb, dst.ub); err != nil {
 			return nil, err
 		}
 	}
@@ -347,20 +347,25 @@ func apToDegrees(p *APPosition) (lat, lon float64) {
 	return lat, lon
 }
 
-func decodeMeasuredResults(r *aper.Reader, res *ECIDResult) error {
-	n, err := r.ReadConstrainedLength(1, maxNoMeas)
+func decodeMeasuredResults(r *per.Reader, res *ECIDResult) error {
+	n, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 1, maxNoMeas)
 	if err != nil {
 		return err
 	}
 
-	for i := 0; i < n; i++ {
-		idx, isExt, err := r.ReadChoiceIndex(measuredResultsRootCount, true)
+	for i := int64(0); i < n; i++ {
+		isExt, err := r.ReadBit()
+		if err != nil {
+			return err
+		}
+
+		idx, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 0, measuredResultsRootCount-1)
 		if err != nil {
 			return err
 		}
 
 		if isExt {
-			if _, err := r.ReadOpenType(); err != nil {
+			if _, err := per.DecodeOpenTypeBytes(r, per.Aligned); err != nil {
 				return err
 			}
 
@@ -369,21 +374,21 @@ func decodeMeasuredResults(r *aper.Reader, res *ECIDResult) error {
 
 		switch idx {
 		case 0:
-			v, err := r.ReadConstrainedInt(0, 719)
+			v, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 0, 719)
 			if err != nil {
 				return err
 			}
 
 			res.AngleOfArrival = &v
 		case 1:
-			v, err := r.ReadConstrainedInt(0, 7690)
+			v, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 0, 7690)
 			if err != nil {
 				return err
 			}
 
 			res.TimingAdvanceType1 = &v
 		case 2:
-			v, err := r.ReadConstrainedInt(0, 7690)
+			v, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 0, 7690)
 			if err != nil {
 				return err
 			}
@@ -405,16 +410,16 @@ func decodeMeasuredResults(r *aper.Reader, res *ECIDResult) error {
 	return nil
 }
 
-func decodeResultRSRP(r *aper.Reader) ([]RSRPItem, error) {
-	n, err := r.ReadConstrainedLength(1, maxCellReport)
+func decodeResultRSRP(r *per.Reader) ([]RSRPItem, error) {
+	n, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 1, maxCellReport)
 	if err != nil {
 		return nil, err
 	}
 
 	out := make([]RSRPItem, 0, n)
 
-	for i := 0; i < n; i++ {
-		extPresent, opt, err := r.ReadSequencePreamble(true, 2)
+	for i := int64(0); i < n; i++ {
+		extPresent, opt, err := readSeqPreamble(r, 2)
 		if err != nil {
 			return nil, err
 		}
@@ -452,16 +457,16 @@ func decodeResultRSRP(r *aper.Reader) ([]RSRPItem, error) {
 	return out, nil
 }
 
-func decodeResultRSRQ(r *aper.Reader) ([]RSRQItem, error) {
-	n, err := r.ReadConstrainedLength(1, maxCellReport)
+func decodeResultRSRQ(r *per.Reader) ([]RSRQItem, error) {
+	n, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 1, maxCellReport)
 	if err != nil {
 		return nil, err
 	}
 
 	out := make([]RSRQItem, 0, n)
 
-	for i := 0; i < n; i++ {
-		extPresent, opt, err := r.ReadSequencePreamble(true, 2)
+	for i := int64(0); i < n; i++ {
+		extPresent, opt, err := readSeqPreamble(r, 2)
 		if err != nil {
 			return nil, err
 		}
@@ -510,7 +515,7 @@ func parseFailure(value []byte) (*ECIDFailure, error) {
 	var seenID, seenCause bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
+		sub := per.NewReader(f.value)
 
 		switch f.id {
 		case idESMLCUEMeasurementID:
@@ -544,7 +549,7 @@ func parseFailureIndication(value []byte) (*ECIDFailureIndication, error) {
 	var seenESMLC, seenENB, seenCause bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
+		sub := per.NewReader(f.value)
 
 		switch f.id {
 		case idESMLCUEMeasurementID:
@@ -581,7 +586,7 @@ func parseTermination(value []byte) (*ECIDTermination, error) {
 	var seenESMLC, seenENB bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
+		sub := per.NewReader(f.value)
 
 		switch f.id {
 		case idESMLCUEMeasurementID:
@@ -604,14 +609,19 @@ func parseTermination(value []byte) (*ECIDTermination, error) {
 	return term, nil
 }
 
-func decodeCause(r *aper.Reader) (Cause, error) {
-	grp, isExt, err := r.ReadChoiceIndex(causeRootCount, true)
+func decodeCause(r *per.Reader) (Cause, error) {
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return Cause{}, err
+	}
+
+	grp, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 0, causeRootCount-1)
 	if err != nil {
 		return Cause{}, err
 	}
 
 	if isExt {
-		if _, err := r.ReadOpenType(); err != nil {
+		if _, err := per.DecodeOpenTypeBytes(r, per.Aligned); err != nil {
 			return Cause{}, err
 		}
 
@@ -620,7 +630,7 @@ func decodeCause(r *aper.Reader) (Cause, error) {
 
 	group := CauseGroup(grp)
 
-	val, _, err := r.ReadEnum(causeGroupNRoot(group), true)
+	val, err := decodeEnumInt(r, causeGroupNRoot(group), true)
 	if err != nil {
 		return Cause{}, err
 	}
@@ -631,7 +641,7 @@ func decodeCause(r *aper.Reader) (Cause, error) {
 // skipSequenceTail steps over a SEQUENCE's optional iE-Extensions container (when
 // present) and any extension additions (when present) that this codec does not
 // model.
-func skipSequenceTail(r *aper.Reader, extContainer, extAdditions bool) error {
+func skipSequenceTail(r *per.Reader, extContainer, extAdditions bool) error {
 	if extContainer {
 		if err := skipExtensionContainer(r); err != nil {
 			return err
@@ -639,7 +649,7 @@ func skipSequenceTail(r *aper.Reader, extContainer, extAdditions bool) error {
 	}
 
 	if extAdditions {
-		return r.SkipExtensionAdditions()
+		return skipExtensionAdditions(r)
 	}
 
 	return nil
@@ -647,22 +657,22 @@ func skipSequenceTail(r *aper.Reader, extContainer, extAdditions bool) error {
 
 // skipExtensionContainer consumes a ProtocolExtensionContainer and discards it
 // (TS 36.455 §9.3.4).
-func skipExtensionContainer(r *aper.Reader) error {
-	n, err := r.ReadConstrainedLength(1, maxProtocolExtensions)
+func skipExtensionContainer(r *per.Reader) error {
+	n, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 1, maxProtocolExtensions)
 	if err != nil {
 		return fmt.Errorf("lppa: extension container length: %w", err)
 	}
 
-	for i := 0; i < n; i++ {
-		if _, err := r.ReadConstrainedInt(0, maxProtocolIEs); err != nil {
+	for i := int64(0); i < n; i++ {
+		if _, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 0, maxProtocolIEs); err != nil {
 			return err
 		}
 
-		if _, _, err := r.ReadEnum(criticalityRootCount, false); err != nil {
+		if _, err := per.DecodeEnumerated(r, per.Aligned, int64(criticalityRootCount), false); err != nil {
 			return err
 		}
 
-		if _, err := r.ReadOpenType(); err != nil {
+		if _, err := per.DecodeOpenTypeBytes(r, per.Aligned); err != nil {
 			return err
 		}
 	}

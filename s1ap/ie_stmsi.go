@@ -6,7 +6,7 @@ package s1ap
 import (
 	"encoding/binary"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // STMSI is the S-TMSI IE (TS 36.413): the MME Code plus the M-TMSI that
@@ -22,38 +22,46 @@ type STMSI struct {
 	MTMSI uint32
 }
 
-func (s STMSI) encode(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, []bool{false})
+func (s STMSI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
 
-	if err := w.WriteOctetString([]byte{s.MMEC}, 1, 1, false); err != nil {
+	if err := per.EncodeOctetString(w, enc, 1, 1, true, true, false, []byte{s.MMEC}); err != nil {
 		return err
 	}
 
 	var mtmsi [4]byte
 	binary.BigEndian.PutUint32(mtmsi[:], s.MTMSI)
 
-	return w.WriteOctetString(mtmsi[:], 4, 4, false)
+	return per.EncodeOctetString(w, enc, 4, 4, true, true, false, mtmsi[:])
 }
 
-func decodeSTMSI(r *aper.Reader) (STMSI, error) {
-	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
+func (s *STMSI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
 	if err != nil {
-		return STMSI{}, err
+		return err
 	}
 
-	mmec, err := r.ReadOctetString(1, 1, false)
+	extContainer, err := r.ReadBit()
 	if err != nil {
-		return STMSI{}, err
+		return err
 	}
 
-	mtmsi, err := r.ReadOctetString(4, 4, false)
+	mmec, err := per.DecodeOctetString(r, enc, 1, 1, true, true, false)
 	if err != nil {
-		return STMSI{}, err
+		return err
 	}
 
-	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
-		return STMSI{}, err
+	mtmsi, err := per.DecodeOctetString(r, enc, 4, 4, true, true, false)
+	if err != nil {
+		return err
 	}
 
-	return STMSI{MMEC: mmec[0], MTMSI: binary.BigEndian.Uint32(mtmsi)}, nil
+	if err := skipSequenceExtensionsPER(r, enc, extContainer, extBit); err != nil {
+		return err
+	}
+
+	*s = STMSI{MMEC: mmec[0], MTMSI: binary.BigEndian.Uint32(mtmsi)}
+
+	return nil
 }

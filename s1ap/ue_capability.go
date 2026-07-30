@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // UECapabilityInfoIndication is the UE CAPABILITY INFO INDICATION message
@@ -22,37 +22,39 @@ type UECapabilityInfoIndication struct {
 	unmodeledIEs
 }
 
-func (m *UECapabilityInfoIndication) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+func (m *UECapabilityInfoIndication) encodeBody(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-		{id: idUERadioCapability, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return w.WriteOctetString(m.UERadioCapability, 0, aper.Unbounded, false)
-		}},
+		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
+		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
+		{id: idUERadioCapability, crit: CriticalityIgnore, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+			return per.EncodeOctetString(w, enc, 0, 0, true, false, false, m.UERadioCapability)
+		})},
 	}
 
 	if m.UERadioCapabilityForPaging != nil {
-		fields = append(fields, ieField{id: idUERadioCapabilityForPaging, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return w.WriteOctetString(m.UERadioCapabilityForPaging, 0, aper.Unbounded, false)
-		}})
+		fields = append(fields, ieField{id: idUERadioCapabilityForPaging, crit: CriticalityIgnore, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+			return per.EncodeOctetString(w, enc, 0, 0, true, false, false, m.UERadioCapabilityForPaging)
+		})})
 	}
 
 	for _, e := range m.unknownIEs {
 		fields = append(fields, e.field())
 	}
 
-	return encodeIEContainer(w, fields)
+	return encodeIEContainer(w, enc, fields)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
 func (m *UECapabilityInfoIndication) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcUECapabilityInfoIndication,
@@ -64,20 +66,21 @@ func (m *UECapabilityInfoIndication) Marshal() ([]byte, error) {
 // ParseUECapabilityInfoIndication decodes the message from an initiatingMessage
 // open-type payload.
 func ParseUECapabilityInfoIndication(value []byte) (*UECapabilityInfoIndication, error) {
-	r := aper.NewReader(value)
+	r := per.NewReader(value)
+	enc := per.Aligned
 
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
+	extPresent, err := r.ReadBit()
 	if err != nil {
 		return nil, fmt.Errorf("s1ap: UECapabilityInfoIndication preamble: %w", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
 		return nil, err
 	}
 
 	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
+		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
 			return nil, err
 		}
 	}
@@ -87,20 +90,18 @@ func ParseUECapabilityInfoIndication(value []byte) (*UECapabilityInfoIndication,
 	var seenMME, seenENB, seenCap bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
 		switch f.id {
 		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
+			err = perIEDecode(f.value, &m.MMEUES1APID)
 			seenMME = true
 		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
+			err = perIEDecode(f.value, &m.ENBUES1APID)
 			seenENB = true
 		case idUERadioCapability:
-			m.UERadioCapability, err = sub.ReadOctetString(0, aper.Unbounded, false)
+			m.UERadioCapability, err = per.DecodeOctetString(per.NewReader(f.value), enc, 0, 0, true, false, false)
 			seenCap = true
 		case idUERadioCapabilityForPaging:
-			m.UERadioCapabilityForPaging, err = sub.ReadOctetString(0, aper.Unbounded, false)
+			m.UERadioCapabilityForPaging, err = per.DecodeOctetString(per.NewReader(f.value), enc, 0, 0, true, false, false)
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)
 		}

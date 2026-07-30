@@ -890,15 +890,15 @@ func (additionalPathElementR14 *AdditionalPathElementR14) UnmarshalPER(r *per.Re
 }
 
 func (additionalPathListR14 *AdditionalPathListR14) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	off := 0
+	off0 := 0
 	if err := per.EncodeLength(w, enc, 1, 8, true, int64(len(additionalPathListR14.List)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
+		end := off0 + int(count)
+		for i := off0; i < end; i++ {
 			if err := additionalPathListR14.List[i].MarshalPER(w, enc); err != nil {
 				return err
 			}
 		}
-		off = end
+		off0 = end
 		return nil
 	}); err != nil {
 		return err
@@ -2524,15 +2524,15 @@ func (eCIDSignalMeasurementInformation *ECIDSignalMeasurementInformation) Marsha
 			return err
 		}
 	}
-	off := 0
+	off1 := 0
 	if err := per.EncodeLength(w, enc, 1, 32, true, int64(len(eCIDSignalMeasurementInformation.MeasuredResultsList)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
+		end := off1 + int(count)
+		for i := off1; i < end; i++ {
 			if err := eCIDSignalMeasurementInformation.MeasuredResultsList[i].MarshalPER(w, enc); err != nil {
 				return err
 			}
 		}
-		off = end
+		off1 = end
 		return nil
 	}); err != nil {
 		return err
@@ -2906,15 +2906,15 @@ func (ePDUIdentifier *EPDUIdentifier) UnmarshalPER(r *per.Reader, enc per.Encodi
 }
 
 func (ePDUSequence *EPDUSequence) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	off := 0
+	off0 := 0
 	if err := per.EncodeLength(w, enc, 1, 16, true, int64(len(ePDUSequence.List)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
+		end := off0 + int(count)
+		for i := off0; i < end; i++ {
 			if err := ePDUSequence.List[i].MarshalPER(w, enc); err != nil {
 				return err
 			}
 		}
-		off = end
+		off0 = end
 		return nil
 	}); err != nil {
 		return err
@@ -3744,15 +3744,15 @@ func (gNSSError *GNSSError) UnmarshalPER(r *per.Reader, enc per.Encoding) error 
 }
 
 func (gNSSGenericAssistData *GNSSGenericAssistData) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	off := 0
+	off0 := 0
 	if err := per.EncodeLength(w, enc, 1, 16, true, int64(len(gNSSGenericAssistData.List)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
+		end := off0 + int(count)
+		for i := off0; i < end; i++ {
 			if err := gNSSGenericAssistData.List[i].MarshalPER(w, enc); err != nil {
 				return err
 			}
 		}
-		off = end
+		off0 = end
 		return nil
 	}); err != nil {
 		return err
@@ -3991,15 +3991,15 @@ func (gNSSGenericAssistDataElement *GNSSGenericAssistDataElement) UnmarshalPER(r
 }
 
 func (gNSSGenericAssistDataReq *GNSSGenericAssistDataReq) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	off := 0
+	off0 := 0
 	if err := per.EncodeLength(w, enc, 1, 16, true, int64(len(gNSSGenericAssistDataReq.List)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
+		end := off0 + int(count)
+		for i := off0; i < end; i++ {
 			if err := gNSSGenericAssistDataReq.List[i].MarshalPER(w, enc); err != nil {
 				return err
 			}
 		}
-		off = end
+		off0 = end
 		return nil
 	}); err != nil {
 		return err
@@ -5026,15 +5026,15 @@ func (gNSSReferenceTime *GNSSReferenceTime) MarshalPER(w *per.Writer, enc per.En
 		}
 	}
 	if gNSSReferenceTime.GnssReferenceTimeForCells != nil {
-		off := 0
+		off2 := 0
 		if err := per.EncodeLength(w, enc, 0, 0, false, int64(len((*gNSSReferenceTime.GnssReferenceTimeForCells))), func(count int64) error {
-			end := off + int(count)
-			for i := off; i < end; i++ {
+			end := off2 + int(count)
+			for i := off2; i < end; i++ {
 				if err := (*gNSSReferenceTime.GnssReferenceTimeForCells)[i].MarshalPER(w, enc); err != nil {
 					return err
 				}
 			}
-			off = end
+			off2 = end
 			return nil
 		}); err != nil {
 			return err
@@ -5185,15 +5185,15 @@ func (gNSSReferenceTimeForOneCell *GNSSReferenceTimeForOneCell) UnmarshalPER(r *
 func (gNSSReferenceTimeReq *GNSSReferenceTimeReq) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(gNSSReferenceTimeReq.GPSTOWAssistReq != nil)
-	off := 0
+	off0 := 0
 	if err := per.EncodeLength(w, enc, 1, 8, true, int64(len(gNSSReferenceTimeReq.GNSSTimeReqPrefList)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
+		end := off0 + int(count)
+		for i := off0; i < end; i++ {
 			if err := gNSSReferenceTimeReq.GNSSTimeReqPrefList[i].MarshalPER(w, enc); err != nil {
 				return err
 			}
 		}
-		off = end
+		off0 = end
 		return nil
 	}); err != nil {
 		return err
@@ -5365,15 +5365,15 @@ func (gNSSSignalMeasurementInformation *GNSSSignalMeasurementInformation) Marsha
 	if err := gNSSSignalMeasurementInformation.MeasurementReferenceTime.MarshalPER(w, enc); err != nil {
 		return err
 	}
-	off := 0
+	off1 := 0
 	if err := per.EncodeLength(w, enc, 1, 16, true, int64(len(gNSSSignalMeasurementInformation.GNSSMeasurementList)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
+		end := off1 + int(count)
+		for i := off1; i < end; i++ {
 			if err := gNSSSignalMeasurementInformation.GNSSMeasurementList[i].MarshalPER(w, enc); err != nil {
 				return err
 			}
 		}
-		off = end
+		off1 = end
 		return nil
 	}); err != nil {
 		return err
@@ -5531,15 +5531,15 @@ func (gNSSSupportElement *GNSSSupportElement) UnmarshalPER(r *per.Reader, enc pe
 }
 
 func (gNSSSupportList *GNSSSupportList) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	off := 0
+	off0 := 0
 	if err := per.EncodeLength(w, enc, 1, 16, true, int64(len(gNSSSupportList.List)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
+		end := off0 + int(count)
+		for i := off0; i < end; i++ {
 			if err := gNSSSupportList.List[i].MarshalPER(w, enc); err != nil {
 				return err
 			}
 		}
-		off = end
+		off0 = end
 		return nil
 	}); err != nil {
 		return err
@@ -6753,15 +6753,15 @@ func (locationInformationType *LocationInformationType) UnmarshalPER(r *per.Read
 }
 
 func (mcc *Mcc) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	off := 0
+	off0 := 0
 	if err := per.EncodeLength(w, enc, 1, 3, true, int64(len(mcc.List)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
+		end := off0 + int(count)
+		for i := off0; i < end; i++ {
 			if err := mcc.List[i].MarshalPER(w, enc); err != nil {
 				return err
 			}
 		}
-		off = end
+		off0 = end
 		return nil
 	}); err != nil {
 		return err
@@ -7201,15 +7201,15 @@ func (measurementReferenceTime *MeasurementReferenceTime) UnmarshalPER(r *per.Re
 }
 
 func (mnc *Mnc) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	off := 0
+	off0 := 0
 	if err := per.EncodeLength(w, enc, 1, 3, true, int64(len(mnc.List)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
+		end := off0 + int(count)
+		for i := off0; i < end; i++ {
 			if err := mnc.List[i].MarshalPER(w, enc); err != nil {
 				return err
 			}
 		}
-		off = end
+		off0 = end
 		return nil
 	}); err != nil {
 		return err
@@ -7878,15 +7878,15 @@ func (neighbourMeasurementElementNBR14 *NeighbourMeasurementElementNBR14) Unmars
 }
 
 func (neighbourMeasurementListNBR14 *NeighbourMeasurementListNBR14) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	off := 0
+	off0 := 0
 	if err := per.EncodeLength(w, enc, 1, 24, true, int64(len(neighbourMeasurementListNBR14.List)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
+		end := off0 + int(count)
+		for i := off0; i < end; i++ {
 			if err := neighbourMeasurementListNBR14.List[i].MarshalPER(w, enc); err != nil {
 				return err
 			}
 		}
-		off = end
+		off0 = end
 		return nil
 	}); err != nil {
 		return err
@@ -8236,15 +8236,15 @@ func (oTDOANeighbourCellInfoElement *OTDOANeighbourCellInfoElement) MarshalPER(w
 		}
 	}
 	if oTDOANeighbourCellInfoElement.AddPRSconfigNeighbourR14 != nil {
-		off := 0
+		off16 := 0
 		if err := per.EncodeLength(w, enc, 0, 0, false, int64(len((*oTDOANeighbourCellInfoElement.AddPRSconfigNeighbourR14))), func(count int64) error {
-			end := off + int(count)
-			for i := off; i < end; i++ {
+			end := off16 + int(count)
+			for i := off16; i < end; i++ {
 				if err := (*oTDOANeighbourCellInfoElement.AddPRSconfigNeighbourR14)[i].MarshalPER(w, enc); err != nil {
 					return err
 				}
 			}
-			off = end
+			off16 = end
 			return nil
 		}); err != nil {
 			return err
@@ -8487,15 +8487,15 @@ func (oTDOANeighbourCellInfoElement *OTDOANeighbourCellInfoElement) UnmarshalPER
 }
 
 func (oTDOANeighbourCellInfoList *OTDOANeighbourCellInfoList) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	off := 0
+	off0 := 0
 	if err := per.EncodeLength(w, enc, 1, 2, true, int64(len(oTDOANeighbourCellInfoList.List)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
+		end := off0 + int(count)
+		for i := off0; i < end; i++ {
 			if err := oTDOANeighbourCellInfoList.List[i].MarshalPER(w, enc); err != nil {
 				return err
 			}
 		}
-		off = end
+		off0 = end
 		return nil
 	}); err != nil {
 		return err
@@ -8521,15 +8521,15 @@ func (oTDOANeighbourCellInfoList *OTDOANeighbourCellInfoList) UnmarshalPER(r *pe
 }
 
 func (oTDOANeighbourCellInfoListNBR14 *OTDOANeighbourCellInfoListNBR14) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	off := 0
+	off0 := 0
 	if err := per.EncodeLength(w, enc, 1, 72, true, int64(len(oTDOANeighbourCellInfoListNBR14.List)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
+		end := off0 + int(count)
+		for i := off0; i < end; i++ {
 			if err := oTDOANeighbourCellInfoListNBR14.List[i].MarshalPER(w, enc); err != nil {
 				return err
 			}
 		}
-		off = end
+		off0 = end
 		return nil
 	}); err != nil {
 		return err
@@ -8835,15 +8835,15 @@ func (oTDOANeighbourCellInfoNBR14 *OTDOANeighbourCellInfoNBR14) UnmarshalPER(r *
 }
 
 func (oTDOANeighbourFreqInfo *OTDOANeighbourFreqInfo) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	off := 0
+	off0 := 0
 	if err := per.EncodeLength(w, enc, 1, 24, true, int64(len(oTDOANeighbourFreqInfo.List)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
+		end := off0 + int(count)
+		for i := off0; i < end; i++ {
 			if err := oTDOANeighbourFreqInfo.List[i].MarshalPER(w, enc); err != nil {
 				return err
 			}
 		}
-		off = end
+		off0 = end
 		return nil
 	}); err != nil {
 		return err
@@ -9256,15 +9256,15 @@ func (oTDOAReferenceCellInfo *OTDOAReferenceCellInfo) MarshalPER(w *per.Writer, 
 		}
 	}
 	if oTDOAReferenceCellInfo.AddPRSconfigRefR14 != nil {
-		off := 0
+		off11 := 0
 		if err := per.EncodeLength(w, enc, 0, 0, false, int64(len((*oTDOAReferenceCellInfo.AddPRSconfigRefR14))), func(count int64) error {
-			end := off + int(count)
-			for i := off; i < end; i++ {
+			end := off11 + int(count)
+			for i := off11; i < end; i++ {
 				if err := (*oTDOAReferenceCellInfo.AddPRSconfigRefR14)[i].MarshalPER(w, enc); err != nil {
 					return err
 				}
 			}
-			off = end
+			off11 = end
 			return nil
 		}); err != nil {
 			return err
@@ -10055,15 +10055,15 @@ func (oTDOASignalMeasurementInformation *OTDOASignalMeasurementInformation) Mars
 			return err
 		}
 	}
-	off := 0
+	off5 := 0
 	if err := per.EncodeLength(w, enc, 1, 24, true, int64(len(oTDOASignalMeasurementInformation.NeighbourMeasurementList)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
+		end := off5 + int(count)
+		for i := off5; i < end; i++ {
 			if err := oTDOASignalMeasurementInformation.NeighbourMeasurementList[i].MarshalPER(w, enc); err != nil {
 				return err
 			}
 		}
-		off = end
+		off5 = end
 		return nil
 	}); err != nil {
 		return err
@@ -10329,15 +10329,15 @@ func (oTDOASignalMeasurementInformationNBR14 *OTDOASignalMeasurementInformationN
 			return err
 		}
 	}
-	off := 0
+	off5 := 0
 	if err := per.EncodeLength(w, enc, 1, 24, true, int64(len(oTDOASignalMeasurementInformationNBR14.NeighbourMeasurementListNB)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
+		end := off5 + int(count)
+		for i := off5; i < end; i++ {
 			if err := oTDOASignalMeasurementInformationNBR14.NeighbourMeasurementListNB[i].MarshalPER(w, enc); err != nil {
 				return err
 			}
 		}
-		off = end
+		off5 = end
 		return nil
 	}); err != nil {
 		return err
@@ -10641,15 +10641,15 @@ func (pRSInfo *PRSInfo) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 }
 
 func (pRSInfoNBR14 *PRSInfoNBR14) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	off := 0
+	off0 := 0
 	if err := per.EncodeLength(w, enc, 1, 5, true, int64(len(pRSInfoNBR14.List)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
+		end := off0 + int(count)
+		for i := off0; i < end; i++ {
 			if err := pRSInfoNBR14.List[i].MarshalPER(w, enc); err != nil {
 				return err
 			}
 		}
-		off = end
+		off0 = end
 		return nil
 	}); err != nil {
 		return err
@@ -10820,15 +10820,15 @@ func (periodicalReportingCriteriaExt *PeriodicalReportingCriteriaExt) UnmarshalP
 }
 
 func (polygon *Polygon) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	off := 0
+	off0 := 0
 	if err := per.EncodeLength(w, enc, 3, 15, true, int64(len(polygon.List)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
+		end := off0 + int(count)
+		for i := off0; i < end; i++ {
 			if err := polygon.List[i].MarshalPER(w, enc); err != nil {
 				return err
 			}
 		}
-		off = end
+		off0 = end
 		return nil
 	}); err != nil {
 		return err

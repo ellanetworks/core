@@ -7,7 +7,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // erabModIndicationWire builds an E-RAB MODIFICATION INDICATION initiatingMessage
@@ -15,22 +15,22 @@ import (
 func erabModIndicationWire(t *testing.T, items []ERABToBeModifiedItemBearerModInd) []byte {
 	t.Helper()
 
-	var w aper.Writer
+	w := per.NewWriter()
 
-	w.WriteSequencePreamble(true, false, nil)
+	w.WriteBit(false)
 
-	err := encodeIEContainer(&w, []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: MMEUES1APID(1).encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: ENBUES1APID(2).encode},
-		{id: idERABToBeModifiedListBearerModInd, crit: CriticalityReject, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABToBeModifiedItemBearerModInd, CriticalityReject, encoderList(items))
-		}},
+	err := encodeIEContainer(w, per.Aligned, []ieField{
+		{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
+		{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(2)},
+		{id: idERABToBeModifiedListBearerModInd, crit: CriticalityReject, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+			return encodeSingleContainerList(w, enc, maxnoofERABs, idERABToBeModifiedItemBearerModInd, CriticalityReject, items)
+		})},
 	})
 	if err != nil {
 		t.Fatalf("encode indication: %v", err)
 	}
 
-	return w.Bytes()
+	return perBytes(w)
 }
 
 func TestERABModificationIndication_Decode(t *testing.T) {
@@ -62,19 +62,19 @@ func TestERABModificationIndication_Decode(t *testing.T) {
 }
 
 func TestERABModificationIndication_MissingMandatoryIE(t *testing.T) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	w.WriteSequencePreamble(true, false, nil)
+	w.WriteBit(false)
 
 	// Only the UE IDs, no E-RABToBeModified list (mandatory).
-	if err := encodeIEContainer(&w, []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: MMEUES1APID(1).encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: ENBUES1APID(2).encode},
+	if err := encodeIEContainer(w, per.Aligned, []ieField{
+		{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
+		{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(2)},
 	}); err != nil {
 		t.Fatalf("encode: %v", err)
 	}
 
-	if _, err := ParseERABModificationIndication(w.Bytes()); err == nil {
+	if _, err := ParseERABModificationIndication(perBytes(w)); err == nil {
 		t.Fatal("expected error for missing E-RABToBeModified list, got nil")
 	}
 }
@@ -96,12 +96,12 @@ func TestERABModificationConfirm_Marshal(t *testing.T) {
 	}
 
 	// The confirm body must carry the E-RABModifyListBearerModConf IE.
-	r := aper.NewReader(so.Value)
-	if _, _, err := r.ReadSequencePreamble(true, 0); err != nil {
+	r := per.NewReader(so.Value)
+	if _, err := r.ReadBit(); err != nil {
 		t.Fatalf("body preamble: %v", err)
 	}
 
-	fields, err := decodeIEContainer(r)
+	fields, err := decodeIEContainer(r, per.Aligned)
 	if err != nil {
 		t.Fatalf("decode container: %v", err)
 	}

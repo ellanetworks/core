@@ -9,7 +9,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/s1ap/aper"
 )
 
 // Aligned-PER codecs for leaf types whose Go shape differs from their wire
@@ -252,22 +251,103 @@ func (*ieExtensions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-// perIE adapts a per-based Marshaler to the aper-based IE engine. An IE value
-// is an open type, so it always starts at an octet boundary; the complete
-// aligned-PER encoding produced here is byte-identical to encoding the value
-// in place.
-func perIE(m per.Marshaler) func(*aper.Writer) error {
-	return func(w *aper.Writer) error {
-		pw := per.NewWriter()
-		if err := m.MarshalPER(pw, per.Aligned); err != nil {
+// skipSequenceExtensionsPER steps over a SEQUENCE's optional unmodeled
+// iE-Extensions container and its extension additions when present, for
+// hand-written per decoders (the pergen-generated equivalent of the same
+// skipping is emitted inline).
+func skipSequenceExtensionsPER(r *per.Reader, enc per.Encoding, extContainer, extAdditions bool) error {
+	if extContainer {
+		var e ieExtensions
+		if err := e.UnmarshalPER(r, enc); err != nil {
 			return err
 		}
+	}
 
-		pw.AlignToByte()
-		w.WriteOctets(pw.Bytes())
-
+	if !extAdditions {
 		return nil
 	}
+
+	var present []bool
+
+	err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+		present = make([]bool, count)
+		for i := range present {
+			b, err := r.ReadBit()
+			if err != nil {
+				return err
+			}
+
+			present[i] = b
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, p := range present {
+		if p {
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// marshalSeqOf encodes a SEQUENCE (SIZE(lb..ub)) OF items, delegating to each
+// item's MarshalPER via its pointer.
+func marshalSeqOf[T any](w *per.Writer, enc per.Encoding, lb, ub int64, items []T) error {
+	off := 0
+
+	return per.EncodeLength(w, enc, lb, ub, true, int64(len(items)), func(count int64) error {
+		end := off + int(count)
+		for i := off; i < end; i++ {
+			m, ok := any(&items[i]).(per.Marshaler)
+			if !ok {
+				return fmt.Errorf("s1ap: %T does not implement per.Marshaler", items[i])
+			}
+
+			if err := m.MarshalPER(w, enc); err != nil {
+				return err
+			}
+		}
+
+		off = end
+
+		return nil
+	})
+}
+
+// unmarshalSeqOf decodes a SEQUENCE (SIZE(lb..ub)) OF items, delegating to
+// each item's UnmarshalPER via its pointer.
+func unmarshalSeqOf[T any](r *per.Reader, enc per.Encoding, lb, ub int64) ([]T, error) {
+	var items []T
+
+	err := per.DecodeLength(r, enc, lb, ub, true, func(count int64) error {
+		start := len(items)
+		items = append(items, make([]T, count)...)
+
+		for i := int64(0); i < count; i++ {
+			u, ok := any(&items[start+int(i)]).(per.Unmarshaler)
+			if !ok {
+				return fmt.Errorf("s1ap: %T does not implement per.Unmarshaler", items[start+int(i)])
+			}
+
+			if err := u.UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return items, nil
 }
 
 // perIEDecode decodes an IE's open-type value bytes with a per-based
