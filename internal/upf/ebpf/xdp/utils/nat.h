@@ -211,7 +211,7 @@ static __always_inline bool are_five_tuple_equal(struct five_tuple a,
 // lookup key and part of what has to be translated.
 static __always_inline struct nat_entry *
 nat_translate_icmp_quote(struct five_tuple *key, struct packet_context *ctx,
-		      __u32 outer_daddr)
+			 __u32 outer_daddr)
 {
 	struct iphdr *ip4;
 	struct udphdr *udp;
@@ -270,7 +270,7 @@ nat_translate_icmp_quote(struct five_tuple *key, struct packet_context *ctx,
 			ctx->icmp->checksum, key->saddr, ip4->saddr);
 		udp->source = nat_entry->peer.sport;
 		if (udp->source != key->sport) {
-					ctx->icmp->checksum = ipv4_csum_update_u16(
+			ctx->icmp->checksum = ipv4_csum_update_u16(
 				ctx->icmp->checksum, key->sport, udp->source);
 		}
 		if (udp->check != 0) {
@@ -314,7 +314,8 @@ nat_translate_icmp_quote(struct five_tuple *key, struct packet_context *ctx,
 				ctx->icmp->checksum, key->sport, tcp->source);
 		}
 		struct tcphdr *tcp_full = detect_tcp_check(ctx, offset);
-		if (tcp_full && (const void *)((__u8 *)tcp_full + 18) <= msg_end) {
+		if (tcp_full &&
+		    (const void *)((__u8 *)tcp_full + 18) <= msg_end) {
 			__u16 previous_tcp_csum = tcp_full->check;
 			tcp_full->check = ipv4_csum_update_u32(
 				tcp_full->check, key->saddr, ip4->saddr);
@@ -623,7 +624,8 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 			}
 		}
 
-		struct nat_entry *nat_cur = bpf_map_lookup_elem(&nat_ct, &mapped);
+		struct nat_entry *nat_cur =
+			bpf_map_lookup_elem(&nat_ct, &mapped);
 		if (nat_cur) {
 			if (!are_five_tuple_equal(nat_cur->peer, orig)) {
 				// The NAT-side tuple was reserved by another
@@ -635,8 +637,8 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 			NAT_WRITE_ONCE(nat_cur->refresh_ts, now);
 		} else {
 			// NOEXIST: another flow may hold this reservation.
-			if (0 != bpf_map_update_elem(&nat_ct, &mapped, &nat_side,
-						     BPF_NOEXIST)) {
+			if (0 != bpf_map_update_elem(&nat_ct, &mapped,
+						     &nat_side, BPF_NOEXIST)) {
 				struct nat_entry *other =
 					bpf_map_lookup_elem(&nat_ct, &mapped);
 				if (!other ||
@@ -661,8 +663,8 @@ allocate:;
 	// A successful BPF_NOEXIST insert is the atomic port reservation across
 	// CPUs.
 	bool reserved = false;
-	if (0 == bpf_map_update_elem(&nat_ct, &natted, &nat_side,
-				     BPF_NOEXIST)) {
+	if (0 ==
+	    bpf_map_update_elem(&nat_ct, &natted, &nat_side, BPF_NOEXIST)) {
 		reserved = true;
 	} else {
 		// The tuple may already belong to this flow: its UE-side entry
@@ -722,8 +724,8 @@ allocate:;
 
 // origin is the NAT-side entry stored under nat_key; its peer tuple keys the
 // UE-side entry.
-static __always_inline void nat_ct_mark_replied(const struct five_tuple *nat_key,
-						struct nat_entry *origin)
+static __always_inline void
+nat_ct_mark_replied(const struct five_tuple *nat_key, struct nat_entry *origin)
 {
 	__u64 now = bpf_ktime_get_ns();
 
@@ -762,6 +764,81 @@ struct nat_xlate {
 	bool has_l4_id;
 };
 
+/* TC variant of destination_nat_apply: all checksum deltas go through
+ * ctx_l4_csum_replace so every ip_summed state is handled (the IPv4 header
+ * checksum is software-only and stays direct arithmetic). Field writes come
+ * first; the helper calls invalidate packet pointers, so the caller must
+ * re-derive them after. */
+static __always_inline void
+destination_nat_apply_csum_helpers(struct packet_context *ctx,
+				   const struct nat_xlate *x)
+{
+	void *data = ctx_data(ctx->ctx_buff);
+	const __u32 old_daddr = ctx->ip4->daddr;
+
+	ctx->ip4->daddr = x->daddr;
+	ctx->ip4->check =
+		ipv4_csum_update_u32(ctx->ip4->check, old_daddr, x->daddr);
+
+	__u32 csum_off;
+	__u16 old_id;
+	bool id_change;
+	__u64 flags = 0;
+
+	switch (x->proto) {
+	case IPPROTO_TCP:
+		if (!ctx->tcp) {
+			return;
+		}
+		csum_off = (__u32)((__u8 *)&ctx->tcp->check - (__u8 *)data);
+		old_id = ctx->tcp->dest;
+		id_change = x->has_l4_id && old_id != x->l4_id;
+		if (id_change) {
+			ctx->tcp->dest = x->l4_id;
+		}
+		break;
+	case IPPROTO_UDP:
+		if (!ctx->udp) {
+			return;
+		}
+		csum_off = (__u32)((__u8 *)&ctx->udp->check - (__u8 *)data);
+		old_id = ctx->udp->dest;
+		id_change = x->has_l4_id && old_id != x->l4_id;
+		if (x->has_l4_id) {
+			ctx->udp->dest = x->l4_id;
+		}
+		/* Zero means "no checksum" in IPv4 UDP (RFC 768): the helper
+		 * skips a zero field and mangles a zero result. */
+		flags = BPF_F_MARK_MANGLED_0;
+		break;
+	case IPPROTO_ICMP:
+		if (!ctx->icmp) {
+			return;
+		}
+		csum_off = (__u32)((__u8 *)&ctx->icmp->checksum - (__u8 *)data);
+		old_id = ctx->icmp->un.echo.id;
+		id_change = x->has_l4_id && old_id != x->l4_id;
+		if (id_change) {
+			ctx->icmp->un.echo.id = x->l4_id;
+		}
+		break;
+	default:
+		return;
+	}
+
+	/* The ICMP checksum has no pseudo-header, so the address delta does
+	 * not enter it. */
+	if (x->proto != IPPROTO_ICMP) {
+		ctx_l4_csum_replace(ctx->ctx_buff, csum_off, old_daddr,
+				    x->daddr, 4 | BPF_F_PSEUDO_HDR | flags);
+	}
+
+	if (id_change) {
+		ctx_l4_csum_replace(ctx->ctx_buff, csum_off, old_id, x->l4_id,
+				    2 | flags);
+	}
+}
+
 // Rewrites the destination the lookup resolved, and nothing else.
 static __always_inline void destination_nat_apply(struct packet_context *ctx,
 						  const struct nat_xlate *x)
@@ -770,11 +847,16 @@ static __always_inline void destination_nat_apply(struct packet_context *ctx,
 		return;
 	}
 
+	if (CTX_L4_CSUM_VIA_HELPERS) {
+		destination_nat_apply_csum_helpers(ctx, x);
+		return;
+	}
+
 	const __u32 old_daddr = ctx->ip4->daddr;
 
 	ctx->ip4->daddr = x->daddr;
-	ctx->ip4->check = ipv4_csum_update_u32(ctx->ip4->check, old_daddr,
-					       x->daddr);
+	ctx->ip4->check =
+		ipv4_csum_update_u32(ctx->ip4->check, old_daddr, x->daddr);
 
 	switch (x->proto) {
 	case IPPROTO_TCP:

@@ -54,9 +54,8 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 	upf_printk("upf: preparing fragmention needed error");
 	if (ctx->ip4->protocol < 0) {
 		upf_printk("upf: packet was not IPv4");
-		ctx->statistics
-			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_ABORTED;
 	}
 	ctx->statistics->packet_counters.rx++;
@@ -64,14 +63,14 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 		// Don't Fragment is not set, drop the packet
 		upf_printk("upf: DF not set, dropping: %04X",
 			   ctx->ip4->frag_off);
-		ctx->statistics
-			->xdp_actions[CTX_ACT_DROP & EUPF_MAX_XDP_ACTION_MASK] += 1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_DROP) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_DROP;
 	}
 
 	int adj_size = sizeof(struct icmphdr) + sizeof(struct iphdr);
 
-	int incoming_vlan = vlan_to_insert(ctx);
+	int incoming_vlan = CTX_INBAND_VLAN ? vlan_to_insert(ctx) : 0;
 	if (!ctx->vlan && incoming_vlan) {
 		adj_size += sizeof(struct vlan_hdr);
 	}
@@ -79,9 +78,8 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 	int ret = ctx_prepend(ctx->ctx_buff, adj_size);
 	if (ret < 0) {
 		upf_printk("upf: could not adjust head");
-		ctx->statistics
-			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_ABORTED;
 	}
 
@@ -92,9 +90,8 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 	if (((const void *)(ctx->eth) > data_end) ||
 	    ((const void *)(ctx->eth + 1) > data_end)) {
 		upf_printk("upf: could not find original eth header");
-		ctx->statistics
-			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_ABORTED;
 	}
 	ctx->vlan = NULL;
@@ -105,17 +102,15 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 	}
 	if (ctx->vlan && (const void *)(ctx->vlan + 1) > data_end) {
 		upf_printk("upf: could not find original vlan header");
-		ctx->statistics
-			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_ABORTED;
 	}
 	if (((const void *)(ctx->ip4) > data_end) ||
 	    ((const void *)(ctx->ip4 + 1) > data_end)) {
 		upf_printk("upf: could not find original ip header");
-		ctx->statistics
-			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_ABORTED;
 	}
 
@@ -123,9 +118,8 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 
 	if ((const void *)(new_eth + 1) > data_end) {
 		upf_printk("upf: could not write new eth header");
-		ctx->statistics
-			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_ABORTED;
 	}
 
@@ -137,9 +131,8 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 
 	if ((const void *)(new_ip + 1) > data_end) {
 		upf_printk("upf: could not write new ip header");
-		ctx->statistics
-			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_ABORTED;
 	}
 
@@ -147,18 +140,18 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 		struct vlan_hdr *new_vlan = (struct vlan_hdr *)(new_eth + 1);
 		if ((const void *)(new_vlan + 1) > data_end) {
 			upf_printk("upf: could not write new vlan header");
-			ctx->statistics->xdp_actions[CTX_ACT_ABORTED &
-						     EUPF_MAX_XDP_ACTION_MASK] +=
-				1;
+			ctx->statistics
+				->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					      EUPF_MAX_XDP_ACTION_MASK] += 1;
 			return CTX_ACT_ABORTED;
 		}
 
 		new_ip = (struct iphdr *)(new_vlan + 1);
 		if ((const void *)(new_ip + 1) > data_end) {
 			upf_printk("upf: could not write new ip header");
-			ctx->statistics->xdp_actions[CTX_ACT_ABORTED &
-						     EUPF_MAX_XDP_ACTION_MASK] +=
-				1;
+			ctx->statistics
+				->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					      EUPF_MAX_XDP_ACTION_MASK] += 1;
 			return CTX_ACT_ABORTED;
 		}
 
@@ -187,9 +180,8 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 	struct icmphdr *new_icmp = (struct icmphdr *)(new_ip + 1);
 	if ((const void *)(new_icmp + 1) > data_end) {
 		upf_printk("upf: could not write new icmp header");
-		ctx->statistics
-			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_ABORTED;
 	}
 	new_icmp->type = ICMP_DEST_UNREACH;
@@ -204,9 +196,8 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 	}
 	if ((data + icmp_pkt_size) > data_end) {
 		upf_printk("upf: could not write new icmp header");
-		ctx->statistics
-			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_ABORTED;
 	}
 	recompute_icmp_csum(new_icmp,
@@ -219,15 +210,18 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 				   adj_size);
 			upf_printk("upf: pkt_size: %d", pkt_size);
 			upf_printk("upf: icmp_pkt_size: %X", icmp_pkt_size);
-			ctx->statistics->xdp_actions[CTX_ACT_ABORTED &
-						     EUPF_MAX_XDP_ACTION_MASK] +=
-				1;
+			ctx->statistics
+				->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					      EUPF_MAX_XDP_ACTION_MASK] += 1;
 			return CTX_ACT_ABORTED;
 		}
 	}
 	upf_printk("upf: sending fragmentation needed error");
-	enum ctx_action action = ctx_tx_back(ctx->ctx_buff);
-	ctx->statistics->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
+	enum ctx_action action =
+		ctx_tx_back(ctx->ctx_buff,
+			    egress_vlan_id(ctx_ingress_ifindex(ctx->ctx_buff)));
+	ctx->statistics->xdp_actions[ctx_stat_action(action) &
+				     EUPF_MAX_XDP_ACTION_MASK] += 1;
 	return action;
 }
 
@@ -254,16 +248,15 @@ send_packet_too_big(struct packet_context *ctx, __be16 mtu)
 	/* Space to prepend: new ICMPv6 header + new outer IPv6 header */
 	int adj_size = (int)(sizeof(struct icmp6hdr) + sizeof(struct ipv6hdr));
 
-	int incoming_vlan = vlan_to_insert(ctx);
+	int incoming_vlan = CTX_INBAND_VLAN ? vlan_to_insert(ctx) : 0;
 	if (!ctx->vlan && incoming_vlan)
 		adj_size += (int)sizeof(struct vlan_hdr);
 
 	int ret = ctx_prepend(ctx->ctx_buff, adj_size);
 	if (ret < 0) {
 		upf_printk("upf: could not adjust head");
-		ctx->statistics
-			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_ABORTED;
 	}
 
@@ -275,9 +268,8 @@ send_packet_too_big(struct packet_context *ctx, __be16 mtu)
 	struct ethhdr *orig_eth = (struct ethhdr *)(data + adj_size);
 	if (((const void *)orig_eth > data_end) ||
 	    ((const void *)(orig_eth + 1) > data_end)) {
-		ctx->statistics
-			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_ABORTED;
 	}
 
@@ -287,26 +279,24 @@ send_packet_too_big(struct packet_context *ctx, __be16 mtu)
 	if (orig_eth->h_proto == bpf_htons(ETH_P_8021Q)) {
 		ctx->vlan = (struct vlan_hdr *)(orig_eth + 1);
 		if ((const void *)(ctx->vlan + 1) > data_end) {
-			ctx->statistics->xdp_actions[CTX_ACT_ABORTED &
-						     EUPF_MAX_XDP_ACTION_MASK] +=
-				1;
+			ctx->statistics
+				->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					      EUPF_MAX_XDP_ACTION_MASK] += 1;
 			return CTX_ACT_ABORTED;
 		}
 		orig_ip6 = (struct ipv6hdr *)(ctx->vlan + 1);
 	}
 	if ((const void *)(orig_ip6 + 1) > data_end) {
-		ctx->statistics
-			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_ABORTED;
 	}
 
 	/* --- Write new Ethernet header at data --- */
 	struct ethhdr *new_eth = (struct ethhdr *)data;
 	if ((const void *)(new_eth + 1) > data_end) {
-		ctx->statistics
-			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_ABORTED;
 	}
 	__builtin_memcpy(new_eth->h_dest, orig_eth->h_source, ETH_ALEN);
@@ -318,9 +308,9 @@ send_packet_too_big(struct packet_context *ctx, __be16 mtu)
 	if (incoming_vlan) {
 		struct vlan_hdr *new_vlan = (struct vlan_hdr *)(new_eth + 1);
 		if ((const void *)(new_vlan + 1) > data_end) {
-			ctx->statistics->xdp_actions[CTX_ACT_ABORTED &
-						     EUPF_MAX_XDP_ACTION_MASK] +=
-				1;
+			ctx->statistics
+				->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					      EUPF_MAX_XDP_ACTION_MASK] += 1;
 			return CTX_ACT_ABORTED;
 		}
 		if (ctx->vlan) {
@@ -336,9 +326,8 @@ send_packet_too_big(struct packet_context *ctx, __be16 mtu)
 		new_ip6 = (struct ipv6hdr *)(new_vlan + 1);
 	}
 	if ((const void *)(new_ip6 + 1) > data_end) {
-		ctx->statistics
-			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_ABORTED;
 	}
 
@@ -361,9 +350,8 @@ send_packet_too_big(struct packet_context *ctx, __be16 mtu)
 	/* --- Write ICMPv6 Packet Too Big header --- */
 	struct icmp6hdr *new_icmp6 = (struct icmp6hdr *)(new_ip6 + 1);
 	if ((const void *)(new_icmp6 + 1) > data_end) {
-		ctx->statistics
-			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_ABORTED;
 	}
 	new_icmp6->icmp6_type = ICMPV6_PKT_TOOBIG;
@@ -373,9 +361,8 @@ send_packet_too_big(struct packet_context *ctx, __be16 mtu)
 
 	/* Verify the full ICMPv6 message (header + payload) is in bounds */
 	if ((const void *)((void *)new_icmp6 + icmp6_msg_len) > data_end) {
-		ctx->statistics
-			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_ABORTED;
 	}
 
@@ -391,18 +378,22 @@ send_packet_too_big(struct packet_context *ctx, __be16 mtu)
 		eth_hdr_len + (int)sizeof(struct ipv6hdr) + icmp6_msg_len;
 	int pkt_size = (int)ctx_len_from(ctx->ctx_buff, data_end, data);
 	if (pkt_size != icmp_pkt_size) {
-		if (ctx_adjust_tail(ctx->ctx_buff, icmp_pkt_size - pkt_size) < 0) {
+		if (ctx_adjust_tail(ctx->ctx_buff, icmp_pkt_size - pkt_size) <
+		    0) {
 			upf_printk("upf: could not adjust tail for PTB");
-			ctx->statistics->xdp_actions[CTX_ACT_ABORTED &
-						     EUPF_MAX_XDP_ACTION_MASK] +=
-				1;
+			ctx->statistics
+				->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					      EUPF_MAX_XDP_ACTION_MASK] += 1;
 			return CTX_ACT_ABORTED;
 		}
 	}
 
 	upf_printk("upf: sending packet too big error");
-	enum ctx_action action = ctx_tx_back(ctx->ctx_buff);
-	ctx->statistics->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
+	enum ctx_action action =
+		ctx_tx_back(ctx->ctx_buff,
+			    egress_vlan_id(ctx_ingress_ifindex(ctx->ctx_buff)));
+	ctx->statistics->xdp_actions[ctx_stat_action(action) &
+				     EUPF_MAX_XDP_ACTION_MASK] += 1;
 	return action;
 }
 
@@ -431,6 +422,7 @@ static __always_inline enum ctx_action frag_needed(struct packet_context *ctx,
 		return frag_needed_ipv4(ctx, mtu);
 	if (ctx->ip6)
 		return send_packet_too_big(ctx, mtu);
-	ctx->statistics->xdp_actions[CTX_ACT_DROP & EUPF_MAX_XDP_ACTION_MASK] += 1;
+	ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_DROP) &
+				     EUPF_MAX_XDP_ACTION_MASK] += 1;
 	return CTX_ACT_DROP;
 }

@@ -83,7 +83,8 @@ static __always_inline bool source_allowed(struct packet_context *ctx,
 		struct in6_addr *owner =
 			bpf_map_lookup_elem(&framed_downlink_ip6, &fk);
 		/* /64: owner is a /64 downlink key, robust even if ue_ipv6 is a full address */
-		return owner && match_ipv6_prefix(owner, 64, &pdr->ue_ipv6) == 1;
+		return owner &&
+		       match_ipv6_prefix(owner, 64, &pdr->ue_ipv6) == 1;
 	}
 
 	return false;
@@ -133,9 +134,8 @@ handle_gtp_packet(struct packet_context *ctx)
 				 -decap_size, 0);
 	PROFILE_END(PROF_N3_MTU_CHECK);
 	if (ret < 0) {
-		ctx->statistics
-			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_ABORTED;
 	}
 	if (ret > 0) {
@@ -161,8 +161,9 @@ handle_gtp_packet(struct packet_context *ctx)
 
 	const __u64 packet_size =
 		ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->data);
-	if (CTX_ACT_DROP == limit_rate_sliding_window(packet_size, &qer->ul_start,
-						  qer->ul_maximum_bitrate)) {
+	if (CTX_ACT_DROP ==
+	    limit_rate_sliding_window(packet_size, &qer->ul_start,
+				      qer->ul_maximum_bitrate)) {
 		PROFILE_END(PROF_N3_QER_RATELIMIT);
 		return CTX_ACT_DROP;
 	}
@@ -289,9 +290,9 @@ handle_gtp_packet(struct packet_context *ctx)
 		PROFILE_END(PROF_N3_SDF_FILTER);
 		if (sdf_verdict == CTX_ACT_DROP) {
 			upf_printk("upf: uplink SDF drop teid:%d", teid);
-			ctx->statistics->xdp_actions[CTX_ACT_DROP &
-						     EUPF_MAX_XDP_ACTION_MASK] +=
-				1;
+			ctx->statistics
+				->xdp_actions[ctx_stat_action(CTX_ACT_DROP) &
+					      EUPF_MAX_XDP_ACTION_MASK] += 1;
 			account_flow(ctx, n6_ifindex, pdr->imsi,
 				     ctx->ip4 ? IPV4 : IPV6, DROP);
 			return CTX_ACT_DROP;

@@ -38,11 +38,6 @@
 #include "xdp/utils/profiling.h"
 #include "xdp/utils/trace.h"
 
-volatile const int n3_ifindex;
-volatile const int n3_ifindex = 0;
-volatile const int n6_ifindex;
-volatile const int n6_ifindex = 0;
-
 struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(key, 0);
@@ -102,9 +97,11 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 	 * the packet originates from the injection veth.
 	 */
 	if (trust_fib) {
-		__builtin_memcpy(ctx->eth->h_source, fib_params->smac, ETH_ALEN);
+		__builtin_memcpy(ctx->eth->h_source, fib_params->smac,
+				 ETH_ALEN);
 		__builtin_memcpy(ctx->eth->h_dest, fib_params->dmac, ETH_ALEN);
-		return ctx_redirect_out(fib_params->ifindex);
+		return ctx_redirect_out(ctx->ctx_buff, fib_params->ifindex,
+					egress_vlan_id(fib_params->ifindex));
 	}
 
 	__u32 expected_ifindex;
@@ -140,8 +137,10 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 	}
 
 	if (expected_ifindex == ctx_ingress_ifindex(ctx->ctx_buff))
-		return ctx_tx_back(ctx->ctx_buff);
-	return ctx_redirect_out(expected_ifindex);
+		return ctx_tx_back(ctx->ctx_buff,
+				   egress_vlan_id(expected_ifindex));
+	return ctx_redirect_out(ctx->ctx_buff, expected_ifindex,
+				egress_vlan_id(expected_ifindex));
 }
 
 static __always_inline enum ctx_action
@@ -149,9 +148,11 @@ do_route_ipv6(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 	      struct route_stat *statistic, bool trust_fib)
 {
 	if (trust_fib) {
-		__builtin_memcpy(ctx->eth->h_source, fib_params->smac, ETH_ALEN);
+		__builtin_memcpy(ctx->eth->h_source, fib_params->smac,
+				 ETH_ALEN);
 		__builtin_memcpy(ctx->eth->h_dest, fib_params->dmac, ETH_ALEN);
-		return ctx_redirect_out(fib_params->ifindex);
+		return ctx_redirect_out(ctx->ctx_buff, fib_params->ifindex,
+					egress_vlan_id(fib_params->ifindex));
 	}
 
 	__u32 expected_ifindex;
@@ -178,10 +179,12 @@ do_route_ipv6(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 
 	if (expected_ifindex == ctx_ingress_ifindex(ctx->ctx_buff) &&
 	    expected_ifindex != 0)
-		return ctx_tx_back(ctx->ctx_buff);
+		return ctx_tx_back(ctx->ctx_buff,
+				   egress_vlan_id(expected_ifindex));
 	upf_printk("upf: bpf_redirect: if=%d %lu -> %lu", fib_params->ifindex,
 		   fib_params->smac, fib_params->dmac);
-	return ctx_redirect_out(fib_params->ifindex);
+	return ctx_redirect_out(ctx->ctx_buff, fib_params->ifindex,
+				egress_vlan_id(fib_params->ifindex));
 }
 
 static __always_inline enum ctx_action route_ipv4(struct packet_context *ctx,

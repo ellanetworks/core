@@ -8,8 +8,14 @@
 #include <linux/pkt_cls.h>
 #include <linux/types.h>
 #include <bpf/bpf_helpers.h>
+#include <bpf/bpf_endian.h>
 
 #define __ctx_buff __sk_buff
+
+/* Datapath program section: SCHED_CLS with the BPF_TCX_INGRESS attach type
+ * (cilium/ebpf resolves the "tcx/ingress" prefix; the bare "tc"/"classifier"
+ * names carry attach type 0). */
+#define CTX_DP_SEC(name) SEC("tcx/ingress/" name)
 
 /* Bytes made linear and writable ahead of parsing and direct header writes.
  * Covers the deepest write: Ethernet (14) + VLAN (4) + IPv4 with options (60)
@@ -54,7 +60,8 @@ static __always_inline __u64 ctx_full_len(struct __ctx_buff *ctx)
  * frags included; `data_end` is unused here but keeps one call shape across
  * both contexts. */
 static __always_inline __u64 ctx_len_from(struct __ctx_buff *ctx,
-					  const void *data_end, const void *from)
+					  const void *data_end,
+					  const void *from)
 {
 	return ctx->len - (__u64)(from - (const void *)(long)ctx->data);
 }
@@ -62,6 +69,12 @@ static __always_inline __u64 ctx_len_from(struct __ctx_buff *ctx,
 static __always_inline __u32 ctx_ingress_ifindex(struct __ctx_buff *ctx)
 {
 	return ctx->ingress_ifindex;
+}
+
+/* Segment count of a GSO super-frame (0 or 1 for wire-sized frames). */
+static __always_inline __u32 ctx_gso_segs(struct __ctx_buff *ctx)
+{
+	return ctx->gso_segs;
 }
 
 /* True when the frame holds `len` bytes starting at `from` — frags included,
@@ -170,15 +183,93 @@ static __always_inline long ctx_load_bytes(struct __ctx_buff *ctx, __u32 off,
 	return bpf_skb_load_bytes(ctx, off, to, len);
 }
 
-/* Transmit the frame back out its ingress interface; TC has no XDP_TX-style
- * verdict, the redirect helper's return value is the verdict. */
-static __always_inline enum ctx_action ctx_tx_back(struct __ctx_buff *ctx)
+/* A TC skb can be CHECKSUM_PARTIAL (veth RX), where the L4 check field holds
+ * only the pseudo-header sum; `bpf_l4_csum_replace` →
+ * `inet_proto_csum_replace{2,4}` applies a delta correctly for every
+ * ip_summed state (pseudo-header deltas need BPF_F_PSEUDO_HDR, others are
+ * skipped on PARTIAL). The helper makes the skb writable, so it invalidates
+ * every packet pointer: call it only after all direct field writes, and
+ * re-derive pointers afterwards. */
+#define CTX_L4_CSUM_VIA_HELPERS 1
+static __always_inline long ctx_l4_csum_replace(struct __ctx_buff *ctx,
+						__u32 off, __u64 from, __u64 to,
+						__u64 flags)
 {
+	return bpf_l4_csum_replace(ctx, off, from, to, flags);
+}
+
+/* Logical action index for the xdp_actions statistics array, which uses the
+ * XDP verdict encoding. TC verdicts collide with it (TC_ACT_SHOT == 2 ==
+ * XDP_PASS), and TC folds aborted into drop (both TC_ACT_SHOT). */
+static __always_inline __u32 ctx_stat_action(enum ctx_action action)
+{
+	switch ((int)action) {
+	case TC_ACT_OK:
+		return XDP_PASS;
+	case TC_ACT_SHOT:
+		return XDP_DROP;
+	case TC_ACT_REDIRECT:
+		return XDP_REDIRECT;
+	}
+
+	return XDP_ABORTED;
+}
+
+/* The kernel moves a VLAN tag out of the frame bytes before the TCX hook
+ * (skb_vlan_untag), so tags are handled via metadata here and the in-band
+ * branches compile out. */
+#define CTX_INBAND_VLAN 0
+
+/* Ingress VLAN normalization. The stripped ingress tag rides in vlan_tci and
+ * dev_queue_xmit re-inserts it on whatever interface the frame leaves by, so
+ * it must be cleared before any redirect; egress tagging is explicit
+ * (ctx_tx_back/ctx_redirect_out). A remaining in-band tag under the metadata
+ * one is QinQ, which the datapath leaves to the stack in every attach mode.
+ * Returns 0 to proceed, > 0 to pass the frame to the stack, < 0 on error;
+ * invalidates packet pointers. */
+static __always_inline long ctx_vlan_ingress(struct __ctx_buff *ctx)
+{
+	if (ctx->protocol == bpf_htons(ETH_P_8021Q) ||
+	    ctx->protocol == bpf_htons(ETH_P_8021AD))
+		return 1;
+
+	if (!ctx->vlan_present)
+		return 0;
+
+	return bpf_skb_vlan_pop(ctx) ? -1 : 0;
+}
+
+/* Set the metadata tag the frame leaves with; on an untagged skb this writes
+ * no packet bytes, and segmentation copies it to every segment. Invalidates
+ * packet pointers. */
+static __always_inline long ctx_vlan_egress(struct __ctx_buff *ctx,
+					    int egress_vid)
+{
+	if (!egress_vid)
+		return 0;
+
+	return bpf_skb_vlan_push(ctx, bpf_htons(ETH_P_8021Q),
+				 (__u16)egress_vid);
+}
+
+/* Transmit the frame back out its ingress interface, tagged `egress_vid`
+ * (0 for untagged); TC has no XDP_TX-style verdict, the redirect helper's
+ * return value is the verdict. */
+static __always_inline enum ctx_action ctx_tx_back(struct __ctx_buff *ctx,
+						   int egress_vid)
+{
+	if (ctx_vlan_egress(ctx, egress_vid) < 0)
+		return CTX_ACT_ABORTED;
+
 	return bpf_redirect(ctx->ingress_ifindex, 0);
 }
 
-/* Transmit the frame out `ifindex`. */
-static __always_inline enum ctx_action ctx_redirect_out(__u32 ifindex)
+/* Transmit the frame out `ifindex`, tagged `egress_vid` (0 for untagged). */
+static __always_inline enum ctx_action
+ctx_redirect_out(struct __ctx_buff *ctx, __u32 ifindex, int egress_vid)
 {
+	if (ctx_vlan_egress(ctx, egress_vid) < 0)
+		return CTX_ACT_ABORTED;
+
 	return bpf_redirect(ifindex, 0);
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/cilium/ebpf"
 )
 
-type N3N6EntrypointFiveTuple struct {
+type N3N6EntrypointTcFiveTuple struct {
 	_     structs.HostLayout
 	Saddr uint32
 	Daddr uint32
@@ -22,11 +22,11 @@ type N3N6EntrypointFiveTuple struct {
 	Pad   uint16
 }
 
-type N3N6EntrypointFlow struct {
+type N3N6EntrypointTcFlow struct {
 	_              structs.HostLayout
 	Imsi           uint64
-	Saddr          N3N6EntrypointIn6Addr
-	Daddr          N3N6EntrypointIn6Addr
+	Saddr          N3N6EntrypointTcIn6Addr
+	Daddr          N3N6EntrypointTcIn6Addr
 	IngressIfindex uint32
 	EgressIfindex  uint32
 	Sport          uint16
@@ -37,7 +37,7 @@ type N3N6EntrypointFlow struct {
 	_              [1]byte
 }
 
-type N3N6EntrypointFlowStats struct {
+type N3N6EntrypointTcFlowStats struct {
 	_       structs.HostLayout
 	FirstTs uint64
 	LastTs  uint64
@@ -45,19 +45,19 @@ type N3N6EntrypointFlowStats struct {
 	Packets uint64
 }
 
-type N3N6EntrypointFramedIp4Key struct {
+type N3N6EntrypointTcFramedIp4Key struct {
 	_         structs.HostLayout
 	Prefixlen uint32
 	Addr      uint32
 }
 
-type N3N6EntrypointFramedIp6Key struct {
+type N3N6EntrypointTcFramedIp6Key struct {
 	_         structs.HostLayout
 	Prefixlen uint32
-	Addr      N3N6EntrypointIn6Addr
+	Addr      N3N6EntrypointTcIn6Addr
 }
 
-type N3N6EntrypointIn6Addr struct {
+type N3N6EntrypointTcIn6Addr struct {
 	_    structs.HostLayout
 	In6U struct {
 		_       structs.HostLayout
@@ -65,9 +65,9 @@ type N3N6EntrypointIn6Addr struct {
 	}
 }
 
-type N3N6EntrypointNatEntry struct {
+type N3N6EntrypointTcNatEntry struct {
 	_         structs.HostLayout
-	Peer      N3N6EntrypointFiveTuple
+	Peer      N3N6EntrypointTcFiveTuple
 	RefreshTs uint64
 	State     uint8
 	Replied   uint8
@@ -76,7 +76,7 @@ type N3N6EntrypointNatEntry struct {
 	Pad       [4]uint8
 }
 
-type N3N6EntrypointPdrInfo struct {
+type N3N6EntrypointTcPdrInfo struct {
 	_                  structs.HostLayout
 	LocalSeid          uint64
 	Imsi               uint64
@@ -90,8 +90,8 @@ type N3N6EntrypointPdrInfo struct {
 		OuterHeaderCreation   uint8
 		_                     [2]byte
 		Teid                  uint32
-		Remoteip              N3N6EntrypointIn6Addr
-		Localip               N3N6EntrypointIn6Addr
+		Remoteip              N3N6EntrypointTcIn6Addr
+		Localip               N3N6EntrypointTcIn6Addr
 		TransportLevelMarking uint16
 		_                     [2]byte
 	}
@@ -107,12 +107,12 @@ type N3N6EntrypointPdrInfo struct {
 		DlStart          uint64
 	}
 	FilterMapIndex uint32
-	UeIpv4         N3N6EntrypointIn6Addr
-	UeIpv6         N3N6EntrypointIn6Addr
+	UeIpv4         N3N6EntrypointTcIn6Addr
+	UeIpv6         N3N6EntrypointTcIn6Addr
 	_              [4]byte
 }
 
-type N3N6EntrypointRouteStat struct {
+type N3N6EntrypointTcRouteStat struct {
 	_                       structs.HostLayout
 	FibLookupIp4Cache       uint64
 	FibLookupIp4Success     uint64
@@ -142,13 +142,13 @@ type N3N6EntrypointRouteStat struct {
 	FibLookupIp6Error       uint64
 }
 
-type N3N6EntrypointSdfFilterList struct {
+type N3N6EntrypointTcSdfFilterList struct {
 	_        structs.HostLayout
 	NumRules uint8
 	Pad      [3]uint8
 	Rules    [12]struct {
 		_         structs.HostLayout
-		RemoteIp  N3N6EntrypointIn6Addr
+		RemoteIp  N3N6EntrypointTcIn6Addr
 		PrefixLen uint8
 		_         [1]byte
 		PortLow   uint16
@@ -160,7 +160,7 @@ type N3N6EntrypointSdfFilterList struct {
 	}
 }
 
-type N3N6EntrypointUpfStatistic struct {
+type N3N6EntrypointTcUpfStatistic struct {
 	_           structs.HostLayout
 	ByteCounter struct {
 		_     structs.HostLayout
@@ -182,18 +182,18 @@ type N3N6EntrypointUpfStatistic struct {
 	EncapGsoFrames             uint64
 }
 
-type N3N6EntrypointUrrKey struct {
+type N3N6EntrypointTcUrrKey struct {
 	_     structs.HostLayout
 	Seid  uint64
 	UrrId uint32
 	Pad   uint32
 }
 
-type N3N6EntrypointVethTunnelInfo struct {
+type N3N6EntrypointTcVethTunnelInfo struct {
 	_          structs.HostLayout
 	Teid       uint32
-	LocalAddr  N3N6EntrypointIn6Addr
-	RemoteAddr N3N6EntrypointIn6Addr
+	LocalAddr  N3N6EntrypointTcIn6Addr
+	RemoteAddr N3N6EntrypointTcIn6Addr
 	Qfi        uint8
 	NoPsc      uint8
 	Pad        [2]uint8
@@ -203,62 +203,62 @@ type N3N6EntrypointVethTunnelInfo struct {
 //
 // Used for safe lookups in a Collection or CollectionSpec.
 const (
-	N3N6EntrypointMapCsumScratch         = "csum_scratch"
-	N3N6EntrypointMapDownlinkRouteStats  = "downlink_route_stats"
-	N3N6EntrypointMapDownlinkStatistics  = "downlink_statistics"
-	N3N6EntrypointMapFlowStats           = "flow_stats"
-	N3N6EntrypointMapFramedDownlinkIp4   = "framed_downlink_ip4"
-	N3N6EntrypointMapFramedDownlinkIp6   = "framed_downlink_ip6"
-	N3N6EntrypointMapNatCt               = "nat_ct"
-	N3N6EntrypointMapNoNeighMap          = "no_neigh_map"
-	N3N6EntrypointMapNocpMap             = "nocp_map"
-	N3N6EntrypointMapPdrsDownlinkIp4     = "pdrs_downlink_ip4"
-	N3N6EntrypointMapPdrsDownlinkIp6     = "pdrs_downlink_ip6"
-	N3N6EntrypointMapPdrsUplink          = "pdrs_uplink"
-	N3N6EntrypointMapRsEventMap          = "rs_event_map"
-	N3N6EntrypointMapSdfFilters          = "sdf_filters"
-	N3N6EntrypointMapUpfCalls            = "upf_calls"
-	N3N6EntrypointMapUplinkRouteStats    = "uplink_route_stats"
-	N3N6EntrypointMapUplinkStatistics    = "uplink_statistics"
-	N3N6EntrypointMapUrrMap              = "urr_map"
-	N3N6EntrypointMapVethTunnels         = "veth_tunnels"
-	N3N6EntrypointProgUpfDownlinkFunc    = "upf_downlink_func"
-	N3N6EntrypointProgUpfEntryFunc       = "upf_entry_func"
-	N3N6EntrypointProgUpfGtpuControlFunc = "upf_gtpu_control_func"
-	N3N6EntrypointProgUpfUplinkFunc      = "upf_uplink_func"
-	N3N6EntrypointProgVethXdpFunc        = "veth_xdp_func"
-	N3N6EntrypointVarFlowact             = "flowact"
-	N3N6EntrypointVarMasquerade          = "masquerade"
-	N3N6EntrypointVarN3Ifindex           = "n3_ifindex"
-	N3N6EntrypointVarN3Vlan              = "n3_vlan"
-	N3N6EntrypointVarN6Ifindex           = "n6_ifindex"
-	N3N6EntrypointVarN6Vlan              = "n6_vlan"
-	N3N6EntrypointVarNatPortMax          = "nat_port_max"
-	N3N6EntrypointVarNatPortMin          = "nat_port_min"
+	N3N6EntrypointTcMapCsumScratch         = "csum_scratch"
+	N3N6EntrypointTcMapDownlinkRouteStats  = "downlink_route_stats"
+	N3N6EntrypointTcMapDownlinkStatistics  = "downlink_statistics"
+	N3N6EntrypointTcMapFlowStats           = "flow_stats"
+	N3N6EntrypointTcMapFramedDownlinkIp4   = "framed_downlink_ip4"
+	N3N6EntrypointTcMapFramedDownlinkIp6   = "framed_downlink_ip6"
+	N3N6EntrypointTcMapNatCt               = "nat_ct"
+	N3N6EntrypointTcMapNoNeighMap          = "no_neigh_map"
+	N3N6EntrypointTcMapNocpMap             = "nocp_map"
+	N3N6EntrypointTcMapPdrsDownlinkIp4     = "pdrs_downlink_ip4"
+	N3N6EntrypointTcMapPdrsDownlinkIp6     = "pdrs_downlink_ip6"
+	N3N6EntrypointTcMapPdrsUplink          = "pdrs_uplink"
+	N3N6EntrypointTcMapRsEventMap          = "rs_event_map"
+	N3N6EntrypointTcMapSdfFilters          = "sdf_filters"
+	N3N6EntrypointTcMapUpfCalls            = "upf_calls"
+	N3N6EntrypointTcMapUplinkRouteStats    = "uplink_route_stats"
+	N3N6EntrypointTcMapUplinkStatistics    = "uplink_statistics"
+	N3N6EntrypointTcMapUrrMap              = "urr_map"
+	N3N6EntrypointTcMapVethTunnels         = "veth_tunnels"
+	N3N6EntrypointTcProgUpfDownlinkFunc    = "upf_downlink_func"
+	N3N6EntrypointTcProgUpfEntryFunc       = "upf_entry_func"
+	N3N6EntrypointTcProgUpfGtpuControlFunc = "upf_gtpu_control_func"
+	N3N6EntrypointTcProgUpfUplinkFunc      = "upf_uplink_func"
+	N3N6EntrypointTcProgVethXdpFunc        = "veth_xdp_func"
+	N3N6EntrypointTcVarFlowact             = "flowact"
+	N3N6EntrypointTcVarMasquerade          = "masquerade"
+	N3N6EntrypointTcVarN3Ifindex           = "n3_ifindex"
+	N3N6EntrypointTcVarN3Vlan              = "n3_vlan"
+	N3N6EntrypointTcVarN6Ifindex           = "n6_ifindex"
+	N3N6EntrypointTcVarN6Vlan              = "n6_vlan"
+	N3N6EntrypointTcVarNatPortMax          = "nat_port_max"
+	N3N6EntrypointTcVarNatPortMin          = "nat_port_min"
 )
 
-// LoadN3N6Entrypoint returns the embedded CollectionSpec for N3N6Entrypoint.
-func LoadN3N6Entrypoint() (*ebpf.CollectionSpec, error) {
-	reader := bytes.NewReader(_N3N6EntrypointBytes)
+// LoadN3N6EntrypointTc returns the embedded CollectionSpec for N3N6EntrypointTc.
+func LoadN3N6EntrypointTc() (*ebpf.CollectionSpec, error) {
+	reader := bytes.NewReader(_N3N6EntrypointTcBytes)
 	spec, err := ebpf.LoadCollectionSpecFromReader(reader)
 	if err != nil {
-		return nil, fmt.Errorf("can't load N3N6Entrypoint: %w", err)
+		return nil, fmt.Errorf("can't load N3N6EntrypointTc: %w", err)
 	}
 
 	return spec, err
 }
 
-// LoadN3N6EntrypointObjects loads N3N6Entrypoint and converts it into a struct.
+// LoadN3N6EntrypointTcObjects loads N3N6EntrypointTc and converts it into a struct.
 //
 // The following types are suitable as obj argument:
 //
-//	*N3N6EntrypointObjects
-//	*N3N6EntrypointPrograms
-//	*N3N6EntrypointMaps
+//	*N3N6EntrypointTcObjects
+//	*N3N6EntrypointTcPrograms
+//	*N3N6EntrypointTcMaps
 //
 // See ebpf.CollectionSpec.LoadAndAssign documentation for details.
-func LoadN3N6EntrypointObjects(obj any, opts *ebpf.CollectionOptions) error {
-	spec, err := LoadN3N6Entrypoint()
+func LoadN3N6EntrypointTcObjects(obj any, opts *ebpf.CollectionOptions) error {
+	spec, err := LoadN3N6EntrypointTc()
 	if err != nil {
 		return err
 	}
@@ -266,19 +266,19 @@ func LoadN3N6EntrypointObjects(obj any, opts *ebpf.CollectionOptions) error {
 	return spec.LoadAndAssign(obj, opts)
 }
 
-// N3N6EntrypointSpecs contains maps and programs before they are loaded into the kernel.
+// N3N6EntrypointTcSpecs contains maps and programs before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
-type N3N6EntrypointSpecs struct {
-	N3N6EntrypointProgramSpecs
-	N3N6EntrypointMapSpecs
-	N3N6EntrypointVariableSpecs
+type N3N6EntrypointTcSpecs struct {
+	N3N6EntrypointTcProgramSpecs
+	N3N6EntrypointTcMapSpecs
+	N3N6EntrypointTcVariableSpecs
 }
 
-// N3N6EntrypointProgramSpecs contains programs before they are loaded into the kernel.
+// N3N6EntrypointTcProgramSpecs contains programs before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
-type N3N6EntrypointProgramSpecs struct {
+type N3N6EntrypointTcProgramSpecs struct {
 	UpfDownlinkFunc    *ebpf.ProgramSpec `ebpf:"upf_downlink_func"`
 	UpfEntryFunc       *ebpf.ProgramSpec `ebpf:"upf_entry_func"`
 	UpfGtpuControlFunc *ebpf.ProgramSpec `ebpf:"upf_gtpu_control_func"`
@@ -286,10 +286,10 @@ type N3N6EntrypointProgramSpecs struct {
 	VethXdpFunc        *ebpf.ProgramSpec `ebpf:"veth_xdp_func"`
 }
 
-// N3N6EntrypointMapSpecs contains maps before they are loaded into the kernel.
+// N3N6EntrypointTcMapSpecs contains maps before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
-type N3N6EntrypointMapSpecs struct {
+type N3N6EntrypointTcMapSpecs struct {
 	CsumScratch        *ebpf.MapSpec `ebpf:"csum_scratch"`
 	DownlinkRouteStats *ebpf.MapSpec `ebpf:"downlink_route_stats"`
 	DownlinkStatistics *ebpf.MapSpec `ebpf:"downlink_statistics"`
@@ -311,10 +311,10 @@ type N3N6EntrypointMapSpecs struct {
 	VethTunnels        *ebpf.MapSpec `ebpf:"veth_tunnels"`
 }
 
-// N3N6EntrypointVariableSpecs contains global variables before they are loaded into the kernel.
+// N3N6EntrypointTcVariableSpecs contains global variables before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
-type N3N6EntrypointVariableSpecs struct {
+type N3N6EntrypointTcVariableSpecs struct {
 	Flowact    *ebpf.VariableSpec `ebpf:"flowact"`
 	Masquerade *ebpf.VariableSpec `ebpf:"masquerade"`
 	N3Ifindex  *ebpf.VariableSpec `ebpf:"n3_ifindex"`
@@ -325,26 +325,26 @@ type N3N6EntrypointVariableSpecs struct {
 	NatPortMin *ebpf.VariableSpec `ebpf:"nat_port_min"`
 }
 
-// N3N6EntrypointObjects contains all objects after they have been loaded into the kernel.
+// N3N6EntrypointTcObjects contains all objects after they have been loaded into the kernel.
 //
-// It can be passed to LoadN3N6EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
-type N3N6EntrypointObjects struct {
-	N3N6EntrypointPrograms
-	N3N6EntrypointMaps
-	N3N6EntrypointVariables
+// It can be passed to LoadN3N6EntrypointTcObjects or ebpf.CollectionSpec.LoadAndAssign.
+type N3N6EntrypointTcObjects struct {
+	N3N6EntrypointTcPrograms
+	N3N6EntrypointTcMaps
+	N3N6EntrypointTcVariables
 }
 
-func (o *N3N6EntrypointObjects) Close() error {
-	return _N3N6EntrypointClose(
-		&o.N3N6EntrypointPrograms,
-		&o.N3N6EntrypointMaps,
+func (o *N3N6EntrypointTcObjects) Close() error {
+	return _N3N6EntrypointTcClose(
+		&o.N3N6EntrypointTcPrograms,
+		&o.N3N6EntrypointTcMaps,
 	)
 }
 
-// N3N6EntrypointMaps contains all maps after they have been loaded into the kernel.
+// N3N6EntrypointTcMaps contains all maps after they have been loaded into the kernel.
 //
-// It can be passed to LoadN3N6EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
-type N3N6EntrypointMaps struct {
+// It can be passed to LoadN3N6EntrypointTcObjects or ebpf.CollectionSpec.LoadAndAssign.
+type N3N6EntrypointTcMaps struct {
 	CsumScratch        *ebpf.Map `ebpf:"csum_scratch"`
 	DownlinkRouteStats *ebpf.Map `ebpf:"downlink_route_stats"`
 	DownlinkStatistics *ebpf.Map `ebpf:"downlink_statistics"`
@@ -366,8 +366,8 @@ type N3N6EntrypointMaps struct {
 	VethTunnels        *ebpf.Map `ebpf:"veth_tunnels"`
 }
 
-func (m *N3N6EntrypointMaps) Close() error {
-	return _N3N6EntrypointClose(
+func (m *N3N6EntrypointTcMaps) Close() error {
+	return _N3N6EntrypointTcClose(
 		m.CsumScratch,
 		m.DownlinkRouteStats,
 		m.DownlinkStatistics,
@@ -390,10 +390,10 @@ func (m *N3N6EntrypointMaps) Close() error {
 	)
 }
 
-// N3N6EntrypointVariables contains all global variables after they have been loaded into the kernel.
+// N3N6EntrypointTcVariables contains all global variables after they have been loaded into the kernel.
 //
-// It can be passed to LoadN3N6EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
-type N3N6EntrypointVariables struct {
+// It can be passed to LoadN3N6EntrypointTcObjects or ebpf.CollectionSpec.LoadAndAssign.
+type N3N6EntrypointTcVariables struct {
 	Flowact    *ebpf.Variable `ebpf:"flowact"`
 	Masquerade *ebpf.Variable `ebpf:"masquerade"`
 	N3Ifindex  *ebpf.Variable `ebpf:"n3_ifindex"`
@@ -404,10 +404,10 @@ type N3N6EntrypointVariables struct {
 	NatPortMin *ebpf.Variable `ebpf:"nat_port_min"`
 }
 
-// N3N6EntrypointPrograms contains all programs after they have been loaded into the kernel.
+// N3N6EntrypointTcPrograms contains all programs after they have been loaded into the kernel.
 //
-// It can be passed to LoadN3N6EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
-type N3N6EntrypointPrograms struct {
+// It can be passed to LoadN3N6EntrypointTcObjects or ebpf.CollectionSpec.LoadAndAssign.
+type N3N6EntrypointTcPrograms struct {
 	UpfDownlinkFunc    *ebpf.Program `ebpf:"upf_downlink_func"`
 	UpfEntryFunc       *ebpf.Program `ebpf:"upf_entry_func"`
 	UpfGtpuControlFunc *ebpf.Program `ebpf:"upf_gtpu_control_func"`
@@ -415,8 +415,8 @@ type N3N6EntrypointPrograms struct {
 	VethXdpFunc        *ebpf.Program `ebpf:"veth_xdp_func"`
 }
 
-func (p *N3N6EntrypointPrograms) Close() error {
-	return _N3N6EntrypointClose(
+func (p *N3N6EntrypointTcPrograms) Close() error {
+	return _N3N6EntrypointTcClose(
 		p.UpfDownlinkFunc,
 		p.UpfEntryFunc,
 		p.UpfGtpuControlFunc,
@@ -425,7 +425,7 @@ func (p *N3N6EntrypointPrograms) Close() error {
 	)
 }
 
-func _N3N6EntrypointClose(closers ...io.Closer) error {
+func _N3N6EntrypointTcClose(closers ...io.Closer) error {
 	for _, closer := range closers {
 		if err := closer.Close(); err != nil {
 			return err
@@ -436,5 +436,5 @@ func _N3N6EntrypointClose(closers ...io.Closer) error {
 
 // Do not access this directly.
 //
-//go:embed n3n6entrypoint_bpf.o
-var _N3N6EntrypointBytes []byte
+//go:embed n3n6entrypointtc_bpf.o
+var _N3N6EntrypointTcBytes []byte

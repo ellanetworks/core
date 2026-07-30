@@ -52,13 +52,17 @@ static __always_inline enum ctx_action
 send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 		   __u8 tos, __u8 qfi)
 {
+	if (ctx_gso_segs(ctx->ctx_buff) > 1) {
+		ctx->statistics->encap_gso_frames += 1;
+	}
+
 	if (far->outer_header_creation & OHC_GTP_U_UDP_IPv6) {
 		PROFILE_START(PROF_N6_GTP_MANIP);
 		__u32 encap_result =
 			(far->outer_header_creation & OHC_NO_PSC) ?
-				add_gtp_over_ip6_headers_s1u(
-					ctx, &far->localip, &far->remoteip,
-					tos, far->teid) :
+				add_gtp_over_ip6_headers_s1u(ctx, &far->localip,
+							     &far->remoteip,
+							     tos, far->teid) :
 				add_gtp_over_ip6_headers(ctx, &far->localip,
 							 &far->remoteip, tos,
 							 qfi, far->teid);
@@ -134,7 +138,8 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	__u32 ue_addr = translated ? xlate.daddr : ip4->daddr;
 
 	PROFILE_START(PROF_N6_PDR_LOOKUP);
-	struct pdr_info *pdr = bpf_map_lookup_elem(&pdrs_downlink_ip4, &ue_addr);
+	struct pdr_info *pdr =
+		bpf_map_lookup_elem(&pdrs_downlink_ip4, &ue_addr);
 	PROFILE_END(PROF_N6_PDR_LOOKUP);
 	if (!pdr) {
 		/* Not a UE address: try the framed-route table (TS 29.244 §5.16).
@@ -146,7 +151,8 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 			pdr = bpf_map_lookup_elem(&pdrs_downlink_ip4, ue_ip);
 		}
 		if (!pdr) {
-			upf_printk("upf: no downlink session for ip:%pI4", &ue_addr);
+			upf_printk("upf: no downlink session for ip:%pI4",
+				   &ue_addr);
 			/* A conntrack hit makes this the UE's packet; the host
 			 * stack has no session to answer it with. */
 			if (translated) {
@@ -161,7 +167,8 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	/* With NAT the UE address is not visible on N6 (TS 23.501
 	 * §5.8.2.2.1): untranslated downlink to a UE is unsolicited. */
 	if (masquerade && !translated) {
-		upf_printk("upf: unsolicited downlink for ip:%pI4", &ip4->daddr);
+		upf_printk("upf: unsolicited downlink for ip:%pI4",
+			   &ip4->daddr);
 		if (fragment) {
 			ctx->statistics->nat_fragment_drop_ip4 += 1;
 		} else if (!counted) {
@@ -181,14 +188,14 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 				 GTP_ENCAP_SIZE_IPV6 :
 				 GTP_ENCAP_SIZE_IPV4;
 	if (far->outer_header_creation & OHC_NO_PSC) {
-		encap_size -= GTP_PSC_EXT_SIZE; /* S1-U: no PDU session container */
+		encap_size -=
+			GTP_PSC_EXT_SIZE; /* S1-U: no PDU session container */
 	}
 	ret = bpf_check_mtu(ctx->ctx_buff, n3_ifindex, &mtu_len, encap_size, 0);
 	PROFILE_END(PROF_N6_MTU_CHECK);
 	if (ret < 0) {
-		ctx->statistics
-			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_ABORTED;
 	}
 	if (ret > 0) {
@@ -202,6 +209,15 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	PROFILE_START(PROF_N6_NAT);
 	destination_nat_apply(ctx, &xlate);
 	PROFILE_END(PROF_N6_NAT);
+
+	if (CTX_L4_CSUM_VIA_HELPERS && translated) {
+		/* The csum helpers in destination_nat_apply invalidated every
+		 * packet pointer. */
+		if (context_reinit(ctx, ctx_data(ctx->ctx_buff),
+				   ctx_data_end(ctx->ctx_buff)) != 0)
+			return CTX_ACT_ABORTED;
+		ip4 = ctx->ip4;
+	}
 
 	ctx->interface = INTERFACE_N6;
 
@@ -244,8 +260,9 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 
 	const __u64 packet_size =
 		ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->ip4);
-	if (CTX_ACT_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start,
-						  qer->dl_maximum_bitrate)) {
+	if (CTX_ACT_DROP ==
+	    limit_rate_sliding_window(packet_size, &qer->dl_start,
+				      qer->dl_maximum_bitrate)) {
 		PROFILE_END(PROF_N6_QER_RATELIMIT);
 		return CTX_ACT_DROP;
 	}
@@ -263,9 +280,9 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		if (sdf_verdict == CTX_ACT_DROP) {
 			upf_printk("upf: downlink SDF drop ip:%pI4",
 				   &ip4->daddr);
-			ctx->statistics->xdp_actions[CTX_ACT_DROP &
-						     EUPF_MAX_XDP_ACTION_MASK] +=
-				1;
+			ctx->statistics
+				->xdp_actions[ctx_stat_action(CTX_ACT_DROP) &
+					      EUPF_MAX_XDP_ACTION_MASK] += 1;
 			account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, DROP);
 			return CTX_ACT_DROP;
 		}
@@ -308,14 +325,17 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		 * (TS 29.244 §5.16), longest-prefix matched. The entry redirects to
 		 * the owning UE /64 so the live downlink PDR is the single source of
 		 * truth. */
-		struct framed_ip6_key fk = { .prefixlen = 128, .addr = ip6->daddr };
+		struct framed_ip6_key fk = { .prefixlen = 128,
+					     .addr = ip6->daddr };
 		struct in6_addr *ue_prefix =
 			bpf_map_lookup_elem(&framed_downlink_ip6, &fk);
 		if (ue_prefix) {
-			pdr = bpf_map_lookup_elem(&pdrs_downlink_ip6, ue_prefix);
+			pdr = bpf_map_lookup_elem(&pdrs_downlink_ip6,
+						  ue_prefix);
 		}
 		if (!pdr) {
-			upf_printk("upf: no downlink session for ip:%pI6c", &prefix);
+			upf_printk("upf: no downlink session for ip:%pI6c",
+				   &prefix);
 			return DEFAULT_CTX_ACTION;
 		}
 	}
@@ -327,15 +347,15 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 				 GTP_ENCAP_SIZE_IPV6 :
 				 GTP_ENCAP_SIZE_IPV4;
 	if (far->outer_header_creation & OHC_NO_PSC) {
-		encap_size -= GTP_PSC_EXT_SIZE; /* S1-U: no PDU session container */
+		encap_size -=
+			GTP_PSC_EXT_SIZE; /* S1-U: no PDU session container */
 	}
 	__u32 mtu_len = 0;
-	long ret = bpf_check_mtu(ctx->ctx_buff, n3_ifindex, &mtu_len, encap_size,
-				 0);
+	long ret = bpf_check_mtu(ctx->ctx_buff, n3_ifindex, &mtu_len,
+				 encap_size, 0);
 	if (ret < 0) {
-		ctx->statistics
-			->xdp_actions[CTX_ACT_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
+					     EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return CTX_ACT_ABORTED;
 	}
 	if (ret > 0) {
@@ -362,9 +382,9 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		if (sdf_verdict == CTX_ACT_DROP) {
 			upf_printk("upf: downlink SDF drop ip:%pI6c",
 				   &ip6->daddr);
-			ctx->statistics->xdp_actions[CTX_ACT_DROP &
-						     EUPF_MAX_XDP_ACTION_MASK] +=
-				1;
+			ctx->statistics
+				->xdp_actions[ctx_stat_action(CTX_ACT_DROP) &
+					      EUPF_MAX_XDP_ACTION_MASK] += 1;
 			account_flow(ctx, n3_ifindex, pdr->imsi, IPV6, DROP);
 			return CTX_ACT_DROP;
 		}
@@ -399,8 +419,9 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 
 	const __u64 packet_size =
 		ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->ip6);
-	if (CTX_ACT_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start,
-						  qer->dl_maximum_bitrate))
+	if (CTX_ACT_DROP == limit_rate_sliding_window(packet_size,
+						      &qer->dl_start,
+						      qer->dl_maximum_bitrate))
 		return CTX_ACT_DROP;
 
 	__u8 tos = far->transport_level_marking >> 8;

@@ -15,6 +15,9 @@
 #define __ctx_buff xdp_md
 #define ctx_action xdp_action
 
+/* Datapath program section: attach-type-correct per object. */
+#define CTX_DP_SEC(name) SEC("xdp/" name)
+
 /* ctx_pull discards its length here — XDP frames are linear and writable —
  * but call sites name it, so the knob stays defined in both variants. */
 #define CTX_PULL_LEN 192
@@ -58,6 +61,10 @@
 
 #define ctx_ingress_ifindex(ctx) ((ctx)->ingress_ifindex)
 
+/* Segment count of a GSO super-frame; XDP runs pre-GRO and only ever sees
+ * wire-sized frames. */
+#define ctx_gso_segs(ctx) ((__u32)0)
+
 /* Guarantee `len` bytes are linear and writable. XDP packets already are;
  * on TC this pulls frags and unclones (a cloned skb rejects direct writes). */
 #define ctx_pull(ctx, len) ((long)0)
@@ -93,9 +100,32 @@
  * reads past the linear head on TC. */
 #define ctx_load_bytes(ctx, off, to, len) bpf_xdp_load_bytes(ctx, off, to, len)
 
-/* Transmit the frame back out its ingress interface. */
-#define ctx_tx_back(ctx) ((enum ctx_action)XDP_TX)
+/* Logical action index for the xdp_actions statistics array. XDP verdicts
+ * are the array's native encoding. */
+#define ctx_stat_action(action) (action)
 
-/* Transmit the frame out `ifindex`. */
-#define ctx_redirect_out(ifindex) \
+/* L4 checksum updates on XDP use direct RFC 1624 arithmetic: frames are
+ * never CHECKSUM_PARTIAL here, so the check field always holds a full
+ * checksum. The helper-based path is TC-only. */
+#define CTX_L4_CSUM_VIA_HELPERS 0
+#define ctx_l4_csum_replace(ctx, off, from, to, flags) \
+	((void)(off), (void)(from), (void)(to), (void)(flags), (long)0)
+
+/* XDP sees VLAN tags as raw frame bytes, parsed and written in-band. On TC
+ * the kernel moves tags out-of-band before the hook, so the in-band branches
+ * compile out there. */
+#define CTX_INBAND_VLAN 1
+
+/* Ingress VLAN normalization: nothing to do on XDP, tags are in the bytes. */
+#define ctx_vlan_ingress(ctx) ((long)0)
+
+/* Transmit the frame back out its ingress interface. `egress_vid` is the TC
+ * metadata tag and is not evaluated here — XDP frames carry their tag
+ * in-band, and the vid expressions read volatile config the object must not
+ * load for nothing. */
+#define ctx_tx_back(ctx, egress_vid) ((enum ctx_action)XDP_TX)
+
+/* Transmit the frame out `ifindex`; same `egress_vid` contract as
+ * ctx_tx_back. */
+#define ctx_redirect_out(ctx, ifindex, egress_vid) \
 	((enum ctx_action)bpf_redirect(ifindex, 0))

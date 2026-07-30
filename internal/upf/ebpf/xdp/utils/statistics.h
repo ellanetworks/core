@@ -44,4 +44,9 @@ struct upf_statistic {
 	__u64 nat_port_exhausted_drop_ip4;
 	__u64 nat_unsupported_proto_drop_ip4;
 	__u64 nat_malformed_drop_ip4;
+	/* Encapsulations of GSO super-frames: each later segment carries the
+	 * super-frame's GTP message_length on the wire (segmentation rewrites
+	 * only the outer IP/UDP lengths). TC-only exposure; the XDP hook runs
+	 * pre-GRO. */
+	__u64 encap_gso_frames;
 };

@@ -30,6 +30,7 @@ import (
 // Usage: export BPF_CFLAGS="-DENABLE_LOG -DENABLE_PROFILING"
 
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N3N6Entrypoint xdp/n3n6_bpf.c -- -I. -O2 -Wall -Werror -g
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N3N6EntrypointTc xdp/n3n6_bpf.c -- -DCTX_TC -I. -O2 -Wall -Werror -g
 
 // Masquerade source-port range, held below the kernel's default ephemeral
 // floor so an allocation cannot name a port a host socket is using.

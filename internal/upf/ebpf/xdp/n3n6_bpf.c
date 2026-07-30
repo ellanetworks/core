@@ -56,16 +56,18 @@
  */
 
 /* N3 uplink: GTP-U-encapsulated traffic from the gNB. */
-static __always_inline enum ctx_action handle_uplink_ip4(struct packet_context *ctx)
+static __always_inline enum ctx_action
+handle_uplink_ip4(struct packet_context *ctx)
 {
 	if (parse_ip4(ctx) == IPPROTO_UDP) {
 		struct udphdr *udp = detect_udp_header(ctx, 0);
 		if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT) {
 			parse_udp(ctx);
-			upf_printk("upf: gtp-u received on N3, src=%pI4 dst=%pI4",
-				   &ctx->ip4->saddr, &ctx->ip4->daddr);
+			upf_printk(
+				"upf: gtp-u received on N3, src=%pI4 dst=%pI4",
+				&ctx->ip4->saddr, &ctx->ip4->daddr);
 			enum ctx_action action = handle_gtpu(ctx);
-			ctx->statistics->xdp_actions[action &
+			ctx->statistics->xdp_actions[ctx_stat_action(action) &
 						     EUPF_MAX_XDP_ACTION_MASK] +=
 				1;
 			return action;
@@ -73,12 +75,13 @@ static __always_inline enum ctx_action handle_uplink_ip4(struct packet_context *
 	}
 
 	/* Non-GTP traffic on N3 is not uplink user-plane; leave it to the stack. */
-	ctx->statistics->xdp_actions[DEFAULT_CTX_ACTION & EUPF_MAX_XDP_ACTION_MASK] +=
-		1;
+	ctx->statistics->xdp_actions[ctx_stat_action(DEFAULT_CTX_ACTION) &
+				     EUPF_MAX_XDP_ACTION_MASK] += 1;
 	return DEFAULT_CTX_ACTION;
 }
 
-static __always_inline enum ctx_action handle_uplink_ip6(struct packet_context *ctx)
+static __always_inline enum ctx_action
+handle_uplink_ip6(struct packet_context *ctx)
 {
 	if (parse_ip6(ctx) == IPPROTO_UDP) {
 		struct udphdr *udp = detect_udp_header(ctx, 0);
@@ -86,19 +89,20 @@ static __always_inline enum ctx_action handle_uplink_ip6(struct packet_context *
 			parse_udp(ctx);
 			upf_printk("upf: gtp-u received on N3 (IPv6 outer)");
 			enum ctx_action action = handle_gtpu(ctx);
-			ctx->statistics->xdp_actions[action &
+			ctx->statistics->xdp_actions[ctx_stat_action(action) &
 						     EUPF_MAX_XDP_ACTION_MASK] +=
 				1;
 			return action;
 		}
 	}
 
-	ctx->statistics->xdp_actions[DEFAULT_CTX_ACTION & EUPF_MAX_XDP_ACTION_MASK] +=
-		1;
+	ctx->statistics->xdp_actions[ctx_stat_action(DEFAULT_CTX_ACTION) &
+				     EUPF_MAX_XDP_ACTION_MASK] += 1;
 	return DEFAULT_CTX_ACTION;
 }
 
-static __always_inline enum ctx_action process_uplink(struct packet_context *ctx)
+static __always_inline enum ctx_action
+process_uplink(struct packet_context *ctx)
 {
 	switch (parse_ethernet(ctx)) {
 	case ETH_P_IP:
@@ -113,41 +117,46 @@ static __always_inline enum ctx_action process_uplink(struct packet_context *ctx
 }
 
 /* N6 downlink: plain IP traffic from the data network toward a UE. */
-static __always_inline enum ctx_action handle_downlink_ip4(struct packet_context *ctx)
+static __always_inline enum ctx_action
+handle_downlink_ip4(struct packet_context *ctx)
 {
 	int l4_protocol = parse_ip4(ctx);
 	if (l4_protocol != IPPROTO_UDP && l4_protocol != IPPROTO_ICMP &&
 	    l4_protocol != IPPROTO_TCP) {
 		ctx->statistics
-			->xdp_actions[DEFAULT_CTX_ACTION & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+			->xdp_actions[ctx_stat_action(DEFAULT_CTX_ACTION) &
+				      EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return DEFAULT_CTX_ACTION;
 	}
 
 	ctx->statistics->packet_counters.rx++;
 	enum ctx_action action = handle_n6_packet_ipv4(ctx);
-	ctx->statistics->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
+	ctx->statistics->xdp_actions[ctx_stat_action(action) &
+				     EUPF_MAX_XDP_ACTION_MASK] += 1;
 	return action;
 }
 
-static __always_inline enum ctx_action handle_downlink_ip6(struct packet_context *ctx)
+static __always_inline enum ctx_action
+handle_downlink_ip6(struct packet_context *ctx)
 {
 	int l4_protocol = parse_ip6(ctx);
 	if (l4_protocol != IPPROTO_UDP && l4_protocol != IPPROTO_ICMPV6 &&
 	    l4_protocol != IPPROTO_TCP) {
 		ctx->statistics
-			->xdp_actions[DEFAULT_CTX_ACTION & EUPF_MAX_XDP_ACTION_MASK] +=
-			1;
+			->xdp_actions[ctx_stat_action(DEFAULT_CTX_ACTION) &
+				      EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return DEFAULT_CTX_ACTION;
 	}
 
 	ctx->statistics->packet_counters.rx++;
 	enum ctx_action action = handle_n6_packet_ipv6(ctx);
-	ctx->statistics->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
+	ctx->statistics->xdp_actions[ctx_stat_action(action) &
+				     EUPF_MAX_XDP_ACTION_MASK] += 1;
 	return action;
 }
 
-static __always_inline enum ctx_action process_downlink(struct packet_context *ctx)
+static __always_inline enum ctx_action
+process_downlink(struct packet_context *ctx)
 {
 	switch (parse_ethernet(ctx)) {
 	case ETH_P_IP:
@@ -174,9 +183,13 @@ static __always_inline struct upf_statistic *get_stats(void *stats_map)
  * itself — echo requests (TS 29.281 §7.2) and error indications for an unknown
  * TEID (§7.3.1). Re-parses from its own ctx (the stack does not survive a tail
  * call). */
-SEC("xdp/upf_gtpu_control")
+CTX_DP_SEC("upf_gtpu_control")
 int upf_gtpu_control_func(struct __ctx_buff *ctx)
 {
+	long vlan_ret = ctx_vlan_ingress(ctx);
+	if (vlan_ret)
+		return vlan_ret < 0 ? CTX_ACT_ABORTED : CTX_ACT_OK;
+
 	if (ctx_pull(ctx, CTX_PULL_LEN) < 0)
 		return CTX_ACT_ABORTED;
 
@@ -247,9 +260,13 @@ int upf_gtpu_control_func(struct __ctx_buff *ctx)
 
 /* upf_uplink_func: tail-call stage for GTP-U uplink traffic. Re-parses from its
  * own ctx (the stack does not survive a tail call). */
-SEC("xdp/upf_uplink")
+CTX_DP_SEC("upf_uplink")
 int upf_uplink_func(struct __ctx_buff *ctx)
 {
+	long vlan_ret = ctx_vlan_ingress(ctx);
+	if (vlan_ret)
+		return vlan_ret < 0 ? CTX_ACT_ABORTED : CTX_ACT_OK;
+
 	if (ctx_pull(ctx, CTX_PULL_LEN) < 0)
 		return CTX_ACT_ABORTED;
 
@@ -272,9 +289,13 @@ int upf_uplink_func(struct __ctx_buff *ctx)
 }
 
 /* upf_downlink_func: tail-call stage for plain downlink traffic toward a UE. */
-SEC("xdp/upf_downlink")
+CTX_DP_SEC("upf_downlink")
 int upf_downlink_func(struct __ctx_buff *ctx)
 {
+	long vlan_ret = ctx_vlan_ingress(ctx);
+	if (vlan_ret)
+		return vlan_ret < 0 ? CTX_ACT_ABORTED : CTX_ACT_OK;
+
 	if (ctx_pull(ctx, CTX_PULL_LEN) < 0)
 		return CTX_ACT_ABORTED;
 
@@ -304,9 +325,13 @@ int upf_downlink_func(struct __ctx_buff *ctx)
  * With distinct interfaces the shape alone is not enough: uplink traffic is
  * attributed to a subscriber and source-NATed on its behalf, so a GTP-U-shaped
  * packet arriving on N6 must not claim that treatment. */
-SEC("xdp/upf_entry")
+CTX_DP_SEC("upf_entry")
 int upf_entry_func(struct __ctx_buff *ctx)
 {
+	long vlan_ret = ctx_vlan_ingress(ctx);
+	if (vlan_ret)
+		return vlan_ret < 0 ? CTX_ACT_ABORTED : CTX_ACT_OK;
+
 	if (ctx_pull(ctx, CTX_PULL_LEN) < 0)
 		return CTX_ACT_ABORTED;
 
@@ -374,9 +399,13 @@ struct {
 
 /* veth_xdp_func: attached to the veth-xdp end of the pair the SMF injects
  * Router Advertisements on. */
-SEC("xdp/veth_xdp")
+CTX_DP_SEC("veth_xdp")
 int veth_xdp_func(struct __ctx_buff *ctx)
 {
+	long vlan_ret = ctx_vlan_ingress(ctx);
+	if (vlan_ret)
+		return vlan_ret < 0 ? CTX_ACT_ABORTED : CTX_ACT_OK;
+
 	if (ctx_pull(ctx, CTX_PULL_LEN) < 0)
 		return CTX_ACT_ABORTED;
 
@@ -422,8 +451,8 @@ int veth_xdp_func(struct __ctx_buff *ctx)
 			ret = add_gtp_over_ip4_headers_s1u(&pkt_ctx, saddr,
 							   daddr, 0, tun->teid);
 		} else {
-			ret = add_gtp_over_ip4_headers(&pkt_ctx, saddr, daddr, 0,
-						       tun->qfi, tun->teid);
+			ret = add_gtp_over_ip4_headers(&pkt_ctx, saddr, daddr,
+						       0, tun->qfi, tun->teid);
 		}
 		if (ret != 0) {
 			return CTX_ACT_ABORTED;
@@ -444,9 +473,10 @@ int veth_xdp_func(struct __ctx_buff *ctx)
 							   &tun->remote_addr, 0,
 							   tun->teid);
 		} else {
-			ret = add_gtp_over_ip6_headers(&pkt_ctx, &tun->local_addr,
-						       &tun->remote_addr, 0, tun->qfi,
-						       tun->teid);
+			ret = add_gtp_over_ip6_headers(&pkt_ctx,
+						       &tun->local_addr,
+						       &tun->remote_addr, 0,
+						       tun->qfi, tun->teid);
 		}
 		if (ret != 0) {
 			return CTX_ACT_ABORTED;

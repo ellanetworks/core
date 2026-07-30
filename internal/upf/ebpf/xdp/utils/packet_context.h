@@ -22,6 +22,7 @@
 #pragma once
 
 #include "xdp/utils/ctx.h"
+#include <bpf/bpf_helpers.h>
 #include "xdp/utils/statistics.h"
 #include <linux/if_ether.h>
 #include <linux/ip.h>
@@ -34,6 +35,26 @@
 
 #define INTERFACE_N3 0x0
 #define INTERFACE_N6 0x1
+
+volatile const int n3_ifindex;
+volatile const int n3_ifindex = 0;
+volatile const int n6_ifindex;
+volatile const int n6_ifindex = 0;
+volatile const int n3_vlan;
+volatile const int n3_vlan = 0;
+volatile const int n6_vlan;
+volatile const int n6_vlan = 0;
+
+/* VLAN id the frame must carry out of `ifindex`; 0 for untagged. */
+static __always_inline int egress_vlan_id(__u32 ifindex)
+{
+	if (ifindex == (__u32)n3_ifindex)
+		return n3_vlan;
+	if (ifindex == (__u32)n6_ifindex)
+		return n6_vlan;
+
+	return 0;
+}
 
 struct vlan_hdr {
 	__be16 h_vlan_TCI;
