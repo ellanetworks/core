@@ -55,7 +55,7 @@ jobs:
             .interfaces.n2.address = "10.3.0.2" |
             .interfaces.n3.name = "ella-n3" |
             .interfaces.n6.name = "ella-n6" |
-            .xdp."attach-mode" = "generic" |
+            .datapath."attach-mode" = "tcx" |
             .logging.system.level = "debug"
           ' "${cfg}"
 

@@ -282,8 +282,8 @@ interfaces:
   api:
     address: "0.0.0.0"
     port: 5002
-xdp:
-  attach-mode: "native"
+datapath:
+  attach-mode: "xdp-native"
 `
 
 	cases := []struct {
