@@ -1,18 +1,11 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// Package per implements the Packed Encoding Rules (PER) for ASN.1.
+// Package per implements the ASN.1 Packed Encoding Rules (Rec. ITU-T X.691),
+// both the Aligned and the Unaligned variant.
 //
-// PER encodes ASN.1 abstract values into a concrete octet (and sub-octet)
-// representation. Two variants are supported:
-//
-//   - Aligned PER (the default), and
-//   - Unaligned PER (opt-in via per.Unaligned).
-//
-// The package is reflection-free. Types that wish to be (un)marshalled must
-// implement [Marshaler] and [Unmarshaler], typically by running the pergen
-// code generator (see per/cmd/pergen). The top-level [Marshal] and [Unmarshal]
-// helpers dispatch through these interfaces with no use of the reflect package.
+// The package is reflection-free: types are encoded through the [Marshaler]
+// and [Unmarshaler] interfaces, normally implemented by per/cmd/pergen.
 package per
 
 // Encoding selects a PER variant.
@@ -22,12 +15,10 @@ const (
 	// Aligned is the BASIC-PER Aligned variant: fields are padded to octet
 	// boundaries where the rules require it. It is the default Encoding.
 	Aligned Encoding = iota
-	// Unaligned is the BASIC-PER Unaligned variant: no padding is inserted
-	// between fields; bits pack densely.
+	// Unaligned is the BASIC-PER Unaligned variant: bits pack densely.
 	Unaligned
 )
 
-// String returns the variant name.
 func (e Encoding) String() string {
 	switch e {
 	case Aligned:

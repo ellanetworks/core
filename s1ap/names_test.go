@@ -53,9 +53,6 @@ func TestCauseString(t *testing.T) {
 	}
 }
 
-// TestMissingMandatoryIEsErrorMessage checks the error names the procedure and
-// each IE with its criticality, which is what a receiver needs to build
-// Criticality Diagnostics (TS 36.413 §10.3.5).
 func TestMissingMandatoryIEsErrorMessage(t *testing.T) {
 	err := &MissingMandatoryIEsError{
 		Procedure: ProcS1Setup,

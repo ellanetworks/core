@@ -5,13 +5,8 @@ package s1ap
 
 import "fmt"
 
-// Cause value names from TS 36.413 §9.2.1.3 (ASN.1 §9.3.4), so a Cause can
-// render itself in logs and Criticality Diagnostics without every caller
-// keeping its own table.
-
-// Each group's root ENUMERATED values, then its extension additions (after the
-// "..." marker). An extension addition's index continues the numbering after
-// the root values.
+// Cause value names from TS 36.413 §9.2.1.3. Each group lists its root
+// ENUMERATED values, then the extension additions that continue the numbering.
 var (
 	radioNetworkRoot = []string{
 		"unspecified",
@@ -112,7 +107,6 @@ func causeTablesFor(group CauseGroup) (root, ext []string, known bool) {
 	}
 }
 
-// causeGroupNames names each CHOICE alternative of Cause.
 var causeGroupNames = map[CauseGroup]string{
 	CauseGroupRadioNetwork: "radioNetwork",
 	CauseGroupTransport:    "transport",
@@ -121,9 +115,7 @@ var causeGroupNames = map[CauseGroup]string{
 	CauseGroupMisc:         "misc",
 }
 
-// ValueName returns the 3GPP name of the cause value and its index within the
-// group's enumeration. Extension additions continue the numbering after the
-// root values. Unknown values render as "unknown".
+// ValueName returns the 3GPP name of the cause value, or "unknown".
 func (c Cause) ValueName() (name string, index int) {
 	root, ext, known := causeTablesFor(c.Group)
 	if !known {
@@ -142,8 +134,7 @@ func (c Cause) ValueName() (name string, index int) {
 	return "unknown", base + c.Value
 }
 
-// String renders the cause as "<group>: <name> (<index>)", e.g.
-// "radioNetwork: unspecified (0)".
+// String renders a cause as "radioNetwork: unspecified (0)".
 func (c Cause) String() string {
 	group, ok := causeGroupNames[c.Group]
 	if !ok {

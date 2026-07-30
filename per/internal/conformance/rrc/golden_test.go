@@ -11,28 +11,17 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// TestRRCReleaseGoldenVector verifies UNALIGNED PER encoding of an RRCRelease-
-// like message. NR-RRC uses BASIC-PER Unaligned variant per TS 38.331 §8.1.
+// NR-RRC uses BASIC-PER Unaligned (TS 38.331 §8.1), which packs every field
+// bit-adjacent, MSB-first, both SEQUENCE preamble bits ahead of the fields:
 //
-// Test message:
-//   - rrc-TransactionIdentifier: 1 (range 0..3, 2 bits → 01)
-//   - criticalExtensions: rrcRelease (choice idx 0, range 2, 1 bit → 0)
-//   - deprioritisationReq present (OPTIONAL preamble bit → 1)
-//   - extended absent (OPTIONAL preamble bit → 0, comes BEFORE mandatory fields)
-//   - type: 0 (range 0..1, 1 bit → 0)
-//   - time: 1 (range 0..1, 1 bit → 1)
-//   - 1 pad bit
-//
-// UNALIGNED PER packs all bits without padding, MSB-first within the octet:
-//
-//	01       rrc-TransactionID = 1 (2 bits, range 0..3)
-//	0        criticalExtensions CHOICE index = 0 (1 bit, 2 alternatives)
-//	1        deprioritisationReq present (1 bit, OPTIONAL preamble)
-//	0        type = 0 (1 bit, range 0..1)
-//	1        time = 1 (1 bit, range 0..1)
-//	0        extended absent (1 bit, OPTIONAL preamble)
-//	0        pad to the octet boundary
-//	= 0101_0100 = 0x54
+//	01  rrc-TransactionID = 1 (2 bits, range 0..3)
+//	0   criticalExtensions CHOICE index = 0 (1 bit, 2 alternatives)
+//	1   deprioritisationReq present (preamble)
+//	0   extended absent (preamble)
+//	0   type = 0 (1 bit, range 0..1)
+//	1   time = 1 (1 bit, range 0..1)
+//	0   pad to the octet boundary
+//	= 0101_0010 = 0x52
 func TestRRCReleaseGoldenVector(t *testing.T) {
 	msg := &RRCRelease{
 		RRCTransactionID: 1,

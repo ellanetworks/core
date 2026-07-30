@@ -10,17 +10,12 @@ import (
 	"testing"
 )
 
-// TestVisibleStringUnalignedBitsPerChar pins X.691 §30.5.2: in the UNALIGNED
-// variant a VisibleString with no permitted-alphabet constraint uses
-// B = ceil(log2(95)) = 7 bits per character, not 8. LPP (TS 37.355) carries
-// EPDU-Name as VisibleString and encodes with the UNALIGNED variant, so this
-// differs from a raw-octet encoding of the same value.
+// X.691 §30.5.2: in the UNALIGNED variant a VisibleString uses
+// B = ceil(log2(95)) = 7 bits per character, not 8.
 func TestVisibleStringUnalignedBitsPerChar(t *testing.T) {
-	// "AB": 'A'=65, 'B'=66. VisibleString code values start at 32, and the
-	// alphabet (95 chars) fits in 7 bits only after remapping to 0..94, so
-	// 'A' → 33, 'B' → 34.
-	//   0100001 0100010  = 0100_0010_1000_10xx
-	//   = 0x42 0x88 (2 pad bits)
+	// 'A'=65 and 'B'=66 remap to 33 and 34 in the 95-character alphabet:
+	//   0100001 0100010, behind the 5-bit SIZE(1..32) length (n-lb = 1),
+	//   = 19 bits → 3 octets.
 	w := NewWriter()
 	if err := EncodeKnownMultiplierString(w, Unaligned, CharVisibleString, 1, 32, true, true, false, "AB"); err != nil {
 		t.Fatal(err)
@@ -28,8 +23,6 @@ func TestVisibleStringUnalignedBitsPerChar(t *testing.T) {
 
 	w.AlignToByte()
 
-	// Length determinant for SIZE(1..32) is a 5-bit constrained value (n-lb=1),
-	// followed by 2 characters at 7 bits each.
 	got := w.Bytes()
 	if len(got) != 3 {
 		t.Fatalf("encoded %d octets, want 3: % x", len(got), got)
@@ -43,8 +36,7 @@ func TestVisibleStringUnalignedBitsPerChar(t *testing.T) {
 	if s != "AB" {
 		t.Fatalf("round-trip = %q, want %q", s, "AB")
 	}
-	// The same value as an OCTET STRING would take 8 bits per character; pin
-	// that the character encoding really is narrower.
+	// The same value as an OCTET STRING would take 8 bits per character.
 	ow := NewWriter()
 	if err := EncodeOctetString(ow, Unaligned, 1, 32, true, true, false, []byte("AB")); err != nil {
 		t.Fatal(err)
@@ -57,9 +49,6 @@ func TestVisibleStringUnalignedBitsPerChar(t *testing.T) {
 	}
 }
 
-// TestKnownMultiplierStringRejectsOutOfAlphabet checks that a character the
-// string type cannot represent is an error, not a panic or a silent
-// substitution. A PrintableString cannot carry 'é'.
 func TestKnownMultiplierStringRejectsOutOfAlphabet(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -83,9 +72,7 @@ func TestKnownMultiplierStringRejectsOutOfAlphabet(t *testing.T) {
 	}
 }
 
-// TestKnownMultiplierStringMultiByteLength checks the length determinant
-// counts characters, not the UTF-8 bytes backing them. BMPString admits
-// non-ASCII, so a 2-rune value must encode as length 2.
+// The length determinant counts characters, not the UTF-8 bytes backing them.
 func TestKnownMultiplierStringMultiByteLength(t *testing.T) {
 	const s = "Aé"
 
@@ -106,9 +93,8 @@ func TestKnownMultiplierStringMultiByteLength(t *testing.T) {
 	}
 }
 
-// TestKnownMultiplierStringFragmentedContent checks that a value spanning
-// more than one 16K fragment keeps its content in order. A uniform string
-// cannot detect a fragment cursor that restarts at zero.
+// The mixed content matters: a uniform string could not detect a fragment
+// cursor that restarts at zero.
 func TestKnownMultiplierStringFragmentedContent(t *testing.T) {
 	s := strings.Repeat("A", fragmentUnit) + strings.Repeat("B", 100)
 

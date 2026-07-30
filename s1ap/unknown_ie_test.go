@@ -8,10 +8,8 @@ import (
 	"testing"
 )
 
-// TestUnknownIERoundTrip checks a ProtocolIE the message type does not model is
-// preserved through Marshal/Parse and surfaced by UnknownIEs (TS 36.413),
-// so a present IE is never silently dropped. UECapabilityInfoIndication is used
-// because it previously discarded unmodeled IEs entirely.
+// A ProtocolIE the message type does not model must survive Marshal/Parse
+// verbatim and surface through UnknownIEs (TS 36.413).
 func TestUnknownIERoundTrip(t *testing.T) {
 	const unknownID ProtocolIEID = 300
 
@@ -54,8 +52,6 @@ func TestUnknownIERoundTrip(t *testing.T) {
 	}
 }
 
-// TestUnknownIEsNilWhenNone checks UnknownIEs reports nil when every IE on the
-// wire is modeled, so the accessor distinguishes "none" from "present but raw".
 func TestUnknownIEsNilWhenNone(t *testing.T) {
 	in := &UEContextReleaseCommand{
 		UES1APIDs: UES1APIDs{MMEUES1APID: 1, ENBUES1APID: 2, Pair: true},
@@ -82,9 +78,6 @@ func TestUnknownIEsNilWhenNone(t *testing.T) {
 	}
 }
 
-// TestErrorIndicationCriticalityDiagnostics checks the CriticalityDiagnostics IE
-// (TS 36.413) round-trips on a message — Error Indication — where it was
-// previously dropped.
 func TestErrorIndicationCriticalityDiagnostics(t *testing.T) {
 	pc := ProcInitialContextSetup
 	tm := TriggeringSuccessfulOutcome
@@ -134,10 +127,8 @@ func TestErrorIndicationCriticalityDiagnostics(t *testing.T) {
 	}
 }
 
-// TestUnhandledCriticalIEs checks that an unmodeled IE marked reject is
-// surfaced for the receiver to act on (TS 36.413 §10.3.4.2), while ignore and
-// notify ones are not, and that the parse itself still succeeds — deciding is
-// the receiving node's job.
+// Only reject-criticality unmodeled IEs surface, and the parse still succeeds
+// (TS 36.413 §10.3.4.2).
 func TestUnhandledCriticalIEs(t *testing.T) {
 	const (
 		rejectID ProtocolIEID = 301

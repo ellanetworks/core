@@ -9,8 +9,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// reportOnDemand and reportPeriodic are the ReportCharacteristics root values
-// (TS 36.455 §9.2.4).
+// ReportCharacteristics root values (TS 36.455 §9.2.4).
 const (
 	reportOnDemand = 0
 	reportPeriodic = 1
@@ -19,9 +18,8 @@ const (
 	measurementQuantityRootCount   = 6
 )
 
-// BuildECIDMeasurementInitiationRequest encodes an on-demand E-CID Measurement
-// Initiation Request for the given quantities (TS 36.455 §8.2.1). esmlcMeasID is
-// the E-SMLC-UE-Measurement-ID the eNB echoes for correlation.
+// BuildECIDMeasurementInitiationRequest encodes an on-demand request
+// (TS 36.455 §8.2.1). esmlcMeasID is echoed by the eNB for correlation.
 func BuildECIDMeasurementInitiationRequest(esmlcMeasID int64, quantities []MeasurementQuantityValue) ([]byte, error) {
 	if err := validateMeasurementID("esmlcMeasID", esmlcMeasID); err != nil {
 		return nil, err
@@ -51,9 +49,8 @@ func BuildECIDMeasurementInitiationRequest(esmlcMeasID int64, quantities []Measu
 	return marshalPDU(pduInitiatingMessage, ProcECIDMeasurementInitiation, body)
 }
 
-// BuildECIDMeasurementTerminationCommand encodes an E-CID Measurement
-// Termination Command releasing the measurement association in the eNB
-// (TS 36.455 §8.2.4).
+// BuildECIDMeasurementTerminationCommand releases the measurement association
+// in the eNB (TS 36.455 §8.2.4).
 func BuildECIDMeasurementTerminationCommand(esmlcMeasID, enbMeasID int64) ([]byte, error) {
 	if err := validateMeasurementID("esmlcMeasID", esmlcMeasID); err != nil {
 		return nil, err
@@ -76,8 +73,8 @@ func BuildECIDMeasurementTerminationCommand(esmlcMeasID, enbMeasID int64) ([]byt
 	return marshalPDU(pduInitiatingMessage, ProcECIDMeasurementTermination, body)
 }
 
-// BuildECIDMeasurementInitiationResponse encodes an E-CID Measurement Initiation
-// Response (TS 36.455 §8.2.1). result is optional.
+// BuildECIDMeasurementInitiationResponse accepts a nil result (TS 36.455
+// §8.2.1).
 func BuildECIDMeasurementInitiationResponse(esmlcMeasID, enbMeasID int64, result *ECIDResult) ([]byte, error) {
 	if err := validateMeasurementID("esmlcMeasID", esmlcMeasID); err != nil {
 		return nil, err
@@ -104,8 +101,8 @@ func BuildECIDMeasurementInitiationResponse(esmlcMeasID, enbMeasID int64, result
 	return marshalPDU(pduSuccessfulOutcome, ProcECIDMeasurementInitiation, body)
 }
 
-// BuildECIDMeasurementInitiationFailure encodes an E-CID Measurement Initiation
-// Failure carrying the rejection cause (TS 36.455 §8.2.1).
+// BuildECIDMeasurementInitiationFailure encodes the rejection of an initiation
+// request (TS 36.455 §8.2.1).
 func BuildECIDMeasurementInitiationFailure(esmlcMeasID int64, cause Cause) ([]byte, error) {
 	if err := validateMeasurementID("esmlcMeasID", esmlcMeasID); err != nil {
 		return nil, err
@@ -124,8 +121,8 @@ func BuildECIDMeasurementInitiationFailure(esmlcMeasID int64, cause Cause) ([]by
 	return marshalPDU(pduUnsuccessfulOutcome, ProcECIDMeasurementInitiation, body)
 }
 
-// validateMeasurementID rejects a Measurement-ID outside its root range 1..15
-// (TS 36.455 §9.2.6) with an argument-named error.
+// validateMeasurementID rejects values outside the Measurement-ID root range
+// 1..15 (TS 36.455 §9.2.6).
 func validateMeasurementID(name string, id int64) error {
 	if id < 1 || id > 15 {
 		return fmt.Errorf("lppa: %s %d out of range [1, 15]", name, id)
@@ -134,8 +131,8 @@ func validateMeasurementID(name string, id int64) error {
 	return nil
 }
 
-// encodeMessageBody writes an E-CID message SEQUENCE: an extensible preamble
-// with no optional root fields, then the ProtocolIE-Container.
+// encodeMessageBody writes an E-CID message SEQUENCE, which is extensible with
+// no optional root field.
 func encodeMessageBody(fields []ieField) ([]byte, error) {
 	w := per.NewWriter()
 
@@ -148,8 +145,7 @@ func encodeMessageBody(fields []ieField) ([]byte, error) {
 	return perAlignedBytes(w), nil
 }
 
-// encMeasurementID encodes a Measurement-ID ::= INTEGER (1..15, ...)
-// (TS 36.455 §9.2.6).
+// Measurement-ID ::= INTEGER (1..15, ...) (TS 36.455 §9.2.6).
 func encMeasurementID(id int64) func(*per.Writer) error {
 	return func(w *per.Writer) error {
 		return writeExtConstrainedInt(w, id, 1, 15)
@@ -162,8 +158,8 @@ func encReportCharacteristics(v int) func(*per.Writer) error {
 	}
 }
 
-// encMeasurementQuantities encodes MeasurementQuantities ::= SEQUENCE (SIZE
-// (1..maxNoMeas)) OF ProtocolIE-Single-Container (TS 36.455 §9.2.29).
+// MeasurementQuantities ::= SEQUENCE (SIZE (1..maxNoMeas)) OF
+// ProtocolIE-Single-Container (TS 36.455 §9.2.29).
 func encMeasurementQuantities(qs []MeasurementQuantityValue) func(*per.Writer) error {
 	return func(w *per.Writer) error {
 		if len(qs) < 1 || len(qs) > maxNoMeas {
@@ -200,7 +196,7 @@ func encMeasurementQuantities(qs []MeasurementQuantityValue) func(*per.Writer) e
 	}
 }
 
-// encMeasurementResult encodes E-CID-MeasurementResult (TS 36.455 §9.2.5).
+// E-CID-MeasurementResult (TS 36.455 §9.2.5).
 func encMeasurementResult(res *ECIDResult) func(*per.Writer) error {
 	return func(w *per.Writer) error {
 		hasAP := res.APPosition != nil
@@ -244,8 +240,8 @@ func encECGI(w *per.Writer, e ECGI) error {
 	return per.EncodeBitString(w, per.Aligned, 28, 28, true, true, false, uintToBits(e.EUTRACellID, 28), 28)
 }
 
-// encAPPosition encodes E-UTRANAccessPointPosition (TS 36.455 §9.2.1). The
-// SEQUENCE is extensible with no optional root fields.
+// E-UTRANAccessPointPosition (TS 36.455 §9.2.1), extensible with no optional
+// root field.
 func encAPPosition(w *per.Writer, p *APPosition) error {
 	writeSeqPreamble(w, false, nil)
 
@@ -288,9 +284,8 @@ func encAPPosition(w *per.Writer, p *APPosition) error {
 	return nil
 }
 
-// encMeasuredResults encodes MeasuredResults ::= SEQUENCE (SIZE (1..maxNoMeas))
-// OF MeasuredResultsValue, one CHOICE entry per present quantity
-// (TS 36.455 §9.2.28).
+// MeasuredResults ::= SEQUENCE (SIZE (1..maxNoMeas)) OF MeasuredResultsValue
+// (TS 36.455 §9.2.28), one CHOICE entry per quantity present in res.
 func encMeasuredResults(w *per.Writer, res *ECIDResult) error {
 	var entries []func(*per.Writer) error
 
@@ -353,8 +348,8 @@ func encMeasuredResults(w *per.Writer, res *ECIDResult) error {
 
 const measuredResultsRootCount = 5
 
-// encMeasuredChoiceInt writes a MeasuredResultsValue CHOICE whose alternative is
-// a constrained INTEGER (valueAngleOfArrival, valueTimingAdvanceType1/2).
+// encMeasuredChoiceInt covers the valueAngleOfArrival and
+// valueTimingAdvanceType1/2 alternatives.
 func encMeasuredChoiceInt(w *per.Writer, index int, v, lb, ub int64) error {
 	if err := func() error {
 		w.WriteBit(false)
@@ -366,8 +361,7 @@ func encMeasuredChoiceInt(w *per.Writer, index int, v, lb, ub int64) error {
 	return per.EncodeConstrainedWholeNumber(w, per.Aligned, lb, ub, v)
 }
 
-// encMeasuredChoiceList writes a MeasuredResultsValue CHOICE whose alternative is
-// a SEQUENCE-OF list (resultRSRP, resultRSRQ).
+// encMeasuredChoiceList covers the resultRSRP and resultRSRQ alternatives.
 func encMeasuredChoiceList(w *per.Writer, index int, enc func(*per.Writer) error) error {
 	if err := func() error {
 		w.WriteBit(false)
@@ -451,8 +445,8 @@ func encResultRSRQ(w *per.Writer, items []RSRQItem) error {
 	return nil
 }
 
-// encCause encodes Cause ::= CHOICE { radioNetwork, protocol, misc, ... }
-// (TS 36.455 §9.2.2). Only the three root ENUMERATED groups are emitted.
+// Cause ::= CHOICE { radioNetwork, protocol, misc, ... } (TS 36.455 §9.2.2).
+// Only the three root groups can be emitted.
 func encCause(c Cause) func(*per.Writer) error {
 	return func(w *per.Writer) error {
 		if c.Group < CauseGroupRadioNetwork || c.Group > CauseGroupMisc {
@@ -466,16 +460,15 @@ func encCause(c Cause) func(*per.Writer) error {
 			return err
 		}
 
-		// Each root Cause group is an extensible ENUMERATED; the ordinal count is
-		// not modeled, so the value is emitted as a root ENUMERATED index.
+		// Each root Cause group is itself an extensible ENUMERATED.
 		return per.EncodeEnumerated(w, per.Aligned, int64(causeGroupNRoot(c.Group)), true, int64(int(c.Value)))
 	}
 }
 
 const causeRootCount = 3
 
-// causeGroupNRoot returns the number of root ENUMERATED values for a Cause group
-// (TS 36.455 §9.2.2): CauseRadioNetwork has 3, CauseProtocol 7, CauseMisc 1.
+// causeGroupNRoot is the root ENUMERATED value count of each Cause group
+// (TS 36.455 §9.2.2).
 func causeGroupNRoot(g CauseGroup) int {
 	switch g {
 	case CauseGroupRadioNetwork:

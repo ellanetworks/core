@@ -152,8 +152,6 @@ func TestLPPaTransportEmptyPDU(t *testing.T) {
 	}
 }
 
-// TestLPPaTransportUnknownIE decodes a message carrying an IE the type does not
-// model; it must round-trip (be preserved) rather than fail.
 func TestLPPaTransportUnknownIE(t *testing.T) {
 	w := per.NewWriter()
 

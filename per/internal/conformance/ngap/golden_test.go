@@ -11,32 +11,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// TestNGSetupRequestGoldenVector verifies that our PER encoding produces the
-// exact byte sequence expected by 3GPP TS 38.413 for an NGSetupRequest-like
-// message using ALIGNED PER (the variant NGAP uses, per §9.5).
-//
-// The test message contains:
-//   - GlobalRANNodeID: PLMN=0x00F110 (MCC 001, MNC 01), gNB-ID choice index 0,
-//     gNB-ID value 1
-//   - RANNodeName: nil (optional, absent)
-//   - SupportedTAList: 1 item with PLMN=0x00F110, TAC=0x000001
-//   - DefaultPagingDRX: 2 (v128)
-//
-// Expected encoding (aligned PER):
-//
-//	00                     preamble: RANNodeName absent (1 bit = 0, + 7 pad)
-//	00 F1 10               PLMNIdentity (OCTET STRING SIZE(3), fixed, no length)
-//	00                     GNBIDChoice index 0 (range 2, 1 bit = 0, + 7 pad)
-//	00 00 00 01            GNBID.Value: constrained 0..4294967295, range>64K,
-//	                       indefinite: length 4 (0x04) + 4 bytes 0x00000001
-//	00                     SupportedTAList length: range 1..256 = 256 → 1 octet
-//	                       (octet-aligned), value 1 (0x01)... wait, range 256
-//	                       → one-octet case → 0x01
-//	00 F1 10               TAI item: PLMN
-//	00 00 01               TAI item: TAC
-//	02                     DefaultPagingDRX: range 0..3, 2 bits → 10 + 6 pad
-//
-// See the test for the hand-computed expected bytes.
+// NGAP uses ALIGNED PER (TS 38.413 §9.5).
 func TestNGSetupRequestGoldenVector(t *testing.T) {
 	name := ""
 	msg := &NGSetupRequest{
@@ -60,27 +35,24 @@ func TestNGSetupRequestGoldenVector(t *testing.T) {
 		t.Fatalf("marshal: %v", err)
 	}
 
-	// Hand-computed expected encoding (aligned PER, NGAP variant):
-	//
-	// 00          preamble: 0 (RANNodeName absent) + 7 pad bits
-	// 00 F1 10    PLMN (fixed 3 octets, octet-aligned, no length)
-	// 00          GNBIDChoice: idx 0 (1 bit) + GNBID length (2 bits: 00, n-lb=0)
-	//             + 5 pad bits = 0x00
+	// 00          preamble: RANNodeName absent (1 bit = 0) + 7 pad
+	// 00 F1 10    PLMN (fixed 3 octets, no length determinant)
+	// 00          GNBIDChoice idx 0 (1 bit) + GNBID length (2 bits, n-lb = 0)
+	//             + 5 pad
 	// 01          GNBID.Value = 1 (octet-aligned, 1 octet)
-	// 00          SupportedTAList count: range 1..256, range=256 → 1 octet,
-	//             value n-lb = 0 → 0x00
-	// 00 F1 10    PLMN of TAI item 0 (octet-aligned, 3 octets)
-	// 00 00 01    TAC of TAI item 0 (octet-aligned, 3 octets)
-	// 80          DefaultPagingDRX: value 2 (2 bits: 10) + 6 pad → 0x80
+	// 00          SupportedTAList count: range 1..256 → one octet, n-lb = 0
+	// 00 F1 10    TAI item 0: PLMN
+	// 00 00 01    TAI item 0: TAC
+	// 80          DefaultPagingDRX = 2 (2 bits: 10) + 6 pad
 	expected := []byte{
-		0x00,             // preamble + pad
-		0x00, 0xF1, 0x10, // PLMN
-		0x00,             // GNBIDChoice idx 0 + GNBID length 00 + pad
-		0x01,             // GNBID.Value = 1
-		0x00,             // SupportedTAList count (n-lb = 0)
-		0x00, 0xF1, 0x10, // TAI PLMN
-		0x00, 0x00, 0x01, // TAI TAC
-		0x80, // DefaultPagingDRX = 2 (10xxxxxx)
+		0x00,
+		0x00, 0xF1, 0x10,
+		0x00,
+		0x01,
+		0x00,
+		0x00, 0xF1, 0x10,
+		0x00, 0x00, 0x01,
+		0x80,
 	}
 
 	if !bytes.Equal(buf, expected) {
@@ -143,9 +115,8 @@ func TestNGSetupRequestWithRANNodeName(t *testing.T) {
 	}
 }
 
-// TestCauseMiscEnumVectors pins the extensible ENUMERATED encoding (X.691
-// §14): root values are ext-bit 0 + a 3-bit index; extension additions are
-// ext-bit 1 + a normally-small number.
+// X.691 §14: a root value is ext-bit 0 plus a 3-bit index, an extension
+// addition ext-bit 1 plus a normally-small number.
 func TestCauseMiscEnumVectors(t *testing.T) {
 	cases := []struct {
 		value int

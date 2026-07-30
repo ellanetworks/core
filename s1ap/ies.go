@@ -15,10 +15,8 @@ const (
 	maxProtocolExtensions = 65535
 )
 
-// ieField is one ProtocolIE-Field to encode: its id, criticality, and the
-// value. The engine wraps the value as an open type. Exactly one of val and
-// raw is set; raw carries the pre-encoded open-type content of an IE decoded
-// from the wire but not modeled, so it round-trips verbatim.
+// Exactly one of val and raw is set; raw holds already-encoded open-type
+// content, so an unmodeled IE round-trips verbatim.
 type ieField struct {
 	id   ProtocolIEID
 	crit Criticality
@@ -26,49 +24,33 @@ type ieField struct {
 	raw  []byte
 }
 
-// rawIE is a decoded ProtocolIE-Field: id, criticality, and the raw open-type
-// value bytes. The message layer decodes the bytes for ids it models and
-// preserves the rest so they survive a re-encode.
 type rawIE struct {
 	id    ProtocolIEID
 	crit  Criticality
 	value []byte
 }
 
-// field returns an ieField that re-emits this decoded IE verbatim, so unknown
-// IEs round-trip.
 func (e rawIE) field() ieField {
 	return ieField{id: e.id, crit: e.crit, raw: e.value}
 }
 
-// RawIE is an exported view of a ProtocolIE-Field the message layer does not
-// model: its id, criticality, and raw open-type value bytes (TS 36.413).
-// It lets callers surface IEs present on the wire that the typed fields omit.
+// RawIE is a ProtocolIE-Field the message type does not model, with its value
+// left as open-type bytes (TS 36.413).
 type RawIE struct {
 	ID          ProtocolIEID
 	Criticality Criticality
 	Value       []byte
 }
 
-// unmodeledIEs is embedded in every message struct. It holds the ProtocolIEs the
-// message type does not model so they round-trip on re-encode and callers can
-// surface them. The field is unexported (the engine appends to it during decode
-// and re-emits it on encode); UnknownIEs exposes a read-only view.
+// unmodeledIEs is embedded in every message struct; UnknownIEs is its
+// read-only view.
 type unmodeledIEs struct {
 	unknownIEs []rawIE
 }
 
-// UnhandledCriticalIEs returns, in wire order, the ids of the ProtocolIEs this
-// message type does not model that arrived marked with reject criticality.
-//
-// TS 36.413 §10.3.4.2 requires a receiver that does not comprehend such an IE
-// to reject the procedure and report it. The codec records them instead of
-// deciding: only the receiving node knows the procedure and whether it has a
-// message with which to report the unsuccessful outcome. A caller that does
-// understand one of these ids may disregard it and carry on.
-//
-// The IEs themselves remain available from UnknownIEs and are re-emitted on
-// encode, so a message still round-trips with everything that arrived.
+// UnhandledCriticalIEs returns, in wire order, the ids of unmodeled IEs that
+// arrived marked reject. TS 36.413 §10.3.4.2 requires rejecting the procedure
+// over one, which needs procedure state the codec does not have.
 func (u unmodeledIEs) UnhandledCriticalIEs() []ProtocolIEID {
 	var out []ProtocolIEID
 
@@ -81,8 +63,7 @@ func (u unmodeledIEs) UnhandledCriticalIEs() []ProtocolIEID {
 	return out
 }
 
-// UnknownIEs returns, in wire order, the ProtocolIEs present on the wire that
-// this message type does not model, as raw {id, criticality, value} triples.
+// UnknownIEs returns, in wire order, the IEs this message type does not model.
 func (u unmodeledIEs) UnknownIEs() []RawIE {
 	if len(u.unknownIEs) == 0 {
 		return nil
@@ -96,9 +77,7 @@ func (u unmodeledIEs) UnknownIEs() []RawIE {
 	return out
 }
 
-// encodeIEContainer writes a ProtocolIE-Container (TS 36.413): the field
-// count as a constrained length, then each ProtocolIE-Field as
-// { id, criticality, value-as-open-type } in order.
+// encodeIEContainer writes a ProtocolIE-Container (TS 36.413).
 func encodeIEContainer(w *per.Writer, enc per.Encoding, fields []ieField) error {
 	if len(fields) > maxProtocolIEs {
 		return fmt.Errorf("s1ap: %d IEs exceed maxProtocolIEs", len(fields))
@@ -145,10 +124,8 @@ func encodeContainerField(w *per.Writer, enc per.Encoding, f ieField) error {
 const maxnoofERABs = 256
 
 // encodeSingleContainerList writes a SEQUENCE (SIZE(1..ub)) OF
-// ProtocolIE-SingleContainer: a constrained count, then each item as a
-// { id, criticality, value-as-open-type } field with the fixed item id and
-// criticality. Used by the E-RAB and TAI lists (TS 36.413). ub is each
-// list's ASN.1 SIZE bound; it is coincidental that the current lists share 256.
+// ProtocolIE-SingleContainer (TS 36.413). ub is each list's own ASN.1 SIZE
+// bound; that today's lists share 256 is coincidental.
 //
 //nolint:unparam
 func encodeSingleContainerList[T any](w *per.Writer, enc per.Encoding, ub int64, id ProtocolIEID, crit Criticality, items []T) error {
@@ -178,9 +155,7 @@ func encodeSingleContainerList[T any](w *per.Writer, enc per.Encoding, ub int64,
 }
 
 // decodeItemList reads a SEQUENCE (SIZE(1..ub)) OF ProtocolIE-SingleContainer
-// (TS 36.413). Each item is its own APER open type, decoded with a fresh
-// reader over that item's octets, so the open-type boundary stays here, not at
-// each call site.
+// (TS 36.413). Each item is its own open type, so each gets a fresh reader.
 //
 //nolint:unparam
 func decodeItemList[T any](r *per.Reader, enc per.Encoding, ub int64) ([]T, error) {
@@ -224,9 +199,8 @@ func decodeItemList[T any](r *per.Reader, enc per.Encoding, ub int64) ([]T, erro
 	return items, nil
 }
 
-// decodeIEContainer reads a ProtocolIE-Container into the fields in wire order,
-// preserving every field (including ids the caller does not model) for dispatch
-// by id.
+// decodeIEContainer reads a ProtocolIE-Container in wire order, keeping every
+// field including ids the caller does not model.
 //
 //nolint:unparam
 func decodeIEContainer(r *per.Reader, enc per.Encoding) ([]rawIE, error) {

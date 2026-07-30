@@ -32,9 +32,8 @@ var causeGroupRootCount = [causeRootGroups]int{
 	CauseGroupMisc:         6,
 }
 
-// Named root values of each Cause group's ENUMERATED (TS 36.413) that
-// Ella Core emits. Each value is its group's enumeration index, so the same
-// number means different things in different groups — the group prefix names it.
+// Root ENUMERATED values of each Cause group (TS 36.413). A value is an index
+// within its own group, so the same number differs across groups.
 const (
 	CauseRadioNetworkUnspecified               = 0  // unspecified
 	CauseRadioNetworkUnknownMMEUES1APID        = 13 // unknown-mme-ue-s1ap-id
@@ -57,9 +56,8 @@ const (
 	CauseMiscUnknownPLMN = 5 // unknown-PLMN
 )
 
-// Cause ::= CHOICE of five extensible ENUMERATED groups. Value is the chosen
-// group's enumeration index; Extended is true when Value indexes an extension
-// addition of that enumeration and false when it indexes a root value.
+// Cause ::= CHOICE of five extensible ENUMERATED groups. Value indexes the
+// chosen group; Extended marks it as indexing an extension addition.
 type Cause struct {
 	Group    CauseGroup
 	Value    int

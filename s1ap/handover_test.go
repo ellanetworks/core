@@ -17,9 +17,6 @@ func sampleTargetID() TargetID {
 	}}
 }
 
-// TestHandoverRequiredRoundTrip covers HANDOVER REQUIRED through the generic
-// Unmarshal envelope, checking every modeled IE survives including the opaque
-// source-to-target container.
 func TestHandoverRequiredRoundTrip(t *testing.T) {
 	in := &HandoverRequired{
 		MMEUES1APID:    0x020000bf,
@@ -67,9 +64,7 @@ func TestHandoverRequiredRoundTrip(t *testing.T) {
 	}
 }
 
-// TestHandoverTypeRootValuesRoundTrip checks every root HandoverType decodes
-// faithfully; restricting handover to intralte is an MME-layer policy, not a
-// codec concern (TS 36.413).
+// Restricting handover to intralte is MME policy, not a codec concern.
 func TestHandoverTypeRootValuesRoundTrip(t *testing.T) {
 	for ht := HandoverTypeIntraLTE; ht <= HandoverTypeGERANtoLTE; ht++ {
 		in := &HandoverRequired{
@@ -102,8 +97,6 @@ func TestHandoverTypeRootValuesRoundTrip(t *testing.T) {
 	}
 }
 
-// TestTargetIDNonENBAlternativeRejected checks the parser rejects a TargetID
-// CHOICE arm other than targeteNB-ID, which is out of scope (TS 36.413).
 func TestTargetIDNonENBAlternativeRejected(t *testing.T) {
 	w := per.NewWriter()
 
@@ -120,8 +113,6 @@ func TestTargetIDNonENBAlternativeRejected(t *testing.T) {
 	}
 }
 
-// TestHandoverRequestRoundTrip covers HANDOVER REQUEST with its E-RABs To Be
-// Setup list, AMBR, security context, and opaque container.
 func TestHandoverRequestRoundTrip(t *testing.T) {
 	var nh SecurityKey
 	for i := range nh {
@@ -183,9 +174,6 @@ func TestHandoverRequestRoundTrip(t *testing.T) {
 	}
 }
 
-// TestHandoverRequestAcknowledgeRoundTrip covers HANDOVER REQUEST ACKNOWLEDGE
-// with an admitted E-RAB carrying the target DL endpoint, a failed E-RAB, and the
-// opaque target-to-source container.
 func TestHandoverRequestAcknowledgeRoundTrip(t *testing.T) {
 	in := &HandoverRequestAcknowledge{
 		MMEUES1APID: 0x020000bf,
@@ -237,9 +225,6 @@ func TestHandoverRequestAcknowledgeRoundTrip(t *testing.T) {
 	}
 }
 
-// TestHandoverRequestAcknowledgeForwardingTunnels covers the optional DL/UL
-// data-forwarding F-TEIDs in an admitted E-RAB surviving a round-trip even though
-// the MME ignores them.
 func TestHandoverRequestAcknowledgeForwardingTunnels(t *testing.T) {
 	dlTEID := GTPTEID(0x44556677)
 
@@ -281,8 +266,6 @@ func TestHandoverRequestAcknowledgeForwardingTunnels(t *testing.T) {
 	}
 }
 
-// TestHandoverCommandRoundTrip covers HANDOVER COMMAND with a bearer-to-release
-// list and the opaque target-to-source container.
 func TestHandoverCommandRoundTrip(t *testing.T) {
 	in := &HandoverCommand{
 		MMEUES1APID:    7,
@@ -325,7 +308,6 @@ func TestHandoverCommandRoundTrip(t *testing.T) {
 	}
 }
 
-// TestHandoverPreparationFailureRoundTrip covers HANDOVER PREPARATION FAILURE.
 func TestHandoverPreparationFailureRoundTrip(t *testing.T) {
 	in := &HandoverPreparationFailure{
 		MMEUES1APID: 7,
@@ -358,7 +340,6 @@ func TestHandoverPreparationFailureRoundTrip(t *testing.T) {
 	}
 }
 
-// TestHandoverFailureRoundTrip covers HANDOVER FAILURE.
 func TestHandoverFailureRoundTrip(t *testing.T) {
 	in := &HandoverFailure{
 		MMEUES1APID: 7,
@@ -390,7 +371,6 @@ func TestHandoverFailureRoundTrip(t *testing.T) {
 	}
 }
 
-// TestHandoverNotifyRoundTrip covers HANDOVER NOTIFY with the UE's new location.
 func TestHandoverNotifyRoundTrip(t *testing.T) {
 	in := &HandoverNotify{
 		MMEUES1APID: 7,
@@ -424,8 +404,6 @@ func TestHandoverNotifyRoundTrip(t *testing.T) {
 	}
 }
 
-// TestStatusTransferRelayRoundTrip covers ENB STATUS TRANSFER decoding and MME
-// STATUS TRANSFER re-encoding of the same opaque container, the MME's relay path.
 func TestStatusTransferRelayRoundTrip(t *testing.T) {
 	container := StatusTransferContainer{0xde, 0xad, 0xbe, 0xef, 0x01, 0x02}
 
@@ -484,7 +462,6 @@ func TestStatusTransferRelayRoundTrip(t *testing.T) {
 	}
 }
 
-// TestHandoverCancelRoundTrip covers HANDOVER CANCEL and its acknowledge.
 func TestHandoverCancelRoundTrip(t *testing.T) {
 	in := &HandoverCancel{MMEUES1APID: 7, ENBUES1APID: 2, Cause: Cause{Group: CauseGroupRadioNetwork, Value: 5}}
 

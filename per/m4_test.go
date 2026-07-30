@@ -82,10 +82,8 @@ func TestKnownMultiplierStringRoundtrip(t *testing.T) {
 
 func TestNumericStringCompaction(t *testing.T) {
 	t.Parallel()
-	// NumericString has 12 chars → 4 bits aligned, 4 bits unaligned.
-	// "123" → values 1,2,3 (indices in " 0123456789" → 1=1,2=2,3=3)
-	// Actually: '1'=code 49, mapped to index 2 in " 0123456789"
-	// Wait: " 0123456789" → ' '=0, '0'=1, '1'=2, '2'=3, '3'=4
+	// NumericString remaps " 0123456789" to 0..10, so "123" compacts to 2, 3, 4
+	// at 4 bits per character in both variants.
 	for _, enc := range []Encoding{Aligned, Unaligned} {
 		s := "123"
 
@@ -187,7 +185,7 @@ func TestKMStringExtensible(t *testing.T) {
 
 func TestKMStringLargeRoundtrip(t *testing.T) {
 	t.Parallel()
-	// Large string to test fragmentation path.
+	// 20000 characters spans more than one 16K fragment.
 	s := strings.Repeat("A", 20000)
 
 	for _, enc := range []Encoding{Aligned, Unaligned} {

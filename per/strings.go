@@ -7,15 +7,10 @@ import (
 	"time"
 )
 
-// ---- Non-known-multiplier restricted character strings (§30.6) -------------
-//
-// These types (UTF8String, TeletexString, VideotexString, GraphicString,
-// GeneralString, ObjectDescriptor) are encoded as BER base encoding (the raw
-// octets of the character string) preceded by an unconstrained length
-// determinant in octets.
-
-// EncodeString encodes a non-known-multiplier character string (e.g. UTF8String)
-// per §30.6: raw octets preceded by an unconstrained length determinant.
+// EncodeString encodes a non-known-multiplier character string — UTF8String,
+// TeletexString, VideotexString, GraphicString, GeneralString,
+// ObjectDescriptor — as its BER octets preceded by an unconstrained length
+// determinant (§30.6).
 func EncodeString(w *Writer, enc Encoding, data []byte) error {
 	off := 0
 
@@ -28,7 +23,7 @@ func EncodeString(w *Writer, enc Encoding, data []byte) error {
 	})
 }
 
-// DecodeString decodes a non-known-multiplier character string per §30.6.
+// DecodeString decodes a non-known-multiplier character string (§30.6).
 func DecodeString(r *Reader, enc Encoding) ([]byte, error) {
 	var buf []byte
 
@@ -46,22 +41,14 @@ func DecodeString(r *Reader, enc Encoding) ([]byte, error) {
 	return buf, err
 }
 
-// ---- Time types (§32) -------------------------------------------------------
-//
-// GeneralizedTime, UTCTime, Date, TimeOfDay, DateTime, Duration are encoded
-// as the BER content octets of the corresponding time string, preceded by an
-// unconstrained length determinant. This is the simplest (non-optimized) path
-// for time types per §32.11.
-
-// EncodeGeneralizedTime encodes a GeneralizedTime per §32 (via BER content +
-// unconstrained length). The time is formatted as "20060102150405Z" (or with
-// fractional seconds if non-zero).
+// EncodeGeneralizedTime encodes a GeneralizedTime as BER content octets
+// preceded by an unconstrained length, the unoptimized path of §32.11.
 func EncodeGeneralizedTime(w *Writer, enc Encoding, t time.Time) error {
 	s := t.UTC().Format("20060102150405Z")
 	return EncodeString(w, enc, []byte(s))
 }
 
-// DecodeGeneralizedTime decodes a GeneralizedTime per §32.
+// DecodeGeneralizedTime decodes a GeneralizedTime (§32).
 func DecodeGeneralizedTime(r *Reader, enc Encoding) (time.Time, error) {
 	buf, err := DecodeString(r, enc)
 	if err != nil {
@@ -83,14 +70,14 @@ func DecodeGeneralizedTime(r *Reader, enc Encoding) (time.Time, error) {
 	return time.Parse("20060102150405Z", string(buf))
 }
 
-// EncodeUTCTime encodes a UTCTime per §32 (via BER content + unconstrained
-// length). The time is formatted as "060102150405Z".
+// EncodeUTCTime encodes a UTCTime as BER content octets preceded by an
+// unconstrained length, the unoptimized path of §32.11.
 func EncodeUTCTime(w *Writer, enc Encoding, t time.Time) error {
 	s := t.UTC().Format("060102150405Z")
 	return EncodeString(w, enc, []byte(s))
 }
 
-// DecodeUTCTime decodes a UTCTime per §32.
+// DecodeUTCTime decodes a UTCTime (§32).
 func DecodeUTCTime(r *Reader, enc Encoding) (time.Time, error) {
 	buf, err := DecodeString(r, enc)
 	if err != nil {

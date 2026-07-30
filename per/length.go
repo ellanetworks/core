@@ -3,16 +3,11 @@
 
 package per
 
-// EncodeLength encodes a length determinant per §11.9 and then invokes emit
-// to write the associated content. emit is called with the number of units
-// (octets, bits, characters, or components) it must write; it is called once
-// for non-fragmented lengths and once per fragment for fragmented lengths
-// (n >= 16K). emit must advance its own position so successive calls write
-// successive fragments.
-//
-// If hasUB is true and ub < 64K, the length is a constrained whole number over
-// [lb, ub] (§11.9.3.3); otherwise the three-form unconstrained encoding with
-// 16K fragmentation is used (§11.9.3.5–11.9.3.8).
+// EncodeLength encodes a length determinant (§11.9), then calls emit with the
+// number of units to write — once, or once per 16K fragment when n ≥ 16K, in
+// which case emit must advance its own position between calls. The determinant
+// is a constrained whole number when hasUB and ub < 64K (§11.9.3.3), otherwise
+// the three-form encoding (§11.9.3.5–11.9.3.8).
 func EncodeLength(
 	w *Writer, enc Encoding,
 	lb, ub int64, hasUB bool,
@@ -39,7 +34,7 @@ func EncodeLength(
 }
 
 // encodeUnconstrainedLengthFrag implements the three-form length determinant
-// (§11.9.3.6–11.9.3.8) with 16K fragmentation, invoking emit per fragment.
+// with 16K fragmentation (§11.9.3.6–11.9.3.8).
 func encodeUnconstrainedLengthFrag(w *Writer, enc Encoding, n int64, emit func(count int64) error) error {
 	if n < 0 {
 		return ErrOverflow
@@ -70,8 +65,8 @@ func encodeUnconstrainedLengthFrag(w *Writer, enc Encoding, n int64, emit func(c
 
 		remainder := n - frag
 		if remainder <= 0 {
-			// Content ended on a 16K boundary: a final zero-length fragment is
-			// appended (§11.9.3.8.3 NOTE).
+			// §11.9.3.8.3 NOTE: content ending on a 16K boundary needs a final
+			// zero-length fragment.
 			writeOctetAligned(w, enc, []byte{0x00})
 			return nil
 		}
@@ -80,10 +75,8 @@ func encodeUnconstrainedLengthFrag(w *Writer, enc Encoding, n int64, emit func(c
 	}
 }
 
-// DecodeLength decodes a length determinant per §11.9, invoking consume for
-// each fragment's worth of content. consume is called once for non-fragmented
-// lengths (with the full count) and once per fragment for fragmented lengths;
-// it must read exactly count units and advance its position accordingly.
+// DecodeLength decodes a length determinant (§11.9), then calls consume once
+// per fragment; consume must read exactly count units.
 func DecodeLength(
 	r *Reader, enc Encoding,
 	lb, ub int64, hasUB bool,
@@ -105,8 +98,6 @@ func DecodeLength(
 	return decodeUnconstrainedLengthFrag(r, enc, consume)
 }
 
-// decodeUnconstrainedLengthFrag reads the three-form length determinant,
-// looping over fragments until a final (non-fragment) form is reached.
 func decodeUnconstrainedLengthFrag(r *Reader, enc Encoding, consume func(count int64) error) error {
 	first, err := readOctetAligned(r, enc, 1)
 	if err != nil {
@@ -133,8 +124,8 @@ func decodeUnconstrainedLengthFrag(r *Reader, enc Encoding, consume func(count i
 		return consume(n)
 	default: // fragment: m = b & 0x3F (1..4)
 		m := int64(b & 0x3F)
-		// §11.9.3.8: only m in 1..4 is defined. m == 0 would consume no
-		// content and recurse once per input octet.
+		// §11.9.3.8: only m in 1..4 is defined; m == 0 would recurse without
+		// consuming any content.
 		if m < 1 || m > 4 {
 			return ErrOverflow
 		}
@@ -148,10 +139,9 @@ func decodeUnconstrainedLengthFrag(r *Reader, enc Encoding, consume func(count i
 	}
 }
 
-// EncodeUnconstrainedLength encodes a bare (non-fragmented) unconstrained
-// length determinant, used where the content is emitted separately (e.g. the
-// octet count of a semi-constrained whole number, §11.7). It supports n < 16K;
-// larger values require the fragmented form with interleaved content.
+// EncodeUnconstrainedLength encodes a bare unconstrained length determinant,
+// for content emitted separately (e.g. §11.7). n must be < 16K; larger values
+// require the fragmented form with interleaved content.
 func EncodeUnconstrainedLength(w *Writer, enc Encoding, n int64) error {
 	if n < 0 || n > maxMedium {
 		return ErrOverflow
@@ -167,8 +157,7 @@ func EncodeUnconstrainedLength(w *Writer, enc Encoding, n int64) error {
 	return nil
 }
 
-// DecodeUnconstrainedLength decodes a bare non-fragmented unconstrained length
-// determinant (the inverse of [EncodeUnconstrainedLength]).
+// DecodeUnconstrainedLength decodes a bare unconstrained length determinant.
 func DecodeUnconstrainedLength(r *Reader, enc Encoding) (int64, error) {
 	first, err := readOctetAligned(r, enc, 1)
 	if err != nil {

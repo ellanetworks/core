@@ -4,21 +4,15 @@
 package per
 
 // Writer is a bit-oriented output buffer. Bits are written most-significant-bit
-// first within each octet, as required by PER.
-//
-// A Writer tracks whether the current position is octet-aligned via [Writer.Aligned];
-// the [Writer.AlignToByte] method inserts zero padding bits up to the next octet
-// boundary, which is how Aligned PER inserts padding. Unaligned PER callers simply
-// never call AlignToByte between fields.
+// first within each octet.
 type Writer struct {
 	buf []byte
-	bit uint8 // 0..7: number of bits filled in the current (last) partial octet
+	bit uint8 // 0..7: bits filled in the last partial octet
 }
 
-// NewWriter returns an empty Writer.
 func NewWriter() *Writer { return &Writer{} }
 
-// Bits returns the total number of bits written so far.
+// Bits returns the number of bits written so far.
 func (w *Writer) Bits() int {
 	if w.bit == 0 {
 		return len(w.buf) * 8
@@ -27,14 +21,13 @@ func (w *Writer) Bits() int {
 	return (len(w.buf)-1)*8 + int(w.bit)
 }
 
-// Aligned reports whether the current position is on an octet boundary.
 func (w *Writer) Aligned() bool { return w.bit == 0 }
 
-// Buf returns the internal buffer (do not retain across further writes).
+// Buf returns the internal buffer, invalidated by any further write.
 func (w *Writer) Buf() []byte { return w.buf }
 
-// Bytes returns the encoded octets. It panics if the writer is not octet-aligned,
-// since a partial octet has no well-formed PER representation at the top level.
+// Bytes returns a copy of the encoded octets. It panics unless the writer is
+// octet-aligned.
 func (w *Writer) Bytes() []byte {
 	if w.bit != 0 {
 		panic("per: Bytes() called on non-octet-aligned writer")
@@ -46,7 +39,6 @@ func (w *Writer) Bytes() []byte {
 	return out
 }
 
-// WriteBit appends a single bit.
 func (w *Writer) WriteBit(v bool) {
 	if w.bit == 0 {
 		w.buf = append(w.buf, 0)
@@ -63,7 +55,7 @@ func (w *Writer) WriteBit(v bool) {
 }
 
 // WriteBits writes the n least-significant bits of v, most-significant first.
-// It panics if n < 0 or n > 64.
+// It panics if n > 64.
 func (w *Writer) WriteBits(v uint64, n int) {
 	if n < 0 || n > 64 {
 		panic("per: WriteBits: invalid bit count")
@@ -74,8 +66,8 @@ func (w *Writer) WriteBits(v uint64, n int) {
 	}
 }
 
-// WriteBitString writes nbits bits from data, MSB-first. nbits must not exceed
-// len(data)*8. Trailing bits of the final octet beyond nbits are ignored.
+// WriteBitString writes nbits bits from data, MSB-first. It panics if nbits
+// exceeds len(data)*8.
 func (w *Writer) WriteBitString(data []byte, nbits int) {
 	if nbits < 0 || nbits > len(data)*8 {
 		panic("per: WriteBitString: nbits out of range")
@@ -86,7 +78,7 @@ func (w *Writer) WriteBitString(data []byte, nbits int) {
 	}
 }
 
-// WriteOctets writes whole octets. The writer must be octet-aligned.
+// WriteOctets writes whole octets; the writer must be octet-aligned.
 func (w *Writer) WriteOctets(p []byte) error {
 	if w.bit != 0 {
 		return ErrUnaligned
@@ -97,8 +89,7 @@ func (w *Writer) WriteOctets(p []byte) error {
 	return nil
 }
 
-// AlignToByte inserts zero bits until the position is on an octet boundary.
-// It is a no-op when already aligned. Used by Aligned PER.
+// AlignToByte pads with zero bits up to the next octet boundary.
 func (w *Writer) AlignToByte() {
 	for w.bit != 0 {
 		w.WriteBit(false)

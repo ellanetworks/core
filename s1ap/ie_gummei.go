@@ -50,8 +50,7 @@ func (c *MMECode) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 }
 
 // GUMMEI ::= SEQUENCE { pLMN-Identity, mME-Group-ID, mME-Code, iE-Extensions
-// OPTIONAL } (extensible), TS 36.413. Identifies the MME an eNB
-// selected; carried in INITIAL UE MESSAGE when the eNB does not run NNSF.
+// OPTIONAL } (extensible) (TS 36.413).
 type GUMMEI struct {
 	_            [0]struct{} `per:"extseq"`
 	PLMNIdentity PLMNIdentity

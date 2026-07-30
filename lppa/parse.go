@@ -11,9 +11,8 @@ import (
 
 const maxProtocolExtensions = 65535
 
-// ParsePDU decodes an LPPa-PDU and dispatches on its procedure code, returning
-// the E-CID message it carries. Unrecognised procedures yield KindUnknown with
-// no error so a caller can ignore them.
+// ParsePDU decodes an LPPa-PDU. An unrecognised procedure yields KindUnknown
+// and no error.
 func ParsePDU(b []byte) (*ParsedPDU, error) {
 	msg, err := unmarshalPDU(b)
 	if err != nil {
@@ -68,8 +67,6 @@ func ParsePDU(b []byte) (*ParsedPDU, error) {
 	return &ParsedPDU{Kind: KindUnknown}, nil
 }
 
-// decodeMessageIEs reads an E-CID message SEQUENCE preamble and its
-// ProtocolIE-Container, returning the fields for id dispatch.
 func decodeMessageIEs(value []byte) ([]rawIE, error) {
 	r := per.NewReader(value)
 
@@ -333,9 +330,8 @@ func decodeAPPosition(r *per.Reader) (*APPosition, error) {
 	return p, nil
 }
 
-// apToDegrees converts the TS 23.032 encoded latitude/longitude to WGS-84
-// decimal degrees: N = round(abs(x) * 2^23 / 90) for latitude,
-// N = round(x * 2^24 / 360) for longitude.
+// apToDegrees inverts the TS 23.032 encoding, N = round(abs(x) * 2^23 / 90) for
+// latitude and N = round(x * 2^24 / 360) for longitude.
 func apToDegrees(p *APPosition) (lat, lon float64) {
 	lat = float64(p.Latitude) * 90.0 / 8388608.0
 	if p.LatitudeSign == 1 {
@@ -628,9 +624,8 @@ func decodeCause(r *per.Reader) (Cause, error) {
 	return Cause{Group: group, Value: int64(val)}, nil
 }
 
-// skipSequenceTail steps over a SEQUENCE's optional iE-Extensions container (when
-// present) and any extension additions (when present) that this codec does not
-// model.
+// skipSequenceTail steps over the unmodeled iE-Extensions container and
+// extension additions at the end of a SEQUENCE.
 func skipSequenceTail(r *per.Reader, extContainer, extAdditions bool) error {
 	if extContainer {
 		if err := skipExtensionContainer(r); err != nil {
@@ -645,7 +640,7 @@ func skipSequenceTail(r *per.Reader, extContainer, extAdditions bool) error {
 	return nil
 }
 
-// skipExtensionContainer consumes a ProtocolExtensionContainer and discards it
+// skipExtensionContainer consumes a ProtocolExtensionContainer
 // (TS 36.455 §9.3.4).
 func skipExtensionContainer(r *per.Reader) error {
 	n, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 1, maxProtocolExtensions)

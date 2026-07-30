@@ -27,9 +27,7 @@ type ERABToBeSetupItemBearerSUReq struct {
 // downlink traffic to (TS 36.413). The two decode identically.
 type ERABSetupItemBearerSURes = ERABSetupItemCtxtSURes
 
-// ERABSetupRequest is the E-RAB SETUP REQUEST message (TS 36.413), sent
-// by the MME to add one or more E-RABs (and their default bearers) to an
-// established UE context — the radio leg of an additional PDN connection.
+// TS 36.413 §9.1.3.1.
 type ERABSetupRequest struct {
 	MMEUES1APID               MMEUES1APID
 	ENBUES1APID               ENBUES1APID
@@ -39,7 +37,6 @@ type ERABSetupRequest struct {
 	unmodeledIEs
 }
 
-// eRABSetupRequestIEs is the ERABSetupRequest IE table (TS 36.413).
 var eRABSetupRequestIEs = []ieSpec[ERABSetupRequest]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
@@ -97,7 +94,6 @@ func (m *ERABSetupRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, eRABSetupRequestIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *ERABSetupRequest) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -114,15 +110,11 @@ func (m *ERABSetupRequest) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseERABSetupRequest decodes the message from an initiatingMessage open-type
-// payload.
 func ParseERABSetupRequest(value []byte) (*ERABSetupRequest, error) {
 	return parseMessageBody[ERABSetupRequest](ProcERABSetup, eRABSetupRequestIEs, value)
 }
 
-// ERABSetupResponse is the E-RAB SETUP RESPONSE message (TS 36.413),
-// sent by the eNB once the E-RAB(s) are set up. ERABSetup carries the eNB S1-U
-// endpoint for each established E-RAB; ERABFailedToSetup lists those rejected.
+// TS 36.413 §9.1.3.2.
 type ERABSetupResponse struct {
 	MMEUES1APID             MMEUES1APID
 	ENBUES1APID             ENBUES1APID
@@ -134,7 +126,6 @@ type ERABSetupResponse struct {
 	unmodeledIEs
 }
 
-// eRABSetupResponseIEs is the ERABSetupResponse IE table (TS 36.413).
 var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
@@ -236,7 +227,6 @@ func (m *ERABSetupResponse) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, eRABSetupResponseIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *ERABSetupResponse) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -253,8 +243,6 @@ func (m *ERABSetupResponse) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseERABSetupResponse decodes the message from a successfulOutcome open-type
-// payload.
 func ParseERABSetupResponse(value []byte) (*ERABSetupResponse, error) {
 	return parseMessageBody[ERABSetupResponse](ProcERABSetup, eRABSetupResponseIEs, value)
 }

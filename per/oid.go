@@ -3,10 +3,9 @@
 
 package per
 
-// oidContentBytes produces the BER content octets of an object identifier value
-// (Rec. ITU-T X.690 §8.19.4): the first octet is 40*arc0 + arc1 (for arc0 in
-// 0..2), and each subsequent arc is base-128 with the MSB continuation bit set
-// on all but the last octet of the arc.
+// oidContentBytes produces the BER content octets of an object identifier
+// (Rec. ITU-T X.690 §8.19.4): the first two arcs combine as 40*arc0 + arc1,
+// then each arc is base-128.
 func oidContentBytes(arcs []uint64) []byte {
 	if len(arcs) < 2 {
 		return nil
@@ -24,8 +23,8 @@ func oidContentBytes(arcs []uint64) []byte {
 	return out
 }
 
-// appendBase128 appends v in base-128 with the MSB continuation bit set on all
-// but the last octet of the value.
+// appendBase128 appends v in base-128, continuation bit set on every octet but
+// the last.
 func appendBase128(out []byte, v uint64) []byte {
 	if v < 0x80 {
 		return append(out, byte(v))
@@ -43,7 +42,7 @@ func appendBase128(out []byte, v uint64) []byte {
 		v >>= 7
 		n++
 	}
-	// reverse into out
+
 	for i := n - 1; i >= 0; i-- {
 		out = append(out, tmp[i])
 	}
@@ -51,7 +50,6 @@ func appendBase128(out []byte, v uint64) []byte {
 	return out
 }
 
-// oidParseContent decodes BER content octets back into arcs.
 func oidParseContent(p []byte) ([]uint64, error) {
 	if len(p) == 0 {
 		return nil, ErrTruncated
@@ -96,8 +94,8 @@ func oidParseContent(p []byte) ([]uint64, error) {
 	return arcs, nil
 }
 
-// EncodeOID encodes an OBJECT IDENTIFIER per §24: BER content octets preceded
-// by an unconstrained length determinant (semi-constrained whole number, lb=0).
+// EncodeOID encodes an OBJECT IDENTIFIER (§24): BER content octets preceded by
+// an unconstrained length determinant.
 func EncodeOID(w *Writer, enc Encoding, arcs []uint64) error {
 	content := oidContentBytes(arcs)
 	off := 0
@@ -111,7 +109,7 @@ func EncodeOID(w *Writer, enc Encoding, arcs []uint64) error {
 	})
 }
 
-// DecodeOID decodes an OBJECT IDENTIFIER per §24.
+// DecodeOID decodes an OBJECT IDENTIFIER (§24).
 func DecodeOID(r *Reader, enc Encoding) ([]uint64, error) {
 	var buf []byte
 

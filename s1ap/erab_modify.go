@@ -8,10 +8,8 @@ import (
 )
 
 // ERABToBeModifiedItemBearerModReq ::= SEQUENCE { e-RAB-ID,
-// e-RABLevelQoSParameters, nAS-PDU, iE-Extensions OPTIONAL } (extensible). The
-// NAS-PDU carries the MODIFY EPS BEARER CONTEXT REQUEST for the bearer
-// (TS 36.413). Unlike E-RAB Setup there is no transport layer address:
-// the S1-U endpoint is unchanged.
+// e-RABLevelQoSParameters, nAS-PDU, iE-Extensions OPTIONAL } (extensible).
+// The NAS-PDU carries the MODIFY EPS BEARER CONTEXT REQUEST (TS 36.413).
 type ERABToBeModifiedItemBearerModReq struct {
 	_      [0]struct{} `per:"extseq"`
 	ERABID ERABID
@@ -21,18 +19,14 @@ type ERABToBeModifiedItemBearerModReq struct {
 }
 
 // ERABModifyItemBearerModRes ::= SEQUENCE { e-RAB-ID, iE-Extensions OPTIONAL }
-// (extensible): one successfully modified E-RAB in the E-RAB MODIFY RESPONSE
-// (TS 36.413).
+// (extensible) (TS 36.413).
 type ERABModifyItemBearerModRes struct {
 	_      [0]struct{} `per:"extseq"`
 	ERABID ERABID
 	_      ieExtensions `per:",skip"`
 }
 
-// ERABModifyRequest is the E-RAB MODIFY REQUEST message (TS 36.413),
-// sent by the MME to change the QoS of one or more active E-RABs. The new
-// E-RAB-level QoS (QCI, ARP) reconfigures the radio bearer; the piggybacked
-// NAS-PDU carries the MODIFY EPS BEARER CONTEXT REQUEST to the UE.
+// TS 36.413 §9.1.3.3.
 type ERABModifyRequest struct {
 	MMEUES1APID               MMEUES1APID
 	ENBUES1APID               ENBUES1APID
@@ -42,7 +36,6 @@ type ERABModifyRequest struct {
 	unmodeledIEs
 }
 
-// eRABModifyRequestIEs is the ERABModifyRequest IE table (TS 36.413).
 var eRABModifyRequestIEs = []ieSpec[ERABModifyRequest]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
@@ -100,7 +93,6 @@ func (m *ERABModifyRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, eRABModifyRequestIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *ERABModifyRequest) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -117,15 +109,11 @@ func (m *ERABModifyRequest) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseERABModifyRequest decodes the message from an initiatingMessage open-type
-// payload.
 func ParseERABModifyRequest(value []byte) (*ERABModifyRequest, error) {
 	return parseMessageBody[ERABModifyRequest](ProcERABModify, eRABModifyRequestIEs, value)
 }
 
-// ERABModifyResponse is the E-RAB MODIFY RESPONSE message (TS 36.413),
-// sent by the eNB once the radio bearer QoS is reconfigured. ERABModify lists the
-// successfully modified E-RABs; ERABFailedToModify lists those rejected.
+// TS 36.413 §9.1.3.4.
 type ERABModifyResponse struct {
 	MMEUES1APID             MMEUES1APID
 	ENBUES1APID             ENBUES1APID
@@ -137,7 +125,6 @@ type ERABModifyResponse struct {
 	unmodeledIEs
 }
 
-// eRABModifyResponseIEs is the ERABModifyResponse IE table (TS 36.413).
 var eRABModifyResponseIEs = []ieSpec[ERABModifyResponse]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
@@ -239,7 +226,6 @@ func (m *ERABModifyResponse) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, eRABModifyResponseIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *ERABModifyResponse) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -256,8 +242,6 @@ func (m *ERABModifyResponse) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseERABModifyResponse decodes the message from a successfulOutcome open-type
-// payload.
 func ParseERABModifyResponse(value []byte) (*ERABModifyResponse, error) {
 	return parseMessageBody[ERABModifyResponse](ProcERABModify, eRABModifyResponseIEs, value)
 }

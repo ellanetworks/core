@@ -3,23 +3,20 @@
 
 package per
 
-// Null represents the ASN.1 NULL type and empty SEQUENCE {}. It encodes and
-// decodes as zero bits (Rec. ITU-T X.691 §18 and §20.6).
+// Null represents the ASN.1 NULL type and empty SEQUENCE {}; both occupy zero
+// bits (§18, §20.6).
 type Null struct{}
 
-// MarshalPER encodes a Null value: no bits are written.
 func (n *Null) MarshalPER(w *Writer, enc Encoding) error {
 	return EncodeNull(w, enc)
 }
 
-// UnmarshalPER decodes a Null value: no bits are consumed.
 func (n *Null) UnmarshalPER(r *Reader, enc Encoding) error {
 	return DecodeNull(r, enc)
 }
 
-// BoolsToBits packs a []bool into a []byte where each bit is stored MSB-first
-// within each octet, matching the PER BIT STRING wire representation. The
-// result length is ceil(len(bools)/8).
+// BoolsToBits packs bools MSB-first within each octet into ceil(len(bools)/8)
+// bytes.
 func BoolsToBits(bools []bool) []byte {
 	n := len(bools)
 	if n == 0 {
@@ -37,8 +34,7 @@ func BoolsToBits(bools []bool) []byte {
 	return out
 }
 
-// BitsToBools unpacks a packed []byte (MSB-first bits) into a []bool of the
-// given length. It is the inverse of [BoolsToBits].
+// BitsToBools unpacks the first nbits MSB-first bits of data.
 func BitsToBools(data []byte, nbits int) []bool {
 	out := make([]bool, nbits)
 	for i := range nbits {

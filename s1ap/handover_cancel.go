@@ -7,8 +7,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// HandoverCancel is the HANDOVER CANCEL message (TS 36.413), sent by
-// the source eNB to cancel an ongoing or prepared handover (TS 23.401).
+// TS 36.413 §9.1.5.11.
 type HandoverCancel struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
@@ -17,7 +16,6 @@ type HandoverCancel struct {
 	unmodeledIEs
 }
 
-// handoverCancelIEs is the HandoverCancel IE table (TS 36.413).
 var handoverCancelIEs = []ieSpec[HandoverCancel]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
@@ -46,7 +44,6 @@ func (m *HandoverCancel) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, handoverCancelIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *HandoverCancel) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -63,15 +60,11 @@ func (m *HandoverCancel) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseHandoverCancel decodes the message from an initiatingMessage open-type
-// payload.
 func ParseHandoverCancel(value []byte) (*HandoverCancel, error) {
 	return parseMessageBody[HandoverCancel](ProcHandoverCancel, handoverCancelIEs, value)
 }
 
-// HandoverCancelAcknowledge is the HANDOVER CANCEL ACKNOWLEDGE message (TS 36.413),
-// the successful outcome the MME returns to confirm the handover has
-// been cancelled and target resources released.
+// TS 36.413 §9.1.5.12.
 type HandoverCancelAcknowledge struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
@@ -79,7 +72,6 @@ type HandoverCancelAcknowledge struct {
 	unmodeledIEs
 }
 
-// handoverCancelAcknowledgeIEs is the HandoverCancelAcknowledge IE table (TS 36.413).
 var handoverCancelAcknowledgeIEs = []ieSpec[HandoverCancelAcknowledge]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
@@ -101,7 +93,6 @@ func (m *HandoverCancelAcknowledge) encodeBody(w *per.Writer, enc per.Encoding) 
 	return encodeMessageBody(w, enc, handoverCancelAcknowledgeIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *HandoverCancelAcknowledge) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -118,8 +109,6 @@ func (m *HandoverCancelAcknowledge) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseHandoverCancelAcknowledge decodes the message from a successfulOutcome
-// open-type payload.
 func ParseHandoverCancelAcknowledge(value []byte) (*HandoverCancelAcknowledge, error) {
 	return parseMessageBody[HandoverCancelAcknowledge](ProcHandoverCancel, handoverCancelAcknowledgeIEs, value)
 }

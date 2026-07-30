@@ -9,9 +9,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// STMSI is the S-TMSI IE (TS 36.413): the MME Code plus the M-TMSI that
-// together identify a UE within an MME pool. The eNB includes it in the Initial
-// UE Message when the UE re-establishes with an S-TMSI (e.g. a Service Request).
+// STMSI identifies a UE within an MME pool (TS 36.413).
 //
 //	S-TMSI ::= SEQUENCE {
 //	    mMEC    MME-Code,            -- OCTET STRING (SIZE(1))

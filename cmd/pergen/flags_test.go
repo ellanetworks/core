@@ -143,7 +143,7 @@ func TestCommaSliceFlag(t *testing.T) {
 	if err := f.Set(""); err != nil {
 		t.Fatal(err)
 	}
-	// Set("") is a no-op, keeps existing values
+
 	if len(vals) != 3 {
 		t.Fatalf("vals after empty Set = %v", vals)
 	}

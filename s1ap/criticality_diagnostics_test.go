@@ -82,10 +82,8 @@ func TestCriticalityDiagnosticsRoundTrip(t *testing.T) {
 	}
 }
 
-// TestCriticalityDiagnosticsSkipsExtensions hand-builds a message carrying both
-// an iE-Extensions ProtocolExtensionContainer and a SEQUENCE extension
-// addition, as a future/peer encoder might. The decoder must step over both and
-// still succeed.
+// A peer may send both an iE-Extensions container and a SEQUENCE extension
+// addition; the decoder must step over both.
 func TestCriticalityDiagnosticsSkipsExtensions(t *testing.T) {
 	w := per.NewWriter()
 

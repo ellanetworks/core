@@ -28,10 +28,7 @@ type SecurityContext struct {
 	_                    ieExtensions `per:",skip"`
 }
 
-// PathSwitchRequest is the PATH SWITCH REQUEST message (TS 36.413), sent
-// by the target eNB after an X2 handover to switch the downlink GTP tunnel to
-// itself. SourceMMEUES1APID is the MME UE S1AP ID the source eNB held, used to
-// find the UE context.
+// TS 36.413 §9.1.5.8.
 type PathSwitchRequest struct {
 	ENBUES1APID            ENBUES1APID
 	ERABToBeSwitchedDL     []ERABToBeSwitchedDLItem
@@ -43,7 +40,6 @@ type PathSwitchRequest struct {
 	unmodeledIEs
 }
 
-// pathSwitchRequestIEs is the PathSwitchRequest IE table (TS 36.413).
 var pathSwitchRequestIEs = []ieSpec[PathSwitchRequest]{
 	{
 		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
@@ -101,7 +97,6 @@ func (m *PathSwitchRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, pathSwitchRequestIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *PathSwitchRequest) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -118,16 +113,11 @@ func (m *PathSwitchRequest) Marshal() ([]byte, error) {
 	})
 }
 
-// ParsePathSwitchRequest decodes the message from an initiatingMessage open-type
-// payload.
 func ParsePathSwitchRequest(value []byte) (*PathSwitchRequest, error) {
 	return parseMessageBody[PathSwitchRequest](ProcPathSwitchRequest, pathSwitchRequestIEs, value)
 }
 
-// PathSwitchRequestAcknowledge is the PATH SWITCH REQUEST ACKNOWLEDGE message
-// (TS 36.413), sent by the MME once the downlink path has been switched.
-// SecurityContext carries the {NCC, NH}; UESecurityCapabilities is included only
-// when the MME's stored capabilities differ from those the eNB reported.
+// TS 36.413 §9.1.5.9.
 type PathSwitchRequestAcknowledge struct {
 	MMEUES1APID               MMEUES1APID
 	ENBUES1APID               ENBUES1APID
@@ -142,7 +132,6 @@ type PathSwitchRequestAcknowledge struct {
 	unmodeledIEs
 }
 
-// pathSwitchRequestAcknowledgeIEs is the PathSwitchRequestAcknowledge IE table (TS 36.413).
 var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
@@ -180,6 +169,25 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 		},
 	},
 	{
+		id: idERABToBeReleasedList, presence: PresenceOptional, crit: CriticalityIgnore,
+		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
+			var err error
+
+			m.ERABToBeReleased, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs)
+
+			return err
+		},
+		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) {
+			if len(m.ERABToBeReleased) == 0 {
+				return nil, false
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABToBeReleased)
+			}), true
+		},
+	},
+	{
 		id: idSecurityContext, presence: PresenceMandatory, crit: CriticalityReject,
 		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.SecurityContext)
@@ -207,32 +215,12 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 			return m.UESecurityCapabilities, true
 		},
 	},
-	{
-		id: idERABToBeReleasedList, presence: PresenceOptional, crit: CriticalityIgnore,
-		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
-			var err error
-
-			m.ERABToBeReleased, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs)
-
-			return err
-		},
-		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) {
-			if len(m.ERABToBeReleased) == 0 {
-				return nil, false
-			}
-
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABToBeReleased)
-			}), true
-		},
-	},
 }
 
 func (m *PathSwitchRequestAcknowledge) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, pathSwitchRequestAcknowledgeIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *PathSwitchRequestAcknowledge) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -249,15 +237,11 @@ func (m *PathSwitchRequestAcknowledge) Marshal() ([]byte, error) {
 	})
 }
 
-// ParsePathSwitchRequestAcknowledge decodes the message from a successfulOutcome
-// open-type payload.
 func ParsePathSwitchRequestAcknowledge(value []byte) (*PathSwitchRequestAcknowledge, error) {
 	return parseMessageBody[PathSwitchRequestAcknowledge](ProcPathSwitchRequest, pathSwitchRequestAcknowledgeIEs, value)
 }
 
-// PathSwitchRequestFailure is the PATH SWITCH REQUEST FAILURE message (TS 36.413),
-// sent by the MME when the downlink path could not be switched for
-// any E-RAB.
+// TS 36.413 §9.1.5.10.
 type PathSwitchRequestFailure struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
@@ -266,7 +250,6 @@ type PathSwitchRequestFailure struct {
 	unmodeledIEs
 }
 
-// pathSwitchRequestFailureIEs is the PathSwitchRequestFailure IE table (TS 36.413).
 var pathSwitchRequestFailureIEs = []ieSpec[PathSwitchRequestFailure]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
@@ -295,7 +278,6 @@ func (m *PathSwitchRequestFailure) encodeBody(w *per.Writer, enc per.Encoding) e
 	return encodeMessageBody(w, enc, pathSwitchRequestFailureIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *PathSwitchRequestFailure) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -312,8 +294,6 @@ func (m *PathSwitchRequestFailure) Marshal() ([]byte, error) {
 	})
 }
 
-// ParsePathSwitchRequestFailure decodes the message from an unsuccessfulOutcome
-// open-type payload.
 func ParsePathSwitchRequestFailure(value []byte) (*PathSwitchRequestFailure, error) {
 	return parseMessageBody[PathSwitchRequestFailure](ProcPathSwitchRequest, pathSwitchRequestFailureIEs, value)
 }

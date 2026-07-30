@@ -6,29 +6,26 @@ package per
 import "io"
 
 // Reader is a bit-oriented input buffer. Bits are read most-significant-bit
-// first within each octet, mirroring [Writer].
+// first within each octet.
 type Reader struct {
 	buf []byte
-	pos int   // index of the current octet in buf
+	pos int
 	bit uint8 // 0..7: bit position within buf[pos]
 }
 
-// NewReader returns a Reader over b. It does not copy b; callers must not
-// mutate b while reading.
+// NewReader returns a Reader over b without copying it.
 func NewReader(b []byte) *Reader { return &Reader{buf: b} }
 
-// Bits returns the total number of bits remaining.
+// Bits returns the number of bits remaining.
 func (r *Reader) Bits() int {
 	return (len(r.buf)-r.pos)*8 - int(r.bit)
 }
 
-// Aligned reports whether the current position is on an octet boundary.
 func (r *Reader) Aligned() bool { return r.bit == 0 }
 
-// EOF reports whether all bits have been consumed.
 func (r *Reader) EOF() bool { return r.Bits() <= 0 }
 
-// AlignToByte skips any remaining bits in the current octet. Used by Aligned PER.
+// AlignToByte skips any remaining bits in the current octet.
 func (r *Reader) AlignToByte() {
 	if r.bit != 0 {
 		r.bit = 0
@@ -36,7 +33,6 @@ func (r *Reader) AlignToByte() {
 	}
 }
 
-// ReadBit reads a single bit. Returns [ErrTruncated] past end of input.
 func (r *Reader) ReadBit() (bool, error) {
 	if r.pos >= len(r.buf) {
 		return false, ErrTruncated
@@ -53,7 +49,7 @@ func (r *Reader) ReadBit() (bool, error) {
 	return b, nil
 }
 
-// ReadBits reads n bits (n in 1..64) into a uint64, MSB first.
+// ReadBits reads n bits (n ≤ 64) into a uint64, MSB first.
 func (r *Reader) ReadBits(n int) (uint64, error) {
 	if n < 0 || n > 64 {
 		return 0, io.ErrUnexpectedEOF
@@ -79,9 +75,8 @@ func (r *Reader) ReadBits(n int) (uint64, error) {
 	return v, nil
 }
 
-// ReadBitString reads nbits into a fresh byte slice, MSB first, left-aligned
-// in the result. The result length is ceil(nbits/8); trailing bits of the
-// final octet are zero.
+// ReadBitString reads nbits into ceil(nbits/8) bytes, MSB first and
+// left-aligned; trailing bits of the final octet are zero.
 func (r *Reader) ReadBitString(nbits int) ([]byte, error) {
 	if nbits < 0 {
 		return nil, io.ErrUnexpectedEOF

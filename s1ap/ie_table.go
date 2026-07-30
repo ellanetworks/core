@@ -9,39 +9,28 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// ieSpec is one row of a message's IE table: the §9.1 entry for a single
-// ProtocolIE, bound to the message type that carries it.
-//
-// The row is the only place a message states an IE's id, presence and
-// criticality, and both directions read it — so an encoder cannot stamp a
-// criticality the decoder does not expect, and a mandatory IE cannot be
-// enforced on one side only.
+// ieSpec is one row of a message's TS 36.413 §9.1 IE table. Encode and decode
+// both read it, so the two directions cannot disagree on an IE's criticality
+// or presence.
 type ieSpec[M any] struct {
 	id       ProtocolIEID
 	presence Presence
 	crit     Criticality
 
-	// decode fills the field this row owns from the IE's open-type octets.
 	decode func(m *M, raw []byte, enc per.Encoding) error
-	// encode returns the IE's value, and whether it is present. A row for a
-	// mandatory IE always reports true; an optional one reports whether its
-	// field is set.
+	// encode reports false when the row's optional field is unset.
 	encode func(m *M) (per.Marshaler, bool)
 }
 
-// unmodeled lets the engine reach the preserved-IE store that every message
-// embeds, without reflection.
 func (u *unmodeledIEs) unmodeled() *unmodeledIEs { return u }
 
-// message is satisfied by a pointer to any message struct, all of which embed
-// unmodeledIEs.
+// message is satisfied by a pointer to any message struct.
 type message interface {
 	unmodeled() *unmodeledIEs
 }
 
-// encodeMessageBody writes a message's IE container from its table: the
-// SEQUENCE extension bit, then every present IE in table order, then the
-// unmodeled IEs preserved from a previous decode.
+// encodeMessageBody writes the SEQUENCE extension bit, then every present IE
+// in table order, then any IE preserved verbatim from a previous decode.
 func encodeMessageBody[M any, PM interface {
 	*M
 	message
@@ -67,9 +56,8 @@ func encodeMessageBody[M any, PM interface {
 	return encodeIEContainer(w, enc, fields)
 }
 
-// parseMessageBody decodes a message's IE container using its table. IEs the
-// table does not name are preserved verbatim; every mandatory row that did not
-// arrive is reported through [MissingMandatoryIEsError].
+// parseMessageBody decodes an IE container against its table. IEs the table
+// does not name are preserved verbatim rather than dropped.
 func parseMessageBody[M any, PM interface {
 	*M
 	message
@@ -128,8 +116,8 @@ func parseMessageBody[M any, PM interface {
 	return m, nil
 }
 
-// lookupIESpec finds the row an IE id belongs to. Tables are short — a handful
-// of rows each — so a linear scan beats building a map per parse.
+// Tables run to a handful of rows, so a linear scan beats building a map per
+// parse.
 func lookupIESpec[M any](table []ieSpec[M], id ProtocolIEID) (ieSpec[M], bool) {
 	for _, spec := range table {
 		if spec.id == id {

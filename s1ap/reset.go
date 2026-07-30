@@ -94,9 +94,7 @@ func (t *ResetType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 }
 
-// Reset is the RESET message (TS 36.413), sent by the eNB or MME to
-// reset the whole S1 interface or a subset of its UE-associated logical
-// connections.
+// TS 36.413 §9.1.8.1.
 type Reset struct {
 	Cause     Cause
 	ResetType ResetType
@@ -104,7 +102,6 @@ type Reset struct {
 	unmodeledIEs
 }
 
-// resetIEs is the Reset IE table (TS 36.413).
 var resetIEs = []ieSpec[Reset]{
 	{
 		id: idCause, presence: PresenceMandatory, crit: CriticalityIgnore,
@@ -126,7 +123,6 @@ func (m *Reset) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, resetIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *Reset) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -143,14 +139,11 @@ func (m *Reset) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseReset decodes the message from an initiatingMessage open-type payload.
 func ParseReset(value []byte) (*Reset, error) {
 	return parseMessageBody[Reset](ProcReset, resetIEs, value)
 }
 
-// ResetAcknowledge is the RESET ACKNOWLEDGE message (TS 36.413). The
-// ConnectionList is present only in answer to a partOfS1-Interface reset, where
-// it echoes the UE-associated logical S1-connections that were reset.
+// TS 36.413 §9.1.8.2.
 type ResetAcknowledge struct {
 	ConnectionList         []UEAssociatedLogicalS1ConnectionItem
 	CriticalityDiagnostics *CriticalityDiagnostics
@@ -158,7 +151,6 @@ type ResetAcknowledge struct {
 	unmodeledIEs
 }
 
-// resetAcknowledgeIEs is the RESET ACKNOWLEDGE IE table (TS 36.413 §9.1.8.2).
 // The message has no mandatory IE.
 var resetAcknowledgeIEs = []ieSpec[ResetAcknowledge]{
 	{
@@ -209,7 +201,6 @@ func (m *ResetAcknowledge) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, resetAcknowledgeIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *ResetAcknowledge) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -226,8 +217,6 @@ func (m *ResetAcknowledge) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseResetAcknowledge decodes the message from a successfulOutcome open-type
-// payload.
 func ParseResetAcknowledge(value []byte) (*ResetAcknowledge, error) {
 	return parseMessageBody[ResetAcknowledge](ProcReset, resetAcknowledgeIEs, value)
 }

@@ -3,10 +3,8 @@
 
 package per
 
-// writeOctetAligned writes p as an "octet-aligned bit-field" (§11.1.4): in the
-// ALIGNED variant the writer is padded to an octet boundary first, then whole
-// octets are written; in the UNALIGNED variant the bits are packed densely with
-// no padding (the field is just len(p)*8 bits).
+// writeOctetAligned writes p as an octet-aligned bit-field (§11.1.4): padded to
+// an octet boundary in the ALIGNED variant, packed densely in the UNALIGNED one.
 func writeOctetAligned(w *Writer, enc Encoding, p []byte) {
 	if enc == Aligned {
 		w.AlignToByte()
@@ -18,9 +16,7 @@ func writeOctetAligned(w *Writer, enc Encoding, p []byte) {
 	w.WriteBitString(p, len(p)*8)
 }
 
-// readOctetAligned reads n octets as an octet-aligned bit-field (§11.1.4): in
-// the ALIGNED variant the reader is aligned first; in the UNALIGNED variant the
-// n*8 bits are read densely.
+// readOctetAligned reads n octets as an octet-aligned bit-field (§11.1.4).
 func readOctetAligned(r *Reader, enc Encoding, n int) ([]byte, error) {
 	if enc == Aligned {
 		r.AlignToByte()

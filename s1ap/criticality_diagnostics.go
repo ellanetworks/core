@@ -30,8 +30,7 @@ type CriticalityDiagnosticsIEItem struct {
 }
 
 // CriticalityDiagnostics ::= SEQUENCE (extensible) with five optional fields.
-// A nil scalar pointer or empty list means the field is absent. The optional
-// iE-Extensions field is never emitted and is skipped on decode.
+// iE-Extensions is never emitted and is skipped on decode.
 type CriticalityDiagnostics struct {
 	ProcedureCode             *ProcedureCode
 	TriggeringMessage         *TriggeringMessage

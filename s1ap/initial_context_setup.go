@@ -7,9 +7,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// InitialContextSetupRequest is the INITIAL CONTEXT SETUP REQUEST message
-// (TS 36.413), sent by the MME to set up the UE context and default
-// E-RAB(s). Unmodeled IEs are preserved.
+// TS 36.413 §9.1.4.1.
 type InitialContextSetupRequest struct {
 	MMEUES1APID               MMEUES1APID
 	ENBUES1APID               ENBUES1APID
@@ -17,15 +15,11 @@ type InitialContextSetupRequest struct {
 	ERABToBeSetup             []ERABToBeSetupItemCtxtSUReq
 	UESecurityCapabilities    UESecurityCapabilities
 	SecurityKey               SecurityKey
-	// UERadioCapability is the optional UE Radio Capability IE (TS 36.413);
-	// when set, the eNB reuses it and skips re-fetching it from the
-	// UE over the air (TS 23.401).
-	UERadioCapability []byte
+	UERadioCapability         []byte
 
 	unmodeledIEs
 }
 
-// initialContextSetupRequestIEs is the InitialContextSetupRequest IE table (TS 36.413).
 var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
@@ -102,7 +96,6 @@ func (m *InitialContextSetupRequest) encodeBody(w *per.Writer, enc per.Encoding)
 	return encodeMessageBody(w, enc, initialContextSetupRequestIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *InitialContextSetupRequest) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -119,14 +112,11 @@ func (m *InitialContextSetupRequest) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseInitialContextSetupRequest decodes the message from an initiatingMessage
-// open-type payload.
 func ParseInitialContextSetupRequest(value []byte) (*InitialContextSetupRequest, error) {
 	return parseMessageBody[InitialContextSetupRequest](ProcInitialContextSetup, initialContextSetupRequestIEs, value)
 }
 
-// InitialContextSetupResponse is the INITIAL CONTEXT SETUP RESPONSE message
-// (TS 36.413), sent by the eNB once the E-RAB(s) are set up.
+// TS 36.413 §9.1.4.3.
 type InitialContextSetupResponse struct {
 	MMEUES1APID            MMEUES1APID
 	ENBUES1APID            ENBUES1APID
@@ -137,7 +127,6 @@ type InitialContextSetupResponse struct {
 	unmodeledIEs
 }
 
-// initialContextSetupResponseIEs is the InitialContextSetupResponse IE table (TS 36.413).
 var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
@@ -214,7 +203,6 @@ func (m *InitialContextSetupResponse) encodeBody(w *per.Writer, enc per.Encoding
 	return encodeMessageBody(w, enc, initialContextSetupResponseIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *InitialContextSetupResponse) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -231,14 +219,11 @@ func (m *InitialContextSetupResponse) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseInitialContextSetupResponse decodes the message from a successfulOutcome
-// open-type payload.
 func ParseInitialContextSetupResponse(value []byte) (*InitialContextSetupResponse, error) {
 	return parseMessageBody[InitialContextSetupResponse](ProcInitialContextSetup, initialContextSetupResponseIEs, value)
 }
 
-// InitialContextSetupFailure is the INITIAL CONTEXT SETUP FAILURE message
-// (TS 36.413).
+// TS 36.413 §9.1.4.4.
 type InitialContextSetupFailure struct {
 	MMEUES1APID            MMEUES1APID
 	ENBUES1APID            ENBUES1APID
@@ -248,7 +233,6 @@ type InitialContextSetupFailure struct {
 	unmodeledIEs
 }
 
-// initialContextSetupFailureIEs is the InitialContextSetupFailure IE table (TS 36.413).
 var initialContextSetupFailureIEs = []ieSpec[InitialContextSetupFailure]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
@@ -298,7 +282,6 @@ func (m *InitialContextSetupFailure) encodeBody(w *per.Writer, enc per.Encoding)
 	return encodeMessageBody(w, enc, initialContextSetupFailureIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *InitialContextSetupFailure) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -315,8 +298,6 @@ func (m *InitialContextSetupFailure) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseInitialContextSetupFailure decodes the message from an
-// unsuccessfulOutcome open-type payload.
 func ParseInitialContextSetupFailure(value []byte) (*InitialContextSetupFailure, error) {
 	return parseMessageBody[InitialContextSetupFailure](ProcInitialContextSetup, initialContextSetupFailureIEs, value)
 }

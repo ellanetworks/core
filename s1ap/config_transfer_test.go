@@ -10,9 +10,8 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// sonTransfer builds a SON Configuration Transfer value: a valid leading
-// Target eNB-ID (TS 36.413 §9.2.3.26) followed by opaque bytes standing in for
-// the source eNB-ID and SON Information, which the MME relays without decoding.
+// sonTransfer builds a valid leading Target eNB-ID (TS 36.413 §9.2.3.26)
+// followed by opaque bytes.
 func sonTransfer(t *testing.T, target TargeteNBID, opaque []byte) SONConfigurationTransfer {
 	t.Helper()
 
@@ -28,9 +27,6 @@ func sonTransfer(t *testing.T, target TargeteNBID, opaque []byte) SONConfigurati
 	return SONConfigurationTransfer(append(perBytes(w), opaque...))
 }
 
-// enbConfigTransferWire builds an ENB CONFIGURATION TRANSFER initiatingMessage
-// open-type payload carrying the given SON Configuration Transfer IE, as an eNB
-// would send it.
 func enbConfigTransferWire(t *testing.T, son SONConfigurationTransfer) []byte {
 	t.Helper()
 

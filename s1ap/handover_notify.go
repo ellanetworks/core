@@ -7,11 +7,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// HandoverNotify is the HANDOVER NOTIFY message (TS 36.413 in the
-// Handover Notification procedure), sent by the target eNB once the UE has
-// arrived in the target cell and the S1 handover is complete (TS 23.401).
-// It carries the target eNB's UE S1AP ID and the UE's new
-// location.
+// TS 36.413 §9.1.5.7.
 type HandoverNotify struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
@@ -21,7 +17,6 @@ type HandoverNotify struct {
 	unmodeledIEs
 }
 
-// handoverNotifyIEs is the HandoverNotify IE table (TS 36.413).
 var handoverNotifyIEs = []ieSpec[HandoverNotify]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
@@ -57,7 +52,6 @@ func (m *HandoverNotify) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, handoverNotifyIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *HandoverNotify) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -74,8 +68,6 @@ func (m *HandoverNotify) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseHandoverNotify decodes the message from an initiatingMessage open-type
-// payload.
 func ParseHandoverNotify(value []byte) (*HandoverNotify, error) {
 	return parseMessageBody[HandoverNotify](ProcHandoverNotification, handoverNotifyIEs, value)
 }

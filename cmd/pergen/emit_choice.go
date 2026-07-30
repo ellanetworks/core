@@ -8,8 +8,8 @@ import (
 	"fmt"
 )
 
-// isChoiceType reports whether a struct is a CHOICE: all fields have per: tags
-// with choice: indices.
+// isChoiceType requires every field to carry a choice: index, so one untagged
+// field makes the type a SEQUENCE.
 func isChoiceType(s *structType) bool {
 	if len(s.fields) == 0 {
 		return false
@@ -24,19 +24,16 @@ func isChoiceType(s *structType) bool {
 	return true
 }
 
-// choiceAlt holds a single CHOICE alternative.
 type choiceAlt struct {
 	fieldInfo
-	rootIdx    int // index within root alternatives (-1 for extension additions)
-	extIdx     int // index within extension additions (-1 for root)
+	rootIdx    int // -1 for extension additions
+	extIdx     int // -1 for root alternatives
 	isAddition bool
 }
 
-// emitChoice emits MarshalPER and UnmarshalPER for a CHOICE type.
 func (g *generator) emitChoice(name string, s *structType) error {
 	recv := receiverName(name)
 
-	// Split into root and extension additions.
 	var roots, additions []choiceAlt
 
 	for i := range s.fields {
@@ -55,7 +52,7 @@ func (g *generator) emitChoice(name string, s *structType) error {
 
 	extensible := len(additions) > 0 || s.extSeq
 
-	// nRoot = largest root choice index (§23.2: "n" = largest index in root).
+	// X.691 §23.2: the index range is 0..n, n being the largest root index.
 	nRoot := int64(0)
 
 	if len(roots) > 0 {
@@ -123,7 +120,6 @@ func (g *generator) emitChoiceUnmarshal(recv, typeName string, roots, additions 
 		fmt.Fprintf(r, "\t}\n")
 	}
 
-	// Root decode
 	if nRoot > 0 {
 		fmt.Fprintf(r, "\tidx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, %d)\n", nRoot)
 		fmt.Fprintf(r, "\tif err != nil {\n\t\treturn err\n\t}\n")
@@ -177,8 +173,6 @@ func (g *generator) emitChoiceExtDecode(r *bytes.Buffer, recv string, additions 
 	fmt.Fprintf(r, "\t\treturn nil\n")
 }
 
-// derefExpr returns the Go expression for accessing a CHOICE alternative's
-// value (dereferenced if it's a pointer field, which CHOICE alternatives are).
 func derefExpr(a choiceAlt, expr string) string {
 	if a.isOptional {
 		return "(*" + expr + ")"

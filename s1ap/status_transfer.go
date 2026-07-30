@@ -19,9 +19,7 @@ func (c StatusTransferContainer) MarshalPER(w *per.Writer, _ per.Encoding) error
 	return w.WriteOctets(c)
 }
 
-// ENBStatusTransfer is the ENB STATUS TRANSFER message (TS 36.413 in
-// the eNB Status Transfer procedure), sent by the source eNB to convey PDCP-SN
-// and HFN status to the target eNB via the MME.
+// TS 36.413 §9.1.5.13.
 type ENBStatusTransfer struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
@@ -30,7 +28,6 @@ type ENBStatusTransfer struct {
 	unmodeledIEs
 }
 
-// eNBStatusTransferIEs is the ENBStatusTransfer IE table (TS 36.413 §9.1.5.13/§9.1.5.14).
 var eNBStatusTransferIEs = []ieSpec[ENBStatusTransfer]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
@@ -60,7 +57,6 @@ func (m *ENBStatusTransfer) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, eNBStatusTransferIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *ENBStatusTransfer) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -77,15 +73,11 @@ func (m *ENBStatusTransfer) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseENBStatusTransfer decodes the message from an initiatingMessage open-type
-// payload.
 func ParseENBStatusTransfer(value []byte) (*ENBStatusTransfer, error) {
 	return parseMessageBody[ENBStatusTransfer](ProcENBStatusTransfer, eNBStatusTransferIEs, value)
 }
 
-// MMEStatusTransfer is the MME STATUS TRANSFER message (TS 36.413 in
-// the MME Status Transfer procedure), sent by the MME to relay the source eNB's
-// status container to the target eNB.
+// TS 36.413 §9.1.5.14.
 type MMEStatusTransfer struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
@@ -94,7 +86,6 @@ type MMEStatusTransfer struct {
 	unmodeledIEs
 }
 
-// mMEStatusTransferIEs is the MMEStatusTransfer IE table (TS 36.413 §9.1.5.13/§9.1.5.14).
 var mMEStatusTransferIEs = []ieSpec[MMEStatusTransfer]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
@@ -124,7 +115,6 @@ func (m *MMEStatusTransfer) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, mMEStatusTransferIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *MMEStatusTransfer) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -141,8 +131,6 @@ func (m *MMEStatusTransfer) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseMMEStatusTransfer decodes the message from an initiatingMessage open-type
-// payload.
 func ParseMMEStatusTransfer(value []byte) (*MMEStatusTransfer, error) {
 	return parseMessageBody[MMEStatusTransfer](ProcMMEStatusTransfer, mMEStatusTransferIEs, value)
 }

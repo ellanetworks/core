@@ -9,9 +9,8 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// TestDecodeChoiceIndexExtensionUsesNormallySmall pins X.691 §23.8: the index
-// of a CHOICE extension alternative is a normally-small number, not the root
-// bit-field. Reading the wrong width leaves the following open type misaligned.
+// X.691 §23.8: a CHOICE extension index is a normally-small number, not the
+// root bit-field. The wrong width leaves the following open type misaligned.
 func TestDecodeChoiceIndexExtensionUsesNormallySmall(t *testing.T) {
 	for _, extIdx := range []int64{0, 1, 63, 64, 200} {
 		w := per.NewWriter()
@@ -24,7 +23,7 @@ func TestDecodeChoiceIndexExtensionUsesNormallySmall(t *testing.T) {
 		if err := per.EncodeOpenTypeBytes(w, per.Aligned, []byte{0xde, 0xad}); err != nil {
 			t.Fatal(err)
 		}
-		// A trailing marker that must still be readable after the open type.
+		// A marker that must still be readable after the open type.
 		if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, 255, 0x5a); err != nil {
 			t.Fatal(err)
 		}
@@ -57,8 +56,6 @@ func TestDecodeChoiceIndexExtensionUsesNormallySmall(t *testing.T) {
 	}
 }
 
-// TestDecodeChoiceIndexRootUnaffected checks the root path still reads a
-// plain constrained index.
 func TestDecodeChoiceIndexRootUnaffected(t *testing.T) {
 	for want := int64(0); want < causeRootCount; want++ {
 		w := per.NewWriter()

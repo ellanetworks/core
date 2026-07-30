@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-// Known vectors ported from s1ap/aper, pinning the aligned-variant encodings
-// S1AP depends on (TS 36.413 / X.691).
+// Known vectors pinning the aligned-variant encodings S1AP depends on
+// (TS 36.413 / X.691).
 
 func TestAlignedConstrainedIntKnownVectors(t *testing.T) {
 	cases := []struct {
@@ -211,8 +211,7 @@ func TestOpenTypeBytesRoundTrip(t *testing.T) {
 	}
 }
 
-// TestS1APEnvelopeLayout composes the primitives into the S1AP-PDU
-// InitiatingMessage framing (TS 36.413) and pins the exact byte layout.
+// Pins the byte layout of the S1AP-PDU InitiatingMessage framing (TS 36.413).
 func TestS1APEnvelopeLayout(t *testing.T) {
 	w := NewWriter()
 
@@ -232,7 +231,7 @@ func TestS1APEnvelopeLayout(t *testing.T) {
 	if err := EncodeEnumerated(w, Aligned, 3, false, 0); err != nil {
 		t.Fatal(err)
 	}
-	// value open type carrying one octet.
+	// value: an open type carrying one octet.
 	if err := EncodeOpenTypeBytes(w, Aligned, []byte{0xab}); err != nil {
 		t.Fatal(err)
 	}

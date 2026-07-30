@@ -5,8 +5,7 @@ package s1ap
 
 import "fmt"
 
-// protocolIENames maps each ProtocolIE-ID to its TS 36.413 name
-// (S1AP-Constants, §9.3.5). IDs are globally unique across the protocol.
+// ProtocolIE-ID names from TS 36.413 §9.3.5. IDs are unique protocol-wide.
 //
 // #nosec G101 -- these are 3GPP IE names, not credentials. G101 matches its
 // "bearer" pattern against the E-RAB list names, where a bearer is an EPS
@@ -93,7 +92,6 @@ var protocolIENames = map[ProtocolIEID]string{
 	idERABModifyItemBearerModConf:         "ERABModifyItemBearerModConf",
 }
 
-// String returns the IE name and its id, e.g. "GlobalENBID (59)".
 func (id ProtocolIEID) String() string {
 	if name, ok := protocolIENames[id]; ok {
 		return fmt.Sprintf("%s (%d)", name, uint16(id))

@@ -33,8 +33,7 @@ type RequestType struct {
 	_          ieExtensions `per:",skip"`
 }
 
-// LocationReport is the LOCATION REPORT message (TS 36.413), sent by the eNB to
-// report the UE's serving cell.
+// TS 36.413 §9.1.12.3.
 type LocationReport struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
@@ -45,7 +44,6 @@ type LocationReport struct {
 	unmodeledIEs
 }
 
-// locationReportIEs is the LocationReport IE table (TS 36.413).
 var locationReportIEs = []ieSpec[LocationReport]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
@@ -88,7 +86,6 @@ func (m *LocationReport) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, locationReportIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *LocationReport) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -105,8 +102,6 @@ func (m *LocationReport) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseLocationReport decodes a LocationReport from the open-type payload of an
-// initiatingMessage.
 func ParseLocationReport(value []byte) (*LocationReport, error) {
 	return parseMessageBody[LocationReport](ProcLocationReport, locationReportIEs, value)
 }

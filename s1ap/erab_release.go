@@ -15,12 +15,7 @@ type ERABReleaseItemBearerRelComp struct {
 	_      ieExtensions `per:",skip"`
 }
 
-// ERABReleaseCommand is the E-RAB RELEASE COMMAND message (TS 36.413),
-// sent by the MME to release one or more E-RABs of a UE that stays connected —
-// the radio leg of a PDN connection being disconnected (TS 23.401,
-// "Deactivate Bearer Request"). The DEACTIVATE EPS BEARER CONTEXT REQUEST NAS
-// message rides in the optional NAS-PDU IE, so the eNB releases the radio bearer
-// and delivers the NAS in one step.
+// TS 36.413 §9.1.3.5.
 type ERABReleaseCommand struct {
 	MMEUES1APID               MMEUES1APID
 	ENBUES1APID               ENBUES1APID
@@ -31,7 +26,6 @@ type ERABReleaseCommand struct {
 	unmodeledIEs
 }
 
-// eRABReleaseCommandIEs is the ERABReleaseCommand IE table (TS 36.413).
 var eRABReleaseCommandIEs = []ieSpec[ERABReleaseCommand]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
@@ -102,7 +96,6 @@ func (m *ERABReleaseCommand) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, eRABReleaseCommandIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *ERABReleaseCommand) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -119,14 +112,11 @@ func (m *ERABReleaseCommand) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseERABReleaseCommand decodes the message from an initiatingMessage open-type
-// payload.
 func ParseERABReleaseCommand(value []byte) (*ERABReleaseCommand, error) {
 	return parseMessageBody[ERABReleaseCommand](ProcERABRelease, eRABReleaseCommandIEs, value)
 }
 
-// ERABReleaseResponse is the E-RAB RELEASE RESPONSE message (TS 36.413),
-// sent by the eNB once the E-RAB(s) are released.
+// TS 36.413 §9.1.3.6.
 type ERABReleaseResponse struct {
 	MMEUES1APID             MMEUES1APID
 	ENBUES1APID             ENBUES1APID
@@ -138,7 +128,6 @@ type ERABReleaseResponse struct {
 	unmodeledIEs
 }
 
-// eRABReleaseResponseIEs is the ERABReleaseResponse IE table (TS 36.413).
 var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
@@ -240,7 +229,6 @@ func (m *ERABReleaseResponse) encodeBody(w *per.Writer, enc per.Encoding) error 
 	return encodeMessageBody(w, enc, eRABReleaseResponseIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *ERABReleaseResponse) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -257,8 +245,6 @@ func (m *ERABReleaseResponse) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseERABReleaseResponse decodes the message from a successfulOutcome open-type
-// payload.
 func ParseERABReleaseResponse(value []byte) (*ERABReleaseResponse, error) {
 	return parseMessageBody[ERABReleaseResponse](ProcERABRelease, eRABReleaseResponseIEs, value)
 }

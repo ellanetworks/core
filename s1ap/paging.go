@@ -28,16 +28,7 @@ const (
 	CNDomainCS CNDomain = 1
 )
 
-// Paging is the PAGING message (TS 36.413): a non-UE-associated message
-// the MME sends to eNB(s) to reach an ECM-IDLE UE. Ella Core uses the S-TMSI
-// paging identity and pages the operator's tracking area(s).
-//
-//	Paging ::= SEQUENCE {
-//	    UEIdentityIndexValue   BIT STRING (SIZE(10)),  -- IMSI mod 1024
-//	    UEPagingID             CHOICE { s-TMSI, iMSI, ... },
-//	    CNDomain               ENUMERATED { ps, cs },
-//	    TAIList                SEQUENCE (SIZE(1..256)) OF TAIItem,
-//	    ... }
+// TS 36.413 §9.1.6.
 type Paging struct {
 	UEIdentityIndexValue uint16
 	STMSI                STMSI // UE Paging Identity (s-TMSI alternative)
@@ -58,7 +49,6 @@ type taiItem struct {
 	_   ieExtensions `per:",skip"`
 }
 
-// pagingIEs is the PAGING IE table (TS 36.413 §9.1.6). Every IE the message
 // carries is ignore-criticality, mandatory ones included.
 var pagingIEs = []ieSpec[Paging]{
 	{
@@ -187,7 +177,6 @@ func (m *Paging) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, pagingIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *Paging) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -204,7 +193,6 @@ func (m *Paging) Marshal() ([]byte, error) {
 	})
 }
 
-// ParsePaging decodes a Paging from the open-type payload of an initiatingMessage.
 func ParsePaging(value []byte) (*Paging, error) {
 	return parseMessageBody[Paging](ProcPaging, pagingIEs, value)
 }

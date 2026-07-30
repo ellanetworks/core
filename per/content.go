@@ -6,8 +6,7 @@ package per
 import "fmt"
 
 // writeOctetAlignedBitRange writes count bits from data starting at bit offset
-// start (MSB-first within each octet). In the ALIGNED variant the writer is
-// padded to an octet boundary first.
+// start, MSB-first within each octet.
 func writeOctetAlignedBitRange(w *Writer, enc Encoding, data []byte, start, count int) {
 	if enc == Aligned {
 		w.AlignToByte()
@@ -19,16 +18,10 @@ func writeOctetAlignedBitRange(w *Writer, enc Encoding, data []byte, start, coun
 	}
 }
 
-// EncodeBitString encodes a BIT STRING value of nbits bits per §16.
-//
-//   - extensible and the length is outside the root: extension bit set, then a
-//     semi-constrained length (lb=0) and the value (§16.6);
-//   - ub == 0: nothing (§16.8);
-//   - fixed length ub == lb, ub <= 16: a bit-field of ub bits, no length (§16.9);
-//   - fixed length ub == lb, 16 < ub < 64K: an octet-aligned bit-field, no
-//     length (§16.10);
-//   - otherwise: a length determinant (constrained if ub is set and < 64K,
-//     semi-constrained if ub is unset) followed by the value bits (§16.11).
+// EncodeBitString encodes a BIT STRING of nbits bits (§16): out-of-root
+// extension values (§16.6), empty (§16.8), fixed size ≤ 16 bits as a bare
+// bit-field (§16.9), larger fixed size octet-aligned (§16.10), otherwise a
+// length determinant followed by the value bits (§16.11).
 func EncodeBitString(
 	w *Writer, enc Encoding,
 	lb, ub int64, hasLB, hasUB, extensible bool,
@@ -100,8 +93,8 @@ func encodeBitStringValue(
 	})
 }
 
-// DecodeBitString decodes a BIT STRING per §16, returning the value as a
-// left-aligned byte slice and its bit length.
+// DecodeBitString decodes a BIT STRING (§16), returning left-aligned octets
+// and the bit length.
 func DecodeBitString(
 	r *Reader, enc Encoding,
 	lb, ub int64, hasLB, hasUB, extensible bool,
@@ -168,7 +161,6 @@ func decodeBitStringValue(
 	return buf, total, nil
 }
 
-// readOctetAlignedBitRange reads nbits bits as an octet-aligned bit-field.
 func readOctetAlignedBitRange(r *Reader, enc Encoding, nbits int) ([]byte, int, error) {
 	if enc == Aligned {
 		r.AlignToByte()
@@ -182,17 +174,10 @@ func readOctetAlignedBitRange(r *Reader, enc Encoding, nbits int) ([]byte, int, 
 	return bs, nbits, nil
 }
 
-// EncodeOctetString encodes an OCTET STRING value per §17.
-//
-//   - extensible and the length is outside the root: extension bit set, then a
-//     semi-constrained length (lb=0) and the value (§17.3);
-//   - ub == 0: nothing (§17.5);
-//   - fixed length ub == lb, ub <= 2: a bit-field of ub*8 bits, no length,
-//     no alignment (§17.6);
-//   - fixed length ub == lb, 2 < ub < 64K: an octet-aligned bit-field of ub
-//     octets, no length (§17.7);
-//   - otherwise: a length determinant (constrained if ub is set and < 64K,
-//     semi-constrained if ub is unset) followed by the value octets (§17.8).
+// EncodeOctetString encodes an OCTET STRING (§17): out-of-root extension
+// values (§17.3), empty (§17.5), fixed size ≤ 2 octets as an unaligned
+// bit-field (§17.6), larger fixed size octet-aligned (§17.7), otherwise a
+// length determinant followed by the value octets (§17.8).
 func EncodeOctetString(
 	w *Writer, enc Encoding,
 	lb, ub int64, hasLB, hasUB, extensible bool,
@@ -258,7 +243,7 @@ func encodeOctetStringValue(
 	})
 }
 
-// DecodeOctetString decodes an OCTET STRING per §17.
+// DecodeOctetString decodes an OCTET STRING (§17).
 func DecodeOctetString(
 	r *Reader, enc Encoding,
 	lb, ub int64, hasLB, hasUB, extensible bool,

@@ -7,9 +7,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// S1SetupRequest is the S1 SETUP REQUEST message (TS 36.413 §9.1.8.4). A nil
-// ENBName means the optional eNBname IE is absent. IEs that are not modeled are
-// preserved in unknownIEs so the message round-trips.
+// TS 36.413 §9.1.8.4.
 type S1SetupRequest struct {
 	GlobalENBID      GlobalENBID
 	ENBName          *string
@@ -19,7 +17,6 @@ type S1SetupRequest struct {
 	unmodeledIEs
 }
 
-// s1SetupRequestIEs is the S1SetupRequest IE table (TS 36.413).
 var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
 	{
 		id: idGlobalENBID, presence: PresenceMandatory, crit: CriticalityReject,
@@ -70,7 +67,6 @@ func (m *S1SetupRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, s1SetupRequestIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *S1SetupRequest) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -87,8 +83,6 @@ func (m *S1SetupRequest) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseS1SetupRequest decodes an S1SetupRequest from the open-type payload of an
-// initiatingMessage (the InitiatingMessage.Value).
 func ParseS1SetupRequest(value []byte) (*S1SetupRequest, error) {
 	return parseMessageBody[S1SetupRequest](ProcS1Setup, s1SetupRequestIEs, value)
 }

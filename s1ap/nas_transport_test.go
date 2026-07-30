@@ -38,8 +38,6 @@ func TestInitialUEMessageGoldenDecode(t *testing.T) {
 		t.Fatal("NAS-PDU is empty")
 	}
 
-	// Semantic round-trip: re-encoding (including preserved unknown IEs) and
-	// re-decoding must reproduce the modeled fields.
 	b2, err := msg.Marshal()
 	if err != nil {
 		t.Fatal(err)

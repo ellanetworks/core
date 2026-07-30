@@ -15,20 +15,17 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-// generator drives the pergen code-generation pass.
 type generator struct {
 	cfg      Config
 	buf      bytes.Buffer
 	pkg      *packages.Package
-	genTypes map[string]bool // types that will get generated methods (two-pass)
+	genTypes map[string]bool // types this run will emit methods for
 }
 
 func newGenerator(cfg Config) *generator {
 	return &generator{cfg: cfg}
 }
 
-// generate iterates loaded packages, finds types with per: tags, and emits
-// MarshalPER/UnmarshalPER methods for them.
 func (g *generator) generate(pkgs []*packages.Package) error {
 	if len(pkgs) == 0 {
 		return errors.New("no packages to generate")
@@ -47,21 +44,16 @@ func (g *generator) generate(pkgs []*packages.Package) error {
 	return nil
 }
 
-// generatePackage emits methods for every struct in pkg that has at least one
-// field with a `per:` tag (or whose named type has a per: tag).
 func (g *generator) generatePackage(pkg *packages.Package) error {
 	g.pkg = pkg
 	scope := pkg.Types.Scope()
-	// Collect names so output is deterministic.
+	// Sorted so the output is deterministic.
 	names := make([]string, 0, len(scope.Names()))
 	names = append(names, scope.Names()...)
 	sort.Strings(names)
 
-	// First pass: collect all types that will get generated methods. This lets
-	// field classification know which named types will implement MarshalPER
-	// even before their methods are emitted. We start with structs that have
-	// per: tags, then add structs referenced as field types (transitive
-	// closure) so delegate types get methods too.
+	// First pass, so field classification can see which named types will
+	// implement MarshalPER before any method is emitted.
 	g.genTypes = make(map[string]bool)
 
 	for _, name := range names {
@@ -89,10 +81,9 @@ func (g *generator) generatePackage(pkg *packages.Package) error {
 			g.genTypes[name] = true
 		}
 	}
-	// Transitive closure: add structs referenced as field types.
+
 	g.collectReferencedStructs(scope)
 
-	// Second pass: parse and emit.
 	found := false
 
 	for _, name := range names {
@@ -134,9 +125,8 @@ func (g *generator) generatePackage(pkg *packages.Package) error {
 	return nil
 }
 
-// collectReferencedStructs adds same-package named struct types that are
-// referenced as field types by types already in genTypes. Repeats until no new
-// types are found (transitive closure).
+// collectReferencedStructs takes the transitive closure of genTypes over
+// same-package struct types used as field types.
 func (g *generator) collectReferencedStructs(scope *types.Scope) {
 	changed := true
 	for changed {
@@ -165,7 +155,6 @@ func (g *generator) collectReferencedStructs(scope *types.Scope) {
 
 			for i := 0; i < underlying.NumFields(); i++ {
 				ft := underlying.Field(i).Type()
-				// Dereference pointer/slice elements.
 				if p, ok := ft.(*types.Pointer); ok {
 					ft = p.Elem()
 				}
@@ -179,10 +168,8 @@ func (g *generator) collectReferencedStructs(scope *types.Scope) {
 						continue
 					}
 
-					// A struct with a hand-written MarshalPER keeps it; the
-					// closure must not generate a conflicting method. Methods
-					// declared in the generated file itself do not count —
-					// they are this run's output being replaced.
+					// A hand-written MarshalPER is kept, so the closure does not
+					// emit a conflicting method.
 					if g.hasSourceMethod(n, "MarshalPER") {
 						continue
 					}
@@ -199,9 +186,8 @@ func (g *generator) collectReferencedStructs(scope *types.Scope) {
 	}
 }
 
-// hasSourceMethod reports whether named has a hand-written method with the
-// given name: one declared outside the generated output file, which is about
-// to be replaced by this run.
+// hasSourceMethod ignores methods declared in the output file, since this run
+// replaces it.
 func (g *generator) hasSourceMethod(named *types.Named, name string) bool {
 	for obj := range named.Methods() {
 		obj := obj
@@ -218,8 +204,7 @@ func (g *generator) hasSourceMethod(named *types.Named, name string) bool {
 	return false
 }
 
-// structIsPER reports whether a struct type carries PER-relevant tags: at least
-// one field has a `per:` tag (excluding `per:"-"` which means skip).
+// structIsPER reports whether any field carries a `per:` tag other than "-".
 func structIsPER(s *types.Struct, _ *types.Named) bool {
 	for i := 0; i < s.NumFields(); i++ {
 		tag := structTagGet(s.Tag(i), "per")
@@ -233,8 +218,7 @@ func structIsPER(s *types.Struct, _ *types.Named) bool {
 	return false
 }
 
-// structIsExtSeq reports whether a struct has a field tagged `per:"extseq"`,
-// marking the type as extensible even if no other per: tags exist.
+// structIsExtSeq admits a type whose only per: tag is `extseq`.
 func structIsExtSeq(s *types.Struct) bool {
 	for i := 0; i < s.NumFields(); i++ {
 		tag := structTagGet(s.Tag(i), "per")
@@ -246,7 +230,7 @@ func structIsExtSeq(s *types.Struct) bool {
 	return false
 }
 
-// typeEnabled reports whether name should be generated, per the -type filter.
+// typeEnabled applies the -type filter; an empty filter enables every type.
 func (g *generator) typeEnabled(name string) bool {
 	if len(g.cfg.types) == 0 {
 		return true

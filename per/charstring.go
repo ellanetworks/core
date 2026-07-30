@@ -9,12 +9,10 @@ import (
 	"unicode/utf8"
 )
 
-// Known-multiplier character string types per §30.1.
+// Known-multiplier character string types (§30.1).
 type charStringType int
 
-// Known-multiplier character string type identifiers.
 const (
-	// CharNumericString is the ASN.1 NumericString type.
 	CharNumericString charStringType = iota
 	CharPrintableString
 	CharVisibleString
@@ -23,44 +21,36 @@ const (
 	CharUniversalString
 )
 
-// charSetInfo returns the minimum value, maximum value, and number of distinct
-// characters in the full alphabet of the given known-multiplier type.
 type charSetInfo struct {
-	lb, ub uint64 // min and max code values in the alphabet
+	lb, ub uint64 // lowest and highest code value in the alphabet
 	n      int    // number of distinct characters
 }
 
 func charSet(t charStringType) charSetInfo {
 	switch t {
 	case CharNumericString:
-		// " 0123456789" → code values 32, 48-57, but not all contiguous.
-		// Range: 32-57, 11 characters.
+		// " 0123456789": non-contiguous within 32-57.
 		return charSetInfo{32, 57, 11}
 	case CharPrintableString:
-		// '()*+,-./0-9:=?A-Z a-z → range 32-122, but not all present.
+		// " '()+,-./0-9:=?A-Za-z": non-contiguous within 32-122.
 		return charSetInfo{32, 122, 74}
 	case CharVisibleString:
-		// ASCII 32-126, all present.
 		return charSetInfo{32, 126, 95}
 	case CharIA5String:
-		// ASCII 0-127, all present.
 		return charSetInfo{0, 127, 128}
 	case CharBMPString:
-		// UCS-2: 0-65535.
+		// UCS-2.
 		return charSetInfo{0, 65535, 65536}
 	case CharUniversalString:
-		// UCS-4: 0-4294967295 (2^32-1).
+		// UCS-4.
 		return charSetInfo{0, 4294967295, 4294967296}
 	default:
 		return charSetInfo{0, 0, 0}
 	}
 }
 
-// bitsPerChar returns the number of bits per character for the given string
-// type and variant per §30.5.2.
-//
-//	ALIGNED: B2 = smallest power of 2 >= B, where B = ceil(log2(N))
-//	UNALIGNED: B = ceil(log2(N))
+// bitsPerChar returns the bits per character (§30.5.2): ceil(log2(N)) for
+// UNALIGNED, rounded up to a power of two for ALIGNED.
 func bitsPerChar(t charStringType, enc Encoding) int {
 	info := charSet(t)
 	if info.n <= 1 {
@@ -70,7 +60,6 @@ func bitsPerChar(t charStringType, enc Encoding) int {
 	b := bitsNeeded(int64(info.n))
 
 	if enc == Aligned {
-		// Round up to next power of 2.
 		b2 := 1
 		for b2 < b {
 			b2 <<= 1
@@ -82,8 +71,8 @@ func bitsPerChar(t charStringType, enc Encoding) int {
 	return b
 }
 
-// needsCompaction reports whether the alphabet's code values fit in b bits
-// without remapping (§30.5.4a). If not, characters are remapped to 0..N-1.
+// needsCompaction reports whether the alphabet must be remapped to 0..N-1
+// because its code values do not fit in b bits (§30.5.4a).
 func needsCompaction(t charStringType, b int) bool {
 	info := charSet(t)
 	maxVal := uint64(1)<<uint(b) - 1
@@ -91,9 +80,8 @@ func needsCompaction(t charStringType, b int) bool {
 	return info.ub > maxVal
 }
 
-// EncodeKnownMultiplierString encodes a known-multiplier character string per
-// §30.5. Characters are compacted to the minimum bits per character. Size
-// constraints (lb, ub) control length determinant encoding like OCTET STRING.
+// EncodeKnownMultiplierString encodes a known-multiplier character string
+// (§30.5), compacting characters to the minimum bits per character.
 func EncodeKnownMultiplierString(
 	w *Writer, enc Encoding,
 	t charStringType,
@@ -118,23 +106,21 @@ func EncodeKnownMultiplierString(
 
 	b := bitsPerChar(t, enc)
 
-	// Fixed length (ub == lb, ub < 64K): no length determinant (§30.5.6).
+	// §30.5.6: a fixed length needs no length determinant.
 	if hasUB && hasLB && ub == lb && ub < sixtyFourK {
 		return encodeChars(w, enc, t, s, b, ub*int64(b) > 16)
 	}
 
-	// Variable length with size constraint (§30.5.7).
 	return encodeKMStringLen(w, enc, t, lb, ub, hasUB, s, b)
 }
 
-// encodeKMStringUnconstrained encodes with no effective size constraint and
-// a semi-constrained length (§30.4 out-of-root case).
+// encodeKMStringUnconstrained encodes the §30.4 out-of-root case: no effective
+// size constraint, semi-constrained length.
 func encodeKMStringUnconstrained(w *Writer, enc Encoding, t charStringType, s string) error {
 	b := bitsPerChar(t, enc)
 	return encodeKMStringLen(w, enc, t, 0, 0, false, s, b)
 }
 
-// encodeKMStringLen encodes the length determinant + compacted characters.
 func encodeKMStringLen(
 	w *Writer, enc Encoding,
 	t charStringType,
@@ -147,7 +133,7 @@ func encodeKMStringLen(
 	}
 	// The length determinant counts characters, not the UTF-8 bytes of s.
 	n := int64(len(compacted))
-	// §30.5.7: octet-aligned if aub*b >= 16, else not.
+	// §30.5.7: octet-align only when ub*b ≥ 16.
 	alignThreshold := hasUB && ub*int64(b) >= 16
 
 	off := int64(0)
@@ -169,8 +155,7 @@ func encodeKMStringLen(
 	})
 }
 
-// encodeChars writes characters directly without a length determinant (fixed
-// length case, §30.5.6).
+// encodeChars writes characters with no length determinant (§30.5.6).
 func encodeChars(w *Writer, enc Encoding, t charStringType, s string, b int, octetAlign bool) error {
 	compacted, err := compactChars(t, s, b)
 	if err != nil {
@@ -188,15 +173,13 @@ func encodeChars(w *Writer, enc Encoding, t charStringType, s string, b int, oct
 	return nil
 }
 
-// compactChars converts each character of s into its compacted numeric value
-// per §30.5.4. If the alphabet fits in b bits without remapping, the original
-// code value is used; otherwise characters are mapped to 0..N-1 in canonical
-// order.
+// compactChars converts each character of s to its compacted numeric value
+// (§30.5.4): the original code value where the alphabet fits in b bits,
+// otherwise its position 0..N-1 in canonical order.
 func compactChars(t charStringType, s string, b int) ([]uint32, error) {
 	info := charSet(t)
 
 	if !needsCompaction(t, b) {
-		// Use original code values.
 		out := make([]uint32, 0, len(s))
 
 		for _, r := range s {
@@ -209,7 +192,7 @@ func compactChars(t charStringType, s string, b int) ([]uint32, error) {
 
 		return out, nil
 	}
-	// Build a remapping table for the full alphabet.
+
 	table := buildCharTable(t)
 
 	out := make([]uint32, 0, len(s))
@@ -226,8 +209,8 @@ func compactChars(t charStringType, s string, b int) ([]uint32, error) {
 	return out, nil
 }
 
-// buildCharTable builds the remapping table for a compacted alphabet per
-// §30.5.4b: characters in canonical order are assigned 0, 1, 2, ...
+// buildCharTable assigns 0, 1, 2, ... to the alphabet in canonical order
+// (§30.5.4b).
 func buildCharTable(t charStringType) map[rune]uint32 {
 	chars := alphabet(t)
 
@@ -239,7 +222,7 @@ func buildCharTable(t charStringType) map[rune]uint32 {
 	return table
 }
 
-// alphabet returns the characters of the full alphabet in canonical order.
+// alphabet returns the full alphabet in canonical order.
 func alphabet(t charStringType) []rune {
 	switch t {
 	case CharNumericString:
@@ -261,15 +244,15 @@ func alphabet(t charStringType) []rune {
 
 		return r
 	case CharBMPString, CharUniversalString:
-		// Too large for a table; we use direct code values for these.
+		// Too large to tabulate; these always use direct code values.
 		return nil
 	}
 
 	return nil
 }
 
-// DecodeKnownMultiplierString decodes a known-multiplier character string per
-// §30.5.
+// DecodeKnownMultiplierString decodes a known-multiplier character string
+// (§30.5).
 func DecodeKnownMultiplierString(
 	r *Reader, enc Encoding,
 	t charStringType,
@@ -288,12 +271,11 @@ func DecodeKnownMultiplierString(
 
 	b := bitsPerChar(t, enc)
 
-	// Fixed length (ub == lb, ub < 64K): no length determinant (§30.5.6).
+	// §30.5.6: a fixed length needs no length determinant.
 	if hasUB && hasLB && ub == lb && ub < sixtyFourK {
 		return decodeFixedChars(r, enc, t, int(ub), b, ub*int64(b) > 16)
 	}
 
-	// Variable length with size constraint (§30.5.7).
 	return decodeKMStringLen(r, enc, t, lb, ub, hasUB, b)
 }
 
@@ -353,7 +335,7 @@ func decodeFixedChars(r *Reader, enc Encoding, t charStringType, n int, b int, o
 	return expandChars(t, chars, b), nil
 }
 
-// expandChars converts compacted numeric values back to a string per §30.5.4.
+// expandChars converts compacted numeric values back to a string (§30.5.4).
 func expandChars(t charStringType, chars []uint32, b int) string {
 	if !needsCompaction(t, b) {
 		var sb strings.Builder
@@ -363,7 +345,7 @@ func expandChars(t charStringType, chars []uint32, b int) string {
 
 		return sb.String()
 	}
-	// Reverse the remapping.
+
 	table := buildCharTable(t)
 
 	reverse := make(map[uint32]rune, len(table))

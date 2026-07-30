@@ -7,8 +7,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// RoutingID ::= INTEGER (0..255) (TS 36.413). Identifies the E-SMLC endpoint the
-// carried LPPa-PDU is routed to or from.
+// RoutingID ::= INTEGER (0..255), naming an E-SMLC endpoint (TS 36.413).
 type RoutingID uint8
 
 func (id RoutingID) MarshalPER(w *per.Writer, enc per.Encoding) error {
@@ -26,8 +25,8 @@ func (id *RoutingID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-// LPPaPDU ::= OCTET STRING (unbounded). The S1AP layer carries an LPPa PDU
-// opaquely; the bytes are decoded by the LPPa codec (TS 36.455), not here.
+// LPPaPDU ::= OCTET STRING (unbounded), carried opaquely; the bytes are an
+// LPPa PDU (TS 36.455).
 type LPPaPDU []byte
 
 func (p LPPaPDU) MarshalPER(w *per.Writer, enc per.Encoding) error {
@@ -45,8 +44,7 @@ func (p *LPPaPDU) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-// DownlinkUEAssociatedLPPaTransport is the DOWNLINK UE ASSOCIATED LPPA TRANSPORT
-// message (TS 36.413), sent by the MME to relay an LPPa PDU to the eNB.
+// TS 36.413 §9.1.19.1.
 type DownlinkUEAssociatedLPPaTransport struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
@@ -56,10 +54,8 @@ type DownlinkUEAssociatedLPPaTransport struct {
 	unmodeledIEs
 }
 
-// lppaTransportIEs builds the IE table shared by the two UE-associated LPPa
-// transport messages (TS 36.413 §9.1.19.1, §9.1.19.2), which carry the same
-// four mandatory IEs and differ only in procedure code. The accessors bind the
-// table to whichever message type is being coded.
+// The two UE-associated LPPa transport messages carry identical IEs and differ
+// only in procedure code (TS 36.413 §9.1.19.1, §9.1.19.2).
 func lppaTransportIEs[M any](
 	mme func(*M) *MMEUES1APID,
 	enb func(*M) *ENBUES1APID,
@@ -112,7 +108,6 @@ func (m *UplinkUEAssociatedLPPaTransport) encodeBody(w *per.Writer, enc per.Enco
 	return encodeMessageBody(w, enc, uplinkUEAssociatedLPPaTransportIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *DownlinkUEAssociatedLPPaTransport) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -129,14 +124,11 @@ func (m *DownlinkUEAssociatedLPPaTransport) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseDownlinkUEAssociatedLPPaTransport decodes the message from the open-type
-// payload of an initiatingMessage.
 func ParseDownlinkUEAssociatedLPPaTransport(value []byte) (*DownlinkUEAssociatedLPPaTransport, error) {
 	return parseMessageBody[DownlinkUEAssociatedLPPaTransport](ProcDownlinkUEAssociatedLPPaTransport, downlinkUEAssociatedLPPaTransportIEs, value)
 }
 
-// UplinkUEAssociatedLPPaTransport is the UPLINK UE ASSOCIATED LPPA TRANSPORT
-// message (TS 36.413), sent by the eNB to relay an LPPa PDU to the MME.
+// TS 36.413 §9.1.19.2.
 type UplinkUEAssociatedLPPaTransport struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
@@ -146,7 +138,6 @@ type UplinkUEAssociatedLPPaTransport struct {
 	unmodeledIEs
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *UplinkUEAssociatedLPPaTransport) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -163,8 +154,6 @@ func (m *UplinkUEAssociatedLPPaTransport) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseUplinkUEAssociatedLPPaTransport decodes the message from the open-type
-// payload of an initiatingMessage.
 func ParseUplinkUEAssociatedLPPaTransport(value []byte) (*UplinkUEAssociatedLPPaTransport, error) {
 	return parseMessageBody[UplinkUEAssociatedLPPaTransport](ProcUplinkUEAssociatedLPPaTransport, uplinkUEAssociatedLPPaTransportIEs, value)
 }

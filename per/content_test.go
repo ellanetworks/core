@@ -192,7 +192,7 @@ func TestBitStringOctetStringRoundtrip(t *testing.T) {
 	t.Parallel()
 
 	for _, enc := range []Encoding{Aligned, Unaligned} {
-		// unconstrained octet string of varying sizes incl. fragmentation boundary
+		// The sizes straddle the 16K fragmentation boundary.
 		for _, sz := range []int{0, 1, 2, 3, 100, 127, 128, 16383, 16384, 16385, 40000} {
 			data := make([]byte, sz)
 			for i := range data {

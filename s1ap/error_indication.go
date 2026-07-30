@@ -9,9 +9,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// ErrorIndication is the ERROR INDICATION message (TS 36.413). It
-// reports a protocol error not handled by a procedure-specific failure message.
-// All IEs are optional.
+// TS 36.413 §9.1.8.3.
 type ErrorIndication struct {
 	MMEUES1APID            *MMEUES1APID
 	ENBUES1APID            *ENBUES1APID
@@ -21,7 +19,6 @@ type ErrorIndication struct {
 	unmodeledIEs
 }
 
-// errorIndicationIEs is the ErrorIndication IE table (TS 36.413).
 var errorIndicationIEs = []ieSpec[ErrorIndication]{
 	{
 		id: idMMEUES1APID, presence: PresenceOptional, crit: CriticalityIgnore,
@@ -121,7 +118,6 @@ func (m *ErrorIndication) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, errorIndicationIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *ErrorIndication) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -138,8 +134,6 @@ func (m *ErrorIndication) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseErrorIndication decodes the message from an initiatingMessage open-type
-// payload.
 func ParseErrorIndication(value []byte) (*ErrorIndication, error) {
 	return parseMessageBody[ErrorIndication](ProcErrorIndication, errorIndicationIEs, value)
 }

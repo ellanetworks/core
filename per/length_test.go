@@ -244,7 +244,6 @@ func TestLengthFragmentDecodeRoundtrip(t *testing.T) {
 	for _, enc := range []Encoding{Aligned, Unaligned} {
 		for _, n := range sizes {
 			w := NewWriter()
-			// build content of n zero-bytes-equivalent units (octets)
 			content := make([]byte, n)
 			off := 0
 

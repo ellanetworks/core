@@ -3,38 +3,35 @@
 
 package per
 
-// Bounds describes PER-visible constraints on an INTEGER value (Rec. ITU-T
-// X.691 §11.5–11.8, §13). A lower bound is absent when MIN applies; an upper
-// bound is absent when MAX applies.
+// Bounds describes the PER-visible constraints on an INTEGER (§11.5–11.8, §13).
+// A bound is absent where MIN or MAX applies.
 type Bounds struct {
 	LB, UB       int64
 	HasLB, HasUB bool
 	Extensible   bool
 }
 
-// Constrained reports whether both bounds are present.
 func (b Bounds) Constrained() bool { return b.HasLB && b.HasUB }
 
-// EncodeBoolean encodes a BOOLEAN per §12: a single bit, 1 for TRUE, 0 for FALSE.
+// EncodeBoolean encodes a BOOLEAN (§12).
 func EncodeBoolean(w *Writer, _ Encoding, v bool) {
 	w.WriteBit(v)
 }
 
-// DecodeBoolean decodes a BOOLEAN per §12.
+// DecodeBoolean decodes a BOOLEAN (§12).
 func DecodeBoolean(r *Reader, _ Encoding) (bool, error) {
 	return r.ReadBit()
 }
 
-// EncodeNull encodes a NULL per §18: no addition to the field-list.
+// EncodeNull encodes a NULL (§18): nothing is added to the field-list.
 func EncodeNull(*Writer, Encoding) error { return nil }
 
-// DecodeNull decodes a NULL per §18: no bits consumed.
+// DecodeNull decodes a NULL (§18): no bits are consumed.
 func DecodeNull(*Reader, Encoding) error { return nil }
 
-// EncodeInteger encodes an INTEGER value n per §13, dispatching to the
-// constrained (§11.5), semi-constrained (§11.7), or unconstrained (§11.8)
-// whole-number procedures, including the extensible (§13.1) and indefinite
-// (§13.2.6) cases.
+// EncodeInteger encodes an INTEGER (§13), dispatching to the constrained
+// (§11.5), semi-constrained (§11.7) or unconstrained (§11.8) procedure, plus
+// the extensible (§13.1) and indefinite (§13.2.6) cases.
 func EncodeInteger(w *Writer, enc Encoding, b Bounds, n int64) error {
 	if b.Extensible {
 		inRoot := !b.Constrained() || (n >= b.LB && n <= b.UB)
@@ -43,7 +40,6 @@ func EncodeInteger(w *Writer, enc Encoding, b Bounds, n int64) error {
 		if !inRoot {
 			return encodeUnconstrainedInteger(w, enc, n)
 		}
-		// fall through to root encoding
 	}
 
 	switch {
@@ -65,7 +61,7 @@ func EncodeInteger(w *Writer, enc Encoding, b Bounds, n int64) error {
 	}
 }
 
-// DecodeInteger decodes an INTEGER per §13.
+// DecodeInteger decodes an INTEGER (§13).
 func DecodeInteger(r *Reader, enc Encoding, b Bounds) (int64, error) {
 	if b.Extensible {
 		bit, err := r.ReadBit()
@@ -76,7 +72,6 @@ func DecodeInteger(r *Reader, enc Encoding, b Bounds) (int64, error) {
 		if bit {
 			return decodeUnconstrainedInteger(r, enc)
 		}
-		// fall through to root decoding
 	}
 
 	switch {
@@ -99,10 +94,8 @@ func DecodeInteger(r *Reader, enc Encoding, b Bounds) (int64, error) {
 }
 
 // encodeIndefiniteInteger handles the aligned-variant indefinite case
-// (§11.5.7.4, §13.2.6a): the offset (n-lb) is written as a minimum-octet
-// non-negative binary integer, octet-aligned, preceded by a constrained length
-// determinant over [1, rangeOctets] where rangeOctets is the number of octets
-// needed to hold the range.
+// (§11.5.7.4, §13.2.6a): n-lb as a minimal non-negative binary integer,
+// preceded by a length determinant constrained to [1, octets holding the range].
 func encodeIndefiniteInteger(w *Writer, enc Encoding, lb, rng, n int64) error {
 	if n < lb || n > lb+rng-1 {
 		return ErrOverflow
@@ -177,8 +170,7 @@ func decodeUnconstrainedInteger(r *Reader, enc Encoding) (int64, error) {
 		return 0, err
 	}
 
-	// §11.8: a 2's-complement field wider than 8 octets does not fit an int64,
-	// and a zero-octet field has no value.
+	// §11.8: a zero-octet field has no value, and more than 8 octets exceed int64.
 	if n < 1 || n > 8 {
 		return 0, ErrOverflow
 	}
@@ -192,7 +184,7 @@ func decodeUnconstrainedInteger(r *Reader, enc Encoding) (int64, error) {
 	for _, b := range p {
 		v = v<<8 | int64(b)
 	}
-	// The field is a 2's-complement integer over len(p)*8 bits; sign-extend.
+
 	bits := len(p) * 8
 	if bits > 0 && bits < 64 && v&(1<<(bits-1)) != 0 {
 		v |= ^((1 << bits) - 1)

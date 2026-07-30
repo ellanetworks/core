@@ -3,10 +3,8 @@
 
 package per
 
-// EncodeOpenType encodes a value as an open type field per §11.2: the value's
-// complete PER encoding (padded to an octet boundary) is preceded by an
-// unconstrained length determinant in octets. This is used for CHOICE
-// extension additions and SEQUENCE extension additions.
+// EncodeOpenType encodes m as an open type field (§11.2): its complete PER
+// encoding, padded to an octet boundary, preceded by a length in octets.
 func EncodeOpenType(w *Writer, enc Encoding, m Marshaler) error {
 	inner := NewWriter()
 	if err := m.MarshalPER(inner, enc); err != nil {
@@ -18,7 +16,7 @@ func EncodeOpenType(w *Writer, enc Encoding, m Marshaler) error {
 	return EncodeOpenTypeBytes(w, enc, inner.Bytes())
 }
 
-// DecodeOpenType decodes an open type field per §11.2, delegating to u.
+// DecodeOpenType decodes an open type field (§11.2), delegating to u.
 func DecodeOpenType(r *Reader, enc Encoding, u Unmarshaler) error {
 	var buf []byte
 
@@ -41,7 +39,7 @@ func DecodeOpenType(r *Reader, enc Encoding, u Unmarshaler) error {
 	return u.UnmarshalPER(inner, enc)
 }
 
-// SkipOpenType reads and discards an open type field (for unknown extensions).
+// SkipOpenType reads and discards an open type field (§11.2).
 func SkipOpenType(r *Reader, enc Encoding) error {
 	return DecodeLength(r, enc, 0, 0, false, func(count int64) error {
 		_, err := readOctetAligned(r, enc, int(count))
@@ -49,10 +47,9 @@ func SkipOpenType(r *Reader, enc Encoding) error {
 	})
 }
 
-// EncodeOpenTypeBytes encodes content, an already-encoded complete PER value,
-// as an open type field per §11.2. Used to re-emit open types captured with
-// [DecodeOpenTypeBytes] without decoding them. An empty encoding is padded to
-// the single zero octet §11.2.1 requires.
+// EncodeOpenTypeBytes encodes an already-encoded complete PER value as an open
+// type field (§11.2). An empty encoding becomes the single zero octet required
+// by §11.2.1.
 func EncodeOpenTypeBytes(w *Writer, enc Encoding, content []byte) error {
 	if len(content) == 0 {
 		content = []byte{0x00}
@@ -69,9 +66,8 @@ func EncodeOpenTypeBytes(w *Writer, enc Encoding, content []byte) error {
 	})
 }
 
-// DecodeOpenTypeBytes reads an open type field per §11.2 and returns its
-// content octets undecoded, so a caller can dispatch on out-of-band type
-// information or preserve unknown fields for re-encoding.
+// DecodeOpenTypeBytes reads an open type field (§11.2) and returns its content
+// octets undecoded.
 func DecodeOpenTypeBytes(r *Reader, enc Encoding) ([]byte, error) {
 	var buf []byte
 
@@ -92,13 +88,10 @@ func DecodeOpenTypeBytes(r *Reader, enc Encoding) ([]byte, error) {
 	return buf, nil
 }
 
-// EncodeNormallySmallLength encodes a "normally small length" determinant per
-// §11.9.3.4 (distinct from §11.6 normally-small number: the length has lb=1,
-// so the 6-bit field encodes n-1 for n ≤ 64). emit writes the associated
-// field of count units.
+// EncodeNormallySmallLength encodes a normally-small length determinant
+// (§11.9.3.4). Unlike the §11.6 normally-small number, this has lb = 1: the
+// 6-bit field holds n-1, so n == 0 has no representation.
 func EncodeNormallySmallLength(w *Writer, enc Encoding, n int64, emit func(count int64) error) error {
-	// §11.9.3.4: the length has lb = 1; n == 0 has no representation (the
-	// 6-bit field encodes n-1, so it would decode as 64).
 	if n < 1 {
 		return ErrOverflow
 	}
@@ -115,8 +108,8 @@ func EncodeNormallySmallLength(w *Writer, enc Encoding, n int64, emit func(count
 	return encodeUnconstrainedLengthFrag(w, enc, n, emit)
 }
 
-// DecodeNormallySmallLength decodes a "normally small length" determinant per
-// §11.9.3.4, invoking consume for the associated field.
+// DecodeNormallySmallLength decodes a normally-small length determinant
+// (§11.9.3.4).
 func DecodeNormallySmallLength(r *Reader, enc Encoding, consume func(count int64) error) error {
 	bit, err := r.ReadBit()
 	if err != nil {

@@ -88,16 +88,14 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 	logger.From(ctx, m.RadioLog(conn)).Info("S1 Setup Response sent", zap.String("enb-name", enbName(req.ENBName)))
 }
 
-// buildS1SetupFailureMissingIEs builds an S1 Setup Failure rejecting a request that
-// omits mandatory reject-criticality IEs, naming them in Criticality Diagnostics
-// (TS 36.413 §10.3.5). Mirrors the AMF's NG Setup handling.
+// buildS1SetupFailureMissingIEs names the omitted IEs in Criticality
+// Diagnostics (TS 36.413 §10.3.5).
 func buildS1SetupFailureMissingIEs(ies []s1ap.MissingIE) ([]byte, error) {
 	proc := s1ap.ProcS1Setup
 	trigger := s1ap.TriggeringInitiatingMessage
 	crit := s1ap.CriticalityReject
 
-	// Each item reports the criticality TS 36.413 assigns that IE, not a
-	// blanket "reject" (§9.2.1.21).
+	// Each item reports the criticality TS 36.413 §9.2.1.21 assigns that IE.
 	items := make([]s1ap.CriticalityDiagnosticsIEItem, 0, len(ies))
 	for _, ie := range ies {
 		items = append(items, s1ap.CriticalityDiagnosticsIEItem{
@@ -241,8 +239,6 @@ func buildS1SetupResponse(plmn models.PlmnID, mmeGroupID uint16, mmeCode uint8, 
 	}, nil
 }
 
-// enbName renders an optional eNB Name IE for logging; the IE is optional
-// (TS 36.413 §9.1.8.4) so an absent one logs as an empty string.
 func enbName(name *string) string {
 	if name == nil {
 		return ""

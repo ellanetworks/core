@@ -5,8 +5,7 @@ package s1ap
 
 import "fmt"
 
-// procedureNames maps each elementary procedure code to its TS 36.413
-// name, for diagnostics and logging.
+// Elementary procedure names from TS 36.413 §9.3.3.
 //
 // #nosec G101 -- these are 3GPP procedure names, not credentials. G101 matches
 // its "pw" pattern against PWSRestartIndication, where PWS is the Public
@@ -81,7 +80,6 @@ var procedureNames = map[ProcedureCode]string{
 	ProcMMEEarlyStatusTransfer:             "MMEEarlyStatusTransfer",
 }
 
-// String returns the procedure name and its code, e.g. "S1Setup (17)".
 func (p ProcedureCode) String() string {
 	if name, ok := procedureNames[p]; ok {
 		return fmt.Sprintf("%s (%d)", name, uint8(p))

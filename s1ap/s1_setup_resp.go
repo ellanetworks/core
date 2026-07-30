@@ -7,9 +7,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// S1SetupResponse is the S1 SETUP RESPONSE message (TS 36.413). An
-// nil MMEName means the optional mMEname IE is absent; a nil
-// CriticalityDiagnostics means that optional IE is absent.
+// TS 36.413 §9.1.8.5.
 type S1SetupResponse struct {
 	MMEName                *string
 	ServedGUMMEIs          ServedGUMMEIs
@@ -19,7 +17,6 @@ type S1SetupResponse struct {
 	unmodeledIEs
 }
 
-// s1SetupResponseIEs is the S1SetupResponse IE table (TS 36.413).
 var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 	{
 		id: idMMEname, presence: PresenceOptional, crit: CriticalityIgnore,
@@ -96,7 +93,6 @@ func (m *S1SetupResponse) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, s1SetupResponseIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *S1SetupResponse) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -113,8 +109,6 @@ func (m *S1SetupResponse) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseS1SetupResponse decodes an S1SetupResponse from the open-type payload of
-// a successfulOutcome.
 func ParseS1SetupResponse(value []byte) (*S1SetupResponse, error) {
 	return parseMessageBody[S1SetupResponse](ProcS1Setup, s1SetupResponseIEs, value)
 }

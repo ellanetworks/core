@@ -5,25 +5,23 @@ package per
 
 import "math"
 
-// PER size thresholds, from Rec. ITU-T X.691 (02/2021).
+// Size thresholds from Rec. ITU-T X.691 (02/2021).
 //
 //	§11.5.7  constrained whole number: range ≤ 255 bit-field; ==256 one octet;
 //	         257..64K two octets; >64K indefinite.
 //	§11.9.3  length determinant: ≤127 one octet (bit8=0); <16K two octets
 //	         (bit8=1, bit7=0); ≥16K fragment (bit8=1, bit7=1, m=1..4 → m×16K).
 const (
-	maxShort        = 127   // length form a: n ≤ 127
-	maxMedium       = 16383 // length form b: n < 16K (16384)
-	fragmentUnit    = 16384 // 16K
-	sixtyFourK      = 65536 // 64K
-	rangeBitField   = 255   // constrained whole number bit-field case
-	rangeOneOctet   = 256   // constrained whole number one-octet case
-	rangeTwoOctetLo = 257   // constrained whole number two-octet case lower bound
+	maxShort        = 127
+	maxMedium       = 16383
+	fragmentUnit    = 16384
+	sixtyFourK      = 65536
+	rangeBitField   = 255
+	rangeOneOctet   = 256
+	rangeTwoOctetLo = 257
 )
 
-// bitsNeeded returns the minimum number of bits to distinguish `rangeVal`
-// values (rangeVal >= 1). Returns 0 for rangeVal == 1 (no bits, §11.5.4).
-// This is ceil(log2(rangeVal)) = floor(log2(rangeVal-1)) + 1 for rangeVal >= 2.
+// bitsNeeded returns ceil(log2(rangeVal)), and 0 for rangeVal == 1 (§11.5.4).
 func bitsNeeded(rangeVal int64) int {
 	if rangeVal <= 1 {
 		return 0
@@ -37,9 +35,8 @@ func bitsNeeded(rangeVal int64) int {
 	return b
 }
 
-// minOctetsNonNeg returns the minimum number of octets for a non-negative
-// binary integer encoding of v (§11.3.6): a multiple of 8 bits whose leading
-// 8 bits are not all zero unless the field is exactly 8 bits. v=0 → 1 octet.
+// minOctetsNonNeg returns the octet count of a minimal non-negative binary
+// integer encoding of v (§11.3.6); v == 0 takes one octet.
 func minOctetsNonNeg(v uint64) int {
 	if v == 0 {
 		return 1
@@ -53,10 +50,8 @@ func minOctetsNonNeg(v uint64) int {
 	return (b + 7) / 8
 }
 
-// minOctetsTwosComp returns the minimum number of octets for a 2's-complement
-// binary integer encoding of n (§11.4.6): a multiple of 8 bits whose leading
-// 9 bits are neither all zero nor all one. This is ceil((bitlen(|n|)+1)/8) for
-// n != 0, and 1 for n == 0.
+// minOctetsTwosComp returns the octet count of a minimal 2's-complement binary
+// integer encoding of n (§11.4.6).
 func minOctetsTwosComp(n int64) int {
 	var mag uint64
 	if n >= 0 {
@@ -73,20 +68,9 @@ func minOctetsTwosComp(n int64) int {
 	return (w + 7) / 8
 }
 
-// EncodeConstrainedWholeNumber encodes n (lb ≤ n ≤ ub) as a constrained whole
-// number per §11.5. Supports range 1..65536. For range > 65536 (the indefinite
-// case, §11.5.7.4) use [EncodeInteger], which also emits the required length
-// determinant; this function returns [ErrOverflow] for that case.
-//
-// Aligned variant:
-//
-//	range == 1          → empty bit-field (no bits)
-//	range 2..255        → bit-field of ceil(log2(range)) bits (no padding)
-//	range == 256        → one octet, octet-aligned (padded first)
-//	range 257..65536    → two octets, octet-aligned (padded first)
-//
-// Unaligned variant: always ceil(log2(range)) bits (no padding), or empty for
-// range == 1.
+// EncodeConstrainedWholeNumber encodes n as a constrained whole number (§11.5).
+// The range ub-lb+1 must be ≤ 65536; the indefinite case (§11.5.7.4) is
+// [ErrOverflow] here and handled by [EncodeInteger].
 func EncodeConstrainedWholeNumber(w *Writer, enc Encoding, lb, ub, n int64) error {
 	if n < lb || n > ub {
 		return ErrOverflow
@@ -119,10 +103,9 @@ func EncodeConstrainedWholeNumber(w *Writer, enc Encoding, lb, ub, n int64) erro
 	return nil
 }
 
-// DecodeConstrainedWholeNumber decodes a constrained whole number with range
-// 1..65536 per §11.5. It returns the value n in [lb, ub]; a bit pattern that
-// decodes outside the range (§11.5 assigns no value to it) is rejected with
-// [ErrOverflow]. For range > 65536 (indefinite case) use [DecodeInteger].
+// DecodeConstrainedWholeNumber decodes a constrained whole number of range
+// ≤ 65536 (§11.5). A bit pattern above the range is rejected: §11.5 assigns it
+// no value.
 func DecodeConstrainedWholeNumber(r *Reader, enc Encoding, lb, ub int64) (int64, error) {
 	rng := ub - lb + 1
 	if rng == 1 {
@@ -182,9 +165,9 @@ func DecodeConstrainedWholeNumber(r *Reader, enc Encoding, lb, ub int64) (int64,
 	}
 }
 
-// EncodeNormallySmall encodes a normally-small non-negative whole number per
-// §11.6: n ≤ 63 → 0-bit + 6-bit field; n ≥ 64 → 1-bit + semi-constrained (lb=0)
-// length-determined field.
+// EncodeNormallySmall encodes a normally-small non-negative whole number
+// (§11.6): n ≤ 63 as 0-bit plus a 6-bit field, otherwise 1-bit plus a
+// semi-constrained (lb=0) field.
 func EncodeNormallySmall(w *Writer, enc Encoding, n int64) error {
 	if n < 0 {
 		return ErrOverflow
@@ -202,7 +185,7 @@ func EncodeNormallySmall(w *Writer, enc Encoding, n int64) error {
 	return encodeSemiConstrained(w, enc, 0, n)
 }
 
-// DecodeNormallySmall decodes a normally-small non-negative whole number per §11.6.
+// DecodeNormallySmall decodes a normally-small non-negative whole number (§11.6).
 func DecodeNormallySmall(r *Reader, enc Encoding) (int64, error) {
 	bit, err := r.ReadBit()
 	if err != nil {
@@ -221,10 +204,9 @@ func DecodeNormallySmall(r *Reader, enc Encoding) (int64, error) {
 	return decodeSemiConstrained(r, enc, 0)
 }
 
-// encodeSemiConstrained encodes n with lower bound lb and no upper bound per
-// §11.7: (n-lb) as a non-negative binary integer in the minimum number of
-// octets, octet-aligned in the aligned variant, preceded by an unconstrained
-// length determinant (§11.9).
+// encodeSemiConstrained encodes n with lower bound lb and no upper bound
+// (§11.7): n-lb as a minimal non-negative binary integer, preceded by an
+// unconstrained length determinant (§11.9).
 func encodeSemiConstrained(w *Writer, enc Encoding, lb, n int64) error {
 	v := uint64(n - lb)
 	if n < lb {
@@ -241,23 +223,21 @@ func encodeSemiConstrained(w *Writer, enc Encoding, lb, n int64) error {
 	if err := EncodeUnconstrainedLength(w, enc, int64(octets)); err != nil {
 		return err
 	}
-	// §11.7.4: the value is an octet-aligned bit-field in the ALIGNED variant
-	// only; UNALIGNED packs it without padding.
+
 	writeOctetAligned(w, enc, buf)
 
 	return nil
 }
 
 // decodeSemiConstrained decodes a semi-constrained whole number with lower
-// bound lb per §11.7.
+// bound lb (§11.7).
 func decodeSemiConstrained(r *Reader, enc Encoding, lb int64) (int64, error) {
 	n, err := DecodeUnconstrainedLength(r, enc)
 	if err != nil {
 		return 0, err
 	}
 
-	// §11.7: the value is a non-negative binary integer; more than 8 octets
-	// cannot be represented and a zero-octet field has no value.
+	// §11.7: a zero-octet field has no value, and more than 8 octets exceed int64.
 	if n < 1 || n > 8 {
 		return 0, ErrOverflow
 	}
@@ -271,9 +251,7 @@ func decodeSemiConstrained(r *Reader, enc Encoding, lb int64) (int64, error) {
 	for _, b := range p {
 		v = v<<8 | uint64(b)
 	}
-	// §11.7 values are non-negative, so anything that does not fit a positive
-	// int64 — or that would overflow past lb — is out of range rather than a
-	// silently wrapped negative.
+	// §11.7 values are non-negative: reject rather than wrap to a negative int64.
 	if v > math.MaxInt64 || int64(v) > math.MaxInt64-lb {
 		return 0, ErrOverflow
 	}

@@ -11,10 +11,8 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// Aligned-PER codecs for leaf types whose Go shape differs from their wire
-// shape (semantic integers carried as OCTET STRING, a CHOICE flattened to
-// kind+value, named SEQUENCE-OF slices). pergen delegates to these; the
-// generated code covers the SEQUENCE types built from them.
+// Hand-written Aligned-PER codecs for leaf types whose Go shape differs from
+// their wire shape; pergen generates the SEQUENCE types built from them.
 
 func (p PLMNIdentity) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	return per.EncodeOctetString(w, enc, 3, 3, true, true, false, p[:])
@@ -220,8 +218,7 @@ func (s *SupportedTAs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	})
 }
 
-// ieExtensions is a ProtocolExtensionContainer the message layer does not
-// model: always absent on encode, read and discarded on decode.
+// ieExtensions is a ProtocolExtensionContainer: never encoded, discarded on decode.
 type ieExtensions struct{}
 
 func (ieExtensions) MarshalPER(*per.Writer, per.Encoding) error {
@@ -251,10 +248,8 @@ func (*ieExtensions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-// skipSequenceExtensionsPER steps over a SEQUENCE's optional unmodeled
-// iE-Extensions container and its extension additions when present, for
-// hand-written per decoders (the pergen-generated equivalent of the same
-// skipping is emitted inline).
+// skipSequenceExtensionsPER steps over a SEQUENCE's unmodeled iE-Extensions
+// container and any extension additions.
 func skipSequenceExtensionsPER(r *per.Reader, enc per.Encoding, extContainer, extAdditions bool) error {
 	if extContainer {
 		var e ieExtensions
@@ -297,8 +292,7 @@ func skipSequenceExtensionsPER(r *per.Reader, enc per.Encoding, extContainer, ex
 	return nil
 }
 
-// marshalSeqOf encodes a SEQUENCE (SIZE(lb..ub)) OF items, delegating to each
-// item's MarshalPER via its pointer.
+// marshalSeqOf encodes a SEQUENCE (SIZE(lb..ub)) OF items.
 func marshalSeqOf[T any](w *per.Writer, enc per.Encoding, lb, ub int64, items []T) error {
 	off := 0
 
@@ -321,8 +315,7 @@ func marshalSeqOf[T any](w *per.Writer, enc per.Encoding, lb, ub int64, items []
 	})
 }
 
-// unmarshalSeqOf decodes a SEQUENCE (SIZE(lb..ub)) OF items, delegating to
-// each item's UnmarshalPER via its pointer.
+// unmarshalSeqOf decodes a SEQUENCE (SIZE(lb..ub)) OF items.
 func unmarshalSeqOf[T any](r *per.Reader, enc per.Encoding, lb, ub int64) ([]T, error) {
 	var items []T
 
@@ -350,8 +343,6 @@ func unmarshalSeqOf[T any](r *per.Reader, enc per.Encoding, lb, ub int64) ([]T, 
 	return items, nil
 }
 
-// perIEDecode decodes an IE's open-type value bytes with a per-based
-// Unmarshaler.
 func perIEDecode(b []byte, u per.Unmarshaler) error {
 	return u.UnmarshalPER(per.NewReader(b), per.Aligned)
 }

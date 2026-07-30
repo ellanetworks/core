@@ -8,8 +8,7 @@ import (
 )
 
 // ERABToBeModifiedItemBearerModInd ::= SEQUENCE { e-RAB-ID, transportLayerAddress,
-// dL-GTP-TEID, iE-Extensions OPTIONAL } (extensible). Names the new downlink S1-U
-// endpoint to relocate one E-RAB's GTP tunnel to (TS 36.413 §9.2.1.31).
+// dL-GTP-TEID, iE-Extensions OPTIONAL } (extensible) (TS 36.413 §9.2.1.31).
 type ERABToBeModifiedItemBearerModInd struct {
 	_                     [0]struct{} `per:"extseq"`
 	ERABID                ERABID
@@ -18,9 +17,7 @@ type ERABToBeModifiedItemBearerModInd struct {
 	_                     ieExtensions `per:",skip"`
 }
 
-// ERABModificationIndication is the E-RAB MODIFICATION INDICATION message
-// (TS 36.413 §9.1.3.8), sent by the eNB to relocate the downlink S1-U endpoint of
-// already-established E-RABs. ToBeModified is mandatory; NotToBeModified is optional.
+// TS 36.413 §9.1.3.8.
 type ERABModificationIndication struct {
 	MMEUES1APID             MMEUES1APID
 	ENBUES1APID             ENBUES1APID
@@ -31,7 +28,6 @@ type ERABModificationIndication struct {
 	unmodeledIEs
 }
 
-// eRABModificationIndicationIEs is the ERABModificationIndication IE table (TS 36.413).
 var eRABModificationIndicationIEs = []ieSpec[ERABModificationIndication]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
@@ -108,8 +104,6 @@ func (m *ERABModificationIndication) encodeBody(w *per.Writer, enc per.Encoding)
 	return encodeMessageBody(w, enc, eRABModificationIndicationIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU (an eNB-side operation,
-// provided for interop testing; the MME only decodes this message).
 func (m *ERABModificationIndication) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -126,23 +120,19 @@ func (m *ERABModificationIndication) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseERABModificationIndication decodes the message from an initiatingMessage
-// open-type payload.
 func ParseERABModificationIndication(value []byte) (*ERABModificationIndication, error) {
 	return parseMessageBody[ERABModificationIndication](ProcERABModificationIndication, eRABModificationIndicationIEs, value)
 }
 
 // erabModifyItemBearerModConf ::= SEQUENCE { e-RAB-ID, iE-Extensions OPTIONAL }
-// (extensible). It confirms one E-RAB whose downlink endpoint was relocated.
+// (extensible).
 type erabModifyItemBearerModConf struct {
 	_      [0]struct{} `per:"extseq"`
 	erabID ERABID
 	_      ieExtensions `per:",skip"`
 }
 
-// ERABModificationConfirm is the E-RAB MODIFICATION CONFIRM message
-// (TS 36.413 §9.1.3.9), the MME's successful response listing the E-RABs whose
-// downlink endpoint it relocated.
+// TS 36.413 §9.1.3.9.
 type ERABModificationConfirm struct {
 	MMEUES1APID   MMEUES1APID
 	ENBUES1APID   ENBUES1APID
@@ -181,7 +171,6 @@ func (m *ERABModificationConfirm) encodeBody(w *per.Writer, enc per.Encoding) er
 	return encodeIEContainer(w, enc, fields)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *ERABModificationConfirm) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 

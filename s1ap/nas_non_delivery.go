@@ -7,10 +7,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// NASNonDeliveryIndication reports a downlink NAS-PDU the eNB could not deliver to
-// the UE (TS 36.413 §9.1.7.4). All four IEs are mandatory. The NAS-PDU is the
-// undelivered downlink message, carried for diagnostics only — it must not be
-// reprocessed as uplink.
+// TS 36.413 §9.1.7.4.
 type NASNonDeliveryIndication struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
@@ -20,7 +17,6 @@ type NASNonDeliveryIndication struct {
 	unmodeledIEs
 }
 
-// Marshal encodes the NAS NON DELIVERY INDICATION as an initiating message (TS 36.413).
 func (m *NASNonDeliveryIndication) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -37,7 +33,6 @@ func (m *NASNonDeliveryIndication) Marshal() ([]byte, error) {
 	})
 }
 
-// nASNonDeliveryIndicationIEs is the NASNonDeliveryIndication IE table (TS 36.413).
 var nASNonDeliveryIndicationIEs = []ieSpec[NASNonDeliveryIndication]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
@@ -73,7 +68,6 @@ func (m *NASNonDeliveryIndication) encodeBody(w *per.Writer, enc per.Encoding) e
 	return encodeMessageBody(w, enc, nASNonDeliveryIndicationIEs, m)
 }
 
-// ParseNASNonDeliveryIndication decodes a NAS NON DELIVERY INDICATION (TS 36.413).
 func ParseNASNonDeliveryIndication(value []byte) (*NASNonDeliveryIndication, error) {
 	return parseMessageBody[NASNonDeliveryIndication](ProcNASNonDeliveryIndication, nASNonDeliveryIndicationIEs, value)
 }

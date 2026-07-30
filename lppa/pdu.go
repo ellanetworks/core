@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// LPPA-PDU CHOICE root alternatives (TS 36.455 §9.3.2), in declaration order.
+// LPPA-PDU CHOICE root alternatives, in ASN.1 order (TS 36.455 §9.3.2).
 const (
 	pduInitiatingMessage = iota
 	pduSuccessfulOutcome
@@ -18,8 +18,7 @@ const (
 	pduRootCount = 3
 )
 
-// ProcedureCode ::= INTEGER (0..255). LPPa elementary procedure codes
-// (TS 36.455 §9.4.3).
+// ProcedureCode ::= INTEGER (0..255) (TS 36.455 §9.4.3).
 type ProcedureCode uint8
 
 const (
@@ -42,8 +41,7 @@ const (
 	criticalityRootCount = 3
 )
 
-// ProtocolIEID ::= INTEGER (0..65535). LPPa ProtocolIE-ID values
-// (TS 36.455 §9.4.7).
+// ProtocolIEID ::= INTEGER (0..65535) (TS 36.455 §9.4.7).
 type ProtocolIEID uint16
 
 const (
@@ -66,8 +64,7 @@ const (
 	maxCellReport  = 9
 )
 
-// lppaTransactionIDMax is the LPPATransactionID upper bound, INTEGER (0..32767)
-// (TS 36.455 §9.2.3).
+// LPPATransactionID ::= INTEGER (0..32767) (TS 36.455 §9.2.3).
 const lppaTransactionIDMax = 32767
 
 // message is a decoded LPPA-PDU envelope.
@@ -79,12 +76,10 @@ type message struct {
 	value         []byte
 }
 
-// marshalPDU encodes an LPPA-PDU envelope. Each of the three alternatives is a
-// non-extensible SEQUENCE { procedureCode, criticality, lppatransactionID,
-// value } with no optional fields, so it carries no preamble; value is wrapped
-// as an open type (TS 36.455 §9.3.2). Every E-CID Measurement Initiation and
-// Termination procedure has criticality reject (TS 36.455 §9.4.2). The E-SMLC
-// uses transaction id 0; request/response correlation is by Measurement-ID.
+// marshalPDU encodes an LPPA-PDU envelope (TS 36.455 §9.3.2). All three
+// alternatives are non-extensible SEQUENCEs with no optional field, so none
+// carries a preamble. Every procedure this package emits has criticality reject
+// (TS 36.455 §9.4.2), and the E-SMLC always uses transaction id 0.
 func marshalPDU(choiceIndex int, pc ProcedureCode, body []byte) ([]byte, error) {
 	w := per.NewWriter()
 
@@ -114,8 +109,7 @@ func marshalPDU(choiceIndex int, pc ProcedureCode, body []byte) ([]byte, error) 
 	return perAlignedBytes(w), nil
 }
 
-// unmarshalPDU decodes an LPPA-PDU envelope, returning the concrete alternative
-// with its open-type payload for the message layer to decode.
+// unmarshalPDU leaves the open-type payload undecoded in message.value.
 func unmarshalPDU(b []byte) (*message, error) {
 	r := per.NewReader(b)
 
@@ -162,25 +156,22 @@ func unmarshalPDU(b []byte) (*message, error) {
 	}, nil
 }
 
-// ieField is one ProtocolIE-Field to encode: its id, criticality, and a function
-// that writes the value body. The engine wraps the body as an open type.
+// ieField is a ProtocolIE-Field to encode; enc writes the bare value, which
+// encodeIEContainer wraps as an open type.
 type ieField struct {
 	id   ProtocolIEID
 	crit Criticality
 	enc  func(*per.Writer) error
 }
 
-// rawIE is a decoded ProtocolIE-Field: id, criticality, and the raw open-type
-// value bytes.
+// rawIE is a decoded ProtocolIE-Field with its value left as open-type bytes.
 type rawIE struct {
 	id    ProtocolIEID
 	crit  Criticality
 	value []byte
 }
 
-// encodeIEContainer writes a ProtocolIE-Container (TS 36.455 §9.3.4): the field
-// count as a constrained length, then each ProtocolIE-Field as
-// { id, criticality, value-as-open-type } in order.
+// encodeIEContainer writes a ProtocolIE-Container (TS 36.455 §9.3.4).
 func encodeIEContainer(w *per.Writer, fields []ieField) error {
 	if len(fields) > maxProtocolIEs {
 		return fmt.Errorf("lppa: %d IEs exceed maxProtocolIEs", len(fields))
@@ -215,8 +206,7 @@ func encodeIEContainer(w *per.Writer, fields []ieField) error {
 	return nil
 }
 
-// decodeIEContainer reads a ProtocolIE-Container into its fields in wire order,
-// preserving every field for dispatch by id.
+// decodeIEContainer keeps every field, including ids this codec does not model.
 func decodeIEContainer(r *per.Reader) ([]rawIE, error) {
 	n, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 0, maxProtocolIEs)
 	if err != nil {
@@ -247,8 +237,8 @@ func decodeIEContainer(r *per.Reader) ([]rawIE, error) {
 	return fields, nil
 }
 
-// writeSeqPreamble writes a SEQUENCE preamble: the extension bit followed by
-// one presence bit per OPTIONAL root field.
+// writeSeqPreamble writes the extension bit then one presence bit per OPTIONAL
+// root field.
 //
 //nolint:unparam
 func writeSeqPreamble(w *per.Writer, extPresent bool, optionals []bool) {
@@ -259,7 +249,6 @@ func writeSeqPreamble(w *per.Writer, extPresent bool, optionals []bool) {
 	}
 }
 
-// readSeqPreamble reads a SEQUENCE preamble with nOptional presence bits.
 func readSeqPreamble(r *per.Reader, nOptional int) (bool, []bool, error) {
 	extPresent, err := r.ReadBit()
 	if err != nil {
@@ -277,8 +266,8 @@ func readSeqPreamble(r *per.Reader, nOptional int) (bool, []bool, error) {
 	return extPresent, optionals, nil
 }
 
-// skipExtensionAdditions consumes an extension-addition block: the
-// normally-small-length bitmap followed by that many open-type fields.
+// skipExtensionAdditions consumes the normally-small-length presence bitmap and
+// the open type of each present addition.
 func skipExtensionAdditions(r *per.Reader) error {
 	var present []bool
 
@@ -317,10 +306,9 @@ func perAlignedBytes(w *per.Writer) []byte {
 	return w.Bytes()
 }
 
-// decodeChoiceIndex decodes an extensible CHOICE index (X.691 §23): the
-// extension marker, then either a root index as a constrained whole number or,
-// for an extension alternative, a normally-small number. Every CHOICE in LPPa
-// is extensible.
+// decodeChoiceIndex reads an extensible CHOICE index (X.691 §23): a root index
+// is a constrained whole number, an extension index a normally-small number.
+// Every CHOICE in LPPa is extensible.
 func decodeChoiceIndex(r *per.Reader, nRoot int64) (index int64, isExt bool, err error) {
 	bit, err := r.ReadBit()
 	if err != nil {
@@ -338,24 +326,21 @@ func decodeChoiceIndex(r *per.Reader, nRoot int64) (index int64, isExt bool, err
 	return index, false, err
 }
 
-// decodeEnumInt decodes an ENUMERATED value as an int index.
 func decodeEnumInt(r *per.Reader, nRoot int, extensible bool) (int, error) {
 	v, err := per.DecodeEnumerated(r, per.Aligned, int64(nRoot), extensible)
 
 	return int(v), err
 }
 
-// writeExtConstrainedInt encodes an extensible constrained INTEGER's root value:
-// the extension marker (0) followed by the constrained value (X.691 §12.2.6). It
-// never emits an extension value.
+// writeExtConstrainedInt encodes an extensible constrained INTEGER
+// (X.691 §12.2.6), always as a root value.
 func writeExtConstrainedInt(w *per.Writer, v, lb, ub int64) error {
 	w.WriteBit(false)
 	return per.EncodeConstrainedWholeNumber(w, per.Aligned, lb, ub, v)
 }
 
-// readExtConstrainedInt decodes an extensible constrained INTEGER. A root value
-// (marker 0) reads over [lb, ub]; an extension value (marker 1) reads as an
-// unconstrained integer (X.691 §12.2.6).
+// readExtConstrainedInt reads an extension value as an unconstrained integer,
+// a root value over [lb, ub] (X.691 §12.2.6).
 func readExtConstrainedInt(r *per.Reader, lb, ub int64) (int64, error) {
 	b, err := r.ReadBit()
 	if err != nil {

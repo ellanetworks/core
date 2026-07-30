@@ -10,8 +10,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// Fixtures for the messages whose mandatory SEQUENCE-OF lists cannot be
-// empty, so that every message body can be pinned.
+// Fixtures for the messages whose mandatory SEQUENCE-OF lists cannot be empty.
 func goldPLMN() PLMNIdentity         { return PLMNIdentity{0x00, 0xf1, 0x10} }
 func goldTLA() TransportLayerAddress { return TransportLayerAddress{10, 0, 0, 1} }
 func goldERABItem() ERABItem {
@@ -22,10 +21,9 @@ func goldQoS() ERABLevelQoSParameters {
 	return ERABLevelQoSParameters{QCI: 9, ARP: AllocationAndRetentionPriority{PriorityLevel: 1}}
 }
 
-// TestEncodeBodyGolden pins the exact octets every message body encodes to,
-// IE ids, order and criticalities included. It is the baseline that proves a
-// refactor of the encode path changes nothing on the wire; a round-trip test
-// cannot, because it re-reads whatever the encoder just wrote.
+// TestEncodeBodyGolden pins the exact octets of every message body, including
+// IE ids, order and criticalities. A round-trip test cannot: it re-reads
+// whatever the encoder just wrote.
 func TestEncodeBodyGolden(t *testing.T) {
 	tests := []struct {
 		name string

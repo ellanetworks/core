@@ -242,7 +242,7 @@ func (c *UESecurityCapabilities) UnmarshalPER(r *per.Reader, enc per.Encoding) e
 
 // ERABToBeSetupItemCtxtSUReq ::= SEQUENCE { e-RAB-ID, e-RABlevelQoSParameters,
 // transportLayerAddress, gTP-TEID, nAS-PDU OPTIONAL, iE-Extensions OPTIONAL }
-// (extensible). A nil NASPDU means the optional field is absent.
+// (extensible).
 type ERABToBeSetupItemCtxtSUReq struct {
 	_                     [0]struct{} `per:"extseq"`
 	ERABID                ERABID
@@ -264,7 +264,6 @@ type ERABSetupItemCtxtSURes struct {
 }
 
 // ERABItem ::= SEQUENCE { e-RAB-ID, cause, iE-Extensions OPTIONAL } (extensible).
-// Used in failed-to-setup lists.
 type ERABItem struct {
 	_      [0]struct{} `per:"extseq"`
 	ERABID ERABID

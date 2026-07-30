@@ -52,10 +52,8 @@ func TestLocationReportRoundTrip(t *testing.T) {
 	}
 }
 
-// TestLocationReportMissingMandatoryIE checks that every absent mandatory IE
-// is reported with the criticality §9.1.12.3 assigns it: the two UE IDs are
-// reject, E-UTRAN CGI, TAI and Request Type are ignore. A decoded message must
-// have all of them, so any absence fails the parse.
+// §9.1.12.3 assigns reject to the two UE IDs and ignore to E-UTRAN CGI, TAI
+// and Request Type.
 func TestLocationReportMissingMandatoryIE(t *testing.T) {
 	encode := func(t *testing.T, fields []ieField) []byte {
 		t.Helper()
@@ -80,8 +78,7 @@ func TestLocationReportMissingMandatoryIE(t *testing.T) {
 		if _, err := ParseLocationReport(value); !errors.As(err, &missing) {
 			t.Fatalf("error = %v, want *MissingMandatoryIEsError", err)
 		}
-		// Nothing reject-criticality is absent, so a receiver implementing
-		// §10.3.5 answers with an Error Indication rather than a failure.
+
 		if got := missing.RejectedIEs(); len(got) != 0 {
 			t.Fatalf("rejected IEs = %v, want none", got)
 		}

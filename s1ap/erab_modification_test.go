@@ -10,8 +10,6 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// erabModIndicationWire builds an E-RAB MODIFICATION INDICATION initiatingMessage
-// open-type payload, as an eNB would send it.
 func erabModIndicationWire(t *testing.T, items []ERABToBeModifiedItemBearerModInd) []byte {
 	t.Helper()
 

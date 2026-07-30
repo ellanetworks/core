@@ -7,12 +7,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// HandoverRequest is the HANDOVER REQUEST message (TS 36.413), sent by
-// the MME to the target eNB to reserve resources for an incoming handover. It
-// carries no eNB UE S1AP ID: the target eNB allocates its own and returns it in
-// the HANDOVER REQUEST ACKNOWLEDGE. SecurityContext carries the {NCC, NH} the
-// target uses to derive KeNB (TS 33.401); SourceToTarget is the opaque
-// source-to-target transparent container.
+// TS 36.413 §9.1.5.4.
 type HandoverRequest struct {
 	MMEUES1APID            MMEUES1APID
 	HandoverType           HandoverType
@@ -26,7 +21,6 @@ type HandoverRequest struct {
 	unmodeledIEs
 }
 
-// handoverRequestIEs is the HandoverRequest IE table (TS 36.413).
 var handoverRequestIEs = []ieSpec[HandoverRequest]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
@@ -98,7 +92,6 @@ func (m *HandoverRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, handoverRequestIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *HandoverRequest) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -115,17 +108,11 @@ func (m *HandoverRequest) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseHandoverRequest decodes the message from an initiatingMessage open-type
-// payload.
 func ParseHandoverRequest(value []byte) (*HandoverRequest, error) {
 	return parseMessageBody[HandoverRequest](ProcHandoverResourceAllocation, handoverRequestIEs, value)
 }
 
-// HandoverRequestAcknowledge is the HANDOVER REQUEST ACKNOWLEDGE message
-// (TS 36.413), the successful outcome the target eNB returns. ERABAdmitted
-// carries the target eNB's S1-U downlink endpoint per E-RAB; ERABFailedToSetup
-// lists the bearers the target rejected; TargetToSource is the opaque target-to-
-// source transparent container.
+// TS 36.413 §9.1.5.5.
 type HandoverRequestAcknowledge struct {
 	MMEUES1APID       MMEUES1APID
 	ENBUES1APID       ENBUES1APID
@@ -136,7 +123,6 @@ type HandoverRequestAcknowledge struct {
 	unmodeledIEs
 }
 
-// handoverRequestAcknowledgeIEs is the HandoverRequestAcknowledge IE table (TS 36.413).
 var handoverRequestAcknowledgeIEs = []ieSpec[HandoverRequestAcknowledge]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
@@ -199,7 +185,6 @@ func (m *HandoverRequestAcknowledge) encodeBody(w *per.Writer, enc per.Encoding)
 	return encodeMessageBody(w, enc, handoverRequestAcknowledgeIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *HandoverRequestAcknowledge) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -216,16 +201,11 @@ func (m *HandoverRequestAcknowledge) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseHandoverRequestAcknowledge decodes the message from a successfulOutcome
-// open-type payload.
 func ParseHandoverRequestAcknowledge(value []byte) (*HandoverRequestAcknowledge, error) {
 	return parseMessageBody[HandoverRequestAcknowledge](ProcHandoverResourceAllocation, handoverRequestAcknowledgeIEs, value)
 }
 
-// HandoverFailure is the HANDOVER FAILURE message (TS 36.413 in the
-// Handover Resource Allocation procedure), the unsuccessful outcome the target eNB
-// returns when it cannot admit the handover. It carries no eNB UE S1AP ID: the
-// target allocated no UE context.
+// TS 36.413 §9.1.5.6.
 type HandoverFailure struct {
 	MMEUES1APID MMEUES1APID
 	Cause       Cause
@@ -233,7 +213,6 @@ type HandoverFailure struct {
 	unmodeledIEs
 }
 
-// handoverFailureIEs is the HandoverFailure IE table (TS 36.413).
 var handoverFailureIEs = []ieSpec[HandoverFailure]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
@@ -255,7 +234,6 @@ func (m *HandoverFailure) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, handoverFailureIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *HandoverFailure) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -272,8 +250,6 @@ func (m *HandoverFailure) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseHandoverFailure decodes the message from an unsuccessfulOutcome open-type
-// payload.
 func ParseHandoverFailure(value []byte) (*HandoverFailure, error) {
 	return parseMessageBody[HandoverFailure](ProcHandoverResourceAllocation, handoverFailureIEs, value)
 }

@@ -3,18 +3,13 @@
 
 package s1ap
 
-// messageParser names one message parser and adapts it to a uniform
-// signature, discarding the decoded value.
 type messageParser struct {
 	Name  string
 	Parse func(value []byte) error
 }
 
-// messageParsers lists every exported ParseXxx function in this package.
-// It exists so that coverage-sensitive tests — the no-panic fuzzer above all
-// — enumerate the real set rather than a hand-maintained copy that silently
-// falls behind. TestEveryParserIsRegistered fails if a parser is added
-// without being listed here.
+// messageParsers lists every exported ParseXxx in this package;
+// TestEveryParserIsRegistered fails if one is missing.
 var messageParsers = []messageParser{
 	{"ParseDownlinkNASTransport", func(v []byte) error { _, err := ParseDownlinkNASTransport(v); return err }},
 	{"ParseDownlinkUEAssociatedLPPaTransport", func(v []byte) error { _, err := ParseDownlinkUEAssociatedLPPaTransport(v); return err }},

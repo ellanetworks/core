@@ -103,15 +103,13 @@ func (u *UES1APIDs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 
 const ues1apIDsChoiceRootCount = 2
 
-// UEContextReleaseCommand is the UE CONTEXT RELEASE COMMAND message (TS 36.413),
-// sent by the MME to release a UE's S1 context.
+// TS 36.413 §9.1.4.6.
 type UEContextReleaseCommand struct {
 	UES1APIDs UES1APIDs
 	Cause     Cause
 	unmodeledIEs
 }
 
-// uEContextReleaseCommandIEs is the UEContextReleaseCommand IE table (TS 36.413).
 var uEContextReleaseCommandIEs = []ieSpec[UEContextReleaseCommand]{
 	{
 		id: idUES1APIDs, presence: PresenceMandatory, crit: CriticalityReject,
@@ -133,7 +131,6 @@ func (m *UEContextReleaseCommand) encodeBody(w *per.Writer, enc per.Encoding) er
 	return encodeMessageBody(w, enc, uEContextReleaseCommandIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *UEContextReleaseCommand) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -150,14 +147,11 @@ func (m *UEContextReleaseCommand) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseUEContextReleaseCommand decodes the message from an initiatingMessage
-// open-type payload.
 func ParseUEContextReleaseCommand(value []byte) (*UEContextReleaseCommand, error) {
 	return parseMessageBody[UEContextReleaseCommand](ProcUEContextRelease, uEContextReleaseCommandIEs, value)
 }
 
-// UEContextReleaseComplete is the UE CONTEXT RELEASE COMPLETE message (TS 36.413),
-// sent by the eNB once the context is released.
+// TS 36.413 §9.1.4.7.
 type UEContextReleaseComplete struct {
 	MMEUES1APID             MMEUES1APID
 	ENBUES1APID             ENBUES1APID
@@ -167,7 +161,6 @@ type UEContextReleaseComplete struct {
 	unmodeledIEs
 }
 
-// uEContextReleaseCompleteIEs is the UEContextReleaseComplete IE table (TS 36.413).
 var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
@@ -231,7 +224,6 @@ func (m *UEContextReleaseComplete) encodeBody(w *per.Writer, enc per.Encoding) e
 	return encodeMessageBody(w, enc, uEContextReleaseCompleteIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *UEContextReleaseComplete) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -248,15 +240,11 @@ func (m *UEContextReleaseComplete) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseUEContextReleaseComplete decodes the message from a successfulOutcome
-// open-type payload.
 func ParseUEContextReleaseComplete(value []byte) (*UEContextReleaseComplete, error) {
 	return parseMessageBody[UEContextReleaseComplete](ProcUEContextRelease, uEContextReleaseCompleteIEs, value)
 }
 
-// UEContextReleaseRequest is the UE CONTEXT RELEASE REQUEST message (TS 36.413),
-// sent by the eNB to request release of a UE's S1 context (e.g. on
-// radio-link failure or inactivity).
+// TS 36.413 §9.1.4.5.
 type UEContextReleaseRequest struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
@@ -265,7 +253,6 @@ type UEContextReleaseRequest struct {
 	unmodeledIEs
 }
 
-// uEContextReleaseRequestIEs is the UEContextReleaseRequest IE table (TS 36.413).
 var uEContextReleaseRequestIEs = []ieSpec[UEContextReleaseRequest]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
@@ -294,7 +281,6 @@ func (m *UEContextReleaseRequest) encodeBody(w *per.Writer, enc per.Encoding) er
 	return encodeMessageBody(w, enc, uEContextReleaseRequestIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *UEContextReleaseRequest) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -311,8 +297,6 @@ func (m *UEContextReleaseRequest) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseUEContextReleaseRequest decodes the message from an initiatingMessage
-// open-type payload.
 func ParseUEContextReleaseRequest(value []byte) (*UEContextReleaseRequest, error) {
 	return parseMessageBody[UEContextReleaseRequest](ProcUEContextReleaseRequest, uEContextReleaseRequestIEs, value)
 }

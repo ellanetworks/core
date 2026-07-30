@@ -122,8 +122,7 @@ func TestS1SetupRequestRoundTrip(t *testing.T) {
 	}
 }
 
-// encodePartialS1Setup builds an S1SetupRequest open-type value containing only the
-// chosen IEs, for exercising missing-mandatory-IE handling (TS 36.413 §9.1.8.4).
+// encodePartialS1Setup omits IEs to exercise §9.1.8.4 mandatory-IE handling.
 func encodePartialS1Setup(t *testing.T, globalENBID, supportedTAs, pagingDRX bool) []byte {
 	t.Helper()
 
@@ -154,9 +153,6 @@ func encodePartialS1Setup(t *testing.T, globalENBID, supportedTAs, pagingDRX boo
 	return perBytes(w)
 }
 
-// TS 36.413 §10.3.5: an S1 Setup Request missing a reject-criticality mandatory IE
-// (Global eNB ID or Supported TAs) is reported as a MissingMandatoryIEsError naming
-// the absent IE; a missing Default Paging DRX (ignore-criticality) is tolerated.
 func TestParseS1SetupRequestMissingMandatoryIE(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -168,8 +164,7 @@ func TestParseS1SetupRequestMissingMandatoryIE(t *testing.T) {
 		{"missing GlobalENBID", false, true, true, []ProtocolIEID{idGlobalENBID}},
 		{"missing SupportedTAs", true, false, true, []ProtocolIEID{idSupportedTAs}},
 		{"missing both reject IEs", false, false, true, []ProtocolIEID{idGlobalENBID, idSupportedTAs}},
-		// Every absent mandatory IE is reported, whatever its criticality;
-		// Default Paging DRX is mandatory-ignore (§9.1.8.4).
+		// Default Paging DRX is mandatory-ignore (§9.1.8.4), and still reported.
 		{"missing only PagingDRX", true, true, false, []ProtocolIEID{idDefaultPagingDRX}},
 		{"missing reject and ignore IEs", false, true, false, []ProtocolIEID{idGlobalENBID, idDefaultPagingDRX}},
 	}

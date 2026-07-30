@@ -5,7 +5,6 @@ package s1ap
 
 import "github.com/ellanetworks/core/per"
 
-// unmarshalPERValue decodes a complete aligned-PER value of type T from b.
 func unmarshalPERValue[T any](b []byte) (T, error) {
 	var v T
 
@@ -14,17 +13,13 @@ func unmarshalPERValue[T any](b []byte) (T, error) {
 	return v, err
 }
 
-// perBytes pads w to an octet boundary and returns its bytes, mirroring the
-// implicit padding of a complete PER encoding.
+// perBytes applies the padding implicit in a complete PER encoding.
 func perBytes(w *per.Writer) []byte {
 	w.AlignToByte()
 
 	return w.Bytes()
 }
 
-// derefStr returns the string a pointer holds, or "" when it is nil. Optional
-// IE fields are pointers so absence is distinguishable; tests that only care
-// about the value use this.
 func derefStr(s *string) string {
 	if s == nil {
 		return ""

@@ -12,9 +12,6 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-// loadPackages loads Go packages matching patterns. It uses go/packages
-// (which drives the Go type checker), not reflect. We request syntax, types,
-// and types info so we can inspect structs and named types.
 func loadPackages(patterns []string) ([]*packages.Package, error) {
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedDeps,
@@ -56,9 +53,8 @@ func loadPackages(patterns []string) ([]*packages.Package, error) {
 	if firstErr != nil {
 		return pkgs, fmt.Errorf("package errors: %w", firstErr)
 	}
-	// Tolerated errors are expected on a first generation and when the
-	// committed output is stale, but never on a steady-state regeneration —
-	// so report them rather than swallowing them silently.
+	// A steady-state regeneration tolerates nothing, so the count is reported
+	// rather than swallowed.
 	if tolerated > 0 {
 		fmt.Fprintf(os.Stderr, "pergen: %d reference(s) to codec methods this run will generate\n", tolerated)
 	}
@@ -66,18 +62,15 @@ func loadPackages(patterns []string) ([]*packages.Package, error) {
 	return pkgs, nil
 }
 
-// perMethodErrPatterns match the two type-checker diagnostics emitted when
-// source references a MarshalPER/UnmarshalPER method that does not exist yet.
-// Each captures the named type the method is missing from.
+// perMethodErrPatterns match the type-checker diagnostics for a reference to a
+// codec method that does not exist yet, capturing the type it is missing from.
 var perMethodErrPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`type \*?(\w+) has no field or method (?:Marshal|Unmarshal)PER`),
 	regexp.MustCompile(`\*?(\w+) does not implement per\.(?:Marshaler|Unmarshaler) \(missing method (?:Marshal|Unmarshal)PER\)`),
 }
 
-// pendingMethodError reports whether e is a reference to a codec method on a
-// type declared in this package — one this run is about to generate. Matching
-// on the message alone would swallow genuine type errors that happen to
-// mention those method names, so the named type must also resolve locally.
+// pendingMethodError also requires the named type to resolve locally: matching
+// the message alone would swallow genuine errors mentioning those methods.
 func pendingMethodError(pkg *packages.Package, e packages.Error) bool {
 	if pkg.Types == nil {
 		return false

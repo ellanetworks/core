@@ -7,11 +7,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// UECapabilityInfoIndication is the UE CAPABILITY INFO INDICATION message
-// (TS 36.413), sent by the eNB to give the MME the UE's radio capability.
-// Only the fields the MME consumes are modelled; the UE Radio Capability is an
-// OCTET STRING carried opaquely (the MME stores it and replays it in the INITIAL
-// CONTEXT SETUP REQUEST per TS 23.401).
+// TS 36.413 §9.1.10.
 type UECapabilityInfoIndication struct {
 	MMEUES1APID                MMEUES1APID
 	ENBUES1APID                ENBUES1APID
@@ -20,7 +16,6 @@ type UECapabilityInfoIndication struct {
 	unmodeledIEs
 }
 
-// uECapabilityInfoIndicationIEs is the UECapabilityInfoIndication IE table (TS 36.413).
 var uECapabilityInfoIndicationIEs = []ieSpec[UECapabilityInfoIndication]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
@@ -76,7 +71,6 @@ func (m *UECapabilityInfoIndication) encodeBody(w *per.Writer, enc per.Encoding)
 	return encodeMessageBody(w, enc, uECapabilityInfoIndicationIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *UECapabilityInfoIndication) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -93,8 +87,6 @@ func (m *UECapabilityInfoIndication) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseUECapabilityInfoIndication decodes the message from an initiatingMessage
-// open-type payload.
 func ParseUECapabilityInfoIndication(value []byte) (*UECapabilityInfoIndication, error) {
 	return parseMessageBody[UECapabilityInfoIndication](ProcUECapabilityInfoIndication, uECapabilityInfoIndicationIEs, value)
 }

@@ -7,18 +7,15 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// ENBConfigurationUpdate is the ENB CONFIGURATION UPDATE message (TS 36.413),
-// sent by a running eNB to update its configuration without redoing
-// S1 Setup. Every IE is optional; the eNB sends only what changed.
+// TS 36.413 §9.1.8.7.
 type ENBConfigurationUpdate struct {
 	ENBName          *string
-	SupportedTAs     SupportedTAs // nil = absent
-	DefaultPagingDRX *PagingDRX   // nil = absent
+	SupportedTAs     SupportedTAs
+	DefaultPagingDRX *PagingDRX
 
 	unmodeledIEs
 }
 
-// eNBConfigurationUpdateIEs is the ENBConfigurationUpdate IE table (TS 36.413).
 var eNBConfigurationUpdateIEs = []ieSpec[ENBConfigurationUpdate]{
 	{
 		id: idENBname, presence: PresenceOptional, crit: CriticalityIgnore,
@@ -82,7 +79,6 @@ func (m *ENBConfigurationUpdate) encodeBody(w *per.Writer, enc per.Encoding) err
 	return encodeMessageBody(w, enc, eNBConfigurationUpdateIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *ENBConfigurationUpdate) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -99,21 +95,17 @@ func (m *ENBConfigurationUpdate) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseENBConfigurationUpdate decodes the message from an initiatingMessage
-// open-type payload.
 func ParseENBConfigurationUpdate(value []byte) (*ENBConfigurationUpdate, error) {
 	return parseMessageBody[ENBConfigurationUpdate](ProcENBConfigurationUpdate, eNBConfigurationUpdateIEs, value)
 }
 
-// ENBConfigurationUpdateAcknowledge is the ENB CONFIGURATION UPDATE ACKNOWLEDGE
-// message (TS 36.413), the MME's success response.
+// TS 36.413 §9.1.8.8.
 type ENBConfigurationUpdateAcknowledge struct {
 	CriticalityDiagnostics *CriticalityDiagnostics
 
 	unmodeledIEs
 }
 
-// eNBConfigurationUpdateAcknowledgeIEs is the ENBConfigurationUpdateAcknowledge IE table (TS 36.413).
 var eNBConfigurationUpdateAcknowledgeIEs = []ieSpec[ENBConfigurationUpdateAcknowledge]{
 	{
 		id: idCriticalityDiagnostics, presence: PresenceOptional, crit: CriticalityIgnore,
@@ -142,7 +134,6 @@ func (m *ENBConfigurationUpdateAcknowledge) encodeBody(w *per.Writer, enc per.En
 	return encodeMessageBody(w, enc, eNBConfigurationUpdateAcknowledgeIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *ENBConfigurationUpdateAcknowledge) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -159,15 +150,11 @@ func (m *ENBConfigurationUpdateAcknowledge) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseENBConfigurationUpdateAcknowledge decodes the message from a
-// successfulOutcome open-type payload.
 func ParseENBConfigurationUpdateAcknowledge(value []byte) (*ENBConfigurationUpdateAcknowledge, error) {
 	return parseMessageBody[ENBConfigurationUpdateAcknowledge](ProcENBConfigurationUpdate, eNBConfigurationUpdateAcknowledgeIEs, value)
 }
 
-// ENBConfigurationUpdateFailure is the ENB CONFIGURATION UPDATE FAILURE message
-// (TS 36.413), the MME's rejection (e.g. the updated TAs broadcast no
-// served PLMN).
+// TS 36.413 §9.1.8.9.
 type ENBConfigurationUpdateFailure struct {
 	Cause                  Cause
 	TimeToWait             *TimeToWait
@@ -176,7 +163,6 @@ type ENBConfigurationUpdateFailure struct {
 	unmodeledIEs
 }
 
-// eNBConfigurationUpdateFailureIEs is the ENBConfigurationUpdateFailure IE table (TS 36.413).
 var eNBConfigurationUpdateFailureIEs = []ieSpec[ENBConfigurationUpdateFailure]{
 	{
 		id: idCause, presence: PresenceMandatory, crit: CriticalityIgnore,
@@ -233,7 +219,6 @@ func (m *ENBConfigurationUpdateFailure) encodeBody(w *per.Writer, enc per.Encodi
 	return encodeMessageBody(w, enc, eNBConfigurationUpdateFailureIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *ENBConfigurationUpdateFailure) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -250,8 +235,6 @@ func (m *ENBConfigurationUpdateFailure) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseENBConfigurationUpdateFailure decodes the message from an
-// unsuccessfulOutcome open-type payload.
 func ParseENBConfigurationUpdateFailure(value []byte) (*ENBConfigurationUpdateFailure, error) {
 	return parseMessageBody[ENBConfigurationUpdateFailure](ProcENBConfigurationUpdate, eNBConfigurationUpdateFailureIEs, value)
 }

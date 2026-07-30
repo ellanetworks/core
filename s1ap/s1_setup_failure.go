@@ -36,8 +36,7 @@ func (t *TimeToWait) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-// S1SetupFailure is the S1 SETUP FAILURE message (TS 36.413). TimeToWait
-// and CriticalityDiagnostics are optional (nil = absent).
+// TS 36.413 §9.1.8.6.
 type S1SetupFailure struct {
 	Cause                  Cause
 	TimeToWait             *TimeToWait
@@ -46,7 +45,6 @@ type S1SetupFailure struct {
 	unmodeledIEs
 }
 
-// s1SetupFailureIEs is the S1SetupFailure IE table (TS 36.413).
 var s1SetupFailureIEs = []ieSpec[S1SetupFailure]{
 	{
 		id: idCause, presence: PresenceMandatory, crit: CriticalityIgnore,
@@ -103,7 +101,6 @@ func (m *S1SetupFailure) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, s1SetupFailureIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *S1SetupFailure) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -120,8 +117,6 @@ func (m *S1SetupFailure) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseS1SetupFailure decodes an S1SetupFailure from the open-type payload of an
-// unsuccessfulOutcome.
 func ParseS1SetupFailure(value []byte) (*S1SetupFailure, error) {
 	return parseMessageBody[S1SetupFailure](ProcS1Setup, s1SetupFailureIEs, value)
 }

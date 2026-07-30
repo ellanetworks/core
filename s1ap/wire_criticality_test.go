@@ -36,10 +36,9 @@ func wireIEs(t *testing.T, body func(*per.Writer, per.Encoding) error) []rawIE {
 	return fields
 }
 
-// TestWireCriticality pins the criticality each message stamps on its IEs
-// against the value TS 36.413 §9.1 assigns. Round-trip tests cannot catch a
-// wrong criticality, because encode and decode agree with each other while
-// both disagree with the spec — which is how six of these reached main.
+// TestWireCriticality pins each stamped criticality against TS 36.413 §9.1.
+// A round-trip test cannot: encode and decode agree with each other while both
+// disagree with the spec.
 func TestWireCriticality(t *testing.T) {
 	tests := []struct {
 		name string

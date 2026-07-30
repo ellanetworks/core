@@ -7,8 +7,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// InitialUEMessage is the INITIAL UE MESSAGE (TS 36.413), sent by the
-// eNB to deliver a UE's first NAS message. Unmodeled IEs are preserved.
+// TS 36.413 §9.1.7.1.
 type InitialUEMessage struct {
 	ENBUES1APID           ENBUES1APID
 	NASPDU                NASPDU
@@ -21,7 +20,6 @@ type InitialUEMessage struct {
 	unmodeledIEs
 }
 
-// initialUEMessageIEs is the InitialUEMessage IE table (TS 36.413).
 var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
 	{
 		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
@@ -106,7 +104,6 @@ func (m *InitialUEMessage) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, initialUEMessageIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *InitialUEMessage) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -123,14 +120,11 @@ func (m *InitialUEMessage) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseInitialUEMessage decodes an InitialUEMessage from the open-type payload
-// of an initiatingMessage.
 func ParseInitialUEMessage(value []byte) (*InitialUEMessage, error) {
 	return parseMessageBody[InitialUEMessage](ProcInitialUEMessage, initialUEMessageIEs, value)
 }
 
-// UplinkNASTransport is the UPLINK NAS TRANSPORT message (TS 36.413),
-// sent by the eNB to relay a UE's NAS message on an established UE context.
+// TS 36.413 §9.1.7.3.
 type UplinkNASTransport struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
@@ -141,7 +135,6 @@ type UplinkNASTransport struct {
 	unmodeledIEs
 }
 
-// uplinkNASTransportIEs is the UplinkNASTransport IE table (TS 36.413).
 var uplinkNASTransportIEs = []ieSpec[UplinkNASTransport]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
@@ -184,7 +177,6 @@ func (m *UplinkNASTransport) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, uplinkNASTransportIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *UplinkNASTransport) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -201,14 +193,11 @@ func (m *UplinkNASTransport) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseUplinkNASTransport decodes an UplinkNASTransport from the open-type
-// payload of an initiatingMessage.
 func ParseUplinkNASTransport(value []byte) (*UplinkNASTransport, error) {
 	return parseMessageBody[UplinkNASTransport](ProcUplinkNASTransport, uplinkNASTransportIEs, value)
 }
 
-// DownlinkNASTransport is the DOWNLINK NAS TRANSPORT message (TS 36.413),
-// sent by the MME to relay a NAS message to the UE.
+// TS 36.413 §9.1.7.2.
 type DownlinkNASTransport struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
@@ -217,7 +206,6 @@ type DownlinkNASTransport struct {
 	unmodeledIEs
 }
 
-// downlinkNASTransportIEs is the DownlinkNASTransport IE table (TS 36.413).
 var downlinkNASTransportIEs = []ieSpec[DownlinkNASTransport]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
@@ -246,7 +234,6 @@ func (m *DownlinkNASTransport) encodeBody(w *per.Writer, enc per.Encoding) error
 	return encodeMessageBody(w, enc, downlinkNASTransportIEs, m)
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *DownlinkNASTransport) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -263,8 +250,6 @@ func (m *DownlinkNASTransport) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseDownlinkNASTransport decodes a DownlinkNASTransport from the open-type
-// payload of an initiatingMessage.
 func ParseDownlinkNASTransport(value []byte) (*DownlinkNASTransport, error) {
 	return parseMessageBody[DownlinkNASTransport](ProcDownlinkNASTransport, downlinkNASTransportIEs, value)
 }
