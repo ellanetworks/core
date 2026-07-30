@@ -109,8 +109,12 @@ func ParseENBStatusTransfer(value []byte) (*ENBStatusTransfer, error) {
 		}
 	}
 
-	if !seenMME || !seenENB || !seenContainer {
-		return nil, fmt.Errorf("s1ap: ENBStatusTransfer missing mandatory IE")
+	if err := requireIEs(ProcENBStatusTransfer,
+		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idENBStatusTransferTransparentContainer, CriticalityReject, seenContainer},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil
@@ -206,8 +210,12 @@ func ParseMMEStatusTransfer(value []byte) (*MMEStatusTransfer, error) {
 		}
 	}
 
-	if !seenMME || !seenENB || !seenContainer {
-		return nil, fmt.Errorf("s1ap: MMEStatusTransfer missing mandatory IE")
+	if err := requireIEs(ProcMMEStatusTransfer,
+		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idENBStatusTransferTransparentContainer, CriticalityReject, seenContainer},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

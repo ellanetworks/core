@@ -9,14 +9,15 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// S1SetupRequest is the S1 SETUP REQUEST message (TS 36.413). An empty
-// ENBName means the optional eNBname IE is absent. IEs that are not modeled are
-// preserved in unknownIEs so the message round-trips.
+// S1SetupRequest is the S1 SETUP REQUEST message (TS 36.413 §9.1.8.4). A nil
+// ENBName means the optional eNBname IE is absent; a nil DefaultPagingDRX means
+// the mandatory-but-ignore-criticality IE was absent (§10.3.5). IEs that are
+// not modeled are preserved in unknownIEs so the message round-trips.
 type S1SetupRequest struct {
 	GlobalENBID      GlobalENBID
-	ENBName          string
+	ENBName          *string
 	SupportedTAs     SupportedTAs
-	DefaultPagingDRX PagingDRX
+	DefaultPagingDRX *PagingDRX
 
 	unmodeledIEs
 }
@@ -28,16 +29,15 @@ func (m *S1SetupRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
 		{id: idGlobalENBID, crit: CriticalityReject, val: &m.GlobalENBID},
 	}
 
-	if m.ENBName != "" {
-		name := m.ENBName
-
-		fields = append(fields, ieField{id: idENBname, crit: CriticalityIgnore, val: Name(name)})
+	if m.ENBName != nil {
+		fields = append(fields, ieField{id: idENBname, crit: CriticalityIgnore, val: Name(*m.ENBName)})
 	}
 
-	fields = append(fields,
-		ieField{id: idSupportedTAs, crit: CriticalityReject, val: m.SupportedTAs},
-		ieField{id: idDefaultPagingDRX, crit: CriticalityIgnore, val: m.DefaultPagingDRX},
-	)
+	fields = append(fields, ieField{id: idSupportedTAs, crit: CriticalityReject, val: m.SupportedTAs})
+
+	if m.DefaultPagingDRX != nil {
+		fields = append(fields, ieField{id: idDefaultPagingDRX, crit: CriticalityIgnore, val: *m.DefaultPagingDRX})
+	}
 
 	for _, e := range m.unknownIEs {
 		fields = append(fields, e.field())
@@ -87,7 +87,7 @@ func ParseS1SetupRequest(value []byte) (*S1SetupRequest, error) {
 
 	m := &S1SetupRequest{}
 
-	var seenGlobalENBID, seenSupportedTAs bool
+	var seenGlobalENBID, seenSupportedTAs, seenPagingDRX bool
 
 	for _, f := range fields {
 		switch f.id {
@@ -97,13 +97,21 @@ func ParseS1SetupRequest(value []byte) (*S1SetupRequest, error) {
 		case idENBname:
 			var n Name
 
-			err = perIEDecode(f.value, &n)
-			m.ENBName = string(n)
+			if err = perIEDecode(f.value, &n); err == nil {
+				name := string(n)
+				m.ENBName = &name
+			}
 		case idSupportedTAs:
 			err = perIEDecode(f.value, &m.SupportedTAs)
 			seenSupportedTAs = true
 		case idDefaultPagingDRX:
-			err = perIEDecode(f.value, &m.DefaultPagingDRX)
+			var drx PagingDRX
+
+			if err = perIEDecode(f.value, &drx); err == nil {
+				m.DefaultPagingDRX = &drx
+			}
+
+			seenPagingDRX = true
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)
 		}
@@ -113,32 +121,15 @@ func ParseS1SetupRequest(value []byte) (*S1SetupRequest, error) {
 		}
 	}
 
-	// Default Paging DRX is ignore-criticality (TS 36.413 §9.1.8.4): a missing one
-	// is ignored rather than rejected (§10.3.5).
-	var missing []ProtocolIEID
-	if !seenGlobalENBID {
-		missing = append(missing, idGlobalENBID)
-	}
-
-	if !seenSupportedTAs {
-		missing = append(missing, idSupportedTAs)
-	}
-
-	if len(missing) > 0 {
-		return nil, &MissingMandatoryIEsError{Procedure: ProcS1Setup, IEs: missing}
+	// §9.1.8.4: Default Paging DRX is mandatory but ignore-criticality, so its
+	// absence is reported without rejecting the procedure (§10.3.5).
+	if err := requireIEs(ProcS1Setup,
+		ieCheck{idGlobalENBID, CriticalityReject, seenGlobalENBID},
+		ieCheck{idSupportedTAs, CriticalityReject, seenSupportedTAs},
+		ieCheck{idDefaultPagingDRX, CriticalityIgnore, seenPagingDRX},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil
-}
-
-// MissingMandatoryIEsError reports the reject-criticality mandatory IEs absent from a
-// decoded initiating message, so the receiver can reject the procedure and name them
-// in Criticality Diagnostics (TS 36.413 §10.3.5).
-type MissingMandatoryIEsError struct {
-	Procedure ProcedureCode
-	IEs       []ProtocolIEID
-}
-
-func (e *MissingMandatoryIEsError) Error() string {
-	return fmt.Sprintf("s1ap: procedure %d missing %d mandatory reject-criticality IE(s)", e.Procedure, len(e.IEs))
 }

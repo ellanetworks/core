@@ -10,10 +10,10 @@ import (
 )
 
 // S1SetupResponse is the S1 SETUP RESPONSE message (TS 36.413). An
-// empty MMEName means the optional mMEname IE is absent; a nil
+// nil MMEName means the optional mMEname IE is absent; a nil
 // CriticalityDiagnostics means that optional IE is absent.
 type S1SetupResponse struct {
-	MMEName                string
+	MMEName                *string
 	ServedGUMMEIs          ServedGUMMEIs
 	RelativeMMECapacity    uint8
 	CriticalityDiagnostics *CriticalityDiagnostics
@@ -26,10 +26,8 @@ func (m *S1SetupResponse) encodeBody(w *per.Writer, enc per.Encoding) error {
 
 	var fields []ieField
 
-	if m.MMEName != "" {
-		name := m.MMEName
-
-		fields = append(fields, ieField{id: idMMEname, crit: CriticalityIgnore, val: Name(name)})
+	if m.MMEName != nil {
+		fields = append(fields, ieField{id: idMMEname, crit: CriticalityIgnore, val: Name(*m.MMEName)})
 	}
 
 	fields = append(fields,
@@ -98,8 +96,10 @@ func ParseS1SetupResponse(value []byte) (*S1SetupResponse, error) {
 		case idMMEname:
 			var n Name
 
-			err = perIEDecode(f.value, &n)
-			m.MMEName = string(n)
+			if err = perIEDecode(f.value, &n); err == nil {
+				name := string(n)
+				m.MMEName = &name
+			}
 		case idServedGUMMEIs:
 			err = perIEDecode(f.value, &m.ServedGUMMEIs)
 			seenGUMMEIs = true
@@ -123,8 +123,11 @@ func ParseS1SetupResponse(value []byte) (*S1SetupResponse, error) {
 		}
 	}
 
-	if !seenGUMMEIs || !seenCapacity {
-		return nil, fmt.Errorf("s1ap: S1SetupResponse missing mandatory IE")
+	if err := requireIEs(ProcS1Setup,
+		ieCheck{idServedGUMMEIs, CriticalityReject, seenGUMMEIs},
+		ieCheck{idRelativeMMECapacity, CriticalityIgnore, seenCapacity},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

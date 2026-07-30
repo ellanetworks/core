@@ -11,25 +11,21 @@ func (aGNSSProvideAssistanceData *AGNSSProvideAssistanceData) MarshalPER(w *per.
 	w.WriteBit(aGNSSProvideAssistanceData.GnssCommonAssistData != nil)
 	w.WriteBit(aGNSSProvideAssistanceData.GnssGenericAssistData != nil)
 	w.WriteBit(aGNSSProvideAssistanceData.GnssError != nil)
-
 	if aGNSSProvideAssistanceData.GnssCommonAssistData != nil {
 		if err := (*aGNSSProvideAssistanceData.GnssCommonAssistData).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if aGNSSProvideAssistanceData.GnssGenericAssistData != nil {
 		if err := (*aGNSSProvideAssistanceData.GnssGenericAssistData).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if aGNSSProvideAssistanceData.GnssError != nil {
 		if err := (*aGNSSProvideAssistanceData.GnssError).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -38,52 +34,41 @@ func (aGNSSProvideAssistanceData *AGNSSProvideAssistanceData) UnmarshalPER(r *pe
 	if err != nil {
 		return err
 	}
-
 	p_GnssCommonAssistData, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GnssGenericAssistData, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GnssError, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_GnssCommonAssistData {
 		var v GNSSCommonAssistData
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		aGNSSProvideAssistanceData.GnssCommonAssistData = &v
 	}
-
 	if p_GnssGenericAssistData {
 		var v GNSSGenericAssistData
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		aGNSSProvideAssistanceData.GnssGenericAssistData = &v
 	}
-
 	if p_GnssError {
 		var v GNSSError
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		aGNSSProvideAssistanceData.GnssError = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -91,26 +76,21 @@ func (aGNSSProvideAssistanceData *AGNSSProvideAssistanceData) UnmarshalPER(r *pe
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -120,31 +100,26 @@ func (aGNSSProvideCapabilities *AGNSSProvideCapabilities) MarshalPER(w *per.Writ
 	w.WriteBit(aGNSSProvideCapabilities.AssistanceDataSupportList != nil)
 	w.WriteBit(aGNSSProvideCapabilities.LocationCoordinateTypes != nil)
 	w.WriteBit(aGNSSProvideCapabilities.VelocityTypes != nil)
-
 	if aGNSSProvideCapabilities.GnssSupportList != nil {
 		if err := (*aGNSSProvideCapabilities.GnssSupportList).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if aGNSSProvideCapabilities.AssistanceDataSupportList != nil {
 		if err := (*aGNSSProvideCapabilities.AssistanceDataSupportList).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if aGNSSProvideCapabilities.LocationCoordinateTypes != nil {
 		if err := (*aGNSSProvideCapabilities.LocationCoordinateTypes).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if aGNSSProvideCapabilities.VelocityTypes != nil {
 		if err := (*aGNSSProvideCapabilities.VelocityTypes).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -153,66 +128,52 @@ func (aGNSSProvideCapabilities *AGNSSProvideCapabilities) UnmarshalPER(r *per.Re
 	if err != nil {
 		return err
 	}
-
 	p_GnssSupportList, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_AssistanceDataSupportList, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_LocationCoordinateTypes, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_VelocityTypes, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_GnssSupportList {
 		var v GNSSSupportList
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		aGNSSProvideCapabilities.GnssSupportList = &v
 	}
-
 	if p_AssistanceDataSupportList {
 		var v AssistanceDataSupportList
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		aGNSSProvideCapabilities.AssistanceDataSupportList = &v
 	}
-
 	if p_LocationCoordinateTypes {
 		var v LocationCoordinateTypes
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		aGNSSProvideCapabilities.LocationCoordinateTypes = &v
 	}
-
 	if p_VelocityTypes {
 		var v VelocityTypes
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		aGNSSProvideCapabilities.VelocityTypes = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -220,26 +181,21 @@ func (aGNSSProvideCapabilities *AGNSSProvideCapabilities) UnmarshalPER(r *per.Re
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -248,25 +204,21 @@ func (aGNSSProvideLocationInformation *AGNSSProvideLocationInformation) MarshalP
 	w.WriteBit(aGNSSProvideLocationInformation.GnssSignalMeasurementInformation != nil)
 	w.WriteBit(aGNSSProvideLocationInformation.GnssLocationInformation != nil)
 	w.WriteBit(aGNSSProvideLocationInformation.GnssError != nil)
-
 	if aGNSSProvideLocationInformation.GnssSignalMeasurementInformation != nil {
 		if err := (*aGNSSProvideLocationInformation.GnssSignalMeasurementInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if aGNSSProvideLocationInformation.GnssLocationInformation != nil {
 		if err := (*aGNSSProvideLocationInformation.GnssLocationInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if aGNSSProvideLocationInformation.GnssError != nil {
 		if err := (*aGNSSProvideLocationInformation.GnssError).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -275,52 +227,41 @@ func (aGNSSProvideLocationInformation *AGNSSProvideLocationInformation) Unmarsha
 	if err != nil {
 		return err
 	}
-
 	p_GnssSignalMeasurementInformation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GnssLocationInformation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GnssError, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_GnssSignalMeasurementInformation {
 		var v GNSSSignalMeasurementInformation
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		aGNSSProvideLocationInformation.GnssSignalMeasurementInformation = &v
 	}
-
 	if p_GnssLocationInformation {
 		var v GNSSLocationInformation
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		aGNSSProvideLocationInformation.GnssLocationInformation = &v
 	}
-
 	if p_GnssError {
 		var v GNSSError
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		aGNSSProvideLocationInformation.GnssError = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -328,26 +269,21 @@ func (aGNSSProvideLocationInformation *AGNSSProvideLocationInformation) Unmarsha
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -356,25 +292,21 @@ func (aGNSSRequestAssistanceData *AGNSSRequestAssistanceData) MarshalPER(w *per.
 	w.WriteBit(aGNSSRequestAssistanceData.GnssCommonAssistDataReq != nil)
 	w.WriteBit(aGNSSRequestAssistanceData.GnssGenericAssistDataReq != nil)
 	w.WriteBit(aGNSSRequestAssistanceData.GnssPeriodicAssistDataReqR15 != nil)
-
 	if aGNSSRequestAssistanceData.GnssCommonAssistDataReq != nil {
 		if err := (*aGNSSRequestAssistanceData.GnssCommonAssistDataReq).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if aGNSSRequestAssistanceData.GnssGenericAssistDataReq != nil {
 		if err := (*aGNSSRequestAssistanceData.GnssGenericAssistDataReq).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if aGNSSRequestAssistanceData.GnssPeriodicAssistDataReqR15 != nil {
 		if err := (*aGNSSRequestAssistanceData.GnssPeriodicAssistDataReqR15).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -383,52 +315,41 @@ func (aGNSSRequestAssistanceData *AGNSSRequestAssistanceData) UnmarshalPER(r *pe
 	if err != nil {
 		return err
 	}
-
 	p_GnssCommonAssistDataReq, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GnssGenericAssistDataReq, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GnssPeriodicAssistDataReqR15, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_GnssCommonAssistDataReq {
 		var v GNSSCommonAssistDataReq
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		aGNSSRequestAssistanceData.GnssCommonAssistDataReq = &v
 	}
-
 	if p_GnssGenericAssistDataReq {
 		var v GNSSGenericAssistDataReq
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		aGNSSRequestAssistanceData.GnssGenericAssistDataReq = &v
 	}
-
 	if p_GnssPeriodicAssistDataReqR15 {
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		aGNSSRequestAssistanceData.GnssPeriodicAssistDataReqR15 = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -436,26 +357,21 @@ func (aGNSSRequestAssistanceData *AGNSSRequestAssistanceData) UnmarshalPER(r *pe
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -464,7 +380,6 @@ func (aGNSSRequestCapabilities *AGNSSRequestCapabilities) MarshalPER(w *per.Writ
 	per.EncodeBoolean(w, enc, aGNSSRequestCapabilities.GnssSupportListReq)
 	per.EncodeBoolean(w, enc, aGNSSRequestCapabilities.AssistanceDataSupportListReq)
 	per.EncodeBoolean(w, enc, aGNSSRequestCapabilities.LocationVelocityTypesReq)
-
 	return nil
 }
 
@@ -473,31 +388,23 @@ func (aGNSSRequestCapabilities *AGNSSRequestCapabilities) UnmarshalPER(r *per.Re
 	if err != nil {
 		return err
 	}
-
 	b0, err := per.DecodeBoolean(r, enc)
 	if err != nil {
 		return err
 	}
-
 	aGNSSRequestCapabilities.GnssSupportListReq = b0
-
 	b1, err := per.DecodeBoolean(r, enc)
 	if err != nil {
 		return err
 	}
-
 	aGNSSRequestCapabilities.AssistanceDataSupportListReq = b1
-
 	b2, err := per.DecodeBoolean(r, enc)
 	if err != nil {
 		return err
 	}
-
 	aGNSSRequestCapabilities.LocationVelocityTypesReq = b2
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -505,36 +412,29 @@ func (aGNSSRequestCapabilities *AGNSSRequestCapabilities) UnmarshalPER(r *per.Re
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (aGNSSRequestLocationInformation *AGNSSRequestLocationInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := aGNSSRequestLocationInformation.GnssPositioningInstructions.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -543,14 +443,11 @@ func (aGNSSRequestLocationInformation *AGNSSRequestLocationInformation) Unmarsha
 	if err != nil {
 		return err
 	}
-
 	if err := (&aGNSSRequestLocationInformation.GnssPositioningInstructions).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -558,26 +455,21 @@ func (aGNSSRequestLocationInformation *AGNSSRequestLocationInformation) Unmarsha
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -585,7 +477,6 @@ func (abort *Abort) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	if err := abort.CriticalExtensions.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -593,7 +484,6 @@ func (abort *Abort) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if err := (&abort.CriticalExtensions).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -603,7 +493,6 @@ func (abortCriticalExtensions *AbortCriticalExtensions) MarshalPER(w *per.Writer
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
 			return err
 		}
-
 		if err := (*abortCriticalExtensions.C1).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -611,14 +500,12 @@ func (abortCriticalExtensions *AbortCriticalExtensions) MarshalPER(w *per.Writer
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
 			return err
 		}
-
 		if err := (*abortCriticalExtensions.CriticalExtensionsFuture).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -627,26 +514,22 @@ func (abortCriticalExtensions *AbortCriticalExtensions) UnmarshalPER(r *per.Read
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v AbortCriticalExtensionsC1
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		abortCriticalExtensions.C1 = &v
 	case 1:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		abortCriticalExtensions.CriticalExtensionsFuture = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
@@ -656,7 +539,6 @@ func (abortCriticalExtensionsC1 *AbortCriticalExtensionsC1) MarshalPER(w *per.Wr
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 0); err != nil {
 			return err
 		}
-
 		if err := (*abortCriticalExtensionsC1.AbortR9).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -664,7 +546,6 @@ func (abortCriticalExtensionsC1 *AbortCriticalExtensionsC1) MarshalPER(w *per.Wr
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 1); err != nil {
 			return err
 		}
-
 		if err := (*abortCriticalExtensionsC1.Spare3).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -672,7 +553,6 @@ func (abortCriticalExtensionsC1 *AbortCriticalExtensionsC1) MarshalPER(w *per.Wr
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 2); err != nil {
 			return err
 		}
-
 		if err := (*abortCriticalExtensionsC1.Spare2).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -680,14 +560,12 @@ func (abortCriticalExtensionsC1 *AbortCriticalExtensionsC1) MarshalPER(w *per.Wr
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 3); err != nil {
 			return err
 		}
-
 		if err := (*abortCriticalExtensionsC1.Spare1).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -696,52 +574,44 @@ func (abortCriticalExtensionsC1 *AbortCriticalExtensionsC1) UnmarshalPER(r *per.
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v AbortR9IEs
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		abortCriticalExtensionsC1.AbortR9 = &v
 	case 1:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		abortCriticalExtensionsC1.Spare3 = &v
 	case 2:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		abortCriticalExtensionsC1.Spare2 = &v
 	case 3:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		abortCriticalExtensionsC1.Spare1 = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
 func (abortR9IEs *AbortR9IEs) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(abortR9IEs.CommonIEsAbort != nil)
-
 	if abortR9IEs.CommonIEsAbort != nil {
 		if err := (*abortR9IEs.CommonIEsAbort).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -750,26 +620,21 @@ func (abortR9IEs *AbortR9IEs) UnmarshalPER(r *per.Reader, enc per.Encoding) erro
 	if err != nil {
 		return err
 	}
-
 	if p_CommonIEsAbort {
 		var v CommonIEsAbort
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		abortR9IEs.CommonIEsAbort = &v
 	}
-
 	return nil
 }
 
 func (accessTypes *AccessTypes) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeBitString(w, enc, 1, 8, true, true, false, per.BoolsToBits(accessTypes.Access), len(accessTypes.Access)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -778,18 +643,14 @@ func (accessTypes *AccessTypes) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 	if err != nil {
 		return err
 	}
-
 	bs, nbits, err := per.DecodeBitString(r, enc, 1, 8, true, true, false)
 	if err != nil {
 		return err
 	}
-
 	_ = nbits
 	accessTypes.Access = per.BitsToBools(bs, nbits)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -797,39 +658,32 @@ func (accessTypes *AccessTypes) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (acknowledgement *Acknowledgement) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(acknowledgement.AckIndicator != nil)
 	per.EncodeBoolean(w, enc, acknowledgement.AckRequested)
-
 	if acknowledgement.AckIndicator != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true}, int64((*acknowledgement.AckIndicator))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -838,26 +692,20 @@ func (acknowledgement *Acknowledgement) UnmarshalPER(r *per.Reader, enc per.Enco
 	if err != nil {
 		return err
 	}
-
 	b0, err := per.DecodeBoolean(r, enc)
 	if err != nil {
 		return err
 	}
-
 	acknowledgement.AckRequested = b0
-
 	if p_AckIndicator {
 		var v int64
-
 		n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n1)
 		acknowledgement.AckIndicator = &v
 	}
-
 	return nil
 }
 
@@ -865,7 +713,6 @@ func (additionalInformation *AdditionalInformation) MarshalPER(w *per.Writer, en
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true}, int64(additionalInformation.Value)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -874,9 +721,7 @@ func (additionalInformation *AdditionalInformation) UnmarshalPER(r *per.Reader, 
 	if err != nil {
 		return err
 	}
-
 	additionalInformation.Value = int64(n0)
-
 	return nil
 }
 
@@ -885,25 +730,21 @@ func (additionalPRSConfig *AdditionalPRSConfig) MarshalPER(w *per.Writer, enc pe
 	w.WriteBit(additionalPRSConfig.AddNumDLFrames != nil)
 	w.WriteBit(additionalPRSConfig.PRSOccGroupLen != nil)
 	w.WriteBit(additionalPRSConfig.PRSHoppingInfo != nil)
-
 	if additionalPRSConfig.AddNumDLFrames != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 7, HasUB: true}, int64((*additionalPRSConfig.AddNumDLFrames))); err != nil {
 			return err
 		}
 	}
-
 	if additionalPRSConfig.PRSOccGroupLen != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 7, HasUB: true, Extensible: true}, int64((*additionalPRSConfig.PRSOccGroupLen))); err != nil {
 			return err
 		}
 	}
-
 	if additionalPRSConfig.PRSHoppingInfo != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true}, int64((*additionalPRSConfig.PRSHoppingInfo))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -912,61 +753,47 @@ func (additionalPRSConfig *AdditionalPRSConfig) UnmarshalPER(r *per.Reader, enc 
 	if err != nil {
 		return err
 	}
-
 	p_AddNumDLFrames, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PRSOccGroupLen, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PRSHoppingInfo, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_AddNumDLFrames {
 		var v int64
-
 		n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 7, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n0)
 		additionalPRSConfig.AddNumDLFrames = &v
 	}
-
 	if p_PRSOccGroupLen {
 		var v int64
-
 		n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 7, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n1)
 		additionalPRSConfig.PRSOccGroupLen = &v
 	}
-
 	if p_PRSHoppingInfo {
 		var v int64
-
 		n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n2)
 		additionalPRSConfig.PRSHoppingInfo = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -974,47 +801,38 @@ func (additionalPRSConfig *AdditionalPRSConfig) UnmarshalPER(r *per.Reader, enc 
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (additionalPathElementR14 *AdditionalPathElementR14) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(additionalPathElementR14.RSTDUncertaintyMeasure != nil)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true}, int64(additionalPathElementR14.PhysCellId)); err != nil {
 		return err
 	}
-
 	if err := additionalPathElementR14.RSTDMeasure.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if additionalPathElementR14.RSTDUncertaintyMeasure != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1023, HasUB: true}, int64((*additionalPathElementR14.RSTDUncertaintyMeasure))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -1023,37 +841,29 @@ func (additionalPathElementR14 *AdditionalPathElementR14) UnmarshalPER(r *per.Re
 	if err != nil {
 		return err
 	}
-
 	p_RSTDUncertaintyMeasure, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	additionalPathElementR14.PhysCellId = int64(n0)
 	if err := (&additionalPathElementR14.RSTDMeasure).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if p_RSTDUncertaintyMeasure {
 		var v int64
-
 		n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1023, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n2)
 		additionalPathElementR14.RSTDUncertaintyMeasure = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -1061,32 +871,26 @@ func (additionalPathElementR14 *AdditionalPathElementR14) UnmarshalPER(r *per.Re
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (additionalPathListR14 *AdditionalPathListR14) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	off0 := 0
-
 	if err := per.EncodeLength(w, enc, 1, 8, true, int64(len(additionalPathListR14.List)), func(count int64) error {
 		end := off0 + int(count)
 		for i := off0; i < end; i++ {
@@ -1094,35 +898,28 @@ func (additionalPathListR14 *AdditionalPathListR14) MarshalPER(w *per.Writer, en
 				return err
 			}
 		}
-
 		off0 = end
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (additionalPathListR14 *AdditionalPathListR14) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	additionalPathListR14.List = nil
-
 	if err := per.DecodeLength(r, enc, 1, 8, true, func(count int64) error {
 		start := len(additionalPathListR14.List)
-
 		additionalPathListR14.List = append(additionalPathListR14.List, make([]AdditionalPathElementR14, count)...)
 		for i := int64(0); i < count; i++ {
 			if err := (&additionalPathListR14.List[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -1141,59 +938,45 @@ func (assistanceDataSupportList *AssistanceDataSupportList) MarshalPER(w *per.Wr
 	w.WriteBit(assistanceDataSupportList.GNSSAlmanac != nil)
 	w.WriteBit(assistanceDataSupportList.GNSSUTCModel != nil)
 	w.WriteBit(assistanceDataSupportList.GNSSAuxInfo != nil)
-
 	if assistanceDataSupportList.GNSSReferenceTime != nil {
 		per.EncodeBoolean(w, enc, (*assistanceDataSupportList.GNSSReferenceTime))
 	}
-
 	if assistanceDataSupportList.GNSSReferenceLocation != nil {
 		per.EncodeBoolean(w, enc, (*assistanceDataSupportList.GNSSReferenceLocation))
 	}
-
 	if assistanceDataSupportList.GNSSIPSMODEL != nil {
 		per.EncodeBoolean(w, enc, (*assistanceDataSupportList.GNSSIPSMODEL))
 	}
-
 	if assistanceDataSupportList.GNSSEarthOrientation != nil {
 		per.EncodeBoolean(w, enc, (*assistanceDataSupportList.GNSSEarthOrientation))
 	}
-
 	if assistanceDataSupportList.GNSSTime != nil {
 		per.EncodeBoolean(w, enc, (*assistanceDataSupportList.GNSSTime))
 	}
-
 	if assistanceDataSupportList.GNSSDifferential != nil {
 		per.EncodeBoolean(w, enc, (*assistanceDataSupportList.GNSSDifferential))
 	}
-
 	if assistanceDataSupportList.GNSSNavigation != nil {
 		per.EncodeBoolean(w, enc, (*assistanceDataSupportList.GNSSNavigation))
 	}
-
 	if assistanceDataSupportList.GNSSRealTimeIntegrity != nil {
 		per.EncodeBoolean(w, enc, (*assistanceDataSupportList.GNSSRealTimeIntegrity))
 	}
-
 	if assistanceDataSupportList.GNSSDataBit != nil {
 		per.EncodeBoolean(w, enc, (*assistanceDataSupportList.GNSSDataBit))
 	}
-
 	if assistanceDataSupportList.GNSSAcquisition != nil {
 		per.EncodeBoolean(w, enc, (*assistanceDataSupportList.GNSSAcquisition))
 	}
-
 	if assistanceDataSupportList.GNSSAlmanac != nil {
 		per.EncodeBoolean(w, enc, (*assistanceDataSupportList.GNSSAlmanac))
 	}
-
 	if assistanceDataSupportList.GNSSUTCModel != nil {
 		per.EncodeBoolean(w, enc, (*assistanceDataSupportList.GNSSUTCModel))
 	}
-
 	if assistanceDataSupportList.GNSSAuxInfo != nil {
 		per.EncodeBoolean(w, enc, (*assistanceDataSupportList.GNSSAuxInfo))
 	}
-
 	return nil
 }
 
@@ -1202,231 +985,177 @@ func (assistanceDataSupportList *AssistanceDataSupportList) UnmarshalPER(r *per.
 	if err != nil {
 		return err
 	}
-
 	p_GNSSReferenceTime, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSReferenceLocation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSIPSMODEL, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSEarthOrientation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSTime, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSDifferential, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSNavigation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSRealTimeIntegrity, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSDataBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSAcquisition, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSAlmanac, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSUTCModel, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSAuxInfo, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_GNSSReferenceTime {
 		var v bool
-
 		b0, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b0
 		assistanceDataSupportList.GNSSReferenceTime = &v
 	}
-
 	if p_GNSSReferenceLocation {
 		var v bool
-
 		b1, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b1
 		assistanceDataSupportList.GNSSReferenceLocation = &v
 	}
-
 	if p_GNSSIPSMODEL {
 		var v bool
-
 		b2, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b2
 		assistanceDataSupportList.GNSSIPSMODEL = &v
 	}
-
 	if p_GNSSEarthOrientation {
 		var v bool
-
 		b3, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b3
 		assistanceDataSupportList.GNSSEarthOrientation = &v
 	}
-
 	if p_GNSSTime {
 		var v bool
-
 		b4, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b4
 		assistanceDataSupportList.GNSSTime = &v
 	}
-
 	if p_GNSSDifferential {
 		var v bool
-
 		b5, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b5
 		assistanceDataSupportList.GNSSDifferential = &v
 	}
-
 	if p_GNSSNavigation {
 		var v bool
-
 		b6, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b6
 		assistanceDataSupportList.GNSSNavigation = &v
 	}
-
 	if p_GNSSRealTimeIntegrity {
 		var v bool
-
 		b7, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b7
 		assistanceDataSupportList.GNSSRealTimeIntegrity = &v
 	}
-
 	if p_GNSSDataBit {
 		var v bool
-
 		b8, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b8
 		assistanceDataSupportList.GNSSDataBit = &v
 	}
-
 	if p_GNSSAcquisition {
 		var v bool
-
 		b9, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b9
 		assistanceDataSupportList.GNSSAcquisition = &v
 	}
-
 	if p_GNSSAlmanac {
 		var v bool
-
 		b10, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b10
 		assistanceDataSupportList.GNSSAlmanac = &v
 	}
-
 	if p_GNSSUTCModel {
 		var v bool
-
 		b11, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b11
 		assistanceDataSupportList.GNSSUTCModel = &v
 	}
-
 	if p_GNSSAuxInfo {
 		var v bool
-
 		b12, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b12
 		assistanceDataSupportList.GNSSAuxInfo = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -1434,40 +1163,32 @@ func (assistanceDataSupportList *AssistanceDataSupportList) UnmarshalPER(r *per.
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (cellGlobalIdEUTRAAndUTRA *CellGlobalIdEUTRAAndUTRA) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := cellGlobalIdEUTRAAndUTRA.PLMNIdentity.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if err := cellGlobalIdEUTRAAndUTRA.TACAndECID.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -1476,18 +1197,14 @@ func (cellGlobalIdEUTRAAndUTRA *CellGlobalIdEUTRAAndUTRA) UnmarshalPER(r *per.Re
 	if err != nil {
 		return err
 	}
-
 	if err := (&cellGlobalIdEUTRAAndUTRA.PLMNIdentity).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if err := (&cellGlobalIdEUTRAAndUTRA.TACAndECID).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -1495,36 +1212,29 @@ func (cellGlobalIdEUTRAAndUTRA *CellGlobalIdEUTRAAndUTRA) UnmarshalPER(r *per.Re
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (commonIEsAbort *CommonIEsAbort) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 3, HasUB: true, Extensible: true}, int64(commonIEsAbort.AbortCause)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -1533,17 +1243,13 @@ func (commonIEsAbort *CommonIEsAbort) UnmarshalPER(r *per.Reader, enc per.Encodi
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 3, HasUB: true, Extensible: true})
 	if err != nil {
 		return err
 	}
-
 	commonIEsAbort.AbortCause = int64(n0)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -1551,36 +1257,29 @@ func (commonIEsAbort *CommonIEsAbort) UnmarshalPER(r *per.Reader, enc per.Encodi
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (commonIEsError *CommonIEsError) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 4, HasUB: true, Extensible: true}, int64(commonIEsError.ErrorCause)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -1589,17 +1288,13 @@ func (commonIEsError *CommonIEsError) UnmarshalPER(r *per.Reader, enc per.Encodi
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 4, HasUB: true, Extensible: true})
 	if err != nil {
 		return err
 	}
-
 	commonIEsError.ErrorCause = int64(n0)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -1607,26 +1302,21 @@ func (commonIEsError *CommonIEsError) UnmarshalPER(r *per.Reader, enc per.Encodi
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -1634,19 +1324,16 @@ func (commonIEsProvideAssistanceData *CommonIEsProvideAssistanceData) MarshalPER
 	w.WriteBit(false)
 	w.WriteBit(commonIEsProvideAssistanceData.SegmentationInfo != nil)
 	w.WriteBit(commonIEsProvideAssistanceData.PeriodicAssistanceData != nil)
-
 	if commonIEsProvideAssistanceData.SegmentationInfo != nil {
 		if err := (*commonIEsProvideAssistanceData.SegmentationInfo).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if commonIEsProvideAssistanceData.PeriodicAssistanceData != nil {
 		if err := (*commonIEsProvideAssistanceData.PeriodicAssistanceData).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -1655,38 +1342,30 @@ func (commonIEsProvideAssistanceData *CommonIEsProvideAssistanceData) UnmarshalP
 	if err != nil {
 		return err
 	}
-
 	p_SegmentationInfo, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PeriodicAssistanceData, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_SegmentationInfo {
 		var v SegmentationInfoR14
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		commonIEsProvideAssistanceData.SegmentationInfo = &v
 	}
-
 	if p_PeriodicAssistanceData {
 		var v PeriodicAssistanceDataControlParametersR15
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		commonIEsProvideAssistanceData.PeriodicAssistanceData = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -1694,26 +1373,21 @@ func (commonIEsProvideAssistanceData *CommonIEsProvideAssistanceData) UnmarshalP
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -1723,29 +1397,24 @@ func (commonIEsProvideCapabilities *CommonIEsProvideCapabilities) MarshalPER(w *
 	w.WriteBit(commonIEsProvideCapabilities.LppMessageSegmentationR14 != nil)
 	w.WriteBit(commonIEsProvideCapabilities.RemoteUEIndicationR18 != nil)
 	w.WriteBit(commonIEsProvideCapabilities.LocationEstimateAndMeasurementReportingR18 != nil)
-
 	if commonIEsProvideCapabilities.SegmentationInfoR14 != nil {
 		if err := (*commonIEsProvideCapabilities.SegmentationInfoR14).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if commonIEsProvideCapabilities.LppMessageSegmentationR14 != nil {
 		if err := per.EncodeBitString(w, enc, 2, 2, true, true, false, per.BoolsToBits((*commonIEsProvideCapabilities.LppMessageSegmentationR14)), len((*commonIEsProvideCapabilities.LppMessageSegmentationR14))); err != nil {
 			return err
 		}
 	}
-
 	if commonIEsProvideCapabilities.RemoteUEIndicationR18 != nil {
 		per.EncodeBoolean(w, enc, (*commonIEsProvideCapabilities.RemoteUEIndicationR18))
 	}
-
 	if commonIEsProvideCapabilities.LocationEstimateAndMeasurementReportingR18 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true}, int64((*commonIEsProvideCapabilities.LocationEstimateAndMeasurementReportingR18))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -1754,76 +1423,59 @@ func (commonIEsProvideCapabilities *CommonIEsProvideCapabilities) UnmarshalPER(r
 	if err != nil {
 		return err
 	}
-
 	p_SegmentationInfoR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_LppMessageSegmentationR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_RemoteUEIndicationR18, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_LocationEstimateAndMeasurementReportingR18, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_SegmentationInfoR14 {
 		var v SegmentationInfoR14
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		commonIEsProvideCapabilities.SegmentationInfoR14 = &v
 	}
-
 	if p_LppMessageSegmentationR14 {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 2, 2, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		commonIEsProvideCapabilities.LppMessageSegmentationR14 = &v
 	}
-
 	if p_RemoteUEIndicationR18 {
 		var v bool
-
 		b2, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b2
 		commonIEsProvideCapabilities.RemoteUEIndicationR18 = &v
 	}
-
 	if p_LocationEstimateAndMeasurementReportingR18 {
 		var v int64
-
 		n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n3)
 		commonIEsProvideCapabilities.LocationEstimateAndMeasurementReportingR18 = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -1831,26 +1483,21 @@ func (commonIEsProvideCapabilities *CommonIEsProvideCapabilities) UnmarshalPER(r
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -1859,25 +1506,21 @@ func (commonIEsProvideLocationInformation *CommonIEsProvideLocationInformation) 
 	w.WriteBit(commonIEsProvideLocationInformation.LocationEstimate != nil)
 	w.WriteBit(commonIEsProvideLocationInformation.VelocityEstimate != nil)
 	w.WriteBit(commonIEsProvideLocationInformation.LocationError != nil)
-
 	if commonIEsProvideLocationInformation.LocationEstimate != nil {
 		if err := (*commonIEsProvideLocationInformation.LocationEstimate).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if commonIEsProvideLocationInformation.VelocityEstimate != nil {
 		if err := (*commonIEsProvideLocationInformation.VelocityEstimate).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if commonIEsProvideLocationInformation.LocationError != nil {
 		if err := (*commonIEsProvideLocationInformation.LocationError).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -1886,52 +1529,41 @@ func (commonIEsProvideLocationInformation *CommonIEsProvideLocationInformation) 
 	if err != nil {
 		return err
 	}
-
 	p_LocationEstimate, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_VelocityEstimate, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_LocationError, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_LocationEstimate {
 		var v LocationCoordinates
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		commonIEsProvideLocationInformation.LocationEstimate = &v
 	}
-
 	if p_VelocityEstimate {
 		var v Velocity
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		commonIEsProvideLocationInformation.VelocityEstimate = &v
 	}
-
 	if p_LocationError {
 		var v LocationError
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		commonIEsProvideLocationInformation.LocationError = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -1939,26 +1571,21 @@ func (commonIEsProvideLocationInformation *CommonIEsProvideLocationInformation) 
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -1968,31 +1595,26 @@ func (commonIEsRequestAssistanceData *CommonIEsRequestAssistanceData) MarshalPER
 	w.WriteBit(commonIEsRequestAssistanceData.SegmentationInfo != nil)
 	w.WriteBit(commonIEsRequestAssistanceData.PeriodicAssistanceDataReq != nil)
 	w.WriteBit(commonIEsRequestAssistanceData.PrimaryCellIDR15 != nil)
-
 	if commonIEsRequestAssistanceData.PrimaryCellID != nil {
 		if err := (*commonIEsRequestAssistanceData.PrimaryCellID).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if commonIEsRequestAssistanceData.SegmentationInfo != nil {
 		if err := (*commonIEsRequestAssistanceData.SegmentationInfo).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if commonIEsRequestAssistanceData.PeriodicAssistanceDataReq != nil {
 		if err := (*commonIEsRequestAssistanceData.PeriodicAssistanceDataReq).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if commonIEsRequestAssistanceData.PrimaryCellIDR15 != nil {
 		if err := (*commonIEsRequestAssistanceData.PrimaryCellIDR15).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -2001,66 +1623,52 @@ func (commonIEsRequestAssistanceData *CommonIEsRequestAssistanceData) UnmarshalP
 	if err != nil {
 		return err
 	}
-
 	p_PrimaryCellID, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_SegmentationInfo, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PeriodicAssistanceDataReq, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PrimaryCellIDR15, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_PrimaryCellID {
 		var v ECGI
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		commonIEsRequestAssistanceData.PrimaryCellID = &v
 	}
-
 	if p_SegmentationInfo {
 		var v SegmentationInfoR14
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		commonIEsRequestAssistanceData.SegmentationInfo = &v
 	}
-
 	if p_PeriodicAssistanceDataReq {
 		var v PeriodicAssistanceDataControlParametersR15
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		commonIEsRequestAssistanceData.PeriodicAssistanceDataReq = &v
 	}
-
 	if p_PrimaryCellIDR15 {
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		commonIEsRequestAssistanceData.PrimaryCellIDR15 = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -2068,26 +1676,21 @@ func (commonIEsRequestAssistanceData *CommonIEsRequestAssistanceData) UnmarshalP
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -2095,19 +1698,16 @@ func (commonIEsRequestCapabilities *CommonIEsRequestCapabilities) MarshalPER(w *
 	w.WriteBit(false)
 	w.WriteBit(commonIEsRequestCapabilities.LppMessageSegmentationReqR14 != nil)
 	w.WriteBit(commonIEsRequestCapabilities.RemoteUEIndicationReqR18 != nil)
-
 	if commonIEsRequestCapabilities.LppMessageSegmentationReqR14 != nil {
 		if err := per.EncodeBitString(w, enc, 2, 2, true, true, false, per.BoolsToBits((*commonIEsRequestCapabilities.LppMessageSegmentationReqR14)), len((*commonIEsRequestCapabilities.LppMessageSegmentationReqR14))); err != nil {
 			return err
 		}
 	}
-
 	if commonIEsRequestCapabilities.RemoteUEIndicationReqR18 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true}, int64((*commonIEsRequestCapabilities.RemoteUEIndicationReqR18))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -2116,45 +1716,35 @@ func (commonIEsRequestCapabilities *CommonIEsRequestCapabilities) UnmarshalPER(r
 	if err != nil {
 		return err
 	}
-
 	p_LppMessageSegmentationReqR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_RemoteUEIndicationReqR18, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_LppMessageSegmentationReqR14 {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 2, 2, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		commonIEsRequestCapabilities.LppMessageSegmentationReqR14 = &v
 	}
-
 	if p_RemoteUEIndicationReqR18 {
 		var v int64
-
 		n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n1)
 		commonIEsRequestCapabilities.RemoteUEIndicationReqR18 = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -2162,26 +1752,21 @@ func (commonIEsRequestCapabilities *CommonIEsRequestCapabilities) UnmarshalPER(r
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -2194,53 +1779,44 @@ func (commonIEsRequestLocationInformation *CommonIEsRequestLocationInformation) 
 	w.WriteBit(commonIEsRequestLocationInformation.Environment != nil)
 	w.WriteBit(commonIEsRequestLocationInformation.LocationCoordinateTypes != nil)
 	w.WriteBit(commonIEsRequestLocationInformation.VelocityTypes != nil)
-
 	if err := commonIEsRequestLocationInformation.LocationInformationType.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if commonIEsRequestLocationInformation.TriggeredReporting != nil {
 		if err := (*commonIEsRequestLocationInformation.TriggeredReporting).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if commonIEsRequestLocationInformation.PeriodicalReporting != nil {
 		if err := (*commonIEsRequestLocationInformation.PeriodicalReporting).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if commonIEsRequestLocationInformation.AdditionalInformation != nil {
 		if err := (*commonIEsRequestLocationInformation.AdditionalInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if commonIEsRequestLocationInformation.QoS != nil {
 		if err := (*commonIEsRequestLocationInformation.QoS).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if commonIEsRequestLocationInformation.Environment != nil {
 		if err := (*commonIEsRequestLocationInformation.Environment).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if commonIEsRequestLocationInformation.LocationCoordinateTypes != nil {
 		if err := (*commonIEsRequestLocationInformation.LocationCoordinateTypes).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if commonIEsRequestLocationInformation.VelocityTypes != nil {
 		if err := (*commonIEsRequestLocationInformation.VelocityTypes).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -2249,112 +1825,88 @@ func (commonIEsRequestLocationInformation *CommonIEsRequestLocationInformation) 
 	if err != nil {
 		return err
 	}
-
 	p_TriggeredReporting, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PeriodicalReporting, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_AdditionalInformation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_QoS, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_Environment, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_LocationCoordinateTypes, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_VelocityTypes, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if err := (&commonIEsRequestLocationInformation.LocationInformationType).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if p_TriggeredReporting {
 		var v TriggeredReportingCriteria
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		commonIEsRequestLocationInformation.TriggeredReporting = &v
 	}
-
 	if p_PeriodicalReporting {
 		var v PeriodicalReportingCriteria
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		commonIEsRequestLocationInformation.PeriodicalReporting = &v
 	}
-
 	if p_AdditionalInformation {
 		var v AdditionalInformation
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		commonIEsRequestLocationInformation.AdditionalInformation = &v
 	}
-
 	if p_QoS {
 		var v QoS
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		commonIEsRequestLocationInformation.QoS = &v
 	}
-
 	if p_Environment {
 		var v Environment
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		commonIEsRequestLocationInformation.Environment = &v
 	}
-
 	if p_LocationCoordinateTypes {
 		var v LocationCoordinateTypes
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		commonIEsRequestLocationInformation.LocationCoordinateTypes = &v
 	}
-
 	if p_VelocityTypes {
 		var v VelocityTypes
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		commonIEsRequestLocationInformation.VelocityTypes = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -2362,40 +1914,32 @@ func (commonIEsRequestLocationInformation *CommonIEsRequestLocationInformation) 
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (eCGI *ECGI) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := eCGI.PLMNIdentity.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if err := eCGI.TACAndECID.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -2404,18 +1948,14 @@ func (eCGI *ECGI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if err != nil {
 		return err
 	}
-
 	if err := (&eCGI.PLMNIdentity).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if err := (&eCGI.TACAndECID).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -2423,26 +1963,21 @@ func (eCGI *ECGI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -2450,11 +1985,9 @@ func (eCGITACAndECID *ECGITACAndECID) MarshalPER(w *per.Writer, enc per.Encoding
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 63, HasUB: true}, int64(eCGITACAndECID.TAC)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1099511627775, HasUB: true}, int64(eCGITACAndECID.UTRANCellIdentity)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -2463,16 +1996,12 @@ func (eCGITACAndECID *ECGITACAndECID) UnmarshalPER(r *per.Reader, enc per.Encodi
 	if err != nil {
 		return err
 	}
-
 	eCGITACAndECID.TAC = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1099511627775, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	eCGITACAndECID.UTRANCellIdentity = int64(n1)
-
 	return nil
 }
 
@@ -2480,28 +2009,23 @@ func (eCIDError *ECIDError) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	switch {
 	case eCIDError.LocationServerErrorCauses != nil:
 		w.WriteBit(false)
-
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
 			return err
 		}
-
 		if err := (*eCIDError.LocationServerErrorCauses).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	case eCIDError.TargetDeviceErrorCauses != nil:
 		w.WriteBit(false)
-
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
 			return err
 		}
-
 		if err := (*eCIDError.TargetDeviceErrorCauses).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -2510,49 +2034,40 @@ func (eCIDError *ECIDError) UnmarshalPER(r *per.Reader, enc per.Encoding) error 
 	if err != nil {
 		return err
 	}
-
 	if isExt {
 		if _, err := per.DecodeNormallySmall(r, enc); err != nil {
 			return err
 		}
-
 		return per.SkipOpenType(r, enc)
 	}
-
 	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 1)
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v ECIDLocationServerErrorCauses
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		eCIDError.LocationServerErrorCauses = &v
 	case 1:
 		var v ECIDTargetDeviceErrorCauses
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		eCIDError.TargetDeviceErrorCauses = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
 func (eCIDLocationServerErrorCauses *ECIDLocationServerErrorCauses) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true}, int64(eCIDLocationServerErrorCauses.Cause)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -2561,17 +2076,13 @@ func (eCIDLocationServerErrorCauses *ECIDLocationServerErrorCauses) UnmarshalPER
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true})
 	if err != nil {
 		return err
 	}
-
 	eCIDLocationServerErrorCauses.Cause = int64(n0)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -2579,26 +2090,21 @@ func (eCIDLocationServerErrorCauses *ECIDLocationServerErrorCauses) UnmarshalPER
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -2610,33 +2116,26 @@ func (eCIDProvideCapabilities *ECIDProvideCapabilities) MarshalPER(w *per.Writer
 	w.WriteBit(eCIDProvideCapabilities.CarrierFreqOffsetNBR14 != nil)
 	w.WriteBit(eCIDProvideCapabilities.NrsrpResultV1470 != nil)
 	w.WriteBit(eCIDProvideCapabilities.NrsrqResultV1470 != nil)
-
 	if eCIDProvideCapabilities.RequestedMeasurements != nil {
 		if err := per.EncodeBitString(w, enc, 1, 8, true, true, false, per.BoolsToBits((*eCIDProvideCapabilities.RequestedMeasurements)), len((*eCIDProvideCapabilities.RequestedMeasurements))); err != nil {
 			return err
 		}
 	}
-
 	if eCIDProvideCapabilities.NrsrpResultR14 != nil {
 		per.EncodeBoolean(w, enc, (*eCIDProvideCapabilities.NrsrpResultR14))
 	}
-
 	if eCIDProvideCapabilities.NrsrqResultR14 != nil {
 		per.EncodeBoolean(w, enc, (*eCIDProvideCapabilities.NrsrqResultR14))
 	}
-
 	if eCIDProvideCapabilities.CarrierFreqOffsetNBR14 != nil {
 		per.EncodeBoolean(w, enc, (*eCIDProvideCapabilities.CarrierFreqOffsetNBR14))
 	}
-
 	if eCIDProvideCapabilities.NrsrpResultV1470 != nil {
 		per.EncodeBoolean(w, enc, (*eCIDProvideCapabilities.NrsrpResultV1470))
 	}
-
 	if eCIDProvideCapabilities.NrsrqResultV1470 != nil {
 		per.EncodeBoolean(w, enc, (*eCIDProvideCapabilities.NrsrqResultV1470))
 	}
-
 	return nil
 }
 
@@ -2645,113 +2144,87 @@ func (eCIDProvideCapabilities *ECIDProvideCapabilities) UnmarshalPER(r *per.Read
 	if err != nil {
 		return err
 	}
-
 	p_RequestedMeasurements, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NrsrpResultR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NrsrqResultR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_CarrierFreqOffsetNBR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NrsrpResultV1470, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NrsrqResultV1470, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_RequestedMeasurements {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 1, 8, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		eCIDProvideCapabilities.RequestedMeasurements = &v
 	}
-
 	if p_NrsrpResultR14 {
 		var v bool
-
 		b1, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b1
 		eCIDProvideCapabilities.NrsrpResultR14 = &v
 	}
-
 	if p_NrsrqResultR14 {
 		var v bool
-
 		b2, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b2
 		eCIDProvideCapabilities.NrsrqResultR14 = &v
 	}
-
 	if p_CarrierFreqOffsetNBR14 {
 		var v bool
-
 		b3, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b3
 		eCIDProvideCapabilities.CarrierFreqOffsetNBR14 = &v
 	}
-
 	if p_NrsrpResultV1470 {
 		var v bool
-
 		b4, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b4
 		eCIDProvideCapabilities.NrsrpResultV1470 = &v
 	}
-
 	if p_NrsrqResultV1470 {
 		var v bool
-
 		b5, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b5
 		eCIDProvideCapabilities.NrsrqResultV1470 = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -2759,26 +2232,21 @@ func (eCIDProvideCapabilities *ECIDProvideCapabilities) UnmarshalPER(r *per.Read
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -2786,19 +2254,16 @@ func (eCIDProvideLocationInformation *ECIDProvideLocationInformation) MarshalPER
 	w.WriteBit(false)
 	w.WriteBit(eCIDProvideLocationInformation.EcidSignalMeasurementInformation != nil)
 	w.WriteBit(eCIDProvideLocationInformation.EcidError != nil)
-
 	if eCIDProvideLocationInformation.EcidSignalMeasurementInformation != nil {
 		if err := (*eCIDProvideLocationInformation.EcidSignalMeasurementInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if eCIDProvideLocationInformation.EcidError != nil {
 		if err := (*eCIDProvideLocationInformation.EcidError).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -2807,38 +2272,30 @@ func (eCIDProvideLocationInformation *ECIDProvideLocationInformation) UnmarshalP
 	if err != nil {
 		return err
 	}
-
 	p_EcidSignalMeasurementInformation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_EcidError, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_EcidSignalMeasurementInformation {
 		var v ECIDSignalMeasurementInformation
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		eCIDProvideLocationInformation.EcidSignalMeasurementInformation = &v
 	}
-
 	if p_EcidError {
 		var v ECIDError
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		eCIDProvideLocationInformation.EcidError = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -2846,26 +2303,21 @@ func (eCIDProvideLocationInformation *ECIDProvideLocationInformation) UnmarshalP
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -2877,33 +2329,26 @@ func (eCIDRequestCapabilities *ECIDRequestCapabilities) MarshalPER(w *per.Writer
 	w.WriteBit(eCIDRequestCapabilities.CarrierFreqOffsetNBR14 != nil)
 	w.WriteBit(eCIDRequestCapabilities.NrsrpResultV1470 != nil)
 	w.WriteBit(eCIDRequestCapabilities.NrsrqResultV1470 != nil)
-
 	if eCIDRequestCapabilities.RequestedMeasurements != nil {
 		if err := per.EncodeBitString(w, enc, 1, 8, true, true, false, per.BoolsToBits((*eCIDRequestCapabilities.RequestedMeasurements)), len((*eCIDRequestCapabilities.RequestedMeasurements))); err != nil {
 			return err
 		}
 	}
-
 	if eCIDRequestCapabilities.NrsrpResultR14 != nil {
 		per.EncodeBoolean(w, enc, (*eCIDRequestCapabilities.NrsrpResultR14))
 	}
-
 	if eCIDRequestCapabilities.NrsrqResultR14 != nil {
 		per.EncodeBoolean(w, enc, (*eCIDRequestCapabilities.NrsrqResultR14))
 	}
-
 	if eCIDRequestCapabilities.CarrierFreqOffsetNBR14 != nil {
 		per.EncodeBoolean(w, enc, (*eCIDRequestCapabilities.CarrierFreqOffsetNBR14))
 	}
-
 	if eCIDRequestCapabilities.NrsrpResultV1470 != nil {
 		per.EncodeBoolean(w, enc, (*eCIDRequestCapabilities.NrsrpResultV1470))
 	}
-
 	if eCIDRequestCapabilities.NrsrqResultV1470 != nil {
 		per.EncodeBoolean(w, enc, (*eCIDRequestCapabilities.NrsrqResultV1470))
 	}
-
 	return nil
 }
 
@@ -2912,113 +2357,87 @@ func (eCIDRequestCapabilities *ECIDRequestCapabilities) UnmarshalPER(r *per.Read
 	if err != nil {
 		return err
 	}
-
 	p_RequestedMeasurements, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NrsrpResultR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NrsrqResultR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_CarrierFreqOffsetNBR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NrsrpResultV1470, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NrsrqResultV1470, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_RequestedMeasurements {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 1, 8, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		eCIDRequestCapabilities.RequestedMeasurements = &v
 	}
-
 	if p_NrsrpResultR14 {
 		var v bool
-
 		b1, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b1
 		eCIDRequestCapabilities.NrsrpResultR14 = &v
 	}
-
 	if p_NrsrqResultR14 {
 		var v bool
-
 		b2, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b2
 		eCIDRequestCapabilities.NrsrqResultR14 = &v
 	}
-
 	if p_CarrierFreqOffsetNBR14 {
 		var v bool
-
 		b3, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b3
 		eCIDRequestCapabilities.CarrierFreqOffsetNBR14 = &v
 	}
-
 	if p_NrsrpResultV1470 {
 		var v bool
-
 		b4, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b4
 		eCIDRequestCapabilities.NrsrpResultV1470 = &v
 	}
-
 	if p_NrsrqResultV1470 {
 		var v bool
-
 		b5, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b5
 		eCIDRequestCapabilities.NrsrqResultV1470 = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -3026,36 +2445,29 @@ func (eCIDRequestCapabilities *ECIDRequestCapabilities) UnmarshalPER(r *per.Read
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (eCIDRequestLocationInformation *ECIDRequestLocationInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeBitString(w, enc, 1, 8, true, true, false, per.BoolsToBits(eCIDRequestLocationInformation.RequestedMeasurements), len(eCIDRequestLocationInformation.RequestedMeasurements)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -3064,18 +2476,14 @@ func (eCIDRequestLocationInformation *ECIDRequestLocationInformation) UnmarshalP
 	if err != nil {
 		return err
 	}
-
 	bs, nbits, err := per.DecodeBitString(r, enc, 1, 8, true, true, false)
 	if err != nil {
 		return err
 	}
-
 	_ = nbits
 	eCIDRequestLocationInformation.RequestedMeasurements = per.BitsToBools(bs, nbits)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -3083,26 +2491,21 @@ func (eCIDRequestLocationInformation *ECIDRequestLocationInformation) UnmarshalP
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -3116,15 +2519,12 @@ func (eCIDSignalMeasurementInformation *ECIDSignalMeasurementInformation) Marsha
 	w.WriteBit(eCIDSignalMeasurementInformation.HyperSFNR14 != nil)
 	w.WriteBit(eCIDSignalMeasurementInformation.RsrpResultV1470 != nil)
 	w.WriteBit(eCIDSignalMeasurementInformation.RsrqResultV1470 != nil)
-
 	if eCIDSignalMeasurementInformation.PrimaryCellMeasuredResults != nil {
 		if err := (*eCIDSignalMeasurementInformation.PrimaryCellMeasuredResults).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	off1 := 0
-
 	if err := per.EncodeLength(w, enc, 1, 32, true, int64(len(eCIDSignalMeasurementInformation.MeasuredResultsList)), func(count int64) error {
 		end := off1 + int(count)
 		for i := off1; i < end; i++ {
@@ -3132,56 +2532,46 @@ func (eCIDSignalMeasurementInformation *ECIDSignalMeasurementInformation) Marsha
 				return err
 			}
 		}
-
 		off1 = end
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	if eCIDSignalMeasurementInformation.ArfcnEUTRAV9a0 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{}, int64((*eCIDSignalMeasurementInformation.ArfcnEUTRAV9a0))); err != nil {
 			return err
 		}
 	}
-
 	if eCIDSignalMeasurementInformation.NrsrpResultR14 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 113, HasUB: true}, int64((*eCIDSignalMeasurementInformation.NrsrpResultR14))); err != nil {
 			return err
 		}
 	}
-
 	if eCIDSignalMeasurementInformation.NrsrqResultR14 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 74, HasUB: true}, int64((*eCIDSignalMeasurementInformation.NrsrqResultR14))); err != nil {
 			return err
 		}
 	}
-
 	if eCIDSignalMeasurementInformation.CarrierFreqOffsetNBR14 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{}, int64((*eCIDSignalMeasurementInformation.CarrierFreqOffsetNBR14))); err != nil {
 			return err
 		}
 	}
-
 	if eCIDSignalMeasurementInformation.HyperSFNR14 != nil {
 		if err := per.EncodeBitString(w, enc, 10, 10, true, true, false, per.BoolsToBits((*eCIDSignalMeasurementInformation.HyperSFNR14)), len((*eCIDSignalMeasurementInformation.HyperSFNR14))); err != nil {
 			return err
 		}
 	}
-
 	if eCIDSignalMeasurementInformation.RsrpResultV1470 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: -17, HasLB: true, UB: -1, HasUB: true}, int64((*eCIDSignalMeasurementInformation.RsrpResultV1470))); err != nil {
 			return err
 		}
 	}
-
 	if eCIDSignalMeasurementInformation.RsrqResultV1470 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: -30, HasLB: true, UB: 46, HasUB: true}, int64((*eCIDSignalMeasurementInformation.RsrqResultV1470))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -3190,161 +2580,124 @@ func (eCIDSignalMeasurementInformation *ECIDSignalMeasurementInformation) Unmars
 	if err != nil {
 		return err
 	}
-
 	p_PrimaryCellMeasuredResults, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_ArfcnEUTRAV9a0, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NrsrpResultR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NrsrqResultR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_CarrierFreqOffsetNBR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_HyperSFNR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_RsrpResultV1470, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_RsrqResultV1470, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_PrimaryCellMeasuredResults {
 		var v MeasuredResultsElement
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		eCIDSignalMeasurementInformation.PrimaryCellMeasuredResults = &v
 	}
-
 	eCIDSignalMeasurementInformation.MeasuredResultsList = nil
-
 	if err := per.DecodeLength(r, enc, 1, 32, true, func(count int64) error {
 		start := len(eCIDSignalMeasurementInformation.MeasuredResultsList)
-
 		eCIDSignalMeasurementInformation.MeasuredResultsList = append(eCIDSignalMeasurementInformation.MeasuredResultsList, make([]MeasuredResultsElement, count)...)
 		for i := int64(0); i < count; i++ {
 			if err := (&eCIDSignalMeasurementInformation.MeasuredResultsList[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	if p_ArfcnEUTRAV9a0 {
 		var v ARFCNValueEUTRAV9a0
-
 		n2, err := per.DecodeInteger(r, enc, per.Bounds{})
 		if err != nil {
 			return err
 		}
-
 		v = ARFCNValueEUTRAV9a0(n2)
 		eCIDSignalMeasurementInformation.ArfcnEUTRAV9a0 = &v
 	}
-
 	if p_NrsrpResultR14 {
 		var v int64
-
 		n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 113, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n3)
 		eCIDSignalMeasurementInformation.NrsrpResultR14 = &v
 	}
-
 	if p_NrsrqResultR14 {
 		var v int64
-
 		n4, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 74, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n4)
 		eCIDSignalMeasurementInformation.NrsrqResultR14 = &v
 	}
-
 	if p_CarrierFreqOffsetNBR14 {
 		var v CarrierFreqOffsetNBR14
-
 		n5, err := per.DecodeInteger(r, enc, per.Bounds{})
 		if err != nil {
 			return err
 		}
-
 		v = CarrierFreqOffsetNBR14(n5)
 		eCIDSignalMeasurementInformation.CarrierFreqOffsetNBR14 = &v
 	}
-
 	if p_HyperSFNR14 {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 10, 10, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		eCIDSignalMeasurementInformation.HyperSFNR14 = &v
 	}
-
 	if p_RsrpResultV1470 {
 		var v int64
-
 		n7, err := per.DecodeInteger(r, enc, per.Bounds{LB: -17, HasLB: true, UB: -1, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n7)
 		eCIDSignalMeasurementInformation.RsrpResultV1470 = &v
 	}
-
 	if p_RsrqResultV1470 {
 		var v int64
-
 		n8, err := per.DecodeInteger(r, enc, per.Bounds{LB: -30, HasLB: true, UB: 46, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n8)
 		eCIDSignalMeasurementInformation.RsrqResultV1470 = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -3352,26 +2705,21 @@ func (eCIDSignalMeasurementInformation *ECIDSignalMeasurementInformation) Unmars
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -3380,29 +2728,24 @@ func (eCIDTargetDeviceErrorCauses *ECIDTargetDeviceErrorCauses) MarshalPER(w *pe
 	w.WriteBit(eCIDTargetDeviceErrorCauses.RsrpMeasurementNotPossible != nil)
 	w.WriteBit(eCIDTargetDeviceErrorCauses.RsrqMeasurementNotPossible != nil)
 	w.WriteBit(eCIDTargetDeviceErrorCauses.UeRxTxTimeDiffNotPossible != nil)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 2, HasUB: true, Extensible: true}, int64(eCIDTargetDeviceErrorCauses.Cause)); err != nil {
 		return err
 	}
-
 	if eCIDTargetDeviceErrorCauses.RsrpMeasurementNotPossible != nil {
 		if err := (*eCIDTargetDeviceErrorCauses.RsrpMeasurementNotPossible).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if eCIDTargetDeviceErrorCauses.RsrqMeasurementNotPossible != nil {
 		if err := (*eCIDTargetDeviceErrorCauses.RsrqMeasurementNotPossible).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if eCIDTargetDeviceErrorCauses.UeRxTxTimeDiffNotPossible != nil {
 		if err := (*eCIDTargetDeviceErrorCauses.UeRxTxTimeDiffNotPossible).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -3411,59 +2754,46 @@ func (eCIDTargetDeviceErrorCauses *ECIDTargetDeviceErrorCauses) UnmarshalPER(r *
 	if err != nil {
 		return err
 	}
-
 	p_RsrpMeasurementNotPossible, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_RsrqMeasurementNotPossible, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_UeRxTxTimeDiffNotPossible, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 2, HasUB: true, Extensible: true})
 	if err != nil {
 		return err
 	}
-
 	eCIDTargetDeviceErrorCauses.Cause = int64(n0)
-
 	if p_RsrpMeasurementNotPossible {
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		eCIDTargetDeviceErrorCauses.RsrpMeasurementNotPossible = &v
 	}
-
 	if p_RsrqMeasurementNotPossible {
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		eCIDTargetDeviceErrorCauses.RsrqMeasurementNotPossible = &v
 	}
-
 	if p_UeRxTxTimeDiffNotPossible {
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		eCIDTargetDeviceErrorCauses.UeRxTxTimeDiffNotPossible = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -3471,26 +2801,21 @@ func (eCIDTargetDeviceErrorCauses *ECIDTargetDeviceErrorCauses) UnmarshalPER(r *
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -3498,11 +2823,9 @@ func (ePDU *EPDU) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	if err := ePDU.EPDUIdentifier.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if err := per.EncodeOctetString(w, enc, 0, 65535, true, true, false, ePDU.EPDUBody); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -3510,31 +2833,25 @@ func (ePDU *EPDU) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if err := (&ePDU.EPDUIdentifier).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	p, err := per.DecodeOctetString(r, enc, 0, 65535, true, true, false)
 	if err != nil {
 		return err
 	}
-
 	ePDU.EPDUBody = p
-
 	return nil
 }
 
 func (ePDUIdentifier *EPDUIdentifier) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(ePDUIdentifier.EPDUName != nil)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 1, HasLB: true, UB: 256, HasUB: true}, int64(ePDUIdentifier.EPDUID)); err != nil {
 		return err
 	}
-
 	if ePDUIdentifier.EPDUName != nil {
 		if err := per.EncodeKnownMultiplierString(w, enc, per.CharVisibleString, 1, 32, true, true, false, (*ePDUIdentifier.EPDUName)); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -3543,34 +2860,26 @@ func (ePDUIdentifier *EPDUIdentifier) UnmarshalPER(r *per.Reader, enc per.Encodi
 	if err != nil {
 		return err
 	}
-
 	p_EPDUName, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 1, HasLB: true, UB: 256, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ePDUIdentifier.EPDUID = int64(n0)
-
 	if p_EPDUName {
 		var v string
-
 		sp, err := per.DecodeKnownMultiplierString(r, enc, per.CharVisibleString, 1, 32, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		v = sp
 		ePDUIdentifier.EPDUName = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -3578,32 +2887,26 @@ func (ePDUIdentifier *EPDUIdentifier) UnmarshalPER(r *per.Reader, enc per.Encodi
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (ePDUSequence *EPDUSequence) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	off0 := 0
-
 	if err := per.EncodeLength(w, enc, 1, 16, true, int64(len(ePDUSequence.List)), func(count int64) error {
 		end := off0 + int(count)
 		for i := off0; i < end; i++ {
@@ -3611,35 +2914,28 @@ func (ePDUSequence *EPDUSequence) MarshalPER(w *per.Writer, enc per.Encoding) er
 				return err
 			}
 		}
-
 		off0 = end
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (ePDUSequence *EPDUSequence) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	ePDUSequence.List = nil
-
 	if err := per.DecodeLength(r, enc, 1, 16, true, func(count int64) error {
 		start := len(ePDUSequence.List)
-
 		ePDUSequence.List = append(ePDUSequence.List, make([]EPDU, count)...)
 		for i := int64(0); i < count; i++ {
 			if err := (&ePDUSequence.List[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -3647,35 +2943,27 @@ func (ellipsoidArc *EllipsoidArc) MarshalPER(w *per.Writer, enc per.Encoding) er
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true}, int64(ellipsoidArc.LatitudeSign)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 8388607, HasUB: true}, int64(ellipsoidArc.DegreesLatitude)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 16777215, HasUB: true}, int64(ellipsoidArc.DegreesLongitude)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 65535, HasUB: true}, int64(ellipsoidArc.InnerRadius)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true}, int64(ellipsoidArc.UncertaintyRadius)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 179, HasUB: true}, int64(ellipsoidArc.OffsetAngle)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 179, HasUB: true}, int64(ellipsoidArc.IncludedAngle)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 100, HasUB: true}, int64(ellipsoidArc.Confidence)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -3684,58 +2972,42 @@ func (ellipsoidArc *EllipsoidArc) UnmarshalPER(r *per.Reader, enc per.Encoding) 
 	if err != nil {
 		return err
 	}
-
 	ellipsoidArc.LatitudeSign = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 8388607, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidArc.DegreesLatitude = int64(n1)
-
 	n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 16777215, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidArc.DegreesLongitude = int64(n2)
-
 	n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 65535, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidArc.InnerRadius = int64(n3)
-
 	n4, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidArc.UncertaintyRadius = int64(n4)
-
 	n5, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 179, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidArc.OffsetAngle = int64(n5)
-
 	n6, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 179, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidArc.IncludedAngle = int64(n6)
-
 	n7, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 100, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidArc.Confidence = int64(n7)
-
 	return nil
 }
 
@@ -3743,15 +3015,12 @@ func (ellipsoidPoint *EllipsoidPoint) MarshalPER(w *per.Writer, enc per.Encoding
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true}, int64(ellipsoidPoint.LatitudeSign)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 8388607, HasUB: true}, int64(ellipsoidPoint.DegreesLatitude)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 16777215, HasUB: true}, int64(ellipsoidPoint.DegreesLongitude)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -3760,23 +3029,17 @@ func (ellipsoidPoint *EllipsoidPoint) UnmarshalPER(r *per.Reader, enc per.Encodi
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPoint.LatitudeSign = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 8388607, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPoint.DegreesLatitude = int64(n1)
-
 	n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 16777215, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPoint.DegreesLongitude = int64(n2)
-
 	return nil
 }
 
@@ -3784,23 +3047,18 @@ func (ellipsoidPointWithAltitude *EllipsoidPointWithAltitude) MarshalPER(w *per.
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true}, int64(ellipsoidPointWithAltitude.LatitudeSign)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 8388607, HasUB: true}, int64(ellipsoidPointWithAltitude.DegreesLatitude)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 16777215, HasUB: true}, int64(ellipsoidPointWithAltitude.DegreesLongitude)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true}, int64(ellipsoidPointWithAltitude.AltitudeDirection)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 32767, HasUB: true}, int64(ellipsoidPointWithAltitude.Altitude)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -3809,37 +3067,27 @@ func (ellipsoidPointWithAltitude *EllipsoidPointWithAltitude) UnmarshalPER(r *pe
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithAltitude.LatitudeSign = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 8388607, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithAltitude.DegreesLatitude = int64(n1)
-
 	n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 16777215, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithAltitude.DegreesLongitude = int64(n2)
-
 	n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithAltitude.AltitudeDirection = int64(n3)
-
 	n4, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 32767, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithAltitude.Altitude = int64(n4)
-
 	return nil
 }
 
@@ -3847,43 +3095,33 @@ func (ellipsoidPointWithAltitudeAndUncertaintyEllipsoid *EllipsoidPointWithAltit
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true}, int64(ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.LatitudeSign)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 8388607, HasUB: true}, int64(ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.DegreesLatitude)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 16777215, HasUB: true}, int64(ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.DegreesLongitude)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true}, int64(ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.AltitudeDirection)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 32767, HasUB: true}, int64(ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.Altitude)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true}, int64(ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.UncertaintySemiMajor)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true}, int64(ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.UncertaintySemiMinor)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 179, HasUB: true}, int64(ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.OrientationMajorAxis)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true}, int64(ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.UncertaintyAltitude)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 100, HasUB: true}, int64(ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.Confidence)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -3892,72 +3130,52 @@ func (ellipsoidPointWithAltitudeAndUncertaintyEllipsoid *EllipsoidPointWithAltit
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.LatitudeSign = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 8388607, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.DegreesLatitude = int64(n1)
-
 	n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 16777215, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.DegreesLongitude = int64(n2)
-
 	n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.AltitudeDirection = int64(n3)
-
 	n4, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 32767, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.Altitude = int64(n4)
-
 	n5, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.UncertaintySemiMajor = int64(n5)
-
 	n6, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.UncertaintySemiMinor = int64(n6)
-
 	n7, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 179, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.OrientationMajorAxis = int64(n7)
-
 	n8, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.UncertaintyAltitude = int64(n8)
-
 	n9, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 100, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithAltitudeAndUncertaintyEllipsoid.Confidence = int64(n9)
-
 	return nil
 }
 
@@ -3965,19 +3183,15 @@ func (ellipsoidPointWithUncertaintyCircle *EllipsoidPointWithUncertaintyCircle) 
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true}, int64(ellipsoidPointWithUncertaintyCircle.LatitudeSign)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 8388607, HasUB: true}, int64(ellipsoidPointWithUncertaintyCircle.DegreesLatitude)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 16777215, HasUB: true}, int64(ellipsoidPointWithUncertaintyCircle.DegreesLongitude)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true}, int64(ellipsoidPointWithUncertaintyCircle.Uncertainty)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -3986,30 +3200,22 @@ func (ellipsoidPointWithUncertaintyCircle *EllipsoidPointWithUncertaintyCircle) 
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithUncertaintyCircle.LatitudeSign = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 8388607, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithUncertaintyCircle.DegreesLatitude = int64(n1)
-
 	n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 16777215, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithUncertaintyCircle.DegreesLongitude = int64(n2)
-
 	n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithUncertaintyCircle.Uncertainty = int64(n3)
-
 	return nil
 }
 
@@ -4017,31 +3223,24 @@ func (ellipsoidPointWithUncertaintyEllipse *EllipsoidPointWithUncertaintyEllipse
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true}, int64(ellipsoidPointWithUncertaintyEllipse.LatitudeSign)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 8388607, HasUB: true}, int64(ellipsoidPointWithUncertaintyEllipse.DegreesLatitude)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 16777215, HasUB: true}, int64(ellipsoidPointWithUncertaintyEllipse.DegreesLongitude)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true}, int64(ellipsoidPointWithUncertaintyEllipse.UncertaintySemiMajor)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true}, int64(ellipsoidPointWithUncertaintyEllipse.UncertaintySemiMinor)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 179, HasUB: true}, int64(ellipsoidPointWithUncertaintyEllipse.OrientationMajorAxis)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 100, HasUB: true}, int64(ellipsoidPointWithUncertaintyEllipse.Confidence)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -4050,51 +3249,37 @@ func (ellipsoidPointWithUncertaintyEllipse *EllipsoidPointWithUncertaintyEllipse
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithUncertaintyEllipse.LatitudeSign = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 8388607, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithUncertaintyEllipse.DegreesLatitude = int64(n1)
-
 	n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 16777215, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithUncertaintyEllipse.DegreesLongitude = int64(n2)
-
 	n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithUncertaintyEllipse.UncertaintySemiMajor = int64(n3)
-
 	n4, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithUncertaintyEllipse.UncertaintySemiMinor = int64(n4)
-
 	n5, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 179, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithUncertaintyEllipse.OrientationMajorAxis = int64(n5)
-
 	n6, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 100, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	ellipsoidPointWithUncertaintyEllipse.Confidence = int64(n6)
-
 	return nil
 }
 
@@ -4102,7 +3287,6 @@ func (environment *Environment) MarshalPER(w *per.Writer, enc per.Encoding) erro
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true}, int64(environment.Value)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -4111,9 +3295,7 @@ func (environment *Environment) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 	if err != nil {
 		return err
 	}
-
 	environment.Value = int64(n0)
-
 	return nil
 }
 
@@ -4123,7 +3305,6 @@ func (error *Error) MarshalPER(w *per.Writer, enc per.Encoding) error {
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
 			return err
 		}
-
 		if err := (*error.ErrorR9).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -4131,14 +3312,12 @@ func (error *Error) MarshalPER(w *per.Writer, enc per.Encoding) error {
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
 			return err
 		}
-
 		if err := (*error.CriticalExtensionsFuture).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -4147,38 +3326,32 @@ func (error *Error) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v ErrorR9IEs
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		error.ErrorR9 = &v
 	case 1:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		error.CriticalExtensionsFuture = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
 func (errorR9IEs *ErrorR9IEs) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(errorR9IEs.CommonIEsError != nil)
-
 	if errorR9IEs.CommonIEsError != nil {
 		if err := (*errorR9IEs.CommonIEsError).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -4187,30 +3360,24 @@ func (errorR9IEs *ErrorR9IEs) UnmarshalPER(r *per.Reader, enc per.Encoding) erro
 	if err != nil {
 		return err
 	}
-
 	if p_CommonIEsError {
 		var v CommonIEsError
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		errorR9IEs.CommonIEsError = &v
 	}
-
 	return nil
 }
 
 func (fTAMeasSupport *FTAMeasSupport) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := fTAMeasSupport.CellTime.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if err := fTAMeasSupport.Mode.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -4219,18 +3386,14 @@ func (fTAMeasSupport *FTAMeasSupport) UnmarshalPER(r *per.Reader, enc per.Encodi
 	if err != nil {
 		return err
 	}
-
 	if err := (&fTAMeasSupport.CellTime).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if err := (&fTAMeasSupport.Mode).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -4238,26 +3401,21 @@ func (fTAMeasSupport *FTAMeasSupport) UnmarshalPER(r *per.Reader, enc per.Encodi
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -4267,31 +3425,26 @@ func (gNSSCommonAssistData *GNSSCommonAssistData) MarshalPER(w *per.Writer, enc 
 	w.WriteBit(gNSSCommonAssistData.GNSSReferenceLocation != nil)
 	w.WriteBit(gNSSCommonAssistData.GNSSIonosphericModel != nil)
 	w.WriteBit(gNSSCommonAssistData.GNSSEarthOrientationParameters != nil)
-
 	if gNSSCommonAssistData.GNSSReferenceTime != nil {
 		if err := (*gNSSCommonAssistData.GNSSReferenceTime).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if gNSSCommonAssistData.GNSSReferenceLocation != nil {
 		if err := (*gNSSCommonAssistData.GNSSReferenceLocation).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if gNSSCommonAssistData.GNSSIonosphericModel != nil {
 		if err := (*gNSSCommonAssistData.GNSSIonosphericModel).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if gNSSCommonAssistData.GNSSEarthOrientationParameters != nil {
 		if err := (*gNSSCommonAssistData.GNSSEarthOrientationParameters).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -4300,66 +3453,52 @@ func (gNSSCommonAssistData *GNSSCommonAssistData) UnmarshalPER(r *per.Reader, en
 	if err != nil {
 		return err
 	}
-
 	p_GNSSReferenceTime, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSReferenceLocation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSIonosphericModel, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSEarthOrientationParameters, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_GNSSReferenceTime {
 		var v GNSSReferenceTime
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSCommonAssistData.GNSSReferenceTime = &v
 	}
-
 	if p_GNSSReferenceLocation {
 		var v GNSSReferenceLocation
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSCommonAssistData.GNSSReferenceLocation = &v
 	}
-
 	if p_GNSSIonosphericModel {
 		var v GNSSIonosphericModel
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSCommonAssistData.GNSSIonosphericModel = &v
 	}
-
 	if p_GNSSEarthOrientationParameters {
 		var v GNSSEarthOrientationParameters
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSCommonAssistData.GNSSEarthOrientationParameters = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -4367,26 +3506,21 @@ func (gNSSCommonAssistData *GNSSCommonAssistData) UnmarshalPER(r *per.Reader, en
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -4396,25 +3530,20 @@ func (gNSSCommonAssistDataReq *GNSSCommonAssistDataReq) MarshalPER(w *per.Writer
 	w.WriteBit(gNSSCommonAssistDataReq.GNSSReferenceLocationReq != nil)
 	w.WriteBit(gNSSCommonAssistDataReq.GNSSIonosphericModelReq != nil)
 	w.WriteBit(gNSSCommonAssistDataReq.GNSSEarthOrientationParametersReq != nil)
-
 	if gNSSCommonAssistDataReq.GNSSReferenceTimeReq != nil {
 		if err := (*gNSSCommonAssistDataReq.GNSSReferenceTimeReq).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if gNSSCommonAssistDataReq.GNSSReferenceLocationReq != nil {
 		per.EncodeBoolean(w, enc, (*gNSSCommonAssistDataReq.GNSSReferenceLocationReq))
 	}
-
 	if gNSSCommonAssistDataReq.GNSSIonosphericModelReq != nil {
 		per.EncodeBoolean(w, enc, (*gNSSCommonAssistDataReq.GNSSIonosphericModelReq))
 	}
-
 	if gNSSCommonAssistDataReq.GNSSEarthOrientationParametersReq != nil {
 		per.EncodeBoolean(w, enc, (*gNSSCommonAssistDataReq.GNSSEarthOrientationParametersReq))
 	}
-
 	return nil
 }
 
@@ -4423,75 +3552,58 @@ func (gNSSCommonAssistDataReq *GNSSCommonAssistDataReq) UnmarshalPER(r *per.Read
 	if err != nil {
 		return err
 	}
-
 	p_GNSSReferenceTimeReq, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSReferenceLocationReq, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSIonosphericModelReq, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSEarthOrientationParametersReq, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_GNSSReferenceTimeReq {
 		var v GNSSReferenceTimeReq
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSCommonAssistDataReq.GNSSReferenceTimeReq = &v
 	}
-
 	if p_GNSSReferenceLocationReq {
 		var v bool
-
 		b1, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b1
 		gNSSCommonAssistDataReq.GNSSReferenceLocationReq = &v
 	}
-
 	if p_GNSSIonosphericModelReq {
 		var v bool
-
 		b2, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b2
 		gNSSCommonAssistDataReq.GNSSIonosphericModelReq = &v
 	}
-
 	if p_GNSSEarthOrientationParametersReq {
 		var v bool
-
 		b3, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b3
 		gNSSCommonAssistDataReq.GNSSEarthOrientationParametersReq = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -4499,39 +3611,32 @@ func (gNSSCommonAssistDataReq *GNSSCommonAssistDataReq) UnmarshalPER(r *per.Read
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (gNSSEarthOrientationParameters *GNSSEarthOrientationParameters) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(gNSSEarthOrientationParameters.UT1UTC != nil)
-
 	if gNSSEarthOrientationParameters.UT1UTC != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: -127, HasLB: true, UB: 127, HasUB: true}, int64((*gNSSEarthOrientationParameters.UT1UTC))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -4540,27 +3645,21 @@ func (gNSSEarthOrientationParameters *GNSSEarthOrientationParameters) UnmarshalP
 	if err != nil {
 		return err
 	}
-
 	p_UT1UTC, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_UT1UTC {
 		var v int64
-
 		n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: -127, HasLB: true, UB: 127, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n0)
 		gNSSEarthOrientationParameters.UT1UTC = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -4568,26 +3667,21 @@ func (gNSSEarthOrientationParameters *GNSSEarthOrientationParameters) UnmarshalP
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -4595,28 +3689,23 @@ func (gNSSError *GNSSError) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	switch {
 	case gNSSError.LocationServerErrorCauses != nil:
 		w.WriteBit(false)
-
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
 			return err
 		}
-
 		if err := (*gNSSError.LocationServerErrorCauses).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	case gNSSError.TargetDeviceErrorCauses != nil:
 		w.WriteBit(false)
-
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
 			return err
 		}
-
 		if err := (*gNSSError.TargetDeviceErrorCauses).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -4625,45 +3714,37 @@ func (gNSSError *GNSSError) UnmarshalPER(r *per.Reader, enc per.Encoding) error 
 	if err != nil {
 		return err
 	}
-
 	if isExt {
 		if _, err := per.DecodeNormallySmall(r, enc); err != nil {
 			return err
 		}
-
 		return per.SkipOpenType(r, enc)
 	}
-
 	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 1)
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v GNSSLocationServerErrorCauses
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSError.LocationServerErrorCauses = &v
 	case 1:
 		var v GNSSTargetDeviceErrorCauses
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSError.TargetDeviceErrorCauses = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
 func (gNSSGenericAssistData *GNSSGenericAssistData) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	off0 := 0
-
 	if err := per.EncodeLength(w, enc, 1, 16, true, int64(len(gNSSGenericAssistData.List)), func(count int64) error {
 		end := off0 + int(count)
 		for i := off0; i < end; i++ {
@@ -4671,35 +3752,28 @@ func (gNSSGenericAssistData *GNSSGenericAssistData) MarshalPER(w *per.Writer, en
 				return err
 			}
 		}
-
 		off0 = end
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (gNSSGenericAssistData *GNSSGenericAssistData) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	gNSSGenericAssistData.List = nil
-
 	if err := per.DecodeLength(r, enc, 1, 16, true, func(count int64) error {
 		start := len(gNSSGenericAssistData.List)
-
 		gNSSGenericAssistData.List = append(gNSSGenericAssistData.List, make([]GNSSGenericAssistDataElement, count)...)
 		for i := int64(0); i < count; i++ {
 			if err := (&gNSSGenericAssistData.List[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -4715,71 +3789,59 @@ func (gNSSGenericAssistDataElement *GNSSGenericAssistDataElement) MarshalPER(w *
 	w.WriteBit(gNSSGenericAssistDataElement.GNSSAlmanac != nil)
 	w.WriteBit(gNSSGenericAssistDataElement.GNSSUTCModel != nil)
 	w.WriteBit(gNSSGenericAssistDataElement.GNSSAuxiliaryInformation != nil)
-
 	if err := gNSSGenericAssistDataElement.GNSSID.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if gNSSGenericAssistDataElement.SBASID != nil {
 		if err := (*gNSSGenericAssistDataElement.SBASID).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if gNSSGenericAssistDataElement.GNSSTimeModels != nil {
 		if err := (*gNSSGenericAssistDataElement.GNSSTimeModels).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if gNSSGenericAssistDataElement.GNSSDifferentialCorrections != nil {
 		if err := (*gNSSGenericAssistDataElement.GNSSDifferentialCorrections).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if gNSSGenericAssistDataElement.GNSSNavigationModel != nil {
 		if err := (*gNSSGenericAssistDataElement.GNSSNavigationModel).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if gNSSGenericAssistDataElement.GNSSRealTimeIntegrity != nil {
 		if err := (*gNSSGenericAssistDataElement.GNSSRealTimeIntegrity).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if gNSSGenericAssistDataElement.GNSSDataBitAssistance != nil {
 		if err := (*gNSSGenericAssistDataElement.GNSSDataBitAssistance).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if gNSSGenericAssistDataElement.GNSSAcquisitionAssistance != nil {
 		if err := (*gNSSGenericAssistDataElement.GNSSAcquisitionAssistance).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if gNSSGenericAssistDataElement.GNSSAlmanac != nil {
 		if err := (*gNSSGenericAssistDataElement.GNSSAlmanac).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if gNSSGenericAssistDataElement.GNSSUTCModel != nil {
 		if err := (*gNSSGenericAssistDataElement.GNSSUTCModel).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if gNSSGenericAssistDataElement.GNSSAuxiliaryInformation != nil {
 		if err := (*gNSSGenericAssistDataElement.GNSSAuxiliaryInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -4788,154 +3850,121 @@ func (gNSSGenericAssistDataElement *GNSSGenericAssistDataElement) UnmarshalPER(r
 	if err != nil {
 		return err
 	}
-
 	p_SBASID, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSTimeModels, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSDifferentialCorrections, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSNavigationModel, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSRealTimeIntegrity, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSDataBitAssistance, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSAcquisitionAssistance, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSAlmanac, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSUTCModel, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSAuxiliaryInformation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if err := (&gNSSGenericAssistDataElement.GNSSID).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if p_SBASID {
 		var v SBASID
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSGenericAssistDataElement.SBASID = &v
 	}
-
 	if p_GNSSTimeModels {
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSGenericAssistDataElement.GNSSTimeModels = &v
 	}
-
 	if p_GNSSDifferentialCorrections {
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSGenericAssistDataElement.GNSSDifferentialCorrections = &v
 	}
-
 	if p_GNSSNavigationModel {
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSGenericAssistDataElement.GNSSNavigationModel = &v
 	}
-
 	if p_GNSSRealTimeIntegrity {
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSGenericAssistDataElement.GNSSRealTimeIntegrity = &v
 	}
-
 	if p_GNSSDataBitAssistance {
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSGenericAssistDataElement.GNSSDataBitAssistance = &v
 	}
-
 	if p_GNSSAcquisitionAssistance {
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSGenericAssistDataElement.GNSSAcquisitionAssistance = &v
 	}
-
 	if p_GNSSAlmanac {
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSGenericAssistDataElement.GNSSAlmanac = &v
 	}
-
 	if p_GNSSUTCModel {
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSGenericAssistDataElement.GNSSUTCModel = &v
 	}
-
 	if p_GNSSAuxiliaryInformation {
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSGenericAssistDataElement.GNSSAuxiliaryInformation = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -4943,32 +3972,26 @@ func (gNSSGenericAssistDataElement *GNSSGenericAssistDataElement) UnmarshalPER(r
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (gNSSGenericAssistDataReq *GNSSGenericAssistDataReq) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	off0 := 0
-
 	if err := per.EncodeLength(w, enc, 1, 16, true, int64(len(gNSSGenericAssistDataReq.List)), func(count int64) error {
 		end := off0 + int(count)
 		for i := off0; i < end; i++ {
@@ -4976,35 +3999,28 @@ func (gNSSGenericAssistDataReq *GNSSGenericAssistDataReq) MarshalPER(w *per.Writ
 				return err
 			}
 		}
-
 		off0 = end
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (gNSSGenericAssistDataReq *GNSSGenericAssistDataReq) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	gNSSGenericAssistDataReq.List = nil
-
 	if err := per.DecodeLength(r, enc, 1, 16, true, func(count int64) error {
 		start := len(gNSSGenericAssistDataReq.List)
-
 		gNSSGenericAssistDataReq.List = append(gNSSGenericAssistDataReq.List, make([]GNSSGenericAssistDataReqElement, count)...)
 		for i := int64(0); i < count; i++ {
 			if err := (&gNSSGenericAssistDataReq.List[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -5020,59 +4036,47 @@ func (gNSSGenericAssistDataReqElement *GNSSGenericAssistDataReqElement) MarshalP
 	w.WriteBit(gNSSGenericAssistDataReqElement.GNSSAlmanacReq != nil)
 	w.WriteBit(gNSSGenericAssistDataReqElement.GNSSUTCModelReq != nil)
 	w.WriteBit(gNSSGenericAssistDataReqElement.GNSSAuxiliaryInformationReq != nil)
-
 	if err := gNSSGenericAssistDataReqElement.GNSSID.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if gNSSGenericAssistDataReqElement.SBASID != nil {
 		if err := (*gNSSGenericAssistDataReqElement.SBASID).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if gNSSGenericAssistDataReqElement.GNSSTimeModelsReq != nil {
 		if err := (*gNSSGenericAssistDataReqElement.GNSSTimeModelsReq).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if gNSSGenericAssistDataReqElement.GNSSDifferentialCorrectionsReq != nil {
 		if err := (*gNSSGenericAssistDataReqElement.GNSSDifferentialCorrectionsReq).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if gNSSGenericAssistDataReqElement.GNSSNavigationModelReq != nil {
 		if err := (*gNSSGenericAssistDataReqElement.GNSSNavigationModelReq).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if gNSSGenericAssistDataReqElement.GNSSRealTimeIntegrityReq != nil {
 		per.EncodeBoolean(w, enc, (*gNSSGenericAssistDataReqElement.GNSSRealTimeIntegrityReq))
 	}
-
 	if gNSSGenericAssistDataReqElement.GNSSDataBitAssistanceReq != nil {
 		per.EncodeBoolean(w, enc, (*gNSSGenericAssistDataReqElement.GNSSDataBitAssistanceReq))
 	}
-
 	if gNSSGenericAssistDataReqElement.GNSSAcquisitionAssistanceReq != nil {
 		per.EncodeBoolean(w, enc, (*gNSSGenericAssistDataReqElement.GNSSAcquisitionAssistanceReq))
 	}
-
 	if gNSSGenericAssistDataReqElement.GNSSAlmanacReq != nil {
 		per.EncodeBoolean(w, enc, (*gNSSGenericAssistDataReqElement.GNSSAlmanacReq))
 	}
-
 	if gNSSGenericAssistDataReqElement.GNSSUTCModelReq != nil {
 		per.EncodeBoolean(w, enc, (*gNSSGenericAssistDataReqElement.GNSSUTCModelReq))
 	}
-
 	if gNSSGenericAssistDataReqElement.GNSSAuxiliaryInformationReq != nil {
 		per.EncodeBoolean(w, enc, (*gNSSGenericAssistDataReqElement.GNSSAuxiliaryInformationReq))
 	}
-
 	return nil
 }
 
@@ -5081,172 +4085,133 @@ func (gNSSGenericAssistDataReqElement *GNSSGenericAssistDataReqElement) Unmarsha
 	if err != nil {
 		return err
 	}
-
 	p_SBASID, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSTimeModelsReq, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSDifferentialCorrectionsReq, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSNavigationModelReq, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSRealTimeIntegrityReq, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSDataBitAssistanceReq, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSAcquisitionAssistanceReq, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSAlmanacReq, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSUTCModelReq, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GNSSAuxiliaryInformationReq, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if err := (&gNSSGenericAssistDataReqElement.GNSSID).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if p_SBASID {
 		var v SBASID
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSGenericAssistDataReqElement.SBASID = &v
 	}
-
 	if p_GNSSTimeModelsReq {
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSGenericAssistDataReqElement.GNSSTimeModelsReq = &v
 	}
-
 	if p_GNSSDifferentialCorrectionsReq {
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSGenericAssistDataReqElement.GNSSDifferentialCorrectionsReq = &v
 	}
-
 	if p_GNSSNavigationModelReq {
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSGenericAssistDataReqElement.GNSSNavigationModelReq = &v
 	}
-
 	if p_GNSSRealTimeIntegrityReq {
 		var v bool
-
 		b5, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b5
 		gNSSGenericAssistDataReqElement.GNSSRealTimeIntegrityReq = &v
 	}
-
 	if p_GNSSDataBitAssistanceReq {
 		var v bool
-
 		b6, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b6
 		gNSSGenericAssistDataReqElement.GNSSDataBitAssistanceReq = &v
 	}
-
 	if p_GNSSAcquisitionAssistanceReq {
 		var v bool
-
 		b7, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b7
 		gNSSGenericAssistDataReqElement.GNSSAcquisitionAssistanceReq = &v
 	}
-
 	if p_GNSSAlmanacReq {
 		var v bool
-
 		b8, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b8
 		gNSSGenericAssistDataReqElement.GNSSAlmanacReq = &v
 	}
-
 	if p_GNSSUTCModelReq {
 		var v bool
-
 		b9, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b9
 		gNSSGenericAssistDataReqElement.GNSSUTCModelReq = &v
 	}
-
 	if p_GNSSAuxiliaryInformationReq {
 		var v bool
-
 		b10, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b10
 		gNSSGenericAssistDataReqElement.GNSSAuxiliaryInformationReq = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -5254,36 +4219,29 @@ func (gNSSGenericAssistDataReqElement *GNSSGenericAssistDataReqElement) Unmarsha
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (gNSSID *GNSSID) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 6, HasUB: true, Extensible: true}, int64(gNSSID.Value)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -5292,17 +4250,13 @@ func (gNSSID *GNSSID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 6, HasUB: true, Extensible: true})
 	if err != nil {
 		return err
 	}
-
 	gNSSID.Value = int64(n0)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -5310,36 +4264,29 @@ func (gNSSID *GNSSID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (gNSSIDBitmap *GNSSIDBitmap) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeBitString(w, enc, 1, 16, true, true, false, per.BoolsToBits(gNSSIDBitmap.GnssIDs), len(gNSSIDBitmap.GnssIDs)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -5348,18 +4295,14 @@ func (gNSSIDBitmap *GNSSIDBitmap) UnmarshalPER(r *per.Reader, enc per.Encoding) 
 	if err != nil {
 		return err
 	}
-
 	bs, nbits, err := per.DecodeBitString(r, enc, 1, 16, true, true, false)
 	if err != nil {
 		return err
 	}
-
 	_ = nbits
 	gNSSIDBitmap.GnssIDs = per.BitsToBools(bs, nbits)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -5367,39 +4310,32 @@ func (gNSSIDBitmap *GNSSIDBitmap) UnmarshalPER(r *per.Reader, enc per.Encoding) 
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (gNSSIonosphericModel *GNSSIonosphericModel) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(gNSSIonosphericModel.Klobuchar != nil)
-
 	if gNSSIonosphericModel.Klobuchar != nil {
 		if err := (*gNSSIonosphericModel.Klobuchar).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -5408,24 +4344,19 @@ func (gNSSIonosphericModel *GNSSIonosphericModel) UnmarshalPER(r *per.Reader, en
 	if err != nil {
 		return err
 	}
-
 	p_Klobuchar, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_Klobuchar {
 		var v GNSSIonosphericModelKlobuchar
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSIonosphericModel.Klobuchar = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -5433,26 +4364,21 @@ func (gNSSIonosphericModel *GNSSIonosphericModel) UnmarshalPER(r *per.Reader, en
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -5474,103 +4400,86 @@ func (gNSSIonosphericModelKlobuchar *GNSSIonosphericModelKlobuchar) MarshalPER(w
 	w.WriteBit(gNSSIonosphericModelKlobuchar.Beta2 != nil)
 	w.WriteBit(gNSSIonosphericModelKlobuchar.Beta3 != nil)
 	w.WriteBit(gNSSIonosphericModelKlobuchar.Beta4 != nil)
-
 	if gNSSIonosphericModelKlobuchar.A0 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: -7, HasLB: true, UB: 7, HasUB: true}, int64((*gNSSIonosphericModelKlobuchar.A0))); err != nil {
 			return err
 		}
 	}
-
 	if gNSSIonosphericModelKlobuchar.A1 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: -7, HasLB: true, UB: 7, HasUB: true}, int64((*gNSSIonosphericModelKlobuchar.A1))); err != nil {
 			return err
 		}
 	}
-
 	if gNSSIonosphericModelKlobuchar.A2 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: -15, HasLB: true, UB: 15, HasUB: true}, int64((*gNSSIonosphericModelKlobuchar.A2))); err != nil {
 			return err
 		}
 	}
-
 	if gNSSIonosphericModelKlobuchar.A3 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: -15, HasLB: true, UB: 15, HasUB: true}, int64((*gNSSIonosphericModelKlobuchar.A3))); err != nil {
 			return err
 		}
 	}
-
 	if gNSSIonosphericModelKlobuchar.B0 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 14, HasLB: true, UB: 31, HasUB: true}, int64((*gNSSIonosphericModelKlobuchar.B0))); err != nil {
 			return err
 		}
 	}
-
 	if gNSSIonosphericModelKlobuchar.B1 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 14, HasLB: true, UB: 31, HasUB: true}, int64((*gNSSIonosphericModelKlobuchar.B1))); err != nil {
 			return err
 		}
 	}
-
 	if gNSSIonosphericModelKlobuchar.B2 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 14, HasLB: true, UB: 31, HasUB: true}, int64((*gNSSIonosphericModelKlobuchar.B2))); err != nil {
 			return err
 		}
 	}
-
 	if gNSSIonosphericModelKlobuchar.B3 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 14, HasLB: true, UB: 31, HasUB: true}, int64((*gNSSIonosphericModelKlobuchar.B3))); err != nil {
 			return err
 		}
 	}
-
 	if gNSSIonosphericModelKlobuchar.Alpha1 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: -7, HasLB: true, UB: 7, HasUB: true}, int64((*gNSSIonosphericModelKlobuchar.Alpha1))); err != nil {
 			return err
 		}
 	}
-
 	if gNSSIonosphericModelKlobuchar.Alpha2 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: -7, HasLB: true, UB: 7, HasUB: true}, int64((*gNSSIonosphericModelKlobuchar.Alpha2))); err != nil {
 			return err
 		}
 	}
-
 	if gNSSIonosphericModelKlobuchar.Alpha3 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: -7, HasLB: true, UB: 7, HasUB: true}, int64((*gNSSIonosphericModelKlobuchar.Alpha3))); err != nil {
 			return err
 		}
 	}
-
 	if gNSSIonosphericModelKlobuchar.Alpha4 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: -7, HasLB: true, UB: 7, HasUB: true}, int64((*gNSSIonosphericModelKlobuchar.Alpha4))); err != nil {
 			return err
 		}
 	}
-
 	if gNSSIonosphericModelKlobuchar.Beta1 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 14, HasLB: true, UB: 31, HasUB: true}, int64((*gNSSIonosphericModelKlobuchar.Beta1))); err != nil {
 			return err
 		}
 	}
-
 	if gNSSIonosphericModelKlobuchar.Beta2 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 14, HasLB: true, UB: 31, HasUB: true}, int64((*gNSSIonosphericModelKlobuchar.Beta2))); err != nil {
 			return err
 		}
 	}
-
 	if gNSSIonosphericModelKlobuchar.Beta3 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 14, HasLB: true, UB: 31, HasUB: true}, int64((*gNSSIonosphericModelKlobuchar.Beta3))); err != nil {
 			return err
 		}
 	}
-
 	if gNSSIonosphericModelKlobuchar.Beta4 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 14, HasLB: true, UB: 31, HasUB: true}, int64((*gNSSIonosphericModelKlobuchar.Beta4))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -5579,282 +4488,216 @@ func (gNSSIonosphericModelKlobuchar *GNSSIonosphericModelKlobuchar) UnmarshalPER
 	if err != nil {
 		return err
 	}
-
 	p_A0, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_A1, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_A2, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_A3, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_B0, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_B1, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_B2, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_B3, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_Alpha1, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_Alpha2, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_Alpha3, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_Alpha4, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_Beta1, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_Beta2, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_Beta3, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_Beta4, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_A0 {
 		var v int64
-
 		n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: -7, HasLB: true, UB: 7, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n0)
 		gNSSIonosphericModelKlobuchar.A0 = &v
 	}
-
 	if p_A1 {
 		var v int64
-
 		n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: -7, HasLB: true, UB: 7, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n1)
 		gNSSIonosphericModelKlobuchar.A1 = &v
 	}
-
 	if p_A2 {
 		var v int64
-
 		n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: -15, HasLB: true, UB: 15, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n2)
 		gNSSIonosphericModelKlobuchar.A2 = &v
 	}
-
 	if p_A3 {
 		var v int64
-
 		n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: -15, HasLB: true, UB: 15, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n3)
 		gNSSIonosphericModelKlobuchar.A3 = &v
 	}
-
 	if p_B0 {
 		var v int64
-
 		n4, err := per.DecodeInteger(r, enc, per.Bounds{LB: 14, HasLB: true, UB: 31, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n4)
 		gNSSIonosphericModelKlobuchar.B0 = &v
 	}
-
 	if p_B1 {
 		var v int64
-
 		n5, err := per.DecodeInteger(r, enc, per.Bounds{LB: 14, HasLB: true, UB: 31, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n5)
 		gNSSIonosphericModelKlobuchar.B1 = &v
 	}
-
 	if p_B2 {
 		var v int64
-
 		n6, err := per.DecodeInteger(r, enc, per.Bounds{LB: 14, HasLB: true, UB: 31, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n6)
 		gNSSIonosphericModelKlobuchar.B2 = &v
 	}
-
 	if p_B3 {
 		var v int64
-
 		n7, err := per.DecodeInteger(r, enc, per.Bounds{LB: 14, HasLB: true, UB: 31, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n7)
 		gNSSIonosphericModelKlobuchar.B3 = &v
 	}
-
 	if p_Alpha1 {
 		var v int64
-
 		n8, err := per.DecodeInteger(r, enc, per.Bounds{LB: -7, HasLB: true, UB: 7, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n8)
 		gNSSIonosphericModelKlobuchar.Alpha1 = &v
 	}
-
 	if p_Alpha2 {
 		var v int64
-
 		n9, err := per.DecodeInteger(r, enc, per.Bounds{LB: -7, HasLB: true, UB: 7, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n9)
 		gNSSIonosphericModelKlobuchar.Alpha2 = &v
 	}
-
 	if p_Alpha3 {
 		var v int64
-
 		n10, err := per.DecodeInteger(r, enc, per.Bounds{LB: -7, HasLB: true, UB: 7, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n10)
 		gNSSIonosphericModelKlobuchar.Alpha3 = &v
 	}
-
 	if p_Alpha4 {
 		var v int64
-
 		n11, err := per.DecodeInteger(r, enc, per.Bounds{LB: -7, HasLB: true, UB: 7, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n11)
 		gNSSIonosphericModelKlobuchar.Alpha4 = &v
 	}
-
 	if p_Beta1 {
 		var v int64
-
 		n12, err := per.DecodeInteger(r, enc, per.Bounds{LB: 14, HasLB: true, UB: 31, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n12)
 		gNSSIonosphericModelKlobuchar.Beta1 = &v
 	}
-
 	if p_Beta2 {
 		var v int64
-
 		n13, err := per.DecodeInteger(r, enc, per.Bounds{LB: 14, HasLB: true, UB: 31, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n13)
 		gNSSIonosphericModelKlobuchar.Beta2 = &v
 	}
-
 	if p_Beta3 {
 		var v int64
-
 		n14, err := per.DecodeInteger(r, enc, per.Bounds{LB: 14, HasLB: true, UB: 31, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n14)
 		gNSSIonosphericModelKlobuchar.Beta3 = &v
 	}
-
 	if p_Beta4 {
 		var v int64
-
 		n15, err := per.DecodeInteger(r, enc, per.Bounds{LB: 14, HasLB: true, UB: 31, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n15)
 		gNSSIonosphericModelKlobuchar.Beta4 = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -5862,40 +4705,32 @@ func (gNSSIonosphericModelKlobuchar *GNSSIonosphericModelKlobuchar) UnmarshalPER
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (gNSSLocationInformation *GNSSLocationInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := gNSSLocationInformation.MeasurementReferenceTime.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if err := gNSSLocationInformation.AgnssList.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -5904,18 +4739,14 @@ func (gNSSLocationInformation *GNSSLocationInformation) UnmarshalPER(r *per.Read
 	if err != nil {
 		return err
 	}
-
 	if err := (&gNSSLocationInformation.MeasurementReferenceTime).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if err := (&gNSSLocationInformation.AgnssList).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -5923,36 +4754,29 @@ func (gNSSLocationInformation *GNSSLocationInformation) UnmarshalPER(r *per.Read
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (gNSSLocationServerErrorCauses *GNSSLocationServerErrorCauses) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 2, HasUB: true, Extensible: true}, int64(gNSSLocationServerErrorCauses.Cause)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -5961,17 +4785,13 @@ func (gNSSLocationServerErrorCauses *GNSSLocationServerErrorCauses) UnmarshalPER
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 2, HasUB: true, Extensible: true})
 	if err != nil {
 		return err
 	}
-
 	gNSSLocationServerErrorCauses.Cause = int64(n0)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -5979,55 +4799,44 @@ func (gNSSLocationServerErrorCauses *GNSSLocationServerErrorCauses) UnmarshalPER
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (gNSSMeasurementElement *GNSSMeasurementElement) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(gNSSMeasurementElement.GNSSADR != nil)
-
 	if err := gNSSMeasurementElement.GNSSSignal.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 65535, HasUB: true}, int64(gNSSMeasurementElement.GNSSCodePhase)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: -32767, HasLB: true, UB: 32767, HasUB: true}, int64(gNSSMeasurementElement.GNSSDoppler)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true}, int64(gNSSMeasurementElement.GNSSCNo)); err != nil {
 		return err
 	}
-
 	if gNSSMeasurementElement.GNSSADR != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: -32767, HasLB: true, UB: 32767, HasUB: true}, int64((*gNSSMeasurementElement.GNSSADR))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -6036,52 +4845,39 @@ func (gNSSMeasurementElement *GNSSMeasurementElement) UnmarshalPER(r *per.Reader
 	if err != nil {
 		return err
 	}
-
 	p_GNSSADR, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if err := (&gNSSMeasurementElement.GNSSSignal).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 65535, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	gNSSMeasurementElement.GNSSCodePhase = int64(n1)
-
 	n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: -32767, HasLB: true, UB: 32767, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	gNSSMeasurementElement.GNSSDoppler = int64(n2)
-
 	n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	gNSSMeasurementElement.GNSSCNo = int64(n3)
-
 	if p_GNSSADR {
 		var v int64
-
 		n4, err := per.DecodeInteger(r, enc, per.Bounds{LB: -32767, HasLB: true, UB: 32767, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n4)
 		gNSSMeasurementElement.GNSSADR = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -6089,41 +4885,33 @@ func (gNSSMeasurementElement *GNSSMeasurementElement) UnmarshalPER(r *per.Reader
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (gNSSPositioningInstructions *GNSSPositioningInstructions) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := gNSSPositioningInstructions.GnssMethods.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	per.EncodeBoolean(w, enc, gNSSPositioningInstructions.FineTimeAssistanceMeasReq)
 	per.EncodeBoolean(w, enc, gNSSPositioningInstructions.AdrMeasReq)
 	per.EncodeBoolean(w, enc, gNSSPositioningInstructions.MultiFreqMeasReq)
 	per.EncodeBoolean(w, enc, gNSSPositioningInstructions.AssistanceAvailability)
-
 	return nil
 }
 
@@ -6132,42 +4920,31 @@ func (gNSSPositioningInstructions *GNSSPositioningInstructions) UnmarshalPER(r *
 	if err != nil {
 		return err
 	}
-
 	if err := (&gNSSPositioningInstructions.GnssMethods).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	b1, err := per.DecodeBoolean(r, enc)
 	if err != nil {
 		return err
 	}
-
 	gNSSPositioningInstructions.FineTimeAssistanceMeasReq = b1
-
 	b2, err := per.DecodeBoolean(r, enc)
 	if err != nil {
 		return err
 	}
-
 	gNSSPositioningInstructions.AdrMeasReq = b2
-
 	b3, err := per.DecodeBoolean(r, enc)
 	if err != nil {
 		return err
 	}
-
 	gNSSPositioningInstructions.MultiFreqMeasReq = b3
-
 	b4, err := per.DecodeBoolean(r, enc)
 	if err != nil {
 		return err
 	}
-
 	gNSSPositioningInstructions.AssistanceAvailability = b4
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -6175,36 +4952,29 @@ func (gNSSPositioningInstructions *GNSSPositioningInstructions) UnmarshalPER(r *
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (gNSSReferenceLocation *GNSSReferenceLocation) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := gNSSReferenceLocation.ThreeDLocation.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -6213,14 +4983,11 @@ func (gNSSReferenceLocation *GNSSReferenceLocation) UnmarshalPER(r *per.Reader, 
 	if err != nil {
 		return err
 	}
-
 	if err := (&gNSSReferenceLocation.ThreeDLocation).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -6228,26 +4995,21 @@ func (gNSSReferenceLocation *GNSSReferenceLocation) UnmarshalPER(r *per.Reader, 
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -6255,20 +5017,16 @@ func (gNSSReferenceTime *GNSSReferenceTime) MarshalPER(w *per.Writer, enc per.En
 	w.WriteBit(false)
 	w.WriteBit(gNSSReferenceTime.ReferenceTimeUnc != nil)
 	w.WriteBit(gNSSReferenceTime.GnssReferenceTimeForCells != nil)
-
 	if err := gNSSReferenceTime.GnssSystemTime.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if gNSSReferenceTime.ReferenceTimeUnc != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true}, int64((*gNSSReferenceTime.ReferenceTimeUnc))); err != nil {
 			return err
 		}
 	}
-
 	if gNSSReferenceTime.GnssReferenceTimeForCells != nil {
 		off2 := 0
-
 		if err := per.EncodeLength(w, enc, 0, 0, false, int64(len((*gNSSReferenceTime.GnssReferenceTimeForCells))), func(count int64) error {
 			end := off2 + int(count)
 			for i := off2; i < end; i++ {
@@ -6276,15 +5034,12 @@ func (gNSSReferenceTime *GNSSReferenceTime) MarshalPER(w *per.Writer, enc per.En
 					return err
 				}
 			}
-
 			off2 = end
-
 			return nil
 		}); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -6293,59 +5048,45 @@ func (gNSSReferenceTime *GNSSReferenceTime) UnmarshalPER(r *per.Reader, enc per.
 	if err != nil {
 		return err
 	}
-
 	p_ReferenceTimeUnc, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GnssReferenceTimeForCells, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if err := (&gNSSReferenceTime.GnssSystemTime).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if p_ReferenceTimeUnc {
 		var v int64
-
 		n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n1)
 		gNSSReferenceTime.ReferenceTimeUnc = &v
 	}
-
 	if p_GnssReferenceTimeForCells {
 		var v []GNSSReferenceTimeForOneCell
-
 		v = nil
-
 		if err := per.DecodeLength(r, enc, 0, 0, false, func(count int64) error {
 			start := len(v)
-
 			v = append(v, make([]GNSSReferenceTimeForOneCell, count)...)
 			for i := int64(0); i < count; i++ {
 				if err := (&v[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 					return err
 				}
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		gNSSReferenceTime.GnssReferenceTimeForCells = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -6353,47 +5094,38 @@ func (gNSSReferenceTime *GNSSReferenceTime) UnmarshalPER(r *per.Reader, enc per.
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (gNSSReferenceTimeForOneCell *GNSSReferenceTimeForOneCell) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(gNSSReferenceTimeForOneCell.BsAlign != nil)
-
 	if err := gNSSReferenceTimeForOneCell.NetworkTime.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true}, int64(gNSSReferenceTimeForOneCell.ReferenceTimeUnc)); err != nil {
 		return err
 	}
-
 	if gNSSReferenceTimeForOneCell.BsAlign != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true}, int64((*gNSSReferenceTimeForOneCell.BsAlign))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -6402,38 +5134,29 @@ func (gNSSReferenceTimeForOneCell *GNSSReferenceTimeForOneCell) UnmarshalPER(r *
 	if err != nil {
 		return err
 	}
-
 	p_BsAlign, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if err := (&gNSSReferenceTimeForOneCell.NetworkTime).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	gNSSReferenceTimeForOneCell.ReferenceTimeUnc = int64(n1)
-
 	if p_BsAlign {
 		var v int64
-
 		n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n2)
 		gNSSReferenceTimeForOneCell.BsAlign = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -6441,35 +5164,28 @@ func (gNSSReferenceTimeForOneCell *GNSSReferenceTimeForOneCell) UnmarshalPER(r *
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (gNSSReferenceTimeReq *GNSSReferenceTimeReq) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(gNSSReferenceTimeReq.GPSTOWAssistReq != nil)
-
 	off0 := 0
-
 	if err := per.EncodeLength(w, enc, 1, 8, true, int64(len(gNSSReferenceTimeReq.GNSSTimeReqPrefList)), func(count int64) error {
 		end := off0 + int(count)
 		for i := off0; i < end; i++ {
@@ -6477,18 +5193,14 @@ func (gNSSReferenceTimeReq *GNSSReferenceTimeReq) MarshalPER(w *per.Writer, enc 
 				return err
 			}
 		}
-
 		off0 = end
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	if gNSSReferenceTimeReq.GPSTOWAssistReq != nil {
 		per.EncodeBoolean(w, enc, (*gNSSReferenceTimeReq.GPSTOWAssistReq))
 	}
-
 	return nil
 }
 
@@ -6497,44 +5209,34 @@ func (gNSSReferenceTimeReq *GNSSReferenceTimeReq) UnmarshalPER(r *per.Reader, en
 	if err != nil {
 		return err
 	}
-
 	p_GPSTOWAssistReq, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	gNSSReferenceTimeReq.GNSSTimeReqPrefList = nil
-
 	if err := per.DecodeLength(r, enc, 1, 8, true, func(count int64) error {
 		start := len(gNSSReferenceTimeReq.GNSSTimeReqPrefList)
-
 		gNSSReferenceTimeReq.GNSSTimeReqPrefList = append(gNSSReferenceTimeReq.GNSSTimeReqPrefList, make([]GNSSID, count)...)
 		for i := int64(0); i < count; i++ {
 			if err := (&gNSSReferenceTimeReq.GNSSTimeReqPrefList[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	if p_GPSTOWAssistReq {
 		var v bool
-
 		b1, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b1
 		gNSSReferenceTimeReq.GPSTOWAssistReq = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -6542,40 +5244,32 @@ func (gNSSReferenceTimeReq *GNSSReferenceTimeReq) UnmarshalPER(r *per.Reader, en
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (gNSSSignalID *GNSSSignalID) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := gNSSSignalID.GNSSID.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if err := per.EncodeBitString(w, enc, 8, 8, true, true, false, per.BoolsToBits(gNSSSignalID.GNSSSignal), len(gNSSSignalID.GNSSSignal)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -6584,22 +5278,17 @@ func (gNSSSignalID *GNSSSignalID) UnmarshalPER(r *per.Reader, enc per.Encoding) 
 	if err != nil {
 		return err
 	}
-
 	if err := (&gNSSSignalID.GNSSID).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	bs, nbits, err := per.DecodeBitString(r, enc, 8, 8, true, true, false)
 	if err != nil {
 		return err
 	}
-
 	_ = nbits
 	gNSSSignalID.GNSSSignal = per.BitsToBools(bs, nbits)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -6607,36 +5296,29 @@ func (gNSSSignalID *GNSSSignalID) UnmarshalPER(r *per.Reader, enc per.Encoding) 
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (gNSSSignalIDs *GNSSSignalIDs) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeBitString(w, enc, 8, 8, true, true, false, per.BoolsToBits(gNSSSignalIDs.GnssSignalIDs), len(gNSSSignalIDs.GnssSignalIDs)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -6645,18 +5327,14 @@ func (gNSSSignalIDs *GNSSSignalIDs) UnmarshalPER(r *per.Reader, enc per.Encoding
 	if err != nil {
 		return err
 	}
-
 	bs, nbits, err := per.DecodeBitString(r, enc, 8, 8, true, true, false)
 	if err != nil {
 		return err
 	}
-
 	_ = nbits
 	gNSSSignalIDs.GnssSignalIDs = per.BitsToBools(bs, nbits)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -6664,38 +5342,30 @@ func (gNSSSignalIDs *GNSSSignalIDs) UnmarshalPER(r *per.Reader, enc per.Encoding
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (gNSSSignalMeasurementInformation *GNSSSignalMeasurementInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := gNSSSignalMeasurementInformation.MeasurementReferenceTime.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	off1 := 0
-
 	if err := per.EncodeLength(w, enc, 1, 16, true, int64(len(gNSSSignalMeasurementInformation.GNSSMeasurementList)), func(count int64) error {
 		end := off1 + int(count)
 		for i := off1; i < end; i++ {
@@ -6703,14 +5373,11 @@ func (gNSSSignalMeasurementInformation *GNSSSignalMeasurementInformation) Marsha
 				return err
 			}
 		}
-
 		off1 = end
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -6719,31 +5386,24 @@ func (gNSSSignalMeasurementInformation *GNSSSignalMeasurementInformation) Unmars
 	if err != nil {
 		return err
 	}
-
 	if err := (&gNSSSignalMeasurementInformation.MeasurementReferenceTime).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	gNSSSignalMeasurementInformation.GNSSMeasurementList = nil
-
 	if err := per.DecodeLength(r, enc, 1, 16, true, func(count int64) error {
 		start := len(gNSSSignalMeasurementInformation.GNSSMeasurementList)
-
 		gNSSSignalMeasurementInformation.GNSSMeasurementList = append(gNSSSignalMeasurementInformation.GNSSMeasurementList, make([]GNSSMeasurementElement, count)...)
 		for i := int64(0); i < count; i++ {
 			if err := (&gNSSSignalMeasurementInformation.GNSSMeasurementList[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -6751,26 +5411,21 @@ func (gNSSSignalMeasurementInformation *GNSSSignalMeasurementInformation) Unmars
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -6778,34 +5433,27 @@ func (gNSSSupportElement *GNSSSupportElement) MarshalPER(w *per.Writer, enc per.
 	w.WriteBit(false)
 	w.WriteBit(gNSSSupportElement.SbasIDs != nil)
 	w.WriteBit(gNSSSupportElement.FtaMeasSupport != nil)
-
 	if err := gNSSSupportElement.GnssID.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if gNSSSupportElement.SbasIDs != nil {
 		if err := (*gNSSSupportElement.SbasIDs).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if err := gNSSSupportElement.AGNSSModes.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if err := gNSSSupportElement.GnssSignals.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if gNSSSupportElement.FtaMeasSupport != nil {
 		if err := (*gNSSSupportElement.FtaMeasSupport).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	per.EncodeBoolean(w, enc, gNSSSupportElement.AdrSupport)
 	per.EncodeBoolean(w, enc, gNSSSupportElement.VelocityMeasurementSupport)
-
 	return nil
 }
 
@@ -6814,64 +5462,49 @@ func (gNSSSupportElement *GNSSSupportElement) UnmarshalPER(r *per.Reader, enc pe
 	if err != nil {
 		return err
 	}
-
 	p_SbasIDs, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_FtaMeasSupport, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if err := (&gNSSSupportElement.GnssID).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if p_SbasIDs {
 		var v SBASIDs
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSSupportElement.SbasIDs = &v
 	}
-
 	if err := (&gNSSSupportElement.AGNSSModes).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if err := (&gNSSSupportElement.GnssSignals).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if p_FtaMeasSupport {
 		var v FTAMeasSupport
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSSupportElement.FtaMeasSupport = &v
 	}
-
 	b5, err := per.DecodeBoolean(r, enc)
 	if err != nil {
 		return err
 	}
-
 	gNSSSupportElement.AdrSupport = b5
-
 	b6, err := per.DecodeBoolean(r, enc)
 	if err != nil {
 		return err
 	}
-
 	gNSSSupportElement.VelocityMeasurementSupport = b6
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -6879,32 +5512,26 @@ func (gNSSSupportElement *GNSSSupportElement) UnmarshalPER(r *per.Reader, enc pe
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (gNSSSupportList *GNSSSupportList) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	off0 := 0
-
 	if err := per.EncodeLength(w, enc, 1, 16, true, int64(len(gNSSSupportList.List)), func(count int64) error {
 		end := off0 + int(count)
 		for i := off0; i < end; i++ {
@@ -6912,35 +5539,28 @@ func (gNSSSupportList *GNSSSupportList) MarshalPER(w *per.Writer, enc per.Encodi
 				return err
 			}
 		}
-
 		off0 = end
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (gNSSSupportList *GNSSSupportList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	gNSSSupportList.List = nil
-
 	if err := per.DecodeLength(r, enc, 1, 16, true, func(count int64) error {
 		start := len(gNSSSupportList.List)
-
 		gNSSSupportList.List = append(gNSSSupportList.List, make([]GNSSSupportElement, count)...)
 		for i := int64(0); i < count; i++ {
 			if err := (&gNSSSupportList.List[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -6949,37 +5569,30 @@ func (gNSSSystemTime *GNSSSystemTime) MarshalPER(w *per.Writer, enc per.Encoding
 	w.WriteBit(gNSSSystemTime.GNSSTimeOfDayFracMsec != nil)
 	w.WriteBit(gNSSSystemTime.NotificationOfLeapSecond != nil)
 	w.WriteBit(gNSSSystemTime.GPSTOWAssist != nil)
-
 	if err := gNSSSystemTime.GNSSTimeID.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 32767, HasUB: true}, int64(gNSSSystemTime.GNSSDayNumber)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 86399, HasUB: true}, int64(gNSSSystemTime.GNSSTimeOfDay)); err != nil {
 		return err
 	}
-
 	if gNSSSystemTime.GNSSTimeOfDayFracMsec != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 999, HasUB: true}, int64((*gNSSSystemTime.GNSSTimeOfDayFracMsec))); err != nil {
 			return err
 		}
 	}
-
 	if gNSSSystemTime.NotificationOfLeapSecond != nil {
 		if err := per.EncodeBitString(w, enc, 2, 2, true, true, false, per.BoolsToBits((*gNSSSystemTime.NotificationOfLeapSecond)), len((*gNSSSystemTime.NotificationOfLeapSecond))); err != nil {
 			return err
 		}
 	}
-
 	if gNSSSystemTime.GPSTOWAssist != nil {
 		if err := (*gNSSSystemTime.GPSTOWAssist).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -6988,77 +5601,59 @@ func (gNSSSystemTime *GNSSSystemTime) UnmarshalPER(r *per.Reader, enc per.Encodi
 	if err != nil {
 		return err
 	}
-
 	p_GNSSTimeOfDayFracMsec, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NotificationOfLeapSecond, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GPSTOWAssist, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if err := (&gNSSSystemTime.GNSSTimeID).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 32767, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	gNSSSystemTime.GNSSDayNumber = int64(n1)
-
 	n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 86399, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	gNSSSystemTime.GNSSTimeOfDay = int64(n2)
-
 	if p_GNSSTimeOfDayFracMsec {
 		var v int64
-
 		n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 999, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n3)
 		gNSSSystemTime.GNSSTimeOfDayFracMsec = &v
 	}
-
 	if p_NotificationOfLeapSecond {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 2, 2, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		gNSSSystemTime.NotificationOfLeapSecond = &v
 	}
-
 	if p_GPSTOWAssist {
 		var v GPSTOWAssist
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		gNSSSystemTime.GPSTOWAssist = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -7066,36 +5661,29 @@ func (gNSSSystemTime *GNSSSystemTime) UnmarshalPER(r *per.Reader, enc per.Encodi
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (gNSSTargetDeviceErrorCauses *GNSSTargetDeviceErrorCauses) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 2, HasUB: true, Extensible: true}, int64(gNSSTargetDeviceErrorCauses.Cause)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -7104,17 +5692,13 @@ func (gNSSTargetDeviceErrorCauses *GNSSTargetDeviceErrorCauses) UnmarshalPER(r *
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 2, HasUB: true, Extensible: true})
 	if err != nil {
 		return err
 	}
-
 	gNSSTargetDeviceErrorCauses.Cause = int64(n0)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -7122,43 +5706,35 @@ func (gNSSTargetDeviceErrorCauses *GNSSTargetDeviceErrorCauses) UnmarshalPER(r *
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (gPSTOWAssist *GPSTOWAssist) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(gPSTOWAssist.GPSTOWFrac != nil)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 604799, HasUB: true}, int64(gPSTOWAssist.GPSTOWMsec)); err != nil {
 		return err
 	}
-
 	if gPSTOWAssist.GPSTOWFrac != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 999, HasUB: true}, int64((*gPSTOWAssist.GPSTOWFrac))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -7167,34 +5743,26 @@ func (gPSTOWAssist *GPSTOWAssist) UnmarshalPER(r *per.Reader, enc per.Encoding) 
 	if err != nil {
 		return err
 	}
-
 	p_GPSTOWFrac, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 604799, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	gPSTOWAssist.GPSTOWMsec = int64(n0)
-
 	if p_GPSTOWFrac {
 		var v int64
-
 		n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 999, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n1)
 		gPSTOWAssist.GPSTOWFrac = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -7202,40 +5770,32 @@ func (gPSTOWAssist *GPSTOWAssist) UnmarshalPER(r *per.Reader, enc per.Encoding) 
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (horizontalAccuracy *HorizontalAccuracy) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true}, int64(horizontalAccuracy.Accuracy)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 100, HasUB: true}, int64(horizontalAccuracy.Confidence)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -7244,24 +5804,18 @@ func (horizontalAccuracy *HorizontalAccuracy) UnmarshalPER(r *per.Reader, enc pe
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	horizontalAccuracy.Accuracy = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 100, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	horizontalAccuracy.Confidence = int64(n1)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -7269,26 +5823,21 @@ func (horizontalAccuracy *HorizontalAccuracy) UnmarshalPER(r *per.Reader, enc pe
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -7296,11 +5845,9 @@ func (horizontalVelocity *HorizontalVelocity) MarshalPER(w *per.Writer, enc per.
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 359, HasUB: true}, int64(horizontalVelocity.Bearing)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 2047, HasUB: true}, int64(horizontalVelocity.HorizontalSpeed)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -7309,16 +5856,12 @@ func (horizontalVelocity *HorizontalVelocity) UnmarshalPER(r *per.Reader, enc pe
 	if err != nil {
 		return err
 	}
-
 	horizontalVelocity.Bearing = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 2047, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	horizontalVelocity.HorizontalSpeed = int64(n1)
-
 	return nil
 }
 
@@ -7326,15 +5869,12 @@ func (horizontalVelocityWithUncertainty *HorizontalVelocityWithUncertainty) Mars
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 359, HasUB: true}, int64(horizontalVelocityWithUncertainty.Bearing)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 2047, HasUB: true}, int64(horizontalVelocityWithUncertainty.HorizontalSpeed)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true}, int64(horizontalVelocityWithUncertainty.UncertaintySpeed)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -7343,23 +5883,17 @@ func (horizontalVelocityWithUncertainty *HorizontalVelocityWithUncertainty) Unma
 	if err != nil {
 		return err
 	}
-
 	horizontalVelocityWithUncertainty.Bearing = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 2047, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	horizontalVelocityWithUncertainty.HorizontalSpeed = int64(n1)
-
 	n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	horizontalVelocityWithUncertainty.UncertaintySpeed = int64(n2)
-
 	return nil
 }
 
@@ -7367,19 +5901,15 @@ func (horizontalWithVerticalVelocity *HorizontalWithVerticalVelocity) MarshalPER
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 359, HasUB: true}, int64(horizontalWithVerticalVelocity.Bearing)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 2047, HasUB: true}, int64(horizontalWithVerticalVelocity.HorizontalSpeed)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true}, int64(horizontalWithVerticalVelocity.VerticalDirection)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true}, int64(horizontalWithVerticalVelocity.VerticalSpeed)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -7388,30 +5918,22 @@ func (horizontalWithVerticalVelocity *HorizontalWithVerticalVelocity) UnmarshalP
 	if err != nil {
 		return err
 	}
-
 	horizontalWithVerticalVelocity.Bearing = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 2047, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	horizontalWithVerticalVelocity.HorizontalSpeed = int64(n1)
-
 	n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	horizontalWithVerticalVelocity.VerticalDirection = int64(n2)
-
 	n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	horizontalWithVerticalVelocity.VerticalSpeed = int64(n3)
-
 	return nil
 }
 
@@ -7419,27 +5941,21 @@ func (horizontalWithVerticalVelocityAndUncertainty *HorizontalWithVerticalVeloci
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 359, HasUB: true}, int64(horizontalWithVerticalVelocityAndUncertainty.Bearing)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 2047, HasUB: true}, int64(horizontalWithVerticalVelocityAndUncertainty.HorizontalSpeed)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true}, int64(horizontalWithVerticalVelocityAndUncertainty.VerticalDirection)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true}, int64(horizontalWithVerticalVelocityAndUncertainty.VerticalSpeed)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true}, int64(horizontalWithVerticalVelocityAndUncertainty.HorizontalUncertaintySpeed)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true}, int64(horizontalWithVerticalVelocityAndUncertainty.VerticalUncertaintySpeed)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -7448,44 +5964,32 @@ func (horizontalWithVerticalVelocityAndUncertainty *HorizontalWithVerticalVeloci
 	if err != nil {
 		return err
 	}
-
 	horizontalWithVerticalVelocityAndUncertainty.Bearing = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 2047, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	horizontalWithVerticalVelocityAndUncertainty.HorizontalSpeed = int64(n1)
-
 	n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	horizontalWithVerticalVelocityAndUncertainty.VerticalDirection = int64(n2)
-
 	n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	horizontalWithVerticalVelocityAndUncertainty.VerticalSpeed = int64(n3)
-
 	n4, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	horizontalWithVerticalVelocityAndUncertainty.HorizontalUncertaintySpeed = int64(n4)
-
 	n5, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	horizontalWithVerticalVelocityAndUncertainty.VerticalUncertaintySpeed = int64(n5)
-
 	return nil
 }
 
@@ -7493,7 +5997,6 @@ func (initiator *Initiator) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true}, int64(initiator.Value)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -7502,9 +6005,7 @@ func (initiator *Initiator) UnmarshalPER(r *per.Reader, enc per.Encoding) error 
 	if err != nil {
 		return err
 	}
-
 	initiator.Value = int64(n0)
-
 	return nil
 }
 
@@ -7513,33 +6014,27 @@ func (lPPMessage *LPPMessage) MarshalPER(w *per.Writer, enc per.Encoding) error 
 	w.WriteBit(lPPMessage.SequenceNumber != nil)
 	w.WriteBit(lPPMessage.Acknowledgement != nil)
 	w.WriteBit(lPPMessage.LppMessageBody != nil)
-
 	if lPPMessage.TransactionID != nil {
 		if err := (*lPPMessage.TransactionID).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	per.EncodeBoolean(w, enc, lPPMessage.EndTransaction)
-
 	if lPPMessage.SequenceNumber != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true}, int64((*lPPMessage.SequenceNumber))); err != nil {
 			return err
 		}
 	}
-
 	if lPPMessage.Acknowledgement != nil {
 		if err := (*lPPMessage.Acknowledgement).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if lPPMessage.LppMessageBody != nil {
 		if err := (*lPPMessage.LppMessageBody).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -7548,68 +6043,53 @@ func (lPPMessage *LPPMessage) UnmarshalPER(r *per.Reader, enc per.Encoding) erro
 	if err != nil {
 		return err
 	}
-
 	p_SequenceNumber, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_Acknowledgement, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_LppMessageBody, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_TransactionID {
 		var v LPPTransactionID
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessage.TransactionID = &v
 	}
-
 	b1, err := per.DecodeBoolean(r, enc)
 	if err != nil {
 		return err
 	}
-
 	lPPMessage.EndTransaction = b1
-
 	if p_SequenceNumber {
 		var v int64
-
 		n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n2)
 		lPPMessage.SequenceNumber = &v
 	}
-
 	if p_Acknowledgement {
 		var v Acknowledgement
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessage.Acknowledgement = &v
 	}
-
 	if p_LppMessageBody {
 		var v LPPMessageBody
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessage.LppMessageBody = &v
 	}
-
 	return nil
 }
 
@@ -7619,7 +6099,6 @@ func (lPPMessageBody *LPPMessageBody) MarshalPER(w *per.Writer, enc per.Encoding
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
 			return err
 		}
-
 		if err := (*lPPMessageBody.C1).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -7627,14 +6106,12 @@ func (lPPMessageBody *LPPMessageBody) MarshalPER(w *per.Writer, enc per.Encoding
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
 			return err
 		}
-
 		if err := (*lPPMessageBody.MessageClassExtension).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -7643,26 +6120,22 @@ func (lPPMessageBody *LPPMessageBody) UnmarshalPER(r *per.Reader, enc per.Encodi
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v LPPMessageBodyC1
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessageBody.C1 = &v
 	case 1:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessageBody.MessageClassExtension = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
@@ -7672,7 +6145,6 @@ func (lPPMessageBodyC1 *LPPMessageBodyC1) MarshalPER(w *per.Writer, enc per.Enco
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 15, 0); err != nil {
 			return err
 		}
-
 		if err := (*lPPMessageBodyC1.RequestCapabilities).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -7680,7 +6152,6 @@ func (lPPMessageBodyC1 *LPPMessageBodyC1) MarshalPER(w *per.Writer, enc per.Enco
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 15, 1); err != nil {
 			return err
 		}
-
 		if err := (*lPPMessageBodyC1.ProvideCapabilities).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -7688,7 +6159,6 @@ func (lPPMessageBodyC1 *LPPMessageBodyC1) MarshalPER(w *per.Writer, enc per.Enco
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 15, 2); err != nil {
 			return err
 		}
-
 		if err := (*lPPMessageBodyC1.RequestAssistanceData).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -7696,7 +6166,6 @@ func (lPPMessageBodyC1 *LPPMessageBodyC1) MarshalPER(w *per.Writer, enc per.Enco
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 15, 3); err != nil {
 			return err
 		}
-
 		if err := (*lPPMessageBodyC1.ProvideAssistanceData).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -7704,7 +6173,6 @@ func (lPPMessageBodyC1 *LPPMessageBodyC1) MarshalPER(w *per.Writer, enc per.Enco
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 15, 4); err != nil {
 			return err
 		}
-
 		if err := (*lPPMessageBodyC1.RequestLocationInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -7712,7 +6180,6 @@ func (lPPMessageBodyC1 *LPPMessageBodyC1) MarshalPER(w *per.Writer, enc per.Enco
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 15, 5); err != nil {
 			return err
 		}
-
 		if err := (*lPPMessageBodyC1.ProvideLocationInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -7720,7 +6187,6 @@ func (lPPMessageBodyC1 *LPPMessageBodyC1) MarshalPER(w *per.Writer, enc per.Enco
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 15, 6); err != nil {
 			return err
 		}
-
 		if err := (*lPPMessageBodyC1.Abort).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -7728,7 +6194,6 @@ func (lPPMessageBodyC1 *LPPMessageBodyC1) MarshalPER(w *per.Writer, enc per.Enco
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 15, 7); err != nil {
 			return err
 		}
-
 		if err := (*lPPMessageBodyC1.Error).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -7736,7 +6201,6 @@ func (lPPMessageBodyC1 *LPPMessageBodyC1) MarshalPER(w *per.Writer, enc per.Enco
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 15, 8); err != nil {
 			return err
 		}
-
 		if err := (*lPPMessageBodyC1.Spare7).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -7744,7 +6208,6 @@ func (lPPMessageBodyC1 *LPPMessageBodyC1) MarshalPER(w *per.Writer, enc per.Enco
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 15, 9); err != nil {
 			return err
 		}
-
 		if err := (*lPPMessageBodyC1.Spare6).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -7752,7 +6215,6 @@ func (lPPMessageBodyC1 *LPPMessageBodyC1) MarshalPER(w *per.Writer, enc per.Enco
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 15, 10); err != nil {
 			return err
 		}
-
 		if err := (*lPPMessageBodyC1.Spare5).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -7760,7 +6222,6 @@ func (lPPMessageBodyC1 *LPPMessageBodyC1) MarshalPER(w *per.Writer, enc per.Enco
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 15, 11); err != nil {
 			return err
 		}
-
 		if err := (*lPPMessageBodyC1.Spare4).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -7768,7 +6229,6 @@ func (lPPMessageBodyC1 *LPPMessageBodyC1) MarshalPER(w *per.Writer, enc per.Enco
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 15, 12); err != nil {
 			return err
 		}
-
 		if err := (*lPPMessageBodyC1.Spare3).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -7776,7 +6236,6 @@ func (lPPMessageBodyC1 *LPPMessageBodyC1) MarshalPER(w *per.Writer, enc per.Enco
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 15, 13); err != nil {
 			return err
 		}
-
 		if err := (*lPPMessageBodyC1.Spare2).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -7784,7 +6243,6 @@ func (lPPMessageBodyC1 *LPPMessageBodyC1) MarshalPER(w *per.Writer, enc per.Enco
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 15, 14); err != nil {
 			return err
 		}
-
 		if err := (*lPPMessageBodyC1.Spare1).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -7792,14 +6250,12 @@ func (lPPMessageBodyC1 *LPPMessageBodyC1) MarshalPER(w *per.Writer, enc per.Enco
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 15, 15); err != nil {
 			return err
 		}
-
 		if err := (*lPPMessageBodyC1.Spare0).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -7808,138 +6264,117 @@ func (lPPMessageBodyC1 *LPPMessageBodyC1) UnmarshalPER(r *per.Reader, enc per.En
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v RequestCapabilities
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessageBodyC1.RequestCapabilities = &v
 	case 1:
 		var v ProvideCapabilities
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessageBodyC1.ProvideCapabilities = &v
 	case 2:
 		var v RequestAssistanceData
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessageBodyC1.RequestAssistanceData = &v
 	case 3:
 		var v ProvideAssistanceData
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessageBodyC1.ProvideAssistanceData = &v
 	case 4:
 		var v RequestLocationInformation
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessageBodyC1.RequestLocationInformation = &v
 	case 5:
 		var v ProvideLocationInformation
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessageBodyC1.ProvideLocationInformation = &v
 	case 6:
 		var v Abort
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessageBodyC1.Abort = &v
 	case 7:
 		var v Error
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessageBodyC1.Error = &v
 	case 8:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessageBodyC1.Spare7 = &v
 	case 9:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessageBodyC1.Spare6 = &v
 	case 10:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessageBodyC1.Spare5 = &v
 	case 11:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessageBodyC1.Spare4 = &v
 	case 12:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessageBodyC1.Spare3 = &v
 	case 13:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessageBodyC1.Spare2 = &v
 	case 14:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessageBodyC1.Spare1 = &v
 	case 15:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		lPPMessageBodyC1.Spare0 = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
 func (lPPTransactionID *LPPTransactionID) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := lPPTransactionID.Initiator.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true}, int64(lPPTransactionID.TransactionNumber)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -7948,21 +6383,16 @@ func (lPPTransactionID *LPPTransactionID) UnmarshalPER(r *per.Reader, enc per.En
 	if err != nil {
 		return err
 	}
-
 	if err := (&lPPTransactionID.Initiator).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	lPPTransactionID.TransactionNumber = int64(n1)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -7970,26 +6400,21 @@ func (lPPTransactionID *LPPTransactionID) UnmarshalPER(r *per.Reader, enc per.En
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -8002,31 +6427,24 @@ func (locationCoordinateTypes *LocationCoordinateTypes) MarshalPER(w *per.Writer
 	w.WriteBit(locationCoordinateTypes.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid != nil)
 	w.WriteBit(locationCoordinateTypes.EllipsoidArc != nil)
 	per.EncodeBoolean(w, enc, locationCoordinateTypes.EllipsoidPoint)
-
 	if locationCoordinateTypes.EllipsoidPointWithUncertaintyCircle != nil {
 		per.EncodeBoolean(w, enc, (*locationCoordinateTypes.EllipsoidPointWithUncertaintyCircle))
 	}
-
 	if locationCoordinateTypes.EllipsoidPointWithUncertaintyEllipse != nil {
 		per.EncodeBoolean(w, enc, (*locationCoordinateTypes.EllipsoidPointWithUncertaintyEllipse))
 	}
-
 	if locationCoordinateTypes.Polygon != nil {
 		per.EncodeBoolean(w, enc, (*locationCoordinateTypes.Polygon))
 	}
-
 	if locationCoordinateTypes.EllipsoidPointWithAltitude != nil {
 		per.EncodeBoolean(w, enc, (*locationCoordinateTypes.EllipsoidPointWithAltitude))
 	}
-
 	if locationCoordinateTypes.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid != nil {
 		per.EncodeBoolean(w, enc, (*locationCoordinateTypes.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid))
 	}
-
 	if locationCoordinateTypes.EllipsoidArc != nil {
 		per.EncodeBoolean(w, enc, (*locationCoordinateTypes.EllipsoidArc))
 	}
-
 	return nil
 }
 
@@ -8035,119 +6453,91 @@ func (locationCoordinateTypes *LocationCoordinateTypes) UnmarshalPER(r *per.Read
 	if err != nil {
 		return err
 	}
-
 	p_EllipsoidPointWithUncertaintyCircle, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_EllipsoidPointWithUncertaintyEllipse, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_Polygon, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_EllipsoidPointWithAltitude, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_EllipsoidPointWithAltitudeAndUncertaintyEllipsoid, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_EllipsoidArc, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	b0, err := per.DecodeBoolean(r, enc)
 	if err != nil {
 		return err
 	}
-
 	locationCoordinateTypes.EllipsoidPoint = b0
-
 	if p_EllipsoidPointWithUncertaintyCircle {
 		var v bool
-
 		b1, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b1
 		locationCoordinateTypes.EllipsoidPointWithUncertaintyCircle = &v
 	}
-
 	if p_EllipsoidPointWithUncertaintyEllipse {
 		var v bool
-
 		b2, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b2
 		locationCoordinateTypes.EllipsoidPointWithUncertaintyEllipse = &v
 	}
-
 	if p_Polygon {
 		var v bool
-
 		b3, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b3
 		locationCoordinateTypes.Polygon = &v
 	}
-
 	if p_EllipsoidPointWithAltitude {
 		var v bool
-
 		b4, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b4
 		locationCoordinateTypes.EllipsoidPointWithAltitude = &v
 	}
-
 	if p_EllipsoidPointWithAltitudeAndUncertaintyEllipsoid {
 		var v bool
-
 		b5, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b5
 		locationCoordinateTypes.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid = &v
 	}
-
 	if p_EllipsoidArc {
 		var v bool
-
 		b6, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b6
 		locationCoordinateTypes.EllipsoidArc = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -8155,26 +6545,21 @@ func (locationCoordinateTypes *LocationCoordinateTypes) UnmarshalPER(r *per.Read
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -8182,78 +6567,63 @@ func (locationCoordinates *LocationCoordinates) MarshalPER(w *per.Writer, enc pe
 	switch {
 	case locationCoordinates.EllipsoidPoint != nil:
 		w.WriteBit(false)
-
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 6, 0); err != nil {
 			return err
 		}
-
 		if err := (*locationCoordinates.EllipsoidPoint).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	case locationCoordinates.EllipsoidPointWithUncertaintyCircle != nil:
 		w.WriteBit(false)
-
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 6, 1); err != nil {
 			return err
 		}
-
 		if err := (*locationCoordinates.EllipsoidPointWithUncertaintyCircle).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	case locationCoordinates.EllipsoidPointWithUncertaintyEllipse != nil:
 		w.WriteBit(false)
-
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 6, 2); err != nil {
 			return err
 		}
-
 		if err := (*locationCoordinates.EllipsoidPointWithUncertaintyEllipse).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	case locationCoordinates.Polygon != nil:
 		w.WriteBit(false)
-
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 6, 3); err != nil {
 			return err
 		}
-
 		if err := (*locationCoordinates.Polygon).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	case locationCoordinates.EllipsoidPointWithAltitude != nil:
 		w.WriteBit(false)
-
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 6, 4); err != nil {
 			return err
 		}
-
 		if err := (*locationCoordinates.EllipsoidPointWithAltitude).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	case locationCoordinates.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid != nil:
 		w.WriteBit(false)
-
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 6, 5); err != nil {
 			return err
 		}
-
 		if err := (*locationCoordinates.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	case locationCoordinates.EllipsoidArc != nil:
 		w.WriteBit(false)
-
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 6, 6); err != nil {
 			return err
 		}
-
 		if err := (*locationCoordinates.EllipsoidArc).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -8262,84 +6632,70 @@ func (locationCoordinates *LocationCoordinates) UnmarshalPER(r *per.Reader, enc 
 	if err != nil {
 		return err
 	}
-
 	if isExt {
 		if _, err := per.DecodeNormallySmall(r, enc); err != nil {
 			return err
 		}
-
 		return per.SkipOpenType(r, enc)
 	}
-
 	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 6)
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v EllipsoidPoint
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		locationCoordinates.EllipsoidPoint = &v
 	case 1:
 		var v EllipsoidPointWithUncertaintyCircle
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		locationCoordinates.EllipsoidPointWithUncertaintyCircle = &v
 	case 2:
 		var v EllipsoidPointWithUncertaintyEllipse
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		locationCoordinates.EllipsoidPointWithUncertaintyEllipse = &v
 	case 3:
 		var v Polygon
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		locationCoordinates.Polygon = &v
 	case 4:
 		var v EllipsoidPointWithAltitude
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		locationCoordinates.EllipsoidPointWithAltitude = &v
 	case 5:
 		var v EllipsoidPointWithAltitudeAndUncertaintyEllipsoid
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		locationCoordinates.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid = &v
 	case 6:
 		var v EllipsoidArc
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		locationCoordinates.EllipsoidArc = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
 func (locationError *LocationError) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 3, HasUB: true, Extensible: true}, int64(locationError.LocationFailureCause)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -8348,17 +6704,13 @@ func (locationError *LocationError) UnmarshalPER(r *per.Reader, enc per.Encoding
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 3, HasUB: true, Extensible: true})
 	if err != nil {
 		return err
 	}
-
 	locationError.LocationFailureCause = int64(n0)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -8366,26 +6718,21 @@ func (locationError *LocationError) UnmarshalPER(r *per.Reader, enc per.Encoding
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -8393,7 +6740,6 @@ func (locationInformationType *LocationInformationType) MarshalPER(w *per.Writer
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 3, HasUB: true, Extensible: true}, int64(locationInformationType.Value)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -8402,15 +6748,12 @@ func (locationInformationType *LocationInformationType) UnmarshalPER(r *per.Read
 	if err != nil {
 		return err
 	}
-
 	locationInformationType.Value = int64(n0)
-
 	return nil
 }
 
 func (mcc *Mcc) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	off0 := 0
-
 	if err := per.EncodeLength(w, enc, 1, 3, true, int64(len(mcc.List)), func(count int64) error {
 		end := off0 + int(count)
 		for i := off0; i < end; i++ {
@@ -8418,35 +6761,28 @@ func (mcc *Mcc) MarshalPER(w *per.Writer, enc per.Encoding) error {
 				return err
 			}
 		}
-
 		off0 = end
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (mcc *Mcc) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	mcc.List = nil
-
 	if err := per.DecodeLength(r, enc, 1, 3, true, func(count int64) error {
 		start := len(mcc.List)
-
 		mcc.List = append(mcc.List, make([]MccValue, count)...)
 		for i := int64(0); i < count; i++ {
 			if err := (&mcc.List[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -8454,7 +6790,6 @@ func (mccValue *MccValue) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 9, HasUB: true}, int64(mccValue.Value)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -8463,9 +6798,7 @@ func (mccValue *MccValue) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if err != nil {
 		return err
 	}
-
 	mccValue.Value = int64(n0)
-
 	return nil
 }
 
@@ -8484,89 +6817,74 @@ func (measuredResultsElement *MeasuredResultsElement) MarshalPER(w *per.Writer, 
 	w.WriteBit(measuredResultsElement.HyperSFNR14 != nil)
 	w.WriteBit(measuredResultsElement.RsrpResultV1470 != nil)
 	w.WriteBit(measuredResultsElement.RsrqResultV1470 != nil)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true}, int64(measuredResultsElement.PhysCellId)); err != nil {
 		return err
 	}
-
 	if measuredResultsElement.CellGlobalId != nil {
 		if err := (*measuredResultsElement.CellGlobalId).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if measuredResultsElement.ArfcnEUTRA != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{}, int64((*measuredResultsElement.ArfcnEUTRA))); err != nil {
 			return err
 		}
 	}
-
 	if measuredResultsElement.SystemFrameNumber != nil {
 		if err := per.EncodeBitString(w, enc, 10, 10, true, true, false, per.BoolsToBits((*measuredResultsElement.SystemFrameNumber)), len((*measuredResultsElement.SystemFrameNumber))); err != nil {
 			return err
 		}
 	}
-
 	if measuredResultsElement.RsrpResult != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 97, HasUB: true}, int64((*measuredResultsElement.RsrpResult))); err != nil {
 			return err
 		}
 	}
-
 	if measuredResultsElement.RsrqResult != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 34, HasUB: true}, int64((*measuredResultsElement.RsrqResult))); err != nil {
 			return err
 		}
 	}
-
 	if measuredResultsElement.UeRxTxTimeDiff != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 495, HasUB: true}, int64((*measuredResultsElement.UeRxTxTimeDiff))); err != nil {
 			return err
 		}
 	}
-
 	if measuredResultsElement.ArfcnEUTRAV9a0 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{}, int64((*measuredResultsElement.ArfcnEUTRAV9a0))); err != nil {
 			return err
 		}
 	}
-
 	if measuredResultsElement.NrsrpResultR14 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 113, HasUB: true}, int64((*measuredResultsElement.NrsrpResultR14))); err != nil {
 			return err
 		}
 	}
-
 	if measuredResultsElement.NrsrqResultR14 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 74, HasUB: true}, int64((*measuredResultsElement.NrsrqResultR14))); err != nil {
 			return err
 		}
 	}
-
 	if measuredResultsElement.CarrierFreqOffsetNBR14 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{}, int64((*measuredResultsElement.CarrierFreqOffsetNBR14))); err != nil {
 			return err
 		}
 	}
-
 	if measuredResultsElement.HyperSFNR14 != nil {
 		if err := per.EncodeBitString(w, enc, 10, 10, true, true, false, per.BoolsToBits((*measuredResultsElement.HyperSFNR14)), len((*measuredResultsElement.HyperSFNR14))); err != nil {
 			return err
 		}
 	}
-
 	if measuredResultsElement.RsrpResultV1470 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: -17, HasLB: true, UB: -1, HasUB: true}, int64((*measuredResultsElement.RsrpResultV1470))); err != nil {
 			return err
 		}
 	}
-
 	if measuredResultsElement.RsrqResultV1470 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: -30, HasLB: true, UB: 46, HasUB: true}, int64((*measuredResultsElement.RsrqResultV1470))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -8575,237 +6893,182 @@ func (measuredResultsElement *MeasuredResultsElement) UnmarshalPER(r *per.Reader
 	if err != nil {
 		return err
 	}
-
 	p_CellGlobalId, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_ArfcnEUTRA, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_SystemFrameNumber, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_RsrpResult, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_RsrqResult, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_UeRxTxTimeDiff, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_ArfcnEUTRAV9a0, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NrsrpResultR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NrsrqResultR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_CarrierFreqOffsetNBR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_HyperSFNR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_RsrpResultV1470, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_RsrqResultV1470, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	measuredResultsElement.PhysCellId = int64(n0)
-
 	if p_CellGlobalId {
 		var v CellGlobalIdEUTRAAndUTRA
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		measuredResultsElement.CellGlobalId = &v
 	}
-
 	if p_ArfcnEUTRA {
 		var v ARFCNValueEUTRA
-
 		n2, err := per.DecodeInteger(r, enc, per.Bounds{})
 		if err != nil {
 			return err
 		}
-
 		v = ARFCNValueEUTRA(n2)
 		measuredResultsElement.ArfcnEUTRA = &v
 	}
-
 	if p_SystemFrameNumber {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 10, 10, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		measuredResultsElement.SystemFrameNumber = &v
 	}
-
 	if p_RsrpResult {
 		var v int64
-
 		n4, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 97, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n4)
 		measuredResultsElement.RsrpResult = &v
 	}
-
 	if p_RsrqResult {
 		var v int64
-
 		n5, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 34, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n5)
 		measuredResultsElement.RsrqResult = &v
 	}
-
 	if p_UeRxTxTimeDiff {
 		var v int64
-
 		n6, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 495, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n6)
 		measuredResultsElement.UeRxTxTimeDiff = &v
 	}
-
 	if p_ArfcnEUTRAV9a0 {
 		var v ARFCNValueEUTRAV9a0
-
 		n7, err := per.DecodeInteger(r, enc, per.Bounds{})
 		if err != nil {
 			return err
 		}
-
 		v = ARFCNValueEUTRAV9a0(n7)
 		measuredResultsElement.ArfcnEUTRAV9a0 = &v
 	}
-
 	if p_NrsrpResultR14 {
 		var v int64
-
 		n8, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 113, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n8)
 		measuredResultsElement.NrsrpResultR14 = &v
 	}
-
 	if p_NrsrqResultR14 {
 		var v int64
-
 		n9, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 74, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n9)
 		measuredResultsElement.NrsrqResultR14 = &v
 	}
-
 	if p_CarrierFreqOffsetNBR14 {
 		var v CarrierFreqOffsetNBR14
-
 		n10, err := per.DecodeInteger(r, enc, per.Bounds{})
 		if err != nil {
 			return err
 		}
-
 		v = CarrierFreqOffsetNBR14(n10)
 		measuredResultsElement.CarrierFreqOffsetNBR14 = &v
 	}
-
 	if p_HyperSFNR14 {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 10, 10, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		measuredResultsElement.HyperSFNR14 = &v
 	}
-
 	if p_RsrpResultV1470 {
 		var v int64
-
 		n12, err := per.DecodeInteger(r, enc, per.Bounds{LB: -17, HasLB: true, UB: -1, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n12)
 		measuredResultsElement.RsrpResultV1470 = &v
 	}
-
 	if p_RsrqResultV1470 {
 		var v int64
-
 		n13, err := per.DecodeInteger(r, enc, per.Bounds{LB: -30, HasLB: true, UB: 46, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n13)
 		measuredResultsElement.RsrqResultV1470 = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -8813,26 +7076,21 @@ func (measuredResultsElement *MeasuredResultsElement) UnmarshalPER(r *per.Reader
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -8841,33 +7099,27 @@ func (measurementReferenceTime *MeasurementReferenceTime) MarshalPER(w *per.Writ
 	w.WriteBit(measurementReferenceTime.GnssTODFrac != nil)
 	w.WriteBit(measurementReferenceTime.GnssTODUnc != nil)
 	w.WriteBit(measurementReferenceTime.NetworkTime != nil)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 3599999, HasUB: true}, int64(measurementReferenceTime.GnssTODMsec)); err != nil {
 		return err
 	}
-
 	if measurementReferenceTime.GnssTODFrac != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 3999, HasUB: true}, int64((*measurementReferenceTime.GnssTODFrac))); err != nil {
 			return err
 		}
 	}
-
 	if measurementReferenceTime.GnssTODUnc != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true}, int64((*measurementReferenceTime.GnssTODUnc))); err != nil {
 			return err
 		}
 	}
-
 	if err := measurementReferenceTime.GnssTimeID.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if measurementReferenceTime.NetworkTime != nil {
 		if err := (*measurementReferenceTime.NetworkTime).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -8876,69 +7128,53 @@ func (measurementReferenceTime *MeasurementReferenceTime) UnmarshalPER(r *per.Re
 	if err != nil {
 		return err
 	}
-
 	p_GnssTODFrac, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_GnssTODUnc, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NetworkTime, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 3599999, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	measurementReferenceTime.GnssTODMsec = int64(n0)
-
 	if p_GnssTODFrac {
 		var v int64
-
 		n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 3999, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n1)
 		measurementReferenceTime.GnssTODFrac = &v
 	}
-
 	if p_GnssTODUnc {
 		var v int64
-
 		n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n2)
 		measurementReferenceTime.GnssTODUnc = &v
 	}
-
 	if err := (&measurementReferenceTime.GnssTimeID).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if p_NetworkTime {
 		var v NetworkTime
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		measurementReferenceTime.NetworkTime = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -8946,32 +7182,26 @@ func (measurementReferenceTime *MeasurementReferenceTime) UnmarshalPER(r *per.Re
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (mnc *Mnc) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	off0 := 0
-
 	if err := per.EncodeLength(w, enc, 1, 3, true, int64(len(mnc.List)), func(count int64) error {
 		end := off0 + int(count)
 		for i := off0; i < end; i++ {
@@ -8979,35 +7209,28 @@ func (mnc *Mnc) MarshalPER(w *per.Writer, enc per.Encoding) error {
 				return err
 			}
 		}
-
 		off0 = end
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (mnc *Mnc) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	mnc.List = nil
-
 	if err := per.DecodeLength(r, enc, 1, 3, true, func(count int64) error {
 		start := len(mnc.List)
-
 		mnc.List = append(mnc.List, make([]MncValue, count)...)
 		for i := int64(0); i < count; i++ {
 			if err := (&mnc.List[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -9015,7 +7238,6 @@ func (mncValue *MncValue) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 9, HasUB: true}, int64(mncValue.Value)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -9024,9 +7246,7 @@ func (mncValue *MncValue) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if err != nil {
 		return err
 	}
-
 	mncValue.Value = int64(n0)
-
 	return nil
 }
 
@@ -9034,7 +7254,6 @@ func (motionTimeSourceR15 *MotionTimeSourceR15) MarshalPER(w *per.Writer, enc pe
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true}, int64(motionTimeSourceR15.Value)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -9043,9 +7262,7 @@ func (motionTimeSourceR15 *MotionTimeSourceR15) UnmarshalPER(r *per.Reader, enc 
 	if err != nil {
 		return err
 	}
-
 	motionTimeSourceR15.Value = int64(n0)
-
 	return nil
 }
 
@@ -9057,43 +7274,36 @@ func (nPRSInfoPartAR14 *NPRSInfoPartAR14) MarshalPER(w *per.Writer, enc per.Enco
 	w.WriteBit(nPRSInfoPartAR14.PO4 != nil)
 	w.WriteBit(nPRSInfoPartAR14.PO8 != nil)
 	w.WriteBit(nPRSInfoPartAR14.PO16 != nil)
-
 	if nPRSInfoPartAR14.SubframePattern10 != nil {
 		if err := per.EncodeBitString(w, enc, 10, 10, true, true, false, per.BoolsToBits((*nPRSInfoPartAR14.SubframePattern10)), len((*nPRSInfoPartAR14.SubframePattern10))); err != nil {
 			return err
 		}
 	}
-
 	if nPRSInfoPartAR14.SubframePattern40 != nil {
 		if err := per.EncodeBitString(w, enc, 40, 40, true, true, false, per.BoolsToBits((*nPRSInfoPartAR14.SubframePattern40)), len((*nPRSInfoPartAR14.SubframePattern40))); err != nil {
 			return err
 		}
 	}
-
 	if nPRSInfoPartAR14.PO2 != nil {
 		if err := per.EncodeBitString(w, enc, 2, 2, true, true, false, per.BoolsToBits((*nPRSInfoPartAR14.PO2)), len((*nPRSInfoPartAR14.PO2))); err != nil {
 			return err
 		}
 	}
-
 	if nPRSInfoPartAR14.PO4 != nil {
 		if err := per.EncodeBitString(w, enc, 4, 4, true, true, false, per.BoolsToBits((*nPRSInfoPartAR14.PO4)), len((*nPRSInfoPartAR14.PO4))); err != nil {
 			return err
 		}
 	}
-
 	if nPRSInfoPartAR14.PO8 != nil {
 		if err := per.EncodeBitString(w, enc, 8, 8, true, true, false, per.BoolsToBits((*nPRSInfoPartAR14.PO8)), len((*nPRSInfoPartAR14.PO8))); err != nil {
 			return err
 		}
 	}
-
 	if nPRSInfoPartAR14.PO16 != nil {
 		if err := per.EncodeBitString(w, enc, 16, 16, true, true, false, per.BoolsToBits((*nPRSInfoPartAR14.PO16)), len((*nPRSInfoPartAR14.PO16))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -9102,118 +7312,92 @@ func (nPRSInfoPartAR14 *NPRSInfoPartAR14) UnmarshalPER(r *per.Reader, enc per.En
 	if err != nil {
 		return err
 	}
-
 	p_SubframePattern10, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_SubframePattern40, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PO2, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PO4, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PO8, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PO16, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_SubframePattern10 {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 10, 10, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		nPRSInfoPartAR14.SubframePattern10 = &v
 	}
-
 	if p_SubframePattern40 {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 40, 40, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		nPRSInfoPartAR14.SubframePattern40 = &v
 	}
-
 	if p_PO2 {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 2, 2, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		nPRSInfoPartAR14.PO2 = &v
 	}
-
 	if p_PO4 {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 4, 4, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		nPRSInfoPartAR14.PO4 = &v
 	}
-
 	if p_PO8 {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 8, 8, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		nPRSInfoPartAR14.PO8 = &v
 	}
-
 	if p_PO16 {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 16, 16, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		nPRSInfoPartAR14.PO16 = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -9221,26 +7405,21 @@ func (nPRSInfoPartAR14 *NPRSInfoPartAR14) UnmarshalPER(r *per.Reader, enc per.En
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -9250,43 +7429,35 @@ func (nPRSInfoPartBR14 *NPRSInfoPartBR14) MarshalPER(w *per.Writer, enc per.Enco
 	w.WriteBit(nPRSInfoPartBR14.NPRSMutingInfoBPO4 != nil)
 	w.WriteBit(nPRSInfoPartBR14.NPRSMutingInfoBPO8 != nil)
 	w.WriteBit(nPRSInfoPartBR14.NPRSMutingInfoBPO16 != nil)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 4, HasUB: true, Extensible: true}, int64(nPRSInfoPartBR14.NPRSPeriod)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 2, HasUB: true, Extensible: true}, int64(nPRSInfoPartBR14.NPRSStartSF)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 4, HasUB: true, Extensible: true}, int64(nPRSInfoPartBR14.NPRSNumSF)); err != nil {
 		return err
 	}
-
 	if nPRSInfoPartBR14.NPRSMutingInfoBPO2 != nil {
 		if err := per.EncodeBitString(w, enc, 2, 2, true, true, false, per.BoolsToBits((*nPRSInfoPartBR14.NPRSMutingInfoBPO2)), len((*nPRSInfoPartBR14.NPRSMutingInfoBPO2))); err != nil {
 			return err
 		}
 	}
-
 	if nPRSInfoPartBR14.NPRSMutingInfoBPO4 != nil {
 		if err := per.EncodeBitString(w, enc, 4, 4, true, true, false, per.BoolsToBits((*nPRSInfoPartBR14.NPRSMutingInfoBPO4)), len((*nPRSInfoPartBR14.NPRSMutingInfoBPO4))); err != nil {
 			return err
 		}
 	}
-
 	if nPRSInfoPartBR14.NPRSMutingInfoBPO8 != nil {
 		if err := per.EncodeBitString(w, enc, 8, 8, true, true, false, per.BoolsToBits((*nPRSInfoPartBR14.NPRSMutingInfoBPO8)), len((*nPRSInfoPartBR14.NPRSMutingInfoBPO8))); err != nil {
 			return err
 		}
 	}
-
 	if nPRSInfoPartBR14.NPRSMutingInfoBPO16 != nil {
 		if err := per.EncodeBitString(w, enc, 16, 16, true, true, false, per.BoolsToBits((*nPRSInfoPartBR14.NPRSMutingInfoBPO16)), len((*nPRSInfoPartBR14.NPRSMutingInfoBPO16))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -9295,103 +7466,79 @@ func (nPRSInfoPartBR14 *NPRSInfoPartBR14) UnmarshalPER(r *per.Reader, enc per.En
 	if err != nil {
 		return err
 	}
-
 	p_NPRSMutingInfoBPO2, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NPRSMutingInfoBPO4, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NPRSMutingInfoBPO8, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NPRSMutingInfoBPO16, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 4, HasUB: true, Extensible: true})
 	if err != nil {
 		return err
 	}
-
 	nPRSInfoPartBR14.NPRSPeriod = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 2, HasUB: true, Extensible: true})
 	if err != nil {
 		return err
 	}
-
 	nPRSInfoPartBR14.NPRSStartSF = int64(n1)
-
 	n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 4, HasUB: true, Extensible: true})
 	if err != nil {
 		return err
 	}
-
 	nPRSInfoPartBR14.NPRSNumSF = int64(n2)
-
 	if p_NPRSMutingInfoBPO2 {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 2, 2, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		nPRSInfoPartBR14.NPRSMutingInfoBPO2 = &v
 	}
-
 	if p_NPRSMutingInfoBPO4 {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 4, 4, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		nPRSInfoPartBR14.NPRSMutingInfoBPO4 = &v
 	}
-
 	if p_NPRSMutingInfoBPO8 {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 8, 8, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		nPRSInfoPartBR14.NPRSMutingInfoBPO8 = &v
 	}
-
 	if p_NPRSMutingInfoBPO16 {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 16, 16, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		nPRSInfoPartBR14.NPRSMutingInfoBPO16 = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -9399,26 +7546,21 @@ func (nPRSInfoPartBR14 *NPRSInfoPartBR14) UnmarshalPER(r *per.Reader, enc per.En
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -9429,41 +7571,34 @@ func (nPRSInfoR14 *NPRSInfoR14) MarshalPER(w *per.Writer, enc per.Encoding) erro
 	w.WriteBit(nPRSInfoR14.NPRSID != nil)
 	w.WriteBit(nPRSInfoR14.PartA != nil)
 	w.WriteBit(nPRSInfoR14.PartB != nil)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true}, int64(nPRSInfoR14.OperationModeInfoNPRS)); err != nil {
 		return err
 	}
-
 	if nPRSInfoR14.NPRSCarrier != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{}, int64((*nPRSInfoR14.NPRSCarrier))); err != nil {
 			return err
 		}
 	}
-
 	if nPRSInfoR14.NPRSSequenceInfo != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 174, HasUB: true}, int64((*nPRSInfoR14.NPRSSequenceInfo))); err != nil {
 			return err
 		}
 	}
-
 	if nPRSInfoR14.NPRSID != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 4095, HasUB: true}, int64((*nPRSInfoR14.NPRSID))); err != nil {
 			return err
 		}
 	}
-
 	if nPRSInfoR14.PartA != nil {
 		if err := (*nPRSInfoR14.PartA).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if nPRSInfoR14.PartB != nil {
 		if err := (*nPRSInfoR14.PartB).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -9472,96 +7607,74 @@ func (nPRSInfoR14 *NPRSInfoR14) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 	if err != nil {
 		return err
 	}
-
 	p_NPRSCarrier, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NPRSSequenceInfo, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NPRSID, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PartA, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PartB, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true})
 	if err != nil {
 		return err
 	}
-
 	nPRSInfoR14.OperationModeInfoNPRS = int64(n0)
-
 	if p_NPRSCarrier {
 		var v CarrierFreqNBR14
-
 		n1, err := per.DecodeInteger(r, enc, per.Bounds{})
 		if err != nil {
 			return err
 		}
-
 		v = CarrierFreqNBR14(n1)
 		nPRSInfoR14.NPRSCarrier = &v
 	}
-
 	if p_NPRSSequenceInfo {
 		var v int64
-
 		n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 174, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n2)
 		nPRSInfoR14.NPRSSequenceInfo = &v
 	}
-
 	if p_NPRSID {
 		var v int64
-
 		n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 4095, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n3)
 		nPRSInfoR14.NPRSID = &v
 	}
-
 	if p_PartA {
 		var v NPRSInfoPartAR14
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		nPRSInfoR14.PartA = &v
 	}
-
 	if p_PartB {
 		var v NPRSInfoPartBR14
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		nPRSInfoR14.PartB = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -9569,26 +7682,21 @@ func (nPRSInfoR14 *NPRSInfoR14) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -9596,31 +7704,25 @@ func (neighbourMeasurementElement *NeighbourMeasurementElement) MarshalPER(w *pe
 	w.WriteBit(false)
 	w.WriteBit(neighbourMeasurementElement.RstdUncertaintyMeasure != nil)
 	w.WriteBit(neighbourMeasurementElement.RstdMeasureR14 != nil)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true}, int64(neighbourMeasurementElement.PhysCellIdNeighbour)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 16383, HasUB: true}, int64(neighbourMeasurementElement.ExpectedRSTD)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1023, HasUB: true}, int64(neighbourMeasurementElement.ExpectedRSTDUncertainty)); err != nil {
 		return err
 	}
-
 	if neighbourMeasurementElement.RstdUncertaintyMeasure != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1023, HasUB: true}, int64((*neighbourMeasurementElement.RstdUncertaintyMeasure))); err != nil {
 			return err
 		}
 	}
-
 	if neighbourMeasurementElement.RstdMeasureR14 != nil {
 		if err := (*neighbourMeasurementElement.RstdMeasureR14).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -9629,62 +7731,47 @@ func (neighbourMeasurementElement *NeighbourMeasurementElement) UnmarshalPER(r *
 	if err != nil {
 		return err
 	}
-
 	p_RstdUncertaintyMeasure, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_RstdMeasureR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	neighbourMeasurementElement.PhysCellIdNeighbour = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 16383, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	neighbourMeasurementElement.ExpectedRSTD = int64(n1)
-
 	n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1023, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	neighbourMeasurementElement.ExpectedRSTDUncertainty = int64(n2)
-
 	if p_RstdUncertaintyMeasure {
 		var v int64
-
 		n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1023, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n3)
 		neighbourMeasurementElement.RstdUncertaintyMeasure = &v
 	}
-
 	if p_RstdMeasureR14 {
 		var v RSTDMeasureR14
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		neighbourMeasurementElement.RstdMeasureR14 = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -9692,51 +7779,41 @@ func (neighbourMeasurementElement *NeighbourMeasurementElement) UnmarshalPER(r *
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (neighbourMeasurementElementNBR14 *NeighbourMeasurementElementNBR14) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(neighbourMeasurementElementNBR14.RSTDUncertaintyMeasure != nil)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true}, int64(neighbourMeasurementElementNBR14.PhysCellIdNeighbourNB)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 16383, HasUB: true}, int64(neighbourMeasurementElementNBR14.ExpectedRSTD)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1023, HasUB: true}, int64(neighbourMeasurementElementNBR14.ExpectedRSTDUncertainty)); err != nil {
 		return err
 	}
-
 	if neighbourMeasurementElementNBR14.RSTDUncertaintyMeasure != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1023, HasUB: true}, int64((*neighbourMeasurementElementNBR14.RSTDUncertaintyMeasure))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -9745,48 +7822,36 @@ func (neighbourMeasurementElementNBR14 *NeighbourMeasurementElementNBR14) Unmars
 	if err != nil {
 		return err
 	}
-
 	p_RSTDUncertaintyMeasure, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	neighbourMeasurementElementNBR14.PhysCellIdNeighbourNB = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 16383, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	neighbourMeasurementElementNBR14.ExpectedRSTD = int64(n1)
-
 	n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1023, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	neighbourMeasurementElementNBR14.ExpectedRSTDUncertainty = int64(n2)
-
 	if p_RSTDUncertaintyMeasure {
 		var v int64
-
 		n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1023, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n3)
 		neighbourMeasurementElementNBR14.RSTDUncertaintyMeasure = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -9794,32 +7859,26 @@ func (neighbourMeasurementElementNBR14 *NeighbourMeasurementElementNBR14) Unmars
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (neighbourMeasurementListNBR14 *NeighbourMeasurementListNBR14) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	off0 := 0
-
 	if err := per.EncodeLength(w, enc, 1, 24, true, int64(len(neighbourMeasurementListNBR14.List)), func(count int64) error {
 		end := off0 + int(count)
 		for i := off0; i < end; i++ {
@@ -9827,56 +7886,45 @@ func (neighbourMeasurementListNBR14 *NeighbourMeasurementListNBR14) MarshalPER(w
 				return err
 			}
 		}
-
 		off0 = end
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (neighbourMeasurementListNBR14 *NeighbourMeasurementListNBR14) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	neighbourMeasurementListNBR14.List = nil
-
 	if err := per.DecodeLength(r, enc, 1, 24, true, func(count int64) error {
 		start := len(neighbourMeasurementListNBR14.List)
-
 		neighbourMeasurementListNBR14.List = append(neighbourMeasurementListNBR14.List, make([]NeighbourMeasurementElementNBR14, count)...)
 		for i := int64(0); i < count; i++ {
 			if err := (&neighbourMeasurementListNBR14.List[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (networkTime *NetworkTime) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(networkTime.FrameStructureStart != nil)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 12533, HasUB: true}, int64(networkTime.SecondsFromFrameStructureStart)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 3999999, HasUB: true}, int64(networkTime.FractionalSecondsFromFrameStructureStart)); err != nil {
 		return err
 	}
-
 	if networkTime.FrameStructureStart != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 7, HasUB: true}, int64((*networkTime.FrameStructureStart))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -9885,41 +7933,31 @@ func (networkTime *NetworkTime) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 	if err != nil {
 		return err
 	}
-
 	p_FrameStructureStart, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 12533, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	networkTime.SecondsFromFrameStructureStart = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 3999999, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	networkTime.FractionalSecondsFromFrameStructureStart = int64(n1)
-
 	if p_FrameStructureStart {
 		var v int64
-
 		n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 7, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n2)
 		networkTime.FrameStructureStart = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -9927,36 +7965,29 @@ func (networkTime *NetworkTime) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (oTDALocationServerErrorCauses *OTDALocationServerErrorCauses) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 2, HasUB: true, Extensible: true}, int64(oTDALocationServerErrorCauses.Cause)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -9965,17 +7996,13 @@ func (oTDALocationServerErrorCauses *OTDALocationServerErrorCauses) UnmarshalPER
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 2, HasUB: true, Extensible: true})
 	if err != nil {
 		return err
 	}
-
 	oTDALocationServerErrorCauses.Cause = int64(n0)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -9983,36 +8010,29 @@ func (oTDALocationServerErrorCauses *OTDALocationServerErrorCauses) UnmarshalPER
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (oTDATargetDeviceErrorCauses *OTDATargetDeviceErrorCauses) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 4, HasUB: true, Extensible: true}, int64(oTDATargetDeviceErrorCauses.Cause)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -10021,17 +8041,13 @@ func (oTDATargetDeviceErrorCauses *OTDATargetDeviceErrorCauses) UnmarshalPER(r *
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 4, HasUB: true, Extensible: true})
 	if err != nil {
 		return err
 	}
-
 	oTDATargetDeviceErrorCauses.Cause = int64(n0)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -10039,26 +8055,21 @@ func (oTDATargetDeviceErrorCauses *OTDATargetDeviceErrorCauses) UnmarshalPER(r *
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -10066,28 +8077,23 @@ func (oTDOAError *OTDOAError) MarshalPER(w *per.Writer, enc per.Encoding) error 
 	switch {
 	case oTDOAError.LocationServerErrorCauses != nil:
 		w.WriteBit(false)
-
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
 			return err
 		}
-
 		if err := (*oTDOAError.LocationServerErrorCauses).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	case oTDOAError.TargetDeviceErrorCauses != nil:
 		w.WriteBit(false)
-
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
 			return err
 		}
-
 		if err := (*oTDOAError.TargetDeviceErrorCauses).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -10096,39 +8102,32 @@ func (oTDOAError *OTDOAError) UnmarshalPER(r *per.Reader, enc per.Encoding) erro
 	if err != nil {
 		return err
 	}
-
 	if isExt {
 		if _, err := per.DecodeNormallySmall(r, enc); err != nil {
 			return err
 		}
-
 		return per.SkipOpenType(r, enc)
 	}
-
 	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 1)
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v OTDALocationServerErrorCauses
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOAError.LocationServerErrorCauses = &v
 	case 1:
 		var v OTDATargetDeviceErrorCauses
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOAError.TargetDeviceErrorCauses = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
@@ -10136,7 +8135,6 @@ func (oTDOAMeasQuality *OTDOAMeasQuality) MarshalPER(w *per.Writer, enc per.Enco
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 2, HasUB: true, Extensible: true}, int64(oTDOAMeasQuality.Value)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -10145,9 +8143,7 @@ func (oTDOAMeasQuality *OTDOAMeasQuality) UnmarshalPER(r *per.Reader, enc per.En
 	if err != nil {
 		return err
 	}
-
 	oTDOAMeasQuality.Value = int64(n0)
-
 	return nil
 }
 
@@ -10167,98 +8163,80 @@ func (oTDOANeighbourCellInfoElement *OTDOANeighbourCellInfoElement) MarshalPER(w
 	w.WriteBit(oTDOANeighbourCellInfoElement.SameMBSFNconfigNeighbourR14 != nil)
 	w.WriteBit(oTDOANeighbourCellInfoElement.DlBandwidthR14 != nil)
 	w.WriteBit(oTDOANeighbourCellInfoElement.AddPRSconfigNeighbourR14 != nil)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true}, int64(oTDOANeighbourCellInfoElement.PhysCellId)); err != nil {
 		return err
 	}
-
 	if oTDOANeighbourCellInfoElement.CellGlobalId != nil {
 		if err := (*oTDOANeighbourCellInfoElement.CellGlobalId).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoElement.Earfcn != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{}, int64((*oTDOANeighbourCellInfoElement.Earfcn))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoElement.CpLength != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true}, int64((*oTDOANeighbourCellInfoElement.CpLength))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoElement.PrsInfo != nil {
 		if err := (*oTDOANeighbourCellInfoElement.PrsInfo).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoElement.AntennaPortConfig != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true}, int64((*oTDOANeighbourCellInfoElement.AntennaPortConfig))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoElement.SlotNumberOffset != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 19, HasUB: true}, int64((*oTDOANeighbourCellInfoElement.SlotNumberOffset))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoElement.PrsSubframeOffset != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1279, HasUB: true}, int64((*oTDOANeighbourCellInfoElement.PrsSubframeOffset))); err != nil {
 			return err
 		}
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 16383, HasUB: true}, int64(oTDOANeighbourCellInfoElement.ExpectedRSTD)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1023, HasUB: true}, int64(oTDOANeighbourCellInfoElement.ExpectedRSTDUncertainty)); err != nil {
 		return err
 	}
-
 	if oTDOANeighbourCellInfoElement.EarfcnV9a0 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{}, int64((*oTDOANeighbourCellInfoElement.EarfcnV9a0))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoElement.TpIdR14 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 4095, HasUB: true}, int64((*oTDOANeighbourCellInfoElement.TpIdR14))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoElement.PrsOnlyTpR14 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true}, int64((*oTDOANeighbourCellInfoElement.PrsOnlyTpR14))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoElement.CpLengthCRSR14 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true}, int64((*oTDOANeighbourCellInfoElement.CpLengthCRSR14))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoElement.SameMBSFNconfigNeighbourR14 != nil {
 		per.EncodeBoolean(w, enc, (*oTDOANeighbourCellInfoElement.SameMBSFNconfigNeighbourR14))
 	}
-
 	if oTDOANeighbourCellInfoElement.DlBandwidthR14 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 5, HasUB: true, Extensible: true}, int64((*oTDOANeighbourCellInfoElement.DlBandwidthR14))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoElement.AddPRSconfigNeighbourR14 != nil {
 		off16 := 0
-
 		if err := per.EncodeLength(w, enc, 0, 0, false, int64(len((*oTDOANeighbourCellInfoElement.AddPRSconfigNeighbourR14))), func(count int64) error {
 			end := off16 + int(count)
 			for i := off16; i < end; i++ {
@@ -10266,15 +8244,12 @@ func (oTDOANeighbourCellInfoElement *OTDOANeighbourCellInfoElement) MarshalPER(w
 					return err
 				}
 			}
-
 			off16 = end
-
 			return nil
 		}); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -10283,274 +8258,209 @@ func (oTDOANeighbourCellInfoElement *OTDOANeighbourCellInfoElement) UnmarshalPER
 	if err != nil {
 		return err
 	}
-
 	p_CellGlobalId, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_Earfcn, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_CpLength, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PrsInfo, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_AntennaPortConfig, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_SlotNumberOffset, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PrsSubframeOffset, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_EarfcnV9a0, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_TpIdR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PrsOnlyTpR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_CpLengthCRSR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_SameMBSFNconfigNeighbourR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_DlBandwidthR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_AddPRSconfigNeighbourR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	oTDOANeighbourCellInfoElement.PhysCellId = int64(n0)
-
 	if p_CellGlobalId {
 		var v ECGI
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOANeighbourCellInfoElement.CellGlobalId = &v
 	}
-
 	if p_Earfcn {
 		var v ARFCNValueEUTRA
-
 		n2, err := per.DecodeInteger(r, enc, per.Bounds{})
 		if err != nil {
 			return err
 		}
-
 		v = ARFCNValueEUTRA(n2)
 		oTDOANeighbourCellInfoElement.Earfcn = &v
 	}
-
 	if p_CpLength {
 		var v int64
-
 		n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n3)
 		oTDOANeighbourCellInfoElement.CpLength = &v
 	}
-
 	if p_PrsInfo {
 		var v PRSInfo
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOANeighbourCellInfoElement.PrsInfo = &v
 	}
-
 	if p_AntennaPortConfig {
 		var v int64
-
 		n5, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n5)
 		oTDOANeighbourCellInfoElement.AntennaPortConfig = &v
 	}
-
 	if p_SlotNumberOffset {
 		var v int64
-
 		n6, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 19, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n6)
 		oTDOANeighbourCellInfoElement.SlotNumberOffset = &v
 	}
-
 	if p_PrsSubframeOffset {
 		var v int64
-
 		n7, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1279, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n7)
 		oTDOANeighbourCellInfoElement.PrsSubframeOffset = &v
 	}
-
 	n8, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 16383, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	oTDOANeighbourCellInfoElement.ExpectedRSTD = int64(n8)
-
 	n9, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1023, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	oTDOANeighbourCellInfoElement.ExpectedRSTDUncertainty = int64(n9)
-
 	if p_EarfcnV9a0 {
 		var v ARFCNValueEUTRAV9a0
-
 		n10, err := per.DecodeInteger(r, enc, per.Bounds{})
 		if err != nil {
 			return err
 		}
-
 		v = ARFCNValueEUTRAV9a0(n10)
 		oTDOANeighbourCellInfoElement.EarfcnV9a0 = &v
 	}
-
 	if p_TpIdR14 {
 		var v int64
-
 		n11, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 4095, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n11)
 		oTDOANeighbourCellInfoElement.TpIdR14 = &v
 	}
-
 	if p_PrsOnlyTpR14 {
 		var v int64
-
 		n12, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n12)
 		oTDOANeighbourCellInfoElement.PrsOnlyTpR14 = &v
 	}
-
 	if p_CpLengthCRSR14 {
 		var v int64
-
 		n13, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n13)
 		oTDOANeighbourCellInfoElement.CpLengthCRSR14 = &v
 	}
-
 	if p_SameMBSFNconfigNeighbourR14 {
 		var v bool
-
 		b14, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b14
 		oTDOANeighbourCellInfoElement.SameMBSFNconfigNeighbourR14 = &v
 	}
-
 	if p_DlBandwidthR14 {
 		var v int64
-
 		n15, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 5, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n15)
 		oTDOANeighbourCellInfoElement.DlBandwidthR14 = &v
 	}
-
 	if p_AddPRSconfigNeighbourR14 {
 		var v []PRSInfo
-
 		v = nil
-
 		if err := per.DecodeLength(r, enc, 0, 0, false, func(count int64) error {
 			start := len(v)
-
 			v = append(v, make([]PRSInfo, count)...)
 			for i := int64(0); i < count; i++ {
 				if err := (&v[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 					return err
 				}
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		oTDOANeighbourCellInfoElement.AddPRSconfigNeighbourR14 = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -10558,32 +8468,26 @@ func (oTDOANeighbourCellInfoElement *OTDOANeighbourCellInfoElement) UnmarshalPER
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (oTDOANeighbourCellInfoList *OTDOANeighbourCellInfoList) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	off0 := 0
-
 	if err := per.EncodeLength(w, enc, 1, 2, true, int64(len(oTDOANeighbourCellInfoList.List)), func(count int64) error {
 		end := off0 + int(count)
 		for i := off0; i < end; i++ {
@@ -10591,41 +8495,33 @@ func (oTDOANeighbourCellInfoList *OTDOANeighbourCellInfoList) MarshalPER(w *per.
 				return err
 			}
 		}
-
 		off0 = end
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (oTDOANeighbourCellInfoList *OTDOANeighbourCellInfoList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	oTDOANeighbourCellInfoList.List = nil
-
 	if err := per.DecodeLength(r, enc, 1, 2, true, func(count int64) error {
 		start := len(oTDOANeighbourCellInfoList.List)
-
 		oTDOANeighbourCellInfoList.List = append(oTDOANeighbourCellInfoList.List, make([]OTDOANeighbourFreqInfo, count)...)
 		for i := int64(0); i < count; i++ {
 			if err := (&oTDOANeighbourCellInfoList.List[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (oTDOANeighbourCellInfoListNBR14 *OTDOANeighbourCellInfoListNBR14) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	off0 := 0
-
 	if err := per.EncodeLength(w, enc, 1, 72, true, int64(len(oTDOANeighbourCellInfoListNBR14.List)), func(count int64) error {
 		end := off0 + int(count)
 		for i := off0; i < end; i++ {
@@ -10633,35 +8529,28 @@ func (oTDOANeighbourCellInfoListNBR14 *OTDOANeighbourCellInfoListNBR14) MarshalP
 				return err
 			}
 		}
-
 		off0 = end
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (oTDOANeighbourCellInfoListNBR14 *OTDOANeighbourCellInfoListNBR14) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	oTDOANeighbourCellInfoListNBR14.List = nil
-
 	if err := per.DecodeLength(r, enc, 1, 72, true, func(count int64) error {
 		start := len(oTDOANeighbourCellInfoListNBR14.List)
-
 		oTDOANeighbourCellInfoListNBR14.List = append(oTDOANeighbourCellInfoListNBR14.List, make([]OTDOANeighbourCellInfoNBR14, count)...)
 		for i := int64(0); i < count; i++ {
 			if err := (&oTDOANeighbourCellInfoListNBR14.List[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -10680,85 +8569,71 @@ func (oTDOANeighbourCellInfoNBR14 *OTDOANeighbourCellInfoNBR14) MarshalPER(w *pe
 	w.WriteBit(oTDOANeighbourCellInfoNBR14.ExpectedRSTD != nil)
 	w.WriteBit(oTDOANeighbourCellInfoNBR14.ExpectedRSTDUncertainty != nil)
 	w.WriteBit(oTDOANeighbourCellInfoNBR14.PRSNeighbourCellIndex != nil)
-
 	if oTDOANeighbourCellInfoNBR14.PhysCellIdNB != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true}, int64((*oTDOANeighbourCellInfoNBR14.PhysCellIdNB))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoNBR14.CellGlobalIdNB != nil {
 		if err := (*oTDOANeighbourCellInfoNBR14.CellGlobalIdNB).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoNBR14.CarrierFreq != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{}, int64((*oTDOANeighbourCellInfoNBR14.CarrierFreq))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoNBR14.Earfcn != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{}, int64((*oTDOANeighbourCellInfoNBR14.Earfcn))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoNBR14.EutraNumCRSPorts != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true}, int64((*oTDOANeighbourCellInfoNBR14.EutraNumCRSPorts))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoNBR14.OtdoaSIB1NBRepetitions != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true}, int64((*oTDOANeighbourCellInfoNBR14.OtdoaSIB1NBRepetitions))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoNBR14.NPRSInfo != nil {
 		if err := (*oTDOANeighbourCellInfoNBR14.NPRSInfo).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoNBR14.NPRSSlotNumberOffset != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 19, HasUB: true}, int64((*oTDOANeighbourCellInfoNBR14.NPRSSlotNumberOffset))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoNBR14.NPRSSFNOffset != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 63, HasUB: true}, int64((*oTDOANeighbourCellInfoNBR14.NPRSSFNOffset))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoNBR14.NPRSSubframeOffset != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1279, HasUB: true}, int64((*oTDOANeighbourCellInfoNBR14.NPRSSubframeOffset))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoNBR14.ExpectedRSTD != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 16383, HasUB: true}, int64((*oTDOANeighbourCellInfoNBR14.ExpectedRSTD))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoNBR14.ExpectedRSTDUncertainty != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1023, HasUB: true}, int64((*oTDOANeighbourCellInfoNBR14.ExpectedRSTDUncertainty))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOANeighbourCellInfoNBR14.PRSNeighbourCellIndex != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 1, HasLB: true, UB: 72, HasUB: true}, int64((*oTDOANeighbourCellInfoNBR14.PRSNeighbourCellIndex))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -10767,225 +8642,173 @@ func (oTDOANeighbourCellInfoNBR14 *OTDOANeighbourCellInfoNBR14) UnmarshalPER(r *
 	if err != nil {
 		return err
 	}
-
 	p_PhysCellIdNB, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_CellGlobalIdNB, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_CarrierFreq, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_Earfcn, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_EutraNumCRSPorts, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_OtdoaSIB1NBRepetitions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NPRSInfo, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NPRSSlotNumberOffset, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NPRSSFNOffset, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NPRSSubframeOffset, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_ExpectedRSTD, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_ExpectedRSTDUncertainty, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PRSNeighbourCellIndex, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_PhysCellIdNB {
 		var v int64
-
 		n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n0)
 		oTDOANeighbourCellInfoNBR14.PhysCellIdNB = &v
 	}
-
 	if p_CellGlobalIdNB {
 		var v ECGI
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOANeighbourCellInfoNBR14.CellGlobalIdNB = &v
 	}
-
 	if p_CarrierFreq {
 		var v CarrierFreqNBR14
-
 		n2, err := per.DecodeInteger(r, enc, per.Bounds{})
 		if err != nil {
 			return err
 		}
-
 		v = CarrierFreqNBR14(n2)
 		oTDOANeighbourCellInfoNBR14.CarrierFreq = &v
 	}
-
 	if p_Earfcn {
 		var v ARFCNValueEUTRAR14
-
 		n3, err := per.DecodeInteger(r, enc, per.Bounds{})
 		if err != nil {
 			return err
 		}
-
 		v = ARFCNValueEUTRAR14(n3)
 		oTDOANeighbourCellInfoNBR14.Earfcn = &v
 	}
-
 	if p_EutraNumCRSPorts {
 		var v int64
-
 		n4, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n4)
 		oTDOANeighbourCellInfoNBR14.EutraNumCRSPorts = &v
 	}
-
 	if p_OtdoaSIB1NBRepetitions {
 		var v int64
-
 		n5, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n5)
 		oTDOANeighbourCellInfoNBR14.OtdoaSIB1NBRepetitions = &v
 	}
-
 	if p_NPRSInfo {
 		var v PRSInfoNBR14
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOANeighbourCellInfoNBR14.NPRSInfo = &v
 	}
-
 	if p_NPRSSlotNumberOffset {
 		var v int64
-
 		n7, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 19, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n7)
 		oTDOANeighbourCellInfoNBR14.NPRSSlotNumberOffset = &v
 	}
-
 	if p_NPRSSFNOffset {
 		var v int64
-
 		n8, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 63, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n8)
 		oTDOANeighbourCellInfoNBR14.NPRSSFNOffset = &v
 	}
-
 	if p_NPRSSubframeOffset {
 		var v int64
-
 		n9, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1279, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n9)
 		oTDOANeighbourCellInfoNBR14.NPRSSubframeOffset = &v
 	}
-
 	if p_ExpectedRSTD {
 		var v int64
-
 		n10, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 16383, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n10)
 		oTDOANeighbourCellInfoNBR14.ExpectedRSTD = &v
 	}
-
 	if p_ExpectedRSTDUncertainty {
 		var v int64
-
 		n11, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1023, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n11)
 		oTDOANeighbourCellInfoNBR14.ExpectedRSTDUncertainty = &v
 	}
-
 	if p_PRSNeighbourCellIndex {
 		var v int64
-
 		n12, err := per.DecodeInteger(r, enc, per.Bounds{LB: 1, HasLB: true, UB: 72, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n12)
 		oTDOANeighbourCellInfoNBR14.PRSNeighbourCellIndex = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -10993,32 +8816,26 @@ func (oTDOANeighbourCellInfoNBR14 *OTDOANeighbourCellInfoNBR14) UnmarshalPER(r *
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (oTDOANeighbourFreqInfo *OTDOANeighbourFreqInfo) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	off0 := 0
-
 	if err := per.EncodeLength(w, enc, 1, 24, true, int64(len(oTDOANeighbourFreqInfo.List)), func(count int64) error {
 		end := off0 + int(count)
 		for i := off0; i < end; i++ {
@@ -11026,35 +8843,28 @@ func (oTDOANeighbourFreqInfo *OTDOANeighbourFreqInfo) MarshalPER(w *per.Writer, 
 				return err
 			}
 		}
-
 		off0 = end
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (oTDOANeighbourFreqInfo *OTDOANeighbourFreqInfo) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	oTDOANeighbourFreqInfo.List = nil
-
 	if err := per.DecodeLength(r, enc, 1, 24, true, func(count int64) error {
 		start := len(oTDOANeighbourFreqInfo.List)
-
 		oTDOANeighbourFreqInfo.List = append(oTDOANeighbourFreqInfo.List, make([]OTDOANeighbourCellInfoElement, count)...)
 		for i := int64(0); i < count; i++ {
 			if err := (&oTDOANeighbourFreqInfo.List[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -11065,37 +8875,31 @@ func (oTDOAProvideAssistanceData *OTDOAProvideAssistanceData) MarshalPER(w *per.
 	w.WriteBit(oTDOAProvideAssistanceData.OtdoaError != nil)
 	w.WriteBit(oTDOAProvideAssistanceData.OtdoaReferenceCellInfoNBR14 != nil)
 	w.WriteBit(oTDOAProvideAssistanceData.OtdoaNeighbourCellInfoNBR14 != nil)
-
 	if oTDOAProvideAssistanceData.OtdoaReferenceCellInfo != nil {
 		if err := (*oTDOAProvideAssistanceData.OtdoaReferenceCellInfo).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAProvideAssistanceData.OtdoaNeighbourCellInfo != nil {
 		if err := (*oTDOAProvideAssistanceData.OtdoaNeighbourCellInfo).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAProvideAssistanceData.OtdoaError != nil {
 		if err := (*oTDOAProvideAssistanceData.OtdoaError).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAProvideAssistanceData.OtdoaReferenceCellInfoNBR14 != nil {
 		if err := (*oTDOAProvideAssistanceData.OtdoaReferenceCellInfoNBR14).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAProvideAssistanceData.OtdoaNeighbourCellInfoNBR14 != nil {
 		if err := (*oTDOAProvideAssistanceData.OtdoaNeighbourCellInfoNBR14).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -11104,80 +8908,63 @@ func (oTDOAProvideAssistanceData *OTDOAProvideAssistanceData) UnmarshalPER(r *pe
 	if err != nil {
 		return err
 	}
-
 	p_OtdoaReferenceCellInfo, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_OtdoaNeighbourCellInfo, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_OtdoaError, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_OtdoaReferenceCellInfoNBR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_OtdoaNeighbourCellInfoNBR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_OtdoaReferenceCellInfo {
 		var v OTDOAReferenceCellInfo
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOAProvideAssistanceData.OtdoaReferenceCellInfo = &v
 	}
-
 	if p_OtdoaNeighbourCellInfo {
 		var v OTDOANeighbourCellInfoList
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOAProvideAssistanceData.OtdoaNeighbourCellInfo = &v
 	}
-
 	if p_OtdoaError {
 		var v OTDOAError
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOAProvideAssistanceData.OtdoaError = &v
 	}
-
 	if p_OtdoaReferenceCellInfoNBR14 {
 		var v OTDOAReferenceCellInfoNBR14
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOAProvideAssistanceData.OtdoaReferenceCellInfoNBR14 = &v
 	}
-
 	if p_OtdoaNeighbourCellInfoNBR14 {
 		var v OTDOANeighbourCellInfoListNBR14
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOAProvideAssistanceData.OtdoaNeighbourCellInfoNBR14 = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -11185,26 +8972,21 @@ func (oTDOAProvideAssistanceData *OTDOAProvideAssistanceData) UnmarshalPER(r *pe
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -11214,31 +8996,26 @@ func (oTDOAProvideCapabilities *OTDOAProvideCapabilities) MarshalPER(w *per.Writ
 	w.WriteBit(oTDOAProvideCapabilities.MaxNoOfEUTRANeighbourCells != nil)
 	w.WriteBit(oTDOAProvideCapabilities.AdditionalPRSconfigMaxR14 != nil)
 	w.WriteBit(oTDOAProvideCapabilities.MotionTimeSource != nil)
-
 	if oTDOAProvideCapabilities.MaxFreqLayers != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 1, HasLB: true, UB: 2, HasUB: true}, int64((*oTDOAProvideCapabilities.MaxFreqLayers))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAProvideCapabilities.MaxNoOfEUTRANeighbourCells != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 1, HasLB: true, UB: 24, HasUB: true}, int64((*oTDOAProvideCapabilities.MaxNoOfEUTRANeighbourCells))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAProvideCapabilities.AdditionalPRSconfigMaxR14 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 1, HasLB: true, UB: 8, HasUB: true, Extensible: true}, int64((*oTDOAProvideCapabilities.AdditionalPRSconfigMaxR14))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAProvideCapabilities.MotionTimeSource != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true}, int64((*oTDOAProvideCapabilities.MotionTimeSource))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -11247,78 +9024,60 @@ func (oTDOAProvideCapabilities *OTDOAProvideCapabilities) UnmarshalPER(r *per.Re
 	if err != nil {
 		return err
 	}
-
 	p_MaxFreqLayers, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_MaxNoOfEUTRANeighbourCells, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_AdditionalPRSconfigMaxR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_MotionTimeSource, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_MaxFreqLayers {
 		var v int64
-
 		n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 1, HasLB: true, UB: 2, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n0)
 		oTDOAProvideCapabilities.MaxFreqLayers = &v
 	}
-
 	if p_MaxNoOfEUTRANeighbourCells {
 		var v int64
-
 		n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 1, HasLB: true, UB: 24, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n1)
 		oTDOAProvideCapabilities.MaxNoOfEUTRANeighbourCells = &v
 	}
-
 	if p_AdditionalPRSconfigMaxR14 {
 		var v int64
-
 		n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 1, HasLB: true, UB: 8, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n2)
 		oTDOAProvideCapabilities.AdditionalPRSconfigMaxR14 = &v
 	}
-
 	if p_MotionTimeSource {
 		var v int64
-
 		n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n3)
 		oTDOAProvideCapabilities.MotionTimeSource = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -11326,26 +9085,21 @@ func (oTDOAProvideCapabilities *OTDOAProvideCapabilities) UnmarshalPER(r *per.Re
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -11354,25 +9108,21 @@ func (oTDOAProvideLocationInformation *OTDOAProvideLocationInformation) MarshalP
 	w.WriteBit(oTDOAProvideLocationInformation.OtdoaSignalMeasurementInformation != nil)
 	w.WriteBit(oTDOAProvideLocationInformation.OtdoaError != nil)
 	w.WriteBit(oTDOAProvideLocationInformation.OtdoaSignalMeasurementInformationNBR14 != nil)
-
 	if oTDOAProvideLocationInformation.OtdoaSignalMeasurementInformation != nil {
 		if err := (*oTDOAProvideLocationInformation.OtdoaSignalMeasurementInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAProvideLocationInformation.OtdoaError != nil {
 		if err := (*oTDOAProvideLocationInformation.OtdoaError).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAProvideLocationInformation.OtdoaSignalMeasurementInformationNBR14 != nil {
 		if err := (*oTDOAProvideLocationInformation.OtdoaSignalMeasurementInformationNBR14).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -11381,52 +9131,41 @@ func (oTDOAProvideLocationInformation *OTDOAProvideLocationInformation) Unmarsha
 	if err != nil {
 		return err
 	}
-
 	p_OtdoaSignalMeasurementInformation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_OtdoaError, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_OtdoaSignalMeasurementInformationNBR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_OtdoaSignalMeasurementInformation {
 		var v OTDOASignalMeasurementInformation
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOAProvideLocationInformation.OtdoaSignalMeasurementInformation = &v
 	}
-
 	if p_OtdoaError {
 		var v OTDOAError
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOAProvideLocationInformation.OtdoaError = &v
 	}
-
 	if p_OtdoaSignalMeasurementInformationNBR14 {
 		var v OTDOASignalMeasurementInformationNBR14
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOAProvideLocationInformation.OtdoaSignalMeasurementInformationNBR14 = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -11434,26 +9173,21 @@ func (oTDOAProvideLocationInformation *OTDOAProvideLocationInformation) Unmarsha
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -11472,70 +9206,57 @@ func (oTDOAReferenceCellInfo *OTDOAReferenceCellInfo) MarshalPER(w *per.Writer, 
 	w.WriteBit(oTDOAReferenceCellInfo.NrLTEsfnOffsetR15 != nil)
 	w.WriteBit(oTDOAReferenceCellInfo.TddConfigV1520 != nil)
 	w.WriteBit(oTDOAReferenceCellInfo.NrLTEfineTimingOffsetR15 != nil)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true}, int64(oTDOAReferenceCellInfo.PhysCellId)); err != nil {
 		return err
 	}
-
 	if oTDOAReferenceCellInfo.CellGlobalId != nil {
 		if err := (*oTDOAReferenceCellInfo.CellGlobalId).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAReferenceCellInfo.EarfcnRef != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{}, int64((*oTDOAReferenceCellInfo.EarfcnRef))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAReferenceCellInfo.AntennaPortConfig != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true}, int64((*oTDOAReferenceCellInfo.AntennaPortConfig))); err != nil {
 			return err
 		}
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true}, int64(oTDOAReferenceCellInfo.CpLength)); err != nil {
 		return err
 	}
-
 	if oTDOAReferenceCellInfo.PrsInfo != nil {
 		if err := (*oTDOAReferenceCellInfo.PrsInfo).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAReferenceCellInfo.EarfcnRefV9a0 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{}, int64((*oTDOAReferenceCellInfo.EarfcnRefV9a0))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAReferenceCellInfo.TpIdR14 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 4095, HasUB: true}, int64((*oTDOAReferenceCellInfo.TpIdR14))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAReferenceCellInfo.CpLengthCRSR14 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true}, int64((*oTDOAReferenceCellInfo.CpLengthCRSR14))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAReferenceCellInfo.SameMBSFNconfigRefR14 != nil {
 		per.EncodeBoolean(w, enc, (*oTDOAReferenceCellInfo.SameMBSFNconfigRefR14))
 	}
-
 	if oTDOAReferenceCellInfo.DlBandwidthR14 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 5, HasUB: true, Extensible: true}, int64((*oTDOAReferenceCellInfo.DlBandwidthR14))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAReferenceCellInfo.AddPRSconfigRefR14 != nil {
 		off11 := 0
-
 		if err := per.EncodeLength(w, enc, 0, 0, false, int64(len((*oTDOAReferenceCellInfo.AddPRSconfigRefR14))), func(count int64) error {
 			end := off11 + int(count)
 			for i := off11; i < end; i++ {
@@ -11543,33 +9264,27 @@ func (oTDOAReferenceCellInfo *OTDOAReferenceCellInfo) MarshalPER(w *per.Writer, 
 					return err
 				}
 			}
-
 			off11 = end
-
 			return nil
 		}); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAReferenceCellInfo.NrLTEsfnOffsetR15 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1023, HasUB: true}, int64((*oTDOAReferenceCellInfo.NrLTEsfnOffsetR15))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAReferenceCellInfo.TddConfigV1520 != nil {
 		if err := (*oTDOAReferenceCellInfo.TddConfigV1520).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAReferenceCellInfo.NrLTEfineTimingOffsetR15 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 19, HasUB: true}, int64((*oTDOAReferenceCellInfo.NrLTEfineTimingOffsetR15))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -11578,247 +9293,189 @@ func (oTDOAReferenceCellInfo *OTDOAReferenceCellInfo) UnmarshalPER(r *per.Reader
 	if err != nil {
 		return err
 	}
-
 	p_CellGlobalId, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_EarfcnRef, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_AntennaPortConfig, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PrsInfo, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_EarfcnRefV9a0, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_TpIdR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_CpLengthCRSR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_SameMBSFNconfigRefR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_DlBandwidthR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_AddPRSconfigRefR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NrLTEsfnOffsetR15, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_TddConfigV1520, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NrLTEfineTimingOffsetR15, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	oTDOAReferenceCellInfo.PhysCellId = int64(n0)
-
 	if p_CellGlobalId {
 		var v ECGI
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOAReferenceCellInfo.CellGlobalId = &v
 	}
-
 	if p_EarfcnRef {
 		var v ARFCNValueEUTRA
-
 		n2, err := per.DecodeInteger(r, enc, per.Bounds{})
 		if err != nil {
 			return err
 		}
-
 		v = ARFCNValueEUTRA(n2)
 		oTDOAReferenceCellInfo.EarfcnRef = &v
 	}
-
 	if p_AntennaPortConfig {
 		var v int64
-
 		n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n3)
 		oTDOAReferenceCellInfo.AntennaPortConfig = &v
 	}
-
 	n4, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true})
 	if err != nil {
 		return err
 	}
-
 	oTDOAReferenceCellInfo.CpLength = int64(n4)
-
 	if p_PrsInfo {
 		var v PRSInfo
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOAReferenceCellInfo.PrsInfo = &v
 	}
-
 	if p_EarfcnRefV9a0 {
 		var v ARFCNValueEUTRAV9a0
-
 		n6, err := per.DecodeInteger(r, enc, per.Bounds{})
 		if err != nil {
 			return err
 		}
-
 		v = ARFCNValueEUTRAV9a0(n6)
 		oTDOAReferenceCellInfo.EarfcnRefV9a0 = &v
 	}
-
 	if p_TpIdR14 {
 		var v int64
-
 		n7, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 4095, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n7)
 		oTDOAReferenceCellInfo.TpIdR14 = &v
 	}
-
 	if p_CpLengthCRSR14 {
 		var v int64
-
 		n8, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n8)
 		oTDOAReferenceCellInfo.CpLengthCRSR14 = &v
 	}
-
 	if p_SameMBSFNconfigRefR14 {
 		var v bool
-
 		b9, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b9
 		oTDOAReferenceCellInfo.SameMBSFNconfigRefR14 = &v
 	}
-
 	if p_DlBandwidthR14 {
 		var v int64
-
 		n10, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 5, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n10)
 		oTDOAReferenceCellInfo.DlBandwidthR14 = &v
 	}
-
 	if p_AddPRSconfigRefR14 {
 		var v []PRSInfo
-
 		v = nil
-
 		if err := per.DecodeLength(r, enc, 0, 0, false, func(count int64) error {
 			start := len(v)
-
 			v = append(v, make([]PRSInfo, count)...)
 			for i := int64(0); i < count; i++ {
 				if err := (&v[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 					return err
 				}
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		oTDOAReferenceCellInfo.AddPRSconfigRefR14 = &v
 	}
-
 	if p_NrLTEsfnOffsetR15 {
 		var v int64
-
 		n12, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1023, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n12)
 		oTDOAReferenceCellInfo.NrLTEsfnOffsetR15 = &v
 	}
-
 	if p_TddConfigV1520 {
 		var v TDDConfigV1520
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOAReferenceCellInfo.TddConfigV1520 = &v
 	}
-
 	if p_NrLTEfineTimingOffsetR15 {
 		var v int64
-
 		n14, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 19, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n14)
 		oTDOAReferenceCellInfo.NrLTEfineTimingOffsetR15 = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -11826,26 +9483,21 @@ func (oTDOAReferenceCellInfo *OTDOAReferenceCellInfo) UnmarshalPER(r *per.Reader
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -11861,67 +9513,56 @@ func (oTDOAReferenceCellInfoNBR14 *OTDOAReferenceCellInfoNBR14) MarshalPER(w *pe
 	w.WriteBit(oTDOAReferenceCellInfoNBR14.NPRSSlotNumberOffset != nil)
 	w.WriteBit(oTDOAReferenceCellInfoNBR14.NPRSSFNOffset != nil)
 	w.WriteBit(oTDOAReferenceCellInfoNBR14.NPRSSubframeOffset != nil)
-
 	if oTDOAReferenceCellInfoNBR14.PhysCellIdNB != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true}, int64((*oTDOAReferenceCellInfoNBR14.PhysCellIdNB))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAReferenceCellInfoNBR14.CellGlobalIdNB != nil {
 		if err := (*oTDOAReferenceCellInfoNBR14.CellGlobalIdNB).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAReferenceCellInfoNBR14.CarrierFreq != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{}, int64((*oTDOAReferenceCellInfoNBR14.CarrierFreq))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAReferenceCellInfoNBR14.Earfcn != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{}, int64((*oTDOAReferenceCellInfoNBR14.Earfcn))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAReferenceCellInfoNBR14.EutraNumCRSPorts != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true}, int64((*oTDOAReferenceCellInfoNBR14.EutraNumCRSPorts))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAReferenceCellInfoNBR14.OtdoaSIB1NBRepetitions != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true}, int64((*oTDOAReferenceCellInfoNBR14.OtdoaSIB1NBRepetitions))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAReferenceCellInfoNBR14.NPRSInfo != nil {
 		if err := (*oTDOAReferenceCellInfoNBR14.NPRSInfo).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAReferenceCellInfoNBR14.NPRSSlotNumberOffset != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 19, HasUB: true}, int64((*oTDOAReferenceCellInfoNBR14.NPRSSlotNumberOffset))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAReferenceCellInfoNBR14.NPRSSFNOffset != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 63, HasUB: true}, int64((*oTDOAReferenceCellInfoNBR14.NPRSSFNOffset))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOAReferenceCellInfoNBR14.NPRSSubframeOffset != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1279, HasUB: true}, int64((*oTDOAReferenceCellInfoNBR14.NPRSSubframeOffset))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -11930,174 +9571,134 @@ func (oTDOAReferenceCellInfoNBR14 *OTDOAReferenceCellInfoNBR14) UnmarshalPER(r *
 	if err != nil {
 		return err
 	}
-
 	p_PhysCellIdNB, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_CellGlobalIdNB, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_CarrierFreq, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_Earfcn, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_EutraNumCRSPorts, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_OtdoaSIB1NBRepetitions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NPRSInfo, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NPRSSlotNumberOffset, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NPRSSFNOffset, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NPRSSubframeOffset, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_PhysCellIdNB {
 		var v int64
-
 		n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n0)
 		oTDOAReferenceCellInfoNBR14.PhysCellIdNB = &v
 	}
-
 	if p_CellGlobalIdNB {
 		var v ECGI
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOAReferenceCellInfoNBR14.CellGlobalIdNB = &v
 	}
-
 	if p_CarrierFreq {
 		var v CarrierFreqNBR14
-
 		n2, err := per.DecodeInteger(r, enc, per.Bounds{})
 		if err != nil {
 			return err
 		}
-
 		v = CarrierFreqNBR14(n2)
 		oTDOAReferenceCellInfoNBR14.CarrierFreq = &v
 	}
-
 	if p_Earfcn {
 		var v ARFCNValueEUTRAR14
-
 		n3, err := per.DecodeInteger(r, enc, per.Bounds{})
 		if err != nil {
 			return err
 		}
-
 		v = ARFCNValueEUTRAR14(n3)
 		oTDOAReferenceCellInfoNBR14.Earfcn = &v
 	}
-
 	if p_EutraNumCRSPorts {
 		var v int64
-
 		n4, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n4)
 		oTDOAReferenceCellInfoNBR14.EutraNumCRSPorts = &v
 	}
-
 	if p_OtdoaSIB1NBRepetitions {
 		var v int64
-
 		n5, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n5)
 		oTDOAReferenceCellInfoNBR14.OtdoaSIB1NBRepetitions = &v
 	}
-
 	if p_NPRSInfo {
 		var v PRSInfoNBR14
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOAReferenceCellInfoNBR14.NPRSInfo = &v
 	}
-
 	if p_NPRSSlotNumberOffset {
 		var v int64
-
 		n7, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 19, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n7)
 		oTDOAReferenceCellInfoNBR14.NPRSSlotNumberOffset = &v
 	}
-
 	if p_NPRSSFNOffset {
 		var v int64
-
 		n8, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 63, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n8)
 		oTDOAReferenceCellInfoNBR14.NPRSSFNOffset = &v
 	}
-
 	if p_NPRSSubframeOffset {
 		var v int64
-
 		n9, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1279, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n9)
 		oTDOAReferenceCellInfoNBR14.NPRSSubframeOffset = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -12105,26 +9706,21 @@ func (oTDOAReferenceCellInfoNBR14 *OTDOAReferenceCellInfoNBR14) UnmarshalPER(r *
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -12132,23 +9728,19 @@ func (oTDOARequestAssistanceData *OTDOARequestAssistanceData) MarshalPER(w *per.
 	w.WriteBit(false)
 	w.WriteBit(oTDOARequestAssistanceData.AdTypeR14 != nil)
 	w.WriteBit(oTDOARequestAssistanceData.NrPhysCellIdR15 != nil)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true}, int64(oTDOARequestAssistanceData.PhysCellId)); err != nil {
 		return err
 	}
-
 	if oTDOARequestAssistanceData.AdTypeR14 != nil {
 		if err := per.EncodeBitString(w, enc, 1, 8, true, true, false, per.BoolsToBits((*oTDOARequestAssistanceData.AdTypeR14)), len((*oTDOARequestAssistanceData.AdTypeR14))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOARequestAssistanceData.NrPhysCellIdR15 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1007, HasUB: true}, int64((*oTDOARequestAssistanceData.NrPhysCellIdR15))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -12157,52 +9749,40 @@ func (oTDOARequestAssistanceData *OTDOARequestAssistanceData) UnmarshalPER(r *pe
 	if err != nil {
 		return err
 	}
-
 	p_AdTypeR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NrPhysCellIdR15, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	oTDOARequestAssistanceData.PhysCellId = int64(n0)
-
 	if p_AdTypeR14 {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 1, 8, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		oTDOARequestAssistanceData.AdTypeR14 = &v
 	}
-
 	if p_NrPhysCellIdR15 {
 		var v int64
-
 		n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1007, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n2)
 		oTDOARequestAssistanceData.NrPhysCellIdR15 = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -12210,26 +9790,21 @@ func (oTDOARequestAssistanceData *OTDOARequestAssistanceData) UnmarshalPER(r *pe
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -12239,31 +9814,26 @@ func (oTDOARequestCapabilities *OTDOARequestCapabilities) MarshalPER(w *per.Writ
 	w.WriteBit(oTDOARequestCapabilities.MaxNoOfEUTRANeighbourCells != nil)
 	w.WriteBit(oTDOARequestCapabilities.MultipathRSTD != nil)
 	w.WriteBit(oTDOARequestCapabilities.MotionMeasurements != nil)
-
 	if oTDOARequestCapabilities.MaxFreqLayers != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 1, HasLB: true, UB: 2, HasUB: true}, int64((*oTDOARequestCapabilities.MaxFreqLayers))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOARequestCapabilities.MaxNoOfEUTRANeighbourCells != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 1, HasLB: true, UB: 24, HasUB: true}, int64((*oTDOARequestCapabilities.MaxNoOfEUTRANeighbourCells))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOARequestCapabilities.MultipathRSTD != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true}, int64((*oTDOARequestCapabilities.MultipathRSTD))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOARequestCapabilities.MotionMeasurements != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true}, int64((*oTDOARequestCapabilities.MotionMeasurements))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -12272,78 +9842,60 @@ func (oTDOARequestCapabilities *OTDOARequestCapabilities) UnmarshalPER(r *per.Re
 	if err != nil {
 		return err
 	}
-
 	p_MaxFreqLayers, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_MaxNoOfEUTRANeighbourCells, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_MultipathRSTD, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_MotionMeasurements, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_MaxFreqLayers {
 		var v int64
-
 		n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 1, HasLB: true, UB: 2, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n0)
 		oTDOARequestCapabilities.MaxFreqLayers = &v
 	}
-
 	if p_MaxNoOfEUTRANeighbourCells {
 		var v int64
-
 		n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 1, HasLB: true, UB: 24, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n1)
 		oTDOARequestCapabilities.MaxNoOfEUTRANeighbourCells = &v
 	}
-
 	if p_MultipathRSTD {
 		var v int64
-
 		n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n2)
 		oTDOARequestCapabilities.MultipathRSTD = &v
 	}
-
 	if p_MotionMeasurements {
 		var v int64
-
 		n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n3)
 		oTDOARequestCapabilities.MotionMeasurements = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -12351,26 +9903,21 @@ func (oTDOARequestCapabilities *OTDOARequestCapabilities) UnmarshalPER(r *per.Re
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -12380,25 +9927,21 @@ func (oTDOARequestLocationInformation *OTDOARequestLocationInformation) MarshalP
 	w.WriteBit(oTDOARequestLocationInformation.MaxNoOfRSTDmeas != nil)
 	w.WriteBit(oTDOARequestLocationInformation.MotionMeasurements != nil)
 	per.EncodeBoolean(w, enc, oTDOARequestLocationInformation.AssistanceAvailability)
-
 	if oTDOARequestLocationInformation.MultipathRSTD != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true}, int64((*oTDOARequestLocationInformation.MultipathRSTD))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOARequestLocationInformation.MaxNoOfRSTDmeas != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 1, HasLB: true, UB: 32, HasUB: true}, int64((*oTDOARequestLocationInformation.MaxNoOfRSTDmeas))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOARequestLocationInformation.MotionMeasurements != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true}, int64((*oTDOARequestLocationInformation.MotionMeasurements))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -12407,68 +9950,52 @@ func (oTDOARequestLocationInformation *OTDOARequestLocationInformation) Unmarsha
 	if err != nil {
 		return err
 	}
-
 	p_MultipathRSTD, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_MaxNoOfRSTDmeas, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_MotionMeasurements, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	b0, err := per.DecodeBoolean(r, enc)
 	if err != nil {
 		return err
 	}
-
 	oTDOARequestLocationInformation.AssistanceAvailability = b0
-
 	if p_MultipathRSTD {
 		var v int64
-
 		n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n1)
 		oTDOARequestLocationInformation.MultipathRSTD = &v
 	}
-
 	if p_MaxNoOfRSTDmeas {
 		var v int64
-
 		n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 1, HasLB: true, UB: 32, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n2)
 		oTDOARequestLocationInformation.MaxNoOfRSTDmeas = &v
 	}
-
 	if p_MotionMeasurements {
 		var v int64
-
 		n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 0, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n3)
 		oTDOARequestLocationInformation.MotionMeasurements = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -12476,26 +10003,21 @@ func (oTDOARequestLocationInformation *OTDOARequestLocationInformation) Unmarsha
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -12512,35 +10034,28 @@ func (oTDOASignalMeasurementInformation *OTDOASignalMeasurementInformation) Mars
 	w.WriteBit(oTDOASignalMeasurementInformation.CarrierFreqOffsetNBRefR14 != nil)
 	w.WriteBit(oTDOASignalMeasurementInformation.HyperSFNR14 != nil)
 	w.WriteBit(oTDOASignalMeasurementInformation.MotionTimeSourceR15 != nil)
-
 	if err := per.EncodeBitString(w, enc, 10, 10, true, true, false, per.BoolsToBits(oTDOASignalMeasurementInformation.SystemFrameNumber), len(oTDOASignalMeasurementInformation.SystemFrameNumber)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true}, int64(oTDOASignalMeasurementInformation.PhysCellIdRef)); err != nil {
 		return err
 	}
-
 	if oTDOASignalMeasurementInformation.CellGlobalIdRef != nil {
 		if err := (*oTDOASignalMeasurementInformation.CellGlobalIdRef).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if oTDOASignalMeasurementInformation.EarfcnRef != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{}, int64((*oTDOASignalMeasurementInformation.EarfcnRef))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOASignalMeasurementInformation.ReferenceQuality != nil {
 		if err := (*oTDOASignalMeasurementInformation.ReferenceQuality).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	off5 := 0
-
 	if err := per.EncodeLength(w, enc, 1, 24, true, int64(len(oTDOASignalMeasurementInformation.NeighbourMeasurementList)), func(count int64) error {
 		end := off5 + int(count)
 		for i := off5; i < end; i++ {
@@ -12548,62 +10063,51 @@ func (oTDOASignalMeasurementInformation *OTDOASignalMeasurementInformation) Mars
 				return err
 			}
 		}
-
 		off5 = end
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	if oTDOASignalMeasurementInformation.EarfcnRefV9a0 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{}, int64((*oTDOASignalMeasurementInformation.EarfcnRefV9a0))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOASignalMeasurementInformation.TpIdRefR14 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 4095, HasUB: true}, int64((*oTDOASignalMeasurementInformation.TpIdRefR14))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOASignalMeasurementInformation.PrsIdRefR14 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 4095, HasUB: true}, int64((*oTDOASignalMeasurementInformation.PrsIdRefR14))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOASignalMeasurementInformation.AdditionalPathsRefR14 != nil {
 		if err := (*oTDOASignalMeasurementInformation.AdditionalPathsRefR14).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if oTDOASignalMeasurementInformation.NprsIdRefR14 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 4095, HasUB: true}, int64((*oTDOASignalMeasurementInformation.NprsIdRefR14))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOASignalMeasurementInformation.CarrierFreqOffsetNBRefR14 != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{}, int64((*oTDOASignalMeasurementInformation.CarrierFreqOffsetNBRefR14))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOASignalMeasurementInformation.HyperSFNR14 != nil {
 		if err := per.EncodeBitString(w, enc, 10, 10, true, true, false, per.BoolsToBits((*oTDOASignalMeasurementInformation.HyperSFNR14)), len((*oTDOASignalMeasurementInformation.HyperSFNR14))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOASignalMeasurementInformation.MotionTimeSourceR15 != nil {
 		if err := (*oTDOASignalMeasurementInformation.MotionTimeSourceR15).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -12612,218 +10116,168 @@ func (oTDOASignalMeasurementInformation *OTDOASignalMeasurementInformation) Unma
 	if err != nil {
 		return err
 	}
-
 	p_CellGlobalIdRef, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_EarfcnRef, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_ReferenceQuality, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_EarfcnRefV9a0, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_TpIdRefR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PrsIdRefR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_AdditionalPathsRefR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NprsIdRefR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_CarrierFreqOffsetNBRefR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_HyperSFNR14, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_MotionTimeSourceR15, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	bs, nbits, err := per.DecodeBitString(r, enc, 10, 10, true, true, false)
 	if err != nil {
 		return err
 	}
-
 	_ = nbits
 	oTDOASignalMeasurementInformation.SystemFrameNumber = per.BitsToBools(bs, nbits)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	oTDOASignalMeasurementInformation.PhysCellIdRef = int64(n1)
-
 	if p_CellGlobalIdRef {
 		var v ECGI
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOASignalMeasurementInformation.CellGlobalIdRef = &v
 	}
-
 	if p_EarfcnRef {
 		var v ARFCNValueEUTRA
-
 		n3, err := per.DecodeInteger(r, enc, per.Bounds{})
 		if err != nil {
 			return err
 		}
-
 		v = ARFCNValueEUTRA(n3)
 		oTDOASignalMeasurementInformation.EarfcnRef = &v
 	}
-
 	if p_ReferenceQuality {
 		var v OTDOAMeasQuality
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOASignalMeasurementInformation.ReferenceQuality = &v
 	}
-
 	oTDOASignalMeasurementInformation.NeighbourMeasurementList = nil
-
 	if err := per.DecodeLength(r, enc, 1, 24, true, func(count int64) error {
 		start := len(oTDOASignalMeasurementInformation.NeighbourMeasurementList)
-
 		oTDOASignalMeasurementInformation.NeighbourMeasurementList = append(oTDOASignalMeasurementInformation.NeighbourMeasurementList, make([]NeighbourMeasurementElement, count)...)
 		for i := int64(0); i < count; i++ {
 			if err := (&oTDOASignalMeasurementInformation.NeighbourMeasurementList[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	if p_EarfcnRefV9a0 {
 		var v ARFCNValueEUTRAV9a0
-
 		n6, err := per.DecodeInteger(r, enc, per.Bounds{})
 		if err != nil {
 			return err
 		}
-
 		v = ARFCNValueEUTRAV9a0(n6)
 		oTDOASignalMeasurementInformation.EarfcnRefV9a0 = &v
 	}
-
 	if p_TpIdRefR14 {
 		var v int64
-
 		n7, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 4095, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n7)
 		oTDOASignalMeasurementInformation.TpIdRefR14 = &v
 	}
-
 	if p_PrsIdRefR14 {
 		var v int64
-
 		n8, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 4095, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n8)
 		oTDOASignalMeasurementInformation.PrsIdRefR14 = &v
 	}
-
 	if p_AdditionalPathsRefR14 {
 		var v AdditionalPathListR14
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOASignalMeasurementInformation.AdditionalPathsRefR14 = &v
 	}
-
 	if p_NprsIdRefR14 {
 		var v int64
-
 		n10, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 4095, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n10)
 		oTDOASignalMeasurementInformation.NprsIdRefR14 = &v
 	}
-
 	if p_CarrierFreqOffsetNBRefR14 {
 		var v CarrierFreqOffsetNBR14
-
 		n11, err := per.DecodeInteger(r, enc, per.Bounds{})
 		if err != nil {
 			return err
 		}
-
 		v = CarrierFreqOffsetNBR14(n11)
 		oTDOASignalMeasurementInformation.CarrierFreqOffsetNBRefR14 = &v
 	}
-
 	if p_HyperSFNR14 {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 10, 10, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		oTDOASignalMeasurementInformation.HyperSFNR14 = &v
 	}
-
 	if p_MotionTimeSourceR15 {
 		var v MotionTimeSourceR15
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOASignalMeasurementInformation.MotionTimeSourceR15 = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -12831,26 +10285,21 @@ func (oTDOASignalMeasurementInformation *OTDOASignalMeasurementInformation) Unma
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -12859,35 +10308,28 @@ func (oTDOASignalMeasurementInformationNBR14 *OTDOASignalMeasurementInformationN
 	w.WriteBit(oTDOASignalMeasurementInformationNBR14.CellGlobalIdRefNB != nil)
 	w.WriteBit(oTDOASignalMeasurementInformationNBR14.EarfcnRefNB != nil)
 	w.WriteBit(oTDOASignalMeasurementInformationNBR14.ReferenceQuality != nil)
-
 	if err := per.EncodeBitString(w, enc, 10, 10, true, true, false, per.BoolsToBits(oTDOASignalMeasurementInformationNBR14.SystemFrameNumber), len(oTDOASignalMeasurementInformationNBR14.SystemFrameNumber)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true}, int64(oTDOASignalMeasurementInformationNBR14.PhysCellIdRefNB)); err != nil {
 		return err
 	}
-
 	if oTDOASignalMeasurementInformationNBR14.CellGlobalIdRefNB != nil {
 		if err := (*oTDOASignalMeasurementInformationNBR14.CellGlobalIdRefNB).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if oTDOASignalMeasurementInformationNBR14.EarfcnRefNB != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{}, int64((*oTDOASignalMeasurementInformationNBR14.EarfcnRefNB))); err != nil {
 			return err
 		}
 	}
-
 	if oTDOASignalMeasurementInformationNBR14.ReferenceQuality != nil {
 		if err := (*oTDOASignalMeasurementInformationNBR14.ReferenceQuality).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	off5 := 0
-
 	if err := per.EncodeLength(w, enc, 1, 24, true, int64(len(oTDOASignalMeasurementInformationNBR14.NeighbourMeasurementListNB)), func(count int64) error {
 		end := off5 + int(count)
 		for i := off5; i < end; i++ {
@@ -12895,14 +10337,11 @@ func (oTDOASignalMeasurementInformationNBR14 *OTDOASignalMeasurementInformationN
 				return err
 			}
 		}
-
 		off5 = end
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -12911,87 +10350,67 @@ func (oTDOASignalMeasurementInformationNBR14 *OTDOASignalMeasurementInformationN
 	if err != nil {
 		return err
 	}
-
 	p_CellGlobalIdRefNB, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_EarfcnRefNB, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_ReferenceQuality, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	bs, nbits, err := per.DecodeBitString(r, enc, 10, 10, true, true, false)
 	if err != nil {
 		return err
 	}
-
 	_ = nbits
 	oTDOASignalMeasurementInformationNBR14.SystemFrameNumber = per.BitsToBools(bs, nbits)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	oTDOASignalMeasurementInformationNBR14.PhysCellIdRefNB = int64(n1)
-
 	if p_CellGlobalIdRefNB {
 		var v ECGI
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOASignalMeasurementInformationNBR14.CellGlobalIdRefNB = &v
 	}
-
 	if p_EarfcnRefNB {
 		var v ARFCNValueEUTRA
-
 		n3, err := per.DecodeInteger(r, enc, per.Bounds{})
 		if err != nil {
 			return err
 		}
-
 		v = ARFCNValueEUTRA(n3)
 		oTDOASignalMeasurementInformationNBR14.EarfcnRefNB = &v
 	}
-
 	if p_ReferenceQuality {
 		var v OTDOAMeasQuality
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		oTDOASignalMeasurementInformationNBR14.ReferenceQuality = &v
 	}
-
 	oTDOASignalMeasurementInformationNBR14.NeighbourMeasurementListNB = nil
-
 	if err := per.DecodeLength(r, enc, 1, 24, true, func(count int64) error {
 		start := len(oTDOASignalMeasurementInformationNBR14.NeighbourMeasurementListNB)
-
 		oTDOASignalMeasurementInformationNBR14.NeighbourMeasurementListNB = append(oTDOASignalMeasurementInformationNBR14.NeighbourMeasurementListNB, make([]NeighbourMeasurementElementNBR14, count)...)
 		for i := int64(0); i < count; i++ {
 			if err := (&oTDOASignalMeasurementInformationNBR14.NeighbourMeasurementListNB[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -12999,40 +10418,32 @@ func (oTDOASignalMeasurementInformationNBR14 *OTDOASignalMeasurementInformationN
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (pLMNIdentity *PLMNIdentity) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := pLMNIdentity.MCC.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	if err := pLMNIdentity.MNC.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -13041,18 +10452,14 @@ func (pLMNIdentity *PLMNIdentity) UnmarshalPER(r *per.Reader, enc per.Encoding) 
 	if err != nil {
 		return err
 	}
-
 	if err := (&pLMNIdentity.MCC).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if err := (&pLMNIdentity.MNC).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -13060,26 +10467,21 @@ func (pLMNIdentity *PLMNIdentity) UnmarshalPER(r *per.Reader, enc per.Encoding) 
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -13090,49 +10492,40 @@ func (pRSInfo *PRSInfo) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(pRSInfo.PRSActivationTimePRS != nil)
 	w.WriteBit(pRSInfo.NumberOfPRSResources != nil)
 	w.WriteBit(pRSInfo.AdditionalPRSConfig != nil)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1279, HasUB: true}, int64(pRSInfo.PRSConfigurationIndex)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 12, HasUB: true}, int64(pRSInfo.PRSBandwidth)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true}, int64(pRSInfo.PRSCellIdPRS)); err != nil {
 		return err
 	}
-
 	if pRSInfo.SubframeOffsetPRS != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 15, HasUB: true}, int64((*pRSInfo.SubframeOffsetPRS))); err != nil {
 			return err
 		}
 	}
-
 	if pRSInfo.SubframeOffsetListPRS != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 63, HasUB: true}, int64((*pRSInfo.SubframeOffsetListPRS))); err != nil {
 			return err
 		}
 	}
-
 	if pRSInfo.PRSActivationTimePRS != nil {
 		if err := per.EncodeBitString(w, enc, 14, 14, true, true, false, per.BoolsToBits((*pRSInfo.PRSActivationTimePRS)), len((*pRSInfo.PRSActivationTimePRS))); err != nil {
 			return err
 		}
 	}
-
 	if pRSInfo.NumberOfPRSResources != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 7, HasUB: true}, int64((*pRSInfo.NumberOfPRSResources))); err != nil {
 			return err
 		}
 	}
-
 	if pRSInfo.AdditionalPRSConfig != nil {
 		if err := (*pRSInfo.AdditionalPRSConfig).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -13141,114 +10534,87 @@ func (pRSInfo *PRSInfo) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if err != nil {
 		return err
 	}
-
 	p_SubframeOffsetPRS, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_SubframeOffsetListPRS, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PRSActivationTimePRS, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_NumberOfPRSResources, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_AdditionalPRSConfig, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1279, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	pRSInfo.PRSConfigurationIndex = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 12, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	pRSInfo.PRSBandwidth = int64(n1)
-
 	n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 503, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	pRSInfo.PRSCellIdPRS = int64(n2)
-
 	if p_SubframeOffsetPRS {
 		var v int64
-
 		n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 15, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n3)
 		pRSInfo.SubframeOffsetPRS = &v
 	}
-
 	if p_SubframeOffsetListPRS {
 		var v int64
-
 		n4, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 63, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n4)
 		pRSInfo.SubframeOffsetListPRS = &v
 	}
-
 	if p_PRSActivationTimePRS {
 		var v []bool
-
 		bs, nbits, err := per.DecodeBitString(r, enc, 14, 14, true, true, false)
 		if err != nil {
 			return err
 		}
-
 		_ = nbits
 		v = per.BitsToBools(bs, nbits)
 		pRSInfo.PRSActivationTimePRS = &v
 	}
-
 	if p_NumberOfPRSResources {
 		var v int64
-
 		n6, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 7, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n6)
 		pRSInfo.NumberOfPRSResources = &v
 	}
-
 	if p_AdditionalPRSConfig {
 		var v AdditionalPRSConfig
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		pRSInfo.AdditionalPRSConfig = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -13256,32 +10622,26 @@ func (pRSInfo *PRSInfo) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (pRSInfoNBR14 *PRSInfoNBR14) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	off0 := 0
-
 	if err := per.EncodeLength(w, enc, 1, 5, true, int64(len(pRSInfoNBR14.List)), func(count int64) error {
 		end := off0 + int(count)
 		for i := off0; i < end; i++ {
@@ -13289,35 +10649,28 @@ func (pRSInfoNBR14 *PRSInfoNBR14) MarshalPER(w *per.Writer, enc per.Encoding) er
 				return err
 			}
 		}
-
 		off0 = end
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (pRSInfoNBR14 *PRSInfoNBR14) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	pRSInfoNBR14.List = nil
-
 	if err := per.DecodeLength(r, enc, 1, 5, true, func(count int64) error {
 		start := len(pRSInfoNBR14.List)
-
 		pRSInfoNBR14.List = append(pRSInfoNBR14.List, make([]NPRSInfoR14, count)...)
 		for i := int64(0); i < count; i++ {
 			if err := (&pRSInfoNBR14.List[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -13325,7 +10678,6 @@ func (periodicAssistanceDataControlParametersR15 *PeriodicAssistanceDataControlP
 	if err := per.EncodeInteger(w, enc, per.Bounds{}, int64(periodicAssistanceDataControlParametersR15.PeriodicSessionIDR15)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -13334,9 +10686,7 @@ func (periodicAssistanceDataControlParametersR15 *PeriodicAssistanceDataControlP
 	if err != nil {
 		return err
 	}
-
 	periodicAssistanceDataControlParametersR15.PeriodicSessionIDR15 = PeriodicSessionIDR15(n0)
-
 	return nil
 }
 
@@ -13344,19 +10694,16 @@ func (periodicalReportingCriteria *PeriodicalReportingCriteria) MarshalPER(w *pe
 	w.WriteBit(false)
 	w.WriteBit(periodicalReportingCriteria.ReportingAmount != nil)
 	w.WriteBit(periodicalReportingCriteria.PeriodicalReportingCriteriaExt != nil)
-
 	if periodicalReportingCriteria.ReportingAmount != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 6, HasUB: true, Extensible: true}, int64((*periodicalReportingCriteria.ReportingAmount))); err != nil {
 			return err
 		}
 	}
-
 	if periodicalReportingCriteria.PeriodicalReportingCriteriaExt != nil {
 		if err := (*periodicalReportingCriteria.PeriodicalReportingCriteriaExt).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -13365,41 +10712,32 @@ func (periodicalReportingCriteria *PeriodicalReportingCriteria) UnmarshalPER(r *
 	if err != nil {
 		return err
 	}
-
 	p_ReportingAmount, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_PeriodicalReportingCriteriaExt, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_ReportingAmount {
 		var v int64
-
 		n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 6, HasUB: true, Extensible: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n0)
 		periodicalReportingCriteria.ReportingAmount = &v
 	}
-
 	if p_PeriodicalReportingCriteriaExt {
 		var v PeriodicalReportingCriteriaExt
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		periodicalReportingCriteria.PeriodicalReportingCriteriaExt = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -13407,39 +10745,32 @@ func (periodicalReportingCriteria *PeriodicalReportingCriteria) UnmarshalPER(r *
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (periodicalReportingCriteriaExt *PeriodicalReportingCriteriaExt) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(periodicalReportingCriteriaExt.ReportingIntervalMs != nil)
-
 	if periodicalReportingCriteriaExt.ReportingIntervalMs != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 31, HasUB: true}, int64((*periodicalReportingCriteriaExt.ReportingIntervalMs))); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -13448,27 +10779,21 @@ func (periodicalReportingCriteriaExt *PeriodicalReportingCriteriaExt) UnmarshalP
 	if err != nil {
 		return err
 	}
-
 	p_ReportingIntervalMs, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_ReportingIntervalMs {
 		var v int64
-
 		n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 31, HasUB: true})
 		if err != nil {
 			return err
 		}
-
 		v = int64(n0)
 		periodicalReportingCriteriaExt.ReportingIntervalMs = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -13476,32 +10801,26 @@ func (periodicalReportingCriteriaExt *PeriodicalReportingCriteriaExt) UnmarshalP
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (polygon *Polygon) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	off0 := 0
-
 	if err := per.EncodeLength(w, enc, 3, 15, true, int64(len(polygon.List)), func(count int64) error {
 		end := off0 + int(count)
 		for i := off0; i < end; i++ {
@@ -13509,35 +10828,28 @@ func (polygon *Polygon) MarshalPER(w *per.Writer, enc per.Encoding) error {
 				return err
 			}
 		}
-
 		off0 = end
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (polygon *Polygon) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	polygon.List = nil
-
 	if err := per.DecodeLength(r, enc, 3, 15, true, func(count int64) error {
 		start := len(polygon.List)
-
 		polygon.List = append(polygon.List, make([]PolygonPoint, count)...)
 		for i := int64(0); i < count; i++ {
 			if err := (&polygon.List[start+int(i)]).UnmarshalPER(r, enc); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -13545,15 +10857,12 @@ func (polygonPoint *PolygonPoint) MarshalPER(w *per.Writer, enc per.Encoding) er
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true}, int64(polygonPoint.LatitudeSign)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 8388607, HasUB: true}, int64(polygonPoint.DegreesLatitude)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 16777215, HasUB: true}, int64(polygonPoint.DegreesLongitude)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -13562,33 +10871,25 @@ func (polygonPoint *PolygonPoint) UnmarshalPER(r *per.Reader, enc per.Encoding) 
 	if err != nil {
 		return err
 	}
-
 	polygonPoint.LatitudeSign = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 8388607, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	polygonPoint.DegreesLatitude = int64(n1)
-
 	n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 16777215, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	polygonPoint.DegreesLongitude = int64(n2)
-
 	return nil
 }
 
 func (positioningModes *PositioningModes) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeBitString(w, enc, 1, 8, true, true, false, per.BoolsToBits(positioningModes.PosModes), len(positioningModes.PosModes)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -13597,18 +10898,14 @@ func (positioningModes *PositioningModes) UnmarshalPER(r *per.Reader, enc per.En
 	if err != nil {
 		return err
 	}
-
 	bs, nbits, err := per.DecodeBitString(r, enc, 1, 8, true, true, false)
 	if err != nil {
 		return err
 	}
-
 	_ = nbits
 	positioningModes.PosModes = per.BitsToBools(bs, nbits)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -13616,26 +10913,21 @@ func (positioningModes *PositioningModes) UnmarshalPER(r *per.Reader, enc per.En
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -13643,7 +10935,6 @@ func (provideAssistanceData *ProvideAssistanceData) MarshalPER(w *per.Writer, en
 	if err := provideAssistanceData.CriticalExtensions.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -13651,7 +10942,6 @@ func (provideAssistanceData *ProvideAssistanceData) UnmarshalPER(r *per.Reader, 
 	if err := (&provideAssistanceData.CriticalExtensions).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -13661,7 +10951,6 @@ func (provideAssistanceDataCriticalExtensions *ProvideAssistanceDataCriticalExte
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
 			return err
 		}
-
 		if err := (*provideAssistanceDataCriticalExtensions.C1).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -13669,14 +10958,12 @@ func (provideAssistanceDataCriticalExtensions *ProvideAssistanceDataCriticalExte
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
 			return err
 		}
-
 		if err := (*provideAssistanceDataCriticalExtensions.CriticalExtensionsFuture).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -13685,26 +10972,22 @@ func (provideAssistanceDataCriticalExtensions *ProvideAssistanceDataCriticalExte
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v ProvideAssistanceDataCriticalExtensionsC1
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideAssistanceDataCriticalExtensions.C1 = &v
 	case 1:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideAssistanceDataCriticalExtensions.CriticalExtensionsFuture = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
@@ -13714,7 +10997,6 @@ func (provideAssistanceDataCriticalExtensionsC1 *ProvideAssistanceDataCriticalEx
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 0); err != nil {
 			return err
 		}
-
 		if err := (*provideAssistanceDataCriticalExtensionsC1.ProvideAssistanceDataR9).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -13722,7 +11004,6 @@ func (provideAssistanceDataCriticalExtensionsC1 *ProvideAssistanceDataCriticalEx
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 1); err != nil {
 			return err
 		}
-
 		if err := (*provideAssistanceDataCriticalExtensionsC1.Spare3).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -13730,7 +11011,6 @@ func (provideAssistanceDataCriticalExtensionsC1 *ProvideAssistanceDataCriticalEx
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 2); err != nil {
 			return err
 		}
-
 		if err := (*provideAssistanceDataCriticalExtensionsC1.Spare2).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -13738,14 +11018,12 @@ func (provideAssistanceDataCriticalExtensionsC1 *ProvideAssistanceDataCriticalEx
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 3); err != nil {
 			return err
 		}
-
 		if err := (*provideAssistanceDataCriticalExtensionsC1.Spare1).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -13754,40 +11032,34 @@ func (provideAssistanceDataCriticalExtensionsC1 *ProvideAssistanceDataCriticalEx
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v ProvideAssistanceDataR9IEs
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideAssistanceDataCriticalExtensionsC1.ProvideAssistanceDataR9 = &v
 	case 1:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideAssistanceDataCriticalExtensionsC1.Spare3 = &v
 	case 2:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideAssistanceDataCriticalExtensionsC1.Spare2 = &v
 	case 3:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideAssistanceDataCriticalExtensionsC1.Spare1 = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
@@ -13797,31 +11069,26 @@ func (provideAssistanceDataR9IEs *ProvideAssistanceDataR9IEs) MarshalPER(w *per.
 	w.WriteBit(provideAssistanceDataR9IEs.AGNSSProvideAssistanceData != nil)
 	w.WriteBit(provideAssistanceDataR9IEs.OTDOAProvideAssistanceData != nil)
 	w.WriteBit(provideAssistanceDataR9IEs.EPDUProvideAssistanceData != nil)
-
 	if provideAssistanceDataR9IEs.CommonIEsProvideAssistanceData != nil {
 		if err := (*provideAssistanceDataR9IEs.CommonIEsProvideAssistanceData).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if provideAssistanceDataR9IEs.AGNSSProvideAssistanceData != nil {
 		if err := (*provideAssistanceDataR9IEs.AGNSSProvideAssistanceData).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if provideAssistanceDataR9IEs.OTDOAProvideAssistanceData != nil {
 		if err := (*provideAssistanceDataR9IEs.OTDOAProvideAssistanceData).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if provideAssistanceDataR9IEs.EPDUProvideAssistanceData != nil {
 		if err := (*provideAssistanceDataR9IEs.EPDUProvideAssistanceData).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -13830,66 +11097,52 @@ func (provideAssistanceDataR9IEs *ProvideAssistanceDataR9IEs) UnmarshalPER(r *pe
 	if err != nil {
 		return err
 	}
-
 	p_CommonIEsProvideAssistanceData, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_AGNSSProvideAssistanceData, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_OTDOAProvideAssistanceData, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_EPDUProvideAssistanceData, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_CommonIEsProvideAssistanceData {
 		var v CommonIEsProvideAssistanceData
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideAssistanceDataR9IEs.CommonIEsProvideAssistanceData = &v
 	}
-
 	if p_AGNSSProvideAssistanceData {
 		var v AGNSSProvideAssistanceData
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideAssistanceDataR9IEs.AGNSSProvideAssistanceData = &v
 	}
-
 	if p_OTDOAProvideAssistanceData {
 		var v OTDOAProvideAssistanceData
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideAssistanceDataR9IEs.OTDOAProvideAssistanceData = &v
 	}
-
 	if p_EPDUProvideAssistanceData {
 		var v EPDUSequence
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideAssistanceDataR9IEs.EPDUProvideAssistanceData = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -13897,26 +11150,21 @@ func (provideAssistanceDataR9IEs *ProvideAssistanceDataR9IEs) UnmarshalPER(r *pe
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -13924,7 +11172,6 @@ func (provideCapabilities *ProvideCapabilities) MarshalPER(w *per.Writer, enc pe
 	if err := provideCapabilities.CriticalExtensions.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -13932,7 +11179,6 @@ func (provideCapabilities *ProvideCapabilities) UnmarshalPER(r *per.Reader, enc 
 	if err := (&provideCapabilities.CriticalExtensions).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -13942,7 +11188,6 @@ func (provideCapabilitiesCriticalExtensions *ProvideCapabilitiesCriticalExtensio
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
 			return err
 		}
-
 		if err := (*provideCapabilitiesCriticalExtensions.C1).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -13950,14 +11195,12 @@ func (provideCapabilitiesCriticalExtensions *ProvideCapabilitiesCriticalExtensio
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
 			return err
 		}
-
 		if err := (*provideCapabilitiesCriticalExtensions.CriticalExtensionsFuture).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -13966,26 +11209,22 @@ func (provideCapabilitiesCriticalExtensions *ProvideCapabilitiesCriticalExtensio
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v ProvideCapabilitiesCriticalExtensionsC1
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideCapabilitiesCriticalExtensions.C1 = &v
 	case 1:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideCapabilitiesCriticalExtensions.CriticalExtensionsFuture = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
@@ -13995,7 +11234,6 @@ func (provideCapabilitiesCriticalExtensionsC1 *ProvideCapabilitiesCriticalExtens
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 0); err != nil {
 			return err
 		}
-
 		if err := (*provideCapabilitiesCriticalExtensionsC1.ProvideCapabilitiesR9).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -14003,7 +11241,6 @@ func (provideCapabilitiesCriticalExtensionsC1 *ProvideCapabilitiesCriticalExtens
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 1); err != nil {
 			return err
 		}
-
 		if err := (*provideCapabilitiesCriticalExtensionsC1.Spare3).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -14011,7 +11248,6 @@ func (provideCapabilitiesCriticalExtensionsC1 *ProvideCapabilitiesCriticalExtens
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 2); err != nil {
 			return err
 		}
-
 		if err := (*provideCapabilitiesCriticalExtensionsC1.Spare2).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -14019,14 +11255,12 @@ func (provideCapabilitiesCriticalExtensionsC1 *ProvideCapabilitiesCriticalExtens
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 3); err != nil {
 			return err
 		}
-
 		if err := (*provideCapabilitiesCriticalExtensionsC1.Spare1).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -14035,40 +11269,34 @@ func (provideCapabilitiesCriticalExtensionsC1 *ProvideCapabilitiesCriticalExtens
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v ProvideCapabilitiesR9IEs
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideCapabilitiesCriticalExtensionsC1.ProvideCapabilitiesR9 = &v
 	case 1:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideCapabilitiesCriticalExtensionsC1.Spare3 = &v
 	case 2:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideCapabilitiesCriticalExtensionsC1.Spare2 = &v
 	case 3:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideCapabilitiesCriticalExtensionsC1.Spare1 = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
@@ -14079,37 +11307,31 @@ func (provideCapabilitiesR9IEs *ProvideCapabilitiesR9IEs) MarshalPER(w *per.Writ
 	w.WriteBit(provideCapabilitiesR9IEs.OTDOAProvideCapabilities != nil)
 	w.WriteBit(provideCapabilitiesR9IEs.ECIDProvideCapabilities != nil)
 	w.WriteBit(provideCapabilitiesR9IEs.EPDUProvideCapabilities != nil)
-
 	if provideCapabilitiesR9IEs.CommonIEsProvideCapabilities != nil {
 		if err := (*provideCapabilitiesR9IEs.CommonIEsProvideCapabilities).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if provideCapabilitiesR9IEs.AGNSSProvideCapabilities != nil {
 		if err := (*provideCapabilitiesR9IEs.AGNSSProvideCapabilities).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if provideCapabilitiesR9IEs.OTDOAProvideCapabilities != nil {
 		if err := (*provideCapabilitiesR9IEs.OTDOAProvideCapabilities).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if provideCapabilitiesR9IEs.ECIDProvideCapabilities != nil {
 		if err := (*provideCapabilitiesR9IEs.ECIDProvideCapabilities).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if provideCapabilitiesR9IEs.EPDUProvideCapabilities != nil {
 		if err := (*provideCapabilitiesR9IEs.EPDUProvideCapabilities).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -14118,80 +11340,63 @@ func (provideCapabilitiesR9IEs *ProvideCapabilitiesR9IEs) UnmarshalPER(r *per.Re
 	if err != nil {
 		return err
 	}
-
 	p_CommonIEsProvideCapabilities, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_AGNSSProvideCapabilities, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_OTDOAProvideCapabilities, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_ECIDProvideCapabilities, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_EPDUProvideCapabilities, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_CommonIEsProvideCapabilities {
 		var v CommonIEsProvideCapabilities
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideCapabilitiesR9IEs.CommonIEsProvideCapabilities = &v
 	}
-
 	if p_AGNSSProvideCapabilities {
 		var v AGNSSProvideCapabilities
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideCapabilitiesR9IEs.AGNSSProvideCapabilities = &v
 	}
-
 	if p_OTDOAProvideCapabilities {
 		var v OTDOAProvideCapabilities
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideCapabilitiesR9IEs.OTDOAProvideCapabilities = &v
 	}
-
 	if p_ECIDProvideCapabilities {
 		var v ECIDProvideCapabilities
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideCapabilitiesR9IEs.ECIDProvideCapabilities = &v
 	}
-
 	if p_EPDUProvideCapabilities {
 		var v EPDUSequence
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideCapabilitiesR9IEs.EPDUProvideCapabilities = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -14199,26 +11404,21 @@ func (provideCapabilitiesR9IEs *ProvideCapabilitiesR9IEs) UnmarshalPER(r *per.Re
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -14226,7 +11426,6 @@ func (provideLocationInformation *ProvideLocationInformation) MarshalPER(w *per.
 	if err := provideLocationInformation.CriticalExtensions.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -14234,7 +11433,6 @@ func (provideLocationInformation *ProvideLocationInformation) UnmarshalPER(r *pe
 	if err := (&provideLocationInformation.CriticalExtensions).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -14244,7 +11442,6 @@ func (provideLocationInformationCriticalExtensions *ProvideLocationInformationCr
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
 			return err
 		}
-
 		if err := (*provideLocationInformationCriticalExtensions.C1).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -14252,14 +11449,12 @@ func (provideLocationInformationCriticalExtensions *ProvideLocationInformationCr
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
 			return err
 		}
-
 		if err := (*provideLocationInformationCriticalExtensions.CriticalExtensionsFuture).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -14268,26 +11463,22 @@ func (provideLocationInformationCriticalExtensions *ProvideLocationInformationCr
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v ProvideLocationInformationCriticalExtensionsC1
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideLocationInformationCriticalExtensions.C1 = &v
 	case 1:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideLocationInformationCriticalExtensions.CriticalExtensionsFuture = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
@@ -14297,7 +11488,6 @@ func (provideLocationInformationCriticalExtensionsC1 *ProvideLocationInformation
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 0); err != nil {
 			return err
 		}
-
 		if err := (*provideLocationInformationCriticalExtensionsC1.ProvideLocationInformationR9).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -14305,7 +11495,6 @@ func (provideLocationInformationCriticalExtensionsC1 *ProvideLocationInformation
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 1); err != nil {
 			return err
 		}
-
 		if err := (*provideLocationInformationCriticalExtensionsC1.Spare3).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -14313,7 +11502,6 @@ func (provideLocationInformationCriticalExtensionsC1 *ProvideLocationInformation
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 2); err != nil {
 			return err
 		}
-
 		if err := (*provideLocationInformationCriticalExtensionsC1.Spare2).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -14321,14 +11509,12 @@ func (provideLocationInformationCriticalExtensionsC1 *ProvideLocationInformation
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 3); err != nil {
 			return err
 		}
-
 		if err := (*provideLocationInformationCriticalExtensionsC1.Spare1).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -14337,40 +11523,34 @@ func (provideLocationInformationCriticalExtensionsC1 *ProvideLocationInformation
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v ProvideLocationInformationR9IEs
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideLocationInformationCriticalExtensionsC1.ProvideLocationInformationR9 = &v
 	case 1:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideLocationInformationCriticalExtensionsC1.Spare3 = &v
 	case 2:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideLocationInformationCriticalExtensionsC1.Spare2 = &v
 	case 3:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideLocationInformationCriticalExtensionsC1.Spare1 = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
@@ -14381,37 +11561,31 @@ func (provideLocationInformationR9IEs *ProvideLocationInformationR9IEs) MarshalP
 	w.WriteBit(provideLocationInformationR9IEs.OTDOAProvideLocationInformation != nil)
 	w.WriteBit(provideLocationInformationR9IEs.ECIDProvideLocationInformation != nil)
 	w.WriteBit(provideLocationInformationR9IEs.EPDUProvideLocationInformation != nil)
-
 	if provideLocationInformationR9IEs.CommonIEsProvideLocationInformation != nil {
 		if err := (*provideLocationInformationR9IEs.CommonIEsProvideLocationInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if provideLocationInformationR9IEs.AGNSSProvideLocationInformation != nil {
 		if err := (*provideLocationInformationR9IEs.AGNSSProvideLocationInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if provideLocationInformationR9IEs.OTDOAProvideLocationInformation != nil {
 		if err := (*provideLocationInformationR9IEs.OTDOAProvideLocationInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if provideLocationInformationR9IEs.ECIDProvideLocationInformation != nil {
 		if err := (*provideLocationInformationR9IEs.ECIDProvideLocationInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if provideLocationInformationR9IEs.EPDUProvideLocationInformation != nil {
 		if err := (*provideLocationInformationR9IEs.EPDUProvideLocationInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -14420,80 +11594,63 @@ func (provideLocationInformationR9IEs *ProvideLocationInformationR9IEs) Unmarsha
 	if err != nil {
 		return err
 	}
-
 	p_CommonIEsProvideLocationInformation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_AGNSSProvideLocationInformation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_OTDOAProvideLocationInformation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_ECIDProvideLocationInformation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_EPDUProvideLocationInformation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_CommonIEsProvideLocationInformation {
 		var v CommonIEsProvideLocationInformation
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideLocationInformationR9IEs.CommonIEsProvideLocationInformation = &v
 	}
-
 	if p_AGNSSProvideLocationInformation {
 		var v AGNSSProvideLocationInformation
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideLocationInformationR9IEs.AGNSSProvideLocationInformation = &v
 	}
-
 	if p_OTDOAProvideLocationInformation {
 		var v OTDOAProvideLocationInformation
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideLocationInformationR9IEs.OTDOAProvideLocationInformation = &v
 	}
-
 	if p_ECIDProvideLocationInformation {
 		var v ECIDProvideLocationInformation
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideLocationInformationR9IEs.ECIDProvideLocationInformation = &v
 	}
-
 	if p_EPDUProvideLocationInformation {
 		var v EPDUSequence
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		provideLocationInformationR9IEs.EPDUProvideLocationInformation = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -14501,26 +11658,21 @@ func (provideLocationInformationR9IEs *ProvideLocationInformationR9IEs) Unmarsha
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -14529,29 +11681,23 @@ func (qoS *QoS) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(qoS.HorizontalAccuracy != nil)
 	w.WriteBit(qoS.VerticalAccuracy != nil)
 	w.WriteBit(qoS.ResponseTime != nil)
-
 	if qoS.HorizontalAccuracy != nil {
 		if err := (*qoS.HorizontalAccuracy).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	per.EncodeBoolean(w, enc, qoS.VerticalCoordinateRequest)
-
 	if qoS.VerticalAccuracy != nil {
 		if err := (*qoS.VerticalAccuracy).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if qoS.ResponseTime != nil {
 		if err := (*qoS.ResponseTime).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	per.EncodeBoolean(w, enc, qoS.VelocityRequest)
-
 	return nil
 }
 
@@ -14560,66 +11706,51 @@ func (qoS *QoS) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if err != nil {
 		return err
 	}
-
 	p_HorizontalAccuracy, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_VerticalAccuracy, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_ResponseTime, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_HorizontalAccuracy {
 		var v HorizontalAccuracy
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		qoS.HorizontalAccuracy = &v
 	}
-
 	b1, err := per.DecodeBoolean(r, enc)
 	if err != nil {
 		return err
 	}
-
 	qoS.VerticalCoordinateRequest = b1
-
 	if p_VerticalAccuracy {
 		var v VerticalAccuracy
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		qoS.VerticalAccuracy = &v
 	}
-
 	if p_ResponseTime {
 		var v ResponseTime
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		qoS.ResponseTime = &v
 	}
-
 	b4, err := per.DecodeBoolean(r, enc)
 	if err != nil {
 		return err
 	}
-
 	qoS.VelocityRequest = b4
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -14627,26 +11758,21 @@ func (qoS *QoS) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -14654,11 +11780,9 @@ func (rSTDMeasureR14 *RSTDMeasureR14) MarshalPER(w *per.Writer, enc per.Encoding
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 16383, HasUB: true}, int64(rSTDMeasureR14.RSTD)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1023, HasUB: true}, int64(rSTDMeasureR14.RSTDUncertainty)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -14667,16 +11791,12 @@ func (rSTDMeasureR14 *RSTDMeasureR14) UnmarshalPER(r *per.Reader, enc per.Encodi
 	if err != nil {
 		return err
 	}
-
 	rSTDMeasureR14.RSTD = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1023, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	rSTDMeasureR14.RSTDUncertainty = int64(n1)
-
 	return nil
 }
 
@@ -14684,7 +11804,6 @@ func (requestAssistanceData *RequestAssistanceData) MarshalPER(w *per.Writer, en
 	if err := requestAssistanceData.CriticalExtensions.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -14692,7 +11811,6 @@ func (requestAssistanceData *RequestAssistanceData) UnmarshalPER(r *per.Reader, 
 	if err := (&requestAssistanceData.CriticalExtensions).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -14702,7 +11820,6 @@ func (requestAssistanceDataCriticalExtensions *RequestAssistanceDataCriticalExte
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
 			return err
 		}
-
 		if err := (*requestAssistanceDataCriticalExtensions.C1).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -14710,14 +11827,12 @@ func (requestAssistanceDataCriticalExtensions *RequestAssistanceDataCriticalExte
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
 			return err
 		}
-
 		if err := (*requestAssistanceDataCriticalExtensions.CriticalExtensionsFuture).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -14726,26 +11841,22 @@ func (requestAssistanceDataCriticalExtensions *RequestAssistanceDataCriticalExte
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v RequestAssistanceDataCriticalExtensionsC1
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestAssistanceDataCriticalExtensions.C1 = &v
 	case 1:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestAssistanceDataCriticalExtensions.CriticalExtensionsFuture = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
@@ -14755,7 +11866,6 @@ func (requestAssistanceDataCriticalExtensionsC1 *RequestAssistanceDataCriticalEx
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 0); err != nil {
 			return err
 		}
-
 		if err := (*requestAssistanceDataCriticalExtensionsC1.RequestAssistanceDataR9).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -14763,7 +11873,6 @@ func (requestAssistanceDataCriticalExtensionsC1 *RequestAssistanceDataCriticalEx
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 1); err != nil {
 			return err
 		}
-
 		if err := (*requestAssistanceDataCriticalExtensionsC1.Spare3).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -14771,7 +11880,6 @@ func (requestAssistanceDataCriticalExtensionsC1 *RequestAssistanceDataCriticalEx
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 2); err != nil {
 			return err
 		}
-
 		if err := (*requestAssistanceDataCriticalExtensionsC1.Spare2).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -14779,14 +11887,12 @@ func (requestAssistanceDataCriticalExtensionsC1 *RequestAssistanceDataCriticalEx
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 3); err != nil {
 			return err
 		}
-
 		if err := (*requestAssistanceDataCriticalExtensionsC1.Spare1).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -14795,40 +11901,34 @@ func (requestAssistanceDataCriticalExtensionsC1 *RequestAssistanceDataCriticalEx
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v RequestAssistanceDataR9IEs
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestAssistanceDataCriticalExtensionsC1.RequestAssistanceDataR9 = &v
 	case 1:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestAssistanceDataCriticalExtensionsC1.Spare3 = &v
 	case 2:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestAssistanceDataCriticalExtensionsC1.Spare2 = &v
 	case 3:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestAssistanceDataCriticalExtensionsC1.Spare1 = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
@@ -14838,31 +11938,26 @@ func (requestAssistanceDataR9IEs *RequestAssistanceDataR9IEs) MarshalPER(w *per.
 	w.WriteBit(requestAssistanceDataR9IEs.AGNSSRequestAssistanceData != nil)
 	w.WriteBit(requestAssistanceDataR9IEs.OTDOARequestAssistanceData != nil)
 	w.WriteBit(requestAssistanceDataR9IEs.EPDURequestAssistanceData != nil)
-
 	if requestAssistanceDataR9IEs.CommonIEsRequestAssistanceData != nil {
 		if err := (*requestAssistanceDataR9IEs.CommonIEsRequestAssistanceData).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if requestAssistanceDataR9IEs.AGNSSRequestAssistanceData != nil {
 		if err := (*requestAssistanceDataR9IEs.AGNSSRequestAssistanceData).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if requestAssistanceDataR9IEs.OTDOARequestAssistanceData != nil {
 		if err := (*requestAssistanceDataR9IEs.OTDOARequestAssistanceData).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if requestAssistanceDataR9IEs.EPDURequestAssistanceData != nil {
 		if err := (*requestAssistanceDataR9IEs.EPDURequestAssistanceData).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -14871,66 +11966,52 @@ func (requestAssistanceDataR9IEs *RequestAssistanceDataR9IEs) UnmarshalPER(r *pe
 	if err != nil {
 		return err
 	}
-
 	p_CommonIEsRequestAssistanceData, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_AGNSSRequestAssistanceData, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_OTDOARequestAssistanceData, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_EPDURequestAssistanceData, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_CommonIEsRequestAssistanceData {
 		var v CommonIEsRequestAssistanceData
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestAssistanceDataR9IEs.CommonIEsRequestAssistanceData = &v
 	}
-
 	if p_AGNSSRequestAssistanceData {
 		var v AGNSSRequestAssistanceData
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestAssistanceDataR9IEs.AGNSSRequestAssistanceData = &v
 	}
-
 	if p_OTDOARequestAssistanceData {
 		var v OTDOARequestAssistanceData
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestAssistanceDataR9IEs.OTDOARequestAssistanceData = &v
 	}
-
 	if p_EPDURequestAssistanceData {
 		var v EPDUSequence
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestAssistanceDataR9IEs.EPDURequestAssistanceData = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -14938,26 +12019,21 @@ func (requestAssistanceDataR9IEs *RequestAssistanceDataR9IEs) UnmarshalPER(r *pe
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -14965,7 +12041,6 @@ func (requestCapabilities *RequestCapabilities) MarshalPER(w *per.Writer, enc pe
 	if err := requestCapabilities.CriticalExtensions.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -14973,7 +12048,6 @@ func (requestCapabilities *RequestCapabilities) UnmarshalPER(r *per.Reader, enc 
 	if err := (&requestCapabilities.CriticalExtensions).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -14983,7 +12057,6 @@ func (requestCapabilitiesCriticalExtensions *RequestCapabilitiesCriticalExtensio
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
 			return err
 		}
-
 		if err := (*requestCapabilitiesCriticalExtensions.C1).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -14991,14 +12064,12 @@ func (requestCapabilitiesCriticalExtensions *RequestCapabilitiesCriticalExtensio
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
 			return err
 		}
-
 		if err := (*requestCapabilitiesCriticalExtensions.CriticalExtensionsFuture).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -15007,26 +12078,22 @@ func (requestCapabilitiesCriticalExtensions *RequestCapabilitiesCriticalExtensio
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v RequestCapabilitiesCriticalExtensionsC1
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestCapabilitiesCriticalExtensions.C1 = &v
 	case 1:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestCapabilitiesCriticalExtensions.CriticalExtensionsFuture = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
@@ -15036,7 +12103,6 @@ func (requestCapabilitiesCriticalExtensionsC1 *RequestCapabilitiesCriticalExtens
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 0); err != nil {
 			return err
 		}
-
 		if err := (*requestCapabilitiesCriticalExtensionsC1.RequestCapabilitiesR9).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -15044,7 +12110,6 @@ func (requestCapabilitiesCriticalExtensionsC1 *RequestCapabilitiesCriticalExtens
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 1); err != nil {
 			return err
 		}
-
 		if err := (*requestCapabilitiesCriticalExtensionsC1.Spare3).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -15052,7 +12117,6 @@ func (requestCapabilitiesCriticalExtensionsC1 *RequestCapabilitiesCriticalExtens
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 2); err != nil {
 			return err
 		}
-
 		if err := (*requestCapabilitiesCriticalExtensionsC1.Spare2).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -15060,14 +12124,12 @@ func (requestCapabilitiesCriticalExtensionsC1 *RequestCapabilitiesCriticalExtens
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 3); err != nil {
 			return err
 		}
-
 		if err := (*requestCapabilitiesCriticalExtensionsC1.Spare1).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -15076,40 +12138,34 @@ func (requestCapabilitiesCriticalExtensionsC1 *RequestCapabilitiesCriticalExtens
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v RequestCapabilitiesR9IEs
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestCapabilitiesCriticalExtensionsC1.RequestCapabilitiesR9 = &v
 	case 1:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestCapabilitiesCriticalExtensionsC1.Spare3 = &v
 	case 2:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestCapabilitiesCriticalExtensionsC1.Spare2 = &v
 	case 3:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestCapabilitiesCriticalExtensionsC1.Spare1 = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
@@ -15120,37 +12176,31 @@ func (requestCapabilitiesR9IEs *RequestCapabilitiesR9IEs) MarshalPER(w *per.Writ
 	w.WriteBit(requestCapabilitiesR9IEs.OTDOARequestCapabilities != nil)
 	w.WriteBit(requestCapabilitiesR9IEs.ECIDRequestCapabilities != nil)
 	w.WriteBit(requestCapabilitiesR9IEs.EPDURequestCapabilities != nil)
-
 	if requestCapabilitiesR9IEs.CommonIEsRequestCapabilities != nil {
 		if err := (*requestCapabilitiesR9IEs.CommonIEsRequestCapabilities).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if requestCapabilitiesR9IEs.AGNSSRequestCapabilities != nil {
 		if err := (*requestCapabilitiesR9IEs.AGNSSRequestCapabilities).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if requestCapabilitiesR9IEs.OTDOARequestCapabilities != nil {
 		if err := (*requestCapabilitiesR9IEs.OTDOARequestCapabilities).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if requestCapabilitiesR9IEs.ECIDRequestCapabilities != nil {
 		if err := (*requestCapabilitiesR9IEs.ECIDRequestCapabilities).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if requestCapabilitiesR9IEs.EPDURequestCapabilities != nil {
 		if err := (*requestCapabilitiesR9IEs.EPDURequestCapabilities).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -15159,80 +12209,63 @@ func (requestCapabilitiesR9IEs *RequestCapabilitiesR9IEs) UnmarshalPER(r *per.Re
 	if err != nil {
 		return err
 	}
-
 	p_CommonIEsRequestCapabilities, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_AGNSSRequestCapabilities, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_OTDOARequestCapabilities, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_ECIDRequestCapabilities, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_EPDURequestCapabilities, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_CommonIEsRequestCapabilities {
 		var v CommonIEsRequestCapabilities
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestCapabilitiesR9IEs.CommonIEsRequestCapabilities = &v
 	}
-
 	if p_AGNSSRequestCapabilities {
 		var v AGNSSRequestCapabilities
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestCapabilitiesR9IEs.AGNSSRequestCapabilities = &v
 	}
-
 	if p_OTDOARequestCapabilities {
 		var v OTDOARequestCapabilities
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestCapabilitiesR9IEs.OTDOARequestCapabilities = &v
 	}
-
 	if p_ECIDRequestCapabilities {
 		var v ECIDRequestCapabilities
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestCapabilitiesR9IEs.ECIDRequestCapabilities = &v
 	}
-
 	if p_EPDURequestCapabilities {
 		var v EPDUSequence
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestCapabilitiesR9IEs.EPDURequestCapabilities = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -15240,26 +12273,21 @@ func (requestCapabilitiesR9IEs *RequestCapabilitiesR9IEs) UnmarshalPER(r *per.Re
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -15267,7 +12295,6 @@ func (requestLocationInformation *RequestLocationInformation) MarshalPER(w *per.
 	if err := requestLocationInformation.CriticalExtensions.MarshalPER(w, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -15275,7 +12302,6 @@ func (requestLocationInformation *RequestLocationInformation) UnmarshalPER(r *pe
 	if err := (&requestLocationInformation.CriticalExtensions).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -15285,7 +12311,6 @@ func (requestLocationInformationCriticalExtensions *RequestLocationInformationCr
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
 			return err
 		}
-
 		if err := (*requestLocationInformationCriticalExtensions.C1).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -15293,14 +12318,12 @@ func (requestLocationInformationCriticalExtensions *RequestLocationInformationCr
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
 			return err
 		}
-
 		if err := (*requestLocationInformationCriticalExtensions.CriticalExtensionsFuture).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -15309,26 +12332,22 @@ func (requestLocationInformationCriticalExtensions *RequestLocationInformationCr
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v RequestLocationInformationCriticalExtensionsC1
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestLocationInformationCriticalExtensions.C1 = &v
 	case 1:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestLocationInformationCriticalExtensions.CriticalExtensionsFuture = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
@@ -15338,7 +12357,6 @@ func (requestLocationInformationCriticalExtensionsC1 *RequestLocationInformation
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 0); err != nil {
 			return err
 		}
-
 		if err := (*requestLocationInformationCriticalExtensionsC1.RequestLocationInformationR9).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -15346,7 +12364,6 @@ func (requestLocationInformationCriticalExtensionsC1 *RequestLocationInformation
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 1); err != nil {
 			return err
 		}
-
 		if err := (*requestLocationInformationCriticalExtensionsC1.Spare3).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -15354,7 +12371,6 @@ func (requestLocationInformationCriticalExtensionsC1 *RequestLocationInformation
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 2); err != nil {
 			return err
 		}
-
 		if err := (*requestLocationInformationCriticalExtensionsC1.Spare2).MarshalPER(w, enc); err != nil {
 			return err
 		}
@@ -15362,14 +12378,12 @@ func (requestLocationInformationCriticalExtensionsC1 *RequestLocationInformation
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 3); err != nil {
 			return err
 		}
-
 		if err := (*requestLocationInformationCriticalExtensionsC1.Spare1).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -15378,40 +12392,34 @@ func (requestLocationInformationCriticalExtensionsC1 *RequestLocationInformation
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v RequestLocationInformationR9IEs
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestLocationInformationCriticalExtensionsC1.RequestLocationInformationR9 = &v
 	case 1:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestLocationInformationCriticalExtensionsC1.Spare3 = &v
 	case 2:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestLocationInformationCriticalExtensionsC1.Spare2 = &v
 	case 3:
 		var v per.Null
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestLocationInformationCriticalExtensionsC1.Spare1 = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
@@ -15422,37 +12430,31 @@ func (requestLocationInformationR9IEs *RequestLocationInformationR9IEs) MarshalP
 	w.WriteBit(requestLocationInformationR9IEs.OTDOARequestLocationInformation != nil)
 	w.WriteBit(requestLocationInformationR9IEs.ECIDRequestLocationInformation != nil)
 	w.WriteBit(requestLocationInformationR9IEs.EPDURequestLocationInformation != nil)
-
 	if requestLocationInformationR9IEs.CommonIEsRequestLocationInformation != nil {
 		if err := (*requestLocationInformationR9IEs.CommonIEsRequestLocationInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if requestLocationInformationR9IEs.AGNSSRequestLocationInformation != nil {
 		if err := (*requestLocationInformationR9IEs.AGNSSRequestLocationInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if requestLocationInformationR9IEs.OTDOARequestLocationInformation != nil {
 		if err := (*requestLocationInformationR9IEs.OTDOARequestLocationInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if requestLocationInformationR9IEs.ECIDRequestLocationInformation != nil {
 		if err := (*requestLocationInformationR9IEs.ECIDRequestLocationInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	if requestLocationInformationR9IEs.EPDURequestLocationInformation != nil {
 		if err := (*requestLocationInformationR9IEs.EPDURequestLocationInformation).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -15461,80 +12463,63 @@ func (requestLocationInformationR9IEs *RequestLocationInformationR9IEs) Unmarsha
 	if err != nil {
 		return err
 	}
-
 	p_CommonIEsRequestLocationInformation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_AGNSSRequestLocationInformation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_OTDOARequestLocationInformation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_ECIDRequestLocationInformation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	p_EPDURequestLocationInformation, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	if p_CommonIEsRequestLocationInformation {
 		var v CommonIEsRequestLocationInformation
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestLocationInformationR9IEs.CommonIEsRequestLocationInformation = &v
 	}
-
 	if p_AGNSSRequestLocationInformation {
 		var v AGNSSRequestLocationInformation
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestLocationInformationR9IEs.AGNSSRequestLocationInformation = &v
 	}
-
 	if p_OTDOARequestLocationInformation {
 		var v OTDOARequestLocationInformation
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestLocationInformationR9IEs.OTDOARequestLocationInformation = &v
 	}
-
 	if p_ECIDRequestLocationInformation {
 		var v ECIDRequestLocationInformation
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestLocationInformationR9IEs.ECIDRequestLocationInformation = &v
 	}
-
 	if p_EPDURequestLocationInformation {
 		var v EPDUSequence
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		requestLocationInformationR9IEs.EPDURequestLocationInformation = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -15542,36 +12527,29 @@ func (requestLocationInformationR9IEs *RequestLocationInformationR9IEs) Unmarsha
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (responseTime *ResponseTime) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 1, HasLB: true, UB: 128, HasUB: true}, int64(responseTime.Time)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -15580,17 +12558,13 @@ func (responseTime *ResponseTime) UnmarshalPER(r *per.Reader, enc per.Encoding) 
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 1, HasLB: true, UB: 128, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	responseTime.Time = int64(n0)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -15598,36 +12572,29 @@ func (responseTime *ResponseTime) UnmarshalPER(r *per.Reader, enc per.Encoding) 
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (sBASID *SBASID) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 3, HasUB: true, Extensible: true}, int64(sBASID.SBAS)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -15636,17 +12603,13 @@ func (sBASID *SBASID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 3, HasUB: true, Extensible: true})
 	if err != nil {
 		return err
 	}
-
 	sBASID.SBAS = int64(n0)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -15654,36 +12617,29 @@ func (sBASID *SBASID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (sBASIDs *SBASIDs) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeBitString(w, enc, 1, 4, true, true, false, per.BoolsToBits(sBASIDs.SBASIDs), len(sBASIDs.SBASIDs)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -15692,18 +12648,14 @@ func (sBASIDs *SBASIDs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if err != nil {
 		return err
 	}
-
 	bs, nbits, err := per.DecodeBitString(r, enc, 1, 4, true, true, false)
 	if err != nil {
 		return err
 	}
-
 	_ = nbits
 	sBASIDs.SBASIDs = per.BitsToBools(bs, nbits)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -15711,26 +12663,21 @@ func (sBASIDs *SBASIDs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -15738,7 +12685,6 @@ func (segmentationInfoR14 *SegmentationInfoR14) MarshalPER(w *per.Writer, enc pe
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1, HasUB: true, Extensible: true}, int64(segmentationInfoR14.Value)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -15747,19 +12693,15 @@ func (segmentationInfoR14 *SegmentationInfoR14) UnmarshalPER(r *per.Reader, enc 
 	if err != nil {
 		return err
 	}
-
 	segmentationInfoR14.Value = int64(n0)
-
 	return nil
 }
 
 func (tDDConfigV1520 *TDDConfigV1520) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 6, HasUB: true, Extensible: true}, int64(tDDConfigV1520.SubframeAssignmentV1520)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -15768,17 +12710,13 @@ func (tDDConfigV1520 *TDDConfigV1520) UnmarshalPER(r *per.Reader, enc per.Encodi
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 6, HasUB: true, Extensible: true})
 	if err != nil {
 		return err
 	}
-
 	tDDConfigV1520.SubframeAssignmentV1520 = int64(n0)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -15786,36 +12724,29 @@ func (tDDConfigV1520 *TDDConfigV1520) UnmarshalPER(r *per.Reader, enc per.Encodi
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (triggeredReportingCriteria *TriggeredReportingCriteria) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	per.EncodeBoolean(w, enc, triggeredReportingCriteria.CellChange)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{}, int64(triggeredReportingCriteria.ReportingDuration)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -15824,16 +12755,12 @@ func (triggeredReportingCriteria *TriggeredReportingCriteria) UnmarshalPER(r *pe
 	if err != nil {
 		return err
 	}
-
 	triggeredReportingCriteria.CellChange = b0
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{})
 	if err != nil {
 		return err
 	}
-
 	triggeredReportingCriteria.ReportingDuration = ReportingDuration(n1)
-
 	return nil
 }
 
@@ -15841,48 +12768,39 @@ func (velocity *Velocity) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	switch {
 	case velocity.HorizontalVelocity != nil:
 		w.WriteBit(false)
-
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 0); err != nil {
 			return err
 		}
-
 		if err := (*velocity.HorizontalVelocity).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	case velocity.HorizontalWithVerticalVelocity != nil:
 		w.WriteBit(false)
-
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 1); err != nil {
 			return err
 		}
-
 		if err := (*velocity.HorizontalWithVerticalVelocity).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	case velocity.HorizontalVelocityWithUncertainty != nil:
 		w.WriteBit(false)
-
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 2); err != nil {
 			return err
 		}
-
 		if err := (*velocity.HorizontalVelocityWithUncertainty).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	case velocity.HorizontalWithVerticalVelocityAndUncertainty != nil:
 		w.WriteBit(false)
-
 		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 3); err != nil {
 			return err
 		}
-
 		if err := (*velocity.HorizontalWithVerticalVelocityAndUncertainty).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	default:
 		return per.ErrEmpty
 	}
-
 	return nil
 }
 
@@ -15891,53 +12809,44 @@ func (velocity *Velocity) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if err != nil {
 		return err
 	}
-
 	if isExt {
 		if _, err := per.DecodeNormallySmall(r, enc); err != nil {
 			return err
 		}
-
 		return per.SkipOpenType(r, enc)
 	}
-
 	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 3)
 	if err != nil {
 		return err
 	}
-
 	switch idx {
 	case 0:
 		var v HorizontalVelocity
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		velocity.HorizontalVelocity = &v
 	case 1:
 		var v HorizontalWithVerticalVelocity
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		velocity.HorizontalWithVerticalVelocity = &v
 	case 2:
 		var v HorizontalVelocityWithUncertainty
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		velocity.HorizontalVelocityWithUncertainty = &v
 	case 3:
 		var v HorizontalWithVerticalVelocityAndUncertainty
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-
 		velocity.HorizontalWithVerticalVelocityAndUncertainty = &v
 	default:
 		return per.ErrOverflow
 	}
-
 	return nil
 }
 
@@ -15945,11 +12854,9 @@ func (velocityTypes *VelocityTypes) MarshalPER(w *per.Writer, enc per.Encoding) 
 	w.WriteBit(false)
 	w.WriteBit(velocityTypes.HorizontalWithVerticalVelocity != nil)
 	per.EncodeBoolean(w, enc, velocityTypes.HorizontalVelocity)
-
 	if velocityTypes.HorizontalWithVerticalVelocity != nil {
 		per.EncodeBoolean(w, enc, (*velocityTypes.HorizontalWithVerticalVelocity))
 	}
-
 	return nil
 }
 
@@ -15958,34 +12865,26 @@ func (velocityTypes *VelocityTypes) UnmarshalPER(r *per.Reader, enc per.Encoding
 	if err != nil {
 		return err
 	}
-
 	p_HorizontalWithVerticalVelocity, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-
 	b0, err := per.DecodeBoolean(r, enc)
 	if err != nil {
 		return err
 	}
-
 	velocityTypes.HorizontalVelocity = b0
-
 	if p_HorizontalWithVerticalVelocity {
 		var v bool
-
 		b1, err := per.DecodeBoolean(r, enc)
 		if err != nil {
 			return err
 		}
-
 		v = b1
 		velocityTypes.HorizontalWithVerticalVelocity = &v
 	}
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -15993,40 +12892,32 @@ func (velocityTypes *VelocityTypes) UnmarshalPER(r *per.Reader, enc per.Encoding
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
 func (verticalAccuracy *VerticalAccuracy) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true}, int64(verticalAccuracy.Accuracy)); err != nil {
 		return err
 	}
-
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 100, HasUB: true}, int64(verticalAccuracy.Confidence)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -16035,24 +12926,18 @@ func (verticalAccuracy *VerticalAccuracy) UnmarshalPER(r *per.Reader, enc per.En
 	if err != nil {
 		return err
 	}
-
 	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	verticalAccuracy.Accuracy = int64(n0)
-
 	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 100, HasUB: true})
 	if err != nil {
 		return err
 	}
-
 	verticalAccuracy.Confidence = int64(n1)
-
 	if extBit {
 		var extBits []bool
-
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
 			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
@@ -16060,25 +12945,20 @@ func (verticalAccuracy *VerticalAccuracy) UnmarshalPER(r *per.Reader, enc per.En
 				if err != nil {
 					return err
 				}
-
 				extBits[i] = b
 			}
-
 			return nil
 		}); err != nil {
 			return err
 		}
-
 		for _, present := range extBits {
 			if !present {
 				continue
 			}
-
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }

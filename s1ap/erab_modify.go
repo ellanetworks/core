@@ -136,8 +136,12 @@ func ParseERABModifyRequest(value []byte) (*ERABModifyRequest, error) {
 		}
 	}
 
-	if !seenMME || !seenENB || !seenERAB {
-		return nil, fmt.Errorf("s1ap: ERABModifyRequest missing mandatory IE")
+	if err := requireIEs(ProcERABModify,
+		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idERABToBeModifiedListBearerModReq, CriticalityReject, seenERAB},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil
@@ -268,8 +272,11 @@ func ParseERABModifyResponse(value []byte) (*ERABModifyResponse, error) {
 		}
 	}
 
-	if !seenMME || !seenENB {
-		return nil, fmt.Errorf("s1ap: ERABModifyResponse missing mandatory IE")
+	if err := requireIEs(ProcERABModify,
+		ieCheck{idMMEUES1APID, CriticalityIgnore, seenMME},
+		ieCheck{idENBUES1APID, CriticalityIgnore, seenENB},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

@@ -55,15 +55,15 @@ func handleENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Ra
 		return
 	}
 
-	if req.ENBName != "" {
-		m.UpdateRadioName(radio, req.ENBName)
+	if req.ENBName != nil {
+		m.UpdateRadioName(radio, *req.ENBName)
 	}
 
 	if len(req.SupportedTAs) > 0 {
 		m.UpdateRadioSupportedTAs(radio, mme.EnbSupportedTAIs(req.SupportedTAs))
 	}
 
-	logger.From(ctx, radio.Log).Info("ENB Configuration Update acknowledged", zap.String("enb-name", req.ENBName))
+	logger.From(ctx, radio.Log).Info("ENB Configuration Update acknowledged", zap.String("enb-name", enbName(req.ENBName)))
 }
 
 // enbConfigUpdateOutcomeFor returns an Acknowledge when any updated supported TAs

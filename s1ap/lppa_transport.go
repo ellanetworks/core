@@ -221,8 +221,13 @@ func decodeLPPaTransportBody(value []byte) (lppaTransportFields, error) {
 		}
 	}
 
-	if !seenMME || !seenENB || !seenRouting || !seenPDU {
-		return f, fmt.Errorf("s1ap: LPPa transport missing mandatory IE")
+	if err := requireIEs(ProcDownlinkUEAssociatedLPPaTransport,
+		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idRoutingID, CriticalityReject, seenRouting},
+		ieCheck{idLPPaPDU, CriticalityReject, seenPDU},
+	); err != nil {
+		return f, err
 	}
 
 	return f, nil

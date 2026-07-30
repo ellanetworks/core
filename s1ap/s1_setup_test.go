@@ -50,8 +50,8 @@ func TestS1SetupRequestGoldenDecode(t *testing.T) {
 		t.Fatalf("ENB-ID = %+v", req.GlobalENBID.ENBID)
 	}
 
-	if req.ENBName != "JLT-621" {
-		t.Fatalf("eNBname = %q", req.ENBName)
+	if derefStr(req.ENBName) != "JLT-621" {
+		t.Fatalf("eNBname = %q", derefStr(req.ENBName))
 	}
 
 	if len(req.SupportedTAs) != 1 || req.SupportedTAs[0].TAC != 0x3039 {
@@ -63,7 +63,7 @@ func TestS1SetupRequestGoldenDecode(t *testing.T) {
 		t.Fatalf("broadcastPLMNs = %+v", req.SupportedTAs[0].BroadcastPLMNs)
 	}
 
-	if req.DefaultPagingDRX != PagingDRXv32 {
+	if req.DefaultPagingDRX == nil || *req.DefaultPagingDRX != PagingDRXv32 {
 		t.Fatalf("pagingDRX = %d", req.DefaultPagingDRX)
 	}
 }
@@ -94,9 +94,9 @@ func TestS1SetupRequestGoldenReencode(t *testing.T) {
 func TestS1SetupRequestRoundTrip(t *testing.T) {
 	in := &S1SetupRequest{
 		GlobalENBID:      GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 0x0abcd}},
-		ENBName:          "eNB-1",
+		ENBName:          Ptr("eNB-1"),
 		SupportedTAs:     SupportedTAs{{TAC: 0x0001, BroadcastPLMNs: BPLMNs{{0x00, 0xf1, 0x10}}}},
-		DefaultPagingDRX: PagingDRXv128,
+		DefaultPagingDRX: Ptr(PagingDRXv128),
 	}
 
 	b, err := in.Marshal()
@@ -114,8 +114,9 @@ func TestS1SetupRequestRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.GlobalENBID != in.GlobalENBID || out.ENBName != in.ENBName ||
-		out.DefaultPagingDRX != in.DefaultPagingDRX || len(out.SupportedTAs) != 1 ||
+	if out.GlobalENBID != in.GlobalENBID || derefStr(out.ENBName) != derefStr(in.ENBName) ||
+		out.DefaultPagingDRX == nil || *out.DefaultPagingDRX != *in.DefaultPagingDRX ||
+		len(out.SupportedTAs) != 1 ||
 		out.SupportedTAs[0].TAC != in.SupportedTAs[0].TAC {
 		t.Fatalf("round-trip mismatch:\n  in  %+v\n  out %+v", in, out)
 	}
@@ -167,7 +168,12 @@ func TestParseS1SetupRequestMissingMandatoryIE(t *testing.T) {
 		{"missing GlobalENBID", false, true, true, []ProtocolIEID{idGlobalENBID}},
 		{"missing SupportedTAs", true, false, true, []ProtocolIEID{idSupportedTAs}},
 		{"missing both reject IEs", false, false, true, []ProtocolIEID{idGlobalENBID, idSupportedTAs}},
+		// Default Paging DRX is mandatory but ignore-criticality (§9.1.8.4),
+		// so its absence alone must not reject the procedure (§10.3.5).
 		{"missing only PagingDRX is tolerated", true, true, false, nil},
+		// When the procedure is rejected anyway, the diagnostics list every
+		// missing mandatory IE, ignore ones included.
+		{"reject IE missing reports ignore IEs too", false, true, false, []ProtocolIEID{idGlobalENBID, idDefaultPagingDRX}},
 	}
 
 	for _, tt := range tests {
@@ -193,8 +199,13 @@ func TestParseS1SetupRequestMissingMandatoryIE(t *testing.T) {
 				t.Errorf("procedure = %d, want ProcS1Setup", missing.Procedure)
 			}
 
-			if !slices.Equal(missing.IEs, tt.wantMissing) {
-				t.Errorf("missing IEs = %v, want %v", missing.IEs, tt.wantMissing)
+			gotIDs := make([]ProtocolIEID, len(missing.IEs))
+			for i, ie := range missing.IEs {
+				gotIDs[i] = ie.ID
+			}
+
+			if !slices.Equal(gotIDs, tt.wantMissing) {
+				t.Errorf("missing IEs = %v, want %v", gotIDs, tt.wantMissing)
 			}
 		})
 	}

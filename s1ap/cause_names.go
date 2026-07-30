@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// Package s1apcause resolves S1AP cause values to their 3GPP names (TS 36.413
-// §9.2.1.3, ASN.1 §9.3.4). It is the single source of the cause enumerations,
-// shared by the MME (cause logging) and the network-event decoder (UI).
-package s1apcause
+package s1ap
 
-import "github.com/ellanetworks/core/s1ap"
+import "fmt"
+
+// Cause value names from TS 36.413 §9.2.1.3 (ASN.1 §9.3.4), so a Cause can
+// render itself in logs and Criticality Diagnostics without every caller
+// keeping its own table.
 
 // Each group's root ENUMERATED values, then its extension additions (after the
 // "..." marker). An extension addition's index continues the numbering after
@@ -94,41 +95,62 @@ var (
 	}
 )
 
-func tablesFor(group s1ap.CauseGroup) (root, ext []string, known bool) {
+func causeTablesFor(group CauseGroup) (root, ext []string, known bool) {
 	switch group {
-	case s1ap.CauseGroupRadioNetwork:
+	case CauseGroupRadioNetwork:
 		return radioNetworkRoot, radioNetworkExt, true
-	case s1ap.CauseGroupTransport:
+	case CauseGroupTransport:
 		return transportRoot, nil, true
-	case s1ap.CauseGroupNAS:
+	case CauseGroupNAS:
 		return nasRoot, nasExt, true
-	case s1ap.CauseGroupProtocol:
+	case CauseGroupProtocol:
 		return protocolRoot, nil, true
-	case s1ap.CauseGroupMisc:
+	case CauseGroupMisc:
 		return miscRoot, nil, true
 	default:
 		return nil, nil, false
 	}
 }
 
-// ValueName resolves an S1AP cause value to its name and its canonical
-// enumeration index (extension additions continue the numbering after the root
-// values). An unrecognised value yields "unknown" and the index is reported best
-// effort.
-func ValueName(group s1ap.CauseGroup, value int, extended bool) (name string, index int) {
-	root, ext, known := tablesFor(group)
+// causeGroupNames names each CHOICE alternative of Cause.
+var causeGroupNames = map[CauseGroup]string{
+	CauseGroupRadioNetwork: "radioNetwork",
+	CauseGroupTransport:    "transport",
+	CauseGroupNAS:          "nas",
+	CauseGroupProtocol:     "protocol",
+	CauseGroupMisc:         "misc",
+}
+
+// ValueName returns the 3GPP name of the cause value and its index within the
+// group's enumeration. Extension additions continue the numbering after the
+// root values. Unknown values render as "unknown".
+func (c Cause) ValueName() (name string, index int) {
+	root, ext, known := causeTablesFor(c.Group)
 	if !known {
-		return "unknown", value
+		return "unknown", c.Value
 	}
 
 	names, base := root, 0
-	if extended {
+	if c.Extended {
 		names, base = ext, len(root)
 	}
 
-	if value >= 0 && value < len(names) {
-		return names[value], base + value
+	if c.Value >= 0 && c.Value < len(names) {
+		return names[c.Value], base + c.Value
 	}
 
-	return "unknown", base + value
+	return "unknown", base + c.Value
+}
+
+// String renders the cause as "<group>: <name> (<index>)", e.g.
+// "radioNetwork: unspecified (0)".
+func (c Cause) String() string {
+	group, ok := causeGroupNames[c.Group]
+	if !ok {
+		return fmt.Sprintf("group-%d: value-%d", int(c.Group), c.Value)
+	}
+
+	name, index := c.ValueName()
+
+	return fmt.Sprintf("%s: %s (%d)", group, name, index)
 }

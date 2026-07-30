@@ -128,8 +128,15 @@ func ParseInitialContextSetupRequest(value []byte) (*InitialContextSetupRequest,
 		}
 	}
 
-	if !seenMME || !seenENB || !seenAMBR || !seenERAB || !seenSec || !seenKey {
-		return nil, fmt.Errorf("s1ap: InitialContextSetupRequest missing mandatory IE")
+	if err := requireIEs(ProcInitialContextSetup,
+		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idUEAggregateMaximumBitrate, CriticalityReject, seenAMBR},
+		ieCheck{idERABToBeSetupListCtxtSUReq, CriticalityReject, seenERAB},
+		ieCheck{idUESecurityCapabilities, CriticalityReject, seenSec},
+		ieCheck{idSecurityKey, CriticalityReject, seenKey},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil
@@ -246,8 +253,12 @@ func ParseInitialContextSetupResponse(value []byte) (*InitialContextSetupRespons
 		}
 	}
 
-	if !seenMME || !seenENB || !seenSetup {
-		return nil, fmt.Errorf("s1ap: InitialContextSetupResponse missing mandatory IE")
+	if err := requireIEs(ProcInitialContextSetup,
+		ieCheck{idMMEUES1APID, CriticalityIgnore, seenMME},
+		ieCheck{idENBUES1APID, CriticalityIgnore, seenENB},
+		ieCheck{idERABSetupListCtxtSURes, CriticalityIgnore, seenSetup},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil
@@ -353,8 +364,12 @@ func ParseInitialContextSetupFailure(value []byte) (*InitialContextSetupFailure,
 		}
 	}
 
-	if !seenMME || !seenENB || !seenCause {
-		return nil, fmt.Errorf("s1ap: InitialContextSetupFailure missing mandatory IE")
+	if err := requireIEs(ProcInitialContextSetup,
+		ieCheck{idMMEUES1APID, CriticalityIgnore, seenMME},
+		ieCheck{idENBUES1APID, CriticalityIgnore, seenENB},
+		ieCheck{idCause, CriticalityIgnore, seenCause},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

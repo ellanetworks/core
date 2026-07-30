@@ -50,8 +50,8 @@ func TestS1SetupOutcomeAccepts(t *testing.T) {
 		t.Fatal("S1 Setup with a served TAI was rejected")
 	}
 
-	if req.ENBName != "JLT-621" {
-		t.Fatalf("eNB name = %q, want JLT-621", req.ENBName)
+	if req.ENBName == nil || *req.ENBName != "JLT-621" {
+		t.Fatalf("eNB name = %q, want JLT-621", enbName(req.ENBName))
 	}
 
 	respPDU, err := s1ap.Unmarshal(respBytes)
@@ -69,7 +69,7 @@ func TestS1SetupOutcomeAccepts(t *testing.T) {
 		t.Fatalf("parse response: %v", err)
 	}
 
-	if resp.MMEName != "ella" ||
+	if (resp.MMEName == nil || *resp.MMEName != "ella") ||
 		len(resp.ServedGUMMEIs) != 1 ||
 		resp.ServedGUMMEIs[0].ServedPLMNs[0] != (s1ap.PLMNIdentity{0x00, 0xf1, 0x10}) {
 		t.Fatalf("response identity mismatch: %+v", resp)
@@ -158,7 +158,10 @@ func TestS1SetupFailureNamesMissingIEs(t *testing.T) {
 		ieSupportedTAs s1ap.ProtocolIEID = 64
 	)
 
-	out, err := buildS1SetupFailureMissingIEs([]s1ap.ProtocolIEID{ieGlobalENBID, ieSupportedTAs})
+	out, err := buildS1SetupFailureMissingIEs([]s1ap.MissingIE{
+		{ID: ieGlobalENBID, Criticality: s1ap.CriticalityReject},
+		{ID: ieSupportedTAs, Criticality: s1ap.CriticalityReject},
+	})
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}

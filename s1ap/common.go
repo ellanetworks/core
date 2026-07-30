@@ -4,9 +4,35 @@
 // Package s1ap encodes and decodes S1 Application Protocol messages
 // (3GPP TS 36.413) using Aligned PER. It is a pure codec: no transport, no
 // state, no procedure logic.
+//
+// # Optional IEs
+//
+// An IE that TS 36.413 marks OPTIONAL, or marks mandatory with ignore
+// criticality (which may legitimately be absent, see §10.3.5), is represented
+// so that absence is always distinguishable from a zero value:
+//
+//   - a field of a non-nilable type is a pointer, and nil means absent;
+//   - a field whose type is already nilable — []byte, a named byte-slice such
+//     as NASPDU, or a list type — uses a nil slice to mean absent.
+//
+// No IE uses a zero value to mean absent, so an empty name or a zero-valued
+// enumeration always round-trips as a present IE.
+//
+// # Decoding errors
+//
+// ParseXxx returns [MissingMandatoryIEsError] when a mandatory IE with reject
+// criticality is absent. Absences that are exclusively ignore-criticality are
+// not errors: §10.3.5 requires the receiver to carry on, and the corresponding
+// field is left nil. Unmodeled IEs are preserved verbatim and re-emitted on
+// encode; see UnknownIEs.
 package s1ap
 
 import "fmt"
+
+// Ptr returns a pointer to v, for setting an optional IE inline:
+//
+//	msg := &s1ap.S1SetupRequest{ENBName: s1ap.Ptr("eNB-1")}
+func Ptr[T any](v T) *T { return &v }
 
 // Criticality ::= ENUMERATED { reject, ignore, notify } (not extensible).
 type Criticality uint8

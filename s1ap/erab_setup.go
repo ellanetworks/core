@@ -133,8 +133,12 @@ func ParseERABSetupRequest(value []byte) (*ERABSetupRequest, error) {
 		}
 	}
 
-	if !seenMME || !seenENB || !seenERAB {
-		return nil, fmt.Errorf("s1ap: ERABSetupRequest missing mandatory IE")
+	if err := requireIEs(ProcERABSetup,
+		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idERABToBeSetupListBearerSUReq, CriticalityReject, seenERAB},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil
@@ -265,8 +269,11 @@ func ParseERABSetupResponse(value []byte) (*ERABSetupResponse, error) {
 		}
 	}
 
-	if !seenMME || !seenENB {
-		return nil, fmt.Errorf("s1ap: ERABSetupResponse missing mandatory IE")
+	if err := requireIEs(ProcERABSetup,
+		ieCheck{idMMEUES1APID, CriticalityIgnore, seenMME},
+		ieCheck{idENBUES1APID, CriticalityIgnore, seenENB},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

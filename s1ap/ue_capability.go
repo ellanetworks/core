@@ -111,8 +111,12 @@ func ParseUECapabilityInfoIndication(value []byte) (*UECapabilityInfoIndication,
 		}
 	}
 
-	if !seenMME || !seenENB || !seenCap {
-		return nil, fmt.Errorf("s1ap: UECapabilityInfoIndication missing mandatory IE")
+	if err := requireIEs(ProcUECapabilityInfoIndication,
+		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idUERadioCapability, CriticalityIgnore, seenCap},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

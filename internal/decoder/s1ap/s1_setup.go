@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/ellanetworks/core/internal/s1apcause"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -126,7 +125,7 @@ func causeGroupToEnum(g s1ap.CauseGroup) utils.EnumField {
 }
 
 func cause(c s1ap.Cause) Cause {
-	name, index := s1apcause.ValueName(c.Group, c.Value, c.Extended)
+	name, index := c.ValueName()
 
 	return Cause{
 		Group: causeGroupToEnum(c.Group),
@@ -146,30 +145,32 @@ func buildS1SetupRequest(value []byte) (S1APMessageValue, string) {
 		Value:       globalENBID(req.GlobalENBID),
 	}}
 
-	if req.ENBName != "" {
+	if req.ENBName != nil {
 		ies = append(ies, IE{
 			ID:          ieEnum(idENBname),
 			Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
-			Value:       req.ENBName,
+			Value:       *req.ENBName,
 		})
 	}
 
-	ies = append(ies,
-		IE{
-			ID:          ieEnum(idSupportedTAs),
-			Criticality: criticalityToEnum(s1ap.CriticalityReject),
-			Value:       supportedTAs(req.SupportedTAs),
-		},
-		IE{
+	ies = append(ies, IE{
+		ID:          ieEnum(idSupportedTAs),
+		Criticality: criticalityToEnum(s1ap.CriticalityReject),
+		Value:       supportedTAs(req.SupportedTAs),
+	})
+	// Only render the IE when the eNB actually sent it; it is mandatory but
+	// ignore-criticality, so absence is legal (TS 36.413 §9.1.8.4).
+	if req.DefaultPagingDRX != nil {
+		ies = append(ies, IE{
 			ID:          ieEnum(idDefaultPagingDRX),
 			Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
-			Value:       pagingDRXToEnum(req.DefaultPagingDRX),
-		},
-	)
+			Value:       pagingDRXToEnum(*req.DefaultPagingDRX),
+		})
+	}
 
 	summary := "S1 Setup Request"
-	if req.ENBName != "" {
-		summary = fmt.Sprintf("S1 Setup Request (%s)", req.ENBName)
+	if req.ENBName != nil {
+		summary = fmt.Sprintf("S1 Setup Request (%s)", *req.ENBName)
 	}
 
 	ies = appendUnknownIEs(ies, req.UnknownIEs())
@@ -185,11 +186,11 @@ func buildS1SetupResponse(value []byte) (S1APMessageValue, string) {
 
 	var ies []IE
 
-	if resp.MMEName != "" {
+	if resp.MMEName != nil {
 		ies = append(ies, IE{
 			ID:          ieEnum(idMMEname),
 			Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
-			Value:       resp.MMEName,
+			Value:       *resp.MMEName,
 		})
 	}
 

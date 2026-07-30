@@ -114,8 +114,15 @@ func ParseHandoverRequired(value []byte) (*HandoverRequired, error) {
 		}
 	}
 
-	if !seenMME || !seenENB || !seenType || !seenCause || !seenTarget || !seenContainer {
-		return nil, fmt.Errorf("s1ap: HandoverRequired missing mandatory IE")
+	if err := requireIEs(ProcHandoverPreparation,
+		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idHandoverType, CriticalityReject, seenType},
+		ieCheck{idTargetID, CriticalityReject, seenTarget},
+		ieCheck{idSourceToTargetTransparentContainer, CriticalityReject, seenContainer},
+		ieCheck{idCause, CriticalityIgnore, seenCause},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil
@@ -227,8 +234,13 @@ func ParseHandoverCommand(value []byte) (*HandoverCommand, error) {
 		}
 	}
 
-	if !seenMME || !seenENB || !seenType || !seenContainer {
-		return nil, fmt.Errorf("s1ap: HandoverCommand missing mandatory IE")
+	if err := requireIEs(ProcHandoverPreparation,
+		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idHandoverType, CriticalityReject, seenType},
+		ieCheck{idTargetToSourceTransparentContainer, CriticalityReject, seenContainer},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil
@@ -324,8 +336,12 @@ func ParseHandoverPreparationFailure(value []byte) (*HandoverPreparationFailure,
 		}
 	}
 
-	if !seenMME || !seenENB || !seenCause {
-		return nil, fmt.Errorf("s1ap: HandoverPreparationFailure missing mandatory IE")
+	if err := requireIEs(ProcHandoverPreparation,
+		ieCheck{idMMEUES1APID, CriticalityIgnore, seenMME},
+		ieCheck{idENBUES1APID, CriticalityIgnore, seenENB},
+		ieCheck{idCause, CriticalityIgnore, seenCause},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

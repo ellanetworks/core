@@ -32,7 +32,7 @@ func TestENBConfigUpdateAcknowledged(t *testing.T) {
 		name string
 		req  *s1ap.ENBConfigurationUpdate
 	}{
-		{"name only", &s1ap.ENBConfigurationUpdate{ENBName: "enb-renamed"}},
+		{"name only", &s1ap.ENBConfigurationUpdate{ENBName: new("enb-renamed")}},
 		{"served TA", &s1ap.ENBConfigurationUpdate{
 			SupportedTAs: s1ap.SupportedTAs{{TAC: 7, BroadcastPLMNs: s1ap.BPLMNs{servedPLMNIdentity(t)}}},
 		}},

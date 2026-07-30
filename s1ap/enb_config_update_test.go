@@ -9,7 +9,7 @@ func TestENBConfigurationUpdateRoundTrips(t *testing.T) {
 	drx := PagingDRX(2)
 
 	in := &ENBConfigurationUpdate{
-		ENBName: "enb-updated",
+		ENBName: Ptr("enb-updated"),
 		SupportedTAs: SupportedTAs{{
 			TAC:            7,
 			BroadcastPLMNs: []PLMNIdentity{{0x00, 0xf1, 0x10}},
@@ -37,7 +37,7 @@ func TestENBConfigurationUpdateRoundTrips(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.ENBName != "enb-updated" || len(out.SupportedTAs) != 1 || out.SupportedTAs[0].TAC != 7 {
+	if derefStr(out.ENBName) != "enb-updated" || len(out.SupportedTAs) != 1 || out.SupportedTAs[0].TAC != 7 {
 		t.Fatalf("mismatch: %+v", out)
 	}
 

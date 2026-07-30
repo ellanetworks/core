@@ -211,8 +211,13 @@ func ParsePaging(value []byte) (*Paging, error) {
 		}
 	}
 
-	if !seenIndex || !seenPagingID || !seenCNDomain || !seenTAIList {
-		return nil, fmt.Errorf("s1ap: Paging missing mandatory IE")
+	if err := requireIEs(ProcPaging,
+		ieCheck{idUEIdentityIndexValue, CriticalityIgnore, seenIndex},
+		ieCheck{idUEPagingID, CriticalityIgnore, seenPagingID},
+		ieCheck{idCNDomain, CriticalityIgnore, seenCNDomain},
+		ieCheck{idTAIList, CriticalityIgnore, seenTAIList},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

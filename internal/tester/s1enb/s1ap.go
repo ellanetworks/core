@@ -92,11 +92,11 @@ func (e *ENB) buildS1SetupRequest() ([]byte, error) {
 			PLMNIdentity: e.plmn,
 			ENBID:        s1ap.ENBID{Kind: s1ap.ENBIDMacro, Value: e.enbID},
 		},
-		ENBName: e.name,
+		ENBName: new(e.name),
 		SupportedTAs: s1ap.SupportedTAs{
 			{TAC: s1ap.TAC(e.tac), BroadcastPLMNs: s1ap.BPLMNs{e.plmn}},
 		},
-		DefaultPagingDRX: s1ap.PagingDRXv32,
+		DefaultPagingDRX: new(s1ap.PagingDRXv32),
 	}
 
 	b, err := req.Marshal()

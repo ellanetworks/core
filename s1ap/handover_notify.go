@@ -106,8 +106,13 @@ func ParseHandoverNotify(value []byte) (*HandoverNotify, error) {
 		}
 	}
 
-	if !seenMME || !seenENB || !seenCGI || !seenTAI {
-		return nil, fmt.Errorf("s1ap: HandoverNotify missing mandatory IE")
+	if err := requireIEs(ProcHandoverNotification,
+		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idEUTRANCGI, CriticalityIgnore, seenCGI},
+		ieCheck{idTAI, CriticalityIgnore, seenTAI},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

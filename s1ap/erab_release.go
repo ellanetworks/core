@@ -131,8 +131,12 @@ func ParseERABReleaseCommand(value []byte) (*ERABReleaseCommand, error) {
 		}
 	}
 
-	if !seenMME || !seenENB || !seenList {
-		return nil, fmt.Errorf("s1ap: ERABReleaseCommand missing mandatory IE")
+	if err := requireIEs(ProcERABRelease,
+		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idERABToBeReleasedList, CriticalityIgnore, seenList},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil
@@ -262,8 +266,11 @@ func ParseERABReleaseResponse(value []byte) (*ERABReleaseResponse, error) {
 		}
 	}
 
-	if !seenMME || !seenENB {
-		return nil, fmt.Errorf("s1ap: ERABReleaseResponse missing mandatory IE")
+	if err := requireIEs(ProcERABRelease,
+		ieCheck{idMMEUES1APID, CriticalityIgnore, seenMME},
+		ieCheck{idENBUES1APID, CriticalityIgnore, seenENB},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

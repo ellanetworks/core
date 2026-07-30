@@ -128,8 +128,14 @@ func ParseInitialUEMessage(value []byte) (*InitialUEMessage, error) {
 		}
 	}
 
-	if !seenENB || !seenNAS || !seenTAI || !seenCGI || !seenRRC {
-		return nil, fmt.Errorf("s1ap: InitialUEMessage missing mandatory IE")
+	if err := requireIEs(ProcInitialUEMessage,
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idNASPDU, CriticalityReject, seenNAS},
+		ieCheck{idTAI, CriticalityReject, seenTAI},
+		ieCheck{idEUTRANCGI, CriticalityIgnore, seenCGI},
+		ieCheck{idRRCEstablishmentCause, CriticalityIgnore, seenRRC},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil
@@ -234,8 +240,14 @@ func ParseUplinkNASTransport(value []byte) (*UplinkNASTransport, error) {
 		}
 	}
 
-	if !seenMME || !seenENB || !seenNAS || !seenCGI || !seenTAI {
-		return nil, fmt.Errorf("s1ap: UplinkNASTransport missing mandatory IE")
+	if err := requireIEs(ProcUplinkNASTransport,
+		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idNASPDU, CriticalityReject, seenNAS},
+		ieCheck{idEUTRANCGI, CriticalityIgnore, seenCGI},
+		ieCheck{idTAI, CriticalityIgnore, seenTAI},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil
@@ -330,8 +342,12 @@ func ParseDownlinkNASTransport(value []byte) (*DownlinkNASTransport, error) {
 		}
 	}
 
-	if !seenMME || !seenENB || !seenNAS {
-		return nil, fmt.Errorf("s1ap: DownlinkNASTransport missing mandatory IE")
+	if err := requireIEs(ProcDownlinkNASTransport,
+		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idNASPDU, CriticalityReject, seenNAS},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

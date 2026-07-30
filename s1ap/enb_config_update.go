@@ -13,7 +13,7 @@ import (
 // sent by a running eNB to update its configuration without redoing
 // S1 Setup. Every IE is optional; the eNB sends only what changed.
 type ENBConfigurationUpdate struct {
-	ENBName          string       // "" = absent
+	ENBName          *string
 	SupportedTAs     SupportedTAs // nil = absent
 	DefaultPagingDRX *PagingDRX   // nil = absent
 
@@ -25,10 +25,8 @@ func (m *ENBConfigurationUpdate) encodeBody(w *per.Writer, enc per.Encoding) err
 
 	var fields []ieField
 
-	if m.ENBName != "" {
-		name := m.ENBName
-
-		fields = append(fields, ieField{id: idENBname, crit: CriticalityIgnore, val: Name(name)})
+	if m.ENBName != nil {
+		fields = append(fields, ieField{id: idENBname, crit: CriticalityIgnore, val: Name(*m.ENBName)})
 	}
 
 	if len(m.SupportedTAs) > 0 {
@@ -93,8 +91,10 @@ func ParseENBConfigurationUpdate(value []byte) (*ENBConfigurationUpdate, error) 
 		case idENBname:
 			var n Name
 
-			err = perIEDecode(f.value, &n)
-			m.ENBName = string(n)
+			if err = perIEDecode(f.value, &n); err == nil {
+				name := string(n)
+				m.ENBName = &name
+			}
 		case idSupportedTAs:
 			err = perIEDecode(f.value, &m.SupportedTAs)
 		case idDefaultPagingDRX:

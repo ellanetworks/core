@@ -203,17 +203,15 @@ func (g *generator) collectReferencedStructs(scope *types.Scope) {
 // given name: one declared outside the generated output file, which is about
 // to be replaced by this run.
 func (g *generator) hasSourceMethod(named *types.Named, name string) bool {
-	for _, ms := range []*types.MethodSet{types.NewMethodSet(named), types.NewMethodSet(types.NewPointer(named))} {
-		for method := range ms.Methods() {
-			obj := method.Obj()
-			if obj.Name() != name {
-				continue
-			}
+	for obj := range named.Methods() {
+		obj := obj
+		if obj.Name() != name {
+			continue
+		}
 
-			pos := g.pkg.Fset.Position(obj.Pos())
-			if filepath.Base(pos.Filename) != filepath.Base(g.cfg.output) {
-				return true
-			}
+		pos := g.pkg.Fset.Position(obj.Pos())
+		if filepath.Base(pos.Filename) != filepath.Base(g.cfg.output) {
+			return true
 		}
 	}
 

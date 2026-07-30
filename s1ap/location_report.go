@@ -134,8 +134,14 @@ func ParseLocationReport(value []byte) (*LocationReport, error) {
 		}
 	}
 
-	if !seenMME || !seenENB || !seenCGI || !seenTAI || !seenReq {
-		return nil, fmt.Errorf("s1ap: LocationReport missing mandatory IE")
+	if err := requireIEs(ProcLocationReport,
+		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idEUTRANCGI, CriticalityIgnore, seenCGI},
+		ieCheck{idTAI, CriticalityIgnore, seenTAI},
+		ieCheck{idRequestType, CriticalityIgnore, seenReq},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

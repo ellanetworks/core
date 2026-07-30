@@ -21,3 +21,14 @@ func perBytes(w *per.Writer) []byte {
 
 	return w.Bytes()
 }
+
+// derefStr returns the string a pointer holds, or "" when it is nil. Optional
+// IE fields are pointers so absence is distinguishable; tests that only care
+// about the value use this.
+func derefStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+
+	return *s
+}

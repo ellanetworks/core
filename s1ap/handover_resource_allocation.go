@@ -129,8 +129,17 @@ func ParseHandoverRequest(value []byte) (*HandoverRequest, error) {
 		}
 	}
 
-	if !seenMME || !seenType || !seenCause || !seenAMBR || !seenERAB || !seenContainer || !seenSec || !seenCtx {
-		return nil, fmt.Errorf("s1ap: HandoverRequest missing mandatory IE")
+	if err := requireIEs(ProcHandoverResourceAllocation,
+		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
+		ieCheck{idHandoverType, CriticalityReject, seenType},
+		ieCheck{idUEAggregateMaximumBitrate, CriticalityReject, seenAMBR},
+		ieCheck{idERABToBeSetupListHOReq, CriticalityReject, seenERAB},
+		ieCheck{idSourceToTargetTransparentContainer, CriticalityReject, seenContainer},
+		ieCheck{idUESecurityCapabilities, CriticalityReject, seenSec},
+		ieCheck{idSecurityContext, CriticalityReject, seenCtx},
+		ieCheck{idCause, CriticalityIgnore, seenCause},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil
@@ -245,8 +254,13 @@ func ParseHandoverRequestAcknowledge(value []byte) (*HandoverRequestAcknowledge,
 		}
 	}
 
-	if !seenMME || !seenENB || !seenAdmitted || !seenContainer {
-		return nil, fmt.Errorf("s1ap: HandoverRequestAcknowledge missing mandatory IE")
+	if err := requireIEs(ProcHandoverResourceAllocation,
+		ieCheck{idTargetToSourceTransparentContainer, CriticalityReject, seenContainer},
+		ieCheck{idMMEUES1APID, CriticalityIgnore, seenMME},
+		ieCheck{idENBUES1APID, CriticalityIgnore, seenENB},
+		ieCheck{idERABAdmittedList, CriticalityIgnore, seenAdmitted},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil
@@ -338,8 +352,11 @@ func ParseHandoverFailure(value []byte) (*HandoverFailure, error) {
 		}
 	}
 
-	if !seenMME || !seenCause {
-		return nil, fmt.Errorf("s1ap: HandoverFailure missing mandatory IE")
+	if err := requireIEs(ProcHandoverResourceAllocation,
+		ieCheck{idMMEUES1APID, CriticalityIgnore, seenMME},
+		ieCheck{idCause, CriticalityIgnore, seenCause},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

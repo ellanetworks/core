@@ -186,8 +186,11 @@ func ParseUEContextReleaseCommand(value []byte) (*UEContextReleaseCommand, error
 		}
 	}
 
-	if !seenIDs || !seenCause {
-		return nil, fmt.Errorf("s1ap: UEContextReleaseCommand missing mandatory IE")
+	if err := requireIEs(ProcUEContextRelease,
+		ieCheck{idUES1APIDs, CriticalityReject, seenIDs},
+		ieCheck{idCause, CriticalityIgnore, seenCause},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil
@@ -299,8 +302,11 @@ func ParseUEContextReleaseComplete(value []byte) (*UEContextReleaseComplete, err
 		}
 	}
 
-	if !seenMME || !seenENB {
-		return nil, fmt.Errorf("s1ap: UEContextReleaseComplete missing mandatory IE")
+	if err := requireIEs(ProcUEContextRelease,
+		ieCheck{idMMEUES1APID, CriticalityIgnore, seenMME},
+		ieCheck{idENBUES1APID, CriticalityIgnore, seenENB},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil
@@ -396,8 +402,12 @@ func ParseUEContextReleaseRequest(value []byte) (*UEContextReleaseRequest, error
 		}
 	}
 
-	if !seenMME || !seenENB || !seenCause {
-		return nil, fmt.Errorf("s1ap: UEContextReleaseRequest missing mandatory IE")
+	if err := requireIEs(ProcUEContextReleaseRequest,
+		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idCause, CriticalityIgnore, seenCause},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

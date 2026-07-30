@@ -4,6 +4,7 @@
 package s1ap
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
@@ -51,21 +52,50 @@ func TestLocationReportRoundTrip(t *testing.T) {
 	}
 }
 
+// TestLocationReportMissingMandatoryIE checks the §10.3.5 split: the two UE
+// IDs are mandatory-reject, while E-UTRAN CGI, TAI and Request Type are
+// mandatory-ignore (§9.1.12.3), so omitting only the latter must not reject.
 func TestLocationReportMissingMandatoryIE(t *testing.T) {
-	w := per.NewWriter()
+	encode := func(t *testing.T, fields []ieField) []byte {
+		t.Helper()
 
-	w.WriteBit(false)
+		w := per.NewWriter()
+		w.WriteBit(false)
 
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
-		{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(1)},
+		if err := encodeIEContainer(w, per.Aligned, fields); err != nil {
+			t.Fatal(err)
+		}
+
+		return perBytes(w)
 	}
 
-	if err := encodeIEContainer(w, per.Aligned, fields); err != nil {
-		t.Fatal(err)
-	}
+	t.Run("only ignore-criticality IEs missing is tolerated", func(t *testing.T) {
+		value := encode(t, []ieField{
+			{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
+			{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(1)},
+		})
 
-	if _, err := ParseLocationReport(perBytes(w)); err == nil {
-		t.Fatal("expected missing-mandatory-IE error")
-	}
+		if _, err := ParseLocationReport(value); err != nil {
+			t.Fatalf("parse: unexpected error %v", err)
+		}
+	})
+
+	t.Run("missing reject-criticality IE rejects and reports all", func(t *testing.T) {
+		value := encode(t, []ieField{
+			{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
+		})
+
+		var missing *MissingMandatoryIEsError
+		if _, err := ParseLocationReport(value); !errors.As(err, &missing) {
+			t.Fatalf("error = %v, want *MissingMandatoryIEsError", err)
+		}
+
+		if got := missing.RejectedIEs(); len(got) != 1 || got[0].ID != idENBUES1APID {
+			t.Fatalf("rejected IEs = %v, want [eNB-UE-S1AP-ID]", got)
+		}
+		// The ignore-criticality absences ride along for diagnostics.
+		if len(missing.IEs) != 4 {
+			t.Fatalf("missing IEs = %v, want 4 entries", missing.IEs)
+		}
+	})
 }

@@ -178,8 +178,11 @@ func ParseReset(value []byte) (*Reset, error) {
 		}
 	}
 
-	if !seenCause || !seenResetType {
-		return nil, fmt.Errorf("s1ap: Reset missing mandatory IE")
+	if err := requireIEs(ProcReset,
+		ieCheck{idResetType, CriticalityReject, seenResetType},
+		ieCheck{idCause, CriticalityIgnore, seenCause},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

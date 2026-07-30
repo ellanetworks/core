@@ -98,8 +98,12 @@ func ParseHandoverCancel(value []byte) (*HandoverCancel, error) {
 		}
 	}
 
-	if !seenMME || !seenENB || !seenCause {
-		return nil, fmt.Errorf("s1ap: HandoverCancel missing mandatory IE")
+	if err := requireIEs(ProcHandoverCancel,
+		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idCause, CriticalityIgnore, seenCause},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil
@@ -190,8 +194,11 @@ func ParseHandoverCancelAcknowledge(value []byte) (*HandoverCancelAcknowledge, e
 		}
 	}
 
-	if !seenMME || !seenENB {
-		return nil, fmt.Errorf("s1ap: HandoverCancelAcknowledge missing mandatory IE")
+	if err := requireIEs(ProcHandoverCancel,
+		ieCheck{idMMEUES1APID, CriticalityIgnore, seenMME},
+		ieCheck{idENBUES1APID, CriticalityIgnore, seenENB},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

@@ -27,30 +27,11 @@ func FuzzDecodeNoPanic(f *testing.F) {
 		}
 
 		_, _ = decodeIEContainer(per.NewReader(pdu.value()), per.Aligned)
-		_, _ = ParseS1SetupRequest(pdu.value())
-		_, _ = ParseS1SetupResponse(pdu.value())
-		_, _ = ParseS1SetupFailure(pdu.value())
-		_, _ = ParseInitialUEMessage(pdu.value())
-		_, _ = ParseUplinkNASTransport(pdu.value())
-		_, _ = ParseDownlinkNASTransport(pdu.value())
-		_, _ = ParseInitialContextSetupRequest(pdu.value())
-		_, _ = ParseInitialContextSetupResponse(pdu.value())
-		_, _ = ParseInitialContextSetupFailure(pdu.value())
-		_, _ = ParseUEContextReleaseCommand(pdu.value())
-		_, _ = ParseUEContextReleaseComplete(pdu.value())
-		_, _ = ParseUEContextReleaseRequest(pdu.value())
-		_, _ = ParseErrorIndication(pdu.value())
-		_, _ = ParsePaging(pdu.value())
-		_, _ = ParseHandoverRequired(pdu.value())
-		_, _ = ParseHandoverRequest(pdu.value())
-		_, _ = ParseHandoverRequestAcknowledge(pdu.value())
-		_, _ = ParseHandoverFailure(pdu.value())
-		_, _ = ParseHandoverCommand(pdu.value())
-		_, _ = ParseHandoverPreparationFailure(pdu.value())
-		_, _ = ParseHandoverNotify(pdu.value())
-		_, _ = ParseHandoverCancel(pdu.value())
-		_, _ = ParseHandoverCancelAcknowledge(pdu.value())
-		_, _ = ParseENBStatusTransfer(pdu.value())
-		_, _ = ParseMMEStatusTransfer(pdu.value())
+
+		// Every parser in the registry sees the payload, so a newly added
+		// message cannot silently escape the no-panic guarantee.
+		for _, mp := range messageParsers {
+			_ = mp.Parse(pdu.value())
+		}
 	})
 }

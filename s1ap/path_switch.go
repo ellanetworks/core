@@ -138,8 +138,15 @@ func ParsePathSwitchRequest(value []byte) (*PathSwitchRequest, error) {
 		}
 	}
 
-	if !seenENB || !seenERAB || !seenSrcMME || !seenCGI || !seenTAI || !seenSec {
-		return nil, fmt.Errorf("s1ap: PathSwitchRequest missing mandatory IE")
+	if err := requireIEs(ProcPathSwitchRequest,
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idERABToBeSwitchedDLList, CriticalityReject, seenERAB},
+		ieCheck{idSourceMMEUES1APID, CriticalityReject, seenSrcMME},
+		ieCheck{idEUTRANCGI, CriticalityIgnore, seenCGI},
+		ieCheck{idTAI, CriticalityIgnore, seenTAI},
+		ieCheck{idUESecurityCapabilities, CriticalityIgnore, seenSec},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil
@@ -271,8 +278,12 @@ func ParsePathSwitchRequestAcknowledge(value []byte) (*PathSwitchRequestAcknowle
 		}
 	}
 
-	if !seenMME || !seenENB || !seenSec {
-		return nil, fmt.Errorf("s1ap: PathSwitchRequestAcknowledge missing mandatory IE")
+	if err := requireIEs(ProcPathSwitchRequest,
+		ieCheck{idSecurityContext, CriticalityReject, seenSec},
+		ieCheck{idMMEUES1APID, CriticalityIgnore, seenMME},
+		ieCheck{idENBUES1APID, CriticalityIgnore, seenENB},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil
@@ -368,8 +379,12 @@ func ParsePathSwitchRequestFailure(value []byte) (*PathSwitchRequestFailure, err
 		}
 	}
 
-	if !seenMME || !seenENB || !seenCause {
-		return nil, fmt.Errorf("s1ap: PathSwitchRequestFailure missing mandatory IE")
+	if err := requireIEs(ProcPathSwitchRequest,
+		ieCheck{idMMEUES1APID, CriticalityIgnore, seenMME},
+		ieCheck{idENBUES1APID, CriticalityIgnore, seenENB},
+		ieCheck{idCause, CriticalityIgnore, seenCause},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

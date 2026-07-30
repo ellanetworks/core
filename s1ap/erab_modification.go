@@ -133,8 +133,12 @@ func ParseERABModificationIndication(value []byte) (*ERABModificationIndication,
 		}
 	}
 
-	if !seenMME || !seenENB || !seenToBeModified {
-		return nil, fmt.Errorf("s1ap: ERABModificationIndication missing mandatory IE")
+	if err := requireIEs(ProcERABModificationIndication,
+		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idERABToBeModifiedListBearerModInd, CriticalityReject, seenToBeModified},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil

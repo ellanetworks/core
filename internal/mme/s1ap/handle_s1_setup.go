@@ -61,7 +61,7 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 	}
 
 	logger.From(ctx, m.RadioLog(conn)).Info("S1 Setup Request",
-		zap.String("enb-name", req.ENBName),
+		zap.String("enb-name", enbName(req.ENBName)),
 		zap.Uint32("enb-id", req.GlobalENBID.ENBID.Value),
 	)
 
@@ -69,7 +69,7 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 		m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupFailure, outBytes)
 
 		logger.From(ctx, m.RadioLog(conn)).Warn("S1 Setup rejected",
-			zap.String("enb-name", req.ENBName),
+			zap.String("enb-name", enbName(req.ENBName)),
 			zap.String("reason", reason),
 			zap.String("served-plmn", plmn.Mcc+"/"+plmn.Mnc))
 
@@ -85,22 +85,24 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 		m.ClaimENBID(radio, req.GlobalENBID)
 	}
 
-	logger.From(ctx, m.RadioLog(conn)).Info("S1 Setup Response sent", zap.String("enb-name", req.ENBName))
+	logger.From(ctx, m.RadioLog(conn)).Info("S1 Setup Response sent", zap.String("enb-name", enbName(req.ENBName)))
 }
 
 // buildS1SetupFailureMissingIEs builds an S1 Setup Failure rejecting a request that
 // omits mandatory reject-criticality IEs, naming them in Criticality Diagnostics
 // (TS 36.413 §10.3.5). Mirrors the AMF's NG Setup handling.
-func buildS1SetupFailureMissingIEs(ies []s1ap.ProtocolIEID) ([]byte, error) {
+func buildS1SetupFailureMissingIEs(ies []s1ap.MissingIE) ([]byte, error) {
 	proc := s1ap.ProcS1Setup
 	trigger := s1ap.TriggeringInitiatingMessage
 	crit := s1ap.CriticalityReject
 
+	// Each item reports the criticality TS 36.413 assigns that IE, not a
+	// blanket "reject" (§9.2.1.21).
 	items := make([]s1ap.CriticalityDiagnosticsIEItem, 0, len(ies))
-	for _, id := range ies {
+	for _, ie := range ies {
 		items = append(items, s1ap.CriticalityDiagnosticsIEItem{
-			IECriticality: s1ap.CriticalityReject,
-			IEID:          id,
+			IECriticality: ie.Criticality,
+			IEID:          ie.ID,
 			TypeOfError:   s1ap.TypeOfErrorMissing,
 		})
 	}
@@ -118,7 +120,7 @@ func buildS1SetupFailureMissingIEs(ies []s1ap.ProtocolIEID) ([]byte, error) {
 	return fail.Marshal()
 }
 
-func sendS1SetupFailureMissingIEs(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, ies []s1ap.ProtocolIEID) {
+func sendS1SetupFailureMissingIEs(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, ies []s1ap.MissingIE) {
 	out, err := buildS1SetupFailureMissingIEs(ies)
 	if err != nil {
 		logger.From(ctx, m.RadioLog(conn)).Error("failed to marshal S1 Setup Failure", zap.Error(err))
@@ -233,8 +235,18 @@ func buildS1SetupResponse(plmn models.PlmnID, mmeGroupID uint16, mmeCode uint8, 
 	}
 
 	return &s1ap.S1SetupResponse{
-		MMEName:             mmeName,
+		MMEName:             new(mmeName),
 		ServedGUMMEIs:       gummeis,
 		RelativeMMECapacity: relativeCapacity,
 	}, nil
+}
+
+// enbName renders an optional eNB Name IE for logging; the IE is optional
+// (TS 36.413 §9.1.8.4) so an absent one logs as an empty string.
+func enbName(name *string) string {
+	if name == nil {
+		return ""
+	}
+
+	return *name
 }

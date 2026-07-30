@@ -106,8 +106,13 @@ func ParseNASNonDeliveryIndication(value []byte) (*NASNonDeliveryIndication, err
 		}
 	}
 
-	if !seenMME || !seenENB || !seenNAS || !seenCause {
-		return nil, fmt.Errorf("s1ap: NASNonDeliveryIndication missing mandatory IE")
+	if err := requireIEs(ProcNASNonDeliveryIndication,
+		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
+		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
+		ieCheck{idNASPDU, CriticalityIgnore, seenNAS},
+		ieCheck{idCause, CriticalityIgnore, seenCause},
+	); err != nil {
+		return nil, err
 	}
 
 	return m, nil
