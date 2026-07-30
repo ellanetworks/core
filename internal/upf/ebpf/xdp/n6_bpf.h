@@ -123,6 +123,9 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 
 static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 {
+	if (own_packet_pull(ctx) != 0 || !ctx->ip4)
+		return CTX_ACT_ABORTED;
+
 	bool translated = false;
 	bool counted = false;
 	struct nat_xlate xlate = {};
@@ -307,6 +310,9 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 static __always_inline enum ctx_action
 handle_n6_packet_ipv6(struct packet_context *ctx)
 {
+	if (own_packet_pull(ctx) != 0 || !ctx->ip6)
+		return CTX_ACT_ABORTED;
+
 	const struct ipv6hdr *ip6 = ctx->ip6;
 
 	PROFILE_START(PROF_N6_PDR_LOOKUP);

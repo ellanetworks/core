@@ -23,6 +23,9 @@
  * ctx_load_bytes or another ctx_pull. */
 #define CTX_PULL_LEN 192
 
+/* Whether the datapath must pull before parsing and writing. A TC skb may be non-linear or cloned. */
+#define CTX_NEEDS_PULL 1
+
 enum ctx_action {
 	CTX_ACT_OK = TC_ACT_OK,
 	CTX_ACT_DROP = TC_ACT_SHOT,

@@ -116,6 +116,19 @@ handle_gtp_packet(struct packet_context *ctx)
 		return CTX_ACT_DROP;
 	}
 
+	if (own_packet_pull(ctx) != 0)
+		return CTX_ACT_ABORTED;
+
+	if (CTX_NEEDS_PULL) {
+		if (parse_udp(ctx) != GTP_UDP_PORT)
+			return CTX_ACT_ABORTED;
+
+		parse_gtp(ctx);
+
+		if (!ctx->gtp)
+			return CTX_ACT_ABORTED;
+	}
+
 	__u32 urr_id = pdr->urr_id;
 	__u8 outer_header_removal = pdr->outer_header_removal;
 

@@ -22,6 +22,9 @@
  * but call sites name it, so the knob stays defined in both variants. */
 #define CTX_PULL_LEN 192
 
+/* Whether the datapath must pull before parsing and writing. XDP frames are already linear and writable. */
+#define CTX_NEEDS_PULL 0
+
 #define CTX_ACT_OK XDP_PASS
 #define CTX_ACT_DROP XDP_DROP
 #define CTX_ACT_ABORTED XDP_ABORTED

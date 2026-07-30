@@ -190,9 +190,6 @@ int upf_gtpu_control_func(struct __ctx_buff *ctx)
 	if (vlan_ret)
 		return vlan_ret < 0 ? CTX_ACT_ABORTED : CTX_ACT_OK;
 
-	if (ctx_pull(ctx, CTX_PULL_LEN) < 0)
-		return CTX_ACT_ABORTED;
-
 	struct upf_statistic *statistics = get_stats(&uplink_statistics);
 	if (!statistics)
 		return CTX_ACT_ABORTED;
@@ -267,9 +264,6 @@ int upf_uplink_func(struct __ctx_buff *ctx)
 	if (vlan_ret)
 		return vlan_ret < 0 ? CTX_ACT_ABORTED : CTX_ACT_OK;
 
-	if (ctx_pull(ctx, CTX_PULL_LEN) < 0)
-		return CTX_ACT_ABORTED;
-
 	struct upf_statistic *statistics = get_stats(&uplink_statistics);
 	if (!statistics)
 		return CTX_ACT_ABORTED;
@@ -295,9 +289,6 @@ int upf_downlink_func(struct __ctx_buff *ctx)
 	long vlan_ret = ctx_vlan_ingress(ctx);
 	if (vlan_ret)
 		return vlan_ret < 0 ? CTX_ACT_ABORTED : CTX_ACT_OK;
-
-	if (ctx_pull(ctx, CTX_PULL_LEN) < 0)
-		return CTX_ACT_ABORTED;
 
 	struct upf_statistic *statistics = get_stats(&downlink_statistics);
 	if (!statistics)
@@ -331,9 +322,6 @@ int upf_entry_func(struct __ctx_buff *ctx)
 	long vlan_ret = ctx_vlan_ingress(ctx);
 	if (vlan_ret)
 		return vlan_ret < 0 ? CTX_ACT_ABORTED : CTX_ACT_OK;
-
-	if (ctx_pull(ctx, CTX_PULL_LEN) < 0)
-		return CTX_ACT_ABORTED;
 
 	struct packet_context context = {
 		.data = ctx_data(ctx),
@@ -405,9 +393,6 @@ int veth_xdp_func(struct __ctx_buff *ctx)
 	long vlan_ret = ctx_vlan_ingress(ctx);
 	if (vlan_ret)
 		return vlan_ret < 0 ? CTX_ACT_ABORTED : CTX_ACT_OK;
-
-	if (ctx_pull(ctx, CTX_PULL_LEN) < 0)
-		return CTX_ACT_ABORTED;
 
 	void *data = ctx_data(ctx);
 	const void *data_end = ctx_data_end(ctx);
