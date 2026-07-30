@@ -5,7 +5,7 @@ interfaces:
   n3: {address: "10.100.0.13"}
   n6: {name: eth0}
   api: {address: "10.100.0.13", port: 5002}
-xdp: {attach-mode: generic}
+datapath: {attach-mode: xdp-generic}
 cluster:
   enabled: true
   node-id: 3

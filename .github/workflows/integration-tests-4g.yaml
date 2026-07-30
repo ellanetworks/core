@@ -13,6 +13,23 @@ jobs:
       matrix:
         arch: [amd64, arm64]
         ip_version: [ipv4, ipv6, dualstack]
+        # The base matrix attaches at the XDP hook. No runner has a
+        # native-XDP-capable NIC, so generic stands in for native there.
+        attach_mode: [xdp-generic]
+        # Extra runs at the TCX hook, where the kernel context differs
+        # (post-GRO super-frames, CHECKSUM_PARTIAL, out-of-band VLAN). The
+        # ipv6 entry carries an IPv6 GTP-U outer header, the one combination
+        # the TCX GSO exposure is known to hit.
+        include:
+          - arch: amd64
+            ip_version: ipv4
+            attach_mode: tcx
+          - arch: amd64
+            ip_version: ipv6
+            attach_mode: tcx
+          - arch: arm64
+            ip_version: ipv4
+            attach_mode: tcx
     runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-24.04-arm') || 'ubuntu-24.04' }}
 
     steps:
@@ -50,6 +67,7 @@ jobs:
       - name: Run 4G core-tester integration tests
         env:
           INTEGRATION: "1"
+          ELLA_ATTACH_MODE: ${{ matrix.attach_mode }}
           IP_VERSION: ${{ matrix.ip_version }}
           HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
         run: |

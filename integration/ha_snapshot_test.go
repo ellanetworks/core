@@ -357,8 +357,8 @@ interfaces:
   api:
     address: %q
     port: 5002
-xdp:
-  attach-mode: "generic"
+datapath:
+  attach-mode: "xdp-generic"
 cluster:
   enabled: true
   node-id: %d

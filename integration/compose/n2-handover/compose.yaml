@@ -19,8 +19,8 @@ configs:
         api:
           address: "10.3.0.2"
           port: 5002
-      xdp:
-        attach-mode: "generic"
+      datapath:
+        attach-mode: "${ELLA_ATTACH_MODE:-xdp-generic}"
 
 services:
   ella-core:
