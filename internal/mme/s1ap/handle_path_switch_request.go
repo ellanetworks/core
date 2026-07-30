@@ -27,9 +27,19 @@ var (
 func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	req, err := s1ap.ParsePathSwitchRequest(value)
 	if err != nil {
-		handleParseError(m, radio.Conn, s1ap.ProcPathSwitchRequest, err)
+		rejectWithFailure(m, radio.Conn, s1ap.ProcPathSwitchRequest, err,
+			func(cause s1ap.Cause, diag *s1ap.CriticalityDiagnostics) ([]byte, error) {
+				mmeID, enbID := rejectedUEIDs(err)
+
+				return (&s1ap.PathSwitchRequestFailure{
+					MMEUES1APID: mmeID, ENBUES1APID: enbID, Cause: &cause, CriticalityDiagnostics: diag,
+				}).Marshal()
+			}, mme.S1APProcedurePathSwitchRequestFailure)
+
 		return
 	}
+
+	reportDiagnostics(m, radio.Conn, s1ap.ProcPathSwitchRequest, req.Diagnostics())
 
 	// TS 36.413: a to-be-switched list repeating an E-RAB ID is an
 	// abnormal condition the MME rejects.

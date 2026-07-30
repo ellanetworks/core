@@ -24,6 +24,8 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		return
 	}
 
+	reportDiagnostics(m, radio.Conn, s1ap.ProcInitialUEMessage, msg.Diagnostics())
+
 	nas := []byte(msg.NASPDU)
 	if len(nas) > 0 && nas[0]>>4 == uint8(eps.SHTServiceRequest) {
 		m.NAS.HandleServiceRequest(ctx, radio.Conn, msg)

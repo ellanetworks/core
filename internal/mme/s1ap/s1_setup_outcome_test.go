@@ -196,8 +196,10 @@ func TestS1SetupFailureNamesMissingIEs(t *testing.T) {
 		t.Fatal("failure carries no Criticality Diagnostics")
 	}
 
-	if cd.ProcedureCode == nil || *cd.ProcedureCode != s1ap.ProcS1Setup ||
-		cd.TriggeringMessage == nil || *cd.TriggeringMessage != s1ap.TriggeringInitiatingMessage ||
+	// TS 36.413 §9.2.1.21 keeps the Procedure Code out of a response to the
+	// procedure that caused the error, and the Triggering Message out of
+	// anything but an ERROR INDICATION.
+	if cd.ProcedureCode != nil || cd.TriggeringMessage != nil ||
 		cd.ProcedureCriticality == nil || *cd.ProcedureCriticality != s1ap.CriticalityReject {
 		t.Fatalf("Criticality Diagnostics header mismatch: %+v", cd)
 	}

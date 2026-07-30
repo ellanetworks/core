@@ -18,21 +18,21 @@ type UECapabilityInfoIndication struct {
 
 var uECapabilityInfoIndicationIEs = []ieSpec[UECapabilityInfoIndication]{
 	{
-		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *UECapabilityInfoIndication, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.MMEUES1APID)
 		},
 		encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *UECapabilityInfoIndication, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ENBUES1APID)
 		},
 		encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: idUERadioCapability, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idUERadioCapability, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *UECapabilityInfoIndication, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -51,7 +51,7 @@ var uECapabilityInfoIndicationIEs = []ieSpec[UECapabilityInfoIndication]{
 		},
 	},
 	{
-		id: idUERadioCapabilityForPaging, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idUERadioCapabilityForPaging, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *UECapabilityInfoIndication, raw []byte, enc per.Encoding) error {
 			var err error
 

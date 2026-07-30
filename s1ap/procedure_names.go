@@ -5,7 +5,7 @@ package s1ap
 
 import "fmt"
 
-// Elementary procedure names from TS 36.413 §9.3.3.
+// Elementary procedure names from TS 36.413 §9.3.6 (Constant Definitions).
 //
 // #nosec G101 -- these are 3GPP procedure names, not credentials. G101 matches
 // its "pw" pattern against PWSRestartIndication, where PWS is the Public

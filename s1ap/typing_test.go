@@ -30,7 +30,7 @@ func TestNilableUnlessRequiredAndReject(t *testing.T) {
 
 		pointer := strings.HasPrefix(field, "*")
 		nilable := pointer || strings.HasPrefix(field, "[]") || sliceTypes[field]
-		mustHold := r.presence == "PresenceMandatory" && r.criticality == "CriticalityReject"
+		mustHold := r.presence == "presenceMandatory" && r.criticality == "CriticalityReject"
 
 		if mustHold && pointer {
 			t.Errorf("%s.%s is %q for %s/%s: want a value type",
@@ -46,7 +46,7 @@ func TestNilableUnlessRequiredAndReject(t *testing.T) {
 // A conditional row must state its condition, or its presence is unenforceable.
 func TestConditionalRowsDeclareACondition(t *testing.T) {
 	for _, r := range parseIETables(t) {
-		if r.presence == "PresenceConditional" && !r.hasCondition {
+		if r.presence == "presenceConditional" && !r.hasCondition {
 			t.Errorf("%s IE %s is conditional but declares no condition", r.message, r.id)
 		}
 	}
@@ -63,7 +63,7 @@ type ieRow struct {
 
 var (
 	reTable = regexp.MustCompile(`(?s)var \w+IEs = \[\]ieSpec\[(\w+)\]\{(.*?)\n\}\n`)
-	reRow   = regexp.MustCompile(`(?s)\{\n\t\tid: (id\w+), presence: (Presence\w+), crit: (Criticality\w+),\n(.*?)\n\t\},`)
+	reRow   = regexp.MustCompile(`(?s)\{\n\t\tid: (id\w+), presence: (presence\w+), crit: (Criticality\w+),\n(.*?)\n\t\},`)
 	reField = regexp.MustCompile(`m\.([A-Z]\w*)`)
 )
 

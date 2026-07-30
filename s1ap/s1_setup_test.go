@@ -205,7 +205,7 @@ func TestParseS1SetupRequestMissingMandatoryIE(t *testing.T) {
 				t.Errorf("cause = %v, want %v", ase.Cause, want)
 			}
 
-			if got := diagnosticIEIDs(ase.IEs); !slices.Equal(got, tt.wantReject) {
+			if got := rejectedIEIDs(ase.IEs); !slices.Equal(got, tt.wantReject) {
 				t.Errorf("rejected IEs = %v, want %v", got, tt.wantReject)
 			}
 
@@ -218,7 +218,16 @@ func TestParseS1SetupRequestMissingMandatoryIE(t *testing.T) {
 	}
 }
 
-func diagnosticIEIDs(items []CriticalityDiagnosticsIEItem) []ProtocolIEID {
+func diagnosticIEIDs(items []DiagnosticIE) []ProtocolIEID {
+	ids := make([]ProtocolIEID, len(items))
+	for i, ie := range items {
+		ids[i] = ie.ID
+	}
+
+	return ids
+}
+
+func rejectedIEIDs(items []CriticalityDiagnosticsIEItem) []ProtocolIEID {
 	ids := make([]ProtocolIEID, len(items))
 	for i, ie := range items {
 		ids[i] = ie.IEID

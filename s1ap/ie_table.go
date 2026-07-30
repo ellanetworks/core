@@ -9,24 +9,29 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// Recording bounds for attacker-controlled input. A peer may fill a container
-// with up to maxProtocolIEs entries; accumulating a diagnostic and retaining
-// the octets of each would let it choose our allocation.
+// Retention bounds for attacker-controlled input: a peer may fill a container
+// with as many IEs as the message carries, and both recording a diagnostic and
+// keeping an unmodeled IE for re-encode outlive the decode that found them.
 const (
 	maxDiagnosticIEs = 64
 	maxPreservedIEs  = 32
 )
+
+// minIEFieldBits is the smallest a ProtocolIE-Field can be on the wire: a
+// 16-bit id, a 2-bit criticality, and an open type of at least one length
+// octet and one content octet.
+const minIEFieldBits = 34
 
 // ieSpec is one row of a message's TS 36.413 §9.1 IE table. Encode and decode
 // both read it, so the two directions cannot disagree on an IE's criticality
 // or presence.
 type ieSpec[M any] struct {
 	id       ProtocolIEID
-	presence Presence
+	presence presence
 	crit     Criticality
 
 	// condition reports whether a conditional IE must be present in m. It is
-	// set if and only if presence is PresenceConditional.
+	// set if and only if presence is presenceConditional.
 	condition func(m *M) bool
 
 	decode func(m *M, raw []byte, enc per.Encoding) error
@@ -38,11 +43,11 @@ type ieSpec[M any] struct {
 // IE in this message.
 func (s ieSpec[M]) required(m *M) bool {
 	switch s.presence {
-	case PresenceMandatory:
+	case presenceMandatory:
 		return true
-	case PresenceConditional:
+	case presenceConditional:
 		return s.condition != nil && s.condition(m)
-	case PresenceOptional:
+	case presenceOptional:
 		return false
 	default:
 		return false
@@ -77,12 +82,19 @@ func encodeMessageBody[M any, PM interface {
 
 	for _, spec := range table {
 		val, ok := spec.encode((*M)(m))
+		required := spec.required((*M)(m))
+
 		if !ok {
-			if spec.required((*M)(m)) {
+			if required {
 				return fmt.Errorf("s1ap: %s: required IE %s is not set", procedure, spec.id)
 			}
 
 			continue
+		}
+
+		// §10.3.3: a conditional IE is carried only while its condition holds.
+		if spec.presence == presenceConditional && !required {
+			return fmt.Errorf("s1ap: %s: conditional IE %s is set but its condition does not hold", procedure, spec.id)
 		}
 
 		fields = append(fields, ieField{id: spec.id, crit: spec.crit, val: val})
@@ -131,7 +143,7 @@ func parseMessageBody[M any, PM interface {
 			Trigger:   trigger,
 			Cause:     Cause{Group: CauseGroupProtocol, Value: cause},
 			IEs:       ies,
-			Decoded:   rawIEs(fields),
+			decoded:   modeledIEs(table, fields),
 		}
 	}
 
@@ -189,7 +201,7 @@ func parseMessageBody[M any, PM interface {
 
 		if seen[spec.id] {
 			// §10.3.6: a conditional IE carried when its condition is false.
-			if spec.presence == PresenceConditional && !required {
+			if spec.presence == presenceConditional && !required {
 				return nil, reject(CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage, nil)
 			}
 
@@ -230,14 +242,25 @@ func lookupIESpec[M any](table []ieSpec[M], id ProtocolIEID) (int, ieSpec[M], bo
 	return -1, ieSpec[M]{}, false
 }
 
-func rawIEs(fields []rawIE) []RawIE {
-	n := min(len(fields), maxPreservedIEs)
-	if n == 0 {
-		return nil
-	}
+// modeledIEs keeps the first occurrence of each IE the table names, which is
+// what addressing an unsuccessful outcome needs and bounds the result by the
+// table length rather than by what the peer chose to send.
+func modeledIEs[M any](table []ieSpec[M], fields []rawIE) []RawIE {
+	var out []RawIE
 
-	out := make([]RawIE, 0, n)
-	for _, f := range fields[:n] {
+	seen := make(map[ProtocolIEID]bool, len(table))
+
+	for _, f := range fields {
+		if seen[f.id] {
+			continue
+		}
+
+		if _, _, ok := lookupIESpec(table, f.id); !ok {
+			continue
+		}
+
+		seen[f.id] = true
+
 		out = append(out, RawIE{ID: f.id, Criticality: f.crit, Value: f.value})
 	}
 

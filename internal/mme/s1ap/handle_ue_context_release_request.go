@@ -27,6 +27,8 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, radio *mme.R
 		return
 	}
 
+	reportDiagnostics(m, radio.Conn, s1ap.ProcUEContextReleaseRequest, msg.Diagnostics())
+
 	// An omitted Cause is an ignore-criticality absence: the eNB has dropped the radio
 	// connection either way, so the release proceeds under a generic cause (§10.3.5).
 	cause := causeReleaseUnspecified

@@ -19,6 +19,8 @@ func handleUECapabilityInfoIndication(m *mme.MME, radio *mme.Radio, value []byte
 		return
 	}
 
+	reportDiagnostics(m, radio.Conn, s1ap.ProcUECapabilityInfoIndication, msg.Diagnostics())
+
 	ue, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
@@ -26,8 +28,16 @@ func handleUECapabilityInfoIndication(m *mme.MME, radio *mme.Radio, value []byte
 
 	ue.TouchLastSeen()
 
-	ue.RadioCapability = msg.UERadioCapability
-	ue.RadioCapabilityForPaging = msg.UERadioCapabilityForPaging
+	// An absent IE leaves the stored capability standing rather than clearing
+	// it (TS 36.413 §10.3.5).
+	if msg.UERadioCapability != nil {
+		ue.RadioCapability = msg.UERadioCapability
+	}
+
+	if msg.UERadioCapabilityForPaging != nil {
+		ue.RadioCapabilityForPaging = msg.UERadioCapabilityForPaging
+	}
+
 	ue.Conn().Log.Info("stored UE Radio Capability",
 		zap.Int("bytes", len(msg.UERadioCapability)),
 		zap.Int("paging-bytes", len(msg.UERadioCapabilityForPaging)))

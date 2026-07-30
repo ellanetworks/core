@@ -19,14 +19,14 @@ type S1SetupRequest struct {
 
 var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
 	{
-		id: idGlobalENBID, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idGlobalENBID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.GlobalENBID)
 		},
 		encode: func(m *S1SetupRequest) (per.Marshaler, bool) { return &m.GlobalENBID, true },
 	},
 	{
-		id: idENBname, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idENBname, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
 			var (
 				err error
@@ -48,14 +48,14 @@ var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
 		},
 	},
 	{
-		id: idSupportedTAs, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idSupportedTAs, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.SupportedTAs)
 		},
 		encode: func(m *S1SetupRequest) (per.Marshaler, bool) { return m.SupportedTAs, true },
 	},
 	{
-		id: idDefaultPagingDRX, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idDefaultPagingDRX, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
 			var v PagingDRX
 

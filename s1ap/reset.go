@@ -104,7 +104,7 @@ type Reset struct {
 
 var resetIEs = []ieSpec[Reset]{
 	{
-		id: idCause, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *Reset, raw []byte, enc per.Encoding) error {
 			var v Cause
 
@@ -125,7 +125,7 @@ var resetIEs = []ieSpec[Reset]{
 		},
 	},
 	{
-		id: idResetType, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idResetType, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *Reset, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ResetType)
 		},
@@ -168,7 +168,7 @@ type ResetAcknowledge struct {
 // The message has no mandatory IE.
 var resetAcknowledgeIEs = []ieSpec[ResetAcknowledge]{
 	{
-		id: idUEAssociatedLogicalS1ConnectionListResAck, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idUEAssociatedLogicalS1ConnectionListResAck, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ResetAcknowledge, raw []byte, enc per.Encoding) error {
 			items, err := decodeItemList[UEAssociatedLogicalS1ConnectionItem](per.NewReader(raw), enc, maxnoofIndividualS1ConnectionsToReset)
 			if err != nil {
@@ -190,7 +190,7 @@ var resetAcknowledgeIEs = []ieSpec[ResetAcknowledge]{
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ResetAcknowledge, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 			if err := perIEDecode(raw, &cd); err != nil {

@@ -116,7 +116,7 @@ func handleParseError(m *mme.MME, conn mme.S1APWriter, proc s1ap.ProcedureCode, 
 		return
 	}
 
-	diag := ase.Diagnostics()
+	diag := ase.ErrorIndicationDiagnostics()
 	mmeID, enbID := ase.UEIDs()
 
 	emitErrorIndication(m, conn, &s1ap.ErrorIndication{
@@ -125,6 +125,72 @@ func handleParseError(m *mme.MME, conn mme.S1APWriter, proc s1ap.ProcedureCode, 
 		Cause:                  &ase.Cause,
 		CriticalityDiagnostics: &diag,
 	})
+}
+
+// reportDiagnostics tells the sender about abstract syntax errors the message
+// survived. TS 36.413 §10.3.4.2 requires reporting a not-comprehended IE
+// marked notify; ignore-criticality entries are carried silently and
+// §9.2.1.21 forbids naming them.
+func reportDiagnostics(m *mme.MME, conn mme.S1APWriter, proc s1ap.ProcedureCode, diag s1ap.Diagnostics) {
+	if !diag.ReportRequired() {
+		return
+	}
+
+	crit := s1ap.ProcedureCriticality(proc)
+	trigger := s1ap.TriggeringInitiatingMessage
+
+	emitErrorIndication(m, conn, &s1ap.ErrorIndication{
+		Cause: &s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolAbstractSyntaxErrorIgnoreAndNotify},
+		CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{
+			ProcedureCode:             &proc,
+			TriggeringMessage:         &trigger,
+			ProcedureCriticality:      &crit,
+			IEsCriticalityDiagnostics: diag.Report(),
+		},
+	})
+}
+
+// rejectedUEIDs returns the UE S1AP IDs recovered from a rejected message, so
+// a UE-associated unsuccessful outcome can name the association it concerns.
+func rejectedUEIDs(err error) (*s1ap.MMEUES1APID, *s1ap.ENBUES1APID) {
+	var ase *s1ap.AbstractSyntaxError
+	if !errors.As(err, &ase) {
+		return nil, nil
+	}
+
+	return ase.UEIDs()
+}
+
+// rejectWithFailure answers an undecodable initiating message with the
+// procedure's own unsuccessful outcome, which TS 36.413 §10.3.4.2, §10.3.5 and
+// §10.3.6 prefer over the Error Indication procedure wherever the message can
+// be built. build receives the cause and diagnostics to carry.
+func rejectWithFailure(m *mme.MME, conn mme.S1APWriter, proc s1ap.ProcedureCode, err error,
+	build func(cause s1ap.Cause, diag *s1ap.CriticalityDiagnostics) ([]byte, error),
+	msgType mme.S1APProcedure,
+) {
+	logger.MmeLog.Warn("failed to decode S1AP message",
+		zap.Int("procedure-code", int(proc)),
+		zap.Error(err))
+
+	cause := s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolTransferSyntaxError}
+
+	var diag *s1ap.CriticalityDiagnostics
+
+	var ase *s1ap.AbstractSyntaxError
+	if errors.As(err, &ase) {
+		d := ase.OutcomeDiagnostics()
+		cause, diag = ase.Cause, &d
+	}
+
+	out, buildErr := build(cause, diag)
+	if buildErr != nil {
+		logger.MmeLog.Error("failed to marshal unsuccessful outcome", zap.Error(buildErr))
+
+		return
+	}
+
+	m.SendToRadio(context.Background(), conn, msgType, out)
 }
 
 // sendProtocolErrorIndication answers a PDU the MME could not decode with a cause-only
@@ -183,7 +249,7 @@ func emitErrorIndication(m *mme.MME, conn mme.S1APWriter, ind *s1ap.ErrorIndicat
 // handleErrorIndication processes an ERROR INDICATION from the eNB (TS 36.413). A
 // protocol error on a UE-associated S1 connection leaves it in an inconsistent
 // state, so if the indication names a known UE the MME releases it to ECM-IDLE.
-func handleErrorIndication(m *mme.MME, ctx context.Context, _ *mme.Radio, value []byte) {
+func handleErrorIndication(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseErrorIndication(value)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to decode Error Indication", zap.Error(err))
@@ -209,7 +275,19 @@ func handleErrorIndication(m *mme.MME, ctx context.Context, _ *mme.Radio, value 
 		return
 	}
 
-	if ue, ok := m.LookupUe(*msg.MMEUES1APID); ok {
-		m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
+	ue, ok := m.LookupUe(*msg.MMEUES1APID)
+	if !ok {
+		return
 	}
+
+	// The MME-UE-S1AP-ID space is shared across eNBs, so releasing on the id
+	// alone would let any eNB tear down a UE attached through another.
+	if ue.Conn() == nil || ue.Conn().Conn() != radio.Conn {
+		logger.From(ctx, logger.MmeLog).Warn("Error Indication for an MME-UE-S1AP-ID on a different S1 association",
+			zap.Uint32("mme-ue-id", uint32(*msg.MMEUES1APID)))
+
+		return
+	}
+
+	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
 }

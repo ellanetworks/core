@@ -212,7 +212,14 @@ func decodeIEContainer(r *per.Reader, enc per.Encoding) ([]rawIE, error) {
 		return nil, fmt.Errorf("s1ap: IE container length: %w", err)
 	}
 
-	var fields []rawIE
+	// A ProtocolIE-Field costs at least an id, a criticality and a non-empty
+	// open type, so a count the remaining octets cannot hold is bogus and must
+	// not be pre-allocated for.
+	if maxBits := int64(r.Bits()); n > maxBits/minIEFieldBits {
+		return nil, fmt.Errorf("s1ap: IE container declares %d IEs in %d bits", n, maxBits)
+	}
+
+	fields := make([]rawIE, 0, n)
 
 	for i := int64(0); i < n; i++ {
 		id, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs)

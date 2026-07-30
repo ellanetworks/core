@@ -19,6 +19,8 @@ func handleUplinkNASTransport(m *mme.MME, ctx context.Context, radio *mme.Radio,
 		return
 	}
 
+	reportDiagnostics(m, radio.Conn, s1ap.ProcUplinkNASTransport, msg.Diagnostics())
+
 	ue, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return

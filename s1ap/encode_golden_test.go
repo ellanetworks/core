@@ -36,7 +36,7 @@ func TestEncodeBodyGolden(t *testing.T) {
 		{"ENBConfigurationUpdateAcknowledge", (&ENBConfigurationUpdateAcknowledge{}).encodeBody, "000000"},
 		{"ENBConfigurationUpdateFailure", (&ENBConfigurationUpdateFailure{Cause: new(Cause)}).encodeBody, "000001000240020000"},
 		{"ENBStatusTransfer", (&ENBStatusTransfer{Container: StatusTransferContainer{0xaa}}).encodeBody, "000003000000020000000800020000005a0001aa"},
-		{"ERABModificationConfirm", (&ERABModificationConfirm{}).encodeBody, "000002000040020000000840020000"},
+		{"ERABModificationConfirm", (&ERABModificationConfirm{MMEUES1APID: new(MMEUES1APID), ENBUES1APID: new(ENBUES1APID)}).encodeBody, "000002000040020000000840020000"},
 		{"ERABModificationIndication", (&ERABModificationIndication{ToBeModified: []ERABToBeModifiedItemBearerModInd{{ERABID: 1, TransportLayerAddress: goldTLA(), DLGTPTEID: 1}}}).encodeBody, "00000300000002000000080002000000c7000f0000c8000a021f0a00000100000001"},
 		{"ERABModifyRequest", (&ERABModifyRequest{ERABToBeModified: []ERABToBeModifiedItemBearerModReq{{ERABID: 1, QoS: goldQoS(), NASPDU: NASPDU{0x01}}}}).encodeBody, "000003000000020000000800020000001e000b0000240006020009040101"},
 		{"ERABModifyResponse", (&ERABModifyResponse{MMEUES1APID: new(MMEUES1APID), ENBUES1APID: new(ENBUES1APID)}).encodeBody, "000002000040020000000840020000"},

@@ -21,6 +21,8 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 		return
 	}
 
+	reportDiagnostics(m, radio.Conn, s1ap.ProcHandoverNotification, notify.Diagnostics())
+
 	ue, ok := m.LookupUe(notify.MMEUES1APID)
 	if !ok {
 		sendErrorIndication(m, radio.Conn, &notify.MMEUES1APID, &notify.ENBUES1APID, causeUnknownMMEUES1APID)

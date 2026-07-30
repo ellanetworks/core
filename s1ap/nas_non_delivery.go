@@ -35,21 +35,21 @@ func (m *NASNonDeliveryIndication) Marshal() ([]byte, error) {
 
 var nASNonDeliveryIndicationIEs = []ieSpec[NASNonDeliveryIndication]{
 	{
-		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *NASNonDeliveryIndication, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.MMEUES1APID)
 		},
 		encode: func(m *NASNonDeliveryIndication) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *NASNonDeliveryIndication, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ENBUES1APID)
 		},
 		encode: func(m *NASNonDeliveryIndication) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: idNASPDU, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idNASPDU, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *NASNonDeliveryIndication, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.NASPDU)
 		},
@@ -62,7 +62,7 @@ var nASNonDeliveryIndicationIEs = []ieSpec[NASNonDeliveryIndication]{
 		},
 	},
 	{
-		id: idCause, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *NASNonDeliveryIndication, raw []byte, enc per.Encoding) error {
 			var v Cause
 

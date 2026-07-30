@@ -102,7 +102,7 @@ func TestAbsentIgnoreIEIsDelivered(t *testing.T) {
 	}
 
 	diag := msg.Diagnostics()
-	if len(diag.IEs) != 1 || diag.IEs[0].IEID != idTAI || diag.IEs[0].TypeOfError != TypeOfErrorMissing {
+	if len(diag.IEs) != 1 || diag.IEs[0].ID != idTAI || diag.IEs[0].TypeOfError != TypeOfErrorMissing {
 		t.Fatalf("diagnostics = %+v, want TAI reported missing", diag.IEs)
 	}
 
@@ -188,5 +188,77 @@ func TestDiagnosticsAreBounded(t *testing.T) {
 
 	if got := len(msg.UnknownIEs()); got > maxPreservedIEs {
 		t.Errorf("preserved %d unknown IEs, want at most %d", got, maxPreservedIEs)
+	}
+}
+
+// Padding a message with unmodeled IEs must not push the UE S1AP IDs out of
+// what the rejection retains, or the ERROR INDICATION cannot name the
+// association it concerns (TS 36.413 §8.7.2.2).
+func TestUEIDsSurvivePadding(t *testing.T) {
+	fields := uplinkNASFields()
+
+	var padded []ieField
+	for i := range maxPreservedIEs * 2 {
+		padded = append(padded, ieField{
+			id: ProtocolIEID(40000 + i), crit: CriticalityIgnore, raw: []byte{0x00},
+		})
+	}
+
+	// The UE IDs arrive after the padding, and the mandatory NAS-PDU is absent.
+	padded = append(padded, fields[0], fields[1], fields[4])
+
+	_, err := ParseUplinkNASTransport(container(t, padded...))
+
+	var ase *AbstractSyntaxError
+	if !errors.As(err, &ase) {
+		t.Fatalf("error = %v, want *AbstractSyntaxError", err)
+	}
+
+	mmeID, enbID := ase.UEIDs()
+	if mmeID == nil || *mmeID != 7 || enbID == nil || *enbID != 9 {
+		t.Fatalf("UEIDs() = (%v, %v), want (7, 9)", mmeID, enbID)
+	}
+}
+
+// Octets that are not a decodable PER encoding are a transfer syntax error,
+// distinct from a message that decodes but must be rejected (TS 36.413 §10.2).
+func TestTransferSyntaxError(t *testing.T) {
+	tests := []struct {
+		name  string
+		value []byte
+	}{
+		{"empty", nil},
+		{"truncated container", []byte{0x00, 0x00, 0x01}},
+		{"IE value past the end", []byte{0x00, 0x00, 0x01, 0x00, 0x00, 0x40, 0x7f}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ParseUplinkNASTransport(tt.value)
+
+			var tse *TransferSyntaxError
+			if !errors.As(err, &tse) {
+				t.Fatalf("error = %v, want *TransferSyntaxError", err)
+			}
+
+			if tse.Procedure != ProcUplinkNASTransport {
+				t.Errorf("procedure = %s, want ProcUplinkNASTransport", tse.Procedure)
+			}
+
+			if tse.Unwrap() == nil {
+				t.Error("Unwrap() = nil, want the underlying decode error")
+			}
+		})
+	}
+}
+
+// A declared IE count the remaining octets cannot hold must be refused before
+// anything is allocated for it.
+func TestOversizedIECountRejected(t *testing.T) {
+	_, err := ParseUplinkNASTransport([]byte{0x00, 0xff, 0xff, 0x00})
+
+	var tse *TransferSyntaxError
+	if !errors.As(err, &tse) {
+		t.Fatalf("error = %v, want *TransferSyntaxError", err)
 	}
 }

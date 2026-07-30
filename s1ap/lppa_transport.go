@@ -64,22 +64,22 @@ func lppaTransportIEs[M any](
 ) []ieSpec[M] {
 	return []ieSpec[M]{
 		{
-			id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+			id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, mme(m)) },
 			encode: func(m *M) (per.Marshaler, bool) { return mme(m), true },
 		},
 		{
-			id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+			id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, enb(m)) },
 			encode: func(m *M) (per.Marshaler, bool) { return enb(m), true },
 		},
 		{
-			id: idRoutingID, presence: PresenceMandatory, crit: CriticalityReject,
+			id: idRoutingID, presence: presenceMandatory, crit: CriticalityReject,
 			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, routing(m)) },
 			encode: func(m *M) (per.Marshaler, bool) { return routing(m), true },
 		},
 		{
-			id: idLPPaPDU, presence: PresenceMandatory, crit: CriticalityReject,
+			id: idLPPaPDU, presence: presenceMandatory, crit: CriticalityReject,
 			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, pdu(m)) },
 			encode: func(m *M) (per.Marshaler, bool) { return pdu(m), true },
 		},

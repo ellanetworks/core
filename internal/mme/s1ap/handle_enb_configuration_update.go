@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -20,8 +21,12 @@ func handleENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Ra
 	req, err := s1ap.ParseENBConfigurationUpdate(value)
 	if err != nil {
 		logger.From(ctx, radio.Log).Warn("failed to decode ENB Configuration Update", zap.Error(err))
+		rejectENBConfigurationUpdate(m, ctx, radio, err)
+
 		return
 	}
+
+	reportDiagnostics(m, radio.Conn, s1ap.ProcENBConfigurationUpdate, req.Diagnostics())
 
 	operator, err := m.Operator(ctx)
 	if err != nil {
@@ -64,6 +69,30 @@ func handleENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Ra
 	}
 
 	logger.From(ctx, radio.Log).Info("ENB Configuration Update acknowledged", zap.String("enb-name", enbName(req.ENBName)))
+}
+
+// rejectENBConfigurationUpdate answers an undecodable update with ENB
+// CONFIGURATION UPDATE FAILURE. TS 36.413 §10.3.4.2, §10.3.5 and §10.3.6 all
+// reject using the procedure's unsuccessful outcome, which is always
+// constructible here, so the Error Indication fallback does not apply.
+func rejectENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Radio, err error) {
+	fail := &s1ap.ENBConfigurationUpdateFailure{
+		Cause: new(s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolTransferSyntaxError}),
+	}
+
+	if ase, ok := errors.AsType[*s1ap.AbstractSyntaxError](err); ok {
+		diag := ase.OutcomeDiagnostics()
+		fail.Cause, fail.CriticalityDiagnostics = &ase.Cause, &diag
+	}
+
+	out, err := fail.Marshal()
+	if err != nil {
+		logger.From(ctx, radio.Log).Error("failed to marshal ENB Configuration Update Failure", zap.Error(err))
+
+		return
+	}
+
+	m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureENBConfigUpdateFailure, out)
 }
 
 // enbConfigUpdateOutcomeFor returns an Acknowledge when any updated supported TAs

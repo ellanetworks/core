@@ -30,21 +30,21 @@ type ERABModificationIndication struct {
 
 var eRABModificationIndicationIEs = []ieSpec[ERABModificationIndication]{
 	{
-		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *ERABModificationIndication, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.MMEUES1APID)
 		},
 		encode: func(m *ERABModificationIndication) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *ERABModificationIndication, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ENBUES1APID)
 		},
 		encode: func(m *ERABModificationIndication) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: idERABToBeModifiedListBearerModInd, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idERABToBeModifiedListBearerModInd, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *ERABModificationIndication, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -59,7 +59,7 @@ var eRABModificationIndicationIEs = []ieSpec[ERABModificationIndication]{
 		},
 	},
 	{
-		id: idERABNotToBeModifiedListBearerModInd, presence: PresenceOptional, crit: CriticalityReject,
+		id: idERABNotToBeModifiedListBearerModInd, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *ERABModificationIndication, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -78,7 +78,7 @@ var eRABModificationIndicationIEs = []ieSpec[ERABModificationIndication]{
 		},
 	},
 	{
-		id: idUserLocationInformation, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABModificationIndication, raw []byte, enc per.Encoding) error {
 			var (
 				err error
@@ -134,41 +134,90 @@ type erabModifyItemBearerModConf struct {
 
 // TS 36.413 §9.1.3.9.
 type ERABModificationConfirm struct {
-	MMEUES1APID   MMEUES1APID
-	ENBUES1APID   ENBUES1APID
+	MMEUES1APID   *MMEUES1APID
+	ENBUES1APID   *ENBUES1APID
 	ModifiedERABs []ERABID
 
 	messageMeta
 }
 
-func (m *ERABModificationConfirm) encodeBody(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
+var erabModificationConfirmIEs = []ieSpec[ERABModificationConfirm]{
+	{
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *ERABModificationConfirm, raw []byte, enc per.Encoding) error {
+			var v MMEUES1APID
 
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityIgnore, val: &m.MMEUES1APID},
-		{id: idENBUES1APID, crit: CriticalityIgnore, val: &m.ENBUES1APID},
-	}
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
 
-	if len(m.ModifiedERABs) > 0 {
-		items := make([]erabModifyItemBearerModConf, len(m.ModifiedERABs))
-		for i, id := range m.ModifiedERABs {
-			items[i] = erabModifyItemBearerModConf{erabID: id}
-		}
+			m.MMEUES1APID = &v
 
-		fields = append(fields, ieField{
-			id:   idERABModifyListBearerModConf,
-			crit: CriticalityIgnore,
-			val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+			return nil
+		},
+		encode: func(m *ERABModificationConfirm) (per.Marshaler, bool) {
+			if m.MMEUES1APID == nil {
+				return nil, false
+			}
+
+			return m.MMEUES1APID, true
+		},
+	},
+	{
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *ERABModificationConfirm, raw []byte, enc per.Encoding) error {
+			var v ENBUES1APID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.ENBUES1APID = &v
+
+			return nil
+		},
+		encode: func(m *ERABModificationConfirm) (per.Marshaler, bool) {
+			if m.ENBUES1APID == nil {
+				return nil, false
+			}
+
+			return m.ENBUES1APID, true
+		},
+	},
+	{
+		id: idERABModifyListBearerModConf, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABModificationConfirm, raw []byte, enc per.Encoding) error {
+			items, err := decodeItemList[erabModifyItemBearerModConf](per.NewReader(raw), enc, maxnoofERABs)
+			if err != nil {
+				return err
+			}
+
+			m.ModifiedERABs = make([]ERABID, len(items))
+			for i, it := range items {
+				m.ModifiedERABs[i] = it.erabID
+			}
+
+			return nil
+		},
+		encode: func(m *ERABModificationConfirm) (per.Marshaler, bool) {
+			if len(m.ModifiedERABs) == 0 {
+				return nil, false
+			}
+
+			items := make([]erabModifyItemBearerModConf, len(m.ModifiedERABs))
+			for i, id := range m.ModifiedERABs {
+				items[i] = erabModifyItemBearerModConf{erabID: id}
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
 				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABModifyItemBearerModConf, CriticalityIgnore, items)
-			}),
-		})
-	}
+			}), true
+		},
+	},
+}
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, enc, fields)
+func (m *ERABModificationConfirm) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcERABModificationIndication, erabModificationConfirmIEs, m)
 }
 
 func (m *ERABModificationConfirm) Marshal() ([]byte, error) {

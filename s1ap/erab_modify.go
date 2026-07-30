@@ -38,21 +38,21 @@ type ERABModifyRequest struct {
 
 var eRABModifyRequestIEs = []ieSpec[ERABModifyRequest]{
 	{
-		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *ERABModifyRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.MMEUES1APID)
 		},
 		encode: func(m *ERABModifyRequest) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *ERABModifyRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ENBUES1APID)
 		},
 		encode: func(m *ERABModifyRequest) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: idUEAggregateMaximumBitrate, presence: PresenceOptional, crit: CriticalityReject,
+		id: idUEAggregateMaximumBitrate, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *ERABModifyRequest, raw []byte, enc per.Encoding) error {
 			var (
 				err  error
@@ -73,7 +73,7 @@ var eRABModifyRequestIEs = []ieSpec[ERABModifyRequest]{
 		},
 	},
 	{
-		id: idERABToBeModifiedListBearerModReq, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idERABToBeModifiedListBearerModReq, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *ERABModifyRequest, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -127,7 +127,7 @@ type ERABModifyResponse struct {
 
 var eRABModifyResponseIEs = []ieSpec[ERABModifyResponse]{
 	{
-		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
 			var v MMEUES1APID
 
@@ -148,7 +148,7 @@ var eRABModifyResponseIEs = []ieSpec[ERABModifyResponse]{
 		},
 	},
 	{
-		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
 			var v ENBUES1APID
 
@@ -169,7 +169,7 @@ var eRABModifyResponseIEs = []ieSpec[ERABModifyResponse]{
 		},
 	},
 	{
-		id: idERABModifyListBearerModRes, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idERABModifyListBearerModRes, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -188,7 +188,7 @@ var eRABModifyResponseIEs = []ieSpec[ERABModifyResponse]{
 		},
 	},
 	{
-		id: idERABFailedToModifyList, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idERABFailedToModifyList, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -207,7 +207,7 @@ var eRABModifyResponseIEs = []ieSpec[ERABModifyResponse]{
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
 			var (
 				err error
@@ -228,7 +228,7 @@ var eRABModifyResponseIEs = []ieSpec[ERABModifyResponse]{
 		},
 	},
 	{
-		id: idUserLocationInformation, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
 			var (
 				err error

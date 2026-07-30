@@ -78,7 +78,7 @@ func TestERABModificationIndication_MissingMandatoryIE(t *testing.T) {
 }
 
 func TestERABModificationConfirm_Marshal(t *testing.T) {
-	wire, err := (&ERABModificationConfirm{MMEUES1APID: 1, ENBUES1APID: 2, ModifiedERABs: []ERABID{5, 6}}).Marshal()
+	wire, err := (&ERABModificationConfirm{MMEUES1APID: Ptr(MMEUES1APID(1)), ENBUES1APID: Ptr(ENBUES1APID(2)), ModifiedERABs: []ERABID{5, 6}}).Marshal()
 	if err != nil {
 		t.Fatalf("Marshal: %v", err)
 	}

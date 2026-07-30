@@ -22,6 +22,8 @@ func handleENBStatusTransfer(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 		return
 	}
 
+	reportDiagnostics(m, radio.Conn, s1ap.ProcENBStatusTransfer, st.Diagnostics())
+
 	ue, ok := resolveUE(m, radio.Conn, st.MMEUES1APID, st.ENBUES1APID)
 	if !ok {
 		return

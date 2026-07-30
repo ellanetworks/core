@@ -8,7 +8,7 @@
 // Each message type's Marshal returns a complete S1AP-PDU; the matching
 // ParseXxx takes the open-type payload of one.
 //
-// # Presence
+// # presence
 //
 // A field is a value type only where its absence stops the message from
 // reaching the caller, which TS 36.413 §10.3.5 makes true exactly for
@@ -74,14 +74,14 @@ func (c Criticality) String() string {
 	}
 }
 
-// Presence ::= ENUMERATED { optional, conditional, mandatory }. It drives the
+// presence ::= ENUMERATED { optional, conditional, mandatory }. It drives the
 // IE-container engine's handling of a missing IE.
-type Presence uint8
+type presence uint8
 
 const (
-	PresenceOptional Presence = iota
-	PresenceConditional
-	PresenceMandatory
+	presenceOptional presence = iota
+	presenceConditional
+	presenceMandatory
 )
 
 // TriggeringMessage ::= ENUMERATED { initiating-message, successful-outcome,

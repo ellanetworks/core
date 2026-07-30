@@ -26,15 +26,16 @@ func (e *TransferSyntaxError) Unwrap() error { return e.Err }
 // unhandled reject-criticality IE (§10.3.4.2), or a falsely constructed
 // message (§10.3.6).
 //
-// Cause and IEs are what the rejection must report. Decoded carries the IEs
-// that did arrive, which §10.3.5 and §10.3.6 require when the unsuccessful
-// outcome cannot be addressed without them.
+// Cause and IEs are what the rejection must report; [AbstractSyntaxError.UEIDs]
+// recovers what §10.3.5 and §10.3.6 need to address the unsuccessful outcome.
 type AbstractSyntaxError struct {
 	Procedure ProcedureCode
 	Trigger   TriggeringMessage
 	Cause     Cause
 	IEs       []CriticalityDiagnosticsIEItem
-	Decoded   []RawIE
+
+	// decoded holds the modeled IEs that arrived before the rejection.
+	decoded []RawIE
 }
 
 func (e *AbstractSyntaxError) Error() string {
@@ -50,17 +51,55 @@ func (e *AbstractSyntaxError) Error() string {
 	return fmt.Sprintf("s1ap: %s: %s: %s", e.Procedure, e.Cause, strings.Join(ids, ", "))
 }
 
-// Diagnostics returns the CriticalityDiagnostics a receiver reports the
-// rejection with (TS 36.413 §10.3.5).
-func (e *AbstractSyntaxError) Diagnostics() CriticalityDiagnostics {
-	proc, trigger, crit := e.Procedure, e.Trigger, CriticalityReject
+// ErrorIndicationDiagnostics returns the CriticalityDiagnostics to report the
+// rejection with in an ERROR INDICATION. TS 36.413 §9.2.1.21 admits the
+// Procedure Code and Triggering Message only here.
+func (e *AbstractSyntaxError) ErrorIndicationDiagnostics() CriticalityDiagnostics {
+	proc, trigger := e.Procedure, e.Trigger
+	d := e.OutcomeDiagnostics()
+	d.ProcedureCode, d.TriggeringMessage = &proc, &trigger
+
+	return d
+}
+
+// OutcomeDiagnostics returns the CriticalityDiagnostics to report the rejection
+// with in the procedure's own unsuccessful outcome. TS 36.413 §9.2.1.21 keeps
+// the Procedure Code out of a response to the procedure that caused the error,
+// and the Triggering Message out of anything but an ERROR INDICATION.
+func (e *AbstractSyntaxError) OutcomeDiagnostics() CriticalityDiagnostics {
+	crit := ProcedureCriticality(e.Procedure)
 
 	return CriticalityDiagnostics{
-		ProcedureCode:             &proc,
-		TriggeringMessage:         &trigger,
 		ProcedureCriticality:      &crit,
-		IEsCriticalityDiagnostics: e.IEs,
+		IEsCriticalityDiagnostics: reportableIEs(e.IEs),
 	}
+}
+
+// HasUnsuccessfulOutcome reports whether the procedure defines a message to
+// reject with. TS 36.413 §10.3.5 and §10.3.6 fall back to the Error Indication
+// procedure only where it does not.
+func (e *AbstractSyntaxError) HasUnsuccessfulOutcome() bool {
+	return hasUnsuccessfulOutcome(e.Procedure)
+}
+
+// reportableIEs drops entries TS 36.413 §9.2.1.21 forbids on the wire: of the
+// IE Criticality it says "The value 'ignore' shall not be used".
+func reportableIEs(ies []CriticalityDiagnosticsIEItem) []CriticalityDiagnosticsIEItem {
+	out := make([]CriticalityDiagnosticsIEItem, 0, len(ies))
+
+	for _, ie := range ies {
+		if ie.IECriticality == CriticalityIgnore {
+			continue
+		}
+
+		out = append(out, ie)
+	}
+
+	if len(out) == 0 {
+		return nil
+	}
+
+	return out
 }
 
 // UEIDs returns the UE S1AP IDs that decoded before the rejection. An ERROR
@@ -72,7 +111,7 @@ func (e *AbstractSyntaxError) UEIDs() (*MMEUES1APID, *ENBUES1APID) {
 		enbID *ENBUES1APID
 	)
 
-	for _, ie := range e.Decoded {
+	for _, ie := range e.decoded {
 		switch ie.ID {
 		case idMMEUES1APID:
 			var v MMEUES1APID
@@ -95,10 +134,22 @@ func (e *AbstractSyntaxError) UEIDs() (*MMEUES1APID, *ENBUES1APID) {
 // (TS 36.413 §10.3.5) and IEs that were not comprehended with the same
 // (§10.3.4.2).
 type Diagnostics struct {
-	IEs []CriticalityDiagnosticsIEItem
+	IEs []DiagnosticIE
 
 	// Truncated reports that recording stopped at maxDiagnosticIEs.
 	Truncated bool
+
+	// notify records that a notify-criticality entry was seen even where
+	// Truncated dropped it, so a report is never starved by ignore entries.
+	notify bool
+}
+
+// DiagnosticIE names an IE an abstract syntax error concerned, and what was
+// wrong with it.
+type DiagnosticIE struct {
+	ID          ProtocolIEID
+	Criticality Criticality
+	TypeOfError TypeOfError
 }
 
 // Empty reports whether the message arrived without any abstract syntax error.
@@ -106,28 +157,45 @@ func (d Diagnostics) Empty() bool { return len(d.IEs) == 0 }
 
 // ReportRequired reports whether TS 36.413 §10.3.4.2 and §10.3.5 oblige the
 // receiver to tell the sender, which only notify criticality does.
-func (d Diagnostics) ReportRequired() bool {
+func (d Diagnostics) ReportRequired() bool { return d.notify }
+
+// Report returns the Criticality Diagnostics entries to send back. TS 36.413
+// §9.2.1.21 forbids reporting an IE Criticality of "ignore", so only the
+// notify-criticality entries appear.
+func (d Diagnostics) Report() []CriticalityDiagnosticsIEItem {
+	out := make([]CriticalityDiagnosticsIEItem, 0, len(d.IEs))
+
 	for _, ie := range d.IEs {
-		if ie.IECriticality == CriticalityNotify {
-			return true
+		if ie.Criticality != CriticalityNotify {
+			continue
 		}
+
+		out = append(out, CriticalityDiagnosticsIEItem{
+			IECriticality: ie.Criticality,
+			IEID:          ie.ID,
+			TypeOfError:   ie.TypeOfError,
+		})
 	}
 
-	return false
+	if len(out) == 0 {
+		return nil
+	}
+
+	return out
 }
 
 func (d *Diagnostics) record(id ProtocolIEID, crit Criticality, kind TypeOfError) {
+	if crit == CriticalityNotify {
+		d.notify = true
+	}
+
 	if len(d.IEs) >= maxDiagnosticIEs {
 		d.Truncated = true
 
 		return
 	}
 
-	d.IEs = append(d.IEs, CriticalityDiagnosticsIEItem{
-		IECriticality: crit,
-		IEID:          id,
-		TypeOfError:   kind,
-	})
+	d.IEs = append(d.IEs, DiagnosticIE{ID: id, Criticality: crit, TypeOfError: kind})
 }
 
 func (t TypeOfError) String() string {

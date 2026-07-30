@@ -8,7 +8,7 @@ import (
 )
 
 // TestTableOrderMatchesASN1 pins each table to the IE order of its
-// S1AP-PROTOCOL-IES container (TS 36.413 §9.3.1); encode emits in table order.
+// S1AP-PROTOCOL-IES container (TS 36.413 §9.3.3); encode emits in table order.
 func TestTableOrderMatchesASN1(t *testing.T) {
 	tests := []struct {
 		name string
@@ -20,6 +20,7 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 		{"ENBConfigurationUpdate", tableIDs(eNBConfigurationUpdateIEs), []ProtocolIEID{idENBname, idSupportedTAs, idDefaultPagingDRX}},
 		{"ENBConfigurationUpdateAcknowledge", tableIDs(eNBConfigurationUpdateAcknowledgeIEs), []ProtocolIEID{idCriticalityDiagnostics}},
 		{"ENBConfigurationUpdateFailure", tableIDs(eNBConfigurationUpdateFailureIEs), []ProtocolIEID{idCause, idTimeToWait, idCriticalityDiagnostics}},
+		{"ERABModificationConfirm", tableIDs(erabModificationConfirmIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idERABModifyListBearerModConf}},
 		{"ERABModificationIndication", tableIDs(eRABModificationIndicationIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idERABToBeModifiedListBearerModInd, idERABNotToBeModifiedListBearerModInd, idUserLocationInformation}},
 		{"ERABModifyRequest", tableIDs(eRABModifyRequestIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idUEAggregateMaximumBitrate, idERABToBeModifiedListBearerModReq}},
 		{"ERABModifyResponse", tableIDs(eRABModifyResponseIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idERABModifyListBearerModRes, idERABFailedToModifyList, idCriticalityDiagnostics, idUserLocationInformation}},
@@ -33,7 +34,7 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 		{"HandoverNotify", tableIDs(handoverNotifyIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idEUTRANCGI, idTAI}},
 		{"HandoverRequired", tableIDs(handoverRequiredIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idHandoverType, idCause, idTargetID, idSourceToTargetTransparentContainer}},
 		{"HandoverCommand", tableIDs(handoverCommandIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idHandoverType, idERABtoReleaseListHOCmd, idTargetToSourceTransparentContainer}},
-		{"HandoverPreparationFailure", tableIDs(handoverPreparationFailureIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idCause}},
+		{"HandoverPreparationFailure", tableIDs(handoverPreparationFailureIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idCause, idCriticalityDiagnostics}},
 		{"HandoverRequest", tableIDs(handoverRequestIEs), []ProtocolIEID{idMMEUES1APID, idHandoverType, idCause, idUEAggregateMaximumBitrate, idERABToBeSetupListHOReq, idSourceToTargetTransparentContainer, idUESecurityCapabilities, idSecurityContext}},
 		{"HandoverRequestAcknowledge", tableIDs(handoverRequestAcknowledgeIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idERABAdmittedList, idERABFailedToSetupListHOReqAck, idTargetToSourceTransparentContainer}},
 		{"HandoverFailure", tableIDs(handoverFailureIEs), []ProtocolIEID{idMMEUES1APID, idCause}},
@@ -48,7 +49,7 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 		{"Paging", tableIDs(pagingIEs), []ProtocolIEID{idUEIdentityIndexValue, idUEPagingID, idCNDomain, idTAIList, idUERadioCapabilityForPaging}},
 		{"PathSwitchRequest", tableIDs(pathSwitchRequestIEs), []ProtocolIEID{idENBUES1APID, idERABToBeSwitchedDLList, idSourceMMEUES1APID, idEUTRANCGI, idTAI, idUESecurityCapabilities}},
 		{"PathSwitchRequestAcknowledge", tableIDs(pathSwitchRequestAcknowledgeIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idUEAggregateMaximumBitrate, idERABToBeReleasedList, idSecurityContext, idUESecurityCapabilities}},
-		{"PathSwitchRequestFailure", tableIDs(pathSwitchRequestFailureIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idCause}},
+		{"PathSwitchRequestFailure", tableIDs(pathSwitchRequestFailureIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idCause, idCriticalityDiagnostics}},
 		{"Reset", tableIDs(resetIEs), []ProtocolIEID{idCause, idResetType}},
 		{"ResetAcknowledge", tableIDs(resetAcknowledgeIEs), []ProtocolIEID{idUEAssociatedLogicalS1ConnectionListResAck, idCriticalityDiagnostics}},
 		{"S1SetupRequest", tableIDs(s1SetupRequestIEs), []ProtocolIEID{idGlobalENBID, idENBname, idSupportedTAs, idDefaultPagingDRX}},

@@ -34,6 +34,8 @@ func handleLocationReport(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 		return
 	}
 
+	reportDiagnostics(m, radio.Conn, s1ap.ProcLocationReport, msg.Diagnostics())
+
 	ue, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return

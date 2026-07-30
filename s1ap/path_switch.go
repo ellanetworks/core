@@ -42,14 +42,14 @@ type PathSwitchRequest struct {
 
 var pathSwitchRequestIEs = []ieSpec[PathSwitchRequest]{
 	{
-		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *PathSwitchRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ENBUES1APID)
 		},
 		encode: func(m *PathSwitchRequest) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: idERABToBeSwitchedDLList, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idERABToBeSwitchedDLList, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *PathSwitchRequest, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -64,14 +64,14 @@ var pathSwitchRequestIEs = []ieSpec[PathSwitchRequest]{
 		},
 	},
 	{
-		id: idSourceMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idSourceMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *PathSwitchRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.SourceMMEUES1APID)
 		},
 		encode: func(m *PathSwitchRequest) (per.Marshaler, bool) { return &m.SourceMMEUES1APID, true },
 	},
 	{
-		id: idEUTRANCGI, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idEUTRANCGI, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequest, raw []byte, enc per.Encoding) error {
 			var v EUTRANCGI
 
@@ -92,7 +92,7 @@ var pathSwitchRequestIEs = []ieSpec[PathSwitchRequest]{
 		},
 	},
 	{
-		id: idTAI, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idTAI, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequest, raw []byte, enc per.Encoding) error {
 			var v TAI
 
@@ -113,7 +113,7 @@ var pathSwitchRequestIEs = []ieSpec[PathSwitchRequest]{
 		},
 	},
 	{
-		id: idUESecurityCapabilities, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idUESecurityCapabilities, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequest, raw []byte, enc per.Encoding) error {
 			var v UESecurityCapabilities
 
@@ -176,7 +176,7 @@ type PathSwitchRequestAcknowledge struct {
 
 var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 	{
-		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
 			var v MMEUES1APID
 
@@ -197,7 +197,7 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 		},
 	},
 	{
-		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
 			var v ENBUES1APID
 
@@ -218,7 +218,7 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 		},
 	},
 	{
-		id: idUEAggregateMaximumBitrate, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idUEAggregateMaximumBitrate, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
 			var (
 				err  error
@@ -239,7 +239,7 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 		},
 	},
 	{
-		id: idERABToBeReleasedList, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idERABToBeReleasedList, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -258,14 +258,14 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 		},
 	},
 	{
-		id: idSecurityContext, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idSecurityContext, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.SecurityContext)
 		},
 		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) { return &m.SecurityContext, true },
 	},
 	{
-		id: idUESecurityCapabilities, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idUESecurityCapabilities, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
 			var (
 				err  error
@@ -313,16 +313,17 @@ func ParsePathSwitchRequestAcknowledge(value []byte) (*PathSwitchRequestAcknowle
 
 // TS 36.413 §9.1.5.10.
 type PathSwitchRequestFailure struct {
-	MMEUES1APID *MMEUES1APID
-	ENBUES1APID *ENBUES1APID
-	Cause       *Cause
+	MMEUES1APID            *MMEUES1APID
+	ENBUES1APID            *ENBUES1APID
+	Cause                  *Cause
+	CriticalityDiagnostics *CriticalityDiagnostics
 
 	messageMeta
 }
 
 var pathSwitchRequestFailureIEs = []ieSpec[PathSwitchRequestFailure]{
 	{
-		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequestFailure, raw []byte, enc per.Encoding) error {
 			var v MMEUES1APID
 
@@ -343,7 +344,7 @@ var pathSwitchRequestFailureIEs = []ieSpec[PathSwitchRequestFailure]{
 		},
 	},
 	{
-		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequestFailure, raw []byte, enc per.Encoding) error {
 			var v ENBUES1APID
 
@@ -364,7 +365,7 @@ var pathSwitchRequestFailureIEs = []ieSpec[PathSwitchRequestFailure]{
 		},
 	},
 	{
-		id: idCause, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequestFailure, raw []byte, enc per.Encoding) error {
 			var v Cause
 
@@ -382,6 +383,27 @@ var pathSwitchRequestFailureIEs = []ieSpec[PathSwitchRequestFailure]{
 			}
 
 			return m.Cause, true
+		},
+	},
+	{
+		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *PathSwitchRequestFailure, raw []byte, enc per.Encoding) error {
+			var v CriticalityDiagnostics
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.CriticalityDiagnostics = &v
+
+			return nil
+		},
+		encode: func(m *PathSwitchRequestFailure) (per.Marshaler, bool) {
+			if m.CriticalityDiagnostics == nil {
+				return nil, false
+			}
+
+			return m.CriticalityDiagnostics, true
 		},
 	},
 }

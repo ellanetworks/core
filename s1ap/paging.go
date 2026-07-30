@@ -51,7 +51,7 @@ type taiItem struct {
 
 var pagingIEs = []ieSpec[Paging]{
 	{
-		id: idUEIdentityIndexValue, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idUEIdentityIndexValue, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
 			b, nbits, err := per.DecodeBitString(per.NewReader(raw), enc, 10, 10, true, true, false)
 			if err != nil {
@@ -80,7 +80,7 @@ var pagingIEs = []ieSpec[Paging]{
 		},
 	},
 	{
-		id: idUEPagingID, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idUEPagingID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
 			sub := per.NewReader(raw)
 
@@ -128,7 +128,7 @@ var pagingIEs = []ieSpec[Paging]{
 		},
 	},
 	{
-		id: idCNDomain, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idCNDomain, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
 			index, err := per.DecodeEnumerated(per.NewReader(raw), enc, cnDomainRootCount, false)
 			if err != nil {
@@ -151,7 +151,7 @@ var pagingIEs = []ieSpec[Paging]{
 		},
 	},
 	{
-		id: idTAIList, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idTAIList, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
 			items, err := decodeItemList[taiItem](per.NewReader(raw), enc, maxnoofTAIs)
 			if err != nil {
@@ -183,7 +183,7 @@ var pagingIEs = []ieSpec[Paging]{
 	// UE Radio Capability for Paging follows the List of TAIs in the message
 	// order (§9.1.6.1); included only when the eNB reported one.
 	{
-		id: idUERadioCapabilityForPaging, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idUERadioCapabilityForPaging, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
 			var err error
 

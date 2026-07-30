@@ -70,7 +70,7 @@ func TestAbstractSyntaxErrorMessage(t *testing.T) {
 		t.Errorf("Error() = %q, want %q", got, want)
 	}
 
-	d := err.Diagnostics()
+	d := err.ErrorIndicationDiagnostics()
 	if d.ProcedureCode == nil || *d.ProcedureCode != ProcS1Setup ||
 		d.TriggeringMessage == nil || *d.TriggeringMessage != TriggeringInitiatingMessage ||
 		d.ProcedureCriticality == nil || *d.ProcedureCriticality != CriticalityReject ||

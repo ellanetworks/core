@@ -21,6 +21,8 @@ func handleHandoverCancel(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 		return
 	}
 
+	reportDiagnostics(m, radio.Conn, s1ap.ProcHandoverCancel, cancel.Diagnostics())
+
 	ue, ok := resolveUE(m, radio.Conn, cancel.MMEUES1APID, cancel.ENBUES1APID)
 	if !ok {
 		return

@@ -17,9 +17,19 @@ import (
 func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	req, err := s1ap.ParseHandoverRequired(value)
 	if err != nil {
-		handleParseError(m, radio.Conn, s1ap.ProcHandoverPreparation, err)
+		rejectWithFailure(m, radio.Conn, s1ap.ProcHandoverPreparation, err,
+			func(cause s1ap.Cause, diag *s1ap.CriticalityDiagnostics) ([]byte, error) {
+				mmeID, enbID := rejectedUEIDs(err)
+
+				return (&s1ap.HandoverPreparationFailure{
+					MMEUES1APID: mmeID, ENBUES1APID: enbID, Cause: &cause, CriticalityDiagnostics: diag,
+				}).Marshal()
+			}, mme.S1APProcedureHandoverPreparationFailure)
+
 		return
 	}
+
+	reportDiagnostics(m, radio.Conn, s1ap.ProcHandoverPreparation, req.Diagnostics())
 
 	ue, ok := resolveUE(m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID)
 	if !ok {

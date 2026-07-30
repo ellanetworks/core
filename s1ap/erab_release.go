@@ -28,21 +28,21 @@ type ERABReleaseCommand struct {
 
 var eRABReleaseCommandIEs = []ieSpec[ERABReleaseCommand]{
 	{
-		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *ERABReleaseCommand, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.MMEUES1APID)
 		},
 		encode: func(m *ERABReleaseCommand) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *ERABReleaseCommand, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ENBUES1APID)
 		},
 		encode: func(m *ERABReleaseCommand) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: idUEAggregateMaximumBitrate, presence: PresenceOptional, crit: CriticalityReject,
+		id: idUEAggregateMaximumBitrate, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *ERABReleaseCommand, raw []byte, enc per.Encoding) error {
 			var (
 				err  error
@@ -63,7 +63,7 @@ var eRABReleaseCommandIEs = []ieSpec[ERABReleaseCommand]{
 		},
 	},
 	{
-		id: idERABToBeReleasedList, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idERABToBeReleasedList, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseCommand, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -82,7 +82,7 @@ var eRABReleaseCommandIEs = []ieSpec[ERABReleaseCommand]{
 		},
 	},
 	{
-		id: idNASPDU, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idNASPDU, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseCommand, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.NASPDU)
 		},
@@ -134,7 +134,7 @@ type ERABReleaseResponse struct {
 
 var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 	{
-		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
 			var v MMEUES1APID
 
@@ -155,7 +155,7 @@ var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 		},
 	},
 	{
-		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
 			var v ENBUES1APID
 
@@ -176,7 +176,7 @@ var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 		},
 	},
 	{
-		id: idERABReleaseListBearerRelComp, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idERABReleaseListBearerRelComp, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -195,7 +195,7 @@ var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 		},
 	},
 	{
-		id: idERABFailedToReleaseList, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idERABFailedToReleaseList, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -214,7 +214,7 @@ var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
 			var (
 				err error
@@ -235,7 +235,7 @@ var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 		},
 	},
 	{
-		id: idUserLocationInformation, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
 			var (
 				err error

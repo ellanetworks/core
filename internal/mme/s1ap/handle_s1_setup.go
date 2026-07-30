@@ -91,7 +91,7 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 // buildS1SetupFailure carries the cause and per-IE diagnostics the rejection
 // must report (TS 36.413 §10.3.5).
 func buildS1SetupFailure(ase *s1ap.AbstractSyntaxError) ([]byte, error) {
-	diag := ase.Diagnostics()
+	diag := ase.OutcomeDiagnostics()
 
 	fail := &s1ap.S1SetupFailure{
 		Cause:                  &ase.Cause,

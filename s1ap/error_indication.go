@@ -21,7 +21,7 @@ type ErrorIndication struct {
 
 var errorIndicationIEs = []ieSpec[ErrorIndication]{
 	{
-		id: idMMEUES1APID, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idMMEUES1APID, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
 			var (
 				err error
@@ -44,7 +44,7 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 		},
 	},
 	{
-		id: idENBUES1APID, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idENBUES1APID, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
 			var (
 				err error
@@ -67,7 +67,7 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 		},
 	},
 	{
-		id: idCause, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idCause, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
 			var (
 				err error
@@ -90,7 +90,7 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
 			var (
 				err error

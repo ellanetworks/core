@@ -5,7 +5,7 @@ package s1ap
 
 import "fmt"
 
-// ProtocolIE-ID names from TS 36.413 §9.3.5. IDs are unique protocol-wide.
+// ProtocolIE-ID names from TS 36.413 §9.3.6. IDs are unique protocol-wide.
 //
 // #nosec G101 -- these are 3GPP IE names, not credentials. G101 matches its
 // "bearer" pattern against the E-RAB list names, where a bearer is an EPS

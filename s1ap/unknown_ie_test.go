@@ -177,8 +177,8 @@ func TestUnmodeledIECriticality(t *testing.T) {
 			t.Fatalf("diagnostics = %v, want [%v not-understood]", ase.IEs, rejectID)
 		}
 
-		if !slices.ContainsFunc(ase.Decoded, func(ie RawIE) bool { return ie.ID == idGlobalENBID }) {
-			t.Fatalf("decoded IEs = %v, want Global-eNB-ID carried on the rejection", ase.Decoded)
+		if !slices.ContainsFunc(ase.decoded, func(ie RawIE) bool { return ie.ID == idGlobalENBID }) {
+			t.Fatalf("decoded IEs = %v, want Global-eNB-ID carried on the rejection", ase.decoded)
 		}
 	})
 
@@ -194,7 +194,7 @@ func TestUnmodeledIECriticality(t *testing.T) {
 		}
 
 		got := out.Diagnostics()
-		if len(got.IEs) != 2 || got.IEs[0].IEID != ignoreID || got.IEs[1].IEID != notifyID {
+		if len(got.IEs) != 2 || got.IEs[0].ID != ignoreID || got.IEs[1].ID != notifyID {
 			t.Fatalf("diagnostics = %v, want [%v %v]", got.IEs, ignoreID, notifyID)
 		}
 

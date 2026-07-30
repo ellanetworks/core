@@ -89,7 +89,7 @@ func TestLocationReportMissingMandatoryIE(t *testing.T) {
 		}
 
 		for i, want := range []ProtocolIEID{idEUTRANCGI, idTAI, idRequestType} {
-			if got[i].IEID != want || got[i].IECriticality != CriticalityIgnore ||
+			if got[i].ID != want || got[i].Criticality != CriticalityIgnore ||
 				got[i].TypeOfError != TypeOfErrorMissing {
 				t.Errorf("diagnostic %d = %+v, want %v missing/ignore", i, got[i], want)
 			}

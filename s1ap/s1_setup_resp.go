@@ -19,7 +19,7 @@ type S1SetupResponse struct {
 
 var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 	{
-		id: idMMEname, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idMMEname, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
 			var (
 				err error
@@ -41,14 +41,14 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 		},
 	},
 	{
-		id: idServedGUMMEIs, presence: PresenceMandatory, crit: CriticalityReject,
+		id: idServedGUMMEIs, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ServedGUMMEIs)
 		},
 		encode: func(m *S1SetupResponse) (per.Marshaler, bool) { return &m.ServedGUMMEIs, true },
 	},
 	{
-		id: idRelativeMMECapacity, presence: PresenceMandatory, crit: CriticalityIgnore,
+		id: idRelativeMMECapacity, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
 			var (
 				err error
@@ -76,7 +76,7 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: PresenceOptional, crit: CriticalityIgnore,
+		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
 			var (
 				err error

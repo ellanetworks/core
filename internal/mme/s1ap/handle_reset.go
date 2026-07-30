@@ -22,6 +22,8 @@ func handleReset(m *mme.MME, radio *mme.Radio, value []byte) {
 		return
 	}
 
+	reportDiagnostics(m, radio.Conn, s1ap.ProcReset, req.Diagnostics())
+
 	if req.ResetType.All {
 		affected := m.ConnsOnConn(radio.Conn)
 		m.ReclaimConns(affected, "S1 reset")
