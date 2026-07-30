@@ -27,7 +27,7 @@ func (m *S1SetupRequest) encodeBody(w *aper.Writer) error {
 	w.WriteSequencePreamble(true, false, nil)
 
 	fields := []ieField{
-		{id: idGlobalENBID, crit: CriticalityReject, enc: m.GlobalENBID.encode},
+		{id: idGlobalENBID, crit: CriticalityReject, enc: perIE(&m.GlobalENBID)},
 	}
 
 	if m.ENBName != "" {
@@ -39,8 +39,8 @@ func (m *S1SetupRequest) encodeBody(w *aper.Writer) error {
 	}
 
 	fields = append(fields,
-		ieField{id: idSupportedTAs, crit: CriticalityReject, enc: m.SupportedTAs.encode},
-		ieField{id: idDefaultPagingDRX, crit: CriticalityIgnore, enc: m.DefaultPagingDRX.encode},
+		ieField{id: idSupportedTAs, crit: CriticalityReject, enc: perIE(m.SupportedTAs)},
+		ieField{id: idDefaultPagingDRX, crit: CriticalityIgnore, enc: perIE(m.DefaultPagingDRX)},
 	)
 
 	for _, e := range m.unknownIEs {
@@ -91,19 +91,17 @@ func ParseS1SetupRequest(value []byte) (*S1SetupRequest, error) {
 	var seenGlobalENBID, seenSupportedTAs bool
 
 	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
 		switch f.id {
 		case idGlobalENBID:
-			m.GlobalENBID, err = decodeGlobalENBID(sub)
+			err = perIEDecode(f.value, &m.GlobalENBID)
 			seenGlobalENBID = true
 		case idENBname:
-			m.ENBName, err = decodeName(sub)
+			m.ENBName, err = decodeName(aper.NewReader(f.value))
 		case idSupportedTAs:
-			m.SupportedTAs, err = decodeSupportedTAs(sub)
+			err = perIEDecode(f.value, &m.SupportedTAs)
 			seenSupportedTAs = true
 		case idDefaultPagingDRX:
-			m.DefaultPagingDRX, err = decodePagingDRX(sub)
+			err = perIEDecode(f.value, &m.DefaultPagingDRX)
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)
 		}

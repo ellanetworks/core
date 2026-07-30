@@ -14,16 +14,8 @@ func EncodeOpenType(w *Writer, enc Encoding, m Marshaler) error {
 	}
 
 	inner.AlignToByte()
-	content := inner.Bytes()
-	off := 0
 
-	return EncodeLength(w, enc, 0, 0, false, int64(len(content)), func(count int64) error {
-		end := off + int(count)
-		writeOctetAligned(w, enc, content[off:end])
-		off = end
-
-		return nil
-	})
+	return EncodeOpenTypeBytes(w, enc, inner.Bytes())
 }
 
 // DecodeOpenType decodes an open type field per §11.2, delegating to u.
@@ -55,6 +47,49 @@ func SkipOpenType(r *Reader, enc Encoding) error {
 		_, err := readOctetAligned(r, enc, int(count))
 		return err
 	})
+}
+
+// EncodeOpenTypeBytes encodes content, an already-encoded complete PER value,
+// as an open type field per §11.2. Used to re-emit open types captured with
+// [DecodeOpenTypeBytes] without decoding them. An empty encoding is padded to
+// the single zero octet §11.2.1 requires.
+func EncodeOpenTypeBytes(w *Writer, enc Encoding, content []byte) error {
+	if len(content) == 0 {
+		content = []byte{0x00}
+	}
+
+	off := 0
+
+	return EncodeLength(w, enc, 0, 0, false, int64(len(content)), func(count int64) error {
+		end := off + int(count)
+		writeOctetAligned(w, enc, content[off:end])
+		off = end
+
+		return nil
+	})
+}
+
+// DecodeOpenTypeBytes reads an open type field per §11.2 and returns its
+// content octets undecoded, so a caller can dispatch on out-of-band type
+// information or preserve unknown fields for re-encoding.
+func DecodeOpenTypeBytes(r *Reader, enc Encoding) ([]byte, error) {
+	var buf []byte
+
+	err := DecodeLength(r, enc, 0, 0, false, func(count int64) error {
+		p, err := readOctetAligned(r, enc, int(count))
+		if err != nil {
+			return err
+		}
+
+		buf = append(buf, p...)
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return buf, nil
 }
 
 // EncodeNormallySmallLength encodes a "normally small length" determinant per

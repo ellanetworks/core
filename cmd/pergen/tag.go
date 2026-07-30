@@ -34,6 +34,9 @@ type FieldTag struct {
 
 	// Optional marks the field as OPTIONAL in a SEQUENCE.
 	Optional bool
+	// Skip marks an OPTIONAL field the type does not model: encoded as
+	// always-absent, and read-and-discarded when present on decode.
+	Skip bool
 	// DefaultExpr is the Go expression for a DEFAULT value (parsed, not
 	// evaluated, by pergen — it's emitted verbatim into the generated code).
 	DefaultExpr string
@@ -74,6 +77,7 @@ const (
 //	tag        := name? ("," option)*
 //	name       := "-" | identifier
 //	option     := "optional"
+//	            | "skip"
 //	            | "ext"
 //	            | "extadd:" int
 //	            | "range:" range
@@ -121,7 +125,7 @@ func ParseTag(s string) (FieldTag, error) {
 // looksLikeOption reports whether token is a known option keyword or key:value
 // pair (vs. a bare ASN.1 type name).
 func looksLikeOption(token string) bool {
-	if token == "optional" || token == "ext" || token == "extseq" {
+	if token == "optional" || token == "ext" || token == "extseq" || token == "skip" {
 		return true
 	}
 
@@ -143,6 +147,9 @@ func parseOption(t *FieldTag, opt string) error {
 	switch opt {
 	case "optional":
 		t.Optional = true
+		return nil
+	case "skip":
+		t.Skip = true
 		return nil
 	case "ext":
 		t.Ext = true

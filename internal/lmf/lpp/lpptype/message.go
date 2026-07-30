@@ -4,7 +4,7 @@
 // Package lpptype holds hand-written, per-tagged Go structs that mirror the
 // 3GPP TS 37.355 (Rel-18) LPP ASN.1 definitions needed for A-GNSS positioning.
 //
-// The PER codec is github.com/ellanetworks/core/internal/per using the Unaligned
+// The PER codec is github.com/ellanetworks/core/per using the Unaligned
 // variant (BASIC-PER Unaligned, per TS 37.355 §7). Tag conventions:
 //   - SEQUENCE: Go struct, optional fields tagged `per:",optional"`
 //   - CHOICE: Go struct with pointer fields tagged `per:",choice:N,optional"`
@@ -14,7 +14,7 @@
 //   - INTEGER: int64 with `per:",range:lb..ub"`
 package lpptype
 
-import "github.com/ellanetworks/core/internal/per"
+import "github.com/ellanetworks/core/per"
 
 //go:generate go run github.com/ellanetworks/core/cmd/pergen
 

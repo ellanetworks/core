@@ -9,7 +9,7 @@
 // real NGAP encoding for the same field values.
 package ngaptest
 
-//go:generate go run github.com/ellanetworks/core/cmd/pergen
+//go:generate sh -c "cd ../../.. && go run ./cmd/pergen -o per/testdata/ngap/per_gen.go github.com/ellanetworks/core/per/testdata/ngap"
 
 // PLMNIdentity is an OCTET STRING (SIZE(3)) representing a PLMN identity
 // (MCC/MNC in BCD-encoded form). TS 38.413 §9.3.3.36.
@@ -41,9 +41,14 @@ type GlobalGNBID struct {
 }
 
 // PagingDRX is an ENUMERATED with values v32, v64, v128, v256.
-// Encoded as a constrained INTEGER with range 0..3.
 type PagingDRX struct {
-	Value int `per:",range:0..3"`
+	Value int `per:"ENUMERATED,range:0..3"`
+}
+
+// CauseMisc mirrors an extensible NGAP ENUMERATED (TS 38.413 §9.3.1.2 Cause
+// misc group: 6 root values, extensible). Values 6+ are extension additions.
+type CauseMisc struct {
+	Value int `per:"ENUMERATED,range:0..5,..."`
 }
 
 // SupportedTAIItem is a simplified version of the NGAP SupportedTAIItem:

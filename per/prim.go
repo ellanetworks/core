@@ -145,6 +145,10 @@ func decodeIndefiniteInteger(r *Reader, enc Encoding, lb, rng int64) (int64, err
 		return 0, err
 	}
 
+	if v > uint64(rng-1) {
+		return 0, ErrOverflow
+	}
+
 	return lb + int64(v), nil
 }
 

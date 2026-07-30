@@ -6,7 +6,7 @@
 // per 3GPP TS 38.331 §8.1.
 package rrctest
 
-//go:generate go run github.com/ellanetworks/core/cmd/pergen
+//go:generate sh -c "cd ../../.. && go run ./cmd/pergen -o per/testdata/rrc/per_gen.go github.com/ellanetworks/core/per/testdata/rrc"
 
 // RRCRelease is a simplified version of the NR-RRC RRCRelease message.
 // TS 38.331 §6.4.2. It contains:

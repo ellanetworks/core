@@ -4,7 +4,7 @@
 
 package lpptype
 
-import "github.com/ellanetworks/core/internal/per"
+import "github.com/ellanetworks/core/per"
 
 func (aGNSSProvideAssistanceData *AGNSSProvideAssistanceData) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
@@ -2848,7 +2848,7 @@ func (ePDUIdentifier *EPDUIdentifier) MarshalPER(w *per.Writer, enc per.Encoding
 		return err
 	}
 	if ePDUIdentifier.EPDUName != nil {
-		if err := per.EncodeString(w, enc, []byte((*ePDUIdentifier.EPDUName))); err != nil {
+		if err := per.EncodeKnownMultiplierString(w, enc, per.CharVisibleString, 1, 32, true, true, false, (*ePDUIdentifier.EPDUName)); err != nil {
 			return err
 		}
 	}
@@ -2871,11 +2871,11 @@ func (ePDUIdentifier *EPDUIdentifier) UnmarshalPER(r *per.Reader, enc per.Encodi
 	ePDUIdentifier.EPDUID = int64(n0)
 	if p_EPDUName {
 		var v string
-		sp, err := per.DecodeString(r, enc)
+		sp, err := per.DecodeKnownMultiplierString(r, enc, per.CharVisibleString, 1, 32, true, true, false)
 		if err != nil {
 			return err
 		}
-		v = string(sp)
+		v = sp
 		ePDUIdentifier.EPDUName = &v
 	}
 	if extBit {

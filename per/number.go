@@ -118,8 +118,9 @@ func EncodeConstrainedWholeNumber(w *Writer, enc Encoding, lb, ub, n int64) erro
 }
 
 // DecodeConstrainedWholeNumber decodes a constrained whole number with range
-// 1..65536 per §11.5. It returns the value n in [lb, ub]. For range > 65536
-// (indefinite case) use [DecodeInteger].
+// 1..65536 per §11.5. It returns the value n in [lb, ub]; a bit pattern that
+// decodes outside the range (§11.5 assigns no value to it) is rejected with
+// [ErrOverflow]. For range > 65536 (indefinite case) use [DecodeInteger].
 func DecodeConstrainedWholeNumber(r *Reader, enc Encoding, lb, ub int64) (int64, error) {
 	rng := ub - lb + 1
 	if rng == 1 {
@@ -132,6 +133,10 @@ func DecodeConstrainedWholeNumber(r *Reader, enc Encoding, lb, ub int64) (int64,
 			return 0, err
 		}
 
+		if int64(v) >= rng {
+			return 0, ErrOverflow
+		}
+
 		return lb + int64(v), nil
 	}
 
@@ -140,6 +145,10 @@ func DecodeConstrainedWholeNumber(r *Reader, enc Encoding, lb, ub int64) (int64,
 		v, err := r.ReadBits(bitsNeeded(rng))
 		if err != nil {
 			return 0, err
+		}
+
+		if int64(v) >= rng {
+			return 0, ErrOverflow
 		}
 
 		return lb + int64(v), nil
@@ -160,7 +169,12 @@ func DecodeConstrainedWholeNumber(r *Reader, enc Encoding, lb, ub int64) (int64,
 			return 0, err
 		}
 
-		return lb + int64(p[0])<<8 + int64(p[1]), nil
+		v := int64(p[0])<<8 + int64(p[1])
+		if v >= rng {
+			return 0, ErrOverflow
+		}
+
+		return lb + v, nil
 	default:
 		return 0, ErrOverflow
 	}

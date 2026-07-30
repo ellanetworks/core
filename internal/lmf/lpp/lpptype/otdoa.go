@@ -123,7 +123,7 @@ type EPDU struct {
 type EPDUIdentifier struct {
 	_        [0]struct{} `per:"extseq"`
 	EPDUID   int64       `per:",range:1..256"`
-	EPDUName *string     `per:",optional,size:1..32"`
+	EPDUName *string     `per:"VisibleString,optional,size:1..32"`
 }
 
 //	EPDU-Body ::= OCTET STRING

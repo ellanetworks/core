@@ -3,7 +3,7 @@
 
 package lpptype
 
-import "github.com/ellanetworks/core/internal/per"
+import "github.com/ellanetworks/core/per"
 
 // =====================================================================
 // A-GNSS-RequestCapabilities (TS 37.355 §6.5.2.11)

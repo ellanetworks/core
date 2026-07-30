@@ -93,7 +93,7 @@ func TestS1SetupRequestGoldenReencode(t *testing.T) {
 
 func TestS1SetupRequestRoundTrip(t *testing.T) {
 	in := &S1SetupRequest{
-		GlobalENBID:      GlobalENBID{PLMNIdentity{0x00, 0xf1, 0x10}, ENBID{Kind: ENBIDMacro, Value: 0x0abcd}},
+		GlobalENBID:      GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 0x0abcd}},
 		ENBName:          "eNB-1",
 		SupportedTAs:     SupportedTAs{{TAC: 0x0001, BroadcastPLMNs: BPLMNs{{0x00, 0xf1, 0x10}}}},
 		DefaultPagingDRX: PagingDRXv128,
@@ -132,7 +132,7 @@ func encodePartialS1Setup(t *testing.T, globalENBID, supportedTAs, pagingDRX boo
 	var fields []ieField
 
 	if globalENBID {
-		g := GlobalENBID{PLMNIdentity{0x00, 0xf1, 0x10}, ENBID{Kind: ENBIDMacro, Value: 0x0abcd}}
+		g := GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 0x0abcd}}
 		fields = append(fields, ieField{id: idGlobalENBID, crit: CriticalityReject, enc: g.encode})
 	}
 

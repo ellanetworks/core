@@ -7,7 +7,7 @@ import (
 	"math"
 
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
-	"github.com/ellanetworks/core/internal/per"
+	"github.com/ellanetworks/core/per"
 )
 
 // Encoder serialises an LPP-Message to unaligned-PER bytes (TS 37.355 §7).

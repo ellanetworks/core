@@ -39,7 +39,7 @@ func (g *generator) emitStruct(name string, s *structType) error {
 	var optionalIdx []int
 
 	for i, fi := range rootFields {
-		if fi.isOptional || fi.hasDefault {
+		if fi.isOptional || fi.hasDefault || fi.isSkip {
 			optionalIdx = append(optionalIdx, i)
 		}
 	}
@@ -81,9 +81,13 @@ func (g *generator) emitMarshalExt(recv, typeName string, rootFields, extFields 
 		fi := rootFields[idx]
 
 		expr := recv + "." + fi.name
-		if fi.isOptional {
+
+		switch {
+		case fi.isSkip:
+			fmt.Fprintf(r, "\tw.WriteBit(false)\n")
+		case fi.isOptional:
 			fmt.Fprintf(r, "\tw.WriteBit(%s != nil)\n", expr)
-		} else if fi.hasDefault {
+		case fi.hasDefault:
 			fmt.Fprintf(r, "\tw.WriteBit(%s != %s)\n", expr, fi.tag.DefaultExpr)
 		}
 	}
@@ -93,7 +97,9 @@ func (g *generator) emitMarshalExt(recv, typeName string, rootFields, extFields 
 		fi := rootFields[i]
 
 		expr := recv + "." + fi.name
-		if fi.isOptional {
+		if fi.isSkip {
+			continue
+		} else if fi.isOptional {
 			fmt.Fprintf(r, "\tif %s != nil {\n", expr)
 			g.emitFieldMarshal(r, recv, fi, "(*"+expr+")", 1)
 			fmt.Fprintf(r, "\t}\n")
@@ -152,6 +158,16 @@ func (g *generator) emitMarshalExt(recv, typeName string, rootFields, extFields 
 	fmt.Fprintf(r, "\treturn nil\n}\n\n")
 }
 
+// preambleVar names the local presence-bit variable for an optional field.
+// Blank-named skip fields use their index, since "_" is not a usable name.
+func preambleVar(fi fieldInfo) string {
+	if fi.name == "_" {
+		return fmt.Sprintf("p_f%d", fi.fieldIdx)
+	}
+
+	return "p_" + fi.name
+}
+
 // joinOr joins conditions with " || ".
 func joinOr(conds []string) string {
 	return strings.Join(conds, " || ")
@@ -180,6 +196,10 @@ func (g *generator) emitFieldMarshal(r *bytes.Buffer, _ string, fi fieldInfo, ex
 		fmt.Fprintf(r, "%sif err := per.EncodeInteger(w, enc, %s, int64(%s)); err != nil {\n", prefix, fi.boundsExpr, expr)
 		fmt.Fprintf(r, "%s\treturn err\n", prefix)
 		fmt.Fprintf(r, "%s}\n", prefix)
+	case kindEnum:
+		fmt.Fprintf(r, "%sif err := per.EncodeEnumerated(w, enc, %d, %t, int64(%s)); err != nil {\n", prefix, fi.enumRoot, fi.enumExt, expr)
+		fmt.Fprintf(r, "%s\treturn err\n", prefix)
+		fmt.Fprintf(r, "%s}\n", prefix)
 	case kindOctetString:
 		fmt.Fprintf(r, "%sif err := per.EncodeOctetString(w, enc, %d, %d, %t, %t, %t, %s); err != nil {\n",
 			prefix, fi.sizeLB, fi.sizeUB, fi.hasSizeLB, fi.hasSizeUB, fi.sizeExt, expr)
@@ -200,7 +220,19 @@ func (g *generator) emitFieldMarshal(r *bytes.Buffer, _ string, fi fieldInfo, ex
 		fmt.Fprintf(r, "%s\treturn err\n", prefix)
 		fmt.Fprintf(r, "%s}\n", prefix)
 	case kindString:
-		fmt.Fprintf(r, "%sif err := per.EncodeString(w, enc, []byte(%s)); err != nil {\n", prefix, expr)
+		switch {
+		case fi.charTypeExpr != "":
+			fmt.Fprintf(r, "%sif err := per.EncodeKnownMultiplierString(w, enc, %s, %d, %d, %t, %t, %t, %s); err != nil {\n",
+				prefix, fi.charTypeExpr, fi.sizeLB, fi.sizeUB, fi.hasSizeLB, fi.hasSizeUB, fi.sizeExt, expr)
+		case fi.hasSizeLB || fi.hasSizeUB:
+			// A size-constrained string without a known-multiplier type name
+			// encodes 8 bits per character, sharing the OCTET STRING procedures.
+			fmt.Fprintf(r, "%sif err := per.EncodeOctetString(w, enc, %d, %d, %t, %t, %t, []byte(%s)); err != nil {\n",
+				prefix, fi.sizeLB, fi.sizeUB, fi.hasSizeLB, fi.hasSizeUB, fi.sizeExt, expr)
+		default:
+			fmt.Fprintf(r, "%sif err := per.EncodeString(w, enc, []byte(%s)); err != nil {\n", prefix, expr)
+		}
+
 		fmt.Fprintf(r, "%s\treturn err\n", prefix)
 		fmt.Fprintf(r, "%s}\n", prefix)
 	case kindREAL:
@@ -268,7 +300,7 @@ func (g *generator) emitUnmarshalExt(recv, typeName string, rootFields, extField
 	// Read root preamble bits.
 	for _, idx := range optionalIdx {
 		fi := rootFields[idx]
-		fmt.Fprintf(r, "\tp_%s, err := r.ReadBit()\n", fi.name)
+		fmt.Fprintf(r, "\t%s, err := r.ReadBit()\n", preambleVar(fi))
 		fmt.Fprintf(r, "\tif err != nil {\n\t\treturn err\n\t}\n")
 	}
 
@@ -277,14 +309,20 @@ func (g *generator) emitUnmarshalExt(recv, typeName string, rootFields, extField
 		fi := rootFields[i]
 
 		expr := recv + "." + fi.name
-		if fi.isOptional {
-			fmt.Fprintf(r, "\tif p_%s {\n", fi.name)
+		if fi.isSkip {
+			fmt.Fprintf(r, "\tif %s {\n", preambleVar(fi))
+			fmt.Fprintf(r, "\t\tvar v %s\n", fi.typeStr)
+			g.emitFieldUnmarshal(r, "v", fi, 1)
+			fmt.Fprintf(r, "\t\t_ = v\n")
+			fmt.Fprintf(r, "\t}\n")
+		} else if fi.isOptional {
+			fmt.Fprintf(r, "\tif %s {\n", preambleVar(fi))
 			fmt.Fprintf(r, "\t\tvar v %s\n", fi.typeStr)
 			g.emitFieldUnmarshal(r, "v", fi, 1)
 			fmt.Fprintf(r, "\t\t%s = &v\n", expr)
 			fmt.Fprintf(r, "\t}\n")
 		} else if fi.hasDefault {
-			fmt.Fprintf(r, "\tif p_%s {\n", fi.name)
+			fmt.Fprintf(r, "\tif %s {\n", preambleVar(fi))
 			g.emitFieldUnmarshal(r, expr, fi, 1)
 			fmt.Fprintf(r, "\t} else {\n")
 			fmt.Fprintf(r, "\t\t%s = %s\n", expr, fi.tag.DefaultExpr)
@@ -367,6 +405,10 @@ func (g *generator) emitFieldUnmarshal(r *bytes.Buffer, target string, fi fieldI
 		fmt.Fprintf(r, "%sn%d, err := per.DecodeInteger(r, enc, %s)\n", prefix, fi.fieldIdx, fi.boundsExpr)
 		fmt.Fprintf(r, "%sif err != nil {\n%s\treturn err\n%s}\n", prefix, prefix, prefix)
 		fmt.Fprintf(r, "%s%s = %s(n%d)\n", prefix, target, fi.typeStr, fi.fieldIdx)
+	case kindEnum:
+		fmt.Fprintf(r, "%se%d, err := per.DecodeEnumerated(r, enc, %d, %t)\n", prefix, fi.fieldIdx, fi.enumRoot, fi.enumExt)
+		fmt.Fprintf(r, "%sif err != nil {\n%s\treturn err\n%s}\n", prefix, prefix, prefix)
+		fmt.Fprintf(r, "%s%s = %s(e%d)\n", prefix, target, fi.typeStr, fi.fieldIdx)
 	case kindOctetString:
 		fmt.Fprintf(r, "%sp, err := per.DecodeOctetString(r, enc, %d, %d, %t, %t, %t)\n",
 			prefix, fi.sizeLB, fi.sizeUB, fi.hasSizeLB, fi.hasSizeUB, fi.sizeExt)
@@ -386,7 +428,21 @@ func (g *generator) emitFieldUnmarshal(r *bytes.Buffer, target string, fi fieldI
 
 		fmt.Fprintf(r, "%s\treturn err\n%s}\n", prefix, prefix)
 	case kindString:
-		fmt.Fprintf(r, "%ssp, err := per.DecodeString(r, enc)\n", prefix)
+		switch {
+		case fi.charTypeExpr != "":
+			fmt.Fprintf(r, "%ssp, err := per.DecodeKnownMultiplierString(r, enc, %s, %d, %d, %t, %t, %t)\n",
+				prefix, fi.charTypeExpr, fi.sizeLB, fi.sizeUB, fi.hasSizeLB, fi.hasSizeUB, fi.sizeExt)
+			fmt.Fprintf(r, "%sif err != nil {\n%s\treturn err\n%s}\n", prefix, prefix, prefix)
+			fmt.Fprintf(r, "%s%s = sp\n", prefix, target)
+
+			return
+		case fi.hasSizeLB || fi.hasSizeUB:
+			fmt.Fprintf(r, "%ssp, err := per.DecodeOctetString(r, enc, %d, %d, %t, %t, %t)\n",
+				prefix, fi.sizeLB, fi.sizeUB, fi.hasSizeLB, fi.hasSizeUB, fi.sizeExt)
+		default:
+			fmt.Fprintf(r, "%ssp, err := per.DecodeString(r, enc)\n", prefix)
+		}
+
 		fmt.Fprintf(r, "%sif err != nil {\n%s\treturn err\n%s}\n", prefix, prefix, prefix)
 		fmt.Fprintf(r, "%s%s = string(sp)\n", prefix, target)
 	case kindREAL:

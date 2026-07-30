@@ -106,8 +106,10 @@ func decodeENBID(r *aper.Reader) (ENBID, error) {
 // GlobalENBID ::= SEQUENCE { pLMNidentity, eNB-ID, iE-Extensions OPTIONAL }
 // (extensible).
 type GlobalENBID struct {
+	_            [0]struct{} `per:"extseq"`
 	PLMNIdentity PLMNIdentity
 	ENBID        ENBID
+	_            ieExtensions `per:",skip"`
 }
 
 func (g GlobalENBID) encode(w *aper.Writer) error {
@@ -199,8 +201,10 @@ func decodeBPLMNs(r *aper.Reader) (BPLMNs, error) {
 // SupportedTAItem ::= SEQUENCE { tAC, broadcastPLMNs, iE-Extensions OPTIONAL }
 // (extensible).
 type SupportedTAItem struct {
+	_              [0]struct{} `per:"extseq"`
 	TAC            TAC
 	BroadcastPLMNs BPLMNs
+	_              ieExtensions `per:",skip"`
 }
 
 func (it SupportedTAItem) encode(w *aper.Writer) error {

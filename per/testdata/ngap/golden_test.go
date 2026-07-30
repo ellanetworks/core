@@ -8,7 +8,7 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/per"
+	"github.com/ellanetworks/core/per"
 )
 
 // TestNGSetupRequestGoldenVector verifies that our PER encoding produces the
@@ -135,5 +135,40 @@ func TestNGSetupRequestWithRANNodeName(t *testing.T) {
 	}
 	if msg2.DefaultPagingDRX.Value != 0 {
 		t.Errorf("PagingDRX = %d, want 0", msg2.DefaultPagingDRX.Value)
+	}
+}
+
+// TestCauseMiscEnumVectors pins the extensible ENUMERATED encoding (X.691
+// §14): root values are ext-bit 0 + a 3-bit index; extension additions are
+// ext-bit 1 + a normally-small number.
+func TestCauseMiscEnumVectors(t *testing.T) {
+	cases := []struct {
+		value int
+		want  []byte
+	}{
+		{0, []byte{0x00}}, // 0 000 + 4 pad
+		{5, []byte{0x50}}, // 0 101 + 4 pad
+		{6, []byte{0x80}}, // 1 (ext) + normally-small 0 (0 + 000000) + 1 pad
+		{7, []byte{0x81}}, // 1 (ext) + normally-small 1 (0 + 000001) + 1 pad
+	}
+	for _, c := range cases {
+		buf, err := per.Marshal(&CauseMisc{Value: c.value}, per.Aligned)
+		if err != nil {
+			t.Fatalf("value %d: marshal: %v", c.value, err)
+		}
+
+		if !bytes.Equal(buf, c.want) {
+			t.Fatalf("value %d: encoding = %s, want %s",
+				c.value, hex.EncodeToString(buf), hex.EncodeToString(c.want))
+		}
+
+		var got CauseMisc
+		if err := per.Unmarshal(buf, &got, per.Aligned); err != nil {
+			t.Fatalf("value %d: unmarshal: %v", c.value, err)
+		}
+
+		if got.Value != c.value {
+			t.Fatalf("round-trip = %d, want %d", got.Value, c.value)
+		}
 	}
 }

@@ -8,7 +8,7 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/per"
+	"github.com/ellanetworks/core/per"
 )
 
 // TestRRCReleaseGoldenVector verifies UNALIGNED PER encoding of an RRCRelease-

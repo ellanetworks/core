@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"go/types"
+	"path/filepath"
 	"slices"
 	"sort"
 
@@ -178,6 +179,14 @@ func (g *generator) collectReferencedStructs(scope *types.Scope) {
 						continue
 					}
 
+					// A struct with a hand-written MarshalPER keeps it; the
+					// closure must not generate a conflicting method. Methods
+					// declared in the generated file itself do not count —
+					// they are this run's output being replaced.
+					if g.hasSourceMethod(n, "MarshalPER") {
+						continue
+					}
+
 					if _, isStruct := n.Underlying().(*types.Struct); isStruct {
 						if !g.genTypes[n.Obj().Name()] {
 							g.genTypes[n.Obj().Name()] = true
@@ -188,6 +197,27 @@ func (g *generator) collectReferencedStructs(scope *types.Scope) {
 			}
 		}
 	}
+}
+
+// hasSourceMethod reports whether named has a hand-written method with the
+// given name: one declared outside the generated output file, which is about
+// to be replaced by this run.
+func (g *generator) hasSourceMethod(named *types.Named, name string) bool {
+	for _, ms := range []*types.MethodSet{types.NewMethodSet(named), types.NewMethodSet(types.NewPointer(named))} {
+		for method := range ms.Methods() {
+			obj := method.Obj()
+			if obj.Name() != name {
+				continue
+			}
+
+			pos := g.pkg.Fset.Position(obj.Pos())
+			if filepath.Base(pos.Filename) != filepath.Base(g.cfg.output) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // structIsPER reports whether a struct type carries PER-relevant tags: at least

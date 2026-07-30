@@ -76,6 +76,7 @@ const (
 	kindDelegate                   // named type with MarshalPER/UnmarshalPER
 	kindString                     // string (UTF8String etc.)
 	kindREAL                       // float64
+	kindEnum                       // int-typed field tagged ENUMERATED
 )
 
 // fieldInfo holds the parsed classification of one struct field.
@@ -90,6 +91,15 @@ type fieldInfo struct {
 
 	// For kindConstrainedInt / kindUnconstrainedInt:
 	boundsExpr string // e.g. `per.Bounds{LB: 0, UB: 255, HasLB: true, HasUB: true}`
+
+	// For kindEnum:
+	enumRoot int64 // number of root enumeration values
+	enumExt  bool  // whether the enumeration is extensible
+
+	// For kindString: the per.Char* constant for a known-multiplier string
+	// type named in the tag (e.g. "VisibleString"), or "" for UTF8String and
+	// untyped strings.
+	charTypeExpr string
 
 	// For kindOctetString / kindBitString:
 	sizeLB, sizeUB       int64
@@ -106,6 +116,9 @@ type fieldInfo struct {
 	isOptional bool
 	// Whether this field has a DEFAULT value.
 	hasDefault bool
+	// Whether this OPTIONAL field is unmodeled: encoded absent, decoded and
+	// discarded.
+	isSkip bool
 
 	// Go type spelling (for local variables in decode).
 	typeStr string
@@ -125,12 +138,41 @@ func (g *generator) classifyField(f *types.Var, rawTag string) (fieldInfo, error
 		fi.typeStr = g.goTypeString(ft)
 	}
 
+	// Unmodeled OPTIONAL: presence bit only, value discarded on decode. The
+	// field itself is a value type and is never read or written.
+	if fi.has && fi.tag.Skip {
+		fi.isSkip = true
+	}
+
 	// DEFAULT.
 	if fi.has && fi.tag.DefaultExpr != "" {
 		fi.hasDefault = true
 	}
 
+	// A named type with a hand-written MarshalPER always delegates, even when
+	// its underlying type would classify as a primitive (e.g. a semantic
+	// integer encoded as an OCTET STRING on the wire).
+	if named, ok := isNamed(ft); ok && !g.willGenerate(named) && g.implementsMarshalPER(named) {
+		fi.kind = kindDelegate
+		fi.delegateNamed = named
+		fi.delegateIsValue = true
+
+		return fi, nil
+	}
+
 	switch {
+	case fi.has && fi.tag.Name == "ENUMERATED":
+		if !isBasicInt(ft) && isNamedInt(ft) == nil {
+			return fi, fmt.Errorf("field %s: ENUMERATED requires an integer type, got %s", f.Name(), g.goTypeString(ft))
+		}
+
+		if !fi.tag.HasRangeUB || (fi.tag.HasRangeLB && fi.tag.RangeLB != 0) {
+			return fi, fmt.Errorf("field %s: ENUMERATED requires range:0..N for N+1 root values", f.Name())
+		}
+
+		fi.kind = kindEnum
+		fi.enumRoot = fi.tag.RangeUB + 1
+		fi.enumExt = fi.tag.RangeExtensible
 	case isBool(ft):
 		fi.kind = kindBool
 	case isByteSlice(ft):
@@ -166,6 +208,12 @@ func (g *generator) classifyField(f *types.Var, rawTag string) (fieldInfo, error
 		}
 	case isString(ft):
 		fi.kind = kindString
+		if fi.has {
+			fi.sizeLB, fi.sizeUB = fi.tag.SizeLB, fi.tag.SizeUB
+			fi.hasSizeLB, fi.hasSizeUB = fi.tag.HasSizeLB, fi.tag.HasSizeUB
+			fi.sizeExt = fi.tag.SizeExtensible
+			fi.charTypeExpr = charTypeExprFromName(fi.tag.Name)
+		}
 	case isFloat64(ft):
 		fi.kind = kindREAL
 	default:
@@ -204,6 +252,28 @@ func (g *generator) classifyField(f *types.Var, rawTag string) (fieldInfo, error
 	}
 
 	return fi, nil
+}
+
+// charTypeExprFromName maps an ASN.1 known-multiplier string type name to the
+// per.Char* constant expression, or "" for UTF8String and unnamed strings
+// (whose SIZE constraints are not PER-visible / which use 8-bit characters).
+func charTypeExprFromName(name string) string {
+	switch name {
+	case "NumericString":
+		return "per.CharNumericString"
+	case "PrintableString":
+		return "per.CharPrintableString"
+	case "VisibleString":
+		return "per.CharVisibleString"
+	case "IA5String":
+		return "per.CharIA5String"
+	case "BMPString":
+		return "per.CharBMPString"
+	case "UniversalString":
+		return "per.CharUniversalString"
+	default:
+		return ""
+	}
 }
 
 // boundsExprFromTag builds a per.Bounds literal from a range tag, or "" if no
@@ -487,4 +557,4 @@ func receiverName(typeName string) string {
 }
 
 // perImportPath is the import path of the runtime per package.
-const perImportPath = "github.com/ellanetworks/core/internal/per"
+const perImportPath = "github.com/ellanetworks/core/per"
