@@ -93,12 +93,15 @@ func TestNGSetupRequestGoldenVector(t *testing.T) {
 	if err := per.Unmarshal(buf, &msg2, per.Aligned); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
+
 	if msg2.DefaultPagingDRX.Value != 2 {
 		t.Errorf("PagingDRX = %d, want 2", msg2.DefaultPagingDRX.Value)
 	}
+
 	if len(msg2.SupportedTAList.Items) != 1 {
 		t.Fatalf("TAList len = %d, want 1", len(msg2.SupportedTAList.Items))
 	}
+
 	_ = name
 }
 
@@ -130,9 +133,11 @@ func TestNGSetupRequestWithRANNodeName(t *testing.T) {
 	if err := per.Unmarshal(buf, &msg2, per.Aligned); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
+
 	if msg2.RANNodeName == nil || *msg2.RANNodeName != name {
 		t.Errorf("RANNodeName = %v, want %q", msg2.RANNodeName, name)
 	}
+
 	if msg2.DefaultPagingDRX.Value != 0 {
 		t.Errorf("PagingDRX = %d, want 0", msg2.DefaultPagingDRX.Value)
 	}

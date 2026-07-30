@@ -9,7 +9,7 @@
 // real NGAP encoding for the same field values.
 package ngaptest
 
-//go:generate sh -c "cd ../../.. && go run ./cmd/pergen -o per/testdata/ngap/per_gen.go github.com/ellanetworks/core/per/testdata/ngap"
+//go:generate sh -c "cd ../../../.. && go run ./cmd/pergen -o per/internal/conformance/ngap/per_gen.go github.com/ellanetworks/core/per/internal/conformance/ngap"
 
 // PLMNIdentity is an OCTET STRING (SIZE(3)) representing a PLMN identity
 // (MCC/MNC in BCD-encoded form). TS 38.413 §9.3.3.36.

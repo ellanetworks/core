@@ -354,12 +354,7 @@ func decodeMeasuredResults(r *per.Reader, res *ECIDResult) error {
 	}
 
 	for i := int64(0); i < n; i++ {
-		isExt, err := r.ReadBit()
-		if err != nil {
-			return err
-		}
-
-		idx, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 0, measuredResultsRootCount-1)
+		idx, isExt, err := decodeChoiceIndex(r, measuredResultsRootCount)
 		if err != nil {
 			return err
 		}
@@ -610,12 +605,7 @@ func parseTermination(value []byte) (*ECIDTermination, error) {
 }
 
 func decodeCause(r *per.Reader) (Cause, error) {
-	isExt, err := r.ReadBit()
-	if err != nil {
-		return Cause{}, err
-	}
-
-	grp, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 0, causeRootCount-1)
+	grp, isExt, err := decodeChoiceIndex(r, causeRootCount)
 	if err != nil {
 		return Cause{}, err
 	}

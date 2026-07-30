@@ -133,6 +133,11 @@ func decodeUnconstrainedLengthFrag(r *Reader, enc Encoding, consume func(count i
 		return consume(n)
 	default: // fragment: m = b & 0x3F (1..4)
 		m := int64(b & 0x3F)
+		// §11.9.3.8: only m in 1..4 is defined. m == 0 would consume no
+		// content and recurse once per input octet.
+		if m < 1 || m > 4 {
+			return ErrOverflow
+		}
 
 		frag := m * fragmentUnit
 		if err := consume(frag); err != nil {

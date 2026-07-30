@@ -3,6 +3,8 @@
 
 package per
 
+import "fmt"
+
 // writeOctetAlignedBitRange writes count bits from data starting at bit offset
 // start (MSB-first within each octet). In the ALIGNED variant the writer is
 // padded to an octet boundary first.
@@ -50,6 +52,14 @@ func EncodeBitString(
 	}
 
 	if hasUB && hasLB && ub == lb {
+		if int64(nbits) != ub {
+			return fmt.Errorf("%w: bit string has %d bits, fixed size is %d", ErrOverflow, nbits, ub)
+		}
+
+		if need := (nbits + 7) / 8; len(data) < need {
+			return fmt.Errorf("%w: bit string buffer has %d octets, need %d for %d bits", ErrOverflow, len(data), need, nbits)
+		}
+
 		switch {
 		case ub <= 16:
 			w.WriteBitString(data, int(ub))
@@ -58,6 +68,18 @@ func EncodeBitString(
 			writeOctetAlignedBitRange(w, enc, data, 0, int(ub))
 			return nil
 		}
+	}
+
+	if need := (nbits + 7) / 8; len(data) < need {
+		return fmt.Errorf("%w: bit string buffer has %d octets, need %d for %d bits", ErrOverflow, len(data), need, nbits)
+	}
+
+	if hasUB && int64(nbits) > ub {
+		return fmt.Errorf("%w: bit string has %d bits, maximum is %d", ErrOverflow, nbits, ub)
+	}
+
+	if hasLB && int64(nbits) < lb {
+		return fmt.Errorf("%w: bit string has %d bits, minimum is %d", ErrOverflow, nbits, lb)
 	}
 
 	return encodeBitStringValue(w, enc, lb, ub, hasUB, data, nbits)
@@ -195,14 +217,26 @@ func EncodeOctetString(
 	}
 
 	if hasUB && hasLB && ub == lb {
+		if int64(len(data)) != ub {
+			return fmt.Errorf("%w: octet string has %d octets, fixed size is %d", ErrOverflow, len(data), ub)
+		}
+
 		switch {
 		case ub <= 2:
 			w.WriteBitString(data, int(ub)*8)
 			return nil
 		case ub < sixtyFourK:
-			writeOctetAligned(w, enc, data[:ub])
+			writeOctetAligned(w, enc, data)
 			return nil
 		}
+	}
+
+	if hasUB && int64(len(data)) > ub {
+		return fmt.Errorf("%w: octet string has %d octets, maximum is %d", ErrOverflow, len(data), ub)
+	}
+
+	if hasLB && int64(len(data)) < lb {
+		return fmt.Errorf("%w: octet string has %d octets, minimum is %d", ErrOverflow, len(data), lb)
 	}
 
 	return encodeOctetStringValue(w, enc, lb, ub, hasUB, data)

@@ -147,9 +147,15 @@ func (g *generator) classifyField(f *types.Var, rawTag string) (fieldInfo, error
 		fi.isSkip = true
 	}
 
-	// OPTIONAL on a non-pointer field: the Go type must be nilable (a slice);
-	// presence is nil-ness and the value is used without dereferencing.
+	// OPTIONAL on a non-pointer field: presence is nil-ness, so the Go type
+	// must be nilable. Anything else cannot express absence and would emit a
+	// `x != nil` comparison that does not compile.
 	if fi.has && fi.tag.Optional && !fi.isOptional {
+		if !isNilable(ft) {
+			return fi, fmt.Errorf("field %s: `optional` requires a pointer or slice type, got %s",
+				f.Name(), g.goTypeString(ft))
+		}
+
 		fi.isOptional = true
 		fi.noDeref = true
 	}
@@ -472,6 +478,18 @@ func isPointer(t types.Type) (elem types.Type, ok bool) {
 	}
 
 	return p.Elem(), true
+}
+
+// isNilable reports whether a value of t can be nil, so that nil-ness can
+// represent an absent OPTIONAL field. Named types are judged by their
+// underlying type, so `type TransportLayerAddress []byte` qualifies.
+func isNilable(t types.Type) bool {
+	switch t.Underlying().(type) {
+	case *types.Slice, *types.Pointer, *types.Map, *types.Interface:
+		return true
+	default:
+		return false
+	}
 }
 
 // isSlice reports whether t is a slice and returns the element type.

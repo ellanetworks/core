@@ -177,6 +177,12 @@ func decodeUnconstrainedInteger(r *Reader, enc Encoding) (int64, error) {
 		return 0, err
 	}
 
+	// §11.8: a 2's-complement field wider than 8 octets does not fit an int64,
+	// and a zero-octet field has no value.
+	if n < 1 || n > 8 {
+		return 0, ErrOverflow
+	}
+
 	p, err := readOctetAligned(r, enc, int(n))
 	if err != nil {
 		return 0, err

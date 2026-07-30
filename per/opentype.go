@@ -97,6 +97,12 @@ func DecodeOpenTypeBytes(r *Reader, enc Encoding) ([]byte, error) {
 // so the 6-bit field encodes n-1 for n ≤ 64). emit writes the associated
 // field of count units.
 func EncodeNormallySmallLength(w *Writer, enc Encoding, n int64, emit func(count int64) error) error {
+	// §11.9.3.4: the length has lb = 1; n == 0 has no representation (the
+	// 6-bit field encodes n-1, so it would decode as 64).
+	if n < 1 {
+		return ErrOverflow
+	}
+
 	if n <= 64 {
 		w.WriteBit(false)
 		w.WriteBits(uint64(n-1), 6)

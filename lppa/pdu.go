@@ -317,6 +317,27 @@ func perAlignedBytes(w *per.Writer) []byte {
 	return w.Bytes()
 }
 
+// decodeChoiceIndex decodes an extensible CHOICE index (X.691 §23): the
+// extension marker, then either a root index as a constrained whole number or,
+// for an extension alternative, a normally-small number. Every CHOICE in LPPa
+// is extensible.
+func decodeChoiceIndex(r *per.Reader, nRoot int64) (index int64, isExt bool, err error) {
+	bit, err := r.ReadBit()
+	if err != nil {
+		return 0, false, err
+	}
+
+	if bit {
+		v, err := per.DecodeNormallySmall(r, per.Aligned)
+
+		return v, true, err
+	}
+
+	index, err = per.DecodeConstrainedWholeNumber(r, per.Aligned, 0, nRoot-1)
+
+	return index, false, err
+}
+
 // decodeEnumInt decodes an ENUMERATED value as an int index.
 func decodeEnumInt(r *per.Reader, nRoot int, extensible bool) (int, error) {
 	v, err := per.DecodeEnumerated(r, per.Aligned, int64(nRoot), extensible)

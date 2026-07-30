@@ -239,10 +239,11 @@ func encodeSemiConstrained(w *Writer, enc Encoding, lb, n int64) error {
 	if err := EncodeUnconstrainedLength(w, enc, int64(octets)); err != nil {
 		return err
 	}
+	// §11.7.4: the value is an octet-aligned bit-field in the ALIGNED variant
+	// only; UNALIGNED packs it without padding.
+	writeOctetAligned(w, enc, buf)
 
-	w.AlignToByte()
-
-	return w.WriteOctets(buf)
+	return nil
 }
 
 // decodeSemiConstrained decodes a semi-constrained whole number with lower
@@ -253,13 +254,13 @@ func decodeSemiConstrained(r *Reader, enc Encoding, lb int64) (int64, error) {
 		return 0, err
 	}
 
-	if n < 0 {
+	// §11.7: the value is a non-negative binary integer; more than 8 octets
+	// cannot be represented and a zero-octet field has no value.
+	if n < 1 || n > 8 {
 		return 0, ErrOverflow
 	}
 
-	r.AlignToByte()
-
-	p, err := r.ReadOctets(int(n))
+	p, err := readOctetAligned(r, enc, int(n))
 	if err != nil {
 		return 0, err
 	}

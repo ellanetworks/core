@@ -104,6 +104,10 @@ func ParseTag(s string) (FieldTag, error) {
 	// of the form "key:value" or a bare keyword (optional/ext).
 	first := strings.TrimSpace(parts[0])
 	if first != "" && !looksLikeOption(first) {
+		if !knownTypeName(first) {
+			return t, fmt.Errorf("per: unknown ASN.1 type name %q", first)
+		}
+
 		t.Name = first
 		parts = parts[1:]
 	}
@@ -121,6 +125,34 @@ func ParseTag(s string) (FieldTag, error) {
 
 	return t, nil
 }
+
+// asn1TypeNames are the ASN.1 type names pergen understands in the first tag
+// position. A name outside this set is rejected rather than silently ignored,
+// since an unrecognised name would fall back to encoding inferred from the Go
+// type — a typo such as "VisibleStrng" would otherwise change the wire format.
+var asn1TypeNames = map[string]bool{
+	"-":               true, // explicit "infer from the Go type"
+	"BIT-STRING":      true,
+	"BMPString":       true,
+	"BOOLEAN":         true,
+	"ENUMERATED":      true,
+	"IA5String":       true,
+	"INTEGER":         true,
+	"NULL":            true,
+	"NumericString":   true,
+	"OCTET-STRING":    true,
+	"PrintableString": true,
+	"REAL":            true,
+	"SEQUENCE":        true,
+	"SEQUENCE-OF":     true,
+	"SET":             true,
+	"UTF8String":      true,
+	"UniversalString": true,
+	"VisibleString":   true,
+}
+
+// knownTypeName reports whether name is an ASN.1 type name pergen accepts.
+func knownTypeName(name string) bool { return asn1TypeNames[name] }
 
 // looksLikeOption reports whether token is a known option keyword or key:value
 // pair (vs. a bare ASN.1 type name).

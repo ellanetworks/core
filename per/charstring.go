@@ -3,7 +3,11 @@
 
 package per
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+	"unicode/utf8"
+)
 
 // Known-multiplier character string types per §30.1.
 type charStringType int
@@ -30,8 +34,8 @@ func charSet(t charStringType) charSetInfo {
 	switch t {
 	case CharNumericString:
 		// " 0123456789" → code values 32, 48-57, but not all contiguous.
-		// Range: 32-57, 12 characters.
-		return charSetInfo{32, 57, 12}
+		// Range: 32-57, 11 characters.
+		return charSetInfo{32, 57, 11}
 	case CharPrintableString:
 		// '()*+,-./0-9:=?A-Z a-z → range 32-122, but not all present.
 		return charSetInfo{32, 122, 74}
@@ -45,8 +49,8 @@ func charSet(t charStringType) charSetInfo {
 		// UCS-2: 0-65535.
 		return charSetInfo{0, 65535, 65536}
 	case CharUniversalString:
-		// UCS-4: 0-2147483647 (2^31-1).
-		return charSetInfo{0, 2147483647, 2147483648}
+		// UCS-4: 0-4294967295 (2^32-1).
+		return charSetInfo{0, 4294967295, 4294967296}
 	default:
 		return charSetInfo{0, 0, 0}
 	}
@@ -97,9 +101,12 @@ func EncodeKnownMultiplierString(
 	s string,
 ) error {
 	if extensible {
-		inRoot := !hasUB || int64(len(s)) <= ub
+		// The size constraint counts characters, not the UTF-8 bytes of s.
+		n := int64(utf8.RuneCountInString(s))
+
+		inRoot := !hasUB || n <= ub
 		if hasLB {
-			inRoot = inRoot && int64(len(s)) >= lb
+			inRoot = inRoot && n >= lb
 		}
 
 		w.WriteBit(!inRoot)
@@ -113,8 +120,7 @@ func EncodeKnownMultiplierString(
 
 	// Fixed length (ub == lb, ub < 64K): no length determinant (§30.5.6).
 	if hasUB && hasLB && ub == lb && ub < sixtyFourK {
-		encodeChars(w, enc, t, s, b, ub*int64(b) > 16)
-		return nil
+		return encodeChars(w, enc, t, s, b, ub*int64(b) > 16)
 	}
 
 	// Variable length with size constraint (§30.5.7).
@@ -135,13 +141,18 @@ func encodeKMStringLen(
 	lb, ub int64, hasUB bool,
 	s string, b int,
 ) error {
-	n := int64(len(s))
-	compacted := compactChars(t, s, b)
+	compacted, err := compactChars(t, s, b)
+	if err != nil {
+		return err
+	}
+	// The length determinant counts characters, not the UTF-8 bytes of s.
+	n := int64(len(compacted))
 	// §30.5.7: octet-aligned if aub*b >= 16, else not.
 	alignThreshold := hasUB && ub*int64(b) >= 16
 
+	off := int64(0)
+
 	return EncodeLength(w, enc, lb, ub, hasUB, n, func(count int64) error {
-		off := int64(0)
 		end := off + count
 
 		if alignThreshold && enc == Aligned {
@@ -152,46 +163,67 @@ func encodeKMStringLen(
 			w.WriteBits(uint64(compacted[i]), b)
 		}
 
+		off = end
+
 		return nil
 	})
 }
 
 // encodeChars writes characters directly without a length determinant (fixed
 // length case, §30.5.6).
-func encodeChars(w *Writer, enc Encoding, t charStringType, s string, b int, octetAlign bool) {
+func encodeChars(w *Writer, enc Encoding, t charStringType, s string, b int, octetAlign bool) error {
+	compacted, err := compactChars(t, s, b)
+	if err != nil {
+		return err
+	}
+
 	if octetAlign && enc == Aligned {
 		w.AlignToByte()
 	}
 
-	compacted := compactChars(t, s, b)
 	for _, v := range compacted {
 		w.WriteBits(uint64(v), b)
 	}
+
+	return nil
 }
 
 // compactChars converts each character of s into its compacted numeric value
 // per §30.5.4. If the alphabet fits in b bits without remapping, the original
 // code value is used; otherwise characters are mapped to 0..N-1 in canonical
 // order.
-func compactChars(t charStringType, s string, b int) []uint32 {
+func compactChars(t charStringType, s string, b int) ([]uint32, error) {
+	info := charSet(t)
+
 	if !needsCompaction(t, b) {
 		// Use original code values.
 		out := make([]uint32, 0, len(s))
+
 		for _, r := range s {
+			if r < 0 || uint64(r) > info.ub || uint64(r) < info.lb {
+				return nil, fmt.Errorf("%w: character %q outside the permitted alphabet", ErrOverflow, r)
+			}
+
 			out = append(out, uint32(r))
 		}
 
-		return out
+		return out, nil
 	}
 	// Build a remapping table for the full alphabet.
 	table := buildCharTable(t)
 
 	out := make([]uint32, 0, len(s))
+
 	for _, r := range s {
-		out = append(out, table[r])
+		v, ok := table[r]
+		if !ok {
+			return nil, fmt.Errorf("%w: character %q outside the permitted alphabet", ErrOverflow, r)
+		}
+
+		out = append(out, v)
 	}
 
-	return out
+	return out, nil
 }
 
 // buildCharTable builds the remapping table for a compacted alphabet per

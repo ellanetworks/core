@@ -6,7 +6,7 @@
 // per 3GPP TS 38.331 §8.1.
 package rrctest
 
-//go:generate sh -c "cd ../../.. && go run ./cmd/pergen -o per/testdata/rrc/per_gen.go github.com/ellanetworks/core/per/testdata/rrc"
+//go:generate sh -c "cd ../../../.. && go run ./cmd/pergen -o per/internal/conformance/rrc/per_gen.go github.com/ellanetworks/core/per/internal/conformance/rrc"
 
 // RRCRelease is a simplified version of the NR-RRC RRCRelease message.
 // TS 38.331 §6.4.2. It contains:
@@ -14,7 +14,7 @@ package rrctest
 //   - criticalExtensions: CHOICE { rrcRelease, late }
 type RRCRelease struct {
 	RRCTransactionID   int           `per:",range:0..3"`
-	CriticalExtensions ReleaseChoice `per:",choice:0,optional"`
+	CriticalExtensions ReleaseChoice `per:",choice:0"`
 }
 
 // ReleaseChoice models the criticalExtensions CHOICE of RRCRelease.
