@@ -239,7 +239,6 @@ const (
 // LoadN3N6Entrypoint returns the embedded CollectionSpec for N3N6Entrypoint.
 func LoadN3N6Entrypoint() (*ebpf.CollectionSpec, error) {
 	reader := bytes.NewReader(_N3N6EntrypointBytes)
-
 	spec, err := ebpf.LoadCollectionSpecFromReader(reader)
 	if err != nil {
 		return nil, fmt.Errorf("can't load N3N6Entrypoint: %w", err)
@@ -431,7 +430,6 @@ func _N3N6EntrypointClose(closers ...io.Closer) error {
 			return err
 		}
 	}
-
 	return nil
 }
 

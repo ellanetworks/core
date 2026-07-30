@@ -38,7 +38,7 @@ func enbConfigTransferWire(t *testing.T, son SONConfigurationTransfer) []byte {
 
 	w.WriteBit(false)
 
-	if err := encodeIEContainer(w, per.Aligned, []ieField{son.field(idSONConfigurationTransferECT)}); err != nil {
+	if err := encodeIEContainer(w, per.Aligned, []ieField{{id: idSONConfigurationTransferECT, crit: CriticalityIgnore, val: son}}); err != nil {
 		t.Fatalf("encode IE container: %v", err)
 	}
 

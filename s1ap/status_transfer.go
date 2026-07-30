@@ -4,8 +4,6 @@
 package s1ap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
 )
 
@@ -15,8 +13,10 @@ import (
 // verbatim from ENB STATUS TRANSFER into MME STATUS TRANSFER.
 type StatusTransferContainer []byte
 
-func (c StatusTransferContainer) field(id ProtocolIEID) ieField {
-	return ieField{id: id, crit: CriticalityReject, raw: c}
+// MarshalPER writes the container's octets as the IE's open-type content. The
+// MME does not interpret them; it relays the container verbatim.
+func (c StatusTransferContainer) MarshalPER(w *per.Writer, _ per.Encoding) error {
+	return w.WriteOctets(c)
 }
 
 // ENBStatusTransfer is the ENB STATUS TRANSFER message (TS 36.413 in
@@ -30,20 +30,34 @@ type ENBStatusTransfer struct {
 	unmodeledIEs
 }
 
+// eNBStatusTransferIEs is the ENBStatusTransfer IE table (TS 36.413 §9.1.5.13/§9.1.5.14).
+var eNBStatusTransferIEs = []ieSpec[ENBStatusTransfer]{
+	{
+		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *ENBStatusTransfer, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.MMEUES1APID)
+		},
+		encode: func(m *ENBStatusTransfer) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+	},
+	{
+		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *ENBStatusTransfer, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *ENBStatusTransfer) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idENBStatusTransferTransparentContainer, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *ENBStatusTransfer, raw []byte, enc per.Encoding) error {
+			m.Container = StatusTransferContainer(raw)
+			return nil
+		},
+		encode: func(m *ENBStatusTransfer) (per.Marshaler, bool) { return m.Container, true },
+	},
+}
+
 func (m *ENBStatusTransfer) encodeBody(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
-		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
-		m.Container.field(idENBStatusTransferTransparentContainer),
-	}
-
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, enc, fields)
+	return encodeMessageBody(w, enc, eNBStatusTransferIEs, m)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
@@ -66,58 +80,7 @@ func (m *ENBStatusTransfer) Marshal() ([]byte, error) {
 // ParseENBStatusTransfer decodes the message from an initiatingMessage open-type
 // payload.
 func ParseENBStatusTransfer(value []byte) (*ENBStatusTransfer, error) {
-	r := per.NewReader(value)
-	enc := per.Aligned
-
-	extPresent, err := r.ReadBit()
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: ENBStatusTransfer preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r, enc)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &ENBStatusTransfer{}
-
-	var seenMME, seenENB, seenContainer bool
-
-	for _, f := range fields {
-		switch f.id {
-		case idMMEUES1APID:
-			err = perIEDecode(f.value, &m.MMEUES1APID)
-			seenMME = true
-		case idENBUES1APID:
-			err = perIEDecode(f.value, &m.ENBUES1APID)
-			seenENB = true
-		case idENBStatusTransferTransparentContainer:
-			m.Container = StatusTransferContainer(f.value)
-			seenContainer = true
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: ENBStatusTransfer IE %d: %w", f.id, err)
-		}
-	}
-
-	if err := requireIEs(ProcENBStatusTransfer,
-		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
-		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
-		ieCheck{idENBStatusTransferTransparentContainer, CriticalityReject, seenContainer},
-	); err != nil {
-		return nil, err
-	}
-
-	return m, nil
+	return parseMessageBody[ENBStatusTransfer](ProcENBStatusTransfer, eNBStatusTransferIEs, value)
 }
 
 // MMEStatusTransfer is the MME STATUS TRANSFER message (TS 36.413 in
@@ -131,20 +94,34 @@ type MMEStatusTransfer struct {
 	unmodeledIEs
 }
 
+// mMEStatusTransferIEs is the MMEStatusTransfer IE table (TS 36.413 §9.1.5.13/§9.1.5.14).
+var mMEStatusTransferIEs = []ieSpec[MMEStatusTransfer]{
+	{
+		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *MMEStatusTransfer, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.MMEUES1APID)
+		},
+		encode: func(m *MMEStatusTransfer) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+	},
+	{
+		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *MMEStatusTransfer, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *MMEStatusTransfer) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idENBStatusTransferTransparentContainer, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *MMEStatusTransfer, raw []byte, enc per.Encoding) error {
+			m.Container = StatusTransferContainer(raw)
+			return nil
+		},
+		encode: func(m *MMEStatusTransfer) (per.Marshaler, bool) { return m.Container, true },
+	},
+}
+
 func (m *MMEStatusTransfer) encodeBody(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
-		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
-		m.Container.field(idENBStatusTransferTransparentContainer),
-	}
-
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, enc, fields)
+	return encodeMessageBody(w, enc, mMEStatusTransferIEs, m)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
@@ -167,56 +144,5 @@ func (m *MMEStatusTransfer) Marshal() ([]byte, error) {
 // ParseMMEStatusTransfer decodes the message from an initiatingMessage open-type
 // payload.
 func ParseMMEStatusTransfer(value []byte) (*MMEStatusTransfer, error) {
-	r := per.NewReader(value)
-	enc := per.Aligned
-
-	extPresent, err := r.ReadBit()
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: MMEStatusTransfer preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r, enc)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &MMEStatusTransfer{}
-
-	var seenMME, seenENB, seenContainer bool
-
-	for _, f := range fields {
-		switch f.id {
-		case idMMEUES1APID:
-			err = perIEDecode(f.value, &m.MMEUES1APID)
-			seenMME = true
-		case idENBUES1APID:
-			err = perIEDecode(f.value, &m.ENBUES1APID)
-			seenENB = true
-		case idENBStatusTransferTransparentContainer:
-			m.Container = StatusTransferContainer(f.value)
-			seenContainer = true
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: MMEStatusTransfer IE %d: %w", f.id, err)
-		}
-	}
-
-	if err := requireIEs(ProcMMEStatusTransfer,
-		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
-		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
-		ieCheck{idENBStatusTransferTransparentContainer, CriticalityReject, seenContainer},
-	); err != nil {
-		return nil, err
-	}
-
-	return m, nil
+	return parseMessageBody[MMEStatusTransfer](ProcMMEStatusTransfer, mMEStatusTransferIEs, value)
 }

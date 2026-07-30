@@ -540,9 +540,8 @@ func (g *generator) write() error {
 		return fmt.Errorf("output path escapes working directory: %s", g.cfg.output)
 	}
 
-	// #nosec G703: gosec raises a false positive here. We previously
-	// validated that the output file is under the current directory,
-	// avoiding path traversal attacks.
+	// #nosec G703: the output path is validated above to sit under the
+	// working directory, so this cannot traverse outside it.
 	return os.WriteFile(absPath, out, 0o600)
 }
 

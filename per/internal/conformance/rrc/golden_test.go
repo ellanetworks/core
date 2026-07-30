@@ -34,7 +34,6 @@ import (
 //	0        pad to the octet boundary
 //	= 0101_0100 = 0x54
 func TestRRCReleaseGoldenVector(t *testing.T) {
-	extended := false
 	msg := &RRCRelease{
 		RRCTransactionID: 1,
 		CriticalExtensions: ReleaseChoice{
@@ -46,7 +45,6 @@ func TestRRCReleaseGoldenVector(t *testing.T) {
 			},
 		},
 	}
-	_ = extended
 
 	buf, err := per.Marshal(msg, per.Unaligned)
 	if err != nil {

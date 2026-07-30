@@ -14,8 +14,10 @@ import (
 // decodes only the leading Target eNB-ID to route it.
 type SONConfigurationTransfer []byte
 
-func (c SONConfigurationTransfer) field(id ProtocolIEID) ieField {
-	return ieField{id: id, crit: CriticalityIgnore, raw: c}
+// MarshalPER writes the container's octets as the IE's open-type content. The
+// MME relays the transfer verbatim and decodes only the target eNB-ID.
+func (c SONConfigurationTransfer) MarshalPER(w *per.Writer, _ per.Encoding) error {
+	return w.WriteOctets(c)
 }
 
 // TargetENBID decodes the leading Target eNB-ID, which names the destination eNB
@@ -50,38 +52,27 @@ type ENBConfigurationTransfer struct {
 
 // ParseENBConfigurationTransfer decodes the message from an initiatingMessage
 // open-type payload.
+// eNBConfigurationTransferIEs is the ENBConfigurationTransfer IE table (TS 36.413 §9.1.16). Every
+// IE is optional, so an empty container is a valid message.
+var eNBConfigurationTransferIEs = []ieSpec[ENBConfigurationTransfer]{
+	{
+		id: idSONConfigurationTransferECT, presence: PresenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ENBConfigurationTransfer, raw []byte, enc per.Encoding) error {
+			m.SONConfigurationTransfer = SONConfigurationTransfer(raw)
+			return nil
+		},
+		encode: func(m *ENBConfigurationTransfer) (per.Marshaler, bool) {
+			if m.SONConfigurationTransfer == nil {
+				return nil, false
+			}
+
+			return m.SONConfigurationTransfer, true
+		},
+	},
+}
+
 func ParseENBConfigurationTransfer(value []byte) (*ENBConfigurationTransfer, error) {
-	r := per.NewReader(value)
-	enc := per.Aligned
-
-	extPresent, err := r.ReadBit()
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: ENBConfigurationTransfer preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r, enc)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &ENBConfigurationTransfer{}
-
-	for _, f := range fields {
-		switch f.id {
-		case idSONConfigurationTransferECT:
-			m.SONConfigurationTransfer = SONConfigurationTransfer(f.value)
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-	}
-
-	return m, nil
+	return parseMessageBody[ENBConfigurationTransfer](ProcENBConfigurationTransfer, eNBConfigurationTransferIEs, value)
 }
 
 // MMEConfigurationTransfer is the MME CONFIGURATION TRANSFER message
@@ -93,20 +84,27 @@ type MMEConfigurationTransfer struct {
 	unmodeledIEs
 }
 
+// mMEConfigurationTransferIEs is the MMEConfigurationTransfer IE table (TS 36.413 §9.1.17). Every
+// IE is optional, so an empty container is a valid message.
+var mMEConfigurationTransferIEs = []ieSpec[MMEConfigurationTransfer]{
+	{
+		id: idSONConfigurationTransferMCT, presence: PresenceOptional, crit: CriticalityIgnore,
+		decode: func(m *MMEConfigurationTransfer, raw []byte, enc per.Encoding) error {
+			m.SONConfigurationTransfer = SONConfigurationTransfer(raw)
+			return nil
+		},
+		encode: func(m *MMEConfigurationTransfer) (per.Marshaler, bool) {
+			if m.SONConfigurationTransfer == nil {
+				return nil, false
+			}
+
+			return m.SONConfigurationTransfer, true
+		},
+	},
+}
+
 func (m *MMEConfigurationTransfer) encodeBody(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	var fields []ieField
-
-	if m.SONConfigurationTransfer != nil {
-		fields = append(fields, m.SONConfigurationTransfer.field(idSONConfigurationTransferMCT))
-	}
-
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, enc, fields)
+	return encodeMessageBody(w, enc, mMEConfigurationTransferIEs, m)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.

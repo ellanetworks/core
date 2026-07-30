@@ -158,27 +158,55 @@ type ResetAcknowledge struct {
 	unmodeledIEs
 }
 
+// resetAcknowledgeIEs is the RESET ACKNOWLEDGE IE table (TS 36.413 §9.1.8.2).
+// The message has no mandatory IE.
+var resetAcknowledgeIEs = []ieSpec[ResetAcknowledge]{
+	{
+		id: idUEAssociatedLogicalS1ConnectionListResAck, presence: PresenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ResetAcknowledge, raw []byte, enc per.Encoding) error {
+			items, err := decodeItemList[UEAssociatedLogicalS1ConnectionItem](per.NewReader(raw), enc, maxnoofIndividualS1ConnectionsToReset)
+			if err != nil {
+				return err
+			}
+
+			m.ConnectionList = append(m.ConnectionList, items...)
+
+			return nil
+		},
+		encode: func(m *ResetAcknowledge) (per.Marshaler, bool) {
+			if len(m.ConnectionList) == 0 {
+				return nil, false
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return encodeSingleContainerList(w, enc, maxnoofIndividualS1ConnectionsToReset, idUEAssociatedLogicalS1ConnectionItem, CriticalityIgnore, m.ConnectionList)
+			}), true
+		},
+	},
+	{
+		id: idCriticalityDiagnostics, presence: PresenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ResetAcknowledge, raw []byte, enc per.Encoding) error {
+			var cd CriticalityDiagnostics
+			if err := perIEDecode(raw, &cd); err != nil {
+				return err
+			}
+
+			m.CriticalityDiagnostics = &cd
+
+			return nil
+		},
+		encode: func(m *ResetAcknowledge) (per.Marshaler, bool) {
+			if m.CriticalityDiagnostics == nil {
+				return nil, false
+			}
+
+			return m.CriticalityDiagnostics, true
+		},
+	},
+}
+
 func (m *ResetAcknowledge) encodeBody(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	var fields []ieField
-
-	if len(m.ConnectionList) > 0 {
-		fields = append(fields, ieField{id: idUEAssociatedLogicalS1ConnectionListResAck, crit: CriticalityIgnore, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-			return encodeSingleContainerList(w, enc, maxnoofIndividualS1ConnectionsToReset, idUEAssociatedLogicalS1ConnectionItem, CriticalityIgnore, m.ConnectionList)
-		})})
-	}
-
-	if m.CriticalityDiagnostics != nil {
-		d := *m.CriticalityDiagnostics
-		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, val: &d})
-	}
-
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, enc, fields)
+	return encodeMessageBody(w, enc, resetAcknowledgeIEs, m)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
@@ -201,48 +229,5 @@ func (m *ResetAcknowledge) Marshal() ([]byte, error) {
 // ParseResetAcknowledge decodes the message from a successfulOutcome open-type
 // payload.
 func ParseResetAcknowledge(value []byte) (*ResetAcknowledge, error) {
-	r := per.NewReader(value)
-	enc := per.Aligned
-
-	extPresent, err := r.ReadBit()
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: ResetAcknowledge preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r, enc)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &ResetAcknowledge{}
-
-	for _, f := range fields {
-		switch f.id {
-		case idUEAssociatedLogicalS1ConnectionListResAck:
-			items, err := decodeItemList[UEAssociatedLogicalS1ConnectionItem](per.NewReader(f.value), enc, maxnoofIndividualS1ConnectionsToReset)
-			if err != nil {
-				return nil, fmt.Errorf("s1ap: ResetAcknowledge connection list: %w", err)
-			}
-
-			m.ConnectionList = append(m.ConnectionList, items...)
-		case idCriticalityDiagnostics:
-			var cd CriticalityDiagnostics
-
-			if err := perIEDecode(f.value, &cd); err != nil {
-				return nil, fmt.Errorf("s1ap: ResetAcknowledge CriticalityDiagnostics: %w", err)
-			}
-
-			m.CriticalityDiagnostics = &cd
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-	}
-
-	return m, nil
+	return parseMessageBody[ResetAcknowledge](ProcReset, resetAcknowledgeIEs, value)
 }
