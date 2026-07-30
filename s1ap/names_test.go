@@ -53,22 +53,28 @@ func TestCauseString(t *testing.T) {
 	}
 }
 
-func TestMissingMandatoryIEsErrorMessage(t *testing.T) {
-	err := &MissingMandatoryIEsError{
+func TestAbstractSyntaxErrorMessage(t *testing.T) {
+	err := &AbstractSyntaxError{
 		Procedure: ProcS1Setup,
-		IEs: []MissingIE{
-			{ID: idGlobalENBID, Criticality: CriticalityReject},
-			{ID: idDefaultPagingDRX, Criticality: CriticalityIgnore},
+		Trigger:   TriggeringInitiatingMessage,
+		Cause:     Cause{Group: CauseGroupProtocol, Value: CauseProtocolAbstractSyntaxErrorReject},
+		IEs: []CriticalityDiagnosticsIEItem{
+			{IEID: idGlobalENBID, IECriticality: CriticalityReject, TypeOfError: TypeOfErrorMissing},
+			{IEID: idSupportedTAs, IECriticality: CriticalityReject, TypeOfError: TypeOfErrorNotUnderstood},
 		},
 	}
 
-	want := "s1ap: S1Setup (17) missing mandatory IE(s): GlobalENBID (59) (reject), DefaultPagingDRX (137) (ignore)"
+	want := "s1ap: S1Setup (17): protocol: abstract-syntax-error-reject (1): " +
+		"GlobalENBID (59) (reject, missing), SupportedTAs (64) (reject, not-understood)"
 	if got := err.Error(); got != want {
 		t.Errorf("Error() = %q, want %q", got, want)
 	}
 
-	rejected := err.RejectedIEs()
-	if len(rejected) != 1 || rejected[0].ID != idGlobalENBID {
-		t.Errorf("RejectedIEs() = %v, want only GlobalENBID", rejected)
+	d := err.Diagnostics()
+	if d.ProcedureCode == nil || *d.ProcedureCode != ProcS1Setup ||
+		d.TriggeringMessage == nil || *d.TriggeringMessage != TriggeringInitiatingMessage ||
+		d.ProcedureCriticality == nil || *d.ProcedureCriticality != CriticalityReject ||
+		len(d.IEsCriticalityDiagnostics) != 2 {
+		t.Errorf("Diagnostics() = %+v", d)
 	}
 }

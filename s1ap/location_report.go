@@ -37,11 +37,11 @@ type RequestType struct {
 type LocationReport struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
-	EUTRANCGI   EUTRANCGI
-	TAI         TAI
-	RequestType RequestType
+	EUTRANCGI   *EUTRANCGI
+	TAI         *TAI
+	RequestType *RequestType
 
-	unmodeledIEs
+	messageMeta
 }
 
 var locationReportIEs = []ieSpec[LocationReport]{
@@ -62,28 +62,70 @@ var locationReportIEs = []ieSpec[LocationReport]{
 	{
 		id: idEUTRANCGI, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.EUTRANCGI)
+			var v EUTRANCGI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.EUTRANCGI = &v
+
+			return nil
 		},
-		encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.EUTRANCGI, true },
+		encode: func(m *LocationReport) (per.Marshaler, bool) {
+			if m.EUTRANCGI == nil {
+				return nil, false
+			}
+
+			return m.EUTRANCGI, true
+		},
 	},
 	{
 		id: idTAI, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.TAI)
+			var v TAI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.TAI = &v
+
+			return nil
 		},
-		encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.TAI, true },
+		encode: func(m *LocationReport) (per.Marshaler, bool) {
+			if m.TAI == nil {
+				return nil, false
+			}
+
+			return m.TAI, true
+		},
 	},
 	{
 		id: idRequestType, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.RequestType)
+			var v RequestType
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.RequestType = &v
+
+			return nil
 		},
-		encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.RequestType, true },
+		encode: func(m *LocationReport) (per.Marshaler, bool) {
+			if m.RequestType == nil {
+				return nil, false
+			}
+
+			return m.RequestType, true
+		},
 	},
 }
 
 func (m *LocationReport) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, locationReportIEs, m)
+	return encodeMessageBody(w, enc, ProcLocationReport, locationReportIEs, m)
 }
 
 func (m *LocationReport) Marshal() ([]byte, error) {
@@ -103,5 +145,5 @@ func (m *LocationReport) Marshal() ([]byte, error) {
 }
 
 func ParseLocationReport(value []byte) (*LocationReport, error) {
-	return parseMessageBody[LocationReport](ProcLocationReport, locationReportIEs, value)
+	return parseMessageBody[LocationReport](ProcLocationReport, TriggeringInitiatingMessage, locationReportIEs, value)
 }

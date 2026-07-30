@@ -5,6 +5,8 @@ package s1ap
 
 import (
 	"bytes"
+	"errors"
+	"slices"
 	"testing"
 )
 
@@ -19,7 +21,7 @@ func TestUnknownIERoundTrip(t *testing.T) {
 		MMEUES1APID:       1,
 		ENBUES1APID:       2,
 		UERadioCapability: []byte{0xaa, 0xbb},
-		unmodeledIEs:      unmodeledIEs{unknownIEs: []rawIE{{id: unknownID, crit: CriticalityNotify, value: unknownVal}}},
+		messageMeta:       messageMeta{unknownIEs: []rawIE{{id: unknownID, crit: CriticalityNotify, value: unknownVal}}},
 	}
 
 	pduBytes, err := in.Marshal()
@@ -55,7 +57,7 @@ func TestUnknownIERoundTrip(t *testing.T) {
 func TestUnknownIEsNilWhenNone(t *testing.T) {
 	in := &UEContextReleaseCommand{
 		UES1APIDs: UES1APIDs{MMEUES1APID: 1, ENBUES1APID: 2, Pair: true},
-		Cause:     Cause{Group: CauseGroupNAS, Value: 0},
+		Cause:     Ptr(Cause{Group: CauseGroupNAS, Value: 0}),
 	}
 
 	pduBytes, err := in.Marshal()
@@ -127,58 +129,92 @@ func TestErrorIndicationCriticalityDiagnostics(t *testing.T) {
 	}
 }
 
-// Only reject-criticality unmodeled IEs surface, and the parse still succeeds
-// (TS 36.413 §10.3.4.2).
-func TestUnhandledCriticalIEs(t *testing.T) {
+// TS 36.413 §10.3.4.2: an unmodeled IE marked reject stops the procedure, while
+// ignore and notify ones are carried past and preserved for re-encode.
+func TestUnmodeledIECriticality(t *testing.T) {
 	const (
 		rejectID ProtocolIEID = 301
 		ignoreID ProtocolIEID = 302
 		notifyID ProtocolIEID = 303
 	)
 
-	m := &S1SetupRequest{
-		GlobalENBID:  GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 1}},
-		SupportedTAs: SupportedTAs{{TAC: 1, BroadcastPLMNs: BPLMNs{{0x00, 0xf1, 0x10}}}},
-		unmodeledIEs: unmodeledIEs{unknownIEs: []rawIE{
-			{id: ignoreID, crit: CriticalityIgnore, value: []byte{0x01}},
-			{id: rejectID, crit: CriticalityReject, value: []byte{0x02}},
-			{id: notifyID, crit: CriticalityNotify, value: []byte{0x03}},
-		}},
+	setup := func(t *testing.T, unknown ...rawIE) []byte {
+		t.Helper()
+
+		m := &S1SetupRequest{
+			GlobalENBID:      GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 1}},
+			SupportedTAs:     SupportedTAs{{TAC: 1, BroadcastPLMNs: BPLMNs{{0x00, 0xf1, 0x10}}}},
+			DefaultPagingDRX: Ptr(PagingDRXv128),
+			messageMeta:      messageMeta{unknownIEs: unknown},
+		}
+
+		raw, err := m.Marshal()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		pdu, err := Unmarshal(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return pdu.(*InitiatingMessage).Value
 	}
 
-	raw, err := m.Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
+	t.Run("reject rejects the procedure", func(t *testing.T) {
+		value := setup(t,
+			rawIE{id: ignoreID, crit: CriticalityIgnore, value: []byte{0x01}},
+			rawIE{id: rejectID, crit: CriticalityReject, value: []byte{0x02}},
+		)
 
-	pdu, err := Unmarshal(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
+		var ase *AbstractSyntaxError
+		if _, err := ParseS1SetupRequest(value); !errors.As(err, &ase) {
+			t.Fatalf("error = %v, want *AbstractSyntaxError", err)
+		}
 
-	out, err := ParseS1SetupRequest(pdu.(*InitiatingMessage).Value)
-	if err != nil {
-		t.Fatalf("parse must succeed; the receiver decides: %v", err)
-	}
+		if len(ase.IEs) != 1 || ase.IEs[0].IEID != rejectID ||
+			ase.IEs[0].TypeOfError != TypeOfErrorNotUnderstood {
+			t.Fatalf("diagnostics = %v, want [%v not-understood]", ase.IEs, rejectID)
+		}
 
-	got := out.UnhandledCriticalIEs()
-	if len(got) != 1 || got[0] != rejectID {
-		t.Fatalf("UnhandledCriticalIEs() = %v, want [%v]", got, rejectID)
-	}
-	// All three survive for re-encode regardless of criticality.
-	if len(out.UnknownIEs()) != 3 {
-		t.Fatalf("UnknownIEs() = %d entries, want 3", len(out.UnknownIEs()))
-	}
-}
+		if !slices.ContainsFunc(ase.Decoded, func(ie RawIE) bool { return ie.ID == idGlobalENBID }) {
+			t.Fatalf("decoded IEs = %v, want Global-eNB-ID carried on the rejection", ase.Decoded)
+		}
+	})
 
-func TestUnhandledCriticalIEsNilWhenNone(t *testing.T) {
-	m := &S1SetupRequest{
-		unmodeledIEs: unmodeledIEs{unknownIEs: []rawIE{
-			{id: 400, crit: CriticalityIgnore, value: []byte{0x01}},
-		}},
-	}
+	t.Run("ignore and notify are reported and preserved", func(t *testing.T) {
+		value := setup(t,
+			rawIE{id: ignoreID, crit: CriticalityIgnore, value: []byte{0x01}},
+			rawIE{id: notifyID, crit: CriticalityNotify, value: []byte{0x03}},
+		)
 
-	if got := m.UnhandledCriticalIEs(); got != nil {
-		t.Fatalf("UnhandledCriticalIEs() = %v, want nil", got)
-	}
+		out, err := ParseS1SetupRequest(value)
+		if err != nil {
+			t.Fatalf("parse must succeed; the receiver decides: %v", err)
+		}
+
+		got := out.Diagnostics()
+		if len(got.IEs) != 2 || got.IEs[0].IEID != ignoreID || got.IEs[1].IEID != notifyID {
+			t.Fatalf("diagnostics = %v, want [%v %v]", got.IEs, ignoreID, notifyID)
+		}
+
+		if !got.ReportRequired() {
+			t.Error("ReportRequired() = false, want true for a notify IE")
+		}
+
+		if len(out.UnknownIEs()) != 2 {
+			t.Fatalf("UnknownIEs() = %d entries, want 2", len(out.UnknownIEs()))
+		}
+	})
+
+	t.Run("ignore alone needs no report", func(t *testing.T) {
+		out, err := ParseS1SetupRequest(setup(t, rawIE{id: 400, crit: CriticalityIgnore, value: []byte{0x01}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if out.Diagnostics().ReportRequired() {
+			t.Error("ReportRequired() = true, want false for an ignore IE")
+		}
+	})
 }

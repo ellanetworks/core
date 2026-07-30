@@ -107,7 +107,9 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 		return
 	}
 
-	ue.Conn().UpdateLocation(req.EUTRANCGI, req.TAI)
+	if req.EUTRANCGI != nil && req.TAI != nil {
+		ue.Conn().UpdateLocation(*req.EUTRANCGI, *req.TAI)
+	}
 
 	ack := &s1ap.PathSwitchRequestAcknowledge{
 		SecurityContext:        s1ap.SecurityContext{NextHopChainingCount: ncc, NextHopParameter: s1ap.SecurityKey(newNH)},
@@ -186,9 +188,9 @@ func switchPathBearers(m *mme.MME, ctx context.Context, ue *mme.UeContext, mmeID
 // request arrived on (TS 36.413). The UE keeps its source-eNB context.
 func sendPathSwitchFailure(m *mme.MME, conn mme.S1APWriter, req *s1ap.PathSwitchRequest, cause s1ap.Cause) {
 	fail := &s1ap.PathSwitchRequestFailure{
-		MMEUES1APID: req.SourceMMEUES1APID,
-		ENBUES1APID: req.ENBUES1APID,
-		Cause:       cause,
+		MMEUES1APID: s1ap.Ptr(req.SourceMMEUES1APID),
+		ENBUES1APID: s1ap.Ptr(req.ENBUES1APID),
+		Cause:       s1ap.Ptr(cause),
 	}
 
 	b, err := fail.Marshal()
@@ -206,12 +208,12 @@ func sendPathSwitchFailure(m *mme.MME, conn mme.S1APWriter, req *s1ap.PathSwitch
 // replay in the Acknowledge on a mismatch so the eNB corrects its context, or nil
 // (IE omitted) otherwise (TS 36.413, TS 33.401). The stored values are never
 // overwritten with the received ones.
-func pathSwitchSecurityCapabilities(ue *mme.UeContext, received s1ap.UESecurityCapabilities) *s1ap.UESecurityCapabilities {
+func pathSwitchSecurityCapabilities(ue *mme.UeContext, received *s1ap.UESecurityCapabilities) *s1ap.UESecurityCapabilities {
 	uecap := ue.UeNetCap()
 
 	stored := mme.S1apSecurityCapabilities(uecap)
 
-	if received == stored {
+	if received == nil || *received == stored {
 		return nil
 	}
 

@@ -11,10 +11,10 @@ import (
 type S1SetupResponse struct {
 	MMEName                *string
 	ServedGUMMEIs          ServedGUMMEIs
-	RelativeMMECapacity    uint8
+	RelativeMMECapacity    *uint8
 	CriticalityDiagnostics *CriticalityDiagnostics
 
-	unmodeledIEs
+	messageMeta
 }
 
 var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
@@ -56,13 +56,22 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 			)
 
 			v, err = per.DecodeInteger(per.NewReader(raw), enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true})
-			m.RelativeMMECapacity = uint8(v)
+			if err != nil {
+				return err
+			}
 
-			return err
+			c := uint8(v)
+			m.RelativeMMECapacity = &c
+
+			return nil
 		},
 		encode: func(m *S1SetupResponse) (per.Marshaler, bool) {
+			if m.RelativeMMECapacity == nil {
+				return nil, false
+			}
+
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true}, int64(m.RelativeMMECapacity))
+				return per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true}, int64(*m.RelativeMMECapacity))
 			}), true
 		},
 	},
@@ -90,7 +99,7 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 }
 
 func (m *S1SetupResponse) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, s1SetupResponseIEs, m)
+	return encodeMessageBody(w, enc, ProcS1Setup, s1SetupResponseIEs, m)
 }
 
 func (m *S1SetupResponse) Marshal() ([]byte, error) {
@@ -110,5 +119,5 @@ func (m *S1SetupResponse) Marshal() ([]byte, error) {
 }
 
 func ParseS1SetupResponse(value []byte) (*S1SetupResponse, error) {
-	return parseMessageBody[S1SetupResponse](ProcS1Setup, s1SetupResponseIEs, value)
+	return parseMessageBody[S1SetupResponse](ProcS1Setup, TriggeringSuccessfulOutcome, s1SetupResponseIEs, value)
 }

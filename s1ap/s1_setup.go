@@ -12,9 +12,9 @@ type S1SetupRequest struct {
 	GlobalENBID      GlobalENBID
 	ENBName          *string
 	SupportedTAs     SupportedTAs
-	DefaultPagingDRX PagingDRX
+	DefaultPagingDRX *PagingDRX
 
-	unmodeledIEs
+	messageMeta
 }
 
 var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
@@ -57,14 +57,28 @@ var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
 	{
 		id: idDefaultPagingDRX, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.DefaultPagingDRX)
+			var v PagingDRX
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.DefaultPagingDRX = &v
+
+			return nil
 		},
-		encode: func(m *S1SetupRequest) (per.Marshaler, bool) { return m.DefaultPagingDRX, true },
+		encode: func(m *S1SetupRequest) (per.Marshaler, bool) {
+			if m.DefaultPagingDRX == nil {
+				return nil, false
+			}
+
+			return m.DefaultPagingDRX, true
+		},
 	},
 }
 
 func (m *S1SetupRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, s1SetupRequestIEs, m)
+	return encodeMessageBody(w, enc, ProcS1Setup, s1SetupRequestIEs, m)
 }
 
 func (m *S1SetupRequest) Marshal() ([]byte, error) {
@@ -84,5 +98,5 @@ func (m *S1SetupRequest) Marshal() ([]byte, error) {
 }
 
 func ParseS1SetupRequest(value []byte) (*S1SetupRequest, error) {
-	return parseMessageBody[S1SetupRequest](ProcS1Setup, s1SetupRequestIEs, value)
+	return parseMessageBody[S1SetupRequest](ProcS1Setup, TriggeringInitiatingMessage, s1SetupRequestIEs, value)
 }

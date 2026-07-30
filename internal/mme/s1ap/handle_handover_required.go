@@ -73,10 +73,17 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		return
 	}
 
+	// Relay the source's Cause to the target. Cause is mandatory in a HANDOVER REQUEST,
+	// so an omitted one is replaced rather than propagated (TS 36.413 §9.1.5.5).
+	cause := req.Cause
+	if cause == nil {
+		cause = s1ap.Ptr(causeHandoverPrepUnspecific)
+	}
+
 	hoReq := &s1ap.HandoverRequest{
 		MMEUES1APID:            targetMMEID,
 		HandoverType:           s1ap.HandoverTypeIntraLTE,
-		Cause:                  req.Cause,
+		Cause:                  cause,
 		UEAMBR:                 handoverUEAMBR(ue),
 		ERABToBeSetup:          bearers,
 		SourceToTarget:         req.SourceToTarget,

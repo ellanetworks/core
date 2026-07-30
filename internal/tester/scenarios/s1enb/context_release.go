@@ -59,8 +59,12 @@ func runS1ENBContextRelease(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("await UE Context Release Command: %w", err)
 	}
 
-	if cmd.Cause != s1enb.CauseUserInactivity {
-		return fmt.Errorf("UE Context Release Command cause = %+v, want radioNetwork user-inactivity %+v", cmd.Cause, s1enb.CauseUserInactivity)
+	if cmd.Cause == nil {
+		return fmt.Errorf("UE Context Release Command carried no cause, want radioNetwork user-inactivity %+v", s1enb.CauseUserInactivity)
+	}
+
+	if *cmd.Cause != s1enb.CauseUserInactivity {
+		return fmt.Errorf("UE Context Release Command cause = %+v, want radioNetwork user-inactivity %+v", *cmd.Cause, s1enb.CauseUserInactivity)
 	}
 
 	if !cmd.UES1APIDs.Pair {

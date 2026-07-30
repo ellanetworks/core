@@ -20,10 +20,12 @@ func perBytes(w *per.Writer) []byte {
 	return w.Bytes()
 }
 
-func derefStr(s *string) string {
-	if s == nil {
-		return ""
+func deref[T any](p *T) T {
+	var zero T
+
+	if p == nil {
+		return zero
 	}
 
-	return *s
+	return *p
 }

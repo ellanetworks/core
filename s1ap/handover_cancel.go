@@ -11,9 +11,9 @@ import (
 type HandoverCancel struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
-	Cause       Cause
+	Cause       *Cause
 
-	unmodeledIEs
+	messageMeta
 }
 
 var handoverCancelIEs = []ieSpec[HandoverCancel]{
@@ -34,14 +34,28 @@ var handoverCancelIEs = []ieSpec[HandoverCancel]{
 	{
 		id: idCause, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *HandoverCancel, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.Cause)
+			var v Cause
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.Cause = &v
+
+			return nil
 		},
-		encode: func(m *HandoverCancel) (per.Marshaler, bool) { return &m.Cause, true },
+		encode: func(m *HandoverCancel) (per.Marshaler, bool) {
+			if m.Cause == nil {
+				return nil, false
+			}
+
+			return m.Cause, true
+		},
 	},
 }
 
 func (m *HandoverCancel) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, handoverCancelIEs, m)
+	return encodeMessageBody(w, enc, ProcHandoverCancel, handoverCancelIEs, m)
 }
 
 func (m *HandoverCancel) Marshal() ([]byte, error) {
@@ -61,36 +75,64 @@ func (m *HandoverCancel) Marshal() ([]byte, error) {
 }
 
 func ParseHandoverCancel(value []byte) (*HandoverCancel, error) {
-	return parseMessageBody[HandoverCancel](ProcHandoverCancel, handoverCancelIEs, value)
+	return parseMessageBody[HandoverCancel](ProcHandoverCancel, TriggeringInitiatingMessage, handoverCancelIEs, value)
 }
 
 // TS 36.413 §9.1.5.12.
 type HandoverCancelAcknowledge struct {
-	MMEUES1APID MMEUES1APID
-	ENBUES1APID ENBUES1APID
+	MMEUES1APID *MMEUES1APID
+	ENBUES1APID *ENBUES1APID
 
-	unmodeledIEs
+	messageMeta
 }
 
 var handoverCancelAcknowledgeIEs = []ieSpec[HandoverCancelAcknowledge]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *HandoverCancelAcknowledge, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MMEUES1APID)
+			var v MMEUES1APID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.MMEUES1APID = &v
+
+			return nil
 		},
-		encode: func(m *HandoverCancelAcknowledge) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+		encode: func(m *HandoverCancelAcknowledge) (per.Marshaler, bool) {
+			if m.MMEUES1APID == nil {
+				return nil, false
+			}
+
+			return m.MMEUES1APID, true
+		},
 	},
 	{
 		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *HandoverCancelAcknowledge, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ENBUES1APID)
+			var v ENBUES1APID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.ENBUES1APID = &v
+
+			return nil
 		},
-		encode: func(m *HandoverCancelAcknowledge) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+		encode: func(m *HandoverCancelAcknowledge) (per.Marshaler, bool) {
+			if m.ENBUES1APID == nil {
+				return nil, false
+			}
+
+			return m.ENBUES1APID, true
+		},
 	},
 }
 
 func (m *HandoverCancelAcknowledge) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, handoverCancelAcknowledgeIEs, m)
+	return encodeMessageBody(w, enc, ProcHandoverCancel, handoverCancelAcknowledgeIEs, m)
 }
 
 func (m *HandoverCancelAcknowledge) Marshal() ([]byte, error) {
@@ -110,5 +152,5 @@ func (m *HandoverCancelAcknowledge) Marshal() ([]byte, error) {
 }
 
 func ParseHandoverCancelAcknowledge(value []byte) (*HandoverCancelAcknowledge, error) {
-	return parseMessageBody[HandoverCancelAcknowledge](ProcHandoverCancel, handoverCancelAcknowledgeIEs, value)
+	return parseMessageBody[HandoverCancelAcknowledge](ProcHandoverCancel, TriggeringSuccessfulOutcome, handoverCancelAcknowledgeIEs, value)
 }

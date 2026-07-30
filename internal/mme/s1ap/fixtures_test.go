@@ -56,8 +56,8 @@ func initialUEMessagePDU(t *testing.T, enbID s1ap.ENBUES1APID, nas []byte) []byt
 		ENBUES1APID:           enbID,
 		NASPDU:                s1ap.NASPDU(nas),
 		TAI:                   s1ap.TAI{PLMNIdentity: plmn, TAC: 1},
-		EUTRANCGI:             s1ap.EUTRANCGI{PLMNIdentity: plmn, CellID: 1},
-		RRCEstablishmentCause: s1ap.RRCCauseEmergency,
+		EUTRANCGI:             s1ap.Ptr(s1ap.EUTRANCGI{PLMNIdentity: plmn, CellID: 1}),
+		RRCEstablishmentCause: s1ap.Ptr(s1ap.RRCCauseEmergency),
 	}).Marshal()
 	if err != nil {
 		t.Fatal(err)

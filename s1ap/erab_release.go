@@ -23,7 +23,7 @@ type ERABReleaseCommand struct {
 	ERABToBeReleased          []ERABItem
 	NASPDU                    NASPDU
 
-	unmodeledIEs
+	messageMeta
 }
 
 var eRABReleaseCommandIEs = []ieSpec[ERABReleaseCommand]{
@@ -72,6 +72,10 @@ var eRABReleaseCommandIEs = []ieSpec[ERABReleaseCommand]{
 			return err
 		},
 		encode: func(m *ERABReleaseCommand) (per.Marshaler, bool) {
+			if len(m.ERABToBeReleased) == 0 {
+				return nil, false
+			}
+
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
 				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABToBeReleased)
 			}), true
@@ -93,7 +97,7 @@ var eRABReleaseCommandIEs = []ieSpec[ERABReleaseCommand]{
 }
 
 func (m *ERABReleaseCommand) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, eRABReleaseCommandIEs, m)
+	return encodeMessageBody(w, enc, ProcERABRelease, eRABReleaseCommandIEs, m)
 }
 
 func (m *ERABReleaseCommand) Marshal() ([]byte, error) {
@@ -113,35 +117,63 @@ func (m *ERABReleaseCommand) Marshal() ([]byte, error) {
 }
 
 func ParseERABReleaseCommand(value []byte) (*ERABReleaseCommand, error) {
-	return parseMessageBody[ERABReleaseCommand](ProcERABRelease, eRABReleaseCommandIEs, value)
+	return parseMessageBody[ERABReleaseCommand](ProcERABRelease, TriggeringInitiatingMessage, eRABReleaseCommandIEs, value)
 }
 
 // TS 36.413 §9.1.3.6.
 type ERABReleaseResponse struct {
-	MMEUES1APID             MMEUES1APID
-	ENBUES1APID             ENBUES1APID
+	MMEUES1APID             *MMEUES1APID
+	ENBUES1APID             *ENBUES1APID
 	ERABReleased            []ERABReleaseItemBearerRelComp
 	ERABFailedToRelease     []ERABItem
 	CriticalityDiagnostics  *CriticalityDiagnostics
 	UserLocationInformation *UserLocationInformation
 
-	unmodeledIEs
+	messageMeta
 }
 
 var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MMEUES1APID)
+			var v MMEUES1APID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.MMEUES1APID = &v
+
+			return nil
 		},
-		encode: func(m *ERABReleaseResponse) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+		encode: func(m *ERABReleaseResponse) (per.Marshaler, bool) {
+			if m.MMEUES1APID == nil {
+				return nil, false
+			}
+
+			return m.MMEUES1APID, true
+		},
 	},
 	{
 		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ENBUES1APID)
+			var v ENBUES1APID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.ENBUES1APID = &v
+
+			return nil
 		},
-		encode: func(m *ERABReleaseResponse) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+		encode: func(m *ERABReleaseResponse) (per.Marshaler, bool) {
+			if m.ENBUES1APID == nil {
+				return nil, false
+			}
+
+			return m.ENBUES1APID, true
+		},
 	},
 	{
 		id: idERABReleaseListBearerRelComp, presence: PresenceOptional, crit: CriticalityIgnore,
@@ -226,7 +258,7 @@ var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 }
 
 func (m *ERABReleaseResponse) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, eRABReleaseResponseIEs, m)
+	return encodeMessageBody(w, enc, ProcERABRelease, eRABReleaseResponseIEs, m)
 }
 
 func (m *ERABReleaseResponse) Marshal() ([]byte, error) {
@@ -246,5 +278,5 @@ func (m *ERABReleaseResponse) Marshal() ([]byte, error) {
 }
 
 func ParseERABReleaseResponse(value []byte) (*ERABReleaseResponse, error) {
-	return parseMessageBody[ERABReleaseResponse](ProcERABRelease, eRABReleaseResponseIEs, value)
+	return parseMessageBody[ERABReleaseResponse](ProcERABRelease, TriggeringSuccessfulOutcome, eRABReleaseResponseIEs, value)
 }

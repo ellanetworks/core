@@ -158,11 +158,14 @@ func buildS1SetupRequest(value []byte) (S1APMessageValue, string) {
 		Criticality: criticalityToEnum(s1ap.CriticalityReject),
 		Value:       supportedTAs(req.SupportedTAs),
 	})
-	ies = append(ies, IE{
-		ID:          ieEnum(idDefaultPagingDRX),
-		Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
-		Value:       pagingDRXToEnum(req.DefaultPagingDRX),
-	})
+
+	if req.DefaultPagingDRX != nil {
+		ies = append(ies, IE{
+			ID:          ieEnum(idDefaultPagingDRX),
+			Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
+			Value:       pagingDRXToEnum(*req.DefaultPagingDRX),
+		})
+	}
 
 	summary := "S1 Setup Request"
 	if req.ENBName != nil {
@@ -190,18 +193,19 @@ func buildS1SetupResponse(value []byte) (S1APMessageValue, string) {
 		})
 	}
 
-	ies = append(ies,
-		IE{
-			ID:          ieEnum(idServedGUMMEIs),
-			Criticality: criticalityToEnum(s1ap.CriticalityReject),
-			Value:       servedGUMMEIs(resp.ServedGUMMEIs),
-		},
-		IE{
+	ies = append(ies, IE{
+		ID:          ieEnum(idServedGUMMEIs),
+		Criticality: criticalityToEnum(s1ap.CriticalityReject),
+		Value:       servedGUMMEIs(resp.ServedGUMMEIs),
+	})
+
+	if resp.RelativeMMECapacity != nil {
+		ies = append(ies, IE{
 			ID:          ieEnum(idRelativeMMECapacity),
 			Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
-			Value:       resp.RelativeMMECapacity,
-		},
-	)
+			Value:       *resp.RelativeMMECapacity,
+		})
+	}
 
 	if resp.CriticalityDiagnostics != nil {
 		ies = append(ies, ie(idCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*resp.CriticalityDiagnostics)))
@@ -218,11 +222,15 @@ func buildS1SetupFailure(value []byte) (S1APMessageValue, string) {
 		return S1APMessageValue{Error: fmt.Sprintf("parse S1 Setup Failure: %v", err)}, ""
 	}
 
-	ies := []IE{{
-		ID:          ieEnum(idCause),
-		Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
-		Value:       cause(fail.Cause),
-	}}
+	var ies []IE
+
+	if fail.Cause != nil {
+		ies = append(ies, IE{
+			ID:          ieEnum(idCause),
+			Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
+			Value:       cause(*fail.Cause),
+		})
+	}
 
 	if fail.TimeToWait != nil {
 		ies = append(ies, IE{

@@ -8,69 +8,135 @@ import (
 	"strings"
 )
 
-// MissingIE names an IE a message did not carry, with the criticality
-// TS 36.413 §9.1 assigns it there.
-type MissingIE struct {
-	ID          ProtocolIEID
-	Criticality Criticality
-}
-
-// MissingMandatoryIEsError reports the mandatory IEs a message did not carry.
-// Its fields are what a receiver needs to answer with Criticality Diagnostics
-// (TS 36.413 §10.3.5):
-//
-//	var missing *s1ap.MissingMandatoryIEsError
-//	if errors.As(err, &missing) {
-//		return abstractSyntaxError(missing.Procedure, missing.IEs)
-//	}
-type MissingMandatoryIEsError struct {
+// TransferSyntaxError reports octets that are not a decodable PER encoding.
+// Nothing of the message is recoverable (TS 36.413 §10.2).
+type TransferSyntaxError struct {
 	Procedure ProcedureCode
-	IEs       []MissingIE
+	Err       error
 }
 
-func (e *MissingMandatoryIEsError) Error() string {
+func (e *TransferSyntaxError) Error() string {
+	return fmt.Sprintf("s1ap: %s: transfer syntax error: %v", e.Procedure, e.Err)
+}
+
+func (e *TransferSyntaxError) Unwrap() error { return e.Err }
+
+// AbstractSyntaxError reports a message that decoded but whose procedure must
+// be rejected: a missing reject-criticality IE (TS 36.413 §10.3.5), an
+// unhandled reject-criticality IE (§10.3.4.2), or a falsely constructed
+// message (§10.3.6).
+//
+// Cause and IEs are what the rejection must report. Decoded carries the IEs
+// that did arrive, which §10.3.5 and §10.3.6 require when the unsuccessful
+// outcome cannot be addressed without them.
+type AbstractSyntaxError struct {
+	Procedure ProcedureCode
+	Trigger   TriggeringMessage
+	Cause     Cause
+	IEs       []CriticalityDiagnosticsIEItem
+	Decoded   []RawIE
+}
+
+func (e *AbstractSyntaxError) Error() string {
+	if len(e.IEs) == 0 {
+		return fmt.Sprintf("s1ap: %s: %s", e.Procedure, e.Cause)
+	}
+
 	ids := make([]string, len(e.IEs))
 	for i, ie := range e.IEs {
-		ids[i] = fmt.Sprintf("%s (%s)", ie.ID, ie.Criticality)
+		ids[i] = fmt.Sprintf("%s (%s, %s)", ie.IEID, ie.IECriticality, ie.TypeOfError)
 	}
 
-	return fmt.Sprintf("s1ap: %s missing mandatory IE(s): %s", e.Procedure, strings.Join(ids, ", "))
+	return fmt.Sprintf("s1ap: %s: %s: %s", e.Procedure, e.Cause, strings.Join(ids, ", "))
 }
 
-// RejectedIEs returns the missing IEs the message table marks reject.
-func (e *MissingMandatoryIEsError) RejectedIEs() []MissingIE {
-	var out []MissingIE
+// Diagnostics returns the CriticalityDiagnostics a receiver reports the
+// rejection with (TS 36.413 §10.3.5).
+func (e *AbstractSyntaxError) Diagnostics() CriticalityDiagnostics {
+	proc, trigger, crit := e.Procedure, e.Trigger, CriticalityReject
 
-	for _, ie := range e.IEs {
-		if ie.Criticality == CriticalityReject {
-			out = append(out, ie)
+	return CriticalityDiagnostics{
+		ProcedureCode:             &proc,
+		TriggeringMessage:         &trigger,
+		ProcedureCriticality:      &crit,
+		IEsCriticalityDiagnostics: e.IEs,
+	}
+}
+
+// UEIDs returns the UE S1AP IDs that decoded before the rejection. An ERROR
+// INDICATION for UE-associated signalling names the association it concerns
+// with them (TS 36.413 §8.7.2.2); either is nil when it did not arrive.
+func (e *AbstractSyntaxError) UEIDs() (*MMEUES1APID, *ENBUES1APID) {
+	var (
+		mmeID *MMEUES1APID
+		enbID *ENBUES1APID
+	)
+
+	for _, ie := range e.Decoded {
+		switch ie.ID {
+		case idMMEUES1APID:
+			var v MMEUES1APID
+			if perIEDecode(ie.Value, &v) == nil {
+				mmeID = &v
+			}
+		case idENBUES1APID:
+			var v ENBUES1APID
+			if perIEDecode(ie.Value, &v) == nil {
+				enbID = &v
+			}
 		}
 	}
 
-	return out
+	return mmeID, enbID
 }
 
-type ieCheck struct {
-	id   ProtocolIEID
-	crit Criticality
-	seen bool
+// Diagnostics accumulates the abstract syntax errors that did not prevent a
+// message from being delivered: IEs absent with ignore or notify criticality
+// (TS 36.413 §10.3.5) and IEs that were not comprehended with the same
+// (§10.3.4.2).
+type Diagnostics struct {
+	IEs []CriticalityDiagnosticsIEItem
+
+	// Truncated reports that recording stopped at maxDiagnosticIEs.
+	Truncated bool
 }
 
-// requireIEs errors on any absent mandatory IE, including ignore-criticality
-// ones that TS 36.413 §10.3.5 says to carry on without: a mandatory field must
-// never read back as an unset zero value.
-func requireIEs(procedure ProcedureCode, checks ...ieCheck) error {
-	var missing []MissingIE
+// Empty reports whether the message arrived without any abstract syntax error.
+func (d Diagnostics) Empty() bool { return len(d.IEs) == 0 }
 
-	for _, c := range checks {
-		if !c.seen {
-			missing = append(missing, MissingIE{ID: c.id, Criticality: c.crit})
+// ReportRequired reports whether TS 36.413 §10.3.4.2 and §10.3.5 oblige the
+// receiver to tell the sender, which only notify criticality does.
+func (d Diagnostics) ReportRequired() bool {
+	for _, ie := range d.IEs {
+		if ie.IECriticality == CriticalityNotify {
+			return true
 		}
 	}
 
-	if len(missing) == 0 {
-		return nil
+	return false
+}
+
+func (d *Diagnostics) record(id ProtocolIEID, crit Criticality, kind TypeOfError) {
+	if len(d.IEs) >= maxDiagnosticIEs {
+		d.Truncated = true
+
+		return
 	}
 
-	return &MissingMandatoryIEsError{Procedure: procedure, IEs: missing}
+	d.IEs = append(d.IEs, CriticalityDiagnosticsIEItem{
+		IECriticality: crit,
+		IEID:          id,
+		TypeOfError:   kind,
+	})
+}
+
+func (t TypeOfError) String() string {
+	switch t {
+	case TypeOfErrorNotUnderstood:
+		return "not-understood"
+	case TypeOfErrorMissing:
+		return "missing"
+	default:
+		return fmt.Sprintf("TypeOfError(%d)", uint8(t))
+	}
 }

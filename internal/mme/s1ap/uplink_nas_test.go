@@ -18,8 +18,8 @@ func TestUplinkNASTransportUnknownUE(t *testing.T) {
 		MMEUES1APID: 999,
 		ENBUES1APID: 7,
 		NASPDU:      s1ap.NASPDU{0x07, 0x56},
-		EUTRANCGI:   s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1},
-		TAI:         s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
+		EUTRANCGI:   s1ap.Ptr(s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1}),
+		TAI:         s1ap.Ptr(s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}),
 	}
 
 	b, err := uplink.Marshal()

@@ -15,7 +15,7 @@ func sampleResponse() *S1SetupResponse {
 			ServedGroupIDs: []MMEGroupID{{0x80, 0x01}},
 			ServedMMECs:    []MMECode{0x01},
 		}},
-		RelativeMMECapacity: 255,
+		RelativeMMECapacity: Ptr(uint8(255)),
 		CriticalityDiagnostics: &CriticalityDiagnostics{
 			ProcedureCode: func() *ProcedureCode { p := ProcS1Setup; return &p }(),
 		},
@@ -49,7 +49,7 @@ func TestS1SetupResponseRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if derefStr(out.MMEName) != derefStr(in.MMEName) || out.RelativeMMECapacity != in.RelativeMMECapacity {
+	if deref(out.MMEName) != deref(in.MMEName) || deref(out.RelativeMMECapacity) != deref(in.RelativeMMECapacity) {
 		t.Fatalf("scalar mismatch: %+v", out)
 	}
 

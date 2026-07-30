@@ -13,7 +13,7 @@ type ENBConfigurationUpdate struct {
 	SupportedTAs     SupportedTAs
 	DefaultPagingDRX *PagingDRX
 
-	unmodeledIEs
+	messageMeta
 }
 
 var eNBConfigurationUpdateIEs = []ieSpec[ENBConfigurationUpdate]{
@@ -76,7 +76,7 @@ var eNBConfigurationUpdateIEs = []ieSpec[ENBConfigurationUpdate]{
 }
 
 func (m *ENBConfigurationUpdate) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, eNBConfigurationUpdateIEs, m)
+	return encodeMessageBody(w, enc, ProcENBConfigurationUpdate, eNBConfigurationUpdateIEs, m)
 }
 
 func (m *ENBConfigurationUpdate) Marshal() ([]byte, error) {
@@ -96,14 +96,14 @@ func (m *ENBConfigurationUpdate) Marshal() ([]byte, error) {
 }
 
 func ParseENBConfigurationUpdate(value []byte) (*ENBConfigurationUpdate, error) {
-	return parseMessageBody[ENBConfigurationUpdate](ProcENBConfigurationUpdate, eNBConfigurationUpdateIEs, value)
+	return parseMessageBody[ENBConfigurationUpdate](ProcENBConfigurationUpdate, TriggeringInitiatingMessage, eNBConfigurationUpdateIEs, value)
 }
 
 // TS 36.413 §9.1.8.8.
 type ENBConfigurationUpdateAcknowledge struct {
 	CriticalityDiagnostics *CriticalityDiagnostics
 
-	unmodeledIEs
+	messageMeta
 }
 
 var eNBConfigurationUpdateAcknowledgeIEs = []ieSpec[ENBConfigurationUpdateAcknowledge]{
@@ -131,7 +131,7 @@ var eNBConfigurationUpdateAcknowledgeIEs = []ieSpec[ENBConfigurationUpdateAcknow
 }
 
 func (m *ENBConfigurationUpdateAcknowledge) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, eNBConfigurationUpdateAcknowledgeIEs, m)
+	return encodeMessageBody(w, enc, ProcENBConfigurationUpdate, eNBConfigurationUpdateAcknowledgeIEs, m)
 }
 
 func (m *ENBConfigurationUpdateAcknowledge) Marshal() ([]byte, error) {
@@ -151,25 +151,39 @@ func (m *ENBConfigurationUpdateAcknowledge) Marshal() ([]byte, error) {
 }
 
 func ParseENBConfigurationUpdateAcknowledge(value []byte) (*ENBConfigurationUpdateAcknowledge, error) {
-	return parseMessageBody[ENBConfigurationUpdateAcknowledge](ProcENBConfigurationUpdate, eNBConfigurationUpdateAcknowledgeIEs, value)
+	return parseMessageBody[ENBConfigurationUpdateAcknowledge](ProcENBConfigurationUpdate, TriggeringSuccessfulOutcome, eNBConfigurationUpdateAcknowledgeIEs, value)
 }
 
 // TS 36.413 §9.1.8.9.
 type ENBConfigurationUpdateFailure struct {
-	Cause                  Cause
+	Cause                  *Cause
 	TimeToWait             *TimeToWait
 	CriticalityDiagnostics *CriticalityDiagnostics
 
-	unmodeledIEs
+	messageMeta
 }
 
 var eNBConfigurationUpdateFailureIEs = []ieSpec[ENBConfigurationUpdateFailure]{
 	{
 		id: idCause, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *ENBConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.Cause)
+			var v Cause
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.Cause = &v
+
+			return nil
 		},
-		encode: func(m *ENBConfigurationUpdateFailure) (per.Marshaler, bool) { return &m.Cause, true },
+		encode: func(m *ENBConfigurationUpdateFailure) (per.Marshaler, bool) {
+			if m.Cause == nil {
+				return nil, false
+			}
+
+			return m.Cause, true
+		},
 	},
 	{
 		id: idTimeToWait, presence: PresenceOptional, crit: CriticalityIgnore,
@@ -216,7 +230,7 @@ var eNBConfigurationUpdateFailureIEs = []ieSpec[ENBConfigurationUpdateFailure]{
 }
 
 func (m *ENBConfigurationUpdateFailure) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, eNBConfigurationUpdateFailureIEs, m)
+	return encodeMessageBody(w, enc, ProcENBConfigurationUpdate, eNBConfigurationUpdateFailureIEs, m)
 }
 
 func (m *ENBConfigurationUpdateFailure) Marshal() ([]byte, error) {
@@ -236,5 +250,5 @@ func (m *ENBConfigurationUpdateFailure) Marshal() ([]byte, error) {
 }
 
 func ParseENBConfigurationUpdateFailure(value []byte) (*ENBConfigurationUpdateFailure, error) {
-	return parseMessageBody[ENBConfigurationUpdateFailure](ProcENBConfigurationUpdate, eNBConfigurationUpdateFailureIEs, value)
+	return parseMessageBody[ENBConfigurationUpdateFailure](ProcENBConfigurationUpdate, TriggeringUnsuccessfulOutcome, eNBConfigurationUpdateFailureIEs, value)
 }

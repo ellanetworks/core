@@ -16,7 +16,7 @@ type ErrorIndication struct {
 	Cause                  *Cause
 	CriticalityDiagnostics *CriticalityDiagnostics
 
-	unmodeledIEs
+	messageMeta
 }
 
 var errorIndicationIEs = []ieSpec[ErrorIndication]{
@@ -115,7 +115,7 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 }
 
 func (m *ErrorIndication) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, errorIndicationIEs, m)
+	return encodeMessageBody(w, enc, ProcErrorIndication, errorIndicationIEs, m)
 }
 
 func (m *ErrorIndication) Marshal() ([]byte, error) {
@@ -135,5 +135,5 @@ func (m *ErrorIndication) Marshal() ([]byte, error) {
 }
 
 func ParseErrorIndication(value []byte) (*ErrorIndication, error) {
-	return parseMessageBody[ErrorIndication](ProcErrorIndication, errorIndicationIEs, value)
+	return parseMessageBody[ErrorIndication](ProcErrorIndication, TriggeringInitiatingMessage, errorIndicationIEs, value)
 }

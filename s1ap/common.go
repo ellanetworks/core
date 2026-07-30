@@ -10,25 +10,39 @@
 //
 // # Presence
 //
-// An IE that TS 36.413 marks OPTIONAL or CONDITIONAL is nil-able: a pointer,
-// or a nil slice where the type is already a slice. A mandatory IE is a value
-// type and, if ParseXxx returned a nil error, holds what the peer sent. No
-// field uses a zero value to mean absent.
+// A field is a value type only where its absence stops the message from
+// reaching the caller, which TS 36.413 §10.3.5 makes true exactly for
+// required IEs of reject criticality. Every other IE is nil-able — a pointer,
+// or a nil slice where the type is already a slice — so an absent IE is never
+// confused with a zero one. Because criticality is assigned per message, the
+// same IE can be a pointer in one message and a value in another.
+//
+// Encoding holds the sender to the stricter rule of §10.3.3: Marshal fails if
+// an IE the message must carry is unset, whatever its criticality.
 //
 // # Errors
 //
-// Any decoding failure returns no message, as TS 36.413 §10.3.6 requires a
-// falsely constructed message to be rejected. A missing mandatory IE yields
-// [MissingMandatoryIEsError], carrying each absent IE with the criticality its
-// §9.1 table assigns, which is what Criticality Diagnostics needs (§10.3.5).
-// That includes ignore-criticality IEs a receiver could continue without under
-// §10.3.5: here they are UE identities, TAI, CGI and Cause, which a receiver
-// has to act on.
+// Decoding reports one of two errors, and returns no message with either:
 //
-// Unmodeled IEs are preserved verbatim and re-emitted on encode; see
-// [UnknownIEs]. Ones marked reject are additionally reported by
-// [UnhandledCriticalIEs] rather than rejected here, since §10.3.4.2 needs the
-// procedure state only the receiving node has.
+//   - [TransferSyntaxError], for octets that are not decodable.
+//   - [AbstractSyntaxError], for a message whose procedure must be rejected —
+//     a missing reject-criticality IE (§10.3.5), an unhandled reject-criticality
+//     IE (§10.3.4.2), or a falsely constructed message (§10.3.6). It carries
+//     the cause to report, per-IE Criticality Diagnostics, and the IEs that did
+//     decode, which §10.3.5 and §8.7.2.2 need to address the response.
+//
+// Everything §10.3.4.2 and §10.3.5 let a receiver carry on past — an absent
+// ignore or notify IE, an IE this version does not model — is not an error.
+// The message is returned and the detail is reported by [Diagnostics], which
+// also builds the Criticality Diagnostics to answer with.
+//
+// Unmodeled IEs are preserved and re-emitted on encode; see [UnknownIEs].
+// Preservation and diagnostics are both bounded, since a peer chooses how many
+// IEs to send; [Diagnostics.Truncated] reports when a bound was reached.
+//
+// Conditional IEs are modeled where TS 36.413 marks them conditional, with the
+// condition stated on the IE table row. None of the messages modeled here has
+// one.
 package s1ap
 
 import "fmt"

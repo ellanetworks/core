@@ -105,7 +105,7 @@ func TestS1SetupOutcomeRejectsUnknownPLMN(t *testing.T) {
 		t.Fatalf("parse failure: %v", err)
 	}
 
-	if fail.Cause != causeUnknownPLMN {
+	if fail.Cause == nil || *fail.Cause != causeUnknownPLMN {
 		t.Fatalf("cause = %+v, want %+v (Misc/unknown-PLMN)", fail.Cause, causeUnknownPLMN)
 	}
 }
@@ -143,7 +143,7 @@ func TestS1SetupOutcomeRejectsUnknownTAC(t *testing.T) {
 		t.Fatalf("parse failure: %v", err)
 	}
 
-	if fail.Cause != causeNoServedTAC {
+	if fail.Cause == nil || *fail.Cause != causeNoServedTAC {
 		t.Fatalf("cause = %+v, want %+v (Misc/unspecified)", fail.Cause, causeNoServedTAC)
 	}
 }
@@ -158,9 +158,14 @@ func TestS1SetupFailureNamesMissingIEs(t *testing.T) {
 		ieSupportedTAs s1ap.ProtocolIEID = 64
 	)
 
-	out, err := buildS1SetupFailureMissingIEs([]s1ap.MissingIE{
-		{ID: ieGlobalENBID, Criticality: s1ap.CriticalityReject},
-		{ID: ieSupportedTAs, Criticality: s1ap.CriticalityReject},
+	out, err := buildS1SetupFailure(&s1ap.AbstractSyntaxError{
+		Procedure: s1ap.ProcS1Setup,
+		Trigger:   s1ap.TriggeringInitiatingMessage,
+		Cause:     s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolAbstractSyntaxErrorReject},
+		IEs: []s1ap.CriticalityDiagnosticsIEItem{
+			{IECriticality: s1ap.CriticalityReject, IEID: ieGlobalENBID, TypeOfError: s1ap.TypeOfErrorMissing},
+			{IECriticality: s1ap.CriticalityReject, IEID: ieSupportedTAs, TypeOfError: s1ap.TypeOfErrorMissing},
+		},
 	})
 	if err != nil {
 		t.Fatalf("build: %v", err)
@@ -182,7 +187,7 @@ func TestS1SetupFailureNamesMissingIEs(t *testing.T) {
 	}
 
 	wantCause := s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolAbstractSyntaxErrorReject}
-	if fail.Cause != wantCause {
+	if fail.Cause == nil || *fail.Cause != wantCause {
 		t.Fatalf("cause = %+v, want abstract-syntax-error-reject", fail.Cause)
 	}
 

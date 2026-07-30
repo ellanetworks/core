@@ -24,7 +24,7 @@ func (e *ENB) SendHandoverRequired(enbUEID, mmeUEID int64, target s1ap.GlobalENB
 		MMEUES1APID:    s1ap.MMEUES1APID(mmeUEID),
 		ENBUES1APID:    s1ap.ENBUES1APID(enbUEID),
 		HandoverType:   s1ap.HandoverTypeIntraLTE,
-		Cause:          s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 16}, // handover-desirable-for-radio-reason
+		Cause:          s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 16}), // handover-desirable-for-radio-reason
 		TargetID:       s1ap.TargetID{TargeteNBID: s1ap.TargeteNBID{GlobalENBID: target, SelectedTAI: e.tai()}},
 		SourceToTarget: s1ap.TransparentContainer{0x00},
 	}
@@ -66,8 +66,8 @@ func (e *ENB) SendHandoverRequestAcknowledge(targetENBUEID, mmeUEID int64, erabI
 	dlTEID = e.allocTEID()
 
 	ack := &s1ap.HandoverRequestAcknowledge{
-		MMEUES1APID: s1ap.MMEUES1APID(mmeUEID),
-		ENBUES1APID: s1ap.ENBUES1APID(targetENBUEID),
+		MMEUES1APID: s1ap.Ptr(s1ap.MMEUES1APID(mmeUEID)),
+		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(targetENBUEID)),
 		ERABAdmitted: []s1ap.ERABAdmittedItem{{
 			ERABID:                erabID,
 			TransportLayerAddress: s1ap.TransportLayerAddress(addr),
@@ -143,8 +143,8 @@ func (e *ENB) SendHandoverNotify(enbUEID, mmeUEID int64) error {
 	notify := &s1ap.HandoverNotify{
 		MMEUES1APID: s1ap.MMEUES1APID(mmeUEID),
 		ENBUES1APID: s1ap.ENBUES1APID(enbUEID),
-		EUTRANCGI:   e.eutranCGI(),
-		TAI:         e.tai(),
+		EUTRANCGI:   s1ap.Ptr(e.eutranCGI()),
+		TAI:         s1ap.Ptr(e.tai()),
 	}
 
 	b, err := notify.Marshal()

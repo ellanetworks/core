@@ -41,7 +41,7 @@ func TestBuildS1SetupResponseMarshals(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if (out.MMEName == nil || *out.MMEName != "ella") || out.RelativeMMECapacity != 0xff {
+	if (out.MMEName == nil || *out.MMEName != "ella") || out.RelativeMMECapacity == nil || *out.RelativeMMECapacity != 0xff {
 		t.Fatalf("scalar mismatch: %+v", out)
 	}
 

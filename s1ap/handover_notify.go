@@ -11,10 +11,10 @@ import (
 type HandoverNotify struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
-	EUTRANCGI   EUTRANCGI
-	TAI         TAI
+	EUTRANCGI   *EUTRANCGI
+	TAI         *TAI
 
-	unmodeledIEs
+	messageMeta
 }
 
 var handoverNotifyIEs = []ieSpec[HandoverNotify]{
@@ -35,21 +35,49 @@ var handoverNotifyIEs = []ieSpec[HandoverNotify]{
 	{
 		id: idEUTRANCGI, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.EUTRANCGI)
+			var v EUTRANCGI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.EUTRANCGI = &v
+
+			return nil
 		},
-		encode: func(m *HandoverNotify) (per.Marshaler, bool) { return &m.EUTRANCGI, true },
+		encode: func(m *HandoverNotify) (per.Marshaler, bool) {
+			if m.EUTRANCGI == nil {
+				return nil, false
+			}
+
+			return m.EUTRANCGI, true
+		},
 	},
 	{
 		id: idTAI, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.TAI)
+			var v TAI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.TAI = &v
+
+			return nil
 		},
-		encode: func(m *HandoverNotify) (per.Marshaler, bool) { return &m.TAI, true },
+		encode: func(m *HandoverNotify) (per.Marshaler, bool) {
+			if m.TAI == nil {
+				return nil, false
+			}
+
+			return m.TAI, true
+		},
 	},
 }
 
 func (m *HandoverNotify) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, handoverNotifyIEs, m)
+	return encodeMessageBody(w, enc, ProcHandoverNotification, handoverNotifyIEs, m)
 }
 
 func (m *HandoverNotify) Marshal() ([]byte, error) {
@@ -69,5 +97,5 @@ func (m *HandoverNotify) Marshal() ([]byte, error) {
 }
 
 func ParseHandoverNotify(value []byte) (*HandoverNotify, error) {
-	return parseMessageBody[HandoverNotify](ProcHandoverNotification, handoverNotifyIEs, value)
+	return parseMessageBody[HandoverNotify](ProcHandoverNotification, TriggeringInitiatingMessage, handoverNotifyIEs, value)
 }

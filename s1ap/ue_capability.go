@@ -13,7 +13,7 @@ type UECapabilityInfoIndication struct {
 	ENBUES1APID                ENBUES1APID
 	UERadioCapability          []byte
 	UERadioCapabilityForPaging []byte // paging-specific capability (TS 36.413), when present
-	unmodeledIEs
+	messageMeta
 }
 
 var uECapabilityInfoIndicationIEs = []ieSpec[UECapabilityInfoIndication]{
@@ -41,6 +41,10 @@ var uECapabilityInfoIndicationIEs = []ieSpec[UECapabilityInfoIndication]{
 			return err
 		},
 		encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) {
+			if m.UERadioCapability == nil {
+				return nil, false
+			}
+
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
 				return per.EncodeOctetString(w, enc, 0, 0, true, false, false, m.UERadioCapability)
 			}), true
@@ -68,7 +72,7 @@ var uECapabilityInfoIndicationIEs = []ieSpec[UECapabilityInfoIndication]{
 }
 
 func (m *UECapabilityInfoIndication) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, uECapabilityInfoIndicationIEs, m)
+	return encodeMessageBody(w, enc, ProcUECapabilityInfoIndication, uECapabilityInfoIndicationIEs, m)
 }
 
 func (m *UECapabilityInfoIndication) Marshal() ([]byte, error) {
@@ -88,5 +92,5 @@ func (m *UECapabilityInfoIndication) Marshal() ([]byte, error) {
 }
 
 func ParseUECapabilityInfoIndication(value []byte) (*UECapabilityInfoIndication, error) {
-	return parseMessageBody[UECapabilityInfoIndication](ProcUECapabilityInfoIndication, uECapabilityInfoIndicationIEs, value)
+	return parseMessageBody[UECapabilityInfoIndication](ProcUECapabilityInfoIndication, TriggeringInitiatingMessage, uECapabilityInfoIndicationIEs, value)
 }

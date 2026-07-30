@@ -12,12 +12,12 @@ type InitialUEMessage struct {
 	ENBUES1APID           ENBUES1APID
 	NASPDU                NASPDU
 	TAI                   TAI
-	EUTRANCGI             EUTRANCGI
-	RRCEstablishmentCause RRCEstablishmentCause
+	EUTRANCGI             *EUTRANCGI
+	RRCEstablishmentCause *RRCEstablishmentCause
 	STMSI                 *STMSI  // present when the UE re-establishes with an S-TMSI
 	GUMMEI                *GUMMEI // the eNB-selected MME, present when the eNB does not run NNSF
 
-	unmodeledIEs
+	messageMeta
 }
 
 var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
@@ -45,16 +45,44 @@ var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
 	{
 		id: idEUTRANCGI, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.EUTRANCGI)
+			var v EUTRANCGI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.EUTRANCGI = &v
+
+			return nil
 		},
-		encode: func(m *InitialUEMessage) (per.Marshaler, bool) { return &m.EUTRANCGI, true },
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) {
+			if m.EUTRANCGI == nil {
+				return nil, false
+			}
+
+			return m.EUTRANCGI, true
+		},
 	},
 	{
 		id: idRRCEstablishmentCause, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.RRCEstablishmentCause)
+			var v RRCEstablishmentCause
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.RRCEstablishmentCause = &v
+
+			return nil
 		},
-		encode: func(m *InitialUEMessage) (per.Marshaler, bool) { return &m.RRCEstablishmentCause, true },
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) {
+			if m.RRCEstablishmentCause == nil {
+				return nil, false
+			}
+
+			return m.RRCEstablishmentCause, true
+		},
 	},
 	{
 		id: idSTMSI, presence: PresenceOptional, crit: CriticalityReject,
@@ -101,7 +129,7 @@ var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
 }
 
 func (m *InitialUEMessage) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, initialUEMessageIEs, m)
+	return encodeMessageBody(w, enc, ProcInitialUEMessage, initialUEMessageIEs, m)
 }
 
 func (m *InitialUEMessage) Marshal() ([]byte, error) {
@@ -121,7 +149,7 @@ func (m *InitialUEMessage) Marshal() ([]byte, error) {
 }
 
 func ParseInitialUEMessage(value []byte) (*InitialUEMessage, error) {
-	return parseMessageBody[InitialUEMessage](ProcInitialUEMessage, initialUEMessageIEs, value)
+	return parseMessageBody[InitialUEMessage](ProcInitialUEMessage, TriggeringInitiatingMessage, initialUEMessageIEs, value)
 }
 
 // TS 36.413 §9.1.7.3.
@@ -129,10 +157,10 @@ type UplinkNASTransport struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
 	NASPDU      NASPDU
-	EUTRANCGI   EUTRANCGI
-	TAI         TAI
+	EUTRANCGI   *EUTRANCGI
+	TAI         *TAI
 
-	unmodeledIEs
+	messageMeta
 }
 
 var uplinkNASTransportIEs = []ieSpec[UplinkNASTransport]{
@@ -160,21 +188,49 @@ var uplinkNASTransportIEs = []ieSpec[UplinkNASTransport]{
 	{
 		id: idEUTRANCGI, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *UplinkNASTransport, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.EUTRANCGI)
+			var v EUTRANCGI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.EUTRANCGI = &v
+
+			return nil
 		},
-		encode: func(m *UplinkNASTransport) (per.Marshaler, bool) { return &m.EUTRANCGI, true },
+		encode: func(m *UplinkNASTransport) (per.Marshaler, bool) {
+			if m.EUTRANCGI == nil {
+				return nil, false
+			}
+
+			return m.EUTRANCGI, true
+		},
 	},
 	{
 		id: idTAI, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *UplinkNASTransport, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.TAI)
+			var v TAI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.TAI = &v
+
+			return nil
 		},
-		encode: func(m *UplinkNASTransport) (per.Marshaler, bool) { return &m.TAI, true },
+		encode: func(m *UplinkNASTransport) (per.Marshaler, bool) {
+			if m.TAI == nil {
+				return nil, false
+			}
+
+			return m.TAI, true
+		},
 	},
 }
 
 func (m *UplinkNASTransport) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, uplinkNASTransportIEs, m)
+	return encodeMessageBody(w, enc, ProcUplinkNASTransport, uplinkNASTransportIEs, m)
 }
 
 func (m *UplinkNASTransport) Marshal() ([]byte, error) {
@@ -194,7 +250,7 @@ func (m *UplinkNASTransport) Marshal() ([]byte, error) {
 }
 
 func ParseUplinkNASTransport(value []byte) (*UplinkNASTransport, error) {
-	return parseMessageBody[UplinkNASTransport](ProcUplinkNASTransport, uplinkNASTransportIEs, value)
+	return parseMessageBody[UplinkNASTransport](ProcUplinkNASTransport, TriggeringInitiatingMessage, uplinkNASTransportIEs, value)
 }
 
 // TS 36.413 §9.1.7.2.
@@ -203,7 +259,7 @@ type DownlinkNASTransport struct {
 	ENBUES1APID ENBUES1APID
 	NASPDU      NASPDU
 
-	unmodeledIEs
+	messageMeta
 }
 
 var downlinkNASTransportIEs = []ieSpec[DownlinkNASTransport]{
@@ -231,7 +287,7 @@ var downlinkNASTransportIEs = []ieSpec[DownlinkNASTransport]{
 }
 
 func (m *DownlinkNASTransport) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, downlinkNASTransportIEs, m)
+	return encodeMessageBody(w, enc, ProcDownlinkNASTransport, downlinkNASTransportIEs, m)
 }
 
 func (m *DownlinkNASTransport) Marshal() ([]byte, error) {
@@ -251,5 +307,5 @@ func (m *DownlinkNASTransport) Marshal() ([]byte, error) {
 }
 
 func ParseDownlinkNASTransport(value []byte) (*DownlinkNASTransport, error) {
-	return parseMessageBody[DownlinkNASTransport](ProcDownlinkNASTransport, downlinkNASTransportIEs, value)
+	return parseMessageBody[DownlinkNASTransport](ProcDownlinkNASTransport, TriggeringInitiatingMessage, downlinkNASTransportIEs, value)
 }

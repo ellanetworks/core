@@ -20,16 +20,19 @@ func handleInitialContextSetupFailure(m *mme.MME, radio *mme.Radio, value []byte
 		return
 	}
 
-	ue, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ok := resolveUEIDs(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
 
 	ue.TouchLastSeen()
 
-	logger.MmeLog.Warn("Initial Context Setup Failure",
-		zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)),
-		zap.Any("cause", msg.Cause))
+	fields := []zap.Field{zap.Uint32("mme-ue-id", uint32(*msg.MMEUES1APID))}
+	if msg.Cause != nil {
+		fields = append(fields, zap.String("cause", mme.S1apCauseName(msg.Cause)))
+	}
+
+	logger.MmeLog.Warn("Initial Context Setup Failure", fields...)
 
 	m.ReleaseUEContextLocally(ue, "initial context setup failure")
 }

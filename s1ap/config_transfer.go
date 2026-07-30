@@ -39,7 +39,7 @@ func (c SONConfigurationTransfer) TargetENBID() (TargeteNBID, error) {
 type ENBConfigurationTransfer struct {
 	SONConfigurationTransfer SONConfigurationTransfer
 
-	unmodeledIEs
+	messageMeta
 }
 
 var eNBConfigurationTransferIEs = []ieSpec[ENBConfigurationTransfer]{
@@ -60,14 +60,14 @@ var eNBConfigurationTransferIEs = []ieSpec[ENBConfigurationTransfer]{
 }
 
 func ParseENBConfigurationTransfer(value []byte) (*ENBConfigurationTransfer, error) {
-	return parseMessageBody[ENBConfigurationTransfer](ProcENBConfigurationTransfer, eNBConfigurationTransferIEs, value)
+	return parseMessageBody[ENBConfigurationTransfer](ProcENBConfigurationTransfer, TriggeringInitiatingMessage, eNBConfigurationTransferIEs, value)
 }
 
 // TS 36.413 §9.1.17.
 type MMEConfigurationTransfer struct {
 	SONConfigurationTransfer SONConfigurationTransfer
 
-	unmodeledIEs
+	messageMeta
 }
 
 // IE is optional, so an empty container is a valid message.
@@ -89,7 +89,7 @@ var mMEConfigurationTransferIEs = []ieSpec[MMEConfigurationTransfer]{
 }
 
 func (m *MMEConfigurationTransfer) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, mMEConfigurationTransferIEs, m)
+	return encodeMessageBody(w, enc, ProcMMEConfigurationTransfer, mMEConfigurationTransferIEs, m)
 }
 
 func (m *MMEConfigurationTransfer) Marshal() ([]byte, error) {

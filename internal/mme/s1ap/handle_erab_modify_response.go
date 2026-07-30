@@ -13,20 +13,27 @@ import (
 // handleERABModifyResponse records the eNB's E-RAB Modify outcome. The procedure
 // completes on the NAS Modify Accept, so a failed-to-modify list is logged but
 // does not itself abort the modification (TS 36.413 §8.2.2).
-func handleERABModifyResponse(m *mme.MME, value []byte) {
+func handleERABModifyResponse(m *mme.MME, radio *mme.Radio, value []byte) {
 	resp, err := s1ap.ParseERABModifyResponse(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode E-RAB Modify Response", zap.Error(err))
 		return
 	}
 
-	if ue, ok := m.LookupUe(resp.MMEUES1APID); ok {
+	if resp.MMEUES1APID == nil {
+		logger.MmeLog.Warn("E-RAB Modify Response without an MME-UE-S1AP-ID")
+		sendErrorIndication(m, radio.Conn, nil, resp.ENBUES1APID, causeMissingUES1APID)
+
+		return
+	}
+
+	if ue, ok := m.LookupUe(*resp.MMEUES1APID); ok {
 		ue.TouchLastSeen()
 		captureUserLocation(ue, resp.UserLocationInformation)
 	}
 
 	if len(resp.ERABFailedToModify) > 0 {
 		logger.MmeLog.Warn("eNB failed to modify E-RAB(s)",
-			zap.Uint32("mme-ue-id", uint32(resp.MMEUES1APID)), zap.Int("failed", len(resp.ERABFailedToModify)))
+			zap.Uint32("mme-ue-id", uint32(*resp.MMEUES1APID)), zap.Int("failed", len(resp.ERABFailedToModify)))
 	}
 }

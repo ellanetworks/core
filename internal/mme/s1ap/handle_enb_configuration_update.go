@@ -78,7 +78,7 @@ func enbConfigUpdateOutcomeFor(req *s1ap.ENBConfigurationUpdate, plmn models.Plm
 
 		cause, ok := servedTAICause(req.SupportedTAs, served, tacs)
 		if !ok {
-			out, err = (&s1ap.ENBConfigurationUpdateFailure{Cause: cause}).Marshal()
+			out, err = (&s1ap.ENBConfigurationUpdateFailure{Cause: s1ap.Ptr(cause)}).Marshal()
 			if err != nil {
 				return nil, false, fmt.Errorf("mme: marshal ENB Configuration Update Failure: %w", err)
 			}

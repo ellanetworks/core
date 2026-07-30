@@ -38,20 +38,34 @@ func (t *TimeToWait) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 
 // TS 36.413 §9.1.8.6.
 type S1SetupFailure struct {
-	Cause                  Cause
+	Cause                  *Cause
 	TimeToWait             *TimeToWait
 	CriticalityDiagnostics *CriticalityDiagnostics
 
-	unmodeledIEs
+	messageMeta
 }
 
 var s1SetupFailureIEs = []ieSpec[S1SetupFailure]{
 	{
 		id: idCause, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *S1SetupFailure, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.Cause)
+			var v Cause
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.Cause = &v
+
+			return nil
 		},
-		encode: func(m *S1SetupFailure) (per.Marshaler, bool) { return &m.Cause, true },
+		encode: func(m *S1SetupFailure) (per.Marshaler, bool) {
+			if m.Cause == nil {
+				return nil, false
+			}
+
+			return m.Cause, true
+		},
 	},
 	{
 		id: idTimeToWait, presence: PresenceOptional, crit: CriticalityIgnore,
@@ -98,7 +112,7 @@ var s1SetupFailureIEs = []ieSpec[S1SetupFailure]{
 }
 
 func (m *S1SetupFailure) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, s1SetupFailureIEs, m)
+	return encodeMessageBody(w, enc, ProcS1Setup, s1SetupFailureIEs, m)
 }
 
 func (m *S1SetupFailure) Marshal() ([]byte, error) {
@@ -118,5 +132,5 @@ func (m *S1SetupFailure) Marshal() ([]byte, error) {
 }
 
 func ParseS1SetupFailure(value []byte) (*S1SetupFailure, error) {
-	return parseMessageBody[S1SetupFailure](ProcS1Setup, s1SetupFailureIEs, value)
+	return parseMessageBody[S1SetupFailure](ProcS1Setup, TriggeringUnsuccessfulOutcome, s1SetupFailureIEs, value)
 }

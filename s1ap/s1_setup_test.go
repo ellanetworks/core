@@ -50,8 +50,8 @@ func TestS1SetupRequestGoldenDecode(t *testing.T) {
 		t.Fatalf("ENB-ID = %+v", req.GlobalENBID.ENBID)
 	}
 
-	if derefStr(req.ENBName) != "JLT-621" {
-		t.Fatalf("eNBname = %q", derefStr(req.ENBName))
+	if deref(req.ENBName) != "JLT-621" {
+		t.Fatalf("eNBname = %q", deref(req.ENBName))
 	}
 
 	if len(req.SupportedTAs) != 1 || req.SupportedTAs[0].TAC != 0x3039 {
@@ -63,8 +63,8 @@ func TestS1SetupRequestGoldenDecode(t *testing.T) {
 		t.Fatalf("broadcastPLMNs = %+v", req.SupportedTAs[0].BroadcastPLMNs)
 	}
 
-	if req.DefaultPagingDRX != PagingDRXv32 {
-		t.Fatalf("pagingDRX = %d", req.DefaultPagingDRX)
+	if deref(req.DefaultPagingDRX) != PagingDRXv32 {
+		t.Fatalf("pagingDRX = %d", deref(req.DefaultPagingDRX))
 	}
 }
 
@@ -96,7 +96,7 @@ func TestS1SetupRequestRoundTrip(t *testing.T) {
 		GlobalENBID:      GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 0x0abcd}},
 		ENBName:          Ptr("eNB-1"),
 		SupportedTAs:     SupportedTAs{{TAC: 0x0001, BroadcastPLMNs: BPLMNs{{0x00, 0xf1, 0x10}}}},
-		DefaultPagingDRX: PagingDRXv128,
+		DefaultPagingDRX: Ptr(PagingDRXv128),
 	}
 
 	b, err := in.Marshal()
@@ -114,8 +114,8 @@ func TestS1SetupRequestRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.GlobalENBID != in.GlobalENBID || derefStr(out.ENBName) != derefStr(in.ENBName) ||
-		out.DefaultPagingDRX != in.DefaultPagingDRX ||
+	if out.GlobalENBID != in.GlobalENBID || deref(out.ENBName) != deref(in.ENBName) ||
+		deref(out.DefaultPagingDRX) != deref(in.DefaultPagingDRX) ||
 		len(out.SupportedTAs) != 1 ||
 		out.SupportedTAs[0].TAC != in.SupportedTAs[0].TAC {
 		t.Fatalf("round-trip mismatch:\n  in  %+v\n  out %+v", in, out)
@@ -159,47 +159,70 @@ func TestParseS1SetupRequestMissingMandatoryIE(t *testing.T) {
 		globalENBID bool
 		supportedTA bool
 		pagingDRX   bool
-		wantMissing []ProtocolIEID
+		// wantReject lists the absent reject-criticality IEs; nil means the
+		// message is still delivered.
+		wantReject   []ProtocolIEID
+		wantReported []ProtocolIEID
 	}{
-		{"missing GlobalENBID", false, true, true, []ProtocolIEID{idGlobalENBID}},
-		{"missing SupportedTAs", true, false, true, []ProtocolIEID{idSupportedTAs}},
-		{"missing both reject IEs", false, false, true, []ProtocolIEID{idGlobalENBID, idSupportedTAs}},
-		// Default Paging DRX is mandatory-ignore (§9.1.8.4), and still reported.
-		{"missing only PagingDRX", true, true, false, []ProtocolIEID{idDefaultPagingDRX}},
-		{"missing reject and ignore IEs", false, true, false, []ProtocolIEID{idGlobalENBID, idDefaultPagingDRX}},
+		{"missing GlobalENBID", false, true, true, []ProtocolIEID{idGlobalENBID}, nil},
+		{"missing SupportedTAs", true, false, true, []ProtocolIEID{idSupportedTAs}, nil},
+		{"missing both reject IEs", false, false, true, []ProtocolIEID{idGlobalENBID, idSupportedTAs}, nil},
+		// Default Paging DRX is mandatory-ignore (§9.1.8.4), so its absence is
+		// reported rather than fatal.
+		{"missing only PagingDRX", true, true, false, nil, []ProtocolIEID{idDefaultPagingDRX}},
+		{"missing reject and ignore IEs", false, true, false, []ProtocolIEID{idGlobalENBID}, nil},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			value := encodePartialS1Setup(t, tt.globalENBID, tt.supportedTA, tt.pagingDRX)
 
-			_, err := ParseS1SetupRequest(value)
+			out, err := ParseS1SetupRequest(value)
 
-			if tt.wantMissing == nil {
+			if tt.wantReject == nil {
 				if err != nil {
 					t.Fatalf("parse: unexpected error %v", err)
+				}
+
+				if got := diagnosticIEIDs(out.Diagnostics().IEs); !slices.Equal(got, tt.wantReported) {
+					t.Errorf("diagnostics = %v, want %v", got, tt.wantReported)
 				}
 
 				return
 			}
 
-			var missing *MissingMandatoryIEsError
-			if !errors.As(err, &missing) {
-				t.Fatalf("error = %v, want *MissingMandatoryIEsError", err)
+			var ase *AbstractSyntaxError
+			if !errors.As(err, &ase) {
+				t.Fatalf("error = %v, want *AbstractSyntaxError", err)
 			}
 
-			if missing.Procedure != ProcS1Setup {
-				t.Errorf("procedure = %d, want ProcS1Setup", missing.Procedure)
+			if ase.Procedure != ProcS1Setup {
+				t.Errorf("procedure = %d, want ProcS1Setup", ase.Procedure)
 			}
 
-			gotIDs := make([]ProtocolIEID, len(missing.IEs))
-			for i, ie := range missing.IEs {
-				gotIDs[i] = ie.ID
+			want := Cause{Group: CauseGroupProtocol, Value: CauseProtocolAbstractSyntaxErrorReject}
+			if ase.Cause != want {
+				t.Errorf("cause = %v, want %v", ase.Cause, want)
 			}
 
-			if !slices.Equal(gotIDs, tt.wantMissing) {
-				t.Errorf("missing IEs = %v, want %v", gotIDs, tt.wantMissing)
+			if got := diagnosticIEIDs(ase.IEs); !slices.Equal(got, tt.wantReject) {
+				t.Errorf("rejected IEs = %v, want %v", got, tt.wantReject)
+			}
+
+			for _, ie := range ase.IEs {
+				if ie.TypeOfError != TypeOfErrorMissing {
+					t.Errorf("IE %v type of error = %v, want missing", ie.IEID, ie.TypeOfError)
+				}
 			}
 		})
 	}
+}
+
+func diagnosticIEIDs(items []CriticalityDiagnosticsIEItem) []ProtocolIEID {
+	ids := make([]ProtocolIEID, len(items))
+	for i, ie := range items {
+		ids[i] = ie.IEID
+	}
+
+	return ids
 }

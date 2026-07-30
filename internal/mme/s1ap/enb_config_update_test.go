@@ -95,7 +95,7 @@ func TestENBConfigUpdateRejectedUnknownPLMN(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if failure.Cause != causeUnknownPLMN {
+	if failure.Cause == nil || *failure.Cause != causeUnknownPLMN {
 		t.Fatalf("cause = %+v, want Unknown PLMN %+v", failure.Cause, causeUnknownPLMN)
 	}
 }
@@ -132,7 +132,7 @@ func TestENBConfigUpdateRejectedUnknownTAC(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if failure.Cause != causeNoServedTAC {
+	if failure.Cause == nil || *failure.Cause != causeNoServedTAC {
 		t.Fatalf("cause = %+v, want Misc/unspecified %+v", failure.Cause, causeNoServedTAC)
 	}
 }

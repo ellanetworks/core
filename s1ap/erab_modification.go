@@ -25,7 +25,7 @@ type ERABModificationIndication struct {
 	NotToBeModified         []ERABToBeModifiedItemBearerModInd
 	UserLocationInformation *UserLocationInformation
 
-	unmodeledIEs
+	messageMeta
 }
 
 var eRABModificationIndicationIEs = []ieSpec[ERABModificationIndication]{
@@ -101,7 +101,7 @@ var eRABModificationIndicationIEs = []ieSpec[ERABModificationIndication]{
 }
 
 func (m *ERABModificationIndication) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, eRABModificationIndicationIEs, m)
+	return encodeMessageBody(w, enc, ProcERABModificationIndication, eRABModificationIndicationIEs, m)
 }
 
 func (m *ERABModificationIndication) Marshal() ([]byte, error) {
@@ -121,7 +121,7 @@ func (m *ERABModificationIndication) Marshal() ([]byte, error) {
 }
 
 func ParseERABModificationIndication(value []byte) (*ERABModificationIndication, error) {
-	return parseMessageBody[ERABModificationIndication](ProcERABModificationIndication, eRABModificationIndicationIEs, value)
+	return parseMessageBody[ERABModificationIndication](ProcERABModificationIndication, TriggeringInitiatingMessage, eRABModificationIndicationIEs, value)
 }
 
 // erabModifyItemBearerModConf ::= SEQUENCE { e-RAB-ID, iE-Extensions OPTIONAL }
@@ -138,7 +138,7 @@ type ERABModificationConfirm struct {
 	ENBUES1APID   ENBUES1APID
 	ModifiedERABs []ERABID
 
-	unmodeledIEs
+	messageMeta
 }
 
 func (m *ERABModificationConfirm) encodeBody(w *per.Writer, enc per.Encoding) error {

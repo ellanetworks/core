@@ -96,19 +96,33 @@ func (t *ResetType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 
 // TS 36.413 §9.1.8.1.
 type Reset struct {
-	Cause     Cause
+	Cause     *Cause
 	ResetType ResetType
 
-	unmodeledIEs
+	messageMeta
 }
 
 var resetIEs = []ieSpec[Reset]{
 	{
 		id: idCause, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *Reset, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.Cause)
+			var v Cause
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.Cause = &v
+
+			return nil
 		},
-		encode: func(m *Reset) (per.Marshaler, bool) { return &m.Cause, true },
+		encode: func(m *Reset) (per.Marshaler, bool) {
+			if m.Cause == nil {
+				return nil, false
+			}
+
+			return m.Cause, true
+		},
 	},
 	{
 		id: idResetType, presence: PresenceMandatory, crit: CriticalityReject,
@@ -120,7 +134,7 @@ var resetIEs = []ieSpec[Reset]{
 }
 
 func (m *Reset) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, resetIEs, m)
+	return encodeMessageBody(w, enc, ProcReset, resetIEs, m)
 }
 
 func (m *Reset) Marshal() ([]byte, error) {
@@ -140,7 +154,7 @@ func (m *Reset) Marshal() ([]byte, error) {
 }
 
 func ParseReset(value []byte) (*Reset, error) {
-	return parseMessageBody[Reset](ProcReset, resetIEs, value)
+	return parseMessageBody[Reset](ProcReset, TriggeringInitiatingMessage, resetIEs, value)
 }
 
 // TS 36.413 §9.1.8.2.
@@ -148,7 +162,7 @@ type ResetAcknowledge struct {
 	ConnectionList         []UEAssociatedLogicalS1ConnectionItem
 	CriticalityDiagnostics *CriticalityDiagnostics
 
-	unmodeledIEs
+	messageMeta
 }
 
 // The message has no mandatory IE.
@@ -198,7 +212,7 @@ var resetAcknowledgeIEs = []ieSpec[ResetAcknowledge]{
 }
 
 func (m *ResetAcknowledge) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, resetAcknowledgeIEs, m)
+	return encodeMessageBody(w, enc, ProcReset, resetAcknowledgeIEs, m)
 }
 
 func (m *ResetAcknowledge) Marshal() ([]byte, error) {
@@ -218,5 +232,5 @@ func (m *ResetAcknowledge) Marshal() ([]byte, error) {
 }
 
 func ParseResetAcknowledge(value []byte) (*ResetAcknowledge, error) {
-	return parseMessageBody[ResetAcknowledge](ProcReset, resetAcknowledgeIEs, value)
+	return parseMessageBody[ResetAcknowledge](ProcReset, TriggeringSuccessfulOutcome, resetAcknowledgeIEs, value)
 }

@@ -29,12 +29,18 @@ func handleHandoverCancel(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 	ue.TouchLastSeen()
 
 	// Relay the source's HANDOVER CANCEL Cause to the target when releasing its
-	// prepared resources (TS 36.413 §8.4.5).
-	if releaseConn, releaseMMEID, releaseENBID, pair, has := m.CancelHandover(ue); has {
-		mme.SendUEContextRelease(ctx, m, releaseConn, releaseMMEID, releaseENBID, pair, cancel.Cause)
+	// prepared resources (TS 36.413 §8.4.5). An omitted Cause is an ignore-criticality
+	// absence, so the target is still released, under a generic cause (§10.3.5).
+	releaseCause := causeHandoverPrepUnspecific
+	if cancel.Cause != nil {
+		releaseCause = *cancel.Cause
 	}
 
-	ack := &s1ap.HandoverCancelAcknowledge{MMEUES1APID: cancel.MMEUES1APID, ENBUES1APID: cancel.ENBUES1APID}
+	if releaseConn, releaseMMEID, releaseENBID, pair, has := m.CancelHandover(ue); has {
+		mme.SendUEContextRelease(ctx, m, releaseConn, releaseMMEID, releaseENBID, pair, releaseCause)
+	}
+
+	ack := &s1ap.HandoverCancelAcknowledge{MMEUES1APID: s1ap.Ptr(cancel.MMEUES1APID), ENBUES1APID: s1ap.Ptr(cancel.ENBUES1APID)}
 
 	b, err := ack.Marshal()
 	if err != nil {

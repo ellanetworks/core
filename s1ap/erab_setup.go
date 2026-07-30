@@ -34,7 +34,7 @@ type ERABSetupRequest struct {
 	UEAggregateMaximumBitRate *UEAggregateMaximumBitRate
 	ERABToBeSetup             []ERABToBeSetupItemBearerSUReq
 
-	unmodeledIEs
+	messageMeta
 }
 
 var eRABSetupRequestIEs = []ieSpec[ERABSetupRequest]{
@@ -91,7 +91,7 @@ var eRABSetupRequestIEs = []ieSpec[ERABSetupRequest]{
 }
 
 func (m *ERABSetupRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, eRABSetupRequestIEs, m)
+	return encodeMessageBody(w, enc, ProcERABSetup, eRABSetupRequestIEs, m)
 }
 
 func (m *ERABSetupRequest) Marshal() ([]byte, error) {
@@ -111,35 +111,63 @@ func (m *ERABSetupRequest) Marshal() ([]byte, error) {
 }
 
 func ParseERABSetupRequest(value []byte) (*ERABSetupRequest, error) {
-	return parseMessageBody[ERABSetupRequest](ProcERABSetup, eRABSetupRequestIEs, value)
+	return parseMessageBody[ERABSetupRequest](ProcERABSetup, TriggeringInitiatingMessage, eRABSetupRequestIEs, value)
 }
 
 // TS 36.413 §9.1.3.2.
 type ERABSetupResponse struct {
-	MMEUES1APID             MMEUES1APID
-	ENBUES1APID             ENBUES1APID
+	MMEUES1APID             *MMEUES1APID
+	ENBUES1APID             *ENBUES1APID
 	ERABSetup               []ERABSetupItemBearerSURes
 	ERABFailedToSetup       []ERABItem
 	CriticalityDiagnostics  *CriticalityDiagnostics
 	UserLocationInformation *UserLocationInformation
 
-	unmodeledIEs
+	messageMeta
 }
 
 var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MMEUES1APID)
+			var v MMEUES1APID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.MMEUES1APID = &v
+
+			return nil
 		},
-		encode: func(m *ERABSetupResponse) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+		encode: func(m *ERABSetupResponse) (per.Marshaler, bool) {
+			if m.MMEUES1APID == nil {
+				return nil, false
+			}
+
+			return m.MMEUES1APID, true
+		},
 	},
 	{
 		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ENBUES1APID)
+			var v ENBUES1APID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.ENBUES1APID = &v
+
+			return nil
 		},
-		encode: func(m *ERABSetupResponse) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+		encode: func(m *ERABSetupResponse) (per.Marshaler, bool) {
+			if m.ENBUES1APID == nil {
+				return nil, false
+			}
+
+			return m.ENBUES1APID, true
+		},
 	},
 	{
 		id: idERABSetupListBearerSURes, presence: PresenceOptional, crit: CriticalityIgnore,
@@ -224,7 +252,7 @@ var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 }
 
 func (m *ERABSetupResponse) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, eRABSetupResponseIEs, m)
+	return encodeMessageBody(w, enc, ProcERABSetup, eRABSetupResponseIEs, m)
 }
 
 func (m *ERABSetupResponse) Marshal() ([]byte, error) {
@@ -244,5 +272,5 @@ func (m *ERABSetupResponse) Marshal() ([]byte, error) {
 }
 
 func ParseERABSetupResponse(value []byte) (*ERABSetupResponse, error) {
-	return parseMessageBody[ERABSetupResponse](ProcERABSetup, eRABSetupResponseIEs, value)
+	return parseMessageBody[ERABSetupResponse](ProcERABSetup, TriggeringSuccessfulOutcome, eRABSetupResponseIEs, value)
 }

@@ -22,9 +22,9 @@ func TestHandleLocationReport(t *testing.T) {
 	wire, err := (&s1ap.LocationReport{
 		MMEUES1APID: ue.Conn().MMEUES1APID,
 		ENBUES1APID: 7,
-		EUTRANCGI:   s1ap.EUTRANCGI{PLMNIdentity: plmn, CellID: 0x0abcde1},
-		TAI:         s1ap.TAI{PLMNIdentity: plmn, TAC: 9},
-		RequestType: s1ap.RequestType{EventType: s1ap.EventTypeChangeOfServeCell, ReportArea: s1ap.ReportAreaECGI},
+		EUTRANCGI:   s1ap.Ptr(s1ap.EUTRANCGI{PLMNIdentity: plmn, CellID: 0x0abcde1}),
+		TAI:         s1ap.Ptr(s1ap.TAI{PLMNIdentity: plmn, TAC: 9}),
+		RequestType: s1ap.Ptr(s1ap.RequestType{EventType: s1ap.EventTypeChangeOfServeCell, ReportArea: s1ap.ReportAreaECGI}),
 	}).Marshal()
 	if err != nil {
 		t.Fatal(err)

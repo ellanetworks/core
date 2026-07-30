@@ -70,7 +70,7 @@ func TestS1ResetWholeInterface(t *testing.T) {
 	testPDN(other).Apn = "internet"
 
 	cause := s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}
-	handleReset(m, mme.NewRadioForTest(cc), resetValue(t, &s1ap.Reset{Cause: cause, ResetType: s1ap.ResetType{All: true}}))
+	handleReset(m, mme.NewRadioForTest(cc), resetValue(t, &s1ap.Reset{Cause: s1ap.Ptr(cause), ResetType: s1ap.ResetType{All: true}}))
 
 	for _, ue := range []*mme.UeContext{ue1, ue2} {
 		got, ok := m.LookupUeByIMSI(ue.IMSI())
@@ -117,7 +117,7 @@ func TestS1ResetPartOfInterface(t *testing.T) {
 	cause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}
 
 	handleReset(m, mme.NewRadioForTest(cc), resetValue(t, &s1ap.Reset{
-		Cause: cause,
+		Cause: s1ap.Ptr(cause),
 		ResetType: s1ap.ResetType{Part: []s1ap.UEAssociatedLogicalS1ConnectionItem{
 			{MMEUES1APID: &mmeID, ENBUES1APID: &enbID},
 		}},
@@ -155,7 +155,7 @@ func TestS1ResetDropsMidAttachUE(t *testing.T) {
 	testPDN(ue).Apn = "internet"
 
 	cause := s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}
-	handleReset(m, mme.NewRadioForTest(cc), resetValue(t, &s1ap.Reset{Cause: cause, ResetType: s1ap.ResetType{All: true}}))
+	handleReset(m, mme.NewRadioForTest(cc), resetValue(t, &s1ap.Reset{Cause: s1ap.Ptr(cause), ResetType: s1ap.ResetType{All: true}}))
 
 	if _, ok := m.LookupUeByIMSI(ue.IMSI()); ok {
 		t.Fatal("incomplete-registration UE retained after S1 reset; expected drop")

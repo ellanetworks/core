@@ -51,7 +51,7 @@ type DownlinkUEAssociatedLPPaTransport struct {
 	RoutingID   RoutingID
 	LPPaPDU     LPPaPDU
 
-	unmodeledIEs
+	messageMeta
 }
 
 // The two UE-associated LPPa transport messages carry identical IEs and differ
@@ -101,11 +101,11 @@ var uplinkUEAssociatedLPPaTransportIEs = lppaTransportIEs(
 )
 
 func (m *DownlinkUEAssociatedLPPaTransport) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, downlinkUEAssociatedLPPaTransportIEs, m)
+	return encodeMessageBody(w, enc, ProcDownlinkUEAssociatedLPPaTransport, downlinkUEAssociatedLPPaTransportIEs, m)
 }
 
 func (m *UplinkUEAssociatedLPPaTransport) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, uplinkUEAssociatedLPPaTransportIEs, m)
+	return encodeMessageBody(w, enc, ProcUplinkUEAssociatedLPPaTransport, uplinkUEAssociatedLPPaTransportIEs, m)
 }
 
 func (m *DownlinkUEAssociatedLPPaTransport) Marshal() ([]byte, error) {
@@ -125,7 +125,7 @@ func (m *DownlinkUEAssociatedLPPaTransport) Marshal() ([]byte, error) {
 }
 
 func ParseDownlinkUEAssociatedLPPaTransport(value []byte) (*DownlinkUEAssociatedLPPaTransport, error) {
-	return parseMessageBody[DownlinkUEAssociatedLPPaTransport](ProcDownlinkUEAssociatedLPPaTransport, downlinkUEAssociatedLPPaTransportIEs, value)
+	return parseMessageBody[DownlinkUEAssociatedLPPaTransport](ProcDownlinkUEAssociatedLPPaTransport, TriggeringInitiatingMessage, downlinkUEAssociatedLPPaTransportIEs, value)
 }
 
 // TS 36.413 §9.1.19.2.
@@ -135,7 +135,7 @@ type UplinkUEAssociatedLPPaTransport struct {
 	RoutingID   RoutingID
 	LPPaPDU     LPPaPDU
 
-	unmodeledIEs
+	messageMeta
 }
 
 func (m *UplinkUEAssociatedLPPaTransport) Marshal() ([]byte, error) {
@@ -155,5 +155,5 @@ func (m *UplinkUEAssociatedLPPaTransport) Marshal() ([]byte, error) {
 }
 
 func ParseUplinkUEAssociatedLPPaTransport(value []byte) (*UplinkUEAssociatedLPPaTransport, error) {
-	return parseMessageBody[UplinkUEAssociatedLPPaTransport](ProcUplinkUEAssociatedLPPaTransport, uplinkUEAssociatedLPPaTransportIEs, value)
+	return parseMessageBody[UplinkUEAssociatedLPPaTransport](ProcUplinkUEAssociatedLPPaTransport, TriggeringInitiatingMessage, uplinkUEAssociatedLPPaTransportIEs, value)
 }

@@ -73,7 +73,7 @@ func (c *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause s1ap.Cau
 
 	cmd := &s1ap.UEContextReleaseCommand{
 		UES1APIDs: s1ap.UES1APIDs{MMEUES1APID: c.MMEUES1APID, ENBUES1APID: c.ENBUES1APID, Pair: true},
-		Cause:     cause,
+		Cause:     s1ap.Ptr(cause),
 	}
 
 	b, err := cmd.Marshal()

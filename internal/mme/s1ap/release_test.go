@@ -20,7 +20,7 @@ func TestECMIdleBuffersSession(t *testing.T) {
 	// then the eNB acknowledges with Release Complete.
 	m.ReleaseUEContext(context.Background(), ue, mme.CauseNASNormalRelease)
 
-	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: 7}
+	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID), ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7))}
 	b, _ := complete.Marshal()
 	cpdu, _ := s1ap.Unmarshal(b)
 
@@ -43,8 +43,8 @@ func TestUEContextReleaseCompleteCapturesLocation(t *testing.T) {
 
 	plmn := s1ap.PLMNIdentity{0x00, 0xf1, 0x10}
 	complete := &s1ap.UEContextReleaseComplete{
-		MMEUES1APID: ue.Conn().MMEUES1APID,
-		ENBUES1APID: 7,
+		MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID),
+		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7)),
 		UserLocationInformation: &s1ap.UserLocationInformation{
 			EUTRANCGI: s1ap.EUTRANCGI{PLMNIdentity: plmn, CellID: 0x0abcde1},
 			TAI:       s1ap.TAI{PLMNIdentity: plmn, TAC: 9},
@@ -67,7 +67,7 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 
 	req := &s1ap.UEContextReleaseRequest{
 		MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: 7,
-		Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0},
+		Cause: s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}),
 	}
 
 	b, _ := req.Marshal()
@@ -90,7 +90,7 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 
 	// Completing an eNB-initiated release moves the UE to ECM-IDLE; the EMM
 	// context is retained, not deleted.
-	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: 7}
+	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID), ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7))}
 
 	b, _ = complete.Marshal()
 	cpdu, _ := s1ap.Unmarshal(b)
@@ -133,7 +133,7 @@ func TestUEContextReleaseRequestFromForeignENB(t *testing.T) {
 
 	req := &s1ap.UEContextReleaseRequest{
 		MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID,
-		Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0},
+		Cause: s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}),
 	}
 
 	b, _ := req.Marshal()

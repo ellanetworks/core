@@ -19,7 +19,7 @@ func HandleERABReleaseResponse(m *mme.MME, radio *mme.Radio, value []byte) {
 		return
 	}
 
-	ue, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ok := resolveUEIDs(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}

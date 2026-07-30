@@ -8,7 +8,7 @@ import "testing"
 func TestResetRoundTripsResetAll(t *testing.T) {
 	cause := Cause{Group: CauseGroupMisc, Value: 0}
 
-	in := &Reset{Cause: cause, ResetType: ResetType{All: true}}
+	in := &Reset{Cause: &cause, ResetType: ResetType{All: true}}
 
 	b, err := in.Marshal()
 	if err != nil {
@@ -38,7 +38,7 @@ func TestResetRoundTripsResetAll(t *testing.T) {
 		t.Fatalf("ResetType.Part = %v, want empty", out.ResetType.Part)
 	}
 
-	if out.Cause != cause {
+	if deref(out.Cause) != cause {
 		t.Fatalf("Cause = %+v, want %+v", out.Cause, cause)
 	}
 }
@@ -49,7 +49,7 @@ func TestResetRoundTripsPartOfInterface(t *testing.T) {
 	enb := ENBUES1APID(7)
 
 	in := &Reset{
-		Cause: cause,
+		Cause: &cause,
 		ResetType: ResetType{Part: []UEAssociatedLogicalS1ConnectionItem{
 			{MMEUES1APID: &mme, ENBUES1APID: &enb},
 			{ENBUES1APID: &enb},

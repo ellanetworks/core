@@ -49,9 +49,9 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 
 	req, outBytes, accepted, reason, err := s1SetupOutcomeFor(value, plmn, tacs, mmeGroupID, mmeCode, m.Name, m.RelativeCapacity)
 	if err != nil {
-		var missing *s1ap.MissingMandatoryIEsError
-		if errors.As(err, &missing) {
-			sendS1SetupFailureMissingIEs(m, ctx, conn, missing.IEs)
+		var ase *s1ap.AbstractSyntaxError
+		if errors.As(err, &ase) {
+			sendS1SetupFailure(m, ctx, conn, ase)
 			return
 		}
 
@@ -88,45 +88,28 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 	logger.From(ctx, m.RadioLog(conn)).Info("S1 Setup Response sent", zap.String("enb-name", enbName(req.ENBName)))
 }
 
-// buildS1SetupFailureMissingIEs names the omitted IEs in Criticality
-// Diagnostics (TS 36.413 §10.3.5).
-func buildS1SetupFailureMissingIEs(ies []s1ap.MissingIE) ([]byte, error) {
-	proc := s1ap.ProcS1Setup
-	trigger := s1ap.TriggeringInitiatingMessage
-	crit := s1ap.CriticalityReject
-
-	// Each item reports the criticality TS 36.413 §9.2.1.21 assigns that IE.
-	items := make([]s1ap.CriticalityDiagnosticsIEItem, 0, len(ies))
-	for _, ie := range ies {
-		items = append(items, s1ap.CriticalityDiagnosticsIEItem{
-			IECriticality: ie.Criticality,
-			IEID:          ie.ID,
-			TypeOfError:   s1ap.TypeOfErrorMissing,
-		})
-	}
+// buildS1SetupFailure carries the cause and per-IE diagnostics the rejection
+// must report (TS 36.413 §10.3.5).
+func buildS1SetupFailure(ase *s1ap.AbstractSyntaxError) ([]byte, error) {
+	diag := ase.Diagnostics()
 
 	fail := &s1ap.S1SetupFailure{
-		Cause: s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolAbstractSyntaxErrorReject},
-		CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{
-			ProcedureCode:             &proc,
-			TriggeringMessage:         &trigger,
-			ProcedureCriticality:      &crit,
-			IEsCriticalityDiagnostics: items,
-		},
+		Cause:                  &ase.Cause,
+		CriticalityDiagnostics: &diag,
 	}
 
 	return fail.Marshal()
 }
 
-func sendS1SetupFailureMissingIEs(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, ies []s1ap.MissingIE) {
-	out, err := buildS1SetupFailureMissingIEs(ies)
+func sendS1SetupFailure(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, ase *s1ap.AbstractSyntaxError) {
+	out, err := buildS1SetupFailure(ase)
 	if err != nil {
 		logger.From(ctx, m.RadioLog(conn)).Error("failed to marshal S1 Setup Failure", zap.Error(err))
 		return
 	}
 
 	m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupFailure, out)
-	logger.From(ctx, m.RadioLog(conn)).Warn("S1 Setup rejected: missing mandatory IE(s)")
+	logger.From(ctx, m.RadioLog(conn)).Warn("S1 Setup rejected", zap.Error(ase))
 }
 
 // s1SetupOutcomeFor returns an S1 Setup Response when the eNB broadcasts a served
@@ -144,7 +127,7 @@ func s1SetupOutcomeFor(reqValue []byte, plmn models.PlmnID, tacs []uint16, mmeGr
 	}
 
 	if cause, ok := servedTAICause(req.SupportedTAs, served, tacs); !ok {
-		out, err = (&s1ap.S1SetupFailure{Cause: cause}).Marshal()
+		out, err = (&s1ap.S1SetupFailure{Cause: s1ap.Ptr(cause)}).Marshal()
 		if err != nil {
 			return req, nil, false, "", fmt.Errorf("mme: marshal S1 Setup Failure: %w", err)
 		}
@@ -235,7 +218,7 @@ func buildS1SetupResponse(plmn models.PlmnID, mmeGroupID uint16, mmeCode uint8, 
 	return &s1ap.S1SetupResponse{
 		MMEName:             new(mmeName),
 		ServedGUMMEIs:       gummeis,
-		RelativeMMECapacity: relativeCapacity,
+		RelativeMMECapacity: new(relativeCapacity),
 	}, nil
 }
 

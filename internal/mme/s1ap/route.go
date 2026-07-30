@@ -65,7 +65,7 @@ func Route(m *mme.MME, ctx context.Context, radio *mme.Radio, pdu any) {
 		case s1ap.ProcERABSetup:
 			HandleERABSetupResponse(m, ctx, radio, p.Value)
 		case s1ap.ProcERABModify:
-			handleERABModifyResponse(m, p.Value)
+			handleERABModifyResponse(m, radio, p.Value)
 		case s1ap.ProcERABRelease:
 			HandleERABReleaseResponse(m, radio, p.Value)
 		case s1ap.ProcHandoverResourceAllocation:

@@ -131,7 +131,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 	}
 
 	resp := &s1ap.ERABSetupResponse{
-		MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID,
+		MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID), ENBUES1APID: s1ap.Ptr(ue.Conn().ENBUES1APID),
 		ERABSetup: []s1ap.ERABSetupItemBearerSURes{{
 			ERABID: 6, TransportLayerAddress: s1ap.TransportLayerAddress(tla), GTPTEID: 0x1234,
 		}},
@@ -185,7 +185,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 	}
 
 	relResp := &s1ap.ERABReleaseResponse{
-		MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID,
+		MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID), ENBUES1APID: s1ap.Ptr(ue.Conn().ENBUES1APID),
 		ERABReleased: []s1ap.ERABReleaseItemBearerRelComp{{ERABID: 6}},
 	}
 

@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
@@ -61,6 +62,24 @@ func resolveUE(m *mme.MME, conn mme.S1APWriter, mmeID s1ap.MMEUES1APID, enbID s1
 	return ue, true
 }
 
+// causeMissingUES1APID answers a UE-associated message that omitted a UE S1AP
+// ID: without it the MME cannot address a UE context, so the procedure is
+// rejected rather than continued (TS 36.413 §10.3.5).
+var causeMissingUES1APID = s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolAbstractSyntaxErrorReject}
+
+// resolveUEIDs is resolveUE for a message whose UE S1AP IDs carry ignore
+// criticality and may therefore be absent.
+func resolveUEIDs(m *mme.MME, conn mme.S1APWriter, mmeID *s1ap.MMEUES1APID, enbID *s1ap.ENBUES1APID) (*mme.UeContext, bool) {
+	if mmeID == nil || enbID == nil {
+		logger.MmeLog.Warn("UE-associated S1AP message without both UE S1AP IDs")
+		sendErrorIndication(m, conn, mmeID, enbID, causeMissingUES1APID)
+
+		return nil, false
+	}
+
+	return resolveUE(m, conn, *mmeID, *enbID)
+}
+
 // sendErrorIndication replies to the sending eNB with an ERROR INDICATION
 // carrying the UE S1AP ID pair and a cause (TS 36.413).
 func sendErrorIndication(m *mme.MME, conn mme.S1APWriter, mmeID *s1ap.MMEUES1APID, enbID *s1ap.ENBUES1APID, cause s1ap.Cause) {
@@ -68,25 +87,43 @@ func sendErrorIndication(m *mme.MME, conn mme.S1APWriter, mmeID *s1ap.MMEUES1API
 	emitErrorIndication(m, conn, &s1ap.ErrorIndication{MMEUES1APID: mmeID, ENBUES1APID: enbID, Cause: &c})
 }
 
-// handleParseError reports a failed decode of an eNB-initiated initiating message
-// with an ERROR INDICATION carrying Cause "transfer-syntax-error" and Criticality
-// Diagnostics naming the procedure (TS 36.413 §10.4). It must not be used in reply
-// to an ERROR INDICATION, to avoid a loop.
+// handleParseError reports a failed decode of an eNB-initiated initiating
+// message with an ERROR INDICATION. It must not be used in reply to an ERROR
+// INDICATION, to avoid a loop.
+//
+// An abstract syntax error carries the cause and the per-IE diagnostics the
+// rejection must report (TS 36.413 §10.3.5); where the message is UE
+// associated, the UE S1AP IDs that did decode address it (§8.7.2.2).
 func handleParseError(m *mme.MME, conn mme.S1APWriter, proc s1ap.ProcedureCode, err error) {
 	logger.MmeLog.Warn("failed to decode S1AP message",
 		zap.Int("procedure-code", int(proc)),
 		zap.Error(err))
 
-	crit := s1ap.CriticalityReject
 	trigger := s1ap.TriggeringInitiatingMessage
+	crit := s1ap.CriticalityReject
+
+	var ase *s1ap.AbstractSyntaxError
+	if !errors.As(err, &ase) {
+		emitErrorIndication(m, conn, &s1ap.ErrorIndication{
+			Cause: &s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolTransferSyntaxError},
+			CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{
+				ProcedureCode:        &proc,
+				TriggeringMessage:    &trigger,
+				ProcedureCriticality: &crit,
+			},
+		})
+
+		return
+	}
+
+	diag := ase.Diagnostics()
+	mmeID, enbID := ase.UEIDs()
 
 	emitErrorIndication(m, conn, &s1ap.ErrorIndication{
-		Cause: &s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolTransferSyntaxError},
-		CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{
-			ProcedureCode:        &proc,
-			TriggeringMessage:    &trigger,
-			ProcedureCriticality: &crit,
-		},
+		MMEUES1APID:            mmeID,
+		ENBUES1APID:            enbID,
+		Cause:                  &ase.Cause,
+		CriticalityDiagnostics: &diag,
 	})
 }
 

@@ -42,29 +42,32 @@ type RawIE struct {
 	Value       []byte
 }
 
-// unmodeledIEs is embedded in every message struct; UnknownIEs is its
-// read-only view.
-type unmodeledIEs struct {
-	unknownIEs []rawIE
+// messageMeta is embedded in every message struct. It carries what the typed
+// fields cannot: IEs this version does not model, and the abstract syntax
+// errors that did not stop delivery.
+type messageMeta struct {
+	unknownIEs  []rawIE
+	diagnostics Diagnostics
 }
 
-// UnhandledCriticalIEs returns, in wire order, the ids of unmodeled IEs that
-// arrived marked reject. TS 36.413 §10.3.4.2 requires rejecting the procedure
-// over one, which needs procedure state the codec does not have.
-func (u unmodeledIEs) UnhandledCriticalIEs() []ProtocolIEID {
-	var out []ProtocolIEID
+// preserve keeps an unmodeled IE so it survives a re-encode, up to a bound: a
+// peer chooses both the count and the size of what we would retain.
+func (u *messageMeta) preserve(f rawIE) {
+	if len(u.unknownIEs) >= maxPreservedIEs {
+		u.diagnostics.Truncated = true
 
-	for _, e := range u.unknownIEs {
-		if e.crit == CriticalityReject {
-			out = append(out, e.id)
-		}
+		return
 	}
 
-	return out
+	u.unknownIEs = append(u.unknownIEs, f)
 }
 
+// Diagnostics returns the abstract syntax errors found while decoding that
+// TS 36.413 §10.3.4.2 and §10.3.5 let the receiver carry on past.
+func (u messageMeta) Diagnostics() Diagnostics { return u.diagnostics }
+
 // UnknownIEs returns, in wire order, the IEs this message type does not model.
-func (u unmodeledIEs) UnknownIEs() []RawIE {
+func (u messageMeta) UnknownIEs() []RawIE {
 	if len(u.unknownIEs) == 0 {
 		return nil
 	}

@@ -1,0 +1,192 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+package s1ap
+
+import (
+	"errors"
+	"testing"
+
+	"github.com/ellanetworks/core/per"
+)
+
+// container encodes an IE container body as a peer would send it, without the
+// ordering and presence rules the encoder normally enforces.
+func container(t *testing.T, fields ...ieField) []byte {
+	t.Helper()
+
+	w := per.NewWriter()
+	w.WriteBit(false)
+
+	if err := encodeIEContainer(w, per.Aligned, fields); err != nil {
+		t.Fatalf("encode container: %v", err)
+	}
+
+	return perBytes(w)
+}
+
+func uplinkNASFields() []ieField {
+	return []ieField{
+		{id: idMMEUES1APID, crit: CriticalityReject, val: Ptr(MMEUES1APID(7))},
+		{id: idENBUES1APID, crit: CriticalityReject, val: Ptr(ENBUES1APID(9))},
+		{id: idNASPDU, crit: CriticalityReject, val: Ptr(NASPDU{0x01})},
+		{id: idEUTRANCGI, crit: CriticalityIgnore, val: Ptr(EUTRANCGI{PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39}})},
+		{id: idTAI, crit: CriticalityIgnore, val: Ptr(TAI{PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39}, TAC: TAC(1)})},
+	}
+}
+
+// TS 36.413 §10.3.6: an IE carried twice is a falsely constructed message.
+func TestDuplicateIERejected(t *testing.T) {
+	fields := uplinkNASFields()
+	value := container(t, append(fields, fields[3])...)
+
+	_, err := ParseUplinkNASTransport(value)
+
+	var ase *AbstractSyntaxError
+	if !errors.As(err, &ase) {
+		t.Fatalf("error = %v, want *AbstractSyntaxError", err)
+	}
+
+	if ase.Cause.Value != CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage {
+		t.Errorf("cause = %s, want falsely-constructed-message", ase.Cause)
+	}
+}
+
+// TS 36.413 §10.3.6: IEs outside the order §9.1 defines are equally a falsely
+// constructed message.
+func TestIEsOutOfOrderRejected(t *testing.T) {
+	fields := uplinkNASFields()
+	fields[0], fields[1] = fields[1], fields[0]
+
+	_, err := ParseUplinkNASTransport(container(t, fields...))
+
+	var ase *AbstractSyntaxError
+	if !errors.As(err, &ase) {
+		t.Fatalf("error = %v, want *AbstractSyntaxError", err)
+	}
+
+	if ase.Cause.Value != CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage {
+		t.Errorf("cause = %s, want falsely-constructed-message", ase.Cause)
+	}
+}
+
+// An unmodeled IE does not count towards the order §10.3.6 checks, since only
+// IEs the receiver's version defines are considered.
+func TestUnknownIEDoesNotBreakOrdering(t *testing.T) {
+	fields := uplinkNASFields()
+	unknown := ieField{id: ProtocolIEID(60000), crit: CriticalityIgnore, raw: []byte{0x01, 0x02}}
+	fields = append([]ieField{fields[0], fields[1], unknown}, fields[2:]...)
+
+	msg, err := ParseUplinkNASTransport(container(t, fields...))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if got := msg.UnknownIEs(); len(got) != 1 || got[0].ID != 60000 {
+		t.Errorf("unknown IEs = %v, want the id 60000 IE preserved", got)
+	}
+}
+
+// TS 36.413 §10.3.5: an absent ignore-criticality IE is reported, and the
+// message is still delivered with the field left absent.
+func TestAbsentIgnoreIEIsDelivered(t *testing.T) {
+	fields := uplinkNASFields()
+
+	msg, err := ParseUplinkNASTransport(container(t, fields[:4]...))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if msg.TAI != nil {
+		t.Errorf("TAI = %v, want nil", msg.TAI)
+	}
+
+	diag := msg.Diagnostics()
+	if len(diag.IEs) != 1 || diag.IEs[0].IEID != idTAI || diag.IEs[0].TypeOfError != TypeOfErrorMissing {
+		t.Fatalf("diagnostics = %+v, want TAI reported missing", diag.IEs)
+	}
+
+	if diag.ReportRequired() {
+		t.Error("ReportRequired() = true, want false for ignore criticality")
+	}
+}
+
+// TS 36.413 §10.3.5: an absent reject-criticality IE stops delivery, and the
+// IEs that did arrive stay reachable so the rejection can be addressed.
+func TestAbsentRejectIEStopsDelivery(t *testing.T) {
+	fields := uplinkNASFields()
+
+	_, err := ParseUplinkNASTransport(container(t, fields[0], fields[3], fields[4]))
+
+	var ase *AbstractSyntaxError
+	if !errors.As(err, &ase) {
+		t.Fatalf("error = %v, want *AbstractSyntaxError", err)
+	}
+
+	if ase.Cause.Value != CauseProtocolAbstractSyntaxErrorReject {
+		t.Errorf("cause = %s, want abstract-syntax-error-reject", ase.Cause)
+	}
+
+	mmeID, enbID := ase.UEIDs()
+	if mmeID == nil || *mmeID != 7 {
+		t.Errorf("MME-UE-S1AP-ID = %v, want 7", mmeID)
+	}
+
+	if enbID != nil {
+		t.Errorf("eNB-UE-S1AP-ID = %v, want nil", enbID)
+	}
+
+	want := map[ProtocolIEID]bool{idENBUES1APID: true, idNASPDU: true}
+	for _, ie := range ase.IEs {
+		if !want[ie.IEID] || ie.TypeOfError != TypeOfErrorMissing {
+			t.Errorf("unexpected diagnostic %+v", ie)
+		}
+	}
+
+	if len(ase.IEs) != len(want) {
+		t.Errorf("diagnostics = %+v, want %d entries", ase.IEs, len(want))
+	}
+}
+
+// TS 36.413 §10.3.3: the sender is bound even where §10.3.5 lets a receiver
+// carry on, so encoding an unset required IE fails.
+func TestEncodeRejectsUnsetRequiredIE(t *testing.T) {
+	msg := &UplinkNASTransport{
+		MMEUES1APID: 7,
+		ENBUES1APID: 9,
+		NASPDU:      NASPDU{0x01},
+		EUTRANCGI:   Ptr(EUTRANCGI{PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39}}),
+	}
+
+	if _, err := msg.Marshal(); err == nil {
+		t.Fatal("Marshal() = nil error, want a required-IE error for the absent TAI")
+	}
+}
+
+// Recording is bounded, since a peer chooses how many IEs to send.
+func TestDiagnosticsAreBounded(t *testing.T) {
+	fields := uplinkNASFields()
+	for i := range maxDiagnosticIEs + 10 {
+		fields = append(fields, ieField{
+			id: ProtocolIEID(40000 + i), crit: CriticalityIgnore, raw: []byte{0x00},
+		})
+	}
+
+	msg, err := ParseUplinkNASTransport(container(t, fields...))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	diag := msg.Diagnostics()
+	if len(diag.IEs) > maxDiagnosticIEs {
+		t.Errorf("recorded %d diagnostics, want at most %d", len(diag.IEs), maxDiagnosticIEs)
+	}
+
+	if !diag.Truncated {
+		t.Error("Truncated = false, want true")
+	}
+
+	if got := len(msg.UnknownIEs()); got > maxPreservedIEs {
+		t.Errorf("preserved %d unknown IEs, want at most %d", got, maxPreservedIEs)
+	}
+}

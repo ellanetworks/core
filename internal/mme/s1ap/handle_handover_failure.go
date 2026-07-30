@@ -22,23 +22,36 @@ func handleHandoverFailure(m *mme.MME, ctx context.Context, radio *mme.Radio, va
 		return
 	}
 
-	ue, ok := m.LookupUe(fail.MMEUES1APID)
+	if fail.MMEUES1APID == nil {
+		logger.From(ctx, logger.MmeLog).Warn("Handover Failure without an MME-UE-S1AP-ID")
+		sendErrorIndication(m, radio.Conn, nil, nil, causeMissingUES1APID)
+
+		return
+	}
+
+	ue, ok := m.LookupUe(*fail.MMEUES1APID)
 	if !ok {
 		return
 	}
 
 	ue.TouchLastSeen()
 
-	if !m.HandoverTargetMatches(ue, fail.MMEUES1APID, radio.Conn) {
+	if !m.HandoverTargetMatches(ue, *fail.MMEUES1APID, radio.Conn) {
 		return
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("Handover Failure",
-		zap.Uint32("target-mme-ue-id", uint32(fail.MMEUES1APID)),
-		zap.Any("cause", fail.Cause))
-
 	// Relay the target's cause in the HANDOVER PREPARATION FAILURE to the source; the
 	// spec asks for "an appropriate cause value" (TS 36.413 §8.4.1.3), and the target's
-	// reason is the most informative.
-	m.FailHandoverToSource(ctx, ue, fail.Cause)
+	// reason is the most informative. An omitted Cause still fails the preparation, so
+	// the source is not left waiting (§10.3.5).
+	cause := causeHandoverPrepUnspecific
+	if fail.Cause != nil {
+		cause = *fail.Cause
+	}
+
+	logger.From(ctx, logger.MmeLog).Info("Handover Failure",
+		zap.Uint32("target-mme-ue-id", uint32(*fail.MMEUES1APID)),
+		zap.String("cause", mme.S1apCauseName(&cause)))
+
+	m.FailHandoverToSource(ctx, ue, cause)
 }

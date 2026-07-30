@@ -658,8 +658,8 @@ func frameENBUEID(f Frame) int64 {
 			return int64(m.ENBUES1APID)
 		}
 	case f.Category == Successful && f.ProcedureCode == s1ap.ProcPathSwitchRequest:
-		if m, err := s1ap.ParsePathSwitchRequestAcknowledge(f.Value); err == nil {
-			return int64(m.ENBUES1APID)
+		if m, err := s1ap.ParsePathSwitchRequestAcknowledge(f.Value); err == nil && m.ENBUES1APID != nil {
+			return int64(*m.ENBUES1APID)
 		}
 	case f.Category == Initiating && f.ProcedureCode == s1ap.ProcMMEStatusTransfer:
 		if m, err := s1ap.ParseMMEStatusTransfer(f.Value); err == nil {
@@ -670,12 +670,12 @@ func frameENBUEID(f Frame) int64 {
 			return int64(m.ENBUES1APID)
 		}
 	case f.Category == Unsuccessful && f.ProcedureCode == s1ap.ProcHandoverPreparation:
-		if m, err := s1ap.ParseHandoverPreparationFailure(f.Value); err == nil {
-			return int64(m.ENBUES1APID)
+		if m, err := s1ap.ParseHandoverPreparationFailure(f.Value); err == nil && m.ENBUES1APID != nil {
+			return int64(*m.ENBUES1APID)
 		}
 	case f.Category == Successful && f.ProcedureCode == s1ap.ProcHandoverCancel:
-		if m, err := s1ap.ParseHandoverCancelAcknowledge(f.Value); err == nil {
-			return int64(m.ENBUES1APID)
+		if m, err := s1ap.ParseHandoverCancelAcknowledge(f.Value); err == nil && m.ENBUES1APID != nil {
+			return int64(*m.ENBUES1APID)
 		}
 	}
 

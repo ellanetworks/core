@@ -9,6 +9,14 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
+// Recording bounds for attacker-controlled input. A peer may fill a container
+// with up to maxProtocolIEs entries; accumulating a diagnostic and retaining
+// the octets of each would let it choose our allocation.
+const (
+	maxDiagnosticIEs = 64
+	maxPreservedIEs  = 32
+)
+
 // ieSpec is one row of a message's TS 36.413 §9.1 IE table. Encode and decode
 // both read it, so the two directions cannot disagree on an IE's criticality
 // or presence.
@@ -17,24 +25,51 @@ type ieSpec[M any] struct {
 	presence Presence
 	crit     Criticality
 
+	// condition reports whether a conditional IE must be present in m. It is
+	// set if and only if presence is PresenceConditional.
+	condition func(m *M) bool
+
 	decode func(m *M, raw []byte, enc per.Encoding) error
-	// encode reports false when the row's optional field is unset.
+	// encode reports false when the row's field is unset.
 	encode func(m *M) (per.Marshaler, bool)
 }
 
-func (u *unmodeledIEs) unmodeled() *unmodeledIEs { return u }
+// required reports whether TS 36.413 §10.3.3 obliges the sender to include the
+// IE in this message.
+func (s ieSpec[M]) required(m *M) bool {
+	switch s.presence {
+	case PresenceMandatory:
+		return true
+	case PresenceConditional:
+		return s.condition != nil && s.condition(m)
+	case PresenceOptional:
+		return false
+	default:
+		return false
+	}
+}
+
+// deliverable reports whether a receiver still processes the message when the
+// IE is absent (TS 36.413 §10.3.5). Only reject criticality stops delivery,
+// which is what lets a required reject IE be a value type.
+func (s ieSpec[M]) deliverable() bool { return s.crit != CriticalityReject }
+
+func (u *messageMeta) meta() *messageMeta { return u }
 
 // message is satisfied by a pointer to any message struct.
 type message interface {
-	unmodeled() *unmodeledIEs
+	meta() *messageMeta
 }
 
 // encodeMessageBody writes the SEQUENCE extension bit, then every present IE
 // in table order, then any IE preserved verbatim from a previous decode.
+//
+// A required IE that is unset is an error: TS 36.413 §10.3.3 binds the sender
+// even where §10.3.5 lets a receiver carry on without it.
 func encodeMessageBody[M any, PM interface {
 	*M
 	message
-}](w *per.Writer, enc per.Encoding, table []ieSpec[M], m PM,
+}](w *per.Writer, enc per.Encoding, procedure ProcedureCode, table []ieSpec[M], m PM,
 ) error {
 	w.WriteBit(false)
 
@@ -43,87 +78,168 @@ func encodeMessageBody[M any, PM interface {
 	for _, spec := range table {
 		val, ok := spec.encode((*M)(m))
 		if !ok {
+			if spec.required((*M)(m)) {
+				return fmt.Errorf("s1ap: %s: required IE %s is not set", procedure, spec.id)
+			}
+
 			continue
 		}
 
 		fields = append(fields, ieField{id: spec.id, crit: spec.crit, val: val})
 	}
 
-	for _, e := range m.unmodeled().unknownIEs {
+	for _, e := range m.meta().unknownIEs {
 		fields = append(fields, e.field())
 	}
 
 	return encodeIEContainer(w, enc, fields)
 }
 
-// parseMessageBody decodes an IE container against its table. IEs the table
-// does not name are preserved verbatim rather than dropped.
+// parseMessageBody decodes an IE container against its table, applying the
+// abstract syntax error handling of TS 36.413 §10.3.4.2, §10.3.5 and §10.3.6.
+//
+// It returns no message when the procedure must be rejected. Otherwise every
+// value-typed field of the result holds what the peer sent, and anything the
+// receiver may carry on without is reported through Diagnostics.
 func parseMessageBody[M any, PM interface {
 	*M
 	message
-}](procedure ProcedureCode, table []ieSpec[M], value []byte,
+}](procedure ProcedureCode, trigger TriggeringMessage, table []ieSpec[M], value []byte,
 ) (PM, error) {
 	r := per.NewReader(value)
 	enc := per.Aligned
 
 	extPresent, err := r.ReadBit()
 	if err != nil {
-		return nil, fmt.Errorf("s1ap: %s preamble: %w", procedure, err)
+		return nil, &TransferSyntaxError{Procedure: procedure, Err: fmt.Errorf("preamble: %w", err)}
 	}
 
 	fields, err := decodeIEContainer(r, enc)
 	if err != nil {
-		return nil, err
+		return nil, &TransferSyntaxError{Procedure: procedure, Err: err}
 	}
 
 	if extPresent {
 		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
-			return nil, err
+			return nil, &TransferSyntaxError{Procedure: procedure, Err: err}
+		}
+	}
+
+	reject := func(cause int, ies []CriticalityDiagnosticsIEItem) error {
+		return &AbstractSyntaxError{
+			Procedure: procedure,
+			Trigger:   trigger,
+			Cause:     Cause{Group: CauseGroupProtocol, Value: cause},
+			IEs:       ies,
+			Decoded:   rawIEs(fields),
 		}
 	}
 
 	m := PM(new(M))
+	meta := m.meta()
 	seen := make(map[ProtocolIEID]bool, len(table))
+	lastIdx := -1
 
 	for _, f := range fields {
-		spec, ok := lookupIESpec(table, f.id)
+		idx, spec, ok := lookupIESpec(table, f.id)
 		if !ok {
-			u := m.unmodeled()
-			u.unknownIEs = append(u.unknownIEs, f)
+			// §10.3.4.2: a not-comprehended IE marked reject stops the
+			// procedure; the rest are reported and carried past.
+			if f.crit == CriticalityReject {
+				return nil, reject(CauseProtocolAbstractSyntaxErrorReject,
+					[]CriticalityDiagnosticsIEItem{{
+						IECriticality: f.crit,
+						IEID:          f.id,
+						TypeOfError:   TypeOfErrorNotUnderstood,
+					}})
+			}
+
+			meta.diagnostics.record(f.id, f.crit, TypeOfErrorNotUnderstood)
+			meta.preserve(f)
 
 			continue
 		}
 
+		// §10.3.6: too many occurrences, or out of the order §9.1 defines.
+		// Only IEs this version knows are considered, so the unknown ids
+		// handled above do not advance the cursor.
+		if idx <= lastIdx {
+			return nil, reject(CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage, nil)
+		}
+
+		lastIdx = idx
+
 		if err := spec.decode((*M)(m), f.value, enc); err != nil {
-			return nil, fmt.Errorf("s1ap: %s %s: %w", procedure, f.id, err)
+			return nil, &TransferSyntaxError{
+				Procedure: procedure,
+				Err:       fmt.Errorf("IE %s: %w", f.id, err),
+			}
 		}
 
 		seen[f.id] = true
 	}
 
-	checks := make([]ieCheck, 0, len(table))
+	// §10.3.5: absence is judged per IE, by the criticality §9.1 assigns it
+	// in this message.
+	var missingReject []CriticalityDiagnosticsIEItem
 
-	for _, spec := range table {
-		if spec.presence == PresenceMandatory {
-			checks = append(checks, ieCheck{spec.id, spec.crit, seen[spec.id]})
+	for i := range table {
+		spec := table[i]
+		required := spec.required((*M)(m))
+
+		if seen[spec.id] {
+			// §10.3.6: a conditional IE carried when its condition is false.
+			if spec.presence == PresenceConditional && !required {
+				return nil, reject(CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage, nil)
+			}
+
+			continue
 		}
+
+		if !required {
+			continue
+		}
+
+		if spec.deliverable() {
+			meta.diagnostics.record(spec.id, spec.crit, TypeOfErrorMissing)
+
+			continue
+		}
+
+		missingReject = append(missingReject, CriticalityDiagnosticsIEItem{
+			IECriticality: spec.crit,
+			IEID:          spec.id,
+			TypeOfError:   TypeOfErrorMissing,
+		})
 	}
 
-	if err := requireIEs(procedure, checks...); err != nil {
-		return nil, err
+	if len(missingReject) > 0 {
+		return nil, reject(CauseProtocolAbstractSyntaxErrorReject, missingReject)
 	}
 
 	return m, nil
 }
 
-// Tables run to a handful of rows, so a linear scan beats building a map per
-// parse.
-func lookupIESpec[M any](table []ieSpec[M], id ProtocolIEID) (ieSpec[M], bool) {
-	for _, spec := range table {
-		if spec.id == id {
-			return spec, true
+func lookupIESpec[M any](table []ieSpec[M], id ProtocolIEID) (int, ieSpec[M], bool) {
+	for i := range table {
+		if table[i].id == id {
+			return i, table[i], true
 		}
 	}
 
-	return ieSpec[M]{}, false
+	return -1, ieSpec[M]{}, false
+}
+
+func rawIEs(fields []rawIE) []RawIE {
+	n := min(len(fields), maxPreservedIEs)
+	if n == 0 {
+		return nil
+	}
+
+	out := make([]RawIE, 0, n)
+	for _, f := range fields[:n] {
+		out = append(out, RawIE{ID: f.id, Criticality: f.crit, Value: f.value})
+	}
+
+	return out
 }

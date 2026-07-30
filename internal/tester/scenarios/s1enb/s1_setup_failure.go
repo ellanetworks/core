@@ -58,6 +58,10 @@ func runS1ENBSetupFailureUnknownPLMN(_ context.Context, env scenarios.Env, _ any
 		return fmt.Errorf("await S1 Setup Failure: %w", err)
 	}
 
+	if fail.Cause == nil {
+		return fmt.Errorf("S1 Setup Failure carried no cause")
+	}
+
 	// TS 36.413: Cause Misc "unknown-PLMN" is the sixth Misc root value.
 	if fail.Cause.Group != s1ap.CauseGroupMisc || fail.Cause.Value != 5 {
 		return fmt.Errorf("expected cause Misc unknown-PLMN, got group %d value %d", fail.Cause.Group, fail.Cause.Value)

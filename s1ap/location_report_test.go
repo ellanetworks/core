@@ -14,9 +14,9 @@ func TestLocationReportRoundTrip(t *testing.T) {
 	in := &LocationReport{
 		MMEUES1APID: 4242,
 		ENBUES1APID: 7,
-		EUTRANCGI:   EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x0abcde1},
-		TAI:         TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 7},
-		RequestType: RequestType{EventType: EventTypeChangeOfServeCell, ReportArea: ReportAreaECGI},
+		EUTRANCGI:   Ptr(EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x0abcde1}),
+		TAI:         Ptr(TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 7}),
+		RequestType: Ptr(RequestType{EventType: EventTypeChangeOfServeCell, ReportArea: ReportAreaECGI}),
 	}
 
 	wire, err := in.Marshal()
@@ -43,11 +43,11 @@ func TestLocationReportRoundTrip(t *testing.T) {
 		t.Fatalf("ids: mme=%d enb=%d", out.MMEUES1APID, out.ENBUES1APID)
 	}
 
-	if out.EUTRANCGI != in.EUTRANCGI || out.TAI != in.TAI {
+	if deref(out.EUTRANCGI) != deref(in.EUTRANCGI) || deref(out.TAI) != deref(in.TAI) {
 		t.Fatalf("location: cgi=%+v tai=%+v", out.EUTRANCGI, out.TAI)
 	}
 
-	if out.RequestType != in.RequestType {
+	if deref(out.RequestType) != deref(in.RequestType) {
 		t.Fatalf("request type = %+v, want %+v", out.RequestType, in.RequestType)
 	}
 }
@@ -74,36 +74,45 @@ func TestLocationReportMissingMandatoryIE(t *testing.T) {
 			{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(1)},
 		})
 
-		var missing *MissingMandatoryIEsError
-		if _, err := ParseLocationReport(value); !errors.As(err, &missing) {
-			t.Fatalf("error = %v, want *MissingMandatoryIEsError", err)
+		out, err := ParseLocationReport(value)
+		if err != nil {
+			t.Fatalf("parse: %v", err)
 		}
 
-		if got := missing.RejectedIEs(); len(got) != 0 {
-			t.Fatalf("rejected IEs = %v, want none", got)
+		if out.EUTRANCGI != nil || out.TAI != nil || out.RequestType != nil {
+			t.Fatalf("absent IEs decoded as present: %+v", out)
 		}
 
-		if len(missing.IEs) != 3 {
-			t.Fatalf("missing IEs = %v, want 3 entries", missing.IEs)
+		got := out.Diagnostics().IEs
+		if len(got) != 3 {
+			t.Fatalf("diagnostics = %v, want 3 entries", got)
+		}
+
+		for i, want := range []ProtocolIEID{idEUTRANCGI, idTAI, idRequestType} {
+			if got[i].IEID != want || got[i].IECriticality != CriticalityIgnore ||
+				got[i].TypeOfError != TypeOfErrorMissing {
+				t.Errorf("diagnostic %d = %+v, want %v missing/ignore", i, got[i], want)
+			}
 		}
 	})
 
-	t.Run("missing reject-criticality IE is listed among all absences", func(t *testing.T) {
+	t.Run("missing reject-criticality IE rejects the procedure", func(t *testing.T) {
 		value := encode(t, []ieField{
 			{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
 		})
 
-		var missing *MissingMandatoryIEsError
-		if _, err := ParseLocationReport(value); !errors.As(err, &missing) {
-			t.Fatalf("error = %v, want *MissingMandatoryIEsError", err)
+		var ase *AbstractSyntaxError
+		if _, err := ParseLocationReport(value); !errors.As(err, &ase) {
+			t.Fatalf("error = %v, want *AbstractSyntaxError", err)
 		}
 
-		if got := missing.RejectedIEs(); len(got) != 1 || got[0].ID != idENBUES1APID {
-			t.Fatalf("rejected IEs = %v, want [eNB-UE-S1AP-ID]", got)
+		if len(ase.IEs) != 1 || ase.IEs[0].IEID != idENBUES1APID || ase.IEs[0].TypeOfError != TypeOfErrorMissing {
+			t.Fatalf("diagnostics = %v, want [eNB-UE-S1AP-ID missing]", ase.IEs)
 		}
-		// The ignore-criticality absences ride along for diagnostics.
-		if len(missing.IEs) != 4 {
-			t.Fatalf("missing IEs = %v, want 4 entries", missing.IEs)
+
+		mmeID, enbID := ase.UEIDs()
+		if mmeID == nil || *mmeID != 1 || enbID != nil {
+			t.Fatalf("UEIDs() = %v, %v, want 1, nil", mmeID, enbID)
 		}
 	})
 }

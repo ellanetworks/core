@@ -426,7 +426,7 @@ func (m *MME) ReleaseDetachedConn(conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enb
 }
 
 func SendHandoverPreparationFailure(ctx context.Context, m *MME, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, cause s1ap.Cause) {
-	fail := &s1ap.HandoverPreparationFailure{MMEUES1APID: mmeUEID, ENBUES1APID: enbUEID, Cause: cause}
+	fail := &s1ap.HandoverPreparationFailure{MMEUES1APID: s1ap.Ptr(mmeUEID), ENBUES1APID: s1ap.Ptr(enbUEID), Cause: s1ap.Ptr(cause)}
 
 	b, err := fail.Marshal()
 	if err != nil {
@@ -444,7 +444,7 @@ func SendHandoverPreparationFailure(ctx context.Context, m *MME, conn S1APWriter
 func SendUEContextRelease(ctx context.Context, m *MME, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, pair bool, cause s1ap.Cause) {
 	cmd := &s1ap.UEContextReleaseCommand{
 		UES1APIDs: s1ap.UES1APIDs{MMEUES1APID: mmeUEID, ENBUES1APID: enbUEID, Pair: pair},
-		Cause:     cause,
+		Cause:     s1ap.Ptr(cause),
 	}
 
 	b, err := cmd.Marshal()

@@ -30,16 +30,16 @@ const (
 
 // TS 36.413 §9.1.6.
 type Paging struct {
-	UEIdentityIndexValue uint16
-	STMSI                STMSI // UE Paging Identity (s-TMSI alternative)
-	CNDomain             CNDomain
+	UEIdentityIndexValue *uint16
+	STMSI                *STMSI
+	CNDomain             *CNDomain
 	TAIList              []TAI
 	// UERadioCapabilityForPaging is the eNB-reported paging-specific capability
 	// (TS 36.413 §9.1.6.1, optional-ignore); when set, the eNB may use it to apply
 	// specific paging schemes. Empty means the IE is omitted.
 	UERadioCapabilityForPaging []byte
 
-	unmodeledIEs
+	messageMeta
 }
 
 // taiItem ::= SEQUENCE { tAI TAI, iE-Extensions OPTIONAL, ... }.
@@ -49,7 +49,6 @@ type taiItem struct {
 	_   ieExtensions `per:",skip"`
 }
 
-// carries is ignore-criticality, mandatory ones included.
 var pagingIEs = []ieSpec[Paging]{
 	{
 		id: idUEIdentityIndexValue, presence: PresenceMandatory, crit: CriticalityIgnore,
@@ -59,15 +58,22 @@ var pagingIEs = []ieSpec[Paging]{
 				return err
 			}
 
-			if nbits == 10 && len(b) >= 2 {
-				m.UEIdentityIndexValue = uint16(b[0])<<2 | uint16(b[1])>>6
+			if nbits != 10 || len(b) < 2 {
+				return fmt.Errorf("s1ap: UE identity index value is %d bits", nbits)
 			}
+
+			v := uint16(b[0])<<2 | uint16(b[1])>>6
+			m.UEIdentityIndexValue = &v
 
 			return nil
 		},
 		encode: func(m *Paging) (per.Marshaler, bool) {
+			if m.UEIdentityIndexValue == nil {
+				return nil, false
+			}
+
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				b := []byte{byte(m.UEIdentityIndexValue >> 2), byte(m.UEIdentityIndexValue << 6)}
+				b := []byte{byte(*m.UEIdentityIndexValue >> 2), byte(*m.UEIdentityIndexValue << 6)}
 
 				return per.EncodeBitString(w, enc, 10, 10, true, true, false, b, 10)
 			}), true
@@ -96,9 +102,20 @@ var pagingIEs = []ieSpec[Paging]{
 				return fmt.Errorf("s1ap: unsupported UE paging identity choice %d", index)
 			}
 
-			return m.STMSI.UnmarshalPER(sub, enc)
+			var v STMSI
+			if err := v.UnmarshalPER(sub, enc); err != nil {
+				return err
+			}
+
+			m.STMSI = &v
+
+			return nil
 		},
 		encode: func(m *Paging) (per.Marshaler, bool) {
+			if m.STMSI == nil {
+				return nil, false
+			}
+
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
 				w.WriteBit(false)
 
@@ -114,13 +131,22 @@ var pagingIEs = []ieSpec[Paging]{
 		id: idCNDomain, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
 			index, err := per.DecodeEnumerated(per.NewReader(raw), enc, cnDomainRootCount, false)
-			m.CNDomain = CNDomain(index)
+			if err != nil {
+				return err
+			}
 
-			return err
+			v := CNDomain(index)
+			m.CNDomain = &v
+
+			return nil
 		},
 		encode: func(m *Paging) (per.Marshaler, bool) {
+			if m.CNDomain == nil {
+				return nil, false
+			}
+
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return per.EncodeEnumerated(w, enc, cnDomainRootCount, false, int64(m.CNDomain))
+				return per.EncodeEnumerated(w, enc, cnDomainRootCount, false, int64(*m.CNDomain))
 			}), true
 		},
 	},
@@ -140,6 +166,10 @@ var pagingIEs = []ieSpec[Paging]{
 			return nil
 		},
 		encode: func(m *Paging) (per.Marshaler, bool) {
+			if len(m.TAIList) == 0 {
+				return nil, false
+			}
+
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
 				items := make([]taiItem, len(m.TAIList))
 				for i, tai := range m.TAIList {
@@ -174,7 +204,7 @@ var pagingIEs = []ieSpec[Paging]{
 }
 
 func (m *Paging) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, pagingIEs, m)
+	return encodeMessageBody(w, enc, ProcPaging, pagingIEs, m)
 }
 
 func (m *Paging) Marshal() ([]byte, error) {
@@ -194,5 +224,5 @@ func (m *Paging) Marshal() ([]byte, error) {
 }
 
 func ParsePaging(value []byte) (*Paging, error) {
-	return parseMessageBody[Paging](ProcPaging, pagingIEs, value)
+	return parseMessageBody[Paging](ProcPaging, TriggeringInitiatingMessage, pagingIEs, value)
 }

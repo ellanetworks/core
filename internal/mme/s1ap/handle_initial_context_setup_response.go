@@ -43,10 +43,12 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *m
 		return
 	}
 
-	ue, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ok := resolveUEIDs(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
+
+	mmeUEID := *msg.MMEUES1APID
 
 	ue.TouchLastSeen()
 
@@ -54,14 +56,14 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *m
 	for _, erab := range msg.ERABFailedToSetup {
 		if p := m.LookupPDN(ue, uint8(erab.ERABID)); p != nil {
 			logger.From(ctx, logger.MmeLog).Warn("eNB failed to set up an E-RAB in Initial Context Setup; releasing the PDN connection",
-				zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
+				zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
 			m.ReleasePDN(ctx, ue, p)
 		}
 	}
 
 	if len(msg.ERABSetup) == 0 {
 		logger.From(ctx, logger.MmeLog).Warn("Initial Context Setup Response without an E-RAB",
-			zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)))
+			zap.Uint32("mme-ue-id", uint32(mmeUEID)))
 
 		return
 	}
@@ -74,7 +76,7 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *m
 		enbAddr, ok := enbTransportAddress(erab.TransportLayerAddress)
 		if !ok {
 			logger.From(ctx, logger.MmeLog).Warn("Initial Context Setup Response with an invalid eNB transport address",
-				zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)), zap.Int("erab-id", int(erab.ERABID)))
+				zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.Int("erab-id", int(erab.ERABID)))
 
 			continue
 		}
@@ -82,7 +84,7 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *m
 		p := m.LookupPDN(ue, uint8(erab.ERABID))
 		if p == nil {
 			logger.From(ctx, logger.MmeLog).Warn("Initial Context Setup Response for an unknown E-RAB",
-				zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)), zap.Int("erab-id", int(erab.ERABID)))
+				zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.Int("erab-id", int(erab.ERABID)))
 
 			continue
 		}
@@ -99,7 +101,7 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *m
 		setup++
 
 		logger.From(ctx, logger.MmeLog).Info("Initial Context Setup Response",
-			zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)),
+			zap.Uint32("mme-ue-id", uint32(mmeUEID)),
 			zap.Int("erab-id", int(erab.ERABID)),
 			zap.String("enb-s1u", p.EnbFTEID.Addr.String()),
 		)

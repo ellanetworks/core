@@ -25,7 +25,7 @@ type ENBStatusTransfer struct {
 	ENBUES1APID ENBUES1APID
 	Container   StatusTransferContainer
 
-	unmodeledIEs
+	messageMeta
 }
 
 var eNBStatusTransferIEs = []ieSpec[ENBStatusTransfer]{
@@ -54,7 +54,7 @@ var eNBStatusTransferIEs = []ieSpec[ENBStatusTransfer]{
 }
 
 func (m *ENBStatusTransfer) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, eNBStatusTransferIEs, m)
+	return encodeMessageBody(w, enc, ProcENBStatusTransfer, eNBStatusTransferIEs, m)
 }
 
 func (m *ENBStatusTransfer) Marshal() ([]byte, error) {
@@ -74,7 +74,7 @@ func (m *ENBStatusTransfer) Marshal() ([]byte, error) {
 }
 
 func ParseENBStatusTransfer(value []byte) (*ENBStatusTransfer, error) {
-	return parseMessageBody[ENBStatusTransfer](ProcENBStatusTransfer, eNBStatusTransferIEs, value)
+	return parseMessageBody[ENBStatusTransfer](ProcENBStatusTransfer, TriggeringInitiatingMessage, eNBStatusTransferIEs, value)
 }
 
 // TS 36.413 §9.1.5.14.
@@ -83,7 +83,7 @@ type MMEStatusTransfer struct {
 	ENBUES1APID ENBUES1APID
 	Container   StatusTransferContainer
 
-	unmodeledIEs
+	messageMeta
 }
 
 var mMEStatusTransferIEs = []ieSpec[MMEStatusTransfer]{
@@ -112,7 +112,7 @@ var mMEStatusTransferIEs = []ieSpec[MMEStatusTransfer]{
 }
 
 func (m *MMEStatusTransfer) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, mMEStatusTransferIEs, m)
+	return encodeMessageBody(w, enc, ProcMMEStatusTransfer, mMEStatusTransferIEs, m)
 }
 
 func (m *MMEStatusTransfer) Marshal() ([]byte, error) {
@@ -132,5 +132,5 @@ func (m *MMEStatusTransfer) Marshal() ([]byte, error) {
 }
 
 func ParseMMEStatusTransfer(value []byte) (*MMEStatusTransfer, error) {
-	return parseMessageBody[MMEStatusTransfer](ProcMMEStatusTransfer, mMEStatusTransferIEs, value)
+	return parseMessageBody[MMEStatusTransfer](ProcMMEStatusTransfer, TriggeringInitiatingMessage, mMEStatusTransferIEs, value)
 }

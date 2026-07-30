@@ -12,9 +12,9 @@ type NASNonDeliveryIndication struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
 	NASPDU      NASPDU
-	Cause       Cause
+	Cause       *Cause
 
-	unmodeledIEs
+	messageMeta
 }
 
 func (m *NASNonDeliveryIndication) Marshal() ([]byte, error) {
@@ -53,21 +53,41 @@ var nASNonDeliveryIndicationIEs = []ieSpec[NASNonDeliveryIndication]{
 		decode: func(m *NASNonDeliveryIndication, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.NASPDU)
 		},
-		encode: func(m *NASNonDeliveryIndication) (per.Marshaler, bool) { return &m.NASPDU, true },
+		encode: func(m *NASNonDeliveryIndication) (per.Marshaler, bool) {
+			if m.NASPDU == nil {
+				return nil, false
+			}
+
+			return &m.NASPDU, true
+		},
 	},
 	{
 		id: idCause, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *NASNonDeliveryIndication, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.Cause)
+			var v Cause
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.Cause = &v
+
+			return nil
 		},
-		encode: func(m *NASNonDeliveryIndication) (per.Marshaler, bool) { return &m.Cause, true },
+		encode: func(m *NASNonDeliveryIndication) (per.Marshaler, bool) {
+			if m.Cause == nil {
+				return nil, false
+			}
+
+			return m.Cause, true
+		},
 	},
 }
 
 func (m *NASNonDeliveryIndication) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, nASNonDeliveryIndicationIEs, m)
+	return encodeMessageBody(w, enc, ProcNASNonDeliveryIndication, nASNonDeliveryIndicationIEs, m)
 }
 
 func ParseNASNonDeliveryIndication(value []byte) (*NASNonDeliveryIndication, error) {
-	return parseMessageBody[NASNonDeliveryIndication](ProcNASNonDeliveryIndication, nASNonDeliveryIndicationIEs, value)
+	return parseMessageBody[NASNonDeliveryIndication](ProcNASNonDeliveryIndication, TriggeringInitiatingMessage, nASNonDeliveryIndicationIEs, value)
 }

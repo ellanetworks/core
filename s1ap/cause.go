@@ -51,6 +51,10 @@ const (
 	CauseProtocolTransferSyntaxError                = 0 // transfer-syntax-error
 	CauseProtocolAbstractSyntaxErrorReject          = 1 // abstract-syntax-error-reject
 	CauseProtocolAbstractSyntaxErrorIgnoreAndNotify = 2 // abstract-syntax-error-ignore-and-notify
+	CauseProtocolSemanticError                      = 4 // semantic-error
+
+	// abstract-syntax-error-falsely-constructed-message
+	CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage = 5
 
 	CauseMiscUnspecified = 4 // unspecified
 	CauseMiscUnknownPLMN = 5 // unknown-PLMN

@@ -33,11 +33,11 @@ type PathSwitchRequest struct {
 	ENBUES1APID            ENBUES1APID
 	ERABToBeSwitchedDL     []ERABToBeSwitchedDLItem
 	SourceMMEUES1APID      MMEUES1APID
-	EUTRANCGI              EUTRANCGI
-	TAI                    TAI
-	UESecurityCapabilities UESecurityCapabilities
+	EUTRANCGI              *EUTRANCGI
+	TAI                    *TAI
+	UESecurityCapabilities *UESecurityCapabilities
 
-	unmodeledIEs
+	messageMeta
 }
 
 var pathSwitchRequestIEs = []ieSpec[PathSwitchRequest]{
@@ -73,28 +73,70 @@ var pathSwitchRequestIEs = []ieSpec[PathSwitchRequest]{
 	{
 		id: idEUTRANCGI, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.EUTRANCGI)
+			var v EUTRANCGI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.EUTRANCGI = &v
+
+			return nil
 		},
-		encode: func(m *PathSwitchRequest) (per.Marshaler, bool) { return &m.EUTRANCGI, true },
+		encode: func(m *PathSwitchRequest) (per.Marshaler, bool) {
+			if m.EUTRANCGI == nil {
+				return nil, false
+			}
+
+			return m.EUTRANCGI, true
+		},
 	},
 	{
 		id: idTAI, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.TAI)
+			var v TAI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.TAI = &v
+
+			return nil
 		},
-		encode: func(m *PathSwitchRequest) (per.Marshaler, bool) { return &m.TAI, true },
+		encode: func(m *PathSwitchRequest) (per.Marshaler, bool) {
+			if m.TAI == nil {
+				return nil, false
+			}
+
+			return m.TAI, true
+		},
 	},
 	{
 		id: idUESecurityCapabilities, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.UESecurityCapabilities)
+			var v UESecurityCapabilities
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.UESecurityCapabilities = &v
+
+			return nil
 		},
-		encode: func(m *PathSwitchRequest) (per.Marshaler, bool) { return &m.UESecurityCapabilities, true },
+		encode: func(m *PathSwitchRequest) (per.Marshaler, bool) {
+			if m.UESecurityCapabilities == nil {
+				return nil, false
+			}
+
+			return m.UESecurityCapabilities, true
+		},
 	},
 }
 
 func (m *PathSwitchRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, pathSwitchRequestIEs, m)
+	return encodeMessageBody(w, enc, ProcPathSwitchRequest, pathSwitchRequestIEs, m)
 }
 
 func (m *PathSwitchRequest) Marshal() ([]byte, error) {
@@ -114,13 +156,13 @@ func (m *PathSwitchRequest) Marshal() ([]byte, error) {
 }
 
 func ParsePathSwitchRequest(value []byte) (*PathSwitchRequest, error) {
-	return parseMessageBody[PathSwitchRequest](ProcPathSwitchRequest, pathSwitchRequestIEs, value)
+	return parseMessageBody[PathSwitchRequest](ProcPathSwitchRequest, TriggeringInitiatingMessage, pathSwitchRequestIEs, value)
 }
 
 // TS 36.413 §9.1.5.9.
 type PathSwitchRequestAcknowledge struct {
-	MMEUES1APID               MMEUES1APID
-	ENBUES1APID               ENBUES1APID
+	MMEUES1APID               *MMEUES1APID
+	ENBUES1APID               *ENBUES1APID
 	UEAggregateMaximumBitRate *UEAggregateMaximumBitRate
 	SecurityContext           SecurityContext
 	UESecurityCapabilities    *UESecurityCapabilities
@@ -129,23 +171,51 @@ type PathSwitchRequestAcknowledge struct {
 	// switch.
 	ERABToBeReleased []ERABItem
 
-	unmodeledIEs
+	messageMeta
 }
 
 var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MMEUES1APID)
+			var v MMEUES1APID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.MMEUES1APID = &v
+
+			return nil
 		},
-		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) {
+			if m.MMEUES1APID == nil {
+				return nil, false
+			}
+
+			return m.MMEUES1APID, true
+		},
 	},
 	{
 		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ENBUES1APID)
+			var v ENBUES1APID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.ENBUES1APID = &v
+
+			return nil
 		},
-		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) {
+			if m.ENBUES1APID == nil {
+				return nil, false
+			}
+
+			return m.ENBUES1APID, true
+		},
 	},
 	{
 		id: idUEAggregateMaximumBitrate, presence: PresenceOptional, crit: CriticalityIgnore,
@@ -218,7 +288,7 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 }
 
 func (m *PathSwitchRequestAcknowledge) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, pathSwitchRequestAcknowledgeIEs, m)
+	return encodeMessageBody(w, enc, ProcPathSwitchRequest, pathSwitchRequestAcknowledgeIEs, m)
 }
 
 func (m *PathSwitchRequestAcknowledge) Marshal() ([]byte, error) {
@@ -238,44 +308,86 @@ func (m *PathSwitchRequestAcknowledge) Marshal() ([]byte, error) {
 }
 
 func ParsePathSwitchRequestAcknowledge(value []byte) (*PathSwitchRequestAcknowledge, error) {
-	return parseMessageBody[PathSwitchRequestAcknowledge](ProcPathSwitchRequest, pathSwitchRequestAcknowledgeIEs, value)
+	return parseMessageBody[PathSwitchRequestAcknowledge](ProcPathSwitchRequest, TriggeringSuccessfulOutcome, pathSwitchRequestAcknowledgeIEs, value)
 }
 
 // TS 36.413 §9.1.5.10.
 type PathSwitchRequestFailure struct {
-	MMEUES1APID MMEUES1APID
-	ENBUES1APID ENBUES1APID
-	Cause       Cause
+	MMEUES1APID *MMEUES1APID
+	ENBUES1APID *ENBUES1APID
+	Cause       *Cause
 
-	unmodeledIEs
+	messageMeta
 }
 
 var pathSwitchRequestFailureIEs = []ieSpec[PathSwitchRequestFailure]{
 	{
 		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequestFailure, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MMEUES1APID)
+			var v MMEUES1APID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.MMEUES1APID = &v
+
+			return nil
 		},
-		encode: func(m *PathSwitchRequestFailure) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+		encode: func(m *PathSwitchRequestFailure) (per.Marshaler, bool) {
+			if m.MMEUES1APID == nil {
+				return nil, false
+			}
+
+			return m.MMEUES1APID, true
+		},
 	},
 	{
 		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequestFailure, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ENBUES1APID)
+			var v ENBUES1APID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.ENBUES1APID = &v
+
+			return nil
 		},
-		encode: func(m *PathSwitchRequestFailure) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+		encode: func(m *PathSwitchRequestFailure) (per.Marshaler, bool) {
+			if m.ENBUES1APID == nil {
+				return nil, false
+			}
+
+			return m.ENBUES1APID, true
+		},
 	},
 	{
 		id: idCause, presence: PresenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequestFailure, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.Cause)
+			var v Cause
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.Cause = &v
+
+			return nil
 		},
-		encode: func(m *PathSwitchRequestFailure) (per.Marshaler, bool) { return &m.Cause, true },
+		encode: func(m *PathSwitchRequestFailure) (per.Marshaler, bool) {
+			if m.Cause == nil {
+				return nil, false
+			}
+
+			return m.Cause, true
+		},
 	},
 }
 
 func (m *PathSwitchRequestFailure) encodeBody(w *per.Writer, enc per.Encoding) error {
-	return encodeMessageBody(w, enc, pathSwitchRequestFailureIEs, m)
+	return encodeMessageBody(w, enc, ProcPathSwitchRequest, pathSwitchRequestFailureIEs, m)
 }
 
 func (m *PathSwitchRequestFailure) Marshal() ([]byte, error) {
@@ -295,5 +407,5 @@ func (m *PathSwitchRequestFailure) Marshal() ([]byte, error) {
 }
 
 func ParsePathSwitchRequestFailure(value []byte) (*PathSwitchRequestFailure, error) {
-	return parseMessageBody[PathSwitchRequestFailure](ProcPathSwitchRequest, pathSwitchRequestFailureIEs, value)
+	return parseMessageBody[PathSwitchRequestFailure](ProcPathSwitchRequest, TriggeringUnsuccessfulOutcome, pathSwitchRequestFailureIEs, value)
 }

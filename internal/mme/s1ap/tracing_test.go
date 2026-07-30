@@ -20,8 +20,8 @@ func TestDispatchRecordsReceiveSpan(t *testing.T) {
 		ENBUES1APID:           1,
 		NASPDU:                s1ap.NASPDU{0x07, 0x41},
 		TAI:                   s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
-		EUTRANCGI:             s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1},
-		RRCEstablishmentCause: s1ap.RRCCauseMOSignalling,
+		EUTRANCGI:             s1ap.Ptr(s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1}),
+		RRCEstablishmentCause: s1ap.Ptr(s1ap.RRCCauseMOSignalling),
 	}).Marshal()
 	if err != nil {
 		t.Fatal(err)
