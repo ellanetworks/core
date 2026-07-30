@@ -4,8 +4,6 @@
 package s1ap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
 )
 
@@ -41,28 +39,62 @@ type ERABSetupRequest struct {
 	unmodeledIEs
 }
 
+// eRABSetupRequestIEs is the ERABSetupRequest IE table (TS 36.413).
+var eRABSetupRequestIEs = []ieSpec[ERABSetupRequest]{
+	{
+		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *ERABSetupRequest, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.MMEUES1APID)
+		},
+		encode: func(m *ERABSetupRequest) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+	},
+	{
+		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *ERABSetupRequest, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *ERABSetupRequest) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idUEAggregateMaximumBitrate, presence: PresenceOptional, crit: CriticalityReject,
+		decode: func(m *ERABSetupRequest, raw []byte, enc per.Encoding) error {
+			var (
+				err  error
+				ambr UEAggregateMaximumBitRate
+			)
+
+			err = perIEDecode(raw, &ambr)
+			m.UEAggregateMaximumBitRate = &ambr
+
+			return err
+		},
+		encode: func(m *ERABSetupRequest) (per.Marshaler, bool) {
+			if m.UEAggregateMaximumBitRate == nil {
+				return nil, false
+			}
+
+			return m.UEAggregateMaximumBitRate, true
+		},
+	},
+	{
+		id: idERABToBeSetupListBearerSUReq, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *ERABSetupRequest, raw []byte, enc per.Encoding) error {
+			var err error
+
+			m.ERABToBeSetup, err = decodeItemList[ERABToBeSetupItemBearerSUReq](per.NewReader(raw), enc, maxnoofERABs)
+
+			return err
+		},
+		encode: func(m *ERABSetupRequest) (per.Marshaler, bool) {
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABToBeSetupItemBearerSUReq, CriticalityReject, m.ERABToBeSetup)
+			}), true
+		},
+	},
+}
+
 func (m *ERABSetupRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
-		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
-	}
-
-	if m.UEAggregateMaximumBitRate != nil {
-		ambr := *m.UEAggregateMaximumBitRate
-		fields = append(fields, ieField{id: idUEAggregateMaximumBitrate, crit: CriticalityReject, val: &ambr})
-	}
-
-	fields = append(fields, ieField{id: idERABToBeSetupListBearerSUReq, crit: CriticalityReject, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-		return encodeSingleContainerList(w, enc, maxnoofERABs, idERABToBeSetupItemBearerSUReq, CriticalityReject, m.ERABToBeSetup)
-	})})
-
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, enc, fields)
+	return encodeMessageBody(w, enc, eRABSetupRequestIEs, m)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
@@ -85,63 +117,7 @@ func (m *ERABSetupRequest) Marshal() ([]byte, error) {
 // ParseERABSetupRequest decodes the message from an initiatingMessage open-type
 // payload.
 func ParseERABSetupRequest(value []byte) (*ERABSetupRequest, error) {
-	r := per.NewReader(value)
-	enc := per.Aligned
-
-	extPresent, err := r.ReadBit()
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: ERABSetupRequest preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r, enc)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &ERABSetupRequest{}
-
-	var seenMME, seenENB, seenERAB bool
-
-	for _, f := range fields {
-		switch f.id {
-		case idMMEUES1APID:
-			err = perIEDecode(f.value, &m.MMEUES1APID)
-			seenMME = true
-		case idENBUES1APID:
-			err = perIEDecode(f.value, &m.ENBUES1APID)
-			seenENB = true
-		case idUEAggregateMaximumBitrate:
-			var ambr UEAggregateMaximumBitRate
-
-			err = perIEDecode(f.value, &ambr)
-			m.UEAggregateMaximumBitRate = &ambr
-		case idERABToBeSetupListBearerSUReq:
-			m.ERABToBeSetup, err = decodeItemList[ERABToBeSetupItemBearerSUReq](per.NewReader(f.value), enc, maxnoofERABs)
-			seenERAB = true
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: ERABSetupRequest IE %d: %w", f.id, err)
-		}
-	}
-
-	if err := requireIEs(ProcERABSetup,
-		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
-		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
-		ieCheck{idERABToBeSetupListBearerSUReq, CriticalityReject, seenERAB},
-	); err != nil {
-		return nil, err
-	}
-
-	return m, nil
+	return parseMessageBody[ERABSetupRequest](ProcERABSetup, eRABSetupRequestIEs, value)
 }
 
 // ERABSetupResponse is the E-RAB SETUP RESPONSE message (TS 36.413),
@@ -158,41 +134,106 @@ type ERABSetupResponse struct {
 	unmodeledIEs
 }
 
+// eRABSetupResponseIEs is the ERABSetupResponse IE table (TS 36.413).
+var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
+	{
+		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.MMEUES1APID)
+		},
+		encode: func(m *ERABSetupResponse) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+	},
+	{
+		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *ERABSetupResponse) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idERABSetupListBearerSURes, presence: PresenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
+			var err error
+
+			m.ERABSetup, err = decodeItemList[ERABSetupItemBearerSURes](per.NewReader(raw), enc, maxnoofERABs)
+
+			return err
+		},
+		encode: func(m *ERABSetupResponse) (per.Marshaler, bool) {
+			if len(m.ERABSetup) == 0 {
+				return nil, false
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABSetupItemBearerSURes, CriticalityIgnore, m.ERABSetup)
+			}), true
+		},
+	},
+	{
+		id: idERABFailedToSetupListBearerSURes, presence: PresenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
+			var err error
+
+			m.ERABFailedToSetup, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs)
+
+			return err
+		},
+		encode: func(m *ERABSetupResponse) (per.Marshaler, bool) {
+			if len(m.ERABFailedToSetup) == 0 {
+				return nil, false
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABFailedToSetup)
+			}), true
+		},
+	},
+	{
+		id: idCriticalityDiagnostics, presence: PresenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				cd  CriticalityDiagnostics
+			)
+
+			err = perIEDecode(raw, &cd)
+			m.CriticalityDiagnostics = &cd
+
+			return err
+		},
+		encode: func(m *ERABSetupResponse) (per.Marshaler, bool) {
+			if m.CriticalityDiagnostics == nil {
+				return nil, false
+			}
+
+			return m.CriticalityDiagnostics, true
+		},
+	},
+	{
+		id: idUserLocationInformation, presence: PresenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				uli UserLocationInformation
+			)
+
+			err = perIEDecode(raw, &uli)
+			m.UserLocationInformation = &uli
+
+			return err
+		},
+		encode: func(m *ERABSetupResponse) (per.Marshaler, bool) {
+			if m.UserLocationInformation == nil {
+				return nil, false
+			}
+
+			return m.UserLocationInformation, true
+		},
+	},
+}
+
 func (m *ERABSetupResponse) encodeBody(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityIgnore, val: &m.MMEUES1APID},
-		{id: idENBUES1APID, crit: CriticalityIgnore, val: &m.ENBUES1APID},
-	}
-
-	if len(m.ERABSetup) > 0 {
-		fields = append(fields, ieField{id: idERABSetupListBearerSURes, crit: CriticalityIgnore, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-			return encodeSingleContainerList(w, enc, maxnoofERABs, idERABSetupItemBearerSURes, CriticalityIgnore, m.ERABSetup)
-		})})
-	}
-
-	if len(m.ERABFailedToSetup) > 0 {
-		fields = append(fields, ieField{id: idERABFailedToSetupListBearerSURes, crit: CriticalityIgnore, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-			return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABFailedToSetup)
-		})})
-	}
-
-	if m.CriticalityDiagnostics != nil {
-		d := *m.CriticalityDiagnostics
-		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, val: &d})
-	}
-
-	if m.UserLocationInformation != nil {
-		u := *m.UserLocationInformation
-		fields = append(fields, ieField{id: idUserLocationInformation, crit: CriticalityIgnore, val: &u})
-	}
-
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, enc, fields)
+	return encodeMessageBody(w, enc, eRABSetupResponseIEs, m)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
@@ -215,66 +256,5 @@ func (m *ERABSetupResponse) Marshal() ([]byte, error) {
 // ParseERABSetupResponse decodes the message from a successfulOutcome open-type
 // payload.
 func ParseERABSetupResponse(value []byte) (*ERABSetupResponse, error) {
-	r := per.NewReader(value)
-	enc := per.Aligned
-
-	extPresent, err := r.ReadBit()
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: ERABSetupResponse preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r, enc)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &ERABSetupResponse{}
-
-	var seenMME, seenENB bool
-
-	for _, f := range fields {
-		switch f.id {
-		case idMMEUES1APID:
-			err = perIEDecode(f.value, &m.MMEUES1APID)
-			seenMME = true
-		case idENBUES1APID:
-			err = perIEDecode(f.value, &m.ENBUES1APID)
-			seenENB = true
-		case idERABSetupListBearerSURes:
-			m.ERABSetup, err = decodeItemList[ERABSetupItemBearerSURes](per.NewReader(f.value), enc, maxnoofERABs)
-		case idERABFailedToSetupListBearerSURes:
-			m.ERABFailedToSetup, err = decodeItemList[ERABItem](per.NewReader(f.value), enc, maxnoofERABs)
-		case idCriticalityDiagnostics:
-			var cd CriticalityDiagnostics
-
-			err = perIEDecode(f.value, &cd)
-			m.CriticalityDiagnostics = &cd
-		case idUserLocationInformation:
-			var uli UserLocationInformation
-
-			err = perIEDecode(f.value, &uli)
-			m.UserLocationInformation = &uli
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: ERABSetupResponse IE %d: %w", f.id, err)
-		}
-	}
-
-	if err := requireIEs(ProcERABSetup,
-		ieCheck{idMMEUES1APID, CriticalityIgnore, seenMME},
-		ieCheck{idENBUES1APID, CriticalityIgnore, seenENB},
-	); err != nil {
-		return nil, err
-	}
-
-	return m, nil
+	return parseMessageBody[ERABSetupResponse](ProcERABSetup, eRABSetupResponseIEs, value)
 }

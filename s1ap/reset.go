@@ -104,19 +104,26 @@ type Reset struct {
 	unmodeledIEs
 }
 
+// resetIEs is the Reset IE table (TS 36.413).
+var resetIEs = []ieSpec[Reset]{
+	{
+		id: idCause, presence: PresenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *Reset, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.Cause)
+		},
+		encode: func(m *Reset) (per.Marshaler, bool) { return &m.Cause, true },
+	},
+	{
+		id: idResetType, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *Reset, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ResetType)
+		},
+		encode: func(m *Reset) (per.Marshaler, bool) { return &m.ResetType, true },
+	},
+}
+
 func (m *Reset) encodeBody(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	fields := []ieField{
-		{id: idCause, crit: CriticalityIgnore, val: &m.Cause},
-		{id: idResetType, crit: CriticalityReject, val: &m.ResetType},
-	}
-
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, enc, fields)
+	return encodeMessageBody(w, enc, resetIEs, m)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
@@ -138,54 +145,7 @@ func (m *Reset) Marshal() ([]byte, error) {
 
 // ParseReset decodes the message from an initiatingMessage open-type payload.
 func ParseReset(value []byte) (*Reset, error) {
-	r := per.NewReader(value)
-	enc := per.Aligned
-
-	extPresent, err := r.ReadBit()
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: Reset preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r, enc)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &Reset{}
-
-	var seenCause, seenResetType bool
-
-	for _, f := range fields {
-		switch f.id {
-		case idCause:
-			err = perIEDecode(f.value, &m.Cause)
-			seenCause = true
-		case idResetType:
-			err = perIEDecode(f.value, &m.ResetType)
-			seenResetType = true
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: Reset IE %d: %w", f.id, err)
-		}
-	}
-
-	if err := requireIEs(ProcReset,
-		ieCheck{idResetType, CriticalityReject, seenResetType},
-		ieCheck{idCause, CriticalityIgnore, seenCause},
-	); err != nil {
-		return nil, err
-	}
-
-	return m, nil
+	return parseMessageBody[Reset](ProcReset, resetIEs, value)
 }
 
 // ResetAcknowledge is the RESET ACKNOWLEDGE message (TS 36.413). The

@@ -4,8 +4,6 @@
 package s1ap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
 )
 
@@ -48,27 +46,61 @@ type S1SetupFailure struct {
 	unmodeledIEs
 }
 
+// s1SetupFailureIEs is the S1SetupFailure IE table (TS 36.413).
+var s1SetupFailureIEs = []ieSpec[S1SetupFailure]{
+	{
+		id: idCause, presence: PresenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *S1SetupFailure, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.Cause)
+		},
+		encode: func(m *S1SetupFailure) (per.Marshaler, bool) { return &m.Cause, true },
+	},
+	{
+		id: idTimeToWait, presence: PresenceOptional, crit: CriticalityIgnore,
+		decode: func(m *S1SetupFailure, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				ttw TimeToWait
+			)
+
+			err = perIEDecode(raw, &ttw)
+			m.TimeToWait = &ttw
+
+			return err
+		},
+		encode: func(m *S1SetupFailure) (per.Marshaler, bool) {
+			if m.TimeToWait == nil {
+				return nil, false
+			}
+
+			return m.TimeToWait, true
+		},
+	},
+	{
+		id: idCriticalityDiagnostics, presence: PresenceOptional, crit: CriticalityIgnore,
+		decode: func(m *S1SetupFailure, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				cd  CriticalityDiagnostics
+			)
+
+			err = perIEDecode(raw, &cd)
+			m.CriticalityDiagnostics = &cd
+
+			return err
+		},
+		encode: func(m *S1SetupFailure) (per.Marshaler, bool) {
+			if m.CriticalityDiagnostics == nil {
+				return nil, false
+			}
+
+			return m.CriticalityDiagnostics, true
+		},
+	},
+}
+
 func (m *S1SetupFailure) encodeBody(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	fields := []ieField{
-		{id: idCause, crit: CriticalityIgnore, val: &m.Cause},
-	}
-
-	if m.TimeToWait != nil {
-		ttw := *m.TimeToWait
-		fields = append(fields, ieField{id: idTimeToWait, crit: CriticalityIgnore, val: &ttw})
-	}
-
-	if m.CriticalityDiagnostics != nil {
-		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, val: m.CriticalityDiagnostics})
-	}
-
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, enc, fields)
+	return encodeMessageBody(w, enc, s1SetupFailureIEs, m)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
@@ -91,58 +123,5 @@ func (m *S1SetupFailure) Marshal() ([]byte, error) {
 // ParseS1SetupFailure decodes an S1SetupFailure from the open-type payload of an
 // unsuccessfulOutcome.
 func ParseS1SetupFailure(value []byte) (*S1SetupFailure, error) {
-	r := per.NewReader(value)
-	enc := per.Aligned
-
-	extPresent, err := r.ReadBit()
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: S1SetupFailure preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r, enc)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &S1SetupFailure{}
-
-	var seenCause bool
-
-	for _, f := range fields {
-		switch f.id {
-		case idCause:
-			err = perIEDecode(f.value, &m.Cause)
-			seenCause = true
-		case idTimeToWait:
-			var ttw TimeToWait
-
-			err = perIEDecode(f.value, &ttw)
-			m.TimeToWait = &ttw
-		case idCriticalityDiagnostics:
-			var cd CriticalityDiagnostics
-
-			err = perIEDecode(f.value, &cd)
-			m.CriticalityDiagnostics = &cd
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: S1SetupFailure IE %d: %w", f.id, err)
-		}
-	}
-
-	if err := requireIEs(ProcS1Setup,
-		ieCheck{idCause, CriticalityIgnore, seenCause},
-	); err != nil {
-		return nil, err
-	}
-
-	return m, nil
+	return parseMessageBody[S1SetupFailure](ProcS1Setup, s1SetupFailureIEs, value)
 }

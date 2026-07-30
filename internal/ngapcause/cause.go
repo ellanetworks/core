@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 // Package ngapcause renders an NGAP Cause as a human-readable "<group>: <name>
-// (<value>)" string for logging (TS 38.413 §9.3.1.2). It mirrors the 4G
-// internal/s1apcause package.
+// (<value>)" string for logging (TS 38.413 §9.3.1.2). The 4G equivalent lives
+// in the s1ap library as Cause.String.
 package ngapcause
 
 import (

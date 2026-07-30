@@ -4,8 +4,6 @@
 package s1ap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
 )
 
@@ -22,28 +20,60 @@ type UECapabilityInfoIndication struct {
 	unmodeledIEs
 }
 
+// uECapabilityInfoIndicationIEs is the UECapabilityInfoIndication IE table (TS 36.413).
+var uECapabilityInfoIndicationIEs = []ieSpec[UECapabilityInfoIndication]{
+	{
+		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *UECapabilityInfoIndication, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.MMEUES1APID)
+		},
+		encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+	},
+	{
+		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *UECapabilityInfoIndication, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idUERadioCapability, presence: PresenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *UECapabilityInfoIndication, raw []byte, enc per.Encoding) error {
+			var err error
+
+			m.UERadioCapability, err = per.DecodeOctetString(per.NewReader(raw), enc, 0, 0, true, false, false)
+
+			return err
+		},
+		encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) {
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return per.EncodeOctetString(w, enc, 0, 0, true, false, false, m.UERadioCapability)
+			}), true
+		},
+	},
+	{
+		id: idUERadioCapabilityForPaging, presence: PresenceOptional, crit: CriticalityIgnore,
+		decode: func(m *UECapabilityInfoIndication, raw []byte, enc per.Encoding) error {
+			var err error
+
+			m.UERadioCapabilityForPaging, err = per.DecodeOctetString(per.NewReader(raw), enc, 0, 0, true, false, false)
+
+			return err
+		},
+		encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) {
+			if m.UERadioCapabilityForPaging == nil {
+				return nil, false
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return per.EncodeOctetString(w, enc, 0, 0, true, false, false, m.UERadioCapabilityForPaging)
+			}), true
+		},
+	},
+}
+
 func (m *UECapabilityInfoIndication) encodeBody(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
-		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
-		{id: idUERadioCapability, crit: CriticalityIgnore, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-			return per.EncodeOctetString(w, enc, 0, 0, true, false, false, m.UERadioCapability)
-		})},
-	}
-
-	if m.UERadioCapabilityForPaging != nil {
-		fields = append(fields, ieField{id: idUERadioCapabilityForPaging, crit: CriticalityIgnore, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-			return per.EncodeOctetString(w, enc, 0, 0, true, false, false, m.UERadioCapabilityForPaging)
-		})})
-	}
-
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, enc, fields)
+	return encodeMessageBody(w, enc, uECapabilityInfoIndicationIEs, m)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
@@ -66,58 +96,5 @@ func (m *UECapabilityInfoIndication) Marshal() ([]byte, error) {
 // ParseUECapabilityInfoIndication decodes the message from an initiatingMessage
 // open-type payload.
 func ParseUECapabilityInfoIndication(value []byte) (*UECapabilityInfoIndication, error) {
-	r := per.NewReader(value)
-	enc := per.Aligned
-
-	extPresent, err := r.ReadBit()
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: UECapabilityInfoIndication preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r, enc)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &UECapabilityInfoIndication{}
-
-	var seenMME, seenENB, seenCap bool
-
-	for _, f := range fields {
-		switch f.id {
-		case idMMEUES1APID:
-			err = perIEDecode(f.value, &m.MMEUES1APID)
-			seenMME = true
-		case idENBUES1APID:
-			err = perIEDecode(f.value, &m.ENBUES1APID)
-			seenENB = true
-		case idUERadioCapability:
-			m.UERadioCapability, err = per.DecodeOctetString(per.NewReader(f.value), enc, 0, 0, true, false, false)
-			seenCap = true
-		case idUERadioCapabilityForPaging:
-			m.UERadioCapabilityForPaging, err = per.DecodeOctetString(per.NewReader(f.value), enc, 0, 0, true, false, false)
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: UECapabilityInfoIndication IE %d: %w", f.id, err)
-		}
-	}
-
-	if err := requireIEs(ProcUECapabilityInfoIndication,
-		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
-		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
-		ieCheck{idUERadioCapability, CriticalityIgnore, seenCap},
-	); err != nil {
-		return nil, err
-	}
-
-	return m, nil
+	return parseMessageBody[UECapabilityInfoIndication](ProcUECapabilityInfoIndication, uECapabilityInfoIndicationIEs, value)
 }

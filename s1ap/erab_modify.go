@@ -4,8 +4,6 @@
 package s1ap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
 )
 
@@ -44,28 +42,62 @@ type ERABModifyRequest struct {
 	unmodeledIEs
 }
 
+// eRABModifyRequestIEs is the ERABModifyRequest IE table (TS 36.413).
+var eRABModifyRequestIEs = []ieSpec[ERABModifyRequest]{
+	{
+		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *ERABModifyRequest, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.MMEUES1APID)
+		},
+		encode: func(m *ERABModifyRequest) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+	},
+	{
+		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *ERABModifyRequest, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *ERABModifyRequest) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idUEAggregateMaximumBitrate, presence: PresenceOptional, crit: CriticalityReject,
+		decode: func(m *ERABModifyRequest, raw []byte, enc per.Encoding) error {
+			var (
+				err  error
+				ambr UEAggregateMaximumBitRate
+			)
+
+			err = perIEDecode(raw, &ambr)
+			m.UEAggregateMaximumBitRate = &ambr
+
+			return err
+		},
+		encode: func(m *ERABModifyRequest) (per.Marshaler, bool) {
+			if m.UEAggregateMaximumBitRate == nil {
+				return nil, false
+			}
+
+			return m.UEAggregateMaximumBitRate, true
+		},
+	},
+	{
+		id: idERABToBeModifiedListBearerModReq, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *ERABModifyRequest, raw []byte, enc per.Encoding) error {
+			var err error
+
+			m.ERABToBeModified, err = decodeItemList[ERABToBeModifiedItemBearerModReq](per.NewReader(raw), enc, maxnoofERABs)
+
+			return err
+		},
+		encode: func(m *ERABModifyRequest) (per.Marshaler, bool) {
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABToBeModifiedItemBearerModReq, CriticalityReject, m.ERABToBeModified)
+			}), true
+		},
+	},
+}
+
 func (m *ERABModifyRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
-		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
-	}
-
-	if m.UEAggregateMaximumBitRate != nil {
-		ambr := *m.UEAggregateMaximumBitRate
-		fields = append(fields, ieField{id: idUEAggregateMaximumBitrate, crit: CriticalityReject, val: &ambr})
-	}
-
-	fields = append(fields, ieField{id: idERABToBeModifiedListBearerModReq, crit: CriticalityReject, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-		return encodeSingleContainerList(w, enc, maxnoofERABs, idERABToBeModifiedItemBearerModReq, CriticalityReject, m.ERABToBeModified)
-	})})
-
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, enc, fields)
+	return encodeMessageBody(w, enc, eRABModifyRequestIEs, m)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
@@ -88,63 +120,7 @@ func (m *ERABModifyRequest) Marshal() ([]byte, error) {
 // ParseERABModifyRequest decodes the message from an initiatingMessage open-type
 // payload.
 func ParseERABModifyRequest(value []byte) (*ERABModifyRequest, error) {
-	r := per.NewReader(value)
-	enc := per.Aligned
-
-	extPresent, err := r.ReadBit()
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: ERABModifyRequest preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r, enc)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &ERABModifyRequest{}
-
-	var seenMME, seenENB, seenERAB bool
-
-	for _, f := range fields {
-		switch f.id {
-		case idMMEUES1APID:
-			err = perIEDecode(f.value, &m.MMEUES1APID)
-			seenMME = true
-		case idENBUES1APID:
-			err = perIEDecode(f.value, &m.ENBUES1APID)
-			seenENB = true
-		case idUEAggregateMaximumBitrate:
-			var ambr UEAggregateMaximumBitRate
-
-			err = perIEDecode(f.value, &ambr)
-			m.UEAggregateMaximumBitRate = &ambr
-		case idERABToBeModifiedListBearerModReq:
-			m.ERABToBeModified, err = decodeItemList[ERABToBeModifiedItemBearerModReq](per.NewReader(f.value), enc, maxnoofERABs)
-			seenERAB = true
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: ERABModifyRequest IE %d: %w", f.id, err)
-		}
-	}
-
-	if err := requireIEs(ProcERABModify,
-		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
-		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
-		ieCheck{idERABToBeModifiedListBearerModReq, CriticalityReject, seenERAB},
-	); err != nil {
-		return nil, err
-	}
-
-	return m, nil
+	return parseMessageBody[ERABModifyRequest](ProcERABModify, eRABModifyRequestIEs, value)
 }
 
 // ERABModifyResponse is the E-RAB MODIFY RESPONSE message (TS 36.413),
@@ -161,41 +137,106 @@ type ERABModifyResponse struct {
 	unmodeledIEs
 }
 
+// eRABModifyResponseIEs is the ERABModifyResponse IE table (TS 36.413).
+var eRABModifyResponseIEs = []ieSpec[ERABModifyResponse]{
+	{
+		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.MMEUES1APID)
+		},
+		encode: func(m *ERABModifyResponse) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+	},
+	{
+		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *ERABModifyResponse) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idERABModifyListBearerModRes, presence: PresenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
+			var err error
+
+			m.ERABModify, err = decodeItemList[ERABModifyItemBearerModRes](per.NewReader(raw), enc, maxnoofERABs)
+
+			return err
+		},
+		encode: func(m *ERABModifyResponse) (per.Marshaler, bool) {
+			if len(m.ERABModify) == 0 {
+				return nil, false
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABModifyItemBearerModRes, CriticalityIgnore, m.ERABModify)
+			}), true
+		},
+	},
+	{
+		id: idERABFailedToModifyList, presence: PresenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
+			var err error
+
+			m.ERABFailedToModify, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs)
+
+			return err
+		},
+		encode: func(m *ERABModifyResponse) (per.Marshaler, bool) {
+			if len(m.ERABFailedToModify) == 0 {
+				return nil, false
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABFailedToModify)
+			}), true
+		},
+	},
+	{
+		id: idCriticalityDiagnostics, presence: PresenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				cd  CriticalityDiagnostics
+			)
+
+			err = perIEDecode(raw, &cd)
+			m.CriticalityDiagnostics = &cd
+
+			return err
+		},
+		encode: func(m *ERABModifyResponse) (per.Marshaler, bool) {
+			if m.CriticalityDiagnostics == nil {
+				return nil, false
+			}
+
+			return m.CriticalityDiagnostics, true
+		},
+	},
+	{
+		id: idUserLocationInformation, presence: PresenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				uli UserLocationInformation
+			)
+
+			err = perIEDecode(raw, &uli)
+			m.UserLocationInformation = &uli
+
+			return err
+		},
+		encode: func(m *ERABModifyResponse) (per.Marshaler, bool) {
+			if m.UserLocationInformation == nil {
+				return nil, false
+			}
+
+			return m.UserLocationInformation, true
+		},
+	},
+}
+
 func (m *ERABModifyResponse) encodeBody(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityIgnore, val: &m.MMEUES1APID},
-		{id: idENBUES1APID, crit: CriticalityIgnore, val: &m.ENBUES1APID},
-	}
-
-	if len(m.ERABModify) > 0 {
-		fields = append(fields, ieField{id: idERABModifyListBearerModRes, crit: CriticalityIgnore, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-			return encodeSingleContainerList(w, enc, maxnoofERABs, idERABModifyItemBearerModRes, CriticalityIgnore, m.ERABModify)
-		})})
-	}
-
-	if len(m.ERABFailedToModify) > 0 {
-		fields = append(fields, ieField{id: idERABFailedToModifyList, crit: CriticalityIgnore, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-			return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABFailedToModify)
-		})})
-	}
-
-	if m.CriticalityDiagnostics != nil {
-		d := *m.CriticalityDiagnostics
-		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, val: &d})
-	}
-
-	if m.UserLocationInformation != nil {
-		u := *m.UserLocationInformation
-		fields = append(fields, ieField{id: idUserLocationInformation, crit: CriticalityIgnore, val: &u})
-	}
-
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, enc, fields)
+	return encodeMessageBody(w, enc, eRABModifyResponseIEs, m)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
@@ -218,66 +259,5 @@ func (m *ERABModifyResponse) Marshal() ([]byte, error) {
 // ParseERABModifyResponse decodes the message from a successfulOutcome open-type
 // payload.
 func ParseERABModifyResponse(value []byte) (*ERABModifyResponse, error) {
-	r := per.NewReader(value)
-	enc := per.Aligned
-
-	extPresent, err := r.ReadBit()
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: ERABModifyResponse preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r, enc)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &ERABModifyResponse{}
-
-	var seenMME, seenENB bool
-
-	for _, f := range fields {
-		switch f.id {
-		case idMMEUES1APID:
-			err = perIEDecode(f.value, &m.MMEUES1APID)
-			seenMME = true
-		case idENBUES1APID:
-			err = perIEDecode(f.value, &m.ENBUES1APID)
-			seenENB = true
-		case idERABModifyListBearerModRes:
-			m.ERABModify, err = decodeItemList[ERABModifyItemBearerModRes](per.NewReader(f.value), enc, maxnoofERABs)
-		case idERABFailedToModifyList:
-			m.ERABFailedToModify, err = decodeItemList[ERABItem](per.NewReader(f.value), enc, maxnoofERABs)
-		case idCriticalityDiagnostics:
-			var cd CriticalityDiagnostics
-
-			err = perIEDecode(f.value, &cd)
-			m.CriticalityDiagnostics = &cd
-		case idUserLocationInformation:
-			var uli UserLocationInformation
-
-			err = perIEDecode(f.value, &uli)
-			m.UserLocationInformation = &uli
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: ERABModifyResponse IE %d: %w", f.id, err)
-		}
-	}
-
-	if err := requireIEs(ProcERABModify,
-		ieCheck{idMMEUES1APID, CriticalityIgnore, seenMME},
-		ieCheck{idENBUES1APID, CriticalityIgnore, seenENB},
-	); err != nil {
-		return nil, err
-	}
-
-	return m, nil
+	return parseMessageBody[ERABModifyResponse](ProcERABModify, eRABModifyResponseIEs, value)
 }

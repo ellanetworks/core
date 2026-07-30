@@ -3,6 +3,8 @@
 
 package per
 
+import "math"
+
 // PER size thresholds, from Rec. ITU-T X.691 (02/2021).
 //
 //	§11.5.7  constrained whole number: range ≤ 255 bit-field; ==256 one octet;
@@ -268,6 +270,12 @@ func decodeSemiConstrained(r *Reader, enc Encoding, lb int64) (int64, error) {
 	var v uint64
 	for _, b := range p {
 		v = v<<8 | uint64(b)
+	}
+	// §11.7 values are non-negative, so anything that does not fit a positive
+	// int64 — or that would overflow past lb — is out of range rather than a
+	// silently wrapped negative.
+	if v > math.MaxInt64 || int64(v) > math.MaxInt64-lb {
+		return 0, ErrOverflow
 	}
 
 	return lb + int64(v), nil

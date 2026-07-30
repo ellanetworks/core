@@ -4,8 +4,6 @@
 package s1ap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
 )
 
@@ -23,30 +21,89 @@ type InitialUEMessage struct {
 	unmodeledIEs
 }
 
+// initialUEMessageIEs is the InitialUEMessage IE table (TS 36.413).
+var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
+	{
+		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idNASPDU, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.NASPDU)
+		},
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) { return &m.NASPDU, true },
+	},
+	{
+		id: idTAI, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.TAI)
+		},
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) { return &m.TAI, true },
+	},
+	{
+		id: idEUTRANCGI, presence: PresenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.EUTRANCGI)
+		},
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) { return &m.EUTRANCGI, true },
+	},
+	{
+		id: idRRCEstablishmentCause, presence: PresenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.RRCEstablishmentCause)
+		},
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) { return &m.RRCEstablishmentCause, true },
+	},
+	{
+		id: idSTMSI, presence: PresenceOptional, crit: CriticalityReject,
+		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
+			var (
+				err   error
+				stmsi STMSI
+			)
+
+			err = perIEDecode(raw, &stmsi)
+			m.STMSI = &stmsi
+
+			return err
+		},
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) {
+			if m.STMSI == nil {
+				return nil, false
+			}
+
+			return m.STMSI, true
+		},
+	},
+	{
+		id: idGUMMEI, presence: PresenceOptional, crit: CriticalityReject,
+		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
+			var (
+				err    error
+				gummei GUMMEI
+			)
+
+			err = perIEDecode(raw, &gummei)
+			m.GUMMEI = &gummei
+
+			return err
+		},
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) {
+			if m.GUMMEI == nil {
+				return nil, false
+			}
+
+			return m.GUMMEI, true
+		},
+	},
+}
+
 func (m *InitialUEMessage) encodeBody(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	fields := []ieField{
-		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
-		{id: idNASPDU, crit: CriticalityReject, val: &m.NASPDU},
-		{id: idTAI, crit: CriticalityReject, val: &m.TAI},
-		{id: idEUTRANCGI, crit: CriticalityIgnore, val: &m.EUTRANCGI},
-		{id: idRRCEstablishmentCause, crit: CriticalityIgnore, val: &m.RRCEstablishmentCause},
-	}
-
-	if m.STMSI != nil {
-		fields = append(fields, ieField{id: idSTMSI, crit: CriticalityReject, val: m.STMSI})
-	}
-
-	if m.GUMMEI != nil {
-		fields = append(fields, ieField{id: idGUMMEI, crit: CriticalityReject, val: m.GUMMEI})
-	}
-
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, enc, fields)
+	return encodeMessageBody(w, enc, initialUEMessageIEs, m)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
@@ -69,76 +126,7 @@ func (m *InitialUEMessage) Marshal() ([]byte, error) {
 // ParseInitialUEMessage decodes an InitialUEMessage from the open-type payload
 // of an initiatingMessage.
 func ParseInitialUEMessage(value []byte) (*InitialUEMessage, error) {
-	r := per.NewReader(value)
-	enc := per.Aligned
-
-	extPresent, err := r.ReadBit()
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: InitialUEMessage preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r, enc)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &InitialUEMessage{}
-
-	var seenENB, seenNAS, seenTAI, seenCGI, seenRRC bool
-
-	for _, f := range fields {
-		switch f.id {
-		case idENBUES1APID:
-			err = perIEDecode(f.value, &m.ENBUES1APID)
-			seenENB = true
-		case idNASPDU:
-			err = perIEDecode(f.value, &m.NASPDU)
-			seenNAS = true
-		case idTAI:
-			err = perIEDecode(f.value, &m.TAI)
-			seenTAI = true
-		case idEUTRANCGI:
-			err = perIEDecode(f.value, &m.EUTRANCGI)
-			seenCGI = true
-		case idRRCEstablishmentCause:
-			err = perIEDecode(f.value, &m.RRCEstablishmentCause)
-			seenRRC = true
-		case idSTMSI:
-			var stmsi STMSI
-
-			err = perIEDecode(f.value, &stmsi)
-			m.STMSI = &stmsi
-		case idGUMMEI:
-			var gummei GUMMEI
-
-			err = perIEDecode(f.value, &gummei)
-			m.GUMMEI = &gummei
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: InitialUEMessage IE %d: %w", f.id, err)
-		}
-	}
-
-	if err := requireIEs(ProcInitialUEMessage,
-		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
-		ieCheck{idNASPDU, CriticalityReject, seenNAS},
-		ieCheck{idTAI, CriticalityReject, seenTAI},
-		ieCheck{idEUTRANCGI, CriticalityIgnore, seenCGI},
-		ieCheck{idRRCEstablishmentCause, CriticalityIgnore, seenRRC},
-	); err != nil {
-		return nil, err
-	}
-
-	return m, nil
+	return parseMessageBody[InitialUEMessage](ProcInitialUEMessage, initialUEMessageIEs, value)
 }
 
 // UplinkNASTransport is the UPLINK NAS TRANSPORT message (TS 36.413),
@@ -153,22 +141,47 @@ type UplinkNASTransport struct {
 	unmodeledIEs
 }
 
+// uplinkNASTransportIEs is the UplinkNASTransport IE table (TS 36.413).
+var uplinkNASTransportIEs = []ieSpec[UplinkNASTransport]{
+	{
+		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *UplinkNASTransport, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.MMEUES1APID)
+		},
+		encode: func(m *UplinkNASTransport) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+	},
+	{
+		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *UplinkNASTransport, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *UplinkNASTransport) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idNASPDU, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *UplinkNASTransport, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.NASPDU)
+		},
+		encode: func(m *UplinkNASTransport) (per.Marshaler, bool) { return &m.NASPDU, true },
+	},
+	{
+		id: idEUTRANCGI, presence: PresenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *UplinkNASTransport, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.EUTRANCGI)
+		},
+		encode: func(m *UplinkNASTransport) (per.Marshaler, bool) { return &m.EUTRANCGI, true },
+	},
+	{
+		id: idTAI, presence: PresenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *UplinkNASTransport, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.TAI)
+		},
+		encode: func(m *UplinkNASTransport) (per.Marshaler, bool) { return &m.TAI, true },
+	},
+}
+
 func (m *UplinkNASTransport) encodeBody(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
-		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
-		{id: idNASPDU, crit: CriticalityReject, val: &m.NASPDU},
-		{id: idEUTRANCGI, crit: CriticalityIgnore, val: &m.EUTRANCGI},
-		{id: idTAI, crit: CriticalityIgnore, val: &m.TAI},
-	}
-
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, enc, fields)
+	return encodeMessageBody(w, enc, uplinkNASTransportIEs, m)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
@@ -191,66 +204,7 @@ func (m *UplinkNASTransport) Marshal() ([]byte, error) {
 // ParseUplinkNASTransport decodes an UplinkNASTransport from the open-type
 // payload of an initiatingMessage.
 func ParseUplinkNASTransport(value []byte) (*UplinkNASTransport, error) {
-	r := per.NewReader(value)
-	enc := per.Aligned
-
-	extPresent, err := r.ReadBit()
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: UplinkNASTransport preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r, enc)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &UplinkNASTransport{}
-
-	var seenMME, seenENB, seenNAS, seenCGI, seenTAI bool
-
-	for _, f := range fields {
-		switch f.id {
-		case idMMEUES1APID:
-			err = perIEDecode(f.value, &m.MMEUES1APID)
-			seenMME = true
-		case idENBUES1APID:
-			err = perIEDecode(f.value, &m.ENBUES1APID)
-			seenENB = true
-		case idNASPDU:
-			err = perIEDecode(f.value, &m.NASPDU)
-			seenNAS = true
-		case idEUTRANCGI:
-			err = perIEDecode(f.value, &m.EUTRANCGI)
-			seenCGI = true
-		case idTAI:
-			err = perIEDecode(f.value, &m.TAI)
-			seenTAI = true
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: UplinkNASTransport IE %d: %w", f.id, err)
-		}
-	}
-
-	if err := requireIEs(ProcUplinkNASTransport,
-		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
-		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
-		ieCheck{idNASPDU, CriticalityReject, seenNAS},
-		ieCheck{idEUTRANCGI, CriticalityIgnore, seenCGI},
-		ieCheck{idTAI, CriticalityIgnore, seenTAI},
-	); err != nil {
-		return nil, err
-	}
-
-	return m, nil
+	return parseMessageBody[UplinkNASTransport](ProcUplinkNASTransport, uplinkNASTransportIEs, value)
 }
 
 // DownlinkNASTransport is the DOWNLINK NAS TRANSPORT message (TS 36.413),
@@ -263,20 +217,33 @@ type DownlinkNASTransport struct {
 	unmodeledIEs
 }
 
+// downlinkNASTransportIEs is the DownlinkNASTransport IE table (TS 36.413).
+var downlinkNASTransportIEs = []ieSpec[DownlinkNASTransport]{
+	{
+		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *DownlinkNASTransport, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.MMEUES1APID)
+		},
+		encode: func(m *DownlinkNASTransport) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+	},
+	{
+		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *DownlinkNASTransport, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *DownlinkNASTransport) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idNASPDU, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *DownlinkNASTransport, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.NASPDU)
+		},
+		encode: func(m *DownlinkNASTransport) (per.Marshaler, bool) { return &m.NASPDU, true },
+	},
+}
+
 func (m *DownlinkNASTransport) encodeBody(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
-		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
-		{id: idNASPDU, crit: CriticalityReject, val: &m.NASPDU},
-	}
-
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, enc, fields)
+	return encodeMessageBody(w, enc, downlinkNASTransportIEs, m)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
@@ -299,56 +266,5 @@ func (m *DownlinkNASTransport) Marshal() ([]byte, error) {
 // ParseDownlinkNASTransport decodes a DownlinkNASTransport from the open-type
 // payload of an initiatingMessage.
 func ParseDownlinkNASTransport(value []byte) (*DownlinkNASTransport, error) {
-	r := per.NewReader(value)
-	enc := per.Aligned
-
-	extPresent, err := r.ReadBit()
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: DownlinkNASTransport preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r, enc)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &DownlinkNASTransport{}
-
-	var seenMME, seenENB, seenNAS bool
-
-	for _, f := range fields {
-		switch f.id {
-		case idMMEUES1APID:
-			err = perIEDecode(f.value, &m.MMEUES1APID)
-			seenMME = true
-		case idENBUES1APID:
-			err = perIEDecode(f.value, &m.ENBUES1APID)
-			seenENB = true
-		case idNASPDU:
-			err = perIEDecode(f.value, &m.NASPDU)
-			seenNAS = true
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: DownlinkNASTransport IE %d: %w", f.id, err)
-		}
-	}
-
-	if err := requireIEs(ProcDownlinkNASTransport,
-		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
-		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
-		ieCheck{idNASPDU, CriticalityReject, seenNAS},
-	); err != nil {
-		return nil, err
-	}
-
-	return m, nil
+	return parseMessageBody[DownlinkNASTransport](ProcDownlinkNASTransport, downlinkNASTransportIEs, value)
 }

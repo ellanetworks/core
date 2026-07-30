@@ -4,8 +4,6 @@
 package s1ap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
 )
 
@@ -47,22 +45,47 @@ type LocationReport struct {
 	unmodeledIEs
 }
 
+// locationReportIEs is the LocationReport IE table (TS 36.413).
+var locationReportIEs = []ieSpec[LocationReport]{
+	{
+		id: idMMEUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.MMEUES1APID)
+		},
+		encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+	},
+	{
+		id: idENBUES1APID, presence: PresenceMandatory, crit: CriticalityReject,
+		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idEUTRANCGI, presence: PresenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.EUTRANCGI)
+		},
+		encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.EUTRANCGI, true },
+	},
+	{
+		id: idTAI, presence: PresenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.TAI)
+		},
+		encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.TAI, true },
+	},
+	{
+		id: idRequestType, presence: PresenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.RequestType)
+		},
+		encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.RequestType, true },
+	},
+}
+
 func (m *LocationReport) encodeBody(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, val: &m.MMEUES1APID},
-		{id: idENBUES1APID, crit: CriticalityReject, val: &m.ENBUES1APID},
-		{id: idEUTRANCGI, crit: CriticalityIgnore, val: &m.EUTRANCGI},
-		{id: idTAI, crit: CriticalityIgnore, val: &m.TAI},
-		{id: idRequestType, crit: CriticalityIgnore, val: &m.RequestType},
-	}
-
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, enc, fields)
+	return encodeMessageBody(w, enc, locationReportIEs, m)
 }
 
 // Marshal encodes the message as a complete S1AP-PDU.
@@ -85,64 +108,5 @@ func (m *LocationReport) Marshal() ([]byte, error) {
 // ParseLocationReport decodes a LocationReport from the open-type payload of an
 // initiatingMessage.
 func ParseLocationReport(value []byte) (*LocationReport, error) {
-	r := per.NewReader(value)
-	enc := per.Aligned
-
-	extPresent, err := r.ReadBit()
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: LocationReport preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r, enc)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &LocationReport{}
-
-	var seenMME, seenENB, seenCGI, seenTAI, seenReq bool
-
-	for _, f := range fields {
-		switch f.id {
-		case idMMEUES1APID:
-			err = perIEDecode(f.value, &m.MMEUES1APID)
-			seenMME = true
-		case idENBUES1APID:
-			err = perIEDecode(f.value, &m.ENBUES1APID)
-			seenENB = true
-		case idEUTRANCGI:
-			err = perIEDecode(f.value, &m.EUTRANCGI)
-			seenCGI = true
-		case idTAI:
-			err = perIEDecode(f.value, &m.TAI)
-			seenTAI = true
-		case idRequestType:
-			err = perIEDecode(f.value, &m.RequestType)
-			seenReq = true
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: LocationReport IE %d: %w", f.id, err)
-		}
-	}
-
-	if err := requireIEs(ProcLocationReport,
-		ieCheck{idMMEUES1APID, CriticalityReject, seenMME},
-		ieCheck{idENBUES1APID, CriticalityReject, seenENB},
-		ieCheck{idEUTRANCGI, CriticalityIgnore, seenCGI},
-		ieCheck{idTAI, CriticalityIgnore, seenTAI},
-		ieCheck{idRequestType, CriticalityIgnore, seenReq},
-	); err != nil {
-		return nil, err
-	}
-
-	return m, nil
+	return parseMessageBody[LocationReport](ProcLocationReport, locationReportIEs, value)
 }
