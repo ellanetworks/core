@@ -45,17 +45,6 @@ volatile const int n3_vlan = 0;
 volatile const int n6_vlan;
 volatile const int n6_vlan = 0;
 
-/* VLAN id the frame must carry out of `ifindex`; 0 for untagged. */
-static __always_inline int egress_vlan_id(__u32 ifindex)
-{
-	if (ifindex == (__u32)n3_ifindex)
-		return n3_vlan;
-	if (ifindex == (__u32)n6_ifindex)
-		return n6_vlan;
-
-	return 0;
-}
-
 struct vlan_hdr {
 	__be16 h_vlan_TCI;
 	__be16 h_vlan_encapsulated_proto;
@@ -81,3 +70,21 @@ struct packet_context {
 	__u32 gtp_hdr_len;
 	__u8 interface : 1;
 };
+
+/* VLAN id a frame leaves with, keyed on the logical side it is bound for
+ * rather than the egress ifindex: when N3 and N6 are sub-interfaces of one
+ * NIC, both resolve to the same master and the ifindex cannot tell the two
+ * directions apart. */
+static __always_inline int
+egress_vlan_forwarded(const struct packet_context *ctx)
+{
+	return ctx->interface == INTERFACE_N3 ? n6_vlan : n3_vlan;
+}
+
+/* Counterpart for a frame the datapath answers itself, which leaves by the
+ * side it arrived on. */
+static __always_inline int
+egress_vlan_reflected(const struct packet_context *ctx)
+{
+	return ctx->interface == INTERFACE_N3 ? n3_vlan : n6_vlan;
+}

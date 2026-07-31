@@ -251,9 +251,12 @@ func interfaceGROEnabled(ifname string) (bool, error) {
 		data uint32
 	}{cmd: ethtoolGGRO}
 
+	// Padded to sizeof(struct ifreq): the kernel copies the full structure
+	// in, so a shorter one is read past its end.
 	var ifr struct {
 		name [unix.IFNAMSIZ]byte
 		data unsafe.Pointer
+		_    [16]byte
 	}
 
 	if len(ifname) >= unix.IFNAMSIZ {

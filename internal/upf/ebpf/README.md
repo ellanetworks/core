@@ -54,7 +54,7 @@ regardless of the transport address family.
 
 ### FAR struct layout
 
-`far_info` in `xdp/utils/pdr.h` stores tunnel addresses as `struct in6_addr`
+`far_info` in `bpf/utils/pdr.h` stores tunnel addresses as `struct in6_addr`
 (16 bytes) for both `remoteip` and `localip`:
 
 - **IPv4 transport** — address stored as IPv4-mapped IPv6 (`::ffff:x.x.x.x`),

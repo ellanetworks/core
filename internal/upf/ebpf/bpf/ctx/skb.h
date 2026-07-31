@@ -230,23 +230,24 @@ static __always_inline __u32 ctx_stat_action(enum ctx_action action)
  * branches compile out. */
 #define CTX_INBAND_VLAN 0
 
-/* Ingress VLAN normalization. The stripped ingress tag rides in vlan_tci and
- * dev_queue_xmit re-inserts it on whatever interface the frame leaves by, so
- * it must be cleared before any redirect; egress tagging is explicit
- * (ctx_tx_back/ctx_redirect_out). A remaining in-band tag under the metadata
- * one is QinQ, which the datapath leaves to the stack in every attach mode.
- * Returns 0 to proceed, > 0 to pass the frame to the stack, < 0 on error;
- * invalidates packet pointers. */
+/* QinQ guard. The kernel strips only the outer tag before the hook, so an
+ * ethertype that is still a VLAN tag means a second one remains in the frame
+ * bytes; the datapath hands those to the stack in every attach mode. Returns
+ * 0 to proceed, > 0 to pass the frame to the stack.
+ *
+ * The ingress tag itself is deliberately left in place: a frame the datapath
+ * does not own is returned with TC_ACT_OK and demultiplexed to its VLAN
+ * sub-device by the stack, which runs after this hook. Popping here would
+ * deliver ARP, ND and host traffic to the master netdev instead. Redirected
+ * frames clear it in ctx_vlan_egress, before the tag they leave with is set.
+ */
 static __always_inline long ctx_vlan_ingress(struct __ctx_buff *ctx)
 {
 	if (ctx->protocol == bpf_htons(ETH_P_8021Q) ||
 	    ctx->protocol == bpf_htons(ETH_P_8021AD))
 		return 1;
 
-	if (!ctx->vlan_present)
-		return 0;
-
-	return bpf_skb_vlan_pop(ctx) ? -1 : 0;
+	return 0;
 }
 
 /* Set the metadata tag the frame leaves with; on an untagged skb this writes
@@ -255,6 +256,13 @@ static __always_inline long ctx_vlan_ingress(struct __ctx_buff *ctx)
 static __always_inline long ctx_vlan_egress(struct __ctx_buff *ctx,
 					    int egress_vid)
 {
+	/* The ingress tag rides in the metadata and dev_queue_xmit would
+	 * re-insert it on the egress interface, so it goes before the egress
+	 * tag is set: pushing onto a tagged skb writes the old tag in-band and
+	 * produces QinQ. */
+	if (ctx->vlan_present && bpf_skb_vlan_pop(ctx))
+		return -1;
+
 	if (!egress_vid)
 		return 0;
 

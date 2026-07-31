@@ -10,7 +10,7 @@ import (
 )
 
 // event builds the struct no_neigh_event the XDP datapath emits; its layout is
-// pinned by a _Static_assert in xdp/utils/routing.h.
+// pinned by a _Static_assert in bpf/utils/routing.h.
 func event(ifindex uint32, family uint32, addr []byte) []byte {
 	b := make([]byte, 24)
 	binary.NativeEndian.PutUint32(b[0:4], ifindex)

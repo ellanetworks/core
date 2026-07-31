@@ -189,8 +189,7 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 
 	swap_mac(eth);
 
-	return ctx_tx_back(ctx->ctx_buff,
-			   egress_vlan_id(ctx_ingress_ifindex(ctx->ctx_buff)));
+	return ctx_tx_back(ctx->ctx_buff, egress_vlan_reflected(ctx));
 }
 
 /* GTP-U Error Indication information element types (TS 29.281 §8.1). */
@@ -261,8 +260,7 @@ send_error_indication_ipv4(struct packet_context *ctx)
 	if (trim > 0)
 		ctx_adjust_tail(ctx->ctx_buff, (int)-trim);
 
-	return ctx_tx_back(ctx->ctx_buff,
-			   egress_vlan_id(ctx_ingress_ifindex(ctx->ctx_buff)));
+	return ctx_tx_back(ctx->ctx_buff, egress_vlan_reflected(ctx));
 }
 
 /* IPv6-transport counterpart of send_error_indication_ipv4 (TS 29.281 §7.3.1).
@@ -338,6 +336,5 @@ send_error_indication_ipv6(struct packet_context *ctx)
 	if (trim > 0)
 		ctx_adjust_tail(ctx->ctx_buff, (int)-trim);
 
-	return ctx_tx_back(ctx->ctx_buff,
-			   egress_vlan_id(ctx_ingress_ifindex(ctx->ctx_buff)));
+	return ctx_tx_back(ctx->ctx_buff, egress_vlan_reflected(ctx));
 }

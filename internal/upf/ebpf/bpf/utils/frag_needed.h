@@ -218,8 +218,7 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 	}
 	upf_printk("upf: sending fragmentation needed error");
 	enum ctx_action action =
-		ctx_tx_back(ctx->ctx_buff,
-			    egress_vlan_id(ctx_ingress_ifindex(ctx->ctx_buff)));
+		ctx_tx_back(ctx->ctx_buff, egress_vlan_reflected(ctx));
 	ctx->statistics->xdp_actions[ctx_stat_action(action) &
 				     EUPF_MAX_XDP_ACTION_MASK] += 1;
 	return action;
@@ -390,8 +389,7 @@ send_packet_too_big(struct packet_context *ctx, __be16 mtu)
 
 	upf_printk("upf: sending packet too big error");
 	enum ctx_action action =
-		ctx_tx_back(ctx->ctx_buff,
-			    egress_vlan_id(ctx_ingress_ifindex(ctx->ctx_buff)));
+		ctx_tx_back(ctx->ctx_buff, egress_vlan_reflected(ctx));
 	ctx->statistics->xdp_actions[ctx_stat_action(action) &
 				     EUPF_MAX_XDP_ACTION_MASK] += 1;
 	return action;

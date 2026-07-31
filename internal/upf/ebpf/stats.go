@@ -85,6 +85,13 @@ func GetN6NatUnsolicitedDropIPv4(bpfObjects *BpfObjects) uint64 {
 	return sumDownlinkStatField(bpfObjects, func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatUnsolicitedDropIp4 })
 }
 
+// GetN6EncapGSOFrames counts downlink encapsulations applied to a GSO
+// super-frame. Segmentation replays the outer UDP checksum unchanged across
+// the resulting segments, which an IPv6 outer header does not tolerate.
+func GetN6EncapGSOFrames(bpfObjects *BpfObjects) uint64 {
+	return sumDownlinkStatField(bpfObjects, func(s N3N6EntrypointUpfStatistic) uint64 { return s.EncapGsoFrames })
+}
+
 // NatDrops counts NAT drops by reason, summed over both directions.
 type NatDrops struct {
 	Fragment         uint64
