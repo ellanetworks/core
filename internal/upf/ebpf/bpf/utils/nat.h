@@ -220,8 +220,10 @@ static __always_inline void update_port(struct packet_context *ctx,
 		}
 		old_port = ctx->tcp->source;
 		ctx->tcp->source = new_port;
-		ctx->tcp->check = ipv4_csum_update_u16(ctx->tcp->check,
-						       old_port, new_port);
+		if (!CTX_L4_CSUM_VIA_HELPERS) {
+			ctx->tcp->check = ipv4_csum_update_u16(
+				ctx->tcp->check, old_port, new_port);
+		}
 		break;
 	case IPPROTO_UDP:
 		if (!ctx->udp) {
@@ -229,7 +231,7 @@ static __always_inline void update_port(struct packet_context *ctx,
 		}
 		old_port = ctx->udp->source;
 		ctx->udp->source = new_port;
-		if (ctx->udp->check != 0) {
+		if (!CTX_L4_CSUM_VIA_HELPERS && ctx->udp->check != 0) {
 			ctx->udp->check = ipv4_csum_update_u16(
 				ctx->udp->check, old_port, new_port);
 			/* Zero means "no checksum" in IPv4 UDP (RFC 768). */
@@ -244,10 +246,70 @@ static __always_inline void update_port(struct packet_context *ctx,
 		}
 		old_port = ctx->icmp->un.echo.id;
 		ctx->icmp->un.echo.id = new_port;
-		ctx->icmp->checksum = ipv4_csum_update_u16(ctx->icmp->checksum,
-							   old_port, new_port);
+		if (!CTX_L4_CSUM_VIA_HELPERS) {
+			ctx->icmp->checksum = ipv4_csum_update_u16(
+				ctx->icmp->checksum, old_port, new_port);
+		}
 		break;
 	}
+}
+
+/* TC variant of the source_nat checksum work: the address and port deltas are
+ * withheld from the field writes and applied here through ctx_l4_csum_replace,
+ * so skb->csum is carried along under CHECKSUM_COMPLETE (the IPv4 header
+ * checksum needs no such care — its own delta cancels the address delta over
+ * the bytes skb->csum covers). The helper calls invalidate packet pointers,
+ * so the context is re-derived before returning. */
+static __always_inline void
+source_nat_apply_csum_helpers(struct packet_context *ctx, __u32 old_saddr,
+			      __u32 new_saddr, __u16 old_port, __u16 new_port)
+{
+	void *data = ctx_data(ctx->ctx_buff);
+	__u32 csum_off;
+	__u64 flags = 0;
+	bool pseudo_hdr = true;
+
+	switch (ctx->ip4->protocol) {
+	case IPPROTO_TCP:
+		if (!ctx->tcp) {
+			return;
+		}
+		csum_off = (__u32)((__u8 *)&ctx->tcp->check - (__u8 *)data);
+		break;
+	case IPPROTO_UDP:
+		if (!ctx->udp) {
+			return;
+		}
+		csum_off = (__u32)((__u8 *)&ctx->udp->check - (__u8 *)data);
+		/* Zero means "no checksum" in IPv4 UDP (RFC 768): the helper
+		 * skips a zero field and mangles a zero result. */
+		flags = BPF_F_MARK_MANGLED_0;
+		break;
+	case IPPROTO_ICMP:
+		if (!ctx->icmp) {
+			return;
+		}
+		csum_off = (__u32)((__u8 *)&ctx->icmp->checksum - (__u8 *)data);
+		/* ICMP carries no pseudo-header, so the address delta does not
+		 * enter its checksum. */
+		pseudo_hdr = false;
+		break;
+	default:
+		return;
+	}
+
+	if (pseudo_hdr && old_saddr != new_saddr) {
+		ctx_l4_csum_replace(ctx->ctx_buff, csum_off, old_saddr,
+				    new_saddr, 4 | BPF_F_PSEUDO_HDR | flags);
+	}
+
+	if (old_port != new_port) {
+		ctx_l4_csum_replace(ctx->ctx_buff, csum_off, old_port, new_port,
+				    2 | flags);
+	}
+
+	context_reinit(ctx, ctx_data(ctx->ctx_buff),
+		       ctx_data_end(ctx->ctx_buff));
 }
 static __always_inline __u16 nat_random_port(void)
 {
@@ -318,8 +380,10 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		}
 		orig.sport = ctx->tcp->source;
 		orig.dport = ctx->tcp->dest;
-		ctx->tcp->check = ipv4_csum_update_u32(
-			ctx->tcp->check, orig.saddr, ctx->ip4->saddr);
+		if (!CTX_L4_CSUM_VIA_HELPERS) {
+			ctx->tcp->check = ipv4_csum_update_u32(
+				ctx->tcp->check, orig.saddr, ctx->ip4->saddr);
+		}
 		/* One class per segment: an abort outranks a new connection,
 		 * which outranks a close. */
 		tcp_rst = ctx->tcp->rst;
@@ -339,7 +403,7 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		}
 		orig.sport = ctx->udp->source;
 		orig.dport = ctx->udp->dest;
-		if (ctx->udp->check != 0) {
+		if (!CTX_L4_CSUM_VIA_HELPERS && ctx->udp->check != 0) {
 			ctx->udp->check = ipv4_csum_update_u32(
 				ctx->udp->check, orig.saddr, ctx->ip4->saddr);
 			/* Zero means "no checksum" in IPv4 UDP (RFC 768). */
@@ -470,6 +534,12 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 			update_port(ctx, natted.sport);
 		}
 
+		if (CTX_L4_CSUM_VIA_HELPERS) {
+			source_nat_apply_csum_helpers(ctx, orig.saddr,
+						      ctx->ip4->saddr,
+						      orig.sport, natted.sport);
+		}
+
 		return true;
 	}
 
@@ -532,8 +602,15 @@ allocate:;
 		if (!are_five_tuple_equal(winner_src, natted)) {
 			bpf_map_delete_elem(&nat_ct, &natted);
 			update_port(ctx, winner_src.sport);
+			natted.sport = winner_src.sport;
 		}
 	}
+
+	if (CTX_L4_CSUM_VIA_HELPERS) {
+		source_nat_apply_csum_helpers(ctx, orig.saddr, ctx->ip4->saddr,
+					      orig.sport, natted.sport);
+	}
+
 	return true;
 }
 

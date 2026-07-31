@@ -105,8 +105,7 @@ func (r *RAResponder) Start() error {
 
 	// Attach the injection program to veth-xdp, at the hook matching the
 	// loaded object: TCX for the SCHED_CLS build, generic XDP for the XDP
-	// build (native veth XDP redirect would need an XDP_PASS stub on the
-	// peer).
+	// build. Native veth XDP redirect requires an XDP_PASS stub on the peer.
 	xdpIdx, err := VethXDPIndex()
 	if err != nil {
 		return fmt.Errorf("veth-xdp interface not found: %w", err)

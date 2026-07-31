@@ -65,6 +65,23 @@
  * caps pathological chains; far above any N3 header (typically 16 octets). */
 #define GTP_MAX_HDR_LEN 64
 
+/* Deepest span the datapath parses or writes behind a single pull. Two paths
+ * compete for it: the uplink GTP-U chain, and the dNAT translation of an ICMP
+ * error, which reaches the L4 ports inside the quoted datagram. A pull shorter
+ * than either turns a bounds check into a pass-to-stack with no counter, so
+ * the bound is asserted against the parse depth it has to cover. */
+/* eth 14 + VLAN 4 + IPv4 with options 60 */
+#define CTX_PARSE_DEPTH_L2_L3 78
+/* + UDP 8 + GTP-U 64 */
+#define CTX_PARSE_DEPTH_GTPU (CTX_PARSE_DEPTH_L2_L3 + 8 + GTP_MAX_HDR_LEN)
+/* + ICMP 8 + quoted IPv4 with options 60 + quoted TCP 20 */
+#define CTX_PARSE_DEPTH_ICMP_QUOTE (CTX_PARSE_DEPTH_L2_L3 + 8 + 60 + 20)
+
+_Static_assert(CTX_PULL_LEN >= CTX_PARSE_DEPTH_GTPU,
+	       "CTX_PULL_LEN must cover the uplink GTP-U parse depth");
+_Static_assert(CTX_PULL_LEN >= CTX_PARSE_DEPTH_ICMP_QUOTE,
+	       "CTX_PULL_LEN must cover the dNAT ICMP-quote parse depth");
+
 static __always_inline __u32 parse_gtp(struct packet_context *ctx)
 {
 	struct gtpuhdr *gtp = (struct gtpuhdr *)ctx->data;

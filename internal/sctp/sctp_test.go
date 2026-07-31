@@ -84,16 +84,16 @@ func connectLoopback(port int) (int, error) {
 func acceptOne(t *testing.T, ln *sctpListener, port int) *SCTPConn {
 	t.Helper()
 
-	type acceptResult struct {
-		conn *SCTPConn
-		err  error
-	}
-
-	connCh := make(chan acceptResult, 1)
+	connCh := make(chan *SCTPConn, 1)
 
 	go func() {
 		conn, err := ln.Accept()
-		connCh <- acceptResult{conn: conn, err: err}
+		if err != nil {
+			connCh <- nil
+			return
+		}
+
+		connCh <- conn
 	}()
 
 	clientFd, err := connectLoopback(port)
@@ -103,22 +103,12 @@ func acceptOne(t *testing.T, ln *sctpListener, port int) *SCTPConn {
 
 	t.Cleanup(func() { _ = syscall.Close(clientFd) })
 
-	res := <-connCh
-	if res.err != nil {
-		t.Fatalf("Accept failed: %v (errno %d)", res.err, errnoOf(res.err))
+	conn := <-connCh
+	if conn == nil {
+		t.Fatal("Accept failed")
 	}
 
-	return res.conn
-}
-
-// errnoOf extracts the numeric errno from err, or -1 if it carries none.
-func errnoOf(err error) int {
-	var errno syscall.Errno
-	if errors.As(err, &errno) {
-		return int(errno)
-	}
-
-	return -1
+	return conn
 }
 
 // TestClose_Idempotent verifies that Close() releases the fd exactly once.

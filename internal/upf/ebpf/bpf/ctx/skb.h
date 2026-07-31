@@ -73,6 +73,12 @@ static __always_inline __u64 ctx_len_from(struct __ctx_buff *ctx,
 	 * a pointer subtracted from a scalar, which the verifier rejects. */
 	asm volatile("" : "+r"(off));
 
+	/* A `from` that predates a decap sits ahead of ctx->data, and the
+	 * unsigned difference would wrap into a length that admits any
+	 * subsequent bounds check. */
+	if (off > ctx->len)
+		return 0;
+
 	return ctx->len - off;
 }
 

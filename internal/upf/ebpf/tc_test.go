@@ -26,7 +26,7 @@ const (
 
 // loadTCProgramConfig loads the SCHED_CLS build of the datapath through the
 // kernel verifier with the same configuration knobs as loadProgramConfig.
-func loadTCProgramConfig(t *testing.T, masquerade bool, n3Ifindex, n6Ifindex int) *N3N6EntrypointTcObjects { //nolint:unparam // mirrors loadProgramConfig; ifindex use varies in later phases
+func loadTCProgramConfig(t *testing.T, masquerade bool, n3Ifindex, n6Ifindex int) *N3N6EntrypointTcObjects { //nolint:unparam // signature mirrors loadProgramConfig
 	t.Helper()
 
 	cfg := NewBpfObjects(false, masquerade, n3Ifindex, n6Ifindex, 0, 0)
