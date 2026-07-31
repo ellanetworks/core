@@ -49,15 +49,14 @@ func (p *pinnedLink) Close() error {
 // datapathPinName is the pin for one interface at one hook. The XDP name
 // carries the mode because bpf_xdp_link_update validates only the program type
 // and expected attach type: updating a pinned generic link with a native-mode
-// program succeeds and reinstalls in the pinned link's own mode, so a shared
-// name would downgrade the datapath while reporting the configured mode.
+// program succeeds and reinstalls in the pinned link's own mode. The mode in
+// the name keeps each pin to the mode that created it.
 func datapathPinName(hook, ifname string) string {
 	return hook + "-" + ifname
 }
 
 // datapathPinNames lists every pin the datapath may hold for an interface,
-// across hooks and XDP modes, including the unqualified name written before
-// the mode was part of it.
+// across hooks and XDP modes, including the unqualified xdp-<if> name.
 func datapathPinNames(ifname string) []string {
 	return []string{
 		datapathPinName("xdp", ifname),
@@ -71,7 +70,7 @@ func datapathPinNames(ifname string) []string {
 // reference that keeps its program attached, so one left by a previous hook or
 // mode would run alongside the new attach: XDP ahead of TCX, encapsulating,
 // translating and metering each packet twice.
-func releaseForeignPins(ifname, keep string) {
+func releaseForeignPins(ifname, keep string) error {
 	for _, name := range datapathPinNames(ifname) {
 		if name == keep {
 			continue
@@ -84,16 +83,18 @@ func releaseForeignPins(ifname, keep string) {
 			continue
 		}
 
-		if err := l.Unpin(); err != nil {
-			logger.UpfLog.Warn("failed to unpin datapath link from another hook",
-				zap.String("pin", pinPath), zap.Error(err))
-		} else {
-			logger.UpfLog.Info("released datapath link pinned at another hook",
-				zap.String("pin", pinPath))
+		err = l.Unpin()
+		_ = l.Close()
+
+		if err != nil {
+			return fmt.Errorf("unpin datapath link %s: %w", pinPath, err)
 		}
 
-		_ = l.Close()
+		logger.UpfLog.Info("released datapath link pinned at another hook",
+			zap.String("pin", pinPath))
 	}
+
+	return nil
 }
 
 // adoptOrAttach re-points a pinned link from a previous process at prog, or
@@ -104,7 +105,9 @@ func releaseForeignPins(ifname, keep string) {
 func adoptOrAttach(ifname, pinName string, prog *cebpf.Program, attach func() (link.Link, error)) (link.Link, error) {
 	pinPath := filepath.Join(bpfPinDir, pinName)
 
-	releaseForeignPins(ifname, pinName)
+	if err := releaseForeignPins(ifname, pinName); err != nil {
+		return nil, err
+	}
 
 	if l, err := link.LoadPinnedLink(pinPath, nil); err == nil {
 		if err := l.Update(prog); err == nil {
@@ -112,12 +115,12 @@ func adoptOrAttach(ifname, pinName string, prog *cebpf.Program, attach func() (l
 			return &pinnedLink{Link: l, pinPath: pinPath}, nil
 		}
 
-		if err := l.Unpin(); err != nil {
-			logger.UpfLog.Warn("failed to unpin stale datapath link",
-				zap.String("pin", pinPath), zap.Error(err))
-		}
-
+		unpinErr := l.Unpin()
 		_ = l.Close()
+
+		if unpinErr != nil {
+			return nil, fmt.Errorf("unpin stale datapath link %s: %w", pinPath, unpinErr)
+		}
 	}
 
 	l, err := attach()

@@ -169,9 +169,10 @@ static __always_inline struct upf_statistic *get_stats(void *stats_map)
 CTX_DP_SEC("upf_gtpu_control")
 int upf_gtpu_control_func(struct __ctx_buff *ctx)
 {
-	long vlan_ret = ctx_vlan_ingress(ctx);
-	if (vlan_ret)
-		return vlan_ret < 0 ? CTX_ACT_ABORTED : CTX_ACT_OK;
+	/* A tag still in the frame bytes at this hook means a second, inner tag:
+	 * the datapath does not parse QinQ, so the stack takes it. */
+	if (ctx_vlan_ingress(ctx))
+		return CTX_ACT_OK;
 
 	struct upf_statistic *statistics = get_stats(&uplink_statistics);
 	if (!statistics)
@@ -249,9 +250,10 @@ int upf_gtpu_control_func(struct __ctx_buff *ctx)
 CTX_DP_SEC("upf_uplink")
 int upf_uplink_func(struct __ctx_buff *ctx)
 {
-	long vlan_ret = ctx_vlan_ingress(ctx);
-	if (vlan_ret)
-		return vlan_ret < 0 ? CTX_ACT_ABORTED : CTX_ACT_OK;
+	/* A tag still in the frame bytes at this hook means a second, inner tag:
+	 * the datapath does not parse QinQ, so the stack takes it. */
+	if (ctx_vlan_ingress(ctx))
+		return CTX_ACT_OK;
 
 	struct upf_statistic *statistics = get_stats(&uplink_statistics);
 	if (!statistics)
@@ -275,9 +277,10 @@ int upf_uplink_func(struct __ctx_buff *ctx)
 CTX_DP_SEC("upf_downlink")
 int upf_downlink_func(struct __ctx_buff *ctx)
 {
-	long vlan_ret = ctx_vlan_ingress(ctx);
-	if (vlan_ret)
-		return vlan_ret < 0 ? CTX_ACT_ABORTED : CTX_ACT_OK;
+	/* A tag still in the frame bytes at this hook means a second, inner tag:
+	 * the datapath does not parse QinQ, so the stack takes it. */
+	if (ctx_vlan_ingress(ctx))
+		return CTX_ACT_OK;
 
 	struct upf_statistic *statistics = get_stats(&downlink_statistics);
 	if (!statistics)
@@ -308,9 +311,10 @@ int upf_downlink_func(struct __ctx_buff *ctx)
 CTX_DP_SEC("upf_entry")
 int upf_entry_func(struct __ctx_buff *ctx)
 {
-	long vlan_ret = ctx_vlan_ingress(ctx);
-	if (vlan_ret)
-		return vlan_ret < 0 ? CTX_ACT_ABORTED : CTX_ACT_OK;
+	/* A tag still in the frame bytes at this hook means a second, inner tag:
+	 * the datapath does not parse QinQ, so the stack takes it. */
+	if (ctx_vlan_ingress(ctx))
+		return CTX_ACT_OK;
 
 	struct packet_context context = {
 		.data = ctx_data(ctx),
@@ -379,9 +383,10 @@ struct {
 CTX_DP_SEC("veth_xdp")
 int veth_xdp_func(struct __ctx_buff *ctx)
 {
-	long vlan_ret = ctx_vlan_ingress(ctx);
-	if (vlan_ret)
-		return vlan_ret < 0 ? CTX_ACT_ABORTED : CTX_ACT_OK;
+	/* A tag still in the frame bytes at this hook means a second, inner tag:
+	 * the datapath does not parse QinQ, so the stack takes it. */
+	if (ctx_vlan_ingress(ctx))
+		return CTX_ACT_OK;
 
 	void *data = ctx_data(ctx);
 	const void *data_end = ctx_data_end(ctx);

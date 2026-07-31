@@ -296,7 +296,10 @@ static __always_inline enum ctx_action route_ipv6(struct packet_context *ctx,
 	fib_params.l4_protocol = ctx->ip6->nexthdr;
 	fib_params.sport = 0;
 	fib_params.dport = 0;
-	fib_params.tot_len = bpf_ntohs(ctx->ip6->payload_len);
+	/* The FIB contract is L3-inclusive; payload_len excludes the fixed
+	 * header. */
+	fib_params.tot_len =
+		bpf_ntohs(ctx->ip6->payload_len) + sizeof(struct ipv6hdr);
 	__builtin_memcpy(fib_params.ipv6_src, &ctx->ip6->saddr,
 			 sizeof(ctx->ip6->saddr));
 	__builtin_memcpy(fib_params.ipv6_dst, &ctx->ip6->daddr,

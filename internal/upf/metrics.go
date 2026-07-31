@@ -71,6 +71,13 @@ func RegisterMetrics() {
 		nil,
 	)
 
+	encapGSOFramesDesc := prometheus.NewDesc(
+		"app_upf_encap_gso_frames_total",
+		"Downlink super-frames encapsulated while carrying more than one GSO segment. Each segment leaves with the super-frame's GTP-U message length.",
+		nil,
+		nil,
+	)
+
 	xdpNatDropDesc := prometheus.NewDesc(
 		"app_xdp_nat_drop_total",
 		"Packets dropped by the NAT engine, by reason (fragment, port_exhausted, unsupported_proto, malformed).",
@@ -107,6 +114,8 @@ func RegisterMetrics() {
 		ch <- prometheus.MustNewConstMetric(xdpSourceSpoofDropDesc, prometheus.CounterValue, float64(ebpf.GetN3SourceSpoofDropIPv6(bpfObjects)), "ipv6")
 
 		ch <- prometheus.MustNewConstMetric(xdpNatUnsolicitedDropDesc, prometheus.CounterValue, float64(ebpf.GetN6NatUnsolicitedDropIPv4(bpfObjects)), "ipv4")
+
+		ch <- prometheus.MustNewConstMetric(encapGSOFramesDesc, prometheus.CounterValue, float64(ebpf.GetN6EncapGSOFrames(bpfObjects)))
 
 		natDrops := ebpf.GetNatDrops(bpfObjects)
 

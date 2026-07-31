@@ -22,12 +22,9 @@
 
 static __always_inline int vlan_to_insert(struct packet_context *ctx)
 {
-	if (ctx_ingress_ifindex(ctx->ctx_buff) == n3_ifindex) {
-		return n3_vlan;
-	} else if (ctx_ingress_ifindex(ctx->ctx_buff) == n6_ifindex) {
-		return n6_vlan;
-	}
-	return 0;
+	/* The reply leaves the way the frame arrived, and with a shared master
+	 * the ingress ifindex names both sides. */
+	return egress_vlan_reflected(ctx);
 }
 
 static __always_inline __be32 get_src_ip_addr(struct packet_context *ctx)
@@ -187,6 +184,9 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 	new_icmp->type = ICMP_DEST_UNREACH;
 	new_icmp->code = ICMP_FRAG_NEEDED;
 	new_icmp->un.frag.mtu = mtu;
+	/* RFC 1191 §4: the unused half of the word is zero, and it is covered
+	 * by the checksum computed below. */
+	new_icmp->un.frag.__unused = 0;
 
 	int pkt_size = (int)ctx_len_from(ctx->ctx_buff, data_end, data);
 	int icmp_pkt_size = sizeof(struct ethhdr) + sizeof(struct iphdr) +

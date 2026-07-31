@@ -31,7 +31,7 @@ const (
 // gsoFixture is the downlink half of the t2 topology with an IPv6 N3
 // transport: the datapath encapsulates toward an IPv6 outer header, and the
 // N3 device segments in software on transmit so the wire carries the
-// individual segments rather than the super-frame.
+// individual segments, not the super-frame.
 type gsoFixture struct {
 	obj    *BpfObjects
 	n3Peer *net.Interface
@@ -225,17 +225,12 @@ func TestTCXIPv6OuterGSOChecksums(t *testing.T) {
 		t.Skip("GSO super-frames reach the datapath only at the TC hook; native XDP runs before GRO")
 	}
 
-	// __skb_udp_tunnel_segment replays the outer header span byte-for-byte
-	// into every segment and fixes up only uh->len, so the GTP-U Length and
-	// the IPv6 outer UDP checksum are those of the super-frame. The handling
-	// this asserts is not settled: TS 29.281 §5.1 makes Length normative,
-	// and refusing the frame costs bulk downlink whenever GRO is on.
-	t.Skip("pending the GSO encapsulation decision")
-
 	const (
 		teid = 0x6750534F
 		qfi  = 7
 	)
+
+	t.Skip("GSO encapsulation policy undecided; see B1")
 
 	f := setupGSO(t, true)
 	putDownlinkPDRv6Outer(t, f.obj, ueIP, teid, testUPFN3v6, testGNBv6, qfi)

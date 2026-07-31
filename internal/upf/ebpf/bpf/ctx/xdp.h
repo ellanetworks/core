@@ -112,14 +112,13 @@
  * checksum. The helper-based path is TC-only. */
 #define CTX_L4_CSUM_VIA_HELPERS 0
 /* Every call site is behind CTX_L4_CSUM_VIA_HELPERS, so this is dead code the
- * optimizer drops. It traps rather than returning success because a caller
- * that loses its guard would otherwise skip the checksum update and report
- * that it applied one. */
-#define ctx_l4_csum_replace(ctx, off, from, to, flags)                     \
-	({                                                                 \
-		(void)(off), (void)(from), (void)(to), (void)(flags);       \
-		__builtin_trap();                                          \
-		(long)0;                                                   \
+ * optimizer drops. A caller that loses its guard traps here; returning
+ * success would skip the checksum update and report that it applied one. */
+#define ctx_l4_csum_replace(ctx, off, from, to, flags)                \
+	({                                                            \
+		(void)(off), (void)(from), (void)(to), (void)(flags); \
+		__builtin_trap();                                     \
+		(long)0;                                              \
 	})
 
 /* XDP sees VLAN tags as raw frame bytes, parsed and written in-band. On TC

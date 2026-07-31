@@ -72,7 +72,7 @@ struct packet_context {
 };
 
 /* VLAN id a frame leaves with, keyed on the logical side it is bound for
- * rather than the egress ifindex: when N3 and N6 are sub-interfaces of one
+ * and not the egress ifindex: when N3 and N6 are sub-interfaces of one
  * NIC, both resolve to the same master and the ifindex cannot tell the two
  * directions apart. */
 static __always_inline int

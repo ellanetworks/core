@@ -53,9 +53,9 @@ func tcxProgramCount(t *testing.T, ifindex int) int {
 	return len(res.Programs)
 }
 
-// TestDatapathObjectMatchesAttachMode pins the invariant an explicit
-// attach-mode broke: the loaded object has to carry the program type the hook
-// accepts, or the attach fails with EINVAL at startup.
+// TestDatapathObjectMatchesAttachMode pins the invariant every explicit
+// attach-mode relies on: the loaded object has to carry the program type the
+// hook accepts, or the attach fails with EINVAL at startup.
 func TestDatapathObjectMatchesAttachMode(t *testing.T) {
 	requireRoot(t)
 

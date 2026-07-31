@@ -21,7 +21,7 @@
 #include "bpf/utils/parsers.h"
 #include "bpf/utils/trace.h"
 
-/* GTP-U path management: the messages the UPF answers itself rather than
+/* GTP-U path management: the messages the UPF answers itself, never
  * forwarding (TS 29.281 §7). Separated from the encapsulation helpers in
  * gtp.h because these rewrite a frame in place and send it back, where those
  * resize a frame in flight. */
@@ -46,7 +46,7 @@ static __always_inline void swap_ip6(struct ipv6hdr *ip6)
  * carrying the mandatory Recovery IE (TS 29.281 §7.2.2, Table 7.2.2-1). The
  * response repeats the request's sequence number (§7.2.2) and is emitted at a
  * fixed length, so a request bearing extension headers or a private extension
- * is answered with the canonical form rather than having its tail reflected. */
+ * is answered with the canonical form; its tail is not reflected. */
 static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 {
 	struct gtpuhdr *gtp = ctx->gtp;
@@ -107,7 +107,7 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 
 		/* The re-walk steps a fixed 20 octets to L4, so an IPv4 header
 		 * carrying options (ihl > 5) — which parse_ip4 accepts — would be
-		 * rewritten inside the options. Drop rather than emit a corrupt
+		 * rewritten inside the options. Drop; emitting a corrupt
 		 * frame; options on a GTP-U echo do not occur in practice. */
 		if (ip->ihl != 5)
 			return CTX_ACT_DROP;
