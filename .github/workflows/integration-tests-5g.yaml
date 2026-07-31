@@ -17,9 +17,11 @@ jobs:
         # native-XDP-capable NIC, so generic stands in for native there.
         attach_mode: [xdp-generic]
         # Extra runs at the TCX hook, where the kernel context differs
-        # (post-GRO super-frames, CHECKSUM_PARTIAL, out-of-band VLAN). The
-        # ipv6 entry carries an IPv6 GTP-U outer header, the one combination
-        # the TCX GSO exposure is known to hit.
+        # (post-GRO super-frames, CHECKSUM_PARTIAL). The ipv6 entry carries an
+        # IPv6 GTP-U outer header, the one combination the TCX GSO exposure is
+        # known to hit. Out-of-band VLAN is not among them: the compose
+        # topology has no VLAN netdev, and BPF_PROG_TEST_RUN cannot stand in
+        # because convert___skb_to_skb rejects a non-zero vlan_present.
         include:
           - arch: amd64
             ip_version: ipv4
