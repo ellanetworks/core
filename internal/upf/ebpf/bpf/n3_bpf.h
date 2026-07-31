@@ -187,6 +187,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		   qer->ul_maximum_bitrate);
 	if (qer->ul_gate_status != GATE_STATUS_OPEN) {
 		PROFILE_END(PROF_N3_QER_RATELIMIT);
+		ctx->statistics->ul_drop_qer_gate += 1;
 		return CTX_ACT_DROP;
 	}
 
@@ -196,6 +197,7 @@ handle_gtp_packet(struct packet_context *ctx)
 	    limit_rate_sliding_window(packet_size, &qer->ul_start,
 				      qer->ul_maximum_bitrate)) {
 		PROFILE_END(PROF_N3_QER_RATELIMIT);
+		ctx->statistics->ul_drop_qer_rate += 1;
 		return CTX_ACT_DROP;
 	}
 	PROFILE_END(PROF_N3_QER_RATELIMIT);
@@ -324,6 +326,7 @@ handle_gtp_packet(struct packet_context *ctx)
 			ctx->statistics
 				->xdp_actions[ctx_stat_action(CTX_ACT_DROP) &
 					      EUPF_MAX_XDP_ACTION_MASK] += 1;
+			ctx->statistics->ul_drop_sdf += 1;
 			account_flow(ctx, n6_ifindex, pdr->imsi,
 				     ctx->ip4 ? IPV4 : IPV6, DROP);
 			return CTX_ACT_DROP;

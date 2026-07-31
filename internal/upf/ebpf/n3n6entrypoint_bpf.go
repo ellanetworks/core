@@ -180,6 +180,16 @@ type N3N6EntrypointUpfStatistic struct {
 	NatUnsupportedProtoDropIp4 uint64
 	NatMalformedDropIp4        uint64
 	EncapGsoFrames             uint64
+	DlDropFarNoForw            uint64
+	DlDropFarNoEncap           uint64
+	DlDropQerGate              uint64
+	DlDropQerRate              uint64
+	DlDropNocp                 uint64
+	DlDropUnsolicited          uint64
+	DlDropSdf                  uint64
+	UlDropQerGate              uint64
+	UlDropQerRate              uint64
+	UlDropSdf                  uint64
 }
 
 type N3N6EntrypointUrrKey struct {

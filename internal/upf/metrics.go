@@ -78,6 +78,13 @@ func RegisterMetrics() {
 		nil,
 	)
 
+	ruleDropDesc := prometheus.NewDesc(
+		"app_upf_rule_drop_total",
+		"Packets dropped by session rules, by direction and reason.",
+		[]string{"direction", "reason"},
+		nil,
+	)
+
 	xdpNatDropDesc := prometheus.NewDesc(
 		"app_xdp_nat_drop_total",
 		"Packets dropped by the NAT engine, by reason (fragment, port_exhausted, unsupported_proto, malformed).",
@@ -118,6 +125,25 @@ func RegisterMetrics() {
 		ch <- prometheus.MustNewConstMetric(encapGSOFramesDesc, prometheus.CounterValue, float64(ebpf.GetN6EncapGSOFrames(bpfObjects)))
 
 		natDrops := ebpf.GetNatDrops(bpfObjects)
+
+		ruleDrops := ebpf.GetRuleDrops(bpfObjects)
+		for _, d := range []struct {
+			dir, reason string
+			value       uint64
+		}{
+			{"downlink", "far_no_forward", ruleDrops.DLFarNoForward},
+			{"downlink", "far_no_encap", ruleDrops.DLFarNoEncap},
+			{"downlink", "qer_gate_closed", ruleDrops.DLQerGate},
+			{"downlink", "qer_rate_limit", ruleDrops.DLQerRate},
+			{"downlink", "nocp_buffer", ruleDrops.DLNoCP},
+			{"downlink", "unsolicited", ruleDrops.DLUnsolicited},
+			{"downlink", "sdf_filter", ruleDrops.DLSdf},
+			{"uplink", "qer_gate_closed", ruleDrops.ULQerGate},
+			{"uplink", "qer_rate_limit", ruleDrops.ULQerRate},
+			{"uplink", "sdf_filter", ruleDrops.ULSdf},
+		} {
+			ch <- prometheus.MustNewConstMetric(ruleDropDesc, prometheus.CounterValue, float64(d.value), d.dir, d.reason)
+		}
 
 		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.Fragment), "fragment")
 

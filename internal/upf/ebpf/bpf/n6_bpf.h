@@ -194,6 +194,8 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 			ctx->statistics->nat_fragment_drop_ip4 += 1;
 		} else if (!counted) {
 			ctx->statistics->nat_unsolicited_drop_ip4 += 1;
+		} else {
+			ctx->statistics->dl_drop_unsolicited += 1;
 		}
 		account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, DROP);
 		return CTX_ACT_DROP;
@@ -258,16 +260,19 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 
 		/* Technically, we need to buffer the packet here, but this is not
 		 * implemented yet. */
+		ctx->statistics->dl_drop_nocp += 1;
 		return CTX_ACT_DROP;
 	}
 	if (!(far->action & FAR_FORW)) {
 		upf_printk("upf: far not set to forward, dropping packet");
+		ctx->statistics->dl_drop_far_no_forw += 1;
 		return CTX_ACT_DROP;
 	}
 	if (!(far->outer_header_creation &
 	      (OHC_GTP_U_UDP_IPv4 | OHC_GTP_U_UDP_IPv6))) {
 		upf_printk(
 			"upf: far not set to encapsulate in gtp, dropping packet");
+		ctx->statistics->dl_drop_far_no_encap += 1;
 		return CTX_ACT_DROP;
 	}
 
@@ -276,6 +281,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		   qer->dl_maximum_bitrate);
 	if (qer->dl_gate_status != GATE_STATUS_OPEN) {
 		PROFILE_END(PROF_N6_QER_RATELIMIT);
+		ctx->statistics->dl_drop_qer_gate += 1;
 		return CTX_ACT_DROP;
 	}
 
@@ -285,6 +291,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	    limit_rate_sliding_window(packet_size, &qer->dl_start,
 				      qer->dl_maximum_bitrate)) {
 		PROFILE_END(PROF_N6_QER_RATELIMIT);
+		ctx->statistics->dl_drop_qer_rate += 1;
 		return CTX_ACT_DROP;
 	}
 	PROFILE_END(PROF_N6_QER_RATELIMIT);
@@ -304,6 +311,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 			ctx->statistics
 				->xdp_actions[ctx_stat_action(CTX_ACT_DROP) &
 					      EUPF_MAX_XDP_ACTION_MASK] += 1;
+			ctx->statistics->dl_drop_sdf += 1;
 			account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, DROP);
 			return CTX_ACT_DROP;
 		}
@@ -409,6 +417,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 			ctx->statistics
 				->xdp_actions[ctx_stat_action(CTX_ACT_DROP) &
 					      EUPF_MAX_XDP_ACTION_MASK] += 1;
+			ctx->statistics->dl_drop_sdf += 1;
 			account_flow(ctx, n3_ifindex, pdr->imsi, IPV6, DROP);
 			return CTX_ACT_DROP;
 		}
@@ -428,25 +437,34 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 
 		/* Technically, we need to buffer the packet here, but this is not
 		 * implemented yet. */
+		ctx->statistics->dl_drop_nocp += 1;
 		return CTX_ACT_DROP;
 	}
-	if (!(far->action & FAR_FORW))
+	if (!(far->action & FAR_FORW)) {
+		ctx->statistics->dl_drop_far_no_forw += 1;
 		return CTX_ACT_DROP;
+	}
 	if (!(far->outer_header_creation &
-	      (OHC_GTP_U_UDP_IPv4 | OHC_GTP_U_UDP_IPv6)))
+	      (OHC_GTP_U_UDP_IPv4 | OHC_GTP_U_UDP_IPv6))) {
+		ctx->statistics->dl_drop_far_no_encap += 1;
 		return CTX_ACT_DROP;
+	}
 
 	upf_printk("upf: qer gate_status:%d mbr:%d", qer->dl_gate_status,
 		   qer->dl_maximum_bitrate);
-	if (qer->dl_gate_status != GATE_STATUS_OPEN)
+	if (qer->dl_gate_status != GATE_STATUS_OPEN) {
+		ctx->statistics->dl_drop_qer_gate += 1;
 		return CTX_ACT_DROP;
+	}
 
 	const __u64 packet_size =
 		ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->ip6);
-	if (CTX_ACT_DROP == limit_rate_sliding_window(packet_size,
-						      &qer->dl_start,
-						      qer->dl_maximum_bitrate))
+	if (CTX_ACT_DROP ==
+	    limit_rate_sliding_window(packet_size, &qer->dl_start,
+				      qer->dl_maximum_bitrate)) {
+		ctx->statistics->dl_drop_qer_rate += 1;
 		return CTX_ACT_DROP;
+	}
 
 	__u8 tos = far->transport_level_marking >> 8;
 

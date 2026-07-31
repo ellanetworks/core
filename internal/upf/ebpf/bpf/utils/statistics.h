@@ -49,4 +49,14 @@ struct upf_statistic {
 	 * only the outer IP/UDP lengths). TC-only exposure; the XDP hook runs
 	 * pre-GRO. */
 	__u64 encap_gso_frames;
+	__u64 dl_drop_far_no_forw;
+	__u64 dl_drop_far_no_encap;
+	__u64 dl_drop_qer_gate;
+	__u64 dl_drop_qer_rate;
+	__u64 dl_drop_nocp;
+	__u64 dl_drop_unsolicited;
+	__u64 dl_drop_sdf;
+	__u64 ul_drop_qer_gate;
+	__u64 ul_drop_qer_rate;
+	__u64 ul_drop_sdf;
 };
