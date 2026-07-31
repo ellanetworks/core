@@ -6,6 +6,7 @@ package sctp
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"syscall"
 	"testing"
@@ -71,14 +72,25 @@ func connectLoopback(port int) (int, error) {
 	sa := &syscall.SockaddrInet4{Port: port}
 	copy(sa.Addr[:], net.ParseIP("127.0.0.1").To4())
 
-	// An interrupted connect(2) continues in the background; a retry reports its progress.
+	// A signal restarts connect(2) under SA_RESTART, and the restart reports the
+	// association's state instead of re-blocking on the handshake.
+	deadline := time.Now().Add(5 * time.Second)
+
 	for {
 		err := syscall.Connect(fd, sa)
-		if err == nil || errors.Is(err, syscall.EISCONN) {
+		if err == nil || err == syscall.EISCONN {
 			return fd, nil
 		}
 
-		if errors.Is(err, syscall.EINTR) || errors.Is(err, syscall.EALREADY) || errors.Is(err, syscall.EINPROGRESS) {
+		if err == syscall.EALREADY || err == syscall.EINTR {
+			if time.Now().After(deadline) {
+				_ = syscall.Close(fd)
+
+				return -1, fmt.Errorf("connect did not complete: %w", err)
+			}
+
+			time.Sleep(time.Millisecond)
+
 			continue
 		}
 
