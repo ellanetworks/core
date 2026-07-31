@@ -341,16 +341,18 @@ func ReadProfilingStats(bpfObjects *BpfObjects) ([]ProfileEntry, error) {
 // return a drop verdict without any other counter, so without this the drop is
 // visible only in the aggregate action total.
 type RuleDrops struct {
-	DLFarNoForward uint64
-	DLFarNoEncap   uint64
-	DLQerGate      uint64
-	DLQerRate      uint64
-	DLNoCP         uint64
-	DLUnsolicited  uint64
-	DLSdf          uint64
-	ULQerGate      uint64
-	ULQerRate      uint64
-	ULSdf          uint64
+	DLFarNoForward   uint64
+	DLFarNoEncap     uint64
+	DLQerGate        uint64
+	DLQerRate        uint64
+	DLNoCP           uint64
+	DLUnsolicited    uint64
+	DLSdf            uint64
+	ULQerGate        uint64
+	ULQerRate        uint64
+	ULSdf            uint64
+	ULDecapMismatch  uint64
+	ULUnsupportedFAR uint64
 }
 
 func GetRuleDrops(bpfObjects *BpfObjects) RuleDrops {
@@ -359,15 +361,17 @@ func GetRuleDrops(bpfObjects *BpfObjects) RuleDrops {
 	}
 
 	return RuleDrops{
-		DLFarNoForward: sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropFarNoForw }),
-		DLFarNoEncap:   sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropFarNoEncap }),
-		DLQerGate:      sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropQerGate }),
-		DLQerRate:      sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropQerRate }),
-		DLNoCP:         sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropNocp }),
-		DLUnsolicited:  sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropUnsolicited }),
-		DLSdf:          sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropSdf }),
-		ULQerGate:      sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.UlDropQerGate }),
-		ULQerRate:      sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.UlDropQerRate }),
-		ULSdf:          sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.UlDropSdf }),
+		DLFarNoForward:   sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropFarNoForw }),
+		DLFarNoEncap:     sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropFarNoEncap }),
+		DLQerGate:        sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropQerGate }),
+		DLQerRate:        sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropQerRate }),
+		DLNoCP:           sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropNocp }),
+		DLUnsolicited:    sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropUnsolicited }),
+		DLSdf:            sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropSdf }),
+		ULQerGate:        sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.UlDropQerGate }),
+		ULQerRate:        sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.UlDropQerRate }),
+		ULSdf:            sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.UlDropSdf }),
+		ULDecapMismatch:  sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.UlDropDecapMismatch }),
+		ULUnsupportedFAR: sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.UlDropUnsupportedFar }),
 	}
 }

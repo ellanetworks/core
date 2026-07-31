@@ -59,4 +59,6 @@ struct upf_statistic {
 	__u64 ul_drop_qer_gate;
 	__u64 ul_drop_qer_rate;
 	__u64 ul_drop_sdf;
+	__u64 ul_drop_decap_mismatch;
+	__u64 ul_drop_unsupported_far;
 };

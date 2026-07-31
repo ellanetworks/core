@@ -141,6 +141,8 @@ func RegisterMetrics() {
 			{"uplink", "qer_gate_closed", ruleDrops.ULQerGate},
 			{"uplink", "qer_rate_limit", ruleDrops.ULQerRate},
 			{"uplink", "sdf_filter", ruleDrops.ULSdf},
+			{"uplink", "decap_family_mismatch", ruleDrops.ULDecapMismatch},
+			{"uplink", "unsupported_far", ruleDrops.ULUnsupportedFAR},
 		} {
 			ch <- prometheus.MustNewConstMetric(ruleDropDesc, prometheus.CounterValue, float64(d.value), d.dir, d.reason)
 		}

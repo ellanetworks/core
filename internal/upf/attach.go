@@ -37,9 +37,9 @@ type pinnedLink struct {
 
 func (p *pinnedLink) Close() error {
 	if p.pinPath != "" {
-		if err := p.Unpin(); err != nil {
-			logger.UpfLog.Warn("failed to unpin datapath link",
-				zap.String("pin", p.pinPath), zap.Error(err))
+		if err := p.Unpin(); err != nil && !errors.Is(err, os.ErrNotExist) {
+			_ = p.Link.Close()
+			return fmt.Errorf("unpin datapath link %s: %w", p.pinPath, err)
 		}
 	}
 
@@ -80,7 +80,11 @@ func releaseForeignPins(ifname, keep string) error {
 
 		l, err := link.LoadPinnedLink(pinPath, nil)
 		if err != nil {
-			continue
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+
+			return fmt.Errorf("inspect pin %s: %w", pinPath, err)
 		}
 
 		err = l.Unpin()
@@ -243,8 +247,18 @@ func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface) (s
 	}
 
 	n3Link, n6Link, err = attachBothTCX(objs, n3, n6)
+	if err != nil {
+		/* The reloaded objects are unreachable to the caller once the
+		 * attach fails, so they are released here. */
+		if closeErr := objs.Close(); closeErr != nil {
+			logger.UpfLog.Warn("failed to close TCX objects after a failed attach",
+				zap.Error(closeErr))
+		}
 
-	return config.DatapathTCX, n3Link, n6Link, err
+		return "", nil, nil, err
+	}
+
+	return config.DatapathTCX, n3Link, n6Link, nil
 }
 
 func attachBothXDP(objs *ebpf.BpfObjects, n3, n6 datapathIface, flags link.XDPAttachFlags) (link.Link, *link.Link, error) {

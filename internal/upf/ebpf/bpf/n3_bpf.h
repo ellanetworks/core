@@ -155,7 +155,7 @@ handle_gtp_packet(struct packet_context *ctx)
 
 	PROFILE_START(PROF_N3_MTU_CHECK);
 	__u32 mtu_len = 0;
-	__u32 decap_no_vlan = gtp_decap_size_no_vlan(ctx, outer_header_removal);
+	__u32 decap_no_vlan = gtp_decap_size_no_vlan(ctx);
 	if (decap_no_vlan == 0) {
 		PROFILE_END(PROF_N3_MTU_CHECK);
 		return CTX_ACT_ABORTED;
@@ -205,6 +205,18 @@ handle_gtp_packet(struct packet_context *ctx)
 	upf_printk("upf: session for teid:%d outer_header_removal:%d", teid,
 		   outer_header_removal);
 	PROFILE_START(PROF_N3_GTP_MANIP);
+	/* Rewriting the tunnel in place keeps the frame encapsulated, so the
+	 * inner headers source_allowed checks below are never exposed and the
+	 * egress side is still derived from the ingress interface. Ella's SMF
+	 * only sets outer_header_creation on downlink FARs, so this is refused
+	 * rather than forwarded unvalidated. */
+	if (far->outer_header_creation &
+	    (OHC_GTP_U_UDP_IPv4 | OHC_GTP_U_UDP_IPv6)) {
+		ctx->statistics->ul_drop_unsupported_far += 1;
+		PROFILE_END(PROF_N3_GTP_MANIP);
+		return CTX_ACT_DROP;
+	}
+
 	if (far->outer_header_creation & OHC_GTP_U_UDP_IPv4) {
 		void *pkt_data4 = ctx_data(ctx->ctx_buff);
 		const void *pkt_end4 = ctx_data_end(ctx->ctx_buff);

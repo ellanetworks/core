@@ -190,6 +190,8 @@ type N3N6EntrypointUpfStatistic struct {
 	UlDropQerGate              uint64
 	UlDropQerRate              uint64
 	UlDropSdf                  uint64
+	UlDropDecapMismatch        uint64
+	UlDropUnsupportedFar       uint64
 }
 
 type N3N6EntrypointUrrKey struct {

@@ -24,6 +24,12 @@
 
 // An ICMP error quotes the packet that triggered it; that quote is both the
 // lookup key and part of what has to be translated.
+//
+// The ICMP checksum edits below stay direct RFC 1624 arithmetic on both hooks,
+// unlike the rest of this file: no NIC offloads the ICMPv4 checksum, so Linux
+// emits ICMPv4 as CHECKSUM_NONE and the field always holds a full checksum.
+// Every changed field is folded into the outer checksum — the quoted saddr,
+// the quoted port, the quoted L4 checksum and the quoted IP checksum.
 static __always_inline struct nat_entry *
 nat_translate_icmp_quote(struct five_tuple *key, struct packet_context *ctx,
 			 __u32 outer_daddr)
@@ -260,7 +266,7 @@ static __always_inline void update_port(struct packet_context *ctx,
  * checksum needs no such care — its own delta cancels the address delta over
  * the bytes skb->csum covers). The helper calls invalidate packet pointers,
  * so the context is re-derived before returning. */
-static __always_inline void
+static __always_inline long
 source_nat_apply_csum_helpers(struct packet_context *ctx, __u32 old_saddr,
 			      __u32 new_saddr, __u16 old_port, __u16 new_port)
 {
@@ -272,13 +278,13 @@ source_nat_apply_csum_helpers(struct packet_context *ctx, __u32 old_saddr,
 	switch (ctx->ip4->protocol) {
 	case IPPROTO_TCP:
 		if (!ctx->tcp) {
-			return;
+			return -1;
 		}
 		csum_off = (__u32)((__u8 *)&ctx->tcp->check - (__u8 *)data);
 		break;
 	case IPPROTO_UDP:
 		if (!ctx->udp) {
-			return;
+			return -1;
 		}
 		csum_off = (__u32)((__u8 *)&ctx->udp->check - (__u8 *)data);
 		/* Zero means "no checksum" in IPv4 UDP (RFC 768): the helper
@@ -287,7 +293,7 @@ source_nat_apply_csum_helpers(struct packet_context *ctx, __u32 old_saddr,
 		break;
 	case IPPROTO_ICMP:
 		if (!ctx->icmp) {
-			return;
+			return -1;
 		}
 		csum_off = (__u32)((__u8 *)&ctx->icmp->checksum - (__u8 *)data);
 		/* ICMP carries no pseudo-header, so the address delta does not
@@ -295,21 +301,28 @@ source_nat_apply_csum_helpers(struct packet_context *ctx, __u32 old_saddr,
 		pseudo_hdr = false;
 		break;
 	default:
-		return;
+		return -1;
 	}
 
+	/* A failed update ships a packet whose address and port were rewritten
+	 * but whose L4 checksum was not. */
+	long err = 0;
+
 	if (pseudo_hdr && old_saddr != new_saddr) {
-		ctx_l4_csum_replace(ctx->ctx_buff, csum_off, old_saddr,
-				    new_saddr, 4 | BPF_F_PSEUDO_HDR | flags);
+		err |= ctx_l4_csum_replace(ctx->ctx_buff, csum_off, old_saddr,
+					   new_saddr,
+					   4 | BPF_F_PSEUDO_HDR | flags);
 	}
 
 	if (old_port != new_port) {
-		ctx_l4_csum_replace(ctx->ctx_buff, csum_off, old_port, new_port,
-				    2 | flags);
+		err |= ctx_l4_csum_replace(ctx->ctx_buff, csum_off, old_port,
+					   new_port, 2 | flags);
 	}
 
 	context_reinit(ctx, ctx_data(ctx->ctx_buff),
 		       ctx_data_end(ctx->ctx_buff));
+
+	return err;
 }
 static __always_inline __u16 nat_random_port(void)
 {
@@ -534,10 +547,12 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 			update_port(ctx, natted.sport);
 		}
 
-		if (CTX_L4_CSUM_VIA_HELPERS) {
-			source_nat_apply_csum_helpers(ctx, orig.saddr,
-						      ctx->ip4->saddr,
-						      orig.sport, natted.sport);
+		if (CTX_L4_CSUM_VIA_HELPERS &&
+		    source_nat_apply_csum_helpers(ctx, orig.saddr,
+						  ctx->ip4->saddr, orig.sport,
+						  natted.sport) != 0) {
+			ctx->statistics->nat_malformed_drop_ip4 += 1;
+			return false;
 		}
 
 		return true;
@@ -606,9 +621,11 @@ allocate:;
 		}
 	}
 
-	if (CTX_L4_CSUM_VIA_HELPERS) {
-		source_nat_apply_csum_helpers(ctx, orig.saddr, ctx->ip4->saddr,
-					      orig.sport, natted.sport);
+	if (CTX_L4_CSUM_VIA_HELPERS &&
+	    source_nat_apply_csum_helpers(ctx, orig.saddr, ctx->ip4->saddr,
+					  orig.sport, natted.sport) != 0) {
+		ctx->statistics->nat_malformed_drop_ip4 += 1;
+		return false;
 	}
 
 	return true;
@@ -720,23 +737,32 @@ destination_nat_apply_csum_helpers(struct packet_context *ctx,
 
 	/* The ICMP checksum has no pseudo-header, so the address delta does
 	 * not enter it. */
+	long err = 0;
+
 	if (x->proto != IPPROTO_ICMP) {
-		ctx_l4_csum_replace(ctx->ctx_buff, csum_off, old_daddr,
-				    x->daddr, 4 | BPF_F_PSEUDO_HDR | flags);
+		err |= ctx_l4_csum_replace(ctx->ctx_buff, csum_off, old_daddr,
+					   x->daddr,
+					   4 | BPF_F_PSEUDO_HDR | flags);
 	}
 
 	if (id_change) {
-		ctx_l4_csum_replace(ctx->ctx_buff, csum_off, old_id, x->l4_id,
-				    2 | flags);
+		err |= ctx_l4_csum_replace(ctx->ctx_buff, csum_off, old_id,
+					   x->l4_id, 2 | flags);
 	}
 
 	/* Re-derive the context in the same flow as the helper calls — every
 	 * packet pointer is invalid past this point, and keying the re-parse
 	 * on anything the verifier must correlate across branches leaves it a
 	 * poisoned-pointer path. A failed re-parse surfaces to the caller as
-	 * ctx->ip4 == NULL. */
+	 * ctx->ip4 == NULL, and a failed checksum update takes the same exit
+	 * rather than shipping a rewritten packet with a stale checksum. */
 	context_reinit(ctx, ctx_data(ctx->ctx_buff),
 		       ctx_data_end(ctx->ctx_buff));
+
+	if (err) {
+		ctx->ip4 = NULL;
+		ctx->ip6 = NULL;
+	}
 }
 
 // Rewrites the destination the lookup resolved, and nothing else.

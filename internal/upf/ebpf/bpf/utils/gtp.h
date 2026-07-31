@@ -140,18 +140,33 @@ static __always_inline __u32 parse_gtp(struct packet_context *ctx)
 /* Bytes to strip when decapsulating an uplink GTP-U packet, excluding any VLAN
  * tag: outer IP + UDP + the GTP-U header parse_gtp actually consumed. The
  * Ethernet header is preserved (rewritten in place), so it is not counted.
- * Returns 0 when the parsed header length is out of range. */
-static __always_inline __u32 gtp_decap_size_no_vlan(
-	const struct packet_context *ctx, __u8 outer_header_removal)
+ *
+ * The outer L3 length comes from what the parser consumed, not from the PDR:
+ * parse_ip4 advances by ihl*4 and accepts options, so a constant 20 would leave
+ * the option bytes in the frame and guess_eth_protocol would read an option
+ * type as the inner version nibble. Returns 0 when either length is out of
+ * range. */
+static __always_inline __u32
+gtp_decap_size_no_vlan(const struct packet_context *ctx)
 {
 	__u32 gtp_hdr_len = ctx->gtp_hdr_len;
 	if (gtp_hdr_len < sizeof(struct gtpuhdr) ||
 	    gtp_hdr_len > GTP_MAX_HDR_LEN)
 		return 0;
 
-	__u32 outer_ip_size = (outer_header_removal == OHR_GTP_U_UDP_IPv6) ?
-				      sizeof(struct ipv6hdr) :
-				      sizeof(struct iphdr);
+	__u32 outer_ip_size;
+	if (ctx->ip4) {
+		outer_ip_size = (__u32)ctx->ip4->ihl * 4;
+		/* parse_ip4 rejects ihl < 5; the field is 4 bits so the upper
+		 * bound is 60. Restated here so the verifier sees it. */
+		if (outer_ip_size < sizeof(struct iphdr) || outer_ip_size > 60)
+			return 0;
+	} else if (ctx->ip6) {
+		/* parse_ip6 consumes the fixed header only. */
+		outer_ip_size = sizeof(struct ipv6hdr);
+	} else {
+		return 0;
+	}
 
 	return outer_ip_size + sizeof(struct udphdr) + gtp_hdr_len;
 }
@@ -181,8 +196,19 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx,
 		return -1;
 	}
 
-	const __u32 gtp_encap_size_no_vlan =
-		gtp_decap_size_no_vlan(ctx, outer_header_removal);
+	/* The PDR names the transport family the session was established with.
+	 * A frame whose outer header disagrees would be stripped by the wrong
+	 * amount, landing the parse inside the inner packet. */
+	const __u8 pdr_expects_ipv6 = outer_header_removal ==
+				      OHR_GTP_U_UDP_IPv6;
+	if (pdr_expects_ipv6 != (ctx->ip6 != NULL)) {
+		upf_printk(
+			"upf: remove_gtp_header: outer family disagrees with pdr");
+		ctx->statistics->ul_drop_decap_mismatch += 1;
+		return -1;
+	}
+
+	const __u32 gtp_encap_size_no_vlan = gtp_decap_size_no_vlan(ctx);
 	if (gtp_encap_size_no_vlan == 0) {
 		upf_printk("upf: remove_gtp_header: bad gtp header length");
 		return -1;
