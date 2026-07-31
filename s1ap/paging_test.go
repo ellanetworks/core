@@ -11,9 +11,9 @@ import (
 
 func TestPagingRoundtrip(t *testing.T) {
 	in := &Paging{
-		UEIdentityIndexValue: 0x2a9, // 10-bit value (IMSI mod 1024)
-		STMSI:                STMSI{MMEC: 0x01, MTMSI: 0xdeadbeef},
-		CNDomain:             CNDomainPS,
+		UEIdentityIndexValue: Ptr(uint16(0x2a9)), // 10-bit value (IMSI mod 1024)
+		STMSI:                &STMSI{MMEC: 0x01, MTMSI: 0xdeadbeef},
+		CNDomain:             Ptr(CNDomainPS),
 		TAIList: []TAI{
 			{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: TAC(0x0001)},
 		},
@@ -40,15 +40,15 @@ func TestPagingRoundtrip(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if out.UEIdentityIndexValue != in.UEIdentityIndexValue {
+	if deref(out.UEIdentityIndexValue) != deref(in.UEIdentityIndexValue) {
 		t.Fatalf("UE identity index = %#x, want %#x", out.UEIdentityIndexValue, in.UEIdentityIndexValue)
 	}
 
-	if out.STMSI != in.STMSI {
+	if deref(out.STMSI) != deref(in.STMSI) {
 		t.Fatalf("S-TMSI = %+v, want %+v", out.STMSI, in.STMSI)
 	}
 
-	if out.CNDomain != CNDomainPS {
+	if deref(out.CNDomain) != CNDomainPS {
 		t.Fatalf("CN domain = %d, want PS", out.CNDomain)
 	}
 
@@ -65,9 +65,9 @@ func TestPagingRoundtrip(t *testing.T) {
 // paging capability is set (it must not encode an empty octet string).
 func TestPagingOmitsRadioCapabilityForPaging(t *testing.T) {
 	in := &Paging{
-		UEIdentityIndexValue: 0x2a9,
-		STMSI:                STMSI{MMEC: 0x01, MTMSI: 0xdeadbeef},
-		CNDomain:             CNDomainPS,
+		UEIdentityIndexValue: Ptr(uint16(0x2a9)),
+		STMSI:                &STMSI{MMEC: 0x01, MTMSI: 0xdeadbeef},
+		CNDomain:             Ptr(CNDomainPS),
 		TAIList:              []TAI{{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: TAC(0x0001)}},
 	}
 

@@ -4,139 +4,103 @@
 package s1ap
 
 import (
-	"fmt"
-
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // ERABToBeModifiedItemBearerModReq ::= SEQUENCE { e-RAB-ID,
-// e-RABLevelQoSParameters, nAS-PDU, iE-Extensions OPTIONAL } (extensible). The
-// NAS-PDU carries the MODIFY EPS BEARER CONTEXT REQUEST for the bearer
-// (TS 36.413). Unlike E-RAB Setup there is no transport layer address:
-// the S1-U endpoint is unchanged.
+// e-RABLevelQoSParameters, nAS-PDU, iE-Extensions OPTIONAL } (extensible).
+// The NAS-PDU carries the MODIFY EPS BEARER CONTEXT REQUEST (TS 36.413).
 type ERABToBeModifiedItemBearerModReq struct {
+	_      [0]struct{} `per:"extseq"`
 	ERABID ERABID
 	QoS    ERABLevelQoSParameters
 	NASPDU NASPDU
-}
-
-func (it ERABToBeModifiedItemBearerModReq) encode(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, []bool{false})
-
-	if err := it.ERABID.encode(w); err != nil {
-		return err
-	}
-
-	if err := it.QoS.encode(w); err != nil {
-		return err
-	}
-
-	return it.NASPDU.encode(w)
-}
-
-func decodeERABToBeModifiedItemBearerModReq(r *aper.Reader) (ERABToBeModifiedItemBearerModReq, error) {
-	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
-	if err != nil {
-		return ERABToBeModifiedItemBearerModReq{}, err
-	}
-
-	var it ERABToBeModifiedItemBearerModReq
-
-	if it.ERABID, err = decodeERABID(r); err != nil {
-		return it, err
-	}
-
-	if it.QoS, err = decodeERABLevelQoSParameters(r); err != nil {
-		return it, err
-	}
-
-	if it.NASPDU, err = decodeNASPDU(r); err != nil {
-		return it, err
-	}
-
-	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
-		return it, err
-	}
-
-	return it, nil
+	_      ieExtensions `per:",skip"`
 }
 
 // ERABModifyItemBearerModRes ::= SEQUENCE { e-RAB-ID, iE-Extensions OPTIONAL }
-// (extensible): one successfully modified E-RAB in the E-RAB MODIFY RESPONSE
-// (TS 36.413).
+// (extensible) (TS 36.413).
 type ERABModifyItemBearerModRes struct {
+	_      [0]struct{} `per:"extseq"`
 	ERABID ERABID
+	_      ieExtensions `per:",skip"`
 }
 
-func (it ERABModifyItemBearerModRes) encode(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, []bool{false})
-
-	return it.ERABID.encode(w)
-}
-
-func decodeERABModifyItemBearerModRes(r *aper.Reader) (ERABModifyItemBearerModRes, error) {
-	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
-	if err != nil {
-		return ERABModifyItemBearerModRes{}, err
-	}
-
-	var it ERABModifyItemBearerModRes
-
-	if it.ERABID, err = decodeERABID(r); err != nil {
-		return it, err
-	}
-
-	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
-		return it, err
-	}
-
-	return it, nil
-}
-
-// ERABModifyRequest is the E-RAB MODIFY REQUEST message (TS 36.413),
-// sent by the MME to change the QoS of one or more active E-RABs. The new
-// E-RAB-level QoS (QCI, ARP) reconfigures the radio bearer; the piggybacked
-// NAS-PDU carries the MODIFY EPS BEARER CONTEXT REQUEST to the UE.
+// TS 36.413 §9.1.3.3.
 type ERABModifyRequest struct {
 	MMEUES1APID               MMEUES1APID
 	ENBUES1APID               ENBUES1APID
 	UEAggregateMaximumBitRate *UEAggregateMaximumBitRate
 	ERABToBeModified          []ERABToBeModifiedItemBearerModReq
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *ERABModifyRequest) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+var eRABModifyRequestIEs = []ieSpec[ERABModifyRequest]{
+	{
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *ERABModifyRequest, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.MMEUES1APID)
+		},
+		encode: func(m *ERABModifyRequest) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+	},
+	{
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *ERABModifyRequest, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *ERABModifyRequest) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idUEAggregateMaximumBitrate, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *ERABModifyRequest, raw []byte, enc per.Encoding) error {
+			var (
+				err  error
+				ambr UEAggregateMaximumBitRate
+			)
 
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-	}
+			err = perIEDecode(raw, &ambr)
+			m.UEAggregateMaximumBitRate = &ambr
 
-	if m.UEAggregateMaximumBitRate != nil {
-		ambr := *m.UEAggregateMaximumBitRate
-		fields = append(fields, ieField{id: idUEAggregateMaximumBitrate, crit: CriticalityReject, enc: ambr.encode})
-	}
+			return err
+		},
+		encode: func(m *ERABModifyRequest) (per.Marshaler, bool) {
+			if m.UEAggregateMaximumBitRate == nil {
+				return nil, false
+			}
 
-	fields = append(fields, ieField{id: idERABToBeModifiedListBearerModReq, crit: CriticalityReject, enc: func(w *aper.Writer) error {
-		return encodeSingleContainerList(w, maxnoofERABs, idERABToBeModifiedItemBearerModReq, CriticalityReject, encoderList(m.ERABToBeModified))
-	}})
+			return m.UEAggregateMaximumBitRate, true
+		},
+	},
+	{
+		id: idERABToBeModifiedListBearerModReq, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *ERABModifyRequest, raw []byte, enc per.Encoding) error {
+			var err error
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
+			m.ERABToBeModified, err = decodeItemList[ERABToBeModifiedItemBearerModReq](per.NewReader(raw), enc, maxnoofERABs)
 
-	return encodeIEContainer(w, fields)
+			return err
+		},
+		encode: func(m *ERABModifyRequest) (per.Marshaler, bool) {
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABToBeModifiedItemBearerModReq, CriticalityReject, m.ERABToBeModified)
+			}), true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *ERABModifyRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcERABModify, eRABModifyRequestIEs, m)
+}
+
 func (m *ERABModifyRequest) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcERABModify,
@@ -145,127 +109,159 @@ func (m *ERABModifyRequest) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseERABModifyRequest decodes the message from an initiatingMessage open-type
-// payload.
 func ParseERABModifyRequest(value []byte) (*ERABModifyRequest, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: ERABModifyRequest preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &ERABModifyRequest{}
-
-	var seenMME, seenENB, seenERAB bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
-			seenMME = true
-		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
-			seenENB = true
-		case idUEAggregateMaximumBitrate:
-			var ambr UEAggregateMaximumBitRate
-
-			ambr, err = decodeUEAggregateMaximumBitRate(sub)
-			m.UEAggregateMaximumBitRate = &ambr
-		case idERABToBeModifiedListBearerModReq:
-			m.ERABToBeModified, err = decodeERABToBeModifiedList(sub)
-			seenERAB = true
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: ERABModifyRequest IE %d: %w", f.id, err)
-		}
-	}
-
-	if !seenMME || !seenENB || !seenERAB {
-		return nil, fmt.Errorf("s1ap: ERABModifyRequest missing mandatory IE")
-	}
-
-	return m, nil
+	return parseMessageBody[ERABModifyRequest](ProcERABModify, TriggeringInitiatingMessage, eRABModifyRequestIEs, value)
 }
 
-func decodeERABToBeModifiedList(r *aper.Reader) ([]ERABToBeModifiedItemBearerModReq, error) {
-	return decodeItemList(r, maxnoofERABs, decodeERABToBeModifiedItemBearerModReq)
-}
-
-// ERABModifyResponse is the E-RAB MODIFY RESPONSE message (TS 36.413),
-// sent by the eNB once the radio bearer QoS is reconfigured. ERABModify lists the
-// successfully modified E-RABs; ERABFailedToModify lists those rejected.
+// TS 36.413 §9.1.3.4.
 type ERABModifyResponse struct {
-	MMEUES1APID             MMEUES1APID
-	ENBUES1APID             ENBUES1APID
+	MMEUES1APID             *MMEUES1APID
+	ENBUES1APID             *ENBUES1APID
 	ERABModify              []ERABModifyItemBearerModRes
 	ERABFailedToModify      []ERABItem
 	CriticalityDiagnostics  *CriticalityDiagnostics
 	UserLocationInformation *UserLocationInformation
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *ERABModifyResponse) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+var eRABModifyResponseIEs = []ieSpec[ERABModifyResponse]{
+	{
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
+			var v MMEUES1APID
 
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityIgnore, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityIgnore, enc: m.ENBUES1APID.encode},
-	}
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
 
-	if len(m.ERABModify) > 0 {
-		fields = append(fields, ieField{id: idERABModifyListBearerModRes, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABModifyItemBearerModRes, CriticalityIgnore, encoderList(m.ERABModify))
-		}})
-	}
+			m.MMEUES1APID = &v
 
-	if len(m.ERABFailedToModify) > 0 {
-		fields = append(fields, ieField{id: idERABFailedToModifyList, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABItem, CriticalityIgnore, encoderList(m.ERABFailedToModify))
-		}})
-	}
+			return nil
+		},
+		encode: func(m *ERABModifyResponse) (per.Marshaler, bool) {
+			if m.MMEUES1APID == nil {
+				return nil, false
+			}
 
-	if m.CriticalityDiagnostics != nil {
-		d := *m.CriticalityDiagnostics
-		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, enc: d.encode})
-	}
+			return m.MMEUES1APID, true
+		},
+	},
+	{
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
+			var v ENBUES1APID
 
-	if m.UserLocationInformation != nil {
-		u := *m.UserLocationInformation
-		fields = append(fields, ieField{id: idUserLocationInformation, crit: CriticalityIgnore, enc: u.encode})
-	}
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
+			m.ENBUES1APID = &v
 
-	return encodeIEContainer(w, fields)
+			return nil
+		},
+		encode: func(m *ERABModifyResponse) (per.Marshaler, bool) {
+			if m.ENBUES1APID == nil {
+				return nil, false
+			}
+
+			return m.ENBUES1APID, true
+		},
+	},
+	{
+		id: idERABModifyListBearerModRes, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
+			var err error
+
+			m.ERABModify, err = decodeItemList[ERABModifyItemBearerModRes](per.NewReader(raw), enc, maxnoofERABs)
+
+			return err
+		},
+		encode: func(m *ERABModifyResponse) (per.Marshaler, bool) {
+			if len(m.ERABModify) == 0 {
+				return nil, false
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABModifyItemBearerModRes, CriticalityIgnore, m.ERABModify)
+			}), true
+		},
+	},
+	{
+		id: idERABFailedToModifyList, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
+			var err error
+
+			m.ERABFailedToModify, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs)
+
+			return err
+		},
+		encode: func(m *ERABModifyResponse) (per.Marshaler, bool) {
+			if len(m.ERABFailedToModify) == 0 {
+				return nil, false
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABFailedToModify)
+			}), true
+		},
+	},
+	{
+		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				cd  CriticalityDiagnostics
+			)
+
+			err = perIEDecode(raw, &cd)
+			m.CriticalityDiagnostics = &cd
+
+			return err
+		},
+		encode: func(m *ERABModifyResponse) (per.Marshaler, bool) {
+			if m.CriticalityDiagnostics == nil {
+				return nil, false
+			}
+
+			return m.CriticalityDiagnostics, true
+		},
+	},
+	{
+		id: idUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				uli UserLocationInformation
+			)
+
+			err = perIEDecode(raw, &uli)
+			m.UserLocationInformation = &uli
+
+			return err
+		},
+		encode: func(m *ERABModifyResponse) (per.Marshaler, bool) {
+			if m.UserLocationInformation == nil {
+				return nil, false
+			}
+
+			return m.UserLocationInformation, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *ERABModifyResponse) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcERABModify, eRABModifyResponseIEs, m)
+}
+
 func (m *ERABModifyResponse) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&SuccessfulOutcome{
 		ProcedureCode: ProcERABModify,
@@ -274,71 +270,6 @@ func (m *ERABModifyResponse) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseERABModifyResponse decodes the message from a successfulOutcome open-type
-// payload.
 func ParseERABModifyResponse(value []byte) (*ERABModifyResponse, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: ERABModifyResponse preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &ERABModifyResponse{}
-
-	var seenMME, seenENB bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
-			seenMME = true
-		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
-			seenENB = true
-		case idERABModifyListBearerModRes:
-			m.ERABModify, err = decodeERABModifyList(sub)
-		case idERABFailedToModifyList:
-			m.ERABFailedToModify, err = decodeERABItemList(sub)
-		case idCriticalityDiagnostics:
-			var cd CriticalityDiagnostics
-
-			cd, err = decodeCriticalityDiagnostics(sub)
-			m.CriticalityDiagnostics = &cd
-		case idUserLocationInformation:
-			var uli UserLocationInformation
-
-			uli, err = decodeUserLocationInformation(sub)
-			m.UserLocationInformation = &uli
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: ERABModifyResponse IE %d: %w", f.id, err)
-		}
-	}
-
-	if !seenMME || !seenENB {
-		return nil, fmt.Errorf("s1ap: ERABModifyResponse missing mandatory IE")
-	}
-
-	return m, nil
-}
-
-func decodeERABModifyList(r *aper.Reader) ([]ERABModifyItemBearerModRes, error) {
-	return decodeItemList(r, maxnoofERABs, decodeERABModifyItemBearerModRes)
+	return parseMessageBody[ERABModifyResponse](ProcERABModify, TriggeringSuccessfulOutcome, eRABModifyResponseIEs, value)
 }

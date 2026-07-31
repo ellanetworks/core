@@ -6,7 +6,7 @@ package s1ap
 import (
 	"testing"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 func TestENBIDAllKinds(t *testing.T) {
@@ -17,13 +17,13 @@ func TestENBIDAllKinds(t *testing.T) {
 		{Kind: ENBIDLongMacro, Value: 0x1abcde & 0x1fffff}, // 21 bits, extension
 	}
 	for _, in := range cases {
-		var w aper.Writer
+		w := per.NewWriter()
 
-		if err := in.encode(&w); err != nil {
+		if err := in.MarshalPER(w, per.Aligned); err != nil {
 			t.Fatalf("%+v: encode: %v", in, err)
 		}
 
-		got, err := decodeENBID(aper.NewReader(w.Bytes()))
+		got, err := unmarshalPERValue[ENBID](perBytes(w))
 		if err != nil {
 			t.Fatalf("%+v: decode: %v", in, err)
 		}
@@ -36,13 +36,13 @@ func TestENBIDAllKinds(t *testing.T) {
 
 func TestPagingDRXRoundTrip(t *testing.T) {
 	for _, p := range []PagingDRX{PagingDRXv32, PagingDRXv64, PagingDRXv128, PagingDRXv256} {
-		var w aper.Writer
+		w := per.NewWriter()
 
-		if err := p.encode(&w); err != nil {
+		if err := p.MarshalPER(w, per.Aligned); err != nil {
 			t.Fatal(err)
 		}
 
-		got, err := decodePagingDRX(aper.NewReader(w.Bytes()))
+		got, err := unmarshalPERValue[PagingDRX](perBytes(w))
 		if err != nil || got != p {
 			t.Fatalf("p=%d: decoded %d err=%v", p, got, err)
 		}

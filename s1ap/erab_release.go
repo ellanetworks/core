@@ -4,48 +4,18 @@
 package s1ap
 
 import (
-	"fmt"
-
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // ERABReleaseItemBearerRelComp ::= SEQUENCE { e-RAB-ID, iE-Extensions OPTIONAL }
 // (extensible): an E-RAB the eNB confirms released (TS 36.413).
 type ERABReleaseItemBearerRelComp struct {
+	_      [0]struct{} `per:"extseq"`
 	ERABID ERABID
+	_      ieExtensions `per:",skip"`
 }
 
-func (it ERABReleaseItemBearerRelComp) encode(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, []bool{false})
-
-	return it.ERABID.encode(w)
-}
-
-func decodeERABReleaseItemBearerRelComp(r *aper.Reader) (ERABReleaseItemBearerRelComp, error) {
-	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
-	if err != nil {
-		return ERABReleaseItemBearerRelComp{}, err
-	}
-
-	var it ERABReleaseItemBearerRelComp
-
-	if it.ERABID, err = decodeERABID(r); err != nil {
-		return it, err
-	}
-
-	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
-		return it, err
-	}
-
-	return it, nil
-}
-
-// ERABReleaseCommand is the E-RAB RELEASE COMMAND message (TS 36.413),
-// sent by the MME to release one or more E-RABs of a UE that stays connected —
-// the radio leg of a PDN connection being disconnected (TS 23.401,
-// "Deactivate Bearer Request"). The DEACTIVATE EPS BEARER CONTEXT REQUEST NAS
-// message rides in the optional NAS-PDU IE, so the eNB releases the radio bearer
-// and delivers the NAS in one step.
+// TS 36.413 §9.1.3.5.
 type ERABReleaseCommand struct {
 	MMEUES1APID               MMEUES1APID
 	ENBUES1APID               ENBUES1APID
@@ -53,44 +23,91 @@ type ERABReleaseCommand struct {
 	ERABToBeReleased          []ERABItem
 	NASPDU                    NASPDU
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *ERABReleaseCommand) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+var eRABReleaseCommandIEs = []ieSpec[ERABReleaseCommand]{
+	{
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *ERABReleaseCommand, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.MMEUES1APID)
+		},
+		encode: func(m *ERABReleaseCommand) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+	},
+	{
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *ERABReleaseCommand, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *ERABReleaseCommand) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idUEAggregateMaximumBitrate, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *ERABReleaseCommand, raw []byte, enc per.Encoding) error {
+			var (
+				err  error
+				ambr UEAggregateMaximumBitRate
+			)
 
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-	}
+			err = perIEDecode(raw, &ambr)
+			m.UEAggregateMaximumBitRate = &ambr
 
-	if m.UEAggregateMaximumBitRate != nil {
-		ambr := *m.UEAggregateMaximumBitRate
-		fields = append(fields, ieField{id: idUEAggregateMaximumBitrate, crit: CriticalityReject, enc: ambr.encode})
-	}
+			return err
+		},
+		encode: func(m *ERABReleaseCommand) (per.Marshaler, bool) {
+			if m.UEAggregateMaximumBitRate == nil {
+				return nil, false
+			}
 
-	fields = append(fields, ieField{id: idERABToBeReleasedList, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-		return encodeSingleContainerList(w, maxnoofERABs, idERABItem, CriticalityIgnore, encoderList(m.ERABToBeReleased))
-	}})
+			return m.UEAggregateMaximumBitRate, true
+		},
+	},
+	{
+		id: idERABToBeReleasedList, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *ERABReleaseCommand, raw []byte, enc per.Encoding) error {
+			var err error
 
-	if len(m.NASPDU) > 0 {
-		fields = append(fields, ieField{id: idNASPDU, crit: CriticalityIgnore, enc: m.NASPDU.encode})
-	}
+			m.ERABToBeReleased, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs)
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
+			return err
+		},
+		encode: func(m *ERABReleaseCommand) (per.Marshaler, bool) {
+			if len(m.ERABToBeReleased) == 0 {
+				return nil, false
+			}
 
-	return encodeIEContainer(w, fields)
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABToBeReleased)
+			}), true
+		},
+	},
+	{
+		id: idNASPDU, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABReleaseCommand, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.NASPDU)
+		},
+		encode: func(m *ERABReleaseCommand) (per.Marshaler, bool) {
+			if len(m.NASPDU) == 0 {
+				return nil, false
+			}
+
+			return &m.NASPDU, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *ERABReleaseCommand) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcERABRelease, eRABReleaseCommandIEs, m)
+}
+
 func (m *ERABReleaseCommand) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcERABRelease,
@@ -99,124 +116,159 @@ func (m *ERABReleaseCommand) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseERABReleaseCommand decodes the message from an initiatingMessage open-type
-// payload.
 func ParseERABReleaseCommand(value []byte) (*ERABReleaseCommand, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: ERABReleaseCommand preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &ERABReleaseCommand{}
-
-	var seenMME, seenENB, seenList bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
-			seenMME = true
-		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
-			seenENB = true
-		case idUEAggregateMaximumBitrate:
-			var ambr UEAggregateMaximumBitRate
-
-			ambr, err = decodeUEAggregateMaximumBitRate(sub)
-			m.UEAggregateMaximumBitRate = &ambr
-		case idERABToBeReleasedList:
-			m.ERABToBeReleased, err = decodeERABItemList(sub)
-			seenList = true
-		case idNASPDU:
-			m.NASPDU, err = decodeNASPDU(sub)
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: ERABReleaseCommand IE %d: %w", f.id, err)
-		}
-	}
-
-	if !seenMME || !seenENB || !seenList {
-		return nil, fmt.Errorf("s1ap: ERABReleaseCommand missing mandatory IE")
-	}
-
-	return m, nil
+	return parseMessageBody[ERABReleaseCommand](ProcERABRelease, TriggeringInitiatingMessage, eRABReleaseCommandIEs, value)
 }
 
-// ERABReleaseResponse is the E-RAB RELEASE RESPONSE message (TS 36.413),
-// sent by the eNB once the E-RAB(s) are released.
+// TS 36.413 §9.1.3.6.
 type ERABReleaseResponse struct {
-	MMEUES1APID             MMEUES1APID
-	ENBUES1APID             ENBUES1APID
+	MMEUES1APID             *MMEUES1APID
+	ENBUES1APID             *ENBUES1APID
 	ERABReleased            []ERABReleaseItemBearerRelComp
 	ERABFailedToRelease     []ERABItem
 	CriticalityDiagnostics  *CriticalityDiagnostics
 	UserLocationInformation *UserLocationInformation
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *ERABReleaseResponse) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
+	{
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
+			var v MMEUES1APID
 
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityIgnore, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityIgnore, enc: m.ENBUES1APID.encode},
-	}
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
 
-	if len(m.ERABReleased) > 0 {
-		fields = append(fields, ieField{id: idERABReleaseListBearerRelComp, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABReleaseItemBearerRelComp, CriticalityIgnore, encoderList(m.ERABReleased))
-		}})
-	}
+			m.MMEUES1APID = &v
 
-	if len(m.ERABFailedToRelease) > 0 {
-		fields = append(fields, ieField{id: idERABFailedToReleaseList, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABItem, CriticalityIgnore, encoderList(m.ERABFailedToRelease))
-		}})
-	}
+			return nil
+		},
+		encode: func(m *ERABReleaseResponse) (per.Marshaler, bool) {
+			if m.MMEUES1APID == nil {
+				return nil, false
+			}
 
-	if m.CriticalityDiagnostics != nil {
-		d := *m.CriticalityDiagnostics
-		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, enc: d.encode})
-	}
+			return m.MMEUES1APID, true
+		},
+	},
+	{
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
+			var v ENBUES1APID
 
-	if m.UserLocationInformation != nil {
-		u := *m.UserLocationInformation
-		fields = append(fields, ieField{id: idUserLocationInformation, crit: CriticalityIgnore, enc: u.encode})
-	}
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
+			m.ENBUES1APID = &v
 
-	return encodeIEContainer(w, fields)
+			return nil
+		},
+		encode: func(m *ERABReleaseResponse) (per.Marshaler, bool) {
+			if m.ENBUES1APID == nil {
+				return nil, false
+			}
+
+			return m.ENBUES1APID, true
+		},
+	},
+	{
+		id: idERABReleaseListBearerRelComp, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
+			var err error
+
+			m.ERABReleased, err = decodeItemList[ERABReleaseItemBearerRelComp](per.NewReader(raw), enc, maxnoofERABs)
+
+			return err
+		},
+		encode: func(m *ERABReleaseResponse) (per.Marshaler, bool) {
+			if len(m.ERABReleased) == 0 {
+				return nil, false
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABReleaseItemBearerRelComp, CriticalityIgnore, m.ERABReleased)
+			}), true
+		},
+	},
+	{
+		id: idERABFailedToReleaseList, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
+			var err error
+
+			m.ERABFailedToRelease, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs)
+
+			return err
+		},
+		encode: func(m *ERABReleaseResponse) (per.Marshaler, bool) {
+			if len(m.ERABFailedToRelease) == 0 {
+				return nil, false
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABFailedToRelease)
+			}), true
+		},
+	},
+	{
+		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				cd  CriticalityDiagnostics
+			)
+
+			err = perIEDecode(raw, &cd)
+			m.CriticalityDiagnostics = &cd
+
+			return err
+		},
+		encode: func(m *ERABReleaseResponse) (per.Marshaler, bool) {
+			if m.CriticalityDiagnostics == nil {
+				return nil, false
+			}
+
+			return m.CriticalityDiagnostics, true
+		},
+	},
+	{
+		id: idUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				uli UserLocationInformation
+			)
+
+			err = perIEDecode(raw, &uli)
+			m.UserLocationInformation = &uli
+
+			return err
+		},
+		encode: func(m *ERABReleaseResponse) (per.Marshaler, bool) {
+			if m.UserLocationInformation == nil {
+				return nil, false
+			}
+
+			return m.UserLocationInformation, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *ERABReleaseResponse) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcERABRelease, eRABReleaseResponseIEs, m)
+}
+
 func (m *ERABReleaseResponse) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&SuccessfulOutcome{
 		ProcedureCode: ProcERABRelease,
@@ -225,71 +277,6 @@ func (m *ERABReleaseResponse) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseERABReleaseResponse decodes the message from a successfulOutcome open-type
-// payload.
 func ParseERABReleaseResponse(value []byte) (*ERABReleaseResponse, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: ERABReleaseResponse preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &ERABReleaseResponse{}
-
-	var seenMME, seenENB bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
-			seenMME = true
-		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
-			seenENB = true
-		case idERABReleaseListBearerRelComp:
-			m.ERABReleased, err = decodeERABReleaseList(sub)
-		case idERABFailedToReleaseList:
-			m.ERABFailedToRelease, err = decodeERABItemList(sub)
-		case idCriticalityDiagnostics:
-			var cd CriticalityDiagnostics
-
-			cd, err = decodeCriticalityDiagnostics(sub)
-			m.CriticalityDiagnostics = &cd
-		case idUserLocationInformation:
-			var uli UserLocationInformation
-
-			uli, err = decodeUserLocationInformation(sub)
-			m.UserLocationInformation = &uli
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: ERABReleaseResponse IE %d: %w", f.id, err)
-		}
-	}
-
-	if !seenMME || !seenENB {
-		return nil, fmt.Errorf("s1ap: ERABReleaseResponse missing mandatory IE")
-	}
-
-	return m, nil
-}
-
-func decodeERABReleaseList(r *aper.Reader) ([]ERABReleaseItemBearerRelComp, error) {
-	return decodeItemList(r, maxnoofERABs, decodeERABReleaseItemBearerRelComp)
+	return parseMessageBody[ERABReleaseResponse](ProcERABRelease, TriggeringSuccessfulOutcome, eRABReleaseResponseIEs, value)
 }

@@ -59,8 +59,8 @@ func TestERABModifyRequestRoundTrips(t *testing.T) {
 
 func TestERABModifyResponseRoundTrips(t *testing.T) {
 	in := &ERABModifyResponse{
-		MMEUES1APID: 42,
-		ENBUES1APID: 1,
+		MMEUES1APID: Ptr(MMEUES1APID(42)),
+		ENBUES1APID: Ptr(ENBUES1APID(1)),
 		ERABModify:  []ERABModifyItemBearerModRes{{ERABID: 5}},
 	}
 
@@ -84,7 +84,7 @@ func TestERABModifyResponseRoundTrips(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.MMEUES1APID != 42 || out.ENBUES1APID != 1 ||
+	if deref(out.MMEUES1APID) != 42 || deref(out.ENBUES1APID) != 1 ||
 		len(out.ERABModify) != 1 || out.ERABModify[0].ERABID != 5 {
 		t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
 	}

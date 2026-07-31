@@ -10,54 +10,46 @@ import (
 	"strings"
 )
 
-// FieldTag holds the parsed `per:"..."` tag for a single struct field or named
-// type declaration.
+// FieldTag holds the parsed `per:"..."` tag of a struct field.
 type FieldTag struct {
-	// Raw is the original tag text (without the leading "per:").
+	// Raw is the tag text without the leading "per:".
 	Raw string
 
-	// Name is the optional ASN.1 type name (the first comma-separated token),
-	// e.g. "INTEGER", "BIT-STRING", "SEQUENCE". Empty means infer from the Go
-	// type. Reserved value "-" means "no name, use Go type".
+	// Name is the ASN.1 type name (first comma-separated token). Empty or "-"
+	// means infer from the Go type.
 	Name string
 
-	// Range encodes INTEGER (lb..ub) constraints. HasLB/HasUB indicate which
-	// bound is present (MIN/MAX absent them).
+	// MIN/MAX bounds leave HasRangeLB/HasRangeUB false.
 	RangeLB, RangeUB       int64
 	HasRangeLB, HasRangeUB bool
 	RangeExtensible        bool
 
-	// Size encodes SIZE (lb..ub) constraints for BIT/OCTET STRING and strings.
+	// SIZE constraint for BIT/OCTET STRING, strings and SEQUENCE OF.
 	SizeLB, SizeUB       int64
 	HasSizeLB, HasSizeUB bool
 	SizeExtensible       bool
 
-	// Optional marks the field as OPTIONAL in a SEQUENCE.
 	Optional bool
-	// DefaultExpr is the Go expression for a DEFAULT value (parsed, not
-	// evaluated, by pergen — it's emitted verbatim into the generated code).
+	// Skip marks an OPTIONAL field the type does not model: encoded as
+	// always-absent, read and discarded on decode.
+	Skip bool
+	// DefaultExpr is emitted verbatim into the generated code, not evaluated.
 	DefaultExpr string
 
-	// ChoiceIdx is the index of this alternative in a CHOICE. -1 = not part of
-	// a CHOICE.
+	// ChoiceIdx is -1 when the field is not a CHOICE alternative.
 	ChoiceIdx int
 
-	// TagMode selects AUTOMATIC/IMPLICIT/EXPLICIT tagging for the field.
 	TagMode TagMode
 
-	// Ext marks a SEQUENCE/CHOICE/SET type as extensible ("...").
+	// Ext marks the field as an extension addition ("[[...]]").
 	Ext bool
 	// ExtAdd is the count of extension additions ([[...]]).
 	ExtAdd int
-	// ExtSeq marks the parent type as extensible ("...") without any actual
-	// extension additions. It is placed on a placeholder field (typically
-	// named "_") that pergen skips for encoding. This allows modelling ASN.1
-	// types like `SEQUENCE { ..., ... }` where the "..." is present but no
-	// extension additions exist yet.
+	// ExtSeq marks the parent type extensible ("...") with no extension
+	// additions; it sits on a placeholder field that carries no encoding.
 	ExtSeq bool
 }
 
-// TagMode is the tagging mode for a field.
 type TagMode uint8
 
 const (
@@ -66,14 +58,14 @@ const (
 	TagExplicit
 )
 
-// ParseTag parses a `per:"..."` tag value (the part inside the quotes, without
-// the key "per:"). It returns an error on malformed syntax.
+// ParseTag parses a `per:"..."` tag value, the part inside the quotes.
 //
 // Grammar (whitespace tolerated, commas separate tokens):
 //
 //	tag        := name? ("," option)*
 //	name       := "-" | identifier
 //	option     := "optional"
+//	            | "skip"
 //	            | "ext"
 //	            | "extadd:" int
 //	            | "range:" range
@@ -90,16 +82,18 @@ func ParseTag(s string) (FieldTag, error) {
 	t := FieldTag{ChoiceIdx: -1, TagMode: TagAuto}
 	t.Raw = s
 	parts := splitTopLevelCommas(s)
-	// Merge "..." extensible-suffix parts back into the preceding range/size
-	// option (handles "range:0..9,..." where the ellipsis belongs to range).
 	parts = mergeEllipsis(parts)
+
 	if len(parts) == 0 {
 		return t, nil
 	}
-	// First part may be a name or an option. A name is present when it is not
-	// of the form "key:value" or a bare keyword (optional/ext).
+
 	first := strings.TrimSpace(parts[0])
 	if first != "" && !looksLikeOption(first) {
+		if !knownTypeName(first) {
+			return t, fmt.Errorf("per: unknown ASN.1 type name %q", first)
+		}
+
 		t.Name = first
 		parts = parts[1:]
 	}
@@ -118,10 +112,35 @@ func ParseTag(s string) (FieldTag, error) {
 	return t, nil
 }
 
-// looksLikeOption reports whether token is a known option keyword or key:value
-// pair (vs. a bare ASN.1 type name).
+// asn1TypeNames are the names legal in the first tag position. A name outside
+// this set is rejected, since falling back to Go-type inference would let a
+// typo silently change the wire format.
+var asn1TypeNames = map[string]bool{
+	"-":               true,
+	"BIT-STRING":      true,
+	"BMPString":       true,
+	"BOOLEAN":         true,
+	"ENUMERATED":      true,
+	"IA5String":       true,
+	"INTEGER":         true,
+	"NULL":            true,
+	"NumericString":   true,
+	"OCTET-STRING":    true,
+	"PrintableString": true,
+	"REAL":            true,
+	"SEQUENCE":        true,
+	"SEQUENCE-OF":     true,
+	"SET":             true,
+	"UTF8String":      true,
+	"UniversalString": true,
+	"VisibleString":   true,
+}
+
+func knownTypeName(name string) bool { return asn1TypeNames[name] }
+
+// looksLikeOption distinguishes an option token from a bare ASN.1 type name.
 func looksLikeOption(token string) bool {
-	if token == "optional" || token == "ext" || token == "extseq" {
+	if token == "optional" || token == "ext" || token == "extseq" || token == "skip" {
 		return true
 	}
 
@@ -131,8 +150,8 @@ func looksLikeOption(token string) bool {
 		case "range", "size", "default", "choice", "tag", "extadd":
 			return true
 		}
-		// Unknown "key:value" — treat as option so the parser reports an error
-		// rather than silently accepting it as a type name.
+		// Unknown "key:value" is claimed here so parseOption reports an error
+		// instead of the token being accepted as a type name.
 		return true
 	}
 
@@ -143,6 +162,9 @@ func parseOption(t *FieldTag, opt string) error {
 	switch opt {
 	case "optional":
 		t.Optional = true
+		return nil
+	case "skip":
+		t.Skip = true
 		return nil
 	case "ext":
 		t.Ext = true
@@ -206,8 +228,7 @@ func parseOption(t *FieldTag, opt string) error {
 	}
 }
 
-// splitKV splits "key:value" into key and value (value may contain colons; the
-// split is on the first colon). Returns ok=false if there's no colon.
+// splitKV splits on the first colon, so a value may itself contain colons.
 func splitKV(opt string) (key, value string, ok bool) {
 	before, after, ok := strings.Cut(opt, ":")
 	if !ok {
@@ -217,8 +238,8 @@ func splitKV(opt string) (key, value string, ok bool) {
 	return strings.TrimSpace(before), strings.TrimSpace(after), true
 }
 
-// parseRange parses a range expression ("lb..ub", "lb", "MIN..MAX", "...").
-// extensible marker ",..." appended to a range sets *ext=true.
+// parseRange accepts "lb..ub", "lb", "MIN..MAX" and "...", with an optional
+// ",..." extensibility suffix.
 func parseRange(
 	v string,
 	lb, ub *int64,
@@ -246,7 +267,7 @@ func parseRange(
 
 		return parseBound(hi, ub, hasUB)
 	}
-	// Single value: lb == ub.
+
 	if err := parseBound(v, lb, hasLB); err != nil {
 		return err
 	}
@@ -257,7 +278,8 @@ func parseRange(
 	return nil
 }
 
-// parseBound parses a single bound: "MIN", "MAX", or a signed integer.
+// parseBound accepts "MIN", "MAX" or a signed integer; MIN and MAX leave *has
+// false, so an absent bound and an unbounded one are indistinguishable.
 func parseBound(s string, out *int64, has *bool) error {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -285,8 +307,8 @@ func parseBound(s string, out *int64, has *bool) error {
 	return nil
 }
 
-// splitTopLevelCommas splits s on commas that are not inside parentheses or
-// quotes. This allows `default:foo(1,2)` to be passed as one option.
+// splitTopLevelCommas ignores commas nested in parentheses, so
+// `default:foo(1,2)` stays one option.
 func splitTopLevelCommas(s string) []string {
 	var parts []string
 
@@ -314,10 +336,8 @@ func splitTopLevelCommas(s string) []string {
 	return parts
 }
 
-// mergeEllipsis merges a trailing "..." option (the extensible-suffix form
-// "range:0..9,...") into the preceding range/size option. PER range extensible
-// suffix is written as "range:lo..hi,...", and splitTopLevelCommas separates
-// the "..."; this re-attaches it as a ",..." suffix.
+// mergeEllipsis re-attaches a "..." part that splitTopLevelCommas detached from
+// a preceding "range:lo..hi,..." or "size:lo..hi,..." option.
 func mergeEllipsis(parts []string) []string {
 	if len(parts) < 2 {
 		return parts

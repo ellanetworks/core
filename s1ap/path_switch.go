@@ -4,149 +4,149 @@
 package s1ap
 
 import (
-	"fmt"
-
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // ERABToBeSwitchedDLItem ::= SEQUENCE { e-RAB-ID, transportLayerAddress,
 // gTP-TEID, iE-Extensions OPTIONAL } (extensible). For one E-RAB it names the
 // target eNB's S1-U downlink endpoint the GTP tunnel is switched to.
 type ERABToBeSwitchedDLItem struct {
+	_                     [0]struct{} `per:"extseq"`
 	ERABID                ERABID
 	TransportLayerAddress TransportLayerAddress
 	GTPTEID               GTPTEID
-}
-
-func (it ERABToBeSwitchedDLItem) encode(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, []bool{false})
-
-	if err := it.ERABID.encode(w); err != nil {
-		return err
-	}
-
-	if err := it.TransportLayerAddress.encode(w); err != nil {
-		return err
-	}
-
-	return it.GTPTEID.encode(w)
-}
-
-func decodeERABToBeSwitchedDLItem(r *aper.Reader) (ERABToBeSwitchedDLItem, error) {
-	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
-	if err != nil {
-		return ERABToBeSwitchedDLItem{}, err
-	}
-
-	var it ERABToBeSwitchedDLItem
-
-	if it.ERABID, err = decodeERABID(r); err != nil {
-		return it, err
-	}
-
-	if it.TransportLayerAddress, err = decodeTransportLayerAddress(r); err != nil {
-		return it, err
-	}
-
-	if it.GTPTEID, err = decodeGTPTEID(r); err != nil {
-		return it, err
-	}
-
-	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
-		return it, err
-	}
-
-	return it, nil
-}
-
-func decodeERABToBeSwitchedDLList(r *aper.Reader) ([]ERABToBeSwitchedDLItem, error) {
-	return decodeItemList(r, maxnoofERABs, decodeERABToBeSwitchedDLItem)
+	_                     ieExtensions `per:",skip"`
 }
 
 // SecurityContext ::= SEQUENCE { nextHopChainingCount INTEGER (0..7),
 // nextHopParameter SecurityKey, iE-Extensions OPTIONAL } (extensible). It carries
 // the {NCC, NH} the target eNB uses to derive the next KeNB (TS 33.401).
 type SecurityContext struct {
-	NextHopChainingCount uint8
+	_                    [0]struct{} `per:"extseq"`
+	NextHopChainingCount uint8       `per:",range:0..7"`
 	NextHopParameter     SecurityKey
+	_                    ieExtensions `per:",skip"`
 }
 
-func (s SecurityContext) encode(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, []bool{false})
-
-	if err := w.WriteConstrainedInt(int64(s.NextHopChainingCount), 0, 7); err != nil {
-		return err
-	}
-
-	return s.NextHopParameter.encode(w)
-}
-
-func decodeSecurityContext(r *aper.Reader) (SecurityContext, error) {
-	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
-	if err != nil {
-		return SecurityContext{}, err
-	}
-
-	ncc, err := r.ReadConstrainedInt(0, 7)
-	if err != nil {
-		return SecurityContext{}, err
-	}
-
-	nh, err := decodeSecurityKey(r)
-	if err != nil {
-		return SecurityContext{}, err
-	}
-
-	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
-		return SecurityContext{}, err
-	}
-
-	return SecurityContext{NextHopChainingCount: uint8(ncc), NextHopParameter: nh}, nil
-}
-
-// PathSwitchRequest is the PATH SWITCH REQUEST message (TS 36.413), sent
-// by the target eNB after an X2 handover to switch the downlink GTP tunnel to
-// itself. SourceMMEUES1APID is the MME UE S1AP ID the source eNB held, used to
-// find the UE context.
+// TS 36.413 §9.1.5.8.
 type PathSwitchRequest struct {
 	ENBUES1APID            ENBUES1APID
 	ERABToBeSwitchedDL     []ERABToBeSwitchedDLItem
 	SourceMMEUES1APID      MMEUES1APID
-	EUTRANCGI              EUTRANCGI
-	TAI                    TAI
-	UESecurityCapabilities UESecurityCapabilities
+	EUTRANCGI              *EUTRANCGI
+	TAI                    *TAI
+	UESecurityCapabilities *UESecurityCapabilities
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *PathSwitchRequest) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+var pathSwitchRequestIEs = []ieSpec[PathSwitchRequest]{
+	{
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *PathSwitchRequest, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *PathSwitchRequest) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idERABToBeSwitchedDLList, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *PathSwitchRequest, raw []byte, enc per.Encoding) error {
+			var err error
 
-	fields := []ieField{
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-		{id: idERABToBeSwitchedDLList, crit: CriticalityReject, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABToBeSwitchedDLItem, CriticalityReject, encoderList(m.ERABToBeSwitchedDL))
-		}},
-		{id: idSourceMMEUES1APID, crit: CriticalityReject, enc: m.SourceMMEUES1APID.encode},
-		{id: idEUTRANCGI, crit: CriticalityIgnore, enc: m.EUTRANCGI.encode},
-		{id: idTAI, crit: CriticalityIgnore, enc: m.TAI.encode},
-		{id: idUESecurityCapabilities, crit: CriticalityIgnore, enc: m.UESecurityCapabilities.encode},
-	}
+			m.ERABToBeSwitchedDL, err = decodeItemList[ERABToBeSwitchedDLItem](per.NewReader(raw), enc, maxnoofERABs)
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
+			return err
+		},
+		encode: func(m *PathSwitchRequest) (per.Marshaler, bool) {
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABToBeSwitchedDLItem, CriticalityReject, m.ERABToBeSwitchedDL)
+			}), true
+		},
+	},
+	{
+		id: idSourceMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *PathSwitchRequest, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.SourceMMEUES1APID)
+		},
+		encode: func(m *PathSwitchRequest) (per.Marshaler, bool) { return &m.SourceMMEUES1APID, true },
+	},
+	{
+		id: idEUTRANCGI, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *PathSwitchRequest, raw []byte, enc per.Encoding) error {
+			var v EUTRANCGI
 
-	return encodeIEContainer(w, fields)
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.EUTRANCGI = &v
+
+			return nil
+		},
+		encode: func(m *PathSwitchRequest) (per.Marshaler, bool) {
+			if m.EUTRANCGI == nil {
+				return nil, false
+			}
+
+			return m.EUTRANCGI, true
+		},
+	},
+	{
+		id: idTAI, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *PathSwitchRequest, raw []byte, enc per.Encoding) error {
+			var v TAI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.TAI = &v
+
+			return nil
+		},
+		encode: func(m *PathSwitchRequest) (per.Marshaler, bool) {
+			if m.TAI == nil {
+				return nil, false
+			}
+
+			return m.TAI, true
+		},
+	},
+	{
+		id: idUESecurityCapabilities, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *PathSwitchRequest, raw []byte, enc per.Encoding) error {
+			var v UESecurityCapabilities
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.UESecurityCapabilities = &v
+
+			return nil
+		},
+		encode: func(m *PathSwitchRequest) (per.Marshaler, bool) {
+			if m.UESecurityCapabilities == nil {
+				return nil, false
+			}
+
+			return m.UESecurityCapabilities, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *PathSwitchRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcPathSwitchRequest, pathSwitchRequestIEs, m)
+}
+
 func (m *PathSwitchRequest) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcPathSwitchRequest,
@@ -155,76 +155,14 @@ func (m *PathSwitchRequest) Marshal() ([]byte, error) {
 	})
 }
 
-// ParsePathSwitchRequest decodes the message from an initiatingMessage open-type
-// payload.
 func ParsePathSwitchRequest(value []byte) (*PathSwitchRequest, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: PathSwitchRequest preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &PathSwitchRequest{}
-
-	var seenENB, seenERAB, seenSrcMME, seenCGI, seenTAI, seenSec bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
-			seenENB = true
-		case idERABToBeSwitchedDLList:
-			m.ERABToBeSwitchedDL, err = decodeERABToBeSwitchedDLList(sub)
-			seenERAB = true
-		case idSourceMMEUES1APID:
-			m.SourceMMEUES1APID, err = decodeMMEUES1APID(sub)
-			seenSrcMME = true
-		case idEUTRANCGI:
-			m.EUTRANCGI, err = decodeEUTRANCGI(sub)
-			seenCGI = true
-		case idTAI:
-			m.TAI, err = decodeTAI(sub)
-			seenTAI = true
-		case idUESecurityCapabilities:
-			m.UESecurityCapabilities, err = decodeUESecurityCapabilities(sub)
-			seenSec = true
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: PathSwitchRequest IE %d: %w", f.id, err)
-		}
-	}
-
-	if !seenENB || !seenERAB || !seenSrcMME || !seenCGI || !seenTAI || !seenSec {
-		return nil, fmt.Errorf("s1ap: PathSwitchRequest missing mandatory IE")
-	}
-
-	return m, nil
+	return parseMessageBody[PathSwitchRequest](ProcPathSwitchRequest, TriggeringInitiatingMessage, pathSwitchRequestIEs, value)
 }
 
-// PathSwitchRequestAcknowledge is the PATH SWITCH REQUEST ACKNOWLEDGE message
-// (TS 36.413), sent by the MME once the downlink path has been switched.
-// SecurityContext carries the {NCC, NH}; UESecurityCapabilities is included only
-// when the MME's stored capabilities differ from those the eNB reported.
+// TS 36.413 §9.1.5.9.
 type PathSwitchRequestAcknowledge struct {
-	MMEUES1APID               MMEUES1APID
-	ENBUES1APID               ENBUES1APID
+	MMEUES1APID               *MMEUES1APID
+	ENBUES1APID               *ENBUES1APID
 	UEAggregateMaximumBitRate *UEAggregateMaximumBitRate
 	SecurityContext           SecurityContext
 	UESecurityCapabilities    *UESecurityCapabilities
@@ -233,49 +171,134 @@ type PathSwitchRequestAcknowledge struct {
 	// switch.
 	ERABToBeReleased []ERABItem
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *PathSwitchRequestAcknowledge) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
+	{
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
+			var v MMEUES1APID
 
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-	}
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
 
-	if m.UEAggregateMaximumBitRate != nil {
-		ambr := *m.UEAggregateMaximumBitRate
-		fields = append(fields, ieField{id: idUEAggregateMaximumBitrate, crit: CriticalityIgnore, enc: ambr.encode})
-	}
+			m.MMEUES1APID = &v
 
-	fields = append(fields, ieField{id: idSecurityContext, crit: CriticalityReject, enc: m.SecurityContext.encode})
+			return nil
+		},
+		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) {
+			if m.MMEUES1APID == nil {
+				return nil, false
+			}
 
-	if m.UESecurityCapabilities != nil {
-		caps := *m.UESecurityCapabilities
-		fields = append(fields, ieField{id: idUESecurityCapabilities, crit: CriticalityIgnore, enc: caps.encode})
-	}
+			return m.MMEUES1APID, true
+		},
+	},
+	{
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
+			var v ENBUES1APID
 
-	if len(m.ERABToBeReleased) > 0 {
-		fields = append(fields, ieField{id: idERABToBeReleasedList, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABItem, CriticalityIgnore, encoderList(m.ERABToBeReleased))
-		}})
-	}
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
+			m.ENBUES1APID = &v
 
-	return encodeIEContainer(w, fields)
+			return nil
+		},
+		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) {
+			if m.ENBUES1APID == nil {
+				return nil, false
+			}
+
+			return m.ENBUES1APID, true
+		},
+	},
+	{
+		id: idUEAggregateMaximumBitrate, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
+			var (
+				err  error
+				ambr UEAggregateMaximumBitRate
+			)
+
+			err = perIEDecode(raw, &ambr)
+			m.UEAggregateMaximumBitRate = &ambr
+
+			return err
+		},
+		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) {
+			if m.UEAggregateMaximumBitRate == nil {
+				return nil, false
+			}
+
+			return m.UEAggregateMaximumBitRate, true
+		},
+	},
+	{
+		id: idERABToBeReleasedList, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
+			var err error
+
+			m.ERABToBeReleased, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs)
+
+			return err
+		},
+		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) {
+			if len(m.ERABToBeReleased) == 0 {
+				return nil, false
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABToBeReleased)
+			}), true
+		},
+	},
+	{
+		id: idSecurityContext, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.SecurityContext)
+		},
+		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) { return &m.SecurityContext, true },
+	},
+	{
+		id: idUESecurityCapabilities, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
+			var (
+				err  error
+				caps UESecurityCapabilities
+			)
+
+			err = perIEDecode(raw, &caps)
+			m.UESecurityCapabilities = &caps
+
+			return err
+		},
+		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) {
+			if m.UESecurityCapabilities == nil {
+				return nil, false
+			}
+
+			return m.UESecurityCapabilities, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *PathSwitchRequestAcknowledge) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcPathSwitchRequest, pathSwitchRequestAcknowledgeIEs, m)
+}
+
 func (m *PathSwitchRequestAcknowledge) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&SuccessfulOutcome{
 		ProcedureCode: ProcPathSwitchRequest,
@@ -284,106 +307,119 @@ func (m *PathSwitchRequestAcknowledge) Marshal() ([]byte, error) {
 	})
 }
 
-// ParsePathSwitchRequestAcknowledge decodes the message from a successfulOutcome
-// open-type payload.
 func ParsePathSwitchRequestAcknowledge(value []byte) (*PathSwitchRequestAcknowledge, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: PathSwitchRequestAcknowledge preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &PathSwitchRequestAcknowledge{}
-
-	var seenMME, seenENB, seenSec bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
-			seenMME = true
-		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
-			seenENB = true
-		case idUEAggregateMaximumBitrate:
-			var ambr UEAggregateMaximumBitRate
-
-			ambr, err = decodeUEAggregateMaximumBitRate(sub)
-			m.UEAggregateMaximumBitRate = &ambr
-		case idSecurityContext:
-			m.SecurityContext, err = decodeSecurityContext(sub)
-			seenSec = true
-		case idUESecurityCapabilities:
-			var caps UESecurityCapabilities
-
-			caps, err = decodeUESecurityCapabilities(sub)
-			m.UESecurityCapabilities = &caps
-		case idERABToBeReleasedList:
-			m.ERABToBeReleased, err = decodeERABItemList(sub)
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: PathSwitchRequestAcknowledge IE %d: %w", f.id, err)
-		}
-	}
-
-	if !seenMME || !seenENB || !seenSec {
-		return nil, fmt.Errorf("s1ap: PathSwitchRequestAcknowledge missing mandatory IE")
-	}
-
-	return m, nil
+	return parseMessageBody[PathSwitchRequestAcknowledge](ProcPathSwitchRequest, TriggeringSuccessfulOutcome, pathSwitchRequestAcknowledgeIEs, value)
 }
 
-// PathSwitchRequestFailure is the PATH SWITCH REQUEST FAILURE message (TS 36.413),
-// sent by the MME when the downlink path could not be switched for
-// any E-RAB.
+// TS 36.413 §9.1.5.10.
 type PathSwitchRequestFailure struct {
-	MMEUES1APID MMEUES1APID
-	ENBUES1APID ENBUES1APID
-	Cause       Cause
+	MMEUES1APID            *MMEUES1APID
+	ENBUES1APID            *ENBUES1APID
+	Cause                  *Cause
+	CriticalityDiagnostics *CriticalityDiagnostics
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *PathSwitchRequestFailure) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+var pathSwitchRequestFailureIEs = []ieSpec[PathSwitchRequestFailure]{
+	{
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *PathSwitchRequestFailure, raw []byte, enc per.Encoding) error {
+			var v MMEUES1APID
 
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-		{id: idCause, crit: CriticalityIgnore, enc: m.Cause.encode},
-	}
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
+			m.MMEUES1APID = &v
 
-	return encodeIEContainer(w, fields)
+			return nil
+		},
+		encode: func(m *PathSwitchRequestFailure) (per.Marshaler, bool) {
+			if m.MMEUES1APID == nil {
+				return nil, false
+			}
+
+			return m.MMEUES1APID, true
+		},
+	},
+	{
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *PathSwitchRequestFailure, raw []byte, enc per.Encoding) error {
+			var v ENBUES1APID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.ENBUES1APID = &v
+
+			return nil
+		},
+		encode: func(m *PathSwitchRequestFailure) (per.Marshaler, bool) {
+			if m.ENBUES1APID == nil {
+				return nil, false
+			}
+
+			return m.ENBUES1APID, true
+		},
+	},
+	{
+		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *PathSwitchRequestFailure, raw []byte, enc per.Encoding) error {
+			var v Cause
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.Cause = &v
+
+			return nil
+		},
+		encode: func(m *PathSwitchRequestFailure) (per.Marshaler, bool) {
+			if m.Cause == nil {
+				return nil, false
+			}
+
+			return m.Cause, true
+		},
+	},
+	{
+		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *PathSwitchRequestFailure, raw []byte, enc per.Encoding) error {
+			var v CriticalityDiagnostics
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.CriticalityDiagnostics = &v
+
+			return nil
+		},
+		encode: func(m *PathSwitchRequestFailure) (per.Marshaler, bool) {
+			if m.CriticalityDiagnostics == nil {
+				return nil, false
+			}
+
+			return m.CriticalityDiagnostics, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *PathSwitchRequestFailure) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcPathSwitchRequest, pathSwitchRequestFailureIEs, m)
+}
+
 func (m *PathSwitchRequestFailure) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&UnsuccessfulOutcome{
 		ProcedureCode: ProcPathSwitchRequest,
@@ -392,56 +428,6 @@ func (m *PathSwitchRequestFailure) Marshal() ([]byte, error) {
 	})
 }
 
-// ParsePathSwitchRequestFailure decodes the message from an unsuccessfulOutcome
-// open-type payload.
 func ParsePathSwitchRequestFailure(value []byte) (*PathSwitchRequestFailure, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: PathSwitchRequestFailure preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &PathSwitchRequestFailure{}
-
-	var seenMME, seenENB, seenCause bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
-			seenMME = true
-		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
-			seenENB = true
-		case idCause:
-			m.Cause, err = decodeCause(sub)
-			seenCause = true
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: PathSwitchRequestFailure IE %d: %w", f.id, err)
-		}
-	}
-
-	if !seenMME || !seenENB || !seenCause {
-		return nil, fmt.Errorf("s1ap: PathSwitchRequestFailure missing mandatory IE")
-	}
-
-	return m, nil
+	return parseMessageBody[PathSwitchRequestFailure](ProcPathSwitchRequest, TriggeringUnsuccessfulOutcome, pathSwitchRequestFailureIEs, value)
 }

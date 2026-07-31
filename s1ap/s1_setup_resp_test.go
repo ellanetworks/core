@@ -9,13 +9,13 @@ import (
 
 func sampleResponse() *S1SetupResponse {
 	return &S1SetupResponse{
-		MMEName: "MME-1",
+		MMEName: Ptr("MME-1"),
 		ServedGUMMEIs: ServedGUMMEIs{{
 			ServedPLMNs:    []PLMNIdentity{{0x00, 0xf1, 0x10}},
 			ServedGroupIDs: []MMEGroupID{{0x80, 0x01}},
 			ServedMMECs:    []MMECode{0x01},
 		}},
-		RelativeMMECapacity: 255,
+		RelativeMMECapacity: Ptr(uint8(255)),
 		CriticalityDiagnostics: &CriticalityDiagnostics{
 			ProcedureCode: func() *ProcedureCode { p := ProcS1Setup; return &p }(),
 		},
@@ -49,7 +49,7 @@ func TestS1SetupResponseRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.MMEName != in.MMEName || out.RelativeMMECapacity != in.RelativeMMECapacity {
+	if deref(out.MMEName) != deref(in.MMEName) || deref(out.RelativeMMECapacity) != deref(in.RelativeMMECapacity) {
 		t.Fatalf("scalar mismatch: %+v", out)
 	}
 

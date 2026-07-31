@@ -16,7 +16,7 @@ func TestUEContextReleaseCompleteArmsMobileReachable(t *testing.T) {
 
 	ue, cc := securedUE(t, m) // connected; the release moves it to ECM-IDLE
 
-	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: 7}
+	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID), ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7))}
 
 	b, err := complete.Marshal()
 	if err != nil {

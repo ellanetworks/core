@@ -21,17 +21,28 @@ func HandleUEContextReleaseComplete(m *mme.MME, ctx context.Context, radio *mme.
 		return
 	}
 
-	// A Release Complete for a detached association removes only that connection; the UE
-	// stays active on its current association (TS 36.413 §8.3, §8.4).
-	if m.ReleaseDetachedConn(radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID) {
-		logger.MmeLog.Info("UE Context Release Complete (detached association)", zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)))
+	if msg.MMEUES1APID == nil || msg.ENBUES1APID == nil {
+		logger.MmeLog.Warn("UE Context Release Complete without both UE S1AP IDs")
+		sendErrorIndication(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID, causeMissingUES1APID)
+
 		return
 	}
 
-	ue, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	mmeUEID, enbUEID := *msg.MMEUES1APID, *msg.ENBUES1APID
+
+	// A Release Complete for a detached association removes only that connection; the UE
+	// stays active on its current association (TS 36.413 §8.3, §8.4).
+	if m.ReleaseDetachedConn(radio.Conn, mmeUEID, enbUEID) {
+		logger.MmeLog.Info("UE Context Release Complete (detached association)", zap.Uint32("mme-ue-id", uint32(mmeUEID)))
+		return
+	}
+
+	ue, ok := resolveUE(m, radio.Conn, mmeUEID, enbUEID)
 	if !ok {
 		return
 	}
+
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcUEContextRelease, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
 
 	captureUserLocation(ue, msg.UserLocationInformation)
 
@@ -45,7 +56,7 @@ func HandleUEContextReleaseComplete(m *mme.MME, ctx context.Context, radio *mme.
 	if ue.EMMState() != mme.EMMRegistered {
 		m.ReleaseAllSessions(ctx, ue)
 		m.RemoveUe(ue)
-		logger.MmeLog.Info("UE context released", zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)))
+		logger.MmeLog.Info("UE context released", zap.Uint32("mme-ue-id", uint32(mmeUEID)))
 
 		return
 	}
@@ -57,5 +68,5 @@ func HandleUEContextReleaseComplete(m *mme.MME, ctx context.Context, radio *mme.
 	m.StartMobileReachable(ue)
 
 	logger.MmeLog.Info("UE moved to ECM-IDLE",
-		zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)), zap.String("imsi", ue.IMSI()))
+		zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.String("imsi", ue.IMSI()))
 }

@@ -11,7 +11,7 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 	t.Run("Command pair", func(t *testing.T) {
 		in := &UEContextReleaseCommand{
 			UES1APIDs: UES1APIDs{MMEUES1APID: 1, ENBUES1APID: 7, Pair: true},
-			Cause:     cause,
+			Cause:     &cause,
 		}
 
 		b, err := in.Marshal()
@@ -34,13 +34,14 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if !out.UES1APIDs.Pair || out.UES1APIDs.MMEUES1APID != 1 || out.UES1APIDs.ENBUES1APID != 7 || out.Cause != cause {
+		if !out.UES1APIDs.Pair || out.UES1APIDs.MMEUES1APID != 1 || out.UES1APIDs.ENBUES1APID != 7 ||
+			deref(out.Cause) != cause {
 			t.Fatalf("mismatch:\n in  %+v\n out %+v", in, out)
 		}
 	})
 
 	t.Run("Command bare MME id", func(t *testing.T) {
-		in := &UEContextReleaseCommand{UES1APIDs: UES1APIDs{MMEUES1APID: 42}, Cause: cause}
+		in := &UEContextReleaseCommand{UES1APIDs: UES1APIDs{MMEUES1APID: 42}, Cause: &cause}
 
 		b, _ := in.Marshal()
 
@@ -57,7 +58,7 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 	})
 
 	t.Run("Complete", func(t *testing.T) {
-		in := &UEContextReleaseComplete{MMEUES1APID: 1, ENBUES1APID: 7}
+		in := &UEContextReleaseComplete{MMEUES1APID: Ptr(MMEUES1APID(1)), ENBUES1APID: Ptr(ENBUES1APID(7))}
 
 		b, _ := in.Marshal()
 
@@ -69,7 +70,7 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 		}
 
 		out, err := ParseUEContextReleaseComplete(so.Value)
-		if err != nil || out.MMEUES1APID != 1 || out.ENBUES1APID != 7 {
+		if err != nil || deref(out.MMEUES1APID) != 1 || deref(out.ENBUES1APID) != 7 {
 			t.Fatalf("got %+v err %v", out, err)
 		}
 	})
@@ -77,8 +78,8 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 	t.Run("CompleteWithUserLocation", func(t *testing.T) {
 		plmn := PLMNIdentity{0x00, 0xf1, 0x10}
 		in := &UEContextReleaseComplete{
-			MMEUES1APID: 1,
-			ENBUES1APID: 7,
+			MMEUES1APID: Ptr(MMEUES1APID(1)),
+			ENBUES1APID: Ptr(ENBUES1APID(7)),
 			UserLocationInformation: &UserLocationInformation{
 				EUTRANCGI: EUTRANCGI{PLMNIdentity: plmn, CellID: 0x0abcde1},
 				TAI:       TAI{PLMNIdentity: plmn, TAC: 9},
@@ -102,7 +103,7 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 	})
 
 	t.Run("Request", func(t *testing.T) {
-		in := &UEContextReleaseRequest{MMEUES1APID: 1, ENBUES1APID: 7, Cause: cause}
+		in := &UEContextReleaseRequest{MMEUES1APID: 1, ENBUES1APID: 7, Cause: &cause}
 
 		b, _ := in.Marshal()
 
@@ -114,7 +115,7 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 		}
 
 		out, err := ParseUEContextReleaseRequest(im.Value)
-		if err != nil || out.MMEUES1APID != 1 || out.ENBUES1APID != 7 || out.Cause != cause {
+		if err != nil || out.MMEUES1APID != 1 || out.ENBUES1APID != 7 || deref(out.Cause) != cause {
 			t.Fatalf("got %+v err %v", out, err)
 		}
 	})

@@ -91,8 +91,12 @@ func runS1ENBX2PathSwitch(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("parse Path Switch Request Acknowledge: %w", err)
 	}
 
-	if int64(ack.MMEUES1APID) != res.MMEUES1APID {
-		return fmt.Errorf("acknowledge MME-UE-S1AP-ID = %d, want %d", ack.MMEUES1APID, res.MMEUES1APID)
+	if ack.MMEUES1APID == nil {
+		return fmt.Errorf("acknowledge carried no MME-UE-S1AP-ID, want %d", res.MMEUES1APID)
+	}
+
+	if int64(*ack.MMEUES1APID) != res.MMEUES1APID {
+		return fmt.Errorf("acknowledge MME-UE-S1AP-ID = %d, want %d", *ack.MMEUES1APID, res.MMEUES1APID)
 	}
 
 	if ack.SecurityContext.NextHopParameter == (s1ap.SecurityKey{}) {

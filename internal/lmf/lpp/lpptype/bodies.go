@@ -3,7 +3,7 @@
 
 package lpptype
 
-import "github.com/ellanetworks/core/internal/per"
+import "github.com/ellanetworks/core/per"
 
 // =====================================================================
 // RequestCapabilities (TS 37.355 §6.3)

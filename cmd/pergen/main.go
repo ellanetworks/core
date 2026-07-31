@@ -15,7 +15,6 @@ func main() {
 	}
 }
 
-// run is the actual entry point, separated for testability.
 func run(args []string) error {
 	cfg, err := parseFlags(args)
 	if err != nil {

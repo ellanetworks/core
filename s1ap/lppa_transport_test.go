@@ -8,7 +8,7 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // Golden vectors are the aligned-PER encoding of the full S1AP-PDU produced by
@@ -152,26 +152,24 @@ func TestLPPaTransportEmptyPDU(t *testing.T) {
 	}
 }
 
-// TestLPPaTransportUnknownIE decodes a message carrying an IE the type does not
-// model; it must round-trip (be preserved) rather than fail.
 func TestLPPaTransportUnknownIE(t *testing.T) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	w.WriteSequencePreamble(true, false, nil)
+	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: MMEUES1APID(9).encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: ENBUES1APID(9).encode},
-		{id: idRoutingID, crit: CriticalityReject, enc: RoutingID(0).encode},
-		{id: idLPPaPDU, crit: CriticalityReject, enc: LPPaPDU{0x01}.encode},
-		{id: 999, crit: CriticalityIgnore, enc: func(w *aper.Writer) error { w.WriteOctets([]byte{0xaa}); return nil }},
+		{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(9)},
+		{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(9)},
+		{id: idRoutingID, crit: CriticalityReject, val: RoutingID(0)},
+		{id: idLPPaPDU, crit: CriticalityReject, val: LPPaPDU{0x01}},
+		{id: 999, crit: CriticalityIgnore, raw: []byte{0xaa}},
 	}
 
-	if err := encodeIEContainer(&w, fields); err != nil {
+	if err := encodeIEContainer(w, per.Aligned, fields); err != nil {
 		t.Fatal(err)
 	}
 
-	out, err := ParseUplinkUEAssociatedLPPaTransport(w.Bytes())
+	out, err := ParseUplinkUEAssociatedLPPaTransport(perBytes(w))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
@@ -182,21 +180,21 @@ func TestLPPaTransportUnknownIE(t *testing.T) {
 }
 
 func TestLPPaTransportMissingMandatoryIE(t *testing.T) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	w.WriteSequencePreamble(true, false, nil)
+	w.WriteBit(false)
 
 	// MME-UE-S1AP-ID and eNB-UE-S1AP-ID only; Routing-ID and LPPa-PDU omitted.
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: MMEUES1APID(1).encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: ENBUES1APID(1).encode},
+		{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
+		{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(1)},
 	}
 
-	if err := encodeIEContainer(&w, fields); err != nil {
+	if err := encodeIEContainer(w, per.Aligned, fields); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := ParseDownlinkUEAssociatedLPPaTransport(w.Bytes()); err == nil {
+	if _, err := ParseDownlinkUEAssociatedLPPaTransport(perBytes(w)); err == nil {
 		t.Fatal("expected missing-mandatory-IE error")
 	}
 }

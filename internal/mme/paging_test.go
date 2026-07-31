@@ -49,12 +49,12 @@ func TestBuildPaging(t *testing.T) {
 		t.Fatalf("S-TMSI M-TMSI = %#x, want %#x", paging.STMSI.MTMSI, ue.Tmsi().Uint32())
 	}
 
-	if paging.UEIdentityIndexValue != ueIdentityIndex(ue.imsiOrEmpty()) {
-		t.Fatalf("UE identity index = %d, want %d", paging.UEIdentityIndexValue, ueIdentityIndex(ue.imsiOrEmpty()))
+	if paging.UEIdentityIndexValue == nil || *paging.UEIdentityIndexValue != ueIdentityIndex(ue.imsiOrEmpty()) {
+		t.Fatalf("UE identity index = %v, want %d", paging.UEIdentityIndexValue, ueIdentityIndex(ue.imsiOrEmpty()))
 	}
 
-	if paging.CNDomain != s1ap.CNDomainPS {
-		t.Fatalf("CN domain = %d, want PS", paging.CNDomain)
+	if paging.CNDomain == nil || *paging.CNDomain != s1ap.CNDomainPS {
+		t.Fatalf("CN domain = %v, want PS", paging.CNDomain)
 	}
 
 	if len(paging.TAIList) != 1 {

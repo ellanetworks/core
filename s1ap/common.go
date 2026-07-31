@@ -4,9 +4,51 @@
 // Package s1ap encodes and decodes S1 Application Protocol messages
 // (3GPP TS 36.413) using Aligned PER. It is a pure codec: no transport, no
 // state, no procedure logic.
+//
+// Each message type's Marshal returns a complete S1AP-PDU; the matching
+// ParseXxx takes the open-type payload of one.
+//
+// # presence
+//
+// A field is a value type only where its absence stops the message from
+// reaching the caller, which TS 36.413 §10.3.5 makes true exactly for
+// required IEs of reject criticality. Every other IE is nil-able — a pointer,
+// or a nil slice where the type is already a slice — so an absent IE is never
+// confused with a zero one. Because criticality is assigned per message, the
+// same IE can be a pointer in one message and a value in another.
+//
+// Encoding holds the sender to the stricter rule of §10.3.3: Marshal fails if
+// an IE the message must carry is unset, whatever its criticality.
+//
+// # Errors
+//
+// Decoding reports one of two errors, and returns no message with either:
+//
+//   - [TransferSyntaxError], for octets that are not decodable.
+//   - [AbstractSyntaxError], for a message whose procedure must be rejected —
+//     a missing reject-criticality IE (§10.3.5), an unhandled reject-criticality
+//     IE (§10.3.4.2), or a falsely constructed message (§10.3.6). It carries
+//     the cause to report, per-IE Criticality Diagnostics, and the IEs that did
+//     decode, which §10.3.5 and §8.7.2.2 need to address the response.
+//
+// Everything §10.3.4.2 and §10.3.5 let a receiver carry on past — an absent
+// ignore or notify IE, an IE this version does not model — is not an error.
+// The message is returned and the detail is reported by [Diagnostics], which
+// also builds the Criticality Diagnostics to answer with.
+//
+// Unmodeled IEs are preserved and re-emitted on encode; see [UnknownIEs].
+// Preservation and diagnostics are both bounded, since a peer chooses how many
+// IEs to send; [Diagnostics.Truncated] reports when a bound was reached.
+//
+// Conditional IEs are modeled where TS 36.413 marks them conditional, with the
+// condition stated on the IE table row. None of the messages modeled here has
+// one.
 package s1ap
 
 import "fmt"
+
+// Ptr returns a pointer to v, for setting an optional IE inline.
+func Ptr[T any](v T) *T { return &v }
 
 // Criticality ::= ENUMERATED { reject, ignore, notify } (not extensible).
 type Criticality uint8
@@ -32,14 +74,14 @@ func (c Criticality) String() string {
 	}
 }
 
-// Presence ::= ENUMERATED { optional, conditional, mandatory }. It drives the
+// presence ::= ENUMERATED { optional, conditional, mandatory }. It drives the
 // IE-container engine's handling of a missing IE.
-type Presence uint8
+type presence uint8
 
 const (
-	PresenceOptional Presence = iota
-	PresenceConditional
-	PresenceMandatory
+	presenceOptional presence = iota
+	presenceConditional
+	presenceMandatory
 )
 
 // TriggeringMessage ::= ENUMERATED { initiating-message, successful-outcome,

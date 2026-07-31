@@ -92,11 +92,11 @@ func (e *ENB) buildS1SetupRequest() ([]byte, error) {
 			PLMNIdentity: e.plmn,
 			ENBID:        s1ap.ENBID{Kind: s1ap.ENBIDMacro, Value: e.enbID},
 		},
-		ENBName: e.name,
+		ENBName: new(e.name),
 		SupportedTAs: s1ap.SupportedTAs{
 			{TAC: s1ap.TAC(e.tac), BroadcastPLMNs: s1ap.BPLMNs{e.plmn}},
 		},
-		DefaultPagingDRX: s1ap.PagingDRXv32,
+		DefaultPagingDRX: s1ap.Ptr(s1ap.PagingDRXv32),
 	}
 
 	b, err := req.Marshal()
@@ -130,8 +130,8 @@ func (e *ENB) SendInitialUEMessage(enbUEID int64, nas []byte) error {
 		ENBUES1APID:           s1ap.ENBUES1APID(enbUEID),
 		NASPDU:                s1ap.NASPDU(nas),
 		TAI:                   e.tai(),
-		EUTRANCGI:             e.eutranCGI(),
-		RRCEstablishmentCause: s1ap.RRCCauseMOSignalling,
+		EUTRANCGI:             s1ap.Ptr(e.eutranCGI()),
+		RRCEstablishmentCause: s1ap.Ptr(s1ap.RRCCauseMOSignalling),
 	}
 
 	b, err := msg.Marshal()
@@ -150,8 +150,8 @@ func (e *ENB) SendInitialUEMessageWithSTMSI(enbUEID int64, mmec uint8, mtmsi uin
 		ENBUES1APID:           s1ap.ENBUES1APID(enbUEID),
 		NASPDU:                s1ap.NASPDU(nas),
 		TAI:                   e.tai(),
-		EUTRANCGI:             e.eutranCGI(),
-		RRCEstablishmentCause: s1ap.RRCCauseMOSignalling,
+		EUTRANCGI:             s1ap.Ptr(e.eutranCGI()),
+		RRCEstablishmentCause: s1ap.Ptr(s1ap.RRCCauseMOSignalling),
 		STMSI:                 &s1ap.STMSI{MMEC: mmec, MTMSI: mtmsi},
 	}
 
@@ -170,8 +170,8 @@ func (e *ENB) SendUplinkNASTransport(mmeUEID, enbUEID int64, nas []byte) error {
 		MMEUES1APID: s1ap.MMEUES1APID(mmeUEID),
 		ENBUES1APID: s1ap.ENBUES1APID(enbUEID),
 		NASPDU:      s1ap.NASPDU(nas),
-		EUTRANCGI:   e.eutranCGI(),
-		TAI:         e.tai(),
+		EUTRANCGI:   s1ap.Ptr(e.eutranCGI()),
+		TAI:         s1ap.Ptr(e.tai()),
 	}
 
 	b, err := msg.Marshal()
@@ -202,9 +202,9 @@ func (e *ENB) SendPathSwitchRequest(enbUEID, sourceMMEUEID int64, erabID s1ap.ER
 			GTPTEID:               s1ap.GTPTEID(dlTEID),
 		}},
 		SourceMMEUES1APID:      s1ap.MMEUES1APID(sourceMMEUEID),
-		EUTRANCGI:              e.eutranCGI(),
-		TAI:                    e.tai(),
-		UESecurityCapabilities: caps,
+		EUTRANCGI:              s1ap.Ptr(e.eutranCGI()),
+		TAI:                    s1ap.Ptr(e.tai()),
+		UESecurityCapabilities: s1ap.Ptr(caps),
 	}
 
 	b, err := req.Marshal()
@@ -229,7 +229,7 @@ func (e *ENB) SendUEContextReleaseRequest(mmeUEID, enbUEID int64, cause s1ap.Cau
 	req := &s1ap.UEContextReleaseRequest{
 		MMEUES1APID: s1ap.MMEUES1APID(mmeUEID),
 		ENBUES1APID: s1ap.ENBUES1APID(enbUEID),
-		Cause:       cause,
+		Cause:       s1ap.Ptr(cause),
 	}
 
 	b, err := req.Marshal()
@@ -260,8 +260,8 @@ func (e *ENB) WaitForUEContextReleaseCommand(enbUEID int64, timeout time.Duratio
 // the S1 release procedure (TS 36.413 §8.3.3).
 func (e *ENB) SendUEContextReleaseComplete(mmeUEID, enbUEID int64) error {
 	resp := &s1ap.UEContextReleaseComplete{
-		MMEUES1APID: s1ap.MMEUES1APID(mmeUEID),
-		ENBUES1APID: s1ap.ENBUES1APID(enbUEID),
+		MMEUES1APID: s1ap.Ptr(s1ap.MMEUES1APID(mmeUEID)),
+		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(enbUEID)),
 	}
 
 	b, err := resp.Marshal()
@@ -277,7 +277,7 @@ func (e *ENB) SendUEContextReleaseComplete(mmeUEID, enbUEID int64) error {
 // S1-connections to reset. Reset is a non-UE-associated procedure, sent on
 // SCTP stream 0.
 func (e *ENB) SendReset(cause s1ap.Cause, resetAll bool, items []s1ap.UEAssociatedLogicalS1ConnectionItem) error {
-	req := &s1ap.Reset{Cause: cause, ResetType: s1ap.ResetType{All: resetAll, Part: items}}
+	req := &s1ap.Reset{Cause: s1ap.Ptr(cause), ResetType: s1ap.ResetType{All: resetAll, Part: items}}
 
 	b, err := req.Marshal()
 	if err != nil {

@@ -1,18 +1,12 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// Package lppa implements a 3GPP TS 36.455 LPPa (LTE Positioning Protocol A)
-// ASN.1 codec for the E-CID Measurement Initiation procedure, over the
-// aligned-PER library github.com/ellanetworks/core/s1ap/aper.
+// Package lppa implements the 3GPP TS 36.455 LPPa (LTE Positioning Protocol A)
+// E-CID Measurement Initiation procedure in aligned PER.
 //
-// LPPa is transported as an octet string inside S1AP UE-associated LPPa
-// transport messages (TS 36.413 §8.14) between the E-SMLC/LMF and the eNB. This
-// package builds the E-SMLC-originated messages (E-CID Measurement Initiation
-// Request, Termination Command) and parses the eNB-originated ones (Response,
-// Initiation Failure, Failure Indication) without exposing raw aper types.
-//
-// Request/response correlation is by the E-SMLC-UE-Measurement-ID, echoed by the
-// eNB. The LPPa transaction id is carried in the elementary-procedure envelope.
+// LPPa travels as an octet string inside S1AP UE-associated LPPa transport
+// messages (TS 36.413 §8.14) between the E-SMLC/LMF and the eNB. Requests and
+// responses are correlated by the E-SMLC-UE-Measurement-ID, echoed by the eNB.
 package lppa
 
 type MessageKind int
@@ -26,8 +20,8 @@ const (
 	KindECIDMeasurementFailureIndication
 )
 
-// MeasurementQuantityValue enumerates the E-CID measurement quantities
-// (TS 36.455 MeasurementQuantitiesValue, root values only).
+// MeasurementQuantityValue holds the root values of TS 36.455
+// MeasurementQuantitiesValue.
 type MeasurementQuantityValue int
 
 const (
@@ -53,9 +47,8 @@ type Cause struct {
 	Value int64 // ENUMERATED ordinal within the group (n/a for choice-Extension)
 }
 
-// APPosition is a decoded E-UTRANAccessPointPosition (TS 36.455 §9.2.1 / TS
-// 23.032 ellipsoid point with altitude and uncertainty ellipse). LatitudeDegrees
-// and LongitudeDegrees are the WGS-84 decimal-degree conversions.
+// APPosition is an E-UTRANAccessPointPosition (TS 36.455 §9.2.1), a TS 23.032
+// ellipsoid point with altitude and uncertainty ellipse.
 type APPosition struct {
 	LatitudeSign           int   // 0 = north, 1 = south
 	Latitude               int64 // encoded magnitude (0..2^23-1)
@@ -68,6 +61,7 @@ type APPosition struct {
 	UncertaintyAltitude    int64 // 0..127
 	Confidence             int64 // 0..100
 
+	// WGS-84 decimal degrees, derived on decode from the encoded values above.
 	LatitudeDegrees  float64
 	LongitudeDegrees float64
 }
@@ -91,9 +85,8 @@ type RSRQItem struct {
 	ValueRSRQ int64 // 0..34, TS 36.133 §9.1.7
 }
 
-// ECIDResult is the eNB-supplied E-CID measurement result carried in an
-// E-CIDMeasurementInitiationResponse (TS 36.455 §9.2.5). The MeasuredResults
-// CHOICE list is flattened onto the measurement fields.
+// ECIDResult is an E-CID-MeasurementResult (TS 36.455 §9.2.5), with the
+// MeasuredResults CHOICE list flattened onto the measurement fields below.
 type ECIDResult struct {
 	ServingCell    ECGI
 	ServingCellTAC []byte // 2 octets

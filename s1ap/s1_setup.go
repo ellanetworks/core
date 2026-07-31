@@ -4,59 +4,91 @@
 package s1ap
 
 import (
-	"fmt"
-
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
-// S1SetupRequest is the S1 SETUP REQUEST message (TS 36.413). An empty
-// ENBName means the optional eNBname IE is absent. IEs that are not modeled are
-// preserved in unknownIEs so the message round-trips.
+// TS 36.413 §9.1.8.4.
 type S1SetupRequest struct {
 	GlobalENBID      GlobalENBID
-	ENBName          string
+	ENBName          *string
 	SupportedTAs     SupportedTAs
-	DefaultPagingDRX PagingDRX
+	DefaultPagingDRX *PagingDRX
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *S1SetupRequest) encodeBody(w *aper.Writer) error {
-	// S1SetupRequest ::= SEQUENCE { protocolIEs, ... }: extensible, no optional
-	// root fields, no extension additions emitted.
-	w.WriteSequencePreamble(true, false, nil)
+var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
+	{
+		id: idGlobalENBID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.GlobalENBID)
+		},
+		encode: func(m *S1SetupRequest) (per.Marshaler, bool) { return &m.GlobalENBID, true },
+	},
+	{
+		id: idENBname, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				n   Name
+			)
+			if err = perIEDecode(raw, &n); err == nil {
+				name := string(n)
+				m.ENBName = &name
+			}
 
-	fields := []ieField{
-		{id: idGlobalENBID, crit: CriticalityReject, enc: m.GlobalENBID.encode},
-	}
+			return err
+		},
+		encode: func(m *S1SetupRequest) (per.Marshaler, bool) {
+			if m.ENBName == nil {
+				return nil, false
+			}
 
-	if m.ENBName != "" {
-		name := m.ENBName
+			return Name(*m.ENBName), true
+		},
+	},
+	{
+		id: idSupportedTAs, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.SupportedTAs)
+		},
+		encode: func(m *S1SetupRequest) (per.Marshaler, bool) { return m.SupportedTAs, true },
+	},
+	{
+		id: idDefaultPagingDRX, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
+			var v PagingDRX
 
-		fields = append(fields, ieField{id: idENBname, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeName(w, name)
-		}})
-	}
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
 
-	fields = append(fields,
-		ieField{id: idSupportedTAs, crit: CriticalityReject, enc: m.SupportedTAs.encode},
-		ieField{id: idDefaultPagingDRX, crit: CriticalityIgnore, enc: m.DefaultPagingDRX.encode},
-	)
+			m.DefaultPagingDRX = &v
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
+			return nil
+		},
+		encode: func(m *S1SetupRequest) (per.Marshaler, bool) {
+			if m.DefaultPagingDRX == nil {
+				return nil, false
+			}
 
-	return encodeIEContainer(w, fields)
+			return m.DefaultPagingDRX, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *S1SetupRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcS1Setup, s1SetupRequestIEs, m)
+}
+
 func (m *S1SetupRequest) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcS1Setup,
@@ -65,80 +97,6 @@ func (m *S1SetupRequest) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseS1SetupRequest decodes an S1SetupRequest from the open-type payload of an
-// initiatingMessage (the InitiatingMessage.Value).
 func ParseS1SetupRequest(value []byte) (*S1SetupRequest, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: S1SetupRequest preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &S1SetupRequest{}
-
-	var seenGlobalENBID, seenSupportedTAs bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idGlobalENBID:
-			m.GlobalENBID, err = decodeGlobalENBID(sub)
-			seenGlobalENBID = true
-		case idENBname:
-			m.ENBName, err = decodeName(sub)
-		case idSupportedTAs:
-			m.SupportedTAs, err = decodeSupportedTAs(sub)
-			seenSupportedTAs = true
-		case idDefaultPagingDRX:
-			m.DefaultPagingDRX, err = decodePagingDRX(sub)
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: S1SetupRequest IE %d: %w", f.id, err)
-		}
-	}
-
-	// Default Paging DRX is ignore-criticality (TS 36.413 §9.1.8.4): a missing one
-	// is ignored rather than rejected (§10.3.5).
-	var missing []ProtocolIEID
-	if !seenGlobalENBID {
-		missing = append(missing, idGlobalENBID)
-	}
-
-	if !seenSupportedTAs {
-		missing = append(missing, idSupportedTAs)
-	}
-
-	if len(missing) > 0 {
-		return nil, &MissingMandatoryIEsError{Procedure: ProcS1Setup, IEs: missing}
-	}
-
-	return m, nil
-}
-
-// MissingMandatoryIEsError reports the reject-criticality mandatory IEs absent from a
-// decoded initiating message, so the receiver can reject the procedure and name them
-// in Criticality Diagnostics (TS 36.413 §10.3.5).
-type MissingMandatoryIEsError struct {
-	Procedure ProcedureCode
-	IEs       []ProtocolIEID
-}
-
-func (e *MissingMandatoryIEsError) Error() string {
-	return fmt.Sprintf("s1ap: procedure %d missing %d mandatory reject-criticality IE(s)", e.Procedure, len(e.IEs))
+	return parseMessageBody[S1SetupRequest](ProcS1Setup, TriggeringInitiatingMessage, s1SetupRequestIEs, value)
 }

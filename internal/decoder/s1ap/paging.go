@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -20,14 +21,27 @@ func buildPaging(value []byte) (S1APMessageValue, string) {
 		tais = append(tais, tai(t))
 	}
 
-	ies := []IE{
-		ie(idUEIdentityIndexValue, s1ap.CriticalityReject, m.UEIdentityIndexValue),
-		ie(idSTMSI, s1ap.CriticalityReject, stmsi(m.STMSI)),
-		ie(idCNDomain, s1ap.CriticalityReject, cnDomainToEnum(m.CNDomain)),
-		ie(idTAIList, s1ap.CriticalityReject, tais),
+	var ies []IE
+
+	if m.UEIdentityIndexValue != nil {
+		ies = append(ies, ie(idUEIdentityIndexValue, s1ap.CriticalityReject, *m.UEIdentityIndexValue))
 	}
 
+	if m.STMSI != nil {
+		ies = append(ies, ie(idSTMSI, s1ap.CriticalityReject, stmsi(*m.STMSI)))
+	}
+
+	if m.CNDomain != nil {
+		ies = append(ies, ie(idCNDomain, s1ap.CriticalityReject, cnDomainToEnum(*m.CNDomain)))
+	}
+
+	ies = append(ies, ie(idTAIList, s1ap.CriticalityReject, tais))
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
-	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Paging (M-TMSI %d, %d TAI)", m.STMSI.MTMSI, len(m.TAIList))
+	mtmsi := "?"
+	if m.STMSI != nil {
+		mtmsi = strconv.FormatUint(uint64(m.STMSI.MTMSI), 10)
+	}
+
+	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Paging (M-TMSI %s, %d TAI)", mtmsi, len(m.TAIList))
 }

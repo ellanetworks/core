@@ -4,9 +4,7 @@
 package s1ap
 
 import (
-	"fmt"
-
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // StatusTransferContainer holds the eNB Status Transfer Transparent Container
@@ -15,47 +13,58 @@ import (
 // verbatim from ENB STATUS TRANSFER into MME STATUS TRANSFER.
 type StatusTransferContainer []byte
 
-func (c StatusTransferContainer) field(id ProtocolIEID) ieField {
-	return ieField{id: id, crit: CriticalityReject, enc: func(w *aper.Writer) error {
-		w.WriteOctets(c)
-		return nil
-	}}
+// MarshalPER writes the container's octets as the IE's open-type content. The
+// MME does not interpret them; it relays the container verbatim.
+func (c StatusTransferContainer) MarshalPER(w *per.Writer, _ per.Encoding) error {
+	return w.WriteOctets(c)
 }
 
-// ENBStatusTransfer is the ENB STATUS TRANSFER message (TS 36.413 in
-// the eNB Status Transfer procedure), sent by the source eNB to convey PDCP-SN
-// and HFN status to the target eNB via the MME.
+// TS 36.413 §9.1.5.13.
 type ENBStatusTransfer struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
 	Container   StatusTransferContainer
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *ENBStatusTransfer) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
-
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-		m.Container.field(idENBStatusTransferTransparentContainer),
-	}
-
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, fields)
+var eNBStatusTransferIEs = []ieSpec[ENBStatusTransfer]{
+	{
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *ENBStatusTransfer, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.MMEUES1APID)
+		},
+		encode: func(m *ENBStatusTransfer) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+	},
+	{
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *ENBStatusTransfer, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *ENBStatusTransfer) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idENBStatusTransferTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *ENBStatusTransfer, raw []byte, enc per.Encoding) error {
+			m.Container = StatusTransferContainer(raw)
+			return nil
+		},
+		encode: func(m *ENBStatusTransfer) (per.Marshaler, bool) { return m.Container, true },
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *ENBStatusTransfer) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcENBStatusTransfer, eNBStatusTransferIEs, m)
+}
+
 func (m *ENBStatusTransfer) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcENBStatusTransfer,
@@ -64,94 +73,56 @@ func (m *ENBStatusTransfer) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseENBStatusTransfer decodes the message from an initiatingMessage open-type
-// payload.
 func ParseENBStatusTransfer(value []byte) (*ENBStatusTransfer, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: ENBStatusTransfer preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &ENBStatusTransfer{}
-
-	var seenMME, seenENB, seenContainer bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
-			seenMME = true
-		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
-			seenENB = true
-		case idENBStatusTransferTransparentContainer:
-			m.Container = StatusTransferContainer(f.value)
-			seenContainer = true
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: ENBStatusTransfer IE %d: %w", f.id, err)
-		}
-	}
-
-	if !seenMME || !seenENB || !seenContainer {
-		return nil, fmt.Errorf("s1ap: ENBStatusTransfer missing mandatory IE")
-	}
-
-	return m, nil
+	return parseMessageBody[ENBStatusTransfer](ProcENBStatusTransfer, TriggeringInitiatingMessage, eNBStatusTransferIEs, value)
 }
 
-// MMEStatusTransfer is the MME STATUS TRANSFER message (TS 36.413 in
-// the MME Status Transfer procedure), sent by the MME to relay the source eNB's
-// status container to the target eNB.
+// TS 36.413 §9.1.5.14.
 type MMEStatusTransfer struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
 	Container   StatusTransferContainer
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *MMEStatusTransfer) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
-
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-		m.Container.field(idENBStatusTransferTransparentContainer),
-	}
-
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, fields)
+var mMEStatusTransferIEs = []ieSpec[MMEStatusTransfer]{
+	{
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *MMEStatusTransfer, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.MMEUES1APID)
+		},
+		encode: func(m *MMEStatusTransfer) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+	},
+	{
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *MMEStatusTransfer, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *MMEStatusTransfer) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idENBStatusTransferTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *MMEStatusTransfer, raw []byte, enc per.Encoding) error {
+			m.Container = StatusTransferContainer(raw)
+			return nil
+		},
+		encode: func(m *MMEStatusTransfer) (per.Marshaler, bool) { return m.Container, true },
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *MMEStatusTransfer) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcMMEStatusTransfer, mMEStatusTransferIEs, m)
+}
+
 func (m *MMEStatusTransfer) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcMMEStatusTransfer,
@@ -160,56 +131,6 @@ func (m *MMEStatusTransfer) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseMMEStatusTransfer decodes the message from an initiatingMessage open-type
-// payload.
 func ParseMMEStatusTransfer(value []byte) (*MMEStatusTransfer, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: MMEStatusTransfer preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &MMEStatusTransfer{}
-
-	var seenMME, seenENB, seenContainer bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
-			seenMME = true
-		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
-			seenENB = true
-		case idENBStatusTransferTransparentContainer:
-			m.Container = StatusTransferContainer(f.value)
-			seenContainer = true
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: MMEStatusTransfer IE %d: %w", f.id, err)
-		}
-	}
-
-	if !seenMME || !seenENB || !seenContainer {
-		return nil, fmt.Errorf("s1ap: MMEStatusTransfer missing mandatory IE")
-	}
-
-	return m, nil
+	return parseMessageBody[MMEStatusTransfer](ProcMMEStatusTransfer, TriggeringInitiatingMessage, mMEStatusTransferIEs, value)
 }

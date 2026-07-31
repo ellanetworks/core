@@ -57,8 +57,8 @@ func (e *ENB) ModifyBearerViaERABModify(ue *UE, enbUEID int64, timeout time.Dura
 
 func (e *ENB) sendERABModifyResponse(req *s1ap.ERABModifyRequest, enbUEID int64) error {
 	resp := &s1ap.ERABModifyResponse{
-		MMEUES1APID: req.MMEUES1APID,
-		ENBUES1APID: s1ap.ENBUES1APID(enbUEID),
+		MMEUES1APID: s1ap.Ptr(req.MMEUES1APID),
+		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(enbUEID)),
 		ERABModify:  []s1ap.ERABModifyItemBearerModRes{{ERABID: req.ERABToBeModified[0].ERABID}},
 	}
 

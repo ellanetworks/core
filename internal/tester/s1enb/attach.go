@@ -265,8 +265,8 @@ func (e *ENB) sendInitialContextSetupResponse(ics *s1ap.InitialContextSetupReque
 	}
 
 	resp := &s1ap.InitialContextSetupResponse{
-		MMEUES1APID: ics.MMEUES1APID,
-		ENBUES1APID: s1ap.ENBUES1APID(enbUEID),
+		MMEUES1APID: s1ap.Ptr(ics.MMEUES1APID),
+		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(enbUEID)),
 		ERABSetup: []s1ap.ERABSetupItemCtxtSURes{{
 			ERABID:                ics.ERABToBeSetup[0].ERABID,
 			TransportLayerAddress: s1ap.TransportLayerAddress(addr),

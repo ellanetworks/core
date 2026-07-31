@@ -4,49 +4,90 @@
 package s1ap
 
 import (
-	"fmt"
-
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
-// HandoverNotify is the HANDOVER NOTIFY message (TS 36.413 in the
-// Handover Notification procedure), sent by the target eNB once the UE has
-// arrived in the target cell and the S1 handover is complete (TS 23.401).
-// It carries the target eNB's UE S1AP ID and the UE's new
-// location.
+// TS 36.413 §9.1.5.7.
 type HandoverNotify struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
-	EUTRANCGI   EUTRANCGI
-	TAI         TAI
+	EUTRANCGI   *EUTRANCGI
+	TAI         *TAI
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *HandoverNotify) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+var handoverNotifyIEs = []ieSpec[HandoverNotify]{
+	{
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.MMEUES1APID)
+		},
+		encode: func(m *HandoverNotify) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+	},
+	{
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *HandoverNotify) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idEUTRANCGI, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
+			var v EUTRANCGI
 
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-		{id: idEUTRANCGI, crit: CriticalityIgnore, enc: m.EUTRANCGI.encode},
-		{id: idTAI, crit: CriticalityIgnore, enc: m.TAI.encode},
-	}
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
+			m.EUTRANCGI = &v
 
-	return encodeIEContainer(w, fields)
+			return nil
+		},
+		encode: func(m *HandoverNotify) (per.Marshaler, bool) {
+			if m.EUTRANCGI == nil {
+				return nil, false
+			}
+
+			return m.EUTRANCGI, true
+		},
+	},
+	{
+		id: idTAI, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
+			var v TAI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.TAI = &v
+
+			return nil
+		},
+		encode: func(m *HandoverNotify) (per.Marshaler, bool) {
+			if m.TAI == nil {
+				return nil, false
+			}
+
+			return m.TAI, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *HandoverNotify) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcHandoverNotification, handoverNotifyIEs, m)
+}
+
 func (m *HandoverNotify) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcHandoverNotification,
@@ -55,59 +96,6 @@ func (m *HandoverNotify) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseHandoverNotify decodes the message from an initiatingMessage open-type
-// payload.
 func ParseHandoverNotify(value []byte) (*HandoverNotify, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: HandoverNotify preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &HandoverNotify{}
-
-	var seenMME, seenENB, seenCGI, seenTAI bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
-			seenMME = true
-		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
-			seenENB = true
-		case idEUTRANCGI:
-			m.EUTRANCGI, err = decodeEUTRANCGI(sub)
-			seenCGI = true
-		case idTAI:
-			m.TAI, err = decodeTAI(sub)
-			seenTAI = true
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: HandoverNotify IE %d: %w", f.id, err)
-		}
-	}
-
-	if !seenMME || !seenENB || !seenCGI || !seenTAI {
-		return nil, fmt.Errorf("s1ap: HandoverNotify missing mandatory IE")
-	}
-
-	return m, nil
+	return parseMessageBody[HandoverNotify](ProcHandoverNotification, TriggeringInitiatingMessage, handoverNotifyIEs, value)
 }

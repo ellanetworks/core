@@ -12,6 +12,10 @@ import (
 	"go.uber.org/zap"
 )
 
+// causeReleaseUnspecified stands in for an omitted Cause IE (TS 36.413 §9.2.1.3,
+// CauseRadioNetwork "unspecified").
+var causeReleaseUnspecified = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnspecified}
+
 // handleUEContextReleaseRequest handles an eNB-initiated UE Context Release
 // Request (inactivity or radio-link failure), starting the S1 release procedure
 // (TS 36.413). Whether the context is deleted or retained in ECM-IDLE is decided
@@ -23,9 +27,16 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, radio *mme.R
 		return
 	}
 
+	// An omitted Cause is an ignore-criticality absence: the eNB has dropped the radio
+	// connection either way, so the release proceeds under a generic cause (§10.3.5).
+	cause := causeReleaseUnspecified
+	if msg.Cause != nil {
+		cause = *msg.Cause
+	}
+
 	// A detached connection has no UE but its eNB still holds the context, so answer with
 	// a release command (TS 36.413 §8.3.2.2).
-	if m.AnswerDetachedRelease(ctx, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID, msg.Cause) {
+	if m.AnswerDetachedRelease(ctx, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID, cause) {
 		return
 	}
 
@@ -34,11 +45,13 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, radio *mme.R
 		return
 	}
 
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcUEContextReleaseRequest, s1ap.TriggeringInitiatingMessage, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+
 	ue.TouchLastSeen()
 
 	fields := []zap.Field{
 		zap.String("imsi", ue.IMSI()),
-		zap.String("cause", mme.S1apCauseName(&msg.Cause)),
+		zap.String("cause", mme.S1apCauseName(&cause)),
 	}
 
 	// A release after the NAS security context is established but before the UE is
@@ -57,5 +70,5 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, radio *mme.R
 		logger.From(ctx, ue.Conn().Log).Info("UE Context Release Request", fields...)
 	}
 
-	m.ReleaseUEContext(ctx, ue, msg.Cause)
+	m.ReleaseUEContext(ctx, ue, cause)
 }

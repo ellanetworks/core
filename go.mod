@@ -52,6 +52,7 @@ require (
 	github.com/eapache/queue v1.1.0 // indirect
 	github.com/ellanetworks/core/lppa v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/nas v0.0.0-00010101000000-000000000000
+	github.com/ellanetworks/core/per v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/s1ap v0.0.0-00010101000000-000000000000
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -128,3 +129,5 @@ replace github.com/ellanetworks/core/lppa => ./lppa
 replace github.com/ellanetworks/core/s1ap => ./s1ap
 
 replace github.com/ellanetworks/core/nas => ./nas
+
+replace github.com/ellanetworks/core/per => ./per

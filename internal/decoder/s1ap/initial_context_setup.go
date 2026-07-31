@@ -130,11 +130,17 @@ func buildInitialContextSetupResponse(value []byte) (S1APMessageValue, string) {
 		})
 	}
 
-	ies := []IE{
-		ie(idMMEUES1APID, s1ap.CriticalityIgnore, uint32(m.MMEUES1APID)),
-		ie(idENBUES1APID, s1ap.CriticalityIgnore, uint32(m.ENBUES1APID)),
-		ie(idERABSetupListCtxtSURes, s1ap.CriticalityIgnore, setup),
+	var ies []IE
+
+	if m.MMEUES1APID != nil {
+		ies = append(ies, ie(idMMEUES1APID, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID)))
 	}
+
+	if m.ENBUES1APID != nil {
+		ies = append(ies, ie(idENBUES1APID, s1ap.CriticalityIgnore, uint32(*m.ENBUES1APID)))
+	}
+
+	ies = append(ies, ie(idERABSetupListCtxtSURes, s1ap.CriticalityIgnore, setup))
 
 	if len(m.ERABFailedToSetup) > 0 {
 		failed := make([]ERABFailedItem, 0, len(m.ERABFailedToSetup))
@@ -151,7 +157,7 @@ func buildInitialContextSetupResponse(value []byte) (S1APMessageValue, string) {
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
-	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Initial Context Setup Response (MME-UE %d, eNB-UE %d, %d E-RAB)", m.MMEUES1APID, m.ENBUES1APID, len(m.ERABSetup))
+	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Initial Context Setup Response (MME-UE %s, eNB-UE %s, %d E-RAB)", ueIDText(m.MMEUES1APID), ueIDText(m.ENBUES1APID), len(m.ERABSetup))
 }
 
 // ERABFailedItem is a decoded E-RAB that the eNB failed to set up (TS 36.413
@@ -167,10 +173,18 @@ func buildInitialContextSetupFailure(value []byte) (S1APMessageValue, string) {
 		return S1APMessageValue{Error: fmt.Sprintf("parse Initial Context Setup Failure: %v", err)}, ""
 	}
 
-	ies := []IE{
-		ie(idMMEUES1APID, s1ap.CriticalityIgnore, uint32(m.MMEUES1APID)),
-		ie(idENBUES1APID, s1ap.CriticalityIgnore, uint32(m.ENBUES1APID)),
-		ie(idCause, s1ap.CriticalityIgnore, cause(m.Cause)),
+	var ies []IE
+
+	if m.MMEUES1APID != nil {
+		ies = append(ies, ie(idMMEUES1APID, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID)))
+	}
+
+	if m.ENBUES1APID != nil {
+		ies = append(ies, ie(idENBUES1APID, s1ap.CriticalityIgnore, uint32(*m.ENBUES1APID)))
+	}
+
+	if m.Cause != nil {
+		ies = append(ies, ie(idCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
 	}
 
 	if m.CriticalityDiagnostics != nil {
@@ -179,5 +193,5 @@ func buildInitialContextSetupFailure(value []byte) (S1APMessageValue, string) {
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
-	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Initial Context Setup Failure (MME-UE %d, eNB-UE %d)", m.MMEUES1APID, m.ENBUES1APID)
+	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Initial Context Setup Failure (MME-UE %s, eNB-UE %s)", ueIDText(m.MMEUES1APID), ueIDText(m.ENBUES1APID))
 }

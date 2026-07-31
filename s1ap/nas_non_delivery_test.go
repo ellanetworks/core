@@ -13,7 +13,7 @@ func TestNASNonDeliveryIndicationRoundTrip(t *testing.T) {
 		MMEUES1APID: 42,
 		ENBUES1APID: 1,
 		NASPDU:      NASPDU{0x7E, 0x00, 0x42},
-		Cause:       Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnknownMMEUES1APID},
+		Cause:       Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnknownMMEUES1APID}),
 	}
 
 	b, err := in.Marshal()
@@ -37,7 +37,7 @@ func TestNASNonDeliveryIndicationRoundTrip(t *testing.T) {
 	}
 
 	if out.MMEUES1APID != in.MMEUES1APID || out.ENBUES1APID != in.ENBUES1APID ||
-		out.Cause != in.Cause || !bytes.Equal(out.NASPDU, in.NASPDU) {
+		deref(out.Cause) != deref(in.Cause) || !bytes.Equal(out.NASPDU, in.NASPDU) {
 		t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
 	}
 }

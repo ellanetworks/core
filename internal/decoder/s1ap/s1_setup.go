@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/ellanetworks/core/internal/s1apcause"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -126,7 +125,7 @@ func causeGroupToEnum(g s1ap.CauseGroup) utils.EnumField {
 }
 
 func cause(c s1ap.Cause) Cause {
-	name, index := s1apcause.ValueName(c.Group, c.Value, c.Extended)
+	name, index := c.ValueName()
 
 	return Cause{
 		Group: causeGroupToEnum(c.Group),
@@ -146,30 +145,31 @@ func buildS1SetupRequest(value []byte) (S1APMessageValue, string) {
 		Value:       globalENBID(req.GlobalENBID),
 	}}
 
-	if req.ENBName != "" {
+	if req.ENBName != nil {
 		ies = append(ies, IE{
 			ID:          ieEnum(idENBname),
 			Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
-			Value:       req.ENBName,
+			Value:       *req.ENBName,
 		})
 	}
 
-	ies = append(ies,
-		IE{
-			ID:          ieEnum(idSupportedTAs),
-			Criticality: criticalityToEnum(s1ap.CriticalityReject),
-			Value:       supportedTAs(req.SupportedTAs),
-		},
-		IE{
+	ies = append(ies, IE{
+		ID:          ieEnum(idSupportedTAs),
+		Criticality: criticalityToEnum(s1ap.CriticalityReject),
+		Value:       supportedTAs(req.SupportedTAs),
+	})
+
+	if req.DefaultPagingDRX != nil {
+		ies = append(ies, IE{
 			ID:          ieEnum(idDefaultPagingDRX),
 			Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
-			Value:       pagingDRXToEnum(req.DefaultPagingDRX),
-		},
-	)
+			Value:       pagingDRXToEnum(*req.DefaultPagingDRX),
+		})
+	}
 
 	summary := "S1 Setup Request"
-	if req.ENBName != "" {
-		summary = fmt.Sprintf("S1 Setup Request (%s)", req.ENBName)
+	if req.ENBName != nil {
+		summary = fmt.Sprintf("S1 Setup Request (%s)", *req.ENBName)
 	}
 
 	ies = appendUnknownIEs(ies, req.UnknownIEs())
@@ -185,26 +185,27 @@ func buildS1SetupResponse(value []byte) (S1APMessageValue, string) {
 
 	var ies []IE
 
-	if resp.MMEName != "" {
+	if resp.MMEName != nil {
 		ies = append(ies, IE{
 			ID:          ieEnum(idMMEname),
 			Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
-			Value:       resp.MMEName,
+			Value:       *resp.MMEName,
 		})
 	}
 
-	ies = append(ies,
-		IE{
-			ID:          ieEnum(idServedGUMMEIs),
-			Criticality: criticalityToEnum(s1ap.CriticalityReject),
-			Value:       servedGUMMEIs(resp.ServedGUMMEIs),
-		},
-		IE{
+	ies = append(ies, IE{
+		ID:          ieEnum(idServedGUMMEIs),
+		Criticality: criticalityToEnum(s1ap.CriticalityReject),
+		Value:       servedGUMMEIs(resp.ServedGUMMEIs),
+	})
+
+	if resp.RelativeMMECapacity != nil {
+		ies = append(ies, IE{
 			ID:          ieEnum(idRelativeMMECapacity),
 			Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
-			Value:       resp.RelativeMMECapacity,
-		},
-	)
+			Value:       *resp.RelativeMMECapacity,
+		})
+	}
 
 	if resp.CriticalityDiagnostics != nil {
 		ies = append(ies, ie(idCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*resp.CriticalityDiagnostics)))
@@ -221,11 +222,15 @@ func buildS1SetupFailure(value []byte) (S1APMessageValue, string) {
 		return S1APMessageValue{Error: fmt.Sprintf("parse S1 Setup Failure: %v", err)}, ""
 	}
 
-	ies := []IE{{
-		ID:          ieEnum(idCause),
-		Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
-		Value:       cause(fail.Cause),
-	}}
+	var ies []IE
+
+	if fail.Cause != nil {
+		ies = append(ies, IE{
+			ID:          ieEnum(idCause),
+			Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
+			Value:       cause(*fail.Cause),
+		})
+	}
 
 	if fail.TimeToWait != nil {
 		ies = append(ies, IE{

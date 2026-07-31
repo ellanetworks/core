@@ -39,6 +39,8 @@ func handleERABModificationIndication(m *mme.MME, ctx context.Context, radio *mm
 		return
 	}
 
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcERABModificationIndication, s1ap.TriggeringInitiatingMessage, ueAssociated(msg.MMEUES1APID, msg.ENBUES1APID), msg.Diagnostics())
+
 	ue.TouchLastSeen()
 	captureUserLocation(ue, msg.UserLocationInformation)
 
@@ -61,8 +63,8 @@ func handleERABModificationIndication(m *mme.MME, ctx context.Context, radio *mm
 	modified := modifyBearerDownlinks(m, ctx, ue, msg.ToBeModified)
 
 	confirm := &s1ap.ERABModificationConfirm{
-		MMEUES1APID:   msg.MMEUES1APID,
-		ENBUES1APID:   msg.ENBUES1APID,
+		MMEUES1APID:   s1ap.Ptr(msg.MMEUES1APID),
+		ENBUES1APID:   s1ap.Ptr(msg.ENBUES1APID),
 		ModifiedERABs: modified,
 	}
 

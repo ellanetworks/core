@@ -60,8 +60,8 @@ func TestERABReleaseCommandRoundTrips(t *testing.T) {
 
 func TestERABReleaseResponseRoundTrips(t *testing.T) {
 	in := &ERABReleaseResponse{
-		MMEUES1APID:  42,
-		ENBUES1APID:  1,
+		MMEUES1APID:  Ptr(MMEUES1APID(42)),
+		ENBUES1APID:  Ptr(ENBUES1APID(1)),
 		ERABReleased: []ERABReleaseItemBearerRelComp{{ERABID: 6}},
 	}
 
@@ -85,7 +85,7 @@ func TestERABReleaseResponseRoundTrips(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.MMEUES1APID != 42 || out.ENBUES1APID != 1 || len(out.ERABReleased) != 1 || out.ERABReleased[0].ERABID != 6 {
+	if deref(out.MMEUES1APID) != 42 || deref(out.ENBUES1APID) != 1 || len(out.ERABReleased) != 1 || out.ERABReleased[0].ERABID != 6 {
 		t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
 	}
 }
@@ -93,8 +93,8 @@ func TestERABReleaseResponseRoundTrips(t *testing.T) {
 func TestERABReleaseResponseRoundTripsUserLocation(t *testing.T) {
 	plmn := PLMNIdentity{0x00, 0xf1, 0x10}
 	in := &ERABReleaseResponse{
-		MMEUES1APID: 42,
-		ENBUES1APID: 1,
+		MMEUES1APID: Ptr(MMEUES1APID(42)),
+		ENBUES1APID: Ptr(ENBUES1APID(1)),
 		UserLocationInformation: &UserLocationInformation{
 			EUTRANCGI: EUTRANCGI{PLMNIdentity: plmn, CellID: 0x0abcde1},
 			TAI:       TAI{PLMNIdentity: plmn, TAC: 9},

@@ -5,6 +5,8 @@ package s1ap
 
 import (
 	"bytes"
+	"context"
+	"encoding/hex"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
@@ -30,7 +32,7 @@ func TestUECapabilityInfoIndicationStoresRadioCapability(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleUECapabilityInfoIndication(m, mme.NewRadioForTest(cc), initiatingValue(t, b))
+	handleUECapabilityInfoIndication(m, context.Background(), mme.NewRadioForTest(cc), initiatingValue(t, b))
 
 	if !bytes.Equal(ue.RadioCapability, radioCap) {
 		t.Fatalf("radio capability = %x, want %x", ue.RadioCapability, radioCap)
@@ -56,9 +58,42 @@ func TestUECapabilityInfoIndicationUnknownUE(t *testing.T) {
 	}
 
 	// Must not panic or create a context for an unknown MME-UE-S1AP-ID.
-	handleUECapabilityInfoIndication(m, mme.NewRadioForTest(&captureConn{}), initiatingValue(t, b))
+	handleUECapabilityInfoIndication(m, context.Background(), mme.NewRadioForTest(&captureConn{}), initiatingValue(t, b))
 
 	if _, ok := m.LookupUe(999); ok {
 		t.Fatal("unexpected UE context for unknown MME-UE-S1AP-ID")
+	}
+}
+
+// TS 36.413 §10.3.5: UE Radio Capability is mandatory/ignore, so a message
+// omitting it is delivered, and must leave the stored capability standing.
+func TestUECapabilityInfoIndicationAbsentCapabilityKeepsStored(t *testing.T) {
+	m := newTestMME(t)
+	cc := &captureConn{}
+	ue := m.NewUe(cc, 7)
+
+	stored := []byte{0x01, 0x02, 0x03, 0x04}
+	ue.RadioCapability = stored
+
+	// Only the two UE S1AP IDs; the encoder refuses to omit a required IE, so
+	// the container is built as a peer would send it.
+	body, err := hex.DecodeString("000002" + "00004002" + "0001" + "00084002" + "0007")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	msg, err := s1ap.ParseUECapabilityInfoIndication(body)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if msg.UERadioCapability != nil {
+		t.Fatalf("UERadioCapability = %x, want absent", msg.UERadioCapability)
+	}
+
+	handleUECapabilityInfoIndication(m, context.Background(), mme.NewRadioForTest(cc), body)
+
+	if !bytes.Equal(ue.RadioCapability, stored) {
+		t.Fatalf("radio capability = %x, want the stored %x", ue.RadioCapability, stored)
 	}
 }

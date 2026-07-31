@@ -4,9 +4,7 @@
 package s1ap
 
 import (
-	"fmt"
-
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // EventType ::= ENUMERATED { direct, change-of-serve-cell, stop-change-of-serve-cell,
@@ -17,8 +15,6 @@ const (
 	EventTypeDirect EventType = iota
 	EventTypeChangeOfServeCell
 	EventTypeStopChangeOfServeCell
-
-	eventTypeRootCount = 3
 )
 
 // ReportArea ::= ENUMERATED { ecgi, ... } (TS 36.413).
@@ -26,87 +22,120 @@ type ReportArea uint8
 
 const (
 	ReportAreaECGI ReportArea = iota
-
-	reportAreaRootCount = 1
 )
 
 // RequestType ::= SEQUENCE { eventType, reportArea, iE-Extensions OPTIONAL, ... }
 // (TS 36.413 §9.2.1.35).
 type RequestType struct {
-	EventType  EventType
-	ReportArea ReportArea
+	_          [0]struct{}  `per:"extseq"`
+	EventType  EventType    `per:"ENUMERATED,range:0..2,..."`
+	ReportArea ReportArea   `per:"ENUMERATED,range:0..0,..."`
+	_          ieExtensions `per:",skip"`
 }
 
-func (rt RequestType) encode(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, []bool{false})
-
-	if err := w.WriteEnum(int(rt.EventType), eventTypeRootCount, true, false); err != nil {
-		return err
-	}
-
-	return w.WriteEnum(int(rt.ReportArea), reportAreaRootCount, true, false)
-}
-
-func decodeRequestType(r *aper.Reader) (RequestType, error) {
-	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
-	if err != nil {
-		return RequestType{}, err
-	}
-
-	et, _, err := r.ReadEnum(eventTypeRootCount, true)
-	if err != nil {
-		return RequestType{}, err
-	}
-
-	ra, _, err := r.ReadEnum(reportAreaRootCount, true)
-	if err != nil {
-		return RequestType{}, err
-	}
-
-	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
-		return RequestType{}, err
-	}
-
-	return RequestType{EventType: EventType(et), ReportArea: ReportArea(ra)}, nil
-}
-
-// LocationReport is the LOCATION REPORT message (TS 36.413), sent by the eNB to
-// report the UE's serving cell.
+// TS 36.413 §9.1.12.3.
 type LocationReport struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
-	EUTRANCGI   EUTRANCGI
-	TAI         TAI
-	RequestType RequestType
+	EUTRANCGI   *EUTRANCGI
+	TAI         *TAI
+	RequestType *RequestType
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *LocationReport) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+var locationReportIEs = []ieSpec[LocationReport]{
+	{
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.MMEUES1APID)
+		},
+		encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+	},
+	{
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idEUTRANCGI, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
+			var v EUTRANCGI
 
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-		{id: idEUTRANCGI, crit: CriticalityIgnore, enc: m.EUTRANCGI.encode},
-		{id: idTAI, crit: CriticalityIgnore, enc: m.TAI.encode},
-		{id: idRequestType, crit: CriticalityIgnore, enc: m.RequestType.encode},
-	}
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
+			m.EUTRANCGI = &v
 
-	return encodeIEContainer(w, fields)
+			return nil
+		},
+		encode: func(m *LocationReport) (per.Marshaler, bool) {
+			if m.EUTRANCGI == nil {
+				return nil, false
+			}
+
+			return m.EUTRANCGI, true
+		},
+	},
+	{
+		id: idTAI, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
+			var v TAI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.TAI = &v
+
+			return nil
+		},
+		encode: func(m *LocationReport) (per.Marshaler, bool) {
+			if m.TAI == nil {
+				return nil, false
+			}
+
+			return m.TAI, true
+		},
+	},
+	{
+		id: idRequestType, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
+			var v RequestType
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.RequestType = &v
+
+			return nil
+		},
+		encode: func(m *LocationReport) (per.Marshaler, bool) {
+			if m.RequestType == nil {
+				return nil, false
+			}
+
+			return m.RequestType, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *LocationReport) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcLocationReport, locationReportIEs, m)
+}
+
 func (m *LocationReport) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcLocationReport,
@@ -115,62 +144,6 @@ func (m *LocationReport) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseLocationReport decodes a LocationReport from the open-type payload of an
-// initiatingMessage.
 func ParseLocationReport(value []byte) (*LocationReport, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: LocationReport preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &LocationReport{}
-
-	var seenMME, seenENB, seenCGI, seenTAI, seenReq bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
-			seenMME = true
-		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
-			seenENB = true
-		case idEUTRANCGI:
-			m.EUTRANCGI, err = decodeEUTRANCGI(sub)
-			seenCGI = true
-		case idTAI:
-			m.TAI, err = decodeTAI(sub)
-			seenTAI = true
-		case idRequestType:
-			m.RequestType, err = decodeRequestType(sub)
-			seenReq = true
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: LocationReport IE %d: %w", f.id, err)
-		}
-	}
-
-	if !seenMME || !seenENB || !seenCGI || !seenTAI || !seenReq {
-		return nil, fmt.Errorf("s1ap: LocationReport missing mandatory IE")
-	}
-
-	return m, nil
+	return parseMessageBody[LocationReport](ProcLocationReport, TriggeringInitiatingMessage, locationReportIEs, value)
 }

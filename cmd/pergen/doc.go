@@ -5,7 +5,4 @@
 // types declared with `per:` struct tags. It is invoked via go:generate:
 //
 //	//go:generate go run github.com/ellanetworks/core/cmd/pergen
-//
-// pergen parses Go source via go/ast and go/types (no reflect at build time)
-// and emits code that uses no reflect at run time.
 package main
