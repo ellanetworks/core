@@ -520,7 +520,7 @@ func (ln *sctpListener) Accept() (*SCTPConn, error) {
 
 	rerr := ln.rc.Read(func(fd uintptr) bool {
 		newFd, _, err = syscall.Accept4(int(fd), syscall.SOCK_CLOEXEC|syscall.SOCK_NONBLOCK)
-		if err == syscall.EAGAIN {
+		if acceptWouldBlock(err) {
 			return false // not ready; tell poller to park and retry
 		}
 
@@ -541,6 +541,13 @@ func (ln *sctpListener) Accept() (*SCTPConn, error) {
 	}
 
 	return conn, nil
+}
+
+// SCTP answers a would-block accept with EINTR when a signal is pending:
+// sctp_wait_for_accept tests signal_pending before the !timeo case
+// (net/sctp/socket.c).
+func acceptWouldBlock(err error) bool {
+	return err == syscall.EAGAIN || err == syscall.EINTR
 }
 
 // acceptErr reports a closed listener as net.ErrClosed: the poller surfaces the

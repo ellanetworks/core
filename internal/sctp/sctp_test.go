@@ -6,6 +6,7 @@ package sctp
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"syscall"
 	"testing"
@@ -71,12 +72,32 @@ func connectLoopback(port int) (int, error) {
 	sa := &syscall.SockaddrInet4{Port: port}
 	copy(sa.Addr[:], net.ParseIP("127.0.0.1").To4())
 
-	if err := syscall.Connect(fd, sa); err != nil {
+	// A signal restarts connect(2) under SA_RESTART, and the restart reports the
+	// association's state instead of re-blocking on the handshake.
+	deadline := time.Now().Add(5 * time.Second)
+
+	for {
+		err := syscall.Connect(fd, sa)
+		if err == nil || err == syscall.EISCONN {
+			return fd, nil
+		}
+
+		if err == syscall.EALREADY || err == syscall.EINTR {
+			if time.Now().After(deadline) {
+				_ = syscall.Close(fd)
+
+				return -1, fmt.Errorf("connect did not complete: %w", err)
+			}
+
+			time.Sleep(time.Millisecond)
+
+			continue
+		}
+
 		_ = syscall.Close(fd)
+
 		return -1, err
 	}
-
-	return fd, nil
 }
 
 // acceptOne connects a raw SCTP client to ln and returns the accepted
@@ -84,16 +105,16 @@ func connectLoopback(port int) (int, error) {
 func acceptOne(t *testing.T, ln *sctpListener, port int) *SCTPConn {
 	t.Helper()
 
-	connCh := make(chan *SCTPConn, 1)
+	type acceptResult struct {
+		conn *SCTPConn
+		err  error
+	}
+
+	connCh := make(chan acceptResult, 1)
 
 	go func() {
 		conn, err := ln.Accept()
-		if err != nil {
-			connCh <- nil
-			return
-		}
-
-		connCh <- conn
+		connCh <- acceptResult{conn: conn, err: err}
 	}()
 
 	clientFd, err := connectLoopback(port)
@@ -103,12 +124,42 @@ func acceptOne(t *testing.T, ln *sctpListener, port int) *SCTPConn {
 
 	t.Cleanup(func() { _ = syscall.Close(clientFd) })
 
-	conn := <-connCh
-	if conn == nil {
-		t.Fatal("Accept failed")
+	res := <-connCh
+	if res.err != nil {
+		t.Fatalf("Accept failed: %v (errno %d)", res.err, errnoOf(res.err))
 	}
 
-	return conn
+	return res.conn
+}
+
+// errnoOf extracts the numeric errno from err, or -1 if it carries none.
+func errnoOf(err error) int {
+	var errno syscall.Errno
+	if errors.As(err, &errno) {
+		return int(errno)
+	}
+
+	return -1
+}
+
+// No deterministic test of Accept catches the loss of the EINTR case.
+func TestAcceptWouldBlock(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"EAGAIN", syscall.EAGAIN, true},
+		{"EINTR", syscall.EINTR, true},
+		{"nil", nil, false},
+		{"EBADF", syscall.EBADF, false},
+		{"EINVAL", syscall.EINVAL, false},
+		{"EMFILE", syscall.EMFILE, false},
+	} {
+		if got := acceptWouldBlock(c.err); got != c.want {
+			t.Errorf("acceptWouldBlock(%s) = %v, want %v", c.name, got, c.want)
+		}
+	}
 }
 
 // TestClose_Idempotent verifies that Close() releases the fd exactly once.
