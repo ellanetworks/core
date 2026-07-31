@@ -51,16 +51,19 @@ static __always_inline __be32 get_src_ip_addr(struct packet_context *ctx)
 /* IPv6 counterpart. RFC 4443 §2.2 requires the source to be an address of the
  * node; the UE address the trigger was sent to is neither ours nor routable
  * back through N6 under BCP38. */
+/* `orig` is the trigger's header re-derived after the resize: ctx->ip6 still
+ * points into the pre-resize frame and the verifier treats it as a scalar. */
 static __always_inline void get_src_ip6_addr(struct packet_context *ctx,
+					     const struct ipv6hdr *orig,
 					     struct in6_addr *out)
 {
 	struct bpf_fib_lookup fib_params = {};
 	fib_params.family = AF_INET6;
-	fib_params.l4_protocol = ctx->ip6->nexthdr;
+	fib_params.l4_protocol = orig->nexthdr;
 	fib_params.tot_len = 0;
-	__builtin_memcpy(fib_params.ipv6_src, &ctx->ip6->daddr,
+	__builtin_memcpy(fib_params.ipv6_src, &orig->daddr,
 			 sizeof(fib_params.ipv6_src));
-	__builtin_memcpy(fib_params.ipv6_dst, &ctx->ip6->saddr,
+	__builtin_memcpy(fib_params.ipv6_dst, &orig->saddr,
 			 sizeof(fib_params.ipv6_dst));
 	fib_params.ifindex = ctx_ingress_ifindex(ctx->ctx_buff);
 
@@ -368,7 +371,7 @@ send_packet_too_big(struct packet_context *ctx, __be16 mtu)
 	new_ip6->payload_len = bpf_htons(icmp6_msg_len);
 	new_ip6->nexthdr = IPPROTO_ICMPV6;
 	new_ip6->hop_limit = 64;
-	get_src_ip6_addr(ctx, &new_ip6->saddr);
+	get_src_ip6_addr(ctx, orig_ip6, &new_ip6->saddr);
 	__builtin_memcpy(&new_ip6->daddr, &orig_ip6->saddr,
 			 sizeof(struct in6_addr));
 
