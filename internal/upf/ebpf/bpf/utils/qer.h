@@ -23,8 +23,8 @@
 
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
-#include "xdp/utils/ctx.h"
-#include "xdp/utils/pdr.h"
+#include "bpf/ctx/ctx.h"
+#include "bpf/utils/pdr.h"
 
 static __always_inline enum ctx_action
 limit_rate_sliding_window(const __u64 packet_size,

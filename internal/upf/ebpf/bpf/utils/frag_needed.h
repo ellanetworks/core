@@ -6,11 +6,11 @@
 #include "linux/bpf.h"
 #include "bpf/bpf_helpers.h"
 
-#include "xdp/utils/csum.h"
-#include "xdp/utils/gtp.h"
-#include "xdp/utils/packet_context.h"
-#include "xdp/utils/parsers.h"
-#include "xdp/utils/routing.h"
+#include "bpf/utils/csum.h"
+#include "bpf/utils/gtp.h"
+#include "bpf/utils/packet_context.h"
+#include "bpf/utils/parsers.h"
+#include "bpf/utils/routing.h"
 #include <bpf/bpf_endian.h>
 #include <linux/icmp.h>
 #include <linux/icmpv6.h>

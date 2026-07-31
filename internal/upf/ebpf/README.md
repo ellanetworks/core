@@ -1,8 +1,10 @@
-Ella Core UPF XDP implementation
-================================
+Ella Core UPF datapath implementation
+=====================================
 
-This directory contains the XDP implementation of the UPF. It contains
-both the userspace go code and the kernel space XDP code.
+This directory contains the UPF datapath: the userspace Go code and the
+kernel-space eBPF code under `bpf/`. One C source builds two objects, one
+for the XDP hook and one for TCX; `bpf/ctx/` holds the shim that selects
+between them.
 
 Compilation
 ===========

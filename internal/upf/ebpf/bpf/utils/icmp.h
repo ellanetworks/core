@@ -26,9 +26,9 @@
 #include <linux/types.h>
 #include <linux/icmp.h>
 
-#include "xdp/utils/csum.h"
-#include "xdp/utils/parsers.h"
-#include "xdp/utils/packet_context.h"
+#include "bpf/utils/csum.h"
+#include "bpf/utils/parsers.h"
+#include "bpf/utils/packet_context.h"
 
 static __always_inline void fill_icmp_header(struct icmphdr *icmp)
 {

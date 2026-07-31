@@ -7,7 +7,7 @@
 #include <bpf/bpf_helpers.h>
 #include <linux/in6.h>
 
-#include "xdp/utils/pdr.h"
+#include "bpf/utils/pdr.h"
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);

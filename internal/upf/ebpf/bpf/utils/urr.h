@@ -5,9 +5,9 @@
 
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
-#include "xdp/utils/pdr.h"
-#include "xdp/utils/trace.h"
-#include "xdp/utils/packet_context.h"
+#include "bpf/utils/pdr.h"
+#include "bpf/utils/trace.h"
+#include "bpf/utils/packet_context.h"
 
 /* Up to two URRs (uplink, downlink) per session. */
 #define URR_MAP_SIZE (2 * MAX_PDU_SESSIONS)

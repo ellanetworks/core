@@ -32,8 +32,8 @@
 #include <linux/udp.h>
 #include <linux/tcp.h>
 
-#include "xdp/utils/packet_context.h"
-#include "xdp/utils/trace.h"
+#include "bpf/utils/packet_context.h"
+#include "bpf/utils/trace.h"
 #include <sys/cdefs.h>
 
 #define ETH_P_IPV6_BE 0xDD86

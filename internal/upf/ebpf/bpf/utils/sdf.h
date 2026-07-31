@@ -3,10 +3,10 @@
 
 #pragma once
 
-#include "xdp/utils/pdr.h"
-#include "xdp/utils/packet_context.h"
-#include "xdp/utils/trace.h"
-#include "xdp/utils/ip_addr.h"
+#include "bpf/utils/pdr.h"
+#include "bpf/utils/packet_context.h"
+#include "bpf/utils/trace.h"
+#include "bpf/utils/ip_addr.h"
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>

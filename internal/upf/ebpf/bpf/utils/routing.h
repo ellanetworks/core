@@ -21,8 +21,8 @@
 
 #pragma once
 
-#include "xdp/utils/flow.h"
-#include "xdp/utils/packet_context.h"
+#include "bpf/utils/flow.h"
+#include "bpf/utils/packet_context.h"
 #include <linux/bpf.h>
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
@@ -34,9 +34,9 @@
 #include <linux/types.h>
 #include <sys/socket.h>
 
-#include "xdp/utils/nat.h"
-#include "xdp/utils/profiling.h"
-#include "xdp/utils/trace.h"
+#include "bpf/utils/nat.h"
+#include "bpf/utils/profiling.h"
+#include "bpf/utils/trace.h"
 
 struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);

@@ -3,12 +3,12 @@
 
 #pragma once
 
-#include "xdp/utils/ip_addr.h"
-#include "xdp/utils/packet_context.h"
+#include "bpf/utils/ip_addr.h"
+#include "bpf/utils/packet_context.h"
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 
-#include "xdp/utils/nat.h"
+#include "bpf/utils/nat.h"
 #include <linux/icmp.h>
 #include <linux/in.h>
 #include <sys/cdefs.h>

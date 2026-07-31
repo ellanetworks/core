@@ -21,8 +21,8 @@
 
 #pragma once
 
-#include "xdp/utils/ctx.h"
-#include "xdp/utils/trace.h"
+#include "bpf/ctx/ctx.h"
+#include "bpf/utils/trace.h"
 #include <features.h>
 #include <linux/bpf.h>
 #include <linux/icmp.h>

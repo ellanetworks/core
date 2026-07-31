@@ -9,7 +9,7 @@
  * single program type. */
 
 #ifdef CTX_TC
-#include "xdp/utils/ctx_skb.h"
+#include "bpf/ctx/skb.h"
 #else
-#include "xdp/utils/ctx_xdp.h"
+#include "bpf/ctx/xdp.h"
 #endif

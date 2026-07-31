@@ -21,7 +21,7 @@
 
 #pragma once
 
-#include "xdp/utils/ctx.h"
+#include "bpf/ctx/ctx.h"
 
 #define increment_counter(OBJECT, COUNTER) OBJECT->COUNTER++;
 

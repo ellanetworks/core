@@ -3,25 +3,25 @@
 
 #pragma once
 
-#include "xdp/utils/flow.h"
-#include "xdp/utils/profiling.h"
+#include "bpf/utils/flow.h"
+#include "bpf/utils/profiling.h"
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 #include <linux/in6.h>
 #include <linux/ipv6.h>
 
-#include "xdp/utils/common.h"
-#include "xdp/utils/frag_needed.h"
-#include "xdp/utils/gtp.h"
-#include "xdp/utils/pdr.h"
-#include "xdp/utils/qer.h"
-#include "xdp/utils/sdf.h"
-#include "xdp/utils/urr.h"
-#include "xdp/utils/routing.h"
-#include "xdp/utils/statistics.h"
-#include "xdp/utils/nocp.h"
+#include "bpf/utils/common.h"
+#include "bpf/utils/frag_needed.h"
+#include "bpf/utils/gtp.h"
+#include "bpf/utils/pdr.h"
+#include "bpf/utils/qer.h"
+#include "bpf/utils/sdf.h"
+#include "bpf/utils/urr.h"
+#include "bpf/utils/routing.h"
+#include "bpf/utils/statistics.h"
+#include "bpf/utils/nocp.h"
 
-#include "xdp/utils/pdr_maps.h"
+#include "bpf/utils/pdr_maps.h"
 
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);

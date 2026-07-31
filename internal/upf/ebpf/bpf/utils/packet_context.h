@@ -21,9 +21,9 @@
 
 #pragma once
 
-#include "xdp/utils/ctx.h"
+#include "bpf/ctx/ctx.h"
 #include <bpf/bpf_helpers.h>
-#include "xdp/utils/statistics.h"
+#include "bpf/utils/statistics.h"
 #include <linux/if_ether.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
@@ -31,7 +31,7 @@
 #include <linux/udp.h>
 #include <linux/tcp.h>
 #include <linux/icmp.h>
-#include "xdp/utils/gtpu.h"
+#include "bpf/utils/gtpu.h"
 
 #define INTERFACE_N3 0x0
 #define INTERFACE_N6 0x1

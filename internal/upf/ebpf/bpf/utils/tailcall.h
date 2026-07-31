@@ -6,8 +6,8 @@
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 
-#include "xdp/utils/common.h"
-#include "xdp/utils/packet_context.h"
+#include "bpf/utils/common.h"
+#include "bpf/utils/packet_context.h"
 
 /* Stage programs, populated at load. */
 #define UPF_CALL_UPLINK 0

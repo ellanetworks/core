@@ -32,18 +32,19 @@
 #include <linux/udp.h>
 #include <sys/socket.h>
 
-#include "xdp/n3_bpf.h"
-#include "xdp/n6_bpf.h"
+#include "bpf/n3_bpf.h"
+#include "bpf/n6_bpf.h"
 
-#include "xdp/utils/statistics.h"
-#include "xdp/utils/common.h"
-#include "xdp/utils/routing.h"
+#include "bpf/utils/statistics.h"
+#include "bpf/utils/common.h"
+#include "bpf/utils/routing.h"
 
-#include "xdp/utils/trace.h"
-#include "xdp/utils/profiling.h"
-#include "xdp/utils/packet_context.h"
-#include "xdp/utils/parsers.h"
-#include "xdp/utils/nat.h"
+#include "bpf/utils/trace.h"
+#include "bpf/utils/profiling.h"
+#include "bpf/utils/gtp_control.h"
+#include "bpf/utils/packet_context.h"
+#include "bpf/utils/parsers.h"
+#include "bpf/utils/nat.h"
 
 /*
  * The datapath is split so the verifier checks each stage on its own budget. A
