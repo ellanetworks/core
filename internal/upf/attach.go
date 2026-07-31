@@ -46,12 +46,65 @@ func (p *pinnedLink) Close() error {
 	return p.Link.Close()
 }
 
+// datapathPinName is the pin for one interface at one hook. The XDP name
+// carries the mode because bpf_xdp_link_update validates only the program type
+// and expected attach type: updating a pinned generic link with a native-mode
+// program succeeds and reinstalls in the pinned link's own mode, so a shared
+// name would downgrade the datapath while reporting the configured mode.
+func datapathPinName(hook, ifname string) string {
+	return hook + "-" + ifname
+}
+
+// datapathPinNames lists every pin the datapath may hold for an interface,
+// across hooks and XDP modes, including the unqualified name written before
+// the mode was part of it.
+func datapathPinNames(ifname string) []string {
+	return []string{
+		datapathPinName("xdp", ifname),
+		datapathPinName("xdp-native", ifname),
+		datapathPinName("xdp-generic", ifname),
+		datapathPinName("tcx-ingress", ifname),
+	}
+}
+
+// releaseForeignPins drops every pin for ifname other than keep. A pin holds a
+// reference that keeps its program attached, so one left by a previous hook or
+// mode would run alongside the new attach: XDP ahead of TCX, encapsulating,
+// translating and metering each packet twice.
+func releaseForeignPins(ifname, keep string) {
+	for _, name := range datapathPinNames(ifname) {
+		if name == keep {
+			continue
+		}
+
+		pinPath := filepath.Join(bpfPinDir, name)
+
+		l, err := link.LoadPinnedLink(pinPath, nil)
+		if err != nil {
+			continue
+		}
+
+		if err := l.Unpin(); err != nil {
+			logger.UpfLog.Warn("failed to unpin datapath link from another hook",
+				zap.String("pin", pinPath), zap.Error(err))
+		} else {
+			logger.UpfLog.Info("released datapath link pinned at another hook",
+				zap.String("pin", pinPath))
+		}
+
+		_ = l.Close()
+	}
+}
+
 // adoptOrAttach re-points a pinned link from a previous process at prog, or
-// attaches fresh via attach and pins the result. A stale pin that cannot be
-// updated (changed attach mode, incompatible program) is discarded before the
-// fresh attach so TCX hooks cannot stack.
-func adoptOrAttach(pinName string, prog *cebpf.Program, attach func() (link.Link, error)) (link.Link, error) {
+// attaches fresh via attach and pins the result. Pins belonging to another
+// hook or XDP mode are released first, then a stale pin of this name that
+// cannot be updated (incompatible program) is discarded before the fresh
+// attach so hooks cannot stack.
+func adoptOrAttach(ifname, pinName string, prog *cebpf.Program, attach func() (link.Link, error)) (link.Link, error) {
 	pinPath := filepath.Join(bpfPinDir, pinName)
+
+	releaseForeignPins(ifname, pinName)
 
 	if l, err := link.LoadPinnedLink(pinPath, nil); err == nil {
 		if err := l.Update(prog); err == nil {
@@ -92,7 +145,12 @@ func adoptOrAttach(pinName string, prog *cebpf.Program, attach func() (link.Link
 // attachXDP attaches prog at the XDP hook of the interface in the given mode,
 // adopting a pinned link when one exists.
 func attachXDP(prog *cebpf.Program, ifindex int, ifname string, flags link.XDPAttachFlags) (link.Link, error) {
-	return adoptOrAttach("xdp-"+ifname, prog, func() (link.Link, error) {
+	hook := "xdp-native"
+	if flags == link.XDPGenericMode {
+		hook = "xdp-generic"
+	}
+
+	return adoptOrAttach(ifname, datapathPinName(hook, ifname), prog, func() (link.Link, error) {
 		return link.AttachXDP(link.XDPOptions{
 			Program:   prog,
 			Interface: ifindex,
@@ -105,7 +163,7 @@ func attachXDP(prog *cebpf.Program, ifindex int, ifname string, flags link.XDPAt
 // link when one exists. Reload goes through link.Update on the held link: a
 // second AttachTCX would stack a program on the hook.
 func attachTCX(prog *cebpf.Program, ifindex int, ifname string) (link.Link, error) {
-	return adoptOrAttach("tcx-ingress-"+ifname, prog, func() (link.Link, error) {
+	return adoptOrAttach(ifname, datapathPinName("tcx-ingress", ifname), prog, func() (link.Link, error) {
 		return link.AttachTCX(link.TCXOptions{
 			Program:   prog,
 			Attach:    cebpf.AttachTCXIngress,
@@ -168,7 +226,10 @@ func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface) (s
 	logger.UpfLog.Info("no driver-level XDP support on the datapath interfaces, attaching at TCX",
 		zap.String("n3", n3.name), zap.String("n6", n6.name))
 
-	// The XDP object cannot serve a TCX hook: reload as SCHED_CLS.
+	// The XDP object cannot serve a TCX hook: reload as SCHED_CLS. Every map
+	// and program handle taken from objs before this point refers to the
+	// closed object, so map readers must be constructed after attachDatapath
+	// returns.
 	if err := objs.Close(); err != nil {
 		logger.UpfLog.Warn("failed to close XDP objects before TCX fallback", zap.Error(err))
 	}

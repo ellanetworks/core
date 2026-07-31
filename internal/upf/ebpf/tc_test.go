@@ -14,6 +14,7 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"golang.org/x/sys/unix"
 )
 
 // TC verdicts (linux/pkt_cls.h). bpf_redirect returns TC_ACT_REDIRECT, which
@@ -121,6 +122,41 @@ func runTC(t *testing.T, prog *ebpf.Program, packet []byte) (uint32, []byte) {
 	if err != nil {
 		if errors.Is(err, ebpf.ErrNotSupported) {
 			t.Skipf("BPF_PROG_TEST_RUN for SCHED_CLS not supported on this kernel: %v", err)
+		}
+
+		t.Fatalf("run TC program: %v", err)
+	}
+
+	return action, opts.DataOut
+}
+
+// bpfFTestSKBChecksumComplete makes BPF_PROG_TEST_RUN present the skb as
+// CHECKSUM_COMPLETE and recompute skb->csum afterwards, returning EBADMSG when
+// the program's header rewrites did not carry the running sum along. Without
+// it the test skb is CHECKSUM_NONE, where arithmetic that never touches
+// skb->csum is indistinguishable from arithmetic that maintains it.
+const bpfFTestSKBChecksumComplete = 1 << 2
+
+// runTCChecksumComplete is runTC with that validation enabled. A kernel
+// without the flag rejects the run with EINVAL.
+func runTCChecksumComplete(t *testing.T, prog *ebpf.Program, packet []byte) (uint32, []byte) {
+	t.Helper()
+
+	opts := &ebpf.RunOptions{
+		Data:    packet,
+		DataOut: make([]byte, len(packet)+256),
+		Context: skbRunContext{IngressIfindex: 1},
+		Flags:   bpfFTestSKBChecksumComplete,
+	}
+
+	action, err := prog.Run(opts)
+	if err != nil {
+		if errors.Is(err, ebpf.ErrNotSupported) || errors.Is(err, unix.EINVAL) {
+			t.Skipf("BPF_F_TEST_SKB_CHECKSUM_COMPLETE not supported on this kernel: %v", err)
+		}
+
+		if errors.Is(err, unix.EBADMSG) {
+			t.Fatalf("skb->csum stale after the program ran: %v", err)
 		}
 
 		t.Fatalf("run TC program: %v", err)
@@ -345,6 +381,41 @@ func TestTCInBandVLANPassedToStack(t *testing.T) {
 			if !bytes.Equal(out, frame) {
 				t.Errorf("frame modified on the pass-to-stack path")
 			}
+		})
+	}
+}
+
+// TestTCSourceNATMaintainsChecksumComplete pins the uplink masquerade path to
+// the checksum contract the TC hook actually runs under. Rewriting the source
+// address moves the L4 checksum without a compensating change in the bytes
+// skb->csum covers, so the update has to reach the kernel through
+// bpf_l4_csum_replace for the running sum to stay valid.
+func TestTCSourceNATMaintainsChecksumComplete(t *testing.T) {
+	requireProgTestRun(t)
+
+	const ulTEID = 0x54435834
+
+	tcObjs := loadTCProgramConfig(t, true, 0, 1)
+
+	putTCPdrUplink(t, tcObjs, ulTEID, PdrInfo{
+		OuterHeaderRemoval: 0,
+		IMSI:               "001010000000001",
+		Far:                FarInfo{Action: 0x02},
+		Qer:                QerInfo{GateStatusUL: 0, MaxBitrateUL: 0},
+		UEIPv4:             canonicalUEv4,
+	})
+
+	for _, tc := range []struct {
+		name  string
+		proto uint8
+		l4    []byte
+	}{
+		{name: "udp", proto: 17, l4: udpDatagramChecksummed(ueIP, serverIP, 40000, 53, []byte{1, 2, 3, 4})},
+		{name: "tcp", proto: 6, l4: tcpSegmentChecksummed(ueIP, serverIP, 40000, 80, []byte{1, 2, 3, 4})},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			frame := uplinkGPDU(ulTEID, ipv4Packet(ueIP, serverIP, tc.proto, tc.l4))
+			runTCChecksumComplete(t, tcObjs.UpfEntryFunc, frame)
 		})
 	}
 }
